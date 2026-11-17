@@ -36,7 +36,8 @@ import { isStorageReadable } from '@/lib/safe-storage'
 //        qu'elle remplace (CLE_REMPLACEMENTS), sauf le dernier texte que son onglet a synchronisé avec le serveur ; un
 //        texte que son onglet a réécrit tel qu'il le lisait, au montage, avant qu'elle ne réponde, est noté comme les
 //        autres. Toute écriture faite ensuite dans un onglet efface la note : une valeur choisie par l'utilisateur dans
-//        un autre onglet, même identique à celle du serveur, n'est pas défaite ;
+//        un autre onglet, même identique à celle du serveur, n'est pas défaite — une réécriture automatique l'efface
+//        de même (voir les limites) ;
 //      - sinon, le serveur gagne si la clé a disparu, si la valeur en place est la sienne, ou l'une de celles qu'il a
 //        détenues avant d'après ce que cet onglet en sait ; toute autre valeur (la saisie d'un autre onglet, peut-être
 //        encore en route, qui l'envoie lui-même) est laissée en place pour cette relecture, sans repartir d'ici, et la
@@ -81,17 +82,34 @@ import { isStorageReadable } from '@/lib/safe-storage'
 // est perdue, comme avant. Un onglet chargé avant cette version ne note pas ce que sa restauration remplace, et une
 // écriture faite dans cet onglet-là n'efface aucune note : une modification d'ici que sa restauration remplace cède au
 // serveur, comme avant ; et s'il y écrit exactement le texte qu'une restauration notée a remis, la modification d'ici
-// repart par-dessus. Une valeur laissée en place par une relecture (garantie 2) peut rester à l'écran, différente de
-// celle du serveur, jusqu'à la relecture suivante.
+// repart par-dessus. Une réécriture automatique (section qui persiste son état à chaque rendu, action sur un document
+// qui réécrit à l'identique les deux listes de documents), faite dans un autre onglet après que sa restauration a
+// remplacé une modification d'ici, efface la note comme un choix de l'utilisateur : cette modification, qui attendait
+// son nouvel essai, cède alors au serveur, alors qu'avant ce miroir elle partait si l'utilisateur continuait dans
+// l'onglet. Rien ne distingue ici une réécriture automatique d'un choix ; il faudrait pour cela la date de chaque
+// valeur. La note de l'état ne garde que l'empreinte d'une modification : si une modification en échec est remplacée
+// dans le navigateur par la restauration d'un autre onglet avant que sa note n'y soit écrite (dans les 3 s qui suivent
+// la saisie, ou au passage de son onglet en arrière-plan), et que son onglet est rechargé ou fermé avant le nouvel
+// essai, son texte n'est plus nulle part et elle est perdue ; avant ce miroir, elle partait à la fermeture de l'onglet,
+// sans relire le serveur. Une suppression arrivée au serveur sans réponse, quand la
+// restauration d'un autre onglet a remis la valeur dans le navigateur pendant son envoi, est faite, mais la valeur
+// reste dans le navigateur, comme avant. Une valeur laissée en place par une relecture (garantie 2) peut rester à
+// l'écran, différente de celle du serveur, jusqu'à la relecture suivante.
 // Coût, pour une valeur de plusieurs Mo : son empreinte complète (lecture et tri de toute la valeur : 60 à 100 ms pour
 // une liste de 2,4 M caractères) n'est calculée qu'à l'écriture de l'état (au plus une fois toutes les 3 s pour une clé
 // en attente), quand le serveur est relu pour une clé en attente, quand un autre onglet a remplacé la valeur écrite
 // ici, et une fois par valeur envoyée sans réponse si le serveur détient autre chose que la valeur d'avant. L'empreinte
 // du seul texte (environ 5 ms) est calculée à chaque écriture de l'état, et deux fois quand une restauration remplace
 // une valeur que cet onglet n'a pas synchronisée, ou qu'une relecture trouve une note de remplacement pour une
-// modification d'ici. La restauration lit chaque valeur du navigateur avant de la remplacer ; chaque écriture
-// interceptée lit la note des remplacements, absente le plus souvent. Rien n'est calculé à la saisie, ni à la
-// confirmation d'un envoi tant que la valeur écrite ici est en place.
+// modification d'ici. Au chargement d'une page, c'est le cas de toute clé dont le texte du navigateur diffère de celui
+// du serveur, même sans aucune modification en attente : toute clé que l'application a écrite depuis la dernière
+// restauration de ce navigateur, l'ordre de ses champs n'étant pas celui de la base. La note des remplacements est
+// alors réécrite, et la valeur de chaque clé déjà notée relue (jusqu'à 50). La restauration lit chaque valeur du
+// navigateur avant de la remplacer ; chaque écriture interceptée lit la note des remplacements, absente le plus
+// souvent. Les valeurs envoyées sans réponse (envoisIncertains) restent en mémoire, jamais dans le navigateur : jusqu'à
+// cinq textes par clé pendant une panne d'écriture du serveur, soit jusqu'à quatre copies de plus d'une valeur de
+// plusieurs Mo. Rien n'est calculé à la saisie, ni à la confirmation d'un envoi tant que la valeur écrite ici est en
+// place.
 //
 // Stockage du navigateur (lot 5 Sentry, lib/safe-storage.ts) : un stockage illisible (bloqué par le navigateur,
 // SecurityError à la lecture de window.localStorage) coupe le miroir, la restauration et la migration. Un stockage
@@ -265,7 +283,10 @@ const derniereEcritureIci = new Map<string, string | null>()
 // Valeurs envoyées par cet onglet dont l'envoi a échoué sans réponse qui dise si le serveur les a enregistrées (réseau
 // coupé juste après l'envoi, réponse d'erreur), par clé et au plus ENVOIS_INCERTAINS_MAX : le serveur a pu les
 // enregistrer, et les y retrouver ne prouve pas une écriture faite ailleurs (relecture du 17/11/2026, réponse perdue).
-// Oubliées à la confirmation d'un envoi de la clé, quand le serveur gagne et au changement de compte.
+// Oubliées à la confirmation d'un envoi de la clé, quand le serveur gagne et au changement de compte. Gardées en
+// mémoire seulement, jamais écrites dans le navigateur (aucun quota en jeu) : le texte complet de chacune, soit pendant
+// une panne d'écriture du serveur jusqu'à quatre copies de plus d'une valeur de plusieurs Mo ; leur empreinte n'est
+// calculée que si elle sert (voir le coût en tête du module).
 const envoisIncertains = new Map<string, EnvoiIncertain[]>()
 // setItem d'origine, capturé à l'installation du miroir : l'hydratation écrit sans repasser par le miroir
 // (avant, chaque valeur reçue du serveur repartait en POST 500 ms plus tard).
