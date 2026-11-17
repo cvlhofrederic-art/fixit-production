@@ -17,6 +17,9 @@
 // Seconde relecture adverse du 16/11/2026 : une panne de la lecture du rattachement d'un sous-compte à sa société
 // passait pour une absence de rattachement (resolveCompanyId ne lit pas l'erreur), et l'offre partait sous le nom
 // générique « Entreprise BTP », sans trace. La route relit elle-même ce rattachement, erreur comprise.
+// Troisième relecture adverse (17/11/2026) : deux règles de cette lecture n'étaient couvertes par aucun test, celle du
+// rattachement actif unique (membre actif de deux sociétés : nom générique et son propre identifiant) et celle du gérant
+// et du super admin, qui ne lisent pas l'équipe. Le faux client applique désormais limit() comme la base.
 // Le faux client ne connaît que les tables et colonnes réelles de la production (tests/helpers/faux-supabase-marches),
 // profiles_artisan comprise.
 
@@ -175,6 +178,22 @@ describe('POST /api/marches/sous-traitance — publier une offre', () => {
       btp_company_id: FICHE_SOCIETE, btp_company_name: 'Bâtiment du Banc SARL', publisher_name: 'Bâtiment du Banc SARL',
       publisher_user_id: SOCIETE, source_type: 'btp_sous_traitance',
     })
+    // Le gérant est lui-même la société : son rattachement d'équipe n'est pas lu.
+    expect(base().sur('pro_team_members')).toHaveLength(0)
+  })
+
+  it('gérant déclaré et super admin : leur propre compte porte l’offre, l’équipe n’est pas lue, et une panne de celle-ci ne les bloque pas (inchangé)', async () => {
+    for (const app_metadata of [{ role: 'pro_societe', pro_team_role: 'GERANT' }, { role: 'super_admin' }]) {
+      base().vider()
+      base().repondre = enBase(appel => (appel.table === 'pro_team_members' ? { data: null, error: { message: 'délai dépassé' } } : fiches(appel)))
+      h.user = { id: SOCIETE, app_metadata }
+      expect((await publier()).status, app_metadata.role).toBe(201)
+      expect(base().sur('marches', 'insert')[0].donnees, app_metadata.role).toMatchObject({
+        btp_company_id: FICHE_SOCIETE, btp_company_name: 'Bâtiment du Banc SARL', publisher_user_id: SOCIETE,
+      })
+      expect(base().sur('pro_team_members'), app_metadata.role).toHaveLength(0)
+    }
+    expect(logger.error).not.toHaveBeenCalled()
   })
 
   it('la fiche d’une autre société : 403, rien n’est publié', async () => {
@@ -241,6 +260,28 @@ describe('POST /api/marches/sous-traitance — publier une offre', () => {
     expect(base().sur('pro_team_members', 'select')[0].filtres).toEqual(expect.arrayContaining([
       ['eq', 'user_id', COMPTE_SANS_SOCIETE], ['eq', 'is_active', true],
     ]))
+  })
+
+  it('sous-compte membre actif de deux sociétés : nom générique et son propre identifiant, jamais le nom de l’une d’elles', async () => {
+    const AUTRE_SOCIETE = '99999999-9999-4999-8999-999999999999'
+    h.user = { id: SOUS_COMPTE, app_metadata: { role: 'pro_societe', pro_team_role: 'CONDUCTEUR_TRAVAUX', company_id: SOCIETE } }
+    base().repondre = enBase(appel => {
+      // Deux rattachements actifs, rendus sans ordre garanti ; chacune des deux sociétés a sa fiche.
+      if (appel.table === 'pro_team_members') return { data: [{ company_id: SOCIETE }, { company_id: AUTRE_SOCIETE }], error: null }
+      const compteLu = appel.filtres.find(([, colonne]) => colonne === 'user_id')?.[2]
+      if (appel.table === 'profiles_artisan' && compteLu === AUTRE_SOCIETE) {
+        return { data: { id: FICHE_D_UNE_AUTRE, company_name: 'Charpentes de la Rive' }, error: null }
+      }
+      return fiches(appel)
+    })
+    const res = await publier(OFFRE_DU_SOUS_COMPTE)
+    expect(res.status).toBe(201)
+    expect(base().sur('marches', 'insert')[0].donnees).toMatchObject({
+      btp_company_id: SOUS_COMPTE, btp_company_name: 'Entreprise BTP', publisher_name: 'Entreprise BTP',
+      publisher_user_id: SOUS_COMPTE,
+    })
+    // La fiche cherchée est celle du compte lui-même, celle d'aucune des deux sociétés.
+    expect(base().sur('profiles_artisan', 'select')[0].filtres).toContainEqual(['eq', 'user_id', SOUS_COMPTE])
   })
 
   it('lecture de la fiche impossible (panne) : 500 et message d’erreur interne, pas un refus ; rien n’est publié', async () => {

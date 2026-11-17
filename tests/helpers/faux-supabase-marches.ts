@@ -25,6 +25,8 @@ export interface Appel {
   /** Ligne(s) écrite(s) par insert() / update(), ou arguments d'un rpc(). */
   donnees?: unknown
   filtres: Filtre[]
+  /** Nombre de lignes demandé par limit() : comme PostgREST, une réponse en liste n'en rend pas davantage. */
+  limite?: number
 }
 export interface ErreurBase { code?: string; message: string }
 export interface Reponse { data: unknown; error: ErreurBase | null }
@@ -144,7 +146,13 @@ export function creerFauxSupabase(): FauxSupabase {
   }
   const resultat = (appel: Appel): Promise<Reponse> => {
     const erreur = erreurDeSchema(appel)
-    return Promise.resolve(erreur ? { data: null, error: erreur } : base.repondre(appel))
+    if (erreur) return Promise.resolve({ data: null, error: erreur })
+    const reponse = base.repondre(appel)
+    // limit() borne la liste rendue, comme en production : une route qui demande trop peu de lignes le montre ici.
+    if (appel.limite !== undefined && Array.isArray(reponse.data)) {
+      return Promise.resolve({ ...reponse, data: reponse.data.slice(0, appel.limite) })
+    }
+    return Promise.resolve(reponse)
   }
   const constructeur = (appel: Appel) => {
     const b: Record<string, unknown> = {}
@@ -157,7 +165,7 @@ export function creerFauxSupabase(): FauxSupabase {
     }
     b.order = () => b
     b.range = () => b
-    b.limit = () => b
+    b.limit = (nombre: number) => { appel.limite = nombre; return b }
     b.single = () => resultat(appel)
     b.maybeSingle = () => resultat(appel)
     b.then = (ok: (v: Reponse) => unknown, ko?: (e: unknown) => unknown) => resultat(appel).then(ok, ko)
