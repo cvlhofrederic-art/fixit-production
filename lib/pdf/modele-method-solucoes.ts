@@ -71,6 +71,8 @@ const BAS_PAGE = PAGE_H - MARGE_BAS
 const INTERLIGNE = 1.36
 const HAUTEUR_ENTETE_TABLEAU = 5 + 7.2 * INTERLIGNE + 5
 const PAD_ARTICLE = 4.4
+/** Début d'un artigo plus haut qu'une page à garder sous son titre de capítulo : marge et trois lignes. */
+const DEBUT_ARTICLE_COUPE = PAD_ARTICLE + 3 * 11.5
 
 /** Espace insécable (U+00A0). */
 const ESP = String.fromCharCode(0xa0)
@@ -1264,12 +1266,18 @@ class DocumentMethod {
     }
     if (groupe.length > 0) groupes.push(groupe)
     const capacite = BAS_PAGE - MARGE_HAUT - HAUTEUR_ENTETE_TABLEAU
-    const hauteurGroupe = (g: Rangee[]) => somme(g.map((r) => r.hauteur))
-    this.placer(0, HAUTEUR_ENTETE_TABLEAU + Math.min(hauteurGroupe(groupes[0] ?? []), capacite))
+    // Ce qui doit tenir sur la page pour commencer un groupe : le groupe entier ; s'il dépasse une page (artigo
+    // très long, coupé ensuite entre ses lignes), son titre de capítulo et les premières lignes de l'artigo.
+    const debutInsecable = (g: Rangee[]) => {
+      const h = somme(g.map((r) => r.hauteur))
+      if (h <= capacite) return h
+      const premiere = g[0]?.hauteur ?? 0
+      return premiere <= capacite ? premiere + DEBUT_ARTICLE_COUPE : DEBUT_ARTICLE_COUPE
+    }
+    this.placer(0, HAUTEUR_ENTETE_TABLEAU + debutInsecable(groupes[0] ?? []))
     this.enteteTableau(cols)
     for (const g of groupes) {
-      const h = hauteurGroupe(g)
-      if (this.y + h > BAS_PAGE + TOLERANCE && h <= capacite) this.sautTableau(cols)
+      if (this.y + debutInsecable(g) > BAS_PAGE + TOLERANCE) this.sautTableau(cols)
       for (const r of g) r.dessiner()
     }
     this.finBloc(0)

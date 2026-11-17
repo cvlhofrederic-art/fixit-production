@@ -510,6 +510,11 @@ describe('Orçamento au gabarit Method Soluções', () => {
       tvaBreakdown: [{ rate: 23, base: 1000, amount: 230 }],
     }))
     expect(pdfLong.texte.length).toBeGreaterThan(4)
+    // Le tableau commence sur la première page (pas de page presque vide) et son en-tête revient sur chaque suite
+    expect(pdfLong.compact[0]).toContain(compact('DESIGNAÇÃO DOS TRABALHOS'))
+    expect(pdfLong.texte[0]).toContain('1.01 Artigo com descrição muito longa vg 1,00 1 000,00 1 000,00')
+    expect(pdfLong.texte[0]).toContain('Parágrafo 1 da descrição')
+    expect(pdfLong.compact[1]).toContain(compact('ART. DESIGNAÇÃO DOS TRABALHOS UN. QT. P. UNIT. TOTAL'))
     expect(tout(pdfLong)).toContain('Parágrafo 140 da descrição')
     sansDebordement(pdfLong)
 
