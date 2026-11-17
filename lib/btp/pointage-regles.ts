@@ -110,6 +110,15 @@ export interface ContextePointage {
   comptes?: Record<string, StatutCompte>
   /** Gérant seulement : false tant que la migration 20261116 (chantiers_btp.membres_ids) n'est pas appliquée. */
   affectationIndividuelle?: boolean
+  /**
+   * Téléphone de ce compte qui pointe en arrière-plan (appli Vitfix Pro, téléphone en poche ; migration 20261117) :
+   * son identifiant, que ce téléphone compare au sien ; null s'il n'y en a pas.
+   */
+  appareilArrierePlan?: string | null
+  /** Faux tant que la migration 20261117 (table pointage_appareils_btp) n'est pas appliquée. */
+  arrierePlanDisponible?: boolean
+  /** Vrai si le réglage ou les téléphones n'ont pas pu être lus (panne passagère) : l'appli ne retire rien. */
+  arrierePlanIncertain?: boolean
 }
 
 export const normaliserEmail = (email: unknown): string => (typeof email === 'string' ? email.trim().toLowerCase() : '')

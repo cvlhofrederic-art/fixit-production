@@ -50,7 +50,9 @@
 	<key>NSUserNotificationsUsageDescription</key>
 	<string>Vitfix Pro envoie des rappels pour vos interventions du lendemain afin que vous ne manquiez aucun rendez-vous.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Vitfix Pro utilise votre position GPS pour horodater et géolocaliser vos interventions (Proof of Work).</string>
+	<string>Vitfix Pro utilise votre position GPS pour horodater et géolocaliser vos interventions (Proof of Work) et, si vous l’activez, pointer votre arrivée et votre départ sur vos chantiers.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Si vous activez le pointage téléphone en poche, Vitfix Pro utilise votre position, même appli fermée, pour pointer votre arrivée et votre départ sur les chantiers qui vous sont affectés. Seuls le chantier et l’heure sont envoyés ; votre position reste sur le téléphone.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Vitfix Pro utilise la caméra pour photographier l&apos;état avant et après intervention (Proof of Work anti-fraude).</string>
 	<key>CFBundleURLTypes</key>
