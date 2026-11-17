@@ -63,7 +63,9 @@ import { isStorageReadable } from '@/lib/safe-storage'
 // sur le serveur : la première écriture qui y est sauvegardée lui retire toute nouvelle occasion. La valeur d'avant
 // ne date rien : si un autre appareil change la valeur puis la remet telle qu'elle était pendant qu'une modification
 // d'ici attend son nouvel essai, celle-ci repart par-dessus (avant ce miroir, elle partait si l'utilisateur continuait
-// dans l'onglet, et cédait sinon) ; le serveur date chaque valeur, mais ne transmet pas cette date. Les onglets d'un
+// dans l'onglet, et cédait sinon) ; le serveur date chaque valeur, mais ne transmet pas cette date. Une relecture faite
+// pendant qu'un envoi de cet onglet est en route, déjà enregistré par le serveur mais dont la réponse n'est pas encore
+// arrivée, donne raison au serveur : une saisie faite depuis dans cet onglet est perdue, comme avant. Les onglets d'un
 // même navigateur partagent son stockage mais pas leur mémoire : chacun ne connaît que ses propres envois, et les
 // notes de l'état ne sont écrites que 3 s après la saisie. Quand la même clé est modifiée dans deux onglets à quelques
 // secondes d'écart, la restauration de l'un (retour sur l'onglet, jeton rafraîchi : tous les onglets relisent le
@@ -732,13 +734,18 @@ function lireRemplacements(): Map<string, Remplacement> {
 /**
  * Empreinte du texte qu'une restauration va remplacer, quand il peut être la modification d'un autre onglet en attente
  * de son envoi : ni le texte du serveur, ni ce que cet onglet a écrit ou synchronisé lui-même. ABSENTE pour une clé que
- * cet onglet connaissait et qui a disparu du navigateur (suppression faite ailleurs). undefined sinon.
+ * cet onglet connaissait et qui a disparu du navigateur (suppression faite ailleurs). undefined sinon. Quand le texte
+ * en place a lui-même été écrit par une restauration (`precedent`, lue avant une saisie arrivée depuis par exemple),
+ * la note le suit et désigne toujours la modification qu'elle avait remplacée.
  */
-function texteRemplace(key: string, locale: string | null | undefined, enTexte: string): string | undefined {
+function texteRemplace(key: string, locale: string | null | undefined, enTexte: string, precedent: Remplacement | undefined): string | undefined {
   if (locale === undefined || locale === enTexte) return undefined
   if (locale === null) return derniereValeurSynchronisee.has(key) && derniereEcritureIci.get(key) !== null ? ABSENTE : undefined
-  if (locale === derniereEcritureIci.get(key) || locale === derniereValeurSynchronisee.get(key)) return undefined
-  return empreinteDuTexte(locale)
+  const ecritOuSynchroniseIci = locale === derniereEcritureIci.get(key) || locale === derniereValeurSynchronisee.get(key)
+  if (precedent === undefined) return ecritOuSynchroniseIci ? undefined : empreinteDuTexte(locale)
+  const enPlace = empreinteDuTexte(locale)
+  if (precedent[1] === enPlace) return precedent[0]
+  return ecritOuSynchroniseIci ? undefined : enPlace
 }
 
 /**
@@ -1487,7 +1494,7 @@ async function hydraterDepuisLeServeur(): Promise<ResultatHydratation> {
     }
     // Ce que la valeur du serveur remplace peut être la modification d'un autre onglet, en attente de son nouvel essai :
     // noté pour lui (noterRemplacements), avant que cet onglet n'oublie ce qu'il avait écrit ou synchronisé.
-    const remplace = texteRemplace(key, locale, enTexte)
+    const remplace = texteRemplace(key, locale, enTexte, remplacements.get(key))
     // Le serveur gagne : une écriture faite au montage avant la réponse (jeu par défaut, données de démo) ne part
     // pas écraser la vraie valeur. Retirée avant l'écriture locale, qui peut échouer (quota).
     pendingWrites.delete(key)

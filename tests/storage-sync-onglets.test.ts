@@ -902,6 +902,29 @@ describe('valeur inconnue à la place d’une saisie en attente', () => {
     expect(lire(CLIENTS)).toEqual(liste(1, 2, 3))
   })
 
+  it('la restauration lente de C remet une valeur plus ancienne, puis celle de B la valeur du serveur : au nouvel essai, la saisie part', async () => {
+    const A = await ouvrirUnOnglet()
+    const B = await ouvrirUnOnglet()
+    const C = await ouvrirUnOnglet()
+    const ecrireC = await restaurationRetardee(C) // C lit liste(1), sa réponse est lente
+    saisirDans(A, CLIENTS, liste(1, 2))
+    await ecoulerDebounce() // arrive
+    serveur.retenir = true
+    saisirDans(A, CLIENTS, liste(1, 2, 3))
+    await ecoulerDebounce() // envoi 0
+    await aboutir(0, 'reseau') // échec : la saisie attend son nouvel essai
+    serveur.retenir = false
+    await ecrireC() // C écrit liste(1) à la place de la saisie
+    await B.hydrateStorageFromServer() // B écrit liste(1, 2) à la place de ce qu'a écrit C
+    expect(lire(CLIENTS)).toEqual(liste(1, 2))
+    await nouvelEssai()
+    await relireDansLesDeuxOnglets(A, B)
+
+    // La note de C suit le texte qu'il a écrit : B la reporte sur le sien, sans quoi la saisie était perdue.
+    expect(serveur.espace[CLIENTS]).toEqual(liste(1, 2, 3))
+    expect(lire(CLIENTS)).toEqual(liste(1, 2, 3))
+  })
+
   it('la valeur en place est la saisie de B, encore en route : elle reste, sans que A ne renvoie la sienne, et l’emporte', async () => {
     const A = await ouvrirUnOnglet()
     const B = await ouvrirUnOnglet()
