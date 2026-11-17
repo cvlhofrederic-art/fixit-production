@@ -40,7 +40,10 @@
 // Contre-relecture du 17/11/2026 (huitième passe) : une suppression en échec repartait sans contrôle quand une relecture
 // de son propre onglet, faite pendant l'envoi, l'avait déjà tenue pour faite (clé absente du serveur) ; elle effaçait du
 // serveur la liste recréée entre-temps, dans un autre onglet ou sur un autre appareil. Elle n'est plus remise en attente
-// sans sa note.
+// sans sa note. Une restauration qui marquait plus de cinquante clés à la fois ne gardait que les dernières, toutes
+// sortes confondues : les marques de clés absentes (créées ailleurs) faisaient sauter celle d'une saisie remplacée, ou
+// les marques de textes remplacés celle d'une suppression, et la modification était perdue au nouvel essai. Chaque
+// sorte de marque a désormais sa propre limite.
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
@@ -1298,5 +1301,67 @@ describe('suppression en échec alors que la clé est revenue dans le navigateur
     expect(serveur.espace[CLIENTS]).toEqual(liste(1, 9))
     expect(lire(CLIENTS)).toEqual(liste(1, 9))
     expect(fauxFetch.mock.calls.filter(([, init]) => init?.method === 'DELETE')).toHaveLength(1)
+  })
+})
+
+// Huitième passe, scénarios CAP et CAPT du banc : une restauration qui marque plus de cinquante clés à la fois ne
+// gardait que les cinquante dernières, toutes sortes confondues, dans l'ordre où le serveur rend les clés.
+describe('restauration qui marque plus de cinquante clés à la fois', () => {
+  it.each([
+    ['continue de travailler dans A', true],
+    ['ne fait rien d’autre', false],
+  ] as const)('saisie de A en attente, un onglet neuf B restaure aussi soixante clés créées ailleurs ; l’utilisateur %s : au nouvel essai, la saisie part', async (_suite, continuer) => {
+    const A = await ouvrirUnOnglet()
+    serveur.retenir = true
+    saisirDans(A, CLIENTS, liste(1, 2))
+    await ecoulerDebounce()
+    await aboutir(0, 'reseau') // échec : la saisie attend son nouvel essai
+    serveur.retenir = false
+    // Clés créées sur un autre appareil, absentes de ce navigateur ; le serveur les rend après la liste des clients.
+    for (let i = 0; i < 60; i++) serveur.espace[`fixit_clients_a_extra_${String(i).padStart(2, '0')}`] = { n: i }
+    const B = await ouvrirUnOnglet() // remplace la saisie de A, et marque aussi les soixante clés absentes
+    expect(lire(CLIENTS)).toEqual(liste(1))
+    if (continuer) {
+      saisirDans(A, 'fixit_autre_a', { a: 1 })
+      await ecoulerDebounce()
+    }
+    await nouvelEssai()
+    await relireDansLesDeuxOnglets(A, B)
+
+    // Avant : les marques des clés absentes faisaient sauter celle de la saisie remplacée, perdue au nouvel essai.
+    expect(serveur.espace[CLIENTS]).toEqual(liste(1, 2))
+    expect(lire(CLIENTS)).toEqual(liste(1, 2))
+  })
+
+  it.each([
+    ['rangées avant la liste des clients', 'fixit_b'],
+    ['rangées après la liste des clients', 'fixit_zz_fiche_'],
+  ] as const)('suppression de A en attente, B restaure aussi cinquante-cinq fiches réécrites par l’application, %s : au nouvel essai, la suppression part', async (_cas, prefixe) => {
+    const fiches = Array.from({ length: 55 }, (_, i) => `${prefixe}${String(i).padStart(2, '0')}`)
+    for (const [i, cle] of fiches.entries()) serveur.espace[cle] = commeLaBase({ nom: `Fiche ${i}`, id: i })
+    // Navigateur déjà synchronisé : rien n'y manque à l'ouverture de A, aucune clé absente n'est marquée.
+    for (const [cle, valeur] of Object.entries(serveur.espace)) setItemDOrigine.call(window.localStorage, cle, JSON.stringify(commeLaBase(valeur)))
+    const A = await ouvrirUnOnglet()
+    // L'application réécrit les fiches dans son propre ordre des champs, qui n'est pas celui de la base.
+    for (const [i, cle] of fiches.entries()) saisirDans(A, cle, { nom: `Fiche ${i}`, id: i })
+    await ecoulerDebounce()
+    // L'état de A est écrit : la note de la suppression n'y entrera que 3 s après elle, quand B aura restauré.
+    await vi.advanceTimersByTimeAsync(3000)
+    serveur.retenir = true
+    supprimerDans(A, CLIENTS)
+    await ecoulerDebounce()
+    await aboutir(0, 'reseau') // échec : la suppression attend son nouvel essai
+    serveur.retenir = false
+    const B = await ouvrirUnOnglet() // remet la liste ; marque sa disparition et les 55 textes remplacés
+    expect(lire(CLIENTS)).toEqual(liste(1))
+    saisirDans(A, 'fixit_autre_a', { a: 1 })
+    await ecoulerDebounce()
+    await nouvelEssai()
+    await relireDansLesDeuxOnglets(A, B)
+
+    // Avant, fiches rangées après la liste : les marques des textes remplacés faisaient sauter celle de la disparition,
+    // et la suppression était abandonnée.
+    expect(serveur.espace).not.toHaveProperty(CLIENTS)
+    expect(window.localStorage.getItem(CLIENTS)).toBeNull()
   })
 })

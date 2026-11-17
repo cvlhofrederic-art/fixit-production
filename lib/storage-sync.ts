@@ -160,7 +160,10 @@ const DELAI_ETAT_MS = 3_000
  * envoyé au serveur.
  */
 const CLE_REMPLACEMENTS = 'vitfix_miroir_remplacements_v1'
-/** Remplacements gardés au plus dans le navigateur : au-delà, les plus anciens sont oubliés. */
+/**
+ * Remplacements gardés au plus dans le navigateur, pour chaque sorte (voir noterRemplacements) : au-delà, les plus
+ * anciens sont oubliés.
+ */
 const REMPLACEMENTS_MAX = 50
 /** Valeurs envoyées d'ici sans réponse gardées au plus par clé (voir envoisIncertains). */
 const ENVOIS_INCERTAINS_MAX = 5
@@ -782,7 +785,11 @@ function texteRemplace(key: string, locale: string | null | undefined, enTexte: 
 /**
  * Note dans le navigateur ce que la restauration vient de remplacer, pour l'onglet dont c'était la modification en
  * attente (remplaceeParUneRestauration), avec les remplacements déjà notés pour ce compte dont le texte écrit semble
- * encore en place (même longueur : son empreinte n'est pas recalculée), dans la limite de REMPLACEMENTS_MAX.
+ * encore en place (même longueur : son empreinte n'est pas recalculée), dans la limite de REMPLACEMENTS_MAX pour chaque
+ * sorte de marque — clé absente du navigateur, texte remplacé : les plus anciennes sont oubliées, puis les premières
+ * dans l'ordre du serveur. Une sorte ne fait pas oublier l'autre : les marques de clés absentes (celles d'un navigateur
+ * neuf, ou de clés créées ailleurs) faisaient sauter celle d'une saisie remplacée, et les marques de textes remplacés
+ * celle d'une suppression (contre-relecture du 17/11/2026, huitième passe).
  */
 function noterRemplacements(nouveaux: Map<string, Remplacement>): void {
   const compte = compteCourant
@@ -797,11 +804,14 @@ function noterRemplacements(nouveaux: Map<string, Remplacement>): void {
     }
   }
   for (const [cle, r] of nouveaux) gardes.set(cle, r)
-  const suivant: RegistreRemplacements = { v: 1, compte, remplacements: Object.fromEntries(Array.from(gardes).slice(-REMPLACEMENTS_MAX)) }
+  const tous = Array.from(gardes)
+  const dernieres = (absente: boolean) => tous.filter(([, r]) => (r[0] === ABSENTE) === absente).slice(-REMPLACEMENTS_MAX)
+  const retenus = new Set([...dernieres(true), ...dernieres(false)])
+  const suivant: RegistreRemplacements = { v: 1, compte, remplacements: Object.fromEntries(tous.filter(e => retenus.has(e))) }
   try {
     ecrireSansMiroir(CLE_REMPLACEMENTS, JSON.stringify(suivant))
   } catch (erreur) {
-    // Stockage plein : une modification remplacée par cette restauration cède au serveur, comme avant ce registre.
+    // Stockage plein : une modification remplacée par cette restauration cède au serveur (limite en tête du module).
     avertirUneFois('remplacements', '[storage-sync] remplacements de la restauration non notés dans le navigateur :', erreur)
   }
 }
