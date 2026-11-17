@@ -1712,10 +1712,16 @@ export const syndicImportGecondSchema = z.object({
 })
 
 // ── Pro Channel schema ─────────────────────────────────────────────────────
+// Types de message que l'écran « Canal Pro » envoie ou sait afficher
+// (components/dashboard/CanalProSection.tsx, MSG_TYPE_ICONS) : aucun autre n'est accepté.
+export const TYPES_MESSAGE_CANAL_PRO = [
+  'text', 'voice', 'voice_location', 'voice_status', 'voice_alert', 'voice_devis', 'file', 'photo', 'rapport', 'devis',
+] as const
+
 export const proChannelPostSchema = z.object({
   content: z.string().max(5000).optional(),
   contact_id: z.string().uuid().optional(),
-  type: z.string().max(50).optional(),
+  type: z.enum(TYPES_MESSAGE_CANAL_PRO).optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
 })
 

@@ -8,6 +8,7 @@ import Image from 'next/image'
 import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
 import { lireSessionSure } from '@/lib/auth/session-navigateur'
+import { absencesDetaillees, lireAbsencesArtisan } from '@/lib/absences-artisan'
 import { fetchAllBookings } from '@/lib/bookings-fetch'
 import { useTranslation } from '@/lib/i18n/context'
 import { SectionErrorBoundary } from '@/components/common/SectionErrorBoundary'
@@ -1608,7 +1609,8 @@ function DashboardPage() {
               // initial, sinon le refresh Fixy re-tronquerait CA/compteurs.
               fetchAllBookings(supabase, artisan.id),
               fetch(`/api/availability-services?artisan_id=${artisan.id}`),
-              fetch(`/api/artisan-absences?artisan_id=${artisan.id}`),
+              // Avec la session : le motif et le libellé des absences ne sont rendus qu'au propriétaire de la fiche.
+              lireAbsencesArtisan(artisan.id),
             ])
             const availJson = await availRes.json()
             setAvailability(availJson.data || [])
@@ -1620,7 +1622,9 @@ function DashboardPage() {
             } catch { toast.error('Erreur lors du chargement des disponibilités') }
             try {
               const absJson = await absRes.json()
-              if (absJson.data) setAbsences(absJson.data)
+              // Une réponse « dates seules » (session illisible ou non reconnue) ne remplace pas les absences affichées.
+              const absencesLues = absencesDetaillees(absJson.data)
+              if (absencesLues) setAbsences(absencesLues)
             } catch { toast.error('Erreur lors du chargement des absences') }
           }}
         />

@@ -5,6 +5,7 @@ import { createServerSupabaseClient } from '@/lib/supabase-server-component'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { validateBody, docNumberSchema } from '@/lib/validation'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { logger } from '@/lib/logger'
 
 /** Jeton de l'en-tête Authorization (même lecture que getAuthUser), ou null. */
 function jetonDeLEnTete(request: NextRequest): string | null {
@@ -69,7 +70,7 @@ export async function POST(request: NextRequest) {
   })
 
   if (error) {
-    console.error('[doc-number] RPC error:', error.message)
+    logger.error('[doc-number] RPC error:', { error: error.message })
     return NextResponse.json({ error: 'Erreur de génération du numéro' }, { status: 500 })
   }
 
