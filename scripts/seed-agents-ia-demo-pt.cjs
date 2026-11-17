@@ -1,7 +1,7 @@
 // ════════════════════════════════════════════════════════════════════════════
 // Seed démo agents IA Syndic PT
 // ════════════════════════════════════════════════════════════════════════════
-// Pour admincvlho@gmail.com (super_admin, uid 389c1c99-49f3-41d9-8bb3-e19ecbfb3dd4)
+// Pour le compte super_admin de démonstration (uid 389c1c99-49f3-41d9-8bb3-e19ecbfb3dd4)
 //
 // Crée :
 //   - 3 conversations Léa (contabilidade/legal) cohérentes avec les 4 immeubles

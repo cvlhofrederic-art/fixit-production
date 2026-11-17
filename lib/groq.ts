@@ -7,11 +7,33 @@
 //
 // Désactivable cas par cas via `config.disableCerebrasFallback: true` (utile
 // pour les évals où l'on veut tester un provider précis).
+//
+// Modèles par défaut : `lib/constants.ts` (gpt-oss depuis le retrait des Llama
+// par Groq). gpt-oss raisonne avant de répondre : budget majoré et effort `low`
+// par défaut (`lib/ai/raisonnement.ts`). Relais des agents artisan / BTP par
+// Workers AI quand Groq échoue : `lib/ai/relais.ts`.
 
 import { GROQ_API_URL, GROQ_MODEL_PRIMARY, GROQ_MODEL_FALLBACK } from '@/lib/constants'
 import { callCerebrasWithRetry, callCerebrasWithTools, hasCerebrasKey } from '@/lib/cerebras'
+import { parametresRaisonnement, type EffortRaisonnement } from '@/lib/ai/raisonnement'
+import { delaiApres429 } from '@/lib/ai/reessai'
 
 const GROQ_URL = GROQ_API_URL
+
+/** Échéance passée (aucune échéance : jamais). */
+function echeanceDepassee(echeance: number | undefined): boolean {
+  return echeance !== undefined && Date.now() >= echeance
+}
+
+/** Délai d'un appel : le délai habituel, ou le temps qui reste avant l'échéance s'il est plus court (1 s au moins). */
+function delaiAppel(habituel: number, echeance: number | undefined): number {
+  return echeance === undefined ? habituel : Math.max(1000, Math.min(habituel, echeance - Date.now()))
+}
+
+/** Une attente après un 429 qui finirait après l'échéance : inutile, on passe au modèle suivant. */
+function attenteDepasseEcheance(attenteMs: number, echeance: number | undefined): boolean {
+  return echeance !== undefined && Date.now() + attenteMs >= echeance
+}
 
 export interface GroqMessage {
   role: string
@@ -26,8 +48,11 @@ export interface GroqCallOptions {
   model?: string
   messages: GroqMessage[]
   temperature?: number
+  /** Budget de la réponse ; pour un modèle qui raisonne (gpt-oss), la marge de raisonnement s'y ajoute. */
   max_tokens?: number
   response_format?: { type: string }
+  /** Effort de raisonnement des modèles gpt-oss (défaut `low`) ; ignoré par les autres modèles, Claude et Workers AI. */
+  reasoning_effort?: EffortRaisonnement
 }
 
 export interface GroqResponse {
@@ -40,12 +65,13 @@ export interface GroqResponse {
  * Call Groq API with automatic retry on 429 (rate limit) and model fallback.
  *
  * - Retries up to `maxRetries` times per model on 429 with exponential backoff
- * - Falls back to `fallbackModel` (8B) if the primary model fails
+ * - Falls back to `fallbackModel` (GROQ_MODEL_FALLBACK, gpt-oss-20b) if the primary model fails
  * - Throws on all other errors after exhausting attempts
  */
 export async function callGroqWithRetry(
   opts: GroqCallOptions,
-  config: { maxRetries?: number; fallbackModel?: string; apiKey?: string; disableCerebrasFallback?: boolean } = {}
+  // echeance : horodatage (ms) au-delà duquel plus aucun essai ne part et l'appel en cours est coupé.
+  config: { maxRetries?: number; fallbackModel?: string; apiKey?: string; disableCerebrasFallback?: boolean; echeance?: number } = {}
 ): Promise<GroqResponse> {
   const apiKey = config.apiKey || process.env.GROQ_API_KEY || ''
   // Si Groq n'est pas configuré mais Cerebras l'est, on saute direct sur Cerebras.
@@ -56,6 +82,7 @@ export async function callGroqWithRetry(
         temperature: opts.temperature,
         max_tokens: opts.max_tokens,
         response_format: opts.response_format,
+        reasoning_effort: opts.reasoning_effort,
       }, { maxRetries: config.maxRetries })
     }
     throw new Error('GROQ_API_KEY not configured')
@@ -69,7 +96,12 @@ export async function callGroqWithRetry(
   let lastError: Error | null = null
 
   for (const currentModel of models) {
+    if (echeanceDepassee(config.echeance)) break
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      if (echeanceDepassee(config.echeance)) {
+        lastError ??= new Error('Groq: échéance dépassée')
+        break
+      }
       try {
         const res = await fetch(GROQ_URL, {
           method: 'POST',
@@ -81,19 +113,23 @@ export async function callGroqWithRetry(
             model: currentModel,
             messages: opts.messages,
             temperature: opts.temperature ?? 0.2,
-            max_tokens: opts.max_tokens ?? 3000,
+            ...parametresRaisonnement(currentModel, opts.max_tokens ?? 3000, opts.reasoning_effort),
             ...(opts.response_format ? { response_format: opts.response_format } : {}),
           }),
-          signal: AbortSignal.timeout(25000), // 25s timeout
+          signal: AbortSignal.timeout(delaiAppel(25000, config.echeance)), // 25s timeout, ou moins avant l'échéance
         })
 
         if (res.ok) return res.json()
 
         if (res.status === 429) {
-          const retryAfter = res.headers.get('retry-after')
-          const waitMs = retryAfter ? parseInt(retryAfter) * 1000 : (attempt + 1) * 2000
+          lastError = new Error(`Groq 429 on ${currentModel}`)
+          const waitMs = delaiApres429(res.headers.get('retry-after'), attempt, maxRetries)
+          if (waitMs === null || attenteDepasseEcheance(waitMs, config.echeance)) {
+            console.warn(`[groq] 429 on ${currentModel}, next model or provider`)
+            break
+          }
           console.warn(`[groq] 429 on ${currentModel}, retry ${attempt + 1}/${maxRetries}, wait ${waitMs}ms`)
-          await new Promise(r => setTimeout(r, Math.min(waitMs, 10000)))
+          await new Promise(r => setTimeout(r, waitMs))
           continue
         }
 
@@ -121,6 +157,7 @@ export async function callGroqWithRetry(
       temperature: opts.temperature,
       max_tokens: opts.max_tokens,
       response_format: opts.response_format,
+      reasoning_effort: opts.reasoning_effort,
     }, { maxRetries: config.maxRetries })
   }
 
@@ -136,7 +173,9 @@ export async function callGroqWithRetry(
  */
 export async function callGroqStreaming(
   opts: GroqCallOptions,
-  config: { maxRetries?: number; fallbackModel?: string; apiKey?: string } = {}
+  // onModel : appelé avec le modèle qui a ouvert le flux (le principal ou son repli).
+  // echeance : horodatage (ms) au-delà duquel plus aucun essai ne part (le flux une fois ouvert n'est pas coupé).
+  config: { maxRetries?: number; fallbackModel?: string; apiKey?: string; onModel?: (model: string) => void; echeance?: number } = {}
 ): Promise<ReadableStream<Uint8Array>> {
   const apiKey = config.apiKey || process.env.GROQ_API_KEY || ''
   if (!apiKey) throw new Error('GROQ_API_KEY not configured')
@@ -149,7 +188,12 @@ export async function callGroqStreaming(
   let lastError: Error | null = null
 
   for (const currentModel of models) {
+    if (echeanceDepassee(config.echeance)) break
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      if (echeanceDepassee(config.echeance)) {
+        lastError ??= new Error('Groq: échéance dépassée')
+        break
+      }
       try {
         const res = await fetch(GROQ_URL, {
           method: 'POST',
@@ -161,13 +205,15 @@ export async function callGroqStreaming(
             model: currentModel,
             messages: opts.messages,
             temperature: opts.temperature ?? 0.2,
-            max_tokens: opts.max_tokens ?? 3000,
+            // Le raisonnement de gpt-oss arrive dans `delta.reasoning`, ignoré ci-dessous : seul `delta.content` est rendu.
+            ...parametresRaisonnement(currentModel, opts.max_tokens ?? 3000, opts.reasoning_effort),
             stream: true,
           }),
-          signal: AbortSignal.timeout(30000),
+          signal: AbortSignal.timeout(delaiAppel(30000, config.echeance)),
         })
 
         if (res.ok && res.body) {
+          config.onModel?.(currentModel)
           // Transform Groq SSE stream → plain text chunks
           const reader = res.body.getReader()
           const decoder = new TextDecoder()
@@ -216,10 +262,14 @@ export async function callGroqStreaming(
         }
 
         if (res.status === 429) {
-          const retryAfter = res.headers.get('retry-after')
-          const waitMs = retryAfter ? parseInt(retryAfter) * 1000 : (attempt + 1) * 2000
+          lastError = new Error(`Groq stream 429 on ${currentModel}`)
+          const waitMs = delaiApres429(res.headers.get('retry-after'), attempt, maxRetries)
+          if (waitMs === null || attenteDepasseEcheance(waitMs, config.echeance)) {
+            console.warn(`[groq-stream] 429 on ${currentModel}, next model`)
+            break
+          }
           console.warn(`[groq-stream] 429 on ${currentModel}, retry ${attempt + 1}/${maxRetries}, wait ${waitMs}ms`)
-          await new Promise(r => setTimeout(r, Math.min(waitMs, 10000)))
+          await new Promise(r => setTimeout(r, waitMs))
           continue
         }
 
@@ -265,6 +315,8 @@ export interface GroqToolsCallOptions {
   tool_choice?: 'auto' | 'required' | 'none'
   temperature?: number
   max_tokens?: number
+  /** Effort de raisonnement des modèles gpt-oss (défaut `low`). */
+  reasoning_effort?: EffortRaisonnement
 }
 
 export interface GroqToolsResponse {
@@ -291,6 +343,7 @@ export async function callGroqWithTools(
         tool_choice: opts.tool_choice,
         temperature: opts.temperature,
         max_tokens: opts.max_tokens,
+        reasoning_effort: opts.reasoning_effort,
       }, { maxRetries: config.maxRetries })
     }
     throw new Error('GROQ_API_KEY not configured')
@@ -315,7 +368,7 @@ export async function callGroqWithTools(
             tools: opts.tools,
             tool_choice: opts.tool_choice ?? 'auto',
             temperature: opts.temperature ?? 0.2,
-            max_tokens: opts.max_tokens ?? 1500,
+            ...parametresRaisonnement(currentModel, opts.max_tokens ?? 1500, opts.reasoning_effort),
           }),
           signal: AbortSignal.timeout(25000),
         })
@@ -337,10 +390,14 @@ export async function callGroqWithTools(
         }
 
         if (res.status === 429) {
-          const retryAfter = res.headers.get('retry-after')
-          const waitMs = retryAfter ? parseInt(retryAfter) * 1000 : (attempt + 1) * 2000
+          lastError = new Error(`Groq tools 429 on ${currentModel}`)
+          const waitMs = delaiApres429(res.headers.get('retry-after'), attempt, maxRetries)
+          if (waitMs === null) {
+            console.warn(`[groq-tools] 429 on ${currentModel}, next model or provider`)
+            break
+          }
           console.warn(`[groq-tools] 429 on ${currentModel}, retry ${attempt + 1}/${maxRetries}, wait ${waitMs}ms`)
-          await new Promise(r => setTimeout(r, Math.min(waitMs, 10000)))
+          await new Promise(r => setTimeout(r, waitMs))
           continue
         }
 
@@ -368,6 +425,7 @@ export async function callGroqWithTools(
       tool_choice: opts.tool_choice,
       temperature: opts.temperature,
       max_tokens: opts.max_tokens,
+      reasoning_effort: opts.reasoning_effort,
     }, { maxRetries: config.maxRetries })
   }
 

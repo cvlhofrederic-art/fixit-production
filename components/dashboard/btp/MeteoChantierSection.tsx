@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useBTPData } from '@/lib/hooks/use-btp-data'
+import { adresseComplete, geocoderAdresse, type Pays } from '@/lib/btp/geocodage'
 import { supabase } from '@/lib/supabase'
 import { urlPrevisionsMeteo } from '@/lib/btp/meteo-url'
 
@@ -50,6 +51,11 @@ const WEATHER_ICONS: Record<number, string> = {
 function getWeatherIcon(code: number): string {
   return WEATHER_ICONS[code] || '🌤️'
 }
+
+// Libellés portugais, à l'affichage seulement, des statuts de chantier enregistrés en français (mêmes libellés que la
+// liste des obras) et du message d'erreur renvoyé par useBTPData (lib/hooks/use-btp-data.ts).
+const STATUTS_PT: Record<string, string> = { 'En attente': 'Pendente', 'En cours': 'Em curso', 'Terminé': 'Concluída', 'Annulé': 'Anulada' }
+const ERREURS_CHARGEMENT_PT: Record<string, string> = { 'Erreur de chargement': 'erro de carregamento' }
 
 function classifyAlert(forecast: DayForecast[]): {
   alert: AlertLevel
@@ -153,54 +159,91 @@ function extractShortCity(adresse: string): string {
   return candidates[0] || adresse
 }
 
-// Geocode with multi-strategy fallback: gouv.fr API → Nominatim → Open-Meteo
-async function geocodeAdresse(adresse: string): Promise<{ lat: number; lng: number } | null> {
-  if (!adresse?.trim()) return null
+// ── Position d'un chantier sans coordonnées, pour la météo seulement ──
+// Jamais enregistrée dans la fiche : la position de la fiche déclenche le pointage automatique des employés et ne se
+// règle que par un geste du gérant (bouton GPS de la fiche, Pointage › Affectations). Ici, une position approximative
+// (centre de la commune) suffit. Les résultats sont gardés sur le téléphone et les appels espacés d'au moins une seconde :
+// la politique d'utilisation de Nominatim l'exige, et l'adresse d'un chantier ne change pas à chaque visite.
 
-  // Strategy 1: api-adresse.data.gouv.fr — best for French addresses
+type PositionMeteo = { lat: number; lng: number }
+type PositionGardee = { lat?: number; lng?: number; t: number }
+
+const CLE_CACHE_POSITIONS = 'vitfix_btp_meteo_positions'
+const DUREE_CACHE_MS = 30 * 86_400_000
+/** Adresse introuvable : gardé moins longtemps (adresse corrigée entre-temps, service rétabli). */
+const DUREE_CACHE_ECHEC_MS = 86_400_000
+/** Au moins une seconde entre deux géocodages (Nominatim : une requête par seconde au plus). */
+const ECART_APPELS_MS = 1100
+
+function lirePositionsGardees(): Record<string, PositionGardee> {
   try {
-    const res = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(adresse)}&limit=1`, { signal: AbortSignal.timeout(4000) })
-    if (res.ok) {
-      const json = await res.json()
-      const feat = json.features?.[0]
-      if (feat?.geometry?.coordinates) {
-        const [lng, lat] = feat.geometry.coordinates
-        return { lat, lng }
-      }
-    }
-  } catch { /* timeout or network — try next */ }
+    const lu: unknown = JSON.parse(localStorage.getItem(CLE_CACHE_POSITIONS) ?? '{}')
+    return lu && typeof lu === 'object' ? (lu as Record<string, PositionGardee>) : {}
+  } catch {
+    // Stockage indisponible ou illisible : sans cache, les appels restent espacés.
+    return {}
+  }
+}
 
-  // Strategy 2: Nominatim (OpenStreetMap) — handles international + complex addresses
+function garderPositions(positions: Record<string, PositionGardee>): void {
   try {
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(adresse)}&limit=1&accept-language=fr`,
-      { headers: { 'User-Agent': 'Vitfix-BTP/1.0' }, signal: AbortSignal.timeout(4000) }
-    )
-    if (res.ok) {
-      const json = await res.json()
-      if (json[0]?.lat && json[0]?.lon) {
-        return { lat: parseFloat(json[0].lat), lng: parseFloat(json[0].lon) }
-      }
-    }
-  } catch { /* timeout or network — try next */ }
+    localStorage.setItem(CLE_CACHE_POSITIONS, JSON.stringify(positions))
+  } catch (err) {
+    console.warn('[MeteoChantier] positions non gardées :', err)
+  }
+}
 
-  // Strategy 3: Open-Meteo geocoding with extracted city names
-  const candidates = extractCityName(adresse)
-  for (const candidate of candidates) {
+/** Dernier recours : Open-Meteo par nom de ville, en préférant une ville du pays de la société (« Porto » au Portugal). */
+async function parOpenMeteo(adresse: string, pays: Pays): Promise<PositionMeteo | null> {
+  for (const candidate of extractCityName(adresse)) {
     try {
       const res = await fetch(
-        `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(candidate)}&count=1&language=fr`,
+        `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(candidate)}&count=5&language=${pays === 'PT' ? 'pt' : 'fr'}`,
         { signal: AbortSignal.timeout(4000) }
       )
       if (!res.ok) continue
-      const json = await res.json()
-      if (json.results?.[0]) {
-        return { lat: json.results[0].latitude, lng: json.results[0].longitude }
-      }
-    } catch { continue }
+      const json = await res.json() as { results?: Array<{ latitude: number; longitude: number; country_code?: string }> }
+      const resultat = json.results?.find(r => r.country_code === pays) ?? json.results?.[0]
+      if (resultat) return { lat: resultat.latitude, lng: resultat.longitude }
+    } catch (err) {
+      console.warn('[MeteoChantier] Open-Meteo injoignable :', err)
+    }
   }
-
   return null
+}
+
+/** Position pour la météo : l'adresse (même approximative : la BAN en France, Nominatim au Portugal), sinon la ville. */
+async function positionMeteo(chantier: ChantierItem, pays: Pays): Promise<PositionMeteo | null> {
+  const trouve = await geocoderAdresse(chantier, pays)
+  if (trouve) return { lat: trouve.latitude, lng: trouve.longitude }
+  return parOpenMeteo(chantier.ville?.trim() || chantier.adresse || '', pays)
+}
+
+/** Positions des chantiers sans coordonnées : gardées d'une visite à l'autre, une par une sinon, appels espacés. */
+async function positionsPourMeteo(chantiers: ChantierItem[], pays: Pays): Promise<Map<string, PositionMeteo>> {
+  const positions = new Map<string, PositionMeteo>()
+  const gardees = lirePositionsGardees()
+  let finDernierAppel = 0
+  let modifiees = false
+  for (const chantier of chantiers) {
+    if (chantier.latitude && chantier.longitude) continue
+    const cle = `${pays}|${adresseComplete(chantier)}`
+    const gardee = gardees[cle]
+    const trouveeAvant = typeof gardee?.lat === 'number' && typeof gardee.lng === 'number'
+    if (gardee && Date.now() - gardee.t < (trouveeAvant ? DUREE_CACHE_MS : DUREE_CACHE_ECHEC_MS)) {
+      if (trouveeAvant) positions.set(chantier.id, { lat: gardee.lat as number, lng: gardee.lng as number })
+      continue
+    }
+    const attente = finDernierAppel + ECART_APPELS_MS - Date.now()
+    if (attente > 0) await new Promise(resolve => setTimeout(resolve, attente))
+    const trouvee = await positionMeteo(chantier, pays)
+    finDernierAppel = Date.now()
+    gardees[cle] = trouvee ? { ...trouvee, t: finDernierAppel } : { t: finDernierAppel }
+    modifiees = true
+    if (trouvee) positions.set(chantier.id, trouvee)
+  }
+  if (modifiees) garderPositions(gardees)
+  return positions
 }
 
 function formatDayShort(dateStr: string, isPt?: boolean): string {
@@ -210,25 +253,28 @@ function formatDayShort(dateStr: string, isPt?: boolean): string {
   return `${weekday.charAt(0).toUpperCase() + weekday.slice(1)} ${day}`
 }
 
+// Seuils et consignes issus de la pratique française (le français cite le Code du travail et la réglementation) : en
+// portugais, les consignes de vent et de chaleur restent des conseils, sans interdiction ni texte de loi portugais qui
+// n'ont pas été vérifiés (limites du fabricant de la grue, plan de segurança e saúde de l'obra).
 function getBTPImpactMessage(day: DayForecast, isPt?: boolean): string | null {
   if (day.windMax > 60) {
     return isPt
-      ? `Vento ${Math.round(day.windMax)} km/h — INTERDIÇÃO andaimes e grua (regulamentação). Apenas trabalhos interiores autorizados.`
+      ? `Vento ${Math.round(day.windMax)} km/h. Trabalhos em andaimes e com grua desaconselhados: respeite os limites do fabricante e o plano de segurança e saúde. Prever trabalhos interiores.`
       : `Vent ${Math.round(day.windMax)} km/h — INTERDICTION échafaudage et grue (réglementation). Seuls les lots intérieurs autorisés.`
   }
   if (day.rain > 5) {
     return isPt
-      ? `Chuva ${day.rain}mm prevista — ravalement fachada desaconselhado. Prever trabalhos interiores ou adiar.`
+      ? `Chuva de ${day.rain} mm prevista. Rebocos de fachada desaconselhados. Prever trabalhos interiores ou adiar.`
       : `Pluie ${day.rain}mm prévue — ravalement façade déconseillé. Prévoir travaux intérieurs ou report.`
   }
   if (day.tempMin < 0) {
     return isPt
-      ? `Gelo ${Math.round(day.tempMin)}°C — sem alvenaria nem betão. Risco de fissuras.`
+      ? `Gelo ${Math.round(day.tempMin)} °C. Sem alvenaria nem betonagem. Risco de fissuração.`
       : `Gel ${Math.round(day.tempMin)}°C — pas de maçonnerie ni béton. Risque de fissuration.`
   }
   if (day.tempMax > 33) {
     return isPt
-      ? `Calor ${Math.round(day.tempMax)}°C — horários adaptados obrigatórios (Code du travail).`
+      ? `Calor ${Math.round(day.tempMax)} °C. Prever horários de trabalho adaptados.`
       : `Chaleur ${Math.round(day.tempMax)}°C — horaires aménagés obligatoires (Code du travail).`
   }
   return null
@@ -247,9 +293,9 @@ function getAlertBadgeLabel(m: ChantierMeteo, isPt?: boolean): { label: string; 
     if (day.rain > 5) return { label: `⚠️ ${isPt ? 'Chuva' : 'Pluie'} ${dayName.split(' ')[0].toLowerCase()}`, className: 'v5-badge v5-badge-orange' }
     if (day.tempMin < 0) return { label: `❄️ ${isPt ? 'Gelo' : 'Gel'} ${dayName.split(' ')[0].toLowerCase()}`, className: 'v5-badge v5-badge-orange' }
     if (day.tempMax > 33) return { label: `🌡️ ${isPt ? 'Calor' : 'Chaleur'} ${dayName.split(' ')[0].toLowerCase()}`, className: 'v5-badge v5-badge-orange' }
-    return { label: `⚠️ Vigilance ${dayName.split(' ')[0].toLowerCase()}`, className: 'v5-badge v5-badge-orange' }
+    return { label: `⚠️ ${isPt ? 'Aviso' : 'Vigilance'} ${dayName.split(' ')[0].toLowerCase()}`, className: 'v5-badge v5-badge-orange' }
   }
-  return { label: `✅ RAS`, className: 'v5-badge v5-badge-green' }
+  return { label: isPt ? '✅ Sem alertas' : `✅ RAS`, className: 'v5-badge v5-badge-green' }
 }
 
 export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt }: { userId: string; authUserId?: string; isPt?: boolean }) {
@@ -262,7 +308,7 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
     })
   }, [authUserIdProp])
 
-  const { items: chantiers, loading: chantiersLoading, error: chantiersError, update: updateChantier } = useBTPData<ChantierItem>({
+  const { items: chantiers, loading: chantiersLoading, error: chantiersError } = useBTPData<ChantierItem>({
     table: 'chantiers',
     artisanId: userId,
     userId: authUserId,
@@ -287,37 +333,35 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
     setDebugInfo('')
     const failedNames: string[] = []
     try {
+      const positions = await positionsPourMeteo(chantiersToFetch, isPt ? 'PT' : 'FR')
       const results: ChantierMeteo[] = (await Promise.all(
         chantiersToFetch.map(async (chantier) => {
           try {
             let lat = chantier.latitude
             let lng = chantier.longitude
             if (!lat || !lng) {
-              // Geocode using ville (preferred) then fallback to adresse
-              const searchTerm = chantier.ville?.trim() || chantier.adresse
-              const geo = await geocodeAdresse(searchTerm)
+              // Position pour la météo seulement, jamais enregistrée dans la fiche (voir positionsPourMeteo).
+              const geo = positions.get(chantier.id)
               if (!geo) {
                 failedNames.push(`${chantier.titre} (${chantier.ville || chantier.adresse})`)
                 return null
               }
               lat = geo.lat; lng = geo.lng
-              // Persist coordinates via useBTPData (route /api/btp avec owner_id check)
-              updateChantier(chantier.id, { latitude: lat, longitude: lng }).catch(err => console.warn('[MeteoChantier] Coord persist failed:', err))
             }
             // Coordonnées converties, bornées et passées en paramètres d'URL (lib/btp/meteo-url.ts)
             const urlMeteo = urlPrevisionsMeteo(lat, lng)
             if (!urlMeteo) {
-              failedNames.push(`${chantier.titre} (coordonnées invalides)`)
+              failedNames.push(`${chantier.titre} (${isPt ? 'coordenadas inválidas' : 'coordonnées invalides'})`)
               return null
             }
             const res = await fetch(urlMeteo)
             if (!res.ok) {
-              failedNames.push(`${chantier.titre} (API erreur ${res.status})`)
+              failedNames.push(`${chantier.titre} (${isPt ? 'erro da API' : 'API erreur'} ${res.status})`)
               return null
             }
             const json = await res.json()
             if (!json.daily?.time) {
-              failedNames.push(`${chantier.titre} (données vides)`)
+              failedNames.push(`${chantier.titre} (${isPt ? 'dados vazios' : 'données vides'})`)
               return null
             }
             const forecast: DayForecast[] = json.daily.time.map((date: string, i: number) => ({
@@ -331,7 +375,7 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
             const { alert, reasons, dayAlerts, mainAlertDay } = classifyAlert(forecast)
             return { chantier, forecast, alert, alertReasons: reasons, dayAlerts, mainAlertDay }
           } catch {
-            failedNames.push(`${chantier.titre} (exception)`)
+            failedNames.push(`${chantier.titre} (${isPt ? 'erro inesperado' : 'exception'})`)
             return null
           }
         })
@@ -339,13 +383,13 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
       setMeteoData(results)
       if (results.length === 0 && chantiersToFetch.length > 0) {
         setMeteoError(isPt
-          ? `Geocodificação falhou para ${chantiersToFetch.length} obra(s). Verifique os endereços.`
+          ? `A geocodificação falhou para ${chantiersToFetch.length} obra(s). Verifique as moradas.`
           : `Géocodage échoué pour ${chantiersToFetch.length} chantier(s). Vérifiez les adresses.`)
       } else if (failedNames.length > 0) {
-        setDebugInfo(`${isPt ? 'Meteorologia indisponível para' : 'Météo indisponible pour'} : ${failedNames.join(', ')}`)
+        setDebugInfo(`${isPt ? 'Meteorologia indisponível para:' : 'Météo indisponible pour :'} ${failedNames.join(', ')}`)
       }
     } catch {
-      setMeteoError(isPt ? 'Erro ao carregar dados meteorológicos.' : 'Erreur lors du chargement des données météo.')
+      setMeteoError(isPt ? 'Erro ao carregar os dados meteorológicos.' : 'Erreur lors du chargement des données météo.')
     } finally {
       setMeteoLoading(false)
     }
@@ -379,8 +423,8 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
     <div className="v5-fade">
       <div className="v5-pg-t" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div style={{ flex: 1 }}>
-          <h1>{isPt ? 'Meteorologia dos estaleiros' : 'Météo chantiers'}</h1>
-          <p>{isPt ? 'Previsões automáticas por estaleiro — dados Open-Meteo' : 'Prévisions automatiques par chantier — données Open-Meteo'}</p>
+          <h1>{isPt ? 'Meteorologia das obras' : 'Météo chantiers'}</h1>
+          <p>{isPt ? 'Previsões automáticas por obra · dados Open-Meteo' : 'Prévisions automatiques par chantier — données Open-Meteo'}</p>
         </div>
         {(meteoData.length > 0 || chantiersAvecLocalisation.length > 0) && (
           <button className="v5-btn v5-btn-p" onClick={() => { fetchedRef.current = true; setMeteoData([]); fetchMeteo(chantiersAvecLocalisation) }} disabled={meteoLoading}>
@@ -397,7 +441,7 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
           <div className="v5-kpi-s">{isPt ? 'sem alerta' : "pas d'alerte"}</div>
         </div>
         <div className="v5-kpi" style={{ borderLeft: '4px solid #FFA726' }}>
-          <div className="v5-kpi-l">Vigilance</div>
+          <div className="v5-kpi-l">{isPt ? 'Avisos' : 'Vigilance'}</div>
           <div className="v5-kpi-v" style={{ color: '#FFA726' }}>{meteoLoading ? '...' : nbVigilance}</div>
           <div className="v5-kpi-s">{isPt ? 'chuva prevista' : 'pluie prévue'}</div>
         </div>
@@ -417,7 +461,7 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
       {chantiersActifs.length === 0 && chantiers.length > 0 && (
         <div className="v5-al info" style={{ marginBottom: '.75rem', fontSize: 11 }}>
           {isPt
-            ? `${chantiers.length} obra(s) carregada(s), mas nenhuma ativa (estados: ${chantiers.map(c => c.statut).join(', ')}). Apenas obras "Em curso" ou "Em espera" são apresentadas.`
+            ? `${chantiers.length} obra(s) carregada(s), mas nenhuma ativa (estados: ${chantiers.map(c => STATUTS_PT[c.statut] ?? c.statut).join(', ')}). Apenas são apresentadas as obras "Em curso" ou "Pendente".`
             : `${chantiers.length} chantier(s) chargés, mais aucun actif (statuts: ${chantiers.map(c => c.statut).join(', ')}). Seuls les chantiers "En cours" ou "En attente" sont affichés.`
           }
         </div>
@@ -427,23 +471,23 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
       {chantiersActifs.length === 0 && chantiers.length === 0 && !chantiersError && (
         <div className="v5-card" style={{ textAlign: 'center', padding: '3rem 2rem' }}>
           <div style={{ fontSize: 48, marginBottom: 16 }}>🏗️</div>
-          <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>{isPt ? 'Nenhum estaleiro ativo' : 'Aucun chantier actif'}</h3>
-          <p style={{ fontSize: 12, color: '#999' }}>{isPt ? 'Crie estaleiros na secção Chantiers para ver as previsões meteorológicas.' : 'Créez des chantiers dans la section Chantiers pour voir les prévisions météo.'}</p>
+          <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>{isPt ? 'Nenhuma obra ativa' : 'Aucun chantier actif'}</h3>
+          <p style={{ fontSize: 12, color: '#999' }}>{isPt ? 'Crie obras na secção Obras para ver as previsões meteorológicas.' : 'Créez des chantiers dans la section Chantiers pour voir les prévisions météo.'}</p>
         </div>
       )}
 
       {/* Erreur chargement chantiers */}
       {chantiersError && (
         <div className="v5-al warning" style={{ marginBottom: '.75rem' }}>
-          {isPt ? 'Erro ao carregar obras.' : 'Erreur lors du chargement des chantiers.'}
-          <span style={{ fontSize: 11, color: '#666', marginLeft: 8 }}>({chantiersError})</span>
+          {isPt ? 'Erro ao carregar as obras.' : 'Erreur lors du chargement des chantiers.'}
+          <span style={{ fontSize: 11, color: '#666', marginLeft: 8 }}>({isPt ? ERREURS_CHARGEMENT_PT[chantiersError] ?? chantiersError : chantiersError})</span>
         </div>
       )}
 
       {/* Chantiers sans adresse */}
       {chantiersSansLocalisation.length > 0 && (
         <div className="v5-al info" style={{ marginBottom: '.75rem' }}>
-          <strong>{chantiersSansLocalisation.length} {isPt ? 'obra(s) sem cidade' : 'chantier(s) sans ville'}</strong> — {isPt ? 'Adicione a cidade na secção Chantiers para ativar a meteorologia.' : 'Ajoutez la ville dans la section Chantiers pour activer la météo.'}
+          <strong>{chantiersSansLocalisation.length} {isPt ? 'obra(s) sem cidade' : 'chantier(s) sans ville'}</strong>{isPt ? '. ' : ' — '}{isPt ? 'Adicione a cidade na secção Obras para ativar a meteorologia.' : 'Ajoutez la ville dans la section Chantiers pour activer la météo.'}
           <div style={{ fontSize: 11, marginTop: 4, color: '#666' }}>
             {chantiersSansLocalisation.slice(0, 5).map(c => c.titre).join(', ')}{chantiersSansLocalisation.length > 5 ? '...' : ''}
           </div>
@@ -468,7 +512,7 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
       {/* Section title */}
       {meteoData.length > 0 && (
         <div className="v5-st" style={{ marginBottom: '.5rem' }}>
-          {isPt ? 'Previsões 5 dias por obra' : 'Prévisions 5 jours par chantier'}
+          {isPt ? 'Previsões a 5 dias por obra' : 'Prévisions 5 jours par chantier'}
         </div>
       )}
 
@@ -520,7 +564,7 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
                     </div>
                     <div style={{ fontSize: 9, color: hasAlert ? textColor : '#999' }}>
                       {day.rain > 1
-                        ? `🌧 ${day.rain}mm`
+                        ? (isPt ? `🌧 ${day.rain} mm` : `🌧 ${day.rain}mm`)
                         : `💨 ${Math.round(day.windMax)} km/h`
                       }
                     </div>
@@ -544,7 +588,7 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
                 }}
               >
                 {m.alert === 'rouge' ? '🔴' : '⚠️'}{' '}
-                <strong>{worstDayLabel} :</strong>{' '}
+                <strong>{worstDayLabel}{isPt ? ':' : ' :'}</strong>{' '}
                 {impactMsg}
               </div>
             )}
@@ -566,9 +610,11 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
         </div>
       )}
 
-      {/* Seuils BTP */}
+      {/* Seuils BTP (pratique française, voir getBTPImpactMessage) */}
       <div style={{ fontSize: 10, color: '#999', marginTop: '.75rem' }}>
-        {isPt ? 'Limiares BTP' : 'Seuils BTP'} : 🌧️ {isPt ? 'Chuva' : 'Pluie'} {'>'} 5mm = {isPt ? 'sem ravalement/betão' : 'pas de ravalement/béton'} • 💨 {isPt ? 'Vento' : 'Vent'} {'>'} 60 km/h = {isPt ? 'paragem grua/andaimes' : 'arrêt grue/échafaudage'} • ❄️ {isPt ? 'Gelo = sem alvenaria' : 'Gel = pas de maçonnerie'} • 🌡️ {'>'} 33°C = {isPt ? 'horários adaptados obrigatórios' : 'horaires aménagés obligatoires'}
+        {isPt
+          ? 'Limiares de obra: 🌧️ Chuva > 5 mm = sem rebocos/betonagem • 💨 Vento > 60 km/h = grua/andaimes desaconselhados • ❄️ Gelo = sem alvenaria • 🌡️ > 33 °C = horários adaptados'
+          : <>Seuils BTP : 🌧️ Pluie {'>'} 5mm = pas de ravalement/béton • 💨 Vent {'>'} 60 km/h = arrêt grue/échafaudage • ❄️ Gel = pas de maçonnerie • 🌡️ {'>'} 33°C = horaires aménagés obligatoires</>}
       </div>
     </div>
   )

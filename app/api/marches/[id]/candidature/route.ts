@@ -4,6 +4,7 @@ import { getAuthUser } from '@/lib/auth-helpers'
 import { createCandidatureSchema, validateBody, VALID_UUID } from '@/lib/validation'
 import { parsePagination, logger } from '@/lib/logger'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { CACHE_PERSONNEL } from '@/lib/marches-public'
 
 // POST /api/marches/[id]/candidature — soumettre une candidature (artisan pro uniquement)
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -151,6 +152,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 }
 
 // GET /api/marches/[id]/candidature — lister les candidatures
+// Chaque réponse est propre à un compte (prix, délais, textes des candidatures) : aucune n'est gardée par un cache.
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const ip = getClientIP(request)
   if (!(await checkRateLimit(`marches_candidature_get_${ip}`, 30, 60_000))) return rateLimitResponse()
@@ -190,7 +192,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
     }
 
-    return NextResponse.json({ candidatures: candidatures || [] })
+    return NextResponse.json({ candidatures: candidatures || [] }, { headers: { 'Cache-Control': CACHE_PERSONNEL } })
   }
 
   // Vérifier si l'utilisateur est le publisher du marché (via token)
@@ -216,7 +218,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
       }
 
-      return NextResponse.json({ candidatures: candidatures || [] })
+      return NextResponse.json({ candidatures: candidatures || [] }, { headers: { 'Cache-Control': CACHE_PERSONNEL } })
     }
   }
 
@@ -242,5 +244,5 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
   }
 
-  return NextResponse.json({ candidatures: candidatures || [] })
+  return NextResponse.json({ candidatures: candidatures || [] }, { headers: { 'Cache-Control': CACHE_PERSONNEL } })
 }

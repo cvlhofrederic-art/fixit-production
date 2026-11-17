@@ -8,6 +8,7 @@ import { useThemeVars } from './useThemeVars'
 import { getWalletDocuments, type WalletDocConfig, type WalletDocObtenir } from '@/lib/walletConformite'
 import { resolveCategoriesWithNafFallback } from '@/lib/naf-to-categories'
 import { useLiensFrais } from '@/hooks/useLiensFrais'
+import { getWalletDocumentsPt, caseDocumentDejaDepose } from '@/lib/wallet-conformite-pt'
 
 type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
 
@@ -191,11 +192,11 @@ function DocumentRow({
           {/* Condition + validité */}
           {docDef.condition ? (
             <div style={{ fontSize: 11, color: '#D97706', marginTop: 2 }}>
-              ⚠ {docDef.condition} — {isPt ? 'validade' : 'validité'} : {docDef.validite}
+              {isPt ? `⚠ ${docDef.condition}, validade: ${docDef.validite}` : <>⚠ {docDef.condition} — validité : {docDef.validite}</>}
             </div>
           ) : (
             <div style={{ fontSize: 11, color: tv.textMuted, marginTop: 2 }}>
-              {isPt ? 'Validade' : 'Validité'} : {docDef.validite}
+              {isPt ? 'Validade:' : 'Validité :'} {docDef.validite}
             </div>
           )}
 
@@ -231,13 +232,13 @@ function DocumentRow({
                 <>
                   <div style={{ fontWeight: 700, color: '#16A34A', marginBottom: 2 }}>{isPt ? '✅ Documento verificado' : '✅ Document vérifié'}</div>
                   {scanResult.antiFraud?.nameMatch && (
-                    <div style={{ color: '#166534' }}>• {isPt ? 'Nome correspondente' : 'Nom correspondant'} : {scanResult.antiFraud.nameOnDoc}</div>
+                    <div style={{ color: '#166534' }}>• {isPt ? 'Nome correspondente:' : 'Nom correspondant :'} {scanResult.antiFraud.nameOnDoc}</div>
                   )}
                   {scanResult.extractedData?.insurerName && (
-                    <div style={{ color: '#166534' }}>• {isPt ? 'Seguradora' : 'Assureur'} : {scanResult.extractedData.insurerName}</div>
+                    <div style={{ color: '#166534' }}>• {isPt ? 'Seguradora:' : 'Assureur :'} {scanResult.extractedData.insurerName}</div>
                   )}
                   {scanResult.extractedData?.contractNumber && (
-                    <div style={{ color: '#166534' }}>• {isPt ? 'Apólice n°' : 'Contrat n°'} {scanResult.extractedData.contractNumber}</div>
+                    <div style={{ color: '#166534' }}>• {isPt ? 'Apólice n.º' : 'Contrat n°'} {scanResult.extractedData.contractNumber}</div>
                   )}
                   {scanResult.extractedData?.validTo && (
                     <div style={{ color: '#166534' }}>• {isPt ? 'Válido até' : 'Valide jusqu\'au'} {new Date(scanResult.extractedData.validTo).toLocaleDateString(dateLocale)}</div>
@@ -248,7 +249,9 @@ function DocumentRow({
                 </>
               )}
               <div style={{ fontSize: 10, color: tv.textMuted, marginTop: 2 }}>
-                {isPt ? 'Tipo detetado' : 'Type détecté'} : {scanResult.docType} — {isPt ? 'confiança' : 'confiance'} : {Math.round((scanResult.confidence ?? 0) * 100)}%
+                {isPt
+                  ? `Tipo detetado: ${scanResult.docType}, confiança: ${Math.round((scanResult.confidence ?? 0) * 100)}%`
+                  : <>Type détecté : {scanResult.docType} — confiance : {Math.round((scanResult.confidence ?? 0) * 100)}%</>}
               </div>
             </div>
           )}
@@ -347,10 +350,18 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
   const rawCategories = (artisan as unknown as { categories?: string | string[] })?.categories ?? artisan?.category
   const nafCode = (artisan as unknown as { naf_code?: string })?.naf_code
   const resolvedCategories = resolveCategoriesWithNafFallback(rawCategories, nafCode)
-  const { docs: baseDocs, metierLabel, fallback } = getWalletDocuments(resolvedCategories.length > 0 ? resolvedCategories : undefined)
+  const legalForm = ((artisan as unknown as { legal_form?: string })?.legal_form) || null
+  // Portugal : jeu de documents portugais (lib/wallet-conformite-pt.ts), le même pour l'artisan et la société BTP,
+  // plus l'habilitation IMPIC et le plan de sécurité pour le bâtiment, et le pacte social pour la société BTP.
+  const jeuPortugais = isPt
+    ? getWalletDocumentsPt({ categories: resolvedCategories, legalForm, societeBtp: orgRole === 'pro_societe' })
+    : null
+  const { docs: baseDocs, metierLabel, fallback } = jeuPortugais
+    ? { docs: jeuPortugais.docs, metierLabel: null, fallback: jeuPortugais.fallback }
+    : getWalletDocuments(resolvedCategories.length > 0 ? resolvedCategories : undefined)
 
   // Pour pro_societe : ajouter les docs société extra non déjà présents (Statuts + Attestation fiscale)
-  const WALLET_DOCS = isSociete
+  const listeDocuments = isSociete && !jeuPortugais
     ? [...baseDocs, ...DOCS_SOCIETE_EXTRA.filter(extra => !baseDocs.some(d => d.id === extra.id))]
     : baseDocs
 
@@ -374,6 +385,15 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
       return migrated
     } catch { return {} }
   })
+  // En portugais, un document déjà déposé dans une case absente de la liste portugaise (case française) reste affiché.
+  const WALLET_DOCS = jeuPortugais
+    ? [
+        ...listeDocuments,
+        ...Object.entries(docs)
+          .filter(([id, doc]) => !!doc?.url && !listeDocuments.some(d => d.id === id))
+          .map(([id, doc]) => caseDocumentDejaDepose(id, doc.name)),
+      ]
+    : listeDocuments
   const [uploading, setUploading] = useState<Record<string, boolean>>({})
   const [removing, setRemoving] = useState<Record<string, boolean>>({})
   const [savingExpiry, setSavingExpiry] = useState<Record<string, boolean>>({})
@@ -514,11 +534,13 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
   const obligatoryMissing = obligatoryDocs.filter(d => getStatus(docs[d.id]) !== 'valid' && getStatus(docs[d.id]) !== 'expiring').length
 
   const handleSendDossier = () => {
-    const lines = WALLET_DOCS.filter(d => docs[d.id]?.url).map(d => `${d.nom} : ${lienDocument(docs[d.id].url)}`).join('\n')
-    const subject = encodeURIComponent(`${t('proDash.wallet.dossierConformiteSubject')} — ${artisan?.company_name || 'Artisan'}`)
+    const lines = WALLET_DOCS.filter(d => docs[d.id]?.url).map(d => `${d.nom}${isPt ? ':' : ' :'} ${lienDocument(docs[d.id].url)}`).join('\n')
+    const subject = encodeURIComponent(isPt
+      ? `${t('proDash.wallet.dossierConformiteSubject')}: ${artisan?.company_name || 'Profissional'}`
+      : `${t('proDash.wallet.dossierConformiteSubject')} — ${artisan?.company_name || 'Artisan'}`)
     const greeting = locale === 'pt' ? 'Olá' : 'Bonjour'
     const closing = locale === 'pt' ? 'Com os melhores cumprimentos' : 'Cordialement'
-    const body = encodeURIComponent(`${greeting},\n\n${t('proDash.wallet.dossierConformiteBody')} ${artisan?.company_name || ''} :\n\n${lines}\n\n${closing},\n${artisan?.company_name || ''}${artisan?.phone ? '\n' + artisan.phone : ''}`)
+    const body = encodeURIComponent(`${greeting},\n\n${t('proDash.wallet.dossierConformiteBody')} ${artisan?.company_name || ''}${isPt ? ':' : ' :'}\n\n${lines}\n\n${closing},\n${artisan?.company_name || ''}${artisan?.phone ? '\n' + artisan.phone : ''}`)
     window.open(`mailto:${encodeURIComponent(sendEmail || '')}?subject=${subject}&body=${body}`)
   }
 
@@ -595,7 +617,7 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
                   <div className="v5-w-doc-exp">
                     {doc?.expiryDate
                       ? `${t('proDash.wallet.expireLe')} ${new Date(doc.expiryDate).toLocaleDateString(dateLocale)}`
-                      : docDef.validite ? `${isPt ? 'Validade' : 'Validité'} : ${docDef.validite}` : docDef.description
+                      : docDef.validite ? `${isPt ? 'Validade:' : 'Validité :'} ${docDef.validite}` : docDef.description
                     }
                   </div>
                   {/* Scan result inline */}
@@ -648,7 +670,7 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
                       {savingExpiry[docDef.id] ? '⏳' : '📅'}
                     </button>
                   )}
-                  <ObtainButton doc={docDef} legalForm={((artisan as unknown as { legal_form?: string })?.legal_form) || null} isPt={isPt} />
+                  <ObtainButton doc={docDef} legalForm={legalForm} isPt={isPt} />
                 </div>
               </div>
             )

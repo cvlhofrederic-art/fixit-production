@@ -139,7 +139,7 @@ export const FRAIS_ANNEXES_UNITES = [
 
 // CustomTable — sections de prestations additionnelles renommables/masquables.
 // Parité avec le système BTP V3 : permet à un artisan EI de créer plusieurs
-// blocs de prestations (ex. "DEPENSES PARC COROT (0F25-602G)") groupés par
+// blocs de prestations (ex. "TRAVAUX RÉSIDENCE EXEMPLE (LOT 2)") groupés par
 // catégorie sémantique (labor / material / frais) ou neutres.
 //
 // Le rendu PDF V2 utilise mode_affichage='sections' pour grouper les lignes

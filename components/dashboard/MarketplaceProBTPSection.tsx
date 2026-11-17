@@ -146,7 +146,7 @@ function DemandeModal({ listing, isPt, onClose, onSubmit, isV5 }: {
         </div>
         <div className={isV5 ? '' : 'v22-modal-body'} style={isV5 ? { padding: '1rem' } : undefined}>
           <p style={{ fontSize: 12, color: tv.textMuted, marginBottom: 14 }}>
-            <strong style={{ color: tv.text }}>{listing.title}</strong>{listing.localisation ? ` — ${listing.localisation}` : ''}
+            <strong style={{ color: tv.text }}>{listing.title}</strong>{listing.localisation ? (isPt ? ` · ${listing.localisation}` : ` — ${listing.localisation}`) : ''}
           </p>
 
           {listing.type_annonce === 'vente_location' && (
@@ -165,18 +165,18 @@ function DemandeModal({ listing, isPt, onClose, onSubmit, isV5 }: {
           {(type === 'location') && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
               <div className={isV5 ? 'v5-fg' : ''}>
-                <label className={isV5 ? 'v5-fl' : 'v22-label'}>{isPt ? 'Data início' : 'Date début'}</label>
+                <label className={isV5 ? 'v5-fl' : 'v22-label'}>{isPt ? 'Data de início' : 'Date début'}</label>
                 <input type="date" value={dateDebut} onChange={e => setDateDebut(e.target.value)} className={isV5 ? 'v5-fi' : 'v22-form-input'} />
               </div>
               <div className={isV5 ? 'v5-fg' : ''}>
-                <label className={isV5 ? 'v5-fl' : 'v22-label'}>{isPt ? 'Data fim' : 'Date fin'}</label>
+                <label className={isV5 ? 'v5-fl' : 'v22-label'}>{isPt ? 'Data de fim' : 'Date fin'}</label>
                 <input type="date" value={dateFin} onChange={e => setDateFin(e.target.value)} className={isV5 ? 'v5-fi' : 'v22-form-input'} />
               </div>
             </div>
           )}
 
           <div className={isV5 ? 'v5-fg' : ''} style={{ marginBottom: 14 }}>
-            <label className={isV5 ? 'v5-fl' : 'v22-label'}>{isPt ? 'Preço proposto (€)' : 'Prix proposé (€)'} <span style={{ fontWeight: 400, color: tv.textMuted }}>{isPt ? '— opcional' : '— optionnel'}</span></label>
+            <label className={isV5 ? 'v5-fl' : 'v22-label'}>{isPt ? 'Preço proposto (€)' : 'Prix proposé (€)'} <span style={{ fontWeight: 400, color: tv.textMuted }}>{isPt ? '(opcional)' : '— optionnel'}</span></label>
             <input type="number" value={prixPropose} onChange={e => setPrixPropose(e.target.value)} className={isV5 ? 'v5-fi' : 'v22-form-input'} placeholder={isPt ? 'Deixar vazio = preço anunciado' : 'Laisser vide = prix affiché'} />
           </div>
 
@@ -256,7 +256,7 @@ function AnnonceForm({ isPt, artisan, initial, onSave, onCancel, isV5 }: {
 
         <div className={fgCls}>
           <label className={labelCls}>{isPt ? 'Título *' : 'Titre *'}</label>
-          <input value={title} onChange={e => setTitle(e.target.value)} className={inputCls} placeholder={isPt ? 'Ex: Pelleteuse 3T Caterpillar 308' : 'Ex: Pelleteuse 3T Caterpillar 308'} />
+          <input value={title} onChange={e => setTitle(e.target.value)} className={inputCls} placeholder={isPt ? 'Ex.: Escavadora 3 t Caterpillar 308' : 'Ex: Pelleteuse 3T Caterpillar 308'} />
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -282,7 +282,7 @@ function AnnonceForm({ isPt, artisan, initial, onSave, onCancel, isV5 }: {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10 }}>
           {(type === 'vente' || type === 'vente_location') && (
             <div className={fgCls}>
-              <label className={labelCls}>{isPt ? 'Preço venda (€)' : 'Prix vente (€)'}</label>
+              <label className={labelCls}>{isPt ? 'Preço de venda (€)' : 'Prix vente (€)'}</label>
               <input type="number" value={prixVente} onChange={e => setPrixVente(e.target.value)} className={inputCls} placeholder="0" />
             </div>
           )}
@@ -328,14 +328,14 @@ function AnnonceForm({ isPt, artisan, initial, onSave, onCancel, isV5 }: {
           </div>
           <div className={fgCls}>
             <label className={labelCls}>{isPt ? 'Localização' : 'Localisation'}</label>
-            <input value={localisation} onChange={e => setLocalisation(e.target.value)} className={inputCls} placeholder={isPt ? 'Ex: Porto' : 'Ex: Marseille'} />
+            <input value={localisation} onChange={e => setLocalisation(e.target.value)} className={inputCls} placeholder={isPt ? 'Ex.: Porto' : 'Ex: Marseille'} />
           </div>
         </div>
 
         {(type === 'location' || type === 'vente_location') && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <div className={fgCls}>
-              <label className={labelCls}>{isPt ? 'Disponível de' : 'Disponible du'}</label>
+              <label className={labelCls}>{isPt ? 'Disponível a partir de' : 'Disponible du'}</label>
               <input type="date" value={dispo_de} onChange={e => setDispoDe(e.target.value)} className={inputCls} />
             </div>
             <div className={fgCls}>
@@ -529,7 +529,7 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
   // ── Tabs ───────────────────────────────────────────────────────────────────
   const tabs = [
     { key: 'parcourir' as Tab, icon: <Search size={13} />, label: isPt ? 'Explorar' : 'Parcourir', count: listings.length },
-    { key: 'mes_annonces' as Tab, icon: <Package size={13} />, label: isPt ? 'Meus anúncios' : 'Mes annonces', count: myListings.length, hidden: !isProSociete },
+    { key: 'mes_annonces' as Tab, icon: <Package size={13} />, label: isPt ? 'Os meus anúncios' : 'Mes annonces', count: myListings.length, hidden: !isProSociete },
     { key: 'nouvelle_annonce' as Tab, icon: <PlusCircle size={13} />, label: isPt ? 'Novo anúncio' : 'Nouvelle annonce', hidden: !isProSociete },
     { key: 'demandes' as Tab, icon: <Send size={13} />, label: isPt ? 'Pedidos' : 'Demandes', count: demandes.filter(d => d.status === 'pending').length || undefined, hidden: !isProSociete },
     { key: 'stats' as Tab, icon: <BarChart3 size={13} />, label: isPt ? 'Estatísticas' : 'Statistiques', hidden: !isProSociete },
@@ -557,24 +557,24 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
       {isV5 ? (
         <>
           <div className="v5-pg-t">
-            <h1>Marketplace BTP</h1>
-            <p>Achat/vente de mat&eacute;riaux et &eacute;quipements entre pros</p>
+            <h1>{isPt ? 'Marketplace da construção' : 'Marketplace BTP'}</h1>
+            <p>{isPt ? 'Compra e venda de materiais e equipamentos entre profissionais' : <>Achat/vente de mat&eacute;riaux et &eacute;quipements entre pros</>}</p>
           </div>
           <div className="v5-search">
             <input className="v5-search-in" placeholder={isPt ? 'Pesquisar...' : 'Rechercher...'} style={{ maxWidth: 300 }} />
             <button className="v5-btn v5-btn-p" onClick={() => { setEditListing(null); setTab('nouvelle_annonce') }}>
-              + {isPt ? 'Déposer annonce' : 'Déposer annonce'}
+              + {isPt ? 'Publicar anúncio' : 'Déposer annonce'}
             </button>
           </div>
         </>
       ) : (
         <div className="v22-page-header">
           <div>
-            <h1 className="v22-page-title">Marketplace PRO BTP</h1>
+            <h1 className="v22-page-title">{isPt ? 'Marketplace PRO da construção' : 'Marketplace PRO BTP'}</h1>
             <p className="v22-page-sub">
               {isAE
                 ? (isPt ? 'Mini-máquinas e material leve disponíveis para aluguer' : 'Mini-engins et matériel léger disponibles à la location')
-                : (isPt ? 'Aluguer & venda de equipamento entre profissionais' : 'Location & vente de matériel entre professionnels')}
+                : (isPt ? 'Aluguer e venda de equipamento entre profissionais' : 'Location & vente de matériel entre professionnels')}
             </p>
           </div>
           {isProSociete && (
@@ -616,13 +616,13 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
           {/* Filtres */}
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: isV5 ? '0.75rem' : 20 }}>
             <select value={filterCat} onChange={e => setFilterCat(e.target.value)} className={isV5 ? 'v5-fi' : 'v22-form-input'} style={{ width: 'auto', padding: '6px 10px', fontSize: 12 }}>
-              <option value="">{isPt ? '— Todas as categorias —' : '— Toutes catégories —'}</option>
+              <option value="">{isPt ? 'Todas as categorias' : '— Toutes catégories —'}</option>
               {MARKETPLACE_CATEGORIES.filter(c => !aeOnly || c.accessibleAE).map(c => (
                 <option key={c.id} value={c.id}>{c.emoji} {isPt ? c.labelPt : c.labelFr}</option>
               ))}
             </select>
             <select value={filterType} onChange={e => setFilterType(e.target.value)} className={isV5 ? 'v5-fi' : 'v22-form-input'} style={{ width: 'auto', padding: '6px 10px', fontSize: 12 }}>
-              <option value="">{isPt ? '— Venda & aluguer —' : '— Vente & location —'}</option>
+              <option value="">{isPt ? 'Venda e aluguer' : '— Vente & location —'}</option>
               <option value="vente">{isPt ? 'Venda' : 'Vente'}</option>
               <option value="location">{isPt ? 'Aluguer' : 'Location'}</option>
             </select>
@@ -686,12 +686,12 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
                     </span>
                     {/* Actions */}
                     <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                      <button className={btnSmCls} onClick={() => { setEditListing(l); setTab('nouvelle_annonce') }} aria-label="Modifier cette annonce"><Pencil size={14} /></button>
+                      <button className={btnSmCls} onClick={() => { setEditListing(l); setTab('nouvelle_annonce') }} aria-label={isPt ? 'Editar este anúncio' : 'Modifier cette annonce'}><Pencil size={14} /></button>
                       {l.status === 'active'
                         ? <button className={btnSmCls} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }} onClick={() => handleStatusChange(l, 'paused')}><Pause size={12} /> {isPt ? 'Pausar' : 'Pauser'}</button>
                         : <button className={`${btnSmCls} ${isV5 ? 'v5-btn-p' : 'v22-btn-primary'}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }} onClick={() => handleStatusChange(l, 'active')}><Play size={12} /> {isPt ? 'Ativar' : 'Activer'}</button>
                       }
-                      <button className={`${btnSmCls} ${isV5 ? 'v5-btn-d' : ''}`} style={isV5 ? undefined : { color: tv.red }} onClick={() => setConfirmDeleteId(l.id)} aria-label="Supprimer cette annonce"><Trash2 size={14} /></button>
+                      <button className={`${btnSmCls} ${isV5 ? 'v5-btn-d' : ''}`} style={isV5 ? undefined : { color: tv.red }} onClick={() => setConfirmDeleteId(l.id)} aria-label={isPt ? 'Eliminar este anúncio' : 'Supprimer cette annonce'}><Trash2 size={14} /></button>
                     </div>
                   </div>
                 </div>
@@ -728,8 +728,8 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
                       <div>
                         <div style={{ fontWeight: 600, fontSize: 13, color: tv.text, marginBottom: 2 }}>
                           {d.type_demande === 'achat' ? (isPt ? 'Pedido de compra' : 'Demande d\'achat') : (isPt ? 'Pedido de aluguer' : 'Demande de location')}
-                          {' — '}
-                          <span style={{ color: tv.textMuted, fontWeight: 400 }}>{(d.listing as any)?.title || isPt ? 'Anúncio' : 'Annonce'}</span>
+                          {isPt ? ' · ' : ' — '}
+                          <span style={{ color: tv.textMuted, fontWeight: 400 }}>{(d.listing as any)?.title || (isPt ? 'Anúncio' : 'Annonce')}</span>
                         </div>
                         {d.date_debut && <div style={{ fontSize: 11, color: tv.textMuted, display: 'flex', alignItems: 'center', gap: 4 }}><Calendar size={11} /> {d.date_debut}{d.date_fin ? ` → ${d.date_fin}` : ''}</div>}
                         {d.prix_propose && <div style={{ fontSize: 11, color: tv.textMuted, display: 'flex', alignItems: 'center', gap: 4 }}><Euro size={11} /> {fmtEur(d.prix_propose, isPt ? 'pt' : 'fr')} {isPt ? 'proposto' : 'proposé'}</div>}
@@ -770,7 +770,7 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
           {isV5 ? (
             <div className="v5-kpi-g" style={{ marginBottom: '0.75rem' }}>
               <div className="v5-kpi hl">
-                <div className="v5-kpi-l">{isPt ? 'Total anúncios' : 'Total annonces'}</div>
+                <div className="v5-kpi-l">{isPt ? 'Total de anúncios' : 'Total annonces'}</div>
                 <div className="v5-kpi-v">{statsTotal}</div>
               </div>
               <div className="v5-kpi">
@@ -778,7 +778,7 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
                 <div className="v5-kpi-v" style={{ color: '#2E7D32' }}>{statsActive}</div>
               </div>
               <div className="v5-kpi">
-                <div className="v5-kpi-l">{isPt ? 'Total visualizações' : 'Vues totales'}</div>
+                <div className="v5-kpi-l">{isPt ? 'Total de visualizações' : 'Vues totales'}</div>
                 <div className="v5-kpi-v" style={{ color: '#1565C0' }}>{statsVues}</div>
               </div>
               <div className="v5-kpi">
@@ -789,7 +789,7 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
           ) : (
           <div className="v22-stats" style={{ marginBottom: 20 }}>
             <div className="v22-stat" style={{ borderLeft: `3px solid ${tv.primary}` }}>
-              <div className="v22-stat-label">{isPt ? 'Total anúncios' : 'Total annonces'}</div>
+              <div className="v22-stat-label">{isPt ? 'Total de anúncios' : 'Total annonces'}</div>
               <div className="v22-stat-val">{statsTotal}</div>
             </div>
             <div className="v22-stat" style={{ borderLeft: '3px solid #22c55e' }}>
@@ -797,7 +797,7 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
               <div className="v22-stat-val" style={{ color: '#22c55e' }}>{statsActive}</div>
             </div>
             <div className="v22-stat" style={{ borderLeft: '3px solid #3b82f6' }}>
-              <div className="v22-stat-label">{isPt ? 'Total visualizações' : 'Vues totales'}</div>
+              <div className="v22-stat-label">{isPt ? 'Total de visualizações' : 'Vues totales'}</div>
               <div className="v22-stat-val" style={{ color: '#3b82f6' }}>{statsVues}</div>
             </div>
             <div className="v22-stat" style={{ borderLeft: '3px solid #f97316' }}>
@@ -852,7 +852,7 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
             </div>
             <div className={isV5 ? '' : 'v22-modal-body'} style={isV5 ? { padding: '1rem' } : undefined}>
               <p style={{ fontSize: 13, color: tv.text }}>
-                {isPt ? 'Tem a certeza que quer eliminar este anúncio? Esta ação é irreversível.' : 'Êtes-vous sûr de vouloir supprimer cette annonce ? Cette action est irréversible.'}
+                {isPt ? 'Tem a certeza de que pretende eliminar este anúncio? Esta ação é irreversível.' : 'Êtes-vous sûr de vouloir supprimer cette annonce ? Cette action est irréversible.'}
               </p>
             </div>
             <div className={isV5 ? '' : 'v22-modal-foot'} style={isV5 ? { display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '0 1rem 1rem' } : undefined}>

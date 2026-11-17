@@ -13,6 +13,13 @@ interface Situation {
   montantMarche: number; travaux: Poste[]; statut: 'brouillon' | 'envoyée' | 'validée' | 'payée'
 }
 
+/** Statut enregistré → clé de son libellé (locales). */
+const CLE_STATUT: Record<Situation['statut'], string> = { brouillon: 'brouillon', envoyée: 'envoyee', validée: 'validee', payée: 'payee' }
+
+/** Unités enregistrées en français, affichées en portugais (la valeur enregistrée ne change pas). */
+const UNITES_PT: Record<string, string> = { forfait: 'vg' }
+const uniteAffichee = (unite: string, isPt: boolean) => (isPt ? UNITES_PT[unite] ?? unite : unite)
+
 export function SituationsTravaux({ userId, orgRole }: { userId: string; orgRole?: string }) {
   const { t } = useTranslation()
   const locale = useLocale()
@@ -119,7 +126,7 @@ export function SituationsTravaux({ userId, orgRole }: { userId: string; orgRole
             <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ textAlign: 'center', padding: '48px 24px' }}>
               <div style={{ fontSize: 36, marginBottom: 10, opacity: 0.4 }}>{'📋'}</div>
               <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>{t('proDash.btp.situations.aucuneSituation')}</div>
-              <p style={{ color: '#999', fontSize: 12 }}>{isPt ? 'Crie a sua primeira situação de obra' : 'Créez votre première situation de travaux'}</p>
+              <p style={{ color: '#999', fontSize: 12 }}>{isPt ? 'Crie o seu primeiro auto de medição' : 'Créez votre première situation de travaux'}</p>
             </div>
           ) : situations.map(s => {
             const sitStatLabels: Record<string, string> = { brouillon: t('proDash.btp.situations.brouillon'), envoyée: t('proDash.btp.situations.envoyee'), validée: t('proDash.btp.situations.validee'), payée: t('proDash.btp.situations.payee') }
@@ -127,7 +134,7 @@ export function SituationsTravaux({ userId, orgRole }: { userId: string; orgRole
               <div key={s.id} onClick={() => setSelected(s)} className={isV5 ? 'v5-card' : 'v22-card'}
                 style={{ cursor: 'pointer', border: selected?.id === s.id ? (isV5 ? '2px solid var(--v5-primary-yellow)' : `2px solid ${tv.primary}`) : undefined }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <span style={{ fontWeight: 600, fontSize: 12 }}>{t('proDash.btp.situations.situation')} n&deg;{s.numero}</span>
+                  <span style={{ fontWeight: 600, fontSize: 12 }}>{t('proDash.btp.situations.situation')} {isPt ? 'n.º ' : 'n°'}{s.numero}</span>
                   <span className={(isV5 ? sitBadgeV5 : sitBadgeV22)[s.statut]}>{sitStatLabels[s.statut] || s.statut}</span>
                 </div>
                 <div style={{ fontSize: 11, color: isV5 ? 'var(--v5-text-secondary)' : tv.textMid }}>{s.chantier}</div>
@@ -143,7 +150,7 @@ export function SituationsTravaux({ userId, orgRole }: { userId: string; orgRole
           {selected ? (
             <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ padding: 0 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 1.25rem', borderBottom: '1px solid #E8E8E8' }}>
-                <div className={isV5 ? 'v5-st' : 'v22-card-title'} style={{ margin: 0 }}>{t('proDash.btp.situations.situation')} n&deg;{selected.numero} &mdash; {selected.chantier}</div>
+                <div className={isV5 ? 'v5-st' : 'v22-card-title'} style={{ margin: 0 }}>{t('proDash.btp.situations.situation')} {isPt ? 'n.º ' : 'n°'}{selected.numero}{isPt ? ' · ' : ' — '}{selected.chantier}</div>
                 <div className={isV5 ? 'v5-tabs' : undefined} style={{ marginBottom: 0, borderBottom: 'none', ...(isV5 ? {} : { display: 'flex', gap: 4 }) }}>
                   {(['brouillon', 'envoyée', 'validée', 'payée'] as const).map(s => (
                     <button key={s} onClick={() => changeStatut(selected.id, s)}
@@ -152,7 +159,7 @@ export function SituationsTravaux({ userId, orgRole }: { userId: string; orgRole
                         : `v22-btn${selected.statut === s ? '' : ''}`
                       }
                       style={isV5 ? undefined : { fontSize: 11, padding: '4px 8px', background: selected.statut === s ? tv.primary : tv.bg, border: `1px solid ${tv.border}`, fontWeight: selected.statut === s ? 700 : 400 }}
-                    >{s}</button>
+                    >{isPt ? t(`proDash.btp.situations.${CLE_STATUT[s]}`) : s}</button>
                   ))}
                 </div>
               </div>
@@ -173,7 +180,7 @@ export function SituationsTravaux({ userId, orgRole }: { userId: string; orgRole
                       <tr key={i} style={isV5 ? undefined : { borderBottom: `1px solid ${tv.border}` }}>
                         <td style={isV5 ? undefined : { padding: '8px 12px' }}>{tr.poste}</td>
                         <td style={isV5 ? undefined : { padding: '8px 12px' }}>{tr.quantite}</td>
-                        <td style={isV5 ? undefined : { padding: '8px 12px' }}>{tr.unite}</td>
+                        <td style={isV5 ? undefined : { padding: '8px 12px' }}>{uniteAffichee(tr.unite, isPt)}</td>
                         <td style={isV5 ? undefined : { padding: '8px 12px' }}>{tr.prixUnit.toLocaleString(dateLocale)}</td>
                         <td style={isV5 ? undefined : { padding: '8px 12px' }}>{tr.avancement}%</td>
                         <td style={{ fontWeight: 600, ...(isV5 ? {} : { padding: '8px 12px' }) }}>{(tr.quantite * tr.prixUnit * tr.avancement / 100).toLocaleString(dateLocale)} &euro;</td>
@@ -194,7 +201,7 @@ export function SituationsTravaux({ userId, orgRole }: { userId: string; orgRole
                   <input className={isV5 ? 'v5-fi' : 'v22-form-input'} placeholder={t('proDash.btp.situations.postePlaceholder')} value={newPoste.poste} onChange={e => setNewPoste({...newPoste, poste: e.target.value})} />
                   <input type="number" className={isV5 ? 'v5-fi' : 'v22-form-input'} placeholder={t('proDash.btp.situations.qtePlaceholder')} value={newPoste.quantite || ''} onChange={e => setNewPoste({...newPoste, quantite: Number(e.target.value)})} />
                   <select className={isV5 ? 'v5-filter-sel' : 'v22-form-input'} value={newPoste.unite} onChange={e => setNewPoste({...newPoste, unite: e.target.value})}>
-                    {['u', 'm²', 'm³', 'ml', 'kg', 'h', 'forfait'].map(u => <option key={u}>{u}</option>)}
+                    {['u', 'm²', 'm³', 'ml', 'kg', 'h', 'forfait'].map(u => <option key={u} value={u}>{uniteAffichee(u, isPt)}</option>)}
                   </select>
                   <input type="number" className={isV5 ? 'v5-fi' : 'v22-form-input'} placeholder={t('proDash.btp.situations.puPlaceholder')} value={newPoste.prixUnit || ''} onChange={e => setNewPoste({...newPoste, prixUnit: Number(e.target.value)})} />
                   <button className={isV5 ? 'v5-btn v5-btn-p v5-btn-sm' : 'v22-btn'} onClick={addPoste} disabled={!newPoste.poste}>{t('proDash.btp.situations.ajouter')}</button>

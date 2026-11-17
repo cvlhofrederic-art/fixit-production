@@ -1,8 +1,14 @@
 'use client'
 
-import { useState, useCallback, useEffect, useMemo } from 'react'
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useLocale } from '@/lib/i18n/context'
 import { useBTPData, useBTPSettings } from '@/lib/hooks/use-btp-data'
+import { adresseComplete, geocoderAdresse, type AdresseChantier } from '@/lib/btp/geocodage'
+import {
+  avertissementPositionGardee, champsModifies, porteLaPositionEnregistree, questionGarderPosition, questionPositionNecessaire,
+  questionRetirerPosition,
+} from '@/lib/btp/fiche-chantier'
+import { confirmationRelocaliser } from '@/components/dashboard/btp/pointage/textes'
 import { supabase } from '@/lib/supabase'
 import type { Artisan } from '@/lib/types'
 import { toast } from 'sonner'
@@ -35,6 +41,12 @@ const EMPTY_FORM: ChantierForm = {
   devis_id: null, membres_ids: [],
 }
 
+/**
+ * Adresse modifiée : une position calculée pendant la saisie (bouton GPS, devis importé) ne correspond plus (le bouton
+ * GPS la recalcule). La position enregistrée du chantier, elle, reste jusqu'à l'enregistrement (lib/btp/fiche-chantier.ts).
+ */
+const SANS_POSITION = { latitude: null, longitude: null } as const
+
 interface DevisSummary {
   id: string; numero: string; client_name: string; client_address: string
   total_ht_cents: number; items: Array<{ description: string; [k: string]: unknown }>; created_at: string; status: string
@@ -47,6 +59,27 @@ interface MembreSummary {
 }
 
 function fmt(n: number, l: string) { return n.toLocaleString(l, { minimumFractionDigits: 0, maximumFractionDigits: 0 }) }
+
+/**
+ * Statut enregistré d'un devis ou d'une facture (anglais ou français selon l'origine), affiché en portugais :
+ * [orçamento (masculin), fatura (féminin)]. La valeur enregistrée ne change pas ; un statut inconnu s'affiche tel quel.
+ */
+const STATUT_DOCUMENT_PT: Record<string, [string, string]> = {
+  draft: ['Rascunho', 'Rascunho'], brouillon: ['Rascunho', 'Rascunho'],
+  sent: ['Enviado', 'Enviada'], envoye: ['Enviado', 'Enviada'], envoyé: ['Enviado', 'Enviada'],
+  pending: ['Pendente', 'Pendente'],
+  accepted: ['Aceite', 'Aceite'], accepte: ['Aceite', 'Aceite'], accepté: ['Aceite', 'Aceite'],
+  signed: ['Assinado', 'Assinada'], signe: ['Assinado', 'Assinada'], signé: ['Assinado', 'Assinada'],
+  rejected: ['Recusado', 'Recusada'], refuse: ['Recusado', 'Recusada'], refusé: ['Recusado', 'Recusada'],
+  cancelled: ['Anulado', 'Anulada'], annule: ['Anulado', 'Anulada'], annulé: ['Anulado', 'Anulada'],
+  paid: ['Pago', 'Paga'], payee: ['Pago', 'Paga'], payée: ['Pago', 'Paga'],
+  overdue: ['Em atraso', 'Em atraso'], en_retard: ['Em atraso', 'Em atraso'],
+  refunded: ['Reembolsado', 'Reembolsada'], rembourse: ['Reembolsado', 'Reembolsada'],
+}
+const statutDocumentPt = (statut: string, type: 'devis' | 'facture') => STATUT_DOCUMENT_PT[statut]?.[type === 'facture' ? 1 : 0] ?? statut
+
+/** Fonction par défaut d'un membre lu sans rôle (« Ouvrier »), affichée en portugais. */
+const ROLE_PT: Record<string, string> = { Ouvrier: 'Operário' }
 
 // ── Status badge mapping ──
 const STATUS_BADGE: Record<string, string> = {
@@ -83,6 +116,10 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
   const [editId, setEditId] = useState<string | null>(null)
   const [filter, setFilter] = useState<'Tous' | 'En cours' | 'En attente' | 'Terminés'>('Tous')
   const [form, setForm] = useState<ChantierForm>(EMPTY_FORM)
+  /** Fiche telle qu'ouverte pour modification : repère des champs modifiés et de la position enregistrée. */
+  const ficheOuverteRef = useRef<ChantierForm | null>(null)
+  /** Numéro de la dernière demande de géocodage : une réponse dépassée (adresse retouchée, autre fiche ouverte) est ignorée. */
+  const demandeGeoRef = useRef(0)
   const [saving, setSaving] = useState(false)
   const [geocoding, setGeocoding] = useState(false)
 
@@ -160,29 +197,38 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
   }, [artisan?.id, settings])
 
   // ── Géocode ──
-  const geocodeAdresse = useCallback(async (adresse: string) => {
-    if (!adresse.trim()) return
+  // La position GPS déclenche le pointage automatique des employés : seule une position précise de l'adresse (numéro,
+  // rue, commune vérifiée) est retenue. Une adresse trop vague retire une position calculée plutôt que d'en garder une
+  // ancienne ; la position enregistrée du chantier (peut-être placée sur place), elle, est gardée (`garderSiImprecis`).
+  const geocodeAdresse = useCallback(async (adresse: AdresseChantier, garderSiImprecis = false) => {
+    if (!adresseComplete(adresse)) return
+    demandeGeoRef.current += 1
+    const demande = demandeGeoRef.current
     setGeocoding(true)
     try {
-      const res = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(adresse)}&limit=1`, { signal: AbortSignal.timeout(3000) })
-      if (res.ok) {
-        const data = await res.json()
-        if (data.features?.length > 0) {
-          const [lng, lat] = data.features[0].geometry.coordinates
-          setForm(f => ({ ...f, latitude: lat, longitude: lng }))
-          setGeocoding(false); return
-        }
+      const position = await geocoderAdresse(adresse, isPt ? 'PT' : 'FR')
+      if (demande !== demandeGeoRef.current) return
+      if (position?.precise) {
+        setForm(f => ({ ...f, latitude: position.latitude, longitude: position.longitude }))
+      } else if (position && garderSiImprecis) {
+        toast.warning(avertissementPositionGardee(isPt))
+      } else if (position) {
+        // Centre de la commune, rue d'une autre commune : le pointage automatique se déclencherait au mauvais endroit.
+        setForm(f => ({ ...f, latitude: null, longitude: null }))
+        toast.warning(isPt ? 'Morada pouco precisa para o GPS: indique o número, a rua e o código postal.' : 'Adresse trop vague pour le GPS : indiquez le numéro, la rue et le code postal.')
+      } else {
+        toast.warning(isPt ? 'Morada não encontrada (ou serviço indisponível): posição GPS não atualizada.' : 'Adresse introuvable (ou service indisponible) : position GPS non mise à jour.')
       }
-      const nom = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(adresse)}&format=json&limit=1`, {
-        signal: AbortSignal.timeout(3000), headers: { 'User-Agent': 'Fixit/1.0' }
-      })
-      if (nom.ok) {
-        const nomData = await nom.json()
-        if (nomData.length > 0) setForm(f => ({ ...f, latitude: parseFloat(nomData[0].lat), longitude: parseFloat(nomData[0].lon) }))
-      }
-    } catch { /* silent */ }
-    finally { setGeocoding(false) }
-  }, [])
+    } finally {
+      if (demande === demandeGeoRef.current) setGeocoding(false)
+    }
+  }, [isPt])
+
+  /** Géocodage en cours devenu sans objet (adresse retouchée, fiche ouverte ou rouverte) : sa réponse sera ignorée. */
+  const oublierGeocodage = () => {
+    demandeGeoRef.current += 1
+    setGeocoding(false)
+  }
 
   // ── Import devis → form ──
   const importDevis = (devis: DevisSummary) => {
@@ -202,9 +248,12 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
 
     setForm(f => ({
       ...f,
-      titre: firstDesc || `Devis ${devis.numero}`,
+      titre: firstDesc || `${isPt ? 'Orçamento' : 'Devis'} ${devis.numero}`,
       client: devis.client_name || '',
       adresse: devis.client_address || '',
+      // Nouvelle adresse : la position d'un devis importé avant ne doit pas rester.
+      latitude: null,
+      longitude: null,
       budget: String(totalHT),
       devis_id: devis.id,
       dateDebut: (devis as any).prestation_date || today,
@@ -213,31 +262,64 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
     }))
 
     // Géocoder l'adresse importée
-    if (devis.client_address) geocodeAdresse(devis.client_address)
+    if (devis.client_address) void geocodeAdresse({ adresse: devis.client_address })
+  }
+
+  /** La fiche porte encore la position enregistrée du chantier (fiche ouverte pour modification seulement). */
+  const portePositionEnregistree = (f: ChantierForm) => porteLaPositionEnregistree(editId ? ficheOuverteRef.current : null, f)
+
+  /**
+   * Saisie dans l'adresse (rue, code postal, ville) : un géocodage en cours devient sans objet ; la position enregistrée
+   * reste (l'enregistrement demandera quoi en faire), une position calculée pendant la saisie part.
+   */
+  const saisirAdresse = (champ: Pick<ChantierForm, 'adresse'> | Pick<ChantierForm, 'codePostal'> | Pick<ChantierForm, 'ville'>) => {
+    oublierGeocodage()
+    setForm({ ...form, ...(portePositionEnregistree(form) ? {} : SANS_POSITION), ...champ })
+  }
+
+  /** Bouton GPS de la fiche : remplacer la position enregistrée (peut-être posée sur place) se confirme d'abord. */
+  const localiserFiche = () => {
+    const garde = portePositionEnregistree(form)
+    if (garde && !window.confirm(confirmationRelocaliser(form.titre.trim() || '—', isPt))) return
+    void geocodeAdresse(form, garde)
   }
 
   // ── Save ──
   const handleSave = async () => {
     if (!form.titre.trim()) return
+    const ouverte = editId ? ficheOuverteRef.current : null
+    let fiche = form
+    // Adresse corrigée alors que la fiche porte la position enregistrée (peut-être placée sur le chantier) : la garder ?
+    // La retirer demande un second OK ; fermer une boîte (Échap, Retour) ramène à la fiche sans rien enregistrer.
+    if (questionPositionNecessaire(ouverte, form) && !window.confirm(questionGarderPosition(form.titre, isPt))) {
+      if (!window.confirm(questionRetirerPosition(form.titre, isPt))) return
+      fiche = { ...form, ...SANS_POSITION }
+    }
     setSaving(true)
     if (editId) {
-      await update(editId, form)
+      // Seuls les champs modifiés depuis l'ouverture : une fiche ouverte avant un changement fait ailleurs (position
+      // placée sur place, rayon ou employés de l'onglet Affectations) ne le défait plus.
+      const modifies = ouverte ? champsModifies(ouverte, fiche) : fiche
+      if (Object.keys(modifies).length > 0) await update(editId, modifies)
     } else {
-      await add(form)
+      await add(fiche)
     }
     setSaving(false); setShowModal(false); setEditId(null); setForm(EMPTY_FORM)
   }
 
   const handleEdit = (c: ChantierForm & { id: string }) => {
+    oublierGeocodage()
     setEditId(c.id)
-    setForm({
+    const fiche: ChantierForm = {
       titre: c.titre, client: c.client, adresse: c.adresse,
       ville: c.ville || '', codePostal: c.codePostal || '',
       dateDebut: c.dateDebut, dateFin: c.dateFin, budget: c.budget,
       statut: c.statut, description: c.description, equipe: c.equipe,
       latitude: c.latitude, longitude: c.longitude, geoRayonM: c.geoRayonM || 100,
       devis_id: c.devis_id || null, membres_ids: c.membres_ids || [],
-    })
+    }
+    ficheOuverteRef.current = fiche
+    setForm(fiche)
     setShowModal(true)
     loadDevisAndMembres()
   }
@@ -384,13 +466,13 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
   const linkDevis = useCallback(async (devisId: string, chantierId: string) => {
     const { error } = await supabase.from('devis').update({ chantier_id: chantierId } as any).eq('id', devisId)
     if (error) {
-      toast.error('Erreur lors de la liaison')
+      toast.error(isPt ? 'Erro ao associar o orçamento' : 'Erreur lors de la liaison')
     } else {
-      toast.success('Devis lié au chantier')
+      toast.success(isPt ? 'Orçamento associado à obra' : 'Devis lié au chantier')
       setShowLinkModal(null)
       await loadLinkedDocs()
     }
-  }, [loadLinkedDocs])
+  }, [loadLinkedDocs, isPt])
 
   // ── Filter + search ──
   const filtered = useMemo(() => {
@@ -451,7 +533,7 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
       {/* ── Page header ── */}
       <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'}>
         <h1>{isPt ? 'Obras' : 'Chantiers'}</h1>
-        <p>{isPt ? `Gestão das suas obras — ${activeCount} ativa(s)` : `Gestion de vos chantiers — ${activeCount} actif(s)`}</p>
+        <p>{isPt ? `Gestão das suas obras: ${activeCount} ativa(s)` : `Gestion de vos chantiers — ${activeCount} actif(s)`}</p>
       </div>
 
       {/* ── Search bar ── */}
@@ -474,7 +556,7 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
         </select>
         <button
           className={isV5 ? "v5-btn v5-btn-p" : "v22-btn v22-btn-primary"}
-          onClick={() => { setEditId(null); setForm(EMPTY_FORM); setShowModal(true); loadDevisAndMembres() }}
+          onClick={() => { oublierGeocodage(); setEditId(null); setForm(EMPTY_FORM); setShowModal(true); loadDevisAndMembres() }}
         >
           + {isPt ? 'Nova obra' : 'Nouveau chantier'}
         </button>
@@ -492,7 +574,7 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
           </p>
           <button
             className={isV5 ? "v5-btn v5-btn-p" : "v22-btn v22-btn-primary"}
-            onClick={() => { setEditId(null); setForm(EMPTY_FORM); setShowModal(true); loadDevisAndMembres() }}
+            onClick={() => { oublierGeocodage(); setEditId(null); setForm(EMPTY_FORM); setShowModal(true); loadDevisAndMembres() }}
           >
             + {isPt ? 'Criar obra' : 'Créer un chantier'}
           </button>
@@ -502,15 +584,15 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
           <table className={isV5 ? "v5-dt" : "v22-table"}>
             <thead>
               <tr>
-                <th>{isPt ? 'Réf' : 'Réf'}</th>
+                <th>{isPt ? 'Ref.' : 'Réf'}</th>
                 <th>{isPt ? 'Obra' : 'Chantier'}</th>
                 <th>{isPt ? 'Cliente' : 'Client'}</th>
-                <th>{isPt ? 'Responsável' : 'Chef'}</th>
+                <th>{isPt ? 'Encarregado' : 'Chef'}</th>
                 <th>{isPt ? 'Início' : 'Début'}</th>
                 <th>{isPt ? 'Fim' : 'Fin'}</th>
                 <th>{isPt ? 'Avanço' : 'Avanc.'}</th>
                 <th>{isPt ? 'Estado' : 'Statut'}</th>
-                <th>Budget</th>
+                <th>{isPt ? 'Valor' : 'Budget'}</th>
                 <th></th>
               </tr>
             </thead>
@@ -612,19 +694,19 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
                     padding: '7px 12px', background: '#F5F5F5', borderBottom: docs.length > 0 ? '1px solid #E0E0E0' : undefined,
                   }}>
                     <span style={{ fontWeight: 600, color: '#444', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                      <FileText size={12} /> {c.titre} — {isPt ? 'Documentos ligados' : 'Devis et factures liés'}
+                      <FileText size={12} /> {c.titre}{isPt ? ': ' : ' — '}{isPt ? 'Documentos associados' : 'Devis et factures liés'}
                     </span>
                     <button
                       className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"}
                       style={{ fontSize: 10 }}
                       onClick={() => openLinkModal(c.id)}
                     >
-                      + {isPt ? 'Ligar orçamento' : 'Lier un devis'}
+                      + {isPt ? 'Associar orçamento' : 'Lier un devis'}
                     </button>
                   </div>
                   {docs.length === 0 ? (
                     <div style={{ padding: '6px 12px', color: '#999', fontStyle: 'italic' }}>
-                      {isPt ? 'Nenhum documento ligado' : 'Aucun document lié'}
+                      {isPt ? 'Nenhum documento associado' : 'Aucun document lié'}
                     </div>
                   ) : (
                     <div style={{ padding: '6px 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -641,7 +723,7 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
                             background: doc.status === 'sent' || doc.status === 'accepted' ? '#E8F5E9' : doc.status === 'draft' ? '#FFF8E1' : '#E3F2FD',
                             color: doc.status === 'sent' || doc.status === 'accepted' ? '#2E7D32' : doc.status === 'draft' ? '#F57F17' : '#1565C0',
                           }}>
-                            {doc.status}
+                            {isPt ? statutDocumentPt(doc.status, doc.type) : doc.status}
                           </span>
                         </div>
                       ))}
@@ -676,7 +758,7 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
                         ({isPt ? 'Margem' : 'Marge'}: {renta.margePrevu}%)
                       </span>
                       <span style={{ color: '#666' }}>
-                        {isPt ? 'Custo M.O.' : 'Coût M.O.'}: {fmt(renta.coutMOJour, dl)} €/{isPt ? 'dia' : 'j'} x {renta.joursPrevu}{isPt ? 'j' : 'j'}
+                        {isPt ? 'Custo M.O.' : 'Coût M.O.'}: {fmt(renta.coutMOJour, dl)} €/{isPt ? 'dia' : 'j'} x {renta.joursPrevu}{isPt ? ' dias' : 'j'}
                       </span>
                     </div>
 
@@ -723,13 +805,13 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
             <div className={isV5 ? "v5-card" : "v22-card"} style={{ width: '100%', maxWidth: 480 }}>
               <div style={{ padding: '12px 16px', borderBottom: '1px solid #E8E8E8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: 13, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                  <Clock size={14} /> {isPt ? 'O seu chantier terminou?' : 'Votre chantier est-il fini ?'}
+                  <Clock size={14} /> {isPt ? 'A sua obra terminou?' : 'Votre chantier est-il fini ?'}
                 </span>
                 <button className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"} onClick={() => setProlongModal(null)}>✕</button>
               </div>
               <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <div style={{ textAlign: 'center', fontSize: 13 }}>
-                  <strong>{c.titre}</strong> — {isPt ? 'Previsto' : 'Prévu'}: {renta?.joursPrevu}{isPt ? ' dias' : ' jours'}
+                  <strong>{c.titre}</strong>{isPt ? ' · ' : ' — '}{isPt ? 'Previsto' : 'Prévu'}: {renta?.joursPrevu}{isPt ? ' dias' : ' jours'}
                 </div>
 
                 {/* Option 1: Clôturer */}
@@ -781,7 +863,7 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
                     style={{ width: '100%', marginTop: 10, padding: '8px 14px', justifyContent: 'center' }}
                     onClick={handleProlong}
                   >
-                    <Calendar size={14} /> {isPt ? `Prolongar de ${prolongDays} dias` : `Prolonger de ${prolongDays} jours`}
+                    <Calendar size={14} /> {isPt ? `Prolongar por ${prolongDays} dias` : `Prolonger de ${prolongDays} jours`}
                   </button>
                 </div>
               </div>
@@ -796,20 +878,20 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
           <div className={isV5 ? "v5-card" : "v22-card"} style={{ width: '100%', maxWidth: 400 }}>
             <div style={{ padding: '12px 16px', borderBottom: '1px solid #E8E8E8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: 13, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <Trash2 size={14} /> {isPt ? 'Confirmar remoção' : 'Confirmer la suppression'}
+                <Trash2 size={14} /> {isPt ? 'Confirmar eliminação' : 'Confirmer la suppression'}
               </span>
               <button className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"} onClick={() => setDeleteConfirm(null)}>✕</button>
             </div>
             <div style={{ padding: 16, textAlign: 'center' }}>
               <p style={{ fontSize: 13, marginBottom: 12 }}>
-                {isPt ? 'Tem a certeza que pretende remover esta obra?' : 'Voulez-vous vraiment supprimer ce chantier ?'}
+                {isPt ? 'Tem a certeza de que pretende eliminar esta obra?' : 'Voulez-vous vraiment supprimer ce chantier ?'}
               </p>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button className={isV5 ? "v5-btn" : "v22-btn"} style={{ flex: 1 }} onClick={() => setDeleteConfirm(null)}>
                   {isPt ? 'Cancelar' : 'Annuler'}
                 </button>
                 <button className={isV5 ? "v5-btn v5-btn-d" : "v22-btn v22-btn-danger"} style={{ flex: 1, fontWeight: 600 }} onClick={() => handleDelete(deleteConfirm)}>
-                  {isPt ? 'Remover' : 'Supprimer'}
+                  {isPt ? 'Eliminar' : 'Supprimer'}
                 </button>
               </div>
             </div>
@@ -851,10 +933,13 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
                         if (devis) importDevis(devis)
                       }}
                     >
-                      <option value="">{isPt ? '— Selecionar um orçamento —' : '— Sélectionner un devis —'}</option>
+                      <option value="">{isPt ? 'Selecionar um orçamento...' : '— Sélectionner un devis —'}</option>
                       {devisList.map(d => (
                         <option key={d.id} value={d.id}>
-                          {d.numero} — {d.client_name} — {(d.total_ht_cents / 100).toLocaleString(dl)} € ({d.status})
+                          {/* « ?? '' » : une valeur absente ne s'écrit pas, comme avant dans le JSX d'origine. */}
+                          {isPt
+                            ? `${d.numero ?? ''} · ${d.client_name ?? ''} · ${(d.total_ht_cents / 100).toLocaleString(dl)} € (${statutDocumentPt(d.status ?? '', 'devis')})`
+                            : `${d.numero ?? ''} — ${d.client_name ?? ''} — ${(d.total_ht_cents / 100).toLocaleString(dl)} € (${d.status ?? ''})`}
                         </option>
                       ))}
                     </select>
@@ -865,7 +950,7 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
               <div className={isV5 ? "v5-fg" : "v22-form-group"}>
                 <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Nome da obra *' : 'Titre du chantier *'}</label>
                 <input className={isV5 ? "v5-fi" : "v22-input"} value={form.titre} onChange={e => setForm({ ...form, titre: e.target.value })}
-                  placeholder={isPt ? 'ex: Immeuble R+3 — Gros oeuvre' : 'ex: Immeuble R+3 — Gros oeuvre'} />
+                  placeholder={isPt ? 'ex.: Edifício R/C+3, estrutura' : 'ex: Immeuble R+3 — Gros oeuvre'} />
               </div>
 
               <div className={isV5 ? "v5-fr" : "v22-form-row"}>
@@ -874,7 +959,7 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
                   <input className={isV5 ? "v5-fi" : "v22-input"} value={form.client} onChange={e => setForm({ ...form, client: e.target.value })} />
                 </div>
                 <div className={isV5 ? "v5-fg" : "v22-form-group"}>
-                  <label className={isV5 ? "v5-fl" : "v22-form-label"}>Budget HT (€)</label>
+                  <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Valor s/ IVA (€)' : 'Budget HT (€)'}</label>
                   <input type="number" className={isV5 ? "v5-fi" : "v22-input"} value={form.budget} onChange={e => setForm({ ...form, budget: e.target.value })} />
                 </div>
               </div>
@@ -882,23 +967,23 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
               <div className={isV5 ? "v5-fg" : "v22-form-group"}>
                 <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Morada da obra' : 'Adresse du chantier'}</label>
                 <input className={isV5 ? "v5-fi" : "v22-input"} value={form.adresse}
-                  onChange={e => setForm({ ...form, adresse: e.target.value })}
-                  placeholder={isPt ? 'N°, rua...' : 'N°, rue...'} />
+                  onChange={e => saisirAdresse({ adresse: e.target.value })}
+                  placeholder={isPt ? 'Rua, n.º...' : 'N°, rue...'} />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 10 }}>
                 <div className={isV5 ? "v5-fg" : "v22-form-group"}>
                   <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Código postal' : 'Code postal'}</label>
                   <input className={isV5 ? "v5-fi" : "v22-input"} value={form.codePostal}
-                    onChange={e => setForm({ ...form, codePostal: e.target.value })}
-                    placeholder="13001" maxLength={10} />
+                    onChange={e => saisirAdresse({ codePostal: e.target.value })}
+                    placeholder={isPt ? '4000-123' : '13001'} maxLength={10} />
                 </div>
                 <div className={isV5 ? "v5-fg" : "v22-form-group"}>
                   <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Cidade *' : 'Ville *'}</label>
                   <div style={{ display: 'flex', gap: 6 }}>
                     <input className={isV5 ? "v5-fi" : "v22-input"} style={{ flex: 1 }} value={form.ville}
-                      onChange={e => setForm({ ...form, ville: e.target.value })}
-                      placeholder={isPt ? 'Porto, Marseille...' : 'Marseille, Lyon...'} />
-                    <button className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"} onClick={() => geocodeAdresse(form.ville || form.adresse)}
+                      onChange={e => saisirAdresse({ ville: e.target.value })}
+                      placeholder={isPt ? 'Porto, Lisboa...' : 'Marseille, Lyon...'} />
+                    <button className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"} onClick={localiserFiche}
                       disabled={geocoding || (!form.ville.trim() && !form.adresse.trim())}>
                       {geocoding ? <Loader2 size={12} className="animate-spin" /> : <MapPin size={12} />}
                       {form.latitude ? <CheckCircle2 size={12} style={{ color: '#2E7D32' }} /> : ' GPS'}
@@ -906,19 +991,19 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
                   </div>
                   {form.latitude && (
                     <div style={{ fontSize: 10, color: '#2E7D32', marginTop: 3, display: 'flex', alignItems: 'center', gap: 3 }}>
-                      <CheckCircle2 size={10} /> GPS : {form.latitude.toFixed(5)}, {form.longitude?.toFixed(5)}
+                      <CheckCircle2 size={10} /> {isPt ? 'GPS:' : 'GPS :'} {form.latitude.toFixed(5)}, {form.longitude?.toFixed(5)}
                     </div>
                   )}
                 </div>
               </div>
 
               <div className={isV5 ? "v5-fg" : "v22-form-group"}>
-                <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Raio para pointagem GPS' : 'Rayon pointage GPS'}</label>
+                <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Raio do registo de ponto (GPS)' : 'Rayon pointage GPS'}</label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <input type="range" min={25} max={500} step={25} value={form.geoRayonM}
                     onChange={e => setForm({ ...form, geoRayonM: Number(e.target.value) })}
                     style={{ flex: 1 }} />
-                  <span style={{ fontWeight: 600, fontSize: 12, minWidth: 45, textAlign: 'right' }}>{form.geoRayonM}m</span>
+                  <span style={{ fontWeight: 600, fontSize: 12, minWidth: 45, textAlign: 'right' }}>{form.geoRayonM}{isPt ? ' m' : 'm'}</span>
                 </div>
               </div>
 
@@ -935,7 +1020,7 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
 
               {/* ── Équipe / Employés assignés ── */}
               <div className={isV5 ? "v5-fg" : "v22-form-group"}>
-                <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Empregados atribuídos' : 'Employés assignés'}</label>
+                <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Colaboradores atribuídos' : 'Employés assignés'}</label>
                 {membresList.length === 0 ? (
                   <div style={{ fontSize: 11, color: '#999', padding: 6 }}>
                     {isPt ? 'Nenhum colaborador. Adicione-os em "Equipas".' : 'Aucun employé. Ajoutez-en dans "Équipes".'}
@@ -956,7 +1041,7 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
                               setForm({ ...form, membres_ids: selected ? ids.filter(id => id !== m.id) : [...ids, m.id] })
                             }} />
                           <span style={{ fontWeight: 600 }}>{m.prenom} {m.nom}</span>
-                          <span style={{ color: '#999' }}>{m.role}</span>
+                          <span style={{ color: '#999' }}>{isPt ? ROLE_PT[m.role] ?? m.role : m.role}</span>
                           <span style={{ color: '#C62828', marginLeft: 'auto' }}>{m.daily_cost.toFixed(0)} €/{isPt ? 'dia' : 'j'}</span>
                         </label>
                       )
@@ -965,8 +1050,8 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
                 )}
                 {(form.membres_ids || []).length > 0 && (
                   <div style={{ fontSize: 10, color: '#2E7D32', marginTop: 3, display: 'flex', alignItems: 'center', gap: 3 }}>
-                    <CheckCircle2 size={10} /> {(form.membres_ids || []).length} {isPt ? 'empregado(s) selecionado(s)' : 'employé(s) sélectionné(s)'}
-                    — {isPt ? 'Custo/dia' : 'Coût/j'}: {fmt(membresList.filter(m => (form.membres_ids || []).includes(m.id)).reduce((s, m) => s + m.daily_cost, 0), dl)} €
+                    <CheckCircle2 size={10} /> {(form.membres_ids || []).length} {isPt ? 'colaborador(es) selecionado(s)' : 'employé(s) sélectionné(s)'}
+                    {isPt ? ' · ' : '— '}{isPt ? 'Custo/dia' : 'Coût/j'}: {fmt(membresList.filter(m => (form.membres_ids || []).includes(m.id)).reduce((s, m) => s + m.daily_cost, 0), dl)} €
                   </div>
                 )}
               </div>
@@ -1002,14 +1087,14 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
           <div className={isV5 ? "v5-card" : "v22-card"} style={{ width: '100%', maxWidth: 480, maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
             <div style={{ padding: '12px 16px', borderBottom: '1px solid #E8E8E8', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
               <span style={{ fontSize: 13, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <FileText size={14} /> {isPt ? 'Ligar um orçamento a esta obra' : 'Lier un devis à ce chantier'}
+                <FileText size={14} /> {isPt ? 'Associar um orçamento a esta obra' : 'Lier un devis à ce chantier'}
               </span>
               <button className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"} onClick={() => setShowLinkModal(null)}>✕</button>
             </div>
             <div style={{ padding: 16, overflowY: 'auto', flex: 1 }}>
               {availableDevis.length === 0 ? (
                 <div style={{ textAlign: 'center', color: '#999', fontSize: 13, padding: '20px 0' }}>
-                  {isPt ? 'Nenhum orçamento disponível (sem chantier associado)' : 'Aucun devis disponible (non liés à un chantier)'}
+                  {isPt ? 'Nenhum orçamento disponível (sem obra associada)' : 'Aucun devis disponible (non liés à un chantier)'}
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -1030,7 +1115,7 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
                         fontSize: 9, padding: '2px 7px', borderRadius: 10, fontWeight: 600, flex: '0 0 auto',
                         background: '#E3F2FD', color: '#1565C0',
                       }}>
-                        {d.status}
+                        {isPt ? statutDocumentPt(d.status, 'devis') : d.status}
                       </span>
                     </button>
                   ))}

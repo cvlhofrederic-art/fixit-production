@@ -5,6 +5,7 @@ import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { haversineDistance } from '@/lib/geo'
+import { CACHE_PERSONNEL } from '@/lib/marches-public'
 
 /**
  * Déduit le pays (FR/PT) depuis le format du code postal.
@@ -67,6 +68,13 @@ export async function GET(request: NextRequest) {
   const artisanUserId = url.searchParams.get('artisan_user_id')
   const offerId = url.searchParams.get('offer_id')
 
+  // ── Modes personnels : réservés au compte concerné (même règle que GET /api/marches) ──
+  // Les offres d'une entreprise, tous statuts confondus, et les distances calculées depuis l'adresse d'un compte
+  // ne sont rendues qu'à ce compte : l'identifiant passé dans l'URL ne prouve rien, seul le jeton le fait.
+  const appelant = btpCompanyId || artisanUserId ? await getAuthUser(request) : null
+  if ((btpCompanyId || artisanUserId) && !appelant) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  if (artisanUserId && appelant && artisanUserId !== appelant.id) return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })
+
   // ── Mode: candidatures for one offer (BTP company view) ──────────────────
   if (offerId && btpCompanyId) {
     const user = await getAuthUser(request)
@@ -107,16 +115,20 @@ export async function GET(request: NextRequest) {
       })
     )
 
-    return NextResponse.json({ candidatures: enriched })
+    // Prix et textes des candidats, réservés au publieur de l'offre : jamais gardés par un cache.
+    return NextResponse.json({ candidatures: enriched }, { headers: { 'Cache-Control': CACHE_PERSONNEL } })
   }
 
   // ── Mode: list offers published by a BTP company ──────────────────────────
-  if (btpCompanyId) {
+  if (btpCompanyId && appelant) {
+    // Seulement les offres publiées par le compte appelant (publisher_user_id est posé par le POST ci-dessous,
+    // qui exige déjà qu'il soit celui du jeton).
     const { data: offers, error } = await supabaseAdmin
       .from('marches')
       .select('id, title, description, category, mission_type, location_city, location_postal, budget_min, budget_max, start_date, duration_text, deadline, urgency, candidatures_count, max_candidatures, status, require_rc_pro, require_decennale, require_qualibat, nb_intervenants_souhaite, created_at')
       .eq('source_type', 'btp_sous_traitance')
       .eq('btp_company_id', btpCompanyId)
+      .eq('publisher_user_id', appelant.id)
       .order('created_at', { ascending: false })
 
     if (error) {
@@ -124,7 +136,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
     }
 
-    return NextResponse.json({ offers: offers || [] })
+    return NextResponse.json({ offers: offers || [] }, { headers: { 'Cache-Control': CACHE_PERSONNEL } })
   }
 
   // ── Mode: browse all open BTP offers (artisan side) ───────────────────────
@@ -173,7 +185,8 @@ export async function GET(request: NextRequest) {
   }
 
   const response = NextResponse.json({ offers })
-  response.headers.set('Cache-Control', 'public, max-age=0, s-maxage=60, stale-while-revalidate=120')
+  // Avec artisan_user_id, la réponse porte des distances propres à un compte : jamais dans un cache partagé.
+  response.headers.set('Cache-Control', artisanUserId ? CACHE_PERSONNEL : 'public, max-age=0, s-maxage=60, stale-while-revalidate=120')
   return response
 }
 

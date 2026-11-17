@@ -1,8 +1,8 @@
-#!/usr/bin/env node
 // Écrit les données d'un pays du Dictionnaire matériaux (lib/dictionnaire-materiaux/donnees/<pays>/) à partir
 // de deux fichiers JSON relus : le catalogue (familles, sous-familles, matériaux avec leurs preuves en
 // magasin) et les situations (par domaine). Les données sortent en JSON, une famille ou un domaine par
-// fichier, plus un index.ts qui les assemble ; ce script sert à (re)partir d'un catalogue complet.
+// fichier, plus un index.ts qui les assemble ; ce script sert à (re)partir d'un catalogue complet. Sans ligne « #! » :
+// les tests importent ce fichier, et Vitest ne la lit pas dans une copie de travail en CRLF (Windows).
 //
 //   node scripts/dictionnaire-materiaux/generer-donnees.mjs \
 //     --pays pt --catalogue catalogue.json --situations situations.json --date 2026-11-14

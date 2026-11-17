@@ -3,6 +3,8 @@ import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import type { GroqResponse } from '@/lib/groq'
 import { callClaudeWithRetry, hasAnthropicKey } from '@/lib/claude'
+import { CEREBRAS_API_URL, CEREBRAS_MODEL_PRIMARY, GROQ_API_URL, GROQ_MODEL_PRIMARY } from '@/lib/constants'
+import { parametresRaisonnement } from '@/lib/ai/raisonnement'
 import { calculateScores, type AnalyseScores } from '@/lib/analyse-devis-scoring'
 import { logger } from '@/lib/logger'
 import { getSecret } from '@/lib/env'
@@ -650,8 +652,8 @@ export async function POST(req: NextRequest) {
 
   if (!GROQ_API_KEY && !(await hasAnthropicKey())) {
     return NextResponse.json(
-      { error: isPt ? 'Chave API IA não configurada' : 'Clé API IA non configurée' },
-      { status: 500 },
+      { error: isPt ? 'A análise por IA está indisponível de momento. Tente mais tarde.' : 'L’analyse par IA est indisponible pour le moment. Réessayez plus tard.' },
+      { status: 503 },
     )
   }
 
@@ -680,35 +682,42 @@ export async function POST(req: NextRequest) {
       } catch (e) { logger.warn('[analyse-devis] Claude failed, fallback Groq:', e) }
     }
 
-    // 1) Groq 70b — secours
+    // 1) Groq — secours (modèle de lib/constants.ts ; gpt-oss raisonne avant de répondre, d'où l'effort `low`
+    //    et la marge de budget, comme dans lib/groq.ts)
+    const corpsSecours = (model: string) => JSON.stringify({
+      model,
+      messages: opts.messages,
+      temperature: opts.temperature,
+      ...parametresRaisonnement(model, opts.max_tokens),
+    })
     try {
-      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      const res = await fetch(GROQ_API_URL, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'llama-3.3-70b-versatile', messages: opts.messages, temperature: opts.temperature, max_tokens: opts.max_tokens }),
+        body: corpsSecours(GROQ_MODEL_PRIMARY),
         signal: AbortSignal.timeout(30000),
       })
       if (res.ok) return res.json()
       if (res.status === 429) {
         await new Promise(r => setTimeout(r, 4000))
-        const retry = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        const retry = await fetch(GROQ_API_URL, {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ model: 'llama-3.3-70b-versatile', messages: opts.messages, temperature: opts.temperature, max_tokens: opts.max_tokens }),
+          body: corpsSecours(GROQ_MODEL_PRIMARY),
           signal: AbortSignal.timeout(30000),
         })
         if (retry.ok) return retry.json()
       }
     } catch (e) { logger.warn('[analyse-devis] Groq failed:', e) }
 
-    // 2) Cerebras llama3.1-70b — fallback
+    // 2) Cerebras — fallback
     const CEREBRAS_KEY = await getSecret('CEREBRAS_API_KEY')
     if (CEREBRAS_KEY) {
       try {
-        const res = await fetch('https://api.cerebras.ai/v1/chat/completions', {
+        const res = await fetch(CEREBRAS_API_URL, {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${CEREBRAS_KEY}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ model: 'llama3.1-70b', messages: opts.messages, temperature: opts.temperature, max_tokens: opts.max_tokens }),
+          body: corpsSecours(CEREBRAS_MODEL_PRIMARY),
           signal: AbortSignal.timeout(30000),
         })
         if (res.ok) return res.json()
@@ -825,14 +834,14 @@ export async function POST(req: NextRequest) {
       scores,
       isVitfix: vitfix,
       siret: siretResult,
-      model: analyseData.model,
       tokens: totalTokens,
     })
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err)
     logger.error('[syndic/analyse-devis] Pipeline error', { error: errMsg })
+    // Message générique : l'erreur brute (fournisseur, modèle, code) reste dans les journaux.
     return NextResponse.json(
-      { error: isPt ? `Erro: ${errMsg.slice(0, 120)}` : `Erreur : ${errMsg.slice(0, 120)}` },
+      { error: isPt ? 'A análise falhou. Tente novamente dentro de instantes.' : 'L’analyse a échoué. Réessayez dans un instant.' },
       { status: 500 },
     )
   }

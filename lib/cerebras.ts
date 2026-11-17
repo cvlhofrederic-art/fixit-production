@@ -1,15 +1,19 @@
 // ── Cerebras Inference API helper (OpenAI-compatible) ──────────────────────
 //
-// Provider de secours pour les agents qui dépassent le rate-limit Groq free tier
-// (6K TPM sur llama-3.3-70b). Cerebras Inference offre la même famille de
-// modèles avec un free tier nettement plus large.
+// Provider de secours pour les agents qui dépassent le rate-limit de l'offre
+// gratuite de Groq. Cerebras Inference sert le même modèle que Groq
+// (gpt-oss-120b, `CEREBRAS_MODEL_PRIMARY`) avec une offre gratuite plus large.
 //
 // API 100% compatible OpenAI Chat Completions — même schéma JSON que Groq, on
-// ne fait que changer l'URL, le modèle et la clé.
+// ne fait que changer l'URL, le modèle et la clé. gpt-oss raisonne avant de
+// répondre : même budget majoré et même effort que chez Groq
+// (`lib/ai/raisonnement.ts`), raisonnement rendu à part (`message.reasoning`).
 //
 // Voir : https://inference-docs.cerebras.ai/api-reference/chat-completions
 
 import { CEREBRAS_API_URL, CEREBRAS_MODEL_PRIMARY } from '@/lib/constants'
+import { parametresRaisonnement, type EffortRaisonnement } from '@/lib/ai/raisonnement'
+import { delaiApres429 } from '@/lib/ai/reessai'
 
 // Shape OpenAI-compatible (identique à GroqMessage / GroqResponse côté `lib/groq.ts`).
 // On redéfinit ici pour éviter une dépendance circulaire — `lib/groq.ts` importe
@@ -34,6 +38,7 @@ export interface CerebrasCallOptions {
   temperature?: number
   max_tokens?: number
   response_format?: { type: string }
+  reasoning_effort?: EffortRaisonnement
 }
 
 /**
@@ -69,7 +74,7 @@ export async function callCerebrasWithRetry(
           model,
           messages: opts.messages,
           temperature: opts.temperature ?? 0.2,
-          max_tokens: opts.max_tokens ?? 3000,
+          ...parametresRaisonnement(model, opts.max_tokens ?? 3000, opts.reasoning_effort),
           ...(opts.response_format ? { response_format: opts.response_format } : {}),
         }),
         signal: AbortSignal.timeout(25000),
@@ -78,10 +83,11 @@ export async function callCerebrasWithRetry(
       if (res.ok) return res.json()
 
       if (res.status === 429) {
-        const retryAfter = res.headers.get('retry-after')
-        const waitMs = retryAfter ? parseInt(retryAfter) * 1000 : (attempt + 1) * 2000
+        lastError = new Error(`Cerebras 429 on ${model}`)
+        const waitMs = delaiApres429(res.headers.get('retry-after'), attempt, maxRetries)
+        if (waitMs === null) break
         console.warn(`[cerebras] 429 on ${model}, retry ${attempt + 1}/${maxRetries}, wait ${waitMs}ms`)
-        await new Promise(r => setTimeout(r, Math.min(waitMs, 10000)))
+        await new Promise(r => setTimeout(r, waitMs))
         continue
       }
 
@@ -123,6 +129,7 @@ export interface CerebrasToolsCallOptions {
   tool_choice?: 'auto' | 'required' | 'none'
   temperature?: number
   max_tokens?: number
+  reasoning_effort?: EffortRaisonnement
 }
 
 export interface CerebrasToolsResponse {
@@ -159,7 +166,7 @@ export async function callCerebrasWithTools(
           tools: opts.tools,
           tool_choice: opts.tool_choice ?? 'auto',
           temperature: opts.temperature ?? 0.2,
-          max_tokens: opts.max_tokens ?? 1500,
+          ...parametresRaisonnement(model, opts.max_tokens ?? 1500, opts.reasoning_effort),
         }),
         signal: AbortSignal.timeout(25000),
       })
@@ -181,10 +188,11 @@ export async function callCerebrasWithTools(
       }
 
       if (res.status === 429) {
-        const retryAfter = res.headers.get('retry-after')
-        const waitMs = retryAfter ? parseInt(retryAfter) * 1000 : (attempt + 1) * 2000
+        lastError = new Error(`Cerebras tools 429 on ${model}`)
+        const waitMs = delaiApres429(res.headers.get('retry-after'), attempt, maxRetries)
+        if (waitMs === null) break
         console.warn(`[cerebras-tools] 429 on ${model}, retry ${attempt + 1}/${maxRetries}, wait ${waitMs}ms`)
-        await new Promise(r => setTimeout(r, Math.min(waitMs, 10000)))
+        await new Promise(r => setTimeout(r, waitMs))
         continue
       }
 

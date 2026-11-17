@@ -21,8 +21,12 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/logger', () => ({ logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() } }))
-// Lecteur de documents actuel du KYC, simulé pour un test rapide et sans réseau (sa réponse n'est pas vérifiée).
-vi.mock('@/lib/groq', () => ({ callGroqWithRetry: mocks.ocr }))
+// Lecteur de documents du KYC (Workers AI par lib/ai/relais depuis le retrait des modèles de Groq), simulé pour un
+// test rapide et sans réseau (sa réponse n'est pas vérifiée).
+vi.mock('@/lib/ai/relais', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/ai/relais')>()),
+  appelerVision: mocks.ocr,
+}))
 vi.mock('@/lib/supabase-server', () => ({
   supabaseAdmin: {
     from: () => ({
@@ -92,13 +96,25 @@ describe('runKycPipeline — pièces enregistrées par leur chemin', () => {
 
   it('Kbis et pièce d’identité : liens frais créés en une seule requête, avant les lectures', async () => {
     const cheminIdentite = `${USER_ID}/identity/1b4e28ba-2fa1-11d2-883f-0016d3cca427.png`
-    mocks.artisan = { ...mocks.artisan, id_document_url: cheminIdentite }
+    // La pièce d'identité n'est lue que s'il y a un nom à y chercher (lib/kyc-orchestrate.ts).
+    mocks.artisan = { ...mocks.artisan, id_document_url: cheminIdentite, first_name: 'Jean', last_name: 'Exemple' }
 
     await lancer()
 
     expect(mocks.createSignedUrls).toHaveBeenCalledTimes(1)
     expect(mocks.createSignedUrls).toHaveBeenCalledWith([CHEMIN_KBIS, cheminIdentite], expect.any(Number))
     expect(mocks.telecharges).toEqual([lienFrais(CHEMIN_KBIS), lienFrais(cheminIdentite)])
+  })
+
+  it('sans nom à chercher : la pièce d’identité a son lien frais, mais elle n’est pas téléchargée', async () => {
+    const cheminIdentite = `${USER_ID}/identity/1b4e28ba-2fa1-11d2-883f-0016d3cca427.png`
+    mocks.artisan = { ...mocks.artisan, id_document_url: cheminIdentite }
+
+    await lancer()
+
+    expect(mocks.createSignedUrls).toHaveBeenCalledTimes(1)
+    expect(mocks.createSignedUrls).toHaveBeenCalledWith([CHEMIN_KBIS, cheminIdentite], expect.any(Number))
+    expect(mocks.telecharges).toEqual([lienFrais(CHEMIN_KBIS)])
   })
 
   it('panne du stockage pendant la création des liens : le contrôle continue, pièces non lues', async () => {
