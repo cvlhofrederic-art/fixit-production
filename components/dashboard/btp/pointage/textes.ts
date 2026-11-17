@@ -263,7 +263,9 @@ export function messageAutorisationArrierePlan(autorisation: 'partielle' | 'refu
 }
 
 /** État du pointage téléphone en poche pour ce compte. */
-export function statutArrierePlan(etat: 'actif' | 'ailleurs' | 'inactif' | 'sans_autorisation', isPt: boolean): string {
+export function statutArrierePlan(
+  etat: 'actif' | 'ailleurs' | 'inactif' | 'sans_autorisation' | 'zones_indisponibles', isPt: boolean,
+): string {
   const textes: Record<typeof etat, [string, string]> = {
     actif: [
       'Activé sur ce téléphone : arrivée et départ pointés tout seuls sur vos chantiers, même téléphone en poche. La page ouverte n’est plus nécessaire.',
@@ -272,6 +274,10 @@ export function statutArrierePlan(etat: 'actif' | 'ailleurs' | 'inactif' | 'sans
     ailleurs: [
       'Un autre téléphone (ou une installation précédente de l’appli) pointe pour vous en arrière-plan. L’activer ici le coupe là-bas.',
       'Outro telemóvel (ou uma instalação anterior da app) marca por si em segundo plano. Ativá-la aqui desliga-a lá.',
+    ],
+    zones_indisponibles: [
+      'Activé sur ce téléphone, mais il ne surveille pas tous vos chantiers (localisation du téléphone coupée ?) : rallumez-la, puis revenez dans l’appli ; en attendant, pointez page ouverte ou à la main.',
+      'Ativada neste telemóvel, mas não acompanha todas as suas obras (localização do telemóvel desligada?): volte a ligá-la e regresse à app; entretanto, marque com a página aberta ou manualmente.',
     ],
     sans_autorisation: [
       'Activé sur ce téléphone, mais la position « Toujours » n’est plus autorisée pour Vitfix Pro : rien n’est pointé en arrière-plan. Rétablissez-la dans les réglages du téléphone ; en attendant, pointez page ouverte ou à la main.',
@@ -308,6 +314,11 @@ export function messageZonesArrierePlan(zones: number, isPt: boolean): string {
   return isPt
     ? `${nombre} (20 no máximo). Quando lhe atribuírem uma nova obra, abra este ecrã: as obras acompanhadas são atualizadas a cada abertura.`
     : `${nombre} (20 au plus). Quand on vous affecte un nouveau chantier, ouvrez cet écran : les chantiers suivis se mettent à jour à chaque ouverture.`
+}
+
+/** Zones que le téléphone surveille vraiment, quand il n'en surveille pas autant qu'il faudrait. */
+export function messageZonesIncompletes(surveillees: number, voulues: number, isPt: boolean): string {
+  return isPt ? `Obras acompanhadas: ${surveillees} de ${voulues}.` : `Chantiers suivis : ${surveillees} sur ${voulues}.`
 }
 
 /** Aucun chantier affecté n'a de position : rien à confier au téléphone pour l'instant. */

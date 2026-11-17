@@ -141,25 +141,39 @@ export function configurer(url: string, jeton: string): Promise<void> {
   })
 }
 
+/** Zones en place après une synchronisation : signature voulue, et nombre de zones voulues que le module surveille. */
+export interface ZonesEnPlace {
+  signature: string
+  surveillees: number
+}
+
 /**
  * Zones du système tenues à jour : refaites si les chantiers (position, rayon) ont changé depuis la dernière fois, si
- * le module ne les surveille plus toutes, ou si `reposer` (Android, voir REPOSE_ANDROID_MS). Renvoie la signature en
- * place. Reposer une zone où se trouve le téléphone lui fait envoyer une arrivée : le serveur l'ignore si un pointage
- * y est ouvert ou y a été terminé à la main ce jour-là.
+ * le module ne les surveille plus toutes, ou si `reposer` (Android, voir REPOSE_ANDROID_MS). Une zone refusée (par
+ * exemple localisation du téléphone coupée) n'arrête pas les autres : le nombre de zones vraiment surveillées est
+ * rendu, pour le dire à l'employé. Reposer une zone où se trouve le téléphone lui fait envoyer une arrivée : sans
+ * effet si un pointage y est ouvert, ou y a été terminé à la main (journée rejouée côté serveur).
  */
-export function synchroniserZones(chantiers: ChantierPointable[], signaturePrecedente: string | null, reposer = false): Promise<string> {
+export function synchroniserZones(
+  chantiers: ChantierPointable[], signaturePrecedente: string | null, reposer = false,
+): Promise<ZonesEnPlace> {
   return aLaSuite(async () => {
     const { geo } = await module()
     const voulues = zonesVoulues(chantiers)
     const signature = signatureZones(voulues)
-    const surveillees = new Set((await geo.getMonitoredGeofences()).regions)
-    const completes = voulues.length === surveillees.size && voulues.every(c => surveillees.has(c.id))
-    if (!reposer && signature === signaturePrecedente && completes) return signature
+    const avant = new Set((await geo.getMonitoredGeofences()).regions)
+    const completes = voulues.length === avant.size && voulues.every(c => avant.has(c.id))
+    if (!reposer && signature === signaturePrecedente && completes) return { signature, surveillees: voulues.length }
     await geo.removeAllGeofences()
     for (const c of voulues) {
-      await geo.addGeofence({ identifier: c.id, latitude: c.latitude, longitude: c.longitude, radius: rayonZoneSysteme(c.rayonM) })
+      try {
+        await geo.addGeofence({ identifier: c.id, latitude: c.latitude, longitude: c.longitude, radius: rayonZoneSysteme(c.rayonM) })
+      } catch (err) {
+        console.warn('[btp/pointage] zone refusée par le téléphone :', err instanceof Error ? err.message : err)
+      }
     }
-    return signature
+    const apres = new Set((await geo.getMonitoredGeofences()).regions)
+    return { signature, surveillees: voulues.filter(c => apres.has(c.id)).length }
   })
 }
 

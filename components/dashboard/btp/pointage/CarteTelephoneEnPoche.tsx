@@ -7,6 +7,7 @@ import {
   messageAutorisationArrierePlan,
   messageErreurPointage,
   messageZonesArrierePlan,
+  messageZonesIncompletes,
   noticeArrierePlan,
   statutArrierePlan,
 } from './textes'
@@ -32,7 +33,10 @@ function BoutonReglages({ arrierePlan, isPt }: Props) {
 
 /** Ce qui se dit sous l'état : chantiers suivis (activé), base pas à jour, aucun chantier localisé, ou l'information. */
 function Explication({ arrierePlan, isPt }: Props) {
-  const { etat, zones, baseDisponible } = arrierePlan
+  const { etat, zones, surveillees, baseDisponible } = arrierePlan
+  if (etat === 'zones_indisponibles') {
+    return <p style={{ fontSize: 12, color: GRIS, margin: '0 0 10px' }}>{messageZonesIncompletes(surveillees ?? 0, zones, isPt)}</p>
+  }
   if (etat === 'actif' || etat === 'sans_autorisation') {
     return <p style={{ fontSize: 12, color: GRIS, margin: '0 0 10px' }}>{messageZonesArrierePlan(zones, isPt)}</p>
   }
@@ -48,7 +52,8 @@ function Explication({ arrierePlan, isPt }: Props) {
 export function CarteTelephoneEnPoche({ arrierePlan, isPt }: Props) {
   const { etat, occupe, autorisation, zones, baseDisponible } = arrierePlan
   if (etat === 'indisponible') return null
-  const active = etat === 'actif' || etat === 'sans_autorisation'
+  const active = etat === 'actif' || etat === 'sans_autorisation' || etat === 'zones_indisponibles'
+  const avertir = etat === 'sans_autorisation' || etat === 'zones_indisponibles'
   const demandeRefusee = !active && (autorisation === 'partielle' || autorisation === 'refusee')
 
   return (
@@ -56,7 +61,7 @@ export function CarteTelephoneEnPoche({ arrierePlan, isPt }: Props) {
       <div className="v5-st" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <Smartphone size={14} aria-hidden="true" /> {isPt ? 'Marcação com o telemóvel no bolso' : 'Pointage téléphone en poche'}
       </div>
-      <p style={{ fontSize: 13, margin: '0 0 10px' }} role={etat === 'sans_autorisation' ? 'alert' : undefined}>
+      <p style={{ fontSize: 13, margin: '0 0 10px' }} role={avertir ? 'alert' : undefined}>
         {statutArrierePlan(etat, isPt)}
       </p>
       <Explication arrierePlan={arrierePlan} isPt={isPt} />
@@ -67,7 +72,7 @@ export function CarteTelephoneEnPoche({ arrierePlan, isPt }: Props) {
         </div>
       )}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-        {etat === 'sans_autorisation' && <BoutonReglages arrierePlan={arrierePlan} isPt={isPt} />}
+        {avertir && <BoutonReglages arrierePlan={arrierePlan} isPt={isPt} />}
         {active ? (
           <button type="button" className="v5-btn v5-btn-s" disabled={occupe} onClick={() => { void arrierePlan.couper() }}>
             {isPt ? 'Desligar neste telemóvel' : 'Couper sur ce téléphone'}

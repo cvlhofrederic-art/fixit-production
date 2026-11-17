@@ -178,6 +178,9 @@ const carte = () => screen.queryByText('Pointage téléphone en poche')?.closest
 const statut = () => carte()?.querySelector('p')?.textContent ?? null
 
 beforeEach(() => {
+  // Horloge figée (seule la date : les minuteries de waitFor restent réelles).
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(Date.UTC(2026, 10, 17, 8, 0, 0))
   vi.clearAllMocks()
   localStorage.clear()
   natif.zones.clear()
@@ -192,6 +195,7 @@ beforeEach(() => {
 
 afterEach(async () => {
   await new Promise(r => setTimeout(r, 0))
+  vi.useRealTimers()
   delete (window as Window & { Capacitor?: unknown }).Capacitor
   // Propriétés posées sur l'objet navigator par un test (Object.defineProperty) : retirées, celles du prototype restent.
   const nav = navigator as unknown as Record<string, unknown>
@@ -532,13 +536,45 @@ describe('Téléphone qui pointe déjà', () => {
     expect(serveur.envois).toEqual([])
   })
 
-  it('compte relié depuis à une autre fiche employé : zones retirées (l’enregistrement visait l’ancienne fiche)', async () => {
+  it('compte relié depuis à une autre fiche, téléphone toujours actif au serveur : rien retiré ici (le serveur tranche)', async () => {
     appli()
     dejaActif([VILLA, GARAGE], { membreId: 'm-ancienne-fiche', appareilId: 'app-1' })
     render(<Banc depart={{ ...CONTEXTE, appareilArrierePlan: 'app-1' }} />)
-    await waitFor(() => expect(natif.zones.size).toBe(0))
-    await waitFor(() => expect(localStorage.getItem(CLE)).toBeNull())
+    await new Promise(r => setTimeout(r, 0))
+    expect(natif.journal).toEqual([])
+    expect(natif.zones.size).toBe(2)
+    expect(localStorage.getItem(CLE)).not.toBeNull()
     expect(serveur.envois).toEqual([])
+  })
+
+  it('réponse incertaine du serveur (panne passagère) : rien retiré, rien refait, l’écran garde ce téléphone actif', async () => {
+    appli()
+    dejaActif([VILLA, GARAGE])
+    render(<Banc depart={{ ...CONTEXTE, appareilArrierePlan: null, arrierePlanIncertain: true }} />)
+    await new Promise(r => setTimeout(r, 0))
+    expect(natif.zones.size).toBe(2)
+    expect(localStorage.getItem(CLE)).not.toBeNull()
+    // Aucun appel au module : ni retrait ni mise à jour sur la foi d'une réponse incertaine.
+    expect(natif.journal).toEqual([])
+    expect(statut()).toMatch(/^Activé sur ce téléphone :/)
+  })
+
+  it('zones refusées par le téléphone (localisation coupée) : averti, la page ouverte reprend ; reposées au retour dans l’appli', async () => {
+    appli({ plateforme: 'ios' })
+    dejaActif([VILLA, GARAGE])
+    natif.zones.clear()
+    natif.panne = 'addGeofence'
+    render(<Banc depart={{ ...CONTEXTE, appareilArrierePlan: 'app-1' }} />)
+    await waitFor(() => expect(statut()).toMatch(/^Activé sur ce téléphone, mais il ne surveille pas tous vos chantiers/))
+    expect(screen.getByRole('button', { name: 'Ouvrir les réglages' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Activer le pointage automatique' })).toBeTruthy()
+    expect(screen.getByText('Chantiers suivis : 0 sur 2.')).toBeTruthy()
+    natif.panne = null
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
+    document.dispatchEvent(new Event('visibilitychange'))
+    await waitFor(() => expect(statut()).toMatch(/^Activé sur ce téléphone :/))
+    expect(natif.zones.size).toBe(2)
+    expect(screen.queryByRole('button', { name: 'Activer le pointage automatique' })).toBeNull()
   })
 
   it('le pointage page ouverte ne démarre pas tant que ce téléphone pointe en arrière-plan (même en reprise automatique)', async () => {
@@ -610,7 +646,7 @@ describe('Enveloppe du module natif (arrierePlan.ts)', () => {
     const arret = arreterSurCeTelephone()
     await Promise.all([synchro, arret])
     expect(natif.journal).toEqual([
-      'getMonitoredGeofences', 'removeAllGeofences', 'addGeofence', 'addGeofence',
+      'getMonitoredGeofences', 'removeAllGeofences', 'addGeofence', 'addGeofence', 'getMonitoredGeofences',
       'removeAllGeofences', 'clearGeofenceQueue',
     ])
     expect(natif.zones.size).toBe(0)

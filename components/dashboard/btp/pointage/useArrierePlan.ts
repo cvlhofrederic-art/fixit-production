@@ -32,9 +32,10 @@ import { messageArrierePlanActive, messageArrierePlanCoupe, messageArrierePlanEc
 
 /**
  * indisponible : hors de l'appli (ou appli sans le module), mode coupé par le gérant, fiche non reliée ;
- * sans_autorisation : activé ici, mais la position « Toujours » a été retirée depuis (rien n'est pointé).
+ * sans_autorisation : activé ici, mais la position « Toujours » a été retirée depuis (rien n'est pointé) ;
+ * zones_indisponibles : activé ici, mais le téléphone ne surveille pas toutes les zones (localisation coupée…).
  */
-export type EtatArrierePlan = 'indisponible' | 'inactif' | 'ailleurs' | 'actif' | 'sans_autorisation'
+export type EtatArrierePlan = 'indisponible' | 'inactif' | 'ailleurs' | 'actif' | 'sans_autorisation' | 'zones_indisponibles'
 
 interface Options {
   contexte: ContextePointage
@@ -50,12 +51,18 @@ interface Reponse {
   appareilId: string | null
 }
 
-export function etatArrierePlan(
-  possible: boolean, ici: boolean, appareilDuCompte: string | null, autorisationIci: AutorisationArrierePlan | null,
-): EtatArrierePlan {
+/** Ce que sait l'appli de ce téléphone : autorisation relue et zones vraiment surveillées (null : pas encore lu). */
+interface EtatIci {
+  autorisation: AutorisationArrierePlan | null
+  surveillees: number | null
+  voulues: number
+}
+
+export function etatArrierePlan(possible: boolean, ici: boolean, appareilDuCompte: string | null, lu: EtatIci): EtatArrierePlan {
   if (!possible) return 'indisponible'
-  if (ici) return autorisationIci === 'partielle' || autorisationIci === 'refusee' ? 'sans_autorisation' : 'actif'
-  return appareilDuCompte === null ? 'inactif' : 'ailleurs'
+  if (!ici) return appareilDuCompte === null ? 'inactif' : 'ailleurs'
+  if (lu.autorisation === 'partielle' || lu.autorisation === 'refusee') return 'sans_autorisation'
+  return lu.surveillees !== null && lu.surveillees < lu.voulues ? 'zones_indisponibles' : 'actif'
 }
 
 const raison = (err: unknown) => (err instanceof Error ? err.message : err)
@@ -79,6 +86,7 @@ export function useArrierePlan({ contexte, chantiers, envoyer, recharger, isPt }
   const [occupe, setOccupe] = useState(false)
   const [autorisation, setAutorisation] = useState<AutorisationArrierePlan | null>(null)
   const [autorisationIci, setAutorisationIci] = useState<AutorisationArrierePlan | null>(null)
+  const [surveillees, setSurveillees] = useState<number | null>(null)
   const contexteVu = useRef(contexte)
   useEffect(() => { contexteVu.current = contexte }, [contexte])
   const retours = useRetoursDansLAppli(natif)
@@ -86,12 +94,15 @@ export function useArrierePlan({ contexte, chantiers, envoyer, recharger, isPt }
   const membreId = contexte.rattachement === 'relie' ? (contexte.moi?.id ?? null) : null
   const possible = natif && contexte.pointageAutoActive && membreId !== null
   const baseDisponible = contexte.arrierePlanDisponible !== false
+  // Réglage ou téléphones illisibles côté serveur (panne passagère) : rien n'est sûr, ce téléphone garde son réglage.
+  const incertain = contexte.arrierePlanIncertain === true
   // Ce que dit l'écran ; juste après une activation ou une coupure faite ici, ce qu'a répondu le serveur, tant que
   // l'écran n'a pas été relu (relecture impossible, réseau coupé : on ne défait pas ce qui vient d'être fait).
-  const appareilDuCompte = reponse?.contexte === contexte ? reponse.appareilId : (contexte.appareilArrierePlan ?? null)
+  const reponduIci = reponse?.contexte === contexte ? reponse.appareilId : (contexte.appareilArrierePlan ?? null)
+  const appareilDuCompte = incertain ? (config?.appareilId ?? null) : reponduIci
   const ici = possible && config !== null && config.membreId === membreId && config.appareilId === appareilDuCompte
-  const etat = etatArrierePlan(possible, ici, appareilDuCompte, autorisationIci)
   const zones = useMemo(() => zonesVoulues(chantiers).length, [chantiers])
+  const etat = etatArrierePlan(possible, ici, appareilDuCompte, { autorisation: autorisationIci, surveillees, voulues: zones })
 
   const oublier = useCallback(() => {
     ecrireConfig(null)
@@ -107,31 +118,36 @@ export function useArrierePlan({ contexte, chantiers, envoyer, recharger, isPt }
     retirerZonesOrphelines().catch((err: unknown) => console.warn('[btp/pointage] zones restées sur le téléphone :', raison(err)))
   }, [natif, sansReglage])
 
-  // Zones et autorisation revues à chaque lecture de l'écran et à chaque retour dans l'appli ; tout retiré ici si ce
-  // téléphone ne pointe plus pour ce compte. Rien pendant une action en cours.
+  // Zones et autorisation revues à chaque lecture de l'écran et à chaque retour dans l'appli. Zones retirées ici
+  // seulement sur un signal sûr du serveur (téléphone retiré ou remplacé par un autre) ; sinon (réponse incertaine,
+  // fiche ou mode à revoir) rien ne change ici : le serveur retire le téléphone s'il le faut. Rien pendant une action.
   useEffect(() => {
-    if (!natif || config === null || occupe) return
+    if (!natif || config === null || occupe || incertain) return
     let annule = false
     const tenir = async () => {
       try {
-        if (!ici) {
+        if (appareilDuCompte !== config.appareilId) {
           await arreterSurCeTelephone()
           if (!annule) oublier()
           return
         }
+        if (!ici) return
         const accord = await lireAutorisationActuelle()
         if (!annule) setAutorisationIci(accord)
         const maintenant = Date.now()
         const reposer = plateformeNative() === 'android' && maintenant - (config.reposeLe ?? 0) > REPOSE_ANDROID_MS
-        const signature = await synchroniserZones(chantiers, config.signature, reposer)
-        if (!annule && (reposer || signature !== config.signature)) {
-          const misAJour = reposer ? { ...config, signature, reposeLe: maintenant } : { ...config, signature }
+        const enPlace = await synchroniserZones(chantiers, config.signature, reposer)
+        if (annule) return
+        setSurveillees(enPlace.surveillees)
+        if (reposer || enPlace.signature !== config.signature) {
+          const misAJour = reposer ? { ...config, signature: enPlace.signature, reposeLe: maintenant } : { ...config, signature: enPlace.signature }
           ecrireConfig(misAJour)
           setConfig(misAJour)
         }
       } catch (err) {
         console.warn('[btp/pointage] zones du téléphone en poche :', raison(err))
         if (!annule) {
+          setSurveillees(0)
           toast.warning(isPt
             ? 'As zonas da marcação com o telemóvel no bolso não foram atualizadas.'
             : 'Les zones du pointage téléphone en poche n’ont pas été mises à jour.')
@@ -140,7 +156,7 @@ export function useArrierePlan({ contexte, chantiers, envoyer, recharger, isPt }
     }
     void tenir()
     return () => { annule = true }
-  }, [natif, config, occupe, ici, chantiers, oublier, isPt, retours])
+  }, [natif, config, occupe, incertain, appareilDuCompte, ici, chantiers, oublier, isPt, retours])
 
   const activer = useCallback(async () => {
     const plateforme = plateformeNative()
@@ -164,10 +180,12 @@ export function useArrierePlan({ contexte, chantiers, envoyer, recharger, isPt }
       }
       await configurer(url, jeton)
       const maintenant = Date.now()
-      const nouvelle = { membreId, appareilId: appareil, signature: await synchroniserZones(chantiers, null, true), reposeLe: maintenant }
+      const enPlace = await synchroniserZones(chantiers, null, true)
+      const nouvelle = { membreId, appareilId: appareil, signature: enPlace.signature, reposeLe: maintenant }
       ecrireConfig(nouvelle)
       setConfig(nouvelle)
       setAutorisationIci(accord)
+      setSurveillees(enPlace.surveillees)
       setReponse({ contexte: contexteVu.current, appareilId: appareil })
       toast.success(messageArrierePlanActive(isPt))
       await recharger()
@@ -217,5 +235,5 @@ export function useArrierePlan({ contexte, chantiers, envoyer, recharger, isPt }
     }
   }, [isPt])
 
-  return { etat, ici, occupe, autorisation, zones, baseDisponible, activer, couper, reglages }
+  return { etat, ici, occupe, autorisation, zones, surveillees, baseDisponible, activer, couper, reglages }
 }
