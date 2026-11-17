@@ -7,7 +7,8 @@
 // alors la requête entière : le statut ne changeait pas. L'e-mail de décision partait sans être attendu, avec un nom
 // vide que /api/send-kyc-email refuse : la société n'était jamais prévenue.
 // Faux client : colonnes de production ; une colonne inconnue, lue ou relue, donne l'erreur 42703 sans rien écrire.
-// Les dossiers qui ne sont pas ceux d'une société BTP française gardent le chemin d'avant (témoins).
+// Société inscrite en portugais : chemin d'avant (témoin, Portugal hors de ce lot). Dossier d'artisan : corrigé par son
+// propre lot, testé dans tests/api/admin-kyc-decision-artisan.test.ts.
 
 import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest'
 import { NextRequest } from 'next/server'
@@ -40,6 +41,11 @@ const h = vi.hoisted(() => {
       if (!ligne) return { data: null, error: { code: 'PGRST116', message: 'aucune ligne' } }
       if (valeurs) Object.assign(ligne, valeurs)
       return { data: lecture ? Object.fromEntries(lecture.map((c) => [c, ligne[c] ?? null])) : { ...ligne }, error: null }
+    }
+    // Au plus une ligne : aucune ligne n'est pas une erreur (postgrest-js rend data null, error null)
+    b.maybeSingle = async () => {
+      const r = await (b.single as () => Promise<{ data: unknown; error: { code: string; message: string } | null }>)()
+      return r.error?.code === 'PGRST116' ? { data: null, error: null } : r
     }
     return b
   }
@@ -152,16 +158,7 @@ describe('Décision KYC sur le dossier d’une société BTP française', () => 
   })
 })
 
-describe('Autres dossiers : chemin d’avant, inchangé (témoins)', () => {
-  it('dossier d’artisan : même relecture qu’avant (first_name, last_name), toujours refusée par la base de production', async () => {
-    const { status } = await decider({ artisan_id: ID_ARTISAN, action: 'approve' })
-
-    // Défaut identique côté artisan, signalé à Frédéric et laissé hors de ce lot (règle artisan / BTP)
-    expect(status).toBe(500)
-    expect(fiche(ID_ARTISAN).kyc_status).toBe('pending')
-    expect(fetchEmail).not.toHaveBeenCalled()
-  })
-
+describe('Société inscrite en portugais : chemin d’avant, inchangé (témoin)', () => {
   it('société inscrite en portugais : chemin d’avant (Portugal hors de ce lot)', async () => {
     fiche(ID_SOCIETE).language = 'pt'
 
