@@ -99,6 +99,11 @@ function ligne(libelle: string, valeurHtml: string): string {
     </tr>`
 }
 
+// GARDE — D8 (décision de Hugo du 17/11/2026, au nom de VitFix, point 8) : l'e-mail aux gestionnaires ne sera réduit à un
+// lien (numéro, type, urgence, lien vers l'espace) que quand TOUS ses destinataires auront un accès à l'espace. Vérifié
+// le 17/11/2026 : il porte aujourd'hui le signalement complet, pour chaque type de destinataire. Les adresses saisies, les
+// gestionnaires sans accès ouvert et l'adresse de contact du cabinet (D9) n'ont que cet e-mail pour le lire : ne pas le
+// réduire avant que chacun d'eux ait un accès.
 export function templateSignalementQr({
   copropriete, signalement: s, origine = 'https://vitfix.io', destinataire = 'administrateur', mention = null, lienSuivi = null,
 }: ParametresEmailQr): { subject: string; html: string } {
