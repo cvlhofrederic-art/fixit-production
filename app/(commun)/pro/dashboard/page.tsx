@@ -392,7 +392,7 @@ function DashboardPage() {
     }
     setArtisan(artisanData)
     supabase.from('profiles_artisan').update({ last_seen_at: new Date().toISOString() }).eq('id', artisanData.id).then()
-    initSettingsForm(artisanData, user.email || '')
+    initSettingsForm(artisanData, user.email || '', role)
     if (artisanData.auto_accept !== undefined) setAutoAccept(!!artisanData.auto_accept)
 
     const aid = artisanData.id
