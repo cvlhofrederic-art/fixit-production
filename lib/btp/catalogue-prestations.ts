@@ -8,10 +8,11 @@
  *  - le formulaire lisait une ancienne copie (clé v4) qu'il remplissait lui-même du jeu par défaut ;
  *  - le module écrivait le jeu par défaut dès que sa clé manquait dans le navigateur, alors que la restauration
  *    depuis le serveur pouvait ne pas être encore arrivée (ou avoir échoué), puis réécrivait la clé depuis l'écran.
- * Aucune clé n'est supprimée, et le chargement n'écrit aucun catalogue (ni exemple, ni liste vide) : on lit au bon
- * endroit (navigateur, puis serveur) ; un compte qui n'a de catalogue ni dans ce navigateur ni au serveur commence avec
- * un catalogue vide (aucun jeu d'exemple depuis le 17/11/2026, en France comme au Portugal) ; les identifiants de
- * services publiés s'ajoutent au catalogue relu au moment d'écrire.
+ * Aucune clé n'est supprimée, et l'effet de chargement n'écrit aucun catalogue (ni exemple, ni liste vide) : on lit au
+ * bon endroit (navigateur, puis serveur) ; un compte qui n'a de catalogue ni dans ce navigateur ni au serveur commence
+ * avec un catalogue vide (aucun jeu d'exemple depuis le 17/11/2026, en France comme au Portugal). Après une publication
+ * réussie, le rattrapage note les identifiants de services dans le catalogue relu au moment d'écrire ou, si la clé
+ * manque, écrit le catalogue affiché (celui de la société) avec ses identifiants.
  */
 import { jetonAcces } from '@/lib/auth/jeton-acces'
 

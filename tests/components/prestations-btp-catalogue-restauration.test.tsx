@@ -7,7 +7,7 @@
 // à la création du compte, tests/components/prestations-btp-catalogue-vierge.test.tsx) : une société qui n'a de
 // catalogue ni dans ce navigateur ni au serveur voit une liste vide, rien n'est écrit au chargement.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, cleanup, waitFor, fireEvent, within } from '@testing-library/react'
+import { render, screen, cleanup, waitFor, fireEvent, within, act } from '@testing-library/react'
 import type { Artisan } from '@/lib/types'
 
 // Table `services` simulée : lignes de la base, insertions, mises à jour et suppressions observées, crochet avant
@@ -81,12 +81,18 @@ const CATALOGUE_SERVEUR = [
   { id: 2, name: 'Béton maison', type: 'mat', lot: 'gros_oeuvre', unit: 'm³', price: prix(160), priceAchat: prix(120) },
 ]
 
+/** Corps des réponses simulées que l'écran a commencé à lire : leur fin marque la fin d'une lecture du serveur. */
+const corpsLus: Array<Promise<unknown>> = []
+
 /** Réponse simulée de GET /api/user-storage. */
 function serveur(reponse: { entries: Record<string, unknown> } | 'panne') {
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
     if (!String(url).startsWith('/api/user-storage')) return new Response('{}', { status: 404 })
     if (reponse === 'panne') return new Response('{"error":"Erreur lors du chargement"}', { status: 500 })
-    return new Response(JSON.stringify(reponse), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    const res = new Response(JSON.stringify(reponse), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    const lire = res.json.bind(res)
+    res.json = () => { const lu = lire(); corpsLus.push(lu); return lu }
+    return res
   }))
 }
 
@@ -96,6 +102,15 @@ const stocke = () => {
 }
 const monter = () => render(<PrestationsBTPSection artisan={ARTISAN} orgRole="pro_societe" />)
 const attendre = (ms: number) => new Promise((r) => setTimeout(r, ms))
+/**
+ * Attend la fin de la lecture du serveur (corps de la réponse lu par l'écran), puis l'application de son résultat : un
+ * catalogue vide « en cours de chargement » et un catalogue vide chargé s'affichent pareil, aucun signal visible ne les
+ * distingue.
+ */
+async function chargementFini() {
+  await waitFor(() => expect(corpsLus.length).toBeGreaterThan(0))
+  await act(async () => { await Promise.allSettled(corpsLus) })
+}
 /** Texte du n-ième message d'erreur affiché (à partir de 0). */
 const messageErreur = (n: number) => String(vi.mocked(toast.error).mock.calls[n]?.[0])
 /** Ouvre la saisie de l'élément affiché sous ce nom. */
@@ -127,6 +142,7 @@ function nomsAffiches(): Array<string | null> {
 
 beforeEach(() => {
   localStorage.clear()
+  corpsLus.length = 0
   base.lignes = []
   base.insertions = []
   base.misesAJour = []
@@ -156,8 +172,7 @@ describe('Prestations BTP — catalogue absent de ce navigateur', () => {
   it('rien au serveur non plus (compte neuf) : liste vide, sans exemple, rien n\'est écrit ni publié ; la première prestation saisie est enregistrée et publiée une fois', async () => {
     serveur({ entries: {} })
     monter()
-    await waitFor(() => expect(fetch).toHaveBeenCalled())
-    await attendre(50)
+    await chargementFini()
     expect(nomsAffiches()).toEqual([])
     expect(stocke()).toBeNull()
     expect(base.insertions).toHaveLength(0)
@@ -168,6 +183,9 @@ describe('Prestations BTP — catalogue absent de ce navigateur', () => {
     // L'identifiant de service est reporté dans le catalogue enregistré.
     await waitFor(() => expect(stocke()).toEqual([expect.objectContaining({ name: 'Chape liquide', type: 'prest', supabase_id: 'svc-nouveau-1' })]))
     await attendre(50)
+    // Une seule insertion. Le garde-fou de persist() contre une seconde publication de la première prestation est
+    // prouvé par tests/components/prestations-btp-catalogue-vierge.test.tsx : ici, la simulation rend le service
+    // inséré visible avant le rattrapage, qui le reprendrait de toute façon par son nom.
     expect(base.insertions).toHaveLength(1)
     expect(toast.error).not.toHaveBeenCalled()
   })
@@ -228,8 +246,7 @@ describe('Prestations BTP — catalogue absent de ce navigateur', () => {
     localStorage.setItem(CLE, illisible)
     serveur({ entries: {} })
     monter()
-    await waitFor(() => expect(fetch).toHaveBeenCalled())
-    await attendre(50)
+    await chargementFini()
     expect(nomsAffiches()).toEqual([])
     expect(localStorage.getItem(CLE)).toBe(illisible)
     expect(base.insertions).toHaveLength(0)
