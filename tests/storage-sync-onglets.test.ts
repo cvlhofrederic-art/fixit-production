@@ -48,9 +48,10 @@
 // Contre-relecture du 17/11/2026 (neuvième passe) : la confirmation d'une saisie levait la note de la clé quand la
 // suppression faite juste après elle dans le même onglet était encore en route, si la restauration d'un onglet neuf
 // avait entre-temps remis dans le navigateur une valeur que le serveur avait détenue : en échec ensuite, la suppression
-// était perdue. Dans un stockage plein, la note des remplacements, qui peut garder cent marques, ne s'écrivait plus dès
-// qu'elle devait grandir : la saisie remplacée par la restauration d'un onglet neuf était perdue. Aucun test, enfin, ne
-// vérifiait la limite de cinquante marques par sorte.
+// était perdue (correctif retiré à la onzième passe : limite écrite en tête du module). Dans un stockage plein, la note
+// des remplacements, qui peut garder cent marques, ne s'écrivait plus dès qu'elle devait grandir : la saisie remplacée
+// par la restauration d'un onglet neuf était perdue (correctif retiré à la dixième passe : limite écrite en tête du
+// module). Aucun test, enfin, ne vérifiait la limite de cinquante marques par sorte.
 //
 // Contre-relecture du 17/11/2026 (dixième passe) : la confirmation d'une saisie recréait la note de la clé quand la
 // suppression faite ensuite dans le même onglet était déjà confirmée ; la saisie suivante de l'onglet la gardait comme
@@ -58,6 +59,13 @@
 // stockage plein, la note des remplacements réduite à ses cinquante marques les plus récentes, toutes sortes
 // confondues, chassait la marque d'une saisie en attente au profit d'une marque qui ne servait à rien : ce second essai
 // est retiré, et une note qui devrait grandir n'est plus réécrite, comme avant la neuvième passe.
+//
+// Contre-relecture du 17/11/2026 (onzième passe) : garder la note d'une suppression encore en route à la confirmation
+// de la saisie plus ancienne (correctif DCF2 des neuvième et dixième passes) en faisait la valeur d'avant de la saisie
+// ou de la suppression suivante de l'onglet. Quand l'onglet neuf réécrivait à son ouverture la liste qu'il avait
+// remise, ou qu'elle était remise ailleurs, avant le nouvel essai, cette nouvelle action cédait au serveur sans jamais
+// partir. Le correctif est retiré et le code du module redevient celui de la huitième passe : la suppression perdue est
+// une limite écrite en tête du module, les deux tests du correctif sont retirés, et un test garde la nouvelle saisie.
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
@@ -1380,45 +1388,12 @@ describe('restauration qui marque plus de cinquante clés à la fois', () => {
   })
 })
 
-// Neuvième passe, scénario DCF2 de la contre-relecture : A saisit puis supprime la liste, et un onglet neuf B s'ouvre
-// aussitôt, avant que la note de A n'entre dans l'état : sa restauration remet la liste du serveur dans le navigateur. La
-// saisie arrive au serveur pendant l'envoi de la suppression : sa confirmation levait la note de la clé, la valeur en
-// place étant l'une de celles que le serveur avait détenues. La suppression, en échec ensuite, n'était plus remise en
-// attente, et la liste saisie restait au serveur.
-describe('suppression qui suit une saisie, la restauration d’un onglet neuf remettant la liste pendant leurs envois', () => {
-  it.each([
-    ['continue de travailler dans A', true],
-    ['ne fait rien d’autre', false],
-  ] as const)('la saisie est confirmée, puis la suppression échoue ; l’utilisateur %s : au nouvel essai, la suppression part', async (_suite, continuer) => {
-    const A = await ouvrirUnOnglet()
-    serveur.retenir = true
-    saisirDans(A, CLIENTS, liste(1, 2))
-    await ecoulerDebounce() // envoi 0 : la saisie
-    supprimerDans(A, CLIENTS)
-    const B = await ouvrirUnOnglet() // remet la liste du serveur, et marque sa disparition
-    expect(lire(CLIENTS)).toEqual(liste(1))
-    await ecoulerDebounce() // envoi 1 : la suppression
-    await aboutir(0) // la saisie arrive et est confirmée
-    await aboutir(1, 'reseau') // la suppression échoue
-    serveur.retenir = false
-    if (continuer) {
-      saisirDans(A, 'fixit_autre_a', { a: 1 })
-      await ecoulerDebounce()
-    }
-    await nouvelEssai()
-    await relireDansLesDeuxOnglets(A, B)
-
-    // Avant : la liste saisie restait au serveur, et revenait dans le navigateur.
-    expect(serveur.espace).not.toHaveProperty(CLIENTS)
-    expect(window.localStorage.getItem(CLIENTS)).toBeNull()
-  })
-})
-
 // Dixième passe, scénario DCF5-B de la contre-relecture : la suppression arrive au serveur et est confirmée avant la
-// saisie plus ancienne, qui arrive après elle. Depuis la neuvième passe, la confirmation de cette saisie recréait la note
-// de la clé, levée par celle de la suppression. La saisie suivante de l'onglet la gardait : la valeur d'avant retenue
-// était la saisie confirmée, et non la valeur du navigateur juste avant la nouvelle saisie. En échec, la nouvelle saisie
-// était perdue au nouvel essai, alors que le serveur détenait la valeur qu'elle avait remplacée.
+// saisie plus ancienne, qui arrive après elle. Le correctif DCF2 de la neuvième passe (retiré à la onzième) recréait à
+// la confirmation de cette saisie la note de la clé, levée par celle de la suppression. La saisie suivante de l'onglet
+// la gardait : la valeur d'avant retenue était la saisie confirmée, et non la valeur du navigateur juste avant la
+// nouvelle saisie. En échec, la nouvelle saisie était perdue au nouvel essai, alors que le serveur détenait la valeur
+// qu'elle avait remplacée.
 describe('saisie qui suit une suppression confirmée avant la saisie plus ancienne', () => {
   it('la nouvelle saisie, en échec, repart au nouvel essai quand le serveur détient la valeur qu’elle a remplacée', async () => {
     const A = await ouvrirUnOnglet()
@@ -1445,6 +1420,37 @@ describe('saisie qui suit une suppression confirmée avant la saisie plus ancien
     // Neuvième passe : le serveur gardait la liste d'origine, et elle revenait dans le navigateur.
     expect(serveur.espace[CLIENTS]).toEqual(commeLaBase(liste(5)))
     expect(lire(CLIENTS)).toEqual(commeLaBase(liste(5)))
+  })
+})
+
+// Onzième passe, scénario DCF5RB de la contre-relecture : la saisie de A arrive au serveur et est confirmée pendant
+// l'envoi de la suppression faite juste après elle ; l'onglet neuf B, qui a remis la liste d'origine, la réécrit à son
+// ouverture dans l'ordre des champs de l'application, et son envoi arrive avant le nouvel essai. Garder la note de la
+// suppression à cette confirmation (correctif DCF2 des neuvième et dixième passes) en faisait la valeur d'avant de la
+// saisie suivante de A : faite après l'échec de la suppression, celle-ci cédait au serveur sans jamais partir, et la
+// liste d'origine revenait. La suppression, elle, est perdue (limite écrite en tête du module).
+describe('saisie après l’échec d’une suppression, l’onglet neuf ayant réécrit à son ouverture la liste remise', () => {
+  it('la nouvelle saisie part au nouvel essai', async () => {
+    const A = await ouvrirUnOnglet()
+    serveur.retenir = true
+    saisirDans(A, CLIENTS, liste(1, 2))
+    await ecoulerDebounce() // envoi 0 : la saisie
+    supprimerDans(A, CLIENTS)
+    const B = await ouvrirUnOnglet() // remet la liste du serveur, et marque sa disparition
+    saisirDans(B, CLIENTS, liste(1)) // l'application de B réécrit la liste dans son propre ordre des champs
+    await ecoulerDebounce() // envoi 1 : la suppression ; envoi 2 : la réécriture de B
+    await aboutir(0) // la saisie arrive et est confirmée pendant l'envoi de la suppression
+    await aboutir(2) // la réécriture de B arrive : le serveur détient de nouveau la liste d'origine
+    await aboutir(1, 'reseau') // la suppression échoue
+    serveur.retenir = false
+    saisirDans(A, CLIENTS, liste(5)) // l'utilisateur crée une nouvelle liste dans A, avant le nouvel essai
+    await ecoulerDebounce()
+    await nouvelEssai()
+    await relireDansLesDeuxOnglets(A, B)
+
+    // Neuvième et dixième passes : la nouvelle liste ne partait jamais, et la liste d'origine revenait.
+    expect(serveur.espace[CLIENTS]).toEqual(commeLaBase(liste(5)))
+    expect(lire(CLIENTS)).toEqual(liste(5))
   })
 })
 
