@@ -1,7 +1,7 @@
 /**
  * import-artisans-PT-filtered.mjs
  *
- * Importe les artisans PT filtrés depuis data/artisans-PT-filtered.json
+ * Importe les artisans PT filtrés depuis artisans-PT-filtered.json (dossier privé des annuaires, hors dépôt)
  * dans la table profiles_artisan de Supabase.
  *
  * Score activité :
@@ -17,10 +17,12 @@
 import { createClient } from '@supabase/supabase-js'
 import fs from 'fs'
 import path from 'path'
-import { fileURLToPath } from 'url'
+import os from 'os'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const INPUT_FILE = path.join(__dirname, '../data/artisans-PT-filtered.json')
+// Annuaires récupérés (données personnelles de tiers) : hors du dépôt public, dans un dossier privé
+// (ANNUAIRES_ARTISANS_DIR pour en choisir un autre).
+const DOSSIER_ANNUAIRES = process.env.ANNUAIRES_ARTISANS_DIR || path.join(os.homedir(), '.claude', 'donnees-privees', 'artisans-pt')
+const INPUT_FILE = path.join(DOSSIER_ANNUAIRES, 'artisans-PT-filtered.json')
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
