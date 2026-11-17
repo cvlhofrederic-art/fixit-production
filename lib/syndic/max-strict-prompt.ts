@@ -374,7 +374,7 @@ ${truncated}
 // ── Génération HyDE — réécriture hypothétique de la query ────────────────────
 // Le LLM génère une "réponse hypothétique idéale" qu'on embed pour booster
 // le recall (technique éprouvée 2025). Plus rapide qu'un vrai LLM call si on
-// utilise un petit modèle. Ici via Groq Llama 3.3 8B (rapide).
+// utilise un petit modèle. Ici via Groq (petit modèle, rapide).
 
 export function buildHyDEPrompt(query: string, locale: 'fr' | 'pt'): string {
   if (locale === 'pt') {

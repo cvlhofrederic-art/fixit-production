@@ -1,10 +1,10 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // lib/rapport-ia.ts — Génération IA du texte de rapport d'intervention
-// Utilise Groq API (Llama 3.3 70B) via lib/groq.ts existant
+// Groq (modèle de lib/constants.ts), Workers AI en relais si Groq échoue (lib/ai/relais.ts)
 // Fallback structurel intégré — ne plante jamais
 // ══════════════════════════════════════════════════════════════════════════════
 
-import { callGroqWithRetry } from '@/lib/groq'
+import { appelerIA } from '@/lib/ai/relais'
 
 // ── Interfaces ───────────────────────────────────────────────────────────────
 
@@ -112,12 +112,12 @@ Réponds UNIQUEMENT en JSON valide avec cette structure :
   "conclusion": "..."
 }`
 
-  const groqResponse = await callGroqWithRetry({
+  const groqResponse = await appelerIA({
     messages: [{ role: 'user', content: prompt }],
     temperature: 0.2,
     max_tokens: 600,
     response_format: { type: 'json_object' },
-  })
+  }, { contexte: 'rapport-ia' })
 
   const raw = groqResponse.choices[0]?.message?.content
   if (!raw) throw new Error('Réponse Groq vide')

@@ -10,7 +10,7 @@ const STORAGE_KEY = 'fixit_modules_categories_v3'
 
 // Aligned 1:1 with V5Sidebar (pro_societe BTP) structure
 const DEFAULT_STRUCTURE: Array<{ id: string; name: string; namePt: string; modIds: string[] }> = [
-  { id: 'cat-pilotage', name: 'Pilotage', namePt: 'Pilotagem', modIds: ['home', 'gestion_comptes', 'stats', 'revenus', 'motifs'] },
+  { id: 'cat-pilotage', name: 'Pilotage', namePt: 'Gestão', modIds: ['home', 'gestion_comptes', 'stats', 'revenus', 'motifs'] },
   { id: 'cat-chantiers', name: 'Chantiers', namePt: 'Obras', modIds: ['chantiers', 'gantt', 'equipes', 'pointage', 'estimation_materiaux', ID_MODULE_DICTIONNAIRE, 'calendar', 'meteo', 'photos_chantier', 'rapports'] },
   { id: 'cat-commercial', name: 'Commercial', namePt: 'Comercial', modIds: ['pipeline', 'devis', 'dpgf', 'marches'] },
   { id: 'cat-facturation', name: 'Facturation', namePt: 'Faturação', modIds: ['factures', 'situations', 'garanties'] },
@@ -20,6 +20,36 @@ const DEFAULT_STRUCTURE: Array<{ id: string; name: string; namePt: string; modId
   { id: 'cat-admin', name: 'Administration', namePt: 'Administração', modIds: ['wallet', 'contrats', 'horaires'] },
   { id: 'cat-vitrine', name: 'Vitrine', namePt: 'Montra', modIds: ['portfolio', 'parrainage'] },
 ]
+
+// Rubriques par défaut (dont « Compte », créée à part) : nom enregistré à leur création (français) et nom portugais.
+const RUBRIQUES_PAR_DEFAUT: ReadonlyMap<string, { name: string; namePt: string }> = new Map([
+  ...DEFAULT_STRUCTURE.map(cat => [cat.id, { name: cat.name, namePt: cat.namePt }] as const),
+  ['cat-compte', { name: 'Compte', namePt: 'Conta' }] as const,
+])
+
+/**
+ * Nom d'une rubrique à l'écran. Les rubriques par défaut sont enregistrées avec leur nom français : en portugais, on
+ * affiche leur nom portugais tant que l'utilisateur ne les a pas renommées ; un nom choisi par l'utilisateur s'affiche
+ * tel quel dans les deux langues.
+ */
+export function nomDeRubrique(cat: Pick<ModCategory, 'id' | 'name'>, isPt: boolean): string {
+  const defaut = RUBRIQUES_PAR_DEFAUT.get(cat.id)
+  if (!isPt || !defaut) return cat.name
+  // Une rubrique recréée par la migration de useModuleCategories porte son identifiant pour nom : non renommée non plus.
+  const nonRenommee = cat.name === defaut.name || cat.name === cat.id
+  return nonRenommee ? defaut.namePt : cat.name
+}
+
+/**
+ * Nom à enregistrer quand l'utilisateur valide le champ de la rubrique : garder le nom enregistré si la saisie est vide
+ * ou n'a pas changé ce qui était affiché (sinon le nom portugais affiché remplacerait le nom par défaut, et la rubrique
+ * resterait en portugais une fois revenu en français).
+ */
+export function nomRubriqueApresSaisie(cat: Pick<ModCategory, 'id' | 'name'>, saisie: string, isPt: boolean): string {
+  const nom = saisie.trim()
+  if (!nom || nom === nomDeRubrique(cat, isPt)) return cat.name
+  return nom
+}
 
 // Modules dont la présence dépend de la langue (MODULES_SELON_LE_PAYS) : absents de ALL_MODULES, ils sont retirés
 // de l'affichage même si l'état enregistré les contient (côté français, pas d'entrée pour un dictionnaire qui n'existe

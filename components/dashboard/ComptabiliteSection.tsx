@@ -9,6 +9,7 @@ import { assainirHtml } from '@/lib/security/assainir-html'
 import { supabase } from '@/lib/supabase'
 // DeclarationSocialeSection removed — IS estimation is now inline in Declaration tab
 import { getTvaStatus, type TvaCountry, type TvaStatusResult } from '@/lib/tva-thresholds'
+import { calendrierFiscalPt, estimerIrc, libelleTauxIrc, prochaineDeclarationIvaPt, tauxIrc } from '@/lib/fiscalite-pt'
 
 /* ══════════ AGENT COMPTABLE LÉA ══════════ */
 
@@ -187,7 +188,7 @@ function AgentComptable({ bookings, artisan, services, expenses, annualHT, annua
             <LeaAvatar size={36} />
           </div>
           <div>
-            <div style={{ fontSize: 16, fontWeight: 700 }}>{isPt ? 'Léa — A sua Contabilista IA' : 'Léa — Votre Agent Comptable IA'}</div>
+            <div style={{ fontSize: 16, fontWeight: 700 }}>{isPt ? 'Léa, a sua contabilista IA' : 'Léa — Votre Agent Comptable IA'}</div>
             <div style={{ fontSize: 12, color: '#ccc' }}>{isPt ? 'Especializada em construção e serviços · Sempre disponível' : 'Spécialisée micro-entreprise · Toujours disponible'}</div>
           </div>
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -231,7 +232,7 @@ function AgentComptable({ bookings, artisan, services, expenses, annualHT, annua
         <div style={{ borderBottom: `1px solid ${tv.border}`, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10, background: tv.bg }}>
           <div style={{ width: 30, height: 30, borderRadius: 10, background: '#fff', border: '1px solid #E8E8E8', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}><LeaAvatar size={22} /></div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 600, fontSize: 13, color: tv.text }}>{isPt ? 'Léa — Contabilista IA' : 'Léa — Agent Comptable IA'}</div>
+            <div style={{ fontWeight: 600, fontSize: 13, color: tv.text }}>{isPt ? 'Léa, contabilista IA' : 'Léa — Agent Comptable IA'}</div>
             <div style={{ fontSize: 11, color: tv.textMuted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {isPt ? (
                 <>Acesso a <strong style={{ color: tv.textMid }}>{bookings.filter(b => b.status === 'completed').length} intervenções</strong> · <strong style={{ color: tv.textMid }}>{expenses.length} despesas</strong> · cálculos em qualquer período</>
@@ -402,6 +403,10 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
   const dateFmtLocale = isPt ? 'pt-PT' : 'fr-FR'
   const currentYear = new Date().getFullYear()
   const currentMonth = new Date().getMonth()
+  // Pays fiscal : celui de la fiche, sinon celui de la langue (même règle que tvaCountry plus bas).
+  const fiscalitePt = ((artisan as unknown as { country?: string })?.country || (isPt ? 'PT' : 'FR')) === 'PT'
+  // Prix TTC sans montant HT : on retire le taux normal du pays (20 % en France, 23 % au Portugal continental).
+  const diviseurTtc = fiscalitePt ? 1.23 : 1.2
   const [selectedYear, setSelectedYear] = useState(currentYear)
   const [selectedPeriod, setSelectedPeriod] = useState<'mois' | 'trimestre' | 'annee'>('mois')
   const [selectedMonth, setSelectedMonthC] = useState(currentMonth)
@@ -472,7 +477,7 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
 
   const completedFiltered = filteredBookings.filter(b => b.status === 'completed')
   const chiffreAffaires = completedFiltered.reduce((s, b) => s + (b.price_ttc || 0), 0)
-  const chiffreAffairesHT = completedFiltered.reduce((s, b) => s + (b.price_ht || (b.price_ttc || 0) / 1.2), 0)
+  const chiffreAffairesHT = completedFiltered.reduce((s, b) => s + (b.price_ht || (b.price_ttc || 0) / diviseurTtc), 0)
   const tvaCollectee = chiffreAffaires - chiffreAffairesHT
 
   const filteredExpenses = expenses.filter(e => {
@@ -531,7 +536,7 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
       const d = new Date(b.booking_date)
       return d.getFullYear() === selectedYear && Math.floor(d.getMonth() / 3) === q
     })
-    return qb.reduce((s, b) => s + (b.price_ht || (b.price_ttc || 0) / 1.2), 0)
+    return qb.reduce((s, b) => s + (b.price_ht || (b.price_ttc || 0) / diviseurTtc), 0)
   })
 
   const annualHT = quarterData.reduce((s, v) => s + v, 0)
@@ -547,11 +552,16 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
   let resultatApresCharges: number
 
   if (isEntreprise) {
-    // Entreprise BTP: IS 15% ≤42500€, 25% au-delà + charges dirigeant estimées ~45% TNS
     const resultatAvantIS = annualHT - totalExpenses
-    const is15 = Math.min(Math.max(resultatAvantIS, 0), 42500) * 0.15
-    const is25 = Math.max(resultatAvantIS - 42500, 0) * 0.25
-    impotRevenu = is15 + is25
+    if (fiscalitePt) {
+      // Portugal : IRC, taux réduit des PME sur 50 000 € puis taux général de l'année (lib/fiscalite-pt.ts).
+      impotRevenu = estimerIrc(resultatAvantIS, selectedYear)
+    } else {
+      // Entreprise BTP: IS 15% ≤42500€, 25% au-delà + charges dirigeant estimées ~45% TNS
+      const is15 = Math.min(Math.max(resultatAvantIS, 0), 42500) * 0.15
+      const is25 = Math.max(resultatAvantIS - 42500, 0) * 0.25
+      impotRevenu = is15 + is25
+    }
     cotisationsSociales = 0 // charges sociales dépendent du salaire dirigeant, pas du CA
     resultatApresCharges = resultatAvantIS - impotRevenu
   } else if (isPt) {
@@ -568,17 +578,17 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
 
   // ── TVA : calcul status en temps réel ────────────────────────────────────
   // Sociétés au régime réel : toujours assujetties à la TVA (pas de franchise art. 293B)
-  const tvaCountry: TvaCountry = ((artisan as unknown as { country?: string })?.country || (isPt ? 'PT' : 'FR')) as TvaCountry
+  const tvaCountry: TvaCountry = fiscalitePt ? 'PT' : 'FR'
   const tvaStatus: TvaStatusResult = isEntreprise
     ? {
         status: 'exceeded' as const, percent: 100, caHT: annualHT,
         seuil: 0, taux: tvaCountry === 'PT' ? 0.23 : 0.20,
         color: '#3b82f6', bgColor: 'rgba(59,130,246,0.08)',
         badge: { fr: 'ASSUJETTI TVA', pt: 'SUJEITO A IVA' },
-        title: { fr: '📋 Assujetti à la TVA (régime réel)', pt: '📋 Sujeito a IVA (regime real)' },
+        title: { fr: '📋 Assujetti à la TVA (régime réel)', pt: '📋 Sujeito a IVA (regime normal)' },
         message: {
           fr: `En tant que société au régime réel, vous collectez la TVA à ${tvaCountry === 'PT' ? '23' : '20'} % sur toutes vos factures. La franchise en base (art. 293B CGI) ne s'applique pas aux sociétés.`,
-          pt: `Como empresa no regime real, cobra IVA a ${tvaCountry === 'PT' ? '23' : '20'} % em todas as suas faturas. A isenção do art.º 53.º CIVA não se aplica a sociedades.`,
+          pt: `Como sociedade no regime normal de IVA, liquida IVA a ${tvaCountry === 'PT' ? '23' : '20'}% em todas as suas faturas. A isenção do artigo 53.º do CIVA não se aplica a sociedades.`,
         },
       }
     : getTvaStatus(annualHT, tvaCountry)
@@ -603,7 +613,8 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
 
   // Vérifier le seuil TVA et créer une notification si nécessaire (run une seule fois par session)
   useEffect(() => {
-    if (tvaCheckDone || annualHT === 0) return
+    // Société portugaise : régime normal d'IVA, le seuil de l'art. 53.º ne la concerne pas, aucune alerte à créer.
+    if (tvaCheckDone || annualHT === 0 || (isEntreprise && fiscalitePt)) return
     const checkTva = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession()
@@ -617,7 +628,7 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
       } catch (e) { console.warn('[compta] TVA check error:', e) }
     }
     checkTva()
-  }, [annualHT, tvaCountry, tvaCheckDone])
+  }, [annualHT, tvaCountry, tvaCheckDone, isEntreprise, fiscalitePt])
 
   const toggleTvaAutoActivate = useCallback(async (value: boolean) => {
     setTvaTogglingLoading(true)
@@ -664,7 +675,7 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
   // TVA deductible from expenses
   const tvaDeductible = filteredExpenses.reduce((s, e) => {
     const amount = parseFloat(String(e.amount || 0))
-    return s + (amount - amount / 1.2)
+    return s + (amount - amount / diviseurTtc)
   }, 0)
   const tvaCreditDebit = tvaCollectee - tvaDeductible
 
@@ -768,7 +779,7 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
             <div className="cpta-kpi">
               <div className="cpta-kpi-lbl">{isPt ? 'Fatura\u00e7ão s/IVA' : 'CA Hors Taxes'}</div>
               <div className="cpta-kpi-val orange">{formatEur(chiffreAffairesHT)}</div>
-              <div className="cpta-kpi-sub">{isPt ? 'IVA' : 'TVA'} : {formatEur(tvaCollectee)}</div>
+              <div className="cpta-kpi-sub">{isPt ? 'IVA:' : 'TVA :'} {formatEur(tvaCollectee)}</div>
             </div>
             <div className="cpta-kpi">
               <div className="cpta-kpi-lbl">{isPt ? 'Despesas dedut\u00edveis' : 'Charges déductibles'}</div>
@@ -842,14 +853,16 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
               <div className="cpta-stat-title">{isPt ? 'Estatuto fiscal' : 'Statut fiscal'}</div>
               <div className="cpta-stat-val" style={{ fontSize: 14 }}>
                 {isEntreprise
-                  ? (isPt ? 'Empresa BTP (Regime real)' : 'Société BTP (Régime réel)')
+                  ? (isPt ? 'Empresa de construção (contabilidade organizada)' : 'Société BTP (Régime réel)')
                   : isPt
                     ? (isAutoEntrepreneur ? 'Regime Simplificado' : 'Ultrapassou o limite!')
                     : (isAutoEntrepreneur ? 'Micro-entrepreneur' : 'Dépassement plafond !')}
               </div>
               <div className="cpta-stat-sub">
                 {isEntreprise
-                  ? (isPt ? 'IS 15% \u226442 500\u20ac \u00b7 25% além' : 'IS 15% \u226442 500\u20ac \u00b7 25% au-del\u00e0')
+                  ? (isPt
+                    ? `IRC ${Math.round(tauxIrc(selectedYear).reduit * 100)}% até 50 000 \u20ac \u00b7 ${Math.round(tauxIrc(selectedYear).general * 100)}% acima`
+                    : 'IS 15% \u226442 500\u20ac \u00b7 25% au-del\u00e0')
                   : isPt
                     ? 'Regime Simplificado (Recibos Verdes)'
                     : 'Franchise en base TVA'}
@@ -857,11 +870,11 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
             </div>
             <div className="cpta-stat-card">
               <div className="cpta-stat-icon">{'\uD83E\uDDFE'}</div>
-              <div className="cpta-stat-title">{isEntreprise ? (isPt ? 'IS estimado' : 'IS estimé') : (isPt ? 'Contrib. estimadas' : 'Cotisations estimées')}</div>
+              <div className="cpta-stat-title">{isEntreprise ? (isPt ? 'IRC estimado' : 'IS estimé') : (isPt ? 'Contrib. estimadas' : 'Cotisations estimées')}</div>
               <div className="cpta-stat-val" style={{ color: '#43A047' }}>{formatEur(isEntreprise ? impotRevenu : cotisationsSociales)}</div>
               <div className="cpta-stat-sub">
                 {isEntreprise
-                  ? (isPt ? 'IS estimado sobre resultado' : 'IS estimé sur résultat')
+                  ? (isPt ? 'IRC estimado sobre o resultado' : 'IS estimé sur résultat')
                   : isPt ? '21,4% SS sobre rend. relevante' : '21,7% du CA HT annuel'}
               </div>
             </div>
@@ -869,11 +882,7 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
               <div className="cpta-stat-icon">{'\uD83D\uDCC5'}</div>
               <div className="cpta-stat-title">{isPt ? 'Pr\u00f3xima declara\u00e7ão' : 'Prochaine déclaration'}</div>
               <div className="cpta-stat-val" style={{ fontSize: 15 }}>
-                {isPt ? (() => {
-                  const q = Math.floor(currentMonth / 3)
-                  const dates = ['15 Mai (IVA T1)', '15 Ago (IVA T2)', '15 Nov (IVA T3)', '15 Fev (IVA T4)']
-                  return dates[q] || 'Ver calend\u00e1rio'
-                })() : (() => {
+                {isPt ? prochaineDeclarationIvaPt(new Date()) : (() => {
                   const q = Math.floor(currentMonth / 3)
                   const dates = ['30 Avril', '31 Juillet', '31 Oct', '31 Jan']
                   return dates[q] || 'Voir calendrier'
@@ -881,7 +890,7 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
               </div>
               <div className="cpta-stat-sub">
                 {isEntreprise
-                  ? (isPt ? 'Declara\u00e7ão IVA + IRC trimestral' : 'Déclaration TVA + acompte IS')
+                  ? (isPt ? 'Declara\u00e7ão peri\u00f3dica de IVA' : 'Déclaration TVA + acompte IS')
                   : (isPt ? 'Declara\u00e7ão Peri\u00f3dica IVA' : 'Déclaration URSSAF trimestrielle')}
               </div>
             </div>
@@ -891,7 +900,7 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
           <div className="v5-card" style={{ marginBottom: '1rem' }}>
             <div className="v5-st">
               {isPt
-                ? `Jornal de vendas — ${MONTH_FULL[selectedMonth]} ${selectedYear}`
+                ? `Jornal de vendas: ${MONTH_FULL[selectedMonth]} ${selectedYear}`
                 : `Journal de ventes — ${MONTH_FULL[selectedMonth]} ${selectedYear}`}
             </div>
             {completedFiltered.length === 0 ? (
@@ -988,7 +997,7 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
                     {filteredRevenus.sort((a, b) => (b.booking_date ?? '').localeCompare(a.booking_date ?? '')).map((b, idx) => {
                       const clientName = b.notes?.match(/Client:\s*([^|.]+)/)?.[1]?.trim() || (isPt ? 'Cliente' : 'Client')
                       const serviceName = b.services?.name || (isPt ? 'Interven\u00e7ão' : 'Intervention')
-                      const ht = b.price_ht || (b.price_ttc || 0) / 1.2
+                      const ht = b.price_ht || (b.price_ttc || 0) / diviseurTtc
                       return (
                         <tr key={b.id || idx}>
                           <td>{b.booking_date ? new Date(b.booking_date).toLocaleDateString(dateFmtLocale, { day: 'numeric', month: 'short' }) : '—'}</td>
@@ -1170,7 +1179,7 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
             <div className="v5-card">
               <div className="v5-st">
                 {isPt
-                  ? `Declara\u00e7ão IVA — ${MONTH_FULL[selectedMonth]} ${selectedYear}`
+                  ? `Declara\u00e7ão de IVA: ${MONTH_FULL[selectedMonth]} ${selectedYear}`
                   : `Déclaration TVA — CA3 ${MONTH_FULL[selectedMonth]} ${selectedYear}`}
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.5rem', marginBottom: '.75rem' }}>
@@ -1220,8 +1229,8 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
                     const header = [isPt ? 'Período' : 'Période', isPt ? 'Montante' : 'Montant'].join(',')
                     const rows = [
                       header,
-                      `${isPt ? 'Volume de negócios TTC' : 'CA TTC'} ${currentYear},${chiffreAffaires.toFixed(2)}`,
-                      `${isPt ? 'Volume HT' : 'CA HT'} ${currentYear},${chiffreAffairesHT.toFixed(2)}`,
+                      `${isPt ? 'Volume de negócios c/ IVA' : 'CA TTC'} ${currentYear},${chiffreAffaires.toFixed(2)}`,
+                      `${isPt ? 'Volume de negócios s/ IVA' : 'CA HT'} ${currentYear},${chiffreAffairesHT.toFixed(2)}`,
                       `${isPt ? 'IVA recolhido' : 'TVA collectée'},${tvaCollectee.toFixed(2)}`,
                       `${isPt ? 'IVA dedutível' : 'TVA déductible'},${tvaDeductible.toFixed(2)}`,
                       `${isPt ? 'Saldo IVA' : 'Solde TVA'},${tvaCreditDebit.toFixed(2)}`,
@@ -1246,12 +1255,13 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
             <div className="v5-card">
               <div className="v5-st">{isPt ? `Calend\u00e1rio fiscal ${selectedYear}` : `Calendrier fiscal ${selectedYear}`}</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
-                {(isPt ? [
-                  { title: 'Declara\u00e7ão Peri\u00f3dica IVA', sub: 'Trimestral', badge: '15 mai', badgeClass: 'badge-yellow', highlight: true },
-                  { title: isEntreprise ? 'Acompanhamento IRC — 1\u00ba pagamento' : 'SS — Contribui\u00e7ão trimestral', sub: isEntreprise ? '15% do lucro N-1' : '21,4% sobre rend. relevante', badge: '15 mar', badgeClass: 'badge-blue', highlight: false },
-                  { title: isEntreprise ? 'Modelo 22 (IRC)' : 'Modelo 3 IRS', sub: isEntreprise ? 'Dep\u00f3sito anual' : 'Entrega anual', badge: '30 abr', badgeClass: 'badge-orange', highlight: false },
-                  { title: 'Declara\u00e7ão IVA + acompanhamento', sub: '2\u00ba pagamento', badge: '31 jul', badgeClass: 'badge-gray', highlight: false },
-                ] : [
+                {(isPt ? calendrierFiscalPt(isEntreprise).map((echeance, i) => ({
+                  title: echeance.titre,
+                  sub: echeance.detail,
+                  badge: echeance.date,
+                  badgeClass: ['badge-yellow', 'badge-blue', 'badge-orange', 'badge-gray'][i] ?? 'badge-gray',
+                  highlight: i === 0,
+                })) : [
                   { title: isEntreprise ? 'CA3 — Déclaration TVA' : 'Déclaration URSSAF', sub: isEntreprise ? 'Mensuelle' : 'Trimestrielle', badge: '15 mai', badgeClass: 'badge-yellow', highlight: true },
                   { title: isEntreprise ? 'Acompte IS — 1er versement' : 'CFE — Cotisation fonci\u00e8re', sub: isEntreprise ? '15% du bénéfice N-1' : 'Avis d\'imposition', badge: '15 mars', badgeClass: 'badge-blue', highlight: false },
                   { title: isEntreprise ? 'Liasse fiscale' : 'Déclaration revenus', sub: isEntreprise ? `Dép\u00f4t 2065` : 'Mod\u00e8le 2042-C-PRO', badge: `30 avr. \u26A0\uFE0F`, badgeClass: 'badge-orange', highlight: false },
@@ -1278,7 +1288,7 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
           <div className="v5-card">
             <div className="v5-st">
               {isEntreprise
-                ? (isPt ? `IRC — Imposto sobre as Sociedades estimado ${selectedYear}` : `IS — Imp\u00f4t sur les sociétés estimé ${selectedYear}`)
+                ? (isPt ? `IRC estimado ${selectedYear}` : `IS — Imp\u00f4t sur les sociétés estimé ${selectedYear}`)
                 : (isPt ? `Impostos estimados ${selectedYear}` : `Imp\u00f4t estimé ${selectedYear}`)}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '.75rem' }}>
@@ -1293,16 +1303,16 @@ export default function ComptabiliteSection({ bookings, artisan, services, orgRo
               <div style={{ textAlign: 'center', padding: '.75rem', background: '#F5F5F5', borderRadius: 5 }}>
                 <div style={{ fontSize: 10, color: '#999', textTransform: 'uppercase', fontWeight: 600, marginBottom: 4 }}>
                   {isEntreprise
-                    ? (isPt ? 'Taxa IS aplic\u00e1vel' : 'Taux IS applicable')
+                    ? (isPt ? 'Taxas de IRC (PME)' : 'Taux IS applicable')
                     : (isPt ? 'Taxa aplic\u00e1vel' : 'Taux applicable')}
                 </div>
                 <div style={{ fontSize: 16, fontWeight: 700, color: '#1565C0' }}>
-                  {isEntreprise ? '15%' : isPt ? '21,4% SS' : '21,2% URSSAF'}
+                  {isEntreprise ? (isPt ? libelleTauxIrc(selectedYear) : '15%') : isPt ? '21,4% SS' : '21,2% URSSAF'}
                 </div>
               </div>
               <div style={{ textAlign: 'center', padding: '.75rem', background: '#F5F5F5', borderRadius: 5 }}>
                 <div style={{ fontSize: 10, color: '#999', textTransform: 'uppercase', fontWeight: 600, marginBottom: 4 }}>
-                  {isEntreprise ? (isPt ? 'IS estimado' : 'IS estimé') : (isPt ? 'Contribui\u00e7\u00f5es est.' : 'Cotisations est.')}
+                  {isEntreprise ? (isPt ? 'IRC estimado' : 'IS estimé') : (isPt ? 'Contribui\u00e7\u00f5es est.' : 'Cotisations est.')}
                 </div>
                 <div style={{ fontSize: 16, fontWeight: 700, color: '#43A047' }}>
                   {formatEur(isEntreprise ? impotRevenu : cotisationsSociales)}

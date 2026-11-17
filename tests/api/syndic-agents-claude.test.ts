@@ -26,7 +26,7 @@ const h = vi.hoisted(() => {
     utilisateur,
     chaine,
     getSecret: vi.fn(async (cle: string) => ({ ANTHROPIC_API_KEY: 'sk-ant-test', GROQ_API_KEY: 'gsk-test', CEREBRAS_API_KEY: 'csk-test' } as Record<string, string>)[cle] ?? ''),
-    groq: vi.fn(async (_params: unknown, _opts?: unknown) => ({ choices: [{ message: { content: '{"answer":"Réponse Groq","citations":[],"refusal":false}' } }], model: 'llama-3.3-70b-versatile' })),
+    groq: vi.fn(async (_params: unknown, _opts?: unknown) => ({ choices: [{ message: { content: '{"answer":"Réponse Groq","citations":[],"refusal":false}' } }], model: 'openai/gpt-oss-120b' })),
     cerebras: vi.fn(async (_params: unknown, _opts?: unknown) => ({ choices: [{ message: { content: '{"answer":"Réponse Cerebras assez longue pour passer","citations":[],"refusal":false}' } }] })),
     retrieveLegalChunks: vi.fn(async () => [
       { id: 'c1', content: 'Article 10 de la loi du 10 juillet 1965 : charges.', parent_path: 'L65', score: 0.9 },

@@ -63,17 +63,30 @@ import type { Identite } from '@/lib/administrateur-judiciaire/domain/identites-
  *   notification (statut-assemblee.ts, cause consentement_lre_absent) ; le procédé du prestataire qualifié (D. 1967
  *   art. 64, 2°) n'est pas concerné ; la LRAR reste possible.
  *
+ * Suite, décision de Hugo du 17/11/2026 (J59) (DECISIONS-HUGO-2026-11-17.md, section « Suite » : recommandations
+ * validées en bloc, numéro de registre proposé) : un refus de la voie électronique reçu avant le 25/12/2025, suivi d'un
+ * accord reçu depuis : l'accord daté et écrit l'emporte (dernière volonté exprimée ; voie électronique de principe depuis
+ * la loi n° 2024-322) ; sans preuve écrite et datée de l'accord, la voie postale demeure. L. 1965 art. 42-1 ; D. 1967
+ * art. 64-4 (« à tout moment et par tout moyen permettant d'établir avec certitude sa date de réception ») ; le retour à
+ * la voie électronique n'est pas prévu expressément : interprétation. Le retrait d'accord, assimilé au refus par J50,
+ * suit la même lecture. Comportement du code confirmé pour l'accord daté (demandesDepuisConsentements) ; un accord dont
+ * la date de réception n'est pas une date valide (AAAA-MM-JJ) ne remplace pas le refus. L'écrit n'est pas un champ du
+ * module : enregistrer un accord (sens « accord », recuLe) suppose ce justificatif écrit. 🔵 Par cohérence, un tel accord
+ * sans date valable ne vaut pas non plus accord en vigueur (accordElectroniqueEnVigueur : consentement de J53, accord
+ * exprès d'avant le 25/12/2025), ce que J59 ne dit pas : lecture prudente, à confirmer par Hugo.
+ *
  * 🔵 Déduit : « le lendemain du huitième jour suivant la réception » = réception + 9 jours ; plusieurs demandes : la plus
  * ancienne en vigueur fait foi ; une adresse électronique vaut dès sa réception, la dernière reçue l'emporte (à même date,
  * la dernière enregistrée) ; représentant de la personne morale exigé avant un envoi électronique (bloquant) ; à défaut
  * d'adresse électronique communiquée, la lettre recommandée avec avis de réception (l'art. 65 al. 1 fait notifier
  * l'adresse par le copropriétaire) ; texte de la mention de l'art. 64-2 (le décret n'impose pas de formule) ; un refus
  * ou un retrait reçu à partir du 25/12/2025 est aussi une demande de voie postale (la demande se fait « par tout moyen »),
- * tant qu'un accord reçu ensuite ne le remplace pas ; un refus d'avant le 25/12/2025 suivi d'un accord reçu depuis : l'accord,
- * dernier état, l'emporte (lecture du code, question à Hugo).
+ * tant qu'un accord reçu ensuite ne le remplace pas (un refus d'avant le 25/12/2025 suivi d'un accord daté reçu depuis :
+ * décision de Hugo du 17/11/2026 (J59), ci-dessus).
  * 🔴 Non établi : voie à une date antérieure au 25/12/2025 (accord exprès de l'art. 64-3 de la rédaction de 2020 ;
  * portée immédiate de l'art. 42-1 entre le 11/04/2024 et le 24/12/2025 débattue) : non calculée par voieDeNotification ;
- * retour à la voie électronique après une DemandeVoiePostale (un accord reçu ensuite ne la lève pas) ; la qualité
+ * retour à la voie électronique après une DemandeVoiePostale (un accord reçu ensuite ne la lève pas ; J59 ne vise que le
+ * refus ou le retrait d'accord reçu avant le 25/12/2025) ; la qualité
  * professionnelle du destinataire n'a aucune source dans le module (non saisie : lue comme non professionnelle, J53) ;
  * le libellé « Voie électronique (accord exprès) » de l'écran d'AG (AgElectiveModule.tsx) est à
  * revoir avec Frédéric. Le mode de notification des courriers (LRAR, LRE, prestataire
@@ -214,18 +227,28 @@ export function creerConsentementVoieElectronique(saisie: ConsentementVoieElectr
 }
 
 /**
+ * Accord dont la date de réception n'est pas une date valide (AAAA-MM-JJ), tel qu'une base ou une reprise peut le porter
+ * sans passer par creerConsentementVoieElectronique : sans preuve datée, il ne l'emporte pas sur un refus (décision de
+ * Hugo du 17/11/2026, J59) ; 🔵 par cohérence, il ne vaut pas non plus accord en vigueur (accordElectroniqueEnVigueur ;
+ * extension que J59 ne dit pas, à confirmer par Hugo). Les refus et retraits ne sont pas concernés.
+ */
+const estAccordSansDateValable = (c: ConsentementVoieElectronique): boolean => c.sens === 'accord' && !estDateIsoValide(c.recuLe)
+
+/**
  * J50 : un refus de la voie électronique ou un retrait d'accord vaut demande de voie postale, à sa date de réception
  * (L. 1965 art. 42-1, al. 2 : « à tout moment et par tout moyen » ; effet : D. 1967 art. 64-4, ou dès sa réception s'il
  * est reçu avant le 25/12/2025, J52 : effetDemandeVoiePostale), tant qu'il est le DERNIER
  * ÉTAT des consentements de cette identité à la date (relecture du 14/11/2026) : un accord reçu ensuite, au plus tard ce
  * jour-là, le remplace. Renvoie, par identité, les refus et retraits reçus depuis son dernier accord (à même date, le
  * dernier enregistré l'emporte, comme dans accordElectroniqueEnVigueur). 🔵 Interprétation prudente, aucune source.
+ * Refus reçu avant le 25/12/2025 puis accord reçu depuis : l'accord DATÉ l'emporte ; un accord sans date de réception
+ * valide est écarté, la voie postale demeure (décision de Hugo du 17/11/2026, J59).
  */
 export function demandesDepuisConsentements(consentements: readonly ConsentementVoieElectronique[], date: string): DemandeVoiePostale[] {
   if (!estDateIsoValide(date)) throw new Error(`Date invalide (${date}) : AAAA-MM-JJ attendu.`)
   const parIdentite = new Map<string, ConsentementVoieElectronique[]>()
   for (const c of consentements)
-    if (c.recuLe <= date) parIdentite.set(c.identiteId, [...(parIdentite.get(c.identiteId) ?? []), c])
+    if (!estAccordSansDateValable(c) && c.recuLe <= date) parIdentite.set(c.identiteId, [...(parIdentite.get(c.identiteId) ?? []), c])
   const demandes: DemandeVoiePostale[] = []
   for (const liste of parIdentite.values()) {
     const triee = liste
@@ -240,7 +263,8 @@ export function demandesDepuisConsentements(consentements: readonly Consentement
 
 /**
  * Accord à la voie électronique en vigueur à la date : le dernier accord reçu au plus tard ce jour-là, sans refus ni
- * retrait reçu depuis (au plus tard ce jour-là) ; null sinon.
+ * retrait reçu depuis (au plus tard ce jour-là) ; null sinon. 🔵 Un accord sans date de réception valide est écarté, par
+ * cohérence avec demandesDepuisConsentements (J59) : extension que J59 ne dit pas, à confirmer par Hugo (en-tête).
  */
 export function accordElectroniqueEnVigueur({
   identiteId,
@@ -254,7 +278,7 @@ export function accordElectroniqueEnVigueur({
   if (!estDateIsoValide(date)) throw new Error(`Date invalide (${date}) : AAAA-MM-JJ attendu.`)
   let dernier: ConsentementVoieElectronique | null = null
   for (const c of consentements)
-    if (c.identiteId === identiteId && c.recuLe <= date && (dernier === null || c.recuLe >= dernier.recuLe)) dernier = c
+    if (c.identiteId === identiteId && !estAccordSansDateValable(c) && c.recuLe <= date && (dernier === null || c.recuLe >= dernier.recuLe)) dernier = c
   return dernier?.sens === 'accord' ? dernier : null
 }
 
