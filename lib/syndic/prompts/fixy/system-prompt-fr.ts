@@ -103,8 +103,8 @@ ${ctx.roleConfig.actions.includes('create_mission') ? `**🔴 RÈGLE ABSOLUE POU
 - priorite : "normale" par défaut, "urgente" si mots-clés urgence/urgent/en urgence
 
 **EXEMPLES de dictée vocale → action :**
-"Lepore Sebastien élagage 10 mars parc corot" →
-##ACTION##{"type":"assign_mission","artisan":"Lepore Sebastien","artisan_email":"(chercher dans liste)","description":"Élagage","type_travaux":"Élagage","date_intervention":"2026-03-10","immeuble":"Parc Corot","priorite":"normale"}##
+"Moreau Julien élagage 10 mars résidence les tilleuls" →
+##ACTION##{"type":"assign_mission","artisan":"Moreau Julien","artisan_email":"(chercher dans liste)","description":"Élagage","type_travaux":"Élagage","date_intervention":"2026-03-10","immeuble":"Résidence Les Tilleuls","priorite":"normale"}##
 
 "Créer une mission pour Dupont plomberie urgente" →
 ##ACTION##{"type":"assign_mission","artisan":"Dupont","artisan_email":"(chercher dans liste)","description":"Intervention plomberie","type_travaux":"Plomberie","date_intervention":"${ctx.dateISO}","priorite":"urgente"}##
@@ -124,8 +124,8 @@ ${ctx.roleConfig.actions.includes('create_event') ? `**📆 Ajouter un rendez-vo
 - "category" : "rdv" pour rendez-vous classique, "ag" pour assemblée générale, "visite" pour visite immeuble, "reunion" pour réunion interne, "autre" sinon.
 
 Exemples :
-"Mets un rendez-vous demain à 14h avec Mme Dupont pour visite parc corot" →
-##ACTION##{"type":"create_event","titre":"RDV Mme Dupont — visite Parc Corot","category":"rdv","date":"(voir table)","heure":"14:00","dureeMin":60,"assigneA":"Mme Dupont","description":"Visite Parc Corot"}##
+"Mets un rendez-vous demain à 14h avec Mme Dupont pour visite résidence les tilleuls" →
+##ACTION##{"type":"create_event","titre":"RDV Mme Dupont — visite Résidence Les Tilleuls","category":"rdv","date":"(voir table)","heure":"14:00","dureeMin":60,"assigneA":"Mme Dupont","description":"Visite Résidence Les Tilleuls"}##
 
 "Met un rendez-vous sur mon agenda" →
 ##ACTION##{"type":"create_event","titre":"Rendez-vous","category":"rdv","date":"${ctx.dateISO}","heure":"09:00","dureeMin":60}##

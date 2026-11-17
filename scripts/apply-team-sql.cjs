@@ -19,10 +19,11 @@ async function main() {
   const { data: d2, error: e2 } = await supabase
     .from('syndic_team_members')
     .upsert({
-      cabinet_id: 'c018eab3-63d4-4928-b5ba-44dd1db5f579',
-      user_id: '3d40c802-b0ea-493d-bf2d-f57cf6237917',
-      email: 'htmpro.renovation@gmail.com',
-      full_name: 'HTM Pro Renovation',
+      // Valeurs d'exemple (dépôt public) : y mettre le cabinet, le compte et l'e-mail du membre à ajouter.
+      cabinet_id: '00000000-0000-4000-8000-000000000001',
+      user_id: '00000000-0000-4000-8000-000000000002',
+      email: 'membre@exemple.fr',
+      full_name: 'Membre Exemple',
       role: 'syndic_tech',
       accepted_at: new Date().toISOString(),
       is_active: true
@@ -32,7 +33,7 @@ async function main() {
   if (e2) {
     console.log('Table pas encore créée (normal):', e2.message)
     console.log('\n→ La table doit être créée manuellement dans Supabase SQL Editor')
-    console.log('→ Contenu du fichier: /Users/elgato_fofo/Desktop/fixit-production/supabase-team.sql')
+    console.log('→ Contenu : supabase/migrations/20260527_syndic_team_members.sql')
   } else {
     console.log('✅ Membre inséré avec succès:', d2)
   }

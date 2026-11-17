@@ -137,9 +137,9 @@ describe('POST /api/auth/create-profile — spécialités BTP', () => {
 describe('POST /api/auth/create-profile — gérant de la société BTP', () => {
   it('ajoute le gérant à son équipe, sans session', async () => {
     mocks.authUser = {
-      email: 'Secretariat.ProvencePro@gmail.com',
+      email: 'Secretariat.Exemple@exemple.fr',
       app_metadata: { role: 'pro_societe' },
-      user_metadata: { full_name: ' Hasni BOUHALI ', phone: '06 13 84 22 89' },
+      user_metadata: { full_name: ' Camille MARTIN ', phone: '06 12 34 56 78' },
     }
     const { POST } = await import('@/app/api/auth/create-profile/route')
     const res = await POST(requete({ user_id: USER_ID, company_name: 'PROVENCE PRO' }) as never)
@@ -149,9 +149,9 @@ describe('POST /api/auth/create-profile — gérant de la société BTP', () => 
       {
         company_id: USER_ID,
         user_id: USER_ID,
-        email: 'secretariat.provencepro@gmail.com',
-        full_name: 'Hasni BOUHALI',
-        phone: '06 13 84 22 89',
+        email: 'secretariat.exemple@exemple.fr',
+        full_name: 'Camille MARTIN',
+        phone: '06 12 34 56 78',
         role: 'GERANT',
         assigned_chantiers: [],
         invite_token: null,

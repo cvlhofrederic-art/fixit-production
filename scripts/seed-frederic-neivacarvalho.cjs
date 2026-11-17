@@ -2,7 +2,7 @@
 // Création du compte auto-entrepreneur FR : Frédéric Neiva Carvalho
 // Source : KBIS INPI — Attestation d'immatriculation au RNE du 21/04/2026
 // ─────────────────────────────────────────────────────────────────────────────
-// Usage : node --env-file=.env.local scripts/seed-frederic-neivacarvalho.cjs
+// Usage : SEED_FREDERIC_EMAIL=... SEED_FREDERIC_PASSWORD=... node --env-file=.env.local scripts/seed-frederic-neivacarvalho.cjs
 // Idempotent : upsert du profil, skip auth si l'utilisateur existe déjà.
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -14,13 +14,14 @@ if (!URL_BASE || !KEY) {
   process.exit(1)
 }
 
-// SEED_PASSWORD obligatoire : jamais de mot de passe en dur (repo public).
-const EMAIL = process.env.SEED_EMAIL || 'cvlho.frederic@gmail.com'
-const PASSWORD = process.env.SEED_PASSWORD
+// SEED_FREDERIC_EMAIL et SEED_FREDERIC_PASSWORD obligatoires : ni adresse e-mail ni mot de passe en dur (repo public).
+// Variables propres à ce script : celles des scripts de démo (qui affichent leur mot de passe) ne s'appliquent pas ici.
+const EMAIL = process.env.SEED_FREDERIC_EMAIL
+const PASSWORD = process.env.SEED_FREDERIC_PASSWORD
 const FULL_NAME = 'Frédéric Neiva Carvalho'
 
-if (!PASSWORD) {
-  console.error('❌ SEED_PASSWORD manquante — usage : SEED_PASSWORD=... node --env-file=.env.local scripts/seed-frederic-neivacarvalho.cjs')
+if (!EMAIL || !PASSWORD) {
+  console.error('❌ SEED_FREDERIC_EMAIL ou SEED_FREDERIC_PASSWORD manquante — usage : SEED_FREDERIC_EMAIL=... SEED_FREDERIC_PASSWORD=... node --env-file=.env.local scripts/seed-frederic-neivacarvalho.cjs')
   process.exit(1)
 }
 
@@ -84,6 +85,12 @@ async function main() {
   const existingUser = await findUserByEmail(EMAIL)
   let userId
   if (existingUser) {
+    // Garde-fou : ne réécrire que le profil du compte créé par ce script (même nom)
+    if (existingUser.user_metadata?.full_name !== FULL_NAME) {
+      console.error("❌ Le compte trouvé pour cette adresse ne porte pas le nom attendu : rien n'est modifié.")
+      process.exitCode = 1
+      return
+    }
     userId = existingUser.id
     console.log(`   ℹ️  User existe (id=${userId.substring(0, 8)}…) — credentials & role inchangés`)
   } else {
@@ -203,7 +210,7 @@ async function main() {
   console.log('═'.repeat(62))
   console.log(`👤 Nom        : ${FULL_NAME}`)
   console.log(`📧 Email      : ${EMAIL}`)
-  console.log('🔐 Password   : (valeur de SEED_PASSWORD — non affichée)')
+  console.log('🔐 Password   : (valeur de SEED_FREDERIC_PASSWORD — non affichée)')
   console.log(`🏢 SIRET      : 880 978 978 00018`)
   console.log(`🧽 APE        : 8121Z — Nettoyage courant des bâtiments`)
   console.log(`📍 Adresse    : Allée Hippolyte Gondrexon, RDC — 13830 Roquefort-la-bédoule`)
