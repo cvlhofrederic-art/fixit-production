@@ -611,12 +611,12 @@ export default function CalendarSection(props: CalendarSectionProps) {
                     Math.abs(new Date(selectedBooking.confirmed_at).getTime() - new Date(selectedBooking.created_at).getTime()) < 60000
                   if (isAutoConfirmed) return (
                     <div style={{ padding: '8px 12px', background: '#dcfce7', borderRadius: 6, border: '1px solid #bbf7d0', fontSize: 12, color: '#166534' }}>
-                      {isPt ? '✅ Marcação automaticamente confirmada — nenhuma ação necessária' : '✅ RDV automatiquement confirmé — aucune action requise'}
+                      {isPt ? '✅ Marcação confirmada automaticamente: nenhuma ação necessária' : '✅ RDV automatiquement confirmé — aucune action requise'}
                     </div>
                   )
                   if (selectedBooking.status === 'pending') return (
                     <div style={{ padding: '8px 12px', background: '#fef9c3', borderRadius: 6, border: '1px solid #fde68a', fontSize: 12, color: '#92400e' }}>
-                      {isPt ? '⏳ Validação necessária — aceite ou recuse esta marcação' : '⏳ Validation requise — acceptez ou refusez ce rendez-vous'}
+                      {isPt ? '⏳ Validação necessária: aceite ou recuse esta marcação' : '⏳ Validation requise — acceptez ou refusez ce rendez-vous'}
                     </div>
                   )
                   return null

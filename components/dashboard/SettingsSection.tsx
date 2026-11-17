@@ -71,7 +71,7 @@ const MODE_LABELS_PT: Record<string, string> = {
   virement: 'Transferência bancária',
   stripe: 'Pagamento online Stripe',
   cheque: 'Cheque',
-  especes: 'Dinheiro',
+  especes: 'Numerário',
   autre: 'Outro',
 }
 
@@ -180,18 +180,18 @@ function PaymentInfoCard({ artisanId, isV5 }: { artisanId: string; isV5: boolean
               <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6, paddingLeft: 24 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <label style={{ fontSize: 12, width: 60 }}>IBAN</label>
-                  <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={mode.iban || ''} onChange={(e) => updateMode(idx, { iban: e.target.value.toUpperCase() })} placeholder="FR76 XXXX XXXX XXXX" style={{ flex: 1, fontSize: 12 }} />
+                  <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={mode.iban || ''} onChange={(e) => updateMode(idx, { iban: e.target.value.toUpperCase() })} placeholder={isPt ? 'PT50 XXXX XXXX XXXX' : 'FR76 XXXX XXXX XXXX'} style={{ flex: 1, fontSize: 12 }} />
                   {mode.iban && mode.iban.replace(/\s/g, '').length > 4 && (
                     <span style={{ fontSize: 14 }}>{isValidIban(mode.iban) ? '✅' : '⚠️'}</span>
                   )}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <label style={{ fontSize: 12, width: 60 }}>BIC</label>
-                  <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={mode.bic || ''} onChange={(e) => updateMode(idx, { bic: e.target.value.toUpperCase() })} placeholder="BNPAFRPP" style={{ flex: 1, fontSize: 12 }} />
+                  <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={mode.bic || ''} onChange={(e) => updateMode(idx, { bic: e.target.value.toUpperCase() })} placeholder={isPt ? 'XXXXPTPL' : 'BNPAFRPP'} style={{ flex: 1, fontSize: 12 }} />
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <label style={{ fontSize: 12, width: 60 }}>Titulaire</label>
-                  <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={mode.titulaire || ''} onChange={(e) => updateMode(idx, { titulaire: e.target.value })} placeholder="Nom du titulaire" style={{ flex: 1, fontSize: 12 }} />
+                  <label style={{ fontSize: 12, width: 60 }}>{isPt ? 'Titular' : 'Titulaire'}</label>
+                  <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={mode.titulaire || ''} onChange={(e) => updateMode(idx, { titulaire: e.target.value })} placeholder={isPt ? 'Nome do titular' : 'Nom du titulaire'} style={{ flex: 1, fontSize: 12 }} />
                 </div>
               </div>
             )}
@@ -199,29 +199,29 @@ function PaymentInfoCard({ artisanId, isV5 }: { artisanId: string; isV5: boolean
             {mode.actif && mode.type === 'stripe' && (
               <div style={{ marginTop: 8, paddingLeft: 24 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <label style={{ fontSize: 12, width: 60 }}>Lien</label>
+                  <label style={{ fontSize: 12, width: 60 }}>{isPt ? 'Ligação' : 'Lien'}</label>
                   <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={mode.lien || ''} onChange={(e) => updateMode(idx, { lien: e.target.value })} placeholder="https://buy.stripe.com/..." style={{ flex: 1, fontSize: 12 }} />
                 </div>
-                <div style={{ fontSize: 11, color: tv.textMuted, marginTop: 4, paddingLeft: 66 }}>Le client paiera directement depuis ce lien</div>
+                <div style={{ fontSize: 11, color: tv.textMuted, marginTop: 4, paddingLeft: 66 }}>{isPt ? 'O cliente pagará diretamente a partir desta ligação' : 'Le client paiera directement depuis ce lien'}</div>
               </div>
             )}
 
             {mode.actif && mode.type === 'cheque' && (
               <div style={{ marginTop: 8, paddingLeft: 24 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <label style={{ fontSize: 12, width: 60 }}>À l{"'"}ordre de</label>
-                  <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={mode.ordre || ''} onChange={(e) => updateMode(idx, { ordre: e.target.value })} placeholder="Nom" style={{ flex: 1, fontSize: 12 }} />
+                  <label style={{ fontSize: 12, width: 60 }}>{isPt ? 'À ordem de' : <>À l{"'"}ordre de</>}</label>
+                  <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={mode.ordre || ''} onChange={(e) => updateMode(idx, { ordre: e.target.value })} placeholder={isPt ? 'Nome' : 'Nom'} style={{ flex: 1, fontSize: 12 }} />
                 </div>
               </div>
             )}
 
             {mode.actif && mode.type === 'especes' && (
-              <div style={{ marginTop: 4, paddingLeft: 24, fontSize: 11, color: tv.textMuted }}>Aucune info supplémentaire requise</div>
+              <div style={{ marginTop: 4, paddingLeft: 24, fontSize: 11, color: tv.textMuted }}>{isPt ? 'Nenhuma informação adicional necessária' : 'Aucune info supplémentaire requise'}</div>
             )}
 
             {mode.actif && mode.type === 'autre' && (
               <div style={{ marginTop: 8, paddingLeft: 24 }}>
-                <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={mode.description || ''} onChange={(e) => updateMode(idx, { description: e.target.value })} placeholder="PayPal, Lydia, virement étranger..." style={{ fontSize: 12 }} />
+                <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={mode.description || ''} onChange={(e) => updateMode(idx, { description: e.target.value })} placeholder={isPt ? 'PayPal, MB WAY, transferência internacional...' : 'PayPal, Lydia, virement étranger...'} style={{ fontSize: 12 }} />
               </div>
             )}
           </div>
@@ -231,33 +231,37 @@ function PaymentInfoCard({ artisanId, isV5 }: { artisanId: string; isV5: boolean
         <div className="set-pay-sub">
           <label>
             <input type="checkbox" checked={mentionDevis} onChange={(e) => { setMentionDevis(e.target.checked); setSaved(false) }} />
-            Afficher sur les devis
+            {isPt ? 'Mostrar nos orçamentos' : 'Afficher sur les devis'}
           </label>
           <label>
             <input type="checkbox" checked={mentionFacture} onChange={(e) => { setMentionFacture(e.target.checked); setSaved(false) }} />
-            Afficher sur les factures
+            {isPt ? 'Mostrar nas faturas' : 'Afficher sur les factures'}
           </label>
         </div>
 
         {/* Aperçu */}
         {activeModes.length > 0 && (
           <div style={{ background: tv.surface, border: `1px solid ${tv.border}`, borderRadius: 8, padding: 12 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 6, color: tv.textMuted }}>APERÇU SUR LE DOCUMENT</div>
-            <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 4 }}>MODE DE RÈGLEMENT</div>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 6, color: tv.textMuted }}>{isPt ? 'PRÉ-VISUALIZAÇÃO NO DOCUMENTO' : 'APERÇU SUR LE DOCUMENT'}</div>
+            <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 4 }}>{isPt ? 'MODO DE PAGAMENTO' : 'MODE DE RÈGLEMENT'}</div>
             {activeModes.map(m => (
               <div key={m.type} style={{ fontSize: 11, color: tv.textSecondary, marginBottom: 2 }}>
-                {m.type === 'virement' && `Virement : ${formatIban(m.iban || '...')} — ${m.titulaire || '...'}`}
-                {m.type === 'stripe' && `Paiement en ligne : ${m.lien || '...'}`}
-                {m.type === 'cheque' && `Chèque à l'ordre de : ${m.ordre || '...'}`}
-                {m.type === 'especes' && 'Espèces'}
-                {m.type === 'autre' && (m.description || 'Autre mode de paiement')}
+                {m.type === 'virement' && (isPt
+                  ? `Transferência bancária: ${formatIban(m.iban || '...')} · ${m.titulaire || '...'}`
+                  : `Virement : ${formatIban(m.iban || '...')} — ${m.titulaire || '...'}`)}
+                {m.type === 'stripe' && (isPt ? `Pagamento online: ${m.lien || '...'}` : `Paiement en ligne : ${m.lien || '...'}`)}
+                {m.type === 'cheque' && (isPt ? `Cheque à ordem de: ${m.ordre || '...'}` : `Chèque à l'ordre de : ${m.ordre || '...'}`)}
+                {m.type === 'especes' && (isPt ? 'Numerário' : 'Espèces')}
+                {m.type === 'autre' && (m.description || (isPt ? 'Outro modo de pagamento' : 'Autre mode de paiement'))}
               </div>
             ))}
           </div>
         )}
 
         <button onClick={handleSave} disabled={saving} className="set-btn-primary" style={{ alignSelf: 'flex-start' }}>
-          {saving ? '⏳ Enregistrement...' : saved ? '✅ Enregistré' : '💾 Enregistrer'}
+          {saving
+            ? (isPt ? '⏳ A guardar...' : '⏳ Enregistrement...')
+            : saved ? (isPt ? '✅ Guardado' : '✅ Enregistré') : (isPt ? '💾 Guardar' : '💾 Enregistrer')}
         </button>
       </div>
     </div>
@@ -566,12 +570,12 @@ function ZonesInterventionCard({ isV5, artisanId }: { isV5: boolean; artisanId?:
       })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
-        toast.error(body.error || 'Erreur lors de la sauvegarde')
+        toast.error(body.error || (isPt ? 'Erro ao guardar' : 'Erreur lors de la sauvegarde'))
       } else {
-        toast.success('Zones d\'intervention enregistrées')
+        toast.success(isPt ? 'Zonas de intervenção guardadas' : 'Zones d\'intervention enregistrées')
       }
     } catch {
-      toast.error('Erreur réseau lors de la sauvegarde')
+      toast.error(isPt ? 'Erro de rede ao guardar' : 'Erreur réseau lors de la sauvegarde')
     }
     setSaving(false)
   }
@@ -586,20 +590,20 @@ function ZonesInterventionCard({ isV5, artisanId }: { isV5: boolean; artisanId?:
   return (
     <div className={isV5 ? 'v5-card' : 'v22-card'}>
       <div className={isV5 ? '' : 'v22-card-head'}>
-        <div className={isV5 ? 'v5-st' : 'v22-card-title'}>📍 Zones d&apos;intervention</div>
+        <div className={isV5 ? 'v5-st' : 'v22-card-title'}>{isPt ? '📍 Zonas de intervenção' : <>📍 Zones d&apos;intervention</>}</div>
       </div>
       <div className={isV5 ? '' : 'v22-card-body'}>
         <div className="set-tabs">
-          <button className={`set-tab-b${mode === 'region' ? ' active' : ''}`} onClick={() => setMode('region')}>🌍 Région</button>
-          <button className={`set-tab-b${mode === 'dept' ? ' active' : ''}`} onClick={() => setMode('dept')}>📍 Département</button>
-          <button className={`set-tab-b${mode === 'city' ? ' active' : ''}`} onClick={() => setMode('city')}>🏙️ Ville</button>
+          <button className={`set-tab-b${mode === 'region' ? ' active' : ''}`} onClick={() => setMode('region')}>{isPt ? '🌍 Região' : '🌍 Région'}</button>
+          <button className={`set-tab-b${mode === 'dept' ? ' active' : ''}`} onClick={() => setMode('dept')}>{isPt ? '📍 Distrito' : '📍 Département'}</button>
+          <button className={`set-tab-b${mode === 'city' ? ' active' : ''}`} onClick={() => setMode('city')}>{isPt ? '🏙️ Localidade' : '🏙️ Ville'}</button>
         </div>
 
         {mode === 'region' && (
           <div>
             <div style={{ fontSize: 11, color: '#999', marginBottom: '.6rem' }}>
               {isPt
-                ? 'Fase de teste : apenas a região Norte (Porto) está disponível'
+                ? 'Fase de teste: apenas a região Norte (Porto) está disponível'
                 : 'Phase test : seule la région PACA est disponible'}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '.5rem', marginBottom: '.75rem' }}>
@@ -625,14 +629,14 @@ function ZonesInterventionCard({ isV5, artisanId }: { isV5: boolean; artisanId?:
           <div ref={deptBoxRef} style={{ position: 'relative' }}>
             <div style={{ fontSize: 11, color: '#999', marginBottom: '.6rem' }}>
               {isPt
-                ? 'Fase de teste : apenas o distrito do Porto está disponível'
+                ? 'Fase de teste: apenas o distrito do Porto está disponível'
                 : 'Phase test : seul le département 13 (Bouches-du-Rhône) est disponible'}
             </div>
             <div style={{ display: 'flex', gap: 6 }}>
               <input
                 type="text"
                 className="set-pw-fi"
-                placeholder={isPt ? 'Adicionar um distrito (ex : Porto)' : 'Ajouter un département (ex : 13, Bouches…)'}
+                placeholder={isPt ? 'Adicionar um distrito (ex.: Porto)' : 'Ajouter un département (ex : 13, Bouches…)'}
                 style={{ letterSpacing: 'normal', flex: 1 }}
                 value={deptQuery}
                 onChange={e => { setDeptQuery(e.target.value); setDeptOpen(true); setDeptCursor(0) }}
@@ -711,7 +715,7 @@ function ZonesInterventionCard({ isV5, artisanId }: { isV5: boolean; artisanId?:
           <div ref={cityBoxRef} style={{ position: 'relative' }}>
             <div style={{ fontSize: 11, color: '#999', marginBottom: '.6rem' }}>
               {isPt
-                ? 'Fase de teste : freguesias e concelhos do distrito do Porto (293 localidades)'
+                ? 'Fase de teste: freguesias e concelhos do distrito do Porto (293 localidades)'
                 : 'Phase test : villes et villages du département 13 (119 communes + 16 arrondissements de Marseille)'}
             </div>
             <div style={{ display: 'flex', gap: 6 }}>
@@ -789,7 +793,7 @@ function ZonesInterventionCard({ isV5, artisanId }: { isV5: boolean; artisanId?:
                 })}
               </div>
             )}
-            <div style={{ fontSize: 10, color: '#BBB', marginTop: 3 }}>↑↓ naviguer · Entrée pour ajouter</div>
+            <div style={{ fontSize: 10, color: '#BBB', marginTop: 3 }}>{isPt ? '↑↓ navegar · Enter para adicionar' : '↑↓ naviguer · Entrée pour ajouter'}</div>
             <div className={`set-selected-box${selectedCities.length ? ' has-items' : ''}`} style={{ marginTop: '.75rem' }}>
               {selectedCities.map(c => (
                 <span key={c} className="set-zone-tag">
@@ -803,21 +807,29 @@ function ZonesInterventionCard({ isV5, artisanId }: { isV5: boolean; artisanId?:
 
         {totalSelected > 0 && (
           <div className="set-interv-summary" style={{ marginTop: '.75rem' }}>
-            <div className="set-interv-summary-title">📊 Résumé de couverture</div>
-            <div className="set-interv-summary-text">
-              {selectedRegions.length > 0 && <div>{selectedRegions.length} région{selectedRegions.length > 1 ? 's' : ''} sélectionnée{selectedRegions.length > 1 ? 's' : ''}</div>}
-              {selectedDepts.length > 0 && <div>{selectedDepts.length} département{selectedDepts.length > 1 ? 's' : ''}</div>}
-              {selectedCities.length > 0 && <div>{selectedCities.length} ville{selectedCities.length > 1 ? 's' : ''}</div>}
-            </div>
+            <div className="set-interv-summary-title">{isPt ? '📊 Resumo da cobertura' : '📊 Résumé de couverture'}</div>
+            {isPt ? (
+              <div className="set-interv-summary-text">
+                {selectedRegions.length > 0 && <div>{selectedRegions.length} {selectedRegions.length > 1 ? 'regiões selecionadas' : 'região selecionada'}</div>}
+                {selectedDepts.length > 0 && <div>{selectedDepts.length} {selectedDepts.length > 1 ? 'distritos' : 'distrito'}</div>}
+                {selectedCities.length > 0 && <div>{selectedCities.length} {selectedCities.length > 1 ? 'localidades' : 'localidade'}</div>}
+              </div>
+            ) : (
+              <div className="set-interv-summary-text">
+                {selectedRegions.length > 0 && <div>{selectedRegions.length} région{selectedRegions.length > 1 ? 's' : ''} sélectionnée{selectedRegions.length > 1 ? 's' : ''}</div>}
+                {selectedDepts.length > 0 && <div>{selectedDepts.length} département{selectedDepts.length > 1 ? 's' : ''}</div>}
+                {selectedCities.length > 0 && <div>{selectedCities.length} ville{selectedCities.length > 1 ? 's' : ''}</div>}
+              </div>
+            )}
           </div>
         )}
 
         <div style={{ display: 'flex', gap: 8, marginTop: '.85rem' }}>
           <button onClick={save} disabled={saving} className="set-btn-primary">
-            {saving ? '⏳ …' : '💾 Enregistrer les zones'}
+            {saving ? '⏳ …' : isPt ? '💾 Guardar as zonas' : '💾 Enregistrer les zones'}
           </button>
           <button onClick={reset} className="set-btn-secondary">
-            🗑️ Réinitialiser
+            {isPt ? '🗑️ Repor' : '🗑️ Réinitialiser'}
           </button>
         </div>
       </div>
@@ -828,6 +840,10 @@ function ZonesInterventionCard({ isV5, artisanId }: { isV5: boolean; artisanId?:
 function PasswordChangeCard({ isV5 }: { isV5: boolean }) {
   const tv = useThemeVars(isV5)
   const { t } = useTranslation()
+  const isPt = useLocale() === 'pt'
+  const libelleAfficher = (visible: boolean) => isPt
+    ? (visible ? 'Ocultar a palavra-passe' : 'Mostrar a palavra-passe')
+    : (visible ? 'Masquer le mot de passe' : 'Afficher le mot de passe')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [saving, setSaving] = useState(false)
@@ -899,7 +915,7 @@ function PasswordChangeCard({ isV5 }: { isV5: boolean }) {
               type="button"
               onClick={() => setShowPw1(v => !v)}
               className="set-pw-toggle"
-              aria-label={showPw1 ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+              aria-label={libelleAfficher(showPw1)}
             >
               {showPw1 ? '👁️‍🗨️' : '👁️'}
             </button>
@@ -938,7 +954,7 @@ function PasswordChangeCard({ isV5 }: { isV5: boolean }) {
               type="button"
               onClick={() => setShowPw2(v => !v)}
               className="set-pw-toggle"
-              aria-label={showPw2 ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+              aria-label={libelleAfficher(showPw2)}
             >
               {showPw2 ? '👁️‍🗨️' : '👁️'}
             </button>
@@ -967,11 +983,14 @@ export default function SettingsSection({
   uploadMsg, setUploadMsg,
 }: SettingsSectionProps) {
   const { t } = useTranslation()
+  const isPt = useLocale() === 'pt'
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
   const tv = useThemeVars(isV5)
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [logoPreview, setLogoPreview] = useState('')
   const [logoUploading, setLogoUploading] = useState(false)
+  const titrePage = isPt ? 'O meu perfil' : 'Mon profil'
+  const sousTitrePage = isPt ? 'Faça a gestão das suas informações pessoais e profissionais.' : 'Gérez vos informations personnelles et professionnelles.'
 
   return (
     <div className={isV5 ? 'v5-fade' : 'animate-fadeIn'}>
@@ -980,13 +999,13 @@ export default function SettingsSection({
         <div style={{ flex: 1, minWidth: 0 }}>
           {isV5 ? (
             <>
-              <h1>Mon profil</h1>
-              <p>Gérez vos informations personnelles et professionnelles.</p>
+              <h1>{titrePage}</h1>
+              <p>{sousTitrePage}</p>
             </>
           ) : (
             <>
-              <div className="v22-page-title">Mon profil</div>
-              <div className="v22-page-sub">Gérez vos informations personnelles et professionnelles.</div>
+              <div className="v22-page-title">{titrePage}</div>
+              <div className="v22-page-sub">{sousTitrePage}</div>
             </>
           )}
         </div>
@@ -1030,13 +1049,13 @@ export default function SettingsSection({
                       )}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#999', letterSpacing: '.3px', marginBottom: 4 }}>Photo de profil</div>
+                      <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#999', letterSpacing: '.3px', marginBottom: 4 }}>{isPt ? 'Foto de perfil' : 'Photo de profil'}</div>
                       <label style={{ cursor: profilePhotoUploading ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 10px', borderRadius: 4, border: '1px solid #E0E0E0', background: '#fff', fontSize: 11, fontWeight: 500, color: '#555', fontFamily: 'inherit', transition: 'all .15s', opacity: profilePhotoUploading ? 0.5 : 1 }}>
-                        {profilePhotoUploading ? '⏳ …' : '🖼️ Changer'}
+                        {profilePhotoUploading ? '⏳ …' : isPt ? '🖼️ Alterar' : '🖼️ Changer'}
                         <input type="file" accept="image/png,image/jpeg,image/webp" disabled={profilePhotoUploading} style={{ display: 'none' }} onChange={async (e) => {
                           const f = e.target.files?.[0]
                           if (!f) return
-                          if (f.size > 10 * 1024 * 1024) { setUploadMsg({ text: 'Photo trop lourde (max 10 Mo)', type: 'error' }); return }
+                          if (f.size > 10 * 1024 * 1024) { setUploadMsg({ text: isPt ? 'Foto demasiado pesada (máx. 10 MB)' : 'Photo trop lourde (max 10 Mo)', type: 'error' }); return }
                           setProfilePhotoUploading(true)
                           try {
                             // 512 px de côté au plus, WebP : quelques dizaines de Ko envoyés dans Storage (lib/images/redimensionner-image.ts).
@@ -1049,8 +1068,8 @@ export default function SettingsSection({
                               body: JSON.stringify({ base64, field: 'profile_photo_url' }),
                             })
                             const data = await res.json()
-                            if (!res.ok) throw new Error(data.error || 'Erreur')
-                            setUploadMsg({ text: '✅ Photo enregistrée !', type: 'success' })
+                            if (!res.ok) throw new Error(data.error || (isPt ? 'Erro' : 'Erreur'))
+                            setUploadMsg({ text: isPt ? '✅ Foto guardada!' : '✅ Photo enregistrée !', type: 'success' })
                           } catch (err: unknown) {
                             setUploadMsg({ text: `❌ ${err instanceof Error ? err.message : String(err)}`, type: 'error' })
                           } finally {
@@ -1058,7 +1077,7 @@ export default function SettingsSection({
                           }
                         }} />
                       </label>
-                      <div style={{ fontSize: 10, color: '#BBB', marginTop: 3 }}>JPG, PNG, WEBP — max 10 Mo</div>
+                      <div style={{ fontSize: 10, color: '#BBB', marginTop: 3 }}>{isPt ? 'JPG, PNG, WEBP (máx. 10 MB)' : 'JPG, PNG, WEBP — max 10 Mo'}</div>
                     </div>
                   </div>
 
@@ -1066,21 +1085,21 @@ export default function SettingsSection({
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <div style={{ width: 64, height: 64, borderRadius: 6, overflow: 'hidden', border: '2px dashed #E0E0E0', flexShrink: 0, background: '#F5F5F5', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', cursor: 'pointer' }}>
                       {logoPreview ? (
-                        <Image src={logoPreview} alt="Logo" fill className="object-contain" unoptimized style={{ padding: 4 }} />
+                        <Image src={logoPreview} alt={isPt ? 'Logótipo' : 'Logo'} fill className="object-contain" unoptimized style={{ padding: 4 }} />
                       ) : (artisan as any)?.logo_url ? (
-                        <Image src={(artisan as any).logo_url} alt="Logo" fill className="object-contain" sizes="64px" style={{ padding: 4 }} />
+                        <Image src={(artisan as any).logo_url} alt={isPt ? 'Logótipo' : 'Logo'} fill className="object-contain" sizes="64px" style={{ padding: 4 }} />
                       ) : (
                         <span style={{ fontSize: 10, color: '#BBB', textAlign: 'center', lineHeight: 1.2 }}>L</span>
                       )}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#999', letterSpacing: '.3px', marginBottom: 4 }}>Logo (devis & factures)</div>
+                      <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#999', letterSpacing: '.3px', marginBottom: 4 }}>{isPt ? 'Logótipo (orçamentos e faturas)' : 'Logo (devis & factures)'}</div>
                       <label style={{ cursor: logoUploading ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 10px', borderRadius: 4, border: '1px solid #E0E0E0', background: '#fff', fontSize: 11, fontWeight: 500, color: '#555', fontFamily: 'inherit', transition: 'all .15s', opacity: logoUploading ? 0.5 : 1 }}>
-                        {logoUploading ? '⏳ …' : '📁 Importer'}
+                        {logoUploading ? '⏳ …' : isPt ? '📁 Importar' : '📁 Importer'}
                         <input type="file" accept="image/png,image/jpeg,image/webp" disabled={logoUploading} style={{ display: 'none' }} onChange={async (e) => {
                           const f = e.target.files?.[0]
                           if (!f) return
-                          if (f.size > 2 * 1024 * 1024) { setUploadMsg({ text: 'Logo trop lourd (max 2 Mo)', type: 'error' }); return }
+                          if (f.size > 2 * 1024 * 1024) { setUploadMsg({ text: isPt ? 'Logótipo demasiado pesado (máx. 2 MB)' : 'Logo trop lourd (max 2 Mo)', type: 'error' }); return }
                           setLogoUploading(true)
                           try {
                             // 512 px de côté au plus, WebP (transparence conservée) : logo léger pour les PDF et la fiche.
@@ -1093,8 +1112,8 @@ export default function SettingsSection({
                               body: JSON.stringify({ base64, field: 'logo_url' }),
                             })
                             const data = await res.json()
-                            if (!res.ok) throw new Error(data.error || 'Erreur')
-                            setUploadMsg({ text: '✅ Logo enregistré !', type: 'success' })
+                            if (!res.ok) throw new Error(data.error || (isPt ? 'Erro' : 'Erreur'))
+                            setUploadMsg({ text: isPt ? '✅ Logótipo guardado!' : '✅ Logo enregistré !', type: 'success' })
                           } catch (err: unknown) {
                             setUploadMsg({ text: `❌ ${err instanceof Error ? err.message : String(err)}`, type: 'error' })
                           } finally {
@@ -1102,7 +1121,7 @@ export default function SettingsSection({
                           }
                         }} />
                       </label>
-                      <div style={{ fontSize: 10, color: '#BBB', marginTop: 3 }}>PNG, JPG, WebP — max 2 Mo</div>
+                      <div style={{ fontSize: 10, color: '#BBB', marginTop: 3 }}>{isPt ? 'PNG, JPG, WebP (máx. 2 MB)' : 'PNG, JPG, WebP — max 2 Mo'}</div>
                     </div>
                   </div>
                 </div>
@@ -1135,18 +1154,18 @@ export default function SettingsSection({
                   {orgRole === 'pro_societe' && (
                     <>
                       <div style={{ gridColumn: '1 / -1', marginTop: 4, paddingTop: 12, borderTop: '1px solid #F0F0F0' }}>
-                        <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: '#999', letterSpacing: '.4px', marginBottom: 4 }}>Informations légales (Kbis)</div>
-                        <div style={{ fontSize: 11, color: '#999' }}>Saisies une seule fois ici, reprises automatiquement sur tous vos devis et factures.</div>
+                        <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: '#999', letterSpacing: '.4px', marginBottom: 4 }}>{isPt ? 'Informações legais (Certidão permanente)' : 'Informations légales (Kbis)'}</div>
+                        <div style={{ fontSize: 11, color: '#999' }}>{isPt ? 'Introduzidas uma única vez aqui e retomadas automaticamente em todos os seus orçamentos e faturas.' : 'Saisies une seule fois ici, reprises automatiquement sur tous vos devis et factures.'}</div>
                       </div>
                       <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
-                        <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>RCS / RM</label>
+                        <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Registo comercial' : 'RCS / RM'}</label>
                         <input type="text" value={settingsForm.rcs_number} onChange={(e) => setSettingsForm({...settingsForm, rcs_number: e.target.value})}
-                          placeholder="RM Marseille 953951589" className={isV5 ? 'v5-fi' : 'v22-form-input'} />
+                          placeholder={isPt ? 'Ex.: Conservatória de Lisboa 12345' : 'RM Marseille 953951589'} className={isV5 ? 'v5-fi' : 'v22-form-input'} />
                       </div>
                       <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
-                        <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Code APE / NAF</label>
+                        <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Código de atividade (CAE)' : 'Code APE / NAF'}</label>
                         <input type="text" value={settingsForm.ape_code} onChange={(e) => setSettingsForm({...settingsForm, ape_code: e.target.value})}
-                          placeholder="4339Z" className={isV5 ? 'v5-fi' : 'v22-form-input'} />
+                          placeholder={isPt ? 'Ex.: 43390' : '4339Z'} className={isV5 ? 'v5-fi' : 'v22-form-input'} />
                       </div>
                       <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
                         <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Capital social (€)</label>
@@ -1154,50 +1173,51 @@ export default function SettingsSection({
                           placeholder="10 000" className={isV5 ? 'v5-fi' : 'v22-form-input'} />
                       </div>
                       <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
-                        <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>N° TVA intracommunautaire</label>
+                        <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'N.º de IVA intracomunitário' : 'N° TVA intracommunautaire'}</label>
                         <input type="text" value={settingsForm.tva_intra} onChange={(e) => setSettingsForm({...settingsForm, tva_intra: e.target.value})}
-                          placeholder="FR00 123456789" className={isV5 ? 'v5-fi' : 'v22-form-input'} />
+                          placeholder={isPt ? 'PT123456789' : 'FR00 123456789'} className={isV5 ? 'v5-fi' : 'v22-form-input'} />
                       </div>
 
                       {/* BTP — Assurance & Médiation (saisis une fois, repris sur tous les devis et factures) */}
                       <div style={{ gridColumn: '1 / -1', marginTop: 4, paddingTop: 12, borderTop: '1px solid #F0F0F0' }}>
-                        <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: '#999', letterSpacing: '.4px', marginBottom: 4 }}>Assurance & Médiation</div>
-                        <div style={{ fontSize: 11, color: '#999' }}>Mention obligatoire BTP : RC Pro / Décennale (Loi Pinel 2014) + médiateur de la consommation.</div>
+                        <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: '#999', letterSpacing: '.4px', marginBottom: 4 }}>{isPt ? 'Seguro e resolução de litígios' : 'Assurance & Médiation'}</div>
+                        {/* En portugais, pas de loi citée : la mention française (loi Pinel 2014) ne vaut pas au Portugal. */}
+                        <div style={{ fontSize: 11, color: '#999' }}>{isPt ? 'Retomados em todos os seus orçamentos e faturas: seguro de responsabilidade civil profissional / garantia decenal e entidade de resolução alternativa de litígios (RAL).' : 'Mention obligatoire BTP : RC Pro / Décennale (Loi Pinel 2014) + médiateur de la consommation.'}</div>
                       </div>
                       <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
-                        <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Type d'assurance</label>
+                        <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Tipo de seguro' : "Type d'assurance"}</label>
                         <select value={settingsForm.insurance_type} onChange={(e) => setSettingsForm({...settingsForm, insurance_type: e.target.value})}
                           className={isV5 ? 'v5-fi' : 'v22-form-input'}>
-                          <option value="">-- Choisir --</option>
-                          <option value="rc_pro">RC Professionnelle</option>
-                          <option value="decennale">Garantie Décennale</option>
-                          <option value="both">RC Pro + Décennale</option>
+                          <option value="">{isPt ? '-- Escolher --' : '-- Choisir --'}</option>
+                          <option value="rc_pro">{isPt ? 'Responsabilidade civil profissional' : 'RC Professionnelle'}</option>
+                          <option value="decennale">{isPt ? 'Garantia decenal' : 'Garantie Décennale'}</option>
+                          <option value="both">{isPt ? 'RC profissional + decenal' : 'RC Pro + Décennale'}</option>
                         </select>
                       </div>
                       <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
-                        <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Nom de l'assureur</label>
+                        <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Nome da seguradora' : "Nom de l'assureur"}</label>
                         <input type="text" value={settingsForm.insurance_name} onChange={(e) => setSettingsForm({...settingsForm, insurance_name: e.target.value})}
-                          placeholder="Ex : MAAF Assurances" className={isV5 ? 'v5-fi' : 'v22-form-input'} />
+                          placeholder={isPt ? 'Ex.: Fidelidade' : 'Ex : MAAF Assurances'} className={isV5 ? 'v5-fi' : 'v22-form-input'} />
                       </div>
                       <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
-                        <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>N° de contrat</label>
+                        <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'N.º da apólice' : 'N° de contrat'}</label>
                         <input type="text" value={settingsForm.insurance_number} onChange={(e) => setSettingsForm({...settingsForm, insurance_number: e.target.value})}
-                          placeholder="Ex : RC-2024-123456" className={isV5 ? 'v5-fi' : 'v22-form-input'} />
+                          placeholder={isPt ? 'Ex.: RC-2024-123456' : 'Ex : RC-2024-123456'} className={isV5 ? 'v5-fi' : 'v22-form-input'} />
                       </div>
                       <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
-                        <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Couverture géographique</label>
+                        <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Cobertura geográfica' : 'Couverture géographique'}</label>
                         <input type="text" value={settingsForm.insurance_coverage} onChange={(e) => setSettingsForm({...settingsForm, insurance_coverage: e.target.value})}
-                          placeholder="France métropolitaine" className={isV5 ? 'v5-fi' : 'v22-form-input'} />
+                          placeholder={isPt ? 'Portugal continental' : 'France métropolitaine'} className={isV5 ? 'v5-fi' : 'v22-form-input'} />
                       </div>
                       <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
-                        <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Nom du médiateur conso</label>
+                        <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Entidade de resolução de litígios (RAL)' : 'Nom du médiateur conso'}</label>
                         <input type="text" value={settingsForm.mediator_name} onChange={(e) => setSettingsForm({...settingsForm, mediator_name: e.target.value})}
-                          placeholder="Ex : Médiation de la consommation — CNPM" className={isV5 ? 'v5-fi' : 'v22-form-input'} />
+                          placeholder={isPt ? 'Ex.: Centro de Arbitragem de Conflitos de Consumo' : 'Ex : Médiation de la consommation — CNPM'} className={isV5 ? 'v5-fi' : 'v22-form-input'} />
                       </div>
                       <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
-                        <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Site web du médiateur</label>
+                        <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Sítio web da entidade RAL' : 'Site web du médiateur'}</label>
                         <input type="text" value={settingsForm.mediator_url} onChange={(e) => setSettingsForm({...settingsForm, mediator_url: e.target.value})}
-                          placeholder="https://www.cnpm-mediation.fr" className={isV5 ? 'v5-fi' : 'v22-form-input'} />
+                          placeholder={isPt ? 'https://www.exemplo.pt' : 'https://www.cnpm-mediation.fr'} className={isV5 ? 'v5-fi' : 'v22-form-input'} />
                       </div>
                     </>
                   )}
@@ -1208,7 +1228,7 @@ export default function SettingsSection({
                   <button onClick={saveSettings} disabled={savingSettings}
                     className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'}
                     style={{ opacity: savingSettings ? 0.5 : 1 }}>
-                    {savingSettings ? `⏳ ${t('proDash.settings.sauvegarde')}` : `💾 Enregistrer le profil`}
+                    {savingSettings ? `⏳ ${t('proDash.settings.sauvegarde')}` : isPt ? '💾 Guardar o perfil' : `💾 Enregistrer le profil`}
                   </button>
                 </div>
               </div>
@@ -1224,7 +1244,9 @@ export default function SettingsSection({
               </div>
               <div className={isV5 ? '' : 'v22-card-body'}>
                 <div style={{ background: '#E3F2FD', color: '#1565C0', padding: '.6rem .75rem', borderRadius: 4, fontSize: 11, marginBottom: '.75rem' }}>
-                  💡 Partagez ce lien avec vos clients pour qu'ils puissent prendre rendez-vous directement depuis votre agenda.
+                  {isPt
+                    ? '💡 Partilhe esta ligação com os seus clientes para que possam fazer uma marcação diretamente na sua agenda.'
+                    : '💡 Partagez ce lien avec vos clients pour qu\'ils puissent prendre rendez-vous directement depuis votre agenda.'}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <input type="text" readOnly value={`${process.env.NEXT_PUBLIC_APP_URL || 'https://vitfix.io'}/artisan/${artisan?.slug || artisan?.id || ''}`}
@@ -1239,7 +1261,7 @@ export default function SettingsSection({
                     else { navigator.clipboard.writeText(url); toast.success(t('proDash.settings.lienCopie')) }
                   }}
                     className="set-btn-secondary" style={{ whiteSpace: 'nowrap' }}>
-                    🔗 Partager
+                    {isPt ? '🔗 Partilhar' : '🔗 Partager'}
                   </button>
                 </div>
               </div>

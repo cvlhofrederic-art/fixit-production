@@ -116,7 +116,7 @@ export async function POST(req: NextRequest) {
   const demande = construireDemande(corps)
   if (demande instanceof NextResponse) return demande
 
-  // La lecture d'un fichier n'a pas de secours possible (Llama, sur Groq, ne lit ni image ni PDF).
+  // La lecture d'un fichier n'a pas de secours possible (les modèles de production de Groq ne lisent ni image ni PDF).
   const claudeDisponible = await hasAnthropicKey()
   if (!claudeDisponible && (corps.tache === 'saisie-facture' || !(await getSecret('GROQ_API_KEY')))) {
     return erreur('ia_indisponible', 503)
