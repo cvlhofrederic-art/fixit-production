@@ -5,6 +5,7 @@ import { upsertSubscription, getUserSubscription } from '@/lib/subscription'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { logger } from '@/lib/logger'
 import { computeRiskScore, RISK_THRESHOLD_BLOCK, RISK_THRESHOLD_REVIEW } from '@/lib/referral'
+import { finDePeriodeAbonnement, idAbonnementDeFacture } from '@/lib/stripe-evenements'
 import type Stripe from 'stripe'
 
 const log = logger.withTenant('api/stripe/webhook')
@@ -82,14 +83,20 @@ export async function POST(request: NextRequest) {
         break
       }
       case 'customer.subscription.updated': {
-        const sub = event.data.object as Stripe.Subscription & { current_period_end: number }
+        const sub = event.data.object
         const userId = sub.metadata?.userId
         if (userId) {
+          // Depuis l'API 2025-03-31.basil, la fin de période est portée par les articles
+          // (lib/stripe-evenements.ts). Sans date lisible, la date enregistrée reste telle quelle.
+          const finDePeriode = finDePeriodeAbonnement(sub)
+          if (!finDePeriode) {
+            log.warn('Subscription period end missing from event', { eventId: event.id, subscriptionId: sub.id })
+          }
           await upsertSubscription(userId, {
             plan_id: sub.metadata?.planId || 'artisan_pro',
             status: sub.status === 'active' ? 'active' : sub.status === 'past_due' ? 'past_due' : 'canceled',
             stripe_subscription_id: sub.id,
-            current_period_end: new Date(sub.current_period_end * 1000).toISOString(),
+            ...(finDePeriode ? { current_period_end: finDePeriode } : {}),
             cancel_at_period_end: sub.cancel_at_period_end,
           })
         }
@@ -109,8 +116,9 @@ export async function POST(request: NextRequest) {
         break
       }
       case 'invoice.payment_failed': {
-        const invoice = event.data.object as Stripe.Invoice & { subscription: string | null }
-        const subId = invoice.subscription as string
+        const invoice = event.data.object
+        // Depuis l'API 2025-03-31.basil : parent.subscription_details.subscription (lib/stripe-evenements.ts).
+        const subId = idAbonnementDeFacture(invoice)
         if (subId) {
           const sub = await stripe.subscriptions.retrieve(subId)
           const userId = sub.metadata?.userId
