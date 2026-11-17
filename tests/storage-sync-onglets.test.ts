@@ -44,6 +44,13 @@
 // sortes confondues : les marques de clés absentes (créées ailleurs) faisaient sauter celle d'une saisie remplacée, ou
 // les marques de textes remplacés celle d'une suppression, et la modification était perdue au nouvel essai. Chaque
 // sorte de marque a désormais sa propre limite.
+//
+// Contre-relecture du 17/11/2026 (neuvième passe) : la confirmation d'une saisie levait la note de la clé quand la
+// suppression faite juste après elle dans le même onglet était encore en route, si la restauration d'un onglet neuf
+// avait entre-temps remis dans le navigateur une valeur que le serveur avait détenue : en échec ensuite, la suppression
+// était perdue. Dans un stockage plein, la note des remplacements, qui peut garder cent marques, ne s'écrivait plus dès
+// qu'elle devait grandir : la saisie remplacée par la restauration d'un onglet neuf était perdue. Aucun test, enfin, ne
+// vérifiait la limite de cinquante marques par sorte.
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
