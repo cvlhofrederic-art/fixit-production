@@ -59,7 +59,7 @@ export function CarteTelephoneEnPoche({ arrierePlan, isPt }: Props) {
   return (
     <div className="v5-card">
       <div className="v5-st" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <Smartphone size={14} aria-hidden="true" /> {isPt ? 'Marcação com o telemóvel no bolso' : 'Pointage téléphone en poche'}
+        <Smartphone size={14} aria-hidden="true" /> {isPt ? 'Registo com o telemóvel no bolso' : 'Pointage téléphone en poche'}
       </div>
       <p style={{ fontSize: 13, margin: '0 0 10px' }} role={avertir ? 'alert' : undefined}>
         {statutArrierePlan(etat, isPt)}

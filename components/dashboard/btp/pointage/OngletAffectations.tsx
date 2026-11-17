@@ -106,7 +106,7 @@ function InterrupteurPointageAuto({ actif, disponible, isPt, envoyer, onModifie 
         <span className="v5-badge v5-badge-green">{isPt ? 'Ativada' : 'Activé'}</span>
         <span style={{ fontSize: 13, flex: 1, minWidth: 200 }}>
           {isPt
-            ? 'Cada colaborador pode ativá-la no seu telemóvel, no separador Marcar. Desativá-la desliga também a marcação com o telemóvel no bolso de todos: cada um terá de a reativar na app.'
+            ? 'Cada colaborador pode ativá-lo no seu telemóvel, no separador Registar ponto. Desativá-lo desliga também o registo com o telemóvel no bolso de todos: cada um terá de o reativar na app.'
             : 'Chaque employé peut l’activer sur son téléphone, dans l’onglet Pointer. La désactiver coupe aussi le pointage téléphone en poche de tous : chacun devra le réactiver dans l’appli.'}
         </span>
         <button type="button" className="v5-btn" disabled={occupe} onClick={() => { void basculer(false) }}>

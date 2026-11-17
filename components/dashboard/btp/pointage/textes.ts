@@ -12,7 +12,7 @@ export function noticePointage(isPt: boolean): { titre: string; points: string[]
         points: [
           'Apenas a obra, a hora de chegada, a hora de saída e o modo (automático ou manual).',
           'Em modo automático, a sua posição GPS e a distância à obra ficam no seu telemóvel: não são enviadas nem guardadas.',
-          'O modo automático é facultativo: funciona com esta página aberta e, na app Vitfix Pro, também com o telemóvel no bolso se o ativar além disso. Pode pará-lo a qualquer momento; a marcação manual tem o mesmo valor.',
+          'O modo automático é facultativo: funciona com esta página aberta e, na app Vitfix Pro, também com o telemóvel no bolso se o ativar além disso. Pode pará-lo a qualquer momento; o registo manual tem o mesmo valor.',
           'Estas informações são visíveis pela sua entidade empregadora, para o registo do seu tempo de trabalho.',
         ],
       }
@@ -40,8 +40,8 @@ export function rappelActivation(isPt: boolean): { titre: string; points: string
           'Informe previamente cada trabalhador, por escrito: finalidade (registo dos tempos de trabalho), dados registados, quem os consulta e durante quanto tempo são conservados.',
           'Peça o parecer da comissão de trabalhadores, se existir, e faça uma avaliação de impacto (AIPD).',
           'O Código do Trabalho (art. 20.º) proíbe a vigilância à distância para controlar o desempenho profissional, e a CNPD considera a geolocalização de telemóveis uma forma de vigilância à distância: em caso de dúvida, consulte o seu jurista.',
-          'Os registos não podem servir para avaliar o desempenho nem para sancionar. A marcação manual continua sempre disponível, com o mesmo valor.',
-          'Na app Vitfix Pro, cada trabalhador pode ainda escolher a marcação com o telemóvel no bolso (localização « Sempre », zona de pelo menos 150 m à volta da obra, app fechada): só a obra e a hora lhe chegam, mas o acompanhamento é mais intrusivo; nunca o imponha. A CNPD (deliberação 7680/2014) não admite que a entidade empregadora ative o GPS dos telemóveis dos trabalhadores: peça o parecer de um advogado antes de o utilizar.',
+          'Os registos não podem servir para avaliar o desempenho nem para sancionar. O registo manual continua sempre disponível, com o mesmo valor.',
+          'Na app Vitfix Pro, cada trabalhador pode ainda escolher o registo com o telemóvel no bolso (localização « Sempre », zona de pelo menos 150 m à volta da obra, app fechada): só a obra e a hora lhe chegam, mas o acompanhamento é mais intrusivo; nunca o imponha. A CNPD (deliberação 7680/2014) não admite que a entidade empregadora ative o GPS dos telemóveis dos trabalhadores: peça o parecer de um advogado antes de o utilizar.',
         ],
         confirmation: 'Informei os meus trabalhadores e cumpri as formalidades acima.',
       }
@@ -237,9 +237,9 @@ export function messageChantierPlace(precisionM: number, isPt: boolean): string 
 export function noticeArrierePlan(isPt: boolean): string[] {
   return isPt
     ? [
-        'A Vitfix Pro usa a localização deste telemóvel, mesmo com a app fechada ou sem uso, para marcar a sua chegada e a sua saída nas obras que lhe estão atribuídas (zona de pelo menos 150 m à volta da obra).',
-        'Só a obra e a hora são enviadas à sua entidade empregadora; a sua posição nunca sai do telemóvel. É facultativo: pode desligá-lo aqui a qualquer momento, e a marcação manual tem o mesmo valor.',
-        'Sem rede durante mais de 12 h, as chegadas e saídas detetadas deixam de contar: marque então manualmente.',
+        'A Vitfix Pro usa a localização deste telemóvel, mesmo com a app fechada ou sem uso, para registar a sua chegada e a sua saída nas obras que lhe estão atribuídas (zona de pelo menos 150 m à volta da obra).',
+        'Só a obra e a hora são enviadas à sua entidade empregadora; a sua posição nunca sai do telemóvel. É facultativo: pode desligá-lo aqui a qualquer momento, e o registo manual tem o mesmo valor.',
+        'Sem rede durante mais de 12 h, as chegadas e saídas detetadas deixam de contar: registe então o ponto manualmente.',
         'O telemóvel vai pedir-lhe que autorize a localização « Sempre » para a Vitfix Pro.',
       ]
     : [
@@ -258,7 +258,7 @@ export function messageAutorisationArrierePlan(autorisation: 'partielle' | 'refu
       : 'La position n’est autorisée que pendant l’utilisation de l’appli : dans les réglages du téléphone, choisissez « Toujours autoriser » pour Vitfix Pro, puis réessayez.'
   }
   return isPt
-    ? 'Localização recusada: autorize-a para a Vitfix Pro nas definições do telemóvel, ou continue a marcar com a página aberta ou manualmente.'
+    ? 'Localização recusada: autorize-a para a Vitfix Pro nas definições do telemóvel, ou continue a registar o ponto com a página aberta ou manualmente.'
     : 'Localisation refusée : autorisez-la pour Vitfix Pro dans les réglages du téléphone, ou continuez à pointer page ouverte ou à la main.'
 }
 
@@ -269,36 +269,36 @@ export function statutArrierePlan(
   const textes: Record<typeof etat, [string, string]> = {
     actif: [
       'Activé sur ce téléphone : arrivée et départ pointés tout seuls sur vos chantiers, même téléphone en poche. La page ouverte n’est plus nécessaire.',
-      'Ativada neste telemóvel: chegada e saída marcadas sozinhas nas suas obras, mesmo com o telemóvel no bolso. Já não é preciso ter a página aberta.',
+      'Ativado neste telemóvel: chegada e saída registadas automaticamente nas suas obras, mesmo com o telemóvel no bolso. Já não é preciso ter a página aberta.',
     ],
     ailleurs: [
       'Un autre téléphone (ou une installation précédente de l’appli) pointe pour vous en arrière-plan. L’activer ici le coupe là-bas.',
-      'Outro telemóvel (ou uma instalação anterior da app) marca por si em segundo plano. Ativá-la aqui desliga-a lá.',
+      'Outro telemóvel (ou uma instalação anterior da app) regista o ponto por si em segundo plano. Ativá-lo aqui desliga-o lá.',
     ],
     zones_indisponibles: [
       'Activé sur ce téléphone, mais il ne surveille pas tous vos chantiers (localisation du téléphone coupée ?) : rallumez-la, puis revenez dans l’appli ; en attendant, pointez à la main.',
-      'Ativada neste telemóvel, mas não acompanha todas as suas obras (localização do telemóvel desligada?): volte a ligá-la e regresse à app; entretanto, marque manualmente.',
+      'Ativado neste telemóvel, mas não acompanha todas as suas obras (localização do telemóvel desligada?): volte a ligá-la e regresse à app; entretanto, registe o ponto manualmente.',
     ],
     sans_autorisation: [
       'Activé sur ce téléphone, mais la position « Toujours » n’est plus autorisée pour Vitfix Pro : rien n’est pointé en arrière-plan. Rétablissez-la dans les réglages du téléphone ; en attendant, pointez à la main.',
-      'Ativada neste telemóvel, mas a localização « Sempre » já não está autorizada para a Vitfix Pro: nada é marcado em segundo plano. Reponha-a nas definições do telemóvel; entretanto, marque manualmente.',
+      'Ativado neste telemóvel, mas a localização « Sempre » já não está autorizada para a Vitfix Pro: nada é registado em segundo plano. Reponha-a nas definições do telemóvel; entretanto, registe o ponto manualmente.',
     ],
-    inactif: ['Désactivé', 'Desativada'],
+    inactif: ['Désactivé', 'Desativado'],
   }
   return isPt ? textes[etat][1] : textes[etat][0]
 }
 
 export function messageArrierePlanActive(isPt: boolean): string {
-  return isPt ? 'Marcação com o telemóvel no bolso ativada' : 'Pointage téléphone en poche activé'
+  return isPt ? 'Registo com o telemóvel no bolso ativado' : 'Pointage téléphone en poche activé'
 }
 
 export function messageArrierePlanCoupe(isPt: boolean): string {
-  return isPt ? 'Marcação com o telemóvel no bolso desligada' : 'Pointage téléphone en poche coupé'
+  return isPt ? 'Registo com o telemóvel no bolso desligado' : 'Pointage téléphone en poche coupé'
 }
 
 export function messageArrierePlanEchec(isPt: boolean): string {
   return isPt
-    ? 'Não foi possível ativar a marcação com o telemóvel no bolso. Tente de novo.'
+    ? 'Não foi possível ativar o registo com o telemóvel no bolso. Tente de novo.'
     : 'Le pointage téléphone en poche n’a pas pu être activé. Réessayez.'
 }
 
@@ -324,7 +324,7 @@ export function messageZonesIncompletes(surveillees: number, voulues: number, is
 /** Aucun chantier affecté n'a de position : rien à confier au téléphone pour l'instant. */
 export function messageAucuneZone(isPt: boolean): string {
   return isPt
-    ? 'Nenhuma das suas obras tem posição GPS: não há nada a acompanhar por agora. A marcação com o telemóvel no bolso poderá ser ativada quando o seu responsável localizar uma obra.'
+    ? 'Nenhuma das suas obras tem posição GPS: não há nada a acompanhar por agora. O registo com o telemóvel no bolso poderá ser ativado quando o seu responsável localizar uma obra.'
     : 'Aucun de vos chantiers n’a de position GPS : il n’y a rien à suivre pour l’instant. Le pointage téléphone en poche pourra être activé quand votre responsable aura localisé un chantier.'
 }
 
@@ -332,10 +332,10 @@ export function messageAucuneZone(isPt: boolean): string {
 export function messageRemplaceParArrierePlan(enPanne: boolean, isPt: boolean): string {
   if (enPanne) {
     return isPt
-      ? 'A marcação com o telemóvel no bolso está ativada neste telemóvel, mas não funciona de momento (ver abaixo): marque manualmente.'
+      ? 'O registo com o telemóvel no bolso está ativado neste telemóvel, mas não funciona de momento (ver abaixo): registe o ponto manualmente.'
       : 'Le pointage téléphone en poche est activé sur ce téléphone mais ne fonctionne pas pour l’instant (voir ci-dessous) : pointez à la main.'
   }
   return isPt
-    ? 'Assegurada pela marcação com o telemóvel no bolso, ativada neste telemóvel: não é preciso manter esta página aberta.'
+    ? 'Assegurado pelo registo com o telemóvel no bolso, ativado neste telemóvel: não é preciso manter esta página aberta.'
     : 'Assuré par le pointage téléphone en poche, activé sur ce téléphone : inutile de garder cette page ouverte.'
 }

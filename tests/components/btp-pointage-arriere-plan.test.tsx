@@ -267,7 +267,7 @@ describe('Onglet Pointer — carte « téléphone en poche » : seulement là o�
   it('en portugais', () => {
     appli()
     render(<Banc depart={CONTEXTE} isPt />)
-    expect(screen.getByText('Marcação com o telemóvel no bolso')).toBeTruthy()
+    expect(screen.getByText('Registo com o telemóvel no bolso')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Ativar neste telemóvel' })).toBeTruthy()
   })
 })

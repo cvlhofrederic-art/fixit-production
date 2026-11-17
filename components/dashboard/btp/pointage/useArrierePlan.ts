@@ -150,7 +150,7 @@ export function useArrierePlan({ contexte, chantiers, envoyer, recharger, isPt }
         if (!annule) {
           setSurveillees(0)
           toast.warning(isPt
-            ? 'As zonas da marcação com o telemóvel no bolso não foram atualizadas.'
+            ? 'As zonas do registo com o telemóvel no bolso não foram atualizadas.'
             : 'Les zones du pointage téléphone en poche n’ont pas été mises à jour.')
         }
       }
