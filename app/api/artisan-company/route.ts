@@ -102,7 +102,8 @@ export async function GET(request: NextRequest) {
         city: artisan.company_city || '',
         postalCode: artisan.company_postal_code || '',
         phone: userMeta.phone || artisan.phone || '',
-        email: authEmail || artisan.email || '',
+        // E-mail professionnel de « Mon profil » d'abord ; l'adresse de connexion seulement si le profil n'en a pas.
+        email: artisan.email || authEmail || '',
         insuranceNumber: userMeta.insurance_number || '',
         insuranceName: userMeta.insurance_name || '',
       }
@@ -193,7 +194,7 @@ export async function GET(request: NextRequest) {
       city: entreprise.siege?.libelle_commune || '',
       postalCode: entreprise.siege?.code_postal || '',
       phone: userMeta.phone || artisan.phone || '',
-      email: userMeta.email || artisan.email || '',
+      email: artisan.email || authEmail || '',
     }
 
     // Try to update the artisan profile with verified data (best effort)
