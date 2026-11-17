@@ -90,6 +90,8 @@ const CLE_ANCIENNE = `fixit_prestations_btp_v4_${FICHE.id}`
 
 // Corps d'état proposés à une société généraliste (aucun mot-clé reconnu dans sa fiche) : tous.
 const CORPS_D_ETAT = ['Gros Œuvre', 'Couverture', 'Plomberie / CVC', 'Électricité', 'Menuiseries', 'Peinture / Revêtements']
+// Les mêmes lots affichés en portugais (libellés de l'interface PT ; la clé enregistrée du lot ne change pas).
+const CORPS_D_ETAT_PT = ['Estrutura e alvenaria', 'Cobertura', 'Canalização / AVAC', 'Eletricidade', 'Carpintaria e caixilharia', 'Pintura / Revestimentos']
 // Quelques noms de l'ancien catalogue d'exemple (retiré du code le 17/11/2026) : prestations de plusieurs corps
 // d'état, puis matériaux.
 const ANCIENS_EXEMPLES = [
@@ -133,8 +135,8 @@ const monterModule = () => render(<PrestationsBTPSection artisan={FICHE} orgRole
 const monterFormulaire = () => render(<DevisFactureFormBTP artisan={FICHE_DEVIS} services={[]} bookings={[]} onBack={vi.fn()} />)
 
 /** Chaque corps d'état, puis Matériaux et Frais divers : chaque liste du module est vide. */
-function verifierModuleVide(textes: { prestations: string; materiaux: [RegExp, string]; frais: [RegExp, string] }) {
-  for (const corps of CORPS_D_ETAT) {
+function verifierModuleVide(textes: { corps?: readonly string[]; prestations: string; materiaux: [RegExp, string]; frais: [RegExp, string] }) {
+  for (const corps of textes.corps ?? CORPS_D_ETAT) {
     fireEvent.click(screen.getByRole('button', { name: corps }))
     expect(screen.getByText(textes.prestations)).toBeInTheDocument()
   }
@@ -183,7 +185,8 @@ describe('module Prestations BTP — compte neuf', () => {
     monterModule()
     await attendreChargement()
     verifierModuleVide({
-      prestations: 'Nenhuma prestação neste lote.',
+      corps: CORPS_D_ETAT_PT,
+      prestations: 'Nenhum serviço neste lote.',
       materiaux: [/Materiais/, 'Nenhum material referenciado.'],
       frais: [/Despesas diversas/, 'Nenhuma despesa registada.'],
     })
