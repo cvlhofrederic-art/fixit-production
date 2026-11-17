@@ -31,6 +31,8 @@ export interface DonneesSociete {
   equipes: EquipeBtp[]
   pointageAutoActive: boolean
   reglageDisponible: boolean
+  /** Faux si le réglage n'a pas pu être lu (panne passagère) : rien ne se décide alors sur le mode automatique. */
+  reglageLu: boolean
 }
 
 /** Employés, chantiers en cours, équipes et interrupteur du pointage automatique de la société. */
@@ -44,6 +46,7 @@ export async function lireDonneesSociete(societeId: string): Promise<DonneesSoci
   const erreur = membresRes.error || chantiersRes.error || equipesRes.error
   if (erreur) throw new Error(`lecture du contexte : ${erreur.message}`)
   const reglageDisponible = !reglageRes.error || !TABLE_ABSENTE.has(String(reglageRes.error.code))
+  const reglageLu = !reglageRes.error || !reglageDisponible
   // Réglage illisible : le pointage automatique reste coupé (valeur par défaut).
   if (reglageRes.error && reglageDisponible) logger.warn('[btp/pointage] réglage de la société illisible', { error: reglageRes.error.message })
   return {
@@ -53,6 +56,7 @@ export async function lireDonneesSociete(societeId: string): Promise<DonneesSoci
     equipes: (equipesRes.data ?? []) as EquipeBtp[],
     pointageAutoActive: !reglageRes.error && (reglageRes.data?.[0] as Ligne | undefined)?.auto_active === true,
     reglageDisponible,
+    reglageLu,
   }
 }
 

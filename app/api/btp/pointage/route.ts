@@ -52,8 +52,8 @@ import { empreinteJeton, nouveauJeton } from '@/lib/btp/pointage-arriere-plan'
 //        { action: 'reglage_auto' } — le gérant active ou coupe le pointage automatique (après confirmation) ;
 //        { action: 'appareil' | 'appareil_retirer' } — l'employé enregistre ce téléphone pour le pointage en arrière-plan
 //        (appli Vitfix Pro, téléphone en poche) ou le retire. Le jeton rendu ne sert qu'à /api/btp/pointage/evenement,
-//        où l'appli envoie les arrivées et départs détectés par le système. Un départ pointé ici bloque les arrivées
-//        du téléphone sur ce chantier jusqu'à ce qu'il en voie la sortie (voir la route des événements).
+//        où l'appli envoie les arrivées et départs détectés par le système. Les pointages faits ici (ou modifiés)
+//        priment sur ce que le téléphone envoie (voir la route des événements).
 //
 // Ni position ni distance ne sont reçues ou conservées : le téléphone décide seul de l'arrivée et du départ, le
 // serveur n'enregistre que le chantier, l'heure et le mode. Les heures se calculent sur des instants UTC (arrivée
@@ -125,17 +125,17 @@ async function etatDesComptes(ctx: Contexte, emailGerant: string): Promise<Recor
 
 /**
  * Téléphone de ce compte qui pointe en arrière-plan (enregistré et pas retiré) : son identifiant, ou null ; disponible
- * est faux tant que la table n'existe pas (migration 20261117).
+ * est faux tant que la table n'existe pas (migration 20261117) ; lu est faux sur une autre erreur (panne passagère).
  */
-async function appareilActif(userId: string): Promise<{ id: string | null; disponible: boolean }> {
+async function appareilActif(userId: string): Promise<{ id: string | null; disponible: boolean; lu: boolean }> {
   const { data, error } = await supabaseAdmin.from('pointage_appareils_btp').select('id').eq('user_id', userId).is('retire_le', null).limit(1)
   if (error) {
     const absente = TABLE_ABSENTE.has(String(error.code))
     if (!absente) logger.warn('[btp/pointage] téléphones du compte illisibles', { error: error.message })
-    return { id: null, disponible: !absente }
+    return { id: null, disponible: !absente, lu: absente }
   }
   const id = (data as Ligne[] | null)?.[0]?.id
-  return { id: typeof id === 'string' ? id : null, disponible: true }
+  return { id: typeof id === 'string' ? id : null, disponible: true, lu: true }
 }
 
 /**
@@ -154,22 +154,6 @@ async function retirerAppareils(filtres: Partial<Record<'id' | 'user_id' | 'owne
   return (data ?? []).length
 }
 
-/**
- * Pointage terminé par l'employé sur ce chantier sans que son téléphone en ait vu la sortie : les arrivées de ce
- * téléphone sur ce chantier sont ignorées ce jour-là jusqu'à la sortie (le système renvoie une arrivée quand il repose
- * ses zones, téléphone sur place). Sans téléphone actif ou sans table : rien. Un échec ne bloque pas le départ.
- */
-async function bloquerArriveesDuTelephone(userId: string, chantierId: unknown, maintenant: number): Promise<void> {
-  if (typeof chantierId !== 'string') return
-  const { error } = await supabaseAdmin
-    .from('pointage_appareils_btp')
-    .update({ bloque_chantier: chantierId, bloque_le: new Date(maintenant).toISOString() })
-    .eq('user_id', userId)
-    .is('retire_le', null)
-  if (error && !TABLE_ABSENTE.has(String(error.code))) {
-    logger.warn('[btp/pointage] arrivées du téléphone non bloquées', { error: error.message })
-  }
-}
 
 /**
  * Enregistre ce téléphone pour le pointage en arrière-plan de l'employé connecté : jeton neuf (seule son empreinte est
@@ -246,7 +230,7 @@ export async function GET(request: NextRequest) {
       historique: historique.map(pointagePourEcran),
       pointageAutoActive: ctx.pointageAutoActive,
       reglageDisponible: ctx.reglageDisponible,
-      ...(await telephoneDuCompte(membre ? user.id : null)),
+      ...(await telephoneDuCompte(user.id, ctx.reglageLu)),
     }
     if (ctx.gerant) {
       corps.comptes = await etatDesComptes(ctx, user.email ?? '')
@@ -260,11 +244,15 @@ export async function GET(request: NextRequest) {
   }
 }
 
-/** Téléphone en arrière-plan du compte pour l'écran (fiche reliée seulement) et disponibilité de la table. */
-async function telephoneDuCompte(userId: string | null): Promise<Pick<ContextePointage, 'appareilArrierePlan' | 'arrierePlanDisponible'>> {
-  if (userId === null) return { appareilArrierePlan: null, arrierePlanDisponible: true }
-  const { id, disponible } = await appareilActif(userId)
-  return { appareilArrierePlan: id, arrierePlanDisponible: disponible }
+/**
+ * Téléphone en arrière-plan du compte pour l'écran, disponibilité de la table, et incertitude : réglage ou téléphones
+ * illisibles (panne passagère), l'appli ne retire rien sur la foi de cette réponse.
+ */
+async function telephoneDuCompte(
+  userId: string, reglageLu: boolean,
+): Promise<Pick<ContextePointage, 'appareilArrierePlan' | 'arrierePlanDisponible' | 'arrierePlanIncertain'>> {
+  const { id, disponible, lu } = await appareilActif(userId)
+  return { appareilArrierePlan: id, arrierePlanDisponible: disponible, arrierePlanIncertain: !lu || !reglageLu }
 }
 
 /** Le gérant active ou coupe le pointage automatique de sa société ; l'activation garde qui l'a confirmée et quand. */
@@ -341,7 +329,6 @@ export async function POST(request: NextRequest) {
       for (const autre of duJour) {
         if (autre !== principal) await clore(ctx.societeId, autre, changementsSansHeures(autre, NOTE_DOUBLON))
       }
-      await bloquerArriveesDuTelephone(user.id, principal.chantier_id, maintenant)
       return NextResponse.json({ pointage: pointagePourEcran(clos) })
     }
 

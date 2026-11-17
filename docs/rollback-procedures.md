@@ -172,14 +172,18 @@ ALTER TABLE public.chantiers_btp DROP COLUMN IF EXISTS membres_ids;
 
 ## Migration 20261117 — Pointage BTP en arrière-plan
 
-Retire la table `pointage_appareils_btp` (téléphones qui pointent en arrière-plan, appli Vitfix Pro, et état de leurs
-envois). ATTENTION : cela coupe le pointage téléphone en poche de tous les employés. Leurs téléphones continuent
-d'envoyer leurs arrivées et départs, que `/api/btp/pointage/evenement` ignore (réponse 200, file du téléphone vidée) ;
-l'onglet Pointer de l'appli indique que la base de données doit être mise à jour, et chaque téléphone y retire ses
-zones à l'ouverture. Le pointage page ouverte et le pointage à la main continuent. Aucun pointage n'est touché.
+Retire les tables `pointage_lignes_appareil_btp` (pointages écrits par un téléphone), `pointage_evenements_btp`
+(journal des envois) et `pointage_appareils_btp` (téléphones qui pointent en arrière-plan, appli Vitfix Pro).
+ATTENTION : cela coupe le pointage téléphone en poche de tous les employés. Leurs téléphones continuent d'envoyer leurs
+arrivées et départs, que `/api/btp/pointage/evenement` ignore (réponse 200, file du téléphone vidée) ; l'onglet Pointer
+de l'appli indique que la base de données doit être mise à jour, et chaque téléphone y retire ses zones à l'ouverture.
+Le pointage page ouverte et le pointage à la main continuent. Les pointages déjà écrits par les téléphones restent
+dans `pointages_btp` (mode automatique), comme les autres : aucun pointage n'est touché.
 
 ```sql
 -- Rollback
+DROP TABLE IF EXISTS public.pointage_lignes_appareil_btp;
+DROP TABLE IF EXISTS public.pointage_evenements_btp;
 DROP TABLE IF EXISTS public.pointage_appareils_btp;
 ```
 

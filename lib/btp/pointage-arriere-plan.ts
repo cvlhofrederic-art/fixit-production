@@ -12,8 +12,6 @@ import { z } from 'zod'
 export const AGE_MAX_EVENEMENT_MS = 12 * 3_600_000
 /** Entrée puis sortie en moins de ce temps : un passage (voiture, livraison), pas une présence sur le chantier. */
 export const PASSAGE_BREF_MS = 3 * 60_000
-/** Note posée sur un pointage refermé sans heures après un passage bref. */
-export const NOTE_PASSAGE_BREF = 'Passage de moins de 3 min détecté par le téléphone : non compté.'
 /**
  * Rayon minimal d'une zone surveillée par le système : en dessous, elle se déclenche mal (Google conseille 100 à
  * 150 m, l'iPhone signale vers 200 m). Le rayon du chantier (50 m possible) ne vaut que pour la page ouverte.

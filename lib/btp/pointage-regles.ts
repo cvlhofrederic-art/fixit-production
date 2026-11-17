@@ -117,6 +117,8 @@ export interface ContextePointage {
   appareilArrierePlan?: string | null
   /** Faux tant que la migration 20261117 (table pointage_appareils_btp) n'est pas appliquée. */
   arrierePlanDisponible?: boolean
+  /** Vrai si le réglage ou les téléphones n'ont pas pu être lus (panne passagère) : l'appli ne retire rien. */
+  arrierePlanIncertain?: boolean
 }
 
 export const normaliserEmail = (email: unknown): string => (typeof email === 'string' ? email.trim().toLowerCase() : '')

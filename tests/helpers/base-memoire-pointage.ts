@@ -20,9 +20,12 @@ export const etat = {
   courseAvantInsertion: null as null | Ligne,
   /** Simule une seconde activation du même compte enregistrée entre le retrait et l'insertion d'un téléphone. */
   courseAppareil: null as null | Ligne,
-  /** Joué une fois juste avant la prochaine modification (update) : un autre envoi passé entre lecture et écriture. */
-  avantMiseAJour: null as null | ((table: string) => void),
-  ecritures: [] as Array<{ table: string; op: 'insert' | 'update' | 'upsert'; valeur: Ligne; filtres: string[] }>,
+  /**
+   * Joué juste avant chaque modification (update) jusqu'à ce qu'il rende vrai : un autre envoi, ou l'employé, passé
+   * entre une lecture et l'écriture qui la suit.
+   */
+  avantMiseAJour: null as null | ((table: string) => boolean),
+  ecritures: [] as Array<{ table: string; op: 'insert' | 'update' | 'upsert' | 'delete'; valeur: Ligne; filtres: string[] }>,
 }
 
 /** Ordre des chaînes par points de code, comme PostgreSQL en collation « C » sur des dates et heures ISO. */
@@ -34,7 +37,7 @@ function comparer(x: string, y: string): number {
 export function requete(table: string) {
   const filtres: Array<{ texte: string; test: (l: Ligne) => boolean }> = []
   const tri: Array<[string, boolean]> = []
-  let op: 'select' | 'insert' | 'update' | 'upsert' = 'select'
+  let op: 'select' | 'insert' | 'update' | 'upsert' | 'delete' = 'select'
   let valeur: Ligne = {}
   let limite = Number.POSITIVE_INFINITY
   let avecLiaison = false
@@ -58,6 +61,9 @@ export function requete(table: string) {
     const doublonTelephone = table === 'pointage_appareils_btp' && etat.indexUnique && ligne.retire_le == null
       && lignes().some(l => l.user_id === ligne.user_id && l.retire_le == null)
     if (doublonTelephone) return { data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint "pointage_appareils_btp_actifs"' } }
+    // Contrainte unique du journal des envois (migration 20261117) : téléphone, chantier, sens, heure de détection.
+    const memeEnvoi = table === 'pointage_evenements_btp' && lignes().some(l => ['appareil_id', 'chantier_id', 'sens', 'detecte_le'].every(c => l[c] === ligne[c]))
+    if (memeEnvoi) return { data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint "pointage_evenements_btp_un_envoi"' } }
     lignes().push(ligne)
     etat.ecritures.push({ table, op: 'insert', valeur, filtres: [] })
     return { data: [ligne], error: null }
@@ -85,10 +91,14 @@ export function requete(table: string) {
       etat.ecritures.push({ table, op, valeur, filtres: [] })
       return { data: null, error: null }
     }
+    if (op === 'delete') {
+      const cibles = correspondantes()
+      etat.tables[table] = lignes().filter(l => !cibles.includes(l))
+      etat.ecritures.push({ table, op, valeur: {}, filtres: filtres.map(f => f.texte) })
+      return { data: cibles.map(l => ({ ...l })), error: null }
+    }
     if (op === 'update') {
-      const crochet = etat.avantMiseAJour
-      etat.avantMiseAJour = null
-      crochet?.(table)
+      if (etat.avantMiseAJour?.(table)) etat.avantMiseAJour = null
       const cibles = correspondantes()
       for (const l of cibles) Object.assign(l, valeur)
       etat.ecritures.push({ table, op, valeur, filtres: filtres.map(f => f.texte) })
@@ -102,11 +112,13 @@ export function requete(table: string) {
   b.eq = (c: string, v: unknown) => { filtres.push({ texte: `${c}=${String(v)}`, test: l => l[c] === v }); return b }
   b.is = (c: string, v: unknown) => { filtres.push({ texte: `${c} is ${String(v)}`, test: l => (l[c] ?? null) === v }); return b }
   b.gte = (c: string, v: unknown) => { filtres.push({ texte: `${c}>=${String(v)}`, test: l => String(l[c]) >= String(v) }); return b }
+  b.lte = (c: string, v: unknown) => { filtres.push({ texte: `${c}<=${String(v)}`, test: l => String(l[c]) <= String(v) }); return b }
   b.order = (c: string, o?: { ascending?: boolean }) => { tri.push([c, o?.ascending !== false]); return b }
   b.limit = (n: number) => { limite = n; return b }
   b.insert = (v: Ligne) => { op = 'insert'; valeur = v; return b }
   b.upsert = (v: Ligne) => { op = 'upsert'; valeur = v; return b }
   b.update = (v: Ligne) => { op = 'update'; valeur = v; return b }
+  b.delete = () => { op = 'delete'; return b }
   b.single = async () => {
     const r = executer()
     if (r.error) return r

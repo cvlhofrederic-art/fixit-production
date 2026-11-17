@@ -429,21 +429,24 @@ describe('POST /api/btp/pointage — téléphone en poche (appareil, appareil_re
     expect((await lire()).json.appareilArrierePlan).toBe(nouveau.json.appareil)
   })
 
-  it('départ pointé ici : arrivées du téléphone en poche bloquées sur ce chantier (téléphone actif du compte seulement)', async () => {
+  it('compte sans fiche reliée : GET donne quand même son téléphone (l’appli retire ses zones s’il est retiré)', async () => {
     const { json } = await envoyer({ action: 'appareil', plateforme: 'android' })
-    etat.tables.pointage_appareils_btp.push({ id: randomUUID(), owner_id: SOC_A, membre_id: M_JEAN, user_id: U_INACTIF, empreinte: 'e'.repeat(64), plateforme: 'android', retire_le: null })
-    await envoyer({ action: 'arrivee', chantierId: C_VILLA, mode: 'manuel' })
-    vi.setSystemTime(MAINTENANT + HEURE)
-    expect((await envoyer({ action: 'depart', mode: 'manuel' })).status).toBe(200)
-    const [paul, autre] = etat.tables.pointage_appareils_btp
-    expect(paul).toMatchObject({ id: json.appareil, bloque_chantier: C_VILLA, bloque_le: new Date(MAINTENANT + HEURE).toISOString() })
-    expect(autre.bloque_chantier).toBeUndefined()
+    etat.tables.membres_btp = etat.tables.membres_btp.filter(m => m.id !== M_PAUL)
+    expect((await lire()).json).toMatchObject({ rattachement: 'aucun', appareilArrierePlan: json.appareil, arrierePlanIncertain: false })
   })
 
-  it('départ pointé sans table des téléphones : le départ passe', async () => {
+  it('réglage ou téléphones illisibles (panne passagère) : GET le dit, l’appli ne retire rien sur cette foi', async () => {
+    expect((await lire()).json.arrierePlanIncertain).toBe(false)
     etat.tablesAbsentes.add('pointage_appareils_btp')
-    await envoyer({ action: 'arrivee', chantierId: C_VILLA, mode: 'manuel' })
-    expect((await envoyer({ action: 'depart', mode: 'manuel' })).status).toBe(200)
+    // Table absente : réponse sûre (mode indisponible), pas une incertitude.
+    expect((await lire()).json).toMatchObject({ arrierePlanDisponible: false, arrierePlanIncertain: false })
+    const serveur = await import('@/lib/btp/pointage-serveur')
+    const lecture = vi.spyOn(serveur, 'lireDonneesSociete')
+    lecture.mockImplementationOnce(async societeId => ({
+      societeId, membres: [...etat.tables.membres_btp] as never, chantiersEnCours: [], equipes: [], pointageAutoActive: false, reglageDisponible: true, reglageLu: false,
+    }))
+    expect((await lire()).json).toMatchObject({ arrierePlanIncertain: true })
+    lecture.mockRestore()
   })
 
   it('le gérant coupe le mode automatique : téléphones de toute la société retirés, jamais ceux d’une autre', async () => {

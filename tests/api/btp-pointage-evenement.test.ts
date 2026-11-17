@@ -1,16 +1,17 @@
 // @vitest-environment node
 // tests/api/btp-pointage-evenement.test.ts — POST /api/btp/pointage/evenement : arrivées et départs envoyés par le
-// code natif de l'appli Vitfix Pro (géorepérage du système, téléphone en poche, 17/11/2026), y compris livrés dans le
-// désordre ou deux fois (file Android), chantiers voisins, pointage terminé à la main sur place.
+// code natif de l'appli Vitfix Pro (géorepérage du système, téléphone en poche, 17/11/2026). Envois gardés au journal
+// et journée rejouée : livrés dans le désordre ou deux fois (file Android), chantiers voisins, pointages à la main ou
+// modifiés qui priment, journée finie sans sortie, refus et réponses.
 // Base simulée en mémoire et données fictives : tests/helpers/base-memoire-pointage.ts.
 
 import { randomUUID } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 import { NOTE_A_REGULARISER } from '@/lib/btp/pointage-regles'
-import { NOTE_PASSAGE_BREF, empreinteJeton, nouveauJeton } from '@/lib/btp/pointage-arriere-plan'
+import { empreinteJeton, nouveauJeton } from '@/lib/btp/pointage-arriere-plan'
 import {
-  C_FINI, C_GARAGE, C_IMMEUBLE, C_JEAN, C_SOC_B, C_VILLA, HEURE, M_JEAN, M_PAUL, MAINTENANT, SOC_A, U_INACTIF, U_PAUL,
+  C_FINI, C_GARAGE, C_IMMEUBLE, C_JEAN, C_SOC_B, C_VILLA, M_JEAN, M_PAUL, SOC_A, U_INACTIF, U_PAUL,
   donnees, etat, type Ligne,
 } from '../helpers/base-memoire-pointage'
 
@@ -21,7 +22,9 @@ vi.mock('@/lib/logger', async () => (await import('../helpers/mocks-routes-api')
 const { POST } = await import('@/app/api/btp/pointage/evenement/route')
 const { checkRateLimit } = await import('@/lib/rate-limit')
 
-const MINUTE = 60_000
+/** Heure murale de Paris (UTC+1 en novembre) ; le 16/11/2026 par défaut. */
+const paris = (heure: number, minute = 0, jour = 16) => Date.UTC(2026, 10, jour, heure - 1, minute)
+const iso = (instant: number) => new Date(instant).toISOString()
 let JETON = ''
 const APPAREIL = randomUUID()
 
@@ -29,29 +32,11 @@ async function appareil(changements: Ligne = {}): Promise<Ligne> {
   return {
     id: APPAREIL, owner_id: SOC_A, membre_id: M_PAUL, user_id: U_PAUL, empreinte: await empreinteJeton(JETON),
     plateforme: 'android', email_fiche: 'paul@a.example', fuseau: 'Europe/Paris', cree_le: '2026-11-16T06:00:00Z',
-    vu_le: null, retire_le: null, traite_jusqu_au: null, dernier_evenement_le: null, ...changements,
+    vu_le: null, retire_le: null, traite_jusqu_au: null, ...changements,
   }
 }
 
-const recevoir = async (corps: unknown, jeton: string | null = JETON) => {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  if (jeton !== null) headers.Authorization = `Bearer ${jeton}`
-  const res = await POST(new NextRequest('https://vitfix.io/api/btp/pointage/evenement', {
-    method: 'POST', headers, body: typeof corps === 'string' ? corps : JSON.stringify(corps),
-  }))
-  return { status: res.status, json: await res.json() as Record<string, unknown> }
-}
-const entree = (chantier: string, time?: number) => recevoir({ identifier: chantier, transition: 'enter', enter: true, time, radius: 150 })
-const sortie = (chantier: string, time?: number) => recevoir({ identifier: chantier, transition: 'exit', enter: false, time, radius: 150 })
-
-const telephone = () => etat.tables.pointage_appareils_btp[0]
-const ouvertsDePaul = () => (etat.tables.pointages_btp ?? []).filter(p => p.membre_id === M_PAUL && p.heure_depart == null)
-const pointagesDePaulLe = (date: string) => (etat.tables.pointages_btp ?? []).filter(p => p.membre_id === M_PAUL && p.date === date)
-const iso = (instant: number) => new Date(instant).toISOString()
-
-beforeEach(async () => {
-  vi.useFakeTimers({ toFake: ['Date'] })
-  vi.setSystemTime(MAINTENANT)
+async function initialiser() {
   donnees()
   JETON = nouveauJeton()
   etat.tables.pointage_appareils_btp = [await appareil()]
@@ -59,393 +44,351 @@ beforeEach(async () => {
   etat.tablesAbsentes = new Set()
   etat.ecritures = []
   etat.avantMiseAJour = null
+  etat.courseAvantInsertion = null
+}
+
+const recevoir = async (corps: unknown, jeton: string | null = JETON, entetes: Record<string, string> = {}) => {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json', ...entetes }
+  if (jeton !== null) headers.Authorization = `Bearer ${jeton}`
+  const res = await POST(new NextRequest('https://vitfix.io/api/btp/pointage/evenement', {
+    method: 'POST', headers, body: typeof corps === 'string' ? corps : JSON.stringify(corps),
+  }))
+  return { status: res.status, json: await res.json() as Record<string, unknown> }
+}
+/** Envoi du téléphone détecté à `detecte`, reçu à `recu` (par défaut une minute après la détection). */
+const envoi = (chantier: string, transition: 'enter' | 'exit', detecte: number, recu = detecte + 60_000) => {
+  vi.setSystemTime(recu)
+  return recevoir({ identifier: chantier, transition, enter: transition === 'enter', time: detecte, radius: 150 })
+}
+const entree = (chantier: string, detecte: number, recu?: number) => envoi(chantier, 'enter', detecte, recu)
+const sortie = (chantier: string, detecte: number, recu?: number) => envoi(chantier, 'exit', detecte, recu)
+
+const telephone = () => etat.tables.pointage_appareils_btp[0]
+const lignesDePaul = (date = '2026-11-16') => (etat.tables.pointages_btp ?? [])
+  .filter(p => p.membre_id === M_PAUL && p.date === date)
+  .sort((a, b) => String(a.heure_arrivee).localeCompare(String(b.heure_arrivee)))
+/** Pointages de Paul ce jour-là : chantier, arrivée, départ, heures. */
+const resume = (date = '2026-11-16') => lignesDePaul(date).map(p => [p.chantier_id, p.heure_arrivee, p.heure_depart ?? null, p.heures_travaillees ?? null])
+const journal = () => etat.tables.pointage_evenements_btp ?? []
+const liens = () => etat.tables.pointage_lignes_appareil_btp ?? []
+
+function permutations<T>(liste: readonly T[]): T[][] {
+  if (liste.length <= 1) return [[...liste]]
+  return liste.flatMap((x, i) => permutations([...liste.slice(0, i), ...liste.slice(i + 1)]).map(reste => [x, ...reste]))
+}
+
+type Envoi = [chantier: string, sens: 'enter' | 'exit', detecte: number]
+/** Une journée d'envois livrée d'un bloc, dans chacun des ordres possibles : le même résultat à chaque fois. */
+async function dansTousLesOrdres(envois: Envoi[], recu: number) {
+  const resultats = new Set<string>()
+  for (const ordre of permutations(envois)) {
+    await initialiser()
+    for (const [chantier, sens, detecte] of ordre) await envoi(chantier, sens, detecte, recu)
+    resultats.add(JSON.stringify(resume()))
+  }
+  expect([...resultats]).toHaveLength(1)
+  return JSON.parse([...resultats][0]) as unknown[]
+}
+
+beforeEach(async () => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(paris(8, 30))
+  await initialiser()
 })
 afterEach(() => { vi.useRealTimers() })
 
-describe('arrivée détectée par le téléphone', () => {
-  it('ouvre un pointage automatique daté de la détection (heure murale du fuseau du téléphone)', async () => {
-    const r = await entree(C_VILLA, MAINTENANT - 2 * MINUTE)
-    expect(r).toEqual({ status: 200, json: { statut: 'arrivee' } })
-    const [ouvert] = ouvertsDePaul()
-    expect(ouvert).toMatchObject({
-      owner_id: SOC_A, chantier_id: C_VILLA, chantier_nom: 'Villa', mode: 'geo_auto', date: '2026-11-16', heure_arrivee: '08:28:00',
-      created_at: iso(MAINTENANT - 2 * MINUTE), notes: null,
-    })
+describe('en direct : arrivée puis départ', () => {
+  it('arrivée : gardée au journal, pointage automatique ouvert à l’heure de détection, écrit par le téléphone', async () => {
+    expect(await entree(C_VILLA, paris(8, 28))).toEqual({ status: 200, json: { statut: 'enregistre' } })
+    expect(lignesDePaul()).toEqual([expect.objectContaining({
+      owner_id: SOC_A, chantier_id: C_VILLA, chantier_nom: 'Villa', mode: 'geo_auto', heure_arrivee: '08:28:00',
+      heure_depart: null, created_at: iso(paris(8, 28)), notes: null,
+    })])
     // Ni position ni distance enregistrées.
-    expect(ouvert.arrivee_lat).toBeUndefined()
-    expect(ouvert.distance_m).toBeUndefined()
+    expect(lignesDePaul()[0].arrivee_lat).toBeUndefined()
+    expect(journal()).toEqual([expect.objectContaining({
+      appareil_id: APPAREIL, chantier_id: C_VILLA, chantier_nom: 'Villa', sens: 'enter', detecte_le: iso(paris(8, 28)), recu_le: iso(paris(8, 29)),
+    })])
+    expect(liens()).toEqual([expect.objectContaining({ pointage_id: lignesDePaul()[0].id, appareil_id: APPAREIL, date: '2026-11-16' })])
+    expect(telephone()).toMatchObject({ traite_jusqu_au: null, vu_le: iso(paris(8, 29)) })
+  })
+
+  it('départ : pointage refermé à l’heure de la sortie vue par le téléphone', async () => {
+    await entree(C_VILLA, paris(8, 30))
+    expect((await sortie(C_VILLA, paris(12, 30))).json).toEqual({ statut: 'enregistre' })
+    expect(resume()).toEqual([[C_VILLA, '08:30:00', '12:30:00', 4]])
   })
 
   it('fuseau du téléphone enregistré à Lisbonne : heure murale de Lisbonne', async () => {
     etat.tables.pointage_appareils_btp = [await appareil({ fuseau: 'Europe/Lisbon' })]
-    await entree(C_VILLA, MAINTENANT)
-    expect(ouvertsDePaul()[0]).toMatchObject({ heure_arrivee: '07:30:00' })
+    await entree(C_VILLA, paris(8, 30))
+    expect(lignesDePaul()[0]).toMatchObject({ heure_arrivee: '07:30:00' })
+  })
+
+  it('même envoi reçu deux fois : « doublon », rien de plus', async () => {
+    await entree(C_VILLA, paris(8, 30))
+    expect((await entree(C_VILLA, paris(8, 30), paris(9))).json).toEqual({ statut: 'doublon' })
+    expect(journal()).toHaveLength(1)
+    expect(lignesDePaul()).toHaveLength(1)
+  })
+
+  it('passage de moins de 3 min : le pointage ouvert à l’arrivée est retiré', async () => {
+    await entree(C_VILLA, paris(8, 30))
+    expect(lignesDePaul()).toHaveLength(1)
+    await sortie(C_VILLA, paris(8, 32))
+    expect(lignesDePaul()).toEqual([])
+    expect(liens()).toEqual([])
   })
 
   it('arrivée reçue plus de 15 min après sa détection : note pour le gérant ; 15 min tout juste : aucune', async () => {
-    await entree(C_VILLA, MAINTENANT - 40 * MINUTE)
-    expect(ouvertsDePaul()[0].notes).toBe('Arrivée reçue 40 min après sa détection par le téléphone (envoi retardé) : à vérifier.')
-    donnees()
-    etat.tables.pointage_appareils_btp = [await appareil()]
-    await entree(C_VILLA, MAINTENANT - 15 * MINUTE)
-    expect(ouvertsDePaul()[0].notes).toBeNull()
-  })
-
-  it('nouvelle arrivée sur le chantier déjà pointé (zones reposées par le système) : rien de plus', async () => {
-    await entree(C_VILLA, MAINTENANT - 2 * MINUTE)
-    expect(await entree(C_VILLA, MAINTENANT)).toEqual({ status: 200, json: { statut: 'deja' } })
-    expect(ouvertsDePaul()).toHaveLength(1)
+    await entree(C_VILLA, paris(8), paris(8, 40))
+    expect(lignesDePaul()[0].notes).toBe('Arrivée reçue 40 min après sa détection par le téléphone (envoi retardé) : à vérifier.')
+    await initialiser()
+    await entree(C_VILLA, paris(8), paris(8, 15))
+    expect(lignesDePaul()[0].notes).toBeNull()
   })
 
   it('chantier affecté par l’équipe : pointé aussi', async () => {
-    expect((await entree(C_IMMEUBLE)).json).toEqual({ statut: 'arrivee' })
-  })
-
-  it('pointage commencé à la main en cours : jamais terminé par le téléphone, l’arrivée ne compte pas', async () => {
-    etat.tables.pointages_btp.push({
-      id: randomUUID(), owner_id: SOC_A, membre_id: M_PAUL, chantier_id: C_VILLA, chantier_nom: 'Villa', date: '2026-11-16',
-      heure_arrivee: '07:00:00', heure_depart: null, mode: 'manuel', created_at: iso(MAINTENANT - 90 * MINUTE),
-    })
-    expect((await entree(C_IMMEUBLE)).json).toEqual({ statut: 'pointage_different' })
-    expect(ouvertsDePaul().map(p => p.chantier_id)).toEqual([C_VILLA])
-    expect(telephone().entree_attente_chantier).toBeNull()
-  })
-
-  it('chantier non affecté, terminé ou d’une autre société : ignoré', async () => {
-    const chantiers = [C_JEAN, C_FINI, C_SOC_B]
-    for (const [i, chantier] of chantiers.entries()) {
-      expect((await entree(chantier, MAINTENANT - (chantiers.length - i) * MINUTE)).json).toEqual({ statut: 'chantier_non_affecte' })
-    }
-    expect(ouvertsDePaul()).toEqual([])
-  })
-
-  it('chantier sans position GPS : ignoré', async () => {
-    expect((await entree(C_GARAGE)).json).toEqual({ statut: 'chantier_sans_position' })
-  })
-
-  it('entrée de la veille livrée ce matin par la file : ignorée', async () => {
-    // 15/11 22:00 UTC = 23:00 à Paris, la veille ; moins de 12 h avant maintenant.
-    expect((await entree(C_VILLA, Date.UTC(2026, 10, 15, 22, 0, 0))).json).toEqual({ statut: 'jour_passe' })
-    expect(ouvertsDePaul()).toEqual([])
-  })
-
-  it('deux envois simultanés : un seul pointage (index de la migration 20261116)', async () => {
-    etat.courseAvantInsertion = {
-      id: randomUUID(), owner_id: SOC_A, membre_id: M_PAUL, chantier_id: C_VILLA, chantier_nom: 'Villa', date: '2026-11-16',
-      heure_arrivee: '08:29:00', heure_depart: null, mode: 'geo_auto', created_at: iso(MAINTENANT - MINUTE),
-    }
-    expect((await entree(C_VILLA)).json).toEqual({ statut: 'deja' })
-    expect(ouvertsDePaul()).toHaveLength(1)
-  })
-
-  it('pointage terminé à la main sur ce chantier aujourd’hui : arrivées ignorées jusqu’à ce que le téléphone en voie la sortie', async () => {
-    etat.tables.pointage_appareils_btp = [await appareil({ bloque_chantier: C_VILLA, bloque_le: iso(MAINTENANT - HEURE) })]
-    vi.setSystemTime(MAINTENANT + 10 * MINUTE)
-    expect((await entree(C_VILLA, MAINTENANT)).json).toEqual({ statut: 'bloque' })
-    expect((await entree(C_IMMEUBLE, MAINTENANT + MINUTE)).json).toEqual({ statut: 'arrivee' })
-    expect((await sortie(C_IMMEUBLE, MAINTENANT + 2 * MINUTE)).json).toEqual({ statut: 'passage_bref' })
-    expect(telephone().bloque_chantier).toBe(C_VILLA)
-    expect((await sortie(C_VILLA, MAINTENANT + 5 * MINUTE)).json).toEqual({ statut: 'aucun_pointage_en_cours' })
-    expect(telephone().bloque_chantier).toBeNull()
-    expect((await entree(C_VILLA, MAINTENANT + 6 * MINUTE)).json).toEqual({ statut: 'arrivee' })
-  })
-
-  it('blocage d’un jour précédent : sans effet', async () => {
-    etat.tables.pointage_appareils_btp = [await appareil({ bloque_chantier: C_VILLA, bloque_le: '2026-11-15T15:00:00.000Z' })]
-    expect((await entree(C_VILLA, MAINTENANT)).json).toEqual({ statut: 'arrivee' })
+    await entree(C_IMMEUBLE, paris(8, 30))
+    expect(resume()).toEqual([[C_IMMEUBLE, '08:30:00', null, null]])
   })
 })
 
-describe('départ détecté par le téléphone', () => {
-  it('referme le pointage automatique, daté de la sortie vue par le téléphone', async () => {
-    await entree(C_VILLA, MAINTENANT)
-    vi.setSystemTime(MAINTENANT + 4 * HEURE + 5 * MINUTE)
-    expect((await sortie(C_VILLA, MAINTENANT + 4 * HEURE)).json).toEqual({ statut: 'depart' })
-    expect(pointagesDePaulLe('2026-11-16')[0]).toMatchObject({ heure_depart: '12:30:00', heures_travaillees: 4 })
+describe('journée livrée d’un bloc, dans n’importe quel ordre (file Android)', () => {
+  it('pause déjeuner : 08:00-12:00 et 12:30-17:00 dans chacun des 24 ordres', async () => {
+    expect(await dansTousLesOrdres([
+      [C_VILLA, 'enter', paris(8)], [C_VILLA, 'exit', paris(12)], [C_VILLA, 'enter', paris(12, 30)], [C_VILLA, 'exit', paris(17)],
+    ], paris(17, 5))).toEqual([[C_VILLA, '08:00:00', '12:00:00', 4], [C_VILLA, '12:30:00', '17:00:00', 4.5]])
   })
 
-  it('entrée puis sortie en moins de 3 min (passage) : refermé sans heures, avec une note', async () => {
-    await entree(C_VILLA, MAINTENANT)
-    vi.setSystemTime(MAINTENANT + 2 * MINUTE)
-    expect((await sortie(C_VILLA, MAINTENANT + 2 * MINUTE)).json).toEqual({ statut: 'passage_bref' })
-    expect(pointagesDePaulLe('2026-11-16')[0]).toMatchObject({ heure_depart: '08:30:00', heures_travaillees: 0, notes: NOTE_PASSAGE_BREF })
+  it('changement de chantier : la villa le matin, l’immeuble l’après-midi', async () => {
+    expect(await dansTousLesOrdres([
+      [C_VILLA, 'enter', paris(8)], [C_VILLA, 'exit', paris(12)], [C_IMMEUBLE, 'enter', paris(12, 30)], [C_IMMEUBLE, 'exit', paris(17)],
+    ], paris(17, 5))).toEqual([[C_VILLA, '08:00:00', '12:00:00', 4], [C_IMMEUBLE, '12:30:00', '17:00:00', 4.5]])
   })
 
-  it('3 min tout juste : compté', async () => {
-    await entree(C_VILLA, MAINTENANT)
-    vi.setSystemTime(MAINTENANT + 3 * MINUTE)
-    expect((await sortie(C_VILLA, MAINTENANT + 3 * MINUTE)).json).toEqual({ statut: 'depart' })
+  it('chantiers voisins : l’immeuble prend le relais à la sortie de la villa, aucune heure comptée deux fois', async () => {
+    expect(await dansTousLesOrdres([
+      [C_VILLA, 'enter', paris(8)], [C_IMMEUBLE, 'enter', paris(10)], [C_VILLA, 'exit', paris(12)], [C_IMMEUBLE, 'exit', paris(17)],
+    ], paris(17, 5))).toEqual([[C_VILLA, '08:00:00', '12:00:00', 4], [C_IMMEUBLE, '12:00:00', '17:00:00', 5]])
   })
 
-  it('sortie annoncée dans le futur (horloge du téléphone en avance) : heure de réception', async () => {
-    await entree(C_VILLA, MAINTENANT)
-    vi.setSystemTime(MAINTENANT + 4 * HEURE)
-    await sortie(C_VILLA, MAINTENANT + 4 * HEURE + 5 * MINUTE)
-    expect(pointagesDePaulLe('2026-11-16')[0]).toMatchObject({ heure_depart: '12:30:00', heures_travaillees: 4 })
+  it('deux zones franchies à la même heure (même position) : rien de perdu, une seule compte', async () => {
+    expect(await dansTousLesOrdres([
+      [C_VILLA, 'enter', paris(8)], [C_IMMEUBLE, 'enter', paris(8)], [C_VILLA, 'exit', paris(17)], [C_IMMEUBLE, 'exit', paris(17)],
+    ], paris(17, 5))).toEqual([[C_VILLA, '08:00:00', '17:00:00', 9]])
   })
 
-  it('sortie datée d’avant l’arrivée du pointage ouvert (passage précédent livré tard) : ne le termine pas', async () => {
-    etat.tables.pointages_btp.push({
-      id: randomUUID(), owner_id: SOC_A, membre_id: M_PAUL, chantier_id: C_VILLA, chantier_nom: 'Villa', date: '2026-11-16',
-      heure_arrivee: '08:30:00', heure_depart: null, mode: 'geo_auto', created_at: iso(MAINTENANT),
-    })
-    vi.setSystemTime(MAINTENANT + HEURE)
-    expect((await sortie(C_VILLA, MAINTENANT - 30 * MINUTE)).json).toEqual({ statut: 'sortie_anterieure' })
-    expect(ouvertsDePaul()).toHaveLength(1)
-  })
-
-  it('pointage commencé à la main : jamais terminé par le téléphone', async () => {
-    etat.tables.pointages_btp.push({
-      id: randomUUID(), owner_id: SOC_A, membre_id: M_PAUL, chantier_id: C_VILLA, chantier_nom: 'Villa', date: '2026-11-16',
-      heure_arrivee: '07:00:00', heure_depart: null, mode: 'manuel', created_at: iso(MAINTENANT - 90 * MINUTE),
-    })
-    expect((await sortie(C_VILLA)).json).toEqual({ statut: 'pointage_different' })
-    expect(ouvertsDePaul()).toHaveLength(1)
-  })
-
-  it('aucun pointage ouvert sur ce chantier : rien, la sortie est gardée pour son arrivée', async () => {
-    expect((await sortie(C_VILLA)).json).toEqual({ statut: 'aucun_pointage_en_cours' })
-    expect(telephone()).toMatchObject({ sortie_attente_chantier: C_VILLA, sortie_attente_le: iso(MAINTENANT) })
-  })
-
-  it('sortie d’un autre chantier que celui du pointage ouvert : rien de refermé', async () => {
-    await entree(C_VILLA, MAINTENANT)
-    vi.setSystemTime(MAINTENANT + HEURE)
-    expect((await sortie(C_IMMEUBLE, MAINTENANT + HEURE)).json).toEqual({ statut: 'aucun_pointage_en_cours' })
-    expect(ouvertsDePaul().map(p => p.chantier_id)).toEqual([C_VILLA])
-  })
-
-  it('pointage de la veille refermé par une sortie livrée tard : la vraie fin, pas un oubli', async () => {
-    etat.tables.pointages_btp.push({
-      id: randomUUID(), owner_id: SOC_A, membre_id: M_PAUL, chantier_id: C_VILLA, chantier_nom: 'Villa', date: '2026-11-15',
-      heure_arrivee: '13:00:00', heure_depart: null, mode: 'geo_auto', created_at: '2026-11-15T12:00:00.000Z',
-    })
-    expect((await sortie(C_VILLA, Date.UTC(2026, 10, 15, 20, 0, 0))).json).toEqual({ statut: 'depart' })
-    expect(pointagesDePaulLe('2026-11-15')[0]).toMatchObject({ heure_depart: '21:00:00', heures_travaillees: 8 })
+  it('reçue en direct puis rejouée : la sortie de midi arrivée après le retour corrige le pointage', async () => {
+    await entree(C_VILLA, paris(8))
+    await entree(C_VILLA, paris(12, 30), paris(12, 31))
+    expect(resume()).toEqual([[C_VILLA, '08:00:00', null, null]])
+    await sortie(C_VILLA, paris(12), paris(12, 35))
+    expect(resume()).toEqual([[C_VILLA, '08:00:00', '12:00:00', 4], [C_VILLA, '12:30:00', null, null]])
   })
 })
 
-describe('chantiers voisins (zones qui se chevauchent)', () => {
-  it('arrivée sur le second pendant le pointage du premier : en attente, ouverte à la sortie du premier', async () => {
-    await entree(C_VILLA, MAINTENANT - HEURE)
-    expect((await entree(C_IMMEUBLE, MAINTENANT - 10 * MINUTE)).json).toEqual({ statut: 'en_attente' })
-    expect(ouvertsDePaul().map(p => p.chantier_id)).toEqual([C_VILLA])
-    vi.setSystemTime(MAINTENANT + MINUTE)
-    expect((await sortie(C_VILLA, MAINTENANT)).json).toEqual({ statut: 'depart' })
-    expect(pointagesDePaulLe('2026-11-16').find(p => p.chantier_id === C_VILLA)).toMatchObject({ heure_depart: '08:30:00', heures_travaillees: 1 })
-    // Jamais avant la sortie du premier : aucune heure comptée deux fois.
-    expect(ouvertsDePaul()).toEqual([expect.objectContaining({ chantier_id: C_IMMEUBLE, heure_arrivee: '08:30:00', mode: 'geo_auto' })])
-    expect(telephone().entree_attente_chantier).toBeNull()
+describe('pointages qui ne viennent pas du téléphone : ils priment', () => {
+  const aLaMain = (debut: string, fin: string | null, heures: number | null): Ligne => ({
+    id: randomUUID(), owner_id: SOC_A, membre_id: M_PAUL, chantier_id: C_VILLA, chantier_nom: 'Villa', date: '2026-11-16',
+    heure_arrivee: debut, heure_depart: fin, heures_travaillees: heures, pause_minutes: 0, mode: 'manuel',
+    created_at: iso(paris(Number(debut.slice(0, 2)), Number(debut.slice(3, 5)))),
   })
 
-  it('sorti du second avant la fin du premier : l’arrivée en attente est oubliée', async () => {
-    await entree(C_VILLA, MAINTENANT - HEURE)
-    await entree(C_IMMEUBLE, MAINTENANT - 30 * MINUTE)
-    expect((await sortie(C_IMMEUBLE, MAINTENANT - 20 * MINUTE)).json).toEqual({ statut: 'aucun_pointage_en_cours' })
-    expect(telephone().sortie_attente_chantier).toBeNull()
-    await sortie(C_VILLA, MAINTENANT)
-    expect(ouvertsDePaul()).toEqual([])
-  })
-})
-
-describe('envois livrés dans le désordre ou deux fois (file Android)', () => {
-  it('arrivée renvoyée après la sortie (réponse perdue) : ignorée, aucune heure comptée deux fois', async () => {
-    await entree(C_VILLA, MAINTENANT)
-    vi.setSystemTime(MAINTENANT + 4 * HEURE + 5 * MINUTE)
-    await sortie(C_VILLA, MAINTENANT + 4 * HEURE)
-    vi.setSystemTime(MAINTENANT + 5 * HEURE)
-    expect((await entree(C_VILLA, MAINTENANT)).json).toEqual({ statut: 'perime' })
-    expect(pointagesDePaulLe('2026-11-16')).toEqual([expect.objectContaining({ heure_depart: '12:30:00', heures_travaillees: 4 })])
+  it('pointage à la main le matin, téléphone l’après-midi : seul l’après-midi vient du téléphone', async () => {
+    etat.tables.pointages_btp.push(aLaMain('08:00:00', '12:10:00', 4.17))
+    for (const [chantier, sens, detecte] of [
+      [C_VILLA, 'enter', paris(7, 58)], [C_VILLA, 'exit', paris(12)], [C_VILLA, 'enter', paris(13)], [C_VILLA, 'exit', paris(17)],
+    ] as Envoi[]) await envoi(chantier, sens, detecte, paris(17, 5))
+    expect(resume()).toEqual([[C_VILLA, '08:00:00', '12:10:00', 4.17], [C_VILLA, '13:00:00', '17:00:00', 4]])
   })
 
-  it('sortie renvoyée : ignorée la seconde fois', async () => {
-    await entree(C_VILLA, MAINTENANT)
-    vi.setSystemTime(MAINTENANT + 4 * HEURE)
-    await sortie(C_VILLA, MAINTENANT + 4 * HEURE)
-    expect((await sortie(C_VILLA, MAINTENANT + 4 * HEURE)).json).toEqual({ statut: 'perime' })
-    expect(pointagesDePaulLe('2026-11-16')).toHaveLength(1)
+  it('fin à la main sur place, puis zones reposées par le système : pas de nouveau pointage', async () => {
+    await entree(C_VILLA, paris(8))
+    // L'employé termine son pointage à la main à 17:00, toujours sur le chantier (écrit par la route principale).
+    Object.assign(lignesDePaul()[0], { heure_depart: '17:00:00', heures_travaillees: 9 })
+    expect((await entree(C_VILLA, paris(17, 5), paris(17, 6))).json).toEqual({ statut: 'enregistre' })
+    expect(resume()).toEqual([[C_VILLA, '08:00:00', '17:00:00', 9]])
+    // Il n'appartient plus au téléphone : sa sortie ne le change pas.
+    expect(liens()).toEqual([])
+    await sortie(C_VILLA, paris(17, 10), paris(17, 11))
+    expect(resume()).toEqual([[C_VILLA, '08:00:00', '17:00:00', 9]])
   })
 
-  it('sortie de la veille livrée après l’arrivée du jour : ignorée, le pointage du jour reste ouvert', async () => {
-    etat.tables.pointages_btp.push({
-      id: randomUUID(), owner_id: SOC_A, membre_id: M_PAUL, chantier_id: C_VILLA, chantier_nom: 'Villa', date: '2026-11-15',
-      heure_arrivee: '13:00:00', heure_depart: null, mode: 'geo_auto', created_at: '2026-11-15T12:00:00.000Z',
-    })
-    await entree(C_VILLA, MAINTENANT - 10 * MINUTE)
-    expect((await sortie(C_VILLA, Date.UTC(2026, 10, 15, 20, 0, 0))).json).toEqual({ statut: 'perime' })
-    expect(ouvertsDePaul()).toEqual([expect.objectContaining({ date: '2026-11-16', heure_arrivee: '08:20:00' })])
-    // La veille, refermée sans heures « à régulariser » par le gérant (aucune sortie vue avant l'arrivée du jour).
-    expect(pointagesDePaulLe('2026-11-15')[0]).toMatchObject({ heures_travaillees: 0, notes: NOTE_A_REGULARISER })
+  it('pointage du téléphone corrigé par le gérant : jamais réécrit ensuite', async () => {
+    await entree(C_VILLA, paris(8))
+    await sortie(C_VILLA, paris(12), paris(12, 1))
+    Object.assign(lignesDePaul()[0], { heure_depart: '11:30:00', heures_travaillees: 3.5, notes: 'Corrigé' })
+    await entree(C_VILLA, paris(8), paris(13))
+    await sortie(C_VILLA, paris(12, 30), paris(13, 1))
+    expect(resume()).toEqual([[C_VILLA, '08:00:00', '11:30:00', 3.5]])
   })
 
-  it('sortie traitée avant son arrivée (envois en attente de réseau livrés ensemble) : passage enregistré en entier', async () => {
-    vi.setSystemTime(MAINTENANT + 5 * HEURE)
-    expect((await sortie(C_VILLA, MAINTENANT + 4 * HEURE)).json).toEqual({ statut: 'aucun_pointage_en_cours' })
-    expect((await entree(C_VILLA, MAINTENANT)).json).toEqual({ statut: 'arrivee_et_depart' })
-    expect(pointagesDePaulLe('2026-11-16')).toEqual([expect.objectContaining({
-      heure_arrivee: '08:30:00', heure_depart: '12:30:00', heures_travaillees: 4, mode: 'geo_auto',
-      notes: 'Arrivée reçue 300 min après sa détection par le téléphone (envoi retardé) : à vérifier.',
-    })])
-    expect(telephone().sortie_attente_chantier).toBeNull()
-    // Arrivée renvoyée encore une fois : plus rien à compléter.
-    expect((await entree(C_VILLA, MAINTENANT)).json).toEqual({ statut: 'perime' })
-    expect(pointagesDePaulLe('2026-11-16')).toHaveLength(1)
-  })
-
-  it('paire de moins de 3 min : refermée sans heures', async () => {
-    vi.setSystemTime(MAINTENANT + 10 * MINUTE)
-    await sortie(C_VILLA, MAINTENANT + 2 * MINUTE)
-    expect((await entree(C_VILLA, MAINTENANT)).json).toEqual({ statut: 'passage_bref' })
-    expect(pointagesDePaulLe('2026-11-16')[0]).toMatchObject({ heures_travaillees: 0, notes: expect.stringContaining(NOTE_PASSAGE_BREF) })
-  })
-
-  it('sortie ancienne, même avec une sortie gardée sur ce chantier : ignorée, rien de créé', async () => {
-    etat.tables.pointage_appareils_btp = [await appareil({
-      dernier_evenement_le: iso(MAINTENANT), sortie_attente_chantier: C_VILLA, sortie_attente_le: iso(MAINTENANT),
-    })]
-    vi.setSystemTime(MAINTENANT + MINUTE)
-    expect((await sortie(C_VILLA, MAINTENANT - HEURE)).json).toEqual({ statut: 'perime' })
-    expect(pointagesDePaulLe('2026-11-16')).toEqual([])
-  })
-
-  it('arrivée ancienne postérieure à la sortie gardée, ou de la veille : pas une paire, ignorée', async () => {
-    etat.tables.pointage_appareils_btp = [await appareil({
-      dernier_evenement_le: iso(MAINTENANT + HEURE), sortie_attente_chantier: C_VILLA, sortie_attente_le: iso(MAINTENANT),
-    })]
-    vi.setSystemTime(MAINTENANT + 2 * HEURE)
-    expect((await entree(C_VILLA, MAINTENANT + 30 * MINUTE)).json).toEqual({ statut: 'perime' })
-    // Sortie gardée à 00:30 (heure de Paris), arrivée la veille à 23:50 : à cheval sur minuit.
-    etat.tables.pointage_appareils_btp = [await appareil({
-      dernier_evenement_le: iso(Date.UTC(2026, 10, 15, 23, 30, 0)), sortie_attente_chantier: C_VILLA, sortie_attente_le: iso(Date.UTC(2026, 10, 15, 23, 30, 0)),
-    })]
-    expect((await entree(C_VILLA, Date.UTC(2026, 10, 15, 22, 50, 0))).json).toEqual({ statut: 'perime' })
-    expect(pointagesDePaulLe('2026-11-16')).toEqual([])
-    expect(pointagesDePaulLe('2026-11-15')).toEqual([])
-  })
-
-  it('arrivée ancienne alors qu’un pointage est ouvert : pas de paire (aucune heure comptée deux fois)', async () => {
-    // Sans même compter sur l'index « un pointage ouvert par employé » de la base.
-    etat.indexUnique = false
-    vi.setSystemTime(MAINTENANT + 5 * HEURE)
-    await sortie(C_VILLA, MAINTENANT + 2 * HEURE)
-    await entree(C_IMMEUBLE, MAINTENANT + 3 * HEURE)
-    expect((await entree(C_VILLA, MAINTENANT)).json).toEqual({ statut: 'perime' })
-    expect(pointagesDePaulLe('2026-11-16').map(p => p.chantier_id)).toEqual([C_IMMEUBLE])
-  })
-
-  it('arrivée ancienne sans sortie gardée pour elle, ou sur un autre chantier : ignorée', async () => {
-    etat.tables.pointage_appareils_btp = [await appareil({ dernier_evenement_le: iso(MAINTENANT) })]
-    expect((await entree(C_VILLA, MAINTENANT - 10 * MINUTE)).json).toEqual({ statut: 'perime' })
-    etat.tables.pointage_appareils_btp = [await appareil({
-      dernier_evenement_le: iso(MAINTENANT), sortie_attente_chantier: C_IMMEUBLE, sortie_attente_le: iso(MAINTENANT),
-    })]
-    expect((await entree(C_VILLA, MAINTENANT - 10 * MINUTE)).json).toEqual({ statut: 'perime' })
-    expect(ouvertsDePaul()).toEqual([])
-    expect(pointagesDePaulLe('2026-11-16')).toEqual([])
-  })
-
-  it('état du téléphone écrit et main rendue après chaque envoi', async () => {
-    await entree(C_VILLA, MAINTENANT - 2 * MINUTE)
-    expect(telephone()).toMatchObject({ dernier_evenement_le: iso(MAINTENANT - 2 * MINUTE), traite_jusqu_au: null, vu_le: iso(MAINTENANT) })
-  })
-
-  it('main prise par un autre envoi entre la lecture et la prise : 429, rien d’appliqué', async () => {
-    etat.tables.pointage_appareils_btp = [await appareil({ traite_jusqu_au: iso(MAINTENANT - 1) })]
+  it('pointage modifié par l’employé pendant le rejeu : jamais écrasé, il n’appartient plus au téléphone', async () => {
+    await entree(C_VILLA, paris(8))
+    // Entre la lecture du pointage et son écriture, l'employé le termine à la main (route principale).
     etat.avantMiseAJour = table => {
-      if (table === 'pointage_appareils_btp') telephone().traite_jusqu_au = iso(MAINTENANT + 15_000)
+      if (table !== 'pointages_btp') return false
+      Object.assign(lignesDePaul()[0], { heure_depart: '11:00:00', heures_travaillees: 3 })
+      return true
     }
-    expect(await entree(C_VILLA)).toEqual({ status: 429, json: { statut: 'occupe' } })
-    expect(ouvertsDePaul()).toEqual([])
-    expect(telephone().traite_jusqu_au).toBe(iso(MAINTENANT + 15_000))
+    await sortie(C_VILLA, paris(12), paris(12, 1))
+    expect(resume()).toEqual([[C_VILLA, '08:00:00', '11:00:00', 3]])
+    expect(liens()).toEqual([])
   })
 
-  it('un autre envoi du même téléphone en cours de traitement : 429, le téléphone réessaiera ; main expirée : reprise', async () => {
-    etat.tables.pointage_appareils_btp = [await appareil({ traite_jusqu_au: iso(MAINTENANT + 10_000) })]
-    expect(await entree(C_VILLA)).toEqual({ status: 429, json: { statut: 'occupe' } })
-    expect(ouvertsDePaul()).toEqual([])
-    etat.tables.pointage_appareils_btp = [await appareil({ traite_jusqu_au: iso(MAINTENANT - 1) })]
-    expect((await entree(C_VILLA)).json).toEqual({ statut: 'arrivee' })
-    expect(telephone().traite_jusqu_au).toBeNull()
+  it('pointage commencé à la main en cours : le téléphone n’ouvre rien par-dessus', async () => {
+    etat.tables.pointages_btp.push({ ...aLaMain('07:00:00', null, null), chantier_id: C_IMMEUBLE })
+    await entree(C_VILLA, paris(8, 30))
+    expect(lignesDePaul().map(p => p.chantier_id)).toEqual([C_IMMEUBLE])
+  })
+
+  it('pointage ouvert à la main pendant le traitement (index « un ouvert par employé ») : rien d’écrit, rien de cassé', async () => {
+    etat.courseAvantInsertion = { ...aLaMain('08:29:00', null, null), chantier_id: C_IMMEUBLE }
+    expect((await entree(C_VILLA, paris(8, 30))).json).toEqual({ statut: 'enregistre' })
+    expect(lignesDePaul().map(p => p.chantier_id)).toEqual([C_IMMEUBLE])
+    expect(liens()).toEqual([])
   })
 })
 
-describe('événements ignorés, réponses', () => {
-  it('pointage automatique coupé par le gérant : ni arrivée ni départ', async () => {
-    await entree(C_VILLA, MAINTENANT - 10 * MINUTE)
+describe('journées finies', () => {
+  it('sortie de la veille livrée le lendemain matin : referme le pointage de la veille à sa vraie heure', async () => {
+    await entree(C_VILLA, paris(13, 0, 15), paris(13, 1, 15))
+    await sortie(C_VILLA, paris(20, 0, 15), paris(7, 0, 16))
+    expect(resume('2026-11-15')).toEqual([[C_VILLA, '13:00:00', '20:00:00', 7]])
+  })
+
+  it('arrivée de la veille livrée ce matin sans sortie : refermée sans heures, à régulariser', async () => {
+    await entree(C_VILLA, paris(22, 0, 15), paris(7, 0, 16))
+    expect(lignesDePaul('2026-11-15')).toEqual([expect.objectContaining({
+      heure_arrivee: '22:00:00', heure_depart: '22:00:00', heures_travaillees: 0, notes: expect.stringContaining(NOTE_A_REGULARISER),
+    })])
+  })
+
+  it('pointage de la veille resté ouvert : refermé à régulariser avant d’ouvrir celui du jour', async () => {
+    await entree(C_VILLA, paris(18, 0, 15), paris(18, 1, 15))
+    await entree(C_VILLA, paris(8), paris(8, 1))
+    expect(lignesDePaul('2026-11-15')[0]).toMatchObject({ heure_depart: '18:00:00', heures_travaillees: 0, notes: NOTE_A_REGULARISER })
+    expect(resume()).toEqual([[C_VILLA, '08:00:00', null, null]])
+  })
+})
+
+describe('envois ignorés, réponses', () => {
+  it('arrivée sur un chantier non affecté, terminé, d’une autre société ou sans position : ignorée, pas au journal', async () => {
+    const motifs = [[C_JEAN, 'chantier_non_affecte'], [C_FINI, 'chantier_non_affecte'], [C_SOC_B, 'chantier_non_affecte'], [C_GARAGE, 'chantier_sans_position']]
+    for (const [i, [chantier, motif]] of motifs.entries()) {
+      expect((await entree(chantier, paris(8, i))).json).toEqual({ statut: motif })
+    }
+    expect(journal()).toEqual([])
+    expect(lignesDePaul()).toEqual([])
+  })
+
+  it('sortie : toujours gardée au journal (elle ne compte que si son arrivée y est)', async () => {
+    expect((await sortie(C_JEAN, paris(8))).json).toEqual({ statut: 'enregistre' })
+    expect(journal()).toHaveLength(1)
+    expect(lignesDePaul()).toEqual([])
+  })
+
+  it('pointage automatique coupé par le gérant : ignoré, pas au journal', async () => {
     etat.tables.pointage_reglages_btp = [{ owner_id: SOC_A, auto_active: false }]
-    expect((await sortie(C_VILLA, MAINTENANT - 5 * MINUTE)).json).toEqual({ statut: 'pointage_auto_desactive' })
-    expect((await entree(C_IMMEUBLE, MAINTENANT)).json).toEqual({ statut: 'pointage_auto_desactive' })
-    expect(ouvertsDePaul()).toHaveLength(1)
+    expect((await entree(C_VILLA, paris(8))).json).toEqual({ statut: 'pointage_auto_desactive' })
+    expect(journal()).toEqual([])
+  })
+
+  it('réglage illisible (panne passagère) : 500, le téléphone réessaiera ; rien de décidé', async () => {
+    etat.tablesAbsentes = new Set(['pointage_reglages_btp'])
+    // Table absente : réglage connu (mode coupé) ; une autre erreur, elle, n'est pas une réponse.
+    expect((await entree(C_VILLA, paris(8))).json).toEqual({ statut: 'pointage_auto_desactive' })
+    const lire = vi.spyOn(await import('@/lib/btp/pointage-serveur'), 'lireDonneesSociete')
+    lire.mockImplementationOnce(async () => ({
+      societeId: SOC_A, membres: [], chantiersEnCours: [], equipes: [], pointageAutoActive: false, reglageDisponible: true, reglageLu: false,
+    }))
+    expect((await entree(C_VILLA, paris(8, 1))).status).toBe(500)
+    lire.mockRestore()
+    expect(journal()).toEqual([])
+    expect(telephone().traite_jusqu_au).toBeNull()
   })
 
   it('jeton absent, inconnu ou retiré : 200 « ignoré » (la file du téléphone se vide), rien d’écrit', async () => {
     expect(await recevoir({ identifier: C_VILLA, transition: 'enter' }, null)).toEqual({ status: 200, json: { statut: 'jeton_absent' } })
     expect((await recevoir({ identifier: C_VILLA, transition: 'enter' }, nouveauJeton())).json).toEqual({ statut: 'appareil_inconnu' })
     etat.tables.pointage_appareils_btp = [await appareil({ retire_le: '2026-11-16T07:00:00Z' })]
-    expect((await entree(C_VILLA)).json).toEqual({ statut: 'appareil_inconnu' })
+    expect((await entree(C_VILLA, paris(8))).json).toEqual({ statut: 'appareil_inconnu' })
     expect(etat.ecritures).toEqual([])
   })
 
   it('limite par adresse avant toute lecture du téléphone (jetons inventés en masse) : 429', async () => {
     vi.mocked(checkRateLimit).mockImplementationOnce(async (cle: string) => !cle.startsWith('btp_pointage_evenement_ip_'))
-    expect((await entree(C_VILLA)).status).toBe(429)
+    expect((await entree(C_VILLA, paris(8))).status).toBe(429)
     expect(etat.ecritures).toEqual([])
-    expect(ouvertsDePaul()).toEqual([])
   })
 
-  it('corps illisible ou incomplet : 200 « ignoré » ; démesuré : 413', async () => {
+  it('corps illisible ou incomplet : 200 « ignoré » ; démesuré ou annoncé démesuré : 413', async () => {
     expect(await recevoir('pas du json')).toEqual({ status: 200, json: { statut: 'corps_invalide' } })
     expect((await recevoir({ identifier: 'bureau', transition: 'enter' })).json).toEqual({ statut: 'corps_invalide' })
     expect((await recevoir({ identifier: C_VILLA, transition: 'enter', payload: 'x'.repeat(5000) })).status).toBe(413)
-    // Taille annoncée trop grande : refusé avant de lire le corps.
-    const annonce = await POST(new NextRequest('https://vitfix.io/api/btp/pointage/evenement', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Content-Length': '999999', Authorization: `Bearer ${JETON}` },
-      body: JSON.stringify({ identifier: C_VILLA, transition: 'enter' }),
-    }))
-    expect(annonce.status).toBe(413)
-    expect(ouvertsDePaul()).toEqual([])
+    expect((await recevoir({ identifier: C_VILLA, transition: 'enter' }, JETON, { 'Content-Length': '999999' })).status).toBe(413)
+    expect(journal()).toEqual([])
   })
 
   it('compte sorti de la société : téléphone retiré, rien d’enregistré', async () => {
     etat.tables.pointage_appareils_btp = [await appareil({ user_id: U_INACTIF, membre_id: M_JEAN })]
-    expect((await recevoir({ identifier: C_JEAN, transition: 'enter' })).json).toEqual({ statut: 'compte_inactif' })
-    expect(telephone().retire_le).toBe(iso(MAINTENANT))
-    expect((etat.tables.pointages_btp ?? []).filter(p => p.membre_id === M_JEAN && p.heure_depart == null)).toEqual([])
+    expect((await entree(C_JEAN, paris(8))).json).toEqual({ statut: 'compte_inactif' })
+    expect(telephone().retire_le).toBe(iso(paris(8, 1)))
+    expect(journal()).toEqual([])
   })
 
   it('fiche passée à une autre adresse e-mail (plus celle de ce compte) : téléphone retiré, rien d’enregistré', async () => {
     etat.tables.membres_btp = etat.tables.membres_btp.map(m => (m.id === M_PAUL ? { ...m, email: 'autre@a.example' } : m))
-    expect((await entree(C_VILLA)).json).toEqual({ statut: 'fiche_changee' })
-    expect(telephone().retire_le).toBe(iso(MAINTENANT))
-    expect(ouvertsDePaul()).toEqual([])
-  })
-
-  it('le gérant lui-même peut pointer depuis son téléphone', async () => {
-    etat.tables.pointage_appareils_btp = [await appareil({ user_id: SOC_A })]
-    expect((await entree(C_VILLA)).json).toEqual({ statut: 'arrivee' })
+    expect((await entree(C_VILLA, paris(8))).json).toEqual({ statut: 'fiche_changee' })
+    expect(telephone().retire_le).toBe(iso(paris(8, 1)))
+    expect(journal()).toEqual([])
   })
 
   it('fiche employé retirée ou inactive : ignoré', async () => {
     etat.tables.membres_btp = etat.tables.membres_btp.map(m => (m.id === M_PAUL ? { ...m, actif: false } : m))
-    expect((await entree(C_VILLA)).json).toEqual({ statut: 'fiche_absente' })
+    expect((await entree(C_VILLA, paris(8))).json).toEqual({ statut: 'fiche_absente' })
   })
 
-  it('heure de détection de plus de 12 h : ignoré ; dans le futur (horloge en avance) : heure de réception', async () => {
-    expect((await entree(C_VILLA, MAINTENANT - 13 * HEURE)).json).toEqual({ statut: 'horodatage_refuse' })
-    expect(ouvertsDePaul()).toEqual([])
-    expect((await entree(C_VILLA, MAINTENANT + HEURE)).json).toEqual({ statut: 'arrivee' })
-    expect(ouvertsDePaul()[0]).toMatchObject({ heure_arrivee: '08:30:00', created_at: iso(MAINTENANT) })
+  it('le gérant lui-même peut pointer depuis son téléphone', async () => {
+    etat.tables.pointage_appareils_btp = [await appareil({ user_id: SOC_A })]
+    expect((await entree(C_VILLA, paris(8))).json).toEqual({ statut: 'enregistre' })
+  })
+
+  it('heure de détection de plus de 12 h : ignoré ; future (horloge en avance) : heure de réception', async () => {
+    expect((await entree(C_VILLA, paris(8) - 13 * 3_600_000, paris(8))).json).toEqual({ statut: 'horodatage_refuse' })
+    expect((await entree(C_VILLA, paris(9, 30), paris(8, 30))).json).toEqual({ statut: 'enregistre' })
+    expect(lignesDePaul()[0]).toMatchObject({ heure_arrivee: '08:30:00', created_at: iso(paris(8, 30)) })
   })
 
   it('table des téléphones absente (migration 20261117 non appliquée) : ignoré', async () => {
     etat.tablesAbsentes = new Set(['pointage_appareils_btp'])
-    expect((await entree(C_VILLA)).json).toEqual({ statut: 'appareil_inconnu' })
+    expect((await entree(C_VILLA, paris(8))).json).toEqual({ statut: 'appareil_inconnu' })
   })
 
-  it('panne de la base : 500 pour que le téléphone réessaie ; main rendue, état inchangé', async () => {
+  it('un autre envoi du même téléphone en cours : 429, le téléphone réessaiera ; main expirée : reprise', async () => {
+    etat.tables.pointage_appareils_btp = [await appareil({ traite_jusqu_au: iso(paris(8, 1) + 10_000) })]
+    expect(await entree(C_VILLA, paris(8))).toEqual({ status: 429, json: { statut: 'occupe' } })
+    expect(journal()).toEqual([])
+    etat.tables.pointage_appareils_btp = [await appareil({ traite_jusqu_au: iso(paris(8, 1) - 1) })]
+    expect((await entree(C_VILLA, paris(8))).json).toEqual({ statut: 'enregistre' })
+    expect(telephone().traite_jusqu_au).toBeNull()
+  })
+
+  it('main prise par un autre envoi entre la lecture et la prise : 429, rien d’appliqué', async () => {
+    etat.tables.pointage_appareils_btp = [await appareil({ traite_jusqu_au: iso(paris(8) - 1) })]
+    etat.avantMiseAJour = table => {
+      if (table !== 'pointage_appareils_btp') return false
+      telephone().traite_jusqu_au = iso(paris(8, 1) + 15_000)
+      return true
+    }
+    expect(await entree(C_VILLA, paris(8))).toEqual({ status: 429, json: { statut: 'occupe' } })
+    expect(journal()).toEqual([])
+  })
+
+  it('panne de la base : 500 pour que le téléphone réessaie ; main rendue', async () => {
     etat.tablesAbsentes = new Set(['membres_btp'])
-    expect((await entree(C_VILLA)).status).toBe(500)
-    expect(telephone()).toMatchObject({ traite_jusqu_au: null, dernier_evenement_le: null })
+    expect((await entree(C_VILLA, paris(8))).status).toBe(500)
+    expect(telephone().traite_jusqu_au).toBeNull()
   })
 })
