@@ -27,6 +27,11 @@
 // plus ancienne était abandonnée, comme une suppression en attente que la restauration d'un autre onglet avait annulée.
 // La restauration marque désormais les valeurs qu'elle remplace : seule une saisie ainsi remplacée repart, et toute
 // écriture faite ensuite dans un onglet efface la marque.
+//
+// Contre-relecture du 17/11/2026 (septième passe) : un onglet qui s'ouvre réécrit souvent au montage la valeur qu'il lit
+// — la modification d'un autre onglet, en attente de son nouvel essai — avant que sa restauration ne réponde. Cette
+// restauration ne marquait pas un texte que son onglet avait écrit lui-même : la modification était perdue. Elle ne
+// laisse plus de côté que le texte que son onglet a synchronisé.
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
@@ -982,5 +987,143 @@ describe('suppression en attente, annulée dans le navigateur', () => {
 
     expect(serveur.espace[CLIENTS]).toEqual(liste(1))
     expect(lire(CLIENTS)).toEqual(liste(1))
+  })
+})
+
+// Septième passe, scénarios X3, X3b, X3v et X3D du banc de la contre-relecture : un onglet B s'ouvre (nouvel onglet, ou
+// rechargement) pendant que la modification de A attend son nouvel essai, et au montage une section de B réécrit la clé
+// telle qu'elle la lit — la modification de A —, avant que sa restauration ne réponde. Cette restauration la remplaçait
+// sans la marquer, puisque B l'avait écrite lui-même, et la modification de A était perdue au nouvel essai.
+describe('modification en attente réécrite à l’identique par un onglet qui s’ouvre, avant sa restauration', () => {
+  /** Onglet dont la restauration n'a pas encore répondu : son miroir est posé, le serveur n'est pas encore relu. */
+  async function chargerUnOnglet(): Promise<ModuleSync> {
+    vi.resetModules()
+    const onglet = await import('@/lib/storage-sync')
+    onglet.installStorageSync()
+    onglets.push(onglet)
+    return onglet
+  }
+
+  /** Section qui persiste son état à chaque rendu : au montage, elle réécrit la valeur qu'elle lit dans le navigateur. */
+  function reecrireDans(onglet: ModuleSync, cle: string): void {
+    const texte = window.localStorage.getItem(cle) as string
+    setItemDOrigine.call(window.localStorage, cle, texte)
+    onglet.enregistrerEcritureMiroir(cle, texte, texte)
+  }
+
+  /** L'onglet affiché passe en arrière-plan : l'utilisateur va sur un autre onglet. */
+  async function passerEnArrierePlan(): Promise<void> {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' })
+    document.dispatchEvent(new Event('visibilitychange'))
+    delete (document as unknown as Record<string, unknown>).visibilityState
+    await vi.advanceTimersByTimeAsync(0)
+  }
+
+  /** Dans A, l'utilisateur ajoute un client ; l'envoi échoue, la saisie attend son nouvel essai. */
+  async function saisieEnAttente(): Promise<ModuleSync> {
+    const A = await ouvrirUnOnglet()
+    serveur.retenir = true
+    saisirDans(A, CLIENTS, liste(1, 2))
+    await ecoulerDebounce()
+    await aboutir(0, 'reseau')
+    serveur.retenir = false
+    return A
+  }
+
+  /** B s'ouvre, réécrit au montage la valeur en place, puis sa restauration y remet la liste du serveur. */
+  async function ouvrirBQuiReecrit(): Promise<ModuleSync> {
+    const B = await chargerUnOnglet()
+    reecrireDans(B, CLIENTS)
+    await B.hydrateStorageFromServer()
+    expect(lire(CLIENTS)).toEqual(liste(1))
+    return B
+  }
+
+  it.each([
+    ['continue de travailler dans A', true],
+    ['ne fait rien d’autre', false],
+  ] as const)('B réécrit la saisie de A puis restaure, l’utilisateur %s : au nouvel essai, la saisie part', async (_suite, continuer) => {
+    const A = await saisieEnAttente()
+    const B = await ouvrirBQuiReecrit()
+    if (continuer) {
+      saisirDans(A, 'fixit_autre_a', { a: 1 })
+      await ecoulerDebounce()
+    }
+    await nouvelEssai()
+    await relireDansLesDeuxOnglets(A, B)
+
+    // Avant : la restauration de B ne marquait pas un texte que B avait écrit lui-même, et la saisie était perdue.
+    expect(serveur.espace[CLIENTS]).toEqual(liste(1, 2))
+    expect(lire(CLIENTS)).toEqual(liste(1, 2))
+  })
+
+  it('B s’ouvre après que la note de A est entrée dans l’état : au nouvel essai, la saisie part', async () => {
+    const A = await saisieEnAttente()
+    await vi.advanceTimersByTimeAsync(2000) // la note de A entre dans l'état, avant son nouvel essai
+    const B = await ouvrirBQuiReecrit()
+    await nouvelEssai()
+    await relireDansLesDeuxOnglets(A, B)
+
+    expect(serveur.espace[CLIENTS]).toEqual(liste(1, 2))
+    expect(lire(CLIENTS)).toEqual(liste(1, 2))
+  })
+
+  it('l’utilisateur quitte A pour ouvrir B : au nouvel essai, la saisie part', async () => {
+    const A = await saisieEnAttente()
+    await passerEnArrierePlan() // rien ne part à l'aveugle ; la note de A entre aussitôt dans l'état
+    const B = await ouvrirBQuiReecrit()
+    await nouvelEssai()
+    await relireDansLesDeuxOnglets(A, B)
+
+    expect(serveur.espace[CLIENTS]).toEqual(liste(1, 2))
+    expect(lire(CLIENTS)).toEqual(liste(1, 2))
+  })
+
+  it('suppression : B retire au montage la clé que A a supprimée, puis restaure : au nouvel essai, la suppression part', async () => {
+    const A = await ouvrirUnOnglet()
+    serveur.retenir = true
+    supprimerDans(A, CLIENTS)
+    await ecoulerDebounce()
+    await aboutir(0, 'reseau') // échec : la suppression attend son nouvel essai
+    serveur.retenir = false
+    const B = await chargerUnOnglet()
+    supprimerDans(B, CLIENTS) // montage de B : retrait d'une clé déjà absente
+    await B.hydrateStorageFromServer()
+    expect(lire(CLIENTS)).toEqual(liste(1))
+    await nouvelEssai()
+    await relireDansLesDeuxOnglets(A, B)
+
+    expect(serveur.espace).not.toHaveProperty(CLIENTS)
+    expect(window.localStorage.getItem(CLIENTS)).toBeNull()
+  })
+
+  it('un autre appareil a écrit entre-temps : le serveur gagne, la saisie ne part pas', async () => {
+    const A = await saisieEnAttente()
+    const B = await ouvrirBQuiReecrit()
+    serveur.espace[CLIENTS] = commeLaBase(liste(1, 9))
+    await nouvelEssai()
+    await relireDansLesDeuxOnglets(A, B)
+
+    expect(serveur.espace[CLIENTS]).toEqual(liste(1, 9))
+    expect(lire(CLIENTS)).toEqual(liste(1, 9))
+    expect(serveur.postees).toHaveLength(1)
+  })
+
+  // Garantie 1 : la marque laissée pour un texte que B a écrit lui-même ne fait pas partir un jeu par défaut.
+  it('appareil neuf : le jeu par défaut écrit au montage de A, réécrit par B, ne remplace pas la valeur du serveur', async () => {
+    serveur.espace[CLIENTS] = commeLaBase(liste(1, 2, 3))
+    const A = await chargerUnOnglet()
+    saisirDans(A, CLIENTS, liste(9)) // jeu par défaut écrit au montage, dans un navigateur vide
+    fauxFetch.mockImplementationOnce(async () => new Response('{}', { status: 500 }))
+    await A.hydrateStorageFromServer() // première restauration en échec : rien ne part
+    const B = await chargerUnOnglet()
+    reecrireDans(B, CLIENTS)
+    await B.hydrateStorageFromServer()
+    await nouvelEssai()
+    await relireDansLesDeuxOnglets(A, B)
+
+    expect(serveur.espace[CLIENTS]).toEqual(liste(1, 2, 3))
+    expect(lire(CLIENTS)).toEqual(liste(1, 2, 3))
+    expect(serveur.postees).toHaveLength(0)
   })
 })

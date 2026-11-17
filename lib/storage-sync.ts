@@ -33,8 +33,10 @@ import { isStorageReadable } from '@/lib/safe-storage'
 //     navigateur ne détient plus la valeur écrite ici :
 //      - si une restauration l'a remplacée pendant qu'elle attendait son nouvel essai (après un échec), elle est remise
 //        dans le navigateur et repart, aux mêmes conditions — une suppression aussi. Chaque restauration note ce
-//        qu'elle remplace (CLE_REMPLACEMENTS) et toute écriture faite ensuite dans un onglet efface la note : une valeur
-//        choisie par l'utilisateur dans un autre onglet, même identique à celle du serveur, n'est pas défaite ;
+//        qu'elle remplace (CLE_REMPLACEMENTS), sauf le dernier texte que son onglet a synchronisé avec le serveur ; un
+//        texte que son onglet a réécrit tel qu'il le lisait, au montage, avant qu'elle ne réponde, est noté comme les
+//        autres. Toute écriture faite ensuite dans un onglet efface la note : une valeur choisie par l'utilisateur dans
+//        un autre onglet, même identique à celle du serveur, n'est pas défaite ;
 //      - sinon, le serveur gagne si la clé a disparu, si la valeur en place est la sienne, ou l'une de celles qu'il a
 //        détenues avant d'après ce que cet onglet en sait ; toute autre valeur (la saisie d'un autre onglet, peut-être
 //        encore en route, qui l'envoie lui-même) est laissée en place pour cette relecture, sans repartir d'ici, et la
@@ -84,7 +86,7 @@ import { isStorageReadable } from '@/lib/safe-storage'
 // en attente), quand le serveur est relu pour une clé en attente, quand un autre onglet a remplacé la valeur écrite
 // ici, et une fois par valeur envoyée sans réponse si le serveur détient autre chose que la valeur d'avant. L'empreinte
 // du seul texte (environ 5 ms) est calculée à chaque écriture de l'état, et deux fois quand une restauration remplace
-// une valeur que cet onglet n'a ni écrite ni synchronisée, ou qu'une relecture trouve une note de remplacement pour une
+// une valeur que cet onglet n'a pas synchronisée, ou qu'une relecture trouve une note de remplacement pour une
 // modification d'ici. La restauration lit chaque valeur du navigateur avant de la remplacer ; chaque écriture
 // interceptée lit la note des remplacements, absente le plus souvent. Rien n'est calculé à la saisie, ni à la
 // confirmation d'un envoi tant que la valeur écrite ici est en place.
@@ -732,20 +734,23 @@ function lireRemplacements(): Map<string, Remplacement> {
 }
 
 /**
- * Empreinte du texte qu'une restauration va remplacer, quand il peut être la modification d'un autre onglet en attente
- * de son envoi : ni le texte du serveur, ni ce que cet onglet a écrit ou synchronisé lui-même. ABSENTE pour une clé que
- * cet onglet connaissait et qui a disparu du navigateur (suppression faite ailleurs). undefined sinon. Quand le texte
- * en place a lui-même été écrit par une restauration (`precedent`, lue avant une saisie arrivée depuis par exemple),
- * la note le suit et désigne toujours la modification qu'elle avait remplacée.
+ * Empreinte du texte qu'une restauration va remplacer, quand il peut être la modification d'un onglet en attente de son
+ * nouvel essai : ni le texte du serveur, ni le dernier que cet onglet a synchronisé (reçu du serveur, ou envoyé et
+ * confirmé). Un texte que cet onglet a écrit lui-même est noté aussi : un onglet qui s'ouvre réécrit souvent au montage,
+ * avant que sa restauration ne réponde, la valeur qu'il lit — la modification d'un autre onglet en attente
+ * (contre-relecture du 17/11/2026). ABSENTE pour une clé qui a disparu du navigateur, quand cet onglet la connaissait
+ * ou l'a supprimée lui-même : la suppression d'un autre onglet peut y attendre son nouvel essai. undefined sinon. Quand
+ * le texte en place a lui-même été écrit par une restauration (`precedent`, lue avant une saisie arrivée depuis par
+ * exemple), la note le suit et désigne toujours la modification qu'elle avait remplacée.
  */
 function texteRemplace(key: string, locale: string | null | undefined, enTexte: string, precedent: Remplacement | undefined): string | undefined {
   if (locale === undefined || locale === enTexte) return undefined
-  if (locale === null) return derniereValeurSynchronisee.has(key) && derniereEcritureIci.get(key) !== null ? ABSENTE : undefined
-  const ecritOuSynchroniseIci = locale === derniereEcritureIci.get(key) || locale === derniereValeurSynchronisee.get(key)
-  if (precedent === undefined) return ecritOuSynchroniseIci ? undefined : empreinteDuTexte(locale)
+  if (locale === null) return derniereEcritureIci.get(key) === null || derniereValeurSynchronisee.has(key) ? ABSENTE : undefined
+  const synchroniseIci = locale === derniereValeurSynchronisee.get(key)
+  if (precedent === undefined) return synchroniseIci ? undefined : empreinteDuTexte(locale)
   const enPlace = empreinteDuTexte(locale)
   if (precedent[1] === enPlace) return precedent[0]
-  return ecritOuSynchroniseIci ? undefined : enPlace
+  return synchroniseIci ? undefined : enPlace
 }
 
 /**
