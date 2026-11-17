@@ -34,8 +34,13 @@ import type {
  *   motivée (motifCorrection : date saisie par erreur, par exemple celle du dépôt), dont l'avertissement est à tracer ;
  * - la remise contre émargement, le courriel simple, le SMS, la lettre simple et l'extranet ne valent pas notification
  *   du procès-verbal (art. 64 et 64-3) : refus inchangé.
- * 🔵 Pour une LRE, « l'avis » est lu comme l'information du destinataire de CPCE art. R. 53-3, I (interprétation) ; une
- * LRE refusée ou non réclamée fait quand même courir le délai, comme une LRAR non retirée (interprétation, aucun arrêt).
+ * 🔵 Pour une LRE, « l'avis » est lu comme l'information du destinataire de CPCE art. R. 53-3, I (interprétation).
+ * Suite, décision de Hugo du 17/11/2026 (J57) (notes du 17/11/2026, section « Suite », numéro de registre proposé) :
+ * une LRE, ou un envoi par le procédé d'un prestataire qualifié, refusé ou non réclamé fait quand même courir le délai,
+ * du lendemain de la transmission de l'avis électronique ; l'acceptation, le refus ou la non-réclamation sont sans effet
+ * (D. 1967 art. 64, dernier al., relu sur Légifrance le 17/11/2026 ; même logique que la LRAR non retirée, Cass. 3e civ.,
+ * 16/04/2026, n° 24-18.842). Seule dateAvisElectronique compte (etatNotificationCourrier, inchangé) ; un défaut de
+ * transmission de l'avis, lui, ne fait pas courir le délai : aucune date d'avis n'est saisie sans justificatif.
  * 🔴 Écrans (choix du mode, saisie de l'avis) et écriture en base (enregistrement de l'avis, mode figé par le
  * repository) : à faire, accord de Frédéric pour les écrans.
  */

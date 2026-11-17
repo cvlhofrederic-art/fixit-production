@@ -28,7 +28,7 @@ function urgencyTag(urgency: string, isPt: boolean) {
 function publisherTag(type: string, isPt: boolean) {
   switch (type) {
     case 'syndic':
-      return <span className="v22-tag" style={{ background: '#E8F0FE', color: '#1A56DB' }}>🏢 Syndic</span>
+      return <span className="v22-tag" style={{ background: '#E8F0FE', color: '#1A56DB' }}>🏢 {isPt ? 'Condomínio' : 'Syndic'}</span>
     case 'entreprise':
       return <span className="v22-tag" style={{ background: '#F3E8FF', color: '#7C3AED' }}>🏭 {isPt ? 'Empresa' : 'Entreprise'}</span>
     default:
@@ -131,7 +131,7 @@ export default function BrowseTabView({
           <span>
             {isPt ? (
               <>
-                <strong>Oportunidades disponíveis para o seu estatuto :</strong> subcontratação por grandes empresas de obras 🏗️ + concursos privados publicados por clientes 🏠. Os concursos públicos (BOAMP/TED) exigem capacidade financeira superior e não estão acessíveis em regime de isenção.
+                <strong>Oportunidades disponíveis para o seu estatuto:</strong> subempreitadas de grandes empresas de construção 🏗️ + concursos privados publicados por clientes 🏠. Os concursos públicos (BASE.gov/TED) não são apresentados para este estatuto.
               </>
             ) : (
               <>
@@ -150,7 +150,7 @@ export default function BrowseTabView({
               <span>&#x23F0;</span>
               <span>
                 {isPt
-                  ? `${alerts.expiringCount} mercado${alerts.expiringCount > 1 ? 's' : ''} expira${alerts.expiringCount > 1 ? 'm' : ''} nos próximos 3 dias`
+                  ? `${alerts.expiringCount} ${alerts.expiringCount > 1 ? 'oportunidades expiram' : 'oportunidade expira'} nos próximos 3 dias`
                   : `${alerts.expiringCount} marché${alerts.expiringCount > 1 ? 's' : ''} expire${alerts.expiringCount > 1 ? 'nt' : ''} dans les 3 prochains jours`}
               </span>
             </div>
@@ -160,7 +160,7 @@ export default function BrowseTabView({
               <span>&#x1F4AC;</span>
               <span>
                 {isPt
-                  ? `Tem ${alerts.unreadMessages} mensagen${alerts.unreadMessages > 1 ? 's' : ''} não lida${alerts.unreadMessages > 1 ? 's' : ''}`
+                  ? `Tem ${alerts.unreadMessages} ${alerts.unreadMessages > 1 ? 'mensagens não lidas' : 'mensagem não lida'}`
                   : `Vous avez ${alerts.unreadMessages} message${alerts.unreadMessages > 1 ? 's' : ''} non lu${alerts.unreadMessages > 1 ? 's' : ''}`}
               </span>
             </div>
@@ -174,14 +174,14 @@ export default function BrowseTabView({
           <span style={{ fontSize: 16 }}>💡</span>
           <span style={{ flex: 1 }}>
             {isPt
-              ? 'Ative a bolsa de mercados nas configurações para receber mercados personalizados'
+              ? 'Ative a Bolsa de oportunidades nas definições para receber oportunidades personalizadas'
               : 'Activez la bourse aux marchés dans les paramètres pour recevoir des marchés personnalisés'}
           </span>
           <button
             onClick={onGoToSettings}
             className="v22-btn v22-btn-sm"
           >
-            {isPt ? 'Configurações' : 'Paramètres'} →
+            {isPt ? 'Definições' : 'Paramètres'} →
           </button>
         </div>
       )}
@@ -213,7 +213,7 @@ export default function BrowseTabView({
                 - Artisan : Tous / Pro (sous-traitance B2B) / Particulier (client direct)
                 - BTP Pro : Tous / Publics (scrapped) / Privés (sous-traitance + client direct) */}
             <div>
-              <label className="v22-form-label">{isPt ? 'Mercados' : 'Marchés'}</label>
+              <label className="v22-form-label">{isPt ? 'Tipo' : 'Marchés'}</label>
               <select
                 value={filterMarcheType}
                 onChange={e => onFilterMarcheTypeChange(e.target.value as MarcheTypeFilter)}
@@ -364,12 +364,17 @@ export default function BrowseTabView({
 
           {/* Action buttons — stacked right: Scanner above Enregistrer */}
           <div style={{ display: 'flex', marginTop: 12, alignItems: 'flex-end', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-            {scanMeta && (
+            {scanMeta && (isPt ? (
+              <span style={{ fontSize: 11, color: 'var(--v22-text-muted)' }}>
+                Última pesquisa: {new Date(scanMeta.scannedAt).toLocaleString('fr-FR', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}
+                {' · '}{scanMeta.totalScanned} analisados → {scanMeta.totalFiltered} relevantes
+              </span>
+            ) : (
               <span style={{ fontSize: 11, color: 'var(--v22-text-muted)' }}>
                 Dernier scan : {new Date(scanMeta.scannedAt).toLocaleString('fr-FR', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}
                 {' — '}{scanMeta.totalScanned} analysés → {scanMeta.totalFiltered} pertinents
               </span>
-            )}
+            ))}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end', marginLeft: 'auto' }}>
               {/* Scan public uniquement pour BTP Pro — les artisans n'accèdent pas aux publics */}
               {!isArtisan && (
@@ -390,7 +395,7 @@ export default function BrowseTabView({
                       {isPt ? 'A analisar...' : 'Scan en cours...'}
                     </>
                   ) : (
-                    <>📡 {isPt ? 'Scan mercados' : 'Scan marchés'}</>
+                    <>📡 {isPt ? 'Pesquisar concursos' : 'Scan marchés'}</>
                   )}
                 </button>
               )}
@@ -425,9 +430,9 @@ export default function BrowseTabView({
         <div className="v22-card" style={{ marginBottom: 14, border: '2px solid #FFC107' }}>
           <div className="v22-card-head" style={{ background: '#fffbeb' }}>
             <div className="v22-card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              📡 {isPt ? 'Marchés publics scannés' : 'Marchés publics scannés'}
+              📡 {isPt ? 'Concursos públicos encontrados' : 'Marchés publics scannés'}
               <span style={{ background: '#FFC107', color: '#1a1a1a', padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 700 }}>
-                {scanResults.length} {isPt ? 'resultados' : 'résultats'}
+                {scanResults.length} {isPt ? (scanResults.length === 1 ? 'resultado' : 'resultados') : 'résultats'}
               </span>
             </div>
             {scanMeta && (
@@ -442,8 +447,8 @@ export default function BrowseTabView({
                 {!isPt && <span>🇫🇷 BOAMP: {(scanMeta.sources?.boamp || 0) + (scanMeta.sources?.marches_online || 0)}</span>}
                 <span>🇪🇺 TED: {scanMeta.sources?.ted || 0}</span>
                 {isPt && <span>🇵🇹 BASE.gov: {scanMeta.sources?.base_gov || 0}</span>}
-                {(scanMeta.sources?.stored || 0) > 0 && <span>📋 Sites+Mairies: {scanMeta.sources.stored}</span>}
-                <span>📊 Scannés: {scanMeta.totalScanned}</span>
+                {(scanMeta.sources?.stored || 0) > 0 && <span>{isPt ? '📋 Sites e câmaras municipais' : '📋 Sites+Mairies'}: {scanMeta.sources.stored}</span>}
+                <span>{isPt ? '📊 Analisados' : '📊 Scannés'}: {scanMeta.totalScanned}</span>
               </div>
             )}
             {scanResults.map((m: any, idx: number) => {
@@ -451,7 +456,7 @@ export default function BrowseTabView({
               const priority = m.scoring?.priority || m.priority || 'medium'
               const priorityEmoji = priority === 'high' ? '🔥' : priority === 'medium' ? '⚖️' : 'ℹ️'
               const priorityColor = priority === 'high' ? '#dc2626' : priority === 'medium' ? '#d97706' : '#6b7280'
-              const sourceLabel = m.source === 'boamp' ? '🇫🇷 BOAMP' : m.source === 'ted' ? '🇪🇺 TED' : m.source === 'marches_online' ? '🇫🇷 BOAMP' : m.source === 'base_gov' ? '🇵🇹 BASE.gov' : m.source === 'decp' ? '🇫🇷 DECP' : m.source === 'stored' ? '📋 Plateformes' : m.source
+              const sourceLabel = m.source === 'boamp' ? '🇫🇷 BOAMP' : m.source === 'ted' ? '🇪🇺 TED' : m.source === 'marches_online' ? '🇫🇷 BOAMP' : m.source === 'base_gov' ? '🇵🇹 BASE.gov' : m.source === 'decp' ? '🇫🇷 DECP' : m.source === 'stored' ? (isPt ? '📋 Plataformas' : '📋 Plateformes') : m.source
 
               return (
                 <div
@@ -517,7 +522,7 @@ export default function BrowseTabView({
                         textDecoration: 'none', whiteSpace: 'nowrap',
                       }}
                     >
-                      Voir ↗
+                      {isPt ? 'Ver ↗' : 'Voir ↗'}
                     </a>
                   )}
                 </div>
@@ -530,7 +535,7 @@ export default function BrowseTabView({
       {/* "No scan results" only shows when filter is publics-only AND no private marches exist */}
       {filterMarcheType === 'publics' && showScanResults && scanResults.length === 0 && !scanning && !scanError && (
         <div style={{ textAlign: 'center', padding: '24px 0', marginBottom: 14, background: '#f9fafb', borderRadius: 8, fontSize: 13, color: 'var(--v22-text-muted)' }}>
-          {isPt ? 'Nenhum mercado público encontrado — use o botão Scanner' : 'Aucun marché public trouvé — utilisez le bouton Scanner'}
+          {isPt ? 'Nenhum concurso público encontrado: use o botão Pesquisar concursos' : 'Aucun marché public trouvé — utilisez le bouton Scanner'}
         </div>
       )}
 
@@ -546,11 +551,11 @@ export default function BrowseTabView({
         <div style={{ textAlign: 'center', padding: '48px 0' }}>
           <div style={{ fontSize: 36, marginBottom: 10 }}>🔍</div>
           <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>
-            {isPt ? 'Nenhum mercado encontrado' : 'Aucun marché trouvé'}
+            {isPt ? 'Nenhuma oportunidade encontrada' : 'Aucun marché trouvé'}
           </div>
           <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', maxWidth: 360, margin: '0 auto' }}>
             {isPt
-              ? 'Não há mercados disponíveis com os filtros selecionados. Tente ajustar os critérios ou volte mais tarde.'
+              ? 'Não há oportunidades disponíveis com os filtros selecionados. Tente ajustar os critérios ou volte mais tarde.'
               : 'Aucun marché disponible avec les filtres sélectionnés. Essayez d\'ajuster les critères ou revenez plus tard.'}
           </div>
         </div>
@@ -560,8 +565,9 @@ export default function BrowseTabView({
       {filterMarcheType !== 'publics' && !loading && filteredMarches.length > 0 && (
         <div className="v22-card">
           <div className="v22-card-head">
-            <div className="v22-card-title">{isPt ? 'Concursos em curso' : 'Appels d\'offres en cours'}</div>
-            <div className="v22-card-meta">{filteredMarches.length} {isPt ? 'resultados' : 'résultats'}</div>
+            {/* « Concursos » est réservé à la société BTP (onglet « Concursos ») ; l'artisan voit des « Oportunidades ». */}
+            <div className="v22-card-title">{isPt ? (isArtisan ? 'Oportunidades em curso' : 'Concursos em curso') : 'Appels d\'offres en cours'}</div>
+            <div className="v22-card-meta">{filteredMarches.length} {isPt ? (filteredMarches.length === 1 ? 'resultado' : 'resultados') : 'résultats'}</div>
           </div>
           <div>
             {filteredMarches.map((m) => {
@@ -570,7 +576,7 @@ export default function BrowseTabView({
               const currentCand = m.candidatures_count || 0
               const isFull = currentCand >= maxCand
               const WORK_MODE_LABELS: Record<string, { emoji: string; fr: string; pt: string }> = {
-                forfait: { emoji: '💼', fr: 'Forfait', pt: 'Forfait' },
+                forfait: { emoji: '💼', fr: 'Forfait', pt: 'Valor global' },
                 journee: { emoji: '📅', fr: 'Journée', pt: 'Por dia' },
                 horaire: { emoji: '⏰', fr: 'Horaire', pt: 'Por hora' },
                 tache: { emoji: '✅', fr: 'Tâche', pt: 'Por tarefa' },
@@ -599,14 +605,14 @@ export default function BrowseTabView({
                         : (CATEGORIES.find(c => c.id === m.category)?.labelFr || m.category)}
                     </span>
                     {m.source_type === 'btp_sous_traitance' ? (
-                      <span className="v22-tag" style={{ background: '#EEF2FF', color: '#4338CA', fontSize: 10 }} title={isPt ? 'Subcontratação publicada por uma empresa BTP' : 'Sous-traitance publiée par une société BTP'}>
-                        🏗️ {isPt ? 'Subcontrat.' : 'Sous-trait.'}
+                      <span className="v22-tag" style={{ background: '#EEF2FF', color: '#4338CA', fontSize: 10 }} title={isPt ? 'Subempreitada publicada por uma empresa de construção' : 'Sous-traitance publiée par une société BTP'}>
+                        🏗️ {isPt ? 'Subempreit.' : 'Sous-trait.'}
                       </span>
                     ) : (m.source_type && /^scan_/.test(m.source_type)) || m.source ? (
                       // Marché public scrapé (BOAMP/TED/mairie/achatpublic/DECP/BASE.gov)
                       // Avant fix 04/05/2026 : affichait à tort "🏠 Client" → confusion
                       // pour l'artisan qui pensait que c'était privé alors que public.
-                      <span className="v22-tag" style={{ background: '#FEF3C7', color: '#92400E', fontSize: 10 }} title={isPt ? 'Concurso público (BOAMP/TED/...)' : 'Marché public (BOAMP/TED/mairie/...)'}>
+                      <span className="v22-tag" style={{ background: '#FEF3C7', color: '#92400E', fontSize: 10 }} title={isPt ? 'Concurso público (BASE.gov/TED/...)' : 'Marché public (BOAMP/TED/mairie/...)'}>
                         🏛️ {isPt ? 'Público' : 'Public'}
                       </span>
                     ) : (
@@ -626,7 +632,7 @@ export default function BrowseTabView({
                       {(m.budget_min || m.budget_max) ? (
                         <span>💰 {m.budget_min ? formatPrice(m.budget_min, locale) : '—'} - {m.budget_max ? formatPrice(m.budget_max, locale) : '—'}</span>
                       ) : (
-                        <span style={{ color: '#9ca3af' }}>💰 Budget N/A</span>
+                        <span style={{ color: '#9ca3af' }}>{isPt ? '💰 Orçamento n.d.' : '💰 Budget N/A'}</span>
                       )}
                       {days !== null && (
                         <span style={{ color: days <= 3 ? 'var(--v22-red)' : undefined }}>

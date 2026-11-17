@@ -2,7 +2,7 @@
 
 import React from 'react'
 import { formatPrice } from '@/lib/utils'
-import { CATEGORIES, getCategoryEmoji } from './shared'
+import { CATEGORIES, TIMELINE_OPTIONS, getCategoryEmoji } from './shared'
 
 function statusTag(status: string, isPt: boolean) {
   switch (status) {
@@ -34,14 +34,14 @@ export default function MyBidsTabView({ isPt, locale, myBids, onGoToBrowse }: My
         </div>
         <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', maxWidth: 360, margin: '0 auto', marginBottom: 14 }}>
           {isPt
-            ? 'Ainda não se candidatou a nenhum mercado. Explore os mercados abertos e envie a sua primeira proposta!'
+            ? 'Ainda não se candidatou a nenhuma oportunidade. Explore as oportunidades abertas e envie a sua primeira proposta!'
             : 'Vous n\'avez pas encore postulé à un marché. Explorez les marchés ouverts et envoyez votre première proposition !'}
         </div>
         <button
           onClick={onGoToBrowse}
           className="v22-btn v22-btn-primary"
         >
-          {isPt ? 'Explorar mercados' : 'Explorer les marchés'} →
+          {isPt ? 'Explorar oportunidades' : 'Explorer les marchés'} →
         </button>
       </div>
     )
@@ -70,7 +70,7 @@ export default function MyBidsTabView({ isPt, locale, myBids, onGoToBrowse }: My
                 {statusTag(bid.status, isPt)}
               </div>
               <div style={{ fontWeight: 600, fontSize: 12 }}>
-                {bid.marche_title || bid.title || (isPt ? 'Mercado' : 'Marché')}
+                {bid.marche_title || bid.title || (isPt ? 'Oportunidade' : 'Marché')}
               </div>
               {bid.marche_city && (
                 <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginTop: 2 }}>📍 {bid.marche_city}</div>
@@ -81,7 +81,8 @@ export default function MyBidsTabView({ isPt, locale, myBids, onGoToBrowse }: My
                 {formatPrice(bid.price, locale)}
               </div>
               <div style={{ fontSize: 11, color: 'var(--v22-text-muted)' }}>
-                {isPt ? 'Prazo:' : 'Délai :'} {bid.timeline || '—'}
+                {/* Le délai est enregistré sous sa valeur (« 1_week ») : en portugais, on en affiche le libellé. */}
+                {isPt ? 'Prazo:' : 'Délai :'} {(isPt && TIMELINE_OPTIONS.find(o => o.value === bid.timeline)?.labelPt) || bid.timeline || '—'}
               </div>
               {bid.materials_included && (
                 <span className="v22-tag v22-tag-green" style={{ marginTop: 2 }}>

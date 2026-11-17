@@ -50,7 +50,7 @@ describe('Dictionnaire matériaux — écran avec les données réelles du Portu
       expect(within(fiche).getByRole('button', { name: m.nom }), id).toBeInTheDocument()
       // Un lien par magasin qui vend ce matériau, vers la page de recherche du magasin.
       for (const e of dico.enseignes.filter((x) => m.enseignes.includes(x.id))) {
-        const lien = within(fiche).getByRole('link', { name: `Ver na ${e.nom} : ${m.nom}` })
+        const lien = within(fiche).getByRole('link', { name: `Ver na ${e.nom}: ${m.nom}` })
         expect(lien.getAttribute('href'), `${id} ${e.id}`).toMatch(e.id === 'maxmat' ? /^https:\/\/www\.maxmat\.pt\/pt\/\?term=/ : /^https:\/\/www\.leroymerlin\.pt\/search\?q=/)
       }
     }

@@ -74,13 +74,58 @@ function parseMaterial(s: string): { nom: string; qte: string } {
   return { nom: s, qte: '—' }
 }
 
-/** Format status label for display */
-function statusLabel(s: string): string {
-  const map: Record<string, string> = {
-    termine: 'Terminé', en_cours: 'En cours',
-    a_reprendre: 'À reprendre', sous_garantie: 'Sous garantie',
-  }
-  return map[s] || s
+// Libellés du PDF par langue de l'interface, clé par clé : [français, portugais]. Le français est celui d'avant, au
+// caractère près ; le portugais suit l'écran des relatórios (titre « Relatório de obra » pour une société BTP,
+// « de intervenção » pour un artisan).
+type Paire<T> = readonly [fr: T, pt: T]
+const p = <T,>(fr: T, pt: T): Paire<T> => [fr, pt]
+const TEXTES_RAPPORT = {
+  titreBtp: p("Rapport d'intervention", 'Relatório de obra'),
+  titre: p("Rapport d'intervention", 'Relatório de intervenção'),
+  statuts: p<Record<string, string>>(
+    { termine: 'Terminé', en_cours: 'En cours', a_reprendre: 'À reprendre', sous_garantie: 'Sous garantie' },
+    { termine: 'Concluído', en_cours: 'Em curso', a_reprendre: 'A retomar', sous_garantie: 'Em garantia' },
+  ),
+  etabliLe: p('Établi le', 'Emitido em'),
+  statut: p('Statut', 'Estado'),
+  lieA: p('Lié à : ', 'Associado a: '),
+  prestataire: p('PRESTATAIRE', 'PRESTADOR'),
+  client: p('CLIENT', 'CLIENTE'),
+  tel: p('Tél : ', 'Tel.: '),
+  email: p('E-mail : ', 'E-mail: '),
+  identifiant: p('SIRET : ', 'NIF: '),
+  identifiantPied: p('SIRET', 'NIF'),
+  assurance: p('Assurance : ', 'Seguro: '),
+  separateur: p(' — ', ' · '),
+  genere: p('Document généré par Vitfix Pro', 'Documento gerado pelo Vitfix Pro'),
+  page: p('Page', 'Página'),
+  details: p("Détails de l'intervention", 'Detalhes da intervenção'),
+  colonnes: p(['DATE', 'HEURE DÉBUT', 'HEURE FIN', 'DURÉE'], ['DATA', 'HORA DE INÍCIO', 'HORA DE FIM', 'DURAÇÃO']),
+  adresseChantier: p('Adresse chantier : ', 'Morada da obra: '),
+  motif: p("Motif d'intervention", 'Motivo da intervenção'),
+  travaux: p('Travaux réalisés', 'Trabalhos realizados'),
+  materiaux: p('Matériaux utilisés', 'Materiais utilizados'),
+  designation: p('DÉSIGNATION', 'DESIGNAÇÃO'),
+  quantite: p('QUANTITÉ', 'QUANTIDADE'),
+  separateurPage2: p('  —  ', '  ·  '),
+  observationsRecommandations: p('Observations / Recommandations', 'Observações / Recomendações'),
+  observations: p('Observations', 'Observações'),
+  recommandations: p('Recommandations', 'Recomendações'),
+  photos: p('Photos chantier', 'Fotos da obra'),
+  photoIndisponible: p('Photo non disponible', 'Foto indisponível'),
+  aucunePhoto: p('Aucune photo liée.', 'Nenhuma foto associada.'),
+  ajouterPhotos: p('Ajoutez des photos depuis le module pour les inclure dans le rapport.', 'Adicione fotos a partir do módulo para as incluir no relatório.'),
+  signatures: p('Validation et signatures', 'Validação e assinaturas'),
+  signaturePrestataire: p('SIGNATURE PRESTATAIRE', 'ASSINATURA DO PRESTADOR'),
+  signatureClient: p('SIGNATURE CLIENT', 'ASSINATURA DO CLIENTE'),
+  dateSignature: p('Date  ___ / ___ / ______', 'Data  ___ / ___ / ______'),
+}
+type TextesRapport = { [K in keyof typeof TEXTES_RAPPORT]: (typeof TEXTES_RAPPORT)[K][0] }
+
+/** Libellés du PDF dans une langue (portugais si `pt`, sinon français). */
+function textesRapport(pt: boolean): TextesRapport {
+  const i = pt ? 1 : 0
+  return Object.fromEntries(Object.entries(TEXTES_RAPPORT).map(([cle, paire]) => [cle, paire[i]])) as TextesRapport
 }
 
 /** Compute duration string from HH:MM times */
@@ -114,12 +159,17 @@ export async function generateRapportPDF(
   r: RapportPDFData,
   availablePhotos: PhotoForPDF[],
   dateFmtLocale: string,
+  /** Rôle du compte : en portugais, le titre est « Relatório de obra » pour une société BTP. */
+  orgRole?: string,
 ): Promise<void> {
   const { jsPDF } = await import('jspdf')
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: [PW, PH] })
 
+  // Langue du PDF : celle de l'interface (dateFmtLocale « pt-PT » ou « fr-FR »).
+  const T = textesRapport(dateFmtLocale.startsWith('pt'))
+  const titreRapport = orgRole === 'pro_societe' ? T.titreBtp : T.titre
   const dateEtabli = new Date().toLocaleDateString(dateFmtLocale, { day: '2-digit', month: '2-digit', year: 'numeric' })
-  const statusText = statusLabel(r.status)
+  const statusText = T.statuts[r.status] || r.status
   const isTermine = r.status === 'termine'
   const duration = computeDuration(r.startTime, r.endTime)
   const dateDisplay = formatDateDisplay(r.interventionDate, dateFmtLocale)
@@ -164,13 +214,13 @@ export async function generateRapportPDF(
     pdf.setFont('helvetica', 'normal')
     pdf.setFontSize(7)
     pdf.setTextColor(GRIS_T)
-    const siretStr = r.artisanSiret ? `SIRET ${r.artisanSiret}` : ''
-    const footerLeft = `${r.artisanName}${siretStr ? ` — ${siretStr}` : ''} — Document généré par Vitfix Pro — ${dateEtabli}`
+    const siretStr = r.artisanSiret ? `${T.identifiantPied} ${r.artisanSiret}` : ''
+    const footerLeft = `${r.artisanName}${siretStr ? `${T.separateur}${siretStr}` : ''}${T.separateur}${T.genere}${T.separateur}${dateEtabli}`
     pdf.text(footerLeft, ML, fy + 12)
 
     pdf.setFont('helvetica', 'bold')
     pdf.setFontSize(7.5)
-    pdf.text(`Page ${pageNum} / ${totalPages}`, PW - MR - 46, fy + 12)
+    pdf.text(`${T.page} ${pageNum} / ${totalPages}`, PW - MR - 46, fy + 12)
   }
 
   // ═══════════════════════════════════════════════════════════════════
@@ -181,7 +231,7 @@ export async function generateRapportPDF(
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(20)
   pdf.setTextColor(NOIR)
-  pdf.text("Rapport d'intervention", ML, MT + 26)
+  pdf.text(titreRapport, ML, MT + 26)
 
   pdf.setFont('helvetica', 'normal')
   pdf.setFontSize(10)
@@ -189,7 +239,7 @@ export async function generateRapportPDF(
   pdf.text(r.rapportNumber, ML, MT + 46)
 
   // Right-side metadata — aligned so "Lié à : XXX" ends at PW - MR
-  const lieTxt = docLie ? `Lié à : ${docLie}` : ''
+  const lieTxt = docLie ? `${T.lieA}${docLie}` : ''
   pdf.setFont('helvetica', 'normal')
   pdf.setFontSize(8)
   const lieTw = lieTxt ? pdf.getTextWidth(lieTxt) : 0
@@ -199,7 +249,7 @@ export async function generateRapportPDF(
   pdf.setFont('helvetica', 'normal')
   pdf.setFontSize(8)
   pdf.setTextColor(GRIS_T)
-  pdf.text('Établi le', xMeta, MT + 12)
+  pdf.text(T.etabliLe, xMeta, MT + 12)
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(10)
   pdf.setTextColor(NOIR)
@@ -209,7 +259,7 @@ export async function generateRapportPDF(
   pdf.setFont('helvetica', 'normal')
   pdf.setFontSize(8)
   pdf.setTextColor(GRIS_T)
-  pdf.text('Statut', xMeta, MT + 40)
+  pdf.text(T.statut, xMeta, MT + 40)
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(9)
   pdf.setTextColor(NOIR)
@@ -244,7 +294,7 @@ export async function generateRapportPDF(
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(8)
   pdf.setTextColor(GRIS_T)
-  pdf.text('PRESTATAIRE', ML + 11, y0_cards + 14)
+  pdf.text(T.prestataire, ML + 11, y0_cards + 14)
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(11)
   pdf.setTextColor(NOIR)
@@ -252,10 +302,10 @@ export async function generateRapportPDF(
   let ly = y0_cards + 44
   const prestaLines = [
     r.artisanAddress,
-    r.artisanPhone ? `Tél : ${r.artisanPhone}` : '',
-    r.artisanEmail ? `E-mail : ${r.artisanEmail}` : '',
-    r.artisanSiret ? `SIRET : ${r.artisanSiret}` : '',
-    r.artisanInsurance ? `Assurance : ${r.artisanInsurance}` : '',
+    r.artisanPhone ? `${T.tel}${r.artisanPhone}` : '',
+    r.artisanEmail ? `${T.email}${r.artisanEmail}` : '',
+    r.artisanSiret ? `${T.identifiant}${r.artisanSiret}` : '',
+    r.artisanInsurance ? `${T.assurance}${r.artisanInsurance}` : '',
   ].filter(Boolean)
   pdf.setFont('helvetica', 'normal')
   pdf.setFontSize(8)
@@ -271,7 +321,7 @@ export async function generateRapportPDF(
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(8)
   pdf.setTextColor(GRIS_T)
-  pdf.text('CLIENT', cx + 11, y0_cards + 14)
+  pdf.text(T.client, cx + 11, y0_cards + 14)
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(11)
   pdf.setTextColor(NOIR)
@@ -279,8 +329,8 @@ export async function generateRapportPDF(
   ly = y0_cards + 44
   const clientLines = [
     r.clientAddress,
-    r.clientPhone ? `Tél : ${r.clientPhone}` : '',
-    r.clientEmail ? `E-mail : ${r.clientEmail}` : '',
+    r.clientPhone ? `${T.tel}${r.clientPhone}` : '',
+    r.clientEmail ? `${T.email}${r.clientEmail}` : '',
   ].filter(Boolean)
   pdf.setFont('helvetica', 'normal')
   pdf.setFontSize(8)
@@ -293,9 +343,9 @@ export async function generateRapportPDF(
   y = y0_cards + cardH + 8
 
   // ─── 02 — DÉTAILS DE L'INTERVENTION ────────────────────────────────
-  y = sectionLabel(y, "Détails de l'intervention")
+  y = sectionLabel(y, T.details)
 
-  const headers = ['DATE', 'HEURE DÉBUT', 'HEURE FIN', 'DURÉE']
+  const headers = T.colonnes
   const values = [dateDisplay, r.startTime || '—', r.endTime || '—', duration]
   const cellW = CONTENT_W / 4
 
@@ -326,11 +376,11 @@ export async function generateRapportPDF(
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(9)
   pdf.setTextColor(NOIR)
-  pdf.text(`Adresse chantier : ${r.siteAddress || '—'}`, ML + 11, y + 15)
+  pdf.text(`${T.adresseChantier}${r.siteAddress || '—'}`, ML + 11, y + 15)
   y += 22 + 8
 
   // ─── 03 — MOTIF D'INTERVENTION ─────────────────────────────────────
-  y = sectionLabel(y, "Motif d'intervention")
+  y = sectionLabel(y, T.motif)
   box(ML, y, PW - MR, y + 24)
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(10)
@@ -341,7 +391,7 @@ export async function generateRapportPDF(
   // ─── 04 — TRAVAUX RÉALISÉS ─────────────────────────────────────────
   const travaux = (r.travaux || []).filter(t => t.trim())
   if (travaux.length > 0) {
-    y = sectionLabel(y, 'Travaux réalisés')
+    y = sectionLabel(y, T.travaux)
     for (let i = 0; i < travaux.length; i++) {
       const fill = i % 2 === 0 ? GRIS_F : BLANC
       pdf.setFillColor(fill)
@@ -360,7 +410,7 @@ export async function generateRapportPDF(
   // ─── 05 — MATÉRIAUX UTILISÉS ───────────────────────────────────────
   const materiaux = (r.materiaux || []).filter(m => m.trim())
   if (materiaux.length > 0) {
-    y = sectionLabel(y, 'Matériaux utilisés')
+    y = sectionLabel(y, T.materiaux)
 
     // Black header row
     pdf.setFillColor(NOIR)
@@ -368,8 +418,8 @@ export async function generateRapportPDF(
     pdf.setFont('helvetica', 'bold')
     pdf.setFontSize(7.5)
     pdf.setTextColor(BLANC)
-    pdf.text('DÉSIGNATION', ML + 11, y + 13)
-    pdf.text('QUANTITÉ', PW - MR - 70, y + 13)
+    pdf.text(T.designation, ML + 11, y + 13)
+    pdf.text(T.quantite, PW - MR - 70, y + 13)
     y += 18
 
     // Data rows (zebra)
@@ -399,11 +449,11 @@ export async function generateRapportPDF(
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(14)
   pdf.setTextColor(NOIR)
-  pdf.text("Rapport d'intervention", ML, MT + 20)
+  pdf.text(titreRapport, ML, MT + 20)
   pdf.setFont('helvetica', 'normal')
   pdf.setFontSize(9)
   pdf.setTextColor(GRIS_T)
-  pdf.text(`${r.rapportNumber}  —  ${r.artisanName}`, ML, MT + 34)
+  pdf.text(`${r.rapportNumber}${T.separateurPage2}${r.artisanName}`, ML, MT + 34)
   pdf.setDrawColor(GRIS_B)
   pdf.setLineWidth(0.3)
   pdf.line(ML, MT + 44, PW - MR, MT + 44)
@@ -411,7 +461,7 @@ export async function generateRapportPDF(
   let y2 = MT + 58
 
   // ─── 06 — OBSERVATIONS / RECOMMANDATIONS ───────────────────────────
-  y2 = sectionLabel(y2, 'Observations / Recommandations')
+  y2 = sectionLabel(y2, T.observationsRecommandations)
 
   const colW2 = (PW - ML - MR - GAP) / 2
   const boxH = 80
@@ -421,7 +471,7 @@ export async function generateRapportPDF(
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(8)
   pdf.setTextColor(GRIS_T)
-  pdf.text('Observations', ML + 11, y2 + 14)
+  pdf.text(T.observations, ML + 11, y2 + 14)
   if (r.observations) {
     pdf.setFont('helvetica', 'normal')
     pdf.setFontSize(9)
@@ -436,7 +486,7 @@ export async function generateRapportPDF(
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(8)
   pdf.setTextColor(GRIS_T)
-  pdf.text('Recommandations', cx3 + 11, y2 + 14)
+  pdf.text(T.recommandations, cx3 + 11, y2 + 14)
   if (r.recommendations) {
     pdf.setFont('helvetica', 'normal')
     pdf.setFontSize(9)
@@ -448,7 +498,7 @@ export async function generateRapportPDF(
   y2 += boxH + 12
 
   // ─── 07 — PHOTOS CHANTIER ─────────────────────────────────────────
-  y2 = sectionLabel(y2, 'Photos chantier')
+  y2 = sectionLabel(y2, T.photos)
 
   const linkedPhotos = r.linkedPhotoIds?.length
     ? availablePhotos.filter(p => r.linkedPhotoIds?.includes(p.id))
@@ -490,7 +540,7 @@ export async function generateRapportPDF(
         pdf.setFont('helvetica', 'normal')
         pdf.setFontSize(9)
         pdf.setTextColor(GRIS_T)
-        pdf.text('Photo non disponible', px + 11, y2 + photoH / 2)
+        pdf.text(T.photoIndisponible, px + 11, y2 + photoH / 2)
       }
 
       photoCol++
@@ -506,14 +556,14 @@ export async function generateRapportPDF(
     pdf.setFont('helvetica', 'normal')
     pdf.setFontSize(9)
     pdf.setTextColor(GRIS_T)
-    pdf.text('Aucune photo liée.', ML + 11, y2 + 18)
+    pdf.text(T.aucunePhoto, ML + 11, y2 + 18)
     pdf.setFontSize(8)
-    pdf.text('Ajoutez des photos depuis le module pour les inclure dans le rapport.', ML + 11, y2 + 32)
+    pdf.text(T.ajouterPhotos, ML + 11, y2 + 32)
     y2 += 40 + 12
   }
 
   // ─── 08 — VALIDATION ET SIGNATURES ─────────────────────────────────
-  y2 = sectionLabel(y2, 'Validation et signatures')
+  y2 = sectionLabel(y2, T.signatures)
 
   const sigH = 90
   const sigW = (PW - ML - MR - GAP) / 2
@@ -523,7 +573,7 @@ export async function generateRapportPDF(
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(7.5)
   pdf.setTextColor(GRIS_T)
-  pdf.text('SIGNATURE PRESTATAIRE', ML + 11, y2 + 14)
+  pdf.text(T.signaturePrestataire, ML + 11, y2 + 14)
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(10)
   pdf.setTextColor(NOIR)
@@ -535,7 +585,7 @@ export async function generateRapportPDF(
   pdf.setFont('helvetica', 'normal')
   pdf.setFontSize(8.5)
   pdf.setTextColor(NOIR)
-  pdf.text('Date  ___ / ___ / ______', ML + 11, y2 + sigH - 10)
+  pdf.text(T.dateSignature, ML + 11, y2 + sigH - 10)
 
   // Client signature
   const cx4 = ML + sigW + GAP
@@ -543,7 +593,7 @@ export async function generateRapportPDF(
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(7.5)
   pdf.setTextColor(GRIS_T)
-  pdf.text('SIGNATURE CLIENT', cx4 + 11, y2 + 14)
+  pdf.text(T.signatureClient, cx4 + 11, y2 + 14)
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(10)
   pdf.setTextColor(NOIR)
@@ -555,7 +605,7 @@ export async function generateRapportPDF(
   pdf.setFont('helvetica', 'normal')
   pdf.setFontSize(8.5)
   pdf.setTextColor(NOIR)
-  pdf.text('Date  ___ / ___ / ______', cx4 + 11, y2 + sigH - 10)
+  pdf.text(T.dateSignature, cx4 + 11, y2 + sigH - 10)
 
   // ─── Footers (both pages) ──────────────────────────────────────────
   const totalPages = pdf.getNumberOfPages()

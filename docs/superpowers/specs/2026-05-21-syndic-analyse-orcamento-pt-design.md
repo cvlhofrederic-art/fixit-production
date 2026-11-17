@@ -7,7 +7,7 @@ Statut : draft pour relecture
 
 ## 1. Problème observé
 
-Test du 21/05/2026 avec `Orcamento-Lobao-Motorline-Lince.pdf` (PDF Vitfix Artisan, NIF `276 873 297`, format PT‑PT) sur `vitfix.io/pt/syndic/dashboard` :
+Test du 21/05/2026 avec `Orcamento-Exemplo-Motorline-Lince.pdf` (PDF Vitfix Artisan, NIF `276 873 297`, format PT‑PT) sur `vitfix.io/pt/syndic/dashboard` :
 
 - Conformidade legal = **0/100** alors que le PDF est légalement très conforme PT
 - Detalhe da conformidade affiche **13 critères en français** : SIRET, RC pro, décennale, pénalités 40€, médiateur, SARL/SAS…
@@ -38,7 +38,7 @@ Le LLM fait son travail. Le moteur de scoring `lib/analyse-devis-scoring.ts` est
 - Fourchettes prix marché PT‑PT 2025‑2026
 - Validation NIF locale (modulo 11 officiel AT)
 - Messages de négociation localisés
-- TDD : un test de référence avec le PDF `Orcamento-Lobao-Motorline-Lince.pdf` doit obtenir un score ≥ 80/100
+- TDD : un test de référence avec le PDF `Orcamento-Exemplo-Motorline-Lince.pdf` doit obtenir un score ≥ 80/100
 
 Non‑objectif (sera traité dans une PR séparée) :
 - Refonte du côté FR
@@ -83,7 +83,7 @@ UI affiche scores localisés + analyse markdown PT
 | `app/api/syndic/analyse-devis/route.ts` | existant | **PATCH** — dispatch FR/PT à L.480 |
 | `components/syndic-dashboard/reporting/AnalyseDevisSection.tsx` | existant | **MINIMAL** — affichage tolère déjà la forme `{id,label,status,poids}`, vérifier libellés PT en cohérence |
 | `components/syndic-dashboard/config.ts` | existant | **PATCH** — label sidebar localisé |
-| `tests/lib/analyse-devis-scoring-pt.test.ts` | nouveau | **CRÉER** — TDD fixtures (PDF Lobão + cas dégradés) |
+| `tests/lib/analyse-devis-scoring-pt.test.ts` | nouveau | **CRÉER** — TDD fixtures (PDF Exemplo + cas dégradés) |
 | `tests/lib/nif-pt.test.ts` | nouveau | **CRÉER** — checksum modulo 11 sur NIFs connus |
 
 Aucun import circulaire : `scoring-pt.ts` peut réutiliser les types (`ConformiteCritere`, `AnalyseScores`, …) en les ré‑exportant ou via `lib/analyse-devis-types.ts` partagé. Décision : **réexporter les types depuis `lib/analyse-devis-types.ts`** (extraction minimale) pour éviter cycle et clarifier l'API publique.
@@ -140,7 +140,7 @@ Le fallback `rawText` est crucial pour des items que le LLM rate parfois (RGPD, 
 
 ### 5.3 Fourchettes prix marché PT‑PT 2025‑2026
 
-Issues de `SYSTEM_PROMPT_PT` (lignes 162‑198) déjà rédigées par l'utilisateur, élargies pour couvrir motorisations / portões (cas du PDF Lobão) :
+Issues de `SYSTEM_PROMPT_PT` (lignes 162‑198) déjà rédigées par l'utilisateur, élargies pour couvrir motorisations / portões (cas du PDF Exemplo) :
 
 ```ts
 const PRIX_MARCHE_PT: Record<string, [number, number]> = {
@@ -155,7 +155,7 @@ const PRIX_MARCHE_PT: Record<string, [number, number]> = {
   'videoporteiro': [150, 700],
   'inspecao previa sistema eletrico': [50, 150],
   'inspecao sistema eletrico': [50, 150],
-  // Portões / motorisations (PDF Lobão)
+  // Portões / motorisations (PDF Exemplo)
   'motorizacao portao batente': [500, 1200],
   'motorline lince': [500, 1200],
   'mao de obra instalacao portao': [350, 800],
@@ -301,10 +301,10 @@ describe('extractNif', () => {
 
 ### 9.2 `tests/lib/analyse-devis-scoring-pt.test.ts`
 
-Fixture 1 — PDF Lobão Motorline (extrait minimal collé en const) :
+Fixture 1 — PDF Exemplo Motorline (extrait minimal collé en const) :
 ```ts
 it('PDF Vitfix Artisan PT conforme obtient score ≥ 80/100', () => {
-  const result = calculateScoresPt(extractedLobao, rawTextLobao, { nifVerified: true })
+  const result = calculateScoresPt(extractedOrcamento, rawTextOrcamento, { nifVerified: true })
   expect(result.conformite.total / result.conformite.max).toBeGreaterThanOrEqual(0.8)
   expect(result.conformite.details.find(c => c.id === 'nif')?.status).toBe('ok')
   expect(result.conformite.details.find(c => c.id === 'iva')?.status).toBe('ok')
@@ -314,17 +314,17 @@ it('PDF Vitfix Artisan PT conforme obtient score ≥ 80/100', () => {
 })
 
 it('Alvará non applicable pour montant < 16750 €', () => {
-  const result = calculateScoresPt({...lobao, montant_ht: 1350}, raw, { nifVerified: true })
+  const result = calculateScoresPt({...orcamento, montant_ht: 1350}, raw, { nifVerified: true })
   expect(result.conformite.details.find(c => c.id === 'alvara')?.status).toBe('na')
 })
 
 it('Seguro RC absent + Recibos Verdes → partial (pas missing)', () => {
-  const result = calculateScoresPt(lobaoSansSeguro, rawWithRecibos, { nifVerified: true })
+  const result = calculateScoresPt(orcamentoSansSeguro, rawWithRecibos, { nifVerified: true })
   expect(result.conformite.details.find(c => c.id === 'seguro_rc')?.status).toBe('partial')
 })
 
 it('NIF invalide → status missing', () => {
-  const result = calculateScoresPt({...lobao, artisan_siret: '111111111'}, raw, { nifVerified: false })
+  const result = calculateScoresPt({...orcamento, artisan_siret: '111111111'}, raw, { nifVerified: false })
   expect(result.conformite.details.find(c => c.id === 'nif')?.status).toBe('missing')
 })
 
@@ -335,7 +335,7 @@ it('Messages de négociation sortent en PT', () => {
 })
 
 it('Fourchettes prix matchent les prestations PT', () => {
-  const result = calculateScoresPt(lobaoExt, raw, { nifVerified: true })
+  const result = calculateScoresPt(orcamentoExt, raw, { nifVerified: true })
   const motoriz = result.prix.details.find(d => /motorline|motorizac/i.test(d.designation))
   expect(motoriz?.status).not.toBe('inconnu')
 })
@@ -349,7 +349,7 @@ Cible : 8‑10 tests, RED en l'absence de code → GREEN après implémentation.
 
 ## 10. Critères de succès
 
-1. Re‑test manuel avec `Orcamento-Lobao-Motorline-Lince.pdf` :
+1. Re‑test manuel avec `Orcamento-Exemplo-Motorline-Lince.pdf` :
    - Conformidade legal ≥ 80/100
    - NIF détecté ✅ `276 873 297`
    - IVA, garantia legal, livre resolução, RGPD, REEE tous ✅

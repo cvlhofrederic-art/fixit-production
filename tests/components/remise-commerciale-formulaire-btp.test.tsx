@@ -35,7 +35,8 @@ const BROUILLON = {
 const monter = () => render(
   <DevisFactureFormBTP artisan={ARTISAN} services={[]} bookings={[]} onBack={vi.fn()} initialData={BROUILLON as never} />,
 )
-const resume = () => (screen.getByText('RÉSUMÉ').closest('.dv-sidebar-card') as HTMLElement).textContent || ''
+// « RESUMO » sur /pt : le formulaire est traduit depuis le 17/11/2026
+const resume = () => (screen.getByText(/^(RÉSUMÉ|RESUMO)$/).closest('.dv-sidebar-card') as HTMLElement).textContent || ''
 const sansEspaces = (s: string) => s.replace(/\s/g, '')
 
 beforeEach(() => {
@@ -94,7 +95,7 @@ describe('formulaire BTP — remise commerciale', () => {
     monter()
     expect(screen.queryByText('REMISE')).toBeNull()
     expect(screen.queryByLabelText('Unité de la remise commerciale')).toBeNull()
-    expect(sansEspaces(resume())).toContain('TotalHT2430,00€')
+    expect(sansEspaces(resume())).toContain('Totals/IVA2430,00€')
     // Sauvegarde automatique (1,5 s après l'ouverture) : la remise n'est pas effacée.
     await waitFor(() => {
       const brouillons = JSON.parse(localStorage.getItem(`fixit_drafts_${ARTISAN.id}`) || '[]') as Array<Record<string, unknown>>

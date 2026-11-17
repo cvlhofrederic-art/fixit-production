@@ -18,12 +18,13 @@ import { generateDevisPdfV3 } from '@/lib/pdf/devis-pdf-v3'
 import { getDecennaleEligibility } from '@/lib/decennale-eligibility'
 import { buildV2Input, type BuildV2InputParams } from '@/lib/pdf/build-v2-input'
 import { sumMoney, round2, mulMoney } from '@/lib/money'
-import { mapLegalFormToCode, resolveTvaEnabledV2 } from '@/lib/devis-utils'
+import { resolveTvaEnabledV2 } from '@/lib/devis-utils'
+import { codeStatutJuridiqueBtp } from '@/lib/statut-juridique-btp'
 import { svgToImageDataUrl } from '@/lib/signature-canvas'
 import { computeTva, type TvaRegime } from '@/lib/tva-calculator'
 import { buildDocumentLines } from '@/lib/devis-totals'
 import { aUneRemiseDeLigne, appliquerRemiseGlobale, libelleRemiseGlobale, lireRemise } from '@/lib/remise-commerciale'
-import { modeleDocumentSociete } from '@/lib/pdf/modele-provence-pro'
+import { modeleDocumentSociete } from '@/lib/pdf/modeles-societes'
 import { champsDocumentBtp } from '@/lib/devis-btp-libelles'
 import { renduComplet } from '@/lib/version-rendu'
 import { lignesDocumentArtisan, ventilationTvaDocumentArtisan } from '@/lib/totaux-artisan'
@@ -465,7 +466,8 @@ async function genererAvecV3(
     ? { montantHT: tva.remiseHT, libelle: libelleRemiseGlobale((doc as Record<string, unknown>).remiseGlobale, langueLibelle), base: tva.baseRemiseHT }
     : undefined
 
-  const statusCode = mapLegalFormToCode(doc.companyStatus || '')
+  // Forme portugaise (« Sociedade por Quotas (Lda.) »…) reconnue ; les libellés français donnent le même code qu'avant
+  const statusCode = codeStatutJuridiqueBtp(doc.companyStatus || '')
 
   // Délai, titre par défaut, type de client et rétractation : mêmes règles que
   // le formulaire BTP (lib/devis-btp-libelles.ts)
@@ -634,7 +636,7 @@ async function genererAvecV3(
       rm: (artisan.rm as string | undefined) || doc.companyRCS || undefined,
       rc_pro: (artisan.rc_pro as string | undefined) || doc.insuranceNumber || undefined,
     } : null,
-    // Modèle propre à la société (Provence Pro uniquement) ; sinon modèle BTP par défaut
+    // Modèle propre à la société (Provence Pro, Method Soluções) ; sinon modèle BTP par défaut
     modele: modeleDocumentSociete(artisan?.id),
     ptFiscalData: null,
     svgToImageDataUrl,

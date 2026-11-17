@@ -512,6 +512,12 @@ export default function DevisFactureForm({
   // d'origine, marques, statut) se lit ici, sinon l'enregistrement suivant le perdrait — et la sauvegarde
   // automatique, déclenchée par le contenu, le referait d'elle-même.
   const documentOuvert = useRef(initialData).current
+  // Document déjà émis, rouvert (numéro et statut autre que brouillon, comme la sauvegarde automatique ; ni
+  // duplicata ni devis converti en facture) : ses coordonnées d'émetteur ne changent pas quand le profil change.
+  const statutOuvert = (documentOuvert as { status?: string } | undefined)?.status
+  const documentEmisRouvert = !!(documentOuvert as { docNumber?: string } | undefined)?.docNumber
+    && !!statutOuvert && statutOuvert !== 'brouillon' && statutOuvert !== 'draft'
+    && !(documentOuvert as { isDuplicate?: boolean } | undefined)?.isDuplicate && !isConversion
   const docIdRef = useRef<string>((initialData as { id?: string })?.id || stableDocId())
   // Autosave : timestamp du dernier enregistrement automatique du brouillon.
   const [lastAutosaveAt, setLastAutosaveAt] = useState<number | null>(null)
@@ -664,12 +670,13 @@ export default function DevisFactureForm({
         // Address: API data > company_address column > address column
         const resolvedAddress = c.address || artisan?.company_address || artisan?.address || ''
         if (resolvedAddress) setCompanyAddress(resolvedAddress)
-        // Phone: API > profiles_artisan.phone
+        // Phone: API > profiles_artisan.phone. Document déjà émis rouvert : il garde son téléphone et son
+        // e-mail, le profil ne remplit qu'un champ vide (« ce qui a déjà été fait ne se touche pas »).
         const resolvedPhone = c.phone || artisan?.phone || ''
-        if (resolvedPhone) setCompanyPhone(resolvedPhone)
+        if (resolvedPhone && !(documentEmisRouvert && documentOuvert?.companyPhone)) setCompanyPhone(resolvedPhone)
         // Email: API > profiles_artisan.email
         const resolvedEmail = c.email || artisan?.email || ''
-        if (resolvedEmail) setCompanyEmail(resolvedEmail)
+        if (resolvedEmail && !(documentEmisRouvert && documentOuvert?.companyEmail)) setCompanyEmail(resolvedEmail)
         if (c.nafLabel) setCompanyNafLabel(c.nafLabel)
 
         // Auto-fill RCS/RM from SIREN + city/department
@@ -3607,7 +3614,7 @@ export default function DevisFactureForm({
                       autoFocus
                       value={newCustomTableModal.name}
                       onChange={(e) => setNewCustomTableModal(s => ({ ...s, name: e.target.value }))}
-                      placeholder="Ex : DEPENSES PARC COROT (0F25-602G), Corps d'état plomberie, Sous-traitance électricité…"
+                      placeholder="Ex : TRAVAUX PARTIES COMMUNES (BÂT. A), Corps d'état plomberie, Sous-traitance électricité…"
                       className="v22-form-input"
                       style={{ fontSize: 13 }}
                       onKeyDown={(e) => {

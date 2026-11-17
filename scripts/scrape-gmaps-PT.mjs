@@ -14,10 +14,12 @@
 import { chromium } from 'playwright';
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import os from 'os';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const OUTPUT_FILE = path.join(__dirname, '../data/artisans-PT-gmaps-raw.json');
+// Annuaires récupérés (données personnelles de tiers) : hors du dépôt public, dans un dossier privé
+// (ANNUAIRES_ARTISANS_DIR pour en choisir un autre).
+const DOSSIER_ANNUAIRES = process.env.ANNUAIRES_ARTISANS_DIR || path.join(os.homedir(), '.claude', 'donnees-privees', 'artisans-pt');
+const OUTPUT_FILE = path.join(DOSSIER_ANNUAIRES, 'artisans-PT-gmaps-raw.json');
 
 const SERVICES = [
   'eletricista', 'canalizador', 'pintor', 'pladur',
@@ -234,7 +236,7 @@ async function main() {
     }
 
     // Save intermediate every service
-    const dataDir = path.join(__dirname, '../data');
+    const dataDir = DOSSIER_ANNUAIRES;
     if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
     fs.writeFileSync(OUTPUT_FILE, JSON.stringify({
       scraped_at: new Date().toISOString(),
