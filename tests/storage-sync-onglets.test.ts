@@ -1399,3 +1399,72 @@ describe('suppression qui suit une saisie, la restauration d’un onglet neuf re
     expect(window.localStorage.getItem(CLIENTS)).toBeNull()
   })
 })
+
+// Neuvième passe, remarque de la contre-relecture : la limite de cinquante marques par sorte n'était vérifiée par aucun
+// test. Une note qui en garderait moins perdrait l'une de deux modifications remplacées par la même restauration ; une
+// note sans limite grandirait avec le nombre de clés du compte.
+describe('note des remplacements : plusieurs marques d’une même sorte', () => {
+  const DEVIS = 'fixit_clients_a_devis'
+  const marquesDeLaNote = (): Array<[string, string]> =>
+    Object.values((JSON.parse(window.localStorage.getItem('vitfix_miroir_remplacements_v1') ?? '{}') as { remplacements?: Record<string, [string, string]> }).remplacements ?? {})
+
+  it('deux saisies en attente, sur deux listes, remplacées par la restauration d’un onglet neuf : au nouvel essai, toutes les deux partent', async () => {
+    serveur.espace[DEVIS] = commeLaBase(liste(5))
+    const A = await ouvrirUnOnglet()
+    serveur.retenir = true
+    saisirDans(A, CLIENTS, liste(1, 2))
+    saisirDans(A, DEVIS, liste(5, 6))
+    await ecoulerDebounce()
+    await aboutir(0, 'reseau') // échec : les deux saisies attendent leur nouvel essai
+    serveur.retenir = false
+    const B = await ouvrirUnOnglet() // remet les deux listes du serveur, et marque les deux saisies remplacées
+    expect(lire(CLIENTS)).toEqual(liste(1))
+    expect(lire(DEVIS)).toEqual(liste(5))
+    await nouvelEssai()
+    await relireDansLesDeuxOnglets(A, B)
+
+    expect(serveur.espace[CLIENTS]).toEqual(liste(1, 2))
+    expect(serveur.espace[DEVIS]).toEqual(liste(5, 6))
+    expect(lire(CLIENTS)).toEqual(liste(1, 2))
+    expect(lire(DEVIS)).toEqual(liste(5, 6))
+  })
+
+  it('deux suppressions en attente, annulées par la restauration d’un onglet neuf : au nouvel essai, toutes les deux partent', async () => {
+    serveur.espace[DEVIS] = commeLaBase(liste(5))
+    const A = await ouvrirUnOnglet()
+    await vi.advanceTimersByTimeAsync(3000)
+    serveur.retenir = true
+    supprimerDans(A, CLIENTS)
+    supprimerDans(A, DEVIS)
+    await ecoulerDebounce()
+    await aboutir(0, 'reseau') // échec : les deux suppressions attendent leur nouvel essai
+    serveur.retenir = false
+    const B = await ouvrirUnOnglet() // remet les deux listes, et marque leur disparition
+    expect(lire(CLIENTS)).toEqual(liste(1))
+    expect(lire(DEVIS)).toEqual(liste(5))
+    await nouvelEssai()
+    await relireDansLesDeuxOnglets(A, B)
+
+    expect(serveur.espace).not.toHaveProperty(CLIENTS)
+    expect(serveur.espace).not.toHaveProperty(DEVIS)
+    expect(window.localStorage.getItem(CLIENTS)).toBeNull()
+    expect(window.localStorage.getItem(DEVIS)).toBeNull()
+  })
+
+  it('la note garde au plus cinquante marques de chaque sorte, soit cent au plus', async () => {
+    const fiches = Array.from({ length: 55 }, (_, i) => `fixit_zz_fiche_${String(i).padStart(2, '0')}`)
+    for (const [i, cle] of fiches.entries()) serveur.espace[cle] = commeLaBase({ nom: `Fiche ${i}`, id: i })
+    // Navigateur synchronisé pour la liste et les fiches ; soixante clés créées ailleurs y manquent.
+    for (const [cle, valeur] of Object.entries(serveur.espace)) setItemDOrigine.call(window.localStorage, cle, JSON.stringify(commeLaBase(valeur)))
+    for (let i = 0; i < 60; i++) serveur.espace[`fixit_clients_a_extra_${String(i).padStart(2, '0')}`] = { n: i }
+    const A = await ouvrirUnOnglet() // remet les soixante clés absentes, et marque leur disparition
+    // L'application réécrit les fiches dans son propre ordre des champs, qui n'est pas celui de la base.
+    for (const [i, cle] of fiches.entries()) saisirDans(A, cle, { nom: `Fiche ${i}`, id: i })
+    await ecoulerDebounce()
+    await ouvrirUnOnglet() // onglet neuf : marque les cinquante-cinq textes qu'il remplace
+
+    const marques = marquesDeLaNote()
+    expect(marques.filter(([remplace]) => remplace === '')).toHaveLength(50)
+    expect(marques.filter(([remplace]) => remplace !== '')).toHaveLength(50)
+  })
+})
