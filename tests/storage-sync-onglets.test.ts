@@ -1510,10 +1510,13 @@ describe('note des remplacements : plusieurs marques d’une même sorte', () =>
   })
 })
 
-// Neuvième passe, scénario PLEIN-CAP de la contre-relecture : quand le stockage du navigateur est plein, la note des
-// remplacements ne peut plus grandir. Depuis qu'elle garde cinquante marques de chaque sorte, la marque d'une saisie
-// remplacée ne s'y écrivait plus dès que sa sorte n'avait pas atteint sa limite, et la saisie était perdue au nouvel essai.
-describe('stockage du navigateur plein, note des remplacements déjà pleine de marques de clés absentes', () => {
+// Dixième passe, scénarios PLEIN-CAPY et PLEIN-CAPZ de la contre-relecture : dans un stockage plein, la neuvième passe
+// réécrivait la note des remplacements réduite à ses cinquante marques les plus récentes, toutes sortes confondues. Sa
+// marque la plus ancienne en sortait même quand la marque nouvelle ne servait à rien (liste modifiée sur un autre
+// appareil, créée ailleurs, ou réécrite par l'application dans son ordre des champs) : la saisie en attente qu'elle
+// désignait était perdue au nouvel essai. Ce second essai est retiré : une note qui devrait grandir n'est pas réécrite,
+// aucune marque déjà écrite n'en sort, et la marque nouvelle n'est pas écrite.
+describe('stockage du navigateur plein, note des remplacements qui devrait grandir', () => {
   /** Remplit le stockage du navigateur jusqu'à son quota (clés et valeurs comptées), avec une pièce jointe volumineuse. */
   function remplirLeStockage(): void {
     const cle = 'piece_jointe_volumineuse'
@@ -1531,23 +1534,30 @@ describe('stockage du navigateur plein, note des remplacements déjà pleine de 
     setItemDOrigine.call(window.localStorage, cle, 'x'.repeat(tient))
   }
 
-  it('la saisie de A, remplacée par la restauration d’un onglet neuf, part au nouvel essai', async () => {
+  it('la saisie de A, déjà marquée, part au nouvel essai quand un onglet neuf remplace une autre liste', async () => {
+    const AUTRE = 'fixit_z'
     serveur.espace[CLIENTS] = commeLaBase(liste(1, 2, 3))
-    // Navigateur neuf : soixante clés au nom long, rangées après la liste ; la première restauration en marque cinquante.
-    for (let i = 0; i < 60; i++) serveur.espace[`fixit_clients_a_extra_nom_long_pour_le_banc_${String(i).padStart(2, '0')}`] = { n: i }
+    serveur.espace[AUTRE] = commeLaBase(liste(7))
+    // Navigateur synchronisé avec le serveur : la première restauration ne pose aucune marque.
+    for (const [cle, valeur] of Object.entries(serveur.espace)) setItemDOrigine.call(window.localStorage, cle, JSON.stringify(commeLaBase(valeur)))
     const A = await ouvrirUnOnglet()
-    remplirLeStockage()
+    await vi.advanceTimersByTimeAsync(3000)
     serveur.retenir = true
-    saisirDans(A, CLIENTS, liste(1, 2)) // un client retiré : la valeur raccourcit, elle tient dans le stockage plein
+    saisirDans(A, CLIENTS, liste(1, 2)) // un client retiré : la valeur raccourcit, elle tiendra dans le stockage plein
     await ecoulerDebounce()
     await aboutir(0, 'reseau') // échec : la saisie attend son nouvel essai
     serveur.retenir = false
-    const B = await ouvrirUnOnglet() // onglet neuf : remet la liste du serveur à la place de la saisie
+    const B = await ouvrirUnOnglet() // onglet neuf : remet la liste du serveur à la place de la saisie, et la marque
+    for (let i = 0; i < 49; i++) serveur.espace[`fixit_clients_a_extra_nom_long_pour_le_banc_${String(i).padStart(2, '0')}`] = { n: i }
+    await ouvrirUnOnglet() // onglet neuf : remet quarante-neuf listes créées ailleurs ; la note compte cinquante marques
+    remplirLeStockage()
+    serveur.espace[AUTRE] = commeLaBase(liste(8)) // modifiée sur un autre appareil, à longueur égale
+    await ouvrirUnOnglet() // onglet neuf : la remplace ; sa marque, qui ne sert à rien, ferait grandir la note
     expect(lire(CLIENTS)).toEqual(liste(1, 2, 3))
     await nouvelEssai()
     await relireDansLesDeuxOnglets(A, B)
 
-    // Avant : la note, qui devait grandir, ne s'écrivait pas, et la saisie était perdue.
+    // Neuvième passe : la marque de la saisie sortait de la note réduite, et la saisie était perdue.
     expect(serveur.espace[CLIENTS]).toEqual(liste(1, 2))
     expect(lire(CLIENTS)).toEqual(liste(1, 2))
   })
