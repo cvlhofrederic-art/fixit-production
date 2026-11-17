@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useBTPData } from '@/lib/hooks/use-btp-data'
+import { adresseComplete, geocoderAdresse, type Pays } from '@/lib/btp/geocodage'
 import { supabase } from '@/lib/supabase'
 import { urlPrevisionsMeteo } from '@/lib/btp/meteo-url'
 
@@ -153,54 +154,91 @@ function extractShortCity(adresse: string): string {
   return candidates[0] || adresse
 }
 
-// Geocode with multi-strategy fallback: gouv.fr API → Nominatim → Open-Meteo
-async function geocodeAdresse(adresse: string): Promise<{ lat: number; lng: number } | null> {
-  if (!adresse?.trim()) return null
+// ── Position d'un chantier sans coordonnées, pour la météo seulement ──
+// Jamais enregistrée dans la fiche : la position de la fiche déclenche le pointage automatique des employés et ne se
+// règle que par un geste du gérant (bouton GPS de la fiche, Pointage › Affectations). Ici, une position approximative
+// (centre de la commune) suffit. Les résultats sont gardés sur le téléphone et les appels espacés d'au moins une seconde :
+// la politique d'utilisation de Nominatim l'exige, et l'adresse d'un chantier ne change pas à chaque visite.
 
-  // Strategy 1: api-adresse.data.gouv.fr — best for French addresses
+type PositionMeteo = { lat: number; lng: number }
+type PositionGardee = { lat?: number; lng?: number; t: number }
+
+const CLE_CACHE_POSITIONS = 'vitfix_btp_meteo_positions'
+const DUREE_CACHE_MS = 30 * 86_400_000
+/** Adresse introuvable : gardé moins longtemps (adresse corrigée entre-temps, service rétabli). */
+const DUREE_CACHE_ECHEC_MS = 86_400_000
+/** Au moins une seconde entre deux géocodages (Nominatim : une requête par seconde au plus). */
+const ECART_APPELS_MS = 1100
+
+function lirePositionsGardees(): Record<string, PositionGardee> {
   try {
-    const res = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(adresse)}&limit=1`, { signal: AbortSignal.timeout(4000) })
-    if (res.ok) {
-      const json = await res.json()
-      const feat = json.features?.[0]
-      if (feat?.geometry?.coordinates) {
-        const [lng, lat] = feat.geometry.coordinates
-        return { lat, lng }
-      }
-    }
-  } catch { /* timeout or network — try next */ }
+    const lu: unknown = JSON.parse(localStorage.getItem(CLE_CACHE_POSITIONS) ?? '{}')
+    return lu && typeof lu === 'object' ? (lu as Record<string, PositionGardee>) : {}
+  } catch {
+    // Stockage indisponible ou illisible : sans cache, les appels restent espacés.
+    return {}
+  }
+}
 
-  // Strategy 2: Nominatim (OpenStreetMap) — handles international + complex addresses
+function garderPositions(positions: Record<string, PositionGardee>): void {
   try {
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(adresse)}&limit=1&accept-language=fr`,
-      { headers: { 'User-Agent': 'Vitfix-BTP/1.0' }, signal: AbortSignal.timeout(4000) }
-    )
-    if (res.ok) {
-      const json = await res.json()
-      if (json[0]?.lat && json[0]?.lon) {
-        return { lat: parseFloat(json[0].lat), lng: parseFloat(json[0].lon) }
-      }
-    }
-  } catch { /* timeout or network — try next */ }
+    localStorage.setItem(CLE_CACHE_POSITIONS, JSON.stringify(positions))
+  } catch (err) {
+    console.warn('[MeteoChantier] positions non gardées :', err)
+  }
+}
 
-  // Strategy 3: Open-Meteo geocoding with extracted city names
-  const candidates = extractCityName(adresse)
-  for (const candidate of candidates) {
+/** Dernier recours : Open-Meteo par nom de ville, en préférant une ville du pays de la société (« Porto » au Portugal). */
+async function parOpenMeteo(adresse: string, pays: Pays): Promise<PositionMeteo | null> {
+  for (const candidate of extractCityName(adresse)) {
     try {
       const res = await fetch(
-        `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(candidate)}&count=1&language=fr`,
+        `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(candidate)}&count=5&language=${pays === 'PT' ? 'pt' : 'fr'}`,
         { signal: AbortSignal.timeout(4000) }
       )
       if (!res.ok) continue
-      const json = await res.json()
-      if (json.results?.[0]) {
-        return { lat: json.results[0].latitude, lng: json.results[0].longitude }
-      }
-    } catch { continue }
+      const json = await res.json() as { results?: Array<{ latitude: number; longitude: number; country_code?: string }> }
+      const resultat = json.results?.find(r => r.country_code === pays) ?? json.results?.[0]
+      if (resultat) return { lat: resultat.latitude, lng: resultat.longitude }
+    } catch (err) {
+      console.warn('[MeteoChantier] Open-Meteo injoignable :', err)
+    }
   }
-
   return null
+}
+
+/** Position pour la météo : l'adresse (même approximative : la BAN en France, Nominatim au Portugal), sinon la ville. */
+async function positionMeteo(chantier: ChantierItem, pays: Pays): Promise<PositionMeteo | null> {
+  const trouve = await geocoderAdresse(chantier, pays)
+  if (trouve) return { lat: trouve.latitude, lng: trouve.longitude }
+  return parOpenMeteo(chantier.ville?.trim() || chantier.adresse || '', pays)
+}
+
+/** Positions des chantiers sans coordonnées : gardées d'une visite à l'autre, une par une sinon, appels espacés. */
+async function positionsPourMeteo(chantiers: ChantierItem[], pays: Pays): Promise<Map<string, PositionMeteo>> {
+  const positions = new Map<string, PositionMeteo>()
+  const gardees = lirePositionsGardees()
+  let finDernierAppel = 0
+  let modifiees = false
+  for (const chantier of chantiers) {
+    if (chantier.latitude && chantier.longitude) continue
+    const cle = `${pays}|${adresseComplete(chantier)}`
+    const gardee = gardees[cle]
+    const trouveeAvant = typeof gardee?.lat === 'number' && typeof gardee.lng === 'number'
+    if (gardee && Date.now() - gardee.t < (trouveeAvant ? DUREE_CACHE_MS : DUREE_CACHE_ECHEC_MS)) {
+      if (trouveeAvant) positions.set(chantier.id, { lat: gardee.lat as number, lng: gardee.lng as number })
+      continue
+    }
+    const attente = finDernierAppel + ECART_APPELS_MS - Date.now()
+    if (attente > 0) await new Promise(resolve => setTimeout(resolve, attente))
+    const trouvee = await positionMeteo(chantier, pays)
+    finDernierAppel = Date.now()
+    gardees[cle] = trouvee ? { ...trouvee, t: finDernierAppel } : { t: finDernierAppel }
+    modifiees = true
+    if (trouvee) positions.set(chantier.id, trouvee)
+  }
+  if (modifiees) garderPositions(gardees)
+  return positions
 }
 
 function formatDayShort(dateStr: string, isPt?: boolean): string {
@@ -262,7 +300,7 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
     })
   }, [authUserIdProp])
 
-  const { items: chantiers, loading: chantiersLoading, error: chantiersError, update: updateChantier } = useBTPData<ChantierItem>({
+  const { items: chantiers, loading: chantiersLoading, error: chantiersError } = useBTPData<ChantierItem>({
     table: 'chantiers',
     artisanId: userId,
     userId: authUserId,
@@ -287,22 +325,20 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
     setDebugInfo('')
     const failedNames: string[] = []
     try {
+      const positions = await positionsPourMeteo(chantiersToFetch, isPt ? 'PT' : 'FR')
       const results: ChantierMeteo[] = (await Promise.all(
         chantiersToFetch.map(async (chantier) => {
           try {
             let lat = chantier.latitude
             let lng = chantier.longitude
             if (!lat || !lng) {
-              // Geocode using ville (preferred) then fallback to adresse
-              const searchTerm = chantier.ville?.trim() || chantier.adresse
-              const geo = await geocodeAdresse(searchTerm)
+              // Position pour la météo seulement, jamais enregistrée dans la fiche (voir positionsPourMeteo).
+              const geo = positions.get(chantier.id)
               if (!geo) {
                 failedNames.push(`${chantier.titre} (${chantier.ville || chantier.adresse})`)
                 return null
               }
               lat = geo.lat; lng = geo.lng
-              // Persist coordinates via useBTPData (route /api/btp avec owner_id check)
-              updateChantier(chantier.id, { latitude: lat, longitude: lng }).catch(err => console.warn('[MeteoChantier] Coord persist failed:', err))
             }
             // Coordonnées converties, bornées et passées en paramètres d'URL (lib/btp/meteo-url.ts)
             const urlMeteo = urlPrevisionsMeteo(lat, lng)

@@ -172,7 +172,10 @@ export function useSettings(
     setSettingsForm({
       company_name: artisanData.company_name || '',
       email: userEmail || '',
-      phone: artisanData.phone || '06 51 46 66 98',
+      // Jamais de numéro par défaut : un profil sans téléphone garde un champ vide. Un numéro de repli serait
+      // écrit dans profiles_artisan au premier enregistrement des réglages, puis repris sur les devis, les
+      // factures et la fiche publique.
+      phone: artisanData.phone || '',
       bio: cleanBio,
       auto_reply_message: artisanData.auto_reply_message || '',
       auto_block_duration_minutes: artisanData.auto_block_duration_minutes || 240,
