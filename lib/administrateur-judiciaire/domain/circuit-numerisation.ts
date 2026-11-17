@@ -401,7 +401,7 @@ export interface AnomaliePiece {
 const ABSENCES_BLOQUANTES: ReadonlySet<AnomalieFacture['code']> = new Set(['numero_manquant', 'date_manquante', 'montant_ttc_manquant'])
 
 /** Le texte se présente comme un avoir (ligne qui commence par « Avoir », ou « avoir n° »). */
-const TEXTE_AVOIR = /^\s*(?:facture d['’]\s*)?avoir\b|\bavoir\s*n\s*°/im
+const TEXTE_AVOIR = /(?:^\s*(?:facture d['’]\s*)?avoir\b)|(?:\bavoir\s*n\s*°)/im
 
 /** Anomalies de la lecture, réparties entre celles qui bloquent l'identification et celles à vérifier. */
 export function anomaliesPiece(piece: PieceNumerisee): { bloquantes: AnomaliePiece[]; aVerifier: AnomaliePiece[] } {
