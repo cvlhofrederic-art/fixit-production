@@ -10,9 +10,13 @@ export type CorpsPointage =
   | { action: 'arrivee'; chantierId: string; mode: 'geo_auto' | 'manuel'; observeA?: number }
   | { action: 'depart'; chantierId?: string; mode: 'geo_auto' | 'manuel'; observeA?: number; derniereVue?: number }
   | { action: 'reglage_auto'; actif: boolean; confirmation?: boolean }
+  // Téléphone en poche (appli Vitfix Pro) : enregistrer ce téléphone, ou le retirer (lui seul).
+  | { action: 'appareil'; plateforme: 'android' | 'ios' }
+  | { action: 'appareil_retirer'; appareil: string }
 
 export type ResultatEnvoi =
-  | { ok: true; pointage: PointageEcran | null }
+  // donnees : la réponse entière (jeton et adresse d'envoi d'un téléphone enregistré, par exemple).
+  | { ok: true; pointage: PointageEcran | null; donnees?: Record<string, unknown> }
   | { ok: false; code: string; status: number }
 
 /** Envoi vers /api/btp/pointage, tel que les onglets le reçoivent. */
@@ -68,9 +72,9 @@ export function useContextePointage() {
         headers: { 'Content-Type': 'application/json', ...(await enTetes()) },
         body: JSON.stringify({ ...corps, fuseau }),
       })
-      const reponse = await res.json().catch(() => null) as { pointage?: PointageEcran; error?: string } | null
+      const reponse = await res.json().catch(() => null) as ({ pointage?: PointageEcran; error?: string } & Record<string, unknown>) | null
       if (!res.ok) return { ok: false, code: reponse?.error ?? 'erreur', status: res.status }
-      return { ok: true, pointage: reponse?.pointage ?? null }
+      return { ok: true, pointage: reponse?.pointage ?? null, donnees: reponse ?? {} }
     } catch (err) {
       console.warn('[btp/pointage] envoi impossible :', err instanceof Error ? err.message : err)
       return { ok: false, code: 'reseau', status: 0 }

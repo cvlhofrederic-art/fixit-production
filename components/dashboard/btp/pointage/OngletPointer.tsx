@@ -7,6 +7,8 @@ import { CONFIRMATION_ARRIVEE_MS, CONFIRMATION_DEPART_MS, distanceAuChantierM, t
 import { chantierPointable, libelleMode, type ContextePointage, type PointageEcran } from '@/lib/btp/pointage-regles'
 import type { CorpsPointage, EnvoyerPointage } from './useContextePointage'
 import { usePointageAuto, type StatutGps } from './usePointageAuto'
+import { useArrierePlan } from './useArrierePlan'
+import { CarteTelephoneEnPoche } from './CarteTelephoneEnPoche'
 import {
   formatDistance,
   formatHeures,
@@ -14,6 +16,7 @@ import {
   messageAutoDesactive,
   messageErreurPointage,
   messageNonRelie,
+  messageRemplaceParArrierePlan,
   messageSortieSansTrace,
   noticePointage,
 } from './textes'
@@ -123,8 +126,15 @@ export function OngletPointer({ contexte, isPt, envoyer, recharger }: Props) {
     return true
   }, [envoyer, isPt, recharger])
 
+  // Appli Vitfix Pro : pointage téléphone en poche. Quand il est actif sur ce téléphone, le système suit les zones des
+  // chantiers et le pointage page ouverte s'efface (un seul des deux pointe, jamais les deux à la fois).
+  const arrierePlan = useArrierePlan({ contexte, chantiers: chantiersPointables, envoyer, recharger, isPt })
+  // Autorisation « Toujours » retirée depuis l'activation : rien ne pointe en arrière-plan, la page ouverte reprend.
+  const pointeEnArrierePlan = arrierePlan.etat === 'actif'
+
   const auto = usePointageAuto({
-    autorise: contexte.pointageAutoActive && contexte.rattachement === 'relie' && chantiersPointables.length > 0 && !pointageManuelEnCours,
+    autorise: contexte.pointageAutoActive && contexte.rattachement === 'relie' && chantiersPointables.length > 0
+      && !pointageManuelEnCours && !pointeEnArrierePlan,
     chantiers: chantiersPointables,
     chantierActifId: enCours?.mode === 'geo_auto' ? enCours.chantierId : null,
     chantierEnCoursId: enCours?.chantierId ?? null,
@@ -186,6 +196,8 @@ export function OngletPointer({ contexte, isPt, envoyer, recharger }: Props) {
   const attenteManuel = isPt
     ? 'Marcação manual em curso: a marcação automática retoma depois de a terminar.'
     : 'Pointage à la main en cours : le pointage automatique reprendra quand vous l’aurez terminé.'
+  // Carte du pointage page ouverte sans ses commandes : mode coupé par le gérant, ou téléphone en poche actif ici.
+  const texteSansPageOuverte = pointeEnArrierePlan ? messageRemplaceParArrierePlan(isPt) : messageAutoDesactive(contexte.gerant, isPt)
   const jour = aujourdhui(maintenant)
   const debutSemaine = lundi(maintenant)
   const heuresJour = contexte.historique.filter(p => p.date === jour).reduce((s, p) => s + p.heuresTravaillees, 0)
@@ -244,7 +256,7 @@ export function OngletPointer({ contexte, isPt, envoyer, recharger }: Props) {
         <div className="v5-st" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <Satellite size={14} aria-hidden="true" /> {isPt ? 'Marcação automática' : 'Pointage automatique'}
         </div>
-        {contexte.pointageAutoActive ? (
+        {contexte.pointageAutoActive && !pointeEnArrierePlan ? (
           <>
             <p style={{ fontSize: 13, margin: '0 0 10px' }}>{pointageManuelEnCours ? attenteManuel : texteStatut(auto.statut, isPt)}</p>
             {candidat && resteArrivee > 0 && (
@@ -296,9 +308,11 @@ export function OngletPointer({ contexte, isPt, envoyer, recharger }: Props) {
             </p>
           </>
         ) : (
-          <p style={{ fontSize: 13, margin: 0 }}>{messageAutoDesactive(contexte.gerant, isPt)}</p>
+          <p style={{ fontSize: 13, margin: 0 }}>{texteSansPageOuverte}</p>
         )}
       </div>
+
+      <CarteTelephoneEnPoche arrierePlan={arrierePlan} isPt={isPt} />
 
       {/* ── Mes chantiers ── */}
       <div className="v5-card">
