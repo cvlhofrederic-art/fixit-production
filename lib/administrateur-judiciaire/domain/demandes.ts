@@ -236,8 +236,8 @@ export interface Demande {
   prestataireId: string | null
   demandeLe: string
   /**
-   * N° d'ordre de service : libre à la saisie (repris d'ailleurs), ou attribué dans la séquence du mandat par
-   * numeroterDemande (envoi-ordre-service.ts, point 44).
+   * N° d'ordre de service : libre à la saisie (repris d'ailleurs), ou attribué dans la séquence du mandat au premier
+   * envoi de l'OS par numeroterAuPremierEnvoi (envoi-ordre-service.ts, point 44 ; décision de Hugo du 17/11/2026, J56).
    */
   numero: string | null
   objet: string
