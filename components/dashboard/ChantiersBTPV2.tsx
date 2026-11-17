@@ -1,9 +1,14 @@
 'use client'
 
-import { useState, useCallback, useEffect, useMemo } from 'react'
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useLocale } from '@/lib/i18n/context'
 import { useBTPData, useBTPSettings } from '@/lib/hooks/use-btp-data'
 import { adresseComplete, geocoderAdresse, type AdresseChantier } from '@/lib/btp/geocodage'
+import {
+  avertissementPositionGardee, champsModifies, porteLaPositionEnregistree, questionGarderPosition, questionPositionNecessaire,
+  questionRetirerPosition,
+} from '@/lib/btp/fiche-chantier'
+import { confirmationRelocaliser } from '@/components/dashboard/btp/pointage/textes'
 import { supabase } from '@/lib/supabase'
 import type { Artisan } from '@/lib/types'
 import { toast } from 'sonner'
@@ -36,7 +41,10 @@ const EMPTY_FORM: ChantierForm = {
   devis_id: null, membres_ids: [],
 }
 
-/** Adresse modifiée : l'ancienne position GPS ne correspond plus (le bouton GPS la recalcule). */
+/**
+ * Adresse modifiée : une position calculée pendant la saisie (bouton GPS, devis importé) ne correspond plus (le bouton
+ * GPS la recalcule). La position enregistrée du chantier, elle, reste jusqu'à l'enregistrement (lib/btp/fiche-chantier.ts).
+ */
 const SANS_POSITION = { latitude: null, longitude: null } as const
 
 interface DevisSummary {
@@ -87,6 +95,10 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
   const [editId, setEditId] = useState<string | null>(null)
   const [filter, setFilter] = useState<'Tous' | 'En cours' | 'En attente' | 'Terminés'>('Tous')
   const [form, setForm] = useState<ChantierForm>(EMPTY_FORM)
+  /** Fiche telle qu'ouverte pour modification : repère des champs modifiés et de la position enregistrée. */
+  const ficheOuverteRef = useRef<ChantierForm | null>(null)
+  /** Numéro de la dernière demande de géocodage : une réponse dépassée (adresse retouchée, autre fiche ouverte) est ignorée. */
+  const demandeGeoRef = useRef(0)
   const [saving, setSaving] = useState(false)
   const [geocoding, setGeocoding] = useState(false)
 
@@ -165,14 +177,20 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
 
   // ── Géocode ──
   // La position GPS déclenche le pointage automatique des employés : seule une position précise de l'adresse (numéro,
-  // rue, commune vérifiée) est retenue. Une adresse trop vague retire la position plutôt que d'en garder une ancienne.
-  const geocodeAdresse = useCallback(async (adresse: AdresseChantier) => {
+  // rue, commune vérifiée) est retenue. Une adresse trop vague retire une position calculée plutôt que d'en garder une
+  // ancienne ; la position enregistrée du chantier (peut-être placée sur place), elle, est gardée (`garderSiImprecis`).
+  const geocodeAdresse = useCallback(async (adresse: AdresseChantier, garderSiImprecis = false) => {
     if (!adresseComplete(adresse)) return
+    demandeGeoRef.current += 1
+    const demande = demandeGeoRef.current
     setGeocoding(true)
     try {
       const position = await geocoderAdresse(adresse, isPt ? 'PT' : 'FR')
+      if (demande !== demandeGeoRef.current) return
       if (position?.precise) {
         setForm(f => ({ ...f, latitude: position.latitude, longitude: position.longitude }))
+      } else if (position && garderSiImprecis) {
+        toast.warning(avertissementPositionGardee(isPt))
       } else if (position) {
         // Centre de la commune, rue d'une autre commune : le pointage automatique se déclencherait au mauvais endroit.
         setForm(f => ({ ...f, latitude: null, longitude: null }))
@@ -180,8 +198,16 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
       } else {
         toast.warning(isPt ? 'Morada não encontrada (ou serviço indisponível): posição GPS não atualizada.' : 'Adresse introuvable (ou service indisponible) : position GPS non mise à jour.')
       }
-    } finally { setGeocoding(false) }
+    } finally {
+      if (demande === demandeGeoRef.current) setGeocoding(false)
+    }
   }, [isPt])
+
+  /** Géocodage en cours devenu sans objet (adresse retouchée, fiche ouverte ou rouverte) : sa réponse sera ignorée. */
+  const oublierGeocodage = () => {
+    demandeGeoRef.current += 1
+    setGeocoding(false)
+  }
 
   // ── Import devis → form ──
   const importDevis = (devis: DevisSummary) => {
@@ -218,28 +244,61 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
     if (devis.client_address) void geocodeAdresse({ adresse: devis.client_address })
   }
 
+  /** La fiche porte encore la position enregistrée du chantier (fiche ouverte pour modification seulement). */
+  const portePositionEnregistree = (f: ChantierForm) => porteLaPositionEnregistree(editId ? ficheOuverteRef.current : null, f)
+
+  /**
+   * Saisie dans l'adresse (rue, code postal, ville) : un géocodage en cours devient sans objet ; la position enregistrée
+   * reste (l'enregistrement demandera quoi en faire), une position calculée pendant la saisie part.
+   */
+  const saisirAdresse = (champ: Pick<ChantierForm, 'adresse'> | Pick<ChantierForm, 'codePostal'> | Pick<ChantierForm, 'ville'>) => {
+    oublierGeocodage()
+    setForm({ ...form, ...(portePositionEnregistree(form) ? {} : SANS_POSITION), ...champ })
+  }
+
+  /** Bouton GPS de la fiche : remplacer la position enregistrée (peut-être posée sur place) se confirme d'abord. */
+  const localiserFiche = () => {
+    const garde = portePositionEnregistree(form)
+    if (garde && !window.confirm(confirmationRelocaliser(form.titre.trim() || '—', isPt))) return
+    void geocodeAdresse(form, garde)
+  }
+
   // ── Save ──
   const handleSave = async () => {
     if (!form.titre.trim()) return
+    const ouverte = editId ? ficheOuverteRef.current : null
+    let fiche = form
+    // Adresse corrigée alors que la fiche porte la position enregistrée (peut-être placée sur le chantier) : la garder ?
+    // La retirer demande un second OK ; fermer une boîte (Échap, Retour) ramène à la fiche sans rien enregistrer.
+    if (questionPositionNecessaire(ouverte, form) && !window.confirm(questionGarderPosition(form.titre, isPt))) {
+      if (!window.confirm(questionRetirerPosition(form.titre, isPt))) return
+      fiche = { ...form, ...SANS_POSITION }
+    }
     setSaving(true)
     if (editId) {
-      await update(editId, form)
+      // Seuls les champs modifiés depuis l'ouverture : une fiche ouverte avant un changement fait ailleurs (position
+      // placée sur place, rayon ou employés de l'onglet Affectations) ne le défait plus.
+      const modifies = ouverte ? champsModifies(ouverte, fiche) : fiche
+      if (Object.keys(modifies).length > 0) await update(editId, modifies)
     } else {
-      await add(form)
+      await add(fiche)
     }
     setSaving(false); setShowModal(false); setEditId(null); setForm(EMPTY_FORM)
   }
 
   const handleEdit = (c: ChantierForm & { id: string }) => {
+    oublierGeocodage()
     setEditId(c.id)
-    setForm({
+    const fiche: ChantierForm = {
       titre: c.titre, client: c.client, adresse: c.adresse,
       ville: c.ville || '', codePostal: c.codePostal || '',
       dateDebut: c.dateDebut, dateFin: c.dateFin, budget: c.budget,
       statut: c.statut, description: c.description, equipe: c.equipe,
       latitude: c.latitude, longitude: c.longitude, geoRayonM: c.geoRayonM || 100,
       devis_id: c.devis_id || null, membres_ids: c.membres_ids || [],
-    })
+    }
+    ficheOuverteRef.current = fiche
+    setForm(fiche)
     setShowModal(true)
     loadDevisAndMembres()
   }
@@ -476,7 +535,7 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
         </select>
         <button
           className={isV5 ? "v5-btn v5-btn-p" : "v22-btn v22-btn-primary"}
-          onClick={() => { setEditId(null); setForm(EMPTY_FORM); setShowModal(true); loadDevisAndMembres() }}
+          onClick={() => { oublierGeocodage(); setEditId(null); setForm(EMPTY_FORM); setShowModal(true); loadDevisAndMembres() }}
         >
           + {isPt ? 'Nova obra' : 'Nouveau chantier'}
         </button>
@@ -494,7 +553,7 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
           </p>
           <button
             className={isV5 ? "v5-btn v5-btn-p" : "v22-btn v22-btn-primary"}
-            onClick={() => { setEditId(null); setForm(EMPTY_FORM); setShowModal(true); loadDevisAndMembres() }}
+            onClick={() => { oublierGeocodage(); setEditId(null); setForm(EMPTY_FORM); setShowModal(true); loadDevisAndMembres() }}
           >
             + {isPt ? 'Criar obra' : 'Créer un chantier'}
           </button>
@@ -884,23 +943,23 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
               <div className={isV5 ? "v5-fg" : "v22-form-group"}>
                 <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Morada da obra' : 'Adresse du chantier'}</label>
                 <input className={isV5 ? "v5-fi" : "v22-input"} value={form.adresse}
-                  onChange={e => setForm({ ...form, ...SANS_POSITION, adresse: e.target.value })}
+                  onChange={e => saisirAdresse({ adresse: e.target.value })}
                   placeholder={isPt ? 'N°, rua...' : 'N°, rue...'} />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 10 }}>
                 <div className={isV5 ? "v5-fg" : "v22-form-group"}>
                   <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Código postal' : 'Code postal'}</label>
                   <input className={isV5 ? "v5-fi" : "v22-input"} value={form.codePostal}
-                    onChange={e => setForm({ ...form, ...SANS_POSITION, codePostal: e.target.value })}
+                    onChange={e => saisirAdresse({ codePostal: e.target.value })}
                     placeholder="13001" maxLength={10} />
                 </div>
                 <div className={isV5 ? "v5-fg" : "v22-form-group"}>
                   <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Cidade *' : 'Ville *'}</label>
                   <div style={{ display: 'flex', gap: 6 }}>
                     <input className={isV5 ? "v5-fi" : "v22-input"} style={{ flex: 1 }} value={form.ville}
-                      onChange={e => setForm({ ...form, ...SANS_POSITION, ville: e.target.value })}
+                      onChange={e => saisirAdresse({ ville: e.target.value })}
                       placeholder={isPt ? 'Porto, Marseille...' : 'Marseille, Lyon...'} />
-                    <button className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"} onClick={() => { void geocodeAdresse(form) }}
+                    <button className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"} onClick={localiserFiche}
                       disabled={geocoding || (!form.ville.trim() && !form.adresse.trim())}>
                       {geocoding ? <Loader2 size={12} className="animate-spin" /> : <MapPin size={12} />}
                       {form.latitude ? <CheckCircle2 size={12} style={{ color: '#2E7D32' }} /> : ' GPS'}
