@@ -2,16 +2,18 @@
 // existe en production (constats donnees-btp-6 et donnees-btp-7 de l'audit du 11/11/2026 ; colonnes vérifiées dans le
 // relevé de production du 11/11/2026).
 //
-// Avant : le pointage GPS partait comme un pointage manuel, sans chantier, sans salarié, sans coordonnées ni distance,
-// avec un départ à 17:00 jamais saisi ; le rayon de pointage d'un chantier, l'équipe d'un membre, le chantier d'une
-// équipe et celui d'une dépense n'étaient jamais envoyés. Maintenant : ces champs partent dans leur colonne, à la
-// création comme à la modification, et se relisent.
+// Avant : un pointage partait sans chantier ni salarié ; le rayon de pointage d'un chantier, l'équipe d'un membre, le
+// chantier d'une équipe et celui d'une dépense n'étaient jamais envoyés. Maintenant : ces champs partent dans leur
+// colonne, à la création comme à la modification, et se relisent.
 //
 // Réunion avec le pointage géolocalisé (PR #703, 17/11/2026) : l'ancien pointage GPS de l'écran n'existe plus (le
-// pointage automatique passe par /api/btp/pointage et garde son départ vide jusqu'à la sortie du chantier). Un pointage
-// envoyé par /api/btp sans heure de départ reçoit 17:00, comme en production : vide, il serait « en cours », et l'index
-// unique de la migration 20261116 refuserait le pointage suivant du même employé (choix de produit en attente). Le rayon
-// suit la seule règle de rayonSaisi : entier d'au moins 1 m, sinon la valeur par défaut de la colonne (100 m).
+// pointage automatique passe par /api/btp/pointage et garde son départ vide jusqu'à la sortie du chantier). Ni position
+// ni distance d'un employé ne sont conservées (CNIL, CNPD) : un pointage envoyé par /api/btp reste un pointage manuel,
+// sans coordonnées ni distance, même si la fiche en porte, comme avant le 15/11/2026 (relecture adverse du 17/11/2026).
+// Un pointage envoyé par /api/btp sans heure de départ reçoit 17:00, comme en production : vide, il serait « en cours »,
+// et l'index unique de la migration 20261116 refuserait le pointage suivant du même employé (choix de produit en
+// attente). Le rayon suit la seule règle de rayonSaisi : entier d'au moins 1 m, sinon la valeur par défaut de la
+// colonne (100 m).
 
 import { describe, it, expect, vi } from 'vitest'
 
@@ -25,18 +27,29 @@ const CHANTIER = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d'
 const MEMBRE = 'b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e'
 const EQUIPE = 'c3d4e5f6-a7b8-4c9d-8e0f-2a3b4c5d6e7f'
 
+/** Colonnes de position d'un pointage : le hook ne les envoie jamais (PR #703 : ni position ni distance conservées). */
+const COLONNES_DE_POSITION = ['arrivee_lat', 'arrivee_lng', 'depart_lat', 'depart_lng', 'distance_m']
+const positionsEnvoyees = (ligne: Record<string, unknown>) => COLONNES_DE_POSITION.filter(colonne => colonne in ligne)
+
 describe('pointage', () => {
-  it('mode, coordonnées et distance fournis : enregistrés dans leur colonne, avec le chantier', () => {
+  it('mode GPS, coordonnées et distance fournis : jamais envoyés, le pointage part en manuel avec son chantier', () => {
     const ligne = mapToSupabase('pointages', {
       employe: 'Société d’essai', poste: 'patron', chantier: 'Villa Dupré', chantierId: CHANTIER,
       date: '2026-11-15', heureArrivee: '08:12', heureDepart: '16:00', pauseMinutes: 0, heuresTravaillees: 7.8,
-      notes: 'Pointage GPS (37m)', mode: 'geo_confirme', arriveeLat: 43.29, arriveeLng: 5.37, distanceM: 37,
+      mode: 'geo_auto', arriveeLat: 43.29, arriveeLng: 5.37, departLat: 43.3, departLng: 5.38, distanceM: 37,
     })
     expect(ligne).toMatchObject({
-      chantier_id: CHANTIER, chantier_nom: 'Villa Dupré', mode: 'geo_confirme',
-      arrivee_lat: 43.29, arrivee_lng: 5.37, distance_m: 37,
+      chantier_id: CHANTIER, chantier_nom: 'Villa Dupré', mode: 'manuel',
       heure_arrivee: '08:12', heure_depart: '16:00', heures_travaillees: 7.8,
     })
+    expect(positionsEnvoyees(ligne)).toEqual([])
+  })
+
+  it('modification : un mode, des coordonnées ou une distance fournis ne réécrivent rien ; les autres champs partent', () => {
+    expect(colonnesModifiees('pointages', {
+      mode: 'geo_auto', arriveeLat: 43.29, arriveeLng: 5.37, departLat: 43.3, departLng: 5.38, distanceM: 37,
+    })).toEqual({})
+    expect(colonnesModifiees('pointages', { notes: 'Pluie', mode: 'geo_confirme', distanceM: 37 })).toEqual({ notes: 'Pluie' })
   })
 
   it('sans heure de départ : 17:00 comme en production, jamais un pointage « en cours » ; heures non fournies vides', () => {
@@ -61,12 +74,8 @@ describe('pointage', () => {
 
   it('sans chantier ni salarié choisis : null, jamais une chaîne vide dans une colonne d’identifiant', () => {
     const ligne = mapToSupabase('pointages', { employe: 'Paul', chantierId: '', membreId: '', date: '2026-11-15', heureArrivee: '08:00' })
-    expect(ligne).toMatchObject({ membre_id: null, chantier_id: null, mode: 'manuel', arrivee_lat: null, depart_lat: null, distance_m: null })
-  })
-
-  it('la distance au chantier est un nombre entier de mètres', () => {
-    expect(mapToSupabase('pointages', { employe: 'Paul', distanceM: 36.6 })).toMatchObject({ distance_m: 37 })
-    expect(mapToSupabase('pointages', { employe: 'Paul', distanceM: 'n’importe quoi' })).toMatchObject({ distance_m: null })
+    expect(ligne).toMatchObject({ membre_id: null, chantier_id: null, mode: 'manuel' })
+    expect(positionsEnvoyees(ligne)).toEqual([])
   })
 
   it('relecture : chantier, salarié, départ GPS et mode reviennent à l’écran', () => {

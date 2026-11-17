@@ -174,6 +174,21 @@ describe('reprise des anciennes données du navigateur — rattachements', () =>
     expect(reprises[0].data[0]).not.toHaveProperty('membre_id')
   })
 
+  // Pointage géolocalisé (PR #703) : ni position ni distance d'un employé ne sont conservées. Une fiche locale qui en
+  // porterait (avec un mode GPS) part comme un pointage manuel, sans elles (relecture adverse du 17/11/2026).
+  it('pointages : ni le mode GPS, ni la position, ni la distance d’une fiche locale ne partent', async () => {
+    localStorage.setItem('pointage_fiche-r4', JSON.stringify([{
+      id: 'p-local', employe: 'Paul', chantier: 'Villa', date: '2026-03-02', heureArrivee: '08:00', heureDepart: '16:00', heuresTravaillees: 7,
+      mode: 'geo_confirme', arriveeLat: 43.29, arriveeLng: 5.37, departLat: 43.3, departLng: 5.38, distanceM: 37,
+    }]))
+    renderHook(() => useBTPData({ table: 'pointages', artisanId: 'fiche-r4', userId: 'compte-r4' }))
+
+    await waitFor(() => expect(reprises).toHaveLength(1))
+    expect(reprises[0]).toMatchObject({ table: 'pointages_btp', action: 'import' })
+    expect(reprises[0].data[0]).toMatchObject({ employe: 'Paul', chantier_nom: 'Villa', heure_depart: '16:00', heures_travaillees: 7, mode: 'manuel' })
+    expect(['arrivee_lat', 'arrivee_lng', 'depart_lat', 'depart_lng', 'distance_m'].filter(colonne => colonne in reprises[0].data[0])).toEqual([])
+  })
+
   // Pointage géolocalisé (PR #703, réuni le 17/11/2026) : les employés d'un chantier (membres_ids) sont contrôlés par la
   // route comme membre_id ; ceux d'une fiche locale ne désignent aucun employé en base, même au format UUID.
   it('chantiers : les employés locaux d’un ancien chantier ne partent pas, le reste oui', async () => {

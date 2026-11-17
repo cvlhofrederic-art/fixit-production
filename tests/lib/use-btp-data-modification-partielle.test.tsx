@@ -57,6 +57,7 @@ describe('colonnesModifiees — une modification partielle n’envoie que ce qui
 
   it('pointage et dépense : un seul champ ; le mode de pointage posé à la création n’est pas réécrit', () => {
     expect(colonnesModifiees('pointages', { notes: 'pluie' })).toEqual({ notes: 'pluie' })
+    expect(colonnesModifiees('pointages', { notes: 'pluie', mode: 'geo_auto' })).toEqual({ notes: 'pluie' })
     expect(colonnesModifiees('depenses', { amount: '120.50' })).toEqual({ amount: 120.5 })
   })
 
@@ -84,10 +85,11 @@ describe('colonnesModifiees — une modification partielle n’envoie que ce qui
 })
 
 describe('SOURCES_DES_COLONNES reste aligné sur mapToSupabase', () => {
-  // Colonnes posées d'office à la création, volontairement absentes des modifications. Le mode d'un pointage n'en
-  // fait plus partie depuis le 15/11/2026 : il était forcé à « manuel », même pour un pointage GPS (constat
-  // donnees-btp-6) ; il vient maintenant du pointage lui-même, comme ses autres champs.
-  const POSEES_A_LA_CREATION: Record<string, string[]> = {}
+  // Colonnes posées d'office à la création, volontairement absentes des modifications : le mode d'un pointage, toujours
+  // « manuel » par /api/btp. Le pointage automatique passe par /api/btp/pointage (PR #703), qui ne conserve ni position
+  // ni distance ; le mode GPS que ce chemin laissait passer depuis le 15/11/2026 (constat donnees-btp-6) n'a plus
+  // d'écran (relecture adverse du 17/11/2026).
+  const POSEES_A_LA_CREATION: Record<string, string[]> = { pointages: ['mode'] }
   const trier = (liste: readonly string[]) => [...liste].sort((a, b) => a.localeCompare(b))
   const tries = (parColonne: Record<string, readonly string[]>) =>
     Object.fromEntries(Object.entries(parColonne).map(([colonne, champs]) => [colonne, trier(champs)]))

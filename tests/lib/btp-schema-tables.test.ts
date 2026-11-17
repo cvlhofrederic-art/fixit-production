@@ -77,9 +77,9 @@ const CHANTIER = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d'
 const MEMBRE = 'b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e'
 const EQUIPE = 'c3d4e5f6-a7b8-4c9d-8e0f-2a3b4c5d6e7f'
 // Depuis le 15/11/2026, les formulaires envoient aussi le rayon de pointage GPS, l'équipe d'un membre, le chantier d'une
-// équipe ou d'une dépense, et pour un pointage le salarié, le chantier, le mode, les coordonnées et la distance
-// (constats donnees-btp-6 et donnees-btp-7). Le pointage réunit ici les champs du pointage manuel (heures saisies) et
-// ceux du pointage GPS (mode, coordonnées, distance) : chaque colonne est contrôlée avec une valeur réelle.
+// équipe ou d'une dépense, et pour un pointage le salarié et le chantier (constats donnees-btp-6 et donnees-btp-7). Le
+// pointage est celui de l'onglet Historique (saisie à la main) : depuis le pointage géolocalisé (PR #703), le hook
+// n'envoie ni mode GPS, ni coordonnées, ni distance (ni position ni distance conservées, relecture du 17/11/2026).
 // Le chantier porte aussi `devis_id` et `membres_ids`, comme le formulaire vide de l'écran Chantiers (EMPTY_FORM de
 // ChantiersBTPV2). Depuis le pointage géolocalisé (PR #703, migration 20261116), mapToSupabase envoie membres_ids, que
 // la liste blanche du serveur connaît ; devis_id n'est toujours reçu par aucune colonne et n'est pas envoyé. Si un
@@ -89,7 +89,7 @@ const FICHES_DES_FORMULAIRES: Record<keyof typeof TABLES_DU_HOOK, Record<string,
   chantiers: { titre: 'Rénovation cuisine', client: 'M. Martin', adresse: '1 rue des Lilas', ville: 'Marseille', codePostal: '13001', latitude: 43.3, longitude: 5.4, dateDebut: '2026-11-01', dateFin: '2026-12-01', budget: '12000', statut: 'En cours', description: 'Cuisine complète', equipe: 'Maçons', sousTaches: [{ id: 't1', nom: 'Dépose' }], geoRayonM: 250, devis_id: null, membres_ids: [] },
   membres: { prenom: 'Paul', nom: 'Durand', telephone: '0600000000', email: 'paul@example.test', typeCompte: 'ouvrier', rolePerso: 'Maçon', equipeId: EQUIPE, coutHoraire: 25, chargesPct: 45, salaire_brut_mensuel: 2100, salaire_net_mensuel: 1650, charges_salariales_pct: 22, charges_patronales_pct: 45, type_contrat: 'cdi', heures_hebdo: 35, panier_repas_jour: 10, indemnite_trajet_jour: 5, prime_mensuelle: 0, actif: true },
   equipes: { nom: 'Maçons', metier: 'Maçonnerie', chantierId: CHANTIER, membreIds: [] },
-  pointages: { employe: 'Paul Durand', membreId: MEMBRE, poste: 'ouvrier', chantier: 'Rénovation cuisine', chantierId: CHANTIER, date: '2026-11-15', heureArrivee: '08:00', heureDepart: '17:00', pauseMinutes: 60, heuresTravaillees: 8, notes: '', mode: 'geo_confirme', arriveeLat: 43.29, arriveeLng: 5.37, departLat: 43.3, departLng: 5.38, distanceM: 37 },
+  pointages: { employe: 'Paul Durand', membreId: MEMBRE, poste: 'ouvrier', chantier: 'Rénovation cuisine', chantierId: CHANTIER, date: '2026-11-15', heureArrivee: '08:00', heureDepart: '17:00', pauseMinutes: 60, heuresTravaillees: 8, notes: '' },
   depenses: { chantierId: CHANTIER, label: 'Ciment', amount: '125.50', category: 'materiaux', date: '2026-11-15', notes: '' },
   situations: { chantier_id: CHANTIER, chantier: 'Rénovation cuisine', client: 'M. Martin', numero: 2, date: '2026-11-15', montantMarche: 12000, travaux: [{ poste: 'Gros œuvre', quantite: 1, prixUnit: 3000, avancement: 50 }], statut: 'brouillon' },
   retenues: { chantier_id: CHANTIER, chantier: 'Rénovation cuisine', client: 'M. Martin', montantMarche: 12000, tauxRetenue: 5, montantRetenu: 600, dateFinTravaux: '2026-12-01', dateLiberation: undefined, statut: 'active', caution: false },

@@ -85,6 +85,17 @@ describe('Pointage saisi à la main (onglet Historique)', () => {
     })
   })
 
+  // Ni position ni distance d'un employé ne sont conservées (PR #703) : rien de tel ne part, pas même une colonne vide.
+  it('ni mode GPS, ni position, ni distance ne partent : un pointage manuel', async () => {
+    await saisirPointage()
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }))
+
+    await waitFor(() => expect(envois).toHaveLength(1))
+    const data = envois[0].data ?? {}
+    expect(data).toMatchObject({ mode: 'manuel' })
+    expect(['arrivee_lat', 'arrivee_lng', 'depart_lat', 'depart_lng', 'distance_m'].filter(colonne => colonne in data)).toEqual([])
+  })
+
   it('départ vidé : 17:00 comme en production (jamais un pointage « en cours »), heures vides', async () => {
     await saisirPointage()
     fireEvent.change(screen.getByLabelText('Départ', { selector: 'input#pointage-depart' }), { target: { value: '' } })

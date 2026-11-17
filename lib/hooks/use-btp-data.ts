@@ -102,21 +102,14 @@ const LS_KEYS: Record<ShortName, (id: string) => string> = {
   rapports: (id) => `fixit_rapports_${id}`,
 }
 
-/** Nombre entier (colonne integer de la base), ou null si la valeur est absente ou illisible. */
-function entierOuNull(valeur: unknown): number | null {
-  if (valeur === null || valeur === undefined || valeur === '') return null
-  const n = Number(valeur)
-  return Number.isFinite(n) ? Math.round(n) : null
-}
-
 // Map localStorage fields → Supabase columns
 // Sert aux CRÉATIONS : tout champ absent reçoit une valeur par défaut. Pour une modification, passer par
 // colonnesModifiees() plus bas, qui n'envoie que les champs réellement fournis.
 // Colonnes vérifiées dans le relevé de production du 11/11/2026 : geo_rayon_m (chantier), equipe_id (membre),
-// chantier_id (équipe, dépense), membre_id, chantier_id, mode, coordonnées et distance (pointage) existent ; les
-// formulaires les remplissaient sans qu'elles soient envoyées (constats donnees-btp-6 et donnees-btp-7). membres_ids
-// (employés d'un chantier) vient de la migration 20261116 du pointage géolocalisé. Toute colonne écrite ici doit être
-// connue de la liste blanche de /api/btp (lib/btp/schema-tables-btp.ts, tests/lib/btp-schema-tables.test.ts).
+// chantier_id (équipe, dépense), membre_id et chantier_id (pointage) existent ; les formulaires les remplissaient sans
+// qu'elles soient envoyées (constats donnees-btp-6 et donnees-btp-7). membres_ids (employés d'un chantier) vient de la
+// migration 20261116 du pointage géolocalisé. Toute colonne écrite ici doit être connue de la liste blanche de /api/btp
+// (lib/btp/schema-tables-btp.ts, tests/lib/btp-schema-tables.test.ts).
 export function mapToSupabase(table: ShortName, item: any): any {
   switch (table) {
     case 'chantiers': {
@@ -181,6 +174,8 @@ export function mapToSupabase(table: ShortName, item: any): any {
       // 20261116 (un seul pointage en cours par employé) refuserait le suivant du même employé (choix de produit en
       // attente). Le pointage automatique passe par /api/btp/pointage et garde son départ vide jusqu'à la sortie du
       // chantier. Heures non fournies : vides (null) plutôt que 0 heure jamais saisie.
+      // Mode toujours « manuel », jamais de coordonnées ni de distance, même si la fiche en porte : le pointage
+      // géolocalisé (PR #703) ne conserve ni position ni distance d'un employé (CNIL, CNPD), et ce chemin non plus.
       return {
         employe: item.employe || '',
         poste: item.poste || null,
@@ -193,12 +188,7 @@ export function mapToSupabase(table: ShortName, item: any): any {
         pause_minutes: item.pauseMinutes ?? 60,
         heures_travaillees: item.heuresTravaillees ?? null,
         notes: item.notes || null,
-        mode: item.mode || 'manuel',
-        arrivee_lat: item.arriveeLat ?? null,
-        arrivee_lng: item.arriveeLng ?? null,
-        depart_lat: item.departLat ?? null,
-        depart_lng: item.departLng ?? null,
-        distance_m: entierOuNull(item.distanceM),
+        mode: 'manuel',
       }
     case 'depenses':
       return {
@@ -287,8 +277,8 @@ export function mapToSupabase(table: ShortName, item: any): any {
 
 // Champs du formulaire qui alimentent chaque colonne — mêmes correspondances que mapToSupabase ci-dessus
 // (tests/lib/use-btp-data-modification-partielle.test.tsx vérifie que les deux restent alignés).
-// Une colonne absente de cette table n'est jamais réécrite par une modification. `rapports` n'y figure pas : son
-// contenu regroupe tous les champs restants.
+// Une colonne absente de cette table (pointages.mode, posé d'office à la création) n'est jamais réécrite par une
+// modification. `rapports` n'y figure pas : son contenu regroupe tous les champs restants.
 export const SOURCES_DES_COLONNES: Partial<Record<ShortName, Record<string, readonly string[]>>> = {
   chantiers: {
     titre: ['titre'], client: ['client'], adresse: ['adresse'], ville: ['ville'], code_postal: ['codePostal', 'code_postal'],
@@ -309,8 +299,6 @@ export const SOURCES_DES_COLONNES: Partial<Record<ShortName, Record<string, read
     employe: ['employe'], poste: ['poste'], membre_id: ['membreId'], chantier_id: ['chantierId'],
     chantier_nom: ['chantier'], date: ['date'], heure_arrivee: ['heureArrivee'],
     heure_depart: ['heureDepart'], pause_minutes: ['pauseMinutes'], heures_travaillees: ['heuresTravaillees'], notes: ['notes'],
-    mode: ['mode'], arrivee_lat: ['arriveeLat'], arrivee_lng: ['arriveeLng'], depart_lat: ['departLat'], depart_lng: ['departLng'],
-    distance_m: ['distanceM'],
   },
   depenses: { chantier_id: ['chantierId'], label: ['label'], amount: ['amount'], category: ['category'], date: ['date'], notes: ['notes'] },
   situations: {
