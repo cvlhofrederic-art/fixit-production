@@ -213,7 +213,8 @@ export function escaloesIrsPt(annee: number): ValorAno<ReadonlyArray<EscalaoIrs>
 export function eurPt(valor: number): string {
   const [inteiro, decimais] = valor.toFixed(Number.isInteger(valor) ? 0 : 2).split('.')
   const agrupado = inteiro.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
-  return `${decimais ? `${agrupado},${decimais}` : agrupado} €`
+  const numero = decimais ? agrupado + ',' + decimais : agrupado
+  return `${numero} €`
 }
 
 /** « 23% », « 11,5% » : un taux en pourcentage, virgule décimale. */

@@ -336,6 +336,9 @@ Total factures HT : ${fmt(totalFacturesHT)} (${factures.length} factures)`)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Financial context from frontend with dynamic shape
 function buildSystemPrompt(ctx: Record<string, any>): string {
   const currentYear = new Date().getFullYear()
+  // Année de la législation : celle de l'année en cours pour le Portugal ; le prompt français ne change pas.
+  const legislacaoPt = `portugaise ${currentYear}`
+  const legislacaoPtAJour = `legislação portuguesa ${currentYear}`
   // IRC portugais de l'année (taux PME et taux général) : même source que la Contabilidade (lib/fiscalite-pt.ts).
   const ircPt = tauxIrc(currentYear)
   const ircPtTexte = `${Math.round(ircPt.reduit * 100)}% jusqu'à 50 000 € (PME), ${Math.round(ircPt.general * 100)}% au-delà (${currentYear})`
@@ -733,7 +736,7 @@ VERROU LINGUISTIQUE : réponds en français.
 
 📅 Aujourd'hui : ${today}
 ${countryLock}
-Tu gères et conseilles intégralement la comptabilité, la fiscalité, le suivi financier et les obligations légales, pour **${statutLabel}**, tout en restant pratique, clair et conforme à la **législation ${country === 'PT' ? `portugaise ${currentYear}` : 'française 2026'}**.
+Tu gères et conseilles intégralement la comptabilité, la fiscalité, le suivi financier et les obligations légales, pour **${statutLabel}**, tout en restant pratique, clair et conforme à la **législation ${country === 'PT' ? legislacaoPt : 'française 2026'}**.
 ${isEntreprise ? '\n⚠️ IMPORTANT : Ce professionnel est une ENTREPRISE (société), PAS un travailleur indépendant simple. Utilise les règles IRC/IS, TVA régime réel, charges sociales régime général ou TNS selon la forme juridique DÉCLARÉE (ci-dessus).\n' : ''}
 ${fiscalBlock}
 
@@ -819,7 +822,7 @@ Quand l'artisan demande une analyse "du X au Y" ou "sur le mois de Z" :
 - **Gras** pour tous les chiffres clés et montants
 - Anticipe les erreurs possibles et propose des solutions concrètes
 - Sois rigoureux, fiable, pédagogique et pratique comme un expert-comptable humain senior
-- Reste **à jour avec la ${country === 'PT' ? `legislação portuguesa ${currentYear}` : 'législation française 2026'}**
+- Reste **à jour avec la ${country === 'PT' ? legislacaoPtAJour : 'législation française 2026'}**
 - Structure tes réponses avec des sections claires (emoji + titre)
 - Fournis TOUJOURS le calcul détaillé quand un montant est demandé
 - Si données insuffisantes : explique précisément ce qu'il faut saisir
@@ -913,6 +916,7 @@ export async function POST(request: NextRequest) {
       const irsJovem = limiteIrsJovemPt(currentYear)
       const isencaoSs = limiteIsencaoSsAcumulacaoPt(currentYear)
       const escaloesIrs = faixasIrsPt(currentYear)
+      const linhaEscaloesIrs = escaloesIrs.valor.map(e => e.faixa + ': **' + e.taxa + '**').join(' | ')
       const retTabela = percentPt(RETENCAO_CAT_B_PT.tabela151)
       const retOutros = percentPt(RETENCAO_CAT_B_PT.outrosServicos)
       const dispensaRetencao = eurPt(limiteDispensaRetencaoPt())
@@ -1037,7 +1041,7 @@ ${expenseLinesPt || '  (Nenhuma despesa registada)'}
   - **Isenção de contribuições SS por acumulação com emprego (art.º 157.º CRCSPSS):** o trabalhador independente que **acumule atividade independente com emprego por conta de outrem** fica isento de contribuições como independente quando o seu **rendimento relevante médio mensal, apurado trimestralmente, for inferior a 4 × IAS** (${eurPt(isencaoSs.valor)}/mês em ${isencaoSs.ano}), desde que as duas atividades sejam prestadas a entidades distintas, sem relação de domínio ou de grupo, que o emprego o enquadre noutro regime de proteção social que cubra todas as eventualidades e que a remuneração média mensal desse emprego seja de pelo menos 1 IAS. A entidade patronal já contribui pelo trabalhador; a isenção evita dupla contributiva. Deve ser requerida junto do ISS/Seg. Social Direta.
   - Se o rendimento como independente exceder 4 × IAS, paga contribuições SS apenas sobre o excedente acima desse limiar.
 - **IRS (trabalhadores independentes): taxas gerais ${escaloesIrs.ano} (art.º 68.º CIRS, sobre o rendimento coletável):**
-  - ${escaloesIrs.valor.map(e => `${e.faixa}: **${e.taxa}**`).join(' | ')}.
+  - ${linhaEscaloesIrs}.
   - Taxa adicional de solidariedade (art.º 68.º-A CIRS): 2,5% sobre a parte entre 80 000 € e 250 000 € e 5% acima de 250 000 €.
   - Retenção na fonte (art.º 101.º CIRS), feita pelo cliente que tem ou deve ter contabilidade organizada: **${retTabela}** nas atividades profissionais da tabela do art.º 151.º; **${retOutros}** nas outras prestações de serviços da categoria B.
   - Dispensa de retenção (art.º 101.º-B CIRS): se previr faturar menos de **${dispensaRetencao}** no ano (limite do art.º 53.º do CIVA) e não tiver atingido esse valor no ano anterior; cessa no mês seguinte àquele em que o limite for ultrapassado. Menção na fatura-recibo: «Sem retenção, nos termos do n.º 1 do artigo 101.º-B do Código do IRS».
@@ -1190,7 +1194,8 @@ function generateFallbackResponse(message: string, ctx: Record<string, any>, loc
 
     if (msgLower.includes('irs') || msgLower.includes('retenção') || msgLower.includes('retenç')) {
       const escaloes = faixasIrsPt(ano)
-      return `📊 **IRS — Trabalhadores Independentes (Portugal ${ano})**\n\nRendimento estimado: **${fmt(ht)}**\nRetenção na fonte (art.º 101.º CIRS): **${percentPt(taxaRetencao)}** nas atividades da tabela do art.º 151.º (${percentPt(RETENCAO_CAT_B_PT.outrosServicos)} nas outras prestações de serviços), só quando o cliente tem contabilidade organizada\nIRS estimado retido (${percentPt(taxaRetencao)}): **${fmt(irs)}**\n\n💡 **Dispensa de retenção (art.º 101.º-B):** se previr faturar menos de ${eurPt(limiteDispensaRetencaoPt())} no ano e não tiver atingido esse valor no ano anterior (com menção na fatura-recibo).\n\n**Taxas gerais do IRS ${escaloes.ano} (art.º 68.º CIRS, sobre o rendimento coletável):**\n${escaloes.valor.map(e => `- ${e.faixa}: ${e.taxa}`).join('\n')}\n\n💡 Declare na **Declaração Mod. 3 IRS** (1 abril – 30 junho). No Regime Simplificado (art.º 31.º), o coeficiente é 0,75 nas atividades da tabela do art.º 151.º, 0,35 nas outras prestações de serviços e 0,15 nas vendas de mercadorias e produtos.\n\n*⚠️ Consulte um TOC para confirmação.*`
+      const listaEscaloes = escaloes.valor.map(e => '- ' + e.faixa + ': ' + e.taxa).join('\n')
+      return `📊 **IRS — Trabalhadores Independentes (Portugal ${ano})**\n\nRendimento estimado: **${fmt(ht)}**\nRetenção na fonte (art.º 101.º CIRS): **${percentPt(taxaRetencao)}** nas atividades da tabela do art.º 151.º (${percentPt(RETENCAO_CAT_B_PT.outrosServicos)} nas outras prestações de serviços), só quando o cliente tem contabilidade organizada\nIRS estimado retido (${percentPt(taxaRetencao)}): **${fmt(irs)}**\n\n💡 **Dispensa de retenção (art.º 101.º-B):** se previr faturar menos de ${eurPt(limiteDispensaRetencaoPt())} no ano e não tiver atingido esse valor no ano anterior (com menção na fatura-recibo).\n\n**Taxas gerais do IRS ${escaloes.ano} (art.º 68.º CIRS, sobre o rendimento coletável):**\n${listaEscaloes}\n\n💡 Declare na **Declaração Mod. 3 IRS** (1 abril – 30 junho). No Regime Simplificado (art.º 31.º), o coeficiente é 0,75 nas atividades da tabela do art.º 151.º, 0,35 nas outras prestações de serviços e 0,15 nas vendas de mercadorias e produtos.\n\n*⚠️ Consulte um TOC para confirmação.*`
     }
 
     if (msgLower.includes('iva') || msgLower.includes('taxa')) {
