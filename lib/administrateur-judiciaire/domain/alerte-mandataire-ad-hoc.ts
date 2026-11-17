@@ -1,3 +1,4 @@
+import type { LotEnregistre } from '@/lib/administrateur-judiciaire/domain/coproprietes'
 import { ajouterJours, ajouterMois, dateIsoVersFr, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
 import type { DecisionAnnuelle } from '@/lib/administrateur-judiciaire/domain/decisions-annuelles-ag'
 import type { Exercice } from '@/lib/administrateur-judiciaire/domain/exercices-budgets'
@@ -85,11 +86,20 @@ import { ETATS_RESOLUTION, type EtatResolution } from '@/lib/administrateur-judi
  * - syndic désigné par le président du tribunal judiciaire (D. 1967 art. 46) : il est le syndic, l'obligation lui
  *   incombe.
  *
+ * Décisions de Hugo du 17/11/2026 (J67 du registre des décisions juridiques ; textes relus sur Légifrance le 17/11/2026) :
+ * - J67, R31 : période des sommes exigibles (le texte ne la fixe pas) : au dénominateur, les sommes devenues exigibles
+ *   au cours de l'exercice clos (les provisions sont votées et appelées par exercice : art. 14-1, I ; art. 14-2-1, I) ;
+ *   au numérateur, tous les impayés à la clôture, arriérés des exercices antérieurs compris, moins ceux du dernier mois
+ *   (D. 1967 art. 61-2). C'est la lecture de l'état des impayés « à la date de la clôture de l'exercice comptable »
+ *   (art. 61-4), la plus protectrice : le calcul est gardé, les arriérés ne rendent plus l'alerte « à confirmer », leur
+ *   montant reste dans le message. Avec de gros arriérés, le rapport peut dépasser 100 %.
+ * - J67, R32 : tous les lots de l'état descriptif de division, lots secondaires compris (caves, parkings) : tout lot
+ *   comporte une partie privative et une quote-part de parties communes (L. 1965 art. 1, I) ; quand la loi ne compte que
+ *   certains lots, elle le dit (art. 41-8 : « lots à usage de logements, de bureaux ou de commerces »). C'est aussi la
+ *   lecture la plus prudente (plus de syndicats passent au seuil de 15 %). Le nombre saisi reste celui du seuil ; quand
+ *   la liste des lots du syndicat est fournie, elle est comptée et l'écart est signalé (ecartLots).
+ *
  * 🔴 Non établi (à trancher par Frédéric ou Hugo) :
- * - période des sommes exigibles : le texte ne la fixe pas ; VitFix retient celles devenues exigibles au cours de
- *   l'exercice clos et compte dans les impayés tous les impayés à la clôture, arriérés des exercices antérieurs compris
- *   (lecture la plus protectrice) ; quand il y en a, l'alerte est à confirmer ;
- * - « lots » : tous les lots, ou les seuls lots principaux ? Le texte ne le précise pas ; VitFix prend le nombre fourni ;
  * - aucun vote connu sur l'approbation des comptes : depuis quand compter les deux ans ? Le critère reste non établi tant
  *   que la date de la dernière assemblée qui s'est prononcée n'est pas saisie ;
  * - administrateur provisoire de l'art. 29-1 : il a reçu tous les pouvoirs du syndic (art. 29-1, I, al. 2), mais aucun
@@ -167,7 +177,13 @@ export interface VoteApprobationComptes {
 export interface EntreeAlerteMandataireAdHoc {
   /** D1 : le syndicat. */
   coproprieteId: string
+  /**
+   * J67, R32 — nombre de lots du syndicat : tous les lots de l'état descriptif de division, lots secondaires compris
+   * (caves, parkings ; L. 1965 art. 1, I). C'est lui qui fixe le seuil (25 %, ou 15 % au-delà de deux cents lots).
+   */
   nombreLots: number
+  /** J67, R32 — lots du syndicat, quand la liste est connue : comptés pour signaler un écart ; absents ou null : non fournis. */
+  lots?: readonly Pick<LotEnregistre, 'id' | 'coproprieteId'>[] | null
   exercices?: readonly ExerciceAlerte[]
   /** Votes de l'assemblée sur l'approbation des comptes (résolution et date de l'assemblée). */
   votes?: readonly VoteApprobationComptes[]
@@ -197,7 +213,7 @@ export interface CritereImpayes291A {
   impayesCentimes: number
   /** Impayés des sommes devenues exigibles dans le mois précédant la clôture, écartés (D. 1967 art. 61-2). */
   ecartesCentimes: number
-  /** Part des impayés retenus qui vient d'exercices antérieurs (🔴 assiette à confirmer). */
+  /** Part des impayés retenus qui vient d'exercices antérieurs (comptée : J67, R31). */
   arrieresCentimes: number
   message: string
   /** Atteint, et couvert par une requête au juge datée du jour de la clôture ou d'après, au plus tard à la date de référence. */
@@ -241,8 +257,12 @@ export interface AlerteMandataireAdHoc {
   /** Ce que prévoit le texte selon le régime. */
   conduite: string
   fondement: string
-  /** Point 🔴 en jeu : mandat de justice sans texte, ou arriérés comptés dans les impayés. */
+  /** Point 🔴 en jeu : mandat de justice sans texte (les arriérés ne le sont plus : J67, R31). */
   aConfirmer: boolean
+  /** J67, R32 — nombre de lots de la liste du syndicat, quand elle est fournie ; null : liste non fournie. */
+  lotsDeLaListe: number | null
+  /** J67, R32 — écart entre le nombre de lots saisi et la liste ; null : aucun écart, ou liste non fournie. */
+  ecartLots: string | null
 }
 
 const fr = dateIsoVersFr
@@ -298,6 +318,8 @@ function verifierEntree(entree: EntreeAlerteMandataireAdHoc): void {
   for (const vote of entree.votes ?? []) verifierVote(vote)
   for (const decision of entree.decisions ?? [])
     if (decision.coproprieteId !== entree.coproprieteId) throw new Error(`Décision ${decision.id} d'un autre syndicat que celui de l'alerte.`)
+  for (const lot of entree.lots ?? [])
+    if (lot.coproprieteId !== entree.coproprieteId) throw new Error(`Lot ${lot.id} d'un autre syndicat que celui de l'alerte.`)
   verifierRequete(entree)
 }
 
@@ -344,7 +366,7 @@ function messageImpayes(exercice: Exercice, total: Assiette, seuil: number): str
   const pourcent = Math.floor((total.impayes * 100) / total.exigibles)
   const precisions = [
     total.ecartes > 0 ? `hors ${euros(total.ecartes)} devenus exigibles dans le mois précédant la clôture` : null,
-    total.arrieres > 0 ? `dont ${euros(total.arrieres)} d'arriérés des exercices antérieurs (assiette à confirmer)` : null,
+    total.arrieres > 0 ? `dont ${euros(total.arrieres)} d'arriérés des exercices antérieurs` : null,
   ].filter((p): p is string => p !== null)
   const suite = precisions.length > 0 ? `, ${precisions.join(', ')}` : ''
   return `Impayés à la clôture du ${fr(exercice.cloture)} (exercice ${exercice.nom}) : ${euros(total.impayes)} pour ${euros(total.exigibles)} de sommes exigibles, soit ${pourcent} % (seuil ${seuil} %)${suite}.`
@@ -352,6 +374,24 @@ function messageImpayes(exercice: Exercice, total: Assiette, seuil: number): str
 
 const seuilApplicable = (nombreLots: number, parametres: ParametresAlerte291A): number =>
   nombreLots > parametres.lotsGrandeCopropriete ? parametres.seuilGrandeCoproprietePourcent : parametres.seuilPourcent
+
+/**
+ * J67, R32 — lots de la liste du syndicat (un lot cité deux fois compte une fois) et écart avec le nombre saisi, qui reste
+ * celui du seuil ; le seuil de la liste est dit quand il diffère.
+ */
+function controleNombreLots(entree: EntreeAlerteMandataireAdHoc, parametres: ParametresAlerte291A): Pick<AlerteMandataireAdHoc, 'lotsDeLaListe' | 'ecartLots'> {
+  if (estAbsent(entree.lots)) return { lotsDeLaListe: null, ecartLots: null }
+  const lotsDeLaListe = new Set((entree.lots ?? []).map((lot) => lot.id)).size
+  if (lotsDeLaListe === entree.nombreLots) return { lotsDeLaListe, ecartLots: null }
+  const seuilDeLaListe = seuilApplicable(lotsDeLaListe, parametres)
+  const borne = `${lotsDeLaListe > parametres.lotsGrandeCopropriete ? 'plus de' : 'au plus'} ${parametres.lotsGrandeCopropriete} lots`
+  const autreSeuil =
+    seuilDeLaListe === seuilApplicable(entree.nombreLots, parametres) ? '' : ` Avec la liste, le seuil serait de ${seuilDeLaListe} % (${borne}).`
+  return {
+    lotsDeLaListe,
+    ecartLots: `Nombre de lots saisi : ${entree.nombreLots} ; liste des lots du syndicat : ${lotsDeLaListe}. Tous les lots comptent, caves et parkings compris (L. 1965 art. 1, I, et art. 29-1 A, al. 1 ; J67, R32) : vérifier le nombre saisi.${autreSeuil}`,
+  }
+}
 
 function dernierExerciceClos(exercices: readonly ExerciceAlerte[], date: string): ExerciceAlerte | null {
   const clos = exercices.filter((e) => e.exercice.cloture < date).sort((a, b) => a.exercice.cloture.localeCompare(b.exercice.cloture))
@@ -562,6 +602,7 @@ export function alerteMandataireAdHoc(
     message: atteints.map(({ critere }) => critere.message).join(' '),
     conduite: conduite.texte,
     fondement: conduite.fondement,
-    aConfirmer: conduite.aConfirmer || impayes.arrieresCentimes > 0,
+    aConfirmer: conduite.aConfirmer,
+    ...controleNombreLots(entree, parametres),
   }
 }

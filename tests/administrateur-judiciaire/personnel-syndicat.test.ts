@@ -4,17 +4,21 @@ import { describe, expect, it } from 'vitest'
 import { balance } from '@/lib/administrateur-judiciaire/domain/etats-comptables'
 import {
   COMPTES_NOMENCLATURE_PAIE,
+  ELEMENTS_NON_RECUPERABLES,
   IDENTIFIANTS_EMPLOYEUR,
   NATURES_REGLEMENT_PAIE,
   OBLIGATIONS_EMPLOYEUR,
+  PARTS_RECUPERABLES_DECRET_87_713,
   PLAN_PAIE_PAR_DEFAUT,
   QUALITES_PERSONNEL,
   TYPES_DOCUMENT_EMPLOYEUR,
+  categorieRecuperable,
   compteDebiteReglementPaie,
   controlerBulletin,
   controlerBulletinSalarie,
   controlerFactureHorsPaie,
   controlerIdentifiantsEmployeur,
+  controlerRecuperablePaie,
   controlerReglementPaie,
   creerSalarieSyndicat,
   ecrituresConstatationPaie,
@@ -31,6 +35,7 @@ import {
   type BulletinPaieConstate,
   type ContextePaie,
   type ReglementPaie,
+  type SalarieSyndicat,
 } from '@/lib/administrateur-judiciaire/domain/personnel-syndicat'
 import { annulerTraitement, creerTraitement, mouvementsARepartir, type LigneMouvement } from '@/lib/administrateur-judiciaire/domain/traitements'
 
@@ -282,6 +287,86 @@ describe('constatation de la paie (le bulletin vient du prestataire de paie)', (
       { compte: 'M001.44200.00002.0', sens: 'credit', montantCentimes: 150_000 },
     ])
     expect(() => ecrituresTaxeSalaires(0, CTX)).toThrow(/centimes/)
+  })
+})
+
+describe('J67, R38 — part récupérable sur le locataire (décret n° 87-713, art. 2)', () => {
+  const salarie = (qualite: SalarieSyndicat['qualite'], tachesContrat: SalarieSyndicat['tachesContrat']) =>
+    creerSalarieSyndicat({ ...gardien, qualite, tachesContrat })
+  const repris = (pct: number): ContextePaie => ({
+    ...CTX,
+    attributs: { salaires: { analytique: '010', recupLocatairePct: pct }, chargesSociales: { analytique: '010', recupLocatairePct: pct } },
+  })
+  const mutuelle = { organisme: 'autre_organisme', comptePatronal: 'autresFrais', salarialeCentimes: 3_000, patronaleCentimes: 4_000 } as const
+
+  it('taux du décret : 75 % (gardien : entretien et rejets), 40 % (une seule tâche), 100 % (employé d’immeuble), 10 % (encadrement en régie)', () => {
+    expect(PARTS_RECUPERABLES_DECRET_87_713).toEqual({
+      gardien_entretien_et_rejets: 75,
+      gardien_une_tache: 40,
+      employe_immeuble: 100,
+      encadrement_technique_regie: 10,
+    })
+    expect(categorieRecuperable(salarie('Gardien', 'entretien_et_rejets'))).toBe('gardien_entretien_et_rejets')
+    expect(categorieRecuperable(salarie('Gardien', 'rejets'))).toBe('gardien_une_tache')
+    expect(categorieRecuperable(salarie("Employé d'immeuble", 'entretien'))).toBe('employe_immeuble')
+    expect(categorieRecuperable(gardien)).toBeNull()
+    expect(() => creerSalarieSyndicat({ ...gardien, tachesContrat: 'menage' as never })).toThrow(/Tâches du contrat/)
+  })
+
+  it('taux repris de l’analytique contrôlé contre la fonction et les tâches du contrat : alerte d’écart, non bloquante', () => {
+    expect(controlerRecuperablePaie(salarie('Gardien', 'entretien_et_rejets'), repris(75))).toEqual([])
+    const ecarts = controlerRecuperablePaie(salarie('Gardien', 'entretien'), repris(75))
+    expect(codes(ecarts)).toEqual(['recuperable_ecart', 'recuperable_ecart'])
+    expect(ecarts[0].message).toBe(
+      "Compte 641 « Salaires » : part récupérable de 75 % reprise de l'analytique ; 40 % selon la fonction et les tâches du contrat du salarié sal-1.",
+    )
+    expect(ecarts[0].fondement).toBe('Décret n° 87-713, art. 2, c ; J67, R38')
+    expect(controlerRecuperablePaie(salarie("Employé d'immeuble", 'rejets'), repris(75))[0].fondement).toBe('Décret n° 87-713, art. 2, d ; J67, R38')
+  })
+
+  it('sans tâches saisies : le taux repris est gardé, à confirmer ; sans analytique : rien à signaler', () => {
+    const [alerte, ...autres] = controlerRecuperablePaie(gardien, { ...CTX, attributs: { salaires: { recupLocatairePct: 75 } } })
+    expect(autres).toEqual([])
+    expect(alerte.code).toBe('recuperable_a_confirmer')
+    expect(alerte.message).toBe("Compte 641 « Salaires » : part récupérable de 75 % reprise de l'analytique, à confirmer : tâches du contrat du salarié sal-1 non saisies.")
+    expect(controlerRecuperablePaie(gardien, CTX)).toEqual([])
+  })
+
+  it('part patronale de mutuelle (644) : 0 % selon la nature de la ligne, même si l’analytique porte un autre taux (alerte)', () => {
+    const avecMutuelle = bulletin({ cotisations: [...bulletin().cotisations, mutuelle], netAPayerCentimes: 147_000 })
+    const attributs = { salaires: { analytique: '010', recupLocatairePct: 75 }, autresFrais: { analytique: '012', recupLocatairePct: 75 } }
+    const lignes = ecrituresConstatationPaie(avecMutuelle, gardien, { ...CTX, attributs })
+    expect(lignes.find((l) => l.compte === 'M001.64400.00000.0')?.attributs).toEqual({ analytique: '012', recupLocatairePct: 0 })
+    const [alerte] = controlerRecuperablePaie(salarie('Gardien', 'entretien_et_rejets'), { ...CTX, attributs })
+    expect(alerte).toEqual({
+      code: 'recuperable_exclu_force',
+      message: "Compte 644 « Autres (médecine du travail, mutuelles, etc.) » : part patronale de mutuelle, jamais récupérable : 0 % appliqué au lieu des 75 % de l'analytique.",
+      fondement: 'Décret n° 87-713, art. 2, c ; J67, R38',
+    })
+  })
+
+  it('salaire en nature et éléments exclus retirés de la base récupérable : une seconde ligne au 641, à 0 %', () => {
+    const attributs = { analytique: '010', rubrique: '010', recupLocatairePct: 75 }
+    const b = bulletin({ brutCentimes: 260_000, avantagesEnNatureCentimes: 30_000, elementsNonRecuperablesCentimes: { indemnite_licenciement: 30_000 }, netAPayerCentimes: 180_000 })
+    expect(controlerBulletin(b)).toEqual([])
+    const ctx = { ...CTX, compteAvantagesEnNature: 'A0001' }
+    const lignes = ecrituresConstatationPaie(b, gardien, { ...ctx, attributs: { salaires: attributs } })
+    expect(lignes.filter((l) => l.compte === 'M001.64100.00000.0')).toEqual([
+      { compte: 'M001.64100.00000.0', sens: 'debit', montantCentimes: 200_000, attributs },
+      { compte: 'M001.64100.00000.0', sens: 'debit', montantCentimes: 60_000, attributs: { ...attributs, recupLocatairePct: 0 } },
+    ])
+    expect(total(lignes, 'debit')).toBe(total(lignes, 'credit'))
+    // Sans analytique, rien à forcer : une seule ligne au 641, comme avant.
+    expect(ecrituresConstatationPaie(b, gardien, ctx).filter((l) => l.compte === 'M001.64100.00000.0')).toHaveLength(1)
+  })
+
+  it('éléments exclus contrôlés : nature connue, centimes entiers, jamais plus que le brut', () => {
+    expect(ELEMENTS_NON_RECUPERABLES).toEqual(['indemnite_licenciement', 'depart_retraite', 'interessement_participation'])
+    expect(codes(controlerBulletin(bulletin({ elementsNonRecuperablesCentimes: { prime: 100 } as never })))).toContain('nature_inconnue')
+    expect(codes(controlerBulletin(bulletin({ elementsNonRecuperablesCentimes: { depart_retraite: -1 } })))).toContain('montant_invalide')
+    const trop = controlerBulletin(bulletin({ elementsNonRecuperablesCentimes: { interessement_participation: 300_000 } }))
+    expect(trop).toMatchObject([{ code: 'montant_invalide' }])
+    expect(trop[0].message).toMatch(/plus que le brut/)
   })
 })
 
@@ -604,14 +689,24 @@ describe('en-tête du module (marqueurs 🟢 / 🔵 / 🔴)', () => {
     expect(entete).not.toMatch(/« Employeur » \(7 types\)/)
   })
 
-  it('J25 : espèces tranchées (décision de Hugo), l’ancienne question 7 retirée du 🔴 ; prévoyance toujours en 🔴', () => {
+  it('J25 : espèces tranchées (décision de Hugo), l’ancienne question 7 retirée du 🔴 ; prévoyance : seul le relevé Gestéam reste en 🔴', () => {
     expect(decisions).toMatch(/J25/)
     expect(decisions).toMatch(/espèces/)
     expect(decisions).toMatch(/compte 53/)
     expect(decisions).toMatch(/L7211-3, 6°/)
     expect(deduit).not.toMatch(/espèces refusées/)
     expect(nonEtabli).not.toMatch(/Faut-il admettre les espèces pour un salaire/)
-    expect(nonEtabli).toMatch(/prévoyance/)
+    expect(nonEtabli).toMatch(/sous quel code est l'entrée « prévoyance » des 64xxx/)
+  })
+
+  it('J67, R38 et R39 : part récupérable et compte de la prévoyance tranchés, les questions 6 et 8 retirées du 🔴', () => {
+    const j67 = entete.slice(entete.indexOf('Décisions de Hugo du 17/11/2026'), entete.indexOf('🔵 Déduit'))
+    expect(j67).toMatch(/J67, R38 : .*décret n° 87-713, art\. 2/)
+    expect(j67).toMatch(/J67, R39 : .*642 par défaut, réglable cotisation par cotisation/)
+    expect(j67).toMatch(/la mutuelle va au 644/)
+    expect(nonEtabli).not.toMatch(/Récupérabilité des salaires du gardien/)
+    expect(nonEtabli).not.toMatch(/Part patronale de la prévoyance : 642/)
+    expect(source).not.toMatch(/🔴 8/)
   })
 
   it('J25 : C. trav. L3241-1 relu (version, phrase exacte)', () => {

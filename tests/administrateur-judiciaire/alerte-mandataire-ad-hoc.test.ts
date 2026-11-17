@@ -157,13 +157,16 @@ describe('critère des impayés à la clôture (art. 29-1 A, al. 1 ; D. 1967 art
     expect(alerteMandataireAdHoc(entree({ exercices: [ex('ex-2025', E2025, autre)] }), DATE).impayes.etat).toBe('non_etabli')
   })
 
-  it('🔴 arriérés des exercices antérieurs : comptés dans les impayés, hors des sommes exigibles de l’exercice ; alerte à confirmer', () => {
+  it('J67, R31 — arriérés des exercices antérieurs : comptés dans les impayés, hors des sommes exigibles de l’exercice ; plus « à confirmer », montant gardé dans le message', () => {
     const sommes = [...provisions2025(600_000), somme('2024-10-01', 1_000_000, 400_000)]
     const a = alerteMandataireAdHoc(entree({ exercices: [ex('ex-2025', E2025, sommes)] }), DATE)
     expect(a.impayes).toMatchObject({ exigiblesCentimes: 4_000_000, impayesCentimes: 1_000_000, arrieresCentimes: 400_000, etat: 'atteint' })
-    expect(a.impayes.message).toMatch(/arriérés des exercices antérieurs/)
-    expect(a.aConfirmer).toBe(true)
+    expect(a.impayes.message).toMatch(/dont 4\s000,00\s€ d'arriérés des exercices antérieurs/)
+    expect(a.impayes.message).not.toMatch(/à confirmer/)
+    expect(a.aConfirmer).toBe(false)
     expect(alerteMandataireAdHoc(entree({ exercices: [ex('ex-2025', E2025, provisions2025(1_000_000))] }), DATE).aConfirmer).toBe(false)
+    // Le mandat de justice sans texte reste à confirmer, arriérés ou non.
+    expect(alerteMandataireAdHoc(entree({ regime: 'ap291', exercices: [ex('ex-2025', E2025, sommes)] }), DATE).aConfirmer).toBe(true)
   })
 
   it('dernier exercice clos avant la date : chaque clôture renouvelle le constat ; le jour de la clôture, l’exercice n’est pas clos', () => {
@@ -411,6 +414,36 @@ describe('mandat de justice', () => {
   })
 })
 
+describe('J67, R32 — nombre de lots : tous les lots, caves et parkings compris (L. 1965 art. 1, I)', () => {
+  const lots = (nombre: number, coproprieteId = 'copro-1') => Array.from({ length: nombre }, (_, i) => ({ id: `lot-${i + 1}`, coproprieteId }))
+  const sommes = [ex('ex-2025', E2025, provisions2025(600_000))]
+
+  it('sans liste des lots : le nombre saisi seul, aucun écart', () => {
+    expect(alerteMandataireAdHoc(entree(), DATE)).toMatchObject({ lotsDeLaListe: null, ecartLots: null })
+  })
+
+  it('liste conforme au nombre saisi : comptée, aucun écart ; un lot cité deux fois compte une fois', () => {
+    expect(alerteMandataireAdHoc(entree({ lots: lots(40) }), DATE)).toMatchObject({ lotsDeLaListe: 40, ecartLots: null })
+    expect(alerteMandataireAdHoc(entree({ lots: [...lots(40), { id: 'lot-1', coproprieteId: 'copro-1' }] }), DATE).lotsDeLaListe).toBe(40)
+  })
+
+  it('écart avec la liste : signalé ; le nombre saisi reste celui du seuil ; le seuil de la liste est dit s’il diffère', () => {
+    const a = alerteMandataireAdHoc(entree({ nombreLots: 180, lots: lots(205), exercices: sommes }), DATE)
+    expect(a.impayes).toMatchObject({ seuilPourcent: 25, etat: 'non_atteint' })
+    expect(a.lotsDeLaListe).toBe(205)
+    expect(a.ecartLots).toMatch(/Nombre de lots saisi : 180 ; liste des lots du syndicat : 205/)
+    expect(a.ecartLots).toMatch(/caves et parkings compris \(L\. 1965 art\. 1, I, et art\. 29-1 A, al\. 1 ; J67, R32\)/)
+    expect(a.ecartLots).toMatch(/Avec la liste, le seuil serait de 15 % \(plus de 200 lots\)/)
+    const memeSeuil = alerteMandataireAdHoc(entree({ nombreLots: 38, lots: lots(40) }), DATE).ecartLots
+    expect(memeSeuil).toMatch(/saisi : 38 ; liste des lots du syndicat : 40/)
+    expect(memeSeuil).not.toMatch(/seuil serait/)
+  })
+
+  it('un lot d’un autre syndicat : refusé', () => {
+    expect(() => alerteMandataireAdHoc(entree({ lots: [...lots(39), { id: 'lot-x', coproprieteId: 'copro-2' }] }), DATE)).toThrow(/autre syndicat/)
+  })
+})
+
 describe('contrôles', () => {
   it('refuse une date, un nombre de lots, une somme ou un vote invalides', () => {
     expect(() => alerteMandataireAdHoc(entree(), '2026-02-30')).toThrow(/AAAA-MM-JJ/)
@@ -484,5 +517,14 @@ describe('en-tête du module', () => {
 
   it('aucune date ISO écrite en dur', () => {
     expect(SOURCE).not.toMatch(/['`"]\d{4}-\d{2}-\d{2}['`"]/)
+  })
+
+  it('J67, R31 et R32 : période des sommes exigibles et définition des lots tranchées, retirées du 🔴', () => {
+    const nonEtabli = EN_TETE.slice(EN_TETE.indexOf('🔴 Non établi'))
+    expect(nonEtabli).not.toMatch(/période des sommes exigibles/)
+    expect(nonEtabli).not.toMatch(/ou les seuls lots principaux/)
+    expect(EN_TETE).toMatch(/J67, R31 : .*arriérés des exercices antérieurs compris/)
+    expect(EN_TETE).toMatch(/J67, R32 : tous les lots de l'état descriptif de division, lots secondaires compris \(caves, parkings\)/)
+    expect(SOURCE).not.toMatch(/🔴 assiette à confirmer/)
   })
 })

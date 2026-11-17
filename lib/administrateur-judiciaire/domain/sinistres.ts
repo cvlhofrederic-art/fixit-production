@@ -1,8 +1,7 @@
 import {
-  ajouterJours,
+  ajouterJoursOuvres,
   ajouterMois,
   estDateIsoValide,
-  estJourOuvrable,
   messagePlausibilite,
   plausibiliteDate,
   verifierAujourdhui,
@@ -364,16 +363,6 @@ export function indemnitesSinistre(sinistre: FicheSinistre): IndemnitesSinistre 
     (sinistre.indemniteImmediateReglee ? sinistre.indemniteImmediateCentimes : 0) +
     (sinistre.indemniteDiffereeReglee ? sinistre.indemniteDiffereeCentimes : 0)
   return { totalCentimes, regleCentimes, resteCentimes: totalCentimes - regleCentimes }
-}
-
-/** Ajoute des jours ouvrés (ni samedi, ni dimanche, ni jour férié). */
-const ajouterJoursOuvres = (dateIso: string, jours: number): string => {
-  let date = dateIso
-  for (let compte = 0; compte < jours; ) {
-    date = ajouterJours(date, 1)
-    if (estJourOuvrable(date)) compte++
-  }
-  return date
 }
 
 export interface ReperesDelaisSinistre {

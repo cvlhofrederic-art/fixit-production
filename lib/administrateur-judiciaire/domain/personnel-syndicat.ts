@@ -81,6 +81,27 @@ import { MODE_REGLEMENT, QUALITE_IDENTITE, type ModeReglement, type TypeEntrepri
  *   droit. Le décret qui fixe ce montant n'a pas été lu : la règle n'en dépend plus, le refus valant quel que soit le
  *   salaire.
  *
+ * Décisions de Hugo du 17/11/2026 (J67 du registre des décisions juridiques ; textes relus sur Légifrance le 17/11/2026) :
+ * - J67, R38 : la part récupérable sur le locataire d'un logement est celle du décret n° 87-713, art. 2 (version du
+ *   01/01/2009) : gardien ou concierge qui assure, d'après son contrat, l'entretien des parties communes et
+ *   l'élimination des rejets, 75 % de sa rémunération et des charges sociales et fiscales (c), 40 % s'il n'assure qu'une
+ *   des deux tâches ; employé d'immeuble qui assure l'une ou l'autre, 100 % (d) ; encadrement technique en régie, 10 %.
+ *   Ne sont jamais récupérables : le salaire en nature, l'intéressement et la participation, les indemnités et primes de
+ *   départ à la retraite, les indemnités de licenciement, la cotisation patronale à une mutuelle, la cotisation à la
+ *   médecine du travail. La fonction est la qualité du salarié (Gardien, Employé d'immeuble) ; ses tâches sont saisies
+ *   (tachesContrat) et donnent le taux (categorieRecuperable). Le taux repris de l'analytique est gardé, mais contrôlé
+ *   (controlerRecuperablePaie : écart, ou « à confirmer » sans tâches saisies) ; les éléments exclus sont mis à 0 %
+ *   selon la nature de la ligne, quelle que soit l'analytique : la ligne 644 de la paie (part patronale de mutuelle) et
+ *   la part du brut faite du salaire en nature et des éléments exclus (une seconde ligne au 641). La taxe sur les
+ *   salaires, charge fiscale de la rémunération, reste dans la base. Ce n'est pas le syndicat qui récupère, mais le
+ *   copropriétaire bailleur : le module donne seulement la part récupérable.
+ * - J67, R39 : part patronale de la prévoyance au 642 par défaut, réglable cotisation par cotisation (comptePatronal) :
+ *   chaque opération va au compte de sa nature (arrêté du 14 mars 2005, art. 3), et la prévoyance est une charge sociale
+ *   versée à un organisme social (art. 7 : « 642 Charges sociales et organismes sociaux »). Le décret n° 87-713 (art. 2,
+ *   c) exclut la mutuelle et la médecine du travail, pas la prévoyance : le 644 reste entièrement non récupérable. Si le
+ *   contrat réunit mutuelle et prévoyance dans une seule cotisation, la scinder : la mutuelle va au 644. Aucun texte ne
+ *   tranche mot pour mot : c'est une interprétation, à vérifier dans Gestéam (question 3 ci-dessous).
+ *
  * 🔵 Déduit :
  * - un salaire n'est ni une facture ni un achat (art. 3 et 10) : le net à payer est crédité au 421 du salarié (sous-compte
  *   par salarié, art. 8), jamais au 401 ; débit 641 du brut ; débit 642 des cotisations patronales, sauf la part
@@ -114,26 +135,27 @@ import { MODE_REGLEMENT, QUALITE_IDENTITE, type ModeReglement, type TypeEntrepri
  * - codes à 5 caractères 42100, 43100, 43200, 44200, 64200, 64300, 64400 : seul 64100 est lu (tranche 24 § 5) ; réglables
  *   (verifierPlanPaie : une subdivision du compte de l'arrêté) ; sous-comptes « 00000 » hors 421 et organismes ;
  * - les 64x, en classe 6, remontent dans mouvementsARepartir (charges à répartir) ; les attributs (analytique, rubrique,
- *   récupérable) sont repris de l'analytique fournie, jamais calculés ;
+ *   récupérable) sont repris de l'analytique fournie, jamais calculés, sauf la part récupérable des éléments exclus,
+ *   mise à 0 % (J67, R38) ; sans analytique fournie, rien n'est forcé : une seule ligne au 641 ;
  * - SIRET attendu dès qu'un salarié est en poste (la DSN porte le numéro d'identité de l'employeur : CSS art. R133-14, V,
  *   1°, a) ; les autres identifiants employeur : alerte de gestion, jamais bloquante.
  *
- * 🔴 Non établi (questions exactes pour Frédéric ou Hugo ; les n° 7 et 10 sont tranchés : J25 et J40, ci-dessus) :
+ * 🔴 Non établi (questions exactes pour Frédéric ou Hugo ; les n° 7 et 10 sont tranchés : J25 et J40, et les n° 6 et 8 :
+ *   J67, R38 et R39, ci-dessus) :
  * 1. Frédéric : la pratique Gestéam (salaire réglé comme une facture, 401 au nom du salarié, contrat « Prestation »)
  *    contredit l'arrêté. À la reprise d'un dossier, faut-il reclasser les soldes 401 « salarié » en 421, ou seulement les
  *    signaler ? Les contreparties 641/421, 642/431-432 et 643/442 sont déduites, pas lues : les confirmez-vous ?
  * 2. Constatation de la paie passée en « Saisie de mouvements » : FAMILLE_TRAITEMENT n'a pas de famille « Paie », et
  *    annulerTraitement refuse « Saisie de mouvements » (correction par écriture contraire). Faut-il une famille « Paie »
  *    dédiée ?
- * 3. Quels sont, dans Gestéam, les codes à 5 caractères des comptes 421, 431, 432, 442, 642, 643 et 644 ?
+ * 3. Quels sont, dans Gestéam, les codes à 5 caractères des comptes 421, 431, 432, 442, 642, 643 et 644 ? Et sous quel
+ *    code est l'entrée « prévoyance » des 64xxx (642xx ou 644xx ; relevé L3-12) ? Un 644xx voudrait dire que le cabinet
+ *    suit l'autre lecture que J67, R39 : Hugo choisira.
  * 4. Avantage en nature compris dans le brut (logement du gardien, catégorie B) : quel compte crédite-t-on ? L'arrêté n'en
  *    dit rien et son art. 8 exclut les comptes du plan comptable général ; VitFix exige un compte fourni par le cabinet,
  *    sans valeur par défaut.
  * 5. Autres éléments du bulletin (acompte, saisie sur salaire, frais remboursés, indemnité non soumise) : non pris en
  *    charge (net incohérent) ; C. trav. L3242-1 et R3243-1 et suivants non lus. Faut-il les traiter, et sur quels comptes ?
- * 6. Récupérabilité des salaires du gardien (75 % lu sur l'analytique 010) : régime non lu ; quelle part retenir ?
- * 8. Part patronale de la prévoyance : 642 (« organismes sociaux ») ou 644, que seul le « etc. » couvrirait ? Par défaut
- *    642, réglable cotisation par cotisation (comptePatronal).
  * 9. Bulletin d'un mois postérieur à la sortie du salarié (rappel de salaire, régularisation) : admis sans alerte. Faut-il
  *    une alerte, ou le limiter au mois du paiement ?
  *
@@ -143,7 +165,8 @@ import { MODE_REGLEMENT, QUALITE_IDENTITE, type ModeReglement, type TypeEntrepri
  * de virement et propager « Rapproché » ; traitements.ts et référentiels : famille « Paie » si elle est décidée (🔴 2).
  * Tables (Frédéric) : conserver chaque bulletin constaté avec le traitementId de sa constatation (BulletinPaieConstate),
  * relu avec le grand livre par controlerReglementPaie, et chaque règlement écrit avec son traitementId
- * (ReglementPaieEcrit), relu avec le grand livre par controlerReglementPaie et par le suivi employeur.
+ * (ReglementPaieEcrit), relu avec le grand livre par controlerReglementPaie et par le suivi employeur. Enregistrement à
+ * brancher (J67, R38) : tâches du contrat du salarié (tachesContrat) et éléments non récupérables du bulletin.
  */
 
 // ─── Référentiels ───────────────────────────────────────────────────────────────────────────
@@ -206,7 +229,7 @@ const COMPTE_ORGANISME: Record<OrganismeSocial, CleComptePaie> = {
   autre_organisme: 'autresOrganismes',
 }
 
-/** Compte de charge de la part patronale d'une cotisation : 642 (par défaut) ou 644 (mutuelle : art. 7 ; prévoyance : 🔴 8). */
+/** Compte de charge de la part patronale d'une cotisation : 642 (par défaut, prévoyance comprise : J67, R39) ou 644 (mutuelle : art. 7). */
 export const COMPTES_CHARGE_PATRONALE = ['chargesSociales', 'autresFrais'] as const
 export type CompteChargePatronale = (typeof COMPTES_CHARGE_PATRONALE)[number]
 const COMPTES_CHARGE_ADMIS: ReadonlySet<string> = new Set(COMPTES_CHARGE_PATRONALE)
@@ -214,6 +237,8 @@ const COMPTES_CHARGE_ADMIS: ReadonlySet<string> = new Set(COMPTES_CHARGE_PATRONA
 /** Obligations du syndicat employeur suivies par echeances-employeur.ts. */
 export const OBLIGATIONS_EMPLOYEUR = [
   'dsn',
+  /** J67, R35 : signalement en DSN de la fin du contrat et d'un arrêt de travail (CSS R133-14, II). */
+  'signalement_dsn',
   'versement_cotisations',
   'adhesion_sante_travail',
   'medecine_travail',
@@ -272,6 +297,39 @@ const FONDEMENT_IDENTIFIANT: Partial<Record<IdentifiantEmployeur, string>> = {
   SIRET: 'CSS art. R133-14, V, 1°, a (DSN)',
 }
 
+// ─── Part récupérable sur le locataire (J67, R38) ───────────────────────────────────────────
+
+/** Tâches du contrat de travail qui fixent la part récupérable (décret n° 87-713, art. 2, c et d). */
+export const TACHES_CONTRAT = ['entretien', 'rejets', 'entretien_et_rejets'] as const
+export type TacheContrat = (typeof TACHES_CONTRAT)[number]
+const TACHES_ADMISES: ReadonlySet<string> = new Set(TACHES_CONTRAT)
+
+export type CategorieRecuperable = 'gardien_entretien_et_rejets' | 'gardien_une_tache' | 'employe_immeuble' | 'encadrement_technique_regie'
+
+/**
+ * Décret n° 87-713 du 26/08/1987, art. 2 (version du 01/01/2009) : part récupérable sur le locataire d'un logement, en %
+ * de la rémunération et des charges sociales et fiscales : gardien ou concierge (c), employé d'immeuble (d),
+ * encadrement technique en régie.
+ */
+export const PARTS_RECUPERABLES_DECRET_87_713: Readonly<Record<CategorieRecuperable, number>> = {
+  gardien_entretien_et_rejets: 75,
+  gardien_une_tache: 40,
+  employe_immeuble: 100,
+  encadrement_technique_regie: 10,
+}
+
+const FONDEMENT_CATEGORIE: Record<CategorieRecuperable, string> = {
+  gardien_entretien_et_rejets: 'Décret n° 87-713, art. 2, c',
+  gardien_une_tache: 'Décret n° 87-713, art. 2, c',
+  employe_immeuble: 'Décret n° 87-713, art. 2, d',
+  encadrement_technique_regie: 'Décret n° 87-713, art. 2',
+}
+
+/** Éléments du brut jamais récupérables (décret n° 87-713, art. 2, c), hors salaire en nature (avantagesEnNatureCentimes). */
+export const ELEMENTS_NON_RECUPERABLES = ['indemnite_licenciement', 'depart_retraite', 'interessement_participation'] as const
+export type ElementNonRecuperable = (typeof ELEMENTS_NON_RECUPERABLES)[number]
+const ELEMENTS_ADMIS: ReadonlySet<string> = new Set(ELEMENTS_NON_RECUPERABLES)
+
 export type CodeAnomaliePaie =
   | 'periode_invalide'
   | 'montant_invalide'
@@ -301,6 +359,9 @@ export type CodeAnomaliePaie =
   | 'salaire_en_facture'
   | 'tiers_salarie_en_fournisseur'
   | 'identifiant_employeur_absent'
+  | 'recuperable_ecart'
+  | 'recuperable_a_confirmer'
+  | 'recuperable_exclu_force'
 
 export interface AnomaliePaie {
   code: CodeAnomaliePaie
@@ -326,6 +387,11 @@ export interface SalarieSyndicat {
   entreeLe: string
   /** Jour de sortie : il n'est plus en poste ce jour-là (période semi-ouverte) ; null : en poste. */
   sortieLe: string | null
+  /**
+   * J67, R38 — tâches du contrat de travail : entretien des parties communes, élimination des rejets, ou les deux ;
+   * absentes ou null : non saisies (le taux repris de l'analytique reste « à confirmer »).
+   */
+  tachesContrat?: TacheContrat | null
 }
 
 export function creerSalarieSyndicat(saisie: SalarieSyndicat): SalarieSyndicat {
@@ -338,7 +404,18 @@ export function creerSalarieSyndicat(saisie: SalarieSyndicat): SalarieSyndicat {
   if (!estDateIsoValide(saisie.entreeLe)) throw new Error(`Date d'entrée invalide (${saisie.entreeLe}) : AAAA-MM-JJ attendu.`)
   if (saisie.sortieLe !== null && (!estDateIsoValide(saisie.sortieLe) || saisie.sortieLe < saisie.entreeLe))
     throw new Error(`Date de sortie invalide (${saisie.sortieLe}) : AAAA-MM-JJ, au plus tôt le jour d'entrée.`)
+  const taches = saisie.tachesContrat ?? null
+  if (taches !== null && !TACHES_ADMISES.has(taches))
+    throw new Error(`Tâches du contrat « ${String(taches)} » : ${TACHES_CONTRAT.join(', ')} attendu (décret n° 87-713, art. 2).`)
   return { ...saisie }
+}
+
+/** J67, R38 — catégorie du décret n° 87-713, art. 2, d'après la qualité et les tâches du contrat ; null : tâches non saisies. */
+export function categorieRecuperable(salarie: Pick<SalarieSyndicat, 'qualite' | 'tachesContrat'>): CategorieRecuperable | null {
+  const taches = salarie.tachesContrat ?? null
+  if (taches === null) return null
+  if (salarie.qualite === "Employé d'immeuble") return 'employe_immeuble'
+  return taches === 'entretien_et_rejets' ? 'gardien_entretien_et_rejets' : 'gardien_une_tache'
 }
 
 /** En poste à une date : entré, pas encore sorti (sorti le jour de sa sortie, comme les positions de D2). */
@@ -366,6 +443,8 @@ export interface BulletinPaie {
   brutCentimes: number
   /** Avantages en nature compris dans le brut et non versés (logement du gardien, catégorie B : CCN art. 22, 1). */
   avantagesEnNatureCentimes?: number
+  /** J67, R38 — éléments compris dans le brut et jamais récupérables (décret n° 87-713, art. 2, c), par nature. */
+  elementsNonRecuperablesCentimes?: Partial<Record<ElementNonRecuperable, number>>
   cotisations: CotisationBulletin[]
   prelevementSourceCentimes: number
   netAPayerCentimes: number
@@ -421,20 +500,37 @@ function anomaliesCotisation(cotisation: CotisationBulletin): AnomaliePaie[] {
 const montantsBulletin = (b: BulletinPaie): number[] => [
   b.brutCentimes,
   b.avantagesEnNatureCentimes ?? 0,
+  ...Object.values(b.elementsNonRecuperablesCentimes ?? {}),
   b.prelevementSourceCentimes,
   b.netAPayerCentimes,
   ...b.cotisations.flatMap((c) => [c.salarialeCentimes, c.patronaleCentimes]),
 ]
 
-/** Contrôle de forme et de cohérence : net = brut − cotisations salariales − avantages en nature − prélèvement à la source. */
+/** J67, R38 — part du brut jamais récupérable : salaire en nature et éléments exclus (décret n° 87-713, art. 2, c). */
+const brutNonRecuperable = (b: BulletinPaie): number => (b.avantagesEnNatureCentimes ?? 0) + somme(Object.values(b.elementsNonRecuperablesCentimes ?? {}))
+
+/**
+ * Contrôle de forme et de cohérence : net = brut − cotisations salariales − avantages en nature − prélèvement à la
+ * source ; éléments non récupérables de nature connue, jamais plus que le brut avec le salaire en nature (J67, R38).
+ */
 export function controlerBulletin(b: BulletinPaie): AnomaliePaie[] {
   const anomalies: AnomaliePaie[] = []
   if (!estPeriodeValide(b.annee, b.mois))
     anomalies.push(anomalie('periode_invalide', `Période ${b.mois}/${b.annee} : mois de 1 à 12 et année sur 4 chiffres attendus.`))
   if (!montantsBulletin(b).every(estCentimes))
     anomalies.push(anomalie('montant_invalide', `Bulletin ${b.id} : montants en centimes entiers, positifs ou nuls, attendus.`))
+  const inconnu = Object.keys(b.elementsNonRecuperablesCentimes ?? {}).find((nature) => !ELEMENTS_ADMIS.has(nature))
+  if (inconnu !== undefined)
+    anomalies.push(anomalie('nature_inconnue', `Élément non récupérable « ${inconnu} » : ${ELEMENTS_NON_RECUPERABLES.join(', ')} attendu.`))
   anomalies.push(...b.cotisations.flatMap(anomaliesCotisation))
   if (anomalies.length > 0) return anomalies
+  if (brutNonRecuperable(b) > b.brutCentimes)
+    return [
+      anomalie(
+        'montant_invalide',
+        `Bulletin ${b.id} : salaire en nature et éléments non récupérables (${brutNonRecuperable(b)} centimes) pour plus que le brut (${b.brutCentimes} centimes).`,
+      ),
+    ]
   const attendu = b.brutCentimes - somme(b.cotisations.map((c) => c.salarialeCentimes)) - (b.avantagesEnNatureCentimes ?? 0) - b.prelevementSourceCentimes
   if (attendu !== b.netAPayerCentimes)
     anomalies.push(
@@ -493,20 +589,37 @@ function lignesAvantagesEnNature(montantCentimes: number, ctx: ContextePaie): Li
   return [ligne(formaterNumeroCompte({ mandat: ctx.segmentSyndicat, planCode: code, auxiliaire: AUXILIAIRE_ZERO }), 'credit', montantCentimes)]
 }
 
+/** J67, R38 — attributs d'une ligne jamais récupérable : ceux de l'analytique, part récupérable mise à 0 %. */
+const nonRecuperable = (attributs: AttributsMouvement | undefined): AttributsMouvement | undefined =>
+  attributs === undefined ? undefined : { ...attributs, recupLocatairePct: 0 }
+
+/**
+ * Débit du 641 : le brut ; avec une analytique, la part faite du salaire en nature et des éléments exclus passe sur une
+ * seconde ligne, à 0 % récupérable, selon sa nature et quel que soit le taux de l'analytique (J67, R38).
+ */
+function lignesSalaires(b: BulletinPaie, ctx: ContextePaie): LigneMouvement[] {
+  const numero = compte(ctx, 'salaires')
+  const attributs = ctx.attributs?.salaires
+  const exclu = brutNonRecuperable(b)
+  if (attributs === undefined || exclu === 0) return [ligne(numero, 'debit', b.brutCentimes, attributs)]
+  return [ligne(numero, 'debit', b.brutCentimes - exclu, attributs), ligne(numero, 'debit', exclu, nonRecuperable(attributs))]
+}
+
 /**
  * Écriture de la paie d'un bulletin (🔵 contreparties déduites) : débit 641 (brut), 642 et 644 (cotisations patronales,
  * selon le compte de charge de chaque cotisation) ; crédit 421 du salarié (net), 431 / 432 par organisme (cotisations
  * salariales et patronales), 442 (prélèvement à la source) et, s'il y en a, compte des avantages en nature. Lignes à zéro
- * omises. Lève une erreur sur un bulletin incohérent, d'un autre salarié ou d'avant son entrée.
+ * omises. Part récupérable à 0 % sur la ligne 644 (part patronale de mutuelle) et sur la part non récupérable du brut
+ * (J67, R38). Lève une erreur sur un bulletin incohérent, d'un autre salarié ou d'avant son entrée.
  */
 export function ecrituresConstatationPaie(b: BulletinPaie, salarie: SalarieSyndicat, ctx: ContextePaie): LigneMouvement[] {
   verifierPlanPaie(ctx.plan)
   const anomalies = controlerBulletinSalarie(b, salarie)
   if (anomalies.length > 0) throw new Error(anomalies.map((a) => a.message).join(' '))
   const lignes = [
-    ligne(compte(ctx, 'salaires'), 'debit', b.brutCentimes, ctx.attributs?.salaires),
+    ...lignesSalaires(b, ctx),
     ligne(compte(ctx, 'chargesSociales'), 'debit', partsPatronales(b.cotisations, 'chargesSociales'), ctx.attributs?.chargesSociales),
-    ligne(compte(ctx, 'autresFrais'), 'debit', partsPatronales(b.cotisations, 'autresFrais'), ctx.attributs?.autresFrais),
+    ligne(compte(ctx, 'autresFrais'), 'debit', partsPatronales(b.cotisations, 'autresFrais'), nonRecuperable(ctx.attributs?.autresFrais)),
     ligne(compte(ctx, 'remunerations', salarie.auxiliaire421), 'credit', b.netAPayerCentimes),
     ...lignesOrganismes(b.cotisations, ctx),
     ligne(compte(ctx, 'etatImpots', ctx.auxiliairePrelevementSource ?? AUXILIAIRE_ZERO), 'credit', b.prelevementSourceCentimes),
@@ -548,6 +661,48 @@ export function ecrituresTaxeSalaires(montantCentimes: number, ctx: ContextePaie
     ligne(compte(ctx, 'taxeSalaires'), 'debit', montantCentimes, ctx.attributs?.taxeSalaires),
     ligne(compte(ctx, 'etatImpots', ctx.auxiliaireTaxeSalaires ?? AUXILIAIRE_ZERO), 'credit', montantCentimes),
   ]
+}
+
+/** Rémunération, charges sociales et charges fiscales (taxe sur les salaires comprise) : même part (décret n° 87-713, art. 2, c). */
+const LIGNES_REMUNERATION = ['salaires', 'chargesSociales', 'taxeSalaires'] as const satisfies readonly CleComptePaie[]
+
+const libelleComptePaie = (cle: CleComptePaie): string => `Compte ${COMPTES_NOMENCLATURE_PAIE[cle].compte} « ${COMPTES_NOMENCLATURE_PAIE[cle].libelle} »`
+
+/**
+ * J67, R38 — part récupérable reprise de l'analytique, contrôlée sans bloquer : écart avec le taux de la fonction et des
+ * tâches du contrat ; « à confirmer » sans tâches saisies ; part patronale de mutuelle (644) mise à 0 % malgré
+ * l'analytique. Le taux repris n'est jamais remplacé, sauf sur les éléments exclus (ecrituresConstatationPaie).
+ */
+export function controlerRecuperablePaie(salarie: SalarieSyndicat, ctx: Pick<ContextePaie, 'attributs'>): AnomaliePaie[] {
+  const categorie = categorieRecuperable(salarie)
+  const anomalies: AnomaliePaie[] = []
+  for (const cle of LIGNES_REMUNERATION) {
+    const repris = ctx.attributs?.[cle]?.recupLocatairePct
+    if (repris === undefined) continue
+    const tete = `${libelleComptePaie(cle)} : part récupérable de ${repris} % reprise de l'analytique`
+    if (categorie === null)
+      anomalies.push(
+        anomalie('recuperable_a_confirmer', `${tete}, à confirmer : tâches du contrat du salarié ${salarie.id} non saisies.`, 'Décret n° 87-713, art. 2, c et d ; J67, R38'),
+      )
+    else if (repris !== PARTS_RECUPERABLES_DECRET_87_713[categorie])
+      anomalies.push(
+        anomalie(
+          'recuperable_ecart',
+          `${tete} ; ${PARTS_RECUPERABLES_DECRET_87_713[categorie]} % selon la fonction et les tâches du contrat du salarié ${salarie.id}.`,
+          `${FONDEMENT_CATEGORIE[categorie]} ; J67, R38`,
+        ),
+      )
+  }
+  const mutuelle = ctx.attributs?.autresFrais?.recupLocatairePct
+  if (mutuelle !== undefined && mutuelle > 0)
+    anomalies.push(
+      anomalie(
+        'recuperable_exclu_force',
+        `${libelleComptePaie('autresFrais')} : part patronale de mutuelle, jamais récupérable : 0 % appliqué au lieu des ${mutuelle} % de l'analytique.`,
+        'Décret n° 87-713, art. 2, c ; J67, R38',
+      ),
+    )
+  return anomalies
 }
 
 // ─── Règlement de la paie ───────────────────────────────────────────────────────────────────

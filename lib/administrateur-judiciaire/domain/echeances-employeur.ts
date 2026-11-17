@@ -1,7 +1,9 @@
 import {
   ajouterJours,
+  ajouterJoursOuvres,
   ajouterMois,
   composerDateIso,
+  dateIsoVersFr,
   decomposerDateIso,
   ecartJours,
   estDateIsoValide,
@@ -10,6 +12,7 @@ import {
   verifierAujourdhui,
   type OptionsJoursFeries,
 } from '@/lib/administrateur-judiciaire/domain/dates'
+import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
 import {
   controlerBulletinSalarie,
   estPeriodeValide,
@@ -121,6 +124,44 @@ import type { Traitement } from '@/lib/administrateur-judiciaire/domain/traiteme
  *   une décision du cabinet, qui suit la pratique de l'Urssaf (non lue) ; le fondement de l'échéance le dit dès que la
  *   date est reportée. DSN et versement tombant désormais le même jour, une seule échéance « DSN et versement » est émise.
  *
+ * Décisions de Hugo du 17/11/2026 (J67 du registre des décisions juridiques ; textes relus sur Légifrance le 17/11/2026) :
+ * - J67, R33 : le syndicat n'est pas assujetti à la TVA, il est donc en principe redevable de la taxe (CGI art. 231, 1,
+ *   al. 1) ; il en est exonéré si son chiffre d'affaires de l'année civile précédente ne dépasse pas les plafonds de
+ *   l'art. 293 B, I et I bis (85 000 € en tout, 37 500 € pour les prestations de services ; art. 231, 1, al. 2). Ce
+ *   chiffre d'affaires comprend « l'ensemble des recettes et autres produits » (BOFiP BOI-TPS-TS-10-10-20, § 180,
+ *   doctrine) : les provisions appelées, produits de la classe 7 (arrêté du 14 mars 2005, art. 7), comptent ; l'exonération
+ *   ne joue donc que pour un très petit syndicat. VitFix ne la calcule jamais : sur la saisie facultative des produits de
+ *   l'année civile précédente, il donne un avis à trois paliers, toujours « à confirmer » (avisExonerationTaxeSalaires) :
+ *   au plus 37 500 €, exonération possible ; jusqu'à 85 000 €, plafond applicable au syndicat non établi (le syndicat ne
+ *   vend ni biens ni services : le plus bas est le plus prudent) ; au-delà, taxe due, sous la franchise et la décote de
+ *   l'art. 1679. Le 01/01/2027, l'art. 293 B est abrogé (ordonnance n° 2025-1247, art. 49, modifié par l'ordonnance
+ *   n° 2026-671, art. 17) et l'art. 231 renvoie aux plafonds des CIBS art. L. 233-9 et L. 233-10 (ordonnance
+ *   n° 2026-671, art. 2), aux mêmes montants : seul le fondement affiché change à cette date.
+ * - J67, R34 : l'effectif des seuils de 11 et de 50 salariés (R243-6, II et R243-6-1) est celui du code de la sécurité
+ *   sociale (CSS L130-1, I : moyenne des mois de l'année civile précédente ; R130-1 : temps partiel et prorata ; L130-1,
+ *   II : seuil franchi à la hausse compté après cinq années civiles de suite), décompté par la DSN (R133-14, IV, 7°).
+ *   VitFix ne le calcule pas : il saisit l'effectif annuel moyen retenu en DSN par le prestataire de paie, et alerte sans
+ *   bloquer près d'un seuil. Pour le DUERP (C. trav. R4121-2, 1°), le décompte est celui du Code du travail (L1111-2).
+ * - J67, R35 : la fin du contrat de travail, et le début et la fin d'un arrêt de travail quand l'employeur n'est pas
+ *   subrogé dans les indemnités journalières, se signalent en DSN dans un délai fixé par arrêté, qui ne peut excéder cinq
+ *   jours ouvrés (CSS R133-14, II, al. 2) ; l'arrêté du 2 juillet 2013, art. 1, le fixe à « cinq jours ouvrés ». Sans
+ *   retenue pour l'arrêt sur le salaire du mois où il a commencé, le signalement suit la DSN du mois (R133-14, II, 1°).
+ *   Événement survenu du 1er à la veille du 15 dont le délai finit avant le 15 : la DSN du mois précédent part dans ce
+ *   délai (R133-14, I, al. 2). Jours ouvrés lus comme du lundi au vendredi, hors jours fériés, comptés un par un
+ *   (ajouterJoursOuvres de dates.ts, Alsace-Moselle comprise) ; point de départ (non écrit) : la date de l'événement,
+ *   « à confirmer ».
+ * - J67, R36 : la version de R4624-31 en vigueur depuis le 15/06/2026 vaut pour les arrêts délivrés à compter du
+ *   lendemain de la publication du décret n° 2026-503 (art. 5, JORF du 14/06/2026). La rédaction antérieure prévoit les
+ *   mêmes cas et le même délai, sans dispense ; elle vaut pour les arrêts commençant après le 31/03/2022 (décret
+ *   n° 2022-372, art. 6). Avant, la version du 01/01/2017 (décret n° 2016-1908) mettait 30 jours pour la maladie ou
+ *   l'accident non professionnel. Repère : le premier jour d'arrêt (pour une prolongation, la lecture la plus prudente).
+ *   Arrêt commencé du 01/04/2022 au 14/06/2026 : même calcul, sans « à confirmer », et aucune dispense admise ; arrêt
+ *   commencé au plus tard le 31/03/2022 : 30 jours, « à confirmer » (cas rare).
+ * - J67, R37 : le DUERP et ses mises à jour se déposent sur un portail numérique (C. trav. L4121-3-1, V, B), au plus
+ *   tard depuis le 01/07/2024 sous 150 salariés (V, B, b), une fois le portail ouvert ; jusque-là, l'employeur conserve
+ *   les versions successives 40 ans et affiche un avis sur leurs modalités d'accès (R4121-4). La loi ne fixe aucun
+ *   délai propre au dépôt : aucune échéance datée, mais un rappel de gestion « à confirmer » à chaque mise à jour.
+ *
  * 🔵 Déduit :
  * - Gestéam : aucun calcul de ces échéances observé dans les tranches relevées (tranche 38, réglage du Suivi : aucun bloc
  *   employeur) ;
@@ -146,7 +187,12 @@ import type { Traitement } from '@/lib/administrateur-judiciaire/domain/traiteme
  *   renforcé de R4624-28 : quatre ans, visite intermédiaire à deux ans) ; sans prochaine visite saisie, la date à cinq
  *   ans est donc « à confirmer » (🔴 9) ; salarié sorti : plus aucune visite à suivre, reprise comprise ;
  * - durée d'absence = jours écoulés du premier jour d'arrêt à la reprise ; la dispense de visite de reprise (R4624-31,
- *   3e alinéa) n'est pas calculée : le cabinet la constate et la saisit (visiteRepriseLe), comme une visite passée ;
+ *   3e alinéa) n'est pas calculée : le cabinet la constate et la saisit (visiteRepriseLe), comme une visite passée, en
+ *   distinguant la visite faite de la dispense (visiteRepriseNature) ; une dispense est refusée pour un arrêt commencé
+ *   avant le 15/06/2026 (J67, R36) ;
+ * - signalement DSN (J67, R35) : subrogation ou retenue non saisies, le signalement est dû (lecture prudente) et son
+ *   libellé demande la saisie ; « fin de l'arrêt » : la reprise, son repère pratique ; un signalement est soldé par la
+ *   date où il a été fait ; l'avancement de la DSN du mois précédent vaut pour tout événement daté, signalé ou non ;
  * - DUERP absent : à établir dès la première entrée (aucun délai écrit) ; transmission au service de prévention et de
  *   santé au travail à la date de la mise à jour (aucun délai écrit) : à confirmer ;
  * - salaire à payer au dernier jour du mois du bulletin tant que les règlements du net en vigueur rattachés au bulletin
@@ -157,31 +203,22 @@ import type { Traitement } from '@/lib/administrateur-judiciaire/domain/traiteme
  *   le 421 en laissant « à payer » le bulletin déjà constaté ;
  * - taxe sur les salaires : le syndicat, employeur non assujetti à la TVA, en serait redevable, sans l'abattement de
  *   l'art. 1679 A (qui ne le vise pas) ; suivie seulement si le cabinet l'a décidé (taxeSalaires non nul), toujours à
- *   confirmer ; aucune exonération calculée ; échéance sans report (aucun texte lu) ; décote arrondie au centime ; du
+ *   confirmer ; aucune exonération calculée (avis à trois paliers seulement : J67, R33) ; échéance sans report (aucun
+ *   texte lu) ; décote arrondie au centime ; du
  *   1er au 15 janvier, le versement porte sur l'année écoulée : sa périodicité suit la taxe acquittée deux ans plus tôt
  *   (art. 369, 1 : la taxe de l'année précédente fixe celle de l'année en cours) ; à défaut de ce montant, la période
  *   versée n'est pas préjugée.
  *
- * 🔴 Non établi (questions exactes pour Frédéric ou Hugo ; les n° 1, 3 et 8 sont tranchés : J26, J27 et J28, ci-dessus ;
- *   le n° 9 suit J26) :
- * 2. Frédéric ou Hugo : un syndicat de copropriétaires bénéficie-t-il de l'exonération de taxe sur les salaires du CGI
- *    art. 231, 1, al. 2 (chiffre d'affaires de l'année précédente au plus égal aux plafonds de l'art. 293 B, 85 000 € et
- *    37 500 €) ? Selon le BOFiP § 180 (doctrine), ce chiffre d'affaires comprend « l'ensemble des recettes et autres
- *    produits », même hors du champ de la TVA : les provisions appelées des copropriétaires en font-elles partie, de
- *    sorte que l'exonération ne joue que si le total des produits de l'année précédente reste sous ces plafonds ? Quelle
- *    est la pratique du cabinet ? L'art. 293 B est affiché à la fois en vigueur depuis le 01/03/2025 et « Abrogé par
- *    Ordonnance n° 2025-1247 du 17 décembre 2025 », sans date d'effet lisible.
- * 4. Comment calculer l'effectif (seuils de 11 et 50 salariés) ? CSS R130-1 non lu : l'effectif est fourni par
- *    l'appelant.
- * 5. Événements DSN (fin de contrat, arrêt sans subrogation) : délai fixé par un arrêté non lu (R133-14, II : il « ne peut
- *    excéder cinq jours ouvrés ») ; non calculé.
- * 6. R4624-31 dans sa version du 15/06/2026 vaut pour les arrêts délivrés à compter du lendemain de la publication du
- *    décret n° 2026-503 ; rédaction antérieure non lue : la visite de reprise d'un arrêt commencé avant le 15/06/2026 est
- *    à confirmer.
- * 7. Non suivis faute de texte lu : date du dépôt du DUERP sur le portail sous 150 salariés (L4121-3-1, V, B) ;
- *    contribution conventionnelle à la formation et date de collecte de la contribution au paritarisme (CCN art. 7, 6 :
- *    0,02 %). Hors champ : logement du gardien licencié (L7212-1, R7212-1 : trois mois) et remplaçant pendant les congés
- *    (L7213-2, R7213-8 : huit jours), qui demandent de distinguer gardien logé (catégorie B) et employé non logé (A).
+ * 🔴 Non établi (questions exactes pour Frédéric ou Hugo ; les n° 1, 3 et 8 sont tranchés : J26, J27 et J28 ; les n° 4,
+ *   5 et 6 par J67 (R34 à R36) ; le n° 2 par J67 (R33), sauf la pratique du cabinet ; ci-dessus ; le n° 9 suit J26) :
+ * 2. Hugo, avec le comptable du cabinet (R33) : quelle est la pratique du cabinet ? La taxe sur les salaires est-elle
+ *    déclarée pour les syndicats employeurs, et sur quel total ? D'ici là, l'avis à trois paliers reste « à confirmer ».
+ * 7. Hugo (R37) : le portail de dépôt du DUERP est-il ouvert ? Non vérifié sur une source officielle ; selon la réponse,
+ *    le rappel de dépôt devient ferme ou disparaît. Non suivis faute de texte lu (CCN non lue sur Légifrance le
+ *    17/11/2026) : contribution conventionnelle à la formation et date de collecte de la contribution au paritarisme
+ *    (CCN art. 7, 6 : 0,02 %) ; piste : demander au prestataire de paie si elles sont payées avec la paie. Hors champ :
+ *    logement du gardien licencié (L7212-1, R7212-1 : trois mois) et remplaçant pendant les congés (L7213-2, R7213-8 :
+ *    huit jours), qui demandent de distinguer gardien logé (catégorie B) et employé non logé (A).
  * 9. Frédéric ou Hugo : la catégorie de suivi du salarié (suivi individuel simple, R4624-16 : cinq ans au plus ; suivi
  *    adapté, R4624-17 : trois ans au plus, notamment pour un travailleur handicapé, titulaire d'une pension d'invalidité
  *    ou travailleur de nuit ; suivi individuel renforcé, R4624-28 : quatre ans, visite intermédiaire à deux ans) n'est
@@ -194,7 +231,9 @@ import type { Traitement } from '@/lib/administrateur-judiciaire/domain/traiteme
  *
  * Branchement à faire plus tard : suivi-a-faire.ts (sous PR) n'a pas de famille « personnel » ; versElementsAFaire range
  * donc ces échéances en « mandat / échéance légale », à basculer quand la famille existera. Écrans (Obligations, dossier
- * employeur) : Frédéric.
+ * employeur, alertes de alertesEmployeur) : Frédéric. Enregistrement à brancher avec les tables de l'employeur (J67) :
+ * produits de l'année civile précédente, subrogation et retenue d'un arrêt, signalements DSN faits, nature de la visite
+ * de reprise, dépôt ou conservation du DUERP.
  */
 
 export interface PeriodePaie {
@@ -212,13 +251,18 @@ const LIBELLES_MOTIF_ARRET: Record<MotifArret, string> = {
   non_professionnel: 'maladie ou accident non professionnel',
 }
 
+/** J67, R36 — ce que date visiteRepriseLe : un examen de reprise passé, ou une dispense constatée (R4624-31, 3e alinéa). */
+export const NATURES_VISITE_REPRISE = ['visite', 'dispense'] as const
+export type NatureVisiteReprise = (typeof NATURES_VISITE_REPRISE)[number]
+const NATURES_VISITE_ADMISES: ReadonlySet<string> = new Set(NATURES_VISITE_REPRISE)
+
 export interface ArretTravail {
   id: string
   salarieId: string
   motif: MotifArret
-  /** Premier jour d'absence. */
+  /** Premier jour d'absence (repère de la version de R4624-31 applicable : J67, R36). */
   du: string
-  /** Reprise effective, ou prévue dès qu'elle est connue ; null : inconnue. */
+  /** Reprise effective, ou prévue dès qu'elle est connue ; null : inconnue. Repère de la fin de l'arrêt (J67, R35). */
   repriseLe: string | null
   /**
    * Examen de reprise passé, ou dispense constatée au sens de R4624-31, 3e alinéa (visite de préreprise dans les trente
@@ -226,6 +270,22 @@ export interface ArretTravail {
    * aucune demande de visite du médecin du travail, de l'employeur ou du travailleur) ; null : à faire.
    */
   visiteRepriseLe: string | null
+  /** J67, R36 — visite faite ou dispense constatée ; absente ou null : non précisée (saisie antérieure), lue comme une visite. */
+  visiteRepriseNature?: NatureVisiteReprise | null
+  /** J67, R35 — employeur subrogé dans les indemnités journalières (CSS R133-14, II) ; absent ou null : non saisi. */
+  subrogation?: boolean | null
+  /** J67, R35 — retenue pour l'arrêt sur le salaire du mois où il a commencé (R133-14, II, 1°) ; absente ou null : non saisie. */
+  retenueSurSalaire?: boolean | null
+  /** J67, R35 — signalement en DSN du début de l'arrêt fait le ; absent ou null : à faire. */
+  debutSignaleLe?: string | null
+  /** J67, R35 — signalement en DSN de la fin de l'arrêt fait le ; absent ou null : à faire. */
+  finSignaleeLe?: string | null
+}
+
+/** J67, R35 — signalement en DSN de la fin du contrat de travail d'un salarié, fait le. */
+export interface FinDeContratSignalee {
+  salarieId: string
+  le: string
 }
 
 export interface SuiviMedical {
@@ -254,12 +314,17 @@ export const REGLAGES_SUIVI_EMPLOYEUR_PAR_DEFAUT: Readonly<ReglagesSuiviEmployeu
   alsaceMoselle: false,
 }
 
-/** Taxe sur les salaires suivie (décision du cabinet, 🔴 2). */
+/** Taxe sur les salaires suivie (décision du cabinet ; pratique du cabinet : 🔴 2). */
 export interface TaxeSalairesSuivie {
   /** Taxe acquittée l'année civile qui précède celle d'aujourd'hui : périodicité des versements de l'année en cours. */
   acquitteeAnneePrecedenteCentimes: number
   /** Taxe acquittée deux ans avant : périodicité du versement de janvier, qui porte sur l'année écoulée ; null : inconnue. */
   acquitteeDeuxAnsAvantCentimes?: number | null
+  /**
+   * J67, R33 — saisie facultative : total des produits (classe 7) de l'année civile précédente, même si l'exercice n'est
+   * pas l'année civile ; absent ou null : non saisi (aucun avis d'exonération).
+   */
+  produitsAnneeCivilePrecedenteCentimes?: number | null
 }
 
 export interface EtatEmployeur {
@@ -267,7 +332,10 @@ export interface EtatEmployeur {
   coproprieteId: string
   /** Salariés du syndicat, sortis compris. */
   salaries: readonly SalarieSyndicat[]
-  /** Effectif du syndicat, fourni (🔴 4). */
+  /**
+   * J67, R34 — effectif annuel moyen de l'année civile précédente, tel que retenu en DSN par le prestataire de paie (CSS
+   * L130-1 et R130-1) : saisi, jamais calculé.
+   */
   effectif: number
   /** Paie faite au cours du mois travaillé (CCN art. 22, 3 : au plus tard le dernier jour du mois). */
   paieDuMoisMeme: boolean
@@ -279,7 +347,13 @@ export interface EtatEmployeur {
   adhesionSanteTravailLe: string | null
   suivisMedicaux: readonly SuiviMedical[]
   arrets: readonly ArretTravail[]
-  duerp: { misAJourLe: string | null; transmisLe: string | null }
+  /** J67, R35 — signalements en DSN de la fin d'un contrat de travail déjà faits ; absent : aucun. */
+  finsDeContratSignalees?: readonly FinDeContratSignalee[]
+  /**
+   * deposeLe (J67, R37) : dépôt de la version sur le portail, ou sa conservation avec les précédentes (R4121-4),
+   * constaté le ; absent ou null : non constaté.
+   */
+  duerp: { misAJourLe: string | null; transmisLe: string | null; deposeLe?: string | null }
   /**
    * Bulletins établis du syndicat, constatés ou non (le salaire est dû dès le bulletin) ; tout bulletin que désigne un
    * règlement du net doit y figurer (ce règlement n'a été écrit qu'après sa constatation : controlerReglementPaie).
@@ -324,9 +398,22 @@ const MOIS_VISITE_CODE_MAX = 60
 const JOURS_VISITE_REPRISE = 8
 const SEUIL_ACCIDENT_TRAVAIL_JOURS = 30
 const SEUIL_NON_PROFESSIONNEL_JOURS: Record<ReferenceMedicale, number> = { ccn_1043: 30, code_du_travail: 60 }
-/** Entrée en vigueur de la version lue de R4624-31 (décret n° 2026-503). */
+/** R4624-31, version du 01/01/2017 au 31/03/2022 (décret n° 2016-1908) : 30 jours pour la maladie ou l'accident non professionnel. */
+const SEUIL_NON_PROFESSIONNEL_AVANT_2022_JOURS = 30
+/** Décret n° 2026-503, art. 5 : version actuelle de R4624-31 (avec dispense) pour les arrêts délivrés à compter du 15/06/2026. */
 const VIGUEUR_R4624_31 = composerDateIso(2026, 6, 15)
+/** Décret n° 2022-372, art. 6 : rédaction à 60 jours, sans dispense, pour les arrêts commençant après le 31/03/2022 (J67, R36). */
+const VIGUEUR_R4624_31_2022 = composerDateIso(2022, 4, 1)
 const MOIS_MISE_A_JOUR_DUERP = 12
+/** CSS R133-14, II, al. 2 ; arrêté du 2 juillet 2013, art. 1 : signalement d'un événement en « cinq jours ouvrés » (J67, R35). */
+const JOURS_OUVRES_SIGNALEMENT_DSN = 5
+/** CSS R133-14, I, al. 2 : événement du 1er à la veille du 15, délai fini avant le 15 : la DSN du mois précédent l'accompagne. */
+const JOUR_AVANCEMENT_DSN = 15
+/** J67, R34 — effectifs proches des seuils de 11 salariés (R243-6-1 ; C. trav. R4121-2, 1°) et de 50 (R243-6, II). */
+const PLAGES_EFFECTIF_PROCHE: readonly { de: number; a: number; seuil: number; fondement: string }[] = [
+  { de: 9, a: 12, seuil: SEUIL_ONZE_SALARIES, fondement: 'CSS art. L130-1 et R130-1 ; R243-6-1 ; C. trav. art. R4121-2, 1° et L1111-2' },
+  { de: 45, a: 55, seuil: SEUIL_DSN_LE_5, fondement: 'CSS art. L130-1 et R130-1 ; R243-6, II' },
+]
 const FONDEMENT_CCN_MEDECINE = 'CCN IDCC 1043, art. 13'
 const FONDEMENT_DSN = 'CSS art. L133-5-3, R133-14, I et R243-6, II'
 const FONDEMENT_DSN_TRIMESTRIEL = 'CSS art. L133-5-3, R133-14, I, R243-6, II et R243-6-1'
@@ -426,17 +513,38 @@ export function versementCotisations(
 
 const BASE_DSN = { obligation: 'dsn', salarieId: null, nature: 'legale', aConfirmer: false } as const
 
+/** J67, R35 — DSN d'une période avancée par un événement (R133-14, I, al. 2) : date limite et objet du signalement. */
+interface AvancementDsn {
+  date: string
+  objet: string
+}
+
+/** DSN seule, à sa date ou avancée par un événement (à confirmer : le point de départ du délai n'est pas écrit). */
+function echeanceDsnSeule(periode: PeriodePaie, date: string, avance: AvancementDsn | null): EcheanceEmployeur {
+  const dsn: EcheanceEmployeur = { ...BASE_DSN, cle: `dsn:${clePeriode(periode)}`, libelle: `DSN de ${periodeLue(periode)}`, date, fondement: FONDEMENT_DSN }
+  if (avance === null) return dsn
+  const fondement = `${FONDEMENT_DSN} ; avancée au ${dateIsoVersFr(avance.date)} par le signalement ${avance.objet} (CSS art. R133-14, I, al. 2 ; J67, R35)`
+  return { ...dsn, date: avance.date, aConfirmer: true, fondement }
+}
+
 /**
  * DSN d'une période et, s'il y en a un, versement des cotisations : une seule échéance si les deux dates coïncident, ce
- * qui est toujours le cas depuis J28 (même jour du texte, même report) ; deux sinon (garde-fou).
+ * qui est toujours le cas depuis J28 (même jour du texte, même report) ; deux sinon (garde-fou, ou DSN avancée par un
+ * événement : J67, R35, le versement gardant sa date).
  */
-function echeancesPeriodeDsn(periode: PeriodePaie, etat: EtatEmployeur, options: OptionsJoursFeries): EcheanceEmployeur[] {
+function echeancesPeriodeDsn(
+  periode: PeriodePaie,
+  etat: EtatEmployeur,
+  options: OptionsJoursFeries,
+  avancement: AvancementDsn | undefined,
+): EcheanceEmployeur[] {
   const cle = clePeriode(periode)
   const date = dateEcheanceDsn(periode, etat, options)
+  const avance = avancement !== undefined && avancement.date < date ? avancement : null
   const versement = versementCotisations(periode, etat, options)
-  if (versement?.date === date)
+  if (avance === null && versement?.date === date)
     return [{ ...BASE_DSN, cle: `dsn:${cle}`, libelle: `DSN de ${periodeLue(periode)}${versement.complement}`, date, fondement: versement.fondementAvecDsn }]
-  const dsn: EcheanceEmployeur = { ...BASE_DSN, cle: `dsn:${cle}`, libelle: `DSN de ${periodeLue(periode)}`, date, fondement: FONDEMENT_DSN }
+  const dsn = echeanceDsnSeule(periode, date, avance)
   if (versement === null) return [dsn]
   return [
     dsn,
@@ -478,7 +586,12 @@ function recapitulatifDsn(debut: number, premiereDetaillee: number, etat: EtatEm
   ]
 }
 
-function echeancesDsn(etat: EtatEmployeur, aujourdhui: string, reglages: ReglagesSuiviEmployeur): EcheanceEmployeur[] {
+function echeancesDsn(
+  etat: EtatEmployeur,
+  aujourdhui: string,
+  reglages: ReglagesSuiviEmployeur,
+  avancements: ReadonlyMap<number, AvancementDsn>,
+): EcheanceEmployeur[] {
   const entrees = etat.salaries.map((s) => s.entreeLe).filter((date) => date <= aujourdhui)
   if (entrees.length === 0) return []
   const debut = etat.derniereDsn ? indexPeriode(etat.derniereDsn) + 1 : indexPeriode(periodeDeDate(premiereDate(entrees)))
@@ -487,8 +600,88 @@ function echeancesDsn(etat: EtatEmployeur, aujourdhui: string, reglages: Reglage
   const premiereDetaillee = Math.max(debut, fin - PERIODES_DSN_MAX + 1)
   const options = { alsaceMoselle: reglages.alsaceMoselle }
   const echeances = recapitulatifDsn(debut, premiereDetaillee, etat, options)
-  for (let index = premiereDetaillee; index <= fin; index++) echeances.push(...echeancesPeriodeDsn(periodeDeIndex(index), etat, options))
+  for (let index = premiereDetaillee; index <= fin; index++)
+    echeances.push(...echeancesPeriodeDsn(periodeDeIndex(index), etat, options, avancements.get(index)))
   return echeances
+}
+
+// ─── Signalement des événements en DSN (J67, R35) ──────────────────────────────────────────
+
+/** Événement à signaler en DSN : son jour, sa date limite (jours ouvrés comptés un par un), et s'il est signalé. */
+interface EvenementDsn {
+  cle: string
+  /** « de la fin du contrat de travail »… : objet du signalement, repris par l'avancement de la DSN. */
+  objet: string
+  libelle: string
+  le: string
+  limite: string
+  salarieId: string
+  signale: boolean
+}
+
+const FONDEMENT_SIGNALEMENT_DSN = `CSS art. R133-14, II, al. 2 ; arrêté du 2 juillet 2013, art. 1 : ${JOURS_OUVRES_SIGNALEMENT_DSN} jours ouvrés après l'événement, comptés un par un ; point de départ à confirmer (J67, R35)`
+
+const estRenseigne = (valeur: unknown): boolean => valeur !== undefined && valeur !== null
+
+/** Signalement à part : employeur non subrogé, et retenue sur le salaire du mois (R133-14, II, 1°) ; non saisis : dû. */
+const signalementArretDu = (a: ArretTravail): boolean => a.subrogation !== true && a.retenueSurSalaire !== false
+
+function evenementsDsn(etat: EtatEmployeur, options: OptionsJoursFeries): EvenementDsn[] {
+  const evenement = (cle: string, objet: string, detail: string, le: string, salarieId: string, signale: boolean): EvenementDsn => ({
+    cle: `signalement_dsn:${cle}`,
+    objet,
+    libelle: `Signalement en DSN ${objet} (${detail})`,
+    le,
+    limite: ajouterJoursOuvres(le, JOURS_OUVRES_SIGNALEMENT_DSN, options),
+    salarieId,
+    signale,
+  })
+  const signalees: ReadonlySet<string> = new Set((etat.finsDeContratSignalees ?? []).map((f) => f.salarieId))
+  const fins = etat.salaries.flatMap((s) =>
+    s.sortieLe === null
+      ? []
+      : [evenement(`fin_contrat:${s.id}`, 'de la fin du contrat de travail', `sortie le ${dateIsoVersFr(s.sortieLe)}`, s.sortieLe, s.id, signalees.has(s.id))],
+  )
+  const arrets = etat.arrets.filter(signalementArretDu).flatMap((a) => {
+    const motif = LIBELLES_MOTIF_ARRET[a.motif]
+    const aSaisir = estRenseigne(a.subrogation) && estRenseigne(a.retenueSurSalaire) ? '' : ' ; subrogation et retenue sur salaire à saisir'
+    const debut = evenement(`debut_arret:${a.id}`, "du début de l'arrêt de travail", `${motif}, du ${dateIsoVersFr(a.du)}${aSaisir}`, a.du, a.salarieId, estRenseigne(a.debutSignaleLe))
+    if (a.repriseLe === null) return [debut]
+    const detailFin = `${motif}, reprise le ${dateIsoVersFr(a.repriseLe)}${aSaisir}`
+    return [debut, evenement(`fin_arret:${a.id}`, "de la fin de l'arrêt de travail", detailFin, a.repriseLe, a.salarieId, estRenseigne(a.finSignaleeLe))]
+  })
+  return [...fins, ...arrets]
+}
+
+function echeancesSignalementDsn(evenements: readonly EvenementDsn[]): EcheanceEmployeur[] {
+  return evenements
+    .filter((e) => !e.signale)
+    .map((e) => ({
+      obligation: 'signalement_dsn',
+      cle: e.cle,
+      libelle: e.libelle,
+      date: e.limite,
+      salarieId: e.salarieId,
+      nature: 'legale',
+      aConfirmer: true,
+      fondement: FONDEMENT_SIGNALEMENT_DSN,
+    }))
+}
+
+/**
+ * R133-14, I, al. 2 : un événement survenu du 1er à la veille du 15, dont le délai finit avant le 15, avance la DSN du
+ * mois précédent à la date limite de son signalement ; la plus tôt l'emporte. Clé : index de la période avancée.
+ */
+function avancementsDsn(evenements: readonly EvenementDsn[]): Map<number, AvancementDsn> {
+  const avancements = new Map<number, AvancementDsn>()
+  for (const e of evenements) {
+    const { a, m, j } = decomposerDateIso(e.le)
+    if (j >= JOUR_AVANCEMENT_DSN || e.limite >= composerDateIso(a, m, JOUR_AVANCEMENT_DSN)) continue
+    const index = indexPeriode({ annee: a, mois: m }) - 1
+    const deja = avancements.get(index)
+    if (deja === undefined || e.limite < deja.date) avancements.set(index, { date: e.limite, objet: e.objet })
+  }
+  return avancements
 }
 
 // ─── Santé au travail ───────────────────────────────────────────────────────────────────────
@@ -556,26 +749,45 @@ function echeancesMedecine(etat: EtatEmployeur, aujourdhui: string, reglages: Re
   return nonSortis(etat.salaries, aujourdhui).map((s) => echeanceMedicale(s, suivis.get(s.id), reglages))
 }
 
-/** Examen de reprise exigé (R4624-31 ou CCN art. 13) ; date de reprise inconnue : rien à dater. */
+/** Seuil du Code du travail pour la maladie ou l'accident non professionnel, selon le premier jour d'arrêt (J67, R36). */
+const seuilNonProfessionnelCode = (du: string): number =>
+  du < VIGUEUR_R4624_31_2022 ? SEUIL_NON_PROFESSIONNEL_AVANT_2022_JOURS : SEUIL_NON_PROFESSIONNEL_JOURS.code_du_travail
+
+/**
+ * Examen de reprise exigé (R4624-31 ou CCN art. 13) ; date de reprise inconnue : rien à dater. Maladie ou accident non
+ * professionnel, Code du travail : 60 jours, ou 30 pour un arrêt commencé au plus tard le 31/03/2022 (J67, R36).
+ */
 export function visiteRepriseRequise(arret: Pick<ArretTravail, 'motif' | 'du' | 'repriseLe'>, reference: ReferenceMedicale): boolean {
   if (arret.repriseLe === null) return false
   const duree = ecartJours(arret.du, arret.repriseLe)
   if (arret.motif === 'accident_travail') return duree >= SEUIL_ACCIDENT_TRAVAIL_JOURS
-  if (arret.motif === 'non_professionnel') return duree >= SEUIL_NON_PROFESSIONNEL_JOURS[reference]
+  if (arret.motif === 'non_professionnel')
+    return duree >= (reference === 'ccn_1043' ? SEUIL_NON_PROFESSIONNEL_JOURS.ccn_1043 : seuilNonProfessionnelCode(arret.du))
   return true
 }
 
 type ArretARepris = ArretTravail & { repriseLe: string }
 
-/** À confirmer : arrêt antérieur à la version lue de R4624-31 (🔴 6), ou reprise exigée par la seule CCN (option, J26). */
+/**
+ * À confirmer : arrêt commencé au plus tard le 31/03/2022 (version de 2017, cas rare : J67, R36), ou reprise exigée par
+ * la seule CCN (option, J26). Un arrêt commencé du 01/04/2022 au 14/06/2026 suit une rédaction lue : rien à confirmer.
+ */
 const repriseAConfirmer = (arret: ArretARepris): boolean =>
-  arret.du < VIGUEUR_R4624_31 ||
-  (arret.motif === 'non_professionnel' && ecartJours(arret.du, arret.repriseLe) < SEUIL_NON_PROFESSIONNEL_JOURS.code_du_travail)
+  arret.du < VIGUEUR_R4624_31_2022 ||
+  (arret.motif === 'non_professionnel' && ecartJours(arret.du, arret.repriseLe) < seuilNonProfessionnelCode(arret.du))
+
+/** Version de R4624-31 qui fonde la visite, selon le premier jour d'arrêt (J67, R36) ; la version actuelle reste nue. */
+function fondementReprise(du: string): string {
+  if (du < VIGUEUR_R4624_31_2022) return 'C. trav. art. R4624-31, version du 01/01/2017 au 31/03/2022 (décret n° 2016-1908 : 30 jours) ; J67, R36'
+  if (du < VIGUEUR_R4624_31)
+    return 'C. trav. art. R4624-31, rédaction des arrêts commencés du 01/04/2022 au 14/06/2026 (décret n° 2022-372, art. 6), sans dispense ; J67, R36'
+  return 'C. trav. art. R4624-31'
+}
 
 /** Visites de reprise des salariés encore en poste : un salarié sorti ne reprend plus (comme les autres visites). */
 function echeancesReprise(etat: EtatEmployeur, aujourdhui: string, reglages: ReglagesSuiviEmployeur): EcheanceEmployeur[] {
   const presents: ReadonlySet<string> = new Set(nonSortis(etat.salaries, aujourdhui).map((s) => s.id))
-  const fondement = reglages.referenceMedicale === 'ccn_1043' ? FONDEMENT_CCN_MEDECINE : 'C. trav. art. R4624-31'
+  const fondement = (a: ArretTravail): string => (reglages.referenceMedicale === 'ccn_1043' ? FONDEMENT_CCN_MEDECINE : fondementReprise(a.du))
   return etat.arrets
     .filter(
       (a): a is ArretARepris => presents.has(a.salarieId) && a.visiteRepriseLe === null && visiteRepriseRequise(a, reglages.referenceMedicale),
@@ -588,7 +800,7 @@ function echeancesReprise(etat: EtatEmployeur, aujourdhui: string, reglages: Reg
       salarieId: a.salarieId,
       nature: 'legale',
       aConfirmer: repriseAConfirmer(a),
-      fondement,
+      fondement: fondement(a),
     }))
 }
 
@@ -639,6 +851,27 @@ function transmissionDuerp(misAJourLe: string, transmisLe: string | null): Echea
   ]
 }
 
+/**
+ * J67, R37 — à chaque mise à jour, rappel de gestion « à confirmer » : dépôt sur le portail s'il est ouvert (C. trav.
+ * L4121-3-1, V, B, b), sinon conservation avec les versions précédentes et avis d'accès (R4121-4) ; aucune échéance
+ * datée de dépôt, la loi n'en fixant pas. Soldé par un dépôt ou une conservation constaté depuis la mise à jour.
+ */
+function depotDuerp(misAJourLe: string, deposeLe: string | null): EcheanceEmployeur[] {
+  if (deposeLe !== null && deposeLe >= misAJourLe) return []
+  return [
+    {
+      obligation: 'duerp',
+      cle: 'duerp:depot',
+      libelle: `DUERP mis à jour le ${dateIsoVersFr(misAJourLe)} : le déposer sur le portail s'il est ouvert ; sinon, le conserver avec les versions précédentes (40 ans) et afficher l'avis d'accès (rappel de gestion)`,
+      date: misAJourLe,
+      salarieId: null,
+      nature: 'gestion',
+      aConfirmer: true,
+      fondement: 'C. trav. art. L4121-3-1, V, B, b (au plus tard depuis le 01/07/2024 sous 150 salariés) et R4121-4 ; J67, R37',
+    },
+  ]
+}
+
 function echeancesDuerp(etat: EtatEmployeur, aujourdhui: string, reglages: ReglagesSuiviEmployeur): EcheanceEmployeur[] {
   const presents = nonSortis(etat.salaries, aujourdhui)
   if (presents.length === 0) return []
@@ -656,7 +889,11 @@ function echeancesDuerp(etat: EtatEmployeur, aujourdhui: string, reglages: Regla
         fondement: 'C. trav. art. R4121-1 et L4121-3-1, II',
       },
     ]
-  return [...revueDuerp(misAJourLe, etat.effectif, reglages), ...transmissionDuerp(misAJourLe, transmisLe)]
+  return [
+    ...revueDuerp(misAJourLe, etat.effectif, reglages),
+    ...transmissionDuerp(misAJourLe, transmisLe),
+    ...depotDuerp(misAJourLe, etat.duerp.deposeLe ?? null),
+  ]
 }
 
 // ─── Salaire ────────────────────────────────────────────────────────────────────────────────
@@ -719,6 +956,54 @@ export function taxeSalairesExigible(montantAnnuelCentimes: number): {
   const decoteCentimes =
     montantAnnuelCentimes < PLAFOND_DECOTE_TAXE_SALAIRES_CENTIMES ? Math.round((3 * (PLAFOND_DECOTE_TAXE_SALAIRES_CENTIMES - montantAnnuelCentimes)) / 4) : 0
   return { exigibleCentimes: montantAnnuelCentimes - decoteCentimes, decoteCentimes, declarationAnnuelleRequise: true }
+}
+
+/** CGI art. 293 B, I et I bis, puis CIBS art. L. 233-9 dès le 01/01/2027, aux mêmes montants : 37 500 € (prestations de services). */
+const PLAFOND_FRANCHISE_SERVICES_CENTIMES = 3_750_000
+/** Mêmes textes : 85 000 € toutes opérations confondues. */
+const PLAFOND_FRANCHISE_TOTAL_CENTIMES = 8_500_000
+/** Ordonnance n° 2025-1247, art. 49, modifié par l'ordonnance n° 2026-671, art. 17 : art. 231 renvoyant au CIBS le 01/01/2027. */
+const BASCULE_FRANCHISE_CIBS = composerDateIso(2027, 1, 1)
+
+export type PalierExonerationTaxeSalaires = 'exoneration_possible' | 'plafond_non_etabli' | 'taxe_due'
+
+export interface AvisExonerationTaxeSalaires {
+  palier: PalierExonerationTaxeSalaires
+  message: string
+  fondement: string
+  /** Toujours vrai : l'exonération n'est jamais calculée (J67, R33). */
+  aConfirmer: true
+}
+
+const euros = (centimes: number): string => formatEurosCentimes(centimes / 100)
+
+/**
+ * J67, R33 — avis sur l'exonération de taxe sur les salaires (CGI art. 231, 1, al. 2), d'après les produits (classe 7)
+ * de l'année civile précédente : au plus 37 500 €, exonération possible ; jusqu'à 85 000 €, plafond applicable au
+ * syndicat non établi ; au-delà, taxe due (franchise et décote de l'art. 1679). Toujours « à confirmer », jamais une
+ * exonération calculée. Fondement : art. 293 B jusqu'au 31/12/2026, CIBS art. L. 233-9 et L. 233-10 ensuite.
+ */
+export function avisExonerationTaxeSalaires(produitsCentimes: number, aujourdhui: string): AvisExonerationTaxeSalaires {
+  verifierAujourdhui(aujourdhui)
+  verifierCentimes(produitsCentimes, "Produits de l'année civile précédente")
+  const fondement =
+    aujourdhui < BASCULE_FRANCHISE_CIBS ? 'CGI art. 231, 1, al. 2 ; art. 293 B, I et I bis' : 'CGI art. 231, 1, al. 2 ; CIBS art. L. 233-9 et L. 233-10'
+  const tete = `Produits (classe 7) de l'année civile ${decomposerDateIso(aujourdhui).a - 1} : ${euros(produitsCentimes)}`
+  if (produitsCentimes <= PLAFOND_FRANCHISE_SERVICES_CENTIMES)
+    return { palier: 'exoneration_possible', message: `${tete} : exonération possible (art. 231, 1, al. 2), à confirmer.`, fondement, aConfirmer: true }
+  if (produitsCentimes <= PLAFOND_FRANCHISE_TOTAL_CENTIMES)
+    return {
+      palier: 'plafond_non_etabli',
+      message: `${tete} : à confirmer : plafond applicable au syndicat non établi (${euros(PLAFOND_FRANCHISE_SERVICES_CENTIMES)} ou ${euros(PLAFOND_FRANCHISE_TOTAL_CENTIMES)} ; le syndicat ne vend ni biens ni services, le plus bas est le plus prudent).`,
+      fondement,
+      aConfirmer: true,
+    }
+  return {
+    palier: 'taxe_due',
+    message: `${tete} : la taxe est due, sous la franchise de ${euros(FRANCHISE_TAXE_SALAIRES_CENTIMES)} et la décote jusqu'à ${euros(PLAFOND_DECOTE_TAXE_SALAIRES_CENTIMES)} (art. 1679), à confirmer.`,
+    fondement: `${fondement} ; CGI art. 1679`,
+    aConfirmer: true,
+  }
 }
 
 /** Prochaine échéance (au plus tôt aujourd'hui) du versement d'une période, et premier jour de la période versée. */
@@ -800,7 +1085,8 @@ function verifierRattachements(etat: EtatEmployeur): void {
   const autre = etat.salaries.find((s) => s.coproprieteId !== etat.coproprieteId)
   if (autre) throw new Error(`Salarié ${autre.id} du syndicat ${autre.coproprieteId}, employeur : syndicat ${etat.coproprieteId} (D1).`)
   const ids = new Set(etat.salaries.map((s) => s.id))
-  const inconnu = [...etat.suivisMedicaux, ...etat.arrets, ...etat.bulletins].find((x) => !ids.has(x.salarieId))
+  const rattaches = [...etat.suivisMedicaux, ...etat.arrets, ...etat.bulletins, ...(etat.finsDeContratSignalees ?? [])]
+  const inconnu = rattaches.find((x) => !ids.has(x.salarieId))
   if (inconnu) throw new Error(`Salarié ${inconnu.salarieId} inconnu de l'employeur (syndicat ${etat.coproprieteId}).`)
 }
 
@@ -810,14 +1096,35 @@ function verifierDates(etat: EtatEmployeur): void {
     etat.adhesionSanteTravailLe,
     etat.duerp.misAJourLe,
     etat.duerp.transmisLe,
+    etat.duerp.deposeLe ?? null,
     ...etat.suivisMedicaux.flatMap((s) => [s.derniereVisiteLe, s.prochaineLe]),
-    ...etat.arrets.flatMap((a) => [a.du, a.repriseLe, a.visiteRepriseLe]),
+    ...etat.arrets.flatMap((a) => [a.du, a.repriseLe, a.visiteRepriseLe, a.debutSignaleLe ?? null, a.finSignaleeLe ?? null]),
+    ...(etat.finsDeContratSignalees ?? []).map((f) => f.le),
     ...etat.reglements.map((r) => r.le),
   ]
   const invalide = dates.find((date) => date !== null && !estDateIsoValide(date))
   if (invalide !== undefined) throw new Error(`Date invalide (${invalide}) : AAAA-MM-JJ attendu.`)
   const arret = etat.arrets.find((a) => a.repriseLe !== null && a.repriseLe < a.du)
   if (arret) throw new Error(`Arrêt ${arret.id} : reprise avant le premier jour d'absence.`)
+}
+
+const estBooleenOuAbsent = (valeur: unknown): boolean => !estRenseigne(valeur) || typeof valeur === 'boolean'
+
+/**
+ * Saisies d'un arrêt (J67) : subrogation et retenue, oui ou non (R35) ; nature de la visite de reprise datée, et jamais
+ * une dispense pour un arrêt commencé avant le 15/06/2026, la rédaction antérieure de R4624-31 n'en prévoyant pas (R36).
+ */
+function verifierArret(a: ArretTravail): void {
+  if (!estBooleenOuAbsent(a.subrogation) || !estBooleenOuAbsent(a.retenueSurSalaire))
+    throw new Error(`Arrêt ${a.id} : subrogation et retenue sur salaire : oui ou non attendu.`)
+  const nature = a.visiteRepriseNature ?? null
+  if (nature === null) return
+  if (!NATURES_VISITE_ADMISES.has(nature)) throw new Error(`Arrêt ${a.id} : « ${String(nature)} » ; visite ou dispense attendue.`)
+  if (a.visiteRepriseLe === null) throw new Error(`Arrêt ${a.id} : date de la visite ou de la dispense attendue.`)
+  if (nature === 'dispense' && a.du < VIGUEUR_R4624_31)
+    throw new Error(
+      `Arrêt ${a.id} commencé le ${dateIsoVersFr(a.du)} : aucune dispense de visite de reprise avant le ${dateIsoVersFr(VIGUEUR_R4624_31)} (R4624-31 dans sa rédaction antérieure, sans dérogation ; décret n° 2026-503, art. 5 ; J67, R36).`,
+    )
 }
 
 /** Chaque bulletin : période, montants, cohérence et période d'emploi (controlerBulletinSalarie). */
@@ -868,6 +1175,8 @@ function verifierTaxe(taxe: TaxeSalairesSuivie | null): void {
   verifierCentimes(taxe.acquitteeAnneePrecedenteCentimes, "Taxe sur les salaires de l'année précédente")
   const deuxAnsAvant = taxe.acquitteeDeuxAnsAvantCentimes ?? null
   if (deuxAnsAvant !== null) verifierCentimes(deuxAnsAvant, 'Taxe sur les salaires de deux ans avant')
+  const produits = taxe.produitsAnneeCivilePrecedenteCentimes ?? null
+  if (produits !== null) verifierCentimes(produits, "Produits de l'année civile précédente")
 }
 
 function verifierEtat(etat: EtatEmployeur): void {
@@ -879,6 +1188,7 @@ function verifierEtat(etat: EtatEmployeur): void {
     throw new Error(`Dernière DSN invalide (${etat.derniereDsn.mois}/${etat.derniereDsn.annee}).`)
   verifierRattachements(etat)
   verifierDates(etat)
+  for (const arret of etat.arrets) verifierArret(arret)
   verifierBulletins(etat)
   verifierReglements(etat)
   verifierTaxe(etat.taxeSalaires)
@@ -900,8 +1210,10 @@ export function echeancesEmployeur(
   verifierAujourdhui(aujourdhui)
   verifierEtat(etat)
   verifierReglages(reglages)
+  const evenements = evenementsDsn(etat, { alsaceMoselle: reglages.alsaceMoselle })
   return [
-    ...echeancesDsn(etat, aujourdhui, reglages),
+    ...echeancesDsn(etat, aujourdhui, reglages, avancementsDsn(evenements)),
+    ...echeancesSignalementDsn(evenements),
     ...echeancesAdhesion(etat, aujourdhui),
     ...echeancesMedecine(etat, aujourdhui, reglages),
     ...echeancesReprise(etat, aujourdhui, reglages),
@@ -909,6 +1221,40 @@ export function echeancesEmployeur(
     ...echeancesSalaire(etat),
     ...echeancesTaxeSalaires(etat, aujourdhui),
   ].sort((x, y) => x.date.localeCompare(y.date) || x.cle.localeCompare(y.cle))
+}
+
+export type CodeAlerteEmployeur = 'effectif_proche_seuil' | 'taxe_salaires_exoneration'
+
+/** Alerte de l'employeur, sans date : jamais bloquante. */
+export interface AlerteEmployeur {
+  code: CodeAlerteEmployeur
+  message: string
+  fondement: string
+  /** Repère juridique non confirmé : l'avis d'exonération (R33) l'est toujours ; l'effectif à vérifier (R34) ne l'est pas. */
+  aConfirmer: boolean
+}
+
+/** J67, R34 — effectif saisi proche d'un seuil (de 9 à 12, de 45 à 55) : décompte à vérifier. */
+function alertesEffectif(effectif: number): AlerteEmployeur[] {
+  const plage = PLAGES_EFFECTIF_PROCHE.find((p) => effectif >= p.de && effectif <= p.a)
+  if (plage === undefined) return []
+  const message = `Effectif de ${effectif} : seuil de ${plage.seuil} salariés proche : vérifier le décompte, la règle des cinq ans, et pour le DUERP le décompte du Code du travail (J67, R34).`
+  return [{ code: 'effectif_proche_seuil', message, fondement: plage.fondement, aConfirmer: false }]
+}
+
+/** J67, R33 — avis d'exonération, si la taxe est suivie et les produits de l'année civile précédente saisis. */
+function alertesTaxeSalaires(taxe: TaxeSalairesSuivie | null, aujourdhui: string): AlerteEmployeur[] {
+  const produits = taxe?.produitsAnneeCivilePrecedenteCentimes ?? null
+  if (produits === null) return []
+  const { message, fondement } = avisExonerationTaxeSalaires(produits, aujourdhui)
+  return [{ code: 'taxe_salaires_exoneration', message, fondement, aConfirmer: true }]
+}
+
+/** Alertes de l'employeur (écran : Frédéric) : effectif proche d'un seuil (J67, R34), avis d'exonération de la taxe (R33). */
+export function alertesEmployeur(etat: EtatEmployeur, aujourdhui: string): AlerteEmployeur[] {
+  verifierAujourdhui(aujourdhui)
+  verifierEtat(etat)
+  return [...alertesEffectif(etat.effectif), ...alertesTaxeSalaires(etat.taxeSalaires, aujourdhui)]
 }
 
 /**
