@@ -5,10 +5,14 @@
 // Pour une société BTP, la ligne garde désormais le chemin du fichier et chaque lecture rend un lien frais (même durée
 // de 7 jours qu'avant, pour les photos jointes à un devis ou un rapport) ; un ancien lien expiré se relit aussi.
 // Côté artisan, rien ne change (règle artisan / BTP) : le même défaut y reste, signalé à Frédéric.
+// La liste et ses liens frais ne sont rendus qu'au propriétaire de la fiche (même contrôle que l'ajout, la modification
+// et la suppression) : la fiche d'un autre compte répond 403, sans aucune photo lue ni aucun lien créé.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { verifyArtisanOwnership } from '@/lib/auth-helpers'
 
 const PROJET = 'https://projet-test.supabase.co'
 const USER_ID = '550e8400-e29b-41d4-a716-446655440000'
+const AUTRE_COMPTE = '6ba7b810-9dad-41d1-80b4-00c04fd430c8'
 const FICHE_ID = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d'
 const JPG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01])
 const SEPT_JOURS = 60 * 60 * 24 * 7
@@ -18,6 +22,8 @@ const lienSigne = (chemin: string, jeton: string) => `${PROJET}/storage/v1/objec
 
 const mocks = vi.hoisted(() => ({
   user: null as { id: string; app_metadata: Record<string, unknown> } | null,
+  ficheDuCompte: true,
+  tablesLues: [] as string[],
   lignes: [] as Array<Record<string, unknown>>,
   insert: vi.fn(),
   remove: vi.fn(),
@@ -27,7 +33,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/auth-helpers', () => ({
   getAuthUser: vi.fn(async () => mocks.user),
-  verifyArtisanOwnership: vi.fn(async () => 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d'),
+  verifyArtisanOwnership: vi.fn(async () => (mocks.ficheDuCompte ? 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d' : null)),
 }))
 vi.mock('@/lib/rate-limit', () => ({
   checkRateLimit: vi.fn().mockResolvedValue(true),
@@ -40,6 +46,7 @@ vi.mock('@/lib/supabase-server', () => {
   return {
     supabaseAdmin: {
       from: (table: string) => {
+        mocks.tablesLues.push(table)
         if (table === 'profiles_artisan') {
           return { select: () => ({ eq: () => ({ single: async () => ({ data: FICHE, error: null }) }) }) }
         }
@@ -91,6 +98,9 @@ async function lister() {
 
 beforeEach(() => {
   vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', PROJET)
+  mocks.ficheDuCompte = true
+  mocks.tablesLues = []
+  vi.mocked(verifyArtisanOwnership).mockClear()
   mocks.lignes = []
   mocks.insert.mockReset()
   mocks.remove.mockReset().mockResolvedValue({ error: null })
@@ -159,6 +169,26 @@ describe('GET /api/artisan-photos — liens frais à la lecture', () => {
     const photos = await lister()
 
     expect(photos.map((p) => p.url)).toEqual([CHEMIN, lienSigne(CHEMIN_ANCIEN, 'expire')])
+  })
+})
+
+describe('GET /api/artisan-photos — fiche d’un autre compte', () => {
+  it.each([
+    ['client connecté, fiche d’une société BTP (photo enregistrée par son chemin)', 'client', CHEMIN],
+    ['société BTP, fiche d’un autre compte (ancien lien expiré)', 'pro_societe', lienSigne(CHEMIN_ANCIEN, 'expire')],
+  ])('%s : 403, ni photo lue ni lien créé', async (_cas, role, url) => {
+    mocks.user = { id: AUTRE_COMPTE, app_metadata: { role } }
+    mocks.ficheDuCompte = false
+    mocks.lignes = [{ id: 'p1', artisan_id: FICHE_ID, url }]
+    const { GET } = await route()
+    const res = await GET(new Request(`http://localhost/api/artisan-photos?artisan_id=${FICHE_ID}`, { headers: { Authorization: 'Bearer x' } }) as never)
+
+    expect(res.status).toBe(403)
+    expect(await res.json()).toEqual({ error: 'Accès refusé' })
+    expect(verifyArtisanOwnership).toHaveBeenCalledWith(AUTRE_COMPTE, FICHE_ID, expect.anything())
+    expect(mocks.tablesLues).not.toContain('artisan_photos')
+    expect(mocks.createSignedUrls).not.toHaveBeenCalled()
+    expect(mocks.createSignedUrl).not.toHaveBeenCalled()
   })
 })
 

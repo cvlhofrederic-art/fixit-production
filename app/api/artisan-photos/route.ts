@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
-import { getAuthUser } from '@/lib/auth-helpers'
+import { getAuthUser, verifyArtisanOwnership } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { z } from 'zod'
@@ -45,6 +45,7 @@ const artisanPhotosFormSchema = z.object({
 /**
  * GET /api/artisan-photos?artisan_id=X&booking_id=Y
  * Liste les photos d'un artisan (optionnellement filtrées par booking)
+ * Réservé au propriétaire de la fiche, comme l'ajout, la modification et la suppression.
  */
 export async function GET(request: NextRequest) {
   const user = await getAuthUser(request)
@@ -61,6 +62,12 @@ export async function GET(request: NextRequest) {
 
   if (!artisanId) {
     return NextResponse.json({ error: 'artisan_id requis' }, { status: 400 })
+  }
+
+  // Les photos portent la date, le libellé et la position des chantiers : la fiche demandée doit être
+  // celle du compte connecté.
+  if (!(await verifyArtisanOwnership(user.id, artisanId, supabaseAdmin))) {
+    return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
   }
 
   let query = supabaseAdmin
