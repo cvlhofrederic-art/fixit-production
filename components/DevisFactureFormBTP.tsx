@@ -64,7 +64,6 @@ import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { supabase } from '@/lib/supabase'
 import { fetchAuthentifie } from '@/lib/fetch-authentifie'
 import { syncDocumentSafe } from '@/lib/document-sync'
-import { SEED_PREST, SEED_MAT } from '@/components/dashboard/PrestationsBTPSection'
 import RentabiliteDevisModal from '@/components/dashboard/btp/RentabiliteDevisModal'
 
 /* ─────────────────────────────────────────────────────────────────
@@ -734,14 +733,9 @@ export default function DevisFactureFormBTP({
     const storageKey = `fixit_prestations_btp_v4_${artisan?.id || 'guest'}`
     let localPrest: ServiceBasic[] = []
     try {
-      let raw = localStorage.getItem(storageKey)
-
-      // Seed le localStorage si vide (même logique que PrestationsBTPSection)
-      if (!raw && artisan?.id) {
-        const all = [...SEED_PREST, ...SEED_MAT].map((p, i) => ({ id: i + 1, ...p }))
-        localStorage.setItem(storageKey, JSON.stringify(all))
-        raw = localStorage.getItem(storageKey)
-      }
+      // Lecture seule : le formulaire n'écrit plus de catalogue d'exemple quand rien n'est enregistré (catalogue
+      // vierge à la création du compte, demande de Frédéric du 17/11/2026). Un catalogue déjà enregistré reste lu.
+      const raw = localStorage.getItem(storageKey)
 
       if (raw) {
         const parsed = JSON.parse(raw) as Array<{ id: number; name: string; type: string; description?: string; price?: { min?: number; max?: number }; unit?: string; etapes?: Array<string | { label: string; price?: number }> }>
