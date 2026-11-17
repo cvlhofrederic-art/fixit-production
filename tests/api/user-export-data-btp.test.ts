@@ -30,7 +30,7 @@ const CLES_EXPORT = [
 ]
 const SECTIONS_BTP = [
   'chantiers', 'charges_fixes', 'dc4', 'dce_analyses', 'depenses', 'dpgf', 'equipe_membres', 'equipes', 'marches_candidatures', 'membres',
-  'pointages', 'rapports', 'retenues', 'settings', 'situations', 'team',
+  'pointage_reglages', 'pointages', 'rapports', 'retenues', 'settings', 'situations', 'team',
 ]
 const trie = (v: string[]) => [...v].sort((a, b) => a.localeCompare(b))
 
@@ -39,6 +39,11 @@ const AUTRE = '0d000000-0000-4000-8000-000000000009'
 const ARTISAN = { id: '0a000000-0000-4000-8000-000000000001', email: 'artisan@exemple.test', app_metadata: { role: 'artisan' } }
 const id = (prefixe: string, n: number) => `${prefixe}000000-0000-4000-8000-${String(n).padStart(12, '0')}`
 const POINTAGES_SOCIETE = 1001
+// pointage_reglages_btp (migration 20261116, pointage géolocalisé) : une ligne par société, clé primaire owner_id,
+// pas de colonne id.
+const REGLAGES_POINTAGE_SOCIETE = {
+  owner_id: SOCIETE.id, auto_active: true, confirme_le: '2026-11-16T08:00:00Z', confirme_par: SOCIETE.id, modifie_le: '2026-11-16T08:00:00Z',
+}
 
 const exporter = async () => {
   const res = await GET(requeteQr('/api/user/export-data'))
@@ -82,6 +87,10 @@ beforeEach(() => {
   t.rapports_btp = [{ id: id('d7', 1), owner_id: SOCIETE.id, titre: 'Rapport Exemple' }]
   t.charges_fixes = [{ id: id('d8', 1), owner_id: SOCIETE.id, label: 'Assurance', montant: 100 }, { id: id('d8', 2), owner_id: AUTRE, label: 'Loyer ailleurs', montant: 900 }]
   t.settings_btp = [{ owner_id: SOCIETE.id, depot_adresse: '1 rue Exemple' }, { owner_id: AUTRE, depot_adresse: '9 rue Ailleurs' }]
+  t.pointage_reglages_btp = [
+    { ...REGLAGES_POINTAGE_SOCIETE },
+    { owner_id: AUTRE, auto_active: true, confirme_le: '2026-11-15T07:00:00Z', confirme_par: AUTRE, modifie_le: '2026-11-15T07:00:00Z' },
+  ]
   t.marches_candidatures = [{ id: id('d9', 1), artisan_user_id: SOCIETE.id, price: 1000 }]
   t.pro_team_members = [
     { id: id('f1', 1), company_id: SOCIETE.id, user_id: SOCIETE.id, email: 'societe@exemple.test', full_name: 'Gérant Exemple', role: 'GERANT', invite_token: null },
@@ -115,6 +124,7 @@ describe('export d’une société BTP (pro_societe)', () => {
     }
     expect(btp.charges_fixes.map((l) => l.label)).toEqual(['Assurance'])
     expect(btp.settings).toEqual([{ owner_id: SOCIETE.id, depot_adresse: '1 rue Exemple' }])
+    expect(btp.pointage_reglages).toEqual([REGLAGES_POINTAGE_SOCIETE])
     expect(btp.team.map((m) => m.email)).toEqual(['societe@exemple.test', 'ouvrier@exemple.test'])
     for (const membre of btp.team) expect(membre).not.toHaveProperty('invite_token')
     for (const donnee of ['Chantier d’une autre société', 'Ailleurs', 'Équipe d’une autre société', 'doc-ailleurs', 'autre@exemple.test', 'Loyer ailleurs', 'jeton-invitation-secret']) {
@@ -139,17 +149,40 @@ describe('export d’une société BTP (pro_societe)', () => {
   })
 
   it('table du BTP absente de la base : section vide, export rendu (200)', async () => {
-    baseQr.etat.tablesAbsentes = ['rapports_btp', 'equipe_membres_btp']
+    baseQr.etat.tablesAbsentes = ['rapports_btp', 'equipe_membres_btp', 'pointage_reglages_btp']
     baseQr.etat.codeTableAbsente = 'PGRST205'
     const { status, corps } = await exporter()
     expect(status).toBe(200)
     const btp = corps.btp as Record<string, unknown[]>
     expect(btp.rapports).toEqual([])
     expect(btp.equipe_membres).toEqual([])
+    expect(btp.pointage_reglages).toEqual([])
     expect(btp.chantiers).toHaveLength(1)
   })
 
-  it.each(['chantiers_btp', 'user_storage', 'pro_team_members'])('lecture de %s en panne : 500, jamais un export incomplet présenté comme complet', async (table) => {
+  it('réglages du pointage lus triés par owner_id : la table n’a pas de colonne id (un tri sur id ferait échouer l’export)', async () => {
+    const tris: string[] = []
+    const from = baseQr.client.from
+    const espion = vi.spyOn(baseQr.client, 'from').mockImplementation((table: string) => {
+      const requete = from(table)
+      if (table === 'pointage_reglages_btp') {
+        const order = requete.order as (colonne: string, options?: unknown) => unknown
+        requete.order = (colonne: string, options?: unknown) => {
+          tris.push(colonne)
+          return order(colonne, options)
+        }
+      }
+      return requete
+    })
+    try {
+      expect((await exporter()).status).toBe(200)
+    } finally {
+      espion.mockRestore()
+    }
+    expect(tris).toEqual(['owner_id'])
+  })
+
+  it.each(['chantiers_btp', 'user_storage', 'pro_team_members', 'pointage_reglages_btp'])('lecture de %s en panne : 500, jamais un export incomplet présenté comme complet', async (table) => {
     baseQr.etat.erreursPonctuelles[table] = { code: 'XX000', message: 'panne' }
     const { status } = await exporter()
     expect(status).toBe(500)

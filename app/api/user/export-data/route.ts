@@ -49,8 +49,12 @@ async function exporterDonneesBtp(userId: string): Promise<{ userStorage: Ligne[
     await lireTout(table, () => supabaseAdmin.from(table).select('*').eq('owner_id', userId).order('id', { ascending: true })),
   ] as const))
   const btp: Record<string, Ligne[]> = Object.fromEntries(parProprietaire)
-  const [settings, team, marchesCandidatures, userStorage] = await Promise.all([
+  const [settings, reglagesPointage, team, marchesCandidatures, userStorage] = await Promise.all([
     lireTout('settings_btp', () => supabaseAdmin.from('settings_btp').select('*').eq('owner_id', userId).order('owner_id', { ascending: true })),
+    // Pointage automatique de la société (migration 20261116) : clé primaire owner_id, pas de colonne id (un tri sur id
+    // ferait échouer tout l'export), d'où la lecture à part, comme settings_btp.
+    lireTout('pointage_reglages_btp', () => supabaseAdmin.from('pointage_reglages_btp').select('*').eq('owner_id', userId)
+      .order('owner_id', { ascending: true })),
     lireTout('pro_team_members', () => supabaseAdmin.from('pro_team_members').select(COLONNES_EQUIPE_BTP)
       .or(`company_id.eq.${userId},user_id.eq.${userId}`).order('id', { ascending: true })),
     lireTout('marches_candidatures', () => supabaseAdmin.from('marches_candidatures').select('*').eq('artisan_user_id', userId)
@@ -66,7 +70,10 @@ async function exporterDonneesBtp(userId: string): Promise<{ userStorage: Ligne[
   }
   return {
     userStorage,
-    btp: { ...btp, equipe_membres: liens.ok ? liens.valeur : [], settings, team, marches_candidatures: marchesCandidatures },
+    btp: {
+      ...btp, equipe_membres: liens.ok ? liens.valeur : [], settings, pointage_reglages: reglagesPointage, team,
+      marches_candidatures: marchesCandidatures,
+    },
   }
 }
 
