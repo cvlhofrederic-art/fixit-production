@@ -11,16 +11,22 @@ export async function GET(request: NextRequest) {
 
     if (!(await checkRateLimit(`ref_history_${user.id}`, 15, 60_000))) return rateLimitResponse()
 
-    const { data: artisan } = await supabaseAdmin
+    // Fiche du compte connecté. Une panne de la lecture n'est pas une absence de fiche : elle est journalisée et répond
+    // 500. maybeSingle : un compte sans fiche (un sous-compte, par exemple) n'est pas une erreur et reçoit toujours 404.
+    const { data: artisan, error: artisanError } = await supabaseAdmin
       .from('profiles_artisan')
       .select('id')
       .eq('user_id', user.id)
-      .single()
+      .maybeSingle()
 
+    if (artisanError) {
+      logger.error('[referral/history/GET] fiche du compte illisible', { error: artisanError.message })
+      return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
+    }
     if (!artisan) return NextResponse.json({ error: 'Artisan not found' }, { status: 404 })
 
-    // Charger les referrals avec les infos filleul
-    const { data: referrals } = await supabaseAdmin
+    // Charger les referrals avec les infos filleul. Une panne n'est pas un historique vide : elle est journalisée.
+    const { data: referrals, error: referralsError } = await supabaseAdmin
       .from('referrals')
       .select('id, statut, date_inscription, date_recompense, date_fin_periode_verification, filleul_id, mois_offerts_parrain')
       .eq('parrain_id', artisan.id)
@@ -28,6 +34,10 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false })
       .limit(50)
 
+    if (referralsError) {
+      logger.error('[referral/history/GET] parrainages illisibles', { error: referralsError.message })
+      return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
+    }
     if (!referrals?.length) {
       return NextResponse.json({ history: [] })
     }

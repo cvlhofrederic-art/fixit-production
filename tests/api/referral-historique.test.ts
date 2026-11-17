@@ -4,6 +4,8 @@
 // Relecture adverse du 16/11/2026 : depuis que la société BTP envoie sa session (constat api-peripherie-8), elle atteint
 // cette route. Les noms des filleuls y étaient lus avec une colonne absente de profiles_artisan en production
 // (first_name) : la base refusait toute la lecture, l'erreur n'était pas lue, et chaque filleul s'affichait « Artisan ».
+// Troisième relecture adverse (17/11/2026) : la lecture de la fiche du compte et celle des parrainages ignoraient aussi
+// leur erreur ; une panne répondait « fiche introuvable » (404) ou un historique vide (200), sans trace au journal.
 // Le faux client ne connaît que les tables et colonnes réelles de la production (tests/helpers/faux-supabase-marches),
 // profiles_artisan comprise.
 
@@ -82,5 +84,44 @@ describe('GET /api/referral/history — noms des filleuls', () => {
     expect((await res.json()).history).toEqual([expect.objectContaining({ id: 'r1', filleul_name: 'Artisan' })])
     expect(logger.error).toHaveBeenCalledTimes(1)
     expect(JSON.stringify(vi.mocked(logger.error).mock.calls[0])).toContain('délai dépassé')
+  })
+})
+
+describe('GET /api/referral/history — panne ou absence', () => {
+  const NOMS_DES_FILLEULS: Reponse = { data: [{ id: FICHE_FILLEUL, company_name: 'Menuiserie du Quai' }], error: null }
+  const PANNE: Reponse = { data: null, error: { message: 'délai dépassé' } }
+
+  it('fiche du compte illisible (panne) : 500, l’échec est journalisé et les parrainages ne sont pas lus', async () => {
+    base().repondre = appel => (appel.table === 'profiles_artisan' ? PANNE : enBase(NOMS_DES_FILLEULS)(appel))
+    const res = await historique()
+    expect(res.status).toBe(500)
+    expect((await res.json()).error).toBe('Une erreur interne est survenue')
+    expect(base().sur('referrals')).toHaveLength(0)
+    expect(logger.error).toHaveBeenCalledTimes(1)
+    expect(JSON.stringify(vi.mocked(logger.error).mock.calls[0])).toContain('délai dépassé')
+  })
+
+  it('parrainages illisibles (panne) : 500 et l’échec est journalisé, pas un historique vide', async () => {
+    base().repondre = appel => (appel.table === 'referrals' ? PANNE : enBase(NOMS_DES_FILLEULS)(appel))
+    const res = await historique()
+    expect(res.status).toBe(500)
+    expect((await res.json()).error).toBe('Une erreur interne est survenue')
+    expect(logger.error).toHaveBeenCalledTimes(1)
+    expect(JSON.stringify(vi.mocked(logger.error).mock.calls[0])).toContain('délai dépassé')
+  })
+
+  it('compte sans fiche : 404, rien n’est journalisé (inchangé)', async () => {
+    base().repondre = () => ({ data: null, error: null })
+    expect((await historique()).status).toBe(404)
+    expect(base().sur('referrals')).toHaveLength(0)
+    expect(logger.error).not.toHaveBeenCalled()
+  })
+
+  it('aucun parrainage : historique vide (200), rien n’est journalisé (inchangé)', async () => {
+    base().repondre = appel => (appel.table === 'referrals' ? { data: [], error: null } : enBase(NOMS_DES_FILLEULS)(appel))
+    const res = await historique()
+    expect(res.status).toBe(200)
+    expect((await res.json()).history).toEqual([])
+    expect(logger.error).not.toHaveBeenCalled()
   })
 })
