@@ -145,9 +145,11 @@ export async function PATCH(request: NextRequest) {
     .eq('id', artisan_id)
     .single()
   if (fiche && estSocieteBtpFrancaise(fiche)) {
+    // Auteur de la décision : l'identifiant du compte de l'administrateur, pas son e-mail. La fiche, cette colonne
+    // comprise, est lisible par la société (tableau de bord, export de ses données).
     const { data: ecrite, error: ecritureError } = await supabaseAdmin
       .from('profiles_artisan')
-      .update(updatePayload)
+      .update({ ...updatePayload, kyc_reviewed_by: user.id })
       .eq('id', artisan_id)
       .select('id')
       .single()

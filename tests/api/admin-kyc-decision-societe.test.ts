@@ -97,7 +97,10 @@ describe('Décision KYC sur le dossier d’une société BTP française', () => 
 
     expect(status).toBe(200)
     expect(json).toEqual({ success: true, status: 'approved', email_envoye: true })
-    expect(fiche(ID_SOCIETE)).toMatchObject({ kyc_status: 'approved', kyc_reviewed_by: expect.any(String) })
+    // Auteur noté par l'identifiant du compte de l'administrateur, jamais par son e-mail (fiche lisible par la société).
+    const admin = superAdminAutorise()
+    expect(fiche(ID_SOCIETE)).toMatchObject({ kyc_status: 'approved', kyc_reviewed_by: admin.id })
+    expect(JSON.stringify(fiche(ID_SOCIETE))).not.toContain(String(admin.email))
     expect(fetchEmail).toHaveBeenCalledTimes(1)
     expect(fetchEmail.mock.calls[0][0]).toBe('https://vitfix.test/api/send-kyc-email')
     expect(corpsEmail()).toEqual({
