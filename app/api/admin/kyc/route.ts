@@ -28,6 +28,25 @@ interface KycRow {
   created_at: string | null
 }
 
+/** E-mail de décision envoyé et attendu (un envoi lancé sans attente pouvait être coupé à la fin de la requête). */
+async function envoyerEmailDecision(corps: Record<string, unknown>): Promise<boolean> {
+  try {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/send-kyc-email`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-internal-secret': process.env.INTERNAL_API_SECRET ?? '',
+      },
+      body: JSON.stringify(corps),
+    })
+    if (!res.ok) logger.warn('[admin/kyc] e-mail de décision refusé', { status: res.status })
+    return res.ok
+  } catch (err: unknown) {
+    logger.warn('[admin/kyc] e-mail de décision non envoyé', { erreur: err instanceof Error ? err.message : String(err) })
+    return false
+  }
+}
+
 // GET /api/admin/kyc — List artisans by KYC status (paginated)
 export async function GET(request: NextRequest) {
   const user = await getAuthUser(request)
@@ -107,6 +126,37 @@ export async function PATCH(request: NextRequest) {
 
   logger.info('[admin/kyc] PATCH', { artisan_id, action, reviewedBy })
 
+  // Dossier d'artisan (marché KYC fr_artisan, pt_artisan ou non renseigné, que le pipeline KYC traite en fr_artisan) :
+  // la décision est écrite sans relire first_name ni last_name, colonnes absentes de profiles_artisan en production
+  // (relevé du 17/11/2026) ; la base refusait la requête entière (42703) et le statut restait « en attente ». L'e-mail
+  // de décision est attendu et la réponse dit s'il est parti. Autres dossiers, dont ceux des sociétés BTP (fr_btp) :
+  // chemin d'avant, hors de ce correctif (règle artisan / BTP ; Portugal BTP exclu).
+  const { data: fiche, error: ficheError } = await supabaseAdmin
+    .from('profiles_artisan')
+    .select('*')
+    .eq('id', artisan_id)
+    .maybeSingle()
+  if (ficheError) {
+    logger.error('[admin/kyc] PATCH dossier illisible', { error: ficheError.message, artisan_id })
+    return NextResponse.json({ error: 'Database error' }, { status: 500 })
+  }
+  if (fiche && estDossierArtisan(fiche)) {
+    // Auteur de la décision : l'identifiant du compte de l'administrateur, pas son e-mail. La fiche, cette colonne
+    // comprise, est lisible par l'artisan (tableau de bord, export de ses données).
+    const { data: ecrite, error: ecritureError } = await supabaseAdmin
+      .from('profiles_artisan')
+      .update({ ...updatePayload, kyc_reviewed_by: user.id })
+      .eq('id', artisan_id)
+      .select('id')
+      .single()
+    if (ecritureError || !ecrite) {
+      logger.error('[admin/kyc] PATCH update failed', { error: ecritureError?.message, artisan_id })
+      return NextResponse.json({ error: 'Database error' }, { status: 500 })
+    }
+    const emailEnvoye = await prevenirArtisan(fiche, action, rejection_reason)
+    return NextResponse.json({ success: true, status: newStatus, email_envoye: emailEnvoye })
+  }
+
   const { data: updatedRows, error } = await supabaseAdmin
     .from('profiles_artisan')
     .update(updatePayload)
@@ -145,4 +195,64 @@ export async function PATCH(request: NextRequest) {
   }).catch((err: unknown) => logger.warn('[admin/kyc] Email notification failed:', err))
 
   return NextResponse.json({ success: true, status: newStatus })
+}
+
+/**
+ * Dossier d'artisan : marché KYC fr_artisan ou pt_artisan, ou non renseigné (inscription antérieure au marché, que le
+ * pipeline KYC traite en fr_artisan). fr_btp, celui des sociétés BTP, et tout autre marché gardent le chemin d'avant.
+ */
+function estDossierArtisan(fiche: Record<string, unknown>): boolean {
+  const marche = fiche.kyc_market
+  return marche === null || marche === undefined || marche === '' || marche === 'fr_artisan' || marche === 'pt_artisan'
+}
+
+const texte = (valeur: unknown): string => (typeof valeur === 'string' ? valeur.trim() : '')
+
+/**
+ * Nom porté par le compte de l'artisan (full_name, posé à l'inscription) : la fiche n'a ni prénom ni nom. Chaîne vide
+ * si la fiche n'a pas de compte ou si le compte est illisible.
+ */
+async function nomDuCompte(userId: unknown): Promise<string> {
+  const id = texte(userId)
+  if (!id) return ''
+  try {
+    const { data, error } = await supabaseAdmin.auth.admin.getUserById(id)
+    if (error) {
+      logger.warn('[admin/kyc] compte du dossier illisible', { error: error.message })
+      return ''
+    }
+    return texte(data.user?.user_metadata?.full_name)
+  } catch (err: unknown) {
+    logger.warn('[admin/kyc] compte du dossier illisible', { error: err instanceof Error ? err.message : String(err) })
+    return ''
+  }
+}
+
+/**
+ * E-mail de décision d'un dossier d'artisan. /api/send-kyc-email exige une adresse, un nom et une entreprise non vides :
+ * le nom du compte, à défaut celui de l'entreprise, et inversement ; rien n'est envoyé sans adresse ni nom. Portugais
+ * pour une fiche en portugais ou un marché pt_artisan : le pipeline KYC réécrit un marché vide en fr_artisan, même pour
+ * une fiche portugaise.
+ */
+async function prevenirArtisan(
+  fiche: Record<string, unknown>,
+  action: 'approve' | 'reject',
+  rejectionReason: string | undefined,
+): Promise<boolean> {
+  const destinataire = texte(fiche.email)
+  const entreprise = texte(fiche.company_name)
+  const nom = destinataire ? (await nomDuCompte(fiche.user_id)) || entreprise : ''
+  if (!destinataire || !nom) {
+    logger.warn('[admin/kyc] e-mail de décision non envoyé : adresse ou nom absent', { artisan_id: fiche.id })
+    return false
+  }
+  const portugais = fiche.language === 'pt' || fiche.kyc_market === 'pt_artisan'
+  return envoyerEmailDecision({
+    to: destinataire,
+    name: nom,
+    company: entreprise || nom,
+    action,
+    rejection_reason: rejectionReason,
+    market: portugais ? 'pt_artisan' : 'fr_artisan',
+  })
 }
