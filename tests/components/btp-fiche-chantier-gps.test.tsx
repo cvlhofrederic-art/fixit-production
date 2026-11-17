@@ -8,8 +8,12 @@ import React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 
+type PositionAdresse = { latitude: number; longitude: number; precise: boolean }
+
 const etat = vi.hoisted(() => ({
   geocodage: null as null | { latitude: number; longitude: number; precise: boolean },
+  /** Réponse retenue du géocodage (requête lente) : résolue par le test. */
+  geocodageEnAttente: null as null | Promise<{ latitude: number; longitude: number; precise: boolean } | null>,
   chantiers: [] as unknown[],
   modifications: [] as Array<{ id: string; changes: Record<string, unknown> }>,
   ajouts: [] as Array<Record<string, unknown>>,
@@ -30,7 +34,7 @@ vi.mock('@/lib/hooks/use-btp-data', () => {
 })
 vi.mock('@/lib/btp/geocodage', async (original) => ({
   ...(await original<typeof import('@/lib/btp/geocodage')>()),
-  geocoderAdresse: vi.fn(async () => etat.geocodage),
+  geocoderAdresse: vi.fn(async () => (etat.geocodageEnAttente ?? etat.geocodage)),
 }))
 vi.mock('@/lib/supabase', () => {
   const chaine: Record<string, unknown> = {}
@@ -47,8 +51,16 @@ import { ChantiersBTPV2 } from '@/components/dashboard/ChantiersBTPV2'
 
 const artisan = { id: 'art-1', user_id: 'soc-a' } as unknown as React.ComponentProps<typeof ChantiersBTPV2>['artisan']
 
+/** Géocodage lent : la réponse n'arrive qu'à l'appel de `repondre`. */
+function geocodageLent() {
+  let repondre: (position: PositionAdresse | null) => void = () => undefined
+  etat.geocodageEnAttente = new Promise(resolve => { repondre = resolve })
+  return async (position: PositionAdresse | null) => { await act(async () => { repondre(position) }) }
+}
+
 beforeEach(() => {
   etat.geocodage = null
+  etat.geocodageEnAttente = null
   etat.chantiers = []
   etat.modifications = []
   etat.ajouts = []
@@ -117,6 +129,29 @@ describe('fiche chantier — bouton GPS', () => {
     expect(etat.ajouts).toHaveLength(1)
     expect(etat.ajouts[0]).toMatchObject({ titre: 'Garage', adresse: '1 rue des Lilas', codePostal: '13008', ville: 'Marseille', geoRayonM: 100 })
   })
+
+  it('réponse du géocodage arrivée après une retouche de l’adresse : ignorée (jamais la position de l’ancienne adresse)', async () => {
+    await ouvrirFiche()
+    const repondre = geocodageLent()
+    await cliquerGps()
+    fireEvent.change(screen.getByPlaceholderText('N°, rue...'), { target: { value: '9 rue des Lilas' } })
+    await repondre({ latitude: 43.25, longitude: 5.38, precise: true })
+    expect(screen.queryByText(/GPS : /)).toBeNull()
+    expect((boutonGps() as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('réponse arrivée après l’enregistrement, dans une autre fiche ouverte : ignorée', async () => {
+    await ouvrirFiche()
+    fireEvent.change(screen.getByPlaceholderText('ex: Immeuble R+3 — Gros oeuvre'), { target: { value: 'Garage' } })
+    const repondre = geocodageLent()
+    await cliquerGps()
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Créer le chantier/ })) })
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Nouveau chantier/ })) })
+    await repondre({ latitude: 43.25, longitude: 5.38, precise: true })
+    expect(screen.queryByText(/GPS : /)).toBeNull()
+    expect(etat.ajouts).toHaveLength(1)
+    expect(etat.ajouts[0]).toMatchObject({ latitude: null, longitude: null })
+  })
 })
 
 // Chantier déjà enregistré, peut-être placé sur place (« Placer à ma position actuelle », onglet Affectations).
@@ -159,12 +194,25 @@ describe('fiche chantier — modification d’un chantier existant', () => {
     expect(etat.modifications).toEqual([{ id: 'c-villa', changes: { codePostal: '13009' } }])
   })
 
-  it('adresse corrigée, « Annuler » : la position est retirée avec la nouvelle adresse', async () => {
+  it('adresse corrigée, retrait confirmé par un second OK : la position est retirée avec la nouvelle adresse', async () => {
+    const confirmer = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true)
+    await modifier()
+    fireEvent.change(screen.getByPlaceholderText('Marseille, Lyon...'), { target: { value: 'Aubagne' } })
+    await enregistrer()
+    expect(confirmer).toHaveBeenCalledTimes(2)
+    expect(String(confirmer.mock.calls[1][0])).toContain('Retirer la position GPS du chantier « Villa » (le chantier a changé d’endroit) ?')
+    expect(String(confirmer.mock.calls[1][0])).toContain('écran Pointage équipes, onglet Affectations')
+    expect(etat.modifications).toEqual([{ id: 'c-villa', changes: { ville: 'Aubagne', latitude: null, longitude: null } }])
+  })
+
+  it('adresse corrigée, les deux boîtes fermées (Échap, Retour) : rien n’est enregistré, la fiche reste ouverte', async () => {
     vi.spyOn(window, 'confirm').mockReturnValue(false)
     await modifier()
     fireEvent.change(screen.getByPlaceholderText('Marseille, Lyon...'), { target: { value: 'Aubagne' } })
     await enregistrer()
-    expect(etat.modifications).toEqual([{ id: 'c-villa', changes: { ville: 'Aubagne', latitude: null, longitude: null } }])
+    expect(etat.modifications).toEqual([])
+    expect(screen.getByRole('button', { name: /Enregistrer/ })).toBeTruthy()
+    expect(screen.getByText(/GPS : 43\.25040, 5\.38010/)).toBeTruthy()
   })
 
   it('adresse identique aux espaces et majuscules près : aucune question', async () => {
@@ -176,24 +224,60 @@ describe('fiche chantier — modification d’un chantier existant', () => {
     expect(etat.modifications).toEqual([{ id: 'c-villa', changes: { ville: ' MARSEILLE ' } }])
   })
 
-  it('adresse corrigée puis position recalculée par le bouton GPS : la nouvelle position part, sans question', async () => {
+  it('adresse corrigée puis bouton GPS : remplacer la position enregistrée se confirme ; la nouvelle part, sans autre question', async () => {
     const confirmer = vi.spyOn(window, 'confirm').mockReturnValue(true)
     etat.geocodage = { latitude: 43.26, longitude: 5.39, precise: true }
     await modifier()
     fireEvent.change(screen.getByPlaceholderText('N°, rue...'), { target: { value: '3 rue des Lilas' } })
     await cliquerGps()
     await enregistrer()
-    expect(confirmer).not.toHaveBeenCalled()
+    expect(confirmer).toHaveBeenCalledTimes(1)
+    expect(String(confirmer.mock.calls[0][0])).toBe('Remplacer la position actuelle du chantier « Villa » par celle de son adresse ? Une position placée sur place serait perdue.')
     expect(etat.modifications).toEqual([{ id: 'c-villa', changes: { adresse: '3 rue des Lilas', latitude: 43.26, longitude: 5.39 } }])
   })
 
+  it('bouton GPS refusé : ni géocodage ni changement de position', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(false)
+    etat.geocodage = { latitude: 43.26, longitude: 5.39, precise: true }
+    await modifier()
+    vi.mocked(geocoderAdresse).mockClear()
+    await cliquerGps()
+    expect(geocoderAdresse).not.toHaveBeenCalled()
+    expect(screen.getByText(/GPS : 43\.25040, 5\.38010/)).toBeTruthy()
+  })
+
+  it('bouton GPS, adresse trop vague : la position enregistrée est gardée, avec un avertissement', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    etat.geocodage = { latitude: 43.29, longitude: 5.37, precise: false }
+    await modifier()
+    await cliquerGps()
+    expect(screen.getByText(/GPS : 43\.25040, 5\.38010/)).toBeTruthy()
+    expect(toast.warning).toHaveBeenCalledWith('Adresse trop vague pour le GPS : la position actuelle du chantier est gardée. Indiquez le numéro, la rue et le code postal.')
+    await enregistrer()
+    expect(etat.modifications).toEqual([])
+  })
+
   it('position recalculée puis adresse retouchée : la position calculée part aussitôt (jamais périmée)', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
     etat.geocodage = { latitude: 43.26, longitude: 5.39, precise: true }
     await modifier()
     await cliquerGps()
     expect(screen.getByText(/GPS : 43\.26000, 5\.39000/)).toBeTruthy()
     fireEvent.change(screen.getByPlaceholderText('N°, rue...'), { target: { value: '3 rue des Lilas' } })
     expect(screen.queryByText(/GPS : /)).toBeNull()
+  })
+
+  it('géocodage d’une nouvelle fiche encore en cours quand on ouvre un chantier existant : sa réponse ne touche pas ce chantier', async () => {
+    etat.chantiers = [VILLA]
+    render(<ChantiersBTPV2 artisan={artisan} orgRole="pro_societe" />)
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Nouveau chantier/ })) })
+    fireEvent.change(screen.getByPlaceholderText('N°, rue...'), { target: { value: '7 rue des Pins' } })
+    fireEvent.change(screen.getByPlaceholderText('Marseille, Lyon...'), { target: { value: 'Marseille' } })
+    const repondre = geocodageLent()
+    await cliquerGps()
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Modifier' })) })
+    await repondre({ latitude: 43.3, longitude: 5.4, precise: true })
+    expect(screen.getByText(/GPS : 43\.25040, 5\.38010/)).toBeTruthy()
   })
 
   it('chantier sans position enregistrée : adresse corrigée sans question', async () => {

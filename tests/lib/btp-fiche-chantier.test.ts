@@ -3,7 +3,8 @@
 
 import { describe, expect, it } from 'vitest'
 import {
-  adresseModifiee, champsModifies, memePosition, porteLaPositionEnregistree, questionGarderPosition, questionPositionNecessaire,
+  adresseModifiee, avertissementPositionGardee, champsModifies, memePosition, porteLaPositionEnregistree,
+  questionGarderPosition, questionPositionNecessaire, questionRetirerPosition,
 } from '@/lib/btp/fiche-chantier'
 
 const OUVERTE = {
@@ -67,15 +68,33 @@ describe('adresse et position', () => {
   })
 })
 
-describe('question posée', () => {
-  it('français et portugais, avec le titre du chantier ; OK garde la position', () => {
+describe('questions posées', () => {
+  it('1re question, français et portugais : OK garde la position ; le second bouton n’est pas nommé (son libellé dépend du navigateur)', () => {
     const fr = questionGarderPosition('Villa', false)
     expect(fr).toContain('L’adresse du chantier « Villa » a changé.')
     expect(fr).toContain('OK : garder la position (adresse corrigée).')
-    expect(fr).toContain('Annuler : retirer la position')
+    expect(fr).toContain('L’autre bouton : la retirer, ou revenir à la fiche (une seconde question suit).')
+    expect(fr).not.toContain('Annuler')
     const pt = questionGarderPosition('Moradia', true)
     expect(pt).toContain('A morada da obra « Moradia » mudou.')
     expect(pt).toContain('OK: manter a posição (morada corrigida).')
-    expect(pt).toContain('Cancelar: retirar a posição')
+    expect(pt).toContain('Outro botão: retirá-la ou voltar à ficha')
+  })
+
+  it('2e question : seul OK retire ; l’autre bouton revient à la fiche ; où retrouver « Placer à ma position actuelle »', () => {
+    const fr = questionRetirerPosition('Villa', false)
+    expect(fr).toContain('Retirer la position GPS du chantier « Villa » (le chantier a changé d’endroit) ?')
+    expect(fr).toContain('OK : la retirer et enregistrer')
+    expect(fr).toContain('(écran Pointage équipes, onglet Affectations)')
+    expect(fr).toContain('L’autre bouton : revenir à la fiche sans rien enregistrer.')
+    const pt = questionRetirerPosition('Moradia', true)
+    expect(pt).toContain('Retirar a posição GPS da obra « Moradia »')
+    expect(pt).toContain('(ecrã Marcação de horas, separador Atribuições)')
+    expect(pt).toContain('Outro botão: voltar à ficha sem guardar nada.')
+  })
+
+  it('avertissement du bouton GPS quand la position enregistrée est gardée', () => {
+    expect(avertissementPositionGardee(false)).toContain('la position actuelle du chantier est gardée')
+    expect(avertissementPositionGardee(true)).toContain('a posição atual da obra é mantida')
   })
 })

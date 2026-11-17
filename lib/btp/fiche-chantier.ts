@@ -71,16 +71,39 @@ export function questionPositionNecessaire(
   return ouverte !== null && porteLaPositionEnregistree(ouverte, actuelle) && adresseModifiee(ouverte, actuelle)
 }
 
-/** Question posée à l'enregistrement d'une fiche dont l'adresse a changé (OK : garder la position). */
+// Les boîtes de confirmation n'ont que « OK » et un second bouton, dont le libellé dépend du navigateur (« Annuler »,
+// « Cancel » dans l'appli) : les textes ne le nomment pas. Fermer une boîte (Échap, Retour d'Android, toucher à côté)
+// vaut ce second bouton : il ne détruit jamais rien.
+
+/** 1re question à l'enregistrement d'une fiche dont l'adresse a changé : OK garde la position. */
 export function questionGarderPosition(titre: string, isPt: boolean): string {
   if (isPt) {
     return `A morada da obra « ${titre} » mudou.\n\n`
       + 'Manter a posição GPS atual? Pode ter sido colocada na obra para a marcação automática.\n\n'
       + 'OK: manter a posição (morada corrigida).\n'
-      + 'Cancelar: retirar a posição (a obra mudou de sítio); volte a calculá-la com o botão GPS ou com « Colocar na minha posição atual ».'
+      + 'Outro botão: retirá-la ou voltar à ficha (segue-se uma segunda pergunta).'
   }
   return `L’adresse du chantier « ${titre} » a changé.\n\n`
     + 'Garder sa position GPS actuelle ? Elle a peut-être été placée sur le chantier pour le pointage automatique.\n\n'
     + 'OK : garder la position (adresse corrigée).\n'
-    + 'Annuler : retirer la position (le chantier a changé d’endroit) ; recalculez-la ensuite avec le bouton GPS ou « Placer à ma position actuelle ».'
+    + 'L’autre bouton : la retirer, ou revenir à la fiche (une seconde question suit).'
+}
+
+/** 2e question, après refus de la 1re : seul OK retire la position ; l'autre bouton revient à la fiche, rien n'est enregistré. */
+export function questionRetirerPosition(titre: string, isPt: boolean): string {
+  if (isPt) {
+    return `Retirar a posição GPS da obra « ${titre} » (a obra mudou de sítio)?\n\n`
+      + 'OK: retirá-la e guardar; volte a calculá-la com o botão GPS da ficha, ou na obra com « Colocar na minha posição atual » (ecrã Marcação de horas, separador Atribuições).\n'
+      + 'Outro botão: voltar à ficha sem guardar nada.'
+  }
+  return `Retirer la position GPS du chantier « ${titre} » (le chantier a changé d’endroit) ?\n\n`
+    + 'OK : la retirer et enregistrer ; recalculez-la ensuite avec le bouton GPS de la fiche, ou sur place avec « Placer à ma position actuelle » (écran Pointage équipes, onglet Affectations).\n'
+    + 'L’autre bouton : revenir à la fiche sans rien enregistrer.'
+}
+
+/** Bouton GPS de la fiche, adresse trop vague alors que la fiche porte la position enregistrée : on la garde. */
+export function avertissementPositionGardee(isPt: boolean): string {
+  return isPt
+    ? 'Morada pouco precisa para o GPS: a posição atual da obra é mantida. Indique o número, a rua e o código postal.'
+    : 'Adresse trop vague pour le GPS : la position actuelle du chantier est gardée. Indiquez le numéro, la rue et le code postal.'
 }
