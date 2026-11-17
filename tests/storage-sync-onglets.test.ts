@@ -36,6 +36,11 @@
 // l'envoi, elle était abandonnée. Elle attend désormais la relecture du nouvel essai, qui tranche, et ne repart jamais
 // pour une clé que le serveur n'a plus. Enfin, la restauration d'un onglet qui n'avait jamais vu une clé ne marquait pas
 // sa disparition : la suppression qui y attendait son nouvel essai était abandonnée.
+//
+// Contre-relecture du 17/11/2026 (huitième passe) : une suppression en échec repartait sans contrôle quand une relecture
+// de son propre onglet, faite pendant l'envoi, l'avait déjà tenue pour faite (clé absente du serveur) ; elle effaçait du
+// serveur la liste recréée entre-temps, dans un autre onglet ou sur un autre appareil. Elle n'est plus remise en attente
+// sans sa note.
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
@@ -50,7 +55,7 @@ vi.mock('@/lib/supabase', () => ({
 }))
 
 type ModuleSync = typeof import('@/lib/storage-sync')
-type Issue = 'arrive' | 'reseau' | 'perdue'
+type Issue = 'arrive' | 'reseau' | 'perdue' | 'sansReponse'
 
 const COMPTE = '550e8400-e29b-41d4-a716-446655440000'
 const CLIENTS = 'fixit_clients_a'
@@ -76,7 +81,8 @@ const reponse = (contenu: unknown) => new Response(JSON.stringify(contenu), { st
 /**
  * Faux /api/user-storage. `retenir` : les envois (POST, DELETE) attendent que le test les fasse arriver au serveur ou
  * échouer, dans l'ordre qu'il choisit. `retenirLectures` : une lecture (GET) prend la valeur du serveur à son arrivée,
- * mais sa réponse attend le test, comme sur un réseau lent.
+ * mais sa réponse attend le test, comme sur un réseau lent. `reponses` : réponses des envois arrivés « sansReponse »,
+ * encore en route, que le test fait revenir ou perdre (repondre).
  */
 const serveur = {
   espace: {} as Record<string, unknown>,
@@ -84,6 +90,7 @@ const serveur = {
   postees: [] as unknown[],
   retenir: false,
   retenus: [] as Array<(issue: Issue) => void>,
+  reponses: [] as Array<(issue: 'arrive' | 'reseau') => void>,
   retenirLectures: false,
   lecturesRetenues: [] as Array<() => void>,
 }
@@ -106,15 +113,26 @@ const fauxFetch = vi.fn(async (_url: unknown, init?: RequestInit) => {
   else for (const cle of corps.keys ?? []) delete serveur.espace[cle]
   // Réponse perdue : l'envoi est arrivé au serveur, mais l'onglet ne le sait pas (coupure juste après l'envoi).
   if (issue === 'perdue') throw new TypeError('Failed to fetch')
+  // Réponse en route : l'envoi est arrivé au serveur, sa réponse attend le test, qui la fait revenir ou se perdre.
+  if (issue === 'sansReponse') {
+    const fin = await new Promise<'arrive' | 'reseau'>((suite) => { serveur.reponses.push(suite) })
+    if (fin === 'reseau') throw new TypeError('Failed to fetch')
+  }
   return reponse({ success: true })
 })
 
 /**
- * L'envoi retenu de rang `rang` (0 pour le premier parti) arrive au serveur, échoue faute de réseau, ou arrive sans que sa
- * réponse ne revienne (`perdue`).
+ * L'envoi retenu de rang `rang` (0 pour le premier parti) arrive au serveur, échoue faute de réseau, arrive sans que sa
+ * réponse ne revienne (`perdue`), ou arrive avec une réponse encore en route (`sansReponse`, voir repondre).
  */
 async function aboutir(rang: number, issue: Issue = 'arrive'): Promise<void> {
   serveur.retenus[rang](issue)
+  await vi.advanceTimersByTimeAsync(0)
+}
+
+/** La réponse de rang `rang` d'un envoi arrivé « sansReponse » revient à l'onglet (`arrive`) ou se perd (`reseau`). */
+async function repondre(rang: number, issue: 'arrive' | 'reseau'): Promise<void> {
+  serveur.reponses[rang](issue)
   await vi.advanceTimersByTimeAsync(0)
 }
 
@@ -204,6 +222,7 @@ beforeEach(() => {
   serveur.postees = []
   serveur.retenir = false
   serveur.retenus = []
+  serveur.reponses = []
   serveur.retenirLectures = false
   serveur.lecturesRetenues = []
   fauxFetch.mockClear()
@@ -1224,6 +1243,58 @@ describe('suppression en échec alors que la clé est revenue dans le navigateur
     await relireDansLesDeuxOnglets(A, B)
 
     // La suppression est faite : renvoyée, elle effaçait du serveur la liste recréée, arrivée entre-temps.
+    expect(serveur.espace[CLIENTS]).toEqual(liste(1, 9))
+    expect(lire(CLIENTS)).toEqual(liste(1, 9))
+    expect(fauxFetch.mock.calls.filter(([, init]) => init?.method === 'DELETE')).toHaveLength(1)
+  })
+
+  // Huitième passe, scénarios DW5d et DW5c de la contre-relecture : la suppression arrive au serveur, et une relecture de
+  // A faite pendant son envoi trouve la clé absente du serveur : la suppression est faite, sa note est levée. Puis sa
+  // réponse se perd. Elle était remise en attente sans note : la relecture du nouvel essai ne la voyait plus, et elle
+  // repartait sans contrôle.
+  it.each([
+    ['continue de travailler dans A', true],
+    ['ne fait rien d’autre', false],
+  ] as const)('la suppression arrive avec une réponse lente, A relit pendant son envoi, puis la réponse se perd ; l’utilisateur %s : la liste recréée dans B reste au serveur', async (_suite, continuer) => {
+    const A = await ouvrirUnOnglet()
+    const B = await ouvrirUnOnglet()
+    serveur.retenir = true
+    supprimerDans(A, CLIENTS)
+    await ecoulerDebounce() // envoi 0 : la suppression (A)
+    saisirDans(B, CLIENTS, liste(1, 9))
+    await ecoulerDebounce() // envoi 1 : la liste recréée (B), lente
+    await vi.advanceTimersByTimeAsync(3000) // la note de B entre dans l'état
+    await aboutir(0, 'sansReponse') // la suppression arrive ; sa réponse est en route
+    await A.hydrateStorageFromServer() // retour sur A : la clé est absente du serveur, la suppression est faite
+    await repondre(0, 'reseau') // puis sa réponse se perd
+    await vi.advanceTimersByTimeAsync(5100) // nouvel essai de A, s'il est programmé : la liste recréée n'est pas arrivée
+    await aboutir(1) // la liste recréée arrive
+    if (continuer) saisirDans(A, 'fixit_autre_a', { a: 1 })
+    await ecoulerDebounce()
+    await toutLiberer(2)
+    await relireDansLesDeuxOnglets(A, B)
+
+    // Avant : la suppression repartait au nouvel essai et effaçait du serveur la liste recréée, arrivée entre-temps.
+    expect(serveur.espace[CLIENTS]).toEqual(liste(1, 9))
+    expect(lire(CLIENTS)).toEqual(liste(1, 9))
+    expect(fauxFetch.mock.calls.filter(([, init]) => init?.method === 'DELETE')).toHaveLength(1)
+  })
+
+  it('même suppression sans autre onglet, la liste est recréée sur un autre appareil juste après le nouvel essai de A : elle reste au serveur', async () => {
+    const A = await ouvrirUnOnglet()
+    serveur.retenir = true
+    supprimerDans(A, CLIENTS)
+    await ecoulerDebounce() // envoi 0 : la suppression
+    await aboutir(0, 'sansReponse')
+    await A.hydrateStorageFromServer() // la clé est absente du serveur : la suppression est faite
+    await repondre(0, 'reseau')
+    await vi.advanceTimersByTimeAsync(5100) // nouvel essai de A, s'il est programmé
+    serveur.espace[CLIENTS] = commeLaBase(liste(1, 9)) // un autre appareil recrée la liste
+    await ecoulerDebounce()
+    await toutLiberer(1)
+    await A.hydrateStorageFromServer()
+    await ecoulerDebounce()
+
     expect(serveur.espace[CLIENTS]).toEqual(liste(1, 9))
     expect(lire(CLIENTS)).toEqual(liste(1, 9))
     expect(fauxFetch.mock.calls.filter(([, init]) => init?.method === 'DELETE')).toHaveLength(1)

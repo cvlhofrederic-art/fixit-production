@@ -45,10 +45,11 @@ import { isStorageReadable } from '@/lib/safe-storage'
 //     La même règle vaut pour un envoi en échec : il ne repart qu'après une nouvelle restauration, jamais à
 //     l'aveugle — pas même à la fermeture de l'onglet. Une suppression en échec attend ce nouvel essai tant qu'elle
 //     reste la dernière action de cet onglet sur la clé, même si la clé est revenue dans le navigateur pendant son
-//     envoi : la relecture tranche, et la suppression ne repart jamais pour une clé que le serveur n'a plus. Quand
-//     deux envois de la même clé se chevauchent, la confirmation du premier ne lève pas la note tant que la valeur
-//     plus récente écrite dans cet onglet attend son envoi ou reste en place dans le navigateur, ni quand un autre
-//     onglet l'y a remplacée par une valeur que cet onglet ne connaît pas.
+//     envoi : la relecture du nouvel essai tranche. Elle ne repart pas si le serveur n'a plus la clé à cette relecture,
+//     ni si une relecture faite pendant son envoi l'a déjà tenue pour faite (clé absente du serveur). Quand deux envois
+//     de la même clé se chevauchent, la confirmation du premier ne lève pas la note tant que la valeur plus récente
+//     écrite dans cet onglet attend son envoi ou reste en place dans le navigateur, ni quand un autre onglet l'y a
+//     remplacée par une valeur que cet onglet ne connaît pas.
 //  3. Un envoi en échec (réseau ou réponse d'erreur) est retenté seul : le serveur est relu après 5 s, 15 s, 1 min,
 //     puis toutes les 5 min, et ce qui attend repart. Une valeur que le serveur refuse (400, 413, 422) reste dans le
 //     navigateur et ne bloque pas les autres. Une valeur qu'il ne parvient pas à enregistrer (500 à chaque envoi qui
@@ -1097,8 +1098,12 @@ async function envoyerSuppressions(envoi: Envoi, bilan: Bilan): Promise<void> {
       // restauration d'un autre onglet a remise à sa place (marquée) n'arrête pas la suppression ; celle qu'un autre
       // onglet a écrite l'arrête (le serveur gagne, ou elle est laissée en place) ; une clé que le serveur n'a plus ne la
       // fait pas repartir (reprendreUneCleAbsente). Recréée ici, la clé a son propre envoi : la supprimer effacerait du
-      // serveur une valeur présente ici (relecture du 14/11/2026, contre-relecture du 17/11/2026).
-      else if (issue !== 'refuse' && derniereEcritureIci.get(cle) === null) {
+      // serveur une valeur présente ici (relecture du 14/11/2026, contre-relecture du 17/11/2026). Seulement si elle a
+      // encore sa note : une relecture faite pendant l'envoi, qui a trouvé la clé absente du serveur, l'a tenue pour
+      // faite et a levé la note. Remise en attente sans note, elle échappait à la relecture du nouvel essai et
+      // repartait sans contrôle, par-dessus une valeur recréée entre-temps ailleurs (contre-relecture du 17/11/2026,
+      // huitième passe).
+      else if (issue !== 'refuse' && derniereEcritureIci.get(cle) === null && bases.has(cle)) {
         pendingDeletes.add(cle)
         bilan.panne = true
       }
@@ -1411,11 +1416,12 @@ function laisserEnPlace(key: string): void {
 function reprendreUneCleAbsente(key: string, note: NoteEtat | undefined): void {
   const locale = valeurLocale(key)
   if (locale === undefined) return
-  // Absente du serveur : une suppression faite ici est faite, rien à renvoyer. Une note de l'état n'est levée que 3 s
-  // après la confirmation : relue entre-temps, elle renvoyait une suppression déjà faite (relecture du 17/11/2026). De
-  // même si le navigateur détient de nouveau une valeur, écrite depuis dans un autre onglet (qui l'envoie lui-même) ou
-  // remise par une restauration : renvoyée, la suppression effacerait du serveur la valeur arrivée entre-temps
-  // (contre-relecture du 17/11/2026).
+  // Absente du serveur : une suppression faite ici est faite, rien à renvoyer, même si son envoi est encore en route
+  // (sa note levée, elle n'est pas remise en attente si sa réponse se perd : voir envoyerSuppressions). Une note de
+  // l'état n'est levée que 3 s après la confirmation : relue entre-temps, elle renvoyait une suppression déjà faite
+  // (relecture du 17/11/2026). De même si le navigateur détient de nouveau une valeur, écrite depuis dans un autre
+  // onglet (qui l'envoie lui-même) ou remise par une restauration : renvoyée, la suppression effacerait du serveur la
+  // valeur arrivée entre-temps (contre-relecture du 17/11/2026).
   if (bases.has(key) && derniereEcritureIci.get(key) === null) {
     pendingDeletes.delete(key)
     oublierBase(key)
