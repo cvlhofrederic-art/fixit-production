@@ -25,11 +25,13 @@ import { StoragePathError, assertStoragePath, buildStoragePath } from '@/lib/sec
 // Le schéma de prod ne suit pas toujours les migrations : une pièce dont la
 // colonne n'existe pas encore (id_document_verso_url, migration du 16/10/2026)
 // est ignorée, sans dépôt orphelin ni effet sur les autres pièces.
+// La fiche reçoit le CHEMIN de chaque pièce dans le seau privé, jamais un lien
+// signé (valable 7 jours, puis mort) : le KYC et l'administration créent un
+// lien à la lecture (lib/storage/liens-stockage.ts).
 // ════════════════════════════════════════════════════════════════════════════
 
 const TAILLE_MAX = 10 * 1024 * 1024
 const BUCKET = 'artisan-documents'
-const DUREE_URL_SIGNEE_S = 60 * 60 * 24 * 7 // comme /api/upload pour les documents
 
 const PIECES = [
   { champ: 'kbis', dossier: 'kbis', colonne: 'kbis_url' },
@@ -98,7 +100,7 @@ export async function POST(request: NextRequest) {
     const { profil } = lecture
 
     const documents = { kbis: false, identity: false, identity_verso: false, insurance: false }
-    const urls: Partial<Record<Piece['colonne'], string>> = {}
+    const chemins: Partial<Record<Piece['colonne'], string>> = {}
     let depotEchoue = false
     for (const f of fichiers) {
       if (!(f.colonne in profil)) {
@@ -117,17 +119,15 @@ export async function POST(request: NextRequest) {
         depotEchoue = true
         continue
       }
-      // Chemin renvoyé par Storage revérifié (défense en profondeur) avant l'URL signée.
-      const cheminDepose = assertStoragePath(depot.path, userId)
-      const { data: signee } = await supabaseAdmin.storage.from(BUCKET).createSignedUrl(cheminDepose, DUREE_URL_SIGNEE_S)
-      urls[f.colonne] = signee?.signedUrl || supabaseAdmin.storage.from(BUCKET).getPublicUrl(cheminDepose).data.publicUrl
+      // Chemin renvoyé par Storage revérifié (défense en profondeur) avant de l'enregistrer.
+      chemins[f.colonne] = assertStoragePath(depot.path, userId)
       documents[f.champ] = true
     }
 
-    if (Object.keys(urls).length > 0) {
+    if (Object.keys(chemins).length > 0) {
       const { error: majError } = await supabaseAdmin
         .from('profiles_artisan')
-        .update(urls)
+        .update(chemins)
         .eq('id', profil.id)
       if (majError) {
         logger.error('[artisan-register-finalize] profile update error:', majError)

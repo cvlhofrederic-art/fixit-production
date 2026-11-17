@@ -4,6 +4,35 @@ import { ficheSocieteFrancaise } from '@/lib/btp/fiche-societe-francaise'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { logger } from '@/lib/logger'
 import { adminKycQuerySchema, adminKycPatchSchema, validateBody } from '@/lib/validation'
+import { SEAU_DOCUMENTS, signerValeurs } from '@/lib/storage/liens-stockage'
+
+// Pièces de la fiche, rangées dans le seau privé : la fiche garde leur chemin (ou, pour une fiche ancienne, un
+// lien signé peut-être expiré). L'administrateur reçoit un lien frais à chaque lecture de la liste.
+const COLONNES_PIECES = ['kbis_url', 'id_document_url', 'id_document_verso_url', 'insurance_url'] as const
+const DUREE_LIEN_ADMIN_S = 60 * 60
+
+async function avecLiensFrais(lignes: Array<Record<string, unknown>>): Promise<Array<Record<string, unknown>>> {
+  const cibles: Array<{ ligne: number; colonne: (typeof COLONNES_PIECES)[number] }> = []
+  lignes.forEach((ligne, i) => {
+    for (const colonne of COLONNES_PIECES) if (ligne[colonne]) cibles.push({ ligne: i, colonne })
+  })
+  if (cibles.length === 0) return lignes
+  let liens: Array<string | null>
+  try {
+    liens = await signerValeurs(SEAU_DOCUMENTS, cibles.map((c) => lignes[c.ligne][c.colonne]), {
+      dossiers: 'tout-le-seau',
+      dureeS: DUREE_LIEN_ADMIN_S,
+      origine: '[admin/kyc]',
+    })
+  } catch (err) {
+    logger.error('[admin/kyc] signature des liens des pièces', { erreur: err instanceof Error ? err.message : String(err) })
+    return lignes
+  }
+  const copies = lignes.map((ligne) => ({ ...ligne }))
+  // Valeur impossible à signer (autre site, stockage indisponible) : rendue telle qu'enregistrée, comme avant.
+  cibles.forEach((c, i) => { if (liens[i]) copies[c.ligne][c.colonne] = liens[i] })
+  return copies
+}
 
 interface KycRow {
   id: string
@@ -94,7 +123,7 @@ export async function GET(request: NextRequest) {
   const totalPages = Math.ceil(total / limit)
 
   return NextResponse.json({
-    data: (data ?? []) as KycRow[],
+    data: (await avecLiensFrais((data ?? []) as Array<Record<string, unknown>>)) as unknown as KycRow[],
     pagination: { page, limit, total, totalPages },
   })
 }
