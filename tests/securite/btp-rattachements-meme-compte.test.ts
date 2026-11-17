@@ -11,6 +11,8 @@
 // Aucune donnée réelle : identifiants et libellés inventés.
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { readFileSync } from 'fs'
+import { join } from 'path'
 import type { PGlite } from '@electric-sql/pglite'
 
 const { PGlite: Base } = await import('@electric-sql/pglite')
@@ -225,5 +227,56 @@ describe('écriture au nom d’un compte (rôle authenticated, politiques d’ac
 
   it('salarié d’une autre société dans sa propre équipe : refusé', async () => {
     expect(await codeErreurNavigateur(A, `INSERT INTO public.equipe_membres_btp VALUES ('${EQ_A}', '${M_B}')`)).toBe('23503')
+  })
+})
+
+/**
+ * Bloc SQL du retour arrière d'une migration, tel qu'écrit dans docs/rollback-procedures.md : premier bloc ```sql de la
+ * section dont le titre cite le fichier de la migration (deux migrations portent la date 20261115).
+ */
+function procedureDeRetour(fichier: string): string {
+  const texte = readFileSync(join(process.cwd(), 'docs/rollback-procedures.md'), 'utf-8').replace(/\r\n/g, '\n')
+  const section = texte.split(/\n(?=## )/).find(s => s.split('\n', 1)[0].includes(fichier))
+  if (!section) throw new Error(`docs/rollback-procedures.md : aucune section dont le titre cite ${fichier}`)
+  const bloc = /```sql\n([\s\S]*?)\n```/.exec(section)
+  if (!bloc) throw new Error(`docs/rollback-procedures.md : aucun bloc SQL dans la section de ${fichier}`)
+  return bloc[1]
+}
+
+// Retour arrière que Frédéric lancerait dans l'éditeur SQL (relecture adverse du 17/11/2026), joué tel qu'écrit sur une
+// base à part où la migration est appliquée. La règle reste appliquée par la route /api/btp
+// (tests/api/btp-ecriture-rattachements.test.ts).
+describe('retour arrière de la migration (docs/rollback-procedures.md)', () => {
+  let base: PGlite
+
+  beforeAll(async () => {
+    base = await Base.create()
+    await base.exec(ECHAFAUDAGE_SUPABASE_SQL)
+    await base.exec(TABLES_SQL)
+    await base.exec(POLITIQUES_SQL)
+    await base.exec(DONNEES_SQL)
+    await base.exec(lireMigrationQr(MIGRATION))
+  }, 60_000)
+
+  afterAll(async () => {
+    await base?.close()
+  })
+
+  it('retire les dix déclencheurs et les deux fonctions sans toucher aux lignes, se rejoue, et la base n’impose plus la règle', async () => {
+    const retour = procedureDeRetour(MIGRATION)
+    await base.exec(retour)
+    await base.exec(retour) // rejouable
+
+    const declencheurs = await base.query(`SELECT tgname FROM pg_trigger WHERE NOT tgisinternal AND tgname LIKE 'btp_%_meme_compte'`)
+    expect(declencheurs.rows).toEqual([])
+    const fonctions = await base.query(`SELECT p.proname FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+      WHERE n.nspname = 'public' AND p.proname LIKE 'btp_%_meme_compte'`)
+    expect(fonctions.rows).toEqual([])
+    const ancienne = await base.query<{ chantier_id: string }>(`SELECT chantier_id FROM public.situations_btp WHERE id = '${ANCIEN}'`)
+    expect(ancienne.rows).toEqual([{ chantier_id: CH_B }])
+    const liste = await base.query<{ membres_ids: string[] }>(`SELECT membres_ids FROM public.chantiers_btp WHERE id = '${CH_A2}'`)
+    expect(liste.rows).toEqual([{ membres_ids: [M_B, M_SUPPRIME, M_A] }])
+    // Plus de déclencheur : un rattachement hors du compte n'est plus refusé par la base.
+    await base.exec(`INSERT INTO public.pointages_btp (owner_id, chantier_id) VALUES ('${A}', '${CH_B}')`)
   })
 })

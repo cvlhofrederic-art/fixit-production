@@ -152,6 +152,37 @@ GRANT INSERT, UPDATE, DELETE, TRUNCATE ON public.pro_team_members TO anon, authe
 
 ---
 
+## Migration 20261115 — BTP : rattachements au même compte (`20261115_btp_rattachements_meme_compte.sql`)
+
+À ne pas confondre avec la migration 20261115 de l'équipe BTP, juste au-dessus. Retire les dix déclencheurs posés par
+la migration (`btp_rattachements_meme_compte` sur `chantiers_btp`, `pointages_btp`, `depenses_btp`, `equipes_btp`,
+`membres_btp`, `situations_btp`, `retenues_btp`, `dc4_btp` et `rapports_btp` ; `btp_membre_equipe_meme_compte` sur
+`equipe_membres_btp`), puis leurs deux fonctions. Aucune ligne n'est lue, modifiée ni supprimée ; rejouable. Après le
+retour arrière, la base ne vérifie plus qu'une fiche désigne un chantier, un membre ou une équipe du même compte ; la
+route `/api/btp` continue de le refuser avec un message clair. À n'employer que si un enregistrement légitime était
+refusé à tort (« la fiche liée (chantier, membre ou équipe) est introuvable »). Comme pour la migration,
+`lock_timeout` évite d'attendre derrière une transaction longue : en cas d'expiration, rien n'est retiré, relancer.
+Joué sur PGlite par `tests/securite/btp-rattachements-meme-compte.test.ts`.
+
+```sql
+-- Rollback
+set local lock_timeout = '5s';
+DROP TRIGGER IF EXISTS btp_rattachements_meme_compte ON public.chantiers_btp;
+DROP TRIGGER IF EXISTS btp_rattachements_meme_compte ON public.pointages_btp;
+DROP TRIGGER IF EXISTS btp_rattachements_meme_compte ON public.depenses_btp;
+DROP TRIGGER IF EXISTS btp_rattachements_meme_compte ON public.equipes_btp;
+DROP TRIGGER IF EXISTS btp_rattachements_meme_compte ON public.membres_btp;
+DROP TRIGGER IF EXISTS btp_rattachements_meme_compte ON public.situations_btp;
+DROP TRIGGER IF EXISTS btp_rattachements_meme_compte ON public.retenues_btp;
+DROP TRIGGER IF EXISTS btp_rattachements_meme_compte ON public.dc4_btp;
+DROP TRIGGER IF EXISTS btp_rattachements_meme_compte ON public.rapports_btp;
+DROP TRIGGER IF EXISTS btp_membre_equipe_meme_compte ON public.equipe_membres_btp;
+DROP FUNCTION IF EXISTS public.btp_rattachements_meme_compte();
+DROP FUNCTION IF EXISTS public.btp_membre_equipe_meme_compte();
+```
+
+---
+
 ## Migration 20261116 — Pointage BTP : employés affectés aux chantiers
 
 Retire l'index « un pointage en cours par employé », la table `pointage_reglages_btp` puis la colonne
