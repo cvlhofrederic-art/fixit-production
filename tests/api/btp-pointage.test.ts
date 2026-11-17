@@ -1,181 +1,30 @@
 // @vitest-environment node
 // tests/api/btp-pointage.test.ts — GET et POST /api/btp/pointage (pointage géolocalisé BTP, 16/11/2026).
 //
-// Base simulée en mémoire (filtres eq / is / gte, tri, limite, insertion, upsert, modification, index « un pointage
-// ouvert par employé » de la migration 20261116, table absente) ; la société du compte est résolue par le VRAI
-// resolveCompanyId (lib/auth-helpers.ts) sur cette base. Comptes et données fictifs.
+// Base simulée en mémoire et données fictives : tests/helpers/base-memoire-pointage.ts (partagées avec le test de
+// /api/btp/pointage/evenement). La société du compte est résolue par le VRAI resolveCompanyId (lib/auth-helpers.ts)
+// sur cette base.
 
 import { randomUUID } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 import { NOTE_A_REGULARISER, NOTE_DEPART_APRES_COUPURE, NOTE_DOUBLON } from '@/lib/btp/pointage-regles'
+import { empreinteJeton } from '@/lib/btp/pointage-arriere-plan'
 
-type Ligne = Record<string, unknown>
+import {
+  C_FINI, C_GARAGE, C_IMMEUBLE, C_JEAN, C_SOC_B, C_VILLA, GERANT_A, HEURE, M_GERANT, M_JEAN, M_LUC, M_PAUL, MAINTENANT,
+  OUVRIER_INACTIF, OUVRIER_PAUL, OUVRIER_SANS_FICHE, SOC_A, SOC_B, U_INACTIF, U_PAUL, U_SANS_FICHE, donnees, etat, type Ligne,
+} from '../helpers/base-memoire-pointage'
 
-const h = vi.hoisted(() => {
-  const etat = {
-    user: null as null | Record<string, unknown>,
-    tables: {} as Record<string, Ligne[]>,
-    liaisons: [] as Array<{ equipe_id: string; membre_id: string }>,
-    indexUnique: true,
-    tablesAbsentes: new Set<string>(),
-    /** Simule un second envoi qui ouvre le pointage entre la vérification de la route et son insertion. */
-    courseAvantInsertion: null as null | Ligne,
-    ecritures: [] as Array<{ table: string; op: 'insert' | 'update' | 'upsert'; valeur: Ligne; filtres: string[] }>,
-  }
-
-  function requete(table: string) {
-    const filtres: Array<{ texte: string; test: (l: Ligne) => boolean }> = []
-    const tri: Array<[string, boolean]> = []
-    let op: 'select' | 'insert' | 'update' | 'upsert' = 'select'
-    let valeur: Ligne = {}
-    let limite = Number.POSITIVE_INFINITY
-    let avecLiaison = false
-    const lignes = () => (etat.tables[table] ??= [])
-    const correspondantes = () => lignes().filter(l => filtres.every(f => f.test(l)))
-
-    const executer = (): { data: unknown; error: unknown } => {
-      if (etat.tablesAbsentes.has(table)) {
-        return { data: null, error: { code: 'PGRST205', message: `Could not find the table 'public.${table}' in the schema cache` } }
-      }
-      if (op === 'insert') {
-        if (table === 'pointages_btp' && etat.courseAvantInsertion) {
-          lignes().push(etat.courseAvantInsertion)
-          etat.courseAvantInsertion = null
-        }
-        const ligne: Ligne = { id: randomUUID(), created_at: new Date().toISOString(), ...valeur }
-        const conflit = table === 'pointages_btp' && etat.indexUnique && ligne.heure_depart == null && ligne.membre_id
-          && lignes().some(l => l.owner_id === ligne.owner_id && l.membre_id === ligne.membre_id && l.heure_depart == null)
-        if (conflit) return { data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint "pointages_btp_un_ouvert_par_membre"' } }
-        lignes().push(ligne)
-        etat.ecritures.push({ table, op, valeur, filtres: [] })
-        return { data: [ligne], error: null }
-      }
-      if (op === 'upsert') {
-        const existante = lignes().find(l => l.owner_id === valeur.owner_id)
-        if (existante) Object.assign(existante, valeur)
-        else lignes().push({ ...valeur })
-        etat.ecritures.push({ table, op, valeur, filtres: [] })
-        return { data: null, error: null }
-      }
-      if (op === 'update') {
-        const cibles = correspondantes()
-        for (const l of cibles) Object.assign(l, valeur)
-        etat.ecritures.push({ table, op, valeur, filtres: filtres.map(f => f.texte) })
-        return { data: cibles.map(l => ({ ...l })), error: null }
-      }
-      let resultat: Ligne[] = correspondantes().map(l => (avecLiaison
-        ? { ...l, equipe_membres_btp: etat.liaisons.filter(x => x.equipe_id === l.id).map(x => ({ membre_id: x.membre_id })) }
-        : { ...l }))
-      for (const [colonne, croissant] of [...tri].reverse()) {
-        resultat = [...resultat].sort((a, b) => {
-          const [x, y] = [String(a[colonne] ?? ''), String(b[colonne] ?? '')]
-          return (x < y ? -1 : x > y ? 1 : 0) * (croissant ? 1 : -1)
-        })
-      }
-      return { data: resultat.slice(0, limite), error: null }
-    }
-
-    const b: Record<string, unknown> = {}
-    b.select = (colonnes?: string) => { if (colonnes?.includes('equipe_membres_btp')) avecLiaison = true; return b }
-    b.eq = (c: string, v: unknown) => { filtres.push({ texte: `${c}=${String(v)}`, test: l => l[c] === v }); return b }
-    b.is = (c: string, v: unknown) => { filtres.push({ texte: `${c} is ${String(v)}`, test: l => (l[c] ?? null) === v }); return b }
-    b.gte = (c: string, v: unknown) => { filtres.push({ texte: `${c}>=${String(v)}`, test: l => String(l[c]) >= String(v) }); return b }
-    b.order = (c: string, o?: { ascending?: boolean }) => { tri.push([c, o?.ascending !== false]); return b }
-    b.limit = (n: number) => { limite = n; return b }
-    b.insert = (v: Ligne) => { op = 'insert'; valeur = v; return b }
-    b.upsert = (v: Ligne) => { op = 'upsert'; valeur = v; return b }
-    b.update = (v: Ligne) => { op = 'update'; valeur = v; return b }
-    b.single = async () => {
-      const r = executer()
-      if (r.error) return r
-      const premiere = Array.isArray(r.data) ? r.data[0] : r.data
-      return premiere ? { data: premiere, error: null } : { data: null, error: { code: 'PGRST116', message: 'no rows' } }
-    }
-    b.maybeSingle = async () => {
-      const r = executer()
-      return { data: Array.isArray(r.data) ? (r.data[0] ?? null) : r.data, error: r.error }
-    }
-    b.then = (ok: (v: unknown) => unknown, ko?: (e: unknown) => unknown) => Promise.resolve(executer()).then(ok, ko)
-    return b
-  }
-  return { etat, requete }
-})
-
-vi.mock('@/lib/supabase-server', () => ({ supabaseAdmin: { from: (t: string) => h.requete(t) } }))
+vi.mock('@/lib/supabase-server', async () => ({ supabaseAdmin: (await import('../helpers/base-memoire-pointage')).supabaseMemoire }))
 vi.mock('@/lib/rate-limit', async () => (await import('../helpers/mocks-routes-api')).rateLimitPermissif())
 vi.mock('@/lib/logger', async () => (await import('../helpers/mocks-routes-api')).loggerSilencieux())
-vi.mock('@/lib/auth-helpers', async (original) => ({
-  ...(await original<typeof import('@/lib/auth-helpers')>()),
-  getAuthUser: vi.fn(async () => h.etat.user),
-}))
+vi.mock('@/lib/auth-helpers', async (original) => {
+  const base = await import('../helpers/base-memoire-pointage')
+  return { ...(await original<typeof import('@/lib/auth-helpers')>()), getAuthUser: vi.fn(async () => base.etat.user) }
+})
 
 const { GET, POST } = await import('@/app/api/btp/pointage/route')
-
-// ── Société A (celle qu'on teste) et société B (qui ne doit jamais apparaître) ──
-const SOC_A = '0b6c1a4e-6f1d-4c39-9a51-2f0d8f6e1a01'
-const SOC_B = '0b6c1a4e-6f1d-4c39-9a51-2f0d8f6e1a02'
-const U_PAUL = '1c2d3e4f-5a6b-4c7d-8e9f-0a1b2c3d4e01'
-const U_INACTIF = '1c2d3e4f-5a6b-4c7d-8e9f-0a1b2c3d4e02'
-const U_SANS_FICHE = '1c2d3e4f-5a6b-4c7d-8e9f-0a1b2c3d4e03'
-const M_PAUL = '2d3e4f5a-6b7c-4d8e-9f0a-1b2c3d4e5f01'
-const M_JEAN = '2d3e4f5a-6b7c-4d8e-9f0a-1b2c3d4e5f02'
-const M_GERANT = '2d3e4f5a-6b7c-4d8e-9f0a-1b2c3d4e5f03'
-const M_LUC = '2d3e4f5a-6b7c-4d8e-9f0a-1b2c3d4e5f04'
-const C_VILLA = '3e4f5a6b-7c8d-4e9f-8a1b-2c3d4e5f6a01'
-const C_GARAGE = '3e4f5a6b-7c8d-4e9f-8a1b-2c3d4e5f6a02'
-const C_IMMEUBLE = '3e4f5a6b-7c8d-4e9f-8a1b-2c3d4e5f6a03'
-const C_FINI = '3e4f5a6b-7c8d-4e9f-8a1b-2c3d4e5f6a04'
-const C_JEAN = '3e4f5a6b-7c8d-4e9f-8a1b-2c3d4e5f6a05'
-const C_SOC_B = '3e4f5a6b-7c8d-4e9f-8a1b-2c3d4e5f6a06'
-const EQ_MACONS = '4f5a6b7c-8d9e-4f0a-9b1c-2d3e4f5a6b01'
-
-const GERANT_A = { id: SOC_A, email: 'gerant@a.example', app_metadata: { role: 'pro_societe' } }
-const OUVRIER_PAUL = { id: U_PAUL, email: 'paul@a.example', app_metadata: { role: 'pro_societe', pro_team_role: 'OUVRIER', company_id: SOC_A } }
-const OUVRIER_INACTIF = { id: U_INACTIF, email: 'jean@a.example', app_metadata: { role: 'pro_societe', pro_team_role: 'OUVRIER', company_id: SOC_A } }
-const OUVRIER_SANS_FICHE = { id: U_SANS_FICHE, email: 'sans.fiche@a.example', app_metadata: { role: 'pro_societe', pro_team_role: 'OUVRIER', company_id: SOC_A } }
-
-// 16/11/2026 07:30:00 UTC = 08:30:00 à Paris, 07:30:00 à Lisbonne.
-const MAINTENANT = Date.UTC(2026, 10, 16, 7, 30, 0)
-const HEURE = 3_600_000
-
-function donnees() {
-  h.etat.tables = {
-    pro_team_members: [
-      { id: randomUUID(), company_id: SOC_A, user_id: U_PAUL, email: 'paul@a.example', role: 'OUVRIER', is_active: true },
-      { id: randomUUID(), company_id: SOC_A, user_id: U_INACTIF, email: 'jean@a.example', role: 'OUVRIER', is_active: false },
-      { id: randomUUID(), company_id: SOC_A, user_id: U_SANS_FICHE, email: 'sans.fiche@a.example', role: 'OUVRIER', is_active: true },
-      { id: randomUUID(), company_id: SOC_A, user_id: null, email: 'invite@a.example', role: 'OUVRIER', is_active: true },
-      // Compte désactivé dont l'adresse est celle de la fiche de Luc : Luc n'a PAS de compte actif.
-      { id: randomUUID(), company_id: SOC_A, user_id: randomUUID(), email: 'luc@a.example', role: 'OUVRIER', is_active: false },
-    ],
-    membres_btp: [
-      { id: M_PAUL, owner_id: SOC_A, prenom: 'Paul', nom: 'Exemple', email: ' Paul@A.example', type_compte: 'ouvrier', actif: true },
-      { id: M_JEAN, owner_id: SOC_A, prenom: 'Jean', nom: 'Test', email: 'invite@a.example', type_compte: 'ouvrier', actif: true },
-      { id: M_GERANT, owner_id: SOC_A, prenom: 'Gérard', nom: 'Gérant', email: '', type_compte: 'gerant', actif: true },
-      { id: M_LUC, owner_id: SOC_A, prenom: 'Luc', nom: 'Parti', email: 'luc@a.example', type_compte: 'ouvrier', actif: true },
-      // Même adresse que Paul, dans une autre société : ne doit jamais être prise pour lui.
-      { id: randomUUID(), owner_id: SOC_B, prenom: 'Paul', nom: 'Homonyme', email: 'paul@a.example', actif: true },
-    ],
-    chantiers_btp: [
-      { id: C_VILLA, owner_id: SOC_A, titre: 'Villa', statut: 'En cours', adresse: '1 rue des Lilas', ville: 'Marseille', code_postal: '13008', latitude: 43.25, longitude: 5.38, geo_rayon_m: 150, budget: 45000, client: 'Mme X', membres_ids: [M_PAUL] },
-      { id: C_GARAGE, owner_id: SOC_A, titre: 'Garage', statut: 'En cours', latitude: null, longitude: null, geo_rayon_m: 100, membres_ids: [M_PAUL] },
-      { id: C_IMMEUBLE, owner_id: SOC_A, titre: 'Immeuble', statut: 'En cours', latitude: 43.3, longitude: 5.4, geo_rayon_m: 100, membres_ids: [] },
-      { id: C_FINI, owner_id: SOC_A, titre: 'Fini', statut: 'Terminé', latitude: 43.3, longitude: 5.4, geo_rayon_m: 100, membres_ids: [M_PAUL] },
-      { id: C_JEAN, owner_id: SOC_A, titre: 'Chantier de Jean', statut: 'En cours', latitude: 43.3, longitude: 5.4, geo_rayon_m: 100, membres_ids: [M_JEAN] },
-      { id: C_SOC_B, owner_id: SOC_B, titre: 'Chantier B', statut: 'En cours', latitude: 43.3, longitude: 5.4, geo_rayon_m: 100, membres_ids: [M_PAUL] },
-    ],
-    equipes_btp: [{ id: EQ_MACONS, owner_id: SOC_A, nom: 'Maçons', chantier_id: C_IMMEUBLE }],
-    pointage_reglages_btp: [{ owner_id: SOC_A, auto_active: true }],
-    settings_btp: [],
-    pointages_btp: [
-      { id: randomUUID(), owner_id: SOC_A, membre_id: M_PAUL, chantier_id: C_VILLA, chantier_nom: 'Villa', employe: 'Paul Exemple', date: '2026-11-13', heure_arrivee: '08:00:00', heure_depart: '16:00:00', pause_minutes: 60, heures_travaillees: 7, mode: 'manuel', arrivee_lat: 43.25, arrivee_lng: 5.38, distance_m: 12, created_at: '2026-11-13T07:00:00Z' },
-      { id: randomUUID(), owner_id: SOC_A, membre_id: M_JEAN, chantier_id: C_JEAN, chantier_nom: 'Chantier de Jean', employe: 'Jean Test', date: '2026-11-13', heure_arrivee: '08:00:00', heure_depart: '12:00:00', pause_minutes: 0, heures_travaillees: 4, mode: 'manuel', created_at: '2026-11-13T07:00:00Z' },
-      { id: randomUUID(), owner_id: SOC_A, membre_id: M_PAUL, chantier_id: C_VILLA, chantier_nom: 'Villa', employe: 'Paul Exemple', date: '2026-09-01', heure_arrivee: '08:00:00', heure_depart: '12:00:00', pause_minutes: 0, heures_travaillees: 4, mode: 'manuel', created_at: '2026-09-01T07:00:00Z' },
-    ],
-  }
-  h.etat.liaisons = [{ equipe_id: EQ_MACONS, membre_id: M_PAUL }]
-}
 
 const lire = async (fuseau = 'Europe/Paris') => {
   const res = await GET(new NextRequest(`https://vitfix.io/api/btp/pointage?fuseau=${encodeURIComponent(fuseau)}`, { headers: { Authorization: 'Bearer tok' } }))
@@ -189,7 +38,7 @@ const envoyer = async (corps: Record<string, unknown>) => {
   }))
   return { status: res.status, json: await res.json() as Record<string, any> } // eslint-disable-line @typescript-eslint/no-explicit-any -- réponse JSON lue par les tests
 }
-const pointagesDe = (membreId: string) => (h.etat.tables.pointages_btp ?? []).filter(p => p.membre_id === membreId)
+const pointagesDe = (membreId: string) => (etat.tables.pointages_btp ?? []).filter(p => p.membre_id === membreId)
 const ouvertsDe = (membreId: string) => pointagesDe(membreId).filter(p => p.heure_depart == null)
 const duJour = (membreId: string, date = '2026-11-16') => pointagesDe(membreId).filter(p => p.date === date)
 
@@ -197,19 +46,20 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(MAINTENANT)
   donnees()
-  h.etat.user = OUVRIER_PAUL
-  h.etat.indexUnique = true
-  h.etat.tablesAbsentes = new Set()
-  h.etat.courseAvantInsertion = null
-  h.etat.ecritures = []
+  etat.user = OUVRIER_PAUL
+  etat.indexUnique = true
+  etat.tablesAbsentes = new Set()
+  etat.courseAvantInsertion = null
+  etat.courseAppareil = null
+  etat.ecritures = []
 })
 afterEach(() => { vi.useRealTimers() })
 
 describe('GET /api/btp/pointage', () => {
   it('sans session : 401 ; compte artisan : 403', async () => {
-    h.etat.user = null
+    etat.user = null
     expect((await lire()).status).toBe(401)
-    h.etat.user = { id: randomUUID(), email: 'artisan@example.test', app_metadata: { role: 'artisan' } }
+    etat.user = { id: randomUUID(), email: 'artisan@example.test', app_metadata: { role: 'artisan' } }
     expect((await lire()).status).toBe(403)
   })
 
@@ -237,37 +87,37 @@ describe('GET /api/btp/pointage', () => {
   })
 
   it('pointage automatique : coupé sans ligne de réglage ; migration absente : signalée, toujours coupé', async () => {
-    h.etat.tables.pointage_reglages_btp = []
+    etat.tables.pointage_reglages_btp = []
     expect((await lire()).json).toMatchObject({ pointageAutoActive: false, reglageDisponible: true })
-    h.etat.tablesAbsentes.add('pointage_reglages_btp')
+    etat.tablesAbsentes.add('pointage_reglages_btp')
     expect((await lire()).json).toMatchObject({ pointageAutoActive: false, reglageDisponible: false })
   })
 
   it('pointage resté ouvert la veille : listé comme oublié, pas comme en cours ; GET n’écrit rien', async () => {
-    h.etat.tables.pointages_btp.push({ id: randomUUID(), owner_id: SOC_A, membre_id: M_PAUL, chantier_id: C_VILLA, chantier_nom: 'Villa', employe: 'Paul Exemple', date: '2026-11-15', heure_arrivee: '08:30:00', heure_depart: null, pause_minutes: 0, mode: 'geo_auto', created_at: '2026-11-15T07:30:00.000Z' })
+    etat.tables.pointages_btp.push({ id: randomUUID(), owner_id: SOC_A, membre_id: M_PAUL, chantier_id: C_VILLA, chantier_nom: 'Villa', employe: 'Paul Exemple', date: '2026-11-15', heure_arrivee: '08:30:00', heure_depart: null, pause_minutes: 0, mode: 'geo_auto', created_at: '2026-11-15T07:30:00.000Z' })
     const { json } = await lire()
     expect(json.pointageEnCours).toBeNull()
     expect(json.pointagesOublies).toEqual([expect.objectContaining({ date: '2026-11-15', heureDepart: null })])
-    expect(h.etat.ecritures).toEqual([])
+    expect(etat.ecritures).toEqual([])
   })
 
   it('sous-compte désactivé : aucune donnée de la société', async () => {
-    h.etat.user = OUVRIER_INACTIF
+    etat.user = OUVRIER_INACTIF
     const { status, json } = await lire()
     expect(status).toBe(200)
     expect(json).toMatchObject({ rattachement: 'aucun', moi: null, chantiers: [], historique: [], pointageEnCours: null })
   })
 
   it('compte sans fiche à son adresse : non relié ; deux fiches à la même adresse : ambigu', async () => {
-    h.etat.user = OUVRIER_SANS_FICHE
+    etat.user = OUVRIER_SANS_FICHE
     expect((await lire()).json).toMatchObject({ rattachement: 'aucun', moi: null, chantiers: [] })
-    h.etat.tables.membres_btp.push({ id: randomUUID(), owner_id: SOC_A, prenom: 'Sans', nom: 'Fiche', email: 'sans.fiche@a.example', actif: true })
-    h.etat.tables.membres_btp.push({ id: randomUUID(), owner_id: SOC_A, prenom: 'Sans', nom: 'Fiche bis', email: 'SANS.FICHE@a.example', actif: true })
+    etat.tables.membres_btp.push({ id: randomUUID(), owner_id: SOC_A, prenom: 'Sans', nom: 'Fiche', email: 'sans.fiche@a.example', actif: true })
+    etat.tables.membres_btp.push({ id: randomUUID(), owner_id: SOC_A, prenom: 'Sans', nom: 'Fiche bis', email: 'SANS.FICHE@a.example', actif: true })
     expect((await lire()).json).toMatchObject({ rattachement: 'ambigu', moi: null, chantiers: [] })
   })
 
   it('gérant : état des comptes (un compte désactivé ne compte pas), affectation individuelle disponible', async () => {
-    h.etat.user = GERANT_A
+    etat.user = GERANT_A
     const { json } = await lire()
     expect(json.gerant).toBe(true)
     expect(json.rattachement).toBe('aucun')
@@ -276,8 +126,8 @@ describe('GET /api/btp/pointage', () => {
   })
 
   it('gérant : sans la colonne membres_ids (migration non appliquée), l’affectation individuelle est signalée indisponible', async () => {
-    h.etat.user = GERANT_A
-    h.etat.tables.chantiers_btp = h.etat.tables.chantiers_btp.map(({ membres_ids: _sans, ...reste }) => reste)
+    etat.user = GERANT_A
+    etat.tables.chantiers_btp = etat.tables.chantiers_btp.map(({ membres_ids: _sans, ...reste }) => reste)
     expect((await lire()).json.affectationIndividuelle).toBe(false)
   })
 })
@@ -314,9 +164,9 @@ describe('POST /api/btp/pointage — arrivée', () => {
   })
 
   it('automatique refusé tant que le gérant ne l’a pas activé (ou sans la migration) ; à la main, toujours possible', async () => {
-    h.etat.tables.pointage_reglages_btp = [{ owner_id: SOC_A, auto_active: false }]
+    etat.tables.pointage_reglages_btp = [{ owner_id: SOC_A, auto_active: false }]
     expect(await envoyer({ action: 'arrivee', chantierId: C_VILLA, mode: 'geo_auto' })).toEqual({ status: 403, json: { error: 'pointage_auto_desactive' } })
-    h.etat.tablesAbsentes.add('pointage_reglages_btp')
+    etat.tablesAbsentes.add('pointage_reglages_btp')
     expect(await envoyer({ action: 'arrivee', chantierId: C_VILLA, mode: 'geo_auto' })).toEqual({ status: 403, json: { error: 'pointage_auto_desactive' } })
     expect(ouvertsDe(M_PAUL)).toEqual([])
     expect((await envoyer({ action: 'arrivee', chantierId: C_VILLA, mode: 'manuel' })).status).toBe(201)
@@ -330,7 +180,7 @@ describe('POST /api/btp/pointage — arrivée', () => {
     for (const chantierId of [C_JEAN, C_FINI, C_SOC_B, randomUUID()]) {
       expect(await envoyer({ action: 'arrivee', chantierId, mode: 'manuel' })).toEqual({ status: 403, json: { error: 'chantier_non_affecte' } })
     }
-    expect(h.etat.ecritures).toEqual([])
+    expect(etat.ecritures).toEqual([])
   })
 
   it('déjà en cours aujourd’hui sur ce chantier : le même pointage, aucun doublon', async () => {
@@ -374,7 +224,7 @@ describe('POST /api/btp/pointage — arrivée', () => {
 
   it('double envoi simultané (index unique) : le pointage déjà ouvert est rendu', async () => {
     const deja: Ligne = { id: randomUUID(), owner_id: SOC_A, membre_id: M_PAUL, chantier_id: C_VILLA, chantier_nom: 'Villa', employe: 'Paul Exemple', date: '2026-11-16', heure_arrivee: '08:29:58', heure_depart: null, pause_minutes: 0, mode: 'geo_auto', created_at: new Date(MAINTENANT - 2000).toISOString() }
-    h.etat.courseAvantInsertion = deja
+    etat.courseAvantInsertion = deja
     const { status, json } = await envoyer({ action: 'arrivee', chantierId: C_VILLA, mode: 'geo_auto' })
     expect(status).toBe(200)
     expect(json).toMatchObject({ deja: true, pointage: { id: deja.id, heureArrivee: '08:29:58' } })
@@ -382,9 +232,9 @@ describe('POST /api/btp/pointage — arrivée', () => {
   })
 
   it('compte non relié : 409 fiche_absente ; corps invalide : 400', async () => {
-    h.etat.user = OUVRIER_SANS_FICHE
+    etat.user = OUVRIER_SANS_FICHE
     expect(await envoyer({ action: 'arrivee', chantierId: C_VILLA, mode: 'manuel' })).toEqual({ status: 409, json: { error: 'fiche_absente' } })
-    h.etat.user = OUVRIER_PAUL
+    etat.user = OUVRIER_PAUL
     expect((await envoyer({ action: 'arrivee', chantierId: 'pas-un-uuid', mode: 'manuel' })).status).toBe(400)
     expect((await envoyer({ action: 'supprimer', chantierId: C_VILLA, mode: 'manuel' })).status).toBe(400)
     expect((await envoyer({ action: 'arrivee', chantierId: C_VILLA, mode: 'geo_confirme' })).status).toBe(400)
@@ -400,7 +250,7 @@ describe('POST /api/btp/pointage — départ', () => {
     expect(json.pointage).toMatchObject({ heureArrivee: '08:30:00', heureDepart: '12:36:00', heuresTravaillees: 4.1 })
     expect(ouvertsDe(M_PAUL)).toEqual([])
     // La clôture ne touche que la ligne ouverte de la société et de l'employé.
-    const cloture = h.etat.ecritures.find(e => e.op === 'update')
+    const cloture = etat.ecritures.find(e => e.op === 'update')
     expect(cloture?.filtres).toEqual(expect.arrayContaining([`owner_id=${SOC_A}`, 'heure_depart is null']))
   })
 
@@ -446,7 +296,7 @@ describe('POST /api/btp/pointage — départ', () => {
 
   it('sans pointage en cours : 404, rien d’écrit', async () => {
     expect(await envoyer({ action: 'depart', mode: 'manuel' })).toEqual({ status: 404, json: { error: 'aucun_pointage_en_cours' } })
-    expect(h.etat.ecritures).toEqual([])
+    expect(etat.ecritures).toEqual([])
   })
 
   it('départ oublié jusqu’au lendemain : refermé sans heures et à régulariser, plus rien en cours', async () => {
@@ -457,9 +307,9 @@ describe('POST /api/btp/pointage — départ', () => {
   })
 
   it('sans l’index de la migration, deux pointages ouverts : le plus ancien porte les heures, l’autre est refermé sans heures', async () => {
-    h.etat.indexUnique = false
+    etat.indexUnique = false
     await envoyer({ action: 'arrivee', chantierId: C_VILLA, mode: 'manuel' })
-    h.etat.tables.pointages_btp.push({ id: randomUUID(), owner_id: SOC_A, membre_id: M_PAUL, chantier_id: C_VILLA, chantier_nom: 'Villa', employe: 'Paul Exemple', date: '2026-11-16', heure_arrivee: '08:30:01', heure_depart: null, pause_minutes: 0, mode: 'manuel', created_at: new Date(MAINTENANT + 1000).toISOString() })
+    etat.tables.pointages_btp.push({ id: randomUUID(), owner_id: SOC_A, membre_id: M_PAUL, chantier_id: C_VILLA, chantier_nom: 'Villa', employe: 'Paul Exemple', date: '2026-11-16', heure_arrivee: '08:30:01', heure_depart: null, pause_minutes: 0, mode: 'manuel', created_at: new Date(MAINTENANT + 1000).toISOString() })
     vi.setSystemTime(MAINTENANT + 8 * HEURE)
     const { json } = await envoyer({ action: 'depart', mode: 'manuel' })
     expect(json.pointage).toMatchObject({ heureArrivee: '08:30:00', heuresTravaillees: 8 })
@@ -479,30 +329,179 @@ describe('POST /api/btp/pointage — départ', () => {
 })
 
 describe('POST /api/btp/pointage — interrupteur du pointage automatique', () => {
-  beforeEach(() => { h.etat.tables.pointage_reglages_btp = [] })
+  beforeEach(() => { etat.tables.pointage_reglages_btp = [] })
 
   it('réservé au gérant ; activation seulement avec la confirmation d’information des salariés', async () => {
     expect(await envoyer({ action: 'reglage_auto', actif: true, confirmation: true })).toEqual({ status: 403, json: { error: 'reserve_au_gerant' } })
-    h.etat.user = GERANT_A
+    etat.user = GERANT_A
     expect(await envoyer({ action: 'reglage_auto', actif: true })).toEqual({ status: 422, json: { error: 'confirmation_requise' } })
-    expect(h.etat.tables.pointage_reglages_btp).toEqual([])
+    expect(etat.tables.pointage_reglages_btp).toEqual([])
   })
 
   it('activation : qui et quand gardés ; coupure : la trace de la confirmation reste ; settings_btp jamais touché', async () => {
-    h.etat.user = GERANT_A
+    etat.user = GERANT_A
     expect(await envoyer({ action: 'reglage_auto', actif: true, confirmation: true })).toEqual({ status: 200, json: { pointageAutoActive: true } })
     const confirmeLe = new Date(MAINTENANT).toISOString()
-    expect(h.etat.tables.pointage_reglages_btp).toEqual([{ owner_id: SOC_A, auto_active: true, confirme_le: confirmeLe, confirme_par: SOC_A, modifie_le: confirmeLe }])
+    expect(etat.tables.pointage_reglages_btp).toEqual([{ owner_id: SOC_A, auto_active: true, confirme_le: confirmeLe, confirme_par: SOC_A, modifie_le: confirmeLe }])
     vi.setSystemTime(MAINTENANT + HEURE)
     await envoyer({ action: 'reglage_auto', actif: false })
-    expect(h.etat.tables.pointage_reglages_btp[0]).toMatchObject({ auto_active: false, confirme_le: confirmeLe, confirme_par: SOC_A })
-    expect(h.etat.ecritures.filter(e => e.table === 'settings_btp')).toEqual([])
-    expect(h.etat.tables.settings_btp).toEqual([])
+    expect(etat.tables.pointage_reglages_btp[0]).toMatchObject({ auto_active: false, confirme_le: confirmeLe, confirme_par: SOC_A })
+    expect(etat.ecritures.filter(e => e.table === 'settings_btp')).toEqual([])
+    expect(etat.tables.settings_btp).toEqual([])
   })
 
   it('migration non appliquée : 409 migration_requise', async () => {
-    h.etat.user = GERANT_A
-    h.etat.tablesAbsentes.add('pointage_reglages_btp')
+    etat.user = GERANT_A
+    etat.tablesAbsentes.add('pointage_reglages_btp')
     expect(await envoyer({ action: 'reglage_auto', actif: true, confirmation: true })).toEqual({ status: 409, json: { error: 'migration_requise' } })
+  })
+})
+
+describe('POST /api/btp/pointage — téléphone en poche (appareil, appareil_retirer)', () => {
+  it('enregistre ce téléphone : jeton rendu une fois, seule son empreinte gardée ; un nouvel enregistrement retire l’ancien', async () => {
+    const premier = await envoyer({ action: 'appareil', plateforme: 'android', fuseau: 'Europe/Lisbon' })
+    expect(premier.status).toBe(201)
+    expect(premier.json.url).toBe('https://vitfix.io/api/btp/pointage/evenement')
+    expect(premier.json.jeton).toMatch(/^[\w-]{43}$/)
+    expect(premier.json.appareil).toMatch(/^[0-9a-f-]{36}$/)
+    expect(etat.tables.pointage_appareils_btp).toEqual([expect.objectContaining({
+      id: premier.json.appareil, owner_id: SOC_A, membre_id: M_PAUL, user_id: U_PAUL, plateforme: 'android', fuseau: 'Europe/Lisbon',
+      empreinte: await empreinteJeton(String(premier.json.jeton)),
+      // Adresse de la fiche, normalisée : le rattachement du compte (« Paul@A.example » sur la fiche).
+      email_fiche: 'paul@a.example',
+    })])
+    expect(JSON.stringify(etat.tables.pointage_appareils_btp)).not.toContain(String(premier.json.jeton))
+
+    vi.setSystemTime(MAINTENANT + HEURE)
+    const second = await envoyer({ action: 'appareil', plateforme: 'ios', fuseau: 'Pacific/Fiji' })
+    expect(second.status).toBe(201)
+    const [ancien, nouveau] = etat.tables.pointage_appareils_btp
+    expect(ancien.retire_le).toBe(new Date(MAINTENANT + HEURE).toISOString())
+    expect(nouveau).toMatchObject({ id: second.json.appareil, plateforme: 'ios', fuseau: 'Europe/Paris' })
+    expect(second.json.appareil).not.toBe(premier.json.appareil)
+    expect(nouveau.retire_le ?? null).toBeNull()
+  })
+
+  it('pointage automatique coupé par le gérant, fiche absente, migration non appliquée : refusé, rien d’écrit', async () => {
+    etat.tables.pointage_reglages_btp = [{ owner_id: SOC_A, auto_active: false }]
+    expect(await envoyer({ action: 'appareil', plateforme: 'android' })).toEqual({ status: 403, json: { error: 'pointage_auto_desactive' } })
+    donnees()
+    etat.user = OUVRIER_SANS_FICHE
+    expect(await envoyer({ action: 'appareil', plateforme: 'android' })).toEqual({ status: 409, json: { error: 'fiche_absente' } })
+    etat.user = OUVRIER_PAUL
+    etat.tablesAbsentes.add('pointage_appareils_btp')
+    expect(await envoyer({ action: 'appareil', plateforme: 'android' })).toEqual({ status: 409, json: { error: 'migration_requise_appareils' } })
+    expect(etat.tables.pointage_appareils_btp ?? []).toEqual([])
+  })
+
+  it('activation pendant un pointage automatique en cours (page ouverte) : confié au téléphone, arrivée au journal', async () => {
+    const ouvert = { id: randomUUID(), owner_id: SOC_A, membre_id: M_PAUL, chantier_id: C_VILLA, chantier_nom: 'Villa', date: '2026-11-16', heure_arrivee: '08:20:00', heure_depart: null, heures_travaillees: null, notes: null, mode: 'geo_auto', created_at: new Date(MAINTENANT - 10 * 60_000).toISOString() }
+    etat.tables.pointages_btp.push(ouvert)
+    const { json } = await envoyer({ action: 'appareil', plateforme: 'android' })
+    expect(etat.tables.pointage_lignes_appareil_btp).toEqual([expect.objectContaining({
+      pointage_id: ouvert.id, appareil_id: json.appareil, date: '2026-11-16',
+      ecrit: { chantier_id: C_VILLA, date: '2026-11-16', heure_arrivee: '08:20:00', heure_depart: null, heures_travaillees: null, notes: null, created_at: ouvert.created_at },
+    })])
+    expect(etat.tables.pointage_evenements_btp).toEqual([expect.objectContaining({
+      appareil_id: json.appareil, chantier_id: C_VILLA, sens: 'enter', detecte_le: ouvert.created_at, recu_le: ouvert.created_at,
+    })])
+  })
+
+  it('pointage en cours : lien en échec après l’arrivée au journal → arrivée seule (sans effet), pointage laissé à l’employé', async () => {
+    const ouvert = { id: randomUUID(), owner_id: SOC_A, membre_id: M_PAUL, chantier_id: C_VILLA, chantier_nom: 'Villa', date: '2026-11-16', heure_arrivee: '08:20:00', heure_depart: null, mode: 'geo_auto', created_at: new Date(MAINTENANT - 10 * 60_000).toISOString() }
+    etat.tables.pointages_btp.push(ouvert)
+    etat.tablesAbsentes.add('pointage_lignes_appareil_btp')
+    expect((await envoyer({ action: 'appareil', plateforme: 'android' })).status).toBe(201)
+    expect(etat.tables.pointage_evenements_btp).toHaveLength(1)
+    expect(etat.tables.pointage_lignes_appareil_btp ?? []).toEqual([])
+  })
+
+  it('activation pendant un pointage commencé à la main : rien de confié (il se termine à la main)', async () => {
+    etat.tables.pointages_btp.push({ id: randomUUID(), owner_id: SOC_A, membre_id: M_PAUL, chantier_id: C_VILLA, date: '2026-11-16', heure_arrivee: '08:20:00', heure_depart: null, mode: 'manuel', created_at: new Date(MAINTENANT - 10 * 60_000).toISOString() })
+    expect((await envoyer({ action: 'appareil', plateforme: 'android' })).status).toBe(201)
+    expect(etat.tables.pointage_lignes_appareil_btp ?? []).toEqual([])
+    expect(etat.tables.pointage_evenements_btp ?? []).toEqual([])
+  })
+
+  it('seconde activation du même compte passée entre le retrait et l’enregistrement : 409, un seul téléphone actif', async () => {
+    etat.courseAppareil = { id: randomUUID(), owner_id: SOC_A, membre_id: M_PAUL, user_id: U_PAUL, empreinte: 'f'.repeat(64), plateforme: 'ios', retire_le: null }
+    expect(await envoyer({ action: 'appareil', plateforme: 'android' })).toEqual({ status: 409, json: { error: 'activation_en_cours' } })
+    expect(etat.tables.pointage_appareils_btp.filter(a => a.retire_le == null)).toHaveLength(1)
+  })
+
+  it('plateforme inconnue : 400', async () => {
+    expect((await envoyer({ action: 'appareil', plateforme: 'windows' })).status).toBe(400)
+  })
+
+  it('retirer : ce téléphone, même sans fiche reliée ; GET donne le téléphone qui pointe et si la table existe', async () => {
+    expect((await lire()).json).toMatchObject({ appareilArrierePlan: null, arrierePlanDisponible: true })
+    const { json } = await envoyer({ action: 'appareil', plateforme: 'android' })
+    expect((await lire()).json.appareilArrierePlan).toBe(json.appareil)
+    expect(await envoyer({ action: 'appareil_retirer', appareil: json.appareil })).toEqual({ status: 200, json: { retires: 1 } })
+    expect((await lire()).json.appareilArrierePlan).toBeNull()
+    expect(await envoyer({ action: 'appareil_retirer', appareil: json.appareil })).toEqual({ status: 200, json: { retires: 0 } })
+    etat.user = OUVRIER_SANS_FICHE
+    expect(await envoyer({ action: 'appareil_retirer', appareil: json.appareil })).toEqual({ status: 200, json: { retires: 0 } })
+    etat.tablesAbsentes.add('pointage_appareils_btp')
+    etat.user = OUVRIER_PAUL
+    expect((await lire()).json).toMatchObject({ appareilArrierePlan: null, arrierePlanDisponible: false })
+    expect(await envoyer({ action: 'appareil_retirer', appareil: json.appareil })).toEqual({ status: 200, json: { retires: 0 } })
+    // Le téléphone à retirer est toujours désigné.
+    expect((await envoyer({ action: 'appareil_retirer' })).status).toBe(400)
+  })
+
+  it('« Couper » sur un ancien téléphone ne retire jamais celui activé depuis sur le même compte', async () => {
+    const ancien = await envoyer({ action: 'appareil', plateforme: 'android' })
+    vi.setSystemTime(MAINTENANT + HEURE)
+    const nouveau = await envoyer({ action: 'appareil', plateforme: 'ios' })
+    expect(await envoyer({ action: 'appareil_retirer', appareil: ancien.json.appareil })).toEqual({ status: 200, json: { retires: 0 } })
+    expect((await lire()).json.appareilArrierePlan).toBe(nouveau.json.appareil)
+  })
+
+  it('compte sans fiche reliée : GET donne quand même son téléphone (l’appli retire ses zones s’il est retiré)', async () => {
+    const { json } = await envoyer({ action: 'appareil', plateforme: 'android' })
+    etat.tables.membres_btp = etat.tables.membres_btp.filter(m => m.id !== M_PAUL)
+    expect((await lire()).json).toMatchObject({ rattachement: 'aucun', appareilArrierePlan: json.appareil, arrierePlanIncertain: false })
+  })
+
+  it('réglage ou téléphones illisibles (panne passagère) : GET le dit, l’appli ne retire rien sur cette foi', async () => {
+    expect((await lire()).json.arrierePlanIncertain).toBe(false)
+    etat.tablesAbsentes.add('pointage_appareils_btp')
+    // Table absente : réponse sûre (mode indisponible), pas une incertitude.
+    expect((await lire()).json).toMatchObject({ arrierePlanDisponible: false, arrierePlanIncertain: false })
+    const serveur = await import('@/lib/btp/pointage-serveur')
+    const lecture = vi.spyOn(serveur, 'lireDonneesSociete')
+    lecture.mockImplementationOnce(async societeId => ({
+      societeId, membres: [...etat.tables.membres_btp] as never, chantiersEnCours: [], equipes: [], pointageAutoActive: false, reglageDisponible: true, reglageLu: false,
+    }))
+    expect((await lire()).json).toMatchObject({ arrierePlanIncertain: true })
+    lecture.mockRestore()
+  })
+
+  it('le gérant coupe le mode automatique : téléphones de toute la société retirés, jamais ceux d’une autre', async () => {
+    const actif = (id: string, owner: string, user: string) => ({ id, owner_id: owner, membre_id: M_PAUL, user_id: user, empreinte: id.repeat(64), plateforme: 'android', retire_le: null })
+    etat.tables.pointage_appareils_btp = [actif('a', SOC_A, U_PAUL), actif('b', SOC_A, U_SANS_FICHE), actif('c', SOC_B, U_INACTIF)]
+    etat.user = GERANT_A
+    expect(await envoyer({ action: 'reglage_auto', actif: false })).toEqual({ status: 200, json: { pointageAutoActive: false } })
+    const retire = new Date(MAINTENANT).toISOString()
+    expect(etat.tables.pointage_appareils_btp.map(a => [a.id, a.retire_le])).toEqual([['a', retire], ['b', retire], ['c', null]])
+    // Activer ne retire rien.
+    etat.tables.pointage_appareils_btp = [actif('d', SOC_A, U_PAUL)]
+    await envoyer({ action: 'reglage_auto', actif: true, confirmation: true })
+    expect(etat.tables.pointage_appareils_btp[0].retire_le).toBeNull()
+  })
+
+  it('coupure du mode sans la table des téléphones (migration 20261117 non appliquée) : le réglage passe quand même', async () => {
+    etat.user = GERANT_A
+    etat.tablesAbsentes.add('pointage_appareils_btp')
+    expect(await envoyer({ action: 'reglage_auto', actif: false })).toEqual({ status: 200, json: { pointageAutoActive: false } })
+    expect(etat.tables.pointage_reglages_btp[0]).toMatchObject({ owner_id: SOC_A, auto_active: false })
+  })
+
+  it('les téléphones d’un autre compte ne sont jamais retirés', async () => {
+    const autre = randomUUID()
+    etat.tables.pointage_appareils_btp = [{ id: autre, owner_id: SOC_A, membre_id: M_JEAN, user_id: U_INACTIF, empreinte: 'e'.repeat(64), plateforme: 'android', retire_le: null }]
+    expect(await envoyer({ action: 'appareil_retirer', appareil: autre })).toEqual({ status: 200, json: { retires: 0 } })
+    expect(etat.tables.pointage_appareils_btp[0].retire_le).toBeNull()
   })
 })

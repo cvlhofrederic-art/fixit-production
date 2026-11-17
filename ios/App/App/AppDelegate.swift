@@ -1,5 +1,10 @@
 import UIKit
 import Capacitor
+#if canImport(CapgoBackgroundGeolocationPlugin)
+import CapgoBackgroundGeolocationPlugin // Swift Package Manager (CapApp-SPM)
+#else
+import CapgoBackgroundGeolocation // CocoaPods
+#endif
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -34,7 +39,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Override point for customization after application launch.
+        // Pointage BTP « téléphone en poche » : iOS relance l'appli fermée pour une entrée ou une sortie de zone de
+        // chantier ; le relais de @capgo/background-geolocation l'envoie au serveur sans attendre l'affichage du site
+        // (voir son README). Il ne demande aucune autorisation et ne fait rien tant qu'aucune zone n'est enregistrée.
+        GeofenceRelay.shared.start()
         return true
     }
 
