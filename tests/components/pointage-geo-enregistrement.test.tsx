@@ -12,7 +12,7 @@
 // Aucune donnée réelle.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { Artisan } from '@/lib/types'
 import type { ContextePointage } from '@/lib/btp/pointage-regles'
 
@@ -103,5 +103,53 @@ describe('Pointage saisi à la main (onglet Historique)', () => {
 
     await waitFor(() => expect(envois).toHaveLength(1))
     expect(envois[0].data).toMatchObject({ membre_id: MEMBRE, chantier_id: CHANTIER, heure_depart: '17:00', heures_travaillees: null })
+  })
+})
+
+// Onglet Affectations du gérant, avec le vrai hook (relecture adverse du 17/11/2026 : les écrans de #703 n'étaient
+// testés qu'avec un faux useBTPData). Ce qui part vers /api/btp, que la route contrôle (employés du compte, en UUID) :
+// le rayon et les employés sur le chantier, et pour l'équipe déplacée son seul chantier, sans toucher à ses membres.
+describe('Affectations (gérant) : ce qui part vers /api/btp', () => {
+  const IMMEUBLE = 'c4d5e6f7-a8b9-4c0d-9e1f-3a4b5c6d7e8f'
+  const EQUIPE = 'd5e6f7a8-b9c0-4d1e-8f2a-4b5c6d7e8f9a'
+
+  beforeEach(() => {
+    vi.mocked(globalThis.fetch).mockImplementation(async (url, init) => {
+      if (String(url).startsWith('/api/btp/pointage')) return json(CONTEXTE_GERANT)
+      if (init?.method === 'POST') {
+        envois.push(JSON.parse(String(init.body)))
+        return json({ ok: true })
+      }
+      const table = new URL(String(url), 'https://vitfix.io').searchParams.get('table') ?? ''
+      if (table === 'chantiers') {
+        return json({ chantiers: [
+          { id: CHANTIER, titre: 'Villa Dupré', statut: 'En cours', adresse: '1 rue des Lilas', ville: 'Marseille', latitude: 43.29, longitude: 5.37, geo_rayon_m: 150, membres_ids: [] },
+          { id: IMMEUBLE, titre: 'Immeuble du Port', statut: 'En cours', latitude: null, longitude: null, geo_rayon_m: 100, membres_ids: [] },
+        ] })
+      }
+      if (table === 'membres') return json({ membres: [{ id: MEMBRE, prenom: 'Paul', nom: 'Durand', type_compte: 'ouvrier' }] })
+      if (table === 'equipes') {
+        return json({ equipes: [{ id: EQUIPE, nom: 'Maçons', chantier_id: IMMEUBLE, equipe_membres_btp: [{ membre_id: MEMBRE }], membreIds: [MEMBRE] }] })
+      }
+      return json({ [table]: [] })
+    })
+  })
+
+  it('enregistrer : rayon et employés sur le chantier, équipe déplacée vers lui sans toucher à ses membres', async () => {
+    rendus += 1
+    const artisan = { id: `fiche-${rendus}`, user_id: `compte-affectations-${rendus}`, company_name: 'Société d’essai' } as unknown as Artisan
+    render(<PointageGeoSection artisan={artisan} orgRole="pro_societe" />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Affectations' }))
+    const villa = (await screen.findByText('Villa Dupré')).closest('.v5-card') as HTMLElement
+    fireEvent.click(within(villa).getByLabelText(/Paul Durand/))
+    fireEvent.click(within(villa).getByLabelText(/Maçons/))
+    fireEvent.change(within(villa).getByLabelText(/^Rayon/), { target: { value: '300' } })
+    fireEvent.click(within(villa).getByRole('button', { name: 'Enregistrer' }))
+
+    await waitFor(() => expect(envois).toHaveLength(2))
+    expect(envois).toEqual([
+      { table: 'chantiers_btp', action: 'update', id: CHANTIER, data: { geo_rayon_m: 300, membres_ids: [MEMBRE] } },
+      { table: 'equipes_btp', action: 'update', id: EQUIPE, data: { chantier_id: CHANTIER } },
+    ])
   })
 })
