@@ -153,7 +153,15 @@ export async function PATCH(req: NextRequest) {
     const { data: { user }, error: authError } = await getSupabaseAnon().auth.getUser(token)
     if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const parsed = decisionOffreSchema.safeParse(await req.json())
+    // Corps lu à part, comme /api/doc-number : un corps qui n'est pas du JSON est une demande invalide (400), pas une
+    // erreur du serveur à journaliser.
+    let corps: unknown
+    try {
+      corps = await req.json()
+    } catch {
+      return NextResponse.json({ error: 'Données invalides' }, { status: 400 })
+    }
+    const parsed = decisionOffreSchema.safeParse(corps)
     if (!parsed.success) return NextResponse.json({ error: 'Données invalides' }, { status: 400 })
     const { offer_id, status } = parsed.data
 

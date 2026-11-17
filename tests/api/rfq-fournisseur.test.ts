@@ -151,12 +151,13 @@ describe('Lien du fournisseur — /api/rfq/offer/[jeton]', () => {
 })
 
 describe('Décision de la société — PATCH /api/rfq', () => {
-  const decider = (corps: Record<string, unknown>, autorisation: string | null = 'Bearer jeton-de-session') => {
+  /** `corps` en texte : envoyé tel quel (corps qui n'est pas du JSON). */
+  const decider = (corps: Record<string, unknown> | string, autorisation: string | null = 'Bearer jeton-de-session') => {
     const PATCH = (ROUTE_RFQ as Record<string, unknown>).PATCH as ((req: NextRequest) => Promise<Response>) | undefined
     if (!PATCH) throw new Error('PATCH /api/rfq n’existe pas')
     return PATCH(new NextRequest('https://vitfix.io/api/rfq', {
       method: 'PATCH',
-      body: JSON.stringify(corps),
+      body: typeof corps === 'string' ? corps : JSON.stringify(corps),
       headers: { 'Content-Type': 'application/json', ...(autorisation ? { Authorization: autorisation } : {}) },
     }))
   }
@@ -213,4 +214,18 @@ describe('Décision de la société — PATCH /api/rfq', () => {
     expect((await decider({ offer_id: OFFRE, status: 'answered' })).status).toBe(400)
     expect(base().appels.filter(a => a.operation === 'update')).toHaveLength(0)
   })
+
+  it.each([['mal formé', '{"offer_id": '], ['vide', '']])(
+    'corps %s (pas du JSON) : 400 « Données invalides », sans erreur journalisée, rien n’est lu ni écrit',
+    async (_cas, corps) => {
+      const { logger } = await import('@/lib/logger')
+      vi.mocked(logger.error).mockClear()
+      base().repondre = enBase(repondue)
+      const res = await decider(corps)
+      expect(res.status).toBe(400)
+      expect(await res.json()).toEqual({ error: 'Données invalides' })
+      expect(logger.error).not.toHaveBeenCalled()
+      expect(base().appels).toHaveLength(0)
+    },
+  )
 })
