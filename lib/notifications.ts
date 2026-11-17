@@ -1,12 +1,12 @@
 /**
  * lib/notifications.ts
  * Helper pour les notifications locales Capacitor (rappels intervention J-1)
- * Fonctionne uniquement sur app native iOS/Android — silencieux sur web
+ * Fonctionne uniquement sur app native iOS/Android — silencieux sur web (rien n'y est chargé)
+ * Tests : tests/lib/notifications.test.ts
  */
 
 import { Capacitor } from '@capacitor/core'
 
-// Import dynamique pour éviter les erreurs SSR Next.js
 // Type for the Capacitor LocalNotifications plugin (loaded dynamically)
 interface LocalNotificationsLike {
   requestPermissions(): Promise<{ display: string }>
@@ -14,24 +14,32 @@ interface LocalNotificationsLike {
   cancel(options: { notifications: Array<{ id: number }> }): Promise<void>
 }
 
-let LocalNotificationsPlugin: LocalNotificationsLike | null = null
+let chargement: Promise<{ plugin: LocalNotificationsLike }> | null = null
 
-async function getPlugin() {
-  if (!Capacitor.isNativePlatform()) return null
-  if (!LocalNotificationsPlugin) {
-    const mod = await import('@capacitor/local-notifications')
-    LocalNotificationsPlugin = mod.LocalNotifications as unknown as LocalNotificationsLike
-  }
-  return LocalNotificationsPlugin
+/**
+ * Module natif, importé une seule fois et seulement à la demande (import dynamique : pas d'erreur au rendu serveur de
+ * Next.js) ; un échec de chargement sera retenté. Toujours rendu dans un objet ordinaire : LocalNotifications est le
+ * proxy de registerPlugin (@capacitor/core), qui répond à toute propriété lue, « then » compris. Rendu tel quel par
+ * une fonction async ou une promesse, il était pris pour une promesse qui ne se résout jamais : dans l'appli, aucun
+ * rappel n'était programmé ni annulé, sans erreur visible pour l'artisan (un rejet non géré dans la console seulement,
+ * « LocalNotifications.then() is not implemented ») ; corrigé le 17/11/2026.
+ */
+function charger(): Promise<{ plugin: LocalNotificationsLike }> {
+  chargement ??= import('@capacitor/local-notifications').then(
+    m => ({ plugin: m.LocalNotifications as unknown as LocalNotificationsLike }),
+    (err: unknown) => {
+      chargement = null
+      throw err
+    },
+  )
+  return chargement
 }
 
 /**
  * Demande la permission d'envoyer des notifications locales
  * @returns true si accordée, false sinon
  */
-async function requestNotificationPermission(): Promise<boolean> {
-  const plugin = await getPlugin()
-  if (!plugin) return false
+async function requestNotificationPermission(plugin: LocalNotificationsLike): Promise<boolean> {
   try {
     const { display } = await plugin.requestPermissions()
     return display === 'granted'
@@ -52,10 +60,10 @@ export async function scheduleInterventionReminder(booking: {
   address?: string
   serviceName?: string
 }): Promise<void> {
-  const plugin = await getPlugin()
-  if (!plugin) return
+  if (!Capacitor.isNativePlatform()) return
+  const { plugin } = await charger()
 
-  const granted = await requestNotificationPermission()
+  const granted = await requestNotificationPermission(plugin)
   if (!granted) return
 
   // Construire la date/heure de l'intervention
@@ -66,8 +74,9 @@ export async function scheduleInterventionReminder(booking: {
   // Rappel 24h avant
   const reminderAt = new Date(interventionAt.getTime() - 24 * 60 * 60 * 1000)
 
-  // Ne pas scheduler si la date de rappel est déjà passée
-  if (reminderAt <= new Date()) return
+  // Ne pas scheduler si la date de rappel est invalide (date ou heure vide ou mal formée : « at » partirait à null et
+  // Android afficherait le rappel sur-le-champ) ou déjà passée
+  if (Number.isNaN(reminderAt.getTime()) || reminderAt <= new Date()) return
 
   const notifId = bookingIdToInt(booking.id)
   const time = booking.booking_time.substring(0, 5)
@@ -99,8 +108,8 @@ export async function scheduleInterventionReminder(booking: {
  * Annule le rappel d'une intervention (ex: RDV annulé)
  */
 export async function cancelInterventionReminder(bookingId: string): Promise<void> {
-  const plugin = await getPlugin()
-  if (!plugin) return
+  if (!Capacitor.isNativePlatform()) return
+  const { plugin } = await charger()
   try {
     await plugin.cancel({ notifications: [{ id: bookingIdToInt(bookingId) }] })
   } catch (err) {
@@ -112,10 +121,10 @@ export async function cancelInterventionReminder(bookingId: string): Promise<voi
  * Envoie une notification immédiate (ex: nouveau RDV reçu)
  */
 export async function sendImmediateNotification(title: string, body: string): Promise<void> {
-  const plugin = await getPlugin()
-  if (!plugin) return
+  if (!Capacitor.isNativePlatform()) return
+  const { plugin } = await charger()
 
-  const granted = await requestNotificationPermission()
+  const granted = await requestNotificationPermission(plugin)
   if (!granted) return
 
   try {
