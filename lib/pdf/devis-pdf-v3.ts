@@ -15,6 +15,7 @@ import { computeAcomptesAmounts, mulMoney } from '@/lib/money'
 import { aUneRemiseDeLigne, texteRemiseLigne } from '@/lib/remise-commerciale'
 import { formatPaymentDueDate as sharedFormatPaymentDueDate } from '@/lib/pdf/payment-due'
 import { DELAI_REVOCATION_TELECHARGEMENT_MS, ouvrirApercuOuTelecharger, telechargerParLien } from '@/lib/pdf/apercu-pdf'
+import { COMPRESSION_PNG, fondBlancAvantJpeg } from '@/lib/pdf/images-pdf'
 import type { ModeleDocument } from '@/lib/pdf/modeles-societes'
 import {
   COULEUR_ACCENT_PROVENCE_PRO,
@@ -580,7 +581,7 @@ export async function generateDevisPdfV3(
         // Aligné à droite : bord droit du logo = pageW - mR (même axe que la ligne orange et les blocs)
         const logoX = pageW - mR - lw
         const logoY = 2.8
-        pdf.addImage(logoData, 'PNG', logoX, logoY, lw, lh)
+        pdf.addImage(logoData, 'PNG', logoX, logoY, lw, lh, undefined, COMPRESSION_PNG)
       }
     } catch {
       // pas de logo = on saute
@@ -1562,7 +1563,7 @@ export async function generateDevisPdfV3(
         const sigImgDataUrl = await svgToImageDataUrl(signatureData.svg_data, 400, 140)
         const sigImgW = sigW - boxPadX * 2 - 10
         const sigImgH = sigImgW * (140 / 400)
-        pdf.addImage(sigImgDataUrl, 'PNG', sigX + boxPadX, sy, sigImgW, sigImgH)
+        pdf.addImage(sigImgDataUrl, 'PNG', sigX + boxPadX, sy, sigImgW, sigImgH, undefined, COMPRESSION_PNG)
         sy += sigImgH + 2
         pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
         pdf.text(signatureData.signataire, sigX + boxPadX, sy)
@@ -2168,6 +2169,7 @@ export async function generateDevisPdfV3(
         if (ctx) {
           ctx.imageSmoothingEnabled = true
           ctx.imageSmoothingQuality = 'high'
+          fondBlancAvantJpeg(ctx, canvas.width, canvas.height)
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
           const imgData = canvas.toDataURL('image/jpeg', 0.92)
           pdf.addImage(imgData, 'JPEG', imgX, imgY, drawW, drawH)
