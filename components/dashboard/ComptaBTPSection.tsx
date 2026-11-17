@@ -263,8 +263,9 @@ export function ComptaBTPSection({ artisan, orgRole }: { artisan: import('@/lib/
     }
   }, [])
 
-  const addChargeFix = async (label: string, montant: number, frequence: string, categorie: string) => {
-    if (!label || !montant) return
+  /** Ajoute un frais fixe : true s'il est enregistré. Sinon (refus du serveur, coupure réseau) le formulaire garde la saisie. */
+  const addChargeFix = async (label: string, montant: number, frequence: string, categorie: string): Promise<boolean> => {
+    if (!label || !montant) return false
     try {
       const { data: sess } = await supabase.auth.getSession()
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
@@ -277,9 +278,11 @@ export function ComptaBTPSection({ artisan, orgRole }: { artisan: import('@/lib/
       // Frais refusé par le serveur (montant négatif…) : la raison s'affiche au lieu d'un échec silencieux.
       if (!res.ok) await signalerEcritureRefusee(res, ECHEC_FRAIS_FIXE, 'btp-ecriture-charges_fixes')
       await fetchChargesFixes()
+      return res.ok
     } catch (err) {
       console.error('[btp] frais fixe non enregistré :', err)
       toast.error(ECHEC_FRAIS_FIXE, { id: 'btp-ecriture-charges_fixes' })
+      return false
     }
   }
 
@@ -593,7 +596,8 @@ export function ComptaBTPSection({ artisan, orgRole }: { artisan: import('@/lib/
             </div>
             <button className={isV5 ? "v5-btn v5-btn-p" : "v22-btn v22-btn-primary"}
               onClick={async () => {
-                await addChargeFix(newChargeLabel, newChargeMontant, newChargeFrequence, newChargeCategorie)
+                // Frais non enregistré : la saisie reste, pour être corrigée ou renvoyée.
+                if (!(await addChargeFix(newChargeLabel, newChargeMontant, newChargeFrequence, newChargeCategorie))) return
                 setNewChargeLabel('')
                 setNewChargeMontant(0)
                 setNewChargeFrequence('mensuel')

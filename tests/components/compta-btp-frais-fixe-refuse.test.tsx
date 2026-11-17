@@ -1,12 +1,13 @@
 // tests/components/compta-btp-frais-fixe-refuse.test.tsx — Compta BTP, onglet « Frais fixes » : un frais refusé par le
-// serveur affiche sa raison (relecture adverse du 15/11/2026).
+// serveur affiche sa raison (relecture adverse du 15/11/2026) et la saisie reste (relecture adverse du 16/11/2026).
 //
 // Avant : l'ajout d'un frais fixe ne lisait pas la réponse de POST /api/btp. Depuis la validation des écritures du
 // 15/11/2026, un montant négatif est refusé : sans message, le frais disparaissait sans un mot. Maintenant : la raison
-// donnée par le serveur s'affiche (toast). Le reste de l'écran ne change pas.
+// donnée par le serveur s'affiche (toast), et le formulaire garde le libellé et le montant saisis pour qu'on les
+// corrige ; il ne se vide qu'une fois le frais enregistré. Le reste de l'écran ne change pas.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { Artisan } from '@/lib/types'
 
 vi.mock('@/lib/supabase', () => ({
@@ -43,7 +44,7 @@ afterEach(() => {
 
 const artisan = { id: 'a-1', user_id: 'u-1', company_name: 'Société d’essai' } as unknown as Artisan
 
-/** Ouvre l'onglet « Frais fixes », saisit un frais et clique sur le bouton d'ajout. */
+/** Ouvre l'onglet « Frais fixes », saisit un frais et clique sur le bouton d'ajout ; renvoie les champs du formulaire. */
 async function ajouterFrais(libelle: string, montant: string) {
   render(<ComptaBTPSection artisan={artisan} orgRole="pro_societe" />)
   fireEvent.click(await screen.findByRole('button', { name: /Frais fixes/ }))
@@ -56,24 +57,48 @@ async function ajouterFrais(libelle: string, montant: string) {
   fireEvent.change(champMontant, { target: { value: montant } })
   fireEvent.click(bouton)
   await waitFor(() => expect(envois).toHaveLength(1))
+  return { champLibelle, champMontant }
+}
+
+/** Attend la fin de l'ajout : l'écran relit la liste des frais, puis applique la suite (formulaire vidé ou non). */
+async function attendreLaFinDeLAjout() {
+  await waitFor(() => expect(vi.mocked(fetch).mock.calls.filter(([url]) => String(url).includes('table=charges_fixes'))).toHaveLength(2))
+  await act(async () => { await new Promise(resolve => setTimeout(resolve, 20)) })
 }
 
 describe('Compta BTP — ajout d’un frais fixe', () => {
-  it('montant refusé par le serveur : sa raison s’affiche', async () => {
+  it('montant refusé par le serveur : sa raison s’affiche et la saisie reste dans le formulaire', async () => {
     reponseAjout = () => json({ error: 'Valeur refusée pour le montant (-90) : elle doit être positive ou nulle.' }, 400)
 
-    await ajouterFrais('Loyer du dépôt', '-90')
+    const { champLibelle, champMontant } = await ajouterFrais('Loyer du dépôt', '-90')
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1))
     expect(vi.mocked(toast.error).mock.calls[0][0]).toBe('Valeur refusée pour le montant (-90) : elle doit être positive ou nulle.')
     expect(envois).toEqual([{ table: 'charges_fixes', action: 'insert', data: { label: 'Loyer du dépôt', montant: -90, frequence: 'mensuel', categorie: 'autre' } }])
+    await attendreLaFinDeLAjout()
+    expect(champLibelle).toHaveValue('Loyer du dépôt')
+    expect(champMontant).toHaveValue(-90)
   })
 
-  it('témoin : frais accepté, aucun message d’erreur', async () => {
-    await ajouterFrais('Loyer du dépôt', '900')
+  it('coupure réseau pendant l’ajout : un message le dit et la saisie reste dans le formulaire', async () => {
+    reponseAjout = () => { throw new TypeError('Failed to fetch') }
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const { champLibelle, champMontant } = await ajouterFrais('Loyer du dépôt', '900')
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1))
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 20)) })
+    expect(champLibelle).toHaveValue('Loyer du dépôt')
+    expect(champMontant).toHaveValue(900)
+  })
+
+  it('témoin : frais accepté, aucun message d’erreur, le formulaire se vide', async () => {
+    const { champLibelle, champMontant } = await ajouterFrais('Loyer du dépôt', '900')
 
     // Après l'ajout, l'écran relit la liste des frais.
-    await waitFor(() => expect(vi.mocked(fetch).mock.calls.filter(([url]) => String(url).includes('table=charges_fixes'))).toHaveLength(2))
+    await attendreLaFinDeLAjout()
     expect(toast.error).not.toHaveBeenCalled()
+    expect(champLibelle).toHaveValue('')
+    expect(champMontant).toHaveValue(null)
   })
 })
