@@ -128,6 +128,15 @@ function mapCatalogueUnit(u?: string): string {
   return UNIT_CATALOGUE_TO_DEVIS[u] || 'u'
 }
 
+/**
+ * Catalogue du module Prestations enregistré dans le navigateur (texte JSON) : clé du module (v5), à défaut
+ * l'ancienne copie (v4) que plus rien n'écrit. Même ordre que la reprise des étapes dans selectMotif. Lecture seule.
+ */
+function catalogueEnregistreBTP(artisanId: string | undefined): string | null {
+  const fiche = artisanId || 'guest'
+  return localStorage.getItem(`fixit_prestations_btp_v5_${fiche}`) ?? localStorage.getItem(`fixit_prestations_btp_v4_${fiche}`)
+}
+
 const DECLENCHEURS_ACOMPTE = [
   'À la signature',
   'Au démarrage',
@@ -730,12 +739,12 @@ export default function DevisFactureFormBTP({
 
   const allServices = useMemo(() => {
     const supaServices: ServiceBasic[] = (services as ServiceBasic[]) || []
-    const storageKey = `fixit_prestations_btp_v4_${artisan?.id || 'guest'}`
     let localPrest: ServiceBasic[] = []
     try {
-      // Lecture seule : le formulaire n'écrit plus de catalogue d'exemple quand rien n'est enregistré (catalogue
-      // vierge à la création du compte, demande de Frédéric du 17/11/2026). Un catalogue déjà enregistré reste lu.
-      const raw = localStorage.getItem(storageKey)
+      // Catalogue saisi dans le module Prestations, à défaut l'ancienne copie, en lecture seule : le formulaire
+      // n'écrit plus de catalogue d'exemple quand rien n'est enregistré (catalogue vierge à la création du compte,
+      // demande de Frédéric du 17/11/2026).
+      const raw = catalogueEnregistreBTP(artisan?.id)
 
       if (raw) {
         const parsed = JSON.parse(raw) as Array<{ id: number; name: string; type: string; description?: string; price?: { min?: number; max?: number }; unit?: string; etapes?: Array<string | { label: string; price?: number }> }>
@@ -779,11 +788,10 @@ export default function DevisFactureFormBTP({
     return [...supaServices, ...localPrest.filter(lp => !names.has(lp.name.toLowerCase()))]
   }, [services, artisan?.id])
 
-  // Matériaux catalogue (from localStorage, type === 'mat')
+  // Matériaux du même catalogue (type === 'mat')
   const allMaterials = useMemo(() => {
-    const storageKey = `fixit_prestations_btp_v4_${artisan?.id || 'guest'}`
     try {
-      const raw = localStorage.getItem(storageKey)
+      const raw = catalogueEnregistreBTP(artisan?.id)
       if (raw) {
         const parsed = JSON.parse(raw) as Array<{ id: number; name: string; type: string; price?: { min?: number; max?: number }; unit?: string }>
         return parsed
