@@ -26,30 +26,44 @@ export interface ServiceItem {
 
 export type Intent = 'create_rdv' | 'create_devis' | 'create_facture' | 'list_rdv' | 'help' | 'unknown'
 
+/**
+ * Langue du message, celle de l'interface. Le français est lu comme avant ; le portugais (Fixy en /pt/, repli sans IA)
+ * a ses propres règles et n'est jamais essayé sur un message français.
+ */
+export type LangueMessage = 'fr' | 'pt'
+
 // ══════════════ DATE / TIME / TEXT PARSERS ══════════════
 
-export function parseDate(text: string): string | null {
-  const lower = text.toLowerCase()
-  const now = new Date()
+/**
+ * AAAA-MM-JJ d'après la date LOCALE. toISOString passait en UTC : une date explicite (minuit local) tombait la veille
+ * en France et au Portugal l'été, comme un message envoyé peu après minuit.
+ */
+function jourLocal(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
 
+function dansNJours(base: Date, n: number): string {
+  const d = new Date(base)
+  d.setDate(d.getDate() + n)
+  return jourLocal(d)
+}
+
+/** Prochain jour de la semaine donné (0 = dimanche), jamais le jour même. */
+function prochainJour(now: Date, jourSemaine: number): string {
+  let diff = jourSemaine - now.getDay()
+  if (diff <= 0) diff += 7
+  return dansNJours(now, diff)
+}
+
+function parseDateFr(lower: string, now: Date): string | null {
   // "aujourd'hui"
-  if (lower.includes("aujourd'hui") || lower.includes('ajd') || lower.includes('today')) {
-    return now.toISOString().split('T')[0]
-  }
+  if (lower.includes("aujourd'hui") || lower.includes('ajd') || lower.includes('today')) return jourLocal(now)
+
+  // "après-demain" avant "demain", qu'il contient (avant : « après-demain » donnait demain)
+  if (lower.includes('après-demain') || lower.includes('apres-demain') || lower.includes('après demain')) return dansNJours(now, 2)
 
   // "demain"
-  if (lower.includes('demain')) {
-    const d = new Date(now)
-    d.setDate(d.getDate() + 1)
-    return d.toISOString().split('T')[0]
-  }
-
-  // "après-demain"
-  if (lower.includes('après-demain') || lower.includes('apres-demain') || lower.includes('après demain')) {
-    const d = new Date(now)
-    d.setDate(d.getDate() + 2)
-    return d.toISOString().split('T')[0]
-  }
+  if (lower.includes('demain')) return dansNJours(now, 1)
 
   // Jours de la semaine
   const jours: Record<string, number> = {
@@ -57,14 +71,7 @@ export function parseDate(text: string): string | null {
     'vendredi': 5, 'samedi': 6, 'dimanche': 0
   }
   for (const [jour, idx] of Object.entries(jours)) {
-    if (lower.includes(jour)) {
-      const d = new Date(now)
-      const currentDay = d.getDay()
-      let diff = idx - currentDay
-      if (diff <= 0) diff += 7
-      d.setDate(d.getDate() + diff)
-      return d.toISOString().split('T')[0]
-    }
+    if (lower.includes(jour)) return prochainJour(now, idx)
   }
 
   // Date explicite: "17 mars", "17/03", "17-03-2025"
@@ -83,7 +90,7 @@ export function parseDate(text: string): string | null {
     const year = dateTextMatch[3] ? parseInt(dateTextMatch[3]) : now.getFullYear()
     const d = new Date(year, month, day)
     if (d < now) d.setFullYear(d.getFullYear() + 1)
-    return d.toISOString().split('T')[0]
+    return jourLocal(d)
   }
 
   // "17/03" or "17/03/2025"
@@ -93,13 +100,74 @@ export function parseDate(text: string): string | null {
     const month = parseInt(dateSlashMatch[2]) - 1
     let year = dateSlashMatch[3] ? parseInt(dateSlashMatch[3]) : now.getFullYear()
     if (year < 100) year += 2000
-    return new Date(year, month, day).toISOString().split('T')[0]
+    return jourLocal(new Date(year, month, day))
   }
 
   return null
 }
 
-export function parseTime(text: string): string | null {
+// Jours de la semaine en portugais, mot entier (« segunda » ou « segunda-feira »).
+const DIAS_PT: ReadonlyArray<[RegExp, number]> = [
+  [/(?:^|[^a-zà-ÿ])segunda(?![a-zà-ÿ])/, 1],
+  [/(?:^|[^a-zà-ÿ])ter[çc]a(?![a-zà-ÿ])/, 2],
+  [/(?:^|[^a-zà-ÿ])quarta(?![a-zà-ÿ])/, 3],
+  [/(?:^|[^a-zà-ÿ])quinta(?![a-zà-ÿ])/, 4],
+  [/(?:^|[^a-zà-ÿ])sexta(?![a-zà-ÿ])/, 5],
+  [/(?:^|[^a-zà-ÿ])s[áa]bado(?![a-zà-ÿ])/, 6],
+  [/(?:^|[^a-zà-ÿ])domingo(?![a-zà-ÿ])/, 0],
+]
+const MESES_PT: Record<string, number> = {
+  janeiro: 0, fevereiro: 1, marco: 2, abril: 3, maio: 4, junho: 5,
+  julho: 6, agosto: 7, setembro: 8, outubro: 9, novembro: 10, dezembro: 11,
+}
+
+/**
+ * Jour donné (mois de 0 à 11). Sans année, une date déjà passée (avant aujourd'hui, pas avant l'heure qu'il est)
+ * passe à l'année suivante. Jour ou mois impossible (« 31/13 », « 31/04 ») : pas de date.
+ */
+function dataPt(dia: number, mes: number, ano: number | null, now: Date): string | null {
+  if (mes < 0 || mes > 11 || dia < 1 || dia > 31) return null
+  const d = new Date(ano ?? now.getFullYear(), mes, dia)
+  if (d.getMonth() !== mes) return null
+  if (ano === null && d < new Date(now.getFullYear(), now.getMonth(), now.getDate())) d.setFullYear(d.getFullYear() + 1)
+  return jourLocal(d)
+}
+
+function parseDatePt(lower: string, now: Date): string | null {
+  if (/(?:^|[^a-zà-ÿ])hoje(?![a-zà-ÿ])/.test(lower)) return jourLocal(now)
+  // « depois de amanhã » avant « amanhã », qu'il contient.
+  if (/depois de amanh[ãa]/.test(lower)) return dansNJours(now, 2)
+  if (/(?:^|[^a-zà-ÿ])amanh[ãa](?![a-zà-ÿ])/.test(lower)) return dansNJours(now, 1)
+  // Date chiffrée avant les jours de la semaine (« 17/03 às 15h, Quinta do Lago » : c'est le 17/03).
+  const numerique = /(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?/.exec(lower)
+  if (numerique) {
+    let ano = numerique[3] ? Number.parseInt(numerique[3], 10) : null
+    if (ano !== null && ano < 100) ano += 2000
+    const data = dataPt(Number.parseInt(numerique[1], 10), Number.parseInt(numerique[2], 10) - 1, ano, now)
+    if (data) return data
+  }
+  // « 17 de março », « 17 março 2027 »
+  const m = /(\d{1,2})\s+(?:de\s+)?(janeiro|fevereiro|mar[çc]o|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)(?:\s+(?:de\s+)?(\d{4}))?/.exec(lower)
+  if (m) {
+    const data = dataPt(Number.parseInt(m[1], 10), MESES_PT[m[2].replace('ç', 'c')], m[3] ? Number.parseInt(m[3], 10) : null, now)
+    if (data) return data
+  }
+  for (const [motif, idx] of DIAS_PT) {
+    if (motif.test(lower)) return prochainJour(now, idx)
+  }
+  return null
+}
+
+export function parseDate(text: string, langue: LangueMessage = 'fr'): string | null {
+  const lower = text.toLowerCase()
+  const now = new Date()
+  if (langue !== 'pt') return parseDateFr(lower, now)
+  // La morada est retirée d'abord : « Avenida 25 de Abril », « Rua 5 de Outubro » ne sont pas des dates.
+  const morada = moradaPtTrecho(lower)
+  return parseDatePt(morada ? `${lower.slice(0, morada.inicio)} ${lower.slice(morada.fim)}` : lower, now)
+}
+
+export function parseTime(text: string, langue: LangueMessage = 'fr'): string | null {
   const lower = text.toLowerCase()
 
   // "17h", "17h30", "17H00", "9h", "9h30"
@@ -122,6 +190,15 @@ export function parseTime(text: string): string | null {
     }
   }
 
+  if (langue === 'pt') {
+    // meio-dia, de manhã (pas « amanhã »), à tarde, à noite
+    if (/meio[\s-]dia/.test(lower)) return '12:00'
+    if (/(?:^|[^a-zà-ÿ])manh[ãa](?![a-zà-ÿ])/.test(lower)) return '09:00'
+    if (/(?:^|[^a-zà-ÿ])tarde(?![a-zà-ÿ])/.test(lower)) return '14:00'
+    if (/(?:^|[^a-zà-ÿ])noite(?![a-zà-ÿ])/.test(lower)) return '18:00'
+    return null
+  }
+
   // "midi"
   if (lower.includes('midi')) return '12:00'
   // Approximations
@@ -132,26 +209,47 @@ export function parseTime(text: string): string | null {
   return null
 }
 
-export function parseClientName(text: string): string | null {
-  // "Madame X", "Mme X", "Monsieur X", "M. X", "Mr X", "client X", "chez X"
-  // Support multi-word names like "Frédéric Neiva Carvalho"
-  const patterns = [
-    /(?:madame|mme\.?|mme)\s+([A-ZÀ-Ü][a-zà-ÿ]+(?:\s+[A-ZÀ-Ü][a-zà-ÿ]+)*)/i,
-    /(?:monsieur|mr\.?|m\.)\s+([A-ZÀ-Ü][a-zà-ÿ]+(?:\s+[A-ZÀ-Ü][a-zà-ÿ]+)*)/i,
-    /(?:client[e]?|chez)\s+([A-ZÀ-Ü][a-zà-ÿ]+(?:\s+[A-ZÀ-Ü][a-zà-ÿ]+)*)/i,
-    // "pour le client X Y Z" — match name after "client"
-    /(?:pour\s+le\s+client|pour\s+la\s+cliente)\s+([A-ZÀ-Ü][a-zà-ÿ]+(?:\s+[A-ZÀ-Ü][a-zà-ÿ]+)*)/i,
-    /(?:pour|avec)\s+([A-ZÀ-Ü][a-zà-ÿ]+(?:\s+[A-ZÀ-Ü][a-zà-ÿ]+)*)/i,
-  ]
+// Mots qui ne sont pas des noms : français comparés par début de mot (comme avant), portugais par mot entier
+// (« Sr. Domingos », « Sra. Quintas » restent des noms).
+const EXCLUS_NOM_FR = [
+  'intervention', 'devis', 'facture', 'rendez', 'demain', 'mardi', 'mercredi',
+  'jeudi', 'vendredi', 'samedi', 'dimanche', 'lundi', 'plomberie', 'electricite',
+  'motif', 'prix', 'montant', 'service', 'prestation', 'travaux',
+]
+const EXCLUS_NOM_PT = new Set([
+  'intervenção', 'intervencao', 'orçamento', 'orcamento', 'fatura', 'marcação', 'marcacao', 'hoje', 'amanhã', 'amanha',
+  'segunda', 'terça', 'terca', 'quarta', 'quinta', 'sexta', 'sábado', 'sabado', 'domingo', 'motivo', 'serviço',
+  'servico', 'preço', 'preco', 'valor', 'obra', 'canalização', 'canalizacao', 'eletricidade', 'para', 'com', 'cliente',
+  'na', 'no', 'em', 'às', 'as', 'ao', 'à', 'manhã', 'manha', 'tarde', 'noite', 'meio', 'morada', 'rua', 'avenida',
+  'travessa', 'largo', 'praça', 'praca', 'estrada', 'alameda',
+])
+// Particules des noms portugais (« Maria da Silva ») : gardées au milieu, retirées en fin (« Sr. Silva de manhã »).
+const PARTICULES_NOM_PT = new Set(['de', 'do', 'da', 'dos', 'das', 'e'])
 
-  // Common words that aren't names (expanded)
-  const excluded = [
-    'intervention', 'devis', 'facture', 'rendez', 'demain', 'mardi', 'mercredi',
-    'jeudi', 'vendredi', 'samedi', 'dimanche', 'lundi', 'plomberie', 'electricite',
-    'motif', 'prix', 'montant', 'service', 'prestation', 'travaux',
-  ]
+const NOMS_FR = [
+  /(?:madame|mme\.?|mme)\s+([A-ZÀ-Ü][a-zà-ÿ]+(?:\s+[A-ZÀ-Ü][a-zà-ÿ]+)*)/i,
+  /(?:monsieur|mr\.?|m\.)\s+([A-ZÀ-Ü][a-zà-ÿ]+(?:\s+[A-ZÀ-Ü][a-zà-ÿ]+)*)/i,
+  /(?:client[e]?|chez)\s+([A-ZÀ-Ü][a-zà-ÿ]+(?:\s+[A-ZÀ-Ü][a-zà-ÿ]+)*)/i,
+  // "pour le client X Y Z" — match name after "client"
+  /(?:pour\s+le\s+client|pour\s+la\s+cliente)\s+([A-ZÀ-Ü][a-zà-ÿ]+(?:\s+[A-ZÀ-Ü][a-zà-ÿ]+)*)/i,
+  /(?:pour|avec)\s+([A-ZÀ-Ü][a-zà-ÿ]+(?:\s+[A-ZÀ-Ü][a-zà-ÿ]+)*)/i,
+]
+// Portugais : mots entiers seulement (« sr » n'est pas cherché au milieu d'un mot).
+const NOMS_PT = [
+  /(?:^|[^a-zà-ÿ])(?:senhora|sra\.?)\s+([A-ZÀ-Ü][a-zà-ÿ]+(?:\s+[A-ZÀ-Ü][a-zà-ÿ]+)*)/i,
+  /(?:^|[^a-zà-ÿ])(?:senhor|sr\.?)\s+([A-ZÀ-Ü][a-zà-ÿ]+(?:\s+[A-ZÀ-Ü][a-zà-ÿ]+)*)/i,
+  /(?:^|[^a-zà-ÿ])para\s+[oa]\s+cliente\s+([A-ZÀ-Ü][a-zà-ÿ]+(?:\s+[A-ZÀ-Ü][a-zà-ÿ]+)*)/i,
+  /(?:^|[^a-zà-ÿ])cliente\s+([A-ZÀ-Ü][a-zà-ÿ]+(?:\s+[A-ZÀ-Ü][a-zà-ÿ]+)*)/i,
+  /(?:^|[^a-zà-ÿ])(?:para|com)\s+(?:[oa]\s+)?([A-ZÀ-Ü][a-zà-ÿ]+(?:\s+[A-ZÀ-Ü][a-zà-ÿ]+)*)/i,
+]
 
-  for (const pat of patterns) {
+export function parseClientName(text: string, langue: LangueMessage = 'fr'): string | null {
+  // FR : "Madame X", "Mme X", "Monsieur X", "M. X", "Mr X", "client X", "chez X", noms en plusieurs mots
+  // ("Jean Pierre Martin"). PT : "Sra. X", "Senhora X", "Sr. X", "Senhor X", "para o cliente X", "para X", "com X".
+  const pt = langue === 'pt'
+  const exclu = (mot: string) => (pt ? EXCLUS_NOM_PT.has(mot.toLowerCase()) : EXCLUS_NOM_FR.some(e => mot.toLowerCase().startsWith(e)))
+
+  for (const pat of pt ? NOMS_PT : NOMS_FR) {
     const match = text.match(pat)
     if (match) {
       let name = match[1].trim()
@@ -159,11 +257,14 @@ export function parseClientName(text: string): string | null {
       const nameWords = name.split(/\s+/)
       const cleanWords: string[] = []
       for (const w of nameWords) {
-        if (excluded.some(e => w.toLowerCase().startsWith(e))) break
+        if (exclu(w)) break
         cleanWords.push(w)
       }
+      while (pt && cleanWords.length > 0 && PARTICULES_NOM_PT.has(cleanWords[cleanWords.length - 1].toLowerCase())) {
+        cleanWords.pop()
+      }
       name = cleanWords.join(' ')
-      if (name && !excluded.some(e => name.toLowerCase().startsWith(e))) {
+      if (name && (pt || !EXCLUS_NOM_FR.some(e => name.toLowerCase().startsWith(e)))) {
         return name
       }
     }
@@ -172,12 +273,35 @@ export function parseClientName(text: string): string | null {
   return null
 }
 
-export function parseServiceMatch(text: string, services: ServiceItem[]): ServiceItem | null {
+// « motivo X » / « serviço X » (portugais) : mots qui suivent, jusqu'à « preço », « para », « cliente », « valor »,
+// une virgule ou un mot qui n'est pas fait que de lettres. Découpe mot par mot (pas de regex à retour arrière).
+const FIN_MOTIVO_PT = new Set(['preço', 'preco', 'para', 'cliente', 'valor'])
+function motivoPt(lower: string): string | null {
+  const debut = /(?:^|[^a-zà-ÿ])(?:motivo|servi[çc]o)\s/.exec(lower)
+  if (!debut) return null
+  const mots: string[] = []
+  for (const mot of lower.slice(debut.index + debut[0].length).split(/\s+/)) {
+    if (!mot) continue
+    const virgule = mot.endsWith(',')
+    const propre = virgule ? mot.slice(0, -1) : mot
+    if (FIN_MOTIVO_PT.has(propre) || !/^[a-zà-ÿ]+$/.test(propre)) break
+    mots.push(propre)
+    if (virgule) break
+  }
+  return mots.length > 0 ? mots.join(' ') : null
+}
+
+export function parseServiceMatch(text: string, services: ServiceItem[], langue: LangueMessage = 'fr'): ServiceItem | null {
   const lower = text.toLowerCase()
 
-  // First try to extract service from "motif X" pattern
-  const motifMatch = lower.match(/motif\s+([a-zà-ÿéèêë\s]+?)(?:\s+prix|\s+pour|\s+client|\s*,|\s*$)/i)
-  const motifText = motifMatch ? motifMatch[1].trim() : null
+  // First try to extract service from "motif X" pattern (« motivo X » / « serviço X » en portugais)
+  let motifText: string | null
+  if (langue === 'pt') {
+    motifText = motivoPt(lower)
+  } else {
+    const motifMatch = lower.match(/motif\s+([a-zà-ÿéèêë\s]+?)(?:\s+prix|\s+pour|\s+client|\s*,|\s*$)/i)
+    motifText = motifMatch ? motifMatch[1].trim() : null
+  }
 
   for (const svc of services) {
     const svcLower = svc.name.toLowerCase()
@@ -211,7 +335,36 @@ export function parseAmount(text: string): number | null {
   return null
 }
 
-export function parseAddress(text: string): string | null {
+// Morada (portugais) : « na Rua das Flores 12 », « morada Avenida da Boavista 100 ». Mots qui suivent le type de voie,
+// jusqu'à « às », « hoje », « amanhã », « para », « Sr. », une heure (« 10h ») ou une virgule. Un jour de la semaine ne
+// coupe qu'après un numéro (« Rua das Flores 12 sexta ») : « Rua da Quinta » reste entière. Découpe mot par mot (pas de
+// regex à retour arrière) ; la position sert à retirer la morada avant de chercher la date.
+const FIN_MORADA_PT = new Set([
+  'às', 'as', 'hoje', 'amanhã', 'amanha', 'depois', 'para', 'com', 'sr', 'sr.', 'sra', 'sra.', 'senhor', 'senhora', 'cliente',
+])
+const DIA_SEMANA_PT = /^(?:(?:segunda|ter[çc]a|quarta|quinta|sexta)(?:-feira)?|s[áa]bado|domingo)$/
+function moradaPtTrecho(text: string): { valor: string; inicio: number; fim: number } | null {
+  const debut = /(?:^|[^A-Za-zÀ-ÿ])(?:na|no|em|morada:?)\s+(?=(?:rua|avenida|av\.|travessa|largo|pra[çc]a|estrada|alameda)\s)/i.exec(text)
+  if (!debut) return null
+  const inicio = debut.index + debut[0].length
+  const mots: string[] = []
+  let fim = inicio
+  for (const m of text.slice(inicio).matchAll(/\S+/g)) {
+    const mot = m[0]
+    const virgule = mot.endsWith(',')
+    const propre = virgule ? mot.slice(0, -1) : mot
+    const bas = propre.toLowerCase()
+    const apresNumero = mots.length > 0 && /\d$/.test(mots[mots.length - 1])
+    if (FIN_MORADA_PT.has(bas) || /^\d{1,2}h\d{0,2}$/.test(bas) || (apresNumero && DIA_SEMANA_PT.test(bas))) break
+    mots.push(propre)
+    fim = inicio + (m.index ?? 0) + propre.length
+    if (virgule) break
+  }
+  return mots.length > 0 ? { valor: mots.join(' '), inicio, fim } : null
+}
+
+export function parseAddress(text: string, langue: LangueMessage = 'fr'): string | null {
+  if (langue === 'pt') return moradaPtTrecho(text)?.valor ?? null
   // "au 123 rue X" or "à 123 avenue Y"
   const match = text.match(/(?:au|à|chez|adresse)\s+(\d+.*?)(?:\s*,\s*|\s+(?:à|pour|le|mardi|lundi|mercredi|jeudi|vendredi|samedi|dimanche|demain|aujourd)|\s*$)/i)
   if (match) return match[1].trim()
@@ -220,8 +373,24 @@ export function parseAddress(text: string): string | null {
 
 // ══════════════ INTENT DETECTION ══════════════
 
-export function detectIntent(text: string): Intent {
+function detectIntentPt(text: string, lower: string): Intent {
+  // « as minhas (próximas) marcações », « a minha agenda », « marcações » listent ; « marcação », « marcar »,
+  // « agendar », « visita » créent.
+  const liste = /(?:pr[óo]xim[ao]s?|minhas)\s+marca[çc](?:[õo]es|[ãa]o)|minha agenda|ver (?:a )?agenda|(?:^|[^a-zà-ÿ])marca[çc][õo]es(?![a-zà-ÿ])/.test(lower)
+  if (liste) return 'list_rdv'
+  if (/marca[çc][ãa]o|(?:^|[^a-zà-ÿ])(?:marcar|agendar|visita)(?![a-zà-ÿ])/.test(lower)) return 'create_rdv'
+  if (/or[çc]amento/.test(lower)) return 'create_devis'
+  if (/(?:^|[^a-zà-ÿ])fatura(?![a-zà-ÿ])/.test(lower)) return 'create_facture'
+  if (/(?:^|[^a-zà-ÿ])(?:agenda|planeamento|lista)(?![a-zà-ÿ])/.test(lower)) return 'list_rdv'
+  if (/(?:^|[^a-zà-ÿ])(?:ajuda|ol[áa]|como|bom dia|boa tarde|o que)(?![a-zà-ÿ])/.test(lower)) return 'help'
+  // Une date, une heure et un nom : une marcação
+  if (parseDate(text, 'pt') && parseTime(text, 'pt') && parseClientName(text, 'pt')) return 'create_rdv'
+  return 'unknown'
+}
+
+export function detectIntent(text: string, langue: LangueMessage = 'fr'): Intent {
   const lower = text.toLowerCase()
+  if (langue === 'pt') return detectIntentPt(text, lower)
 
   if (
     lower.includes('rdv') || lower.includes('rendez-vous') || lower.includes('rendez vous') ||
