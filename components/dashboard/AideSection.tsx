@@ -22,9 +22,9 @@ const FAQ_ITEMS_ARTISAN_FR = [
   { q: 'Comment exporter mes données ?', a: 'Depuis Statistiques ou le tableau de bord, cliquez sur Exporter. Choisissez le format (PDF, Excel, CSV) et la période souhaitée.' },
 ]
 const FAQ_ITEMS_ARTISAN_PT = [
-  { q: 'Como criar um orçamento?', a: 'Na barra lateral, clique em Orçamentos e depois em + Novo orçamento. Preencha o cliente, a prestação e o valor sem IVA. O orçamento é gerado automaticamente e pode ser enviado por e-mail.' },
+  { q: 'Como criar um orçamento?', a: 'Na barra lateral, clique em Orçamentos e depois em + Novo orçamento. Preencha o cliente, o serviço e o valor sem IVA. O orçamento é gerado automaticamente e pode ser enviado por e-mail.' },
   { q: 'Como validar uma ordem de serviço?', a: 'Vá a Ordens de serviço (Comunicação), clique na ordem em questão. No painel Ações, clique em Validar a missão. Pode registar a hora de chegada e associar documentos.' },
-  { q: 'Como renovar um documento de conformidade?', a: 'Em Wallet Conformidade (Perfil Pro), os documentos próximos do prazo de validade são destacados. Clique em Renovar ao lado do documento em causa.' },
+  { q: 'Como renovar um documento de conformidade?', a: 'Em Conformidade (Perfil Pro), os documentos próximos do prazo de validade são destacados. Clique em Renovar ao lado do documento em causa.' },
   { q: 'Como ativar ou desativar um módulo?', a: 'Em Módulos (Conta), pode ativar ou desativar cada módulo através do botão ON/OFF. Os módulos desativados desaparecem da sua barra lateral.' },
   { q: 'O meu link de reserva é personalizável?', a: 'O seu link é gerado automaticamente a partir do seu nome de perfil. Para o alterar, mude o nome em Definições → Perfil e guarde.' },
   { q: 'Como exportar os meus dados?', a: 'Em Estatísticas ou no painel, clique em Exportar. Escolha o formato (PDF, Excel, CSV) e o período pretendido.' },
@@ -38,10 +38,10 @@ const FAQ_ITEMS_SOCIETE_FR = [
   { q: 'Comment contacter le support ?', a: 'Email : support@vitfix.io • Tél : 04 91 00 00 00 • Chat Fixy 24/7 (bouton jaune en bas à droite).' },
 ]
 const FAQ_ITEMS_SOCIETE_PT = [
-  { q: 'Como criar uma situação de obra?', a: 'Vá a "Situações de obra", clique em "Emitir situação". Selecione a obra, preencha o avanço por lote — a retenção de garantia é calculada automaticamente (5%).' },
-  { q: 'Como funciona o registo de presenças por GPS?', a: 'Cada colaborador regista a presença via app móvel. O GPS verifica se está na obra atribuída. Verde = no local, Laranja = zona tampão (500m), Vermelho = fora da zona.' },
-  { q: 'Como preencher um formulário de subempreitada?', a: 'Em "Subempreitada", clique em "+ Nova subempreitada". Preencha o subempreiteiro, a obra, o valor e a percentagem. O formulário respeita o formato regulamentar dos concursos públicos.' },
-  { q: 'Como acompanhar a rentabilidade de uma obra?', a: 'Secção "Rentabilidade de Obra": comparação do orçamento previsto vs. realizado, repartição por rubrica (MO, materiais, subempreitada). Alertas automáticos em caso de desvio.' },
+  { q: 'Como criar um auto de medição?', a: 'Vá a "Autos de medição", clique em "Emitir auto de medição". Selecione a obra e preencha o avanço por lote: a retenção para garantia é calculada automaticamente (5%).' },
+  { q: 'Como funciona o registo de presenças por GPS?', a: 'Cada colaborador regista a presença via app móvel. O GPS verifica se está na obra atribuída. Verde = no local, Laranja = zona tampão (500 m), Vermelho = fora da zona.' },
+  { q: 'Como preencher um formulário de subempreitada?', a: 'Em "Subempreitadas", crie um novo contrato de subempreitada e preencha o subempreiteiro, a obra, o valor e a percentagem.' },
+  { q: 'Como acompanhar a rentabilidade de uma obra?', a: 'Secção "Rentabilidade": comparação do orçamento previsto vs. realizado, repartição por rubrica (mão de obra, materiais, subempreitada). Alertas automáticos em caso de desvio.' },
   { q: 'Como contactar o suporte?', a: 'E-mail: support@vitfix.io • Chat Fixy 24/7 (botão amarelo em baixo à direita).' },
 ]
 
@@ -58,7 +58,7 @@ const FAQ_ITEMS_BTP_PT = faqSocieteBtp(FAQ_ITEMS_SOCIETE_PT)
 
 /** Société BTP : « Ouvrir un ticket » ouvre un e-mail vers l'adresse de contact du site, au lieu d'un faux accusé de réception. */
 function ecrireAuSupport(isPt: boolean) {
-  const objet = isPt ? 'Pedido de assistência — Empresa de construção' : 'Demande d’assistance — Société BTP'
+  const objet = isPt ? 'Pedido de assistência: empresa de construção' : 'Demande d’assistance — Société BTP'
   window.location.href = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(objet)}`
 }
 
@@ -82,7 +82,7 @@ export default function AideSection({ navigateTo, orgRole = 'artisan' }: AideSec
       <div className="v5-fade">
         <div className="v5-pg-t">
           <h1>{isPt ? 'Ajuda' : 'Aide'}</h1>
-          <p>{isPt ? 'Centro de assistência VITFIX — Empresa de Construção' : 'Centre d\'assistance VITFIX — Société BTP'}</p>
+          <p>{isPt ? 'Centro de assistência VITFIX para empresas de construção' : 'Centre d\'assistance VITFIX — Société BTP'}</p>
         </div>
 
         {/* Getting started card */}
@@ -90,11 +90,11 @@ export default function AideSection({ navigateTo, orgRole = 'artisan' }: AideSec
           <div className="v5-st">{isPt ? 'Guia de início rápido' : 'Guide de démarrage rapide'}</div>
           <div style={{ fontSize: 12, color: '#666', lineHeight: 1.6 }}>
             {isPt ? <>
-              1. Complete o seu <strong>perfil de empresa</strong> (NIF/NIPC, certificações, efetivo)<br />
+              1. Complete o seu <strong>perfil de empresa</strong> (NIF/NIPC, certificações, colaboradores)<br />
               2. Crie as suas <strong>obras</strong> e atribua as suas <strong>equipas</strong><br />
-              3. Configure os seus <strong>lotes/prestações</strong> com preços unitários<br />
+              3. Configure os seus <strong>lotes/serviços</strong> com preços unitários<br />
               4. Carregue os seus <strong>documentos de conformidade</strong><br />
-              5. Comece a emitir <strong>situações de obra</strong> e <strong>faturas</strong>!
+              5. Comece a emitir <strong>autos de medição</strong> e <strong>faturas</strong>!
             </> : <>
               1. Complétez votre <strong>profil entreprise</strong> (SIRET, certifications, effectif)<br />
               2. Créez vos <strong>chantiers</strong> et assignez vos <strong>équipes</strong><br />
@@ -123,11 +123,11 @@ export default function AideSection({ navigateTo, orgRole = 'artisan' }: AideSec
         <div className="v5-card" style={{ marginTop: '1rem' }}>
           <div className="v5-st">{isPt ? 'Contacto de suporte' : 'Contact support'}</div>
           <div style={{ fontSize: 12, color: '#666', lineHeight: 1.6 }}>
-            Email : <strong>{estBtp ? CONTACT_EMAIL : 'support@vitfix.io'}</strong><br />
+            {isPt ? 'E-mail:' : 'Email :'} <strong>{estBtp ? CONTACT_EMAIL : 'support@vitfix.io'}</strong><br />
             {!isPt && !estBtp && <>Tél : <strong>04 91 00 00 00</strong><br /></>}
             {isPt ? 'Chat Fixy 24/7 (botão amarelo em baixo à direita)' : 'Chat Fixy 24/7 (bouton jaune en bas à droite)'}
           </div>
-          <button className="v5-btn v5-btn-p" style={{ marginTop: 10 }} onClick={() => (estBtp ? ecrireAuSupport(isPt) : toast.info(isPt ? 'Pedido criado — resposta em 24h' : 'Ticket créé — réponse sous 24h'))}>{isPt ? 'Abrir pedido de suporte' : 'Ouvrir un ticket'}</button>
+          <button className="v5-btn v5-btn-p" style={{ marginTop: 10 }} onClick={() => (estBtp ? ecrireAuSupport(isPt) : toast.info(isPt ? 'Pedido criado: resposta em 24 h' : 'Ticket créé — réponse sous 24h'))}>{isPt ? 'Abrir pedido de suporte' : 'Ouvrir un ticket'}</button>
         </div>
       </div>
     )
@@ -185,9 +185,9 @@ export default function AideSection({ navigateTo, orgRole = 'artisan' }: AideSec
               </div>
               <div className="flex justify-between py-2" style={{ fontSize: '12px' }}>
                 <span style={{ color: tv.textMid }}>{isPt ? 'Horário' : 'Horaires'}</span>
-                <span className="v22-mono font-medium" style={{ color: tv.text }}>{isPt ? 'Seg – Sex · 9h – 18h' : 'Lun – Ven · 9h – 18h'}</span>
+                <span className="v22-mono font-medium" style={{ color: tv.text }}>{isPt ? 'Seg. a sex. · 9h-18h' : 'Lun – Ven · 9h – 18h'}</span>
               </div>
-              <button className="v22-btn v22-btn-primary w-full mt-3" onClick={() => toast.info(isPt ? 'Pedido criado — resposta em 24h' : 'Ticket créé — réponse sous 24h')}>{isPt ? 'Abrir pedido de suporte' : 'Ouvrir un ticket'}</button>
+              <button className="v22-btn v22-btn-primary w-full mt-3" onClick={() => toast.info(isPt ? 'Pedido criado: resposta em 24 h' : 'Ticket créé — réponse sous 24h')}>{isPt ? 'Abrir pedido de suporte' : 'Ouvrir un ticket'}</button>
             </div>
           </div>
 

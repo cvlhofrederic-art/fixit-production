@@ -30,7 +30,7 @@ function entree(surcharge: Partial<PdfV3Input> = {}): PdfV3Input {
     companyEmail: '', tvaEnabled: true, tvaNumber: '', insuranceName: '', insuranceNumber: '', insuranceCoverage: '',
     insuranceType: 'rc_pro', decennaleEligibility: 'never', mediatorName: '', mediatorUrl: '', isHorsEtablissement: false,
     clientName: 'Entreprise Générale du Sud', clientEmail: 'travaux@entreprise-generale-du-sud.fr',
-    clientAddress: 'Cabinet Ajassociés, service des copropriétés, 54 cours Pierre Puget 13006 Marseille',
+    clientAddress: 'Cabinet Exemplaire, service des copropriétés, 10 cours Jean Exemple 13006 Marseille',
     clientPhone: '04 91 00 00 00', clientSiret: SIRET_CLIENT, clientType: 'professionnel',
     interventionAddress: 'Résidence Les Terrasses du Vieux-Port, 12 boulevard Charles Livon 13007 Marseille',
     interventionBatiment: 'B', interventionEtage: '3', interventionEspacesCommuns: 'hall et cage d\'escalier',
@@ -84,7 +84,7 @@ describe('PDF V3 — encadré destinataire', () => {
     // Pas de chevauchement : la ligne précédente (SIRET) est 14 pt plus haut
     expect(ordonnee(page, '(SIRET : ') - yTva).toBeCloseTo(14, 0)
     // Les deux adresses longues sont bien coupées sur plusieurs lignes
-    expect(page).toMatch(/\(Adresse : Cabinet Ajassoci[^)]*\) Tj\s*T\*/)
+    expect(page).toMatch(/\(Adresse : Cabinet Exemplaire[^)]*\) Tj\s*T\*/)
     expect(page).toMatch(/\(Intervention : R[^)]*\) Tj\s*T\*/)
   })
 
@@ -114,10 +114,10 @@ describe('PDF V3 — encadré destinataire', () => {
 
   it('destinataire ordinaire : encadré inchangé (une ligne par champ)', async () => {
     const page = await page1(entree({
-      clientAddress: '54 cours Pierre Puget 13006 Marseille', interventionAddress: '', interventionBatiment: '',
+      clientAddress: '10 cours Jean Exemple 13006 Marseille', interventionAddress: '', interventionBatiment: '',
       interventionEtage: '', interventionEspacesCommuns: '', interventionExterieur: '', regimeTva: 'classique',
     }))
-    expect(page).toContain('(Adresse : 54 cours Pierre Puget) Tj')
+    expect(page).toContain('(Adresse : 10 cours Jean Exemple) Tj')
     expect(page).not.toContain('Lieu :')
   })
 })

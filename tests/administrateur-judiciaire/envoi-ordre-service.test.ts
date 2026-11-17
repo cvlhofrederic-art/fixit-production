@@ -47,7 +47,7 @@ import {
   marquerDiffusable,
   modifierSortieOs,
   motifsVisa,
-  numeroterDemande,
+  numeroterAuPremierEnvoi,
   premierEnvoi,
   preuveDeDiffusion,
   preuveDeReception,
@@ -263,20 +263,23 @@ describe('numérotation <mandat>.<plan>.<rang> (tranche 34)', () => {
     expect(rangOsSuivant([], '12')).toBe(1)
   })
 
-  it('numérote une demande dans la séquence de son mandat, une seule fois', () => {
+  // décision de Hugo du 17/11/2026 (J56) : N° attribué au premier envoi, segment plan = date de cet envoi (AAAAMMJJ)
+  it('numérote une demande dans la séquence de son mandat, au premier envoi, une seule fois', () => {
     const sansNumero = demande({ id: 'dem-2', numero: null })
-    const numerotee = numeroterDemande(sansNumero, [demande(), sansNumero], { mandat: '12', plan: '3' })
-    expect(numerotee.numero).toBe('12.3.457')
+    const numerotee = numeroterAuPremierEnvoi(sansNumero, sortie(sansNumero), [demande(), sansNumero], { mandat: '12', premierEnvoiLe: '2026-10-03' })
+    expect(numerotee.numero).toBe('12.20261003.457')
     expect(sansNumero.numero).toBeNull()
-    expect(() => numeroterDemande(numerotee, [demande(), numerotee], { mandat: '12', plan: '3' })).toThrow(/figé/)
+    expect(() => numeroterAuPremierEnvoi(numerotee, sortie(numerotee), [demande(), numerotee], { mandat: '12', premierEnvoiLe: '2026-10-03' })).toThrow(/figé/)
   })
 
   it('refuse une demande sans mandat ou terminée, et une liste qui mêle un autre mandat', () => {
     const sansNumero = demande({ id: 'dem-2', numero: null })
-    expect(() => numeroterDemande({ ...sansNumero, mandatId: null }, [], { mandat: '12', plan: '3' })).toThrow(/mandat/)
-    expect(() => numeroterDemande({ ...sansNumero, statut: 'Terminé' }, [], { mandat: '12', plan: '3' })).toThrow(/terminée/)
+    const s = sortie(sansNumero)
+    const attribution = { mandat: '12', premierEnvoiLe: '2026-10-03' }
+    expect(() => numeroterAuPremierEnvoi({ ...sansNumero, mandatId: null }, s, [], attribution)).toThrow(/mandat/)
+    expect(() => numeroterAuPremierEnvoi({ ...sansNumero, statut: 'Terminé' }, s, [], attribution)).toThrow(/terminée/)
     const autreMandat = demande({ id: 'dem-3', mandatId: 'mandat-2' })
-    expect(() => numeroterDemande(sansNumero, [autreMandat], { mandat: '12', plan: '3' })).toThrow(/autre mandat/)
+    expect(() => numeroterAuPremierEnvoi(sansNumero, s, [autreMandat], attribution)).toThrow(/autre mandat/)
   })
 })
 
@@ -2376,7 +2379,7 @@ describe('décision J47 de Hugo du 06/11/2026 : le devis accepté par l’OS est
     expect(() => envoyerOs(avecDevis, sortie(avecDevis), ENVOI, { ...CONTEXTE, dateDevis: composerDateIso(2025, 10, 3) })).not.toThrow()
   })
 
-  it('🔵 années bissextiles (lecture à confirmer par Hugo) : un devis du 29 février a un an le 28 février suivant (dernier jour du mois)', () => {
+  it('années bissextiles (J54, décision de Hugo du 17/11/2026) : un devis du 29 février a un an le 28 février suivant (dernier jour du mois)', () => {
     const devis29 = composerDateIso(2024, 2, 29)
     expect(refuse(composerDateIso(2025, 2, 27), devis29)).toEqual([])
     expect(refuse(composerDateIso(2025, 2, 28), devis29)).toEqual([])
@@ -2478,7 +2481,7 @@ describe('décision J49 de Hugo du 10/11/2026 : devis d’un an pile accepté, r
     expect(graves(ENVOI_LE, composerDateIso(2026, 1, 15))).toEqual([])
   })
 
-  it('🔵 29 février (lecture du code, sans réponse de Hugo) : le devis du 29/02/2024 a un an le 28/02/2025, alerte ce jour-là, refusé dès le 1er mars', () => {
+  it('29 février (J54, décision de Hugo du 17/11/2026) : le devis du 29/02/2024 a un an le 28/02/2025, alerte ce jour-là, refusé dès le 1er mars', () => {
     const devis29 = composerDateIso(2024, 2, 29)
     expect(graves(composerDateIso(2025, 2, 27), devis29)).toEqual([])
     expect(graves(composerDateIso(2025, 2, 28), devis29)).toEqual([['devis_revalorisation_a_demander', 'alerte']])
@@ -2671,13 +2674,16 @@ describe('en-tête du module', () => {
       // J48 et J49 (10/11/2026)
       'un envoi pendant le délai de contestation, pour une intervention prévue après la fin du délai, peut-il partir',
       "un devis daté d'un an pile est-il encore accepté",
+      // J56 (17/11/2026) : segment plan, moment de l'attribution, zéros du rang, liste Signature
+      'sens du segment <plan>',
+      'N° attribué à la création de la demande, ou',
+      'complété de zéros',
+      'valeurs de la liste Signature',
+      // J61 (17/11/2026, suite) : la date du segment plan est celle du premier envoi
+      'Hugo (suite de J56)',
     ])
       expect(questions).not.toContain(tranchee)
     for (const ouverte of [
-      'segment <plan>',
-      'au premier envoi',
-      'complété de zéros',
-      'liste Signature',
       'devisExigesParAssemblee',
       'Hugo (suite de la décision 6)',
       'critère proposé (entretien courant',
@@ -2725,24 +2731,26 @@ describe('en-tête du module', () => {
     expect(enTete.slice(enTete.indexOf('Branchements à faire plus tard'))).toContain('dateDevis, date du devis associé : J47')
   })
 
-  it('J47 et J49 : le jour anniversaire est la décision J49 ; le 29 février → 28 février reste une lecture du code (🔵), à confirmer par Hugo', () => {
+  it('J47 et J49 : le jour anniversaire est la décision J49 ; le 29 février → 28 février, lecture du code, est confirmé par J54 (17/11/2026)', () => {
     const decisions0611 = enTete.slice(enTete.indexOf('Décisions de Hugo du 06/11/2026'), enTete.indexOf('Décisions de Hugo du 10/11/2026'))
     const j47 = decisions0611.slice(decisions0611.indexOf('- J47'))
     const questions = enTete.slice(enTete.indexOf('🔴 Non établi'))
     const joint = source.replaceAll(/\r?\n\s*\* */g, ' ')
     const doc = joint.slice(joint.indexOf("Ancienneté du devis accepté par l'OS"), joint.indexOf('function anomaliesAncienneteDevis'))
-    const lecture = '🔵 : lecture de dates.ajouterMois, à confirmer par Hugo'
+    const lecture = 'lecture de dates.ajouterMois, confirmée par la décision de Hugo du 17/11/2026, J54'
     for (const [lieu, texte] of [['en-tête J47', j47], ['doc de anomaliesAncienneteDevis', doc]] as const) {
       expect(texte, lieu).toContain(lecture)
+      expect(texte, lieu).not.toContain('à confirmer par Hugo')
       expect(texte, lieu).toContain('le devis du 29 février a un an le 28 février suivant')
       expect(texte, lieu).toContain("un devis daté d'un an pile (même quantième) est encore accepté le jour anniversaire (décision J49")
       // le jour anniversaire n'est plus une lecture à confirmer
       expect(texte, lieu).not.toContain("🔵 : lecture de « daté de plus d'un an »")
       expect(texte, lieu).not.toMatch(/(suivant|ajouterMois)\) n'est pas « plus d'un an »/)
     }
-    expect(questions).toContain('Hugo, caducité du devis (suite de J47 et J49 ; le jour anniversaire est tranché par J49)')
+    // J54 (17/11/2026) : la question du 29 février est fermée
+    expect(questions).not.toContain('Hugo, caducité du devis (suite de J47 et J49')
     expect(questions).not.toContain("un devis daté d'un an pile est-il encore accepté")
-    expect(questions).toContain('le devis du 29 février a-t-il un an le 28 février suivant (oui ici : dates.ajouterMois')
+    expect(questions).not.toContain('le devis du 29 février a-t-il un an le 28 février suivant')
   })
 
   it('rubrique « Décisions de Hugo du 10/11/2026 » : J48 (précision de J17, d’après la législation, 🔵) et J49 (revalorisation) inscrites, avec leurs sources', () => {
@@ -2768,14 +2776,14 @@ describe('en-tête du module', () => {
       'J46',
     ])
       expect(j48).toContain(attendu)
-    // J49 : la règle, son seuil nommé, sa nature (règle du cabinet), le 29 février laissé en 🔵
+    // J49 : la règle, son seuil nommé, sa nature (règle du cabinet), le 29 février confirmé par J54 (17/11/2026)
     for (const attendu of [
       "« oui mais peut-être une revalorisation est à demander à l'entreprise »",
       'ACCEPTÉ le jour anniversaire',
       'devis_revalorisation_a_demander',
       'MOIS_ALERTE_REVALORISATION_DEVIS, 12 mois, règle du cabinet, aucun texte',
       'MOIS_CADUCITE_MANDAT_SEPA',
-      'Le cas du 29 février reste une lecture du code (🔵',
+      'Le cas du 29 février, lecture du code, est confirmé par la décision de Hugo du 17/11/2026 (J54',
     ])
       expect(j49).toContain(attendu)
     // la description du droit et de la décision 7 suit J48

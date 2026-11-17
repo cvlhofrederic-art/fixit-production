@@ -72,7 +72,7 @@ describe('Aide — société BTP', () => {
     expect(mocks.toastInfo).not.toHaveBeenCalled()
     const lien = new URL(lieu.navigations[0])
     expect(lien.pathname).toBe(CONTACT_EMAIL)
-    expect(lien.searchParams.get('subject')).toBe('Pedido de assistência — Empresa de construção')
+    expect(lien.searchParams.get('subject')).toBe('Pedido de assistência: empresa de construção')
   })
 })
 

@@ -19,7 +19,7 @@ function urgencyTag(urgency: string, isPt: boolean) {
 function publisherTag(type: string, isPt: boolean) {
   switch (type) {
     case 'syndic':
-      return <span className="v22-tag" style={{ background: '#E8F0FE', color: '#1A56DB' }}>🏢 Syndic</span>
+      return <span className="v22-tag" style={{ background: '#E8F0FE', color: '#1A56DB' }}>🏢 {isPt ? 'Condomínio' : 'Syndic'}</span>
     case 'entreprise':
       return <span className="v22-tag" style={{ background: '#F3E8FF', color: '#7C3AED' }}>🏭 {isPt ? 'Empresa' : 'Entreprise'}</span>
     default:
@@ -89,7 +89,8 @@ export default function DetailModalView({
         {/* Modal head */}
         <div className="v22-modal-head">
           <div className="v22-modal-title">
-            {isPt ? 'Detalhe do mercado' : 'Détail du marché'}
+            {/* « Concurso » réservé à la société BTP, comme l'onglet « Concursos » de la Bolsa. */}
+            {isPt ? (isSociete ? 'Detalhe do concurso' : 'Detalhe da oportunidade') : 'Détail du marché'}
           </div>
           <button className="v22-modal-close" onClick={onClose}>✕</button>
         </div>
@@ -114,13 +115,13 @@ export default function DetailModalView({
             {days !== null && (
               <span>
                 ⏰ {days > 0
-                  ? (isPt ? `${days} dias restantes` : `${days} jours restants`)
+                  ? (isPt ? (days === 1 ? '1 dia restante' : `${days} dias restantes`) : `${days} jours restants`)
                   : (isPt ? 'Prazo expirado' : 'Délai expiré')}
               </span>
             )}
             {selectedMarche.candidatures_count !== undefined && (
               <span>
-                👥 {selectedMarche.candidatures_count} {isPt ? 'candidaturas' : 'candidatures'}
+                👥 {selectedMarche.candidatures_count} {isPt ? (selectedMarche.candidatures_count === 1 ? 'candidatura' : 'candidaturas') : 'candidatures'}
               </span>
             )}
           </div>
@@ -133,7 +134,7 @@ export default function DetailModalView({
               </div>
               <div className="v22-mono" style={{ fontSize: 16, fontWeight: 600 }}>
                 {selectedMarche.budget_min ? formatPrice(selectedMarche.budget_min, locale) : '—'}
-                {' — '}
+                {isPt ? ' - ' : ' — '}
                 {selectedMarche.budget_max ? formatPrice(selectedMarche.budget_max, locale) : '—'}
               </div>
             </div>
@@ -162,7 +163,7 @@ export default function DetailModalView({
                     onClick={() => setSelectedPhotoIdx(idx)}
                     style={{ aspectRatio: '1', borderRadius: 3, overflow: 'hidden', border: '1px solid var(--v22-border)', cursor: 'pointer', padding: 0, background: 'none', position: 'relative' }}
                   >
-                    <Image src={url} alt={`Photo ${idx + 1}`} fill style={{ objectFit: 'cover' }} />
+                    <Image src={url} alt={`${isPt ? 'Foto' : 'Photo'} ${idx + 1}`} fill style={{ objectFit: 'cover' }} />
                   </button>
                 ))}
               </div>
@@ -197,7 +198,7 @@ export default function DetailModalView({
                   )}
                   <Image
                     src={photos[selectedPhotoIdx]}
-                    alt={`Photo ${selectedPhotoIdx + 1}`}
+                    alt={`${isPt ? 'Foto' : 'Photo'} ${selectedPhotoIdx + 1}`}
                     width={1200}
                     height={900}
                     style={{ maxWidth: '100%', maxHeight: '85vh', borderRadius: 4, objectFit: 'contain' }}
@@ -224,7 +225,7 @@ export default function DetailModalView({
                   className="v22-btn"
                   style={{ width: '100%', textAlign: 'center' }}
                 >
-                  {isPt ? 'Abrir conversa com o publicador' : 'Ouvrir la conversation avec le donneur d\'ordre'}
+                  {isPt ? 'Abrir conversa com o anunciante' : 'Ouvrir la conversation avec le donneur d\'ordre'}
                 </button>
               ) : (
                 <div>
@@ -365,7 +366,7 @@ export default function DetailModalView({
                   required
                   value={bidPrice}
                   onChange={e => onBidPriceChange(e.target.value)}
-                  placeholder="ex: 5000"
+                  placeholder={isPt ? 'Ex.: 5000' : 'ex: 5000'}
                   className="v22-form-input"
                 />
               </div>
@@ -441,7 +442,7 @@ export default function DetailModalView({
                   type="text"
                   value={bidGuarantee}
                   onChange={e => onBidGuaranteeChange(e.target.value)}
-                  placeholder={isPt ? 'Ex: 2 anos' : 'Ex : 2 ans'}
+                  placeholder={isPt ? 'Ex.: 2 anos' : 'Ex : 2 ans'}
                   className="v22-form-input"
                 />
               </div>
@@ -450,7 +451,7 @@ export default function DetailModalView({
               {isSociete && (
                 <div style={{ marginBottom: 14 }}>
                   <label className="v22-form-label">
-                    👷 {isPt ? 'Efectivo mobilizável (companheiros)' : 'Effectif mobilisable (compagnons)'}
+                    👷 {isPt ? 'Colaboradores mobilizáveis (operários)' : 'Effectif mobilisable (compagnons)'}
                   </label>
                   <input
                     type="number"
@@ -458,7 +459,7 @@ export default function DetailModalView({
                     max="500"
                     value={bidEffectif}
                     onChange={e => onBidEffectifChange(e.target.value)}
-                    placeholder={isPt ? 'Ex: 8' : 'Ex : 8'}
+                    placeholder={isPt ? 'Ex.: 8' : 'Ex : 8'}
                     className="v22-form-input"
                   />
                 </div>

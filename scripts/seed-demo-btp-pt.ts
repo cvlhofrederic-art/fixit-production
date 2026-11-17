@@ -7,7 +7,7 @@
  *   npx tsx scripts/seed-demo-btp-pt.ts          → Crée le compte + insère les données
  *   npx tsx scripts/seed-demo-btp-pt.ts --clean   → Supprime les données [DEMO-PT]
  *
- * Compte créé : admincvlhopt@gmail.com / (SEED_PASSWORD env var or random UUID)
+ * Compte créé : adresse SEED_DEMO_BTP_PT_EMAIL (obligatoire, gardée hors du dépôt) / (SEED_PASSWORD env var or random UUID)
  * Société     : Construções Valho & Filhos, Lda
  * Locale      : PT — noms, moradas, NIF, preços adaptados a Portugal
  */
@@ -38,7 +38,7 @@ const DEMO_TAG = '[DEMO-PT]'
 // COMPTE
 // ────────────────────────────────────────────────────────────
 const ACCOUNT = {
-  email: 'admincvlhopt@gmail.com',
+  email: process.env.SEED_DEMO_BTP_PT_EMAIL || '',
   password: process.env.SEED_PASSWORD || crypto.randomUUID(),
   full_name: 'Carlos Valho',
   company_name: 'Construções Valho & Filhos, Lda',
@@ -55,6 +55,17 @@ const ACCOUNT = {
   org_role: 'pro_societe',
 }
 
+if (!ACCOUNT.email) {
+  console.error('❌ SEED_DEMO_BTP_PT_EMAIL manquante : adresse du compte de démonstration BTP PT, gardée hors du dépôt (dépôt public)')
+  process.exit(1)
+}
+
+// Garde-fou : l'adresse vient de l'environnement, donc avant toute suppression ou réécriture le compte
+// trouvé doit être celui de la démonstration (nom posé à sa création par ce script).
+function estCompteDemo(u: { user_metadata?: { full_name?: unknown } }): boolean {
+  return u.user_metadata?.full_name === ACCOUNT.full_name
+}
+
 // ────────────────────────────────────────────────────────────
 async function seed() {
   const isClean = process.argv.includes('--clean')
@@ -65,6 +76,11 @@ async function seed() {
     const { data: user } = await supabase.auth.admin.listUsers()
     const demoUser = user?.users?.find(u => u.email === ACCOUNT.email)
     if (!demoUser) { console.log('Compte introuvable, rien à supprimer.'); return }
+    if (!estCompteDemo(demoUser)) {
+      console.error(`❌ Ce compte n'est pas le compte de démonstration (nom différent) : rien n'est supprimé.`)
+      process.exitCode = 1
+      return
+    }
     const ownerId = demoUser.id
 
     await supabase.from('devis').delete().eq('artisan_user_id', ownerId)
@@ -93,6 +109,12 @@ async function seed() {
   let ownerId: string
   const { data: existingUsers } = await supabase.auth.admin.listUsers()
   const existing = existingUsers?.users?.find(u => u.email === ACCOUNT.email)
+
+  if (existing && !estCompteDemo(existing)) {
+    console.error(`❌ Ce compte n'est pas le compte de démonstration (nom différent) : rien n'est modifié.`)
+    process.exitCode = 1
+    return
+  }
 
   if (existing) {
     console.log('ℹ️  Compte déjà existant, ID:', existing.id)
@@ -703,7 +725,7 @@ async function seed() {
 ╔══════════════════════════════════════════════════════════╗
 ║        ✅ CONTA DEMO PT CRIADA COM SUCESSO               ║
 ╠══════════════════════════════════════════════════════════╣
-║  Email    : admincvlhopt@gmail.com                       ║
+║  Email    : ${ACCOUNT.email.padEnd(45)}║
 ║  Password : ${ACCOUNT.password.substring(0, 4)}****                                 ║
 ║  Empresa  : Construções Valho & Filhos, Lda              ║
 ║  NIPC     : 512 345 678                                  ║

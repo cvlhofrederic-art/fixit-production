@@ -1,11 +1,9 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
-import { callGroqWithRetry, callGroqStreaming } from '@/lib/groq'
+import { appelerIA, fluxIA, iaTexteDisponible } from '@/lib/ai/relais'
 import { calculateScores, type AnalyseScores } from '@/lib/analyse-devis-scoring'
 import { logger } from '@/lib/logger'
-
-const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
 
 // ── Analyseur Devis/Factures CLIENT — Pipeline 4 étapes ──────────────────────
 // 1. Préprocessing IA (conditionnel) : nettoyer le texte brut PDF
@@ -330,16 +328,16 @@ function needsPreprocessing(text: string): boolean {
   return true
 }
 
-// ── Appel Groq helper with retry ─────────────────────────────────────────────
+// ── Appel IA : Groq, puis relais par Workers AI (lib/ai/relais.ts) ──
 async function callGroq(systemPrompt: string, userContent: string, opts: { temperature?: number; max_tokens?: number } = {}) {
-  return callGroqWithRetry({
+  return appelerIA({
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userContent },
     ],
     temperature: opts.temperature ?? 0.1,
     max_tokens: opts.max_tokens ?? 4000,
-  })
+  }, { contexte: 'client/analyse-devis' })
 }
 
 // ── Vérification SIRET via API interne ──────────────────────────────────────
@@ -430,8 +428,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Contenu du document trop court ou vide' }, { status: 400 })
   }
 
-  if (!GROQ_API_KEY) {
-    return NextResponse.json({ error: 'Clé API manquante' }, { status: 500 })
+  if (!(await iaTexteDisponible())) {
+    return NextResponse.json({ error: 'L’analyse est indisponible pour le moment. Réessayez plus tard.' }, { status: 503 })
   }
 
   try {
@@ -486,14 +484,14 @@ export async function POST(req: NextRequest) {
       )
 
       // Streamer la réponse : scores d'abord, puis analyse narrative
-      const analyseStream = await callGroqStreaming({
+      const { flux: analyseStream, modele: modeleAnalyse } = await fluxIA({
         messages: [
           { role: 'system', content: SYSTEM_PROMPT },
           { role: 'user', content: userPrompt },
         ],
         temperature: 0.1,
         max_tokens: 5000,
-      })
+      }, { contexte: 'client/analyse-devis' })
 
       const encoder = new TextEncoder()
       const transformStream = new TransformStream({
@@ -519,7 +517,7 @@ export async function POST(req: NextRequest) {
             artisanSiret: extracted.artisan_siret as string,
             siretVerified: siretResult.verified,
             scores, extracted, analysisText: '[streamed]',
-            model: 'llama-3.3-70b-versatile',
+            model: modeleAnalyse,
           }).catch((err) => { logger.warn('saveAnalysis (client stream) failed silently:', err) })
         },
       })
@@ -582,7 +580,6 @@ export async function POST(req: NextRequest) {
       isVitfix: vitfix,
       siret: siretResult,
       preprocessed,
-      model: analyseData.model,
       tokens: totalTokens,
     })
   } catch (err) {
