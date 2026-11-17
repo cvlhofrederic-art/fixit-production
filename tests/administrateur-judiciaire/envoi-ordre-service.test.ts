@@ -2679,11 +2679,11 @@ describe('en-tête du module', () => {
       'N° attribué à la création de la demande, ou',
       'complété de zéros',
       'valeurs de la liste Signature',
+      // J61 (17/11/2026, suite) : la date du segment plan est celle du premier envoi
+      'Hugo (suite de J56)',
     ])
       expect(questions).not.toContain(tranchee)
     for (const ouverte of [
-      // J56 : la date retenue pour le segment plan (celle du premier envoi) reste une lecture à confirmer
-      'Hugo (suite de J56)',
       'devisExigesParAssemblee',
       'Hugo (suite de la décision 6)',
       'critère proposé (entretien courant',
