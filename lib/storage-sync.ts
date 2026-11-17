@@ -966,7 +966,7 @@ function noteAGarder(key: string, confirmee: string, base: Base | undefined): bo
   if (pendingWrites.has(key) || pendingDeletes.has(key)) return true
   const ecriteIci = derniereEcritureIci.get(key)
   if (ecriteIci === undefined || ecriteIci === confirmee) return false
-  if (ecriteIci === null) return true
+  if (ecriteIci === null && base !== undefined) return true
   const locale = valeurLocale(key)
   if (locale === undefined || locale === confirmee) return false
   if (locale === ecriteIci) return true

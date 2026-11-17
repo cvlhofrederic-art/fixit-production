@@ -1407,6 +1407,40 @@ describe('suppression qui suit une saisie, la restauration d’un onglet neuf re
   })
 })
 
+// Dixième passe, scénario DCF5-B de la contre-relecture : la suppression arrive au serveur et est confirmée avant la
+// saisie plus ancienne, qui arrive après elle. Depuis la neuvième passe, la confirmation de cette saisie recréait la note
+// de la clé, levée par celle de la suppression. La saisie suivante de l'onglet la gardait : la valeur d'avant retenue
+// était la saisie confirmée, et non la valeur du navigateur juste avant la nouvelle saisie. En échec, la nouvelle saisie
+// était perdue au nouvel essai, alors que le serveur détenait la valeur qu'elle avait remplacée.
+describe('saisie qui suit une suppression confirmée avant la saisie plus ancienne', () => {
+  it('la nouvelle saisie, en échec, repart au nouvel essai quand le serveur détient la valeur qu’elle a remplacée', async () => {
+    const A = await ouvrirUnOnglet()
+    const C = await ouvrirUnOnglet()
+    serveur.retenir = true
+    saisirDans(A, CLIENTS, liste(1, 2))
+    await ecoulerDebounce() // envoi 0 : la saisie
+    supprimerDans(A, CLIENTS)
+    const B = await ouvrirUnOnglet() // remet la liste du serveur, et marque sa disparition
+    await ecoulerDebounce() // envoi 1 : la suppression
+    await aboutir(1) // la suppression arrive et est confirmée
+    await aboutir(0) // la saisie, plus ancienne, arrive après elle et est confirmée
+    serveur.retenir = false
+    saisirDans(C, CLIENTS, liste(1)) // dans C, l'utilisateur remet la liste d'origine ; l'envoi part et arrive
+    await ecoulerDebounce()
+    serveur.retenir = true
+    saisirDans(A, CLIENTS, liste(5)) // puis il crée une nouvelle liste dans A
+    await ecoulerDebounce() // envoi 2
+    await aboutir(2, 'reseau')
+    serveur.retenir = false
+    await nouvelEssai()
+    await relireDansLesDeuxOnglets(A, B)
+
+    // Neuvième passe : le serveur gardait la liste d'origine, et elle revenait dans le navigateur.
+    expect(serveur.espace[CLIENTS]).toEqual(commeLaBase(liste(5)))
+    expect(lire(CLIENTS)).toEqual(commeLaBase(liste(5)))
+  })
+})
+
 // Neuvième passe, remarque de la contre-relecture : la limite de cinquante marques par sorte n'était vérifiée par aucun
 // test. Une note qui en garderait moins perdrait l'une de deux modifications remplacées par la même restauration ; une
 // note sans limite grandirait avec le nombre de clés du compte.
