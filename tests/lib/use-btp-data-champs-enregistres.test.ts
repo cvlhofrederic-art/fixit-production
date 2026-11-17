@@ -9,7 +9,9 @@
 // Réunion avec le pointage géolocalisé (PR #703, 17/11/2026) : l'ancien pointage GPS de l'écran n'existe plus (le
 // pointage automatique passe par /api/btp/pointage et garde son départ vide jusqu'à la sortie du chantier). Ni position
 // ni distance d'un employé ne sont conservées (CNIL, CNPD) : un pointage envoyé par /api/btp reste un pointage manuel,
-// sans coordonnées ni distance, même si la fiche en porte, comme avant le 15/11/2026 (relecture adverse du 17/11/2026).
+// sans coordonnées ni distance, même si la fiche en porte. Une version de travail de ce lot, jamais publiée, laissait
+// passer le mode GPS par ce chemin (retiré après la relecture adverse du 17/11/2026) ; en production, il a toujours
+// envoyé un pointage manuel sans position.
 // Un pointage envoyé par /api/btp sans heure de départ reçoit 17:00, comme en production : vide, il serait « en cours »,
 // et l'index unique de la migration 20261116 refuserait le pointage suivant du même employé (choix de produit en
 // attente). Le rayon suit la seule règle de rayonSaisi : entier d'au moins 1 m, sinon la valeur par défaut de la

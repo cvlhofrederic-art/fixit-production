@@ -26,6 +26,7 @@
 -- CREATE OR REPLACE TRIGGER (aucun DROP). Le code de l'application est correct avant comme après : la route refuse
 -- déjà ces rattachements, avec un message clair, et ne réécrit jamais un lien équipe-membre inchangé (une équipe qui
 -- porte un lien ancien hors du compte se modifie donc normalement).
+-- Retour arrière : docs/rollback-procedures.md, section « Migration 20261115 — BTP : rattachements au même compte (`20261115_btp_rattachements_meme_compte.sql`) ».
 --
 -- À appliquer par Frédéric (Supabase > SQL Editor, un seul « Run »). CREATE TRIGGER prend un verrou sur chaque table
 -- le temps de sa création : lock_timeout évite d'attendre derrière une transaction longue ; en cas d'expiration,

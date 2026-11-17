@@ -87,8 +87,8 @@ describe('colonnesModifiees — une modification partielle n’envoie que ce qui
 describe('SOURCES_DES_COLONNES reste aligné sur mapToSupabase', () => {
   // Colonnes posées d'office à la création, volontairement absentes des modifications : le mode d'un pointage, toujours
   // « manuel » par /api/btp. Le pointage automatique passe par /api/btp/pointage (PR #703), qui ne conserve ni position
-  // ni distance ; le mode GPS que ce chemin laissait passer depuis le 15/11/2026 (constat donnees-btp-6) n'a plus
-  // d'écran (relecture adverse du 17/11/2026).
+  // ni distance. Une version de travail de ce lot, jamais publiée, laissait passer le mode GPS par ce chemin (retiré
+  // après la relecture adverse du 17/11/2026) ; en production, il a toujours envoyé un pointage manuel sans position.
   const POSEES_A_LA_CREATION: Record<string, string[]> = { pointages: ['mode'] }
   const trier = (liste: readonly string[]) => [...liste].sort((a, b) => a.localeCompare(b))
   const tries = (parColonne: Record<string, readonly string[]>) =>

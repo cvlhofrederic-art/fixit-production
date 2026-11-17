@@ -279,4 +279,28 @@ describe('retour arrière de la migration (docs/rollback-procedures.md)', () => 
     // Plus de déclencheur : un rattachement hors du compte n'est plus refusé par la base.
     await base.exec(`INSERT INTO public.pointages_btp (owner_id, chantier_id) VALUES ('${A}', '${CH_B}')`)
   })
+
+  it('garde le délai d’attente des verrous de la migration, posé avant le premier DROP', () => {
+    // Chaque DROP TRIGGER verrouille toute la table, lectures comprises, jusqu'à la fin du retour : sans ce délai,
+    // l'éditeur SQL attendrait sans limite derrière une transaction longue (contre-relecture du 17/11/2026).
+    const delai = lireMigrationQr(MIGRATION).split('\n').find(l => /^set local lock_timeout\b/i.test(l))
+    expect(delai).toBe("set local lock_timeout = '5s';")
+    const lignes = procedureDeRetour(MIGRATION).split('\n')
+    const premierDrop = lignes.findIndex(l => /^DROP\b/i.test(l))
+    expect(premierDrop).toBeGreaterThan(0)
+    expect(lignes.slice(0, premierDrop)).toContain(delai)
+  })
+
+  it('l’en-tête de la migration renvoie à cette procédure, sous le titre exact de sa section', () => {
+    // Celui qui ouvre la migration pour la lancer voit où se trouve sa marche arrière, sans la confondre avec celle de
+    // l'autre migration 20261115 (équipe BTP), comme dans les migrations voisines.
+    const lignes = lireMigrationQr(MIGRATION).split('\n')
+    const entete = lignes.slice(0, lignes.findIndex(l => l.trim() !== '' && !l.startsWith('--')))
+    const renvois = entete.flatMap(l => /^-- Retour arrière : docs\/rollback-procedures\.md, section « (.+) »\.$/.exec(l)?.[1] ?? [])
+    expect(renvois).toHaveLength(1)
+    const titres = readFileSync(join(process.cwd(), 'docs/rollback-procedures.md'), 'utf-8').replace(/\r\n/g, '\n')
+      .split('\n').filter(l => l.startsWith('## ')).map(l => l.slice(3))
+    expect(titres).toContain(renvois[0])
+    expect(renvois[0]).toContain(MIGRATION) // la section dont le bloc SQL est joué plus haut
+  })
 })
