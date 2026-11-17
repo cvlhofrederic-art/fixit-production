@@ -92,10 +92,12 @@ import { creerRattachement, memeRattachement, type FicheLiee, type Rattachement 
  *   et 11 sont tranchées (J20 à J24, J41 et J44, ci-dessus) :
  * 2. Frédéric : quelle valeur de N pour « étape automatique non réalisée » (30 jours proposés) ; réglage par cabinet ou
  *    par collaborateur ?
- * 8. Frédéric ou Hugo : quand un processus d'étapes modélise un délai légal (ex. 30 j de L. 1965 art. 19-2), la limite
- *    de l'étape suivante doit-elle partir de la première présentation ou de la transmission de l'avis électronique
- *    (D. 1967 art. 64 et 64-1) et non de la réalisation (l'envoi) ? Sinon, ces délais restent marqués « de gestion ».
- *    Frédéric : la prorogation au premier jour ouvrable (CPC art. 642) s'applique-t-elle à ce délai de 30 jours ?
+ * 8. Point de départ tranché (J3, J50) : un délai légal ouvert par un courrier part du lendemain de la première
+ *    présentation ou de la transmission de l'avis électronique (D. 1967 art. 64 et 64-1), calculé par le module qui
+ *    porte ce délai (recouvrement.ts pour les trente jours de L. 1965 art. 19-2), jamais par l'étape : la limite d'une
+ *    étape reste un délai « de gestion ». Report au premier jour ouvrable (CPC art. 642) tranché pour ces trente jours
+ *    par Hugo (J67, R41 : deux fins, exigibilité le lendemain de la fin avec report, calculée dans recouvrement.ts) ; la
+ *    limite de gestion d'une étape reste sans report. Reste à Frédéric : afficher ou non cette limite légale dans l'étape.
  * 9. Frédéric : dans « à compter de la demande » (L. 1965 art. 8-2 et 21), compte-t-on de l'envoi ou de la réception
  *    par le syndic ? La date de création d'une étape n'est pas, à ce jour, la date de la demande.
  * 10. Frédéric ou Hugo (suite de J22) : demandeur extérieur sans adresse électronique connue : quel canal de repli
