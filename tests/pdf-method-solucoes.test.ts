@@ -341,6 +341,9 @@ describe('Valeurs du formulaire traduites pour le gabarit', () => {
     ])).toHaveLength(2)
     expect(prestacoesDoDevis([])).toEqual([])
     expect(jurosDeMora("3 × taux d'intérêt légal en vigueur")).toBe('')
+    // Valeur par défaut d'un document créé sur /pt (formulaire traduit) : même rendu que la valeur française
+    expect(jurosDeMora('Taxa de juro legal em vigor')).toBe('')
+    expect(jurosDeMora('Taxa de juro legal em vigor acrescida de 8 pontos')).toBe('Juros de mora: Taxa de juro legal em vigor acrescida de 8 pontos.')
     expect(jurosDeMora('')).toBe('')
     expect(jurosDeMora('8 % ao ano')).toBe('Juros de mora: 8 % ao ano.')
   })
