@@ -5,6 +5,10 @@
 // saisie sans regarder le résultat ; le pointage GPS affichait « Pointé » même si rien n'était enregistré ; la compta BTP
 // retirait de l'écran un frais fixe dont la suppression avait été refusée. Maintenant : le message d'échec s'affiche
 // (toast, via le hook), la fenêtre reste ouverte avec ce qui a été saisi, et rien n'est annoncé comme fait.
+//
+// Pointage : écran réécrit par le pointage géolocalisé (PR #703, réuni le 17/11/2026). L'ancien bouton GPS « Pointer
+// sur … » n'existe plus (le pointage automatique passe par /api/btp/pointage, dont les refus sont testés dans
+// tests/components/btp-pointage-ecran.test.tsx) ; la saisie à la main est dans l'onglet Historique du gérant.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -50,6 +54,13 @@ beforeEach(() => {
     chantiers: [{ id: CHANTIER, titre: 'Villa Dupré', client: 'Mme Dupré', statut: 'En cours', latitude: 43.29, longitude: 5.37, geo_rayon_m: 100 }],
   }
   vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, init) => {
+    // Écran Pointage : gérant sans fiche employé (onglets Pointer, Affectations, Historique).
+    if (String(url).startsWith('/api/btp/pointage')) {
+      return json({
+        gerant: true, rattachement: 'aucun', moi: null, chantiers: [], pointageEnCours: null, pointagesOublies: [], historique: [],
+        pointageAutoActive: false, reglageDisponible: true, comptes: {}, affectationIndividuelle: true,
+      })
+    }
     if (init?.method === 'POST') {
       envois.push(JSON.parse(String(init.body)))
       return reponseEcriture()
@@ -118,27 +129,17 @@ describe('Équipes — membre', () => {
 })
 
 describe('Pointage', () => {
-  it('pointage GPS refusé : l’écran n’affiche pas « Pointé »', async () => {
+  it('pointage manuel refusé : le message s’affiche, le formulaire reste ouvert avec le nom saisi', async () => {
     render(<PointageGeoSection artisan={nouvelArtisan()} orgRole="pro_societe" />)
-    fireEvent.click(await screen.findByRole('button', { name: 'GPS' }))
-    fireEvent.click(screen.getByText(/proDash\.pointage\.activerGPS/))
-    fireEvent.click(await screen.findByText(/proDash\.pointage\.pointerSur Villa Dupré/))
+    fireEvent.click(await screen.findByRole('button', { name: 'Historique' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Pointer manuellement' }))
+    // Aucun employé dans Équipes : le nom se saisit librement.
+    fireEvent.change(screen.getByLabelText('Employé', { selector: 'input#pointage-employe' }), { target: { value: 'Paul Durand' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }))
 
     await waitFor(() => expect(envois).toHaveLength(1))
     await waitFor(() => expect(toast.error).toHaveBeenCalled())
-    expect(screen.queryByText('proDash.pointage.pointe')).toBeNull()
-    expect(screen.getByText(/proDash\.pointage\.procheDe Villa Dupré/)).toBeInTheDocument()
-  })
-
-  it('pointage manuel refusé : le formulaire reste ouvert avec le nom saisi', async () => {
-    render(<PointageGeoSection artisan={nouvelArtisan()} orgRole="pro_societe" />)
-    fireEvent.click(await screen.findByText(/proDash\.pointage\.pointerManuellement/))
-    fireEvent.change(screen.getByPlaceholderText('proDash.pointage.nomEmploye'), { target: { value: 'Paul Durand' } })
-    fireEvent.click(screen.getByText(/proDash\.pointage\.enregistrer/))
-
-    await waitFor(() => expect(envois).toHaveLength(1))
-    await waitFor(() => expect(toast.error).toHaveBeenCalled())
-    expect(screen.getByPlaceholderText('proDash.pointage.nomEmploye')).toHaveValue('Paul Durand')
+    expect(screen.getByLabelText('Employé', { selector: 'input#pointage-employe' })).toHaveValue('Paul Durand')
   })
 })
 

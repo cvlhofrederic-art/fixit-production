@@ -6,6 +6,12 @@
 // avec un départ à 17:00 jamais saisi ; le rayon de pointage d'un chantier, l'équipe d'un membre, le chantier d'une
 // équipe et celui d'une dépense n'étaient jamais envoyés. Maintenant : ces champs partent dans leur colonne, à la
 // création comme à la modification, et se relisent.
+//
+// Réunion avec le pointage géolocalisé (PR #703, 17/11/2026) : l'ancien pointage GPS de l'écran n'existe plus (le
+// pointage automatique passe par /api/btp/pointage et garde son départ vide jusqu'à la sortie du chantier). Un pointage
+// envoyé par /api/btp sans heure de départ reçoit 17:00, comme en production : vide, il serait « en cours », et l'index
+// unique de la migration 20261116 refuserait le pointage suivant du même employé (choix de produit en attente). Le rayon
+// suit la seule règle de rayonSaisi : entier d'au moins 1 m, sinon la valeur par défaut de la colonne (100 m).
 
 import { describe, it, expect, vi } from 'vitest'
 
@@ -20,17 +26,28 @@ const MEMBRE = 'b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e'
 const EQUIPE = 'c3d4e5f6-a7b8-4c9d-8e0f-2a3b4c5d6e7f'
 
 describe('pointage', () => {
-  it('pointage GPS : chantier, mode, coordonnées et distance enregistrés ; ni heure de départ ni heures inventées', () => {
-    // Ce que PointageGeoSection envoie quand on pointe sur un chantier détecté par le GPS.
+  it('mode, coordonnées et distance fournis : enregistrés dans leur colonne, avec le chantier', () => {
     const ligne = mapToSupabase('pointages', {
       employe: 'Société d’essai', poste: 'patron', chantier: 'Villa Dupré', chantierId: CHANTIER,
-      date: '2026-11-15', heureArrivee: '08:12', heureDepart: '', pauseMinutes: 0, heuresTravaillees: null,
+      date: '2026-11-15', heureArrivee: '08:12', heureDepart: '16:00', pauseMinutes: 0, heuresTravaillees: 7.8,
       notes: 'Pointage GPS (37m)', mode: 'geo_confirme', arriveeLat: 43.29, arriveeLng: 5.37, distanceM: 37,
     })
     expect(ligne).toMatchObject({
       chantier_id: CHANTIER, chantier_nom: 'Villa Dupré', mode: 'geo_confirme',
       arrivee_lat: 43.29, arrivee_lng: 5.37, distance_m: 37,
-      heure_arrivee: '08:12', heure_depart: null, heures_travaillees: null,
+      heure_arrivee: '08:12', heure_depart: '16:00', heures_travaillees: 7.8,
+    })
+  })
+
+  it('sans heure de départ : 17:00 comme en production, jamais un pointage « en cours » ; heures non fournies vides', () => {
+    // Départ vidé dans le formulaire « Pointer manuellement » (heures alors incalculables).
+    const ligne = mapToSupabase('pointages', {
+      employe: 'Paul Durand', membreId: MEMBRE, chantier: 'Villa Dupré', chantierId: CHANTIER,
+      date: '2026-11-15', heureArrivee: '08:12', heureDepart: '', pauseMinutes: 0, heuresTravaillees: null,
+    })
+    expect(ligne).toMatchObject({
+      membre_id: MEMBRE, chantier_id: CHANTIER, mode: 'manuel',
+      heure_arrivee: '08:12', heure_depart: '17:00', heures_travaillees: null,
     })
   })
 
@@ -71,10 +88,18 @@ describe('chantier : rayon de pointage GPS', () => {
     expect(colonnesModifiees('chantiers', { geoRayonM: 250 })).toEqual({ geo_rayon_m: 250 })
   })
 
-  it('sans rayon fourni (ou rayon illisible), rien n’est envoyé : la base garde sa valeur', () => {
+  it('sans champ rayon, rien n’est envoyé : la base garde sa valeur', () => {
     expect(mapToSupabase('chantiers', { titre: 'Villa Dupré' })).not.toHaveProperty('geo_rayon_m')
-    expect(colonnesModifiees('chantiers', { geoRayonM: undefined })).toEqual({})
-    expect(colonnesModifiees('chantiers', { geoRayonM: 0 })).toEqual({})
+    expect(colonnesModifiees('chantiers', { titre: 'Villa Dupré' })).toEqual({ titre: 'Villa Dupré' })
+  })
+
+  it('rayon illisible : la valeur par défaut de la colonne (100 m), jamais un rayon que la route refuserait', () => {
+    expect(colonnesModifiees('chantiers', { geoRayonM: undefined })).toEqual({ geo_rayon_m: 100 })
+    expect(colonnesModifiees('chantiers', { geoRayonM: 0 })).toEqual({ geo_rayon_m: 100 })
+    expect(colonnesModifiees('chantiers', { geoRayonM: '' })).toEqual({ geo_rayon_m: 100 })
+    // 0,4 m s'arrondirait à 0, que la route refuse (au moins 1 m).
+    expect(colonnesModifiees('chantiers', { geoRayonM: 0.4 })).toEqual({ geo_rayon_m: 100 })
+    expect(colonnesModifiees('chantiers', { geoRayonM: '75' })).toEqual({ geo_rayon_m: 75 })
   })
 })
 

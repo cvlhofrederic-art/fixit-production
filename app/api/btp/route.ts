@@ -8,8 +8,8 @@ import { logger } from '@/lib/logger'
 import { PLAFONDS_LECTURE_BTP } from '@/lib/btp/plafonds-lecture'
 import { MESSAGE_FICHE_INTROUVABLE, traduireErreurBase, type ErreurBase } from '@/lib/btp/erreurs-base-btp'
 import {
-  BTP_TABLES_ECRIVABLES, COLONNES_SYSTEME, FORMAT_UUID, memeValeur, referencesDeLigne, valeursHorsBornes, verifierLigne,
-  type HorsBornes, type Reference, type TableCible, type TableEcrivable,
+  BTP_TABLES_ECRIVABLES, COLONNES_SYSTEME, FORMAT_UUID, dejaEnregistre, memeValeur, referencesDeLigne, valeursHorsBornes,
+  verifierLigne, type HorsBornes, type Reference, type TableCible, type TableEcrivable,
 } from '@/lib/btp/schema-tables-btp'
 
 const btpBodySchema = z.object({
@@ -198,8 +198,9 @@ class ErreurEcriture extends Error {
   }
 }
 
-// ── Rattachements (constat api-coeur-9) : chantier_id, membre_id, equipe_id et les membres d'une équipe ne désignent
-// que des fiches du compte. Une valeur déjà enregistrée sur la fiche, renvoyée telle quelle, reste acceptée.
+// ── Rattachements (constat api-coeur-9) : chantier_id, membre_id, equipe_id, les membres d'une équipe et les employés
+// affectés à un chantier (membres_ids) ne désignent que des fiches du compte. Une valeur déjà enregistrée sur la fiche,
+// renvoyée telle quelle, reste acceptée.
 const INTROUVABLE: Record<TableCible, string> = {
   chantiers_btp: 'chantier introuvable dans votre compte',
   membres_btp: 'membre de l\'équipe introuvable dans votre compte',
@@ -284,12 +285,14 @@ async function lierMembresDeLaNouvelleEquipe(userId: string, equipeId: string, m
 
 /**
  * Rattachements hors du compte que la modification CHANGE. Ceux déjà enregistrés sur la fiche (ou déjà liés à
- * l'équipe), renvoyés tels quels par un formulaire complet, restent acceptés : refuser bloquerait la fiche existante.
+ * l'équipe, ou déjà dans la liste des employés du chantier), renvoyés tels quels par un formulaire complet, restent
+ * acceptés : refuser bloquerait la fiche existante. membres_ids n'a pas de clé étrangère : un employé supprimé depuis
+ * reste dans la liste, et l'écran la renvoie entière.
  */
 async function rattachementsNouveaux(etrangeres: Reference[], enBase: Ligne, equipeId: string): Promise<Reference[]> {
   if (etrangeres.length === 0) return []
   const lies = etrangeres.some(r => r.colonne === 'membreIds') ? await lireMembresLies(equipeId) : new Set<string>()
-  return etrangeres.filter(r => (r.colonne === 'membreIds' ? !lies.has(r.id.toLowerCase()) : !memeValeur(r.id, enBase[r.colonne])))
+  return etrangeres.filter(r => (r.colonne === 'membreIds' ? !lies.has(r.id.toLowerCase()) : !dejaEnregistre(r.id, enBase[r.colonne])))
 }
 
 const refus = (message: string, status = 400) => NextResponse.json({ error: message }, { status })
@@ -331,6 +334,16 @@ async function lireFiche(table: TableEcrivable, id: string, userId: string): Pro
   return (data ?? null) as Ligne | null
 }
 
+/**
+ * Colonne chantiers_btp.membres_ids (employés affectés, migration 20261116) absente de la base : PostgREST répond
+ * PGRST204 (écriture) ou 42703 en la nommant. Le chantier s'enregistre alors sans ses employés au lieu d'échouer.
+ * Les employés ont déjà été contrôlés (format, même compte) : le second essai n'écrit que des colonnes contrôlées.
+ */
+function affectationSansColonne(table: TableEcrivable, ligne: Ligne, error: ErreurBase | null): boolean {
+  if (!error || table !== 'chantiers_btp' || !('membres_ids' in ligne)) return false
+  return (error.code === 'PGRST204' || error.code === '42703') && (error.message ?? '').includes('membres_ids')
+}
+
 async function creer(userId: string, table: TableEcrivable, donnees: unknown): Promise<NextResponse> {
   if (!estObjet(donnees)) return refus('Données invalides')
   const contrat = verifierContrat(table, donnees)
@@ -346,7 +359,13 @@ async function creer(userId: string, table: TableEcrivable, donnees: unknown): P
   const etrangeres = await rattachementsEtrangers(userId, table, ligne, membres)
   if (etrangeres.length > 0) return refus(`Enregistrement refusé : ${messageReferences(etrangeres)}.`)
 
-  const { data: inseree, error } = await supabaseAdmin.from(table).insert({ ...ligne, owner_id: userId }).select().single()
+  const inserer = () => supabaseAdmin.from(table).insert({ ...ligne, owner_id: userId }).select().single()
+  let { data: inseree, error } = await inserer()
+  if (affectationSansColonne(table, ligne, error)) {
+    logger.warn('[btp] chantiers_btp.membres_ids absente : chantier créé sans ses employés (migration 20261116 à appliquer)')
+    delete ligne.membres_ids
+    ;({ data: inseree, error } = await inserer())
+  }
   if (error) throw new ErreurEcriture(error)
   if (membres && membres.length > 0) await lierMembresDeLaNouvelleEquipe(userId, inseree.id, membres)
   return NextResponse.json({ row: inseree }, { status: 201 })
@@ -354,7 +373,8 @@ async function creer(userId: string, table: TableEcrivable, donnees: unknown): P
 
 /**
  * Modification qui porte une valeur hors bornes ou un rattachement hors du compte : acceptée seulement si cette valeur
- * est déjà celle de la fiche (ou si ce membre est déjà lié à l'équipe), et alors signalée au journal.
+ * est déjà celle de la fiche (ou si ce membre est déjà lié à l'équipe, ou cet employé déjà dans la liste du chantier),
+ * et alors signalée au journal.
  * Renvoie le refus à répondre, sinon null.
  */
 async function refusFaceALaFiche(
@@ -397,10 +417,15 @@ async function modifier(userId: string, table: TableEcrivable, id: string, donne
   // Aucune colonne à écrire (seuls les membres d'une équipe changent) : PostgREST ne renvoie aucune ligne pour
   // un UPDATE vide, et la modification échouerait. On lit alors la ligne, ce qui vérifie qu'elle appartient
   // bien à l'appelant avant de toucher à ses membres.
-  const cible = Object.keys(ligne).length === 0
+  const ecrire = () => Object.keys(ligne).length === 0
     ? supabaseAdmin.from(table).select().eq('id', id).eq('owner_id', userId).single()
     : supabaseAdmin.from(table).update(ligne).eq('id', id).eq('owner_id', userId).select().single()
-  const { data: modifiee, error } = await cible
+  let { data: modifiee, error } = await ecrire()
+  if (affectationSansColonne(table, ligne, error)) {
+    logger.warn('[btp] chantiers_btp.membres_ids absente : chantier modifié sans ses employés (migration 20261116 à appliquer)')
+    delete ligne.membres_ids
+    ;({ data: modifiee, error } = await ecrire())
+  }
   if (error) throw new ErreurEcriture(error)
 
   if (membres !== undefined) await mettreAJourMembres(id, membres)

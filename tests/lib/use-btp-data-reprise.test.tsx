@@ -173,4 +173,17 @@ describe('reprise des anciennes données du navigateur — rattachements', () =>
     expect(reprises[0].data[0]).not.toHaveProperty('chantier_id')
     expect(reprises[0].data[0]).not.toHaveProperty('membre_id')
   })
+
+  // Pointage géolocalisé (PR #703, réuni le 17/11/2026) : les employés d'un chantier (membres_ids) sont contrôlés par la
+  // route comme membre_id ; ceux d'une fiche locale ne désignent aucun employé en base, même au format UUID.
+  it('chantiers : les employés locaux d’un ancien chantier ne partent pas, le reste oui', async () => {
+    const employeLocal = '3e4f5a6b-7c8d-4e9f-8a1b-2c3d4e5f6a01'
+    localStorage.setItem('fixit_chantiers_fiche-r3', JSON.stringify([{ id: 'ch-local', titre: 'Villa', statut: 'En cours', membres_ids: ['m-local', employeLocal] }]))
+    renderHook(() => useBTPData({ table: 'chantiers', artisanId: 'fiche-r3', userId: 'compte-r3' }))
+
+    await waitFor(() => expect(reprises).toHaveLength(1))
+    expect(reprises[0]).toMatchObject({ table: 'chantiers_btp', action: 'import' })
+    expect(reprises[0].data[0]).toMatchObject({ titre: 'Villa', statut: 'En cours' })
+    expect(reprises[0].data[0]).not.toHaveProperty('membres_ids')
+  })
 })

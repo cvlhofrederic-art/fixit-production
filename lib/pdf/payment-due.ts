@@ -66,6 +66,17 @@ function lastDayOfMonth(d: Date): Date {
 }
 
 /**
+ * Date AAAA-MM-JJ d'une date du calendrier local (année, mois, jour locaux). `toISOString()` passe par
+ * l'heure UTC : en France, le minuit local d'une échéance « fin de mois » (lastDayOfMonth) y devient
+ * la veille (31/12 → 2026-12-30).
+ */
+export function dateIsoLocale(d: Date): string {
+  const mois = String(d.getMonth() + 1).padStart(2, '0')
+  const jour = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${mois}-${jour}`
+}
+
+/**
  * Calcule la date d'échéance d'une facture à partir de la date d'émission
  * et de la chaîne de conditions de paiement.
  *

@@ -7,10 +7,52 @@ import { jetonAcces } from '@/lib/auth/jeton-acces'
 import { lireSessionSure } from '@/lib/auth/session-navigateur'
 import { resolveCompanyType } from '@/lib/config/companyTypes'
 import { messagePlafondAtteint } from '@/lib/btp/plafonds-lecture'
+import { RAYON_PAR_DEFAUT_M } from '@/lib/btp/pointage-geo'
 
 function safeJsonParse(val: unknown, fallback: any = []) {
   if (typeof val !== 'string') return val || fallback
   try { return JSON.parse(val) } catch { return fallback }
+}
+
+/**
+ * Rayon du pointage GPS saisi : entier positif, sinon la valeur par défaut de la colonne geo_rayon_m. Seule règle du
+ * rayon envoyé par les écrans (fiche chantier, onglet Affectations) : jamais un rayon illisible, que /api/btp refuserait
+ * (au moins 1 m). Arrondi d'abord : 0,4 m donnerait 0, refusé par la route.
+ */
+function rayonSaisi(valeur: unknown): number {
+  const nombre = typeof valeur === 'string' ? Number(valeur) : valeur
+  const arrondi = typeof nombre === 'number' && Number.isFinite(nombre) ? Math.round(nombre) : 0
+  return arrondi >= 1 ? arrondi : RAYON_PAR_DEFAUT_M
+}
+
+/** Identifiants d'une liste (chaînes non vides, sans doublon) ; liste vide pour toute autre valeur. */
+function identifiants(valeur: unknown): string[] {
+  if (!Array.isArray(valeur)) return []
+  return [...new Set(valeur.filter((id): id is string => typeof id === 'string' && id.length > 0))]
+}
+
+const FORME_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** Colonnes de clé que mapToSupabase écrit depuis le pointage géolocalisé (16/11/2026), par table. */
+const CLES_DU_POINTAGE: Partial<Record<ShortName, readonly string[]>> = {
+  chantiers: ['membres_ids'],
+  equipes: ['chantier_id'],
+  pointages: ['membre_id', 'chantier_id'],
+}
+
+/**
+ * Ligne importée depuis le localStorage : un ancien identifiant local (« demo-ch-001 », horodatage) dans une de ces
+ * colonnes ferait échouer tout le lot sur le type uuid ; il est retiré (null, ou sorti de la liste), la ligne passe.
+ * Les autres colonnes et les autres tables sont importées comme avant.
+ */
+export function ligneImportable(table: ShortName, ligne: Record<string, unknown>): Record<string, unknown> {
+  const propre: Record<string, unknown> = { ...ligne }
+  for (const colonne of CLES_DU_POINTAGE[table] ?? []) {
+    const valeur = propre[colonne]
+    if (Array.isArray(valeur)) propre[colonne] = valeur.filter(id => typeof id === 'string' && FORME_UUID.test(id))
+    else if (typeof valeur === 'string' && !FORME_UUID.test(valeur)) propre[colonne] = null
+  }
+  return propre
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -72,7 +114,9 @@ function entierOuNull(valeur: unknown): number | null {
 // colonnesModifiees() plus bas, qui n'envoie que les champs réellement fournis.
 // Colonnes vérifiées dans le relevé de production du 11/11/2026 : geo_rayon_m (chantier), equipe_id (membre),
 // chantier_id (équipe, dépense), membre_id, chantier_id, mode, coordonnées et distance (pointage) existent ; les
-// formulaires les remplissaient sans qu'elles soient envoyées (constats donnees-btp-6 et donnees-btp-7).
+// formulaires les remplissaient sans qu'elles soient envoyées (constats donnees-btp-6 et donnees-btp-7). membres_ids
+// (employés d'un chantier) vient de la migration 20261116 du pointage géolocalisé. Toute colonne écrite ici doit être
+// connue de la liste blanche de /api/btp (lib/btp/schema-tables-btp.ts, tests/lib/btp-schema-tables.test.ts).
 export function mapToSupabase(table: ShortName, item: any): any {
   switch (table) {
     case 'chantiers': {
@@ -94,12 +138,12 @@ export function mapToSupabase(table: ShortName, item: any): any {
       // sous_taches is a partial-update field — only include when explicitly provided
       if ('sous_taches' in item) mapped.sous_taches = item.sous_taches
       else if ('sousTaches' in item) mapped.sous_taches = item.sousTaches
-      // Rayon de pointage GPS (colonne NOT NULL avec valeur par défaut) : envoyé seulement quand le formulaire en
-      // fournit un lisible ; sinon la base garde sa valeur (100 m par défaut à la création).
-      if ('geoRayonM' in item) {
-        const rayon = entierOuNull(item.geoRayonM)
-        if (rayon !== null && rayon >= 1) mapped.geo_rayon_m = rayon
-      }
+      // Rayon du pointage GPS et employés affectés : seulement quand le formulaire les fournit (fiche chantier,
+      // écran Pointage). Rayon : toujours un entier lisible d'au moins 1 m (rayonSaisi), jamais une valeur que la route
+      // refuserait. Sans la colonne membres_ids (migration 20261116), /api/btp enregistre le reste du chantier.
+      if ('geoRayonM' in item) mapped.geo_rayon_m = rayonSaisi(item.geoRayonM)
+      else if ('geo_rayon_m' in item) mapped.geo_rayon_m = rayonSaisi(item.geo_rayon_m)
+      if ('membres_ids' in item) mapped.membres_ids = identifiants(item.membres_ids)
       return mapped
     }
     case 'membres':
@@ -128,21 +172,24 @@ export function mapToSupabase(table: ShortName, item: any): any {
       return {
         nom: item.nom || '',
         metier: item.metier || null,
-        chantier_id: item.chantierId || null,
+        chantier_id: item.chantierId || item.chantier_id || null,
         membreIds: item.membreIds || [], // handled separately in API
       }
     case 'pointages':
-      // Un pointage GPS d'arrivée n'a ni heure de départ ni heures travaillées : la colonne reste vide (null) au lieu
-      // d'un départ à 17:00 et de 0 heure jamais saisis.
+      // Pointage saisi à la main (écran Pointage, onglet Historique) ou repris du navigateur. Départ vide : 17:00, comme
+      // en production. Un départ vide (null) en ferait un pointage « en cours », et l'index unique de la migration
+      // 20261116 (un seul pointage en cours par employé) refuserait le suivant du même employé (choix de produit en
+      // attente). Le pointage automatique passe par /api/btp/pointage et garde son départ vide jusqu'à la sortie du
+      // chantier. Heures non fournies : vides (null) plutôt que 0 heure jamais saisie.
       return {
-        membre_id: item.membreId || null,
-        chantier_id: item.chantierId || null,
         employe: item.employe || '',
         poste: item.poste || null,
+        membre_id: item.membreId || null,
+        chantier_id: item.chantierId || null,
         chantier_nom: item.chantier || null,
         date: item.date || new Date().toISOString().split('T')[0],
         heure_arrivee: item.heureArrivee || '08:00',
-        heure_depart: item.heureDepart || null,
+        heure_depart: item.heureDepart || '17:00',
         pause_minutes: item.pauseMinutes ?? 60,
         heures_travaillees: item.heuresTravaillees ?? null,
         notes: item.notes || null,
@@ -247,7 +294,7 @@ export const SOURCES_DES_COLONNES: Partial<Record<ShortName, Record<string, read
     titre: ['titre'], client: ['client'], adresse: ['adresse'], ville: ['ville'], code_postal: ['codePostal', 'code_postal'],
     latitude: ['latitude'], longitude: ['longitude'], date_debut: ['dateDebut'], date_fin: ['dateFin'], budget: ['budget'],
     statut: ['statut'], description: ['description'], equipe: ['equipe'], sous_taches: ['sous_taches', 'sousTaches'],
-    geo_rayon_m: ['geoRayonM'],
+    geo_rayon_m: ['geoRayonM', 'geo_rayon_m'], membres_ids: ['membres_ids'],
   },
   membres: {
     prenom: ['prenom'], nom: ['nom'], telephone: ['telephone'], email: ['email'], type_compte: ['typeCompte'],
@@ -257,10 +304,10 @@ export const SOURCES_DES_COLONNES: Partial<Record<ShortName, Record<string, read
     type_contrat: ['type_contrat'], heures_hebdo: ['heures_hebdo'], panier_repas_jour: ['panier_repas_jour'],
     indemnite_trajet_jour: ['indemnite_trajet_jour'], prime_mensuelle: ['prime_mensuelle'], actif: ['actif'],
   },
-  equipes: { nom: ['nom'], metier: ['metier'], chantier_id: ['chantierId'], membreIds: ['membreIds'] },
+  equipes: { nom: ['nom'], metier: ['metier'], chantier_id: ['chantierId', 'chantier_id'], membreIds: ['membreIds'] },
   pointages: {
-    membre_id: ['membreId'], chantier_id: ['chantierId'],
-    employe: ['employe'], poste: ['poste'], chantier_nom: ['chantier'], date: ['date'], heure_arrivee: ['heureArrivee'],
+    employe: ['employe'], poste: ['poste'], membre_id: ['membreId'], chantier_id: ['chantierId'],
+    chantier_nom: ['chantier'], date: ['date'], heure_arrivee: ['heureArrivee'],
     heure_depart: ['heureDepart'], pause_minutes: ['pauseMinutes'], heures_travaillees: ['heuresTravaillees'], notes: ['notes'],
     mode: ['mode'], arrivee_lat: ['arriveeLat'], arrivee_lng: ['arriveeLng'], depart_lat: ['departLat'], depart_lng: ['departLng'],
     distance_m: ['distanceM'],
@@ -293,22 +340,26 @@ export const SOURCES_DES_COLONNES: Partial<Record<ShortName, Record<string, read
 
 /**
  * Rattachements que la reprise des anciennes données du navigateur n'envoie pas, comme avant le 15/11/2026 : dans ces
- * fiches locales, l'équipe d'un membre, le chantier d'une équipe, d'une dépense ou d'un pointage et le salarié d'un
- * pointage portent des identifiants propres au navigateur, qui ne désignent aucune fiche en base ; la route refuserait
- * alors toute la reprise.
+ * fiches locales, l'équipe d'un membre, le chantier d'une équipe, d'une dépense ou d'un pointage, le salarié d'un
+ * pointage et les employés d'un chantier portent des identifiants propres au navigateur, qui ne désignent aucune fiche
+ * en base (une fiche reprise reçoit un nouvel identifiant) ; la route refuserait alors toute la reprise.
  */
 const RATTACHEMENTS_NON_REPRIS: Partial<Record<ShortName, readonly string[]>> = {
+  chantiers: ['membres_ids'],
   membres: ['equipe_id'],
   equipes: ['chantier_id'],
   pointages: ['membre_id', 'chantier_id'],
   depenses: ['chantier_id'],
 }
 
-/** Ligne d'une reprise des anciennes données du navigateur (voir RATTACHEMENTS_NON_REPRIS). */
+/**
+ * Ligne d'une reprise des anciennes données du navigateur : rattachements locaux retirés (RATTACHEMENTS_NON_REPRIS),
+ * puis ligneImportable, qui écarte tout ancien identifiant local resté dans une colonne de clé du pointage.
+ */
 function ligneDeReprise(table: ShortName, item: unknown): Record<string, unknown> {
   const ligne = { ...(mapToSupabase(table, item) as Record<string, unknown>) }
   for (const colonne of RATTACHEMENTS_NON_REPRIS[table] ?? []) delete ligne[colonne]
-  return ligne
+  return ligneImportable(table, ligne)
 }
 
 /**
@@ -391,6 +442,8 @@ export function mapFromSupabase(table: ShortName, item: any): any {
         ...item,
         employe: item.employe,
         poste: item.poste || '',
+        membreId: item.membre_id || '',
+        chantierId: item.chantier_id || '',
         chantier: item.chantier_nom || '',
         date: item.date,
         heureArrivee: item.heure_arrivee,
@@ -399,8 +452,6 @@ export function mapFromSupabase(table: ShortName, item: any): any {
         heuresTravaillees: parseFloat(item.heures_travaillees) || 0,
         notes: item.notes || '',
         mode: item.mode || 'manuel',
-        membreId: item.membre_id || '',
-        chantierId: item.chantier_id || '',
         arriveeLat: item.arrivee_lat,
         arriveeLng: item.arrivee_lng,
         departLat: item.depart_lat,
@@ -763,6 +814,7 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
             if (Array.isArray(parsed) && parsed.length > 0) {
               imported.current = true
               if (ecranBTP) _reprisesTentees.add(lsKey)
+              // Les deux protections : rattachements locaux retirés et anciens identifiants écartés (ligneDeReprise).
               const mapped = parsed.map((item: unknown) => ligneDeReprise(table, item))
 
               const res = await fetch('/api/btp', {
@@ -1081,48 +1133,4 @@ export function useChargesFixes({ artisanId, userId }: { artisanId: string; user
     userId,
     autoImport: false,
   })
-}
-
-// ── Geo-pointage helper ───────────────────────────────────────────────────────
-
-export function useGeoPointage() {
-  const [position, setPosition] = useState<{ lat: number; lng: number } | null>(null)
-  const [watching, setWatching] = useState(false)
-  const [geoError, setGeoError] = useState<string | null>(null)
-  const watchId = useRef<number | null>(null)
-
-  const start = useCallback(() => {
-    if (!navigator.geolocation) return
-    setWatching(true)
-    setGeoError(null)
-    watchId.current = navigator.geolocation.watchPosition(
-      (pos) => { setPosition({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setGeoError(null) },
-      (err) => { setGeoError(err.code === 1 ? 'Permission GPS refusée' : err.code === 2 ? 'GPS indisponible' : 'GPS timeout'); console.warn('[geo] watchPosition error:', err.message) },
-      { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 }
-    )
-  }, [])
-
-  const stop = useCallback(() => {
-    if (watchId.current !== null) {
-      navigator.geolocation.clearWatch(watchId.current)
-      watchId.current = null
-    }
-    setWatching(false)
-  }, [])
-
-  // Distance en mètres entre deux points GPS
-  const distanceTo = useCallback((lat2: number, lng2: number): number | null => {
-    if (!position) return null
-    const R = 6371000
-    const dLat = (lat2 - position.lat) * Math.PI / 180
-    const dLng = (lng2 - position.lng) * Math.PI / 180
-    const a = Math.sin(dLat / 2) ** 2 +
-      Math.cos(position.lat * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-      Math.sin(dLng / 2) ** 2
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-  }, [position])
-
-  useEffect(() => { return () => stop() }, [stop])
-
-  return { position, watching, geoError, start, stop, distanceTo }
 }

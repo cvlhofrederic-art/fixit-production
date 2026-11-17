@@ -8,6 +8,7 @@
  */
 
 import LienPanneauAdmin from '@/components/common/LienPanneauAdmin'
+import { ID_MODULE_DICTIONNAIRE, dictionnaireDisponible } from '@/lib/dictionnaire-materiaux/disponibilite'
 
 interface V5SidebarArtisanProps {
   activePage: string
@@ -33,6 +34,7 @@ const PREFETCH_MAP: Record<string, () => void> = {
   messages: () => import('@/components/dashboard/MessagerieArtisan'),
   comptabilite: () => import('@/components/dashboard/ComptabiliteSection'),
   materiaux: () => import('@/components/dashboard/MateriauxSection'),
+  dictionnaire_materiaux: () => import('@/components/dashboard/DictionnaireMateriauxSection'),
   rapports: () => import('@/components/dashboard/RapportsSection'),
   stats: () => import('@/components/dashboard/StatsRevenusSection'),
   settings: () => import('@/components/dashboard/SettingsSection'),
@@ -134,6 +136,10 @@ export default function V5SidebarArtisan({
           )}
           {isModuleEnabled('materiaux') && (
             <V5ArtisanItem icon="🧱" label={isPt ? 'Materiais' : 'Matériaux'} active={activePage === 'materiaux'} onClick={() => navigateTo('materiaux')} page="materiaux" />
+          )}
+          {/* Dictionnaire matériaux : seulement dans les langues dont le pays a un dictionnaire (comme côté BTP). */}
+          {dictionnaireDisponible(isPt ? 'PT' : 'FR') && isModuleEnabled(ID_MODULE_DICTIONNAIRE) && (
+            <V5ArtisanItem icon="📖" label={isPt ? 'Dicionário de materiais' : 'Dictionnaire matériaux'} active={activePage === ID_MODULE_DICTIONNAIRE} onClick={() => navigateTo(ID_MODULE_DICTIONNAIRE)} page={ID_MODULE_DICTIONNAIRE} />
           )}
           {isModuleEnabled('marketplace_btp') && (
             <V5ArtisanItem icon="🏪" label="Marketplace BTP" active={activePage === 'marketplace_btp'} onClick={() => navigateTo('marketplace_btp')} page="marketplace_btp" />

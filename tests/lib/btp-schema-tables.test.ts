@@ -13,15 +13,16 @@ vi.mock('@/lib/supabase', () => ({
 }))
 
 import {
-  BTP_TABLES_ECRIVABLES, COLONNES_BTP, COLONNES_SYSTEME, memeValeur, referencesDeLigne, valeursHorsBornes, verifierLigne,
-  type TableEcrivable,
+  BTP_TABLES_ECRIVABLES, COLONNES_BTP, COLONNES_SYSTEME, dejaEnregistre, memeValeur, referencesDeLigne, valeursHorsBornes,
+  verifierLigne, type TableEcrivable,
 } from '@/lib/btp/schema-tables-btp'
 import { SOURCES_DES_COLONNES, colonnesModifiees, mapToSupabase } from '@/lib/hooks/use-btp-data'
 
 // Relevé de production du 11/11/2026 (~/.claude/audits/btp-fondations-2026-11-11/prod-colonnes-2026-11-11.md) :
-// `!` = NOT NULL, `*` = valeur par défaut.
+// `!` = NOT NULL, `*` = valeur par défaut. Plus chantiers_btp.membres_ids (uuid[] NOT NULL, vide par défaut), ajoutée
+// par la migration 20261116 du pointage géolocalisé (PR #703), appliquée en production le 16/11/2026.
 const RELEVE_PRODUCTION: Record<TableEcrivable, string> = {
-  chantiers_btp: 'id:uuid!*, owner_id:uuid!, titre:text!, client:text, adresse:text, latitude:double precision, longitude:double precision, geo_rayon_m:integer!*, date_debut:date, date_fin:date, budget:numeric, statut:text!*, description:text, equipe:text, created_at:timestamptz!*, updated_at:timestamptz!*, marge_prevue_pct:numeric, tva_taux:numeric*, montant_facture:numeric*, acompte_recu:numeric*, penalite_retard_jour:numeric*, ville:text, code_postal:text, sous_taches:jsonb!*',
+  chantiers_btp: 'id:uuid!*, owner_id:uuid!, titre:text!, client:text, adresse:text, latitude:double precision, longitude:double precision, geo_rayon_m:integer!*, date_debut:date, date_fin:date, budget:numeric, statut:text!*, description:text, equipe:text, created_at:timestamptz!*, updated_at:timestamptz!*, marge_prevue_pct:numeric, tva_taux:numeric*, montant_facture:numeric*, acompte_recu:numeric*, penalite_retard_jour:numeric*, ville:text, code_postal:text, sous_taches:jsonb!*, membres_ids:uuid[]!*',
   charges_fixes: 'id:uuid!*, owner_id:uuid!, label:text!, montant:numeric!, frequence:text!, categorie:text!, date_debut:date, date_fin:date, created_at:timestamptz*, updated_at:timestamptz*',
   dc4_btp: 'id:uuid!*, owner_id:uuid!, entreprise:text!*, siret:text*, responsable:text*, email:text*, telephone:text*, adresse:text*, chantier:text*, lot:text*, montant_marche:numeric*, taux_tva:numeric*, statut:text!*, date_agrement:date, dc4_genere:boolean*, created_at:timestamptz*, updated_at:timestamptz*, chantier_id:uuid',
   dce_analyses_btp: 'id:uuid!*, owner_id:uuid!, titre:text!*, country:text*, project_type:text*, status:text!*, result:jsonb*, created_at:timestamptz*',
@@ -37,7 +38,7 @@ const RELEVE_PRODUCTION: Record<TableEcrivable, string> = {
 }
 
 const TYPE_DU_RELEVE: Record<string, string> = {
-  text: 'texte', uuid: 'uuid', numeric: 'nombre', integer: 'nombre', 'double precision': 'nombre',
+  text: 'texte', uuid: 'uuid', 'uuid[]': 'liste_uuid', numeric: 'nombre', integer: 'nombre', 'double precision': 'nombre',
   boolean: 'booleen', date: 'date', time: 'heure', jsonb: 'json',
 }
 
@@ -80,10 +81,10 @@ const EQUIPE = 'c3d4e5f6-a7b8-4c9d-8e0f-2a3b4c5d6e7f'
 // (constats donnees-btp-6 et donnees-btp-7). Le pointage réunit ici les champs du pointage manuel (heures saisies) et
 // ceux du pointage GPS (mode, coordonnées, distance) : chaque colonne est contrôlée avec une valeur réelle.
 // Le chantier porte aussi `devis_id` et `membres_ids`, comme le formulaire vide de l'écran Chantiers (EMPTY_FORM de
-// ChantiersBTPV2) : aucune colonne ne les reçoit en production au 11/11/2026, et mapToSupabase ne les envoie pas. Si
-// une branche se met à les envoyer (le pointage géolocalisé, PR #703, ajoute chantiers_btp.membres_ids), ce test
-// échoue tant que la liste blanche du serveur ne les connaît pas : sinon chaque enregistrement de chantier serait
-// refusé (relecture adverse du 16/11/2026).
+// ChantiersBTPV2). Depuis le pointage géolocalisé (PR #703, migration 20261116), mapToSupabase envoie membres_ids, que
+// la liste blanche du serveur connaît ; devis_id n'est toujours reçu par aucune colonne et n'est pas envoyé. Si un
+// écran se met à envoyer une colonne que la liste blanche ne connaît pas, ce test échoue : sinon chaque enregistrement
+// serait refusé (relecture adverse du 16/11/2026).
 const FICHES_DES_FORMULAIRES: Record<keyof typeof TABLES_DU_HOOK, Record<string, unknown>> = {
   chantiers: { titre: 'Rénovation cuisine', client: 'M. Martin', adresse: '1 rue des Lilas', ville: 'Marseille', codePostal: '13001', latitude: 43.3, longitude: 5.4, dateDebut: '2026-11-01', dateFin: '2026-12-01', budget: '12000', statut: 'En cours', description: 'Cuisine complète', equipe: 'Maçons', sousTaches: [{ id: 't1', nom: 'Dépose' }], geoRayonM: 250, devis_id: null, membres_ids: [] },
   membres: { prenom: 'Paul', nom: 'Durand', telephone: '0600000000', email: 'paul@example.test', typeCompte: 'ouvrier', rolePerso: 'Maçon', equipeId: EQUIPE, coutHoraire: 25, chargesPct: 45, salaire_brut_mensuel: 2100, salaire_net_mensuel: 1650, charges_salariales_pct: 22, charges_patronales_pct: 45, type_contrat: 'cdi', heures_hebdo: 35, panier_repas_jour: 10, indemnite_trajet_jour: 5, prime_mensuelle: 0, actif: true },
@@ -143,6 +144,15 @@ describe('verifierLigne — refus clairs', () => {
     expect(verifierLigne('membres_btp', { actif: false }, 'modification')).toBeNull()
     expect(verifierLigne('dce_analyses_btp', { result: '{"lots":[]}' }, 'modification')).toBeNull()
   })
+
+  it('employés d’un chantier (membres_ids) : une liste d’identifiants, vide acceptée, jamais null', () => {
+    expect(verifierLigne('chantiers_btp', { membres_ids: [MEMBRE, CHANTIER] }, 'modification')).toBeNull()
+    expect(verifierLigne('chantiers_btp', { membres_ids: [] }, 'modification')).toBeNull()
+    expect(verifierLigne('chantiers_btp', { membres_ids: ['m1'] }, 'modification')).toBe('valeur au mauvais format pour membres_ids')
+    expect(verifierLigne('chantiers_btp', { membres_ids: MEMBRE }, 'modification')).toBe('valeur au mauvais format pour membres_ids')
+    expect(verifierLigne('chantiers_btp', { membres_ids: `{${MEMBRE}}` }, 'modification')).toBe('valeur au mauvais format pour membres_ids')
+    expect(verifierLigne('chantiers_btp', { membres_ids: null }, 'modification')).toBe('ces champs ne peuvent pas être vides (membres_ids)')
+  })
 })
 
 describe('valeursHorsBornes', () => {
@@ -167,6 +177,18 @@ describe('referencesDeLigne et memeValeur', () => {
     expect(referencesDeLigne('pointages_btp', { chantier_id: CHANTIER, membre_id: null, employe: 'Paul' }))
       .toEqual([{ colonne: 'chantier_id', cible: 'chantiers_btp', id: CHANTIER }])
     expect(referencesDeLigne('membres_btp', { equipe_id: CHANTIER })).toEqual([{ colonne: 'equipe_id', cible: 'equipes_btp', id: CHANTIER }])
+  })
+
+  it('employés d’un chantier : un rattachement par employé de la liste ; déjà enregistré s’il est dans la liste en base', () => {
+    expect(referencesDeLigne('chantiers_btp', { titre: 'Villa', membres_ids: [MEMBRE, EQUIPE] })).toEqual([
+      { colonne: 'membres_ids', cible: 'membres_btp', id: MEMBRE },
+      { colonne: 'membres_ids', cible: 'membres_btp', id: EQUIPE },
+    ])
+    expect(referencesDeLigne('chantiers_btp', { membres_ids: [] })).toEqual([])
+    expect(dejaEnregistre(MEMBRE.toUpperCase(), [EQUIPE, MEMBRE])).toBe(true)
+    expect(dejaEnregistre(MEMBRE, [EQUIPE])).toBe(false)
+    expect(dejaEnregistre(MEMBRE, MEMBRE)).toBe(true)
+    expect(dejaEnregistre(MEMBRE, null)).toBe(false)
   })
 
   it('même valeur au sens de la base', () => {

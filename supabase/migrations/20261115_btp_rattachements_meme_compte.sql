@@ -2,17 +2,21 @@
 -- BTP : une fiche ne désigne qu'un chantier, un membre ou une équipe du MÊME compte (15/11/2026)
 --
 -- Constat api-coeur-9 de l'audit des fondations BTP du 11/11/2026. Depuis le 15/11/2026, la route /api/btp vérifie
--- que chantier_id, membre_id, equipe_id et les membres d'une équipe désignent des fiches du compte. Cette migration
+-- que chantier_id, membre_id, equipe_id et les membres d'une équipe désignent des fiches du compte, et depuis le
+-- 17/11/2026 les employés affectés à un chantier (chantiers_btp.membres_ids, migration 20261116). Cette migration
 -- pose la même règle dans la base : une fiche ne désigne qu'un chantier, un membre ou une équipe du même compte,
 -- quelle que soit la voie d'écriture.
 --
 -- Contenu : deux fonctions de déclencheur (SECURITY INVOKER, search_path figé) et un déclencheur BEFORE INSERT OR
 -- UPDATE sur pointages_btp, depenses_btp, equipes_btp, membres_btp, situations_btp, retenues_btp, dc4_btp,
--- rapports_btp et equipe_membres_btp (colonnes du relevé de production du 11/11/2026).
---   - Création : chaque identifiant lié non vide doit désigner une fiche du propriétaire de la ligne.
---   - Modification : contrôle seulement si l'identifiant lié (ou le propriétaire) CHANGE. Une valeur déjà
---     enregistrée n'est jamais remise en cause ; une remise à vide (suppression d'un chantier, ON DELETE SET NULL)
---     passe toujours.
+-- rapports_btp et equipe_membres_btp (colonnes du relevé de production du 11/11/2026), et sur chantiers_btp pour
+-- membres_ids (uuid[], sans clé étrangère).
+--   - Création : chaque identifiant lié non vide doit désigner une fiche du propriétaire de la ligne ; chaque employé
+--     de membres_ids, un membre du même propriétaire.
+--   - Modification : contrôle seulement si l'identifiant lié (ou le propriétaire) CHANGE ; pour membres_ids, seuls les
+--     employés AJOUTÉS à la liste. Une valeur déjà enregistrée n'est jamais remise en cause (un employé supprimé
+--     depuis reste dans la liste) ; une remise à vide (suppression d'un chantier, ON DELETE SET NULL) passe toujours.
+--   - Colonne absente (membres_ids avant la migration 20261116) : rien à contrôler, la fonction lit la ligne en JSON.
 --   - Refus : SQLSTATE 23503, que la route traduit en « fiche liée introuvable » (400).
 -- Au nom d'un compte (rôle authenticated), la fonction lit chantiers_btp, membres_btp et equipes_btp sous leurs
 -- politiques d'accès : la fiche d'un autre compte y est invisible, donc refusée ; avec le service role (la route), la
@@ -40,6 +44,7 @@ declare
   ancienne jsonb := case when tg_op = 'UPDATE' then to_jsonb(old) else null end;
   colonne text;
   valeur uuid;
+  intrus text;
 begin
   foreach colonne in array array['chantier_id', 'membre_id', 'equipe_id'] loop
     -- Colonne absente de cette table, ou identifiant vide : rien à contrôler.
@@ -61,13 +66,29 @@ begin
       raise exception using errcode = '23503', message = format('%s : fiche liée hors du compte', colonne);
     end if;
   end loop;
+
+  -- Employés affectés à un chantier (membres_ids) : chaque employé ajouté à la liste (tous à la création, ou si le
+  -- propriétaire change) doit être un membre du même propriétaire. Pas de liste (autre table, colonne absente) : rien.
+  if jsonb_typeof(nouvelle -> 'membres_ids') = 'array' then
+    select e.membre into intrus
+      from jsonb_array_elements_text(nouvelle -> 'membres_ids') as e(membre)
+     where (tg_op = 'INSERT'
+            or (nouvelle -> 'owner_id') is distinct from (ancienne -> 'owner_id')
+            or not (coalesce(ancienne -> 'membres_ids', '[]'::jsonb) ? e.membre))
+       and not exists (select 1 from public.membres_btp m where m.id = e.membre::uuid and m.owner_id = new.owner_id)
+     limit 1;
+    if found then
+      raise exception using errcode = '23503', message = 'membres_ids : employé hors du compte du chantier';
+    end if;
+  end if;
   return new;
 end;
 $$;
 
 comment on function public.btp_rattachements_meme_compte() is
-  'Déclencheur des tables BTP : chantier_id, membre_id et equipe_id d''une ligne désignent des fiches du même
-   propriétaire (owner_id), à la création et quand ils changent. Constat api-coeur-9 (audit du 11/11/2026).';
+  'Déclencheur des tables BTP : chantier_id, membre_id et equipe_id d''une ligne, et les employés ajoutés à
+   membres_ids d''un chantier, désignent des fiches du même propriétaire (owner_id), à la création et quand ils
+   changent. Constat api-coeur-9 (audit du 11/11/2026).';
 
 create or replace function public.btp_membre_equipe_meme_compte()
 returns trigger
@@ -91,6 +112,9 @@ $$;
 
 comment on function public.btp_membre_equipe_meme_compte() is
   'Déclencheur de equipe_membres_btp : l''équipe et le membre appartiennent au même compte. Constat api-coeur-9.';
+
+create or replace trigger btp_rattachements_meme_compte before insert or update on public.chantiers_btp
+  for each row execute function public.btp_rattachements_meme_compte();
 
 create or replace trigger btp_rattachements_meme_compte before insert or update on public.pointages_btp
   for each row execute function public.btp_rattachements_meme_compte();

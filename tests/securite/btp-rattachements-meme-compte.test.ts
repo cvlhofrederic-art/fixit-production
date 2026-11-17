@@ -3,9 +3,11 @@
 // sur un vrai PostgreSQL (PGlite, en mémoire) : une fiche BTP ne désigne qu'un chantier, un membre ou une équipe du
 // même compte, quelle que soit la voie d'écriture (constat api-coeur-9).
 //
-// Tables réduites aux colonnes en cause (noms et types du relevé de production du 11/11/2026), politiques d'accès
-// « propriétaire seulement » comme en production. Des lignes « anciennes », mal rattachées, existent AVANT la
-// migration : elle ne doit ni les lire, ni les modifier, ni empêcher de les réenregistrer telles quelles.
+// Tables réduites aux colonnes en cause (noms et types du relevé de production du 11/11/2026, plus
+// chantiers_btp.membres_ids de la migration 20261116), politiques d'accès « propriétaire seulement » comme en
+// production. Des lignes « anciennes », mal rattachées, existent AVANT la migration : elle ne doit ni les lire, ni les
+// modifier, ni empêcher de les réenregistrer telles quelles. Les autres tables, qui n'ont pas de colonne membres_ids,
+// montrent que son contrôle ne gêne pas une table qui ne la porte pas (base d'avant la migration 20261116).
 // Aucune donnée réelle : identifiants et libellés inventés.
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
@@ -23,7 +25,10 @@ const CH_A2 = 'a1a1a1a1-0000-4000-8000-000000000002'
 const CH_B = 'b2b2b2b2-0000-4000-8000-000000000001'
 const CH_B2 = 'b2b2b2b2-0000-4000-8000-000000000002'
 const M_A = 'd4d4d4d4-0000-4000-8000-000000000001'
+const M_A2 = 'd4d4d4d4-0000-4000-8000-000000000002'
 const M_B = 'e5e5e5e5-0000-4000-8000-000000000001'
+/** Employé supprimé avant la migration, resté dans la liste d'un chantier (membres_ids n'a pas de clé étrangère). */
+const M_SUPPRIME = 'd4d4d4d4-0000-4000-8000-0000000000ff'
 const EQ_A = 'f6f6f6f6-0000-4000-8000-000000000001'
 const EQ_B = 'f6f6f6f6-0000-4000-8000-000000000002'
 const EQ_A2 = 'f6f6f6f6-0000-4000-8000-000000000003'
@@ -31,7 +36,8 @@ const ANCIEN = '17171717-0000-4000-8000-000000000001'
 
 const TABLES_SQL = `
 CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $f$ SELECT nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $f$;
-CREATE TABLE public.chantiers_btp (id uuid PRIMARY KEY, owner_id uuid NOT NULL, titre text NOT NULL);
+CREATE TABLE public.chantiers_btp (id uuid PRIMARY KEY, owner_id uuid NOT NULL, titre text NOT NULL,
+  membres_ids uuid[] NOT NULL DEFAULT '{}'::uuid[]);
 CREATE TABLE public.membres_btp (id uuid PRIMARY KEY, owner_id uuid NOT NULL, prenom text NOT NULL DEFAULT '', nom text NOT NULL DEFAULT '', equipe_id uuid);
 CREATE TABLE public.equipes_btp (id uuid PRIMARY KEY, owner_id uuid NOT NULL, nom text NOT NULL DEFAULT '', chantier_id uuid REFERENCES public.chantiers_btp(id) ON DELETE SET NULL);
 CREATE TABLE public.equipe_membres_btp (
@@ -62,13 +68,16 @@ CREATE POLICY equipe_membres_proprietaire ON public.equipe_membres_btp FOR ALL
 const DONNEES_SQL = `
 INSERT INTO public.chantiers_btp VALUES ('${CH_A}', '${A}', 'Cuisine'), ('${CH_A2}', '${A}', 'Salle de bains'),
   ('${CH_B}', '${B}', 'Toiture'), ('${CH_B2}', '${B}', 'Façade');
-INSERT INTO public.membres_btp (id, owner_id, prenom) VALUES ('${M_A}', '${A}', 'Paul'), ('${M_B}', '${B}', 'Salarié B');
+INSERT INTO public.membres_btp (id, owner_id, prenom) VALUES ('${M_A}', '${A}', 'Paul'), ('${M_A2}', '${A}', 'Léa'),
+  ('${M_B}', '${B}', 'Salarié B');
 INSERT INTO public.equipes_btp (id, owner_id, nom) VALUES ('${EQ_A}', '${A}', 'Maçons'), ('${EQ_B}', '${B}', 'Couvreurs'),
   ('${EQ_A2}', '${A}', 'Plaquistes');
 -- Lignes anciennes, enregistrées avant la migration et mal rattachées : chantier de B dans une situation de A,
 -- salarié de B dans une équipe de A.
 INSERT INTO public.situations_btp (id, owner_id, chantier, chantier_id) VALUES ('${ANCIEN}', '${A}', 'Ancienne', '${CH_B}');
 INSERT INTO public.equipe_membres_btp VALUES ('${EQ_A2}', '${M_B}');
+-- Chantier de A dont la liste d'employés porte, avant la migration, le salarié de B et un employé supprimé depuis.
+UPDATE public.chantiers_btp SET membres_ids = ARRAY['${M_B}', '${M_SUPPRIME}', '${M_A}']::uuid[] WHERE id = '${CH_A2}';
 `
 
 let db: PGlite
@@ -114,10 +123,41 @@ describe('migration — rejouable, aucune donnée touchée', () => {
       SELECT c.relname AS table, count(*)::int AS n FROM pg_trigger t JOIN pg_class c ON c.oid = t.tgrelid
        WHERE NOT t.tgisinternal AND t.tgname LIKE 'btp_%_meme_compte' GROUP BY c.relname ORDER BY c.relname`)
     expect(rows).toEqual([
-      'dc4_btp', 'depenses_btp', 'equipe_membres_btp', 'equipes_btp', 'membres_btp', 'pointages_btp', 'rapports_btp', 'retenues_btp', 'situations_btp',
+      'chantiers_btp', 'dc4_btp', 'depenses_btp', 'equipe_membres_btp', 'equipes_btp', 'membres_btp', 'pointages_btp', 'rapports_btp',
+      'retenues_btp', 'situations_btp',
     ].map(table => ({ table, n: 1 })))
     const ancienne = await db.query<{ chantier_id: string }>(`SELECT chantier_id FROM public.situations_btp WHERE id = '${ANCIEN}'`)
     expect(ancienne.rows).toEqual([{ chantier_id: CH_B }])
+    const liste = await db.query<{ membres_ids: string[] }>(`SELECT membres_ids FROM public.chantiers_btp WHERE id = '${CH_A2}'`)
+    expect(liste.rows).toEqual([{ membres_ids: [M_B, M_SUPPRIME, M_A] }])
+  })
+})
+
+describe('employés affectés à un chantier (membres_ids, migration 20261116)', () => {
+  it('création : employés du compte acceptés, liste vide aussi ; un salarié d’une autre société refusé (23503)', async () => {
+    expect(await codeErreur(`INSERT INTO public.chantiers_btp (id, owner_id, titre, membres_ids) VALUES (gen_random_uuid(), '${A}', 'Garage', ARRAY['${M_A}', '${M_A2}']::uuid[])`)).toBeNull()
+    expect(await codeErreur(`INSERT INTO public.chantiers_btp (id, owner_id, titre) VALUES (gen_random_uuid(), '${A}', 'Sans employé')`)).toBeNull()
+    expect(await codeErreur(`INSERT INTO public.chantiers_btp (id, owner_id, titre, membres_ids) VALUES (gen_random_uuid(), '${A}', 'Garage', ARRAY['${M_A}', '${M_B}']::uuid[])`)).toBe('23503')
+    expect(await codeErreur(`INSERT INTO public.chantiers_btp (id, owner_id, titre, membres_ids) VALUES (gen_random_uuid(), '${A}', 'Garage', ARRAY['${M_SUPPRIME}']::uuid[])`)).toBe('23503')
+  })
+
+  it('modification : seul un employé AJOUTÉ est contrôlé ; la liste ancienne se réenregistre et se réduit librement', async () => {
+    // Autre champ modifié : la liste ancienne (salarié de B, employé supprimé) n'est pas remise en cause.
+    expect(await codeErreur(`UPDATE public.chantiers_btp SET titre = 'Salle de bains (renommée)' WHERE id = '${CH_A2}'`)).toBeNull()
+    // Liste renvoyée avec un employé du compte en plus : acceptée.
+    expect(await codeErreur(`UPDATE public.chantiers_btp SET membres_ids = ARRAY['${M_B}', '${M_SUPPRIME}', '${M_A}', '${M_A2}']::uuid[] WHERE id = '${CH_A2}'`)).toBeNull()
+    // Salarié d'une autre société ajouté : refusé, la liste ne bouge pas.
+    expect(await codeErreur(`UPDATE public.chantiers_btp SET membres_ids = array_append(membres_ids, '${M_B}'::uuid) WHERE id = '${CH_A}'`)).toBe('23503')
+    // Employés retirés : accepté.
+    expect(await codeErreur(`UPDATE public.chantiers_btp SET membres_ids = ARRAY['${M_A}']::uuid[] WHERE id = '${CH_A2}'`)).toBeNull()
+    const { rows } = await db.query<{ id: string; membres_ids: string[] }>(
+      `SELECT id, membres_ids FROM public.chantiers_btp WHERE id IN ('${CH_A}', '${CH_A2}') ORDER BY id`)
+    expect(rows).toEqual([{ id: CH_A, membres_ids: [] }, { id: CH_A2, membres_ids: [M_A] }])
+  })
+
+  it('au nom d’un compte : le salarié d’une autre société est refusé, le sien accepté', async () => {
+    expect(await codeErreurNavigateur(A, `INSERT INTO public.chantiers_btp (id, owner_id, titre, membres_ids) VALUES (gen_random_uuid(), '${A}', 'Cave', ARRAY['${M_B}']::uuid[])`)).toBe('23503')
+    expect(await codeErreurNavigateur(A, `INSERT INTO public.chantiers_btp (id, owner_id, titre, membres_ids) VALUES (gen_random_uuid(), '${A}', 'Cave', ARRAY['${M_A}']::uuid[])`)).toBeNull()
   })
 })
 

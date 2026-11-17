@@ -1,0 +1,494 @@
+{
+  "famille": {
+    "id": "primarios-tratamentos",
+    "nom": "Primários e tratamentos",
+    "description": "Produtos de preparação e tratamento do suporte antes do acabamento: primários para paredes, primários de aderência, tratamento de ferrugem, fungos, bolor, musgo e salitre, proteção da madeira e decapantes.",
+    "icone": "🧪",
+    "sousFamilles": [
+      {
+        "id": "primarios-paredes",
+        "nom": "Primários para paredes e tetos",
+        "description": "Primários que selam e uniformizam reboco, estuque, gesso cartonado e massas antes da pintura, no interior e no exterior."
+      },
+      {
+        "id": "primarios-especificos",
+        "nom": "Primários específicos (salitre, fungos, pavimentos)",
+        "description": "Primários para um problema ou suporte específico: salitre, bolor, pavimentos de cimento."
+      },
+      {
+        "id": "primarios-aderencia",
+        "nom": "Primários e resinas de aderência",
+        "description": "Produtos que garantem a aderência em suportes lisos ou pouco porosos e entre argamassas: primário multissuperfícies para pintura, primário de aderência para argamassas, autonivelantes e cimentos-cola, látex para argamassas."
+      },
+      {
+        "id": "metais-ferrugem",
+        "nom": "Metais e ferrugem",
+        "description": "Tratamento da ferrugem e proteção anticorrosiva do ferro e do aço antes da pintura."
+      },
+      {
+        "id": "fungos-bolor-musgo",
+        "nom": "Fungos, bolor e musgo",
+        "description": "Produtos para eliminar bolor em paredes interiores e musgo, algas e líquenes em telhados, fachadas e pavimentos."
+      },
+      {
+        "id": "tratamento-madeira",
+        "nom": "Tratamento de madeira",
+        "description": "Anticaruncho, imunizadores e óleos para proteger e nutrir a madeira."
+      }
+    ]
+  },
+  "materiaux": [
+    {
+      "id": "primario-aquoso-paredes-interiores",
+      "famille": "primarios-tratamentos",
+      "sousFamille": "primarios-paredes",
+      "nom": "Primário aquoso para paredes interiores",
+      "aussiAppele": [
+        "primário de interior",
+        "selante de paredes",
+        "isolante de paredes",
+        "primário branco"
+      ],
+      "usage": "Sela e uniformiza a absorção de reboco, estuque e zonas reparadas com massa antes de pintar paredes e tetos interiores. Poupa demãos de tinta.",
+      "aSavoir": "Não segura tinta velha a descascar: raspar e lixar primeiro. Em paredes com bolor ou salitre usar o primário específico.",
+      "conditionnement": "Lata 0,75 L; balde 4 L e 15 L",
+      "recherche": "primário aquoso interior",
+      "rechercheEnseigne": {
+        "leroy-merlin": "primário de interior"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "primario-aquoso-paredes-exteriores",
+      "famille": "primarios-tratamentos",
+      "sousFamille": "primarios-paredes",
+      "nom": "Primário aquoso para paredes exteriores (fachadas)",
+      "aussiAppele": [
+        "primário de fachada",
+        "primário de exterior",
+        "selante de fachadas",
+        "primário para reboco"
+      ],
+      "usage": "Prepara fachadas e muros de reboco antes da tinta de exterior: uniformiza a absorção e melhora a aderência.",
+      "aSavoir": "Deixar curar o reboco novo antes de aplicar. Lavar e tratar fungos e algas primeiro. Não aplicar com chuva prevista.",
+      "conditionnement": "Lata 0,75-1 L; balde 4-5 L e 15 L",
+      "recherche": "primário aquoso exterior",
+      "rechercheEnseigne": {
+        "leroy-merlin": "primário de fachada"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "primario-gesso-cartonado-estuque",
+      "famille": "primarios-tratamentos",
+      "sousFamille": "primarios-paredes",
+      "nom": "Primário para gesso cartonado e estuque",
+      "aussiAppele": [
+        "primário para pladur",
+        "primário de gesso",
+        "selante de gesso cartonado",
+        "isolante de estuque",
+        "primário para placas de gesso"
+      ],
+      "usage": "Sela placas de gesso cartonado, juntas barradas e estuque novo no interior, para a tinta não ficar manchada nem com diferenças de brilho.",
+      "aSavoir": "Aplicar com as massas das juntas bem secas e lixadas, sem pó.",
+      "conditionnement": "Balde 12-15 L",
+      "recherche": "primário gesso",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "primario-fixador-anti-alcalino",
+      "famille": "primarios-tratamentos",
+      "sousFamille": "primarios-paredes",
+      "nom": "Primário fixador anti-alcalino (interior/exterior)",
+      "aussiAppele": [
+        "primário fixador",
+        "primário pliolite",
+        "fixador de paredes",
+        "consolidante",
+        "primário anti-alcalino",
+        "isolante fixador"
+      ],
+      "usage": "Uniformiza a absorção e dá aderência em paredes interiores e exteriores, com propriedades anti-alcalinas para rebocos de cimento.",
+      "aSavoir": "Fixa suportes porosos e desagregados à superfície, não tinta solta: raspar e escovar primeiro o que está a descascar.",
+      "conditionnement": "Balde 4 L e 15 L",
+      "recherche": "primário fixador",
+      "rechercheEnseigne": {
+        "maxmat": "primário pliolite"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "primario-universal-interior-exterior",
+      "famille": "primarios-tratamentos",
+      "sousFamille": "primarios-paredes",
+      "nom": "Primário universal para paredes (interior e exterior)",
+      "aussiAppele": [
+        "primário 3 em 1",
+        "primário multiusos",
+        "primário de aderência para paredes",
+        "primário universal"
+      ],
+      "usage": "Primário aquoso de aderência para paredes interiores e exteriores, em pinturas novas e repinturas, quando se quer um só produto para a obra toda.",
+      "aSavoir": "Não substitui o primário específico em paredes com salitre ou bolor.",
+      "conditionnement": "Lata 1 L; balde 5 L e 15 L",
+      "recherche": "primário interior exterior",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "primario-anti-salitre",
+      "famille": "primarios-tratamentos",
+      "sousFamille": "primarios-especificos",
+      "nom": "Primário anti-salitre",
+      "aussiAppele": [
+        "anti-salitre",
+        "primário para salitre",
+        "primário anti-alcalino",
+        "primário anti-eflorescências",
+        "isolante de salitre"
+      ],
+      "usage": "Primário aquoso branco para paredes interiores e exteriores com salitre e humidade, com elevada resistência à alcalinidade. Atrasa o reaparecimento de sais antes da pintura.",
+      "aSavoir": "Escovar os sais a seco e deixar secar a parede antes de aplicar. Atrasa o salitre mas não elimina a origem da humidade.",
+      "conditionnement": "Lata 1 L e 4 L",
+      "recherche": "primário anti salitre",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "primario-antifungos",
+      "famille": "primarios-tratamentos",
+      "sousFamille": "primarios-especificos",
+      "nom": "Primário antifungos",
+      "aussiAppele": [
+        "primário anti-bolor",
+        "primário anti-fungos",
+        "primário para casas de banho",
+        "primário fungicida"
+      ],
+      "usage": "Primário para paredes e tetos com tendência a bolor (casas de banho, cozinhas, quartos com condensação), antes da tinta de acabamento.",
+      "aSavoir": "Lavar e desinfetar primeiro o bolor existente e deixar secar: pintar por cima de bolor vivo não resolve.",
+      "conditionnement": "Lata 0,75 L e 4 L",
+      "recherche": "primário antifungos",
+      "rechercheEnseigne": {
+        "leroy-merlin": "primário anti-bolor"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "primario-pavimentos",
+      "famille": "primarios-tratamentos",
+      "sousFamille": "primarios-especificos",
+      "nom": "Primário para pavimentos",
+      "aussiAppele": [
+        "primário de chão",
+        "primário para tinta de pavimentos",
+        "primário para betão",
+        "selante de pavimento"
+      ],
+      "usage": "Primário incolor aplicado em pavimentos de cimento ou betão antes da tinta de pavimentos (garagens, arrecadações, armazéns).",
+      "aSavoir": "Pavimento seco, limpo, sem gorduras nem pó. Confirmar no rótulo a compatibilidade com a tinta de acabamento.",
+      "conditionnement": "Lata 0,75 L",
+      "recherche": "primário pavimentos",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "primario-aderencia-multissuperficies",
+      "famille": "primarios-tratamentos",
+      "sousFamille": "primarios-aderencia",
+      "nom": "Primário de aderência multissuperfícies",
+      "aussiAppele": [
+        "primário multisuperfícies",
+        "primário de aderência",
+        "primário para suportes lisos",
+        "primário para azulejo",
+        "primário acrílico",
+        "ponte de aderência para pintura"
+      ],
+      "usage": "Primário acrílico para pintar suportes lisos ou difíceis onde a tinta não agarra diretamente.",
+      "aSavoir": "Desengordurar e lixar levemente o suporte antes de aplicar. Confirmar no rótulo a lista de suportes admitidos.",
+      "conditionnement": "Lata 750 ml e 4 L",
+      "recherche": "primário multisuperfícies",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "primario-aderencia-argamassas",
+      "famille": "primarios-tratamentos",
+      "sousFamille": "primarios-aderencia",
+      "nom": "Primário de aderência para argamassas, autonivelantes e cimentos-cola",
+      "aussiAppele": [
+        "ponte de aderência",
+        "primário universal de obra",
+        "primário de união",
+        "primário para betão liso",
+        "primário de autonivelante",
+        "primário regulador de porosidade",
+        "primário para betonilha",
+        "primário antes do cimento-cola",
+        "primário de aderência universal",
+        "primário aderente",
+        "primário para autonivelante"
+      ],
+      "usage": "Emulsão acrílica pronta a aplicar, a rolo ou trincha, antes de argamassas de cimento ou de gesso, autonivelantes e cimentos-cola: melhora a aderência (betão velho com betão novo, superfícies lisas e pouco porosas) e regula a porosidade do suporte, evitando bolhas e sombreados no autonivelante. Paredes e pavimentos, interior e exterior.",
+      "aSavoir": "Suporte limpo, sem pó nem óleos de descofragem. Respeitar o tempo de secagem do rótulo antes de aplicar a argamassa ou verter o autonivelante. Em suportes não absorventes (cerâmica antiga, betão muito liso), confirmar no rótulo que o primário os admite.",
+      "conditionnement": "Embalagem 5 L",
+      "recherche": "primário aderência",
+      "rechercheEnseigne": {
+        "maxmat": "primário aderente"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "conversor-ferrugem",
+      "famille": "primarios-tratamentos",
+      "sousFamille": "metais-ferrugem",
+      "nom": "Conversor de ferrugem",
+      "aussiAppele": [
+        "convertedor de ferrugem",
+        "transformador de ferrugem",
+        "anti-ferrugem",
+        "tratamento de ferrugem",
+        "neutralizador de ferrugem",
+        "estabilizador de ferrugem"
+      ],
+      "usage": "Transforma a ferrugem aderente numa camada estável que serve de base à pintura: grades, portões, corrimãos, ferro exposto de betão.",
+      "aSavoir": "Retirar primeiro a ferrugem solta com escova de aço. Atua sobre a ferrugem, não sobre metal limpo ou pintado. Proteger depois com esmalte ou tinta.",
+      "conditionnement": "Frasco 250 ml; lata 750 ml e 1 L",
+      "recherche": "conversor ferrugem",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "spray-zinco-galvanizacao-frio",
+      "famille": "primarios-tratamentos",
+      "sousFamille": "metais-ferrugem",
+      "nom": "Spray de zinco (galvanização a frio)",
+      "aussiAppele": [
+        "galvanização a frio",
+        "spray galvanizante",
+        "zinco em spray",
+        "spray antiferrugem de zinco",
+        "spray de galvanizar",
+        "galvanizado a frio"
+      ],
+      "usage": "Proteção anticorrosiva de ferro e aço: soldaduras, cortes e furos em peças galvanizadas, ferragens, estruturas metálicas.",
+      "aSavoir": "Aplicar sobre metal limpo, seco, sem ferrugem nem gordura. Agitar bem a lata antes de usar.",
+      "conditionnement": "Spray 400 ml (mate, brilhante ou escuro)",
+      "recherche": "spray zinco",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "solucao-limpeza-antifungos-paredes",
+      "famille": "primarios-tratamentos",
+      "sousFamille": "fungos-bolor-musgo",
+      "nom": "Solução de limpeza antifungos para paredes",
+      "aussiAppele": [
+        "desinfetante antifungos",
+        "lavagem de fungos",
+        "limpeza de bolores",
+        "fungicida para paredes",
+        "tratamento anti-bolor",
+        "mata-fungos",
+        "solução anti-fungos para paredes",
+        "desinfetante de superfícies antifungos",
+        "desinfetante aquoso",
+        "lavagem anti-bolor",
+        "tratamento anti-fungos"
+      ],
+      "usage": "Lava e desinfeta paredes e tetos com fungos, bolores e algas antes de pintar, no interior e no exterior.",
+      "aSavoir": "Deixar atuar e secar bem antes de aplicar primário ou tinta. Usar luvas e óculos e ventilar o espaço.",
+      "conditionnement": "Embalagens de 0,75 L, 1 L e 5 L",
+      "recherche": "limpeza fungos bolores",
+      "rechercheEnseigne": {
+        "leroy-merlin": "desinfetante aquoso"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "spray-anti-bolor",
+      "famille": "primarios-tratamentos",
+      "sousFamille": "fungos-bolor-musgo",
+      "nom": "Spray anti-bolor",
+      "aussiAppele": [
+        "spray anti-fungos",
+        "anti-mofo",
+        "tira-bolor",
+        "limpa-bolor",
+        "spray para bolor",
+        "anti-fungos e bolores",
+        "limpa-bolor em spray",
+        "removedor de bolores e fungos"
+      ],
+      "usage": "Limpa manchas negras de bolor em juntas de azulejo, cordões de silicone, cantos de casas de banho e cozinhas.",
+      "aSavoir": "Não misturar com outros produtos de limpeza e ventilar durante a aplicação. Pode descolorar tecidos e superfícies sensíveis: testar primeiro.",
+      "conditionnement": "Pulverizador 500 ml",
+      "recherche": "spray anti bolor",
+      "rechercheEnseigne": {
+        "maxmat": "spray anti-fungos"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "removedor-musgo-algas-liquenes",
+      "famille": "primarios-tratamentos",
+      "sousFamille": "fungos-bolor-musgo",
+      "nom": "Removedor de musgo, algas e líquenes",
+      "aussiAppele": [
+        "anti-musgo",
+        "limpa-telhados",
+        "anti-verdete",
+        "tira-musgo",
+        "removedor de fungos e algas",
+        "limpeza de fachadas",
+        "removedor de fungos e algas para telhados",
+        "removedor de verdete",
+        "anti-fungos de telhado",
+        "removedor de musgo, algas e verdete",
+        "anti-algas",
+        "limpa-fachadas",
+        "tira-verdete",
+        "fungicida para telhados"
+      ],
+      "usage": "Elimina musgo, líquenes, algas e verdete no exterior: telhados, caleiras, pátios, terraços, varandas, paredes, pavimentos e pedra.",
+      "aSavoir": "Aplicar com tempo seco e sem chuva prevista e deixar atuar. Evitar escorrências para plantas, relvados e linhas de água.",
+      "conditionnement": "Embalagem 2,5 L e 5 L",
+      "recherche": "removedor musgo algas",
+      "rechercheEnseigne": {
+        "maxmat": "removedor de fungos e algas",
+        "leroy-merlin": "anti-musgo"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "tratamento-anticaruncho",
+      "famille": "primarios-tratamentos",
+      "sousFamille": "tratamento-madeira",
+      "nom": "Tratamento anticaruncho para madeira",
+      "aussiAppele": [
+        "anticaruncho",
+        "mata-caruncho",
+        "inseticida para madeira",
+        "tratamento de caruncho",
+        "anti-bicho da madeira",
+        "erradicador de caruncho",
+        "tratamento de madeira anticaruncho",
+        "imunizador de madeira",
+        "tratamento contra térmitas e caruncho"
+      ],
+      "usage": "Inseticida para tratar madeira atacada por caruncho e prevenir novos ataques: vigas, barrotes, soalhos, portas, móveis. Aplica-se à trincha ou, em spray, nos furos e em peças pequenas.",
+      "aSavoir": "Só penetra em madeira nua: retirar verniz, cera ou tinta antes. Ventilar bem durante e depois da aplicação.",
+      "conditionnement": "Lata 0,75 L, 1 L, 2,5 L e 5 L; spray 400 ml",
+      "recherche": "anticaruncho",
+      "rechercheEnseigne": {
+        "leroy-merlin": "anti caruncho"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "imunizador-madeira",
+      "famille": "primarios-tratamentos",
+      "sousFamille": "tratamento-madeira",
+      "nom": "Imunizador de madeira (tratamento preventivo)",
+      "aussiAppele": [
+        "imunizador",
+        "tratamento de madeira",
+        "xylophene",
+        "xilofene",
+        "preservador de madeira",
+        "protetor de madeira incolor",
+        "tratamento contra bichos e fungos"
+      ],
+      "usage": "Tratamento de impregnação para proteger a madeira contra insetos e fungos antes do acabamento: estruturas de telhado, vigas, madeiras novas ou decapadas, no interior e no exterior conforme a versão.",
+      "aSavoir": "É um tratamento, não um acabamento: leva por cima velatura, verniz ou tinta. Aplicar em madeira seca e nua. Ver no rótulo se a versão é de interior ou de exterior.",
+      "conditionnement": "Lata 1 L e 5 L (incolor, castanho ou verde); spray 400 ml",
+      "recherche": "tratamento madeira",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "removedor-ferrugem",
+      "famille": "primarios-tratamentos",
+      "sousFamille": "metais-ferrugem",
+      "nom": "Removedor de ferrugem",
+      "aussiAppele": [
+        "tira-ferrugem",
+        "desoxidante",
+        "decapante de ferrugem",
+        "decapante removedor de ferrugem"
+      ],
+      "usage": "Dissolve a ferrugem de peças e superfícies de ferro antes de pintar.",
+      "aSavoir": "Usar luvas e óculos. Enxaguar e secar bem e proteger o metal logo a seguir, senão volta a enferrujar.",
+      "conditionnement": "Frasco de 250 ml a 500 ml",
+      "recherche": "removedor ferrugem",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "primario-anticorrosivo-ferro",
+      "famille": "primarios-tratamentos",
+      "sousFamille": "metais-ferrugem",
+      "nom": "Primário anticorrosivo para ferro",
+      "aussiAppele": [
+        "primário antioxidante",
+        "primário antiferrugem",
+        "subcapa para ferro"
+      ],
+      "usage": "Primeira demão em ferro novo ou levado ao metal nu, antes do esmalte de acabamento, sobretudo em exterior e junto ao mar.",
+      "aSavoir": "Aplicar em ferro limpo, seco e desengordurado. Confirmar na lata o esmalte compatível por cima. Não serve para galvanizado nem alumínio, que pedem primário de aderência próprio.",
+      "conditionnement": "Lata",
+      "recherche": "primário anticorrosivo",
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,1307 @@
+{
+  "domaine": {
+    "id": "pavimentos",
+    "nom": "Pavimentos e revestimentos",
+    "icone": "🟫"
+  },
+  "situations": [
+    {
+      "id": "assentar-azulejo-mosaico-interior",
+      "domaine": "pavimentos",
+      "titre": "Assentar azulejo ou mosaico no interior",
+      "motsCles": [
+        "colocar azulejo na parede",
+        "azulejar a cozinha",
+        "azulejar a casa de banho",
+        "pôr mosaico no chão de casa",
+        "assentar ladrilho no interior",
+        "azulejo sobre azulejo antigo",
+        "grés porcelânico no interior",
+        "chão novo em mosaico",
+        "revestimento cerâmico interior"
+      ],
+      "description": "Colagem de azulejo em parede ou de mosaico em pavimento interior, sobre reboco, betonilha, gesso cartonado ou azulejo antigo. A cola, o dente da talocha e a junta escolhem-se pela peça e pelo suporte.",
+      "aVerifier": [
+        "Tipo e formato da peça: azulejo poroso ou grés porcelânico, pequeno ou grande formato (muda a cola e o dente da talocha).",
+        "Suporte: reboco, betonilha, gesso cartonado ou azulejo antigo, e se está firme, seco, limpo e plano.",
+        "Zona molhada (duche, à volta da banheira): precisa de impermeabilização antes de colar.",
+        "Cotas de portas, soleiras e loiças, e por onde começa a primeira fiada."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "nivel-de-bolha",
+              "note": "Marcar a primeira fiada e confirmar a planeza do suporte."
+            },
+            {
+              "id": "primario-aderencia-argamassas",
+              "note": "Suporte muito absorvente, muito liso ou azulejo antigo, antes da cola.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Impermeabilização",
+          "materiaux": [
+            {
+              "id": "membrana-liquida-zonas-humidas",
+              "note": "Só em duche e zonas molhadas, em duas demãos, antes de colar.",
+              "optionnel": true
+            },
+            {
+              "id": "banda-impermeabilizante-cantos-juntas",
+              "note": "Com a membrana: cantos, encontro parede-chão e à volta do ralo, embebida entre demãos.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Assentamento",
+          "materiaux": [
+            {
+              "id": "cimento-cola-flexivel",
+              "note": "Serve para porcelânico, pavimento e azulejo antigo; grandes formatos pedem cola própria (ver a saca)."
+            },
+            {
+              "id": "talocha-dentada-8mm",
+              "note": "O dente depende do formato da peça: confirmar na saca do cimento-cola."
+            },
+            {
+              "id": "misturador-para-berbequim",
+              "note": "Amassar sem grumos, com a água indicada na saca."
+            },
+            {
+              "id": "cruzetas-azulejo",
+              "note": "Largura conforme a peça; retirar antes de betumar."
+            },
+            {
+              "id": "sistema-nivelamento-ceramica",
+              "note": "Peças grandes ou retificadas, para as arestas ficarem ao mesmo nível.",
+              "optionnel": true
+            },
+            {
+              "id": "cortador-manual-azulejo",
+              "note": "Cortes direitos; o comprimento de corte tem de passar o lado da peça."
+            },
+            {
+              "id": "disco-diamantado-ceramica",
+              "note": "Recortes para tomadas, tubos e cantos, na rebarbadora."
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "betume-juntas-tapa-juntas",
+              "note": "Confirmar na saca a largura de junta; cantos e encontros com loiças levam silicone, não betume."
+            },
+            {
+              "id": "talocha-borracha-betumar-juntas",
+              "note": "Betumar na diagonal das juntas."
+            },
+            {
+              "id": "esponja-ladrilhador",
+              "note": "Bem espremida e com água limpa, para não lavar o betume."
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-borracha-compridas",
+              "note": "O cimento fresco queima a pele."
+            },
+            {
+              "id": "oculos-protecao",
+              "note": "No corte das peças e na amassadura."
+            },
+            {
+              "id": "mascara-ffp2",
+              "note": "Pó do corte a seco e da amassadura."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Sobre azulejo antigo só se cola se este estiver bem agarrado: peças a soar a oco têm de sair primeiro.",
+        "Em pavimentos e peças grandes fazer colagem dupla, sem vazios por baixo da peça.",
+        "Deixar junta junto às paredes e respeitar as juntas de dilatação do suporte: nunca as tapar com cerâmica nem com betume.",
+        "Tempos de espera antes de betumar e de pisar: ver a embalagem.",
+        "Antes de furar ou roçar a parede, localizar tubos e cabos."
+      ]
+    },
+    {
+      "id": "assentar-pavimento-ceramico-exterior",
+      "domaine": "pavimentos",
+      "titre": "Assentar pavimento cerâmico no exterior",
+      "motsCles": [
+        "mosaico no terraço",
+        "ladrilhar a varanda",
+        "ladrilho exterior",
+        "tijoleira no quintal",
+        "pavimento cerâmico de exterior",
+        "revestir terraço",
+        "grés de exterior antiderrapante",
+        "mosaico à volta da casa",
+        "chão do pátio em mosaico"
+      ],
+      "description": "Colagem de mosaico ou grés em terraço, varanda ou pátio. No exterior a peça sofre com água, sol e variações de temperatura: exige pendente, impermeabilização por baixo, cola flexível com colagem dupla e juntas elásticas.",
+      "aVerifier": [
+        "Pendente do suporte para o ralo ou para a borda: se a água empoça, corrigir antes de colar.",
+        "Se há espaço habitado por baixo ou impermeabilização existente, e em que estado está.",
+        "Estado da betonilha: firme, sem fissuras nem zonas ocas, seca.",
+        "Peça própria para exterior (antiderrapante e resistente ao gelo) e formato, que define o dente e a junta."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "primario-aderencia-argamassas",
+              "note": "Antes da betonilha de regularização ou em suporte muito absorvente.",
+              "optionnel": true
+            },
+            {
+              "id": "betonilha-fina-reparacao",
+              "note": "Só para corrigir a pendente ou refazer zonas degradadas.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Impermeabilização",
+          "materiaux": [
+            {
+              "id": "argamassa-impermeabilizante-flexivel-monocomponente",
+              "note": "Sobre o suporte com pendente, em demãos cruzadas, antes de colar a cerâmica."
+            },
+            {
+              "id": "banda-impermeabilizante-cantos-juntas",
+              "note": "Encontros com paredes e soleiras e à volta do ralo, embebida entre demãos."
+            },
+            {
+              "id": "trincha-larga-retangular",
+              "note": "Aplicar a argamassa impermeabilizante bem puxada, sem falhas."
+            }
+          ]
+        },
+        {
+          "titre": "Assentamento",
+          "materiaux": [
+            {
+              "id": "cimento-cola-flexivel",
+              "note": "Colagem dupla: cola no suporte e no tardoz da peça, sem vazios."
+            },
+            {
+              "id": "talocha-dentada-10mm",
+              "note": "Confirmar o dente na saca do cimento-cola."
+            },
+            {
+              "id": "misturador-para-berbequim",
+              "note": "Para a argamassa impermeabilizante e para o cimento-cola."
+            },
+            {
+              "id": "cruzetas-azulejo",
+              "note": "No exterior a junta é mais larga: seguir a indicação do fabricante da peça."
+            },
+            {
+              "id": "disco-diamantado-ceramica",
+              "note": "Cortes e recortes junto ao ralo e às paredes; o corte a seco faz muito pó."
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "betume-juntas-largas",
+              "note": "Confirmar na saca a largura de junta e o uso em exterior."
+            },
+            {
+              "id": "talocha-borracha-betumar-juntas"
+            },
+            {
+              "id": "esponja-ladrilhador"
+            }
+          ]
+        },
+        {
+          "titre": "Vedação",
+          "materiaux": [
+            {
+              "id": "cola-veda-poliuretano",
+              "note": "Juntas perimetrais e de dilatação: mástique elástico, nunca betume; junta funda leva fundo de junta."
+            },
+            {
+              "id": "pistola-silicone-reforcada",
+              "note": "O poliuretano é espesso: a pistola simples não chega."
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-borracha-compridas",
+              "note": "O cimento fresco queima a pele."
+            },
+            {
+              "id": "oculos-protecao"
+            },
+            {
+              "id": "mascara-ffp2",
+              "note": "Pó do corte e da amassadura."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Sem pendente e sem impermeabilização por baixo, a água entra pelas juntas: o betume não é estanque.",
+        "Terraço sobre espaço habitado com infiltrações: tratar a impermeabilização primeiro, colar por cima não resolve.",
+        "Não trabalhar com chuva, risco de geada ou sol forte sobre o suporte.",
+        "Respeitar as juntas de dilatação e a junta junto às paredes; em áreas grandes, criar juntas intermédias.",
+        "Varandas e terraços sem guarda: trabalho em altura, proteger a borda.",
+        "Tempos de secagem da impermeabilização e da cola: ver a embalagem."
+      ]
+    },
+    {
+      "id": "mosaico-solto-ou-oco",
+      "domaine": "pavimentos",
+      "titre": "Mosaico solto ou partido no pavimento",
+      "motsCles": [
+        "mosaico a abanar",
+        "ladrilho solto no chão",
+        "chão soa a oco",
+        "mosaico levantado",
+        "tijoleira descolada",
+        "mosaicos a levantar em tenda",
+        "trocar mosaico partido",
+        "azulejo do chão descolou"
+      ],
+      "description": "Uma ou várias peças do pavimento abanam, soam a oco, levantaram ou partiram. Levanta-se a peça, limpa-se a cola velha e volta-se a colar (ou cola-se uma peça nova) com cola flexível, refazendo as juntas.",
+      "aVerifier": [
+        "Quantas peças: caso pontual, ou zona inteira a levantar em tenda (falta de juntas de dilatação).",
+        "Se a peça sai inteira ou se há peças iguais de reserva para substituir.",
+        "Estado da betonilha por baixo: firme, húmida, fissurada ou a desfazer-se.",
+        "Existência de piso radiante ou tubos embutidos na zona."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "raspador-juntas",
+              "note": "Tirar o betume à volta da peça antes de a levantar, para não lascar as vizinhas."
+            },
+            {
+              "id": "ventosa-ceramica",
+              "note": "Para levantar e voltar a pousar uma peça solta que está inteira.",
+              "optionnel": true
+            },
+            {
+              "id": "escopro",
+              "note": "Tirar a cola velha da base e do tardoz da peça."
+            },
+            {
+              "id": "maceta"
+            },
+            {
+              "id": "primario-aderencia-argamassas",
+              "note": "Na base limpa e sem pó, antes da cola nova."
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "betonilha-fina-reparacao",
+              "note": "Só se a betonilha saiu agarrada à peça ou ficou com falhas.",
+              "optionnel": true
+            },
+            {
+              "id": "cimento-cola-flexivel",
+              "note": "Colagem dupla, sem vazios por baixo da peça."
+            },
+            {
+              "id": "talocha-dentada-8mm",
+              "note": "Confirmar o dente na saca do cimento-cola."
+            },
+            {
+              "id": "cruzetas-azulejo",
+              "note": "Manter a junta igual à das peças vizinhas."
+            },
+            {
+              "id": "maco-de-borracha",
+              "note": "Assentar a peça ao nível das vizinhas."
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "betume-juntas-tapa-juntas",
+              "note": "Na cor das juntas existentes."
+            },
+            {
+              "id": "espatula-borracha-juntas"
+            },
+            {
+              "id": "esponja-ladrilhador"
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "oculos-protecao",
+              "note": "Saltam lascas ao picar a cola velha."
+            },
+            {
+              "id": "luvas-borracha-compridas"
+            },
+            {
+              "id": "mascara-ffp2"
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Várias peças a levantar em tenda indicam falta de junta perimetral ou de dilatação: voltar a colar sem criar a junta não dura.",
+        "Pavimento oco numa grande área: a reparação pontual não chega, é preciso levantar e refazer.",
+        "Com piso radiante ou tubos na betonilha, não picar em profundidade.",
+        "Betonilha húmida ou a desfazer-se: tratar a causa antes de colar.",
+        "Não pisar a zona antes do tempo indicado na embalagem da cola."
+      ]
+    },
+    {
+      "id": "pavimento-desnivelado-autonivelante",
+      "domaine": "pavimentos",
+      "titre": "Pavimento desnivelado",
+      "motsCles": [
+        "nivelar o chão",
+        "chão torto",
+        "betonilha com altos e baixos",
+        "chão ondulado",
+        "massa autonivelante",
+        "regularizar pavimento",
+        "preparar chão para flutuante",
+        "desnível no chão"
+      ],
+      "description": "O pavimento tem altos e baixos que impedem a aplicação de vinílico, flutuante, madeira ou cerâmica. Regulariza-se com argamassa autonivelante vertida sobre primário, em camada fina.",
+      "aVerifier": [
+        "Medir o desnível com régua: o autonivelante só corrige pouca espessura (máximo na saca); acima disso é betonilha.",
+        "Suporte: betonilha, mosaico antigo ou madeira, e se está firme, seco e sem fissuras ativas.",
+        "Cotas das portas, soleiras e ralos depois de subir o pavimento.",
+        "Sinais de humidade a subir pelo pavimento."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "regua-pedreiro-aluminio",
+              "note": "Medir altos e baixos antes de comprar: define a espessura e se o autonivelante chega."
+            },
+            {
+              "id": "raspador-pavimento-cabo-comprido",
+              "note": "Tirar restos de cola, tinta e argamassa; depois limpar todo o pó."
+            },
+            {
+              "id": "betonilha-fina-reparacao",
+              "note": "Buracos e desníveis maiores do que a espessura máxima do autonivelante.",
+              "optionnel": true
+            },
+            {
+              "id": "banda-perimetral-espuma",
+              "note": "Contra paredes, pilares e tubos antes de verter, para a massa não prender às paredes."
+            }
+          ]
+        },
+        {
+          "titre": "Tratamento",
+          "materiaux": [
+            {
+              "id": "primario-aderencia-argamassas",
+              "note": "Obrigatório antes de verter; respeitar a secagem indicada no rótulo."
+            },
+            {
+              "id": "rolo-pelo-medio-paredes-irregulares",
+              "note": "Espalhar o primário sem deixar poças."
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "argamassa-autonivelante",
+              "note": "Respeitar a água e a espessura por camada indicadas na saca."
+            },
+            {
+              "id": "misturador-para-berbequim",
+              "note": "Amassar sem grumos; em áreas grandes usar misturador elétrico próprio."
+            },
+            {
+              "id": "balde-de-pedreiro"
+            },
+            {
+              "id": "rodo-massa-autonivelante",
+              "note": "Espalhar a massa na espessura pretendida; o cabo compra-se à parte."
+            },
+            {
+              "id": "rolo-picos-anti-bolhas",
+              "note": "Passar logo a seguir, dentro do tempo de trabalho do produto."
+            },
+            {
+              "id": "talocha-aco-lisa-licosa",
+              "note": "Ajudar a massa nos cantos e junto às paredes."
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-borracha-compridas"
+            },
+            {
+              "id": "oculos-protecao",
+              "note": "Salpicos ao amassar e ao verter."
+            },
+            {
+              "id": "mascara-ffp2",
+              "note": "Pó ao despejar a saca e ao amassar."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Não corrige grandes desníveis nem pendentes: para isso é betonilha.",
+        "Sobre soalho ou suporte de madeira que flete, o autonivelante corrente fissura: usar produto indicado para esse suporte.",
+        "O tempo de trabalho é curto: preparar tudo antes e, em áreas grandes, trabalhar a dois sem interrupções.",
+        "Esperar a secagem indicada na embalagem antes de aplicar madeira, flutuante ou vinílico.",
+        "Não tapar as juntas de dilatação do edifício e deixar junta junto às paredes.",
+        "Humidade a subir pelo pavimento tem de ser tratada antes."
+      ]
+    },
+    {
+      "id": "fissura-em-betonilha",
+      "domaine": "pavimentos",
+      "titre": "Fissura em betonilha",
+      "motsCles": [
+        "racha no chão de cimento",
+        "betonilha rachada",
+        "fenda na betonilha",
+        "greta no pavimento de cimento",
+        "fissura no chão da garagem",
+        "betonilha a estalar",
+        "chão de cimento aberto",
+        "fissura no pavimento de betão"
+      ],
+      "description": "Fissura visível numa betonilha ou pavimento de cimento, fina (retração) ou mais aberta. Abre-se, limpa-se e enche-se com argamassa de reparação; se tiver movimento, fecha-se com mástique elástico.",
+      "aVerifier": [
+        "Fissura fina e estável, ou larga, com desnível entre os dois lados ou a aumentar.",
+        "Se a betonilha soa a oco ou está solta junto à fissura.",
+        "Se a fissura segue uma junta, uma passagem de tubos ou está sobre piso radiante.",
+        "Que revestimento vai por cima (cerâmica, vinílico, tinta) e se há humidade."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "disco-diamantado",
+              "note": "Segmentado, na rebarbadora: abrir a fissura em V para a argamassa ter corpo."
+            },
+            {
+              "id": "escova-arame-manual",
+              "note": "Tirar o material solto dos lados da fissura; depois limpar o pó."
+            },
+            {
+              "id": "primario-aderencia-argamassas",
+              "note": "Dentro da fissura aberta, antes de encher."
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "argamassa-reparacao-betao",
+              "note": "Encher a fissura aberta, bem apertada e à face do pavimento."
+            },
+            {
+              "id": "colher-juntas",
+              "note": "Lâmina um pouco mais estreita do que a abertura."
+            },
+            {
+              "id": "talocha-aco-lisa-licosa",
+              "note": "Alisar à face da betonilha."
+            },
+            {
+              "id": "massa-reparacao-cimento-cartucho",
+              "note": "Só para fissuras finas, sem movimento e sem água permanente.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Vedação",
+          "materiaux": [
+            {
+              "id": "cola-veda-poliuretano",
+              "note": "Fissura sobre junta ou com movimento: fecha-se com mástique elástico, não com argamassa.",
+              "optionnel": true
+            },
+            {
+              "id": "pistola-silicone-reforcada",
+              "note": "Para os produtos em cartucho.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "argamassa-autonivelante",
+              "note": "Regularizar por cima, com primário, se o pavimento vai levar vinílico ou flutuante.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "oculos-protecao"
+            },
+            {
+              "id": "mascara-ffp3",
+              "note": "O corte de betão liberta pó fino."
+            },
+            {
+              "id": "protetores-auriculares",
+              "note": "Corte com rebarbadora."
+            },
+            {
+              "id": "luvas-borracha-compridas"
+            },
+            {
+              "id": "joelheiras"
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Fissura larga, com desnível entre lados, que continua a abrir ou que sobe pelas paredes pode ser estrutural: pedir diagnóstico a um técnico.",
+        "Betonilha oca ou solta à volta da fissura: tem de ser refeita nessa zona.",
+        "Com piso radiante ou tubos embutidos, não cortar em profundidade.",
+        "Uma fissura só cheia pode voltar a marcar no revestimento colado por cima: em pavimento a revestir, a costura com resina é trabalho de especialidade.",
+        "Não encher com argamassa uma junta de dilatação: tem de continuar a mexer."
+      ]
+    },
+    {
+      "id": "assentar-pavimento-flutuante-vinilico-rodape",
+      "domaine": "pavimentos",
+      "titre": "Assentar pavimento flutuante ou vinílico, com rodapé",
+      "motsCles": [
+        "pôr chão flutuante",
+        "colocar laminado",
+        "montar flutuante laminado",
+        "vinílico de encaixe",
+        "chão click",
+        "pavimento SPC",
+        "trocar alcatifa por flutuante",
+        "pôr rodapé novo",
+        "chão a imitar madeira"
+      ],
+      "description": "Montagem de pavimento flutuante laminado ou de vinílico de encaixe sobre subcamada, sem colar, com folga de dilatação em todo o perímetro, rematado com rodapé e perfis nas passagens.",
+      "aVerifier": [
+        "Suporte plano, seco e limpo; betonilha nova tem de estar bem seca, e sobre betonilha ou piso térreo leva barreira de vapor.",
+        "Tipo de pavimento: laminado, vinílico de encaixe com ou sem base colada (muda a subcamada), ou vinílico de colar.",
+        "Divisão húmida (cozinha, casa de banho): escolher pavimento e rodapé que aguentem água.",
+        "Altura das portas e dos aros depois de subir o pavimento, e existência de piso radiante."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "argamassa-autonivelante",
+              "note": "Só se o desnível passar o admitido pelo fabricante do pavimento; leva primário antes.",
+              "optionnel": true
+            },
+            {
+              "id": "barreira-vapor-pavimento",
+              "note": "Sobre betonilha ou piso térreo; subir nas paredes e fechar as sobreposições com fita.",
+              "optionnel": true
+            },
+            {
+              "id": "subcamada-espuma-polietileno",
+              "note": "Para laminado; não faz de barreira de vapor.",
+              "optionnel": true
+            },
+            {
+              "id": "subcamada-pavimento-vinilico",
+              "note": "Para vinílico de encaixe sem base colada, em vez da manta de laminado.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Assentamento",
+          "materiaux": [
+            {
+              "id": "cunhas-pavimento-flutuante",
+              "note": "Garantem a folga de dilatação em todo o perímetro; retirar antes do rodapé."
+            },
+            {
+              "id": "kit-montagem-pavimento-flutuante",
+              "note": "Bater no taco, nunca na régua; a alavanca aperta a última fiada contra a parede."
+            },
+            {
+              "id": "maco-de-borracha",
+              "note": "Para bater no taco ao fechar os encaixes."
+            },
+            {
+              "id": "serrote-de-madeira",
+              "note": "Cortar as réguas no comprimento."
+            },
+            {
+              "id": "x-ato",
+              "note": "Cortar a subcamada; o vinílico corta-se vincando e partindo."
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "rodape-mdf",
+              "note": "Em divisões secas; fixa-se à parede, nunca ao pavimento."
+            },
+            {
+              "id": "rodape-pvc-expandido",
+              "note": "Em cozinhas e casas de banho, em vez do MDF, que incha com a água.",
+              "optionnel": true
+            },
+            {
+              "id": "caixa-meia-esquadria-serrote",
+              "note": "Cortes a 45° do rodapé nos cantos."
+            },
+            {
+              "id": "cola-montagem-sancas-rodapes",
+              "note": "Em cordões no tardoz do rodapé."
+            },
+            {
+              "id": "pistola-silicone-reforcada",
+              "note": "A cola de montagem é espessa: a pistola simples cansa e não empurra."
+            },
+            {
+              "id": "massa-acrilica-pintavel",
+              "note": "Fechar a junta entre o rodapé e a parede e as meias-esquadrias; pinta-se por cima."
+            },
+            {
+              "id": "perfil-transicao-pavimento",
+              "note": "Nas portas e passagens, sem prender o pavimento."
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "joelheiras"
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Sem folga de dilatação junto a paredes, aros e tubos, o pavimento levanta.",
+        "Deixar as caixas a aclimatar na divisão antes de montar: ver a embalagem.",
+        "Não usar manta mole de laminado sob vinílico de encaixe: os encaixes partem.",
+        "Laminado em casa de banho só se o fabricante o admitir; a água estraga os encaixes.",
+        "O vinílico de colar pede suporte regularizado e cola própria: esta lista é para pavimento de encaixe.",
+        "Com piso radiante, confirmar a compatibilidade do pavimento e da subcamada."
+      ]
+    },
+    {
+      "id": "rodape-descolado",
+      "domaine": "pavimentos",
+      "titre": "Rodapé descolado",
+      "motsCles": [
+        "rodapé solto",
+        "rodapé a cair",
+        "rodapé desencostado da parede",
+        "rodapé inchado",
+        "colar rodapé",
+        "rodapé a abanar",
+        "rodapé despregado",
+        "rodapé cerâmico caiu"
+      ],
+      "description": "O rodapé descolou-se da parede, abana ou caiu, por pancada, cola fraca, parede a desfazer-se ou humidade. Limpa-se a cola velha, trata-se a parede e volta-se a colar com a cola certa para o material.",
+      "aVerifier": [
+        "Material do rodapé: MDF, madeira, PVC ou cerâmico (muda a cola).",
+        "Porque descolou: humidade na parede (MDF inchado, salitre), tinta ou estuque a esfarelar, pancada.",
+        "Como estava fixo (cola, pregos, buchas) e se a parede é direita ou tem barriga.",
+        "Se o troço se aproveita ou tem de ser substituído por um igual."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "x-ato",
+              "note": "Cortar a massa e a tinta por cima do rodapé antes de o puxar, para não arrancar a pintura."
+            },
+            {
+              "id": "espatula-multiusos-pintor",
+              "note": "Descolar sem partir e raspar a cola velha da parede e do tardoz."
+            },
+            {
+              "id": "primario-fixador-anti-alcalino",
+              "note": "Parede com reboco ou estuque a esfarelar atrás do rodapé.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "cola-montagem-sancas-rodapes",
+              "note": "Para MDF, madeira e PVC, em cordões no tardoz."
+            },
+            {
+              "id": "pistola-silicone-reforcada",
+              "note": "A cola de montagem é espessa."
+            },
+            {
+              "id": "fita-pintor-interior",
+              "note": "Segurar o rodapé encostado à parede enquanto a cola cura."
+            },
+            {
+              "id": "prego-cabeca-atarracada",
+              "note": "Rodapé de madeira ou MDF em parede com barriga, a ajudar a cola.",
+              "optionnel": true
+            },
+            {
+              "id": "martelo-de-orelhas",
+              "note": "Só se for pregar o rodapé.",
+              "optionnel": true
+            },
+            {
+              "id": "cimento-cola-flexivel",
+              "note": "Rodapé cerâmico: cola-se com cimento-cola, não com cola de montagem.",
+              "optionnel": true
+            },
+            {
+              "id": "betume-juntas-tapa-juntas",
+              "note": "Rodapé cerâmico: refazer a junta na cor existente.",
+              "optionnel": true
+            },
+            {
+              "id": "rodape-mdf",
+              "note": "Substituir o troço inchado ou partido; em zona húmida usar rodapé de PVC.",
+              "optionnel": true
+            },
+            {
+              "id": "caixa-meia-esquadria-serrote",
+              "note": "Cortar o troço novo, com meia-esquadria nos cantos.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "massa-acrilica-pintavel",
+              "note": "Fechar a junta entre o rodapé e a parede; pinta-se por cima."
+            },
+            {
+              "id": "esmalte-aquoso",
+              "note": "Retocar rodapé pintado e cabeças de pregos.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "joelheiras"
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Rodapé inchado ou parede com manchas e salitre: há humidade (infiltração, capilaridade ou fuga) a tratar antes de voltar a colar.",
+        "Atrás do rodapé podem passar cabos e tubos: cuidado ao pregar ou furar.",
+        "O rodapé fixa-se à parede, nunca ao pavimento flutuante, que tem de poder dilatar."
+      ]
+    },
+    {
+      "id": "degrau-escada-partido",
+      "domaine": "pavimentos",
+      "titre": "Degrau de escada partido",
+      "motsCles": [
+        "degrau rachado",
+        "aresta do degrau partida",
+        "focinho do degrau lascado",
+        "escada de cimento partida",
+        "canto do degrau partido",
+        "degrau a desfazer-se",
+        "cobertor do degrau solto",
+        "escada exterior com degraus estragados"
+      ],
+      "description": "A aresta (focinho) ou um canto do degrau lascou ou partiu, em escada de betão, pedra ou revestida a cerâmica. Pica-se até ao material são e refaz-se a aresta com argamassa de reparação contra uma cofragem.",
+      "aVerifier": [
+        "Material do degrau: betão ou cimento à vista, pedra, revestido a cerâmica, ou madeira.",
+        "Só a aresta lascada, ou degrau rachado de lado a lado, solto ou a ceder.",
+        "Ferros à vista e enferrujados.",
+        "Escada interior ou exterior, e se pode ficar interdita enquanto a reparação cura."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "escopro",
+              "note": "Picar até ao betão são, deixando arestas vivas para a argamassa agarrar."
+            },
+            {
+              "id": "maceta"
+            },
+            {
+              "id": "escova-arame-manual",
+              "note": "Limpar o pó e, havendo ferros à vista, a ferrugem solta."
+            },
+            {
+              "id": "conversor-ferrugem",
+              "note": "Só se houver ferros à vista, depois de escovados.",
+              "optionnel": true
+            },
+            {
+              "id": "primario-aderencia-argamassas",
+              "note": "Na zona picada e limpa, antes da argamassa."
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "argamassa-reparacao-betao",
+              "note": "Refazer a aresta por camadas, contra uma tábua a servir de cofragem."
+            },
+            {
+              "id": "colher-pedreiro-reta",
+              "note": "Lâmina reta para encher e acertar a aresta contra a tábua."
+            },
+            {
+              "id": "talocha-esponja",
+              "note": "Acertar o acabamento com o resto do degrau."
+            },
+            {
+              "id": "massa-reparacao-pedra",
+              "note": "Degrau de pedra ou mármore: lascas pequenas, na cor da pedra.",
+              "optionnel": true
+            },
+            {
+              "id": "cimento-cola-flexivel",
+              "note": "Cobertor cerâmico ou de pedra solto: voltar a colar com colagem dupla.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "perfil-degrau-aluminio",
+              "note": "Degrau revestido: protege a aresta; assenta na cola com a peça.",
+              "optionnel": true
+            },
+            {
+              "id": "fita-antiderrapante",
+              "note": "Degraus lisos ou exteriores, em superfície limpa e seca.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "oculos-protecao",
+              "note": "Saltam lascas ao picar."
+            },
+            {
+              "id": "luvas-borracha-compridas"
+            },
+            {
+              "id": "mascara-ffp2"
+            },
+            {
+              "id": "fita-balizagem",
+              "note": "Vedar a escada enquanto a reparação cura."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Degrau rachado de lado a lado, a ceder ou com ferros muito corroídos pode ser um problema estrutural: pedir avaliação a um técnico.",
+        "Degrau de madeira partido substitui-se, não se enche com massa.",
+        "Manter a altura e a profundidade iguais às dos outros degraus: um degrau diferente provoca quedas.",
+        "Não deixar usar a escada antes da cura indicada na embalagem.",
+        "No exterior, não reparar com chuva, risco de geada ou sol forte."
+      ]
+    },
+    {
+      "id": "pintar-pavimento-garagem",
+      "domaine": "pavimentos",
+      "titre": "Pintar pavimento de garagem",
+      "motsCles": [
+        "pintar chão da garagem",
+        "tinta para chão de cimento",
+        "chão de cimento a largar pó",
+        "pintar betonilha",
+        "tinta epóxi garagem",
+        "chão da garagem manchado de óleo",
+        "renovar chão do armazém",
+        "pintar pavimento de betão"
+      ],
+      "description": "Pintura de um pavimento de betão ou betonilha em garagem, arrecadação ou oficina, para acabar com o pó e facilitar a limpeza. O resultado depende quase todo da preparação: desengordurar, reparar e aplicar primário.",
+      "aVerifier": [
+        "Betão novo (tem de estar curado e seco) ou pavimento já pintado, com tinta antiga firme ou a descascar.",
+        "Manchas de óleo e gordura, que impedem a aderência.",
+        "Humidade a subir pelo pavimento (manchas escuras, salitre): faz a tinta empolar.",
+        "Uso previsto (peões ou automóveis), que escolhe entre tinta acrílica e epóxi, e se o betão é muito liso (afagado)."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "desengordurante",
+              "note": "Manchas de óleo e marcas de pneus; enxaguar e deixar secar bem."
+            },
+            {
+              "id": "escovao-de-obra",
+              "note": "Esfregar e varrer todo o pó antes do primário."
+            },
+            {
+              "id": "raspador-pavimento-cabo-comprido",
+              "note": "Tirar a tinta velha que esteja a descascar.",
+              "optionnel": true
+            },
+            {
+              "id": "acido-muriatico",
+              "note": "Só em betão muito liso, diluído, para abrir o poro; enxaguar muito bem e deixar secar.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "argamassa-reparacao-betao",
+              "note": "Buracos e fissuras abertas, antes do primário.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Tratamento",
+          "materiaux": [
+            {
+              "id": "primario-pavimentos",
+              "note": "Usar o primário indicado pela tinta escolhida (acrílica ou epóxi)."
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "tinta-epoxi-pavimentos",
+              "note": "Garagem com automóveis, óleo e lavagens; misturar os dois componentes por inteiro.",
+              "optionnel": true
+            },
+            {
+              "id": "tinta-pavimentos-acrilica",
+              "note": "Uso ligeiro (arrumos, peões); confirmar na lata se aguenta pneus.",
+              "optionnel": true
+            },
+            {
+              "id": "rolo-pelo-medio-paredes-irregulares",
+              "note": "Com epóxi, confirmar que o rolo resiste ao produto."
+            },
+            {
+              "id": "cabo-extensivel-rolo",
+              "note": "Pintar de pé, a recuar em direção à saída."
+            },
+            {
+              "id": "trincha-plana-sintetica",
+              "note": "Recortes junto às paredes, pilares e ralos."
+            },
+            {
+              "id": "balde-pintor-com-grelha"
+            },
+            {
+              "id": "fita-pintor-interior",
+              "note": "Proteger rodapés, soleiras e calhas."
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-nitrilo-quimicas",
+              "note": "Desengordurante, ácido e tinta."
+            },
+            {
+              "id": "oculos-panoramicos",
+              "note": "Salpicos de ácido e de produto ao esfregar."
+            },
+            {
+              "id": "semi-mascara-filtros",
+              "note": "Epóxi ou produtos de solvente em garagem fechada: filtro para vapores orgânicos.",
+              "optionnel": true
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Humidade a subir pelo pavimento faz a tinta empolar e descascar: resolver primeiro.",
+        "Pneus quentes arrancam tintas que não são próprias para trânsito de automóveis: confirmar na lata.",
+        "A tinta pode ficar escorregadia quando molhada, sobretudo em rampas.",
+        "Ácido muriático: nunca misturar com lixívia, juntar o ácido à água e ventilar bem.",
+        "Em garagem fechada, ventilar e afastar chamas e faíscas ao usar produtos de solvente.",
+        "Respeitar o tempo de cura indicado na embalagem antes de entrar com o carro."
+      ]
+    },
+    {
+      "id": "tacos-madeira-soltos",
+      "domaine": "pavimentos",
+      "titre": "Tacos de madeira soltos",
+      "motsCles": [
+        "tacos descolados",
+        "parquet a levantar",
+        "tacos a saltar",
+        "chão de tacos a abanar",
+        "colar tacos",
+        "taco solto",
+        "tacos a fazer barulho",
+        "parquet descolado"
+      ],
+      "description": "Um ou vários tacos do parquet descolaram, abanam ou saltaram, muitas vezes por cola antiga gasta ou por humidade. Limpa-se a base e o tardoz, colam-se de novo e retoca-se o acabamento.",
+      "aVerifier": [
+        "Quantos tacos e em que zona: junto a janelas, casa de banho ou cozinha aponta para humidade.",
+        "Tacos empenados, escurecidos ou inchados (não voltam a caber) ou em bom estado.",
+        "Tipo de cola antiga por baixo (preta, betuminosa) e estado da base.",
+        "Se o pavimento vai ser afagado e envernizado por inteiro a seguir, ou só retocado."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "raspador-lamina-larga-100mm",
+              "note": "Raspar a cola velha da base e do tardoz dos tacos; limpar bem o pó."
+            },
+            {
+              "id": "betonilha-fina-reparacao",
+              "note": "Só se a base estiver desfeita por baixo dos tacos; deixar secar bem.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Assentamento",
+          "materiaux": [
+            {
+              "id": "cola-tacos-parquet",
+              "note": "Base seca e limpa; confirmar na embalagem a compatibilidade com restos da cola antiga."
+            },
+            {
+              "id": "espatula-dentada-cola",
+              "note": "Dente indicado na embalagem da cola."
+            },
+            {
+              "id": "maco-de-borracha",
+              "note": "Assentar os tacos ao nível dos vizinhos."
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "betume-madeira-pasta",
+              "note": "Fechar as juntas abertas, no tom da madeira já acabada."
+            },
+            {
+              "id": "espatula-pintor-media-50-63mm"
+            },
+            {
+              "id": "lixa-madeira-folha",
+              "note": "Acertar a zona reparada no sentido do veio, do grão médio para o fino."
+            },
+            {
+              "id": "verniz-soalho-parquet",
+              "note": "Num retoque nota-se a diferença de brilho: o ideal é envernizar o pano inteiro."
+            },
+            {
+              "id": "trincha-madeira-velaturas-vernizes"
+            },
+            {
+              "id": "mastique-acrilico-madeira-parquet",
+              "note": "Junta entre o parquet e o rodapé ou a soleira.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-descartaveis"
+            },
+            {
+              "id": "mascara-ffp2",
+              "note": "Pó da raspagem e da lixagem."
+            },
+            {
+              "id": "joelheiras"
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Tacos soltos por humidade (fuga, infiltração, lavagem com muita água): tratar a causa e deixar secar antes de colar.",
+        "Cola antiga preta e betuminosa pode conter amianto ou alcatrão: não lixar nem raspar a seco e, em caso de dúvida, mandar analisar antes de mexer.",
+        "Não apertar os tacos contra a parede: sem folga, a madeira incha e volta a levantar.",
+        "Respeitar o tempo indicado na embalagem antes de pisar e de envernizar."
+      ]
+    },
+    {
+      "id": "juntas-azulejo-degradadas",
+      "domaine": "pavimentos",
+      "titre": "Juntas de azulejo ou mosaico degradadas",
+      "motsCles": [
+        "juntas do azulejo escuras",
+        "juntas a desfazer-se",
+        "betume das juntas a cair",
+        "juntas com bolor",
+        "refazer juntas do azulejo",
+        "juntas do chão negras",
+        "junta aberta entre mosaicos",
+        "betumar azulejos de novo"
+      ],
+      "description": "As juntas entre azulejos ou mosaicos estão escurecidas, fissuradas, ocas ou a desfazer-se. Se estão só sujas, limpam-se; se estão degradadas, raspam-se em profundidade e betumam-se de novo.",
+      "aVerifier": [
+        "Juntas só sujas ou escurecidas (limpar pode bastar) ou fissuradas, ocas e a soltar-se.",
+        "Largura da junta, que define o betume.",
+        "Zona de água (duche, bancada, pavimento lavado) e sinais de água a passar para trás ou para baixo.",
+        "Peças soltas ou a soar a oco junto das juntas abertas, e se há mármore ou pedra calcária."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "limpa-juntas",
+              "note": "Se a junta está só suja ou escurecida, limpar primeiro: pode bastar."
+            },
+            {
+              "id": "raspador-juntas",
+              "note": "Raspar em profundidade para o betume novo agarrar, sem tocar no vidrado."
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "betume-juntas-tapa-juntas",
+              "note": "Na cor existente; confirmar na saca a largura de junta admitida."
+            },
+            {
+              "id": "betume-juntas-epoxi",
+              "note": "Duche, bancada de cozinha e zonas com muita água ou gordura.",
+              "optionnel": true
+            },
+            {
+              "id": "massa-renovar-juntas-azulejo",
+              "note": "Só para retoques pequenos em parede.",
+              "optionnel": true
+            },
+            {
+              "id": "talocha-borracha-betumar-juntas",
+              "note": "O betume epóxi pede talocha de borracha dura própria."
+            },
+            {
+              "id": "esponja-ladrilhador",
+              "note": "Bem espremida, para não esvaziar a junta."
+            }
+          ]
+        },
+        {
+          "titre": "Vedação",
+          "materiaux": [
+            {
+              "id": "espatula-remover-silicone",
+              "note": "Tirar todo o silicone velho dos cantos antes de refazer.",
+              "optionnel": true
+            },
+            {
+              "id": "silicone-sanitario-neutro-antifungos",
+              "note": "Cantos e encontros com banheira, base de duche e loiças; em mármore, silicone para pedra.",
+              "optionnel": true
+            },
+            {
+              "id": "pistola-silicone-manual",
+              "note": "Para o silicone dos cantos.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "oculos-protecao",
+              "note": "Saltam bocados de betume ao raspar."
+            },
+            {
+              "id": "mascara-ffp2"
+            },
+            {
+              "id": "luvas-borracha-compridas",
+              "note": "Produto de limpeza e betume fresco."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Betume novo não é impermeabilização: se a água passa para o vizinho ou para trás da parede, o problema está por baixo do revestimento.",
+        "Juntas que voltam a fissurar indicam peças soltas ou suporte a mexer.",
+        "Não usar produtos ácidos em mármore nem em pedra calcária.",
+        "O betume epóxi endurece depressa: limpar logo a seguir, depois já não sai.",
+        "Nunca misturar produtos de limpeza entre si nem com lixívia."
+      ]
+    }
+  ]
+}

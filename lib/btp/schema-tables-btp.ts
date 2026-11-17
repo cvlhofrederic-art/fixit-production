@@ -2,7 +2,8 @@
  * Ce que POST /api/btp accepte d'écrire, table par table (constat donnees-btp-9 de l'audit du 11/11/2026).
  *
  * Colonnes : relevé de la base de PRODUCTION du 11/11/2026 (information_schema, lecture seule), qui diffère des
- * migrations du dépôt. tests/lib/btp-schema-tables.test.ts recopie ce relevé et échoue si les deux divergent.
+ * migrations du dépôt, plus chantiers_btp.membres_ids (migration 20261116 du pointage géolocalisé, appliquée en
+ * production le 16/11/2026). tests/lib/btp-schema-tables.test.ts recopie ce relevé et échoue si les deux divergent.
  *
  * Trois niveaux de contrôle :
  *   1. colonnes, types, champs obligatoires (verifierLigne) : ne refusent que ce que la base aurait refusé elle-même
@@ -12,8 +13,8 @@
  *   2. bornes métier (valeursHorsBornes) : montant négatif, taux hors 0-100, coordonnées impossibles. C'est le seul
  *      contrôle plus strict que la base. La route l'applique à la création, et à la modification seulement si la
  *      valeur change : une valeur déjà en base, renvoyée telle quelle par un formulaire, est acceptée (et signalée).
- *   3. rattachements (referencesDeLigne) : chantier, membre ou équipe désignés par une fiche, que la route vérifie
- *      comme appartenant au compte.
+ *   3. rattachements (referencesDeLigne) : chantier, membre ou équipe désignés par une fiche (y compris chaque employé
+ *      de la liste membres_ids d'un chantier), que la route vérifie comme appartenant au compte.
  * Module pur : aucune requête, aucun accès au réseau.
  */
 
@@ -30,7 +31,8 @@ export type TableCible = 'chantiers_btp' | 'membres_btp' | 'equipes_btp'
 /** Colonnes posées par la base ou par la route, jamais par l'écran : retirées sans erreur avant tout contrôle. */
 export const COLONNES_SYSTEME = ['id', 'owner_id', 'created_at', 'updated_at'] as const
 
-type TypeColonne = 'texte' | 'uuid' | 'nombre' | 'booleen' | 'date' | 'heure' | 'json'
+/** `liste_uuid` : tableau d'identifiants (colonne uuid[]), envoyé en liste JSON. */
+type TypeColonne = 'texte' | 'uuid' | 'liste_uuid' | 'nombre' | 'booleen' | 'date' | 'heure' | 'json'
 
 export interface SpecColonne {
   type: TypeColonne
@@ -43,7 +45,10 @@ export interface SpecColonne {
   max?: number
   /** Ce que désigne la valeur, dans un message (« le budget »). */
   libelle?: string
-  /** La valeur est l'identifiant d'une fiche de cette table, qui doit appartenir au même compte. */
+  /**
+   * La valeur (chaque élément, pour une liste) est l'identifiant d'une fiche de cette table, qui doit appartenir au
+   * même compte.
+   */
   cible?: TableCible
 }
 
@@ -82,6 +87,9 @@ export const COLONNES_BTP: Record<TableEcrivable, Record<string, SpecColonne>> =
     acompte_recu: positif('l\'acompte reçu'),
     penalite_retard_jour: positif('la pénalité de retard par jour'),
     sous_taches: jsonNonNul,
+    // Employés affectés au chantier (uuid[], vide par défaut ; migration 20261116) : chacun doit être un membre du
+    // compte, comme membre_id et equipe_id ailleurs.
+    membres_ids: { type: 'liste_uuid', nonNul: true, cible: 'membres_btp' },
   },
   membres_btp: {
     prenom: texteRequis, nom: texteRequis, telephone: texte, email: texte,
@@ -202,6 +210,9 @@ export const FORMAT_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-
 const SCHEMAS_TYPES: Record<TypeColonne, z.ZodType> = {
   texte: z.union([z.string(), z.number(), z.boolean()]),
   uuid: z.string().regex(FORMAT_UUID),
+  // Seulement une liste JSON : la base lirait aussi un littéral de tableau en texte (« {…} »), mais la route doit
+  // pouvoir contrôler chaque identifiant (même compte).
+  liste_uuid: z.array(z.string().regex(FORMAT_UUID)),
   nombre: z.union([z.number(), z.string().regex(FORMAT_NOMBRE)]),
   booleen: z.union([z.boolean(), z.string(), z.number()]),
   date: z.union([z.string(), z.number()]),
@@ -267,13 +278,24 @@ export function valeursHorsBornes(table: TableEcrivable, ligne: Record<string, u
 
 export interface Reference { colonne: string; cible: TableCible; id: string }
 
-/** Chantier, membre ou équipe désignés par la ligne (identifiants non vides). */
+/** Chantier, membre ou équipe désignés par la ligne (identifiants non vides ; un par élément d'une liste). */
 export function referencesDeLigne(table: TableEcrivable, ligne: Record<string, unknown>): Reference[] {
   const colonnes = COLONNES_BTP[table]
   return Object.entries(ligne).flatMap(([colonne, valeur]) => {
-    const cible = colonnes[colonne]?.cible
-    return cible && typeof valeur === 'string' && valeur !== '' ? [{ colonne, cible, id: valeur }] : []
+    const spec = colonnes[colonne]
+    const cible = spec?.cible
+    if (!cible) return []
+    const ids: unknown[] = spec.type === 'liste_uuid' && Array.isArray(valeur) ? valeur : [valeur]
+    return ids.filter((id): id is string => typeof id === 'string' && id !== '').map(id => ({ colonne, cible, id }))
   })
+}
+
+/**
+ * L'identifiant `id` est déjà enregistré dans cette colonne de la fiche : c'est sa valeur, ou un élément de sa liste
+ * (membres_ids d'un chantier).
+ */
+export function dejaEnregistre(id: string, valeurEnBase: unknown): boolean {
+  return Array.isArray(valeurEnBase) ? valeurEnBase.some(v => memeValeur(id, v)) : memeValeur(id, valeurEnBase)
 }
 
 /** Même valeur, au sens de la base : 150 et « 150 » sont égaux, un identifiant se compare sans la casse. */

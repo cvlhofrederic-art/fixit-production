@@ -1,0 +1,830 @@
+{
+  "famille": {
+    "id": "cimentos-argamassas",
+    "nom": "Cimentos, argamassas e rebocos",
+    "description": "Ligantes, areias, argamassas secas ensacadas, betonilhas, gessos e aditivos para assentar, rebocar, encher, nivelar e reparar em obra.",
+    "icone": "🧱",
+    "sousFamilles": [
+      {
+        "id": "cimentos",
+        "nom": "Cimentos",
+        "description": "Cimento cinzento, branco e de presa rápida, em saco ou balde pequeno."
+      },
+      {
+        "id": "cal",
+        "nom": "Cal",
+        "description": "Cal hidráulica para argamassas e cal para caiar, com o respetivo fixador."
+      },
+      {
+        "id": "areias-britas-agregados",
+        "nom": "Areias, britas e agregados",
+        "description": "Areias e brita ensacadas, agregados leves e asfalto a frio para fazer massa, betão e pequenas reparações de pavimento."
+      },
+      {
+        "id": "betao-assentamento",
+        "nom": "Betão seco e argamassas de assentamento",
+        "description": "Misturas pré-doseadas a que só se junta água, para betonar pequenos volumes e levantar paredes."
+      },
+      {
+        "id": "rebocos",
+        "nom": "Argamassas de reboco",
+        "description": "Rebocos manuais e de projetar, de cimento ou de cal, e argamassas para capoto."
+      },
+      {
+        "id": "betonilhas-autonivelantes",
+        "nom": "Betonilhas e autonivelantes",
+        "description": "Argamassas para encher, regularizar e nivelar pavimentos antes do revestimento."
+      },
+      {
+        "id": "reparacao-fixacao-refratarias",
+        "nom": "Reparação, fixação e refratárias",
+        "description": "Argamassas especiais: fixação rápida, reparação de betão e resistentes ao fogo."
+      },
+      {
+        "id": "gesso-estuque",
+        "nom": "Gesso e estuque",
+        "description": "Gessos e massas de gesso para estucar, encher e colar placas em interiores."
+      },
+      {
+        "id": "aditivos-primarios",
+        "nom": "Aditivos para argamassas e betão",
+        "description": "Produtos que se juntam à massa ou se aplicam no suporte: hidrófugos, aceleradores, látex, primários e pigmentos."
+      }
+    ]
+  },
+  "materiaux": [
+    {
+      "id": "cimento-cinzento",
+      "famille": "cimentos-argamassas",
+      "sousFamille": "cimentos",
+      "nom": "Cimento cinzento (Portland)",
+      "aussiAppele": [
+        "cimento cinza",
+        "cimento normal",
+        "cimento portland",
+        "cimento escuro",
+        "saco de cimento"
+      ],
+      "usage": "Ligante de base para fazer betão, argamassas de assentamento, rebocos e betonilhas em obra, misturado com areia e brita.",
+      "aSavoir": "Guardar em local seco e afastado do chão: cimento com grumos duros já ganhou presa e perde resistência. É alcalino, proteger a pele e os olhos.",
+      "conditionnement": "Saco 25 kg; balde 1,4-1,5 kg para pequenas reparações",
+      "recherche": "cimento cinza",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cimento-branco",
+      "famille": "cimentos-argamassas",
+      "sousFamille": "cimentos",
+      "nom": "Cimento branco",
+      "aussiAppele": [
+        "cimento portland branco"
+      ],
+      "usage": "Para argamassas e remates de cor clara, pequenas juntas, assentamento de pedra clara e trabalhos decorativos.",
+      "aSavoir": "Usar areia branca, água e ferramentas limpas para não sujar a cor.",
+      "conditionnement": "Saco 25 kg; balde 1,2 kg",
+      "recherche": "cimento branco",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cimento-rapido",
+      "famille": "cimentos-argamassas",
+      "sousFamille": "cimentos",
+      "nom": "Cimento rápido (presa rápida)",
+      "aussiAppele": [
+        "cimento de presa rápida",
+        "cimento de chumbar"
+      ],
+      "usage": "Para chumbar e fixar em poucos minutos (caixas elétricas, grades, tubos) e tapar roços ou buracos que têm de ficar prontos depressa.",
+      "aSavoir": "Ganha presa em poucos minutos: amassar pouca quantidade de cada vez e não voltar a amassar o que já começou a endurecer.",
+      "conditionnement": "Embalagem 1,5 kg ou 5 kg",
+      "recherche": "cimento rápido",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cal-hidraulica",
+      "famille": "cimentos-argamassas",
+      "sousFamille": "cal",
+      "nom": "Cal hidráulica",
+      "aussiAppele": [
+        "cal para argamassa",
+        "cal de construção",
+        "cal em saco"
+      ],
+      "usage": "Ligante para argamassas bastardas de assentamento e de reboco: dá massas mais trabalháveis e que deixam a parede respirar melhor do que as só de cimento.",
+      "aSavoir": "Ganha resistência mais devagar do que o cimento: manter o reboco húmido nos primeiros dias e não aplicar com risco de geada. Para paredes antigas de pedra ou taipa pede-se cal hidráulica natural (NHL): confirmar no saco, porque nem toda a cal hidráulica o é.",
+      "conditionnement": "Saco 25 kg",
+      "recherche": "cal hidráulica",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cal-viva-po",
+      "famille": "cimentos-argamassas",
+      "sousFamille": "cal",
+      "nom": "Cal viva em pó",
+      "aussiAppele": [
+        "cal viva",
+        "cal em pó",
+        "cal branca",
+        "cal para caiar"
+      ],
+      "usage": "Cal para apagar em água e preparar leite de cal para caiação de muros e paredes.",
+      "aSavoir": "Reage com a água e aquece muito: juntar a cal à água aos poucos, em recipiente resistente ao calor, com luvas e óculos.",
+      "conditionnement": "Balde 1 kg ou 5 kg",
+      "recherche": "cal viva",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cal-preparada-caiar",
+      "famille": "cimentos-argamassas",
+      "sousFamille": "cal",
+      "nom": "Cal preparada para caiar",
+      "aussiAppele": [
+        "cal pronta",
+        "cal em pasta",
+        "cal apagada",
+        "leite de cal",
+        "caiação"
+      ],
+      "usage": "Cal já apagada, pronta a diluir, para caiar muros, paredes e tetos.",
+      "aSavoir": "Juntar fixador de cal para a caiação não largar pó ao toque.",
+      "conditionnement": "Balde 5 L",
+      "recherche": "cal preparada",
+      "rechercheEnseigne": {
+        "leroy-merlin": "cal apagada"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "fixador-cal",
+      "famille": "cimentos-argamassas",
+      "sousFamille": "cal",
+      "nom": "Fixador de cal",
+      "aussiAppele": [
+        "fixador para caiação",
+        "fixador de caiação"
+      ],
+      "usage": "Aditivo que se junta à cal de caiar para melhorar a aderência e evitar que a caiação largue pó.",
+      "conditionnement": "Embalagem 1 L",
+      "recherche": "fixador cal",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "areia-rio-ensacada",
+      "famille": "cimentos-argamassas",
+      "sousFamille": "areias-britas-agregados",
+      "nom": "Areia do rio ensacada",
+      "aussiAppele": [
+        "areia de rio",
+        "areia lavada",
+        "areia grossa",
+        "saco de areia"
+      ],
+      "usage": "Areia lavada para fazer betão, betonilhas e argamassas em obra.",
+      "aSavoir": "Guardar o saco fechado: areia encharcada altera a quantidade de água da amassadura.",
+      "conditionnement": "Saco 20 kg ou 40 kg",
+      "recherche": "areia rio",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "areia-amarela-ensacada",
+      "famille": "cimentos-argamassas",
+      "sousFamille": "areias-britas-agregados",
+      "nom": "Areia amarela ensacada",
+      "aussiAppele": [
+        "areia de reboco",
+        "areia de assentamento",
+        "areia fina amarela",
+        "areia de areeiro"
+      ],
+      "usage": "Areia fina, mais gorda, usada em argamassas de assentamento de tijolo e em rebocos tradicionais.",
+      "aSavoir": "Não usar em betão estrutural: os finos e a argila que contém reduzem a resistência.",
+      "conditionnement": "Saco 20 kg",
+      "recherche": "areia amarela",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "areia-branca-ensacada",
+      "famille": "cimentos-argamassas",
+      "sousFamille": "areias-britas-agregados",
+      "nom": "Areia branca ensacada",
+      "aussiAppele": [
+        "areia fina branca",
+        "areia clara"
+      ],
+      "usage": "Areia fina e clara para argamassas com cimento branco, rebocos finos e acabamentos de cor clara.",
+      "conditionnement": "Saco 20 kg ou 40 kg",
+      "recherche": "areia branca",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "brita-n1-ensacada",
+      "famille": "cimentos-argamassas",
+      "sousFamille": "areias-britas-agregados",
+      "nom": "Brita n.º 1 ensacada",
+      "aussiAppele": [
+        "brita",
+        "gravilha",
+        "pedra britada",
+        "brita 1",
+        "brita branca"
+      ],
+      "usage": "Agregado grosso (pedra calcária clara) para fazer betão em obra com cimento e areia, para pequenas camadas drenantes e para decoração de exteriores.",
+      "conditionnement": "Saco",
+      "recherche": "brita",
+      "enseignes": [
+        "maxmat"
+      ]
+    },
+    {
+      "id": "argila-expandida",
+      "famille": "cimentos-argamassas",
+      "sousFamille": "areias-britas-agregados",
+      "nom": "Argila expandida",
+      "aussiAppele": [
+        "leca",
+        "argex",
+        "agregado leve",
+        "enchimento leve",
+        "betão leve"
+      ],
+      "usage": "Agregado leve em grânulos para enchimentos leves, betão leve de regularização, camadas de forma e drenagem.",
+      "aSavoir": "O betão leve feito com este agregado serve para encher e regularizar, não para elementos estruturais.",
+      "conditionnement": "Saco 25 L ou 50 L",
+      "recherche": "argila expandida",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "asfalto-frio-ensacado",
+      "famille": "cimentos-argamassas",
+      "sousFamille": "areias-britas-agregados",
+      "nom": "Asfalto a frio ensacado",
+      "aussiAppele": [
+        "alcatrão a frio",
+        "asfalto em saco",
+        "massa de alcatrão",
+        "tapa-buracos de asfalto"
+      ],
+      "usage": "Mistura betuminosa pronta a aplicar, sem aquecer, para tapar buracos e fazer reparações rápidas em pavimentos de alcatrão (entradas de garagem, acessos, valas).",
+      "aSavoir": "Limpar o buraco de pedras soltas e água, encher um pouco acima do nível e compactar bem.",
+      "conditionnement": "Saco 20 kg",
+      "recherche": "asfalto a frio",
+      "rechercheEnseigne": {
+        "maxmat": "asfalto a"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "betao-seco-ensacado",
+      "famille": "cimentos-argamassas",
+      "sousFamille": "betao-assentamento",
+      "nom": "Betão seco ensacado",
+      "aussiAppele": [
+        "betão pronto em saco",
+        "betão pré-doseado",
+        "betão estrutural em saco"
+      ],
+      "usage": "Betão pré-doseado a que só se junta água, para chumbar postes, pequenas sapatas, maciços, degraus e reparações de betão.",
+      "aSavoir": "Respeitar a água indicada no saco: água a mais enfraquece o betão.",
+      "conditionnement": "Saco 25 kg",
+      "recherche": "betão seco",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "argamassa-assentamento-alvenaria",
+      "famille": "cimentos-argamassas",
+      "sousFamille": "betao-assentamento",
+      "nom": "Argamassa seca de assentamento de alvenaria",
+      "aussiAppele": [
+        "argamassa de alvenaria",
+        "massa de assentamento",
+        "argamassa M10",
+        "massa para tijolo"
+      ],
+      "usage": "Argamassa pré-doseada para assentar tijolo e blocos ao levantar paredes e muros.",
+      "aSavoir": "Não serve para colar cerâmica: para isso usar cimento-cola.",
+      "conditionnement": "Saco 25 kg; saco 5 kg para pequenos trabalhos",
+      "recherche": "argamassa assentamento",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "argamassa-multiusos-hidrofugada",
+      "famille": "cimentos-argamassas",
+      "sousFamille": "betao-assentamento",
+      "nom": "Argamassa multiusos (assentar, rebocar e betonilha)",
+      "aussiAppele": [
+        "argamassa multiusos",
+        "reboco multi",
+        "argamassa pré-doseada cinzenta"
+      ],
+      "usage": "Argamassa cinzenta hidrofugada para interior e exterior: levantar paredes de tijolo ou bloco, chapisco, reboco em camada simples e pequenas betonilhas.",
+      "aSavoir": "Rebocar de preferência em panos completos e retomar as emendas no próprio dia, para não ficarem marcadas.",
+      "conditionnement": "Saco 25 kg",
+      "recherche": "argamassa multiusos",
+      "rechercheEnseigne": {
+        "maxmat": "reboco multi"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "argamassa-reboco-manual",
+      "famille": "cimentos-argamassas",
+      "sousFamille": "rebocos",
+      "nom": "Argamassa de reboco manual (cinza ou branca)",
+      "aussiAppele": [
+        "reboco manual",
+        "reboco pronto",
+        "massa de reboco",
+        "reboco cinza",
+        "reboco branco"
+      ],
+      "usage": "Reboco pré-doseado para aplicar à colher e talocha em paredes interiores e exteriores, e para remendos de reboco.",
+      "aSavoir": "Humedecer o suporte e respeitar a espessura por camada indicada no saco; reboco que seca depressa ao sol ou ao vento fissura.",
+      "conditionnement": "Saco 25 kg; saco 5 kg; balde 1,5 kg",
+      "recherche": "argamassa reboco",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "argamassa-reboco-projetar-exterior",
+      "famille": "cimentos-argamassas",
+      "sousFamille": "rebocos",
+      "nom": "Argamassa de reboco de projetar para exterior",
+      "aussiAppele": [
+        "reboco projetado",
+        "reboco de máquina",
+        "reboco exterior branco"
+      ],
+      "usage": "Reboco pré-doseado para aplicar com máquina de projetar em fachadas e paredes exteriores.",
+      "conditionnement": "Saco 25 kg",
+      "recherche": "reboco projetar exterior",
+      "rechercheEnseigne": {
+        "maxmat": "reboco exterior branco",
+        "leroy-merlin": "reboco exterior branco"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "argamassa-cal-reabilitacao",
+      "famille": "cimentos-argamassas",
+      "sousFamille": "rebocos",
+      "nom": "Argamassa de cal para reabilitação (reboco)",
+      "aussiAppele": [
+        "reboco de cal",
+        "argamassa de cal hidráulica natural",
+        "reboco para paredes antigas"
+      ],
+      "usage": "Reboco de camada única à base de cal hidráulica natural, compatível com suportes antigos, para interior e exterior, aplicado à mão ou projetado, com acabamento areado fino ou como base para estanhar.",
+      "aSavoir": "Em paredes antigas de pedra ou taipa não trocar por reboco de cimento, que retém a humidade e acaba por descolar.",
+      "conditionnement": "Saco 25 kg",
+      "recherche": "argamassa cal reabilitação",
+      "rechercheEnseigne": {
+        "maxmat": "argamassa cal"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "argamassa-colagem-barramento-etics",
+      "famille": "cimentos-argamassas",
+      "sousFamille": "rebocos",
+      "nom": "Argamassa de colagem e barramento para capoto (ETICS)",
+      "aussiAppele": [
+        "argamassa etics",
+        "cola de capoto",
+        "argamassa para capoto",
+        "barramento armado"
+      ],
+      "usage": "Argamassa fibrada para colar as placas de isolamento à fachada e fazer o barramento armado com rede por cima delas.",
+      "aSavoir": "O barramento leva sempre rede de fibra de vidro antialcalina embebida, com sobreposição nas emendas.",
+      "conditionnement": "Saco 25 kg",
+      "recherche": "argamassa etics",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "betonilha-seca-tradicional",
+      "famille": "cimentos-argamassas",
+      "sousFamille": "betonilhas-autonivelantes",
+      "nom": "Betonilha seca ensacada",
+      "aussiAppele": [
+        "argamassa de betonilha",
+        "betonilha pronta",
+        "massa de enchimento de pavimento"
+      ],
+      "usage": "Argamassa pré-doseada para encher e regularizar pavimentos antes de assentar o revestimento.",
+      "aSavoir": "Deixar secar bem antes de aplicar pavimentos sensíveis à humidade (madeira, flutuante, vinílico).",
+      "conditionnement": "Saco 25 kg",
+      "recherche": "betonilha",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "betonilha-fina-reparacao",
+      "famille": "cimentos-argamassas",
+      "sousFamille": "betonilhas-autonivelantes",
+      "nom": "Betonilha fina de regularização e reparação (1 a 4 cm)",
+      "aussiAppele": [
+        "betonilha fina",
+        "argamassa de reparação de pavimentos",
+        "argamassa para pendentes"
+      ],
+      "usage": "Para regularizar ou reparar pavimentos em camada fina, encher cavidades e fazer pendentes e meias-canas, em interior e exterior.",
+      "aSavoir": "Aplicar primeiro um primário de aderência no suporte, seja betão, betonilha, cerâmica ou pedra.",
+      "conditionnement": "Saco 25 kg",
+      "recherche": "betonilha fina",
+      "rechercheEnseigne": {
+        "leroy-merlin": "argamassa de reparação de pavimentos"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "betonilha-fluida-enchimento",
+      "famille": "cimentos-argamassas",
+      "sousFamille": "betonilhas-autonivelantes",
+      "nom": "Betonilha fluida de enchimento (3 a 10 cm)",
+      "aussiAppele": [
+        "betonilha autonivelante",
+        "betonilha líquida",
+        "betonilha para piso radiante"
+      ],
+      "usage": "Betonilha de consistência fluida para encher e regularizar pavimentos interiores, incluindo sobre piso radiante e sobre membranas de isolamento acústico.",
+      "aSavoir": "Só para interior; respeitar as espessuras mínima e máxima indicadas no saco.",
+      "conditionnement": "Saco 25 kg",
+      "recherche": "betonilha fluida",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "argamassa-autonivelante",
+      "famille": "cimentos-argamassas",
+      "sousFamille": "betonilhas-autonivelantes",
+      "nom": "Argamassa autonivelante",
+      "aussiAppele": [
+        "autonivelante",
+        "massa autonivelante",
+        "massa niveladora",
+        "nivelador de pavimento"
+      ],
+      "usage": "Para nivelar pavimentos em camada fina antes de aplicar vinílico, flutuante, alcatifa ou cerâmica.",
+      "aSavoir": "Aplicar primário no suporte antes de verter e respeitar a espessura máxima indicada no saco; não corrige grandes desníveis.",
+      "conditionnement": "Saco 25 kg",
+      "recherche": "argamassa autonivelante",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "argamassa-fixacao-rapida",
+      "famille": "cimentos-argamassas",
+      "sousFamille": "reparacao-fixacao-refratarias",
+      "nom": "Argamassa de fixação rápida",
+      "aussiAppele": [
+        "argamassa rápida",
+        "massa de chumbar",
+        "argamassa de presa rápida",
+        "cimento de fixação"
+      ],
+      "usage": "Para chumbar e fixar rapidamente em betão, pedra e alvenaria: postes de vedação, caixas elétricas, tubos, grades e corrimãos, em interior e exterior.",
+      "aSavoir": "Presa rápida: preparar pequenas quantidades e aplicar de imediato.",
+      "conditionnement": "Saco 5 kg; embalagem 1 kg",
+      "recherche": "argamassa fixação rápida",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "argamassa-refrataria",
+      "famille": "cimentos-argamassas",
+      "sousFamille": "reparacao-fixacao-refratarias",
+      "nom": "Argamassa refratária",
+      "aussiAppele": [
+        "cimento refratário",
+        "massa refratária",
+        "argamassa para lareiras",
+        "argamassa para churrasqueira"
+      ],
+      "usage": "Para assentar e reparar tijolo refratário em lareiras, churrasqueiras, fornos e chaminés.",
+      "aSavoir": "Deixar secar bem e fazer o primeiro fogo fraco e progressivo.",
+      "conditionnement": "Saco 5 kg ou 15 kg; balde 1 kg",
+      "recherche": "argamassa refratária",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "argamassa-reparacao-betao",
+      "famille": "cimentos-argamassas",
+      "sousFamille": "reparacao-fixacao-refratarias",
+      "nom": "Argamassa de reparação de betão",
+      "aussiAppele": [
+        "massa de reparação de betão",
+        "reparador de betão",
+        "argamassa para varandas e pilares"
+      ],
+      "usage": "Para reparar betão degradado no exterior sem cofragem (varandas, pilares, cornijas, degraus), com proteção do aço das armaduras contra a corrosão.",
+      "aSavoir": "Retirar todo o betão solto e limpar a ferrugem das armaduras à vista antes de reparar.",
+      "conditionnement": "Embalagem 5 kg",
+      "recherche": "reparação betão",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "gesso-estuque",
+      "famille": "cimentos-argamassas",
+      "sousFamille": "gesso-estuque",
+      "nom": "Gesso de estuque",
+      "aussiAppele": [
+        "gesso",
+        "gesso de construção",
+        "gesso de estucador",
+        "gesso em pó",
+        "gesso de estuque para chumbar caixas",
+        "gesso de presa rápida",
+        "gesso para caixas"
+      ],
+      "usage": "Para estucar e fazer remates em interiores, fixar caixas elétricas, molduras e rosetas e tapar roços.",
+      "aSavoir": "Presa rápida: amassar pouco de cada vez. Só para interiores secos.",
+      "conditionnement": "Balde 1 kg ou 4,5 kg; saco 5 kg ou 30 kg",
+      "recherche": "gesso estuque",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "gesso-fino-acabamento",
+      "famille": "cimentos-argamassas",
+      "sousFamille": "gesso-estuque",
+      "nom": "Gesso fino",
+      "aussiAppele": [
+        "gesso de acabamento",
+        "gesso fino branco",
+        "gesso de Paris",
+        "gesso para moldes"
+      ],
+      "usage": "Gesso de grão fino para reparações finas e acabamentos lisos em paredes e tetos interiores.",
+      "aSavoir": "Só para interiores secos; amassar pouco de cada vez.",
+      "conditionnement": "Embalagem 1 kg ou 5 kg",
+      "recherche": "gesso fino",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "massa-estuque-antifissuras",
+      "famille": "cimentos-argamassas",
+      "sousFamille": "gesso-estuque",
+      "nom": "Massa de estuque antifissuras (em pó, com fibras)",
+      "aussiAppele": [
+        "massa de estuque",
+        "estuque em pó",
+        "massa de estucar"
+      ],
+      "usage": "Massa de gesso com fibras, para amassar com água e aplicar à mão no enchimento, reparação e remates de paredes e tetos interiores.",
+      "aSavoir": "Só para interior.",
+      "conditionnement": "Saco 5 kg ou 19 kg; balde 1 kg ou 5 kg",
+      "recherche": "massa estuque",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "massa-enchimento-gesso",
+      "famille": "cimentos-argamassas",
+      "sousFamille": "gesso-estuque",
+      "nom": "Massa de enchimento de estuque (de projetar)",
+      "aussiAppele": [
+        "gesso de projetar",
+        "massa de projetar",
+        "estuque projetado",
+        "massa de enchimento cinza"
+      ],
+      "usage": "Massa de estucador para revestir e regularizar paredes e tetos interiores em camada espessa, aplicada diretamente sobre tijolo, betão ou blocos, antes da massa de acabamento.",
+      "aSavoir": "Só para interior; termina-se com massa de acabamento antes de pintar.",
+      "conditionnement": "Saco 18-19 kg",
+      "recherche": "massa enchimento estuque",
+      "rechercheEnseigne": {
+        "maxmat": "massa de enchimento cinza"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "hidrofugo-massa",
+      "famille": "cimentos-argamassas",
+      "sousFamille": "aditivos-primarios",
+      "nom": "Hidrófugo de massa para argamassa e betão",
+      "aussiAppele": [
+        "hidrófugo",
+        "impermeabilizante de massa",
+        "aditivo hidrófugo",
+        "hidrófugo de massa para betão e argamassa",
+        "hidrófugo para cimento",
+        "hidrófugo para reboco"
+      ],
+      "aussiCherche": [
+        "sika"
+      ],
+      "usage": "Líquido que se junta à água de amassadura para tornar rebocos, betonilhas e betão menos permeáveis à água (caves, muros, floreiras, rebocos exteriores).",
+      "aSavoir": "Reduz a absorção de água mas não substitui uma impermeabilização; respeitar a dose indicada.",
+      "conditionnement": "Dose individual para uma amassadura; garrafão 5 L",
+      "recherche": "hidrófugo argamassa",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "aditivo-latex-aderencia",
+      "famille": "cimentos-argamassas",
+      "sousFamille": "aditivos-primarios",
+      "nom": "Aditivo de aderência para argamassas (látex)",
+      "aussiAppele": [
+        "látex para argamassa",
+        "ponte de aderência",
+        "resina de aderência",
+        "aditivo para chapisco",
+        "látex de aderência para argamassas",
+        "látex para cimento",
+        "aditivo de aderência",
+        "látex de obra",
+        "cola para argamassa",
+        "calda de aderência"
+      ],
+      "usage": "Junta-se à água de amassadura para melhorar a aderência de chapiscos, argamassas de reparação, betonilhas e assentamentos.",
+      "aSavoir": "Aplicar a argamassa seguinte com a calda de aderência ainda fresca.",
+      "conditionnement": "Embalagem 2 L ou 5 L",
+      "recherche": "aditivo aderência argamassa",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "pigmento-cimento-oxido-ferro",
+      "famille": "cimentos-argamassas",
+      "sousFamille": "aditivos-primarios",
+      "nom": "Pigmento para cimento (óxido de ferro)",
+      "aussiAppele": [
+        "corante para cimento",
+        "óxido de ferro",
+        "pigmento em pó",
+        "corante para argamassa"
+      ],
+      "usage": "Pó para dar cor a argamassas, betão e juntas (vermelho, amarelo, preto, verde, azul, branco).",
+      "aSavoir": "Dosear sempre da mesma forma em cada amassadura para a cor não variar.",
+      "conditionnement": "Embalagem 150-300 g; 0,5 kg ou 1 kg",
+      "recherche": "pigmento cimento",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "argamassa-reboco-desumidificante",
+      "famille": "cimentos-argamassas",
+      "sousFamille": "rebocos",
+      "nom": "Argamassa de reboco desumidificante (macroporosa)",
+      "aussiAppele": [
+        "reboco de saneamento",
+        "reboco desumidificante",
+        "argamassa macroporosa",
+        "reboco anti-salitre"
+      ],
+      "usage": "Reboco para a base de paredes com humidade ascensional e sais: deixa a água sair em vapor e retém os sais nos poros, sem os trazer à superfície.",
+      "aSavoir": "Picar o reboco antigo até bem acima da zona húmida. Não cobrir com tintas impermeáveis nem barramentos fechados. Não corta a subida da água: combina-se com a barreira química ou com a drenagem exterior.",
+      "conditionnement": "Saco de argamassa seca",
+      "recherche": "argamassa desumidificante",
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    },
+    {
+      "id": "tijolo-ceramico-bloco-betao",
+      "famille": "cimentos-argamassas",
+      "sousFamille": "betao-assentamento",
+      "nom": "Tijolo cerâmico furado e bloco de betão",
+      "aussiAppele": [
+        "tijolo",
+        "tijolo furado",
+        "bloco de cimento",
+        "bloco de betão"
+      ],
+      "usage": "Levantar pequenos muros e paredes divisórias, e fechar vãos de portas e janelas.",
+      "aSavoir": "Escolher a espessura igual à da parede existente. Com tempo quente, molhar o tijolo cerâmico antes de assentar. Não serve para muros de suporte nem paredes que recebem carga sem projeto.",
+      "conditionnement": "À unidade ou à palete, várias espessuras",
+      "recherche": "tijolo",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "varao-aco-nervurado",
+      "famille": "cimentos-argamassas",
+      "sousFamille": "betao-assentamento",
+      "nom": "Varão de aço nervurado para betão (ferro de construção)",
+      "aussiAppele": [
+        "ferro de construção",
+        "varão nervurado",
+        "ferro para betão"
+      ],
+      "usage": "Armar pequenas betonagens e fazer ferros de ligação entre uma alvenaria nova e a existente.",
+      "aSavoir": "Não substitui uma armadura calculada em elementos estruturais. Deixar sempre recobrimento de betão à volta do ferro, para não enferrujar.",
+      "conditionnement": "Varas de vários diâmetros e comprimentos",
+      "recherche": "varão nervurado",
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    },
+    {
+      "id": "tabua-pinho-cofragem",
+      "famille": "cimentos-argamassas",
+      "sousFamille": "betao-assentamento",
+      "nom": "Tábua de pinho em bruto (cofragem)",
+      "aussiAppele": [
+        "tábua de cofragem",
+        "tábua de pinho",
+        "madeira de cofragem"
+      ],
+      "usage": "Montar a cofragem de pequenas betonagens e servir de molde ao reconstituir arestas de degraus e lajes.",
+      "aSavoir": "Untar ou forrar com plástico a face que toca no betão, para descofrar sem arrancar. Travar bem por fora: o betão fresco empurra a cofragem.",
+      "conditionnement": "Tábua avulsa, vários comprimentos",
+      "recherche": "tábua pinho",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    }
+  ]
+}

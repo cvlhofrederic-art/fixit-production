@@ -22,6 +22,8 @@ import { aNumeroDefinitif } from '@/lib/facture-depuis-devis'
 import { appliquerRibCourant, chargerRibProfil } from '@/lib/rib-profil'
 import { appliquerFormeProfil } from '@/lib/statut-juridique-btp'
 import { computeTva, type TvaRegime } from '@/lib/tva-calculator'
+import { renduComplet } from '@/lib/version-rendu'
+import { totauxDocumentComplet } from '@/lib/totaux-artisan'
 import { useThemeVars, ThemeVars } from './useThemeVars'
 import { useDocumentCancel, isDocDraftStatus } from './useDocumentCancel'
 import { useOrgRoleContext, type OrgRole } from '@/lib/hooks/useOrgRoleContext'
@@ -433,6 +435,12 @@ const FILTRES_STATUT_FACTURES: ReadonlyArray<[DocStatusFilter, string]> = [
  * corrompu après flow Facturer interrompu, cf. plan Phase 3).
  */
 function totalTtcListe(doc: PersistedDocument, orgRole: OrgRole | undefined): number {
+  // Document artisan au rendu complet (lib/version-rendu.ts) : toutes ses lignes, matériaux et frais
+  // annexes compris (TVA des frais à leur taux), comme le formulaire et le PDF. Document d'avant la
+  // correction : calcul d'origine ci-dessous, inchangé.
+  if (orgRole !== 'pro_societe' && renduComplet(doc)) {
+    return totauxDocumentComplet(doc as unknown as Record<string, unknown>).totalTTC
+  }
   const docRec = doc as {
     regimeTva?: TvaRegime
     regime_tva?: TvaRegime

@@ -226,6 +226,58 @@ describe('POST /api/btp — modification d’un rattachement', () => {
   })
 })
 
+// Employés affectés à un chantier (chantiers_btp.membres_ids, uuid[] sans clé étrangère, migration 20261116 du pointage
+// géolocalisé) : même règle que membre_id, élément par élément (réunion avec la PR #703, 17/11/2026).
+describe('POST /api/btp — employés affectés à un chantier (membres_ids)', () => {
+  const M_SUPPRIME = 'd4d4d4d4-0000-4000-8000-0000000000ff'
+
+  it('création avec un employé d’une autre société : 400, rien n’est créé', async () => {
+    const res = await poster({ table: 'chantiers_btp', action: 'insert', data: { titre: 'Garage', membres_ids: [M_A1, M_B] } })
+    expect(res.status).toBe(400)
+    expect(res.json.error).toMatch(/membre de l'équipe introuvable dans votre compte/)
+    expect(requetes(h.base, 'chantiers_btp', 'insert')).toEqual([])
+  })
+
+  it('témoin : création avec des employés du compte, la liste est écrite', async () => {
+    const res = await poster({ table: 'chantiers_btp', action: 'insert', data: { titre: 'Garage', membres_ids: [M_A1, M_A2] } })
+    expect(res.status).toBe(201)
+    expect(res.json.row).toMatchObject({ titre: 'Garage', owner_id: SOCIETE, membres_ids: [M_A1, M_A2] })
+  })
+
+  it('liste qui n’est pas une liste d’identifiants : 400, rien n’est créé', async () => {
+    const res = await poster({ table: 'chantiers_btp', action: 'insert', data: { titre: 'Garage', membres_ids: ['m1'] } })
+    expect(res.status).toBe(400)
+    expect(res.json.error).toMatch(/mauvais format pour membres_ids/)
+    expect(requetes(h.base, 'chantiers_btp', 'insert')).toEqual([])
+  })
+
+  it('employé supprimé depuis, resté dans la liste et renvoyé tel quel avec un employé de plus : accepté, signalé au journal', async () => {
+    h.base.lignes.chantiers_btp[0].membres_ids = [M_SUPPRIME, M_A1]
+
+    const res = await poster({ table: 'chantiers_btp', action: 'update', id: CH_A, data: { membres_ids: [M_SUPPRIME, M_A1, M_A2] } })
+
+    expect(res.status).toBe(200)
+    expect(h.base.lignes.chantiers_btp[0].membres_ids).toEqual([M_SUPPRIME, M_A1, M_A2])
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringMatching(/rattachement déjà en base/), expect.objectContaining({ colonnes: ['membres_ids'] }))
+  })
+
+  it('employé d’une autre société ajouté à la liste : 400, la liste ne bouge pas', async () => {
+    h.base.lignes.chantiers_btp[0].membres_ids = [M_A1]
+
+    const res = await poster({ table: 'chantiers_btp', action: 'update', id: CH_A, data: { membres_ids: [M_A1, M_B] } })
+
+    expect(res.status).toBe(400)
+    expect(h.base.lignes.chantiers_btp[0].membres_ids).toEqual([M_A1])
+  })
+
+  it('reprise d’un chantier dont un employé n’est pas au compte : 400, rien n’est ajouté', async () => {
+    h.base.lignes.chantiers_btp = []
+    const res = await poster({ table: 'chantiers_btp', action: 'import', data: [{ titre: 'Villa', membres_ids: [M_B] }] })
+    expect(res.status).toBe(400)
+    expect(requetes(h.base, 'chantiers_btp', 'insert')).toEqual([])
+  })
+})
+
 describe('POST /api/btp — reprise (import) rattachée', () => {
   it('situation reprise du navigateur rattachée au chantier d’une autre société : 400, rien n’est ajouté', async () => {
     const res = await poster({ table: 'situations_btp', action: 'import', data: [{ chantier: 'A', chantier_id: CH_A }, { chantier: 'B', chantier_id: CH_B }] })
