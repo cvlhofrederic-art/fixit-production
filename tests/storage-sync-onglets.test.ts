@@ -1468,3 +1468,46 @@ describe('note des remplacements : plusieurs marques d’une même sorte', () =>
     expect(marques.filter(([remplace]) => remplace !== '')).toHaveLength(50)
   })
 })
+
+// Neuvième passe, scénario PLEIN-CAP de la contre-relecture : quand le stockage du navigateur est plein, la note des
+// remplacements ne peut plus grandir. Depuis qu'elle garde cinquante marques de chaque sorte, la marque d'une saisie
+// remplacée ne s'y écrivait plus dès que sa sorte n'avait pas atteint sa limite, et la saisie était perdue au nouvel essai.
+describe('stockage du navigateur plein, note des remplacements déjà pleine de marques de clés absentes', () => {
+  /** Remplit le stockage du navigateur jusqu'à son quota (clés et valeurs comptées), avec une pièce jointe volumineuse. */
+  function remplirLeStockage(): void {
+    const cle = 'piece_jointe_volumineuse'
+    let tient = 0
+    let depasse = 6_000_000
+    while (depasse - tient > 1) {
+      const essai = Math.floor((tient + depasse) / 2)
+      try {
+        setItemDOrigine.call(window.localStorage, cle, 'x'.repeat(essai))
+        tient = essai
+      } catch {
+        depasse = essai
+      }
+    }
+    setItemDOrigine.call(window.localStorage, cle, 'x'.repeat(tient))
+  }
+
+  it('la saisie de A, remplacée par la restauration d’un onglet neuf, part au nouvel essai', async () => {
+    serveur.espace[CLIENTS] = commeLaBase(liste(1, 2, 3))
+    // Navigateur neuf : soixante clés au nom long, rangées après la liste ; la première restauration en marque cinquante.
+    for (let i = 0; i < 60; i++) serveur.espace[`fixit_clients_a_extra_nom_long_pour_le_banc_${String(i).padStart(2, '0')}`] = { n: i }
+    const A = await ouvrirUnOnglet()
+    remplirLeStockage()
+    serveur.retenir = true
+    saisirDans(A, CLIENTS, liste(1, 2)) // un client retiré : la valeur raccourcit, elle tient dans le stockage plein
+    await ecoulerDebounce()
+    await aboutir(0, 'reseau') // échec : la saisie attend son nouvel essai
+    serveur.retenir = false
+    const B = await ouvrirUnOnglet() // onglet neuf : remet la liste du serveur à la place de la saisie
+    expect(lire(CLIENTS)).toEqual(liste(1, 2, 3))
+    await nouvelEssai()
+    await relireDansLesDeuxOnglets(A, B)
+
+    // Avant : la note, qui devait grandir, ne s'écrivait pas, et la saisie était perdue.
+    expect(serveur.espace[CLIENTS]).toEqual(liste(1, 2))
+    expect(lire(CLIENTS)).toEqual(liste(1, 2))
+  })
+})

@@ -830,9 +830,17 @@ function noterRemplacements(nouveaux: Map<string, Remplacement>): void {
   const suivant: RegistreRemplacements = { v: 1, compte, remplacements: Object.fromEntries(tous.filter(e => retenus.has(e))) }
   try {
     ecrireSansMiroir(CLE_REMPLACEMENTS, JSON.stringify(suivant))
-  } catch (erreur) {
-    // Stockage plein : une modification remplacée par cette restauration cède au serveur (limite en tête du module).
-    avertirUneFois('remplacements', '[storage-sync] remplacements de la restauration non notés dans le navigateur :', erreur)
+  } catch {
+    // Stockage plein : la note ne peut plus grandir, et dès que l'une des deux sortes n'avait pas atteint sa limite, la
+    // marque nouvelle ne s'écrivait plus (contre-relecture du 17/11/2026, neuvième passe). Réduite à ses
+    // REMPLACEMENTS_MAX marques les plus récentes, toutes sortes confondues (la règle d'avant la huitième passe), elle
+    // tient souvent sans grandir : les marques nouvelles passent avant les plus anciennes. Sinon, une modification
+    // remplacée par cette restauration cède au serveur (limites en tête du module).
+    try {
+      ecrireSansMiroir(CLE_REMPLACEMENTS, JSON.stringify({ v: 1, compte, remplacements: Object.fromEntries(tous.slice(-REMPLACEMENTS_MAX)) }))
+    } catch (erreur) {
+      avertirUneFois('remplacements', '[storage-sync] remplacements de la restauration non notés dans le navigateur :', erreur)
+    }
   }
 }
 
