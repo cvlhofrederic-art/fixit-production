@@ -6,7 +6,9 @@
 
 import { describe, expect, it } from 'vitest'
 import {
-  PLAFOND_TAUX_REDUIT_IRC, calendrierFiscalPt, estimerIrc, isencaoIvaPt, libelleTauxIrc, prochaineDeclarationIvaPt, tauxIrc,
+  PLAFOND_TAUX_REDUIT_IRC, RETENCAO_CAT_B_PT, calendrierFiscalPt, escaloesIrsPt, estimerIrc, eurPt, faixasIrsPt, iasPt,
+  isencaoIvaPt, libelleTauxIrc, limiteDispensaRetencaoPt, limiteIrsJovemPt, limiteIsencaoSsAcumulacaoPt,
+  minimoExistenciaPt, percentPt, prochaineDeclarationIvaPt, tauxIrc,
 } from '@/lib/fiscalite-pt'
 
 describe('tauxIrc / estimerIrc', () => {
@@ -95,5 +97,65 @@ describe('isencaoIvaPt (Léa) : mêmes paliers que la Contabilidade', () => {
 
   it('textes en PT-PT : pas de tiret long ni d’espace avant « : »', () => {
     for (const ca of [10_000, 16_000, 20_000]) expect(texto(ca)).not.toMatch(/[—–]|\S :/)
+  })
+})
+
+// Références de Léa vérifiées le 17/11/2026 sur les textes officiels (Portal das Finanças, diplômes publiés par l'AT,
+// gov.pt). Valeurs périmées remplacées : IAS de 2024 (509,26 €) donné pour 2025, mínimo de existência de 2024
+// (11 480 €), retenção na fonte à 25 % et dispense sous 12 500 €, barème de l'IRS « 2025 » faux.
+describe('références datées de Léa', () => {
+  it('IAS : 522,50 € en 2025, 537,13 € en 2026 ; une année pas encore renseignée garde la dernière valeur, avec son année', () => {
+    expect(iasPt(2025)).toEqual({ ano: 2025, valor: 522.5 })
+    expect(iasPt(2026)).toEqual({ ano: 2026, valor: 537.13 })
+    expect(iasPt(2027)).toEqual({ ano: 2026, valor: 537.13 })
+    expect(iasPt(2020)).toEqual({ ano: 2025, valor: 522.5 })
+  })
+
+  it('mínimo de existência : 12 880 € en 2026 (12 180 € en 2025), au moins 1,5 × 14 × IAS', () => {
+    expect(minimoExistenciaPt(2026)).toEqual({ ano: 2026, valor: 12_880 })
+    expect(minimoExistenciaPt(2025)).toEqual({ ano: 2025, valor: 12_180 })
+    expect(minimoExistenciaPt(2028)).toEqual({ ano: 2026, valor: 12_880 })
+    for (const ano of [2025, 2026]) expect(minimoExistenciaPt(ano).valor).toBeGreaterThanOrEqual(1.5 * 14 * iasPt(ano).valor)
+  })
+
+  it('IRS Jovem (55 × IAS) et isenção de Segurança Social en cumul (4 × IAS par mois) suivent l’IAS de l’année', () => {
+    expect(limiteIrsJovemPt(2026)).toEqual({ ano: 2026, valor: 29_542.15 })
+    expect(limiteIrsJovemPt(2025)).toEqual({ ano: 2025, valor: 28_737.5 })
+    expect(limiteIsencaoSsAcumulacaoPt(2026)).toEqual({ ano: 2026, valor: 2_148.52 })
+  })
+
+  it('barème de l’IRS 2026 (Decreto-Lei n.º 212/2026, revenus de 2026) : neuf escalões, de 12,2 % à 48 %', () => {
+    const { ano, valor } = escaloesIrsPt(2026)
+    expect(ano).toBe(2026)
+    expect(valor.map(e => e.ate)).toEqual([8_342, 12_587, 17_838, 23_089, 29_397, 43_090, 46_566, 86_634, null])
+    expect(valor.map(e => e.taxa)).toEqual([0.122, 0.152, 0.207, 0.236, 0.306, 0.346, 0.431, 0.446, 0.48])
+    expect(escaloesIrsPt(2027).ano).toBe(2026)
+  })
+
+  it('escalões en portugais, sans tiret long ni espace avant « : »', () => {
+    const linhas = faixasIrsPt(2026).valor.map(f => `${f.faixa}: ${f.taxa}`.replace(/ /g, ' '))
+    expect(linhas).toHaveLength(9)
+    expect(linhas[0]).toBe('Até 8 342 €: 12,2%')
+    expect(linhas[1]).toBe('Mais de 8 342 € até 12 587 €: 15,2%')
+    expect(linhas[3]).toBe('Mais de 17 838 € até 23 089 €: 23,6%')
+    expect(linhas[8]).toBe('Mais de 86 634 €: 48%')
+    for (const linha of linhas) expect(linha).not.toMatch(/[—–]|\S :/)
+  })
+
+  it('retenção na fonte : 23 % (table de l’art. 151.º), 11,5 % (autres services) ; dispense sous le seuil de l’art. 53.º du CIVA', () => {
+    expect(RETENCAO_CAT_B_PT).toEqual({ tabela151: 0.23, outrosServicos: 0.115 })
+    expect(percentPt(RETENCAO_CAT_B_PT.tabela151)).toBe('23%')
+    expect(percentPt(RETENCAO_CAT_B_PT.outrosServicos)).toBe('11,5%')
+    expect(limiteDispensaRetencaoPt()).toBe(15_000)
+  })
+
+  it('eurPt : milliers séparés dès 1 000, centimes seulement s’il y en a', () => {
+    const eur = (valor: number) => eurPt(valor).replace(/ /g, ' ')
+    expect(eur(950)).toBe('950 €')
+    expect(eur(8_342)).toBe('8 342 €')
+    expect(eur(15_000)).toBe('15 000 €')
+    expect(eur(522.5)).toBe('522,50 €')
+    expect(eur(537.13)).toBe('537,13 €')
+    expect(eur(29_542.15)).toBe('29 542,15 €')
   })
 })
