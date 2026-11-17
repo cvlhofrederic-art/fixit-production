@@ -40,7 +40,7 @@ npm run test:e2e:ui       # Playwright UI mode
 6. Simulateur Devis V2 (Phase 1 — prix 2026 Tier 1)
 
 ## CI
-- Playwright tourne sur 3 navigateurs en CI (chromium/firefox/webkit)
+- Playwright tourne sur 3 navigateurs sur les PR (chromium/firefox/webkit), sur chromium seul après chaque fusion sur `main` et la nuit (`tests.yml`, avec Vitest)
 - Axe-core WCAG (wcag2a + wcag2aa + wcag21aa) bloque sur critiques/sérieuses
 - Config Playwright : `playwright.config.ts` (Chromium local, 1 worker en CI)
 - **E2E qui exigent l'hydratation React (clavier, clic, focus) → build prod uniquement.** La config lance `npm run dev` en local mais `npm run start` (build prod) en CI. Le dev-server Next (compile à la demande + react-refresh) n'hydrate pas React de façon fiable sous Playwright : ces specs échouent donc en local sur `npm run dev` mais passent en CI. Réf. : specs `syndic-v54-primitives-*` (le pattern clavier Tabs ne se valide qu'en build prod). En local : couvrir la logique en Vitest (`fireEvent`) ou tester contre un build prod (`npm run build` + `npm run start`). Ne pas « réparer » ces specs en les forçant sur le dev-server — la CI est configurée ainsi exprès, ne pas régresser.
