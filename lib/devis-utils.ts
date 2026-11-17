@@ -353,6 +353,11 @@ export function getStatusLabel(code: string, t?: (key: string, fallback?: string
     'unipessoal': 'Unipessoal Lda.',
     'lda': 'Sociedade por Quotas (Lda.)',
     'sa': 'Sociedade Anónima (SA)',
+    // Formes portugaises que seul le BTP produit (codeStatutJuridiqueBtp, lib/statut-juridique-btp.ts)
+    'eirl_pt': 'Estabelecimento Individual de Responsabilidade Limitada (EIRL)',
+    'snc_pt': 'Sociedade em Nome Coletivo',
+    'comandita': 'Sociedade em Comandita',
+    'cooperativa': 'Cooperativa',
   }
   return labels[code] || code
 }

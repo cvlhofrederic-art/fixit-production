@@ -342,8 +342,11 @@ const REFERENCE_ORCAMENTO = /^Ref\. orçamento: ?(\S.*)$/
 /** Taux d'IVA du continent portugais (normal, intermédiaire, réduit). */
 const TAXAS_IVA_PT: ReadonlySet<number> = new Set([23, 13, 6])
 
-/** Valeur par défaut du formulaire pour les pénalités de retard (règle française, art. L. 441-10 C. com.). */
-const PENALITE_PAR_DEFAUT = /^3\s*(?:×|x|fois)\s*(?:le\s+)?taux d'interet legal/
+/**
+ * Valeur par défaut du formulaire pour les pénalités de retard : règle française (art. L. 441-10 C. com.), ou celle
+ * d'un document créé en portugais (« Taxa de juro legal em vigor », components/DevisFactureFormBTP.tsx).
+ */
+const PENALITE_PAR_DEFAUT = /^3\s*(?:×|x|fois)\s*(?:le\s+)?taux d'interet legal|^taxa de juro legal em vigor\.?$/
 
 /** « Juros de mora: … » pour une pénalité saisie ; rien pour la valeur par défaut (clause du DL 62/2013). */
 export function jurosDeMora(penalite: string | null | undefined): string {
