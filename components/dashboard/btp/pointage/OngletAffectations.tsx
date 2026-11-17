@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { MapPin } from 'lucide-react'
 import { useBTPData } from '@/lib/hooks/use-btp-data'
@@ -9,9 +9,12 @@ import { RAYON_PAR_DEFAUT_M, RAYONS_PROPOSES_M, coordonneesValides } from '@/lib
 import { STATUT_EN_COURS, type StatutCompte } from '@/lib/btp/pointage-regles'
 import type { Artisan } from '@/lib/types'
 import type { EnvoyerPointage } from './useContextePointage'
-import { arrondiCoordonnee, ecartAvecPositionEnregistreeM, mesurerPositionSurPlace } from './positionSurPlace'
 import {
-  confirmationPlacement, libelleBoutonPlacer, messageChantierPlace, messageErreurPointage, messagePlacementImpossible, rappelActivation,
+  arrondiCoordonnee, ecartAvecPositionEnregistreeM, mesurerPositionSurPlace, type EcartPlacement, type MesurePosition,
+} from './positionSurPlace'
+import {
+  annonceMesure, confirmationPlacement, confirmationRelocaliser, libelleBoutonPlacer, messageChantierPlace,
+  messageErreurPointage, messagePlacementImpossible, rappelActivation,
 } from './textes'
 
 // Onglet « Affectations » (gérant) : relier employés et équipes aux chantiers en cours, régler le rayon de
@@ -148,8 +151,11 @@ export function OngletAffectations({
   const equipesBtp = useBTPData<EquipeLue>({ table: 'equipes', artisanId: artisan?.id || '', userId })
   const [brouillons, setBrouillons] = useState<Record<string, Brouillon>>({})
   const [occupe, setOccupe] = useState<string | null>(null)
-  /** Chantier dont la position est en cours de mesure par « Placer à ma position actuelle ». */
+  /** Chantier dont la position est en cours de mesure par « Placer à ma position actuelle » (une seule à la fois). */
   const [mesureEnCours, setMesureEnCours] = useState<string | null>(null)
+  /** Arrêt de la mesure en cours : onglet quitté, plus de question ni d'écriture. */
+  const abandonRef = useRef<AbortController | null>(null)
+  useEffect(() => () => abandonRef.current?.abort(), [])
 
   const chantiers = useMemo(
     () => chantiersBtp.items.filter(c => c.statut === STATUT_EN_COURS).sort((a, b) => parNom(a.titre || '', b.titre || '')),
@@ -216,6 +222,8 @@ export function OngletAffectations({
       toast.error(isPt ? 'Indique a morada da obra no módulo Obras.' : 'Indiquez l’adresse du chantier dans le module Chantiers.')
       return
     }
+    // Une position existante, peut-être posée sur place, ne se remplace pas sur un toucher à côté.
+    if (coordonneesValides(c.latitude, c.longitude) && !window.confirm(confirmationRelocaliser(c.titre, isPt))) return
     setOccupe(c.id)
     try {
       const position = await geocoderAdresse(c, isPt ? 'PT' : 'FR')
@@ -237,20 +245,37 @@ export function OngletAffectations({
     }
   }
 
+  /**
+   * Repère de la confirmation : la position enregistrée du chantier ; à défaut, son adresse géocodée avec précision,
+   * pour ne pas placer par mégarde au bureau un chantier qui n'a pas encore de position.
+   */
+  const ecartPourConfirmation = async (c: ChantierLu, mesure: MesurePosition): Promise<EcartPlacement | null> => {
+    const depuisPosition = ecartAvecPositionEnregistreeM(mesure, c.latitude, c.longitude)
+    if (depuisPosition !== null) return { metres: depuisPosition, reference: 'position' }
+    if (!adresseComplete(c)) return null
+    const adresse = await geocoderAdresse(c, isPt ? 'PT' : 'FR')
+    if (!adresse?.precise) return null
+    const depuisAdresse = ecartAvecPositionEnregistreeM(mesure, adresse.latitude, adresse.longitude)
+    return depuisAdresse === null ? null : { metres: depuisAdresse, reference: 'adresse' }
+  }
+
   /** Le gérant, sur le chantier, en pose le point GPS là où il se trouve (plus juste que l'adresse pour 50 m). */
   const placerIci = async (c: ChantierLu) => {
+    const abandon = new AbortController()
+    abandonRef.current = abandon
     setOccupe(c.id)
     setMesureEnCours(c.id)
     try {
-      const resultat = await mesurerPositionSurPlace(typeof navigator === 'undefined' ? undefined : navigator.geolocation)
+      const resultat = await mesurerPositionSurPlace(typeof navigator === 'undefined' ? undefined : navigator.geolocation, abandon.signal)
+      if (abandon.signal.aborted) return
       setMesureEnCours(null)
       if (!resultat.ok) {
         toast.error(messagePlacementImpossible(resultat.raison, resultat.precisionM, isPt))
         return
       }
       const { mesure } = resultat
-      const ecart = ecartAvecPositionEnregistreeM(mesure, c.latitude, c.longitude)
-      if (!window.confirm(confirmationPlacement(c.titre, mesure.precisionM, ecart, isPt))) return
+      const ecart = await ecartPourConfirmation(c, mesure)
+      if (abandon.signal.aborted || !window.confirm(confirmationPlacement(c.titre, mesure.precisionM, ecart, isPt))) return
       const position = { latitude: arrondiCoordonnee(mesure.latitude), longitude: arrondiCoordonnee(mesure.longitude) }
       if (await chantiersBtp.update(c.id, position)) {
         toast.success(messageChantierPlace(mesure.precisionM, isPt))
@@ -259,8 +284,11 @@ export function OngletAffectations({
         toast.error(isPt ? 'A posição não foi guardada.' : 'La position n’a pas été enregistrée.')
       }
     } finally {
-      setMesureEnCours(null)
-      setOccupe(null)
+      if (abandonRef.current === abandon) abandonRef.current = null
+      if (!abandon.signal.aborted) {
+        setMesureEnCours(null)
+        setOccupe(null)
+      }
     }
   }
 
@@ -273,6 +301,7 @@ export function OngletAffectations({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
       <InterrupteurPointageAuto actif={pointageAutoActive} disponible={reglageDisponible} isPt={isPt} envoyer={envoyer} onModifie={onModifie} />
+      <p role="status" className="sr-only">{mesureEnCours ? annonceMesure(titreChantier(mesureEnCours), isPt) : ''}</p>
       <div className="v5-al info">
         {isPt
           ? 'Cada colaborador marca a partir do seu telemóvel, ligado com a sua própria conta (Contas de utilizadores), com o mesmo e-mail da sua ficha em Equipas. Depois de iniciar sessão, abre « Marcação de horas » no menu, ou esta ligação: '
@@ -316,14 +345,15 @@ export function OngletAffectations({
                     {isPt ? 'Ver no mapa' : 'Voir sur la carte'}
                   </a>
                 )}
-                <button type="button" className="v5-btn v5-btn-sm" disabled={occupe === c.id} onClick={() => { void localiser(c) }}>
+                <button type="button" className="v5-btn v5-btn-sm" disabled={occupe === c.id || mesureEnCours === c.id} onClick={() => { void localiser(c) }}>
                   {libelleLocaliser(positionValide, isPt)}
                 </button>
                 <button
                   type="button"
                   className="v5-btn v5-btn-sm"
-                  disabled={occupe === c.id}
+                  disabled={occupe === c.id || mesureEnCours !== null}
                   aria-busy={mesureEnCours === c.id}
+                  aria-label={`${libelleBoutonPlacer(mesureEnCours === c.id, isPt)} — ${c.titre}`}
                   onClick={() => { void placerIci(c) }}
                 >
                   {libelleBoutonPlacer(mesureEnCours === c.id, isPt)}
@@ -399,10 +429,10 @@ export function OngletAffectations({
 
             {modifie(c) && (
               <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                <button type="button" className="v5-btn v5-btn-p" disabled={occupe === c.id} onClick={() => { void enregistrer(c) }}>
+                <button type="button" className="v5-btn v5-btn-p" disabled={occupe === c.id || mesureEnCours === c.id} onClick={() => { void enregistrer(c) }}>
                   {isPt ? 'Guardar' : 'Enregistrer'}
                 </button>
-                <button type="button" className="v5-btn" disabled={occupe === c.id} onClick={() => oublier(c.id)}>
+                <button type="button" className="v5-btn" disabled={occupe === c.id || mesureEnCours === c.id} onClick={() => oublier(c.id)}>
                   {isPt ? 'Cancelar' : 'Annuler'}
                 </button>
               </div>

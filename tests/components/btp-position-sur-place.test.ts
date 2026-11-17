@@ -1,13 +1,14 @@
 // tests/components/btp-position-sur-place.test.ts — mesure de la position du téléphone pour « Placer à ma position
-// actuelle » (components/dashboard/btp/pointage/positionSurPlace.ts, 16/11/2026). Géolocalisation simulée.
+// actuelle » (components/dashboard/btp/pointage/positionSurPlace.ts, 16/11/2026) et ses textes. Géolocalisation simulée.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  DUREE_MAX_ATTENTE_MS, DUREE_MESURE_MS, ECART_ALERTE_M, PRECISION_MAX_PLACEMENT_M, PRECISION_VISEE_M,
-  arrondiCoordonnee, ecartAvecPositionEnregistreeM, mesurerPositionSurPlace, type ResultatMesure,
+  DUREE_MAX_ATTENTE_MS, DUREE_MESURE_MS, ECART_ALERTE_M, PRECISION_APPROXIMATIVE_M, PRECISION_MAX_PLACEMENT_M,
+  PRECISION_VISEE_M, arrondiCoordonnee, ecartAvecPositionEnregistreeM, mesurerPositionSurPlace, type ResultatMesure,
 } from '@/components/dashboard/btp/pointage/positionSurPlace'
 import {
-  confirmationPlacement, libelleBoutonPlacer, messageChantierPlace, messagePlacementImpossible,
+  annonceMesure, confirmationPlacement, confirmationRelocaliser, libelleBoutonPlacer, messageChantierPlace,
+  messagePlacementImpossible,
 } from '@/components/dashboard/btp/pointage/textes'
 
 /** Fausse API de géolocalisation : `lire` envoie une lecture, `echouer` une erreur, à la surveillance en cours. */
@@ -62,18 +63,47 @@ describe('mesurerPositionSurPlace', () => {
     expect(f.brut.clearWatch).toHaveBeenCalledWith(42)
   })
 
-  it('meilleure lecture moins précise que le seuil : refus avec la précision obtenue ; le seuil lui-même passe', async () => {
+  it('GPS à froid : une première position par antenne n’ouvre pas la fenêtre ; le point GPS qui suit est gardé', async () => {
     const f = fausseGeolocalisation()
-    const refus = mesurerPositionSurPlace(f.geo)
-    f.lire(43.25, 5.38, PRECISION_MAX_PLACEMENT_M + 1)
-    await vi.advanceTimersByTimeAsync(DUREE_MESURE_MS)
-    expect(await refus).toEqual({ ok: false, raison: 'imprecise', precisionM: PRECISION_MAX_PLACEMENT_M + 1 })
+    const promesse = mesurerPositionSurPlace(f.geo)
+    await vi.advanceTimersByTimeAsync(1_000)
+    f.lire(43.26, 5.39, 800)
+    await vi.advanceTimersByTimeAsync(17_000)
+    expect(await resultatSiConnu(promesse)).toBe('en attente')
+    f.lire(43.25, 5.38, 6)
+    expect(await resultatSiConnu(promesse)).toEqual({ ok: true, mesure: { latitude: 43.25, longitude: 5.38, precisionM: 6 } })
+  })
 
-    const g = fausseGeolocalisation()
-    const accord = mesurerPositionSurPlace(g.geo)
-    g.lire(43.25, 5.38, PRECISION_MAX_PLACEMENT_M)
+  it('fenêtre ouverte tard : le plafond d’attente ne la coupe plus', async () => {
+    const f = fausseGeolocalisation()
+    const promesse = mesurerPositionSurPlace(f.geo)
+    await vi.advanceTimersByTimeAsync(50_000)
+    f.lire(43.25, 5.38, 20)
+    await vi.advanceTimersByTimeAsync(DUREE_MAX_ATTENTE_MS - 50_000)
+    expect(await resultatSiConnu(promesse)).toBe('en attente')
+    await vi.advanceTimersByTimeAsync(50_000 + DUREE_MESURE_MS - DUREE_MAX_ATTENTE_MS)
+    expect(await resultatSiConnu(promesse)).toEqual({ ok: true, mesure: { latitude: 43.25, longitude: 5.38, precisionM: 20 } })
+  })
+
+  it('aucune lecture assez précise avant l’attente maximale : refus avec la meilleure précision obtenue', async () => {
+    const f = fausseGeolocalisation()
+    const promesse = mesurerPositionSurPlace(f.geo)
+    f.lire(43.26, 5.39, 800)
+    await vi.advanceTimersByTimeAsync(30_000)
+    f.lire(43.25, 5.38, PRECISION_MAX_PLACEMENT_M + 1)
+    await vi.advanceTimersByTimeAsync(DUREE_MAX_ATTENTE_MS - 30_000 - 1)
+    expect(await resultatSiConnu(promesse)).toBe('en attente')
+    await vi.advanceTimersByTimeAsync(1)
+    expect(await promesse).toEqual({ ok: false, raison: 'imprecise', precisionM: PRECISION_MAX_PLACEMENT_M + 1 })
+    expect(f.brut.clearWatch).toHaveBeenCalledWith(42)
+  })
+
+  it('le seuil lui-même passe', async () => {
+    const f = fausseGeolocalisation()
+    const promesse = mesurerPositionSurPlace(f.geo)
+    f.lire(43.25, 5.38, PRECISION_MAX_PLACEMENT_M)
     await vi.advanceTimersByTimeAsync(DUREE_MESURE_MS)
-    expect(await accord).toMatchObject({ ok: true })
+    expect(await promesse).toMatchObject({ ok: true })
   })
 
   it('autorisation refusée : refus immédiat et surveillance arrêtée', async () => {
@@ -96,7 +126,7 @@ describe('mesurerPositionSurPlace', () => {
     expect(f.brut.clearWatch).toHaveBeenCalledWith(42)
   })
 
-  it('la fenêtre de mesure part de la première lecture : le temps de la demande d’autorisation ne compte pas', async () => {
+  it('la fenêtre de mesure part de la première lecture assez précise : le temps de la demande d’autorisation ne compte pas', async () => {
     const f = fausseGeolocalisation()
     const promesse = mesurerPositionSurPlace(f.geo)
     await vi.advanceTimersByTimeAsync(20_000)
@@ -130,10 +160,30 @@ describe('mesurerPositionSurPlace', () => {
     expect(await mesurerPositionSurPlace(brut as unknown as Geolocation)).toMatchObject({ ok: true })
     expect(brut.clearWatch).toHaveBeenCalledWith(9)
   })
+
+  it('arrêt demandé (onglet quitté) : « annulee », surveillance et minuteurs arrêtés, lectures suivantes sans effet', async () => {
+    const f = fausseGeolocalisation()
+    const abandon = new AbortController()
+    const promesse = mesurerPositionSurPlace(f.geo, abandon.signal)
+    f.lire(43.25, 5.38, 20)
+    abandon.abort()
+    expect(await resultatSiConnu(promesse)).toEqual({ ok: false, raison: 'annulee' })
+    expect(f.brut.clearWatch).toHaveBeenCalledWith(42)
+    f.lire(43.25, 5.38, 5)
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('arrêt déjà demandé : aucune surveillance lancée', async () => {
+    const f = fausseGeolocalisation()
+    const abandon = new AbortController()
+    abandon.abort()
+    expect(await mesurerPositionSurPlace(f.geo, abandon.signal)).toEqual({ ok: false, raison: 'annulee' })
+    expect(f.brut.watchPosition).not.toHaveBeenCalled()
+  })
 })
 
 describe('écart et arrondi', () => {
-  it('écart avec la position enregistrée, au mètre ; null sans position valable', () => {
+  it('écart avec une position, au mètre ; null sans position valable', () => {
     const mesure = { latitude: 43.25, longitude: 5.38, precisionM: 8 }
     expect(ecartAvecPositionEnregistreeM(mesure, 43.25, 5.38)).toBe(0)
     const ecart = ecartAvecPositionEnregistreeM(mesure, 43.251, 5.38)
@@ -150,20 +200,41 @@ describe('écart et arrondi', () => {
 })
 
 describe('textes', () => {
-  it('alerte de la confirmation à partir de ECART_ALERTE_M d’écart', () => {
-    expect(confirmationPlacement('Villa', 5, ECART_ALERTE_M - 1, false)).not.toContain('Attention')
-    expect(confirmationPlacement('Villa', 5, ECART_ALERTE_M, false)).toContain('Attention : vous êtes à 1 km')
+  it('alerte de la confirmation à partir de ECART_ALERTE_M d’écart, selon le repère', () => {
+    expect(confirmationPlacement('Villa', 5, { metres: ECART_ALERTE_M - 1, reference: 'position' }, false)).toContain('C’est à 999 m de la position enregistrée jusqu’ici.')
+    expect(confirmationPlacement('Villa', 5, { metres: ECART_ALERTE_M, reference: 'position' }, false))
+      .toContain('Attention : vous êtes à 1 km de la position enregistrée du chantier. Êtes-vous bien sur ce chantier ?')
+    expect(confirmationPlacement('Villa', 5, { metres: 300, reference: 'adresse' }, false)).toContain('Vous êtes à 300 m de l’adresse du chantier.')
+    expect(confirmationPlacement('Villa', 5, { metres: 2500, reference: 'adresse' }, false))
+      .toContain('Attention : vous êtes à 2,5 km de l’adresse du chantier. Êtes-vous bien sur ce chantier ?')
+    expect(confirmationPlacement('Villa', 5, null, false)).not.toMatch(/C’est à|Vous êtes à|Attention/)
+  })
+
+  it('position seulement approximative (autorisation « approximative » du téléphone) : le message le dit', () => {
+    expect(messagePlacementImpossible('imprecise', PRECISION_APPROXIMATIVE_M - 1, false)).toContain('Position trop imprécise (± 999 m')
+    expect(messagePlacementImpossible('imprecise', 3200, false))
+      .toBe('Le téléphone ne donne qu’une position approximative (± 3,2 km) : autorisez la position exacte pour ce navigateur dans les réglages du téléphone, puis réessayez.')
+    expect(messagePlacementImpossible('imprecise', 3200, true)).toContain('só fornece uma posição aproximada (± 3,2 km)')
+  })
+
+  it('remplacement par l’adresse, annonce de la mesure, arrêt', () => {
+    expect(confirmationRelocaliser('Villa', false)).toBe('Remplacer la position actuelle du chantier « Villa » par celle de son adresse ? Une position placée sur place serait perdue.')
+    expect(annonceMesure('Villa', false)).toBe('Mesure de la position du chantier « Villa » : restez immobile quelques secondes.')
+    expect(messagePlacementImpossible('annulee', undefined, false)).toBe('Mesure interrompue.')
   })
 
   it('en portugais : bouton, confirmation, refus et succès', () => {
     expect(libelleBoutonPlacer(false, true)).toBe('Colocar na minha posição atual')
     expect(libelleBoutonPlacer(true, true)).toBe('A medir a posição…')
-    const alerte = confirmationPlacement('Moradia', 7.6, 1240, true)
+    const alerte = confirmationPlacement('Moradia', 7.6, { metres: 1240, reference: 'position' }, true)
     expect(alerte).toContain('Colocar a obra « Moradia » na sua posição atual (precisão ± 8 m)?')
     expect(alerte).toContain('Atenção: está a 1,2 km da posição registada da obra. Está mesmo nesta obra?')
-    expect(confirmationPlacement('Moradia', 7.6, 300, true)).toContain('Fica a 300 m da posição registada até agora.')
+    expect(confirmationPlacement('Moradia', 7.6, { metres: 300, reference: 'position' }, true)).toContain('Fica a 300 m da posição registada até agora.')
+    expect(confirmationPlacement('Moradia', 7.6, { metres: 300, reference: 'adresse' }, true)).toContain('Está a 300 m da morada da obra.')
     expect(messagePlacementImpossible('imprecise', 31, true)).toContain('(± 31 m; no máximo ± 25 m)')
     expect(messagePlacementImpossible('refusee', undefined, true)).toContain('Localização recusada')
+    expect(confirmationRelocaliser('Moradia', true)).toContain('Substituir a posição atual da obra « Moradia »')
+    expect(annonceMesure('Moradia', true)).toContain('A medir a posição da obra « Moradia »')
     expect(messageChantierPlace(7.6, true)).toBe('Posição da obra colocada aqui (± 8 m)')
   })
 })

@@ -1,6 +1,8 @@
 // Textes de l'écran Pointage BTP (français / portugais) partagés par ses onglets.
 
-import { ECART_ALERTE_M, PRECISION_MAX_PLACEMENT_M, type RaisonSansMesure } from './positionSurPlace'
+import {
+  ECART_ALERTE_M, PRECISION_APPROXIMATIVE_M, PRECISION_MAX_PLACEMENT_M, type EcartPlacement, type RaisonSansMesure,
+} from './positionSurPlace'
 
 /** Information des employés sur ce que le pointage automatique enregistre (affichée avant l'activation). */
 export function noticePointage(isPt: boolean): { titre: string; points: string[] } {
@@ -160,14 +162,34 @@ export function messagePlacementImpossible(raison: RaisonSansMesure, precisionM:
       ? 'Posição não encontrada: coloque-se no exterior, na obra, e tente de novo.'
       : 'Position introuvable : mettez-vous à l’extérieur, sur le chantier, et réessayez.'
   }
-  const obtenue = Math.round(precisionM ?? 0)
+  if (raison === 'annulee') return isPt ? 'Medição interrompida.' : 'Mesure interrompue.'
+  const obtenue = precisionM ?? 0
+  if (obtenue >= PRECISION_APPROXIMATIVE_M) {
+    // Localisation approximative accordée au navigateur (iPhone « Position exacte » coupée, Android « approximative »).
+    return isPt
+      ? `O telemóvel só fornece uma posição aproximada (± ${formatDistance(obtenue, true)}): autorize a localização exata para este navegador nas definições do telemóvel e tente de novo.`
+      : `Le téléphone ne donne qu’une position approximative (± ${formatDistance(obtenue, false)}) : autorisez la position exacte pour ce navigateur dans les réglages du téléphone, puis réessayez.`
+  }
+  const arrondie = Math.round(obtenue)
   return isPt
-    ? `Posição demasiado imprecisa (± ${obtenue} m; no máximo ± ${PRECISION_MAX_PLACEMENT_M} m): coloque-se a céu aberto na obra e tente de novo.`
-    : `Position trop imprécise (± ${obtenue} m ; il faut ± ${PRECISION_MAX_PLACEMENT_M} m au plus) : mettez-vous à découvert sur le chantier et réessayez.`
+    ? `Posição demasiado imprecisa (± ${arrondie} m; no máximo ± ${PRECISION_MAX_PLACEMENT_M} m): coloque-se a céu aberto na obra e tente de novo.`
+    : `Position trop imprécise (± ${arrondie} m ; il faut ± ${PRECISION_MAX_PLACEMENT_M} m au plus) : mettez-vous à découvert sur le chantier et réessayez.`
+}
+
+/** Ligne de la confirmation qui situe la position mesurée par rapport au repère du chantier. */
+function ligneEcart(ecart: EcartPlacement, isPt: boolean): string {
+  const distance = formatDistance(ecart.metres, isPt)
+  const parAdresse = ecart.reference === 'adresse'
+  if (ecart.metres >= ECART_ALERTE_M) {
+    if (isPt) return `Atenção: está a ${distance} ${parAdresse ? 'da morada da obra' : 'da posição registada da obra'}. Está mesmo nesta obra?`
+    return `Attention : vous êtes à ${distance} ${parAdresse ? 'de l’adresse du chantier' : 'de la position enregistrée du chantier'}. Êtes-vous bien sur ce chantier ?`
+  }
+  if (isPt) return parAdresse ? `Está a ${distance} da morada da obra.` : `Fica a ${distance} da posição registada até agora.`
+  return parAdresse ? `Vous êtes à ${distance} de l’adresse du chantier.` : `C’est à ${distance} de la position enregistrée jusqu’ici.`
 }
 
 /** Question posée au gérant avant de remplacer la position d'un chantier par celle de son téléphone. */
-export function confirmationPlacement(titre: string, precisionM: number, ecartM: number | null, isPt: boolean): string {
+export function confirmationPlacement(titre: string, precisionM: number, ecart: EcartPlacement | null, isPt: boolean): string {
   const precision = Math.round(precisionM)
   const lignes = isPt
     ? [
@@ -178,16 +200,22 @@ export function confirmationPlacement(titre: string, precisionM: number, ecartM:
       `Placer le chantier « ${titre} » à votre position actuelle (précision ± ${precision} m) ?`,
       'Faites-le sur le chantier, là où les employés travaillent : le pointage automatique se déclenche autour de ce point.',
     ]
-  if (ecartM !== null && ecartM >= ECART_ALERTE_M) {
-    lignes.push(isPt
-      ? `Atenção: está a ${formatDistance(ecartM, true)} da posição registada da obra. Está mesmo nesta obra?`
-      : `Attention : vous êtes à ${formatDistance(ecartM, false)} de la position enregistrée du chantier. Êtes-vous bien sur ce chantier ?`)
-  } else if (ecartM !== null) {
-    lignes.push(isPt
-      ? `Fica a ${formatDistance(ecartM, true)} da posição registada até agora.`
-      : `C’est à ${formatDistance(ecartM, false)} de la position enregistrée jusqu’ici.`)
-  }
+  if (ecart !== null) lignes.push(ligneEcart(ecart, isPt))
   return lignes.join('\n\n')
+}
+
+/** Question posée avant de remplacer une position existante par celle de l'adresse (« Relocaliser l'adresse »). */
+export function confirmationRelocaliser(titre: string, isPt: boolean): string {
+  return isPt
+    ? `Substituir a posição atual da obra « ${titre} » pela da sua morada? Uma posição colocada no local seria perdida.`
+    : `Remplacer la position actuelle du chantier « ${titre} » par celle de son adresse ? Une position placée sur place serait perdue.`
+}
+
+/** Annonce pour les lecteurs d'écran pendant la mesure (le bouton, désactivé, ne la dit pas). */
+export function annonceMesure(titre: string, isPt: boolean): string {
+  return isPt
+    ? `A medir a posição da obra « ${titre} »: fique imóvel alguns segundos.`
+    : `Mesure de la position du chantier « ${titre} » : restez immobile quelques secondes.`
 }
 
 /** Confirmation affichée une fois le chantier placé. */
