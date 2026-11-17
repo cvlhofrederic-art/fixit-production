@@ -952,6 +952,50 @@ describe('garantie 2 — réponse perdue : l’envoi est arrivé, cet onglet ne 
   })
 })
 
+// Relecture adverse du 17/11/2026 (sixième passe, remarque sur le format de l'état) : la réécriture de l'état perdait
+// les champs qu'elle ne connaissait pas, et un état d'un autre numéro de version était pris pour absent puis écrasé,
+// avec la liste des comptes vus qui empêche « tout envoyer » de recopier les clés d'un autre compte (garantie 4). Sans
+// effet tant qu'aucune autre version du site n'écrit l'état ; utile le jour où son format changera.
+describe('garantie 2 — état gardé dans le navigateur, écrit par une autre version du site', () => {
+  const CLIENTS = 'fixit_clients_a'
+
+  /** Page ouverte et restaurée, puis une saisie dont l'envoi échoue : sa note est écrite dans l'état 3 s plus tard. */
+  async function saisieNoteeDansLEtat(): Promise<ModuleSync> {
+    serveur.espace(COMPTE_A)[CLIENTS] = [{ id: 1 }]
+    const sync = await ouvrirLaPage()
+    await sync.hydrateStorageFromServer()
+    serveur.panne.POST = 'reseau'
+    window.localStorage.setItem(CLIENTS, JSON.stringify([{ id: 1 }, { id: 2 }]))
+    await ecoulerDebounce()
+    await vi.advanceTimersByTimeAsync(3000)
+    return sync
+  }
+
+  it('même numéro de version, avec un champ que cette version ne connaît pas : réécrit sans perdre ce champ', async () => {
+    ecritureDUnAutreOnglet(CLE_ETAT, JSON.stringify({ v: 1, compte: COMPTE_A, comptes: [COMPTE_A], attente: {}, futur: { a: 1 } }))
+    await saisieNoteeDansLEtat()
+
+    const ecrit = JSON.parse(lire(CLE_ETAT)!) as { futur?: unknown; attente: Record<string, string> }
+    expect(Object.keys(ecrit.attente)).toEqual([CLIENTS])
+    expect(ecrit.futur).toEqual({ a: 1 })
+  })
+
+  it('autre numéro de version : jamais écrasé, et le compte qui y figure compte toujours comme un autre compte vu ici', async () => {
+    const autreVersion = JSON.stringify({ v: 2, comptes: [COMPTE_B], ailleurs: true })
+    ecritureDUnAutreOnglet(CLE_ETAT, autreVersion)
+    serveur.espace(COMPTE_A)[CLIENTS] = [{ id: 1 }]
+    const sync = await ouvrirLaPage()
+    expect((await sync.hydrateStorageFromServer()).autreCompte).toBe(true)
+
+    serveur.panne.POST = 'reseau'
+    window.localStorage.setItem(CLIENTS, JSON.stringify([{ id: 1 }, { id: 2 }]))
+    await ecoulerDebounce()
+    await vi.advanceTimersByTimeAsync(3000)
+    await sync.hydrateStorageFromServer()
+    expect(lire(CLE_ETAT)).toBe(autreVersion)
+  })
+})
+
 describe('garantie 3 — un envoi en échec est retenté, une valeur refusée ne bloque pas les autres', () => {
   // 422 : c'est ce que répond la route quand la base refuse le contenu d'une valeur (relecture du 14/11/2026).
   it.each([400, 413, 422])('une valeur refusée (%i) dans un envoi groupé : les autres arrivent quand même, et rien ne boucle', async (statut) => {

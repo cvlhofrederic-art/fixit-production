@@ -606,36 +606,58 @@ function serveurDetientLaBaseNotee(note: NoteEtat, valeur: unknown): boolean {
 
 // ── État gardé dans le navigateur : compte et modifications en attente ───────────────────────────────────────────
 
-function lireEtat(): EtatMiroir | null {
+/** État tel que le navigateur le détient, quel que soit son numéro de version ; null s'il est absent ou illisible. */
+function lireEtatBrut(): Record<string, unknown> | null {
   const brut = valeurLocale(CLE_ETAT)
   if (!brut) return null
   try {
-    const lu = JSON.parse(brut) as Partial<EtatMiroir> | null
-    if (!lu || lu.v !== 1 || typeof lu.compte !== 'string' || !Array.isArray(lu.comptes)) return null
-    if (!lu.attente || typeof lu.attente !== 'object') return null
-    const attente = Object.fromEntries(Object.entries(lu.attente).filter(([, empreinte]) => typeof empreinte === 'string'))
-    const etat: EtatMiroir = { v: 1, compte: lu.compte, comptes: lu.comptes.filter(c => typeof c === 'string'), attente }
-    // Les empreintes des modifications sont facultatives : un état qui n'en a pas reste lisible (voir EtatMiroir).
-    if (lu.valeurs && typeof lu.valeurs === 'object' && !Array.isArray(lu.valeurs)) {
-      etat.valeurs = Object.fromEntries(Object.entries(lu.valeurs).filter(([, empreinte]) => typeof empreinte === 'string'))
-    }
-    return etat
+    const lu: unknown = JSON.parse(brut)
+    return lu !== null && typeof lu === 'object' && !Array.isArray(lu) ? lu as Record<string, unknown> : null
   } catch {
     // État illisible : on repart sans notes, comme sur un navigateur neuf.
     return null
   }
 }
 
+function lireEtat(brut: Record<string, unknown> | null = lireEtatBrut()): EtatMiroir | null {
+  const lu = brut as Partial<EtatMiroir> | null
+  if (!lu || lu.v !== 1 || typeof lu.compte !== 'string' || !Array.isArray(lu.comptes)) return null
+  if (!lu.attente || typeof lu.attente !== 'object') return null
+  const attente = Object.fromEntries(Object.entries(lu.attente).filter(([, empreinte]) => typeof empreinte === 'string'))
+  const etat: EtatMiroir = { v: 1, compte: lu.compte, comptes: lu.comptes.filter(c => typeof c === 'string'), attente }
+  // Les empreintes des modifications sont facultatives : un état qui n'en a pas reste lisible (voir EtatMiroir).
+  if (lu.valeurs && typeof lu.valeurs === 'object' && !Array.isArray(lu.valeurs)) {
+    etat.valeurs = Object.fromEntries(Object.entries(lu.valeurs).filter(([, empreinte]) => typeof empreinte === 'string'))
+  }
+  return etat
+}
+
+/**
+ * Comptes vus dans ce navigateur d'après l'état, quel que soit son numéro de version : celui d'une autre version du
+ * site témoigne lui aussi du passage d'un autre compte (garantie 4).
+ */
+function comptesVus(brut: Record<string, unknown> | null): string[] {
+  const comptes = brut?.comptes
+  return Array.isArray(comptes) ? comptes.filter((c): c is string => typeof c === 'string') : []
+}
+
 /**
  * Écrit l'état si quelque chose a changé : le compte courant, et les clés encore en attente de confirmation, avec
  * l'empreinte de la valeur que le serveur détenait et celle du texte de la modification. Les notes d'un autre onglet du
- * même compte sont conservées ; celles d'un autre compte sont abandonnées.
+ * même compte sont conservées ; celles d'un autre compte sont abandonnées. Les champs que cette version ne connaît pas
+ * sont gardés, et l'état d'un autre numéro de version n'est pas écrasé : les notes de cette page restent alors en
+ * mémoire, sans survivre à un rechargement (relecture du 17/11/2026).
  */
 function synchroniserEtat(): void {
   minuteurEtat = arreter(minuteurEtat)
   const compte = compteCourant
   if (compte === null || typeof window === 'undefined') return
-  const actuel = lireEtat()
+  const brut = lireEtatBrut()
+  if (brut !== null && brut.v !== 1) {
+    confirmees.clear()
+    return
+  }
+  const actuel = lireEtat(brut)
   const gardees = actuel?.compte === compte ? Object.entries(actuel.attente).filter(([cle]) => !confirmees.has(cle)) : []
   confirmees.clear()
   const attente = Object.fromEntries(gardees)
@@ -650,9 +672,10 @@ function synchroniserEtat(): void {
     if (modification === undefined) delete valeurs[cle]
     else valeurs[cle] = modification === null ? ABSENTE : empreinteDuTexte(modification)
   }
-  const suivant: EtatMiroir = { v: 1, compte, comptes: Array.from(new Set([...(actuel?.comptes ?? []), compte])), attente }
+  const suivant: Record<string, unknown> = { ...(actuel && brut ? brut : {}), v: 1, compte, comptes: Array.from(new Set([...(actuel?.comptes ?? []), compte])), attente }
   if (Object.keys(valeurs).length > 0) suivant.valeurs = valeurs
-  if (actuel && JSON.stringify(actuel) === JSON.stringify(suivant)) return
+  else delete suivant.valeurs
+  if (brut && JSON.stringify(brut) === JSON.stringify(suivant)) return
   try {
     ecrireSansMiroir(CLE_ETAT, JSON.stringify(suivant))
   } catch (erreur) {
@@ -1442,8 +1465,9 @@ async function hydraterDepuisLeServeur(): Promise<ResultatHydratation> {
   // Un autre compte s'est connecté pendant l'appel : cette réponse ne le concerne pas.
   if (compteCourant !== compte) return { ...SANS_RESTAURATION }
 
-  const etat = lireEtat()
-  const autreCompte = compte !== null && (etat?.comptes ?? []).some(c => c !== compte)
+  const brutEtat = lireEtatBrut()
+  const etat = lireEtat(brutEtat)
+  const autreCompte = compte !== null && comptesVus(brutEtat).some(c => c !== compte)
   const notesAilleurs = compte !== null && etat?.compte === compte ? notesDeLEtat(etat) : new Map<string, NoteEtat>()
 
   const remplacements = lireRemplacements()
