@@ -4,7 +4,11 @@
 // ancien, prend la forme du profil.
 
 import { describe, it, expect } from 'vitest'
-import { appliquerFormeProfil, documentEmis, documentExistant, statutJuridiqueInitialBtp } from '@/lib/statut-juridique-btp'
+import { getStatusLabel, mapLegalFormToCode } from '@/lib/devis-utils'
+import {
+  appliquerFormeProfil, codeStatutJuridiqueBtp, documentEmis, documentExistant, mentionIdentificationBtp, statutAvecCapitalSocial,
+  statutJuridiqueInitialBtp, statutPortugais,
+} from '@/lib/statut-juridique-btp'
 
 const EI = 'Entreprise Individuelle (EI)'
 
@@ -85,5 +89,110 @@ describe('statutJuridiqueInitialBtp', () => {
 
   it('rend « Entreprise Individuelle (EI) » pour un entrepreneur individuel', () => {
     expect(statutJuridiqueInitialBtp(undefined, 'Entrepreneur individuel')).toBe(EI)
+  })
+})
+
+// Société portugaise inscrite comme société BTP (Method Soluções, 17/11/2026) : « Sociedade por Quotas (Lda.) »
+// s'affichait « Entreprise Individuelle (EI) », mapLegalFormToCode ne connaissant aucune forme portugaise.
+describe('formes juridiques portugaises', () => {
+  const LDA = 'Sociedade por Quotas (Lda.)'
+  const UNIPESSOAL = 'Sociedade Unipessoal por Quotas (Unipessoal Lda.)'
+  const SA_PT = 'Sociedade Anónima (SA)'
+  const ENI = 'Empresário em Nome Individual (ENI)'
+
+  it.each([
+    ['Sociedade por Quotas (Lda.)', LDA],
+    ['sociedade por quotas', LDA],
+    ['SOCIEDADE POR QUOTAS', LDA],
+    ['LDA (Sociedade por Quotas)', LDA],
+    ['Lda', LDA],
+    ['Lda.', LDA],
+    ['Sociedade Unipessoal por Quotas', UNIPESSOAL],
+    ['Unipessoal Lda.', UNIPESSOAL],
+    ['LDA Unipessoal', UNIPESSOAL],
+    ['Sociedade Anónima (SA)', SA_PT],
+    ['sociedade anonima', SA_PT],
+    ['SA (Portugal)', SA_PT],
+    ['Empresário em Nome Individual (ENI)', ENI],
+    ['ENI (Empresário em Nome Individual)', ENI],
+    // Autres formes de l'inscription portugaise (libellés portugais et français de lib/config/companyTypes.ts)
+    ['Estabelecimento Individual de Responsabilidade Limitada', 'Estabelecimento Individual de Responsabilidade Limitada (EIRL)'],
+    ['EIRL (Portugal)', 'Estabelecimento Individual de Responsabilidade Limitada (EIRL)'],
+    ['Sociedade em Nome Coletivo', 'Sociedade em Nome Coletivo'],
+    ['SNC (Portugal)', 'Sociedade em Nome Coletivo'],
+    ['Sociedade em Comandita', 'Sociedade em Comandita'],
+    ['Cooperativa', 'Cooperativa'],
+    ['Coopérative (Portugal)', 'Cooperativa'],
+  ])('profil « %s » : nouveau document en « %s », jamais en EI', (profil, attendu) => {
+    expect(statutJuridiqueInitialBtp(undefined, profil)).toBe(attendu)
+  })
+
+  it('les formes françaises donnent exactement le libellé d\'avant', () => {
+    for (const forme of ['SAS', 'SASU', 'SARL', 'EURL', 'SA', 'Société anonyme', 'Société à responsabilité limitée',
+      'Société par actions simplifiée', 'Entreprise individuelle', 'Entrepreneur individuel', 'Auto-entrepreneur',
+      'SNC', 'SCI', 'SARL (França)', 'SA à directoire', 'EIRL', 'Société en commandite simple', 'Société coopérative',
+      'SCOP', 'Entrepreneur individuel à responsabilité limitée']) {
+      expect(statutPortugais(forme)).toBe(false)
+    }
+    expect(statutJuridiqueInitialBtp(undefined, 'Société anonyme')).toBe('SA')
+    expect(statutJuridiqueInitialBtp(undefined, 'SARL (França)')).toBe('SARL')
+  })
+
+  it('code du PDF : forme portugaise reconnue, libellés français inchangés', () => {
+    expect(codeStatutJuridiqueBtp(LDA)).toBe('lda')
+    expect(codeStatutJuridiqueBtp(UNIPESSOAL)).toBe('unipessoal')
+    expect(codeStatutJuridiqueBtp(SA_PT)).toBe('sa')
+    expect(codeStatutJuridiqueBtp(ENI)).toBe('eni')
+    for (const libelle of ['Entreprise Individuelle (EI)', 'EURL', 'SARL', 'SAS', 'SASU', 'SA', 'Auto-entrepreneur', '', 'Société anonyme']) {
+      expect(codeStatutJuridiqueBtp(libelle)).toBe(mapLegalFormToCode(libelle))
+    }
+    expect(codeStatutJuridiqueBtp(undefined)).toBe('ei')
+  })
+
+  it('capital social exigé : mêmes libellés français qu\'avant, plus les sociétés portugaises par quotas et anonymes', () => {
+    for (const libelle of ['SARL', 'EURL', 'SAS', 'SASU', 'SA', LDA, UNIPESSOAL, SA_PT]) expect(statutAvecCapitalSocial(libelle)).toBe(true)
+    for (const libelle of ['Entreprise Individuelle (EI)', 'Auto-entrepreneur', ENI, '', 'Société par actions simplifiée',
+      'Sociedade em Nome Coletivo', 'Sociedade em Comandita', 'Cooperativa', 'Estabelecimento Individual de Responsabilidade Limitada (EIRL)']) {
+      expect(statutAvecCapitalSocial(libelle)).toBe(false)
+    }
+  })
+
+  it('codes PDF des autres formes portugaises : libellé connu de getStatusLabel, jamais le code brut', () => {
+    expect(codeStatutJuridiqueBtp('Sociedade em Nome Coletivo')).toBe('snc_pt')
+    expect(codeStatutJuridiqueBtp('Sociedade em Comandita')).toBe('comandita')
+    expect(codeStatutJuridiqueBtp('Cooperativa')).toBe('cooperativa')
+    expect(codeStatutJuridiqueBtp('Estabelecimento Individual de Responsabilidade Limitada (EIRL)')).toBe('eirl_pt')
+    for (const code of ['snc_pt', 'comandita', 'cooperativa', 'eirl_pt', 'lda', 'unipessoal', 'eni']) {
+      expect(getStatusLabel(code)).not.toBe(code)
+    }
+  })
+
+  describe('mention d\'identification (bloc des mentions légales du formulaire)', () => {
+    const base = { capital: '', registre: '', adresse: 'Rua Direita 10, 4990-000 Ponte de Lima' }
+    it('sur /pt : société à capital, autre société, entrepreneur individuel', () => {
+      expect(mentionIdentificationBtp({ ...base, statut: LDA, capital: '5 000', registre: 'Alvará IMPIC n.º 12345', langue: 'pt' }))
+        .toBe(`${LDA} com capital social de 5 000 € — Alvará IMPIC n.º 12345. Sede: Rua Direita 10, 4990-000 Ponte de Lima.`)
+      expect(mentionIdentificationBtp({ ...base, statut: 'SARL', adresse: '', langue: 'pt' }))
+        .toBe('SARL com capital social de [capital a indicar] €. Sede: [morada a indicar].')
+      expect(mentionIdentificationBtp({ ...base, statut: 'Cooperativa', langue: 'pt' })).toBe('Cooperativa. Sede: Rua Direita 10, 4990-000 Ponte de Lima.')
+      for (const statut of [ENI, EI, 'Auto-entrepreneur']) {
+        expect(mentionIdentificationBtp({ ...base, statut, langue: 'pt' })).toBe('Empresário em Nome Individual (ENI) — Código Comercial Português.')
+      }
+    })
+    it('sur /fr : seulement pour une forme portugaise (les mentions françaises d\'origine restent au formulaire)', () => {
+      expect(mentionIdentificationBtp({ ...base, statut: LDA, langue: 'fr' }))
+        .toBe(`${LDA} au capital de [capital à renseigner] €. Siège social : Rua Direita 10, 4990-000 Ponte de Lima.`)
+      expect(mentionIdentificationBtp({ ...base, statut: ENI, registre: ' ', langue: 'fr' })).toBe(`${ENI}. Siège social : Rua Direita 10, 4990-000 Ponte de Lima.`)
+      for (const statut of ['SARL', 'SAS', 'SA', EI, 'Auto-entrepreneur']) expect(mentionIdentificationBtp({ ...base, statut, langue: 'fr' })).toBeNull()
+    })
+  })
+
+  it('un brouillon déjà enregistré en EI le reste, même pour une société par quotas', () => {
+    expect(statutJuridiqueInitialBtp({ companyStatus: EI, savedAt: '2026-11-17T18:00:00.000Z' }, LDA)).toBe(EI)
+  })
+
+  it('facture ou acompte émis en un clic : forme portugaise du profil', () => {
+    expect(appliquerFormeProfil({ companyStatus: EI, docType: 'facture' }, 'Sociedade por Quotas (Lda.)'))
+      .toEqual({ companyStatus: LDA, docType: 'facture' })
   })
 })

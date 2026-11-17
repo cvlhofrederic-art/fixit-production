@@ -18,7 +18,8 @@ import { generateDevisPdfV3 } from '@/lib/pdf/devis-pdf-v3'
 import { getDecennaleEligibility } from '@/lib/decennale-eligibility'
 import { buildV2Input, type BuildV2InputParams } from '@/lib/pdf/build-v2-input'
 import { sumMoney, round2, mulMoney } from '@/lib/money'
-import { mapLegalFormToCode, resolveTvaEnabledV2 } from '@/lib/devis-utils'
+import { resolveTvaEnabledV2 } from '@/lib/devis-utils'
+import { codeStatutJuridiqueBtp } from '@/lib/statut-juridique-btp'
 import { svgToImageDataUrl } from '@/lib/signature-canvas'
 import { computeTva, type TvaRegime } from '@/lib/tva-calculator'
 import { buildDocumentLines } from '@/lib/devis-totals'
@@ -465,7 +466,8 @@ async function genererAvecV3(
     ? { montantHT: tva.remiseHT, libelle: libelleRemiseGlobale((doc as Record<string, unknown>).remiseGlobale, langueLibelle), base: tva.baseRemiseHT }
     : undefined
 
-  const statusCode = mapLegalFormToCode(doc.companyStatus || '')
+  // Forme portugaise (« Sociedade por Quotas (Lda.) »…) reconnue ; les libellés français donnent le même code qu'avant
+  const statusCode = codeStatutJuridiqueBtp(doc.companyStatus || '')
 
   // Délai, titre par défaut, type de client et rétractation : mêmes règles que
   // le formulaire BTP (lib/devis-btp-libelles.ts)
