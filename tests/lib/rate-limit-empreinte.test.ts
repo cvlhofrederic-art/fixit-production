@@ -3,12 +3,17 @@
 // D13 (décision de Hugo du 17/11/2026, point 4) : lib/rate-limit.ts n'envoie plus à Upstash l'identifiant en clair
 // (adresse IP, identifiant de compte) mais son empreinte ; l'option « analytics » d'Upstash est coupée.
 //   - empreinte : HMAC-SHA-256 de l'identifiant, clé dérivée par HKDF-SHA-256 (sel « vitfix », info
-//     « rate-limit-empreinte-v1 ») de SUPABASE_SERVICE_ROLE_KEY ; secret absent ou valeur de build : SHA-256 salé ;
+//     « rate-limit-empreinte-v1 ») de SUPABASE_SERVICE_ROLE_KEY ;
+//   - secret absent ou valeur de build alors qu'Upstash est configuré (relecture du 17/11/2026) : RIEN n'est envoyé à
+//     Upstash (un SHA-256 salé, au sel écrit dans ce dépôt public, se renverserait par force brute sur une IPv4) ;
+//     limites en mémoire seulement, et une erreur au journal, une fois par isolat, sans l'identifiant ;
 //   - même identifiant → même clé : les limites ne changent pas, seul le format de la clé change ;
 //   - Upstash en panne : repli en mémoire, comme avant.
 // Upstash simulé (aucun appel réseau). Adresses IP de documentation (RFC 5737), secrets de test.
 
 import { createHash, createHmac, hkdfSync } from 'node:crypto'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const IP = '203.0.113.7'
@@ -20,15 +25,18 @@ const AUTRE_SECRET = 'b'.repeat(40)
 const clesEnvoyees: string[] = []
 const optionsLimiteurs: Array<Record<string, unknown>> = []
 let upstashEnPanne = false
+const erreursJournal = vi.fn()
 
 beforeEach(() => {
   vi.resetModules()
   clesEnvoyees.length = 0
   optionsLimiteurs.length = 0
   upstashEnPanne = false
+  erreursJournal.mockClear()
   vi.stubEnv('UPSTASH_REDIS_REST_URL', 'https://upstash.exemple.test')
   vi.stubEnv('UPSTASH_REDIS_REST_TOKEN', 'jeton-de-test')
   vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', SECRET)
+  vi.doMock('@/lib/logger', () => ({ logger: { error: erreursJournal, warn: vi.fn(), info: vi.fn(), debug: vi.fn() } }))
   vi.doMock('@upstash/redis', () => ({ Redis: class {} }))
   vi.doMock('@upstash/ratelimit', () => {
     class Ratelimit {
@@ -46,6 +54,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllEnvs()
+  vi.doUnmock('@/lib/logger')
   vi.doUnmock('@upstash/redis')
   vi.doUnmock('@upstash/ratelimit')
 })
@@ -93,21 +102,29 @@ describe('empreinte de l’identifiant envoyée à Upstash', () => {
     expect(clesEnvoyees[0]).not.toBe(hmacAttendu(SECRET, IDENTIFIANT))
   })
 
-  it('secret absent ou valeur de build : SHA-256 salé, déterministe, jamais l’identifiant ni son SHA-256 nu', async () => {
-    vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', '')
-    let checkRateLimit = await charger()
+  it('secret absent ou valeur de build : rien n’est envoyé à Upstash, limites en mémoire, une erreur sans l’identifiant', async () => {
+    for (const valeur of ['', 'placeholder-key-for-build']) {
+      vi.resetModules()
+      erreursJournal.mockClear()
+      vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', valeur)
+      const checkRateLimit = await charger()
+      for (let i = 0; i < 3; i++) expect(await checkRateLimit(IDENTIFIANT, 3, 60_000), valeur).toBe(true)
+      expect(await checkRateLimit(IDENTIFIANT, 3, 60_000), valeur).toBe(false)
+      expect(await checkRateLimit('qr_signalement_post_198.51.100.4', 3, 60_000), valeur).toBe(true)
+      expect(clesEnvoyees, valeur).toEqual([])
+      // Une seule erreur par isolat, quel que soit le nombre d'appels ; ni l'adresse IP, ni l'identifiant.
+      expect(erreursJournal, valeur).toHaveBeenCalledTimes(1)
+      const journal = JSON.stringify(erreursJournal.mock.calls)
+      expect(journal, valeur).not.toContain(IP)
+      expect(journal, valeur).not.toContain('198.51.100.4')
+      expect(journal, valeur).not.toContain('qr_signalement')
+    }
+  })
+
+  it('secret présent : aucune erreur au journal', async () => {
+    const checkRateLimit = await charger()
     await checkRateLimit(IDENTIFIANT, 5, 60_000)
-    await checkRateLimit(IDENTIFIANT, 5, 60_000)
-    vi.resetModules()
-    vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'placeholder-key-for-build')
-    checkRateLimit = await charger()
-    await checkRateLimit(IDENTIFIANT, 5, 60_000)
-    expect(clesEnvoyees[0]).toMatch(/^[0-9a-f]{64}$/)
-    expect(clesEnvoyees[0]).not.toContain(IP)
-    expect(clesEnvoyees[0]).not.toBe(createHash('sha256').update(IDENTIFIANT).digest('hex'))
-    expect(clesEnvoyees[0]).not.toBe(hmacAttendu(SECRET, IDENTIFIANT))
-    expect(clesEnvoyees[1]).toBe(clesEnvoyees[0])
-    expect(clesEnvoyees[2]).toBe(clesEnvoyees[0])
+    expect(erreursJournal).not.toHaveBeenCalled()
   })
 })
 
@@ -126,5 +143,18 @@ describe('limiteurs Upstash', () => {
     const checkRateLimit = await charger()
     for (let i = 0; i < 3; i++) expect(await checkRateLimit(IDENTIFIANT, 3, 60_000)).toBe(true)
     expect(await checkRateLimit(IDENTIFIANT, 3, 60_000)).toBe(false)
+  })
+})
+
+// Relecture du 17/11/2026 : ces documents servent à décrire Upstash (annexe IV, registre de l'art. 30.2) ; ils ne
+// doivent plus décrire l'ancien fonctionnement.
+describe('documentation d’Upstash à jour (D13)', () => {
+  const lire = (chemin: string) => readFileSync(join(process.cwd(), chemin), 'utf-8')
+
+  it('les analytics ne sont plus dites « activées », les adresses IP ne sont plus dites stockées en clair', () => {
+    expect(lire('docs/monitoring-observability.md')).not.toContain('activées (visible dans le dashboard Upstash)')
+    expect(lire('docs/monitoring-observability.md')).toContain('empreinte HMAC-SHA-256')
+    expect(lire('docs/compliance-legal-audit.md')).not.toContain('Upstash stocke les adresses IP')
+    expect(lire('docs/vendor-compliance.md')).not.toContain('Upstash stocke les IP')
   })
 })

@@ -2,10 +2,10 @@
 //
 // Envoyés par Resend (lib/email.ts). Module serveur (il importe Resend) : les libellés partagés sont dans
 // affichage.ts. Tout ce que le déclarant a saisi est échappé avant d'entrer dans le HTML.
-//   - administrateur : destinataires de la copropriété (sinon ADMIN_EMAIL, pour une copropriété SANS cabinet client
-//     seulement), en français ; « répondre » écrit directement au déclarant (replyTo). D9 (décision de Hugo du 17/11/2026,
-//     au nom de VitFix) : copropriété d'un cabinet client sans destinataire → l'adresse de contact du cabinet reçoit le
-//     signalement (type « cabinet »), et VitFix une alerte sans aucune donnée (alerteSignalementEnAttenteQr) ;
+//   - administrateur : destinataires de la copropriété, en français ; « répondre » écrit directement au déclarant
+//     (replyTo). D9 (décision de Hugo du 17/11/2026, au nom de VitFix) : plus jamais ADMIN_EMAIL ; copropriété sans
+//     destinataire → l'adresse de contact de son cabinet reçoit le signalement (type « cabinet ») s'il y en a une, et
+//     VitFix une alerte sans aucune donnée (alerteSignalementEnAttenteQr) ;
 //   - déclarant : récapitulatif dans la langue de la page (FR / PT), envoyé à sa seule adresse, sans adresse de
 //     réponse ni copie (l'adresse de l'administrateur et celle des destinataires n'y figurent jamais), sans
 //     promesse d'intervention ni de délai. Limité par boîte de destination (formulaire public).
@@ -44,7 +44,7 @@ import { nettoyerLigneDiffusionQr } from '@/lib/aj-signalement/diffusion-texte'
 import type { PorteeDiffusionQr } from '@/lib/aj-signalement/diffusion-valeurs'
 import {
   CHEMIN_TABLEAU_QR, numeroSignalementQr, type BilanEnvoiQr, type DestinataireQr, type LangueSignalementQr, type LogoEmailCabinetQr,
-  type PrioriteSignalementQr, type QualiteDeclarantQr, type SignalementQr, type TypeDestinataireQr,
+  type PrioriteSignalementQr, type QualiteDeclarantQr, type SignalementQr, type SituationAttenteQr, type TypeDestinataireQr,
 } from '@/lib/aj-signalement/types'
 import { base64DepuisOctetsQr, dimensionsLogoQr, type BoiteLogoQr } from '@/lib/aj-signalement/logo'
 import {
@@ -390,19 +390,31 @@ export const ALERTE_EFFACEMENT_DEMANDE_QR = {
   texte: 'Un gestionnaire a demandé la suppression de ses données depuis son compte. Rien n’a été supprimé : transmettez la demande au cabinet ; s’il l’accepte, faites le départ de la fiche, puis « Effacer ses données ».',
 } as const
 
+/** D9 : phrase de l'alerte qui dit qui a reçu le signalement en attente (textes proposés, brouillon pour Frédéric). */
+const PHRASES_ATTENTE_QR: Record<SituationAttenteQr, string> = {
+  contact_prevenu: 'Il a été envoyé à l’adresse de contact du cabinet.',
+  contact_non_prevenu: 'L’envoi à l’adresse de contact du cabinet a échoué : personne au cabinet ne l’a reçu. Prévenez le cabinet sans attendre.',
+  cabinet_sans_contact: 'Le cabinet n’a pas d’adresse de contact : personne au cabinet ne l’a reçu. Prévenez le cabinet sans attendre.',
+  sans_cabinet: 'Cette copropriété n’est rattachée à aucun cabinet : personne ne l’a reçu par e-mail. Prévenez sans attendre le cabinet qui la gère.',
+  illisible: 'Le cabinet de cette copropriété n’a pas pu être lu : personne ne l’a reçu par e-mail. Prévenez le cabinet sans attendre.',
+}
+
 /**
- * D9 (décision de Hugo du 17/11/2026, au nom de VitFix, point 7) : copropriété d'un cabinet client sans aucun
- * destinataire. Le signalement ne part plus vers les boîtes de VitFix : VitFix reçoit cette alerte, SANS AUCUNE DONNÉE
- * du signalement ni de la copropriété (ni texte, ni nom, ni adresse, ni téléphone, ni urgence), seulement son
- * identifiant technique, et elle dit si l'adresse de contact du cabinet l'a reçu. Textes proposés (brouillon, Frédéric).
+ * D9 (décision de Hugo du 17/11/2026, au nom de VitFix, point 7) : copropriété sans aucun destinataire. Le signalement
+ * ne part plus vers les boîtes de VitFix : VitFix reçoit cette alerte, SANS AUCUNE DONNÉE du signalement ni de la
+ * copropriété (ni texte, ni nom, ni adresse, ni téléphone, ni urgence), seulement son numéro (celui du tableau) et son
+ * identifiant technique, et elle dit qui l'a reçu. Relecture du 17/11/2026 : VitFix est sous-traitant ; il ne choisit
+ * pas lui-même qui reçoit les signalements, il demande l'instruction écrite du cabinet (RGPD art. 28.3 a et art. 29).
+ * La route n'envoie cette alerte qu'une fois par heure, par copropriété et par situation. Textes proposés (brouillon,
+ * Frédéric).
  */
-export function alerteSignalementEnAttenteQr(signalementId: string, cabinetPrevenu: boolean): { objet: string; texte: string } {
-  const cabinet = cabinetPrevenu
-    ? 'Il a été envoyé à l’adresse de contact du cabinet.'
-    : 'Personne au cabinet ne l’a reçu : prévenez le cabinet sans attendre.'
+export function alerteSignalementEnAttenteQr(signalementId: string, situation: SituationAttenteQr): { objet: string; texte: string } {
   return {
     objet: 'AJ Signalement — un signalement attend un destinataire',
-    texte: `Un signalement attend un destinataire. Identifiant technique : ${signalementId}. ${cabinet} Désignez un destinataire pour cette copropriété.`,
+    texte: `Un signalement attend un destinataire : n° ${numeroSignalementQr(signalementId)} (identifiant technique : ${signalementId}). `
+      + `${PHRASES_ATTENTE_QR[situation]} `
+      + 'Demandez au cabinet, par écrit, qui doit recevoir les signalements de cette copropriété, puis enregistrez ce destinataire. '
+      + 'Pendant une heure, cette alerte ne sera pas répétée pour cette copropriété : les signalements suivants sont dans le tableau.',
   }
 }
 

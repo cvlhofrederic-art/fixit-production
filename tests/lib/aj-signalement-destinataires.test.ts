@@ -4,11 +4,12 @@
 //   - (adresses saisies MOINS les adresses de fiches inactives ou contestées) ∪ gestionnaires de la copropriété actifs
 //     à adresse confirmée (lignes de signalements_qr_emails_gestionnaires), dédoublonnés sur l'adresse canonique ;
 //   - une adresse présente des deux côtés garde le type « gestionnaire » ;
-//   - ADMIN_EMAIL / ADMIN_EMAIL_2 seulement si l'union est vide (règle actuelle) ; plafond de 100 (un lot Resend).
+//   - union vide : plus jamais ADMIN_EMAIL / ADMIN_EMAIL_2 (D9, décision de Hugo du 17/11/2026 ; détail dans
+//     tests/lib/aj-signalement-repli-cabinet.test.ts) ; plafond de 100 (un lot Resend).
 // La sélection des fiches (actives, confirmées, non contestées, attribuées ou « à tous » du même cabinet) est faite par
 // la fonction SQL : ses lignes arrivent ici déjà filtrées. Adresses fictives en exemple.test.
 
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { readFileSync } from 'fs'
 import { join } from 'path'
 import {
@@ -17,16 +18,21 @@ import {
 import { destinatairesSignalement } from '@/lib/aj-signalement/serveur'
 import type { LigneEmailGestionnaireQr } from '@/lib/aj-signalement/types'
 
-const ENV = { ADMIN_EMAIL: 'Admin@Exemple.test', ADMIN_EMAIL_2: 'admin2@exemple.test' }
-const SANS_ADMIN = {}
-const g = (gestionnaireId: string, email: string, champs: Partial<LigneEmailGestionnaireQr> = {}): LigneEmailGestionnaireQr => ({
+// ADMIN_EMAIL est posé : le calcul ne doit jamais le lire (D9).
+beforeEach(() => {
+  vi.stubEnv('ADMIN_EMAIL', 'Admin@Exemple.test')
+  vi.stubEnv('ADMIN_EMAIL_2', 'admin2@exemple.test')
+})
+afterEach(() => { vi.unstubAllEnvs() })
+
+const g =(gestionnaireId: string, email: string, champs: Partial<LigneEmailGestionnaireQr> = {}): LigneEmailGestionnaireQr => ({
   gestionnaireId, email, accesOuvert: false, exclu: false, ...champs,
 })
 const adresses = (r: ReturnType<typeof destinatairesSignalementQr>) => r.destinataires.map((d) => d.email)
 
 describe('destinatairesSignalementQr', () => {
   it('adresses saisies seules : type « saisi », rognées, en minuscules, dédoublonnées, sans les valeurs sans « @ »', () => {
-    const r = destinatairesSignalementQr({ emails_destinataires: [' CS@Exemple.test ', 'cs@exemple.test', 'pas-une-adresse', ''] }, [], ENV)
+    const r = destinatairesSignalementQr({ emails_destinataires: [' CS@Exemple.test ', 'cs@exemple.test', 'pas-une-adresse', ''] }, [])
     expect(r).toEqual({ destinataires: [{ email: 'cs@exemple.test', type: 'saisi', accesOuvert: false }], auDelaDuPlafond: 0 })
   })
 
@@ -34,7 +40,6 @@ describe('destinatairesSignalementQr', () => {
     const r = destinatairesSignalementQr(
       { emails_destinataires: ['cs@exemple.test', ' Marie.Martin@Exemple.test'] },
       [g('g1', 'marie.martin@exemple.test', { accesOuvert: true }), g('g2', 'paul.durand@exemple.test')],
-      ENV,
     )
     expect(r.destinataires).toEqual([
       { email: 'cs@exemple.test', type: 'saisi', accesOuvert: false },
@@ -44,50 +49,47 @@ describe('destinatairesSignalementQr', () => {
   })
 
   it('gestionnaires seuls (copropriété sans saisie, ou « à tous ») : l’administrateur ne reçoit rien (Q3 : règle actuelle)', () => {
-    const r = destinatairesSignalementQr({ emails_destinataires: [] }, [g('g1', 'marie.martin@exemple.test'), g('g2', 'paul.durand@exemple.test')], ENV)
+    const r = destinatairesSignalementQr({ emails_destinataires: [] }, [g('g1', 'marie.martin@exemple.test'), g('g2', 'paul.durand@exemple.test')])
     expect(r.destinataires.map((d) => d.type)).toEqual(['gestionnaire', 'gestionnaire'])
     expect(adresses(r)).not.toContain('admin@exemple.test')
   })
 
-  it('union vide : repli ADMIN_EMAIL puis ADMIN_EMAIL_2, type « administrateur », dédoublonnés', () => {
-    expect(destinatairesSignalementQr({ emails_destinataires: null }, [], ENV).destinataires).toEqual([
-      { email: 'admin@exemple.test', type: 'administrateur', accesOuvert: false },
-      { email: 'admin2@exemple.test', type: 'administrateur', accesOuvert: false },
-    ])
-    expect(adresses(destinatairesSignalementQr({}, [], { ADMIN_EMAIL: 'a@exemple.test', ADMIN_EMAIL_2: ' A@exemple.test' }))).toEqual(['a@exemple.test'])
-    expect(destinatairesSignalementQr({}, [], SANS_ADMIN).destinataires).toEqual([])
+  it('union vide : aucun destinataire, signalement en attente ; jamais ADMIN_EMAIL ni ADMIN_EMAIL_2 (D9)', () => {
+    for (const copro of [{ emails_destinataires: null }, { emails_destinataires: [] }, {}]) {
+      expect(destinatairesSignalementQr(copro, [])).toEqual({ destinataires: [], auDelaDuPlafond: 0, enAttente: true })
+    }
   })
 
-  it('adresse d’une fiche inactive restée dans les saisies (ligne exclu) : retirée ; repli ADMIN_* si c’était la seule', () => {
+  it('adresse d’une fiche inactive restée dans les saisies (ligne exclu) : retirée ; en attente si c’était la seule', () => {
     const exclue = g('g-parti', 'ancien@exemple.test', { exclu: true })
-    expect(adresses(destinatairesSignalementQr({ emails_destinataires: [' Ancien@exemple.test', 'cs@exemple.test'] }, [exclue], ENV))).toEqual(['cs@exemple.test'])
-    const seule = destinatairesSignalementQr({ emails_destinataires: ['ancien@exemple.test'] }, [exclue], ENV)
-    expect(seule.destinataires.map((d) => d.type)).toEqual(['administrateur', 'administrateur'])
+    expect(adresses(destinatairesSignalementQr({ emails_destinataires: [' Ancien@exemple.test', 'cs@exemple.test'] }, [exclue]))).toEqual(['cs@exemple.test'])
+    const seule = destinatairesSignalementQr({ emails_destinataires: ['ancien@exemple.test'] }, [exclue])
+    expect(seule).toEqual({ destinataires: [], auDelaDuPlafond: 0, enAttente: true })
   })
 
   it('adresse d’une fiche contestée dans les saisies (ligne exclu) : retirée de même', () => {
     const contestee = g('g-conteste', 'contestee@exemple.test', { exclu: true })
-    expect(adresses(destinatairesSignalementQr({ emails_destinataires: ['contestee@exemple.test', 'cs@exemple.test'] }, [contestee, g('g1', 'marie.martin@exemple.test')], ENV)))
+    expect(adresses(destinatairesSignalementQr({ emails_destinataires: ['contestee@exemple.test', 'cs@exemple.test'] }, [contestee, g('g1', 'marie.martin@exemple.test')])))
       .toEqual(['cs@exemple.test', 'marie.martin@exemple.test'])
   })
 
   it('une fiche absente des lignes (non confirmée, désactivée, autre copropriété) ne reçoit rien en tant que gestionnaire', () => {
     // La fonction SQL ne renvoie que les fiches actives confirmées : une fiche non confirmée n'a pas de ligne.
-    const r = destinatairesSignalementQr({ emails_destinataires: ['cs@exemple.test'] }, [], ENV)
+    const r = destinatairesSignalementQr({ emails_destinataires: ['cs@exemple.test'] }, [])
     expect(r.destinataires).toEqual([{ email: 'cs@exemple.test', type: 'saisi', accesOuvert: false }])
   })
 
   it('plafond de 100 (un lot Resend) : au-delà, adresses écartées et comptées', () => {
     expect(DESTINATAIRES_MAX_QR).toBe(100)
     const lignes = Array.from({ length: 105 }, (_, i) => g(`g${i}`, `gestionnaire${i}@exemple.test`))
-    const r = destinatairesSignalementQr({ emails_destinataires: ['cs@exemple.test'] }, lignes, ENV)
+    const r = destinatairesSignalementQr({ emails_destinataires: ['cs@exemple.test'] }, lignes)
     expect(r.destinataires).toHaveLength(100)
     expect(r.auDelaDuPlafond).toBe(6)
     expect(r.destinataires[0]).toEqual({ email: 'cs@exemple.test', type: 'saisi', accesOuvert: false })
   })
 
   it('la même adresse renvoyée deux fois par la base n’est comptée qu’une fois', () => {
-    const r = destinatairesSignalementQr({}, [g('g1', 'marie.martin@exemple.test'), g('g1', 'MARIE.martin@exemple.test')], ENV)
+    const r = destinatairesSignalementQr({}, [g('g1', 'marie.martin@exemple.test'), g('g1', 'MARIE.martin@exemple.test')])
     expect(adresses(r)).toEqual(['marie.martin@exemple.test'])
   })
 
@@ -97,11 +99,11 @@ describe('destinatairesSignalementQr', () => {
   })
 })
 
-describe('destinatairesSignalement (serveur.ts) garde son comportement jusqu’au lot 3', () => {
-  it('saisies si présentes, sinon ADMIN_*, en adresses seules', () => {
-    expect(destinatairesSignalement({ emails_destinataires: [' CS@exemple.test', 'cs@exemple.test'] }, ENV)).toEqual(['cs@exemple.test'])
-    expect(destinatairesSignalement({ emails_destinataires: [] }, ENV)).toEqual(['admin@exemple.test', 'admin2@exemple.test'])
-    expect(destinatairesSignalement({}, SANS_ADMIN)).toEqual([])
+describe('destinatairesSignalement (serveur.ts) : adresses seules, sans gestionnaire', () => {
+  it('saisies si présentes, sinon rien (D9 : plus jamais ADMIN_*)', () => {
+    expect(destinatairesSignalement({ emails_destinataires: [' CS@exemple.test', 'cs@exemple.test'] })).toEqual(['cs@exemple.test'])
+    expect(destinatairesSignalement({ emails_destinataires: [] })).toEqual([])
+    expect(destinatairesSignalement({})).toEqual([])
   })
 })
 
@@ -140,7 +142,6 @@ describe('sous-adresses « + » : la boîte d’une fiche sous une étiquette es
     const r = destinatairesSignalementQr(
       { emails_destinataires: ['marie.martin+suivi@exemple.test', 'cs+copro@exemple.test'] },
       [g('g1', 'marie.martin@exemple.test', { exclu: true })],
-      ENV,
     )
     expect(adresses(r)).toEqual(['cs+copro@exemple.test'])
   })
@@ -192,7 +193,6 @@ describe('même partie locale sur un autre domaine du cabinet de la fiche : l’
     const r = destinatairesSignalementQr(
       { emails_destinataires: ['marie.martin@exemple-bis.test', 'cs@externe.test'] },
       [g('g1', 'marie.martin@exemple-bis.test', { exclu: true })],
-      ENV,
     )
     expect(adresses(r)).toEqual(['cs@externe.test'])
   })

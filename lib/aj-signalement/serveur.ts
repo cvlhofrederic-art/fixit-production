@@ -1485,14 +1485,11 @@ export async function compterSignalementsQr(coproprieteId: string): Promise<Comp
 // ── Destinataires et budget d'un dépôt ───────────────────────────────────────
 
 /**
- * Destinataires de l'e-mail : ceux de la copropriété, sinon l'administrateur du déploiement (ADMIN_EMAIL, ADMIN_EMAIL_2).
- * Calcul de destinatairesSignalementQr sans gestionnaire (règle d'avant le 11/11/2026, gardée pour ses tests).
+ * Adresses saisies de la copropriété, canoniques. Calcul de destinatairesSignalementQr sans gestionnaire ni cabinet, gardé
+ * pour ses tests ; depuis D9 (décision de Hugo du 17/11/2026), plus jamais ADMIN_EMAIL quand il n'y en a aucune.
  */
-export function destinatairesSignalement(
-  copropriete: { emails_destinataires?: string[] | null },
-  env: Record<string, string | undefined> = process.env,
-): string[] {
-  return destinatairesSignalementQr(copropriete, [], env).destinataires.map((d) => d.email)
+export function destinatairesSignalement(copropriete: { emails_destinataires?: string[] | null }): string[] {
+  return destinatairesSignalementQr(copropriete, []).destinataires.map((d) => d.email)
 }
 
 interface LigneEmailGestionnaireSqlQr { gestionnaire_id: string; email: string | null; acces_ouvert: boolean | null; exclu: boolean | null }
@@ -1521,16 +1518,16 @@ export async function lireGestionnairesDestinatairesQr(coproprieteId: string): P
 
 /**
  * D9 (décision de Hugo du 17/11/2026, au nom de VitFix, point 7) : lu par la route du dépôt SEULEMENT quand la
- * copropriété n'a aucun destinataire direct. Copropriété d'un cabinet client → { cabinet: true, contact } (adresse de
- * contact du cabinet, diffusion_contact_email, ou null) ; copropriété sans cabinet, ou colonne cabinet_id absente
- * (migration du 11/11/2026 non appliquée : aucun cabinet ne peut exister) → repli ADMIN_EMAIL d'avant. Colonne de
- * l'adresse de contact absente (migration du 13/11/2026) : contact null. Toute autre erreur : traitée comme un cabinet
- * client sans contact, pour que le signalement complet ne parte jamais vers VitFix (l'alerte sans données part).
+ * copropriété n'a aucun destinataire direct. Copropriété d'un cabinet client → { etat: 'cabinet', contact } (adresse de
+ * contact du cabinet, diffusion_contact_email, ou null ; null aussi si cette colonne manque, migration du 13/11/2026) ;
+ * copropriété rattachée à aucun cabinet, ou colonne cabinet_id absente (migration du 11/11/2026 non appliquée) →
+ * { etat: 'sans_cabinet' } ; toute autre erreur → { etat: 'illisible' }. Dans aucun cas le signalement complet ne part
+ * vers VitFix : seule l'alerte sans données, qui dit lequel de ces cas s'applique.
  * Journal : codes et identifiants seulement. Ne lève jamais.
  */
 export async function lireRepliSansDestinataireQr(coproprieteId: string): Promise<RepliSansDestinataireQr> {
   const operation = 'repli d’une copropriété sans destinataire'
-  const cabinetSansContact: RepliSansDestinataireQr = { cabinet: true, contact: null }
+  const illisible: RepliSansDestinataireQr = { etat: 'illisible' }
   try {
     const copro = await supabaseAdmin.from(TABLE_COPROPRIETES_QR).select('cabinet_id').eq('id', coproprieteId).maybeSingle()
     if (copro.error) {
@@ -1539,23 +1536,26 @@ export async function lireRepliSansDestinataireQr(coproprieteId: string): Promis
         return SANS_CABINET_QR
       }
       logger.error(`${CONTEXTE} cabinet d’une copropriété sans destinataire non lu : alerte sans données seulement`, { code: copro.error.code, copropriete: coproprieteId })
-      return cabinetSansContact
+      return illisible
     }
     const cabinetId = (copro.data as { cabinet_id?: unknown } | null)?.cabinet_id
     if (typeof cabinetId !== 'string') return SANS_CABINET_QR
     const cabinet = await supabaseAdmin.from(TABLE_CABINETS_QR).select('diffusion_contact_email').eq('id', cabinetId).maybeSingle()
     if (cabinet.error) {
-      if (structureAbsenteQr(cabinet.error)) journaliserRepliDiffusionQr(operation, cabinet.error)
-      else logger.error(`${CONTEXTE} adresse de contact du cabinet non lue : alerte sans données seulement`, { code: cabinet.error.code, cabinet: cabinetId })
-      return cabinetSansContact
+      if (structureAbsenteQr(cabinet.error)) {
+        journaliserRepliDiffusionQr(operation, cabinet.error)
+        return { etat: 'cabinet', contact: null }
+      }
+      logger.error(`${CONTEXTE} adresse de contact du cabinet non lue : alerte sans données seulement`, { code: cabinet.error.code, cabinet: cabinetId })
+      return illisible
     }
     const contact = (cabinet.data as { diffusion_contact_email?: unknown } | null)?.diffusion_contact_email
-    return { cabinet: true, contact: typeof contact === 'string' ? contact : null }
+    return { etat: 'cabinet', contact: typeof contact === 'string' ? contact : null }
   } catch (e) {
     logger.error(`${CONTEXTE} repli d’une copropriété sans destinataire (exception) : alerte sans données seulement`, {
       copropriete: coproprieteId, message: e instanceof Error ? e.name : 'inconnue',
     })
-    return cabinetSansContact
+    return illisible
   }
 }
 

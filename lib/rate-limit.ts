@@ -13,6 +13,7 @@
 import type { NextRequest } from 'next/server'
 import { Ratelimit } from '@upstash/ratelimit'
 import { Redis } from '@upstash/redis'
+import { logger } from '@/lib/logger'
 
 // ── Empreinte de l'identifiant (D13) ─────────────────────────────────────────
 // HMAC-SHA-256 de l'identifiant, sous une clé dérivée par HKDF-SHA-256 (sel « vitfix », info « rate-limit-empreinte-v1 »)
@@ -20,12 +21,22 @@ import { Redis } from '@upstash/redis'
 // (aucun nouveau secret à poser ; la dérivation sépare les usages, l'empreinte ne révèle rien du secret). Pourquoi pas un
 // simple SHA-256 salé : une IPv4 n'a que 2^32 valeurs, et un sel écrit dans ce dépôt public ne protège rien ; l'empreinte
 // se retrouverait en quelques minutes. Sans la clé, l'empreinte HMAC ne se renverse pas.
-// Secret absent ou valeur de build (tests, développement sans Supabase) : SHA-256 salé, repli faible mais jamais
-// l'identifiant en clair. Changer le secret change les clés : les compteurs repartent de zéro, sans autre effet.
+// Secret absent ou valeur de build alors qu'Upstash est configuré (Worker mal configuré, secret renommé) : RIEN n'est
+// envoyé à Upstash, les limites restent en mémoire, et une erreur part au journal une fois par isolat, sans l'identifiant
+// (relecture du 17/11/2026 ; même règle que lib/equipe/lien-invitation.ts, qui refuse de signer sans ce secret).
+// Changer le secret change les clés : les compteurs repartent de zéro, sans autre effet.
 
 const ENCODEUR = new TextEncoder()
 const VALEUR_DE_BUILD = 'placeholder-key-for-build'
-const SEL_SANS_SECRET = 'vitfix:rate-limit:empreinte:v1'
+
+/** Secret de l'empreinte, ou null (absent, ou valeur de build). */
+function secretEmpreinte(): string | null {
+  const secret = process.env.SUPABASE_SERVICE_ROLE_KEY
+  return secret && secret !== VALEUR_DE_BUILD ? secret : null
+}
+
+/** L'erreur « Upstash sans secret » n'est écrite qu'une fois par isolat. */
+let secretAbsentSignale = false
 
 let cleEmpreinteEnCache: { secret: string; cle: Promise<CryptoKey> } | null = null
 
@@ -49,13 +60,9 @@ function cleEmpreinte(secret: string): Promise<CryptoKey> {
 
 const enHex = (octets: ArrayBuffer): string => Array.from(new Uint8Array(octets), (o) => o.toString(16).padStart(2, '0')).join('')
 
-/** Empreinte (64 hexadécimaux) de l'identifiant, seule forme envoyée à Upstash. */
-async function empreinteIdentifiant(identifier: string): Promise<string> {
-  const secret = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (secret && secret !== VALEUR_DE_BUILD) {
-    return enHex(await crypto.subtle.sign('HMAC', await cleEmpreinte(secret), ENCODEUR.encode(identifier)))
-  }
-  return enHex(await crypto.subtle.digest('SHA-256', ENCODEUR.encode(`${SEL_SANS_SECRET}\u0000${identifier}`)))
+/** Empreinte HMAC (64 hexadécimaux) de l'identifiant, seule forme envoyée à Upstash. */
+async function empreinteIdentifiant(identifier: string, secret: string): Promise<string> {
+  return enHex(await crypto.subtle.sign('HMAC', await cleEmpreinte(secret), ENCODEUR.encode(identifier)))
 }
 
 // ── Upstash Redis rate limiter (production) ──────────────────────────────────
@@ -151,8 +158,17 @@ export async function checkRateLimit(
 ): Promise<boolean> {
   const lim = getLimiter(limit, windowMs)
   if (lim) {
+    const secret = secretEmpreinte()
+    if (!secret) {
+      // D13 : sans le secret, l'empreinte se renverserait. Rien ne part à Upstash ; limites en mémoire.
+      if (!secretAbsentSignale) {
+        secretAbsentSignale = true
+        logger.error('[rate-limit] Upstash configuré sans SUPABASE_SERVICE_ROLE_KEY : rien n’est envoyé à Upstash, limites en mémoire seulement')
+      }
+      return checkRateLimitInMemory(identifier, limit, windowMs)
+    }
     try {
-      const { success } = await lim.limit(await empreinteIdentifiant(identifier))
+      const { success } = await lim.limit(await empreinteIdentifiant(identifier, secret))
       return success
     } catch (e) {
       // Redis down — fallback to in-memory

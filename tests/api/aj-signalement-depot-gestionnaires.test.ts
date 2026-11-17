@@ -97,13 +97,18 @@ describe('destinataires automatiques', () => {
     expect(etatFinal()).toMatchObject({ email_envoye_le: expect.any(String), email_erreur: null })
   })
 
-  it('seule saisie = l’adresse d’une fiche partie : repli sur l’administrateur, avec le bouton de l’espace', async () => {
+  // D9 (décision de Hugo du 17/11/2026, relecture du même jour) : plus de repli du signalement complet vers ADMIN_EMAIL ;
+  // VitFix ne reçoit qu'une alerte sans données, avec le bouton de l'espace (tests/api/aj-signalement-depot-repli-cabinet).
+  it('seule saisie = l’adresse d’une fiche partie : aucun signalement à l’administrateur, une alerte sans données', async () => {
     baseQr.etat.tables.signalements_qr_coproprietes[0].emails_destinataires = ['luc.parti@exemple.test']
     baseQr.etat.fonctions.signalements_qr_emails_gestionnaires = () => ({ data: [{ gestionnaire_id: G_PARTI, email: 'luc.parti@exemple.test', acces_ouvert: false, exclu: true }] })
     await deposer()
-    const messages = versAdministrateur()
-    expect(messages.map((m) => m.to)).toEqual(['admin@exemple.test'])
-    expect(messages[0].html).toContain('https://vitfix.io/fr/aj-signalement/#signalements')
+    expect(versAdministrateur()).toEqual([])
+    const alertes = messagesEnvoyesQr().filter((m) => m.subject === 'AJ Signalement — un signalement attend un destinataire')
+    expect(alertes.map((m) => m.to)).toEqual(['admin@exemple.test'])
+    expect(alertes[0].html).toContain('https://vitfix.io/fr/aj-signalement/#signalements')
+    expect(alertes[0].html).not.toContain('Fuite')
+    expect(JSON.stringify(messagesEnvoyesQr())).not.toContain('luc.parti')
   })
 
   // Corrections, tour 2 : la 20261112 rend la SAISIE reconnue (ici la partie locale de la fiche partie sur l'autre domaine

@@ -526,6 +526,8 @@ export type DecisionDoublonsQr =
 /**
  * « cabinet » (D9, décision de Hugo du 17/11/2026) : adresse de contact du cabinet client (diffusion_contact_email), qui
  * reçoit le signalement d'une de ses copropriétés quand aucun gestionnaire ni aucune adresse saisie ne le reçoit.
+ * « administrateur » : le gabarit de l'e-mail le connaît encore (bouton du tableau), mais depuis D9 aucun dépôt ne
+ * l'envoie plus à ADMIN_EMAIL.
  */
 export type TypeDestinataireQr = 'gestionnaire' | 'saisi' | 'administrateur' | 'cabinet'
 
@@ -554,18 +556,31 @@ export interface CalculDestinatairesQr {
   destinataires: DestinataireQr[]
   auDelaDuPlafond: number
   /**
-   * D9 : copropriété d'un cabinet client sans aucun destinataire. Le signalement « attend un destinataire » : seule
-   * l'adresse de contact du cabinet le reçoit (si elle existe), et VitFix reçoit une alerte sans données. Absent sinon.
+   * D9 : copropriété sans aucun destinataire. Le signalement « attend un destinataire » : seule l'adresse de contact de
+   * son cabinet le reçoit (si elle existe), jamais ADMIN_EMAIL, et VitFix reçoit une alerte sans données. Absent sinon.
    */
   enAttente?: true
 }
 
 /**
- * D9 (décision de Hugo du 17/11/2026, au nom de VitFix, point 7) : ce qui remplace le repli vers les boîtes de VitFix
- * quand une copropriété n'a aucun destinataire. cabinet = false : copropriété sans cabinet client (repli ADMIN_EMAIL
- * d'avant) ; cabinet = true : copropriété d'un cabinet client, avec son adresse de contact (null si aucune).
+ * D9 (décision de Hugo du 17/11/2026, au nom de VitFix, point 7) : ce que la route lit quand une copropriété n'a aucun
+ * destinataire. sans_cabinet : rattachée à aucun cabinet (ou colonne cabinet_id absente) ; cabinet : rattachée à un
+ * cabinet client, avec son adresse de contact (null si aucune) ; illisible : la lecture a échoué. Dans aucun cas le
+ * signalement complet ne part vers les boîtes de VitFix (relecture du 17/11/2026 : le code ne distingue pas une
+ * copropriété d'essai de VitFix d'une copropriété du cabinet client pas encore rattachée).
  */
-export type RepliSansDestinataireQr = { cabinet: false } | { cabinet: true; contact: string | null }
+export type RepliSansDestinataireQr =
+  | { etat: 'sans_cabinet' }
+  | { etat: 'cabinet'; contact: string | null }
+  | { etat: 'illisible' }
+
+/**
+ * D9 : ce que l'alerte sans données dit à VitFix d'un signalement en attente. contact_prevenu : parti à l'adresse de
+ * contact du cabinet ; contact_non_prevenu : cet envoi a échoué ; cabinet_sans_contact : le cabinet n'a pas d'adresse de
+ * contact utilisable ; sans_cabinet : la copropriété n'est rattachée à aucun cabinet ; illisible : le cabinet n'a pas pu
+ * être lu.
+ */
+export type SituationAttenteQr = 'contact_prevenu' | 'contact_non_prevenu' | 'cabinet_sans_contact' | 'sans_cabinet' | 'illisible'
 
 /** Adresses saisies montrées à un gestionnaire (PR 2) : celles d'une autre fiche sont remplacées par un compteur. */
 export interface SaisiesVisiblesQr {
