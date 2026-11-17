@@ -280,8 +280,8 @@ export function statutArrierePlan(
       'Ativada neste telemóvel, mas não acompanha todas as suas obras (localização do telemóvel desligada?): volte a ligá-la e regresse à app; entretanto, marque manualmente.',
     ],
     sans_autorisation: [
-      'Activé sur ce téléphone, mais la position « Toujours » n’est plus autorisée pour Vitfix Pro : rien n’est pointé en arrière-plan. Rétablissez-la dans les réglages du téléphone ; en attendant, pointez page ouverte ou à la main.',
-      'Ativada neste telemóvel, mas a localização « Sempre » já não está autorizada para a Vitfix Pro: nada é marcado em segundo plano. Reponha-a nas definições do telemóvel; entretanto, marque com a página aberta ou manualmente.',
+      'Activé sur ce téléphone, mais la position « Toujours » n’est plus autorisée pour Vitfix Pro : rien n’est pointé en arrière-plan. Rétablissez-la dans les réglages du téléphone ; en attendant, pointez à la main.',
+      'Ativada neste telemóvel, mas a localização « Sempre » já não está autorizada para a Vitfix Pro: nada é marcado em segundo plano. Reponha-a nas definições do telemóvel; entretanto, marque manualmente.',
     ],
     inactif: ['Désactivé', 'Desativada'],
   }
@@ -328,8 +328,13 @@ export function messageAucuneZone(isPt: boolean): string {
     : 'Aucun de vos chantiers n’a de position GPS : il n’y a rien à suivre pour l’instant. Le pointage téléphone en poche pourra être activé quand votre responsable aura localisé un chantier.'
 }
 
-/** Carte du pointage page ouverte, quand ce téléphone pointe déjà en arrière-plan. */
-export function messageRemplaceParArrierePlan(isPt: boolean): string {
+/** Carte du pointage page ouverte, quand ce téléphone est enregistré pour pointer en arrière-plan (en panne ou non). */
+export function messageRemplaceParArrierePlan(enPanne: boolean, isPt: boolean): string {
+  if (enPanne) {
+    return isPt
+      ? 'A marcação com o telemóvel no bolso está ativada neste telemóvel, mas não funciona de momento (ver abaixo): marque manualmente.'
+      : 'Le pointage téléphone en poche est activé sur ce téléphone mais ne fonctionne pas pour l’instant (voir ci-dessous) : pointez à la main.'
+  }
   return isPt
     ? 'Assegurada pela marcação com o telemóvel no bolso, ativada neste telemóvel: não é preciso manter esta página aberta.'
     : 'Assuré par le pointage téléphone en poche, activé sur ce téléphone : inutile de garder cette page ouverte.'

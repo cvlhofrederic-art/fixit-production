@@ -484,7 +484,9 @@ describe('Téléphone qui pointe déjà', () => {
     await waitFor(() => expect(statut()).toMatch(/^Activé sur ce téléphone, mais la position « Toujours » n’est plus autorisée/))
     expect(screen.getByRole('button', { name: 'Ouvrir les réglages' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Couper sur ce téléphone' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Activer le pointage automatique' })).toBeTruthy()
+    // La page ouverte ne reprend pas tant que ce téléphone est enregistré : pointage à la main en attendant.
+    expect(screen.queryByRole('button', { name: 'Activer le pointage automatique' })).toBeNull()
+    expect(screen.getByText(/^Le pointage téléphone en poche est activé sur ce téléphone mais ne fonctionne pas/)).toBeTruthy()
     // Rien n'est défait : l'autorisation rendue, tout remarche.
     expect(natif.zones.size).toBe(2)
     expect(localStorage.getItem(CLE)).not.toBeNull()
@@ -547,14 +549,15 @@ describe('Téléphone qui pointe déjà', () => {
     expect(serveur.envois).toEqual([])
   })
 
-  it('mode coupé ou fiche plus reliée alors que le serveur garde ce téléphone : zones retirées, ce téléphone retiré', async () => {
+  it('compte lu non relié (peut-être une panne passagère) alors que le serveur garde ce téléphone : rien retiré ici', async () => {
     appli()
     dejaActif([VILLA, GARAGE])
     serveur.appareil = 'app-1'
-    render(<Banc depart={{ ...CONTEXTE, rattachement: 'aucun', moi: null, chantiers: [], appareilArrierePlan: 'app-1' }} />)
-    await waitFor(() => expect(serveur.envois).toEqual([{ action: 'appareil_retirer', appareil: 'app-1' }]))
-    expect(natif.zones.size).toBe(0)
-    expect(localStorage.getItem(CLE)).toBeNull()
+    render(<Banc depart={{ ...CONTEXTE, rattachement: 'aucun', moi: null, chantiers: [], pointageAutoActive: false, appareilArrierePlan: 'app-1' }} />)
+    await new Promise(r => setTimeout(r, 0))
+    expect(natif.zones.size).toBe(2)
+    expect(localStorage.getItem(CLE)).not.toBeNull()
+    expect(serveur.envois).toEqual([])
   })
 
   it('réponse incertaine du serveur (panne passagère) : rien retiré, rien refait, l’écran garde ce téléphone actif', async () => {

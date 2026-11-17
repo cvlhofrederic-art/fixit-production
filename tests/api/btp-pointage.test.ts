@@ -407,6 +407,15 @@ describe('POST /api/btp/pointage — téléphone en poche (appareil, appareil_re
     })])
   })
 
+  it('pointage en cours : lien en échec après l’arrivée au journal → arrivée seule (sans effet), pointage laissé à l’employé', async () => {
+    const ouvert = { id: randomUUID(), owner_id: SOC_A, membre_id: M_PAUL, chantier_id: C_VILLA, chantier_nom: 'Villa', date: '2026-11-16', heure_arrivee: '08:20:00', heure_depart: null, mode: 'geo_auto', created_at: new Date(MAINTENANT - 10 * 60_000).toISOString() }
+    etat.tables.pointages_btp.push(ouvert)
+    etat.tablesAbsentes.add('pointage_lignes_appareil_btp')
+    expect((await envoyer({ action: 'appareil', plateforme: 'android' })).status).toBe(201)
+    expect(etat.tables.pointage_evenements_btp).toHaveLength(1)
+    expect(etat.tables.pointage_lignes_appareil_btp ?? []).toEqual([])
+  })
+
   it('activation pendant un pointage commencé à la main : rien de confié (il se termine à la main)', async () => {
     etat.tables.pointages_btp.push({ id: randomUUID(), owner_id: SOC_A, membre_id: M_PAUL, chantier_id: C_VILLA, date: '2026-11-16', heure_arrivee: '08:20:00', heure_depart: null, mode: 'manuel', created_at: new Date(MAINTENANT - 10 * 60_000).toISOString() })
     expect((await envoyer({ action: 'appareil', plateforme: 'android' })).status).toBe(201)

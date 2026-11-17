@@ -168,17 +168,18 @@ async function confierPointageEnCours(ctx: Contexte, membre: MembreBtp, appareil
     const ouvert = (await pointagesOuverts(ctx.societeId, membre.id)).filter(o => o.mode === 'geo_auto' && !estOublie(o, maintenant)).at(-1)
     if (!ouvert) return
     const arrivee = new Date(reperesArrivee(ouvert).instant).toISOString()
+    // L'arrivée d'abord : seule (lien en échec), elle est sans effet et le pointage reste à l'employé.
+    const envoi = await supabaseAdmin.from('pointage_evenements_btp').insert({
+      appareil_id: appareil, chantier_id: ouvert.chantier_id, chantier_nom: ouvert.chantier_nom ?? null, sens: 'enter',
+      detecte_le: arrivee, recu_le: arrivee,
+    })
+    if (envoi.error) throw new Error(envoi.error.message)
     const ancien = await supabaseAdmin.from('pointage_lignes_appareil_btp').delete().eq('pointage_id', String(ouvert.id))
     if (ancien.error) throw new Error(ancien.error.message)
     const lien = await supabaseAdmin.from('pointage_lignes_appareil_btp').insert({
       pointage_id: String(ouvert.id), appareil_id: appareil, date: ouvert.date, ecrit: ecritDe(ouvert),
     })
     if (lien.error) throw new Error(lien.error.message)
-    const envoi = await supabaseAdmin.from('pointage_evenements_btp').insert({
-      appareil_id: appareil, chantier_id: ouvert.chantier_id, chantier_nom: ouvert.chantier_nom ?? null, sens: 'enter',
-      detecte_le: arrivee, recu_le: arrivee,
-    })
-    if (envoi.error) throw new Error(envoi.error.message)
   } catch (err) {
     logger.warn('[btp/pointage] pointage en cours non confié au téléphone', { error: err instanceof Error ? err.message : err })
   }

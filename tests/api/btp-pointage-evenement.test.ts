@@ -250,6 +250,17 @@ describe('pointages qui ne viennent pas du téléphone : ils priment', () => {
     expect(resume()).toEqual([[C_IMMEUBLE, '13:00:00', null, null]])
   })
 
+  it('pointage ouvert supprimé par le gérant : seule cette présence n’est pas recréée, la suite de la journée compte', async () => {
+    await entree(C_VILLA, paris(8))
+    etat.tables.pointages_btp = etat.tables.pointages_btp.filter(p => !(p.membre_id === M_PAUL && p.date === '2026-11-16'))
+    await sortie(C_VILLA, paris(10), paris(10, 1))
+    await entree(C_IMMEUBLE, paris(10, 30), paris(10, 31))
+    await sortie(C_IMMEUBLE, paris(12), paris(12, 1))
+    await entree(C_VILLA, paris(13), paris(13, 1))
+    await sortie(C_VILLA, paris(17), paris(17, 1))
+    expect(resume()).toEqual([[C_IMMEUBLE, '10:30:00', '12:00:00', 1.5], [C_VILLA, '13:00:00', '17:00:00', 4]])
+  })
+
   it('pointage automatique ouvert avant l’activation et confié au téléphone : refermé à sa sortie', async () => {
     // État laissé par l'enregistrement (route principale) : lien sur le pointage de la page ouverte, arrivée au journal.
     const ouvert: Ligne = {
@@ -308,6 +319,17 @@ describe('réécriture des pointages du téléphone', () => {
     expect(lignesDePaul().find(p => p.chantier_id === C_IMMEUBLE)).toMatchObject({ heure_arrivee: '12:00:00', notes: null })
   })
 
+  it('pointage écrit à l’heure de Paris (heure de création cohérente), téléphone à Lisbonne : lu à l’heure de Paris', async () => {
+    etat.tables.pointage_appareils_btp = [await appareil({ fuseau: 'Europe/Lisbon' })]
+    // Pointage à la main de 10:00 à 11:00 heure de Paris, soit 09:00-10:00 à Lisbonne.
+    etat.tables.pointages_btp.push({ ...aLaMain('10:00:00', '11:00:00', 1), created_at: '2026-11-16T09:00:00.000Z' })
+    await entree(C_IMMEUBLE, Date.UTC(2026, 10, 16, 8, 0), Date.UTC(2026, 10, 16, 11, 1))
+    await sortie(C_IMMEUBLE, Date.UTC(2026, 10, 16, 11, 0), Date.UTC(2026, 10, 16, 11, 2))
+    expect(resume().filter(p => p[0] === C_IMMEUBLE)).toEqual([
+      [C_IMMEUBLE, '08:00:00', '09:00:00', 1], [C_IMMEUBLE, '10:00:00', '11:00:00', 1],
+    ])
+  })
+
   it('pointage ajouté par le gérant (heure de création quelconque) : lu à l’heure murale du fuseau du téléphone', async () => {
     etat.tables.pointage_appareils_btp = [await appareil({ fuseau: 'Europe/Lisbon' })]
     etat.tables.pointages_btp.push({
@@ -323,17 +345,19 @@ describe('réécriture des pointages du téléphone', () => {
 })
 
 describe('veille rejouée, écritures en échec', () => {
-  it('écriture de pointage en échec : envoi gardé (200), refaite au rejeu suivant', async () => {
+  it('écriture de pointage en échec : envoi gardé au journal, 500 ; le nouvel essai (« doublon ») la refait', async () => {
     await entree(C_VILLA, paris(8))
     etat.avantMiseAJour = table => {
       if (table === 'pointages_btp') throw new Error('panne d’écriture')
       return false
     }
-    expect((await sortie(C_VILLA, paris(12), paris(12, 1))).json).toEqual({ statut: 'enregistre' })
+    expect((await sortie(C_VILLA, paris(12), paris(12, 1))).status).toBe(500)
+    expect(journal()).toHaveLength(2)
     expect(resume()).toEqual([[C_VILLA, '08:00:00', null, null]])
+    expect(telephone().traite_jusqu_au).toBeNull()
     etat.avantMiseAJour = null
-    await entree(C_IMMEUBLE, paris(13), paris(13, 1))
-    expect(resume()).toEqual([[C_VILLA, '08:00:00', '12:00:00', 4], [C_IMMEUBLE, '13:00:00', null, null]])
+    expect(await sortie(C_VILLA, paris(12), paris(12, 3))).toEqual({ status: 200, json: { statut: 'doublon' } })
+    expect(resume()).toEqual([[C_VILLA, '08:00:00', '12:00:00', 4]])
   })
 
   it('veille rejouée au premier envoi du jour : sa sortie déjà au journal referme son pointage resté ouvert', async () => {

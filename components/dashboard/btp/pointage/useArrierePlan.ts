@@ -27,9 +27,9 @@ import { messageArrierePlanActive, messageArrierePlanCoupe, messageArrierePlanEc
 // Pointage « téléphone en poche » (appli Vitfix Pro) : activation par l'employé (autorisation « Toujours », téléphone
 // enregistré, zones des chantiers confiées au système), coupure, zones et autorisation revues à chaque lecture de
 // l'écran et à chaque retour dans l'appli. Ce téléphone pointe tant que le serveur désigne son enregistrement comme
-// celui du compte. Il retire ses zones dès que l'écran le dit sans incertitude : autre téléphone activé ou téléphone
-// retiré (compte quitté, fiche changée d'adresse), mode coupé par le gérant, compte plus relié à une fiche. Une fiche
-// différente sur ce téléphone avec le même enregistrement : le serveur tranche à l'envoi suivant.
+// celui du compte. Il retire ses zones quand le serveur ne le désigne plus : autre téléphone activé, ou téléphone retiré
+// (mode coupé par le gérant, fiche absente, inactive ou changée d'adresse, compte quitté : le serveur le retire, au
+// plus tard à son envoi suivant). Une réponse incertaine (panne passagère) ne retire jamais rien.
 
 /**
  * indisponible : hors de l'appli (ou appli sans le module), mode coupé par le gérant, fiche non reliée ;
@@ -119,20 +119,17 @@ export function useArrierePlan({ contexte, chantiers, envoyer, recharger, isPt }
     retirerZonesOrphelines().catch((err: unknown) => console.warn('[btp/pointage] zones restées sur le téléphone :', raison(err)))
   }, [natif, sansReglage])
 
-  // Zones et autorisation revues à chaque lecture de l'écran et à chaque retour dans l'appli. Zones retirées ici sur
-  // un signal sûr seulement (jamais sur une réponse incertaine) ; rien pendant une action en cours.
-  const plusPourCeCompte = !contexte.pointageAutoActive || contexte.rattachement !== 'relie'
+  // Zones et autorisation revues à chaque lecture de l'écran et à chaque retour dans l'appli. Zones retirées ici
+  // seulement quand le serveur ne désigne plus ce téléphone (jamais sur une réponse incertaine : un rattachement ou
+  // un mode lus pendant une panne passagère ne sont pas sûrs) ; rien pendant une action en cours.
   useEffect(() => {
     if (!natif || config === null || occupe || incertain) return
     let annule = false
     const tenir = async () => {
       try {
-        if (appareilDuCompte !== config.appareilId || plusPourCeCompte) {
+        if (appareilDuCompte !== config.appareilId) {
           await arreterSurCeTelephone()
-          if (annule) return
-          oublier()
-          // Mode coupé ou fiche plus reliée alors que le serveur garde ce téléphone : retiré aussi (lui seul).
-          if (appareilDuCompte === config.appareilId) await envoyer({ action: 'appareil_retirer', appareil: config.appareilId })
+          if (!annule) oublier()
           return
         }
         if (!ici) return
@@ -160,7 +157,7 @@ export function useArrierePlan({ contexte, chantiers, envoyer, recharger, isPt }
     }
     void tenir()
     return () => { annule = true }
-  }, [natif, config, occupe, incertain, appareilDuCompte, plusPourCeCompte, ici, chantiers, oublier, envoyer, isPt, retours])
+  }, [natif, config, occupe, incertain, appareilDuCompte, ici, chantiers, oublier, isPt, retours])
 
   const activer = useCallback(async () => {
     const plateforme = plateformeNative()
