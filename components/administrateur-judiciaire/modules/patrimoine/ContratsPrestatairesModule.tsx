@@ -6,6 +6,7 @@ import { DOCUMENT_EXPORT_DONNEES } from '@/components/administrateur-judiciaire/
 import { DEMO_PRESTATAIRES } from '@/components/administrateur-judiciaire/data/prestataires'
 import { DataTable } from '@/components/administrateur-judiciaire/ui/DataTable'
 import { DetailModal, type ChampDetail } from '@/components/administrateur-judiciaire/ui/DetailModal'
+import { EmptyState } from '@/components/administrateur-judiciaire/ui/EmptyState'
 import { FormModal } from '@/components/administrateur-judiciaire/ui/FormModal'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { Kpis } from '@/components/administrateur-judiciaire/ui/Kpis'
@@ -14,6 +15,8 @@ import { Panel } from '@/components/administrateur-judiciaire/ui/Panel'
 import { Pill } from '@/components/administrateur-judiciaire/ui/Pill'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
 import { formatEuros } from '@/lib/administrateur-judiciaire/domain/format'
+import { champCoproprieteChoisie, titreListeVide, useCoproChoisie } from '@/components/administrateur-judiciaire/ui/copro-choisie'
+import { codeDeNomCopro, filtrerParCopro } from '@/lib/administrateur-judiciaire/domain/selection-copropriete'
 
 /** Contrat de prestation de la copropriété (démonstration). pill : couleur de l'étiquette de statut. */
 export interface ContratPrestataireDemo {
@@ -95,15 +98,18 @@ interface FicheContrat {
 }
 
 /**
- * Contrats avec les prestataires (registre de démonstration). L'indicateur « Contrats actifs » compte tous les
- * contrats, y compris échus et à renégocier (comme la maquette). « Exporter » ouvre un récapitulatif simulé ;
- * « Nouveau contrat » ouvre une FormModal sans validation suivie d'un toast « Simulation ».
+ * Contrats avec les prestataires (registre de démonstration), affichés selon la copropriété choisie dans le sélecteur
+ * du haut de page : registre filtré, indicateurs calculés sur lui, copropriété du formulaire préremplie. Sans
+ * copropriété choisie (écran rendu seul) : les cinq contrats, sous-titre « 4 copropriétés ». L'indicateur « Contrats
+ * actifs » compte tous les contrats, y compris échus et à renégocier (comme la maquette). « Exporter » ouvre un
+ * récapitulatif simulé ; « Nouveau contrat » ouvre une FormModal sans validation suivie d'un toast « Simulation ».
  */
 export function ContratsPrestatairesModule() {
   const { push } = useToast()
   const [creationOuverte, setCreationOuverte] = useState(false)
   const [fiche, setFiche] = useState<FicheContrat | null>(null)
-  const contrats = DEMO_CONTRATS_PRESTATAIRES
+  const { code, nom: nomCopro } = useCoproChoisie()
+  const contrats = filtrerParCopro(DEMO_CONTRATS_PRESTATAIRES, code, (contrat) => codeDeNomCopro(contrat.copro))
 
   return (
     <>
@@ -130,7 +136,7 @@ export function ContratsPrestatairesModule() {
             icon: 'handshake',
             num: contrats.length,
             lbl: 'Contrats actifs',
-            sub: '4 copropriétés',
+            sub: nomCopro ?? '4 copropriétés',
           },
           {
             icon: 'coin',
@@ -155,72 +161,76 @@ export function ContratsPrestatairesModule() {
         ]}
       />
       <Panel title="Registre des contrats" sub="Objet · prestataire · échéance" icon="handshake" flush>
-        <DataTable
-          rowKey="id"
-          columns={[
-            {
-              h: 'Objet',
-              render: (contrat) => (
-                <b
-                  style={{
-                    fontWeight: 600,
-                  }}
-                >
-                  {contrat.objet}
-                </b>
-              ),
-            },
-            {
-              h: 'Prestataire',
-              render: (contrat) => contrat.prestataire,
-            },
-            {
-              h: 'Copropriété',
-              render: (contrat) => contrat.copro,
-            },
-            {
-              h: 'Montant / an',
-              render: (contrat) => formatEuros(contrat.montant),
-            },
-            {
-              h: 'Échéance',
-              render: (contrat) => contrat.echeance,
-            },
-            {
-              h: 'Statut',
-              render: (contrat) => <Pill kind={contrat.pill}>{contrat.statut}</Pill>,
-            },
-          ]}
-          rows={contrats}
-          onRow={(contrat) =>
-            setFiche({
-              title: contrat.objet,
-              icon: 'handshake',
-              fields: [
-                {
-                  k: 'Prestataire',
-                  v: contrat.prestataire,
-                },
-                {
-                  k: 'Copropriété',
-                  v: contrat.copro,
-                },
-                {
-                  k: 'Montant annuel',
-                  v: formatEuros(contrat.montant),
-                },
-                {
-                  k: 'Échéance',
-                  v: contrat.echeance,
-                },
-                {
-                  k: 'Statut',
-                  v: contrat.statut,
-                },
-              ],
-            })
-          }
-        />
+        {contrats.length === 0 ? (
+          <EmptyState icon="handshake" title={titreListeVide('Aucun contrat', nomCopro)} />
+        ) : (
+          <DataTable
+            rowKey="id"
+            columns={[
+              {
+                h: 'Objet',
+                render: (contrat) => (
+                  <b
+                    style={{
+                      fontWeight: 600,
+                    }}
+                  >
+                    {contrat.objet}
+                  </b>
+                ),
+              },
+              {
+                h: 'Prestataire',
+                render: (contrat) => contrat.prestataire,
+              },
+              {
+                h: 'Copropriété',
+                render: (contrat) => contrat.copro,
+              },
+              {
+                h: 'Montant / an',
+                render: (contrat) => formatEuros(contrat.montant),
+              },
+              {
+                h: 'Échéance',
+                render: (contrat) => contrat.echeance,
+              },
+              {
+                h: 'Statut',
+                render: (contrat) => <Pill kind={contrat.pill}>{contrat.statut}</Pill>,
+              },
+            ]}
+            rows={contrats}
+            onRow={(contrat) =>
+              setFiche({
+                title: contrat.objet,
+                icon: 'handshake',
+                fields: [
+                  {
+                    k: 'Prestataire',
+                    v: contrat.prestataire,
+                  },
+                  {
+                    k: 'Copropriété',
+                    v: contrat.copro,
+                  },
+                  {
+                    k: 'Montant annuel',
+                    v: formatEuros(contrat.montant),
+                  },
+                  {
+                    k: 'Échéance',
+                    v: contrat.echeance,
+                  },
+                  {
+                    k: 'Statut',
+                    v: contrat.statut,
+                  },
+                ],
+              })
+            }
+          />
+        )}
       </Panel>
       <FormModal
         open={creationOuverte}
@@ -238,11 +248,11 @@ export function ContratsPrestatairesModule() {
             type: 'select',
             options: DEMO_PRESTATAIRES.map((prestataire) => prestataire.nom),
           },
-          {
-            label: 'Copropriété',
-            type: 'select',
-            options: DEMO_NOMS_COPROPRIETES,
-          },
+          champCoproprieteChoisie(nomCopro, {
+              label: 'Copropriété',
+              type: 'select',
+              options: DEMO_NOMS_COPROPRIETES,
+          }),
           {
             label: 'Montant annuel (€)',
             type: 'number',

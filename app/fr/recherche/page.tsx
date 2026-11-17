@@ -29,8 +29,16 @@ import {
   metierToCategory,
 } from '@/lib/search-categories'
 import { FilterModal, type FilterState } from '@/components/recherche/FilterModal'
-import { ArtisanCard, type Artisan, type Availability, type Booking, type Service } from '@/components/recherche/ArtisanCard'
+import { toast } from 'sonner'
+import { ArtisanCard, type Artisan, type Availability, type Service } from '@/components/recherche/ArtisanCard'
 import { comVitfixPrimeiro } from '@/lib/recherche/vitfix-destaque'
+import {
+  chargerParLotsDetaille,
+  idsAvecAgenda,
+  requeteDisponibilites,
+  signalerErreurRecherche,
+  type ResultatParLots,
+} from '@/lib/recherche/creneaux-par-lots'
 import { ALL_COMMUNES, FR_DEPARTEMENTS } from '@/lib/geo/fr-geo-data'
 import { ALL_COMMUNES_PT, PT_DISTRITOS } from '@/lib/geo/pt-geo-data'
 
@@ -39,10 +47,12 @@ import { ALL_COMMUNES_PT, PT_DISTRITOS } from '@/lib/geo/pt-geo-data'
 // Helpers
 // ------------------------------------------------------------------
 
+// Créneaux d'une plage hebdomadaire pour une date donnée. Les réservations ne sont plus soustraites ici :
+// cette page publique ne lit plus `bookings` (la RLS ne renvoie jamais les réservations à un visiteur
+// anonyme, le filtre ne les voyait donc déjà pas). Voir lib/recherche/creneaux-par-lots.ts.
 function generateTimeSlots(
   avail: Availability,
   dateStr: string,
-  bookings: Booking[],
   slotDuration: number = 60
 ): string[] {
   if (!avail.is_available) return []
@@ -51,10 +61,6 @@ function generateTimeSlots(
   const endParts = avail.end_time.substring(0, 5).split(':')
   const startMinutes = parseInt(startParts[0]) * 60 + parseInt(startParts[1])
   const endMinutes = parseInt(endParts[0]) * 60 + parseInt(endParts[1])
-
-  const dayBookings = bookings.filter(
-    (b) => b.booking_date === dateStr && ['confirmed', 'pending'].includes(b.status)
-  )
 
   const slots: string[] = []
 
@@ -69,20 +75,7 @@ function generateTimeSlots(
 
     const hours = Math.floor(m / 60)
     const mins = m % 60
-    const timeStr = `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`
-
-    const slotEnd = m + slotDuration
-    const hasConflict = dayBookings.some((b) => {
-      if (!b.booking_time) return false
-      const bParts = b.booking_time.substring(0, 5).split(':')
-      const bStart = parseInt(bParts[0]) * 60 + parseInt(bParts[1])
-      const bEnd = bStart + (b.duration_minutes || 60)
-      return m < bEnd && slotEnd > bStart
-    })
-
-    if (!hasConflict) {
-      slots.push(timeStr)
-    }
+    slots.push(`${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`)
   }
 
   return slots
@@ -156,7 +149,6 @@ function RechercheContent() {
   // Data
   const [artisans, setArtisans] = useState<Artisan[]>([])
   const [allAvailability, setAllAvailability] = useState<Availability[]>([])
-  const [allBookings, setAllBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
 
   // Filters
@@ -232,7 +224,12 @@ function RechercheContent() {
       const { data: artisanData, error } = await query
 
       if (error) {
-        console.error('Erreur fetch artisans:', error)
+        // Journal + Sentry, et le visiteur est prévenu : la liste continue avec le catalogue seul.
+        signalerErreurRecherche('profiles_artisan', error, { langue: detectedLang })
+        toast.error(tp(
+          'Impossible de charger les artisans inscrits pour le moment.',
+          'Não foi possível carregar os profissionais inscritos neste momento.',
+        ))
       }
 
       let registeredList: Artisan[] = (artisanData || []).map((a) => {
@@ -462,6 +459,16 @@ function RechercheContent() {
         })
       }
 
+      // ── Créneaux des fiches liées à un compte, lancés en parallèle du catalogue ──
+      // Seules ces fiches ont un agenda ; identifiants envoyés par lots courts (URL sous 4 000 caractères :
+      // 758 identifiants d'un coup faisaient une URL de 30 Ko refusée en 400 sur /pt/pesquisar/).
+      // `bookings` n'est plus lu depuis cette page publique : la RLS ne renvoie rien à un visiteur
+      // anonyme. Voir lib/recherche/creneaux-par-lots.ts.
+      const idsAgenda = idsAvecAgenda(registeredList)
+      const disponibilitesPromise: Promise<ResultatParLots<Availability>> = idsAgenda.length > 0
+        ? chargerParLotsDetaille<Availability>('availability', idsAgenda, (lot) => requeteDisponibilites(supabase, lot))
+        : Promise.resolve({ lignes: [], erreurs: [] })
+
       // ── 2. Artisans catalogue (artisans_catalogue) ──────────────────
       // PT : uniquement Porto. FR : toutes les villes françaises (location filter affine).
       let catalogQuery = supabase
@@ -490,7 +497,14 @@ function RechercheContent() {
         catalogQuery = catalogQuery.or(`adresse.ilike.%${location}%,ville.ilike.%${location}%,arrondissement.ilike.%${location}%`)
       }
 
-      const { data: catalogData } = await catalogQuery
+      const { data: catalogData, error: catalogError } = await catalogQuery
+      if (catalogError) {
+        signalerErreurRecherche('artisans_catalogue', catalogError, { pays: detectedCountry })
+        toast.error(tp(
+          'Impossible de charger le catalogue des artisans pour le moment.',
+          'Não foi possível carregar o catálogo de profissionais neste momento.',
+        ))
+      }
 
       const catalogList: Artisan[] = (catalogData || []).map((c) => ({
         id: `cat_${c.id}`,
@@ -535,34 +549,15 @@ function RechercheContent() {
 
       setArtisans(deduped)
 
-      // ── 4. Dispo & bookings pour les artisans inscrits uniquement ────
-      if (registeredList.length > 0) {
-        const ids = registeredList.map((a) => a.id)
-
-        // Recherche montre uniquement les créneaux RDV directs (pas les plages Visite & devis,
-        // qui supposent un échange préalable avec l'artisan).
-        const { data: availData } = await supabase
-          .from('availability')
-          .select('*')
-          .in('artisan_id', ids)
-          .eq('is_available', true)
-          .or('slot_type.eq.rdv,slot_type.is.null')
-          .order('day_of_week')
-
-        setAllAvailability(availData || [])
-
-        const todayStr = format(new Date(), 'yyyy-MM-dd')
-        const { data: bookingsData } = await supabase
-          .from('bookings')
-          .select('*')
-          .in('artisan_id', ids)
-          .gte('booking_date', todayStr)
-          .in('status', ['confirmed', 'pending'])
-
-        setAllBookings(bookingsData || [])
-      } else {
-        setAllAvailability([])
-        setAllBookings([])
+      // ── 4. Créneaux (requêtes lancées avant le catalogue) ────────────
+      const disponibilites = await disponibilitesPromise
+      setAllAvailability(disponibilites.lignes)
+      if (disponibilites.erreurs.length > 0) {
+        // Affichage dégradé : la liste reste visible, le filtre « disponibilités » travaille sur ce qui a été reçu.
+        toast.error(tp(
+          'Les disponibilités n’ont pas pu être chargées : les résultats s’affichent sans ce filtre.',
+          'Não foi possível carregar as disponibilidades: os resultados aparecem sem esse filtro.',
+        ))
       }
 
       // Geocoder la ville saisie pour activer le tri par distance (même sans GPS)
@@ -880,11 +875,7 @@ function RechercheContent() {
             (a) => a.day_of_week === dayOfWeek && a.is_available
           )
           if (avail) {
-            const dateStr = format(d, 'yyyy-MM-dd')
-            const artisanBookings = allBookings.filter(
-              (b) => b.artisan_id === artisan.id
-            )
-            const slots = generateTimeSlots(avail, dateStr, artisanBookings)
+            const slots = generateTimeSlots(avail, format(d, 'yyyy-MM-dd'))
             if (slots.length > 0) return true
           }
         }
@@ -945,7 +936,7 @@ function RechercheContent() {
       : seededShuffle(catalogueArtisans, seed + 1)
 
     return [...sortedRegistered, ...sortedCatalogue]
-  }, [artisans, filters, allAvailability, allBookings, userCoords, searchCoords])
+  }, [artisans, filters, allAvailability, userCoords, searchCoords])
 
   // Partie PT seulement (demande du propriétaire, 14/10/2026) : la fiche VITFIX est toujours première,
   // quel que soit le métier, la localité ou les filtres ; elle affiche le métier recherché quand il est
@@ -1223,9 +1214,6 @@ function RechercheContent() {
                 artisan={artisan}
                 availability={allAvailability.filter(
                   (a) => a.artisan_id === artisan.id
-                )}
-                bookings={allBookings.filter(
-                  (b) => b.artisan_id === artisan.id
                 )}
                 locale={siteLocale}
               />

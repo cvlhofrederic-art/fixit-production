@@ -1,0 +1,1067 @@
+{
+  "famille": {
+    "id": "silicones-mastiques",
+    "nom": "Silicones, mástiques e espumas",
+    "description": "Vedantes em cartucho, espumas de poliuretano e fitas para vedar, colar e isolar juntas em casas de banho, caixilharia, fachadas, coberturas e lareiras, arrumados por tipo de produto, com os acessórios para os aplicar e remover.",
+    "icone": "🧴",
+    "sousFamilles": [
+      {
+        "id": "silicone-sanitario",
+        "nom": "Silicone sanitário (cozinha, casa de banho, piscinas)",
+        "description": "Silicones com anti-fungos para juntas em zonas húmidas: banheiras, bases de duche, lavatórios, bancadas e azulejos. Nenhum pode ser pintado."
+      },
+      {
+        "id": "silicone-neutro",
+        "nom": "Silicone neutro (caixilharia, construção, pedra, espelhos)",
+        "description": "Cura neutra, quase sem cheiro: não ataca metais, betão nem materiais sensíveis. É o silicone para alumínio, PVC, vidro, fachadas, pedra natural e espelhos."
+      },
+      {
+        "id": "silicone-acetico",
+        "nom": "Silicone acético (universal e aquários)",
+        "description": "Cura acética, com cheiro a vinagre: económico e muito aderente a vidro e superfícies vidradas. Não serve para pedra, betão, espelhos nem metais sensíveis."
+      },
+      {
+        "id": "alta-temperatura-corta-fogo",
+        "nom": "Alta temperatura, refratários e corta-fogo",
+        "description": "Produtos para o calor e o fogo: silicone elástico para juntas quentes, massa refratária e cordão para lareiras e salamandras, e silicone com classificação de resistência ao fogo."
+      },
+      {
+        "id": "mastique-acrilico",
+        "nom": "Mástique acrílico (pintável)",
+        "description": "Massas acrílicas de base aquosa para juntas e fendas com pouco movimento em paredes, tetos, rodapés e aros. Pintam-se depois de secas; não servem para zonas sempre molhadas."
+      },
+      {
+        "id": "mastiques-madeira-vidro-cimento",
+        "nom": "Mástiques para madeira e cimento",
+        "description": "Mástiques de acabamento e reparação à cor do suporte: tons de madeira para parquet e rodapés e cinzento tipo argamassa para betão."
+      },
+      {
+        "id": "mastique-poliuretano",
+        "nom": "Mástique de poliuretano",
+        "description": "Vedantes e colas elásticas de grande resistência, pintáveis, para juntas de construção, fachadas, pavimentos e telhados. Aplicam-se em suporte seco."
+      },
+      {
+        "id": "ms-polimero",
+        "nom": "MS polímero / híbrido (cola e veda)",
+        "description": "Cola e veda que adere a quase todos os materiais, mesmo húmidos, sem solventes, e que pode ser pintado. O mais versátil quando é preciso colar e vedar ao mesmo tempo."
+      },
+      {
+        "id": "betuminosos-coberturas",
+        "nom": "Betuminosos e reparação de coberturas",
+        "description": "Para estancar fugas em telhados, caleiras, terraços e remates: mástique betuminoso e selante de emergência."
+      },
+      {
+        "id": "fitas-vedacao",
+        "nom": "Fitas de vedação (butílica, betuminosa, banheira)",
+        "description": "Fitas autoadesivas que vedam sem pistola: bandas com alumínio para coberturas e remates, e fita de remate para banheiras e bancadas."
+      },
+      {
+        "id": "espumas-poliuretano",
+        "nom": "Espumas de poliuretano",
+        "description": "Espumas em lata para encher, isolar, fixar aros e colar: manuais ou de pistola, e versões próprias para janelas, telhas, placas, isolamento projetado e corta-fogo."
+      },
+      {
+        "id": "aplicacao-acabamento-remocao",
+        "nom": "Aplicação e remoção",
+        "description": "O que é preciso à volta do cartucho e da lata: pistolas, fundo de junta e os produtos para tirar silicone velho e limpar espuma."
+      }
+    ]
+  },
+  "materiaux": [
+    {
+      "id": "silicone-sanitario-acetico-antifungos",
+      "famille": "silicones-mastiques",
+      "sousFamille": "silicone-sanitario",
+      "nom": "Silicone sanitário anti-fungos (acético)",
+      "aussiAppele": [
+        "silicone anti-fungos",
+        "silicone antifungos",
+        "silicone anti-bolor",
+        "silicone anti-mofo",
+        "silicone casa de banho",
+        "silicone WC",
+        "silicone cozinha e banho",
+        "silicone para banheira",
+        "silicone em bisnaga",
+        "tubo de silicone",
+        "silicone sem pistola"
+      ],
+      "usage": "Vedar juntas em zonas húmidas com superfícies vidradas: entre azulejos e banheira ou lavatório de louça, lava-loiça, bancada e base da sanita. Tem fungicida para atrasar o aparecimento de bolor.",
+      "aSavoir": "Cura acética, com cheiro a vinagre, e não pode ser pintado. Em banheiras e bases de duche acrílicas, pedra natural, espelhos e metais usar a versão neutra. Tirar todo o silicone antigo e aplicar com a junta bem seca. A bisnaga pequena, sem pistola, só compensa para retoques e juntas curtas.",
+      "conditionnement": "Cartucho 280-300 ml (branco ou transparente); bisnaga 50-150 ml para retoques",
+      "recherche": "silicone casa de banho",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "silicone-sanitario-neutro-antifungos",
+      "famille": "silicones-mastiques",
+      "sousFamille": "silicone-sanitario",
+      "nom": "Silicone sanitário neutro anti-fungos",
+      "aussiAppele": [
+        "silicone neutro casa de banho",
+        "silicone neutro antifungos",
+        "silicone neutro cozinha e WC",
+        "silicone para base de duche",
+        "silicone para polibã",
+        "silicone para resguardo de duche",
+        "silicone para banheira acrílica"
+      ],
+      "usage": "Vedar juntas de banheiras e bases de duche acrílicas, resguardos de duche, lavatórios e bancadas, incluindo perfis de alumínio e PVC. Quase sem cheiro e com anti-fungos.",
+      "aSavoir": "Não pode ser pintado. Em mármore e outras pedras naturais usar o silicone próprio para pedra, porque o sanitário corrente pode manchar. Aplicar com a junta seca e deixar curar antes de molhar.",
+      "conditionnement": "Cartucho 280-300 ml (branco ou transparente)",
+      "recherche": "silicone neutro cozinha",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "silicone-renovador-juntas",
+      "famille": "silicones-mastiques",
+      "sousFamille": "silicone-sanitario",
+      "nom": "Silicone renovador de juntas",
+      "aussiAppele": [
+        "renovador de juntas de silicone",
+        "renova juntas",
+        "revestimento de silicone",
+        "silicone sobre silicone",
+        "silicone com aplicador",
+        "reparador de juntas de silicone"
+      ],
+      "usage": "Revestimento de silicone que se aplica por cima das juntas de silicone existentes na casa de banho e na cozinha, para voltarem a ficar brancas e limpas sem ser preciso arrancá-las.",
+      "aSavoir": "Só renova o aspeto: se a junta estiver descolada, rachada ou a deixar passar água, é preciso tirar o silicone e refazer. Aplicar sobre a junta limpa, sem bolor e seca. Não pode ser pintado.",
+      "conditionnement": "Bisnaga com aplicador (cerca de 100 ml)",
+      "recherche": "renovador juntas silicone",
+      "rechercheEnseigne": {
+        "leroy-merlin": "silicone com aplicador",
+        "maxmat": "silicone juntas"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "silicone-piscinas",
+      "famille": "silicones-mastiques",
+      "sousFamille": "silicone-sanitario",
+      "nom": "Silicone para piscinas e zonas sempre molhadas",
+      "aussiAppele": [
+        "silicone piscina",
+        "silicone para piscinas",
+        "silicone para zonas húmidas",
+        "silicone resistente ao cloro",
+        "silicone para balneários"
+      ],
+      "usage": "Vedar juntas em piscinas, balneários e outras zonas permanentemente molhadas ou submersas.",
+      "aSavoir": "Respeitar a cura completa indicada na embalagem antes de voltar a encher ou a molhar. Não pode ser pintado. Para aquários usar o silicone próprio para aquários.",
+      "conditionnement": "Cartucho 300 ml (branco ou transparente)",
+      "recherche": "silicone piscinas",
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    },
+    {
+      "id": "silicone-neutro-caixilharia",
+      "famille": "silicones-mastiques",
+      "sousFamille": "silicone-neutro",
+      "nom": "Silicone neutro para caixilharia",
+      "aussiAppele": [
+        "silicone de caixilharia",
+        "silicone para alumínio",
+        "silicone para janelas",
+        "silicone para vidros",
+        "silicone neutro alumínio",
+        "silicone neutro PVC",
+        "silicone bronze",
+        "silicone neutro preto"
+      ],
+      "usage": "Vedar o remate entre caixilhos de alumínio, PVC ou madeira tratada e a parede, e entre o vidro e o caixilho, em janelas, portas, marquises e montras. Vende-se em várias cores para condizer com o caixilho.",
+      "aSavoir": "Não pode ser pintado: escolher logo a cor certa (branco, preto, cinzento, bronze, castanho...). Em juntas largas ou fundas, meter primeiro fundo de junta.",
+      "conditionnement": "Cartucho 290-300 ml",
+      "recherche": "silicone neutro caixilharia",
+      "rechercheEnseigne": {
+        "maxmat": "silicone para janelas"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "silicone-neutro-construcao",
+      "famille": "silicones-mastiques",
+      "sousFamille": "silicone-neutro",
+      "nom": "Silicone neutro multiusos de construção",
+      "aussiAppele": [
+        "silicone neutro",
+        "silicone de construção",
+        "silicone neutro universal",
+        "silicone multiusos exterior",
+        "silicone neutro transparente",
+        "silicone para fachadas e telhados"
+      ],
+      "usage": "Vedação geral no interior e no exterior em materiais onde o acético não serve: betão, reboco, tijolo, metais, PVC e vidro. Remates de fachadas, coberturas, chapas, caleiras e atravessamentos de tubos.",
+      "aSavoir": "Não pode ser pintado: onde for preciso pintar por cima usar acrílico, poliuretano ou MS polímero. Não adere a polietileno, polipropileno nem PTFE.",
+      "conditionnement": "Cartucho 280-300 ml (transparente, branco, cinzento, preto)",
+      "recherche": "silicone neutro",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "silicone-neutro-pedra-natural",
+      "famille": "silicones-mastiques",
+      "sousFamille": "silicone-neutro",
+      "nom": "Silicone neutro para pedra natural e mármore",
+      "aussiAppele": [
+        "silicone para mármore",
+        "silicone para granito",
+        "silicone pedra natural",
+        "silicone para bancadas de pedra",
+        "silicone que não mancha a pedra"
+      ],
+      "usage": "Vedar juntas em mármore, granito e outras pedras naturais sem manchar as arestas: bancadas de cozinha, lavatórios, soleiras, peitoris e revestimentos de pedra.",
+      "aSavoir": "Os silicones correntes podem deixar uma mancha gordurosa definitiva na pedra porosa: usar só o que indica pedra natural na embalagem. Não pode ser pintado.",
+      "conditionnement": "Cartucho 290-310 ml (transparente e tons de pedra)",
+      "recherche": "silicone pedra natural",
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    },
+    {
+      "id": "silicone-neutro-espelhos",
+      "famille": "silicones-mastiques",
+      "sousFamille": "silicone-neutro",
+      "nom": "Cola e veda para espelhos (silicone neutro ou MS polímero)",
+      "aussiAppele": [
+        "cola espelho",
+        "cola de espelhos",
+        "cola para espelhos",
+        "silicone para espelhos",
+        "silicone neutro para espelhos",
+        "cola e veda para espelhos"
+      ],
+      "usage": "Colar espelhos a paredes, azulejos, madeira ou portas de roupeiro sem atacar a camada espelhada, e vedar o contorno do espelho.",
+      "aSavoir": "Silicones acéticos e colas com solventes estragam o espelhado: usar só produto indicado para espelhos na embalagem (há de silicone neutro e de MS polímero). Aplicar em cordões verticais e segurar o espelho com calços ou fita até a cola curar.",
+      "conditionnement": "Cartucho 290-300 ml",
+      "recherche": "cola espelhos",
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    },
+    {
+      "id": "silicone-acetico-universal",
+      "famille": "silicones-mastiques",
+      "sousFamille": "silicone-acetico",
+      "nom": "Silicone acético universal",
+      "aussiAppele": [
+        "silicone universal",
+        "silicone multiusos",
+        "silicone transparente",
+        "silicone normal",
+        "silicone para vidro"
+      ],
+      "usage": "Vedação económica de uso geral em vidro, cerâmica vidrada, azulejo, alumínio anodizado e superfícies esmaltadas: montras, vitrinas e pequenas reparações domésticas.",
+      "aSavoir": "Cheira a vinagre enquanto cura e não pode ser pintado. Não usar em betão, reboco, mármore e pedra, espelhos, nem em metais como cobre, latão, zinco e chumbo. Em zonas húmidas preferir o sanitário, que tem anti-fungos.",
+      "conditionnement": "Cartucho 280-300 ml (transparente, branco, preto); bisnaga pequena",
+      "recherche": "silicone universal",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "silicone-aquarios",
+      "famille": "silicones-mastiques",
+      "sousFamille": "silicone-acetico",
+      "nom": "Silicone para aquários",
+      "aussiAppele": [
+        "silicone aquário",
+        "silicone para aquário e terrário",
+        "silicone para vidro de aquário",
+        "cola para aquários"
+      ],
+      "usage": "Colar e vedar vidros de aquários, terrários e vitrinas, e reparar fugas em aquários.",
+      "aSavoir": "Não trocar por silicone sanitário: os anti-fungos são tóxicos para os peixes. Deixar curar por completo, segundo a embalagem, e enxaguar antes de encher. O vidro tem de estar limpo e desengordurado.",
+      "conditionnement": "Cartucho 280-290 ml; bisnaga 60 ml",
+      "recherche": "silicone aquário",
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    },
+    {
+      "id": "silicone-alta-temperatura",
+      "famille": "silicones-mastiques",
+      "sousFamille": "alta-temperatura-corta-fogo",
+      "nom": "Silicone de alta temperatura",
+      "aussiAppele": [
+        "silicone vermelho",
+        "silicone resistente ao calor",
+        "silicone para fornos",
+        "silicone térmico",
+        "silicone para chaminés",
+        "silicone para caldeiras"
+      ],
+      "usage": "Juntas elásticas sujeitas a calor: portas e vidros de fornos, tubos de exaustão de esquentadores e caldeiras, remates de fogões e de condutas de fumos. Costuma ser vermelho ou preto.",
+      "aSavoir": "Aguenta temperaturas na ordem dos 250 a 300 °C, conforme a embalagem: não serve para contacto direto com a chama nem para o interior de lareiras e salamandras, onde se usa massa refratária. Não pode ser pintado.",
+      "conditionnement": "Cartucho 290-310 ml",
+      "recherche": "silicone alta temperatura",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "massa-refrataria-cartucho",
+      "famille": "silicones-mastiques",
+      "sousFamille": "alta-temperatura-corta-fogo",
+      "nom": "Massa refratária em cartucho",
+      "aussiAppele": [
+        "mástique refratário",
+        "massa refractária",
+        "massa para lareiras",
+        "massa para salamandras",
+        "massa de alta temperatura",
+        "cimento refratário em cartucho",
+        "silicone refratário"
+      ],
+      "usage": "Vedar fendas e juntas em contacto com o fogo: lareiras, recuperadores de calor, salamandras, fornos de lenha, churrasqueiras e ligações de tubos de fumos. Endurece com o calor.",
+      "aSavoir": "Fica rígida, não elástica: não usar em juntas com movimento. Deixar secar e fazer o primeiro lume fraco, subindo a temperatura aos poucos, para não fissurar. As embalagens indicam resistência de 1200 a 1500 °C.",
+      "conditionnement": "Cartucho 290-300 ml (preto ou antracite)",
+      "recherche": "massa refratária",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "silicone-corta-fogo",
+      "famille": "silicones-mastiques",
+      "sousFamille": "alta-temperatura-corta-fogo",
+      "nom": "Silicone corta-fogo",
+      "aussiAppele": [
+        "silicone resistente ao fogo",
+        "silicone anti-fogo",
+        "silicone ignífugo",
+        "mástique corta-fogo",
+        "selante corta-fogo"
+      ],
+      "usage": "Selar juntas com movimento e juntas de ligação com exigência de resistência ao fogo: paredes e pavimentos de compartimentação, aros de portas corta-fogo e atravessamentos de instalações.",
+      "aSavoir": "A classificação de resistência ao fogo só vale se a junta for feita como o fabricante ensaiou (largura, profundidade, material de fundo): seguir a ficha técnica. Não confundir com silicone de alta temperatura.",
+      "conditionnement": "Cartucho 300 ml",
+      "recherche": "silicone resistente fogo",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cordao-refratario-fibra-vidro",
+      "famille": "silicones-mastiques",
+      "sousFamille": "alta-temperatura-corta-fogo",
+      "nom": "Cordão refratário de fibra de vidro",
+      "aussiAppele": [
+        "cordão para salamandra",
+        "cordão de vedação de lareira",
+        "junta de fibra de vidro para porta",
+        "cordão para recuperador de calor",
+        "junta de porta de salamandra",
+        "cordão para porta de forno"
+      ],
+      "usage": "Substituir a junta de vedação da porta e do vidro de salamandras, recuperadores de calor, fogões de lenha e fornos, para a porta fechar sem fugas de fumo.",
+      "aSavoir": "Medir a ranhura e comprar o mesmo diâmetro (6, 8, 10 mm...). Cola-se com cola refratária própria, muitas vezes incluída; tirar bem os restos da junta antiga antes de colar.",
+      "conditionnement": "Rolo de 2 a 2,5 m, com ou sem cola",
+      "recherche": "cordão refratário",
+      "rechercheEnseigne": {
+        "maxmat": "junta de fibra de vidro para porta"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "massa-acrilica-pintavel",
+      "famille": "silicones-mastiques",
+      "sousFamille": "mastique-acrilico",
+      "nom": "Massa acrílica pintável (juntas e fendas; normal ou de secagem rápida)",
+      "aussiAppele": [
+        "mástique acrílico",
+        "acrílico",
+        "massa acrílica branca",
+        "silicone pintável",
+        "silicone acrílico",
+        "tapa-fendas",
+        "tapa-fissuras em cartucho",
+        "massa para rodapés",
+        "acrílico rápido",
+        "massa acrílica rápida",
+        "massa acrílica express",
+        "massa acrílica turbo"
+      ],
+      "usage": "Fechar juntas e fendas com pouco movimento antes de pintar: entre rodapé e parede, à volta de aros de portas e janelas, sancas, tetos, fissuras finas em reboco e remates de gesso cartonado com paredes e tetos. A versão de secagem rápida permite pintar no próprio dia.",
+      "aSavoir": "É de base aquosa: não aplicar com chuva, risco de geada ou em zonas sempre molhadas. Encolhe um pouco ao secar, por isso as fendas fundas pedem segunda passagem. Pintar só depois de seca; não serve para juntas de dilatação nem para as juntas entre placas de gesso cartonado, que levam massa de juntas e fita. A rápida forma pele depressa: alisar logo a seguir a aplicar.",
+      "conditionnement": "Cartucho 280-310 ml (branco; também cinzento e castanho)",
+      "recherche": "massa acrílica",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "massa-acrilica-granulada",
+      "famille": "silicones-mastiques",
+      "sousFamille": "mastique-acrilico",
+      "nom": "Massa acrílica granulada (efeito reboco)",
+      "aussiAppele": [
+        "acrílico granulado",
+        "massa acrílica com grão",
+        "massa acrílica texturada",
+        "massa efeito reboco",
+        "tapa-fissuras granulado",
+        "acrílico para fachadas"
+      ],
+      "usage": "Reparar fissuras e fendas em paredes rebocadas, areadas ou texturadas e em fachadas: o grão imita a textura do reboco e a reparação fica disfarçada depois de pintada.",
+      "aSavoir": "Só para fissuras estabilizadas: as que continuam a abrir voltam a aparecer. No exterior, aplicar com tempo seco e pintar por cima depois de curada.",
+      "conditionnement": "Cartucho 280-290 ml (branco)",
+      "recherche": "massa acrílica granulado",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "mastique-acrilico-madeira-parquet",
+      "famille": "silicones-mastiques",
+      "sousFamille": "mastiques-madeira-vidro-cimento",
+      "nom": "Mástique acrílico para madeira e parquet",
+      "aussiAppele": [
+        "silicone para madeira",
+        "silicone madeira",
+        "massa acrílica madeira",
+        "mástique para parquet",
+        "silicone parquet",
+        "silicone cor de madeira",
+        "veda-juntas para pavimento flutuante",
+        "silicone para rodapés"
+      ],
+      "usage": "Fechar, em tons de madeira (carvalho, faia, cerejeira, mogno, pinho...), as juntas entre rodapé e pavimento flutuante ou parquet, aros, molduras, degraus e móveis.",
+      "aSavoir": "Uso interior. Pode ser pintado depois de seco; para envernizar, testar primeiro. Não é betume de enchimento: para tapar furos e nós que se vão lixar usar betume de madeira. Confirmar o tom depois de seco numa zona pouco visível.",
+      "conditionnement": "Cartucho 280-300 ml",
+      "recherche": "silicone madeira",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "massa-reparacao-cimento-cartucho",
+      "famille": "silicones-mastiques",
+      "sousFamille": "mastiques-madeira-vidro-cimento",
+      "nom": "Massa de reparação cor de cimento (cartucho)",
+      "aussiAppele": [
+        "cimento em cartucho",
+        "argamassa em cartucho",
+        "massa acrílica cimento",
+        "silicone cimento",
+        "massa cinzenta para betão",
+        "reparador de fendas em betão"
+      ],
+      "usage": "Reparar com a pistola pequenas fendas e juntas em betão, reboco, blocos e tijolo, com o aspeto cinzento da argamassa: soleiras, muros, degraus e remates de chaminés.",
+      "aSavoir": "Só para pequenas reparações sem movimento e sem água permanente; não substitui uma argamassa de reparação. Não é para vidro, metal nem plásticos. Pode ser pintada depois de seca.",
+      "conditionnement": "Cartucho 300-310 ml",
+      "recherche": "massa acrílica cimento",
+      "rechercheEnseigne": {
+        "maxmat": "silicone cimento"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cola-veda-poliuretano",
+      "famille": "silicones-mastiques",
+      "sousFamille": "mastique-poliuretano",
+      "nom": "Cola e veda de poliuretano",
+      "aussiAppele": [
+        "poliuretano",
+        "PU",
+        "mástique de poliuretano",
+        "mástique PU",
+        "massa de poliuretano",
+        "cola e veda PU",
+        "poliuretano construção"
+      ],
+      "aussiCherche": [
+        "sikaflex"
+      ],
+      "usage": "Colar e vedar com junta elástica e muito resistente em betão, pedra, cerâmica, metal e madeira: juntas de pavimento, soleiras, peitoris, degraus, rodapés, remates de coberturas e fissuras com movimento.",
+      "aSavoir": "Aplicar em suporte seco: com humidade pode fazer bolhas. Pintável depois de curado; as cores claras amarelecem ao sol. Não é indicado para vedar vidro nem para aplicar sobre materiais betuminosos. Usar luvas: depois de seco só sai a raspar. As bolsas de 600 ml pedem pistola tubular própria.",
+      "conditionnement": "Cartucho 280-310 ml; bolsa 600 ml (branco, cinzento, preto, castanho)",
+      "recherche": "cola e veda poliuretano",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "mastique-juntas-fachada",
+      "famille": "silicones-mastiques",
+      "sousFamille": "mastique-poliuretano",
+      "nom": "Mástique elástico para juntas de fachada",
+      "aussiAppele": [
+        "selante para fachadas",
+        "mástique de juntas de dilatação",
+        "poliuretano para fachadas",
+        "selante de juntas elástico",
+        "selante híbrido para fachadas",
+        "mástique para juntas de betão"
+      ],
+      "usage": "Selar juntas de dilatação e de ligação em fachadas de betão e alvenaria, entre painéis pré-fabricados e à volta de caixilharia, onde a junta trabalha com o calor e o frio. É de poliuretano ou de polímero híbrido.",
+      "aSavoir": "Dimensionar a junta: meter fundo de junta e deixar o mástique com uma profundidade de cerca de metade da largura, colado só aos dois lados. Aplicar em suporte seco; em suportes muito porosos o fabricante pode exigir primário.",
+      "conditionnement": "Cartucho 290-300 ml; bolsa 600 ml",
+      "recherche": "selante fachadas",
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    },
+    {
+      "id": "cola-veda-cor-telha",
+      "famille": "silicones-mastiques",
+      "sousFamille": "mastique-poliuretano",
+      "nom": "Cola e veda cor telha para telhados",
+      "aussiAppele": [
+        "poliuretano telha",
+        "mástique cor telha",
+        "cola e veda telha",
+        "cola para telhas",
+        "massa para telhas",
+        "cola e veda terracota"
+      ],
+      "usage": "Colar e vedar telhas partidas ou soltas, cumeeiras, remates de chaminés e rufos, com um cordão da cor da telha que não se nota no telhado.",
+      "aSavoir": "Aplicar com tempo seco, em telha limpa e sem musgo. É uma reparação pontual: não substitui a fixação das telhas nem a impermeabilização de uma cobertura degradada. Também existe em MS polímero, cor telha ou terracota.",
+      "conditionnement": "Cartucho 290-310 ml",
+      "recherche": "poliuretano telha",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cola-veda-ms-polimero",
+      "famille": "silicones-mastiques",
+      "sousFamille": "ms-polimero",
+      "nom": "Cola e veda MS polímero (multiusos, de cor ou transparente)",
+      "aussiAppele": [
+        "cola e veda",
+        "MS polímero",
+        "polímero MS",
+        "cola e veda híbrido",
+        "polímero híbrido",
+        "mástique híbrido",
+        "cola e veda branco",
+        "cola e veda universal",
+        "cola e veda cristal",
+        "MS cristal",
+        "cola e veda transparente",
+        "cola e veda incolor",
+        "cola e veda de polímero híbrido",
+        "cola veda"
+      ],
+      "usage": "Colar e vedar ao mesmo tempo quase todos os materiais de obra, no interior e no exterior: rodapés, soleiras, perfis, chapas, sanitários, remates de bancadas, caleiras e reparação de fugas, mesmo em suporte húmido. A versão transparente (cristal) usa-se onde o cordão fica à vista: vidro, resguardos de duche, bancadas e remates entre materiais diferentes.",
+      "aSavoir": "Não adere a polietileno, polipropileno nem PTFE. Pode ser pintado, mas convém testar a tinta primeiro. As peças pesadas têm de ficar apoiadas até curar, salvo na versão de alta aderência inicial. Para colar espelhos usar cola própria para espelhos.",
+      "conditionnement": "Cartucho 280-300 ml; bisnaga 125 ml (branco, cinzento, preto, castanho, telha, transparente)",
+      "recherche": "cola e veda",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cola-veda-ms-alta-aderencia",
+      "famille": "silicones-mastiques",
+      "sousFamille": "ms-polimero",
+      "nom": "Cola e veda de alta aderência inicial",
+      "aussiAppele": [
+        "cola e veda high tack",
+        "high tack",
+        "cola de agarre imediato",
+        "cola e veda agarre imediato",
+        "cola e veda extra forte",
+        "cola de montagem MS"
+      ],
+      "usage": "Colar peças pesadas na vertical sem escoramento nem fita: painéis, pedra, soleiras, degraus, rodapés altos, perfis metálicos e elementos de fachada, ficando a junta elástica.",
+      "aSavoir": "A massa é muito densa: usar uma pistola reforçada. Aplicar em cordões verticais, para o ar circular e a cola curar por dentro. Não adere a polietileno, polipropileno nem PTFE.",
+      "conditionnement": "Cartucho 290 ml (ou 425 g)",
+      "recherche": "cola veda high tack",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cola-veda-piscinas",
+      "famille": "silicones-mastiques",
+      "sousFamille": "ms-polimero",
+      "nom": "Cola e veda para piscinas",
+      "aussiAppele": [
+        "cola para piscinas",
+        "cola e veda piscina",
+        "MS piscinas",
+        "cola para azulejo de piscina",
+        "cola para pastilha de piscina",
+        "cola e veda azul"
+      ],
+      "usage": "Colar e vedar em piscinas e tanques: pastilha e azulejos soltos, juntas e remates de acessórios, incluindo sobre superfícies húmidas.",
+      "aSavoir": "Ver na embalagem o tempo de cura antes de voltar a encher a piscina e se o produto admite aplicação dentro de água.",
+      "conditionnement": "Cartucho 280-290 ml (branco ou azul)",
+      "recherche": "cola e veda piscinas",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "mastique-betuminoso-cartucho",
+      "famille": "silicones-mastiques",
+      "sousFamille": "betuminosos-coberturas",
+      "nom": "Mástique betuminoso em cartucho",
+      "aussiAppele": [
+        "selante betuminoso",
+        "massa betuminosa",
+        "mástique asfáltico",
+        "betume em cartucho",
+        "massa preta para caleiras",
+        "selante para telhados"
+      ],
+      "usage": "Reparar fugas e fissuras em coberturas com materiais betuminosos: telas asfálticas, caleiras, tubos de queda, remates de chaminés, claraboias e chapas.",
+      "aSavoir": "É preto e suja muito: usar luvas e limpar as ferramentas com diluente. Não se pinta por cima, porque o betume mancha a tinta. É uma reparação pontual, não substitui uma impermeabilização.",
+      "conditionnement": "Cartucho 290-310 ml",
+      "recherche": "mástique betuminoso",
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    },
+    {
+      "id": "selante-emergencia-coberturas",
+      "famille": "silicones-mastiques",
+      "sousFamille": "betuminosos-coberturas",
+      "nom": "Selante de emergência para fugas em coberturas",
+      "aussiAppele": [
+        "impermeabilizante instantâneo",
+        "veda-fugas",
+        "tapa-fugas para telhados",
+        "selante com fibras",
+        "massa de reparação impermeabilizante",
+        "selante para reparações de emergência",
+        "impermeabilizante de reparação instantânea",
+        "tapa-goteiras",
+        "reparador de fugas de telhado",
+        "impermeabilizante de emergência"
+      ],
+      "usage": "Estancar de imediato uma infiltração em telhados, caleiras, tubos de queda, claraboias e remates de chaminés, mesmo com o suporte húmido. Muitas versões têm fibras para cobrir fissuras.",
+      "aSavoir": "É uma solução de recurso: depois é preciso tratar a causa (telha partida, tela rasgada, remate solto). Ver na embalagem a largura máxima de fissura e se admite aplicação à chuva.",
+      "conditionnement": "Cartucho 300 ml (também em lata de 1 kg)",
+      "recherche": "impermeabilizante instantâneo",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "fita-butilica-aluminio",
+      "famille": "silicones-mastiques",
+      "sousFamille": "fitas-vedacao",
+      "nom": "Fita butílica autoadesiva com alumínio",
+      "aussiAppele": [
+        "fita de butilo",
+        "banda butílica",
+        "fita de alumínio butílica",
+        "fita impermeabilizante de butilo",
+        "fita vedante de butilo"
+      ],
+      "usage": "Vedar à água e ao ar remates e uniões: chaminés, claraboias, caleiras, chapas e painéis de cobertura, peitoris, condutas e tubagens. Cola a frio e molda-se à mão.",
+      "aSavoir": "A superfície tem de estar limpa, seca e sem pó; pressionar bem, de preferência com um rolo, para não ficarem bolhas.",
+      "conditionnement": "Rolo de 5 a 10 m, larguras de 5 a 30 cm",
+      "recherche": "fita butílica",
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    },
+    {
+      "id": "fita-betuminosa-autoadesiva",
+      "famille": "silicones-mastiques",
+      "sousFamille": "fitas-vedacao",
+      "nom": "Fita betuminosa autoadesiva (alumínio ou terracota)",
+      "aussiAppele": [
+        "banda betuminosa",
+        "fita asfáltica",
+        "adesivo betuminoso",
+        "fita de alumínio para telhados",
+        "fita impermeabilizante betuminosa",
+        "fita para caleiras",
+        "cinta de impermeabilização",
+        "fita betuminosa autoadesiva com alumínio",
+        "cinta impermeabilizante",
+        "fita tapa-fugas",
+        "fita impermeabilizante",
+        "banda impermeabilizante autoadesiva",
+        "banda de vedação",
+        "banda cor telha"
+      ],
+      "usage": "Tapar fissuras e vedar remates em telhados e terraços: uniões de chapas e de fibrocimento, caleiras, rufos, chaminés, claraboias e telhas partidas. A face de alumínio protege do sol.",
+      "aSavoir": "Com frio cola mal: aplicar com tempo seco e ameno e, se for preciso, aquecer ligeiramente a fita. O suporte tem de estar limpo e seco; em betão e reboco dar antes um primário betuminoso.",
+      "conditionnement": "Rolo de 3 a 10 m, larguras de 10, 20 ou 30 cm",
+      "recherche": "fita betuminosa",
+      "rechercheEnseigne": {
+        "maxmat": "adesivo betuminoso"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "fita-vedacao-banheira",
+      "famille": "silicones-mastiques",
+      "sousFamille": "fitas-vedacao",
+      "nom": "Fita de vedação para banheira e bancada",
+      "aussiAppele": [
+        "fita seladora",
+        "fita para banheira",
+        "fita vedante de casa de banho",
+        "perfil autoadesivo para banheira",
+        "fita de remate de bancada",
+        "fita de calafetar banheira"
+      ],
+      "usage": "Rematar sem pistola a junta entre a parede e a banheira, a base de duche, o lavatório ou a bancada da cozinha, com uma fita autoadesiva que dobra em ângulo.",
+      "aSavoir": "Só cola em superfícies limpas, secas e sem restos de silicone ou gordura; pressionar bem ao longo de todo o comprimento.",
+      "conditionnement": "Rolo de cerca de 3,2 a 3,4 m, largura de 22 a 38 mm",
+      "recherche": "fita vedação banheira",
+      "rechercheEnseigne": {
+        "maxmat": "fita seladora"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "espuma-poliuretano-manual",
+      "famille": "silicones-mastiques",
+      "sousFamille": "espumas-poliuretano",
+      "nom": "Espuma de poliuretano manual",
+      "aussiAppele": [
+        "espuma expansiva",
+        "espuma PU",
+        "espuma de enchimento",
+        "poliuretano em spray",
+        "espuma expansiva manual",
+        "espuma multiusos",
+        "espuma com cânula"
+      ],
+      "usage": "Encher, isolar e vedar cavidades e folgas: à volta de aros de portas e janelas, atravessamentos de tubos, caixas de estore, roços e buracos. Aplica-se com a cânula que vem na lata.",
+      "aSavoir": "Agitar bem a lata e encher só parte da cavidade, porque a espuma cresce. Humedecer ligeiramente o suporte ajuda a espuma a agarrar e a curar. Depois de aberta, a lata deve ser gasta de seguida. A espuma degrada-se ao sol: cortar o excesso e tapar com reboco, massa ou tinta. Não adere a polietileno, polipropileno, PTFE nem silicone.",
+      "conditionnement": "Lata de 750 ml (também 300 e 500 ml)",
+      "recherche": "espuma poliuretano manual",
+      "rechercheEnseigne": {
+        "maxmat": "espuma manual"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "espuma-poliuretano-pistola",
+      "famille": "silicones-mastiques",
+      "sousFamille": "espumas-poliuretano",
+      "nom": "Espuma de poliuretano para pistola",
+      "aussiAppele": [
+        "espuma de pistola",
+        "espuma PU pistola",
+        "espuma expansiva para pistola",
+        "espuma profissional",
+        "espuma de poliuretano profissional"
+      ],
+      "usage": "O mesmo uso da espuma manual, com dosagem precisa e menos desperdício: a lata enrosca numa pistola de espuma e pode ficar montada entre aplicações.",
+      "aSavoir": "Só funciona com pistola de espuma, comprada à parte. Ter sempre limpador de espuma para lavar a pistola quando se tira a lata. Proteger a espuma do sol depois de curada.",
+      "conditionnement": "Lata de 750 ml com rosca para pistola (também 600 a 870 ml)",
+      "recherche": "espuma poliuretano pistola",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "espuma-poliuretano-portas-janelas",
+      "famille": "silicones-mastiques",
+      "sousFamille": "espumas-poliuretano",
+      "nom": "Espuma de poliuretano para portas e janelas",
+      "aussiAppele": [
+        "espuma de baixa expansão",
+        "espuma flexível",
+        "espuma elástica",
+        "espuma para aros",
+        "espuma para caixilharia",
+        "espuma janelas e portas"
+      ],
+      "usage": "Fixar e isolar aros de portas e caixilhos de janelas: enche a folga entre o aro e a parede com uma espuma de expansão controlada, que faz menos força sobre o aro; algumas versões ficam flexíveis e acompanham as dilatações.",
+      "aSavoir": "Calçar e escorar o aro até a espuma curar, para não o empenar. Não dispensa a fixação mecânica do caixilho. Cortar o excesso e proteger do sol.",
+      "conditionnement": "Lata de 500 a 750 ml (manual ou para pistola)",
+      "recherche": "espuma portas e janelas",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "espuma-poliuretano-corta-fogo",
+      "famille": "silicones-mastiques",
+      "sousFamille": "espumas-poliuretano",
+      "nom": "Espuma de poliuretano corta-fogo",
+      "aussiAppele": [
+        "espuma resistente ao fogo",
+        "espuma anti-fogo",
+        "espuma ignífuga",
+        "espuma B1",
+        "espuma corta fogo"
+      ],
+      "usage": "Selar juntas, folgas e atravessamentos em paredes e tetos com exigência de resistência ao fogo, e montar aros de portas corta-fogo.",
+      "aSavoir": "A classificação só vale para as larguras de junta e as montagens ensaiadas pelo fabricante: seguir a ficha técnica. Não é para zonas com calor permanente nem contacto com a chama, como lareiras.",
+      "conditionnement": "Lata de 500 ou 750 ml (manual ou para pistola)",
+      "recherche": "espuma corta fogo",
+      "rechercheEnseigne": {
+        "maxmat": "espuma poliuretano fire"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "espuma-adesiva-poliuretano",
+      "famille": "silicones-mastiques",
+      "sousFamille": "espumas-poliuretano",
+      "nom": "Espuma adesiva de poliuretano (colagem de placas)",
+      "aussiAppele": [
+        "espuma de colagem",
+        "espuma cola",
+        "cola de espuma",
+        "espuma de fixação",
+        "espuma para colar placas de isolamento",
+        "espuma para pladur"
+      ],
+      "usage": "Colar placas de isolamento (poliestireno expandido e extrudido), placas de gesso cartonado, peitoris e elementos leves a paredes e tetos, em vez de cimento-cola ou massa de colagem.",
+      "aSavoir": "Quase não expande: não serve para encher cavidades. Ver na lata os suportes admitidos e o tempo que a placa precisa de ficar apoiada.",
+      "conditionnement": "Lata de 750 ml (manual ou para pistola)",
+      "recherche": "espuma adesiva",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "espuma-isolamento-projetavel",
+      "famille": "silicones-mastiques",
+      "sousFamille": "espumas-poliuretano",
+      "nom": "Espuma de isolamento projetável",
+      "aussiAppele": [
+        "espuma projetável",
+        "espuma projetada em lata",
+        "espuma de isolamento em spray",
+        "poliuretano projetado em lata",
+        "spray de isolamento térmico"
+      ],
+      "usage": "Projetar uma camada de espuma isolante sobre superfícies irregulares ou de difícil acesso: caixas de estore, cantos, pontes térmicas, tubagens e pequenas zonas de teto ou parede.",
+      "aSavoir": "Rende pouco por lata: serve para pequenas áreas e remates, não para isolar uma casa inteira. Proteger do sol depois de curada. Não adere a polietileno, polipropileno nem PTFE.",
+      "conditionnement": "Lata de 700 ml",
+      "recherche": "espuma projetável",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "pistola-espuma-poliuretano",
+      "famille": "silicones-mastiques",
+      "sousFamille": "aplicacao-acabamento-remocao",
+      "nom": "Pistola para espuma de poliuretano",
+      "aussiAppele": [
+        "pistola de espuma",
+        "pistola aplicadora de espuma",
+        "pistola PU",
+        "pistola para espuma expansiva",
+        "pistola de espuma de poliuretano",
+        "aplicador de espuma"
+      ],
+      "usage": "Aplicar as latas de espuma para pistola: regula o caudal, chega a sítios estreitos e permite parar e retomar o trabalho.",
+      "aSavoir": "Limpar com limpador de espuma sempre que se retira a lata: espuma curada dentro da pistola inutiliza-a. Só serve para latas com rosca para pistola.",
+      "conditionnement": "Unidade",
+      "recherche": "pistola espuma poliuretano",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "fundo-de-junta-polietileno",
+      "famille": "silicones-mastiques",
+      "sousFamille": "aplicacao-acabamento-remocao",
+      "nom": "Fundo de junta em polietileno",
+      "aussiAppele": [
+        "cordão de polietileno",
+        "cordão fundo de junta",
+        "cordão de espuma para juntas",
+        "fundo de junta PE",
+        "enchimento de juntas"
+      ],
+      "usage": "Cordão de espuma que se mete na junta antes do mástique, para limitar a profundidade, poupar produto e impedir que o vedante cole ao fundo. Usa-se em juntas de dilatação, fachadas, caixilharia e pavimentos.",
+      "aSavoir": "Escolher um diâmetro cerca de 25% maior do que a largura da junta, para ficar preso por compressão. O mástique deve ficar com uma profundidade próxima de metade da largura.",
+      "conditionnement": "Ao metro ou em rolo; diâmetros de 6 a 30 mm",
+      "recherche": "fundo de junta",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "removedor-silicone",
+      "famille": "silicones-mastiques",
+      "sousFamille": "aplicacao-acabamento-remocao",
+      "nom": "Removedor de silicone",
+      "aussiAppele": [
+        "tira-silicone",
+        "elimina silicone",
+        "dissolvente de silicone",
+        "removedor de selantes",
+        "decapante de silicone",
+        "removedor de silicone velho"
+      ],
+      "usage": "Amolecer os restos de silicone curado que ficam depois de arrancar a junta velha, em azulejo, vidro, louça sanitária e metal, para os tirar com espátula e pano.",
+      "aSavoir": "Não dissolve uma junta inteira: primeiro corta-se e arranca-se o cordão, depois aplica-se nos resíduos e deixa-se atuar o tempo indicado. Testar antes numa zona escondida em plásticos, acrílico, superfícies pintadas e pedra natural.",
+      "conditionnement": "Embalagem de 100 ml (também em spray)",
+      "recherche": "removedor silicone",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "limpador-espuma-poliuretano",
+      "famille": "silicones-mastiques",
+      "sousFamille": "aplicacao-acabamento-remocao",
+      "nom": "Limpador de espuma de poliuretano",
+      "aussiAppele": [
+        "limpa-espumas",
+        "spray de limpeza de espuma",
+        "removedor de espuma PU",
+        "limpa-pistolas de espuma",
+        "eliminador de espuma",
+        "cleaner de espuma",
+        "limpa-pistolas",
+        "limpador de pistola de espuma"
+      ],
+      "usage": "Lavar por dentro a pistola de espuma e limpar salpicos de espuma ainda fresca em ferramentas e superfícies. Enrosca na pistola como uma lata de espuma.",
+      "aSavoir": "Só dissolve espuma fresca; depois de curada sai apenas a raspar. Pode atacar plásticos, vernizes e pintura: testar numa zona escondida.",
+      "conditionnement": "Spray de 500 ml",
+      "recherche": "limpeza espuma poliuretano",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "pistola-silicone-manual",
+      "famille": "silicones-mastiques",
+      "sousFamille": "aplicacao-acabamento-remocao",
+      "nom": "Pistola de silicone manual (esqueleto)",
+      "aussiAppele": [
+        "pistola de cartuchos",
+        "pistola de mástique",
+        "aplicador de silicone",
+        "pistola de silicone",
+        "pistola de calafetar",
+        "pistola para silicone",
+        "pistola esqueleto",
+        "pistola para bolsas",
+        "pistola de salsicha",
+        "pistola tubular",
+        "pistola fechada 600 ml"
+      ],
+      "usage": "Aplica cartuchos de silicone, mástique, massa acrílica, cola de montagem e bucha química em cartucho normal.",
+      "aSavoir": "As mais simples cansam a mão com produtos espessos: para poliuretano e cola e veda escolher uma reforçada.",
+      "conditionnement": "Para cartuchos de 280-310 ml",
+      "recherche": "pistola silicone",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "pistola-silicone-reforcada",
+      "famille": "silicones-mastiques",
+      "sousFamille": "aplicacao-acabamento-remocao",
+      "nom": "Pistola de silicone profissional (reforçada ou tubular)",
+      "aussiAppele": [
+        "pistola profissional",
+        "pistola tubular",
+        "pistola de bolsas",
+        "pistola de salsichas"
+      ],
+      "usage": "Para uso intensivo e produtos espessos; a tubular fechada aplica também bolsas.",
+      "aSavoir": "Para bolsas de 400-600 ml é preciso pistola tubular do comprimento certo.",
+      "conditionnement": "Para cartuchos de 300 ml ou bolsas até 600 ml",
+      "recherche": "pistola silicone profissional",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "vedante-autoadesivo-janelas-portas",
+      "famille": "silicones-mastiques",
+      "sousFamille": "fitas-vedacao",
+      "nom": "Vedante autoadesivo para janelas e portas (perfil de espuma ou de borracha)",
+      "aussiAppele": [
+        "fita vedante para janelas",
+        "borracha autoadesiva para portas",
+        "calafetador de janelas",
+        "vedante perfil E, P ou D"
+      ],
+      "usage": "Fecha a folga entre a folha e o aro de janelas e portas de madeira, para cortar correntes de ar, pó e ruído.",
+      "aSavoir": "Escolher o perfil pela folga medida com a folha fechada: vedante grosso demais impede o fecho e força as dobradiças. Só cola em superfície limpa, seca e desengordurada. A espuma gasta-se mais depressa do que a borracha. Não serve para substituir as borrachas de encaixe do alumínio e do PVC.",
+      "conditionnement": "Rolo, em vários perfis e espessuras",
+      "recherche": "vedante autoadesivo janelas",
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    },
+    {
+      "id": "veda-portas",
+      "famille": "silicones-mastiques",
+      "sousFamille": "fitas-vedacao",
+      "nom": "Veda-portas para a base da porta (escova ou borracha)",
+      "aussiAppele": [
+        "guarda-vento de porta",
+        "rodo veda-portas",
+        "escova para fundo de porta",
+        "vedante de base de porta"
+      ],
+      "usage": "Fecha a folga entre a folha da porta e o pavimento ou a soleira, por onde entra ar, pó e, nas portas exteriores, água empurrada pelo vento.",
+      "aSavoir": "Há modelos adesivos, aparafusados e automáticos (embutidos na folha, descem ao fechar). Corta-se à largura da folha; não pode arrastar no pavimento nem prender ao abrir. Em portas exteriores escolher modelo próprio para exterior.",
+      "conditionnement": "Barra de alumínio ou PVC com escova ou borracha, cortável à medida",
+      "recherche": "veda portas",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    }
+  ]
+}

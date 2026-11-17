@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAuthUser, getUserRole } from '@/lib/auth-helpers'
+import { getAuthUser, isSuperAdmin } from '@/lib/auth-helpers'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { logger } from '@/lib/logger'
 import { adminKycQuerySchema, adminKycPatchSchema, validateBody } from '@/lib/validation'
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
-  if (getUserRole(user) !== 'admin' && getUserRole(user) !== 'super_admin') {
+  if (!isSuperAdmin(user)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -76,7 +76,7 @@ export async function PATCH(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
-  if (getUserRole(user) !== 'admin' && getUserRole(user) !== 'super_admin') {
+  if (!isSuperAdmin(user)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

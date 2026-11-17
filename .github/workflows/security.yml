@@ -204,7 +204,10 @@ jobs:
         if: steps.ai-changes.outputs.ai == 'true'
         # Version épinglée (lot 6 Aikido) : 2.19.2 est la dernière compatible Python 3.11
         # (giskard 3.x exige Python ≥ 3.12), c'est celle que `pip install giskard` résolvait.
-        run: pip install giskard==2.19.2
+        # --only-binary :all: (SonarCloud S8541) : roues seulement, sauf langdetect et docopt, deux
+        # dépendances transitives pures Python publiées en sdist uniquement (résolution vérifiée le
+        # 29/10/2026 pour Python 3.11 / manylinux : 85 paquets, 83 en roue).
+        run: "pip install --only-binary :all: --no-binary langdetect,docopt giskard==2.19.2"
 
       - name: Scanner les prompts pour injections et fuites
         if: steps.ai-changes.outputs.ai == 'true'

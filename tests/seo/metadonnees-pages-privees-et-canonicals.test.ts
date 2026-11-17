@@ -99,6 +99,64 @@ describe('pages privées : noindex, nofollow', () => {
     expect(fr.robots).toEqual(NOINDEX)
     expect(pt.robots).toEqual(NOINDEX)
   })
+
+  it('/fr|pt/aj-signalement/ (espace du super admin) : noindex, nofollow, noarchive, titre propre', async () => {
+    // Cas à part : l'espace a son propre titre d'onglet (« AJ Signalement »), contrairement aux layouts ci-dessus.
+    const segment = await import('@/app/(commun)/aj-signalement/layout')
+    const metadata = await metadataDe(Promise.resolve(segment))
+    expect(metadata.robots).toEqual({ ...NOINDEX, noarchive: true })
+    expect(metadata.title).toBe('AJ Signalement')
+  })
+
+  it('/fr|pt/aj-signalement/connexion/ (connexion professionnelle de l’espace) : noindex, nofollow, noarchive, titre propre', async () => {
+    // Robots redits par la page (sous le layout de l'espace) : un changement du layout ne la rendrait pas indexable.
+    const metadata = await metadataDe(import('@/app/(commun)/aj-signalement/connexion/page'))
+    expect(metadata.robots).toEqual({ ...NOINDEX, noarchive: true })
+    expect(metadata.title).toBe('Connexion professionnelle — AJ Signalement')
+  })
+
+  it('/<identifiant>/… (chemin public d’un cabinet client, AJ Signalement) : noindex, nofollow, noarchive', async () => {
+    const segment = await import('@/app/(commun)/cabinet/[identifiant]/layout')
+    const metadata = await metadataDe(Promise.resolve(segment))
+    expect(metadata.robots).toEqual({ ...NOINDEX, noarchive: true })
+  })
+
+  it('/<identifiant>/confirmation-adresse/ : noindex et aucun Referer (le jeton du lien est dans l’ancre)', async () => {
+    vi.doMock('@/components/aj-signalement/ConfirmationAdresseQr', () => ({ default: () => null }))
+    const metadata = await metadataDe(import('@/app/(commun)/cabinet/[identifiant]/confirmation-adresse/page'))
+    expect(metadata.robots).toEqual({ ...NOINDEX, noarchive: true })
+    expect(metadata.referrer).toBe('no-referrer')
+  })
+
+  it('/<identifiant>/invitation/ (ouverture de l’accès d’un gestionnaire) : noindex, aucun Referer, titre propre', async () => {
+    vi.doMock('@/components/aj-signalement/InvitationAccesQr', () => ({ default: () => null }))
+    const metadata = await metadataDe(import('@/app/(commun)/cabinet/[identifiant]/invitation/page'))
+    expect(metadata.robots).toEqual({ ...NOINDEX, noarchive: true })
+    expect(metadata.referrer).toBe('no-referrer')
+    expect(metadata.title).toBe('AJ Signalement — Ouverture de votre accès')
+  })
+
+  // Espace du cabinet (PR 2, lot 4) : connexion professionnelle du cabinet et suivi du gestionnaire.
+  it('/<identifiant>/connexion/ (connexion professionnelle du cabinet) : noindex, nofollow, noarchive, titre au nom du cabinet', async () => {
+    vi.doMock('@/components/aj-signalement/espace/ChargeurConnexionEspaceQr', () => ({ default: () => null }))
+    vi.doMock('@/lib/aj-signalement/serveur', () => ({
+      lireCabinetDuCheminQr: async (identifiant: string) => ({ ok: true, cabinet: { identifiant, nom: 'Cabinet Exemple' } }),
+    }))
+    const { generateMetadata } = await import('@/app/(commun)/cabinet/[identifiant]/connexion/page')
+    const metadata = await generateMetadata({ params: Promise.resolve({ identifiant: 'cabinet-exemple' }) })
+    expect(metadata.robots).toEqual({ ...NOINDEX, noarchive: true })
+    expect(metadata.title).toBe('Connexion professionnelle — Cabinet Exemple')
+  })
+
+  it('/<identifiant>/suivi/ (espace du gestionnaire) : noindex, nofollow, noarchive, titre de l’espace', async () => {
+    vi.doMock('@/components/aj-signalement/espace/ChargeurEspaceQr', () => ({ default: () => null }))
+    vi.doMock('@/lib/aj-signalement/serveur', () => ({
+      lireCabinetDuCheminQr: async (identifiant: string) => ({ ok: true, cabinet: { identifiant, nom: 'Cabinet Exemple' } }),
+    }))
+    const metadata = await metadataDe(import('@/app/(commun)/cabinet/[identifiant]/suivi/page'))
+    expect(metadata.robots).toEqual({ ...NOINDEX, noarchive: true })
+    expect(metadata.title).toBe('AJ Signalement')
+  })
 })
 
 describe('sitemaps : aucune page privée soumise', () => {

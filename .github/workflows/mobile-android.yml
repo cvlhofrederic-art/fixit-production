@@ -1,0 +1,74 @@
+# ── App Android — APK de test ─────────────────────────────────────────────────
+# Construit l'APK de test (debug) de l'appli Vitfix Pro, qui affiche l'espace mobile du site (capacitor.config.ts).
+# Sans Android Studio : l'APK se télécharge dans le résumé du run (rubrique « Artifacts ») puis s'installe sur un
+# téléphone Android (MOBILE_GUIDE.md). Signé avec la clé de debug du runner : il ne peut pas aller sur Google Play ;
+# la version publiable demandera une clé d'envoi gardée en secret. Non bloquant.
+
+name: "App Android — APK de test"
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - "android/**"
+      - "mobile/**"
+      - "capacitor.config.ts"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/mobile-android.yml"
+
+permissions: {}
+
+concurrency:
+  group: mobile-android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    name: "APK de test (debug)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+
+      - name: Configurer Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: 22
+          package-manager-cache: false
+
+      # Seuls @capacitor/cli et les paquets natifs servent ici : aucun script d'installation n'est nécessaire.
+      - name: Installer les dépendances
+        run: npm ci --ignore-scripts
+
+      # Copie la page hors connexion (mobile/www), la configuration et la liste des plugins dans le projet Android.
+      # Binaire local du lockfile, pas npx (qui pourrait télécharger un paquet hors lockfile).
+      - name: Synchroniser Capacitor (Android)
+        run: ./node_modules/.bin/cap sync android
+
+      # Capacitor 8 exige le JDK 21, installé sur les runners Ubuntu mais pas par défaut.
+      - name: Construire l'APK de debug
+        working-directory: android
+        run: |
+          if [ -z "${JAVA_HOME_21_X64:-}" ]; then
+            echo "::error::JDK 21 introuvable sur le runner (JAVA_HOME_21_X64)."
+            exit 1
+          fi
+          export JAVA_HOME="$JAVA_HOME_21_X64"
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Publier l'APK
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: vitfix-pro-apk-test
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14

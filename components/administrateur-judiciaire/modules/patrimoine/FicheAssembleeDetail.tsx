@@ -16,10 +16,13 @@ import {
 import { formatEuros } from '@/lib/administrateur-judiciaire/domain/format'
 import { MAJORITES_AG } from '@/lib/administrateur-judiciaire/domain/majorites-ag'
 import { controlerConvocation, controlerPouvoirs } from '@/lib/administrateur-judiciaire/domain/votes-ag'
+import { useLiaisonCoproAj } from '@/lib/liaison-copro-aj/hooks'
+import { dateHeure } from '@/lib/liaison-copro-aj/vues-aj'
 
 const nombre = (valeur: number) => valeur.toLocaleString('fr-FR')
 const date = (valeur: string | null) => (valeur ? dateIsoVersFr(valeur) : '')
 const ouiNon = (valeur: boolean) => (valeur ? 'Oui' : 'Non')
+const LIBELLES_VOTE = { pour: 'Pour', contre: 'Contre', abstention: 'Abstention' } as const
 const JOURS = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']
 const jourDeLaSemaine = (iso: string) => JOURS[new Date(`${iso}T12:00:00Z`).getUTCDay()]
 const TENUE = new Set(['Tenue', 'PV signé', 'Notifiée'])
@@ -94,7 +97,12 @@ function BlocProcesVerbal({ assemblee }: { assemblee: FicheAssemblee }) {
  * décisions de l'exercice, procès-verbal (échéance de contestation), notes et équipe.
  */
 export function FicheAssembleeDetail({ assemblee, nomCopro, onClose, onFicheCopropriete, onModifier }: FicheAssembleeDetailProps) {
+  // Votes par correspondance transmis depuis le portail copropriétaire relié (avant la séance, comptés le jour de l'AG).
+  const liaison = useLiaisonCoproAj()
   if (!assemblee) return <Modal open={false} onClose={onClose} size="lg" labelledBy="fa-t" />
+  const votesPortail = liaison.votes
+    .filter((vote) => vote.agId === assemblee.id)
+    .sort((a, b) => a.resolutionNumero - b.resolutionNumero || a.nomCoproprietaire.localeCompare(b.nomCoproprietaire))
   const titre = `Assemblée générale du ${dateIsoVersFr(assemblee.date)}`
   const tenue = TENUE.has(assemblee.statut)
   const resultats = resultatsResolutions(assemblee)
@@ -145,6 +153,23 @@ export function FicheAssembleeDetail({ assemblee, nomCopro, onClose, onFicheCopr
               vide="Aucune résolution inscrite."
             />
           </Section>
+          {votesPortail.length > 0 && (
+            <Section titre="Votes par correspondance reçus du portail" icone="mail" large>
+              <Tableau
+                entetes={['Copropriétaire', 'Résolution', 'Vote', 'Reçu le']}
+                largeurs={[30, 40, 12, 18]}
+                lignes={votesPortail.map((vote) => [
+                  vote.nomCoproprietaire,
+                  `${vote.resolutionNumero}. ${assemblee.resolutions.find((r) => r.numero === vote.resolutionNumero)?.intitule ?? ''}`,
+                  LIBELLES_VOTE[vote.choix],
+                  dateHeure(vote.date),
+                ])}
+              />
+              <p className="muted" style={{ fontSize: 12, margin: '8px 0 0' }}>
+                Formulaires de vote par correspondance déposés sur l&apos;espace copropriétaire ; ils sont comptés le jour de la séance.
+              </p>
+            </Section>
+          )}
           <Section titre="Présence" icone="users">
             {tenue ? (
               <Tableau

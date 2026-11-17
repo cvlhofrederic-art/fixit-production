@@ -8,6 +8,22 @@ import { Panel } from '@/components/administrateur-judiciaire/ui/Panel'
 import { Pill } from '@/components/administrateur-judiciaire/ui/Pill'
 import { ProgressBar } from '@/components/administrateur-judiciaire/ui/ProgressBar'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
+import { formatEuros } from '@/lib/administrateur-judiciaire/domain/format'
+import { useCodeCoproCourant, useCoproCourante } from '@/lib/administrateur-judiciaire/selection'
+
+/** Copropriété du dossier de convocation : nom, numéro RG et budget prévisionnel affiché. */
+interface CoproDossierAg {
+  nom: string
+  rg: string
+  budget: string
+}
+
+/** Dossier de la démonstration, sans copropriété choisie (texte figé de la maquette). */
+const DOSSIER_AG_DEMO: CoproDossierAg = {
+  nom: 'Résidence Le Méridien',
+  rg: '26/00892',
+  budget: '142 000 €',
+}
 
 /** Étape de préparation d'une AG : [identifiant, libellé, ton] (rust = critique, gold = clé, sage = standard). */
 export type EtapePreparationAg = readonly [id: string, libelle: string, ton: 'gold' | 'sage' | 'rust']
@@ -24,14 +40,28 @@ export const ETAPES_PREPARATION_AG: readonly EtapePreparationAg[] = [
 ]
 
 /**
- * Préparateur d'assemblée générale : liste de contrôle cochable (état local, non persisté) avec barre de progression.
- * « Générer le dossier » ouvre un dossier de convocation de démonstration (document généré).
+ * Préparateur d'assemblée générale de la copropriété choisie dans le sélecteur du haut de page : liste de contrôle
+ * cochable (état local, non persisté, propre à chaque copropriété) avec barre de progression. « Générer le dossier »
+ * ouvre un dossier de convocation de démonstration (document généré) au nom, au numéro RG et au budget de la
+ * copropriété choisie ; sans copropriété choisie, celui de la démonstration (Résidence Le Méridien).
  */
 export function PreparateurAgModule() {
   const { push } = useToast()
-  const [etapesFaites, setEtapesFaites] = useState<Record<string, boolean>>({})
+  const code = useCodeCoproCourant()
+  const copro = useCoproCourante()
+  const dossier: CoproDossierAg = code
+    ? { nom: copro.nom, rg: copro.rg || '—', budget: formatEuros(copro.budget) }
+    : DOSSIER_AG_DEMO
+  const cleCopro = code ?? ''
+  const [etapesParCopro, setEtapesParCopro] = useState<Record<string, Record<string, boolean>>>({})
+  const etapesFaites = etapesParCopro[cleCopro] ?? {}
   const nombreFaites = ETAPES_PREPARATION_AG.filter((etape) => etapesFaites[etape[0]]).length
   const pourcentage = Math.round((nombreFaites / ETAPES_PREPARATION_AG.length) * 100)
+  const basculerEtape = (id: string) =>
+    setEtapesParCopro((precedentes) => ({
+      ...precedentes,
+      [cleCopro]: { ...precedentes[cleCopro], [id]: !precedentes[cleCopro]?.[id] },
+    }))
 
   return (
     <>
@@ -49,7 +79,7 @@ export function PreparateurAgModule() {
                 title: 'Dossier de convocation — AG',
                 eyebrow: 'Syndic judiciaire · Cabinet Delaunay',
                 docTitle: "Convocation à l'assemblée générale ordinaire",
-                meta: 'Résidence Le Méridien · RG 26/00892 · établi le 19/06/2026',
+                meta: `${dossier.nom} · RG ${dossier.rg} · établi le 19/06/2026`,
                 lines: [
                   "Les copropriétaires sont convoqués à l'assemblée générale ordinaire le 8 juillet 2026 à 18h30, en mairie annexe, conformément à l'article 7 du décret du 17 mars 1967.",
                   {
@@ -62,7 +92,7 @@ export function PreparateurAgModule() {
                     li: "Approbation des comptes de l'exercice 2025 (art. 14-3)",
                   },
                   {
-                    li: 'Vote du budget prévisionnel 2026 — 142 000 €',
+                    li: `Vote du budget prévisionnel 2026 — ${dossier.budget}`,
                   },
                   {
                     li: "Travaux de ravalement : appel d'offres (art. 24)",
@@ -100,18 +130,8 @@ export function PreparateurAgModule() {
         >
           {ETAPES_PREPARATION_AG.map(([id, libelle, ton]) => (
             <div
-              onClick={() =>
-                setEtapesFaites((precedentes) => ({
-                  ...precedentes,
-                  [id]: !precedentes[id],
-                }))
-              }
-              onKeyDown={surActivationClavier(() =>
-                setEtapesFaites((precedentes) => ({
-                  ...precedentes,
-                  [id]: !precedentes[id],
-                })),
-              )}
+              onClick={() => basculerEtape(id)}
+              onKeyDown={surActivationClavier(() => basculerEtape(id))}
               role="button"
               tabIndex={0}
               style={{

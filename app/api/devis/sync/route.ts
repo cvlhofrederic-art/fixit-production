@@ -10,6 +10,8 @@ import { toCents } from '@/lib/money'
 import { logger } from '@/lib/logger'
 import { buildHashChainFields, type CanonicalDocPayload } from '@/lib/document-integrity'
 import { isStableDocId } from '@/lib/devis-utils'
+import { renduComplet } from '@/lib/version-rendu'
+import { lignesTvaCompletes, regimeTvaDocument } from '@/lib/totaux-artisan'
 
 export const maxDuration = 30
 
@@ -167,15 +169,22 @@ export async function POST(request: NextRequest) {
   // 4bis. Régime TVA + calcul officiel (corrige bug antérieur total_tax_cents=0).
   // computeTva() force totalTVA=0 et totalTTC=totalHT en régime franchise/autoliq.
   // En classique, agrège la TVA par taux à partir des lignes (BOFiP §50).
-  const regimeTva: TvaRegime =
-    (docRec.regimeTva as TvaRegime) ?? 'classique'
-  const tvaLines: TvaLineInput[] = items
+  // Document artisan au rendu complet (lib/version-rendu.ts) : régime d'après `tvaEnabled` et taux des
+  // frais annexes (`tva_applicable`) comptés, comme le formulaire, le PDF et la liste. Document d'avant
+  // la correction : calcul d'origine, montants en base inchangés.
+  const complet = renduComplet(docRec)
+  const regimeTva: TvaRegime = complet
+    ? regimeTvaDocument(docRec)
+    : (docRec.regimeTva as TvaRegime) ?? 'classique'
+  const tvaLines: TvaLineInput[] = complet ? lignesTvaCompletes(docRec) : items
     .filter((l): l is Record<string, unknown> => l != null && typeof l === 'object')
     .map(l => ({
       totalHT: Number(l.totalHT ?? l.total_ht ?? l.total ?? 0),
       tvaRate: Number(l.tvaRate ?? l.tva_rate ?? 0),
+      horsRemise: l.horsRemise === true,
     }))
-  const tva = computeTva({ regime: regimeTva, lines: tvaLines })
+  // Remise globale du document (lib/remise-commerciale.ts) : même total que computeDocumentTotalHtCents.
+  const tva = computeTva({ regime: regimeTva, lines: tvaLines, remiseGlobale: docRec.remiseGlobale })
   const totalTaxCents = toCents(tva.totalTVA)
   const totalTtcCents = toCents(tva.totalTTC)
 

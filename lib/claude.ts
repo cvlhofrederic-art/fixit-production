@@ -19,7 +19,9 @@
 // muet…), la requête repart telle quelle sur Groq (puis Cerebras, cf.
 // `lib/groq.ts`). Un appel non streamé bascule aussi si le flux casse en cours
 // de route (rien n'a encore été rendu à l'appelant).
-// Le côté artisan / BTP n'utilise pas ce module : il reste sur Groq.
+// Côté artisan / BTP, seule l'Estimation matériaux s'en sert : en relais quand Groq échoue ou rend une réponse
+// inutilisable, sans retour vers Groq (`lib/estimation-materiaux/ai/groq-extractor.ts`). Les autres agents
+// artisan / BTP restent sur Groq.
 
 import { ANTHROPIC_API_URL, CLAUDE_MODEL_AGENTS } from '@/lib/constants'
 import { getSecret } from '@/lib/env'

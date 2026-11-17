@@ -1,7 +1,8 @@
 import { ajouterJours, ajouterMois, dateIsoVersFr, ecartJours, estDateIsoValide, estJourOuvrable } from '@/lib/administrateur-judiciaire/domain/dates'
 import type { SuiviEcheancier } from '@/lib/administrateur-judiciaire/domain/decompte-contentieux'
 import type { CertitudeRegle } from '@/lib/administrateur-judiciaire/domain/delais-legaux'
-import type { ResultatDelaiContestation } from '@/lib/administrateur-judiciaire/domain/statut-assemblee'
+import { modeNotificationCourrier, type ModeNotification } from '@/lib/administrateur-judiciaire/domain/courriers'
+import { derniereFinDelaiContestation, type ResultatDelaiContestation } from '@/lib/administrateur-judiciaire/domain/statut-assemblee'
 import {
   FAMILLE_MODELE_COURRIER,
   FORME_ENVOI_COURRIER,
@@ -53,10 +54,22 @@ import {
  * 🔴 Non établi : PV de carence et attestation de non-recours n'ont pas de texte propre (pratiques) ; la variante
  * « débiteur » du certificat 2° de Gestéam n'a pas de base (le texte ne prévoit pas de certificat négatif) ; la forme
  * électronique qualifiée (LRE) et la remise contre émargement manquent au référentiel des formes d'envoi : « AR » reste
- * le défaut des notifications ; rubriques du modèle annexé à l'arrêté du 2 juillet 2020 non relevées ; D. 1967 art. 11
- * (pièces jointes à la convocation) non relu ; portée du protocole d'apurement hors administration provisoire de
- * l'art. 29-1 (simple accord de délais) ; l'attestation de non-recours suppose un délai calculé par opposant ou
- * défaillant, alors que finDelaiContestationAg n'en donne qu'un par assemblée.
+ * le défaut des notifications (le mode de notification propre à VitFix, modeNotification de courriers.ts, porte la LRE
+ * et le prestataire qualifié depuis J50, ci-dessous) ; rubriques du modèle annexé à l'arrêté du 2 juillet 2020 non
+ * relevées ; D. 1967 art. 11 (pièces jointes à la convocation) non relu ; portée du protocole d'apurement hors
+ * administration provisoire de l'art. 29-1 (simple accord de délais).
+ *
+ * Décisions de Hugo du 11/11/2026 (registre des décisions juridiques : J50, « Oui, calcul électronique » ; notes
+ * decisions-1111/questions-hugo.md et j50-textes.md, textes lus sur Légifrance le 11/11/2026) : sous voie électronique, une
+ * notification par LRE ou par le procédé d'un prestataire qualifié est valable (D. 1967 art. 64, 1° et 2°) ; une forme
+ * sans mode de notification (envoi simple), ou un mode incohérent avec la forme (LRAR hors « AR », envoi électronique en
+ * « AR » : message propre depuis la relecture du 14/11/2026), reste « envoi_non_qualifie » ; sous voie postale, la LRAR
+ * reste exigée (art. 64-1) ;
+ * controlerFormeEnvoi lit le mode quand l'appelant le donne (modeNotification), sinon la forme seule comme avant ;
+ * l'attestation de non-recours lit un délai par opposant ou défaillant (finDelaiContestationAgParDestinataire de
+ * statut-assemblee.ts en donne un par destinataire, D. 1967 art. 18) et la dernière fin par derniereFinDelaiContestation
+ * (même règle : la plus tardive des deux calculs). L'invariant « AR » par défaut des gabarits de notification est gardé :
+ * la liste Gestéam des formes d'envoi ne change pas.
  * La mise en demeure de l'art. 19-2 reste dans actes/actes-express.ts (générateur existant).
  *
  * Avis d'appel de fonds (point 17 du bilan 2, avis-appel.ts) — 🟢 Gestéam, tranche 43 § 22 : famille « Comptabilité
@@ -576,37 +589,62 @@ const ENVOI_NON_QUALIFIE: AnomalieFormeEnvoi = {
     'Envoi simple : il ne vaut pas notification ; lettre recommandée électronique ou prestataire qualifié (D. 1967 art. 64), LRAR sur demande de voie postale (art. 64-1).',
 }
 
-function anomaliesNotification(forme: FormeEnvoiCourrier, voie: 'electronique' | 'postale' | null): AnomalieFormeEnvoi[] {
+/**
+ * Courrier sans valeur de notification : envoi simple (aucun mode), ou mode saisi incohérent avec la forme d'envoi
+ * (relecture du 14/11/2026, sonde P8 : ce n'est pas un envoi simple, le message le dit).
+ */
+function nonQualifie(forme: FormeEnvoiCourrier, modeNotification: ModeNotification | null): AnomalieFormeEnvoi {
+  if (modeNotification === null) return ENVOI_NON_QUALIFIE
+  return {
+    code: 'envoi_non_qualifie',
+    gravite: 'bloquant',
+    message: `Mode de notification « ${modeNotification} » incohérent avec la forme d'envoi « ${forme} » (LRAR en « AR » seulement, envoi électronique hors « AR ») : il ne vaut pas notification ; corriger le mode ou la forme (D. 1967 art. 64, 64-1).`,
+  }
+}
+
+function anomaliesNotification(
+  forme: FormeEnvoiCourrier,
+  voie: 'electronique' | 'postale' | null,
+  modeNotification: ModeNotification | null,
+): AnomalieFormeEnvoi[] {
+  // J50 : mode propre à VitFix (LRE, prestataire qualifié) ; sans mode, « AR » vaut LRAR ; mode incohérent : aucun
+  const mode = modeNotificationCourrier({ formeEnvoi: forme, modeNotification })
   if (voie === 'postale')
-    return forme === 'AR'
+    return mode === 'lrar'
       ? []
       : [{ code: 'lrar_requise', gravite: 'bloquant', message: 'Voie postale demandée : lettre recommandée avec avis de réception (D. 1967 art. 64-1).' }]
-  if (voie === 'electronique')
-    return forme === 'AR'
-      ? [{ code: 'lrar_hors_demande', gravite: 'avertissement', message: "Voie électronique de principe : LRAR sans demande de voie postale, validité à confirmer (L. 1965 art. 42-1)." }]
-      : [ENVOI_NON_QUALIFIE]
+  if (voie === 'electronique') {
+    if (mode === 'lrar')
+      return [{ code: 'lrar_hors_demande', gravite: 'avertissement', message: "Voie électronique de principe : LRAR sans demande de voie postale, validité à confirmer (L. 1965 art. 42-1)." }]
+    return mode === null ? [nonQualifie(forme, modeNotification)] : []
+  }
   return [
     { code: 'voie_inconnue', gravite: 'avertissement', message: 'Voie de notification du destinataire inconnue : la vérifier (demande de voie postale).' },
-    ...(forme === 'AR' ? [] : [ENVOI_NON_QUALIFIE]),
+    ...(mode === null ? [nonQualifie(forme, modeNotification)] : []),
   ]
 }
 
 /**
  * Contrôle de la forme d'envoi d'un courrier issu d'un gabarit, selon la forme imposée et la voie du destinataire. Une
  * convocation remise contre récépissé ou émargement est valable quelle que soit la voie (D. 1967 art. 64-3) : le
- * référentiel des formes d'envoi n'ayant pas cette valeur, l'appelant le signale par `remiseContreEmargement`.
+ * référentiel des formes d'envoi n'ayant pas cette valeur, l'appelant le signale par `remiseContreEmargement`. Le mode
+ * de notification (J50 : lrar, lre, prestataire_qualifie, courriers.ts) est lu quand l'appelant le donne.
  */
 export function controlerFormeEnvoi(
   cle: CleGabaritCourrier,
   forme: FormeEnvoiCourrier,
-  { voie, remiseContreEmargement = false }: { voie: 'electronique' | 'postale' | null; remiseContreEmargement?: boolean },
+  {
+    voie,
+    remiseContreEmargement = false,
+    modeNotification = null,
+  }: { voie: 'electronique' | 'postale' | null; remiseContreEmargement?: boolean; modeNotification?: ModeNotification | null },
 ): AnomalieFormeEnvoi[] {
   const gabarit = gabaritCourrier(cle)
   if (gabarit.formeLegale === 'acte_extrajudiciaire')
     return [{ code: 'acte_extrajudiciaire_requis', gravite: 'avertissement', message: "L'opposition se forme par acte de commissaire de justice au domicile élu ; ce courrier ne la remplace pas (L. 1965 art. 20, I)." }]
   if (gabarit.formeLegale !== 'notification_coproprietaire') return []
   if (remiseContreEmargement && gabarit.remiseContreEmargementAdmise) return []
-  return anomaliesNotification(forme, voie)
+  return anomaliesNotification(forme, voie, modeNotification)
 }
 
 function verifierDate(date: string, libelle: string): void {
@@ -702,18 +740,6 @@ function verifierEntierPositif(nom: string, valeur: number): void {
   if (!Number.isInteger(valeur) || valeur < 0) throw new Error(`${nom} invalide (${valeur}) : entier positif ou nul attendu.`)
 }
 
-/** Dernière échéance de contestation (la plus tardive des deux calculs), ou le motif qui empêche de la connaître. */
-function derniereEcheance(resultats: ResultatDelaiContestation[]): { echeance: string } | { motif: string } {
-  let derniere = ''
-  for (const r of resultats) {
-    if (r.etat === 'non_notifiee') return { motif: "Procès-verbal non notifié : le délai de l'art. 42 n'a pas couru." }
-    if (r.etat === 'refuse') return { motif: r.motif }
-    const echeance = r.echeanceAvecReport > r.echeanceSansReport ? r.echeanceAvecReport : r.echeanceSansReport
-    if (echeance > derniere) derniere = echeance
-  }
-  return { echeance: derniere }
-}
-
 export function controlerAttestationNonRecours(
   resultats: ResultatDelaiContestation[],
   aujourdhui: string,
@@ -729,7 +755,8 @@ export function controlerAttestationNonRecours(
     return { delivrable: true, motif: "Aucun opposant ni défaillant : aucune contestation n'est ouverte (L. 1965 art. 42, al. 2 ; à confirmer)." }
   if (resultats.length < notificationsAttendues)
     return { delivrable: false, motif: `${notificationsAttendues - resultats.length} notification(s) d'opposant ou de défaillant sans délai calculé.` }
-  const resultat = derniereEcheance(resultats)
+  // dernière échéance (la plus tardive des deux calculs), ou le motif qui empêche de la connaître (J50 : fonction commune)
+  const resultat = derniereFinDelaiContestation(resultats)
   if ('motif' in resultat) return { delivrable: false, motif: resultat.motif }
   const derniere = resultat.echeance
   return aujourdhui > derniere

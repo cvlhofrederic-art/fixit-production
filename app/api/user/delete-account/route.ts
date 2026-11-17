@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
+import { refusEffacementGestionnaireQr } from '@/lib/aj-signalement/serveur-compte'
 
 const log = logger.withTenant('api/user/delete-account')
 
@@ -28,6 +29,12 @@ export async function DELETE(request: NextRequest) {
   try { body = await request.json() } catch { body = {} }
   const parsed = deleteAccountSchema.safeParse(body)
   if (!parsed.success) return NextResponse.json({ error: 'Données invalides', details: parsed.error.flatten().fieldErrors }, { status: 400 })
+
+  // AJ Signalement (PR 2, SPEC § 2.10) : le compte d'un gestionnaire d'un cabinet client est géré par son employeur
+  // (responsable de traitement) : refus AVANT toute suppression (403 demande_au_cabinet), la demande est transmise au
+  // super admin. Tout autre compte : null, parcours inchangé (y compris avant les migrations d'AJ Signalement).
+  const refusGestionnaire = await refusEffacementGestionnaireQr(user)
+  if (refusGestionnaire) return refusGestionnaire
 
   const userId = user.id
   const errors: string[] = []

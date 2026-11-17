@@ -1,14 +1,26 @@
 'use client'
 
-import { DEMO_CONTRATS_ASSURANCE } from '@/components/administrateur-judiciaire/data/contrats-assurance'
+import {
+  DEMO_CONTRATS_ASSURANCE,
+  type ContratAssuranceDemo,
+} from '@/components/administrateur-judiciaire/data/contrats-assurance'
+import { EmptyState } from '@/components/administrateur-judiciaire/ui/EmptyState'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { Kpis } from '@/components/administrateur-judiciaire/ui/Kpis'
 import { PageHead } from '@/components/administrateur-judiciaire/ui/PageHead'
 import { Panel } from '@/components/administrateur-judiciaire/ui/Panel'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
+import { codeLigneDemo } from '@/lib/administrateur-judiciaire/domain/selection-copropriete'
+import { useCodeCoproCourant, useCoproCourante } from '@/lib/administrateur-judiciaire/selection'
+
+/** Vrai pour le contrat de responsabilité civile du syndicat (obligatoire, loi ALUR). */
+const estRcDuSyndicat = (contrat: ContratAssuranceDemo): boolean => contrat[0].startsWith('RC du syndicat')
 
 /**
- * Assurances des copropriétés sous mandat, écran de démonstration : indicateurs en dur (4, « OK », 1).
+ * Assurances des copropriétés sous mandat, écran de démonstration affiché selon la copropriété choisie dans le
+ * sélecteur du haut de page : ses contrats seulement, indicateurs calculés sur eux (« RC obligatoire couverte » :
+ * « OK » si la RC du syndicat en fait partie ; « Échéance < 90 j » : contrats en teinte or), copropriété nommée dans le
+ * titre du formulaire. Sans copropriété choisie (écran rendu seul) : les quatre contrats (4, « OK », 1).
  * Le surtitre « Patrimoine · Assurances » est celui de la maquette, bien que l'écran soit rangé dans la conformité légale.
  * Les options « Prestataire » du formulaire « Nouveau contrat » sont codées en dur (cinq prestataires de démonstration).
  * Les cartes des contrats sont une variante inline (padding 16, bouton « Voir » qui affiche un toast info),
@@ -16,6 +28,12 @@ import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
  */
 export function AssurancesModule() {
   const { push } = useToast()
+  const code = useCodeCoproCourant()
+  const copro = useCoproCourante()
+  const contrats = code
+    ? DEMO_CONTRATS_ASSURANCE.filter((contrat) => contrat[4].some((codeContrat) => codeLigneDemo(codeContrat) === code))
+    : DEMO_CONTRATS_ASSURANCE
+  const rcCouverte = contrats.some(estRcDuSyndicat)
 
   return (
     <>
@@ -30,7 +48,7 @@ export function AssurancesModule() {
               push({
                 kind: 'form',
                 icon: 'doc',
-                title: 'Nouveau contrat',
+                title: code ? `Nouveau contrat — ${copro.nom}` : 'Nouveau contrat',
                 fields: [
                   {
                     label: 'Prestataire',
@@ -77,27 +95,28 @@ export function AssurancesModule() {
         items={[
           {
             icon: 'shield',
-            num: 4,
+            num: contrats.length,
             lbl: 'Contrats actifs',
             accent: 'sage',
           },
           {
             icon: 'check',
-            num: 'OK',
+            num: rcCouverte ? 'OK' : 'Non',
             lbl: 'RC obligatoire couverte',
-            accent: 'sage',
+            accent: rcCouverte ? 'sage' : 'rust',
           },
           {
             icon: 'clock',
-            num: 1,
+            num: contrats.filter((contrat) => contrat[3] === 'gold').length,
             lbl: 'Échéance < 90 j',
             accent: 'amber',
           },
         ]}
       />
       <Panel title="Contrats en cours" icon="shield">
+        {contrats.length === 0 && <EmptyState icon="shield" title={`Aucun contrat d'assurance pour ${copro.nom}`} />}
         <div className="card-grid cols-2">
-          {DEMO_CONTRATS_ASSURANCE.map(([intitule, assureurEtReference, echeance, teinte], index) => (
+          {contrats.map(([intitule, assureurEtReference, echeance, teinte], index) => (
             <div
               style={{
                 padding: 16,

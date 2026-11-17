@@ -24,6 +24,20 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!--
+              Retour de « Continuer avec Google » : Supabase renvoie vers io.vitfix.pro://auth/callback,
+              que cet intent-filter ramène à l'appli (launchMode singleTask : onNewIntent, pas de seconde
+              instance). Schéma propre à l'appli, donc ouvert aux autres applications du téléphone : le
+              lien ne porte qu'un code d'autorisation, inutilisable sans le vérificateur PKCE de la
+              WebView (lib/auth/google-app-mobile.ts).
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="io.vitfix.pro" android:host="auth" />
+            </intent-filter>
+
         </activity>
 
         <provider

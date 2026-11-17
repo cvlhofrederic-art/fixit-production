@@ -1,0 +1,1014 @@
+{
+  "famille": {
+    "id": "ferramentas-pintura",
+    "nom": "Ferramentas e acessórios de pintura",
+    "description": "Tudo o que serve para aplicar tinta e proteger a obra: rolos e mini-rolos, trinchas e pincéis, tabuleiros e baldes, cabos extensíveis, fitas de pintor, plásticos, cartões e lonas de proteção, misturadores, kits e pistolas.",
+    "icone": "🖌️",
+    "sousFamilles": [
+      {
+        "id": "rolos-pintura",
+        "nom": "Rolos de pintura, recargas e armações",
+        "description": "Rolos de 18 a 25 cm para paredes, tetos e fachadas, com as respetivas recargas e armações. Escolhem-se pelo comprimento do pelo, conforme a rugosidade da superfície, e pelo tipo de tinta."
+      },
+      {
+        "id": "mini-rolos",
+        "nom": "Mini-rolos",
+        "description": "Rolos de 5 a 15 cm para esmaltar portas e móveis, fazer recortes e chegar onde o rolo grande não entra."
+      },
+      {
+        "id": "trinchas-pinceis",
+        "nom": "Trinchas e pincéis",
+        "description": "Para recortes, cantos, caixilharia, madeiras e todas as zonas onde o rolo não chega."
+      },
+      {
+        "id": "tabuleiros-baldes-grelhas",
+        "nom": "Tabuleiros, baldes e grelhas",
+        "description": "Recipientes para carregar e escorrer o rolo."
+      },
+      {
+        "id": "cabos-extensiveis",
+        "nom": "Cabos extensíveis",
+        "description": "Prolongam o rolo para pintar tetos, paredes altas e fachadas a partir do chão."
+      },
+      {
+        "id": "fitas-pintor",
+        "nom": "Fitas de pintor",
+        "description": "Fitas de papel para mascarar o que não é para pintar. Escolhem-se pelo suporte (interior, exterior, delicado) e pela precisão pretendida."
+      },
+      {
+        "id": "protecao-pintura",
+        "nom": "Plásticos, papéis, cartões e lonas de proteção",
+        "description": "Para cobrir pavimentos, móveis e vãos antes de pintar ou durante a obra."
+      },
+      {
+        "id": "misturadores-acessorios-pintura",
+        "nom": "Misturadores de tinta",
+        "description": "Para homogeneizar a tinta antes de aplicar."
+      },
+      {
+        "id": "kits-pintura",
+        "nom": "Kits de pintura",
+        "description": "Conjuntos prontos de rolo, tabuleiro e acessórios."
+      },
+      {
+        "id": "pistolas-pintura",
+        "nom": "Pistolas de pintura",
+        "description": "Para aplicar tinta, esmalte e verniz por pulverização."
+      }
+    ]
+  },
+  "materiaux": [
+    {
+      "id": "rolo-anti-gota",
+      "famille": "ferramentas-pintura",
+      "sousFamille": "rolos-pintura",
+      "nom": "Rolo anti-gota",
+      "aussiAppele": [
+        "rolo antigota",
+        "rolo de pintar paredes",
+        "rolo de pelo",
+        "rolo de parede"
+      ],
+      "usage": "Pintar paredes e tetos lisos ou ligeiramente irregulares com tintas plásticas: o pelo segura a tinta e salpica menos.",
+      "aSavoir": "Antes da primeira utilização passar o rolo por fita-cola ou lavá-lo, para tirar os pelos soltos.",
+      "conditionnement": "Unidade com armação; 18, 22 e 25 cm de largura",
+      "recherche": "rolo anti-gota",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "rolo-pelo-curto-superficies-lisas",
+      "famille": "ferramentas-pintura",
+      "sousFamille": "rolos-pintura",
+      "nom": "Rolo de pelo curto (superfícies lisas)",
+      "aussiAppele": [
+        "rolo de acabamento fino",
+        "rolo para pladur",
+        "rolo para estuque",
+        "rolo para paredes lisas"
+      ],
+      "usage": "Acabamento fino em paredes e tetos muito lisos: estuque, placas de gesso cartonado, barramentos novos.",
+      "aSavoir": "Em paredes com textura o pelo curto não chega ao fundo do relevo: usar pelo médio ou longo.",
+      "conditionnement": "Unidade com armação; 18 e 22 cm, pelo de cerca de 8 mm",
+      "recherche": "rolo paredes lisas",
+      "rechercheEnseigne": {
+        "maxmat": "rolo pelo curto"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "rolo-pelo-medio-paredes-irregulares",
+      "famille": "ferramentas-pintura",
+      "sousFamille": "rolos-pintura",
+      "nom": "Rolo de pelo médio (paredes irregulares)",
+      "aussiAppele": [
+        "rolo para paredes irregulares",
+        "rolo para areado",
+        "rolo para paredes com relevo"
+      ],
+      "usage": "Pintar paredes e tetos com textura ligeira ou irregulares: areado fino, reboco pintado, paredes antigas.",
+      "conditionnement": "Unidade com armação ou recarga; 18 a 25 cm",
+      "recherche": "rolo paredes irregulares",
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    },
+    {
+      "id": "rolo-pelo-longo-fachadas",
+      "famille": "ferramentas-pintura",
+      "sousFamille": "rolos-pintura",
+      "nom": "Rolo de pelo longo (fachadas e superfícies rugosas)",
+      "aussiAppele": [
+        "rolo de fachada",
+        "rolo rugoso",
+        "rolo para superfícies rugosas",
+        "rolo de lã",
+        "rolo de exterior"
+      ],
+      "usage": "Pintar fachadas, reboco áspero ou texturado, blocos e muros: o pelo longo entra nos poros e nas reentrâncias.",
+      "aSavoir": "Carrega muita tinta e salpica mais: proteger bem pavimentos, caixilharia e o que estiver por baixo.",
+      "conditionnement": "Unidade com armação; 18, 22 e 25 cm",
+      "recherche": "rolo fachadas",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "rolo-esmalte-velour-flocado",
+      "famille": "ferramentas-pintura",
+      "sousFamille": "rolos-pintura",
+      "nom": "Rolo de esmalte (velour ou flocado)",
+      "aussiAppele": [
+        "rolo de lacar",
+        "rolo velour",
+        "rolo flocado",
+        "rolo para esmaltes",
+        "rolo de veludo"
+      ],
+      "usage": "Aplicar esmaltes e vernizes em portas, aros, móveis, madeiras e metais lisos, com acabamento fino e sem marcas.",
+      "aSavoir": "Com esmaltes e vernizes de solvente, confirmar na embalagem que o rolo resiste a solventes.",
+      "conditionnement": "Unidade ou recarga; 18 e 22 cm",
+      "recherche": "rolo esmalte",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "rolo-espuma",
+      "famille": "ferramentas-pintura",
+      "sousFamille": "rolos-pintura",
+      "nom": "Rolo de espuma",
+      "aussiAppele": [
+        "rolo de esponja",
+        "rolo de nylon",
+        "rolo de espuma 22 cm"
+      ],
+      "usage": "Aplicar tintas e vernizes aquosos em superfícies lisas quando se quer uma película fina e uniforme.",
+      "aSavoir": "Muito carregado ou passado depressa deixa microbolhas; a espuma comum desfaz-se com diluentes fortes.",
+      "conditionnement": "Unidade com armação; 18 e 22 cm",
+      "recherche": "rolo de espuma",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "rolo-tintas-texturadas",
+      "famille": "ferramentas-pintura",
+      "sousFamille": "rolos-pintura",
+      "nom": "Rolo para tintas texturadas e rebocos decorativos",
+      "aussiAppele": [
+        "rolo de texturar",
+        "rolo de espuma alveolada",
+        "rolo para tinta de areia",
+        "rolo de efeito"
+      ],
+      "usage": "Aplicar e estruturar tintas texturadas, tintas de areia e rebocos decorativos de grão fino.",
+      "aSavoir": "O desenho final depende do rolo e do sentido das passagens: testar primeiro numa zona pouco visível.",
+      "conditionnement": "Unidade; 18 cm",
+      "recherche": "rolo texturado",
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    },
+    {
+      "id": "rolo-picos-anti-bolhas",
+      "famille": "ferramentas-pintura",
+      "sousFamille": "rolos-pintura",
+      "nom": "Rolo de picos anti-bolhas (autonivelante)",
+      "aussiAppele": [
+        "rolo de picos",
+        "rolo autonivelante",
+        "rolo quebra-bolhas",
+        "rolo desarejador",
+        "rolo de bicos"
+      ],
+      "usage": "Passar sobre a massa autonivelante ou a resina de pavimento ainda fresca, para libertar o ar preso e uniformizar a camada.",
+      "aSavoir": "Só funciona dentro do tempo de trabalho do produto: depois de começar a prender, o rolo deixa marcas.",
+      "conditionnement": "Unidade; cerca de 24 a 25 cm de largura",
+      "recherche": "rolo autonivelante",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "recarga-rolo-pintura",
+      "famille": "ferramentas-pintura",
+      "sousFamille": "rolos-pintura",
+      "nom": "Recarga de rolo e de mini-rolo",
+      "aussiAppele": [
+        "manga de rolo",
+        "recarga de rolo de pintura",
+        "rolo sem armação",
+        "recarga anti-gota",
+        "recarga mini rolo",
+        "recargas 10 cm",
+        "recargas 11 cm"
+      ],
+      "usage": "Manga de substituição que se enfia na armação do rolo ou do mini-rolo (anti-gota, velour, flocado, espuma, rugoso): para trocar de cor ou de tipo de tinta sem comprar outro rolo.",
+      "aSavoir": "Confirmar a largura e o diâmetro: nem todas as recargas servem em todas as armações.",
+      "conditionnement": "Unidade ou packs de 2 a 5; 5–6, 10–11 e 15 cm (mini-rolo) e 18, 22 e 25 cm (rolo)",
+      "recherche": "recarga rolo",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "armacao-rolo-pintura",
+      "famille": "ferramentas-pintura",
+      "sousFamille": "rolos-pintura",
+      "nom": "Armação de rolo",
+      "aussiAppele": [
+        "suporte de rolo",
+        "cabo de rolo",
+        "punho de rolo",
+        "armação para recargas"
+      ],
+      "usage": "Suporte com punho onde encaixa a recarga; o punho recebe o cabo extensível para tetos e paredes altas.",
+      "aSavoir": "A largura da armação tem de coincidir com a da recarga (18, 22 ou 25 cm).",
+      "conditionnement": "Unidade",
+      "recherche": "armação rolo",
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    },
+    {
+      "id": "mini-rolo-anti-gota",
+      "famille": "ferramentas-pintura",
+      "sousFamille": "mini-rolos",
+      "nom": "Mini-rolo anti-gota (10–15 cm)",
+      "aussiAppele": [
+        "mini rolo",
+        "minirolo",
+        "minirrolo",
+        "rolo pequeno",
+        "rolinho"
+      ],
+      "usage": "Pintar recortes, cantos, atrás de tubos e radiadores, ombreiras e pequenas paredes onde o rolo grande não entra.",
+      "conditionnement": "Unidade com armação; 10, 11 e 15 cm",
+      "recherche": "mini rolo anti-gota",
+      "rechercheEnseigne": {
+        "leroy-merlin": "mini rolo",
+        "maxmat": "minirolo"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "mini-rolo-esmalte",
+      "famille": "ferramentas-pintura",
+      "sousFamille": "mini-rolos",
+      "nom": "Mini-rolo de esmalte (velour ou flocado)",
+      "aussiAppele": [
+        "mini rolo de lacar",
+        "mini rolo velour",
+        "mini rolo flocado",
+        "rolo de portas"
+      ],
+      "usage": "Aplicar esmaltes e vernizes em portas, aros, rodapés, móveis e grades, com acabamento fino.",
+      "aSavoir": "Com produtos de solvente, confirmar na embalagem que o rolo resiste a solventes.",
+      "conditionnement": "Unidade com armação ou recargas; 10 e 11 cm",
+      "recherche": "mini rolo lacar",
+      "rechercheEnseigne": {
+        "maxmat": "mini rolo velour"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "mini-rolo-espuma",
+      "famille": "ferramentas-pintura",
+      "sousFamille": "mini-rolos",
+      "nom": "Mini-rolo de espuma",
+      "aussiAppele": [
+        "mini rolo de esponja",
+        "mini rolo espuma 10 cm",
+        "rolo de espuma pequeno"
+      ],
+      "usage": "Aplicar tintas, esmaltes e vernizes aquosos em pequenas superfícies lisas: móveis, portas, prateleiras.",
+      "aSavoir": "A espuma comum desfaz-se com diluentes fortes; carregar pouco para não fazer bolhas.",
+      "conditionnement": "Unidade com armação ou recargas em pack de 2; 5–6, 10 e 11 cm",
+      "recherche": "mini rolo espuma",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "trincha-plana-sintetica",
+      "famille": "ferramentas-pintura",
+      "sousFamille": "trinchas-pinceis",
+      "nom": "Trincha plana sintética",
+      "aussiAppele": [
+        "pincel",
+        "trincha universal",
+        "pincel chato",
+        "trincha para tintas de água"
+      ],
+      "usage": "Recortar cantos, tetos e aros e pintar pequenas superfícies com tintas plásticas e esmaltes aquosos.",
+      "aSavoir": "As larguras vêm muitas vezes em polegadas: 1 polegada são cerca de 25 mm.",
+      "conditionnement": "Unidade; de 20 a 100 mm (3/4 a 4 polegadas)",
+      "recherche": "trincha",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "trincha-cerda-natural",
+      "famille": "ferramentas-pintura",
+      "sousFamille": "trinchas-pinceis",
+      "nom": "Trincha de cerda natural",
+      "aussiAppele": [
+        "trincha de cerda",
+        "pincel de cerda",
+        "trincha cerda preta",
+        "trincha cerda branca",
+        "trincha para esmalte"
+      ],
+      "usage": "Aplicar esmaltes sintéticos, vernizes e outros produtos de solvente em madeira e metal.",
+      "aSavoir": "A cerda natural dá-se melhor com produtos de solvente; em tintas de água amolece com o uso prolongado, e aí as sintéticas aguentam melhor.",
+      "conditionnement": "Unidade; de 3/4 a 5 polegadas (cerca de 20 a 125 mm)",
+      "recherche": "trincha cerda natural",
+      "rechercheEnseigne": {
+        "maxmat": "trincha natural",
+        "leroy-merlin": "trincha cerda preta"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "trincha-radiador-curva",
+      "famille": "ferramentas-pintura",
+      "sousFamille": "trinchas-pinceis",
+      "nom": "Trincha de radiador (curva)",
+      "aussiAppele": [
+        "trincha curva",
+        "trincha de cotovelo",
+        "pincel de radiador",
+        "trincha angular"
+      ],
+      "usage": "Pintar atrás de radiadores, tubos, cantos e outras zonas onde a trincha direita não chega.",
+      "conditionnement": "Unidade; cabeça de cerca de 25 a 60 mm, com cabo comprido",
+      "recherche": "trincha radiador",
+      "rechercheEnseigne": {
+        "maxmat": "trincha curva"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "trincha-larga-retangular",
+      "famille": "ferramentas-pintura",
+      "sousFamille": "trinchas-pinceis",
+      "nom": "Trincha larga retangular (100–150 mm)",
+      "aussiAppele": [
+        "trincha de fachada",
+        "trincha retangular",
+        "trincha 4 polegadas",
+        "trincha 5 polegadas"
+      ],
+      "usage": "Aplicar primários, tintas de fachada, impermeabilizantes e membranas líquidas em superfícies grandes ou rugosas e em remates onde o rolo não entra.",
+      "conditionnement": "Unidade; 100 a 150 mm (4 a 5 polegadas)",
+      "recherche": "trincha retangular",
+      "rechercheEnseigne": {
+        "maxmat": "trincha"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "trincha-madeira-velaturas-vernizes",
+      "famille": "ferramentas-pintura",
+      "sousFamille": "trinchas-pinceis",
+      "nom": "Trincha para madeira (velaturas e vernizes)",
+      "aussiAppele": [
+        "trincha de envernizar",
+        "trincha para velatura",
+        "pincel de verniz",
+        "trincha para decks"
+      ],
+      "usage": "Aplicar velaturas, vernizes e óleos em portas, janelas, vigas, decks e mobiliário de madeira.",
+      "aSavoir": "Passar sempre no sentido do veio e o mesmo número de vezes em cada zona, para não ficar com diferenças de tom.",
+      "conditionnement": "Unidade; de 20 a 100 mm",
+      "recherche": "trincha madeira",
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    },
+    {
+      "id": "pincel-redondo",
+      "famille": "ferramentas-pintura",
+      "sousFamille": "trinchas-pinceis",
+      "nom": "Pincel redondo",
+      "aussiAppele": [
+        "pincel de cabo redondo",
+        "pincel n.º 12",
+        "pincel de retoques",
+        "pincel de aros"
+      ],
+      "usage": "Pintar caixilhos, grades, tubos e molduras e fazer retoques; carrega mais tinta do que a trincha plana da mesma largura.",
+      "conditionnement": "Unidade; numerado pelo diâmetro (por exemplo n.º 12 a n.º 30)",
+      "recherche": "pincel redondo",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "pincel-recorte",
+      "famille": "ferramentas-pintura",
+      "sousFamille": "trinchas-pinceis",
+      "nom": "Pincel de recorte",
+      "aussiAppele": [
+        "trincha de recortar",
+        "pincel de recortes",
+        "pincel de ponta",
+        "pincel de rebater"
+      ],
+      "usage": "Trabalhos de precisão: linhas de recorte, cantos, arestas e molduras, em paredes e em madeiras.",
+      "conditionnement": "Unidade; 15 a 25 mm",
+      "recherche": "pincel recorte",
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    },
+    {
+      "id": "pincel-caiar",
+      "famille": "ferramentas-pintura",
+      "sousFamille": "trinchas-pinceis",
+      "nom": "Pincel de caiar",
+      "aussiAppele": [
+        "broxa",
+        "broxa de caiar",
+        "pincel de cal",
+        "pincel oval",
+        "escova de caiar"
+      ],
+      "usage": "Caiar muros e paredes e aplicar cal, primários e tintas espessas em superfícies rugosas.",
+      "conditionnement": "Unidade; oval ou retangular, de cabeça direita ou inclinada («torto»)",
+      "recherche": "pincel de caiar",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "conjunto-trinchas",
+      "famille": "ferramentas-pintura",
+      "sousFamille": "trinchas-pinceis",
+      "nom": "Conjunto de trinchas",
+      "aussiAppele": [
+        "kit de trinchas",
+        "kit de pincéis",
+        "jogo de trinchas",
+        "conjunto 3 trinchas"
+      ],
+      "usage": "Várias larguras de trincha num só conjunto, para os recortes, aros e pequenas superfícies da mesma obra.",
+      "conditionnement": "Kit de 3 ou 5 trinchas (por exemplo 1, 1,5 e 2 polegadas)",
+      "recherche": "kit trinchas",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "tabuleiro-pintura",
+      "famille": "ferramentas-pintura",
+      "sousFamille": "tabuleiros-baldes-grelhas",
+      "nom": "Tabuleiro de pintura (rolo e mini-rolo)",
+      "aussiAppele": [
+        "tabuleiro de rolo",
+        "bandeja de pintura",
+        "tabuleiro 18 cm",
+        "tabuleiro 25 cm",
+        "tabuleiro mini rolo",
+        "tabuleiro pequeno",
+        "tina de pintura"
+      ],
+      "usage": "Carregar o rolo ou o mini-rolo de tinta e escorrê-lo na rampa estriada antes de pintar.",
+      "aSavoir": "Escolher o tabuleiro com largura igual ou superior à do rolo. Para alguns modelos há forros descartáveis, que poupam a lavagem ao mudar de cor.",
+      "conditionnement": "Unidade; para mini-rolos de 10–11 cm e para rolos de 18 ou de 25 cm",
+      "recherche": "tabuleiro de pintura",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "balde-pintor-com-grelha",
+      "famille": "ferramentas-pintura",
+      "sousFamille": "tabuleiros-baldes-grelhas",
+      "nom": "Balde de pintor (com ou sem grelha)",
+      "aussiAppele": [
+        "balde de pintura",
+        "balde com grelha",
+        "balde retangular de pintor",
+        "balde 16 litros"
+      ],
+      "usage": "Trabalhar com grandes quantidades de tinta: o rolo molha-se no balde e escorre-se na grelha, sem andar a encher o tabuleiro.",
+      "aSavoir": "Nem todos os baldes trazem a grelha: confirmar, ou comprá-la à parte com a medida do balde.",
+      "conditionnement": "Balde de 8 a 16 litros",
+      "recherche": "balde com grelha",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "grelha-escorrer-balde-pintura",
+      "famille": "ferramentas-pintura",
+      "sousFamille": "tabuleiros-baldes-grelhas",
+      "nom": "Grelha de escorrer para balde",
+      "aussiAppele": [
+        "grelha de pintura",
+        "grade de escorrer",
+        "grelha metálica",
+        "grelha de plástico",
+        "escorredor de rolo"
+      ],
+      "usage": "Pendura-se no balde ou na lata de tinta para escorrer o excesso do rolo.",
+      "aSavoir": "Confirmar a medida da grelha com o balde e com a largura do rolo.",
+      "conditionnement": "Unidade; de plástico ou metálica, para baldes de 14 a 20 litros",
+      "recherche": "grelha pintura",
+      "rechercheEnseigne": {
+        "maxmat": "grelha metálica"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cabo-extensivel-rolo",
+      "famille": "ferramentas-pintura",
+      "sousFamille": "cabos-extensiveis",
+      "nom": "Cabo extensível para rolo (1,3 a 3 m)",
+      "aussiAppele": [
+        "extensor de rolo",
+        "cabo telescópico",
+        "vara de rolo",
+        "prolongador de rolo",
+        "cabo extensor",
+        "extensor 3 metros",
+        "vara de fachada"
+      ],
+      "usage": "Pintar tetos e paredes de pé-direito normal sem escadote (cabos até 2 m) e fachadas, empenas, caixas de escada e tetos altos a partir do chão (cabos de 3 m), encaixando o cabo no punho do rolo.",
+      "aSavoir": "Confirmar o tipo de encaixe (rosca ou encaixe de pressão) com a armação do rolo. Com o cabo todo aberto, o rolo carregado pesa muito na ponta: os de alumínio cansam menos do que os de aço.",
+      "conditionnement": "Unidade; de cerca de 1,3 a 3 m, em aço ou alumínio",
+      "recherche": "cabo extensível rolo",
+      "rechercheEnseigne": {
+        "maxmat": "cabo extensível"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "fita-pintor-interior",
+      "famille": "ferramentas-pintura",
+      "sousFamille": "fitas-pintor",
+      "nom": "Fita de pintor de interior",
+      "aussiAppele": [
+        "fita de papel",
+        "fita de pintura",
+        "fita de mascarar",
+        "fita-cola de papel",
+        "fita-cola de pintor"
+      ],
+      "usage": "Mascarar rodapés, aros, tomadas, caixilhos e limites entre cores antes de pintar no interior.",
+      "aSavoir": "Retirar antes de a tinta secar por completo; se já secou, passar uma lâmina entre a fita e a tinta para não a levantar.",
+      "conditionnement": "Rolo de 45 ou 50 m; larguras de 19 a 50 mm",
+      "recherche": "fita de pintor",
+      "rechercheEnseigne": {
+        "maxmat": "fita de pintura"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "fita-pintor-exterior",
+      "famille": "ferramentas-pintura",
+      "sousFamille": "fitas-pintor",
+      "nom": "Fita de pintor de exterior",
+      "aussiAppele": [
+        "fita de exterior",
+        "fita de pintura exterior",
+        "fita resistente UV"
+      ],
+      "usage": "Mascarar caixilharia, cantarias e remates em fachadas e muros: aguenta sol e chuva durante a pintura.",
+      "aSavoir": "Respeitar o prazo máximo de permanência indicado no rolo; a fita de interior, ao sol, cola de vez e sai aos bocados.",
+      "conditionnement": "Rolo de 25 a 50 m; larguras de 24 a 48 mm",
+      "recherche": "fita pintor exterior",
+      "rechercheEnseigne": {
+        "maxmat": "fita de pintura exterior"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "fita-pintor-superficies-delicadas",
+      "famille": "ferramentas-pintura",
+      "sousFamille": "fitas-pintor",
+      "nom": "Fita de pintor para superfícies delicadas",
+      "aussiAppele": [
+        "fita sensível",
+        "fita para papel de parede",
+        "fita de baixa aderência"
+      ],
+      "usage": "Mascarar sobre papel de parede, pintura recente, estuque fino e outras superfícies que a fita normal pode arrancar.",
+      "aSavoir": "Tem pouca aderência: não segura plásticos pesados nem agarra em superfícies com pó.",
+      "conditionnement": "Rolo de 25 m; larguras de 25 a 48 mm",
+      "recherche": "fita pintor superfícies delicadas",
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    },
+    {
+      "id": "fita-pintor-precisao",
+      "famille": "ferramentas-pintura",
+      "sousFamille": "fitas-pintor",
+      "nom": "Fita de pintor de precisão",
+      "aussiAppele": [
+        "fita de limites precisos",
+        "fita washi",
+        "fita de linhas perfeitas",
+        "fita de acabamento perfeito"
+      ],
+      "usage": "Obter linhas de separação nítidas entre duas cores, riscas e desenhos: a fita fina veda melhor a aresta.",
+      "aSavoir": "Calcar bem a aresta da fita antes de pintar, para a tinta não passar por baixo.",
+      "conditionnement": "Rolo de 25 a 45 m; largura de cerca de 24–25 mm",
+      "recherche": "fita pintor precisão",
+      "rechercheEnseigne": {
+        "leroy-merlin": "fita de acabamento perfeito",
+        "maxmat": "fita de limites precisos"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "fita-pintor-curvas",
+      "famille": "ferramentas-pintura",
+      "sousFamille": "fitas-pintor",
+      "nom": "Fita de pintor para curvas",
+      "aussiAppele": [
+        "fita flexível",
+        "fita de curvas",
+        "fita para arcos"
+      ],
+      "usage": "Mascarar arcos, círculos e contornos curvos, que a fita normal não acompanha sem fazer pregas.",
+      "conditionnement": "Rolo de 25 m × 25 mm",
+      "recherche": "fita pintor curvas",
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    },
+    {
+      "id": "plastico-protecao-fino",
+      "famille": "ferramentas-pintura",
+      "sousFamille": "protecao-pintura",
+      "nom": "Plástico de proteção fino (cobertura)",
+      "aussiAppele": [
+        "plástico de pintor",
+        "cobertura de plástico",
+        "plástico para tapar móveis",
+        "película de proteção",
+        "plástico 4x5"
+      ],
+      "usage": "Cobrir móveis, portas, sanitários e objetos contra salpicos de tinta e pó durante a pintura.",
+      "aSavoir": "Muito fino: rasga-se e escorrega no chão. Para pavimentos usar plástico grosso, cartão ou manta absorvente.",
+      "conditionnement": "Folha dobrada de 4 × 5 m (20 m²)",
+      "recherche": "plástico proteção pintura",
+      "rechercheEnseigne": {
+        "maxmat": "plástico 4x5"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "plastico-protecao-grosso",
+      "famille": "ferramentas-pintura",
+      "sousFamille": "protecao-pintura",
+      "nom": "Plástico de proteção grosso",
+      "aussiAppele": [
+        "cobertura de plástico grosso",
+        "plástico reforçado",
+        "plástico para chão",
+        "plástico de obra"
+      ],
+      "usage": "Proteger pavimentos, móveis e vãos em obras mais demoradas; mais resistente a rasgões do que o plástico fino.",
+      "aSavoir": "No chão fica escorregadio: fixar as bordas com fita e não o usar em escadas.",
+      "conditionnement": "Folha dobrada de 4 × 5 m ou 4 × 3 m",
+      "recherche": "plástico proteção grosso",
+      "rechercheEnseigne": {
+        "maxmat": "cobertura de plástico grosso"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "plastico-protecao-com-fita",
+      "famille": "ferramentas-pintura",
+      "sousFamille": "protecao-pintura",
+      "nom": "Plástico de proteção com fita",
+      "aussiAppele": [
+        "fita com plástico",
+        "plástico com fita adesiva",
+        "película com fita",
+        "plástico de mascarar"
+      ],
+      "usage": "Mascarar de uma só vez janelas, portas, rodapés e armários: cola-se a fita e desdobra-se o plástico por cima.",
+      "aSavoir": "A altura do plástico escolhe-se pelo que há a tapar (rodapé, janela, porta inteira).",
+      "conditionnement": "Rolo de 20 a 33 m, com plástico de 0,35 a 2,6 m de altura",
+      "recherche": "plástico com fita",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "papel-protecao-com-fita",
+      "famille": "ferramentas-pintura",
+      "sousFamille": "protecao-pintura",
+      "nom": "Papel de proteção com fita",
+      "aussiAppele": [
+        "papel com fita",
+        "papel de mascarar",
+        "papel de rodapés",
+        "fita com papel"
+      ],
+      "usage": "Proteger rodapés, aros e caixilhos: o papel absorve os pingos em vez de os deixar escorrer.",
+      "aSavoir": "Como qualquer fita de pintor, deixada colada demasiado tempo pode arrancar a tinta de baixo.",
+      "conditionnement": "Rolo de 20 ou 45 m, com papel de 10 a 30 cm de largura",
+      "recherche": "papel com fita",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "papel-protecao-pavimentos",
+      "famille": "ferramentas-pintura",
+      "sousFamille": "protecao-pintura",
+      "nom": "Papel de proteção de pavimentos",
+      "aussiAppele": [
+        "papel para chão",
+        "papel reciclado para chão",
+        "papel kraft de proteção",
+        "rolo de papel de pintor"
+      ],
+      "usage": "Cobrir pavimentos durante a pintura: absorve os pingos e não escorrega tanto como o plástico.",
+      "aSavoir": "Não é impermeável: um derrame de tinta atravessa-o.",
+      "conditionnement": "Rolo de 0,90 m × 20 a 45 m",
+      "recherche": "papel proteção chão",
+      "rechercheEnseigne": {
+        "maxmat": "papel proteção"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cartao-canelado-protecao",
+      "famille": "ferramentas-pintura",
+      "sousFamille": "protecao-pintura",
+      "nom": "Cartão canelado de proteção",
+      "aussiAppele": [
+        "cartão de proteção",
+        "cartão ondulado",
+        "rolo de cartão",
+        "cartão para chão"
+      ],
+      "usage": "Proteger pavimentos, degraus e soleiras contra pancadas, riscos e pingos enquanto dura a obra.",
+      "aSavoir": "Sobrepor as tiras e fixar as emendas com fita; molhado, o cartão perde a resistência.",
+      "conditionnement": "Rolo de 1 m × 15 a 50 m",
+      "recherche": "cartão canelado",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "manta-absorvente-antiderrapante",
+      "famille": "ferramentas-pintura",
+      "sousFamille": "protecao-pintura",
+      "nom": "Manta absorvente antiderrapante",
+      "aussiAppele": [
+        "feltro de proteção",
+        "feltro de pintor",
+        "manta de pintor",
+        "manta de proteção",
+        "feltro para chão",
+        "manta antideslizante"
+      ],
+      "usage": "Proteger pavimentos: o feltro absorve os pingos e a película de baixo impede que passem e que a manta escorregue. Reutilizável.",
+      "aSavoir": "Colocar com o feltro para cima e a película plástica contra o chão.",
+      "conditionnement": "Rolo de 1 m de largura × 3 a 25 m",
+      "recherche": "manta absorvente",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "lona-protecao-ilhos",
+      "famille": "ferramentas-pintura",
+      "sousFamille": "protecao-pintura",
+      "nom": "Lona de proteção com ilhós",
+      "aussiAppele": [
+        "lona impermeável",
+        "oleado",
+        "lona plástica",
+        "lona de cobertura"
+      ],
+      "usage": "Cobrir materiais, máquinas e zonas de obra no exterior ou forrar o chão em trabalhos sujos; os ilhós permitem prendê-la.",
+      "aSavoir": "Prender por todos os ilhós: com vento, uma lona mal presa rasga e arrasta o que cobre.",
+      "conditionnement": "Unidade; várias medidas (por exemplo 4 × 5 m)",
+      "recherche": "lona proteção",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "vareta-misturadora-tinta",
+      "famille": "ferramentas-pintura",
+      "sousFamille": "misturadores-acessorios-pintura",
+      "nom": "Vareta misturadora de tinta para berbequim",
+      "aussiAppele": [
+        "misturador de tinta",
+        "batedor de tinta",
+        "hélice misturadora",
+        "pá misturadora",
+        "misturador para berbequim"
+      ],
+      "usage": "Homogeneizar tintas, primários e vernizes no balde antes de aplicar, montada no berbequim.",
+      "aSavoir": "Misturar em rotação baixa para não meter ar na tinta. Para argamassas e cimento-cola há varetas próprias, mais robustas.",
+      "conditionnement": "Unidade; cerca de 400 mm de comprimento",
+      "recherche": "vareta misturadora tinta",
+      "rechercheEnseigne": {
+        "maxmat": "misturador de tinta"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "kit-pintura-rolo-tabuleiro",
+      "famille": "ferramentas-pintura",
+      "sousFamille": "kits-pintura",
+      "nom": "Kit de pintura com rolo e tabuleiro",
+      "aussiAppele": [
+        "conjunto de pintura",
+        "kit de pintor",
+        "kit rolo e tabuleiro",
+        "kit pintura 25 cm"
+      ],
+      "usage": "Conjunto base para pintar uma divisão: rolo, tabuleiro e, conforme o kit, trincha, pincel, fita ou plástico de proteção.",
+      "aSavoir": "Ver o tipo de rolo incluído (liso, anti-gota, rugoso), para condizer com a parede e a tinta.",
+      "conditionnement": "Kit de 3 a 5 peças, com rolo de 18 ou 25 cm",
+      "recherche": "kit pintura",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "kit-mini-rolo-tabuleiro",
+      "famille": "ferramentas-pintura",
+      "sousFamille": "kits-pintura",
+      "nom": "Kit de mini-rolo com tabuleiro",
+      "aussiAppele": [
+        "kit mini rolo",
+        "kit pintura mini",
+        "conjunto mini rolo",
+        "kit de esmaltar"
+      ],
+      "usage": "Mini-rolo, tabuleiro pequeno e recargas (por vezes trincha e fita) para esmaltar portas e móveis ou fazer retoques.",
+      "conditionnement": "Kit de 2 a 9 peças, com mini-rolo de 10–11 cm",
+      "recherche": "kit mini rolo",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "kit-rolo-cabo-extensivel",
+      "famille": "ferramentas-pintura",
+      "sousFamille": "kits-pintura",
+      "nom": "Rolo com cabo extensível (conjunto)",
+      "aussiAppele": [
+        "rolo com extensor",
+        "kit rolo e extensor",
+        "rolo com cabo",
+        "conjunto rolo e cabo"
+      ],
+      "usage": "Rolo de 22 ou 25 cm já com cabo extensível, para pintar tetos e paredes altas sem escadote.",
+      "conditionnement": "Conjunto de rolo e cabo de cerca de 2 m",
+      "recherche": "rolo com cabo extensível",
+      "rechercheEnseigne": {
+        "maxmat": "conjunto rolo e cabo"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "pistola-pintura-eletrica",
+      "famille": "ferramentas-pintura",
+      "sousFamille": "pistolas-pintura",
+      "nom": "Pistola de pintura elétrica",
+      "aussiAppele": [
+        "pistola de pintar",
+        "máquina de pintar",
+        "pistola de tinta",
+        "pistola HVLP",
+        "pistola de pintura a bateria"
+      ],
+      "usage": "Pulverizar tintas, esmaltes e vernizes em portões, grades, móveis, muros e paredes; há modelos com fio e a bateria.",
+      "aSavoir": "A tinta tem de ser diluída até à viscosidade indicada no manual, e a névoa suja tudo à volta: mascarar bem e usar máscara.",
+      "conditionnement": "Unidade, com depósito acoplado",
+      "recherche": "pistola de pintura",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "pistola-pintura-pneumatica",
+      "famille": "ferramentas-pintura",
+      "sousFamille": "pistolas-pintura",
+      "nom": "Pistola de pintura pneumática (de compressor)",
+      "aussiAppele": [
+        "pistola de compressor",
+        "pistola de ar comprimido",
+        "pistola de gravidade",
+        "pistola de sucção"
+      ],
+      "usage": "Pulverizar esmaltes, vernizes e primários com ar comprimido, com acabamento fino em portas, móveis e metal.",
+      "aSavoir": "Só trabalha ligada a um compressor com caudal de ar suficiente: comparar o consumo da pistola com o débito do compressor.",
+      "conditionnement": "Unidade, com depósito inferior (sucção) ou superior (gravidade)",
+      "recherche": "pistola pintura pneumática",
+      "rechercheEnseigne": {
+        "maxmat": "pistola pintura"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    }
+  ]
+}

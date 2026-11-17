@@ -224,7 +224,7 @@ fixit-production/
 ├── instrumentation.ts                <- Sentry server-side init
 ├── sentry.client.config.ts           <- Sentry client (replay desactive)
 ├── next.config.ts                    <- Config Next.js
-├── capacitor.config.ts               <- Config Capacitor (com.fixit.artisan)
+├── capacitor.config.ts               <- Config Capacitor (io.vitfix.pro)
 │
 ├── supabase/                         <- Migrations et config
 │   └── migrations/                   <- 13 fichiers SQL
@@ -556,7 +556,7 @@ SENTRY_AUTH_TOKEN=sntrys_...
 
 - Imports **toujours dynamiques** : `await import('@capacitor/local-notifications')` pour eviter crash SSR.
 - Guard mobile : `window.innerWidth <= 900 || 'ontouchstart' in window || Capacitor.isNativePlatform()`
-- Config : `capacitor.config.ts` (appId: `com.fixit.artisan`)
+- Config : `capacitor.config.ts` (appli Vitfix Pro, appId: `io.vitfix.pro` ; affiche `https://vitfix.io/pro/mobile/`, voir `MOBILE_GUIDE.md`)
 
 ---
 

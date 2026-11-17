@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
+  NATURES_PARTIE_SINISTRE,
+  ROLES_PARTIE_SINISTRE,
   controlerChronologieSinistre,
   creerSinistre,
+  erreursSaisieSinistre,
   etapeSuiviSinistre,
   indemnitesSinistre,
   reperesDelaisSinistre,
@@ -66,6 +69,82 @@ describe('sinistres — types et création', () => {
   })
 })
 
+describe('sinistres — champs de la fiche Gestéam (optionnels à la saisie)', () => {
+  it('une saisie sans les champs Gestéam reste valide : valeurs par défaut sur la fiche', () => {
+    expect(creerSinistre(saisie())).toMatchObject({
+      numero: null,
+      dateOuverture: null,
+      mandatId: null,
+      bail: null,
+      heureExpertise: null,
+      dateForclusion: null,
+      parties: [],
+      carnetEntretien: false,
+      publieExtranet: false,
+      notes: '',
+      responsable: null,
+      assistant: null,
+      assurance: { compagnieId: null, courtierId: null, numeroCourtier: null, contratId: null },
+    })
+    expect(erreursSaisieSinistre(saisie())).toEqual([])
+  })
+
+  it('accepte et nettoie les champs Gestéam saisis', () => {
+    const sinistre = creerSinistre(
+      saisie({
+        numero: '  CV.00012 ',
+        dateOuverture: '2026-10-28',
+        mandatId: 'M1',
+        bail: '  ',
+        heureExpertise: '09:30',
+        dateForclusion: '2028-10-27',
+        parties: [{ role: 'Lésé', nature: 'Personne', refId: null, libelle: '  Occupant   du lot 12 ' }],
+        carnetEntretien: true,
+        publieExtranet: true,
+        notes: '  Clé chez le gardien.\nRappeler l’expert.  ',
+        responsable: { id: 'collab-1', nom: ' Responsable  Démo ' },
+        assistant: { id: null, nom: '   ' },
+        assurance: { compagnie: 'MMA', courtier: null, contrat: 'POL-1', numeroSinistre: null, numeroCourtier: ' C-77 ', contratId: 'K1' },
+      }),
+    )
+    expect(sinistre).toMatchObject({
+      numero: 'CV.00012',
+      bail: null,
+      heureExpertise: '09:30',
+      parties: [{ role: 'Lésé', nature: 'Personne', refId: null, libelle: 'Occupant du lot 12' }],
+      notes: 'Clé chez le gardien.\nRappeler l’expert.',
+      responsable: { id: 'collab-1', nom: 'Responsable Démo' },
+      assistant: null,
+      assurance: { compagnie: 'MMA', contrat: 'POL-1', numeroCourtier: 'C-77', contratId: 'K1', compagnieId: null },
+    })
+  })
+
+  it('refuse une heure, une date d’ouverture ou de forclusion mal formées, une partie inconnue ou sans nom', () => {
+    expect(() => creerSinistre(saisie({ heureExpertise: '9h30' }))).toThrow(/heure/i)
+    expect(() => creerSinistre(saisie({ heureExpertise: '24:00' }))).toThrow(/heure/i)
+    expect(() => creerSinistre(saisie({ dateOuverture: '28/10/2026' }))).toThrow(/date/i)
+    expect(() => creerSinistre(saisie({ dateForclusion: '2028-02-30' }))).toThrow(/date/i)
+    expect(() =>
+      creerSinistre(saisie({ parties: [{ role: 'Victime' as never, nature: 'Personne', refId: null, libelle: 'X' }] })),
+    ).toThrow(/rôle/i)
+    expect(() =>
+      creerSinistre(saisie({ parties: [{ role: 'Lésé', nature: 'Syndic' as never, refId: null, libelle: 'X' }] })),
+    ).toThrow(/nature/i)
+    expect(() => creerSinistre(saisie({ parties: [{ role: 'Lésé', nature: 'Personne', refId: null, libelle: ' ' }] }))).toThrow(
+      /partie/i,
+    )
+  })
+
+  it('erreursSaisieSinistre liste toutes les erreurs de format, sans lever', () => {
+    expect(erreursSaisieSinistre(saisie({ type: 'Grêle' as never, heureExpertise: '9h' }))).toHaveLength(2)
+  })
+
+  it('rôles et natures des parties : grille Gestéam (« Lésé » observé, les autres déduits)', () => {
+    expect(ROLES_PARTIE_SINISTRE).toEqual(['Lésé', 'Responsable', 'Autre'])
+    expect(NATURES_PARTIE_SINISTRE).toEqual(['Entreprise', 'Immeuble', 'Personne'])
+  })
+})
+
 describe('sinistres — étape de suivi déduite des dates, statut', () => {
   it.each([
     [{}, 'a_declarer'],
@@ -81,6 +160,11 @@ describe('sinistres — étape de suivi déduite des dates, statut', () => {
   it('statut « Terminé » dès que la clôture est datée, sinon « En cours »', () => {
     expect(statutSinistre(creerSinistre(saisie()))).toBe('En cours')
     expect(statutSinistre(creerSinistre(saisie({ dateCloture: '2026-12-15' })))).toBe('Terminé')
+  })
+
+  it('le statut se lit aussi sur une ligne partielle de la base (fiche 360)', () => {
+    expect(statutSinistre({ dateCloture: '2026-12-15' })).toBe('Terminé')
+    expect(statutSinistre({})).toBe('En cours')
   })
 })
 

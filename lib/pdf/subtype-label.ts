@@ -17,16 +17,25 @@ export interface SubTypeLabelInput {
   situationAvancement?: number
 }
 
-export function buildSubTypeLabel(devis: SubTypeLabelInput, isPt: boolean): string | null {
+/**
+ * `formaterNombre` : pourcentages à virgule (« 33,33 % ») pour un document artisan au rendu complet
+ * (lib/version-rendu.ts). Absent : libellé d'origine (« 33.33% »), à l'identique.
+ */
+export function buildSubTypeLabel(
+  devis: SubTypeLabelInput,
+  isPt: boolean,
+  formaterNombre?: (n: number) => string,
+): string | null {
   if (devis.docType !== 'facture' || !devis.factureSubType || devis.factureSubType === 'standard') {
     return null
   }
+  const pourcentage = (n: number): string => (formaterNombre ? `${formaterNombre(n)} %` : `${n}%`)
   if (devis.factureSubType === 'acompte') {
     const base = isPt ? 'FATURA DE ADIANTAMENTO' : 'FACTURE D\'ACOMPTE'
     const ordreSuffix = (devis.acompteOrdre && devis.acompteTotal)
       ? ` N°${devis.acompteOrdre} ${isPt ? 'de' : 'sur'} ${devis.acompteTotal}`
       : ''
-    const pctSuffix = devis.acomptePourcentage != null ? ` — ${devis.acomptePourcentage}%` : ''
+    const pctSuffix = devis.acomptePourcentage != null ? ` — ${pourcentage(devis.acomptePourcentage)}` : ''
     const refSuffix = devis.parentInvoiceNumber
       ? ` (${isPt ? 'sobre fatura' : 'sur facture'} ${devis.parentInvoiceNumber})`
       : ''
@@ -35,7 +44,7 @@ export function buildSubTypeLabel(devis: SubTypeLabelInput, isPt: boolean): stri
   if (devis.factureSubType === 'situation') {
     return `${isPt ? 'FATURA DE SITUAÇÃO' : 'FACTURE DE SITUATION'}`
       + `${devis.situationNumber ? ` N° ${devis.situationNumber}` : ''}`
-      + `${devis.situationAvancement != null ? ` — ${devis.situationAvancement}%` : ''}`
+      + `${devis.situationAvancement != null ? ` — ${pourcentage(devis.situationAvancement)}` : ''}`
   }
   if (devis.factureSubType === 'avoir') {
     const base = isPt ? 'NOTA DE CRÉDITO (AVOIR)' : 'AVOIR'

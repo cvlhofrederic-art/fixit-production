@@ -58,6 +58,8 @@ const requete = (url: string, init: { method?: string; body?: unknown } = {}) =>
   })
 
 beforeEach(() => {
+  // POST /api/syndic/team signe le lien d'invitation avec une clé dérivée de la clé de service.
+  process.env.SUPABASE_SERVICE_ROLE_KEY = 'cle-de-service-de-test'
   h.etat.role = 'super_admin'
   h.etat.resultats = []
   h.etat.selects = []

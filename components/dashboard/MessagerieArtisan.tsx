@@ -11,6 +11,7 @@ import { useThemeVars } from './useThemeVars'
 import CarteDocumentPro from './messagerie/CarteDocumentPro'
 import EnvoiDocumentPro from './messagerie/EnvoiDocumentPro'
 import type { DocumentEnregistre } from './messagerie/documents-enregistres'
+import { surActivationClavier } from '@/lib/a11y/activation-clavier'
 
 const getToken = async () => (await supabase.auth.getSession()).data.session?.access_token || ''
 const authHeader = async (): Promise<Record<string, string>> => {
@@ -369,10 +370,11 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
   // ── Effects ──
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
 
-  // ── Polling conversations (+ compteurs non-lus) toutes les 8s ──
+  // ── Polling conversations (+ compteurs non-lus) toutes les 8s, en pause quand l'onglet est caché (lot 8 Sentry) ──
   useEffect(() => {
     loadConversations()
     pollConvRef.current = setInterval(() => {
+      if (document.hidden) return
       loadConversations()
     }, 8000)
     return () => { if (pollConvRef.current) clearInterval(pollConvRef.current) }
@@ -396,6 +398,7 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
     // Ouverture : spinner seulement sans messages en cache (sinon le cache reste affiché).
     loadMessages(activeConv.id, false, !enCache)
     pollMsgRef.current = setInterval(() => {
+      if (document.hidden) return
       loadMessages(activeConv.id, true)
     }, 5000)
     return () => { if (pollMsgRef.current) clearInterval(pollMsgRef.current) }
@@ -540,7 +543,10 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
               return (
                 <div
                   key={conv.id}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => setActiveConv(conv)}
+                  onKeyDown={surActivationClavier(() => setActiveConv(conv))}
                   className={`v7-msg-item ${isSelected ? 'active' : ''}`}
                 >
                   <div className="v7-msg-av" style={{ background: avatarCol.bg, color: avatarCol.color }}>

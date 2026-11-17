@@ -2,11 +2,50 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
+import { jetonAcces } from '@/lib/auth/jeton-acces'
+import { lireSessionSure } from '@/lib/auth/session-navigateur'
 import { resolveCompanyType } from '@/lib/config/companyTypes'
+import { RAYON_PAR_DEFAUT_M } from '@/lib/btp/pointage-geo'
 
 function safeJsonParse(val: unknown, fallback: any = []) {
   if (typeof val !== 'string') return val || fallback
   try { return JSON.parse(val) } catch { return fallback }
+}
+
+/** Rayon du pointage GPS saisi : entier positif, sinon la valeur par défaut de la colonne geo_rayon_m. */
+function rayonSaisi(valeur: unknown): number {
+  const nombre = typeof valeur === 'string' ? Number(valeur) : valeur
+  return typeof nombre === 'number' && Number.isFinite(nombre) && nombre > 0 ? Math.round(nombre) : RAYON_PAR_DEFAUT_M
+}
+
+/** Identifiants d'une liste (chaînes non vides, sans doublon) ; liste vide pour toute autre valeur. */
+function identifiants(valeur: unknown): string[] {
+  if (!Array.isArray(valeur)) return []
+  return [...new Set(valeur.filter((id): id is string => typeof id === 'string' && id.length > 0))]
+}
+
+const FORME_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** Colonnes de clé que mapToSupabase écrit depuis le pointage géolocalisé (16/11/2026), par table. */
+const CLES_DU_POINTAGE: Partial<Record<ShortName, readonly string[]>> = {
+  chantiers: ['membres_ids'],
+  equipes: ['chantier_id'],
+  pointages: ['membre_id', 'chantier_id'],
+}
+
+/**
+ * Ligne importée depuis le localStorage : un ancien identifiant local (« demo-ch-001 », horodatage) dans une de ces
+ * colonnes ferait échouer tout le lot sur le type uuid ; il est retiré (null, ou sorti de la liste), la ligne passe.
+ * Les autres colonnes et les autres tables sont importées comme avant.
+ */
+export function ligneImportable(table: ShortName, ligne: Record<string, unknown>): Record<string, unknown> {
+  const propre: Record<string, unknown> = { ...ligne }
+  for (const colonne of CLES_DU_POINTAGE[table] ?? []) {
+    const valeur = propre[colonne]
+    if (Array.isArray(valeur)) propre[colonne] = valeur.filter(id => typeof id === 'string' && FORME_UUID.test(id))
+    else if (typeof valeur === 'string' && !FORME_UUID.test(valeur)) propre[colonne] = null
+  }
+  return propre
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -15,28 +54,12 @@ function safeJsonParse(val: unknown, fallback: any = []) {
 // existantes au premier chargement.
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// Cache le token auth pour éviter un getSession() à chaque fetch
-let _cachedToken: string | null = null
-let _cachedAt = 0
-const TOKEN_TTL = 120_000 // 2 min cache
-
+// Jeton tenu à jour par les événements d'auth (lib/auth/jeton-acces.ts) : pas de getSession() à chaque fetch,
+// donc pas de prise du verrou d'auth partagé entre onglets (lot 1 Sentry du 28/10/2026).
 async function authHeaders(): Promise<Record<string, string>> {
-  const now = Date.now()
-  if (_cachedToken && now - _cachedAt < TOKEN_TTL) {
-    return { Authorization: `Bearer ${_cachedToken}` }
-  }
-  const { data } = await supabase.auth.getSession()
-  const token = data?.session?.access_token
-  if (token) {
-    _cachedToken = token
-    _cachedAt = now
-    return { Authorization: `Bearer ${token}` }
-  }
-  return {}
+  const token = await jetonAcces()
+  return token ? { Authorization: `Bearer ${token}` } : {}
 }
-
-// Invalider le cache quand la session change (login/logout)
-supabase.auth.onAuthStateChange(() => { _cachedToken = null; _cachedAt = 0 })
 
 type TableName = 'chantiers_btp' | 'membres_btp' | 'equipes_btp' | 'pointages_btp' | 'depenses_btp' | 'situations_btp' | 'retenues_btp' | 'dc4_btp' | 'dce_analyses_btp' | 'dpgf_btp' | 'charges_fixes' | 'rapports_btp'
 type ShortName = 'chantiers' | 'membres' | 'equipes' | 'pointages' | 'depenses' | 'situations' | 'retenues' | 'dc4' | 'dce_analyses' | 'dpgf' | 'charges_fixes' | 'rapports'
@@ -73,7 +96,9 @@ const LS_KEYS: Record<ShortName, (id: string) => string> = {
 }
 
 // Map localStorage fields → Supabase columns
-function mapToSupabase(table: ShortName, item: any): any {
+// Sert aux CRÉATIONS : tout champ absent reçoit une valeur par défaut. Pour une modification, passer par
+// colonnesModifiees() plus bas, qui n'envoie que les champs réellement fournis.
+export function mapToSupabase(table: ShortName, item: any): any {
   switch (table) {
     case 'chantiers': {
       const mapped: Record<string, unknown> = {
@@ -94,6 +119,11 @@ function mapToSupabase(table: ShortName, item: any): any {
       // sous_taches is a partial-update field — only include when explicitly provided
       if ('sous_taches' in item) mapped.sous_taches = item.sous_taches
       else if ('sousTaches' in item) mapped.sous_taches = item.sousTaches
+      // Rayon du pointage GPS et employés affectés : seulement quand le formulaire les fournit (fiche chantier,
+      // écran Pointage). Sans la colonne membres_ids (migration 20261116), /api/btp enregistre le reste du chantier.
+      if ('geoRayonM' in item) mapped.geo_rayon_m = rayonSaisi(item.geoRayonM)
+      else if ('geo_rayon_m' in item) mapped.geo_rayon_m = rayonSaisi(item.geo_rayon_m)
+      if ('membres_ids' in item) mapped.membres_ids = identifiants(item.membres_ids)
       return mapped
     }
     case 'membres':
@@ -121,12 +151,15 @@ function mapToSupabase(table: ShortName, item: any): any {
       return {
         nom: item.nom || '',
         metier: item.metier || null,
+        chantier_id: item.chantierId || item.chantier_id || null,
         membreIds: item.membreIds || [], // handled separately in API
       }
     case 'pointages':
       return {
         employe: item.employe || '',
         poste: item.poste || null,
+        membre_id: item.membreId || null,
+        chantier_id: item.chantierId || null,
         chantier_nom: item.chantier || null,
         date: item.date || new Date().toISOString().split('T')[0],
         heure_arrivee: item.heureArrivee || '08:00',
@@ -220,6 +253,76 @@ function mapToSupabase(table: ShortName, item: any): any {
   }
 }
 
+// Champs du formulaire qui alimentent chaque colonne — mêmes correspondances que mapToSupabase ci-dessus
+// (tests/lib/use-btp-data-modification-partielle.test.tsx vérifie que les deux restent alignés).
+// Une colonne absente de cette table (pointages.mode, posé d'office à la création) n'est jamais réécrite par
+// une modification. `rapports` n'y figure pas : son contenu regroupe tous les champs restants.
+export const SOURCES_DES_COLONNES: Partial<Record<ShortName, Record<string, readonly string[]>>> = {
+  chantiers: {
+    titre: ['titre'], client: ['client'], adresse: ['adresse'], ville: ['ville'], code_postal: ['codePostal', 'code_postal'],
+    latitude: ['latitude'], longitude: ['longitude'], date_debut: ['dateDebut'], date_fin: ['dateFin'], budget: ['budget'],
+    statut: ['statut'], description: ['description'], equipe: ['equipe'], sous_taches: ['sous_taches', 'sousTaches'],
+    geo_rayon_m: ['geoRayonM', 'geo_rayon_m'], membres_ids: ['membres_ids'],
+  },
+  membres: {
+    prenom: ['prenom'], nom: ['nom'], telephone: ['telephone'], email: ['email'], type_compte: ['typeCompte'],
+    role_perso: ['rolePerso'], cout_horaire: ['coutHoraire'], charges_pct: ['chargesPct'],
+    salaire_brut_mensuel: ['salaire_brut_mensuel'], salaire_net_mensuel: ['salaire_net_mensuel'],
+    charges_salariales_pct: ['charges_salariales_pct'], charges_patronales_pct: ['charges_patronales_pct'],
+    type_contrat: ['type_contrat'], heures_hebdo: ['heures_hebdo'], panier_repas_jour: ['panier_repas_jour'],
+    indemnite_trajet_jour: ['indemnite_trajet_jour'], prime_mensuelle: ['prime_mensuelle'], actif: ['actif'],
+  },
+  equipes: { nom: ['nom'], metier: ['metier'], chantier_id: ['chantierId', 'chantier_id'], membreIds: ['membreIds'] },
+  pointages: {
+    employe: ['employe'], poste: ['poste'], membre_id: ['membreId'], chantier_id: ['chantierId'],
+    chantier_nom: ['chantier'], date: ['date'], heure_arrivee: ['heureArrivee'],
+    heure_depart: ['heureDepart'], pause_minutes: ['pauseMinutes'], heures_travaillees: ['heuresTravaillees'], notes: ['notes'],
+  },
+  depenses: { label: ['label'], amount: ['amount'], category: ['category'], date: ['date'], notes: ['notes'] },
+  situations: {
+    chantier_id: ['chantier_id'], chantier: ['chantier'], client: ['client'], numero: ['numero'], date: ['date'],
+    montant_marche: ['montantMarche', 'montant_marche'], travaux: ['travaux'], statut: ['statut'],
+  },
+  retenues: {
+    chantier_id: ['chantier_id'], chantier: ['chantier'], client: ['client'], montant_marche: ['montantMarche', 'montant_marche'],
+    taux_retenue: ['tauxRetenue', 'taux_retenue'], montant_retenu: ['montantRetenu', 'montant_retenu'],
+    date_fin_travaux: ['dateFinTravaux', 'date_fin_travaux'], date_liberation: ['dateLiberation', 'date_liberation'],
+    statut: ['statut'], caution: ['caution'],
+  },
+  dc4: {
+    chantier_id: ['chantier_id'], entreprise: ['entreprise'], siret: ['siret'], responsable: ['responsable'], email: ['email'],
+    telephone: ['telephone'], adresse: ['adresse'], chantier: ['chantier'], lot: ['lot'],
+    montant_marche: ['montantMarche', 'montant_marche'], taux_tva: ['tauxTVA', 'taux_tva'], statut: ['statut'],
+    date_agrement: ['dateAgrement', 'date_agrement'], dc4_genere: ['dc4Genere', 'dc4_genere'],
+  },
+  dce_analyses: {
+    titre: ['titre'], country: ['country'], project_type: ['projectType', 'project_type'], status: ['status'], result: ['result'],
+  },
+  dpgf: {
+    titre: ['titre'], client: ['client'], date_remise: ['dateRemise', 'date_remise'],
+    montant_estime: ['montantEstime', 'montant_estime'], statut: ['statut'], lots: ['lots'],
+  },
+}
+
+/**
+ * Colonnes à écrire pour une MODIFICATION : seulement celles dont le formulaire a fourni un champ.
+ *
+ * mapToSupabase donne une valeur par défaut à tout champ absent (titre '', client null, statut « En attente »…),
+ * ce qui est juste pour une création et destructeur pour une modification partielle : changer le statut d'un
+ * chantier, le prolonger, ajouter un poste à une situation ou enregistrer des coordonnées (page Météo) réécrivait
+ * à vide tous les autres champs de la fiche (audit des fondations BTP du 11/11/2026).
+ * Un champ présent dans `changes`, même vide ou undefined, est écrit : un formulaire complet vide ainsi un champ
+ * comme avant.
+ */
+export function colonnesModifiees(table: ShortName, changes: Record<string, unknown>): Record<string, unknown> {
+  const complet = mapToSupabase(table, changes) as Record<string, unknown>
+  const sources = SOURCES_DES_COLONNES[table]
+  if (!sources) return complet
+  return Object.fromEntries(
+    Object.entries(complet).filter(([colonne]) => (sources[colonne] ?? []).some(champ => champ in changes)),
+  )
+}
+
 // Map Supabase columns → component-friendly format (keeps both formats for compat)
 function mapFromSupabase(table: ShortName, item: any): any {
   switch (table) {
@@ -281,6 +384,8 @@ function mapFromSupabase(table: ShortName, item: any): any {
         ...item,
         employe: item.employe,
         poste: item.poste || '',
+        membreId: item.membre_id || '',
+        chantierId: item.chantier_id || '',
         chantier: item.chantier_nom || '',
         date: item.date,
         heureArrivee: item.heure_arrivee,
@@ -390,19 +495,67 @@ function mapFromSupabase(table: ShortName, item: any): any {
 const _dataCache: Record<string, { data: any[]; at: number }> = {}
 const DATA_CACHE_TTL = 300_000 // 5 min — BTP data rarely changes mid-session
 
+// ── Requêtes en vol partagées : le préchargement et les sections qui montent juste après demandaient les mêmes
+// tables en double (lot 8 Sentry du 28/10/2026 : chantiers, membres, situations deux fois au chargement).
+const _enVol: Record<string, { generation: number; promesse: Promise<any[] | null> }> = {}
+
+// ── Génération par clé de table, incrémentée à chaque écriture confirmée (ajout, modification, suppression,
+// import) : un GET parti avant l'écriture peut renvoyer l'état d'avant (pointage supprimé encore affiché).
+const _generations: Record<string, number> = {}
+
+function generationActuelle(cacheKey: string): number {
+  return _generations[cacheKey] ?? 0
+}
+
+function marquerEcriture(cacheKey: string): void {
+  _generations[cacheKey] = generationActuelle(cacheKey) + 1
+}
+
+/** GET d'une table : lignes brutes, null si la réponse n'est pas ok. */
+async function lireTable(table: ShortName): Promise<unknown[] | null> {
+  const res = await fetch(`/api/btp?table=${table}`, { headers: await authHeaders() })
+  if (!res.ok) return null
+  const json = await res.json()
+  return json[table] || []
+}
+
+/**
+ * Charge une table, remplit le cache ; null si la réponse n'est pas ok. Les chargements d'une même génération
+ * partagent une seule requête. Une réponse arrivée après une écriture (génération dépassée) ne remplit ni le cache
+ * ni la liste : ses appelants reçoivent le chargement de la génération courante (requête en vol réutilisée, ou
+ * nouvelle si elle est déjà terminée).
+ */
+function chargerTable(table: ShortName, cacheKey: string): Promise<any[] | null> {
+  const generation = generationActuelle(cacheKey)
+  const enCours = _enVol[cacheKey]
+  if (enCours?.generation === generation) return enCours.promesse
+  const promesse = (async (): Promise<any[] | null> => {
+    let raw: any[] | null = null
+    try {
+      raw = await lireTable(table)
+    } catch (err) {
+      if (generationActuelle(cacheKey) !== generation) return chargerTable(table, cacheKey)
+      throw err
+    } finally {
+      // Une requête d'une génération plus récente a pu prendre la place : elle reste partagée.
+      if (_enVol[cacheKey]?.generation === generation) delete _enVol[cacheKey]
+    }
+    if (generationActuelle(cacheKey) !== generation) return chargerTable(table, cacheKey)
+    if (raw !== null) _dataCache[cacheKey] = { data: raw.map((r: any) => mapFromSupabase(table, r)), at: Date.now() }
+    return raw
+  })()
+  _enVol[cacheKey] = { generation, promesse }
+  return promesse
+}
+
 // ── Prefetch multiple tables in parallel to fill cache before components mount ──
 export async function prefetchBTPTables(tables: ShortName[], userId: string) {
-  const headers = await authHeaders()
   await Promise.all(
     tables.map(async (table) => {
       const cacheKey = `${table}_${userId}`
       if (_dataCache[cacheKey] && Date.now() - _dataCache[cacheKey].at < DATA_CACHE_TTL) return
       try {
-        const res = await fetch(`/api/btp?table=${table}`, { headers })
-        if (!res.ok) return
-        const json = await res.json()
-        const raw = json[table] || []
-        _dataCache[cacheKey] = { data: raw.map((r: any) => mapFromSupabase(table, r)), at: Date.now() }
+        await chargerTable(table, cacheKey)
       } catch (err) { console.warn(`[btp] prefetch ${table} failed:`, err) }
     })
   )
@@ -432,13 +585,11 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
   // ── Fetch from Supabase ─────────────────────────────────────────────────
   const refresh = useCallback(async () => {
     try {
-      const res = await fetch(`/api/btp?table=${table}`, { headers: await authHeaders() })
-      if (!res.ok) throw new Error('Fetch failed')
-      const json = await res.json()
-      const raw = json[table] || []
-      const mapped = raw.map((r: any) => mapFromSupabase(table, r))
-      setItems(mapped)
-      _dataCache[cacheKey] = { data: mapped, at: Date.now() }
+      // Requête partagée avec le préchargement et les autres sections (une seule par table en vol, sauf après une
+      // écriture : voir chargerTable).
+      const raw = await chargerTable(table, cacheKey)
+      if (raw === null) throw new Error('Fetch failed')
+      setItems(_dataCache[cacheKey]?.data ?? raw.map((r: any) => mapFromSupabase(table, r)))
       setError(null)
       return raw
     } catch (err) {
@@ -477,7 +628,7 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
             const parsed = JSON.parse(raw)
             if (Array.isArray(parsed) && parsed.length > 0) {
               imported.current = true
-              const mapped = parsed.map((item: any) => mapToSupabase(table, item))
+              const mapped = parsed.map((item: any) => ligneImportable(table, mapToSupabase(table, item)))
 
               const res = await fetch('/api/btp', {
                 method: 'POST',
@@ -488,6 +639,7 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
               if (res.ok) {
                 // Mark as imported in localStorage
                 localStorage.setItem(`${lsKey}_migrated`, 'true')
+                marquerEcriture(cacheKey)
                 if (!cancelled) await refresh()
               }
             }
@@ -512,6 +664,8 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
         body: JSON.stringify({ table: tableName, action: 'insert', data: mapped }),
       })
       if (!res.ok) throw new Error(`Insert ${tableName} failed: ${res.status}`)
+      // Écriture confirmée : refresh ne réutilise pas un GET parti avant elle.
+      marquerEcriture(cacheKey)
       const json = await res.json()
       await refresh()
       return json.row ? mapFromSupabase(table, json.row) : null
@@ -520,17 +674,25 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
       setError('Erreur lors de la création')
       return null
     }
-  }, [table, tableName, refresh])
+  }, [table, tableName, cacheKey, refresh])
 
   const update = useCallback(async (id: string, changes: Partial<T>): Promise<boolean> => {
     try {
-      const mapped = mapToSupabase(table, changes)
+      // Seuls les champs fournis partent : une modification partielle ne réécrit pas le reste de la fiche.
+      const mapped = colonnesModifiees(table, changes as Record<string, unknown>)
+      if (Object.keys(mapped).length === 0) {
+        // Rien d'enregistrable : rien ne part et rien n'est écrasé. La trace aide à repérer un champ de formulaire
+        // qui n'a pas (encore) de colonne dans mapToSupabase.
+        console.warn(`[btp] update ${tableName} : aucun champ enregistrable parmi`, Object.keys(changes))
+        return true
+      }
       const res = await fetch('/api/btp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...await authHeaders() },
         body: JSON.stringify({ table: tableName, action: 'update', id, data: mapped }),
       })
       if (!res.ok) throw new Error(`Update ${tableName} failed: ${res.status}`)
+      marquerEcriture(cacheKey)
       await refresh()
       return true
     } catch (err) {
@@ -538,7 +700,7 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
       setError('Erreur lors de la mise à jour')
       return false
     }
-  }, [table, tableName, refresh])
+  }, [table, tableName, cacheKey, refresh])
 
   const remove = useCallback(async (id: string): Promise<boolean> => {
     try {
@@ -548,6 +710,7 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
         body: JSON.stringify({ table: tableName, action: 'delete', id }),
       })
       if (!res.ok) throw new Error(`Delete ${tableName} failed: ${res.status}`)
+      marquerEcriture(cacheKey)
       await refresh()
       return true
     } catch (err) {
@@ -555,7 +718,7 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
       setError('Erreur lors de la suppression')
       return false
     }
-  }, [tableName, refresh])
+  }, [tableName, cacheKey, refresh])
 
   return { items, loading, error, refresh, add, update, remove }
 }
@@ -682,7 +845,9 @@ export function useBTPSettings() {
       } else {
         // No saved settings yet — try to initialize from user_metadata.legal_structure
         try {
-          const { data: { user } } = await supabase.auth.getUser()
+          // user_metadata est dans la session locale : pas d'aller-retour réseau ni de getUser() ici.
+          const { session } = await lireSessionSure(supabase.auth)
+          const user = session?.user
           const legalStructure = user?.user_metadata?.legal_structure
           const country = user?.user_metadata?.country === 'PT' ? 'PT' as const : 'FR' as const
           if (legalStructure) {
@@ -743,48 +908,4 @@ export function useChargesFixes({ artisanId, userId }: { artisanId: string; user
     userId,
     autoImport: false,
   })
-}
-
-// ── Geo-pointage helper ───────────────────────────────────────────────────────
-
-export function useGeoPointage() {
-  const [position, setPosition] = useState<{ lat: number; lng: number } | null>(null)
-  const [watching, setWatching] = useState(false)
-  const [geoError, setGeoError] = useState<string | null>(null)
-  const watchId = useRef<number | null>(null)
-
-  const start = useCallback(() => {
-    if (!navigator.geolocation) return
-    setWatching(true)
-    setGeoError(null)
-    watchId.current = navigator.geolocation.watchPosition(
-      (pos) => { setPosition({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setGeoError(null) },
-      (err) => { setGeoError(err.code === 1 ? 'Permission GPS refusée' : err.code === 2 ? 'GPS indisponible' : 'GPS timeout'); console.warn('[geo] watchPosition error:', err.message) },
-      { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 }
-    )
-  }, [])
-
-  const stop = useCallback(() => {
-    if (watchId.current !== null) {
-      navigator.geolocation.clearWatch(watchId.current)
-      watchId.current = null
-    }
-    setWatching(false)
-  }, [])
-
-  // Distance en mètres entre deux points GPS
-  const distanceTo = useCallback((lat2: number, lng2: number): number | null => {
-    if (!position) return null
-    const R = 6371000
-    const dLat = (lat2 - position.lat) * Math.PI / 180
-    const dLng = (lng2 - position.lng) * Math.PI / 180
-    const a = Math.sin(dLat / 2) ** 2 +
-      Math.cos(position.lat * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-      Math.sin(dLng / 2) ** 2
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-  }, [position])
-
-  useEffect(() => { return () => stop() }, [stop])
-
-  return { position, watching, geoError, start, stop, distanceTo }
 }

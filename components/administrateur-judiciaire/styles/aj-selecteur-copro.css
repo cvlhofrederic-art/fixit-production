@@ -1,0 +1,109 @@
+/*
+ * Sélecteur de copropriété et barre de recherche du haut de page (demande de Hugo du 29/10/2026).
+ * Feuille écrite à la main, chargée après aj.css (app/administrateur-judiciaire/layout.tsx) : aj.css est générée par
+ * scripts/administrateur-judiciaire/extraire-maquette.mjs et réécrite à chaque extraction.
+ * Tous les sélecteurs sont scopés sous #aj-root.
+ *
+ * Barre du haut sur une seule ligne au-dessus de 640 px (elle est collante au-dessus de 1024 px, et le décalage des
+ * ancres, scroll-padding-top de aj.css, suppose une ligne) ; sous 640 px, le sélecteur passe sur sa propre ligne.
+ */
+
+/* Champs du haut de page : même cadre que les contrôles de la barre. */
+#aj-root .vfx-selecteur-copro,#aj-root .vfx-recherche-globale{position:relative;display:flex;align-items:center;gap:8px;min-width:0;min-height:36px;padding:0 10px;border:1px solid var(--line-strong);border-radius:8px;background:#fff;color:var(--navy-500);font-size:12.5px;cursor:text}
+/*
+ * Largeur du sélecteur : sa base et son minimum (min-width:auto, plafonné par max-width) sont son contenu, dont la
+ * largeur du nom est fixée par le gabarit ci-dessous ; la place libre lui revient jusqu'à 420 px avant d'aller au
+ * séparateur (marge automatique). Quand la place manque, le fil d'Ariane et la barre de recherche se réduisent d'abord.
+ */
+#aj-root .vfx-selecteur-copro{flex:1 1 auto;max-width:420px;min-width:auto;padding:0}
+/*
+ * Tout le cadre du sélecteur est l'étiquette du champ : un clic n'importe où l'ouvre. Garde (overflow) : un détail
+ * exceptionnellement long (code, fondement cité en entier) est coupé au bord du cadre au lieu de déborder.
+ */
+#aj-root .vfx-selecteur-copro__cadre{display:flex;align-items:center;gap:8px;flex:1;min-width:0;align-self:stretch;padding:0 10px;overflow:hidden;cursor:text}
+#aj-root .vfx-selecteur-copro__cadre>svg,#aj-root .vfx-recherche-globale>svg{width:14px;height:14px;flex:none;color:var(--navy-400)}
+
+/* Sélecteur : l'indicateur de focus standard de l'application est porté par le cadre, pas par le champ interne. */
+#aj-root .vfx-selecteur-copro input:focus-visible{outline:none;box-shadow:none}
+#aj-root .vfx-selecteur-copro:focus-within{outline:2px solid var(--navy-900);outline-offset:2px;box-shadow:0 0 0 4px var(--gold-100)}
+/*
+ * Gabarit du champ : une grille d'une case où le champ se superpose au texte au repos (data-texte, invisible, hors de
+ * l'arbre d'accessibilité). Le champ ne descend pas sous la largeur de ce texte, plafonnée : 190 px (un nom de 30
+ * caractères environ) sur la page d'une copropriété au-dessus de 1280 px ; 110 px sous 1280 px et sur une page
+ * générale (« Tous les mandats (N) · dossier : … », texte long), où le sélecteur ne prend davantage que la place libre.
+ * Au-delà, le texte se tronque par des points de suspension (texte entier au survol : title).
+ */
+#aj-root .vfx-selecteur-copro__saisie{display:grid;grid-template-columns:minmax(0,auto);flex:1;min-width:max-content}
+#aj-root .vfx-selecteur-copro__saisie::after{content:attr(data-texte);grid-area:1/1;max-width:190px;height:0;overflow:hidden;visibility:hidden;white-space:nowrap;font-weight:600;padding-right:2px}
+#aj-root .vfx-selecteur-copro--generale .vfx-selecteur-copro__saisie::after{max-width:110px}
+@media (max-width: 1279px){#aj-root .vfx-selecteur-copro__saisie::after{max-width:110px}}
+#aj-root .vfx-selecteur-copro__champ{grid-area:1/1;width:0;min-width:100%;padding:7px 0;border:none;outline:none;background:transparent;font:inherit;font-weight:600;color:var(--ink);text-overflow:ellipsis}
+#aj-root .vfx-selecteur-copro__champ::placeholder{color:var(--navy-300);font-weight:400}
+#aj-root .vfx-selecteur-copro__detail{display:inline-flex;align-items:center;gap:6px;flex:none;white-space:nowrap}
+#aj-root .vfx-selecteur-copro__detail .mono{font-size:11px;font-weight:600;color:var(--navy-500)}
+#aj-root .vfx-selecteur-copro .pill{min-height:0;padding:2px 8px;font-size:10.5px}
+#aj-root .vfx-selecteur-copro__panneau{position:absolute;top:calc(100% + 6px);left:0;width:min(440px,calc(100vw - 24px));max-height:360px;overflow-y:auto;padding:4px 0;background:var(--paper);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:0 16px 48px #0f172a2e,0 4px 12px #0f172a14;z-index:var(--z-dropdown);cursor:default}
+#aj-root .vfx-selecteur-copro__panneau[hidden]{display:none}
+/* Nom et détail d'une option sur deux lignes (comme dans la palette ⌘K). */
+#aj-root .vfx-selecteur-copro__panneau .cmdk-item-label,#aj-root .vfx-selecteur-copro__panneau .cmdk-item-section{display:block}
+#aj-root .vfx-selecteur-copro__panneau .cmdk-item>svg{width:14px;height:14px;flex:none;color:var(--gold-600)}
+/* Base vide : rouille foncée des pastilles (contraste AA sur le fond de la barre). */
+#aj-root .vfx-selecteur-copro__vide{flex:0 1 420px;font-size:12px;font-weight:600;color:var(--rust-700)}
+
+/* Barre de recherche : bouton lanceur de la palette ⌘K (focus standard des boutons de l'application). */
+#aj-root .vfx-recherche-globale{flex:0 1 210px;min-width:150px;font-family:inherit;text-align:left}
+#aj-root .vfx-recherche-globale__texte{flex:1;min-width:0;padding:7px 0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:var(--navy-300)}
+#aj-root .vfx-recherche-globale kbd{flex:none}
+#aj-root .vfx-recherche-globale:hover{border-color:var(--gold-500)}
+
+/*
+ * Une seule ligne au-dessus de 640 px : aucun retour à la ligne à l'intérieur des éléments, le fil d'Ariane se tronque.
+ * Le nom de la copropriété (plafonné, voir le gabarit) passe avant le titre de la page. La loupe fait doublon avec la
+ * barre de recherche ; quand la place manque, la barre se resserre (écart de 12 px) et la date s'efface (< 1920 px),
+ * le « VitFix › » du fil d'Ariane s'efface (< 1600 px), le bouton « Nouvelle intervention » ne garde que son icône
+ * (< 1440 px), puis la loupe remplace la barre de recherche et le sélecteur retire la pastille du fondement
+ * (1025 à 1279 px). Date, rôle et boutons ne rétrécissent pas.
+ *
+ * Date : en mode « données réelles », c'est celle du jour, dont la largeur suit le jour et le mois (136 px pour
+ * « jeudi 4 juin 2026 à 02:00 », la date de la démonstration, jusqu'à 211 px pour « dimanche 13 septembre 2026 à
+ * 00:48 »). Revenue dès 1600 px, elle prenait toute la place du titre de la page (titre réduit à 0 px entre 1600 et
+ * 1620 px, mesuré dans Chrome). Elle ne revient qu'à 1920 px : le titre y reste entier avec la date la plus large, le
+ * nom le plus large (plafond du gabarit) et une barre de défilement.
+ * Garde : le fil d'Ariane coupe son contenu. Si la place manquait malgré tout, la pastille de statut serait coupée au
+ * bord du fil d'Ariane au lieu de passer sur le sélecteur.
+ */
+#aj-root .topbar .crumb:not(.crumb-mobile){flex:0 1 auto;min-width:0;overflow:hidden;white-space:nowrap}
+#aj-root .topbar .crumb:not(.crumb-mobile)>*{flex:none}
+#aj-root .topbar .crumb:not(.crumb-mobile)>b{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+#aj-root .topbar .btn,#aj-root .topbar .vfx-role,#aj-root .topbar .icon-btn,#aj-root .topbar .crumb.vfx-date-topbar{flex:none;white-space:nowrap}
+/*
+ * Séparateur : à côté du sélecteur (ou du message de base vide), il est retiré et c'est leur marge automatique qui
+ * pousse la suite à droite. Elle ne reçoit que la place laissée par le sélecteur une fois à sa largeur maximale, et
+ * n'ajoute pas l'écart d'un élément vide quand la place manque.
+ */
+#aj-root .topbar .vfx-selecteur-copro,#aj-root .topbar .vfx-selecteur-copro__vide{margin-right:auto}
+#aj-root .topbar .vfx-selecteur-copro+.spacer,#aj-root .topbar .vfx-selecteur-copro__vide+.spacer{display:none}
+#aj-root .topbar .vfx-loupe-palette{display:none}
+/* Écart de 12 px (celui de la barre sous 1024 px) et date masquée tant que la place est comptée. */
+@media (min-width: 1025px) and (max-width: 1919px){#aj-root .topbar{gap:12px}}
+@media (max-width: 1919px){#aj-root .topbar .vfx-date-topbar{display:none}}
+@media (max-width: 1599px){#aj-root .topbar .crumb:not(.crumb-mobile)>span:first-child,#aj-root .topbar .crumb:not(.crumb-mobile)>svg{display:none}}
+@media (max-width: 1439px){#aj-root .topbar .vfx-libelle-action{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}#aj-root .topbar .topbar-actions-desktop{padding:9px 11px}}
+@media (max-width: 1279px){#aj-root .topbar .vfx-recherche-globale{display:none}#aj-root .topbar .vfx-loupe-palette{display:grid}}
+/* Fondement (« art. 46 ») : pastille secondaire du sélecteur, retirée entre 1025 et 1279 px (menu de gauche affiché,
+   barre la plus chargée) au profit du nom ; sous 1025 px, le menu est replié et la place suffit. */
+#aj-root .vfx-selecteur-copro__fondement{display:contents}
+@media (min-width: 1025px) and (max-width: 1279px){#aj-root .vfx-selecteur-copro__fondement{display:none}}
+
+/* Cibles tactiles de 44 px, comme le reste de l'application sous 768 px. */
+@media (max-width: 768px){#aj-root .vfx-selecteur-copro,#aj-root .vfx-recherche-globale{min-height:44px}#aj-root .vfx-selecteur-copro__panneau .cmdk-item{min-height:44px}}
+
+/* Mobile : le sélecteur (ou le message de base vide) sur sa propre ligne, sous le fil d'Ariane et les boutons. */
+@media (max-width: 640px){#aj-root .topbar{flex-wrap:wrap}#aj-root .topbar .vfx-selecteur-copro,#aj-root .topbar .vfx-selecteur-copro__vide{order:10;flex:1 1 100%;max-width:none}}
+
+/*
+ * Contenu principal : <main id="main" tabindex="-1"> reçoit le focus par programme (après une navigation depuis la
+ * palette ⌘K) pour qu'un lecteur d'écran reparte du contenu de la page. Ce n'est pas un contrôle : pas de contour ni de
+ * halo autour de toute la zone. Les contrôles gardent l'indicateur standard de aj.css.
+ */
+#aj-root main[tabindex="-1"]:focus,#aj-root main[tabindex="-1"]:focus-visible{outline:none;box-shadow:none;border-radius:0}

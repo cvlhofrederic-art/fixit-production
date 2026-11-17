@@ -63,7 +63,6 @@ const saisieContentieux = (surcharge: Partial<SaisieContentieux> = {}): SaisieCo
   coproprieteId: 'copro-1',
   type: 'Recouvrement de charges/loyer',
   phase: 'Procédure Judiciaire',
-  particularite: 'Contentieux sans échéancier',
   dateOuverture: '2023-04-12',
   dateCloture: null,
   objet: 'Charges impayées',

@@ -57,6 +57,6 @@ node scripts/seo/pt-tests.mjs --mode controle --base http://localhost:3000 --tes
 | T11 | robots.txt : `/pt/servicos/canalizador-ovar/` autorisée ; `og:image` de 5 pages non bloquée ; règles hors PT identiques à la référence | requête + référence |
 | T12 | chemin inconnu sous `/pt/` et sans préfixe : 404 final avec `noindex`, jamais `/pt/` | requêtes |
 
-La référence (`data/seo/reference-seo-pt.json`) est écrite par `--mode reference` : empreintes des sitemaps FR, mesures des 30 URL FR, règles robots hors PT. Elle ne doit être régénérée que si un changement FR voulu a eu lieu.
+La référence (`data/seo/reference-seo-pt.json`) est écrite par `--mode reference` : empreintes des sitemaps FR, mesures des 30 URL FR, règles robots hors PT. Elle ne doit être régénérée que si un changement FR voulu a eu lieu. Ses valeurs viennent du site audité : elle n'est écrite que si chacune a la forme et la taille attendues (`pt-audit/lib/reference.mjs` : clés connues, statut HTTP entier, textes d'au plus 2 048 caractères sans caractère de contrôle, empreintes SHA-256) ; sinon le script s'arrête sans rien écrire, en nommant la valeur fautive.
 
 Précaution : le CDN garde les pages SEO en cache 1 h (`Cache-Control: public, s-maxage=3600`) ; après une mise en production, attendre l'expiration ou purger avant de lancer `--mode controle`.

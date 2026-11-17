@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  MODE_COMPTES_ADMINISTRATEUR_PROVISOIRE,
   MODES_TENUE_COMPTES,
   NATURES_COMPTE_BANCAIRE,
   controlerComptesMandat,
@@ -8,13 +9,15 @@ import {
   validerIban,
   type CompteBancaireMandat,
 } from '@/lib/administrateur-judiciaire/domain/comptes-bancaires'
+import { enTeteDuModule } from './en-tete-module'
 
 /**
  * Décision D-BANQUE (Hugo Carvalho, 27/10/2026) — la tenue des comptes bancaires est un CHOIX DU CABINET,
  * modifiable MANDAT PAR MANDAT, pour s'adapter au régime des administrateurs judiciaires.
  * - Quatre modes : compte séparé au nom du syndicat, Caisse des dépôts, les deux, compte centralisateur du cabinet.
  * - Le réglage du cabinet donne le mode par défaut ; un mandat peut le remplacer.
- * - Invariant de droit, quel que soit le mode : le fonds de travaux reste sur un compte DISTINCT (L. 1965 art. 14-2-1).
+ * - Invariant de droit, quel que soit le mode : le fonds de travaux reste sur un compte DISTINCT (L. 1965 art. 18, II,
+ *   al. 4).
  * - Les comptes repris de l'ancien gestionnaire restent identifiables jusqu'à leur solde.
  */
 
@@ -86,6 +89,57 @@ describe('D-BANQUE — choix du cabinet, remplaçable par mandat', () => {
   })
 })
 
+/**
+ * Décision J37 de Hugo (03/11/2026) : dans la pratique du cabinet, le compte de l'administrateur provisoire est un compte
+ * à la Caisse des dépôts, pas un compte centralisateur du cabinet ; le fonds de travaux reste sur un compte distinct.
+ * D-BANQUE n'est pas remise en cause : la pratique est consignée, aucun mode n'est imposé.
+ */
+describe('J37 — compte de l’administrateur provisoire : la pratique du cabinet, sans rien imposer', () => {
+  it('la pratique consignée est le compte à la Caisse des dépôts, un des modes du réglage', () => {
+    expect(MODE_COMPTES_ADMINISTRATEUR_PROVISOIRE).toBe('caisse_depots')
+    expect(Object.keys(MODES_TENUE_COMPTES)).toContain(MODE_COMPTES_ADMINISTRATEUR_PROVISOIRE)
+    expect(MODE_COMPTES_ADMINISTRATEUR_PROVISOIRE).not.toBe('centralisateur_cabinet')
+  })
+
+  it('D-BANQUE inchangée : le réglage par défaut du cabinet et le choix du mandat restent libres', () => {
+    expect(creerReglagesComptesCabinet({})).toEqual({ modeParDefaut: 'compte_separe_syndicat' })
+    const cabinet = creerReglagesComptesCabinet({ modeParDefaut: MODE_COMPTES_ADMINISTRATEUR_PROVISOIRE })
+    expect(resoudreModeComptes(cabinet, null)).toEqual({ mode: 'caisse_depots', origine: 'cabinet' })
+    expect(resoudreModeComptes(cabinet, 'centralisateur_cabinet')).toEqual({ mode: 'centralisateur_cabinet', origine: 'mandat' })
+  })
+
+  it('à la Caisse des dépôts, sans IBAN, le fonds de travaux exige toujours son propre compte', () => {
+    const cdc = compte({ nature: 'caisse_depots', iban: null })
+    const sansFonds = controlerComptesMandat({ mode: 'caisse_depots', fondsTravaux: true, comptes: [cdc] })
+    expect(sansFonds.map((a) => a.code)).toEqual(['fonds_travaux_manquant'])
+    const avecFonds = controlerComptesMandat({
+      mode: 'caisse_depots',
+      fondsTravaux: true,
+      comptes: [cdc, compte({ nature: 'fonds_travaux', iban: null })],
+    })
+    expect(avecFonds).toEqual([])
+  })
+
+  it('en-tête : rubrique « Décisions de Hugo du 03/11/2026 » avec J37 ; les textes du dépôt et la portée de l’art. 18, II, al. 3 restent ouverts', () => {
+    const { texte: entete } = enTeteDuModule('comptes-bancaires')
+    const decisions = entete.slice(entete.indexOf('Décisions de Hugo du 03/11/2026'), entete.indexOf('🔴'))
+    expect(decisions).toMatch(/J37/)
+    expect(decisions).toMatch(/compte à la Caisse des dépôts, pas un compte centralisateur du cabinet/)
+    expect(decisions).toMatch(/D-BANQUE/)
+    expect(decisions).toContain('art. 18, II, al. 4')
+    const nonEtabli = entete.slice(entete.indexOf('🔴'))
+    expect(nonEtabli).toMatch(/textes qui fondent le dépôt à la Caisse des dépôts/)
+    expect(nonEtabli).toMatch(/la portée de l'art\. 18, II, al\. 3 \(compte séparé au nom du syndicat\)/)
+    expect(nonEtabli).not.toMatch(/C\. com\., livre VIII\) et la portée/)
+  })
+
+  it('en-tête : le compte séparé du fonds de travaux est fondé sur L. 1965 art. 18, II, al. 4, pas sur l’art. 14-2-1', () => {
+    const { texte: entete } = enTeteDuModule('comptes-bancaires')
+    expect(entete).toMatch(/le fonds de travaux est déposé sur un compte séparé \(L\. 1965 art\. 18, II, al\. 4/)
+    expect(entete).not.toMatch(/compte séparé \(L\. 1965 art\. 14-2-1\)/)
+  })
+})
+
 describe('D-BANQUE — IBAN', () => {
   it('accepte un IBAN valide, avec ou sans espaces, en minuscules', () => {
     expect(validerIban(IBAN_A)).toBe(true)
@@ -126,7 +180,7 @@ describe('D-BANQUE — contrôle des comptes d\'un mandat', () => {
   it('exige un compte de fonds de travaux distinct quand la copropriété en est dotée, fondement cité', () => {
     const anomalies = controlerComptesMandat({ mode: 'compte_separe_syndicat', fondsTravaux: true, comptes: [compte({})] })
     expect(anomalies).toHaveLength(1)
-    expect(anomalies[0]).toMatchObject({ code: 'fonds_travaux_manquant', gravite: 'bloquant', fondement: 'L. 1965 art. 14-2-1' })
+    expect(anomalies[0]).toMatchObject({ code: 'fonds_travaux_manquant', gravite: 'bloquant', fondement: 'L. 1965 art. 18, II, al. 4' })
   })
 
   it('refuse un fonds de travaux sur le même IBAN qu\'un autre compte du mandat', () => {
@@ -136,7 +190,7 @@ describe('D-BANQUE — contrôle des comptes d\'un mandat', () => {
       comptes: [compte({ nature: 'courant' }), compte({ nature: 'fonds_travaux', iban: IBAN_A.replace(/ /g, '') })],
     })
     expect(anomalies.map((a) => a.code)).toEqual(['fonds_travaux_confondu'])
-    expect(anomalies[0].fondement).toBe('L. 1965 art. 14-2-1')
+    expect(anomalies[0].fondement).toBe('L. 1965 art. 18, II, al. 4')
   })
 
   it('signale un IBAN invalide sans bloquer les autres contrôles', () => {

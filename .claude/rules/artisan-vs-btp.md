@@ -12,6 +12,7 @@
 | Section Devis | `DevisSection` branche artisan | `DevisSection` branche pro_societe | `components/dashboard/DevisSection.tsx` |
 | Section Factures | `FacturesSectionV5` branche artisan | `FacturesSectionV5` branche pro_societe | `components/dashboard/FacturesSection.tsx` |
 | Section Prestations | artisan uniquement | BTP n'a pas de Prestations | `components/dashboard/PrestationsSection.tsx` |
+| Listes Devis/Factures V5 : recherche, cases à cocher, téléchargement groupé (ZIP) | `useBtpDesign: false` (PDF V2) | `useBtpDesign: true` (PDF V3, mode `action: 'fichier'`) | `components/dashboard/documents/OutilsListeDocuments.tsx`, `lib/documents/recherche-documents.ts`, `lib/pdf/telechargement-groupe.ts` |
 
 ## Règles de modification
 

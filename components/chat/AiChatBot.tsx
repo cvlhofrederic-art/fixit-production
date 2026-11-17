@@ -6,6 +6,7 @@ import { MessageSquare, Send, X, Calendar, FileText, Loader2, Mic, Camera } from
 import { FixyAvatar } from '@/components/common/RobotAvatars'
 import ReceiptScanner, { type DevisReceiptLine } from '@/components/common/ReceiptScanner'
 import { useLocale } from '@/lib/i18n/context'
+import { fetchAuthentifie } from '@/lib/fetch-authentifie'
 import {
   parseDate, parseTime, parseClientName, parseServiceMatch, parseAmount, parseAddress,
   detectIntent, formatDateFr, formatRecordingTime,
@@ -209,15 +210,20 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
   // Load artisan's client database
   useEffect(() => {
     if (artisan?.id && !clientsLoaded) {
-      fetch(`/api/artisan-clients?artisan_id=${artisan.id}`)
-        .then(res => res.json())
-        .then(data => {
-          if (data.clients) {
-            setClients(data.clients)
-          }
-          setClientsLoaded(true)
+      // Appel authentifié (Bearer) : un fetch nu recevait 401 à chaque chargement du dashboard, sans que rien ne
+      // le signale (lot 4 Sentry du 28/10/2026). Un 403 (compte sans fiche artisan) n'a simplement pas de clients.
+      fetchAuthentifie(`/api/artisan-clients?artisan_id=${artisan.id}`)
+        .then(async (res) => {
+          const data = await res.json().catch(() => ({}))
+          if (res.status === 403) return
+          if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+          if (data.clients) setClients(data.clients)
         })
-        .catch(() => { setClientsLoaded(true); toast.error('Impossible de charger la liste des clients') })
+        .catch((e: unknown) => {
+          console.warn('[AiChatBot] liste des clients non chargée :', e instanceof Error ? e.message : e)
+          toast.error('Impossible de charger la liste des clients')
+        })
+        .finally(() => setClientsLoaded(true))
     }
   }, [artisan?.id, clientsLoaded])
 
@@ -340,7 +346,7 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
         role: 'assistant',
         content: locale === 'pt'
           ? `Olá! Sou o Fixy, o seu assistente pessoal! 🔧\n\nGiro **tudo** na sua conta:\n\n📅 **Marcações** : "Marcação terça 14h Sr. Silva"\n⏰ **Disponibilidades** : "Ativa segunda a sexta 9h-18h"\n🔧 **Motivos** : "Ativa todos os meus motivos"\n📄 **Orçamentos/Faturas** : "Orçamento poda 150€ Silva"\n👥 **Clientes** : "A minha lista de clientes"\n💰 **Receitas** : "Quanto ganhei este mês?"\n📊 **Declaração** : "A minha declaração trimestral"\n💬 **Mensagens** : "Mensagens da marcação de Silva"\n🏢 **Empresa** : "O meu NIF"\n🧭 **Navegação** : "Abre a contabilidade"\n\n💡 Escreva como quiser, mesmo com erros, eu percebo!\n\nO que fazemos?`
-          : `Salut ! Moi c'est Fixy, votre assistant personnel ! 🔧\n\nJe gère **tout** votre compte :\n\n📅 **RDV** : "RDV mardi 14h Mme Dupont"\n⏰ **Dispos** : "Active lundi à vendredi 9h-18h"\n🔧 **Motifs** : "Active tous mes motifs"\n📄 **Devis/Factures** : "Devis élagage 150€ Dupont"\n👥 **Clients** : "Ma liste de clients"\n💰 **Revenus** : "Combien j'ai gagné ce mois ?"\n📊 **URSSAF** : "Ma déclaration trimestrielle"\n💬 **Messages** : "Messages du RDV de Dupont"\n🏢 **Entreprise** : "Mon SIRET"\n🧭 **Navigation** : "Ouvre la comptabilité"\n\n💡 Écrivez comme vous voulez, même avec des fautes, je comprends !\n\nQu'est-ce qu'on fait ?\n\n📋 **Pour créer un devis/rapport par commande vocale, suivez cet ordre :**\n👤 1. Nom du client\n📍 2. À [adresse ou résidence]\n🕐 3. À [heure] ← optionnel\n🔧 4. [Type d'intervention]\n💶 5. [Prix]€\n\n✅ **Exemple** : "Devis Dupont à La Sauvagère à 14h ${services[0]?.name || 'élagage'} 850€"\n➕ **Nouveau motif** : "Devis Martin rue des Lilas nettoyage de façade 600€"\n\nJe confirmerai toujours ce que j'ai compris avant d'agir !`
+          : `Salut ! Moi c'est Fixy, votre assistant personnel ! 🔧\n\nJe gère **tout** votre compte :\n\n📅 **RDV** : "RDV mardi 14h Mme Dupont"\n⏰ **Dispos** : "Active lundi à vendredi 9h-18h"\n🔧 **Motifs** : "Active tous mes motifs"\n📄 **Devis/Factures** : "Devis élagage 150€ Dupont"\n👥 **Clients** : "Ma liste de clients"\n💰 **Revenus** : "Combien j'ai gagné ce mois ?"\n📊 **URSSAF** : "Ma déclaration trimestrielle"\n💬 **Messages** : "Messages du RDV de Dupont"\n🏢 **Entreprise** : "Mon SIRET"\n🧭 **Navigation** : "Ouvre la comptabilité"\n\n💡 Écrivez comme vous voulez, même avec des fautes, je comprends !\n\nQu'est-ce qu'on fait ?\n\n📋 **Pour créer un devis/rapport par commande vocale, suivez cet ordre :**\n👤 1. Nom du client\n📍 2. À [adresse ou résidence]\n🕐 3. À [heure] ← optionnel\n🔧 4. [Type d'intervention]\n💶 5. [Prix]€\n\n✅ **Exemple** : "Devis Dupont à la Résidence Les Pins à 14h ${services[0]?.name || 'élagage'} 850€"\n➕ **Nouveau motif** : "Devis Martin rue des Lilas nettoyage de façade 600€"\n\nJe confirmerai toujours ce que j'ai compris avant d'agir !`
       }])
       setTimeout(() => inputRef.current?.focus(), 300)
     }
@@ -408,9 +414,9 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
       const controller = new AbortController()
       const timeout = setTimeout(() => controller.abort(), 30000)
 
-      const res = await fetch('/api/fixy-ai', {
+      // La route exige le Bearer (getAuthUser) : appel authentifié.
+      const res = await fetchAuthentifie('/api/fixy-ai', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         signal: controller.signal,
         body: JSON.stringify({
           message: text,
@@ -628,7 +634,7 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
       case 'help': {
         addMessage('assistant', locale === 'pt'
           ? `É o Fixy! Aqui está tudo o que sei fazer 💪\n\n🗓️ **Criar marcação** :\n• "Marcação terça 14h Sr. Silva"\n• "Visita amanhã 10h casa do Sr. Costa"\n\n📄 **Criar orçamento** :\n• "Orçamento poda 150€ para Carlos Silva"\n• "Cria orçamento motivo canalização preço 250€ cliente Ferreira"\n\n🧾 **Criar fatura** :\n• "Fatura intervenção Sra. Santos 180€"\n\n📋 **Ver agenda** :\n• "As minhas próximas marcações"\n• "A minha agenda"\n\n💡 **Base de clientes** : Encontro automaticamente os seus clientes e preencho as informações!\n\nFale comigo naturalmente, percebo tudo!`
-          : `C'est Fixy ! Voici tout ce que je sais faire 💪\n\n🗓️ **Créer un RDV** :\n• "RDV mardi 14h Mme Dupont"\n• "Rendez-vous demain 10h chez M. Martin"\n\n📄 **Créer un devis** :\n• "Devis élagage 150€ pour Frédéric Neiva Carvalho"\n• "Crée le devis motif plomberie prix 250€ pour le client Dupont"\n\n🧾 **Créer une facture** :\n• "Facture intervention Mme Legrand 180€"\n\n📋 **Voir le planning** :\n• "Mes prochains RDV"\n• "Mon agenda"\n\n💡 **Base clients** : Je retrouve automatiquement vos clients et pré-remplis leurs infos !\n\nParlez-moi naturellement, je comprends !`)
+          : `C'est Fixy ! Voici tout ce que je sais faire 💪\n\n🗓️ **Créer un RDV** :\n• "RDV mardi 14h Mme Dupont"\n• "Rendez-vous demain 10h chez M. Martin"\n\n📄 **Créer un devis** :\n• "Devis élagage 150€ pour Julien Moreau"\n• "Crée le devis motif plomberie prix 250€ pour le client Dupont"\n\n🧾 **Créer une facture** :\n• "Facture intervention Mme Legrand 180€"\n\n📋 **Voir le planning** :\n• "Mes prochains RDV"\n• "Mon agenda"\n\n💡 **Base clients** : Je retrouve automatiquement vos clients et pré-remplis leurs infos !\n\nParlez-moi naturellement, je comprends !`)
         break
       }
 
@@ -675,9 +681,8 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
 
       setProcessing(true)
       try {
-        const res = await fetch('/api/fixy-ai', {
+        const res = await fetchAuthentifie('/api/fixy-ai', {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             artisan_id: artisan?.id,
             confirm_token: pc.confirm_token,

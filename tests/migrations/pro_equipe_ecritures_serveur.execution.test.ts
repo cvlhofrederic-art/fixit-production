@@ -1,0 +1,685 @@
+// @vitest-environment node
+// tests/migrations/pro_equipe_ecritures_serveur.execution.test.ts
+//
+// EXÉCUTION RÉELLE de 20261115_pro_equipe_ecritures_serveur.sql (suite de R36, décision VF-A-02 ; modèle de T20) sur
+// un vrai PostgreSQL (PGlite, WebAssembly, en mémoire ; aucun service, aucune base distante), avec le rôle
+// authenticated et le jeton d'une session de navigateur (request.jwt.claims, comme PostgREST), sur les deux états de
+// départ possibles :
+//   - « production » : table, contraintes et policies telles que constatées en lecture seule le 14/11/2026 ;
+//   - « dépôt » : la migration 048 telle quelle (avec pro_role_permissions, dont la lecture s'appuie sur
+//     pro_team_members), puis les ALTER POLICY de 20260610 sur les policies de pro_team_members.
+// AVANT la migration, les écritures du gérant passent (la faille est reproduite) ; APRÈS, jouée deux fois, elles sont
+// refusées, la lecture reste, et les routes serveur (service_role) écrivent toujours. Les contournements qu'un
+// propriétaire de la base poserait à la main (vue, règle, déclencheur SECURITY DEFINER, héritage, partition, clé
+// étrangère) rouvrent l'écriture : la partie 1 du scénario de contrôle montre chacun.
+// Comptes fictifs (UUID aléatoires) ; aucune donnée réelle.
+
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { PGlite } from '@electric-sql/pglite'
+import { randomUUID } from 'crypto'
+import { ECHAFAUDAGE_SUPABASE_SQL, lireMigrationQr } from '../helpers/pglite-signalements'
+import {
+  bilanDuScenario,
+  dansPointDeSauvegarde,
+  droitsEffectifs,
+  droitsServeurSeul,
+  etatDuScenario,
+  partiesDuScenario,
+  sousRole,
+  type ResultatAppel,
+} from '../helpers/equipe-ecritures-serveur'
+
+const MIGRATION = '20261115_pro_equipe_ecritures_serveur.sql'
+const TABLE = 'public.pro_team_members'
+const SCENARIO = partiesDuScenario('supabase/tests/pro_equipe_ecritures_serveur.sql')
+
+interface FonctionCitee {
+  fonction: string
+  security_definer: boolean
+  executable_par_les_clients: boolean
+  fonction_de_declencheur: boolean
+  sql_dynamique: boolean
+}
+/** Les seuls champs d'une fonction dans la partie 1 : jamais son corps, qui peut contenir une clé. */
+const CHAMPS_FONCTION = ['executable_par_les_clients', 'fonction', 'fonction_de_declencheur', 'security_definer', 'sql_dynamique']
+interface EtatTable {
+  policies_ecriture: number
+  rls_active: boolean
+  proprietaire: string
+  fonctions_citant_la_table: FonctionCitee[] | null
+  fonctions_ecrivant_la_table: FonctionCitee[] | null
+  vues: Array<{ vue: string; type: string; security_invoker: boolean; regle_d_ecriture: boolean }> | null
+  heritage: Array<{ table: string; lien: string }> | null
+  regles_sur_la_table: number
+  cles_etrangeres: Array<{ contrainte: string; vers: string; suppression: string; mise_a_jour: string }> | null
+  empreinte_next_doc_number: string | null
+  declencheurs: Array<{ nom: string; fonction: string }> | null
+  droits: Array<{ role: string; select: boolean; insert: boolean; update: boolean; delete: boolean; truncate: boolean }>
+}
+
+const parTexte = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
+const PREFIXE_BILAN = 'BILAN (tout est annulé) : '
+
+// auth.uid() de Supabase : le « sub » du jeton de la requête (OR REPLACE : l'échafaudage partagé pourrait un jour la créer).
+const AUTH_UID_SQL = `
+CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$
+  SELECT (nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub')::uuid
+$$;
+GRANT USAGE ON SCHEMA auth TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION auth.uid() TO anon, authenticated, service_role;
+`
+
+// Production, constats en lecture seule du 14/11/2026 (VT-A-01) et du 15/11/2026 (partie 1 du scénario) : 15 colonnes,
+// contrainte du rôle à 6 valeurs, UNIQUE (company_id, email), UNIQUE (invite_token), RLS active, quatre policies
+// permissives pour le rôle public sous la forme (SELECT auth.uid()), le déclencheur trg_pro_team_updated_at, et
+// next_doc_number(uuid,text,integer), SECURITY DEFINER, seule fonction qui cite la table (corps réduit ici à sa lecture
+// de la table : contrôle des membres d'équipe).
+const PRODUCTION_SQL = `
+CREATE TABLE public.pro_team_members (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id uuid NOT NULL,
+  user_id uuid,
+  email text NOT NULL,
+  full_name text NOT NULL DEFAULT '',
+  phone text DEFAULT '',
+  role text NOT NULL
+    CONSTRAINT pro_team_members_role_check
+    CHECK (role IN ('GERANT', 'CONDUCTEUR_TRAVAUX', 'CHEF_CHANTIER', 'SECRETAIRE', 'COMPTABLE', 'OUVRIER')),
+  assigned_chantiers uuid[] DEFAULT '{}',
+  invite_token text UNIQUE,
+  invite_sent_at timestamptz,
+  accepted_at timestamptz,
+  last_login_at timestamptz,
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (company_id, email)
+);
+ALTER TABLE public.pro_team_members ENABLE ROW LEVEL SECURITY;
+CREATE POLICY pro_team_select ON public.pro_team_members FOR SELECT
+  USING ((company_id = (SELECT auth.uid())) OR (user_id = (SELECT auth.uid())));
+CREATE POLICY pro_team_insert ON public.pro_team_members FOR INSERT WITH CHECK ((company_id = (SELECT auth.uid())));
+CREATE POLICY pro_team_update ON public.pro_team_members FOR UPDATE USING ((company_id = (SELECT auth.uid())));
+CREATE POLICY pro_team_delete ON public.pro_team_members FOR DELETE USING ((company_id = (SELECT auth.uid())));
+CREATE FUNCTION public.update_pro_team_updated_at() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
+CREATE TRIGGER trg_pro_team_updated_at BEFORE UPDATE ON public.pro_team_members
+  FOR EACH ROW EXECUTE FUNCTION public.update_pro_team_updated_at();
+CREATE FUNCTION public.next_doc_number(p_artisan_id uuid, p_doc_type text, p_annee integer) RETURNS text
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF p_artisan_id <> auth.uid() AND NOT EXISTS (
+    SELECT 1 FROM pro_team_members WHERE user_id = auth.uid() AND company_id = p_artisan_id AND is_active
+  ) THEN
+    RAISE EXCEPTION 'non autorisé' USING ERRCODE = '42501';
+  END IF;
+  RETURN p_doc_type || '-' || p_annee || '-001';
+END;
+$$;
+`
+
+/** next_doc_number tel que la partie 1 le rend en production (SECURITY DEFINER, exécutable par les clients, ni fonction
+ *  de déclencheur ni SQL dynamique). */
+const NEXT_DOC_NUMBER = 'next_doc_number(uuid,text,integer) true true false false'
+
+/** Dépôt : 048 telle quelle, puis les quatre ALTER POLICY de 20260610 sur pro_team_members. */
+function depotSql(): string {
+  const alters = lireMigrationQr('20260610_rls_initplan_wrap.sql')
+    .match(/^ALTER POLICY "pro_team_(?:select|insert|update|delete)" ON public\.pro_team_members [^\n]*;$/gm)
+  if (alters?.length !== 4) throw new Error('ALTER POLICY de 20260610 sur pro_team_members introuvables : relire le banc')
+  return `${lireMigrationQr('048_pro_team_rbac.sql')}\n${alters.join('\n')}\n`
+}
+
+const ETATS = [
+  { nom: 'production (constats des 14 et 15/11/2026)', sql: () => PRODUCTION_SQL, depot: false, fonctionsCitantes: [NEXT_DOC_NUMBER] },
+  { nom: 'dépôt (048, 20260610)', sql: depotSql, depot: true, fonctionsCitantes: [] as string[] },
+]
+const DECLENCHEURS = ['trg_pro_team_updated_at']
+
+/** Fonctions d'une liste de la partie 1, en « nom security_definer executable_par_les_clients fonction_de_declencheur
+ *  sql_dynamique », triées. */
+const resume = (liste: FonctionCitee[] | null) => (liste ?? [])
+  .map((f) => `${f.fonction} ${f.security_definer} ${f.executable_par_les_clients} ${f.fonction_de_declencheur} ${f.sql_dynamique}`)
+  .sort(parTexte)
+
+/**
+ * Fonctions d'essai posées avant la migration : définition (après « CREATE FUNCTION public. »), droit d'exécution
+ * retiré, résumé attendu, et si le motif d'écriture doit la retenir (sinon, elle n'est que dans les fonctions qui citent
+ * la table). Aucun client ne l'exécute, ou anon seul, ou authenticated seul : ces deux derniers comptent comme
+ * exécutables par les clients.
+ */
+const FONCTIONS_ESSAI: Array<{ definition: string; retirer?: string; resume: string; ecrit: boolean }> = [
+  { definition: `essai_ecrit_sql(c uuid) RETURNS void LANGUAGE sql
+      AS $$ INSERT INTO public.pro_team_members (company_id, email, role) VALUES (c, 'x@exemple.test', 'OUVRIER') $$`,
+    resume: 'essai_ecrit_sql(uuid) false true false false', ecrit: true },
+  { definition: `essai_ecrit_dynamique(c uuid) RETURNS void LANGUAGE plpgsql
+      AS $$ BEGIN EXECUTE format('DELETE FROM public.%I WHERE company_id = $1', 'pro_team_members') USING c; END $$`,
+    resume: 'essai_ecrit_dynamique(uuid) false true false true', ecrit: false },
+  { definition: `essai_ecrit_atomique(c uuid) RETURNS void LANGUAGE sql SECURITY DEFINER
+      BEGIN ATOMIC DELETE FROM public.pro_team_members WHERE company_id = c; END`,
+    retirer: 'PUBLIC, anon, authenticated', resume: 'essai_ecrit_atomique(uuid) true false false false', ecrit: true },
+  { definition: `essai_ecrit_merge(c uuid) RETURNS void LANGUAGE plpgsql
+      AS $$ BEGIN MERGE INTO "public"."pro_team_members" t USING (SELECT c AS id) s ON t.company_id = s.id
+                  WHEN MATCHED THEN DELETE; END $$`,
+    retirer: 'PUBLIC, authenticated', resume: 'essai_ecrit_merge(uuid) false true false false', ecrit: true },
+  { definition: `essai_ecrit_vidage() RETURNS void LANGUAGE sql AS $$ TRUNCATE TABLE ${TABLE} $$`,
+    retirer: 'PUBLIC, anon', resume: 'essai_ecrit_vidage() false true false false', ecrit: true },
+  { definition: `essai_ecrit_vidage_court() RETURNS void LANGUAGE sql AS $$ TRUNCATE ${TABLE} $$`,
+    resume: 'essai_ecrit_vidage_court() false true false false', ecrit: true },
+  { definition: `essai_ecrit_role(c uuid) RETURNS void LANGUAGE sql
+      AS $$ UPDATE public.pro_team_members SET role = 'GERANT' WHERE company_id = c $$`,
+    resume: 'essai_ecrit_role(uuid) false true false false', ecrit: true },
+  { definition: `essai_ecrit_only(c uuid) RETURNS void LANGUAGE sql
+      AS $$ DELETE FROM ONLY public.pro_team_members WHERE company_id = c $$`,
+    resume: 'essai_ecrit_only(uuid) false true false false', ecrit: true },
+  { definition: `essai_ecrit_espaces(c uuid) RETURNS void LANGUAGE sql
+      AS $$ INSERT INTO public . pro_team_members (company_id, email, role) VALUES (c, 'y@exemple.test', 'OUVRIER') $$`,
+    resume: 'essai_ecrit_espaces(uuid) false true false false', ecrit: true },
+]
+
+describe.each(ETATS)('état de départ : $nom', ({ sql, depot, fonctionsCitantes }) => {
+  let db: PGlite
+  const comptes = { gerant: randomUUID(), membre: randomUUID(), etranger: randomUUID(), autreSociete: randomUUID() }
+  const lignes = { gerant: '', membre: '', invitation: '' }
+
+  beforeAll(async () => {
+    db = await PGlite.create()
+    await db.exec(ECHAFAUDAGE_SUPABASE_SQL + AUTH_UID_SQL)
+    await db.exec(sql())
+    // Lignes d'exemple, posées en propriétaire de la base (comme les routes, hors RLS) : le gérant, un sous-compte
+    // accepté et une invitation en cours de sa société.
+    const poser = async (userId: string | null, email: string, role: string, jeton: string | null) => (await db.query<{ id: string }>(
+      `INSERT INTO ${TABLE} (company_id, user_id, email, full_name, role, invite_token, invite_sent_at, accepted_at)
+       VALUES ($1, $2, $3, 'Exemple', $4, $5, CASE WHEN $5::text IS NULL THEN NULL ELSE now() END,
+               CASE WHEN $2::uuid IS NULL THEN NULL ELSE now() END)
+       RETURNING id`, [comptes.gerant, userId, email, role, jeton])).rows[0].id
+    lignes.gerant = await poser(comptes.gerant, 'gerant@exemple.test', 'GERANT', null)
+    lignes.membre = await poser(comptes.membre, 'membre@exemple.test', 'OUVRIER', null)
+    lignes.invitation = await poser(null, 'invite@exemple.test', 'CHEF_CHANTIER', 'jeton-exemple')
+    if (depot) {
+      await db.query(`INSERT INTO public.pro_role_permissions (company_id, member_id, module_id, access_level)
+                      VALUES ($1, $2, 'planning', 'READ')`, [comptes.gerant, lignes.membre])
+    }
+  }, 120_000)
+  afterAll(async () => { await db?.close() })
+  beforeEach(async () => { await db.exec('BEGIN') })
+  afterEach(async () => { await db.exec('ROLLBACK') })
+
+  const nombreDeLignes = async () => Number((await db.query<{ n: number }>(`SELECT count(*)::int AS n FROM ${TABLE}`)).rows[0].n)
+  const lireLigne = async (id: string) => (await db.query<{ company_id: string; user_id: string | null; role: string }>(
+    `SELECT company_id, user_id, role FROM ${TABLE} WHERE id = $1`, [id])).rows[0]
+  const etat = () => etatDuScenario<EtatTable>(db, SCENARIO.etat)
+
+  /** Écritures d'une session de navigateur : chacune passe avant la migration, toutes échouent après (42501). */
+  const ECRITURES: Array<{ cas: string; ecrire: () => Promise<ResultatAppel>; avant: () => Promise<void> }> = [
+    {
+      cas: '(2) un compte s’ajoute lui-même, en GERANT, dans sa propre « société »',
+      ecrire: () => sousRole(db, 'authenticated', comptes.etranger,
+        `INSERT INTO ${TABLE} (company_id, user_id, email, role) VALUES ($1, $1, 'soi@exemple.test', 'GERANT')`, [comptes.etranger]),
+      avant: async () => { expect(await nombreDeLignes()).toBe(4) },
+    },
+    {
+      cas: '(3) le gérant rattache le compte de quelqu’un d’autre à sa société',
+      ecrire: () => sousRole(db, 'authenticated', comptes.gerant,
+        `INSERT INTO ${TABLE} (company_id, user_id, email, role) VALUES ($1, $2, 'autre@exemple.test', 'OUVRIER')`,
+        [comptes.gerant, comptes.etranger]),
+      avant: async () => { expect(await nombreDeLignes()).toBe(4) },
+    },
+    {
+      cas: '(4) le gérant change le rôle d’une invitation déjà envoyée, jusqu’à GERANT',
+      ecrire: () => sousRole(db, 'authenticated', comptes.gerant, `UPDATE ${TABLE} SET role = 'GERANT' WHERE id = $1`, [lignes.invitation]),
+      avant: async () => { expect((await lireLigne(lignes.invitation)).role).toBe('GERANT') },
+    },
+    {
+      cas: 'le gérant supprime une ligne de son équipe hors de l’application',
+      ecrire: () => sousRole(db, 'authenticated', comptes.gerant, `DELETE FROM ${TABLE} WHERE id = $1`, [lignes.membre]),
+      avant: async () => { expect(await lireLigne(lignes.membre)).toBeUndefined() },
+    },
+  ]
+
+  /** (1) Un membre déplace sa ligne : déjà refusé avant (policy du gérant), par le droit retiré après. */
+  const deplacerSaLigne = () => sousRole(db, 'authenticated', comptes.membre,
+    `UPDATE ${TABLE} SET company_id = $1 WHERE id = $2`, [comptes.autreSociete, lignes.membre])
+
+  /** Rien n'a bougé : trois lignes, le membre dans sa société, l'invitation avec son rôle. */
+  const rienNAChange = async () => {
+    expect(await nombreDeLignes()).toBe(3)
+    expect(await lireLigne(lignes.membre)).toMatchObject({ company_id: comptes.gerant, user_id: comptes.membre })
+    expect((await lireLigne(lignes.invitation)).role).toBe('CHEF_CHANTIER')
+  }
+
+  describe('avant la migration : la faille est reproduite', () => {
+    it.each(ECRITURES)('$cas : accepté', async ({ ecrire, avant }) => {
+      expect((await ecrire()).erreur).toBeNull()
+      await avant()
+    })
+
+    it('(1) un membre ne déplace pas sa ligne vers une autre société (non-régression)', async () => {
+      await deplacerSaLigne()
+      expect((await lireLigne(lignes.membre)).company_id).toBe(comptes.gerant)
+    })
+
+    it('le scénario de contrôle le voit : partie 1 compte les policies d’écriture, partie 2 signale la faille', async () => {
+      const e = await etat()
+      expect(Number(e.policies_ecriture)).toBe(3)
+      expect(e.droits.find((d) => d.role === 'authenticated')).toMatchObject({ insert: true, update: true, delete: true })
+      expect([e.fonctions_ecrivant_la_table, e.vues, e.heritage, e.cles_etrangeres]).toEqual([null, null, null, null])
+      expect(resume(e.fonctions_citant_la_table)).toEqual(fonctionsCitantes)
+      expect(Number(e.regles_sur_la_table)).toBe(0)
+      expect((e.declencheurs ?? []).map((d) => d.nom)).toEqual(DECLENCHEURS)
+      // Ni définition ni arguments (un webhook Supabase y place ses en-têtes) : le nom et la fonction appelée seulement.
+      for (const d of e.declencheurs ?? []) expect(Object.keys(d).sort(parTexte)).toEqual(['fonction', 'nom'])
+      expect(e.proprietaire).toBe('postgres')
+      // Aucune clé étrangère vers les comptes (production comme dépôt) : l'insertion pour soi passe.
+      expect(await bilanDuScenario(db, SCENARIO.test)).toBe('ÉCHEC 2 : ligne créée par une session navigateur')
+      expect(await nombreDeLignes()).toBe(3)
+    })
+
+    it('la partie 1 repère les fonctions qui écrivent la table (INSERT, UPDATE, DELETE, ONLY, MERGE, TRUNCATE avec ou sans TABLE, schéma entre guillemets ou entouré d’espaces), le SQL dynamique, et n’en sort aucun corps', async () => {
+      for (const f of FONCTIONS_ESSAI) {
+        await db.exec(`CREATE FUNCTION public.${f.definition}`)
+        if (f.retirer) await db.exec(`REVOKE EXECUTE ON FUNCTION public.${f.resume.split(' ')[0]} FROM ${f.retirer}`)
+      }
+      const e = await etat()
+      expect(resume(e.fonctions_ecrivant_la_table))
+        .toEqual(FONCTIONS_ESSAI.filter((f) => f.ecrit).map((f) => f.resume).sort(parTexte))
+      expect(resume(e.fonctions_citant_la_table))
+        .toEqual([...fonctionsCitantes, ...FONCTIONS_ESSAI.map((f) => f.resume)].sort(parTexte))
+      for (const f of [...(e.fonctions_citant_la_table ?? []), ...(e.fonctions_ecrivant_la_table ?? [])]) {
+        expect(Object.keys(f).sort(parTexte), f.fonction).toEqual(CHAMPS_FONCTION)
+      }
+    })
+  })
+
+  describe('après la migration, jouée deux fois', () => {
+    let empreintePremierePasse = ''
+    const empreinte = async () => JSON.stringify((await db.query(`
+      SELECT (SELECT json_agg(json_build_object('nom', policyname, 'cmd', cmd) ORDER BY policyname)
+                FROM pg_policies WHERE schemaname = 'public' AND tablename = 'pro_team_members') AS policies,
+             (SELECT relacl::text FROM pg_class WHERE oid = '${TABLE}'::regclass) AS droits,
+             (SELECT relrowsecurity FROM pg_class WHERE oid = '${TABLE}'::regclass) AS rls`)).rows)
+
+    beforeAll(async () => {
+      await db.exec(lireMigrationQr(MIGRATION))
+      empreintePremierePasse = await empreinte()
+      await db.exec(lireMigrationQr(MIGRATION))
+    })
+
+    it('la seconde passe ne change rien (rejouable)', async () => {
+      expect(await empreinte()).toBe(empreintePremierePasse)
+    })
+
+    it('seule pro_team_select reste, RLS active ; lecture pour tous, écriture pour service_role seul', async () => {
+      const { rows } = await db.query<{ policyname: string; cmd: string }>(
+        `SELECT policyname, cmd FROM pg_policies WHERE schemaname = 'public' AND tablename = 'pro_team_members'`)
+      expect(rows).toEqual([{ policyname: 'pro_team_select', cmd: 'SELECT' }])
+      expect((await etat()).rls_active).toBe(true)
+      expect(await droitsEffectifs(db, TABLE)).toEqual(droitsServeurSeul())
+    })
+
+    it.each(ECRITURES)('$cas : refusé (droit retiré, 42501), rien n’est écrit', async ({ ecrire }) => {
+      expect((await ecrire()).erreur?.code).toBe('42501')
+      await rienNAChange()
+    })
+
+    it('(1) un membre déplace sa ligne : refusé (42501) ; un visiteur sans compte (anon) n’écrit rien non plus', async () => {
+      expect((await deplacerSaLigne()).erreur?.code).toBe('42501')
+      const anon = await sousRole(db, 'anon', null,
+        `INSERT INTO ${TABLE} (company_id, user_id, email, role) VALUES ($1, $1, 'anon@exemple.test', 'OUVRIER')`, [comptes.etranger])
+      expect(anon.erreur?.code).toBe('42501')
+      await rienNAChange()
+    })
+
+    it('lecture inchangée : le membre voit sa ligne, le gérant celles de sa société, un compte étranger rien', async () => {
+      const ids = async (sub: string) => (await sousRole(db, 'authenticated', sub, `SELECT id FROM ${TABLE}`)).lignes.map((l) => String(l.id)).sort(parTexte)
+      expect(await ids(comptes.membre)).toEqual([lignes.membre])
+      expect(await ids(comptes.gerant)).toEqual([lignes.gerant, lignes.membre, lignes.invitation].sort(parTexte))
+      expect(await ids(comptes.etranger)).toEqual([])
+    })
+
+    it.runIf(!depot)('next_doc_number (SECURITY DEFINER, lit la table) : un membre obtient toujours son numéro, un compte étranger 42501', async () => {
+      const numero = (sub: string) => sousRole(db, 'authenticated', sub, `SELECT public.next_doc_number($1, 'DEV', 2026) AS n`, [comptes.gerant])
+      const duMembre = await numero(comptes.membre)
+      expect([duMembre.erreur, duMembre.lignes[0]?.n]).toEqual([null, 'DEV-2026-001'])
+      expect((await numero(comptes.etranger)).erreur?.code).toBe('42501')
+    })
+
+    it.runIf(depot)('pro_role_permissions : le membre lit toujours ses droits (sa policy de lecture s’appuie sur pro_team_members)', async () => {
+      const r = await sousRole(db, 'authenticated', comptes.membre, 'SELECT module_id, access_level FROM public.pro_role_permissions')
+      expect(r.erreur).toBeNull()
+      expect(r.lignes).toEqual([{ module_id: 'planning', access_level: 'READ' }])
+    })
+
+    it('le scénario de contrôle rend l’état et le BILAN attendus (parties 1 et 2, telles que Frédéric les lance)', async () => {
+      const e = await etat()
+      expect([Number(e.policies_ecriture), Number(e.regles_sur_la_table)]).toEqual([0, 0])
+      expect([e.fonctions_ecrivant_la_table, e.vues, e.heritage, e.cles_etrangeres]).toEqual([null, null, null, null])
+      // Empreinte du corps de next_doc_number : présente en production, absente du dépôt (048 seule).
+      expect(e.empreinte_next_doc_number === null).toBe(depot)
+      expect(resume(e.fonctions_citant_la_table)).toEqual(fonctionsCitantes)
+      expect((e.declencheurs ?? []).map((d) => d.nom)).toEqual(DECLENCHEURS)
+      expect(e.droits).toEqual([
+        { role: 'anon', select: true, insert: false, update: false, delete: false, truncate: false },
+        { role: 'authenticated', select: true, insert: false, update: false, delete: false, truncate: false },
+        { role: 'service_role', select: true, insert: true, update: true, delete: true, truncate: true },
+      ])
+      const bilan = await bilanDuScenario(db, SCENARIO.test)
+      expect(bilan.startsWith(PREFIXE_BILAN)).toBe(true)
+      const parties = bilan.slice(PREFIXE_BILAN.length).split(' | ')
+      expect(parties.map((p) => p.split(' : ')[0])).toEqual(['2 ok', '3 ok', '4 ok', 'suppression ok', '1 ok', '5 ok'])
+      for (const p of parties.slice(0, 5)) expect(p).toMatch(/ : permission denied for table pro_team_members$/)
+      expect(parties[5]).toBe('5 ok : lecture acceptée, 0 ligne')
+      await rienNAChange()
+    })
+
+    /** Action d'un contournement : rattache en GERANT le compte de la ligne écrite (NEW), dans la société de ce compte. */
+    const rattacherEnGerant = (email: string) =>
+      `INSERT INTO ${TABLE} (company_id, user_id, email, role) VALUES (NEW.company_id, NEW.user_id, '${email}', 'GERANT')`
+    const RELAIS = 'CREATE TABLE public.essai_relais (company_id uuid, user_id uuid)'
+
+    /**
+     * Contournements qu'un propriétaire de la base poserait à la main après la migration : les actions d'une vue sans
+     * security_invoker, d'une règle (même sur une vue security_invoker), d'un déclencheur SECURITY DEFINER ou d'une clé
+     * étrangère à action s'exécutent avec les droits de leur propriétaire, et une requête héritée n'est vérifiée que sur
+     * la table mère : donc malgré les droits retirés aux clients. La partie 1 doit montrer chacun (d'où vues,
+     * fonctions_ecrivant_la_table, heritage et cles_etrangeres attendus à null) : `vu` lit ce qu'elle en dit,
+     * `attendu` est ce qu'elle doit en dire.
+     */
+    const CONTOURNEMENTS: Array<{
+      cas: string
+      poser: string[]
+      ecrire: () => Promise<ResultatAppel>
+      ecrit: () => Promise<void>
+      vu: (e: EtatTable) => unknown
+      attendu: unknown
+    }> = [
+      {
+        cas: 'vue sans security_invoker',
+        poser: [`CREATE VIEW public.essai_vue_equipe AS SELECT * FROM ${TABLE}`],
+        ecrire: () => sousRole(db, 'authenticated', comptes.gerant,
+          `INSERT INTO public.essai_vue_equipe (company_id, user_id, email, role) VALUES ($1, $2, 'vue@exemple.test', 'OUVRIER')`,
+          [comptes.gerant, comptes.etranger]),
+        ecrit: async () => { expect(await nombreDeLignes()).toBe(4) },
+        vu: (e) => e.vues,
+        attendu: [{ vue: 'essai_vue_equipe', type: 'v', security_invoker: false, regle_d_ecriture: false }],
+      },
+      {
+        // ON INSERT … DO INSTEAD, sur une table que les clients écrivent.
+        cas: 'règle INSERT d’une table relais',
+        poser: [RELAIS, `CREATE RULE essai_relais_ecrit AS ON INSERT TO public.essai_relais
+          DO INSTEAD ${rattacherEnGerant('relais@exemple.test')}`],
+        ecrire: () => sousRole(db, 'authenticated', comptes.etranger,
+          'INSERT INTO public.essai_relais (company_id, user_id) VALUES ($1, $1)', [comptes.etranger]),
+        ecrit: async () => { expect(await nombreDeLignes()).toBe(4) },
+        vu: (e) => e.vues,
+        attendu: [{ vue: 'essai_relais', type: 'r', security_invoker: false, regle_d_ecriture: true }],
+      },
+      {
+        // ON INSERT … DO INSTEAD, sur une vue security_invoker (sans effet sur les actions d'une règle).
+        cas: 'règle INSERT d’une vue security_invoker',
+        poser: [
+          RELAIS,
+          'CREATE VIEW public.essai_vue_relais WITH (security_invoker = true) AS SELECT company_id, user_id FROM public.essai_relais',
+          `CREATE RULE essai_vue_relais_ecrit AS ON INSERT TO public.essai_vue_relais
+            DO INSTEAD ${rattacherEnGerant('vue-relais@exemple.test')}`,
+        ],
+        ecrire: () => sousRole(db, 'authenticated', comptes.autreSociete,
+          'INSERT INTO public.essai_vue_relais (company_id, user_id) VALUES ($1, $1)', [comptes.autreSociete]),
+        ecrit: async () => { expect(await nombreDeLignes()).toBe(4) },
+        vu: (e) => e.vues,
+        attendu: [{ vue: 'essai_vue_relais', type: 'v', security_invoker: true, regle_d_ecriture: true }],
+      },
+      {
+        // ON UPDATE … DO ALSO, sur une table relais : passe l'invitation en GERANT, ce que l'UPDATE direct ne peut plus.
+        cas: 'règle UPDATE d’une table relais',
+        poser: [
+          'CREATE TABLE public.essai_relais_maj (id uuid)',
+          `INSERT INTO public.essai_relais_maj (id) SELECT id FROM ${TABLE} WHERE invite_token IS NOT NULL`,
+          `CREATE RULE essai_relais_maj_ecrit AS ON UPDATE TO public.essai_relais_maj
+            DO ALSO UPDATE ${TABLE} SET role = 'GERANT' WHERE id = OLD.id`,
+        ],
+        ecrire: () => sousRole(db, 'authenticated', comptes.gerant, 'UPDATE public.essai_relais_maj SET id = id'),
+        ecrit: async () => { expect((await lireLigne(lignes.invitation)).role).toBe('GERANT') },
+        vu: (e) => e.vues,
+        attendu: [{ vue: 'essai_relais_maj', type: 'r', security_invoker: false, regle_d_ecriture: true }],
+      },
+      {
+        // Fonction que les clients n'exécutent pas : le droit EXECUTE n'est pas vérifié quand le déclencheur part.
+        cas: 'déclencheur SECURITY DEFINER',
+        poser: [
+          'CREATE TABLE public.essai_source (company_id uuid, user_id uuid)',
+          `CREATE FUNCTION public.essai_declencheur_ecrit() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER
+            AS $$ BEGIN ${rattacherEnGerant('declencheur@exemple.test')}; RETURN NEW; END $$`,
+          'REVOKE EXECUTE ON FUNCTION public.essai_declencheur_ecrit() FROM PUBLIC, anon, authenticated',
+          `CREATE TRIGGER essai_declencheur AFTER INSERT ON public.essai_source
+            FOR EACH ROW EXECUTE FUNCTION public.essai_declencheur_ecrit()`,
+        ],
+        ecrire: () => sousRole(db, 'authenticated', comptes.etranger,
+          'INSERT INTO public.essai_source (company_id, user_id) VALUES ($1, $1)', [comptes.etranger]),
+        ecrit: async () => { expect(await nombreDeLignes()).toBe(4) },
+        vu: (e) => [resume(e.fonctions_ecrivant_la_table), resume(e.fonctions_citant_la_table), e.vues],
+        attendu: [
+          ['essai_declencheur_ecrit() true false true false'],
+          [...fonctionsCitantes, 'essai_declencheur_ecrit() true false true false'].sort(parTexte),
+          null,
+        ],
+      },
+      {
+        // ON DELETE … DO ALSO, sur une table relais : supprime le membre, ce que le DELETE direct ne peut plus.
+        cas: 'règle DELETE d’une table relais',
+        poser: [
+          'CREATE TABLE public.essai_relais_suppr (id uuid)',
+          `INSERT INTO public.essai_relais_suppr (id) SELECT id FROM ${TABLE} WHERE role = 'OUVRIER'`,
+          `CREATE RULE essai_relais_suppr_ecrit AS ON DELETE TO public.essai_relais_suppr
+            DO ALSO DELETE FROM ${TABLE} WHERE id = OLD.id`,
+        ],
+        ecrire: () => sousRole(db, 'authenticated', comptes.etranger, 'DELETE FROM public.essai_relais_suppr'),
+        ecrit: async () => { expect(await lireLigne(lignes.membre)).toBeUndefined() },
+        vu: (e) => e.vues,
+        attendu: [{ vue: 'essai_relais_suppr', type: 'r', security_invoker: false, regle_d_ecriture: true }],
+      },
+      {
+        // Une table fille que les clients écrivent : ses lignes sont lues comme des lignes de la table, par le serveur
+        // (service_role) comme par une requête sans ONLY.
+        cas: 'table fille (INHERITS)',
+        poser: [`CREATE TABLE public.essai_enfant () INHERITS (${TABLE})`],
+        ecrire: () => sousRole(db, 'authenticated', comptes.etranger,
+          `INSERT INTO public.essai_enfant (company_id, user_id, email, role) VALUES ($1, $2, 'enfant@exemple.test', 'GERANT')`,
+          [comptes.gerant, comptes.etranger]),
+        ecrit: async () => {
+          const lu = await sousRole(db, 'service_role', null, `SELECT role FROM ${TABLE} WHERE user_id = $1`, [comptes.etranger])
+          expect(lu.lignes).toEqual([{ role: 'GERANT' }])
+        },
+        vu: (e) => e.heritage,
+        attendu: [{ table: 'essai_enfant', lien: 'enfant' }],
+      },
+      {
+        // Une requête héritée n'est vérifiée que sur la table mère : ses droits et sa RLS, pas ceux de la table.
+        cas: 'table mère (INHERIT)',
+        poser: ['CREATE TABLE public.essai_mere (id uuid, role text)', `ALTER TABLE ${TABLE} INHERIT public.essai_mere`],
+        ecrire: () => sousRole(db, 'authenticated', comptes.etranger,
+          `UPDATE public.essai_mere SET role = 'GERANT' WHERE id = $1`, [lignes.invitation]),
+        ecrit: async () => { expect((await lireLigne(lignes.invitation)).role).toBe('GERANT') },
+        vu: (e) => e.heritage,
+        attendu: [{ table: 'essai_mere', lien: 'parente' }],
+      },
+      {
+        // Même principe pour une table partitionnée dont la table devient la partition par défaut ; un INSERT par la
+        // table partitionnée est en plus routé vers la table : un compte étranger s'y inscrit GERANT.
+        cas: 'partition rattachée (ATTACH PARTITION)',
+        poser: [
+          `CREATE TABLE public.essai_partitionnee (LIKE ${TABLE} INCLUDING DEFAULTS) PARTITION BY LIST (role)`,
+          `ALTER TABLE public.essai_partitionnee ATTACH PARTITION ${TABLE} DEFAULT`,
+        ],
+        ecrire: () => sousRole(db, 'authenticated', comptes.etranger,
+          `INSERT INTO public.essai_partitionnee (company_id, user_id, email, role) VALUES ($1, $2, 'partition@exemple.test', 'GERANT')`,
+          [comptes.gerant, comptes.etranger]),
+        ecrit: async () => {
+          const { rows } = await db.query<{ role: string }>(`SELECT role FROM ONLY ${TABLE} WHERE user_id = $1`, [comptes.etranger])
+          expect(rows).toEqual([{ role: 'GERANT' }])
+        },
+        vu: (e) => e.heritage,
+        attendu: [{ table: 'essai_partitionnee', lien: 'parente' }],
+      },
+      {
+        // L'action référentielle s'exécute avec les droits du propriétaire ; ses déclencheurs, internes, ne sont pas
+        // dans « declencheurs ».
+        cas: 'clé étrangère ON DELETE CASCADE',
+        poser: [
+          'CREATE TABLE public.essai_societes (id uuid PRIMARY KEY)',
+          `INSERT INTO public.essai_societes (id) SELECT DISTINCT company_id FROM ${TABLE}`,
+          `ALTER TABLE ${TABLE} ADD CONSTRAINT essai_societe_fk FOREIGN KEY (company_id)
+            REFERENCES public.essai_societes (id) ON DELETE CASCADE`,
+        ],
+        ecrire: () => sousRole(db, 'authenticated', comptes.etranger,
+          'DELETE FROM public.essai_societes WHERE id = $1', [comptes.gerant]),
+        ecrit: async () => { expect(await nombreDeLignes()).toBe(0) },
+        vu: (e) => [e.cles_etrangeres, (e.declencheurs ?? []).map((d) => d.nom)],
+        attendu: [[{ contrainte: 'essai_societe_fk', vers: 'essai_societes', suppression: 'c', mise_a_jour: 'a' }], DECLENCHEURS],
+      },
+      {
+        // Même sans action, un TRUNCATE … CASCADE de la table référencée vide la table ; lancé par une fonction SECURITY
+        // DEFINER qui ne nomme pas la table, il n'apparaît dans aucune liste de fonctions : seule la clé le trahit.
+        cas: 'clé étrangère sans action, TRUNCATE … CASCADE',
+        poser: [
+          'CREATE TABLE public.essai_societes (id uuid PRIMARY KEY)',
+          `INSERT INTO public.essai_societes (id) SELECT DISTINCT company_id FROM ${TABLE}`,
+          `ALTER TABLE ${TABLE} ADD CONSTRAINT essai_societe_fk FOREIGN KEY (company_id) REFERENCES public.essai_societes (id)`,
+          `CREATE FUNCTION public.essai_vider_societes() RETURNS void LANGUAGE sql SECURITY DEFINER
+            AS $$ TRUNCATE public.essai_societes CASCADE $$`,
+        ],
+        ecrire: () => sousRole(db, 'authenticated', comptes.etranger, 'SELECT public.essai_vider_societes()'),
+        ecrit: async () => { expect(await nombreDeLignes()).toBe(0) },
+        vu: (e) => [e.cles_etrangeres, resume(e.fonctions_citant_la_table)],
+        attendu: [[{ contrainte: 'essai_societe_fk', vers: 'essai_societes', suppression: 'a', mise_a_jour: 'a' }], fonctionsCitantes],
+      },
+    ]
+
+    it.each(CONTOURNEMENTS)('contournement posé à la main, $cas : le client écrit quand même, la partie 1 le montre',
+      async ({ poser, ecrire, ecrit, vu, attendu }) => {
+        for (const instruction of poser) await db.exec(instruction)
+        expect((await ecrire()).erreur).toBeNull()
+        await ecrit()
+        expect(vu(await etat())).toEqual(attendu)
+      })
+
+    it('security_invoker est lu à sa valeur, seul parmi les options de la vue : 1 le rend vrai (un client n’écrit pas par la vue, 42501), off faux, security_barrier ne compte pas', async () => {
+      // PostgreSQL garde l'option telle qu'elle est écrite (security_invoker=1) : seule sa conversion en booléen la lit.
+      for (const [vue, options] of [['un', 'security_invoker = 1'], ['off', 'security_invoker = off'],
+        ['barriere', 'security_barrier'], ['deux', 'security_barrier, security_invoker = on']]) {
+        await db.exec(`CREATE VIEW public.essai_vue_${vue} WITH (${options}) AS SELECT * FROM ${TABLE}`)
+      }
+      const parLaVue = await sousRole(db, 'authenticated', comptes.gerant,
+        `INSERT INTO public.essai_vue_un (company_id, email, role) VALUES ($1, 'un@exemple.test', 'OUVRIER')`, [comptes.gerant])
+      expect(parLaVue.erreur?.code).toBe('42501')
+      await rienNAChange()
+      const lues = ((await etat()).vues ?? []).map((v) => [v.vue, v.type, v.security_invoker, v.regle_d_ecriture])
+      expect(lues).toEqual([
+        ['essai_vue_barriere', 'v', false, false],
+        ['essai_vue_deux', 'v', true, false],
+        ['essai_vue_off', 'v', false, false],
+        ['essai_vue_un', 'v', true, false],
+      ])
+    })
+
+    it('un droit rendu sur une seule colonne (lecture, insertion, modification) se voit dans « droits » ; sans policy d’écriture, la RLS le neutralise', async () => {
+      await db.exec(`REVOKE SELECT ON ${TABLE} FROM anon`)
+      await db.exec(`GRANT SELECT (id), INSERT (email) ON ${TABLE} TO anon`)
+      await db.exec(`GRANT UPDATE (role) ON ${TABLE} TO authenticated`)
+      const droits = (await etat()).droits
+      expect(droits.find((d) => d.role === 'anon'))
+        .toEqual({ role: 'anon', select: true, insert: true, update: false, delete: false, truncate: false })
+      expect(droits.find((d) => d.role === 'authenticated'))
+        .toEqual({ role: 'authenticated', select: true, insert: false, update: true, delete: false, truncate: false })
+      const maj = await sousRole(db, 'authenticated', comptes.gerant,
+        `UPDATE ${TABLE} SET role = 'GERANT' WHERE id = $1`, [lignes.invitation])
+      expect([maj.erreur, maj.nb]).toEqual([null, 0])
+      await rienNAChange()
+    })
+
+    it('les clés étrangères de la table sortent toutes, avec leurs codes d’action (aucune, set null, set default…)', async () => {
+      await db.exec(`CREATE TABLE public.essai_societes (id uuid PRIMARY KEY);
+        CREATE TABLE public.essai_comptes (id uuid PRIMARY KEY);
+        INSERT INTO public.essai_societes (id) SELECT DISTINCT company_id FROM ${TABLE};
+        INSERT INTO public.essai_comptes (id) SELECT DISTINCT user_id FROM ${TABLE} WHERE user_id IS NOT NULL;
+        ALTER TABLE ${TABLE} ADD CONSTRAINT essai_fk_aucune FOREIGN KEY (company_id) REFERENCES public.essai_societes (id);
+        ALTER TABLE ${TABLE} ADD CONSTRAINT essai_fk_sans_compte FOREIGN KEY (user_id) REFERENCES public.essai_comptes (id)
+          ON UPDATE SET NULL ON DELETE SET DEFAULT`)
+      expect((await etat()).cles_etrangeres).toEqual([
+        { contrainte: 'essai_fk_aucune', vers: 'essai_societes', suppression: 'a', mise_a_jour: 'a' },
+        { contrainte: 'essai_fk_sans_compte', vers: 'essai_comptes', suppression: 'd', mise_a_jour: 'n' },
+      ])
+    })
+
+    it.runIf(!depot)('empreinte_next_doc_number : 12 caractères hexadécimaux, qui changent avec le corps de la fonction', async () => {
+      const avant = (await etat()).empreinte_next_doc_number
+      expect(avant).toMatch(/^[0-9a-f]{12}$/)
+      await db.exec(`CREATE OR REPLACE FUNCTION public.next_doc_number(p_artisan_id uuid, p_doc_type text, p_annee integer)
+        RETURNS text LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+        AS $$ BEGIN RETURN p_doc_type || '-' || p_annee || '-002'; END; $$`)
+      const apres = (await etat()).empreinte_next_doc_number
+      expect(apres).toMatch(/^[0-9a-f]{12}$/)
+      expect(apres).not.toBe(avant)
+    })
+
+    it('une règle posée sur la table elle-même est comptée à part (d’où « regles_sur_la_table » attendu à 0)', async () => {
+      await db.exec(`CREATE RULE essai_regle_equipe AS ON DELETE TO ${TABLE} DO INSTEAD NOTHING`)
+      const e = await etat()
+      expect([Number(e.regles_sur_la_table), e.vues]).toEqual([1, null])
+    })
+
+    it('rejouée par un rôle non propriétaire alors qu’un droit d’écriture a été rendu : erreur visible, rien n’est appliqué', async () => {
+      // Un droit rendu à la main, puis la migration relancée par un rôle qui ne possède pas la table : les DROP IF EXISTS
+      // ne trouvent rien, le REVOKE ne retire rien (simple avertissement) ; le contrôle final doit lever une erreur.
+      await db.exec(`GRANT INSERT ON ${TABLE} TO authenticated`)
+      await db.exec(`DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'executant_non_proprietaire') THEN
+          CREATE ROLE executant_non_proprietaire NOLOGIN;
+        END IF;
+      END $$`)
+      // Un droit de lecture suffit pour que REVOKE ne lève pas d'erreur (simple avertissement « aucun droit retiré ») :
+      // c'est le cas silencieux que le contrôle final doit rendre visible. Sans aucun droit, REVOKE échoue déjà (42501).
+      await db.exec(`GRANT USAGE ON SCHEMA public TO executant_non_proprietaire; GRANT SELECT ON ${TABLE} TO executant_non_proprietaire`)
+      const relance = await dansPointDeSauvegarde(db, async () => {
+        await db.exec('SET LOCAL ROLE executant_non_proprietaire')
+        await db.exec(lireMigrationQr(MIGRATION))
+      }, false)
+      expect(relance.erreur?.message).toMatch(/^Équipe BTP : un droit d'écriture reste à anon ou authenticated sur pro_team_members/)
+    })
+
+    it('les routes serveur (service_role) invitent, acceptent, modifient et suppriment toujours', async () => {
+      const etapes: Array<[string, unknown[]]> = [
+        [`UPDATE ${TABLE} SET user_id = $1, accepted_at = now(), invite_token = NULL WHERE id = $2`, [comptes.etranger, lignes.invitation]],
+        [`UPDATE ${TABLE} SET role = 'COMPTABLE', is_active = false WHERE id = $1`, [lignes.invitation]],
+        [`DELETE FROM ${TABLE} WHERE id = $1`, [lignes.invitation]],
+      ]
+      const invite = await sousRole(db, 'service_role', null,
+        `INSERT INTO ${TABLE} (company_id, email, role, invite_token, invite_sent_at) VALUES ($1, 'nouvel@exemple.test', 'SECRETAIRE', 'jeton-exemple-2', now())`,
+        [comptes.gerant])
+      expect([invite.erreur, invite.nb]).toEqual([null, 1])
+      for (const [requete, params] of etapes) {
+        const r = await sousRole(db, 'service_role', null, requete, params)
+        expect([r.erreur, r.nb], requete).toEqual([null, 1])
+      }
+    })
+  })
+})
+
+describe('base sans la table pro_team_members (rôles présents)', () => {
+  it('la migration passe sans erreur, deux fois, et ne crée rien (REVOKE seul y échouerait en 42P01)', async () => {
+    const db = await PGlite.create()
+    try {
+      await db.exec(ECHAFAUDAGE_SUPABASE_SQL)
+      await db.exec(lireMigrationQr(MIGRATION))
+      await db.exec(lireMigrationQr(MIGRATION))
+      const { rows } = await db.query<{ absente: boolean }>(`SELECT to_regclass('${TABLE}') IS NULL AS absente`)
+      expect(rows[0].absente).toBe(true)
+    } finally {
+      await db.close()
+    }
+  }, 60_000)
+})

@@ -15,6 +15,8 @@ import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
 import { useCoproprietesAffichees, type CoproprieteAffichee } from '@/lib/administrateur-judiciaire/db/hooks'
 import { joursAvantDateFr } from '@/lib/administrateur-judiciaire/domain/dates'
 import { regimeDepuisFondement, type Regime } from '@/lib/administrateur-judiciaire/domain/fondements'
+import { filtrerParCopro } from '@/lib/administrateur-judiciaire/domain/selection-copropriete'
+import { useCodeCoproCourant } from '@/lib/administrateur-judiciaire/selection'
 
 /**
  * Filtre des puces : toutes les missions, art. 46 (fondement contenant « 46 »), art. 29-1 (contenant « 29-1 »),
@@ -109,14 +111,16 @@ const ficheMission = (copro: CoproprieteAffichee): FicheMission => {
 /**
  * Ordonnances & missions : mandats judiciaires de la base locale (repli démo selon le mode), filtrables par
  * fondement ou par urgence, avec échéances, requête en prorogation (document figé), convocation de l'AG élective,
- * fiche dossier et assistant d'enregistrement d'une ordonnance.
+ * fiche dossier et assistant d'enregistrement d'une ordonnance. Seule la mission de la copropriété choisie est
+ * affichée (puces et indicateurs comptés sur elle) ; sans sélection (écran rendu seul), toutes les missions.
  */
 export function OrdonnancesMissionsModule() {
   const { push } = useToast()
   const [fiche, setFiche] = useState<FicheMission | null>(null)
   const [filtre, setFiltre] = useState<FiltreMissions>('toutes')
   const [assistantOuvert, setAssistantOuvert] = useState(false)
-  const copros = useCoproprietesAffichees()
+  const toutes = useCoproprietesAffichees()
+  const copros = filtrerParCopro(toutes, useCodeCoproCourant(), (copro) => copro.code)
 
   const compterRegime = (regime: Regime) =>
     copros.filter((copro) => regimeDepuisFondement(copro.fondement) === regime).length
@@ -216,7 +220,7 @@ export function OrdonnancesMissionsModule() {
           },
         ]}
       />
-      {missionsExpirees.length > 0 ? (
+      {missionsExpirees.length > 0 && (
         <Alert
           kind="warn"
           icon="scale"
@@ -226,11 +230,13 @@ export function OrdonnancesMissionsModule() {
             "La mission cesse à la date fixée par l'ordonnance sans prorogation (Cass. 3e civ., 14 janv. 2016) : déposer sans délai une requête en prorogation, accompagnée du rapport au juge."
           }
         </Alert>
-      ) : copros.length === 0 ? (
+      )}
+      {/* Base vide : aucune mission, donc aucune mission expirée (les deux alertes ne coexistent pas). */}
+      {toutes.length === 0 && (
         <Alert kind="info" icon="scale" title="Aucun mandat dans la base">
           {"Créer un mandat depuis Fixy (ordonnance déposée) ou l'écran Copropriétés."}
         </Alert>
-      ) : null}
+      )}
       <div
         style={{
           display: 'flex',

@@ -34,7 +34,8 @@ export function creerRattachement(type: TypeRattachement, id: string): Rattachem
   return { type, id: brut }
 }
 
-const memeRattachement = (a: Rattachement, b: Rattachement): boolean => a.type === b.type && a.id === b.id
+/** Même type et même identifiant (partagé avec etapes-dossier.ts, point 48). */
+export const memeRattachement = (a: Rattachement, b: Rattachement): boolean => a.type === b.type && a.id === b.id
 
 /** Rattachements d'un courrier, tirés de ses champs actuels (copropriété, mandat, personne, entreprise). */
 export function rattachementsDuCourrier(courrier: {

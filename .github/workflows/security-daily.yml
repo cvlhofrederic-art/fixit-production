@@ -85,7 +85,7 @@ jobs:
           set -euo pipefail
           dossier="$RUNNER_TEMP/gitleaks"
           mkdir -p "$dossier"
-          curl -sSL --fail --retry 3 -o "$dossier/gitleaks.tar.gz" \
+          curl -sSL --proto '=https' --fail --retry 3 -o "$dossier/gitleaks.tar.gz" \
             "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
           echo "${GITLEAKS_SHA256}  $dossier/gitleaks.tar.gz" | sha256sum --check --strict
           tar -xzf "$dossier/gitleaks.tar.gz" -C "$dossier" gitleaks

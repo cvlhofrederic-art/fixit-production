@@ -4,10 +4,13 @@ import type { Fiche360Copropriete } from '@/lib/administrateur-judiciaire/domain
 import type { ActionFixy, AgentFixy } from '@/lib/administrateur-judiciaire/domain/fixy/agents'
 import { formatEurosCourrielFixy } from '@/lib/administrateur-judiciaire/domain/format'
 import { analyserRecouvrement } from '@/lib/administrateur-judiciaire/domain/recouvrement'
+import { estMandatSuivi } from '@/lib/administrateur-judiciaire/domain/statut-mandat'
 
 /**
  * Veille de Fixy : rappels calculés sur tout le portefeuille (notification de l'ordonnance, échéances légales proches
  * ou échues, débiteurs sans dossier ou à faire avancer, pièces de reprise attendues de l'ancien syndic).
+ * Point 55 (statut-mandat.ts ; Gestéam tranche 41, un mandat archivé ne produit plus d'« à faire ») : la fiche d'un mandat
+ * Prospect ou Archivé ne donne aucun rappel ; « En clôture », une valeur absente ou inconnue en donnent.
  */
 
 /** Gravité d'un rappel, qui est aussi la couleur de son étiquette. */
@@ -50,10 +53,10 @@ const RANG_GRAVITE: Record<GraviteVeille, number> = {
   navy: 2,
 }
 
-/** Rappels de la veille, du plus grave au moins grave. */
+/** Rappels de la veille, du plus grave au moins grave ; aucun pour un mandat Prospect ou Archivé (point 55). */
 export function calculerVeilleFixy(entree: EntreeVeilleFixy): RappelVeille[] {
   const rappels: RappelVeille[] = []
-  for (const fiche of entree.fiches) {
+  for (const fiche of entree.fiches.filter((f) => estMandatSuivi(f.vue.statut))) {
     const code = fiche.vue.code,
       notification = fiche.echeances.echeances.find(
         (echeance) =>

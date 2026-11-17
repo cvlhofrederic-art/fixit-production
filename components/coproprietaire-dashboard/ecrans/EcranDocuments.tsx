@@ -211,7 +211,7 @@ function LigneAssurance({ assurance, t, langue }: { assurance: AssuranceImmeuble
 // ── Écran ─────────────────────────────────────────────────────────────────────
 
 export default function EcranDocuments(props: PropsEcran) {
-  const demo = props.jeton === null || props.espace.source === 'demo'
+  const demo = props.jeton === null || props.espace.source !== 'reel'
   const { espace, t, langue, jeton } = props
   const { fichiers, contrats, assurances } = espace.documents
   const reglement = espace.immeuble.reglement

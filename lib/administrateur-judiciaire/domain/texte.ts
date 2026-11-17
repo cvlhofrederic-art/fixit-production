@@ -1,6 +1,6 @@
 /**
- * Normalisations de texte. Les quatre variantes diffèrent volontairement (casse, ponctuation) :
- * les correspondances CSV, les scores de recherche et les motifs de Fixy en dépendent.
+ * Normalisations de texte. Les variantes diffèrent volontairement (casse, accents, ponctuation) :
+ * les correspondances CSV, les scores de recherche, les motifs de Fixy et la lecture des référentiels en dépendent.
  */
 
 const DIACRITIQUES = /[̀-ͯ]/g
@@ -20,3 +20,9 @@ export const sansAccentsMinuscules = (texte: string): string =>
 /** Minuscules sans accents, apostrophes/tirets/ponctuation → espace (« 19-2 » → « 19 2 »). */
 export const normaliserTexteLibre = (texte: string): string =>
   texte.normalize('NFD').replace(DIACRITIQUES, '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim()
+
+/**
+ * Forme Unicode composée (NFC), espaces réduits ; casse, accents et ponctuation conservés. Lecture exacte d'une valeur de
+ * référentiel saisie ou reprise (statut du mandat, statut PNO, fonction de l'équipe) : rien n'est deviné au-delà.
+ */
+export const normaliserEspaces = (texte: string): string => texte.normalize('NFC').replaceAll(/\s+/g, ' ').trim()

@@ -15,6 +15,12 @@ import { estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
  * Tiers · Libellé · No pièce · Or(dres) · Montant · Statut (Enregistré / Émis) ; fiche : Émis le, Nombre de pièces,
  * Information virement, Traitement, Banque, Encaissement, Règlement (+ IBAN).
  * Virements : ISO 20022 pain.001.001.03 (virement SEPA). 🔴 À valider avec la banque du syndicat avant tout dépôt.
+ *
+ * Point 39 du bilan 2 : les dix types d'ordre de Gestéam, le rang, le tiers et l'état imputé de chaque ordre d'un lot
+ * sont dans types-ordres-banque.ts ; le virement de banque à banque entre comptes du syndicat, dans virement-interne.ts.
+ * Le contrôle d'émission unique (verifierEmission) sert aussi au lot de virements internes, émis entier
+ * (emettreLotVirementsInternes), et à l'ordre constaté (emettreOrdreConstate) ; un ordre d'un lot (ordresDuLot) ne
+ * s'émet jamais seul : il prend le statut du lot.
  */
 
 export interface LigneCheque {
@@ -107,10 +113,25 @@ export function creerOrdreVirement(saisie: BaseOrdre & { lignes: LigneVirement[]
   return { ...saisie, type: 'Ordre de virement', ...totaux(saisie.lignes) }
 }
 
-/** Émission : une seule fois ; renvoie un nouvel ordre. */
-export function emettreOrdre<O extends OrdreBanque>(ordre: O, dateEmission: string): O {
-  if (ordre.statut === 'Émis') throw new Error(`Ordre ${ordre.numero} déjà émis le ${ordre.dateEmission}.`)
+/** Pièce émise une seule fois : lot d'ordres de banque, virement interne, ordre constaté (types-ordres-banque.ts). */
+export interface PieceEmise {
+  numero: string
+  statut: StatutOrdre
+  dateEmission: string | null
+}
+
+/** Contrôle commun à toute émission : une seule fois, à une date ISO. N'émet rien. */
+export function verifierEmission(piece: PieceEmise, dateEmission: string): void {
+  if (piece.statut === 'Émis') throw new Error(`Ordre ${piece.numero} déjà émis le ${piece.dateEmission}.`)
   if (!estDateIsoValide(dateEmission)) throw new Error(`Date d'émission invalide (${dateEmission}) : AAAA-MM-JJ attendu.`)
+}
+
+/**
+ * Émission d'un lot (remise de chèques, ordre de virement) : une seule fois ; renvoie un nouvel ordre. Ses ordres
+ * (ordresDuLot) en prennent le statut et la date d'émission : ils ne s'émettent pas seuls.
+ */
+export function emettreOrdre<O extends OrdreBanque>(ordre: O, dateEmission: string): O {
+  verifierEmission(ordre, dateEmission)
   return { ...ordre, statut: 'Émis', dateEmission }
 }
 

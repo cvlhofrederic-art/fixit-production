@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { logger } from '@/lib/logger'
 import { serialiserJsonLd } from '@/lib/seo/json-ld'
 import { fetchArtisanProfile, type LectureProfil } from '@/lib/seo/fiche-artisan'
+import { urlImagePublique } from '@/lib/storage/images-artisan'
 
 type ArtisanMeta = {
   company_name: string | null
@@ -25,6 +26,11 @@ function getCanonicalPath(slug: string | null, id: string, isPT: boolean): strin
   const identifier = slug || id
   return isPT ? `/pt/profissional/${identifier}` : `/fr/artisan/${identifier}`
 }
+
+// Jusqu'au 28/10/2026, /api/save-logo enregistrait la photo en data: URL base64 (plusieurs centaines de Ko).
+// Recopiée dans og:image, twitter:image et le JSON-LD, elle alourdissait le HTML au point que le flux se découpait
+// au milieu de ces balises et que la fiche ne s'hydratait plus (Sentry V et W). Une data: URL n'est de toute façon
+// pas lisible par les robots : seule une URL https absolue est publiée (urlImagePublique), sinon l'image par défaut.
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
@@ -80,6 +86,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     : (artisan.bio?.substring(0, 160) || `${name}, artisan ${categories} à ${city}.${ratingText} Réservez en ligne sur Vitfix.`)
 
   const canonicalPath = getCanonicalPath(artisan.slug, id, isPT)
+  const photo = urlImagePublique(artisan.profile_photo_url)
 
   return {
     title,
@@ -90,7 +97,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
       siteName,
       locale: ogLocale,
       type: 'profile',
-      ...(artisan.profile_photo_url ? { images: [{ url: artisan.profile_photo_url, width: 400, height: 400 }] } : { images: [{ url: 'https://vitfix.io/api/og/?locale=fr', width: 1200, height: 630 }] }),
+      ...(photo ? { images: [{ url: photo, width: 400, height: 400 }] } : { images: [{ url: 'https://vitfix.io/api/og/?locale=fr', width: 1200, height: 630 }] }),
     },
     alternates: {
       canonical: `https://vitfix.io${canonicalPath}/`,
@@ -123,6 +130,7 @@ export default async function ArtisanLayout({
       const categories = artisan.categories || []
       const city = artisan.company_city || ''
       const canonicalPath = getCanonicalPath(artisan.slug, id, isPT)
+      const photo = urlImagePublique(artisan.profile_photo_url)
 
       const jsonLd = {
         '@context': 'https://schema.org',
@@ -135,7 +143,7 @@ export default async function ArtisanLayout({
               ? `${name}${categories.length ? ', ' + categories.join(', ') : ''} em ${city}. Profissional verificado na plataforma VITFIX.`
               : `${name}${categories.length ? ', ' + categories.join(', ') : ''} à ${city}. Artisan vérifié sur la plateforme Vitfix.`,
             url: `https://vitfix.io${canonicalPath}/`,
-            ...(artisan.profile_photo_url ? { image: artisan.profile_photo_url } : {}),
+            ...(photo ? { image: photo } : {}),
             ...(artisan.phone ? { telephone: artisan.phone } : {}),
             ...(city ? {
               address: {

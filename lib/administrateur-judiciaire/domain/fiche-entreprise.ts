@@ -1,5 +1,6 @@
 import { ajouterJours, ajouterMois, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
 import { VALIDITE_VIGILANCE_MOIS } from '@/lib/administrateur-judiciaire/domain/vigilance-entreprises'
+import type { ServiceCabinet } from '@/lib/data/referentiels-gesteam-judiciaire'
 
 /**
  * Fiche d'une entreprise (prestataire), sur le modèle de la fiche Entreprise de Gestéam :
@@ -8,7 +9,8 @@ import { VALIDITE_VIGILANCE_MOIS } from '@/lib/administrateur-judiciaire/domain/
  *   onglet Informations : règlement (mode, délai, « 1 virement par », priorité), banque, RCS, TVA intracommunautaire,
  *   attestations RC décennale et RCP, Webteam ;
  * - tranche 39 : onglet Demandes et réglages de relance par service (devis, interventions : délai de relance, nombre
- *   maximum de demandes en cours, seuil d'alerte).
+ *   maximum de demandes en cours, seuil d'alerte) ; relances dues et seuils lus par relance-demandes.ts (point 46).
+ *   🔴 Valeurs par défaut des relances (nouvelleFicheEntreprise) non relevées dans Gestéam : à valider par Frédéric.
  * Les échéances RC décennale et RCP restent portées par Prestataire (rcDecennaleEcheance, rcpEcheance, tranche 15).
  * 🔵 Seuil d'alerte « échoit bientôt » : choix d'affichage, sans texte.
  */
@@ -39,11 +41,17 @@ export interface ReglementEntreprise {
   bic: string | null
 }
 
-/** Réglages de relance d'un service (tranche 39). */
+/** Réglages de relance d'une colonne (Devis ou Interventions) d'un service (tranche 39). */
 export interface RelanceEntreprise {
   delaiRelanceJours: number
   maxDemandesEnCours: number
   alerteAuDela: number
+}
+
+/** Réglages de relance d'un service : colonnes Devis et Interventions (tranche 39). */
+export interface RelancesService {
+  devis: RelanceEntreprise
+  interventions: RelanceEntreprise
 }
 
 /** Demande, devis ou courrier adressé à l'entreprise. */
@@ -76,7 +84,13 @@ export interface FicheEntreprise {
   intervientPour: string[]
   exclueDe: string[]
   reglement: ReglementEntreprise
-  relances: { devis: RelanceEntreprise; interventions: RelanceEntreprise }
+  /** Réglages de relance ; à défaut d'un réglage propre dans relancesParService, ceux du service Copropriété (🔵). */
+  relances: RelancesService
+  /**
+   * Réglages de relance par service du cabinet (SERVICE_CABINET), tranche 39 : « par Service ». Facultatif, non indexé
+   * (porté par Prestataire.fiche) ; le réglage d'un service prévaut sur `relances` (relance-demandes.ts, point 46).
+   */
+  relancesParService?: Partial<Record<ServiceCabinet, RelancesService>>
   demandes: DemandeEntreprise[]
   notes: string
   extranet: { publie: boolean; acces: boolean }

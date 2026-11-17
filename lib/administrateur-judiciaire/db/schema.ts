@@ -1,6 +1,7 @@
 import Dexie, { type Table } from 'dexie'
 import type { Tantiemes } from '@/lib/administrateur-judiciaire/domain/format'
 import type { ModeTenueComptes, NatureCompteBancaire } from '@/lib/administrateur-judiciaire/domain/comptes-bancaires'
+import type { ModeNotification } from '@/lib/administrateur-judiciaire/domain/courriers'
 import type { PlanComptable } from '@/lib/administrateur-judiciaire/domain/plan-comptable'
 import type {
   FamilleModeleCourrier,
@@ -144,8 +145,10 @@ export interface Contrat extends EntiteEnregistree {
 }
 
 /**
- * Sinistre (jamais écrit par l'application : lu pour la fiche 360). Champs de la fiche Gestéam (tranche 28) optionnels,
- * non indexés : voir domain/sinistres.ts.
+ * Sinistre : écrit par l'écran Sinistres en mode données réelles (db/sinistres.ts, enregistrerSinistre) ; lu par
+ * l'écran Sinistres et la fiche 360. Champs de la fiche Gestéam (tranches 28, 42, 43) optionnels et non indexés (voir
+ * domain/sinistres.ts) : leur ajout n'a demandé aucun changement de version de la base. Le statut n'est pas stocké
+ * (statutSinistre : « Terminé » dès que « Clos le » est daté).
  */
 export interface Sinistre
   extends EntiteEnregistree,
@@ -355,10 +358,22 @@ export interface Courrier extends EntiteEnregistree {
   entrepriseId: string | null
   dateDepot: string | null
   /**
+   * Mode de notification (décision J50 du 11/11/2026) : lrar, lre, prestataire_qualifie ; liste propre à VitFix
+   * (domain/courriers.ts), pas une forme d'envoi Gestéam. Fixé à la création. Non indexé, absent sur les courriers écrits
+   * avant J50 : lu comme null (la forme « AR » vaut alors LRAR).
+   */
+  modeNotification?: ModeNotification | null
+  /**
    * Date de la PREMIÈRE présentation du pli par La Poste (décision J1 du 08/10/2026) : c'est elle qui fait courir le
    * délai de l'art. 42 al. 2, que le pli ait été retiré ou non. Ni la date de dépôt, ni celle du retrait.
    */
   datePremierePresentation: string | null
+  /**
+   * Date de transmission de l'avis électronique par le prestataire (décision J50 du 11/11/2026 ; D. 1967 art. 64,
+   * dernier al.) : elle fait courir le délai d'une notification électronique, téléchargée ou non. Non indexée, absente
+   * avant J50 : lue comme null.
+   */
+  dateAvisElectronique?: string | null
   /** Date de signature de l'avis de réception (retrait du pli) : information de suivi, sans effet sur les délais. */
   dateAccuseReception: string | null
   referenceDiffusion: string | null

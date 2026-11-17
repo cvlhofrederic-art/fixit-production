@@ -29,8 +29,13 @@ export function CarteMotDePasse({ titre, sousTitre, children }: Readonly<{ titre
   )
 }
 
-// Réussite : coche verte, titre, message et lien vers la connexion.
-export function SuccesMotDePasse({ titre, message, retourConnexion }: Readonly<{ titre: string; message: string; retourConnexion: string }>) {
+const CLASSES_RETOUR_CONNEXION = 'inline-block bg-yellow hover:bg-yellow-light text-gray-900 py-3 px-6 rounded-xl font-bold transition-all'
+
+// Réussite : coche verte, titre, message et lien vers la connexion. `lienConnexion` (AJ Signalement, PR 2) : connexion
+// professionnelle d'un cabinet client, adresse sans langue (simple lien, même aspect) ; absent : la connexion générale.
+export function SuccesMotDePasse({ titre, message, retourConnexion, lienConnexion }: Readonly<{
+  titre: string; message: string; retourConnexion: string; lienConnexion?: string
+}>) {
   return (
     <div className="text-center">
       <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -44,12 +49,13 @@ export function SuccesMotDePasse({ titre, message, retourConnexion }: Readonly<{
       <p className="text-gray-600 text-sm mb-6">
         {message}
       </p>
-      <LocaleLink
-        href="/auth/login"
-        className="inline-block bg-yellow hover:bg-yellow-light text-gray-900 py-3 px-6 rounded-xl font-bold transition-all"
-      >
-        {retourConnexion}
-      </LocaleLink>
+      {lienConnexion ? (
+        <a href={lienConnexion} className={CLASSES_RETOUR_CONNEXION}>{retourConnexion}</a>
+      ) : (
+        <LocaleLink href="/auth/login" className={CLASSES_RETOUR_CONNEXION}>
+          {retourConnexion}
+        </LocaleLink>
+      )}
     </div>
   )
 }

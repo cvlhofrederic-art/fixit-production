@@ -3,6 +3,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { verifierSessionNavigateur } from '@/lib/auth/session-navigateur'
+import { destinationApresConnexion } from '@/lib/auth/destination-par-role'
+import { estAppMobile } from '@/lib/app-mobile'
+import { ouvrirConnexionGoogleAppMobile } from '@/lib/auth/google-app-mobile'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import LocaleLink from '@/components/common/LocaleLink'
 
@@ -26,19 +30,33 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const emailRef = useRef<HTMLInputElement>(null)
+  // Une connexion lancée par l'utilisateur prime sur la vérification de session encore en cours.
+  const connexionEnCours = useRef(false)
+  // Garde de double appui sur « Continuer avec Google », distincte de la précédente : la fenêtre du
+  // navigateur se rouvre après un abandon, alors que la vérification de session, elle, reste écartée.
+  const ouvertureGoogleEnCours = useRef(false)
 
   useEffect(() => {
+    let annule = false
     const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session?.user) {
-        const role = session.user.app_metadata?.role
-        if (role === 'artisan') window.location.href = `/${locale}/artisan/dashboard`
-        else if (['pro_societe', 'pro_conciergerie', 'pro_gestionnaire'].includes(role)) window.location.href = `/${locale}/pro/dashboard`
-        else if (role === 'syndic' || role?.startsWith('syndic')) window.location.href = `/${locale}/syndic/dashboard`
-        else window.location.href = `/${locale}/client/dashboard`
+      // Décision sur une session VALIDÉE par Supabase (getUser), jamais sur la seule session locale des cookies :
+      // une session refusée par le serveur renvoyait vers le tableau de bord, qui renvoyait ici (boucle, lot 1
+      // Sentry du 28/10/2026). Session indisponible (verrou d'auth, réseau) : le formulaire reste affiché.
+      const verdict = await verifierSessionNavigateur(supabase.auth)
+      if (annule || connexionEnCours.current) return
+      if (verdict.statut === 'valide') {
+        window.location.href = destinationApresConnexion(verdict.user.app_metadata?.role, locale, { appMobile: estAppMobile() })
+      } else if (verdict.statut === 'refusee' && verdict.motif === 'authentification') {
+        // Cookies d'une session que Supabase refuse : on les retire pour que le formulaire reparte sainement.
+        try {
+          await supabase.auth.signOut({ scope: 'local' })
+        } catch (erreur) {
+          console.warn('[auth/login] fermeture de la session locale impossible :', erreur)
+        }
       }
     }
     checkAuth()
+    return () => { annule = true }
   }, [locale])
 
   const selectSpace = (space: Espace) => {
@@ -59,24 +77,35 @@ export default function LoginPage() {
     e.preventDefault()
     setError('')
     setLoading(true)
+    connexionEnCours.current = true
     try {
       const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password })
-      if (signInError) { setError(t('auth.emailOrPasswordIncorrect')); setLoading(false); return }
-      const role = data.user?.app_metadata?.role
-      if (role === 'artisan') window.location.href = `/${locale}/artisan/dashboard`
-      else if (['pro_societe', 'pro_conciergerie', 'pro_gestionnaire'].includes(role)) window.location.href = `/${locale}/pro/dashboard`
-      else if (role === 'syndic' || role?.startsWith('syndic')) window.location.href = `/${locale}/syndic/dashboard`
-      else window.location.href = `/${locale}/client/dashboard`
+      if (signInError) { setError(t('auth.emailOrPasswordIncorrect')); setLoading(false); connexionEnCours.current = false; return }
+      window.location.href = destinationApresConnexion(data.user?.app_metadata?.role, locale, { appMobile: estAppMobile() })
     } catch {
       // Anti-phishing : toute erreur de login affiche le même message
       // (évite de divulguer si l'email existe ou si c'est une erreur réseau).
       setError(t('auth.emailOrPasswordIncorrect'))
       setLoading(false)
+      connexionEnCours.current = false
     }
   }
 
   const handleGoogleLogin = async () => {
+    // Deuxième appui pendant l'ouverture : chaque signInWithOAuth réécrit le vérificateur PKCE, si bien
+    // que terminer la première fenêtre échouerait à l'échange et ramènerait au formulaire sans explication.
+    if (ouvertureGoogleEnCours.current) return
+    ouvertureGoogleEnCours.current = true
+    // La vérification de session du montage ne doit plus décider à la place de l'utilisateur : une session
+    // qu'elle jugerait refusée serait fermée, emportant le vérificateur PKCE que le retour de Google attend.
+    connexionEnCours.current = true
     try {
+      // Dans l'appli Vitfix Pro : fenêtre du navigateur du système puis retour par lien profond, que Google
+      // impose (il refuse l'authentification dans une WebView). Le retour est traité par Providers.
+      if (estAppMobile()) {
+        await ouvrirConnexionGoogleAppMobile(supabase.auth)
+        return
+      }
       await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -85,6 +114,12 @@ export default function LoginPage() {
       })
     } catch {
       setError(t('auth.genericError'))
+      // Sans cette remise à zéro, un échec laissait la page persuadée qu'une connexion était en cours :
+      // la vérification de session n'aiguillait plus un compte déjà connecté.
+      connexionEnCours.current = false
+    } finally {
+      // Fenêtre ouverte, ou échec : qui revient sans s'identifier doit pouvoir réessayer.
+      ouvertureGoogleEnCours.current = false
     }
   }
 

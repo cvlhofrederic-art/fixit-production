@@ -94,7 +94,7 @@ export const repoTravaux = creerRepository(ajDb.travaux, 'travaux')
 export const repoDevis = creerRepository(ajDb.devis, 'devis')
 /** Sans usage dans la maquette. */
 export const repoInterventions = creerRepository(ajDb.interventions, 'interventions')
-/** Lecture seule (store des données). */
+/** Store des données (lecture) ; écrit par enregistrerSinistre (db/sinistres.ts, écran Sinistres en mode réel). */
 export const repoSinistres = creerRepository(ajDb.sinistres, 'sinistres')
 /**
  * Pièces : ordonnance source d'un mandat, et journal append-only des pièces de reprise

@@ -1,15 +1,21 @@
 'use client'
 
-import { CHAMP_COPROPRIETE } from '@/components/administrateur-judiciaire/data/elements-communs'
 import { DEMO_POUVOIRS_AG } from '@/components/administrateur-judiciaire/data/procurations'
 import { CarteCritere } from '@/components/administrateur-judiciaire/ui/CarteCritere'
 import { DataTable } from '@/components/administrateur-judiciaire/ui/DataTable'
+import { EmptyState } from '@/components/administrateur-judiciaire/ui/EmptyState'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { Kpis } from '@/components/administrateur-judiciaire/ui/Kpis'
 import { PageHead } from '@/components/administrateur-judiciaire/ui/PageHead'
 import { Panel } from '@/components/administrateur-judiciaire/ui/Panel'
 import { Pill } from '@/components/administrateur-judiciaire/ui/Pill'
+import {
+  champCoproprieteChoisie,
+  titreListeVide,
+  useCoproChoisie,
+} from '@/components/administrateur-judiciaire/ui/copro-choisie'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
+import { codeDeNomCopro, filtrerParCopro } from '@/lib/administrateur-judiciaire/domain/selection-copropriete'
 
 /** Règle de représentation en assemblée : [règle, précision, teinte de la carte]. */
 export type RegleRepresentation = readonly [regle: string, precision: string, teinte: 'sage' | 'amber' | 'rust']
@@ -23,11 +29,16 @@ const REGLES_REPRESENTATION: readonly RegleRepresentation[] = [
 ]
 
 /**
- * Procurations & pouvoirs pour l'assemblée générale (art. 22 loi 1965), écran de démonstration : indicateurs en dur
- * (3, 1, « 10 % »), tableau des pouvoirs sans fiche détail. « Enregistrer un pouvoir » est un formulaire simulé.
+ * Procurations & pouvoirs pour l'assemblée générale (art. 22 loi 1965), écran de démonstration affiché selon la
+ * copropriété choisie dans le sélecteur du haut de page : pouvoirs filtrés, « Pouvoirs reçus » et « Pouvoir en blanc »
+ * (à attribuer) calculés sur eux, pouvoir prérempli ; le seuil dérogatoire (« 10 % ») est une règle fixe. Tableau des
+ * pouvoirs sans fiche détail. « Enregistrer un pouvoir » est un formulaire simulé.
  */
 export function ProcurationsModule() {
   const { push } = useToast()
+  const { code, nom } = useCoproChoisie()
+  const pouvoirs = filtrerParCopro(DEMO_POUVOIRS_AG, code, (pouvoir) => codeDeNomCopro(pouvoir[0]))
+  const recus = pouvoirs.filter((pouvoir) => pouvoir[4] === 'reçu').length
 
   return (
     <>
@@ -44,7 +55,7 @@ export function ProcurationsModule() {
                 icon: 'handshake',
                 title: 'Enregistrer un pouvoir',
                 fields: [
-                  CHAMP_COPROPRIETE,
+                  champCoproprieteChoisie(nom),
                   {
                     label: 'Mandant',
                     placeholder: 'Copropriétaire représenté · lot',
@@ -77,13 +88,13 @@ export function ProcurationsModule() {
         items={[
           {
             icon: 'doc',
-            num: 3,
+            num: recus,
             lbl: 'Pouvoirs reçus',
             accent: 'sage',
           },
           {
             icon: 'alert',
-            num: 1,
+            num: pouvoirs.length - recus,
             lbl: 'Pouvoir en blanc',
             accent: 'amber',
           },
@@ -102,35 +113,39 @@ export function ProcurationsModule() {
         </div>
       </Panel>
       <Panel title="Pouvoirs reçus — prochaine AG" icon="clipboard" flush>
-        <DataTable
-          columns={[
-            {
-              h: 'Copropriété',
-              render: (pouvoir) => pouvoir[0],
-            },
-            {
-              h: 'Mandant',
-              render: (pouvoir) => pouvoir[1],
-            },
-            {
-              h: 'Mandataire',
-              render: (pouvoir) => pouvoir[2],
-            },
-            {
-              h: 'Voix',
-              render: (pouvoir) => <span className="mono">{pouvoir[3]}</span>,
-            },
-            {
-              h: 'Statut',
-              render: (pouvoir) => (
-                <Pill kind={pouvoir[4] === 'reçu' ? 'sage' : 'amber'} noDot>
-                  {pouvoir[4]}
-                </Pill>
-              ),
-            },
-          ]}
-          rows={DEMO_POUVOIRS_AG}
-        />
+        {pouvoirs.length === 0 ? (
+          <EmptyState icon="clipboard" title={titreListeVide('Aucun pouvoir', nom)} />
+        ) : (
+          <DataTable
+            columns={[
+              {
+                h: 'Copropriété',
+                render: (pouvoir) => pouvoir[0],
+              },
+              {
+                h: 'Mandant',
+                render: (pouvoir) => pouvoir[1],
+              },
+              {
+                h: 'Mandataire',
+                render: (pouvoir) => pouvoir[2],
+              },
+              {
+                h: 'Voix',
+                render: (pouvoir) => <span className="mono">{pouvoir[3]}</span>,
+              },
+              {
+                h: 'Statut',
+                render: (pouvoir) => (
+                  <Pill kind={pouvoir[4] === 'reçu' ? 'sage' : 'amber'} noDot>
+                    {pouvoir[4]}
+                  </Pill>
+                ),
+              },
+            ]}
+            rows={pouvoirs}
+          />
+        )}
       </Panel>
     </>
   )

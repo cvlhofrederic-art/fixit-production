@@ -52,7 +52,7 @@ function stubFetch(jeton: { status?: number; body: Record<string, unknown> }) {
       return new Response(JSON.stringify(jeton.body), { status: jeton.status ?? 200 })
     }
     if (url.startsWith('https://graph.microsoft.com/v1.0/me')) {
-      return new Response(JSON.stringify({ mail: 'h.carvalho@ajassocies.fr', userPrincipalName: 'h.carvalho@ajassocies.fr' }))
+      return new Response(JSON.stringify({ mail: 'gestion@exemple.fr', userPrincipalName: 'gestion@exemple.fr' }))
     }
     if (url === 'https://www.googleapis.com/oauth2/v2/userinfo') return new Response(JSON.stringify({ email: 'frederic@gmail.com' }))
     if (url === 'https://vitfix.io/api/email-agent/poll') return new Response(JSON.stringify({ success: true }))
@@ -108,7 +108,7 @@ describe('GET /api/email-agent/callback/microsoft', () => {
   it('nonce valide : échange le code, écrit la ligne provider « microsoft », efface le nonce, redirige', async () => {
     const res = await retourMicrosoft(`code=code-ms&state=${CABINET}:${NONCE}&session_state=abc`)
     expect(res.status).toBe(307)
-    expect(parametresRedirection(res)).toEqual({ email_connected: 'true', email: 'h.carvalho@ajassocies.fr', email_provider: 'microsoft' })
+    expect(parametresRedirection(res)).toEqual({ email_connected: 'true', email: 'gestion@exemple.fr', email_provider: 'microsoft' })
 
     const echange = appels.find(a => a.url === 'https://login.microsoftonline.com/common/oauth2/v2.0/token')!
     const corps = new URLSearchParams(String(echange.init?.body))
@@ -123,7 +123,7 @@ describe('GET /api/email-agent/callback/microsoft', () => {
       provider: 'microsoft',
       access_token: 'eyJ-acces',
       refresh_token: 'M.R3-refresh',
-      email_compte: 'h.carvalho@ajassocies.fr',
+      email_compte: 'gestion@exemple.fr',
       scope: 'Mail.Read User.Read',
       oauth_nonce: null,
       oauth_nonce_expires_at: null,

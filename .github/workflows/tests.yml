@@ -31,8 +31,8 @@ jobs:
   unit:
     name: "Tests unitaires (Vitest)"
     runs-on: ubuntu-latest
-    # Suite avec couverture : 12,4 min en médiane, 13,5 au p90 (01/11/2026). À 15 min, un passage sur
-    # 150 était coupé en pleine couverture ; sur main, un délai dépassé serait une fausse alerte.
+    # 662 fichiers de tests puis le rapport de couverture : 15 min ne suffisaient plus (coupé à 15 min 16 s
+    # sur #664 le 09/11/2026, tous les tests passés, annulé pendant la couverture)
     timeout-minutes: 20
     permissions:
       contents: read
@@ -68,7 +68,10 @@ jobs:
   # ── Tests E2E Playwright — multi-navigateur ────────────────────────────────
   e2e:
     name: "E2E Playwright (${{ matrix.browser }})"
-    runs-on: ubuntu-latest
+    # Image figée : depuis le 16/11/2026, ubuntu-latest est Ubuntu 26.04, où Playwright 1.59 n'installe aucun
+    # navigateur (« Playwright does not support chromium on ubuntu26.04-x64 »). Revenir à ubuntu-latest quand
+    # une version de Playwright prendra en charge Ubuntu 26.04.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     # WebKit headless is unstable in CI (known Playwright issue) — don't block pipeline
     continue-on-error: ${{ matrix.browser == 'webkit' }}
@@ -99,7 +102,7 @@ jobs:
         run: npm ci
 
       - name: Installer les navigateurs Playwright
-        run: npx playwright install --with-deps "$BROWSER"
+        run: ./node_modules/.bin/playwright install --with-deps "$BROWSER"
 
       - name: Build de production
         run: bash scripts/ci-build-avec-reprise.sh
@@ -108,12 +111,16 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
 
       - name: Lancer les tests E2E
-        run: npx playwright test --project="$BROWSER"
+        run: ./node_modules/.bin/playwright test --project="$BROWSER"
         env:
           CI: true
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || 'ci-placeholder' }}
+          # Compte client de test du parcours connecté (e2e/auth.spec.ts) : le test est ignoré tant que ces deux
+          # secrets n'existent pas.
+          E2E_CLIENT_EMAIL: ${{ secrets.E2E_CLIENT_EMAIL }}
+          E2E_CLIENT_PASSWORD: ${{ secrets.E2E_CLIENT_PASSWORD }}
 
       - name: Uploader le rapport HTML Playwright
         if: always()
@@ -126,7 +133,8 @@ jobs:
   # ── Axe-core — Accessibilité WCAG (EAA 2025) ──────────────────────────────
   a11y:
     name: "Accessibilité WCAG (Axe-core)"
-    runs-on: ubuntu-latest
+    # Même raison que le job e2e : Playwright n'installe pas ses navigateurs sur Ubuntu 26.04.
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     if: github.event_name == 'pull_request'
     permissions:
@@ -152,8 +160,8 @@ jobs:
         # @axe-core/playwright n'est pas dans package.json : version épinglée (lot 6 Aikido),
         # celle que l'installation sans contrainte résolvait au 28/10/2026.
         run: |
-          npx playwright install --with-deps chromium
-          npm install --no-save @axe-core/playwright@4.14.0
+          ./node_modules/.bin/playwright install --with-deps chromium
+          npm install --no-save --ignore-scripts @axe-core/playwright@4.14.0
 
       - name: Build de production
         run: bash scripts/ci-build-avec-reprise.sh

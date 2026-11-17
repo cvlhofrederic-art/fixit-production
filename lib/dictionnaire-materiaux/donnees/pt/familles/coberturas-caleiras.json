@@ -1,0 +1,886 @@
+{
+  "famille": {
+    "id": "coberturas-caleiras",
+    "nom": "Coberturas e caleiras",
+    "description": "Telhas e remates, chapas e placas de cobertura, subtelha e membranas, fixações, caleiras e tubos de queda em PVC, fitas e telas de remate, e produtos de tratamento de telhados.",
+    "icone": "🏠",
+    "sousFamilles": [
+      {
+        "id": "telhas-remates",
+        "nom": "Telhas e peças de remate",
+        "description": "Telhas de cobertura, cumeeiras, beirais e telhas passa-luz."
+      },
+      {
+        "id": "placas-cobertura",
+        "nom": "Chapas e placas de cobertura",
+        "description": "Chapa metálica, painel sandwich, placas betuminosas onduladas e policarbonato para telheiros, anexos e pérgulas."
+      },
+      {
+        "id": "subcobertura",
+        "nom": "Subtelha, membranas e ripas",
+        "description": "O que fica por baixo da telha: subtelha, membrana respirável e ripado."
+      },
+      {
+        "id": "fixacao-cobertura",
+        "nom": "Fixações e proteções de cobertura",
+        "description": "Parafusos com anilha para chapas e placas, e proteção contra pássaros."
+      },
+      {
+        "id": "caleiras-pvc",
+        "nom": "Caleiras de PVC e acessórios",
+        "description": "Caleira, suportes, uniões, tampões, ângulos, saídas e para-folhas."
+      },
+      {
+        "id": "tubos-queda",
+        "nom": "Tubos de queda",
+        "description": "Tubo de queda de PVC e respetivas curvas, uniões e abraçadeiras."
+      },
+      {
+        "id": "rufos-fitas-telas",
+        "nom": "Rufos e fitas de remate",
+        "description": "Remates estanques em chaminés, muretes, janelas de telhado e caleiras."
+      },
+      {
+        "id": "argamassas-espumas-telha",
+        "nom": "Argamassa e espuma para telha",
+        "description": "Produtos para assentar e colar telhas e cumeeiras."
+      },
+      {
+        "id": "tratamento-telhados",
+        "nom": "Tratamento de telhados",
+        "description": "Limpeza de musgos, hidrofugação e pintura de telhas."
+      },
+      {
+        "id": "passagens-telhado",
+        "nom": "Chaminés e janelas de telhado",
+        "description": "Passagens de tubo, chapéus de chaminé e janelas de sótão."
+      }
+    ]
+  },
+  "materiaux": [
+    {
+      "id": "telha-cobertura",
+      "famille": "coberturas-caleiras",
+      "sousFamille": "telhas-remates",
+      "nom": "Telha cerâmica de cobertura",
+      "aussiAppele": [
+        "telha",
+        "telha lusa",
+        "telha de barro",
+        "telha cerâmica",
+        "telha hidrofugada"
+      ],
+      "usage": "Execução de coberturas inclinadas de moradias e substituição de telhas partidas ou deslocadas.",
+      "aSavoir": "Levar uma telha de amostra: os modelos não encaixam uns nos outros. Existe com e sem hidrofugante.",
+      "conditionnement": "Unidade ou palete",
+      "recherche": "telha",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cumeeira",
+      "famille": "coberturas-caleiras",
+      "sousFamille": "telhas-remates",
+      "nom": "Cumeeira (telhão de cume)",
+      "aussiAppele": [
+        "cume",
+        "telhão",
+        "cumieira",
+        "telha de cumeeira"
+      ],
+      "usage": "Peça que fecha a linha de cume do telhado, no encontro das duas águas.",
+      "aSavoir": "Tem de ser do mesmo modelo da telha.",
+      "conditionnement": "Unidade",
+      "recherche": "cume telha",
+      "rechercheEnseigne": {
+        "leroy-merlin": "telha de cumeeira"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "beiral-telha",
+      "famille": "coberturas-caleiras",
+      "sousFamille": "telhas-remates",
+      "nom": "Beiral (capa e caleira)",
+      "aussiAppele": [
+        "beirado",
+        "telha de beiral",
+        "beirado à portuguesa"
+      ],
+      "usage": "Peças de capa e de caleira que formam o beirado do telhado sobre a fachada.",
+      "conditionnement": "Unidade",
+      "recherche": "beiral telha",
+      "rechercheEnseigne": {
+        "maxmat": "beiral"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "telha-policarbonato",
+      "famille": "coberturas-caleiras",
+      "sousFamille": "telhas-remates",
+      "nom": "Telha de policarbonato (passa-luz)",
+      "aussiAppele": [
+        "telha transparente",
+        "telha de luz",
+        "telha passa-luz"
+      ],
+      "usage": "Telha translúcida com o perfil da telha do telhado, para dar luz a sótãos, garagens e anexos.",
+      "aSavoir": "Tem de ser do mesmo modelo da telha onde vai encaixar.",
+      "conditionnement": "Unidade",
+      "recherche": "telha policarbonato",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "chapa-metalica-cobertura",
+      "famille": "coberturas-caleiras",
+      "sousFamille": "placas-cobertura",
+      "nom": "Chapa metálica de cobertura (ondulada galvanizada ou perfilada lacada)",
+      "aussiAppele": [
+        "chapa de zinco",
+        "chapa ondulada",
+        "chapa perfilada",
+        "chapa trapezoidal",
+        "chapa lacada",
+        "chapa canelada"
+      ],
+      "usage": "Cobertura económica de telheiros, anexos, garagens e armazéns, e também vedações.",
+      "aSavoir": "Sem isolamento condensa por baixo e faz ruído com a chuva. Fixar com parafuso de cobertura com anilha de vedação.",
+      "conditionnement": "Chapa de 2,5x1,07 m ou 2,5x1,13 m",
+      "recherche": "chapa ondulada",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "painel-sandwich-cobertura",
+      "famille": "coberturas-caleiras",
+      "sousFamille": "placas-cobertura",
+      "nom": "Painel sandwich de cobertura (30 mm)",
+      "aussiAppele": [
+        "painel de cobertura",
+        "painel isotérmico",
+        "chapa sandwich",
+        "painel sanduíche"
+      ],
+      "usage": "Cobertura isolada de garagens, anexos, telheiros e armazéns: duas chapas com isolamento no meio, montadas diretamente sobre a estrutura.",
+      "aSavoir": "Fixar com parafuso de cobertura com anilha de vedação, de comprimento adequado à espessura do painel.",
+      "conditionnement": "Painel de 2,5x1 m, 30 mm",
+      "recherche": "painel cobertura",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "placa-betuminosa-ondulada",
+      "famille": "coberturas-caleiras",
+      "sousFamille": "placas-cobertura",
+      "nom": "Placa de cobertura betuminosa ondulada",
+      "aussiAppele": [
+        "chapa ondulada betuminosa",
+        "placa asfáltica ondulada",
+        "chapa de telheiro"
+      ],
+      "aussiCherche": [
+        "onduline"
+      ],
+      "usage": "Cobertura leve e impermeável de anexos, garagens, telheiros e abrigos de jardim.",
+      "aSavoir": "Fixar na crista da onda, com parafuso ou prego de anilha próprio.",
+      "conditionnement": "Placa de 2x0,81 m",
+      "recherche": "placa cobertura ondulada",
+      "rechercheEnseigne": {
+        "maxmat": "cobertura easyfix"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cume-placa-betuminosa",
+      "famille": "coberturas-caleiras",
+      "sousFamille": "placas-cobertura",
+      "nom": "Cume para placa betuminosa ondulada",
+      "aussiAppele": [
+        "cumeeira de placa ondulada",
+        "remate de cume",
+        "cume betuminoso"
+      ],
+      "usage": "Fecha a cumeeira das coberturas em placa betuminosa ondulada.",
+      "conditionnement": "Peça de 1x0,5 m",
+      "recherche": "cume cobertura ondulada",
+      "rechercheEnseigne": {
+        "maxmat": "cume"
+      },
+      "enseignes": [
+        "maxmat"
+      ]
+    },
+    {
+      "id": "policarbonato-alveolar",
+      "famille": "coberturas-caleiras",
+      "sousFamille": "placas-cobertura",
+      "nom": "Placa de policarbonato alveolar",
+      "aussiAppele": [
+        "policarbonato",
+        "placa alveolar",
+        "chapa de policarbonato"
+      ],
+      "usage": "Coberturas translúcidas de pérgulas, telheiros, marquises e estufas.",
+      "aSavoir": "Alvéolos no sentido da pendente, face com proteção UV para cima e topos fechados com perfil.",
+      "conditionnement": "Placa de 2x1,05 m ou 3x1,05 m (4, 6 e 10 mm)",
+      "recherche": "policarbonato alveolar",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "policarbonato-ondulado",
+      "famille": "coberturas-caleiras",
+      "sousFamille": "placas-cobertura",
+      "nom": "Chapa de policarbonato ondulada ou trapezoidal",
+      "aussiAppele": [
+        "chapa transparente ondulada",
+        "policarbonato compacto",
+        "chapa de luz",
+        "policarbonato greca"
+      ],
+      "usage": "Coberturas translúcidas de telheiros e estufas, e faixas de luz combinadas com chapas onduladas ou perfiladas.",
+      "conditionnement": "Chapa de 2 a 2,5 m de comprimento",
+      "recherche": "policarbonato onda",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "perfil-policarbonato",
+      "famille": "coberturas-caleiras",
+      "sousFamille": "placas-cobertura",
+      "nom": "Perfis H e U para policarbonato alveolar",
+      "aussiAppele": [
+        "perfil de união de policarbonato",
+        "perfil H",
+        "perfil U de remate",
+        "perfil de topo"
+      ],
+      "usage": "O perfil H une duas placas lado a lado; o perfil U fecha os topos dos alvéolos.",
+      "aSavoir": "Escolher o perfil pela espessura da placa.",
+      "conditionnement": "Vara de 1,05 m (U) e de 2 ou 3 m (H)",
+      "recherche": "perfil policarbonato",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "anilha-fixacao-policarbonato",
+      "famille": "coberturas-caleiras",
+      "sousFamille": "placas-cobertura",
+      "nom": "Anilha de fixação para policarbonato",
+      "aussiAppele": [
+        "botão de fixação",
+        "anilha de policarbonato",
+        "fixador de placa alveolar"
+      ],
+      "usage": "Fixa as placas de policarbonato à estrutura, vedando o furo.",
+      "aSavoir": "Furar a placa com folga para a dilatação e não apertar demais.",
+      "conditionnement": "Saco de 10 un. (4, 6 ou 10 mm)",
+      "recherche": "anilha policarbonato",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "subtelha",
+      "famille": "coberturas-caleiras",
+      "sousFamille": "subcobertura",
+      "nom": "Subtelha (placa betuminosa ondulada)",
+      "aussiAppele": [
+        "sub-telha",
+        "placa sob telha",
+        "subcobertura"
+      ],
+      "aussiCherche": [
+        "onduline sob telha"
+      ],
+      "usage": "Placa aplicada por baixo da telha de barro para impermeabilizar e ventilar o telhado e facilitar o alinhamento das telhas.",
+      "conditionnement": "Placa de 2x0,87 m (1,74 m²)",
+      "recherche": "subtelha",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "ripa-pvc-subtelha",
+      "famille": "coberturas-caleiras",
+      "sousFamille": "subcobertura",
+      "nom": "Ripa de PVC para subtelha",
+      "aussiAppele": [
+        "ripa de subtelha",
+        "ripa plástica",
+        "ripa de telha em PVC"
+      ],
+      "usage": "Ripa colocada sobre a subtelha para apoiar as telhas cerâmicas.",
+      "conditionnement": "Vara de 2 m (3x2 cm)",
+      "recherche": "ripa subtelha",
+      "rechercheEnseigne": {
+        "leroy-merlin": "ripa de telha em PVC"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "ripa-madeira-telha",
+      "famille": "coberturas-caleiras",
+      "sousFamille": "subcobertura",
+      "nom": "Ripa de madeira para telha",
+      "aussiAppele": [
+        "ripa de telhado",
+        "ripa tosca",
+        "ripado",
+        "sarrafo de telha"
+      ],
+      "usage": "Ripado de madeira onde assentam e se prendem as telhas.",
+      "conditionnement": "Pack de 12 un. (250 cm x 4 cm x 25 mm)",
+      "recherche": "ripa telha",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "membrana-subcobertura-respiravel",
+      "famille": "coberturas-caleiras",
+      "sousFamille": "subcobertura",
+      "nom": "Membrana de subcobertura impermeável e respirável",
+      "aussiAppele": [
+        "tela de subcobertura",
+        "tela respirável",
+        "tela transpirante",
+        "membrana sob telha"
+      ],
+      "usage": "Tela aplicada por baixo da telha: trava a água que passa e deixa sair o vapor. Pode ficar sobre o isolamento térmico.",
+      "aSavoir": "Aplicar sobre base contínua, com ripa e contra-ripa por cima antes do revestimento.",
+      "conditionnement": "Rolo de 1,5x50 m",
+      "recherche": "membrana impermeável telhado",
+      "rechercheEnseigne": {
+        "maxmat": "membrana impermeável"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "parafuso-cobertura-com-anilha",
+      "famille": "coberturas-caleiras",
+      "sousFamille": "fixacao-cobertura",
+      "nom": "Parafuso autoperfurante de cobertura com anilha",
+      "aussiAppele": [
+        "parafuso de chapa de cobertura",
+        "parafuso de painel sandwich",
+        "parafuso de telhado",
+        "parafuso com anilha vedante"
+      ],
+      "usage": "Fixa chapas metálicas e painel sandwich à estrutura, vedando o furo com a anilha.",
+      "aSavoir": "Apertar até a anilha encostar, sem a esmagar.",
+      "conditionnement": "Blister de 4 a 10 un. ou caixa de 100 un. (6,3 mm)",
+      "recherche": "parafuso cobertura",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "parafuso-placa-betuminosa",
+      "famille": "coberturas-caleiras",
+      "sousFamille": "fixacao-cobertura",
+      "nom": "Parafuso com anilha para placa betuminosa",
+      "aussiAppele": [
+        "parafuso de placa ondulada",
+        "parafuso de anilha vermelha",
+        "fixação de cobertura ondulada"
+      ],
+      "usage": "Fixa as placas betuminosas onduladas à estrutura de madeira.",
+      "aSavoir": "Fixar na crista da onda.",
+      "conditionnement": "Caixa de 100 un.",
+      "recherche": "parafuso placa ondulada",
+      "rechercheEnseigne": {
+        "maxmat": "parafuso easyfix"
+      },
+      "enseignes": [
+        "maxmat"
+      ]
+    },
+    {
+      "id": "espanta-passaros",
+      "famille": "coberturas-caleiras",
+      "sousFamille": "fixacao-cobertura",
+      "nom": "Espanta-pássaros (picos anti-pombos)",
+      "aussiAppele": [
+        "picos anti-pombos",
+        "anti-pássaros",
+        "espigões anti-pombos"
+      ],
+      "usage": "Tira de picos para beirados, caleiras, parapeitos e cumeeiras, que impede as aves de pousar.",
+      "conditionnement": "Tira de 50 cm (PVC) ou 100 cm (inox)",
+      "recherche": "espanta pássaros",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "caleira-pvc",
+      "famille": "coberturas-caleiras",
+      "sousFamille": "caleiras-pvc",
+      "nom": "Caleira de PVC",
+      "aussiAppele": [
+        "algeroz",
+        "caleiro",
+        "goteira",
+        "caleira de beirado"
+      ],
+      "usage": "Recolhe a água do beirado e leva-a ao tubo de queda.",
+      "aSavoir": "Dar pendente para a saída. Os acessórios têm de ser do mesmo modelo da caleira.",
+      "conditionnement": "Vara de 3 m, branca ou cinza",
+      "recherche": "caleira PVC",
+      "rechercheEnseigne": {
+        "maxmat": "caleira"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "suporte-caleira",
+      "famille": "coberturas-caleiras",
+      "sousFamille": "caleiras-pvc",
+      "nom": "Suporte de caleira",
+      "aussiAppele": [
+        "gancho de caleira",
+        "escápula de caleira",
+        "suporte de algeroz",
+        "suporte metálico para telha"
+      ],
+      "usage": "Prende a caleira à tábua de beirado ou, na versão metálica, por baixo da telha.",
+      "conditionnement": "Unidade",
+      "recherche": "suporte caleira",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "uniao-caleira",
+      "famille": "coberturas-caleiras",
+      "sousFamille": "caleiras-pvc",
+      "nom": "União de caleira",
+      "aussiAppele": [
+        "junta de caleira",
+        "emenda de caleira",
+        "união de algeroz"
+      ],
+      "usage": "Liga duas varas de caleira com junta estanque.",
+      "aSavoir": "Deixar folga entre varas para a dilatação do PVC.",
+      "conditionnement": "Unidade",
+      "recherche": "união caleira",
+      "enseignes": [
+        "maxmat"
+      ]
+    },
+    {
+      "id": "tampao-caleira",
+      "famille": "coberturas-caleiras",
+      "sousFamille": "caleiras-pvc",
+      "nom": "Tampão de caleira",
+      "aussiAppele": [
+        "topo de caleira",
+        "tampa de caleira",
+        "fecho de caleira"
+      ],
+      "usage": "Fecha a extremidade da caleira.",
+      "aSavoir": "Em alguns modelos há tampão esquerdo e direito.",
+      "conditionnement": "Unidade",
+      "recherche": "tampão caleira",
+      "rechercheEnseigne": {
+        "leroy-merlin": "tampa de caleira"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "angulo-caleira",
+      "famille": "coberturas-caleiras",
+      "sousFamille": "caleiras-pvc",
+      "nom": "Ângulo de caleira 90°",
+      "aussiAppele": [
+        "canto de caleira",
+        "esquadria de caleira",
+        "curva de caleira"
+      ],
+      "usage": "Faz a caleira virar na esquina do telhado.",
+      "conditionnement": "Unidade",
+      "recherche": "ângulo caleira",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "uniao-descarga-caleira",
+      "famille": "coberturas-caleiras",
+      "sousFamille": "caleiras-pvc",
+      "nom": "União com descarga (saída de caleira)",
+      "aussiAppele": [
+        "bocal de caleira",
+        "saída de caleira",
+        "funil de caleira"
+      ],
+      "usage": "Peça de caleira com saída inferior onde encaixa o tubo de queda.",
+      "conditionnement": "Unidade (saída Ø80)",
+      "recherche": "união descarga caleira",
+      "rechercheEnseigne": {
+        "maxmat": "união com descarga",
+        "leroy-merlin": "união com descarga"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "para-folhas-caleira",
+      "famille": "coberturas-caleiras",
+      "sousFamille": "caleiras-pvc",
+      "nom": "Para-folhas para caleira (ralo de pinha)",
+      "aussiAppele": [
+        "pára-folhas",
+        "ralo de pinha",
+        "grelha de caleira",
+        "ralo de caleira",
+        "apanha-folhas de caleira"
+      ],
+      "usage": "Coloca-se na saída da caleira para impedir que as folhas entupam o tubo de queda.",
+      "aSavoir": "Limpar com regularidade: as folhas acumulam-se à volta.",
+      "conditionnement": "Unidade (universal 60 a 120 mm)",
+      "recherche": "para folhas caleira",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "tubo-queda-pvc",
+      "famille": "coberturas-caleiras",
+      "sousFamille": "tubos-queda",
+      "nom": "Tubo de queda de PVC Ø80",
+      "aussiAppele": [
+        "tubo de caleira",
+        "tubo de descarga pluvial",
+        "prumada",
+        "tubo de algeroz"
+      ],
+      "usage": "Leva a água da caleira até ao chão ou à caixa de águas pluviais.",
+      "conditionnement": "Vara de 3 m, branca ou cinza",
+      "recherche": "tubo caleira 80",
+      "rechercheEnseigne": {
+        "leroy-merlin": "tubo de caleira"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "curva-tubo-queda",
+      "famille": "coberturas-caleiras",
+      "sousFamille": "tubos-queda",
+      "nom": "Curva para tubo de queda (67° ou 87°)",
+      "aussiAppele": [
+        "joelho de tubo de queda",
+        "cotovelo de caleira",
+        "curva de tubo de caleira"
+      ],
+      "usage": "Desvia o tubo de queda do beirado para a parede e faz a saída junto ao chão.",
+      "conditionnement": "Unidade (Ø80)",
+      "recherche": "curva tubo caleira",
+      "rechercheEnseigne": {
+        "leroy-merlin": "curva para tubo de queda",
+        "maxmat": "curva 87 80"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "uniao-tubo-queda",
+      "famille": "coberturas-caleiras",
+      "sousFamille": "tubos-queda",
+      "nom": "União para tubo de queda",
+      "aussiAppele": [
+        "manga de união",
+        "emenda de tubo de queda",
+        "união de tubo de caleira"
+      ],
+      "usage": "Liga duas varas de tubo de queda.",
+      "conditionnement": "Unidade (Ø80)",
+      "recherche": "união tubo 80",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "abracadeira-tubo-queda",
+      "famille": "coberturas-caleiras",
+      "sousFamille": "tubos-queda",
+      "nom": "Abraçadeira para tubo de queda",
+      "aussiAppele": [
+        "braçadeira de tubo de caleira",
+        "suporte de tubo de queda",
+        "abraçadeira Ø80"
+      ],
+      "usage": "Prende o tubo de queda à parede.",
+      "conditionnement": "Unidade (Ø80)",
+      "recherche": "abraçadeira tubo 80",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "fita-remate-aluminio-autoadesiva",
+      "famille": "coberturas-caleiras",
+      "sousFamille": "rufos-fitas-telas",
+      "nom": "Fita de remate autoadesiva em alumínio",
+      "aussiAppele": [
+        "fita de rufo",
+        "banda de remate",
+        "fita de alumínio cor telha",
+        "rufo autoadesivo"
+      ],
+      "usage": "Remates de cobertura junto a chaminés, paredes e muretes; resiste aos raios UV.",
+      "aSavoir": "Colar em superfície limpa e seca, calcando bem.",
+      "conditionnement": "Rolo de 0,30x2,5 m",
+      "recherche": "fita adesiva alumínio telhado",
+      "rechercheEnseigne": {
+        "maxmat": "fita adesiva alumínio"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "rufo-janela-telhado",
+      "famille": "coberturas-caleiras",
+      "sousFamille": "rufos-fitas-telas",
+      "nom": "Rufo para janela de telhado",
+      "aussiAppele": [
+        "rufo de janela de sótão",
+        "remate de janela de telhado",
+        "rufo"
+      ],
+      "usage": "Faz a ligação estanque entre a janela de telhado e a cobertura.",
+      "aSavoir": "Tem de corresponder à medida da janela.",
+      "conditionnement": "Unidade (para janela de 55x78 cm)",
+      "recherche": "rufo janela",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "argamassa-telha",
+      "famille": "coberturas-caleiras",
+      "sousFamille": "argamassas-espumas-telha",
+      "nom": "Argamassa para telha e cumeeiras",
+      "aussiAppele": [
+        "argamassa de cumeeira",
+        "massa de telha",
+        "argamassa de telhado"
+      ],
+      "usage": "Assentamento de telhas cerâmicas e remate de cumeeiras e beirados.",
+      "conditionnement": "Saco de 25 kg",
+      "recherche": "argamassa telha",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "espuma-poliuretano-telhas",
+      "famille": "coberturas-caleiras",
+      "sousFamille": "argamassas-espumas-telha",
+      "nom": "Espuma de poliuretano para telhas",
+      "aussiAppele": [
+        "espuma para telhas",
+        "cola de telha em espuma",
+        "espuma PU cor telha",
+        "espuma cola-telhas",
+        "espuma de colagem de telhas",
+        "espuma terracota",
+        "espuma para cumeeiras"
+      ],
+      "usage": "Cola telhas e cumeeiras em alternativa à argamassa; em cinza ou cor de telha.",
+      "aSavoir": "Há versão manual e versão para pistola de espuma.",
+      "conditionnement": "Lata de 750 ml",
+      "recherche": "espuma telhas",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "hidrofugante-telhados",
+      "famille": "coberturas-caleiras",
+      "sousFamille": "tratamento-telhados",
+      "nom": "Hidrofugante para telhados",
+      "aussiAppele": [
+        "hidrófugo de telhas",
+        "impermeabilizante de telhas",
+        "hidrorrepelente",
+        "hidrofugante de telhas",
+        "impermeabilizante incolor para telhas",
+        "repelente de água para telhado"
+      ],
+      "usage": "Tratamento incolor que reduz a absorção de água das telhas e atrasa o reaparecimento de musgos.",
+      "aSavoir": "Aplicar sobre telha limpa e seca. Não tapa telhas partidas nem fissuras.",
+      "conditionnement": "Embalagem de 4 L",
+      "recherche": "hidrofugante telhados",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "tinta-telhas",
+      "famille": "coberturas-caleiras",
+      "sousFamille": "tratamento-telhados",
+      "nom": "Tinta para telhas",
+      "aussiAppele": [
+        "tinta de telhado",
+        "tinta acrílica para telhas",
+        "tinta cor telha",
+        "renovador de telhas",
+        "tinta de telha",
+        "tinta para telhados"
+      ],
+      "usage": "Renova a cor de telhados e protege as telhas da intempérie; em cor telha ou preto.",
+      "aSavoir": "Limpar e tratar os fungos antes de pintar.",
+      "conditionnement": "Lata de 1 L, 5 L ou 15 L",
+      "recherche": "tinta telhas",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "chapa-passagem-tubo-telhado",
+      "famille": "coberturas-caleiras",
+      "sousFamille": "passagens-telhado",
+      "nom": "Chapa de alumínio para passagem de tubo no telhado",
+      "aussiAppele": [
+        "rufo de chaminé",
+        "chapa de telhado para tubo",
+        "remate de tubo de chaminé",
+        "passa-telhado"
+      ],
+      "usage": "Remata a travessia do telhado por um tubo de chaminé ou de exaustão.",
+      "aSavoir": "Escolher pelo diâmetro do tubo e pela inclinação do telhado.",
+      "conditionnement": "Unidade (Ø120 ou Ø150)",
+      "recherche": "chapa alumínio telhado",
+      "enseignes": [
+        "maxmat"
+      ]
+    },
+    {
+      "id": "chapeu-chamine-inox",
+      "famille": "coberturas-caleiras",
+      "sousFamille": "passagens-telhado",
+      "nom": "Chapéu de chaminé em inox",
+      "aussiAppele": [
+        "chapéu de tubo",
+        "terminal de chaminé",
+        "capelo",
+        "chapéu inox"
+      ],
+      "usage": "Remata o topo do tubo de chaminé ou de exaustão e impede a entrada de chuva.",
+      "aSavoir": "Escolher pelo diâmetro do tubo.",
+      "conditionnement": "Unidade (Ø80, Ø120 ou Ø150)",
+      "recherche": "chapéu inox chaminé",
+      "rechercheEnseigne": {
+        "maxmat": "chapéu inox"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "janela-sotao",
+      "famille": "coberturas-caleiras",
+      "sousFamille": "passagens-telhado",
+      "nom": "Janela de sótão e claraboia",
+      "aussiAppele": [
+        "velux",
+        "janela de telhado",
+        "clarabóia",
+        "janela de cobertura"
+      ],
+      "usage": "Entrada de luz e ventilação em sótãos; a claraboia simples destina-se a zonas não habitáveis.",
+      "aSavoir": "Montar com o rufo da medida correspondente.",
+      "conditionnement": "Unidade (55x78 cm; claraboia 45x55 cm)",
+      "recherche": "janela sótão",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "fita-anti-po-policarbonato",
+      "famille": "coberturas-caleiras",
+      "sousFamille": "placas-cobertura",
+      "nom": "Fita microperfurada anti-pó para policarbonato alveolar",
+      "aussiAppele": [
+        "fita anti-pó",
+        "fita respirável para policarbonato",
+        "fita perfurada para alvéolos"
+      ],
+      "usage": "Fechar o topo de baixo das placas de policarbonato alveolar, deixando sair a condensação e impedindo a entrada de pó e insetos.",
+      "aSavoir": "Vai no topo de baixo; no de cima usa-se fita de alumínio cega. Escolher a largura pela espessura da placa e tapar depois com o perfil U.",
+      "conditionnement": "Rolo.",
+      "recherche": "fita policarbonato",
+      "rechercheEnseigne": {
+        "leroy-merlin": "fita adesiva microperfurada"
+      },
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    }
+  ]
+}

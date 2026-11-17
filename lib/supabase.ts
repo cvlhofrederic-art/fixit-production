@@ -1,13 +1,13 @@
 import { createBrowserClient } from '@supabase/ssr'
+import { creerVerrouAuth } from '@/lib/auth/verrou-auth'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co'
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key-for-build'
 
-// storageKey unique par rôle pour éviter les conflits de session multi-onglets
-// (ex: syndic + artisan connectés dans le même navigateur)
+// Client navigateur unique : @supabase/ssr renvoie ce même singleton à tout autre appel de createBrowserClient.
+// La session est en cookies (gérés par @supabase/ssr) ; la séparation des rôles est faite par le middleware.
+// `auth.lock` : verrou d'auth qui ne laisse jamais le client mort quand le verrou partagé entre onglets est
+// abandonné après 10 s (AbortError « signal is aborted without reason », Sentry C et X) — lib/auth/verrou-auth.ts.
 export const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey, {
-  cookieOptions: {
-    // Les cookies Supabase sont gérés automatiquement par @supabase/ssr
-    // La séparation se fait par le middleware qui gère les rôles
-  },
+  auth: { lock: creerVerrouAuth() },
 })

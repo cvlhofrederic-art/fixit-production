@@ -70,7 +70,7 @@ Ce fichier liste ce que le code ne peut pas faire : rotations, secrets, réglage
 
 ## H. Mobile (lot 8) — à faire sur un poste avec JDK / Xcode
 
-30. `npm run mobile:build` (ou `npx cap sync android`) puis `cd android && ./gradlew assembleDebug` : non exécutés ici (pas de JDK ni de build web exporté sur ce poste) ; les XML ont été validés par analyse syntaxique seulement.
+30. `npm run mobile:build` (ou `npx cap sync android`) puis `cd android && ./gradlew assembleDebug` : non exécutés ici (pas de JDK ni de build web exporté sur ce poste) ; les XML ont été validés par analyse syntaxique seulement. Depuis le 12/11/2026, l'APK de test Android est construit par le workflow « App Android — APK de test » (`mobile-android.yml`) : un run vert vaut contrôle de ce build.
 31. Sur un appareil ou un émulateur : une requête HTTP en clair doit être bloquée en release (`CLEARTEXT communication … not permitted`) et autorisée vers `10.0.2.2` / `localhost` en debug (live reload) ; la prise de photo (caméra via la WebView) doit encore fonctionner (le FileProvider n'expose plus que `files/Pictures`).
 32. iOS : build Xcode, puis passer l'application en arrière-plan : le sélecteur d'applications doit montrer un voile flou au lieu du contenu.
 33. mobsfscan continue de signaler `android_task_hijacking1/2` après correction : sans `<uses-sdk>` dans le manifeste, l'outil suppose targetSdk 26 (réel : 36). Faux positif de l'outil ; `taskAffinity=""` est posé comme demandé par le brief.

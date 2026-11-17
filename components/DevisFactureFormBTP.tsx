@@ -29,17 +29,22 @@ import {
 } from '@/lib/devis-types'
 import { mapLegalFormToCode, titleCaseAddress, stableDocId, isStableDocId } from '@/lib/devis-utils'
 import { ID_TABLE_ACOMPTES_DEDUITS } from '@/lib/facture-depuis-devis'
+import { statutJuridiqueInitialBtp } from '@/lib/statut-juridique-btp'
+import { estClientProfessionnel, formaterImmatriculationRcs, ligneTvaHorsClassique } from '@/lib/devis-btp-affichage'
 import { fmtQty, fmtN, fmtN4 } from '@/lib/devis-format'
 import { svgToImageDataUrl } from '@/lib/signature-canvas'
 import { localFallbackDocNumber } from '@/lib/doc-number'
 import { DecimalInput } from '@/components/common/DecimalInput'
+import { ChampRemiseGlobale, ChampRemiseLigne } from '@/components/devis/RemiseCommerciale'
+import {
+  libelleRemiseGlobale, lignesALEchelle, lignesApresRemiseGlobale, lireRemise, montantNetLigne, remiseALEchelle, type Remise,
+} from '@/lib/remise-commerciale'
 import { buildDocumentLines } from '@/lib/devis-totals'
 import { generateDevisPdfV3 } from '@/lib/pdf/devis-pdf-v3'
 import type { PdfV3Photo } from '@/lib/pdf/devis-pdf-v3'
-import { modeleDocumentSociete } from '@/lib/pdf/modele-provence-pro'
+import { modeleDocumentSociete } from '@/lib/pdf/modeles-societes'
 import { getDecennaleEligibility } from '@/lib/decennale-eligibility'
 import {
-  mulMoney,
   sumMoney,
   round2,
   parseDecimalInput,
@@ -57,8 +62,8 @@ import {
 import * as Sentry from '@sentry/nextjs'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { supabase } from '@/lib/supabase'
+import { fetchAuthentifie } from '@/lib/fetch-authentifie'
 import { syncDocumentSafe } from '@/lib/document-sync'
-import { SEED_PREST, SEED_MAT } from '@/components/dashboard/PrestationsBTPSection'
 import RentabiliteDevisModal from '@/components/dashboard/btp/RentabiliteDevisModal'
 
 /* ─────────────────────────────────────────────────────────────────
@@ -123,6 +128,37 @@ function mapCatalogueUnit(u?: string): string {
   return UNIT_CATALOGUE_TO_DEVIS[u] || 'u'
 }
 
+/** Élément du catalogue du module Prestations, tel que le formulaire le lit. */
+interface ElementCatalogueBTP {
+  id: number
+  name: string
+  type: string
+  description?: string
+  price?: { min?: number; max?: number }
+  unit?: string
+  etapes?: Array<string | { label: string; price?: number; unit?: string }>
+}
+
+/**
+ * Catalogue du module Prestations enregistré dans le navigateur : clé du module (v5), à défaut l'ancienne copie (v4)
+ * que plus rien n'écrit. Lecture seule. Rien d'enregistré, ou valeur illisible : aucun catalogue ; un élément sans
+ * nom est écarté.
+ */
+function lireCatalogueBTP(artisanId: string | undefined): ElementCatalogueBTP[] {
+  if (typeof window === 'undefined') return []
+  const fiche = artisanId || 'guest'
+  try {
+    const brut = localStorage.getItem(`fixit_prestations_btp_v5_${fiche}`) ?? localStorage.getItem(`fixit_prestations_btp_v4_${fiche}`)
+    const valeur: unknown = brut ? JSON.parse(brut) : []
+    if (!Array.isArray(valeur)) return []
+    return valeur.filter((e): e is ElementCatalogueBTP =>
+      typeof e === 'object' && e !== null && typeof (e as { name?: unknown }).name === 'string')
+  } catch (erreur) {
+    console.warn('[devis BTP] catalogue Prestations illisible :', erreur)
+    return []
+  }
+}
+
 const DECLENCHEURS_ACOMPTE = [
   'À la signature',
   'Au démarrage',
@@ -169,6 +205,28 @@ const TYPES_ASSURANCE = [
 
 const fmt = (n: number) =>
   n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
+
+/**
+ * Largeurs des colonnes des tableaux de lignes (Désignation, Qté, Unité, Prix, [Remise], TVA,
+ * Total HT, Total TTC, suppression). Sans colonne Remise (Portugal, hors de ce lot) : largeurs
+ * d'origine. `derniere` : 4 % pour les tableaux fixes, 6 % pour les tables personnalisées.
+ * TVA à 12 % (accord de Frédéric du 13/11/2026) : à 8 %, le sélecteur ne montrait que sa flèche
+ * (taux illisible) ; 4 points pris sur la désignation. Taux lisible dès 1 280 px de large.
+ */
+function largeursColonnes(avecRemise: boolean, derniere: string): Array<{ cle: string; largeur: string }> {
+  const colonnes = (largeurs: string[], cles: string[]) => cles.map((cle, i) => ({ cle, largeur: largeurs[i] }))
+  if (!avecRemise) {
+    return colonnes(['28%', '7%', '11%', '12%', '8%', '14%', '14%', derniere],
+      ['designation', 'quantite', 'unite', 'prix', 'tva', 'total-ht', 'total-ttc', 'action'])
+  }
+  return colonnes([derniere === '6%' ? '18%' : '20%', '7%', '9%', '11%', '11%', '12%', '13%', '13%', derniere],
+    ['designation', 'quantite', 'unite', 'prix', 'remise', 'tva', 'total-ht', 'total-ttc', 'action'])
+}
+
+// Mode « Acompte » du formulaire : lignes et remises en euros mises à la même échelle que les prix
+// (lib/remise-commerciale.ts ; une remise en % ne bouge pas).
+const scaleRemise = remiseALEchelle
+const scaleLinesBy = (arr: ProductLine[], r: number): ProductLine[] => lignesALEchelle(arr, r)
 
 // fmtN / fmtN4 / fmtQty : extraits dans lib/devis-format.ts (partagés avec le
 // formulaire artisan, audit 2026-06-10). fmt (€) reste local (non mutualisé).
@@ -219,24 +277,9 @@ export default function DevisFactureFormBTP({
   const [docTitle, setDocTitle] = useState(initialData?.docTitle || '')
 
   // Entreprise
-  const [statutJuridique, setStatutJuridique] = useState(() => {
-    if (initialData?.companyStatus) return initialData.companyStatus
-    if (artisan?.legal_form) {
-      const code = mapLegalFormToCode(artisan.legal_form)
-      // Map code retourné → valeur exacte STATUTS_JURIDIQUES
-      const codeToLabel: Record<string, string> = {
-        'ei': 'Entreprise Individuelle (EI)',
-        'eurl': 'EURL',
-        'sarl': 'SARL',
-        'sas': 'SAS',
-        'sasu': 'SASU',
-        'ae': 'Auto-entrepreneur',
-        'sa': 'SA',
-      }
-      return codeToLabel[code] || 'Entreprise Individuelle (EI)'
-    }
-    return 'Entreprise Individuelle (EI)'
-  })
+  // Champ verrouillé, « défini à l'inscription » : forme du profil, sauf document déjà émis (figée avec lui)
+  const [statutJuridique, setStatutJuridique] = useState(() =>
+    statutJuridiqueInitialBtp(initialData, artisan?.legal_form))
   const [companyName, setCompanyName] = useState(initialData?.companyName || artisan?.company_name || '')
   const [companySiret, setCompanySiret] = useState(initialData?.companySiret || artisan?.siret || '')
   // L'adresse arrive parfois en MAJ depuis le Kbis (KINNOVA GROUP 115 RUE …).
@@ -635,6 +678,14 @@ export default function DevisFactureFormBTP({
   const [penaltyRate, setPenaltyRate] = useState((initialData as { penaltyRate?: string })?.penaltyRate || "3 × taux d'intérêt légal en vigueur")
   const [recoveryFee, setRecoveryFee] = useState((initialData as { recoveryFee?: string })?.recoveryFee || '40 € (BtoB uniquement)')
   const [escompte, setEscompte] = useState((initialData as { escompte?: string })?.escompte || ESCOMPTES[0])
+  // Remise commerciale sur le total (lib/remise-commerciale.ts), en % ou en € HT. Saisie en
+  // France seulement (le Portugal relève d'un autre droit, hors de ce lot) ; une remise posée en
+  // français reste appliquée, affichée et enregistrée si le document est rouvert en portugais.
+  const remiseDisponible = locale !== 'pt'
+  const [remiseGlobale, setRemiseGlobale] = useState<Remise | undefined>(
+    () => lireRemise((initialData as { remiseGlobale?: unknown } | undefined)?.remiseGlobale) ?? undefined,
+  )
+  const langueRemise = locale === 'pt' ? 'pt' : 'fr'
 
   // Notes
   const [notes, setNotes] = useState(initialData?.notes || '')
@@ -708,89 +759,64 @@ export default function DevisFactureFormBTP({
 
   /* ──────── Prestations BTP (merge Supabase services + localStorage catalogue) ──────── */
 
+  // Catalogue du module Prestations, lu une fois : la liste des prestations, celle des matériaux et les étapes reprises
+  // viennent de la même lecture (sinon une ligne pourrait recevoir le nom d'une prestation et les étapes d'une autre).
+  // Lecture seule : le formulaire n'écrit plus de catalogue d'exemple quand rien n'est enregistré (catalogue vierge à
+  // la création du compte, demande de Frédéric du 17/11/2026).
+  const catalogueBTP = useMemo(() => lireCatalogueBTP(artisan?.id), [artisan?.id])
+
   const allServices = useMemo(() => {
     const supaServices: ServiceBasic[] = (services as ServiceBasic[]) || []
-    const storageKey = `fixit_prestations_btp_v4_${artisan?.id || 'guest'}`
-    let localPrest: ServiceBasic[] = []
-    try {
-      let raw = localStorage.getItem(storageKey)
-
-      // Seed le localStorage si vide (même logique que PrestationsBTPSection)
-      if (!raw && artisan?.id) {
-        const all = [...SEED_PREST, ...SEED_MAT].map((p, i) => ({ id: i + 1, ...p }))
-        localStorage.setItem(storageKey, JSON.stringify(all))
-        raw = localStorage.getItem(storageKey)
-      }
-
-      if (raw) {
-        const parsed = JSON.parse(raw) as Array<{ id: number; name: string; type: string; description?: string; price?: { min?: number; max?: number }; unit?: string; etapes?: Array<string | { label: string; price?: number }> }>
-        // Map unit from catalogue format → devis format (identifiant court)
-        const mapUnit = (u?: string): string => {
-          if (!u) return 'u'
-          const m: Record<string, string> = {
-            // Géométrie
-            'm²': 'm2', 'm2': 'm2', 'ml': 'ml', 'm': 'm', 'm³': 'm3', 'm3': 'm3',
-            // Comptage
-            'u': 'u', 'pce': 'pce', 'ens': 'ens', 'lot': 'lot', 'pt': 'pt',
-            // Poids / volume
-            'kg': 'kg', 't': 't', 'L': 'L', 'l': 'L',
-            // Conditionnement
-            'sac': 'sac', 'rl': 'rl', 'palette': 'palette', 'benne': 'benne', 'camion': 'camion',
-            // Temps
-            'h': 'h', 'jour': 'j', 'j': 'j', 'semaine': 'sem', 'sem': 'sem',
-            // Facturation
-            'forfait': 'f', 'f': 'f',
-          }
-          return m[u] || 'u'
+    const localPrest: ServiceBasic[] = catalogueBTP
+      .filter(p => p.type === 'prest')
+      .map(p => {
+        // Unité du catalogue → identifiant court du devis (UNIT_CATALOGUE_TO_DEVIS), notée pour selectMotif
+        const descWithUnit = `${p.description || ''} [unit:${mapCatalogueUnit(p.unit)}]`.trim()
+        return {
+          id: `btp_${p.id}`,
+          name: p.name,
+          price_ht: p.price?.min || 0,
+          description: descWithUnit,
         }
-        localPrest = parsed
-          .filter(p => p.type === 'prest')
-          .map(p => {
-            const devisUnit = mapUnit(p.unit)
-            const baseDesc = p.description || ''
-            // Embed unit marker so selectMotif picks the right default unit
-            const descWithUnit = `${baseDesc} [unit:${devisUnit}]`.trim()
-            return {
-              id: `btp_${p.id}`,
-              name: p.name,
-              price_ht: p.price?.min || 0,
-              description: descWithUnit,
-            }
-          })
-      }
-    } catch { /* ignore */ }
+      })
 
     const names = new Set(supaServices.map(s => s.name.toLowerCase()))
     return [...supaServices, ...localPrest.filter(lp => !names.has(lp.name.toLowerCase()))]
-  }, [services, artisan?.id])
+  }, [services, catalogueBTP])
 
-  // Matériaux catalogue (from localStorage, type === 'mat')
-  const allMaterials = useMemo(() => {
-    const storageKey = `fixit_prestations_btp_v4_${artisan?.id || 'guest'}`
-    try {
-      const raw = localStorage.getItem(storageKey)
-      if (raw) {
-        const parsed = JSON.parse(raw) as Array<{ id: number; name: string; type: string; price?: { min?: number; max?: number }; unit?: string }>
-        return parsed
-          .filter(p => p.type === 'mat')
-          .map(p => ({
-            id: `btp_mat_${p.id}`,
-            name: p.name,
-            price_ht: p.price?.min || 0,
-          }))
-      }
-    } catch { /* ignore */ }
-    return [] as Array<{ id: string; name: string; price_ht: number }>
-  }, [artisan?.id])
+  // Matériaux du même catalogue (type === 'mat')
+  const allMaterials = useMemo(() => catalogueBTP
+    .filter(p => p.type === 'mat')
+    .map(p => ({
+      id: `btp_mat_${p.id}`,
+      name: p.name,
+      price_ht: p.price?.min || 0,
+    })), [catalogueBTP])
 
   /* ──────── Calculs ──────── */
 
   // Recalcule totalHT à chaque modif d'une ligne — `mulMoney` arrondit à 2
   // décimales et garantit l'absence de drift IEEE 754 (cf. lib/money.ts).
   const recalcLine = useCallback((line: ProductLine): ProductLine => {
-    const totalHT = mulMoney(line.qty || 0, line.priceHT || 0)
+    // Remise de la ligne déduite (lib/remise-commerciale.ts) ; sans remise : quantité × prix.
+    const totalHT = montantNetLigne(line.qty || 0, line.priceHT || 0, line.remise)
     return { ...line, totalHT }
   }, [])
+
+  // Ligne remisée : TOTAL HT / TOTAL TTC calculés (prix × quantité − remise), non saisissables —
+  // on modifie alors le prix, la quantité ou la remise.
+  // Styles en ligne : ces cellules sont rendues hors de l'arbre JSX du formulaire, la feuille
+  // `.dv-presta-table td` (styled-jsx) ne s'y applique pas. Padding aligné sur le texte des champs.
+  const STYLE_TOTAL_REMISE: React.CSSProperties = {
+    textAlign: 'right', verticalAlign: 'top', padding: '13px 8px 6px', borderBottom: '1px solid #F0F0F0',
+    fontWeight: 600, color: '#1a1a1a', fontVariantNumeric: 'tabular-nums', fontSize: 12,
+  }
+  const cellulesTotauxRemises = (lineHT: number, lineTTC: number) => (
+    <>
+      <td style={STYLE_TOTAL_REMISE} title="Total après remise">{fmtN(lineHT)}</td>
+      <td style={STYLE_TOTAL_REMISE} title="Total après remise">{fmtN(lineTTC)}</td>
+    </>
+  )
 
   /**
    * Récupère le prochain numéro de document via la séquence atomique serveur
@@ -880,28 +906,32 @@ export default function DevisFactureFormBTP({
     // aucune divergence possible entre RÉSUMÉ affiché et total persisté.
     const allLines = buildDocumentLines({
       lines, materialLines, fraisLines, customTables,
-      materialLinesEnabled, fraisLinesEnabled,
+      materialLinesEnabled, fraisLinesEnabled, remiseGlobale,
     }) as typeof lines
-    // Sous-total via centimes entiers (sumMoney) — arrondi par ligne d'abord
-    // (norme BOFiP BOI-TVA-DECLA-30-20-20 §50), puis somme exacte.
-    const subTotalBrut = sumMoney(
-      allLines.map(l => mulMoney(l.qty || 0, l.priceHT || 0)),
-    )
-    const remise = 0 // pas de remise globale dans la maquette V1
-    const totalHT = round2(subTotalBrut - remise)
+    // Montant d'une ligne : quantité × prix arrondi par ligne (norme BOFiP
+    // BOI-TVA-DECLA-30-20-20 §50), remise de la ligne déduite.
+    const montantLigne = (l: ProductLine) => montantNetLigne(l.qty || 0, l.priceHT || 0, l.remise)
+    // Sous-total via centimes entiers (sumMoney), avant la remise commerciale globale.
+    const subTotalBrut = sumMoney(allLines.map(montantLigne))
 
     // Source unique de vérité : lib/tva-calculator.ts
     // En franchise/autoliquidation, la TVA est forcée à 0 (override silencieux
     // des tvaRate ligne par ligne) et le total est égal au HT. Les mentions
     // légales et le label de total final ("TOTAL NET" vs "TOTAL TTC") sont
-    // également décidés par computeTva().
+    // également décidés par computeTva(). La remise globale y est répartie
+    // entre les taux avant la TVA ; les lignes de déduction d'acompte
+    // (horsRemise) restent hors de sa base.
     const tva = computeTva({
       regime: regimeTva,
       lines: allLines.map(l => ({
-        totalHT: mulMoney(l.qty || 0, l.priceHT || 0),
+        totalHT: montantLigne(l),
         tvaRate: l.tvaRate || 0,
+        horsRemise: l.horsRemise === true,
       })),
+      remiseGlobale: remiseGlobale,
     })
+    const remise = tva.remiseHT
+    const totalHT = round2(subTotalBrut - remise)
     const tvaBreakdown = tva.breakdown
     const tvaEntries = tvaBreakdown.map(b => [b.rate, b.amount] as [number, number])
     const totalTva = tva.totalTVA
@@ -922,8 +952,20 @@ export default function DevisFactureFormBTP({
       } catch { /* Sentry indisponible — pas bloquant */ }
     }
 
-    return { subTotalBrut, remise, totalHT, tvaEntries, tvaBreakdown, totalTva, totalTTC }
-  }, [lines, materialLines, fraisLines, materialLinesEnabled, fraisLinesEnabled, customTables, regimeTva])
+    // Lignes vues par le champ de la remise globale (conversions, saisie « en € TTC »), montants nets des
+    // remises de ligne : la base d'une remise active, donc les déductions d'acompte d'une facture de solde
+    // hors remise même avant qu'une remise soit posée (sinon la base changerait à la première frappe).
+    const lignesRemise = (buildDocumentLines({
+      lines, materialLines, fraisLines, customTables,
+      materialLinesEnabled, fraisLinesEnabled, remiseGlobale,
+    }, { deductionsHorsRemise: true }) as typeof lines)
+      .map(l => ({ totalHT: montantLigne(l), tvaRate: l.tvaRate || 0, horsRemise: l.horsRemise === true }))
+    // Base de la remise globale : les travaux, sans les déductions d'acompte d'une facture de solde.
+    const baseRemise = tva.baseRemiseHT
+    return { subTotalBrut, remise, totalHT, tvaEntries, tvaBreakdown, totalTva, totalTTC, totalLabel: tva.totalLabel, lignesRemise, baseRemise }
+  }, [lines, materialLines, fraisLines, materialLinesEnabled, fraisLinesEnabled, customTables, regimeTva, remiseGlobale])
+  // Autoliquidation ou franchise : pas de taux à afficher dans le résumé (il montrait « TVA 20 % » à 0,00 €)
+  const ligneTvaResume = ligneTvaHorsClassique(regimeTva)
 
   /* ──────── Conformité légale (checklist sidebar) ──────── */
 
@@ -1142,7 +1184,9 @@ export default function DevisFactureFormBTP({
         unit: sl.unit,
         priceHT: sl.unitPriceHT,
         tvaRate: sl.tvaRate,
-        totalHT: sl.qty * sl.unitPriceHT,
+        // Arrondi au centime comme toute autre ligne (recalcLine) : un total non arrondi faisait
+        // diverger d'un centime le total enregistré et le total affiché.
+        totalHT: montantNetLigne(sl.qty, sl.unitPriceHT),
       }))
 
       // Replace empty first line or append
@@ -1201,20 +1245,41 @@ export default function DevisFactureFormBTP({
 
   /* ──────── Import client ──────── */
 
+  // Clients saisis à la main (localStorage `fixit_manual_clients_<artisan.id>`), lus à part de l'appel réseau
+  // pour rester proposés quand /api/artisan-clients échoue. Ne lève jamais : localStorage inaccessible ou JSON
+  // illisible → aucun client manuel.
+  const lireClientsManuels = (artisanId: string): typeof clientDb => {
+    try {
+      const brut = localStorage.getItem(`fixit_manual_clients_${artisanId}`)
+      if (!brut) return []
+      const clients = JSON.parse(brut)
+      if (!Array.isArray(clients)) throw new Error('liste attendue')
+      return clients
+    } catch (e: unknown) {
+      console.warn('[DevisBTP] clients manuels illisibles :', e instanceof Error ? e.message : e)
+      return []
+    }
+  }
+
   const openClientPicker = async () => {
     if (!artisan?.id) return
     setShowClientPicker(true)
     setClientDbLoading(true)
     setClientDbSearch('')
+    const clientsManuels = lireClientsManuels(artisan.id)
     try {
-      const res = await fetch(`/api/artisan-clients?artisan_id=${artisan.id}`)
-      const data = await res.json()
+      // Appel authentifié (Bearer) comme les autres routes du dashboard : un fetch nu recevait 401 (lot 4 Sentry
+      // du 28/10/2026). Un 403 (compte sans fiche artisan) n'a pas de clients enregistrés : clients manuels seuls.
+      const res = await fetchAuthentifie(`/api/artisan-clients?artisan_id=${artisan.id}`)
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok && res.status !== 403) throw new Error(data.error || `HTTP ${res.status}`)
       const authClients = (data.clients || []).map((c: Record<string, unknown>) => ({ ...c }))
-      const manualRaw = localStorage.getItem(`fixit_manual_clients_${artisan.id}`)
-      const manualClients = manualRaw ? JSON.parse(manualRaw) : []
-      setClientDb([...authClients, ...manualClients])
-    } catch {
-      setClientDb([])
+      setClientDb([...authClients, ...clientsManuels])
+    } catch (e: unknown) {
+      console.warn('[DevisBTP] clients non chargés :', e instanceof Error ? e.message : e)
+      toast.error('Impossible de charger vos clients enregistrés')
+      // Appel en échec (500, 429, réseau) : les clients saisis à la main restent proposés.
+      setClientDb(clientsManuels)
     }
     setClientDbLoading(false)
   }
@@ -1227,6 +1292,9 @@ export default function DevisFactureFormBTP({
     setClientAddress(c.mainAddress || c.address || '')
     // BTP — pré-remplir les champs détaillés s'ils existent (clients créés avec le nouveau format)
     const cAny = c as Record<string, unknown>
+    // Même règle que la base clients (type B2B ou SIRET) : un client pro passe en « Professionnel »,
+    // avec raison sociale et SIRET ; le type restait sur « Particulier » à l'import.
+    setClientType(estClientProfessionnel(cAny) ? 'professionnel' : 'particulier')
     setClientFirstName((cAny.firstName as string) || '')
     setClientLastName((cAny.lastName as string) || '')
     setClientStreet((cAny.street as string) || '')
@@ -1373,6 +1441,8 @@ export default function DevisFactureFormBTP({
       penaltyRate,
       recoveryFee,
       escompte,
+      // Remise commerciale sur le total (lib/remise-commerciale.ts) — absente sans remise.
+      remiseGlobale: remiseGlobale,
       // Régime TVA — source unique de vérité pour le PDF et la sync DB
       regimeTva,
       // Rétro-compat : flag boolean utilisé par PDF V3 (devis-pdf-v3.ts)
@@ -1410,7 +1480,7 @@ export default function DevisFactureFormBTP({
     lines, materialLines, fraisLines,
     linesName, materialLinesName, fraisLinesName, materialLinesEnabled, fraisLinesEnabled, customTables,
     acomptesEnabled, acomptes,
-    paymentMode, paymentDelay, penaltyRate, recoveryFee, escompte, autoliquidationBTP, regimeTva,
+    paymentMode, paymentDelay, penaltyRate, recoveryFee, escompte, autoliquidationBTP, regimeTva, remiseGlobale,
     profileIban, profileBic,
     notes, dechetsChantier, marchePrincipalRef, maitreOuvrageFinal,
     // Sous-type facture + champs acompte fractionné + avoir (méthode pro BTP 2026)
@@ -1452,10 +1522,8 @@ export default function DevisFactureFormBTP({
   const acompteOriginalRef = React.useRef<{
     lines: ProductLine[]; materialLines: ProductLine[]; fraisLines: ProductLine[]
     customTables: { id: string; name: string; category?: 'labor' | 'material' | 'frais'; lines: ProductLine[] }[]
+    remiseGlobale: Remise | undefined
   } | null>(null)
-
-  const scaleLinesBy = (arr: ProductLine[], r: number): ProductLine[] =>
-    arr.map((l) => ({ ...l, priceHT: round2((l.priceHT || 0) * r), totalHT: round2((l.totalHT || 0) * r) }))
 
   // Met les lignes à l'échelle pct/100 à partir des lignes PLEINES mémorisées.
   const applyAcompteScale = useCallback((pct: number) => {
@@ -1465,6 +1533,7 @@ export default function DevisFactureFormBTP({
         materialLines: materialLines.map((l) => ({ ...l })),
         fraisLines: fraisLines.map((l) => ({ ...l })),
         customTables: customTables.map((t) => ({ ...t, lines: t.lines.map((l) => ({ ...l })) })),
+        remiseGlobale,
       }
     }
     const o = acompteOriginalRef.current
@@ -1473,13 +1542,15 @@ export default function DevisFactureFormBTP({
     setMaterialLines(scaleLinesBy(o.materialLines, r))
     setFraisLines(scaleLinesBy(o.fraisLines, r))
     setCustomTables(o.customTables.map((t) => ({ ...t, lines: scaleLinesBy(t.lines, r) })))
+    setRemiseGlobale(scaleRemise(o.remiseGlobale, r))
     acompteScaledRef.current = true
-  }, [lines, materialLines, fraisLines, customTables])
+  }, [lines, materialLines, fraisLines, customTables, remiseGlobale])
 
   const restoreAcompteOriginal = useCallback(() => {
     const o = acompteOriginalRef.current
     if (!o) return
     setLines(o.lines); setMaterialLines(o.materialLines); setFraisLines(o.fraisLines); setCustomTables(o.customTables)
+    setRemiseGlobale(o.remiseGlobale)
     acompteScaledRef.current = false
     acompteOriginalRef.current = null
   }, [])
@@ -1563,6 +1634,10 @@ export default function DevisFactureFormBTP({
   // (ni toast ni spinner). Jamais de saisie perdue, même sans clic « Enregistrer ».
   // Ne touche JAMAIS un document déjà émis (status ≠ brouillon/draft) ni un
   // formulaire vide. saveDraft écrit localStorage + sync cloud via l'id stable.
+  // Déclencheur : le contenu que le brouillon enregistre (buildPayload), et non une liste de champs
+  // tenue à la main — elle oubliait les tables personnalisées, l'adresse, les notes, les acomptes…
+  // (saisie perdue si l'utilisateur quittait sans « Enregistrer »). Le numéro n'est pas une saisie.
+  const contenuBrouillon = JSON.stringify({ ...buildPayload(), docNumber: undefined })
   const saveDraftRef = React.useRef(saveDraft)
   saveDraftRef.current = saveDraft
   useEffect(() => {
@@ -1570,12 +1645,13 @@ export default function DevisFactureFormBTP({
     const isEmitted = !!st && st !== 'brouillon' && st !== 'draft'
     if (isEmitted || !artisan?.id) return
     const hasContent = clientName.trim().length > 0 ||
-      [...lines, ...materialLines, ...fraisLines].some((l) => (l.description || '').trim().length > 0)
+      [...lines, ...materialLines, ...fraisLines, ...customTables.flatMap((tbl) => tbl.lines || [])]
+        .some((l) => (l.description || '').trim().length > 0)
     if (!hasContent) return
     const t = setTimeout(() => { saveDraftRef.current({ silent: true }) }, 1500)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clientName, lines, materialLines, fraisLines, docTitle, factureSubType, acomptePourcentage, parentInvoiceNumber, avoirMotif])
+  }, [contenuBrouillon])
 
   const saveAndSend = async () => {
     if (!artisan?.id) return
@@ -1730,33 +1806,31 @@ export default function DevisFactureFormBTP({
     let copiedEtapes: DevisEtape[] = []
     let prestDescription = ''
     if (serviceId.startsWith('btp_')) {
-      // BTP prestation from localStorage — étapes are in the seed data
+      // Prestation du catalogue de la société : description et étapes prises dans la lecture qui a produit la liste
+      // (catalogueBTP), donc celles de la prestation choisie.
       try {
-        // Try v5 first (with auto-computed étape prices/units), fall back to v4
-        const raw = localStorage.getItem(`fixit_prestations_btp_v5_${artisan?.id || 'guest'}`)
-          || localStorage.getItem(`fixit_prestations_btp_v4_${artisan?.id || 'guest'}`)
-        if (raw) {
-          const parsed = JSON.parse(raw) as Array<{ id: number; description?: string; etapes?: Array<string | { label: string; price?: number; unit?: string }> }>
-          const numId = parseInt(serviceId.replace('btp_', ''), 10)
-          const prest = parsed.find(p => p.id === numId)
-          if (prest?.description) prestDescription = prest.description
-          if (prest?.etapes?.length) {
-            copiedEtapes = prest.etapes.map((et, i) => {
-              // Backward compat: old format was string[], new is {label, price?, unit?}[]
-              const label = typeof et === 'string' ? et : et.label
-              const price = typeof et === 'string' ? undefined : et.price
-              const unit = typeof et === 'string' ? undefined : et.unit
-              return {
-                id: `etape_${Date.now()}_${i}`,
-                ordre: i + 1,
-                designation: label,
-                ...(price != null ? { prixHT: price } : {}),
-                ...(unit ? { unit: mapCatalogueUnit(unit) } : {}),
-              }
-            })
-          }
+        const numId = parseInt(serviceId.replace('btp_', ''), 10)
+        const prest = catalogueBTP.find(p => p.id === numId)
+        if (prest?.description) prestDescription = prest.description
+        if (prest?.etapes?.length) {
+          copiedEtapes = prest.etapes.map((et, i) => {
+            // Backward compat: old format was string[], new is {label, price?, unit?}[]
+            const label = typeof et === 'string' ? et : et.label
+            const price = typeof et === 'string' ? undefined : et.price
+            const unit = typeof et === 'string' ? undefined : et.unit
+            return {
+              id: `etape_${Date.now()}_${i}`,
+              ordre: i + 1,
+              designation: label,
+              ...(price != null ? { prixHT: price } : {}),
+              ...(unit ? { unit: mapCatalogueUnit(unit) } : {}),
+            }
+          })
         }
-      } catch { /* ignore */ }
+      } catch (erreur) {
+        // Étapes mal formées dans le catalogue : la ligne reprend la prestation sans elles, comme avant.
+        console.warn('[devis BTP] étapes du catalogue illisibles :', erreur)
+      }
     } else {
       try {
         const res = await fetch(`/api/service-etapes?service_id=${serviceId}`)
@@ -1776,13 +1850,13 @@ export default function DevisFactureFormBTP({
       if (line.id !== lineId) return line
       return { ...line, description: service.name, lineDetail: prestDescription || line.lineDetail || '',
                unit: serviceUnit, priceHT: price,
-               // Total = quantité déjà saisie × prix (et non 1 × prix) : sinon le total stocké
-               // diverge du total affiché et part tel quel dans la liste, la base et le PDF téléchargé.
-               tvaRate: 20, totalHT: mulMoney(line.qty || 0, price),
+               // Total = quantité déjà saisie × prix (et non 1 × prix), remise de la ligne déduite :
+               // sinon le total stocké diverge du total affiché et part tel quel dans la liste, la
+               // base et le PDF téléchargé.
+               tvaRate: 20, totalHT: montantNetLigne(line.qty || 0, price, line.remise),
                etapes: copiedEtapes.length > 0 ? copiedEtapes : undefined }
     }))
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allServices, tvaEnabled])
+  }, [allServices, catalogueBTP, tvaEnabled])
 
   // svgToImageDataUrl : extrait dans lib/signature-canvas.ts (partagé avec le
   // formulaire artisan, audit 2026-06-10).
@@ -1902,6 +1976,10 @@ export default function DevisFactureFormBTP({
         })).filter(t => t.lines.length > 0),
         subtotalHT: totalNet,
         totalTTC: tvaEnabled ? totalTTCcalc : totalNet,
+        // Remise commerciale : HT avant remise et ligne « Remise commerciale (x %) » du PDF.
+        ...(totaux.remise !== 0
+          ? { totalHTBrut: totaux.subTotalBrut, remiseGlobale: { montantHT: totaux.remise, libelle: libelleRemiseGlobale(remiseGlobale, langueRemise), base: totaux.baseRemise } }
+          : {}),
         // Ventilation TVA pré-calculée — le PDF V3 ne recalcule plus, élimine
         // le drift form ↔ PDF observé sur 50+ lignes.
         // computeTva() retourne breakdown=[] en franchise/autoliquidation,
@@ -1934,7 +2012,7 @@ export default function DevisFactureFormBTP({
           rm: companyRCS || undefined,
           rc_pro: insuranceNumber || undefined,
         } : null,
-        // Modèle propre à la société (Provence Pro uniquement) ; sinon modèle BTP par défaut
+        // Modèle propre à la société (Provence Pro, Method Soluções) ; sinon modèle BTP par défaut
         modele: modeleDocumentSociete(artisan?.id),
         ptFiscalData: null,
         svgToImageDataUrl,
@@ -1950,6 +2028,8 @@ export default function DevisFactureFormBTP({
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
       console.error('[DevisBTP] PDF failed', err)
+      // Lot 6 Sentry du 28/10/2026 : l'échec est remonté avec l'action et le type de document, et affiché.
+      Sentry.captureException(err, { tags: { pdf_action: action, doc_type: docType } })
       toast.error(`Erreur PDF : ${msg}`)
     } finally {
       setPdfLoading(false)
@@ -2125,6 +2205,9 @@ export default function DevisFactureFormBTP({
         .dv-resume-row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 1rem; padding: .35rem 0; font-size: 12px; color: #555; }
         .dv-resume-row > span:last-child { font-variant-numeric: tabular-nums; text-align: right; min-width: 80px; }
         .dv-resume-row.subtotal { border-top: 1px dashed #E0E0E0; padding-top: .5rem; margin-top: .25rem; font-weight: 600; color: #1a1a1a; }
+        .dv-remise-globale { padding: .3rem 0 .15rem; }
+        .dv-remise-globale :global(input), .dv-remise-globale :global(select) { padding: 6px 8px; border: 1px solid #E0E0E0; border-radius: 4px; font-size: 12px; font-family: inherit; box-sizing: border-box; background: #fff; }
+        .dv-remise-globale :global(input:focus), .dv-remise-globale :global(select:focus) { outline: none; border-color: var(--primary-yellow); }
         .dv-resume-row.tva { color: #888; font-size: 11px; padding: .2rem 0; }
         .dv-resume-row.tva-total { font-weight: 600; color: #555; }
         .dv-resume-row.total { background: var(--primary-yellow); color: #333; font-weight: 700; font-size: 13px; padding: .55rem .7rem; border-radius: 5px; margin-top: .5rem; }
@@ -2310,7 +2393,7 @@ export default function DevisFactureFormBTP({
                     <strong>Mode autoliquidation activé.</strong> La TVA n&apos;est pas collectée par votre société —
                     elle est due par le donneur d&apos;ordre. Les taux TVA des lignes sont ignorés au PDF,
                     le total apparaît comme &laquo;&nbsp;TOTAL NET&nbsp;&raquo; avec la mention obligatoire
-                    «&nbsp;Autoliquidation — Article 283, 2 nonies du CGI&nbsp;».
+                    «&nbsp;Autoliquidation : article 283, 2 nonies du CGI&nbsp;».
                     <br />
                     <strong>Conditions :</strong> client professionnel, SIRET renseigné, votre N° TVA intracom renseigné.
                   </div>
@@ -2738,22 +2821,14 @@ export default function DevisFactureFormBTP({
               />
             </div>
             <table className="dv-presta-table">
-              <colgroup>
-                <col style={{ width: '28%' }} />
-                <col style={{ width: '7%' }} />
-                <col style={{ width: '11%' }} />
-                <col style={{ width: '12%' }} />
-                <col style={{ width: '8%' }} />
-                <col style={{ width: '14%' }} />
-                <col style={{ width: '14%' }} />
-                <col style={{ width: '4%' }} />
-              </colgroup>
+              <colgroup>{largeursColonnes(remiseDisponible, '4%').map(({ cle, largeur }) => <col key={cle} style={{ width: largeur }} />)}</colgroup>
               <thead>
                 <tr>
                   <th style={{ textAlign: 'left' }}>DÉSIGNATION</th>
                   <th style={{ textAlign: 'center' }}>QTÉ</th>
                   <th style={{ textAlign: 'center' }}>UNITÉ</th>
                   <th style={{ textAlign: 'center' }}>PRIX HT</th>
+                  {remiseDisponible && <th style={{ textAlign: 'center' }} title="Remise sur la ligne, en % ou en €">REMISE</th>}
                   <th style={{ textAlign: 'center' }}>TVA %</th>
                   <th style={{ textAlign: 'right' }}>TOTAL HT</th>
                   <th style={{ textAlign: 'right' }}>TOTAL TTC</th>
@@ -2762,7 +2837,7 @@ export default function DevisFactureFormBTP({
               </thead>
               <tbody>
                 {lines.map((l) => {
-                  const lineHT = (l.qty || 0) * (l.priceHT || 0)
+                  const lineHT = montantNetLigne(l.qty || 0, l.priceHT || 0, l.remise)
                   const lineTTC = autoliquidationBTP ? lineHT : lineHT * (1 + (l.tvaRate || 0) / 100)
                   return (
                     <tr key={l.id}>
@@ -2847,11 +2922,13 @@ export default function DevisFactureFormBTP({
                         </select>
                       </td>
                       <td><DecimalInput value={l.priceHT || 0} onChangeNumber={(n) => updateLine(l.id, { priceHT: n })} format={fmtN4} parse={priceHtParser} placeholder="0,00" title="Prix unitaire HT — virgule ou point acceptés, jusqu'à 4 décimales" /></td>
+                      {remiseDisponible && <td><ChampRemiseLigne remise={l.remise} base={montantNetLigne(l.qty || 0, l.priceHT || 0)} onChange={(r) => updateLine(l.id, { remise: r })} /></td>}
                       <td>
                         <select value={autoliquidationBTP ? 0 : l.tvaRate} onChange={(e) => updateLine(l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled || autoliquidationBTP} title={autoliquidationBTP ? 'TVA verrouillée à 0 % en autoliquidation BTP (art. 283, 2 nonies CGI)' : undefined}>
                           {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
                         </select>
                       </td>
+                      {lireRemise(l.remise) ? cellulesTotauxRemises(lineHT, lineTTC) : (<>
                       <td style={{ textAlign: 'right' }}><DecimalInput
                         value={lineHT}
                         onChangeNumber={(v) => { const q = l.qty || 1; updateLine(l.id, { priceHT: v / q }) }}
@@ -2864,6 +2941,7 @@ export default function DevisFactureFormBTP({
                         format={fmtN} parse={parseDecimalInput}
                         placeholder="0,00"
                         style={{ textAlign: 'right', maxWidth: 108, marginLeft: 'auto', display: 'block' }} /></td>
+                      </>)}
                       <td><button className="dv-presta-del" type="button" aria-label="Supprimer la ligne" onClick={() => removeLine(l.id)}>✕</button></td>
                     </tr>
                   )
@@ -2896,22 +2974,14 @@ export default function DevisFactureFormBTP({
               >🗑 Supprimer</button>
             </div>
             <table className="dv-presta-table">
-              <colgroup>
-                <col style={{ width: '28%' }} />
-                <col style={{ width: '7%' }} />
-                <col style={{ width: '11%' }} />
-                <col style={{ width: '12%' }} />
-                <col style={{ width: '8%' }} />
-                <col style={{ width: '14%' }} />
-                <col style={{ width: '14%' }} />
-                <col style={{ width: '4%' }} />
-              </colgroup>
+              <colgroup>{largeursColonnes(remiseDisponible, '4%').map(({ cle, largeur }) => <col key={cle} style={{ width: largeur }} />)}</colgroup>
               <thead>
                 <tr>
                   <th style={{ textAlign: 'left' }}>DÉSIGNATION</th>
                   <th style={{ textAlign: 'center' }}>QTÉ</th>
                   <th style={{ textAlign: 'center' }}>UNITÉ</th>
                   <th style={{ textAlign: 'center' }}>PRIX HT</th>
+                  {remiseDisponible && <th style={{ textAlign: 'center' }} title="Remise sur la ligne, en % ou en €">REMISE</th>}
                   <th style={{ textAlign: 'center' }}>TVA %</th>
                   <th style={{ textAlign: 'right' }}>TOTAL HT</th>
                   <th style={{ textAlign: 'right' }}>TOTAL TTC</th>
@@ -2920,7 +2990,7 @@ export default function DevisFactureFormBTP({
               </thead>
               <tbody>
                 {materialLines.map((l) => {
-                  const lineHT = (l.qty || 0) * (l.priceHT || 0)
+                  const lineHT = montantNetLigne(l.qty || 0, l.priceHT || 0, l.remise)
                   const lineTTC = autoliquidationBTP ? lineHT : lineHT * (1 + (l.tvaRate || 0) / 100)
                   return (
                     <tr key={l.id}>
@@ -2960,11 +3030,13 @@ export default function DevisFactureFormBTP({
                         </select>
                       </td>
                       <td><DecimalInput value={l.priceHT || 0} onChangeNumber={(n) => updateMaterialLine(l.id, { priceHT: n })} format={fmtN4} parse={priceHtParser} placeholder="0,00" title="Prix unitaire HT — virgule ou point acceptés, jusqu'à 4 décimales" /></td>
+                      {remiseDisponible && <td><ChampRemiseLigne remise={l.remise} base={montantNetLigne(l.qty || 0, l.priceHT || 0)} onChange={(r) => updateMaterialLine(l.id, { remise: r })} /></td>}
                       <td>
                         <select value={autoliquidationBTP ? 0 : l.tvaRate} onChange={(e) => updateMaterialLine(l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled || autoliquidationBTP} title={autoliquidationBTP ? 'TVA verrouillée à 0 % en autoliquidation BTP (art. 283, 2 nonies CGI)' : undefined}>
                           {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
                         </select>
                       </td>
+                      {lireRemise(l.remise) ? cellulesTotauxRemises(lineHT, lineTTC) : (<>
                       <td style={{ textAlign: 'right' }}><DecimalInput
                         value={lineHT}
                         onChangeNumber={(v) => { const q = l.qty || 1; updateMaterialLine(l.id, { priceHT: v / q }) }}
@@ -2977,6 +3049,7 @@ export default function DevisFactureFormBTP({
                         format={fmtN} parse={parseDecimalInput}
                         placeholder="0,00"
                         style={{ textAlign: 'right', maxWidth: 108, marginLeft: 'auto', display: 'block' }} /></td>
+                      </>)}
                       <td><button className="dv-presta-del" type="button" aria-label="Supprimer la ligne" onClick={() => removeMaterialLine(l.id)}>✕</button></td>
                     </tr>
                   )
@@ -3025,22 +3098,14 @@ export default function DevisFactureFormBTP({
               >🗑 Supprimer</button>
             </div>
             <table className="dv-presta-table">
-              <colgroup>
-                <col style={{ width: '28%' }} />
-                <col style={{ width: '7%' }} />
-                <col style={{ width: '11%' }} />
-                <col style={{ width: '12%' }} />
-                <col style={{ width: '8%' }} />
-                <col style={{ width: '14%' }} />
-                <col style={{ width: '14%' }} />
-                <col style={{ width: '4%' }} />
-              </colgroup>
+              <colgroup>{largeursColonnes(remiseDisponible, '4%').map(({ cle, largeur }) => <col key={cle} style={{ width: largeur }} />)}</colgroup>
               <thead>
                 <tr>
                   <th style={{ textAlign: 'left' }}>DÉSIGNATION</th>
                   <th style={{ textAlign: 'center' }}>QTÉ</th>
                   <th style={{ textAlign: 'center' }}>UNITÉ</th>
                   <th style={{ textAlign: 'center' }}>PRIX HT</th>
+                  {remiseDisponible && <th style={{ textAlign: 'center' }} title="Remise sur la ligne, en % ou en €">REMISE</th>}
                   <th style={{ textAlign: 'center' }}>TVA %</th>
                   <th style={{ textAlign: 'right' }}>TOTAL HT</th>
                   <th style={{ textAlign: 'right' }}>TOTAL TTC</th>
@@ -3049,7 +3114,7 @@ export default function DevisFactureFormBTP({
               </thead>
               <tbody>
                 {fraisLines.map((l) => {
-                  const lineHT = (l.qty || 0) * (l.priceHT || 0)
+                  const lineHT = montantNetLigne(l.qty || 0, l.priceHT || 0, l.remise)
                   const lineTTC = autoliquidationBTP ? lineHT : lineHT * (1 + (l.tvaRate || 0) / 100)
                   return (
                     <tr key={l.id}>
@@ -3065,11 +3130,13 @@ export default function DevisFactureFormBTP({
                         </select>
                       </td>
                       <td><DecimalInput value={l.priceHT || 0} onChangeNumber={(n) => updateFraisLine(l.id, { priceHT: n })} format={fmtN4} parse={priceHtParser} placeholder="0,00" title="Prix unitaire HT — virgule ou point acceptés, jusqu'à 4 décimales" /></td>
+                      {remiseDisponible && <td><ChampRemiseLigne remise={l.remise} base={montantNetLigne(l.qty || 0, l.priceHT || 0)} onChange={(r) => updateFraisLine(l.id, { remise: r })} /></td>}
                       <td>
                         <select value={autoliquidationBTP ? 0 : l.tvaRate} onChange={(e) => updateFraisLine(l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled || autoliquidationBTP} title={autoliquidationBTP ? 'TVA verrouillée à 0 % en autoliquidation BTP (art. 283, 2 nonies CGI)' : undefined}>
                           {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
                         </select>
                       </td>
+                      {lireRemise(l.remise) ? cellulesTotauxRemises(lineHT, lineTTC) : (<>
                       <td style={{ textAlign: 'right' }}><DecimalInput
                         value={lineHT}
                         onChangeNumber={(v) => { const q = l.qty || 1; updateFraisLine(l.id, { priceHT: v / q }) }}
@@ -3082,6 +3149,7 @@ export default function DevisFactureFormBTP({
                         format={fmtN} parse={parseDecimalInput}
                         placeholder="0,00"
                         style={{ textAlign: 'right', maxWidth: 108, marginLeft: 'auto', display: 'block' }} /></td>
+                      </>)}
                       <td><button className="dv-presta-del" type="button" aria-label="Supprimer la ligne" onClick={() => removeFraisLine(l.id)}>✕</button></td>
                     </tr>
                   )
@@ -3115,22 +3183,14 @@ export default function DevisFactureFormBTP({
                 >🗑 Supprimer</button>
               </div>
               <table className="dv-presta-table">
-                <colgroup>
-                  <col style={{ width: '28%' }} />
-                  <col style={{ width: '7%' }} />
-                  <col style={{ width: '11%' }} />
-                  <col style={{ width: '12%' }} />
-                  <col style={{ width: '8%' }} />
-                  <col style={{ width: '14%' }} />
-                  <col style={{ width: '14%' }} />
-                  <col style={{ width: '6%' }} />
-                </colgroup>
+                <colgroup>{largeursColonnes(remiseDisponible, '6%').map(({ cle, largeur }) => <col key={cle} style={{ width: largeur }} />)}</colgroup>
                 <thead>
                   <tr>
                     <th>Désignation</th>
                     <th>Qté</th>
                     <th>Unité</th>
                     <th>Prix U. HT</th>
+                    {remiseDisponible && <th title="Remise sur la ligne, en % ou en €">Remise</th>}
                     <th>TVA %</th>
                     <th>Total HT</th>
                     <th>Total TTC</th>
@@ -3139,7 +3199,7 @@ export default function DevisFactureFormBTP({
                 </thead>
                 <tbody>
                   {(tbl.lines || []).map((l) => {
-                    const lineHT = (l.qty || 0) * (l.priceHT || 0)
+                    const lineHT = montantNetLigne(l.qty || 0, l.priceHT || 0, l.remise)
                     const lineTTC = autoliquidationBTP ? lineHT : lineHT * (1 + (l.tvaRate || 0) / 100)
                     return (
                       <tr key={l.id}>
@@ -3199,6 +3259,8 @@ export default function DevisFactureFormBTP({
                           </select>
                         </td>
                         <td><DecimalInput value={l.priceHT || 0} onChangeNumber={(n) => updateCustomLine(tbl.id, l.id, { priceHT: n })} format={fmtN4} parse={tbl.id === ID_TABLE_ACOMPTES_DEDUITS ? priceHtParserDeduction : priceHtParser} placeholder="0,00" title="Prix unitaire HT — virgule ou point acceptés, jusqu'à 4 décimales" /></td>
+                        {/* Pas de remise sur une déduction d'acompte (hors de la base de la remise). */}
+                        {remiseDisponible && <td>{tbl.id === ID_TABLE_ACOMPTES_DEDUITS ? null : <ChampRemiseLigne remise={l.remise} base={montantNetLigne(l.qty || 0, l.priceHT || 0)} onChange={(r) => updateCustomLine(tbl.id, l.id, { remise: r })} />}</td>}
                         <td>
                           <select value={autoliquidationBTP ? 0 : l.tvaRate} onChange={(e) => updateCustomLine(tbl.id, l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled || autoliquidationBTP} title={autoliquidationBTP ? 'TVA verrouillée à 0 % en autoliquidation BTP (art. 283, 2 nonies CGI)' : undefined}>
                             {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
@@ -3352,7 +3414,7 @@ export default function DevisFactureFormBTP({
 
           {/* 10. GARANTIES LÉGALES */}
           <div className="dv-section">
-            <div className="dv-section-t">GARANTIES LÉGALES (CLIENT PARTICULIER)</div>
+            <div className="dv-section-t">{clientType === 'particulier' ? 'GARANTIES LÉGALES (CLIENT PARTICULIER)' : 'GARANTIES LÉGALES (CLIENT PROFESSIONNEL)'}</div>
             <div className="dv-info-strip">
               <div className="ico">🛡️</div>
               <div className="txt">
@@ -3368,7 +3430,8 @@ export default function DevisFactureFormBTP({
                     if (elig === 'conditional') {
                       return "Garanties 1792 applicables uniquement si l'intervention constitue un ouvrage : parfait achèvement (1 an, art. 1792-6) · biennale (2 ans, art. 1792-3) · décennale (10 ans, art. 1792). Sinon : responsabilité contractuelle de droit commun (art. 1231-1 C. civ.)."
                     }
-                    return 'Garantie de parfait achèvement (1 an, art. 1792-6 C. civ.) · Garantie biennale de bon fonctionnement (2 ans, art. 1792-3) · Garantie décennale (10 ans, art. 1792) · Garantie légale de conformité (art. L. 217-3 C. conso.) · Garantie des vices cachés (art. 1641 C. civ.).'
+                    // Garantie légale de conformité : Code de la consommation, client particulier seulement
+                    return `Garantie de parfait achèvement (1 an, art. 1792-6 C. civ.) · Garantie biennale de bon fonctionnement (2 ans, art. 1792-3) · Garantie décennale (10 ans, art. 1792) · ${clientType === 'particulier' ? 'Garantie légale de conformité (art. L. 217-3 C. conso.) · ' : ''}Garantie des vices cachés (art. 1641 C. civ.).`
                   })()}
                 </div>
               </div>
@@ -3596,13 +3659,13 @@ export default function DevisFactureFormBTP({
                     <>Micro-entrepreneur — Dispensé d&apos;immatriculation au RCS/RM (art. L. 123-1-1 C. com.). TVA non applicable, article 293 B du CGI.<br /></>
                   )}
                   {(statutJuridique === 'SARL' || statutJuridique === 'EURL') && (
-                    <>{statutJuridique} au capital de {companyCapital || '[capital à renseigner]'} € — Immatriculée au RCS de {companyRCS || '[RCS à renseigner]'}. Siège social : {companyAddress || '[adresse à renseigner]'}.<br /></>
+                    <>{statutJuridique} au capital de {companyCapital || '[capital à renseigner]'} € — Immatriculée au {formaterImmatriculationRcs(companyRCS) || 'RCS [à renseigner]'}. Siège social : {companyAddress || '[adresse à renseigner]'}.<br /></>
                   )}
                   {(statutJuridique === 'SAS' || statutJuridique === 'SASU') && (
-                    <>{statutJuridique} au capital de {companyCapital || '[capital à renseigner]'} € — Immatriculée au RCS de {companyRCS || '[RCS à renseigner]'}. Siège social : {companyAddress || '[adresse à renseigner]'}.<br /></>
+                    <>{statutJuridique} au capital de {companyCapital || '[capital à renseigner]'} € — Immatriculée au {formaterImmatriculationRcs(companyRCS) || 'RCS [à renseigner]'}. Siège social : {companyAddress || '[adresse à renseigner]'}.<br /></>
                   )}
                   {statutJuridique === 'SA' && (
-                    <>SA au capital de {companyCapital || '[capital à renseigner]'} € — Immatriculée au RCS de {companyRCS || '[RCS à renseigner]'}. Siège social : {companyAddress || '[adresse à renseigner]'}.<br /></>
+                    <>SA au capital de {companyCapital || '[capital à renseigner]'} € — Immatriculée au {formaterImmatriculationRcs(companyRCS) || 'RCS [à renseigner]'}. Siège social : {companyAddress || '[adresse à renseigner]'}.<br /></>
                   )}
                 </>
               )}
@@ -3721,7 +3784,7 @@ export default function DevisFactureFormBTP({
                 if (elig === 'conditional') {
                   return <>GARANTIES LÉGALES : applicables uniquement aux travaux constituant un ouvrage (art. 1792 C. civ.) — parfait achèvement (1 an, art. 1792-6), biennale (2 ans, art. 1792-3), décennale (10 ans, art. 1792). Prestations d&apos;entretien : responsabilité contractuelle de droit commun (art. 1231-1 C. civ.).<br /><br /></>
                 }
-                return <>GARANTIES LÉGALES : parfait achèvement (1 an), bon fonctionnement (2 ans), décennale (10 ans) — articles 1792 et suivants du Code civil. Garantie légale de conformité (art. L. 217-3 C. conso.) et garantie des vices cachés (art. 1641 C. civ.).<br /><br /></>
+                return <>GARANTIES LÉGALES : parfait achèvement (1 an), bon fonctionnement (2 ans), décennale (10 ans) — articles 1792 et suivants du Code civil. {clientType === 'particulier' ? <>Garantie légale de conformité (art. L. 217-3 C. conso.) et garantie des vices cachés (art. 1641 C. civ.).</> : <>Garantie des vices cachés (art. 1641 C. civ.).</>}<br /><br /></>
               })()}
 
               {/* ═══ 9. GESTION DES DÉCHETS — obligatoire BTP France depuis 01/07/2021 (loi AGEC) ═══ */}
@@ -3759,10 +3822,33 @@ export default function DevisFactureFormBTP({
           <div className="dv-sidebar-card">
             <div className="dv-sidebar-t">RÉSUMÉ</div>
             <div className="dv-resume-row"><span>Sous-total brut</span><span>{fmt(totaux.subTotalBrut)}</span></div>
-            <div className="dv-resume-row"><span>Remise</span><span>− {fmt(totaux.remise)}</span></div>
+            {/* Remise commerciale sur le total : en %, en € HT ou en € TTC (convertie en HT). */}
+            {remiseDisponible && (
+              <div className="dv-remise-globale">
+                <ChampRemiseGlobale
+                  remise={remiseGlobale}
+                  onChange={setRemiseGlobale}
+                  lignes={totaux.lignesRemise}
+                  avecTva={tvaEnabled && regimeTva === 'classique'}
+                  formaterMontant={fmt}
+                />
+              </div>
+            )}
+            <div className="dv-resume-row">
+              <span>{totaux.remise !== 0 ? libelleRemiseGlobale(remiseGlobale) : 'Remise'}</span>
+              <span>{totaux.remise !== 0 ? fmt(-totaux.remise) : `− ${fmt(0)}`}</span>
+            </div>
+            {/* Facture de solde : la remise porte sur les travaux, les acomptes déduits viennent après. */}
+            {totaux.remise !== 0 && totaux.baseRemise !== totaux.subTotalBrut && (
+              <div style={{ fontSize: 10.5, color: '#888', marginTop: -2, paddingBottom: 4 }}>
+                calculée sur {fmt(Math.abs(totaux.baseRemise))} de travaux, avant déduction des acomptes
+              </div>
+            )}
             <div className="dv-resume-row subtotal"><span>Total HT</span><span>{fmt(totaux.totalHT)}</span></div>
             {tvaEnabled ? (
-              totaux.tvaEntries.length === 0 ? (
+              ligneTvaResume ? (
+                <div className="dv-resume-row tva"><span>{ligneTvaResume.libelle}</span><span>{ligneTvaResume.valeur}</span></div>
+              ) : totaux.tvaEntries.length === 0 ? (
                 <div className="dv-resume-row tva"><span>TVA 20 %</span><span>{fmt(0)}</span></div>
               ) : (
                 <>
@@ -3778,7 +3864,7 @@ export default function DevisFactureFormBTP({
                 </>
               )
             ) : null}
-            <div className="dv-resume-row total"><span>TOTAL TTC</span><span>{fmt(totaux.totalTTC)}</span></div>
+            <div className="dv-resume-row total"><span>{totaux.totalLabel}</span><span>{fmt(totaux.totalTTC)}</span></div>
           </div>
 
           {/* CONFORMITÉ LÉGALE */}
@@ -3947,7 +4033,8 @@ export default function DevisFactureFormBTP({
       {/* ============ MODAL : Rentabilité (placeholder) ============ */}
       {showRentaModal && (
         <RentabiliteDevisModal
-          items={lines.filter(l => l.priceHT > 0 && l.qty > 0)}
+          // Marge sur le prix réellement facturé : remise globale répartie sur les lignes.
+          items={lignesApresRemiseGlobale(lines.filter(l => l.priceHT > 0 && l.qty > 0), totaux.remise, totaux.baseRemise)}
           totalHT={totaux.totalHT}
           totalTTC={totaux.totalTTC}
           onClose={() => setShowRentaModal(false)}

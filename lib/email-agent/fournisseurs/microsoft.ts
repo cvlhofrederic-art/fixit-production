@@ -3,7 +3,7 @@
  * Graph), lecture seule.
  *
  * Autorité « common » : tout locataire Entra ID (Microsoft 365 professionnel, ex.
- * ajassocies.fr) et les comptes Outlook.com personnels. L'inscription d'application doit
+ * le domaine d'un cabinet) et les comptes Outlook.com personnels. L'inscription d'application doit
  * donc être multilocataire + comptes personnels, plateforme « Web » (client confidentiel :
  * le code est échangé côté serveur avec le secret).
  */

@@ -11,10 +11,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLocale } from '@/lib/i18n/context'
 import { lienPanneauAdmin } from '@/lib/auth/panneau-admin'
+import { lienEspaceQr } from '@/lib/aj-signalement/acces-espace'
 import { createDynamicSection as d } from '@/lib/dashboard-section-loader'
 import { seDeconnecter, useEspaceCopro, type EtatEspace } from '@/lib/coproprietaire/etat'
+import { estSuperAdmin, useSourceAj } from '@/lib/coproprietaire/liaison-aj'
 import { heureCourte, langueCopro, remplir, textesCopro, type EcranCopro, type TextesCopro } from '@/lib/coproprietaire/textes'
 import { Bouton, Encadre, Icone, Modale, type NomIcone } from '@/components/coproprietaire-dashboard/ui'
+import BarreLiaisonAj from '@/components/coproprietaire-dashboard/BarreLiaisonAj'
 import type { PropsEcran } from '@/components/coproprietaire-dashboard/contrat'
 import type { EspaceCopro } from '@/lib/coproprietaire/types'
 
@@ -115,8 +118,8 @@ function PageAcces({ etat, t, langue }: { etat: Exclude<EtatEspace, { statut: 'c
 // ── Navigation ───────────────────────────────────────────────────────────────
 
 function BarreLaterale({
-  t, espace, ecran, visibles, allerA, lienAdmin, onDeconnexion,
-}: { t: TextesCopro; espace: EspaceCopro; ecran: EcranCopro; visibles: EcranCopro[]; allerA: (e: EcranCopro) => void; lienAdmin: string | null; onDeconnexion: () => void }) {
+  t, espace, ecran, visibles, allerA, lienAdmin, lienQr, onDeconnexion,
+}: { t: TextesCopro; espace: EspaceCopro; ecran: EcranCopro; visibles: EcranCopro[]; allerA: (e: EcranCopro) => void; lienAdmin: string | null; lienQr: string | null; onDeconnexion: () => void }) {
   const initiales = `${espace.profil.prenom.charAt(0)}${espace.profil.nom.charAt(0)}`.toUpperCase() || '·'
   return (
     <aside className="hidden md:flex w-[260px] shrink-0 flex-col bg-[#0D1B2E] text-white" aria-label={t.menu.menu}>
@@ -162,6 +165,11 @@ function BarreLaterale({
             <Icone nom="cadenas" taille={18} /><span>{t.menu.panneauAdmin}</span>
           </a>
         )}
+        {lienQr && (
+          <a href={lienQr} className="flex min-h-[44px] items-center gap-3 rounded-xl px-3 text-sm text-white/80 hover:bg-white/10 hover:text-white">
+            <Icone nom="qr" taille={18} /><span>{t.menu.ajSignalement}</span>
+          </a>
+        )}
         <button type="button" onClick={onDeconnexion} className="flex min-h-[44px] w-full items-center gap-3 rounded-xl px-3 text-sm text-white/80 hover:bg-[#C0392B]/30 hover:text-white">
           <Icone nom="deconnexion" taille={18} /><span>{t.menu.deconnexion}</span>
         </button>
@@ -201,7 +209,20 @@ export default function CoproprietaireDashboard() {
   const locale = useLocale()
   const langue = langueCopro(locale)
   const t = useMemo(() => textesCopro(locale), [locale])
-  const { etat, rafraichir, changerLot, jeton, metadonnees } = useEspaceCopro()
+  const { etat: etatSyndic, rafraichir: rafraichirSyndic, changerLot, jeton: jetonSyndic, metadonnees } = useEspaceCopro()
+  // Super admin : le portail peut montrer une copropriété de l'Administrateur judiciaire (barre du haut).
+  const superAdmin = estSuperAdmin(metadonnees)
+  const aj = useSourceAj(superAdmin)
+  const avecAj = aj.disponible && aj.source === 'aj'
+  const etat: EtatEspace = useMemo(() => {
+    if (!avecAj) return etatSyndic
+    return aj.espace
+      ? { statut: 'pret', espace: aj.espace, jeton: null, miseAJourLe: new Date(aj.espace.chargeLe), miseAJourImpossible: false }
+      : { statut: 'chargement' }
+  }, [avecAj, aj.espace, etatSyndic])
+  // Avec l'AJ, rien à recharger : l'espace suit la liaison du navigateur en direct.
+  const rafraichir = useCallback(async () => { if (!avecAj) await rafraichirSyndic() }, [avecAj, rafraichirSyndic])
+  const jeton = avecAj ? null : jetonSyndic
 
   const [navigation, setNavigation] = useState<{ ecran: EcranCopro; cible?: string }>({ ecran: 'accueil' })
   // Incrémenté à chaque navigation volontaire : l'écran est remonté, donc une cible identique
@@ -232,7 +253,15 @@ export default function CoproprietaireDashboard() {
   }, [changerLot])
 
   if (etat.statut === 'chargement') return <Chargement t={t} />
-  if (etat.statut !== 'pret') return <PageAcces etat={etat} t={t} langue={langue} />
+  if (etat.statut !== 'pret') {
+    // Super admin : la barre reste là pour basculer sur l'Administrateur judiciaire si la base du syndic ne répond pas.
+    return (
+      <>
+        <BarreLiaisonAj aj={aj} />
+        <PageAcces etat={etat} t={t} langue={langue} />
+      </>
+    )
+  }
 
   const { espace } = etat
   const locataire = espace.profil.role === 'locataire'
@@ -240,27 +269,40 @@ export default function CoproprietaireDashboard() {
   const ecran: EcranCopro = visibles.includes(navigation.ecran) ? navigation.ecran : 'accueil'
   const Ecran = ECRANS[ecran]
   const lienAdmin = lienPanneauAdmin(metadonnees ?? undefined)
+  // « AJ Signalement » : espace indépendant du super admin (/fr/aj-signalement/, 10/11/2026) ; ici un simple lien,
+  // jamais proposé à un copropriétaire ni à un locataire (app_metadata seulement).
+  const lienQr = lienEspaceQr(metadonnees)
   const heure = heureCourte(etat.miseAJourLe, langue)
 
   const propsEcran: PropsEcran = {
     espace, t, langue, jeton, allerA, cible: navigation.cible, rafraichir, miseAJourLe: etat.miseAJourLe,
+    aujourdhui: avecAj ? aj.aujourdhui ?? undefined : undefined,
+    liaisonAj: avecAj ? aj.actions ?? undefined : undefined,
   }
 
-  const bandeauDemo = espace.source === 'demo'
-    ? (espace.vueSuperAdmin ? remplir(t.shell.demoSuperAdmin, { nom: `${espace.profil.prenom} ${espace.profil.nom}` }) : t.shell.demoVisiteur)
-    : espace.vueSuperAdmin ? remplir(t.shell.vueSuperAdminReelle, { nom: `${espace.profil.prenom} ${espace.profil.nom}` }) : null
+  const nomAffiche = `${espace.profil.prenom} ${espace.profil.nom}`.trim()
+  let bandeauDemo: string | null = null
+  if (espace.source === 'aj') {
+    bandeauDemo = `Vue super admin — démonstration reliée à l’Administrateur judiciaire : espace de ${nomAffiche} (${espace.immeuble.nom}, lot ${espace.profil.numLot}).`
+  } else if (espace.source === 'demo') {
+    bandeauDemo = espace.vueSuperAdmin ? remplir(t.shell.demoSuperAdmin, { nom: nomAffiche }) : t.shell.demoVisiteur
+  } else if (espace.vueSuperAdmin) {
+    bandeauDemo = remplir(t.shell.vueSuperAdminReelle, { nom: nomAffiche })
+  }
 
   return (
     <div id="copro-dashboard" className="flex min-h-screen bg-[#F7F4EE]">
-      <BarreLaterale t={t} espace={espace} ecran={ecran} visibles={visibles} allerA={allerA} lienAdmin={lienAdmin} onDeconnexion={() => setConfirmerDeconnexion(true)} />
+      <BarreLaterale t={t} espace={espace} ecran={ecran} visibles={visibles} allerA={allerA} lienAdmin={lienAdmin} lienQr={lienQr} onDeconnexion={() => setConfirmerDeconnexion(true)} />
 
       <div className="flex min-w-0 flex-1 flex-col">
         {bandeauDemo && (
           <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-[#FFF1D6] px-4 py-2 text-center text-[15px] font-medium text-[#5C3A00]" role="status">
             <span>{bandeauDemo}</span>
-            {!jeton && <a href={langue === 'pt' ? '/pt/auth/login' : '/auth/login'} className="font-bold underline underline-offset-4">{t.shell.seConnecter}</a>}
+            {!jeton && !aj.disponible && <a href={langue === 'pt' ? '/pt/auth/login' : '/auth/login'} className="font-bold underline underline-offset-4">{t.shell.seConnecter}</a>}
           </div>
         )}
+
+        <BarreLiaisonAj aj={aj} />
 
         <header className="sticky top-0 z-30 border-b border-[#E4DDD0] bg-white px-4 py-3 md:px-9">
           <div className="flex items-center justify-between gap-3">
@@ -294,7 +336,7 @@ export default function CoproprietaireDashboard() {
           {etat.miseAJourImpossible && (
             <Encadre ton="avertissement" className="mb-4">{remplir(t.commun.miseAJourImpossible, { heure })}</Encadre>
           )}
-          <Ecran key={`${ecran}-${cleNavigation}`} {...propsEcran} />
+          <Ecran key={`${ecran}-${cleNavigation}-${espace.source}-${espace.profil.id}`} {...propsEcran} />
           <p className="mt-8 flex flex-wrap items-center justify-between gap-3 text-sm text-[#4A5E78]">
             <span>{remplir(t.commun.derniereMiseAJour, { heure })}</span>
             <Bouton variante="discret" petit icone="actualiser" onClick={() => { void rafraichir() }}>{t.commun.mettreAJour}</Bouton>
@@ -348,6 +390,9 @@ export default function CoproprietaireDashboard() {
             )}
             {lienAdmin && (
               <li><a href={lienAdmin} className="flex min-h-[48px] items-center gap-3 rounded-xl border border-[#E4DDD0] px-4 text-base font-medium text-[#0D1B2E]"><Icone nom="cadenas" taille={22} /><span>{t.menu.panneauAdmin}</span></a></li>
+            )}
+            {lienQr && (
+              <li><a href={lienQr} className="flex min-h-[48px] items-center gap-3 rounded-xl border border-[#E4DDD0] px-4 text-base font-medium text-[#0D1B2E]"><Icone nom="qr" taille={22} /><span>{t.menu.ajSignalement}</span></a></li>
             )}
             <li>
               <button type="button" onClick={() => { setMenuPlus(false); setConfirmerDeconnexion(true) }} className="flex min-h-[48px] w-full items-center gap-3 rounded-xl border border-[#D98B82] px-4 text-base font-medium text-[#9B2C20]">

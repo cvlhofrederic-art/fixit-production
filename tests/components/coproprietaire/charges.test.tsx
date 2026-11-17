@@ -229,6 +229,19 @@ describe('EcranCharges — états', () => {
     expect(carte).not.toHaveTextContent(/relance/i) // aucun retard enregistré dans la démo : pas de relance
   })
 
+  it('plusieurs appels en retard : la carte donne leur somme, depuis l’échéance du plus ancien (pas le seul plus ancien)', () => {
+    const appels = [
+      appel({ id: 't2', exercice: '2026-T2', echeance: '2026-04-01', montantTotal: 1524.6, montantPaye: 0, resteAPayer: 1524.6, statut: 'en_retard' }),
+      appel({ id: 't1', exercice: '2026-T1', echeance: '2026-01-01', montantTotal: 1524.6, montantPaye: 1209.2, resteAPayer: 315.4, statut: 'partiellement_paye' }),
+      appel({ id: 't4', exercice: '2026-T4', echeance: '2026-12-01', resteAPayer: 855, statut: 'a_payer' }),
+    ]
+    const { container } = render(<EcranCharges {...props(espaceAvec({ appels, solde: -1840 }), { miseAJourLe: APRES_ECHEANCE })} />)
+
+    const carte = carteDue(container)
+    expect(carte).toHaveTextContent(n(remplir(t.charges.retard, { montant: euros(1840), date: dateLongue('2026-01-01') })))
+    expect(carte).not.toHaveTextContent(n(euros(315.4)))
+  })
+
   it('sans IBAN communiqué : encadré « ibanInconnu », la référence reste copiable', () => {
     render(<EcranCharges {...props(espaceAvec({ appels: [appel({ iban: '' })] }))} />)
 
@@ -359,6 +372,17 @@ describe('prochainAppelCharges', () => {
     expect(resultat?.enRetard).toBe(false)
   })
 
+  it('montantEnRetard : somme des restes des appels en retard (statut ou échéance passée), 0 sans retard', () => {
+    const resultat = prochainAppelCharges([
+      appel({ id: 'a', echeance: '2026-09-01', resteAPayer: 315.4 }),
+      appel({ id: 'b', echeance: '2026-10-01', resteAPayer: 1524.6, statut: 'en_retard' }),
+      appel({ id: 'c', echeance: '2026-12-01', resteAPayer: 855 }),
+    ], le15)
+    expect(resultat).toMatchObject({ enRetard: true, montantEnRetard: 1840 })
+    expect(resultat?.appel.id).toBe('a')
+    expect(prochainAppelCharges([appel({ echeance: '2026-12-01' })], le15)?.montantEnRetard).toBe(0)
+  })
+
   it('en retard si le statut est en_retard, même avec une échéance future', () => {
     const resultat = prochainAppelCharges([appel({ echeance: '2026-11-30', statut: 'en_retard' })], le15)
     expect(resultat?.enRetard).toBe(true)
@@ -376,7 +400,7 @@ describe('prochainAppelCharges', () => {
       appel({ id: 'date', echeance: '2027-01-15' }),
     ], le15)
     expect(resultat?.appel.id).toBe('date')
-    expect(prochainAppelCharges([appel({ id: 'sans-date', echeance: '' })], le15)).toEqual({ appel: appel({ id: 'sans-date', echeance: '' }), enRetard: false })
+    expect(prochainAppelCharges([appel({ id: 'sans-date', echeance: '' })], le15)).toEqual({ appel: appel({ id: 'sans-date', echeance: '' }), enRetard: false, montantEnRetard: 0 })
   })
 
   it('un appel partiellement payé compte pour son reste', () => {

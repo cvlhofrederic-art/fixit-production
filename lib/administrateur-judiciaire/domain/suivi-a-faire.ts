@@ -1,3 +1,9 @@
+import type { AlerteMandataireAdHoc } from '@/lib/administrateur-judiciaire/domain/alerte-mandataire-ad-hoc'
+import {
+  controlesAssurancesPno,
+  type LotAssurancePno,
+  type MotifControlePno,
+} from '@/lib/administrateur-judiciaire/domain/assurance-pno-lots'
 import { etapeRecouvrementContentieux, type DossierContentieux } from '@/lib/administrateur-judiciaire/domain/contentieux'
 import { dateLimiteResiliation, factureEnRetard, type FacturationContrat } from '@/lib/administrateur-judiciaire/domain/contrats-facturation'
 import {
@@ -11,23 +17,48 @@ import {
 } from '@/lib/administrateur-judiciaire/domain/dates'
 import type { SuiviEcheancier } from '@/lib/administrateur-judiciaire/domain/decompte-contentieux'
 import type { EcheanceCalculee } from '@/lib/administrateur-judiciaire/domain/delais-legaux'
+import type { TypeDemande } from '@/lib/administrateur-judiciaire/domain/demandes'
 import { estEcheanceAccomplieOuRevolue } from '@/lib/administrateur-judiciaire/domain/echeances-affichage'
+import { relancesOsDues } from '@/lib/administrateur-judiciaire/domain/envoi-ordre-service'
 import {
   echeancesEquipement,
   type FicheEquipement,
   type TypeEcheanceEquipement,
 } from '@/lib/administrateur-judiciaire/domain/equipements'
 import { etatEtape, type Etape } from '@/lib/administrateur-judiciaire/domain/etapes'
+import {
+  JOURS_SUIVI_ETAPE_AUTOMATIQUE,
+  relanceEtapeAutomatique,
+  verifierJoursSuiviEtape,
+  type EtapeDossier,
+} from '@/lib/administrateur-judiciaire/domain/etapes-dossier'
 import type { Exercice } from '@/lib/administrateur-judiciaire/domain/exercices-budgets'
 import { echeanceReglement } from '@/lib/administrateur-judiciaire/domain/facture-ventilee'
 import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
 import { echeancesDiagnostics, type Diagnostic } from '@/lib/administrateur-judiciaire/domain/immeuble-juridique'
 import {
+  alertesChargeEntreprises,
+  demandesUniques,
+  libelleChargeEntreprise,
+  libelleRelanceDemande,
+  relancesDemandesDues,
+  type DemandeSuivie,
+  type EntrepriseRelance,
+} from '@/lib/administrateur-judiciaire/domain/relance-demandes'
+import {
   etapeSuiviSinistre,
+  phaseApresDeclaration,
   reperesDelaisSinistre,
   statutSinistre,
   type FicheSinistre,
 } from '@/lib/administrateur-judiciaire/domain/sinistres'
+import {
+  bilanStatutsMandats,
+  demandesDesMandatsSuivis,
+  mandatHorsSuivi,
+  type PorteeStatuts,
+  type StatutDeMandat,
+} from '@/lib/administrateur-judiciaire/domain/statut-mandat'
 import {
   echeancesTravaux,
   etatPartFondsTravaux,
@@ -40,9 +71,10 @@ import type { StatutAssemblee, StatutContrat, TypeContrat } from '@/lib/data/ref
  * sans écran. Chaque module fournit ses éléments datés par un adaptateur `depuis…`, qui reprend la règle du module sans la
  * recalculer ; le collaborateur règle ce qu'il suit ; le résultat se range par jour de la semaine.
  *
- * Gestéam — onglet Réglage : un bloc par famille (Dem. interv., Courriers, Documents, Mémos, Étapes, Évènements, Agenda,
- * Tickets appel, Sinistres, Équipements, Travaux, Assemblées, Contrats, Contentieux, Baux…), un bouton « de mon
- * portefeuille », des critères à cocher, chacun avec un horizon (« Maintenant » ou un nombre et une unité) ; Copier /
+ * Gestéam — onglet Réglage : un bloc par famille (Dem. interv. et Demandes devis, réunis ici en famille « demandes »,
+ * Courriers, Documents, Mémos, Étapes, Évènements, Agenda, Tickets appel, Sinistres, Équipements, Travaux, Assemblées,
+ * Contrats, Contentieux, Baux…), un bouton « de mon portefeuille », des critères à cocher, chacun avec un horizon
+ * (« Maintenant » ou un nombre et une unité) ; Copier /
  * Coller d'un collaborateur à l'autre. Onglet Suivi : colonnes Avant · lundi … vendredi. Suivi des éléments en cours :
  * dossiers ouverts par collaborateur (responsable, comptable ou assistant du mandat, ou responsable de la fiche), en quatre
  * tranches d'ancienneté selon la périodicité (sur 30 jours, mensuelle, trimestre, année), sous-total par cabinet, total.
@@ -58,9 +90,38 @@ import type { StatutAssemblee, StatutContrat, TypeContrat } from '@/lib/data/ref
  * d'exécution relèvent du moteur de délais. Relances « non réglé » et « soldé, à clore » et échéancier impayé : dossiers
  * de recouvrement seulement (contentieux.etapeRecouvrementContentieux). Exercices : en rouge dans Gestéam (tranche 43 § 9),
  * l'exercice passé qui n'est pas « Réparti » ; l'exclusion de « Non géré » (exercice hors mission) est 🔵 déduite.
+ * Alerte de l'art. 29-1 A (alerte-mandataire-ad-hoc.ts) : famille Exercices ; par syndicat, un élément (critères à traiter,
+ * ou repère du délai sans vote qui court) et la copie de la requête à adresser (D. 1967 art. 61-5) ; 🔴 sous administrateur
+ * provisoire (art. 29-1 ou D. 1967 art. 47), ou arriérés des exercices antérieurs comptés : signalée `aConfirmer` ; le
+ * syndic désigné par le président du tribunal judiciaire (D. 1967 art. 46) ne l'est pas.
+ * 🔵 Étapes (point 48, etapes-dossier.ts) : « à faire le » compte parmi les dates d'une étape à faire ; une étape
+ * automatique encore à faire remonte à sa date de relance, N jours après sa création (tranche 43 § 1), avec l'horizon et
+ * la règle du week-end comme les autres natures ; N (JOURS_SUIVI_ETAPE_AUTOMATIQUE) est un réglage de GESTION du
+ * cabinet, jamais un délai légal ; le critère Gestéam « Relance d'étape » en est rapproché sans certitude.
+ * 🔵 Demandes (point 46, relance-demandes.ts ; Gestéam tranche 38, blocs « Dem. interv. » et « Demandes devis », critère
+ * « À relancer » ; tranche 39, réglages de relance de l'entreprise par service) : relance d'une demande de devis ou
+ * d'intervention au délai de relance de l'entreprise ; date de relance saisie sur l'OS (relancesOsDues, point 44) ;
+ * demandes en cours au-delà du seuil d'alerte ou au maximum de l'entreprise. Délais et seuils : réglages de GESTION,
+ * aucun texte de la loi de 1965 ni du décret de 1967 (relevé du 03/11/2026). Critère « En cours » des deux blocs : non
+ * codé (🔴 date et demandes visées à préciser par Hugo).
  * Sans source dans VitFix à ce jour, donc sans adaptateur : courriers à relancer, mouvement crédit d'un contentieux,
  * mémos, tickets d'appel, agenda ; libération de la retenue de garantie (🔴 à confirmer dans travaux-operations.ts).
  * Source disponible, adaptateur à écrire : factures en attente de bon à payer (statuts-facture.ts).
+ * 🔵 Statut du mandat (point 55, statut-mandat.ts ; Gestéam tranche 41) : un mandat Prospect ou Archivé sort du
+ * portefeuille, du suivi « à faire » (même désigné ou suivi sur tout le cabinet), des demandes en cours d'une entreprise
+ * (depuisDemandes) et de la balance âgée ; « En clôture » et « En gestion, en clôture » restent suivis ; une valeur
+ * inconnue garde le mandat, l'anomalie se lit par bilanStatutsMandats(affectations). Le statut COURANT s'applique, même à
+ * une balance âgée datée du passé (aucun historique du statut). Aucun texte ne règle ce statut (relevé du 03/11/2026) :
+ * règle de GESTION.
+ * 🔵 Lots (point 71, assurance-pno-lots.ts ; Gestéam tranche 43 § 17, statut PNO des lots avec échéance) : famille
+ * AJOUTÉE par VitFix — aucun bloc PNO dans le réglage Gestéam du syndic (tranche 38 ; seul le bloc « Baux », en
+ * gérance, suit des « Attestations Assurance »). Attestation PNO à renouveler à son échéance, même dépassée ; à obtenir
+ * (échéance absente, illisible, ou PNO « Extérieure + sans contrat ») à la date du jour ; « Pas de PNO » ne produit
+ * rien. L. 1965 art. 9-1 oblige le copropriétaire et le syndicat à s'assurer, sans charger le syndic ni l'administrateur
+ * provisoire d'un contrôle (relevé du 04/11/2026) : règle de GESTION, échéances de contrats. PNO : `aConfirmer` reste
+ * faux (aucun repère juridique) ; une lecture non confirmée du statut (« Sans échéance », « Extérieure + sans contrat »)
+ * est dite dans le libellé. L'équipe de l'immeuble (equipe-immeuble.ts) n'entre pas dans le portefeuille : il reste
+ * fondé sur les trois rôles du mandat.
  */
 
 export const FAMILLES_SUIVI = [
@@ -68,12 +129,14 @@ export const FAMILLES_SUIVI = [
   'assemblees',
   'etapes',
   'taches',
+  'demandes',
   'travaux',
   'contrats',
   'factures',
   'sinistres',
   'equipements',
   'diagnostics',
+  'lots',
   'contentieux',
   'exercices',
 ] as const
@@ -83,16 +146,18 @@ export type FamilleSuivi = (typeof FAMILLES_SUIVI)[number]
 export const NATURES_SUIVI = {
   mandat: ['echeance_legale'],
   assemblees: ['convocation_a_presenter', 'pv_a_signer'],
-  etapes: ['a_faire', 'a_valider'],
+  etapes: ['a_faire', 'a_valider', 'automatique_non_realisee'],
   taches: ['tache'],
+  demandes: ['devis_a_relancer', 'intervention_a_relancer', 'relance_os', 'plafond_demandes'],
   travaux: ['fonds_a_appeler'],
   contrats: ['limite_resiliation', 'a_resilier', 'mise_en_concurrence', 'facture_attendue'],
   factures: ['reglement'],
   sinistres: ['a_declarer', 'prescription', 'indemnite_differee'],
   equipements: ['a_reviser', 'a_remplacer', 'fin_garantie'],
   diagnostics: ['a_renouveler'],
+  lots: ['pno_a_renouveler', 'pno_a_obtenir'],
   contentieux: ['suite_commandement', 'echeancier_impaye', 'non_regle', 'a_clore'],
-  exercices: ['repartition_en_retard'],
+  exercices: ['repartition_en_retard', 'alerte_29_1_a'],
 } as const satisfies Record<FamilleSuivi, readonly string[]>
 export type NatureSuivi = (typeof NATURES_SUIVI)[FamilleSuivi][number]
 
@@ -101,12 +166,14 @@ export const LIBELLES_FAMILLES_SUIVI: Record<FamilleSuivi, string> = {
   assemblees: 'Assemblées',
   etapes: 'Étapes',
   taches: 'Tâches',
+  demandes: 'Demandes (devis et interventions)',
   travaux: 'Travaux',
   contrats: 'Contrats',
   factures: 'Factures fournisseurs',
   sinistres: 'Sinistres',
   equipements: 'Équipements',
   diagnostics: 'Diagnostics',
+  lots: 'Lots (assurance PNO)',
   contentieux: 'Contentieux',
   exercices: 'Exercices',
 }
@@ -117,7 +184,12 @@ export const LIBELLES_NATURES_SUIVI: Record<NatureSuivi, string> = {
   pv_a_signer: 'PV à signer',
   a_faire: 'À faire',
   a_valider: 'À valider',
+  automatique_non_realisee: 'Étape automatique non réalisée',
   tache: 'Tâche',
+  devis_a_relancer: 'Demande de devis à relancer',
+  intervention_a_relancer: "Demande d'intervention à relancer",
+  relance_os: "Relance datée de l'ordre de service",
+  plafond_demandes: "Demandes en cours au-delà du seuil de l'entreprise",
   fonds_a_appeler: 'Fonds à appeler',
   limite_resiliation: 'Limite de résiliation',
   a_resilier: 'À résilier',
@@ -132,10 +204,13 @@ export const LIBELLES_NATURES_SUIVI: Record<NatureSuivi, string> = {
   non_regle: 'Non réglé',
   a_clore: 'Soldé, à clore',
   repartition_en_retard: 'Répartition en retard',
+  alerte_29_1_a: 'Alerte art. 29-1 A (mandataire ad hoc)',
   a_reviser: 'À réviser',
   a_remplacer: 'À remplacer',
   fin_garantie: 'Fin de garantie',
   a_renouveler: 'À renouveler',
+  pno_a_renouveler: 'Attestation PNO à renouveler',
+  pno_a_obtenir: 'Attestation PNO à obtenir',
 }
 
 export interface ElementAFaire {
@@ -171,6 +246,11 @@ export interface RolesMandat {
 export interface AffectationMandat extends RolesMandat {
   mandatId: string
   cabinetId: string | null
+  /**
+   * Valeur libre de `Mandat.statut`, lue par statut-mandat.lireStatutMandat (point 55) : Prospect ou Archivé sortent le
+   * mandat du portefeuille, du suivi et de la balance âgée ; absente ou inconnue, le mandat reste suivi.
+   */
+  statut?: string | null
 }
 
 const CHAMP_ROLE: Record<RoleMandat, keyof RolesMandat> = {
@@ -179,14 +259,24 @@ const CHAMP_ROLE: Record<RoleMandat, keyof RolesMandat> = {
   assistant: 'assistantId',
 }
 
-/** Mandats du collaborateur : ceux où il tient l'un des rôles demandés (les trois par défaut). */
+/** Portée du statut (point 55, statut-mandat.ts) : « suivis » sans Prospect ni Archivé, « tous » quel que soit le statut. */
+export type { PorteeStatuts }
+
+/**
+ * Mandats du collaborateur : ceux où il tient l'un des rôles demandés (les trois par défaut), hors mandats Prospect et
+ * Archivé sauf portée « tous ».
+ */
 export function portefeuille(
   collaborateurId: string,
   affectations: AffectationMandat[],
   roles: readonly RoleMandat[] = ROLES_MANDAT,
+  portee: PorteeStatuts = 'suivis',
 ): Set<string> {
+  const horsSuivi = portee === 'tous' ? new Set<string>() : bilanStatutsMandats(affectations).horsSuivi
   return new Set(
-    affectations.filter((a) => roles.some((role) => a[CHAMP_ROLE[role]] === collaborateurId)).map((a) => a.mandatId),
+    affectations
+      .filter((a) => !horsSuivi.has(a.mandatId) && roles.some((role) => a[CHAMP_ROLE[role]] === collaborateurId))
+      .map((a) => a.mandatId),
   )
 }
 
@@ -269,11 +359,6 @@ const jourDeTraitement = (date: string): string => {
 }
 
 /**
- * Éléments que le réglage retient au jour donné : famille suivie, nature cochée, à traiter au plus tard à la fin de
- * l'horizon (un élément du week-end compte pour le vendredi), et dans le périmètre (tout le cabinet, ou le portefeuille du
- * collaborateur et ce qui lui est désigné). Tri par date.
- */
-/**
  * L'élément « à résilier » remplace la limite générique d'un contrat marqué : un réglage qui suit la « Limite de
  * résiliation » le suit aussi, avec l'horizon de cette nature s'il n'en a pas un propre.
  */
@@ -283,6 +368,23 @@ const natureCochee = (natures: readonly NatureSuivi[], nature: NatureSuivi): boo
 const horizonDeNature = (regle: ReglageFamille, nature: NatureSuivi): Horizon =>
   regle.horizonsParNature?.[nature] ?? (nature === 'a_resilier' ? regle.horizonsParNature?.limite_resiliation : undefined) ?? regle.horizon
 
+/** Tout le cabinet, ou le portefeuille du collaborateur et ce qui lui est désigné. */
+const dansPerimetre = (
+  element: ElementAFaire,
+  regle: ReglageFamille,
+  collaborateurId: string,
+  mesMandats: ReadonlySet<string>,
+): boolean =>
+  regle.perimetre === 'cabinet' ||
+  element.assigneId === collaborateurId ||
+  (element.mandatId !== null && mesMandats.has(element.mandatId))
+
+/**
+ * Éléments que le réglage retient au jour donné : famille suivie, nature cochée, à traiter au plus tard à la fin de
+ * l'horizon (un élément du week-end compte pour le vendredi), et dans le périmètre (tout le cabinet, ou le portefeuille du
+ * collaborateur et ce qui lui est désigné). Tri par date. Un élément d'un mandat Prospect ou Archivé (point 55) n'est
+ * jamais retenu, quels que soient le périmètre et la désignation.
+ */
 export function selectionnerAFaire(
   elements: ElementAFaire[],
   reglage: ReglageSuivi,
@@ -290,20 +392,18 @@ export function selectionnerAFaire(
   aujourdhui: string,
 ): ElementAFaire[] {
   verifierDate(aujourdhui)
-  const mesMandats = portefeuille(reglage.collaborateurId, affectations)
+  const { horsSuivi } = bilanStatutsMandats(affectations)
+  // Portée « tous » : les éléments hors suivi sont écartés avant le périmètre, le statut n'est lu qu'une fois.
+  const mesMandats = portefeuille(reglage.collaborateurId, affectations, ROLES_MANDAT, 'tous')
   const retenus = new Map<string, ElementAFaire>()
   for (const element of elements) {
     verifierDate(element.date, `Date de l'élément ${element.id}`)
     const regle = reglage.familles[element.famille]
-    if (!regle?.actif || retenus.has(element.id)) continue
+    if (!regle?.actif || retenus.has(element.id) || mandatHorsSuivi(element.mandatId, horsSuivi)) continue
     if (regle.natures && !natureCochee(regle.natures, element.nature)) continue
     const limite = limiteHorizon(aujourdhui, horizonDeNature(regle, element.nature))
     if (jourDeTraitement(element.date) > limite) continue
-    const dansPerimetre =
-      regle.perimetre === 'cabinet' ||
-      element.assigneId === reglage.collaborateurId ||
-      (element.mandatId !== null && mesMandats.has(element.mandatId))
-    if (dansPerimetre) retenus.set(element.id, element)
+    if (dansPerimetre(element, regle, reglage.collaborateurId, mesMandats)) retenus.set(element.id, element)
   }
   return trier([...retenus.values()])
 }
@@ -411,22 +511,62 @@ export function depuisAssemblees(ags: AssembleeSuivie[]): ElementAFaire[] {
   })
 }
 
-/** Étape à faire : à la plus proche de son alerte et de sa limite, pour son réalisateur ; à valider : pour son validateur. */
-export function depuisEtapes(items: { mandatId: string | null; etape: Etape }[], aujourdhui: string): ElementAFaire[] {
+/** La plus proche de « à faire le » (étape d'un dossier, etapes-dossier.ts), de l'alerte et de la limite ; null sans aucune. */
+function dateEtapeAFaire(etape: Etape & { aFaireLe?: string | null }): string | null {
+  const dates = [etape.aFaireLe, etape.alerteSecurite, etape.limite].filter((d): d is string => typeof d === 'string')
+  if (dates.length === 0) return null
+  for (const d of dates) verifierDate(d, `Date de l'étape ${etape.id}`)
+  return dates.reduce((a, b) => (a < b ? a : b), dates[0])
+}
+
+/**
+ * Étape à faire : à la plus proche de « à faire le », de son alerte et de sa limite, pour son réalisateur ; sans aucune
+ * de ces dates, elle ne remonte pas. À valider : pour son validateur.
+ */
+export function depuisEtapes(
+  items: { mandatId: string | null; etape: Etape & { aFaireLe?: string | null } }[],
+  aujourdhui: string,
+): ElementAFaire[] {
   verifierDate(aujourdhui)
   return items.flatMap(({ mandatId, etape }) => {
     const { statut } = etatEtape(etape, aujourdhui)
     const champs = { libelle: etape.titre, mandatId, objetId: etape.id }
     if (statut === 'a_faire') {
-      const dates = [etape.alerteSecurite, etape.limite].filter((d): d is string => d !== null)
-      if (dates.length === 0) return []
-      for (const d of dates) verifierDate(d, `Date de l'étape ${etape.id}`)
-      const date = dates.reduce((a, b) => (a < b ? a : b), dates[0])
-      return [elementSuivi('etapes', 'a_faire', `${etape.id}:a_faire`, { ...champs, date, assigneId: etape.realisateurId })]
+      const date = dateEtapeAFaire(etape)
+      return date ? [elementSuivi('etapes', 'a_faire', `${etape.id}:a_faire`, { ...champs, date, assigneId: etape.realisateurId })] : []
     }
     if (statut === 'a_valider' && etape.faitLe)
       return [elementSuivi('etapes', 'a_valider', `${etape.id}:a_valider`, { ...champs, date: etape.faitLe, assigneId: etape.validateurId })]
     return []
+  })
+}
+
+/**
+ * Étape automatique encore à faire : à relancer N jours après sa création (etapes-dossier.relanceEtapeAutomatique), pour
+ * son réalisateur, même sans limite ni alerte (tranche 43 § 1 : une telle étape est restée ouverte des années). Émise à
+ * sa date de relance, même future, comme « Non réglés depuis n » : selectionnerAFaire y applique l'horizon (de la famille
+ * ou de la nature) et la règle du week-end. N : réglage de GESTION du cabinet, jamais un délai légal (aConfirmer reste
+ * faux : ce n'est pas un repère juridique).
+ */
+export function depuisEtapesAutomatiques(
+  items: { mandatId: string | null; etape: EtapeDossier }[],
+  aujourdhui: string,
+  jours: number = JOURS_SUIVI_ETAPE_AUTOMATIQUE,
+): ElementAFaire[] {
+  verifierDate(aujourdhui)
+  verifierJoursSuiviEtape(jours)
+  return items.flatMap(({ mandatId, etape }) => {
+    const relanceLe = relanceEtapeAutomatique(etape, aujourdhui, jours)
+    if (!relanceLe) return []
+    return [
+      elementSuivi('etapes', 'automatique_non_realisee', `${etape.id}:automatique_non_realisee`, {
+        libelle: `${etape.titre} — étape automatique ouverte depuis le ${dateIsoVersFr(etape.creeeLe)}`,
+        date: relanceLe,
+        mandatId,
+        objetId: etape.id,
+        assigneId: etape.realisateurId,
+      }),
+    ]
   })
 }
 
@@ -451,6 +591,56 @@ export function depuisTaches(taches: TacheSuivie[]): ElementAFaire[] {
       assigneId: tache.assigneId,
     })
   })
+}
+
+const NATURE_RELANCE_DEMANDE: Readonly<Record<TypeDemande, NatureSuivi>> = {
+  devis: 'devis_a_relancer',
+  intervention: 'intervention_a_relancer',
+}
+
+/**
+ * Demandes (point 46, relance-demandes.ts) : relance due d'une demande de devis ou d'intervention en cours qui attend
+ * l'entreprise, au délai de relance de sa fiche (service et type), émise même future (l'horizon s'y applique) et assignée
+ * au collaborateur du premier envoi ; date de relance saisie sur la sortie de l'OS (envoi-ordre-service.relancesOsDues) :
+ * elle seule compte, nature « relance_os » ; demandes en cours d'une entreprise au-delà de son seuil d'alerte ou à son
+ * maximum : un élément du cabinet (aucun mandat : visible au périmètre « cabinet »), daté du jour où le niveau a été
+ * franchi. Délais et seuils : règles de GESTION du cabinet, aucun texte (aConfirmer reste faux). Une demande vue
+ * plusieurs fois ne compte qu'une fois, quel que soit l'ordre : les mêmes occurrences (demandesUniques) servent aux trois
+ * calculs, relance datée de l'OS comprise.
+ * 🔵 Point 55 : `statutsMandats` (les affectations, ou { mandatId, statut } des mandats) écarte, après demandesUniques,
+ * les demandes d'un mandat Prospect ou Archivé (statut-mandat.demandesDesMandatsSuivis) : ni relance, ni place dans les
+ * demandes en cours de l'entreprise (sans quoi une demande restée ouverte d'un mandat archivé ferait franchir le seuil
+ * d'un élément du cabinet, que selectionnerAFaire ne peut rattacher à aucun mandat). Sans ce paramètre, rien n'est
+ * écarté. Branchement à faire : l'appelant de relance-demandes.controlerPlafondAvantAttribution applique le même filtre
+ * à ses `items`, pour que l'attribution compte les demandes en cours comme ce suivi.
+ */
+export function depuisDemandes(
+  items: readonly DemandeSuivie[],
+  entreprises: readonly EntrepriseRelance[],
+  aujourdhui: string,
+  statutsMandats: readonly StatutDeMandat[] = [],
+): ElementAFaire[] {
+  verifierDate(aujourdhui)
+  const uniques = demandesDesMandatsSuivis(demandesUniques(items), statutsMandats)
+  const avecSortie = uniques.flatMap(({ demande, sortie }) => (sortie ? [{ demande, sortie }] : []))
+  const relances = relancesDemandesDues(uniques, entreprises, aujourdhui).map((r) =>
+    elementSuivi('demandes', NATURE_RELANCE_DEMANDE[r.type], `${NATURE_RELANCE_DEMANDE[r.type]}:${r.demandeId}`, {
+      libelle: libelleRelanceDemande(r),
+      date: r.date,
+      mandatId: r.mandatId,
+      objetId: r.demandeId,
+      assigneId: r.assigneId,
+    }),
+  )
+  const alertes = alertesChargeEntreprises(uniques, entreprises, aujourdhui).map((c) =>
+    elementSuivi('demandes', 'plafond_demandes', `plafond_demandes:${c.prestataireId}:${c.service}:${c.type}`, {
+      libelle: libelleChargeEntreprise(c),
+      date: c.depuisLe ?? aujourdhui,
+      mandatId: null,
+      objetId: c.prestataireId,
+    }),
+  )
+  return [...relancesOsDues(avecSortie), ...relances, ...alertes]
 }
 
 /**
@@ -574,11 +764,18 @@ export function depuisFactures(factures: FactureSuivie[], aujourdhui: string): E
   })
 }
 
+/** Sans date de suivi, une phase saisie qui suit la déclaration (phaseApresDeclaration) : à vérifier, pas à déclarer. */
+const libelleADeclarer = (libelle: string, fiche: FicheSinistre): string => {
+  const phase = phaseApresDeclaration(fiche)
+  return phase === null ? libelle : `${libelle} — déclaration non datée (phase « ${phase} ») : à vérifier`
+}
+
 /**
  * Sinistre en cours : repère de déclaration tant qu'il n'est pas déclaré, et prescription (sinistres.ts) — deux repères
  * indicatifs, 🔴 à confirmer : le contrat peut allonger le délai de déclaration. Indemnité différée non réglée : à
  * réclamer depuis le règlement de l'indemnité immédiate (à défaut le rapport, la déclaration, la survenance) ; c'est un
- * suivi de gestion, pas un repère légal.
+ * suivi de gestion, pas un repère légal. Sans date de suivi, une phase saisie qui suit la déclaration garde l'élément
+ * « à déclarer » (même critère du réglage), libellé « déclaration non datée … : à vérifier » (declaration-sinistre.ts).
  */
 export function depuisSinistres(
   items: { id: string; mandatId: string; libelle: string; fiche: FicheSinistre; delaiContratJoursOuvres?: number }[],
@@ -589,7 +786,13 @@ export function depuisSinistres(
     const champs = { libelle, mandatId, objetId: id, aConfirmer: true }
     const elements: ElementAFaire[] = []
     if (etapeSuiviSinistre(fiche) === 'a_declarer')
-      elements.push(elementSuivi('sinistres', 'a_declarer', `${id}:a_declarer`, { ...champs, date: reperes.declarationAuPlusTard }))
+      elements.push(
+        elementSuivi('sinistres', 'a_declarer', `${id}:a_declarer`, {
+          ...champs,
+          libelle: libelleADeclarer(libelle, fiche),
+          date: reperes.declarationAuPlusTard,
+        }),
+      )
     elements.push(elementSuivi('sinistres', 'prescription', `${id}:prescription`, { ...champs, date: reperes.prescription }))
     if (fiche.indemniteDiffereeCentimes > 0 && !fiche.indemniteDiffereeReglee)
       elements.push(
@@ -718,6 +921,55 @@ export function depuisExercices(items: { id?: string; mandatId: string; exercice
   })
 }
 
+const TITRE_ALERTE_29_1_A = "Alerte de l'art. 29-1 A (mandataire ad hoc)"
+
+/**
+ * Critères atteints que la requête ne couvre pas, à la date du plus tôt et avec leurs seuls constats ; à défaut, repère
+ * du délai sans vote sur l'approbation des comptes qui court encore ; null : ni l'un ni l'autre.
+ */
+function etapeAlerte291A(alerte: AlerteMandataireAdHoc): { libelle: string; date: string } | null {
+  if (alerte.aTraiterLe !== null) {
+    const constats = [alerte.impayes, alerte.comptes].filter((c) => c.etat === 'atteint' && !c.traite).map((c) => c.message)
+    return { libelle: `${TITRE_ALERTE_29_1_A} : ${constats.join(' ')}`, date: alerte.aTraiterLe }
+  }
+  const { etat, atteintLe, message } = alerte.comptes
+  if (etat !== 'non_atteint' || atteintLe === null) return null
+  return { libelle: `${TITRE_ALERTE_29_1_A} à venir : ${message}`, date: atteintLe }
+}
+
+/**
+ * Alerte de l'art. 29-1 A (alerte-mandataire-ad-hoc.alerteMandataireAdHoc), par syndicat :
+ * - un élément : critères atteints que la requête au juge ne couvre pas (lecture critère par critère), à la date du plus
+ *   tôt et avec leurs seuls constats ; à défaut, tant que le délai sans vote de l'assemblée sur l'approbation des comptes
+ *   court encore, repère à la date où il sera atteint (pour la faire voter à temps), y compris après une requête qui
+ *   couvre les impayés ; chaque critère atteint couvert et aucun délai qui court (délai atteint et couvert, ou aucun vote
+ *   connu) : rien ;
+ * - la copie de la requête au représentant de l'État, au maire et au président de l'EPCI (art. 29-1 A, dernier alinéa ;
+ *   D. 1967 art. 61-5), à la date de la requête, tant qu'elle n'est pas adressée.
+ * `aConfirmer` reprend celui de l'alerte : 🔴 sous administrateur provisoire (art. 29-1 ou D. 1967 art. 47), ou arriérés
+ * des exercices antérieurs comptés ; le syndic désigné par le président du tribunal judiciaire (D. 1967 art. 46) ne
+ * l'est pas.
+ */
+export function depuisAlertesMandataireAdHoc(items: { mandatId: string; alerte: AlerteMandataireAdHoc }[]): ElementAFaire[] {
+  return items.flatMap(({ mandatId, alerte }) => {
+    const cle = `${alerte.coproprieteId}:alerte_29_1_a`
+    const champs = { mandatId, objetId: alerte.coproprieteId, aConfirmer: alerte.aConfirmer }
+    const elements: ElementAFaire[] = []
+    const etape = etapeAlerte291A(alerte)
+    if (etape !== null) elements.push(elementSuivi('exercices', 'alerte_29_1_a', cle, { ...champs, ...etape }))
+    const copieDueLe = alerte.copieRequeteDueLe
+    if (copieDueLe !== null)
+      elements.push(
+        elementSuivi('exercices', 'alerte_29_1_a', `${cle}:copie_requete`, {
+          ...champs,
+          libelle: `${TITRE_ALERTE_29_1_A} : requête au juge du ${dateIsoVersFr(copieDueLe)}, copie à adresser au représentant de l'État dans le département, au maire de la commune de l'immeuble et au président de l'EPCI compétent en matière d'habitat (art. 29-1 A, dernier alinéa ; D. 1967 art. 61-5)`,
+          date: copieDueLe,
+        }),
+      )
+    return elements
+  })
+}
+
 const NATURE_ECHEANCE_EQUIPEMENT: Record<TypeEcheanceEquipement, NatureSuivi> = {
   entretien: 'a_reviser',
   remplacement: 'a_remplacer',
@@ -761,6 +1013,38 @@ export function depuisDiagnostics(
             }),
           ],
     ),
+  )
+}
+
+const NATURE_CONTROLE_PNO: Readonly<Record<MotifControlePno, NatureSuivi>> = {
+  a_renouveler: 'pno_a_renouveler',
+  echeance_absente: 'pno_a_obtenir',
+  echeance_illisible: 'pno_a_obtenir',
+  attestation_absente: 'pno_a_obtenir',
+}
+
+/**
+ * Assurance PNO des lots (point 71, assurance-pno-lots.controlesAssurancesPno) : attestation à renouveler à son
+ * échéance, même dépassée ; attestation ou échéance à obtenir à la date du jour. Chaque lot vient avec le mandat de
+ * sa copropriété ; la fiche d'origine est le lot. Un lot passé deux fois donne deux fois la même clé : selectionnerAFaire
+ * n'en retient qu'un. Règle de GESTION (échéance d'un contrat) : `aConfirmer` reste faux ; la lecture non confirmée
+ * du statut est dite dans le libellé (controle.message).
+ */
+export function depuisAssurancesPno(
+  items: readonly { mandatId: string; lot: LotAssurancePno }[],
+  aujourdhui: string,
+): ElementAFaire[] {
+  verifierDate(aujourdhui)
+  return items.flatMap(({ mandatId, lot }) =>
+    controlesAssurancesPno([lot]).map((controle) => {
+      const nature = NATURE_CONTROLE_PNO[controle.motif]
+      return elementSuivi('lots', nature, `${controle.lotId}:${nature}`, {
+        libelle: controle.message,
+        date: controle.date ?? aujourdhui,
+        mandatId,
+        objetId: controle.lotId,
+      })
+    }),
   )
 }
 
@@ -876,7 +1160,8 @@ function totaliser(lignes: LigneBalanceAgee[]): Pick<BalanceAgee, 'sousTotaux' |
 
 /**
  * « Suivi des éléments en cours » : par cabinet et collaborateur, les dossiers ouverts à la date de référence, puis
- * ceux en cours par ancienneté ; sous-total par cabinet, total général. Un dossier ouvert après la date est ignoré.
+ * ceux en cours par ancienneté ; sous-total par cabinet, total général. Un dossier ouvert après la date est ignoré, comme
+ * celui d'un mandat Prospect ou Archivé (point 55) ; un mandat en clôture reste compté.
  */
 export function balanceAgee(
   dossiers: DossierOuvert[],
@@ -890,13 +1175,15 @@ export function balanceAgee(
 ): BalanceAgee {
   verifierDate(dateReference)
   const parMandat = new Map(affectations.map((a) => [a.mandatId, a]))
+  const { horsSuivi } = bilanStatutsMandats(affectations)
+  const cabinetsRetenus = cabinets ? new Set(cabinets) : null
   const lignes = new Map<string, LigneBalanceAgee>()
   for (const dossier of dossiers) {
     controlerDossier(dossier)
-    if (dossier.ouvertLe > dateReference) continue
+    if (dossier.ouvertLe > dateReference || mandatHorsSuivi(dossier.mandatId, horsSuivi)) continue
     const affectation = dossier.mandatId === null ? undefined : parMandat.get(dossier.mandatId)
     const cabinetId = affectation?.cabinetId ?? null
-    if (cabinets && !cabinets.includes(cabinetId)) continue
+    if (cabinetsRetenus && !cabinetsRetenus.has(cabinetId)) continue
     const collaborateurId = collaborateurRattache(dossier, affectation, rattachement)
     const cle = JSON.stringify([cabinetId, collaborateurId])
     const ligne = lignes.get(cle) ?? { cabinetId, collaborateurId, ...compteurVide() }

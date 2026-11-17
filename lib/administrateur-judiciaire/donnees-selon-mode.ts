@@ -20,7 +20,11 @@ export const optionsSelonMode = (mode: Mode, optionsDemo: string[], optionsBase:
 // ── Centre de notifications ─────────────────────────────────────────────────────────────────────────────────────
 
 /** Notification telle que l'affiche le centre de notifications du cadre commun. */
-export type NotificationCentre = Pick<NotificationDemo, 'id' | 'icon' | 'title' | 'desc' | 'time'> & { kind: string }
+export type NotificationCentre = Pick<NotificationDemo, 'id' | 'icon' | 'title' | 'desc' | 'time'> & {
+  kind: string
+  /** Écran ouvert au clic (échanges du portail copropriétaire) ; absent : la notification se marque lue seulement. */
+  route?: string
+}
 
 /** Notifications de démonstration déjà lues à l'ouverture (comme la maquette). */
 export const NOTIFICATIONS_LUES_INITIALES_DEMO = ['n06', 'n07', 'n08', 'n09', 'n10', 'n11', 'n12']

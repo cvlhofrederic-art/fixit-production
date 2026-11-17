@@ -35,7 +35,7 @@ import {
   type EtapeRecouvrement,
 } from '@/lib/administrateur-judiciaire/domain/recouvrement'
 import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
-import { codeCoproSelectionne, useSelectionDossier } from '@/lib/administrateur-judiciaire/selection'
+import { useCodeCoproCourant, useSelectionDossier } from '@/lib/administrateur-judiciaire/selection'
 
 /** Pastille de confiance d'un rapprochement proposé (clés = champ confiance de proposerImputations). */
 export const PILL_CONFIANCE_RAPPROCHEMENT: Record<ConfianceImputation, { kind: string; label: string }> = {
@@ -116,12 +116,18 @@ const encaissementDejaImpute = (ecritureId: string): boolean =>
  */
 export function TresorerieModule() {
   const { push } = useToast()
-  const { code, choisirCopro, choisirPersonne } = useSelectionDossier()
-  const [codeLocal, setCodeLocal] = useState(() => codeCoproSelectionne('CV'))
-  const codeCopro = codeLocal || code
+  const { choisirCopro, choisirPersonne } = useSelectionDossier()
+  const codeCopro = useCodeCoproCourant('CV')
   const donnees = useDonneesLocales()
   const [texteReleve, setTexteReleve] = useState('')
   const [analyse, setAnalyse] = useState<AnalyseReleve | null>(null)
+  // Changement de copropriété (sélecteur du haut ou select local) : l'analyse du relevé faite pour l'ancienne est
+  // abandonnée, comme au changement du select local. Ajustement pendant le rendu, sans remontage de l'écran.
+  const [codeAnalyse, setCodeAnalyse] = useState(codeCopro)
+  if (codeAnalyse !== codeCopro) {
+    setCodeAnalyse(codeCopro)
+    setAnalyse(null)
+  }
   const [selections, setSelections] = useState<SelectionsImputation>({})
   const [importEnCours, setImportEnCours] = useState(false)
 
@@ -290,15 +296,7 @@ export function TresorerieModule() {
         title="Banque et recouvrement"
         lede="Import du relevé, rapprochement des encaissements avec les copropriétaires, dossiers de recouvrement de l'art. 19-2. Données persistées dans la base locale."
         actions={
-          <SelecteurCopropriete
-            // Toujours une chaîne non vide : codeLocal part de codeCoproSelectionne('CV') et ne reçoit que des codes.
-            value={codeCopro as string}
-            onChange={(codeChoisi) => {
-              setCodeLocal(codeChoisi)
-              choisirCopro(codeChoisi)
-              setAnalyse(null)
-            }}
-          />
+          <SelecteurCopropriete value={codeCopro} onChange={choisirCopro} />
         }
       />
       {donnees.erreur && (
@@ -620,7 +618,7 @@ export function TresorerieModule() {
       </Panel>
       <Panel
         title={`Recouvrement (${debiteurs.length} débiteur${debiteurs.length > 1 ? 's' : ''})`}
-        sub="Étapes de l'art. 19-2 avec leurs délais · la mise en demeure se génère depuis le cockpit"
+        sub="Étapes de l'art. 19-2 avec leurs délais · la mise en demeure se génère depuis le Tableau de bord (Génération express d'actes)"
         icon="scale"
         flush
       >

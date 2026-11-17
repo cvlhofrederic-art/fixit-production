@@ -11,11 +11,23 @@
 //      Events : email.bounced, email.complained, email.delivery_delayed,
 //               email.delivered (debug), email.sent (debug)
 //   3. Copier le Signing secret depuis Resend dans le secret Wrangler.
+//
+// AJ Signalement, PR 3, lot 9 (décisions F7 et H13), sans changement pour les autres e-mails :
+//   - étiquettes lues dans data.tags (objet clé → valeur selon la documentation de Resend, relue le 12/11/2026) ;
+//   - plainte (email.complained) sur un message étiqueté type=aj-diffusion → opposition « plainte » du destinataire
+//     (lib/aj-signalement/webhook-diffusion.ts) ; base indisponible → 503 pour que Resend réessaie ;
+//   - rebond : aucune opposition (Resend écarte déjà l'adresse) ; sous-type lu dans bounce.subType (champ documenté ;
+//     l'ancien bounce.sub_type n'existe pas dans les événements de Resend).
+// PR 3, relecture 3 (cahier § 8.2, « Journalisation » : Sentry ne reçoit jamais d'adresse, d'objet ni de texte) : pour
+// un e-mail d'AJ Signalement (étiquette type aj-signalement… ou aj-diffusion…), les alertes Sentry ne portent ni
+// l'objet ni le texte du rebond (souvent « 550 5.1.1 <adresse> ») ; identifiant, domaines et type de rebond restent.
+// Les autres e-mails de VitFix sont inchangés.
 
 import { NextResponse, type NextRequest } from 'next/server'
 import { createHmac, timingSafeEqual } from 'crypto'
 import * as Sentry from '@sentry/nextjs'
 import { logger } from '@/lib/logger'
+import { emailAjSignalementQr, traiterPlainteDiffusionQr } from '@/lib/aj-signalement/webhook-diffusion'
 
 const log = logger.withTenant('api/webhooks/resend')
 
@@ -42,8 +54,12 @@ interface ResendEvent {
     from?: string
     to?: string[] | string
     subject?: string
-    bounce?: { type?: string; sub_type?: string; message?: string }
+    // Documentation de Resend (événement email.bounced) : type (Permanent, Temporary), subType (Suppressed,
+    // MessageRejected…), message, diagnosticCode (réponses SMTP).
+    bounce?: { type?: string; subType?: string; message?: string; diagnosticCode?: unknown }
     complaint?: { type?: string; user_agent?: string }
+    // Étiquettes posées à l'envoi : objet { nom: valeur } dans les événements (forme tableau tolérée par la lecture).
+    tags?: unknown
     [key: string]: unknown
   }
 }
@@ -163,10 +179,14 @@ export async function POST(request: NextRequest) {
     event_type: event.type,
   }
 
+  // AJ Signalement : ni objet ni texte du rebond dans Sentry (voir l'en-tête) ; autres e-mails : inchangé.
+  const ajSignalement = emailAjSignalementQr(event.data?.tags)
+  const objet = ajSignalement ? {} : { subject: event.data.subject }
+
   switch (event.type) {
     case 'email.bounced': {
       const bounceType = event.data.bounce?.type ?? 'unknown'
-      const bounceSubType = event.data.bounce?.sub_type ?? 'unknown'
+      const bounceSubType = event.data.bounce?.subType ?? 'unknown'
       // Hard bounces = critical (mauvaise adresse / blacklist), soft = warning
       const isHard = bounceType.toLowerCase() === 'hard' || bounceType.toLowerCase() === 'permanent'
       Sentry.captureMessage(`Resend email bounced (${bounceType}/${bounceSubType})`, {
@@ -175,8 +195,8 @@ export async function POST(request: NextRequest) {
         extra: {
           emailId: event.data.email_id,
           recipientDomains,
-          subject: event.data.subject,
-          message: event.data.bounce?.message,
+          ...objet,
+          ...(ajSignalement ? {} : { message: event.data.bounce?.message }),
         },
       })
       log.warn('Email bounced', {
@@ -196,7 +216,7 @@ export async function POST(request: NextRequest) {
         extra: {
           emailId: event.data.email_id,
           recipientDomains,
-          subject: event.data.subject,
+          ...objet,
           complaintType: event.data.complaint?.type,
         },
       })
@@ -204,6 +224,10 @@ export async function POST(request: NextRequest) {
         emailId: event.data.email_id,
         recipientDomains,
       })
+      // AJ Signalement (H13) : une plainte sur un message de diffusion vaut opposition ; les autres e-mails ne sont pas
+      // touchés. Base indisponible : 503, Resend renvoie l'événement (l'opposition est idempotente).
+      const plainte = await traiterPlainteDiffusionQr(event.data.tags)
+      if (plainte === 'erreur') return NextResponse.json({ error: 'Temporarily unavailable' }, { status: 503 })
       break
     }
 
@@ -214,7 +238,7 @@ export async function POST(request: NextRequest) {
         extra: {
           emailId: event.data.email_id,
           recipientDomains,
-          subject: event.data.subject,
+          ...objet,
         },
       })
       log.info('Email delivery delayed', {

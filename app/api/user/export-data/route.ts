@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
+import { exportGestionnaireDuCompteQr } from '@/lib/aj-signalement/serveur-compte'
 
 export const maxDuration = 60
 
@@ -105,6 +106,10 @@ export async function GET(request: NextRequest) {
       .eq('user_id', userId)
       .maybeSingle()
 
+    // 12 bis. AJ Signalement (PR 2, SPEC § 2.10) : fiche, attributions et journal d'un gestionnaire d'un cabinet client ;
+    // null pour tout autre compte (section omise, export inchangé), et tant que les migrations manquent.
+    const ajSignalement = await exportGestionnaireDuCompteQr(user)
+
     // 13. Audit log export (RGPD transparency)
     try {
       await supabaseAdmin.from('audit_logs').insert({
@@ -142,6 +147,7 @@ export async function GET(request: NextRequest) {
         signalements: syndicSignalements,
         planning_events: syndicPlanningEvents,
       },
+      ...(ajSignalement ? { aj_signalement: ajSignalement } : {}),
     }
 
     return new Response(JSON.stringify(exportData, null, 2), {

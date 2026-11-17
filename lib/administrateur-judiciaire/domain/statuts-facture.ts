@@ -21,6 +21,23 @@ import type { ModeReglement } from '@/lib/data/referentiels-gesteam-judiciaire'
  * tant qu'il n'est pas émis, et n'est réputée payée qu'une fois l'ordre émis.
  * Le compte bancaire payeur (syndicat, compte séparé, fonds de travaux — D-BANQUE, J4) est choisi par l'appelant, qui ne
  * passe que les factures de ce compte et son solde disponible.
+ *
+ * Décision J9 de Hugo du 30/10/2026 — virement rejeté ou retourné après émission : la facture qu'il réglait revient à
+ * l'état d'avant le paiement, avec la date et le motif du rejet (retourFactureApresRejet) ; le règlement, lui, passe
+ * « Annulé » sous une écriture contraire (reglements-fournisseurs.ts, rejeterVirement). Hors de ce retour, « Réglée »
+ * reste sans transition à la main.
+ * 🔵 Déduit pour J9 :
+ * - l'état d'avant est celui de la facture à son entrée dans l'ordre, l'ordre émis ne pouvant plus la reprendre : une
+ *   facture « Réglée » revient « Bon à payer » (l'équivalent, côté facture, du « À régler » du règlement : prête pour un
+ *   nouvel ordre) ; une facture « En attente » du solde après un acompte revient « Acompte à régler », pour le montant
+ *   rejeté ; reste dû et statut de saisie sont rétablis (le montant rejeté redevient dû) ;
+ * - une facture qui a déjà repris un cycle de règlement (bon à payer, acompte à régler, en règlement) est refusée : le
+ *   cycle en cours est à défaire d'abord ; le montant rejeté ne dépasse jamais ce qui est réglé ; un même règlement ne se
+ *   rejette qu'une fois, deux règlements successifs rejetés laissent deux rejets.
+ * 🔴 Non établi pour J9 : après un rejet pour coordonnées bancaires (compte clos, IBAN erroné), la facture revenue
+ * « Bon à payer » repartirait au prochain ordre vers les mêmes coordonnées ; faut-il un nouveau bon à payer, ou un
+ * contrôle de l'IBAN avant de la reprendre ? Les validations du bon à payer (paiement-fournisseurs.ts), qui portent sur le
+ * même montant, restent acquises ici.
  */
 
 export const STATUTS_SAISIE_FACTURE = ['Pré-saisie', 'En saisie', 'Enregistrée', 'Rgt. partiel', 'Réglée', 'Non réglée'] as const
@@ -89,6 +106,20 @@ export interface FactureAPayer {
   resteDuCentimes: number
   /** Montant de l'acompte à régler, pour une facture en « Acompte à régler ». */
   acompteCentimes?: number
+  /** Virements rejetés ou retournés qui la réglaient (J9), du plus ancien au plus récent ; absent : aucun. */
+  rejets?: RejetReglementFacture[]
+}
+
+/** Rejet ou retour, après émission, d'un virement qui réglait la facture (J9). */
+export interface RejetReglementFacture {
+  /** Règlement rejeté (reglements-fournisseurs.ts). */
+  reglementId: string
+  /** Jour où le rejet est constaté (AAAA-MM-JJ). */
+  le: string
+  /** Motif donné par la banque. */
+  motif: string
+  /** Montant du règlement rejeté, en centimes. */
+  montantCentimes: number
 }
 
 /** Transitions admises du statut de règlement (🔵 déduites). */
@@ -134,6 +165,56 @@ export function changerStatutReglement<F extends FactureAPayer>(
     if (!facture.comptabilisee) throw new Error(`Bon à payer refusé : la facture ${facture.id} n'est pas comptabilisée.`)
   }
   return { ...facture, statutReglement: nouveau }
+}
+
+/** J9 — statut d'avant le paiement rejeté : bon à payer pour une facture réglée, acompte pour le solde en attente. */
+const RETOUR_APRES_REJET: Partial<Record<StatutReglementFacture, StatutReglementFacture>> = {
+  Réglée: 'Bon à payer',
+  'En attente': 'Acompte à régler',
+}
+
+function verifierRejet(facture: FactureAPayer, rejet: RejetReglementFacture): void {
+  if (!rejet.reglementId.trim()) throw new Error(`Facture ${facture.id} : le règlement rejeté est attendu.`)
+  if (!estDateIsoValide(rejet.le)) throw new Error(`Date du rejet invalide (${rejet.le}) : AAAA-MM-JJ attendu.`)
+  if (!rejet.motif.trim()) throw new Error(`Facture ${facture.id} : motif du rejet attendu (motif donné par la banque).`)
+  if (!Number.isInteger(rejet.montantCentimes) || rejet.montantCentimes <= 0)
+    throw new Error(`Montant rejeté invalide (${rejet.montantCentimes}) : centimes entiers strictement positifs attendus.`)
+  const deja = facture.rejets?.find((r) => r.reglementId === rejet.reglementId.trim())
+  if (deja)
+    throw new Error(`Facture ${facture.id} : règlement ${rejet.reglementId} déjà rejeté le ${deja.le} (${deja.motif}) ; un rejet ne s'enregistre qu'une fois.`)
+}
+
+/**
+ * J9 — retour de la facture après le rejet ou le retour, après émission, du virement qui la réglait : « Réglée » revient
+ * « Bon à payer », « En attente » (solde après un acompte) revient « Acompte à régler » pour le montant rejeté ; le
+ * montant rejeté redevient dû, le statut de saisie suit (statutSaisieApresReglement), le rejet (règlement, date, motif,
+ * montant) s'ajoute à ses rejets. Refuse une facture qui a repris un cycle de règlement, un montant supérieur au réglé
+ * (total moins reste dû), un règlement déjà rejeté. Renvoie une copie.
+ */
+export function retourFactureApresRejet<F extends FactureAPayer>(
+  facture: F,
+  rejet: RejetReglementFacture,
+  { totalTtcCentimes }: { totalTtcCentimes: number },
+): F {
+  verifierRejet(facture, rejet)
+  const retour = RETOUR_APRES_REJET[facture.statutReglement]
+  if (!retour)
+    throw new Error(
+      `Facture ${facture.id} « ${facture.statutReglement} » : un nouveau cycle de règlement est en cours ; le défaire avant d'enregistrer le rejet.`,
+    )
+  if (!Number.isInteger(totalTtcCentimes) || totalTtcCentimes < facture.resteDuCentimes)
+    throw new Error(`Total de la facture ${facture.id} invalide (${totalTtcCentimes}) : centimes entiers, au moins le reste dû (${facture.resteDuCentimes}).`)
+  const regleCentimes = totalTtcCentimes - facture.resteDuCentimes
+  if (rejet.montantCentimes > regleCentimes)
+    throw new Error(`Rejet de ${rejet.montantCentimes} centimes : plus que le réglé de la facture ${facture.id} (${regleCentimes} centimes).`)
+  return {
+    ...facture,
+    statutReglement: retour,
+    statutSaisie: statutSaisieApresReglement(totalTtcCentimes, regleCentimes - rejet.montantCentimes),
+    resteDuCentimes: facture.resteDuCentimes + rejet.montantCentimes,
+    ...(retour === 'Acompte à régler' ? { acompteCentimes: rejet.montantCentimes } : {}),
+    rejets: [...(facture.rejets ?? []), { ...rejet, reglementId: rejet.reglementId.trim(), motif: rejet.motif.trim() }],
+  }
 }
 
 export type MotifEcart =

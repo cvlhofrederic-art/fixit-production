@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Produire un scoring PT propre (≥ 80/100 sur le PDF Vitfix Artisan `Orcamento-Lobao-Motorline-Lince.pdf`) avec NIF validé, fourchettes prix PT et messages en portugais — sans toucher le code FR existant.
+**Goal:** Produire un scoring PT propre (≥ 80/100 sur le PDF Vitfix Artisan `Orcamento-Exemplo-Motorline-Lince.pdf`) avec NIF validé, fourchettes prix PT et messages en portugais — sans toucher le code FR existant.
 
-**Architecture:** Deux nouveaux fichiers `lib/nif-pt.ts` et `lib/analyse-devis-scoring-pt.ts` totalement isolés du FR. Patch chirurgical dans la route API pour dispatcher FR/PT. Types partagés importés depuis `lib/analyse-devis-scoring.ts` (FR reste source de vérité des types, 0 ligne touchée). Sidebar label localisé. TDD strict avec fixtures issues du PDF Lobão.
+**Architecture:** Deux nouveaux fichiers `lib/nif-pt.ts` et `lib/analyse-devis-scoring-pt.ts` totalement isolés du FR. Patch chirurgical dans la route API pour dispatcher FR/PT. Types partagés importés depuis `lib/analyse-devis-scoring.ts` (FR reste source de vérité des types, 0 ligne touchée). Sidebar label localisé. TDD strict avec fixtures issues du PDF Exemplo.
 
 **Tech Stack:** TypeScript, Vitest, Next.js 16 App Router, Groq via lib existante.
 
@@ -21,7 +21,7 @@
 | `lib/nif-pt.ts` | **CRÉER** | Validation et extraction NIF/NIPC PT (modulo 11) |
 | `lib/analyse-devis-scoring-pt.ts` | **CRÉER** | Moteur de scoring PT autonome (17 critères + 2 fatura, fourchettes prix PT, messages négo PT) |
 | `tests/lib/nif-pt.test.ts` | **CRÉER** | Tests checksum NIF + extraction |
-| `tests/lib/analyse-devis-scoring-pt.test.ts` | **CRÉER** | Tests scoring PT avec fixture PDF Lobão |
+| `tests/lib/analyse-devis-scoring-pt.test.ts` | **CRÉER** | Tests scoring PT avec fixture PDF Exemplo |
 | `app/api/syndic/analyse-devis/route.ts` | **PATCH L.471-485** | Dispatch FR/PT vers le bon moteur de scoring |
 | `components/syndic-dashboard/config.ts` | **PATCH L.40** | Label sidebar PT — adapter `label` ou consommer locale au point de rendu |
 | `lib/analyse-devis-scoring.ts` | **NE PAS TOUCHER** | Side FR intact, 0 ligne modifiée |
@@ -215,7 +215,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 
 ---
 
-## Task 3: Fixtures PDF Lobão dans le test scoring PT
+## Task 3: Fixtures PDF Exemplo dans le test scoring PT
 
 **Files:**
 - Create: `tests/lib/analyse-devis-scoring-pt.test.ts`
@@ -229,14 +229,14 @@ import { describe, it, expect } from 'vitest'
 import { calculateScoresPt } from '@/lib/analyse-devis-scoring-pt'
 
 // ── Fixture : extraction JSON simulée du PDF Vitfix Artisan PT
-// Orcamento-Lobao-Motorline-Lince.pdf (21/05/2026, NIF 276 873 297) ────────
-const lobaoExtracted = {
+// Orcamento-Exemplo-Motorline-Lince.pdf (21/05/2026, NIF 276 873 297) ────────
+const orcamentoExtracted = {
   artisan_nom: 'Frédéric Neiva Carvalho',
   artisan_siret: '276873297',
   artisan_metier: 'Eletricidade / Motorizações',
   type_document: 'orcamento',
   description_travaux: 'Motorização portão de batente',
-  immeuble: 'Rua Choqueiro Poente, 81, 4650-163 Barrosas',
+  immeuble: 'Rua do Exemplo, 10, 4600-000 Amarante',
   prestations: [
     { designation: 'Inspeção prévia do sistema elétrico', type: 'prestation', quantite: 1, unite: 'Serviço', prix_unitaire_ht: 80, total_ht: 80 },
     { designation: 'Fornecimento de motorização Motorline LINCE', type: 'prestation', quantite: 1, unite: 'Serviço', prix_unitaire_ht: 720, total_ht: 720 },
@@ -248,7 +248,7 @@ const lobaoExtracted = {
   tva_taux: 23,
   tva_montant: 310.5,
   date_intervention: '2026-05-23',
-  artisan_email: 'cvlho.frederic@gmail.com',
+  artisan_email: 'contact@vitfix.io',
   artisan_telephone: '912 014 971',
   priorite: 'planifiee',
   mentions_presentes: [
@@ -271,7 +271,7 @@ const lobaoExtracted = {
 }
 
 // Texte brut du PDF (extraits clés) pour fallback de détection ────────────
-const lobaoRawText = `
+const orcamentoRawText = `
 ORÇAMENTO — Projeto: Motorização portão de batente
 ORC-2026-205
 EMITENTE
@@ -286,7 +286,7 @@ IVA 23% s/ 1 350,00 € 310,50 €
 TOTAL C/IVA 1 660,50 €
 Garantia legal de conformidade: 3 anos sobre o equipamento (DL 84/2021, art. 12.º).
 Garantia comercial: 2 anos adicionais sobre a mão de obra.
-IBAN: PT50 0033 0000 4576 3682 866 05 — BIC: BCOMPTPL
+IBAN: PT50 0002 0123 1234 5678 9015 4 — BIC: EXEMPTPL
 PROTEÇÃO DE DADOS PESSOAIS (RGPD)
 RESÍDUOS DE EQUIPAMENTOS ELÉTRICOS E ELETRÓNICOS (REEE)
 Trabalhador independente (Recibos Verdes).
@@ -297,7 +297,7 @@ Livro de Reclamações disponível em formato eletrónico em www.livroreclamacoe
 
 describe('calculateScoresPt — squelette', () => {
   it('exposes the expected shape', () => {
-    const result = calculateScoresPt(lobaoExtracted, lobaoRawText, { nifVerified: true })
+    const result = calculateScoresPt(orcamentoExtracted, orcamentoRawText, { nifVerified: true })
     expect(result).toMatchObject({
       conformite: expect.objectContaining({ total: expect.any(Number), max: expect.any(Number), details: expect.any(Array) }),
       prix: expect.objectContaining({ ecart_moyen_pct: expect.any(Number), details: expect.any(Array) }),
@@ -323,7 +323,7 @@ Expected: ÉCHEC `Cannot find module '@/lib/analyse-devis-scoring-pt'`.
 git add tests/lib/analyse-devis-scoring-pt.test.ts
 git commit -m "test(shared): add fixtures + skeleton test for analyse-devis-scoring-pt
 
-Fixtures based on real PDF Orcamento-Lobao-Motorline-Lince (21/05/2026).
+Fixtures based on real PDF Orcamento-Exemplo-Motorline-Lince (21/05/2026).
 Includes extracted JSON shape + raw text for keyword fallback detection.
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
@@ -443,67 +443,67 @@ Ajout à la fin de `tests/lib/analyse-devis-scoring-pt.test.ts` :
 ```typescript
 describe('calculateScoresPt — critères de base', () => {
   it('detects NIF as ok when nifVerified=true', () => {
-    const r = calculateScoresPt(lobaoExtracted, lobaoRawText, { nifVerified: true })
+    const r = calculateScoresPt(orcamentoExtracted, orcamentoRawText, { nifVerified: true })
     expect(r.conformite.details.find(c => c.id === 'nif')?.status).toBe('ok')
   })
 
   it('detects NIF as missing when nifVerified=false', () => {
-    const r = calculateScoresPt({ ...lobaoExtracted, artisan_siret: '' }, lobaoRawText, { nifVerified: false })
+    const r = calculateScoresPt({ ...orcamentoExtracted, artisan_siret: '' }, orcamentoRawText, { nifVerified: false })
     expect(r.conformite.details.find(c => c.id === 'nif')?.status).toBe('missing')
   })
 
   it('detects IVA mentioned (taxa 23%)', () => {
-    const r = calculateScoresPt(lobaoExtracted, lobaoRawText)
+    const r = calculateScoresPt(orcamentoExtracted, orcamentoRawText)
     expect(r.conformite.details.find(c => c.id === 'iva')?.status).toBe('ok')
   })
 
   it('detects garantia legal (DL 84/2021) via rawText fallback', () => {
-    const r = calculateScoresPt(lobaoExtracted, lobaoRawText)
+    const r = calculateScoresPt(orcamentoExtracted, orcamentoRawText)
     expect(r.conformite.details.find(c => c.id === 'garantia_legal')?.status).toBe('ok')
   })
 
   it('detects direito de livre resolução (DL 24/2014)', () => {
-    const r = calculateScoresPt(lobaoExtracted, lobaoRawText)
+    const r = calculateScoresPt(orcamentoExtracted, orcamentoRawText)
     expect(r.conformite.details.find(c => c.id === 'livre_resolucao')?.status).toBe('ok')
   })
 
   it('detects RGPD', () => {
-    const r = calculateScoresPt(lobaoExtracted, lobaoRawText)
+    const r = calculateScoresPt(orcamentoExtracted, orcamentoRawText)
     expect(r.conformite.details.find(c => c.id === 'rgpd')?.status).toBe('ok')
   })
 
   it('detects CNIACC (entidade RAL)', () => {
-    const r = calculateScoresPt(lobaoExtracted, lobaoRawText)
+    const r = calculateScoresPt(orcamentoExtracted, orcamentoRawText)
     expect(r.conformite.details.find(c => c.id === 'cniacc_ral')?.status).toBe('ok')
   })
 
   it('detects livro de reclamações', () => {
-    const r = calculateScoresPt(lobaoExtracted, lobaoRawText)
+    const r = calculateScoresPt(orcamentoExtracted, orcamentoRawText)
     expect(r.conformite.details.find(c => c.id === 'livro_reclamacoes')?.status).toBe('ok')
   })
 
   it('detects CAE present', () => {
-    const r = calculateScoresPt(lobaoExtracted, lobaoRawText)
+    const r = calculateScoresPt(orcamentoExtracted, orcamentoRawText)
     expect(r.conformite.details.find(c => c.id === 'cae')?.status).toBe('ok')
   })
 
   it('detects numero_orcamento from extracted.numero_document', () => {
-    const r = calculateScoresPt(lobaoExtracted, lobaoRawText)
+    const r = calculateScoresPt(orcamentoExtracted, orcamentoRawText)
     expect(r.conformite.details.find(c => c.id === 'numero_orcamento')?.status).toBe('ok')
   })
 
   it('detects data_emissao from extracted.date_document', () => {
-    const r = calculateScoresPt(lobaoExtracted, lobaoRawText)
+    const r = calculateScoresPt(orcamentoExtracted, orcamentoRawText)
     expect(r.conformite.details.find(c => c.id === 'data_emissao')?.status).toBe('ok')
   })
 
   it('detects detalhe_prestacoes when prestations[] has items with prix', () => {
-    const r = calculateScoresPt(lobaoExtracted, lobaoRawText)
+    const r = calculateScoresPt(orcamentoExtracted, orcamentoRawText)
     expect(r.conformite.details.find(c => c.id === 'detalhe_prestacoes')?.status).toBe('ok')
   })
 
   it('detects IBAN', () => {
-    const r = calculateScoresPt(lobaoExtracted, lobaoRawText)
+    const r = calculateScoresPt(orcamentoExtracted, orcamentoRawText)
     expect(r.conformite.details.find(c => c.id === 'iban_titular')?.status).toBe('ok')
   })
 })
@@ -730,26 +730,26 @@ Ajout à la fin de `tests/lib/analyse-devis-scoring-pt.test.ts` :
 ```typescript
 describe('calculateScoresPt — alvará conditionnel', () => {
   it('alvará marked NA when montant_ht < 16 750 €', () => {
-    const r = calculateScoresPt(lobaoExtracted, lobaoRawText, { nifVerified: true })
+    const r = calculateScoresPt(orcamentoExtracted, orcamentoRawText, { nifVerified: true })
     const alvara = r.conformite.details.find(c => c.id === 'alvara')
     expect(alvara?.status).toBe('na')
   })
 
   it('alvará marked missing when montant_ht ≥ 16 750 € and no mention', () => {
-    const ext = { ...lobaoExtracted, montant_ht: 20000 }
-    const r = calculateScoresPt(ext, lobaoRawText, { nifVerified: true })
+    const ext = { ...orcamentoExtracted, montant_ht: 20000 }
+    const r = calculateScoresPt(ext, orcamentoRawText, { nifVerified: true })
     expect(r.conformite.details.find(c => c.id === 'alvara')?.status).toBe('missing')
   })
 
   it('alvará marked ok when present in rawText AND montant qualifies', () => {
-    const ext = { ...lobaoExtracted, montant_ht: 20000 }
-    const raw = lobaoRawText + '\nAlvará de construção n.º 12345'
+    const ext = { ...orcamentoExtracted, montant_ht: 20000 }
+    const raw = orcamentoRawText + '\nAlvará de construção n.º 12345'
     const r = calculateScoresPt(ext, raw, { nifVerified: true })
     expect(r.conformite.details.find(c => c.id === 'alvara')?.status).toBe('ok')
   })
 
   it('alvará NA does not count in max (conformite ratio reflects N applicable items)', () => {
-    const r = calculateScoresPt(lobaoExtracted, lobaoRawText, { nifVerified: true })
+    const r = calculateScoresPt(orcamentoExtracted, orcamentoRawText, { nifVerified: true })
     // Si alvará n'est pas dans details OU est status 'na', il ne pèse pas dans max
     const max = r.conformite.max
     expect(max).toBeGreaterThan(0)
@@ -759,19 +759,19 @@ describe('calculateScoresPt — alvará conditionnel', () => {
 
 describe('calculateScoresPt — Seguro RC adaptatif', () => {
   it('seguro_rc marked partial when absent BUT statut = Recibos Verdes', () => {
-    const r = calculateScoresPt(lobaoExtracted, lobaoRawText, { nifVerified: true })
+    const r = calculateScoresPt(orcamentoExtracted, orcamentoRawText, { nifVerified: true })
     expect(r.conformite.details.find(c => c.id === 'seguro_rc')?.status).toBe('partial')
   })
 
   it('seguro_rc marked missing when absent AND statut = LDA/SA (pessoa coletiva)', () => {
-    const ext = { ...lobaoExtracted, statut_juridique: 'Sociedade por Quotas (LDA)' }
-    const r = calculateScoresPt(ext, lobaoRawText, { nifVerified: true })
+    const ext = { ...orcamentoExtracted, statut_juridique: 'Sociedade por Quotas (LDA)' }
+    const r = calculateScoresPt(ext, orcamentoRawText, { nifVerified: true })
     expect(r.conformite.details.find(c => c.id === 'seguro_rc')?.status).toBe('missing')
   })
 
   it('seguro_rc marked ok when present in mentions_presentes', () => {
-    const ext = { ...lobaoExtracted, mentions_presentes: [...lobaoExtracted.mentions_presentes, 'Seguro de responsabilidade civil profissional Allianz nº 12345'] }
-    const r = calculateScoresPt(ext, lobaoRawText, { nifVerified: true })
+    const ext = { ...orcamentoExtracted, mentions_presentes: [...orcamentoExtracted.mentions_presentes, 'Seguro de responsabilidade civil profissional Allianz nº 12345'] }
+    const r = calculateScoresPt(ext, orcamentoRawText, { nifVerified: true })
     expect(r.conformite.details.find(c => c.id === 'seguro_rc')?.status).toBe('ok')
   })
 })
@@ -854,7 +854,7 @@ Ajout à la fin de `tests/lib/analyse-devis-scoring-pt.test.ts` :
 ```typescript
 describe('calculateScoresPt — análise dos preços', () => {
   it('matches motorização Motorline LINCE within market range', () => {
-    const r = calculateScoresPt(lobaoExtracted, lobaoRawText, { nifVerified: true })
+    const r = calculateScoresPt(orcamentoExtracted, orcamentoRawText, { nifVerified: true })
     const motoriz = r.prix.details.find(d => /motorline|motorizac/i.test(d.designation))
     expect(motoriz).toBeDefined()
     expect(motoriz?.status).not.toBe('inconnu')
@@ -862,25 +862,25 @@ describe('calculateScoresPt — análise dos preços', () => {
   })
 
   it('matches mão de obra instalação as known range', () => {
-    const r = calculateScoresPt(lobaoExtracted, lobaoRawText, { nifVerified: true })
+    const r = calculateScoresPt(orcamentoExtracted, orcamentoRawText, { nifVerified: true })
     const mo = r.prix.details.find(d => /mao\s*de\s*obra/i.test(d.designation))
     expect(mo?.status).not.toBe('inconnu')
   })
 
   it('computes a non-zero ecart_moyen_pct when prices match', () => {
-    const r = calculateScoresPt(lobaoExtracted, lobaoRawText, { nifVerified: true })
+    const r = calculateScoresPt(orcamentoExtracted, orcamentoRawText, { nifVerified: true })
     const known = r.prix.details.filter(d => d.status !== 'inconnu')
     expect(known.length).toBeGreaterThan(0)
   })
 
   it('flags excessive price (> 50% above max) as excessif', () => {
     const ext = {
-      ...lobaoExtracted,
+      ...orcamentoExtracted,
       prestations: [
         { designation: 'Mão de obra — instalação completa', type: 'prestation', quantite: 1, unite: 'Serviço', prix_unitaire_ht: 1500, total_ht: 1500 },
       ],
     }
-    const r = calculateScoresPt(ext, lobaoRawText, { nifVerified: true })
+    const r = calculateScoresPt(ext, orcamentoRawText, { nifVerified: true })
     expect(r.prix.details[0].status).toBe('excessif')
   })
 })
@@ -923,7 +923,7 @@ const PRIX_MARCHE_PT: Record<string, [number, number]> = {
   'videoporteiro': [150, 700],
   'intercomunicador': [150, 700],
   'iluminacao areas comuns': [600, 1800],
-  // Motorizações / portões (PDF Lobão)
+  // Motorizações / portões (PDF Exemplo)
   'motorizacao portao batente': [500, 1200],
   'motorizacao portao': [500, 1200],
   'motorline lince': [500, 1200],
@@ -1085,7 +1085,7 @@ Ajout à la fin de `tests/lib/analyse-devis-scoring-pt.test.ts` :
 ```typescript
 describe('calculateScoresPt — messages PT + action + confiance', () => {
   it('messages_negociation are in Portuguese (no French phrasing)', () => {
-    const degraded = { ...lobaoExtracted, mentions_presentes: [] as string[], mentions_manquantes: ['IVA', 'Garantia legal'] as string[] }
+    const degraded = { ...orcamentoExtracted, mentions_presentes: [] as string[], mentions_manquantes: ['IVA', 'Garantia legal'] as string[] }
     const r = calculateScoresPt(degraded, '', { nifVerified: false })
     expect(r.messages_negociation.length).toBeGreaterThan(0)
     const joined = r.messages_negociation.join(' ')
@@ -1094,27 +1094,27 @@ describe('calculateScoresPt — messages PT + action + confiance', () => {
   })
 
   it('action_recommandee = valider when conformite ≥ 90%', () => {
-    const r = calculateScoresPt(lobaoExtracted, lobaoRawText, { nifVerified: true })
+    const r = calculateScoresPt(orcamentoExtracted, orcamentoRawText, { nifVerified: true })
     if (r.conformite.total / r.conformite.max >= 0.9) {
       expect(r.action_recommandee).toBe('valider')
     }
   })
 
   it('action_recommandee = negocier when 70% ≤ conformite < 90%', () => {
-    const partial = { ...lobaoExtracted, mentions_presentes: lobaoExtracted.mentions_presentes.slice(0, 5) }
+    const partial = { ...orcamentoExtracted, mentions_presentes: orcamentoExtracted.mentions_presentes.slice(0, 5) }
     const r = calculateScoresPt(partial, '', { nifVerified: true })
     const pct = r.conformite.total / r.conformite.max
     if (pct >= 0.7 && pct < 0.9) expect(r.action_recommandee).toBe('negocier')
   })
 
   it('confiance is bounded 0-100', () => {
-    const r = calculateScoresPt(lobaoExtracted, lobaoRawText, { nifVerified: true })
+    const r = calculateScoresPt(orcamentoExtracted, orcamentoRawText, { nifVerified: true })
     expect(r.confiance).toBeGreaterThanOrEqual(0)
     expect(r.confiance).toBeLessThanOrEqual(100)
   })
 
-  it('confiance ≥ 80 on the Lobão fixture (well-formed PT doc)', () => {
-    const r = calculateScoresPt(lobaoExtracted, lobaoRawText, { nifVerified: true })
+  it('confiance ≥ 80 on the Exemplo fixture (well-formed PT doc)', () => {
+    const r = calculateScoresPt(orcamentoExtracted, orcamentoRawText, { nifVerified: true })
     expect(r.confiance).toBeGreaterThanOrEqual(80)
   })
 })
@@ -1200,14 +1200,14 @@ git commit -m "feat(shared): syndic PT scoring — PT negotiation messages + con
 Confidence = conformidade*0.5 + prix*0.3 + bonus NIF*0.2
 Action: valider / negocier / devis_vitfix based on thresholds.
 Messages in PT-PT only ('O seu orçamento não menciona...').
-Lobão PDF fixture reaches confiance ≥ 80.
+Exemplo PDF fixture reaches confiance ≥ 80.
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 ```
 
 ---
 
-## Task 9: Test e2e fixture Lobão — score conformité ≥ 80%
+## Task 9: Test e2e fixture Exemplo — score conformité ≥ 80%
 
 **Files:**
 - Modify: `tests/lib/analyse-devis-scoring-pt.test.ts` (assertions finales)
@@ -1217,15 +1217,15 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 Ajout à la fin de `tests/lib/analyse-devis-scoring-pt.test.ts` :
 
 ```typescript
-describe('calculateScoresPt — acceptation Lobão PDF', () => {
-  it('PDF Vitfix Artisan Lobão obtient un score de conformidade ≥ 80%', () => {
-    const r = calculateScoresPt(lobaoExtracted, lobaoRawText, { nifVerified: true })
+describe('calculateScoresPt — acceptation Exemplo PDF', () => {
+  it('PDF Vitfix Artisan Exemplo obtient un score de conformidade ≥ 80%', () => {
+    const r = calculateScoresPt(orcamentoExtracted, orcamentoRawText, { nifVerified: true })
     const ratio = r.conformite.total / r.conformite.max
     expect(ratio).toBeGreaterThanOrEqual(0.8)
   })
 
-  it('PDF Lobão affiche au moins 12 critères PT (pas FR)', () => {
-    const r = calculateScoresPt(lobaoExtracted, lobaoRawText, { nifVerified: true })
+  it('PDF Exemplo affiche au moins 12 critères PT (pas FR)', () => {
+    const r = calculateScoresPt(orcamentoExtracted, orcamentoRawText, { nifVerified: true })
     const ids = r.conformite.details.map(c => c.id)
     expect(ids).toEqual(expect.arrayContaining([
       'nif', 'cae', 'iva', 'garantia_legal', 'livre_resolucao',
@@ -1238,8 +1238,8 @@ describe('calculateScoresPt — acceptation Lobão PDF', () => {
     expect(ids).not.toContain('mediateur')
   })
 
-  it('Lobão : tous les labels sont en portugais (caractères portugais OK)', () => {
-    const r = calculateScoresPt(lobaoExtracted, lobaoRawText, { nifVerified: true })
+  it('Exemplo : tous les labels sont en portugais (caractères portugais OK)', () => {
+    const r = calculateScoresPt(orcamentoExtracted, orcamentoRawText, { nifVerified: true })
     const labels = r.conformite.details.map(c => c.label).join(' ')
     // Tokens français caractéristiques absents
     expect(labels).not.toMatch(/SIRET|décennale|TVA mentionnée|SARL|SAS|EI/i)
@@ -1261,7 +1261,7 @@ Expected: tous les tests passent. Si le test ratio ≥ 0.8 échoue, ajuster les 
 
 ```bash
 git add tests/lib/analyse-devis-scoring-pt.test.ts
-git commit -m "test(shared): syndic PT — acceptance test Lobão PDF reaches ≥ 80%
+git commit -m "test(shared): syndic PT — acceptance test Exemplo PDF reaches ≥ 80%
 
 Locks expected behavior: NIF detected, PT labels, no FR criteria leaking.
 
@@ -1489,7 +1489,7 @@ Expected: push réussi, GitHub Actions démarre les pipelines (`tests.yml`, `cod
 
 Une fois le déploiement Cloudflare terminé (~3-5 min) :
 1. Aller sur `vitfix.io/pt/syndic/dashboard` → menu Análise Orçamentos/Faturas
-2. Drag-drop `Orcamento-Lobao-Motorline-Lince.pdf`
+2. Drag-drop `Orcamento-Exemplo-Motorline-Lince.pdf`
 3. Cliquer "Analisar"
 4. Vérifier :
    - Conformidade legal ≥ 80/100

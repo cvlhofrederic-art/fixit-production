@@ -832,4 +832,10 @@ describe('en-tête du module', () => {
     expect(EN_TETE).toContain("« en application de l'article 25 ou d'une autre disposition »")
     expect(EN_TETE).not.toContain('« ou une autre disposition »')
   })
+
+  it('J7 : l’alerte de l’art. 29-1 A est modélisée dans un module voisin, elle ne figure plus parmi les points non établis', () => {
+    expect(NON_ETABLI).not.toMatch(/alerte de l'art\. 29-1 A/)
+    expect(NON_ETABLI).not.toMatch(/non modélisée/)
+    expect(EN_TETE).toMatch(/alerte de l'art\. 29-1 A.*\(alerte-mandataire-ad-hoc\.ts\)/)
+  })
 })

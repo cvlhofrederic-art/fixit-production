@@ -49,7 +49,7 @@ export const DEMO_NOTIFICATIONS: NotificationDemo[] = [
     icon: 'shield',
     time: 'il y a 2 h',
     title: 'Sinistre déclaré',
-    desc: 'Le Clos des Vignes · dégât des eaux 4e étage · #SIN-2026-014',
+    desc: 'Le Clos des Vignes · dégât des eaux 4e étage · CV.00014',
   },
   {
     id: 'n06',

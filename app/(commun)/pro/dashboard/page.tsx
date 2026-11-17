@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
+import { lireSessionSure } from '@/lib/auth/session-navigateur'
 import { fetchAllBookings } from '@/lib/bookings-fetch'
 import { useTranslation } from '@/lib/i18n/context'
 import { SectionErrorBoundary } from '@/components/common/SectionErrorBoundary'
@@ -49,6 +50,7 @@ const SettingsSection = dynamic(() => import('@/components/dashboard/SettingsSec
 const ComptabiliteSection = dynamic(() => import('@/components/dashboard/ComptabiliteSection'), { loading: SectionLoader })
 const MateriauxSection = dynamic(() => import('@/components/dashboard/MateriauxSection'), { loading: SectionLoader })
 const EstimationMateriauxSection = dynamic(() => import('@/components/dashboard/EstimationMateriauxSection'), { loading: SectionLoader })
+const DictionnaireMateriauxSection = dynamic(() => import('@/components/dashboard/DictionnaireMateriauxSection'), { loading: SectionLoader })
 const ClientsSection = dynamic(() => import(/* webpackPrefetch: true */ '@/components/dashboard/ClientsSection'), { loading: SectionLoader })
 const RapportsSection = dynamic(() => import('@/components/dashboard/RapportsSection'), { loading: SectionLoader })
 const RFQSection = dynamic(() => import('@/components/dashboard/RFQSection'), { loading: SectionLoader })
@@ -271,9 +273,14 @@ function DashboardPage() {
 
     const initAuth = async () => {
       // getSession suffit côté client — getUser (round-trip réseau) n'est nécessaire
-      // que si la session locale est corrompue, ce qui est géré par onAuthStateChange
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session?.user) { didLoad = true; loadDashboardData(session.user) }
+      // que si la session locale est corrompue, ce qui est géré par onAuthStateChange.
+      // Lecture protégée : un abandon du verrou d'auth, un délai ou une panne réseau ne redirige jamais
+      // (lot 1 Sentry du 28/10/2026) ; on attend alors INITIAL_SESSION, SIGNED_IN ou TOKEN_REFRESHED.
+      const { session, indisponible } = await lireSessionSure(supabase.auth)
+      // Un seul chargement : SIGNED_IN ou TOKEN_REFRESHED a pu le lancer pendant cette lecture (jeton expiré
+      // rafraîchi à l'initialisation du client, page déjà abonnée).
+      if (session?.user) { if (!didLoad) { didLoad = true; void loadDashboardData(session.user) } }
+      else if (indisponible) { console.warn('[pro/dashboard] session indisponible, attente de INITIAL_SESSION, SIGNED_IN ou TOKEN_REFRESHED') }
       // Si pas de session, on attend INITIAL_SESSION de onAuthStateChange
       // qui va soit fournir un user, soit on redirige après un timeout
       else { setTimeout(() => { if (!didLoad) window.location.href = `/${locale}/auth/login` }, 3000) }
@@ -290,10 +297,16 @@ function DashboardPage() {
 
     initAuth()
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_OUT') window.location.href = `/${locale}/auth/login`
-      if (!didLoad && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') && session?.user) {
-        didLoad = true; loadDashboardData(session.user)
+    // Callback synchrone : aucun appel Supabase lancé dans un callback onAuthStateChange (interblocage documenté
+    // par Supabase) ; le chargement est différé. TOKEN_REFRESHED reprend une session restée indisponible au
+    // chargement : jeton expiré et rafraîchissement en échec réseau → INITIAL_SESSION nul, puis le tick
+    // d'auto-refresh d'auth-js réussit et n'émet que TOKEN_REFRESHED.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') { window.location.href = `/${locale}/auth/login`; return }
+      if (!didLoad && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
+        didLoad = true
+        const utilisateur = session.user
+        setTimeout(() => { void loadDashboardData(utilisateur) }, 0)
       }
     })
     return () => { isMountedRef.current = false; subscription.unsubscribe() }
@@ -459,7 +472,7 @@ function DashboardPage() {
     const PAGE_TITLES_FR: Record<string, string> = {
       home: 'Accueil', revenus: 'Revenus', stats: 'Statistiques', prestations: 'Prestations',
       chantiers: 'Chantiers', gantt: 'Planning Gantt', equipes: 'Équipes', pointage: 'Pointage',
-      estimation_materiaux: 'Estimation matériaux', calendar: 'Agenda', meteo: 'Météo',
+      estimation_materiaux: 'Estimation matériaux', dictionnaire_materiaux: 'Dictionnaire matériaux', calendar: 'Agenda', meteo: 'Météo',
       photos_chantier: 'Photos chantier', rapports: 'Rapports', pipeline: 'Pipeline',
       devis: 'Devis', dpgf: 'Appels d\'offres', marches: 'Marchés', factures: 'Factures',
       situations: 'Situations', garanties: 'Retenues de garantie', sous_traitance: 'Sous-traitance',
@@ -474,7 +487,7 @@ function DashboardPage() {
     const PAGE_TITLES_PT: Record<string, string> = {
       home: 'Painel', revenus: 'Receitas', stats: 'Estatísticas', prestations: 'Prestações',
       chantiers: 'Obras', gantt: 'Planeamento Gantt', equipes: 'Equipas', pointage: 'Marcação de horas',
-      estimation_materiaux: 'Estimativa de materiais', calendar: 'Agenda', meteo: 'Meteorologia',
+      estimation_materiaux: 'Estimativa de materiais', dictionnaire_materiaux: 'Dicionário de materiais', calendar: 'Agenda', meteo: 'Meteorologia',
       photos_chantier: 'Fotos de obra', rapports: 'Relatórios', pipeline: 'Pipeline',
       devis: 'Orçamentos', dpgf: 'Concursos', marches: 'Bolsa de Mercados', factures: 'Faturas',
       situations: 'Situações de obra', garanties: 'Retenções de garantia', sous_traitance: 'Subempreitada',
@@ -657,6 +670,7 @@ function DashboardPage() {
           isProGerant={isProGerant} proCanAccess={proCanAccess} isModuleEnabled={isModuleEnabled}
           isPt={isPt} pendingBookings={pendingBookings} unreadMsgCount={unreadMsgCount}
           dynamicCategories={moduleCategories}
+          definitionsModules={ALL_MODULES}
         />
       )}
       {isV5 && orgRole === 'artisan' && (
@@ -906,6 +920,7 @@ function DashboardPage() {
               openDevisForm={openDevisForm} openFactureForm={openFactureForm}
               setActivePage={navigateTo} setSidebarOpen={setSidebarOpen}
               openNewMotif={openNewMotif}
+              documentsEnregistres={savedDocuments}
             />
             </SectionErrorBoundary>
           )}
@@ -1169,6 +1184,13 @@ function DashboardPage() {
                 artisan={artisan}
                 isAdminOverride={showAdminBtn}
               />
+            </SectionErrorBoundary>
+          )}
+
+          {/* ────── DICTIONNAIRE MATÉRIAUX (matériaux à utiliser selon la situation) ────── */}
+          {activePage === 'dictionnaire_materiaux' && (
+            <SectionErrorBoundary fallbackTitle={isPt ? 'Erro no dicionário de materiais' : 'Erreur dans le dictionnaire matériaux'}>
+              <DictionnaireMateriauxSection />
             </SectionErrorBoundary>
           )}
 

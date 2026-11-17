@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { titreListeVide, useCoproChoisie } from '@/components/administrateur-judiciaire/ui/copro-choisie'
 import { naviguerVers } from '@/components/administrateur-judiciaire/shell/navigation'
 import { Alert } from '@/components/administrateur-judiciaire/ui/Alert'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
@@ -10,8 +11,13 @@ import { PageHead } from '@/components/administrateur-judiciaire/ui/PageHead'
 import { Panel } from '@/components/administrateur-judiciaire/ui/Panel'
 import { Pill } from '@/components/administrateur-judiciaire/ui/Pill'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
+import { useDonneesLocales, type DonneesLocales } from '@/lib/administrateur-judiciaire/db/hooks'
 import type { Coproprietaire, Lot } from '@/lib/administrateur-judiciaire/db/schema'
-import { useFiche360Personne } from '@/lib/administrateur-judiciaire/db/use-fiches-360'
+import {
+  useFiche360Personne,
+  type PersonneListee,
+  type ResultatFiche360Personne,
+} from '@/lib/administrateur-judiciaire/db/use-fiches-360'
 import {
   dateFrVersIso,
   dateIsoVersFr,
@@ -21,6 +27,7 @@ import {
 import { appliquerDelai } from '@/lib/administrateur-judiciaire/domain/delais-legaux'
 import { MESSAGES_ETAT_ECHEANCES } from '@/lib/administrateur-judiciaire/domain/echeances-mandat'
 import { formatEuros } from '@/lib/administrateur-judiciaire/domain/format'
+import { personneDeLaCopro } from '@/lib/administrateur-judiciaire/domain/selection-copropriete'
 import { useSelectionDossier } from '@/lib/administrateur-judiciaire/selection'
 
 /** Contenu du fichier JSON exporté au titre du droit d'accès (RGPD art. 15). */
@@ -55,15 +62,66 @@ function dateLimiteOppositionMutation(dateAvisIso: string | null): string | null
     : null
 }
 
+/** Lots et copropriétaires lus pour rattacher une personne à la copropriété choisie. */
+type DonneesPersonnes = Pick<DonneesLocales, 'lots' | 'coproprietaires'>
+
+/**
+ * Copropriétaire à afficher pour la copropriété `coproprieteId` : celui de la sélection s'il y a un lot, sinon le
+ * premier de la copropriété par nom (ordre du sélecteur) ; null si la copropriété est inconnue ou sans copropriétaire.
+ */
+function idPersonneDeLaCopro(
+  coproprietaireId: string | null,
+  coproprieteId: string | undefined,
+  donnees: DonneesPersonnes,
+): string | null {
+  if (!coproprieteId) return null
+  if (coproprietaireId && personneDeLaCopro(coproprietaireId, coproprieteId, donnees)) return coproprietaireId
+  const premiere = donnees.coproprietaires
+    .filter((personne) => personneDeLaCopro(personne.id, coproprieteId, donnees))
+    .sort((a, b) => a.nom.localeCompare(b.nom, 'fr'))[0]
+  return premiere?.id ?? null
+}
+
+/** Entrées du sélecteur de personnes rattachées à la copropriété ; aucune si elle est inconnue. */
+const personnesDeLaCopro = (
+  personnes: readonly PersonneListee[],
+  coproprieteId: string | undefined,
+  donnees: DonneesPersonnes,
+): PersonneListee[] =>
+  personnes.filter((entree) => !!coproprieteId && personneDeLaCopro(entree.personne.id, coproprieteId, donnees))
+
+/** Fiche 360 d'une personne vue depuis la copropriété choisie en haut de page. */
+interface Fiche360PersonneDeLaCopro extends ResultatFiche360Personne {
+  /** Nom de la copropriété choisie (null sans choix). */
+  nomCopro: string | null
+  /** Vrai quand la copropriété choisie n'a aucun copropriétaire (base chargée). */
+  aucunePersonne: boolean
+}
+
+/**
+ * Fiche et liste des personnes limitées à la copropriété choisie en haut de page ; sans copropriété choisie (écran
+ * rendu seul), useFiche360Personne tel quel (toutes les personnes, repli sur le premier copropriétaire de la base).
+ */
+function useFiche360PersonneDeLaCopro(coproprietaireId: string | null): Fiche360PersonneDeLaCopro {
+  const { code, nom: nomCopro } = useCoproChoisie()
+  const donnees = useDonneesLocales()
+  const coproprieteId = code ? donnees.copros.find((copro) => copro.code === code)?.id : undefined
+  const idDeLaCopro = idPersonneDeLaCopro(coproprietaireId, coproprieteId, donnees)
+  const resultat = useFiche360Personne(code ? idDeLaCopro : coproprietaireId)
+  const personnes = code ? personnesDeLaCopro(resultat.personnes, coproprieteId, donnees) : resultat.personnes
+  return { ...resultat, personnes, nomCopro, aucunePersonne: !!code && !resultat.loading && !idDeLaCopro }
+}
+
 /**
  * Fiche 360 d'un copropriétaire (données réelles de la base locale) : solde, tantièmes et quote-part, contact,
  * mode de notification, délai d'opposition sur mutation (L. 1965 art. 20), parcours de recouvrement, homonymes
- * et autres copropriétaires de la même copropriété. Export RGPD en JSON.
+ * et autres copropriétaires de la même copropriété. Export RGPD en JSON. Seuls les copropriétaires de la copropriété
+ * choisie en haut de page sont proposés ; la fiche passe au premier d'entre eux quand la personne choisie n'y a pas de lot.
  */
 export function Fiche360PersonneModule() {
   const { push } = useToast()
   const { coproprietaireId, choisirPersonne, choisirCopro } = useSelectionDossier()
-  const { loading, erreur, fiche, personnes } = useFiche360Personne(coproprietaireId)
+  const { loading, erreur, fiche, personnes, nomCopro, aucunePersonne } = useFiche360PersonneDeLaCopro(coproprietaireId)
   const [dateAvisMutation, setDateAvisMutation] = useState('')
   const dateAvisIso = dateFrVersIso(dateAvisMutation)
   const dateLimiteOpposition = dateLimiteOppositionMutation(dateAvisIso)
@@ -123,6 +181,8 @@ export function Fiche360PersonneModule() {
     </select>
   )
   if (loading) return <PageHead eyebrow="Fiche 360 · personne" title="Personne" lede={MESSAGES_ETAT_ECHEANCES.chargement} />
+  if (aucunePersonne)
+    return <PageHead eyebrow="Fiche 360 · personne" title="Personne" lede={`${titreListeVide('Aucun copropriétaire', nomCopro)}.`} />
   if (!fiche)
     return (
       <PageHead
@@ -204,7 +264,7 @@ export function Fiche360PersonneModule() {
       {debiteur && (
         <Alert kind="warn" icon="alert" title={`Débiteur de ${formatEuros(-personne.solde)}`}>
           {
-            "Parcours de recouvrement ci-dessous, dans l'ordre. L'acte « Mise en demeure (impayés) » se génère depuis le cockpit."
+            "Parcours de recouvrement ci-dessous, dans l'ordre. L'acte « Mise en demeure (impayés) » se génère depuis le Tableau de bord (Génération express d'actes)."
           }
         </Alert>
       )}

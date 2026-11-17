@@ -68,6 +68,7 @@ export function makeAuthHelperSpies() {
     getAuthUser: vi.fn(),
     getUserRole: vi.fn(),
     isSyndicRole: vi.fn(),
+    isSuperAdmin: vi.fn(),
     resolveCabinetId: vi.fn(),
     refreshGmailAccessToken: vi.fn(),
   }
