@@ -266,7 +266,7 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
       }
       setEtatCatalogue('echec')
       toast.error(isPt
-        ? 'Catálogo de prestações indisponível: não foi possível verificar o que está guardado na sua conta. Recarregue a página; nada foi alterado.'
+        ? 'Catálogo de serviços indisponível: não foi possível verificar o que está guardado na sua conta. Recarregue a página; nada foi alterado.'
         : 'Catalogue de prestations indisponible : impossible de vérifier celui enregistré pour votre compte. Rechargez la page ; rien n\'a été modifié.')
     })
     return () => { annule = true }
@@ -318,7 +318,7 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
     if (etatCatalogue === 'echec') {
       setRelectures((n) => n + 1)
       toast.error(isPt
-        ? 'Catálogo de prestações indisponível: nova tentativa de carregamento em curso; nada foi alterado. Volte a tentar quando o catálogo aparecer.'
+        ? 'Catálogo de serviços indisponível: nova tentativa de carregamento em curso; nada foi alterado. Volte a tentar quando o catálogo aparecer.'
         : 'Catalogue de prestations indisponible : nouvelle tentative de chargement en cours ; rien n\'a été modifié. Recommencez une fois le catalogue affiché.')
     } else {
       toast.error(isPt
