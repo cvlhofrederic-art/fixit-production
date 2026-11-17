@@ -33,7 +33,7 @@ const requete = (corps: unknown) =>
   })
 
 /** Espaces insécables (milliers en pt-PT) ramenées à des espaces, pour comparer le texte. */
-const lisible = (texte: string) => texte.replace(/[  ]/g, ' ')
+const lisible = (texte: string) => texte.replaceAll(' ', ' ').replaceAll(' ', ' ')
 
 /** Prompt envoyé à Groq pour cette demande (tous les messages, dont le message système). */
 async function promptEnvoye(corps: Record<string, unknown>): Promise<string> {
@@ -80,8 +80,9 @@ describe('Léa en portugais (locale pt) : prompt de l’IA', () => {
     const prompt = await promptEnvoye({ message: 'Quanto IRS vou pagar?', locale: 'pt', financialContext: INDEPENDENTE_PT })
 
     expect(prompt).toContain('IAS 2026: **537,13 €/mês**')
-    expect(prompt).toContain('Contribuição mínima: **20 €/mês**')
+    expect(prompt).toContain('Contribuição mínima: **20 €/mês**, mesmo sem rendimentos ou quando a contribuição apurada é inferior a 20 €')
     expect(prompt).toContain('inferior a 4 × IAS** (2 148,52 €/mês em 2026)')
+    expect(prompt).toContain('No regime geral, a Segurança Social reconhece-a oficiosamente')
     expect(prompt).toContain('taxas gerais 2026 (art.º 68.º CIRS, sobre o rendimento coletável)')
     expect(prompt).toContain('Até 8 342 €: **12,2%** | Mais de 8 342 € até 12 587 €: **15,2%**')
     expect(prompt).toContain('Mais de 86 634 €: **48%**.')
@@ -91,7 +92,10 @@ describe('Léa en portugais (locale pt) : prompt de l’IA', () => {
     expect(prompt).toContain('**IRS Jovem (art.º 12.º-B CIRS, redação do OE 2025):**')
     expect(prompt).toContain('**75%** do 2.º ao 4.º, **50%** do 5.º ao 7.º e **25%** do 8.º ao 10.º ano')
     expect(prompt).toContain('**55 × IAS** (29 542,15 € em 2026)')
-    expect(prompt).toContain('IRS retido na fonte (~23%)')
+    expect(prompt).toContain('**Mínimo de existência 2026 (art.º 70.º CIRS):** 12 880 €, abatimento para rendimentos baixos predominantemente de trabalho dependente, pensões ou atividades da tabela do art.º 151.º (exceto o código 15).')
+    expect(prompt).toContain('feita pelo cliente que tem ou deve ter contabilidade organizada. Dispensa (art.º 101.º-B)')
+    expect(prompt).toContain('Deixam de ser obrigatórios quando o contribuinte verifica')
+    expect(prompt).toContain('IRS retido na fonte (~23%, hipótese tabela 151.º)')
     expect(prompt).toContain('REFERENCIAL TÉCNICO CONSTRUÇÃO PT 2026')
     for (const perimee of PERIMEES) expect(prompt).not.toContain(perimee)
   })
@@ -126,7 +130,8 @@ describe('Léa, professionnel portugais sur l’interface française (pays PT)',
     const prompt = await promptEnvoye({ message: 'Bonjour', locale: 'fr', financialContext: { country: 'PT', orgRole: 'artisan', ...INDEPENDENTE_PT } })
 
     expect(prompt).toContain('REFERENCIAL TÉCNICO CONSTRUÇÃO PT 2026 (Independente)')
-    expect(prompt).toContain('IRS retido na fonte (~23%)')
+    expect(prompt).toContain('IRS retido na fonte (~23%, hipótese tabela 151.º)')
+    expect(prompt).toContain('Coeficiente (hipótese tabela 151.º): 0.75')
     expect(prompt).toContain('**Retenção na fonte (cat. B, art.º 101.º CIRS):** 23% (atividades da tabela do art.º 151.º) ou 11,5% (outras prestações de serviços)')
     expect(prompt).toContain('Dispensa (art.º 101.º-B) se previr faturar menos de 15 000 € no ano')
     expect(prompt).toContain('0,75 (atividades da tabela do art.º 151.º), 0,35 (outras prestações de serviços), 0,15 (vendas de mercadorias e produtos)')
@@ -140,7 +145,8 @@ describe('Léa en portugais : réponses de secours (IA indisponible)', () => {
 
     expect(reponse).toContain('IRS — Trabalhadores Independentes (Portugal 2026)')
     expect(reponse).toContain('Retenção na fonte (art.º 101.º CIRS): **23%** nas atividades da tabela do art.º 151.º (11,5% nas outras prestações de serviços)')
-    expect(reponse).toContain('IRS estimado retido (23%)')
+    expect(reponse).toContain('só quando o cliente tem ou deve ter contabilidade organizada')
+    expect(reponse).toContain('IRS estimado retido (23%, se atividade da tabela do art.º 151.º)')
     expect(reponse).toContain('se previr faturar menos de 15 000 € no ano')
     expect(reponse).toContain('**Taxas gerais do IRS 2026 (art.º 68.º CIRS, sobre o rendimento coletável):**\n- Até 8 342 €: 12,2%\n')
     expect(reponse).toContain('- Mais de 86 634 €: 48%')
@@ -149,9 +155,29 @@ describe('Léa en portugais : réponses de secours (IA indisponible)', () => {
     expect(reponse).not.toContain('**25%**')
   })
 
-  it('résultat net : IRS estimé à 23 % ; titres de l’année', async () => {
-    expect(await reponseDeSecours('Qual é o meu resultado líquido?')).toContain('IRS retido (est. 23%)')
+  it('résultat net : IRS estimé à 23 %, hypothèse dite ; titres de l’année', async () => {
+    expect(await reponseDeSecours('Qual é o meu resultado líquido?')).toContain('IRS retido (est. 23%, atividades da tabela do art.º 151.º)')
     expect(await reponseDeSecours('Segurança Social')).toContain('Contribuições Segurança Social 2026 (Portugal)')
     expect(await reponseDeSecours('Olá')).toContain('Léa — Contabilista IA BTP Portugal 2026')
   })
+})
+
+// Garde : le prompt des pros français ne bouge pas (ni l'année de sa législation, ni aucun texte portugais ajouté).
+describe('Léa en français : prompt inchangé', () => {
+  const ABSENTS_FR = ['legislação portuguesa', 'REFERENCIAL', 'IAS 20', 'Mínimo de existência', 'Retenção na fonte', 'pagamento especial por conta']
+
+  for (const [cas, financialContext] of [
+    ['artisan', { orgRole: 'artisan', annualCAHT: 30_000, totalExpenses: 5_000 }],
+    ['société', { orgRole: 'pro_societe', legalForm: 'SARL', annualCAHT: 200_000, totalExpenses: 80_000 }],
+  ] as const) {
+    it(`${cas} : « législation française 2026 », y compris l’année suivante, aucun texte portugais`, async () => {
+      for (const date of ['2026-11-17T12:00:00Z', '2027-03-02T12:00:00Z']) {
+        vi.setSystemTime(new Date(date))
+        const prompt = await promptEnvoye({ message: 'Bonjour', locale: 'fr', financialContext })
+        expect(prompt).toContain('conforme à la **législation française 2026**')
+        expect(prompt).toContain('Reste **à jour avec la législation française 2026**')
+        for (const absent of ABSENTS_FR) expect(prompt).not.toContain(absent)
+      }
+    })
+  }
 })

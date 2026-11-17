@@ -156,6 +156,7 @@ export function iasPt(annee: number): ValorAno<number> {
  * 73-A/2025 ; 12 180 € en 2025, Lei n.º 45-A/2024) et de 1,5 × 14 × IAS. Ce n'est pas une exonération mais un
  * abatimento (n.º 2), réservé aux revenus surtout salariés, de pensions ou d'activités de la table de l'art. 151.º
  * (sauf le code 15) : les autres revenus de la catégorie B n'y ont pas droit.
+ * Ajouter une année ici en même temps que son IAS (IAS_PT) : le second terme se calcule avec l'IAS de cette année-là.
  */
 const MINIMO_EXISTENCIA_FIXO_PT: Readonly<Record<number, number>> = { 2025: 12_180, 2026: 12_880 }
 
@@ -211,10 +212,13 @@ export function escaloesIrsPt(annee: number): ValorAno<ReadonlyArray<EscalaoIrs>
 
 /** « 8 342 € » (espace insécable entre les milliers, dès 1 000) ; centimes seulement s'il y en a : « 537,13 € ». */
 export function eurPt(valor: number): string {
-  const [inteiro, decimais] = valor.toFixed(Number.isInteger(valor) ? 0 : 2).split('.')
-  const agrupado = inteiro.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
+  const sinal = valor < 0 ? '-' : ''
+  const [inteiro, decimais] = Math.abs(valor).toFixed(Number.isInteger(valor) ? 0 : 2).split('.')
+  const grupos: string[] = []
+  for (let fim = inteiro.length; fim > 0; fim -= 3) grupos.unshift(inteiro.slice(Math.max(0, fim - 3), fim))
+  const agrupado = grupos.join(' ')
   const numero = decimais ? agrupado + ',' + decimais : agrupado
-  return `${numero} €`
+  return `${sinal}${numero} €`
 }
 
 /** « 23% », « 11,5% » : un taux en pourcentage, virgule décimale. */

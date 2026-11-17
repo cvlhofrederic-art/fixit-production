@@ -573,10 +573,10 @@ Faturação anual s/IVA        : ${fmt(annualHT)}
 Despesas totais              : ${fmt(totalExpenses)}
 Rendimento relevante (70%)   : ${fmt(rendRelevante)}
 Seg. Social (21,4%)          : ${fmt(segSocial)}
-IRS retido na fonte (~${percentPt(taxaRetencao)})   : ${fmt(irsEstimado)}
+IRS retido na fonte (~${percentPt(taxaRetencao)}, hipótese tabela 151.º): ${fmt(irsEstimado)}
 Resultado líquido estimado   : ${fmt(net)}
 Regime Simplificado          : ${pctRS}% / 200 000 €
-Coeficiente (tabela 151.º)   : ${coefSimplificado} (75% tributado)
+Coeficiente (hipótese tabela 151.º): ${coefSimplificado} (75% tributado)
 Isenção IVA (art.53.º)      : ${ivaStatus}
 ${annualHT > 170000 ? '🚨 ALERTA: Próximo do limite Regime Simplificado (200 000 €) — antecipar contabilidade organizada!' : ''}
 
@@ -592,7 +592,7 @@ ${quarterLines}`
 **Declaração trimestral SS:** janeiro, abril, julho, outubro (Portal Seg. Social Direta)
 **Isenção SS 1.º ano:** primeiros 12 meses de atividade (art.º 169.º CRCSPSS)
 **IRS Regime Simplificado, coeficientes (art.º 31.º CIRS):** 0,75 (atividades da tabela do art.º 151.º), 0,35 (outras prestações de serviços), 0,15 (vendas de mercadorias e produtos)
-**Retenção na fonte (cat. B, art.º 101.º CIRS):** ${percentPt(RETENCAO_CAT_B_PT.tabela151)} (atividades da tabela do art.º 151.º) ou ${percentPt(RETENCAO_CAT_B_PT.outrosServicos)} (outras prestações de serviços), feita pelo cliente com contabilidade organizada. Dispensa (art.º 101.º-B) se previr faturar menos de ${eurPt(limiteDispensaRetencaoPt())} no ano e não tiver atingido esse valor no ano anterior
+**Retenção na fonte (cat. B, art.º 101.º CIRS):** ${percentPt(RETENCAO_CAT_B_PT.tabela151)} (atividades da tabela do art.º 151.º) ou ${percentPt(RETENCAO_CAT_B_PT.outrosServicos)} (outras prestações de serviços), feita pelo cliente que tem ou deve ter contabilidade organizada. Dispensa (art.º 101.º-B) se previr faturar menos de ${eurPt(limiteDispensaRetencaoPt())} no ano e não tiver atingido esse valor no ano anterior
 **Limite Regime Simplificado:** 200 000 € faturação anual
 **Isenção IVA art.53.º CIVA:** ≤ 15 000 € de faturação no ano anterior; entre 15 000 € e 18 750 € no ano, mantém-se até 31 de dezembro; acima de 18 750 €, cessa de imediato
 **IVA construção/remodelação:** 23% (taxa normal)
@@ -685,7 +685,7 @@ au Portugal.
 FORMES JURIDIQUES PORTUGAISES :
   • ENI (Empresário em Nome Individual) — équivalent micro-entreprise PT
     └ Regime Simplificado : CA < 200 000 € → base IRS = coef 0,75 (activités de la tabela do art.º 151.º), 0,35 (autres prestações de serviços) ou 0,15 (vendas)
-    └ Contribuição Segurança Social : 21,4% base contributiva (21,4% TI 2026)
+    └ Contribuição Segurança Social : 21,4% base contributiva (21,4% TI)
     └ IVA : isenção art.53.º CIVA si CA de l'année précédente ≤ 15 000 € ; entre 15 000 € et 18 750 € dans l'année, maintenue jusqu'au 31/12 ; au-delà de 18 750 €, fin immédiate
   • Sociedade Unipessoal por Quotas (Lda) — équivalent EURL
     └ IRC ${ircPtTexte} sur bénéfice + derrama municipal 0-1,5% selon commune
@@ -990,7 +990,7 @@ Faturação anual s/IVA (${currentYear})   : ${fmtPt(ht)}
 Despesas totais dedutíveis       : ${fmtPt(totalDep)}
 Rendimento relevante SS (70%)    : ${fmtPt(rendRelevante)}
 Seg. Social estimada (21,4%)     : ${fmtPt(segSocial)}
-IRS retido na fonte (~${retTabela})        : ${fmtPt(irsRetido)}
+IRS retido na fonte (~${retTabela}, hipótese tabela 151.º): ${fmtPt(irsRetido)}
 Resultado líquido estimado       : ${fmtPt(resultado)}
 Regime Simplificado utilizado    : ${pctRS}% / 200 000 €
 Isenção IVA (art.53.º CIVA)     : ${ivaStatus}
@@ -1036,9 +1036,9 @@ ${expenseLinesPt || '  (Nenhuma despesa registada)'}
   - Pagamento **mensal**: até ao dia **20 do mês seguinte** (ex: SS de janeiro → pagar até 20 de fevereiro).
   - **Declaração trimestral** de rendimentos: janeiro (T4 anterior), abril (T1), julho (T2), outubro (T3), via Portal da Segurança Social Direta (segurancasocial.pt).
   - IAS ${ias.ano}: **${eurPt(ias.valor)}/mês**, referência da isenção por acumulação com emprego (4 × IAS) e do limite do IRS Jovem (55 × IAS).
-  - Contribuição mínima: **20 €/mês**, quando não há rendimentos ou as contribuições apuradas ficam abaixo de 20 €; a partir de janeiro do ano seguinte, fica isento enquanto essa situação se mantiver.
+  - Contribuição mínima: **20 €/mês**, mesmo sem rendimentos ou quando a contribuição apurada é inferior a 20 €. Quem, no ano anterior, não teve rendimentos ou só esteve obrigado ao valor mínimo fica isento a partir de janeiro, enquanto essas condições se mantiverem (isenção reconhecida oficiosamente ou a pedido).
   - Isenção 1.º ano: trabalhadores que iniciam atividade pela primeira vez estão **isentos de SS nos primeiros 12 meses** (art.º 169.º CRCSPSS). Posteriormente, tributação escalonada.
-  - **Isenção de contribuições SS por acumulação com emprego (art.º 157.º CRCSPSS):** o trabalhador independente que **acumule atividade independente com emprego por conta de outrem** fica isento de contribuições como independente quando o seu **rendimento relevante médio mensal, apurado trimestralmente, for inferior a 4 × IAS** (${eurPt(isencaoSs.valor)}/mês em ${isencaoSs.ano}), desde que as duas atividades sejam prestadas a entidades distintas, sem relação de domínio ou de grupo, que o emprego o enquadre noutro regime de proteção social que cubra todas as eventualidades e que a remuneração média mensal desse emprego seja de pelo menos 1 IAS. A entidade patronal já contribui pelo trabalhador; a isenção evita dupla contributiva. Deve ser requerida junto do ISS/Seg. Social Direta.
+  - **Isenção de contribuições SS por acumulação com emprego (art.º 157.º CRCSPSS):** o trabalhador independente que **acumule atividade independente com emprego por conta de outrem** fica isento de contribuições como independente quando o seu **rendimento relevante médio mensal, apurado trimestralmente, for inferior a 4 × IAS** (${eurPt(isencaoSs.valor)}/mês em ${isencaoSs.ano}), desde que as duas atividades sejam prestadas a entidades distintas, sem relação de domínio ou de grupo, que o emprego o enquadre noutro regime de proteção social que cubra todas as eventualidades e que a remuneração média mensal desse emprego seja de pelo menos 1 IAS. A entidade patronal já contribui pelo trabalhador; a isenção evita a dupla contribuição. No regime geral, a Segurança Social reconhece-a oficiosamente; noutros regimes de proteção social (por exemplo, a Caixa Geral de Aposentações), é pedida com o modelo RC 3001.
   - Se o rendimento como independente exceder 4 × IAS, paga contribuições SS apenas sobre o excedente acima desse limiar.
 - **IRS (trabalhadores independentes): taxas gerais ${escaloesIrs.ano} (art.º 68.º CIRS, sobre o rendimento coletável):**
   - ${linhaEscaloesIrs}.
@@ -1049,7 +1049,7 @@ ${expenseLinesPt || '  (Nenhuma despesa registada)'}
   - Regime Simplificado (art.º 31.º CIRS): coeficiente **0,75** nas atividades profissionais da tabela do art.º 151.º, **0,35** nas outras prestações de serviços e **0,15** nas vendas de mercadorias e produtos. Limite: 200 000 €/ano.
   - Deduções específicas cat. B: mínimo 4 104 € ou despesas efetivas comprovadas (art.º 83.º CIRS).
   - **Mínimo de existência ${minimoExistencia.ano} (art.º 70.º CIRS):** valor de referência de **${eurPt(minimoExistencia.valor)}**. Não é uma isenção: dá um abatimento que reduz ou anula o IRS de rendimentos baixos, apenas a quem tem rendimentos predominantemente de trabalho dependente, de pensões ou de atividades da tabela do art.º 151.º (exceto o código 15).
-  - Pagamentos por conta (IRS, art.º 102.º CIRS): até ao dia 20 de julho, de setembro e de dezembro, nos valores comunicados pela AT (calculados a partir do imposto do penúltimo ano, deduzidas as retenções da categoria B); dispensados se inferiores a 50 €; deixam de ser devidos quando as retenções e os pagamentos já feitos cobrem o imposto do ano.
+  - Pagamentos por conta (IRS, art.º 102.º CIRS): até ao dia 20 de julho, de setembro e de dezembro, nos valores comunicados pela AT com a liquidação do penúltimo ano; não são devidos se inferiores a 50 €. Deixam de ser obrigatórios quando o contribuinte verifica que as retenções e os pagamentos já feitos no ano cobrem o imposto devido, ou quando deixa de ter rendimentos da categoria B; podem ser reduzidos quando excedem o imposto que ainda falta pagar.
 - **IRC (sociedades):** taxa ${Math.round(ircPt.general * 100)}% em ${currentYear} (PME: ${Math.round(ircPt.reduit * 100)}% até 50 000 € de matéria coletável). Derrama municipal até 1,5%.
 - **SAF-T (PT):** obrigatório apenas para quem usa **software de faturação certificado pela AT** (Portaria 321-A/2007 e Decreto-Lei 28/2019). Quem emite faturas diretamente no **Portal e-Fatura (AT)** não tem obrigação de submeter SAF-T separado — a AT já tem acesso às faturas comunicadas. O SAF-T é exigido quando o contribuinte usa software de faturação externo certificado (ex: PHC, Primavera, Sage, etc.) e serve para exportar o ficheiro mensal de faturação para a AT.
 
@@ -1062,7 +1062,7 @@ ${expenseLinesPt || '  (Nenhuma despesa registada)'}
 ### 4️⃣ Conselho estratégico e otimização
 - Aconselhar sobre a melhor forma jurídica: Recibos Verdes → ENI → Unipessoal Lda → Lda.
 - Otimizar encargos sociais e fiscais: deduções, amortizações (contabilidade organizada).
-- **IRS Jovem (art.º 12.º-B CIRS, redação do OE 2025):** isenção parcial dos rendimentos das categorias A e B de quem tem **até 35 anos** e não é dependente, nos **10 primeiros anos de obtenção de rendimentos**: **100%** no 1.º ano, **75%** do 2.º ao 4.º, **50%** do 5.º ao 7.º e **25%** do 8.º ao 10.º ano, com o limite de **55 × IAS** (${eurPt(irsJovem.valor)} em ${irsJovem.ano}). Opção na declaração Modelo 3.
+- **IRS Jovem (art.º 12.º-B CIRS, redação do OE 2025):** isenção dos rendimentos das categorias A e B de quem tem **até 35 anos** e não é dependente, nos **10 primeiros anos de obtenção de rendimentos**: **100%** no 1.º ano, **75%** do 2.º ao 4.º, **50%** do 5.º ao 7.º e **25%** do 8.º ao 10.º ano, com o limite de **55 × IAS** (${eurPt(irsJovem.valor)} em ${irsJovem.ano}). Opção na declaração Modelo 3.
 - Apoios e incentivos: Portugal 2030, IEFP, crédito fiscal SIFIDE, RFAI, Reabilitação Urbana.
 - Seguros profissionais obrigatórios (RC Profissional, RC Obra, Acidentes de Trabalho).
 - Impacto fiscal de contratação (trabalhador independente vs subordinado).
@@ -1086,9 +1086,9 @@ ${expenseLinesPt || '  (Nenhuma despesa registada)'}
 **Isenção SS 1.º ano:** isenção total nos primeiros 12 meses de atividade (art.º 169.º CRCSPSS)
 **Isenção SS por acumulação (art.º 157.º CRCSPSS):** independente + trabalhador por conta de outrem → isenção se o rendimento relevante médio mensal for inferior a 4 × IAS (${eurPt(isencaoSs.valor)}/mês em ${isencaoSs.ano}) e o emprego, noutra entidade, pagar pelo menos 1 IAS
 **IRS Regime Simplificado, coeficientes (art.º 31.º CIRS):** 0,75 (atividades da tabela do art.º 151.º), 0,35 (outras prestações de serviços), 0,15 (vendas de mercadorias e produtos)
-**Retenção na fonte (cat. B, art.º 101.º CIRS):** ${retTabela} (atividades da tabela do art.º 151.º) ou ${retOutros} (outras prestações de serviços), feita pelo cliente com contabilidade organizada. Dispensa (art.º 101.º-B) se previr faturar menos de ${dispensaRetencao} no ano e não tiver atingido esse valor no ano anterior.
+**Retenção na fonte (cat. B, art.º 101.º CIRS):** ${retTabela} (atividades da tabela do art.º 151.º) ou ${retOutros} (outras prestações de serviços), feita pelo cliente que tem ou deve ter contabilidade organizada. Dispensa (art.º 101.º-B) se previr faturar menos de ${dispensaRetencao} no ano e não tiver atingido esse valor no ano anterior.
 **IRS Jovem (art.º 12.º-B CIRS):** até 35 anos, 10 primeiros anos de obtenção de rendimentos (categorias A e B): isenção de 100% (1.º ano), 75% (2.º ao 4.º), 50% (5.º ao 7.º) e 25% (8.º ao 10.º). Limite: 55 × IAS = ${eurPt(irsJovem.valor)} em ${irsJovem.ano}.
-**Mínimo de existência ${minimoExistencia.ano} (art.º 70.º CIRS):** ${eurPt(minimoExistencia.valor)}, abatimento para rendimentos baixos predominantemente de trabalho dependente, pensões ou atividades da tabela do art.º 151.º.
+**Mínimo de existência ${minimoExistencia.ano} (art.º 70.º CIRS):** ${eurPt(minimoExistencia.valor)}, abatimento para rendimentos baixos predominantemente de trabalho dependente, pensões ou atividades da tabela do art.º 151.º (exceto o código 15).
 **IAS ${ias.ano}:** ${eurPt(ias.valor)}/mês (referência da isenção SS por acumulação e do limite do IRS Jovem).
 **Limite Regime Simplificado:** 200 000 € faturação anual
 **IRC PME — taxa reduzida (até 50k€ lucro):** ${Math.round(ircPt.reduit * 100)}% em ${currentYear}
@@ -1195,7 +1195,7 @@ function generateFallbackResponse(message: string, ctx: Record<string, any>, loc
     if (msgLower.includes('irs') || msgLower.includes('retenção') || msgLower.includes('retenç')) {
       const escaloes = faixasIrsPt(ano)
       const listaEscaloes = escaloes.valor.map(e => '- ' + e.faixa + ': ' + e.taxa).join('\n')
-      return `📊 **IRS — Trabalhadores Independentes (Portugal ${ano})**\n\nRendimento estimado: **${fmt(ht)}**\nRetenção na fonte (art.º 101.º CIRS): **${percentPt(taxaRetencao)}** nas atividades da tabela do art.º 151.º (${percentPt(RETENCAO_CAT_B_PT.outrosServicos)} nas outras prestações de serviços), só quando o cliente tem contabilidade organizada\nIRS estimado retido (${percentPt(taxaRetencao)}): **${fmt(irs)}**\n\n💡 **Dispensa de retenção (art.º 101.º-B):** se previr faturar menos de ${eurPt(limiteDispensaRetencaoPt())} no ano e não tiver atingido esse valor no ano anterior (com menção na fatura-recibo).\n\n**Taxas gerais do IRS ${escaloes.ano} (art.º 68.º CIRS, sobre o rendimento coletável):**\n${listaEscaloes}\n\n💡 Declare na **Declaração Mod. 3 IRS** (1 abril – 30 junho). No Regime Simplificado (art.º 31.º), o coeficiente é 0,75 nas atividades da tabela do art.º 151.º, 0,35 nas outras prestações de serviços e 0,15 nas vendas de mercadorias e produtos.\n\n*⚠️ Consulte um TOC para confirmação.*`
+      return `📊 **IRS — Trabalhadores Independentes (Portugal ${ano})**\n\nRendimento estimado: **${fmt(ht)}**\nRetenção na fonte (art.º 101.º CIRS): **${percentPt(taxaRetencao)}** nas atividades da tabela do art.º 151.º (${percentPt(RETENCAO_CAT_B_PT.outrosServicos)} nas outras prestações de serviços), só quando o cliente tem ou deve ter contabilidade organizada\nIRS estimado retido (${percentPt(taxaRetencao)}, se atividade da tabela do art.º 151.º): **${fmt(irs)}**\n\n💡 **Dispensa de retenção (art.º 101.º-B):** se previr faturar menos de ${eurPt(limiteDispensaRetencaoPt())} no ano e não tiver atingido esse valor no ano anterior (com menção na fatura-recibo).\n\n**Taxas gerais do IRS ${escaloes.ano} (art.º 68.º CIRS, sobre o rendimento coletável):**\n${listaEscaloes}\n\n💡 Declare na **Declaração Mod. 3 IRS** (1 abril – 30 junho). No Regime Simplificado (art.º 31.º), o coeficiente é 0,75 nas atividades da tabela do art.º 151.º, 0,35 nas outras prestações de serviços e 0,15 nas vendas de mercadorias e produtos.\n\n*⚠️ Consulte um TOC para confirmação.*`
     }
 
     if (msgLower.includes('iva') || msgLower.includes('taxa')) {
@@ -1204,7 +1204,7 @@ function generateFallbackResponse(message: string, ctx: Record<string, any>, loc
     }
 
     if (msgLower.includes('resultado') || msgLower.includes('net') || msgLower.includes('lucro') || msgLower.includes('bénéfice')) {
-      return `📊 **Resultado líquido estimado ${ano}**\n\nFaturação líquida (s/IVA): **${fmt(ht)}**\n− Despesas dedutíveis: **${fmt(totalExpenses)}**\n− Seg. Social (~21,4%): **${fmt(segSocial)}**\n− IRS retido (est. ${percentPt(taxaRetencao)}): **${fmt(irs)}**\n\n**= Resultado líquido: ${fmt(net)}**\n\n💡 Margem líquida: ${ht > 0 ? ((net / ht) * 100).toFixed(1) : 0}%. Referência construção PT: 12-22%.\n\n*⚠️ Informação indicativa. Consulte um TOC/ROC.*`
+      return `📊 **Resultado líquido estimado ${ano}**\n\nFaturação líquida (s/IVA): **${fmt(ht)}**\n− Despesas dedutíveis: **${fmt(totalExpenses)}**\n− Seg. Social (~21,4%): **${fmt(segSocial)}**\n− IRS retido (est. ${percentPt(taxaRetencao)}, atividades da tabela do art.º 151.º): **${fmt(irs)}**\n\n**= Resultado líquido: ${fmt(net)}**\n\n💡 Margem líquida: ${ht > 0 ? ((net / ht) * 100).toFixed(1) : 0}%. Referência construção PT: 12-22%.\n\n*⚠️ Informação indicativa. Consulte um TOC/ROC.*`
     }
 
     if (msgLower.includes('estatuto') || msgLower.includes('estrutura') || msgLower.includes('juridic')) {

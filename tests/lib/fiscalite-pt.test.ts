@@ -133,7 +133,7 @@ describe('références datées de Léa', () => {
   })
 
   it('escalões en portugais, sans tiret long ni espace avant « : »', () => {
-    const linhas = faixasIrsPt(2026).valor.map(f => `${f.faixa}: ${f.taxa}`.replace(/ /g, ' '))
+    const linhas = faixasIrsPt(2026).valor.map(f => `${f.faixa}: ${f.taxa}`.replaceAll(' ', ' '))
     expect(linhas).toHaveLength(9)
     expect(linhas[0]).toBe('Até 8 342 €: 12,2%')
     expect(linhas[1]).toBe('Mais de 8 342 € até 12 587 €: 15,2%')
@@ -150,12 +150,16 @@ describe('références datées de Léa', () => {
   })
 
   it('eurPt : milliers séparés dès 1 000, centimes seulement s’il y en a', () => {
-    const eur = (valor: number) => eurPt(valor).replace(/ /g, ' ')
+    const eur = (valor: number) => eurPt(valor).replaceAll(' ', ' ')
     expect(eur(950)).toBe('950 €')
+    expect(eur(1_000)).toBe('1 000 €')
     expect(eur(8_342)).toBe('8 342 €')
     expect(eur(15_000)).toBe('15 000 €')
     expect(eur(522.5)).toBe('522,50 €')
     expect(eur(537.13)).toBe('537,13 €')
     expect(eur(29_542.15)).toBe('29 542,15 €')
+    expect(eur(1_234_567.5)).toBe('1 234 567,50 €')
+    expect(eur(-123)).toBe('-123 €')
+    expect(eur(-1_234)).toBe('-1 234 €')
   })
 })
