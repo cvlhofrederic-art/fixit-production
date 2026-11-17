@@ -244,7 +244,8 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
     if (!SpeechRecognition) return
 
     const recognition = new SpeechRecognition()
-    recognition.lang = 'fr-FR'
+    // Dictée dans la langue de l'interface : un artisan portugais dicte en portugais.
+    recognition.lang = locale === 'pt' ? 'pt-PT' : 'fr-FR'
     recognition.continuous = true
     recognition.interimResults = true
     recognition.maxAlternatives = 1
