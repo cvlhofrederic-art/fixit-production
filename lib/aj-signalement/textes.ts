@@ -16,6 +16,9 @@
 // dossier) : numéros d'urgence français fixés par l'annexe de la décision ARCEP n° 2022-2372 (112, 15, 17, 18, 114…) ;
 // 114 pour les personnes sourdes, malentendantes, sourdaveugles et aphasiques (CPCE, art. D. 98-8-1) ; au Portugal, le 112
 // seul. Aucun texte n'impose cet affichage sur un formulaire privé : mesure de prudence. Ni délai ni intervention promis.
+// Bâtiments saisis par le cabinet (demande de Hugo du 17/11/2026, lib/aj-signalement/batiments.ts) : liste à choix au lieu
+// du texte libre (choisirBatiment, batimentListeAide) et refus d'un bâtiment absent de la liste (erreurs.batiment_inconnu,
+// rendu aussi par la route du dépôt, dans la langue de la page). TEXTES PROPOSÉS, brouillon (portugais à relire, H4).
 
 import { parLangue } from '@/lib/aj-signalement/bilingue'
 import type { LangueSignalementQr, QualiteDeclarantQr, StatutOuvertQr } from '@/lib/aj-signalement/types'
@@ -43,6 +46,9 @@ export interface TextesSignalementQr {
   email: string
   batiment: string
   batimentAide: string
+  /** Bâtiments saisis par le cabinet : option vide de la liste à choix et aide sous le champ (17/11/2026). */
+  choisirBatiment: string
+  batimentListeAide: string
   etage: string
   numLot: string
   qualite: string
@@ -82,6 +88,8 @@ export interface TextesSignalementQr {
     reseau: string
     introuvable: string
     base_absente: string
+    /** 400 du dépôt : bâtiment absent de la liste saisie par le cabinet (17/11/2026). */
+    batiment_inconnu: string
   }
   piedDePage: string
   /** PR 3, lot 7 : information à la collecte (texte proposé, HF3). */
@@ -115,6 +123,11 @@ export const TEXTES_SIGNALEMENT_QR: Record<LangueSignalementQr, TextesSignalemen
   batimentAide: {
     fr: 'Lettre, numéro ou nom du bâtiment (ex. A, 2, Les Pins).',
     pt: 'Letra, número ou nome do bloco (ex. A, 2, Os Pinheiros).',
+  },
+  choisirBatiment: { fr: 'Choisir…', pt: 'Escolher…' },
+  batimentListeAide: {
+    fr: 'Choisissez votre bâtiment dans la liste.',
+    pt: 'Escolha o seu bloco na lista.',
   },
   etage: { fr: 'Étage', pt: 'Piso' },
   numLot: { fr: 'Numéro de lot', pt: 'Número da fração' },
@@ -208,6 +221,10 @@ export const TEXTES_SIGNALEMENT_QR: Record<LangueSignalementQr, TextesSignalemen
     base_absente: {
       fr: 'Le service de signalement n’est pas encore activé. Réessayez plus tard.',
       pt: 'O serviço de ocorrências ainda não está ativo. Tente mais tarde.',
+    },
+    batiment_inconnu: {
+      fr: 'Ce bâtiment ne figure pas dans la liste de la copropriété : rechargez la page, choisissez votre bâtiment dans la liste, puis réessayez.',
+      pt: 'Este bloco não consta da lista do condomínio: recarregue a página, escolha o seu bloco na lista e tente novamente.',
     },
   }),
   piedDePage: { fr: 'AJ Signalement — un service VITFIX', pt: 'AJ Signalement — um serviço VITFIX' },

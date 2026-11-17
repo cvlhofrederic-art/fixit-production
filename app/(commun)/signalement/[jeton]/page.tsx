@@ -3,6 +3,7 @@ import { notFound, permanentRedirect } from 'next/navigation'
 import AppSignalementQr from '@/components/aj-signalement/AppSignalementQr'
 import { lireCoproprieteEtCabinetParJetonQr } from '@/lib/aj-signalement/serveur'
 import { estJetonQr } from '@/lib/aj-signalement/types'
+import { batimentsProposesQr } from '@/lib/aj-signalement/batiments'
 
 // ── AJ Signalement : page ouverte par le QR code d'une copropriété ────────────
 //
@@ -13,6 +14,8 @@ import { estJetonQr } from '@/lib/aj-signalement/types'
 // Copropriété rattachée à un cabinet client (choix de Hugo du 10/11/2026) : redirection permanente (308) vers
 // vitfix.io/<identifiant>/signalement/<jeton>/. Les QR codes déjà imprimés continuent donc de marcher ; le 308 peut être
 // gardé par les navigateurs sans risque, car le rattachement est définitif et l'identifiant figé (triggers en base).
+// Bâtiments saisis (demande de Hugo du 17/11/2026) : comme la page du chemin client, seuls leurs noms nettoyés sont passés
+// au formulaire (liste à choix) ; aucun : texte libre.
 
 export const dynamic = 'force-dynamic'
 
@@ -26,7 +29,9 @@ export default async function PageSignalementQr({ params }: { params: Promise<{ 
   return (
     <AppSignalementQr
       jeton={jeton}
-      copropriete={{ nom: lecture.copropriete.nom ?? '', adresse: lecture.copropriete.adresse ?? '' }}
+      copropriete={{
+        nom: lecture.copropriete.nom ?? '', adresse: lecture.copropriete.adresse ?? '', batiments: batimentsProposesQr(lecture.copropriete.batiments),
+      }}
       langue={langue}
     />
   )

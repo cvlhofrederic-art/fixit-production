@@ -22,6 +22,11 @@
 // rendue avec la confirmation : l'écran de confirmation d'un signalement urgent répète la consigne renforcée. Ni la route
 // ni le schéma ne changent ; l'accusé de réception d'un signalement urgent, lui, porte la consigne
 // (lib/aj-signalement/email.ts).
+// Bâtiments saisis par le cabinet (demande de Hugo du 17/11/2026, brouillon soumis à Frédéric) : quand la copropriété en a
+// au moins un, le champ « Bâtiment » devient une liste à choix native (select), dans l'ordre saisi, précédée d'une option
+// vide « Choisir… » ; même libellé, aide sous le champ (adaptée au choix), toujours obligatoire. Sans bâtiment saisi, le
+// texte libre est inchangé. La route refuse un bâtiment absent de la liste (batiment_inconnu : message dédié, formulaire
+// intact).
 
 import { useId, useRef, useState, type InputHTMLAttributes } from 'react'
 import { TYPES_PROBLEME, ZONES_COMMUNES, remplir, type TextesCopro } from '@/lib/coproprietaire/textes'
@@ -57,6 +62,8 @@ export interface PropsFormulaireSignalementQr {
   adresseProposee?: string
   /** PR 3, lot 7 : information à la collecte (politique du cabinet) ; absente : rien ne s'affiche. */
   information?: InformationFormulaireQr | null
+  /** Bâtiments saisis par le cabinet (déjà nettoyés par la page serveur) ; absents ou vides : texte libre. */
+  batiments?: readonly string[]
   onEnvoye: (confirmation: ConfirmationSignalementQr) => void
 }
 
@@ -100,14 +107,23 @@ function messageErreurEnvoi(code: CodeErreurQr, tq: TextesSignalementQr): string
     case 'reseau':
     case 'introuvable':
     case 'base_absente':
+    case 'batiment_inconnu':
       return tq.erreurs[code]
     default:
       return tq.erreurs.serveur
   }
 }
 
+const AUCUN_BATIMENT: readonly string[] = []
+
+/** Aide sous une coordonnée : seul le bâtiment en a une, adaptée au choix dans la liste du cabinet ou au texte libre. */
+function aideDuChamp(champ: ChampCoordonnees, choixBatiment: boolean, tq: TextesSignalementQr): string | undefined {
+  if (champ !== 'batiment') return undefined
+  return choixBatiment ? tq.batimentListeAide : tq.batimentAide
+}
+
 export default function FormulaireSignalementQr({
-  jeton, langue, t, tq, adresseProposee = '', information = null, onEnvoye,
+  jeton, langue, t, tq, adresseProposee = '', information = null, batiments = AUCUN_BATIMENT, onEnvoye,
 }: Readonly<PropsFormulaireSignalementQr>) {
   const idBase = useId()
   const idZone = `${idBase}-zone`
@@ -202,7 +218,10 @@ export default function FormulaireSignalementQr({
           {CHAMPS_COORDONNEES.map((champ) => {
             const id = `${idBase}-${champ}`
             const erreurChamp = quittes.has(champ) ? erreurs[champ] : undefined
-            const aide = champ === 'batiment' ? tq.batimentAide : undefined
+            // Bâtiments saisis par le cabinet : liste à choix, dans l'ordre saisi ; sinon le texte libre d'avant.
+            const choixBatiment = champ === 'batiment' && batiments.length > 0
+            const aide = aideDuChamp(champ, choixBatiment, tq)
+            const description = erreurChamp || aide ? `${id}-aide` : undefined
             return (
               <Champ
                 key={champ}
@@ -211,18 +230,35 @@ export default function FormulaireSignalementQr({
                 aide={aide}
                 erreur={erreurChamp ? messageErreurChamp(champ, erreurChamp, tq) : undefined}
               >
-                <input
-                  id={id}
-                  name={champ}
-                  value={valeurs[champ]}
-                  onChange={(e) => changer(champ, e.target.value)}
-                  onBlur={() => quitter(champ)}
-                  required
-                  aria-invalid={erreurChamp ? true : undefined}
-                  aria-describedby={erreurChamp || aide ? `${id}-aide` : undefined}
-                  className={CLASSES_SAISIE}
-                  {...ATTRIBUTS_CHAMP[champ]}
-                />
+                {choixBatiment ? (
+                  <select
+                    id={id}
+                    name={champ}
+                    value={valeurs[champ]}
+                    onChange={(e) => changer(champ, e.target.value)}
+                    onBlur={() => quitter(champ)}
+                    required
+                    aria-invalid={erreurChamp ? true : undefined}
+                    aria-describedby={description}
+                    className={CLASSES_SAISIE}
+                  >
+                    <option value="">{tq.choisirBatiment}</option>
+                    {batiments.map((b) => <option key={b} value={b}>{b}</option>)}
+                  </select>
+                ) : (
+                  <input
+                    id={id}
+                    name={champ}
+                    value={valeurs[champ]}
+                    onChange={(e) => changer(champ, e.target.value)}
+                    onBlur={() => quitter(champ)}
+                    required
+                    aria-invalid={erreurChamp ? true : undefined}
+                    aria-describedby={description}
+                    className={CLASSES_SAISIE}
+                    {...ATTRIBUTS_CHAMP[champ]}
+                  />
+                )}
               </Champ>
             )
           })}

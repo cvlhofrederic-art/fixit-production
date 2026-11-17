@@ -303,5 +303,7 @@ export const TEXTES_TABLEAU_QR = {
     langue_non_ouverte: 'La diffusion n’est pas encore ouverte dans la langue de ce cabinet.',
     texte_refuse: 'Le message n’est pas accepté : corrigez-le selon l’indication sous le champ.',
     configuration_incomplete: 'Fonction pas encore activée.',
+    // Dépôt public seulement (17/11/2026) : la page publique a son propre texte (lib/aj-signalement/textes.ts).
+    batiment_inconnu: 'Ce bâtiment ne figure pas dans la liste de la copropriété.',
   } satisfies Record<CodeErreurQr, string>,
 } as const
