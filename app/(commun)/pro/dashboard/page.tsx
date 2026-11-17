@@ -1310,7 +1310,7 @@ function DashboardPage() {
 
           {/* ────── SITUATIONS DE TRAVAUX (Société BTP) ────── */}
           {activePage === 'situations' && (
-            <FiletSocieteBtp actif={orgRole === 'pro_societe'} titre={isPt ? 'Erro nas situações de obra' : 'Erreur dans les situations de travaux'} locale={isPt ? 'pt' : 'fr'}>
+            <FiletSocieteBtp actif={orgRole === 'pro_societe'} titre={isPt ? 'Erro nos autos de medição' : 'Erreur dans les situations de travaux'} locale={isPt ? 'pt' : 'fr'}>
             <div className="p-4 lg:p-5 animate-fadeIn">
               <SituationsTravaux userId={artisan?.id || ''} orgRole={orgRole} />
             </div>
@@ -1319,7 +1319,7 @@ function DashboardPage() {
 
           {/* ────── RETENUES DE GARANTIE (Société BTP) ────── */}
           {activePage === 'garanties' && (
-            <FiletSocieteBtp actif={orgRole === 'pro_societe'} titre={isPt ? 'Erro nas retenções de garantia' : 'Erreur dans les retenues de garantie'} locale={isPt ? 'pt' : 'fr'}>
+            <FiletSocieteBtp actif={orgRole === 'pro_societe'} titre={isPt ? 'Erro nas retenções para garantia' : 'Erreur dans les retenues de garantie'} locale={isPt ? 'pt' : 'fr'}>
             <div className="p-4 lg:p-5 animate-fadeIn">
               <RetenuesGarantieSection userId={artisan?.id || ''} orgRole={orgRole} />
             </div>
@@ -1328,7 +1328,7 @@ function DashboardPage() {
 
           {/* ────── POINTAGE GÉO V2 (Société BTP) — GPS + Manuel ────── */}
           {activePage === 'pointage' && (
-            <FiletSocieteBtp actif={orgRole === 'pro_societe'} titre={isPt ? 'Erro na marcação de horas' : 'Erreur dans le pointage'} locale={isPt ? 'pt' : 'fr'}>
+            <FiletSocieteBtp actif={orgRole === 'pro_societe'} titre={isPt ? 'Erro no registo de horas' : 'Erreur dans le pointage'} locale={isPt ? 'pt' : 'fr'}>
             <div className="p-4 lg:p-5 animate-fadeIn">
               <PointageGeoSection artisan={artisan!} orgRole={orgRole} />
             </div>
