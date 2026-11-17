@@ -2,16 +2,16 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { logger } from '@/lib/logger'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { appelerIA, iaTexteDisponible } from '@/lib/ai/relais'
+import { GROQ_MODEL_PRIMARY, GROQ_MODEL_RAPIDE } from '@/lib/constants'
 
 // Vercel serverless timeout (2 Tavily + 1 Groq = peut dépasser 10s)
 export const maxDuration = 30
 
-// Agent Matériaux — Powered by Groq (Llama 3.3-70B) + Tavily AI Search
+// Agent Matériaux — Groq (modèles de lib/constants.ts), Workers AI en relais, + Tavily AI Search
 // Expert BTP : normes DTU/NF/RE2020, prix magasin réels, conformité réglementaire
 
-const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
 const TAVILY_API_KEY = process.env.TAVILY_API_KEY || ''
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || ''
 
 // ─── Cache en mémoire (survit tant que la fonction serverless est chaude) ────
 // Clé = hash de la query normalisée, valeur = { data, timestamp }
@@ -193,97 +193,18 @@ Maçonnerie:
 - Sac enduit 30kg: LM 8-14€, BD 7-12€, Casto 7.5-13€
 `
 
-// ─── LLM Multi-provider (Groq → OpenRouter fallback) ─────────────────────────
-interface LLMProvider {
-  name: string
-  url: string
-  apiKey: string
-  models: string[]
-}
-
-function getProviders(preferredModel: string): LLMProvider[] {
-  const providers: LLMProvider[] = []
-  if (GROQ_API_KEY) {
-    providers.push({
-      name: 'Groq',
-      url: 'https://api.groq.com/openai/v1/chat/completions',
-      apiKey: GROQ_API_KEY,
-      models: preferredModel === 'llama-3.1-8b-instant'
-        ? ['llama-3.1-8b-instant']
-        : ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'],
-    })
-  }
-  if (OPENROUTER_API_KEY) {
-    providers.push({
-      name: 'OpenRouter',
-      url: 'https://openrouter.ai/api/v1/chat/completions',
-      apiKey: OPENROUTER_API_KEY,
-      models: ['meta-llama/llama-3.1-8b-instruct:free'],
-    })
-  }
-  return providers
-}
-
-async function callGroq(messages: Array<{ role: string; content: string }>, maxTokens = 1200, preferredModel = 'llama-3.3-70b-versatile') {
-  const providers = getProviders(preferredModel)
-  if (!providers.length) throw new Error('No LLM provider configured')
-
-  for (const provider of providers) {
-    for (const model of provider.models) {
-      const maxRetries = 2
-      for (let attempt = 0; attempt < maxRetries; attempt++) {
-        try {
-          const headers: Record<string, string> = {
-            Authorization: `Bearer ${provider.apiKey}`,
-            'Content-Type': 'application/json',
-          }
-          // OpenRouter requiert HTTP-Referer
-          if (provider.name === 'OpenRouter') {
-            headers['HTTP-Referer'] = process.env.NEXT_PUBLIC_APP_URL || 'https://vitfix.io'
-            headers['X-Title'] = 'Fixit Materiaux AI'
-          }
-
-          const res = await fetch(provider.url, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({
-              model,
-              messages,
-              temperature: 0.15,
-              max_tokens: maxTokens,
-            }),
-            // Wall-time illimité sur Cloudflare Workers tant que le client tient.
-            // 20s = budget raisonnable pour Llama 70B / OpenRouter fallback.
-            signal: AbortSignal.timeout(20000),
-          })
-
-          if (res.status === 429) {
-            const body = await res.text()
-            if (attempt < maxRetries - 1) {
-              const waitMatch = body.match(/try again in (\d+\.?\d*)s/i)
-              const waitSec = waitMatch ? Math.ceil(parseFloat(waitMatch[1])) + 1 : (attempt + 1) * 5
-              logger.warn(`[materiaux-ai] ${provider.name} 429 (${model}) — waiting ${waitSec}s`)
-              await new Promise(resolve => setTimeout(resolve, waitSec * 1000))
-              continue
-            }
-            logger.warn(`[materiaux-ai] ${provider.name} 429 (${model}) — trying next model/provider`)
-            break
-          }
-          if (!res.ok) {
-            logger.error(`${provider.name} error ${res.status} (${model})`)
-            break // Try next model/provider
-          }
-          const data = await res.json()
-          const content = data.choices?.[0]?.message?.content || ''
-          if (content) return content
-        } catch (e) {
-          logger.error(`${provider.name} fetch error (${model}):`, e)
-          break
-        }
-      }
-    }
-  }
-  throw new Error('All LLM providers failed — rate limited or unavailable')
+// ─── LLM : Groq, puis Workers AI en relais (lib/ai/relais.ts) ─────────────────
+// Le secours OpenRouter visait un modèle gratuit qui n'existe plus (page du modèle en 404 le 15/11/2026), et les
+// modèles Groq que nommait ce fichier ont été retirés le 16/08/2026 : la chaîne commune les remplace (Groq, son
+// repli, puis Workers AI si Groq échoue).
+async function appelerModele(messages: Array<{ role: string; content: string }>, maxTokens = 1200, modele = GROQ_MODEL_PRIMARY) {
+  const reponse = await appelerIA(
+    { model: modele, messages, temperature: 0.15, max_tokens: maxTokens },
+    { contexte: 'materiaux-ai' },
+  )
+  const content = reponse.choices?.[0]?.message?.content || ''
+  if (!content) throw new Error('[materiaux-ai] réponse vide du modèle')
+  return content
 }
 
 // ─── Domaines e-commerce BTP de confiance ─────────────────────────────────────
@@ -433,8 +354,13 @@ export async function POST(request: NextRequest) {
     if (!query?.trim()) {
       return NextResponse.json({ error: 'Query requise' }, { status: 400 })
     }
-    if (!GROQ_API_KEY) {
-      return NextResponse.json({ error: 'GROQ_API_KEY non configurée', fallback: true })
+    if (!(await iaTexteDisponible())) {
+      return NextResponse.json({
+        error: locale === 'pt'
+          ? 'O assistente de materiais está indisponível de momento. Tente mais tarde.'
+          : 'L’assistant matériaux est indisponible pour le moment. Réessayez plus tard.',
+        fallback: true,
+      })
     }
 
     // ── Vérifier le cache ──
@@ -532,10 +458,10 @@ Réponds UNIQUEMENT avec un JSON valide, sans markdown :
   "recommendations": "Conseil pro: quel modèle choisir et pourquoi, normes à respecter"
 }`
         try {
-          const fallbackText = await callGroq([
+          const fallbackText = await appelerModele([
             { role: 'system', content: fallbackPrompt },
             { role: 'user', content: `Recherche produit : "${query.trim()}"` },
-          ], 2000, 'llama-3.1-8b-instant')
+          ], 2000, GROQ_MODEL_RAPIDE)
 
           const fallbackParsed = parseJsonFromText<any>(fallbackText, null)
           if (fallbackParsed?.products?.length) {
@@ -697,7 +623,7 @@ Réponds UNIQUEMENT avec un JSON valide, sans markdown, sans backtick:
         refurbContext && `=== PRODUITS RECONDITIONNÉS ===\n${refurbContext}`,
       ].filter(Boolean).join('\n\n')
 
-      const productText = await callGroq([
+      const productText = await appelerModele([
         { role: 'system', content: productPrompt },
         { role: 'user', content: `Recherche produit: "${q}"${cityContext}\n\nRésultats web:\n${searchContext}` },
       ], 2500)
@@ -815,10 +741,10 @@ Format strict (respecte exactement les noms de champs) :
 ]
 Chaque matériau DOIT avoir au moins 1 norme et des normDetails précis sur les contraintes de pose/installation.`
 
-    const stage1Text = await callGroq([
+    const stage1Text = await appelerModele([
       { role: 'system', content: stage1System },
       { role: 'user', content: locale === 'pt' ? `Obra: ${query.trim()}${cityContext}` : `Chantier : ${query.trim()}${cityContext}` },
-    ], 1000, 'llama-3.1-8b-instant')
+    ], 1000, GROQ_MODEL_RAPIDE)
 
     const rawMaterials: Array<{ name: string; qty: number; unit: string; category: string; norms: string[]; normDetails: string }> =
       parseJsonFromText(stage1Text, [])
@@ -981,7 +907,7 @@ RÈGLES ABSOLUES:
       ? `${jobLabel}: "${query}"${cityContext}\n${matsLabel}: ${JSON.stringify(rawMaterials)}\n\n${webLabel}:\n${searchBundle}`
       : `${jobLabel}: "${query}"${cityContext}\n${matsLabel}: ${JSON.stringify(rawMaterials)}`
 
-    const priceText = await callGroq([
+    const priceText = await appelerModele([
       { role: 'system', content: priceSystem },
       { role: 'user', content: priceUserContent },
     ], 2500)

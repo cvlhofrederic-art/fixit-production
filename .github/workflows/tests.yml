@@ -1,12 +1,25 @@
 # ── Tests — Vitest, Playwright E2E, Axe-core WCAG ────────────────────────────
 # Suite complète de tests : unitaires, E2E multi-navigateur, accessibilité.
-# Déclenché sur push main et toutes les PR.
+# - PR vers main et lancement manuel : Vitest, E2E chromium, firefox et webkit, Axe-core
+#   (Axe-core sur les PR seulement : il poste son rapport en commentaire de la PR).
+# - Push sur main (chaque fusion) et chaque nuit : Vitest et E2E chromium. La CI d'une PR ne
+#   voit pas les fusions faites après elle : un test cassé par une fusion apparaît ici, sur le
+#   commit de main (01/11/2026 : #627 verte, un de ses tests rouge une fois #630 fusionnée).
+#   Firefox et webkit restent sur les PR : trois builds de production pour ~21 min de runner,
+#   contre ~6 min pour chromium seul (médianes de 63 passages de PR, 01/11/2026).
 
 name: "Tests — Unitaires, E2E & Accessibilité"
 
 on:
   pull_request:
     branches: [main]
+  push:
+    branches: [main]
+  # 04:23 UTC, minute décalée des heures pleines. Des tests lisent l'horloge réelle (ex. prix vérifiés
+  # depuis moins de 730 jours, tests/prix-2026/data-integrity.test.ts) et l'image du runner évolue :
+  # un rouge de nuit sans fusion vient de là, pas d'une PR.
+  schedule:
+    - cron: "23 4 * * *"
   workflow_dispatch: {}
 
 # Aucune permission au niveau du workflow (lot 6 Aikido, 28/10/2026) : chaque job
@@ -19,8 +32,9 @@ jobs:
     name: "Tests unitaires (Vitest)"
     runs-on: ubuntu-latest
     # 662 fichiers de tests puis le rapport de couverture : 15 min ne suffisaient plus (coupé à 15 min 16 s
-    # sur #664 le 09/11/2026, tous les tests passés, annulé pendant la couverture)
-    timeout-minutes: 20
+    # sur #664 le 09/11/2026, tous les tests passés, annulé pendant la couverture). Porté à 30 min le 17/11/2026 :
+    # environ 880 fichiers, 19 à 19,4 min sur les PR du jour, coupé à 20 min 18 s sur #722.
+    timeout-minutes: 30
     permissions:
       contents: read
 
@@ -31,7 +45,7 @@ jobs:
           persist-credentials: false
 
       - name: Configurer Node.js
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: 22
           cache: npm
@@ -46,7 +60,7 @@ jobs:
 
       - name: Uploader la couverture
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage-report
           path: coverage/
@@ -67,7 +81,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        browser: [chromium, firefox, webkit]
+        # Chromium seul sur push main et la nuit, les trois navigateurs sinon (voir l'en-tête).
+        browser: ${{ fromJSON((github.event_name == 'push' || github.event_name == 'schedule') && '["chromium"]' || '["chromium", "firefox", "webkit"]') }}
     env:
       # Valeur de matrice passée par l'environnement, jamais interpolée dans run:.
       BROWSER: ${{ matrix.browser }}
@@ -79,7 +94,7 @@ jobs:
           persist-credentials: false
 
       - name: Configurer Node.js
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: 22
           cache: npm
@@ -110,7 +125,7 @@ jobs:
 
       - name: Uploader le rapport HTML Playwright
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: playwright-report-${{ matrix.browser }}
           path: playwright-report/
@@ -134,7 +149,7 @@ jobs:
           persist-credentials: false
 
       - name: Configurer Node.js
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: 22
           cache: npm

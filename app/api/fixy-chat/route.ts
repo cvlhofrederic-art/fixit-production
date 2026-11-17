@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { callGroqWithRetry, callGroqStreaming } from '@/lib/groq'
+import { appelerIA, fluxIA, iaTexteDisponible } from '@/lib/ai/relais'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
@@ -8,8 +8,7 @@ import { validateBody, fixyChatSchema } from '@/lib/validation'
 export const maxDuration = 30
 
 // ── Fixy Chat — Assistant IA multi-rôle (syndic, copropriétaire/locataire) ────
-
-const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
+// Groq d'abord, Workers AI en relais si Groq échoue (lib/ai/relais.ts).
 
 const DAY_NAMES_FR = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']
 const DAY_NAMES_PT = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado']
@@ -200,7 +199,7 @@ export async function POST(request: NextRequest) {
   if (!(await checkRateLimit(`fixy_chat_user_${user.id}`, 15, 60_000))) return rateLimitResponse()
   if (!(await checkRateLimit(`fixy_chat_${ip}`, 30, 60_000))) return rateLimitResponse()
 
-  if (!GROQ_API_KEY) {
+  if (!(await iaTexteDisponible())) {
     return NextResponse.json({
       success: true,
       response: "Je suis Fixy, votre assistant IA ! 🤖 Malheureusement, le service IA est temporairement indisponible. Veuillez réessayer dans quelques instants.",
@@ -225,12 +224,11 @@ export async function POST(request: NextRequest) {
     // ── Mode streaming SSE ──
     if (stream) {
       try {
-        const sseStream = await callGroqStreaming({
-          model: 'llama-3.3-70b-versatile',
+        const { flux: sseStream } = await fluxIA({
           messages,
           temperature: 0.7,
           max_tokens: 1500,
-        })
+        }, { contexte: 'fixy-chat' })
         return new Response(sseStream, {
           headers: {
             'Content-Type': 'text/event-stream',
@@ -248,12 +246,11 @@ export async function POST(request: NextRequest) {
     }
 
     // ── Mode classique (rétrocompatibilité) ──
-    const result = await callGroqWithRetry({
-      model: 'llama-3.3-70b-versatile',
+    const result = await appelerIA({
       messages,
       temperature: 0.7,
       max_tokens: 1500,
-    })
+    }, { contexte: 'fixy-chat' })
 
     const response = result.choices?.[0]?.message?.content || "Désolé, je n'ai pas pu traiter votre demande. Réessayez !"
 

@@ -184,7 +184,7 @@ export function useDashboardMessaging({ artisan, isPt, dateFmtLocale }: UseDashb
           endDate = current.toISOString().split('T')[0]
         }
       }
-      const label = `${m.signer_name || 'Client'}${m.docTitle ? ' - ' + m.docTitle : ''}`
+      const label = `${m.signer_name || (isPt ? 'Cliente' : 'Client')}${m.docTitle ? ' - ' + m.docTitle : ''}`
       const token = await getDashAuthToken()
       const res = await authFetch('/api/artisan-absences', token, {
         method: 'POST',
