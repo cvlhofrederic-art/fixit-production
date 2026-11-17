@@ -211,17 +211,18 @@ describe('libelleDevisBrouillon — texte de l’alerte « devis en brouillon »
 
   it('sans numéro : aucune référence, jamais un morceau de l’identifiant', () => {
     expect(libelleDevisBrouillon(brouillon, false)).toBe('Devis en brouillon — à envoyer (SCI Les Lilas)')
-    expect(libelleDevisBrouillon(brouillon, true)).toBe('Orçamento em rascunho — a enviar (SCI Les Lilas)')
+    expect(libelleDevisBrouillon(brouillon, true)).toBe('Orçamento em rascunho, por enviar (SCI Les Lilas)')
   })
 
   it('avec un numéro (provisoire d’un ancien brouillon) : celui que montre la liste des devis', () => {
     const numerote = { ...brouillon, docNumber: 'BR-2026-001' }
     expect(libelleDevisBrouillon(numerote, false)).toBe('Devis BR-2026-001 en brouillon — à envoyer (SCI Les Lilas)')
-    expect(libelleDevisBrouillon(numerote, true)).toBe('Orçamento BR-2026-001 em rascunho — a enviar (SCI Les Lilas)')
+    expect(libelleDevisBrouillon(numerote, true)).toBe('Orçamento BR-2026-001 em rascunho, por enviar (SCI Les Lilas)')
   })
 
   it('sans client : « client » ; identifiant numérique d’un ancien document : pas d’erreur', () => {
     expect(libelleDevisBrouillon({ docType: 'devis' }, false)).toBe('Devis en brouillon — à envoyer (client)')
+    expect(libelleDevisBrouillon({ docType: 'devis' }, true)).toBe('Orçamento em rascunho, por enviar (cliente)')
     const ancien = { id: 1779539827817, docType: 'devis', status: 'brouillon' } as unknown as DocumentAccueil
     expect(libelleDevisBrouillon(ancien, false)).toBe('Devis en brouillon — à envoyer (client)')
   })

@@ -4,7 +4,7 @@ import { useRef, useState } from 'react'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import type { ModuleDef, ModuleConfig } from '@/hooks/useModulesConfig'
 import type { ModCategory, CatMod } from '@/hooks/useModuleCategories'
-import { buildDefaultCategories } from '@/hooks/useModuleCategories'
+import { buildDefaultCategories, nomDeRubrique, nomRubriqueApresSaisie } from '@/hooks/useModuleCategories'
 
 interface ModulesSectionProps {
   orgRole?: string
@@ -71,8 +71,7 @@ export default function ModulesSection({
 
   // ── Actions ───────────────────────────────────────────────────
   const renameCat = (catId: string, name: string) => {
-    const trimmed = name.trim()
-    commit(categories.map(c => c.id === catId ? { ...c, name: trimmed || c.name } : c))
+    commit(categories.map(c => c.id === catId ? { ...c, name: nomRubriqueApresSaisie(c, name, isPt) } : c))
   }
 
   const toggleCatOpen = (catId: string) => {
@@ -266,8 +265,8 @@ export default function ModulesSection({
 
       <div className="v5-pg-t">
         <div style={{ flex: 1 }}>
-          <h1>Modules</h1>
-          <p>Activez, désactivez et réorganisez vos modules par catégorie — la sidebar se met à jour en temps réel</p>
+          <h1>{isPt ? 'Módulos' : 'Modules'}</h1>
+          <p>{isPt ? 'Ative, desative e reorganize os seus módulos por categoria: o menu lateral é atualizado em tempo real' : 'Activez, désactivez et réorganisez vos modules par catégorie — la sidebar se met à jour en temps réel'}</p>
         </div>
       </div>
 
@@ -275,15 +274,15 @@ export default function ModulesSection({
         <div className="v5-card" style={{ padding: '1.25rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', gap: 8 }}>
             <div>
-              <span style={{ fontSize: 13, fontWeight: 700 }}>📦 ORGANISATION DU MENU</span>
+              <span style={{ fontSize: 13, fontWeight: 700 }}>{isPt ? '📦 ORGANIZAÇÃO DO MENU' : '📦 ORGANISATION DU MENU'}</span>
               <br />
               <span style={{ fontSize: 11, color: '#999' }}>
-                Glissez-déposez, tapez un numéro pour réordonner, ou utilisez les flèches
+                {isPt ? 'Arraste e largue, escreva um número para reordenar ou utilize as setas' : 'Glissez-déposez, tapez un numéro pour réordonner, ou utilisez les flèches'}
               </span>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={addCategory} className="v5-btn v5-btn-sm v5-btn-p">+ Catégorie</button>
-              <button onClick={resetAll} className="v5-btn v5-btn-sm">↻ Réinitialiser</button>
+              <button onClick={addCategory} className="v5-btn v5-btn-sm v5-btn-p">{isPt ? '+ Categoria' : '+ Catégorie'}</button>
+              <button onClick={resetAll} className="v5-btn v5-btn-sm">{isPt ? '↻ Repor' : '↻ Réinitialiser'}</button>
             </div>
           </div>
 
@@ -309,27 +308,27 @@ export default function ModulesSection({
                     <span className="mc-cat-drag">⠿</span>
                     <input
                       className="mc-cat-name"
-                      defaultValue={cat.name}
+                      defaultValue={nomDeRubrique(cat, isPt)}
                       key={`${cat.id}-${cat.name}`}
-                      title="Cliquez pour renommer"
+                      title={isPt ? 'Clique para mudar o nome' : 'Cliquez pour renommer'}
                       onClick={(e) => e.stopPropagation()}
                       onBlur={(e) => renameCat(cat.id, e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
                       onMouseDown={(e) => e.stopPropagation()}
                       onDragStart={(e) => { e.preventDefault(); e.stopPropagation() }}
                     />
-                    <span className="mc-cat-count">({activeCount}/{totalCount} actifs)</span>
+                    <span className="mc-cat-count">({activeCount}/{totalCount} {isPt ? 'ativos' : 'actifs'})</span>
                     <div className="mc-cat-actions">
-                      <button className="mc-cat-toggle" onClick={() => toggleCatOpen(cat.id)} title={cat.open ? 'Réduire' : 'Développer'}>
+                      <button className="mc-cat-toggle" onClick={() => toggleCatOpen(cat.id)} title={isPt ? (cat.open ? 'Recolher' : 'Expandir') : (cat.open ? 'Réduire' : 'Développer')}>
                         {cat.open ? '▲' : '▼'}
                       </button>
-                      <button className="mc-cat-del" onClick={() => deleteCategory(cat.id)} title="Supprimer la catégorie">✕</button>
+                      <button className="mc-cat-del" onClick={() => deleteCategory(cat.id)} title={isPt ? 'Eliminar a categoria' : 'Supprimer la catégorie'}>✕</button>
                     </div>
                   </div>
                   {cat.open && (
                     <div className={listClass} data-cat-id={cat.id}>
                       {cat.modules.length === 0 && (
-                        <div className="mc-mod-empty">Aucun module — glissez-en un ici</div>
+                        <div className="mc-mod-empty">{isPt ? 'Nenhum módulo: arraste um para aqui' : 'Aucun module — glissez-en un ici'}</div>
                       )}
                       {cat.modules.map((mod: CatMod, i: number) => {
                         const isFirst = i === 0
@@ -354,13 +353,13 @@ export default function ModulesSection({
                                 className="mc-arrow"
                                 disabled={isFirst}
                                 onClick={() => moveModUp(cat.id, mod.id)}
-                                title="Monter"
+                                title={isPt ? 'Subir' : 'Monter'}
                               >▲</button>
                               <button
                                 className="mc-arrow"
                                 disabled={isLast}
                                 onClick={() => moveModDown(cat.id, mod.id)}
-                                title="Descendre"
+                                title={isPt ? 'Descer' : 'Descendre'}
                               >▼</button>
                             </div>
                             <input
@@ -370,7 +369,7 @@ export default function ModulesSection({
                               key={`pos-${mod.id}-${i}-${cat.modules.length}`}
                               min={1}
                               max={cat.modules.length}
-                              title="Tapez un numéro et validez pour déplacer"
+                              title={isPt ? 'Escreva um número e confirme para mover' : 'Tapez un numéro et validez pour déplacer'}
                               onClick={(e) => (e.currentTarget as HTMLInputElement).select()}
                               onBlur={(e) => {
                                 const val = parseInt(e.target.value, 10)

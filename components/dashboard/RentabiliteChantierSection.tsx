@@ -106,9 +106,18 @@ function fmt(n: number): string {
   return n.toLocaleString('fr-FR', { maximumFractionDigits: 0 })
 }
 
-function fmtPct(n: number): string {
-  return n.toLocaleString('fr-FR', { maximumFractionDigits: 1 }) + ' %'
+/** Pourcentage : espace avant « % » en français, collé en portugais (« 12,5% »). */
+function formatPct(n: number, isPt: boolean): string {
+  return n.toLocaleString('fr-FR', { maximumFractionDigits: 1 }) + (isPt ? '%' : ' %')
 }
+
+/** Poste de coût de l'écart devis / réalisé (clé du moteur), affiché en portugais. */
+const POSTE_ECART_PT: Record<string, string> = {
+  materiaux: 'Materiais', main_oeuvre: 'Mão de obra', sous_traitance: 'Subempreitada', frais_annexes: 'Despesas anexas',
+}
+
+/** Statut enregistré (en français) d'une obra, affiché en portugais. */
+const STATUT_CHANTIER_PT: Record<string, string> = { 'En cours': 'Em curso', 'Terminé': 'Concluída', 'En attente': 'Pendente', 'Annulé': 'Anulada' }
 
 function calcScore(marge: number, joursPrevu: number, joursReel: number, benefice: number): number {
   if (benefice <= 0) return Math.max(0, 2 + marge / 10)
@@ -150,6 +159,9 @@ export default function RentabiliteChantierSection({ artisan, orgRole }: { artis
   const locale = useLocale()
   const isPt = locale === 'pt'
   const t = (fr: string, pt: string) => isPt ? pt : fr
+  const fmtPct = (n: number) => formatPct(n, isPt)
+  /** Nombre de jours : « 12j » en français, « 12 dias » en portugais. */
+  const jours = (n: number) => (isPt ? `${n} dias` : `${n}j`)
 
   // ── Engine integration ─────────────────────────────────────────────────────
   const { settings } = useBTPSettings()
@@ -433,24 +445,24 @@ export default function RentabiliteChantierSection({ artisan, orgRole }: { artis
       {/* Header + bouton config */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
         <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'}>
-          <h1>{t('Rentabilité Chantier', 'Rentabilidade da Obra')}</h1>
+          <h1>{t('Rentabilité Chantier', 'Rentabilidade das obras')}</h1>
           <p>{t('Budget prévu vs réalisé', 'Orçamento previsto vs realizado')}</p>
         </div>
         <button
           onClick={() => setShowConfig(!showConfig)}
           className={isV5 ? 'v5-btn' : 'v22-btn'}
         >
-          <Settings size={14} />{t('Coûts horaires', 'Custos por hora')}
+          <Settings size={14} />{t('Coûts horaires', 'Custos horários')}
         </button>
       </div>
 
       {showConfig && (
         <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ marginBottom: 16 }}>
           <div className={isV5 ? 'v5-st' : 'v22-section-title'}>
-            {t('Coût horaire par type de poste (€/h)', 'Custo por hora por tipo de posto (€/h)')}
+            {t('Coût horaire par type de poste (€/h)', 'Custo horário por função (€/h)')}
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10 }}>
-            {Object.entries({ ouvrier: t('Ouvrier', 'Operário'), chef_chantier: t('Chef de chantier', 'Encarregado'), conducteur_travaux: t('Conducteur', 'Diretor de obra'), secretaire: t('Secrétaire', 'Secretária'), gerant: t('Gérant', 'Gerente') }).map(([key, label]) => (
+            {Object.entries({ ouvrier: t('Ouvrier', 'Operário'), chef_chantier: t('Chef de chantier', 'Encarregado'), conducteur_travaux: t('Conducteur', 'Diretor de obra'), secretaire: t('Secrétaire', 'Administrativo(a)'), gerant: t('Gérant', 'Gerente') }).map(([key, label]) => (
               <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <label className={isV5 ? 'v5-fl' : 'v22-form-label'} style={{ minWidth: 100, marginBottom: 0 }}>{label}</label>
                 <input
@@ -482,7 +494,7 @@ export default function RentabiliteChantierSection({ artisan, orgRole }: { artis
         <>
           <div className={isV5 ? 'v5-kpi-g' : 'v22-kpi-grid'}>
             <div className={isV5 ? 'v5-kpi hl' : 'v22-kpi v22-kpi-hl'}>
-              <div className={isV5 ? 'v5-kpi-l' : 'v22-kpi-label'}>{t('CA Total', 'Volume Total')}</div>
+              <div className={isV5 ? 'v5-kpi-l' : 'v22-kpi-label'}>{t('CA Total', 'Faturação total')}</div>
               <div className={isV5 ? 'v5-kpi-v' : 'v22-kpi-value'}>{fmt(totals.ca)} &euro;</div>
               <div className={isV5 ? 'v5-kpi-s' : 'v22-kpi-sub'}>{totals.total} {t('chantiers', 'obras')}</div>
             </div>
@@ -494,7 +506,7 @@ export default function RentabiliteChantierSection({ artisan, orgRole }: { artis
             <div className={isV5 ? 'v5-kpi' : 'v22-kpi'}>
               <div className={isV5 ? 'v5-kpi-l' : 'v22-kpi-label'}>{t('Rentables', 'Rentáveis')}</div>
               <div className={isV5 ? 'v5-kpi-v' : 'v22-kpi-value'}>{totals.rentables}/{totals.total}</div>
-              <div className={isV5 ? 'v5-kpi-s' : 'v22-kpi-sub'}>{totals.risque > 0 ? `${totals.risque} ${t('à risque', 'em risco')}` : t('Tous ok', 'Todos ok')}</div>
+              <div className={isV5 ? 'v5-kpi-s' : 'v22-kpi-sub'}>{totals.risque > 0 ? `${totals.risque} ${t('à risque', 'em risco')}` : t('Tous ok', 'Todas ok')}</div>
             </div>
             <div className={isV5 ? 'v5-kpi' : 'v22-kpi'}>
               <div className={isV5 ? 'v5-kpi-l' : 'v22-kpi-label'}>{t('Marge moyenne', 'Margem média')}</div>
@@ -594,8 +606,8 @@ export default function RentabiliteChantierSection({ artisan, orgRole }: { artis
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 600, fontSize: 13 }}>{f.chantier.titre}</div>
                     <div style={{ color: '#999', fontSize: 11, marginTop: 2 }}>
-                      {f.chantier.adresse || f.chantier.client} · {f.chantier.statut}
-                      {f.joursReel > 0 && ` · ${f.joursReel}j`}
+                      {f.chantier.adresse || f.chantier.client} · {isPt ? STATUT_CHANTIER_PT[f.chantier.statut] ?? f.chantier.statut : f.chantier.statut}
+                      {f.joursReel > 0 && ` · ${jours(f.joursReel)}`}
                     </div>
                   </div>
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
@@ -603,7 +615,7 @@ export default function RentabiliteChantierSection({ artisan, orgRole }: { artis
                       {f.beneficeNet >= 0 ? '+' : ''}{fmt(f.beneficeNet)} &euro;
                     </div>
                     <div style={{ fontSize: 10, color: '#999' }}>
-                      {fmtPct(f.margePercent)} · {fmt(f.caTotal)} &euro; CA
+                      {fmtPct(f.margePercent)} · {fmt(f.caTotal)} &euro;{isPt ? ' faturados' : ' CA'}
                     </div>
                   </div>
                   <span className={isV5 ? `v5-badge ${f.badge === 'rentable' ? 'v5-badge-green' : f.badge === 'moyen' ? 'v5-badge-orange' : 'v5-badge-red'}` : `v22-tag ${f.badge === 'rentable' ? 'v22-tag-green' : f.badge === 'moyen' ? 'v22-tag-orange' : 'v22-tag-red'}`}>
@@ -619,9 +631,9 @@ export default function RentabiliteChantierSection({ artisan, orgRole }: { artis
                   return (
                     <div className={`rounded-lg p-3 mt-2 ${color}`}>
                       <div className="text-lg font-bold">
-                        {isPt ? 'Esta obra rendeu-te' : "Ce chantier t'a rapporté"} {formatPrice(res.benefice_net, isPt ? 'pt' : 'fr')}
+                        {isPt ? 'Esta obra rendeu-lhe' : "Ce chantier t'a rapporté"} {formatPrice(res.benefice_net, isPt ? 'pt' : 'fr')}
                       </div>
-                      <div className="text-sm">{isPt ? 'Margem líquida' : 'Marge nette'} : {res.taux_marge_nette.toFixed(1)}%</div>
+                      <div className="text-sm">{isPt ? 'Margem líquida:' : 'Marge nette :'} {res.taux_marge_nette.toFixed(1)}%</div>
 
                       {/* ── Level 2 — Détail des charges ── */}
                       <details className="mt-2">
@@ -631,7 +643,7 @@ export default function RentabiliteChantierSection({ artisan, orgRole }: { artis
                           <div className="flex justify-between"><span>{t('Charges sociales', 'Encargos sociais')}</span><span className="text-red-600">-{formatPrice(res.charges_sociales, isPt ? 'pt' : 'fr')}</span></div>
                           <div className="flex justify-between"><span>{t('Charges fixes', 'Encargos fixos')}</span><span className="text-red-600">-{formatPrice(res.quote_part_fixes, isPt ? 'pt' : 'fr')}</span></div>
                           <div className="flex justify-between"><span>{t(`Impôt (${isPt ? 'IRC' : 'IS'})`, `Imposto (${isPt ? 'IRC' : 'IS'})`)}</span><span className="text-red-600">-{formatPrice(res.charges_fiscales, isPt ? 'pt' : 'fr')}</span></div>
-                          <div className="flex justify-between border-t pt-1 font-semibold"><span>{t('Net dans ta poche', 'Líquido no teu bolso')}</span><span>{formatPrice(res.benefice_net, isPt ? 'pt' : 'fr')}</span></div>
+                          <div className="flex justify-between border-t pt-1 font-semibold"><span>{t('Net dans ta poche', 'Líquido no seu bolso')}</span><span>{formatPrice(res.benefice_net, isPt ? 'pt' : 'fr')}</span></div>
                         </div>
                       </details>
 
@@ -649,7 +661,7 @@ export default function RentabiliteChantierSection({ artisan, orgRole }: { artis
                               const ecartColor = Math.abs(e.ecart_pct) < 5 ? 'text-green-600' : Math.abs(e.ecart_pct) < 15 ? 'text-orange-600' : 'text-red-600'
                               return (
                                 <div key={poste} className="grid grid-cols-4 gap-1">
-                                  <div className="capitalize">{poste.replace('_', ' ')}</div>
+                                  <div className="capitalize">{isPt ? POSTE_ECART_PT[poste] : poste.replace('_', ' ')}</div>
                                   <div className="text-right">{formatPrice(e.prevu, isPt ? 'pt' : 'fr')}</div>
                                   <div className="text-right">{formatPrice(e.reel, isPt ? 'pt' : 'fr')}</div>
                                   <div className={`text-right font-medium ${ecartColor}`}>{e.ecart_pct > 0 ? '+' : ''}{e.ecart_pct.toFixed(1)}%</div>
@@ -710,9 +722,9 @@ export default function RentabiliteChantierSection({ artisan, orgRole }: { artis
             </div>
             <div className={isV5 ? 'v5-kpi' : 'v22-kpi'}>
               <div className={isV5 ? 'v5-kpi-l' : 'v22-kpi-label'}>{t('Durée chantier', 'Duração da obra')}</div>
-              <div className={isV5 ? 'v5-kpi-v' : 'v22-kpi-value'}>{selected.joursReel}j / {selected.joursPrevu}j</div>
+              <div className={isV5 ? 'v5-kpi-v' : 'v22-kpi-value'}>{jours(selected.joursReel)} / {jours(selected.joursPrevu)}</div>
               <div className={isV5 ? 'v5-kpi-s' : 'v22-kpi-sub'}>{selected.joursReel > selected.joursPrevu
-                ? `+${selected.joursReel - selected.joursPrevu}j ${t('de retard', 'de atraso')}`
+                ? `+${jours(selected.joursReel - selected.joursPrevu)} ${t('de retard', 'de atraso')}`
                 : t('Dans les temps', 'Dentro do prazo')}</div>
             </div>
             <div className={isV5 ? 'v5-kpi' : 'v22-kpi'}>
@@ -723,7 +735,7 @@ export default function RentabiliteChantierSection({ artisan, orgRole }: { artis
             <div className={isV5 ? 'v5-kpi' : 'v22-kpi'}>
               <div className={isV5 ? 'v5-kpi-l' : 'v22-kpi-label'}>{t('Projection mensuelle', 'Projeção mensal')}</div>
               <div className={isV5 ? 'v5-kpi-v' : 'v22-kpi-value'}>{fmt(selected.projectionMensuelle)} &euro;</div>
-              <div className={isV5 ? 'v5-kpi-s' : 'v22-kpi-sub'}>{MOIS_JOURS_OUVRES}j {t('ouvrés/mois', 'úteis/mês')}</div>
+              <div className={isV5 ? 'v5-kpi-s' : 'v22-kpi-sub'}>{jours(MOIS_JOURS_OUVRES)} {t('ouvrés/mois', 'úteis/mês')}</div>
             </div>
           </div>
 
@@ -744,7 +756,7 @@ export default function RentabiliteChantierSection({ artisan, orgRole }: { artis
                   <td style={{ textAlign: 'right', color: '#999' }}>100%</td>
                 </tr>
                 <tr>
-                  <td><HardHat size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{t("Main d'œuvre", 'Mão de obra')} <span style={{ color: '#999', fontSize: 10 }}>({fmt(selected.heuresTotal)}h · {selected.nbOuvriers} {t('pers.', 'pess.')})</span></td>
+                  <td><HardHat size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />{t("Main d'œuvre", 'Mão de obra')} <span style={{ color: '#999', fontSize: 10 }}>({fmt(selected.heuresTotal)}{isPt ? ' h' : 'h'} · {selected.nbOuvriers} {t('pers.', 'pess.')})</span></td>
                   <td style={{ textAlign: 'right', color: '#C62828' }}>- {fmt(selected.coutMainOeuvre)} &euro;</td>
                   <td style={{ textAlign: 'right', color: '#999' }}>{selected.caTotal > 0 ? fmtPct(selected.coutMainOeuvre / selected.caTotal * 100) : '—'}</td>
                 </tr>
@@ -776,10 +788,10 @@ export default function RentabiliteChantierSection({ artisan, orgRole }: { artis
             <div className={isV5 ? `v5-al ${selected.joursReel >= selected.seuilRentabiliteJours ? 'info' : 'warn'}` : `v22-alert ${selected.joursReel >= selected.seuilRentabiliteJours ? 'v22-alert-blue' : 'v22-alert-amber'}`} style={{ marginBottom: 16 }}>
               {selected.joursReel >= selected.seuilRentabiliteJours ? <CheckCircle size={14} /> : <Hourglass size={14} />}
               <div>
-                <strong>{t('Seuil de rentabilité', 'Limiar de rentabilidade')} : {selected.seuilRentabiliteJours} {t('jours', 'dias')}</strong>
+                <strong>{t('Seuil de rentabilité :', 'Limiar de rentabilidade:')} {selected.seuilRentabiliteJours} {t('jours', 'dias')}</strong>
                 <div style={{ fontSize: 11 }}>
                   {selected.joursReel >= selected.seuilRentabiliteJours
-                    ? t(`Atteint au jour ${selected.seuilRentabiliteJours} — vous êtes en zone de profit`, `Atingido no dia ${selected.seuilRentabiliteJours} — está em zona de lucro`)
+                    ? t(`Atteint au jour ${selected.seuilRentabiliteJours} — vous êtes en zone de profit`, `Atingido no dia ${selected.seuilRentabiliteJours}: está em zona de lucro`)
                     : t(`Encore ${selected.seuilRentabiliteJours - selected.joursReel} jours avant d'être rentable`, `Ainda ${selected.seuilRentabiliteJours - selected.joursReel} dias para ser rentável`)}
                 </div>
               </div>
@@ -827,7 +839,7 @@ export default function RentabiliteChantierSection({ artisan, orgRole }: { artis
                 <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('Jours supplémentaires', 'Dias adicionais')}</label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <input type="range" min={0} max={30} value={simJoursExtra} onChange={e => setSimJoursExtra(parseInt(e.target.value))} style={{ flex: 1 }} />
-                  <span style={{ fontWeight: 700, fontSize: 13, color: '#1565C0', minWidth: 36, textAlign: 'center' }}>+{simJoursExtra}j</span>
+                  <span style={{ fontWeight: 700, fontSize: 13, color: '#1565C0', minWidth: 36, textAlign: 'center' }}>+{simJoursExtra}{isPt ? ' d' : 'j'}</span>
                 </div>
               </div>
               <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
@@ -853,7 +865,7 @@ export default function RentabiliteChantierSection({ artisan, orgRole }: { artis
                 <SimKpi label={t('Marge', 'Margem')} before={fmtPct(selected.margePercent)} after={fmtPct(simulated.marge)} isGood={simulated.marge >= selected.margePercent} isV5={isV5} />
                 <SimKpi label={t('Bénéf/jour', 'Lucro/dia')} before={`${fmt(selected.beneficeParJour)} €`} after={`${fmt(simulated.benefParJour)} €`} isGood={simulated.benefParJour >= selected.beneficeParJour} isV5={isV5} />
                 <div className={isV5 ? 'v5-kpi' : 'v22-kpi'} style={{ textAlign: 'center' }}>
-                  <div className={isV5 ? 'v5-kpi-l' : 'v22-kpi-label'}>Score</div>
+                  <div className={isV5 ? 'v5-kpi-l' : 'v22-kpi-label'}>{t('Score', 'Pontuação')}</div>
                   <div className={isV5 ? 'v5-kpi-v' : 'v22-kpi-value'} style={{ color: simulated.badgeColor }}>{simulated.score}</div>
                   <div className={isV5 ? 'v5-kpi-s' : 'v22-kpi-sub'} style={{ color: simulated.badgeColor, fontWeight: 600 }}>
                     {BADGE_LABELS[simulated.badge] && <BadgeIcon type={BADGE_LABELS[simulated.badge].icon} />}{BADGE_LABELS[simulated.badge]?.[isPt ? 'pt' : 'fr']}

@@ -73,8 +73,9 @@
 Prompts dans `app/api/*/route.ts` ou `lib/**/prompts*`.
 
 ## Voix
-Web Speech API navigateur (fr-FR). Pas de backend STT.
-Composant : components/chat/AiChatBot.tsx.
+Web Speech API navigateur, dans la langue de l'interface : fr-FR, pt-PT sur /pt/. Pas de backend STT.
+Composant : components/chat/AiChatBot.tsx. Son repli sans IA (`lib/chat-parsers.ts`) lit le message dans la même
+langue : le portugais n'est jamais essayé sur un message français.
 
 ## Règles
 - Modifier un prompt → vérifier avec `ai-eval.yml` (DeepEval)

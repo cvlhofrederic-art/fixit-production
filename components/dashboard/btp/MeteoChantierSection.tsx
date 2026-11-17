@@ -52,6 +52,11 @@ function getWeatherIcon(code: number): string {
   return WEATHER_ICONS[code] || '🌤️'
 }
 
+// Libellés portugais, à l'affichage seulement, des statuts de chantier enregistrés en français (mêmes libellés que la
+// liste des obras) et du message d'erreur renvoyé par useBTPData (lib/hooks/use-btp-data.ts).
+const STATUTS_PT: Record<string, string> = { 'En attente': 'Pendente', 'En cours': 'Em curso', 'Terminé': 'Concluída', 'Annulé': 'Anulada' }
+const ERREURS_CHARGEMENT_PT: Record<string, string> = { 'Erreur de chargement': 'erro de carregamento' }
+
 function classifyAlert(forecast: DayForecast[]): {
   alert: AlertLevel
   reasons: string[]
@@ -248,25 +253,28 @@ function formatDayShort(dateStr: string, isPt?: boolean): string {
   return `${weekday.charAt(0).toUpperCase() + weekday.slice(1)} ${day}`
 }
 
+// Seuils et consignes issus de la pratique française (le français cite le Code du travail et la réglementation) : en
+// portugais, les consignes de vent et de chaleur restent des conseils, sans interdiction ni texte de loi portugais qui
+// n'ont pas été vérifiés (limites du fabricant de la grue, plan de segurança e saúde de l'obra).
 function getBTPImpactMessage(day: DayForecast, isPt?: boolean): string | null {
   if (day.windMax > 60) {
     return isPt
-      ? `Vento ${Math.round(day.windMax)} km/h — INTERDIÇÃO andaimes e grua (regulamentação). Apenas trabalhos interiores autorizados.`
+      ? `Vento ${Math.round(day.windMax)} km/h. Trabalhos em andaimes e com grua desaconselhados: respeite os limites do fabricante e o plano de segurança e saúde. Prever trabalhos interiores.`
       : `Vent ${Math.round(day.windMax)} km/h — INTERDICTION échafaudage et grue (réglementation). Seuls les lots intérieurs autorisés.`
   }
   if (day.rain > 5) {
     return isPt
-      ? `Chuva ${day.rain}mm prevista — ravalement fachada desaconselhado. Prever trabalhos interiores ou adiar.`
+      ? `Chuva de ${day.rain} mm prevista. Rebocos de fachada desaconselhados. Prever trabalhos interiores ou adiar.`
       : `Pluie ${day.rain}mm prévue — ravalement façade déconseillé. Prévoir travaux intérieurs ou report.`
   }
   if (day.tempMin < 0) {
     return isPt
-      ? `Gelo ${Math.round(day.tempMin)}°C — sem alvenaria nem betão. Risco de fissuras.`
+      ? `Gelo ${Math.round(day.tempMin)} °C. Sem alvenaria nem betonagem. Risco de fissuração.`
       : `Gel ${Math.round(day.tempMin)}°C — pas de maçonnerie ni béton. Risque de fissuration.`
   }
   if (day.tempMax > 33) {
     return isPt
-      ? `Calor ${Math.round(day.tempMax)}°C — horários adaptados obrigatórios (Code du travail).`
+      ? `Calor ${Math.round(day.tempMax)} °C. Prever horários de trabalho adaptados.`
       : `Chaleur ${Math.round(day.tempMax)}°C — horaires aménagés obligatoires (Code du travail).`
   }
   return null
@@ -285,9 +293,9 @@ function getAlertBadgeLabel(m: ChantierMeteo, isPt?: boolean): { label: string; 
     if (day.rain > 5) return { label: `⚠️ ${isPt ? 'Chuva' : 'Pluie'} ${dayName.split(' ')[0].toLowerCase()}`, className: 'v5-badge v5-badge-orange' }
     if (day.tempMin < 0) return { label: `❄️ ${isPt ? 'Gelo' : 'Gel'} ${dayName.split(' ')[0].toLowerCase()}`, className: 'v5-badge v5-badge-orange' }
     if (day.tempMax > 33) return { label: `🌡️ ${isPt ? 'Calor' : 'Chaleur'} ${dayName.split(' ')[0].toLowerCase()}`, className: 'v5-badge v5-badge-orange' }
-    return { label: `⚠️ Vigilance ${dayName.split(' ')[0].toLowerCase()}`, className: 'v5-badge v5-badge-orange' }
+    return { label: `⚠️ ${isPt ? 'Aviso' : 'Vigilance'} ${dayName.split(' ')[0].toLowerCase()}`, className: 'v5-badge v5-badge-orange' }
   }
-  return { label: `✅ RAS`, className: 'v5-badge v5-badge-green' }
+  return { label: isPt ? '✅ Sem alertas' : `✅ RAS`, className: 'v5-badge v5-badge-green' }
 }
 
 export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt }: { userId: string; authUserId?: string; isPt?: boolean }) {
@@ -343,17 +351,17 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
             // Coordonnées converties, bornées et passées en paramètres d'URL (lib/btp/meteo-url.ts)
             const urlMeteo = urlPrevisionsMeteo(lat, lng)
             if (!urlMeteo) {
-              failedNames.push(`${chantier.titre} (coordonnées invalides)`)
+              failedNames.push(`${chantier.titre} (${isPt ? 'coordenadas inválidas' : 'coordonnées invalides'})`)
               return null
             }
             const res = await fetch(urlMeteo)
             if (!res.ok) {
-              failedNames.push(`${chantier.titre} (API erreur ${res.status})`)
+              failedNames.push(`${chantier.titre} (${isPt ? 'erro da API' : 'API erreur'} ${res.status})`)
               return null
             }
             const json = await res.json()
             if (!json.daily?.time) {
-              failedNames.push(`${chantier.titre} (données vides)`)
+              failedNames.push(`${chantier.titre} (${isPt ? 'dados vazios' : 'données vides'})`)
               return null
             }
             const forecast: DayForecast[] = json.daily.time.map((date: string, i: number) => ({
@@ -367,7 +375,7 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
             const { alert, reasons, dayAlerts, mainAlertDay } = classifyAlert(forecast)
             return { chantier, forecast, alert, alertReasons: reasons, dayAlerts, mainAlertDay }
           } catch {
-            failedNames.push(`${chantier.titre} (exception)`)
+            failedNames.push(`${chantier.titre} (${isPt ? 'erro inesperado' : 'exception'})`)
             return null
           }
         })
@@ -375,13 +383,13 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
       setMeteoData(results)
       if (results.length === 0 && chantiersToFetch.length > 0) {
         setMeteoError(isPt
-          ? `Geocodificação falhou para ${chantiersToFetch.length} obra(s). Verifique os endereços.`
+          ? `A geocodificação falhou para ${chantiersToFetch.length} obra(s). Verifique as moradas.`
           : `Géocodage échoué pour ${chantiersToFetch.length} chantier(s). Vérifiez les adresses.`)
       } else if (failedNames.length > 0) {
-        setDebugInfo(`${isPt ? 'Meteorologia indisponível para' : 'Météo indisponible pour'} : ${failedNames.join(', ')}`)
+        setDebugInfo(`${isPt ? 'Meteorologia indisponível para:' : 'Météo indisponible pour :'} ${failedNames.join(', ')}`)
       }
     } catch {
-      setMeteoError(isPt ? 'Erro ao carregar dados meteorológicos.' : 'Erreur lors du chargement des données météo.')
+      setMeteoError(isPt ? 'Erro ao carregar os dados meteorológicos.' : 'Erreur lors du chargement des données météo.')
     } finally {
       setMeteoLoading(false)
     }
@@ -415,8 +423,8 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
     <div className="v5-fade">
       <div className="v5-pg-t" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div style={{ flex: 1 }}>
-          <h1>{isPt ? 'Meteorologia dos estaleiros' : 'Météo chantiers'}</h1>
-          <p>{isPt ? 'Previsões automáticas por estaleiro — dados Open-Meteo' : 'Prévisions automatiques par chantier — données Open-Meteo'}</p>
+          <h1>{isPt ? 'Meteorologia das obras' : 'Météo chantiers'}</h1>
+          <p>{isPt ? 'Previsões automáticas por obra · dados Open-Meteo' : 'Prévisions automatiques par chantier — données Open-Meteo'}</p>
         </div>
         {(meteoData.length > 0 || chantiersAvecLocalisation.length > 0) && (
           <button className="v5-btn v5-btn-p" onClick={() => { fetchedRef.current = true; setMeteoData([]); fetchMeteo(chantiersAvecLocalisation) }} disabled={meteoLoading}>
@@ -433,7 +441,7 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
           <div className="v5-kpi-s">{isPt ? 'sem alerta' : "pas d'alerte"}</div>
         </div>
         <div className="v5-kpi" style={{ borderLeft: '4px solid #FFA726' }}>
-          <div className="v5-kpi-l">Vigilance</div>
+          <div className="v5-kpi-l">{isPt ? 'Avisos' : 'Vigilance'}</div>
           <div className="v5-kpi-v" style={{ color: '#FFA726' }}>{meteoLoading ? '...' : nbVigilance}</div>
           <div className="v5-kpi-s">{isPt ? 'chuva prevista' : 'pluie prévue'}</div>
         </div>
@@ -453,7 +461,7 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
       {chantiersActifs.length === 0 && chantiers.length > 0 && (
         <div className="v5-al info" style={{ marginBottom: '.75rem', fontSize: 11 }}>
           {isPt
-            ? `${chantiers.length} obra(s) carregada(s), mas nenhuma ativa (estados: ${chantiers.map(c => c.statut).join(', ')}). Apenas obras "Em curso" ou "Em espera" são apresentadas.`
+            ? `${chantiers.length} obra(s) carregada(s), mas nenhuma ativa (estados: ${chantiers.map(c => STATUTS_PT[c.statut] ?? c.statut).join(', ')}). Apenas são apresentadas as obras "Em curso" ou "Pendente".`
             : `${chantiers.length} chantier(s) chargés, mais aucun actif (statuts: ${chantiers.map(c => c.statut).join(', ')}). Seuls les chantiers "En cours" ou "En attente" sont affichés.`
           }
         </div>
@@ -463,23 +471,23 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
       {chantiersActifs.length === 0 && chantiers.length === 0 && !chantiersError && (
         <div className="v5-card" style={{ textAlign: 'center', padding: '3rem 2rem' }}>
           <div style={{ fontSize: 48, marginBottom: 16 }}>🏗️</div>
-          <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>{isPt ? 'Nenhum estaleiro ativo' : 'Aucun chantier actif'}</h3>
-          <p style={{ fontSize: 12, color: '#999' }}>{isPt ? 'Crie estaleiros na secção Chantiers para ver as previsões meteorológicas.' : 'Créez des chantiers dans la section Chantiers pour voir les prévisions météo.'}</p>
+          <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>{isPt ? 'Nenhuma obra ativa' : 'Aucun chantier actif'}</h3>
+          <p style={{ fontSize: 12, color: '#999' }}>{isPt ? 'Crie obras na secção Obras para ver as previsões meteorológicas.' : 'Créez des chantiers dans la section Chantiers pour voir les prévisions météo.'}</p>
         </div>
       )}
 
       {/* Erreur chargement chantiers */}
       {chantiersError && (
         <div className="v5-al warning" style={{ marginBottom: '.75rem' }}>
-          {isPt ? 'Erro ao carregar obras.' : 'Erreur lors du chargement des chantiers.'}
-          <span style={{ fontSize: 11, color: '#666', marginLeft: 8 }}>({chantiersError})</span>
+          {isPt ? 'Erro ao carregar as obras.' : 'Erreur lors du chargement des chantiers.'}
+          <span style={{ fontSize: 11, color: '#666', marginLeft: 8 }}>({isPt ? ERREURS_CHARGEMENT_PT[chantiersError] ?? chantiersError : chantiersError})</span>
         </div>
       )}
 
       {/* Chantiers sans adresse */}
       {chantiersSansLocalisation.length > 0 && (
         <div className="v5-al info" style={{ marginBottom: '.75rem' }}>
-          <strong>{chantiersSansLocalisation.length} {isPt ? 'obra(s) sem cidade' : 'chantier(s) sans ville'}</strong> — {isPt ? 'Adicione a cidade na secção Chantiers para ativar a meteorologia.' : 'Ajoutez la ville dans la section Chantiers pour activer la météo.'}
+          <strong>{chantiersSansLocalisation.length} {isPt ? 'obra(s) sem cidade' : 'chantier(s) sans ville'}</strong>{isPt ? '. ' : ' — '}{isPt ? 'Adicione a cidade na secção Obras para ativar a meteorologia.' : 'Ajoutez la ville dans la section Chantiers pour activer la météo.'}
           <div style={{ fontSize: 11, marginTop: 4, color: '#666' }}>
             {chantiersSansLocalisation.slice(0, 5).map(c => c.titre).join(', ')}{chantiersSansLocalisation.length > 5 ? '...' : ''}
           </div>
@@ -504,7 +512,7 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
       {/* Section title */}
       {meteoData.length > 0 && (
         <div className="v5-st" style={{ marginBottom: '.5rem' }}>
-          {isPt ? 'Previsões 5 dias por obra' : 'Prévisions 5 jours par chantier'}
+          {isPt ? 'Previsões a 5 dias por obra' : 'Prévisions 5 jours par chantier'}
         </div>
       )}
 
@@ -556,7 +564,7 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
                     </div>
                     <div style={{ fontSize: 9, color: hasAlert ? textColor : '#999' }}>
                       {day.rain > 1
-                        ? `🌧 ${day.rain}mm`
+                        ? (isPt ? `🌧 ${day.rain} mm` : `🌧 ${day.rain}mm`)
                         : `💨 ${Math.round(day.windMax)} km/h`
                       }
                     </div>
@@ -580,7 +588,7 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
                 }}
               >
                 {m.alert === 'rouge' ? '🔴' : '⚠️'}{' '}
-                <strong>{worstDayLabel} :</strong>{' '}
+                <strong>{worstDayLabel}{isPt ? ':' : ' :'}</strong>{' '}
                 {impactMsg}
               </div>
             )}
@@ -602,9 +610,11 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
         </div>
       )}
 
-      {/* Seuils BTP */}
+      {/* Seuils BTP (pratique française, voir getBTPImpactMessage) */}
       <div style={{ fontSize: 10, color: '#999', marginTop: '.75rem' }}>
-        {isPt ? 'Limiares BTP' : 'Seuils BTP'} : 🌧️ {isPt ? 'Chuva' : 'Pluie'} {'>'} 5mm = {isPt ? 'sem ravalement/betão' : 'pas de ravalement/béton'} • 💨 {isPt ? 'Vento' : 'Vent'} {'>'} 60 km/h = {isPt ? 'paragem grua/andaimes' : 'arrêt grue/échafaudage'} • ❄️ {isPt ? 'Gelo = sem alvenaria' : 'Gel = pas de maçonnerie'} • 🌡️ {'>'} 33°C = {isPt ? 'horários adaptados obrigatórios' : 'horaires aménagés obligatoires'}
+        {isPt
+          ? 'Limiares de obra: 🌧️ Chuva > 5 mm = sem rebocos/betonagem • 💨 Vento > 60 km/h = grua/andaimes desaconselhados • ❄️ Gelo = sem alvenaria • 🌡️ > 33 °C = horários adaptados'
+          : <>Seuils BTP : 🌧️ Pluie {'>'} 5mm = pas de ravalement/béton • 💨 Vent {'>'} 60 km/h = arrêt grue/échafaudage • ❄️ Gel = pas de maçonnerie • 🌡️ {'>'} 33°C = horaires aménagés obligatoires</>}
       </div>
     </div>
   )

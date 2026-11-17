@@ -5,6 +5,57 @@ import { useLocale } from '@/lib/i18n/context'
 import { useThemeVars } from './useThemeVars'
 
 type CanalContact = { id: string; nom: string; role: string; lastSeen?: string }
+
+// Rôles des contacts : la valeur enregistrée reste le libellé français, seul l'affichage suit le portugais.
+const ROLES_CONTACT = ['Artisan', 'Technicien', 'Sous-traitant', 'Fournisseur', 'Gestionnaire', 'Syndic', 'Autre']
+const ROLES_CONTACT_PT: Record<string, string> = {
+  Artisan: 'Profissional', Technicien: 'Técnico', 'Sous-traitant': 'Subempreiteiro', Fournisseur: 'Fornecedor',
+  Gestionnaire: 'Gestor', Syndic: 'Administração de condomínio', Autre: 'Outro',
+}
+// Rôle de l'expéditeur (orgRole) affiché en badge.
+const ROLES_EXPEDITEUR_PT: Record<string, string> = {
+  artisan: 'profissional', pro_societe: 'empresa', pro_conciergerie: 'concierge', pro_gestionnaire: 'gestor',
+}
+
+// Commandes vocales en portugais (la dictée est en pt-PT en /pt/) : mots entiers. Comme en français (bâtiment,
+// résidence, immeuble), seul le bâtiment déclenche la position ; número, apartamento et fração ne servent qu'à la
+// détailler (« Urgência, fuga no apartamento 2 » reste une alerte).
+const VOZ_LOCAL_PT = /(?:^|[^a-zà-ÿ])(?:bloco|edif[íi]cio|pr[ée]dio|condom[íi]nio)(?![a-zà-ÿ])/
+const VOZ_ESTADO_PT = /(?:^|[^a-zà-ÿ])(?:conclu[íi]d[ao]|terminad[ao]|acabad[ao])(?![a-zà-ÿ])/
+const VOZ_ALERTA_PT = /(?:^|[^a-zà-ÿ])(?:problema|urg[êe]ncia|urgente|alerta)(?![a-zà-ÿ])/
+const VOZ_ORCAMENTO_PT = /(?:^|[^a-zà-ÿ])(?:or[çc]amento|montante|valor|euros?)(?![a-zà-ÿ])|€/
+
+/**
+ * Commande vocale dictée en portugais : mêmes types et mêmes métadonnées que les commandes françaises (bâtiment,
+ * numéro, appartement ; statut terminé ; alerte prioritaire ; montant). null : message vocal simple.
+ */
+export function comandoVozPt(transcript: string): { type: string; metadata: Record<string, unknown>; conteudo: string } | null {
+  const lower = transcript.toLowerCase()
+  if (VOZ_LOCAL_PT.test(lower)) {
+    return {
+      type: 'voice_location',
+      metadata: {
+        original: transcript,
+        batiment: /(?:bloco|edif[íi]cio)\s+([a-z0-9]+)/i.exec(transcript)?.[1],
+        numero: /n[úu]mero\s+(\d+)/i.exec(transcript)?.[1],
+        appartement: /(?:apartamento|fra[çc][ãa]o)\s+([a-z0-9]+)/i.exec(transcript)?.[1],
+        isLocation: true,
+      },
+      conteudo: `📍 Posição: ${transcript}`,
+    }
+  }
+  if (VOZ_ESTADO_PT.test(lower)) {
+    return { type: 'voice_status', metadata: { original: transcript, status: 'completed' }, conteudo: `✅ Intervenção concluída: ${transcript}` }
+  }
+  if (VOZ_ALERTA_PT.test(lower)) {
+    return { type: 'voice_alert', metadata: { original: transcript, priority: 'high' }, conteudo: `🚨 Alerta: ${transcript}` }
+  }
+  if (VOZ_ORCAMENTO_PT.test(lower)) {
+    return { type: 'voice_devis', metadata: { original: transcript }, conteudo: `💰 Orçamento por voz: ${transcript}` }
+  }
+  return null
+}
+
 type CanalMsg = {
   id: string
   sender_id: string
@@ -19,6 +70,8 @@ type CanalMsg = {
 
 export default function CanalProSection({ artisan, orgRole }: { artisan: import('@/lib/types').Artisan; orgRole: string }) {
   const locale = useLocale()
+  const isPt = locale === 'pt'
+  const libelleRole = (role: string) => (isPt ? ROLES_CONTACT_PT[role] ?? role : role)
   void orgRole
   const tv = useThemeVars(true)
   const dateFmtLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
@@ -139,7 +192,15 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: import(
       let type = 'voice'
       let metadata: Record<string, unknown> = { original: transcript }
 
-      if (lower.includes('bâtiment') || lower.includes('batiment') || lower.includes('résidence') || lower.includes('immeuble')) {
+      if (isPt) {
+        // Dictée en pt-PT : commandes portugaises, mêmes types et métadonnées que les françaises.
+        const comando = comandoVozPt(transcript)
+        if (comando) {
+          type = comando.type
+          metadata = comando.metadata
+          processedContent = comando.conteudo
+        }
+      } else if (lower.includes('bâtiment') || lower.includes('batiment') || lower.includes('résidence') || lower.includes('immeuble')) {
         type = 'voice_location'
         const batMatch = transcript.match(/bâtiment\s+([A-Za-z0-9]+)/i) || transcript.match(/batiment\s+([A-Za-z0-9]+)/i)
         const numMatch = transcript.match(/numéro\s+([0-9]+)/i) || transcript.match(/numero\s+([0-9]+)/i)
@@ -214,23 +275,23 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: import(
       <div className="v5-pg-t" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h1>📡 Canal Pro</h1>
-          <p>Communication directe gestionnaire ↔ artisan</p>
+          <p>{isPt ? 'Comunicação direta gestor ↔ profissional' : 'Communication directe gestionnaire ↔ artisan'}</p>
         </div>
-        <button onClick={() => setShowAddContact(true)} className="v5-btn v5-btn-p">+ Contact</button>
+        <button onClick={() => setShowAddContact(true)} className="v5-btn v5-btn-p">{isPt ? '+ Contacto' : '+ Contact'}</button>
       </div>
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         {/* ── Liste contacts ── */}
         <div style={{ width: 260, flexShrink: 0, display: 'flex', flexDirection: 'column', background: tv.surface, borderRight: `1px solid ${tv.border}` }}>
           <div style={{ padding: '10px 14px', borderBottom: `1px solid ${tv.border}` }}>
-            <div style={{ fontSize: 10, fontWeight: 600, color: tv.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Contacts</div>
+            <div style={{ fontSize: 10, fontWeight: 600, color: tv.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{isPt ? 'Contactos' : 'Contacts'}</div>
           </div>
           <div style={{ flex: 1, overflowY: 'auto' }}>
             {contacts.length === 0 ? (
               <div style={{ padding: 24, textAlign: 'center' }}>
                 <div style={{ fontSize: 32, marginBottom: 12 }}>📡</div>
-                <p style={{ fontSize: 12, color: tv.textMuted, marginBottom: 12 }}>Aucun contact</p>
-                <button onClick={() => setShowAddContact(true)} className="v5-btn v5-btn-sm">+ Ajouter un contact</button>
+                <p style={{ fontSize: 12, color: tv.textMuted, marginBottom: 12 }}>{isPt ? 'Nenhum contacto' : 'Aucun contact'}</p>
+                <button onClick={() => setShowAddContact(true)} className="v5-btn v5-btn-sm">{isPt ? '+ Adicionar um contacto' : '+ Ajouter un contact'}</button>
               </div>
             ) : (
               contacts.map(c => (
@@ -249,7 +310,7 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: import(
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 600, fontSize: 12, color: tv.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nom}</div>
-                    <div style={{ fontSize: 11, color: tv.textMuted }}>{c.role}</div>
+                    <div style={{ fontSize: 11, color: tv.textMuted }}>{libelleRole(c.role)}</div>
                   </div>
                 </div>
               ))
@@ -263,12 +324,16 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: import(
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <div style={{ textAlign: 'center' }}>
                 <div style={{ fontSize: 48, marginBottom: 16 }}>💬</div>
-                <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8, color: tv.text }}>Sélectionnez un contact</h3>
-                <p style={{ color: tv.textMuted, fontSize: 12, marginBottom: 16 }}>Choisissez un artisan ou technicien pour démarrer la conversation</p>
+                <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8, color: tv.text }}>{isPt ? 'Selecione um contacto' : 'Sélectionnez un contact'}</h3>
+                <p style={{ color: tv.textMuted, fontSize: 12, marginBottom: 16 }}>{isPt ? 'Escolha um profissional ou técnico para iniciar a conversa' : 'Choisissez un artisan ou technicien pour démarrer la conversation'}</p>
                 {voiceSupported && (
                   <div className="v5-card" style={{ maxWidth: 320, margin: '0 auto' }}>
-                    <p style={{ fontSize: 12, fontWeight: 600 }}>🎤 Commandes vocales disponibles</p>
-                    <p style={{ fontSize: 11, marginTop: 4 }}>Dites &quot;Bâtiment A, numéro 6&quot; pour envoyer votre position, &quot;Intervention terminée&quot; pour le statut, etc.</p>
+                    <p style={{ fontSize: 12, fontWeight: 600 }}>{isPt ? '🎤 Comandos de voz disponíveis' : '🎤 Commandes vocales disponibles'}</p>
+                    {isPt ? (
+                      <p style={{ fontSize: 11, marginTop: 4 }}>Diga &quot;Bloco A, número 6&quot; para enviar a sua posição, &quot;Intervenção concluída&quot; para o estado, etc.</p>
+                    ) : (
+                      <p style={{ fontSize: 11, marginTop: 4 }}>Dites &quot;Bâtiment A, numéro 6&quot; pour envoyer votre position, &quot;Intervention terminée&quot; pour le statut, etc.</p>
+                    )}
                   </div>
                 )}
               </div>
@@ -282,14 +347,14 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: import(
                 </div>
                 <div>
                   <div style={{ fontWeight: 600, fontSize: 13, color: tv.text }}>{selectedContact.nom}</div>
-                  <div style={{ fontSize: 11, color: tv.textMuted }}>{selectedContact.role} · Canal direct</div>
+                  <div style={{ fontSize: 11, color: tv.textMuted }}>{libelleRole(selectedContact.role)} · {isPt ? 'Canal direto' : 'Canal direct'}</div>
                 </div>
                 <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
                   {voiceSupported && !isRecording && (
-                    <button onClick={startVoice} className="v5-btn v5-btn-sm">🎤 Vocal</button>
+                    <button onClick={startVoice} className="v5-btn v5-btn-sm">{isPt ? '🎤 Voz' : '🎤 Vocal'}</button>
                   )}
                   {isRecording && (
-                    <button onClick={stopVoice} className="v5-btn v5-btn-sm">⏹ Stop</button>
+                    <button onClick={stopVoice} className="v5-btn v5-btn-sm">{isPt ? '⏹ Parar' : '⏹ Stop'}</button>
                   )}
                 </div>
               </div>
@@ -297,20 +362,29 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: import(
               {/* Messages */}
               <div style={{ flex: 1, overflowY: 'auto', padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {msgLoading ? (
-                  <div style={{ textAlign: 'center', padding: '40px 0', color: tv.textMuted, fontSize: 12 }}>Chargement...</div>
+                  <div style={{ textAlign: 'center', padding: '40px 0', color: tv.textMuted, fontSize: 12 }}>{isPt ? 'A carregar...' : 'Chargement...'}</div>
                 ) : messages.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '40px 0' }}>
                     <div style={{ fontSize: 32, marginBottom: 12 }}>💬</div>
-                    <p style={{ color: tv.textMuted, fontSize: 12 }}>Démarrez la conversation</p>
+                    <p style={{ color: tv.textMuted, fontSize: 12 }}>{isPt ? 'Inicie a conversa' : 'Démarrez la conversation'}</p>
                     {voiceSupported && (
                       <div className="v5-card" style={{ marginTop: 16, maxWidth: 340, marginLeft: 'auto', marginRight: 'auto', textAlign: 'left' }}>
-                        <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>🎤 Exemples de commandes vocales :</p>
-                        <ul style={{ fontSize: 11, listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          <li>• <em>&quot;Bâtiment B, numéro 12, Madame Dupont&quot;</em> → localisation automatique</li>
-                          <li>• <em>&quot;Intervention terminée, fuite réparée&quot;</em> → statut terminé</li>
-                          <li>• <em>&quot;Urgence, dégât des eaux au 3ème&quot;</em> → alerte priorité haute</li>
-                          <li>• <em>&quot;Devis 450 euros pour remplacement robinet&quot;</em> → message devis</li>
-                        </ul>
+                        <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>{isPt ? '🎤 Exemplos de comandos de voz:' : '🎤 Exemples de commandes vocales :'}</p>
+                        {isPt ? (
+                          <ul style={{ fontSize: 11, listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            <li>• <em>&quot;Bloco B, número 12, Sra. Silva&quot;</em> → localização automática</li>
+                            <li>• <em>&quot;Intervenção concluída, fuga reparada&quot;</em> → estado concluído</li>
+                            <li>• <em>&quot;Urgência, inundação no 3.º andar&quot;</em> → alerta de prioridade alta</li>
+                            <li>• <em>&quot;Orçamento de 450 euros para substituição de torneira&quot;</em> → mensagem de orçamento</li>
+                          </ul>
+                        ) : (
+                          <ul style={{ fontSize: 11, listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            <li>• <em>&quot;Bâtiment B, numéro 12, Madame Dupont&quot;</em> → localisation automatique</li>
+                            <li>• <em>&quot;Intervention terminée, fuite réparée&quot;</em> → statut terminé</li>
+                            <li>• <em>&quot;Urgence, dégât des eaux au 3ème&quot;</em> → alerte priorité haute</li>
+                            <li>• <em>&quot;Devis 450 euros pour remplacement robinet&quot;</em> → message devis</li>
+                          </ul>
+                        )}
                       </div>
                     )}
                   </div>
@@ -324,7 +398,7 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: import(
                           {!isMe && (
                             <div style={{ fontSize: 10, fontWeight: 600, color: tv.textMuted, marginBottom: 4 }}>
                               {msg.sender_name}
-                              {msg.sender_role && <span className={ROLE_TAG_CLASS[msg.sender_role] || 'v22-tag v22-tag-gray'} style={{ marginLeft: 6, fontSize: 9 }}>{msg.sender_role}</span>}
+                              {msg.sender_role && <span className={ROLE_TAG_CLASS[msg.sender_role] || 'v22-tag v22-tag-gray'} style={{ marginLeft: 6, fontSize: 9 }}>{isPt ? ROLES_EXPEDITEUR_PT[msg.sender_role] ?? msg.sender_role : msg.sender_role}</span>}
                             </div>
                           )}
                           <p style={{ fontSize: 12, lineHeight: 1.6, margin: 0 }}>{icon}{msg.content}</p>
@@ -334,9 +408,9 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: import(
                               if (meta.isLocation && (meta.batiment || meta.numero)) {
                                 return (
                                   <div style={{ marginTop: 6, background: 'rgba(255,255,255,0.3)', borderRadius: 3, padding: 6, fontSize: 11 }}>
-                                    {meta.batiment && <span style={{ marginRight: 8 }}>🏢 Bât {meta.batiment}</span>}
-                                    {meta.numero && <span style={{ marginRight: 8 }}>🚪 N°{meta.numero}</span>}
-                                    {meta.appartement && <span>🏠 Apt {meta.appartement}</span>}
+                                    {meta.batiment && <span style={{ marginRight: 8 }}>{isPt ? `🏢 Bloco ${meta.batiment}` : <>🏢 Bât {meta.batiment}</>}</span>}
+                                    {meta.numero && <span style={{ marginRight: 8 }}>{isPt ? `🚪 N.º ${meta.numero}` : <>🚪 N°{meta.numero}</>}</span>}
+                                    {meta.appartement && <span>{isPt ? `🏠 Apart. ${meta.appartement}` : <>🏠 Apt {meta.appartement}</>}</span>}
                                   </div>
                                 )
                               }
@@ -345,7 +419,7 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: import(
                           })()}
                           <div style={{ fontSize: 10, marginTop: 4, color: isMe ? 'rgba(0,0,0,0.5)' : tv.textMuted }}>
                             {new Date(msg.created_at).toLocaleTimeString(dateFmtLocale, { hour: '2-digit', minute: '2-digit' })}
-                            {msg.read_at && isMe && ' · Lu'}
+                            {msg.read_at && isMe && (isPt ? ' · Lida' : ' · Lu')}
                           </div>
                         </div>
                       </div>
@@ -358,12 +432,12 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: import(
               {/* Statut vocal */}
               {voiceStatus === 'recording' && (
                 <div className="v5-card" style={{ margin: '0 14px 8px' }}>
-                  🔴 Enregistrement en cours... Parlez maintenant
+                  {isPt ? '🔴 A gravar... Fale agora' : '🔴 Enregistrement en cours... Parlez maintenant'}
                 </div>
               )}
               {voiceStatus === 'processing' && (
                 <div className="v5-card" style={{ margin: '0 14px 8px' }}>
-                  ⚙️ Traitement de la commande vocale...
+                  {isPt ? '⚙️ A processar o comando de voz...' : '⚙️ Traitement de la commande vocale...'}
                 </div>
               )}
 
@@ -372,13 +446,13 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: import(
                 <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
                   <div style={{ display: 'flex', gap: 4 }}>
                     <input ref={fileInputRef} type="file" style={{ display: 'none' }} accept="image/*,.pdf,.doc,.docx" onChange={e => setAttachFile(e.target.files?.[0] || null)} />
-                    <button onClick={() => fileInputRef.current?.click()} className="v5-btn v5-btn-sm" title="Joindre un fichier">📎</button>
+                    <button onClick={() => fileInputRef.current?.click()} className="v5-btn v5-btn-sm" title={isPt ? 'Anexar um ficheiro' : 'Joindre un fichier'}>📎</button>
                     {voiceSupported && (
                       <button
                         onMouseDown={startVoice}
                         onTouchStart={startVoice}
                         className={`v5-btn v5-btn-sm ${isRecording ? 'animate-pulse' : ''}`}
-                        title="Commande vocale"
+                        title={isPt ? 'Comando de voz' : 'Commande vocale'}
                       >🎤</button>
                     )}
                   </div>
@@ -395,7 +469,9 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: import(
                         value={newMsg}
                         onChange={e => setNewMsg(e.target.value)}
                         onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
-                        placeholder={isRecording ? '🔴 Enregistrement vocal...' : 'Tapez un message...'}
+                        placeholder={isRecording
+                          ? (isPt ? '🔴 Gravação de voz...' : '🔴 Enregistrement vocal...')
+                          : (isPt ? 'Escreva uma mensagem...' : 'Tapez un message...')}
                         disabled={isRecording}
                         className="v5-fi"
                         style={{ flex: 1 }}
@@ -405,16 +481,16 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: import(
                         disabled={sending || (!newMsg.trim() && !attachFile)}
                         className="v5-btn v5-btn-p"
                         style={{ opacity: (sending || (!newMsg.trim() && !attachFile)) ? 0.5 : 1 }}
-                      >{sending ? 'Envoi...' : 'Envoyer'}</button>
+                      >{sending ? (isPt ? 'A enviar...' : 'Envoi...') : (isPt ? 'Enviar' : 'Envoyer')}</button>
                     </div>
                   </div>
                 </div>
-                {/* Actions rapides vocales */}
+                {/* Actions rapides vocales : le texte envoyé suit la langue, le type et les métadonnées ne changent pas */}
                 <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
-                  <button onClick={() => sendMessage('📍 En route vers le chantier', 'voice_status')} disabled={sending} className="v5-badge v5-badge-gray" style={{ cursor: sending ? 'not-allowed' : 'pointer', opacity: sending ? 0.5 : 1 }}>🚗 En route</button>
-                  <button onClick={() => sendMessage('✅ Arrivé sur place', 'voice_status')} disabled={sending} className="v5-badge v5-badge-gray" style={{ cursor: sending ? 'not-allowed' : 'pointer', opacity: sending ? 0.5 : 1 }}>📍 Arrivé</button>
-                  <button onClick={() => sendMessage('✅ Intervention terminée', 'voice_status', { status: 'completed' })} disabled={sending} className="v5-badge v5-badge-green" style={{ cursor: sending ? 'not-allowed' : 'pointer', opacity: sending ? 0.5 : 1 }}>✅ Terminé</button>
-                  <button onClick={() => sendMessage('🚨 Problème détecté, besoin d\'assistance', 'voice_alert', { priority: 'high' })} disabled={sending} className="v5-badge v5-badge-red" style={{ cursor: sending ? 'not-allowed' : 'pointer', opacity: sending ? 0.5 : 1 }}>🚨 Alerte</button>
+                  <button onClick={() => { void sendMessage(isPt ? '📍 A caminho da obra' : '📍 En route vers le chantier', 'voice_status') }} disabled={sending} className="v5-badge v5-badge-gray" style={{ cursor: sending ? 'not-allowed' : 'pointer', opacity: sending ? 0.5 : 1 }}>{isPt ? '🚗 A caminho' : '🚗 En route'}</button>
+                  <button onClick={() => { void sendMessage(isPt ? '✅ Cheguei ao local' : '✅ Arrivé sur place', 'voice_status') }} disabled={sending} className="v5-badge v5-badge-gray" style={{ cursor: sending ? 'not-allowed' : 'pointer', opacity: sending ? 0.5 : 1 }}>{isPt ? '📍 Cheguei' : '📍 Arrivé'}</button>
+                  <button onClick={() => { void sendMessage(isPt ? '✅ Intervenção concluída' : '✅ Intervention terminée', 'voice_status', { status: 'completed' }) }} disabled={sending} className="v5-badge v5-badge-green" style={{ cursor: sending ? 'not-allowed' : 'pointer', opacity: sending ? 0.5 : 1 }}>{isPt ? '✅ Concluído' : '✅ Terminé'}</button>
+                  <button onClick={() => { void sendMessage(isPt ? '🚨 Problema detetado, preciso de assistência' : '🚨 Problème détecté, besoin d\'assistance', 'voice_alert', { priority: 'high' }) }} disabled={sending} className="v5-badge v5-badge-red" style={{ cursor: sending ? 'not-allowed' : 'pointer', opacity: sending ? 0.5 : 1 }}>{isPt ? '🚨 Alerta' : '🚨 Alerte'}</button>
                 </div>
               </div>
             </>
@@ -427,29 +503,29 @@ export default function CanalProSection({ artisan, orgRole }: { artisan: import(
         <div className="v5-modal-ov show">
           <div className="v5-modal" style={{ width: '100%', maxWidth: 420 }}>
             <div className="v5-modal-h">
-              <div className="v5-modal-t">📡 Ajouter un contact</div>
+              <div className="v5-modal-t">{isPt ? '📡 Adicionar um contacto' : '📡 Ajouter un contact'}</div>
               <button onClick={() => setShowAddContact(false)}>✕</button>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: '16px' }}>
               <div className="v5-fg">
-                <label className="v5-fl">Nom / Société *</label>
-                <input value={contactForm.nom} onChange={e => setContactForm({...contactForm, nom: e.target.value})} placeholder="Jean Dupont Plomberie" className="v5-fi" />
+                <label className="v5-fl">{isPt ? 'Nome / Empresa *' : 'Nom / Société *'}</label>
+                <input value={contactForm.nom} onChange={e => setContactForm({...contactForm, nom: e.target.value})} placeholder={isPt ? 'João Silva Canalizações' : 'Jean Dupont Plomberie'} className="v5-fi" />
               </div>
               <div className="v5-fg">
-                <label className="v5-fl">Rôle</label>
+                <label className="v5-fl">{isPt ? 'Função' : 'Rôle'}</label>
                 <select value={contactForm.role} onChange={e => setContactForm({...contactForm, role: e.target.value})} className="v5-fi">
-                  {['Artisan', 'Technicien', 'Sous-traitant', 'Fournisseur', 'Gestionnaire', 'Syndic', 'Autre'].map(r => <option key={r}>{r}</option>)}
+                  {ROLES_CONTACT.map(r => <option key={r} value={r}>{libelleRole(r)}</option>)}
                 </select>
               </div>
               <div className="v5-fg">
-                <label className="v5-fl">Identifiant utilisateur (optionnel)</label>
-                <input value={contactForm.identifiant} onChange={e => setContactForm({...contactForm, identifiant: e.target.value})} placeholder="ID Supabase ou email" className="v5-fi" />
-                <p style={{ fontSize: 11, color: tv.textMuted, marginTop: 4 }}>Si l&apos;artisan est inscrit sur Vitfix, renseignez son ID pour la messagerie temps réel</p>
+                <label className="v5-fl">{isPt ? 'Identificador do utilizador (opcional)' : 'Identifiant utilisateur (optionnel)'}</label>
+                <input value={contactForm.identifiant} onChange={e => setContactForm({...contactForm, identifiant: e.target.value})} placeholder={isPt ? 'ID Supabase ou e-mail' : 'ID Supabase ou email'} className="v5-fi" />
+                <p style={{ fontSize: 11, color: tv.textMuted, marginTop: 4 }}>{isPt ? 'Se o profissional estiver registado na Vitfix, indique o ID dele para as mensagens em tempo real' : <>Si l&apos;artisan est inscrit sur Vitfix, renseignez son ID pour la messagerie temps réel</>}</p>
               </div>
             </div>
             <div style={{ display: 'flex', gap: 10, padding: '0 16px 16px' }}>
-              <button onClick={() => setShowAddContact(false)} className="v5-btn" style={{ flex: 1 }}>Annuler</button>
-              <button onClick={handleAddContact} className="v5-btn v5-btn-p" style={{ flex: 1 }}>Ajouter</button>
+              <button onClick={() => setShowAddContact(false)} className="v5-btn" style={{ flex: 1 }}>{isPt ? 'Cancelar' : 'Annuler'}</button>
+              <button onClick={handleAddContact} className="v5-btn v5-btn-p" style={{ flex: 1 }}>{isPt ? 'Adicionar' : 'Ajouter'}</button>
             </div>
           </div>
         </div>
