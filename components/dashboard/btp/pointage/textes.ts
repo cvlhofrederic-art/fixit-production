@@ -276,8 +276,8 @@ export function statutArrierePlan(
       'Outro telemóvel (ou uma instalação anterior da app) marca por si em segundo plano. Ativá-la aqui desliga-a lá.',
     ],
     zones_indisponibles: [
-      'Activé sur ce téléphone, mais il ne surveille pas tous vos chantiers (localisation du téléphone coupée ?) : rallumez-la, puis revenez dans l’appli ; en attendant, pointez page ouverte ou à la main.',
-      'Ativada neste telemóvel, mas não acompanha todas as suas obras (localização do telemóvel desligada?): volte a ligá-la e regresse à app; entretanto, marque com a página aberta ou manualmente.',
+      'Activé sur ce téléphone, mais il ne surveille pas tous vos chantiers (localisation du téléphone coupée ?) : rallumez-la, puis revenez dans l’appli ; en attendant, pointez à la main.',
+      'Ativada neste telemóvel, mas não acompanha todas as suas obras (localização do telemóvel desligada?): volte a ligá-la e regresse à app; entretanto, marque manualmente.',
     ],
     sans_autorisation: [
       'Activé sur ce téléphone, mais la position « Toujours » n’est plus autorisée pour Vitfix Pro : rien n’est pointé en arrière-plan. Rétablissez-la dans les réglages du téléphone ; en attendant, pointez page ouverte ou à la main.',

@@ -109,6 +109,10 @@ describe('pointages qui ne viennent pas du téléphone : ils priment', () => {
       .toEqual([[A, h(8), h(10)], [A, h(11), h(17)]])
   })
 
+  it('pointage sans durée ailleurs (départ oublié refermé sans heures) : ne coupe pas la présence', () => {
+    expect(dansTousLesOrdres([entre(A, h(8)), sort(A, h(17))], [{ chantier: B, debut: h(10), fin: h(10) }])).toEqual([[A, h(8), h(17)]])
+  })
+
   it('pointage encore ouvert ailleurs : plus rien après son début', () => {
     expect(dansTousLesOrdres([entre(A, h(8)), sort(A, h(17))], [{ chantier: B, debut: h(10), fin: null }]))
       .toEqual([[A, h(8), h(10)]])

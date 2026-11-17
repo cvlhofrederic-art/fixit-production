@@ -188,12 +188,13 @@ describe('journée livrée d’un bloc, dans n’importe quel ordre (file Androi
   })
 })
 
-describe('pointages qui ne viennent pas du téléphone : ils priment', () => {
-  const aLaMain = (debut: string, fin: string | null, heures: number | null): Ligne => ({
+const aLaMain = (debut: string, fin: string | null, heures: number | null): Ligne => ({
     id: randomUUID(), owner_id: SOC_A, membre_id: M_PAUL, chantier_id: C_VILLA, chantier_nom: 'Villa', date: '2026-11-16',
     heure_arrivee: debut, heure_depart: fin, heures_travaillees: heures, pause_minutes: 0, mode: 'manuel',
     created_at: iso(paris(Number(debut.slice(0, 2)), Number(debut.slice(3, 5)))),
-  })
+})
+
+describe('pointages qui ne viennent pas du téléphone : ils priment', () => {
 
   it('pointage à la main le matin, téléphone l’après-midi : seul l’après-midi vient du téléphone', async () => {
     etat.tables.pointages_btp.push(aLaMain('08:00:00', '12:10:00', 4.17))
@@ -234,7 +235,40 @@ describe('pointages qui ne viennent pas du téléphone : ils priment', () => {
     }
     await sortie(C_VILLA, paris(12), paris(12, 1))
     expect(resume()).toEqual([[C_VILLA, '08:00:00', '11:00:00', 3]])
-    expect(liens()).toEqual([])
+    // Au rejeu suivant, il n'est plus au téléphone et n'est toujours pas réécrit.
+    await entree(C_IMMEUBLE, paris(13), paris(13, 1))
+    expect(liens().map(l => l.pointage_id)).not.toContain(lignesDePaul()[0].id)
+    expect(resume()).toEqual([[C_VILLA, '08:00:00', '11:00:00', 3], [C_IMMEUBLE, '13:00:00', null, null]])
+  })
+
+  it('pointage du téléphone supprimé par le gérant : la suppression prime, il n’est jamais recréé', async () => {
+    await entree(C_VILLA, paris(8))
+    await sortie(C_VILLA, paris(12), paris(12, 1))
+    etat.tables.pointages_btp = etat.tables.pointages_btp.filter(p => !(p.membre_id === M_PAUL && p.date === '2026-11-16'))
+    await entree(C_IMMEUBLE, paris(13), paris(13, 1))
+    await sortie(C_VILLA, paris(12), paris(13, 2))
+    expect(resume()).toEqual([[C_IMMEUBLE, '13:00:00', null, null]])
+  })
+
+  it('pointage automatique ouvert avant l’activation et confié au téléphone : refermé à sa sortie', async () => {
+    // État laissé par l'enregistrement (route principale) : lien sur le pointage de la page ouverte, arrivée au journal.
+    const ouvert: Ligne = {
+      ...aLaMain('07:50:00', null, null), mode: 'geo_auto', notes: null, created_at: iso(paris(7, 50)),
+    }
+    etat.tables.pointages_btp.push(ouvert)
+    etat.tables.pointage_lignes_appareil_btp = [{
+      pointage_id: ouvert.id, appareil_id: APPAREIL, date: '2026-11-16',
+      ecrit: { chantier_id: C_VILLA, date: '2026-11-16', heure_arrivee: '07:50:00', heure_depart: null, heures_travaillees: null, notes: null, created_at: iso(paris(7, 50)) },
+    }]
+    etat.tables.pointage_evenements_btp = [{
+      id: randomUUID(), appareil_id: APPAREIL, chantier_id: C_VILLA, chantier_nom: 'Villa', sens: 'enter',
+      detecte_le: iso(paris(7, 50)), recu_le: iso(paris(7, 50)),
+    }]
+    // Zones posées sur place : le système renvoie une arrivée (déjà dedans), puis la sortie du soir.
+    await entree(C_VILLA, paris(8), paris(8, 1))
+    await sortie(C_VILLA, paris(17), paris(17, 1))
+    expect(resume()).toEqual([[C_VILLA, '07:50:00', '17:00:00', 9.17]])
+    expect(lignesDePaul()[0].id).toBe(ouvert.id)
   })
 
   it('pointage commencé à la main en cours : le téléphone n’ouvre rien par-dessus', async () => {
@@ -248,6 +282,73 @@ describe('pointages qui ne viennent pas du téléphone : ils priment', () => {
     expect((await entree(C_VILLA, paris(8, 30))).json).toEqual({ statut: 'enregistre' })
     expect(lignesDePaul().map(p => p.chantier_id)).toEqual([C_IMMEUBLE])
     expect(liens()).toEqual([])
+  })
+})
+
+describe('réécriture des pointages du téléphone', () => {
+  it('passage plus ancien livré tard : les pointages déjà justes gardent leur identifiant', async () => {
+    await entree(C_VILLA, paris(8))
+    await sortie(C_VILLA, paris(12), paris(12, 1))
+    await entree(C_VILLA, paris(13), paris(13, 1))
+    await sortie(C_VILLA, paris(17), paris(17, 1))
+    const avant = lignesDePaul().map(p => p.id)
+    // Sortie reçue d’abord (sans effet seule), puis son arrivée : la journée gagne un pointage en tête.
+    await sortie(C_IMMEUBLE, paris(7), paris(17, 30))
+    await entree(C_IMMEUBLE, paris(6), paris(17, 31))
+    expect(resume()).toEqual([
+      [C_IMMEUBLE, '06:00:00', '07:00:00', 1], [C_VILLA, '08:00:00', '12:00:00', 4], [C_VILLA, '13:00:00', '17:00:00', 4],
+    ])
+    expect(lignesDePaul().slice(1).map(p => p.id)).toEqual(avant)
+  })
+
+  it('relais d’un chantier voisin : pas de note d’arrivée tardive (l’heure vient de la sortie du premier)', async () => {
+    await entree(C_VILLA, paris(8))
+    await entree(C_IMMEUBLE, paris(10), paris(11))
+    await sortie(C_VILLA, paris(12), paris(12, 1))
+    expect(lignesDePaul().find(p => p.chantier_id === C_IMMEUBLE)).toMatchObject({ heure_arrivee: '12:00:00', notes: null })
+  })
+
+  it('pointage ajouté par le gérant (heure de création quelconque) : lu à l’heure murale du fuseau du téléphone', async () => {
+    etat.tables.pointage_appareils_btp = [await appareil({ fuseau: 'Europe/Lisbon' })]
+    etat.tables.pointages_btp.push({
+      ...aLaMain('10:00:00', '11:00:00', 1), created_at: '2026-11-16T15:00:00.000Z',
+    })
+    // Lisbonne : UTC+0 en novembre.
+    await entree(C_IMMEUBLE, Date.UTC(2026, 10, 16, 9, 0), Date.UTC(2026, 10, 16, 12, 1))
+    await sortie(C_IMMEUBLE, Date.UTC(2026, 10, 16, 12, 0), Date.UTC(2026, 10, 16, 12, 2))
+    expect(resume().filter(p => p[0] === C_IMMEUBLE)).toEqual([
+      [C_IMMEUBLE, '09:00:00', '10:00:00', 1], [C_IMMEUBLE, '11:00:00', '12:00:00', 1],
+    ])
+  })
+})
+
+describe('veille rejouée, écritures en échec', () => {
+  it('écriture de pointage en échec : envoi gardé (200), refaite au rejeu suivant', async () => {
+    await entree(C_VILLA, paris(8))
+    etat.avantMiseAJour = table => {
+      if (table === 'pointages_btp') throw new Error('panne d’écriture')
+      return false
+    }
+    expect((await sortie(C_VILLA, paris(12), paris(12, 1))).json).toEqual({ statut: 'enregistre' })
+    expect(resume()).toEqual([[C_VILLA, '08:00:00', null, null]])
+    etat.avantMiseAJour = null
+    await entree(C_IMMEUBLE, paris(13), paris(13, 1))
+    expect(resume()).toEqual([[C_VILLA, '08:00:00', '12:00:00', 4], [C_IMMEUBLE, '13:00:00', null, null]])
+  })
+
+  it('veille rejouée au premier envoi du jour : sa sortie déjà au journal referme son pointage resté ouvert', async () => {
+    await entree(C_VILLA, paris(13, 0, 15), paris(13, 1, 15))
+    // La sortie de la veille est arrivée mais son écriture a échoué : le pointage est resté ouvert.
+    etat.avantMiseAJour = table => {
+      if (table === 'pointages_btp') throw new Error('panne d’écriture')
+      return false
+    }
+    await sortie(C_VILLA, paris(20, 0, 15), paris(20, 1, 15))
+    etat.avantMiseAJour = null
+    expect(resume('2026-11-15')).toEqual([[C_VILLA, '13:00:00', null, null]])
+    await entree(C_IMMEUBLE, paris(8), paris(8, 1))
+    expect(resume('2026-11-15')).toEqual([[C_VILLA, '13:00:00', '20:00:00', 7]])
+    expect(resume()).toEqual([[C_IMMEUBLE, '08:00:00', null, null]])
   })
 })
 
@@ -289,16 +390,18 @@ describe('envois ignorés, réponses', () => {
     expect(lignesDePaul()).toEqual([])
   })
 
-  it('pointage automatique coupé par le gérant : ignoré, pas au journal', async () => {
+  it('pointage automatique coupé par le gérant : ignoré, pas au journal, téléphone retiré', async () => {
     etat.tables.pointage_reglages_btp = [{ owner_id: SOC_A, auto_active: false }]
     expect((await entree(C_VILLA, paris(8))).json).toEqual({ statut: 'pointage_auto_desactive' })
     expect(journal()).toEqual([])
+    expect(telephone().retire_le).toBe(iso(paris(8, 1)))
   })
 
   it('réglage illisible (panne passagère) : 500, le téléphone réessaiera ; rien de décidé', async () => {
     etat.tablesAbsentes = new Set(['pointage_reglages_btp'])
     // Table absente : réglage connu (mode coupé) ; une autre erreur, elle, n'est pas une réponse.
     expect((await entree(C_VILLA, paris(8))).json).toEqual({ statut: 'pointage_auto_desactive' })
+    etat.tables.pointage_appareils_btp = [await appareil()]
     const lire = vi.spyOn(await import('@/lib/btp/pointage-serveur'), 'lireDonneesSociete')
     lire.mockImplementationOnce(async () => ({
       societeId: SOC_A, membres: [], chantiersEnCours: [], equipes: [], pointageAutoActive: false, reglageDisponible: true, reglageLu: false,
@@ -345,9 +448,14 @@ describe('envois ignorés, réponses', () => {
     expect(journal()).toEqual([])
   })
 
-  it('fiche employé retirée ou inactive : ignoré', async () => {
+  it('fiche employé inactive ou supprimée : ignoré, téléphone retiré', async () => {
     etat.tables.membres_btp = etat.tables.membres_btp.map(m => (m.id === M_PAUL ? { ...m, actif: false } : m))
     expect((await entree(C_VILLA, paris(8))).json).toEqual({ statut: 'fiche_absente' })
+    expect(telephone().retire_le).toBe(iso(paris(8, 1)))
+    await initialiser()
+    etat.tables.membres_btp = etat.tables.membres_btp.filter(m => m.id !== M_PAUL)
+    expect((await entree(C_VILLA, paris(8))).json).toEqual({ statut: 'fiche_absente' })
+    expect(telephone().retire_le).toBe(iso(paris(8, 1)))
   })
 
   it('le gérant lui-même peut pointer depuis son téléphone', async () => {

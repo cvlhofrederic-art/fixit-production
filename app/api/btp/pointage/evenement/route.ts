@@ -33,6 +33,7 @@ import {
 } from '@/lib/btp/pointage-arriere-plan'
 import {
   CHAMPS_ECRITS,
+  ecritDe,
   instantMural,
   memeContenu,
   rejouerJournee,
@@ -51,29 +52,34 @@ import {
 // Le module Android livre ses envois dans le désordre et parfois deux fois. Chaque envoi est donc gardé au journal
 // (pointage_evenements_btp, un par téléphone, chantier, sens et heure de détection : un doublon n'y entre pas), puis
 // la journée est rejouée dans l'ordre des heures de détection (lib/btp/pointage-rejeu.ts) et les pointages du
-// téléphone pour ce jour sont réécrits en conséquence : le résultat ne dépend pas de l'ordre de réception.
+// téléphone pour ce jour sont réécrits en conséquence : le résultat ne dépend pas de l'ordre de réception. La veille
+// est rejouée aussi (sortie livrée tard, écriture qui avait échoué) : elle se corrige au premier envoi du jour.
 // - Une arrivée n'entre au journal que sur un chantier en cours affecté à l'employé et localisé, à sa réception ; une
-//   sortie y entre toujours (elle ne compte que si l'arrivée y est). Mode automatique coupé par le gérant : rien.
+//   sortie y entre toujours (elle ne compte que si l'arrivée y est).
 // - Le téléphone ne réécrit que ses propres pointages (pointage_lignes_appareil_btp garde ce qu'il y a écrit) et
-//   seulement s'ils n'ont pas été modifiés depuis : un pointage modifié par l'employé ou le gérant, ou commencé à la
-//   main, prime sur ses envois.
+//   seulement s'ils n'ont pas été modifiés depuis : un pointage modifié ou supprimé par l'employé ou le gérant, ou
+//   commencé à la main, prime sur ses envois. À l'activation, le pointage automatique en cours (page ouverte, ancien
+//   téléphone) lui est confié (route principale), pour qu'il le referme à sa sortie.
 // - Heure de détection retenue (bornée à 12 h, heure future ramenée à la réception) ; arrivée reçue plus de 15 min
 //   après sa détection notée pour le gérant ; journée finie sans sortie vue : refermée sans heures, à régulariser.
-// - Envois d'un même téléphone traités un à la fois (main prise sur sa ligne) ; le jeton d'une fiche changée
-//   d'adresse e-mail, ou d'un compte retiré de la société, est retiré.
+// - Envois d'un même téléphone traités un à la fois (main prise sur sa ligne). Téléphone retiré quand le gérant a
+//   coupé le mode, quand la fiche n'existe plus, n'est plus active ou a changé d'adresse e-mail, ou quand le compte a
+//   quitté la société.
 //
 // Réponses : 200 pour tout envoi lu, gardé ou ignoré (`statut`) : le module retire de sa file tout envoi qui reçoit
-// un 2xx, et Android réessaie le reste sans fin (un jeton inconnu ou retiré reçoit donc aussi 200). 429 (trop d'envois,
-// ou un autre envoi du téléphone en cours) et 500 (panne, lecture impossible) seulement, pour réessayer plus tard ;
-// 413 pour un corps démesuré (jamais envoyé par le module).
+// un 2xx, et Android réessaie le reste sans fin (un jeton inconnu ou retiré reçoit donc aussi 200). Une écriture de
+// pointage en échec est journalisée et refaite au rejeu suivant, sans bloquer l'envoi. 429 (trop d'envois, ou un
+// autre envoi du téléphone en cours) et 500 (panne de lecture) seulement, pour réessayer plus tard ; 413 pour un corps
+// démesuré (jamais envoyé par le module).
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /** Taille maximale d'un envoi : le module en envoie quelques centaines d'octets. */
 const TAILLE_MAX_CORPS = 4096
 /** Main prise sur un téléphone le temps de traiter un envoi ; rendue d'office passé ce délai (traitement interrompu). */
 const BAIL_MS = 15_000
-/** Fenêtre de lecture du journal autour de l'envoi : la journée locale entière, quel que soit le fuseau. */
+/** Fenêtre de lecture du journal autour d'un jour : la journée locale entière, quel que soit le fuseau. */
 const FENETRE_JOURNAL_MS = 36 * 3_600_000
+const JOUR_MS = 86_400_000
 /** Un autre envoi du même téléphone est en cours de traitement : 429, le téléphone réessaiera. */
 const OCCUPE = 'occupe'
 
@@ -83,6 +89,7 @@ const TABLE_LIENS = 'pointage_lignes_appareil_btp'
 const repondre = (statut: string) => NextResponse.json({ statut })
 const iso = (instant: number) => new Date(instant).toISOString()
 const instantDe = (valeur: unknown): number => (typeof valeur === 'string' ? Date.parse(valeur) : Number.NaN)
+const raison = (err: unknown) => (err instanceof Error ? err.message : err)
 
 /** Ce dont le traitement d'un envoi a besoin : téléphone, société, employé. */
 interface Contexte {
@@ -98,6 +105,22 @@ interface Contexte {
 interface LignePossedee {
   ligne: Ligne
   ecrit: Ligne
+}
+
+/** Requête que l'on peut restreindre colonne par colonne (modification, suppression). */
+interface Filtrable<T> {
+  eq(colonne: string, valeur: unknown): T
+  is(colonne: string, valeur: null): T
+}
+
+/** Restreint une écriture au pointage tel que le téléphone l'a écrit : sans effet s'il a changé entre-temps. */
+function siInchange<T extends Filtrable<T>>(requete: T, ecrit: Ligne): T {
+  let restreinte = requete
+  for (const champ of CHAMPS_ECRITS) {
+    const valeur = ecrit[champ]
+    restreinte = valeur === null || valeur === undefined ? restreinte.is(champ, null) : restreinte.eq(champ, valeur)
+  }
+  return restreinte
 }
 
 /** Téléphone actif (non retiré) dont le jeton a cette empreinte ; table absente (migration 20261117) : aucun. */
@@ -165,19 +188,24 @@ async function rendreLaMain(id: unknown, bail: string, maintenant: number): Prom
   if (error) logger.warn('[btp/pointage/evenement] téléphone non rendu (il le sera à l’échéance)', { error: error.message })
 }
 
-/** Société et fiche du téléphone ; sinon la raison d'ignorer l'envoi (fiche changée d'adresse : téléphone retiré). */
+/**
+ * Société et fiche du téléphone ; sinon la raison d'ignorer l'envoi. Mode coupé par le gérant, fiche absente,
+ * inactive ou passée à une autre adresse e-mail (lectures réussies) : le téléphone est retiré, l'appli le verra.
+ */
 async function contexteDuTelephone(appareil: Ligne, maintenant: number): Promise<Contexte | string> {
   const societeId = String(appareil.owner_id)
   const donnees = await lireDonneesSociete(societeId)
   // Réglage illisible (panne passagère) : rien n'est décidé, le téléphone réessaiera (500).
   if (!donnees.reglageLu) throw new Error('réglage du pointage automatique illisible')
-  if (!donnees.pointageAutoActive) return 'pointage_auto_desactive'
+  let refus: string | null = null
   const membre = donnees.membres.find(m => m.id === appareil.membre_id && m.actif !== false)
-  if (!membre) return 'fiche_absente'
+  if (!donnees.pointageAutoActive) refus = 'pointage_auto_desactive'
+  else if (!membre) refus = 'fiche_absente'
   // Le compte est relié à sa fiche par l'adresse e-mail : une fiche passée à une autre adresse n'est plus la sienne.
-  if (normaliserEmail(membre.email) !== appareil.email_fiche) {
+  else if (normaliserEmail(membre.email) !== appareil.email_fiche) refus = 'fiche_changee'
+  if (refus !== null || !membre) {
     await retirerAppareil(appareil.id, maintenant)
-    return 'fiche_changee'
+    return refus ?? 'fiche_absente'
   }
   return { appareil, donnees, membre, societeId, fuseau: fuseauValide(appareil.fuseau), maintenant }
 }
@@ -206,13 +234,14 @@ async function journaliser(ctx: Contexte, evenement: EvenementZone, nom: string 
 }
 
 /** Envois du téléphone détectés ce jour-là (heure murale de son fuseau). */
-async function envoisDuJour(ctx: Contexte, jour: string, autour: number): Promise<EnvoiJournal[]> {
+async function envoisDuJour(ctx: Contexte, jour: string): Promise<EnvoiJournal[]> {
+  const midi = instantMural(jour, '12:00:00', ctx.fuseau)
   const { data, error } = await supabaseAdmin
     .from(TABLE_JOURNAL)
     .select('*')
     .eq('appareil_id', String(ctx.appareil.id))
-    .gte('detecte_le', iso(autour - FENETRE_JOURNAL_MS))
-    .lte('detecte_le', iso(autour + FENETRE_JOURNAL_MS))
+    .gte('detecte_le', iso(midi - FENETRE_JOURNAL_MS))
+    .lte('detecte_le', iso(midi + FENETRE_JOURNAL_MS))
     .limit(1000)
   if (error) throw new Error(`lecture du journal du téléphone : ${error.message}`)
   return ((data ?? []) as Ligne[])
@@ -226,12 +255,14 @@ async function envoisDuJour(ctx: Contexte, jour: string, autour: number): Promis
     .filter(e => Number.isFinite(e.detecte) && heureLocale(e.detecte, ctx.fuseau).date === jour)
 }
 
-/** Plage d'un pointage qui ne vient pas du téléphone (ou modifié depuis) : il prime sur les envois. */
-function plageDe(ligne: Ligne): PlageAutre {
-  const { instant, fuseau } = reperesArrivee(ligne)
-  if (!ligne.heure_depart) return { chantier: String(ligne.chantier_id ?? ''), debut: instant, fin: null }
+/** Plage d'un pointage qui prime sur les envois, lue à l'heure murale du fuseau du téléphone. */
+function plageDe(ligne: Ligne, fuseau: string): PlageAutre {
+  const lu = instantMural(String(ligne.date), String(ligne.heure_arrivee), fuseau)
+  const debut = Number.isFinite(lu) ? lu : reperesArrivee(ligne).instant
+  const chantier = String(ligne.chantier_id ?? '')
+  if (!ligne.heure_depart) return { chantier, debut, fin: null }
   const fin = instantMural(String(ligne.date), String(ligne.heure_depart), fuseau)
-  return { chantier: String(ligne.chantier_id ?? ''), debut: instant, fin: Number.isFinite(fin) ? Math.max(fin, instant) : instant }
+  return { chantier, debut, fin: Number.isFinite(fin) ? Math.max(fin, debut) : debut }
 }
 
 async function oublierLien(pointageId: unknown): Promise<void> {
@@ -240,8 +271,8 @@ async function oublierLien(pointageId: unknown): Promise<void> {
 }
 
 /**
- * Pointages de l'employé ce jour-là : ceux du téléphone que personne n'a modifiés (dans l'ordre), et les autres (à la
- * main, page ouverte, ou modifiés depuis : le téléphone les laisse et ne compte pas leur durée).
+ * Pointages de l'employé ce jour-là : ceux du téléphone que personne n'a modifiés, et les autres, qui priment (à la
+ * main, page ouverte, modifiés depuis, ou supprimés par quelqu'un : la plage qu'ils avaient reste réservée).
  */
 async function lignesDuJour(ctx: Contexte, jour: string): Promise<{ possedees: LignePossedee[]; autres: PlageAutre[] }> {
   const [lignesRes, liensRes] = await Promise.all([
@@ -252,21 +283,26 @@ async function lignesDuJour(ctx: Contexte, jour: string): Promise<{ possedees: L
   if (erreur) throw new Error(`lecture des pointages du jour : ${erreur.message}`)
   const lignes = (lignesRes.data ?? []) as Ligne[]
   const possedees: LignePossedee[] = []
+  const supprimees: PlageAutre[] = []
   for (const lien of (liensRes.data ?? []) as Ligne[]) {
-    const ligne = lignes.find(l => String(l.id) === String(lien.pointage_id))
     const ecrit = (lien.ecrit ?? {}) as Ligne
-    if (ligne && memeContenu(ligne, ecrit)) possedees.push({ ligne, ecrit })
+    const ligne = lignes.find(l => String(l.id) === String(lien.pointage_id))
+    // Supprimé par quelqu'un : la suppression prime, le lien garde la plage pour qu'il ne soit pas recréé.
+    if (!ligne) supprimees.push(plageDe(ecrit, ctx.fuseau))
+    else if (memeContenu(ligne, ecrit)) possedees.push({ ligne, ecrit })
     else await oublierLien(lien.pointage_id)
   }
   const siennes = new Set(possedees.map(p => String(p.ligne.id)))
   possedees.sort((a, b) => reperesArrivee(a.ligne).instant - reperesArrivee(b.ligne).instant)
-  return { possedees, autres: lignes.filter(l => !siennes.has(String(l.id))).map(plageDe) }
+  const autres = lignes.filter(l => !siennes.has(String(l.id))).map(l => plageDe(l, ctx.fuseau))
+  return { possedees, autres: [...autres, ...supprimees] }
 }
 
 /** Champs du pointage d'une présence ; journée finie sans sortie vue : refermé sans heures, à régulariser. */
 function champsPresence(ctx: Contexte, presence: Presence, jourFini: boolean): Ligne {
   const arrivee = heureLocale(presence.debut, ctx.fuseau)
-  const note = noteArriveeTardive(presence.arrivee.detecte, presence.arrivee.recu)
+  // Note d'arrivée reçue tard : seulement pour une présence qui commence à sa propre arrivée (pas un relais).
+  const note = presence.debut === presence.arrivee.detecte ? noteArriveeTardive(presence.arrivee.detecte, presence.arrivee.recu) : null
   const base: Ligne = {
     chantier_id: presence.chantier,
     chantier_nom: presence.arrivee.nom ?? null,
@@ -288,10 +324,7 @@ function champsPresence(ctx: Contexte, presence: Presence, jourFini: boolean): L
   }
 }
 
-/** Ce que le téléphone a écrit dans un pointage (comparé ensuite pour savoir si quelqu'un l'a modifié). */
-const ecritDe = (champs: Ligne): Ligne => Object.fromEntries(CHAMPS_ECRITS.map(c => [c, champs[c] ?? null]))
-
-/** Index « un pointage ouvert par employé » : ouvert entre-temps à la main ; l'envoi suivant refera la journée. */
+/** Index « un pointage ouvert par employé » : ouvert entre-temps à la main ; le rejeu suivant refera la journée. */
 const conflitDOuverture = (code: unknown) => String(code) === '23505'
 
 async function creerLigne(ctx: Contexte, champs: Ligne): Promise<void> {
@@ -321,37 +354,52 @@ async function creerLigne(ctx: Contexte, champs: Ligne): Promise<void> {
 /** Modifie un pointage du téléphone, seulement s'il porte encore ce que le téléphone y a écrit. */
 async function mettreAJourLigne(ctx: Contexte, possedee: LignePossedee, champs: Ligne): Promise<void> {
   if (memeContenu(champs, possedee.ecrit)) return
-  let requete = supabaseAdmin.from('pointages_btp').update(champs).eq('id', String(possedee.ligne.id)).eq('owner_id', ctx.societeId)
-  for (const champ of CHAMPS_ECRITS) {
-    const valeur = possedee.ecrit[champ]
-    requete = valeur === null || valeur === undefined ? requete.is(champ, null) : requete.eq(champ, valeur)
-  }
-  const { data, error } = await requete.select('id')
+  const requete = supabaseAdmin.from('pointages_btp').update(champs).eq('id', String(possedee.ligne.id)).eq('owner_id', ctx.societeId)
+  const { data, error } = await siInchange(requete, possedee.ecrit).select('id')
   if (error) {
     if (conflitDOuverture(error.code)) return
     throw new Error(`mise à jour du pointage : ${error.message}`)
   }
-  // Modifié entre-temps par quelqu'un : il n'est plus au téléphone.
-  if ((data ?? []).length === 0) return oublierLien(possedee.ligne.id)
+  // Modifié ou supprimé entre-temps par quelqu'un : le rejeu suivant le verra (il ne sera plus au téléphone).
+  if ((data ?? []).length === 0) return
   const lien = await supabaseAdmin.from(TABLE_LIENS).update({ date: champs.date, ecrit: ecritDe(champs) }).eq('pointage_id', String(possedee.ligne.id))
   if (lien.error) throw new Error(`lien du téléphone : ${lien.error.message}`)
 }
 
 /** Retire un pointage du téléphone qui n'a plus lieu d'être, seulement s'il porte encore ce qu'il y a écrit. */
 async function supprimerLigne(ctx: Contexte, possedee: LignePossedee): Promise<void> {
-  let requete = supabaseAdmin.from('pointages_btp').delete().eq('id', String(possedee.ligne.id)).eq('owner_id', ctx.societeId)
-  for (const champ of CHAMPS_ECRITS) {
-    const valeur = possedee.ecrit[champ]
-    requete = valeur === null || valeur === undefined ? requete.is(champ, null) : requete.eq(champ, valeur)
-  }
-  const { error } = await requete
+  const requete = supabaseAdmin.from('pointages_btp').delete().eq('id', String(possedee.ligne.id)).eq('owner_id', ctx.societeId)
+  const { error } = await siInchange(requete, possedee.ecrit)
   if (error) throw new Error(`retrait du pointage : ${error.message}`)
   await oublierLien(possedee.ligne.id)
 }
 
-/** Rejoue la journée du téléphone et réécrit ses pointages de ce jour-là. */
-async function rejouer(ctx: Contexte, jour: string, autour: number): Promise<void> {
-  const envois = await envoisDuJour(ctx, jour, autour)
+/** Une écriture de pointage en échec n'arrête pas les autres : journalisée, elle sera refaite au rejeu suivant. */
+async function ecrire(ecriture: () => Promise<void>): Promise<void> {
+  try {
+    await ecriture()
+  } catch (err) {
+    logger.error('[btp/pointage/evenement] écriture d’un pointage du téléphone', { error: raison(err) })
+  }
+}
+
+/**
+ * Associe chaque pointage voulu à un pointage du téléphone : d'abord celui qui porte déjà exactement ce contenu (rien
+ * à réécrire, identifiants gardés), puis les autres dans l'ordre. Ceux qui restent sont en trop.
+ */
+function apparier(voulus: Ligne[], possedees: LignePossedee[]) {
+  const libres = [...possedees]
+  const paires = voulus.map(champs => {
+    const i = libres.findIndex(p => memeContenu(champs, p.ecrit))
+    return { champs, possedee: i >= 0 ? libres.splice(i, 1)[0] : undefined }
+  })
+  for (const paire of paires) paire.possedee ??= libres.shift()
+  return { paires, enTrop: libres }
+}
+
+/** Rejoue une journée du téléphone et réécrit ses pointages de ce jour-là. */
+async function rejouer(ctx: Contexte, jour: string): Promise<void> {
+  const envois = await envoisDuJour(ctx, jour)
   const { possedees, autres } = await lignesDuJour(ctx, jour)
   const jourFini = jour < heureLocale(ctx.maintenant, ctx.fuseau).date
   const voulus = rejouerJournee(envois, autres).map(p => champsPresence(ctx, p, jourFini))
@@ -359,18 +407,16 @@ async function rejouer(ctx: Contexte, jour: string, autour: number): Promise<voi
     // Un seul pointage ouvert par employé : les départs oubliés des jours précédents sont d'abord refermés.
     await regulariserOublis(ctx.societeId, await pointagesOuverts(ctx.societeId, ctx.membre.id), ctx.maintenant)
   }
+  const { paires, enTrop } = apparier(voulus, possedees)
   // Pointages en trop d'abord, puis ceux qui se ferment, enfin celui qui reste ouvert (un seul ouvert à la fois).
-  for (const possedee of possedees.slice(voulus.length)) await supprimerLigne(ctx, possedee)
-  const ecritures = voulus
-    .map((champs, i) => ({ champs, possedee: possedees.at(i) }))
-    .sort((a, b) => Number(a.champs.heure_depart === null) - Number(b.champs.heure_depart === null))
-  for (const { champs, possedee } of ecritures) {
-    if (possedee) await mettreAJourLigne(ctx, possedee, champs)
-    else await creerLigne(ctx, champs)
+  for (const possedee of enTrop) await ecrire(() => supprimerLigne(ctx, possedee))
+  paires.sort((a, b) => Number(a.champs.heure_depart === null) - Number(b.champs.heure_depart === null))
+  for (const { champs, possedee } of paires) {
+    await ecrire(() => (possedee ? mettreAJourLigne(ctx, possedee, champs) : creerLigne(ctx, champs)))
   }
 }
 
-/** Traite un envoi, téléphone tenu : le garde au journal (s'il compte) et rejoue sa journée. */
+/** Traite un envoi, téléphone tenu : le garde au journal (s'il compte) et rejoue la veille et sa journée. */
 async function traiter(appareil: Ligne, evenement: EvenementZone, instant: number, maintenant: number): Promise<string> {
   const ctx = await contexteDuTelephone(appareil, maintenant)
   if (typeof ctx === 'string') return ctx
@@ -381,7 +427,13 @@ async function traiter(appareil: Ligne, evenement: EvenementZone, instant: numbe
     nom = typeof chantier.titre === 'string' ? chantier.titre : null
   }
   const nouveau = await journaliser(ctx, evenement, nom, instant)
-  await rejouer(ctx, heureLocale(instant, ctx.fuseau).date, instant)
+  const jour = heureLocale(instant, ctx.fuseau).date
+  if (jour === heureLocale(maintenant, ctx.fuseau).date) {
+    // La veille d'abord (sortie livrée tard, écriture qui avait échoué ; son pointage ouvert se referme avant celui
+    // du jour), puis la journée de l'envoi.
+    await rejouer(ctx, heureLocale(instantMural(jour, '12:00:00', ctx.fuseau) - JOUR_MS, ctx.fuseau).date)
+  }
+  await rejouer(ctx, jour)
   return nouveau ? 'enregistre' : 'doublon'
 }
 
@@ -456,7 +508,7 @@ export async function POST(request: NextRequest) {
     if (statut === OCCUPE) return NextResponse.json({ statut }, { status: 429, headers: { 'Retry-After': '5' } })
     return repondre(statut)
   } catch (err) {
-    logger.error('[btp/pointage/evenement] POST', { error: err instanceof Error ? err.message : err })
+    logger.error('[btp/pointage/evenement] POST', { error: raison(err) })
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }

@@ -547,6 +547,16 @@ describe('Téléphone qui pointe déjà', () => {
     expect(serveur.envois).toEqual([])
   })
 
+  it('mode coupé ou fiche plus reliée alors que le serveur garde ce téléphone : zones retirées, ce téléphone retiré', async () => {
+    appli()
+    dejaActif([VILLA, GARAGE])
+    serveur.appareil = 'app-1'
+    render(<Banc depart={{ ...CONTEXTE, rattachement: 'aucun', moi: null, chantiers: [], appareilArrierePlan: 'app-1' }} />)
+    await waitFor(() => expect(serveur.envois).toEqual([{ action: 'appareil_retirer', appareil: 'app-1' }]))
+    expect(natif.zones.size).toBe(0)
+    expect(localStorage.getItem(CLE)).toBeNull()
+  })
+
   it('réponse incertaine du serveur (panne passagère) : rien retiré, rien refait, l’écran garde ce téléphone actif', async () => {
     appli()
     dejaActif([VILLA, GARAGE])
@@ -567,7 +577,8 @@ describe('Téléphone qui pointe déjà', () => {
     render(<Banc depart={{ ...CONTEXTE, appareilArrierePlan: 'app-1' }} />)
     await waitFor(() => expect(statut()).toMatch(/^Activé sur ce téléphone, mais il ne surveille pas tous vos chantiers/))
     expect(screen.getByRole('button', { name: 'Ouvrir les réglages' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Activer le pointage automatique' })).toBeTruthy()
+    // La page ouverte ne reprend pas : un pointage qu'elle ouvrirait ne serait refermé par personne.
+    expect(screen.queryByRole('button', { name: 'Activer le pointage automatique' })).toBeNull()
     expect(screen.getByText('Chantiers suivis : 0 sur 2.')).toBeTruthy()
     natif.panne = null
     Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })

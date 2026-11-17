@@ -27,8 +27,9 @@ import { messageArrierePlanActive, messageArrierePlanCoupe, messageArrierePlanEc
 // Pointage « téléphone en poche » (appli Vitfix Pro) : activation par l'employé (autorisation « Toujours », téléphone
 // enregistré, zones des chantiers confiées au système), coupure, zones et autorisation revues à chaque lecture de
 // l'écran et à chaque retour dans l'appli. Ce téléphone pointe tant que le serveur désigne son enregistrement comme
-// celui du compte. Sinon (autre téléphone activé, mode coupé par le gérant, compte retiré de la société ou fiche
-// changée d'adresse, autre compte ou autre fiche sur ce téléphone), il retire ses zones à la lecture suivante.
+// celui du compte. Il retire ses zones dès que l'écran le dit sans incertitude : autre téléphone activé ou téléphone
+// retiré (compte quitté, fiche changée d'adresse), mode coupé par le gérant, compte plus relié à une fiche. Une fiche
+// différente sur ce téléphone avec le même enregistrement : le serveur tranche à l'envoi suivant.
 
 /**
  * indisponible : hors de l'appli (ou appli sans le module), mode coupé par le gérant, fiche non reliée ;
@@ -118,17 +119,20 @@ export function useArrierePlan({ contexte, chantiers, envoyer, recharger, isPt }
     retirerZonesOrphelines().catch((err: unknown) => console.warn('[btp/pointage] zones restées sur le téléphone :', raison(err)))
   }, [natif, sansReglage])
 
-  // Zones et autorisation revues à chaque lecture de l'écran et à chaque retour dans l'appli. Zones retirées ici
-  // seulement sur un signal sûr du serveur (téléphone retiré ou remplacé par un autre) ; sinon (réponse incertaine,
-  // fiche ou mode à revoir) rien ne change ici : le serveur retire le téléphone s'il le faut. Rien pendant une action.
+  // Zones et autorisation revues à chaque lecture de l'écran et à chaque retour dans l'appli. Zones retirées ici sur
+  // un signal sûr seulement (jamais sur une réponse incertaine) ; rien pendant une action en cours.
+  const plusPourCeCompte = !contexte.pointageAutoActive || contexte.rattachement !== 'relie'
   useEffect(() => {
     if (!natif || config === null || occupe || incertain) return
     let annule = false
     const tenir = async () => {
       try {
-        if (appareilDuCompte !== config.appareilId) {
+        if (appareilDuCompte !== config.appareilId || plusPourCeCompte) {
           await arreterSurCeTelephone()
-          if (!annule) oublier()
+          if (annule) return
+          oublier()
+          // Mode coupé ou fiche plus reliée alors que le serveur garde ce téléphone : retiré aussi (lui seul).
+          if (appareilDuCompte === config.appareilId) await envoyer({ action: 'appareil_retirer', appareil: config.appareilId })
           return
         }
         if (!ici) return
@@ -156,7 +160,7 @@ export function useArrierePlan({ contexte, chantiers, envoyer, recharger, isPt }
     }
     void tenir()
     return () => { annule = true }
-  }, [natif, config, occupe, incertain, appareilDuCompte, ici, chantiers, oublier, isPt, retours])
+  }, [natif, config, occupe, incertain, appareilDuCompte, plusPourCeCompte, ici, chantiers, oublier, envoyer, isPt, retours])
 
   const activer = useCallback(async () => {
     const plateforme = plateformeNative()

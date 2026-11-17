@@ -97,7 +97,8 @@ export function retirerAutre(presence: Presence, autre: PlageAutre): Presence[] 
     const touche = autre.debut < finPresence && finAutre >= presence.debut
     return touche ? morceau(presence, presence.debut, Math.min(finPresence, autre.debut)) : [presence]
   }
-  if (autre.debut >= finPresence || finAutre <= presence.debut) return [presence]
+  // Autre chantier : sa durée est retirée ; un pointage sans durée (départ oublié refermé sans heures) ne coupe rien.
+  if (finAutre <= autre.debut || autre.debut >= finPresence || finAutre <= presence.debut) return [presence]
   return [...morceau(presence, presence.debut, autre.debut), ...morceau(presence, finAutre, finPresence)]
 }
 
@@ -137,4 +138,9 @@ function forme(champ: (typeof CHAMPS_ECRITS)[number], valeur: unknown): string {
 /** Le pointage porte-t-il encore ce que le téléphone y a écrit (formats de la base mis de côté) ? */
 export function memeContenu(ligne: Record<string, unknown>, ecrit: Record<string, unknown>): boolean {
   return CHAMPS_ECRITS.every(champ => forme(champ, ligne[champ]) === forme(champ, ecrit[champ]))
+}
+
+/** Ce que le téléphone écrit (ou trouve) dans un pointage, gardé pour savoir ensuite si quelqu'un l'a modifié. */
+export function ecritDe(champs: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(CHAMPS_ECRITS.map(champ => [champ, champs[champ] ?? null]))
 }

@@ -130,7 +130,9 @@ export function OngletPointer({ contexte, isPt, envoyer, recharger }: Props) {
   // chantiers et le pointage page ouverte s'efface (un seul des deux pointe, jamais les deux à la fois).
   const arrierePlan = useArrierePlan({ contexte, chantiers: chantiersPointables, envoyer, recharger, isPt })
   // Autorisation « Toujours » retirée depuis l'activation : rien ne pointe en arrière-plan, la page ouverte reprend.
-  const pointeEnArrierePlan = arrierePlan.etat === 'actif'
+  // Zones en partie indisponibles : le téléphone peut encore pointer, la page ouverte ne reprend pas (un pointage
+  // qu'elle ouvrirait primerait sur ses envois et ne serait refermé par personne).
+  const pointeEnArrierePlan = arrierePlan.etat === 'actif' || arrierePlan.etat === 'zones_indisponibles'
 
   const auto = usePointageAuto({
     autorise: contexte.pointageAutoActive && contexte.rattachement === 'relie' && chantiersPointables.length > 0

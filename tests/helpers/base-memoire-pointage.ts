@@ -100,6 +100,12 @@ export function requete(table: string) {
     if (op === 'update') {
       if (etat.avantMiseAJour?.(table)) etat.avantMiseAJour = null
       const cibles = correspondantes()
+      // Index « un pointage ouvert par employé » (migration 20261116), vérifié aussi quand une modification rouvre.
+      if (table === 'pointages_btp' && etat.indexUnique) {
+        const apres = [...lignes().filter(l => !cibles.includes(l)), ...cibles.map(l => ({ ...l, ...valeur }))]
+        const doublon = apres.some(a => a.heure_depart == null && apres.filter(b => b.heure_depart == null && b.owner_id === a.owner_id && b.membre_id === a.membre_id).length > 1)
+        if (doublon) return { data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint "pointages_btp_un_ouvert_par_membre"' } }
+      }
       for (const l of cibles) Object.assign(l, valeur)
       etat.ecritures.push({ table, op, valeur, filtres: filtres.map(f => f.texte) })
       return { data: cibles.map(l => ({ ...l })), error: null }

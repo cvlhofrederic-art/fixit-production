@@ -38,6 +38,7 @@ import {
   type Ligne,
 } from '@/lib/btp/pointage-serveur'
 import { empreinteJeton, nouveauJeton } from '@/lib/btp/pointage-arriere-plan'
+import { ecritDe } from '@/lib/btp/pointage-rejeu'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // /api/btp/pointage — pointage des employés d'une société BTP (pro_societe) sur leurs chantiers en cours.
@@ -156,6 +157,34 @@ async function retirerAppareils(filtres: Partial<Record<'id' | 'user_id' | 'owne
 
 
 /**
+ * Pointage automatique ouvert aujourd'hui (page ouverte avant l'activation, ou ancien téléphone du compte) : confié à
+ * ce téléphone, avec son arrivée au journal, pour qu'il le referme à sa sortie ; sinon ce pointage primerait sur ses
+ * envois et ne serait refermé par personne. Un échec n'empêche pas l'enregistrement (le pointage se termine alors à
+ * la main, comme avant).
+ */
+async function confierPointageEnCours(ctx: Contexte, membre: MembreBtp, appareil: string): Promise<void> {
+  try {
+    const maintenant = Date.now()
+    const ouvert = (await pointagesOuverts(ctx.societeId, membre.id)).filter(o => o.mode === 'geo_auto' && !estOublie(o, maintenant)).at(-1)
+    if (!ouvert) return
+    const arrivee = new Date(reperesArrivee(ouvert).instant).toISOString()
+    const ancien = await supabaseAdmin.from('pointage_lignes_appareil_btp').delete().eq('pointage_id', String(ouvert.id))
+    if (ancien.error) throw new Error(ancien.error.message)
+    const lien = await supabaseAdmin.from('pointage_lignes_appareil_btp').insert({
+      pointage_id: String(ouvert.id), appareil_id: appareil, date: ouvert.date, ecrit: ecritDe(ouvert),
+    })
+    if (lien.error) throw new Error(lien.error.message)
+    const envoi = await supabaseAdmin.from('pointage_evenements_btp').insert({
+      appareil_id: appareil, chantier_id: ouvert.chantier_id, chantier_nom: ouvert.chantier_nom ?? null, sens: 'enter',
+      detecte_le: arrivee, recu_le: arrivee,
+    })
+    if (envoi.error) throw new Error(envoi.error.message)
+  } catch (err) {
+    logger.warn('[btp/pointage] pointage en cours non confié au téléphone', { error: err instanceof Error ? err.message : err })
+  }
+}
+
+/**
  * Enregistre ce téléphone pour le pointage en arrière-plan de l'employé connecté : jeton neuf (seule son empreinte est
  * gardée), téléphones précédents du compte retirés (un seul téléphone pointe pour un compte).
  */
@@ -183,6 +212,7 @@ async function enregistrerAppareil(
     if (String(error.code) === '23505') return refus(409, 'activation_en_cours')
     throw new Error(`enregistrement du téléphone : ${error.message}`)
   }
+  await confierPointageEnCours(ctx, membre, appareil)
   return NextResponse.json({ appareil, jeton, url: `${request.nextUrl.origin}/api/btp/pointage/evenement` }, { status: 201 })
 }
 
