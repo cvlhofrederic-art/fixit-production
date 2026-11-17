@@ -8,14 +8,25 @@ import React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 
-const etat = vi.hoisted(() => ({ geocodage: null as null | { latitude: number; longitude: number; precise: boolean } }))
+const etat = vi.hoisted(() => ({
+  geocodage: null as null | { latitude: number; longitude: number; precise: boolean },
+  chantiers: [] as unknown[],
+  modifications: [] as Array<{ id: string; changes: Record<string, unknown> }>,
+  ajouts: [] as Array<Record<string, unknown>>,
+}))
 
 // Comme les vrais hooks (état React), les simulations rendent les mêmes objets d'un rendu à l'autre : des objets neufs
 // à chaque rendu relanceraient sans fin les effets de la fiche.
 vi.mock('@/lib/hooks/use-btp-data', () => {
-  const donnees = { items: [] as unknown[], loading: false, add: async () => null, update: async () => true, remove: async () => true }
+  const donnees = {
+    items: [] as unknown[],
+    loading: false,
+    add: async (item: Record<string, unknown>) => { etat.ajouts.push(item); return null },
+    update: async (id: string, changes: Record<string, unknown>) => { etat.modifications.push({ id, changes }); return true },
+    remove: async () => true,
+  }
   const reglages = { settings: { country: 'FR', company_type: 'sarl', cout_horaire_ouvrier: 22, charges_patronales_pct: 45, objectif_marge_pct: 20 } }
-  return { useBTPData: () => donnees, useBTPSettings: () => reglages }
+  return { useBTPData: () => { donnees.items = etat.chantiers; return donnees }, useBTPSettings: () => reglages }
 })
 vi.mock('@/lib/btp/geocodage', async (original) => ({
   ...(await original<typeof import('@/lib/btp/geocodage')>()),
@@ -38,6 +49,9 @@ const artisan = { id: 'art-1', user_id: 'soc-a' } as unknown as React.ComponentP
 
 beforeEach(() => {
   etat.geocodage = null
+  etat.chantiers = []
+  etat.modifications = []
+  etat.ajouts = []
   vi.mocked(toast.warning).mockClear()
   vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response(JSON.stringify({ membres: [] })))
 })
@@ -94,5 +108,100 @@ describe('fiche chantier — bouton GPS', () => {
     await cliquerGps()
     expect(screen.getByText(/GPS : 43\.25000, 5\.38000/)).toBeTruthy()
     expect(toast.warning).toHaveBeenCalledWith(expect.stringContaining('position GPS non mise à jour'))
+  })
+
+  it('nouveau chantier : toute la fiche part à la création', async () => {
+    await ouvrirFiche()
+    fireEvent.change(screen.getByPlaceholderText('ex: Immeuble R+3 — Gros oeuvre'), { target: { value: 'Garage' } })
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Créer le chantier/ })) })
+    expect(etat.ajouts).toHaveLength(1)
+    expect(etat.ajouts[0]).toMatchObject({ titre: 'Garage', adresse: '1 rue des Lilas', codePostal: '13008', ville: 'Marseille', geoRayonM: 100 })
+  })
+})
+
+// Chantier déjà enregistré, peut-être placé sur place (« Placer à ma position actuelle », onglet Affectations).
+const VILLA = {
+  id: 'c-villa', titre: 'Villa', client: 'Client fictif', adresse: '1 rue des Lilas', ville: 'Marseille', codePostal: '13008',
+  dateDebut: '2026-11-01', dateFin: '2026-12-15', budget: '12000', statut: 'En cours', description: '', equipe: '',
+  latitude: 43.2504, longitude: 5.3801, geoRayonM: 50, devis_id: null, membres_ids: ['m-paul'],
+}
+
+const modifier = async (chantier: Record<string, unknown> = VILLA) => {
+  etat.chantiers = [chantier]
+  render(<ChantiersBTPV2 artisan={artisan} orgRole="pro_societe" />)
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Modifier' })) })
+}
+const enregistrer = async () => { await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Enregistrer/ })) }) }
+
+describe('fiche chantier — modification d’un chantier existant', () => {
+  it('seuls les champs modifiés partent : une fiche ouverte avant un placement sur place ne remet ni la position, ni le rayon, ni les employés', async () => {
+    await modifier()
+    fireEvent.change(screen.getByPlaceholderText('ex: Immeuble R+3 — Gros oeuvre'), { target: { value: 'Villa rénovée' } })
+    await enregistrer()
+    expect(etat.modifications).toEqual([{ id: 'c-villa', changes: { titre: 'Villa rénovée' } }])
+  })
+
+  it('rien de modifié : rien n’est envoyé', async () => {
+    await modifier()
+    await enregistrer()
+    expect(etat.modifications).toEqual([])
+  })
+
+  it('adresse corrigée : la position enregistrée reste affichée ; « OK » la garde, seule l’adresse part', async () => {
+    const confirmer = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    await modifier()
+    fireEvent.change(screen.getByPlaceholderText('13001'), { target: { value: '13009' } })
+    expect(screen.getByText(/GPS : 43\.25040, 5\.38010/)).toBeTruthy()
+    await enregistrer()
+    expect(confirmer).toHaveBeenCalledTimes(1)
+    expect(String(confirmer.mock.calls[0][0])).toContain('L’adresse du chantier « Villa » a changé.')
+    expect(String(confirmer.mock.calls[0][0])).toContain('OK : garder la position (adresse corrigée).')
+    expect(etat.modifications).toEqual([{ id: 'c-villa', changes: { codePostal: '13009' } }])
+  })
+
+  it('adresse corrigée, « Annuler » : la position est retirée avec la nouvelle adresse', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(false)
+    await modifier()
+    fireEvent.change(screen.getByPlaceholderText('Marseille, Lyon...'), { target: { value: 'Aubagne' } })
+    await enregistrer()
+    expect(etat.modifications).toEqual([{ id: 'c-villa', changes: { ville: 'Aubagne', latitude: null, longitude: null } }])
+  })
+
+  it('adresse identique aux espaces et majuscules près : aucune question', async () => {
+    const confirmer = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    await modifier()
+    fireEvent.change(screen.getByPlaceholderText('Marseille, Lyon...'), { target: { value: ' MARSEILLE ' } })
+    await enregistrer()
+    expect(confirmer).not.toHaveBeenCalled()
+    expect(etat.modifications).toEqual([{ id: 'c-villa', changes: { ville: ' MARSEILLE ' } }])
+  })
+
+  it('adresse corrigée puis position recalculée par le bouton GPS : la nouvelle position part, sans question', async () => {
+    const confirmer = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    etat.geocodage = { latitude: 43.26, longitude: 5.39, precise: true }
+    await modifier()
+    fireEvent.change(screen.getByPlaceholderText('N°, rue...'), { target: { value: '3 rue des Lilas' } })
+    await cliquerGps()
+    await enregistrer()
+    expect(confirmer).not.toHaveBeenCalled()
+    expect(etat.modifications).toEqual([{ id: 'c-villa', changes: { adresse: '3 rue des Lilas', latitude: 43.26, longitude: 5.39 } }])
+  })
+
+  it('position recalculée puis adresse retouchée : la position calculée part aussitôt (jamais périmée)', async () => {
+    etat.geocodage = { latitude: 43.26, longitude: 5.39, precise: true }
+    await modifier()
+    await cliquerGps()
+    expect(screen.getByText(/GPS : 43\.26000, 5\.39000/)).toBeTruthy()
+    fireEvent.change(screen.getByPlaceholderText('N°, rue...'), { target: { value: '3 rue des Lilas' } })
+    expect(screen.queryByText(/GPS : /)).toBeNull()
+  })
+
+  it('chantier sans position enregistrée : adresse corrigée sans question', async () => {
+    const confirmer = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    await modifier({ ...VILLA, latitude: null, longitude: null })
+    fireEvent.change(screen.getByPlaceholderText('N°, rue...'), { target: { value: '3 rue des Lilas' } })
+    await enregistrer()
+    expect(confirmer).not.toHaveBeenCalled()
+    expect(etat.modifications).toEqual([{ id: 'c-villa', changes: { adresse: '3 rue des Lilas' } }])
   })
 })
