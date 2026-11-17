@@ -116,12 +116,40 @@ export function zonesVoulues(chantiers: ChantierPointable[]): ChantierPointable[
     .slice(0, ZONES_MAX)
 }
 
-/** Signature des zones : identifiant, centre au millionième de degré et rayon de la zone du système. */
-export function signatureZones(chantiers: ChantierPointable[]): string {
+/** Description des zones voulues : identifiant, centre au millionième de degré et rayon de la zone du système. */
+function descriptionZones(chantiers: ChantierPointable[]): string {
   return zonesVoulues(chantiers)
     .map(c => `${c.id}:${c.latitude.toFixed(6)},${c.longitude.toFixed(6)}:${rayonZoneSysteme(c.rayonM)}`)
     .sort((a, b) => a.localeCompare(b))
     .join('|')
+}
+
+/**
+ * Empreinte cyrb53 (53 bits, en hexadécimal) d'un texte : sert à reconnaître un texte déjà vu, sans permettre de le
+ * retrouver. Pas une protection cryptographique, une simple comparaison.
+ */
+function hashCyrb53(texte: string): string {
+  let h1 = 0xdeadbeef
+  let h2 = 0x41c6ce57
+  for (let i = 0; i < texte.length; i++) {
+    const code = texte.charCodeAt(i)
+    h1 = Math.imul(h1 ^ code, 2654435761)
+    h2 = Math.imul(h2 ^ code, 1597334677)
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507)
+  h1 ^= Math.imul(h2 ^ (h2 >>> 13), 3266489909)
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507)
+  h2 ^= Math.imul(h1 ^ (h1 >>> 13), 3266489909)
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(16).padStart(14, '0')
+}
+
+/**
+ * Signature des zones voulues, gardée dans le stockage du téléphone pour savoir si elles ont changé : empreinte de
+ * leur description (identifiant, centre, rayon), jamais les coordonnées des chantiers en clair. Vide sans zone.
+ */
+export function signatureZones(chantiers: ChantierPointable[]): string {
+  const description = descriptionZones(chantiers)
+  return description === '' ? '' : hashCyrb53(description)
 }
 
 /** Confie au module l'adresse d'envoi et le jeton de ce téléphone ; file d'envois vidée d'abord (jamais un autre jeton). */

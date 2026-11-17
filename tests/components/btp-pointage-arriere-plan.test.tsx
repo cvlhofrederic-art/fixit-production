@@ -629,9 +629,26 @@ describe('Enveloppe du module natif (arrierePlan.ts)', () => {
     expect(lireAutorisation({ location: 'prompt', backgroundLocation: 'prompt' } as never)).toBe('refusee')
   })
 
-  it('signature des zones : triée, au millionième de degré, rayon du système d’au moins 150 m, chantiers sans position exclus', () => {
-    const zones = pointables([GARAGE, VILLA, CAVE, { ...VILLA, id: 'c-loin', latitude: 43.123456789, rayonM: 151.4 }])
-    expect(signatureZones(zones)).toBe('c-garage:43.280000,5.390000:200|c-loin:43.123457,5.380000:151|c-villa:43.250000,5.380000:150')
+  it('signature des zones : empreinte sans coordonnées en clair, indifférente à l’ordre, au millionième de degré et au rayon du système', () => {
+    const LOIN = { ...VILLA, id: 'c-loin', latitude: 43.123456789, rayonM: 151.4 }
+    const signature = signatureZones(pointables([GARAGE, VILLA, CAVE, LOIN]))
+    // Empreinte hexadécimale : ni point, ni virgule, ni identifiant de chantier (rien des coordonnées n'est lisible).
+    expect(signature).toMatch(/^[0-9a-f]{14}$/)
+    expect(signatureZones(pointables([LOIN, CAVE, VILLA, GARAGE]))).toBe(signature)
+    // Au millionième de degré et au rayon de la zone du système près : même signature.
+    expect(signatureZones(pointables([GARAGE, VILLA, { ...LOIN, latitude: 43.1234574 }]))).toBe(signature)
+    expect(signatureZones(pointables([GARAGE, { ...VILLA, rayonM: 120 }, LOIN]))).toBe(signature)
+    expect(signatureZones(pointables([GARAGE, VILLA, { ...LOIN, rayonM: 150.6 }]))).toBe(signature)
+    // Centre, rayon, identifiant ou liste des zones changés : autre signature.
+    for (const autre of [
+      [GARAGE, VILLA, { ...LOIN, latitude: 43.123458 }],
+      [GARAGE, VILLA, { ...LOIN, longitude: 5.380001 }],
+      [GARAGE, VILLA, { ...LOIN, rayonM: 152 }],
+      [GARAGE, { ...VILLA, rayonM: 151 }, LOIN],
+      [GARAGE, VILLA, { ...LOIN, id: 'c-ailleurs' }],
+      [GARAGE, VILLA],
+    ]) expect(signatureZones(pointables(autre))).not.toBe(signature)
+    // Aucune zone (chantiers sans position valable) : signature vide.
     expect(signatureZones([{ id: 'c-faux', titre: '', latitude: 200, longitude: 5, rayonM: 50 }])).toBe('')
   })
 
