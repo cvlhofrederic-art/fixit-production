@@ -60,6 +60,27 @@ interface MembreSummary {
 
 function fmt(n: number, l: string) { return n.toLocaleString(l, { minimumFractionDigits: 0, maximumFractionDigits: 0 }) }
 
+/**
+ * Statut enregistré d'un devis ou d'une facture (anglais ou français selon l'origine), affiché en portugais :
+ * [orçamento (masculin), fatura (féminin)]. La valeur enregistrée ne change pas ; un statut inconnu s'affiche tel quel.
+ */
+const STATUT_DOCUMENT_PT: Record<string, [string, string]> = {
+  draft: ['Rascunho', 'Rascunho'], brouillon: ['Rascunho', 'Rascunho'],
+  sent: ['Enviado', 'Enviada'], envoye: ['Enviado', 'Enviada'], envoyé: ['Enviado', 'Enviada'],
+  pending: ['Pendente', 'Pendente'],
+  accepted: ['Aceite', 'Aceite'], accepte: ['Aceite', 'Aceite'], accepté: ['Aceite', 'Aceite'],
+  signed: ['Assinado', 'Assinada'], signe: ['Assinado', 'Assinada'], signé: ['Assinado', 'Assinada'],
+  rejected: ['Recusado', 'Recusada'], refuse: ['Recusado', 'Recusada'], refusé: ['Recusado', 'Recusada'],
+  cancelled: ['Anulado', 'Anulada'], annule: ['Anulado', 'Anulada'], annulé: ['Anulado', 'Anulada'],
+  paid: ['Pago', 'Paga'], payee: ['Pago', 'Paga'], payée: ['Pago', 'Paga'],
+  overdue: ['Em atraso', 'Em atraso'], en_retard: ['Em atraso', 'Em atraso'],
+  refunded: ['Reembolsado', 'Reembolsada'], rembourse: ['Reembolsado', 'Reembolsada'],
+}
+const statutDocumentPt = (statut: string, type: 'devis' | 'facture') => STATUT_DOCUMENT_PT[statut]?.[type === 'facture' ? 1 : 0] ?? statut
+
+/** Fonction par défaut d'un membre lu sans rôle (« Ouvrier »), affichée en portugais. */
+const ROLE_PT: Record<string, string> = { Ouvrier: 'Operário' }
+
 // ── Status badge mapping ──
 const STATUS_BADGE: Record<string, string> = {
   'En cours': 'v5-badge v5-badge-blue',
@@ -227,7 +248,7 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
 
     setForm(f => ({
       ...f,
-      titre: firstDesc || `Devis ${devis.numero}`,
+      titre: firstDesc || `${isPt ? 'Orçamento' : 'Devis'} ${devis.numero}`,
       client: devis.client_name || '',
       adresse: devis.client_address || '',
       // Nouvelle adresse : la position d'un devis importé avant ne doit pas rester.
@@ -450,13 +471,13 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
   const linkDevis = useCallback(async (devisId: string, chantierId: string) => {
     const { error } = await supabase.from('devis').update({ chantier_id: chantierId } as any).eq('id', devisId)
     if (error) {
-      toast.error('Erreur lors de la liaison')
+      toast.error(isPt ? 'Erro ao associar o orçamento' : 'Erreur lors de la liaison')
     } else {
-      toast.success('Devis lié au chantier')
+      toast.success(isPt ? 'Orçamento associado à obra' : 'Devis lié au chantier')
       setShowLinkModal(null)
       await loadLinkedDocs()
     }
-  }, [loadLinkedDocs])
+  }, [loadLinkedDocs, isPt])
 
   // ── Filter + search ──
   const filtered = useMemo(() => {
@@ -517,7 +538,7 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
       {/* ── Page header ── */}
       <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'}>
         <h1>{isPt ? 'Obras' : 'Chantiers'}</h1>
-        <p>{isPt ? `Gestão das suas obras — ${activeCount} ativa(s)` : `Gestion de vos chantiers — ${activeCount} actif(s)`}</p>
+        <p>{isPt ? `Gestão das suas obras: ${activeCount} ativa(s)` : `Gestion de vos chantiers — ${activeCount} actif(s)`}</p>
       </div>
 
       {/* ── Search bar ── */}
@@ -568,15 +589,15 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
           <table className={isV5 ? "v5-dt" : "v22-table"}>
             <thead>
               <tr>
-                <th>{isPt ? 'Réf' : 'Réf'}</th>
+                <th>{isPt ? 'Ref.' : 'Réf'}</th>
                 <th>{isPt ? 'Obra' : 'Chantier'}</th>
                 <th>{isPt ? 'Cliente' : 'Client'}</th>
-                <th>{isPt ? 'Responsável' : 'Chef'}</th>
+                <th>{isPt ? 'Encarregado' : 'Chef'}</th>
                 <th>{isPt ? 'Início' : 'Début'}</th>
                 <th>{isPt ? 'Fim' : 'Fin'}</th>
                 <th>{isPt ? 'Avanço' : 'Avanc.'}</th>
                 <th>{isPt ? 'Estado' : 'Statut'}</th>
-                <th>Budget</th>
+                <th>{isPt ? 'Valor' : 'Budget'}</th>
                 <th></th>
               </tr>
             </thead>
@@ -678,19 +699,19 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
                     padding: '7px 12px', background: '#F5F5F5', borderBottom: docs.length > 0 ? '1px solid #E0E0E0' : undefined,
                   }}>
                     <span style={{ fontWeight: 600, color: '#444', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                      <FileText size={12} /> {c.titre} — {isPt ? 'Documentos ligados' : 'Devis et factures liés'}
+                      <FileText size={12} /> {c.titre}{isPt ? ': ' : ' — '}{isPt ? 'Documentos associados' : 'Devis et factures liés'}
                     </span>
                     <button
                       className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"}
                       style={{ fontSize: 10 }}
                       onClick={() => openLinkModal(c.id)}
                     >
-                      + {isPt ? 'Ligar orçamento' : 'Lier un devis'}
+                      + {isPt ? 'Associar orçamento' : 'Lier un devis'}
                     </button>
                   </div>
                   {docs.length === 0 ? (
                     <div style={{ padding: '6px 12px', color: '#999', fontStyle: 'italic' }}>
-                      {isPt ? 'Nenhum documento ligado' : 'Aucun document lié'}
+                      {isPt ? 'Nenhum documento associado' : 'Aucun document lié'}
                     </div>
                   ) : (
                     <div style={{ padding: '6px 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -707,7 +728,7 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
                             background: doc.status === 'sent' || doc.status === 'accepted' ? '#E8F5E9' : doc.status === 'draft' ? '#FFF8E1' : '#E3F2FD',
                             color: doc.status === 'sent' || doc.status === 'accepted' ? '#2E7D32' : doc.status === 'draft' ? '#F57F17' : '#1565C0',
                           }}>
-                            {doc.status}
+                            {isPt ? statutDocumentPt(doc.status, doc.type) : doc.status}
                           </span>
                         </div>
                       ))}
@@ -742,7 +763,7 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
                         ({isPt ? 'Margem' : 'Marge'}: {renta.margePrevu}%)
                       </span>
                       <span style={{ color: '#666' }}>
-                        {isPt ? 'Custo M.O.' : 'Coût M.O.'}: {fmt(renta.coutMOJour, dl)} €/{isPt ? 'dia' : 'j'} x {renta.joursPrevu}{isPt ? 'j' : 'j'}
+                        {isPt ? 'Custo M.O.' : 'Coût M.O.'}: {fmt(renta.coutMOJour, dl)} €/{isPt ? 'dia' : 'j'} x {renta.joursPrevu}{isPt ? ' dias' : 'j'}
                       </span>
                     </div>
 
@@ -789,13 +810,13 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
             <div className={isV5 ? "v5-card" : "v22-card"} style={{ width: '100%', maxWidth: 480 }}>
               <div style={{ padding: '12px 16px', borderBottom: '1px solid #E8E8E8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: 13, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                  <Clock size={14} /> {isPt ? 'O seu chantier terminou?' : 'Votre chantier est-il fini ?'}
+                  <Clock size={14} /> {isPt ? 'A sua obra terminou?' : 'Votre chantier est-il fini ?'}
                 </span>
                 <button className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"} onClick={() => setProlongModal(null)}>✕</button>
               </div>
               <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <div style={{ textAlign: 'center', fontSize: 13 }}>
-                  <strong>{c.titre}</strong> — {isPt ? 'Previsto' : 'Prévu'}: {renta?.joursPrevu}{isPt ? ' dias' : ' jours'}
+                  <strong>{c.titre}</strong>{isPt ? ' · ' : ' — '}{isPt ? 'Previsto' : 'Prévu'}: {renta?.joursPrevu}{isPt ? ' dias' : ' jours'}
                 </div>
 
                 {/* Option 1: Clôturer */}
@@ -847,7 +868,7 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
                     style={{ width: '100%', marginTop: 10, padding: '8px 14px', justifyContent: 'center' }}
                     onClick={handleProlong}
                   >
-                    <Calendar size={14} /> {isPt ? `Prolongar de ${prolongDays} dias` : `Prolonger de ${prolongDays} jours`}
+                    <Calendar size={14} /> {isPt ? `Prolongar por ${prolongDays} dias` : `Prolonger de ${prolongDays} jours`}
                   </button>
                 </div>
               </div>
@@ -862,20 +883,20 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
           <div className={isV5 ? "v5-card" : "v22-card"} style={{ width: '100%', maxWidth: 400 }}>
             <div style={{ padding: '12px 16px', borderBottom: '1px solid #E8E8E8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: 13, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <Trash2 size={14} /> {isPt ? 'Confirmar remoção' : 'Confirmer la suppression'}
+                <Trash2 size={14} /> {isPt ? 'Confirmar eliminação' : 'Confirmer la suppression'}
               </span>
               <button className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"} onClick={() => setDeleteConfirm(null)}>✕</button>
             </div>
             <div style={{ padding: 16, textAlign: 'center' }}>
               <p style={{ fontSize: 13, marginBottom: 12 }}>
-                {isPt ? 'Tem a certeza que pretende remover esta obra?' : 'Voulez-vous vraiment supprimer ce chantier ?'}
+                {isPt ? 'Tem a certeza de que pretende eliminar esta obra?' : 'Voulez-vous vraiment supprimer ce chantier ?'}
               </p>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button className={isV5 ? "v5-btn" : "v22-btn"} style={{ flex: 1 }} onClick={() => setDeleteConfirm(null)}>
                   {isPt ? 'Cancelar' : 'Annuler'}
                 </button>
                 <button className={isV5 ? "v5-btn v5-btn-d" : "v22-btn v22-btn-danger"} style={{ flex: 1, fontWeight: 600 }} onClick={() => handleDelete(deleteConfirm)}>
-                  {isPt ? 'Remover' : 'Supprimer'}
+                  {isPt ? 'Eliminar' : 'Supprimer'}
                 </button>
               </div>
             </div>
@@ -917,10 +938,13 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
                         if (devis) importDevis(devis)
                       }}
                     >
-                      <option value="">{isPt ? '— Selecionar um orçamento —' : '— Sélectionner un devis —'}</option>
+                      <option value="">{isPt ? 'Selecionar um orçamento...' : '— Sélectionner un devis —'}</option>
                       {devisList.map(d => (
                         <option key={d.id} value={d.id}>
-                          {d.numero} — {d.client_name} — {(d.total_ht_cents / 100).toLocaleString(dl)} € ({d.status})
+                          {/* « ?? '' » : une valeur absente ne s'écrit pas, comme avant dans le JSX d'origine. */}
+                          {isPt
+                            ? `${d.numero ?? ''} · ${d.client_name ?? ''} · ${(d.total_ht_cents / 100).toLocaleString(dl)} € (${statutDocumentPt(d.status ?? '', 'devis')})`
+                            : `${d.numero ?? ''} — ${d.client_name ?? ''} — ${(d.total_ht_cents / 100).toLocaleString(dl)} € (${d.status ?? ''})`}
                         </option>
                       ))}
                     </select>
@@ -931,7 +955,7 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
               <div className={isV5 ? "v5-fg" : "v22-form-group"}>
                 <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Nome da obra *' : 'Titre du chantier *'}</label>
                 <input className={isV5 ? "v5-fi" : "v22-input"} value={form.titre} onChange={e => setForm({ ...form, titre: e.target.value })}
-                  placeholder={isPt ? 'ex: Immeuble R+3 — Gros oeuvre' : 'ex: Immeuble R+3 — Gros oeuvre'} />
+                  placeholder={isPt ? 'ex.: Edifício R/C+3, estrutura' : 'ex: Immeuble R+3 — Gros oeuvre'} />
               </div>
 
               <div className={isV5 ? "v5-fr" : "v22-form-row"}>
@@ -940,7 +964,7 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
                   <input className={isV5 ? "v5-fi" : "v22-input"} value={form.client} onChange={e => setForm({ ...form, client: e.target.value })} />
                 </div>
                 <div className={isV5 ? "v5-fg" : "v22-form-group"}>
-                  <label className={isV5 ? "v5-fl" : "v22-form-label"}>Budget HT (€)</label>
+                  <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Valor s/ IVA (€)' : 'Budget HT (€)'}</label>
                   <input type="number" className={isV5 ? "v5-fi" : "v22-input"} value={form.budget} onChange={e => setForm({ ...form, budget: e.target.value })} />
                 </div>
               </div>
@@ -949,21 +973,21 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
                 <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Morada da obra' : 'Adresse du chantier'}</label>
                 <input className={isV5 ? "v5-fi" : "v22-input"} value={form.adresse}
                   onChange={e => saisirAdresse({ adresse: e.target.value })}
-                  placeholder={isPt ? 'N°, rua...' : 'N°, rue...'} />
+                  placeholder={isPt ? 'Rua, n.º...' : 'N°, rue...'} />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 10 }}>
                 <div className={isV5 ? "v5-fg" : "v22-form-group"}>
                   <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Código postal' : 'Code postal'}</label>
                   <input className={isV5 ? "v5-fi" : "v22-input"} value={form.codePostal}
                     onChange={e => saisirAdresse({ codePostal: e.target.value })}
-                    placeholder="13001" maxLength={10} />
+                    placeholder={isPt ? '4000-123' : '13001'} maxLength={10} />
                 </div>
                 <div className={isV5 ? "v5-fg" : "v22-form-group"}>
                   <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Cidade *' : 'Ville *'}</label>
                   <div style={{ display: 'flex', gap: 6 }}>
                     <input className={isV5 ? "v5-fi" : "v22-input"} style={{ flex: 1 }} value={form.ville}
                       onChange={e => saisirAdresse({ ville: e.target.value })}
-                      placeholder={isPt ? 'Porto, Marseille...' : 'Marseille, Lyon...'} />
+                      placeholder={isPt ? 'Porto, Lisboa...' : 'Marseille, Lyon...'} />
                     <button className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"} onClick={localiserFiche}
                       disabled={geocoding || (!form.ville.trim() && !form.adresse.trim())}>
                       {geocoding ? <Loader2 size={12} className="animate-spin" /> : <MapPin size={12} />}
@@ -972,19 +996,19 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
                   </div>
                   {form.latitude && (
                     <div style={{ fontSize: 10, color: '#2E7D32', marginTop: 3, display: 'flex', alignItems: 'center', gap: 3 }}>
-                      <CheckCircle2 size={10} /> GPS : {form.latitude.toFixed(5)}, {form.longitude?.toFixed(5)}
+                      <CheckCircle2 size={10} /> {isPt ? 'GPS:' : 'GPS :'} {form.latitude.toFixed(5)}, {form.longitude?.toFixed(5)}
                     </div>
                   )}
                 </div>
               </div>
 
               <div className={isV5 ? "v5-fg" : "v22-form-group"}>
-                <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Raio para pointagem GPS' : 'Rayon pointage GPS'}</label>
+                <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Raio do registo de ponto (GPS)' : 'Rayon pointage GPS'}</label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <input type="range" min={25} max={500} step={25} value={form.geoRayonM}
                     onChange={e => setForm({ ...form, geoRayonM: Number(e.target.value) })}
                     style={{ flex: 1 }} />
-                  <span style={{ fontWeight: 600, fontSize: 12, minWidth: 45, textAlign: 'right' }}>{form.geoRayonM}m</span>
+                  <span style={{ fontWeight: 600, fontSize: 12, minWidth: 45, textAlign: 'right' }}>{form.geoRayonM}{isPt ? ' m' : 'm'}</span>
                 </div>
               </div>
 
@@ -1001,7 +1025,7 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
 
               {/* ── Équipe / Employés assignés ── */}
               <div className={isV5 ? "v5-fg" : "v22-form-group"}>
-                <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Empregados atribuídos' : 'Employés assignés'}</label>
+                <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Colaboradores atribuídos' : 'Employés assignés'}</label>
                 {membresList.length === 0 ? (
                   <div style={{ fontSize: 11, color: '#999', padding: 6 }}>
                     {isPt ? 'Nenhum colaborador. Adicione-os em "Equipas".' : 'Aucun employé. Ajoutez-en dans "Équipes".'}
@@ -1022,7 +1046,7 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
                               setForm({ ...form, membres_ids: selected ? ids.filter(id => id !== m.id) : [...ids, m.id] })
                             }} />
                           <span style={{ fontWeight: 600 }}>{m.prenom} {m.nom}</span>
-                          <span style={{ color: '#999' }}>{m.role}</span>
+                          <span style={{ color: '#999' }}>{isPt ? ROLE_PT[m.role] ?? m.role : m.role}</span>
                           <span style={{ color: '#C62828', marginLeft: 'auto' }}>{m.daily_cost.toFixed(0)} €/{isPt ? 'dia' : 'j'}</span>
                         </label>
                       )
@@ -1031,8 +1055,8 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
                 )}
                 {(form.membres_ids || []).length > 0 && (
                   <div style={{ fontSize: 10, color: '#2E7D32', marginTop: 3, display: 'flex', alignItems: 'center', gap: 3 }}>
-                    <CheckCircle2 size={10} /> {(form.membres_ids || []).length} {isPt ? 'empregado(s) selecionado(s)' : 'employé(s) sélectionné(s)'}
-                    — {isPt ? 'Custo/dia' : 'Coût/j'}: {fmt(membresList.filter(m => (form.membres_ids || []).includes(m.id)).reduce((s, m) => s + m.daily_cost, 0), dl)} €
+                    <CheckCircle2 size={10} /> {(form.membres_ids || []).length} {isPt ? 'colaborador(es) selecionado(s)' : 'employé(s) sélectionné(s)'}
+                    {isPt ? ' · ' : '— '}{isPt ? 'Custo/dia' : 'Coût/j'}: {fmt(membresList.filter(m => (form.membres_ids || []).includes(m.id)).reduce((s, m) => s + m.daily_cost, 0), dl)} €
                   </div>
                 )}
               </div>
@@ -1068,14 +1092,14 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
           <div className={isV5 ? "v5-card" : "v22-card"} style={{ width: '100%', maxWidth: 480, maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
             <div style={{ padding: '12px 16px', borderBottom: '1px solid #E8E8E8', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
               <span style={{ fontSize: 13, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <FileText size={14} /> {isPt ? 'Ligar um orçamento a esta obra' : 'Lier un devis à ce chantier'}
+                <FileText size={14} /> {isPt ? 'Associar um orçamento a esta obra' : 'Lier un devis à ce chantier'}
               </span>
               <button className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"} onClick={() => setShowLinkModal(null)}>✕</button>
             </div>
             <div style={{ padding: 16, overflowY: 'auto', flex: 1 }}>
               {availableDevis.length === 0 ? (
                 <div style={{ textAlign: 'center', color: '#999', fontSize: 13, padding: '20px 0' }}>
-                  {isPt ? 'Nenhum orçamento disponível (sem chantier associado)' : 'Aucun devis disponible (non liés à un chantier)'}
+                  {isPt ? 'Nenhum orçamento disponível (sem obra associada)' : 'Aucun devis disponible (non liés à un chantier)'}
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -1096,7 +1120,7 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
                         fontSize: 9, padding: '2px 7px', borderRadius: 10, fontWeight: 600, flex: '0 0 auto',
                         background: '#E3F2FD', color: '#1565C0',
                       }}>
-                        {d.status}
+                        {isPt ? statutDocumentPt(d.status, 'devis') : d.status}
                       </span>
                     </button>
                   ))}

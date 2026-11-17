@@ -41,6 +41,7 @@ interface PilotageData {
 
 function usePilotageData() {
   const [pilotageData, setPilotageData] = useState<PilotageData | null>(null)
+  const isPt = useLocale() === 'pt'
 
   useEffect(() => {
     async function fetchPilotage() {
@@ -85,8 +86,10 @@ function usePilotageData() {
         const alertes: string[] = rowsToUse
           .filter((r) => (r.benefice_net ?? 0) < 0)
           .map((r) => {
-            const nom = r.chantier_nom || r.nom || 'Chantier'
-            return `${nom} — marge négative (${formatPrice(r.benefice_net ?? 0)})`
+            const nom = r.chantier_nom || r.nom || (isPt ? 'Obra' : 'Chantier')
+            return isPt
+              ? `${nom}: margem negativa (${formatPrice(r.benefice_net ?? 0)})`
+              : `${nom} — marge négative (${formatPrice(r.benefice_net ?? 0)})`
           })
 
         setPilotageData({ caTotal, chargesTotal, netPoche, margePct, alertes })
@@ -96,7 +99,7 @@ function usePilotageData() {
     }
 
     fetchPilotage()
-  }, [])
+  }, [isPt])
 
   return pilotageData
 }
@@ -542,7 +545,7 @@ function StatsV5({ bookings, totalRevenue, services, artisan, locale }: {
   return (
     <div className="v5-fade">
       <PilotageBanner />
-      <div className="v5-pg-t"><h1>{isPt ? 'Estatísticas' : 'Statistiques'}</h1><p>{isPt ? 'Análise da atividade BTP' : 'Analyse de l\'activité BTP'}</p></div>
+      <div className="v5-pg-t"><h1>{isPt ? 'Estatísticas' : 'Statistiques'}</h1><p>{isPt ? 'Análise da atividade de construção' : 'Analyse de l\'activité BTP'}</p></div>
 
       {/* 4 KPIs */}
       <div className="v5-kpi-g">
@@ -572,7 +575,7 @@ function StatsV5({ bookings, totalRevenue, services, artisan, locale }: {
       <div className="v5-sg2">
         {/* Bar chart — CA mensuel 6 mois */}
         <div className="v5-card">
-          <div className="v5-st">{isPt ? 'Faturação mensal — 6 últimos meses' : 'CA mensuel — 6 derniers mois'}</div>
+          <div className="v5-st">{isPt ? 'Faturação mensal (últimos 6 meses)' : 'CA mensuel — 6 derniers mois'}</div>
           <div className="ch-bar-c" style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 160, padding: '0 8px' }}>
             {months.map((m, i) => {
               const pct = maxMonthly > 0 ? Math.round((m.value / maxMonthly) * 100) : 0
@@ -712,11 +715,11 @@ function RevenusV5({ bookings, completedBookings, pendingBookings, totalRevenue,
     completedBookings.filter(b => b.price_ttc && b.price_ttc > 0)
       .sort((a, b) => new Date(b.booking_date || '').getTime() - new Date(a.booking_date || '').getTime())
       .slice(0, 10)
-      .forEach(b => recentRows.push({ date: b.booking_date || '', client: b.client_name || b.client_email || 'Client', chantier: b.services?.name || 'Service', amount: b.price_ttc || 0 }))
+      .forEach(b => recentRows.push({ date: b.booking_date || '', client: b.client_name || b.client_email || (locale === 'pt' ? 'Cliente' : 'Client'), chantier: b.services?.name || (locale === 'pt' ? 'Serviço' : 'Service'), amount: b.price_ttc || 0 }))
   } else {
     factures.sort((a, b) => new Date(b.docDate || '').getTime() - new Date(a.docDate || '').getTime())
       .slice(0, 10)
-      .forEach(f => recentRows.push({ date: f.docDate || '', client: f.clientName || 'Client', chantier: f.docTitle || 'Facture', amount: docRevenueHT(f) }))
+      .forEach(f => recentRows.push({ date: f.docDate || '', client: f.clientName || (locale === 'pt' ? 'Cliente' : 'Client'), chantier: f.docTitle || (locale === 'pt' ? 'Fatura' : 'Facture'), amount: docRevenueHT(f) }))
   }
 
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'

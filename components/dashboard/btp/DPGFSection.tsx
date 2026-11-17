@@ -43,16 +43,21 @@ export function DPGFSection({ userId, authUserId, orgRole, country }: { userId: 
     await update(id, { statut })
     if (selected?.id === id) setSelected(prev => prev ? { ...prev, statut } : null)
   }
-  // Taux TVA dynamique selon le pays (France 20%, Portugal 23% standard)
-  const tauxTVA = country === 'PT' ? 0.23 : 0.20
-  const tvaTxt = country === 'PT' ? 'IVA' : 'TVA'
+  // Taux TVA dynamique selon le pays (France 20%, Portugal 23% standard). La page ne passe pas `country` : sans lui, le
+  // pays suit la langue (portugais → Portugal), ce qui laisse le calcul français inchangé.
+  const pays = country ?? (isPt ? 'PT' : 'FR')
+  const tauxTVA = pays === 'PT' ? 0.23 : 0.20
+  const tvaTxt = pays === 'PT' ? 'IVA' : 'TVA'
 
   const exportDPGF = (a: AppelOffre) => {
-    const rows = a.lots.map(l => `LOT ${l.numero} — ${l.designation.substring(0, 40).padEnd(40)} ${l.montantHT.toLocaleString(dateLocale)} € HT`).join('\n')
-    const content = `DPGF — ${a.titre}\nClient : ${a.client}\nDate remise : ${a.dateRemise ? new Date(a.dateRemise).toLocaleDateString(dateLocale) : ''}\n\n${rows}\n\nTOTAL HT : ${getTotal(a).toLocaleString(dateLocale)} €\n${tvaTxt} ${(tauxTVA * 100).toFixed(0)}% : ${(getTotal(a) * tauxTVA).toLocaleString(dateLocale)} €\nTOTAL TTC : ${(getTotal(a) * (1 + tauxTVA)).toLocaleString(dateLocale)} €`
+    const dateRemise = a.dateRemise ? new Date(a.dateRemise).toLocaleDateString(dateLocale) : ''
+    const total = getTotal(a)
+    const content = isPt
+      ? `Mapa de quantidades: ${a.titre}\nCliente: ${a.client}\nData de entrega: ${dateRemise}\n\n${a.lots.map(l => `LOTE ${l.numero}: ${l.designation.substring(0, 40).padEnd(40)} ${l.montantHT.toLocaleString(dateLocale)} € s/ IVA`).join('\n')}\n\nTOTAL s/ IVA: ${total.toLocaleString(dateLocale)} €\n${tvaTxt} ${(tauxTVA * 100).toFixed(0)}%: ${(total * tauxTVA).toLocaleString(dateLocale)} €\nTOTAL c/ IVA: ${(total * (1 + tauxTVA)).toLocaleString(dateLocale)} €`
+      : `DPGF — ${a.titre}\nClient : ${a.client}\nDate remise : ${dateRemise}\n\n${a.lots.map(l => `LOT ${l.numero} — ${l.designation.substring(0, 40).padEnd(40)} ${l.montantHT.toLocaleString(dateLocale)} € HT`).join('\n')}\n\nTOTAL HT : ${total.toLocaleString(dateLocale)} €\n${tvaTxt} ${(tauxTVA * 100).toFixed(0)}% : ${(total * tauxTVA).toLocaleString(dateLocale)} €\nTOTAL TTC : ${(total * (1 + tauxTVA)).toLocaleString(dateLocale)} €`
     const blob = new Blob([content], { type: 'text/plain' })
     const url = URL.createObjectURL(blob)
-    const link = document.createElement('a'); link.href = url; link.download = `DPGF_${a.titre.replace(/\s+/g, '_')}.txt`; link.click()
+    const link = document.createElement('a'); link.href = url; link.download = `${isPt ? 'Mapa_de_quantidades' : 'DPGF'}_${a.titre.replace(/\s+/g, '_')}.txt`; link.click()
     URL.revokeObjectURL(url)
   }
 
@@ -164,7 +169,7 @@ export function DPGFSection({ userId, authUserId, orgRole, country }: { userId: 
       {selected ? (
         <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ padding: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 1.25rem', borderBottom: '1px solid #E8E8E8' }}>
-            <div className={isV5 ? 'v5-st' : 'v22-card-title'} style={{ margin: 0 }}>DPGF — {selected.titre}</div>
+            <div className={isV5 ? 'v5-st' : 'v22-card-title'} style={{ margin: 0 }}>{isPt ? 'Mapa de quantidades: ' : 'DPGF — '}{selected.titre}</div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
               <button className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn'} style={isV5 ? undefined : { fontSize: 11, padding: '4px 8px' }} onClick={() => exportDPGF(selected)}><Download size={10} /> {t('proDash.btp.dpgf.export')}</button>
               {(['en_cours', 'soumis', 'gagné', 'perdu'] as const).map(s => (

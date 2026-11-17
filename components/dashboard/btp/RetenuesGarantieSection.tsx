@@ -57,9 +57,9 @@ export function RetenuesGarantieSection({ userId, authUserId, orgRole }: { userI
     libérée: 'v22-tag v22-tag-gray',
   }
   const retLabel: Record<string, string> = {
-    active: isPt ? 'Ativo' : 'En cours',
-    mainlevée_demandée: isPt ? 'Levantamento pedido' : 'Mainlevée demandée',
-    libérée: isPt ? 'Libertado' : 'Libérée',
+    active: isPt ? 'Em curso' : 'En cours',
+    mainlevée_demandée: isPt ? 'Libertação pedida' : 'Mainlevée demandée',
+    libérée: isPt ? 'Libertada' : 'Libérée',
   }
 
   return (

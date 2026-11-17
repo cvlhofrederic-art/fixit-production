@@ -259,7 +259,7 @@ export function GanttSection({ userId, authUserId, orgRole }: { userId: string; 
       <div className="v5-pg-t" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div style={{ flex: 1 }}>
           <h1>{isPt ? 'Planeamento Gantt' : 'Planification Gantt'}</h1>
-          <p>{isPt ? 'Vista geral das obras' : 'Vue d\'ensemble des chantiers'} — {months.length >= 2 ? `${months[0].label} → ${months[months.length - 1].label} ${months[months.length - 1].start.getFullYear()}` : ''}</p>
+          <p>{isPt ? 'Vista geral das obras' : 'Vue d\'ensemble des chantiers'}{isPt ? (months.length >= 2 ? ': ' : '') : ' — '}{months.length >= 2 ? `${months[0].label} → ${months[months.length - 1].label} ${months[months.length - 1].start.getFullYear()}` : ''}</p>
         </div>
         {active.length > 0 && (
           <button className="v5-btn v5-btn-p" onClick={() => setShowForm(true)}>+ {isPt ? 'Tarefa' : 'Sous-tâche'}</button>
@@ -315,7 +315,7 @@ export function GanttSection({ userId, authUserId, orgRole }: { userId: string; 
         <div style={{ ...S.gantt, padding: '48px 24px', textAlign: 'center' }}>
           <div style={{ fontSize: 40, marginBottom: 12, opacity: 0.4 }}>📊</div>
           <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 6 }}>{isPt ? 'Nenhuma obra com datas' : 'Aucun chantier avec des dates'}</div>
-          <p style={{ fontSize: 12, color: '#999' }}>{isPt ? 'Crie obras com datas no separador Chantiers' : 'Créez des chantiers avec dates dans l\'onglet Chantiers'}</p>
+          <p style={{ fontSize: 12, color: '#999' }}>{isPt ? 'Crie obras com datas no módulo Obras' : 'Créez des chantiers avec dates dans l\'onglet Chantiers'}</p>
         </div>
       ) : (
         <>
@@ -356,7 +356,7 @@ export function GanttSection({ userId, authUserId, orgRole }: { userId: string; 
                       {isTermine && row.isChantier && ' ✓'}
                       {isRetard && ' ⚠️'}
                       {!row.isChantier && (
-                        <button onClick={() => deleteSousTache(row.id)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: '#E53935', fontSize: 9, padding: '0 4px' }} title="Supprimer">✕</button>
+                        <button onClick={() => deleteSousTache(row.id)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: '#E53935', fontSize: 9, padding: '0 4px' }} title={isPt ? 'Eliminar' : 'Supprimer'}>✕</button>
                       )}
                     </div>
 
@@ -403,7 +403,7 @@ export function GanttSection({ userId, authUserId, orgRole }: { userId: string; 
 
           {/* Legend */}
           <div style={{ marginTop: 8, fontSize: 10, color: '#999' }}>
-            🔴 {isPt ? 'Linha vermelha = avanço real do estaleiro' : 'Ligne rouge = avancement réel du chantier'} &nbsp;&bull;&nbsp; 🔶 {isPt ? 'Losango = jalon clé' : 'Losange = jalon clé'}
+            🔴 {isPt ? 'Linha vermelha = avanço real da obra' : 'Ligne rouge = avancement réel du chantier'} &nbsp;&bull;&nbsp; 🔶 {isPt ? 'Losango = marco principal' : 'Losange = jalon clé'}
           </div>
 
           {/* Sub-task table */}

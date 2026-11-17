@@ -28,11 +28,14 @@ export interface TvaStatusResult {
 // FR : prestations de services (artisans/BTP)
 //   seuil de base   37 500 €
 //   seuil majoré    41 250 €  (tolérance 2 ans consécutifs)
-// PT : art. 53 CIVA — exonération si VN ≤ 14 500 € (taux arrondi à 15 000 dans l'UI)
+// PT : art. 53.º CIVA (art. 52.º-B ajouté par le DL 35/2025), vérifié le 17/11/2026 sur les sources officielles :
+//   seuil d'exonération 15 000 € de volume d'affaires de l'année civile précédente (14 500 € en 2024) ;
+//   entre 15 000 € et 18 750 € (+ 25 %), l'exonération court jusqu'au 31 décembre, régime normal au 1er janvier
+//   suivant ; au-delà de 18 750 €, sortie immédiate du régime d'exonération.
 // ─────────────────────────────────────────────────────────────────────────────
 const THRESHOLDS: Record<TvaCountry, { seuil: number; seuilMajore?: number; taux: number }> = {
   FR: { seuil: 37_500, seuilMajore: 41_250, taux: 0.20 },
-  PT: { seuil: 14_500, taux: 0.23 },
+  PT: { seuil: 15_000, seuilMajore: 18_750, taux: 0.23 },
 }
 
 function fmtEur(v: number) {
@@ -101,16 +104,30 @@ export function getTvaStatus(caHT: number, country: TvaCountry): TvaStatusResult
 
   // ── Portugal ──────────────────────────────────────────────────────────────
   const { seuil, taux } = t
+  const seuilMajore = t.seuilMajore ?? 18_750
 
-  if (caHT >= seuil) {
+  if (caHT > seuilMajore) {
     return {
-      status: 'exceeded', percent, caHT, seuil, taux,
+      status: 'exceeded_majore', percent, caHT, seuil, seuilMajore, taux,
+      color: '#ef4444', bgColor: 'rgba(239,68,68,0.08)',
+      badge: { fr: 'SEUIL IVA DÉPASSÉ DE PLUS DE 25 %', pt: 'LIMITE DE IVA ULTRAPASSADO EM MAIS DE 25%' },
+      title: { fr: '🚨 Seuil IVA Portugal dépassé de plus de 25 %', pt: '🚨 Limite de isenção de IVA ultrapassado em mais de 25%' },
+      message: {
+        fr: `Votre CA HT (${fmtEur(caHT)}) dépasse ${fmtEur(seuilMajore)} (seuil de ${fmtEur(seuil)} majoré de 25 %, art. 53 CIVA) : la sortie du régime d'exonération est immédiate, l'IVA s'applique (taux normal de 23 %). Signalez le changement aux Finanças et parlez-en à votre comptable.`,
+        pt: `O seu volume de negócios (${fmtEur(caHT)}) ultrapassa ${fmtEur(seuilMajore)} (limite de ${fmtEur(seuil)} acrescido de 25%, art.º 53.º do CIVA): a saída do regime de isenção é imediata e passa a liquidar IVA (taxa normal de 23%). Comunique a alteração às Finanças e fale com o seu contabilista.`,
+      },
+    }
+  }
+
+  if (caHT > seuil) {
+    return {
+      status: 'exceeded', percent, caHT, seuil, seuilMajore, taux,
       color: '#f97316', bgColor: 'rgba(249,115,22,0.08)',
       badge: { fr: 'SEUIL IVA DÉPASSÉ', pt: 'LIMITE IVA ULTRAPASSADO' },
       title: { fr: '⚠️ Seuil IVA Portugal dépassé', pt: '⚠️ Limite de isenção IVA ultrapassado' },
       message: {
-        fr: `Votre CA HT (${fmtEur(caHT)}) dépasse le seuil d'exonération portugais (${fmtEur(seuil)}, art. 53 CIVA). Vous devez vous enregistrer à l'IVA auprès des Finanças et appliquer un taux de 23 %.`,
-        pt: `O seu volume de negócios (${fmtEur(caHT)}) ultrapassa o limite de isenção de IVA (${fmtEur(seuil)}, art.º 53.º CIVA). É obrigatório registar-se no IVA junto das Finanças e aplicar a taxa de 23 %.`,
+        fr: `Votre CA HT (${fmtEur(caHT)}) dépasse le seuil d'exonération portugais (${fmtEur(seuil)}, art. 53 CIVA). L'exonération reste acquise jusqu'au 31 décembre ; le régime normal de l'IVA (23 %) s'applique au 1er janvier suivant, à déclarer aux Finanças dans les 15 jours ouvrés après la fin de l'année. Au-delà de ${fmtEur(seuilMajore)}, la sortie est immédiate.`,
+        pt: `O seu volume de negócios (${fmtEur(caHT)}) ultrapassa o limite de isenção de IVA (${fmtEur(seuil)}, art.º 53.º do CIVA). Mantém a isenção até 31 de dezembro e passa ao regime normal de IVA (23%) a 1 de janeiro seguinte; comunique a alteração às Finanças nos 15 dias úteis após o fim do ano. Acima de ${fmtEur(seuilMajore)}, a saída é imediata.`,
       },
     }
   }
