@@ -137,9 +137,10 @@ describe('runKycPipeline — lecture du Kbis et de la pièce d’identité', () 
   const registre = () => Response.json({ results: [{ etat_administratif: 'A', nom_complet: 'MACONNERIE TEST' }] })
   /** Stockage simulé : registre, Kbis et pièce d'identité ; tout autre appel réseau est une erreur. */
   const stockage = (kbis: Uint8Array<ArrayBuffer>) => (url: string) => {
-    if (url.startsWith('https://recherche-entreprises.api.gouv.fr')) return registre()
     if (url === URL_KBIS) return new Response(kbis)
     if (url === URL_IDENTITE) return new Response(PIECE_JPEG)
+    // Origine (schéma, hôte, port) lue sur l'adresse analysée : un test sur le début de la chaîne accepterait aussi un autre hôte.
+    if (new URL(url).origin === 'https://recherche-entreprises.api.gouv.fr') return registre()
     throw new Error('appel inattendu : ' + url)
   }
   const imageDe = (entrees: Record<string, unknown>) =>
@@ -157,6 +158,8 @@ describe('runKycPipeline — lecture du Kbis et de la pièce d’identité', () 
     if (!issue.ok) return
     expect(issue.result.checks.docOcrSuccess).toBe(true)
     expect(issue.result.checks.identifiantMatchDocVsApi).toBe(true)
+    // Le registre a bien été consulté : une erreur d'appel est avalée par le KYC et ne se verrait pas autrement.
+    expect(issue.result.checks.identifiantActiveInRegistry).toBe(true)
     expect(workersAI).toHaveLength(1)
     expect(imageDe(workersAI[0].entrees)).toMatch(/^data:image\/jpeg;base64,/)
   })
