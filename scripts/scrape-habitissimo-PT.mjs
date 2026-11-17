@@ -9,15 +9,17 @@
  *   node scripts/scrape-habitissimo-PT.mjs eletricista         → un seul service
  *   node scripts/scrape-habitissimo-PT.mjs - marco-de-canaveses → une seule ville
  *
- * Output : data/artisans-PT-habitissimo-raw.json
+ * Output : artisans-PT-habitissimo-raw.json (dossier privé des annuaires, hors dépôt)
  */
 
 import fs from 'fs'
 import path from 'path'
-import { fileURLToPath } from 'url'
+import os from 'os'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const OUTPUT_FILE = path.join(__dirname, '../data/artisans-PT-habitissimo-raw.json')
+// Annuaires récupérés (données personnelles de tiers) : hors du dépôt public, dans un dossier privé
+// (ANNUAIRES_ARTISANS_DIR pour en choisir un autre).
+const DOSSIER_ANNUAIRES = process.env.ANNUAIRES_ARTISANS_DIR || path.join(os.homedir(), '.claude', 'donnees-privees', 'artisans-pt')
+const OUTPUT_FILE = path.join(DOSSIER_ANNUAIRES, 'artisans-PT-habitissimo-raw.json')
 
 // ── Délai pour ne pas hammer le serveur ──────────────────────────────────────
 const DELAY_MS = 1200
@@ -252,7 +254,7 @@ async function main() {
   console.log(`   → Pages not found           : ${notFound}`)
 
   // Préparer output directory
-  const dataDir = path.join(__dirname, '../data')
+  const dataDir = DOSSIER_ANNUAIRES
   if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true })
 
   // Écrire le fichier de données brutes

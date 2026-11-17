@@ -211,10 +211,13 @@ Score >= 0.7 = passa; < 0.7 = falha.`
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'llama-3.1-8b-instant',
+        // Juge : GROQ_MODEL_RAPIDE de lib/constants.ts (remplaçant du petit Llama retiré par Groq le 16/08/2026).
+        // gpt-oss raisonne avant de répondre : effort bas et budget majoré (cf. lib/ai/raisonnement.ts).
+        model: 'openai/gpt-oss-20b',
         messages: [{ role: 'user', content: judgePrompt }],
         temperature: 0.1,
-        max_tokens: 200,
+        max_tokens: 712,
+        reasoning_effort: 'low',
         response_format: { type: 'json_object' },
       }),
     })

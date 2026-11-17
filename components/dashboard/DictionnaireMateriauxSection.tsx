@@ -72,6 +72,8 @@ function LiensEnseignes({ dico, libelles, materiau, compact = false }: Readonly<
   materiau: Materiau
   compact?: boolean
 }>) {
+  // Typographie de la langue : pas d'espace avant « : » en portugais.
+  const deuxPoints = useLocale() === 'pt' ? ':' : ' :'
   const enseignes = dico.enseignes.filter((e) => materiau.enseignes.includes(e.id))
   if (enseignes.length === 0) return null
   return (
@@ -83,7 +85,7 @@ function LiensEnseignes({ dico, libelles, materiau, compact = false }: Readonly<
           target="_blank"
           rel="noopener noreferrer"
           className={compact ? 'dico-magasin-c' : 'v5-btn'}
-          aria-label={`${libelles.voirChez(e.nom)} : ${materiau.nom}`}
+          aria-label={`${libelles.voirChez(e.nom)}${deuxPoints} ${materiau.nom}`}
         >
           {compact ? e.nom : libelles.voirChez(e.nom)} ↗
         </a>

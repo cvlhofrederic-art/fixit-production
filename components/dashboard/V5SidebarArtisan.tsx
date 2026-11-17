@@ -45,8 +45,10 @@ const PREFETCH_MAP: Record<string, () => void> = {
 }
 const prefetched = new Set<string>()
 
-function V5ArtisanItem({ icon, label, active, badge, onClick, page }: {
+function V5ArtisanItem({ icon, label, active, badge, onClick, page, isPt }: {
   icon: string; label: string; active?: boolean; badge?: number; onClick: () => void; page?: string
+  /** Langue du libellé lu par les lecteurs d'écran sur la pastille (« en attente » / « pendentes »). */
+  isPt?: boolean
 }) {
   const handleHover = () => {
     if (page && !prefetched.has(page) && PREFETCH_MAP[page]) {
@@ -58,7 +60,7 @@ function V5ArtisanItem({ icon, label, active, badge, onClick, page }: {
     <button type="button" onClick={onClick} onMouseEnter={handleHover} className={`v5-sb-i${active ? ' active' : ''}`} aria-current={active ? 'page' : undefined}>
       <span className="v5-sb-icon" aria-hidden="true">{icon}</span>
       <span className="v5-sb-label">{label}</span>
-      {badge != null && badge > 0 && <span className="v5-sb-badge" aria-label={`${badge} en attente`}>{badge}</span>}
+      {badge != null && badge > 0 && <span className="v5-sb-badge" aria-label={isPt ? `${badge} pendentes` : `${badge} en attente`}>{badge}</span>}
     </button>
   )
 }
@@ -78,11 +80,11 @@ export default function V5SidebarArtisan({
 
         {/* ═══ PRINCIPAL ═══ */}
         <div className="v5-sb-sec">
-          <div className="v5-sb-sec-t">{isPt ? 'Principal' : 'Principal'}</div>
+          <div className="v5-sb-sec-t">Principal</div>
           <V5ArtisanItem icon="📊" label={isPt ? 'Painel' : 'Tableau de bord'} active={activePage === 'home'} onClick={() => navigateTo('home')} page="home" />
-          <V5ArtisanItem icon="📅" label={isPt ? 'Agenda' : 'Agenda'} active={activePage === 'calendar'} badge={pendingBookings.length || undefined} onClick={() => navigateTo('calendar')} page="calendar" />
+          <V5ArtisanItem icon="📅" label="Agenda" active={activePage === 'calendar'} badge={pendingBookings.length || undefined} isPt={isPt} onClick={() => navigateTo('calendar')} page="calendar" />
           <V5ArtisanItem icon="🏗️" label={isPt ? 'Obras' : 'Chantiers'} active={activePage === 'chantiers_v22'} onClick={() => navigateTo('chantiers_v22')} page="chantiers_v22" />
-          <V5ArtisanItem icon="🗂️" label={isPt ? 'Prestações' : 'Prestations'} active={activePage === 'motifs'} onClick={() => navigateTo('motifs')} page="motifs" />
+          <V5ArtisanItem icon="🗂️" label={isPt ? 'Serviços' : 'Prestations'} active={activePage === 'motifs'} onClick={() => navigateTo('motifs')} page="motifs" />
           <V5ArtisanItem icon="⏱️" label={isPt ? 'Horários' : 'Horaires'} active={activePage === 'horaires'} onClick={() => navigateTo('horaires')} page="horaires" />
         </div>
 
@@ -94,7 +96,7 @@ export default function V5SidebarArtisan({
             <V5ArtisanItem icon="📄" label={isPt ? 'Orçamentos' : 'Devis'} active={activePage === 'devis'} onClick={() => navigateTo('devis')} page="devis" />
           )}
           {isModuleEnabled('marches') && (
-            <V5ArtisanItem icon="📢" label={isPt ? 'Bolsa de Mercados' : 'Bourse aux Marchés'} active={activePage === 'marches'} onClick={() => navigateTo('marches')} />
+            <V5ArtisanItem icon="📢" label={isPt ? 'Bolsa de oportunidades' : 'Bourse aux Marchés'} active={activePage === 'marches'} onClick={() => navigateTo('marches')} />
           )}
         </div>
 
@@ -115,7 +117,7 @@ export default function V5SidebarArtisan({
         <div className="v5-sb-sec">
           <div className="v5-sb-sec-t">{isPt ? 'Comunicação' : 'Communication'}</div>
           {isModuleEnabled('messages') && (
-            <V5ArtisanItem icon="💬" label={isPt ? 'Mensagens' : 'Messagerie'} active={activePage === 'messages' || activePage === 'comm_pro'} badge={(unreadMsgCount + pendingBookings.length) || undefined} onClick={() => navigateTo('messages')} page="messages" />
+            <V5ArtisanItem icon="💬" label={isPt ? 'Mensagens' : 'Messagerie'} active={activePage === 'messages' || activePage === 'comm_pro'} badge={(unreadMsgCount + pendingBookings.length) || undefined} isPt={isPt} onClick={() => navigateTo('messages')} page="messages" />
           )}
           {isModuleEnabled('clients') && (
             <V5ArtisanItem icon="👥" label={isPt ? 'Clientes' : 'Base clients'} active={activePage === 'clients'} onClick={() => navigateTo('clients')} page="clients" />
@@ -142,7 +144,7 @@ export default function V5SidebarArtisan({
             <V5ArtisanItem icon="📖" label={isPt ? 'Dicionário de materiais' : 'Dictionnaire matériaux'} active={activePage === ID_MODULE_DICTIONNAIRE} onClick={() => navigateTo(ID_MODULE_DICTIONNAIRE)} page={ID_MODULE_DICTIONNAIRE} />
           )}
           {isModuleEnabled('marketplace_btp') && (
-            <V5ArtisanItem icon="🏪" label="Marketplace BTP" active={activePage === 'marketplace_btp'} onClick={() => navigateTo('marketplace_btp')} page="marketplace_btp" />
+            <V5ArtisanItem icon="🏪" label={isPt ? 'Marketplace da construção' : 'Marketplace BTP'} active={activePage === 'marketplace_btp'} onClick={() => navigateTo('marketplace_btp')} page="marketplace_btp" />
           )}
         </div>
 
@@ -157,7 +159,7 @@ export default function V5SidebarArtisan({
               <V5ArtisanItem icon="🖼️" label={isPt ? 'Referências' : 'Portfolio'} active={activePage === 'portfolio'} onClick={() => navigateTo('portfolio')} />
             )}
             {isModuleEnabled('parrainage') && (
-              <V5ArtisanItem icon="🎁" label={isPt ? 'Apadrinhamento' : 'Parrainage'} active={activePage === 'parrainage'} onClick={() => navigateTo('parrainage')} />
+              <V5ArtisanItem icon="🎁" label={isPt ? 'Programa de recomendação' : 'Parrainage'} active={activePage === 'parrainage'} onClick={() => navigateTo('parrainage')} />
             )}
           </div>
         )}
@@ -166,13 +168,13 @@ export default function V5SidebarArtisan({
         <div className="v5-sb-bottom">
           <div className="v5-sb-sec">
             <div className="v5-sb-sec-t">{isPt ? 'Conta' : 'Compte'}</div>
-            <V5ArtisanItem icon="⚙️" label={isPt ? 'Meu perfil' : 'Mon profil'} active={activePage === 'settings'} onClick={() => navigateTo('settings')} page="settings" />
-            <V5ArtisanItem icon="🧩" label="Modules" active={activePage === 'modules'} onClick={() => navigateTo('modules')} />
+            <V5ArtisanItem icon="⚙️" label={isPt ? 'O meu perfil' : 'Mon profil'} active={activePage === 'settings'} onClick={() => navigateTo('settings')} page="settings" />
+            <V5ArtisanItem icon="🧩" label={isPt ? 'Módulos' : 'Modules'} active={activePage === 'modules'} onClick={() => navigateTo('modules')} />
             <V5ArtisanItem icon="❓" label={isPt ? 'Ajuda' : 'Aide'} active={activePage === 'help'} onClick={() => navigateTo('help')} />
             {/* Super_admin (ou « vue en tant que ») seulement — même lien côté BTP (V5Sidebar), voulu pour la démo. */}
             <LienPanneauAdmin className="v5-sb-i" style={{ textDecoration: 'none' }}>
               <span className="v5-sb-icon">🛡️</span>
-              <span className="v5-sb-label">Panneau admin</span>
+              <span className="v5-sb-label">{isPt ? 'Painel de administração' : 'Panneau admin'}</span>
             </LienPanneauAdmin>
             <div className="v5-sb-i logout" onClick={handleLogout}>
               <span className="v5-sb-icon">🚪</span>

@@ -403,8 +403,8 @@ function ParamPanel({ recipe, editing, isPt, onCancel, onSave }: ParamPanelProps
     const maxCm = c.maxThickness !== undefined ? c.maxThickness * 100 : null
     const dtu = recipe.dtuReferences[0]?.code
     if (minCm !== null && maxCm !== null) return `${isPt ? 'entre' : 'entre'} ${fr(minCm, 0)} ${isPt ? 'e' : 'et'} ${fr(maxCm, 0)} cm${dtu ? ` (${dtu})` : ''}`
-    if (minCm !== null) return `min ${fr(minCm, 0)} cm${dtu ? ` (${dtu})` : ''}`
-    if (maxCm !== null) return `max ${fr(maxCm, 0)} cm${dtu ? ` (${dtu})` : ''}`
+    if (minCm !== null) return `${isPt ? 'mín.' : 'min'} ${fr(minCm, 0)} cm${dtu ? ` (${dtu})` : ''}`
+    if (maxCm !== null) return `${isPt ? 'máx.' : 'max'} ${fr(maxCm, 0)} cm${dtu ? ` (${dtu})` : ''}`
     return null
   })()
 
@@ -422,7 +422,7 @@ function ParamPanel({ recipe, editing, isPt, onCancel, onSave }: ParamPanelProps
         <label>{isPt ? 'Etiqueta (opcional)' : 'Libellé (optionnel)'}</label>
         <input
           type="text"
-          placeholder={isPt ? 'Ex: Laje fundação, Extensão…' : 'Ex : Dalle garage, Fondation extension…'}
+          placeholder={isPt ? 'Ex.: Laje de fundação, Ampliação…' : 'Ex : Dalle garage, Fondation extension…'}
           value={label}
           onChange={e => setLabel(e.target.value)}
         />
@@ -511,7 +511,7 @@ function ParamPanel({ recipe, editing, isPt, onCancel, onSave }: ParamPanelProps
             {summary.map(([label, value], i) => (
               <span key={label}>
                 {i > 0 && ' · '}
-                {label} : <strong>{value}</strong>
+                {label}{isPt ? ':' : ' :'} <strong>{value}</strong>
               </span>
             ))}
           </div>
@@ -587,7 +587,7 @@ function MatLine({ need, isPt }: { need: MaterialNeed; isPt: boolean }) {
         </div>
         <div className="detail-row">
           <span className="detail-label">{isPt ? 'Perdas' : 'Pertes'}</span>{' '}
-          +{fr(need.wasteBreakdown.baseWastePercent, 1)}% — {need.wasteBreakdown.baseWasteReason}
+          +{fr(need.wasteBreakdown.baseWastePercent, 1)}%{isPt ? ' · ' : ' — '}{need.wasteBreakdown.baseWasteReason}
           {need.wasteBreakdown.profileBonusPercent > 0 && (
             <> · {need.wasteBreakdown.profileBonusReason}</>
           )}
@@ -613,7 +613,7 @@ const PHASE_META_FR: Record<string, { icon: string; label: string }> = {
 }
 const PHASE_META_PT: Record<string, { icon: string; label: string }> = {
   preparation: { icon: '🧱', label: 'Preparação (a montante)' },
-  principal: { icon: '📦', label: 'Obra principal' },
+  principal: { icon: '📦', label: 'Trabalho principal' },
   accessoires: { icon: '⚙️', label: 'Acessórios de execução' },
   finitions: { icon: '✨', label: 'Acabamentos' },
   options: { icon: '➕', label: 'Opções condicionais' },
@@ -634,49 +634,49 @@ const COHERENCE_RULES: Array<{
     triggerRecipeId: 'mur-parpaing-20',
     complementRecipeIds: ['semelle-filante-ba'],
     messageFr: 'Mur parpaing extérieur sans fondation — semelle filante BA attendue',
-    messagePt: 'Parede em bloco exterior sem fundação — sapata corrida em BA esperada',
+    messagePt: 'Parede exterior em blocos sem fundação: prever uma sapata corrida em betão armado',
   },
   {
     triggerRecipeId: 'mur-parpaing-20',
     complementRecipeIds: ['enduit-ext-monocouche', 'enduit-ext-multicouche'],
     messageFr: 'Mur parpaing sans enduit extérieur — finition façade à prévoir',
-    messagePt: 'Parede em bloco sem reboco exterior — acabamento de fachada a prever',
+    messagePt: 'Parede em blocos sem reboco exterior: prever o acabamento da fachada',
   },
   {
     triggerRecipeId: 'couv-tuile-tc-emboitement',
     complementRecipeIds: ['charpente-traditionnelle', 'charpente-fermettes', 'mob-murs'],
     messageFr: 'Couverture tuile sans charpente — structure porteuse manquante',
-    messagePt: 'Cobertura em telha sem estrutura — estrutura portante em falta',
+    messagePt: 'Cobertura em telha sem estrutura: falta a estrutura de suporte',
   },
   {
     triggerRecipeId: 'couv-tuile-beton',
     complementRecipeIds: ['charpente-traditionnelle', 'charpente-fermettes', 'mob-murs'],
     messageFr: 'Couverture tuile béton sans charpente — structure porteuse manquante',
-    messagePt: 'Cobertura em telha de betão sem estrutura — estrutura portante em falta',
+    messagePt: 'Cobertura em telha de betão sem estrutura: falta a estrutura de suporte',
   },
   {
     triggerRecipeId: 'couv-ardoise-naturelle',
     complementRecipeIds: ['charpente-traditionnelle', 'charpente-fermettes'],
     messageFr: 'Couverture ardoise sans charpente — structure porteuse manquante',
-    messagePt: 'Cobertura em ardósia sem estrutura — estrutura portante em falta',
+    messagePt: 'Cobertura em ardósia sem estrutura: falta a estrutura de suporte',
   },
   {
     triggerRecipeId: 'pac-air-eau',
     complementRecipeIds: ['plancher-chauffant-hydraulique', 'radiateur-acier-panneau', 'radiateur-eau-chaude'],
     messageFr: 'PAC air/eau sans émetteurs — radiateurs ou plancher chauffant attendus',
-    messagePt: 'Bomba de calor ar/água sem emissores — radiadores ou piso radiante esperados',
+    messagePt: 'Bomba de calor ar/água sem emissores: prever radiadores ou piso radiante',
   },
   {
     triggerRecipeId: 'piscine-coque-polyester',
     complementRecipeIds: ['terrasse-bois-plots', 'terrasse-carrelage-ext', 'terrasse-composite-wpc'],
     messageFr: 'Piscine sans plage périphérique — terrasse 1-2 m à prévoir séparément',
-    messagePt: 'Piscina sem pavimento periférico — terraço 1-2 m a prever separadamente',
+    messagePt: 'Piscina sem pavimento periférico: prever separadamente um terraço de 1 a 2 m',
   },
   {
     triggerRecipeId: 'piscine-beton-banche',
     complementRecipeIds: ['terrasse-bois-plots', 'terrasse-carrelage-ext', 'terrasse-composite-wpc'],
     messageFr: 'Piscine sans plage périphérique — terrasse 1-2 m à prévoir séparément',
-    messagePt: 'Piscina sem pavimento periférico — terraço 1-2 m a prever separadamente',
+    messagePt: 'Piscina sem pavimento periférico: prever separadamente um terraço de 1 a 2 m',
   },
 ]
 
@@ -703,8 +703,8 @@ interface ResultsPanelProps {
 function ResultsPanel({ result, isPt, copied, onCopy, onSoon, onOrder }: ResultsPanelProps) {
   const coherenceAlerts = useMemo(() => deriveCoherenceAlerts(result, isPt), [result, isPt])
   const itemWarnings = useMemo(
-    () => result.items.flatMap(it => it.warnings.map(w => `${it.label || it.recipeName} — ${w}`)),
-    [result.items]
+    () => result.items.flatMap(it => it.warnings.map(w => `${it.label || it.recipeName}${isPt ? ': ' : ' — '}${w}`)),
+    [result.items, isPt]
   )
 
   // Regroupe aggregated en 5 buckets : preparation / principal / accessoires / finitions / options
@@ -754,8 +754,8 @@ function ResultsPanel({ result, isPt, copied, onCopy, onSoon, onOrder }: Results
         <div className="result-headline">
           <h2>📦 {isPt ? 'Materiais necessários' : 'Matériaux nécessaires'}</h2>
           <div className="res-label">
-            {result.aggregated.length} {isPt ? 'materiais calculados para' : 'matériaux calculés pour'}{' '}
-            {result.items.length} {isPt ? 'obras' : 'ouvrages'}
+            {result.aggregated.length} {isPt ? (result.aggregated.length === 1 ? 'material calculado para' : 'materiais calculados para') : 'matériaux calculés pour'}{' '}
+            {result.items.length} {isPt ? (result.items.length === 1 ? 'trabalho' : 'trabalhos') : 'ouvrages'}
             {groups.options.length > 0 && (
               <> · <strong>{groups.options.length} {isPt ? 'opção(ões)' : 'option(s)'}</strong></>
             )}
@@ -774,7 +774,7 @@ function ResultsPanel({ result, isPt, copied, onCopy, onSoon, onOrder }: Results
             {coherenceAlerts.length > 0 && (
               <>
                 <div className="coherence-subtitle">
-                  {isPt ? 'Obras complementares em falta' : 'Ouvrages complémentaires manquants'}
+                  {isPt ? 'Trabalhos complementares em falta' : 'Ouvrages complémentaires manquants'}
                 </div>
                 <ul>
                   {coherenceAlerts.map((a, i) => <li key={`c-${i}`}>{a}</li>)}
@@ -1072,7 +1072,7 @@ export default function EstimationMateriauxSection({
   }
 
   const goToMateriaux = () => {
-    alert(isPt ? 'Em breve — redirecionamento para Materiais & Aprovisionamento' : 'Bientôt — redirection vers Matériaux & Appro')
+    alert(isPt ? 'Em breve: redirecionamento para Materiais e aprovisionamento' : 'Bientôt — redirection vers Matériaux & Appro')
   }
 
   // Sélecteur de corps de métier — partagé entre les modes Formulaire et IA.
@@ -1084,7 +1084,7 @@ export default function EstimationMateriauxSection({
         🛠️ {isPt ? 'Filtrar por especialidade' : 'Filtrer par corps d\'état'}
         <span className="ia-trade-hint">
           {selectedTrades.length === 0
-            ? (isPt ? `Tudo (${availableTrades.length})` : `Tous (${availableTrades.length})`)
+            ? (isPt ? `Todas (${availableTrades.length})` : `Tous (${availableTrades.length})`)
             : `${selectedTrades.length} / ${availableTrades.length}`}
         </span>
       </div>
@@ -1155,7 +1155,7 @@ export default function EstimationMateriauxSection({
         {mode === 'form' && (
           <>
             <div className="v5-card">
-              <div className="v5-st">{isPt ? 'Obras da empreitada' : 'Ouvrages du chantier'}</div>
+              <div className="v5-st">{isPt ? 'Trabalhos da obra' : 'Ouvrages du chantier'}</div>
 
               {tradeSelector}
 
@@ -1166,7 +1166,7 @@ export default function EstimationMateriauxSection({
                   ref={searchInputRef}
                   type="text"
                   placeholder={isPt
-                    ? 'Pesquisar uma obra (laje, parede, azulejo…)'
+                    ? 'Pesquisar um trabalho (laje, parede, azulejo…)'
                     : 'Rechercher un ouvrage (dalle béton, cloison, carrelage…)'}
                   value={query}
                   onChange={e => setQuery(e.target.value)}
@@ -1189,7 +1189,7 @@ export default function EstimationMateriauxSection({
                       <div className="sr-name">{r.name}</div>
                       <div className="sr-trade">
                         {isPt ? TRADE_LABEL_PT[r.trade] : TRADE_LABEL_FR[r.trade]}
-                        {r.description ? ` — ${r.description.slice(0, 60)}${r.description.length > 60 ? '…' : ''}` : ''}
+                        {r.description ? `${isPt ? ' · ' : ' — '}${r.description.slice(0, 60)}${r.description.length > 60 ? '…' : ''}` : ''}
                       </div>
                     </div>
                     <span className="sr-dtu">{r.dtuReferences[0]?.code || '—'}</span>
@@ -1217,7 +1217,7 @@ export default function EstimationMateriauxSection({
                       <div className="item-title">{it.label || it.recipeName}</div>
                       <div className="item-dims">{it.dimsLabel}</div>
                     </div>
-                    <button type="button" className="item-edit" onClick={() => editItem(it)} title={isPt ? 'Modificar' : 'Modifier'}>✎</button>
+                    <button type="button" className="item-edit" onClick={() => editItem(it)} title={isPt ? 'Editar' : 'Modifier'}>✎</button>
                     <button type="button" className="item-remove" onClick={() => removeItem(it.uid)} aria-label={isPt ? 'Remover' : 'Supprimer'}>×</button>
                   </div>
                 ))}
@@ -1279,7 +1279,7 @@ export default function EstimationMateriauxSection({
               <div className="ia-zone">
                 <textarea
                   placeholder={isPt
-                    ? 'Ex : Preciso de fazer uma laje de betão de 8m × 5m com 12 cm para uma garagem, depois levantar uma parede em tijolo de 20m sobre 2,5m de altura com uma porta. Seguidamente azulejo 45×45 em 40 m².'
+                    ? 'Ex.: Preciso de fazer uma laje de betão de 8 m × 5 m com 12 cm para uma garagem, depois levantar uma parede em tijolo de 20 m com 2,5 m de altura e uma porta. Seguidamente, azulejo 45×45 em 40 m².'
                     : 'Ex : Je dois faire une dalle béton de 8m × 5m en 12 cm pour un garage, puis monter un mur en parpaing de 20m sur 2,5m de haut avec une porte. Ensuite carrelage 45×45 sur 40 m².'}
                   value={iaText}
                   onChange={e => setIaText(e.target.value)}
@@ -1308,7 +1308,7 @@ export default function EstimationMateriauxSection({
                         <div className="item-title">{it.label || it.recipeName}</div>
                         <div className="item-dims">{it.dimsLabel}</div>
                       </div>
-                      <button type="button" className="item-edit" onClick={() => editItem(it)} title={isPt ? 'Modificar' : 'Modifier'}>✎</button>
+                      <button type="button" className="item-edit" onClick={() => editItem(it)} title={isPt ? 'Editar' : 'Modifier'}>✎</button>
                       <button type="button" className="item-remove" onClick={() => removeItem(it.uid)} aria-label={isPt ? 'Remover' : 'Supprimer'}>×</button>
                     </div>
                   ))}

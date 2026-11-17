@@ -54,8 +54,9 @@ import type { AnomalieEnvoiElectronique, VoieNotification } from '@/lib/administ
  * - lien avec le courrier sans toucher au type Courrier (db/schema.ts) : l'envoi porte courrierId et, pour une
  *   notification, le mode de notification du courrier (J50 : lre, prestataire_qualifie, ou null pour un envoi électronique
  *   sans valeur de notification), figé à la création ; un courrier « AR » (LRAR) ou dont le mode est incohérent avec la
- *   forme d'envoi est refusé ; une seule tentative en cours par courrier et par console, plus aucune après « Reçu » ou
- *   « Stocké, signé », et une nouvelle tentative ne remonte pas avant le dernier changement de la précédente ;
+ *   forme d'envoi est refusé ; une seule tentative en cours par courrier et par console, plus aucune après « Reçu »,
+ *   « Échec » (décision de Hugo du 17/11/2026 (J58), ci-dessous) ou « Stocké, signé », et une nouvelle tentative ne
+ *   remonte pas avant le dernier changement de la précédente ;
  * - le statut de l'envoi est un champ à part du statut du courrier (STATUT_COURRIER) : deux champs nommés « Statut » ne
  *   se fondent jamais (06_PIEGES § 4), même si « Préparation » figure dans les deux listes ;
  * - contrôle d'appoint à la création d'une notification électronique (LRE ou prestataire qualifié) : refus si la demande
@@ -73,28 +74,39 @@ import type { AnomalieEnvoiElectronique, VoieNotification } from '@/lib/administ
  * (etatNotificationCourrier, inchangé), jamais le statut de la console, et signale les incohérences entre les deux par des
  * alertes, sans effet sur le délai ni sur l'ordre de service (J51 inchangé).
  *
+ * Décisions de Hugo du 17/11/2026 (DECISIONS-HUGO-2026-11-17.md, section « Suite » : recommandations validées en bloc ;
+ * numéros de registre proposés ; D. 1967 art. 64 et 64-4 relus sur Légifrance le 17/11/2026) :
+ * - J57 (décision de Hugo du 17/11/2026 (J57)) : une LRE, ou un envoi par le procédé d'un prestataire qualifié, refusé ou
+ *   non réclamé fait quand même courir le délai, du lendemain de la transmission de l'avis électronique ; l'acceptation,
+ *   le refus ou la non-réclamation sont sans effet (D. 1967 art. 64, dernier al. ; même logique que la LRAR non retirée,
+ *   Cass. 3e civ., 16/04/2026, n° 24-18.842). « Reçu en erreur » ne lève donc pas la date d'avis saisie
+ *   (retour_en_erreur_apres_avis : elle reste seule retenue). Il reste distinct d'un défaut de transmission de l'avis,
+ *   qui ne fait pas courir le délai : aucune date d'avis n'est affirmée tant que le justificatif de transmission ne
+ *   l'établit pas (avis_a_saisir) ;
+ * - J58 (décision de Hugo du 17/11/2026 (J58)) : après un « Échec », une nouvelle tentative sur le même courrier est
+ *   refusée : un envoi en échec n'a rien notifié (D. 1967 art. 64, 64-1) ; pour un nouvel envoi, créer un nouveau
+ *   courrier (nouveau dépôt). Le refus après « Reçu » est inchangé ; « Reçu en erreur » n'est pas visé (question
+ *   ci-dessous).
+ *
  * Non établi :
  * - 🔴 Aucun statut de la console Notifications n'est rattaché par 07_DECISIONS_JURIDIQUES.md à la transmission de
  *   l'avis : « Envoyé OK » peut être le dépôt ou la transmission, « Reçu » la réception ou le téléchargement (qui ne
  *   compte pas), « Reçu en erreur » un refus ou un rejet. Le module ne déduit ni date de notification ni délai d'un
  *   statut (valeurDuStatut : non_etablie), ni la date de dépôt. Pour l'établir : la documentation du prestataire branché
  *   (correspondance entre ses statuts et la preuve de dépôt, l'avis, le téléchargement), puis une décision de Hugo.
- * - 🔴 Refus, non-réclamation ou rejet d'une LRE (ou d'un envoi du prestataire qualifié) : leur effet sur la notification
- *   n'est pas vérifié dans 07_DECISIONS_JURIDIQUES.md (J50 fixe le départ à la transmission de l'avis, sans traiter ces
- *   cas) ; courriers.ts retient, par interprétation sans arrêt (🔵), qu'une LRE refusée ou non réclamée fait courir le
- *   délai comme une LRAR non retirée. Le module n'en tire rien : « Reçu en erreur » ne lève ni ne confirme la date d'avis
- *   saisie, il la signale à vérifier sur le justificatif (alertes retour_en_erreur_apres_avis et avis_a_saisir).
  * - 🔴 Signature électronique : sa valeur probante n'est pas vérifiée dans 07_DECISIONS_JURIDIQUES.md (textes sur l'écrit
  *   et la signature électroniques, C. civ. art. 1366 et 1367 et règlement (UE) n° 910/2014 dit eIDAS, non lus pour ce
  *   module) ; rien n'en est affirmé (valeurProbante : non_etablie) et la mention « valeur probante eIDAS » de la
  *   démonstration (SignatureElectroniqueModule.tsx, non modifié) n'est pas reprise. « Signé » ne pose pas le statut d'AG
  *   « PV signé » (J2, statut-assemblee.ts) : lien à décider avec Hugo.
- * - 🔴 Questions à Hugo : une nouvelle tentative après « Échec » ou « Reçu en erreur » reste rattachée au même courrier,
- *   dont la date de dépôt ne change pas : faut-il plutôt un nouveau courrier (nouveau dépôt) ? Les transitions et les
- *   finaux déduits (« Reçu en erreur » final, « Échec » jamais après « Envoyé OK », « Expiré » sans prolongation, « À
- *   relever » avant « Signé » et non l'inverse) sont-ils ceux du prestataire retenu ? Un envoi abandonné en « Préparation »
- *   ne se clôt qu'en passant par « Attente d'envoi » puis « Échec », sans motif (Gestéam n'a pas d'« Annulé » dans la
- *   console Notifications) : faut-il un motif, ou un abandon propre à VitFix ?
+ * - J66 (décision de Hugo du 17/11/2026, sur recommandation de Claude) : après « Reçu en erreur », le même courrier ne
+ *   repart pas non plus : avis transmis, la notification est acquise (J57) et aucun nouvel envoi n'est utile ; avis non
+ *   transmis, rien n'est notifié et un nouvel envoi se fait sur un nouveau courrier (J58).
+ * - 🔴 Questions à Hugo : les transitions et les finaux déduits (« Reçu en erreur » final, « Échec » jamais
+ *   après « Envoyé OK », « Expiré » sans prolongation, « À relever » avant « Signé » et non l'inverse) sont-ils ceux du
+ *   prestataire retenu ? Un envoi abandonné en « Préparation » ne se clôt qu'en passant par « Attente d'envoi » puis
+ *   « Échec », sans motif (Gestéam n'a pas d'« Annulé » dans la console Notifications ; depuis J58, cet « Échec » impose
+ *   un nouveau courrier) : faut-il un motif, ou un abandon propre à VitFix ?
  * - 🔴 Frédéric : écrans (console des envois, demande de signature) et tables : rien n'est fait, son accord est
  *   nécessaire (règle UX du CLAUDE.md).
  */
@@ -175,7 +187,7 @@ export const REFERENTIEL_NOTIFICATION_ELECTRONIQUE: Readonly<
   },
   Échec: {
     libelle: 'Échec',
-    sens: "Envoi non abouti avant l'expédition ; une nouvelle tentative est un nouvel envoi.",
+    sens: "Envoi non abouti avant l'expédition : rien n'est notifié ; un nouvel envoi se fait sur un nouveau courrier (J58).",
     rang: null,
     suivants: [],
     final: true,
@@ -189,7 +201,7 @@ export const REFERENTIEL_NOTIFICATION_ELECTRONIQUE: Readonly<
   },
   'Reçu en erreur': {
     libelle: 'Reçu en erreur',
-    sens: 'Retour du prestataire reçu en erreur : refus, rejet ou défaut de remise (non établi, 🔴).',
+    sens: "Retour du prestataire reçu en erreur : refus, non-réclamation, rejet ou défaut de transmission de l'avis (sens non établi, 🔴 ; un refus ou une non-réclamation après l'avis ne remettent pas en cause sa date : J57).",
     rang: 4,
     suivants: [],
     final: true,
@@ -336,8 +348,18 @@ interface MachineEnvoi<S extends string> {
   initial: S
   /** Statut final qui clôt le cycle avec succès : plus de nouvelle tentative sur le même courrier. */
   abouti: S
+  /**
+   * Statut final d'un envoi qui n'a rien notifié et après lequel le même courrier ne repart pas : nouveau courrier
+   * (J58, notification) ; null : une nouvelle tentative se rattache au même courrier.
+   */
+  echec: S | null
   /** Statut illisible : il mène au dernier statut connu ou à ses suivants. */
   illisible: S | null
+  /**
+   * Statut final ambigu après lequel le même courrier ne repart pas non plus (J66, notification : « Reçu en erreur ») :
+   * avis transmis, la notification est acquise (J57) ; avis non transmis, rien n'est notifié (nouveau courrier, J58).
+   */
+  erreurApresEnvoi: S | null
 }
 
 const MACHINE_NOTIFICATION: MachineEnvoi<StatutNotificationElectronique> = {
@@ -346,7 +368,9 @@ const MACHINE_NOTIFICATION: MachineEnvoi<StatutNotificationElectronique> = {
   referentiel: REFERENTIEL_NOTIFICATION_ELECTRONIQUE,
   initial: 'Préparation',
   abouti: 'Reçu',
+  echec: 'Échec',
   illisible: null,
+  erreurApresEnvoi: 'Reçu en erreur',
 }
 
 const MACHINE_SIGNATURE: MachineEnvoi<StatutSignatureElectronique> = {
@@ -355,8 +379,25 @@ const MACHINE_SIGNATURE: MachineEnvoi<StatutSignatureElectronique> = {
   referentiel: REFERENTIEL_SIGNATURE_ELECTRONIQUE,
   initial: 'Soumis',
   abouti: 'Stocké, signé',
+  echec: null,
   illisible: 'Inconnu',
+  erreurApresEnvoi: null,
 }
+
+/**
+ * Plus aucune nouvelle tentative sur le même courrier : cycle abouti, échec qui n'a rien notifié (J58), ou « Reçu en
+ * erreur » (J66).
+ */
+const closLeCourrier = <S extends string>(machine: MachineEnvoi<S>, statut: S): boolean =>
+  statut === machine.abouti || statut === machine.echec || statut === machine.erreurApresEnvoi
+
+/** Refus d'une nouvelle tentative après un « Échec » (décision de Hugo du 17/11/2026, J58). */
+const RAISON_NOUVEAU_COURRIER_APRES_ECHEC =
+  "un envoi en échec n'a rien notifié ; pour un nouvel envoi, créer un nouveau courrier (nouveau dépôt ; D. 1967 art. 64, 64-1 ; décision de Hugo du 17/11/2026, J58)"
+
+/** Refus d'une nouvelle tentative après « Reçu en erreur » (décision de Hugo du 17/11/2026, J66). */
+const RAISON_APRES_RECU_EN_ERREUR =
+  "si le justificatif établit la transmission de l'avis électronique, la notification est acquise et aucun nouvel envoi n'est utile (D. 1967 art. 64, dernier al. ; J57) ; sinon rien n'a été notifié : créer un nouveau courrier (nouveau dépôt ; J58) (décision de Hugo du 17/11/2026, J66)"
 
 // ─── Horodatages ─────────────────────────────────────────────────────────────────────────────
 
@@ -523,7 +564,7 @@ function appliquer<S extends string>(
     (motif === null || motif === dernier.motif)
   if (rejeu) return { statut: courant, historique: envoi.historique }
   if (machine.referentiel[courant].final) {
-    const suite = courant === machine.abouti ? 'pour un nouvel envoi, créer un nouveau courrier' : 'créer un nouvel envoi si besoin'
+    const suite = closLeCourrier(machine, courant) ? 'pour un nouvel envoi, créer un nouveau courrier' : 'créer un nouvel envoi si besoin'
     throw new Error(`${prefixe} : statut « ${courant} » final, plus aucun changement (${suite}).`)
   }
   if (statut === courant) throw new Error(`${prefixe} : déjà au statut « ${courant} ».`)
@@ -620,7 +661,7 @@ function controlerNouvelleTentative(
 ): void {
   const quand = instant(horodatage)
   if (envoisExistants.some((e) => e.id === id)) throw new Error(`Nouvel envoi refusé : identifiant ${id} déjà pris.`)
-  const abouti = type === 'notification' ? MACHINE_NOTIFICATION.abouti : MACHINE_SIGNATURE.abouti
+  const { abouti, echec, erreurApresEnvoi } = type === 'notification' ? MACHINE_NOTIFICATION : MACHINE_SIGNATURE
   for (const e of envoisExistants) {
     if (e.type !== type || e.courrierId !== courrierId) continue
     if (!estStatutFinal(type, e.statut))
@@ -629,6 +670,10 @@ function controlerNouvelleTentative(
       )
     if (e.statut === abouti)
       throw new Error(`Nouvel envoi refusé : l'envoi ${e.id} du courrier ${courrierId} est déjà « ${e.statut} » ; pour un nouvel envoi, créer un nouveau courrier.`)
+    if (e.statut === echec)
+      throw new Error(`Nouvel envoi refusé : l'envoi ${e.id} du courrier ${courrierId} est en « ${e.statut} » : ${RAISON_NOUVEAU_COURRIER_APRES_ECHEC}.`)
+    if (e.statut === erreurApresEnvoi)
+      throw new Error(`Nouvel envoi refusé : l'envoi ${e.id} du courrier ${courrierId} est « ${e.statut} » : ${RAISON_APRES_RECU_EN_ERREUR}.`)
     const fin = e.historique.at(-1)?.horodatage
     if (fin !== undefined && quand < instant(fin))
       throw new Error(
@@ -674,7 +719,8 @@ function controlerDestinataire(
  * Envoi d'un courrier par la console Notifications : statut « Préparation », mode de notification du courrier figé.
  * Courrier « AR » (LRAR) ou mode incohérent : refus. Pour une LRE ou le procédé d'un prestataire qualifié, la voie du
  * destinataire (voieDeNotification, à la date prévue de l'envoi) et les anomalies d'avant envoi
- * (controlerAvantEnvoiElectronique), quand l'appelant les donne, doivent permettre l'envoi électronique.
+ * (controlerAvantEnvoiElectronique), quand l'appelant les donne, doivent permettre l'envoi électronique. Après un envoi
+ * du même courrier en « Reçu » ou en « Échec » (J58 : un envoi en échec n'a rien notifié), refus : nouveau courrier.
  */
 export function creerEnvoiNotificationElectronique(
   saisie: SaisieCreationEnvoi & {
@@ -757,7 +803,7 @@ function alertesNotification(
       code: 'avis_a_saisir',
       message:
         envoi.statut === 'Reçu en erreur'
-          ? `${enConsole} : vérifier ${SOURCE_AVIS[mode]} si l'avis électronique a été transmis, et ne saisir sa date (controlerAvisElectronique, courriers.ts) sur le courrier ${courrier.id} que si ce justificatif l'établit : un retour en erreur peut signaler un défaut de remise, dont l'effet sur la notification n'est pas établi (🔴) ; sans cette date, le délai n'est pas calculé (J50).`
+          ? `${enConsole} : vérifier ${SOURCE_AVIS[mode]} si l'avis électronique a été transmis, et ne saisir sa date (controlerAvisElectronique, courriers.ts) sur le courrier ${courrier.id} que si ce justificatif l'établit. Avis transmis, envoi ensuite refusé ou non réclamé : la date de l'avis vaut, le délai court de son lendemain (D. 1967 art. 64, dernier al. ; décision de Hugo du 17/11/2026, J57) ; défaut de transmission de l'avis : aucune date à saisir, le délai ne court pas. Sans cette date, le délai n'est pas calculé (J50).`
           : `${enConsole} : saisir sur le courrier ${courrier.id} la date de transmission de l'avis électronique (controlerAvisElectronique, courriers.ts), lue ${SOURCE_AVIS[mode]} ; aucun statut de la console ne la donne (🔴) et, sans elle, le délai n'est pas calculé (J50).`,
     })
   if (avis && !abouti)
@@ -768,7 +814,7 @@ function alertesNotification(
   if (avis && envoi.statut === 'Reçu en erreur')
     alertes.push({
       code: 'retour_en_erreur_apres_avis',
-      message: `${enConsole} après l'avis du ${dateIsoVersFr(avis)} saisi sur le courrier ${courrier.id} : le module garde cette date, seule retenue pour le délai (une notification électronique est acquise à la transmission de l'avis, téléchargé ou non : D. 1967 art. 64, dernier al. ; J50) ; mais l'effet d'un refus, d'un rejet ou d'un défaut de remise sur cette transmission n'est pas établi (🔴) : vérifier le retour d'erreur et la date ${SOURCE_AVIS[mode]}.`,
+      message: `${enConsole} après l'avis du ${dateIsoVersFr(avis)} saisi sur le courrier ${courrier.id} : le module garde cette date, seule retenue pour le délai (une notification électronique est acquise à la transmission de l'avis, téléchargé ou non : D. 1967 art. 64, dernier al. ; J50) ; un refus ou une non-réclamation après l'avis ne remettent pas en cause sa date (décision de Hugo du 17/11/2026, J57). Vérifier toutefois ${SOURCE_AVIS[mode]} que l'avis a bien été transmis à cette date : un retour en erreur peut aussi signaler un défaut de transmission de l'avis, qui ne fait pas courir le délai ; la date saisie serait alors à retirer.`,
     })
   return alertes
 }

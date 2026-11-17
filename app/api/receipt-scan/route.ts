@@ -1,12 +1,10 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
-import { callGroqWithRetry } from '@/lib/groq'
+import { appelerVision, dataUrlDocument, MAX_OCTETS_DOCUMENT, visionDisponible } from '@/lib/ai/relais'
 import { logger } from '@/lib/logger'
 
-const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
-
-// ── Receipt/Ticket OCR via Groq Vision ──────────────────────────────────────
+// ── Receipt/Ticket OCR (lecture de l'image par Workers AI, lib/ai/relais.ts) ──
 // Scans a receipt photo and extracts line items for devis injection
 
 export interface ReceiptLine {
@@ -76,22 +74,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'image_base64 requis' }, { status: 400 })
     }
 
-    if (image_base64.length > 14_000_000) {
-      return NextResponse.json({ error: 'Image trop grande (max 10MB)' }, { status: 400 })
+    // Poids maximal d'un document lu par un modèle (lib/ai/relais.ts), en caractères base64 (en-tête compris).
+    if (image_base64.length > Math.ceil(MAX_OCTETS_DOCUMENT / 3) * 4 + 100) {
+      return NextResponse.json({ error: 'Image trop grande (5 Mo maximum)' }, { status: 400 })
     }
 
-    if (!GROQ_API_KEY) {
-      return NextResponse.json({ error: 'Groq API non configurée' }, { status: 500 })
+    if (!(await visionDisponible())) {
+      return NextResponse.json({ error: 'Analyse indisponible pour le moment. Réessayez plus tard.' }, { status: 503 })
     }
 
-    const imageUrl = image_base64.startsWith('data:')
-      ? image_base64
-      : `data:${mime_type};base64,${image_base64}`
+    // Vrai type d'après les premiers octets : une image dont le type déclaré ne correspond pas serait refusée.
+    const imageUrl = dataUrlDocument(image_base64, mime_type)
 
-    let groqData
+    let ocrData
     try {
-      groqData = await callGroqWithRetry({
-        model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+      ocrData = await appelerVision({
         messages: [
           {
             role: 'user',
@@ -101,20 +98,18 @@ export async function POST(request: NextRequest) {
             ],
           },
         ],
-        temperature: 0.1,
         max_tokens: 2000,
         response_format: { type: 'json_object' },
-      }, { fallbackModel: 'meta-llama/llama-4-scout-17b-16e-instruct' })
-    } catch (groqErr: unknown) {
-      const msg = groqErr instanceof Error ? groqErr.message : 'Unknown error'
-      logger.error('Receipt scan Groq Vision error:', msg)
+      }, { contexte: 'receipt-scan' })
+    } catch (ocrErr: unknown) {
+      logger.error('Receipt scan vision error', { module: 'receipt-scan' }, ocrErr)
       return NextResponse.json({
         result: { store: '', date: '', lines: [], totalTTC: 0, confidence: 'basse' } satisfies ReceiptScanResult,
         error: 'Analyse vision échouée',
       })
     }
 
-    const rawContent = groqData.choices?.[0]?.message?.content || '{}'
+    const rawContent = ocrData.choices?.[0]?.message?.content || '{}'
 
     let result: ReceiptScanResult
     try {

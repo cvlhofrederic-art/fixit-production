@@ -21,6 +21,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocale } from '@/lib/i18n/context'
+import { surActivationClavier } from '@/lib/a11y/activation-clavier'
 import { supabase } from '@/lib/supabase'
 import type { Artisan } from '@/lib/types'
 
@@ -59,16 +60,18 @@ export interface Prestation {
    Chaque lot connaît ses mots-clés de rattachement à la « specialty » de la
    société. Le composant n'affiche que les lots dont au moins un mot-clé matche
    — si aucun ne matche (entreprise généraliste), tous les lots s'affichent.  */
-interface LotDef { key: string; label: string; keywords: string[] }
+interface LotDef { key: string; label: string; labelPt: string; keywords: string[] }
 
 const LOTS: LotDef[] = [
-  { key: 'gros_oeuvre', label: 'Gros Œuvre',             keywords: ['macon', 'maçon', 'gros oeuvre', 'gros-oeuvre', 'beton', 'béton', 'terrassement', 'fondation', 'demolition', 'démolition', 'batipro', 'general', 'général', 'placo', 'cloison'] },
-  { key: 'couverture',  label: 'Couverture',             keywords: ['couv', 'charpent', 'toiture', 'zingu', 'etancheite', 'étanchéité'] },
-  { key: 'plomberie',   label: 'Plomberie / CVC',        keywords: ['plomb', 'canalisa', 'chauff', 'cvc', 'sanitaire', 'clim'] },
-  { key: 'electricite', label: 'Électricité',            keywords: ['elec', 'élec', 'courant', 'domotique', 'vmc'] },
-  { key: 'menuiseries', label: 'Menuiseries',            keywords: ['menuis', 'fenetre', 'fenêtre', 'porte', 'volet', 'serrurerie'] },
-  { key: 'peinture',    label: 'Peinture / Revêtements', keywords: ['peint', 'revetem', 'revêtem', 'carrel', 'faience', 'faïence', 'sol', 'ravalement', 'facade', 'façade', 'platr', 'plâtr', 'enduit', 'isolation'] },
+  { key: 'gros_oeuvre', label: 'Gros Œuvre',             labelPt: 'Estrutura e alvenaria',     keywords: ['macon', 'maçon', 'gros oeuvre', 'gros-oeuvre', 'beton', 'béton', 'terrassement', 'fondation', 'demolition', 'démolition', 'batipro', 'general', 'général', 'placo', 'cloison'] },
+  { key: 'couverture',  label: 'Couverture',             labelPt: 'Cobertura',                 keywords: ['couv', 'charpent', 'toiture', 'zingu', 'etancheite', 'étanchéité'] },
+  { key: 'plomberie',   label: 'Plomberie / CVC',        labelPt: 'Canalização / AVAC',        keywords: ['plomb', 'canalisa', 'chauff', 'cvc', 'sanitaire', 'clim'] },
+  { key: 'electricite', label: 'Électricité',            labelPt: 'Eletricidade',              keywords: ['elec', 'élec', 'courant', 'domotique', 'vmc'] },
+  { key: 'menuiseries', label: 'Menuiseries',            labelPt: 'Carpintaria e caixilharia', keywords: ['menuis', 'fenetre', 'fenêtre', 'porte', 'volet', 'serrurerie'] },
+  { key: 'peinture',    label: 'Peinture / Revêtements', labelPt: 'Pintura / Revestimentos',   keywords: ['peint', 'revetem', 'revêtem', 'carrel', 'faience', 'faïence', 'sol', 'ravalement', 'facade', 'façade', 'platr', 'plâtr', 'enduit', 'isolation'] },
 ]
+
+const libelleLot = (lot: LotDef, isPt: boolean) => (isPt ? lot.labelPt : lot.label)
 
 // Unités BTP courantes — ordre pensé pour le chantier (surface → longueur → volume → comptage → poids → conditionnement → temps → facturation)
 const UNITS = [
@@ -85,6 +88,13 @@ const UNITS = [
   // Facturation
   'forfait',
 ] as const
+
+/** Unités enregistrées (abréviations françaises) affichées en portugais ; la valeur enregistrée ne change pas. */
+const UNITES_PT: Record<string, string> = {
+  pce: 'pç', ens: 'cj', lot: 'lote', sac: 'saco', rl: 'rolo', palette: 'palete', benne: 'contentor', camion: 'camião',
+  jour: 'dia', semaine: 'semana', forfait: 'vg',
+}
+const uniteAffichee = (unite: string, isPt: boolean) => (isPt ? UNITES_PT[unite] ?? unite : unite)
 
 /* ─────────────────────────── SYNC SUPABASE ───────────────────────────
    Les prestations (type='prest') sont exposées publiquement sur la fiche
@@ -138,23 +148,27 @@ function formatPrice(v: number): string {
   return fixed.replace('.', ',') + ' €'
 }
 
-function renderRange(range: PriceRange | null | undefined): string {
+/** Séparateur d'une fourchette : demi-cadratin en français, « a » en portugais (« 55 € a 75 € »). */
+const separateurFourchette = (isPt: boolean) => (isPt ? ' a ' : ' – ')
+
+function renderRange(range: PriceRange | null | undefined, isPt = false): string {
   if (!range) return '—'
   if (range.min === range.max) return formatPrice(range.min)
-  return `${formatPrice(range.min)} – ${formatPrice(range.max)}`
+  return `${formatPrice(range.min)}${separateurFourchette(isPt)}${formatPrice(range.max)}`
 }
 
-function unitSuffix(unit: string): string {
+function unitSuffix(unit: string, isPt = false): string {
   if (unit === 'forfait') return ''
-  return ` / ${unit}`
+  return ` / ${uniteAffichee(unit, isPt)}`
 }
 
-function rangeTTC(range: PriceRange | null | undefined, tva = 20): string {
+// Prix TTC affiché : taux normal du pays de la langue (20 % en France, 23 % d'IVA au Portugal continental).
+function rangeTTC(range: PriceRange | null | undefined, isPt = false, tva = isPt ? 23 : 20): string {
   if (!range) return '—'
   const minTTC = range.min * (1 + tva / 100)
   const maxTTC = range.max * (1 + tva / 100)
   if (range.min === range.max) return formatPrice(minTTC)
-  return `${formatPrice(minTTC)} – ${formatPrice(maxTTC)}`
+  return `${formatPrice(minTTC)}${separateurFourchette(isPt)}${formatPrice(maxTTC)}`
 }
 
 function normalize(s: string): string {
@@ -364,7 +378,8 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
     }
   }
 
-  const currentLotLabel = availableLots.find((l) => l.key === activeLot)?.label || ''
+  const lotActif = availableLots.find((l) => l.key === activeLot)
+  const currentLotLabel = lotActif ? libelleLot(lotActif, isPt) : ''
 
   /* ───────────── RENDU ───────────── */
   return (
@@ -414,8 +429,8 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
 
       {/* Titre */}
       <div className="v5-pg-t">
-        <h1>{isPt ? 'Prestações' : 'Prestations'}</h1>
-        <p>{isPt ? 'Catálogo de prestações e materiais — o que os seus clientes veem' : 'Catalogue de prestations et matériaux — c\'est ce que vos clients voient'}</p>
+        <h1>{isPt ? 'Serviços' : 'Prestations'}</h1>
+        <p>{isPt ? 'Catálogo de serviços e materiais: é o que os seus clientes veem' : 'Catalogue de prestations et matériaux — c\'est ce que vos clients voient'}</p>
       </div>
 
       {/* Barre haute : recherche + switch catégorie + bouton ajout */}
@@ -423,7 +438,7 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
         <div className="v5-search" style={{ margin: 0, flex: 1, minWidth: 220 }}>
           <input
             className="v5-search-in"
-            placeholder={isPt ? 'Pesquisar uma prestação, um material…' : 'Rechercher une prestation, un matériau…'}
+            placeholder={isPt ? 'Pesquisar um serviço, um material…' : 'Rechercher une prestation, un matériau…'}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             style={{ maxWidth: 320 }}
@@ -431,7 +446,7 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '.65rem', flexWrap: 'wrap' }}>
           <div className="prest-cat-bar">
-            <button className={`prest-cat-btn${cat === 'prest' ? ' active' : ''}`} onClick={() => setCat('prest')}>🏗️ {isPt ? 'Prestações' : 'Prestations'}</button>
+            <button className={`prest-cat-btn${cat === 'prest' ? ' active' : ''}`} onClick={() => setCat('prest')}>🏗️ {isPt ? 'Serviços' : 'Prestations'}</button>
             <button className={`prest-cat-btn${cat === 'mat' ? ' active' : ''}`} onClick={() => setCat('mat')}>🧱 {isPt ? 'Materiais' : 'Matériaux'}</button>
             <button className={`prest-cat-btn${cat === 'frais' ? ' active' : ''}`} onClick={() => setCat('frais')}>💰 {isPt ? 'Despesas diversas' : 'Frais divers'}</button>
           </div>
@@ -449,7 +464,7 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
                 className={`prest-lot-tab${activeLot === lot.key ? ' active' : ''}`}
                 onClick={() => setActiveLot(lot.key)}
               >
-                {lot.label}
+                {libelleLot(lot, isPt)}
               </button>
             ))}
           </div>
@@ -458,7 +473,7 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
             <table className="prest-tbl">
               <thead>
                 <tr>
-                  <th>{isPt ? 'Prestação' : 'Prestation'}</th>
+                  <th>{isPt ? 'Serviço' : 'Prestation'}</th>
                   <th>{isPt ? 'Unidade' : 'Unité'}</th>
                   <th>{isPt ? 'Preço s/ IVA' : 'Prix HT'}</th>
                   <th>{isPt ? 'Preço c/ IVA' : 'Prix TTC'}</th>
@@ -467,14 +482,14 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
               </thead>
               <tbody>
                 {visible.length === 0 && (
-                  <tr><td colSpan={5} style={{ textAlign: 'center', padding: '1.25rem', color: '#BBB' }}>{isPt ? 'Nenhuma prestação neste lote.' : 'Aucune prestation dans ce lot.'}</td></tr>
+                  <tr><td colSpan={5} style={{ textAlign: 'center', padding: '1.25rem', color: '#BBB' }}>{isPt ? 'Nenhum serviço neste lote.' : 'Aucune prestation dans ce lot.'}</td></tr>
                 )}
                 {visible.map((p) => (
                   <tr key={p.id}>
                     <td>{p.name}</td>
-                    <td><span className="prest-unit">{p.unit}</span></td>
-                    <td className="prix">{renderRange(p.price)}{unitSuffix(p.unit)}</td>
-                    <td style={{ color: '#888', fontSize: 11 }}>{rangeTTC(p.price)}{unitSuffix(p.unit)}</td>
+                    <td><span className="prest-unit">{uniteAffichee(p.unit, isPt)}</span></td>
+                    <td className="prix">{renderRange(p.price, isPt)}{unitSuffix(p.unit, isPt)}</td>
+                    <td style={{ color: '#888', fontSize: 11 }}>{rangeTTC(p.price, isPt)}{unitSuffix(p.unit, isPt)}</td>
                     <td style={{ textAlign: 'right' }}>
                       <button className="v5-btn v5-btn-sm" onClick={() => openEdit(p)}>{isPt ? 'Editar' : 'Modifier'}</button>
                       <button className="v5-btn v5-btn-sm v5-btn-d" style={{ marginLeft: 4 }} onClick={() => handleDelete(p.id)}>✕</button>
@@ -483,7 +498,7 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
                 ))}
               </tbody>
             </table>
-            <div className="prest-add-row" onClick={openCreate}>＋ {isPt ? `Adicionar uma prestação ${currentLotLabel}` : `Ajouter une prestation ${currentLotLabel}`}</div>
+            <div className="prest-add-row" role="button" tabIndex={0} onClick={openCreate} onKeyDown={surActivationClavier(openCreate)}>＋ {isPt ? `Adicionar um serviço (${currentLotLabel})` : `Ajouter une prestation ${currentLotLabel}`}</div>
           </div>
         </div>
       )}
@@ -498,8 +513,8 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
                   <th>{isPt ? 'Designação do material' : 'Désignation matériau'}</th>
                   <th>{isPt ? 'Ref. / Marca' : 'Réf. / Marque'}</th>
                   <th>{isPt ? 'Unidade' : 'Unité'}</th>
-                  <th>{isPt ? 'Preço compra s/ IVA' : 'Prix achat HT'}</th>
-                  <th>{isPt ? 'Preço venda s/ IVA' : 'Prix vente HT'}</th>
+                  <th>{isPt ? 'Preço de compra s/ IVA' : 'Prix achat HT'}</th>
+                  <th>{isPt ? 'Preço de venda s/ IVA' : 'Prix vente HT'}</th>
                   <th>{isPt ? 'Fornecedor' : 'Fournisseur'}</th>
                   <th style={{ textAlign: 'right' }}>{isPt ? 'Ações' : 'Actions'}</th>
                 </tr>
@@ -512,9 +527,9 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
                   <tr key={p.id}>
                     <td>{p.name}</td>
                     <td style={{ color: '#888', fontSize: 11 }}>{p.ref || '—'}</td>
-                    <td><span className="prest-unit">{p.unit}</span></td>
-                    <td className="prix-achat">{renderRange(p.priceAchat)}</td>
-                    <td className="prix">{renderRange(p.price)}</td>
+                    <td><span className="prest-unit">{uniteAffichee(p.unit, isPt)}</span></td>
+                    <td className="prix-achat">{renderRange(p.priceAchat, isPt)}</td>
+                    <td className="prix">{renderRange(p.price, isPt)}</td>
                     <td>{p.supplier || '—'}</td>
                     <td style={{ textAlign: 'right' }}>
                       <button className="v5-btn v5-btn-sm" onClick={() => openEdit(p)}>{isPt ? 'Editar' : 'Modifier'}</button>
@@ -524,7 +539,7 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
                 ))}
               </tbody>
             </table>
-            <div className="prest-add-row" onClick={openCreate}>＋ {isPt ? 'Adicionar um material' : 'Ajouter un matériau'}</div>
+            <div className="prest-add-row" role="button" tabIndex={0} onClick={openCreate} onKeyDown={surActivationClavier(openCreate)}>＋ {isPt ? 'Adicionar um material' : 'Ajouter un matériau'}</div>
           </div>
         </div>
       )}
@@ -537,7 +552,7 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
         <div className="prest-panel">
           <div className="v5-alert" style={{ marginBottom: 10, fontSize: 12, background: '#f1f5f9', border: '1px solid #cbd5e1', color: '#334155', display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 6 }}>
             <span style={{ fontSize: 14 }}>🔒</span>
-            <span>{isPt ? 'Catálogo interno — não aparece no perfil público que o cliente consulta. Pode ser incluído nos orçamentos como despesa anexa.' : 'Catalogue interne — n\'apparaît pas sur la fiche publique consultée par le client. Peut être inclus dans les devis comme frais annexe.'}</span>
+            <span>{isPt ? 'Catálogo interno: não aparece no perfil público que o cliente consulta. Pode ser incluído nos orçamentos como despesa anexa.' : 'Catalogue interne — n\'apparaît pas sur la fiche publique consultée par le client. Peut être inclus dans les devis comme frais annexe.'}</span>
           </div>
           <div className="v5-card" style={{ padding: 0, overflow: 'hidden' }}>
             <table className="prest-tbl">
@@ -557,9 +572,9 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
                 {visible.map((p) => (
                   <tr key={p.id}>
                     <td>{p.name}</td>
-                    <td><span className="prest-unit">{p.unit}</span></td>
-                    <td className="prix">{renderRange(p.price)}{unitSuffix(p.unit)}</td>
-                    <td style={{ color: '#888', fontSize: 11 }}>{rangeTTC(p.price)}{unitSuffix(p.unit)}</td>
+                    <td><span className="prest-unit">{uniteAffichee(p.unit, isPt)}</span></td>
+                    <td className="prix">{renderRange(p.price, isPt)}{unitSuffix(p.unit, isPt)}</td>
+                    <td style={{ color: '#888', fontSize: 11 }}>{rangeTTC(p.price, isPt)}{unitSuffix(p.unit, isPt)}</td>
                     <td style={{ textAlign: 'right' }}>
                       <button className="v5-btn v5-btn-sm" onClick={() => openEdit(p)}>{isPt ? 'Editar' : 'Modifier'}</button>
                       <button className="v5-btn v5-btn-sm v5-btn-d" style={{ marginLeft: 4 }} onClick={() => handleDelete(p.id)}>✕</button>
@@ -568,7 +583,7 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
                 ))}
               </tbody>
             </table>
-            <div className="prest-add-row" onClick={openCreate}>＋ {isPt ? 'Adicionar uma despesa' : 'Ajouter un frais divers'}</div>
+            <div className="prest-add-row" role="button" tabIndex={0} onClick={openCreate} onKeyDown={surActivationClavier(openCreate)}>＋ {isPt ? 'Adicionar uma despesa' : 'Ajouter un frais divers'}</div>
           </div>
         </div>
       )}
@@ -578,8 +593,8 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
         <div className="prest-modal-ov" onClick={() => setModal(false)}>
           <div className="prest-modal" onClick={(e) => e.stopPropagation()}>
             <h3>{editing
-              ? (isPt ? `Editar ${form.type === 'mat' ? 'material' : form.type === 'frais' ? 'despesa' : 'prestação'}` : `Modifier ${form.type === 'mat' ? 'le matériau' : form.type === 'frais' ? 'le frais divers' : 'la prestation'}`)
-              : (isPt ? `${form.type === 'mat' ? 'Nova referência de material' : form.type === 'frais' ? 'Nova despesa' : 'Nova prestação'}` : `Nouveau ${form.type === 'mat' ? 'matériau (référence)' : form.type === 'frais' ? 'frais divers' : 'prestation'}`)
+              ? (isPt ? `Editar ${form.type === 'mat' ? 'material' : form.type === 'frais' ? 'despesa' : 'serviço'}` : `Modifier ${form.type === 'mat' ? 'le matériau' : form.type === 'frais' ? 'le frais divers' : 'la prestation'}`)
+              : (isPt ? `${form.type === 'mat' ? 'Nova referência de material' : form.type === 'frais' ? 'Nova despesa' : 'Novo serviço'}` : `Nouveau ${form.type === 'mat' ? 'matériau (référence)' : form.type === 'frais' ? 'frais divers' : 'prestation'}`)
             }</h3>
 
             <div className="prest-fg">
@@ -593,7 +608,7 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
 
             {form.type === 'prest' && (
               <div className="prest-fg">
-                <label>{isPt ? 'Descrição do motivo' : 'Description du motif'}</label>
+                <label>{isPt ? 'Descrição do serviço' : 'Description du motif'}</label>
                 <textarea
                   value={form.description || ''}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
@@ -614,7 +629,7 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
                     priceAchat: newType === 'mat' ? (form.priceAchat || { min: 0, max: 0 }) : null,
                   })
                 }}>
-                  <option value="prest">{isPt ? 'Prestação (cliente)' : 'Prestation (client)'}</option>
+                  <option value="prest">{isPt ? 'Serviço (cliente)' : 'Prestation (client)'}</option>
                   <option value="mat">{isPt ? 'Material (interno)' : 'Matériau (interne)'}</option>
                   <option value="frais">{isPt ? 'Despesa diversa (interno)' : 'Frais divers (interne)'}</option>
                 </select>
@@ -623,7 +638,7 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
                 <div className="prest-fg">
                   <label>{isPt ? 'Especialidade / Lote' : 'Corps d\'état / Lot'}</label>
                   <select value={form.lot} onChange={(e) => setForm({ ...form, lot: e.target.value })}>
-                    {availableLots.map((l) => <option key={l.key} value={l.key}>{l.label}</option>)}
+                    {availableLots.map((l) => <option key={l.key} value={l.key}>{libelleLot(l, isPt)}</option>)}
                   </select>
                 </div>
               )}
@@ -633,7 +648,7 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
               <div className="prest-fg">
                 <label>{isPt ? 'Unidade' : 'Unité'}</label>
                 <select value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })}>
-                  {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+                  {UNITS.map((u) => <option key={u} value={u}>{uniteAffichee(u, isPt)}</option>)}
                 </select>
               </div>
               {form.type === 'mat' ? (
@@ -665,12 +680,12 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
                 </div>
                 <div className="prest-row-2">
                   <div className="prest-fg" style={{ margin: 0 }}>
-                    <label>{achatRange ? 'Min' : 'Prix'}</label>
+                    <label>{achatRange ? (isPt ? 'Mín.' : 'Min') : (isPt ? 'Preço' : 'Prix')}</label>
                     <input type="number" step="0.01" min="0" value={form.priceAchat?.min ?? ''}
                       onChange={(e) => setForm({ ...form, priceAchat: { min: parseFloat(e.target.value) || 0, max: form.priceAchat?.max ?? 0 } })} />
                   </div>
                   <div className="prest-fg" style={{ margin: 0, opacity: achatRange ? 1 : 0.35 }}>
-                    <label>Max</label>
+                    <label>{isPt ? 'Máx.' : 'Max'}</label>
                     <input type="number" step="0.01" min="0" disabled={!achatRange} value={form.priceAchat?.max ?? ''}
                       onChange={(e) => setForm({ ...form, priceAchat: { min: form.priceAchat?.min ?? 0, max: parseFloat(e.target.value) || 0 } })} />
                   </div>
@@ -693,7 +708,7 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
                 </div>
                 {localEtapes.length === 0 && (
                   <div style={{ fontSize: 11, color: '#aaa', fontStyle: 'italic', padding: '4px 0' }}>
-                    {isPt ? 'Nenhuma etapa. Clique + Adicionar.' : 'Aucune étape. Cliquez + Ajouter.'}
+                    {isPt ? 'Nenhuma etapa. Clique em + Adicionar.' : 'Aucune étape. Cliquez + Ajouter.'}
                   </div>
                 )}
                 {localEtapes.map((et, i) => (
@@ -738,18 +753,18 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
               </div>
               <div className="prest-row-2">
                 <div className="prest-fg" style={{ margin: 0 }}>
-                  <label>{priceRange ? 'Min' : 'Prix'}</label>
+                  <label>{priceRange ? (isPt ? 'Mín.' : 'Min') : (isPt ? 'Preço' : 'Prix')}</label>
                   <input type="number" step="0.01" min="0" value={form.price.min ?? ''}
                     onChange={(e) => setForm({ ...form, price: { min: parseFloat(e.target.value) || 0, max: form.price.max } })} />
                 </div>
                 <div className="prest-fg" style={{ margin: 0, opacity: priceRange ? 1 : 0.35 }}>
-                  <label>Max</label>
+                  <label>{isPt ? 'Máx.' : 'Max'}</label>
                   <input type="number" step="0.01" min="0" disabled={!priceRange} value={form.price.max ?? ''}
                     onChange={(e) => setForm({ ...form, price: { min: form.price.min, max: parseFloat(e.target.value) || 0 } })} />
                 </div>
               </div>
               <div style={{ fontSize: 11, color: '#888', marginTop: 6 }}>
-                {isPt ? 'Dica: os preços em obras variam — ative «Intervalo» para mostrar uma amplitude (ex: 350 € – 450 € /m²).' : 'Astuce : les prix BTP varient selon chantier — activez « Fourchette » pour afficher une plage (ex : 350 € – 450 € /m²).'}
+                {isPt ? 'Dica: os preços das obras variam; ative «Intervalo» para mostrar uma amplitude (ex.: 350 € a 450 € / m²).' : 'Astuce : les prix BTP varient selon chantier — activez « Fourchette » pour afficher une plage (ex : 350 € – 450 € /m²).'}
               </div>
             </div>
 

@@ -28,7 +28,7 @@ export function PointageGeoSection({ artisan }: { artisan: Artisan; orgRole?: st
   const gerant = contexte?.gerant === true
 
   const onglets: Array<[Onglet, string]> = [
-    ['pointer', isPt ? 'Marcar' : 'Pointer'],
+    ['pointer', isPt ? 'Registar ponto' : 'Pointer'],
     ['affectations', isPt ? 'Atribuições' : 'Affectations'],
     ['historique', isPt ? 'Histórico' : 'Historique'],
   ]
@@ -42,7 +42,7 @@ export function PointageGeoSection({ artisan }: { artisan: Artisan; orgRole?: st
     )
   } else if (!contexte) {
     const reserve = isPt ? 'Módulo reservado às empresas de construção.' : 'Module réservé aux sociétés du BTP.'
-    const echec = isPt ? 'Não foi possível carregar a marcação de horas.' : 'Le pointage n’a pas pu être chargé.'
+    const echec = isPt ? 'Não foi possível carregar o registo de horas.' : 'Le pointage n’a pas pu être chargé.'
     contenu = (
       <div className="v5-al warn" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <span>{erreur === 'acces' ? reserve : echec}</span>
@@ -95,10 +95,10 @@ export function PointageGeoSection({ artisan }: { artisan: Artisan; orgRole?: st
   return (
     <div>
       <div className="v5-pg-t">
-        <h1>{isPt ? 'Marcação de horas' : 'Pointage'}</h1>
+        <h1>{isPt ? 'Registo de horas' : 'Pointage'}</h1>
         <p>
           {isPt
-            ? 'Marcação automática à chegada à obra (GPS), ou manual'
+            ? 'Registo automático à chegada à obra (GPS), ou manual'
             : 'Pointage automatique à l’arrivée sur le chantier (GPS), ou à la main'}
         </p>
       </div>
