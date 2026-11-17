@@ -1377,7 +1377,8 @@ export const createCandidatureSchema = z.object({
   timeline: z.string().min(1).max(200),
   description: z.string().min(10, 'Description trop courte (min 10)').max(3000),
   materials_included: z.boolean().default(false),
-  guarantee: z.string().max(500).optional(),
+  // Garantie facultative : l'écran de candidature envoie null quand le champ est laissé vide.
+  guarantee: z.string().max(500).optional().nullable(),
 })
 
 export const updateCandidatureStatusSchema = z.object({
