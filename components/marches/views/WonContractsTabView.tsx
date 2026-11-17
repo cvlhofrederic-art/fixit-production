@@ -48,14 +48,14 @@ export default function WonContractsTabView({
         </div>
         <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', maxWidth: 360, margin: '0 auto', marginBottom: 14 }}>
           {isPt
-            ? 'Continue a candidatar-se aos mercados. Os seus contratos ganhos aparecerão aqui.'
+            ? 'Continue a candidatar-se às oportunidades. Os seus contratos ganhos aparecerão aqui.'
             : 'Continuez à postuler aux marchés. Vos contrats remportés apparaîtront ici.'}
         </div>
         <button
           onClick={onGoToBrowse}
           className="v22-btn v22-btn-primary"
         >
-          {isPt ? 'Ver mercados' : 'Voir les marchés'} →
+          {isPt ? 'Ver oportunidades' : 'Voir les marchés'} →
         </button>
       </div>
     )
@@ -79,7 +79,7 @@ export default function WonContractsTabView({
                   </span>
                 </div>
                 <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>
-                  {bid.marche_title || bid.title || (isPt ? 'Mercado' : 'Marché')}
+                  {bid.marche_title || bid.title || (isPt ? 'Oportunidade' : 'Marché')}
                 </div>
                 {bid.marche_city && (
                   <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginBottom: 4 }}>📍 {bid.marche_city}</div>

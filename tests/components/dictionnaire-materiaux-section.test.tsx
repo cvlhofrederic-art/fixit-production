@@ -95,18 +95,18 @@ describe('Dictionnaire matériaux — écran', () => {
       fireEvent.click(screen.getByRole('button', { name: /^Infiltração em fachada/ }))
       const fiche = screen.getByRole('dialog')
 
-      const argamassaLM = within(fiche).getByRole('link', { name: 'Ver na Leroy Merlin : Argamassa de reparação' })
+      const argamassaLM = within(fiche).getByRole('link', { name: 'Ver na Leroy Merlin: Argamassa de reparação' })
       expect(argamassaLM).toHaveAttribute('href', 'https://lm.example/search?q=argamassa%20repara%C3%A7%C3%A3o')
       expect(argamassaLM).toHaveAttribute('target', '_blank')
       expect(argamassaLM).toHaveAttribute('rel', 'noopener noreferrer')
       // Chez Maxmat, ce matériau se cherche sous un autre terme : le lien part avec le terme propre à l'enseigne.
-      expect(within(fiche).getByRole('link', { name: 'Ver na Maxmat : Argamassa de reparação' })).toHaveAttribute(
+      expect(within(fiche).getByRole('link', { name: 'Ver na Maxmat: Argamassa de reparação' })).toHaveAttribute(
         'href',
         'https://maxmat.example/pesquisa?term=massa%20de%20repara%C3%A7%C3%A3o',
       )
       // Hidrofugante : vérifié chez Leroy Merlin seulement.
-      expect(within(fiche).getByRole('link', { name: 'Ver na Leroy Merlin : Hidrofugante incolor para fachadas' })).toBeInTheDocument()
-      expect(within(fiche).queryByRole('link', { name: 'Ver na Maxmat : Hidrofugante incolor para fachadas' })).toBeNull()
+      expect(within(fiche).getByRole('link', { name: 'Ver na Leroy Merlin: Hidrofugante incolor para fachadas' })).toBeInTheDocument()
+      expect(within(fiche).queryByRole('link', { name: 'Ver na Maxmat: Hidrofugante incolor para fachadas' })).toBeNull()
     })
 
     it('montre d’abord douze situations d’un matériau courant, puis toutes sur demande', () => {
@@ -144,7 +144,7 @@ describe('Dictionnaire matériaux — écran', () => {
       expect(within(materiau).getByText(/Silicones, mástiques e espumas › Mástique de poliuretano/)).toBeInTheDocument()
       expect(within(materiau).getByText('Selar fissuras e juntas de dilatação em fachadas.')).toBeInTheDocument()
       expect(within(materiau).getByText('PU de juntas')).toBeInTheDocument()
-      expect(within(materiau).getByRole('link', { name: 'Ver na Maxmat : Mástique de poliuretano para fachadas' })).toHaveTextContent('Ver na Maxmat ↗')
+      expect(within(materiau).getByRole('link', { name: 'Ver na Maxmat: Mástique de poliuretano para fachadas' })).toHaveTextContent('Ver na Maxmat ↗')
       // Situations qui l'emploient.
       expect(within(materiau).getByRole('button', { name: 'Fissuras finas no reboco da fachada' })).toBeInTheDocument()
 

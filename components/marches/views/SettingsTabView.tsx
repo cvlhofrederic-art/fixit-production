@@ -34,7 +34,7 @@ export default function SettingsTabView({
       <div className="v22-card" style={{ marginBottom: 14 }}>
         <div className="v22-card-head">
           <div className="v22-card-title">
-            {isPt ? 'Receber propostas de mercados' : 'Recevoir des propositions de marchés'}
+            {isPt ? 'Receber novas oportunidades' : 'Recevoir des propositions de marchés'}
           </div>
         </div>
         <div className="v22-card-body">
@@ -63,7 +63,7 @@ export default function SettingsTabView({
           {!marchesPrefs.marches_opt_in && (
             <div style={{ marginTop: 10, borderRadius: 3, background: 'var(--v22-bg)', border: '1px solid var(--v22-border)', padding: '8px 10px', fontSize: 12, color: 'var(--v22-text-muted)' }}>
               {isPt
-                ? 'Não receberá notificações para novos mercados'
+                ? 'Deixará de receber notificações de novas oportunidades'
                 : 'Vous ne recevrez plus de notifications pour les nouveaux marchés'}
             </div>
           )}
@@ -136,7 +136,7 @@ export default function SettingsTabView({
         <div className="v22-card-body">
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
             {([
-              { value: 'forfait', emoji: '💼', fr: 'Forfait', pt: 'Forfait', desc_fr: 'Prix fixe pour la mission', desc_pt: 'Preço fixo para a missão' },
+              { value: 'forfait', emoji: '💼', fr: 'Forfait', pt: 'Valor global', desc_fr: 'Prix fixe pour la mission', desc_pt: 'Preço fixo para a missão' },
               { value: 'journee', emoji: '📅', fr: 'À la journée', pt: 'Por dia', desc_fr: 'Tarif journalier', desc_pt: 'Tarifa diária' },
               { value: 'horaire', emoji: '⏰', fr: 'À l\'heure', pt: 'Por hora', desc_fr: 'Tarif horaire', desc_pt: 'Tarifa por hora' },
               { value: 'tache', emoji: '✅', fr: 'À la tâche', pt: 'Por tarefa', desc_fr: 'Prix défini par candidature', desc_pt: 'Preço definido por candidatura' },
@@ -177,7 +177,7 @@ export default function SettingsTabView({
                 step="1"
                 value={marchesPrefs.marches_tarif_journalier ?? ''}
                 onChange={e => onPrefsChange(p => ({ ...p, marches_tarif_journalier: e.target.value ? Number(e.target.value) : null }))}
-                placeholder="ex: 350"
+                placeholder={isPt ? 'Ex.: 350' : 'ex: 350'}
                 className="v22-form-input"
               />
             </div>
@@ -193,7 +193,7 @@ export default function SettingsTabView({
                 step="0.5"
                 value={marchesPrefs.marches_tarif_horaire ?? ''}
                 onChange={e => onPrefsChange(p => ({ ...p, marches_tarif_horaire: e.target.value ? Number(e.target.value) : null }))}
-                placeholder="ex: 45"
+                placeholder={isPt ? 'Ex.: 45' : 'ex: 45'}
                 className="v22-form-input"
               />
             </div>
@@ -205,7 +205,7 @@ export default function SettingsTabView({
       <div className="v22-card" style={{ marginBottom: 14, opacity: !marchesPrefs.marches_opt_in ? 0.5 : 1, pointerEvents: !marchesPrefs.marches_opt_in ? 'none' : undefined }}>
         <div className="v22-card-head">
           <div className="v22-card-title">
-            {isPt ? 'Apresentação bolsa de mercados' : 'Présentation bourse aux marchés'}
+            {isPt ? 'Apresentação na Bolsa de oportunidades' : 'Présentation bourse aux marchés'}
           </div>
         </div>
         <div className="v22-card-body">

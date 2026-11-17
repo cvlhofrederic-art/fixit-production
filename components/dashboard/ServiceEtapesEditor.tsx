@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useLocale } from '@/lib/i18n/context'
 import { useThemeVars } from './useThemeVars'
 
 // ══════════════════════════════════════════════════════════════
@@ -21,6 +22,7 @@ interface Props {
 }
 
 export default function ServiceEtapesEditor({ serviceId }: Props) {
+  const isPt = useLocale() === 'pt'
   const isV5 = false
   const tv = useThemeVars(isV5)
   const [etapes, setEtapes] = useState<Etape[]>([])
@@ -150,7 +152,7 @@ export default function ServiceEtapesEditor({ serviceId }: Props) {
   if (!serviceId) {
     return (
       <div style={{ padding: '12px 0', fontSize: 12, color: tv.textMuted, fontStyle: 'italic' }}>
-        Sauvegardez le motif pour pouvoir ajouter des étapes.
+        {isPt ? 'Guarde o serviço para poder adicionar etapas.' : 'Sauvegardez le motif pour pouvoir ajouter des étapes.'}
       </div>
     )
   }
@@ -158,15 +160,15 @@ export default function ServiceEtapesEditor({ serviceId }: Props) {
   return (
     <div>
       <label className="v22-form-label" style={{ marginBottom: 6 }}>
-        {'📋'} Étapes par défaut
+        {'📋'} {isPt ? 'Etapas predefinidas' : 'Étapes par défaut'}
       </label>
       <div style={{ fontSize: 11, color: tv.textMuted, marginBottom: 10 }}>
-        Ces étapes seront copiées sur chaque devis utilisant ce motif
+        {isPt ? 'Estas etapas serão copiadas para cada orçamento que utilize este serviço' : 'Ces étapes seront copiées sur chaque devis utilisant ce motif'}
       </div>
 
       {loading ? (
         <div style={{ padding: 12, textAlign: 'center', fontSize: 12, color: tv.textMuted }}>
-          Chargement...
+          {isPt ? 'A carregar...' : 'Chargement...'}
         </div>
       ) : (
         <>
@@ -232,14 +234,14 @@ export default function ServiceEtapesEditor({ serviceId }: Props) {
                       <button
                         onClick={() => startEdit(etape)}
                         style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, padding: '2px 4px', color: tv.textMuted }}
-                        title="Modifier"
+                        title={isPt ? 'Editar' : 'Modifier'}
                       >
                         ✎
                       </button>
                       <button
                         onClick={() => handleDelete(etape.id)}
                         style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, padding: '2px 4px', color: tv.red }}
-                        title="Supprimer"
+                        title={isPt ? 'Eliminar' : 'Supprimer'}
                       >
                         ✕
                       </button>
@@ -258,7 +260,7 @@ export default function ServiceEtapesEditor({ serviceId }: Props) {
               value={newText}
               onChange={(e) => setNewText(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') handleAdd() }}
-              placeholder="Ex: Couper l'arrivée d'eau..."
+              placeholder={isPt ? 'Ex.: Cortar o abastecimento de água...' : "Ex: Couper l'arrivée d'eau..."}
               className="v22-form-input"
               style={{ flex: 1, fontSize: 13 }}
             />
@@ -268,13 +270,13 @@ export default function ServiceEtapesEditor({ serviceId }: Props) {
               className="v22-btn v22-btn-sm"
               style={{ opacity: (!newText.trim() || saving) ? 0.4 : 1, whiteSpace: 'nowrap' }}
             >
-              + Ajouter
+              {isPt ? '+ Adicionar' : '+ Ajouter'}
             </button>
           </div>
 
           {etapes.length === 0 && (
             <div style={{ fontSize: 11, color: tv.textMuted, marginTop: 6, fontStyle: 'italic' }}>
-              Aucune étape. Les étapes décrivent le déroulement de l'intervention pour le client.
+              {isPt ? 'Nenhuma etapa. As etapas descrevem o decorrer da intervenção para o cliente.' : 'Aucune étape. Les étapes décrivent le déroulement de l\'intervention pour le client.'}
             </div>
           )}
         </>
