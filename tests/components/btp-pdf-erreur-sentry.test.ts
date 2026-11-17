@@ -19,7 +19,8 @@ describe('formulaire BTP : erreurs PDF', () => {
     expect(generatePdf).toContain('await generateDevisPdfV3({')
     expect(generatePdf).toContain('} catch (err: unknown) {')
     expect(generatePdf).toContain('Sentry.captureException(err, { tags: { pdf_action: action, doc_type: docType } })')
-    expect(generatePdf).toContain('toast.error(`Erreur PDF : ${msg}`)')
+    // Message traduit sur /pt (lib/devis-btp-traduction.ts) ; en français : « Erreur PDF : <message> », comme avant
+    expect(generatePdf).toContain("toast.error(tx('Erreur PDF : {erreur}', { erreur: msg }))")
   })
 })
 
