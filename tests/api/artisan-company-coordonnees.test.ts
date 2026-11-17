@@ -8,6 +8,10 @@
  * la route (profil déjà complet, et complément par l'API Recherche d'entreprises) :
  * - profil avec un e-mail → c'est lui qui est renvoyé ;
  * - profil sans e-mail → l'adresse de connexion sert de repli.
+ * Même défaut pour le téléphone : celui saisi à l'inscription (métadonnées du compte, jamais mises à jour ensuite)
+ * passait avant celui de « Mon profil » :
+ * - profil avec un téléphone → c'est lui qui est renvoyé ;
+ * - profil sans téléphone → le téléphone de l'inscription sert de repli.
  */
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
@@ -54,17 +58,21 @@ const { GET } = await import('@/app/api/artisan-company/route')
 const ADRESSE_CONNEXION = 'connexion@exemple.fr'
 const EMAIL_INSCRIPTION = 'inscription@exemple.fr'
 const EMAIL_PROFESSIONNEL = 'contact@entreprise-exemple.fr'
+const TELEPHONE_INSCRIPTION = '01 00 00 00 02'
+const TELEPHONE_PROFIL = '01 00 00 00 01'
 const SIRET = '12345678900011'
 
 /** Profil déjà complet (forme juridique et adresse connues) : la route répond depuis la base. */
-const profilComplet = (email: unknown) => ({
+const profilComplet = (email: unknown, phone: unknown = '') => ({
   id: 'profil-de-test', user_id: 'utilisateur-de-test', company_name: 'Entreprise Exemple', siret: SIRET, siren: '',
   legal_form: 'SARL', naf_code: '', naf_label: '', company_address: '1 rue de l’Exemple 00000 Exempleville',
-  company_city: 'Exempleville', company_postal_code: '00000', phone: '', email,
+  company_city: 'Exempleville', company_postal_code: '00000', phone, email,
 })
 
 /** Profil sans forme juridique : la route complète par l'API Recherche d'entreprises. */
-const profilACompleter = (email: unknown) => ({ ...profilComplet(email), legal_form: null, company_address: null })
+const profilACompleter = (email: unknown, phone: unknown = '') => ({
+  ...profilComplet(email, phone), legal_form: null, company_address: null,
+})
 
 async function appeler() {
   const reponse = await GET(new NextRequest('http://localhost:3000/api/artisan-company?artisan_id=profil-de-test', {
@@ -79,7 +87,7 @@ beforeEach(() => {
   h.etat.utilisateur = {
     id: 'utilisateur-de-test',
     email: ADRESSE_CONNEXION,
-    user_metadata: { email: EMAIL_INSCRIPTION },
+    user_metadata: { email: EMAIL_INSCRIPTION, phone: TELEPHONE_INSCRIPTION },
   }
   vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
     results: [{
@@ -124,5 +132,30 @@ describe('GET /api/artisan-company : e-mail du profil avant l’adresse de conne
 
     expect(source).toBe('api_gouv')
     expect(company.email).toBe(ADRESSE_CONNEXION)
+  })
+})
+
+describe('GET /api/artisan-company : téléphone du profil avant celui de l’inscription', () => {
+  it('profil complet avec téléphone : c’est lui qui est renvoyé, pas celui de l’inscription', async () => {
+    h.etat.profil = profilComplet(EMAIL_PROFESSIONNEL, TELEPHONE_PROFIL)
+    const { source, company } = await appeler()
+
+    expect(source).toBe('database')
+    expect(company.phone).toBe(TELEPHONE_PROFIL)
+  })
+
+  it.each([['null', null], ['vide', '']])('profil complet, téléphone %s : repli sur celui de l’inscription', async (_cas, phone) => {
+    h.etat.profil = profilComplet(EMAIL_PROFESSIONNEL, phone)
+    const { company } = await appeler()
+
+    expect(company.phone).toBe(TELEPHONE_INSCRIPTION)
+  })
+
+  it('profil complété par l’API Recherche d’entreprises : téléphone du profil, avec repli sur celui de l’inscription', async () => {
+    h.etat.profil = profilACompleter(EMAIL_PROFESSIONNEL, TELEPHONE_PROFIL)
+    expect((await appeler()).company.phone).toBe(TELEPHONE_PROFIL)
+
+    h.etat.profil = profilACompleter(EMAIL_PROFESSIONNEL, null)
+    expect((await appeler()).company.phone).toBe(TELEPHONE_INSCRIPTION)
   })
 })

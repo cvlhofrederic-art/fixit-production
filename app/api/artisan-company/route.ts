@@ -101,8 +101,9 @@ export async function GET(request: NextRequest) {
         address: artisan.company_address,
         city: artisan.company_city || '',
         postalCode: artisan.company_postal_code || '',
-        phone: userMeta.phone || artisan.phone || '',
-        // E-mail professionnel de « Mon profil » d'abord ; l'adresse de connexion seulement si le profil n'en a pas.
+        // Coordonnées de « Mon profil » d'abord. Les valeurs du compte (téléphone saisi à l'inscription, adresse de
+        // connexion) ne servent que si le profil n'en a pas : elles ne suivent pas les changements faits dans le profil.
+        phone: artisan.phone || userMeta.phone || '',
         email: artisan.email || authEmail || '',
         insuranceNumber: userMeta.insurance_number || '',
         insuranceName: userMeta.insurance_name || '',
@@ -193,7 +194,7 @@ export async function GET(request: NextRequest) {
       address: formatSiegeAddress(entreprise.siege),
       city: entreprise.siege?.libelle_commune || '',
       postalCode: entreprise.siege?.code_postal || '',
-      phone: userMeta.phone || artisan.phone || '',
+      phone: artisan.phone || userMeta.phone || '',
       email: artisan.email || authEmail || '',
     }
 
