@@ -173,6 +173,8 @@ describe('lots de 100, 5 lots au plus par appel, 1 s entre deux lots', () => {
       expect(typeof m.to).toBe('string')
       expect(m).not.toHaveProperty('cc')
       expect(m).not.toHaveProperty('bcc')
+      // Décision de Hugo du 16/11/2026 : aucune adresse de réponse sur les messages aux déclarants.
+      expect(m).not.toHaveProperty('replyTo')
     }
     expect(new Set(service.appels.flatMap((a) => a.messages.map((m) => m.to))).size).toBe(250)
     expect(base.appelsDe('signalements_qr_diffusion_lot').every((a) => a.args.p_taille === 100 && a.args.p_diffusion === DIFFUSION_ID)).toBe(true)

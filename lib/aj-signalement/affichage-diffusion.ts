@@ -123,7 +123,9 @@ export const DELAI_ANNONCE_DIFFUSION_JOURS = 15
 
 // Texte figé : qui écrit (le cabinet), pourquoi la personne le reçoit, ce qu'elle recevra, quand, comment refuser
 // (conditions 1 à 5 de la note juridique, « Complément du 11/11 ») ; aucune information d'exploitation. Le bouton
-// de refus, la raison de l'envoi et le pied (copropriété, politique, contact) viennent du gabarit de diffusion.
+// de refus, la raison de l'envoi et le pied (copropriété, politique, contact, message automatique auquel ne pas
+// répondre) viennent du gabarit de diffusion. Le texte figé ne parle pas de répondre : la décision de Hugo du
+// 16/11/2026 (plus de réponse aux messages) ne le change pas, ni le contrôle à l'identique de la route.
 const ANNONCE: Bilingue<TexteDiffusionQr> = {
   fr: {
     objet: 'Informations sur votre immeuble par e-mail',
@@ -166,7 +168,8 @@ export function estAnnonceFigeeQr(langue: LangueSignalementQr, cabinet: string, 
 
 export const MESSAGES_REFUS_TEXTE_DIFFUSION_QR: Readonly<Record<MotifRefusTexteDiffusionQr, string>> & { readonly conseilEspaceApresPoint: string } = {
   lien: 'Le message ne peut contenir aucun lien ni adresse de site (http, www, nom de domaine).',
-  adresse_email: 'Le message ne peut contenir aucune adresse e-mail : pour écrire au cabinet, les personnes répondent au message.',
+  // Décision de Hugo du 16/11/2026 : plus de réponse aux messages ; le pied de chaque message donne le contact du cabinet.
+  adresse_email: 'Le message ne peut contenir aucune adresse e-mail : l’adresse de contact du cabinet figure déjà au bas de chaque message.',
   caractere: 'Le message contient un caractère non autorisé (caractère invisible ou de contrôle, ou symbole dans un nom de bâtiment ou d’étage).',
   a_completer: 'Complétez ou retirez les champs du modèle écrits entre crochets.',
   telephone: 'Seuls les numéros de téléphone déclarés par le cabinet (astreinte, gardien) peuvent figurer dans le message.',

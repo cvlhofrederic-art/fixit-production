@@ -2,7 +2,8 @@
 
 // ── AJ Signalement — « Diffusion d'informations » d'un cabinet : réglages et activation (PR 3, lot 8, BROUILLON) ──────
 //
-// Cahier PR 3 § 7.4 (D-R8, super admin, fiche du cabinet) : adresse de contact (réponses des résidents), adresse de la
+// Cahier PR 3 § 7.4 (D-R8, super admin, fiche du cabinet) : adresse de contact du cabinet (affichée aux déclarants,
+// copie de chaque message ; plus de réponse aux messages depuis la décision de Hugo du 16/11/2026), adresse de la
 // politique de confidentialité du cabinet et case DATÉE « Cette politique décrit la diffusion (finalité, base légale,
 // durée, droit d'opposition) » (droit § 4.5, HF2 : changer l'adresse oblige à refaire la déclaration), référence et date
 // de signature du contrat de sous-traitance (HF1), numéros de téléphone autorisés dans les messages (H2 ; 10 au plus),

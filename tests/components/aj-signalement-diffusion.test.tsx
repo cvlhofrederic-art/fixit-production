@@ -1311,6 +1311,18 @@ describe('lot 8 — activation de la diffusion d’un cabinet (§ 7.4, D-R8)', (
     expect(screen.getByRole('button', { name: TD.reglages.suspendre })).toBeInTheDocument()
   })
 
+  // Décision de Hugo du 16/11/2026 : les déclarants ne répondent plus aux messages. L'adresse reste affichée aux
+  // déclarants et reçoit la copie de chaque message ; elle reste exigée pour activer.
+  it('champ de l’adresse du cabinet : libellé sans « réponses des résidents » ; toujours exigé pour activer', async () => {
+    expect(TD.reglages.contact).toBe('Adresse de contact du cabinet (affichée aux déclarants, copie de chaque message)')
+    await ouvrirReglages(reglagesComplets({ contactEmail: null, manque: ['contact'] }))
+    expect(await screen.findByLabelText(TD.reglages.contact)).toHaveValue('')
+    expect(screen.queryByText(/réponses des résidents/i)).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: TD.reglages.activer }))
+    expect(screen.getByText(remplir(TD.reglages.manque, { liste: TD.reglages.manques.contact }))).toBeInTheDocument()
+    expect(appelsVers(URL_CAB_D, 'PATCH')).toEqual([])
+  })
+
   it('refus du serveur (409 cabinet_incomplet { manque }) : la liste du serveur', async () => {
     await ouvrirReglages(reglagesComplets(), () => json({ error: 'cabinet_incomplet', manque: ['contrat_date'] }, 409))
     fireEvent.click(await screen.findByRole('button', { name: TD.reglages.activer }))

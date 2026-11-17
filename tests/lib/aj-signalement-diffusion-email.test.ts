@@ -2,16 +2,18 @@
 // tests/lib/aj-signalement-diffusion-email.test.ts
 //
 // E-mail de diffusion aux déclarants (cahier PR 3 § 5.1, § 5.2, § 5.6, § 3.8 ; décisions H1 et H4) :
-//   - enveloppe : un seul `to` (ni cc ni bcc), expéditeur « "Nom du cabinet nettoyé" <adresse> » figé, Reply-To = contact
-//     du cabinet, objet « copropriété — objet » sur une ligne, en-têtes RFC 8058 avec le jeton UN CLIC seulement,
-//     étiquettes type / diffusion / destinataire, version texte ;
+//   - enveloppe : un seul `to` (ni cc ni bcc), expéditeur « "Nom du cabinet nettoyé" <adresse> » figé, AUCUNE adresse
+//     de réponse (décision de Hugo du 16/11/2026 : les copropriétaires ne répondent pas aux messages), objet
+//     « copropriété — objet » sur une ligne, en-têtes RFC 8058 avec le jeton UN CLIC seulement, étiquettes type /
+//     diffusion / destinataire, version texte ;
 //   - gabarit FR et PT : bandeau au nom du cabinet, périmètre, salutation, texte échappé (retours → <br/>), signature,
 //     raison de l'envoi, encadré séparé avec le bouton « Ne plus recevoir les informations sur cet immeuble » (jeton de
-//     PAGE, dans le fragment), pied (cabinet, politique, contact) ; exactement 2 href ; aucune image ; aucune mention de
-//     VitFix ni d'AJ Signalement (le domaine vitfix.io n'apparaît que dans l'adresse technique du lien de la page) ;
-//     même entrée → même sortie (aucune date de génération : condition de l'idempotence du lot) ;
-//   - message d'annonce (H1, option C) : texte figé du lot 2, même gabarit ;
-//   - copie au cabinet : sans lien, sans jeton, sans adresse de déclarant.
+//     PAGE, dans le fragment), pied (cabinet, politique, contact, message automatique auquel ne pas répondre) ;
+//     exactement 2 href ; aucune image ; aucune mention de VitFix ni d'AJ Signalement (le domaine vitfix.io n'apparaît
+//     que dans l'adresse technique du lien de la page) ; même entrée → même sortie (aucune date de génération :
+//     condition de l'idempotence du lot) ;
+//   - message d'annonce (H1, option C) : texte figé du lot 2, même gabarit, même pied, sans adresse de réponse ;
+//   - copie au cabinet : sans lien, sans jeton, sans adresse de déclarant ; toujours envoyée au contact du cabinet.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -74,6 +76,8 @@ const hrefs = (html: string) => [...html.matchAll(/href="([^"]*)"/g)].map((m) =>
 const sansHref = (html: string) => html.replace(/href="[^"]*"/g, 'href=""')
 /** Texte sans les adresses (https://…) qu'il écrit en clair. */
 const sansAdresses = (texte: string) => texte.replace(/https:\/\/\S+/g, '')
+/** « Contact : contact@cabinet-exemple.test. » / « Contacto: contact@cabinet-exemple.test. » */
+const remplirContact = (langue: 'fr' | 'pt') => TEXTES_DIFFUSION_QR[langue].contact.replace('{contact}', 'contact@cabinet-exemple.test')
 
 beforeEach(() => {
   h.sendBatchEmails.mockClear()
@@ -89,14 +93,16 @@ afterEach(() => {
 })
 
 describe('enveloppe (§ 5.1)', () => {
-  it('un seul destinataire, ni cc ni bcc ; expéditeur figé ; Reply-To = contact du cabinet', () => {
+  it('un seul destinataire, ni cc ni bcc ; expéditeur figé ; aucune adresse de réponse (décision de Hugo du 16/11/2026)', () => {
     const m = message()
     expect(m.to).toBe('declarant@exemple.test')
-    expect(Object.keys(m).sort()).toEqual(['from', 'headers', 'html', 'replyTo', 'subject', 'tags', 'text', 'to'])
+    expect(Object.keys(m).sort()).toEqual(['from', 'headers', 'html', 'subject', 'tags', 'text', 'to'])
     expect(m).not.toHaveProperty('cc')
     expect(m).not.toHaveProperty('bcc')
+    expect(m).not.toHaveProperty('replyTo')
     expect(m.from).toBe('"Cabinet Exemple" <diffusion@envoi.exemple.test>')
-    expect(m.replyTo).toBe('contact@cabinet-exemple.test')
+    // Aucun en-tête n'ajoute non plus d'adresse de réponse.
+    expect(Object.keys(m.headers ?? {}).map((k) => k.toLowerCase())).not.toContain('reply-to')
   })
 
   it('objet = « copropriété — objet »', () => {
@@ -158,7 +164,7 @@ describe('enveloppe (§ 5.1)', () => {
       `Ne plus recevoir les informations sur cet immeuble : ${URL_PAGE}`,
       '',
       'Message envoyé par Cabinet Exemple, qui gère cette copropriété. Vos coordonnées sont traitées par Cabinet Exemple : '
-        + `Politique de confidentialité (${POLITIQUE}) · Contact : contact@cabinet-exemple.test. Pour écrire au cabinet, répondez à ce message.`,
+        + `Politique de confidentialité (${POLITIQUE}) · Contact : contact@cabinet-exemple.test. Ce message a été envoyé automatiquement : merci de ne pas y répondre.`,
       '',
     ].join('\n'))
     expect(text).not.toMatch(/<[a-z/]/i)
@@ -286,7 +292,7 @@ describe('gabarit HTML (§ 5.2)', () => {
     expect(t.bonjour).toBe('Olá,')
     for (const texte of [t.titre, t.bouton, t.raison, t.encadre, 'Condomínio Résidence Exemple · Bloco B']) expect(m.html).toContain(texte)
     expect(m.text).toContain('Mensagem enviada por Cabinet Exemple, que administra este condomínio. Os seus dados são tratados por Cabinet Exemple: '
-      + `Política de privacidade (${POLITIQUE}) · Contacto: contact@cabinet-exemple.test. Para escrever ao administrador, responda a esta mensagem.`)
+      + `Política de privacidade (${POLITIQUE}) · Contacto: contact@cabinet-exemple.test. Esta mensagem foi enviada automaticamente: por favor, não responda.`)
     expect(hrefs(m.html)).toEqual([URL_PAGE, POLITIQUE])
   })
 
@@ -323,6 +329,63 @@ describe('message d’annonce (H1, option C)', () => {
     expect(hrefs(html)).toEqual([URL_PAGE, POLITIQUE])
     expect(text?.split('\n')[2]).toBe('Copropriété Résidence Exemple')
   })
+
+  it('FR et PT : sans adresse de réponse, même pied (message automatique) ; le texte figé n’invite pas à répondre', () => {
+    for (const langue of ['fr', 'pt'] as const) {
+      const figee = annonceDiffusionQr(langue, 'Cabinet Exemple')
+      const a = message({ langue, modele: 'annonce', portee: 'copropriete', libellePerimetre: 'Toute la copropriété', ...figee })
+      expect(a).not.toHaveProperty('replyTo')
+      expect(a.html).toContain(TEXTES_DIFFUSION_QR[langue].pasDeReponse)
+      expect(a.text).toContain(TEXTES_DIFFUSION_QR[langue].pasDeReponse)
+      expect(`${figee.objet} ${figee.texte}`).not.toMatch(/r[ée]pond|respond|escrever|écrire/i)
+    }
+  })
+})
+
+// Décision de Hugo du 16/11/2026 : « je ne veux pas que mes copropriétaires puissent répondre ». Le pied ne propose plus
+// de répondre ; il dit que le message est automatique et qu'il ne faut pas y répondre. L'adresse de contact du cabinet
+// reste écrite (choix prudent : moyen direct de joindre le responsable du traitement, indépendant du contenu de sa
+// politique ; question notée pour Hugo) et reçoit toujours la copie de chaque envoi.
+describe('pied sans invitation à répondre (décision de Hugo du 16/11/2026)', () => {
+  const ANCIENNES_PHRASES = ['Pour écrire au cabinet, répondez à ce message.', 'Para escrever ao administrador, responda a esta mensagem.']
+
+  it('phrases exactes du message automatique (FR, et PT proposé à relire par Hugo, H4)', () => {
+    expect(TEXTES_DIFFUSION_QR.fr.pasDeReponse).toBe('Ce message a été envoyé automatiquement : merci de ne pas y répondre.')
+    expect(TEXTES_DIFFUSION_QR.pt.pasDeReponse).toBe('Esta mensagem foi enviada automaticamente: por favor, não responda.')
+    for (const langue of ['fr', 'pt'] as const) expect(TEXTES_DIFFUSION_QR[langue]).not.toHaveProperty('repondre')
+  })
+
+  it('HTML et texte, FR et PT, diffusion et annonce : plus aucune invitation à répondre ; message automatique en fin de pied', () => {
+    for (const langue of ['fr', 'pt'] as const) {
+      const t = TEXTES_DIFFUSION_QR[langue]
+      for (const modele of ['coupure_eau', 'annonce'] as const) {
+        const { html, text = '' } = message({ langue, modele })
+        for (const contenu of [html, text]) {
+          for (const ancienne of ANCIENNES_PHRASES) expect(contenu).not.toContain(ancienne)
+          expect(contenu).not.toMatch(/répondez/i)
+          expect(contenu).not.toMatch(/responda a esta mensagem/i)
+          expect(contenu).toContain(t.pasDeReponse)
+        }
+        // Dernière phrase du pied, après le contact (HTML : juste avant la fin du pied ; texte : dernière ligne écrite).
+        expect(text.trimEnd().endsWith(`${remplirContact(langue)} ${t.pasDeReponse}`)).toBe(true)
+        expect(html).toContain(`${remplirContact(langue)} ${t.pasDeReponse}`)
+      }
+    }
+  })
+
+  it('identité du cabinet, lien de sa politique, contact et désinscription restent dans chaque message', () => {
+    for (const langue of ['fr', 'pt'] as const) {
+      const t = TEXTES_DIFFUSION_QR[langue]
+      const { html, text = '', headers } = message({ langue })
+      expect(html).toContain(t.envoyePar.replace('{cabinet}', 'Cabinet Exemple'))
+      expect(html).toContain(t.traitesPar.replace('{cabinet}', 'Cabinet Exemple'))
+      expect(html).toContain(`href="${POLITIQUE}"`)
+      expect(text).toContain(`${t.politique} (${POLITIQUE})`)
+      for (const contenu of [html, text]) expect(contenu).toContain(remplirContact(langue))
+      expect(hrefs(html)).toEqual([URL_PAGE, POLITIQUE])
+      expect(headers?.['List-Unsubscribe']).toBe(`<${URL_UN_CLIC}>`)
+    }
+  })
 })
 
 describe('gardes de l’enveloppe (défense en profondeur : valeurs déjà contrôlées par la base)', () => {
@@ -357,7 +420,7 @@ describe('gardes de l’enveloppe (défense en profondeur : valeurs déjà contr
     expect(message({ expediteur: 'diffusion@envoi.exemple.test' }).from).toBe('diffusion@envoi.exemple.test')
   })
 
-  it('Reply-To, politique, identifiants, jetons', () => {
+  it('contact (pied et copie au cabinet), politique, identifiants, jetons', () => {
     echec(() => message({ contactEmail: 'contact@exemple.test\r\nBcc: x@exemple.test' }), 'contact')
     echec(() => message({ politiqueUrl: 'http://cabinet-exemple.test/confidentialite' }), 'politique')
     echec(() => message({ politiqueUrl: 'https://cabinet-exemple.test/"><script>' }), 'politique')
@@ -468,6 +531,8 @@ describe('copie au cabinet (§ 5.6)', () => {
   it('message : au seul contact du cabinet, expéditeur du service, sans Reply-To ni en-tête de désinscription', () => {
     const m = messageCopieCabinetDiffusionQr(diffusion())
     expect(m.to).toBe('contact@cabinet-exemple.test')
+    // Décision de Hugo du 16/11/2026 (plus de réponse des déclarants) : la copie au contact du cabinet reste telle quelle.
+    expect(Object.keys(m).sort()).toEqual(['html', 'subject', 'tags', 'text', 'to'])
     expect(m).not.toHaveProperty('from')
     expect(m).not.toHaveProperty('replyTo')
     expect(m).not.toHaveProperty('headers')

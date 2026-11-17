@@ -7,7 +7,8 @@
 // n'est pas touchée : elle est signalée dans la réponse (fichesHorsDomaines) pour que le super admin décide.
 //
 // PR 3, lot 5 (D-R8, cahier § 4.1, § 7.4) — réglages de diffusion du cabinet, envoyés SEULS (jamais mêlés aux champs
-// ci-dessus → 400) : adresse de contact (Reply-To des messages), politique de confidentialité (https) et déclaration
+// ci-dessus → 400) : adresse de contact (écrite dans le pied des messages et destinataire de leur copie ; plus de
+// Reply-To depuis la décision de Hugo du 16/11/2026), politique de confidentialité (https) et déclaration
 // qu'elle décrit la diffusion (datée par la base), référence et date du contrat de sous-traitance (non future), numéros
 // de téléphone autorisés dans les messages (H2 ; normalisés, 10 au plus), activation ou suspension. Par
 // signalements_qr_diffusion_regler_cabinet, en une transaction avec son journal (noms des champs seulement ;
