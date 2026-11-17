@@ -143,11 +143,11 @@ const normaliser = (s: string) =>
 /** Groupes à ne jamais couper en fin de ligne (« sem_quebra » du gabarit) : montants, unités, IBAN, n.º, plan de paiement. */
 const MOTIFS_INSECABLES: RegExp[] = [
   /\b[A-Z]{2}\d{2}(?: [A-Z0-9]{4}){2,7}(?: [A-Z0-9]{1,4})?\b/g,
-  /\d+(?:,\d+)? \/ \d+(?:,\d+)?(?: \/ \d+(?:,\d+)?)*/g,
+  /(?<![\d,])\d+(?:,\d+)? \/ \d+(?:,\d+)?(?: \/ \d+(?:,\d+)?)*/g,
   /[Nn]\.º \S+/g,
   /(?<![\d,.])\d{1,3}(?: \d{3})+(?:,\d+)?/g,
   /(?<![\d,.])\d+(?:[.,]\d+)* (?:€\/m2|€\/m3|€\/ml|€|%|m2|m3|m²|m³|ml|cm|mm|kg|m|t|ºC|dias?|meses|mês|semanas?|anos?)(?![\p{L}\d/])/gu,
-  /\d+\.ª prestação/g,
+  /(?<!\d)\d+\.ª prestação/g,
 ]
 
 export function insecables(texte: string): string {
@@ -225,7 +225,7 @@ export function prazoPagamento(delai: string | null | undefined): PrazoPagamento
   if (!n || /comptant|reception|pronto|immediat|imediat/.test(n)) {
     return { curto: 'A pronto', faturas: 'a pronto pagamento', vencimento: 'pagáveis a pronto, na receção' }
   }
-  const jours = /(\d+)\s*(?:jours?|dias?)\b/.exec(n)
+  const jours = /(?<!\d)(\d+)\s*(?:jours?|dias?)\b/.exec(n)
   if (jours) {
     const fimDoMes = /fin de mois|fim do mes/.test(n) ? ' fim do mês' : ''
     const prazo = `${jours[1]} dias${fimDoMes}`
@@ -248,13 +248,14 @@ export function descontoPagamento(escompte: string | null | undefined): string {
 /** Délai d'exécution déjà rédigé par le générateur (« 5 semaines », « 10 jours ouvrés »…). */
 export function prazoExecucao(delai: string | null | undefined): string {
   const t = textePdf(delai).trim()
-  const m = /^(\d+)\s+(.+)$/.exec(t)
+  const m = /^(\d+)\s+(\S.*)$/.exec(t)
   if (!m) return t
   const nombre = Number(m[1])
   const unite = normaliser(m[2])
   const plusieurs = nombre > 1
   if (/^jours? ouvres?$/.test(unite)) return `${nombre} ${plusieurs ? 'dias úteis' : 'dia útil'}`
-  if (/^jours? calendaires?$/.test(unite)) return `${nombre} ${plusieurs ? 'dias corridos' : 'dia corrido'}`
+  // « dias de calendário » (PT-PT) ; « dias corridos » est brésilien, exclu par le gabarit.
+  if (/^jours? calendaires?$/.test(unite)) return `${nombre} ${plusieurs ? 'dias de calendário' : 'dia de calendário'}`
   if (/^jours?$/.test(unite)) return `${nombre} ${plusieurs ? 'dias' : 'dia'}`
   if (/^semaines?$/.test(unite)) return `${nombre} ${plusieurs ? 'semanas' : 'semana'}`
   if (unite === 'mois') return `${nombre} ${plusieurs ? 'meses' : 'mês'}`
@@ -275,7 +276,10 @@ export function unidadePt(unite: string | null | undefined, uniteLibre?: string)
   return Object.prototype.hasOwnProperty.call(UNIDADES, u) ? UNIDADES[u] : textePdf(u)
 }
 
-/** Noms de section par défaut du formulaire et du générateur. */
+/**
+ * Noms de section posés par le formulaire et par Vitfix : sections par défaut, section d'une facture
+ * d'acompte (lib/acompte-par-taux.ts), acomptes déduits d'une facture de solde (lib/facture-depuis-devis.ts).
+ */
 const NOMS_SECTION: Readonly<Record<string, string>> = {
   "main d'oeuvre": 'Mão de obra',
   'mao de obra': 'Mão de obra',
@@ -284,6 +288,69 @@ const NOMS_SECTION: Readonly<Record<string, string>> = {
   'frais annexes': 'Despesas acessórias',
   'despesas acessorias': 'Despesas acessórias',
   section: 'Secção',
+  acompte: 'Adiantamento',
+  adiantamento: 'Adiantamento',
+  'acomptes deja factures (a deduire)': 'Adiantamentos já faturados (a deduzir)',
+  'adiantamentos ja faturados (a deduzir)': 'Adiantamentos já faturados (a deduzir)',
+}
+
+/**
+ * Libellés que Vitfix rédige lui-même en français quand l'interface est en français : lignes et notes
+ * des factures d'acompte (lib/acompte-par-taux.ts) et de solde (lib/facture-depuis-devis.ts). Leur
+ * version portugaise est celle que ces modules écrivent pour une interface en portugais. Une ligne à la
+ * fois, après textePdf (tirets longs devenus « - »).
+ */
+const LIBELLES_GENERES: Array<[RegExp, (m: RegExpExecArray) => string]> = [
+  [/^Acompte déjà facturé - facture n° (.+)$/, (m) => `Adiantamento já faturado - fatura n.º ${suiteDeduction(m[1])}`],
+  [/^Acompte de ([\d,.]+) % sur travaux sous-traités - autoliquidation de la TVA$/, (m) => `Adiantamento de ${m[1]} % por conta dos trabalhos - IVA - autoliquidação`],
+  [/^Acompte de ([\d,.]+) % sur travaux soumis à la TVA au taux de ([\d,.]+) %$/, (m) => `Adiantamento de ${m[1]} % por conta dos trabalhos sujeitos a IVA à taxa de ${m[2]} %`],
+  [/^Acompte de ([\d,.]+) % sur prestations facturées sans TVA$/, (m) => `Adiantamento de ${m[1]} % por conta de operações não sujeitas a IVA`],
+  [/^Acompte de ([\d,.]+) % sur travaux$/, (m) => `Adiantamento de ${m[1]} % por conta dos trabalhos`],
+  [/^(Devis|Facture) n° (\S+)(?: du (\d{2}\/\d{2}\/\d{4}))?$/, (m) => `${m[1] === 'Devis' ? 'Orçamento' : 'Fatura'} n.º ${m[2]}${m[3] ? ` de ${m[3]}` : ''}`],
+  [/^Base HT à ce taux : (.+)$/, (m) => `Base tributável a esta taxa: ${m[1]}`],
+  [/^Base HT : (.+)$/, (m) => `Base tributável: ${m[1]}`],
+  [/^Montant des travaux : (.+)$/, (m) => `Montante dos trabalhos: ${m[1]}`],
+  [
+    /^Acompte de ([\d,.]+) % \(n° (\d+) sur (\d+)\) sur (le devis|la facture) n° (\S+)(?: du (\d{2}\/\d{2}\/\d{4}))?\. Échéance : (.+)\.$/,
+    (m) => `Adiantamento de ${m[1]} % (n.º ${m[2]} de ${m[3]}) por conta ${m[4] === 'le devis' ? 'do orçamento' : 'da fatura'} n.º ${m[5]}${m[6] ? ` de ${m[6]}` : ''}. Vencimento: ${quandoPrestacao(m[7])}.`,
+  ],
+  [/^Réf\. devis : (.+)$/, (m) => `Ref. orçamento: ${m[1]}`],
+]
+
+/** Fin d'une ligne de déduction d'acompte : « … du 12/10/2026, net de l'avoir n° …  - TVA 20 % ». */
+function suiteDeduction(suite: string): string {
+  return suite
+    .replace(/ du (\d{2}\/\d{2}\/\d{4})/, ' de $1')
+    .replace(", net de l'avoir n° ", ', líquido da nota de crédito n.º ')
+    .replace(/ - TVA ([\d,.]+) %$/, ' - IVA $1 %')
+}
+
+/** Traduit, ligne par ligne, les libellés rédigés en français par Vitfix ; le texte saisi reste tel quel. */
+export function traduireLibellesGeneres(texte: string): string {
+  return texte.split('\n').map((ligne) => {
+    for (const [motif, traduction] of LIBELLES_GENERES) {
+      const m = motif.exec(ligne)
+      if (m) return traduction(m)
+    }
+    return ligne
+  }).join('\n')
+}
+
+/** Ligne « Ref. orçamento: DEV-… » des notes, une fois traduite. */
+const REFERENCE_ORCAMENTO = /^Ref\. orçamento: ?(\S.*)$/
+
+/** Taux d'IVA du continent portugais (normal, intermédiaire, réduit). */
+const TAXAS_IVA_PT: ReadonlySet<number> = new Set([23, 13, 6])
+
+/** Valeur par défaut du formulaire pour les pénalités de retard (règle française, art. L. 441-10 C. com.). */
+const PENALITE_PAR_DEFAUT = /^3\s*(?:×|x|fois)\s*(?:le\s+)?taux d'interet legal/
+
+/** « Juros de mora: … » pour une pénalité saisie ; rien pour la valeur par défaut (clause du DL 62/2013). */
+export function jurosDeMora(penalite: string | null | undefined): string {
+  const t = textePdf(penalite).trim()
+  const n = normaliser(t)
+  if (!n || PENALITE_PAR_DEFAUT.test(n)) return ''
+  return `Juros de mora: ${t}${/[.!?]$/.test(t) ? '' : '.'}`
 }
 
 /** Titre d'un capítulo ; une section unique non renommée devient « Trabalhos ». */
@@ -305,8 +372,7 @@ const TIPOS_SEGURO: Readonly<Record<string, string>> = {
 export function registoEmpresa(rcs: string | null | undefined): { rotulo: string; valor: string } | null {
   const t = textePdf(rcs).trim()
   if (!t) return null
-  const m = /^alvar[aá]\s*[:-]?\s*(.+)$/i.exec(t)
-  if (m) return { rotulo: 'Alvará', valor: m[1].trim() }
+  if (/^alvar[aá]/i.test(t)) return { rotulo: 'Alvará', valor: t.replace(/^alvar[aá][\s:-]*/i, '').trim() || t }
   if (/impic|alvar[aá]/i.test(t)) return { rotulo: 'Alvará', valor: t }
   return { rotulo: 'Registo', valor: t }
 }
@@ -323,13 +389,27 @@ export function tituloDocumento(e: EntreeTitre): string {
   }
 }
 
-/** Titre saisi pour le document, ou '' quand c'est le titre par défaut (« Orçamento DEV-… », « Devis DEV-… »…). */
-export function tituloPersonalizado(docTitle: string | null | undefined, docNumber: string | null | undefined): string {
-  const t = textePdf(docTitle).trim()
-  if (!t) return ''
-  const m = /^(devis|orcamento|facture|fatura|avoir|nota de credito)\b\s*(.*)$/.exec(normaliser(t))
-  if (m && (m[2] === '' || m[2] === normaliser(textePdf(docNumber)))) return ''
-  return t
+/** Titre par défaut d'un document (« Devis », « Orçamento DEV-2026-001 », « Facture n° FACT-… », numéro seul). */
+function estTitreParDefaut(titre: string): boolean {
+  const n = normaliser(titre)
+  return /^(?:devis|orcamento|facture|fatura|avoir|nota de credito)(?:\s+n\.?[°º]?)?(?:\s+[a-z]{2,}-\d[\w-]*)?$/.test(n)
+    || /^[a-z]{2,}-\d[\w-]*$/.test(n)
+}
+
+/**
+ * Ligne du projet sous le titre : le titre saisi pour le document, '' quand c'est un titre par défaut.
+ * Titres rédigés par Vitfix : facture d'acompte « Acompte n° 1 sur 3 (30 %) - <titre du devis> » (le
+ * gabarit écrit lui-même « Adiantamento n.º 1 de 3 · 30 % ») ; facture de solde « Facture de solde - … »
+ * (« Saldo · … »).
+ */
+export function tituloPersonalizado(docTitle: string | null | undefined): string {
+  let t = textePdf(docTitle).trim()
+  const acompte = /^(?:acompte n° \d+ sur \d+|adiantamento n\.º \d+ de \d+) \([^)]*\) - /i.exec(t)
+  if (acompte) t = t.slice(acompte[0].length).trim()
+  const solde = /^(?:facture de solde|fatura de saldo)(?: - |$)/i.exec(t)
+  if (solde) t = t.slice(solde[0].length).trim()
+  const libre = t && !estTitreParDefaut(t) ? t : ''
+  return solde ? ['Saldo', libre].filter(Boolean).join(' · ') : libre
 }
 
 /** Date d'échéance d'une facture (« 17/12/2026 ») ou délai en mots quand il n'est pas calculable. */
@@ -377,8 +457,60 @@ interface Chapitre {
 const ligneRemplie = (l: ProductLine | null | undefined): l is ProductLine =>
   !!l && typeof l.description === 'string' && l.description.trim().length > 0
 
+const renseigne = (v: number | null | undefined): v is number => v !== null && v !== undefined
+
+/** Précisions d'une facture d'acompte, de situation ou d'une note de crédito : « Adiantamento n.º 1 de 3 · 30 % · sobre orçamento n.º … ». */
+function detalheFatura(e: PdfV3Input): string[] {
+  if (e.docType !== 'facture') return []
+  const parent = textePdf(e.parentInvoiceNumber).trim()
+  const typeParent = /^DEV-/i.test(parent) ? 'orçamento' : 'fatura'
+  const surParent = parent ? `sobre ${typeParent} n.º ${parent}` : ''
+  switch (e.factureSubType) {
+    case 'acompte':
+      return [
+        e.acompteOrdre && e.acompteTotal ? `Adiantamento n.º ${e.acompteOrdre} de ${e.acompteTotal}` : '',
+        renseigne(e.acomptePourcentage) ? `${pourcentPt(e.acomptePourcentage)} %` : '',
+        surParent,
+      ]
+    case 'situation':
+      return [
+        e.situationNumber ? `Situação n.º ${e.situationNumber}` : '',
+        renseigne(e.situationAvancement) ? `avanço de ${pourcentPt(e.situationAvancement)} %` : '',
+      ]
+    case 'avoir':
+      return [surParent]
+    default:
+      return []
+  }
+}
+
+/** Régime d'IVA du document, avec les mêmes replis que le modèle par défaut (anciens documents). */
+function regimeEffectif(e: PdfV3Input): 'classique' | 'franchise_293b' | 'autoliquidation_btp' {
+  if (e.regimeTva) return e.regimeTva
+  if (e.autoliquidationBTP) return 'autoliquidation_btp'
+  return e.tvaEnabled ? 'classique' : 'franchise_293b'
+}
+
+/** Une prestação du plan de paiement : pourcentage du total et moment (« no início dos trabalhos »). */
+interface Prestacao {
+  pct: number
+  quando: string
+}
+
+/**
+ * Échéancier des acomptes du devis en prestações. Le gabarit exige un plan qui fait 100 % ; le formulaire
+ * propose par défaut un seul acompte de 30 % : le reste devient la dernière prestação, le solde.
+ */
+export function prestacoesDoDevis(acomptes: DevisAcompte[] | null | undefined): Prestacao[] {
+  const valides = (acomptes || []).filter((a) => a && Number.isFinite(a.pourcentage) && a.pourcentage > 0)
+  const prestacoes = valides.map((a) => ({ pct: a.pourcentage, quando: quandoPrestacao(a.declencheur) }))
+  const reste = round2(100 - sumMoney(valides.map((a) => a.pourcentage)))
+  if (prestacoes.length > 0 && reste > 0) prestacoes.push({ pct: reste, quando: 'de saldo, contra a fatura final' })
+  return prestacoes
+}
+
 function articleDeLigne(l: ProductLine, code: string): Article {
-  const propre = textePdf(l.description.replace(/\s*\[[^\]]*\]/g, '').trim())
+  const propre = traduireLibellesGeneres(textePdf(l.description.replace(/\s*\[[^\]]*\]/g, '').trim()))
   const [titre, ...reste] = propre.split('\n')
   let detail = reste.join('\n').trim()
   const etapes = [...(l.etapes || [])]
@@ -394,7 +526,7 @@ function articleDeLigne(l: ProductLine, code: string): Article {
   return {
     code,
     titre: titre.trim(),
-    bloc: [detail, textePdf(l.lineDetail).trim()].filter(Boolean).join('\n'),
+    bloc: [detail, traduireLibellesGeneres(textePdf(l.lineDetail).trim())].filter(Boolean).join('\n'),
     etapes,
     unite: unidadePt(l.unit, l.customUnit),
     qt,
@@ -405,17 +537,17 @@ function articleDeLigne(l: ProductLine, code: string): Article {
   }
 }
 
-/** Mêmes sections que le modèle BTP par défaut, dans le même ordre. */
+/** Mêmes sections que le modèle BTP par défaut, dans le même ordre ; une section désactivée ou vide est sautée. */
 function chapitresDocument(e: PdfV3Input): Chapitre[] {
-  const remplies = (lignes: ProductLine[] | undefined): lignes is ProductLine[] =>
-    Array.isArray(lignes) && lignes.some(ligneRemplie)
-  const sections: Array<{ nom: string; lignes: ProductLine[] }> = []
-  if (remplies(e.laborLines)) sections.push({ nom: e.linesName || '', lignes: e.laborLines })
-  if (e.materialLinesEnabled !== false && remplies(e.materialLines)) sections.push({ nom: e.materialLinesName || 'Materiais', lignes: e.materialLines })
-  if (e.fraisLinesEnabled !== false && remplies(e.fraisLines)) sections.push({ nom: e.fraisLinesName || 'Despesas acessórias', lignes: e.fraisLines })
-  for (const table of e.customTables || []) {
-    if (table && remplies(table.lines)) sections.push({ nom: table.name || 'Secção', lignes: table.lines })
-  }
+  const candidates: Array<{ nom: string | undefined; parDefaut: string; lignes: ProductLine[] | undefined; active: boolean }> = [
+    { nom: e.linesName, parDefaut: '', lignes: e.laborLines, active: true },
+    { nom: e.materialLinesName, parDefaut: 'Materiais', lignes: e.materialLines, active: e.materialLinesEnabled !== false },
+    { nom: e.fraisLinesName, parDefaut: 'Despesas acessórias', lignes: e.fraisLines, active: e.fraisLinesEnabled !== false },
+    ...(e.customTables || []).filter(Boolean).map((t) => ({ nom: t.name, parDefaut: 'Secção', lignes: t.lines, active: true })),
+  ]
+  const sections = candidates
+    .filter((c) => c.active && Array.isArray(c.lignes) && c.lignes.some(ligneRemplie))
+    .map((c) => ({ nom: c.nom || c.parDefaut, lignes: c.lignes ?? [] }))
   if (sections.length === 0) sections.push({ nom: '', lignes: e.lines || [] })
   const seule = sections.length === 1
   return sections.map((s, i) => {
@@ -463,6 +595,10 @@ interface Rangee {
   hauteur: number
   /** À garder sur la même page que la rangée suivante (titre de capítulo, dernier artigo et sous-total). */
   liee: boolean
+  /** Artigo d'un groupe plus haut qu'une page : coupé sur place plutôt que renvoyé à la page suivante. */
+  coupable?: boolean
+  /** Hauteur de la rangée liée qui suit (sous-total), à garder avec les dernières lignes de l'artigo. */
+  reserveApres?: number
   dessiner: () => void
 }
 
@@ -497,8 +633,24 @@ const ligneDeBase = (hauteur: number, taille: number) => hauteur / 2 + 0.3465 * 
 
 const somme = (valeurs: number[]) => valeurs.reduce((s, v) => s + v, 0)
 
+/**
+ * Ressource du gabarit manquante (police, logo, photo, signature) : le PDF sort quand même, dégradé.
+ * Remonté à Sentry pour que cela ne passe pas inaperçu en production, comme l'échec de Factur-X du V3.
+ */
 function avertir(contexte: string, erreur: unknown) {
   if (process.env.NODE_ENV !== 'production') console.warn(`[PDF Method Soluções] ${contexte}`, erreur)
+  import('@sentry/nextjs')
+    .then((Sentry) => {
+      Sentry.captureException(erreur instanceof Error ? erreur : new Error(String(erreur)), {
+        level: 'warning',
+        tags: { pdf_modele: 'method-solucoes' },
+        extra: { contexte },
+      })
+    })
+    .catch((echec: unknown) => {
+      // Sentry indisponible (bloqueur, hors ligne) : seul le PDF compte ici.
+      if (process.env.NODE_ENV !== 'production') console.warn('[PDF Method Soluções] Sentry indisponible', echec)
+    })
 }
 
 class DocumentMethod {
@@ -510,7 +662,8 @@ class DocumentMethod {
   private readonly chapitres: Chapitre[]
   /** Taux des artigos, distincts, du plus fort au plus faible */
   private readonly taux: number[]
-  private readonly acomptes: DevisAcompte[]
+  /** Échéancier du devis en prestações ; complété par le solde quand les acomptes ne font pas 100 %. */
+  private readonly prestacoes: Prestacao[]
   private readonly registo: { rotulo: string; valor: string } | null
 
   constructor(
@@ -520,11 +673,11 @@ class DocumentMethod {
     private readonly e: PdfV3Input,
   ) {
     this.devis = e.docType !== 'facture'
-    this.regime = e.regimeTva ?? (e.autoliquidationBTP ? 'autoliquidation_btp' : (e.tvaEnabled ? 'classique' : 'franchise_293b'))
+    this.regime = regimeEffectif(e)
     this.avecIva = this.regime === 'classique' && e.tvaEnabled
     this.chapitres = chapitresDocument(e)
     this.taux = [...new Set(this.chapitres.flatMap((c) => c.articles.map((a) => a.taux)))].sort((a, b) => b - a)
-    this.acomptes = e.acomptesEnabled ? (e.acomptes || []).filter((a) => a && a.pourcentage > 0) : []
+    this.prestacoes = prestacoesDoDevis(e.acomptesEnabled ? e.acomptes : [])
     this.registo = registoEmpresa(e.companyRCS)
   }
 
@@ -548,7 +701,7 @@ class DocumentMethod {
     }
     await this.annexePhotos()
     this.piedsDePage()
-    const projet = tituloPersonalizado(this.e.docTitle, this.e.docNumber)
+    const projet = tituloPersonalizado(this.e.docTitle)
     this.pdf.setProperties({
       title: `${tituloDocumento(this.e)} n.º ${textePdf(this.e.docNumber)} · ${projet || MARCA_METHOD}`,
       author: this.nomEmpresa(),
@@ -848,26 +1001,9 @@ class DocumentMethod {
   /** Sous le titre : titre saisi pour le document, précisions des factures d'acompte, de situation et des notes de crédito. */
   private ligneProjet(): string[] {
     const e = this.e
-    const parties = [tituloPersonalizado(e.docTitle, e.docNumber)]
-    const parent = textePdf(e.parentInvoiceNumber).trim()
-    const typeParent = /^DEV-/i.test(parent) ? 'orçamento' : 'fatura'
-    const surParent = parent ? `sobre ${typeParent} n.º ${parent}` : ''
-    const lignes: string[] = []
-    if (e.docType === 'facture' && e.factureSubType === 'acompte') {
-      if (e.acompteOrdre && e.acompteTotal) parties.push(`Adiantamento n.º ${e.acompteOrdre} de ${e.acompteTotal}`)
-      if (e.acomptePourcentage !== null && e.acomptePourcentage !== undefined) parties.push(`${pourcentPt(e.acomptePourcentage)} %`)
-      parties.push(surParent)
-    } else if (e.docType === 'facture' && e.factureSubType === 'situation') {
-      if (e.situationNumber) parties.push(`Situação n.º ${e.situationNumber}`)
-      if (e.situationAvancement !== null && e.situationAvancement !== undefined) parties.push(`avanço de ${pourcentPt(e.situationAvancement)} %`)
-    } else if (e.docType === 'facture' && e.factureSubType === 'avoir') {
-      parties.push(surParent)
-    }
-    const premiere = parties.filter(Boolean).join(' · ')
-    if (premiere) lignes.push(premiere)
-    const motif = textePdf(e.avoirMotif).trim()
-    if (e.factureSubType === 'avoir' && motif) lignes.push(`Motivo: ${motif}`)
-    return lignes
+    const premiere = [tituloPersonalizado(e.docTitle), ...detalheFatura(e)].filter(Boolean).join(' · ')
+    const motif = e.docType === 'facture' && e.factureSubType === 'avoir' ? textePdf(e.avoirMotif).trim() : ''
+    return [premiere, motif ? `Motivo: ${motif}` : ''].filter(Boolean)
   }
 
   // ── En-tête : logo, ligne légale, filet or, type de document, ligne du projet, badge du numéro ──
@@ -1025,13 +1161,13 @@ class DocumentMethod {
 
   private casesDevis(): Array<[string, string]> {
     const e = this.e
-    const pagamento = this.acomptes.length > 0
-      ? this.acomptes.map((a) => pourcentPt(a.pourcentage)).join(' / ')
-      : prazoPagamento(e.paymentDue).curto
+    const pagamento = this.prestacoes.length > 0 ? this.planoCurto() : prazoPagamento(e.paymentDue).curto
+    // Sans délai, la date de début saisie reste visible (le modèle par défaut l'affiche dans sa propre case).
+    const inicio = e.prestationDate ? `Início em ${datePt(e.prestationDate)}` : 'A combinar'
     return [
       ['Data', datePt(e.docDate) || POINTILLES_COURTS],
       ['Validade', this.validite()],
-      ['Prazo de execução', prazoExecucao(e.executionDelay) || 'A combinar'],
+      ['Prazo de execução', prazoExecucao(e.executionDelay) || inicio],
       ['Pagamento', pagamento],
     ]
   }
@@ -1186,40 +1322,65 @@ class DocumentMethod {
       this.ecrireCellule(`${pourcentPt(a.taux)} %`, cols.iva, base)
       this.ecrireCellule(nombrePt(a.total), cols.total, base)
     }
-    return {
+    const rangee: Rangee = {
       hauteur,
       liee,
       dessiner: () => {
         const capacite = BAS_PAGE - MARGE_HAUT - HAUTEUR_ENTETE_TABLEAU
-        if (this.y + hauteur > BAS_PAGE + TOLERANCE && hauteur <= capacite) this.sautTableau(cols)
-        if (this.y + hauteur <= BAS_PAGE + TOLERANCE) {
-          chiffres(this.y)
-          let haut = this.y + PAD_ARTICLE
-          for (const el of elements) {
-            el.dessiner(haut)
-            haut += el.hauteur
-          }
-          this.y += hauteur
-          this.filet(MARGE_GAUCHE, this.y - 0.25, MARGE_GAUCHE + LARGEUR, COR.filet, 0.5)
+        // Coupé sur place, l'artigo garde aussi la place de son sous-total sur la page de ses dernières lignes.
+        const reserve = rangee.coupable ? (rangee.reserveApres ?? 0) : 0
+        const besoin = hauteur + reserve
+        if (this.y + besoin > BAS_PAGE + TOLERANCE && hauteur <= capacite && !rangee.coupable) this.sautTableau(cols)
+        if (this.y + besoin > BAS_PAGE + TOLERANCE) {
+          this.dessinerArticleCoupe(elements, cols, chiffres, rangee.reserveApres ?? 0)
           return
         }
-        this.dessinerArticleCoupe(elements, cols, chiffres)
+        chiffres(this.y)
+        let haut = this.y + PAD_ARTICLE
+        for (const el of elements) {
+          el.dessiner(haut)
+          haut += el.hauteur
+        }
+        this.y += hauteur
+        this.filet(MARGE_GAUCHE, this.y - 0.25, MARGE_GAUCHE + LARGEUR, COR.filet, 0.5)
       },
     }
+    return rangee
   }
 
-  /** Artigo plus haut qu'une page : coupé entre deux lignes de texte, chiffres sur sa première partie. */
-  private dessinerArticleCoupe(elements: Element[], cols: Colonnes, chiffres: (haut: number) => void) {
-    if (this.y + PAD_ARTICLE + elements[0].hauteur > BAS_PAGE + TOLERANCE) this.sautTableau(cols)
+  /** Nombre d'éléments, à partir de `depuis`, qui tiennent sous le bord haut `haut` sans passer le bas de page. */
+  private elementsQuiTiennent(elements: Element[], depuis: number, haut: number): number {
+    let n = 0
+    let bas = haut
+    while (depuis + n < elements.length && bas + elements[depuis + n].hauteur <= BAS_PAGE + TOLERANCE) {
+      bas += elements[depuis + n].hauteur
+      n++
+    }
+    return n
+  }
+
+  /**
+   * Artigo coupé entre deux lignes de texte (plus haut qu'une page, ou dans un groupe qui en dépasse une),
+   * chiffres sur sa première partie. Comme le gabarit (orphans et widows à 2) : au moins deux lignes de
+   * chaque côté d'une coupure, et la rangée liée qui suit (sous-total) reste avec les dernières lignes.
+   */
+  private dessinerArticleCoupe(elements: Element[], cols: Colonnes, chiffres: (haut: number) => void, reserveApres: number) {
+    if (this.elementsQuiTiennent(elements, 0, this.y + PAD_ARTICLE) < Math.min(2, elements.length)) this.sautTableau(cols)
     chiffres(this.y)
     let i = 0
     while (i < elements.length) {
+      let n = Math.max(1, this.elementsQuiTiennent(elements, i, this.y + PAD_ARTICLE))
+      if (elements.length - i - n === 1 && n > 2) n -= 1
+      const derniere = i + n === elements.length
+      const bas = this.y + PAD_ARTICLE + somme(elements.slice(i, i + n).map((el) => el.hauteur)) + PAD_ARTICLE + 0.5
+      // Dernières lignes : si le sous-total n'a plus la place, une ou deux lignes descendent avec lui.
+      if (derniere && bas + reserveApres > BAS_PAGE + TOLERANCE && n > 2) n -= Math.min(2, n - 2)
       let haut = this.y + PAD_ARTICLE
-      while (i < elements.length && haut + elements[i].hauteur <= BAS_PAGE + TOLERANCE) {
-        elements[i].dessiner(haut)
-        haut += elements[i].hauteur
-        i++
+      for (const el of elements.slice(i, i + n)) {
+        el.dessiner(haut)
+        haut += el.hauteur
       }
+      i += n
       if (i < elements.length) this.sautTableau(cols)
       else this.y = haut + PAD_ARTICLE + 0.5
     }
@@ -1266,6 +1427,14 @@ class DocumentMethod {
     }
     if (groupe.length > 0) groupes.push(groupe)
     const capacite = BAS_PAGE - MARGE_HAUT - HAUTEUR_ENTETE_TABLEAU
+    // Groupe plus haut qu'une page : ses artigos sont coupés sur place, le titre du capítulo reste avec leurs
+    // premières lignes et le sous-total avec leurs dernières (sinon titre seul en bas de page, sous-total seul en haut).
+    for (const g of groupes) {
+      if (somme(g.map((r) => r.hauteur)) > capacite) for (const r of g) r.coupable = true
+    }
+    rangees.forEach((r, i) => {
+      if (r.liee && rangees[i + 1]) r.reserveApres = rangees[i + 1].hauteur
+    })
     // Ce qui doit tenir sur la page pour commencer un groupe : le groupe entier ; s'il dépasse une page (artigo
     // très long, coupé ensuite entre ses lignes), son titre de capítulo et les premières lignes de l'artigo.
     const debutInsecable = (g: Rangee[]) => {
@@ -1379,19 +1548,30 @@ class DocumentMethod {
     return this.avecIva ? 'total c/IVA' : 'total'
   }
 
+  /**
+   * « acrescido de IVA à taxa legal de 23 % » : « legal » seulement pour les taux du continent portugais
+   * (23, 13, 6 %). Le formulaire BTP ne propose que les taux français : 20 % n'y est pas un taux légal.
+   */
   private texteIvaPrix(): string {
     if (this.regime === 'autoliquidation_btp') return 'com IVA em regime de autoliquidação'
     if (this.regime === 'franchise_293b') return 'sem IVA (artigo 53.º do CIVA)'
     if (!this.avecIva) return ''
-    return this.taux.length > 1
-      ? 'acrescido de IVA às taxas legais indicadas nos artigos'
-      : `acrescido de IVA à taxa legal de ${pourcentPt(this.taux[0] ?? 0)} %`
+    const legais = this.taux.length > 0 && this.taux.every((t) => TAXAS_IVA_PT.has(t))
+    if (this.taux.length > 1) return `acrescido de IVA às taxas${legais ? ' legais' : ''} indicadas nos artigos`
+    return `acrescido de IVA à taxa${legais ? ' legal' : ''} de ${pourcentPt(this.taux[0] ?? 0)} %`
   }
 
+  /** « 5 semanas a contar da consignação », « a combinar, com início previsto em 01/12/2026 », ou ''. */
   private prazoComInicio(): string {
     const prazo = prazoExecucao(this.e.executionDelay)
-    if (!prazo) return ''
-    return `${prazo} ${this.e.prestationDate ? `a contar de ${datePt(this.e.prestationDate)}` : 'a contar da consignação'}`
+    const inicio = this.e.prestationDate ? datePt(this.e.prestationDate) : ''
+    if (prazo) return `${prazo} ${inicio ? `a contar de ${inicio}` : 'a contar da consignação'}`
+    return inicio ? `a combinar, com início previsto em ${inicio}` : ''
+  }
+
+  /** « 50 / 30 / 20 » */
+  private planoCurto(): string {
+    return this.prestacoes.map((p) => pourcentPt(p.pct)).join(' / ')
   }
 
   private validite(): string {
@@ -1404,8 +1584,10 @@ class DocumentMethod {
     return modo.curto === 'Transferência bancária' && this.e.iban ? 'por transferência bancária para o IBAN indicado' : modo.frase
   }
 
-  private notes(): Fragment[] | null {
-    const notes = textePdf(this.e.notes).trim()
+  /** Notes du document, libellés de Vitfix traduits ; sans la référence du devis quand elle est reprise à part. */
+  private notes(sansReferenceDevis = false): Fragment[] | null {
+    let notes = traduireLibellesGeneres(textePdf(this.e.notes)).trim()
+    if (sansReferenceDevis) notes = notes.split('\n').filter((l) => !REFERENCE_ORCAMENTO.test(l)).join('\n').trim()
     return notes ? [{ texte: 'Notas', gras: true }, { texte: ` ${insecables(notes)}` }] : null
   }
 
@@ -1413,8 +1595,8 @@ class DocumentMethod {
   private paragraphesConditions(): Fragment[][] {
     const e = this.e
     const iva = this.texteIvaPrix()
-    const plano = this.acomptes.length > 0
-      ? juntar(this.acomptes.map((a) => `${pourcentPt(a.pourcentage)} % ${quandoPrestacao(a.declencheur)}`))
+    const plano = this.prestacoes.length > 0
+      ? juntar(this.prestacoes.map((p) => `${pourcentPt(p.pct)} % ${p.quando}`))
       : modoPagamento(e.paymentMode).frase
     const prazo = this.prazoComInicio()
     const paragraphes: Fragment[][] = [
@@ -1431,7 +1613,7 @@ class DocumentMethod {
         { texte: insecables(` ${this.validite()}. A assinatura e o carimbo do dono de obra valem adjudicação e aceitação das condições gerais, em duplicado.`) },
       ],
     ]
-    const complements = [descontoPagamento(e.paymentCondition), e.penaltyRate ? `Juros de mora: ${textePdf(e.penaltyRate)}.` : ''].filter(Boolean)
+    const complements = [descontoPagamento(e.paymentCondition), jurosDeMora(e.penaltyRate)].filter(Boolean)
     if (complements.length > 0) paragraphes.push([{ texte: insecables(complements.join(' ')) }])
     const notes = this.notes()
     if (notes) paragraphes.push(notes)
@@ -1443,13 +1625,13 @@ class DocumentMethod {
     const e = this.e
     const iban = textePdf(e.iban).trim()
     const bic = textePdf(e.bic).trim()
-    if (this.acomptes.length > 0) {
+    if (this.prestacoes.length > 0) {
+      // Même base et même arrondi que l'échéancier du modèle par défaut : la dernière prestação prend le reste.
       const base = this.avecIva ? e.totalTTC : e.subtotalHT
-      const montants = computeAcomptesAmounts(base, this.acomptes.map((a) => ({ pourcentage: a.pourcentage })))
+      const montants = computeAcomptesAmounts(base, this.prestacoes.map((p) => ({ pourcentage: p.pct })))
       const prestacoes = montants.map((m, i) => `${i + 1}.ª prestação ${eurosPt(m)}`.replace(/ /g, ESP)).join(' · ')
-      const plano = this.acomptes.map((a) => pourcentPt(a.pourcentage)).join(' / ')
       return [
-        [{ texte: insecables(`Pagamento ${plano}`), gras: true }, { texte: ` · ${prestacoes}` }],
+        [{ texte: insecables(`Pagamento ${this.planoCurto()}`), gras: true }, { texte: ` · ${prestacoes}` }],
         [{ texte: insecables(iban ? `IBAN ${iban} · prestações sobre o ${this.baseIvaPrestacoes()}` : `Prestações sobre o ${this.baseIvaPrestacoes()}`) }],
       ]
     }
@@ -1475,13 +1657,16 @@ class DocumentMethod {
       texte: insecables([
         descontoPagamento(e.paymentCondition),
         'Em caso de mora aplicam-se os juros legais e, sendo o adquirente empresa ou profissional, a indemnização de custos de cobrança do Decreto-Lei n.º 62/2013.',
-        e.penaltyRate ? `Juros de mora: ${textePdf(e.penaltyRate)}.` : '',
+        jurosDeMora(e.penaltyRate),
       ].filter(Boolean).join(' ')),
     }])
-    const notes = textePdf(e.notes)
-    const origine = textePdf(e.sourceDevisRef).trim() || (/(?:Réf\. devis|Ref\. orçamento)\s*:\s*([^\n]+)/.exec(notes)?.[1]?.trim() ?? '')
+    // Devis d'origine : champ du document, sinon la référence que Vitfix écrit dans les notes d'une facture
+    // émise depuis un devis signé (« Réf. devis : … », « Ref. orçamento: … »).
+    const notes = traduireLibellesGeneres(textePdf(e.notes))
+    const reference = notes.split('\n').map((l) => REFERENCE_ORCAMENTO.exec(l)?.[1]?.trim()).find(Boolean)
+    const origine = textePdf(e.sourceDevisRef).trim() || reference || ''
     if (origine) paragraphes.push([{ texte: insecables(`Fatura relativa ao orçamento n.º ${origine}.`) }])
-    const blocNotes = this.notes()
+    const blocNotes = this.notes(!!origine)
     if (blocNotes) paragraphes.push(blocNotes)
     return paragraphes
   }
@@ -1661,8 +1846,8 @@ class DocumentMethod {
   private clausePagamento(): string {
     const e = this.e
     const doTotal = this.avecIva ? 'do total c/IVA' : 'do total'
-    const plano = this.acomptes.length > 0
-      ? `${this.acomptes.map((a, i) => `${pourcentPt(a.pourcentage)} %${i === 0 ? ` ${doTotal}` : ''} ${quandoPrestacao(a.declencheur)}`).join('; ')}.`
+    const plano = this.prestacoes.length > 0
+      ? `${this.prestacoes.map((p, i) => `${pourcentPt(p.pct)} %${i === 0 ? ` ${doTotal}` : ''} ${p.quando}`).join('; ')}.`
       : `Pagamento ${doTotal} contra fatura.`
     return majuscule(`${plano} Faturas ${prazoPagamento(e.paymentDue).vencimento}, ${this.modoComIban()}. Em caso de mora aplicam-se os juros legais e, sendo o dono de obra empresa ou profissional, a indemnização de custos de cobrança do Decreto-Lei n.º 62/2013. O empreiteiro pode suspender os trabalhos após 15 dias de atraso no pagamento, sem prejuízo do prazo.`)
   }
@@ -1718,38 +1903,49 @@ class DocumentMethod {
 
   /** Petites lignes finales : mentions d'IVA, assurance, médiation, origine du document. */
   private notaFinal(): string {
-    const e = this.e
-    const partes: string[] = []
+    return [
+      this.mentionIva(),
+      this.mentionSeguro(),
+      this.mentionMediacao(),
+      `Documento gerado por Vitfix Pro em ${dateDuJour()}.`,
+    ].filter(Boolean).join(' ')
+  }
+
+  /**
+   * Mention d'IVA du gabarit. La mention conditionnelle de la verba 2.42.1 (IVA 6 %) dépend d'une option que le
+   * formulaire n'a pas (construction destinée à l'habitation) : elle n'est pas reprise.
+   */
+  private mentionIva(): string {
     const autoliquidacao = '«IVA - autoliquidação»'
+    const alinea = 'alínea j) do n.º 1 do artigo 2.º do CIVA'
     if (this.regime === 'autoliquidation_btp') {
-      partes.push(this.devis
-        ? `IVA devido pelo adquirente nos termos da alínea j) do n.º 1 do artigo 2.º do CIVA; a fatura é emitida com a menção ${autoliquidacao}.`
-        : 'IVA - autoliquidação: IVA devido pelo adquirente nos termos da alínea j) do n.º 1 do artigo 2.º do CIVA.')
-    } else if (this.regime === 'franchise_293b') {
-      partes.push(getMentionLegale('franchise_293b', 'pt') ?? '')
-    } else if (this.avecIva) {
-      const taux = this.taux.length > 1 ? 'IVA às taxas indicadas nos artigos' : `IVA à taxa de ${pourcentPt(this.taux[0] ?? 0)} %`
-      partes.push(this.devis
-        ? `${taux}; caso o dono de obra seja sujeito passivo de IVA nas condições da alínea j) do n.º 1 do artigo 2.º do CIVA, aplica-se a inversão do sujeito passivo e a fatura é emitida com a menção ${autoliquidacao}.`
-        : `${taux}.`)
-      if (this.taux.includes(6)) {
-        partes.push('A taxa reduzida de 6 % da verba 2.42.1 da Lista I anexa ao CIVA (Decreto-Lei n.º 97/2026) aplica-se apenas se o imóvel se destinar a venda para habitação própria e permanente do adquirente ou a arrendamento habitacional, nos limites e nas condições legais, e o dono de obra o comprovar documentalmente antes da primeira fatura.')
-      }
+      return this.devis
+        ? `IVA devido pelo adquirente nos termos da ${alinea}; a fatura é emitida com a menção ${autoliquidacao}.`
+        : `IVA - autoliquidação: IVA devido pelo adquirente nos termos da ${alinea}.`
     }
+    if (this.regime === 'franchise_293b') return getMentionLegale('franchise_293b', 'pt') ?? ''
+    if (!this.avecIva) return ''
+    const taux = this.taux.length > 1 ? 'IVA às taxas indicadas nos artigos' : `IVA à taxa de ${pourcentPt(this.taux[0] ?? 0)} %`
+    if (!this.devis) return `${taux}.`
+    return `${taux}; caso o dono de obra seja sujeito passivo de IVA nas condições da ${alinea}, aplica-se a inversão do sujeito passivo e a fatura é emitida com a menção ${autoliquidacao}.`
+  }
+
+  private mentionSeguro(): string {
+    const e = this.e
     const seguradora = textePdf(e.insuranceName).trim()
-    if (seguradora) {
-      const tipo = TIPOS_SEGURO[e.insuranceType] ?? TIPOS_SEGURO.rc_pro
-      const apolice = textePdf(e.insuranceNumber).trim()
-      const cobertura = textePdf(e.insuranceCoverage).trim()
-      partes.push(`${tipo}: ${seguradora}${apolice ? `, apólice n.º ${apolice}` : ''}${cobertura ? `, cobertura ${cobertura}` : ''}.`)
-    }
-    const mediador = textePdf(e.mediatorName).trim()
-    if (e.clientType === 'particulier' && mediador) {
-      const url = textePdf(e.mediatorUrl).trim()
-      partes.push(`Resolução alternativa de litígios (Lei n.º 144/2015): ${mediador}${url ? `, ${url}` : ''}.`)
-    }
-    partes.push(`Documento gerado por Vitfix Pro em ${dateDuJour()}.`)
-    return partes.filter(Boolean).join(' ')
+    if (!seguradora) return ''
+    const tipo = TIPOS_SEGURO[e.insuranceType] ?? TIPOS_SEGURO.rc_pro
+    const apolice = textePdf(e.insuranceNumber).trim()
+    const cobertura = textePdf(e.insuranceCoverage).trim()
+    return `${tipo}: ${seguradora}${apolice ? `, apólice n.º ${apolice}` : ''}${cobertura ? `, cobertura ${cobertura}` : ''}.`
+  }
+
+  /** Médiation de la consommation, pour un particulier seulement (comme le modèle par défaut). */
+  private mentionMediacao(): string {
+    const mediador = textePdf(this.e.mediatorName).trim()
+    if (this.e.clientType !== 'particulier' || !mediador) return ''
+    const url = textePdf(this.e.mediatorUrl).trim()
+    return `Resolução alternativa de litígios (Lei n.º 144/2015): ${mediador}${url ? `, ${url}` : ''}.`
   }
 
   private petitTexte(texte: string, margeHaut: number) {
@@ -1894,7 +2090,10 @@ class DocumentMethod {
 async function chargerOctets(url: string): Promise<Uint8Array | null> {
   try {
     const reponse = await fetch(url)
-    if (!reponse.ok) return null
+    if (!reponse.ok) {
+      avertir(`ressource absente : ${url}`, new Error(`HTTP ${reponse.status}`))
+      return null
+    }
     return new Uint8Array(await reponse.arrayBuffer())
   } catch (erreur) {
     avertir(`ressource absente : ${url}`, erreur)

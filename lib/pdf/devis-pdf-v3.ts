@@ -430,8 +430,14 @@ export async function generateDevisPdfV3(
 
   // Dynamic imports (browser-only)
   let jsPDFMod: typeof import('jspdf'), autoTableModule: typeof import('jspdf-autotable')
+  // Gabarit Method Soluções : son module se charge avec jsPDF (même reprise en cas d'échec de chargement).
+  let moduleMethod: typeof import('@/lib/pdf/modele-method-solucoes') | null = null
   try {
-    [jsPDFMod, autoTableModule] = await Promise.all([import('jspdf'), import('jspdf-autotable')])
+    [jsPDFMod, autoTableModule, moduleMethod] = await Promise.all([
+      import('jspdf'),
+      import('jspdf-autotable'),
+      input.modele === 'method-solucoes' ? import('@/lib/pdf/modele-method-solucoes') : Promise.resolve(null),
+    ])
   } catch (chunkErr) {
     const retryKey = 'pdf_chunk_retry'
     if (!sessionStorage.getItem(retryKey)) {
@@ -449,10 +455,9 @@ export async function generateDevisPdfV3(
   // ─── Gabarit Method Soluções (lib/pdf/modele-method-solucoes.ts) ───
   // Seule sa fiche reçoit `modele: 'method-solucoes'` : le document entier est dessiné par ce module,
   // avec les mêmes données. Toutes les autres sociétés continuent ci-dessous, sans changement.
-  if (input.modele === 'method-solucoes') {
-    const { rendreDocumentMethodSolucoes, nomFichierMethodSolucoes } = await import('@/lib/pdf/modele-method-solucoes')
-    const pdfMethod = await rendreDocumentMethodSolucoes(jsPDF, sanitizedInput)
-    return livrerPdf(pdfMethod, nomFichierMethodSolucoes(sanitizedInput), null, input.action)
+  if (moduleMethod) {
+    const pdfMethod = await moduleMethod.rendreDocumentMethodSolucoes(jsPDF, sanitizedInput)
+    return livrerPdf(pdfMethod, moduleMethod.nomFichierMethodSolucoes(sanitizedInput), null, input.action)
   }
 
   // ════════════════════════════════════════════════════════════════

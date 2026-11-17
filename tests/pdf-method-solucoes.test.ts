@@ -17,6 +17,7 @@ import {
   descontoPagamento,
   eurosPt,
   insecables,
+  jurosDeMora,
   modoPagamento,
   nomeCapitulo,
   nomFichierMethodSolucoes,
@@ -24,10 +25,12 @@ import {
   pourcentPt,
   prazoExecucao,
   prazoPagamento,
+  prestacoesDoDevis,
   quandoPrestacao,
   quantitePt,
   registoEmpresa,
   tituloPersonalizado,
+  traduireLibellesGeneres,
   unidadePt,
   vencimentoFatura,
 } from '@/lib/pdf/modele-method-solucoes'
@@ -301,7 +304,7 @@ describe('Valeurs du formulaire traduites pour le gabarit', () => {
     expect(prazoExecucao('5 semaines')).toBe('5 semanas')
     expect(prazoExecucao('1 mois')).toBe('1 mês')
     expect(prazoExecucao('10 jours ouvrés')).toBe('10 dias úteis')
-    expect(prazoExecucao('3 jours calendaires')).toBe('3 dias corridos')
+    expect(prazoExecucao('3 jours calendaires')).toBe('3 dias de calendário')
     expect(prazoExecucao('5 meses')).toBe('5 meses')
     expect(unidadePt('u')).toBe('un')
     expect(unidadePt('f')).toBe('vg')
@@ -316,14 +319,48 @@ describe('Valeurs du formulaire traduites pour le gabarit', () => {
     expect(nomeCapitulo('Frais annexes', false)).toBe('Despesas acessórias')
     expect(nomeCapitulo('Estrutura', true)).toBe('Estrutura')
     expect(nomeCapitulo('', true)).toBe('Trabalhos')
-    expect(tituloPersonalizado('Devis DEV-2026-001', 'DEV-2026-001')).toBe('')
-    expect(tituloPersonalizado('Orçamento DEV-2026-001', 'DEV-2026-001')).toBe('')
-    expect(tituloPersonalizado('Fatura', 'FACT-2026-001')).toBe('')
-    expect(tituloPersonalizado('Moradia unifamiliar · estrutura', 'DEV-2026-001')).toBe('Moradia unifamiliar · estrutura')
+    expect(tituloPersonalizado('Devis DEV-2026-001')).toBe('')
+    expect(tituloPersonalizado('Orçamento DEV-2026-001')).toBe('')
+    expect(tituloPersonalizado('Fatura')).toBe('')
+    expect(tituloPersonalizado('Moradia unifamiliar · estrutura')).toBe('Moradia unifamiliar · estrutura')
     expect(registoEmpresa('Alvará IMPIC n.º 000000-PAR')).toEqual({ rotulo: 'Alvará', valor: 'IMPIC n.º 000000-PAR' })
     expect(registoEmpresa('IMPIC 000000-PAR')).toEqual({ rotulo: 'Alvará', valor: 'IMPIC 000000-PAR' })
     expect(registoEmpresa('Matrícula 500000000')).toEqual({ rotulo: 'Registo', valor: 'Matrícula 500000000' })
     expect(registoEmpresa('')).toBeNull()
+  })
+
+  it('complète l\'échéancier par le solde et omet la pénalité de retard par défaut du formulaire', () => {
+    // Valeurs par défaut du formulaire BTP : un acompte de 30 % à la signature, « 3 × taux d'intérêt légal en vigueur »
+    expect(prestacoesDoDevis([{ id: 'a1', ordre: 1, label: 'Acompte 1', pourcentage: 30, declencheur: 'À la signature' }])).toEqual([
+      { pct: 30, quando: 'na adjudicação' },
+      { pct: 70, quando: 'de saldo, contra a fatura final' },
+    ])
+    expect(prestacoesDoDevis([
+      { id: 'a1', ordre: 1, label: 'A', pourcentage: 50, declencheur: 'Au démarrage' },
+      { id: 'a2', ordre: 2, label: 'B', pourcentage: 50, declencheur: 'À la livraison' },
+    ])).toHaveLength(2)
+    expect(prestacoesDoDevis([])).toEqual([])
+    expect(jurosDeMora("3 × taux d'intérêt légal en vigueur")).toBe('')
+    expect(jurosDeMora('')).toBe('')
+    expect(jurosDeMora('8 % ao ano')).toBe('Juros de mora: 8 % ao ano.')
+  })
+
+  it('traduit les libellés que Vitfix rédige en français pour les factures d\'acompte et de solde', () => {
+    expect(traduireLibellesGeneres('Acompte déjà facturé - facture n° FACT-2026-002 du 20/11/2026, net de l\'avoir n° AV-2026-001 - TVA 20 %'))
+      .toBe('Adiantamento já faturado - fatura n.º FACT-2026-002 de 20/11/2026, líquido da nota de crédito n.º AV-2026-001 - IVA 20 %')
+    expect(traduireLibellesGeneres('Acompte de 30 % sur travaux soumis à la TVA au taux de 20 %'))
+      .toBe('Adiantamento de 30 % por conta dos trabalhos sujeitos a IVA à taxa de 20 %')
+    expect(traduireLibellesGeneres('Acompte de 33,33 % sur travaux sous-traités - autoliquidation de la TVA'))
+      .toBe('Adiantamento de 33,33 % por conta dos trabalhos - IVA - autoliquidação')
+    expect(traduireLibellesGeneres('Devis n° DEV-2026-001 du 17/11/2026\nBase HT à ce taux : 5 287,62 €'))
+      .toBe('Orçamento n.º DEV-2026-001 de 17/11/2026\nBase tributável a esta taxa: 5 287,62 €')
+    expect(traduireLibellesGeneres('Acompte de 30 % (n° 1 sur 2) sur le devis n° DEV-2026-001 du 17/11/2026. Échéance : À la signature.'))
+      .toBe('Adiantamento de 30 % (n.º 1 de 2) por conta do orçamento n.º DEV-2026-001 de 17/11/2026. Vencimento: na adjudicação.')
+    expect(traduireLibellesGeneres('Accès par la cour\nRéf. devis : DEV-2026-001')).toBe('Accès par la cour\nRef. orçamento: DEV-2026-001')
+    expect(tituloPersonalizado('Acompte n° 1 sur 2 (30 %) - Devis DEV-2026-001')).toBe('')
+    expect(tituloPersonalizado('Acompte n° 1 sur 2 (30 %) - Moradia em Ponte de Lima')).toBe('Moradia em Ponte de Lima')
+    expect(tituloPersonalizado('Facture de solde - Moradia em Ponte de Lima')).toBe('Saldo · Moradia em Ponte de Lima')
+    expect(tituloPersonalizado('Facture de solde')).toBe('Saldo')
   })
 
   it('calcule l\'échéance d\'une facture sans décalage de fuseau', () => {
@@ -332,7 +369,7 @@ describe('Valeurs du formulaire traduites pour le gabarit', () => {
     // 17/11 + 45 jours = 01/01/2027, puis fin de ce mois (lib/pdf/payment-due.ts)
     expect(vencimentoFatura('45 jours fin de mois', '2026-11-17')).toBe('31/01/2027')
     expect(vencimentoFatura('2027-01-15', '2026-11-17')).toBe('15/01/2027')
-    expect(vencimentoFatura('à convenir', '2026-11-17')).toBe('à convenir')
+    expect(vencimentoFatura('a combinar com o cliente', '2026-11-17')).toBe('a combinar com o cliente')
   })
 
   it('garde ensemble montants, unités, IBAN et plan de paiement', () => {
@@ -477,7 +514,8 @@ describe('Orçamento au gabarit Method Soluções', () => {
     expect(tous).toContain('Pagamento por cheque · faturas a pronto pagamento')
     expect(tous).toContain('5 · Pagamento · Pagamento do total c/IVA contra fatura. Faturas pagáveis a pronto, na receção, por cheque.')
     expect(tous).toContain('IVA às taxas indicadas nos artigos;')
-    expect(tous).toContain('A taxa reduzida de 6 % da verba 2.42.1')
+    // Mention de la verba 2.42.1 du gabarit : liée à une option que le formulaire n'a pas, jamais imprimée
+    expect(tous).not.toContain('verba 2.42.1')
     expect(tous).not.toContain('prestação')
     sansDebordement(pdf)
   })
@@ -499,6 +537,67 @@ describe('Orçamento au gabarit Method Soluções', () => {
     expect(compact(derniere)).toContain('FORMULÁRIODELIVRERESOLUÇÃO')
     expect(derniere).toContain('Encomendado em / recebido em:')
     sansDebordement(pdf)
+  })
+
+  it('valeurs par défaut du formulaire : acompte de 30 %, pénalité française, TVA à 20 %, date de début sans délai', async () => {
+    const lignes = [ligne('Pintura interior', 100, 'm2', 12, 20)]
+    const pdf = await generer('method-orcamento-defauts-formulaire', entree('devis', {
+      laborLines: lignes, lines: lignes, linesName: "Main d'œuvre", customTables: [],
+      subtotalHT: 1200, totalTTC: 1440, tvaBreakdown: [{ rate: 20, base: 1200, amount: 240 }],
+      acomptes: [{ id: 'a1', ordre: 1, label: 'Acompte 1', pourcentage: 30, declencheur: 'À la signature' }],
+      penaltyRate: "3 × taux d'intérêt légal en vigueur", recoveryFee: '40 € (BtoB uniquement)',
+      paymentDue: 'Comptant à réception', executionDelay: '', prestationDate: '2026-12-01',
+    }))
+    const tous = tout(pdf)
+    // Échéancier complété par le solde, prestações justes
+    expect(pdf.texte[0]).toContain('17/11/2026 30 dias Início em 01/12/2026 30 / 70')
+    expect(tous).toContain('Pagamento 30 % na adjudicação e 70 % de saldo, contra a fatura final; faturas a pronto pagamento.')
+    expect(tous).toContain('Pagamento 30 / 70 · 1.ª prestação 432,00 € · 2.ª prestação 1 008,00 €')
+    expect(tous).toContain('5 · Pagamento · 30 % do total c/IVA na adjudicação; 70 % de saldo, contra a fatura final.')
+    // Date de début sans délai d'exécution
+    expect(tous).toContain('Prazo a combinar, com início previsto em 01/12/2026.')
+    expect(tous).toContain('6 · Prazo · A combinar, com início previsto em 01/12/2026.')
+    // 20 % n'est pas un taux légal portugais : pas de « taxa legal »
+    expect(tous).toContain('acrescido de IVA à taxa de 20 %')
+    expect(tous).not.toContain('taxa legal')
+    // Pénalité française par défaut omise (la clause du DL 62/2013 couvre la mora)
+    expect(tous).not.toMatch(/Juros de mora|taux|intérêt|BtoB/)
+    sansDebordement(pdf)
+  })
+
+  it('capítulo d\'un artigo de presque une page : ni titre seul en bas de page, ni sous-total seul en haut', async () => {
+    const presquePage = ligne('Artigo de quase uma página', 1, 'f', 500, 23, {
+      lineDetail: Array.from({ length: 67 }, (_, i) => `Linha ${i + 1} da descrição dos trabalhos.`).join('\n'),
+    })
+    const pdf = await generer('method-orcamento-presque-page', entree('devis', {
+      laborLines: [presquePage], lines: [presquePage], customTables: [], subtotalHT: 500, totalTTC: 615,
+      tvaBreakdown: [{ rate: 23, base: 500, amount: 115 }],
+    }))
+    const pageTitre = pdf.compact.findIndex((p) => p.includes('1ESTRUTURA'))
+    const pageSousTotal = pdf.texte.findIndex((p) => p.includes('Subtotal do capítulo 1'))
+    expect(pageTitre).toBeGreaterThanOrEqual(0)
+    expect(pdf.texte[pageTitre]).toContain('1.01 Artigo de quase uma página')
+    expect(pdf.texte[pageTitre]).toMatch(/Linha 2 da descrição/)
+    expect(pdf.texte[pageSousTotal]).toMatch(/Linha \d+ da descrição dos trabalhos\. Linha \d+ da descrição dos trabalhos\. Subtotal do capítulo 1/)
+    expect(tout(pdf)).toContain('Linha 67 da descrição')
+    sansDebordement(pdf)
+  })
+
+  it('artigo coupé dont la fin remplit une page : le sous-total emporte au moins deux lignes avec lui', async () => {
+    // Selon la longueur, la dernière partie de l'artigo s'arrête juste au-dessus du bas de page, sans place pour le
+    // sous-total : quelques longueurs autour de ce point, pour ne pas dépendre d'un réglage de mise en page au point près.
+    for (const nombre of [95, 96, 97, 98, 99, 100]) {
+      const long = ligne('Artigo longo', 1, 'f', 500, 23, {
+        lineDetail: Array.from({ length: nombre }, (_, i) => `Linha ${i + 1} da descrição dos trabalhos.`).join('\n'),
+      })
+      const pdf = await generer(`method-orcamento-fin-de-page-${nombre}`, entree('devis', {
+        laborLines: [long], lines: [long], customTables: [], subtotalHT: 500, totalTTC: 615,
+        tvaBreakdown: [{ rate: 23, base: 500, amount: 115 }],
+      }))
+      const page = pdf.texte.find((p) => p.includes('Subtotal do capítulo 1')) ?? ''
+      expect(page, `${nombre} lignes`).toMatch(/Linha \d+ da descrição dos trabalhos\. Linha \d+ da descrição dos trabalhos\. Subtotal do capítulo 1/)
+      sansDebordement(pdf)
+    }
   })
 
   it('artigo plus haut qu\'une page et devis vide : rien ne déborde, numérotation des pages juste', async () => {
@@ -572,6 +671,43 @@ describe('Faturas au gabarit Method Soluções', () => {
     expect(tous).toContain(`Total a pagar ${lu(eurosPt(totalHT))}`)
     expect(tous).toContain('IVA - autoliquidação: IVA devido pelo adquirente nos termos da alínea j) do n.º 1 do artigo 2.º do CIVA.')
     sansDebordement(autoliq)
+  })
+
+  it('factures d\'acompte et de solde rédigées en français par Vitfix (interface en français) : texte portugais', async () => {
+    const acompteLignes = [ligne('Acompte de 30 % sur travaux soumis à la TVA au taux de 23 %', 1, 'f', 5287.62, 23, {
+      lineDetail: 'Devis n° DEV-2026-001 du 17/11/2026\nBase HT à ce taux : 17 625,40 €',
+    })]
+    const acompte = await generer('method-fatura-adiantamento-fr', entree('facture', {
+      factureSubType: 'acompte', acompteOrdre: 1, acompteTotal: 2, acomptePourcentage: 30, parentInvoiceNumber: 'DEV-2026-001',
+      docTitle: 'Acompte n° 1 sur 2 (30 %) — Devis DEV-2026-001',
+      laborLines: acompteLignes, lines: acompteLignes, linesName: 'Acompte', customTables: [], sourceDevisRef: null,
+      notes: 'Acompte de 30 % (n° 1 sur 2) sur le devis n° DEV-2026-001 du 17/11/2026. Échéance : À la signature.',
+      subtotalHT: 5287.62, totalTTC: 6503.77, tvaBreakdown: [{ rate: 23, base: 5287.62, amount: 1216.15 }],
+    }))
+    const tousAcompte = tout(acompte)
+    expect(acompte.compact[0]).toContain('1ADIANTAMENTO')
+    // Désignation sur deux lignes (« … à taxa de » puis « 23 % »), chiffres de l'artigo sur la première
+    expect(tousAcompte).toContain('1.01 Adiantamento de 30 % por conta dos trabalhos sujeitos a IVA à taxa de vg 1,00 5 287,62 5 287,62')
+    expect(tousAcompte).toContain('23 % Orçamento n.º DEV-2026-001 de 17/11/2026 Base tributável a esta taxa: 17 625,40 €')
+    expect(tousAcompte).toContain('Notas Adiantamento de 30 % (n.º 1 de 2) por conta do orçamento n.º DEV-2026-001 de 17/11/2026. Vencimento: na adjudicação.')
+    expect(tousAcompte).not.toMatch(/Acompte|Devis|Base HT|Échéance/)
+
+    const deduction = [ligne('Acompte déjà facturé — facture n° FACT-2026-002 du 20/11/2026 — TVA 23 %', 1, 'f', -5287.62, 23, { horsRemise: true })]
+    const solde = await generer('method-fatura-saldo-fr', entree('facture', {
+      docTitle: 'Facture de solde — Moradia em Ponte de Lima', sourceDevisRef: null,
+      notes: 'Réf. devis : DEV-2026-001',
+      customTables: [
+        { id: 'ct1', name: 'Estaleiro e equipamentos', lines: estaleiro },
+        { id: 'acomptes-deduits', name: 'Acomptes déjà facturés (à déduire)', lines: deduction },
+      ],
+    }))
+    const tousSolde = tout(solde)
+    expect(solde.texte[0]).toContain('Saldo · Moradia em Ponte de Lima')
+    expect(toutCompact(solde)).toContain(compact('3 ADIANTAMENTOS JÁ FATURADOS (A DEDUZIR)'))
+    expect(tousSolde).toContain('3.01 Adiantamento já faturado - fatura n.º FACT-2026-002 de 20/11/2026 - IVA vg 1,00 -5 287,62 -5 287,62 23 %')
+    expect(tousSolde).toContain('Fatura relativa ao orçamento n.º DEV-2026-001.')
+    expect(tousSolde).not.toMatch(/Ref\. orçamento|Réf\.|Acompte|facture|TVA/)
+    sansDebordement(solde)
   })
 
   it('annexe photos : photo illisible remplacée par un cadre « Fotografia indisponível »', async () => {
