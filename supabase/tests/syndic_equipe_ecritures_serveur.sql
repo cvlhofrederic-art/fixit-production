@@ -22,20 +22,20 @@
 -- Avant comme après : fonctions_ecrivant_la_table = null (aucune fonction SQL repérée qui écrit la
 --   table ; si une fonction apparaît avec security_definer = false, NE PAS appliquer la migration : elle
 --   casserait cette fonction pour un client) ; fonctions_citant_la_table : toute fonction dont le corps
---   nomme la table en toutes lettres (corps entre $$ ou corps SQL standard BEGIN ATOMIC), attendu null en
---   production (constats du 15/11/2026) ; toute fonction listée est à relire une à une avant d'appliquer,
---   par select pg_get_functiondef('<signature>'::regprocedure); (une requête à la fois : l'éditeur
---   n'affiche que le dernier résultat ; ne rien recopier d'un corps, qui peut contenir une clé). Une
---   écriture par EXECUTE dynamique, un TRUNCATE de plusieurs tables, COPY … FROM ou un commentaire entre
---   les mots peut n'apparaître que dans fonctions_citant_la_table. Un nom qui n'est pas dans le corps en
---   toutes lettres échappe aux deux listes : nom construit, passé en paramètre (arguments d'un
---   déclencheur compris) ou écrit avec un échappement U&"…" dans un corps donné en texte (entre $$,
---   $étiquette$ ou apostrophes ; seul un corps BEGIN ATOMIC, relu résolu, montre alors le nom). Les
---   valeurs par défaut des colonnes n'y figurent pas non plus : une valeur par défaut qui appelle une
---   fonction (qui lit, par exemple, une table que les clients écrivent) change les insertions du serveur
---   qui omettent la colonne. La partie 1 montre ce qui a été posé de bonne foi ; elle ne prouve pas
---   l'absence d'une écriture cachée exprès. Règle : ne pas appliquer si une fonction écrit la table, même
---   par EXECUTE, sans être SECURITY DEFINER.
+--   nomme la table en toutes lettres (corps entre $$ ou corps SQL standard), attendu null en production
+--   (constats du 15/11/2026) ; toute fonction listée est à relire une à une avant d'appliquer, par
+--   select pg_get_functiondef('<signature>'::regprocedure); (une requête à la fois : l'éditeur n'affiche que
+--   le dernier résultat ; ne rien recopier d'un corps, qui peut contenir une clé). Une écriture par EXECUTE
+--   dynamique, un TRUNCATE de plusieurs tables, COPY … FROM ou un commentaire entre les mots peut
+--   n'apparaître que dans fonctions_citant_la_table. Un nom qui n'est pas dans le corps en toutes lettres
+--   échappe aux deux listes : nom construit, passé en paramètre (arguments d'un déclencheur compris) ou écrit
+--   avec un échappement U&"…" dans un corps donné en texte (entre $$, $étiquette$ ou apostrophes ; seul un
+--   corps SQL standard, BEGIN ATOMIC ou RETURN …, relu résolu, montre alors le nom). Les valeurs par défaut
+--   des colonnes n'y figurent pas non plus : une valeur par défaut qui appelle une fonction (qui lit, par
+--   exemple, une table que les clients écrivent) change les insertions du serveur qui omettent la colonne. La
+--   partie 1 montre ce qui a été posé de bonne foi ; elle ne prouve pas l'absence d'une écriture cachée
+--   exprès. Règle : ne pas appliquer si une fonction écrit la table, même par EXECUTE, sans être
+--   SECURITY DEFINER.
 -- Après la migration, toute entrée de fonctions_citant_la_table, de fonctions_ecrivant_la_table, de vues,
 --   d'heritage ou de cles_etrangeres, et tout déclencheur qui diffère de l'attendu par son nom, sa fonction,
 --   son type, son état actif ou l'une de ses deux empreintes (voir declencheurs), est à relire et à
@@ -79,17 +79,20 @@
 --   null ; elle liste les vues, et les tables dont une règle, qui lisent ou écrivent la table.
 --   regles_sur_la_table (règles posées sur la table elle-même) : attendu 0. declencheurs : nom, fonction
 --   appelée, type (pg_trigger.tgtype, somme de 1 : par ligne, 2 : BEFORE, 4 : INSERT, 8 : DELETE,
---   16 : UPDATE, 32 : TRUNCATE, 64 : INSTEAD OF), actif (O : actif, D : désactivé, R ou A : selon le mode
---   de réplication), empreinte (début du SHA-256 de pg_get_functiondef : corps, SECURITY DEFINER, SET,
---   langage) et empreinte_declencheur (début du SHA-256 de pg_get_triggerdef : moment, écritures,
---   colonnes de UPDATE OF, clause WHEN et arguments, hachés sans être rendus ; un webhook Supabase place
---   ses en-têtes, parfois une clé, dans ces arguments). Le propriétaire de la fonction n'y est pas : pour
---   une fonction SECURITY DEFINER, le lire à part. Une empreinte suit le texte exact (fins de ligne du
+--   16 : UPDATE, 32 : TRUNCATE, 64 : INSTEAD OF), actif (O : hors du mode replica, D : désactivé, R : en
+--   mode replica seulement, A : toujours), empreinte (début du SHA-256 de pg_get_functiondef : corps,
+--   SECURITY DEFINER, SET, langage) et empreinte_declencheur (début du SHA-256 de pg_get_triggerdef : moment,
+--   écritures, colonnes de UPDATE OF, clause WHEN et arguments, hachés sans être rendus ; un webhook Supabase
+--   place ses en-têtes, parfois une clé, dans ces arguments). Le propriétaire de la fonction n'y est pas :
+--   pour une fonction SECURITY DEFINER, le lire à part. Une empreinte suit le texte exact (fins de ligne du
 --   corps comprises) et peut changer avec la version de PostgreSQL ; empreinte_declencheur dépend aussi du
 --   search_path (pg_get_triggerdef ne qualifie le nom de la fonction que s'il n'y est pas trouvé) : un écart
---   est à relire, ce n'est pas forcément un contournement. Ne noter dans ce dépôt (public) que les
---   empreintes de déclencheurs sans arguments : 12 caractères d'empreinte d'une définition dont seul un
---   secret court est inconnu se cassent hors ligne ; les autres vont hors du dépôt (~/.claude/audits).
+--   est à relire, ce n'est pas forcément un contournement. Règle des empreintes : ne noter dans ce dépôt
+--   (public) qu'une empreinte dont tout le texte haché a été relu sans clé, donc jamais celles d'un
+--   déclencheur à arguments (jamais affichés), ni celle d'un corps de fonction ou d'une clause WHEN où la
+--   relecture montre une clé ; ces empreintes se notent hors du dépôt (dossier d'audit privé, jamais dans un
+--   fichier suivi), car 12 caractères d'empreinte d'une définition dont seul un secret court est inconnu se
+--   cassent hors ligne.
 --   Attendu en production (lecture du 17/11/2026 vers 12:00 UTC, PostgreSQL 17.6, éditeur SQL, search_path
 --   "$user", public, extensions) : trg_team_updated_at seul, fonction update_team_updated_at(), type 19
 --   (BEFORE UPDATE, par ligne, comme dans le SQL qui l'a créée : supabase-team.sql, commit 15c46477),
@@ -102,16 +105,16 @@
 --   production : 4c078d78adb5 est celle du corps d'origine (supabase-team.sql) avec SECURITY DEFINER et
 --   SET search_path TO '' ; le corps de production est donc celui d'origine, octet pour octet ; l'état
 --   « production » des tests d'exécution les reproduit. Toute valeur qui change est à relire (requête de
---   relecture des déclencheurs ci-dessus et pg_get_functiondef de la fonction), puis à noter ici avec sa
---   date. L'état « dépôt » des tests d'exécution montre syndic_team_members_updated_at à la place. droits :
---   select, insert et update sont vrais pour un droit sur la table comme sur une seule de ses colonnes,
---   donné au rôle ou à PUBLIC ; un droit de colonne donné à PUBLIC survit au REVOKE de la migration (qui
---   ne vise qu'anon et authenticated) et à son contrôle final (droits sur la table seule) : la RLS le
---   neutralise tant qu'aucune policy d'écriture n'existe, mais il est à signaler. proprietaire : le rôle
---   qui doit lancer la migration (celui de l'éditeur SQL, postgres, s'il est propriétaire). Ces champs ne
---   sortent que des noms, des signatures, des codes, des booléens et des empreintes, jamais de corps,
---   d'arguments ni de définitions, sauf policies : qual et with_check, nécessaires pour vérifier la lecture
---   qui reste (une policy ne contient normalement aucune clé).
+--   relecture des déclencheurs ci-dessus et pg_get_functiondef de la fonction), puis à noter avec sa date,
+--   ici ou hors du dépôt selon la règle des empreintes. L'état « dépôt » des tests d'exécution montre
+--   syndic_team_members_updated_at à la place. droits : select, insert et update sont vrais pour un droit sur
+--   la table comme sur une seule de ses colonnes, donné au rôle ou à PUBLIC ; un droit de colonne donné à
+--   PUBLIC survit au REVOKE de la migration (qui ne vise qu'anon et authenticated) et à son contrôle final
+--   (droits sur la table seule) : la RLS le neutralise tant qu'aucune policy d'écriture n'existe, mais il est
+--   à signaler. proprietaire : le rôle qui doit lancer la migration (celui de l'éditeur SQL, postgres, s'il
+--   est propriétaire). Ces champs ne sortent que des noms, des signatures, des codes, des booléens et des
+--   empreintes, jamais de corps, d'arguments ni de définitions, sauf policies : qual et with_check,
+--   nécessaires pour vérifier la lecture qui reste (une policy ne contient normalement aucune clé).
 -- Le constat du 14/11/2026 (droits, policies, contraintes) a été fait avec une autre requête, sans les
 --   fonctions, les vues ni les règles ; ceux du 15/11/2026 (vers 09:45 et 09:55 UTC, avant et après la
 --   migration), avec la version précédente de cette partie (commit 4eef6e0d) : sans vues,

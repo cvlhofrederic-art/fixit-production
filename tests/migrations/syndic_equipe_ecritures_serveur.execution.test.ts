@@ -16,8 +16,9 @@
 // un droit de colonne reste neutralisé par la RLS tant qu'aucune policy d'écriture n'existe, et une clé sans action ne
 // sert qu'avec un TRUNCATE … CASCADE lancé par une fonction SECURITY DEFINER. La partie 1 du scénario de contrôle
 // montre chacun, comme tout changement du déclencheur attendu qui ne touche pas au corps de sa fonction (mode de
-// sécurité, UPDATE OF, clause WHEN, argument, désactivation), et un déclencheur de webhook sans rendre ses arguments ;
-// des témoins gardent ce qu'elle ne peut pas voir (nom écrit U&"…", valeur par défaut de colonne).
+// sécurité, UPDATE OF, clause WHEN, argument, désactivation), et un déclencheur de webhook sans rendre ses arguments,
+// pas plus que la requête de relecture des déclencheurs donnée par sa consigne ; des témoins gardent ce qu'elle ne
+// peut pas voir (nom écrit U&"…", valeur par défaut de colonne).
 // Comptes fictifs (UUID aléatoires) ; aucune donnée réelle.
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
@@ -29,13 +30,20 @@ import { ECHAFAUDAGE_SUPABASE_SQL, erreurPg, lireMigrationQr, type ErreurPg } fr
 
 const T20 = '20261114_syndic_equipe_ecritures_serveur.sql'
 
-/** Les deux requêtes du scénario que Frédéric lance dans l'éditeur SQL (supabase/tests/…) : état, puis bloc de test. */
-function scenario(): { etat: string; test: string } {
+/**
+ * Les requêtes du scénario que Frédéric lance dans l'éditeur SQL (supabase/tests/…) : état, bloc de test, et relecture
+ * des déclencheurs sans leurs arguments, que donne la consigne (ses lignes de commentaire mises bout à bout).
+ */
+function scenario(): { etat: string; test: string; relecture: string } {
   const texte = readFileSync(join(process.cwd(), 'supabase/tests/syndic_equipe_ecritures_serveur.sql'), 'utf-8').replace(/\r\n/g, '\n')
   const etat = texte.match(/-- 1\. État\n(select json_build_object[\s\S]*?\) as etat;)/)
   const test = texte.match(/-- 2\. Test\n(do \$\$[\s\S]*?\n\$\$;)/)
-  if (!etat || !test) throw new Error('Scénario supabase/tests/syndic_equipe_ecritures_serveur.sql : parties 1 et 2 introuvables')
-  return { etat: etat[1], test: test[1] }
+  const consigne = texte.split('\n').filter((l) => l.startsWith('--')).map((l) => l.slice(2).trim()).join('\n')
+  const relecture = /select tgname,[\s\S]*?not tgisinternal;/.exec(consigne)
+  if (!etat || !test || !relecture) {
+    throw new Error('Scénario supabase/tests/syndic_equipe_ecritures_serveur.sql : parties 1 et 2, ou relecture des déclencheurs, introuvables')
+  }
+  return { etat: etat[1], test: test[1], relecture: relecture[0] }
 }
 
 interface FonctionCitee {
@@ -727,22 +735,39 @@ describe.each(ETATS)('état de départ : $nom', ({ sql, lecture, ecritureAvant, 
       expect(champsChanges).toEqual([champ])
     })
 
-    it('un déclencheur de webhook (fonction SECURITY DEFINER hors du schéma public, arguments qui portent une clé) : la partie 1 le montre, sans rendre ses arguments', async () => {
+    it('un déclencheur de webhook (fonction SECURITY DEFINER hors du schéma public, arguments qui portent une clé) : la partie 1 le montre sans rendre ses arguments, ni dans un champ ajouté ni collés à un champ existant, et la relecture des déclencheurs de la consigne ne les affiche pas', async () => {
+      const avantLeWebhook = await etatScenario()
       await db.exec(`CREATE SCHEMA essai_webhooks;
         CREATE FUNCTION essai_webhooks.http_request() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER AS $$ BEGIN RETURN NEW; END $$;
         CREATE TRIGGER essai_webhook AFTER INSERT ON public.syndic_team_members FOR EACH ROW
           EXECUTE FUNCTION essai_webhooks.http_request('https://exemple.test/crochet', 'POST', '{"Authorization":"Bearer cle-essai-secrete"}')`)
+      const traces = /cle-essai-secrete|exemple\.test\/crochet/
       const etat = await etatScenario()
       // AFTER INSERT, par ligne : type 5 (1 + 4).
       expect(etat.declencheurs).toEqual([
         await entreeDeclencheur('essai_webhook', 'essai_webhooks.http_request()', 5),
         ...await declencheursAttendus(),
       ])
-      expect(JSON.stringify(etat)).not.toMatch(/cle-essai-secrete|exemple\.test\/crochet/)
-      // Aucun champ de plus au premier niveau (des arguments rendus en hexadécimal, par exemple).
+      expect(JSON.stringify(etat)).not.toMatch(traces)
+      // Aucun champ de plus au premier niveau (des arguments rendus en hexadécimal, par exemple), et rien de collé à la
+      // valeur d'un champ existant (le propriétaire, par exemple) : hors déclencheurs, la partie 1 ne bouge pas.
       expect(Object.keys(etat).sort(parTexte)).toEqual(['cles_etrangeres', 'declencheurs', 'droits', 'fonctions_citant_la_table',
         'fonctions_ecrivant_la_table', 'heritage', 'policies', 'policies_ecriture', 'proprietaire', 'regles_sur_la_table',
         'rls_active', 'vues'])
+      expect(sansDeclencheurs(etat)).toEqual(sansDeclencheurs(avantLeWebhook))
+      // La relecture des déclencheurs de la consigne, telle que Frédéric la lance : le nombre d'arguments se lit, leur
+      // texte jamais, et chaque définition s'arrête à la signature de la fonction. Toutes les lignes rendues sont lues
+      // (une par déclencheur : une ligne doublée, qui afficherait les arguments, ne se cache pas derrière l'autre).
+      const lignesRelues = (await db.query<{ tgname: string }>(scenario().relecture)).rows
+      expect(JSON.stringify(lignesRelues)).not.toMatch(traces)
+      const relus = new Map(lignesRelues.map((r) => [r.tgname, r]))
+      expect(lignesRelues).toHaveLength(relus.size)
+      expect(relus).toEqual(new Map([
+        ['essai_webhook', { tgname: 'essai_webhook', tgtype: 5, tgenabled: 'O', tgnargs: 3, colonnes: '', quand: false,
+          definition: 'CREATE TRIGGER essai_webhook AFTER INSERT ON public.syndic_team_members FOR EACH ROW EXECUTE FUNCTION essai_webhooks.http_request()' }],
+        [declencheur.nom, { tgname: declencheur.nom, tgtype: 19, tgenabled: 'O', tgnargs: 0, colonnes: '', quand: false,
+          definition: `CREATE TRIGGER ${declencheur.nom} BEFORE UPDATE ON public.syndic_team_members FOR EACH ROW EXECUTE FUNCTION ${declencheur.fonction}` }],
+      ]))
     })
 
     // Héritage : une requête héritée n'est vérifiée que sur la table nommée (ses droits et sa RLS), pas sur la table.
