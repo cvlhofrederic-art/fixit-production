@@ -4,6 +4,7 @@
  * Extracted from RapportsSection.tsx.
  */
 import { forwardRef } from 'react'
+import { useLocale } from '@/lib/i18n/context'
 
 interface RapportIntervention {
   id: string
@@ -48,27 +49,31 @@ interface RapportPDFPreviewProps {
   previewRapport: RapportIntervention
   availablePhotos: PhotoRecord[]
   artisanId?: string
+  /** Rôle de l'espace (« pro_societe » : titre « Relatório de obra » en portugais). */
+  orgRole?: string
   dateFmtLocale: string
   onNavigate?: (page: string) => void
 }
 
 const RapportPDFPreview = forwardRef<HTMLDivElement, RapportPDFPreviewProps>(
-  ({ previewRapport, availablePhotos, artisanId, dateFmtLocale, onNavigate }, ref) => {
+  ({ previewRapport, availablePhotos, artisanId, orgRole, dateFmtLocale, onNavigate }, ref) => {
+    const isPt = useLocale() === 'pt'
+    const isBtp = orgRole === 'pro_societe'
     return (
       <div style={{ position: 'fixed', left: '-9999px', top: 0, width: '794px', background: '#fff' }}>
         <div ref={ref} style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '11px', color: '#1a1a1a', padding: '48px 48px 40px 48px', background: '#fff', width: '794px', boxSizing: 'border-box', lineHeight: '1.5' }}>
           {/* En-tete bandeau */}
           <div style={{ backgroundColor: '#1E293B', margin: '-48px -48px 0 -48px', padding: '30px 48px 22px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <div style={{ fontSize: '24px', fontWeight: '800', color: '#ffffff', letterSpacing: '0.3px' }}>RAPPORT D&apos;INTERVENTION</div>
+              <div style={{ fontSize: '24px', fontWeight: '800', color: '#ffffff', letterSpacing: '0.3px' }}>{isPt ? (isBtp ? 'RELATÓRIO DE OBRA' : 'RELATÓRIO DE INTERVENÇÃO') : <>RAPPORT D&apos;INTERVENTION</>}</div>
               <div style={{ fontSize: '13px', color: '#FFC107', fontWeight: '700', marginTop: '6px', letterSpacing: '1px' }}>{previewRapport.rapportNumber}</div>
               <div style={{ fontSize: '10px', color: '#94A3B8', marginTop: '4px' }}>
-                Etabli le {new Date().toLocaleDateString(dateFmtLocale, { day: 'numeric', month: 'long', year: 'numeric' })}
+                {isPt ? 'Emitido em' : 'Etabli le'} {new Date().toLocaleDateString(dateFmtLocale, { day: 'numeric', month: 'long', year: 'numeric' })}
               </div>
             </div>
             {previewRapport.refDevisFact && (
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: '10px', color: '#94A3B8', marginTop: '8px' }}>Ref : {previewRapport.refDevisFact}</div>
+                <div style={{ fontSize: '10px', color: '#94A3B8', marginTop: '8px' }}>{isPt ? 'Ref.:' : 'Ref :'} {previewRapport.refDevisFact}</div>
               </div>
             )}
             {(previewRapport.linkedDevisId || previewRapport.linkedDevisRef) && (() => {
@@ -77,7 +82,7 @@ const RapportPDFPreview = forwardRef<HTMLDivElement, RapportPDFPreviewProps>(
                 try {
                   const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisanId}`) || '[]')
                   const doc = docs.find((d: { id: string }) => d.id === previewRapport.linkedDevisId)
-                  if (doc) label = `Devis ${doc.service || doc.clientName || doc.id}`
+                  if (doc) label = `${isPt ? 'Orçamento' : 'Devis'} ${doc.service || doc.clientName || doc.id}`
                 } catch { /* ignore */ }
               }
               return (
@@ -85,7 +90,7 @@ const RapportPDFPreview = forwardRef<HTMLDivElement, RapportPDFPreviewProps>(
                   style={{ fontSize: '10px', color: '#FFC107', marginTop: '6px', cursor: onNavigate ? 'pointer' : 'default', textDecoration: onNavigate ? 'underline' : 'none' }}
                   onClick={() => onNavigate?.('devis')}
                 >
-                  📋 Lie au devis: {label}
+                  {isPt ? '📋 Associado ao orçamento:' : '📋 Lie au devis:'} {label}
                 </div>
               )
             })()}
@@ -95,7 +100,7 @@ const RapportPDFPreview = forwardRef<HTMLDivElement, RapportPDFPreviewProps>(
                 try {
                   const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisanId}`) || '[]')
                   const doc = docs.find((d: { id: string }) => d.id === previewRapport.linkedFactureId)
-                  if (doc) label = `Facture ${doc.service || doc.clientName || doc.id}`
+                  if (doc) label = `${isPt ? 'Fatura' : 'Facture'} ${doc.service || doc.clientName || doc.id}`
                 } catch { /* ignore */ }
               }
               return (
@@ -103,7 +108,7 @@ const RapportPDFPreview = forwardRef<HTMLDivElement, RapportPDFPreviewProps>(
                   style={{ fontSize: '10px', color: '#FFC107', marginTop: '6px', cursor: onNavigate ? 'pointer' : 'default', textDecoration: onNavigate ? 'underline' : 'none' }}
                   onClick={() => onNavigate?.('devis')}
                 >
-                  🧾 Lie a la facture: {label}
+                  {isPt ? '🧾 Associado à fatura:' : '🧾 Lie a la facture:'} {label}
                 </div>
               )
             })()}
@@ -114,16 +119,16 @@ const RapportPDFPreview = forwardRef<HTMLDivElement, RapportPDFPreviewProps>(
           {/* Artisan + Client */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
             <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '10px', padding: '14px 16px' }}>
-              <div style={{ fontSize: '9px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: '1.2px', marginBottom: '8px' }}>Prestataire</div>
+              <div style={{ fontSize: '9px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: '1.2px', marginBottom: '8px' }}>{isPt ? 'Prestador' : 'Prestataire'}</div>
               <div style={{ fontWeight: '700', fontSize: '14px', color: '#1E293B', marginBottom: '4px' }}>{previewRapport.artisanName}</div>
               {previewRapport.artisanAddress && <div style={{ fontSize: '10px', color: '#475569', marginBottom: '2px' }}>{previewRapport.artisanAddress}</div>}
               {previewRapport.artisanPhone && <div style={{ fontSize: '10px', color: '#475569' }}>{previewRapport.artisanPhone}</div>}
               {previewRapport.artisanEmail && <div style={{ fontSize: '10px', color: '#475569' }}>{previewRapport.artisanEmail}</div>}
-              {previewRapport.artisanSiret && <div style={{ fontSize: '9px', color: '#94A3B8', marginTop: '6px' }}>SIRET : {previewRapport.artisanSiret}</div>}
+              {previewRapport.artisanSiret && <div style={{ fontSize: '9px', color: '#94A3B8', marginTop: '6px' }}>{isPt ? 'NIF:' : 'SIRET :'} {previewRapport.artisanSiret}</div>}
               {previewRapport.artisanInsurance && <div style={{ fontSize: '9px', color: '#94A3B8' }}>{previewRapport.artisanInsurance}</div>}
             </div>
             <div style={{ background: '#F8FAFC', borderLeft: '4px solid #FFC107', borderRadius: '0 10px 10px 0', padding: '14px 16px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-              <div style={{ fontSize: '9px', fontWeight: '700', color: '#B45309', textTransform: 'uppercase', letterSpacing: '1.2px', marginBottom: '8px' }}>Client</div>
+              <div style={{ fontSize: '9px', fontWeight: '700', color: '#B45309', textTransform: 'uppercase', letterSpacing: '1.2px', marginBottom: '8px' }}>{isPt ? 'Cliente' : 'Client'}</div>
               <div style={{ fontWeight: '700', fontSize: '14px', color: '#1E293B', marginBottom: '4px' }}>{previewRapport.clientName}</div>
               {previewRapport.clientAddress && <div style={{ fontSize: '10px', color: '#475569', marginBottom: '2px' }}>{previewRapport.clientAddress}</div>}
               {previewRapport.clientPhone && <div style={{ fontSize: '10px', color: '#475569' }}>{previewRapport.clientPhone}</div>}
@@ -133,22 +138,22 @@ const RapportPDFPreview = forwardRef<HTMLDivElement, RapportPDFPreviewProps>(
 
           {/* Details intervention */}
           <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: '10px', padding: '14px 16px', marginBottom: '20px' }}>
-            <div style={{ fontSize: '9px', fontWeight: '700', color: '#92400E', textTransform: 'uppercase', letterSpacing: '1.2px', marginBottom: '10px' }}>Details de l&apos;intervention</div>
+            <div style={{ fontSize: '9px', fontWeight: '700', color: '#92400E', textTransform: 'uppercase', letterSpacing: '1.2px', marginBottom: '10px' }}>{isPt ? 'Detalhes da intervenção' : <>Details de l&apos;intervention</>}</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
               <div>
-                <div style={{ fontSize: '9px', color: '#6b7280' }}>Date</div>
+                <div style={{ fontSize: '9px', color: '#6b7280' }}>{isPt ? 'Data' : 'Date'}</div>
                 <div style={{ fontWeight: 'bold', fontSize: '11px' }}>{previewRapport.interventionDate ? new Date(previewRapport.interventionDate + 'T12:00:00').toLocaleDateString(dateFmtLocale) : '\u2014'}</div>
               </div>
               <div>
-                <div style={{ fontSize: '9px', color: '#6b7280' }}>Heure debut</div>
+                <div style={{ fontSize: '9px', color: '#6b7280' }}>{isPt ? 'Hora de início' : 'Heure debut'}</div>
                 <div style={{ fontWeight: 'bold', fontSize: '11px' }}>{previewRapport.startTime || '\u2014'}</div>
               </div>
               <div>
-                <div style={{ fontSize: '9px', color: '#6b7280' }}>Heure fin</div>
+                <div style={{ fontSize: '9px', color: '#6b7280' }}>{isPt ? 'Hora de fim' : 'Heure fin'}</div>
                 <div style={{ fontWeight: 'bold', fontSize: '11px' }}>{previewRapport.endTime || '\u2014'}</div>
               </div>
               <div>
-                <div style={{ fontSize: '9px', color: '#6b7280' }}>Duree</div>
+                <div style={{ fontSize: '9px', color: '#6b7280' }}>{isPt ? 'Duração' : 'Duree'}</div>
                 <div style={{ fontWeight: 'bold', fontSize: '11px' }}>
                   {previewRapport.startTime && previewRapport.endTime ? (() => {
                     const [sh, sm] = previewRapport.startTime.split(':').map(Number)
@@ -161,7 +166,7 @@ const RapportPDFPreview = forwardRef<HTMLDivElement, RapportPDFPreviewProps>(
             </div>
             {previewRapport.siteAddress && (
               <div style={{ marginTop: '8px' }}>
-                <span style={{ fontSize: '9px', color: '#6b7280' }}>Adresse chantier : </span>
+                <span style={{ fontSize: '9px', color: '#6b7280' }}>{isPt ? 'Morada da obra: ' : 'Adresse chantier : '}</span>
                 <span style={{ fontWeight: 'bold', fontSize: '11px' }}>{previewRapport.siteAddress}</span>
               </div>
             )}
@@ -170,7 +175,7 @@ const RapportPDFPreview = forwardRef<HTMLDivElement, RapportPDFPreviewProps>(
           {/* Motif */}
           <div style={{ marginBottom: '16px' }}>
             <div style={{ background: '#1E293B', color: 'white', padding: '8px 14px', borderRadius: '8px 8px 0 0', fontSize: '9px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px' }}>
-              Motif d&apos;intervention
+              {isPt ? 'Motivo da intervenção' : <>Motif d&apos;intervention</>}
             </div>
             <div style={{ border: '1px solid #E2E8F0', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: '12px 14px', background: '#F8FAFC', fontSize: '11px', minHeight: '30px', color: '#1E293B' }}>
               {previewRapport.motif}
@@ -181,7 +186,7 @@ const RapportPDFPreview = forwardRef<HTMLDivElement, RapportPDFPreviewProps>(
           {previewRapport.travaux?.filter(t => t).length > 0 && (
             <div style={{ marginBottom: '16px' }}>
               <div style={{ background: '#1E293B', color: 'white', padding: '8px 14px', borderRadius: '8px 8px 0 0', fontSize: '9px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                Travaux realises
+                {isPt ? 'Trabalhos realizados' : 'Travaux realises'}
               </div>
               <div style={{ border: '1px solid #E2E8F0', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: '12px 14px', background: '#F8FAFC' }}>
                 {previewRapport.travaux.filter(t => t).map((t, i) => (
@@ -198,7 +203,7 @@ const RapportPDFPreview = forwardRef<HTMLDivElement, RapportPDFPreviewProps>(
           {previewRapport.materiaux?.filter(m => m).length > 0 && (
             <div style={{ marginBottom: '16px' }}>
               <div style={{ background: '#1E293B', color: 'white', padding: '8px 14px', borderRadius: '8px 8px 0 0', fontSize: '9px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                Materiaux utilises
+                {isPt ? 'Materiais utilizados' : 'Materiaux utilises'}
               </div>
               <div style={{ border: '1px solid #E2E8F0', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: '12px 14px', background: '#F8FAFC' }}>
                 {previewRapport.materiaux.filter(m => m).map((m, i) => (
@@ -216,13 +221,13 @@ const RapportPDFPreview = forwardRef<HTMLDivElement, RapportPDFPreviewProps>(
             <div style={{ display: 'grid', gridTemplateColumns: previewRapport.recommendations ? '1fr 1fr' : '1fr', gap: '14px', marginBottom: '16px' }}>
               {previewRapport.observations && (
                 <div>
-                  <div style={{ background: '#475569', color: 'white', padding: '8px 14px', borderRadius: '8px 8px 0 0', fontSize: '9px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px' }}>Observations</div>
+                  <div style={{ background: '#475569', color: 'white', padding: '8px 14px', borderRadius: '8px 8px 0 0', fontSize: '9px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px' }}>{isPt ? 'Observações' : 'Observations'}</div>
                   <div style={{ border: '1px solid #E2E8F0', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: '12px 14px', background: '#F8FAFC', fontSize: '11px', minHeight: '40px', color: '#1E293B', lineHeight: '1.6' }}>{previewRapport.observations}</div>
                 </div>
               )}
               {previewRapport.recommendations && (
                 <div>
-                  <div style={{ background: '#2563EB', color: 'white', padding: '8px 14px', borderRadius: '8px 8px 0 0', fontSize: '9px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px' }}>Recommandations</div>
+                  <div style={{ background: '#2563EB', color: 'white', padding: '8px 14px', borderRadius: '8px 8px 0 0', fontSize: '9px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px' }}>{isPt ? 'Recomendações' : 'Recommandations'}</div>
                   <div style={{ border: '1px solid #E2E8F0', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: '12px 14px', background: '#EFF6FF', fontSize: '11px', minHeight: '40px', color: '#1E293B', lineHeight: '1.6' }}>{previewRapport.recommendations}</div>
                 </div>
               )}
@@ -235,13 +240,13 @@ const RapportPDFPreview = forwardRef<HTMLDivElement, RapportPDFPreviewProps>(
             return photos.length > 0 ? (
               <div style={{ marginBottom: '16px' }}>
                 <div style={{ background: '#1E293B', color: 'white', padding: '8px 14px', borderRadius: '8px 8px 0 0', fontSize: '9px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                  Photos chantier ({photos.length})
+                  {isPt ? 'Fotos da obra' : 'Photos chantier'} ({photos.length})
                 </div>
                 <div style={{ border: '1px solid #E2E8F0', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: '12px 14px', background: '#F8FAFC', display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
                   {photos.map(photo => (
                     <div key={photo.id} style={{ width: '140px' }}>
                       {/* eslint-disable-next-line @next/next/no-img-element -- Used for html2canvas PDF capture, requires native img */}
-                      <img src={photo.url} alt="Photo chantier" style={{ width: '140px', height: '100px', objectFit: 'cover', borderRadius: '6px', border: '1px solid #E2E8F0' }} crossOrigin="anonymous" />
+                      <img src={photo.url} alt={isPt ? 'Foto da obra' : 'Photo chantier'} style={{ width: '140px', height: '100px', objectFit: 'cover', borderRadius: '6px', border: '1px solid #E2E8F0' }} crossOrigin="anonymous" />
                       <div style={{ fontSize: '8px', color: '#6b7280', marginTop: '3px' }}>
                         {photo.taken_at ? new Date(photo.taken_at).toLocaleDateString(dateFmtLocale) : ''} {photo.taken_at ? new Date(photo.taken_at).toLocaleTimeString(dateFmtLocale, { hour: '2-digit', minute: '2-digit' }) : ''}
                         {photo.lat && photo.lng ? ` \u00B7 GPS ${photo.lat.toFixed(4)}, ${photo.lng.toFixed(4)}` : ''}
@@ -255,7 +260,11 @@ const RapportPDFPreview = forwardRef<HTMLDivElement, RapportPDFPreviewProps>(
 
           {/* Footer */}
           <div style={{ marginTop: '20px', paddingTop: '10px', borderTop: '2px solid #E2E8F0', textAlign: 'center', fontSize: '8px', color: '#94A3B8' }}>
+            {isPt ? (
+              <>{`${previewRapport.artisanName}${previewRapport.artisanSiret ? ` · NIF ${previewRapport.artisanSiret}` : ''} · Documento gerado pelo Vitfix Pro · ${new Date().toLocaleDateString(dateFmtLocale)}`}</>
+            ) : (<>
             {previewRapport.artisanName} {previewRapport.artisanSiret ? `\u2014 SIRET ${previewRapport.artisanSiret}` : ''} \u2014 Document genere par Vitfix Pro \u2014 {new Date().toLocaleDateString(dateFmtLocale)}
+            </>)}
           </div>
         </div>
       </div>

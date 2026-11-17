@@ -34,6 +34,7 @@ vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
 import { toast } from 'sonner'
 import ClientMarchesSection from '@/components/client-dashboard/pages/ClientMarchesSection'
 import BourseAuxMarchesSection from '@/components/marches/BourseAuxMarchesSection'
+import { LanguageProvider } from '@/lib/i18n/context'
 import SousTraitanceOffresSection from '@/components/dashboard/SousTraitanceOffresSection'
 
 const COMPTE = '11111111-1111-4111-8111-111111111111'
@@ -108,7 +109,7 @@ describe('Espace client — mes appels d’offres publiés', () => {
 describe('Tableau de bord artisan / BTP — mes candidatures', () => {
   for (const orgRole of ['pro_societe', 'artisan'] as const) {
     it(`${orgRole} : la lecture des candidatures part avec le jeton de la session`, async () => {
-      await act(async () => { render(<BourseAuxMarchesSection artisan={SOCIETE} orgRole={orgRole} navigateTo={vi.fn()} />) })
+      await act(async () => { render(<LanguageProvider initialLocale="fr"><BourseAuxMarchesSection artisan={SOCIETE} orgRole={orgRole} navigateTo={vi.fn()} /></LanguageProvider>) })
       await vi.waitFor(() => expect(appelsVers('my_bids=true')).not.toHaveLength(0))
       expect(appelsVers('my_bids=true')[0]).toEqual({
         url: `/api/marches?my_bids=true&artisan_id=${FICHE}`,
@@ -124,7 +125,7 @@ describe('Tableau de bord artisan / BTP — mes candidatures', () => {
 
   it('pro_societe : un refus du serveur est dit, pas montré comme « aucune candidature »', async () => {
     h.refuser = 'my_bids=true'
-    await act(async () => { render(<BourseAuxMarchesSection artisan={SOCIETE} orgRole="pro_societe" navigateTo={vi.fn()} />) })
+    await act(async () => { render(<LanguageProvider initialLocale="fr"><BourseAuxMarchesSection artisan={SOCIETE} orgRole="pro_societe" navigateTo={vi.fn()} /></LanguageProvider>) })
     // Identifiant fixe : une relance (changement de filtre, notification) remplace le message au lieu de l'empiler.
     await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith('Impossible de charger vos candidatures', { id: 'marches-mes-candidatures' }))
     // La liste publique, elle, s'est chargée : aucun autre message.
@@ -134,7 +135,7 @@ describe('Tableau de bord artisan / BTP — mes candidatures', () => {
 
   it('artisan : comportement inchangé, le refus reste sans message', async () => {
     h.refuser = 'my_bids=true'
-    await act(async () => { render(<BourseAuxMarchesSection artisan={SOCIETE} orgRole="artisan" navigateTo={vi.fn()} />) })
+    await act(async () => { render(<LanguageProvider initialLocale="fr"><BourseAuxMarchesSection artisan={SOCIETE} orgRole="artisan" navigateTo={vi.fn()} /></LanguageProvider>) })
     await vi.waitFor(() => expect(appelsVers('my_bids=true')).not.toHaveLength(0))
     await laisserPasser()
     expect(toast.error).not.toHaveBeenCalled()
@@ -143,7 +144,7 @@ describe('Tableau de bord artisan / BTP — mes candidatures', () => {
 
 describe('Tableau de bord BTP — mes offres de sous-traitance', () => {
   it('la lecture des offres de la société part avec le jeton de la session', async () => {
-    await act(async () => { render(<SousTraitanceOffresSection artisan={SOCIETE as never} orgRole="pro_societe" />) })
+    await act(async () => { render(<LanguageProvider initialLocale="fr"><SousTraitanceOffresSection artisan={SOCIETE as never} orgRole="pro_societe" /></LanguageProvider>) })
     await vi.waitFor(() => expect(appelsVers('sous-traitance?btp_company_id=')).not.toHaveLength(0))
     expect(appelsVers('sous-traitance?btp_company_id=')[0]).toEqual({
       url: `/api/marches/sous-traitance?btp_company_id=${FICHE}`,
@@ -156,13 +157,13 @@ describe('Tableau de bord BTP — mes offres de sous-traitance', () => {
 
   it('un refus du serveur est dit, pas montré seulement comme « aucune annonce »', async () => {
     h.refuser = 'sous-traitance?btp_company_id='
-    await act(async () => { render(<SousTraitanceOffresSection artisan={SOCIETE as never} orgRole="pro_societe" />) })
+    await act(async () => { render(<LanguageProvider initialLocale="fr"><SousTraitanceOffresSection artisan={SOCIETE as never} orgRole="pro_societe" /></LanguageProvider>) })
     expect(await screen.findByText('Impossible de charger vos annonces')).toBeInTheDocument()
   })
 
   it('hors société BTP : comportement inchangé, le refus reste sans message', async () => {
     h.refuser = 'sous-traitance?btp_company_id='
-    await act(async () => { render(<SousTraitanceOffresSection artisan={SOCIETE as never} orgRole="artisan" />) })
+    await act(async () => { render(<LanguageProvider initialLocale="fr"><SousTraitanceOffresSection artisan={SOCIETE as never} orgRole="artisan" /></LanguageProvider>) })
     await vi.waitFor(() => expect(appelsVers('sous-traitance?btp_company_id=')).not.toHaveLength(0))
     await laisserPasser()
     expect(screen.queryByText('Impossible de charger vos annonces')).toBeNull()

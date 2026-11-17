@@ -14,6 +14,7 @@ import {
 import { METIER_CPV_MAP, resolveMetierKeys } from '@/lib/marches-cpv-mapping'
 import { isSmallBusinessStatus } from '@/lib/devis-utils'
 import { getDefaultCategoriesFromNaf } from '@/lib/naf-to-categories'
+import { useLocale } from '@/lib/i18n/context'
 
 const BrowseTabView = dynamic(() => import('./views/BrowseTabView'), { ssr: false })
 const MyBidsTabView = dynamic(() => import('./views/MyBidsTabView'), { ssr: false })
@@ -29,20 +30,18 @@ interface Props {
   navigateTo: (page: string) => void
 }
 
+// titlePt : intitulé affiché en portugais (aperçu flouté de l'accès Pro).
 const FAKE_MARCHES = [
-  { title: 'Rénovation cage d\'escalier immeuble 12 lots', category: 'renovacao', budget_min: 8000, budget_max: 15000, city: 'Porto', urgency: 'normal' },
-  { title: 'Remplacement chaudière collective', category: 'canalizacao', budget_min: 5000, budget_max: 12000, city: 'Lisboa', urgency: 'urgent' },
-  { title: 'Ravalement façade bâtiment B', category: 'construcao', budget_min: 20000, budget_max: 45000, city: 'Marseille', urgency: 'normal' },
+  { title: 'Rénovation cage d\'escalier immeuble 12 lots', titlePt: 'Renovação da caixa de escadas de um prédio com 12 frações', category: 'renovacao', budget_min: 8000, budget_max: 15000, city: 'Porto', urgency: 'normal' },
+  { title: 'Remplacement chaudière collective', titlePt: 'Substituição de caldeira coletiva', category: 'canalizacao', budget_min: 5000, budget_max: 12000, city: 'Lisboa', urgency: 'urgent' },
+  { title: 'Ravalement façade bâtiment B', titlePt: 'Reabilitação da fachada do edifício B', category: 'construcao', budget_min: 20000, budget_max: 45000, city: 'Marseille', urgency: 'normal' },
 ]
 
 export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', navigateTo }: Props) {
   const isSociete = orgRole === 'pro_societe'
-  // Detect locale
-  const [locale, setLocale] = useState('fr')
-  useEffect(() => {
-    const match = document.cookie.match(/locale=(\w+)/)
-    if (match) setLocale(match[1])
-  }, [])
+  // Langue de l'interface dès le premier rendu (avant : cookie lu après un premier rendu en français, d'où un premier
+  // chargement « pays=FR » et un message français pour un utilisateur portugais).
+  const locale = useLocale()
   const isPt = locale === 'pt'
 
   // PRO GATE CHECK — disabled temporarily, free access for all
@@ -226,13 +225,13 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
       setStats(prev => ({ ...prev, openCount: data.total || data.marches?.length || 0 }))
     } catch (e) {
       console.error('Marches fetch failed:', e)
-      toast.error('Erreur de chargement des marchés')
+      toast.error(isPt ? 'Erro ao carregar as oportunidades' : 'Erreur de chargement des marchés')
       setMarches([])
     } finally {
       setLoading(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- artisanMetiersKey is the stable signature
-  }, [isPro, filterCategory, artisanPays, filterMarcheType, isArtisan, artisanMetiersKey])
+  }, [isPro, filterCategory, artisanPays, filterMarcheType, isArtisan, artisanMetiersKey, isPt])
 
   // Resolved metiers for auto-scan (respecte le filtre si posé)
   const resolvedMetiers = React.useMemo(() => {
@@ -272,7 +271,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
     try {
       const { data: sess } = await supabase.auth.getSession()
       const token = sess?.session?.access_token
-      if (!token) { setScanError('Session expirée'); return }
+      if (!token) { setScanError(isPt ? 'Sessão expirada' : 'Session expirée'); return }
       const loc = artisan?.city || (isPt ? 'Porto' : 'Marseille')
       console.log('[scan] Envoi:', { metiers, location: loc, country: isPt ? 'PT' : 'FR' })
       const res = await fetch('/api/marches/scan', {
@@ -289,7 +288,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
-        setScanError(err.error || `Erreur ${res.status}`)
+        setScanError(err.error || (isPt ? `Erro ${res.status}` : `Erreur ${res.status}`))
         return
       }
       const data = await res.json()
@@ -297,7 +296,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
       setScanMeta(data.meta || null)
       setShowScanResults(true)
     } catch (err) {
-      setScanError('Erreur de connexion au scanner')
+      setScanError(isPt ? 'Erro de ligação ao scanner' : 'Erreur de connexion au scanner')
     } finally {
       setScanning(false)
     }
@@ -323,9 +322,9 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
       // Société BTP : un refus du serveur (session expirée, limite de débit, panne) est dit, sinon il s'affiche
       // comme « aucune candidature ». Identifiant fixe : une relance remplace le message au lieu de l'empiler.
       // Côté artisan, le comportement n'est pas modifié (règle artisan / BTP).
-      if (isSociete) toast.error('Impossible de charger vos candidatures', { id: 'marches-mes-candidatures' })
+      if (isSociete) toast.error(isPt ? 'Não foi possível carregar as suas candidaturas' : 'Impossible de charger vos candidatures', { id: 'marches-mes-candidatures' })
     }
-  }, [isPro, artisan?.id, isSociete])
+  }, [isPro, artisan?.id, isSociete, isPt])
 
   // Fetch marches preferences
   const fetchMarchesPrefs = useCallback(async () => {
@@ -409,7 +408,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
       }
     } catch (e) {
       console.error('Message send failed:', e)
-      toast.error('Erreur d\'envoi du message')
+      toast.error(isPt ? 'Erro ao enviar a mensagem' : 'Erreur d\'envoi du message')
     } finally {
       setMsgSending(false)
     }
@@ -453,7 +452,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
       const { data: session } = await supabase.auth.getSession()
       const token = session?.session?.access_token
       if (!token) {
-        toast.error('Session expirée, reconnectez-vous')
+        toast.error(isPt ? 'Sessão expirada. Inicie sessão novamente.' : 'Session expirée, reconnectez-vous')
         return
       }
       const res = await fetch('/api/artisan-marches-prefs', {
@@ -462,13 +461,13 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
         body: JSON.stringify(marchesPrefs),
       })
       if (res.ok) {
-        toast.success('Préférences enregistrées')
+        toast.success(isPt ? 'Preferências guardadas' : 'Préférences enregistrées')
       } else {
         const err = await res.json().catch(() => ({}))
-        toast.error(err.error || 'Erreur lors de la sauvegarde')
+        toast.error(err.error || (isPt ? 'Erro ao guardar' : 'Erreur lors de la sauvegarde'))
       }
     } catch {
-      toast.error('Erreur réseau')
+      toast.error(isPt ? 'Erro de rede' : 'Erreur réseau')
     } finally {
       setPrefsSaving(false)
     }
@@ -542,7 +541,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
-        throw new Error(err.error || 'Submission failed')
+        throw new Error(err.error || (isPt ? 'Erro ao enviar a candidatura' : 'Submission failed'))
       }
       setBidSuccess(true)
       setBidPrice('')
@@ -585,7 +584,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
                       {getCategoryLabel(fm.category, isPt)}
                     </span>
                   </div>
-                  <div style={{ fontWeight: 600, marginBottom: 6 }}>{fm.title}</div>
+                  <div style={{ fontWeight: 600, marginBottom: 6 }}>{isPt ? fm.titlePt : fm.title}</div>
                   <div style={{ fontSize: 11, color: 'var(--v22-text-muted)', marginBottom: 6 }}>📍 {fm.city}</div>
                   <div className="v22-mono" style={{ fontSize: 12, fontWeight: 500 }}>
                     {formatPrice(fm.budget_min, locale)} - {formatPrice(fm.budget_max, locale)}
@@ -598,11 +597,11 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
             <div className="v22-card" style={{ padding: '28px 32px', maxWidth: 440, textAlign: 'center' }}>
               <div style={{ fontSize: 48, marginBottom: 12 }}>🏛️</div>
               <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>
-                {isPt ? 'Bolsa de Mercados' : 'Bourse aux Marchés'}
+                {isPt ? 'Bolsa de oportunidades' : 'Bourse aux Marchés'}
               </div>
               <div style={{ fontSize: 12, color: 'var(--v22-text-muted)', marginBottom: 18, lineHeight: 1.6 }}>
                 {isPt
-                  ? 'Aceda a dezenas de concursos publicados por síndicos, empresas e particulares. Candidate-se diretamente e ganhe novos contratos.'
+                  ? 'Aceda a dezenas de oportunidades publicadas por administradores de condomínio, empresas e particulares. Candidate-se diretamente e conquiste novos contratos.'
                   : 'Accédez à des dizaines d\'appels d\'offres publiés par des syndics, entreprises et particuliers. Postulez directement et remportez de nouveaux contrats.'}
               </div>
               <button
@@ -665,10 +664,11 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
   const wonBids = myBids.filter(b => b.status === 'accepted')
 
   const tabs = [
-    { key: 'browse' as const, labelFr: 'Marchés', labelPt: 'Mercados' },
+    // L'artisan ne voit que des marchés privés (filtre « prives » ci-dessus) : « Concursos » (marchés publics) ne lui va pas.
+    { key: 'browse' as const, labelFr: 'Marchés', labelPt: isArtisan ? 'Oportunidades' : 'Concursos' },
     { key: 'mybids' as const, labelFr: 'Candidatures', labelPt: 'Candidaturas' },
     { key: 'won' as const, labelFr: 'Gagnés', labelPt: 'Ganhos' },
-    { key: 'settings' as const, labelFr: 'Paramètres', labelPt: 'Configurações' },
+    { key: 'settings' as const, labelFr: 'Paramètres', labelPt: 'Definições' },
   ]
 
   return (
@@ -676,7 +676,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
       {/* Page header */}
       <div className="v22-page-header" style={{ justifyContent: 'space-between' }}>
         <div>
-          <div className="v22-page-title">Bourse aux Marchés</div>
+          <div className="v22-page-title">{isPt ? 'Bolsa de oportunidades' : 'Bourse aux Marchés'}</div>
           <div className="v22-page-sub">
             {visibleMarchesCount} {isPt ? 'oportunidades disponíveis' : 'opportunités disponibles'}
           </div>
@@ -686,7 +686,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
             onClick={() => { setFilterCategory(''); setFilterDepartments([]) }}
             className="v22-btn v22-btn-sm"
           >
-            {isPt ? 'Reiniciar' : 'Réinitialiser'}
+            {isPt ? 'Repor' : 'Réinitialiser'}
           </button>
         )}
       </div>
@@ -702,7 +702,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
           <div className="v22-stat-val">{stats.activeBids}</div>
         </div>
         <div className="v22-stat">
-          <div className="v22-stat-label">{isPt ? 'Orçamento máx' : 'Budget max'}</div>
+          <div className="v22-stat-label">{isPt ? 'Orçamento máx.' : 'Budget max'}</div>
           <div className="v22-stat-val">
             {marches.length > 0
               ? formatPrice(Math.max(...marches.map(m => m.budget_max || 0)), locale)

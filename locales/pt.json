@@ -3052,13 +3052,13 @@
       "autre": "Outro documento"
     },
     "carnet": {
-      "title": "Caderno de Visitas",
-      "subtitle": "As suas realizações visíveis no seu perfil público — mostre o seu saber-fazer",
+      "title": "Portefólio",
+      "subtitle": "As suas realizações, visíveis no seu perfil público: mostre a qualidade do seu trabalho",
       "realisations": "realizações",
       "ajouterPhoto": "Adicionar uma foto",
       "nouvelleRealisation": "Nova realização",
       "titreRealisation": "Título da realização",
-      "titrePlaceholder": "Ex: Substituição de esquentador 300L, Colocação de azulejos na casa de banho...",
+      "titrePlaceholder": "Ex.: Substituição de termoacumulador de 300 L, assentamento de azulejos na casa de banho...",
       "categorie": "Categoria",
       "annuler": "Cancelar",
       "uploadEnCours": "A carregar...",
