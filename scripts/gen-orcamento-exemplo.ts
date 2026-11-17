@@ -1,9 +1,9 @@
 /**
  * Script Node.js — Génère un PDF d'orçamento d'exemple (client fictif) via le générateur V2 artisan PT.
- * Usage: npx tsx scripts/gen-orcamento-exemplo.ts (PDF écrit dans le dossier temporaire du système)
+ * Usage: npx tsx scripts/gen-orcamento-exemplo.ts (PDF écrit dans le dossier Téléchargements de l'utilisateur)
  */
 import { writeFileSync } from 'fs'
-import { tmpdir } from 'os'
+import { homedir } from 'os'
 import { join } from 'path'
 import { generateDevisPdfV2 } from '../lib/pdf/devis-generator-v2'
 import type { DevisGeneratorInput } from '../lib/pdf/devis-generator-v2'
@@ -174,7 +174,7 @@ async function main() {
   console.log('Generating PDF via V2 artisan PT generator...')
   const pdf = await generateDevisPdfV2(input)
   const buffer = pdf.output('arraybuffer') as ArrayBuffer
-  const outPath = join(tmpdir(), 'Orcamento-V2-exemplo-portao-chapa.pdf')
+  const outPath = join(homedir(), 'Downloads', 'Orcamento-V2-exemplo-portao-chapa.pdf')
   writeFileSync(outPath, Buffer.from(buffer))
   console.log(`OK: ${outPath} (${(buffer.byteLength / 1024).toFixed(1)} KB)`)
 }

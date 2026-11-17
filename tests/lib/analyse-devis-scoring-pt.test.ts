@@ -92,59 +92,22 @@ describe('calculateScoresPt — critères de base', () => {
     expect(r.conformite.details.find(c => c.id === 'nif')?.status).toBe('missing')
   })
 
-  it('detects IVA mentioned (taxa 23%)', () => {
+  // Critères détectés sur le document de référence : un cas par critère, même vérification
+  it.each([
+    ['IVA mentioned (taxa 23%)', 'iva'],
+    ['garantia legal (DL 84/2021) via rawText fallback', 'garantia_legal'],
+    ['direito de livre resolução (DL 24/2014)', 'livre_resolucao'],
+    ['RGPD', 'rgpd'],
+    ['CNIACC (entidade RAL)', 'cniacc_ral'],
+    ['livro de reclamações', 'livro_reclamacoes'],
+    ['CAE present', 'cae'],
+    ['numero_orcamento from extracted.numero_document', 'numero_orcamento'],
+    ['data_emissao from extracted.date_document', 'data_emissao'],
+    ['detalhe_prestacoes when prestations[] has items with prix', 'detalhe_prestacoes'],
+    ['IBAN', 'iban_titular'],
+  ])('detects %s', (_libelle, id) => {
     const r = calculateScoresPt(orcamentoExtracted, orcamentoRawText)
-    expect(r.conformite.details.find(c => c.id === 'iva')?.status).toBe('ok')
-  })
-
-  it('detects garantia legal (DL 84/2021) via rawText fallback', () => {
-    const r = calculateScoresPt(orcamentoExtracted, orcamentoRawText)
-    expect(r.conformite.details.find(c => c.id === 'garantia_legal')?.status).toBe('ok')
-  })
-
-  it('detects direito de livre resolução (DL 24/2014)', () => {
-    const r = calculateScoresPt(orcamentoExtracted, orcamentoRawText)
-    expect(r.conformite.details.find(c => c.id === 'livre_resolucao')?.status).toBe('ok')
-  })
-
-  it('detects RGPD', () => {
-    const r = calculateScoresPt(orcamentoExtracted, orcamentoRawText)
-    expect(r.conformite.details.find(c => c.id === 'rgpd')?.status).toBe('ok')
-  })
-
-  it('detects CNIACC (entidade RAL)', () => {
-    const r = calculateScoresPt(orcamentoExtracted, orcamentoRawText)
-    expect(r.conformite.details.find(c => c.id === 'cniacc_ral')?.status).toBe('ok')
-  })
-
-  it('detects livro de reclamações', () => {
-    const r = calculateScoresPt(orcamentoExtracted, orcamentoRawText)
-    expect(r.conformite.details.find(c => c.id === 'livro_reclamacoes')?.status).toBe('ok')
-  })
-
-  it('detects CAE present', () => {
-    const r = calculateScoresPt(orcamentoExtracted, orcamentoRawText)
-    expect(r.conformite.details.find(c => c.id === 'cae')?.status).toBe('ok')
-  })
-
-  it('detects numero_orcamento from extracted.numero_document', () => {
-    const r = calculateScoresPt(orcamentoExtracted, orcamentoRawText)
-    expect(r.conformite.details.find(c => c.id === 'numero_orcamento')?.status).toBe('ok')
-  })
-
-  it('detects data_emissao from extracted.date_document', () => {
-    const r = calculateScoresPt(orcamentoExtracted, orcamentoRawText)
-    expect(r.conformite.details.find(c => c.id === 'data_emissao')?.status).toBe('ok')
-  })
-
-  it('detects detalhe_prestacoes when prestations[] has items with prix', () => {
-    const r = calculateScoresPt(orcamentoExtracted, orcamentoRawText)
-    expect(r.conformite.details.find(c => c.id === 'detalhe_prestacoes')?.status).toBe('ok')
-  })
-
-  it('detects IBAN', () => {
-    const r = calculateScoresPt(orcamentoExtracted, orcamentoRawText)
-    expect(r.conformite.details.find(c => c.id === 'iban_titular')?.status).toBe('ok')
+    expect(r.conformite.details.find(c => c.id === id)?.status).toBe('ok')
   })
 })
 
@@ -308,22 +271,14 @@ describe('calculateScoresPt — filtrage strict des prestations vs descriptions/
     ],
   }
 
-  it('filters out type=description from prix details', () => {
+  it.each([
+    ['type=description from prix details', '(Diagnóstico técnico prévio)'],
+    ['type=etape from prix details', '2. Avaliação das folhas e pilares'],
+    ['numbered-step designations even when LLM mistypes them as prestation', '1. Verificação do quadro e ponto de alimentação 230 V'],
+  ])('filters out %s', (_libelle, designation) => {
     const r = calculateScoresPt(noisyExtracted, orcamentoRawText, { nifVerified: true })
     const designations = r.prix.details.map(d => d.designation)
-    expect(designations).not.toContain('(Diagnóstico técnico prévio)')
-  })
-
-  it('filters out type=etape from prix details', () => {
-    const r = calculateScoresPt(noisyExtracted, orcamentoRawText, { nifVerified: true })
-    const designations = r.prix.details.map(d => d.designation)
-    expect(designations).not.toContain('2. Avaliação das folhas e pilares')
-  })
-
-  it('filters out numbered-step designations even when LLM mistypes them as prestation', () => {
-    const r = calculateScoresPt(noisyExtracted, orcamentoRawText, { nifVerified: true })
-    const designations = r.prix.details.map(d => d.designation)
-    expect(designations).not.toContain('1. Verificação do quadro e ponto de alimentação 230 V')
+    expect(designations).not.toContain(designation)
   })
 
   it('filters out parenthetical sub-descriptions even when mistyped as prestation', () => {
