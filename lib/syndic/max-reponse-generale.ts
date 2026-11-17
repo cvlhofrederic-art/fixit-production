@@ -2,7 +2,7 @@
 //
 // Max (agent juridique du syndic) quand la base juridique Vitfix ne contient aucun texte sur la question
 // (« corpus gap ») : plutôt qu'un refus sec, une réponse générale de Claude Sonnet 5.5, présentée comme telle
-// (bandeau « à vérifier », aucune citation de la base). Claude uniquement : pas de secours Llama pour une
+// (bandeau « à vérifier », aucune citation de la base). Claude uniquement : pas de secours Groq pour une
 // réponse juridique sans source. Sans clé Anthropic ou en cas d'échec : null, la route garde son refus.
 
 import { callClaudeWithRetry, hasAnthropicKey } from '@/lib/claude'
@@ -51,7 +51,7 @@ export async function reponseGeneraleMax(
     if (!texte) return null
     return { texte: `${BANDEAU_REPONSE_GENERALE[langue]}\n\n${texte}`, modele: reponse.model ?? null }
   } catch (err) {
-    // Échec de Claude : la route renvoie son refus standard (aucune réponse juridique sans source par Llama).
+    // Échec de Claude : la route renvoie son refus standard (aucune réponse juridique sans source par Groq).
     logger.warn('[max-ai] réponse générale indisponible', { erreur: err instanceof Error ? err.message.slice(0, 200) : String(err) })
     return null
   }
