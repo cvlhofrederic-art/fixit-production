@@ -1,7 +1,7 @@
 'use client'
 
 import {
-  createContext, useCallback, useContext, useMemo, useRef, useState,
+  createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
   type ReactNode,
 } from 'react'
 import { useMessages } from '@/lib/syndic/v54/i18n'
@@ -97,6 +97,16 @@ export function ToastProvider({ children, closeLabel: closeLabelProp, regionLabe
     clearTimer(id)
     timers.current.set(id, setTimeout(() => dismiss(id), duration))
   }, [clearTimer, dismiss])
+
+  // Démontage : coupe les timers en cours, sinon un auto-dismiss tardif appelle
+  // setToasts sur un provider démonté (en test : après la fermeture de jsdom).
+  useEffect(() => {
+    const pending = timers.current
+    return () => {
+      pending.forEach((timer) => clearTimeout(timer))
+      pending.clear()
+    }
+  }, [])
 
   const push = useCallback((toast: ToastInput) => {
     const id = ++idRef.current
