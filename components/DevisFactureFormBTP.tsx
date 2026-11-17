@@ -65,6 +65,7 @@ import { phrasePhotosAnnexePt, traducteurDevisBtp } from '@/lib/devis-btp-traduc
 import { supabase } from '@/lib/supabase'
 import { fetchAuthentifie } from '@/lib/fetch-authentifie'
 import { syncDocumentSafe } from '@/lib/document-sync'
+import { lireCatalogueBTPNavigateur } from '@/lib/btp/catalogue-prestations'
 import RentabiliteDevisModal from '@/components/dashboard/btp/RentabiliteDevisModal'
 
 /* ─────────────────────────────────────────────────────────────────
@@ -129,8 +130,8 @@ function mapCatalogueUnit(u?: string): string {
   return UNIT_CATALOGUE_TO_DEVIS[u] || 'u'
 }
 
-/** Élément du catalogue du module Prestations, tel que le formulaire le lit. */
-interface ElementCatalogueBTP {
+/** Élément du catalogue du module Prestations, tel que le formulaire le lit (lib/btp/catalogue-prestations.ts). */
+interface ElementCatalogueFormulaire {
   id: number
   name: string
   type: string
@@ -138,26 +139,6 @@ interface ElementCatalogueBTP {
   price?: { min?: number; max?: number }
   unit?: string
   etapes?: Array<string | { label: string; price?: number; unit?: string }>
-}
-
-/**
- * Catalogue du module Prestations enregistré dans le navigateur : clé du module (v5), à défaut l'ancienne copie (v4)
- * que plus rien n'écrit. Lecture seule. Rien d'enregistré, ou valeur illisible : aucun catalogue ; un élément sans
- * nom est écarté.
- */
-function lireCatalogueBTP(artisanId: string | undefined): ElementCatalogueBTP[] {
-  if (typeof window === 'undefined') return []
-  const fiche = artisanId || 'guest'
-  try {
-    const brut = localStorage.getItem(`fixit_prestations_btp_v5_${fiche}`) ?? localStorage.getItem(`fixit_prestations_btp_v4_${fiche}`)
-    const valeur: unknown = brut ? JSON.parse(brut) : []
-    if (!Array.isArray(valeur)) return []
-    return valeur.filter((e): e is ElementCatalogueBTP =>
-      typeof e === 'object' && e !== null && typeof (e as { name?: unknown }).name === 'string')
-  } catch (erreur) {
-    console.warn('[devis BTP] catalogue Prestations illisible :', erreur)
-    return []
-  }
 }
 
 const DECLENCHEURS_ACOMPTE = [
@@ -768,9 +749,10 @@ export default function DevisFactureFormBTP({
 
   // Catalogue du module Prestations, lu une fois : la liste des prestations, celle des matériaux et les étapes reprises
   // viennent de la même lecture (sinon une ligne pourrait recevoir le nom d'une prestation et les étapes d'une autre).
-  // Lecture seule : le formulaire n'écrit plus de catalogue d'exemple quand rien n'est enregistré (catalogue vierge à
-  // la création du compte, demande de Frédéric du 17/11/2026).
-  const catalogueBTP = useMemo(() => lireCatalogueBTP(artisan?.id), [artisan?.id])
+  // Clé du module, à défaut l'ancienne copie ; rien d'enregistré : aucun catalogue, jamais d'exemple (catalogue vierge
+  // à la création du compte, demande de Frédéric du 17/11/2026). Lecture seule, rien n'est écrit (constat
+  // stockage-local-miroir-10, lib/btp/catalogue-prestations.ts).
+  const catalogueBTP = useMemo(() => lireCatalogueBTPNavigateur<ElementCatalogueFormulaire>(artisan?.id), [artisan?.id])
 
   const allServices = useMemo(() => {
     const supaServices: ServiceBasic[] = (services as ServiceBasic[]) || []
