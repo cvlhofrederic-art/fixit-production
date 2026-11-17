@@ -64,8 +64,10 @@ beforeEach(() => {
     if (init?.method === 'POST' && adresse.startsWith('/api/btp')) {
       const corps = JSON.parse(String(init.body))
       envois.push(corps)
+      // Refus décidé à l'envoi : une écriture déjà partie n'est pas touchée par un refus posé ensuite.
+      const refusee = ecritureRefusee
       if (delaiEcriture > 0) await new Promise(resolve => setTimeout(resolve, delaiEcriture))
-      if (ecritureRefusee) return json({ error: 'Les données n\'ont pas pu être enregistrées.' }, 500)
+      if (refusee) return json({ error: 'Les données n\'ont pas pu être enregistrées.' }, 500)
       if (corps.action === 'insert') {
         const ligne = { id: UUID_BASE, ...corps.data }
         enBase.push(ligne)
@@ -76,6 +78,9 @@ beforeEach(() => {
         enBase = enBase.filter(l => l.id !== corps.id)
         return json({ deleted: true })
       }
+      // Modification : comme la base, chaque colonne envoyée remplace la précédente (le contenu entier).
+      const enregistree = enBase.find(l => l.id === corps.id)
+      if (enregistree) Object.assign(enregistree, corps.data)
       return json({ row: { id: corps.id, ...corps.data } })
     }
     if (adresse.startsWith('/api/btp')) return json({ rapports: enBase })
@@ -218,6 +223,77 @@ describe('Rapports du BTP pro — enregistrement en base', () => {
     expect(envois[1]).toMatchObject({ table: 'rapports_btp', action: 'update', id: UUID_BASE })
     expect(envois[1].data?.contenu).toMatchObject({ sentStatus: 'envoye', clientName: 'Mme Dupré' })
     await waitFor(() => expect(rapportsLocaux()[0]).toMatchObject({ id: UUID_BASE, sentStatus: 'envoye' }), { timeout: 3000 })
+  })
+
+  // Relecture adverse du 16/11/2026 : on quitte la section Rapports puis on y revient avant la réponse d'une écriture.
+  // 1. La section rouverte connaît encore le nouveau rapport sous son identifiant local ; sa modification partait vers la
+  //    ligne en base sans le lien avec cet identifiant (idLocal) : au chargement suivant, le rapport apparaissait deux
+  //    fois sous le même numéro.
+  // 2. L'écriture lancée par la section quittée réécrivait l'appareil avec SA liste : un rapport créé entre-temps dans la
+  //    section rouverte, dont l'envoi échouait, disparaissait au chargement suivant.
+  function rouvrirLaSection() {
+    cleanup()
+    render(<RapportsSection artisan={artisan} bookings={[]} services={[]} orgRole="pro_societe" />)
+  }
+
+  it('section rouverte avant la réponse de sa création, puis modifié : un seul rapport au chargement suivant', async () => {
+    delaiEcriture = 300
+    await creerRapport('pro_societe')
+    await waitFor(() => expect(envois.map(e => e.action)).toEqual(['insert']))
+    rouvrirLaSection()
+    const marquer = await screen.findByRole('button', { name: 'Marquer envoyé' })
+    // La création aboutit pendant que la section rouverte est affichée.
+    await waitFor(() => expect(rapportsLocaux().map(r => r.id)).toEqual([UUID_BASE]), { timeout: 3000 })
+
+    fireEvent.click(marquer)
+    await waitFor(() => expect(envois.map(e => e.action)).toEqual(['insert', 'update']), { timeout: 3000 })
+    expect(envois[1]).toMatchObject({ table: 'rapports_btp', action: 'update', id: UUID_BASE })
+    expect(envois[1].data?.contenu).toMatchObject({ sentStatus: 'envoye', idLocal: expect.stringMatching(/^rap_/) })
+    await waitFor(() => expect(enBase[0].contenu).toMatchObject({ sentStatus: 'envoye' }), { timeout: 3000 })
+
+    await rechargerLaPage()
+    expect(rapportsLocaux().map(r => r.id)).toEqual([UUID_BASE])
+    expect(rapportsLocaux()[0]).toMatchObject({ rapportNumber: 'RAP-2026-001', sentStatus: 'envoye' })
+    expect(screen.getAllByText('RAP-2026-001')).toHaveLength(1)
+  })
+
+  it('section rouverte pendant une création : un rapport créé entre-temps reste sur l’appareil, même si son envoi échoue', async () => {
+    delaiEcriture = 300
+    await creerRapport('pro_societe')
+    await waitFor(() => expect(envois).toHaveLength(1))
+    cleanup()
+    // Second rapport créé dans la section rouverte, une seconde plus tard (autre identifiant local) ; son envoi est refusé.
+    vi.setSystemTime(new Date('2026-11-15T10:00:01Z'))
+    ecritureRefusee = true
+    await creerRapport('pro_societe')
+    await waitFor(() => expect(envois.map(e => e.action)).toEqual(['insert', 'insert']))
+    await waitFor(() => expect(toast.error).toHaveBeenCalled(), { timeout: 3000 })
+    expect(enBase).toHaveLength(1)
+
+    await rechargerLaPage()
+    expect(rapportsLocaux().map(r => r.rapportNumber)).toEqual(['RAP-2026-002', 'RAP-2026-001'])
+    expect(rapportsLocaux().map(r => r.id)).toEqual(['rap_1794736801000', UUID_BASE])
+    expect(screen.getByText('RAP-2026-002')).toBeInTheDocument()
+  })
+
+  it('section rouverte pendant une suppression : un rapport créé entre-temps reste sur l’appareil, même si son envoi échoue', async () => {
+    const existant = { ...ANCIEN, id: UUID_EXISTANT, rapportNumber: 'RAP-2026-005' }
+    localStorage.setItem(CLE, JSON.stringify([existant]))
+    enBase = [{ id: UUID_EXISTANT, titre: 'RAP-2026-005', date: '2026-03-02', contenu: { clientName: 'M. Ancien' }, photos: [], status: 'termine' }]
+    delaiEcriture = 300
+    render(<RapportsSection artisan={artisan} bookings={[]} services={[]} orgRole="pro_societe" />)
+    fireEvent.click(await screen.findByRole('button', { name: '🗑️' }))
+    await waitFor(() => expect(envois.map(e => e.action)).toEqual(['delete']))
+    cleanup()
+    ecritureRefusee = true
+    await creerRapport('pro_societe')
+    await waitFor(() => expect(envois.map(e => e.action)).toEqual(['delete', 'insert']))
+    await waitFor(() => expect(toast.error).toHaveBeenCalled(), { timeout: 3000 })
+    expect(enBase).toEqual([])
+
+    await rechargerLaPage()
+    expect(rapportsLocaux().map(r => r.rapportNumber)).toEqual(['RAP-2026-006'])
+    expect(screen.queryByText('RAP-2026-005')).toBeNull()
   })
 })
 

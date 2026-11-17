@@ -162,6 +162,42 @@ function completerParLaBase(locaux: RapportIntervention[], enBase: RapportInterv
   return [...locaux.map(r => (idDeLaBase.has(r.id) ? { ...r, id: idDeLaBase.get(r.id) ?? r.id } : r)), ...ajoutes]
 }
 
+/**
+ * Ligne en base d'un rapport encore sous son identifiant local sur l'appareil : elle garde cet identifiant (`idLocal`),
+ * qui la relie au rapport de l'appareil au chargement suivant (completerParLaBase). Une modification envoyée sans lui
+ * (section quittée puis rouverte avant la réponse de la création) faisait apparaître le rapport deux fois sous le même
+ * numéro (relecture adverse du 16/11/2026).
+ */
+function ligneAvecIdLocal(r: RapportIntervention): Record<string, unknown> {
+  const ligne = ligneRapport(r)
+  return { ...ligne, contenu: { ...(ligne.contenu as Record<string, unknown>), idLocal: r.id } }
+}
+
+/**
+ * Applique `changer` à la liste des rapports RELUE sur l'appareil au moment d'écrire, et non à celle de la section qui a
+ * lancé l'écriture : une écriture en base qui aboutit après qu'on a quitté puis rouvert la section n'efface plus ce que
+ * la section rouverte a enregistré entre-temps (relecture adverse du 16/11/2026). Rien n'est écrit si la liste ne change
+ * pas ou si le stockage est illisible ; rien n'en est jamais retiré d'autre que ce que `changer` retire.
+ */
+function modifierRapportsDuStockage(cle: string, changer: (liste: RapportIntervention[]) => RapportIntervention[]): void {
+  let brut: string | null
+  let liste: unknown
+  try {
+    brut = localStorage.getItem(cle)
+    liste = brut ? JSON.parse(brut) : []
+  } catch (e) {
+    console.warn('[storage] rapports de l\'appareil illisibles : liste non réécrite', e)
+    return
+  }
+  if (!Array.isArray(liste)) {
+    console.warn('[storage] rapports de l\'appareil illisibles : liste non réécrite')
+    return
+  }
+  const suivante = JSON.stringify(changer(liste as RapportIntervention[]))
+  if (suivante === (brut ?? '[]')) return
+  try { localStorage.setItem(cle, suivante) } catch (e) { console.warn('[storage] saveRapports', e) }
+}
+
 export default function RapportsSection({ artisan, bookings, services, onNavigate, orgRole }: { artisan: Artisan | null; bookings: Booking[]; services: Service[]; onNavigate?: (page: string) => void; orgRole?: string }) {
   const locale = useLocale()
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
@@ -206,12 +242,8 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
           } as RapportIntervention
         })
         if (fromSupabase.length > 0 && enregistrementBTP) {
-          setRapports(prev => {
-            const completes = completerParLaBase(prev, fromSupabase)
-            if (!completes) return prev
-            try { localStorage.setItem(lsKey, JSON.stringify(completes)) } catch (e) { console.warn('[storage] rapports complétés par la base', e) }
-            return completes
-          })
+          setRapports(prev => completerParLaBase(prev, fromSupabase) ?? prev)
+          modifierRapportsDuStockage(lsKey, liste => completerParLaBase(liste, fromSupabase) ?? liste)
         } else if (fromSupabase.length > 0) {
           setRapports(prev => {
             // Supabase rows override local rows with same id; local-only rows are kept
@@ -456,9 +488,8 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
 
   /** BTP pro : crée en base un rapport qu'on vient de créer ; son identifiant en base remplace l'identifiant local. */
   const creerRapportBTP = async (r: RapportIntervention): Promise<IssueCreation> => {
-    const ligne = ligneRapport(r)
     // L'identifiant local, gardé en base, évite un doublon si la réponse du serveur se perd (completerParLaBase).
-    const res = await ecrireRapportBTP({ action: 'insert', data: { ...ligne, contenu: { ...(ligne.contenu as Record<string, unknown>), idLocal: r.id } } })
+    const res = await ecrireRapportBTP({ action: 'insert', data: ligneAvecIdLocal(r) })
     if (!res?.ok) {
       if (res) console.error(`[btp] rapport refusé (${res.status})`)
       toast.error(MESSAGE_RAPPORT_NON_ENREGISTRE, { id: 'btp-ecriture-rapports' })
@@ -473,11 +504,9 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
     }
     if (typeof idBase !== 'string' || !estEnBase(idBase)) return { idBase: null, peutEtreEnBase: true }
     const idEnregistre = idBase
-    setRapports(prev => {
-      const suivants = prev.map(x => (x.id === r.id ? { ...x, id: idEnregistre } : x))
-      ecrireRapportsLocaux(suivants)
-      return suivants
-    })
+    const remplacer = (liste: RapportIntervention[]) => liste.map(x => (x.id === r.id ? { ...x, id: idEnregistre } : x))
+    setRapports(remplacer)
+    modifierRapportsDuStockage(storageKey, remplacer)
     setEditingId(courant => (courant === r.id ? idEnregistre : courant))
     return { idBase: idEnregistre, peutEtreEnBase: false }
   }
@@ -493,12 +522,15 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
       return
     }
     let id: string | null = r.id
+    let ligne = ligneRapport(r)
     if (!estEnBase(r.id)) {
       const enCours = _creationsRapports.get(cleCreation(r.id))
       id = enCours ? (await enCours).idBase : null
       if (!id) return
+      // Encore sous son identifiant local sur l'appareil : la ligne en base garde le lien avec lui.
+      ligne = ligneAvecIdLocal(r)
     }
-    const res = await ecrireRapportBTP({ action: 'update', id, data: ligneRapport(r) })
+    const res = await ecrireRapportBTP({ action: 'update', id, data: ligne })
     if (!res?.ok) {
       if (res) console.error(`[btp] rapport refusé (${res.status})`)
       toast.error(MESSAGE_RAPPORT_NON_MIS_A_JOUR, { id: 'btp-ecriture-rapports' })
@@ -705,11 +737,9 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
       return
     }
     if (idLocal) _creationsRapports.delete(cleCreation(idLocal))
-    setRapports(prev => {
-      const suivants = prev.filter(r => r.id !== id && r.id !== idLocal)
-      ecrireRapportsLocaux(suivants)
-      return suivants
-    })
+    const retirer = (liste: RapportIntervention[]) => liste.filter(r => r.id !== id && r.id !== idLocal)
+    setRapports(retirer)
+    modifierRapportsDuStockage(storageKey, retirer)
   }
 
   /**
@@ -733,11 +763,9 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
       return
     }
     _creationsRapports.delete(cleCreation(idLocal))
-    setRapports(prev => {
-      const suivants = prev.filter(r => r.id !== idLocal)
-      ecrireRapportsLocaux(suivants)
-      return suivants
-    })
+    const retirer = (liste: RapportIntervention[]) => liste.filter(r => r.id !== idLocal)
+    setRapports(retirer)
+    modifierRapportsDuStockage(storageKey, retirer)
   }
 
   const deleteRapport = (id: string) => {
