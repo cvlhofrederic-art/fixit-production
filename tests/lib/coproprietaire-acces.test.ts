@@ -261,8 +261,8 @@ describe('copropriétaire', () => {
 })
 
 describe('super admin (démo)', () => {
-  const superAdmin = utilisateur('super_admin', 'admincvlho@gmail.com')
-  const vueCopro = utilisateur('coproprio', 'admincvlho@gmail.com', { _original_role: 'super_admin' })
+  const superAdmin = utilisateur('super_admin', 'admin@exemple.fr')
+  const vueCopro = utilisateur('coproprio', 'admin@exemple.fr', { _original_role: 'super_admin' })
   vueCopro.id = CABINET
 
   it('fiche désignée par e-mail dans SON cabinet, accès non soumis à acces_portail ni à la confirmation d’e-mail', async () => {

@@ -7,36 +7,14 @@ describe('formatSiegeAddress', () => {
     expect(formatSiegeAddress(undefined)).toBe('')
   })
 
-  it('adresse rue seule (sans CP) → concat normal "RUE, CP VILLE"', () => {
-    expect(formatSiegeAddress({
-      adresse: 'ETG RDC ALLEE HIPPOLYTE GONDREXON',
-      code_postal: '13830',
-      libelle_commune: 'ROQUEFORT-LA-BEDOULE',
-    })).toBe('ETG RDC ALLEE HIPPOLYTE GONDREXON, 13830 ROQUEFORT-LA-BEDOULE')
-  })
-
-  it('adresse déjà complète avec CP → renvoie telle quelle (évite duplication ville)', () => {
-    expect(formatSiegeAddress({
-      adresse: 'ETG RDC ALLEE HIPPOLYTE GONDREXON 13830 ROQUEFORT-LA-BEDOULE',
-      code_postal: '13830',
-      libelle_commune: 'ROQUEFORT-LA-BEDOULE',
-    })).toBe('ETG RDC ALLEE HIPPOLYTE GONDREXON 13830 ROQUEFORT-LA-BEDOULE')
-  })
-
-  it('adresse vide mais CP+ville présents → "CP VILLE"', () => {
-    expect(formatSiegeAddress({
-      adresse: '',
-      code_postal: '13013',
-      libelle_commune: 'MARSEILLE',
-    })).toBe('13013 MARSEILLE')
-  })
-
-  it('CP manquant → concat sans le tail vide', () => {
-    expect(formatSiegeAddress({
-      adresse: '15 RUE DE LA RÉPUBLIQUE',
-      code_postal: '',
-      libelle_commune: 'MARSEILLE',
-    })).toBe('15 RUE DE LA RÉPUBLIQUE, MARSEILLE')
+  // [cas, adresse, code_postal, libelle_commune, attendu]
+  it.each([
+    ['adresse rue seule (sans CP) → concat normal "RUE, CP VILLE"', 'ETG RDC ALLEE DES EXEMPLES', '13830', 'ROQUEFORT-LA-BEDOULE', 'ETG RDC ALLEE DES EXEMPLES, 13830 ROQUEFORT-LA-BEDOULE'],
+    ['adresse déjà complète avec CP → renvoie telle quelle (évite duplication ville)', 'ETG RDC ALLEE DES EXEMPLES 13830 ROQUEFORT-LA-BEDOULE', '13830', 'ROQUEFORT-LA-BEDOULE', 'ETG RDC ALLEE DES EXEMPLES 13830 ROQUEFORT-LA-BEDOULE'],
+    ['adresse vide mais CP+ville présents → "CP VILLE"', '', '13013', 'MARSEILLE', '13013 MARSEILLE'],
+    ['CP manquant → concat sans le tail vide', '15 RUE DE LA RÉPUBLIQUE', '', 'MARSEILLE', '15 RUE DE LA RÉPUBLIQUE, MARSEILLE'],
+  ])('%s', (_cas, adresse, code_postal, libelle_commune, attendu) => {
+    expect(formatSiegeAddress({ adresse, code_postal, libelle_commune })).toBe(attendu)
   })
 
   it('tout vide → ""', () => {

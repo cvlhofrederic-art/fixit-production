@@ -71,7 +71,7 @@ describe('buildV2Input — customTables (parité BTP V3)', () => {
     const out = buildV2Input(makeBaseParams({
       customTables: [{
         id: 'tbl_abc',
-        name: 'DEPENSES PARC COROT',
+        name: 'DEPENSES RESIDENCE EXEMPLE',
         category: 'labor',
         lines: [
           { id: 10, description: 'Forfait complémentaire', qty: 1, unit: 'f', priceHT: 3069.97, tvaRate: 0, totalHT: 3069.97 },
@@ -88,7 +88,7 @@ describe('buildV2Input — customTables (parité BTP V3)', () => {
     expect(out.lignes[1].designation).toBe('Forfait complémentaire')
     expect(out.lignes[1].total).toBe(3069.97)
     // Label custom mappé
-    expect(out.customSectionLabels).toEqual({ 'custom_tbl_abc': 'DEPENSES PARC COROT' })
+    expect(out.customSectionLabels).toEqual({ 'custom_tbl_abc': 'DEPENSES RESIDENCE EXEMPLE' })
   })
 
   it('plusieurs customTables : chaque table a son propre label', () => {
