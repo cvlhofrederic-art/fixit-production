@@ -4,12 +4,83 @@ import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { exportGestionnaireDuCompteQr } from '@/lib/aj-signalement/serveur-compte'
+import { lireParValeursQr, lirePagesQr, tableAbsenteQr } from '@/lib/aj-signalement/serveur'
 
 export const maxDuration = 60
 
+type Ligne = Record<string, unknown>
+
+/** Toutes les lignes d'une lecture ordonnée, page par page ; une table absente n'a rien à exporter, toute autre erreur lève. */
+async function lireTout(table: string, fabrique: Parameters<typeof lirePagesQr>[0]): Promise<Ligne[]> {
+  const r = await lirePagesQr<Ligne>(fabrique)
+  if (r.ok) return r.valeur
+  if (tableAbsenteQr(r.erreur)) return []
+  throw new Error(`Export RGPD : lecture de ${table} impossible (${r.erreur.code ?? 'code inconnu'})`)
+}
+
+/** Tables du BTP rattachées à la société par owner_id (colonnes réelles relevées en production le 11/11/2026). */
+const TABLES_BTP_PAR_PROPRIETAIRE: ReadonlyArray<readonly [section: string, table: string]> = [
+  ['chantiers', 'chantiers_btp'],
+  ['membres', 'membres_btp'],
+  ['equipes', 'equipes_btp'],
+  ['pointages', 'pointages_btp'],
+  ['situations', 'situations_btp'],
+  ['retenues', 'retenues_btp'],
+  ['dc4', 'dc4_btp'],
+  ['dpgf', 'dpgf_btp'],
+  ['depenses', 'depenses_btp'],
+  ['dce_analyses', 'dce_analyses_btp'],
+  ['rapports', 'rapports_btp'],
+  ['charges_fixes', 'charges_fixes'],
+]
+
+/** Équipe de la société (ou fiche d'équipe d'un sous-compte), sans le jeton d'invitation, qui n'est jamais exporté. */
+const COLONNES_EQUIPE_BTP =
+  'id, company_id, user_id, email, full_name, phone, role, assigned_chantiers, invite_sent_at, accepted_at, last_login_at, is_active, created_at, updated_at'
+
+/**
+ * Compte BTP (pro_societe) : sauvegarde du stockage du navigateur (user_storage) et tables du BTP de la société, en
+ * entier (lecture page par page). Lecture seule. Une table absente donne une liste vide ; toute autre erreur lève :
+ * l'export échoue plutôt que de rendre un fichier incomplet présenté comme complet.
+ */
+async function exporterDonneesBtp(userId: string): Promise<{ userStorage: Ligne[]; btp: Record<string, Ligne[]> }> {
+  const parProprietaire = await Promise.all(TABLES_BTP_PAR_PROPRIETAIRE.map(async ([section, table]) => [
+    section,
+    await lireTout(table, () => supabaseAdmin.from(table).select('*').eq('owner_id', userId).order('id', { ascending: true })),
+  ] as const))
+  const btp: Record<string, Ligne[]> = Object.fromEntries(parProprietaire)
+  const [settings, reglagesPointage, team, marchesCandidatures, userStorage] = await Promise.all([
+    lireTout('settings_btp', () => supabaseAdmin.from('settings_btp').select('*').eq('owner_id', userId).order('owner_id', { ascending: true })),
+    // Pointage automatique de la société (migration 20261116) : clé primaire owner_id, pas de colonne id (un tri sur id
+    // ferait échouer tout l'export), d'où la lecture à part, comme settings_btp.
+    lireTout('pointage_reglages_btp', () => supabaseAdmin.from('pointage_reglages_btp').select('*').eq('owner_id', userId)
+      .order('owner_id', { ascending: true })),
+    lireTout('pro_team_members', () => supabaseAdmin.from('pro_team_members').select(COLONNES_EQUIPE_BTP)
+      .or(`company_id.eq.${userId},user_id.eq.${userId}`).order('id', { ascending: true })),
+    lireTout('marches_candidatures', () => supabaseAdmin.from('marches_candidatures').select('*').eq('artisan_user_id', userId)
+      .order('id', { ascending: true })),
+    lireTout('user_storage', () => supabaseAdmin.from('user_storage').select('key, value, updated_at').eq('user_id', userId)
+      .order('key', { ascending: true })),
+  ])
+  // Composition des équipes : table de liaison sans propriétaire, lue par les équipes de la société.
+  const liens = await lireParValeursQr<Ligne>(btp.equipes.map((e) => String(e.id)), (lot) => supabaseAdmin.from('equipe_membres_btp')
+    .select('*').in('equipe_id', lot).order('equipe_id', { ascending: true }).order('membre_id', { ascending: true }))
+  if (!liens.ok && !tableAbsenteQr(liens.erreur)) {
+    throw new Error(`Export RGPD : lecture de equipe_membres_btp impossible (${liens.erreur.code ?? 'code inconnu'})`)
+  }
+  return {
+    userStorage,
+    btp: {
+      ...btp, equipe_membres: liens.ok ? liens.valeur : [], settings, pointage_reglages: reglagesPointage, team,
+      marches_candidatures: marchesCandidatures,
+    },
+  }
+}
+
 // GET /api/user/export-data
 // RGPD Art. 20 — Droit à la portabilité des données
-// Retourne TOUTES les données personnelles de l'utilisateur en JSON
+// Retourne TOUTES les données personnelles de l'utilisateur en JSON ; pour une société BTP (pro_societe), aussi la
+// sauvegarde du stockage du navigateur et les tables du BTP de la société.
 export async function GET(request: NextRequest) {
   const user = await getAuthUser(request)
   if (!user) {
@@ -110,6 +181,10 @@ export async function GET(request: NextRequest) {
     // null pour tout autre compte (section omise, export inchangé), et tant que les migrations manquent.
     const ajSignalement = await exportGestionnaireDuCompteQr(user)
 
+    // 12 ter. Société BTP (pro_societe) : sauvegarde du stockage du navigateur et tables du BTP. Les autres rôles gardent
+    // leur export (règle n° 1 artisan / BTP).
+    const donneesBtp = user.app_metadata?.role === 'pro_societe' ? await exporterDonneesBtp(userId) : null
+
     // 13. Audit log export (RGPD transparency)
     try {
       await supabaseAdmin.from('audit_logs').insert({
@@ -148,6 +223,7 @@ export async function GET(request: NextRequest) {
         planning_events: syndicPlanningEvents,
       },
       ...(ajSignalement ? { aj_signalement: ajSignalement } : {}),
+      ...(donneesBtp ? { user_storage: donneesBtp.userStorage, btp: donneesBtp.btp } : {}),
     }
 
     return new Response(JSON.stringify(exportData, null, 2), {
