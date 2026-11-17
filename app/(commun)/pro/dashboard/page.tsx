@@ -1266,21 +1266,21 @@ function DashboardPage() {
           {/* ────── GANTT (Société BTP) ────── */}
           {activePage === 'gantt' && (
             <div className="p-4 lg:p-5 animate-fadeIn">
-              <GanttSection userId={artisan?.id || ''} orgRole={orgRole} />
+              <GanttSection userId={artisan?.id || ''} authUserId={artisan?.user_id || ''} orgRole={orgRole} />
             </div>
           )}
 
           {/* ────── SITUATIONS DE TRAVAUX (Société BTP) ────── */}
           {activePage === 'situations' && (
             <div className="p-4 lg:p-5 animate-fadeIn">
-              <SituationsTravaux userId={artisan?.id || ''} orgRole={orgRole} />
+              <SituationsTravaux userId={artisan?.id || ''} authUserId={artisan?.user_id || ''} orgRole={orgRole} />
             </div>
           )}
 
           {/* ────── RETENUES DE GARANTIE (Société BTP) ────── */}
           {activePage === 'garanties' && (
             <div className="p-4 lg:p-5 animate-fadeIn">
-              <RetenuesGarantieSection userId={artisan?.id || ''} orgRole={orgRole} />
+              <RetenuesGarantieSection userId={artisan?.id || ''} authUserId={artisan?.user_id || ''} orgRole={orgRole} />
             </div>
           )}
 
@@ -1294,7 +1294,7 @@ function DashboardPage() {
           {/* ────── SOUS-TRAITANCE DC4 (Société BTP) ────── */}
           {activePage === 'sous_traitance' && (
             <div className="p-4 lg:p-5 animate-fadeIn">
-              <SousTraitanceDC4Section userId={artisan?.id || ''} orgRole={orgRole} />
+              <SousTraitanceDC4Section userId={artisan?.id || ''} authUserId={artisan?.user_id || ''} orgRole={orgRole} />
             </div>
           )}
 
@@ -1322,7 +1322,7 @@ function DashboardPage() {
           {/* ────── DPGF APPELS D'OFFRES (Société BTP) ────── */}
           {activePage === 'dpgf' && (
             <div className="p-4 lg:p-5 animate-fadeIn">
-              <DPGFSection userId={artisan?.id || ''} orgRole={orgRole} />
+              <DPGFSection userId={artisan?.id || ''} authUserId={artisan?.user_id || ''} orgRole={orgRole} />
             </div>
           )}
 

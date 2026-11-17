@@ -114,10 +114,11 @@ export default function HomeSection({
 
   // BTP data for pro_societe — pulled from Supabase tables
   const userId = artisan?.user_id || artisan?.id || ''
-  const { items: btpChantiers } = useBTPData<{ id: string; titre: string; client: string; statut: string; budget: number; montant_facture: number; dateDebut: string; dateFin: string; adresse?: string; ville?: string; codePostal?: string; latitude?: number; longitude?: number; equipe: string; marge_prevue_pct: number; acompte_recu: number }>({ table: 'chantiers', artisanId: userId, userId })
-  const { items: btpMembres } = useBTPData<{ id: string; prenom: string; nom: string; type_compte: string; actif: boolean }>({ table: 'membres', artisanId: userId, userId })
-  const { items: btpDepenses } = useBTPData<{ id: string; amount: number; date: string; label: string; category: string }>({ table: 'depenses', artisanId: userId, userId })
-  const { items: btpSituations } = useBTPData<{ id: string; statut: string; montant_marche: number; chantier: string; travaux: any[] }>({ table: 'situations', artisanId: userId, userId })
+  // orgRole : un chargement en échec n'est annoncé qu'au BTP pro ; l'accueil de l'artisan reste celui d'avant.
+  const { items: btpChantiers } = useBTPData<{ id: string; titre: string; client: string; statut: string; budget: number; montant_facture: number; dateDebut: string; dateFin: string; adresse?: string; ville?: string; codePostal?: string; latitude?: number; longitude?: number; equipe: string; marge_prevue_pct: number; acompte_recu: number }>({ table: 'chantiers', artisanId: userId, userId, orgRole })
+  const { items: btpMembres } = useBTPData<{ id: string; prenom: string; nom: string; type_compte: string; actif: boolean }>({ table: 'membres', artisanId: userId, userId, orgRole })
+  const { items: btpDepenses } = useBTPData<{ id: string; amount: number; date: string; label: string; category: string }>({ table: 'depenses', artisanId: userId, userId, orgRole })
+  const { items: btpSituations } = useBTPData<{ id: string; statut: string; montant_marche: number; chantier: string; travaux: any[] }>({ table: 'situations', artisanId: userId, userId, orgRole })
 
   // One-shot cleanup: purge fake data injected by the now-removed Démo button.
   // Demo entries have stable signatures (id prefix `demo-conv-`/`demo-devis-` for
