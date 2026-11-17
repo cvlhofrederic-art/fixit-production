@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <application
         android:allowBackup="false"
@@ -49,6 +50,12 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
+        <!-- @capgo/background-geolocation déclare aussi un suivi continu (service de premier plan « location ») : le
+             pointage n'utilise que les zones du système, ce service n'est jamais démarré. Retiré, pour ne pas déclarer à
+             Google Play un service de localisation au premier plan qui ne sert pas. -->
+        <service
+            android:name="com.capgo.capacitor_background_geolocation.BackgroundGeolocationService"
+            tools:node="remove" />
     </application>
 
     <!-- Permissions -->
@@ -63,6 +70,14 @@
     <!-- GPS pour Proof of Work -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- Pointage BTP « téléphone en poche » : zones des chantiers suivies appli fermée (@capgo/background-geolocation).
+         Demandée seulement quand l'employé active ce mode dans l'onglet Pointer. -->
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <!-- Ajoutés par @capgo/background-geolocation pour son suivi continu, inutilisé (service retiré plus haut) : la
+         permission du service de localisation au premier plan, et le GPS exigé, qui écarterait du Play Store les
+         appareils sans GPS (les zones du système marchent aussi au Wi-Fi et au réseau mobile). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" tools:node="remove" />
+    <uses-feature android:name="android.hardware.location.gps" tools:node="remove" />
 
     <!-- Caméra pour Proof of Work -->
     <uses-permission android:name="android.permission.CAMERA" />

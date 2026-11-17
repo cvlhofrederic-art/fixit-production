@@ -125,20 +125,25 @@ describe('identité de l’appli identique dans les projets natifs', () => {
   // Le 13/11/2026, @capacitor/browser avait été ajouté côté Android seulement : sur iPhone le plugin n'aurait
   // pas été compilé et « Continuer avec Google » aurait levé. Les trois fichiers sont générés par cap sync et
   // suivis par git : un oubli de synchronisation ne se voit qu'au lancement sur un téléphone.
+  // Plugins d'autres éditeurs aussi (@capgo/background-geolocation, pointage BTP téléphone en poche, 17/11/2026).
   it('les projets natifs déclarent tous les plugins Capacitor du package.json', () => {
     const paquets = Object.keys(JSON.parse(lire('package.json')).dependencies ?? {})
-      .filter((nom) => nom.startsWith('@capacitor/'))
+      .filter((nom) => nom.startsWith('@capacitor/') || nom.startsWith('@capgo/'))
       .filter((nom) => !['@capacitor/core', '@capacitor/cli', '@capacitor/android', '@capacitor/ios'].includes(nom))
     expect(paquets.length).toBeGreaterThan(0)
+    expect(paquets).toContain('@capgo/background-geolocation')
 
     const settings = lire('android/capacitor.settings.gradle')
     const build = lire('android/app/capacitor.build.gradle')
     const spm = lire('ios/App/CapApp-SPM/Package.swift')
+    const casse = (mots: string) => mots.split('-').map((m) => m[0].toUpperCase() + m.slice(1)).join('')
 
     for (const paquet of paquets) {
-      const court = paquet.slice('@capacitor/'.length)
-      const projet = `capacitor-${court}`
-      const spmNom = 'Capacitor' + court.split('-').map((m) => m[0].toUpperCase() + m.slice(1)).join('')
+      // @capacitor/status-bar → capacitor-status-bar, CapacitorStatusBar ; @capgo/background-geolocation →
+      // capgo-background-geolocation, CapgoBackgroundGeolocation (noms écrits par cap sync).
+      const [editeur, court] = paquet.slice(1).split('/')
+      const projet = `${editeur}-${court}`
+      const spmNom = casse(editeur) + casse(court)
 
       expect(settings, `${paquet} absent de capacitor.settings.gradle`).toContain(`include ':${projet}'`)
       expect(settings, `${paquet} : chemin inattendu`).toContain(`'../node_modules/${paquet}/android'`)
@@ -146,6 +151,27 @@ describe('identité de l’appli identique dans les projets natifs', () => {
       expect(spm, `${paquet} absent du Package.swift iOS`).toContain(`.package(name: "${spmNom}"`)
       expect(spm, `${paquet} : produit absent de la cible iOS`).toContain(`.product(name: "${spmNom}"`)
     }
+  })
+
+  // Pointage BTP téléphone en poche (17/11/2026) : sans la permission Android, le système ne livre pas les zones appli
+  // fermée ; sans le texte iOS, l'autorisation « Toujours » n'est jamais proposée ; sans le relais, une sortie de zone
+  // qui relance l'appli fermée est perdue. Aucun mode d'arrière-plan iOS : la surveillance de zones n'en a pas besoin.
+  it('pointage téléphone en poche : permission Android, texte iOS « Toujours », relais au lancement', () => {
+    const manifeste = lire('android/app/src/main/AndroidManifest.xml')
+    expect(manifeste).toContain('<uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />')
+    // Suivi continu du module (service de premier plan « location ») jamais démarré : retiré avec sa permission, pour
+    // ne pas le déclarer à Google Play, et le GPS exigé aussi (les appareils sans GPS restent servis).
+    expect(manifeste).toContain('xmlns:tools="http://schemas.android.com/tools"')
+    expect(manifeste).toMatch(/android:name="com\.capgo\.capacitor_background_geolocation\.BackgroundGeolocationService"\s+tools:node="remove"/)
+    expect(manifeste).toContain('<uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" tools:node="remove" />')
+    expect(manifeste).toContain('<uses-feature android:name="android.hardware.location.gps" tools:node="remove" />')
+    const plist = lire('ios/App/App/Info.plist')
+    const texteToujours = premiereCapture(plist, /<key>NSLocationAlwaysAndWhenInUseUsageDescription<\/key>\s*<string>([^<]+)<\/string>/)
+    expect(texteToujours).toContain('même appli fermée')
+    expect(tableauPlist(plist, 'UIBackgroundModes')).not.toContain('<string>location</string>')
+    const delegue = lire('ios/App/App/AppDelegate.swift')
+    expect(delegue).toContain('import CapgoBackgroundGeolocationPlugin')
+    expect(premiereCapture(delegue, /didFinishLaunchingWithOptions[^{]*\{([^}]*)\}/)).toContain('GeofenceRelay.shared.start()')
   })
 
   // L'icône de l'App Store ne doit pas avoir de couche de transparence : Apple rejette l'envoi, et le
