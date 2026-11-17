@@ -43,15 +43,16 @@ import { isStorageReadable } from '@/lib/safe-storage'
 //        encore en route, qui l'envoie lui-même) est laissée en place pour cette relecture, sans repartir d'ici, et la
 //        modification d'ici est abandonnée avec sa note.
 //     La même règle vaut pour un envoi en échec : il ne repart qu'après une nouvelle restauration, jamais à
-//     l'aveugle — pas même à la fermeture de l'onglet. Une suppression en échec attend ce nouvel essai tant qu'elle
-//     reste la dernière action de cet onglet sur la clé, même si la clé est revenue dans le navigateur pendant son
-//     envoi : la relecture du nouvel essai tranche. Elle ne repart pas si le serveur n'a plus la clé à cette relecture,
-//     ni si une relecture faite pendant son envoi l'a déjà tenue pour faite (clé absente du serveur) — pas même quand
-//     l'envoi plus ancien d'un autre onglet y remet ensuite la clé (voir les limites). Quand deux envois de la même clé
-//     se chevauchent, la confirmation du premier ne lève pas la note tant que la valeur plus récente écrite dans cet
-//     onglet attend son envoi ou reste en place dans le navigateur, ni quand un autre onglet l'y a remplacée par une
-//     valeur que cet onglet ne connaît pas, ni quand la dernière action de cet onglet est une suppression partie après
-//     lui : c'est la réponse de cette suppression qui lève la note.
+//     l'aveugle — pas même à la fermeture de l'onglet (une exception pour une suppression : voir DCF2RB dans les
+//     limites). Une suppression en échec attend ce nouvel essai tant qu'elle reste la dernière action de cet onglet
+//     sur la clé, même si la clé est revenue dans le navigateur pendant son envoi : la relecture du nouvel essai
+//     tranche. Elle ne repart pas si le serveur n'a plus la clé à cette relecture, ni si une relecture faite pendant
+//     son envoi l'a déjà tenue pour faite (clé absente du serveur) — pas même quand l'envoi plus ancien d'un autre
+//     onglet y remet ensuite la clé (voir les limites). Quand deux envois de la même clé se chevauchent, la
+//     confirmation du premier ne lève pas la note tant que la valeur plus récente écrite dans cet onglet attend son
+//     envoi ou reste en place dans le navigateur, ni quand un autre onglet l'y a remplacée par une valeur que cet
+//     onglet ne connaît pas, ni quand la dernière action de cet onglet est une suppression partie après lui : c'est la
+//     réponse de cette suppression qui lève la note.
 //  3. Un envoi en échec (réseau ou réponse d'erreur) est retenté seul : le serveur est relu après 5 s, 15 s, 1 min,
 //     puis toutes les 5 min, et ce qui attend repart. Une valeur que le serveur refuse (400, 413, 422) reste dans le
 //     navigateur et ne bloque pas les autres. Une valeur qu'il ne parvient pas à enregistrer (500 à chaque envoi qui
@@ -90,7 +91,10 @@ import { isStorageReadable } from '@/lib/safe-storage'
 // avant. Enfin, un renvoi décidé par la relecture d'un nouvel essai part 1,5 s après elle : une modification faite
 // entre-temps dans un autre onglet, dont l'envoi arrive au serveur avant ce renvoi, en est effacée et ne reste que dans
 // ce navigateur (DXR, DCF2X) ; avant ce miroir, une modification en échec ne repartait que si l'utilisateur continuait
-// dans son onglet.
+// dans son onglet. De même, un envoi de cet onglet encore en route, qui porte d'autres valeurs, envoie à sa fin, sans
+// relire le serveur, une suppression que l'échec d'un autre envoi de l'onglet vient de remettre en attente : une
+// modification faite entre-temps dans un autre onglet, arrivée au serveur avant elle, en est effacée, comme avant
+// (DCF2RB).
 // Une modification d'ici (saisie ou suppression) qui attend son nouvel essai après un échec, et que la restauration
 // d'un autre onglet a remplacée dans le navigateur, cède au serveur dans les cas suivants, alors qu'avant ce miroir
 // elle repartait si l'utilisateur continuait dans l'onglet, sans relire le serveur :
