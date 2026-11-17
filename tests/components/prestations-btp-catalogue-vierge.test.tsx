@@ -8,7 +8,8 @@
 // catalogue saisi dans le module n'y était jamais proposé. Désormais :
 //   - compte neuf : catalogue vide dans le module (FR et PT : chaque corps d'état, matériaux, frais divers) et dans
 //     les listes du formulaire ; rien n'est écrit ni publié ;
-//   - le formulaire propose le catalogue saisi dans le module (à défaut l'ancienne copie), étapes comprises ;
+//   - le formulaire propose le catalogue saisi dans le module (à défaut l'ancienne copie), étapes comprises, lu une
+//     seule fois : la prestation choisie garde ses étapes même si le catalogue change après l'ouverture ;
 //   - compte existant : le catalogue enregistré (ancien catalogue d'exemple compris) s'affiche et reste tel quel ;
 //   - la première prestation saisie dans un catalogue parti vide est enregistrée et publiée une seule fois.
 // La sauvegarde en ligne du compte (GET /api/user-storage) est simulée sans catalogue : un module qui la consulte
@@ -66,7 +67,11 @@ vi.mock('@/lib/supabase', () => {
     },
   }
 })
-vi.mock('@/lib/auth/jeton-acces', () => ({ jetonAcces: async () => 'jeton-test' }))
+vi.mock('@/lib/auth/jeton-acces', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/auth/jeton-acces')>()),
+  jetonAcces: async () => 'jeton-test',
+  lireJetonAcces: async () => ({ jeton: 'jeton-test', indisponible: false }),
+}))
 vi.mock('@/lib/fetch-authentifie', () => ({ fetchAuthentifie: vi.fn(async () => new Response('[]', { status: 200 })) }))
 vi.mock('sonner', () => ({
   toast: Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn(), warning: vi.fn(), loading: vi.fn(() => 'tid'), dismiss: vi.fn() }),
@@ -76,6 +81,7 @@ vi.mock('@/components/dashboard/btp/RentabiliteDevisModal', () => ({ default: ()
 
 import PrestationsBTPSection from '@/components/dashboard/PrestationsBTPSection'
 import DevisFactureFormBTP from '@/components/DevisFactureFormBTP'
+import { toast } from 'sonner'
 
 const FICHE = { id: 'fiche-btp-vierge', user_id: 'compte-btp-vierge', company_name: 'BATIR TEST SAS' } as unknown as Artisan
 const FICHE_DEVIS: ArtisanBasic = { id: 'fiche-btp-vierge', company_name: 'BATIR TEST SAS', email: 'contact@batir.test' }
@@ -104,6 +110,15 @@ const CATALOGUE_MODULE = JSON.stringify([
 ])
 
 const attendre = (ms: number) => new Promise((r) => setTimeout(r, ms))
+/**
+ * Laisse aboutir le chargement du module : les lectures de la sauvegarde en ligne qu'il a lancées (fetch simulé),
+ * puis les rendus qui en découlent. Aucune durée fixe : un module qui consulte le serveur est attendu jusqu'au bout.
+ */
+async function attendreChargement() {
+  await attendre(0)
+  await Promise.allSettled(vi.mocked(fetch).mock.results.map((r) => r.value))
+  await attendre(0)
+}
 /** Clés de catalogue BTP présentes dans le navigateur. */
 function clesCatalogue(): string[] {
   const cles: string[] = []
@@ -135,6 +150,7 @@ beforeEach(() => {
   h.locale = 'fr'
   h.publication = 'refusee'
   h.insertions = []
+  vi.mocked(toast.error).mockClear()
   // Sauvegarde en ligne du compte : aucun catalogue (compte neuf).
   vi.stubGlobal('fetch', vi.fn(async (url: unknown) => (String(url).startsWith('/api/user-storage')
     ? new Response(JSON.stringify({ entries: {} }), { status: 200, headers: { 'Content-Type': 'application/json' } })
@@ -150,7 +166,7 @@ afterEach(() => {
 describe('module Prestations BTP — compte neuf', () => {
   it('France : ni prestation, ni matériau, ni frais d\'exemple ; rien n\'est écrit ni publié', async () => {
     monterModule()
-    await attendre(50)
+    await attendreChargement()
     verifierModuleVide({
       prestations: 'Aucune prestation dans ce lot.',
       materiaux: [/Matériaux/, 'Aucun matériau référencé.'],
@@ -158,12 +174,14 @@ describe('module Prestations BTP — compte neuf', () => {
     })
     expect(clesCatalogue()).toEqual([])
     expect(h.insertions).toHaveLength(0)
+    // Un module en échec de chargement afficherait aussi des listes vides : il le signalerait par un message.
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
   it('Portugal : ni prestação, ni material, ni despesa d\'exemple ; rien n\'est écrit ni publié', async () => {
     h.locale = 'pt'
     monterModule()
-    await attendre(50)
+    await attendreChargement()
     verifierModuleVide({
       prestations: 'Nenhuma prestação neste lote.',
       materiaux: [/Materiais/, 'Nenhum material referenciado.'],
@@ -171,12 +189,13 @@ describe('module Prestations BTP — compte neuf', () => {
     })
     expect(clesCatalogue()).toEqual([])
     expect(h.insertions).toHaveLength(0)
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
   it('la première prestation saisie est enregistrée et publiée une seule fois', async () => {
     h.publication = 'acceptee'
     monterModule()
-    await attendre(50)
+    await attendreChargement()
     fireEvent.click(screen.getByRole('button', { name: '+ Ajouter' }))
     fireEvent.change(screen.getByPlaceholderText('Ex: Dalle béton'), { target: { value: 'Chape liquide' } })
     fireEvent.click(screen.getByRole('button', { name: 'Créer' }))
@@ -188,6 +207,7 @@ describe('module Prestations BTP — compte neuf', () => {
     await waitFor(() => expect(JSON.parse(localStorage.getItem(CLE_MODULE) || '[]')).toEqual([
       expect.objectContaining({ name: 'Chape liquide', type: 'prest', supabase_id: 'svc-1' }),
     ]))
+    expect(toast.error).not.toHaveBeenCalled()
   })
 })
 
@@ -236,6 +256,21 @@ describe('formulaire de devis BTP — listes du catalogue', () => {
     expect(await screen.findByDisplayValue('Échafaudage de façade')).toBeInTheDocument()
     expect(screen.getByDisplayValue('Lavage et enduit')).toBeInTheDocument()
     expect(screen.queryByDisplayValue('Étape étrangère')).toBeNull()
+  })
+
+  it('catalogue changé après l\'ouverture : la prestation choisie garde ses étapes, pas celles d\'une autre', async () => {
+    localStorage.setItem(CLE_ANCIENNE, JSON.stringify([
+      { id: 31, name: 'Autre prestation', type: 'prest', lot: 'gros_oeuvre', unit: 'u', price: { min: 10, max: 10 }, etapes: [{ label: 'Étape étrangère' }] },
+    ]))
+    monterFormulaire()
+    // Catalogue du module recopié après l'ouverture (restauration tardive, autre onglet), au même identifiant 31.
+    localStorage.setItem(CLE_MODULE, CATALOGUE_MODULE)
+    const champ = screen.getByPlaceholderText(CHAMP_PRESTATION)
+    fireEvent.click(champ.nextElementSibling as HTMLElement)
+    fireEvent.click(screen.getByText(/^Autre prestation/))
+    expect(await screen.findByDisplayValue('Étape étrangère')).toBeInTheDocument()
+    expect(screen.queryByDisplayValue('Échafaudage de façade')).toBeNull()
+    expect(screen.queryByDisplayValue('Ravalement complet')).toBeNull()
   })
 
   it('compte existant sans catalogue du module : l\'ancienne copie reste proposée, sans être réécrite', () => {
