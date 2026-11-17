@@ -121,7 +121,12 @@ import { STATUT_ASSEMBLEE, type StatutAssemblee } from '@/lib/data/referentiels-
  *   irrégulière ne fait pas courir le délai (Cass. 3e civ., 28/01/2015, n° 13-23.552) ;
  * - suite de J51 (envoi-ordre-service.ts) : ces deux cas étaient calculés « à confirmer » et ne donnaient qu'une alerte à
  *   l'OS ; refusés, la fin du délai est inconnue et l'OS des travaux votés aux art. 25 ou 26 est bloqué, sauf urgence
- *   constatée.
+ *   constatée ;
+ * - J57 (décision de Hugo du 17/11/2026 (J57), section « Suite » des notes, numéro de registre proposé) : une LRE, ou un
+ *   envoi par le procédé d'un prestataire qualifié, refusé ou non réclamé fait quand même courir le délai, du lendemain
+ *   de la transmission de l'avis électronique (D. 1967 art. 64, dernier al. ; même logique que la LRAR non retirée,
+ *   Cass. 3e civ., 16/04/2026, n° 24-18.842) : le calcul ne lit que la date de l'avis (dateAvisElectronique), jamais
+ *   l'acceptation, le refus ou la non-réclamation ; comportement inchangé (envois-electroniques.ts, courriers.ts).
  */
 
 /** Ligne d'historique telle que la lisent ces fonctions (sous-ensemble de ChangementStatut). */

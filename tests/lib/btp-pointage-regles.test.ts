@@ -237,7 +237,8 @@ describe('export CSV', () => {
 
   it('libellés des méthodes', () => {
     expect(libelleMode('geo_confirme', false)).toBe('Sur site (GPS)')
-    expect(libelleMode('geo_auto', true)).toBe('Automática (GPS)')
+    // « o método » : masculin en portugais (rapport i18n PT-PT du 17/11/2026).
+    expect(libelleMode('geo_auto', true)).toBe('Automático (GPS)')
     expect(libelleMode(undefined, false)).toBe('Manuel')
   })
 })

@@ -61,8 +61,23 @@ const formulaireVide = () => ({
 /** Départ : heure, « En cours » (aujourd'hui), « Départ non pointé » (jour précédent, encore ouvert). */
 function celluleDepart(p: PointageLu, jour: string, isPt: boolean) {
   if (p.heureDepart) return p.heureDepart.slice(0, 5)
-  if (p.date < jour) return <span className="v5-badge v5-badge-orange">{isPt ? 'Saída não marcada' : 'Départ non pointé'}</span>
+  if (p.date < jour) return <span className="v5-badge v5-badge-orange">{isPt ? 'Saída não registada' : 'Départ non pointé'}</span>
   return <span className="v5-badge v5-badge-green">{isPt ? 'Em curso' : 'En cours'}</span>
+}
+
+const echapperRegExp = (texte: string) => texte.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+const NOTE_COUPURE_ENREGISTREE = new RegExp(`${echapperRegExp(NOTE_DEPART_APRES_COUPURE)} ; dernière présence vue sur le chantier à (\\d{2}:\\d{2}) : à vérifier\\.`, 'g')
+
+/**
+ * Notes posées en français par le serveur (lib/btp/pointage-regles.ts) : traduites en portugais à l'affichage seulement,
+ * la valeur enregistrée ne change pas ; un texte libre saisi par le gérant reste tel quel.
+ */
+function notesAffichees(notes: string, isPt: boolean): string {
+  if (!isPt) return notes
+  return notes
+    .split(NOTE_A_REGULARISER).join('Saída não registada: a regularizar.')
+    .split(NOTE_DOUBLON).join('Registo em duplicado: a verificar.')
+    .replace(NOTE_COUPURE_ENREGISTREE, 'Saída registada manualmente após uma interrupção do acompanhamento GPS; última presença registada na obra às $1: a verificar.')
 }
 
 /**
@@ -72,10 +87,10 @@ function celluleDepart(p: PointageLu, jour: string, isPt: boolean) {
 function badgeARegulariser(p: PointageLu, isPt: boolean) {
   const notes = p.notes ?? ''
   if (notes.includes(NOTE_A_REGULARISER) || notes.includes(NOTE_DOUBLON)) {
-    return <span className="v5-badge v5-badge-orange" title={notes}>{isPt ? 'A regularizar' : 'À régulariser'}</span>
+    return <span className="v5-badge v5-badge-orange" title={notesAffichees(notes, isPt)}>{isPt ? 'A regularizar' : 'À régulariser'}</span>
   }
   if (notes.includes(NOTE_DEPART_APRES_COUPURE)) {
-    return <span className="v5-badge v5-badge-yellow" title={notes}>{isPt ? 'A verificar' : 'À vérifier'}</span>
+    return <span className="v5-badge v5-badge-yellow" title={notesAffichees(notes, isPt)}>{isPt ? 'A verificar' : 'À vérifier'}</span>
   }
   return null
 }
@@ -103,9 +118,11 @@ export function OngletHistorique({ artisan, isPt }: { artisan: Artisan; isPt: bo
   const jourCourant = aujourdhui()
   const chantiersEnCours = chantiersBtp.items.filter(c => c.statut === STATUT_EN_COURS)
   const membres = membresBtp.items.filter(m => m.actif !== false)
-  const postes = isPt
-    ? ['Chefe de obra', 'Pedreiro', 'Eletricista', 'Canalizador', 'Carpinteiro', 'Pintor', 'Servente']
-    : ['Chef de chantier', 'Maçon', 'Électricien', 'Plombier', 'Charpentier', 'Peintre', 'Manoeuvre']
+  // [valeur enregistrée, libellé] : la valeur portugaise d'origine « Chefe de obra » reste enregistrée telle quelle, seul
+  // son libellé suit le glossaire (« Encarregado »).
+  const postes: ReadonlyArray<[string, string]> = isPt
+    ? [['Chefe de obra', 'Encarregado'], ['Pedreiro', 'Pedreiro'], ['Eletricista', 'Eletricista'], ['Canalizador', 'Canalizador'], ['Carpinteiro', 'Carpinteiro'], ['Pintor', 'Pintor'], ['Servente', 'Servente']]
+    : ['Chef de chantier', 'Maçon', 'Électricien', 'Plombier', 'Charpentier', 'Peintre', 'Manoeuvre'].map(p => [p, p])
 
   const employes = useMemo(() => [...new Set(pointages.map(p => p.employe))].filter(Boolean), [pointages])
   const filtres = pointages.filter(p =>
@@ -137,7 +154,7 @@ export function OngletHistorique({ artisan, isPt }: { artisan: Artisan; isPt: bo
       heuresTravaillees: Math.round(calculerHeures(form.heureArrivee, form.heureDepart, form.pauseMinutes) * 100) / 100,
     } as Partial<PointageLu>)
     if (!ajout) {
-      toast.error(isPt ? 'A marcação não foi guardada.' : 'Le pointage n’a pas été enregistré.')
+      toast.error(isPt ? 'O registo não foi guardado.' : 'Le pointage n’a pas été enregistré.')
       return
     }
     setFormulaireOuvert(false)
@@ -157,7 +174,7 @@ export function OngletHistorique({ artisan, isPt }: { artisan: Artisan; isPt: bo
     const url = URL.createObjectURL(new Blob(['﻿', csv], { type: 'text/csv;charset=utf-8' }))
     const lien = document.createElement('a')
     lien.href = url
-    lien.download = `${isPt ? 'marcacoes' : 'pointages'}_${filtreDate || aujourdhui()}.csv`
+    lien.download = `${isPt ? 'registos_de_horas' : 'pointages'}_${filtreDate || aujourdhui()}.csv`
     lien.click()
     URL.revokeObjectURL(url)
   }
@@ -170,14 +187,14 @@ export function OngletHistorique({ artisan, isPt }: { artisan: Artisan; isPt: bo
     <div style={{ display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
       <div>
         <button type="button" className="v5-btn v5-btn-p" onClick={() => setFormulaireOuvert(true)}>
-          {isPt ? 'Marcar manualmente' : 'Pointer manuellement'}
+          {isPt ? 'Registar manualmente' : 'Pointer manuellement'}
         </button>
       </div>
 
       {formulaireOuvert && (
         <div className="v5-card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '.75rem' }}>
-            <div className="v5-st" style={{ marginBottom: 0 }}>{isPt ? 'Nova marcação' : 'Nouveau pointage'}</div>
+            <div className="v5-st" style={{ marginBottom: 0 }}>{isPt ? 'Novo registo' : 'Nouveau pointage'}</div>
             <button type="button" className="v5-btn v5-btn-sm" onClick={() => setFormulaireOuvert(false)} aria-label={isPt ? 'Fechar' : 'Fermer'}>✕</button>
           </div>
           <div className="v5-fr" style={{ marginBottom: '.75rem' }}>
@@ -199,7 +216,7 @@ export function OngletHistorique({ artisan, isPt }: { artisan: Artisan; isPt: bo
               <label className="v5-fl" htmlFor="pointage-poste">{isPt ? 'Função' : 'Poste'}</label>
               <select id="pointage-poste" className="v5-fi" value={form.poste} onChange={e => setForm({ ...form, poste: e.target.value })}>
                 <option value="">{isPt ? 'Selecionar' : 'Sélectionner'}</option>
-                {postes.map(p => <option key={p} value={p}>{p}</option>)}
+                {postes.map(([valeur, libelle]) => <option key={valeur} value={valeur}>{libelle}</option>)}
               </select>
             </div>
             <div className="v5-fg">
@@ -233,12 +250,12 @@ export function OngletHistorique({ artisan, isPt }: { artisan: Artisan; isPt: bo
               <input id="pointage-pause" type="number" min={0} className="v5-fi" value={form.pauseMinutes} onChange={e => setForm({ ...form, pauseMinutes: Number(e.target.value) })} />
             </div>
             <div className="v5-fg">
-              <label className="v5-fl" htmlFor="pointage-notes">Notes</label>
+              <label className="v5-fl" htmlFor="pointage-notes">{isPt ? 'Notas' : 'Notes'}</label>
               <input id="pointage-notes" className="v5-fi" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} />
             </div>
           </div>
           <div className="v5-al info" style={{ marginBottom: 12 }}>
-            {isPt ? 'Horas' : 'Heures'} : <strong>{formatHeures(calculerHeures(form.heureArrivee, form.heureDepart, form.pauseMinutes))}</strong>
+            {isPt ? 'Horas:' : 'Heures :'} <strong>{formatHeures(calculerHeures(form.heureArrivee, form.heureDepart, form.pauseMinutes))}</strong>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button type="button" className="v5-btn v5-btn-p" onClick={() => { void enregistrer() }} disabled={!form.employe}>
@@ -254,7 +271,7 @@ export function OngletHistorique({ artisan, isPt }: { artisan: Artisan; isPt: bo
           <div className="v5-st" style={{ marginBottom: 0 }}>
             {filtreDate
               ? new Date(`${filtreDate}T12:00:00`).toLocaleDateString(langueDates, { weekday: 'long', day: 'numeric', month: 'long' })
-              : (isPt ? 'Todas as marcações' : 'Tous les pointages')}
+              : (isPt ? 'Todos os registos' : 'Tous les pointages')}
           </div>
           <div className="v5-search" style={{ marginBottom: 0 }}>
             <input type="date" aria-label={isPt ? 'Data' : 'Date'} className="v5-search-in" style={{ minWidth: 140, flex: 'none' }} value={filtreDate} onChange={e => setFiltreDate(e.target.value)} />
@@ -264,7 +281,7 @@ export function OngletHistorique({ artisan, isPt }: { artisan: Artisan; isPt: bo
             </select>
             <select aria-label={isPt ? 'Método' : 'Méthode'} className="v5-filter-sel" value={filtreMode} onChange={e => setFiltreMode(e.target.value as FiltreMode)}>
               <option value="tous">{isPt ? 'Todos os métodos' : 'Toutes méthodes'}</option>
-              <option value="auto">{isPt ? 'Automática (GPS)' : 'Automatique (GPS)'}</option>
+              <option value="auto">{isPt ? 'Automático (GPS)' : 'Automatique (GPS)'}</option>
               <option value="manuel">{isPt ? 'Manual' : 'Manuel'}</option>
             </select>
             <button type="button" className="v5-btn v5-btn-sm" onClick={() => setFiltreDate('')}>{isPt ? 'Ver tudo' : 'Voir tout'}</button>
@@ -285,7 +302,7 @@ export function OngletHistorique({ artisan, isPt }: { artisan: Artisan; isPt: bo
           </thead>
           <tbody>
             {filtres.length === 0 ? (
-              <tr><td colSpan={8} style={{ textAlign: 'center', padding: 24, color: GRIS }}>{isPt ? 'Nenhuma marcação' : 'Aucun pointage'}</td></tr>
+              <tr><td colSpan={8} style={{ textAlign: 'center', padding: 24, color: GRIS }}>{isPt ? 'Nenhum registo' : 'Aucun pointage'}</td></tr>
             ) : filtres.map(p => (
               <tr key={p.id}>
                 <td style={{ fontWeight: 600 }}>{p.employe}</td>
@@ -299,7 +316,7 @@ export function OngletHistorique({ artisan, isPt }: { artisan: Artisan; isPt: bo
                   <button
                     type="button"
                     className="v5-btn v5-btn-sm v5-btn-d"
-                    aria-label={`${isPt ? 'Eliminar a marcação de' : 'Supprimer le pointage de'} ${p.employe}`}
+                    aria-label={`${isPt ? 'Eliminar o registo de' : 'Supprimer le pointage de'} ${p.employe}`}
                     onClick={() => { void pointagesBtp.remove(p.id) }}
                   >
                     ✕
@@ -310,7 +327,7 @@ export function OngletHistorique({ artisan, isPt }: { artisan: Artisan; isPt: bo
           </tbody>
         </table>
         <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontSize: 11, color: GRIS }}>
-          <span>{filtres.length} {isPt ? 'marcação(ões)' : 'pointage(s)'} — <strong>{formatHeures(totalHeures)}</strong></span>
+          <span>{filtres.length} {isPt ? 'registo(s)' : 'pointage(s)'}{isPt ? ' · ' : ' — '}<strong>{formatHeures(totalHeures)}</strong></span>
           <button type="button" className="v5-btn v5-btn-sm" onClick={exporterCsv} disabled={filtres.length === 0}>
             {isPt ? 'Exportar CSV' : 'Exporter CSV'}
           </button>

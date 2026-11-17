@@ -264,7 +264,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // modele : modèle qui a réellement répondu (Claude, ou Llama en secours).
+    // modele : modèle qui a réellement répondu (Claude, ou celui de Groq en secours).
     return NextResponse.json({ response, action: comptaAction, modele: groqData.model ?? null })
 
   } catch (err: unknown) {

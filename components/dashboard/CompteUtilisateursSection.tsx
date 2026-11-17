@@ -39,7 +39,7 @@ interface TeamMember {
 const CONTRACT_LABELS: Record<ContractType, { fr: string; pt: string; bg: string; color: string }> = {
   cdi:           { fr: 'CDI',          pt: 'Sem termo',   bg: '#DCFCE7', color: '#15803D' }, // vert
   cdd:           { fr: 'CDD',          pt: 'A termo',     bg: '#FEF3C7', color: '#B45309' }, // ambre
-  sous_traitant: { fr: 'Sous-traitant', pt: 'Subcontrata', bg: '#DBEAFE', color: '#1D4ED8' }, // bleu
+  sous_traitant: { fr: 'Sous-traitant', pt: 'Subempreiteiro', bg: '#DBEAFE', color: '#1D4ED8' }, // bleu
   interim:       { fr: 'Intérim',       pt: 'Temporário',  bg: '#EDE9FE', color: '#6D28D9' }, // violet
   stagiaire:     { fr: 'Stagiaire',     pt: 'Estagiário',  bg: '#F3F4F6', color: '#4B5563' }, // gris
   apprenti:      { fr: 'Apprenti',      pt: 'Aprendiz',    bg: '#FFE4E6', color: '#BE123C' }, // rose
@@ -138,7 +138,7 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
 
   const handleInvite = async () => {
     if (!inviteForm.email || !inviteForm.full_name) {
-      toast.error(isPt ? 'Preencha email e nome' : 'Remplissez email et nom')
+      toast.error(isPt ? 'Preencha o e-mail e o nome' : 'Remplissez email et nom')
       return
     }
     setInviting(true)
@@ -156,7 +156,7 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
         setInviteForm({ email: '', full_name: '', phone: '', memberRole: 'CONDUCTEUR_TRAVAUX' })
         fetchMembers()
       } else {
-        toast.error(data.error || 'Erreur')
+        toast.error(data.error || (isPt ? 'Erro' : 'Erreur'))
       }
     } catch {
       toast.error(isPt ? 'Erro de rede' : 'Erreur réseau')
@@ -180,7 +180,7 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
         fetchMembers()
       }
     } catch {
-      toast.error('Erreur')
+      toast.error(isPt ? 'Erro' : 'Erreur')
     }
   }
 
@@ -200,7 +200,7 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
         fetchMembers()
       }
     } catch {
-      toast.error('Erreur')
+      toast.error(isPt ? 'Erro' : 'Erreur')
     }
   }
 
@@ -227,7 +227,7 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
         fetchMembers()
       }
     } catch {
-      toast.error('Erreur')
+      toast.error(isPt ? 'Erro' : 'Erreur')
     }
   }
 
@@ -266,7 +266,7 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
         fetchMembers()
       }
     } catch {
-      toast.error('Erreur')
+      toast.error(isPt ? 'Erro' : 'Erreur')
     } finally {
       setSaving(false)
     }
@@ -285,15 +285,17 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
         fetchMembers()
       }
     } catch {
-      toast.error('Erreur')
+      toast.error(isPt ? 'Erro' : 'Erreur')
     }
   }
 
-  const getRoleLabel = (role: ProTeamRole) => isPt ? ROLE_LABELS[role].pt : ROLE_LABELS[role].fr
+  const getRoleLabel = (role: ProTeamRole) => ROLE_LABELS[role][isPt ? 'pt' : 'fr']
   const getModuleLabel = (moduleId: string) => {
     const labels = MODULE_LABELS[moduleId]
-    return labels ? (isPt ? labels.pt : labels.fr) : moduleId
+    return labels ? labels[isPt ? 'pt' : 'fr'] : moduleId
   }
+  // Séparateur entre un rôle et sa description : pas d'espace avant « : » en portugais.
+  const separateurRole = isPt ? ': ' : ' : '
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return '—'
@@ -354,7 +356,7 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
       <div className="v5-pg-t">
           <h1>{isPt ? 'Contas de utilizadores' : 'Comptes utilisateurs'}</h1>
           <p>{isPt
-            ? `Acessos da equipa : ${members.length} contas ativas / 20 max`
+            ? `Acessos da equipa: ${members.length} ${members.length === 1 ? 'conta ativa' : 'contas ativas'} / 20 no máximo`
             : `Accès équipe : ${members.length} comptes actifs / 20 max`}</p>
       </div>
 
@@ -374,11 +376,11 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
           <thead>
             <tr>
               <th>{isPt ? 'Utilizador' : 'Utilisateur'}</th>
-              <th>Email</th>
+              <th>{isPt ? 'E-mail' : 'Email'}</th>
               <th>{isPt ? 'Papel' : 'Rôle'}</th>
               <th>{isPt ? 'Contrato' : 'Contrat'}</th>
               <th>{isPt ? 'Estado' : 'Statut'}</th>
-              <th>{isPt ? 'Última conexão' : 'Dernière connexion'}</th>
+              <th>{isPt ? 'Último acesso' : 'Dernière connexion'}</th>
               <th>{isPt ? 'Ações' : 'Actions'}</th>
             </tr>
           </thead>
@@ -404,7 +406,7 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
                     {(() => {
                       // Gérant = statut dirigeant (pas de chip contrat salarié classique)
                       if (member.role === 'GERANT') {
-                        return <span style={{ fontSize: 11, color: '#666', fontStyle: 'italic' }}>{isPt ? 'Dirigente' : 'Dirigeant'}</span>
+                        return <span style={{ fontSize: 11, color: '#666', fontStyle: 'italic' }}>{isPt ? 'Sócio-gerente' : 'Dirigeant'}</span>
                       }
                       const ct = member.contract_type || 'cdi'
                       const meta = CONTRACT_LABELS[ct] ?? CONTRACT_LABELS.cdi
@@ -420,7 +422,7 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
                   <td>
                     {!isGerant ? '—' : (
                       <div style={{ display: 'flex', gap: 5 }}>
-                        <button className="v5-btn v5-btn-sm" onClick={() => { setEditPerms(getEffectivePermissions(member.role, member.permission_overrides?.map(o => ({ module_id: o.module_id, access_level: o.access_level as AccessLevel })) || [])); setShowPermsModal(member) }}>{isPt ? 'Modificar' : 'Modifier'}</button>
+                        <button className="v5-btn v5-btn-sm" onClick={() => { setEditPerms(getEffectivePermissions(member.role, member.permission_overrides?.map(o => ({ module_id: o.module_id, access_level: o.access_level as AccessLevel })) || [])); setShowPermsModal(member) }}>{isPt ? 'Editar' : 'Modifier'}</button>
                         <button className="v5-btn v5-btn-sm v5-btn-d" onClick={() => handleToggleActive(member)}>{member.is_active ? (isPt ? 'Desativar' : 'Désactiver') : (isPt ? 'Ativar' : 'Activer')}</button>
                         <button className="v5-btn v5-btn-sm" style={{ color: '#dc2626', borderColor: '#fca5a5' }} onClick={() => handleDelete(member)}>{isPt ? 'Eliminar' : 'Supprimer'}</button>
                       </div>
@@ -437,12 +439,12 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
       <div className="v5-card">
         <div className="v5-st">{isPt ? 'Papéis & permissões' : 'Rôles & permissions'}</div>
         <div style={{ fontSize: 11, color: '#666', lineHeight: 1.6 }}>
-          <strong>{isPt ? 'Gerente' : 'Gérant'}</strong> : {isPt ? 'accès complet. Seul à gérer les comptes.' : 'accès complet. Seul à gérer les comptes.'}<br/>
-          <strong>{isPt ? 'Condutor de obras' : 'Conducteur de travaux'}</strong> : {isPt ? 'obras, equipas, planning, orçamentos fornecedores, subempreitada.' : 'chantiers, équipes, planning, devis fournisseurs, sous-traitance.'}<br/>
-          <strong>{isPt ? 'Chefe de obra' : 'Chef de chantier'}</strong> : {isPt ? 'as suas obras (planning, marcação, relatórios, fotos).' : 'ses chantiers (planning, pointage, rapports, photos).'}<br/>
-          <strong>{isPt ? 'Secretária' : 'Secrétaire'}</strong> : {isPt ? 'orçamentos, faturas, mensagens, clientes, conformidade.' : 'devis, factures, messagerie, clients, conformité.'}<br/>
-          <strong>{isPt ? 'Contabilista' : 'Comptable'}</strong> : {isPt ? 'contabilidade, rentabilidade, faturas, situações, retenções, receitas.' : 'compta, rentabilité, factures, situations, retenues, revenus.'}<br/>
-          <strong>{isPt ? 'Operário' : 'Ouvrier'}</strong> : {isPt ? 'marcação pessoal, fotos, planning apenas leitura.' : 'pointage personnel, photos, planning en lecture seule.'}
+          <strong>{ROLE_LABELS.GERANT[isPt ? 'pt' : 'fr']}</strong>{separateurRole}{isPt ? 'acesso total. Único com permissão para gerir contas.' : 'accès complet. Seul à gérer les comptes.'}<br/>
+          <strong>{ROLE_LABELS.CONDUCTEUR_TRAVAUX[isPt ? 'pt' : 'fr']}</strong>{separateurRole}{isPt ? 'obras, equipas, planeamento, orçamentos de fornecedores, subempreitadas.' : 'chantiers, équipes, planning, devis fournisseurs, sous-traitance.'}<br/>
+          <strong>{ROLE_LABELS.CHEF_CHANTIER[isPt ? 'pt' : 'fr']}</strong>{separateurRole}{isPt ? 'as suas obras (planeamento, registo de horas, relatórios, fotos).' : 'ses chantiers (planning, pointage, rapports, photos).'}<br/>
+          <strong>{ROLE_LABELS.SECRETAIRE[isPt ? 'pt' : 'fr']}</strong>{separateurRole}{isPt ? 'orçamentos, faturas, mensagens, clientes, conformidade.' : 'devis, factures, messagerie, clients, conformité.'}<br/>
+          <strong>{ROLE_LABELS.COMPTABLE[isPt ? 'pt' : 'fr']}</strong>{separateurRole}{isPt ? 'contabilidade, rentabilidade, faturas, autos de medição, retenções, receitas.' : 'compta, rentabilité, factures, situations, retenues, revenus.'}<br/>
+          <strong>{ROLE_LABELS.OUVRIER[isPt ? 'pt' : 'fr']}</strong>{separateurRole}{isPt ? 'registo das suas horas, fotos, planeamento apenas em leitura.' : 'pointage personnel, photos, planning en lecture seule.'}
         </div>
       </div>
       {/* ═══ INVITE MODAL ═══ */}
@@ -457,15 +459,15 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
               <div className="v22-modal-body">
                 <div className="v22-form-group">
                   <label className="v22-form-label">{isPt ? 'Nome completo' : 'Nom complet'} *</label>
-                  <input type="text" value={inviteForm.full_name} onChange={e => setInviteForm(f => ({ ...f, full_name: e.target.value }))} className="v22-form-input" placeholder="Jean Dupont" />
+                  <input type="text" value={inviteForm.full_name} onChange={e => setInviteForm(f => ({ ...f, full_name: e.target.value }))} className="v22-form-input" placeholder={isPt ? 'João Silva' : 'Jean Dupont'} />
                 </div>
                 <div className="v22-form-group">
-                  <label className="v22-form-label">Email *</label>
-                  <input type="email" value={inviteForm.email} onChange={e => setInviteForm(f => ({ ...f, email: e.target.value }))} className="v22-form-input" placeholder="jean@entreprise.fr" />
+                  <label className="v22-form-label">{isPt ? 'E-mail *' : 'Email *'}</label>
+                  <input type="email" value={inviteForm.email} onChange={e => setInviteForm(f => ({ ...f, email: e.target.value }))} className="v22-form-input" placeholder={isPt ? 'joao@empresa.pt' : 'jean@entreprise.fr'} />
                 </div>
                 <div className="v22-form-group">
                   <label className="v22-form-label">{isPt ? 'Telemóvel' : 'Téléphone'}</label>
-                  <input type="tel" value={inviteForm.phone} onChange={e => setInviteForm(f => ({ ...f, phone: e.target.value }))} className="v22-form-input" placeholder="+33 6 12 34 56 78" />
+                  <input type="tel" value={inviteForm.phone} onChange={e => setInviteForm(f => ({ ...f, phone: e.target.value }))} className="v22-form-input" placeholder={isPt ? '+351 912 345 678' : '+33 6 12 34 56 78'} />
                 </div>
                 <div className="v22-form-group">
                   <label className="v22-form-label">{isPt ? 'Papel' : 'Rôle'} *</label>
@@ -476,7 +478,7 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
                   </select>
                   <p style={{ marginTop: 4, fontSize: 10, color: '#999' }}>
                     {isPt
-                      ? 'As permissões padrão são aplicadas segundo o papel. Poderá personalizar depois.'
+                      ? 'As permissões predefinidas são aplicadas de acordo com o papel. Poderá personalizá-las depois da criação.'
                       : 'Les permissions par défaut sont appliquées selon le rôle. Personnalisable après création.'}
                   </p>
                 </div>
@@ -499,7 +501,7 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
             <div className="v22-modal-head">
               <div>
                 <h3 style={{ fontSize: 14, fontWeight: 700 }}>
-                  🔐 {isPt ? 'Permissões' : 'Permissions'} — {showPermsModal.full_name}
+                  🔐 {isPt ? 'Permissões' : 'Permissions'}{isPt ? ': ' : ' — '}{showPermsModal.full_name}
                 </h3>
                 <p style={{ fontSize: 10, marginTop: 4, color: tv.textMuted }}>
                   {isPt ? 'Papel' : 'Rôle'}: {getRoleLabel(showPermsModal.role)}
@@ -513,7 +515,7 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
                   className="v22-btn"
                   style={{ fontSize: 10, padding: '4px 12px' }}
                 >
-                  {isPt ? 'Restaurar padrão' : 'Restaurer les défauts'}
+                  {isPt ? 'Repor predefinições' : 'Restaurer les défauts'}
                 </button>
               </div>
 
@@ -521,7 +523,7 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
                 <table className="v22-dt" style={{ width: '100%', fontSize: 12 }}>
                   <thead>
                     <tr>
-                      <th style={{ textAlign: 'left', padding: '8px 12px' }}>Module</th>
+                      <th style={{ textAlign: 'left', padding: '8px 12px' }}>{isPt ? 'Módulo' : 'Module'}</th>
                       <th style={{ textAlign: 'center', padding: '8px 12px', color: '#16a34a', width: 90 }}>{isPt ? 'Completo' : 'Complet'}</th>
                       <th style={{ textAlign: 'center', padding: '8px 12px', color: '#f59e0b', width: 90 }}>{isPt ? 'Leitura' : 'Lecture'}</th>
                       <th style={{ textAlign: 'center', padding: '8px 12px', color: '#dc2626', width: 90 }}>{isPt ? 'Nenhum' : 'Aucun'}</th>

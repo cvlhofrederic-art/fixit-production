@@ -53,7 +53,15 @@ import type { CompteVirementInterne } from '@/lib/administrateur-judiciaire/doma
  *   nature (NATURES_COMPTE_BANCAIRE) ;
  * - J37 (03/11/2026) : le compte de l'administrateur provisoire est un compte à la Caisse des dépôts, le fonds de
  *   travaux sur un compte distinct ;
- * - J25 et J29 : le compte 53 « Caisse » n'est pas tenu : aucune espèce n'entre dans le calcul.
+ * - J25 et J29 : le compte 53 « Caisse » n'est pas tenu : aucune espèce n'entre dans le calcul ;
+ * - J62 (décision de Hugo du 17/11/2026 (J62), DECISIONS-HUGO-2026-11-17.md, section « Suite » : recommandations validées
+ *   en bloc, numéro de registre proposé) : un compte sans IBAN est traité comme le compte global de l'administrateur tant
+ *   que son IBAN n'est pas saisi : au solde négatif, sa couverture n'est pas vérifiable (couverture_non_verifiable,
+ *   bloquant) ; saisir l'IBAN de chaque compte du mandat. C. com. R. 814-37, R. 814-41 ; règle professionnelle 512.5.
+ *   Comportement inchangé (mutualise : null, jamais supposé propre au mandat), lecture désormais décidée ;
+ * - J63 (décision de Hugo du 17/11/2026 (J63), même section) : « avant le 15 mars » et « avant le 15 septembre »
+ *   (C. com. R. 814-30) = le 14 au plus tard (lecture prudente) : dates limites de l'attestation du commissaire aux
+ *   comptes le 14/03 et le 14/09 (echeancesFondsDetenusDeLAnnee, comportement inchangé).
  *
  * 🔵 Déduit (par la note, ou choix de ce module) :
  * - (note) un stock à une date, jamais un maximum : 31/12 (cotisation), 30/06 et 31/12 (commissaire aux comptes), fins
@@ -66,7 +74,7 @@ import type { CompteVirementInterne } from '@/lib/administrateur-judiciaire/doma
  *   dates) ne donnent un solde à une date quelconque ; aucune autre source n'est créée ;
  * - date limite = dernier jour pour agir, sans report au jour ouvrable : état trimestriel, fin du trimestre + 15 jours
  *   (« dans les quinze jours suivant ») ; attestation du commissaire aux comptes, le 14 mars et le 14 septembre (« avant
- *   le 15 », lu au sens strict, lecture prudente) ;
+ *   le 15 » : décision J63 ci-dessus) ;
  * - rubrique de chaque compte (rubriqueDuCompte) : fonds de travaux d'abord (compte séparé, ou compte repris qui le
  *   tenait, comme virement-interne.ts), puis Caisse des dépôts, compte courant (seule nature dont le libellé dit « au nom
  *   du syndicat »), autres natures (avance travaux, placement, sous-compte du centralisateur, compte repris : le domaine
@@ -79,9 +87,10 @@ import type { CompteVirementInterne } from '@/lib/administrateur-judiciaire/doma
  *   ni des autres mandats : les totaux additionnent les soldes positifs ; les négatifs sont totalisés à part et signalés ;
  * - couverture (R. 814-37), sur tous les comptes du mandat, quel que soit le périmètre : sous-compte d'un compte partagé
  *   entre mandats (sous-compte du centralisateur du cabinet, ou même IBAN sous plusieurs mandats) au solde négatif :
- *   servi par un autre mandat (bloquant) ; compte sans IBAN au solde négatif : couverture non vérifiable (bloquant), car
- *   rien ne dit s'il est propre au mandat ou tenu sur un compte global (la note cite le compte global de R. 814-40 et le
- *   compte « général » de la règle 512.5) : il n'est jamais supposé propre ; mandat au solde net négatif (bloquant ; s'il
+ *   servi par un autre mandat (bloquant) ; compte sans IBAN au solde négatif : couverture non vérifiable (bloquant), le
+ *   compte étant traité comme le compte global de l'administrateur tant que son IBAN n'est pas saisi (décision J62
+ *   ci-dessus ; la note cite le compte global de R. 814-40 et le compte « général » de la règle 512.5) : il n'est jamais
+ *   supposé propre ; mandat au solde net négatif (bloquant ; s'il
  *   est incomplet, le solde ne porte que sur ses comptes ventilés) ; compte propre identifié par son IBAN au solde
  *   négatif : découvert (alerte) ;
  * - compte partagé sans ventilation : un mandat tenu en compte centralisateur du cabinet sans sous-compte, ou un même
@@ -103,13 +112,9 @@ import type { CompteVirementInterne } from '@/lib/administrateur-judiciaire/doma
  * - comptes de placement tenus en classe 50 : non lus (sous-comptes 512 seulement, comme virement-interne.ts) ;
  * - totaux sur les seuls soldes positifs : choix de prudence à confirmer ;
  * - date limite tombant un samedi, un dimanche ou un jour férié : son report n'est pas établi (aucun n'est appliqué) ;
- *   « avant le 15 mars » : la lecture stricte (dernier jour le 14) est retenue par prudence, à confirmer ;
  * - mandats successifs d'un même syndicat (Frédéric, données de l'appelant) : ses comptes sont au syndicat (D1), et ce
  *   module ne connaît pas les dates des mandats ; deux mandats qui déclarent le même compte ne sont pas départagés par
  *   date (compte non ventilé) : l'appelant ne passe que les mandats qui détiennent les fonds à la date ;
- * - comptes sans IBAN (Caisse des dépôts en particulier) : compte ouvert pour le mandat ou compte global de
- *   l'administrateur ? Les données ne le disent pas ; tant que l'IBAN n'est pas renseigné, un solde négatif reste « non
- *   vérifiable » ;
  * - les grilles de vérification des contrôleurs (C. com. A. 814-4, annexes 8-5-1 et 8-5-2) n'ont pas été lues par la
  *   note : elles pourraient demander d'autres chiffres ;
  * - l'indicateur interne de maximum (maximumInterneFondsDetenus) : à garder ou non (note, § 4.3, question 6). Il n'a
@@ -259,7 +264,8 @@ export interface LigneFondsDetenus {
   inclus: boolean
   /**
    * true : compte bancaire partagé entre mandats (sous-compte du centralisateur, IBAN ou 512 communs) ; false : compte
-   * identifié par son IBAN, propre au mandat ; null : compte sans IBAN, son partage n'est pas établi par les données (🔴).
+   * identifié par son IBAN, propre au mandat ; null : compte sans IBAN, traité comme le compte global de l'administrateur
+   * tant que son IBAN n'est pas saisi (décision de Hugo du 17/11/2026, J62) : jamais supposé propre au mandat.
    */
   mutualise: boolean | null
 }
@@ -489,8 +495,8 @@ function indexerComptes(m: MandatFondsDetenus, comptes: Map<string, CompteResolu
 
 /**
  * Partage du compte bancaire : un sous-compte du centralisateur, un 512 déclaré sous plusieurs mandats ou un IBAN commun
- * à plusieurs mandats est partagé ; un compte identifié par son IBAN, propre au mandat ; sans IBAN, rien ne dit s'il est
- * propre au mandat ou tenu sur un compte global (🔴 : null, jamais supposé propre).
+ * à plusieurs mandats est partagé ; un compte identifié par son IBAN, propre au mandat ; sans IBAN, traité comme le
+ * compte global de l'administrateur tant que l'IBAN n'est pas saisi (J62 : null, jamais supposé propre).
  */
 function partageDuCompte(c: CompteResolu, mandatsParIban: ReadonlyMap<string, ReadonlySet<string>>): boolean | null {
   if (c.nature === 'sous_compte_centralisateur' || c.mandatIds.length > 1) return true
@@ -609,7 +615,8 @@ function anomaliesDesMandats(mandats: readonly MandatResolu[], lignes: readonly 
 
 /**
  * Compte ventilé au solde négatif, selon son partage : partagé, ses sorties ont été servies par un autre mandat ;
- * sans IBAN, la couverture n'est pas vérifiable (rien ne dit s'il est propre au mandat) ; propre au mandat, découvert.
+ * sans IBAN, traité comme le compte global de l'administrateur (J62), la couverture n'est pas vérifiable ; propre au
+ * mandat, découvert.
  */
 function anomalieDuSoldeNegatif(l: LigneFondsDetenus, mandatId: string, jour: string): AnomalieFondsDetenus {
   const solde = `Compte ${l.banqueId} du mandat ${mandatId} : solde de ${euros(l.soldeCentimes)} au ${jour}`
@@ -627,7 +634,7 @@ function anomalieDuSoldeNegatif(l: LigneFondsDetenus, mandatId: string, jour: st
       ...commun,
       code: 'couverture_non_verifiable',
       gravite: 'bloquant',
-      message: `${solde}, sur un compte sans IBAN : les données ne disent pas s'il est propre au mandat ou tenu sur un compte partagé avec d'autres (compte global à la Caisse des dépôts, par exemple). Découvert ou fonds d'un autre mandat, la couverture n'est pas vérifiable : renseigner l'IBAN du compte.`,
+      message: `${solde}, sur un compte sans IBAN, traité comme le compte global de l'administrateur tant que son IBAN n'est pas saisi (décision de Hugo du 17/11/2026, J62 ; C. com. R. 814-37, R. 814-41 ; règle professionnelle 512.5) : découvert ou fonds d'un autre mandat, la couverture n'est pas vérifiable ; saisir l'IBAN de chaque compte du mandat.`,
       fondement: FONDEMENT_COUVERTURE,
     }
   return {
@@ -787,7 +794,7 @@ export interface EcheanceFondsDetenus {
   fondement: string
   /**
    * Dernier jour pour l'acte qui suit : « dans les quinze jours suivant » la fin du trimestre, le quinzième ; « avant le
-   * 15 mars » (ou le 15 septembre), le 14. Null : aucun texte lu n'en fixe (⚪).
+   * 15 mars » (ou le 15 septembre), le 14 (J63). Null : aucun texte lu n'en fixe (⚪).
    */
   dateLimite: string | null
   acteAttendu: string | null
@@ -832,7 +839,7 @@ export function echeancesFondsDetenusDeLAnnee(annee: number): EcheanceFondsDeten
     const fr = dateIsoVersFr(fin)
     liste.push(echeance(fin, 'etat_trimestriel', `États du trimestre clos le ${fr}, pour chaque mandat non clos`, { date: ajouterJours(fin, 15), acte: ACTE_ETATS }))
     if (mois === 6 || mois === 12) {
-      // R. 814-30 : « avant le 15 mars et le 15 septembre » ; lu au sens strict, le dernier jour est la veille.
+      // R. 814-30 : « avant le 15 mars et le 15 septembre » : le 14 au plus tard (décision de Hugo du 17/11/2026, J63).
       const avantLe = mois === 6 ? composerDateIso(annee, 9, 15) : composerDateIso(annee + 1, 3, 15)
       liste.push(
         echeance(fin, 'arrete_comptabilite_speciale', `Arrêté de la comptabilité spéciale au ${fr}`, { date: ajouterJours(avantLe, -1), acte: acteAttestation(avantLe) }),

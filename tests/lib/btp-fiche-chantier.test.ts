@@ -89,7 +89,7 @@ describe('questions posées', () => {
     expect(fr).toContain('L’autre bouton : revenir à la fiche sans rien enregistrer.')
     const pt = questionRetirerPosition('Moradia', true)
     expect(pt).toContain('Retirar a posição GPS da obra « Moradia »')
-    expect(pt).toContain('(ecrã Marcação de horas, separador Atribuições)')
+    expect(pt).toContain('(ecrã Registo de horas, separador Atribuições)')
     expect(pt).toContain('Outro botão: voltar à ficha sem guardar nada.')
   })
 
