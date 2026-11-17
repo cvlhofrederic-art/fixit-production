@@ -928,11 +928,17 @@ function compterUnEchec(key: string): void {
  * restauration d'un autre onglet : voir les limites en tête du module). Ni si cet onglet n'a rien écrit de plus
  * récent : ce qu'un autre onglet a écrit depuis a son propre envoi. Ni, enfin, quand la clé n'a plus de note (levée à
  * une confirmation précédente, ou reprise du serveur) : cet onglet ne sait plus ce que le serveur détenait avant.
+ * Une suppression faite ici après la valeur confirmée, partie dans un autre envoi, garde toujours la note, quelle que
+ * soit la valeur que le navigateur détient : c'est sa réponse qui la lève (arrivée) ou la remet en attente (échec, voir
+ * envoyerSuppressions). La restauration d'un onglet neuf, ouvert pendant ces envois, remettait dans le navigateur une
+ * valeur que le serveur avait détenue : la note était levée ici, et la suppression en échec était perdue
+ * (contre-relecture du 17/11/2026, neuvième passe).
  */
 function noteAGarder(key: string, confirmee: string, base: Base | undefined): boolean {
   if (pendingWrites.has(key) || pendingDeletes.has(key)) return true
   const ecriteIci = derniereEcritureIci.get(key)
   if (ecriteIci === undefined || ecriteIci === confirmee) return false
+  if (ecriteIci === null) return true
   const locale = valeurLocale(key)
   if (locale === undefined || locale === confirmee) return false
   if (locale === ecriteIci) return true
@@ -1133,7 +1139,8 @@ async function envoyerSuppressions(envoi: Envoi, bilan: Bilan): Promise<void> {
       // encore sa note : une relecture faite pendant l'envoi, qui a trouvé la clé absente du serveur, l'a tenue pour
       // faite et a levé la note. Remise en attente sans note, elle échappait à la relecture du nouvel essai et
       // repartait sans contrôle, par-dessus une valeur recréée entre-temps ailleurs (contre-relecture du 17/11/2026,
-      // huitième passe).
+      // huitième passe). La confirmation d'un envoi plus ancien de la même clé, elle, ne lève pas cette note
+      // (noteAGarder).
       else if (issue !== 'refuse' && derniereEcritureIci.get(cle) === null && bases.has(cle)) {
         pendingDeletes.add(cle)
         bilan.panne = true

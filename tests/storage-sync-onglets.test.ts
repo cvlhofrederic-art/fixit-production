@@ -1365,3 +1365,37 @@ describe('restauration qui marque plus de cinquante clés à la fois', () => {
     expect(window.localStorage.getItem(CLIENTS)).toBeNull()
   })
 })
+
+// Neuvième passe, scénario DCF2 de la contre-relecture : A saisit puis supprime la liste, et un onglet neuf B s'ouvre
+// aussitôt, avant que la note de A n'entre dans l'état : sa restauration remet la liste du serveur dans le navigateur. La
+// saisie arrive au serveur pendant l'envoi de la suppression : sa confirmation levait la note de la clé, la valeur en
+// place étant l'une de celles que le serveur avait détenues. La suppression, en échec ensuite, n'était plus remise en
+// attente, et la liste saisie restait au serveur.
+describe('suppression qui suit une saisie, la restauration d’un onglet neuf remettant la liste pendant leurs envois', () => {
+  it.each([
+    ['continue de travailler dans A', true],
+    ['ne fait rien d’autre', false],
+  ] as const)('la saisie est confirmée, puis la suppression échoue ; l’utilisateur %s : au nouvel essai, la suppression part', async (_suite, continuer) => {
+    const A = await ouvrirUnOnglet()
+    serveur.retenir = true
+    saisirDans(A, CLIENTS, liste(1, 2))
+    await ecoulerDebounce() // envoi 0 : la saisie
+    supprimerDans(A, CLIENTS)
+    const B = await ouvrirUnOnglet() // remet la liste du serveur, et marque sa disparition
+    expect(lire(CLIENTS)).toEqual(liste(1))
+    await ecoulerDebounce() // envoi 1 : la suppression
+    await aboutir(0) // la saisie arrive et est confirmée
+    await aboutir(1, 'reseau') // la suppression échoue
+    serveur.retenir = false
+    if (continuer) {
+      saisirDans(A, 'fixit_autre_a', { a: 1 })
+      await ecoulerDebounce()
+    }
+    await nouvelEssai()
+    await relireDansLesDeuxOnglets(A, B)
+
+    // Avant : la liste saisie restait au serveur, et revenait dans le navigateur.
+    expect(serveur.espace).not.toHaveProperty(CLIENTS)
+    expect(window.localStorage.getItem(CLIENTS)).toBeNull()
+  })
+})
