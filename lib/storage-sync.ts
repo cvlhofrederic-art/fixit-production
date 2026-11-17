@@ -80,38 +80,58 @@ import { isStorageReadable } from '@/lib/safe-storage'
 // saisie arrive au serveur après celui d'une saisie plus récente faite dans l'autre onglet, le serveur garde la
 // dernière arrivée, comme avant ; et une saisie faite par-dessus celle de l'autre onglet, dont l'envoi échoue, ne
 // repart que si le serveur détient encore l'une des deux valeurs que cet onglet connaissait (garantie 2), sinon elle
-// est perdue, comme avant. Un onglet chargé avant cette version ne note pas ce que sa restauration remplace, et une
-// écriture faite dans cet onglet-là n'efface aucune note : une modification d'ici que sa restauration remplace cède au
-// serveur, comme avant ; et s'il y écrit exactement le texte qu'une restauration notée a remis, la modification d'ici
-// repart par-dessus. Une réécriture automatique (section qui persiste son état à chaque rendu, action sur un document
-// qui réécrit à l'identique les deux listes de documents), faite dans un autre onglet après que sa restauration a
-// remplacé une modification d'ici, efface la note comme un choix de l'utilisateur : cette modification, qui attendait
-// son nouvel essai, cède alors au serveur, alors qu'avant ce miroir elle partait si l'utilisateur continuait dans
-// l'onglet. Rien ne distingue ici une réécriture automatique d'un choix ; il faudrait pour cela la date de chaque
-// valeur. La note de l'état ne garde que l'empreinte d'une modification : si une modification en échec est remplacée
-// dans le navigateur par la restauration d'un autre onglet avant que sa note n'y soit écrite (dans les 3 s qui suivent
-// la saisie, ou au passage de son onglet en arrière-plan), et que son onglet est rechargé ou fermé avant le nouvel
-// essai, son texte n'est plus nulle part et elle est perdue ; avant ce miroir, elle partait à la fermeture de l'onglet,
-// sans relire le serveur. Une suppression arrivée au serveur sans réponse, quand la
-// restauration d'un autre onglet a remis la valeur dans le navigateur pendant son envoi, est faite, mais la valeur
-// reste dans le navigateur, comme avant. Une valeur laissée en place par une relecture (garantie 2) peut rester à
-// l'écran, différente de celle du serveur, jusqu'à la relecture suivante.
+// est perdue, comme avant.
+// Une modification d'ici (saisie ou suppression) qui attend son nouvel essai après un échec, et que la restauration
+// d'un autre onglet a remplacée dans le navigateur, cède au serveur dans les cas suivants, alors qu'avant ce miroir
+// elle repartait si l'utilisateur continuait dans l'onglet, sans relire le serveur :
+//  - l'onglet qui restaure est resté sur une version antérieure du site : il ne note pas ce qu'il remplace, et une
+//    écriture faite dans cet onglet-là n'efface aucune note ; s'il y écrit exactement le texte qu'une restauration
+//    notée a remis, la modification d'ici repart par-dessus ;
+//  - le stockage du navigateur est plein : la note des remplacements ne s'écrit pas ;
+//  - pour une saisie, la clé a été retirée du navigateur hors de l'application (outils du navigateur) avant la
+//    restauration : celle-ci marque une clé absente, et non la modification d'ici ;
+//  - une réécriture automatique (section qui persiste son état à chaque rendu, action sur un document qui réécrit à
+//    l'identique les deux listes de documents), faite dans un onglet après la restauration — celui qui a restauré, ou
+//    un troisième à son ouverture —, efface la note comme un choix de l'utilisateur. Rien ne distingue ici une
+//    réécriture automatique d'un choix ; il faudrait pour cela la date de chaque valeur ;
+//  - la restauration a marqué plus de 50 clés d'une même sorte à la fois (clés absentes du navigateur : créées
+//    ailleurs, ou stockage vidé ; textes remplacés : clés que l'application a réécrites depuis la dernière
+//    restauration de ce navigateur) : seules les 50 dernières de chaque sorte, dans l'ordre du serveur, sont notées.
+// Dans les deux premiers cas, une suppression repart pourtant si la marque d'une clé absente laissée par une
+// restauration plus ancienne est encore en place. Toute restauration marque une clé absente du navigateur qu'elle y
+// remet (dès la première d'un navigateur neuf, ou dont le stockage a été vidé : jusqu'à 50 clés) ; cette marque reste
+// dans la note des remplacements tant qu'aucun onglet de cette version n'écrit la clé et que son texte garde la même
+// longueur, et elle suit le texte aux restaurations suivantes.
+// La note de l'état ne garde que l'empreinte d'une modification, et la marque d'un remplacement ne sert qu'à l'onglet
+// de la modification, tant qu'il reste ouvert : si une modification en échec est remplacée dans le navigateur par la
+// restauration d'un autre onglet — avant que sa note n'entre dans l'état (dans les 3 s qui suivent la saisie, ou au
+// passage de son onglet en arrière-plan), ou après, quand cet autre onglet a réécrit la valeur à son ouverture avant
+// de restaurer —, et que son onglet est rechargé ou fermé avant le nouvel essai (5 s après un premier échec, puis
+// 15 s, 1 min et 5 min après plusieurs échecs), son texte n'est plus nulle part et elle est perdue ; avant ce miroir,
+// elle partait à la fermeture de l'onglet, sans relire le serveur.
+// Une suppression arrivée au serveur sans réponse, quand la restauration d'un autre onglet a remis la valeur dans le
+// navigateur pendant son envoi, est faite, mais la valeur reste dans le navigateur, comme avant. Une valeur laissée en
+// place par une relecture (garantie 2) peut rester à l'écran, différente de celle du serveur, jusqu'à la relecture
+// suivante.
 // Coût, pour une valeur de plusieurs Mo : son empreinte complète (lecture et tri de toute la valeur : 60 à 100 ms pour
 // une liste de 2,4 M caractères) n'est calculée qu'à l'écriture de l'état (au plus une fois toutes les 3 s pour une clé
 // en attente), quand le serveur est relu pour une clé en attente, quand un autre onglet a remplacé la valeur écrite
 // ici, et une fois par valeur envoyée sans réponse si le serveur détient autre chose que la valeur d'avant. L'empreinte
-// du seul texte (environ 5 ms) est calculée à chaque écriture de l'état, et deux fois quand une restauration remplace
-// une valeur que cet onglet n'a pas synchronisée, ou qu'une relecture trouve une note de remplacement pour une
-// modification d'ici. Au chargement d'une page, c'est le cas de toute clé dont le texte du navigateur diffère de celui
-// du serveur, même sans aucune modification en attente : toute clé que l'application a écrite depuis la dernière
-// restauration de ce navigateur, l'ordre de ses champs n'étant pas celui de la base. Sur un navigateur neuf, ou dont le
-// stockage a été vidé, la première restauration calcule aussi l'empreinte du texte de chaque valeur qu'elle y écrit. La
-// note des remplacements est alors réécrite, et la valeur de chaque clé déjà notée relue (jusqu'à 50). La restauration
-// lit chaque valeur du navigateur avant de la remplacer ; chaque écriture interceptée lit la note des remplacements,
-// absente le plus souvent. Les valeurs envoyées sans réponse (envoisIncertains) restent en mémoire, jamais dans le
-// navigateur : jusqu'à cinq textes par clé pendant une panne d'écriture du serveur, soit jusqu'à quatre copies de plus
-// d'une valeur de plusieurs Mo. Rien n'est calculé à la saisie, ni à la confirmation d'un envoi tant que la valeur
-// écrite ici est en place.
+// du seul texte (environ 5 ms pour 2,4 M caractères sur le PC du banc) est calculée à chaque écriture de l'état ; deux
+// fois quand une restauration remplace une valeur que son onglet n'a pas synchronisée, ou le texte que suit une marque
+// (environ 10 ms par liste de 2 Mo), et quand une relecture trouve une note de remplacement pour une modification
+// d'ici ; une fois quand une restauration remet une clé absente du navigateur. Au chargement d'une page, une
+// restauration remplace ainsi toute clé dont le texte du navigateur diffère de celui du serveur, même sans aucune
+// modification en attente : toute clé que l'application a écrite depuis la dernière restauration de ce navigateur,
+// l'ordre de ses champs n'étant pas celui de la base. Sur un navigateur neuf, ou dont le stockage a été vidé, la
+// première restauration calcule l'empreinte du texte de chaque valeur qu'elle y écrit, et y laisse jusqu'à 50 marques
+// de clé absente. Chaque restauration qui pose une marque réécrit la note des remplacements et relit la valeur de
+// chaque clé déjà notée : jusqu'à 100 valeurs (50 marques de chaque sorte), et déjà jusqu'à 50 après la première
+// ouverture d'un navigateur neuf. La restauration lit chaque valeur du navigateur avant de la remplacer ; chaque
+// écriture interceptée lit la note des remplacements, absente le plus souvent. Les valeurs envoyées sans réponse
+// (envoisIncertains) restent en mémoire, jamais dans le navigateur : jusqu'à cinq textes par clé pendant une panne
+// d'écriture du serveur, soit jusqu'à quatre copies de plus d'une valeur de plusieurs Mo. Rien n'est calculé à la
+// saisie, ni à la confirmation d'un envoi tant que la valeur écrite ici est en place.
 //
 // Stockage du navigateur (lot 5 Sentry, lib/safe-storage.ts) : un stockage illisible (bloqué par le navigateur,
 // SecurityError à la lecture de window.localStorage) coupe le miroir, la restauration et la migration. Un stockage
@@ -904,9 +924,10 @@ function compterUnEchec(key: string): void {
  * par une valeur que le serveur détenait avant, d'après ce que cet onglet en sait : la restauration d'un autre onglet,
  * lue avant l'arrivée de cet envoi, l'y a remise, et le serveur doit gagner (relectures des 15 et 16/11/2026). Non si la
  * clé a disparu du navigateur (stockage vidé hors de l'application, ou suppression faite dans un autre onglet, qui
- * l'envoie lui-même) : le serveur gagne à la relecture, comme avant. Ni si cet onglet n'a rien écrit de plus récent :
- * ce qu'un autre onglet a écrit depuis a son propre envoi. Ni, enfin, quand la clé n'a plus de note (levée à une
- * confirmation précédente, ou reprise du serveur) : cet onglet ne sait plus ce que le serveur détenait avant.
+ * l'envoie lui-même) : le serveur gagne à la relecture (une clé vidée hors de l'application, puis remise par la
+ * restauration d'un autre onglet : voir les limites en tête du module). Ni si cet onglet n'a rien écrit de plus
+ * récent : ce qu'un autre onglet a écrit depuis a son propre envoi. Ni, enfin, quand la clé n'a plus de note (levée à
+ * une confirmation précédente, ou reprise du serveur) : cet onglet ne sait plus ce que le serveur détenait avant.
  */
 function noteAGarder(key: string, confirmee: string, base: Base | undefined): boolean {
   if (pendingWrites.has(key) || pendingDeletes.has(key)) return true
