@@ -90,8 +90,8 @@ ${ctx.roleConfig.actions.includes('create_event') ? `**📆 Adicionar uma marca�
 - "category" : "rdv" para marcação clássica, "ag" para assembleia, "visita" para visita ao prédio, "reuniao" para reunião interna, "outro" caso contrário.
 
 Exemplos :
-"Põe um encontro amanhã às 14h com a Sra. Costa para visita parc corot" →
-##ACTION##{"type":"create_event","titre":"Marcação Sra. Costa — visita Parc Corot","category":"rdv","date":"(ver tabela)","heure":"14:00","dureeMin":60,"assigneA":"Sra. Costa","description":"Visita Parc Corot"}##
+"Põe um encontro amanhã às 14h com a Sra. Costa para visita edifício atlântico" →
+##ACTION##{"type":"create_event","titre":"Marcação Sra. Costa — visita Edifício Atlântico","category":"rdv","date":"(ver tabela)","heure":"14:00","dureeMin":60,"assigneA":"Sra. Costa","description":"Visita Edifício Atlântico"}##
 
 "Põe uma marcação na minha agenda" →
 ##ACTION##{"type":"create_event","titre":"Marcação","category":"rdv","date":"${ctx.dateISO}","heure":"09:00","dureeMin":60}##

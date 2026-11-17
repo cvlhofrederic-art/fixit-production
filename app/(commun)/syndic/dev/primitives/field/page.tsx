@@ -25,7 +25,7 @@ export default function FieldShowcasePage() {
       <h2 style={sectionHeader}>Champs</h2>
       <div style={{ maxWidth: 420 }} data-testid="field-demo">
         <Field label="Nome do condomínio" name="cond-name">
-          <input type="text" placeholder="Ex: Residência Lobão" />
+          <input type="text" placeholder="Ex: Residência Jardim" />
         </Field>
         <Field label="Quota mensal" name="cond-quota" suffix="€" hint="Valor por fração autónoma.">
           <input type="number" inputMode="decimal" placeholder="0,00" />

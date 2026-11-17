@@ -3614,7 +3614,7 @@ export default function DevisFactureForm({
                       autoFocus
                       value={newCustomTableModal.name}
                       onChange={(e) => setNewCustomTableModal(s => ({ ...s, name: e.target.value }))}
-                      placeholder="Ex : DEPENSES PARC COROT (0F25-602G), Corps d'état plomberie, Sous-traitance électricité…"
+                      placeholder="Ex : TRAVAUX PARTIES COMMUNES (BÂT. A), Corps d'état plomberie, Sous-traitance électricité…"
                       className="v22-form-input"
                       style={{ fontSize: 13 }}
                       onKeyDown={(e) => {
