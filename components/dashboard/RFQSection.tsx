@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { fetchAuthentifie } from '@/lib/fetch-authentifie'
+import { useLocale } from '@/lib/i18n/context'
 import type { RFQ, RFQItem, Offer, CreateRFQPayload } from '@/lib/rfq-types'
 
 interface Props {
@@ -30,13 +31,31 @@ const CATEGORIES_PT = [
   { value: 'isolamento', label: 'Isolamento' },
   { value: 'carpintaria', label: 'Carpintaria' },
   { value: 'canalizacao', label: 'Canalização' },
-  { value: 'electricidade', label: 'Electricidade' },
+  { value: 'electricidade', label: 'Eletricidade' },
   { value: 'pavimento', label: 'Pavimento' },
   { value: 'cobertura', label: 'Cobertura' },
   { value: 'estrutura', label: 'Estrutura' },
   { value: 'pintura', label: 'Reboco / Pintura' },
   { value: 'outro', label: 'Outro' },
 ]
+
+// Libellés portugais, à l'affichage seulement, des unités et catégories de la liste française (celle de toute société
+// dont le pays n'est pas « PT ») : la valeur choisie, envoyée à l'API et gardée en base, ne change pas.
+const UNITES_FR_EN_PT: Record<string, string> = {
+  'unité': 'unidade', 'tonne': 'tonelada', 'litre': 'litro', 'sac': 'saco', 'palette': 'palete', 'rouleau': 'rolo', 'boîte': 'caixa',
+}
+const CATEGORIES_FR_EN_PT: Record<string, string> = {
+  gros_oeuvre: 'Estrutura e alvenaria',
+  isolation: 'Isolamento',
+  menuiserie: 'Carpintaria e caixilharia',
+  plomberie: 'Canalização',
+  electricite: 'Eletricidade',
+  carrelage: 'Cerâmica e pavimentos',
+  toiture: 'Cobertura',
+  charpente: 'Estrutura de cobertura',
+  enduit: 'Reboco / Pintura',
+  autre: 'Outro',
+}
 
 interface NewItem {
   product_name: string
@@ -60,9 +79,19 @@ export default function RFQSection({ artisan, orgRole }: Props) {
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
   const country = (artisan.country?.toUpperCase() === 'PT' ? 'PT' : 'FR') as 'FR' | 'PT'
   const isFR = country === 'FR'
+  // Langue des textes : le portugais dès que l'interface est en portugais. Le pays de la société (absent du profil en
+  // production, donc « FR ») continue seul de choisir les unités, les catégories et le pays envoyé à l'API.
+  const locale = useLocale()
+  const isPt = locale === 'pt' || !isFR
 
   const units = isFR ? UNITS_FR : UNITS_PT
   const categories = isFR ? CATEGORIES_FR : CATEGORIES_PT
+  const libelleUnite = (u: string) => (isPt ? UNITES_FR_EN_PT[u] ?? u : u)
+  const libelleCategorie = (c: { value: string; label: string }) => (isPt ? CATEGORIES_FR_EN_PT[c.value] ?? c.label : c.label)
+  const libelleCategorieDe = (valeur?: string) => {
+    const categorie = categories.find(c => c.value === valeur)
+    return categorie ? libelleCategorie(categorie) : ''
+  }
 
   const [rfqs, setRfqs] = useState<RFQ[]>([])
   const [loading, setLoading] = useState(true)
@@ -117,12 +146,12 @@ export default function RFQSection({ artisan, orgRole }: Props) {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!title.trim()) {
-      showToast(isFR ? 'Un titre est requis' : 'Título obrigatório', false)
+      showToast(isPt ? 'O título é obrigatório' : 'Un titre est requis', false)
       return
     }
     const validItems = items.filter(i => i.product_name.trim())
     if (!validItems.length) {
-      showToast(isFR ? 'Ajoutez au moins un produit' : 'Adicione pelo menos um produto', false)
+      showToast(isPt ? 'Adicione pelo menos um produto' : 'Ajoutez au moins un produit', false)
       return
     }
     setSubmitting(true)
@@ -151,14 +180,14 @@ export default function RFQSection({ artisan, orgRole }: Props) {
         body: JSON.stringify(payload),
       })
       if (!res.ok) throw new Error('API error')
-      showToast(isFR ? 'Demande envoyée aux fournisseurs !' : 'Pedido enviado aos fornecedores!')
+      showToast(isPt ? 'Pedido enviado aos fornecedores!' : 'Demande envoyée aux fournisseurs !')
       setShowCreate(false)
       setTitle('')
       setMessage('')
       setItems([defaultItem()])
       await loadRFQs()
     } catch {
-      showToast(isFR ? 'Erreur lors de la création' : 'Erro ao criar pedido', false)
+      showToast(isPt ? 'Erro ao criar o pedido' : 'Erreur lors de la création', false)
     } finally {
       setSubmitting(false)
     }
@@ -176,11 +205,11 @@ export default function RFQSection({ artisan, orgRole }: Props) {
     setActionLoading(offerId)
     try {
       await deciderOffre(offerId, 'accepted')
-      showToast(isFR ? 'Offre acceptée !' : 'Proposta aceite!')
+      showToast(isPt ? 'Proposta aceite!' : 'Offre acceptée !')
       await loadRFQs()
       setSelectedRFQ(null)
     } catch {
-      showToast(isFR ? 'Erreur' : 'Erro', false)
+      showToast(isPt ? 'Erro' : 'Erreur', false)
     } finally {
       setActionLoading(null)
     }
@@ -190,11 +219,11 @@ export default function RFQSection({ artisan, orgRole }: Props) {
     setActionLoading(offerId)
     try {
       await deciderOffre(offerId, 'rejected')
-      showToast(isFR ? 'Offre refusée' : 'Proposta recusada')
+      showToast(isPt ? 'Proposta recusada' : 'Offre refusée')
       await loadRFQs()
       setSelectedRFQ(null)
     } catch {
-      showToast(isFR ? 'Erreur' : 'Erro', false)
+      showToast(isPt ? 'Erro' : 'Erreur', false)
     } finally {
       setActionLoading(null)
     }
@@ -215,7 +244,7 @@ export default function RFQSection({ artisan, orgRole }: Props) {
       closed: { fr: 'Clôturé', pt: 'Encerrado' },
     }
     const s = map[status] || map.pending
-    return isFR ? s.fr : s.pt
+    return isPt ? s.pt : s.fr
   }
 
   const offerBadgeClass = (status: string) => {
@@ -233,11 +262,11 @@ export default function RFQSection({ artisan, orgRole }: Props) {
       rejected: { fr: 'Refusée', pt: 'Recusada' },
     }
     const s = map[status] || map.pending
-    return isFR ? s.fr : s.pt
+    return isPt ? s.pt : s.fr
   }
 
-  const formatDate = (d: string) => new Date(d).toLocaleDateString(isFR ? 'fr-FR' : 'pt-PT', { day: '2-digit', month: 'short', year: 'numeric' })
-  const formatPrice = (n?: number | null) => n != null ? `${n.toLocaleString(isFR ? 'fr-FR' : 'pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €` : '—'
+  const formatDate = (d: string) => new Date(d).toLocaleDateString(isPt ? 'pt-PT' : 'fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })
+  const formatPrice = (n?: number | null) => n != null ? `${n.toLocaleString(isPt ? 'pt-PT' : 'fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €` : '—'
 
   return (
     <div className={isV5 ? 'v5-fade' : ''}>
@@ -256,14 +285,14 @@ export default function RFQSection({ artisan, orgRole }: Props) {
       {/* Page Header */}
       <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
         <div className={isV5 ? 'v5-pg-t' : ''} style={{ marginBottom: 0, flex: 1 }}>
-          {isV5 ? <h1>{isFR ? 'Devis Fournisseurs (RFQ)' : 'Orçamentos Fornecedores (RFQ)'}</h1> : <div className="v22-page-title">{isFR ? 'Devis Fournisseurs (RFQ)' : 'Orçamentos Fornecedores (RFQ)'}</div>}
-          {isV5 ? <p>{isFR ? 'Demandes de prix aux fournisseurs' : 'Pedidos de preço aos fornecedores'}</p> : <div className="v22-page-sub">{isFR ? 'Demandes de prix aux fournisseurs' : 'Pedidos de preço aos fornecedores'}</div>}
+          {isV5 ? <h1>{isPt ? 'Orçamentos de fornecedores (pedidos de cotação)' : 'Devis Fournisseurs (RFQ)'}</h1> : <div className="v22-page-title">{isPt ? 'Orçamentos de fornecedores (pedidos de cotação)' : 'Devis Fournisseurs (RFQ)'}</div>}
+          {isV5 ? <p>{isPt ? 'Pedidos de cotação a fornecedores' : 'Demandes de prix aux fournisseurs'}</p> : <div className="v22-page-sub">{isPt ? 'Pedidos de cotação a fornecedores' : 'Demandes de prix aux fournisseurs'}</div>}
         </div>
         <button
           className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'}
           onClick={() => { setShowCreate(true); setSelectedRFQ(null) }}
         >
-          + {isFR ? 'Nouvelle demande de prix' : 'Novo pedido de preço'}
+          + {isPt ? 'Novo pedido de cotação' : 'Nouvelle demande de prix'}
         </button>
       </div>
 
@@ -271,7 +300,7 @@ export default function RFQSection({ artisan, orgRole }: Props) {
       {selectedRFQ && !showCreate && (
         <div>
           <button className={isV5 ? 'v5-btn' : 'v22-btn'} style={{ marginBottom: 16 }} onClick={() => setSelectedRFQ(null)}>
-            &larr; {isFR ? 'Retour à la liste' : 'Voltar à lista'}
+            &larr; {isPt ? 'Voltar à lista' : 'Retour à la liste'}
           </button>
 
           <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ marginBottom: 16 }}>
@@ -283,22 +312,22 @@ export default function RFQSection({ artisan, orgRole }: Props) {
               <p style={{ margin: '0 0 12px', fontSize: 12, color: '#999' }}>{selectedRFQ.message}</p>
             )}
             <p style={{ margin: 0, fontSize: 11, color: '#999' }}>
-              {isFR ? 'Créé le' : 'Criado em'} {formatDate(selectedRFQ.created_at)}
+              {isPt ? 'Criado em' : 'Créé le'} {formatDate(selectedRFQ.created_at)}
             </p>
           </div>
 
           {/* Items table */}
           {selectedRFQ.rfq_items && selectedRFQ.rfq_items.length > 0 && (
             <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ marginBottom: 16, overflow: 'auto' }}>
-              <div className={isV5 ? 'v5-st' : 'v22-section-title'}>{isFR ? 'Matériaux demandés' : 'Materiais solicitados'}</div>
+              <div className={isV5 ? 'v5-st' : 'v22-section-title'}>{isPt ? 'Materiais solicitados' : 'Matériaux demandés'}</div>
               <table className={isV5 ? 'v5-dt' : 'v22-table'}>
                 <thead>
                   <tr>
-                    <th>{isFR ? 'Produit' : 'Produto'}</th>
-                    <th>{isFR ? 'Réf.' : 'Ref.'}</th>
-                    <th style={{ textAlign: 'center' }}>{isFR ? 'Qté' : 'Qtd'}</th>
-                    <th>{isFR ? 'Catégorie' : 'Categoria'}</th>
-                    <th>{isFR ? 'Notes' : 'Notas'}</th>
+                    <th>{isPt ? 'Produto' : 'Produit'}</th>
+                    <th>{isPt ? 'Ref.' : 'Réf.'}</th>
+                    <th style={{ textAlign: 'center' }}>{isPt ? 'Qtd.' : 'Qté'}</th>
+                    <th>{isPt ? 'Categoria' : 'Catégorie'}</th>
+                    <th>{isPt ? 'Notas' : 'Notes'}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -306,9 +335,9 @@ export default function RFQSection({ artisan, orgRole }: Props) {
                     <tr key={item.id}>
                       <td style={{ fontWeight: 600 }}>{item.product_name}</td>
                       <td style={{ color: '#999', fontSize: 11 }}>{item.product_ref || '—'}</td>
-                      <td style={{ textAlign: 'center' }}>{item.quantity} {item.unit}</td>
+                      <td style={{ textAlign: 'center' }}>{item.quantity} {libelleUnite(item.unit)}</td>
                       <td style={{ color: '#999', fontSize: 11 }}>
-                        {categories.find(c => c.value === item.category)?.label || item.category || '—'}
+                        {libelleCategorieDe(item.category) || item.category || '—'}
                       </td>
                       <td style={{ color: '#999', fontSize: 11 }}>{item.notes || '—'}</td>
                     </tr>
@@ -321,26 +350,26 @@ export default function RFQSection({ artisan, orgRole }: Props) {
           {/* Offers comparison */}
           <div className={isV5 ? 'v5-card' : 'v22-card'}>
             <div className={isV5 ? 'v5-st' : 'v22-section-title'} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              {isFR ? 'Offres reçues' : 'Propostas recebidas'}
+              {isPt ? 'Propostas recebidas' : 'Offres reçues'}
               {selectedRFQ.offers && selectedRFQ.offers.length > 0 && (
                 <span className={isV5 ? 'v5-badge v5-badge-yellow' : 'v22-tag v22-tag-yellow'}>{selectedRFQ.offers.length}</span>
               )}
             </div>
             {!selectedRFQ.offers || selectedRFQ.offers.length === 0 ? (
               <p style={{ fontSize: 12, color: '#999' }}>
-                {isFR ? 'Aucune offre reçue pour le moment. Les fournisseurs ont reçu votre demande par email.' : 'Nenhuma proposta recebida ainda. Os fornecedores receberam o seu pedido por email.'}
+                {isPt ? 'Ainda não recebeu nenhuma proposta. Os fornecedores receberam o seu pedido por e-mail.' : 'Aucune offre reçue pour le moment. Les fournisseurs ont reçu votre demande par email.'}
               </p>
             ) : (
               <div style={{ overflowX: 'auto' }}>
                 <table className={isV5 ? 'v5-dt' : 'v22-table'}>
                   <thead>
                     <tr>
-                      <th>{isFR ? 'Fournisseur' : 'Fornecedor'}</th>
-                      <th style={{ textAlign: 'right' }}>{isFR ? 'Prix HT' : 'Preço s/IVA'}</th>
-                      <th style={{ textAlign: 'center' }}>{isFR ? 'Délai (j)' : 'Prazo (dias)'}</th>
-                      <th>{isFR ? 'Statut' : 'Estado'}</th>
-                      <th>{isFR ? 'Reçu le' : 'Recebido em'}</th>
-                      {selectedRFQ.status !== 'closed' && <th>{isFR ? 'Action' : 'Ação'}</th>}
+                      <th>{isPt ? 'Fornecedor' : 'Fournisseur'}</th>
+                      <th style={{ textAlign: 'right' }}>{isPt ? 'Preço s/ IVA' : 'Prix HT'}</th>
+                      <th style={{ textAlign: 'center' }}>{isPt ? 'Prazo (dias)' : 'Délai (j)'}</th>
+                      <th>{isPt ? 'Estado' : 'Statut'}</th>
+                      <th>{isPt ? 'Recebida em' : 'Reçu le'}</th>
+                      {selectedRFQ.status !== 'closed' && <th>{isPt ? 'Ação' : 'Action'}</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -360,20 +389,20 @@ export default function RFQSection({ artisan, orgRole }: Props) {
                                   disabled={actionLoading === offer.id}
                                   onClick={() => handleAcceptOffer(offer.id)}
                                 >
-                                  {actionLoading === offer.id ? '...' : (isFR ? 'Accepter' : 'Aceitar')}
+                                  {actionLoading === offer.id ? '...' : (isPt ? 'Aceitar' : 'Accepter')}
                                 </button>
                                 <button
                                   className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'}
                                   disabled={actionLoading === offer.id}
                                   onClick={() => handleRejectOffer(offer.id)}
                                 >
-                                  {isFR ? 'Refuser' : 'Recusar'}
+                                  {isPt ? 'Recusar' : 'Refuser'}
                                 </button>
                               </div>
                             )}
                             {offer.status === 'pending' && offer.total_price == null && (
                               <span style={{ fontSize: 11, color: '#999' }}>
-                                {isFR ? 'En attente de réponse' : 'Aguarda resposta'}
+                                {isPt ? 'A aguardar resposta' : 'En attente de réponse'}
                               </span>
                             )}
                           </td>
@@ -393,21 +422,21 @@ export default function RFQSection({ artisan, orgRole }: Props) {
         <>
           {loading ? (
             <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ textAlign: 'center', padding: 40, color: '#999', fontSize: 12 }}>
-              {isFR ? 'Chargement...' : 'A carregar...'}
+              {isPt ? 'A carregar...' : 'Chargement...'}
             </div>
           ) : rfqs.length === 0 ? (
             <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ textAlign: 'center', padding: 48 }}>
               <div style={{ fontSize: 32, marginBottom: 12, color: '#BBB' }}>📋</div>
               <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>
-                {isFR ? 'Aucune demande de devis' : 'Sem pedidos de orçamento'}
+                {isPt ? 'Nenhum pedido de cotação' : 'Aucune demande de devis'}
               </div>
               <p style={{ color: '#999', fontSize: 12, marginBottom: 16 }}>
-                {isFR
-                  ? 'Créez votre première demande pour obtenir des devis de vos fournisseurs habituels.'
-                  : 'Crie o primeiro pedido para obter orçamentos dos seus fornecedores.'}
+                {isPt
+                  ? 'Crie o seu primeiro pedido para obter orçamentos dos seus fornecedores habituais.'
+                  : 'Créez votre première demande pour obtenir des devis de vos fournisseurs habituels.'}
               </p>
               <button className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'} onClick={() => setShowCreate(true)}>
-                + {isFR ? 'Créer une demande' : 'Criar pedido'}
+                + {isPt ? 'Criar pedido' : 'Créer une demande'}
               </button>
             </div>
           ) : (
@@ -415,11 +444,11 @@ export default function RFQSection({ artisan, orgRole }: Props) {
               <table className={isV5 ? 'v5-dt' : 'v22-table'}>
                 <thead>
                   <tr>
-                    <th>{isFR ? 'N° RFQ' : 'N° RFQ'}</th>
-                    <th style={{ textAlign: 'center' }}>{isFR ? 'Articles' : 'Artigos'}</th>
-                    <th style={{ textAlign: 'center' }}>{isFR ? 'Offres' : 'Propostas'}</th>
-                    <th>{isFR ? 'Statut' : 'Estado'}</th>
-                    <th>{isFR ? 'Date' : 'Data'}</th>
+                    <th>{isPt ? 'Pedido de cotação' : 'N° RFQ'}</th>
+                    <th style={{ textAlign: 'center' }}>{isPt ? 'Artigos' : 'Articles'}</th>
+                    <th style={{ textAlign: 'center' }}>{isPt ? 'Propostas' : 'Offres'}</th>
+                    <th>{isPt ? 'Estado' : 'Statut'}</th>
+                    <th>{isPt ? 'Data' : 'Date'}</th>
                     <th />
                   </tr>
                 </thead>
@@ -446,7 +475,7 @@ export default function RFQSection({ artisan, orgRole }: Props) {
                       <td style={{ color: '#999', fontSize: 11 }}>{formatDate(rfq.created_at)}</td>
                       <td>
                         <span style={{ fontSize: 11, color: 'var(--v5-primary-yellow-dark)', fontWeight: 600, cursor: 'pointer' }}>
-                          {isFR ? 'Voir →' : 'Ver →'}
+                          {isPt ? 'Ver →' : 'Voir →'}
                         </span>
                       </td>
                     </tr>
@@ -465,7 +494,7 @@ export default function RFQSection({ artisan, orgRole }: Props) {
           <div className={isV5 ? 'v5-card v5-fade' : 'v22-card'} style={{ width: '90%', maxWidth: 600, maxHeight: '85vh', overflow: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <div className={isV5 ? 'v5-st' : 'v22-section-title'} style={{ margin: 0 }}>
-                {isFR ? 'Nouvelle demande de devis pro' : 'Novo pedido de orçamento'}
+                {isPt ? 'Novo pedido de cotação' : 'Nouvelle demande de devis pro'}
               </div>
               <button
                 onClick={() => setShowCreate(false)}
@@ -477,22 +506,22 @@ export default function RFQSection({ artisan, orgRole }: Props) {
             <form onSubmit={handleCreate}>
               {/* Title */}
               <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
-                <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isFR ? 'Titre de la demande *' : 'Título do pedido *'}</label>
+                <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Título do pedido *' : 'Titre de la demande *'}</label>
                 <input
                   className={isV5 ? 'v5-fi' : 'v22-input'} type="text" value={title}
                   onChange={e => setTitle(e.target.value)}
-                  placeholder={isFR ? 'Ex: Matériaux chantier Marseille — Lot 3' : 'Ex: Materiais obra Marco de Canaveses — Lote 2'}
+                  placeholder={isPt ? 'Ex.: Materiais da obra de Marco de Canaveses, lote 2' : 'Ex: Matériaux chantier Marseille — Lot 3'}
                   required
                 />
               </div>
 
               {/* Message */}
               <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
-                <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isFR ? 'Message aux fournisseurs (optionnel)' : 'Mensagem aos fornecedores (opcional)'}</label>
+                <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Mensagem aos fornecedores (opcional)' : 'Message aux fournisseurs (optionnel)'}</label>
                 <textarea
                   className={isV5 ? 'v5-fi' : 'v22-input'} value={message}
                   onChange={e => setMessage(e.target.value)} rows={2}
-                  placeholder={isFR ? 'Précisions sur le chantier, délais souhaités...' : 'Detalhes da obra, prazos desejados...'}
+                  placeholder={isPt ? 'Detalhes da obra, prazos pretendidos...' : 'Précisions sur le chantier, délais souhaités...'}
                   style={{ resize: 'vertical' }}
                 />
               </div>
@@ -500,9 +529,9 @@ export default function RFQSection({ artisan, orgRole }: Props) {
               {/* Items */}
               <div style={{ marginBottom: 16 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'} style={{ margin: 0 }}>{isFR ? 'Matériaux / Produits *' : 'Materiais / Produtos *'}</label>
+                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'} style={{ margin: 0 }}>{isPt ? 'Materiais / Produtos *' : 'Matériaux / Produits *'}</label>
                   <button type="button" className={isV5 ? 'v5-btn v5-btn-sm' : 'v22-btn v22-btn-sm'} onClick={addItem}>
-                    + {isFR ? 'Ajouter' : 'Adicionar'}
+                    + {isPt ? 'Adicionar' : 'Ajouter'}
                   </button>
                 </div>
 
@@ -511,7 +540,7 @@ export default function RFQSection({ artisan, orgRole }: Props) {
                     <div key={idx} style={{ border: '1px solid #E8E8E8', borderRadius: 6, padding: 12, background: '#FAFAFA' }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                         <span className={isV5 ? 'v5-fl' : 'v22-form-label'} style={{ margin: 0 }}>
-                          {isFR ? `Produit ${idx + 1}` : `Produto ${idx + 1}`}
+                          {isPt ? `Produto ${idx + 1}` : `Produit ${idx + 1}`}
                         </span>
                         {items.length > 1 && (
                           <button type="button" onClick={() => removeItem(idx)}
@@ -523,13 +552,13 @@ export default function RFQSection({ artisan, orgRole }: Props) {
 
                       <div className={isV5 ? 'v5-fr' : ''} style={{ display: isV5 ? undefined : 'grid', gridTemplateColumns: isV5 ? undefined : '1fr 1fr', gap: isV5 ? undefined : 8, marginBottom: 8 }}>
                         <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
-                          <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isFR ? 'Nom du produit *' : 'Nome do produto *'}</label>
+                          <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Nome do produto *' : 'Nom du produit *'}</label>
                           <input className={isV5 ? 'v5-fi' : 'v22-input'} type="text" value={item.product_name}
                             onChange={e => updateItem(idx, 'product_name', e.target.value)}
-                            placeholder={isFR ? 'Ex: Parpaing 20×20×50' : 'Ex: Bloco de betão 20×20×50'} required />
+                            placeholder={isPt ? 'Ex.: Bloco de betão 20×20×50' : 'Ex: Parpaing 20×20×50'} required />
                         </div>
                         <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
-                          <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isFR ? 'Réf. fabricant' : 'Ref. fabricante'}</label>
+                          <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Ref. do fabricante' : 'Réf. fabricant'}</label>
                           <input className={isV5 ? 'v5-fi' : 'v22-input'} type="text" value={item.product_ref}
                             onChange={e => updateItem(idx, 'product_ref', e.target.value)} placeholder="REF-001" />
                         </div>
@@ -537,30 +566,30 @@ export default function RFQSection({ artisan, orgRole }: Props) {
 
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 2fr', gap: 8, marginBottom: 8 }}>
                         <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
-                          <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isFR ? 'Quantité' : 'Quantidade'}</label>
+                          <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Quantidade' : 'Quantité'}</label>
                           <input className={isV5 ? 'v5-fi' : 'v22-input'} type="number" min="0.01" step="0.01"
                             value={item.quantity} onChange={e => updateItem(idx, 'quantity', e.target.value)} />
                         </div>
                         <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
-                          <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isFR ? 'Unité' : 'Unidade'}</label>
+                          <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Unidade' : 'Unité'}</label>
                           <select className={isV5 ? 'v5-fi' : 'v22-input'} value={item.unit} onChange={e => updateItem(idx, 'unit', e.target.value)}>
-                            {units.map(u => <option key={u} value={u}>{u}</option>)}
+                            {units.map(u => <option key={u} value={u}>{libelleUnite(u)}</option>)}
                           </select>
                         </div>
                         <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
-                          <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isFR ? 'Catégorie' : 'Categoria'}</label>
+                          <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Categoria' : 'Catégorie'}</label>
                           <select className={isV5 ? 'v5-fi' : 'v22-input'} value={item.category} onChange={e => updateItem(idx, 'category', e.target.value)}>
-                            <option value="">{isFR ? '— Choisir —' : '— Escolher —'}</option>
-                            {categories.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                            <option value="">{isPt ? 'Selecione' : '— Choisir —'}</option>
+                            {categories.map(c => <option key={c.value} value={c.value}>{libelleCategorie(c)}</option>)}
                           </select>
                         </div>
                       </div>
 
                       <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
-                        <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isFR ? 'Notes (optionnel)' : 'Notas (opcional)'}</label>
+                        <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Notas (opcional)' : 'Notes (optionnel)'}</label>
                         <input className={isV5 ? 'v5-fi' : 'v22-input'} type="text" value={item.notes}
                           onChange={e => updateItem(idx, 'notes', e.target.value)}
-                          placeholder={isFR ? 'Couleur, épaisseur, qualité...' : 'Cor, espessura, qualidade...'} />
+                          placeholder={isPt ? 'Cor, espessura, qualidade...' : 'Couleur, épaisseur, qualité...'} />
                       </div>
                     </div>
                   ))}
@@ -569,12 +598,12 @@ export default function RFQSection({ artisan, orgRole }: Props) {
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, borderTop: '1px solid #E8E8E8', paddingTop: 12 }}>
                 <button type="button" className={isV5 ? 'v5-btn' : 'v22-btn'} onClick={() => setShowCreate(false)} disabled={submitting}>
-                  {isFR ? 'Annuler' : 'Cancelar'}
+                  {isPt ? 'Cancelar' : 'Annuler'}
                 </button>
                 <button type="submit" className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'} disabled={submitting}>
                   {submitting
-                    ? (isFR ? 'Envoi...' : 'A enviar...')
-                    : (isFR ? 'Envoyer aux fournisseurs →' : 'Enviar aos fornecedores →')}
+                    ? (isPt ? 'A enviar...' : 'Envoi...')
+                    : (isPt ? 'Enviar aos fornecedores →' : 'Envoyer aux fournisseurs →')}
                 </button>
               </div>
             </form>

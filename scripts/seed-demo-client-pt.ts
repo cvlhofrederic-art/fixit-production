@@ -30,7 +30,7 @@ if (!supabaseUrl || !supabaseServiceKey) {
 const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
 const ACCOUNT = {
-  email: 'democlientpt@gmail.com',
+  email: process.env.SEED_DEMO_CLIENT_PT_EMAIL || '',
   password: process.env.SEED_PASSWORD || crypto.randomUUID(),
   full_name: 'Maria Silva',
   phone: '+351 912 345 678',
@@ -43,11 +43,25 @@ const ACCOUNT = {
   client_type: 'particulier',
 }
 
+if (!ACCOUNT.email) {
+  console.error('❌ SEED_DEMO_CLIENT_PT_EMAIL manquante : adresse du compte client de démonstration PT, gardée hors du dépôt (dépôt public)')
+  process.exit(1)
+}
+
 async function seed() {
   const isClean = process.argv.includes('--clean')
 
   const { data: existingUsers } = await supabase.auth.admin.listUsers()
   const existing = existingUsers?.users?.find(u => u.email === ACCOUNT.email)
+
+  // Garde-fou : l'adresse vient de l'environnement, donc avant toute suppression ou réécriture le compte
+  // trouvé doit être celui de la démonstration (nom, adresse et téléphone posés par ce script).
+  const meta = existing?.user_metadata
+  if (existing && (meta?.full_name !== ACCOUNT.full_name || meta?.address !== ACCOUNT.address || meta?.phone !== ACCOUNT.phone)) {
+    console.error(`❌ Ce compte n'est pas le compte de démonstration (nom, adresse ou téléphone différent) : rien n'est supprimé ni modifié.`)
+    process.exitCode = 1
+    return
+  }
 
   if (isClean) {
     if (!existing) {

@@ -24,6 +24,7 @@ vi.mock('next/navigation', () => ({
 }))
 
 import RFQSection from '@/components/dashboard/RFQSection'
+import { LanguageProvider } from '@/lib/i18n/context'
 import SupplierResponsePage from '@/app/(commun)/rfq/repondre/[token]/page'
 
 const DEMANDE = '44444444-4444-4444-8444-444444444444'
@@ -52,7 +53,8 @@ describe('Devis Fournisseurs — décision de la société sur une offre', () =>
     rfq_items: [], offers: [{ id: OFFRE, supplier_name: 'Fournisseur A', total_price: 1250.5, delivery_days: 5, status: 'pending', created_at: '2026-11-16T10:00:00Z' }],
   }
   const ouvrirLaDemande = async () => {
-    await act(async () => { render(<RFQSection artisan={{ id: 'fiche', country: 'FR' }} orgRole="pro_societe" />) })
+    // Interface en français : l'écran suit la langue de l'interface (portugais par défaut sans fournisseur).
+    await act(async () => { render(<LanguageProvider initialLocale="fr"><RFQSection artisan={{ id: 'fiche', country: 'FR' }} orgRole="pro_societe" /></LanguageProvider>) })
     await act(async () => { fireEvent.click(await screen.findByText('Plaques de plâtre BA13')) })
   }
 

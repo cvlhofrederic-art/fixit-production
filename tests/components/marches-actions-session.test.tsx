@@ -47,7 +47,11 @@ vi.mock('next/dynamic', async () => {
     },
   }
 })
-const vueFactice = (nom: string) => ({ default: (props: Props) => { h.vues[nom] = props; return null } })
+// Hissée avec les simulations : le chargeur simulé de next/dynamic importe les vues dès l'import de l'écran, avant la
+// suite du fichier.
+const { vueFactice } = vi.hoisted(() => ({
+  vueFactice: (nom: string) => ({ default: (props: Record<string, unknown>) => { h.vues[nom] = props; return null } }),
+}))
 vi.mock('@/components/marches/views/BrowseTabView', () => vueFactice('parcourir'))
 vi.mock('@/components/marches/views/MyBidsTabView', () => vueFactice('candidatures'))
 vi.mock('@/components/marches/views/WonContractsTabView', () => vueFactice('gagnes'))
@@ -55,6 +59,10 @@ vi.mock('@/components/marches/views/SettingsTabView', () => vueFactice('parametr
 vi.mock('@/components/marches/views/DetailModalView', () => vueFactice('fiche'))
 
 import BourseAuxMarchesSection from '@/components/marches/BourseAuxMarchesSection'
+import { LanguageProvider } from '@/lib/i18n/context'
+
+/** Écran monté avec l'interface en français : il suit la langue de l'interface (portugais par défaut sans fournisseur). */
+const enFrancais = (element: React.ReactElement) => <LanguageProvider initialLocale="fr">{element}</LanguageProvider>
 
 const COMPTE = '11111111-1111-4111-8111-111111111111'
 const FICHE = '33333333-3333-4333-8333-333333333333'
@@ -94,7 +102,7 @@ const appelVers = (debut: string, methode: string) => appels.find(a => a.url.sta
 
 /** Ouvre la fiche d'un marché depuis la liste, comme un clic sur une carte. */
 async function ouvrirLaFiche(orgRole: 'pro_societe' | 'artisan') {
-  await act(async () => { render(<BourseAuxMarchesSection artisan={SOCIETE} orgRole={orgRole} navigateTo={vi.fn()} />) })
+  await act(async () => { render(enFrancais(<BourseAuxMarchesSection artisan={SOCIETE} orgRole={orgRole} navigateTo={vi.fn()} />)) })
   await vi.waitFor(() => expect(h.vues.parcourir).toBeDefined())
   await act(async () => { vue('parcourir').onSelectMarche({ id: MARCHE, title: 'Ravalement', my_candidature_id: CANDIDATURE }) })
   await vi.waitFor(() => expect(h.vues.fiche).toBeDefined())
@@ -116,7 +124,7 @@ async function ecrire() {
 }
 
 async function evaluer(orgRole: 'pro_societe' | 'artisan') {
-  await act(async () => { render(<BourseAuxMarchesSection artisan={SOCIETE} orgRole={orgRole} navigateTo={vi.fn()} />) })
+  await act(async () => { render(enFrancais(<BourseAuxMarchesSection artisan={SOCIETE} orgRole={orgRole} navigateTo={vi.fn()} />)) })
   await act(async () => { fireEvent.click(screen.getByText('Gagnés')) })
   await vi.waitFor(() => expect(h.vues.gagnes).toBeDefined())
   await act(async () => { await vue('gagnes').onSubmitEvaluation(MARCHE, CANDIDATURE, 4, 'Très bonne collaboration') })

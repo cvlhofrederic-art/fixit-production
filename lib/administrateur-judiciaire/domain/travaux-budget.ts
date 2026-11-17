@@ -14,9 +14,12 @@ import type { ReglementFournisseur } from '@/lib/administrateur-judiciaire/domai
 import {
   affectationFondsDeLOperation,
   etatPartFondsTravaux,
+  referenceDecisionTravaux,
   reglementsDeLOperation,
   statutsDesTranches,
+  type DecisionTravaux,
   type OperationTravaux,
+  type OrigineDecisionTravaux,
 } from '@/lib/administrateur-judiciaire/domain/travaux-operations'
 
 /**
@@ -79,7 +82,27 @@ import {
  *   (droitProportionnelTravauxAdministrateurProvisoire, sur le montant hors taxes d'une seule opération) ; le droit de
  *   plusieurs opérations est la somme de leurs droits (droitsProportionnelsTravauxParOperation), jamais le barème appliqué
  *   au cumul de leurs montants. La question 🔴 « opération par opération, ou une seule fois au montant total » est
- *   tranchée ; l'assiette et la présentation au juge restent ouvertes (🔴 ci-dessous).
+ *   tranchée ; l'assiette et la présentation au juge, restées ouvertes, sont tranchées par J55 (ci-dessous).
+ *
+ * Décisions de Hugo du 17/11/2026 (numéro de registre proposé : J55, suite de J39 ; notes DECISIONS-HUGO-2026-11-17.md,
+ * recommandations suivies ; textes relus sur Légifrance le 17/11/2026 : arrêté du 8 octobre 2015, JORFTEXT000031289440,
+ * art. 11, en vigueur depuis le 12/10/2015 ; D. 1967 art. 44, en vigueur depuis le 04/06/2004, décret n° 2004-479 ;
+ * D. 1967 art. 61-1-5, II, en vigueur depuis le 01/01/2020, décret n° 2019-966) :
+ * - J55 (a), assiette : les TRAVAUX seuls, montant hors taxes (art. 44, 1°, 2°, 3° et 5°, et travaux urgents de l'art.
+ *   37) ; exclus : études techniques (art. 44, 4°), assurance dommages-ouvrage, honoraires de maître d'œuvre, de bureau
+ *   d'études et du syndic (assietteDroitProportionnelTravaux, sur des dépenses HT dont l'appelant donne la nature,
+ *   NATURES_DEPENSE_TRAVAUX : les postes TTC du budget ne distinguent pas les études des travaux) ;
+ * - J55 (b), présentation au juge : détail PAR OPÉRATION dans le compte provisoire détaillé des émoluments (D. 1967
+ *   art. 61-1-5, II) : décision qui fonde l'opération (résolution d'AG ou décision de l'administrateur provisoire),
+ *   montant hors taxes retenu, calcul par tranches, droit (compteProvisoireDroitsProportionnelsTravaux) ; barème
+ *   opération par opération, jamais au cumul (J39) ; non applicable en administration provisoire renforcée (art. 11,
+ *   dernier al.) ni à 500 lots et plus (art. 3), d'après cadreHonorairesTravaux.
+ *
+ * Suite, décision de Hugo du 17/11/2026 (J60) (DECISIONS-HUGO-2026-11-17.md, section « Suite » : recommandations
+ * validées en bloc, numéro de registre proposé) : les « autres honoraires » (contrôle technique, coordonnateur sécurité)
+ * sont exclus de l'assiette du droit proportionnel, comme ceux que J55 nomme : prestations intellectuelles, pas des
+ * travaux (arrêté du 8 octobre 2015, art. 11 : « montant total hors taxes des travaux ») ; nature « honoraires_autres »,
+ * exclue (comportement inchangé, lecture désormais décidée).
  *
  * Règles :
  * - budget de l'opération en quatre postes (Travaux, Dommages-ouvrage, Honoraires cabinet, Honoraires presta.) : montant
@@ -120,7 +143,9 @@ import {
  *   contrôlé (même assemblée, même majorité, pourcentage du hors taxes) ; sous administration provisoire de l'art. 29-1,
  *   le poste est une prévision soumise au juge, estimée au barème de l'art. 11 de l'arrêté du 8 octobre 2015, opération
  *   par opération (J39 : droitProportionnelTravauxAdministrateurProvisoire pour une opération,
- *   droitsProportionnelsTravauxParOperation pour plusieurs) ;
+ *   droitsProportionnelsTravauxParOperation pour plusieurs), sur les travaux seuls, hors taxes (J55 :
+ *   assietteDroitProportionnelTravaux), et présentée au juge opération par opération
+ *   (compteProvisoireDroitsProportionnelsTravaux) ;
  * - le budget contrôlé est celui de l'opération (même n°, même syndicat, D1), au suivi comme au contrôle des honoraires ;
  *   la date de l'assemblée qui vote les honoraires est une date ISO valide.
  *
@@ -180,10 +205,8 @@ import {
  * - « Les postes du budget se ventilent-ils par clé, comme la grille des devis de l'onglet Budget ? » (VitFix : par
  *   opération) ; « Un engagement au-delà du budget adopté exige-t-il une nouvelle décision avant la commande ? » (VitFix :
  *   signalé, non bloqué) ;
- * - « Sur quelle assiette s'applique, pour chaque opération (J39), le barème de l'art. 11 de l'arrêté du 8 octobre
- *   2015 : les seuls travaux, ou aussi les études, la dommages-ouvrage et les honoraires des prestataires (Gestéam : cases
- *   DO, Autres honoraires) ? » (VitFix : le montant hors taxes fourni pour chaque opération, à confirmer) ; « Comment le
- *   cabinet présente-t-il ce droit au juge (compte provisoire détaillé des émoluments, D. 1967 art. 61-1-5, II) ? » ;
+ * - « La nature des dépenses (NATURES_DEPENSE_TRAVAUX) sera-t-elle portée par les lignes de marché ou les factures de
+ *   l'opération (Frédéric : table Travaux) ? » (VitFix : fournie par l'appelant) ;
  * - « (Hugo) Une même opération fournie deux fois au calcul de plusieurs opérations
  *   (droitsProportionnelsTravauxParOperation, même numéro) est-elle refusée, ou ses montants s'additionnent-ils avant un
  *   seul calcul par tranches ? » (VitFix : refusée, choix de VitFix à confirmer : J39 ne le dit pas ; deux calculs pour
@@ -1155,7 +1178,11 @@ export interface DroitProportionnelTravaux {
    */
   depasseSeuilArticle15: boolean
   fondements: readonly string[]
-  /** Toujours vrai : assiette à confirmer (🔴 en-tête) ; l'application opération par opération est décidée (J39). */
+  /**
+   * Toujours vrai : bornes des tranches et arrondi déduits (🔵 en-tête). L'application opération par opération (J39) et
+   * l'assiette (J55 : les travaux seuls, assietteDroitProportionnelTravaux) sont décidées ; ce calcul prend le montant
+   * hors taxes tel qu'il est fourni.
+   */
   aConfirmer: true
 }
 
@@ -1205,7 +1232,7 @@ export interface DroitsProportionnelsDesOperations {
    */
   depasseSeuilArticle15: boolean
   fondements: readonly string[]
-  /** Toujours vrai : assiette à confirmer (🔴 en-tête). */
+  /** Toujours vrai : bornes des tranches et arrondi déduits, seuil de l'art. 15 sans les droits des art. 12 et 13. */
   aConfirmer: true
 }
 
@@ -1233,6 +1260,240 @@ export function droitsProportionnelsTravauxParOperation(operations: readonly Mon
     totalDroitHtCentimes,
     depasseSeuilArticle15: totalDroitHtCentimes > SEUIL_DROITS_PROPORTIONNELS_HT_CENTIMES,
     fondements: [...FONDEMENTS_DROIT_PROPORTIONNEL],
+    aConfirmer: true,
+  }
+}
+
+// ─── Assiette et compte provisoire détaillé du droit proportionnel (décision J55) ─────────────────
+
+/**
+ * Nature d'une dépense hors taxes de l'opération, pour l'assiette du droit proportionnel de l'administrateur provisoire
+ * (décision de Hugo du 17/11/2026, J55) : les travaux de D. 1967 art. 44, 1°, 2°, 3° et 5° et les travaux urgents de
+ * l'art. 37 sont retenus ; les études techniques (art. 44, 4°), l'assurance dommages-ouvrage et les honoraires (maître
+ * d'œuvre, bureau d'études, syndic) sont exclus, comme les autres honoraires (contrôle technique, coordonnateur sécurité :
+ * décision de Hugo du 17/11/2026, J60). Les quatre postes TTC du budget (POSTES_BUDGET_TRAVAUX) ne distinguent
+ * pas les études des travaux et ne portent pas le hors taxes : cette nature est le moyen minimal de les porter, sans
+ * table (l'appelant la donne pour chaque marché, devis ou facture HT de l'opération).
+ */
+export const NATURES_DEPENSE_TRAVAUX = [
+  'travaux',
+  'travaux_urgents',
+  'etudes_techniques',
+  'dommages_ouvrage',
+  'honoraires_maitre_oeuvre',
+  'honoraires_bureau_etudes',
+  'honoraires_syndic',
+  'honoraires_autres',
+] as const
+export type NatureDepenseTravaux = (typeof NATURES_DEPENSE_TRAVAUX)[number]
+
+const NATURES_DEPENSE_CONNUES: ReadonlySet<string> = new Set(NATURES_DEPENSE_TRAVAUX)
+
+const EXCLUE_J55 = "exclue de l'assiette du droit proportionnel (décision J55)"
+
+/** Libellé, place dans l'assiette et raison de chaque nature (J55 ; autres honoraires : J60). */
+const NATURE_DEPENSE: Readonly<Record<NatureDepenseTravaux, { libelle: string; retenue: boolean; raison: string }>> = {
+  travaux: { libelle: 'Travaux', retenue: true, raison: 'D. 1967 art. 44, 1°, 2°, 3° ou 5°' },
+  travaux_urgents: { libelle: 'Travaux urgents', retenue: true, raison: 'D. 1967 art. 37 (travaux urgents)' },
+  etudes_techniques: { libelle: 'Études techniques', retenue: false, raison: `Études techniques (D. 1967 art. 44, 4° : diagnostics, consultations) : ${EXCLUE_J55}` },
+  dommages_ouvrage: { libelle: 'Assurance dommages-ouvrage', retenue: false, raison: `Prime d'assurance dommages-ouvrage : ${EXCLUE_J55}` },
+  honoraires_maitre_oeuvre: { libelle: "Honoraires de maître d'œuvre", retenue: false, raison: `Honoraires de maître d'œuvre : ${EXCLUE_J55}` },
+  honoraires_bureau_etudes: { libelle: "Honoraires de bureau d'études", retenue: false, raison: `Honoraires de bureau d'études : ${EXCLUE_J55}` },
+  honoraires_syndic: { libelle: 'Honoraires du syndic', retenue: false, raison: `Honoraires du syndic : ${EXCLUE_J55}` },
+  honoraires_autres: {
+    libelle: 'Autres honoraires',
+    retenue: false,
+    raison:
+      "Autres honoraires (contrôle technique, coordonnateur sécurité…) : prestations intellectuelles, pas des travaux (arrêté du 8 octobre 2015, art. 11) ; exclus de l'assiette du droit proportionnel, comme les honoraires que nomme J55 (décision de Hugo du 17/11/2026, J60)",
+  },
+}
+
+/** Dépense hors taxes de l'opération, avec sa nature (J55). */
+export interface DepenseOperationTravaux {
+  nature: NatureDepenseTravaux
+  montantHtCentimes: number
+  /** Libellé libre (entreprise, marché, devis) ; à défaut, celui de la nature. */
+  libelle?: string | null
+}
+
+export interface DepenseDeLAssiette {
+  nature: NatureDepenseTravaux
+  libelle: string
+  montantHtCentimes: number
+  /** Retenue dans l'assiette (travaux) ou exclue. */
+  retenue: boolean
+  /** Fondement de la dépense retenue, ou raison de l'exclusion. */
+  raison: string
+}
+
+export interface AssietteDroitProportionnelTravaux {
+  /** Montant hors taxes des travaux retenus : l'assiette du barème de l'art. 11 pour cette opération. */
+  montantHtRetenuCentimes: number
+  /** Montant hors taxes des dépenses exclues (études techniques, dommages-ouvrage, honoraires). */
+  montantHtExcluCentimes: number
+  /** Chaque dépense, dans l'ordre reçu. */
+  depenses: DepenseDeLAssiette[]
+}
+
+/**
+ * Assiette du droit proportionnel d'UNE opération (arrêté du 8 octobre 2015, art. 11 : « le montant total hors taxes des
+ * travaux » de D. 1967 art. 44 ou des travaux urgents de l'art. 37 ; décision de Hugo du 17/11/2026, J55) : la somme hors
+ * taxes de ses dépenses de nature « travaux » ou « travaux urgents ». Refus : nature inconnue, montant qui n'est pas en
+ * centimes entiers positifs ou nuls.
+ */
+export function assietteDroitProportionnelTravaux(depenses: readonly DepenseOperationTravaux[]): AssietteDroitProportionnelTravaux {
+  const lues = depenses.map((depense): DepenseDeLAssiette => {
+    if (!NATURES_DEPENSE_CONNUES.has(depense.nature))
+      throw new Error(`Nature de dépense inconnue « ${depense.nature} » (NATURES_DEPENSE_TRAVAUX) : assiette du droit proportionnel non calculée.`)
+    const { libelle: libelleNature, retenue, raison } = NATURE_DEPENSE[depense.nature]
+    const libelle = depense.libelle?.trim() || libelleNature
+    verifierCentimes(depense.montantHtCentimes, `Dépense « ${libelle} »`)
+    return { nature: depense.nature, libelle, montantHtCentimes: depense.montantHtCentimes, retenue, raison }
+  })
+  return {
+    montantHtRetenuCentimes: somme(lues.filter((l) => l.retenue).map((l) => l.montantHtCentimes)),
+    montantHtExcluCentimes: somme(lues.filter((l) => !l.retenue).map((l) => l.montantHtCentimes)),
+    depenses: lues,
+  }
+}
+
+/** Une opération du compte provisoire : son n°, la décision qui la fonde, ses dépenses hors taxes avec leur nature. */
+export interface OperationCompteProvisoire {
+  numero: string
+  /** Résolution d'AG, ou décision de l'administrateur provisoire au registre (DecisionTravaux, travaux-operations.ts). */
+  decision: DecisionTravaux | null
+  depenses: readonly DepenseOperationTravaux[]
+}
+
+/** Ligne du compte provisoire détaillé des émoluments pour une opération (D. 1967 art. 61-1-5, II ; J55). */
+export interface LigneCompteProvisoireDroitProportionnel {
+  numero: string
+  /** Décision qui fonde l'opération : « <résolution> (AG du <date>) » ou « <référence> (décision de l'administrateur provisoire du <date>) ». */
+  decision: string
+  origineDecision: OrigineDecisionTravaux
+  dateDecision: string
+  assiette: AssietteDroitProportionnelTravaux
+  /** Montant hors taxes retenu (assiette.montantHtRetenuCentimes). */
+  montantHtRetenuCentimes: number
+  /** Calcul par tranches de cette seule opération (J39). */
+  droit: DroitProportionnelTravaux
+  /** Le calcul en toutes lettres, vérifiable par le juge. */
+  detail: string
+}
+
+export interface CompteProvisoireDroitsProportionnels {
+  /** Faux en administration provisoire renforcée (art. 11, dernier al.) et à 500 lots et plus (art. 3) : voir cadre.motif. */
+  applicable: boolean
+  cadre: CadreHonorairesTravaux
+  /** Une ligne par opération, dans l'ordre reçu ; vide quand le barème ne s'applique pas. */
+  lignes: LigneCompteProvisoireDroitProportionnel[]
+  /** Somme des droits des opérations (J39 : jamais le barème appliqué au cumul de leurs montants). */
+  totalDroitHtCentimes: number
+  depasseSeuilArticle15: boolean
+  fondements: readonly string[]
+  /** Toujours vrai : bornes des tranches et arrondi déduits, seuil de l'art. 15 sans les droits des art. 12 et 13. */
+  aConfirmer: true
+}
+
+const FONDEMENTS_COMPTE_PROVISOIRE: readonly string[] = ['Arrêté du 8 octobre 2015, art. 11 et 15', 'D. 1967 art. 61-1-5, I, 2° et II', 'D. 1967 art. 37 et 44']
+
+const tauxFr = (tauxPct: number): string => String(tauxPct).replace('.', ',')
+
+/** Complément « de quoi » d'un montant exclu, nature par nature (détail pour le juge). */
+const EXCLUE_DE: Readonly<Record<NatureDepenseTravaux, string>> = {
+  travaux: 'de travaux',
+  travaux_urgents: 'de travaux urgents',
+  etudes_techniques: "d'études techniques",
+  dommages_ouvrage: "d'assurance dommages-ouvrage",
+  honoraires_maitre_oeuvre: "d'honoraires de maître d'œuvre",
+  honoraires_bureau_etudes: "d'honoraires de bureau d'études",
+  honoraires_syndic: "d'honoraires du syndic",
+  honoraires_autres: "d'autres honoraires",
+}
+
+/**
+ * Dépenses exclues, nature par nature, dans l'ordre de NATURES_DEPENSE_TRAVAUX : seules celles que l'opération porte
+ * (relecture contradictoire du 17/11/2026 : le détail les nommait toutes, quelle que soit la dépense exclue).
+ */
+function exclusesParNature(assiette: AssietteDroitProportionnelTravaux): string {
+  return NATURES_DEPENSE_TRAVAUX.flatMap((nature) => {
+    const montant = somme(assiette.depenses.filter((d) => !d.retenue && d.nature === nature).map((d) => d.montantHtCentimes))
+    return montant > 0 ? [`${eur(montant)} ${EXCLUE_DE[nature]}`] : []
+  }).join(', ')
+}
+
+/**
+ * Décision qui fonde l'opération : date ISO et résolution, ou référence au registre (comme à l'adoption de l'opération,
+ * travaux-operations.ts) ; sinon le compte présenterait au juge une décision qu'on ne peut pas identifier (relecture
+ * contradictoire du 17/11/2026).
+ */
+function verifierDecisionDuCompte(numero: string, decision: DecisionTravaux): void {
+  if (!estDateIsoValide(decision.date) || !decision.resolution.trim())
+    throw new Error(
+      `Opération ${numero} : décision incomplète (assemblée ou administrateur provisoire) : date (AAAA-MM-JJ) et résolution ou référence au registre attendues ; elle n'entre pas au compte provisoire.`,
+    )
+}
+
+/** Détail en toutes lettres d'une ligne du compte provisoire : décision, montant retenu et exclu, tranches, droit. */
+function detailDeLaLigne(numero: string, decision: string, assiette: AssietteDroitProportionnelTravaux, droit: DroitProportionnelTravaux): string {
+  const exclus = assiette.montantHtExcluCentimes > 0 ? ` (exclus : ${exclusesParNature(assiette)})` : ''
+  const tranches = droit.tranches.filter((t) => t.baseCentimes > 0).map((t) => `${tauxFr(t.tauxPct)} % × ${eur(t.baseCentimes)}`)
+  const calcul = tranches.length > 0 ? `${tranches.join(' + ')} = ${eur(droit.droitHtCentimes)} HT` : `aucun montant de travaux retenu, droit de ${eur(0)} HT`
+  return `Opération ${numero} — ${decision} : montant hors taxes des travaux retenu ${eur(assiette.montantHtRetenuCentimes)}${exclus} ; barème de l'arrêté du 8 octobre 2015, art. 11, appliqué à cette seule opération : ${calcul}.`
+}
+
+/**
+ * Compte provisoire détaillé des émoluments, partie droit proportionnel sur travaux (D. 1967 art. 61-1-5, II : acomptes
+ * fixés chaque année par le président du tribunal judiciaire « au vu d'un compte provisoire détaillé des émoluments » ;
+ * décision de Hugo du 17/11/2026, J55) : pour chaque opération, la décision qui la fonde (résolution d'AG ou décision de
+ * l'administrateur provisoire), le montant hors taxes retenu (assietteDroitProportionnelTravaux : travaux seuls), le
+ * calcul par tranches et le droit ; barème appliqué opération par opération, jamais au cumul (J39 :
+ * droitsProportionnelsTravauxParOperation). Administrateur provisoire de L. 1965 art. 29-1 seulement : non applicable en
+ * administration provisoire renforcée (arrêté du 8 octobre 2015, art. 11, dernier al.) ni à 500 lots et plus (art. 3),
+ * selon cadreHonorairesTravaux. Refus : nombre de lots invalide, opération sans décision (art. 11 : travaux « votés en
+ * assemblée générale ou décidés par l'administrateur provisoire ») ou dont la décision n'a ni date valide ni résolution
+ * (ou référence au registre), et les refus de l'assiette et du calcul J39 (numéro
+ * vide, opération fournie deux fois). Une prévision soumise au juge, jamais un élément à facturer.
+ */
+export function compteProvisoireDroitsProportionnelsTravaux(
+  operations: readonly OperationCompteProvisoire[],
+  { nbLots, administrationRenforcee = false }: { nbLots: number; administrationRenforcee?: boolean },
+): CompteProvisoireDroitsProportionnels {
+  const cadre = cadreHonorairesTravaux({ regime: 'ap291', nbLots, administrationRenforcee })
+  const fondements = [...FONDEMENTS_COMPTE_PROVISOIRE]
+  if (cadre.cadre !== 'droit_proportionnel_administrateur_provisoire')
+    return { applicable: false, cadre, lignes: [], totalDroitHtCentimes: 0, depasseSeuilArticle15: false, fondements, aConfirmer: true }
+  const assiettes = operations.map((operation) => assietteDroitProportionnelTravaux(operation.depenses))
+  const calcul = droitsProportionnelsTravauxParOperation(
+    operations.map((operation, rang) => ({ numero: operation.numero, montantTravauxHtCentimes: assiettes[rang].montantHtRetenuCentimes })),
+  )
+  const lignes = calcul.operations.map(({ numero, droit }, rang): LigneCompteProvisoireDroitProportionnel => {
+    const decision = operations[rang].decision
+    if (decision === null)
+      throw new Error(
+        `Opération ${numero} sans décision : le droit proportionnel porte sur les travaux votés en assemblée ou décidés par l'administrateur provisoire (arrêté du 8 octobre 2015, art. 11) ; elle n'entre pas au compte provisoire.`,
+      )
+    verifierDecisionDuCompte(numero, decision)
+    const reference = referenceDecisionTravaux(decision)
+    const assiette = assiettes[rang]
+    return {
+      numero,
+      decision: reference,
+      origineDecision: decision.origine ?? 'assemblee',
+      dateDecision: decision.date,
+      assiette,
+      montantHtRetenuCentimes: assiette.montantHtRetenuCentimes,
+      droit,
+      detail: detailDeLaLigne(numero, reference, assiette, droit),
+    }
+  })
+  return {
+    applicable: true,
+    cadre,
+    lignes,
+    totalDroitHtCentimes: calcul.totalDroitHtCentimes,
+    depasseSeuilArticle15: calcul.depasseSeuilArticle15,
+    fondements,
     aConfirmer: true,
   }
 }

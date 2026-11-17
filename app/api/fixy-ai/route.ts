@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { TOOLS, buildToolDescriptions, type ToolResult } from './tools'
-import { callGroqWithRetry, type GroqResponse } from '@/lib/groq'
+import { type GroqResponse } from '@/lib/groq'
+import { appelerIA, iaTexteDisponible } from '@/lib/ai/relais'
 // crypto.randomUUID() is available globally (Web Crypto API)
 import { getAuthUser, unauthorizedResponse, verifyArtisanOwnership } from '@/lib/auth-helpers'
 import { checkRateLimit as checkRL } from '@/lib/rate-limit'
@@ -12,8 +13,7 @@ import { logger } from '@/lib/logger'
 export const maxDuration = 30
 
 // ── Fixy AI v2 — Assistant IA avec exécution d'actions serveur ────────────────
-
-const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
+// Groq d'abord, Workers AI en relais si Groq échoue (lib/ai/relais.ts).
 
 // ── Pending confirmations (Upstash Redis, TTL 5min) ─────────────────────────
 // Store distribué (lib/pending-confirmations) : sur Cloudflare Workers, un Map
@@ -120,7 +120,7 @@ Tu comprends parfaitement :
 **Clients :**
 Compare le nom dicté avec CLIENTS EXISTANTS (ci-dessous).
 Ignore majuscules/accents. Accepte prononciations proches (≥ 80% similarité).
-"Dupond" = "Dupont", "Lépore" = "Lepore", "Seb" → "Sebastien".
+"Dupond" = "Dupont", "Lefèvre" = "Lefevre", "Seb" → "Sebastien".
 Si trouvé → utilise ses coordonnées sans demander confirmation.
 Si pas trouvé → crée un nouveau client.
 
@@ -294,9 +294,9 @@ EXEMPLES :
 - "j'suis pas dispo demain" → actions: [{ "tool": "create_absence", "params": { "start_date": "(demain date)", "end_date": "(demain date)", "reason": "Personnel" } }]
 - "mes absences" → actions: [{ "tool": "list_absences" }]
 - "supprime mon absence" → pending_confirmation avec delete_absence
-- "fait un devis pour dupont résidence la sauvagère élagage huit cent cinquante euros" → client_actions: [{ "type": "open_devis_form", "data": { "clientName": "Dupont", "clientAddress": "Résidence La Sauvagère", "service": "Élagage", "amount": 850 } }]
+- "fait un devis pour dupont résidence les pins élagage huit cent cinquante euros" → client_actions: [{ "type": "open_devis_form", "data": { "clientName": "Dupont", "clientAddress": "Résidence Les Pins", "service": "Élagage", "amount": 850 } }]
 - "rapport pour martin rue des lilas nettoyage de façade terminé" → client_actions: [{ "type": "open_rapport_form", "data": { "clientName": "Martin", "clientAddress": "Rue des Lilas", "motif": "Nettoyage de façade", "status": "termine" } }]
-- "devis lepore bâtiment b res l'aurore taille de haies deux cent euros" → match client Lepore, client_actions: [{ "type": "open_devis_form", "data": { "clientName": "Lepore", "clientAddress": "Bâtiment B Res L'Aurore", "service": "Taille de haies", "amount": 200 } }]
+- "devis lefevre bâtiment b res l'étoile taille de haies deux cent euros" → match client Lefevre, client_actions: [{ "type": "open_devis_form", "data": { "clientName": "Lefevre", "clientAddress": "Bâtiment B Res L'Étoile", "service": "Taille de haies", "amount": 200 } }]
 - "rapport d'intervention chez fontaine fuite salle de bain réparée observations joints changés" → client_actions: [{ "type": "open_rapport_form", "data": { "clientName": "Fontaine", "motif": "Fuite salle de bain", "travaux": "Réparation fuite", "observations": "Joints changés", "status": "termine" } }]
 
 NE JAMAIS inclure de texte avant ou après le JSON.`
@@ -367,7 +367,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, response: 'Tu vas trop vite ! Attends un peu avant de renvoyer un message.', actions_executed: [], client_actions: [] })
     }
 
-    if (!GROQ_API_KEY) {
+    if (!(await iaTexteDisponible())) {
       return NextResponse.json({ success: false, response: 'Service IA indisponible. Réessaie plus tard.', actions_executed: [], client_actions: [] })
     }
 
@@ -386,16 +386,17 @@ export async function POST(request: NextRequest) {
     }
     messages.push({ role: 'user', content: message })
 
-    // Call Groq API with retry
+    // Groq, puis relais par Workers AI
     let groqData: GroqResponse
     try {
-      groqData = await callGroqWithRetry({
+      groqData = await appelerIA({
         messages,
         temperature: 0.2,
         max_tokens: 3000,
         response_format: { type: 'json_object' },
-      })
-    } catch {
+      }, { contexte: 'fixy-ai' })
+    } catch (err) {
+      logger.error('[fixy-ai] AI call failed', { module: 'fixy-ai' }, err)
       return NextResponse.json({ success: false, response: 'Erreur IA temporaire. Réessaie dans quelques instants.', actions_executed: [], client_actions: [] })
     }
     const content = groqData.choices?.[0]?.message?.content || ''

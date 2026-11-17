@@ -1,12 +1,10 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
-import { callGroqWithRetry } from '@/lib/groq'
+import { appelerIA, iaTexteDisponible } from '@/lib/ai/relais'
 import { logger } from '@/lib/logger'
 
 export const maxDuration = 30
-
-const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -242,9 +240,9 @@ export async function POST(request: NextRequest) {
     }
     const data = v.data
 
-    if (!GROQ_API_KEY) {
+    if (!(await iaTexteDisponible())) {
       return NextResponse.json(
-        { error: 'Clé API Groq non configurée. Contactez l\'administrateur.' },
+        { error: 'L’analyse par IA est indisponible pour le moment. Réessayez plus tard.' },
         { status: 503 }
       )
     }
@@ -265,19 +263,20 @@ ${data.companyData?.raisonSociale ? `Entreprise candidate : ${data.companyData.r
       { role: 'user', content: userMessage },
     ]
 
-    const groqData = await callGroqWithRetry(
+    // Groq, puis Workers AI en relais. Long rapport non streamé (8 000 jetons) : 90 s pour l'ensemble.
+    const groqData = await appelerIA(
       {
         messages,
         temperature: 0.15,
         max_tokens: 8000,
         response_format: { type: 'json_object' },
       },
-      { maxRetries: 2 }
+      { contexte: 'dce-analyse', maxRetries: 2, budgetMs: 90_000 }
     )
 
     const rawContent = groqData.choices?.[0]?.message?.content
     if (!rawContent) {
-      logger.error('[dce-analyse] Empty response from Groq')
+      logger.error('[dce-analyse] Empty AI response')
       return NextResponse.json(
         { error: 'Réponse vide du modèle IA. Réessayez.' },
         { status: 502 }
@@ -289,7 +288,7 @@ ${data.companyData?.raisonSociale ? `Entreprise candidate : ${data.companyData.r
     try {
       analysis = JSON.parse(rawContent)
     } catch {
-      logger.error('[dce-analyse] Invalid JSON from Groq:', rawContent.substring(0, 200))
+      logger.error('[dce-analyse] Invalid JSON from AI:', rawContent.substring(0, 200))
       return NextResponse.json(
         { error: 'Réponse IA mal formatée. Réessayez.' },
         { status: 502 }
@@ -319,7 +318,6 @@ ${data.companyData?.raisonSociale ? `Entreprise candidate : ${data.companyData.r
         projectType: data.projectType,
         budget: data.budget,
         lotsCount: data.lots.length,
-        model: groqData.model || 'llama-3.3-70b-versatile',
         tokens: groqData.usage?.total_tokens || 0,
         missingSections: missingSections.length > 0 ? missingSections : undefined,
       },

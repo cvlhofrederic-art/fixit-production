@@ -83,7 +83,11 @@ import { creerRattachement, memeRattachement, type FicheLiee, type Rattachement 
  * - la règle des N jours s'applique avec ou sans limite, et « Relance d'étape » (tranche 38) en est rapprochée sans
  *   certitude : le suivi reçoit la date de relance, même future, et le réglage y applique l'horizon et le week-end ; N est
  *   plafonné (JOURS_SUIVI_ETAPE_MAX, garde-fou). Heures, agenda et report d'agenda : point 68 ; déclencheur par courrier et
- *   mode de réalisation : point 50 ; modèles par type de dossier : point 49.
+ *   mode de réalisation : point 50 (etapes-courrier.ts) ; modèles par type de dossier : point 49 ;
+ * - point 50 : deux champs facultatifs, courrierOrigineId (le courrier qui a fait naître l'étape) et modeRealisation
+ *   (🟢 « réalisation par Courrier », tranche 42) ; absents, lus comme null : les étapes déjà créées ne changent pas.
+ *   L'étape enchaînée ne les recopie pas (elle naît du geste du collaborateur, J20) ; réalisation, validation et
+ *   programmation les gardent.
  * 🔴 Non établi (fiches lues vides, aucun « Effectuer » actionné ; aucun texte) — questions restantes ; les n° 1, 3 à 7
  *   et 11 sont tranchées (J20 à J24, J41 et J44, ci-dessus) :
  * 2. Frédéric : quelle valeur de N pour « étape automatique non réalisée » (30 jours proposés) ; réglage par cabinet ou
@@ -147,6 +151,15 @@ export const LIBELLES_CANAUX_ACCUSE_REALISATION: Record<CanalAccuseRealisation, 
 export const canalAccuseRealisation = (nature: NatureDemandeurEtape): CanalAccuseRealisation =>
   nature === 'collaborateur' ? 'memo_interne' : 'courriel'
 
+/**
+ * Mode de réalisation d'une étape (point 50) : 🟢 « réalisation par Courrier », seule valeur relevée (tranche 42, étape
+ * « Copie au CS pour info ») ; ⚪ les autres valeurs de Gestéam ne sont pas relevées.
+ */
+export const MODES_REALISATION_ETAPE = ['courrier'] as const
+export type ModeRealisationEtape = (typeof MODES_REALISATION_ETAPE)[number]
+
+export const LIBELLES_MODES_REALISATION_ETAPE: Record<ModeRealisationEtape, string> = { courrier: 'Courrier' }
+
 /** 🟢 « À faire » observé ; 🔵 les autres libellés. */
 export const LIBELLES_STATUT_ETAPE: Record<StatutEtape, string> = {
   a_faire: 'À faire',
@@ -181,6 +194,13 @@ export interface EtapeDossier extends Etape {
   /** Case « Accusé de réalisation au demandeur ». */
   accuseAuDemandeur: boolean
   durees: DureesEtape
+  /**
+   * Courrier qui a fait naître l'étape (point 50, etapes-courrier.ts) ; absent ou null : étape saisie, enchaînée ou
+   * instanciée d'une liste de contrôle.
+   */
+  courrierOrigineId?: string | null
+  /** Mode de réalisation (point 50 ; 🟢 « Courrier », tranche 42) ; absent ou null : non précisé. */
+  modeRealisation?: ModeRealisationEtape | null
 }
 
 export interface SaisieEtapeDossier {
@@ -260,8 +280,8 @@ function verifierNatureDemandeur(nature: NatureDemandeurEtape): NatureDemandeurE
   return nature
 }
 
-/** Rattachements contrôlés (creerRattachement), sans doublon, dans l'ordre reçu. */
-function rattachementsUniques(rattachements: readonly Rattachement[]): Rattachement[] {
+/** Rattachements contrôlés (creerRattachement), sans doublon, dans l'ordre reçu (réutilisé par etapes-courrier.ts, point 50). */
+export function rattachementsUniques(rattachements: readonly Rattachement[]): Rattachement[] {
   const retenus: Rattachement[] = []
   for (const r of rattachements) {
     const controle = creerRattachement(r.type, r.id)
@@ -552,8 +572,10 @@ export function bilanDurees(etape: EtapeDossier, aujourdhui: string): BilanDuree
  * le `date` (au plus tôt le jour de la réalisation) par `creeeParId`, le collaborateur qui déclenche l'enchaînement
  * (J20 : « Créée par » l'affiche, origine « manuelle », donc hors de la règle des N jours) ; « sans objet » de la
  * validation, instructions, programmation, durées et case d'accusé repartent à zéro au lieu d'être recopiés (à
- * ressaisir par programmerEtape). Refus : identifiant ou collaborateur vides, date invalide ou antérieure à la
- * réalisation, étape non réalisée.
+ * ressaisir par programmerEtape). Le courrier d'origine et le mode de réalisation (point 50) ne sont pas recopiés :
+ * l'étape enchaînée ne naît pas du courrier de la précédente. Refus : identifiant ou collaborateur vides, date invalide
+ * ou antérieure à la réalisation, étape non réalisée. L'anti-doublon avec les étapes nées d'un courrier :
+ * etapes-courrier.enchainerEtapeDossierSansDoublon.
  */
 export function enchainerEtapeDossier(
   etape: EtapeDossier,
@@ -570,7 +592,7 @@ export function enchainerEtapeDossier(
     throw new Error(`Enchaînement refusé : le ${dateIsoVersFr(date)} précède la réalisation (${dateIsoVersFr(etape.faitLe)}).`)
   const suivante = enchainer(etape, processus, { id: nouvelId })
   if (!suivante) return null
-  return {
+  return sansOrigineCourrier({
     ...suivante,
     validationSansObjet: false,
     creeeLe: date,
@@ -583,7 +605,15 @@ export function enchainerEtapeDossier(
     validationPrevueLe: null,
     accuseAuDemandeur: false,
     durees: dureesVides(),
-  }
+  })
+}
+
+/**
+ * Retire courrier d'origine et mode de réalisation (point 50) : etapes.enchainer recopie toute l'étape précédente, champs
+ * facultatifs compris. Une étape qui ne les porte pas est rendue à l'identique (aucune clé ajoutée).
+ */
+function sansOrigineCourrier({ courrierOrigineId: _courrier, modeRealisation: _mode, ...etape }: EtapeDossier): EtapeDossier {
+  return etape
 }
 
 // ─── Étape automatique non réalisée après N jours ──────────────────────────────────────────
@@ -674,7 +704,9 @@ export interface DeclencheurCopieAuCs {
 /**
  * Étape automatique « Copie au CS pour info », créée « Automatique » à la date de la mise en demeure et rattachée au
  * dossier Contentieux, si l'usage est actif ; null sinon, et par défaut (J41 : usage inactif sans réglage du cabinet).
- * Mêmes contrôles que creerEtapeDossier ; l'étape relève de la règle des N jours comme toute étape automatique.
+ * Mêmes contrôles que creerEtapeDossier ; l'étape relève de la règle des N jours comme toute étape automatique. Sans
+ * courrier d'origine ni mode de réalisation : la règle « courrier → étape type » du point 50 (etapes-courrier.ts,
+ * regleCopieAuCsPourInfo) en fait le premier cas, à la même étape près de ces deux champs.
  */
 export function etapeCopieAuCsPourInfo(
   declencheur: DeclencheurCopieAuCs,

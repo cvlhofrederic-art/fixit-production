@@ -42,7 +42,7 @@ import {
 import { buildDocumentLines } from '@/lib/devis-totals'
 import { generateDevisPdfV3 } from '@/lib/pdf/devis-pdf-v3'
 import type { PdfV3Photo } from '@/lib/pdf/devis-pdf-v3'
-import { modeleDocumentSociete } from '@/lib/pdf/modele-provence-pro'
+import { modeleDocumentSociete } from '@/lib/pdf/modeles-societes'
 import { getDecennaleEligibility } from '@/lib/decennale-eligibility'
 import {
   sumMoney,
@@ -64,7 +64,6 @@ import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { supabase } from '@/lib/supabase'
 import { fetchAuthentifie } from '@/lib/fetch-authentifie'
 import { syncDocumentSafe } from '@/lib/document-sync'
-import { SEED_PREST, SEED_MAT } from '@/components/dashboard/PrestationsBTPSection'
 import RentabiliteDevisModal from '@/components/dashboard/btp/RentabiliteDevisModal'
 
 /* ─────────────────────────────────────────────────────────────────
@@ -127,6 +126,37 @@ const UNIT_CATALOGUE_TO_DEVIS: Record<string, string> = {
 function mapCatalogueUnit(u?: string): string {
   if (!u) return 'u'
   return UNIT_CATALOGUE_TO_DEVIS[u] || 'u'
+}
+
+/** Élément du catalogue du module Prestations, tel que le formulaire le lit. */
+interface ElementCatalogueBTP {
+  id: number
+  name: string
+  type: string
+  description?: string
+  price?: { min?: number; max?: number }
+  unit?: string
+  etapes?: Array<string | { label: string; price?: number; unit?: string }>
+}
+
+/**
+ * Catalogue du module Prestations enregistré dans le navigateur : clé du module (v5), à défaut l'ancienne copie (v4)
+ * que plus rien n'écrit. Lecture seule. Rien d'enregistré, ou valeur illisible : aucun catalogue ; un élément sans
+ * nom est écarté.
+ */
+function lireCatalogueBTP(artisanId: string | undefined): ElementCatalogueBTP[] {
+  if (typeof window === 'undefined') return []
+  const fiche = artisanId || 'guest'
+  try {
+    const brut = localStorage.getItem(`fixit_prestations_btp_v5_${fiche}`) ?? localStorage.getItem(`fixit_prestations_btp_v4_${fiche}`)
+    const valeur: unknown = brut ? JSON.parse(brut) : []
+    if (!Array.isArray(valeur)) return []
+    return valeur.filter((e): e is ElementCatalogueBTP =>
+      typeof e === 'object' && e !== null && typeof (e as { name?: unknown }).name === 'string')
+  } catch (erreur) {
+    console.warn('[devis BTP] catalogue Prestations illisible :', erreur)
+    return []
+  }
 }
 
 const DECLENCHEURS_ACOMPTE = [
@@ -729,80 +759,39 @@ export default function DevisFactureFormBTP({
 
   /* ──────── Prestations BTP (merge Supabase services + localStorage catalogue) ──────── */
 
+  // Catalogue du module Prestations, lu une fois : la liste des prestations, celle des matériaux et les étapes reprises
+  // viennent de la même lecture (sinon une ligne pourrait recevoir le nom d'une prestation et les étapes d'une autre).
+  // Lecture seule : le formulaire n'écrit plus de catalogue d'exemple quand rien n'est enregistré (catalogue vierge à
+  // la création du compte, demande de Frédéric du 17/11/2026).
+  const catalogueBTP = useMemo(() => lireCatalogueBTP(artisan?.id), [artisan?.id])
+
   const allServices = useMemo(() => {
     const supaServices: ServiceBasic[] = (services as ServiceBasic[]) || []
-    const storageKey = `fixit_prestations_btp_v4_${artisan?.id || 'guest'}`
-    let localPrest: ServiceBasic[] = []
-    try {
-      let raw = localStorage.getItem(storageKey)
-
-      // Seed le localStorage si vide (même logique que PrestationsBTPSection)
-      if (!raw && artisan?.id) {
-        const all = [...SEED_PREST, ...SEED_MAT].map((p, i) => ({ id: i + 1, ...p }))
-        localStorage.setItem(storageKey, JSON.stringify(all))
-        raw = localStorage.getItem(storageKey)
-      }
-
-      if (raw) {
-        const parsed = JSON.parse(raw) as Array<{ id: number; name: string; type: string; description?: string; price?: { min?: number; max?: number }; unit?: string; etapes?: Array<string | { label: string; price?: number }> }>
-        // Map unit from catalogue format → devis format (identifiant court)
-        const mapUnit = (u?: string): string => {
-          if (!u) return 'u'
-          const m: Record<string, string> = {
-            // Géométrie
-            'm²': 'm2', 'm2': 'm2', 'ml': 'ml', 'm': 'm', 'm³': 'm3', 'm3': 'm3',
-            // Comptage
-            'u': 'u', 'pce': 'pce', 'ens': 'ens', 'lot': 'lot', 'pt': 'pt',
-            // Poids / volume
-            'kg': 'kg', 't': 't', 'L': 'L', 'l': 'L',
-            // Conditionnement
-            'sac': 'sac', 'rl': 'rl', 'palette': 'palette', 'benne': 'benne', 'camion': 'camion',
-            // Temps
-            'h': 'h', 'jour': 'j', 'j': 'j', 'semaine': 'sem', 'sem': 'sem',
-            // Facturation
-            'forfait': 'f', 'f': 'f',
-          }
-          return m[u] || 'u'
+    const localPrest: ServiceBasic[] = catalogueBTP
+      .filter(p => p.type === 'prest')
+      .map(p => {
+        // Unité du catalogue → identifiant court du devis (UNIT_CATALOGUE_TO_DEVIS), notée pour selectMotif
+        const descWithUnit = `${p.description || ''} [unit:${mapCatalogueUnit(p.unit)}]`.trim()
+        return {
+          id: `btp_${p.id}`,
+          name: p.name,
+          price_ht: p.price?.min || 0,
+          description: descWithUnit,
         }
-        localPrest = parsed
-          .filter(p => p.type === 'prest')
-          .map(p => {
-            const devisUnit = mapUnit(p.unit)
-            const baseDesc = p.description || ''
-            // Embed unit marker so selectMotif picks the right default unit
-            const descWithUnit = `${baseDesc} [unit:${devisUnit}]`.trim()
-            return {
-              id: `btp_${p.id}`,
-              name: p.name,
-              price_ht: p.price?.min || 0,
-              description: descWithUnit,
-            }
-          })
-      }
-    } catch { /* ignore */ }
+      })
 
     const names = new Set(supaServices.map(s => s.name.toLowerCase()))
     return [...supaServices, ...localPrest.filter(lp => !names.has(lp.name.toLowerCase()))]
-  }, [services, artisan?.id])
+  }, [services, catalogueBTP])
 
-  // Matériaux catalogue (from localStorage, type === 'mat')
-  const allMaterials = useMemo(() => {
-    const storageKey = `fixit_prestations_btp_v4_${artisan?.id || 'guest'}`
-    try {
-      const raw = localStorage.getItem(storageKey)
-      if (raw) {
-        const parsed = JSON.parse(raw) as Array<{ id: number; name: string; type: string; price?: { min?: number; max?: number }; unit?: string }>
-        return parsed
-          .filter(p => p.type === 'mat')
-          .map(p => ({
-            id: `btp_mat_${p.id}`,
-            name: p.name,
-            price_ht: p.price?.min || 0,
-          }))
-      }
-    } catch { /* ignore */ }
-    return [] as Array<{ id: string; name: string; price_ht: number }>
-  }, [artisan?.id])
+  // Matériaux du même catalogue (type === 'mat')
+  const allMaterials = useMemo(() => catalogueBTP
+    .filter(p => p.type === 'mat')
+    .map(p => ({
+      id: `btp_mat_${p.id}`,
+      name: p.name,
+      price_ht: p.price?.min || 0,
+    })), [catalogueBTP])
 
   /* ──────── Calculs ──────── */
 
@@ -1817,33 +1806,31 @@ export default function DevisFactureFormBTP({
     let copiedEtapes: DevisEtape[] = []
     let prestDescription = ''
     if (serviceId.startsWith('btp_')) {
-      // BTP prestation from localStorage — étapes are in the seed data
+      // Prestation du catalogue de la société : description et étapes prises dans la lecture qui a produit la liste
+      // (catalogueBTP), donc celles de la prestation choisie.
       try {
-        // Try v5 first (with auto-computed étape prices/units), fall back to v4
-        const raw = localStorage.getItem(`fixit_prestations_btp_v5_${artisan?.id || 'guest'}`)
-          || localStorage.getItem(`fixit_prestations_btp_v4_${artisan?.id || 'guest'}`)
-        if (raw) {
-          const parsed = JSON.parse(raw) as Array<{ id: number; description?: string; etapes?: Array<string | { label: string; price?: number; unit?: string }> }>
-          const numId = parseInt(serviceId.replace('btp_', ''), 10)
-          const prest = parsed.find(p => p.id === numId)
-          if (prest?.description) prestDescription = prest.description
-          if (prest?.etapes?.length) {
-            copiedEtapes = prest.etapes.map((et, i) => {
-              // Backward compat: old format was string[], new is {label, price?, unit?}[]
-              const label = typeof et === 'string' ? et : et.label
-              const price = typeof et === 'string' ? undefined : et.price
-              const unit = typeof et === 'string' ? undefined : et.unit
-              return {
-                id: `etape_${Date.now()}_${i}`,
-                ordre: i + 1,
-                designation: label,
-                ...(price != null ? { prixHT: price } : {}),
-                ...(unit ? { unit: mapCatalogueUnit(unit) } : {}),
-              }
-            })
-          }
+        const numId = parseInt(serviceId.replace('btp_', ''), 10)
+        const prest = catalogueBTP.find(p => p.id === numId)
+        if (prest?.description) prestDescription = prest.description
+        if (prest?.etapes?.length) {
+          copiedEtapes = prest.etapes.map((et, i) => {
+            // Backward compat: old format was string[], new is {label, price?, unit?}[]
+            const label = typeof et === 'string' ? et : et.label
+            const price = typeof et === 'string' ? undefined : et.price
+            const unit = typeof et === 'string' ? undefined : et.unit
+            return {
+              id: `etape_${Date.now()}_${i}`,
+              ordre: i + 1,
+              designation: label,
+              ...(price != null ? { prixHT: price } : {}),
+              ...(unit ? { unit: mapCatalogueUnit(unit) } : {}),
+            }
+          })
         }
-      } catch { /* ignore */ }
+      } catch (erreur) {
+        // Étapes mal formées dans le catalogue : la ligne reprend la prestation sans elles, comme avant.
+        console.warn('[devis BTP] étapes du catalogue illisibles :', erreur)
+      }
     } else {
       try {
         const res = await fetch(`/api/service-etapes?service_id=${serviceId}`)
@@ -1869,8 +1856,7 @@ export default function DevisFactureFormBTP({
                tvaRate: 20, totalHT: montantNetLigne(line.qty || 0, price, line.remise),
                etapes: copiedEtapes.length > 0 ? copiedEtapes : undefined }
     }))
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allServices, tvaEnabled])
+  }, [allServices, catalogueBTP, tvaEnabled])
 
   // svgToImageDataUrl : extrait dans lib/signature-canvas.ts (partagé avec le
   // formulaire artisan, audit 2026-06-10).
@@ -2026,7 +2012,7 @@ export default function DevisFactureFormBTP({
           rm: companyRCS || undefined,
           rc_pro: insuranceNumber || undefined,
         } : null,
-        // Modèle propre à la société (Provence Pro uniquement) ; sinon modèle BTP par défaut
+        // Modèle propre à la société (Provence Pro, Method Soluções) ; sinon modèle BTP par défaut
         modele: modeleDocumentSociete(artisan?.id),
         ptFiscalData: null,
         svgToImageDataUrl,

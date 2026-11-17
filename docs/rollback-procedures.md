@@ -114,6 +114,23 @@ DROP TABLE IF EXISTS data_requests;
 SELECT cron.unschedule('cleanup-idempotency');
 ```
 
+## Migration 20261114 — Équipe syndic : écritures réservées au serveur (T20)
+
+Recrée les trois policies d'écriture de la production telles que constatées le 14/11/2026 et rend aux rôles
+`anon` et `authenticated` les droits retirés. À n'employer que si une écriture légitime depuis le navigateur était
+découverte (aucune au 14/11/2026 : le code passe par les routes serveur en service role). Sur un projet de test
+construit depuis le dépôt, les policies portaient les noms du dépôt (`syndic_team_members_cabinet_full_access`,
+`syndic_team_cabinet_write`) : les recréer d'après `20260527_syndic_team_members.sql` et `041_rls_complete_audit.sql`.
+Après le retour arrière, relancer la partie 1 de `supabase/tests/syndic_equipe_ecritures_serveur.sql`.
+
+```sql
+-- Rollback (production)
+CREATE POLICY "syndic_team_insert" ON public.syndic_team_members FOR INSERT WITH CHECK (cabinet_id = auth.uid());
+CREATE POLICY "syndic_team_update" ON public.syndic_team_members FOR UPDATE USING (cabinet_id = auth.uid());
+CREATE POLICY "syndic_team_delete" ON public.syndic_team_members FOR DELETE USING (cabinet_id = auth.uid());
+GRANT INSERT, UPDATE, DELETE, TRUNCATE ON public.syndic_team_members TO anon, authenticated;
+```
+
 ---
 
 ## Migration 20261115 — Équipe BTP : écritures réservées au serveur (suite de R36)
@@ -131,6 +148,24 @@ CREATE POLICY "pro_team_insert" ON public.pro_team_members FOR INSERT WITH CHECK
 CREATE POLICY "pro_team_update" ON public.pro_team_members FOR UPDATE USING (company_id = (select auth.uid()));
 CREATE POLICY "pro_team_delete" ON public.pro_team_members FOR DELETE USING (company_id = (select auth.uid()));
 GRANT INSERT, UPDATE, DELETE, TRUNCATE ON public.pro_team_members TO anon, authenticated;
+```
+
+---
+
+## Migration 20261116 — Pointage BTP : employés affectés aux chantiers
+
+Retire l'index « un pointage en cours par employé », la table `pointage_reglages_btp` puis la colonne
+`chantiers_btp.membres_ids`. ATTENTION : retirer la colonne EFFACE les affectations individuelles enregistrées depuis
+(les équipes, `equipes_btp.chantier_id`, restent) ; retirer la table efface l'activation du pointage automatique et la
+trace de la confirmation des gérants (date, auteur), et coupe le mode automatique partout. Le code continue de marcher
+sans elles : l'écran Pointage n'affecte plus que des équipes, le pointage se fait à la main, et il le signale ;
+`/api/btp` enregistre les chantiers sans leurs employés. Aucun pointage n'est touché.
+
+```sql
+-- Rollback
+DROP INDEX IF EXISTS public.pointages_btp_un_ouvert_par_membre;
+DROP TABLE IF EXISTS public.pointage_reglages_btp;
+ALTER TABLE public.chantiers_btp DROP COLUMN IF EXISTS membres_ids;
 ```
 
 ---

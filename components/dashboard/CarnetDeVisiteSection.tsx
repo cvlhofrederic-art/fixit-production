@@ -13,9 +13,30 @@ function safeBlobUrl(file: File): string {
 
 type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
 
+// Catégories de la vue V5 : la valeur française reste celle qui est enregistrée et comparée ;
+// seul l'affichage en portugais passe par cette table.
+const CATEGORIES_V5_PT: Record<string, string> = {
+  'VRD / Terrassement': 'Infraestruturas / Terraplanagem',
+  'Gros œuvre / Maçonnerie': 'Estrutura / Alvenaria',
+  'Charpente / Couverture': 'Estruturas de madeira / Coberturas',
+  'Second œuvre': 'Acabamentos',
+  'Menuiserie / Serrurerie': 'Carpintaria / Serralharia',
+  'Électricité CFO/CFA': 'Eletricidade / Telecomunicações',
+  'Plomberie / CVC': 'Canalização / AVAC',
+  'Façade / ITE': 'Fachadas / Capoto',
+  'Aménagement intérieur': 'Remodelação de interiores',
+  'Réhabilitation': 'Reabilitação',
+  'Neuf': 'Construção nova',
+  'Autre': 'Outro',
+}
+
 export default function CarnetDeVisiteSection({ artisan, orgRole }: { artisan: import('@/lib/types').Artisan; orgRole?: OrgRole }) {
   const { t } = useTranslation()
   const locale = useLocale()
+  const isPt = locale === 'pt'
+  // Titre réservé au BTP en portugais (« Referências de obra », comme son menu) ; « Referências » côté artisan.
+  const isBtp = orgRole === 'pro_societe'
+  const libelleCategorie = (c: string) => (isPt ? (CATEGORIES_V5_PT[c] ?? c) : c)
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const storageKey = `fixit_portfolio_${artisan?.id}`
   const isSociete = orgRole === 'pro_societe' || orgRole === 'artisan'
@@ -155,11 +176,11 @@ export default function CarnetDeVisiteSection({ artisan, orgRole }: { artisan: i
         {/* Page title + add button (right aligned) */}
         <div className="v5-pg-t" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
           <div>
-            <h1>R&eacute;f&eacute;rences chantiers</h1>
-            <p>Portfolio de r&eacute;alisations {artisan?.company_name || ''}</p>
+            <h1>{isPt ? (isBtp ? 'Referências de obra' : 'Referências') : <>R&eacute;f&eacute;rences chantiers</>}</h1>
+            <p>{isPt ? 'Portefólio de trabalhos realizados' : <>Portfolio de r&eacute;alisations</>} {artisan?.company_name || ''}</p>
           </div>
           <button className="v5-btn v5-btn-p" onClick={() => fileInputRef.current?.click()} disabled={uploading} style={{ flexShrink: 0 }}>
-            + Ajouter un projet
+            {isPt ? '+ Adicionar projeto' : '+ Ajouter un projet'}
           </button>
         </div>
 
@@ -175,7 +196,7 @@ export default function CarnetDeVisiteSection({ artisan, orgRole }: { artisan: i
           <div className="v22-modal-overlay">
             <div className="v22-modal" style={{ maxWidth: 440 }}>
               <div className="v22-modal-head">
-                <span style={{ fontWeight: 600, fontSize: 13 }}>🏗️ Nouveau chantier de r&eacute;f&eacute;rence</span>
+                <span style={{ fontWeight: 600, fontSize: 13 }}>{isPt ? '🏗️ Nova obra de referência' : <>🏗️ Nouveau chantier de r&eacute;f&eacute;rence</>}</span>
                 <button className="v5-btn v5-btn-sm" onClick={() => { setShowForm(false); setPendingFile(null) }}>✕</button>
               </div>
               <div style={{ padding: '16px' }}>
@@ -185,34 +206,34 @@ export default function CarnetDeVisiteSection({ artisan, orgRole }: { artisan: i
                   </div>
                 )}
                 <div className="v5-fg">
-                  <label className="v5-fl">Intitul&eacute; du chantier</label>
-                  <input type="text" value={newTitle} onChange={e => setNewTitle(e.target.value)} placeholder="Ex : Immeuble R+3 — Gros œuvre Marseille 13e" className="v5-fi" />
+                  <label className="v5-fl">{isPt ? 'Designação da obra' : <>Intitul&eacute; du chantier</>}</label>
+                  <input type="text" value={newTitle} onChange={e => setNewTitle(e.target.value)} placeholder={isPt ? 'Ex.: Edifício de 4 pisos, estrutura (Porto)' : 'Ex : Immeuble R+3 — Gros œuvre Marseille 13e'} className="v5-fi" />
                 </div>
                 <div className="v5-fg">
                   <label className="v5-fl">{t('proDash.carnet.categorie')}</label>
                   <select value={newCategory} onChange={e => setNewCategory(e.target.value)} className="v5-fi">
-                    {PORTFOLIO_CATEGORIES.map(c => <option key={c}>{c}</option>)}
+                    {PORTFOLIO_CATEGORIES.map(c => <option key={c} value={c}>{libelleCategorie(c)}</option>)}
                   </select>
                 </div>
                 <div className="v5-fg">
-                  <label className="v5-fl">Ma&icirc;tre d&apos;ouvrage <span style={{ fontWeight: 400, color: '#999' }}>(optionnel)</span></label>
-                  <input type="text" value={newMaitreOuvrage} onChange={e => setNewMaitreOuvrage(e.target.value)} placeholder="Ex : Promoteur Bouygues, Mairie de Marseille..." className="v5-fi" />
+                  <label className="v5-fl">{isPt ? 'Dono de obra' : <>Ma&icirc;tre d&apos;ouvrage</>} <span style={{ fontWeight: 400, color: '#999' }}>{isPt ? '(opcional)' : '(optionnel)'}</span></label>
+                  <input type="text" value={newMaitreOuvrage} onChange={e => setNewMaitreOuvrage(e.target.value)} placeholder={isPt ? 'Ex.: promotor imobiliário, Câmara Municipal do Porto...' : 'Ex : Promoteur Bouygues, Mairie de Marseille...'} className="v5-fi" />
                 </div>
                 <div className="v5-fr">
                   <div className="v5-fg">
-                    <label className="v5-fl">Montant HT (€) <span style={{ fontWeight: 400, color: '#999' }}>(optionnel)</span></label>
+                    <label className="v5-fl">{isPt ? 'Valor s/ IVA (€)' : 'Montant HT (€)'} <span style={{ fontWeight: 400, color: '#999' }}>{isPt ? '(opcional)' : '(optionnel)'}</span></label>
                     <input type="number" value={newMontantHT} onChange={e => setNewMontantHT(e.target.value)} placeholder="850000" className="v5-fi" />
                   </div>
                   <div className="v5-fg">
-                    <label className="v5-fl">Corps de m&eacute;tier <span style={{ fontWeight: 400, color: '#999' }}>(optionnel)</span></label>
-                    <input type="text" value={newCorps} onChange={e => setNewCorps(e.target.value)} placeholder="Maçonnerie, Charpente..." className="v5-fi" />
+                    <label className="v5-fl">{isPt ? 'Especialidade' : <>Corps de m&eacute;tier</>} <span style={{ fontWeight: 400, color: '#999' }}>{isPt ? '(opcional)' : '(optionnel)'}</span></label>
+                    <input type="text" value={newCorps} onChange={e => setNewCorps(e.target.value)} placeholder={isPt ? 'Alvenaria, carpintaria...' : 'Maçonnerie, Charpente...'} className="v5-fi" />
                   </div>
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', padding: '12px 16px', borderTop: '1px solid #E8E8E8' }}>
                 <button className="v5-btn" onClick={() => { setShowForm(false); setPendingFile(null) }} disabled={uploading}>{t('proDash.carnet.annuler')}</button>
                 <button className="v5-btn v5-btn-p" onClick={handleUpload} disabled={uploading || !newTitle.trim()} style={{ opacity: (uploading || !newTitle.trim()) ? 0.5 : 1 }}>
-                  {uploading ? '⏳ Upload...' : '✅ Ajouter ce chantier'}
+                  {isPt ? (uploading ? '⏳ A carregar...' : '✅ Adicionar esta obra') : (uploading ? '⏳ Upload...' : '✅ Ajouter ce chantier')}
                 </button>
               </div>
             </div>
@@ -227,10 +248,10 @@ export default function CarnetDeVisiteSection({ artisan, orgRole }: { artisan: i
               <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,.6)', borderRadius: '0 0 6px 6px', padding: 12 }}>
                 <div style={{ fontWeight: 600, color: '#fff', fontSize: 13 }}>{preview.title}</div>
                 <div style={{ fontSize: 11, color: '#ccc' }}>
-                  {preview.category} · {new Date(preview.uploadedAt).toLocaleDateString(dateLocale)}
+                  {libelleCategorie(preview.category)} · {new Date(preview.uploadedAt).toLocaleDateString(dateLocale)}
                   {preview.montantHT && (() => {
                     const n = Number(String(preview.montantHT).replace(/[^\d.-]/g, ''))
-                    return Number.isFinite(n) && n > 0 ? <> · {n.toLocaleString('fr-FR')} € HT</> : null
+                    return Number.isFinite(n) && n > 0 ? <> · {n.toLocaleString(dateLocale)} {isPt ? '€ s/ IVA' : '€ HT'}</> : null
                   })()}
                   {preview.maitreOuvrage && <> · {preview.maitreOuvrage}</>}
                 </div>
@@ -249,7 +270,7 @@ export default function CarnetDeVisiteSection({ artisan, orgRole }: { artisan: i
                 onClick={() => setActiveCategory(cat)}
                 className={`v5-tab-b ${activeCategory === cat ? 'active' : ''}`}
               >
-                {cat}
+                {libelleCategorie(cat)}
               </button>
             ))}
           </div>
@@ -259,10 +280,10 @@ export default function CarnetDeVisiteSection({ artisan, orgRole }: { artisan: i
         {filtered.length === 0 && (
           <div style={{ textAlign: 'center', padding: '48px 0' }}>
             <div style={{ fontSize: 40, marginBottom: 12 }}>🏗️</div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1a1a', marginBottom: 4 }}>Aucun chantier de r&eacute;f&eacute;rence</div>
-            <div style={{ fontSize: 12, color: '#999', marginBottom: 16 }}>Ajoutez vos chantiers r&eacute;alis&eacute;s pour renforcer votre cr&eacute;dibilit&eacute;</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1a1a', marginBottom: 4 }}>{isPt ? 'Nenhuma obra de referência' : <>Aucun chantier de r&eacute;f&eacute;rence</>}</div>
+            <div style={{ fontSize: 12, color: '#999', marginBottom: 16 }}>{isPt ? 'Adicione as obras realizadas para reforçar a sua credibilidade' : <>Ajoutez vos chantiers r&eacute;alis&eacute;s pour renforcer votre cr&eacute;dibilit&eacute;</>}</div>
             <button className="v5-btn v5-btn-p" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-              🏗️ Ajouter un premier chantier
+              {isPt ? '🏗️ Adicionar a primeira obra' : '🏗️ Ajouter un premier chantier'}
             </button>
           </div>
         )}
@@ -278,10 +299,10 @@ export default function CarnetDeVisiteSection({ artisan, orgRole }: { artisan: i
                 <div className="v5-gal-inf">
                   <div className="v5-gal-ttl">{photo.title}</div>
                   <div className="v5-gal-dt">
-                    {new Date(photo.uploadedAt).getFullYear()} • {photo.category}
+                    {new Date(photo.uploadedAt).getFullYear()} • {libelleCategorie(photo.category)}
                     {photo.montantHT && (() => {
                       const n = Number(String(photo.montantHT).replace(/[^\d.-]/g, ''))
-                      return Number.isFinite(n) && n > 0 ? <> • {n.toLocaleString('fr-FR')} € HT</> : null
+                      return Number.isFinite(n) && n > 0 ? <> • {n.toLocaleString(dateLocale)} {isPt ? '€ s/ IVA' : '€ HT'}</> : null
                     })()}
                   </div>
                   {photo.maitreOuvrage && (
@@ -305,7 +326,7 @@ export default function CarnetDeVisiteSection({ artisan, orgRole }: { artisan: i
         {/* Tip */}
         {photos.length > 0 && (
           <div className="v5-al info" style={{ marginTop: '1rem' }}>
-            💡 Ces r&eacute;f&eacute;rences sont visibles sur votre <a href={artisan ? getProfilePath({ slug: artisan.slug, id: artisan.id, legal_form: artisan.legal_form }, locale) : '#'} target="_blank" rel="noreferrer noopener" style={{ fontWeight: 600, textDecoration: 'underline', color: 'inherit' }}>profil entreprise</a> et valorisent vos candidatures aux appels d&apos;offres.
+            {isPt ? '💡 Estas referências são visíveis no seu' : <>💡 Ces r&eacute;f&eacute;rences sont visibles sur votre</>} <a href={artisan ? getProfilePath({ slug: artisan.slug, id: artisan.id, legal_form: artisan.legal_form }, locale) : '#'} target="_blank" rel="noreferrer noopener" style={{ fontWeight: 600, textDecoration: 'underline', color: 'inherit' }}>{isPt ? 'perfil de empresa' : 'profil entreprise'}</a> {isPt ? 'e valorizam as suas candidaturas a concursos.' : <>et valorisent vos candidatures aux appels d&apos;offres.</>}
           </div>
         )}
       </div>

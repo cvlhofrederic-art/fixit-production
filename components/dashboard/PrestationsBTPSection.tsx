@@ -12,14 +12,16 @@
  *     un poste distinct : elle est incluse dans le prix vendu au client.
  * - Matériaux (gestion interne) : prix d'achat/vente par référence + fournisseur.
  *
- * Les prestations seed sont alignées sur les 5 devis du compte super admin
- * (seed-demo-localStorage.ts) pour présentation investisseurs cohérente.
+ * Catalogue vierge à la création du compte, en France comme au Portugal (demande de Frédéric du 17/11/2026) :
+ * aucune prestation ni aucun matériau d'exemple n'est proposé ni enregistré, la société saisit les siens. Un
+ * catalogue déjà enregistré (y compris l'ancien catalogue d'exemple d'un compte créé avant) s'affiche tel quel.
  *
  * Prix fixe OU fourchette (ex : 35 € – 45 € /m²) — les prix BTP sont rarement figés.
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocale } from '@/lib/i18n/context'
+import { surActivationClavier } from '@/lib/a11y/activation-clavier'
 import { supabase } from '@/lib/supabase'
 import type { Artisan } from '@/lib/types'
 
@@ -58,16 +60,18 @@ export interface Prestation {
    Chaque lot connaît ses mots-clés de rattachement à la « specialty » de la
    société. Le composant n'affiche que les lots dont au moins un mot-clé matche
    — si aucun ne matche (entreprise généraliste), tous les lots s'affichent.  */
-interface LotDef { key: string; label: string; keywords: string[] }
+interface LotDef { key: string; label: string; labelPt: string; keywords: string[] }
 
 const LOTS: LotDef[] = [
-  { key: 'gros_oeuvre', label: 'Gros Œuvre',             keywords: ['macon', 'maçon', 'gros oeuvre', 'gros-oeuvre', 'beton', 'béton', 'terrassement', 'fondation', 'demolition', 'démolition', 'batipro', 'general', 'général', 'placo', 'cloison'] },
-  { key: 'couverture',  label: 'Couverture',             keywords: ['couv', 'charpent', 'toiture', 'zingu', 'etancheite', 'étanchéité'] },
-  { key: 'plomberie',   label: 'Plomberie / CVC',        keywords: ['plomb', 'canalisa', 'chauff', 'cvc', 'sanitaire', 'clim'] },
-  { key: 'electricite', label: 'Électricité',            keywords: ['elec', 'élec', 'courant', 'domotique', 'vmc'] },
-  { key: 'menuiseries', label: 'Menuiseries',            keywords: ['menuis', 'fenetre', 'fenêtre', 'porte', 'volet', 'serrurerie'] },
-  { key: 'peinture',    label: 'Peinture / Revêtements', keywords: ['peint', 'revetem', 'revêtem', 'carrel', 'faience', 'faïence', 'sol', 'ravalement', 'facade', 'façade', 'platr', 'plâtr', 'enduit', 'isolation'] },
+  { key: 'gros_oeuvre', label: 'Gros Œuvre',             labelPt: 'Estrutura e alvenaria',     keywords: ['macon', 'maçon', 'gros oeuvre', 'gros-oeuvre', 'beton', 'béton', 'terrassement', 'fondation', 'demolition', 'démolition', 'batipro', 'general', 'général', 'placo', 'cloison'] },
+  { key: 'couverture',  label: 'Couverture',             labelPt: 'Cobertura',                 keywords: ['couv', 'charpent', 'toiture', 'zingu', 'etancheite', 'étanchéité'] },
+  { key: 'plomberie',   label: 'Plomberie / CVC',        labelPt: 'Canalização / AVAC',        keywords: ['plomb', 'canalisa', 'chauff', 'cvc', 'sanitaire', 'clim'] },
+  { key: 'electricite', label: 'Électricité',            labelPt: 'Eletricidade',              keywords: ['elec', 'élec', 'courant', 'domotique', 'vmc'] },
+  { key: 'menuiseries', label: 'Menuiseries',            labelPt: 'Carpintaria e caixilharia', keywords: ['menuis', 'fenetre', 'fenêtre', 'porte', 'volet', 'serrurerie'] },
+  { key: 'peinture',    label: 'Peinture / Revêtements', labelPt: 'Pintura / Revestimentos',   keywords: ['peint', 'revetem', 'revêtem', 'carrel', 'faience', 'faïence', 'sol', 'ravalement', 'facade', 'façade', 'platr', 'plâtr', 'enduit', 'isolation'] },
 ]
+
+const libelleLot = (lot: LotDef, isPt: boolean) => (isPt ? lot.labelPt : lot.label)
 
 // Unités BTP courantes — ordre pensé pour le chantier (surface → longueur → volume → comptage → poids → conditionnement → temps → facturation)
 const UNITS = [
@@ -85,129 +89,12 @@ const UNITS = [
   'forfait',
 ] as const
 
-/* ───────────────────────── SEED PRESTATIONS ─────────────────────────
-   Aligné sur les 5 devis super admin (lib/seed-demo-localStorage.ts)
-   — cohérence indispensable pour la présentation investisseurs.        */
-export const SEED_PREST: Omit<Prestation, 'id'>[] = [
-  // ── Gros Œuvre / Démolition ─────────────────────────────────────────────
-  { name: 'Démolition cloisons + évacuation gravats', description: 'Démolition complète des cloisons intérieures, tri sélectif et transport des gravats vers déchèterie agréée.', type: 'prest', lot: 'gros_oeuvre', unit: 'forfait', price: { min: 2500, max: 4000 },
-    etapes: [{ label: 'Protection des sols et du mobilier voisin' }, { label: 'Démolition mécanique des cloisons' }, { label: 'Tri et évacuation des gravats en déchèterie agréée' }] },
-  { name: 'Terrassement + fondations', description: 'Travaux de terrassement mécanique selon plans, coulage des semelles et semelles filantes en béton armé.', type: 'prest', lot: 'gros_oeuvre', unit: 'forfait', price: { min: 8500, max: 11000 },
-    etapes: [{ label: 'Terrassement à la pelle mécanique selon plan' }, { label: 'Coulage des semelles béton armé' }, { label: 'Mise en place chaînage et reprise en élévation' }] },
-  { name: 'Élévation murs parpaing', description: 'Construction de murs en parpaings de 20 cm, montés au mortier bâtard avec chaînages verticaux et linteaux béton.', type: 'prest', lot: 'gros_oeuvre', unit: 'm²', price: { min: 170, max: 220 },
-    etapes: [{ label: 'Implantation et traçage des murs' }, { label: 'Montage des parpaings au mortier bâtard' }, { label: 'Réalisation des chaînages verticaux et linteaux' }] },
-  { name: 'Dalle béton', description: 'Réalisation d\'une dalle béton sur hérisson, film polyane et treillis soudé, dosage 350 kg/m³.', type: 'prest', lot: 'gros_oeuvre', unit: 'm²', price: { min: 65, max: 85 },
-    etapes: [{ label: 'Préparation hérisson + film polyane + treillis soudé' }, { label: 'Coulage béton dosé à 350 kg/m³' }, { label: 'Talochage et lissage de la surface' }] },
-  { name: 'Dépose sanitaires existants', description: 'Dépose complète des sanitaires existants (vasques, WC, douche, baignoire) avec coupure des réseaux et bouchonnage.', type: 'prest', lot: 'gros_oeuvre', unit: 'forfait', price: { min: 1200, max: 1800 },
-    etapes: [{ label: 'Coupure eau et électricité de la zone' }, { label: 'Dépose vasques, WC, douche et baignoire' }, { label: 'Bouchonnage des arrivées et évacuations' }] },
-  { name: 'Placo BA13, fourniture et pose', description: 'Fourniture et pose de plaques de plâtre BA13 sur ossature métallique, bandes calicot et enduit de finition.', type: 'prest', lot: 'gros_oeuvre', unit: 'm²', price: { min: 45, max: 58 },
-    etapes: [{ label: 'Pose des rails et montants métalliques' }, { label: 'Vissage des plaques BA13 sur ossature' }, { label: 'Bandes, enduits et ponçage de finition' }] },
-  { name: 'Faux plafond acoustique', description: 'Pose d\'un faux plafond suspendu avec isolant acoustique et dalles décoratives, ossature métallique.', type: 'prest', lot: 'gros_oeuvre', unit: 'm²', price: { min: 55, max: 70 },
-    etapes: [{ label: 'Pose de l\'ossature métallique suspendue' }, { label: 'Mise en place de l\'isolant acoustique' }, { label: 'Pose des dalles acoustiques décoratives' }] },
-
-  // ── Couverture / Charpente ──────────────────────────────────────────────
-  { name: 'Charpente + couverture tuiles', description: 'Pose de la charpente traditionnelle ou fermettes industrielles, écran sous toiture et couverture en tuiles.', type: 'prest', lot: 'couverture', unit: 'm²', price: { min: 150, max: 200 },
-    etapes: [{ label: 'Pose de la charpente traditionnelle ou fermettes' }, { label: 'Mise en place liteaux et écran sous toiture' }, { label: 'Pose des tuiles et accessoires de faîtage' }] },
-  { name: 'Zinguerie gouttières + EP', description: 'Pose complète des gouttières zinc, chêneaux et descentes d\'eaux pluviales avec raccordement au réseau.', type: 'prest', lot: 'couverture', unit: 'ml', price: { min: 45, max: 65 },
-    etapes: [{ label: 'Pose des crochets et chêneaux zinc' }, { label: 'Mise en place des gouttières et soudures' }, { label: 'Raccordement des descentes EP au réseau' }] },
-
-  // ── Plomberie / CVC ─────────────────────────────────────────────────────
-  { name: 'Plomberie SDB + cuisine', description: 'Création complète des réseaux d\'alimentation et d\'évacuation pour salle de bains et cuisine.', type: 'prest', lot: 'plomberie', unit: 'forfait', price: { min: 4200, max: 5500 },
-    etapes: [{ label: 'Tracé et pose des réseaux PER eau chaude et froide' }, { label: 'Pose des évacuations PVC sous pente' }, { label: 'Raccordement, mise en eau et test d\'étanchéité' }] },
-  { name: 'Plomberie complète logement', description: 'Installation plomberie intégrale du logement : nourrice, distribution, alimentation et évacuations.', type: 'prest', lot: 'plomberie', unit: 'forfait', price: { min: 3000, max: 4000 },
-    etapes: [{ label: 'Création de la nourrice et distribution générale' }, { label: 'Pose des réseaux EF et EC vers tous points de puisage' }, { label: 'Pose des évacuations et essais d\'étanchéité' }] },
-  { name: 'Plomberie sanitaires local commercial', description: 'Installation sanitaire conforme aux normes ERP pour local commercial : WC, lave-mains, chauffe-eau.', type: 'prest', lot: 'plomberie', unit: 'forfait', price: { min: 5500, max: 7000 },
-    etapes: [{ label: 'Étude et tracé des réseaux selon normes ERP' }, { label: 'Pose des alimentations et évacuations PVC' }, { label: 'Raccordement WC, lave-mains et chauffe-eau' }] },
-  { name: 'Douche italienne + paroi', description: 'Création d\'une douche à l\'italienne avec receveur extra-plat, étanchéité, carrelage et paroi vitrée.', type: 'prest', lot: 'plomberie', unit: 'u', price: { min: 2200, max: 2800 },
-    etapes: [{ label: 'Création du receveur extra-plat avec pente' }, { label: 'Étanchéité SPEC et pose du carrelage' }, { label: 'Installation de la paroi verre et de la robinetterie' }] },
-  { name: 'Meuble vasque + miroir', description: 'Fourniture et pose d\'un meuble vasque suspendu avec plan vasque, robinetterie et miroir éclairant.', type: 'prest', lot: 'plomberie', unit: 'u', price: { min: 900, max: 1500 },
-    etapes: [{ label: 'Repérage et pose des fixations murales' }, { label: 'Installation du meuble et du plan vasque' }, { label: 'Raccordement plomberie et pose du miroir' }] },
-
-  // ── Électricité ─────────────────────────────────────────────────────────
-  { name: 'Mise aux normes électrique NFC 15-100', description: 'Mise en conformité complète de l\'installation électrique selon la norme NFC 15-100, avec attestation Consuel.', type: 'prest', lot: 'electricite', unit: 'forfait', price: { min: 5000, max: 8500 },
-    etapes: [{ label: 'Diagnostic de l\'installation existante' }, { label: 'Remplacement du tableau et création des circuits dédiés' }, { label: 'Mise à la terre et attestation de conformité Consuel' }] },
-  { name: 'Électricité + plomberie extension', description: 'Création des réseaux électriques et plomberie pour une extension de bâtiment, raccordement au tableau existant.', type: 'prest', lot: 'electricite', unit: 'forfait', price: { min: 6500, max: 8000 },
-    etapes: [{ label: 'Création des circuits dédiés à l\'extension' }, { label: 'Pose des réseaux PER et évacuations' }, { label: 'Raccordement au tableau et mise en service' }] },
-
-  // ── Menuiseries ─────────────────────────────────────────────────────────
-  { name: 'Menuiserie alu RPT (par pièce)', description: 'Dépose de l\'existant et pose de menuiseries aluminium à rupture de pont thermique, calfeutrement et joints.', type: 'prest', lot: 'menuiseries', unit: 'u', price: { min: 1100, max: 1600 },
-    etapes: [{ label: 'Prise de cotes et dépose de l\'existant' }, { label: 'Pose dormant + ouvrant alu rupture pont thermique' }, { label: 'Calfeutrement, réglage et joints d\'étanchéité' }] },
-  { name: 'Vitrine commerciale alu', description: 'Dépose et remplacement de la vitrine commerciale en aluminium RPT avec vitrage feuilleté de sécurité.', type: 'prest', lot: 'menuiseries', unit: 'forfait', price: { min: 9000, max: 12000 },
-    etapes: [{ label: 'Dépose de la vitrine existante et mise en sécurité' }, { label: 'Pose châssis alu RPT + vitrage feuilleté' }, { label: 'Habillage tôle, joints et serrurerie' }] },
-
-  // ── Peinture / Revêtements ──────────────────────────────────────────────
-  { name: 'Peinture 2 couches intérieure', description: 'Préparation des supports, sous-couche d\'accroche et application de 2 couches de peinture acrylique de finition.', type: 'prest', lot: 'peinture', unit: 'm²', price: { min: 28, max: 35 },
-    etapes: [{ label: 'Préparation des supports (rebouchage, ponçage)' }, { label: 'Application d\'une sous-couche d\'accroche' }, { label: 'Application des 2 couches de finition acrylique' }] },
-  { name: 'Peinture façade 2 couches', description: 'Nettoyage de la façade, traitement fongicide, fixateur de fond et 2 couches de peinture extérieure.', type: 'prest', lot: 'peinture', unit: 'm²', price: { min: 25, max: 32 },
-    etapes: [{ label: 'Nettoyage haute pression et traitement fongicide' }, { label: 'Application d\'un fixateur de fond' }, { label: 'Application des 2 couches pliolite ou siloxane' }] },
-  { name: 'Enduit monocouche façade', description: 'Projection mécanique d\'un enduit monocouche sur façade préparée, finition grattée ou écrasée.', type: 'prest', lot: 'peinture', unit: 'm²', price: { min: 42, max: 52 },
-    etapes: [{ label: 'Préparation du support et humidification' }, { label: 'Projection mécanique de l\'enduit monocouche' }, { label: 'Talochage et finition grattée ou écrasée' }] },
-  { name: 'Nettoyage HP façade', description: 'Nettoyage haute pression à l\'eau chaude de la façade avec traitement anti-mousses préventif.', type: 'prest', lot: 'peinture', unit: 'm²', price: { min: 12, max: 18 },
-    etapes: [{ label: 'Protection des huisseries et des abords' }, { label: 'Nettoyage haute pression à l\'eau chaude' }, { label: 'Rinçage et application d\'un traitement anti-mousses' }] },
-  { name: 'Carrelage sol SDB', description: 'Ragréage du support et pose de carrelage au sol de la salle de bains avec joints et silicone périphérique.', type: 'prest', lot: 'peinture', unit: 'm²', price: { min: 90, max: 115 },
-    etapes: [{ label: 'Préparation et ragréage du support' }, { label: 'Pose du carrelage à la colle avec calepinage' }, { label: 'Joints, nettoyage et silicone périphérique' }] },
-  { name: 'Faïence murale', description: 'Pose de faïence murale sur support préparé, primaire d\'accrochage, croisillons et jointoiement.', type: 'prest', lot: 'peinture', unit: 'm²', price: { min: 75, max: 95 },
-    etapes: [{ label: 'Préparation des murs et primaire d\'accrochage' }, { label: 'Pose de la faïence à la colle avec croisillons' }, { label: 'Jointoiement et finition silicone' }] },
-  { name: 'Parquet stratifié', description: 'Pose flottante de parquet stratifié sur sous-couche acoustique, découpe sur mesure, plinthes et seuils.', type: 'prest', lot: 'peinture', unit: 'm²', price: { min: 52, max: 65 },
-    etapes: [{ label: 'Pose de la sous-couche acoustique' }, { label: 'Pose flottante des lames avec coupe sur mesure' }, { label: 'Pose des plinthes et seuils de finition' }] },
-  { name: 'Isolation thermique extérieure (ITE)', description: 'Pose de panneaux isolants en façade, sous-enduit armé de fibre de verre et enduit décoratif de finition.', type: 'prest', lot: 'peinture', unit: 'm²', price: { min: 130, max: 160 },
-    etapes: [{ label: 'Pose des rails de départ et préparation du support' }, { label: 'Collage et chevillage des panneaux isolants' }, { label: 'Sous-enduit armé de fibre et finition décorative' }] },
-
-  // ── Finitions / Divers ──────────────────────────────────────────────────
-  { name: 'Finitions intérieures globales', description: 'Reprise des enduits, peinture complète murs et plafonds, pose des plinthes et accessoires de finition.', type: 'prest', lot: 'peinture', unit: 'forfait', price: { min: 9500, max: 12000 },
-    etapes: [{ label: 'Reprise des enduits et ponçage général' }, { label: 'Peinture des murs et plafonds' }, { label: 'Pose des plinthes et accessoires de finition' }] },
-  { name: 'Nettoyage fin de chantier', description: 'Évacuation complète des déchets, nettoyage approfondi de toutes les surfaces et levée des réserves.', type: 'prest', lot: 'gros_oeuvre', unit: 'forfait', price: { min: 2000, max: 2800 },
-    etapes: [{ label: 'Évacuation des déchets et matériels résiduels' }, { label: 'Nettoyage approfondi sols, vitres et sanitaires' }, { label: 'Contrôle visuel et levée des réserves' }] },
-  { name: 'Installation échafaudage R+4', description: 'Montage d\'un échafaudage de pied jusqu\'à R+4, contreventement, garde-corps et vérification réglementaire.', type: 'prest', lot: 'couverture', unit: 'forfait', price: { min: 7000, max: 8500 },
-    etapes: [{ label: 'Étude des charges et plan de calepinage' }, { label: 'Montage par sapiteurs habilités' }, { label: 'Vérification, contreventement et garde-corps' }] },
-
-  // ── Déplacement / Main d'œuvre ──────────────────────────────────────────
-  { name: 'Déplacement chantier', description: 'Frais de déplacement aller/retour sur le chantier, incluant transport du matériel et outillage.', type: 'prest', lot: 'gros_oeuvre', unit: 'forfait', price: { min: 45, max: 90 },
-    etapes: [{ label: 'Chargement du matériel et outillage' }, { label: 'Transport aller/retour sur le chantier' }] },
-  { name: 'Main d\'œuvre qualifiée', description: 'Taux horaire de main d\'œuvre pour travaux tous corps d\'état, compagnon qualifié.', type: 'prest', lot: 'gros_oeuvre', unit: 'h', price: { min: 50, max: 70 },
-    etapes: [] },
-]
-
-/* ───────────────────────── SEED MATÉRIAUX ─────────────────────────
-   Gestion interne des matières / fournisseurs (prix achat → vente).   */
-export const SEED_MAT: Omit<Prestation, 'id'>[] = [
-  { name: 'Enduit monocouche 25 kg',         type: 'mat', lot: 'gros_oeuvre', unit: 'sac', ref: 'Weber.pral M',  supplier: 'Point P', priceAchat: { min: 15.5, max: 15.5 }, price: { min: 22, max: 26 } },
-  { name: 'Tube PER Ø20 — 100 m',            type: 'mat', lot: 'plomberie',   unit: 'rl',  ref: 'Comap',         supplier: 'Cedeo',   priceAchat: { min: 58, max: 58 },     price: { min: 85, max: 98 } },
-  { name: 'Câble R2V 3G2.5 — 100 m',         type: 'mat', lot: 'electricite', unit: 'rl',  ref: 'Nexans',        supplier: 'Rexel',   priceAchat: { min: 89, max: 89 },     price: { min: 125, max: 145 } },
-  { name: 'Carrelage grès cérame 60×60',     type: 'mat', lot: 'peinture',    unit: 'm²',  ref: 'Porcelanosa',   supplier: 'Point P', priceAchat: { min: 22, max: 22 },     price: { min: 35, max: 42 } },
-  { name: 'Laine de verre 100 mm',           type: 'mat', lot: 'gros_oeuvre', unit: 'm²',  ref: 'Isover',        supplier: 'Point P', priceAchat: { min: 6.8, max: 6.8 },   price: { min: 10, max: 12 } },
-  { name: 'Canalisation PVC Ø100',           type: 'mat', lot: 'plomberie',   unit: 'ml',  ref: 'Nicoll',        supplier: 'Cedeo',   priceAchat: { min: 5.2, max: 5.2 },   price: { min: 8, max: 10 } },
-  { name: 'Plaque BA13 standard',            type: 'mat', lot: 'gros_oeuvre', unit: 'm²',  ref: 'Placo',         supplier: 'Point P', priceAchat: { min: 4.5, max: 4.5 },   price: { min: 6, max: 8 } },
-  { name: 'Tuiles mécaniques terre cuite',   type: 'mat', lot: 'couverture',  unit: 'u',   ref: 'Terreal',       supplier: 'Point P', priceAchat: { min: 1.2, max: 1.2 },   price: { min: 1.9, max: 2.3 } },
-  { name: "Béton prêt à l'emploi C25/30",    type: 'mat', lot: 'gros_oeuvre', unit: 'm³',  ref: 'Cemex',         supplier: 'Cemex',   priceAchat: { min: 115, max: 115 },   price: { min: 150, max: 170 } },
-]
-
-/* ─────────────────────────── ÉTAPES : AUTO-PRIX + UNITÉ ───────────────────────────
-   Les étapes seed n'ont que label ; on calcule leur prix (part du prix mid
-   de la prestation parente) et leur unité (= unité du parent). Cohérence
-   garantie : la somme des prix d'étapes ≈ prix mid du parent.                     */
-const ETAPE_WEIGHTS: Record<number, number[]> = {
-  1: [1],
-  2: [0.4, 0.6],
-  3: [0.25, 0.5, 0.25],
-  4: [0.2, 0.3, 0.3, 0.2],
-  5: [0.15, 0.25, 0.3, 0.2, 0.1],
+/** Unités enregistrées (abréviations françaises) affichées en portugais ; la valeur enregistrée ne change pas. */
+const UNITES_PT: Record<string, string> = {
+  pce: 'pç', ens: 'cj', lot: 'lote', sac: 'saco', rl: 'rolo', palette: 'palete', benne: 'contentor', camion: 'camião',
+  jour: 'dia', semaine: 'semana', forfait: 'vg',
 }
-function enrichPrestationEtapes<T extends Omit<Prestation, 'id'>>(p: T): T {
-  if (p.type !== 'prest' || !p.etapes || p.etapes.length === 0) return p
-  const n = p.etapes.length
-  const weights = ETAPE_WEIGHTS[n] || Array(n).fill(1 / n)
-  const mid = (p.price.min + p.price.max) / 2
-  const enriched = p.etapes.map((e, i) => {
-    const et = typeof e === 'string' ? { label: e } : e
-    return {
-      label: et.label,
-      price: et.price != null ? et.price : Math.round(mid * weights[i] * 100) / 100,
-      unit: et.unit || p.unit,
-    }
-  })
-  return { ...p, etapes: enriched }
-}
+const uniteAffichee = (unite: string, isPt: boolean) => (isPt ? UNITES_PT[unite] ?? unite : unite)
 
 /* ─────────────────────────── SYNC SUPABASE ───────────────────────────
    Les prestations (type='prest') sont exposées publiquement sur la fiche
@@ -261,23 +148,27 @@ function formatPrice(v: number): string {
   return fixed.replace('.', ',') + ' €'
 }
 
-function renderRange(range: PriceRange | null | undefined): string {
+/** Séparateur d'une fourchette : demi-cadratin en français, « a » en portugais (« 55 € a 75 € »). */
+const separateurFourchette = (isPt: boolean) => (isPt ? ' a ' : ' – ')
+
+function renderRange(range: PriceRange | null | undefined, isPt = false): string {
   if (!range) return '—'
   if (range.min === range.max) return formatPrice(range.min)
-  return `${formatPrice(range.min)} – ${formatPrice(range.max)}`
+  return `${formatPrice(range.min)}${separateurFourchette(isPt)}${formatPrice(range.max)}`
 }
 
-function unitSuffix(unit: string): string {
+function unitSuffix(unit: string, isPt = false): string {
   if (unit === 'forfait') return ''
-  return ` / ${unit}`
+  return ` / ${uniteAffichee(unit, isPt)}`
 }
 
-function rangeTTC(range: PriceRange | null | undefined, tva = 20): string {
+// Prix TTC affiché : taux normal du pays de la langue (20 % en France, 23 % d'IVA au Portugal continental).
+function rangeTTC(range: PriceRange | null | undefined, isPt = false, tva = isPt ? 23 : 20): string {
   if (!range) return '—'
   const minTTC = range.min * (1 + tva / 100)
   const maxTTC = range.max * (1 + tva / 100)
   if (range.min === range.max) return formatPrice(minTTC)
-  return `${formatPrice(minTTC)} – ${formatPrice(maxTTC)}`
+  return `${formatPrice(minTTC)}${separateurFourchette(isPt)}${formatPrice(maxTTC)}`
 }
 
 function normalize(s: string): string {
@@ -302,7 +193,7 @@ function detectLotsFromArtisan(artisan: Artisan): LotDef[] {
 export default function PrestationsBTPSection({ artisan }: PrestationsBTPSectionProps) {
   const locale = useLocale()
   const isPt = locale === 'pt'
-  // v5 : étapes {label,price,unit} auto-dérivées du prix mid du parent
+  // Clé v5 : celle sous laquelle les sociétés ont déjà leur catalogue ; ne pas la changer.
   const storageKey = `fixit_prestations_btp_v5_${artisan?.id || 'guest'}`
 
   const [items, setItems] = useState<Prestation[]>([])
@@ -318,20 +209,18 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
     }
   }, [availableLots, activeLot])
 
-  // Chargement / seed
+  // Chargement : le catalogue enregistré pour la fiche, tel quel. Rien d'enregistré (compte neuf) : catalogue vide,
+  // et rien n'est écrit au chargement — ni catalogue d'exemple, ni liste vide qui pourrait remplacer, par le miroir du
+  // stockage, un catalogue pas encore revenu du serveur sur un nouvel appareil. Limite antérieure : une saisie faite
+  // avant ce retour le remplace encore.
   useEffect(() => {
     if (!artisan?.id) return
     try {
       const saved = localStorage.getItem(storageKey)
-      if (saved) {
-        setItems(JSON.parse(saved))
-      } else {
-        const all = [...SEED_PREST.map(enrichPrestationEtapes), ...SEED_MAT].map((p, i) => ({ id: i + 1, ...p }))
-        setItems(all)
-        try { localStorage.setItem(storageKey, JSON.stringify(all)) } catch (e) { console.warn('[prestations] seed', e) }
-      }
-    } catch {
-      setItems([...SEED_PREST.map(enrichPrestationEtapes), ...SEED_MAT].map((p, i) => ({ id: i + 1, ...p })))
+      setItems(saved ? JSON.parse(saved) : [])
+    } catch (e) {
+      console.warn('[prestations] catalogue enregistré illisible', e)
+      setItems([])
     }
   }, [artisan?.id, storageKey])
 
@@ -362,6 +251,10 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
   }, [artisan?.id, items, storageKey])
 
   function persist(next: Prestation[]) {
+    // Le rattrapage ci-dessus ne vaut que pour le catalogue trouvé au chargement : passé la première saisie, chaque
+    // enregistrement publie lui-même ce qu'il change. Sans cela, la première prestation d'un catalogue parti vide
+    // serait publiée deux fois (par l'enregistrement et par le rattrapage, déclenché par la liste qui change).
+    backfilledRef.current = true
     setItems(next)
     if (artisan?.id) {
       try { localStorage.setItem(storageKey, JSON.stringify(next)) } catch (e) { console.warn('[prestations] persist', e) }
@@ -485,7 +378,8 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
     }
   }
 
-  const currentLotLabel = availableLots.find((l) => l.key === activeLot)?.label || ''
+  const lotActif = availableLots.find((l) => l.key === activeLot)
+  const currentLotLabel = lotActif ? libelleLot(lotActif, isPt) : ''
 
   /* ───────────── RENDU ───────────── */
   return (
@@ -535,8 +429,8 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
 
       {/* Titre */}
       <div className="v5-pg-t">
-        <h1>{isPt ? 'Prestações' : 'Prestations'}</h1>
-        <p>{isPt ? 'Catálogo de prestações e materiais — o que os seus clientes veem' : 'Catalogue de prestations et matériaux — c\'est ce que vos clients voient'}</p>
+        <h1>{isPt ? 'Serviços' : 'Prestations'}</h1>
+        <p>{isPt ? 'Catálogo de serviços e materiais: é o que os seus clientes veem' : 'Catalogue de prestations et matériaux — c\'est ce que vos clients voient'}</p>
       </div>
 
       {/* Barre haute : recherche + switch catégorie + bouton ajout */}
@@ -544,7 +438,7 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
         <div className="v5-search" style={{ margin: 0, flex: 1, minWidth: 220 }}>
           <input
             className="v5-search-in"
-            placeholder={isPt ? 'Pesquisar uma prestação, um material…' : 'Rechercher une prestation, un matériau…'}
+            placeholder={isPt ? 'Pesquisar um serviço, um material…' : 'Rechercher une prestation, un matériau…'}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             style={{ maxWidth: 320 }}
@@ -552,7 +446,7 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '.65rem', flexWrap: 'wrap' }}>
           <div className="prest-cat-bar">
-            <button className={`prest-cat-btn${cat === 'prest' ? ' active' : ''}`} onClick={() => setCat('prest')}>🏗️ {isPt ? 'Prestações' : 'Prestations'}</button>
+            <button className={`prest-cat-btn${cat === 'prest' ? ' active' : ''}`} onClick={() => setCat('prest')}>🏗️ {isPt ? 'Serviços' : 'Prestations'}</button>
             <button className={`prest-cat-btn${cat === 'mat' ? ' active' : ''}`} onClick={() => setCat('mat')}>🧱 {isPt ? 'Materiais' : 'Matériaux'}</button>
             <button className={`prest-cat-btn${cat === 'frais' ? ' active' : ''}`} onClick={() => setCat('frais')}>💰 {isPt ? 'Despesas diversas' : 'Frais divers'}</button>
           </div>
@@ -570,7 +464,7 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
                 className={`prest-lot-tab${activeLot === lot.key ? ' active' : ''}`}
                 onClick={() => setActiveLot(lot.key)}
               >
-                {lot.label}
+                {libelleLot(lot, isPt)}
               </button>
             ))}
           </div>
@@ -579,7 +473,7 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
             <table className="prest-tbl">
               <thead>
                 <tr>
-                  <th>{isPt ? 'Prestação' : 'Prestation'}</th>
+                  <th>{isPt ? 'Serviço' : 'Prestation'}</th>
                   <th>{isPt ? 'Unidade' : 'Unité'}</th>
                   <th>{isPt ? 'Preço s/ IVA' : 'Prix HT'}</th>
                   <th>{isPt ? 'Preço c/ IVA' : 'Prix TTC'}</th>
@@ -588,14 +482,14 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
               </thead>
               <tbody>
                 {visible.length === 0 && (
-                  <tr><td colSpan={5} style={{ textAlign: 'center', padding: '1.25rem', color: '#BBB' }}>{isPt ? 'Nenhuma prestação neste lote.' : 'Aucune prestation dans ce lot.'}</td></tr>
+                  <tr><td colSpan={5} style={{ textAlign: 'center', padding: '1.25rem', color: '#BBB' }}>{isPt ? 'Nenhum serviço neste lote.' : 'Aucune prestation dans ce lot.'}</td></tr>
                 )}
                 {visible.map((p) => (
                   <tr key={p.id}>
                     <td>{p.name}</td>
-                    <td><span className="prest-unit">{p.unit}</span></td>
-                    <td className="prix">{renderRange(p.price)}{unitSuffix(p.unit)}</td>
-                    <td style={{ color: '#888', fontSize: 11 }}>{rangeTTC(p.price)}{unitSuffix(p.unit)}</td>
+                    <td><span className="prest-unit">{uniteAffichee(p.unit, isPt)}</span></td>
+                    <td className="prix">{renderRange(p.price, isPt)}{unitSuffix(p.unit, isPt)}</td>
+                    <td style={{ color: '#888', fontSize: 11 }}>{rangeTTC(p.price, isPt)}{unitSuffix(p.unit, isPt)}</td>
                     <td style={{ textAlign: 'right' }}>
                       <button className="v5-btn v5-btn-sm" onClick={() => openEdit(p)}>{isPt ? 'Editar' : 'Modifier'}</button>
                       <button className="v5-btn v5-btn-sm v5-btn-d" style={{ marginLeft: 4 }} onClick={() => handleDelete(p.id)}>✕</button>
@@ -604,7 +498,7 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
                 ))}
               </tbody>
             </table>
-            <div className="prest-add-row" onClick={openCreate}>＋ {isPt ? `Adicionar uma prestação ${currentLotLabel}` : `Ajouter une prestation ${currentLotLabel}`}</div>
+            <div className="prest-add-row" role="button" tabIndex={0} onClick={openCreate} onKeyDown={surActivationClavier(openCreate)}>＋ {isPt ? `Adicionar um serviço (${currentLotLabel})` : `Ajouter une prestation ${currentLotLabel}`}</div>
           </div>
         </div>
       )}
@@ -619,8 +513,8 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
                   <th>{isPt ? 'Designação do material' : 'Désignation matériau'}</th>
                   <th>{isPt ? 'Ref. / Marca' : 'Réf. / Marque'}</th>
                   <th>{isPt ? 'Unidade' : 'Unité'}</th>
-                  <th>{isPt ? 'Preço compra s/ IVA' : 'Prix achat HT'}</th>
-                  <th>{isPt ? 'Preço venda s/ IVA' : 'Prix vente HT'}</th>
+                  <th>{isPt ? 'Preço de compra s/ IVA' : 'Prix achat HT'}</th>
+                  <th>{isPt ? 'Preço de venda s/ IVA' : 'Prix vente HT'}</th>
                   <th>{isPt ? 'Fornecedor' : 'Fournisseur'}</th>
                   <th style={{ textAlign: 'right' }}>{isPt ? 'Ações' : 'Actions'}</th>
                 </tr>
@@ -633,9 +527,9 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
                   <tr key={p.id}>
                     <td>{p.name}</td>
                     <td style={{ color: '#888', fontSize: 11 }}>{p.ref || '—'}</td>
-                    <td><span className="prest-unit">{p.unit}</span></td>
-                    <td className="prix-achat">{renderRange(p.priceAchat)}</td>
-                    <td className="prix">{renderRange(p.price)}</td>
+                    <td><span className="prest-unit">{uniteAffichee(p.unit, isPt)}</span></td>
+                    <td className="prix-achat">{renderRange(p.priceAchat, isPt)}</td>
+                    <td className="prix">{renderRange(p.price, isPt)}</td>
                     <td>{p.supplier || '—'}</td>
                     <td style={{ textAlign: 'right' }}>
                       <button className="v5-btn v5-btn-sm" onClick={() => openEdit(p)}>{isPt ? 'Editar' : 'Modifier'}</button>
@@ -645,7 +539,7 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
                 ))}
               </tbody>
             </table>
-            <div className="prest-add-row" onClick={openCreate}>＋ {isPt ? 'Adicionar um material' : 'Ajouter un matériau'}</div>
+            <div className="prest-add-row" role="button" tabIndex={0} onClick={openCreate} onKeyDown={surActivationClavier(openCreate)}>＋ {isPt ? 'Adicionar um material' : 'Ajouter un matériau'}</div>
           </div>
         </div>
       )}
@@ -658,7 +552,7 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
         <div className="prest-panel">
           <div className="v5-alert" style={{ marginBottom: 10, fontSize: 12, background: '#f1f5f9', border: '1px solid #cbd5e1', color: '#334155', display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 6 }}>
             <span style={{ fontSize: 14 }}>🔒</span>
-            <span>{isPt ? 'Catálogo interno — não aparece no perfil público que o cliente consulta. Pode ser incluído nos orçamentos como despesa anexa.' : 'Catalogue interne — n\'apparaît pas sur la fiche publique consultée par le client. Peut être inclus dans les devis comme frais annexe.'}</span>
+            <span>{isPt ? 'Catálogo interno: não aparece no perfil público que o cliente consulta. Pode ser incluído nos orçamentos como despesa anexa.' : 'Catalogue interne — n\'apparaît pas sur la fiche publique consultée par le client. Peut être inclus dans les devis comme frais annexe.'}</span>
           </div>
           <div className="v5-card" style={{ padding: 0, overflow: 'hidden' }}>
             <table className="prest-tbl">
@@ -678,9 +572,9 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
                 {visible.map((p) => (
                   <tr key={p.id}>
                     <td>{p.name}</td>
-                    <td><span className="prest-unit">{p.unit}</span></td>
-                    <td className="prix">{renderRange(p.price)}{unitSuffix(p.unit)}</td>
-                    <td style={{ color: '#888', fontSize: 11 }}>{rangeTTC(p.price)}{unitSuffix(p.unit)}</td>
+                    <td><span className="prest-unit">{uniteAffichee(p.unit, isPt)}</span></td>
+                    <td className="prix">{renderRange(p.price, isPt)}{unitSuffix(p.unit, isPt)}</td>
+                    <td style={{ color: '#888', fontSize: 11 }}>{rangeTTC(p.price, isPt)}{unitSuffix(p.unit, isPt)}</td>
                     <td style={{ textAlign: 'right' }}>
                       <button className="v5-btn v5-btn-sm" onClick={() => openEdit(p)}>{isPt ? 'Editar' : 'Modifier'}</button>
                       <button className="v5-btn v5-btn-sm v5-btn-d" style={{ marginLeft: 4 }} onClick={() => handleDelete(p.id)}>✕</button>
@@ -689,7 +583,7 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
                 ))}
               </tbody>
             </table>
-            <div className="prest-add-row" onClick={openCreate}>＋ {isPt ? 'Adicionar uma despesa' : 'Ajouter un frais divers'}</div>
+            <div className="prest-add-row" role="button" tabIndex={0} onClick={openCreate} onKeyDown={surActivationClavier(openCreate)}>＋ {isPt ? 'Adicionar uma despesa' : 'Ajouter un frais divers'}</div>
           </div>
         </div>
       )}
@@ -699,8 +593,8 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
         <div className="prest-modal-ov" onClick={() => setModal(false)}>
           <div className="prest-modal" onClick={(e) => e.stopPropagation()}>
             <h3>{editing
-              ? (isPt ? `Editar ${form.type === 'mat' ? 'material' : form.type === 'frais' ? 'despesa' : 'prestação'}` : `Modifier ${form.type === 'mat' ? 'le matériau' : form.type === 'frais' ? 'le frais divers' : 'la prestation'}`)
-              : (isPt ? `${form.type === 'mat' ? 'Nova referência de material' : form.type === 'frais' ? 'Nova despesa' : 'Nova prestação'}` : `Nouveau ${form.type === 'mat' ? 'matériau (référence)' : form.type === 'frais' ? 'frais divers' : 'prestation'}`)
+              ? (isPt ? `Editar ${form.type === 'mat' ? 'material' : form.type === 'frais' ? 'despesa' : 'serviço'}` : `Modifier ${form.type === 'mat' ? 'le matériau' : form.type === 'frais' ? 'le frais divers' : 'la prestation'}`)
+              : (isPt ? `${form.type === 'mat' ? 'Nova referência de material' : form.type === 'frais' ? 'Nova despesa' : 'Novo serviço'}` : `Nouveau ${form.type === 'mat' ? 'matériau (référence)' : form.type === 'frais' ? 'frais divers' : 'prestation'}`)
             }</h3>
 
             <div className="prest-fg">
@@ -714,7 +608,7 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
 
             {form.type === 'prest' && (
               <div className="prest-fg">
-                <label>{isPt ? 'Descrição do motivo' : 'Description du motif'}</label>
+                <label>{isPt ? 'Descrição do serviço' : 'Description du motif'}</label>
                 <textarea
                   value={form.description || ''}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
@@ -735,7 +629,7 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
                     priceAchat: newType === 'mat' ? (form.priceAchat || { min: 0, max: 0 }) : null,
                   })
                 }}>
-                  <option value="prest">{isPt ? 'Prestação (cliente)' : 'Prestation (client)'}</option>
+                  <option value="prest">{isPt ? 'Serviço (cliente)' : 'Prestation (client)'}</option>
                   <option value="mat">{isPt ? 'Material (interno)' : 'Matériau (interne)'}</option>
                   <option value="frais">{isPt ? 'Despesa diversa (interno)' : 'Frais divers (interne)'}</option>
                 </select>
@@ -744,7 +638,7 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
                 <div className="prest-fg">
                   <label>{isPt ? 'Especialidade / Lote' : 'Corps d\'état / Lot'}</label>
                   <select value={form.lot} onChange={(e) => setForm({ ...form, lot: e.target.value })}>
-                    {availableLots.map((l) => <option key={l.key} value={l.key}>{l.label}</option>)}
+                    {availableLots.map((l) => <option key={l.key} value={l.key}>{libelleLot(l, isPt)}</option>)}
                   </select>
                 </div>
               )}
@@ -754,7 +648,7 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
               <div className="prest-fg">
                 <label>{isPt ? 'Unidade' : 'Unité'}</label>
                 <select value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })}>
-                  {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+                  {UNITS.map((u) => <option key={u} value={u}>{uniteAffichee(u, isPt)}</option>)}
                 </select>
               </div>
               {form.type === 'mat' ? (
@@ -786,12 +680,12 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
                 </div>
                 <div className="prest-row-2">
                   <div className="prest-fg" style={{ margin: 0 }}>
-                    <label>{achatRange ? 'Min' : 'Prix'}</label>
+                    <label>{achatRange ? (isPt ? 'Mín.' : 'Min') : (isPt ? 'Preço' : 'Prix')}</label>
                     <input type="number" step="0.01" min="0" value={form.priceAchat?.min ?? ''}
                       onChange={(e) => setForm({ ...form, priceAchat: { min: parseFloat(e.target.value) || 0, max: form.priceAchat?.max ?? 0 } })} />
                   </div>
                   <div className="prest-fg" style={{ margin: 0, opacity: achatRange ? 1 : 0.35 }}>
-                    <label>Max</label>
+                    <label>{isPt ? 'Máx.' : 'Max'}</label>
                     <input type="number" step="0.01" min="0" disabled={!achatRange} value={form.priceAchat?.max ?? ''}
                       onChange={(e) => setForm({ ...form, priceAchat: { min: form.priceAchat?.min ?? 0, max: parseFloat(e.target.value) || 0 } })} />
                   </div>
@@ -814,7 +708,7 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
                 </div>
                 {localEtapes.length === 0 && (
                   <div style={{ fontSize: 11, color: '#aaa', fontStyle: 'italic', padding: '4px 0' }}>
-                    {isPt ? 'Nenhuma etapa. Clique + Adicionar.' : 'Aucune étape. Cliquez + Ajouter.'}
+                    {isPt ? 'Nenhuma etapa. Clique em + Adicionar.' : 'Aucune étape. Cliquez + Ajouter.'}
                   </div>
                 )}
                 {localEtapes.map((et, i) => (
@@ -859,18 +753,18 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
               </div>
               <div className="prest-row-2">
                 <div className="prest-fg" style={{ margin: 0 }}>
-                  <label>{priceRange ? 'Min' : 'Prix'}</label>
+                  <label>{priceRange ? (isPt ? 'Mín.' : 'Min') : (isPt ? 'Preço' : 'Prix')}</label>
                   <input type="number" step="0.01" min="0" value={form.price.min ?? ''}
                     onChange={(e) => setForm({ ...form, price: { min: parseFloat(e.target.value) || 0, max: form.price.max } })} />
                 </div>
                 <div className="prest-fg" style={{ margin: 0, opacity: priceRange ? 1 : 0.35 }}>
-                  <label>Max</label>
+                  <label>{isPt ? 'Máx.' : 'Max'}</label>
                   <input type="number" step="0.01" min="0" disabled={!priceRange} value={form.price.max ?? ''}
                     onChange={(e) => setForm({ ...form, price: { min: form.price.min, max: parseFloat(e.target.value) || 0 } })} />
                 </div>
               </div>
               <div style={{ fontSize: 11, color: '#888', marginTop: 6 }}>
-                {isPt ? 'Dica: os preços em obras variam — ative «Intervalo» para mostrar uma amplitude (ex: 350 € – 450 € /m²).' : 'Astuce : les prix BTP varient selon chantier — activez « Fourchette » pour afficher une plage (ex : 350 € – 450 € /m²).'}
+                {isPt ? 'Dica: os preços das obras variam; ative «Intervalo» para mostrar uma amplitude (ex.: 350 € a 450 € / m²).' : 'Astuce : les prix BTP varient selon chantier — activez « Fourchette » pour afficher une plage (ex : 350 € – 450 € /m²).'}
               </div>
             </div>
 

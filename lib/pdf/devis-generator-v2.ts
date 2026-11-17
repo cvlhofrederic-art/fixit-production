@@ -243,18 +243,18 @@ function titleCaseAddress(addr: string): string {
     if (idx > 0 && lowerWords.has(lower)) return lower
     return lower.charAt(0).toUpperCase() + lower.slice(1)
   }).join('')
-  // FIX FINAL #2: Restore apostrophes — "L Aurore" → "L'Aurore", "D Azur" → "D'Azur"
+  // FIX FINAL #2: Restore apostrophes — "L Etoile" → "L'Etoile", "D Azur" → "D'Azur"
   result = result.replace(/\b([LlDd])\s+([A-Za-zÀ-ÿ])/g, (_, letter, next) => {
     return letter.toUpperCase() + '\'' + next.toUpperCase()
   })
-  // Capitalize after apostrophe if needed: "l'aurore" → "L'Aurore"
+  // Capitalize after apostrophe if needed: "l'etoile" → "L'Etoile"
   result = result.replace(/'([a-zà-ÿ])/g, (_, c) => '\'' + c.toUpperCase())
   return result
 }
 
 /**
  * Sépare une adresse en {rue, ville} en extrayant le code postal.
- * "BATIMENT B RES L AURORE 13600 LA CIOTAT" → { rue: "Bât. B Rés. L'Aurore", ville: "13600 La Ciotat" }
+ * "BATIMENT C RES L ETOILE 13000 MARSEILLE" → { rue: "Bât. C Rés. L'Etoile", ville: "13000 Marseille" }
  *
  * Défense en profondeur (12/05/2026) : certains profils artisan ont
  * `company_address` contenant la ville+code postal DEUX FOIS (artefact
@@ -267,9 +267,9 @@ function splitAddress(addr: string): { rue: string; ville: string } | null {
   if (!addr) return null
   const norm = titleCaseAddress(addr)
   // 1) FR : code postal 5 chiffres (75001, 13830...).
-  // 2) PT : code postal 4-3 (XXXX-XXX, ex: 4430-319 Vila Nova de Gaia).
+  // 2) PT : code postal 4-3 (XXXX-XXX, ex: 4400-000 Vila Nova de Gaia).
   //    On essaie PT d'abord parce qu'un préfixe 4 chiffres + tiret + 3 chiffres
-  //    matcherait aussi le regex FR en mode "5 premiers chiffres" sur "4430-".
+  //    matcherait aussi le regex FR en mode "5 premiers chiffres" sur "4400-".
   const ptMatch = norm.match(/^(.+?)\s*,?\s*(\d{4}-\d{3})\s+(.+)$/)
   if (ptMatch) {
     const villeRaw = ptMatch[3].trim()

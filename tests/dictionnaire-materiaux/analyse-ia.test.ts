@@ -11,7 +11,9 @@ import {
   analyseEnTexte,
   analyseVide,
   construireMessages,
+  CATALOGUE_REDUIT,
   construirePromptSysteme,
+  dictionnaireReduit,
   etapesPourAffichage,
   lireAnalyse,
   type AnalyseIA,
@@ -60,6 +62,15 @@ describe('consignes du modèle', () => {
     expect(francais).toContain('1 | Silicone sanitaire anti-moisissures')
     expect(francais).toContain('joint-silicone-moisi | Joint de douche moisi | 1')
     expect(francais).not.toMatch(/português/)
+  })
+
+  it('finit par un rappel du format, de la variété de langue et du catalogue, au plus près du message', () => {
+    expect(prompt.trimEnd().split('\n').at(-1)).toMatch(/^LEMBRETE FINAL: responde apenas com o objeto JSON/)
+    expect(prompt.trimEnd().split('\n').at(-1)).toContain('nunca em português do Brasil')
+    // Après les fiches : rien ne vient s'intercaler entre le rappel et le message de l'artisan.
+    expect(prompt.indexOf('LEMBRETE FINAL')).toBeGreaterThan(prompt.indexOf('junta-silicone-com-bolor'))
+    const francais = construirePromptSysteme(DICO_ESSAI_FR).trimEnd().split('\n').at(-1)
+    expect(francais).toMatch(/^RAPPEL FINAL : réponds uniquement par l’objet JSON/)
   })
 
   it('est identique d’un appel à l’autre (mise en cache côté modèle)', () => {
@@ -283,6 +294,72 @@ describe('réponse réutilisée', () => {
       'Infiltração provável.\nMateriais propostos: Argamassa de reparação; Espátula de pintor.\nPerguntas feitas: Interior ou exterior?',
     )
     expect(analyseEnTexte({ ...analyse, resume: 'r'.repeat(9000) }, DICO_ESSAI).length).toBeLessThanOrEqual(DESCRIPTION_MAX)
+  })
+})
+
+describe('catalogue réduit du secours (vraies données du Portugal)', () => {
+  const dico = dictionnairePour('PT') as Dictionnaire
+  const descriptions = [
+    'Casa de banho sem janela: bolor preto no teto por cima do duche e a junta de silicone da base do duche está preta e a descolar.',
+    'Fachada com fissuras finas no reboco e manchas de humidade no interior depois da chuva.',
+    'Telha partida no telhado e água a entrar no sótão.',
+    'Quero pintar uma sala com paredes novas de pladur.',
+    'Bom dia, preciso de ajuda.',
+  ]
+
+  it('tient dans une demande que l’offre Groq du compte accepte (8 000 jetons par minute)', () => {
+    // Le catalogue entier : environ 54 000 caractères, refusé par Groq (413, 19 691 jetons demandés le 15/11/2026).
+    expect(construirePromptSysteme(dico).length).toBeGreaterThan(40_000)
+    for (const description of descriptions) {
+      const reduit = dictionnaireReduit(dico, description)
+      // 15 000 caractères : environ 5 000 jetons au plus, marge comprise pour la description et l'historique.
+      expect(construirePromptSysteme(reduit).length, description).toBeLessThan(15_000)
+      expect(reduit.materiaux.length, description).toBeLessThanOrEqual(CATALOGUE_REDUIT.materiauxMax)
+      expect(reduit.situations.length, description).toBeLessThanOrEqual(CATALOGUE_REDUIT.situations)
+      // Pas de famille vide dans les consignes ; le dictionnaire entier n'est pas modifié.
+      for (const f of reduit.familles) expect(reduit.materiaux.some((m) => m.famille === f.id), f.id).toBe(true)
+    }
+    expect(dico.materiaux.length).toBeGreaterThan(500)
+  })
+
+  it('garde les fiches de la situation décrite, avec tous leurs matériaux', () => {
+    const reduit = dictionnaireReduit(dico, descriptions[1])
+    expect(reduit.situations.map((s) => s.id)).toContain('infiltracao-fachada')
+    const gardes = new Set(reduit.materiaux.map((m) => m.id))
+    for (const l of reduit.situations[0].etapes.flatMap((e) => e.materiaux)) expect(gardes.has(l.id), l.id).toBe(true)
+    const bolor = dictionnaireReduit(dico, descriptions[0])
+    expect(bolor.materiaux.some((m) => /silicone/i.test(m.nom))).toBe(true)
+  })
+
+  it('trouve la situation même quand le message commence par des politesses', () => {
+    const message = 'Bom dia, estou aqui com um cliente que me ligou ontem porque tem um problema numa casa antiga: ' +
+      'a fachada tem uma infiltração junto à janela da sala e o reboco está a cair.'
+    const ids = dictionnaireReduit(dico, message).situations.map((s) => s.id)
+    expect(ids).toContain('infiltracao-fachada')
+    expect(ids).toContain('infiltracao-contorno-janela')
+  })
+
+  it('garde la situation du premier tour après une relance courte, et les matériaux déjà proposés', () => {
+    const texte = ['É rebocada e pintada, tem 30 anos.', descriptions[1]].join('\n')
+    expect(dictionnaireReduit(dico, texte).situations.map((s) => s.id)).toContain('infiltracao-fachada')
+    const precedente = 'Infiltração provável.\nMateriais propostos: Lã de aço; Óculos de proteção.'
+    const reduit = dictionnaireReduit(dico, 'Sim, é no exterior.', precedente)
+    expect(reduit.materiaux.map((m) => m.id)).toEqual(expect.arrayContaining(['la-de-aco', 'oculos-protecao']))
+  })
+
+  it('se relit avec ses propres numéros, pas ceux du catalogue entier', () => {
+    const reduit = dictionnaireReduit(dico, descriptions[0])
+    // Premier matériau dont le numéro diffère d'un catalogue à l'autre.
+    const rang = reduit.materiaux.findIndex((m, i) => dico.materiaux[i].id !== m.id)
+    expect(rang).toBeGreaterThanOrEqual(0)
+    const cible = reduit.materiaux[rang]
+    const n = rang + 1
+    expect(construirePromptSysteme(reduit)).toContain(`\n${n} | ${cible.nom}\n`)
+    // Nom abrégé : seul le numéro départage. Dans le catalogue réduit, ce numéro est ce produit ; dans le catalogue
+    // entier, c'est un autre produit, et la ligne est écartée.
+    const reponse = JSON.stringify({ resume: 'r', etapes: [{ titre: 'A', materiaux: [{ n, nom: cible.nom.slice(0, -3) }] }] })
+    expect(lireAnalyse(reponse, reduit)?.analyse.etapes.flatMap((e) => e.materiaux.map((m) => m.id))).toEqual([cible.id])
+    expect(lireAnalyse(reponse, dico)?.analyse.etapes ?? []).toEqual([])
   })
 })
 
