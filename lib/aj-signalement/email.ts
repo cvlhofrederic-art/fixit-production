@@ -2,8 +2,10 @@
 //
 // Envoyés par Resend (lib/email.ts). Module serveur (il importe Resend) : les libellés partagés sont dans
 // affichage.ts. Tout ce que le déclarant a saisi est échappé avant d'entrer dans le HTML.
-//   - administrateur : destinataires de la copropriété (sinon ADMIN_EMAIL), en français ; « répondre » écrit
-//     directement au déclarant (replyTo) ;
+//   - administrateur : destinataires de la copropriété (sinon ADMIN_EMAIL, pour une copropriété SANS cabinet client
+//     seulement), en français ; « répondre » écrit directement au déclarant (replyTo). D9 (décision de Hugo du 17/11/2026,
+//     au nom de VitFix) : copropriété d'un cabinet client sans destinataire → l'adresse de contact du cabinet reçoit le
+//     signalement (type « cabinet »), et VitFix une alerte sans aucune donnée (alerteSignalementEnAttenteQr) ;
 //   - déclarant : récapitulatif dans la langue de la page (FR / PT), envoyé à sa seule adresse, sans adresse de
 //     réponse ni copie (l'adresse de l'administrateur et celle des destinataires n'y figurent jamais), sans
 //     promesse d'intervention ni de délai. Limité par boîte de destination (formulaire public).
@@ -83,6 +85,13 @@ export interface ParametresEmailQr {
 /** Phrase de pied du message d'un gestionnaire sans accès ouvert à l'espace de son cabinet (PR 1). */
 const SUIVI_PAR_CABINET_QR = 'Le cabinet suit ce signalement dans AJ Signalement.'
 
+/**
+ * D9 : phrase du message envoyé à l'adresse de contact du cabinet, faute de tout autre destinataire (texte proposé, en
+ * brouillon pour Frédéric).
+ */
+const SANS_DESTINATAIRE_CABINET_QR =
+  'Aucun gestionnaire ni aucune adresse ne reçoit les signalements de cette copropriété : ce signalement est envoyé à l’adresse de contact du cabinet.'
+
 function ligne(libelle: string, valeurHtml: string): string {
   return `<tr>
       <td style="padding:8px 12px 8px 0;font-size:13px;color:#4A5E78;white-space:nowrap;vertical-align:top;">${libelle}</td>
@@ -119,14 +128,16 @@ export function templateSignalementQr({
             <a href="${e(url)}" style="display:inline-block;background:#0D1B2E;color:#FFFFFF;padding:12px 22px;border-radius:10px;text-decoration:none;font-weight:600;font-size:14px;">${libelle}</a>
           </p>`
   // Bouton de l'espace global : l'administrateur seul. Gestionnaire à l'accès ouvert (PR 2) : l'espace de son cabinet,
-  // sans jeton ; gestionnaire sans accès : la phrase de la PR 1 ; adresse saisie : rien.
+  // sans jeton ; gestionnaire sans accès : la phrase de la PR 1 ; adresse saisie : rien ; adresse de contact du cabinet
+  // (D9) : aucun bouton, la phrase qui dit pourquoi elle le reçoit.
   const suiviGestionnaire = destinataire === 'gestionnaire' && lienSuivi ? lienSuivi : null
   let bouton = ''
   if (destinataire === 'administrateur') bouton = boutonVers(urlTableau, 'Ouvrir le tableau des signalements')
   else if (suiviGestionnaire) bouton = boutonVers(suiviGestionnaire, 'Ouvrir le suivi')
-  const suivi = destinataire === 'gestionnaire' && !suiviGestionnaire
-    ? `<p style="margin:8px 0 0;font-size:13px;color:#4A5E78;">${SUIVI_PAR_CABINET_QR}</p>`
-    : ''
+  let phraseSuivi: string | null = null
+  if (destinataire === 'gestionnaire' && !suiviGestionnaire) phraseSuivi = SUIVI_PAR_CABINET_QR
+  else if (destinataire === 'cabinet') phraseSuivi = SANS_DESTINATAIRE_CABINET_QR
+  const suivi = phraseSuivi ? `<p style="margin:8px 0 0;font-size:13px;color:#4A5E78;">${phraseSuivi}</p>` : ''
   const rappel = mention
     ? `<p style="margin:0 0 16px;padding:10px 14px;background:#F7F4EE;border-radius:10px;color:#0D1B2E;font-size:14px;">${e(mention)}</p>`
     : ''
@@ -373,6 +384,22 @@ export const ALERTE_EFFACEMENT_DEMANDE_QR = {
   objet: 'AJ Signalement — demande d’effacement d’un gestionnaire',
   texte: 'Un gestionnaire a demandé la suppression de ses données depuis son compte. Rien n’a été supprimé : transmettez la demande au cabinet ; s’il l’accepte, faites le départ de la fiche, puis « Effacer ses données ».',
 } as const
+
+/**
+ * D9 (décision de Hugo du 17/11/2026, au nom de VitFix, point 7) : copropriété d'un cabinet client sans aucun
+ * destinataire. Le signalement ne part plus vers les boîtes de VitFix : VitFix reçoit cette alerte, SANS AUCUNE DONNÉE
+ * du signalement ni de la copropriété (ni texte, ni nom, ni adresse, ni téléphone, ni urgence), seulement son
+ * identifiant technique, et elle dit si l'adresse de contact du cabinet l'a reçu. Textes proposés (brouillon, Frédéric).
+ */
+export function alerteSignalementEnAttenteQr(signalementId: string, cabinetPrevenu: boolean): { objet: string; texte: string } {
+  const cabinet = cabinetPrevenu
+    ? 'Il a été envoyé à l’adresse de contact du cabinet.'
+    : 'Personne au cabinet ne l’a reçu : prévenez le cabinet sans attendre.'
+  return {
+    objet: 'AJ Signalement — un signalement attend un destinataire',
+    texte: `Un signalement attend un destinataire. Identifiant technique : ${signalementId}. ${cabinet} Désignez un destinataire pour cette copropriété.`,
+  }
+}
 
 export function templateAlerteAdministrateurQr(p: { objet: string; texte: string; lien: string }): { subject: string; html: string } {
   const e = echapperHtml

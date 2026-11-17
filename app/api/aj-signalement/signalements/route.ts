@@ -4,7 +4,8 @@
 // Sans session : la copropriété est désignée par son jeton (32 hexadécimaux, tiré par la base) ; le corps
 // est validé par signalementQrSchema (tous les champs obligatoires : prénom, nom, téléphone, e-mail, bâtiment,
 // étage, numéro de lot, qualité propriétaire / locataire). Le signalement est enregistré dans signalements_qr
-// puis envoyé par e-mail aux destinataires de la copropriété (sinon ADMIN_EMAIL), puis un récapitulatif part
+// puis envoyé par e-mail aux destinataires de la copropriété (sinon ADMIN_EMAIL pour une copropriété sans cabinet
+// client ; D9 ci-dessous pour celle d'un cabinet client), puis un récapitulatif part
 // au déclarant, dans la langue de la page (au plus 3 par heure vers une même boîte). L'échec d'un e-mail
 // n'annule jamais le dépôt : l'état des deux envois est conservé sur la ligne (un seul update final).
 // Demandes de Hugo du 06/11/2026, enregistrées avec le dépôt :
@@ -23,7 +24,14 @@
 // Depuis le 11/11/2026 (P1-R20 ; demande de Hugo : le gestionnaire reçoit AUTOMATIQUEMENT les signalements de ses
 // copropriétés) :
 //   - destinataires = (adresses saisies MOINS celles de fiches inactives ou contestées) ∪ gestionnaires confirmés de la
-//     copropriété (signalements_qr_emails_gestionnaires) ; ADMIN_EMAIL seulement si l'union est vide ;
+//     copropriété (signalements_qr_emails_gestionnaires) ; ADMIN_EMAIL seulement si l'union est vide ET que la
+//     copropriété n'appartient à aucun cabinet client ;
+//   - D9 (décision de Hugo du 17/11/2026, au nom de VitFix, point 7) : union vide pour une copropriété d'un cabinet
+//     client → repli vers les boîtes de VitFix COUPÉ ; le signalement part à l'adresse de contact du cabinet (seule
+//     adresse du cabinet que le code connaît), pour qu'il ne reste jamais sans lecteur ; VitFix reçoit une alerte SANS
+//     AUCUNE DONNÉE (« un signalement attend un destinataire » et l'identifiant technique), qui dit si le cabinet l'a
+//     reçu. Sans adresse de contact, personne au cabinet ne le reçoit : l'alerte le dit, le signalement reste lisible
+//     dans l'espace AJ Signalement. Le cabinet et son adresse ne sont lus que dans ce cas ;
 //   - UN e-mail par destinataire (personne ne voit les autres adresses), repli un par un si le service refuse le lot ;
 //     email_erreur résumé, jamais l'adresse ni le texte du service ;
 //   - budget d'e-mails (60 / h par copropriété, 300 / h par cabinet), réservé en base AVANT l'envoi : au-delà, le dépôt
@@ -48,17 +56,18 @@ import { logger } from '@/lib/logger'
 import { CHEMIN_TABLEAU_QR, numeroSignalementQr, type SignalementQr } from '@/lib/aj-signalement/types'
 import {
   coproprieteActiveQr, corrigerEmailsEnvoyesQr, enregistrerEtatEmailsQr, identifiantCabinetDuSuiviQr, insererSignalementQr,
-  lireGestionnairesDestinatairesQr, lireSemblablesQr, reponseErreurBase, reponseErreur, reserverEmailsQr, signalementDepuisLigne,
-  type LigneCoproprieteQr,
+  lireGestionnairesDestinatairesQr, lireRepliSansDestinataireQr, lireSemblablesQr, reponseErreurBase, reponseErreur, reserverEmailsQr,
+  signalementDepuisLigne, type LigneCoproprieteQr,
 } from '@/lib/aj-signalement/serveur'
-import { destinatairesSignalementQr } from '@/lib/aj-signalement/destinataires'
+import { SANS_CABINET_QR, aucunDestinataireDirectQr, destinatairesSignalementQr } from '@/lib/aj-signalement/destinataires'
+import type { CalculDestinatairesQr } from '@/lib/aj-signalement/types'
 import { urlSuiviCabinetQr } from '@/lib/aj-signalement/chemin-cabinet'
 import {
   ALERTE_LIMITE_ENVOI_QR, ERREUR_LIMITE_ENVOI_QR, alerteBudgetEmailsQr, mentionSignalementsRetenusQr,
 } from '@/lib/aj-signalement/budget-emails'
 import {
-  FENETRE_CONFIRMATIONS_MS, LIMITE_CONFIRMATIONS_PAR_ADRESSE, cleLimiteConfirmationQr, envoyerAlerteAdministrateurQr, envoyerConfirmationQr,
-  envoyerEmailsSignalementQr, masquerEmailsQr, resumeErreurEnvoiQr,
+  FENETRE_CONFIRMATIONS_MS, LIMITE_CONFIRMATIONS_PAR_ADRESSE, alerteSignalementEnAttenteQr, cleLimiteConfirmationQr,
+  envoyerAlerteAdministrateurQr, envoyerConfirmationQr, envoyerEmailsSignalementQr, masquerEmailsQr, resumeErreurEnvoiQr,
 } from '@/lib/aj-signalement/email'
 import { annonceDiffusionFaiteQr, annonceDiffusionQr, politiqueCabinetDeCoproprieteQr } from '@/lib/aj-signalement/serveur-information'
 import { lireLogoEmailDeCoproprieteQr } from '@/lib/aj-signalement/serveur-logo'
@@ -119,18 +128,51 @@ async function resoudreSignalementLie(
   return lie?.id ?? null
 }
 
+type EtatEmailsQr = { emailEnvoyeLe: string | null; emailErreur: string | null }
+
+/** Adresse du tableau des signalements de l'espace global (bouton des alertes au super admin). */
+const lienTableauQr = (origine: string | undefined): string => `${(origine ?? 'https://vitfix.io').replace(/\/+$/, '')}${CHEMIN_TABLEAU_QR}`
+
+/**
+ * Destinataires du dépôt puis envoi ; ne lève jamais. D9 : le cabinet de la copropriété et son adresse de contact ne
+ * sont lus que si la copropriété n'a aucun destinataire direct ; signalement « en attente » (copropriété d'un cabinet
+ * client sans destinataire) → après l'envoi, alerte SANS AUCUNE DONNÉE à VitFix, qui dit si le cabinet l'a reçu.
+ */
+async function envoyerAuxDestinataires(copropriete: LigneCoproprieteQr, signalement: SignalementQr): Promise<EtatEmailsQr> {
+  const lignes = await lireGestionnairesDestinatairesQr(copropriete.id)
+  const repli = aucunDestinataireDirectQr(copropriete, lignes) ? await lireRepliSansDestinataireQr(copropriete.id) : SANS_CABINET_QR
+  const calcul = destinatairesSignalementQr(copropriete, lignes, process.env, repli)
+  const etat = await envoyerSignalementQr(copropriete, signalement, calcul)
+  if (calcul.enAttente) await alerterSignalementEnAttenteQr(signalement.id, etat.emailEnvoyeLe !== null)
+  return etat
+}
+
+/** D9 : alerte au super admin (ADMIN_EMAIL, ADMIN_EMAIL_2), sans aucune donnée du signalement. Ne lève jamais. */
+async function alerterSignalementEnAttenteQr(signalementId: string, cabinetPrevenu: boolean): Promise<void> {
+  const lien = lienTableauQr(process.env.NEXT_PUBLIC_APP_URL || undefined)
+  const alerte = await envoyerAlerteAdministrateurQr({ ...alerteSignalementEnAttenteQr(signalementId, cabinetPrevenu), lien })
+  if (alerte.total === 0) {
+    logger.error(`${CONTEXTE} signalement en attente d’un destinataire : aucune adresse ADMIN_EMAIL pour l’alerte`, { signalement: signalementId, cabinetPrevenu })
+  } else if (alerte.refuses > 0) {
+    logger.error(`${CONTEXTE} signalement en attente d’un destinataire : alerte refusée par le service d’e-mail`, {
+      signalement: signalementId, cabinetPrevenu, refuses: alerte.refuses, total: alerte.total,
+    })
+  }
+}
+
 /**
  * Un e-mail par destinataire, sous budget (RG-06 ter) ; ne lève jamais. Rend l'état à enregistrer : envoyé dès qu'un
  * message est parti ; erreur résumée (nombres seulement) ou limite d'envoi atteinte.
  */
-async function envoyerAuxDestinataires(
-  copropriete: LigneCoproprieteQr, signalement: SignalementQr,
-): Promise<{ emailEnvoyeLe: string | null; emailErreur: string | null }> {
-  const lignes = await lireGestionnairesDestinatairesQr(copropriete.id)
-  const { destinataires, auDelaDuPlafond } = destinatairesSignalementQr(copropriete, lignes)
+async function envoyerSignalementQr(
+  copropriete: LigneCoproprieteQr, signalement: SignalementQr, { destinataires, auDelaDuPlafond, enAttente }: CalculDestinatairesQr,
+): Promise<EtatEmailsQr> {
   if (auDelaDuPlafond > 0) logger.warn(`${CONTEXTE} destinataires au-delà du plafond : non envoyés`, { copropriete: copropriete.id, nombre: auDelaDuPlafond })
   if (destinataires.length === 0) {
-    logger.error(`${CONTEXTE} aucun destinataire : ni e-mails de la copropriété, ni gestionnaire, ni ADMIN_EMAIL`, { copropriete: copropriete.id })
+    const raison = enAttente
+      ? 'copropriété d’un cabinet client sans adresse saisie, sans gestionnaire et sans adresse de contact du cabinet'
+      : 'ni e-mails de la copropriété, ni gestionnaire, ni ADMIN_EMAIL'
+    logger.error(`${CONTEXTE} aucun destinataire : ${raison}`, { copropriete: copropriete.id })
     return { emailEnvoyeLe: null, emailErreur: 'aucun destinataire configuré' }
   }
   const origine = process.env.NEXT_PUBLIC_APP_URL || undefined
@@ -139,7 +181,7 @@ async function envoyerAuxDestinataires(
   if (reservation && !reservation.accorde) {
     logger.warn(`${CONTEXTE} limite d’envoi atteinte : e-mail retenu, dépôt enregistré`, { copropriete: copropriete.id, signalement: signalement.id })
     if (alerteBudgetEmailsQr(reservation)) {
-      const lien = `${(origine ?? 'https://vitfix.io').replace(/\/+$/, '')}${CHEMIN_TABLEAU_QR}`
+      const lien = lienTableauQr(origine)
       const alerte = await envoyerAlerteAdministrateurQr({ objet: ALERTE_LIMITE_ENVOI_QR.objet, texte: ALERTE_LIMITE_ENVOI_QR.texte, lien })
       if (alerte.refuses > 0) logger.warn(`${CONTEXTE} alerte de limite d’envoi non envoyée`, { refuses: alerte.refuses, total: alerte.total })
     }
