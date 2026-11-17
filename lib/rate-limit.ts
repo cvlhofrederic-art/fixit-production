@@ -2,10 +2,61 @@
 // Utilise @upstash/ratelimit pour un rate limiting distribué et persistant.
 // Fallback automatique vers un rate limiter en mémoire si les env vars ne sont
 // pas configurées (dev local sans Redis).
+//
+// D13 (décision de Hugo du 17/11/2026, au nom de VitFix, point 4) : Upstash ne reçoit plus l'identifiant en clair
+// (adresse IP, identifiant de compte…), seulement son EMPREINTE (empreinteIdentifiant ci-dessous), et l'option
+// « analytics » d'Upstash est coupée (elle gardait chaque identifiant dans des ensembles `<préfixe>:events:<heure>`).
+// Pour toutes les routes, une seule chose change : le format de la clé chez Upstash. Même identifiant → même empreinte :
+// limites, fenêtres, préfixes et repli en mémoire sont inchangés ; les compteurs repartent de zéro au déploiement.
+// Les relevés déjà écrits chez Upstash ne sont pas effacés par ce code (action à mener dans la console d'Upstash).
 
 import type { NextRequest } from 'next/server'
 import { Ratelimit } from '@upstash/ratelimit'
 import { Redis } from '@upstash/redis'
+
+// ── Empreinte de l'identifiant (D13) ─────────────────────────────────────────
+// HMAC-SHA-256 de l'identifiant, sous une clé dérivée par HKDF-SHA-256 (sel « vitfix », info « rate-limit-empreinte-v1 »)
+// de SUPABASE_SERVICE_ROLE_KEY : secret serveur déjà présent dans le Worker, sur le modèle de lib/equipe/lien-invitation.ts
+// (aucun nouveau secret à poser ; la dérivation sépare les usages, l'empreinte ne révèle rien du secret). Pourquoi pas un
+// simple SHA-256 salé : une IPv4 n'a que 2^32 valeurs, et un sel écrit dans ce dépôt public ne protège rien ; l'empreinte
+// se retrouverait en quelques minutes. Sans la clé, l'empreinte HMAC ne se renverse pas.
+// Secret absent ou valeur de build (tests, développement sans Supabase) : SHA-256 salé, repli faible mais jamais
+// l'identifiant en clair. Changer le secret change les clés : les compteurs repartent de zéro, sans autre effet.
+
+const ENCODEUR = new TextEncoder()
+const VALEUR_DE_BUILD = 'placeholder-key-for-build'
+const SEL_SANS_SECRET = 'vitfix:rate-limit:empreinte:v1'
+
+let cleEmpreinteEnCache: { secret: string; cle: Promise<CryptoKey> } | null = null
+
+function cleEmpreinte(secret: string): Promise<CryptoKey> {
+  if (cleEmpreinteEnCache?.secret !== secret) {
+    const cle = crypto.subtle
+      .importKey('raw', ENCODEUR.encode(secret), 'HKDF', false, ['deriveKey'])
+      .then((base) => crypto.subtle.deriveKey(
+        { name: 'HKDF', hash: 'SHA-256', salt: ENCODEUR.encode('vitfix'), info: ENCODEUR.encode('rate-limit-empreinte-v1') },
+        base,
+        { name: 'HMAC', hash: 'SHA-256', length: 256 },
+        false,
+        ['sign'],
+      ))
+    // Une dérivation échouée n'est pas gardée : l'appel suivant la retente.
+    cle.catch(() => { if (cleEmpreinteEnCache?.cle === cle) cleEmpreinteEnCache = null })
+    cleEmpreinteEnCache = { secret, cle }
+  }
+  return cleEmpreinteEnCache.cle
+}
+
+const enHex = (octets: ArrayBuffer): string => Array.from(new Uint8Array(octets), (o) => o.toString(16).padStart(2, '0')).join('')
+
+/** Empreinte (64 hexadécimaux) de l'identifiant, seule forme envoyée à Upstash. */
+async function empreinteIdentifiant(identifier: string): Promise<string> {
+  const secret = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (secret && secret !== VALEUR_DE_BUILD) {
+    return enHex(await crypto.subtle.sign('HMAC', await cleEmpreinte(secret), ENCODEUR.encode(identifier)))
+  }
+  return enHex(await crypto.subtle.digest('SHA-256', ENCODEUR.encode(`${SEL_SANS_SECRET}\u0000${identifier}`)))
+}
 
 // ── Upstash Redis rate limiter (production) ──────────────────────────────────
 // FR-V8 fix audit : un Ratelimit Upstash est instancié PAR couple (limit,
@@ -31,7 +82,8 @@ function getLimiter(limit: number, windowMs: number): Ratelimit | null {
   const lim = new Ratelimit({
     redis,
     limiter: Ratelimit.slidingWindow(limit, `${windowSec} s`),
-    analytics: true,
+    // D13 : coupé. Activé, il enregistrait chaque identifiant (adresse IP comprise) dans les relevés d'Upstash.
+    analytics: false,
     prefix: `fixit:ratelimit:${windowSec}s:${limit}`,
   })
   limiters.set(key, lim)
@@ -84,6 +136,8 @@ function checkRateLimitInMemory(identifier: string, limit: number, windowMs: num
  * Vérifie si la requête dépasse la limite.
  * Utilise Upstash Redis si configuré, sinon fallback en mémoire.
  * Cette fonction est async et doit être appelée avec `await`.
+ * Upstash ne reçoit que l'empreinte de l'identifiant (D13) ; le repli en mémoire garde l'identifiant, qui ne quitte
+ * pas l'isolat.
  *
  * @param identifier - Clé unique (ex: `upload_${ip}`, `api_${userId}`)
  * @param limit - Nombre max de requêtes dans la fenêtre (défaut: 20)
@@ -98,7 +152,7 @@ export async function checkRateLimit(
   const lim = getLimiter(limit, windowMs)
   if (lim) {
     try {
-      const { success } = await lim.limit(identifier)
+      const { success } = await lim.limit(await empreinteIdentifiant(identifier))
       return success
     } catch (e) {
       // Redis down — fallback to in-memory
