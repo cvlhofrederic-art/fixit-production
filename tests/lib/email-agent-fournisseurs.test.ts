@@ -173,7 +173,7 @@ describe('Outlook / Microsoft 365 (Microsoft Graph)', () => {
       if (url === 'https://login.microsoftonline.com/common/oauth2/v2.0/token') {
         return { body: { access_token: 'eyJ-acces', refresh_token: 'M.R3-refresh', expires_in: 4205, scope: 'Mail.Read User.Read' } }
       }
-      return { body: { mail: 'h.carvalho@ajassocies.fr', userPrincipalName: 'h.carvalho@ajassocies.onmicrosoft.com' } }
+      return { body: { mail: 'gestion@exemple.fr', userPrincipalName: 'gestion@exemple.onmicrosoft.com' } }
     })
     const jetons = await fournisseurMicrosoft.echangerCode('code-ms')
     expect(appels[0].init?.method).toBe('POST')
@@ -191,7 +191,7 @@ describe('Outlook / Microsoft 365 (Microsoft Graph)', () => {
       accessToken: 'eyJ-acces',
       refreshToken: 'M.R3-refresh',
       expiresAt: new Date(MAINTENANT + 4205 * 1000).toISOString(),
-      email: 'h.carvalho@ajassocies.fr',
+      email: 'gestion@exemple.fr',
       scope: 'Mail.Read User.Read',
     })
   })

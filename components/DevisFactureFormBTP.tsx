@@ -42,7 +42,7 @@ import {
 import { buildDocumentLines } from '@/lib/devis-totals'
 import { generateDevisPdfV3 } from '@/lib/pdf/devis-pdf-v3'
 import type { PdfV3Photo } from '@/lib/pdf/devis-pdf-v3'
-import { modeleDocumentSociete } from '@/lib/pdf/modele-provence-pro'
+import { modeleDocumentSociete } from '@/lib/pdf/modeles-societes'
 import { getDecennaleEligibility } from '@/lib/decennale-eligibility'
 import {
   sumMoney,
@@ -64,7 +64,6 @@ import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { supabase } from '@/lib/supabase'
 import { fetchAuthentifie } from '@/lib/fetch-authentifie'
 import { syncDocumentSafe } from '@/lib/document-sync'
-import { SEED_PREST, SEED_MAT } from '@/components/dashboard/PrestationsBTPSection'
 import { lireCatalogueBTPNavigateur } from '@/lib/btp/catalogue-prestations'
 import RentabiliteDevisModal from '@/components/dashboard/btp/RentabiliteDevisModal'
 
@@ -741,27 +740,20 @@ export default function DevisFactureFormBTP({
 
   /* ──────── Prestations BTP (merge Supabase services + localStorage catalogue) ──────── */
 
-  // Catalogue du module Prestations, lu une fois : prestations, matériaux et étapes proposés viennent de la même
-  // lecture. Clé du module, à défaut l'ancienne copie, à défaut le jeu par défaut en mémoire ; rien n'est écrit
-  // (constat stockage-local-miroir-10, lib/btp/catalogue-prestations.ts).
-  const catalogueBTP = useMemo(
-    () => lireCatalogueBTPNavigateur<ElementCatalogueFormulaire>(
-      artisan?.id,
-      () => [...SEED_PREST, ...SEED_MAT].map((p, i) => ({ id: i + 1, ...p })),
-    ),
-    [artisan?.id],
-  )
+  // Catalogue du module Prestations, lu une fois : la liste des prestations, celle des matériaux et les étapes reprises
+  // viennent de la même lecture (sinon une ligne pourrait recevoir le nom d'une prestation et les étapes d'une autre).
+  // Clé du module, à défaut l'ancienne copie ; rien d'enregistré : aucun catalogue, jamais d'exemple (catalogue vierge
+  // à la création du compte, demande de Frédéric du 17/11/2026). Lecture seule, rien n'est écrit (constat
+  // stockage-local-miroir-10, lib/btp/catalogue-prestations.ts).
+  const catalogueBTP = useMemo(() => lireCatalogueBTPNavigateur<ElementCatalogueFormulaire>(artisan?.id), [artisan?.id])
 
   const allServices = useMemo(() => {
     const supaServices: ServiceBasic[] = (services as ServiceBasic[]) || []
     const localPrest: ServiceBasic[] = catalogueBTP
       .filter(p => p.type === 'prest')
       .map(p => {
-        // Unité du catalogue → identifiant court du devis (UNIT_CATALOGUE_TO_DEVIS)
-        const devisUnit = mapCatalogueUnit(p.unit)
-        const baseDesc = p.description || ''
-        // Embed unit marker so selectMotif picks the right default unit
-        const descWithUnit = `${baseDesc} [unit:${devisUnit}]`.trim()
+        // Unité du catalogue → identifiant court du devis (UNIT_CATALOGUE_TO_DEVIS), notée pour selectMotif
+        const descWithUnit = `${p.description || ''} [unit:${mapCatalogueUnit(p.unit)}]`.trim()
         return {
           id: `btp_${p.id}`,
           name: p.name,
@@ -774,7 +766,7 @@ export default function DevisFactureFormBTP({
     return [...supaServices, ...localPrest.filter(lp => !names.has(lp.name.toLowerCase()))]
   }, [services, catalogueBTP])
 
-  // Matériaux catalogue (type === 'mat'), même lecture que les prestations
+  // Matériaux du même catalogue (type === 'mat')
   const allMaterials = useMemo(() => catalogueBTP
     .filter(p => p.type === 'mat')
     .map(p => ({
@@ -1796,8 +1788,8 @@ export default function DevisFactureFormBTP({
     let copiedEtapes: DevisEtape[] = []
     let prestDescription = ''
     if (serviceId.startsWith('btp_')) {
-      // Prestation du catalogue de la société : description et étapes prises dans la même lecture que la liste
-      // proposée (catalogueBTP), donc celles de la prestation choisie.
+      // Prestation du catalogue de la société : description et étapes prises dans la lecture qui a produit la liste
+      // (catalogueBTP), donc celles de la prestation choisie.
       try {
         const numId = parseInt(serviceId.replace('btp_', ''), 10)
         const prest = catalogueBTP.find(p => p.id === numId)
@@ -2002,7 +1994,7 @@ export default function DevisFactureFormBTP({
           rm: companyRCS || undefined,
           rc_pro: insuranceNumber || undefined,
         } : null,
-        // Modèle propre à la société (Provence Pro uniquement) ; sinon modèle BTP par défaut
+        // Modèle propre à la société (Provence Pro, Method Soluções) ; sinon modèle BTP par défaut
         modele: modeleDocumentSociete(artisan?.id),
         ptFiscalData: null,
         svgToImageDataUrl,

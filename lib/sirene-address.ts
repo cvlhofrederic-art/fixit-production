@@ -1,12 +1,12 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // SIRENE — formatage d'adresse de siège (anti-duplication)
 // ══════════════════════════════════════════════════════════════════════════════
-// BUG HISTORIQUE (12/05/2026, profil Carvalho 920b7d34-…) :
+// BUG HISTORIQUE (12/05/2026, profil d'un artisan EI) :
 //   L'API recherche-entreprises.api.gouv.fr renvoie un objet `siege` avec
 //   3 champs : `adresse`, `code_postal`, `libelle_commune`. Selon l'entité,
-//   `adresse` peut être SOIT la rue seule ("ETG RDC ALLEE HIPPOLYTE
-//   GONDREXON") SOIT déjà concaténée avec CP+ville ("ETG RDC ALLEE
-//   HIPPOLYTE GONDREXON 13830 ROQUEFORT-LA-BEDOULE").
+//   `adresse` peut être SOIT la rue seule ("ETG RDC ALLEE DES
+//   EXEMPLES") SOIT déjà concaténée avec CP+ville ("ETG RDC ALLEE
+//   DES EXEMPLES 13830 ROQUEFORT-LA-BEDOULE").
 //
 //   Le code historique faisait `[adresse, "CP VILLE"].join(', ')` naïvement
 //   sans dédoublonner. Résultat : profil_artisan.company_address pollué

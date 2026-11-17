@@ -3,7 +3,9 @@
 // prestations sont publiées sur la fiche publique (table `services`). Constat stockage-local-miroir-5 de l'audit du
 // 11/11/2026 : sur un appareil où le catalogue n'était pas (encore) revenu du serveur, l'écran partait du jeu par
 // défaut, l'écrivait, publiait une seconde fois les prestations par défaut, puis réécrivait la clé depuis l'écran
-// par-dessus le catalogue restauré entre-temps.
+// par-dessus le catalogue restauré entre-temps. Depuis le 17/11/2026, ce jeu d'exemple n'existe plus (catalogue vierge
+// à la création du compte, tests/components/prestations-btp-catalogue-vierge.test.tsx) : une société qui n'a de
+// catalogue ni dans ce navigateur ni au serveur voit une liste vide, rien n'est écrit au chargement.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, cleanup, waitFor, fireEvent, within } from '@testing-library/react'
 import type { Artisan } from '@/lib/types'
@@ -63,14 +65,15 @@ vi.mock('@/lib/auth/jeton-acces', () => ({ jetonAcces: async () => 'jeton-test' 
 vi.mock('@/lib/i18n/context', async () => (await import('../helpers/mocks-formulaires-devis')).traductions())
 vi.mock('sonner', async () => (await import('../helpers/mocks-formulaires-devis')).notifications())
 
-import PrestationsBTPSection, { SEED_PREST, SEED_MAT } from '@/components/dashboard/PrestationsBTPSection'
+import PrestationsBTPSection from '@/components/dashboard/PrestationsBTPSection'
 import { toast } from 'sonner'
 
 const ARTISAN = { id: 'fiche-btp-prest', user_id: 'compte-btp-prest', company_name: 'BATIR TEST SAS' } as unknown as Artisan
 const CLE = `fixit_prestations_btp_v5_${ARTISAN.id}`
 const AUTRE_FICHE = { id: 'fiche-btp-autre', user_id: 'compte-btp-autre', company_name: 'BATIR TEST SAS' } as unknown as Artisan
 const CLE_AUTRE_FICHE = `fixit_prestations_btp_v5_${AUTRE_FICHE.id}`
-const PREMIERE_PAR_DEFAUT = SEED_PREST[0].name
+// Corps d'état proposés à ces fiches (aucune spécialité reconnue) : tous, dans l'ordre des onglets.
+const CORPS_D_ETAT = ['Gros Œuvre', 'Couverture', 'Plomberie / CVC', 'Électricité', 'Menuiseries', 'Peinture / Revêtements']
 
 const prix = (n: number) => ({ min: n, max: n })
 const CATALOGUE_SERVEUR = [
@@ -97,6 +100,30 @@ const attendre = (ms: number) => new Promise((r) => setTimeout(r, ms))
 const messageErreur = (n: number) => String(vi.mocked(toast.error).mock.calls[n]?.[0])
 /** Ouvre la saisie de l'élément affiché sous ce nom. */
 const ouvrir = (nom: string) => fireEvent.click(within(screen.getByText(nom).closest('tr') as HTMLElement).getByText('Modifier'))
+/** Noms des éléments du tableau ouvert (lignes qui ont un bouton « Modifier »). */
+const nomsDuTableau = () => screen.queryAllByRole('row')
+  .filter((ligne) => within(ligne).queryByRole('button', { name: 'Modifier' }))
+  .map((ligne) => within(ligne).getAllByRole('cell')[0].textContent)
+/**
+ * Noms de tous les éléments affichés par le module, quel qu'en soit le contenu : prestations de chaque corps d'état,
+ * puis matériaux et frais divers. L'écran revient ensuite sur les prestations du premier corps d'état, comme à
+ * l'ouverture.
+ */
+function nomsAffiches(): Array<string | null> {
+  const noms: Array<string | null> = []
+  fireEvent.click(screen.getByRole('button', { name: /Prestations/ }))
+  for (const corps of CORPS_D_ETAT) {
+    fireEvent.click(screen.getByRole('button', { name: corps }))
+    noms.push(...nomsDuTableau())
+  }
+  for (const categorie of [/Matériaux/, /Frais divers/]) {
+    fireEvent.click(screen.getByRole('button', { name: categorie }))
+    noms.push(...nomsDuTableau())
+  }
+  fireEvent.click(screen.getByRole('button', { name: /Prestations/ }))
+  fireEvent.click(screen.getByRole('button', { name: CORPS_D_ETAT[0] }))
+  return noms
+}
 
 beforeEach(() => {
   localStorage.clear()
@@ -116,31 +143,40 @@ afterEach(() => {
 })
 
 describe('Prestations BTP — catalogue absent de ce navigateur', () => {
-  it('présent au serveur (restauration pas encore arrivée) : le catalogue du serveur s\'affiche, le jeu par défaut n\'est ni écrit ni publié', async () => {
+  it('présent au serveur (restauration pas encore arrivée) : le catalogue du serveur s\'affiche tel quel, rien n\'est écrit ni publié', async () => {
     serveur({ entries: { [CLE]: CATALOGUE_SERVEUR } })
     monter()
     expect(await screen.findByText('Dalle maison')).toBeInTheDocument()
     await attendre(50)
-    expect(screen.queryByText(PREMIERE_PAR_DEFAUT)).not.toBeInTheDocument()
+    expect(nomsAffiches()).toEqual(['Dalle maison', 'Béton maison'])
     expect(stocke()).toBeNull()
     expect(base.insertions).toHaveLength(0)
   })
 
-  it('rien au serveur non plus : le jeu par défaut est écrit et ses prestations publiées une fois', async () => {
+  it('rien au serveur non plus (compte neuf) : liste vide, sans exemple, rien n\'est écrit ni publié ; la première prestation saisie est enregistrée et publiée une fois', async () => {
     serveur({ entries: {} })
     monter()
-    expect(await screen.findByText(PREMIERE_PAR_DEFAUT)).toBeInTheDocument()
-    expect(stocke()).toHaveLength(SEED_PREST.length + SEED_MAT.length)
-    await waitFor(() => expect(base.insertions).toHaveLength(SEED_PREST.length))
-    // Les identifiants de services sont reportés dans le catalogue enregistré.
-    await waitFor(() => expect(stocke()!.filter((p) => p.supabase_id)).toHaveLength(SEED_PREST.length))
+    await waitFor(() => expect(fetch).toHaveBeenCalled())
+    await attendre(50)
+    expect(nomsAffiches()).toEqual([])
+    expect(stocke()).toBeNull()
+    expect(base.insertions).toHaveLength(0)
+    // Catalogue chargé (vide, pas en échec) : la saisie est acceptée.
+    fireEvent.click(screen.getByText(/^\+ Ajouter$/))
+    fireEvent.change(screen.getByPlaceholderText('Ex: Dalle béton'), { target: { value: 'Chape liquide' } })
+    fireEvent.click(screen.getByText('Créer'))
+    // L'identifiant de service est reporté dans le catalogue enregistré.
+    await waitFor(() => expect(stocke()).toEqual([expect.objectContaining({ name: 'Chape liquide', type: 'prest', supabase_id: 'svc-nouveau-1' })]))
+    await attendre(50)
+    expect(base.insertions).toHaveLength(1)
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
   it('serveur injoignable : rien n\'est écrit ni publié, un message le dit ; une création refusée relance la lecture', async () => {
     serveur('panne')
     monter()
     await waitFor(() => expect(toast.error).toHaveBeenCalled())
-    expect(screen.queryByText(PREMIERE_PAR_DEFAUT)).not.toBeInTheDocument()
+    expect(nomsAffiches()).toEqual([])
     fireEvent.click(screen.getByText(/^\+ Ajouter$/))
     fireEvent.change(screen.getByPlaceholderText('Ex: Dalle béton'), { target: { value: 'Prestation saisie trop tôt' } })
     fireEvent.click(screen.getByText('Créer'))
@@ -152,7 +188,7 @@ describe('Prestations BTP — catalogue absent de ce navigateur', () => {
     await attendre(50)
     expect(stocke()).toBeNull()
     expect(base.insertions).toHaveLength(0)
-    expect(screen.queryByText(PREMIERE_PAR_DEFAUT)).not.toBeInTheDocument()
+    expect(nomsAffiches()).toEqual([])
   })
 
   it('pendant le chargement : une création est refusée, le message invite à patienter, rien n\'est écrit ni publié', async () => {
@@ -172,7 +208,7 @@ describe('Prestations BTP — catalogue absent de ce navigateur', () => {
     expect(await screen.findByText('Dalle maison')).toBeInTheDocument()
   })
 
-  it('catalogue recopié par la restauration pendant la question au serveur (réponse « absent ») : il s\'affiche, le jeu par défaut ne l\'écrase pas', async () => {
+  it('catalogue recopié par la restauration pendant la question au serveur (réponse « absent ») : il s\'affiche tel quel, sans être remplacé ni réécrit', async () => {
     const restaure = [{ id: 1, name: 'Dalle maison', type: 'prest', lot: 'gros_oeuvre', unit: 'm²', price: prix(70), supabase_id: 'svc-existant-1' }]
     vi.stubGlobal('fetch', vi.fn(async () => {
       // La restauration depuis le serveur écrit la clé pendant que l'écran attend sa propre réponse.
@@ -182,21 +218,23 @@ describe('Prestations BTP — catalogue absent de ce navigateur', () => {
     monter()
     expect(await screen.findByText('Dalle maison')).toBeInTheDocument()
     await attendre(50)
-    expect(screen.queryByText(PREMIERE_PAR_DEFAUT)).not.toBeInTheDocument()
+    expect(nomsAffiches()).toEqual(['Dalle maison'])
     expect(stocke()).toEqual(restaure)
     expect(base.insertions).toHaveLength(0)
   })
 
-  it('valeur enregistrée illisible et rien au serveur : le jeu par défaut s\'affiche sans écraser cette valeur', async () => {
+  it('valeur enregistrée illisible et rien au serveur : liste vide, sans exemple ; la valeur n\'est pas écrasée au chargement, rien n\'est publié', async () => {
     const illisible = '[{"id":1,"name":'
     localStorage.setItem(CLE, illisible)
     serveur({ entries: {} })
     monter()
-    expect(await screen.findByText(PREMIERE_PAR_DEFAUT)).toBeInTheDocument()
-    // Fin de la publication des prestations affichées : leurs identifiants ne s'écrivent pas non plus par-dessus.
-    await waitFor(() => expect(base.insertions).toHaveLength(SEED_PREST.length))
+    await waitFor(() => expect(fetch).toHaveBeenCalled())
     await attendre(50)
+    expect(nomsAffiches()).toEqual([])
     expect(localStorage.getItem(CLE)).toBe(illisible)
+    expect(base.insertions).toHaveLength(0)
+    // Chargement abouti (réponse « absent » du serveur), pas en échec : aucun message d'erreur.
+    expect(toast.error).not.toHaveBeenCalled()
   })
 })
 
@@ -252,7 +290,7 @@ describe('Prestations BTP — après un échec du chargement, une modification r
     await attendre(50)
     expect(localStorage.getItem(CLE)).toBe(illisible)
     expect(base.insertions).toHaveLength(0)
-    expect(screen.queryByText(PREMIERE_PAR_DEFAUT)).not.toBeInTheDocument()
+    expect(nomsAffiches()).toEqual([])
   })
 })
 

@@ -8,8 +8,8 @@
  *  - contenu de la première page décalé vers le bas de 22,9 pt pour loger ce logo ;
  *  - filet rouge brique (#c2410c, couleur du « Pro » du logo) au lieu de l'orange.
  *
- * Seule la fiche PROVENCE_PRO_PROFIL_ID reçoit ce modèle : le générateur V3 n'en
- * tient compte que quand `modele === 'provence-pro'`.
+ * Seule la fiche PROVENCE_PRO_PROFIL_ID reçoit ce modèle (lib/pdf/modeles-societes.ts) :
+ * le générateur V3 n'en tient compte que quand `modele === 'provence-pro'`.
  */
 
 import type { jsPDF } from 'jspdf'
@@ -21,13 +21,6 @@ import {
 
 /** Fiche profiles_artisan de PROVENCE PRO. */
 export const PROVENCE_PRO_PROFIL_ID = '4397dc9e-d115-47cc-ae6b-cfeedc971eb5'
-
-export type ModeleDocument = 'provence-pro'
-
-/** Modèle de document propre à une société, ou undefined pour le modèle par défaut. */
-export function modeleDocumentSociete(profilId: string | null | undefined): ModeleDocument | undefined {
-  return profilId === PROVENCE_PRO_PROFIL_ID ? 'provence-pro' : undefined
-}
 
 /** Couleur du filet et des autres touches de couleur du modèle : le rouge du « Pro ». */
 export const COULEUR_ACCENT_PROVENCE_PRO = '#c2410c'

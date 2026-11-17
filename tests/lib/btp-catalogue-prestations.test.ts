@@ -49,27 +49,31 @@ describe('lireCatalogueLocal', () => {
 })
 
 describe('lireCatalogueBTPNavigateur (formulaire)', () => {
-  const parDefaut = () => [prest(1, 'Par défaut')]
-
-  it('le module d\'abord, puis l\'ancienne copie, puis le jeu par défaut ; rien n\'est écrit', () => {
-    expect(lireCatalogueBTPNavigateur(FICHE, parDefaut)).toEqual(parDefaut())
+  it('le module d\'abord, puis l\'ancienne copie ; rien d\'enregistré : aucun catalogue, jamais d\'exemple ; rien n\'est écrit', () => {
+    expect(lireCatalogueBTPNavigateur(FICHE)).toEqual([])
+    expect(localStorage).toHaveLength(0)
     localStorage.setItem(cleCatalogueBTPAncienne(FICHE), JSON.stringify([prest(2, 'Ancienne')]))
-    expect(lireCatalogueBTPNavigateur(FICHE, parDefaut)).toEqual([prest(2, 'Ancienne')])
+    expect(lireCatalogueBTPNavigateur(FICHE)).toEqual([prest(2, 'Ancienne')])
     localStorage.setItem(CLE, JSON.stringify([prest(3, 'Module')]))
-    expect(lireCatalogueBTPNavigateur(FICHE, parDefaut)).toEqual([prest(3, 'Module')])
+    expect(lireCatalogueBTPNavigateur(FICHE)).toEqual([prest(3, 'Module')])
+    // Catalogue du module vidé par la société : l'ancienne copie n'est pas reprise.
+    localStorage.setItem(CLE, '[]')
+    expect(lireCatalogueBTPNavigateur(FICHE)).toEqual([])
     expect(localStorage).toHaveLength(2)
   })
 
   it('sans fiche, ou valeur du module illisible : aucun catalogue', () => {
-    expect(lireCatalogueBTPNavigateur(undefined, parDefaut)).toEqual([])
+    // Clé « guest » du module (écran sans fiche) : jamais lue.
+    localStorage.setItem(cleCatalogueBTP('guest'), JSON.stringify([prest(1, 'Sans fiche')]))
+    expect(lireCatalogueBTPNavigateur(undefined)).toEqual([])
     localStorage.setItem(CLE, 'pas du JSON')
     localStorage.setItem(cleCatalogueBTPAncienne(FICHE), JSON.stringify([prest(2, 'Ancienne')]))
-    expect(lireCatalogueBTPNavigateur(FICHE, parDefaut)).toEqual([])
+    expect(lireCatalogueBTPNavigateur(FICHE)).toEqual([])
   })
 
-  it('un élément qui n\'est pas un objet est écarté', () => {
-    localStorage.setItem(CLE, JSON.stringify([null, 'texte', prest(4, 'Gardée')]))
-    expect(lireCatalogueBTPNavigateur(FICHE, parDefaut)).toEqual([prest(4, 'Gardée')])
+  it('un élément qui n\'est pas un objet, ou qui n\'a pas de nom, est écarté', () => {
+    localStorage.setItem(CLE, JSON.stringify([null, 'texte', { id: 5, type: 'prest' }, { id: 6, name: 7, type: 'mat' }, prest(4, 'Gardée')]))
+    expect(lireCatalogueBTPNavigateur(FICHE)).toEqual([prest(4, 'Gardée')])
   })
 })
 

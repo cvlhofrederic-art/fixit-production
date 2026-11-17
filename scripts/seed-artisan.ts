@@ -14,6 +14,13 @@ const supabase = createClient(
 )
 
 const SEED_PASSWORD = process.env.SEED_PASSWORD || crypto.randomUUID()
+// Adresse du compte : jamais en dur (dépôt public), voir .env.example. Variable propre à ce script :
+// une adresse posée pour un autre script ne doit pas viser ce compte par erreur.
+const SEED_EMAIL = process.env.SEED_ARTISAN_EMAIL || ''
+if (!SEED_EMAIL) {
+  console.error('❌ SEED_ARTISAN_EMAIL manquante : adresse du compte artisan à créer, gardée hors du dépôt')
+  process.exit(1)
+}
 
 async function seed() {
   console.log('🌱 Début du seeding Lepore Sebastien...\n')
@@ -52,7 +59,7 @@ async function seed() {
   // 2. Créer le compte auth pour l'artisan
   console.log('\n2️⃣  Création du compte auth...')
   const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-    email: 'leporesebastien.pro@gmail.com',
+    email: SEED_EMAIL,
     password: SEED_PASSWORD,
     email_confirm: true,
     user_metadata: {
@@ -66,8 +73,14 @@ async function seed() {
     console.error('❌ Erreur auth:', authError.message)
     // Essayons de récupérer l'utilisateur existant
     const { data: users } = await supabase.auth.admin.listUsers()
-    const existingUser = users?.users?.find((u: any) => u.email === 'leporesebastien.pro@gmail.com')
+    const existingUser = users?.users?.find((u: any) => u.email === SEED_EMAIL)
     if (existingUser) {
+      // Garde-fou : ne rattacher le profil qu'au compte créé par ce script (même nom)
+      if (existingUser.user_metadata?.full_name !== 'Lepore Sebastien') {
+        console.error(`❌ Le compte existant pour cette adresse n'a pas été créé par ce script : rien n'est modifié.`)
+        process.exitCode = 1
+        return
+      }
       console.log('ℹ️  Utilisateur existe déjà, on continue avec ID:', existingUser.id)
       await createProfile(existingUser.id, existingCat)
       return
@@ -162,10 +175,10 @@ async function createProfile(userId: string, category: any) {
   console.log('🎉 COMPTE ARTISAN CRÉÉ AVEC SUCCÈS !')
   console.log('='.repeat(55))
   console.log(`\n👷 Artisan     : Lepore Sebastien`)
-  console.log(`📧 Email       : leporesebastien.pro@gmail.com`)
+  console.log(`📧 Email       : ${SEED_EMAIL}`)
   console.log(`📞 Téléphone   : 06 51 46 66 98`)
   console.log(`🏢 SIRET       : 953 951 589 00019`)
-  console.log(`📍 Adresse     : Rés. L'Aurore Bât. B, 13600 La Ciotat`)
+  console.log(`📍 Adresse     : 13600 La Ciotat`)
   console.log(`🌿 Métier      : Paysagiste`)
   console.log(`📋 Services    : Entretien jardin (90€) + Élagage (150€)`)
   console.log(`🔐 Mot de passe: ${SEED_PASSWORD}`)

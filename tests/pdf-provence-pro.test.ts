@@ -8,7 +8,7 @@ import { describe, it, expect, beforeAll, vi } from 'vitest'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { generateDevisPdfV3, type PdfV3Input } from '@/lib/pdf/devis-pdf-v3'
-import { modeleDocumentSociete } from '@/lib/pdf/modele-provence-pro'
+import { modeleDocumentSociete } from '@/lib/pdf/modeles-societes'
 import {
   LOGO_PROVENCE_PRO_CHEMINS,
   LOGO_PROVENCE_PRO_HAUT_PT,
@@ -87,8 +87,8 @@ function entree(docType: 'devis' | 'facture', artisanId: string, surcharge: Part
     companyAddress: '205 Chemin du Haut des Plaines 13650 Meyrargues',
     companyRCS: 'Aix-en-Provence 131 197 253',
     companyCapital: '1 000',
-    companyPhone: '06 13 84 22 89',
-    companyEmail: 'secretariat.provencepro@gmail.com',
+    companyPhone: '04 42 00 00 00',
+    companyEmail: 'secretariat@exemple.fr',
     tvaEnabled: true,
     tvaNumber: 'FR12131197253',
     insuranceName: 'MAAF Pro',

@@ -55,7 +55,10 @@ jobs:
   # ── Tests E2E Playwright — multi-navigateur ────────────────────────────────
   e2e:
     name: "E2E Playwright (${{ matrix.browser }})"
-    runs-on: ubuntu-latest
+    # Image figée : depuis le 16/11/2026, ubuntu-latest est Ubuntu 26.04, où Playwright 1.59 n'installe aucun
+    # navigateur (« Playwright does not support chromium on ubuntu26.04-x64 »). Revenir à ubuntu-latest quand
+    # une version de Playwright prendra en charge Ubuntu 26.04.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     # WebKit headless is unstable in CI (known Playwright issue) — don't block pipeline
     continue-on-error: ${{ matrix.browser == 'webkit' }}
@@ -116,7 +119,8 @@ jobs:
   # ── Axe-core — Accessibilité WCAG (EAA 2025) ──────────────────────────────
   a11y:
     name: "Accessibilité WCAG (Axe-core)"
-    runs-on: ubuntu-latest
+    # Même raison que le job e2e : Playwright n'installe pas ses navigateurs sur Ubuntu 26.04.
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     if: github.event_name == 'pull_request'
     permissions:

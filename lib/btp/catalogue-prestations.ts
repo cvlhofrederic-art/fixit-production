@@ -8,9 +8,10 @@
  *  - le formulaire lisait une ancienne copie (clé v4) qu'il remplissait lui-même du jeu par défaut ;
  *  - le module écrivait le jeu par défaut dès que sa clé manquait dans le navigateur, alors que la restauration
  *    depuis le serveur pouvait ne pas être encore arrivée (ou avoir échoué), puis réécrivait la clé depuis l'écran.
- * Aucune clé n'est supprimée ni remplacée par le jeu par défaut : on lit au bon endroit, le jeu par défaut ne s'écrit
- * que si ni le navigateur ni le serveur n'ont de catalogue pour ce compte, et les identifiants de services publiés
- * s'ajoutent au catalogue relu au moment d'écrire.
+ * Aucune clé n'est supprimée, et le chargement n'écrit aucun catalogue (ni exemple, ni liste vide) : on lit au bon
+ * endroit (navigateur, puis serveur) ; un compte qui n'a de catalogue ni dans ce navigateur ni au serveur commence avec
+ * un catalogue vide (aucun jeu d'exemple depuis le 17/11/2026, en France comme au Portugal) ; les identifiants de
+ * services publiés s'ajoutent au catalogue relu au moment d'écrire.
  */
 import { jetonAcces } from '@/lib/auth/jeton-acces'
 
@@ -61,18 +62,21 @@ export function lireCatalogueLocal<T>(cle: string): LectureLocale<T> {
 
 /**
  * Catalogue proposé par le formulaire de devis et facture : celui du module (clé v5), à défaut l'ancienne copie
- * (clé v4), à défaut le jeu par défaut en mémoire. Rien n'est écrit. Sans fiche, ou si la valeur trouvée est
- * illisible, aucun catalogue (comme avant, où la lecture en échec ne proposait rien) ; un élément qui n'est pas un
- * objet est écarté.
+ * (clé v4). Rien n'est écrit. Rien d'enregistré : aucun catalogue, jamais d'exemple (catalogue vierge à la création du
+ * compte). Sans fiche, ou si la valeur trouvée est illisible, aucun catalogue (comme avant, où la lecture en échec ne
+ * proposait rien) ; un élément qui n'est pas un objet, ou qui n'a pas de nom, est écarté.
  */
-export function lireCatalogueBTPNavigateur<T>(artisanId: string | null | undefined, parDefaut: () => T[]): T[] {
+export function lireCatalogueBTPNavigateur<T>(artisanId: string | null | undefined): T[] {
   if (!artisanId) return []
   for (const cle of [cleCatalogueBTP(artisanId), cleCatalogueBTPAncienne(artisanId)]) {
     const lecture = lireCatalogueLocal<T>(cle)
-    if (lecture.etat === 'present') return lecture.catalogue.filter((element) => typeof element === 'object' && element !== null)
+    if (lecture.etat === 'present') {
+      return lecture.catalogue.filter((element) =>
+        typeof element === 'object' && element !== null && typeof (element as { name?: unknown }).name === 'string')
+    }
     if (lecture.etat === 'illisible') return []
   }
-  return parDefaut()
+  return []
 }
 
 export type LectureServeur<T> =

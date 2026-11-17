@@ -6,7 +6,7 @@
 
 - **Type** : Issue Alert
 - **Condition** : Number of events with tag `agent_type:simulateur-v2` AND message matches `simulateur-hallucination` is more than `5` in 1 minute
-- **Action** : Send notification to #vitfix-alerts (Slack) + email cvlho.frederic@gmail.com
+- **Action** : Send notification to #vitfix-alerts (Slack) + email du propriétaire (adresse gardée hors du dépôt)
 - **Cooldown** : 10 minutes
 
 ## Alert : Tool loop exceeded

@@ -3,10 +3,12 @@
 // (`fixit_prestations_btp_v5_<fiche>`). Constat stockage-local-miroir-10 de l'audit du 11/11/2026 : le formulaire
 // lisait une ancienne copie (`fixit_prestations_btp_v4_<fiche>`), qu'il remplissait lui-même du jeu par défaut ;
 // matériaux et prix de la société absents, prestations supprimées toujours proposées. L'ancienne copie reste lue
-// quand le module n'a encore rien enregistré ; le formulaire n'écrit plus aucun catalogue.
+// quand le module n'a encore rien enregistré ; le formulaire n'écrit plus aucun catalogue. Rien d'enregistré : aucun
+// catalogue proposé, jamais d'exemple (catalogue vierge à la création du compte depuis le 17/11/2026).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react'
-import type { ArtisanBasic } from '@/lib/devis-types'
+import { render, screen, cleanup, fireEvent } from '@testing-library/react'
+import type { ArtisanBasic, ServiceBasic } from '@/lib/devis-types'
+import { CHAMP_MATERIAU, CHAMP_PRESTATION, nomPropose, ouvrirListe } from '../helpers/listes-catalogue-devis-btp'
 
 vi.mock('@/lib/i18n/context', async () => (await import('../helpers/mocks-formulaires-devis')).traductions())
 vi.mock('@/lib/supabase', async () => (await import('../helpers/mocks-formulaires-devis')).supabaseNavigateur())
@@ -16,7 +18,6 @@ vi.mock('@/lib/document-sync', async () => (await import('../helpers/mocks-formu
 vi.mock('@/components/dashboard/btp/RentabiliteDevisModal', () => ({ default: () => null }))
 
 import DevisFactureFormBTP from '@/components/DevisFactureFormBTP'
-import { SEED_PREST, SEED_MAT } from '@/components/dashboard/PrestationsBTPSection'
 
 const ARTISAN: ArtisanBasic = { id: 'fiche-btp-catalogue', company_name: 'BATIR TEST SAS', email: 'contact@batir.test' }
 const CLE_MODULE = `fixit_prestations_btp_v5_${ARTISAN.id}`
@@ -30,22 +31,8 @@ const CATALOGUE_MODULE = [
   { id: 32, name: 'Béton maison', type: 'mat', lot: 'gros_oeuvre', unit: 'm³', price: prix(99), priceAchat: prix(80) },
 ]
 
-const monter = () => render(<DevisFactureFormBTP artisan={ARTISAN} services={[]} bookings={[]} onBack={vi.fn()} />)
-
-/** Ouvre la liste déroulante attachée au champ (bouton ▾ voisin) et rend les libellés proposés. */
-function ouvrirListe(placeholder: string): string[] {
-  const champ = screen.getByPlaceholderText(placeholder)
-  fireEvent.click(champ.nextElementSibling as HTMLElement)
-  const liste = champ.parentElement!.querySelector('div') as HTMLElement
-  return Array.from(liste.children).map((n) => n.textContent || '')
-}
-const PRESTATION = 'Saisissez ou sélectionnez une prestation…'
-const MATERIAU = 'Saisissez ou sélectionnez un matériau…'
-/** Libellé proposé sans son prix (« Nom — 12,00 € » ; un nom peut lui-même contenir « — »). */
-const nomPropose = (libelle: string) => {
-  const fin = libelle.lastIndexOf(' — ')
-  return fin < 0 ? libelle : libelle.slice(0, fin)
-}
+const monter = (services: ServiceBasic[] = []) =>
+  render(<DevisFactureFormBTP artisan={ARTISAN} services={services} bookings={[]} onBack={vi.fn()} />)
 
 beforeEach(() => {
   localStorage.clear()
@@ -58,17 +45,17 @@ afterEach(() => {
 })
 
 describe('formulaire BTP — catalogue du module Prestations', () => {
-  it('propose les matériaux du module, pas ceux du jeu par défaut', () => {
+  it('propose les matériaux du module, et eux seuls', () => {
     localStorage.setItem(CLE_MODULE, JSON.stringify(CATALOGUE_MODULE))
     monter()
-    const proposes = ouvrirListe(MATERIAU).map(nomPropose)
+    const proposes = ouvrirListe(CHAMP_MATERIAU).map(nomPropose)
     expect(proposes).toEqual(['Béton maison'])
   })
 
   it('propose les prestations du module : celles qu\'elle a supprimées n\'y sont plus', () => {
     localStorage.setItem(CLE_MODULE, JSON.stringify(CATALOGUE_MODULE))
     monter()
-    const proposes = ouvrirListe(PRESTATION).map(nomPropose)
+    const proposes = ouvrirListe(CHAMP_PRESTATION).map(nomPropose)
     expect(proposes).toEqual(['Ravalement maison'])
   })
 
@@ -77,7 +64,7 @@ describe('formulaire BTP — catalogue du module Prestations', () => {
     // Ancienne copie au même identifiant 31 : ses étapes ne doivent pas être reprises.
     localStorage.setItem(CLE_ANCIENNE, JSON.stringify([{ id: 31, name: 'Autre prestation', type: 'prest', lot: 'gros_oeuvre', unit: 'u', price: prix(10), etapes: [{ label: 'Étape étrangère' }] }]))
     monter()
-    const champ = screen.getByPlaceholderText(PRESTATION)
+    const champ = screen.getByPlaceholderText(CHAMP_PRESTATION)
     fireEvent.click(champ.nextElementSibling as HTMLElement)
     fireEvent.click(screen.getByText(/^Ravalement maison/))
     expect(await screen.findByDisplayValue('Échafaudage de façade')).toBeInTheDocument()
@@ -88,7 +75,7 @@ describe('formulaire BTP — catalogue du module Prestations', () => {
   it('n\'écrit aucun catalogue dans le navigateur', () => {
     localStorage.setItem(CLE_MODULE, JSON.stringify(CATALOGUE_MODULE))
     monter()
-    ouvrirListe(MATERIAU)
+    ouvrirListe(CHAMP_MATERIAU)
     expect(localStorage.getItem(CLE_ANCIENNE)).toBeNull()
     expect(JSON.parse(localStorage.getItem(CLE_MODULE)!)).toEqual(CATALOGUE_MODULE)
   })
@@ -98,18 +85,13 @@ describe('formulaire BTP — module encore jamais enregistré', () => {
   it('l\'ancienne copie reste lue', () => {
     localStorage.setItem(CLE_ANCIENNE, JSON.stringify([{ id: 1, name: 'Ancien matériau', type: 'mat', lot: 'gros_oeuvre', unit: 'u', price: prix(5) }]))
     monter()
-    expect(ouvrirListe(MATERIAU).map(nomPropose)).toEqual(['Ancien matériau'])
+    expect(ouvrirListe(CHAMP_MATERIAU).map(nomPropose)).toEqual(['Ancien matériau'])
   })
 
-  it('rien d\'enregistré : le jeu par défaut est proposé, étapes comprises, sans rien écrire', async () => {
-    monter()
-    expect(ouvrirListe(MATERIAU).map(nomPropose)).toEqual(SEED_MAT.map((m) => m.name))
-    const champ = screen.getByPlaceholderText(PRESTATION)
-    fireEvent.click(champ.nextElementSibling as HTMLElement)
-    const premiere = SEED_PREST[0]
-    fireEvent.click(screen.getByText(new RegExp(`^${premiere.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`)))
-    const premiereEtape = typeof premiere.etapes![0] === 'string' ? premiere.etapes![0] : premiere.etapes![0].label
-    await waitFor(() => expect(screen.getByDisplayValue(premiereEtape)).toBeInTheDocument())
+  it('rien d\'enregistré : aucune prestation ni aucun matériau de catalogue, jamais d\'exemple ; les prestations publiées de la fiche restent proposées, rien n\'est écrit', () => {
+    monter([{ id: 'svc-publie', name: 'Dalle publiée', price_ht: 50 }])
+    expect(ouvrirListe(CHAMP_PRESTATION).map(nomPropose)).toEqual(['Dalle publiée'])
+    expect(ouvrirListe(CHAMP_MATERIAU)).toEqual(['Aucun matériau dans le catalogue'])
     expect(localStorage.getItem(CLE_ANCIENNE)).toBeNull()
     expect(localStorage.getItem(CLE_MODULE)).toBeNull()
   })

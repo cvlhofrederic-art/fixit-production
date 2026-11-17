@@ -5,10 +5,47 @@ import { supabase } from '@/lib/supabase'
 import { jetonAcces } from '@/lib/auth/jeton-acces'
 import { lireSessionSure } from '@/lib/auth/session-navigateur'
 import { resolveCompanyType } from '@/lib/config/companyTypes'
+import { RAYON_PAR_DEFAUT_M } from '@/lib/btp/pointage-geo'
 
 function safeJsonParse(val: unknown, fallback: any = []) {
   if (typeof val !== 'string') return val || fallback
   try { return JSON.parse(val) } catch { return fallback }
+}
+
+/** Rayon du pointage GPS saisi : entier positif, sinon la valeur par défaut de la colonne geo_rayon_m. */
+function rayonSaisi(valeur: unknown): number {
+  const nombre = typeof valeur === 'string' ? Number(valeur) : valeur
+  return typeof nombre === 'number' && Number.isFinite(nombre) && nombre > 0 ? Math.round(nombre) : RAYON_PAR_DEFAUT_M
+}
+
+/** Identifiants d'une liste (chaînes non vides, sans doublon) ; liste vide pour toute autre valeur. */
+function identifiants(valeur: unknown): string[] {
+  if (!Array.isArray(valeur)) return []
+  return [...new Set(valeur.filter((id): id is string => typeof id === 'string' && id.length > 0))]
+}
+
+const FORME_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** Colonnes de clé que mapToSupabase écrit depuis le pointage géolocalisé (16/11/2026), par table. */
+const CLES_DU_POINTAGE: Partial<Record<ShortName, readonly string[]>> = {
+  chantiers: ['membres_ids'],
+  equipes: ['chantier_id'],
+  pointages: ['membre_id', 'chantier_id'],
+}
+
+/**
+ * Ligne importée depuis le localStorage : un ancien identifiant local (« demo-ch-001 », horodatage) dans une de ces
+ * colonnes ferait échouer tout le lot sur le type uuid ; il est retiré (null, ou sorti de la liste), la ligne passe.
+ * Les autres colonnes et les autres tables sont importées comme avant.
+ */
+export function ligneImportable(table: ShortName, ligne: Record<string, unknown>): Record<string, unknown> {
+  const propre: Record<string, unknown> = { ...ligne }
+  for (const colonne of CLES_DU_POINTAGE[table] ?? []) {
+    const valeur = propre[colonne]
+    if (Array.isArray(valeur)) propre[colonne] = valeur.filter(id => typeof id === 'string' && FORME_UUID.test(id))
+    else if (typeof valeur === 'string' && !FORME_UUID.test(valeur)) propre[colonne] = null
+  }
+  return propre
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -82,6 +119,11 @@ export function mapToSupabase(table: ShortName, item: any): any {
       // sous_taches is a partial-update field — only include when explicitly provided
       if ('sous_taches' in item) mapped.sous_taches = item.sous_taches
       else if ('sousTaches' in item) mapped.sous_taches = item.sousTaches
+      // Rayon du pointage GPS et employés affectés : seulement quand le formulaire les fournit (fiche chantier,
+      // écran Pointage). Sans la colonne membres_ids (migration 20261116), /api/btp enregistre le reste du chantier.
+      if ('geoRayonM' in item) mapped.geo_rayon_m = rayonSaisi(item.geoRayonM)
+      else if ('geo_rayon_m' in item) mapped.geo_rayon_m = rayonSaisi(item.geo_rayon_m)
+      if ('membres_ids' in item) mapped.membres_ids = identifiants(item.membres_ids)
       return mapped
     }
     case 'membres':
@@ -109,12 +151,15 @@ export function mapToSupabase(table: ShortName, item: any): any {
       return {
         nom: item.nom || '',
         metier: item.metier || null,
+        chantier_id: item.chantierId || item.chantier_id || null,
         membreIds: item.membreIds || [], // handled separately in API
       }
     case 'pointages':
       return {
         employe: item.employe || '',
         poste: item.poste || null,
+        membre_id: item.membreId || null,
+        chantier_id: item.chantierId || null,
         chantier_nom: item.chantier || null,
         date: item.date || new Date().toISOString().split('T')[0],
         heure_arrivee: item.heureArrivee || '08:00',
@@ -217,6 +262,7 @@ export const SOURCES_DES_COLONNES: Partial<Record<ShortName, Record<string, read
     titre: ['titre'], client: ['client'], adresse: ['adresse'], ville: ['ville'], code_postal: ['codePostal', 'code_postal'],
     latitude: ['latitude'], longitude: ['longitude'], date_debut: ['dateDebut'], date_fin: ['dateFin'], budget: ['budget'],
     statut: ['statut'], description: ['description'], equipe: ['equipe'], sous_taches: ['sous_taches', 'sousTaches'],
+    geo_rayon_m: ['geoRayonM', 'geo_rayon_m'], membres_ids: ['membres_ids'],
   },
   membres: {
     prenom: ['prenom'], nom: ['nom'], telephone: ['telephone'], email: ['email'], type_compte: ['typeCompte'],
@@ -226,9 +272,10 @@ export const SOURCES_DES_COLONNES: Partial<Record<ShortName, Record<string, read
     type_contrat: ['type_contrat'], heures_hebdo: ['heures_hebdo'], panier_repas_jour: ['panier_repas_jour'],
     indemnite_trajet_jour: ['indemnite_trajet_jour'], prime_mensuelle: ['prime_mensuelle'], actif: ['actif'],
   },
-  equipes: { nom: ['nom'], metier: ['metier'], membreIds: ['membreIds'] },
+  equipes: { nom: ['nom'], metier: ['metier'], chantier_id: ['chantierId', 'chantier_id'], membreIds: ['membreIds'] },
   pointages: {
-    employe: ['employe'], poste: ['poste'], chantier_nom: ['chantier'], date: ['date'], heure_arrivee: ['heureArrivee'],
+    employe: ['employe'], poste: ['poste'], membre_id: ['membreId'], chantier_id: ['chantierId'],
+    chantier_nom: ['chantier'], date: ['date'], heure_arrivee: ['heureArrivee'],
     heure_depart: ['heureDepart'], pause_minutes: ['pauseMinutes'], heures_travaillees: ['heuresTravaillees'], notes: ['notes'],
   },
   depenses: { label: ['label'], amount: ['amount'], category: ['category'], date: ['date'], notes: ['notes'] },
@@ -337,6 +384,8 @@ function mapFromSupabase(table: ShortName, item: any): any {
         ...item,
         employe: item.employe,
         poste: item.poste || '',
+        membreId: item.membre_id || '',
+        chantierId: item.chantier_id || '',
         chantier: item.chantier_nom || '',
         date: item.date,
         heureArrivee: item.heure_arrivee,
@@ -579,7 +628,7 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
             const parsed = JSON.parse(raw)
             if (Array.isArray(parsed) && parsed.length > 0) {
               imported.current = true
-              const mapped = parsed.map((item: any) => mapToSupabase(table, item))
+              const mapped = parsed.map((item: any) => ligneImportable(table, mapToSupabase(table, item)))
 
               const res = await fetch('/api/btp', {
                 method: 'POST',
@@ -859,48 +908,4 @@ export function useChargesFixes({ artisanId, userId }: { artisanId: string; user
     userId,
     autoImport: false,
   })
-}
-
-// ── Geo-pointage helper ───────────────────────────────────────────────────────
-
-export function useGeoPointage() {
-  const [position, setPosition] = useState<{ lat: number; lng: number } | null>(null)
-  const [watching, setWatching] = useState(false)
-  const [geoError, setGeoError] = useState<string | null>(null)
-  const watchId = useRef<number | null>(null)
-
-  const start = useCallback(() => {
-    if (!navigator.geolocation) return
-    setWatching(true)
-    setGeoError(null)
-    watchId.current = navigator.geolocation.watchPosition(
-      (pos) => { setPosition({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setGeoError(null) },
-      (err) => { setGeoError(err.code === 1 ? 'Permission GPS refusée' : err.code === 2 ? 'GPS indisponible' : 'GPS timeout'); console.warn('[geo] watchPosition error:', err.message) },
-      { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 }
-    )
-  }, [])
-
-  const stop = useCallback(() => {
-    if (watchId.current !== null) {
-      navigator.geolocation.clearWatch(watchId.current)
-      watchId.current = null
-    }
-    setWatching(false)
-  }, [])
-
-  // Distance en mètres entre deux points GPS
-  const distanceTo = useCallback((lat2: number, lng2: number): number | null => {
-    if (!position) return null
-    const R = 6371000
-    const dLat = (lat2 - position.lat) * Math.PI / 180
-    const dLng = (lng2 - position.lng) * Math.PI / 180
-    const a = Math.sin(dLat / 2) ** 2 +
-      Math.cos(position.lat * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-      Math.sin(dLng / 2) ** 2
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-  }, [position])
-
-  useEffect(() => { return () => stop() }, [stop])
-
-  return { position, watching, geoError, start, stop, distanceTo }
 }
