@@ -3395,9 +3395,11 @@ export function receptionOs(s: SortieOrdreService): ReceptionOs | null {
   if (receptions.length === 0) return null
   const ars = receptions.flatMap((e) => (e.ar ? [e.ar] : []))
   const premierePresentationLe = premiereDate(ars.map((ar) => ar.premierePresentationLe))
-  const retenue = receptions
-    .map(receptionEffective)
-    .reduce((plusAncienne, r) => (r.date < plusAncienne.date || (r.date === plusAncienne.date && r.parRemise) ? r : plusAncienne))
+  const [premiere, ...suivantes] = receptions.map(receptionEffective)
+  const retenue = suivantes.reduce(
+    (plusAncienne, r) => (r.date < plusAncienne.date || (r.date === plusAncienne.date && r.parRemise) ? r : plusAncienne),
+    premiere,
+  )
   const remise = retenue.parRemise ? retenue.date : null
   if (remise !== null)
     return {
