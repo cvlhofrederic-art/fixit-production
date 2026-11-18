@@ -68,7 +68,8 @@ import { portefeuille, ROLES_MANDAT, type AffectationMandat } from '@/lib/admini
  *   libre (du / au), pour qu'un tableau puisse couvrir
  *   l'année de ce compte ; le mois précédent n'est que le défaut Gestéam. 🔵 Le tableau n'est pas ce compte : le texte
  *   parle d'émoluments, et un timbre ou un AR n'en est pas un. Les facturables par catégorie (facturablesParCategorie)
- *   séparent la rémunération des frais ; ce que le compte reprend reste à trancher (🔴 ci-dessous).
+ *   séparent la rémunération des frais ; le compte ne reprend que les émoluments, les frais vont en annexe (J67, R5,
+ *   ci-dessous).
  * - 🟢 L'administrateur provisoire exécute personnellement sa mission ; un tiers qui l'assiste est rétribué sur sa
  *   rémunération (L. 1965 art. 29-1, I, al. 2). 🔵 Le regroupement par responsable est un contrôle interne.
  * - 🟢 Règles professionnelles des AJ (arrêté du 18 juillet 2018, règle 810.4) : « un tableau de contrôle des
@@ -92,6 +93,18 @@ import { portefeuille, ROLES_MANDAT, type AffectationMandat } from '@/lib/admini
  *   🔵 Les catégories sont celles du code (rémunération, frais), pas les droits du tarif (fixe, gestion courante,
  *   proportionnels, hors tarif), que les éléments ne portent pas. Enregistrement des ordonnances et des rétributions :
  *   à brancher (écrans : Frédéric).
+ * - J67, R5 (recommandation L1-09) : administration provisoire, les frais (natures Timbre, AR, Copie, envois,
+ *   diffuseurs) ne sont pas remboursés automatiquement au cabinet : le tarif ne parle que de droits fixes, de droits
+ *   proportionnels et d'actes hors tarif (D. 1967 art. 61-1-5, I ; arrêté du 8 octobre 2015), et ne cite les frais que
+ *   comme critère de fixation par le juge (arrêté, art. 3 et 8, III, dernier al. ; art. 15 et D. 1967 art. 61-1-5, III,
+ *   al. 2, pour les seuls droits proportionnels au-delà de 75 000 € HT). Choix actuel confirmé : le tableau les cumule à
+ *   part de la rémunération (facturablesParCategorie), sans rien en déduire. Ils ne sont jamais facturés sans une
+ *   ordonnance qui les couvre (preparerFacture, J67, R3). Ils ne vont pas au compte provisoire détaillé des émoluments
+ *   (61-1-5, II, qui ne vise que les émoluments) : ils iront dans son annexe « frais et débours exposés », demandés au
+ *   juge avec la rémunération (Cass. 3e civ., 21 mai 2026, n° 24-20.377 ; Cass. 2e civ., 3 mars 2016, n° 15-12.129).
+ *   L'annexe viendra avec le compte provisoire, qui n'existe pas encore dans le code. 🔵 R6 (dépense payée par le
+ *   syndicat lui-même, pour l'envoi d'une mise en demeure) ne change rien ici : une dépense du syndicat n'est pas un
+ *   élément du cabinet. Le choix entre R5 et R6 pour les frais d'envoi reste ouvert dans honoraires-sinistre.ts.
  *
  * Questions ouvertes :
  * - 🔴 (Frédéric) Sur quoi porte le tableau : la date de l'élément (choix actuel), celle de la facture ou celle de
@@ -112,15 +125,6 @@ import { portefeuille, ROLES_MANDAT, type AffectationMandat } from '@/lib/admini
  *   émoluments (annuel, D. 1967 art. 61-1-5, II) : année civile, ou année de mission ? Le tableau mensuel est-il un
  *   contrôle interne seulement (la seule assiette mensuelle du tarif est le droit fixe de gestion courante, arrêté du
  *   8 octobre 2015, art. 5) ?
- * - 🔴 (Hugo) Administration provisoire : les frais (natures Timbre, AR, Copie, envois, diffuseurs) sont-ils
- *   remboursés au cabinet à part de sa rémunération, ou seulement pris en compte par le juge pour la fixer (D. 1967
- *   art. 61-1-5, III, al. 2, dans le seul cas des droits proportionnels au-delà de 75 000 € HT ; à 500 lots et plus,
- *   arrêté du 8 octobre 2015, art. 3) ? Figurent-ils au compte provisoire détaillé des émoluments (II), à part ou pas du
- *   tout ? J67 valide deux recommandations qui ne règlent pas les frais d'envoi de la même façon : R5 (frais à part de
- *   la rémunération, présentés au juge en annexe « frais et débours », payés en vertu de son ordonnance) et R6 (envoi
- *   d'une mise en demeure : dépense du syndicat payée sur son compte) ; une seule règle est à choisir. Acquis : aucun
- *   frais facturé sans ordonnance qui le couvre (preparerFacture, J67, R3). Choix actuel : le tableau les cumule à part
- *   (facturablesParCategorie), sans rien en déduire ; la liste des natures de rémunération est déduite (🔵).
  * - 🔴 (Frédéric ou Hugo) Les déductions (réduction de 25 % après un mandat ad hoc, arrêté du 8 octobre 2015, art. 2 ;
  *   sommes de l'assureur et pénalités du contrat type, 6.1, 6.2, 7.2.4) doivent-elles figurer au tableau ? Non modélisé.
  *
@@ -435,6 +439,9 @@ function verifierRetributions(mandatId: string, retributions: readonly Retributi
     if (ids.has(r.id)) throw new Error(`Rétribution ${r.id} : fournie deux fois.`)
     ids.add(r.id)
     if (!r.tiers.trim()) throw new Error(`Rétribution ${r.id} : tiers non renseigné.`)
+    // Une référence blanche passerait pour une ordonnance enregistrée et masquerait le signalement de la règle 900.2.
+    if (r.ordonnance !== null && !r.ordonnance.trim())
+      throw new Error(`Rétribution ${r.id} : référence d'ordonnance vide ; null attendu si aucune n'est enregistrée.`)
     if (!estDateIsoValide(r.date)) throw new Error(`Rétribution ${r.id} : date invalide (${r.date}), AAAA-MM-JJ attendu.`)
     if (!Number.isSafeInteger(r.montantHtCentimes) || r.montantHtCentimes < 0)
       throw new Error(`Rétribution ${r.id} : montant invalide (${r.montantHtCentimes}), centimes entiers positifs ou nuls attendus.`)

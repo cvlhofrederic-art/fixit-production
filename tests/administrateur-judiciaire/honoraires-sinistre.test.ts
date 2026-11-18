@@ -4,6 +4,7 @@ import {
   creerElement,
   totalElement,
   type ElementAFacturer,
+  type MissionHonoraires,
   type SaisieElement,
 } from '@/lib/administrateur-judiciaire/domain/honoraires-facturation'
 import {
@@ -29,6 +30,7 @@ import {
   type OuvertureSinistre,
   type ResultatOuvertureSinistre,
 } from '@/lib/administrateur-judiciaire/domain/honoraires-sinistre'
+import { regimeDepuisFondement } from '@/lib/administrateur-judiciaire/domain/fondements'
 import { enTeteDuModule } from './en-tete-module'
 
 /**
@@ -68,24 +70,28 @@ const genere = (resultat: ResultatOuvertureSinistre): ElementAFacturer => {
   return resultat.element
 }
 
-const elementSinistre = (surcharge: Partial<SaisieElement> = {}): ElementAFacturer =>
-  creerElement({
-    id: 'el-x',
-    coproprieteId: 'copro-tilleuls',
-    mandatId: 'mandat-2026',
-    date: '2026-10-15',
-    dossier: 'Sinistre',
-    fiche: { type: 'Sinistre', id: 'sin-42' },
-    nature: 'Prestations',
-    tarif: 'Sinistre - SINISTRE MESURES CONSERVATOIRES',
-    calcul: 'Coût horaire',
-    quantite: 1,
-    prixUnitaireHtDixMilliemes: 900_000,
-    soumisTva: true,
-    tauxTvaPct: 20,
-    destinataire: 'Syndicat des copropriétaires',
-    ...surcharge,
-  })
+/** « Offert » n'est admis qu'au contrat type (J67, R9) : passer alors 'contrat_type_syndic'. */
+const elementSinistre = (surcharge: Partial<SaisieElement> = {}, mission: MissionHonoraires = 'judiciaire'): ElementAFacturer =>
+  creerElement(
+    {
+      id: 'el-x',
+      coproprieteId: 'copro-tilleuls',
+      mandatId: 'mandat-2026',
+      date: '2026-10-15',
+      dossier: 'Sinistre',
+      fiche: { type: 'Sinistre', id: 'sin-42' },
+      nature: 'Prestations',
+      tarif: 'Sinistre - SINISTRE MESURES CONSERVATOIRES',
+      calcul: 'Coût horaire',
+      quantite: 1,
+      prixUnitaireHtDixMilliemes: 900_000,
+      soumisTva: true,
+      tauxTvaPct: 20,
+      destinataire: 'Syndicat des copropriétaires',
+      ...surcharge,
+    },
+    mission,
+  )
 
 describe('honoraires de sinistre — référentiel', () => {
   it('quatre diligences hors forfait (annexe 2, III, 6° à 9°), avec les tarifs du catalogue Gestéam', () => {
@@ -105,13 +111,15 @@ describe('honoraires de sinistre — référentiel', () => {
     ])
   })
 
-  it('fondements par cadre : contrat type, tarif de l’AP (arrêté, art. 14), fixée par le juge (art. 3), fixée par le président (J67, R1)', () => {
+  it('fondements par cadre : contrat type, tarif de l’AP (arrêté, art. 14), fixée par le juge (art. 3), fixée par le président (J67, R1), régime inconnu', () => {
     expect(CADRES_REMUNERATION_SINISTRE).toEqual([
       'contrat_type_syndic',
       'tarif_administrateur_provisoire',
       'remuneration_fixee_par_le_juge',
       'remuneration_fixee_par_le_president',
+      'regime_inconnu',
     ])
+    expect(FONDEMENTS_HONORAIRES_SINISTRE.regime_inconnu).toBe(FONDEMENTS_HONORAIRES_SINISTRE.remuneration_fixee_par_le_president)
     expect(FONDEMENTS_HONORAIRES_SINISTRE.remuneration_fixee_par_le_juge).toEqual([
       'L. 1965 art. 29-1, II',
       'D. 1967 art. 61-1-5, II et III',
@@ -220,12 +228,14 @@ describe('honoraires de sinistre — diligence lue dans le tarif', () => {
 })
 
 describe('honoraires de sinistre — cadre de rémunération du mandat', () => {
-  it('AP art. 29-1 : tarif de l’administrateur provisoire ; AP art. 47, syndic judiciaire, ad hoc ou inconnu : fixée par le président (J67, R1)', () => {
+  it('AP art. 29-1 : tarif de l’administrateur provisoire ; AP art. 47, syndic judiciaire : fixée par le président (J67, R1) ; régime null : inconnu', () => {
     expect(cadreRemunerationDuRegime('ap291', 120)).toBe('tarif_administrateur_provisoire')
     expect(cadreRemunerationDuRegime('ap291', 499)).toBe('tarif_administrateur_provisoire')
     expect(cadreRemunerationDuRegime('ap47', 600)).toBe('remuneration_fixee_par_le_president')
     expect(cadreRemunerationDuRegime('sj', 12)).toBe('remuneration_fixee_par_le_president')
-    expect(cadreRemunerationDuRegime(null, 12)).toBe('remuneration_fixee_par_le_president')
+    // Fondement vide, mal saisi, ou mandat ad hoc : fondements.ts rend null sans distinguer.
+    for (const fondement of ['', 'Administration provisoire', 'Mandat ad hoc'])
+      expect(cadreRemunerationDuRegime(regimeDepuisFondement(fondement), 12)).toBe('regime_inconnu')
   })
 
   it('AP art. 29-1 d’une copropriété de 500 lots et plus : rémunération entière fixée par le juge (arrêté, art. 3)', () => {
@@ -334,20 +344,38 @@ describe('honoraires de sinistre — pas d’élément hors du contrat type', ()
     expect(resultat.fondements).toEqual(FONDEMENTS_HONORAIRES_SINISTRE.remuneration_fixee_par_le_juge)
   })
 
-  it('art. 46, 47, 49 et ad hoc : rémunération fixée par le président qui a désigné (C. com. R. 814-27), à lui soumettre, aucun élément', () => {
+  it('art. 46, 47 et 49 : fixée par le président qui a désigné (C. com. R. 814-27) ; mandataire ad hoc à part (D. 1967 art. 61-1-4) ; aucun élément', () => {
     const resultat = elementAOuvertureSinistre(ouverture(), 'remuneration_fixee_par_le_president')
     expect(resultat.genere).toBe(false)
     if (resultat.genere) return
     expect(resultat.motif).toBe('a_soumettre_au_juge')
-    expect(resultat.signalement).toMatch(/fixée par le président du tribunal qui a désigné le cabinet, sur justification des diligences/)
-    expect(resultat.signalement).toMatch(/C\. com\. R\. 814-27 ; provision possible, R\. 814-28/)
+    expect(resultat.signalement).toMatch(
+      /Syndic judiciaire \(art\. 46\), AP faute de syndic \(art\. 47\) ou administrateur ad hoc \(art\. 49\) : rémunération fixée par le président du tribunal qui a désigné le cabinet, sur justification des diligences \(C\. com\. R\. 814-27 ; provision possible, R\. 814-28\)\./,
+    )
+    // R. 814-27 n'est pas cité pour le mandataire ad hoc, qui a son propre régime (J67, R1).
+    expect(resultat.signalement).toMatch(
+      /Mandataire ad hoc \(art\. 29-1 A à 29-1 C\) : rémunération arrêtée par le président en fin de mission \(D\. 1967 art\. 61-1-4 ; forfait de l'arrêté du 8 octobre 2015, art\. 1, sous 500 lots ; au-delà, conditions fixées par l'ordonnance de désignation\)\. À soumettre au président/,
+    )
+    expect(resultat.signalement).not.toMatch(/mandataire ad hoc\)? : rémunération fixée par le président du tribunal/i)
     expect(resultat.signalement).toMatch(/aucun élément « A facturer » n'est créé/)
     expect(resultat.signalement).not.toMatch(/non établie|à confirmer/)
     expect(resultat.fondements).toEqual(FONDEMENTS_HONORAIRES_SINISTRE.remuneration_fixee_par_le_president)
   })
 
+  it('régime inconnu (fondement vide ou non reconnu, ou ad hoc) : rien n’est affirmé sur le régime, à vérifier ; même comportement', () => {
+    const resultat = elementAOuvertureSinistre(ouverture(), cadreRemunerationDuRegime(regimeDepuisFondement(''), 120))
+    expect(resultat).toMatchObject({ genere: false, motif: 'a_soumettre_au_juge', fondements: FONDEMENTS_HONORAIRES_SINISTRE.regime_inconnu })
+    if (resultat.genere) return
+    expect(resultat.signalement).toMatch(/^Régime du mandat non reconnu \(fondement vide ou non reconnu, ou mandat ad hoc\) : par défaut, .*à vérifier sur le fondement du mandat\./)
+    expect(resultat.signalement).toMatch(/Administrateur ad hoc \(art\. 49\) : sur justification des diligences \(C\. com\. R\. 814-27/)
+    expect(resultat.signalement).toMatch(/Mandataire ad hoc \(art\. 29-1 A à 29-1 C\) : .*D\. 1967 art\. 61-1-4/)
+    expect(resultat.signalement).toMatch(/Administration provisoire de l'art\. 29-1 : corriger le fondement, son tarif s'applique \(D\. 1967 art\. 61-1-5\)\./)
+    expect(resultat.signalement).not.toMatch(/Mandat de justice hors du tarif de l'art\. 29-1/)
+    expect(resultat.signalement).toMatch(/aucun élément « A facturer » n'est créé\.$/)
+  })
+
   it('aucun prénom de l’équipe dans les signalements renvoyés à l’écran', () => {
-    for (const cadre of ['tarif_administrateur_provisoire', 'remuneration_fixee_par_le_juge', 'remuneration_fixee_par_le_president'] as const) {
+    for (const cadre of ['tarif_administrateur_provisoire', 'remuneration_fixee_par_le_juge', 'remuneration_fixee_par_le_president', 'regime_inconnu'] as const) {
       const resultat = elementAOuvertureSinistre(ouverture(), cadre)
       if (resultat.genere) throw new Error('Signalement attendu.')
       expect(resultat.signalement).not.toMatch(/Frédéric|Hugo|question pour/i)
@@ -378,9 +406,9 @@ describe('honoraires de sinistre — pas d’élément hors du contrat type', ()
     expect(constat).toMatchObject({ genere: false, motif: 'a_soumettre_au_juge', diligence: 'suivi_assureur' })
   })
 
-  it('500 lots et plus, rémunération fixée par le président : rien n’est refusé, la déclaration comprise', () => {
+  it('500 lots et plus, rémunération fixée par le président, régime inconnu : rien n’est refusé, la déclaration comprise', () => {
     const declaration = ouverture({ diligence: 'declaration', tarif: 'Sinistre - Déclaration du sinistre' })
-    for (const cadre of ['remuneration_fixee_par_le_juge', 'remuneration_fixee_par_le_president'] as const)
+    for (const cadre of ['remuneration_fixee_par_le_juge', 'remuneration_fixee_par_le_president', 'regime_inconnu'] as const)
       expect(elementAOuvertureSinistre(declaration, cadre)).toMatchObject({ genere: false, motif: 'a_soumettre_au_juge', diligence: 'declaration' })
   })
 
@@ -464,7 +492,7 @@ describe('honoraires de sinistre — contrôle des éléments', () => {
     elementSinistre({ id: 'el-regl', tarif: 'Sinistre - Règlement des indemnités aux bénéficiaires' }),
     elementSinistre({ id: 'el-inc', tarif: 'Sinistre - FRAIS DIVERS' }),
     elementSinistre({ id: 'el-rcp', tarif: 'Sinistre - Mise à jour du REGLEMENT DE COPROPRIETE après sinistre' }),
-    creerElement({ ...elementSinistre({ id: 'el-ctx' }), dossier: 'Contentieux', fiche: null, tarif: 'Contentieux - MISE EN DEMEURE' }),
+    elementSinistre({ id: 'el-ctx', dossier: 'Contentieux', fiche: null, tarif: 'Contentieux - MISE EN DEMEURE' }),
   ]
   const natures = (cadre: Parameters<typeof controlerHonorairesSinistre>[1]) =>
     controlerHonorairesSinistre(elements, cadre).map((a) => [a.elementId, a.nature])
@@ -519,8 +547,15 @@ describe('honoraires de sinistre — contrôle des éléments', () => {
       (a) => a.nature === 'remuneration_fixee_par_le_president',
     )
     expect(signales.map((a) => a.elementId)).toEqual(['el-s1', 'el-sf', 'el-decl', 'el-regl', 'el-inc', 'el-rcp'])
-    expect(signales[0].message).toMatch(/C\. com\. R\. 814-27\) : à lui soumettre, pas à facturer au syndicat/)
+    expect(signales[0].message).toMatch(/C\. com\. R\. 814-27 ; provision possible, R\. 814-28\)\. Mandataire ad hoc/)
+    expect(signales[0].message).toMatch(/\. À soumettre au président, pas à facturer au syndicat\.$/)
     expect(signales[0].message).not.toMatch(/Frédéric|Hugo|à confirmer/)
+  })
+
+  it('régime inconnu : chaque élément de sinistre est signalé « regime_inconnu », à vérifier sur le fondement du mandat', () => {
+    const signales = controlerHonorairesSinistre(elements, 'regime_inconnu').filter((a) => a.nature === 'regime_inconnu')
+    expect(signales.map((a) => a.elementId)).toEqual(['el-s1', 'el-sf', 'el-decl', 'el-regl', 'el-inc', 'el-rcp'])
+    expect(signales[0].message).toMatch(/^Régime du mandat non reconnu .*\. À soumettre au juge, pas à facturer au syndicat\.$/)
   })
 
   const frais = [
@@ -615,7 +650,7 @@ describe('honoraires de sinistre — déduction des sommes versées par l’assu
     genere(elementAOuvertureSinistre(ouverture(), 'contrat_type_syndic')),
     { ...corrigerHeures(elementSinistre({ id: 'el-2' }), 0.5), statut: 'Facturé' as const },
     elementSinistre({ id: 'el-autre', fiche: { type: 'Sinistre', id: 'sin-99' } }),
-    creerElement({ ...elementSinistre({ id: 'el-ctx' }), dossier: 'Contentieux', fiche: { type: 'Contentieux', id: 'sin-42' } }),
+    elementSinistre({ id: 'el-ctx', dossier: 'Contentieux', fiche: { type: 'Contentieux', id: 'sin-42' } }),
   ]
 
   it('total des éléments de la fiche (facturés ou non), moins les versements de l’assureur', () => {
@@ -706,7 +741,7 @@ describe('honoraires de sinistre — déduction des sommes versées par l’assu
 describe('honoraires de sinistre — élément offert ou en contrôle des coûts (point 67 ; tranche 43 § 13)', () => {
   /** Une diligence au forfait se trace en « Offert » ou « Contrôle coûts » (tranche 43 § 13) : ni non due, ni à soumettre. */
   const traces = [
-    elementSinistre({ id: 'of-decl', tarif: 'Sinistre - Déclaration du sinistre', qualification: 'Offert' }),
+    elementSinistre({ id: 'of-decl', tarif: 'Sinistre - Déclaration du sinistre', qualification: 'Offert' }, 'contrat_type_syndic'),
     elementSinistre({ id: 'cc-regl', tarif: 'Sinistre - Règlement des indemnités aux bénéficiaires', qualification: 'Contrôle coûts' }),
     elementSinistre({ id: 'cc-inc', tarif: 'Sinistre - FRAIS DIVERS', qualification: 'Contrôle coûts' }),
     elementSinistre({ id: 'cc-sf', fiche: null, qualification: 'Contrôle coûts' }),
@@ -718,7 +753,7 @@ describe('honoraires de sinistre — élément offert ou en contrôle des coûts
       prixUnitaireHtDixMilliemes: 1_500,
       tarif: 'Sinistre - Copies de la déclaration du sinistre',
       qualification: 'Offert',
-    }),
+    }, 'contrat_type_syndic'),
   ]
 
   it('contrôle : seule l’absence de fiche est signalée, dans chacun des cadres', () => {

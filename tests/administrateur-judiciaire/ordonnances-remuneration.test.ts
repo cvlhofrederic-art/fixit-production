@@ -118,6 +118,24 @@ describe('ordonnances de rémunération — état à une date', () => {
     })
   })
 
+  it('fin de mission : un recours formé hors délai n’est pas suspensif de plein droit ; refus gardé par prudence, avec un fondement juste', () => {
+    // Notifiée le 10/03/2026 avec la mention du recours : délai expiré le 10/04/2026 ; recours du 15/06/2026.
+    const tardif = finDeMission({ recours: { formeLe: '2026-06-15', decision: null } })
+    expect(etatOrdonnance(tardif, '2026-05-01').executable).toBe(true)
+    const pendant = etatOrdonnance(tardif, '2026-07-01')
+    expect(pendant.executable).toBe(false)
+    expect(pendant.justification).toBe(
+      "Ordonnance de fin de mission du 02/03/2026 : recours formé hors délai le 15/06/2026 (délai expiré le 10/04/2026) : il n'est " +
+        "pas suspensif de plein droit (CPC art. 714, al. 3) ; refus gardé par prudence tant qu'il est pendant (J67, R3).",
+    )
+    // Formé le dernier jour du délai, il est dans le délai ; sans la mention du recours, le délai ne court pas.
+    expect(etatOrdonnance(finDeMission({ recours: { formeLe: '2026-04-10', decision: null } }), '2026-07-01').justification).toMatch(
+      /recours formé le 10\/04\/2026, pendant, suspensif d'exécution \(CPC art\. 714, al\. 3\)\.$/,
+    )
+    const sansMention = finDeMission({ mentionDuRecours: false, recours: { formeLe: '2026-06-15', decision: null } })
+    expect(etatOrdonnance(sansMention, '2026-07-01').justification).toMatch(/recours formé le 15\/06\/2026, pendant, suspensif d'exécution/)
+  })
+
   it('refuse une ordonnance invalide : type, montants, dates dans le désordre, identifiant vide', () => {
     expect(() => etatOrdonnance(ordonnance({ type: 'taxe' as never }), '2026-04-01')).toThrow(/type/i)
     expect(() => etatOrdonnance(ordonnance({ emolumentsHtCentimes: 1.5 }), '2026-04-01')).toThrow(/montant/i)

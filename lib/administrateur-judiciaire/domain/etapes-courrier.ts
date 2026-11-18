@@ -20,6 +20,7 @@ import {
   categorieDe,
   creerElement,
   qualificationDe,
+  type MissionHonoraires,
   type ModeCalcul,
   type NatureElement,
   type QualificationElement,
@@ -852,6 +853,8 @@ export interface CibleLigneHonoraires {
 }
 
 export interface ContexteHonorairesCourrier {
+  /** Mission du mandat du courrier, passée à creerElement : « Offert » refusé en mission judiciaire (J67, R9). */
+  mission: MissionHonoraires
   aujourdhui: string
   /** Identifiant de chaque élément proposé, fourni par l'appelant. */
   idElement: (cible: CibleLigneHonoraires) => string
@@ -938,7 +941,8 @@ function propositionsDeLaRegle(
       destinataire: ligne.destinataire,
       ...(ligne.qualification === undefined ? {} : { qualification: ligne.qualification }),
     }
-    creerElement(saisie) // contrôle seul : la saisie proposée passe les règles de l'élément (point 66), rien n'est écrit
+    // Contrôle seul : la saisie passe les règles de l'élément (point 66 ; J67, R9 pour la mission), rien n'est écrit.
+    creerElement(saisie, contexte.mission)
     return { regleId: regle.id, objet: ligne.objet, saisie, ...BASES_LIGNES_HONORAIRES_COURRIER[ligne.objet] }
   })
 }

@@ -8,6 +8,7 @@ import {
   QUALIFICATIONS_ELEMENT,
   QUALIFICATION_PAR_DEFAUT,
   categorieDe,
+  corrigerQuantite,
   creerElement,
   echeancesScenario,
   estFacturable,
@@ -23,6 +24,7 @@ import {
   type ElementAFacturer,
   type SaisieElement,
 } from '@/lib/administrateur-judiciaire/domain/honoraires-facturation'
+import { controlerHonorairesSinistre } from '@/lib/administrateur-judiciaire/domain/honoraires-sinistre'
 import { AP_120_LOTS, finDeMission, ordonnance } from './donnees-ordonnances-remuneration'
 import { enTeteDuModule } from './en-tete-module'
 
@@ -52,9 +54,16 @@ const saisie = (surcharge: Partial<SaisieElement> = {}): SaisieElement => ({
   ...surcharge,
 })
 
+/** Élément créé en mission judiciaire, celle des mandats du cabinet (C. com. L. 811-10 ; J67, R9 et R15). */
+const creer = (s: SaisieElement): ElementAFacturer => creerElement(s, 'judiciaire')
+
+/** « Offert » n'est admis qu'au contrat type de syndic (J67, R9). */
+const elementOffert = (surcharge: Partial<SaisieElement> = {}): ElementAFacturer =>
+  creerElement(saisie({ qualification: 'Offert', ...surcharge }), 'contrat_type_syndic')
+
 /** Élément d'AR non soumis à TVA : 6,15 € HT. */
 const ar = (surcharge: Partial<SaisieElement> = {}): ElementAFacturer =>
-  creerElement(saisie({ id: 'el-2', nature: 'AR', tarif: 'Gestion - RAR', soumisTva: false, prixUnitaireHtDixMilliemes: 61_500, ...surcharge }))
+  creer(saisie({ id: 'el-2', nature: 'AR', tarif: 'Gestion - RAR', soumisTva: false, prixUnitaireHtDixMilliemes: 61_500, ...surcharge }))
 
 const CONTRAT_TYPE: CadreFacturation = { mission: 'contrat_type_syndic' }
 
@@ -83,7 +92,7 @@ describe('honoraires — référentiels', () => {
 
 describe('honoraires — éléments à facturer', () => {
   it('coût unitaire : quantité × prix HT, TVA, TTC (centimes arrondis)', () => {
-    expect(totalElement(creerElement(saisie({ quantite: 3, prixUnitaireHtDixMilliemes: 12_345 })))).toEqual({
+    expect(totalElement(creer(saisie({ quantite: 3, prixUnitaireHtDixMilliemes: 12_345 })))).toEqual({
       htCentimes: 370,
       tvaCentimes: 74,
       ttcCentimes: 444,
@@ -91,12 +100,12 @@ describe('honoraires — éléments à facturer', () => {
   })
 
   it('coût horaire : heures × taux horaire ; barème temps : minutes × taux horaire / 60', () => {
-    expect(totalElement(creerElement(saisie({ calcul: 'Coût horaire', quantite: 1.5, prixUnitaireHtDixMilliemes: 1_200_000 }))).htCentimes).toBe(18_000)
-    expect(totalElement(creerElement(saisie({ calcul: 'Barème temps', quantite: 45, prixUnitaireHtDixMilliemes: 1_200_000 }))).htCentimes).toBe(9_000)
+    expect(totalElement(creer(saisie({ calcul: 'Coût horaire', quantite: 1.5, prixUnitaireHtDixMilliemes: 1_200_000 }))).htCentimes).toBe(18_000)
+    expect(totalElement(creer(saisie({ calcul: 'Barème temps', quantite: 45, prixUnitaireHtDixMilliemes: 1_200_000 }))).htCentimes).toBe(9_000)
   })
 
   it('élément non soumis à TVA (débours) : TTC = HT', () => {
-    expect(totalElement(creerElement(saisie({ nature: 'Timbre', soumisTva: false, prixUnitaireHtDixMilliemes: 12_900 })))).toEqual({
+    expect(totalElement(creer(saisie({ nature: 'Timbre', soumisTva: false, prixUnitaireHtDixMilliemes: 12_900 })))).toEqual({
       htCentimes: 129,
       tvaCentimes: 0,
       ttcCentimes: 129,
@@ -104,38 +113,38 @@ describe('honoraires — éléments à facturer', () => {
   })
 
   it('crée l’élément « A facturer » ; refuse dossier, nature, calcul inconnus, quantité nulle, prix négatif, date invalide', () => {
-    expect(creerElement(saisie()).statut).toBe('A facturer')
-    expect(() => creerElement(saisie({ dossier: 'Divers' as never }))).toThrow(/dossier/i)
-    expect(() => creerElement(saisie({ nature: 'Café' as never }))).toThrow(/nature/i)
-    expect(() => creerElement(saisie({ calcul: 'Forfait' as never }))).toThrow(/calcul/i)
-    expect(() => creerElement(saisie({ quantite: 0 }))).toThrow(/quantit/i)
-    expect(() => creerElement(saisie({ prixUnitaireHtDixMilliemes: -1 }))).toThrow(/prix/i)
-    expect(() => creerElement(saisie({ date: '12/10/2026' }))).toThrow(/date/i)
+    expect(creer(saisie()).statut).toBe('A facturer')
+    expect(() => creer(saisie({ dossier: 'Divers' as never }))).toThrow(/dossier/i)
+    expect(() => creer(saisie({ nature: 'Café' as never }))).toThrow(/nature/i)
+    expect(() => creer(saisie({ calcul: 'Forfait' as never }))).toThrow(/calcul/i)
+    expect(() => creer(saisie({ quantite: 0 }))).toThrow(/quantit/i)
+    expect(() => creer(saisie({ prixUnitaireHtDixMilliemes: -1 }))).toThrow(/prix/i)
+    expect(() => creer(saisie({ date: '12/10/2026' }))).toThrow(/date/i)
   })
 })
 
 describe('honoraires — fiche précise visée par l’élément (point 66, rattachement { type, id } du point 47)', () => {
   it('la fiche est facultative : absente ou null, l’élément se crée comme avant', () => {
-    expect(creerElement(saisie()).fiche).toBeUndefined()
-    expect(creerElement(saisie({ fiche: null })).fiche).toBeNull()
+    expect(creer(saisie()).fiche).toBeUndefined()
+    expect(creer(saisie({ fiche: null })).fiche).toBeNull()
   })
 
   it('garde la fiche du dossier de l’élément, identifiant nettoyé', () => {
-    const element = creerElement(saisie({ dossier: 'Sinistre', fiche: { type: 'Sinistre', id: '  sin-42 ' } }))
+    const element = creer(saisie({ dossier: 'Sinistre', fiche: { type: 'Sinistre', id: '  sin-42 ' } }))
     expect(element.fiche).toEqual({ type: 'Sinistre', id: 'sin-42' })
     expect(element.statut).toBe('A facturer')
   })
 
   it('refuse une fiche d’un autre dossier, une fiche porteuse, un identifiant vide, un type inconnu', () => {
-    expect(() => creerElement(saisie({ dossier: 'Sinistre', fiche: { type: 'Contentieux', id: 'ctx-1' } }))).toThrow(/dossier de l.élément/i)
-    expect(() => creerElement(saisie({ fiche: { type: 'Copropriété', id: 'copro-tilleuls' } }))).toThrow(/porteuse/i)
-    expect(() => creerElement(saisie({ fiche: { type: 'Entreprise', id: 'ent-1' } }))).toThrow(/porteuse/i)
-    expect(() => creerElement(saisie({ fiche: { type: 'Contentieux', id: '   ' } }))).toThrow(/identifiant/i)
-    expect(() => creerElement(saisie({ fiche: { type: 'Divers' as never, id: 'x' } }))).toThrow(/rattachement inconnu/i)
+    expect(() => creer(saisie({ dossier: 'Sinistre', fiche: { type: 'Contentieux', id: 'ctx-1' } }))).toThrow(/dossier de l.élément/i)
+    expect(() => creer(saisie({ fiche: { type: 'Copropriété', id: 'copro-tilleuls' } }))).toThrow(/porteuse/i)
+    expect(() => creer(saisie({ fiche: { type: 'Entreprise', id: 'ent-1' } }))).toThrow(/porteuse/i)
+    expect(() => creer(saisie({ fiche: { type: 'Contentieux', id: '   ' } }))).toThrow(/identifiant/i)
+    expect(() => creer(saisie({ fiche: { type: 'Divers' as never, id: 'x' } }))).toThrow(/rattachement inconnu/i)
   })
 
   it('la facture se prépare de la même façon avec ou sans fiche', () => {
-    const elements = [creerElement(saisie({ fiche: { type: 'Contentieux', id: 'ctx-1' } })), creerElement(saisie({ id: 'el-2' }))]
+    const elements = [creer(saisie({ fiche: { type: 'Contentieux', id: 'ctx-1' } })), creer(saisie({ id: 'el-2' }))]
     const { facture } = preparer(elements)
     expect(facture.lignes.map((l) => l.elementId)).toEqual(['el-1', 'el-2'])
     expect(facture.totalHtCentimes).toBe(9_000)
@@ -143,7 +152,7 @@ describe('honoraires — fiche précise visée par l’élément (point 66, ratt
 })
 
 describe('honoraires — factures', () => {
-  const elements = [creerElement(saisie()), ar(), creerElement(saisie({ id: 'el-3', mandatId: 'autre-mandat' }))]
+  const elements = [creer(saisie()), ar(), creer(saisie({ id: 'el-3', mandatId: 'autre-mandat' }))]
 
   it('prépare une facture avec les éléments à facturer du mandat et du destinataire ; marque les éléments facturés', () => {
     const { facture, elements: apres } = preparer(elements)
@@ -180,23 +189,25 @@ describe('honoraires — factures', () => {
 })
 
 describe('honoraires — imputation par catégorie (J67, R10)', () => {
+  const IMPUTATION = { traitementId: 't-9', segmentSyndicat: 'TILL', auxiliaireCabinet: 'CABAJ', date: '2026-10-28' }
   const imputer = (elements: ElementAFacturer[], comptesCharge?: Parameters<typeof imputerFacture>[1]['comptesCharge']) =>
-    imputerFacture(validerFacture(preparer(elements).facture), {
-      traitementId: 't-9',
-      segmentSyndicat: 'TILL',
-      auxiliaireCabinet: 'CABAJ',
-      date: '2026-10-28',
-      comptesCharge,
-    })
+    imputerFacture(validerFacture(preparer(elements).facture), { ...IMPUTATION, comptesCharge })
 
   it('comptes par défaut : rémunération au 62111, frais (débours) au 62120', () => {
     expect(COMPTES_CHARGE_PAR_DEFAUT).toEqual({ Rémunération: '62111', Frais: '62120' })
   })
 
+  it('refuse une facture validée dont le total TTC n’est pas la somme des lignes HT + TVA (traitement non équilibré)', () => {
+    const facture = validerFacture(preparer([creer(saisie()), ar()]).facture)
+    expect(() => imputerFacture({ ...facture, totalTtcCentimes: facture.totalTtcCentimes + 1 }, IMPUTATION)).toThrow(
+      /non équilibré : débit 6015 centimes, crédit 6016 centimes/,
+    )
+  })
+
   it('facture mixte : un débit par catégorie, crédit unique du compte fournisseur du cabinet, TTC', () => {
-    const { facture } = preparer([creerElement(saisie()), ar()])
-    expect(() => imputerFacture(facture, { traitementId: 't-9', segmentSyndicat: 'TILL', auxiliaireCabinet: 'CABAJ', date: '2026-10-28' })).toThrow(/valid/i)
-    const { facture: imputee, traitement } = imputer([creerElement(saisie()), ar()])
+    const { facture } = preparer([creer(saisie()), ar()])
+    expect(() => imputerFacture(facture, IMPUTATION)).toThrow(/valid/i)
+    const { facture: imputee, traitement } = imputer([creer(saisie()), ar()])
     expect(imputee.statut).toBe('Imputée')
     expect(imputee.lignes.map((l) => l.elementId)).toEqual(['el-1', 'el-2'])
     expect(traitement.famille).toBe('Imputation des honoraires divers')
@@ -216,7 +227,7 @@ describe('honoraires — imputation par catégorie (J67, R10)', () => {
   })
 
   it('comptes réglables par catégorie (une subdivision de 6213 « Frais postaux », par exemple)', () => {
-    const comptes = imputer([creerElement(saisie()), ar()], { Frais: '62130' }).traitement.mouvements.map((m) => m.compte)
+    const comptes = imputer([creer(saisie()), ar()], { Frais: '62130' }).traitement.mouvements.map((m) => m.compte)
     expect(comptes).toEqual(['TILL.62111.00000.0', 'TILL.62130.00000.0', 'TILL.40100.CABAJ.0'])
   })
 })
@@ -228,24 +239,24 @@ describe('honoraires — qualification de l’élément (point 67 ; Gestéam : �
   })
 
   it('qualification absente : l’élément se crée comme avant et vaut « Facturable »', () => {
-    const element = creerElement(saisie())
+    const element = creer(saisie())
     expect(element.qualification).toBeUndefined()
     expect(qualificationDe(element)).toBe('Facturable')
     expect(estFacturable(element)).toBe(true)
   })
 
   it('garde la qualification fournie ; refuse une qualification inconnue', () => {
-    const offert = creerElement(saisie({ qualification: 'Offert' }))
+    const offert = elementOffert()
     expect(offert.qualification).toBe('Offert')
     expect(offert.statut).toBe('A facturer')
     expect(estFacturable(offert)).toBe(false)
-    expect(estFacturable(creerElement(saisie({ qualification: 'Contrôle coûts' })))).toBe(false)
-    expect(() => creerElement(saisie({ qualification: 'Gratuit' as never }))).toThrow(/qualification inconnue/i)
+    expect(estFacturable(creer(saisie({ qualification: 'Contrôle coûts' })))).toBe(false)
+    expect(() => creer(saisie({ qualification: 'Gratuit' as never }))).toThrow(/qualification inconnue/i)
     expect(() => qualificationDe({ qualification: 'Gratuit' as never })).toThrow(/qualification inconnue/i)
   })
 
   it('requalifie un élément encore « A facturer » sans modifier l’élément reçu ; refuse un élément facturé', () => {
-    const element = creerElement(saisie())
+    const element = creer(saisie())
     const offert = qualifierElement(element, 'Offert', 'contrat_type_syndic')
     expect(offert).toEqual({ ...element, qualification: 'Offert' })
     expect(element.qualification).toBeUndefined()
@@ -256,10 +267,10 @@ describe('honoraires — qualification de l’élément (point 67 ; Gestéam : �
 
   it('seuls les éléments facturables entrent dans la facture ; offerts et contrôle des coûts restent « A facturer »', () => {
     const elements = [
-      creerElement(saisie()),
-      creerElement(saisie({ id: 'el-2', qualification: 'Offert' })),
-      creerElement(saisie({ id: 'el-3', qualification: 'Contrôle coûts' })),
-      creerElement(saisie({ id: 'el-4', qualification: 'Facturable', prixUnitaireHtDixMilliemes: 100_000 })),
+      creer(saisie()),
+      elementOffert({ id: 'el-2' }),
+      creer(saisie({ id: 'el-3', qualification: 'Contrôle coûts' })),
+      creer(saisie({ id: 'el-4', qualification: 'Facturable', prixUnitaireHtDixMilliemes: 100_000 })),
     ]
     const { facture: preparee, elements: apres } = preparer(elements)
     expect(preparee.lignes.map((l) => l.elementId)).toEqual(['el-1', 'el-4'])
@@ -273,13 +284,13 @@ describe('honoraires — qualification de l’élément (point 67 ; Gestéam : �
   })
 
   it('refuse une facture dont tous les éléments du mandat et du destinataire sont offerts ou en contrôle des coûts', () => {
-    const elements = [creerElement(saisie({ qualification: 'Offert' })), creerElement(saisie({ id: 'el-2', qualification: 'Contrôle coûts' }))]
+    const elements = [elementOffert(), creer(saisie({ id: 'el-2', qualification: 'Contrôle coûts' }))]
     expect(() => preparer(elements)).toThrow(/aucun élément facturable/i)
   })
 })
 
 describe('honoraires — « Offert » refusé en mission judiciaire (J67, R9)', () => {
-  const element = creerElement(saisie())
+  const element = creer(saisie())
 
   it('qualifierElement refuse « Offert » : tracer en Contrôle coûts (règle professionnelle 244.1, lecture prudente)', () => {
     expect(() => qualifierElement(element, 'Offert', 'judiciaire')).toThrow(
@@ -293,14 +304,24 @@ describe('honoraires — « Offert » refusé en mission judiciaire (J67, R9)', 
     expect(qualifierElement(element, 'Offert', 'contrat_type_syndic').qualification).toBe('Offert')
   })
 
-  it('creerElement refuse « Offert » quand l’appelant passe la mission judiciaire ; sans mission, rien ne change', () => {
-    expect(() => creerElement(saisie({ qualification: 'Offert' }), 'judiciaire')).toThrow(/Offert.*refusée/)
-    expect(creerElement(saisie({ qualification: 'Offert' })).qualification).toBe('Offert')
+  it('creerElement reçoit toujours la mission : « Offert » refusé en mission judiciaire, admis au contrat type', () => {
+    expect(() => creer(saisie({ qualification: 'Offert' }))).toThrow(/Offert.*refusée/)
+    expect(elementOffert().qualification).toBe('Offert')
+    expect(() => creerElement(saisie(), undefined as never)).toThrow(/mission inconnue/i)
     expect(() => qualifierElement(element, 'Offert', 'autre' as never)).toThrow(/mission/i)
   })
 
+  it('corrigerQuantite garde la qualification : un « Offert » déjà enregistré n’est pas changé ; refuse un élément facturé', () => {
+    const enregistre = elementOffert({ prixUnitaireHtDixMilliemes: 100_000 })
+    const corrige = corrigerQuantite(enregistre, 3)
+    expect(corrige).toEqual({ ...enregistre, quantite: 3 })
+    expect(enregistre.quantite).toBe(1)
+    expect(() => corrigerQuantite({ ...enregistre, statut: 'Facturé' }, 3)).toThrow(/déjà facturé/)
+    expect(() => corrigerQuantite(enregistre, 0)).toThrow(/quantit/i)
+  })
+
   it('un élément déjà « Offert » n’est pas changé : il est signalé en mission judiciaire, pas au contrat type', () => {
-    const elements = [element, creerElement(saisie({ id: 'el-of', qualification: 'Offert' }))]
+    const elements = [element, elementOffert({ id: 'el-of' })]
     expect(signalerElementsOfferts(elements, 'judiciaire')).toEqual([
       { elementId: 'el-of', message: expect.stringMatching(/^Élément « Offert » en mission judiciaire : .*244\.1, lecture prudente/) },
     ])
@@ -311,7 +332,11 @@ describe('honoraires — « Offert » refusé en mission judiciaire (J67, R9)', 
 
 describe('honoraires — facture d’une mission judiciaire couverte par les ordonnances (J67, R3)', () => {
   /** Honoraires de ce montant HT (centimes), TVA 20 %. */
-  const honoraires = (id: string, htCentimes: number): ElementAFacturer => creerElement(saisie({ id, prixUnitaireHtDixMilliemes: htCentimes * 100 }))
+  const honoraires = (id: string, htCentimes: number, surcharge: Partial<SaisieElement> = {}): ElementAFacturer =>
+    creer(saisie({ id, prixUnitaireHtDixMilliemes: htCentimes * 100, ...surcharge }))
+  /** Élément qui facture le droit fixe (J67, R2 et R3) ; 1 500 € HT par défaut. */
+  const droitFixe = (id = 'el-df', htCentimes = 150_000): ElementAFacturer =>
+    honoraires(id, htCentimes, { dossier: 'Gestion', tarif: 'Gestion - DROIT FIXE', droitFixe: true })
   const judiciaire = (surcharge: Partial<Extract<CadreFacturation, { mission: 'judiciaire' }>> = {}): CadreFacturation => ({
     mission: 'judiciaire',
     mandat: AP_120_LOTS,
@@ -319,14 +344,44 @@ describe('honoraires — facture d’une mission judiciaire couverte par les ord
     factures: [],
     ...surcharge,
   })
+  /** Facture déjà émise pour le mandat (une autre que f-1). */
+  const emise = (elements: ElementAFacturer[], cadre: CadreFacturation, date = '2026-04-01') =>
+    preparerFacture(elements, { ...entete, id: 'f-0', numero: 'H-2026-0000', date, cadre }).facture
   const AP_600_LOTS = { regime: 'ap291', nbLots: 600 } as const
 
-  it('AP art. 29-1 de moins de 500 lots, sans ordonnance : seul le droit fixe de 1 500 € HT se facture', () => {
-    const { couverture } = preparer([honoraires('el-1', 150_000)], judiciaire(), '2026-04-15')
+  it('AP art. 29-1 de moins de 500 lots, sans ordonnance : l’élément du droit fixe se facture, jusqu’à 1 500 € HT', () => {
+    const { couverture, facture } = preparer([droitFixe()], judiciaire(), '2026-04-15')
     expect(couverture).toMatchObject({ emolumentsHtCentimes: 150_000, droitFixeHtCentimes: 150_000, ordonnanceIds: [] })
-    const refus = () => preparer([honoraires('el-1', 150_001)], judiciaire(), '2026-04-15')
-    expect(refus).toThrow(/Facture refusée : rémunération de 1\s500,01\s€ HT au-delà de ce que couvrent les ordonnances/)
+    expect(facture.lignes).toEqual([expect.objectContaining({ elementId: 'el-df', htCentimes: 150_000, droitFixe: true })])
+    const refus = () => preparer([droitFixe('el-df', 150_001)], judiciaire(), '2026-04-15')
+    expect(refus).toThrow(/Facture refusée : droit fixe de 1\s500,01\s€ HT au-delà de ce que couvre le droit fixe \(1\s500,00\s€ HT couverts/)
     expect(refus).toThrow(/D\. 1967 art\. 61-1-5/)
+  })
+
+  it('le droit fixe ne couvre aucune autre rémunération : une diligence de sinistre sans ordonnance est refusée (J67, R2)', () => {
+    const sinistre = honoraires('el-sin', 120_000, {
+      dossier: 'Sinistre',
+      fiche: { type: 'Sinistre', id: 'sin-42' },
+      nature: 'Vacations',
+      tarif: 'Sinistre - SINISTRE VACATIONS DEPLACEMENT SUR LES LIEUX',
+    })
+    // Les deux modules disent la même chose du même élément : à soumettre au juge, pas à facturer au syndicat.
+    expect(controlerHonorairesSinistre([sinistre], 'tarif_administrateur_provisoire').map((a) => a.nature)).toEqual(['hors_tarif_ap'])
+    const refus = () => preparer([sinistre], judiciaire(), '2026-04-15')
+    expect(refus).toThrow(/Facture refusée : rémunération de 1\s200,00\s€ HT au-delà de ce que couvrent les ordonnances \(0,00\s€ HT couverts/)
+    expect(refus).toThrow(/Le droit fixe ne couvre que l'élément qui le facture/)
+    expect(preparer([sinistre], judiciaire({ ordonnances: [ordonnance()] }), '2026-04-15').facture.totalHtCentimes).toBe(120_000)
+  })
+
+  it('le droit fixe : une fois par mandat, à la seule AP de moins de 500 lots, sur une nature de rémunération', () => {
+    const premiere = emise([droitFixe('el-df', 100_000)], judiciaire())
+    expect(() => preparer([droitFixe('el-df2', 50_000)], judiciaire({ factures: [premiere] }), '2026-04-15')).toThrow(
+      /droit fixe se facture une seule fois, pour l'ensemble de la mission \(déjà facturé : facture H-2026-0000\)/,
+    )
+    expect(() => preparer([droitFixe('el-a', 50_000), droitFixe('el-b', 50_000)], judiciaire(), '2026-04-15')).toThrow(/une seule fois/)
+    for (const mandat of [AP_600_LOTS, { regime: 'sj', nbLots: 40 }, { regime: 'ap47', nbLots: 40 }, { regime: null, nbLots: 40 }] as const)
+      expect(() => preparer([droitFixe()], judiciaire({ mandat, ordonnances: [ordonnance()] }), '2026-04-15')).toThrow(/droit fixe non dû pour ce mandat/)
+    expect(() => creer(saisie({ nature: 'AR', droitFixe: true }))).toThrow(/Droit fixe : la nature « AR » est un frais/)
   })
 
   it('500 lots et plus, syndic judiciaire, AP art. 47 : rien sans ordonnance (arrêté, art. 3 ; C. com. R. 814-27)', () => {
@@ -334,13 +389,25 @@ describe('honoraires — facture d’une mission judiciaire couverte par les ord
       expect(() => preparer([honoraires('el-1', 100)], judiciaire({ mandat }), '2026-04-15')).toThrow(/C\. com\. R\. 814-27/)
   })
 
-  it('droit fixe et acomptes, moins ce qui est déjà facturé pour le mandat (les autres mandats ne comptent pas)', () => {
+  it('droit fixe et acomptes, chacun pour sa part, moins ce qui est déjà facturé pour le mandat (les autres mandats ne comptent pas)', () => {
     const ordonnances = [ordonnance()]
-    const anterieure = preparerFacture([honoraires('el-0', 400_000)], { ...entete, id: 'f-0', date: '2026-04-01', cadre: judiciaire({ ordonnances }) }).facture
+    const anterieure = emise([droitFixe(), honoraires('el-0', 250_000)], judiciaire({ ordonnances }))
     const autreMandat = { ...anterieure, id: 'f-x', mandatId: 'autre-mandat' }
     const cadre = judiciaire({ ordonnances, factures: [anterieure, autreMandat] })
     expect(preparer([honoraires('el-1', 50_000)], cadre, '2026-04-15').facture.totalHtCentimes).toBe(50_000)
-    expect(() => preparer([honoraires('el-1', 50_001)], cadre, '2026-04-15')).toThrow(/4\s500,00\s€ HT couverts au 15\/04\/2026.*4\s000,00\s€ HT déjà facturés/)
+    expect(() => preparer([honoraires('el-1', 50_001)], cadre, '2026-04-15')).toThrow(/3\s000,00\s€ HT couverts au 15\/04\/2026 ; 2\s500,00\s€ HT déjà facturés/)
+  })
+
+  it('une facture repréparée sous le même identifiant ne compte pas dans le déjà facturé ; une autre facture, si', () => {
+    const premiere = preparer([droitFixe()], judiciaire(), '2026-04-15').facture
+    expect(preparer([droitFixe()], judiciaire({ factures: [premiere] }), '2026-04-15').facture.totalHtCentimes).toBe(150_000)
+    expect(() => preparer([droitFixe()], judiciaire({ factures: [{ ...premiere, id: 'f-0' }] }), '2026-04-15')).toThrow(/une seule fois/)
+  })
+
+  it('fin de mission exécutoire : elle arrête toute la rémunération, le droit fixe déjà facturé s’impute sur elle', () => {
+    const cadre = judiciaire({ ordonnances: [finDeMission()], factures: [emise([droitFixe()], judiciaire(), '2026-03-01')] })
+    expect(preparer([honoraires('el-1', 450_000)], cadre, '2026-04-11').facture.totalHtCentimes).toBe(450_000)
+    expect(() => preparer([honoraires('el-1', 450_001)], cadre, '2026-04-11')).toThrow(/6\s000,00\s€ HT couverts au 11\/04\/2026 ; 1\s500,00\s€ HT déjà facturés/)
   })
 
   it('frais : couverts par les seuls frais des ordonnances, jamais par le droit fixe', () => {
@@ -424,6 +491,7 @@ describe('honoraires — en-tête : décisions J67 citées, questions tranchées
     expect(r3).toMatch(/moins de 500 lots/)
     expect(r3).toMatch(/C\. pr\. civ\. art\. 714 à 718/)
     expect(r3).toMatch(/ordonnances-remuneration\.ts/)
+    expect(r3).toMatch(/Le droit fixe ne couvre que l'élément qui le facture \(champ\s+droitFixe\), une seule fois par mandat/)
     expect(item('- J67, R9')).toMatch(/244\.1.*section sur la concurrence/)
     expect(texte).not.toMatch(/🔴 \(Frédéric ou Hugo\) Administration provisoire/)
   })

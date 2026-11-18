@@ -322,7 +322,7 @@ describe('tableau des honoraires — inchangé par le statut (portée « tous »
       tauxTvaPct: 20,
       destinataire: 'Syndicat des copropriétaires',
     }
-    const tableau = tableauDesHonoraires([creerElement(saisie)], affectations, {
+    const tableau = tableauDesHonoraires([creerElement(saisie, 'judiciaire')], affectations, {
       du: '2026-10-01',
       au: '2026-10-31',
       regroupement: 'Mandat',

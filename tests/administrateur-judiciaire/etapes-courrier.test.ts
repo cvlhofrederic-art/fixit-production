@@ -568,6 +568,7 @@ const ligneForfait: LigneHonorairesCourrier = {
 }
 
 const contexteHonoraires = (surcharge: Partial<ContexteHonorairesCourrier> = {}): ContexteHonorairesCourrier => ({
+  mission: 'judiciaire',
   aujourdhui: AUJOURDHUI,
   idElement: ({ regle, rang, dossier }) => `el:${regle.id}:${dossier.id}:${rang}`,
   ...surcharge,
@@ -630,7 +631,7 @@ describe('honoraires du courrier : proposition de lignes, jamais écrites, désa
       },
     ])
     // La saisie proposée passe creerElement, que l'appelant appelle s'il retient la proposition.
-    const element = creerElement(propositions[1].saisie)
+    const element = creerElement(propositions[1].saisie, 'judiciaire')
     expect(element.statut).toBe('A facturer')
     expect(totalElement(element)).toEqual({ htCentimes: 3_000, tvaCentimes: 600, ttcCentimes: 3_600 })
   })
@@ -653,6 +654,15 @@ describe('honoraires du courrier : proposition de lignes, jamais écrites, désa
     })
     const [proposition] = proposerHonorairesDuCourrier(courrier(), [regle], contexteHonoraires()).propositions
     expect(proposition.saisie).toMatchObject({ qualification: 'Contrôle coûts', calcul: 'Barème temps', quantite: 30 })
+  })
+
+  it('J67, R9 : une ligne « Offert » est refusée en mission judiciaire, admise au contrat type de syndic', () => {
+    const regle = regleHonorairesMiseEnDemeure({ lignes: [{ ...ligneForfait, qualification: 'Offert' }], active: true })
+    expect(() => proposerHonorairesDuCourrier(courrier(), [regle], contexteHonoraires())).toThrow(
+      /Qualification « Offert » refusée\. Mission judiciaire : tracer en Contrôle coûts/,
+    )
+    const [proposition] = proposerHonorairesDuCourrier(courrier(), [regle], contexteHonoraires({ mission: 'contrat_type_syndic' })).propositions
+    expect(proposition.saisie.qualification).toBe('Offert')
   })
 
   it('écartées : dossier absent, dossier ambigu (un envoi, une série de frais), copropriété ou mandat manquants ; courrier non visé : rien', () => {

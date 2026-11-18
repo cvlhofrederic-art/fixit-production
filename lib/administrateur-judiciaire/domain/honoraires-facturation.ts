@@ -3,6 +3,7 @@ import { FICHES_PORTEUSES, creerRattachement, type Rattachement } from '@/lib/ad
 import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
 import {
   couvertureAu,
+  droitFixeDu,
   type CouvertureOrdonnances,
   type MandatRemunere,
   type MontantsFixes,
@@ -62,14 +63,19 @@ import { DOSSIER, type Dossier } from '@/lib/data/referentiels-gesteam-judiciair
  *   portée à sa connaissance (61-1-5, I ; arrêté du 8 octobre 2015, art. 4), et seulement pour une copropriété de moins
  *   de 500 lots (à 500 lots et plus, toute la rémunération est fixée par le juge, par dérogation aux art. 4 à 15 :
  *   arrêté, art. 3). preparerFacture reçoit le cadre du mandat (CadreFacturation : régime, nombre de lots, ordonnances,
- *   factures déjà émises) et refuse une facture qui dépasse, par catégorie (rémunération, frais), ce que couvrent à sa
- *   date le droit fixe et les ordonnances exécutoires, moins ce qui est déjà facturé. L'ordonnance de fin de mission
- *   n'est exécutoire qu'après le mois de recours, sans recours pendant, et si sa notification indique le recours
- *   (C. pr. civ. art. 714 à 718 ; Cass. 2e civ., 3 mars 2016, n° 15-12.129) : ordonnances-remuneration.ts, qui sort le
- *   calcul du délai. Contrat type de syndic : aucun contrôle. Enregistrement des ordonnances : à brancher.
+ *   factures déjà émises) et refuse une facture qui dépasse, par poste, ce que couvrent à sa date le droit fixe et les
+ *   ordonnances exécutoires, moins ce qui est déjà facturé. Le droit fixe ne couvre que l'élément qui le facture (champ
+ *   droitFixe), une seule fois par mandat, et seulement pour l'AP de moins de 500 lots ; toute autre rémunération, et
+ *   tous les frais, attendent une ordonnance exécutoire (J67, R2 : « seulement après une ordonnance, sauf une
+ *   exception », le droit fixe). Une fin de mission exécutoire arrête toute la rémunération : le droit fixe déjà facturé
+ *   s'impute alors sur elle. L'ordonnance de fin de mission n'est exécutoire qu'après le mois de recours, sans recours
+ *   pendant, et si sa notification indique le recours (C. pr. civ. art. 714 à 718 ; Cass. 2e civ., 3 mars 2016,
+ *   n° 15-12.129) : ordonnances-remuneration.ts, qui sort le calcul du délai. Contrat type de syndic : aucun contrôle.
+ *   Enregistrement des ordonnances : à brancher.
  * - J67, R9 : en mission judiciaire (AP de l'art. 29-1, art. 46, 47 et 49), « Offert » est refusé à la qualification
- *   (qualifierElement ; creerElement quand l'appelant passe la mission) : tracer en « Contrôle coûts ». C'est une règle
- *   prudente du cabinet, pas une interdiction certaine : la règle professionnelle 244.1 interdit « l'offre ou l'octroi
+ *   (qualifierElement et creerElement, qui reçoivent tous deux la mission du mandat ; corrigerQuantite ne change pas la
+ *   qualification) : tracer en « Contrôle coûts ». C'est une règle prudente du cabinet, pas une interdiction
+ *   certaine : la règle professionnelle 244.1 interdit « l'offre ou l'octroi
  *   de remises sur émoluments préalablement à l'arrêté de ceux-ci », mais elle est rangée dans la section sur la
  *   concurrence ; une diligence couverte par le droit fixe ou par le droit de gestion courante (arrêté, art. 4 et 5) se
  *   trace aussi en « Contrôle coûts ». Un élément déjà « Offert » n'est pas changé : il est signalé
@@ -198,6 +204,13 @@ export interface SaisieElement {
   destinataire: string
   /** Point 67 : facturable, offert ou contrôle des coûts. Absente : « Facturable » (QUALIFICATION_PAR_DEFAUT). */
   qualification?: QualificationElement
+  /**
+   * J67, R2 et R3 : l'élément facture le droit fixe de l'AP de l'art. 29-1 (D. 1967 art. 61-1-5, I ; arrêté du 8 octobre
+   * 2015, art. 4), seule rémunération perçue sans ordonnance. Nature de rémunération exigée. Absent : faux.
+   * 🔵 Champ du code : aucun tarif « droit fixe » n'a été relevé dans le catalogue Gestéam (à relever) ; enregistrement :
+   * à brancher.
+   */
+  droitFixe?: boolean
 }
 
 export interface ElementAFacturer extends SaisieElement {
@@ -226,14 +239,9 @@ export function qualificationDe(element: Pick<SaisieElement, 'qualification'>): 
 /** Seul un élément facturable entre dans une facture (point 67). */
 export const estFacturable = (element: Pick<SaisieElement, 'qualification'>): boolean => qualificationDe(element) === 'Facturable'
 
-/**
- * Crée l'élément « A facturer ». La qualification est contrôlée seule (lève si elle est inconnue) et recopiée telle
- * quelle si elle est fournie. `mission` passée : « Offert » refusé en mission judiciaire (J67, R9) ; sans elle, aucun
- * contrôle de la qualification (éléments déjà enregistrés, propositions de etapes-courrier.ts).
- */
-export function creerElement(saisie: SaisieElement, mission?: MissionHonoraires): ElementAFacturer {
-  const qualification = qualificationDe(saisie)
-  if (mission !== undefined) verifierQualificationAdmise(qualification, mission)
+/** Contrôles de la saisie, hors règle de la mission ; la qualification est contrôlée seule (lève si elle est inconnue). */
+function elementControle(saisie: SaisieElement): ElementAFacturer {
+  qualificationDe(saisie)
   if (!estDateIsoValide(saisie.date)) throw new Error(`Date invalide (${saisie.date}) : AAAA-MM-JJ attendu.`)
   if (!contient(DOSSIER, saisie.dossier)) throw new Error(`Dossier inconnu : « ${saisie.dossier} ».`)
   if (!contient(NATURES_ELEMENT, saisie.nature)) throw new Error(`Nature d'élément inconnue : « ${saisie.nature} ».`)
@@ -241,8 +249,19 @@ export function creerElement(saisie: SaisieElement, mission?: MissionHonoraires)
   if (!(saisie.quantite > 0)) throw new Error(`Quantité invalide (${saisie.quantite}) : strictement positive attendue.`)
   if (!Number.isInteger(saisie.prixUnitaireHtDixMilliemes) || saisie.prixUnitaireHtDixMilliemes < 0)
     throw new Error(`Prix unitaire invalide (${saisie.prixUnitaireHtDixMilliemes}) : dix-millièmes d'euro entiers positifs attendus.`)
+  if (saisie.droitFixe === true && categorieDe(saisie) !== 'Rémunération')
+    throw new Error(`Droit fixe : la nature « ${saisie.nature} » est un frais ; une nature de rémunération est attendue (Vacations, Honoraires, Prestations).`)
   if (saisie.fiche) return { ...saisie, fiche: ficheDuDossier(saisie.dossier, saisie.fiche), statut: 'A facturer' }
   return { ...saisie, statut: 'A facturer' }
+}
+
+/**
+ * Crée l'élément « A facturer », pour la mission du mandat (obligatoire) : « Offert » est refusé en mission judiciaire
+ * (J67, R9). La qualification fournie est recopiée telle quelle.
+ */
+export function creerElement(saisie: SaisieElement, mission: MissionHonoraires): ElementAFacturer {
+  verifierQualificationAdmise(qualificationDe(saisie), mission)
+  return elementControle(saisie)
 }
 
 /**
@@ -252,6 +271,16 @@ export function creerElement(saisie: SaisieElement, mission?: MissionHonoraires)
 export function qualifierElement(element: ElementAFacturer, qualification: QualificationElement, mission: MissionHonoraires): ElementAFacturer {
   if (element.statut !== 'A facturer') throw new Error(`Qualification refusée : l'élément ${element.id} est déjà facturé.`)
   return creerElement({ ...element, qualification }, mission)
+}
+
+/**
+ * Corrige la quantité d'un élément encore « A facturer », sans toucher à sa qualification ; l'élément reçu n'est pas
+ * modifié. Un élément déjà « Offert » n'est pas changé (J67, R9) : la règle de la mission ne joue qu'à la création et à
+ * la requalification ; signalerElementsOfferts le signale.
+ */
+export function corrigerQuantite(element: ElementAFacturer, quantite: number): ElementAFacturer {
+  if (element.statut !== 'A facturer') throw new Error(`Correction refusée : l'élément ${element.id} est déjà facturé.`)
+  return elementControle({ ...element, quantite })
 }
 
 export interface SignalementQualification {
@@ -295,8 +324,20 @@ export interface FactureHonoraires {
   coproprieteId: string
   mandatId: string
   destinataire: string
-  /** `tvaCentimes` : TVA de l'élément (totalElement) ; la somme des lignes HT + TVA est le total TTC (J67, R10). */
-  lignes: { elementId: string; date: string; nature: NatureElement; tarif: string; quantite: number; htCentimes: number; tvaCentimes: number }[]
+  /**
+   * `tvaCentimes` : TVA de l'élément (totalElement) ; la somme des lignes HT + TVA est le total TTC (J67, R10).
+   * `droitFixe` : la ligne facture le droit fixe (élément marqué, J67, R2 et R3) ; absent : faux.
+   */
+  lignes: {
+    elementId: string
+    date: string
+    nature: NatureElement
+    tarif: string
+    quantite: number
+    htCentimes: number
+    tvaCentimes: number
+    droitFixe?: boolean
+  }[]
   tvaParTaux: { tauxPct: number; baseCentimes: number; tvaCentimes: number }[]
   totalHtCentimes: number
   totalTvaCentimes: number
@@ -305,11 +346,20 @@ export interface FactureHonoraires {
 
 type LigneFacture = FactureHonoraires['lignes'][number]
 
-const cumulParCategorie = (lignes: readonly LigneFacture[], montant: (ligne: LigneFacture) => number): Record<CategorieElement, number> => {
-  const cumul = Object.fromEntries(CATEGORIES_ELEMENT.map((categorie) => [categorie, 0])) as Record<CategorieElement, number>
-  for (const ligne of lignes) cumul[categorieDe(ligne)] += montant(ligne)
+/** Cumul d'un montant des lignes, par clé (catégorie, ou poste de la couverture), chaque clé présente. */
+const cumulPar = <C extends string>(
+  cles: readonly C[],
+  lignes: readonly LigneFacture[],
+  cle: (ligne: LigneFacture) => C,
+  montant: (ligne: LigneFacture) => number,
+): Record<C, number> => {
+  const cumul = Object.fromEntries(cles.map((c) => [c, 0])) as Record<C, number>
+  for (const ligne of lignes) cumul[cle(ligne)] += montant(ligne)
   return cumul
 }
+
+const cumulParCategorie = (lignes: readonly LigneFacture[], montant: (ligne: LigneFacture) => number): Record<CategorieElement, number> =>
+  cumulPar(CATEGORIES_ELEMENT, lignes, categorieDe, montant)
 
 /** HT des factures, par catégorie de leurs lignes (J67, R3 : déjà facturé ; R4 : perçu). */
 export const htParCategorie = (factures: readonly Pick<FactureHonoraires, 'lignes'>[]): Record<CategorieElement, number> =>
@@ -347,25 +397,83 @@ const FONDEMENT_ORDONNANCES =
   "l'administrateur provisoire de l'art. 29-1 sous 500 lots (D. 1967 art. 61-1-5 ; arrêté du 8 octobre 2015, art. 3 et " +
   '4 ; C. com. R. 814-27 et R. 814-28).'
 
-function refusDeCouverture(categorie: CategorieElement, demande: number, deja: number, couverture: CouvertureOrdonnances): string {
-  const droitFixe =
-    categorie === 'Rémunération' && couverture.droitFixeHtCentimes > 0 ? `, dont ${euros(couverture.droitFixeHtCentimes)} de droit fixe` : ''
+const FONDEMENT_DROIT_FIXE = "D. 1967 art. 61-1-5, I ; arrêté du 8 octobre 2015, art. 3 et 4 ; J67, R2 et R3"
+
+/**
+ * Poste de la couverture d'une ligne (J67, R2 et R3) : le droit fixe ne couvre que la ligne qui le facture ; tant qu'aucune
+ * fin de mission exécutoire ne l'absorbe, il reste à part de la rémunération couverte par les ordonnances. Une fin de
+ * mission arrête toute la rémunération : la ligne du droit fixe s'impute alors sur elle, comme le reste.
+ */
+type PosteCouverture = CategorieElement | 'Droit fixe'
+const POSTES_COUVERTURE: readonly PosteCouverture[] = ['Droit fixe', ...CATEGORIES_ELEMENT]
+
+const posteDe = (ligne: LigneFacture, couverture: CouvertureOrdonnances): PosteCouverture =>
+  ligne.droitFixe === true && couverture.droitFixeHtCentimes > 0 ? 'Droit fixe' : categorieDe(ligne)
+
+/** Ce que couvre un poste : le droit fixe ; pour la rémunération, les seules ordonnances ; les frais des ordonnances. */
+function couvertPour(poste: PosteCouverture, couverture: CouvertureOrdonnances): number {
+  if (poste === 'Droit fixe') return couverture.droitFixeHtCentimes
+  return montantFixePour(poste, couverture) - (poste === 'Rémunération' ? couverture.droitFixeHtCentimes : 0)
+}
+
+function refusDeCouverture(poste: PosteCouverture, demande: number, deja: number, couverture: CouvertureOrdonnances): string {
+  const couvreur = poste === 'Droit fixe' ? 'couvre le droit fixe' : 'couvrent les ordonnances'
+  const seulElement =
+    poste === 'Rémunération' && couverture.droitFixeHtCentimes > 0
+      ? " Le droit fixe ne couvre que l'élément qui le facture (marqué droit fixe) : toute autre rémunération attend une ordonnance."
+      : ''
   const nonExecutoires = couverture.etats.filter((etat) => !etat.executable).map((etat) => ` ${etat.justification}`)
   return (
-    `Facture refusée : ${categorie.toLowerCase()} de ${euros(demande)} HT au-delà de ce que couvrent les ordonnances ` +
-    `(${euros(montantFixePour(categorie, couverture))} HT couverts au ${fr(couverture.date)}${droitFixe} ; ${euros(deja)} HT ` +
-    `déjà facturés). ${FONDEMENT_ORDONNANCES}${nonExecutoires.join('')}`
+    `Facture refusée : ${poste.toLowerCase()} de ${euros(demande)} HT au-delà de ce que ${couvreur} ` +
+    `(${euros(couvertPour(poste, couverture))} HT couverts au ${fr(couverture.date)} ; ${euros(deja)} HT déjà ` +
+    `facturés). ${FONDEMENT_ORDONNANCES}${seulElement}${nonExecutoires.join('')}`
   )
 }
 
-/** J67, R3 : par catégorie, le déjà facturé du mandat plus cette facture ne dépasse pas ce que couvrent les ordonnances. */
+const htParPoste = (lignes: readonly LigneFacture[], couverture: CouvertureOrdonnances): Record<PosteCouverture, number> =>
+  cumulPar(
+    POSTES_COUVERTURE,
+    lignes,
+    (ligne) => posteDe(ligne, couverture),
+    (ligne) => ligne.htCentimes,
+  )
+
+/**
+ * Le droit fixe est dû une fois, pour l'ensemble de la mission, à la seule AP de l'art. 29-1 de moins de 500 lots
+ * (D. 1967 art. 61-1-5, I ; arrêté, art. 3 et 4) : une ligne marquée ailleurs, ou une seconde ligne, est refusée.
+ */
+function controlerDroitFixe(cadre: CadreJudiciaire, lignes: readonly LigneFacture[], anterieures: readonly FactureHonoraires[]): void {
+  const marquees = lignes.filter((ligne) => ligne.droitFixe === true)
+  if (marquees.length === 0) return
+  if (droitFixeDu(cadre.mandat) === 0)
+    throw new Error(
+      `Facture refusée : droit fixe non dû pour ce mandat ; il n'est dû qu'à l'administrateur provisoire de l'art. 29-1 ` +
+        `d'une copropriété de moins de 500 lots (${FONDEMENT_DROIT_FIXE}).`,
+    )
+  const deja = anterieures.filter((facture) => facture.lignes.some((ligne) => ligne.droitFixe === true))
+  if (marquees.length + deja.length > 1) {
+    const ou = deja.length > 0 ? ` (déjà facturé : facture ${deja.map((f) => f.numero).join(', ')})` : ''
+    throw new Error(`Facture refusée : le droit fixe se facture une seule fois, pour l'ensemble de la mission${ou} (${FONDEMENT_DROIT_FIXE}).`)
+  }
+}
+
+/**
+ * J67, R3 : par poste (droit fixe, rémunération, frais), le déjà facturé du mandat plus cette facture ne dépasse pas ce
+ * que couvrent le droit fixe et les ordonnances exécutoires. Une facture déjà émise sous le même identifiant (facture
+ * repréparée) ne compte pas dans le déjà facturé.
+ */
 function controlerCouverture(cadre: CadreJudiciaire, facture: Pick<FactureHonoraires, 'id' | 'mandatId' | 'date' | 'lignes'>): CouvertureOrdonnances {
   const couverture = couvertureAu(facture.mandatId, cadre.mandat, cadre.ordonnances, facture.date, cadre.joursFeries)
-  const deja = htParCategorie(cadre.factures.filter((f) => f.mandatId === facture.mandatId && f.id !== facture.id))
-  const demande = htParCategorie([facture])
-  for (const categorie of CATEGORIES_ELEMENT)
-    if (demande[categorie] > 0 && deja[categorie] + demande[categorie] > montantFixePour(categorie, couverture))
-      throw new Error(refusDeCouverture(categorie, demande[categorie], deja[categorie], couverture))
+  const anterieures = cadre.factures.filter((f) => f.mandatId === facture.mandatId && f.id !== facture.id)
+  controlerDroitFixe(cadre, facture.lignes, anterieures)
+  const deja = htParPoste(
+    anterieures.flatMap((f) => f.lignes),
+    couverture,
+  )
+  const demande = htParPoste(facture.lignes, couverture)
+  for (const poste of POSTES_COUVERTURE)
+    if (demande[poste] > 0 && deja[poste] + demande[poste] > couvertPour(poste, couverture))
+      throw new Error(refusDeCouverture(poste, demande[poste], deja[poste], couverture))
   return couverture
 }
 
@@ -378,7 +486,8 @@ function lignesEtTva(retenus: readonly ElementAFacturer[]): Pick<FactureHonorair
       const cumul = parTaux.get(e.tauxTvaPct) ?? { baseCentimes: 0, tvaCentimes: 0 }
       parTaux.set(e.tauxTvaPct, { baseCentimes: cumul.baseCentimes + totaux.htCentimes, tvaCentimes: cumul.tvaCentimes + totaux.tvaCentimes })
     }
-    return { elementId: e.id, date: e.date, nature: e.nature, tarif: e.tarif, quantite: e.quantite, htCentimes: totaux.htCentimes, tvaCentimes: totaux.tvaCentimes }
+    const ligne = { elementId: e.id, date: e.date, nature: e.nature, tarif: e.tarif, quantite: e.quantite, htCentimes: totaux.htCentimes, tvaCentimes: totaux.tvaCentimes }
+    return e.droitFixe === true ? { ...ligne, droitFixe: true } : ligne
   })
   return { lignes, tvaParTaux: [...parTaux.entries()].sort(([a], [b]) => a - b).map(([tauxPct, t]) => ({ tauxPct, ...t })) }
 }
@@ -387,8 +496,8 @@ function lignesEtTva(retenus: readonly ElementAFacturer[]): Pick<FactureHonorair
  * Regroupe les éléments facturables « A facturer » d'un mandat et d'un destinataire ; renvoie la facture, les éléments
  * à jour et, en mission judiciaire, ce que couvrent les ordonnances à la date de la facture (avec la justification de
  * chacune : délai de recours, recours pendant…). Les éléments offerts ou en contrôle des coûts n'y entrent pas et gardent
- * leur statut (point 67). Mission judiciaire : refus au-delà de ce que couvrent le droit fixe et les ordonnances, moins
- * le déjà facturé (J67, R3).
+ * leur statut (point 67). Mission judiciaire : refus au-delà de ce que couvrent le droit fixe (pour le seul élément qui
+ * le facture) et les ordonnances, moins le déjà facturé (J67, R2 et R3).
  */
 export function preparerFacture(
   elements: ElementAFacturer[],

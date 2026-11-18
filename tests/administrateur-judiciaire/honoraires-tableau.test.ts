@@ -71,11 +71,14 @@ const affectations: AffectationMandat[] = [
 const HONORAIRES: CumulHonoraires = { nombre: 1, htCentimes: 4_500, tvaCentimes: 900, ttcCentimes: 5_400 }
 const VIDE: CumulHonoraires = { nombre: 0, htCentimes: 0, tvaCentimes: 0, ttcCentimes: 0 }
 
+/** Élément créé en mission judiciaire (J67, R9) ; « Offert » n'y est pas admis, d'où le contrat type pour el-3. */
+const creer = (s: SaisieElement): ElementAFacturer => creerElement(s, 'judiciaire')
+
 const elements: ElementAFacturer[] = [
-  creerElement(saisie()),
-  { ...creerElement(saisie({ id: 'el-2', date: '2026-10-10', nature: 'AR', tarif: 'Gestion - RAR', soumisTva: false, prixUnitaireHtDixMilliemes: 61_500 })), statut: 'Facturé' },
-  creerElement(saisie({ id: 'el-3', mandatId: 'mandat-b', date: '2026-10-20', qualification: 'Offert' })),
-  creerElement(
+  creer(saisie()),
+  { ...creer(saisie({ id: 'el-2', date: '2026-10-10', nature: 'AR', tarif: 'Gestion - RAR', soumisTva: false, prixUnitaireHtDixMilliemes: 61_500 })), statut: 'Facturé' },
+  creerElement(saisie({ id: 'el-3', mandatId: 'mandat-b', date: '2026-10-20', qualification: 'Offert' }), 'contrat_type_syndic'),
+  creer(
     saisie({
       id: 'el-4',
       mandatId: 'mandat-c',
@@ -87,10 +90,10 @@ const elements: ElementAFacturer[] = [
       qualification: 'Contrôle coûts',
     }),
   ),
-  { ...creerElement(saisie({ id: 'el-5', mandatId: 'mandat-d', date: '2026-10-01', destinataire: 'Copropriétaire' })), statut: 'Facturé' },
-  creerElement(saisie({ id: 'el-6', date: '2026-09-30' })),
-  creerElement(saisie({ id: 'el-7', mandatId: 'mandat-b', date: '2026-11-01' })),
-  creerElement(saisie({ id: 'el-8', mandatId: 'mandat-e', date: '2026-10-15' })),
+  { ...creer(saisie({ id: 'el-5', mandatId: 'mandat-d', date: '2026-10-01', destinataire: 'Copropriétaire' })), statut: 'Facturé' },
+  creer(saisie({ id: 'el-6', date: '2026-09-30' })),
+  creer(saisie({ id: 'el-7', mandatId: 'mandat-b', date: '2026-11-01' })),
+  creer(saisie({ id: 'el-8', mandatId: 'mandat-e', date: '2026-10-15' })),
 ]
 const factures = [facture('f-imputee', 'Imputée', ['el-2']), facture('f-validee', 'Validée, non imputée', ['el-5'])]
 const octobre = { du: '2026-10-01', au: '2026-10-31' }
@@ -273,13 +276,16 @@ describe('tableau des honoraires — en-tête : le tableau n’est pas le compte
     expect(texte).toMatch(/62120 ↔ 951 « DEBOURS »/)
   })
 
-  it('🔴 les frais de l’administration provisoire : la question reste ouverte, R5 et R6 ne règlent pas les frais d’envoi de la même façon', () => {
-    const question = item('🔴 (Hugo) Administration provisoire : les frais')
-    expect(question).toMatch(/61-1-5, III/)
-    expect(question).toMatch(/arrêté du 8 octobre 2015, art\. 3/)
-    expect(question).toMatch(/compte provisoire détaillé des émoluments/)
-    expect(question).toMatch(/R5.*R6/)
-    expect(question).toMatch(/Choix actuel/)
+  it('J67, R5 : frais à part de la rémunération (choix confirmé), jamais facturés sans ordonnance, annexe « frais et débours » ; plus de 🔴', () => {
+    expect(texte).not.toMatch(/🔴 \(Hugo\) Administration provisoire : les frais/)
+    const decision = item('- J67, R5 (recommandation L1-09)')
+    expect(decision).toMatch(/ne sont pas remboursés automatiquement au cabinet/)
+    expect(decision).toMatch(/Choix actuel confirmé : le tableau les cumule à part de la rémunération \(facturablesParCategorie\), sans rien en déduire/)
+    expect(decision).toMatch(/jamais facturés sans une ordonnance qui les couvre \(preparerFacture, J67, R3\)/)
+    expect(decision).toMatch(/annexe « frais et débours exposés »/)
+    expect(decision).toMatch(/61-1-5, III,\s+al\. 2, pour les seuls droits proportionnels au-delà de 75 000 € HT/)
+    // R6 ne vise que la dépense payée par le syndicat lui-même : le choix entre R5 et R6 reste dans honoraires-sinistre.ts.
+    expect(decision).toMatch(/R6 .*ne change rien ici.*honoraires-sinistre\.ts/)
   })
 
   it('J67, R5 (correction de texte) : le III, al. 2 du 61-1-5 ne joue que si les droits proportionnels des art. 11 à 13 dépassent 75 000 € HT', () => {
@@ -298,7 +304,7 @@ describe('tableau des honoraires — en-tête : le tableau n’est pas le compte
 describe('tableau des honoraires — émoluments taxés, perçus et restant à percevoir (J67, R4 ; règles 810.4, 900.2, 900.3)', () => {
   /** Élément du mandat « mandat-2026 », de ce montant HT (centimes). */
   const element = (id: string, htCentimes: number, surcharge: Partial<SaisieElement> = {}): ElementAFacturer =>
-    creerElement(saisie({ id, mandatId: 'mandat-2026', prixUnitaireHtDixMilliemes: htCentimes * 100, ...surcharge }))
+    creer(saisie({ id, mandatId: 'mandat-2026', prixUnitaireHtDixMilliemes: htCentimes * 100, ...surcharge }))
   const facturee = (id: string, elementsFactures: ElementAFacturer[], statut: FactureHonoraires['statut']): FactureHonoraires => ({
     ...preparerFacture(elementsFactures, {
       id,
@@ -311,7 +317,7 @@ describe('tableau des honoraires — émoluments taxés, perçus et restant à p
     statut,
   })
   const facturesDuMandat = [
-    facturee('f-droit-fixe', [element('el-df', 150_000)], 'Imputée'),
+    facturee('f-droit-fixe', [element('el-df', 150_000, { droitFixe: true })], 'Imputée'),
     facturee('f-acompte', [element('el-ac', 100_000), element('el-ar', 10_000, { nature: 'AR', tarif: 'Gestion - RAR', soumisTva: false })], 'Imputée'),
     facturee('f-validee', [element('el-va', 50_000)], 'Validée, non imputée'),
   ]
@@ -378,6 +384,8 @@ describe('tableau des honoraires — émoluments taxés, perçus et restant à p
     expect(etat([retribution({ montantHtCentimes: -1 })])).toThrow(/montant/i)
     expect(etat([retribution({ date: '30/06/2026' })])).toThrow(/date/i)
     expect(etat([retribution({ tiers: ' ' })])).toThrow(/tiers/i)
+    // Une référence blanche ne passe pas pour une ordonnance enregistrée (règle 900.2) : null si aucune.
+    expect(etat([retribution({ ordonnance: '  ' })])).toThrow(/Rétribution ret-1 : référence d'ordonnance vide ; null attendu/)
   })
 })
 

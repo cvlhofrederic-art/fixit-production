@@ -28,7 +28,9 @@ import type { Regime } from '@/lib/administrateur-judiciaire/domain/fondements'
  *   R. 814-27). Délai d'un mois (CPC art. 714) ; le délai et le recours exercé dans le délai sont suspensifs d'exécution
  *   (al. 3) ; tout intéressé peut le former (al. 1). Le délai ne court pas si la notification n'indique pas, ou indique
  *   mal, la voie de recours, son délai ou ses modalités (Cass. 2e civ., 3 mars 2016, n° 15-12.129) : d'où la case
- *   « notification avec la mention du recours », sans laquelle l'ordonnance de fin de mission est refusée.
+ *   « notification avec la mention du recours », sans laquelle l'ordonnance de fin de mission est refusée. 🔵 Un recours
+ *   formé hors délai n'est pas suspensif de plein droit : l'ordonnance reste refusée par prudence tant qu'il est pendant
+ *   (J67, R3 : « tant qu'un recours est pendant »), avec une justification qui le dit.
  * - 🟢 Calcul du délai : il expire le jour du mois suivant qui porte le même quantième que la notification, à défaut le
  *   dernier jour du mois (CPC art. 641, al. 2), à minuit ; s'il expire un samedi, un dimanche ou un jour férié, il est
  *   prorogé au premier jour ouvrable suivant (CPC art. 642). L'ordonnance est exécutoire le lendemain.
@@ -152,8 +154,11 @@ function verifierOrdonnancesDuMandat(mandatId: string, ordonnances: readonly Ord
     throw new Error(`Mandat ${mandatId} : une seule ordonnance de fin de mission attendue.`)
 }
 
-/** Droit fixe dû sans ordonnance : AP de l'art. 29-1 de moins de 500 lots seulement (D. 1967 art. 61-1-5, I ; arrêté, art. 3 et 4). */
-function droitFixeDu(mandat: MandatRemunere): number {
+/**
+ * Droit fixe dû sans ordonnance, en centimes HT : AP de l'art. 29-1 de moins de 500 lots seulement (D. 1967 art. 61-1-5,
+ * I ; arrêté, art. 3 et 4) ; 0 sinon. Il est dû une fois, pour l'ensemble de la mission (61-1-5, I).
+ */
+export function droitFixeDu(mandat: MandatRemunere): number {
   if (mandat.regime !== 'ap291') return 0
   verifierNombreDeLots(mandat.nbLots)
   return mandat.nbLots < SEUIL_LOTS_REMUNERATION_PAR_LE_JUGE ? DROIT_FIXE_AP_HT_CENTIMES : 0
@@ -210,22 +215,33 @@ const decisionRendue = (ordonnance: OrdonnanceRemuneration, date: string | null)
   return decision !== null && (date === null || decision.date <= date) ? decision : null
 }
 
+/**
+ * Recours pendant à la date. Seul « le recours exercé dans le délai » est suspensif d'exécution (CPC art. 714, al. 3) ;
+ * sans la mention du recours, le délai ne court pas, et tout recours est formé dans le délai. Un recours formé hors délai
+ * n'est pas suspensif de plein droit : le refus est gardé par prudence tant qu'il est pendant (J67, R3).
+ */
+function justificationDuRecours(libelle: string, formeLe: string, delai: DelaiDeRecours | null): string {
+  if (delai === null || formeLe <= delai.finDuDelai)
+    return `${libelle} : recours formé le ${fr(formeLe)}, pendant, suspensif d'exécution (CPC art. 714, al. 3).`
+  return (
+    `${libelle} : recours formé hors délai le ${fr(formeLe)} (délai expiré le ${fr(delai.finDuDelai)}) : il n'est pas ` +
+    "suspensif de plein droit (CPC art. 714, al. 3) ; refus gardé par prudence tant qu'il est pendant (J67, R3)."
+  )
+}
+
 /** État de la fin de mission notifiée, sans décision sur le recours : recours pendant, mention absente, délai. */
 function etatFinDeMission(ordonnance: OrdonnanceRemuneration, dateNotification: string, date: string, options: OptionsJoursFeries) {
   const libelle = `${LIBELLES_TYPE.fin_de_mission} du ${fr(ordonnance.date)}`
+  const delai = ordonnance.mentionDuRecours ? delaiDeRecours(dateNotification, options) : null
   if (ordonnance.recours !== null && ordonnance.recours.formeLe <= date)
-    return {
-      executable: false,
-      justification: `${libelle} : recours formé le ${fr(ordonnance.recours.formeLe)}, pendant, suspensif d'exécution (CPC art. 714, al. 3).`,
-    }
-  if (!ordonnance.mentionDuRecours)
+    return { executable: false, justification: justificationDuRecours(libelle, ordonnance.recours.formeLe, delai) }
+  if (delai === null)
     return {
       executable: false,
       justification:
         `${libelle} notifiée le ${fr(dateNotification)} sans la mention de la voie de recours, de son délai et de ses ` +
         'modalités : le délai ne court pas (Cass. 2e civ., 3 mars 2016, n° 15-12.129) ; obtenir une notification régulière.',
     }
-  const delai = delaiDeRecours(dateNotification, options)
   if (date < delai.executableLe) return { executable: false, justification: `${libelle} : délai de recours en cours. ${delai.justification}` }
   return { executable: true, justification: `${libelle} : ${delai.justification}`, avertissement: CERTIFICAT_DE_NON_RECOURS }
 }

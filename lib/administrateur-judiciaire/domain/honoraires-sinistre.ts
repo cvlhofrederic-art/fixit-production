@@ -11,11 +11,13 @@ import type { Regime } from '@/lib/administrateur-judiciaire/domain/fondements'
 import {
   NATURES_REMUNERATION,
   categorieDe,
+  corrigerQuantite,
   creerElement,
   estFacturable,
   totalElement,
   type ElementAFacturer,
   type NatureElement,
+  type SaisieElement,
 } from '@/lib/administrateur-judiciaire/domain/honoraires-facturation'
 import {
   SEUIL_LOTS_REMUNERATION_PAR_LE_JUGE,
@@ -63,11 +65,18 @@ export { SEUIL_LOTS_REMUNERATION_PAR_LE_JUGE }
  * - 🟢 Syndic désigné par le juge (D. 1967 art. 46), AP désigné faute de syndic (art. 47), administrateur ad hoc (art. 49) :
  *   la rémunération est fixée, sur justification de l'accomplissement de la mission, par le président de la juridiction
  *   qui a désigné le cabinet (C. com. R. 814-27, lu le 17/11/2026 ; recours : CPC art. 714 à 718) ; il peut fixer une
- *   provision (R. 814-28). Le mandataire ad hoc des art. 29-1 A à 29-1 C a son propre régime, mais sa rémunération est
- *   aussi arrêtée par le président en fin de mission (D. 1967 art. 61-1-4). D'où le cadre « rémunération fixée par le
- *   président » (J67, R1), qui remplace le cadre « non établi » avec le même comportement : aucun élément « A facturer »,
- *   un signalement « à soumettre au juge », aucune diligence refusée. 🔵 regimeDepuisFondement rend null pour les deux
- *   « ad hoc » sans les distinguer : ce cadre les couvre tous deux. Mission « en matière civile » : une déduction.
+ *   provision (R. 814-28). Le mandataire ad hoc des art. 29-1 A à 29-1 C a son propre régime : forfait sous 500 lots
+ *   (arrêté du 8 octobre 2015, art. 1), au-delà conditions fixées par l'ordonnance de désignation, et dans les deux cas
+ *   une rémunération arrêtée par le président en fin de mission (D. 1967 art. 61-1-4). D'où le cadre « rémunération
+ *   fixée par le président » (J67, R1), qui remplace le cadre « non établi » avec le même comportement : aucun élément
+ *   « A facturer », un signalement « à soumettre au juge », aucune diligence refusée. Son message ne cite R. 814-27 et
+ *   R. 814-28 que pour les art. 46, 47 et 49, et donne à part le régime du mandataire ad hoc. Mission « en matière
+ *   civile » : une déduction.
+ * - 🔵 Régime null (regimeDepuisFondement : fondement vide ou non reconnu, ou l'un des deux « ad hoc », qu'il ne
+ *   distingue pas ; fondements.ts hors de ce lot, J67, R1) : cadre « regime_inconnu », même comportement que le cadre
+ *   « fixée par le président », appliqué par défaut. Son message ne présume pas le régime : il demande de le vérifier
+ *   sur le fondement du mandat, donne les deux régimes « ad hoc », et rappelle qu'une AP de l'art. 29-1 mal saisie relève
+ *   de son tarif (comme CADRE_REGIME_INCONNU de travaux-budget.ts).
  * 🔵 Le cadre « contrat type de syndic » ne se déduit d'aucun régime judiciaire : l'appelant le passe pour un mandat de
  * syndic conventionnel.
  * - 🟢 Frais d'envoi, contrat type : remboursés au syndic à part, pour les prestations du forfait (7.1.5, alinéa sur
@@ -101,11 +110,13 @@ export { SEUIL_LOTS_REMUNERATION_PAR_LE_JUGE }
  * Décisions de Hugo du 17/11/2026 (registre des décisions juridiques, J67 : recommandations validées en bloc ; textes
  * relus sur Légifrance le 17/11/2026 ; lecture des textes, pas un avis d'avocat) :
  * - J67, R1 : cadre « rémunération fixée par le président » (remuneration_fixee_par_le_president, ci-dessus), pour l'AP
- *   de l'art. 47, l'administrateur ad hoc et le syndic judiciaire (C. com. R. 814-27 et R. 814-28).
+ *   de l'art. 47, l'administrateur ad hoc et le syndic judiciaire (C. com. R. 814-27 et R. 814-28) ; le mandataire ad
+ *   hoc relève de D. 1967 art. 61-1-4. Régime null : cadre « regime_inconnu », à vérifier (🔵, ci-dessus).
  * - J67, R2 : en administration provisoire, aucun élément « A facturer » au syndicat sans ordonnance d'acompte ou de fin
  *   de mission : un signalement « à soumettre au juge » (choix actuel confirmé). Seul le droit fixe de 1 500 € HT est
  *   perçu dès la désignation, sous 500 lots (D. 1967 art. 61-1-5, I ; arrêté, art. 3 et 4). La règle générale est dans
- *   preparerFacture (honoraires-facturation.ts, J67, R3).
+ *   preparerFacture (honoraires-facturation.ts, J67, R3) : le droit fixe n'y couvre que l'élément qui le facture, et
+ *   une diligence de sinistre sans ordonnance y est refusée, comme le signale controlerHonorairesSinistre.
  * - J67, R8 : la somme versée par l'assureur au titre des diligences se déduit de la rémunération due, TTC (choix actuel
  *   confirmé ; contrat type, 7.2.1 et 7.2.4, dernier al. ; arrêté, art. 14). Ce qu'un tiers paie en contrepartie du
  *   service fait partie du prix taxable (directive 2006/112/CE, art. 73) : la somme se lit TVA comprise. L'équivalent HT
@@ -148,6 +159,7 @@ export const CADRES_REMUNERATION_SINISTRE = [
   'tarif_administrateur_provisoire',
   'remuneration_fixee_par_le_juge',
   'remuneration_fixee_par_le_president',
+  'regime_inconnu',
 ] as const
 export type CadreRemunerationSinistre = (typeof CADRES_REMUNERATION_SINISTRE)[number]
 type CadreSansElement = Exclude<CadreRemunerationSinistre, 'contrat_type_syndic'>
@@ -245,6 +257,13 @@ export function coutHoraireUrgence(coutHoraireHtDixMilliemes: number, majoration
 
 export type DiligenceLueDansTarif = DiligenceSinistre | 'hors_heures_ouvrables'
 
+const FONDEMENTS_PAR_LE_PRESIDENT: readonly string[] = [
+  'C. com. R. 814-27 : rémunération fixée sur justification par le président qui a désigné ; recours, CPC art. 714 à 718',
+  'C. com. R. 814-28 : provision',
+  'D. 1967 art. 46, 47 et 49 : désignations par le président du tribunal judiciaire',
+  'D. 1967 art. 61-1-4 : mandataire ad hoc des art. 29-1 A à 29-1 C',
+]
+
 export const FONDEMENTS_HONORAIRES_SINISTRE: Readonly<Record<CadreRemunerationSinistre, readonly string[]>> = {
   contrat_type_syndic: [
     'L. 1965 art. 18-1 A, I',
@@ -253,12 +272,9 @@ export const FONDEMENTS_HONORAIRES_SINISTRE: Readonly<Record<CadreRemunerationSi
   ],
   tarif_administrateur_provisoire: ['L. 1965 art. 29-1, II', 'D. 1967 art. 61-1-5, I à III', 'Arrêté du 8 octobre 2015, art. 14'],
   remuneration_fixee_par_le_juge: ['L. 1965 art. 29-1, II', 'D. 1967 art. 61-1-5, II et III', 'Arrêté du 8 octobre 2015, art. 3'],
-  remuneration_fixee_par_le_president: [
-    'C. com. R. 814-27 : rémunération fixée sur justification par le président qui a désigné ; recours, CPC art. 714 à 718',
-    'C. com. R. 814-28 : provision',
-    'D. 1967 art. 46, 47 et 49 : désignations par le président du tribunal judiciaire',
-    'D. 1967 art. 61-1-4 : mandataire ad hoc des art. 29-1 A à 29-1 C',
-  ],
+  remuneration_fixee_par_le_president: FONDEMENTS_PAR_LE_PRESIDENT,
+  /** 🔵 Cadre appliqué par défaut, à vérifier sur le fondement du mandat : mêmes textes. */
+  regime_inconnu: FONDEMENTS_PAR_LE_PRESIDENT,
 }
 
 const SOURCE_TARIF_AP = 'arrêté du 8 octobre 2015, art. 14'
@@ -269,10 +285,28 @@ const SOURCE_HORS_FORFAIT = 'D. 1967 annexe 2, III, 6° à 9°'
 const AP_PAR_LE_JUGE =
   `Administration provisoire (art. 29-1), copropriété de ${SEUIL_LOTS_REMUNERATION_PAR_LE_JUGE} lots et plus : l'entière ` +
   `rémunération est fixée par le juge en fonction des frais engagés et des diligences accomplies`
-/** J67, R1 : syndic judiciaire (art. 46), AP faute de syndic (art. 47), administrateur ou mandataire ad hoc. */
+/** J67, R1 : C. com. R. 814-27 et R. 814-28 pour les art. 46, 47 et 49 seulement. */
+const SUR_JUSTIFICATION = 'sur justification des diligences (C. com. R. 814-27 ; provision possible, R. 814-28)'
+/** J67, R1 : le mandataire ad hoc a son propre régime (D. 1967 art. 61-1-4 ; arrêté du 8 octobre 2015, art. 1). */
+const MANDATAIRE_AD_HOC =
+  'Mandataire ad hoc (art. 29-1 A à 29-1 C) : rémunération arrêtée par le président en fin de mission (D. 1967 art. ' +
+  "61-1-4 ; forfait de l'arrêté du 8 octobre 2015, art. 1, sous 500 lots ; au-delà, conditions fixées par l'ordonnance " +
+  'de désignation)'
+/** J67, R1 : syndic judiciaire (art. 46), AP faute de syndic (art. 47), administrateur ad hoc (art. 49) ; mandataire ad hoc à part. */
 const PAR_LE_PRESIDENT =
-  "Mandat de justice hors du tarif de l'art. 29-1 (syndic judiciaire art. 46, AP art. 47, administrateur ou mandataire " +
-  'ad hoc) : rémunération fixée par le président du tribunal qui a désigné le cabinet, sur justification des diligences'
+  "Mandat de justice hors du tarif de l'art. 29-1. Syndic judiciaire (art. 46), AP faute de syndic (art. 47) ou " +
+  `administrateur ad hoc (art. 49) : rémunération fixée par le président du tribunal qui a désigné le cabinet, ${SUR_JUSTIFICATION}. ` +
+  MANDATAIRE_AD_HOC
+/**
+ * 🔵 Régime null (fondement vide ou non reconnu, ou mandat ad hoc, que fondements.ts ne distingue pas) : cadre « fixée
+ * par le président » par défaut, à vérifier ; aucune affirmation sur le régime (comme CADRE_REGIME_INCONNU de
+ * travaux-budget.ts).
+ */
+const REGIME_INCONNU =
+  'Régime du mandat non reconnu (fondement vide ou non reconnu, ou mandat ad hoc) : par défaut, rémunération fixée par ' +
+  'le président du tribunal qui a désigné le cabinet, à vérifier sur le fondement du mandat. Administrateur ad hoc ' +
+  `(art. 49) : ${SUR_JUSTIFICATION}. ${MANDATAIRE_AD_HOC}. Administration provisoire de l'art. 29-1 : corriger le ` +
+  "fondement, son tarif s'applique (D. 1967 art. 61-1-5)"
 
 function verifierCadre(cadre: CadreRemunerationSinistre): void {
   if (!(CADRES_REMUNERATION_SINISTRE as readonly string[]).includes(cadre)) throw new Error(`Cadre de rémunération inconnu : « ${cadre} ».`)
@@ -280,11 +314,13 @@ function verifierCadre(cadre: CadreRemunerationSinistre): void {
 
 /**
  * Cadre de rémunération d'un mandat judiciaire : seul l'AP de l'art. 29-1 a un tarif écrit (art. 61-1-5), sauf à 500 lots
- * et plus, où le juge fixe toute la rémunération (arrêté art. 3). Les autres régimes, et un régime null (ad hoc, ou
- * fondement non reconnu) : rémunération fixée par le président qui a désigné (C. com. R. 814-27 ; J67, R1). Le nombre de
- * lots n'est lu que pour l'AP de l'art. 29-1.
+ * et plus, où le juge fixe toute la rémunération (arrêté art. 3). Syndic judiciaire et AP de l'art. 47 : rémunération
+ * fixée par le président qui a désigné (C. com. R. 814-27 ; J67, R1). Régime null (ad hoc, fondement vide ou non
+ * reconnu) : « regime_inconnu », même comportement, message à vérifier (🔵). Le nombre de lots n'est lu que pour l'AP de
+ * l'art. 29-1.
  */
 export function cadreRemunerationDuRegime(regime: Regime | null, nbLots: number): CadreRemunerationSinistre {
+  if (regime === null) return 'regime_inconnu'
   if (regime !== 'ap291') return 'remuneration_fixee_par_le_president'
   verifierNombreDeLots(nbLots)
   return nbLots >= SEUIL_LOTS_REMUNERATION_PAR_LE_JUGE ? 'remuneration_fixee_par_le_juge' : 'tarif_administrateur_provisoire'
@@ -359,8 +395,8 @@ function tarifDeLaDiligence(diligence: FicheDiligenceHorsForfait, tarif: string 
 
 /**
  * Hors contrat type, ni le forfait (7.1.1) ni l'annexe 2 : en AP de moins de 500 lots, seule la déclaration est refusée
- * (arrêté art. 14) ; à 500 lots et plus et quand le président fixe la rémunération (R. 814-27), rien n'est refusé. La
- * cohérence du tarif reste contrôlée.
+ * (arrêté art. 14) ; à 500 lots et plus, quand le président fixe la rémunération (R. 814-27) et pour un régime inconnu,
+ * rien n'est refusé. La cohérence du tarif reste contrôlée.
  */
 function verifierHorsContratType(code: DiligenceSinistre, tarif: string | undefined, cadre: CadreSansElement): void {
   const diligence = ficheDiligence(code)
@@ -426,7 +462,11 @@ const SANS_ELEMENT: Readonly<Record<CadreSansElement, { motif: MotifSansElement;
   },
   remuneration_fixee_par_le_president: {
     motif: 'a_soumettre_au_juge',
-    signalement: `${PAR_LE_PRESIDENT} (C. com. R. 814-27 ; provision possible, R. 814-28) ; à lui soumettre ; ${AUCUN_ELEMENT}.`,
+    signalement: `${PAR_LE_PRESIDENT}. À soumettre au président ; ${AUCUN_ELEMENT}.`,
+  },
+  regime_inconnu: {
+    motif: 'a_soumettre_au_juge',
+    signalement: `${REGIME_INCONNU}. À soumettre au juge ; ${AUCUN_ELEMENT}.`,
   },
 }
 
@@ -450,7 +490,7 @@ export function elementAOuvertureSinistre(ouverture: OuvertureSinistre, cadre: C
   }
   const diligence = diligenceHorsForfait(code)
   const tarif = tarifDeLaDiligence(diligence, ouverture.tarif)
-  const element = creerElement({
+  const saisie: SaisieElement = {
     id: ouverture.elementId,
     coproprieteId: ouverture.coproprieteId,
     mandatId: ouverture.mandatId,
@@ -465,7 +505,9 @@ export function elementAOuvertureSinistre(ouverture: OuvertureSinistre, cadre: C
     soumisTva: ouverture.soumisTva,
     tauxTvaPct: ouverture.tauxTvaPct,
     destinataire: ouverture.destinataire ?? 'Syndicat des copropriétaires',
-  })
+  }
+  // Seul cadre qui crée l'élément : le contrat type de syndic (J67, R9 : la mission est passée à creerElement).
+  const element = creerElement(saisie, 'contrat_type_syndic')
   return { genere: true, element }
 }
 
@@ -484,12 +526,15 @@ export function dureeDepuisHoraires(debut: string, fin: string): { minutes: numb
   return { minutes, heures: Math.round((minutes * 100) / 60) / 100 }
 }
 
-/** Corrige le nombre d'heures d'un élément au coût horaire encore « A facturer » ; l'élément reçu n'est pas modifié. */
+/**
+ * Corrige le nombre d'heures d'un élément au coût horaire encore « A facturer » ; l'élément reçu n'est pas modifié, sa
+ * qualification non plus (corrigerQuantite ; J67, R9).
+ */
 export function corrigerHeures(element: ElementAFacturer, heures: number): ElementAFacturer {
   if (element.statut !== 'A facturer') throw new Error(`Correction refusée : l'élément ${element.id} est déjà facturé.`)
   if (element.calcul !== 'Coût horaire') throw new Error(`Correction refusée : l'élément ${element.id} n'est pas au coût horaire (${element.calcul}).`)
   if (!Number.isFinite(heures) || heures <= 0) throw new Error(`Nombre d'heures invalide (${heures}) : strictement positif attendu.`)
-  return creerElement({ ...element, quantite: heures })
+  return corrigerQuantite(element, heures)
 }
 
 export type NatureAnomalieHonorairesSinistre =
@@ -499,6 +544,7 @@ export type NatureAnomalieHonorairesSinistre =
   | 'hors_tarif_ap'
   | 'remuneration_fixee_par_le_juge'
   | 'remuneration_fixee_par_le_president'
+  | 'regime_inconnu'
 
 export interface AnomalieHonorairesSinistre {
   elementId: string
@@ -509,7 +555,8 @@ export interface AnomalieHonorairesSinistre {
 /**
  * Diligence non due selon le cadre : contrat type, déclaration et règlement des indemnités (7.1.1), et tarif hors de la
  * liste limitative de l'annexe 2 ; AP de moins de 500 lots, la seule déclaration (arrêté art. 14, sans liste de
- * diligences) ; 500 lots et plus (arrêté art. 3) et rémunération fixée par le président (R. 814-27) : aucune règle.
+ * diligences) ; 500 lots et plus (arrêté art. 3), rémunération fixée par le président (R. 814-27) et régime inconnu :
+ * aucune règle.
  */
 function anomalieDeDiligence(element: ElementAFacturer, cadre: CadreRemunerationSinistre): AnomalieHonorairesSinistre | null {
   const lue = diligenceDuTarif(element.tarif)
@@ -557,7 +604,11 @@ const ANOMALIE_DU_CADRE: Readonly<Record<CadreSansElement, { nature: NatureAnoma
   },
   remuneration_fixee_par_le_president: {
     nature: 'remuneration_fixee_par_le_president',
-    message: `${PAR_LE_PRESIDENT} (C. com. R. 814-27) : à lui soumettre, pas à facturer au syndicat.`,
+    message: `${PAR_LE_PRESIDENT}. À soumettre au président, pas à facturer au syndicat.`,
+  },
+  regime_inconnu: {
+    nature: 'regime_inconnu',
+    message: `${REGIME_INCONNU}. À soumettre au juge, pas à facturer au syndicat.`,
   },
 }
 
