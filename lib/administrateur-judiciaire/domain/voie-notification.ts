@@ -70,6 +70,11 @@ import type { Identite } from '@/lib/administrateur-judiciaire/domain/identites-
  *   notification (statut-assemblee.ts, cause consentement_lre_absent) ; le procédé du prestataire qualifié (D. 1967
  *   art. 64, 2°) n'est pas concerné ; la LRAR reste possible.
  *
+ * J78 (réponse de Frédéric du 17/11/2026) : la qualité professionnelle du destinataire vient de la case « professionnel »
+ * de la fiche identité, décochée par défaut (identites-positions.ts, qualiteProfessionnelleDe, avecQualiteProfessionnelle) ;
+ * décochée ou absente : non professionnelle, le consentement reste l'accord du critère LRE (J53). Table des identités et
+ * écran : à brancher.
+ *
  * Suite, décision de Hugo du 17/11/2026 (J59) (DECISIONS-HUGO-2026-11-17.md, section « Suite » : recommandations
  * validées en bloc, numéro de registre proposé) : un refus de la voie électronique reçu avant le 25/12/2025, suivi d'un
  * accord reçu depuis : l'accord daté et écrit l'emporte (dernière volonté exprimée ; voie électronique de principe depuis
@@ -125,8 +130,6 @@ import type { Identite } from '@/lib/administrateur-judiciaire/domain/identites-
  * voieDeNotification ne calcule rien avant cette date ; le calcul du délai (statut-assemblee.ts) en décide.
  *
  * 🔴 Non établi :
- * la qualité professionnelle du destinataire n'a aucune source dans le module (non saisie : lue comme non
- * professionnelle, J53) ;
  * le libellé « Voie électronique (accord exprès) » de l'écran d'AG (AgElectiveModule.tsx) est à
  * revoir avec Frédéric. Le mode de notification des courriers (LRAR, LRE, prestataire
  * qualifié) est un champ propre à VitFix (courriers.ts, J50) : le référentiel des formes d'envoi, généré depuis Gestéam,

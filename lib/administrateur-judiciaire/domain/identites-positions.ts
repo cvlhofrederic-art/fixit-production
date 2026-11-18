@@ -47,10 +47,19 @@ import { GROUPE_IDENTITE, QUALITE_IDENTITE, type GroupeIdentite } from '@/lib/da
  * télécoms (Telecom) restent sans date, voulu : l'adresse de notification n'est pas un simple télécom ; contrôle avant
  * envoi : controlerAvantEnvoiElectronique (voie-notification.ts), écrit et testé, à brancher par l'appelant de
  * creerEnvoiNotificationElectronique (anomaliesAvantEnvoi).
+ * J78 (réponse de Frédéric du 17/11/2026, sj-qualite-pro.json) : case « professionnel » sur la fiche identité, décochée
+ * par défaut (Identite.professionnel, facultative). Décochée ou absente : destinataire non professionnel ; une LRE exige
+ * alors son consentement, qui reste l'accord du critère LRE repris de Gestéam (CPCE art. L. 100 ; J53 ; accord sans
+ * date valable écarté : J66). Cochée : ce consentement n'est pas exigé ; les autres règles restent (voie postale : J52,
+ * J74 ; accord exprès avant le 25/12/2025 : J50). Lecture : qualiteProfessionnelleDe ; branchement sur le contrôle J53 :
+ * avecQualiteProfessionnelle (statut-assemblee.ts inchangé). Ni table ni écran : la case s'enregistrera avec la table
+ * des identités, qui n'existe pas encore.
  * 🔴 Non établi : l'usage de l'adresse reste libre, valeurs Gestéam du champ « Usage » non relevées ; choix du jeu de
  * coordonnées par compte ou par syndicat (dans Gestéam, la fiche client désigne son jeu de coordonnées ; ici, l'adresse
  * vaut pour l'identité entière) ; parts sociales d'un associé de SCI qui n'est pas lui-même titulaire d'une position
- * (hors champ).
+ * (hors champ) ; J78, questions à Hugo : ce qui justifie de cocher la case « professionnel » (cochée à tort, la
+ * notification est irrégulière et le délai ne court pas) et si cette qualité doit être datée (J50 juge la voie à la
+ * date du dépôt ; la case, sans date, est lue dans son état actuel).
  */
 
 const QUALITES_COPROPRIETE = QUALITE_IDENTITE.copropriete
@@ -118,10 +127,18 @@ export interface Identite {
   groupes: GroupeIdentite[]
   /** Vide pour une personne physique. */
   representants: RepresentantLegal[]
+  /**
+   * J78 — case « professionnel » (CPCE art. L. 100 ; contrôle J53), décochée par défaut. Absente : non saisie, lue comme
+   * non professionnelle (qualiteProfessionnelleDe). Non indexée ; enregistrement et écran : à brancher.
+   */
+  professionnel?: boolean
 }
 
-export type SaisieIdentite = Omit<Identite, 'adresses' | 'groupes' | 'representants'> &
-  Partial<Pick<Identite, 'adresses' | 'groupes' | 'representants'>>
+export type SaisieIdentite = Omit<Identite, 'adresses' | 'groupes' | 'representants' | 'professionnel'> &
+  Partial<Pick<Identite, 'adresses' | 'groupes' | 'representants'>> & {
+    /** J78 : absente ou null (reprise) : non saisie, la case reste décochée. */
+    professionnel?: boolean | null
+  }
 
 const nettoyer = (texte: string): string => texte.replace(/\s+/g, ' ').trim()
 
@@ -174,6 +191,13 @@ function verifierRepresentants(identite: Pick<Identite, 'id' | 'nature' | 'nom'>
   }
 }
 
+/** J78 : case cochée ou décochée gardée ; absente ou null, rien (non saisie) ; toute autre valeur refusée. */
+function caseProfessionnel(valeur: unknown, nom: string): Pick<Identite, 'professionnel'> {
+  if (valeur === undefined || valeur === null) return {}
+  if (typeof valeur !== 'boolean') throw new Error(`Case « professionnel » de ${nom} : cochée ou décochée attendue (reçu « ${String(valeur)} »).`)
+  return { professionnel: valeur }
+}
+
 export function creerIdentite(saisie: SaisieIdentite): Identite {
   const nom = nettoyer(saisie.nom)
   if (!nom) throw new Error("Nom de l'identité manquant.")
@@ -185,14 +209,40 @@ export function creerIdentite(saisie: SaisieIdentite): Identite {
   verifierGroupes(groupes)
   const representants = saisie.representants ?? []
   verifierRepresentants({ id: saisie.id, nature: saisie.nature, nom }, representants)
+  const { professionnel, ...reste } = saisie
   return {
-    ...saisie,
+    ...reste,
     nom,
     prenom: saisie.prenom?.trim() || null,
     adresses,
     groupes: [...groupes],
     representants: representants.map((r) => ({ ...r, identiteId: r.identiteId.trim(), fonction: r.fonction?.trim() || null })),
+    ...caseProfessionnel(professionnel, nom),
   }
+}
+
+/**
+ * J78 — qualité professionnelle du destinataire (CPCE art. L. 100), telle que le contrôle J53 l'attend
+ * (statut-assemblee.ts : professionnel, null lu comme non professionnel) : null si l'identité est absente (non saisie) ;
+ * sinon la case de la fiche, décochée par défaut (true seulement si elle est cochée ; toute autre valeur enregistrée :
+ * non professionnelle, lecture prudente de J53). Lit l'état actuel de la case, sans date (question ouverte, en-tête).
+ */
+export function qualiteProfessionnelleDe(identite: Pick<Identite, 'professionnel'> | null | undefined): boolean | null {
+  if (identite === null || identite === undefined) return null
+  return identite.professionnel === true
+}
+
+/**
+ * J78 — branchement sur le contrôle J53 : la qualité de chaque destinataire (NotificationDestinataire de
+ * statut-assemblee.ts, ou tout objet rattaché à une identité) lue sur sa fiche (qualiteProfessionnelleDe). La case est la
+ * seule source : une valeur donnée par l'appelant est remplacée ; identité introuvable : null (non saisie, lue comme non
+ * professionnelle). L'entrée n'est pas modifiée.
+ */
+export function avecQualiteProfessionnelle<T extends { identiteId: string }>(
+  destinataires: readonly T[],
+  identites: readonly Pick<Identite, 'id' | 'professionnel'>[],
+): (T & { professionnel: boolean | null })[] {
+  return destinataires.map((d) => ({ ...d, professionnel: qualiteProfessionnelleDe(identites.find((i) => i.id === d.identiteId)) }))
 }
 
 const dansPeriode = (date: string, du: string, au: string | null): boolean => du <= date && (au === null || date <= au)
