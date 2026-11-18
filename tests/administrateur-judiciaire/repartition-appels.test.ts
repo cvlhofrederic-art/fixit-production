@@ -326,11 +326,12 @@ describe('mutation du lot le jour de l’exigibilité : appel au compte du vende
 
 describe('J67, R87 — en-tête : cotisations de 2017 à 2018 tranchées, mutation antérieure au 01/09/2004 hors champ', () => {
   const { texte } = enTeteDuModule('repartition-appels')
-  const nonEtabli = texte.slice(texte.indexOf('🔴 Non établi'))
 
   it('la question ne reste plus en 🔴 ; la décision est inscrite avec ses textes', () => {
-    expect(nonEtabli).not.toMatch(/mutation antérieure au 01\/09\/2004/)
-    expect(nonEtabli).not.toMatch(/cotisation au fonds exigible avant le 25\/11\/2018/)
+    // R87 et R111 tranchent chacune la question que l'autre laissait ouverte : l'en-tête n'a plus aucun 🔴.
+    expect(texte).not.toContain('🔴')
+    expect(texte).not.toMatch(/mutation antérieure au 01\/09\/2004 \(création|cotisation au fonds exigible avant le 25\/11\/2018/)
+    expect(texte).not.toMatch(/Question : qui doit la provision exigible le jour d'une mutation à titre gratuit/)
     expect(texte).toMatch(/J67, R87 : .*01\/01\/2017 au 25\/11\/2018.*même règle.*avant le 01\/01\/2017, aucun fonds de travaux légal.*01\/09\/2004.*mutation_avant_art_6_2/)
   })
 })
