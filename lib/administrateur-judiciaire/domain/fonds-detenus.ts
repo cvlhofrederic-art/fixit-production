@@ -730,7 +730,7 @@ function anomalieDuSoldeNegatif(l: LigneFondsDetenus, mandatId: string, jour: st
       ...commun,
       code: 'couverture_non_verifiable',
       gravite: 'bloquant',
-      message: `${solde}, sur un compte sans IBAN, traité comme le compte global de l'administrateur tant que son IBAN n'est pas saisi (décision de Hugo du 17/11/2026, J62 ; C. com. R. 814-37, R. 814-41 ; règle professionnelle 512.5) : découvert ou fonds d'un autre mandat, la couverture n'est pas vérifiable ; saisir l'IBAN de chaque compte du mandat.`,
+      message: `${solde}, sur un compte sans IBAN, traité comme le compte global de l'administrateur tant que son IBAN n'est pas saisi (J62 ; C. com. R. 814-37, R. 814-41 ; règle professionnelle 512.5) : découvert ou fonds d'un autre mandat, la couverture n'est pas vérifiable ; saisir l'IBAN de chaque compte du mandat.`,
       fondement: FONDEMENT_COUVERTURE,
     }
   return {

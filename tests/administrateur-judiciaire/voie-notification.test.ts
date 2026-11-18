@@ -5,6 +5,8 @@ import { creerIdentite, type Identite } from '@/lib/administrateur-judiciaire/do
 import {
   JOURS_AVANT_EFFET_RETOUR_VOIE_ELECTRONIQUE,
   JOURS_AVANT_EFFET_VOIE_POSTALE,
+  accordElectroniqueEnAttente,
+  accordElectroniqueEnVigueur,
   adresseElectroniqueDeNotification,
   communicationDeLaRenonciation,
   controlerAvantEnvoiElectronique,
@@ -311,7 +313,7 @@ describe('J74 — voie de notification après une renonciation : postale jusqu�
     expect(voieDeNotification({ identiteId: 'id-1', demandes: [], date: '2026-03-11' })).toMatchObject({ voie: 'electronique', retour: null })
   })
 
-  it('elle ne lève que les demandes reçues avant elle : une demande plus récente l’emporte ; même jour : la demande demeure (🔵)', () => {
+  it('elle ne lève que les demandes reçues au plus tard le jour de sa réception : une demande plus récente l’emporte', () => {
     const nouvelle = creerDemandeVoiePostale({ identiteId: 'id-1', recueLe: '2026-04-01', origine: 'extranet' })
     expect(voieDeNotification({ identiteId: 'id-1', demandes: [demande, nouvelle], renonciations: [renonciation()], date: '2026-04-15' })).toMatchObject({
       voie: 'postale',
@@ -320,10 +322,31 @@ describe('J74 — voie de notification après une renonciation : postale jusqu�
     })
     // entre son effet et celui de la nouvelle demande : voie électronique
     expect(voieDeNotification({ identiteId: 'id-1', demandes: [demande, nouvelle], renonciations: [renonciation()], date: '2026-04-05' }).voie).toBe('electronique')
-    const memeJour = renonciation({ dateeLe: '2026-02-01', recueLe: '2026-02-01' })
-    expect(voieDeNotification({ identiteId: 'id-1', demandes: [demande], renonciations: [memeJour], date: '2026-03-15' })).toMatchObject({ voie: 'postale', retour: null })
     // celle d'une autre identité ne compte pas
     expect(voieDeNotification({ identiteId: 'id-1', demandes: [demande], renonciations: [renonciation({ identiteId: 'id-2' })], date: '2026-03-15' }).voie).toBe('postale')
+  })
+
+  it('relecture : même jour que la demande, la renonciation la lève à son effet, comme l’accord enregistré après un refus le même jour (🔵)', () => {
+    const demandeAg = creerDemandeVoiePostale({ identiteId: 'id-1', recueLe: '2026-02-01', origine: 'ag', agId: 'ag-9' })
+    const memeJour = renonciation({ dateeLe: '2026-02-01', recueLe: '2026-02-01' })
+    // demande formulée en assemblée (effet ce jour-là) : postale jusqu'à l'effet de la renonciation, puis électronique
+    expect(voieDeNotification({ identiteId: 'id-1', demandes: [demandeAg], renonciations: [memeJour], date: '2026-02-09' })).toMatchObject({
+      voie: 'postale',
+      depuis: '2026-02-01',
+      retour: { nature: 'renonciation', recueLe: '2026-02-01', effet: '2026-02-10' },
+    })
+    expect(voieDeNotification({ identiteId: 'id-1', demandes: [demandeAg], renonciations: [memeJour], date: '2026-02-10' })).toMatchObject({
+      voie: 'electronique',
+      retour: { nature: 'renonciation', effet: '2026-02-10' },
+    })
+    expect(voieDeNotification({ identiteId: 'id-1', demandes: [demande], renonciations: [memeJour], date: '2026-03-15' })).toMatchObject({ voie: 'electronique' })
+    // même règle pour le refus et l'accord reçus le même jour, l'accord enregistré après : le refus est levé à l'effet
+    const refus = creerConsentementVoieElectronique({ identiteId: 'id-1', sens: 'refus', recuLe: '2026-02-01' })
+    const accord = creerConsentementVoieElectronique({ identiteId: 'id-1', sens: 'accord', recuLe: '2026-02-01' })
+    expect(demandesDepuisConsentements([refus, accord], '2026-02-09')).toMatchObject([{ recueLe: '2026-02-01', retourEnAttente: { effet: '2026-02-10' } }])
+    expect(demandesDepuisConsentements([refus, accord], '2026-02-10')).toEqual([])
+    // l'accord enregistré avant le refus, le même jour : le refus reste le dernier état
+    expect(demandesDepuisConsentements([accord, refus], '2026-03-15')).toEqual([{ identiteId: 'id-1', recueLe: '2026-02-01', origine: 'autre', agId: null }])
   })
 
   it('demande reçue avant le 25/12/2025 (effet à sa réception, J52) levée par une renonciation reçue depuis : même effet', () => {
@@ -372,5 +395,56 @@ describe('J74 — accord donné après un refus (J59) : effet le lendemain du hu
   it('un refus reçu après l’accord reste le dernier état : demande sans retour en attente', () => {
     const second = creerConsentementVoieElectronique({ identiteId: 'id-1', sens: 'refus', recuLe: '2025-12-28' })
     expect(demandesDepuisConsentements([refus, accord, second], '2026-01-10')).toEqual([{ identiteId: 'id-1', recueLe: '2025-12-28', origine: 'autre', agId: null }])
+  })
+})
+
+describe('J74, relecture — accord en vigueur (accordElectroniqueEnVigueur) : l’accord donné après un refus ou un retrait vaut à son effet, à toute date', () => {
+  const c = (sens: 'accord' | 'refus' | 'retrait', recuLe: string) => creerConsentementVoieElectronique({ identiteId: 'id-1', sens, recuLe })
+  const etat = (consentements: ReturnType<typeof c>[], date: string) => ({
+    enVigueur: accordElectroniqueEnVigueur({ identiteId: 'id-1', consentements, date }),
+    enAttente: accordElectroniqueEnAttente({ identiteId: 'id-1', consentements, date }),
+  })
+
+  it('après un refus, même reçu avant le 25/12/2025 : en attente jusqu’au lendemain du huitième jour, puis en vigueur', () => {
+    const accord = c('accord', '2025-12-20')
+    const consentements = [c('refus', '2025-10-01'), accord]
+    const retour = effetRetourVoieElectronique({ nature: 'accord', recueLe: '2025-12-20' })
+    expect(retour.effet).toBe('2025-12-29')
+    for (const date of ['2025-12-20', '2025-12-22', '2025-12-28']) expect(etat(consentements, date), date).toEqual({ enVigueur: null, enAttente: retour })
+    expect(etat(consentements, '2025-12-29')).toEqual({ enVigueur: accord, enAttente: null })
+    // le paramètre de durée est celui de J74 (D. 1967 art. 64-4)
+    expect(JOURS_AVANT_EFFET_RETOUR_VOIE_ELECTRONIQUE).toBe(9)
+  })
+
+  it('après un retrait : de même ; premier accord, sans refus ni retrait avant lui : en vigueur dès sa réception (inchangé)', () => {
+    expect(etat([c('accord', '2025-03-01'), c('retrait', '2025-06-01'), c('accord', '2025-12-10')], '2025-12-12')).toMatchObject({
+      enVigueur: null,
+      enAttente: { nature: 'accord', recueLe: '2025-12-10', effet: '2025-12-19' },
+    })
+    const premier = c('accord', '2025-12-10')
+    expect(etat([premier], '2025-12-10')).toEqual({ enVigueur: premier, enAttente: null })
+  })
+
+  it('plusieurs accords après le refus : l’effet du premier fait foi ; un refus reçu ensuite l’emporte', () => {
+    const second = c('accord', '2026-01-08')
+    expect(etat([c('refus', '2026-01-02'), c('accord', '2026-01-05'), second], '2026-01-14')).toEqual({ enVigueur: second, enAttente: null })
+    expect(etat([c('refus', '2026-01-02'), c('accord', '2026-01-05'), second], '2026-01-13')).toMatchObject({ enVigueur: null, enAttente: { effet: '2026-01-14' } })
+    expect(etat([c('refus', '2026-01-02'), c('accord', '2026-01-05'), c('refus', '2026-01-06')], '2026-02-01')).toEqual({ enVigueur: null, enAttente: null })
+  })
+
+  it('même jour : le refus puis l’accord enregistré après : en attente puis en vigueur ; l’accord puis le refus : aucun accord', () => {
+    const accord = c('accord', '2026-02-01')
+    const refus = c('refus', '2026-02-01')
+    expect(etat([refus, accord], '2026-02-09')).toMatchObject({ enVigueur: null, enAttente: { effet: '2026-02-10' } })
+    expect(etat([refus, accord], '2026-02-10')).toEqual({ enVigueur: accord, enAttente: null })
+    expect(etat([accord, refus], '2026-02-10')).toEqual({ enVigueur: null, enAttente: null })
+  })
+
+  it('en-tête : l’accord en vigueur suit J74 ; la phrase « lit toujours l’accord dès sa réception » est retirée ; choix 🔵 dit', () => {
+    const { item } = enTeteDuModule('voie-notification')
+    const j74 = item('Décision de Hugo du 18/11/2026 (registre des décisions juridiques, J74')
+    expect(j74).not.toMatch(/lit toujours l'accord dès sa réception/)
+    expect(j74).toMatch(/accordElectroniqueEnVigueur/)
+    expect(j74).toMatch(/🔵 L'accord donné après un refus ou un retrait reçu avant le 25\/12\/2025 suit aussi J74/)
   })
 })

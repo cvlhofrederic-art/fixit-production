@@ -415,11 +415,11 @@ const closLeCourrier = <S extends string>(machine: MachineEnvoi<S>, statut: S): 
 
 /** Refus d'une nouvelle tentative après un « Échec » (décision de Hugo du 17/11/2026, J58). */
 const RAISON_NOUVEAU_COURRIER_APRES_ECHEC =
-  "un envoi en échec n'a rien notifié ; pour un nouvel envoi, créer un nouveau courrier (nouveau dépôt ; D. 1967 art. 64, 64-1 ; décision de Hugo du 17/11/2026, J58)"
+  "un envoi en échec n'a rien notifié ; pour un nouvel envoi, créer un nouveau courrier (nouveau dépôt ; D. 1967 art. 64, 64-1 ; J58)"
 
 /** Refus d'une nouvelle tentative après « Reçu en erreur » (décision de Hugo du 17/11/2026, J66). */
 const RAISON_APRES_RECU_EN_ERREUR =
-  "si le justificatif établit la transmission de l'avis électronique, la notification est acquise et aucun nouvel envoi n'est utile (D. 1967 art. 64, dernier al. ; J57) ; sinon rien n'a été notifié : créer un nouveau courrier (nouveau dépôt ; J58) (décision de Hugo du 17/11/2026, J66)"
+  "si le justificatif établit la transmission de l'avis électronique, la notification est acquise et aucun nouvel envoi n'est utile (D. 1967 art. 64, dernier al. ; J57) ; sinon rien n'a été notifié : créer un nouveau courrier (nouveau dépôt ; J58) (J66)"
 
 // ─── Horodatages ─────────────────────────────────────────────────────────────────────────────
 
@@ -847,7 +847,7 @@ function alertesNotification(
       code: 'avis_a_saisir',
       message:
         envoi.statut === 'Reçu en erreur'
-          ? `${enConsole} : vérifier ${SOURCE_AVIS[mode]} si l'avis électronique a été transmis, et ne saisir sa date (controlerAvisElectronique, courriers.ts) sur le courrier ${courrier.id} que si ce justificatif l'établit. Avis transmis, envoi ensuite refusé ou non réclamé : la date de l'avis vaut, le délai court de son lendemain (D. 1967 art. 64, dernier al. ; décision de Hugo du 17/11/2026, J57) ; défaut de transmission de l'avis : aucune date à saisir, le délai ne court pas. Sans cette date, le délai n'est pas calculé (J50).`
+          ? `${enConsole} : vérifier ${SOURCE_AVIS[mode]} si l'avis électronique a été transmis, et ne saisir sa date (controlerAvisElectronique, courriers.ts) sur le courrier ${courrier.id} que si ce justificatif l'établit. Avis transmis, envoi ensuite refusé ou non réclamé : la date de l'avis vaut, le délai court de son lendemain (D. 1967 art. 64, dernier al. ; J57) ; défaut de transmission de l'avis : aucune date à saisir, le délai ne court pas. Sans cette date, le délai n'est pas calculé (J50).`
           : `${enConsole} : saisir sur le courrier ${courrier.id} la date de transmission de l'avis électronique (controlerAvisElectronique, courriers.ts), lue ${SOURCE_AVIS[mode]} ; aucun statut de la console ne la donne (J57) et, sans elle, le délai n'est pas calculé (J50).`,
     })
   if (avis && !abouti)
@@ -858,7 +858,7 @@ function alertesNotification(
   if (avis && envoi.statut === 'Reçu en erreur')
     alertes.push({
       code: 'retour_en_erreur_apres_avis',
-      message: `${enConsole} après l'avis du ${dateIsoVersFr(avis)} saisi sur le courrier ${courrier.id} : le module garde cette date, seule retenue pour le délai (une notification électronique est acquise à la transmission de l'avis, téléchargé ou non : D. 1967 art. 64, dernier al. ; J50) ; un refus ou une non-réclamation après l'avis ne remettent pas en cause sa date (décision de Hugo du 17/11/2026, J57). Vérifier toutefois ${SOURCE_AVIS[mode]} que l'avis a bien été transmis à cette date : un retour en erreur peut aussi signaler un défaut de transmission de l'avis, qui ne fait pas courir le délai ; la date saisie serait alors à retirer.`,
+      message: `${enConsole} après l'avis du ${dateIsoVersFr(avis)} saisi sur le courrier ${courrier.id} : le module garde cette date, seule retenue pour le délai (une notification électronique est acquise à la transmission de l'avis, téléchargé ou non : D. 1967 art. 64, dernier al. ; J50) ; un refus ou une non-réclamation après l'avis ne remettent pas en cause sa date (J57). Vérifier toutefois ${SOURCE_AVIS[mode]} que l'avis a bien été transmis à cette date : un retour en erreur peut aussi signaler un défaut de transmission de l'avis, qui ne fait pas courir le délai ; la date saisie serait alors à retirer.`,
     })
   return alertes
 }

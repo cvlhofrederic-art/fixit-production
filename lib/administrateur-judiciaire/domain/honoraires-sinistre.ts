@@ -21,6 +21,7 @@ import {
 } from '@/lib/administrateur-judiciaire/domain/honoraires-facturation'
 import {
   SEUIL_LOTS_REMUNERATION_PAR_LE_JUGE,
+  SOURCE_FRAIS_ET_DEBOURS,
   verifierNombreDeLots,
 } from '@/lib/administrateur-judiciaire/domain/ordonnances-remuneration'
 import { normaliserTexte } from '@/lib/administrateur-judiciaire/domain/texte'
@@ -136,8 +137,10 @@ export { SEUIL_LOTS_REMUNERATION_PAR_LE_JUGE }
  *   AR, copie, envois, diffuseurs) sont des frais du cabinet, à part de sa rémunération, présentés au juge en annexe
  *   « frais et débours » et payés seulement en vertu de son ordonnance (C. com. R. 814-27 ; R5) : hors contrat type,
  *   chaque frais du dossier Sinistre est signalé « à présenter au juge » (anomalie frais_a_presenter_au_juge, avec la
- *   source propre au cadre : D. 1967 art. 61-1-5, II et III sous 500 lots ; arrêté du 8 octobre 2015, art. 3 à 500 lots
- *   et plus ; C. com. R. 814-27 pour la rémunération fixée par le président ; régime à vérifier s'il est inconnu), jamais
+ *   source propre au cadre : sous 500 lots, les frais et débours que l'ordonnance arrête, Cass. 3e civ., 21/05/2026,
+ *   n° 24-20.377, J67, R5 (relecture du 18/11/2026 : D. 1967 art. 61-1-5, II ne vise que les émoluments, son III,
+ *   al. 2 les seuls droits proportionnels au-delà du seuil de l'arrêté) ; arrêté du 8 octobre 2015, art. 3 à 500 lots et
+ *   plus ; C. com. R. 814-27 pour la rémunération fixée par le président ; régime à vérifier s'il est inconnu), jamais
  *   facturé au syndicat sans l'ordonnance (preparerFacture, J67, R3) ; le solde les garde à part (fraisTtcCentimes). Au
  *   contrat type de syndic, ils restent remboursés au syndic (7.1.5 et 7.2.1) et ne sont pas signalés. (a) La mise en
  *   demeure et les relances d'un copropriétaire en retard sont une dépense du syndicat, imputée au seul copropriétaire
@@ -629,12 +632,16 @@ const anomalieSansFiche = (element: ElementAFacturer): AnomalieHonorairesSinistr
     ? null
     : { elementId: element.id, nature: 'sans_fiche', message: 'Élément du dossier Sinistre sans fiche : rattacher le sinistre précis (point 47).' }
 
-/** J72 (b) : ce qui fonde la présentation des frais au juge, selon le cadre (hors contrat type). */
+/**
+ * J72 (b) : ce qui fonde la présentation des frais au juge, selon le cadre (hors contrat type). Sous l'art. 29-1, les
+ * frais et débours que l'ordonnance arrête (J67, R5 : SOURCE_FRAIS_ET_DEBOURS), pas D. 1967 art. 61-1-5, II (émoluments
+ * seuls) ni son III, al. 2 (droits proportionnels au-delà du seuil de l'arrêté) : relecture du 18/11/2026.
+ */
 const SOURCE_FRAIS_SELON_LE_CADRE: Readonly<Record<CadreSansElement, string>> = {
-  tarif_administrateur_provisoire: "administration provisoire de l'art. 29-1 : D. 1967 art. 61-1-5, II et III",
+  tarif_administrateur_provisoire: `administration provisoire de l'art. 29-1 : ${SOURCE_FRAIS_ET_DEBOURS}`,
   remuneration_fixee_par_le_juge: `${SEUIL_LOTS_REMUNERATION_PAR_LE_JUGE} lots et plus : le juge tient compte des frais engagés, ${SOURCE_REMUNERATION_PAR_LE_JUGE}`,
   remuneration_fixee_par_le_president: 'rémunération fixée par le président qui a désigné le cabinet : C. com. R. 814-27',
-  regime_inconnu: 'régime du mandat à vérifier sur son fondement ; C. com. R. 814-27 ou D. 1967 art. 61-1-5',
+  regime_inconnu: `régime du mandat à vérifier sur son fondement ; C. com. R. 814-27 ; ${SOURCE_FRAIS_ET_DEBOURS}`,
 }
 
 /**

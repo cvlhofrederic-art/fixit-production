@@ -106,7 +106,9 @@ describe('J57 — LRE refusée ou non réclamée : le délai court du lendemain 
     expect(lecture.dateAvisElectronique).toBe('2026-11-17')
     expect(lecture.alertes.map((a) => a.code)).toEqual(['retour_en_erreur_apres_avis'])
     const message = lecture.alertes[0].message
-    expect(message).toContain('décision de Hugo du 17/11/2026, J57')
+    // J75 : aucun prénom dans un message affiché ; la décision est citée par son numéro
+    expect(message).toContain('J57')
+    expect(message).not.toMatch(/Hugo|Frédéric/)
     expect(message).toMatch(/refus ou une non-réclamation après l'avis ne remettent pas en cause sa date/)
     expect(message).toContain('D. 1967 art. 64, dernier al.')
     // « Reçu en erreur » reste distinct d'un défaut de transmission de l'avis : à vérifier sur le justificatif.
@@ -161,7 +163,7 @@ describe('J58 — après un échec d’envoi électronique : créer un nouveau c
 
   it('nouvelle tentative sur le même courrier après « Échec » : refusée, créer un nouveau courrier (avant : permise)', () => {
     expect(() => notification({ id: 'E2', horodatage: H('11:00'), envoisExistants: [echec()] })).toThrow(
-      "Nouvel envoi refusé : l'envoi E1 du courrier C1 est en « Échec » : un envoi en échec n'a rien notifié ; pour un nouvel envoi, créer un nouveau courrier (nouveau dépôt ; D. 1967 art. 64, 64-1 ; décision de Hugo du 17/11/2026, J58).",
+      "Nouvel envoi refusé : l'envoi E1 du courrier C1 est en « Échec » : un envoi en échec n'a rien notifié ; pour un nouvel envoi, créer un nouveau courrier (nouveau dépôt ; D. 1967 art. 64, 64-1 ; J58).",
     )
   })
 
@@ -201,8 +203,10 @@ describe('J58 — après un échec d’envoi électronique : créer un nouveau c
 describe('J66 — après « Reçu en erreur » : pas de nouvel envoi sur le même courrier', () => {
   it('nouvelle tentative refusée : avis transmis = notification acquise (J57) ; sinon nouveau courrier (J58)', () => {
     expect(() => notification({ id: 'E2', horodatage: H('11:00'), envoisExistants: [recuEnErreur()] })).toThrow(
-      /est « Reçu en erreur » : si le justificatif établit la transmission de l'avis électronique, la notification est acquise .*J57.*créer un nouveau courrier.*J66/,
+      /est « Reçu en erreur » : si le justificatif établit la transmission de l'avis électronique, la notification est acquise .*J57.*créer un nouveau courrier.*\(J66\)\.$/,
     )
+    // J75 : aucun prénom dans le message affiché
+    expect(() => notification({ id: 'E2', horodatage: H('11:00'), envoisExistants: [recuEnErreur()] })).not.toThrow(/Hugo|Frédéric/)
   })
 
   it('un autre courrier peut partir', () => {
@@ -235,6 +239,22 @@ describe('J59 — refus reçu avant le 25/12/2025 puis accord reçu depuis : l�
     expect(lreDu(d(2026, 1, 3), { consentements })).toMatchObject({ etat: 'refuse', cause: 'voie_postale_demandee' })
     expect(demandesDepuisConsentements(consentements, d(2026, 1, 4))).toEqual([])
     expect(lreDu(d(2026, 1, 4), { consentements })).toMatchObject({ etat: 'calcule', avertissements: [] })
+  })
+
+  it('J74, relecture : envoi fait avant le 25/12/2025 ; l’accord donné après un refus ne vaut qu’à son effet, le résultat ne change plus de sens d’un jour à l’autre', () => {
+    const refusOctobre = creerConsentementVoieElectronique({ identiteId: 'id-1', sens: 'refus', recuLe: d(2025, 10, 1) })
+    const consentements = [refusOctobre, creerConsentementVoieElectronique({ identiteId: 'id-1', sens: 'accord', recuLe: d(2025, 12, 20) })]
+    // effet de l'accord le 29/12/2025 : la LRE du 22/12/2025 (avant : calculée) et celle du 27/12/2025 ne font pas courir le délai
+    expect(lreDu(d(2025, 12, 22), { consentements })).toMatchObject({ etat: 'refuse', cause: 'accord_electronique_absent' })
+    expect(lreDu(d(2025, 12, 27), { consentements })).toMatchObject({ etat: 'refuse', cause: 'voie_postale_demandee' })
+    expect(lreDu(d(2025, 12, 29), { consentements })).toMatchObject({ etat: 'calcule' })
+    // accord reçu le 10/12/2025, effet le 19/12/2025 : la LRE du 12/12/2025 (avant : calculée) ne vaut pas notification
+    const decembre = [refusOctobre, creerConsentementVoieElectronique({ identiteId: 'id-1', sens: 'accord', recuLe: d(2025, 12, 10) })]
+    expect(lreDu(d(2025, 12, 12), { consentements: decembre })).toMatchObject({ etat: 'refuse', cause: 'accord_electronique_absent' })
+    expect(lreDu(d(2025, 12, 19), { consentements: decembre })).toMatchObject({ etat: 'calcule' })
+    // premier accord, sans refus avant lui : il vaut dès sa réception (inchangé)
+    const premier = [creerConsentementVoieElectronique({ identiteId: 'id-1', sens: 'accord', recuLe: d(2025, 12, 10) })]
+    expect(lreDu(d(2025, 12, 12), { consentements: premier })).toMatchObject({ etat: 'calcule' })
   })
 
   it('accord sans date valable : il ne l’emporte pas, le refus d’avant le 25/12/2025 reste une demande de voie postale (avant : calculé)', () => {
@@ -293,7 +313,8 @@ describe('J60 — contrôle technique et coordonnateur sécurité exclus de l’
     expect(coordonnateur).toMatchObject({ libelle: 'Coordonnateur SPS', retenue: false })
     expect(controle.raison).toContain('contrôle technique')
     expect(controle.raison).toContain('coordonnateur sécurité')
-    expect(controle.raison).toContain('décision de Hugo du 17/11/2026, J60')
+    expect(controle.raison).toContain('J60')
+    expect(controle.raison).not.toMatch(/Hugo|Frédéric/)
     expect(controle.raison).toContain('arrêté du 8 octobre 2015, art. 11')
     expect(controle.raison).not.toContain('🔵')
   })
@@ -375,7 +396,8 @@ describe('J62 — compte sans IBAN : traité comme le compte global de l’admin
     expect(fonds.anomalies.map((a) => [a.code, a.gravite, a.banqueId])).toEqual([['couverture_non_verifiable', 'bloquant', 'b-till-cdc']])
     const { message } = fonds.anomalies[0]
     expect(message).toContain("traité comme le compte global de l'administrateur tant que son IBAN n'est pas saisi")
-    expect(message).toContain('décision de Hugo du 17/11/2026, J62')
+    expect(message).toContain('(J62 ;')
+    expect(message).not.toMatch(/Hugo|Frédéric/)
     expect(message).toContain("saisir l'IBAN de chaque compte du mandat")
     expect(message).not.toMatch(/les données ne disent pas s'il est propre au mandat/)
   })

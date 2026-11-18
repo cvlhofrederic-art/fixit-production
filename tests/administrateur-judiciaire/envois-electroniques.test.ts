@@ -596,7 +596,9 @@ describe('lecture d’une notification électronique : aucun statut ne vaut noti
     expect(lecture.alertes[0].message).toMatch(/D\. 1967 art\. 64, dernier al\./)
     expect(lecture.alertes[0].message).toMatch(/téléchargé ou non/)
     // J57 (décision de Hugo du 17/11/2026) : un refus ou une non-réclamation après l'avis ne remettent pas en cause sa date.
-    expect(lecture.alertes[0].message).toMatch(/refus ou une non-réclamation après l'avis ne remettent pas en cause sa date \(décision de Hugo du 17\/11\/2026, J57\)/)
+    // J75 : la décision est citée par son numéro, sans prénom dans le message affiché.
+    expect(lecture.alertes[0].message).toMatch(/refus ou une non-réclamation après l'avis ne remettent pas en cause sa date \(J57\)/)
+    expect(lecture.alertes[0].message).not.toMatch(/Hugo|Frédéric/)
     // Le défaut de transmission de l'avis reste distinct : à vérifier sur le justificatif.
     expect(lecture.alertes[0].message).toMatch(/défaut de transmission de l'avis, qui ne fait pas courir le délai/)
     expect(lecture.alertes[0].message).not.toMatch(/🔴/)

@@ -1,3 +1,4 @@
+import type { DossierContentieux } from '@/lib/administrateur-judiciaire/domain/contentieux'
 import { dateIsoVersFr, estDateIsoValide, messagePlausibilite, plausibiliteDate, verifierAujourdhui } from '@/lib/administrateur-judiciaire/domain/dates'
 import type { ModeleDeCourrier } from '@/lib/administrateur-judiciaire/domain/declaration-sinistre'
 import { etatEtape, type EtapeTypeProcessus } from '@/lib/administrateur-judiciaire/domain/etapes'
@@ -16,6 +17,7 @@ import {
 import { memeRattachement, type Rattachement } from '@/lib/administrateur-judiciaire/domain/fiches-liees'
 import { controlerRegime, type Regime } from '@/lib/administrateur-judiciaire/domain/fondements'
 import {
+  MISSIONS_HONORAIRES,
   MODES_CALCUL,
   NATURES_ELEMENT,
   categorieDe,
@@ -32,8 +34,15 @@ import {
   creerModeleListeControle,
   type ModeleListeControle,
 } from '@/lib/administrateur-judiciaire/domain/modeles-etapes'
+import { ARRET_FRAIS_ET_DEBOURS, SOURCE_FRAIS_ET_DEBOURS } from '@/lib/administrateur-judiciaire/domain/ordonnances-remuneration'
 import { normaliserTexteLibre } from '@/lib/administrateur-judiciaire/domain/texte'
-import { DOSSIER, FAMILLE_MODELE_COURRIER, type Dossier, type FamilleModeleCourrier } from '@/lib/data/referentiels-gesteam-judiciaire'
+import {
+  DOSSIER,
+  FAMILLE_MODELE_COURRIER,
+  type Dossier,
+  type FamilleModeleCourrier,
+  type TypeContentieux,
+} from '@/lib/data/referentiels-gesteam-judiciaire'
 
 /**
  * Étapes déclenchées par un courrier (point 50 du bilan 2) : règles « courrier (modèle ou famille) → étape type »,
@@ -100,20 +109,29 @@ import { DOSSIER, FAMILLE_MODELE_COURRIER, type Dossier, type FamilleModeleCourr
  *   (proposerHonorairesDuCourrier).
  * - J72 (décision de Hugo du 18/11/2026 ; question Q5, conflit R5 / R6 ; textes : L. 1965 art. 10-1, a, version en
  *   vigueur depuis le 01/06/2020, « frais nécessaires exposés par le syndicat, notamment les frais de mise en demeure » ;
- *   C. com. R. 814-27) : frais d'envoi, deux cas (baseLigneHonorairesCourrier, selon le dossier de la règle).
- *   (a) mise en demeure et relances d'un copropriétaire en retard : dépense du syndicat, payée sur son compte avec la
- *   pièce du prestataire postal, imputée au seul copropriétaire concerné (L. 1965 art. 10-1, a ; R6), aux conditions
- *   du forfait (créance justifiée, mise en demeure partie, coût nécessaire) ; ni remboursée au cabinet ni facturée par
- *   lui (repartition.paiement « piece_du_prestataire_postal ») ; en mission judiciaire, la ligne du cabinet n'en est
- *   que la trace, en Contrôle coûts (point 67), et « Facturable » y est refusé. 🔵 Le dossier Contentieux est lu comme
- *   le recouvrement contre un copropriétaire en retard ; ses lignes d'envoi suivent ce cas. (b) autres envois du
- *   cabinet (sinistres, gestion, tout autre dossier) : frais du cabinet, à part de sa rémunération, présentés au juge en
- *   annexe « frais et débours » et payés seulement en vertu de son ordonnance (C. com. R. 814-27 ; R5 ; D. 1967
- *   art. 61-1-5, II et III pour l'administrateur provisoire de l'art. 29-1), signalés « à présenter au juge »
- *   (repartition.paiement « ordonnance_du_juge » ; la facture exige l'ordonnance : preparerFacture, J67, R3). Même base
- *   pour les trois régimes ; au contrat type de syndic (sans objet pour le cabinet, J67, R14) : remboursés au syndic
- *   (D. 1967 annexe 1, 7.1.5 et 7.2.1), puis, pour le recouvrement, imputables de même (9.1). Enregistrement de la
- *   dépense du syndicat et de la ligne d'imputation : à brancher.
+ *   C. com. R. 814-27) : frais d'envoi, deux cas (baseLigneHonorairesCourrier, selon le cas du courrier,
+ *   casDesFraisDEnvoi, et la mission). (a) mise en demeure et relances d'un copropriétaire en retard : dépense du
+ *   syndicat, payée sur son compte avec la pièce du prestataire postal, imputée au seul copropriétaire concerné (L. 1965
+ *   art. 10-1, a ; R6), aux conditions du forfait (créance justifiée, mise en demeure partie, coût nécessaire) ; ni
+ *   remboursée au cabinet ni facturée par lui (repartition.paiement « piece_du_prestataire_postal ») ; en mission
+ *   judiciaire, la ligne du cabinet n'en est que la trace, en Contrôle coûts (point 67), et « Facturable » y est refusé.
+ *   (b) autres envois du cabinet (sinistres, gestion, et tout envoi qui n'est pas la mise en demeure ou la relance d'un
+ *   copropriétaire en retard) : frais du cabinet, à part de sa rémunération, présentés au juge en annexe « frais et
+ *   débours » et payés seulement en vertu de son ordonnance (C. com. R. 814-27 ; R5 : frais et débours arrêtés par
+ *   l'ordonnance, Cass. 3e civ., 21/05/2026, n° 24-20.377), signalés « à présenter au juge » (repartition.paiement
+ *   « ordonnance_du_juge » ; la facture exige l'ordonnance : preparerFacture, J67, R3). Même base pour les trois
+ *   régimes. Au contrat type de syndic (mission « contrat_type_syndic », sans objet pour le cabinet, J67, R14) :
+ *   remboursés au syndic sur sa facture (D. 1967 annexe 1, 7.1.5 et 7.2.1 ; repartition.paiement « facture_du_cabinet »),
+ *   puis, pour le recouvrement, imputés de même (9.1) ; jamais « à présenter au juge », comme dans
+ *   honoraires-sinistre.ts. Enregistrement de la dépense du syndicat et de la ligne d'imputation : à brancher.
+ *   🔵 Relecture du 18/11/2026 : le cas suit la nature du courrier et le dossier qu'il poursuit, pas le seul type de
+ *   dossier de la règle (le dossier Contentieux compte sept types de contentieux, dont un seul de recouvrement ; une mise
+ *   en demeure de la Comptabilité syndic relève aussi du cas a). Mise en demeure ou relance : libellé du modèle qui dit
+ *   « mise en demeure », « 19-2 » ou « relance » (mots entiers, toute famille), sauf s'il vise un locataire ; dossier qui
+ *   poursuit un copropriétaire en retard : fait lu par l'appelant (recouvrementContreUnCoproprietaire ; contentieux :
+ *   estRecouvrementContreUnCoproprietaire, « Recouvrement de charges/loyer » avec un compte débiteur). Si le dossier ne
+ *   le dit pas : à confirmer, sans imputation ni refus de « Facturable » ; un frais d'envoi n'est jamais imputé au
+ *   copropriétaire par défaut.
  * - 🔵 Rappel de J1 et J50 (délai de l'art. 42, aucune décision sur les étapes) : un délai ouvert par une notification
  *   part de la première présentation ou de la transmission de l'avis électronique, lues sur le courrier (courriers.ts),
  *   jamais du dépôt ; la date de dépôt, ici date de création de l'étape, ne fait donc courir aucun délai, et l'étape née
@@ -150,7 +168,7 @@ import { DOSSIER, FAMILLE_MODELE_COURRIER, type Dossier, type FamilleModeleCourr
  *   règles désactivées par défaut, aucune ligne ni aucun montant par défaut (réglage du cabinet) ; date = dépôt du
  *   courrier (🟢 le forfait observé était daté du jour du dossier) ; un seul dossier visé (un envoi, une série de
  *   frais) ; frais d'envoi d'une nature de frais seulement (categorieDe) ; calcul « Coût unitaire » par défaut ; forfait
- *   en deux lignes (J67, R7, ci-dessus) ; frais d'envoi selon le dossier (J72, ci-dessus).
+ *   en deux lignes (J67, R7, ci-dessus) ; frais d'envoi selon le cas du courrier et la mission (J72, ci-dessus).
  *
  * 🔴 Non établi — questions :
  * 1. et 2. Fermées par J64 (ci-dessus) : la Copie au CS naît du courrier ; les mises en demeure du contentieux la font
@@ -735,8 +753,9 @@ export interface ImputationLigneCourrier {
 }
 
 /**
- * Pièce sur laquelle le syndicat paie : la facture du cabinet (forfait, J67, R7), la pièce du prestataire postal (dépense
- * du syndicat, J72, a) ou l'ordonnance du juge qui couvre les frais du cabinet (J72, b).
+ * Pièce sur laquelle le syndicat paie : la facture du cabinet (forfait, J67, R7 ; au contrat type de syndic, frais
+ * d'envoi remboursés au syndic, 7.1.5 et 7.2.1), la pièce du prestataire postal (dépense du syndicat, J72, a) ou
+ * l'ordonnance du juge qui couvre les frais du cabinet (J72, b).
  */
 export const PAIEMENTS_LIGNE_COURRIER = ['facture_du_cabinet', 'piece_du_prestataire_postal', 'ordonnance_du_juge'] as const
 export type PaiementLigneCourrier = (typeof PAIEMENTS_LIGNE_COURRIER)[number]
@@ -778,43 +797,126 @@ const REPARTITION_FORFAIT: Readonly<RepartitionLigneCourrier> = Object.freeze({
   imputation: IMPUTATION_AU_COPROPRIETAIRE,
 })
 
-/** Contrat type de syndic, sans objet pour le cabinet (C. com. L. 811-10 ; J67, R14) : frais d'envoi remboursés au syndic. */
-const AU_CONTRAT_TYPE = "Au contrat type de syndic (sans objet pour le cabinet, J67, R14), l'envoi est remboursé au syndic (D. 1967 annexe 1, 7.1.5 et 7.2.1)"
+// ── Frais d'envoi : cas du courrier (J72) ─────────────────────────────────────────────────────
 
 /**
- * J72 (a) : mise en demeure et relances d'un copropriétaire en retard (dossier Contentieux) : dépense du syndicat, payée
- * sur la pièce du prestataire postal, imputée au seul copropriétaire concerné (L. 1965 art. 10-1, a ; R6).
+ * J72 : cas des frais d'envoi d'un courrier (casDesFraisDEnvoi). « recouvrement » : mise en demeure ou relance d'un
+ * copropriétaire en retard (J72, a) ; « autre_envoi » : tout autre envoi du cabinet (J72, b) ; « non_etabli » : mise en
+ * demeure ou relance dont le dossier ne dit pas s'il poursuit un copropriétaire en retard (à confirmer).
  */
-const FRAIS_ENVOI_DEPENSE_DU_SYNDICAT: Readonly<BaseLigneHonorairesCourrier> = Object.freeze({
-  aConfirmer: false,
-  fondements: Object.freeze(['L. 1965 art. 10-1, a']),
-  observation:
-    `Dépense du syndicat (J72, a) : l'envoi de la mise en demeure ou de la relance d'un copropriétaire en retard se paie sur le compte du syndicat, avec la pièce du prestataire postal ; cette dépense n'est ni remboursée au cabinet ni facturée par lui. Le syndicat l'impute au seul copropriétaire concerné, comme frais nécessaire (L. 1965 art. 10-1, a : « notamment les frais de mise en demeure »), si la créance est justifiée, si la mise en demeure est partie et si le coût est nécessaire ; une relance faite avant la mise en demeure n'est pas visée. En mission judiciaire, la ligne du cabinet n'en est que la trace (Contrôle coûts). ${AU_CONTRAT_TYPE}, puis imputé de même (contrat type, 9.1). Montant : réglage du cabinet, aucun montant par défaut.`,
-  repartition: Object.freeze({ payeur: 'syndicat', paiement: 'piece_du_prestataire_postal', imputation: IMPUTATION_AU_COPROPRIETAIRE }),
-})
+export const CAS_FRAIS_ENVOI = ['recouvrement', 'autre_envoi', 'non_etabli'] as const
+export type CasFraisEnvoi = (typeof CAS_FRAIS_ENVOI)[number]
+
+/** Le seul type de contentieux qui recouvre une créance du syndicat (référentiel TYPE_CONTENTIEUX, Gestéam 5.4.22). */
+const TYPE_CONTENTIEUX_DU_RECOUVREMENT: TypeContentieux = 'Recouvrement de charges/loyer'
 
 /**
- * J72 (b) : autres envois du cabinet (sinistres, gestion, tout dossier autre que le contentieux) : frais du cabinet,
- * présentés au juge en annexe « frais et débours », payés seulement en vertu de son ordonnance (C. com. R. 814-27 ; R5).
+ * J72 (a) : le contentieux poursuit-il un copropriétaire en retard ? Oui pour « Recouvrement de charges/loyer » avec un
+ * compte copropriétaire débiteur (D2) ; non pour les six autres types (garantie décennale, litiges, contestation
+ * d'assemblée) ; null (non établi) pour un recouvrement sans compte débiteur, dont le débiteur peut être un locataire.
  */
-const FRAIS_ENVOI_DU_CABINET: Readonly<BaseLigneHonorairesCourrier> = Object.freeze({
-  aConfirmer: false,
-  fondements: Object.freeze(['C. com. R. 814-27', 'D. 1967 art. 61-1-5, II et III']),
-  observation:
-    `À présenter au juge (J72, b) : frais du cabinet, à part de sa rémunération, présentés au juge en annexe « frais et débours » et payés seulement en vertu de son ordonnance (C. com. R. 814-27 ; administrateur provisoire de l'art. 29-1 : D. 1967 art. 61-1-5, II et III) ; rien n'est facturé au syndicat sans elle (preparerFacture, J67, R3). ${AU_CONTRAT_TYPE}. Montant : réglage du cabinet, aucun montant par défaut.`,
-  repartition: Object.freeze({ payeur: 'syndicat', paiement: 'ordonnance_du_juge', imputation: null }),
-})
+export function estRecouvrementContreUnCoproprietaire(contentieux: Pick<DossierContentieux, 'type' | 'compteId'>): boolean | null {
+  if (contentieux.type !== TYPE_CONTENTIEUX_DU_RECOUVREMENT) return false
+  return contentieux.compteId?.trim() ? true : null
+}
 
-/** Dossier dont les frais d'envoi sont une dépense du syndicat imputée au copropriétaire en retard (J72, a ; 🔵). */
-const DOSSIER_DU_RECOUVREMENT: Dossier = 'Contentieux'
+/** Un modèle adressé à un locataire n'est pas la relance d'un copropriétaire (« Mise en demeure de payer - locataire »). */
+const MOTS_LOCATAIRE = ['locataire', 'locataires'] as const
+
+/**
+ * J72 : cas des frais d'envoi. Le courrier est une mise en demeure ou une relance si le libellé de son modèle dit « mise
+ * en demeure », « 19-2 » ou « relance » (mots entiers ; casse, accents et ponctuation ignorés ; toute famille, la
+ * Comptabilité syndic comprise), sauf s'il vise un locataire ; tout autre courrier est un autre envoi (J72, b). Mise en
+ * demeure ou relance : recouvrement si le dossier poursuit un copropriétaire en retard (true), autre envoi sinon
+ * (false), non établi si le dossier ne le dit pas (null).
+ */
+export function casDesFraisDEnvoi(modele: ModeleDeCourrier, recouvrementContreUnCoproprietaire: boolean | null): CasFraisEnvoi {
+  const libelle = ` ${normaliserTexteLibre(modele.libelle)} `
+  const relance = premierePosition(libelle, [...MOTS_MISE_EN_DEMEURE, ...MOTS_RELANCE]) !== null
+  if (!relance || premierePosition(libelle, MOTS_LOCATAIRE) !== null) return 'autre_envoi'
+  if (recouvrementContreUnCoproprietaire === null) return 'non_etabli'
+  return recouvrementContreUnCoproprietaire ? 'recouvrement' : 'autre_envoi'
+}
+
+const MONTANT_DU_CABINET = 'Montant : réglage du cabinet, aucun montant par défaut.'
+/** J67, R7 : conditions de l'imputation au copropriétaire (L. 1965 art. 10-1, a). */
+const CONDITIONS_DE_L_IMPUTATION =
+  "si la créance est justifiée, si la mise en demeure est partie et si le coût est nécessaire ; une relance faite avant la mise en demeure n'est pas visée"
+/** J72 (b) ; J67, R5 : frais du cabinet présentés au juge, payés en vertu de son ordonnance. */
+const FONDEMENTS_FRAIS_DU_CABINET = ['C. com. R. 814-27', ARRET_FRAIS_ET_DEBOURS] as const
+const SANS_ORDONNANCE = "rien n'est facturé au syndicat sans l'ordonnance (preparerFacture, J67, R3)"
+/** Contrat type de syndic, sans objet pour le cabinet (C. com. L. 811-10 ; J67, R14). */
+const AU_CONTRAT_TYPE =
+  "Contrat type de syndic (sans objet pour le cabinet, J67, R14) : l'envoi est remboursé au syndic, sur sa facture (D. 1967 annexe 1, 7.1.5 et 7.2.1)"
+const FONDEMENT_CONTRAT_TYPE = 'D. 1967 annexe 1, 7.1.5 et 7.2.1'
+
+/** Base de frais d'envoi gelée : c'est toujours le syndicat qui paie. */
+const baseDeFrais = (
+  aConfirmer: boolean,
+  fondements: readonly string[],
+  observation: string,
+  paiement: PaiementLigneCourrier,
+  imputation: Readonly<ImputationLigneCourrier> | null,
+): Readonly<BaseLigneHonorairesCourrier> =>
+  Object.freeze({ aConfirmer, fondements: Object.freeze([...fondements]), observation, repartition: Object.freeze({ payeur: 'syndicat', paiement, imputation }) })
+
+/**
+ * Bases des frais d'envoi, par mission et par cas (J72). Mission judiciaire : (a) dépense du syndicat, payée sur la pièce
+ * du prestataire postal, imputée au seul copropriétaire concerné (L. 1965 art. 10-1, a ; R6) ; (b) frais du cabinet, à
+ * présenter au juge en annexe « frais et débours », payés seulement en vertu de son ordonnance (C. com. R. 814-27 ; R5) ;
+ * non établi : à confirmer, comme (b) d'ici là, rien n'est imputé. Contrat type de syndic : remboursés au syndic sur sa
+ * facture (7.1.5, 7.2.1), imputés au copropriétaire pour le recouvrement (9.1), jamais présentés au juge.
+ */
+const BASES_FRAIS_ENVOI: Readonly<Record<MissionHonoraires, Readonly<Record<CasFraisEnvoi, Readonly<BaseLigneHonorairesCourrier>>>>> = Object.freeze({
+  judiciaire: Object.freeze({
+    recouvrement: baseDeFrais(
+      false,
+      ['L. 1965 art. 10-1, a'],
+      `Dépense du syndicat (J72, a) : l'envoi de la mise en demeure ou de la relance d'un copropriétaire en retard se paie sur le compte du syndicat, avec la pièce du prestataire postal ; cette dépense n'est ni remboursée au cabinet ni facturée par lui. Le syndicat l'impute au seul copropriétaire concerné, comme frais nécessaire (L. 1965 art. 10-1, a : « notamment les frais de mise en demeure »), ${CONDITIONS_DE_L_IMPUTATION}. En mission judiciaire, la ligne du cabinet n'en est que la trace (Contrôle coûts). ${MONTANT_DU_CABINET}`,
+      'piece_du_prestataire_postal',
+      IMPUTATION_AU_COPROPRIETAIRE,
+    ),
+    autre_envoi: baseDeFrais(
+      false,
+      FONDEMENTS_FRAIS_DU_CABINET,
+      `À présenter au juge (J72, b) : frais du cabinet, à part de sa rémunération, présentés au juge en annexe « frais et débours » et payés seulement en vertu de son ordonnance (C. com. R. 814-27 ; ${SOURCE_FRAIS_ET_DEBOURS}) ; ${SANS_ORDONNANCE}. ${MONTANT_DU_CABINET}`,
+      'ordonnance_du_juge',
+      null,
+    ),
+    non_etabli: baseDeFrais(
+      true,
+      FONDEMENTS_FRAIS_DU_CABINET,
+      `À confirmer (J72) : mise en demeure ou relance dont le dossier ne dit pas s'il poursuit un copropriétaire en retard (type du contentieux ou compte débiteur non renseigné). S'il en poursuit un, l'envoi est une dépense du syndicat, payée avec la pièce du prestataire postal et imputée à ce copropriétaire (J72, a ; L. 1965 art. 10-1, a) ; sinon, un frais du cabinet à présenter au juge (J72, b). D'ici là, rien n'est imputé à un copropriétaire et ${SANS_ORDONNANCE}. ${MONTANT_DU_CABINET}`,
+      'ordonnance_du_juge',
+      null,
+    ),
+  }),
+  contrat_type_syndic: Object.freeze({
+    recouvrement: baseDeFrais(
+      false,
+      [FONDEMENT_CONTRAT_TYPE, 'L. 1965 art. 10-1, a', 'D. 1967 annexe 1, 9.1'],
+      `${AU_CONTRAT_TYPE} ; pour la mise en demeure ou la relance d'un copropriétaire en retard, le syndicat l'impute ensuite au seul copropriétaire concerné (L. 1965 art. 10-1, a ; contrat type, 9.1 ; J72, a), ${CONDITIONS_DE_L_IMPUTATION}. ${MONTANT_DU_CABINET}`,
+      'facture_du_cabinet',
+      IMPUTATION_AU_COPROPRIETAIRE,
+    ),
+    autre_envoi: baseDeFrais(false, [FONDEMENT_CONTRAT_TYPE], `${AU_CONTRAT_TYPE} ; rien n'est imputé à un copropriétaire. ${MONTANT_DU_CABINET}`, 'facture_du_cabinet', null),
+    non_etabli: baseDeFrais(
+      true,
+      [FONDEMENT_CONTRAT_TYPE],
+      `${AU_CONTRAT_TYPE} ; à confirmer (J72) : imputable au seul copropriétaire en retard s'il s'agit de sa mise en demeure ou de sa relance (L. 1965 art. 10-1, a ; contrat type, 9.1), ce que le dossier ne dit pas ; rien n'est imputé d'ici là. ${MONTANT_DU_CABINET}`,
+      'facture_du_cabinet',
+      null,
+    ),
+  }),
+})
 
 /**
  * Ce que la proposition dit de chaque objet, régime du mandat inconnu (sources : tranches 27 et 43 § 1 ; J67, R7 ; J72).
- * Frais d'envoi : la base des autres envois du cabinet (J72, b), celle d'un dossier inconnu ; pour le contentieux,
- * baseLigneHonorairesCourrier rend la dépense du syndicat (J72, a).
+ * Frais d'envoi : la base des autres envois du cabinet en mission judiciaire (J72, b) ; baseLigneHonorairesCourrier rend
+ * celle du cas et de la mission (BASES_FRAIS_ENVOI).
  */
 export const BASES_LIGNES_HONORAIRES_COURRIER: Readonly<Record<ObjetLigneHonorairesCourrier, Readonly<BaseLigneHonorairesCourrier>>> = Object.freeze({
-  frais_envoi: FRAIS_ENVOI_DU_CABINET,
+  frais_envoi: BASES_FRAIS_ENVOI.judiciaire.autre_envoi,
   forfait_mise_en_demeure: Object.freeze({
     aConfirmer: true,
     fondements: Object.freeze(['L. 1965 art. 10-1, a']),
@@ -841,20 +943,32 @@ const FORFAIT_SELON_REGIME: Readonly<Record<Regime, { fondements: readonly strin
   ap47: FORFAIT_SANS_TEXTE_46_47,
 })
 
+/** Ce dont dépend la base d'une ligne : régime du mandat (J67, R7), mission et cas des frais d'envoi (J72). */
+export interface OptionsBaseLigneCourrier {
+  /** Absent ou null : régime inconnu. */
+  regime?: Regime | null
+  /** Absente : « judiciaire », celle du cabinet (le contrat type de syndic est sans objet pour lui, J67, R14). */
+  mission?: MissionHonoraires
+  /** Cas des frais d'envoi (casDesFraisDEnvoi) ; absent : « autre_envoi » (J72, b). */
+  cas?: CasFraisEnvoi
+}
+
 /**
- * Base d'une ligne selon son objet, le régime du mandat (J67, R7) et le dossier de la règle (J72) : forfait complété pour
- * le régime ; frais d'envoi selon le dossier, quel que soit le régime : contentieux, dépense du syndicat (J72, a) ; autre
- * dossier ou dossier inconnu (null), frais du cabinet à présenter au juge (J72, b). Régime null : inconnu ; régime ou
- * dossier hors liste : refus.
+ * Base d'une ligne selon son objet : forfait complété pour le régime du mandat (J67, R7) ; frais d'envoi selon la mission
+ * et le cas du courrier, quel que soit le régime (J72 : BASES_FRAIS_ENVOI). Refus : régime, mission ou cas hors liste, et
+ * régime de justice avec une mission autre que « judiciaire » (controlerAccordRegimeMission).
  */
 export function baseLigneHonorairesCourrier(
   objet: ObjetLigneHonorairesCourrier,
-  regime: Regime | null = null,
-  dossier: Dossier | null = null,
+  { regime = null, mission = 'judiciaire', cas = 'autre_envoi' }: OptionsBaseLigneCourrier = {},
 ): Readonly<BaseLigneHonorairesCourrier> {
-  if (dossier !== null) verifierDossier(dossier, 'Base de la ligne du courrier')
+  if (!(MISSIONS_HONORAIRES as readonly string[]).includes(mission))
+    throw new Error(`Base de la ligne du courrier : mission inconnue « ${mission} » (judiciaire ou contrat_type_syndic attendue).`)
+  if (!(CAS_FRAIS_ENVOI as readonly string[]).includes(cas))
+    throw new Error(`Base de la ligne du courrier : cas des frais d’envoi inconnu « ${cas} » (recouvrement, autre_envoi ou non_etabli attendu, J72).`)
   const controle = controlerRegime(regime)
-  if (objet === 'frais_envoi') return dossier === DOSSIER_DU_RECOUVREMENT ? FRAIS_ENVOI_DEPENSE_DU_SYNDICAT : FRAIS_ENVOI_DU_CABINET
+  controlerAccordRegimeMission(controle, mission)
+  if (objet === 'frais_envoi') return BASES_FRAIS_ENVOI[mission][cas]
   const base = BASES_LIGNES_HONORAIRES_COURRIER[objet]
   if (controle === null) return base
   const { fondements, complement } = FORFAIT_SELON_REGIME[controle]
@@ -1003,6 +1117,21 @@ export interface ContexteHonorairesCourrier {
    * sont des mandats de justice : un régime donné exige la mission « judiciaire » (controlerAccordRegimeMission).
    */
   regime?: Regime | null
+  /**
+   * J72 : le dossier visé par le courrier poursuit-il un copropriétaire en retard pour une créance du syndicat ? Fait lu
+   * par l'appelant sur la fiche (contentieux : estRecouvrementContreUnCoproprietaire ; comptabilité : compte du
+   * copropriétaire relancé). Absent ou null : non établi (casDesFraisDEnvoi : à confirmer pour une mise en demeure ou
+   * une relance ; jamais d'imputation au copropriétaire par défaut).
+   */
+  recouvrementContreUnCoproprietaire?: boolean | null
+}
+
+/** Le fait du recouvrement, contrôlé (J72) : oui, non, ou non établi (null). */
+function controlerRecouvrement(valeur: unknown): boolean | null {
+  if (valeur === undefined || valeur === null) return null
+  if (typeof valeur !== 'boolean')
+    throw new Error(`Contexte : recouvrement contre un copropriétaire : oui, non ou non établi attendu (J72), reçu « ${String(valeur)} ».`)
+  return valeur
 }
 
 /**
@@ -1068,17 +1197,17 @@ function cibleDesHonoraires(courrier: CourrierEnvoye, regle: RegleHonorairesCour
 }
 
 /**
- * J72 (a) : en mission judiciaire, l'envoi d'une mise en demeure ou d'une relance est une dépense du syndicat ; la ligne
- * du cabinet n'en est que la trace, en Contrôle coûts (point 67), jamais « Facturable ». Ailleurs : la qualification de
- * la ligne du cabinet, inchangée.
+ * J72 (a) : en mission judiciaire, l'envoi de la mise en demeure ou de la relance d'un copropriétaire en retard (cas
+ * « recouvrement ») est une dépense du syndicat ; la ligne du cabinet n'en est que la trace, en Contrôle coûts (point 67),
+ * jamais « Facturable ». Ailleurs, cas non établi compris : la qualification de la ligne du cabinet, inchangée.
  */
 function qualificationDeLaLigne(
   ligne: LigneHonorairesCourrierControlee,
   regle: RegleHonorairesCourrier,
-  mission: MissionHonoraires,
+  { mission, cas }: { mission: MissionHonoraires; cas: CasFraisEnvoi },
   rang: number,
 ): QualificationElement | undefined {
-  const depenseDuSyndicat = ligne.objet === 'frais_envoi' && regle.dossier === DOSSIER_DU_RECOUVREMENT && mission === 'judiciaire'
+  const depenseDuSyndicat = ligne.objet === 'frais_envoi' && cas === 'recouvrement' && mission === 'judiciaire'
   if (!depenseDuSyndicat) return ligne.qualification
   if (ligne.qualification === 'Facturable')
     throw new Error(
@@ -1094,6 +1223,8 @@ function propositionsDeLaRegle(
   contexte: ContexteHonorairesCourrier,
   ids: Set<string>,
 ): PropositionLigneHonoraires[] {
+  const cas = casDesFraisDEnvoi(courrier.modele, contexte.recouvrementContreUnCoproprietaire ?? null)
+  const regime = contexte.regime ?? null
   return regle.lignes.map((ligne, i) => {
     const id = texteRequis(
       contexte.idElement({ regle, ligne, rang: i + 1, dossier }),
@@ -1101,7 +1232,7 @@ function propositionsDeLaRegle(
     )
     if (ids.has(id)) throw new Error(`Proposition refusée : identifiant d’élément « ${id} » en double.`)
     ids.add(id)
-    const qualification = qualificationDeLaLigne(ligne, regle, contexte.mission, i + 1)
+    const qualification = qualificationDeLaLigne(ligne, regle, { mission: contexte.mission, cas }, i + 1)
     const saisie: SaisieElement = {
       id,
       coproprieteId,
@@ -1121,20 +1252,22 @@ function propositionsDeLaRegle(
     }
     // Contrôle seul : la saisie passe les règles de l'élément (point 66 ; J67, R9 pour la mission), rien n'est écrit.
     creerElement(saisie, contexte.mission)
-    return { regleId: regle.id, objet: ligne.objet, saisie, ...baseLigneHonorairesCourrier(ligne.objet, contexte.regime ?? null, regle.dossier) }
+    return { regleId: regle.id, objet: ligne.objet, saisie, ...baseLigneHonorairesCourrier(ligne.objet, { regime, mission: contexte.mission, cas }) }
   })
 }
 
 /**
  * Lignes d'honoraires proposées pour l'envoi d'un courrier : pour chaque règle active qui le vise, une saisie d'élément
  * par ligne du cabinet (dossier et fiche du dossier visé, point 66 ; date de dépôt ; copropriété et mandat du
- * courrier), contrôlée par creerElement, avec sa base selon le régime du mandat et le dossier de la règle
- * (baseLigneHonorairesCourrier : forfait en deux lignes, J67, R7 ; frais d'envoi, J72 : dépense du syndicat pour le
- * contentieux, tracée en Contrôle coûts en mission judiciaire ; frais du cabinet à présenter au juge ailleurs). Rien
- * n'est écrit. Règles écartées : inactive, dossier absent ou ambigu, copropriété ou mandat manquants. Refus : courrier
- * invalide ou non déposé, dépôt postérieur à aujourd'hui, régime hors liste, régime de justice avec une mission autre
- * que « judiciaire », règles invalides ou en double, identifiant d'élément vide ou en double, ligne d'envoi du
- * contentieux « Facturable » en mission judiciaire (J72, a).
+ * courrier), contrôlée par creerElement, avec sa base selon le régime et la mission du mandat et le cas du courrier
+ * (baseLigneHonorairesCourrier : forfait en deux lignes, J67, R7 ; frais d'envoi, J72, casDesFraisDEnvoi : dépense du
+ * syndicat pour la mise en demeure ou la relance d'un copropriétaire en retard, tracée en Contrôle coûts en mission
+ * judiciaire ; frais du cabinet à présenter au juge pour les autres envois ; à confirmer si le dossier ne dit pas qui il
+ * poursuit). Rien n'est écrit. Règles écartées : inactive, dossier absent ou ambigu, copropriété ou mandat manquants.
+ * Refus : courrier invalide ou non déposé, dépôt postérieur à aujourd'hui, régime hors liste, régime de justice avec une
+ * mission autre que « judiciaire », fait du recouvrement qui n'est ni oui, ni non, ni non établi, règles invalides ou en
+ * double, identifiant d'élément vide ou en double, ligne d'envoi du recouvrement « Facturable » en mission judiciaire
+ * (J72, a).
  */
 export function proposerHonorairesDuCourrier(
   courrier: CourrierDeclencheur,
@@ -1143,6 +1276,7 @@ export function proposerHonorairesDuCourrier(
 ): ResultatHonorairesCourrier {
   const envoye = controlerCourrier(courrier, contexte.aujourdhui)
   controlerAccordRegimeMission(controlerRegime(contexte.regime ?? null), contexte.mission)
+  controlerRecouvrement(contexte.recouvrementContreUnCoproprietaire)
   const controlees = sansIdentifiantEnDouble(regles.map((regle) => creerRegleHonorairesCourrier(regle)))
   const resultat: ResultatHonorairesCourrier = { courrierId: envoye.id, propositions: [], ecartees: [] }
   const ids = new Set<string>()

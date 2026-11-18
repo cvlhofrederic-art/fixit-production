@@ -27,7 +27,11 @@ import {
 import { genererPain008, preparerLotPrelevements } from '@/lib/administrateur-judiciaire/domain/prelevements-sepa'
 import { avisDAppel, creerCleRepartition, type EcheanceAppel } from '@/lib/administrateur-judiciaire/domain/repartition-appels'
 import { creerOperationTravaux, echeancesTravaux, emploisFondsTravauxDesTranches } from '@/lib/administrateur-judiciaire/domain/travaux-operations'
-import { creerCommunicationAdresseElectronique, creerDemandeVoiePostale } from '@/lib/administrateur-judiciaire/domain/voie-notification'
+import {
+  creerCommunicationAdresseElectronique,
+  creerDemandeVoiePostale,
+  creerRenonciationVoiePostale,
+} from '@/lib/administrateur-judiciaire/domain/voie-notification'
 import { enTeteDuModule } from './en-tete-module'
 
 /**
@@ -750,6 +754,26 @@ describe('retours de relecture du point 17 — contenu, mentions et diffusion', 
     expect(a.valeursFusion['mention.confirmationAdresse']).toBeNull()
     expect(a.valeursFusion['mention.voiePostale']).toMatch(/par voie postale/)
     expect(diffuse(contenu, { demandesVoiePostale: [demande] })[0]).toMatchObject({ canal: 'postal', origineAdresse: null })
+  })
+
+  it('J74, relecture : la renonciation à la voie postale lève la demande à son effet ; son adresse sert alors d’adresse des notifications', () => {
+    const contenu = contenuAvisAppel(avis, options())
+    const demande = creerDemandeVoiePostale({ identiteId: 'i-cpt-A', recueLe: '2026-11-01', origine: 'courrier' })
+    const renonciation = creerRenonciationVoiePostale({
+      identiteId: 'i-cpt-A',
+      dateeLe: '2026-12-08',
+      recueLe: '2026-12-10',
+      justificatif: 'Avis de réception',
+      adresseElectronique: 'renonce-a@exemple.invalid',
+    })
+    const le = (date: string, renonciations = [renonciation]) =>
+      preparerDiffusionAvis(contenu, diffusion({ date, demandesVoiePostale: [demande], renonciations }))[0]
+    // avant l'effet (le 19/12/2026) : la demande demeure, lettre simple
+    for (const date of ['2026-12-15', '2026-12-18']) expect(le(date), date).toMatchObject({ canal: 'postal', origineAdresse: null })
+    // à l'effet : courriel à l'adresse donnée avec la renonciation (D. 1967 art. 65), la plus récente
+    expect(le('2026-12-19')).toMatchObject({ canal: 'electronique', adresseElectronique: 'renonce-a@exemple.invalid', origineAdresse: 'notifications' })
+    // sans renonciation : lettre simple
+    expect(le('2026-12-19', [])).toMatchObject({ canal: 'postal', origineAdresse: null })
   })
 
   it('J69 (J67, R20) : adresse des notifications à défaut — premier avis : invitation à confirmer ; après un retour en erreur : lettre simple', () => {

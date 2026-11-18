@@ -545,7 +545,8 @@ describe('J56 — N° de l’OS attribué au premier envoi : <mandat>.<AAAAMMJJ>
     const [absent] = controlerAvantEnvoiOs(sansNumero, s, CONTEXTE)
     expect([absent.code, absent.gravite]).toEqual(['numero_absent', 'bloquant'])
     expect(absent.message).toBe(
-      "N° d'ordre de service absent : il s'attribue au premier envoi, dans la séquence du mandat (rang suivant du mandat ; segment plan : date de l'envoi, AAAAMMJJ ; décision de Hugo du 17/11/2026, J56).",
+      // J75 : aucun prénom dans un message affiché ; la décision est citée par son numéro
+      "N° d'ordre de service absent : il s'attribue au premier envoi, dans la séquence du mandat (rang suivant du mandat ; segment plan : date de l'envoi, AAAAMMJJ ; J56).",
     )
   })
 

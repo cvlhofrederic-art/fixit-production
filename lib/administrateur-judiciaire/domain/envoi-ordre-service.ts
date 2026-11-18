@@ -1898,7 +1898,7 @@ function anomaliesNumero(d: Demande, contexte: ContexteEnvoiOs): AnomalieEnvoiOs
       anomalie(
         'numero_absent',
         'bloquant',
-        "N° d'ordre de service absent : il s'attribue au premier envoi, dans la séquence du mandat (rang suivant du mandat ; segment plan : date de l'envoi, AAAAMMJJ ; décision de Hugo du 17/11/2026, J56).",
+        "N° d'ordre de service absent : il s'attribue au premier envoi, dans la séquence du mandat (rang suivant du mandat ; segment plan : date de l'envoi, AAAAMMJJ ; J56).",
       ),
     ]
   const anomalies: AnomalieEnvoiOs[] = []

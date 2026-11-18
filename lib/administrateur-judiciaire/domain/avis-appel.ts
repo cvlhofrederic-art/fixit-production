@@ -36,10 +36,12 @@ import {
 import {
   ENTREE_EN_VIGUEUR_VOIE_ELECTRONIQUE,
   adresseElectroniqueDeNotification,
+  communicationsDesRenonciations,
   mentionFaculteVoiePostale,
   voieDeNotification,
   type CommunicationAdresseElectronique,
   type DemandeVoiePostale,
+  type RenonciationVoiePostale,
 } from '@/lib/administrateur-judiciaire/domain/voie-notification'
 import type { FormeEnvoiCourrier, ModeReglement, TypeAppelLieAuMouvement } from '@/lib/data/referentiels-gesteam-judiciaire'
 
@@ -159,7 +161,9 @@ import type { FormeEnvoiCourrier, ModeReglement, TypeAppelLieAuMouvement } from 
  *   notifications, tant qu'aucune adresse n'est donnée ensuite pour les avis ; la lettre simple remplace aussi le
  *   courriel dès qu'un avis revient en erreur à cette adresse (courrielsAvis, anomalie courriel_avis_en_erreur ;
  *   enregistrement des demandes, des envois et des retours : à brancher). J52 reste valable pour les notifications.
- *   L'avis garde la mention de l'art. 64-2 ; avant le 25/12/2025, régime antérieur inchangé ;
+ *   L'avis garde la mention de l'art. 64-2 ; avant le 25/12/2025, régime antérieur inchangé. J74 (décision de Hugo du
+ *   18/11/2026) : la renonciation à la voie postale (renonciations) lève la demande à son effet, le lendemain du
+ *   huitième jour suivant sa réception (voieDeNotification) ; son adresse sert d'adresse des notifications ;
  * - J67, R97 : pas de prélèvement avant l'exigibilité, même si le mandat le prévoit : la provision est exigible à la date
  *   fixée par la loi ou l'AG (L. 1965 art. 14-1, I, al. 3) ; le terme profite au débiteur, qui seul peut y renoncer
  *   (C. civ. art. 1305 et 1305-3) ; signer un mandat SEPA n'y renonce pas ; pour des débits plus tôt ou mensuels, une
@@ -1227,6 +1231,12 @@ export interface OptionsDiffusionAvis {
   identites: Identite[]
   positions: Position[]
   demandesVoiePostale: DemandeVoiePostale[]
+  /**
+   * J74 : renonciations à la voie postale, qui lèvent la demande à leur effet (voieDeNotification) ; l'adresse donnée
+   * avec chacune sert d'adresse des notifications dès sa réception (communicationsDesRenonciations, D. 1967 art. 65).
+   * Absentes : aucune (enregistrement : à brancher).
+   */
+  renonciations?: readonly RenonciationVoiePostale[]
   /** Adresses électroniques notifiées pour les notifications (D. 1967 art. 65) : à défaut d'adresse propre aux avis. */
   communications: CommunicationAdresseElectronique[]
   /** Adresses électroniques communiquées pour recevoir les avis (D. 1967 art. 35-2, « à cet effet »). */
@@ -1455,16 +1465,22 @@ function demandeLettreSimple(identiteId: string, options: OptionsDiffusionAvis):
  * les notifications (art. 64-1, 64-4) ; sans elle, l'adresse des notifications (art. 65), sauf demande de voie postale :
  * invitation à confirmer sur le premier avis envoyé ainsi, lettre simple après un retour en erreur. Une demande de
  * lettre simple pour les avis (réponse à l'invitation) donne la lettre simple, sauf adresse donnée pour les avis après
- * elle ; à date égale, la lettre simple. Avant le 25/12/2025 (voie non calculée), lettre simple, comme avant.
+ * elle ; à date égale, la lettre simple. Avant le 25/12/2025 (voie non calculée), lettre simple, comme avant. J74 : une
+ * renonciation à la voie postale lève la demande à son effet ; son adresse compte parmi celles des notifications.
  */
 function canalDeDiffusion(identiteId: string, options: OptionsDiffusionAvis): CanalDiffusion {
-  const { voie } = voieDeNotification({ identiteId, demandes: options.demandesVoiePostale, date: options.date })
+  const renonciations = options.renonciations ?? []
+  const { voie } = voieDeNotification({ identiteId, demandes: options.demandesVoiePostale, renonciations, date: options.date })
   if (voie === null) return LETTRE_SIMPLE
   const pourAvis = adresseElectroniqueDeNotification({ identiteId, communications: options.communicationsAvis ?? [], date: options.date })
   const lettreSimple = demandeLettreSimple(identiteId, options)
   if (lettreSimple && (!pourAvis || pourAvis.communiqueeLe <= lettreSimple.recueLe)) return LETTRE_SIMPLE
   if (pourAvis) return { ...LETTRE_SIMPLE, canal: 'electronique', adresseElectronique: pourAvis.adresse, origineAdresse: 'avis' }
-  const notification = adresseElectroniqueDeNotification({ identiteId, communications: options.communications, date: options.date })
+  const notification = adresseElectroniqueDeNotification({
+    identiteId,
+    communications: [...options.communications, ...communicationsDesRenonciations(renonciations)],
+    date: options.date,
+  })
   if (voie !== 'electronique' || !notification) return LETTRE_SIMPLE
   const envois = envoisAAdresse(identiteId, notification, options)
   const retour = envois.find((c) => c.retourEnErreurLe !== null && c.retourEnErreurLe <= options.date)

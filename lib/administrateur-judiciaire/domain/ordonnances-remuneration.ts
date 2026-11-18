@@ -56,6 +56,17 @@ export const SEUIL_LOTS_REMUNERATION_PAR_LE_JUGE = 500
 /** 🟢 Délai de recours contre l'ordonnance de rémunération, en mois (CPC art. 714, auquel renvoient D. 1967 art. 61-1-5, III et C. com. R. 814-27). */
 export const DELAI_RECOURS_ORDONNANCE_MOIS = 1
 
+/**
+ * J72 (b) ; J67, R5 (textes lus sur Légifrance le 17/11/2026) : fondement des frais du cabinet (timbres, recommandés,
+ * copies, envois), à part de sa rémunération. Aucun texte du tarif n'en prévoit le remboursement ; le président les
+ * arrête dans son ordonnance, avec la rémunération (« frais et débours » : Cass. 3e civ., 21 mai 2026, n° 24-20.377,
+ * publié ; Cass. 2e civ., 3 mars 2016, n° 15-12.129). D. 1967 art. 61-1-5, II ne vise que les émoluments, et son III,
+ * al. 2 ne parle des frais engagés que si les droits proportionnels des art. 11 à 13 de l'arrêté dépassent le seuil de
+ * son art. 15 : ni l'un ni l'autre ne fonde ces frais (etapes-courrier.ts, honoraires-sinistre.ts).
+ */
+export const ARRET_FRAIS_ET_DEBOURS = 'Cass. 3e civ., 21/05/2026, n° 24-20.377'
+export const SOURCE_FRAIS_ET_DEBOURS = `frais et débours arrêtés par l’ordonnance du président, ${ARRET_FRAIS_ET_DEBOURS} (J67, R5)`
+
 /** Montants HT fixés par une ordonnance, ou par la décision rendue sur le recours, en centimes. */
 export interface MontantsFixes {
   emolumentsHtCentimes: number

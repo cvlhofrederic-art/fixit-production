@@ -46,7 +46,7 @@ import type { Identite } from '@/lib/administrateur-judiciaire/domain/identites-
  *   04/07/2020, rédaction antérieure du décret (art. 64 à 64-4) ; le retrait de l'accord était à l'art. 64-4 de la
  *   rédaction 2020 (avant le 04/07/2020, à l'art. 64-2 : correction R17 du registre, ci-dessous) ; l'ancien art. 64-2
  *   donnait les moyens et le point de départ (lendemain de la transmission de l'avis), pas l'accord ; accordElectroniqueEnVigueur lit le dernier accord reçu au plus tard à la date, sans refus ni retrait
- *   reçu entre les deux ; une demande de voie postale reçue avant le 25/12/2025 exclut aussi l'envoi électronique, effet
+ *   reçu entre les deux (s'il suit un refus ou un retrait : à son effet depuis J74, ci-dessous) ; une demande de voie postale reçue avant le 25/12/2025 exclut aussi l'envoi électronique, effet
  *   retenu à sa réception (relecture du 14/11/2026, sonde P6 ; statut-assemblee.ts).
  *
  * Décisions de Hugo du 17/11/2026 (numéros de registre proposés : J52 et J53, suites de J50 ; notes
@@ -92,15 +92,22 @@ import type { Identite } from '@/lib/administrateur-judiciaire/domain/identites-
  * effetRetourVoieElectronique rend la date d'effet et sa justification). Choix prudent : une notification électronique
  * envoyée avant cette date ne vaut pas notification et ne fait courir aucun délai ; elle se refait par LRAR
  * (voieDeNotification : voie postale jusqu'à l'effet, retour en attente dans `retour` ; motif du refus :
- * motifNotificationAvantRetour, repris par envois-electroniques.ts). 🔵 Une renonciation lève les demandes reçues avant
- * elle, pas celles reçues le même jour ni après ; une renonciation incomplète (identité, dates, justificatif ou adresse
- * non valables) est écartée et la voie postale demeure, comme l'accord sans date de J59 ; un accord ne lève pas une
- * demande de voie postale enregistrée comme telle (seule la renonciation la lève, R18) ; accordElectroniqueEnVigueur
- * (consentement de J53, accord exprès d'avant le 25/12/2025) lit toujours l'accord dès sa réception : J74 ne vise que le
- * retour à la voie électronique, que porte demandesDepuisConsentements. Enregistrement des renonciations :
+ * motifNotificationAvantRetour, repris par envois-electroniques.ts). 🔵 Une renonciation lève les demandes reçues au
+ * plus tard le jour de sa réception (même jour : elle suit la demande à laquelle elle renonce, comme l'accord enregistré
+ * après un refus le même jour ; relecture du 18/11/2026), pas celles reçues après ; une renonciation incomplète
+ * (identité, dates, justificatif ou adresse non valables) est écartée et la voie postale demeure, comme l'accord sans
+ * date de J59 ; un accord ne lève pas une demande de voie postale enregistrée comme telle (seule la renonciation la
+ * lève, R18). accordElectroniqueEnVigueur (consentement de J53, accord exprès d'avant le 25/12/2025) suit la même règle
+ * (relecture du 18/11/2026) : l'accord donné après un refus ou un retrait n'y vaut qu'à son effet, en attente d'ici là
+ * (accordElectroniqueEnAttente) ; un premier accord, sans refus ni retrait avant lui, vaut dès sa réception. 🔵 L'accord
+ * donné après un refus ou un retrait reçu avant le 25/12/2025 suit aussi J74, qui ne limite pas les dates : une
+ * notification électronique envoyée pendant ces huit jours, même avant le 25/12/2025, ne fait courir aucun délai
+ * (statut-assemblee.ts, cause accord_electronique_absent) ; sinon le même accord vaudrait notification pour un envoi du
+ * 22/12/2025 et non pour un envoi du 27/12/2025. Choix prudent, à confirmer par Hugo. Enregistrement des renonciations :
  * à brancher (table et écran : Frédéric) ; à faire après #741 : statut-assemblee.ts, passer les renonciations à
- * voieDeNotification et citer le retour en attente dans le motif du refus (motifNotificationAvantRetour) ; jusque-là, le
- * calcul du délai ne lit pas les renonciations, et la voie postale y demeure (lecture prudente).
+ * voieDeNotification et citer le retour en attente dans le motif du refus (motifNotificationAvantRetour ; avant le
+ * 25/12/2025, l'accord en attente : accordElectroniqueEnAttente) ; jusque-là, le calcul du délai ne lit pas les
+ * renonciations, et la voie postale y demeure (lecture prudente). avis-appel.ts lit les renonciations (J69).
  *
  * 🔵 Déduit : « le lendemain du huitième jour suivant la réception » = réception + 9 jours ; plusieurs demandes : la plus
  * ancienne en vigueur fait foi ; une adresse électronique vaut dès sa réception, la dernière reçue l'emporte (à même date,
@@ -357,11 +364,12 @@ function retoursDesRenonciations(identiteId: string, renonciations: readonly Ren
 }
 
 /**
- * Retour qui lève la demande au plus tôt (J74) : une renonciation reçue après elle (🔵 pas le même jour), ou l'accord en
- * attente que demandesDepuisConsentements y a joint ; null sans retour.
+ * Retour qui lève la demande au plus tôt (J74) : une renonciation reçue au plus tard le jour de sa réception (🔵 même
+ * jour : la renonciation suit la demande à laquelle elle renonce, comme l'accord enregistré après un refus le même jour),
+ * ou l'accord en attente que demandesDepuisConsentements y a joint ; null sans retour.
  */
 function retourDeLaDemande(demande: DemandeVoiePostale, renonciations: readonly RetourVoieElectronique[]): RetourVoieElectronique | null {
-  const candidats = renonciations.filter((r) => r.recueLe > demande.recueLe)
+  const candidats = renonciations.filter((r) => r.recueLe >= demande.recueLe)
   if (demande.retourEnAttente) candidats.push(demande.retourEnAttente)
   return candidats.sort(parEffet)[0] ?? null
 }
@@ -421,6 +429,11 @@ export function communicationDeLaRenonciation(renonciation: RenonciationVoiePost
   })
 }
 
+/** J74 : adresses des renonciations recevables, les autres écartées comme par voieDeNotification (avis-appel.ts). */
+export function communicationsDesRenonciations(renonciations: readonly RenonciationVoiePostale[]): CommunicationAdresseElectronique[] {
+  return renonciations.filter((r) => defautRenonciation(r) === null).map(communicationDeLaRenonciation)
+}
+
 // ── Consentement à la voie électronique (ancien régime, critère LRE de Gestéam ; J50) ───────────────────────────────
 
 export const SENS_CONSENTEMENT_VOIE_ELECTRONIQUE = ['accord', 'refus', 'retrait'] as const
@@ -471,15 +484,15 @@ export function demandesDepuisConsentements(consentements: readonly Consentement
   const parIdentite = new Map<string, ConsentementVoieElectronique[]>()
   for (const c of consentements)
     if (!estAccordSansDateValable(c) && c.recuLe <= date) parIdentite.set(c.identiteId, [...(parIdentite.get(c.identiteId) ?? []), c])
-  return [...parIdentite.values()].flatMap((liste) =>
-    demandesDeLIdentite(
-      liste
-        .map((c, rang) => ({ c, rang }))
-        .sort((a, b) => a.c.recuLe.localeCompare(b.c.recuLe) || a.rang - b.rang)
-        .map(({ c }) => c),
-      date,
-    ),
-  )
+  return [...parIdentite.values()].flatMap((liste) => demandesDeLIdentite(parReception(liste), date))
+}
+
+/** Consentements triés par date de réception, puis dans l'ordre d'enregistrement (à même date, le dernier enregistré l'emporte). */
+function parReception(liste: readonly ConsentementVoieElectronique[]): ConsentementVoieElectronique[] {
+  return liste
+    .map((c, rang) => ({ c, rang }))
+    .sort((a, b) => a.c.recuLe.localeCompare(b.c.recuLe) || a.rang - b.rang)
+    .map(({ c }) => c)
 }
 
 const estRetour = (r: RetourVoieElectronique | null): r is RetourVoieElectronique => r !== null
@@ -499,25 +512,50 @@ function demandesDeLIdentite(triee: readonly ConsentementVoieElectronique[], dat
   })
 }
 
-/**
- * Accord à la voie électronique en vigueur à la date : le dernier accord reçu au plus tard ce jour-là, sans refus ni
- * retrait reçu depuis (au plus tard ce jour-là) ; null sinon. 🔵 Un accord sans date de réception valide est écarté, par
- * cohérence avec demandesDepuisConsentements (J59) : extension que J59 ne dit pas, à confirmer par Hugo (en-tête).
- */
-export function accordElectroniqueEnVigueur({
-  identiteId,
-  consentements,
-  date,
-}: {
+/** Consentements d'une identité, lus à une date. */
+interface ConsentementsALaDate {
   identiteId: string
   consentements: readonly ConsentementVoieElectronique[]
   date: string
-}): ConsentementVoieElectronique | null {
+}
+
+/**
+ * État de l'accord de l'identité à la date. Dernier consentement reçu au plus tard ce jour-là (à même date, le dernier
+ * enregistré) : s'il est un accord sans refus ni retrait avant lui, il vaut dès sa réception ; s'il suit un refus ou un
+ * retrait, il ne vaut qu'à l'effet du premier accord reçu depuis le dernier d'entre eux (J74 : effetRetourVoieElectronique,
+ * lendemain du huitième jour suivant sa réception), en attente d'ici là ; un refus ou un retrait : aucun accord.
+ */
+function etatDeLAccord({ identiteId, consentements, date }: ConsentementsALaDate): {
+  accord: ConsentementVoieElectronique | null
+  enAttente: RetourVoieElectronique | null
+} {
   if (!estDateIsoValide(date)) throw new Error(`Date invalide (${date}) : AAAA-MM-JJ attendu.`)
-  let dernier: ConsentementVoieElectronique | null = null
-  for (const c of consentements)
-    if (c.identiteId === identiteId && !estAccordSansDateValable(c) && c.recuLe <= date && (dernier === null || c.recuLe >= dernier.recuLe)) dernier = c
-  return dernier?.sens === 'accord' ? dernier : null
+  const triee = parReception(consentements.filter((c) => c.identiteId === identiteId && !estAccordSansDateValable(c) && c.recuLe <= date))
+  const dernier = triee.at(-1)
+  if (dernier?.sens !== 'accord') return { accord: null, enAttente: null }
+  const dernierRefus = triee.findLastIndex((c) => c.sens !== 'accord')
+  if (dernierRefus < 0) return { accord: dernier, enAttente: null }
+  const retour = effetRetourVoieElectronique({ nature: 'accord', recueLe: triee[dernierRefus + 1].recuLe })
+  return retour.effet <= date ? { accord: dernier, enAttente: null } : { accord: null, enAttente: retour }
+}
+
+/**
+ * Accord à la voie électronique en vigueur à la date : le dernier accord reçu au plus tard ce jour-là, sans refus ni
+ * retrait reçu depuis (au plus tard ce jour-là) ; donné après un refus ou un retrait, à son effet seulement (J74, à toute
+ * date, 🔵 en-tête ; avant : accordElectroniqueEnAttente) ; null sinon. 🔵 Un accord sans date de réception valide est
+ * écarté, par cohérence avec demandesDepuisConsentements (J59) : extension que J59 ne dit pas, à confirmer par Hugo
+ * (en-tête).
+ */
+export function accordElectroniqueEnVigueur(lecture: ConsentementsALaDate): ConsentementVoieElectronique | null {
+  return etatDeLAccord(lecture).accord
+}
+
+/**
+ * J74 : accord donné après un refus ou un retrait, reçu au plus tard à la date mais pas encore en vigueur, avec sa date
+ * d'effet et sa justification (pour le motif d'un refus : motifNotificationAvantRetour) ; null sinon.
+ */
+export function accordElectroniqueEnAttente(lecture: ConsentementsALaDate): RetourVoieElectronique | null {
+  return etatDeLAccord(lecture).enAttente
 }
 
 /** Adresse électronique communiquée par le copropriétaire à cet effet (D. 1967 art. 65), avec sa date de réception. */

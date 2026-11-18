@@ -590,7 +590,11 @@ describe('honoraires de sinistre — contrôle des éléments', () => {
       )
       expect(message(cadre)).not.toMatch(/Hugo|Frédéric/)
     }
-    expect(message('tarif_administrateur_provisoire')).toContain('D. 1967 art. 61-1-5, II et III')
+    // relecture : le fondement de J72 (b) est l'ordonnance qui arrête les frais et débours (J67, R5), pas l'art. 61-1-5, II
+    // (émoluments seuls) ni son III, al. 2 (droits proportionnels au-delà du seuil de l'arrêté)
+    expect(message('tarif_administrateur_provisoire')).toContain('frais et débours arrêtés par l’ordonnance du président, Cass. 3e civ., 21/05/2026, n° 24-20.377 (J67, R5)')
+    for (const cadre of cadres) expect(message(cadre), cadre).not.toMatch(/61-1-5, II/)
+    expect(message('regime_inconnu')).toContain('Cass. 3e civ., 21/05/2026, n° 24-20.377')
     // 500 lots et plus : le juge fixe la rémunération « en fonction des frais engagés » (arrêté, art. 3)
     expect(message('remuneration_fixee_par_le_juge')).toContain('arrêté du 8 octobre 2015, art. 3')
     expect(message('remuneration_fixee_par_le_president')).toContain('C. com. R. 814-27')

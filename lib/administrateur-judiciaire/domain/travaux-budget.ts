@@ -1609,7 +1609,7 @@ const NATURE_DEPENSE: Readonly<Record<NatureDepenseTravaux, { libelle: string; r
     libelle: 'Autres honoraires',
     retenue: false,
     raison:
-      "Autres honoraires (contrôle technique, coordonnateur sécurité…) : prestations intellectuelles, pas des travaux (arrêté du 8 octobre 2015, art. 11) ; exclus de l'assiette du droit proportionnel, comme les honoraires que nomme J55 (décision de Hugo du 17/11/2026, J60)",
+      "Autres honoraires (contrôle technique, coordonnateur sécurité…) : prestations intellectuelles, pas des travaux (arrêté du 8 octobre 2015, art. 11) ; exclus de l'assiette du droit proportionnel, comme les honoraires que nomme J55 (J60)",
   },
 }
 
