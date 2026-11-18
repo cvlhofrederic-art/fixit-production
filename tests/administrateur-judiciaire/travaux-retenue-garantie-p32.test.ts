@@ -300,11 +300,11 @@ describe('suivi de la garantie par marché', () => {
     expect(suiviRetenueMarche(marche({ garantie: 'aucune', tauxRetenuePct: null }), {}, '2028-03-21').etat).toBe('sans_garantie')
   })
 
-  it('opposition notifiée le dernier jour : retient la garantie ; le lendemain : tardive, la retenue reste à libérer', () => {
+  it('opposition notifiée le dernier jour : retient la garantie ; envoyée et présentée le lendemain : tardive, la retenue reste à libérer', () => {
     const sources = { factures: FACTURES, consignations: [CONSIGNATION] }
     const dansLeDelai = suiviRetenueMarche(marche({ opposition: { notifieeLe: '2028-03-15', motif: 'Réserves non levées' } }), sources, '2028-04-01')
     expect(dansLeDelai.etat).toBe('opposition')
-    const tardive = suiviRetenueMarche(marche({ opposition: { notifieeLe: '2028-03-16', motif: 'Réserves non levées' } }), sources, '2028-04-01')
+    const tardive = suiviRetenueMarche(marche({ opposition: { notifieeLe: '2028-03-16', envoyeeLe: '2028-03-16', motif: 'Réserves non levées' } }), sources, '2028-04-01')
     expect(tardive.etat).toBe('a_liberer')
     expect(codes(tardive.anomalies)).toEqual(['opposition_tardive'])
   })
@@ -378,7 +378,11 @@ describe('suivi de la garantie par marché', () => {
     const [plafond, ecart] = suiviRetenueMarche(marche(), { factures, consignations: [{ ...CONSIGNATION, montantCentimes: 90_000 }] }, '2027-11-04').anomalies
     expect(plafond).toMatchObject({ code: 'retenue_au_dela_du_plafond', fondement: 'Loi n° 71-584 du 16/07/1971, art. 1er, al. 1', aConfirmer: false })
     expect(ecart).toMatchObject({ code: 'ecart_taux_contractuel', fondement: null, aConfirmer: false })
-    const tardive = suiviRetenueMarche(marche({ opposition: { notifieeLe: '2028-03-16', motif: 'Réserves non levées' } }), { factures: FACTURES, consignations: [CONSIGNATION] }, '2028-04-01')
+    const tardive = suiviRetenueMarche(
+      marche({ opposition: { notifieeLe: '2028-03-16', envoyeeLe: '2028-03-16', motif: 'Réserves non levées' } }),
+      { factures: FACTURES, consignations: [CONSIGNATION] },
+      '2028-04-01',
+    )
     expect(tardive.anomalies).toEqual([expect.objectContaining({ code: 'opposition_tardive', fondement: 'Loi n° 71-584 du 16/07/1971, art. 2', aConfirmer: true })])
   })
 })
@@ -744,6 +748,28 @@ describe('J67, R64 — opposition notifiée avant la réception : validité non 
     expect(element.libelle).toContain('validité non établie')
     expect(element.libelle).toContain('confirmation motivée')
   })
+
+  it('relecture : sous caution, la libération se confirme sur le marché ; l’élément « à faire » s’arrête', () => {
+    const sousCaution = (surcharge: Partial<SaisieMarcheTravaux> = {}) =>
+      marche({ garantie: 'caution', cautionCentimes: 500_000, opposition: { ...OPPOSITION, notifieeLe: '2027-03-01' }, ...surcharge })
+    const aFaire = (m: MarcheTravaux) => echeancesLiberationGarantie([{ mandatId: 'mandat-1', suivi: suiviRetenueMarche(m, {}, '2029-01-10') }])
+    const nonConfirmee = suiviRetenueMarche(sousCaution(), {}, '2029-01-10')
+    expect(nonConfirmee.etat).toBe('opposition_a_confirmer')
+    expect(aFaire(sousCaution()).map((e) => e.date)).toEqual(['2028-03-15'])
+    // rien de retenu : l'écriture de libération ne s'applique pas à la caution
+    expect(() => ecritureLiberationRetenue({ ...CONTEXTE, date: '2029-01-10', marche: sousCaution(), suivi: nonConfirmee, montantCentimes: 1, confirmation: CONFIRMATION })).toThrow(
+      /libération d'une retenue pratiquée/,
+    )
+    const confirmee = sousCaution({ liberationCautionConfirmee: { ...CONFIRMATION, le: '2029-01-10' } })
+    expect(confirmee.liberationCautionConfirmee).toEqual({ ...CONFIRMATION, le: '2029-01-10' })
+    expect(suiviRetenueMarche(confirmee, {}, '2029-01-10').etat).toBe('liberee')
+    expect(aFaire(confirmee)).toEqual([])
+    // confirmée avant l'échéance, ou après le jour du suivi : elle ne compte pas
+    expect(suiviRetenueMarche(sousCaution({ liberationCautionConfirmee: { ...CONFIRMATION, le: '2028-03-15' } }), {}, '2029-01-10').etat).toBe('opposition_a_confirmer')
+    expect(suiviRetenueMarche(confirmee, {}, '2029-01-09').etat).toBe('opposition_a_confirmer')
+    expect(() => sousCaution({ liberationCautionConfirmee: { ...CONFIRMATION, motif: ' ', le: '2029-01-10' } })).toThrow(/motif et collaborateur exigés/)
+    expect(() => marche({ liberationCautionConfirmee: { ...CONFIRMATION, le: '2029-01-10' } })).toThrow(/sans caution/)
+  })
 })
 
 describe('J67, R63 — opposition à temps : présentée à la caution ou au consignataire au plus tard le jour de l’échéance', () => {
@@ -760,6 +786,21 @@ describe('J67, R63 — opposition à temps : présentée à la caution ou au con
     expect(() => ecritureLiberationRetenue({ ...CONTEXTE, date: '2028-04-01', marche: peutEtre, suivi, montantCentimes: 500_000 })).toThrow(/confirmation motivée/)
     // envoyée et présentée après l'échéance : tardive, elle n'empêche pas la libération
     expect(codes(suiviRetenueMarche(opposition('2028-03-17', '2028-03-16'), sources, '2028-04-01').anomalies)).toEqual(['opposition_tardive'])
+  })
+
+  it('relecture : présentée après l’échéance, date d’envoi non saisie : peut-être tardive, jamais une libération automatique', () => {
+    const sansEnvoi = opposition('2028-03-16')
+    const suivi = suiviRetenueMarche(sansEnvoi, sources, '2028-04-01')
+    expect(suivi.etat).toBe('opposition_a_confirmer')
+    expect(suivi.anomalies).toEqual([expect.objectContaining({ code: 'opposition_peut_etre_tardive', gravite: 'avertissement', aConfirmer: true })])
+    for (const attendu of ["sans date d'envoi saisie", "saisir la date d'envoi", 'opposition peut-être tardive, à confirmer', 'J67, R63'])
+      expect(suivi.anomalies[0].message).toContain(attendu)
+    const contexte = { ...CONTEXTE, date: '2028-04-01', marche: sansEnvoi, suivi, montantCentimes: 500_000 }
+    expect(() => ecritureLiberationRetenue(contexte)).toThrow(/confirmation motivée/)
+    const confirmation = { motif: 'Lettre envoyée après le 15/03/2028, avis de dépôt au dossier', confirmeePar: 'col-direction' }
+    expect(ecritureLiberationRetenue({ ...contexte, confirmation }).restitution.confirmation).toEqual(confirmation)
+    // la date d'envoi saisie, après l'échéance : tardive, la retenue est à libérer sans confirmation
+    expect(suiviRetenueMarche(opposition('2028-03-16', '2028-03-16'), sources, '2028-04-01').etat).toBe('a_liberer')
   })
 
   it('destinataire : la caution ou le consignataire, pas l’entreprise (alerte) ; envoi après la présentation ou destinataire inconnu : refusés', () => {

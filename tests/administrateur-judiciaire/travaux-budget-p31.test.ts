@@ -1151,6 +1151,24 @@ describe('J30 (PR #643) — emploi du fonds rattaché à l’opération : décis
     expect(refus[0].message).toContain('J67, R58')
     expect(suiviFinancierOperationTravaux(ap, budget(ap), { emploisFonds: emplois.slice(1) }).anomalies).toEqual([])
   })
+
+  it('relecture J67, R58 : le cumul sous une même ordonnance compte les emplois des autres opérations et ceux hors opération', () => {
+    const plafonnee: OrdonnanceJuge = { ...ORDONNANCE_STRUCTUREE, montantMaximumCentimes: 1_500_000 }
+    const deLOperation = { ...surOrdonnance(plafonnee), id: 'E2', date: '2026-05-01' }
+    const autres = [
+      { ...surOrdonnance(plafonnee), id: 'E1', date: '2026-04-01', operationNumero: '00043' },
+      { ...surOrdonnance(plafonnee), id: 'E0', date: '2026-04-01', operationNumero: null, partOperationCentimes: null },
+    ]
+    for (const autre of autres) {
+      const suivi = suiviFinancierOperationTravaux(ap, budget(ap), { emploisFonds: [deLOperation, autre] })
+      const refus = suivi.anomalies.filter((a) => a.code === 'emploi_fonds_non_autorise')
+      expect(refus).toEqual([expect.objectContaining({ gravite: 'bloquant', fondement: 'L. 1965 art. 29-14' })])
+      expect(refus[0].message).toContain('Emploi E2')
+      expect(refus[0].message).toMatch(/après 10\s000,00\s€ déjà employés sous cette ordonnance/)
+      // l'emploi de l'autre opération, ou hors opération, n'entre ni à la trésorerie ni aux autres contrôles de celle-ci
+      expect(suivi.emploiFondsTravauxCentimes).toBe(1_000_000)
+    }
+  })
 })
 
 describe('J67, R59 — commande au-delà du budget adopté : nouvelle décision avant l’ordre de service', () => {
@@ -1179,9 +1197,6 @@ describe('J67, R59 — commande au-delà du budget adopté : nouvelle décision 
 
   it('décision de l’administrateur provisoire : seulement avec les pouvoirs de l’assemblée, après l’avis du conseil syndical', () => {
     expect(controle(4_000_000, { decisions: [{ ...REGISTRE, pouvoirsAgConfies: 'tous' }] })).toEqual([])
-    expect(controle(4_000_000, { decisions: [{ ...REGISTRE, pouvoirsAgConfies: 'partie' }] })).toEqual([
-      expect.objectContaining({ code: 'supplement_pouvoirs_a_verifier', gravite: 'avertissement', fondement: 'L. 1965 art. 29-1, I, al. 2' }),
-    ])
     for (const pouvoirsAgConfies of ['aucun', null] as const) {
       const [blocage] = controle(4_000_000, { decisions: [{ ...REGISTRE, pouvoirsAgConfies }] })
       expect(blocage.code).toBe('depassement_budget_os')
@@ -1189,6 +1204,34 @@ describe('J67, R59 — commande au-delà du budget adopté : nouvelle décision 
     }
     const [sansAvis] = controle(4_000_000, { decisions: [{ ...REGISTRE, pouvoirsAgConfies: 'tous', avisConseilSyndicalLe: null }] })
     expect(sansAvis.message).toContain('avis préalable du conseil syndical (D. 1967 art. 62-7)')
+  })
+
+  it('relecture : une partie des pouvoirs ne lève pas le blocage sans la clause de l’ordonnance qui confie cette décision', () => {
+    const partie: DecisionSupplementTravaux = { ...REGISTRE, pouvoirsAgConfies: 'partie' }
+    const [blocage, ...reste] = controle(4_000_000, { decisions: [partie] })
+    expect(reste).toEqual([])
+    expect(blocage).toMatchObject({ code: 'depassement_budget_os', gravite: 'bloquant' })
+    expect(blocage.message).toContain("vérifier que l'ordonnance lui confie cette décision et en citer la clause, faute de quoi il faut une assemblée")
+    expect(blocage.message).toContain('L. 1965 art. 29-1, I, al. 2')
+    expect(codes(controle(4_000_000, { decisions: [{ ...partie, clauseOrdonnance: '  ' }] }))).toEqual(['depassement_budget_os'])
+    const avecClause = { ...partie, clauseOrdonnance: 'Ordonnance du 02/02/2026, art. 3 : budget des travaux de ravalement' }
+    expect(controle(4_000_000, { decisions: [avecClause] })).toEqual([])
+    // la clause ne dispense pas de l'avis préalable du conseil syndical
+    expect(codes(controle(4_000_000, { decisions: [{ ...avecClause, avisConseilSyndicalLe: null }] }))).toEqual(['depassement_budget_os'])
+  })
+
+  it('relecture : l’OS d’un marché déjà porté au poste n’est pas compté deux fois (part de l’OS dans les postes)', () => {
+    // budget adopté 120 000 € ; poste travaux 90 000 € = le marché signé ; OS de démarrage de ce marché : 90 000 €
+    expect(codes(controle(9_000_000))).toEqual(['depassement_budget_os'])
+    expect(controle(9_000_000, { partOsDansLesPostesCentimes: 9_000_000 })).toEqual([])
+    // OS de 130 000 € dont 90 000 € déjà au poste : seuls 40 000 € s'ajoutent, 10 000 € au-delà du budget adopté
+    const [blocage] = controle(13_000_000, { partOsDansLesPostesCentimes: 9_000_000 })
+    expect(blocage.code).toBe('depassement_budget_os')
+    expect(blocage.message).toMatch(/dont 90\s000,00\s€ déjà portés aux postes du budget/)
+    expect(blocage.message).toMatch(/de 10\s000,00\s€/)
+    expect(() => controle(1_000, { partOsDansLesPostesCentimes: 2_000 })).toThrow(/déjà comprise dans les postes/)
+    expect(() => controle(20_000_000, { partOsDansLesPostesCentimes: 10_000_000 })).toThrow(/déjà comprise dans les postes/)
+    expect(() => controle(9_000_000, { partOsDansLesPostesCentimes: -1 })).toThrow(/déjà comprise dans les postes/)
   })
 
   it('urgence constatée : pas de blocage, une alerte ; montant de l’OS inconnu : alerte ; marge du cabinet : règle interne, nulle par défaut', () => {
@@ -1228,6 +1271,17 @@ describe('J67, R60 — comptes de l’opération : dommages-ouvrage et honoraire
     expect(anomalies[0].message).toContain('61600')
     expect(anomalies[0].message).toContain('67100')
     expect(anomalies[0].message).toContain('J67, R60')
+  })
+
+  it('relecture : le suivi financier rend l’alerte quand il reçoit les lignes des factures du syndicat', () => {
+    const op = sansFonds()
+    const lignesFactures: LigneCompteOperation[] = [
+      { comptePlan: '62300', montantTtcCentimes: 120_000, rattachement: { type: 'travaux', id: '00042' } },
+      { comptePlan: '67100', montantTtcCentimes: 900_000, rattachement: { type: 'travaux', id: '00042' } },
+    ]
+    const suivi = suiviFinancierOperationTravaux(op, budget(op), { lignesFactures })
+    expect(suivi.anomalies.filter((a) => a.code === 'ligne_operation_en_gestion_courante').map((a) => a.gravite)).toEqual(['avertissement'])
+    expect(codes(suiviFinancierOperationTravaux(op, budget(op)).anomalies)).not.toContain('ligne_operation_en_gestion_courante')
   })
 })
 

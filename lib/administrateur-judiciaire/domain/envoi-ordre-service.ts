@@ -1873,9 +1873,10 @@ export interface ContexteEnvoiOs extends OptionsVisa {
   /** Administrateurs désignés, mode d'exercice et pouvoirs confiés par l'ordonnance (J67, R69, R71, R73). */
   mandat?: CadreMandatOs
   /**
-   * Opération de travaux de l'OS, son budget, les décisions qui couvrent un supplément et la marge du cabinet : le total
-   * engagé, OS compris, est contrôlé face au budget adopté (J67, R59 ; controlerDepassementBudgetAvantOs) ; absent ou
-   * null : OS hors opération de travaux, non contrôlé.
+   * Opération de travaux de l'OS, son budget, les décisions qui couvrent un supplément, la marge du cabinet et la part de
+   * l'OS déjà portée aux postes du budget (marché ou devis retenu, pas compté deux fois) : le total engagé, OS compris,
+   * est contrôlé face au budget adopté (J67, R59 ; controlerDepassementBudgetAvantOs) ; absent ou null : OS hors
+   * opération de travaux, non contrôlé.
    */
   budgetTravaux?: BudgetTravauxDeLOs | null
 }

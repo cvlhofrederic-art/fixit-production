@@ -77,14 +77,16 @@ import { reglementsDeLOperation, type OperationTravaux } from '@/lib/administrat
  * - J67, R63 : échéance au même quantième un an après la réception, somme à libérer le lendemain, sans report au jour
  *   ouvrable (code gardé ; la variante du lendemain, sans base, reste une simple information du suivi et quitte le
  *   libellé de l'échéance) ; l'opposition est à temps si la lettre a été présentée (ou remise) à la caution ou au
- *   consignataire au plus tard le jour de l'échéance (notifieeLe) ; envoyée à temps (envoyeeLe) mais présentée après :
- *   « opposition peut-être tardive, à confirmer », ni blocage ni libération automatiques ; destinataire saisi qui n'est
+ *   consignataire au plus tard le jour de l'échéance (notifieeLe) ; envoyée à temps (envoyeeLe) mais présentée après, ou
+ *   présentée après sans date d'envoi saisie (un envoi à temps n'est alors pas exclu) : « opposition peut-être tardive, à
+ *   confirmer », ni blocage ni libération automatiques ; destinataire saisi qui n'est
  *   ni la caution ni le consignataire : alerte ; rappel « opposition à envoyer » avant l'échéance, au réglage du cabinet
  *   (delaiRappelOppositionJours) ; la marque « à confirmer » reste ;
  * - J67, R64 : une opposition notifiée avant la réception, ou sans réception datée, n'a pas de validité établie : plus de
  *   blocage automatique ; alerte pour la notifier de nouveau dès la réception datée, avant l'échéance ; à l'échéance,
  *   sans nouvelle opposition, ni blocage ni libération automatiques : la libération demande une confirmation motivée et
- *   tracée du gestionnaire (ConfirmationLiberation, portée sur la restitution) ; l'opposition remplacée reste tracée
+ *   tracée du gestionnaire (ConfirmationLiberation, portée sur la restitution ; pour une caution, qui ne passe par
+ *   aucune écriture, datée et portée sur le marché : liberationCautionConfirmee) ; l'opposition remplacée reste tracée
  *   (oppositionsPrecedentes) ; la marque « à confirmer » reste ;
  * - J67, R65 : une caution fournie en cours de chantier n'oblige pas à rendre les retenues déjà faites ; leur restitution
  *   avant l'expiration reste une mainlevée anticipée, en information, qui rappelle Cass. 3e civ., 09/02/2000 ; ajout de
@@ -161,7 +163,8 @@ import { reglementsDeLOperation, type OperationTravaux } from '@/lib/administrat
  *   la libération (art. 2 : versées « si le maître de l'ouvrage n'a pas notifié ») : avertissement ;
  * - l'opposition à temps retient la garantie de sa présentation à sa mainlevée (le jour de la mainlevée, elle ne retient
  *   plus) ; la mainlevée se date au plus tôt le jour de l'opposition ; une opposition peut-être tardive vaut, pour la
- *   confirmation qu'elle demande, dès son envoi ;
+ *   confirmation qu'elle demande, dès son envoi, ou dès l'échéance quand l'envoi n'est pas saisi (le dernier jour où il
+ *   aurait été à temps) ;
  * - la retenue stipulée est le taux du marché appliqué à son montant TTC, suppléments compris ;
  * - caution fournie en cours de marché (al. 4, substitution, ou marché passé de la retenue à la caution) : elle vaut pour
  *   les factures datées du jour de sa fourniture ou après (la date de la facture tient lieu de celle du paiement de
@@ -266,8 +269,9 @@ import { reglementsDeLOperation, type OperationTravaux } from '@/lib/administrat
  * et sa date de fourniture, réception, opposition et sa mainlevée, qualification et déduction fiscales), des
  * consignations et des restitutions ; enregistrement des ajouts J67 et J70, à brancher : historique des cautions,
  * retenue limitée à la différence et son motif, date d'envoi et destinataire de l'opposition, oppositions remplacées,
- * confirmation de la restitution ; réglage du cabinet du rappel « opposition à envoyer » (delaiRappelOppositionJours,
- * à passer par suivi-a-faire.depuisRetenuesGarantie) ; lots des charges et provisions appelées de l'exercice
+ * confirmation de la restitution et de la libération de la caution (liberationCautionConfirmee) ; réglage du cabinet
+ * du rappel « opposition à envoyer » (delaiRappelOppositionJours, à passer par suivi-a-faire.depuisRetenuesGarantie) ;
+ * lots des charges et provisions appelées de l'exercice
  * (partsDeductiblesDeLExercice) ; écrans : Frédéric ;
  * fiche-entreprise.ts — le fournisseur du marché.
  */
@@ -338,6 +342,15 @@ export interface ConfirmationLiberation {
   confirmeePar: string
 }
 
+/**
+ * Libération de la caution confirmée par le gestionnaire, datée (J67, R64) : la caution ne passe pas par une écriture
+ * (ecritureLiberationRetenue ne libère que la retenue pratiquée) ; la confirmation se porte donc sur le marché.
+ */
+export interface ConfirmationLiberationCaution extends ConfirmationLiberation {
+  /** Date de la confirmation, après l'expiration du délai (avant, elle ne compte pas). */
+  le: string
+}
+
 export interface SaisieMarcheTravaux {
   id: string
   coproprieteId: string
@@ -373,6 +386,12 @@ export interface SaisieMarcheTravaux {
   opposition?: OppositionGarantie | null
   /** Oppositions remplacées par une nouvelle notification (trace : J67, R64) ; sans effet sur la garantie. */
   oppositionsPrecedentes?: readonly OppositionGarantie[] | null
+  /**
+   * Caution : libération confirmée par le gestionnaire sous une opposition de validité non établie (antérieure à la
+   * réception, ou peut-être tardive : J67, R63 et R64), motivée, tracée et datée ; sans objet hors caution. La retenue
+   * pratiquée, s'il en reste, se libère à part (ecritureLiberationRetenue, avec sa propre confirmation).
+   */
+  liberationCautionConfirmee?: ConfirmationLiberationCaution | null
   qualificationFiscale?: QualificationFiscaleTravaux | null
   /** Gestéam « Déduction fiscale € » de la ligne de marché ; absente : aucune part déductible. */
   deductionFiscaleCentimes?: number | null
@@ -388,6 +407,7 @@ export interface MarcheTravaux extends SaisieMarcheTravaux {
   reserves: boolean
   opposition: OppositionGarantie | null
   oppositionsPrecedentes: OppositionGarantie[]
+  liberationCautionConfirmee: ConfirmationLiberationCaution | null
   qualificationFiscale: QualificationFiscaleTravaux | null
   deductionFiscaleCentimes: number
 }
@@ -509,6 +529,15 @@ function verifierRetenueALaDifference({ id, garantie, retenueLimiteeALaDifferenc
   if (!option.motif.trim()) throw new Error(`Marché ${id} : retenue limitée à la différence avec la caution : motif exigé (J70).`)
 }
 
+/** Libération de la caution confirmée (J67, R64) : sous caution seulement, datée, motif et collaborateur saisis. */
+function verifierLiberationCaution({ id, garantie, liberationCautionConfirmee: confirmation }: SaisieMarcheTravaux): void {
+  if (confirmation == null) return
+  if (garantie !== 'caution') throw new Error(`Marché ${id} : libération de la caution confirmée sans caution (garantie « ${garantie} »).`)
+  verifierDate(confirmation.le, `Marché ${id}, confirmation de la libération de la caution`)
+  if (!confirmationSaisie(confirmation))
+    throw new Error(`Marché ${id} : confirmation de la libération de la caution : motif et collaborateur exigés (J67, R64).`)
+}
+
 /** Déduction fiscale : centimes entiers, au plus le marché, qualifiée dès qu'elle est positive. */
 function verifierDeduction({ id, montantTtcCentimes, qualificationFiscale, deductionFiscaleCentimes }: SaisieMarcheTravaux): void {
   if (qualificationFiscale != null && !QUALIFICATIONS_CONNUES.has(qualificationFiscale))
@@ -537,6 +566,7 @@ function normaliserMarche(saisie: SaisieMarcheTravaux, cautions: CautionDuMarche
     reserves: saisie.reserves ?? false,
     opposition: saisie.opposition ?? null,
     oppositionsPrecedentes: [...(saisie.oppositionsPrecedentes ?? [])],
+    liberationCautionConfirmee: saisie.liberationCautionConfirmee ?? null,
     qualificationFiscale: saisie.qualificationFiscale ?? null,
     deductionFiscaleCentimes: saisie.deductionFiscaleCentimes ?? 0,
   }
@@ -544,7 +574,8 @@ function normaliserMarche(saisie: SaisieMarcheTravaux, cautions: CautionDuMarche
 
 /**
  * Crée le marché garanti d'une opération : garantie (historique des cautions, J67, R65 ; retenue limitée à la
- * différence, J70), réception, opposition, qualification et déduction fiscales.
+ * différence, J70), réception, opposition, libération de la caution confirmée (J67, R64), qualification et déduction
+ * fiscales.
  */
 export function creerMarcheTravaux(saisie: SaisieMarcheTravaux): MarcheTravaux {
   const { id, travauxId, montantTtcCentimes } = saisie
@@ -559,6 +590,7 @@ export function creerMarcheTravaux(saisie: SaisieMarcheTravaux): MarcheTravaux {
   verifierDateCaution(avecCautionActuelle)
   verifierRetenueALaDifference(saisie)
   verifierReceptionEtOpposition(saisie)
+  verifierLiberationCaution(saisie)
   verifierDeduction(saisie)
   return normaliserMarche(saisie, cautions)
 }
@@ -631,9 +663,10 @@ export const expirationDelaiGarantieSiDepartLendemain = ({ dateReception }: Pick
 /**
  * Portée de l'opposition au regard du délai de l'art. 2 : à temps, présentée (ou remise) à la caution ou au consignataire
  * au plus tard le jour de l'échéance (J67, R63) ; de validité non établie, soit antérieure à la réception ou sans
- * réception datée (J67, R64), soit peut-être tardive, envoyée à temps mais présentée après (J67, R63) ; tardive, envoyée
- * et présentée après l'échéance. `depuis` : date à partir de laquelle elle vaut (l'envoi pour une opposition peut-être
- * tardive).
+ * réception datée (J67, R64), soit peut-être tardive, présentée après l'échéance mais envoyée à temps, ou sans date
+ * d'envoi saisie (J67, R63 : un envoi dans le délai n'est alors pas exclu, et libérer ne se rattrape pas) ; tardive,
+ * envoyée et présentée après l'échéance. `depuis` : date à partir de laquelle elle vaut (pour une opposition peut-être
+ * tardive, l'envoi, ou l'échéance quand l'envoi n'est pas saisi : le dernier jour où il aurait été à temps).
  */
 type PorteeOpposition = 'a_temps' | 'avant_reception' | 'peut_etre_tardive' | 'tardive'
 
@@ -643,7 +676,8 @@ function porteeDeLOpposition(marche: MarcheTravaux, expiration: string | null): 
   const { notifieeLe, envoyeeLe } = opposition
   if (!dateReception || expiration === null || notifieeLe < dateReception) return { portee: 'avant_reception', depuis: notifieeLe }
   if (notifieeLe <= expiration) return { portee: 'a_temps', depuis: notifieeLe }
-  if (envoyeeLe != null && envoyeeLe <= expiration) return { portee: 'peut_etre_tardive', depuis: envoyeeLe }
+  if (envoyeeLe == null) return { portee: 'peut_etre_tardive', depuis: expiration }
+  if (envoyeeLe <= expiration) return { portee: 'peut_etre_tardive', depuis: envoyeeLe }
   return { portee: 'tardive', depuis: notifieeLe }
 }
 
@@ -1011,6 +1045,18 @@ function anomaliesGarantie(marche: MarcheTravaux, { retenu, consigne, expiration
 
 const RENOUVELER_L_OPPOSITION = "la notifier de nouveau, motivée par les réserves ou l'inexécution, à la caution ou au consignataire"
 
+/**
+ * Opposition présentée après l'échéance, envoyée dans le délai ou sans date d'envoi saisie (J67, R63) : peut-être
+ * tardive, à confirmer ; sans date d'envoi, le message dit de la saisir (envoyée après l'échéance, elle est tardive).
+ */
+function messagePeutEtreTardive(id: string, opposition: OppositionGarantie, expiration: string): string {
+  const presentee = `présentée le ${dateIsoVersFr(opposition.notifieeLe)}, après l'expiration du ${dateIsoVersFr(expiration)}`
+  const suite = `opposition peut-être tardive, à confirmer ; ${SANS_LIBERATION_AUTOMATIQUE} (loi n° 71-584, art. 2 ; J67, R63).`
+  if (opposition.envoyeeLe == null)
+    return `Marché ${id} : opposition ${presentee}, sans date d'envoi saisie : un envoi dans le délai n'est pas exclu ; saisir la date d'envoi (envoyée après l'échéance, elle n'empêche pas la libération) ; d'ici là, ${suite}`
+  return `Marché ${id} : opposition envoyée le ${dateIsoVersFr(opposition.envoyeeLe)}, dans le délai, mais ${presentee} : ${suite}`
+}
+
 /** Message selon la portée de l'opposition (J67, R63 et R64) ; null quand elle est à temps. */
 function messageDeLaPortee(marche: MarcheTravaux, portee: PorteeOpposition, expiration: string | null): string | null {
   const { opposition, dateReception } = marche
@@ -1018,8 +1064,7 @@ function messageDeLaPortee(marche: MarcheTravaux, portee: PorteeOpposition, expi
   const notifiee = `Marché ${marche.id} : opposition notifiée le ${dateIsoVersFr(opposition.notifieeLe)}`
   if (portee === 'tardive')
     return `${notifiee}, après l'expiration du délai le ${dateIsoVersFr(expiration ?? opposition.notifieeLe)} (art. 2) : elle n'empêche pas la libération.`
-  if (portee === 'peut_etre_tardive')
-    return `Marché ${marche.id} : opposition envoyée le ${dateIsoVersFr(opposition.envoyeeLe ?? opposition.notifieeLe)}, dans le délai, mais présentée le ${dateIsoVersFr(opposition.notifieeLe)}, après l'expiration du ${dateIsoVersFr(expiration ?? opposition.notifieeLe)} : opposition peut-être tardive, à confirmer ; ${SANS_LIBERATION_AUTOMATIQUE} (loi n° 71-584, art. 2 ; J67, R63).`
+  if (portee === 'peut_etre_tardive') return messagePeutEtreTardive(marche.id, opposition, expiration ?? opposition.notifieeLe)
   if (dateReception && expiration)
     return `${notifiee}, avant la réception du ${dateIsoVersFr(dateReception)} : sa validité n'est pas établie ; ${RENOUVELER_L_OPPOSITION}, avant le ${dateIsoVersFr(expiration)} ; à l'échéance, sans nouvelle opposition, ${SANS_LIBERATION_AUTOMATIQUE} (loi n° 71-584, art. 2 ; J67, R64).`
   return `${notifiee}, sans réception datée : sa validité n'est pas établie ; dès la réception datée, ${RENOUVELER_L_OPPOSITION}, avant l'échéance ; d'ici là, ${SANS_LIBERATION_AUTOMATIQUE} (loi n° 71-584, art. 2 ; J67, R64).`
@@ -1062,7 +1107,8 @@ function anomaliesOpposition(marche: MarcheTravaux, expiration: string | null): 
  * retenu) ; sous opposition à temps en cours (sans mainlevée) ; avant réception ; en délai (jusqu'au jour de l'expiration
  * compris) ; opposition à confirmer (après l'expiration, sous une opposition de validité non établie : ni blocage ni
  * libération automatiques, J67, R63 et R64) ; à libérer (après l'expiration, retenue restant à verser) ; libérée
- * (caution, après l'expiration, rien de retenu : art. 2, « la caution est libérée »).
+ * (caution, après l'expiration, rien de retenu : art. 2, « la caution est libérée » ; sous une opposition de validité
+ * non établie, sur la confirmation du gestionnaire portée au marché, J67, R64).
  */
 export type EtatGarantieMarche =
   | 'sans_garantie'
@@ -1119,6 +1165,15 @@ export interface SuiviRetenueMarche {
   anomalies: AnomalieRetenue[]
 }
 
+/**
+ * Caution libérée sur la confirmation du gestionnaire (J67, R64) : confirmation datée après l'expiration, au plus tard
+ * au jour donné, et plus rien de retenu à libérer (la retenue pratiquée se libère à part, avec sa propre confirmation).
+ */
+function cautionLibereeSurConfirmation(marche: MarcheTravaux, resteRetenu: number, expiration: string, aujourdhui: string): boolean {
+  const confirmation = marche.liberationCautionConfirmee
+  return marche.garantie === 'caution' && resteRetenu <= 0 && confirmation !== null && confirmation.le > expiration && confirmation.le <= aujourdhui
+}
+
 function etatGarantie(marche: MarcheTravaux, { retenu, resteRetenu, expiration, aujourdhui }: { retenu: number; resteRetenu: number; expiration: string | null; aujourdhui: string }): EtatGarantieMarche {
   if (marche.garantie === 'aucune') return 'sans_garantie'
   if (marche.garantie === 'retenue' && retenu > 0 && resteRetenu <= 0) return 'restituee'
@@ -1126,7 +1181,8 @@ function etatGarantie(marche: MarcheTravaux, { retenu, resteRetenu, expiration, 
   if (oppositionEnCours(marche, expiration, aujourdhui)) return 'opposition'
   if (!expiration) return 'avant_reception'
   if (aujourdhui <= expiration) return 'en_delai'
-  if (oppositionDouteuseEnCours(marche, expiration, aujourdhui)) return 'opposition_a_confirmer'
+  if (oppositionDouteuseEnCours(marche, expiration, aujourdhui) && !cautionLibereeSurConfirmation(marche, resteRetenu, expiration, aujourdhui))
+    return 'opposition_a_confirmer'
   return resteRetenu > 0 ? 'a_liberer' : 'liberee'
 }
 

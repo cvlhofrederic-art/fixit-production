@@ -486,6 +486,8 @@ describe('J67, R59 — OS qui fait dépasser le budget adopté de l’opération
   it('décision qui couvre le supplément, ou urgence constatée : l’OS part (alerte pour l’urgence) ; hors opération : non contrôlé', () => {
     const resolution = { origine: 'assemblee' as const, date: '2026-09-30', reference: 'Résolution 3', montantCentimes: 200_000 }
     expect(controlerAvantEnvoiOs(demande(), sortie(), { ...CONTEXTE, budgetTravaux: { ...budgetTravaux, decisions: [resolution] } })).toEqual([])
+    // devis de l'OS déjà porté au poste du budget : il n'est pas compté deux fois (relecture de J67, R59)
+    expect(controlerAvantEnvoiOs(demande(), sortie(), { ...CONTEXTE, budgetTravaux: { ...budgetTravaux, partOsDansLesPostesCentimes: 120_000 } })).toEqual([])
     const urgente = sortie(demande(), { delai: 'urgence', constatUrgence: CONSTAT })
     const anomalies = controlerAvantEnvoiOs(demande(), urgente, { ...CONTEXTE, budgetTravaux })
     expect(bloquants(anomalies)).toEqual([])

@@ -123,21 +123,24 @@ import {
  *   l'alerte « taux non dégressif » (art. 18-1 A, III : « à un taux dégressif selon l'importance des travaux »), jamais un
  *   blocage ; barème non saisi : non contrôlé (ResolutionHonorairesTravaux.paliers) ;
  * - J67, R58 : l'art. 29-14, 2° ne fixe aucun montant ; l'ordonnance porte un montant facultatif et son objet, et aucun
- *   emploi ne dépasse ce montant, emplois antérieurs sous la même ordonnance compris (fonds-travaux.ts, OrdonnanceJuge ;
- *   bloquant) ; la part de l'opération reste une borne bloquante : décision de l'administrateur provisoire inscrite au
- *   registre (D. 1967 art. 62-8), une nouvelle décision au registre pour aller au-delà (l'avis du conseil syndical, art.
- *   62-7, seulement s'il a aussi les pouvoirs de l'assemblée) ; la borne par clé s'appuie sur le I de l'art. 14-2-1 (pas
- *   le III) et reste, pour l'usage judiciaire, un choix de VitFix à confirmer ; la gestion courante sous ordonnance est
- *   déjà admise (fonds-travaux.ts) ;
+ *   emploi ne dépasse ce montant, emplois antérieurs sous la même ordonnance compris, ceux des autres opérations et ceux
+ *   hors opération aussi (fonds-travaux.ts, OrdonnanceJuge ; le suivi les compte sur tous les emplois du fonds qu'il
+ *   reçoit ; bloquant) ; la part de l'opération reste une borne bloquante : décision de l'administrateur provisoire
+ *   inscrite au registre (D. 1967 art. 62-8), une nouvelle décision au registre pour aller au-delà (l'avis du conseil
+ *   syndical, art. 62-7, seulement s'il a aussi les pouvoirs de l'assemblée) ; la borne par clé s'appuie sur le I de
+ *   l'art. 14-2-1 (pas le III) et reste, pour l'usage judiciaire, un choix de VitFix à confirmer ; la gestion courante
+ *   sous ordonnance est déjà admise (fonds-travaux.ts) ;
  * - J67, R59 : à l'envoi d'un ordre de service qui fait passer le total engagé au-dessus du budget adopté, bloquant, sauf
  *   une nouvelle résolution d'assemblée qui couvre le supplément, une décision de l'administrateur provisoire au registre
  *   s'il a les pouvoirs de l'assemblée, après l'avis du conseil syndical, ou l'urgence constatée (J16, J46)
- *   (controlerDepassementBudgetAvantOs, appelé par envoi-ordre-service.ts) ; marge du cabinet, règle interne, nulle par
- *   défaut ; le suivi garde son alerte ;
+ *   (controlerDepassementBudgetAvantOs, appelé par envoi-ordre-service.ts) ; s'il n'a qu'une partie des pouvoirs, sa
+ *   décision ne compte qu'avec la clause de l'ordonnance qui lui confie cette décision, citée par le gestionnaire ; sans
+ *   elle, il faut une assemblée (règle prudente) ; la part de l'OS déjà portée aux postes (marché ou devis retenu) n'est
+ *   pas comptée deux fois ; marge du cabinet, règle interne, nulle par défaut ; le suivi garde son alerte ;
  * - J67, R60 : prime dommages-ouvrage et honoraires des prestataires d'une opération au 671 de l'opération (pas au 616 ni
  *   au 623), une opération qui n'est qu'une étude au 673 (compteProposePourLePoste) ; une ligne de facture de l'opération
- *   en classe 61 ou 62 donne une alerte, sans blocage (anomaliesComptesDesLignesDOperation) ; relevé Gestéam à faire :
- *   comment Gestéam passe ces lignes ;
+ *   en classe 61 ou 62 donne une alerte, sans blocage (anomaliesComptesDesLignesDOperation, rendue aussi par le suivi
+ *   quand il reçoit les lignes des factures) ; relevé Gestéam à faire : comment Gestéam passe ces lignes ;
  * - J67, R81 : part du fonds affectée par la décision de l'administrateur provisoire : il lui faut les pouvoirs de
  *   l'assemblée (travaux-operations.ts) ; aucun, ou étendue non saisie : emploi refusé et part bloquante ; une partie :
  *   alerte « à vérifier dans l'ordonnance ».
@@ -266,7 +269,12 @@ import {
  * l'assemblée ; honoraires-facturation.ts — aucun élément d'honoraires sur travaux
  * n'est créé ici : sous le cadre de l'art. 18-1 A, III, un élément « Travaux - HONORAIRES TRAVAUX » (tranche 27) se
  * rattacherait au vote contrôlé par controlerHonorairesTravaux ; sous administration provisoire, un signalement « à
- * soumettre au juge », comme honoraires-sinistre.ts.
+ * soumettre au juge », comme honoraires-sinistre.ts. Branchements J67 : appelant du suivi financier — tous les emplois
+ * du fonds du syndicat (emploisFonds, pour le cumul sous une même ordonnance, R58) et les lignes des factures du
+ * syndicat (lignesFactures, facture-ventilee.ts, pour l'alerte des classes 61 et 62, R60) ; virement-interne.ts et
+ * fonds-travaux-lots.ts — dejaEmployeSousOrdonnanceCentimes au contrôle d'affectation (R58) ; appelant de
+ * controlerAvantEnvoiOs — budgetTravaux (opération, budget, décisions, clause de l'ordonnance, part de l'OS déjà portée
+ * aux postes, marge du cabinet ; R59).
  */
 
 // ─── Postes et financements ────────────────────────────────────────────────────────────────────
@@ -301,7 +309,11 @@ const NATURES_FINANCEMENT_CONNUES: ReadonlySet<string> = new Set(NATURES_FINANCE
 
 export interface LigneBudgetTravaux {
   poste: PosteBudgetTravaux
-  /** Gestéam « Budget TTC » : montant engagé du poste (marchés et devis commandés, contrat DO, honoraires). */
+  /**
+   * Gestéam « Budget TTC » : montant engagé du poste (marchés et devis commandés, contrat DO, honoraires). Un ordre de
+   * service dont le marché ou le devis y est déjà porté le dit à son contrôle (EngagementAvantOs,
+   * partOsDansLesPostesCentimes) : il n'est pas compté deux fois (J67, R59).
+   */
   budgetTtcCentimes: number
   /** Gestéam « Suppléments » (travaux supplémentaires, avenants) ; 0 par défaut. */
   supplementsTtcCentimes?: number
@@ -433,7 +445,6 @@ export type CodeAnomalieBudgetTravaux =
   | 'depassement_budget_os_urgence'
   | 'depassement_dans_la_marge_du_cabinet'
   | 'montant_os_inconnu'
-  | 'supplement_pouvoirs_a_verifier'
   | 'ligne_operation_en_gestion_courante'
 
 export interface AnomalieBudgetTravaux {
@@ -510,8 +521,17 @@ export interface SourcesSuiviTravaux {
   /** Postes de dette des comptes du syndicat de l'opération (imputation-encaissements.ts). */
   postes?: readonly PosteDette[]
   reglements?: readonly ReglementFournisseur[]
-  /** Emplois du fonds de travaux du syndicat de l'opération (fonds-travaux-lots.ts). */
+  /**
+   * Emplois du fonds de travaux du syndicat de l'opération (fonds-travaux-lots.ts), tous : ceux des autres opérations et
+   * ceux hors opération comptent dans le déjà employé sous une même ordonnance (J67, R58) ; seuls ceux de l'opération
+   * entrent à sa trésorerie et à ses autres contrôles.
+   */
   emploisFonds?: readonly EmploiFondsTravaux[]
+  /**
+   * Lignes des factures du syndicat de l'opération (facture-ventilee.ts) : celles de l'opération passées en classe 61 ou
+   * 62 sont signalées (J67, R60 ; anomaliesComptesDesLignesDOperation).
+   */
+  lignesFactures?: readonly LigneCompteOperation[]
   /**
    * Identifiants (banqueId) des comptes bancaires du syndicat qui tiennent le fonds de travaux (comptes-bancaires.ts,
    * nature « fonds_travaux » ; D-BANQUE) : un règlement de l'opération payé depuis l'un d'eux est contrôlé.
@@ -878,7 +898,9 @@ function cleDeLOrdonnance(emploi: EmploiFondsTravaux): string | null {
 
 /**
  * Emplois déjà faits sous la même ordonnance avant chaque emploi (ordre des dates, puis de saisie) : le montant écrit
- * dans l'ordonnance borne leur cumul (J67, R58). Emploi sans ordonnance structurée : zéro.
+ * dans l'ordonnance borne leur cumul (J67, R58). `emplois` : tous les emplois du fonds du syndicat, toutes opérations
+ * et hors opération compris, jamais ceux d'une seule opération (sinon le cumul se contourne en répartissant les emplois
+ * entre plusieurs opérations). Emploi sans ordonnance structurée : zéro.
  */
 function dejaEmployesSousLaMemeOrdonnance(emplois: readonly EmploiFondsTravaux[]): Map<EmploiFondsTravaux, number> {
   const cumuls = new Map<string, number>()
@@ -974,16 +996,20 @@ function anomaliesDesCumuls(operation: OperationTravaux, emplois: readonly Emplo
  * décision, parts. Le rapprochement des cumuls se fait même case cochée : la case exige une part nulle, et un emploi
  * au-delà d'une part nulle reste refusé quelle que soit la réponse à la question ouverte sur le bouton (al. 7). Part
  * affectée par la décision de l'administrateur provisoire qui n'a qu'une partie des pouvoirs de l'assemblée : à vérifier
- * dans l'ordonnance (J67, R81).
+ * dans l'ordonnance (J67, R81). `emplois` : ceux de l'opération ; `deja` : le déjà employé sous la même ordonnance avant
+ * chacun, calculé sur tous les emplois du fonds (J67, R58).
  */
-function anomaliesFondsTravaux(operation: OperationTravaux, emplois: readonly EmploiFondsTravaux[]): AnomalieBudgetTravaux[] {
+function anomaliesFondsTravaux(
+  operation: OperationTravaux,
+  emplois: readonly EmploiFondsTravaux[],
+  deja: ReadonlyMap<EmploiFondsTravaux, number>,
+): AnomalieBudgetTravaux[] {
   const anomalies: AnomalieBudgetTravaux[] = []
   const etat = etatPartFondsTravaux(operation)
   if (etat && !etat.autorise)
     anomalies.push(anomalie('part_fonds_non_autorisee', 'bloquant', `Part du fonds de travaux de l'opération ${operation.numero} : ${etat.motif}`, fondementDeLaPart(operation)))
   const pouvoirs = pouvoirsDeLAffectationParLAdministrateur(operation)
   if (pouvoirs && !pouvoirs.refuse) anomalies.push(anomalie('affectation_pouvoirs_a_verifier', 'avertissement', pouvoirs.motif, pouvoirs.fondement))
-  const deja = dejaEmployesSousLaMemeOrdonnance(emplois)
   for (const emploi of emplois) anomalies.push(...anomaliesDeLEmploi(operation, emploi, deja.get(emploi) ?? 0))
   anomalies.push(...anomaliesDesCumuls(operation, emplois))
   return anomalies
@@ -1054,12 +1080,12 @@ function verifierBudgetDeLOperation(operation: OperationTravaux, budget: BudgetO
  * Suivi financier de l'opération (onglet Budget de Gestéam) : postes engagés et réglés, budget adopté et solde
  * budgétaire, appels votés, part du fonds de travaux et autres financements, fonds appelés, encaissé, appels non reçus,
  * réglé, emploi du fonds, solde de trésorerie ; avec les anomalies (contrôle d'affectation du fonds, « Ne pas utiliser
- * les fonds travaux », dépassements).
+ * les fonds travaux », dépassements, lignes de facture de l'opération en classe 61 ou 62 : J67, R60).
  */
 export function suiviFinancierOperationTravaux(
   operation: OperationTravaux,
   budget: BudgetOperationTravaux,
-  { suivies = [], postes = [], reglements = [], emploisFonds = [], banquesDuFondsTravaux = [] }: SourcesSuiviTravaux = {},
+  { suivies = [], postes = [], reglements = [], emploisFonds = [], banquesDuFondsTravaux = [], lignesFactures = [] }: SourcesSuiviTravaux = {},
 ): SuiviFinancierOperationTravaux {
   verifierBudgetDeLOperation(operation, budget)
   const suiviPostes = suiviDesPostes(operation, budget, reglements)
@@ -1094,10 +1120,11 @@ export function suiviFinancierOperationTravaux(
     soldeTresorerieCentimes,
     anomalies: [
       ...anomaliesDuBudget(operation, totalEngageCentimes, appels.votesCentimes),
-      ...anomaliesFondsTravaux(operation, emplois),
+      ...anomaliesFondsTravaux(operation, emplois, dejaEmployesSousLaMemeOrdonnance(emploisFonds)),
       ...anomaliesReglementsSurLeFonds(operation, reglements, new Set(banquesDuFondsTravaux)),
       ...anomaliesDesReglements(suiviPostes, regleNonVentileCentimes),
       ...anomaliesDeTresorerie(appels.appeleCentimes, appels.encaisseCentimes, soldeTresorerieCentimes),
+      ...anomaliesComptesDesLignesDOperation(operation, lignesFactures),
     ],
   }
 }
@@ -1108,6 +1135,8 @@ export function suiviFinancierOperationTravaux(
  * Décision qui couvre un supplément au budget adopté de l'opération (J67, R59) : nouvelle résolution d'assemblée, ou
  * décision de l'administrateur provisoire au registre (D. 1967 art. 62-8), qui ne compte que s'il a reçu de l'ordonnance
  * les pouvoirs de l'assemblée (L. 1965 art. 29-1, I, al. 2) et après l'avis du conseil syndical (D. 1967 art. 62-7).
+ * Une partie seulement des pouvoirs : elle ne compte qu'avec la clause de l'ordonnance qui lui confie cette décision,
+ * vérifiée et citée par le gestionnaire ; sans elle, il faut une assemblée (règle prudente de R59).
  */
 export interface DecisionSupplementTravaux {
   origine: OrigineDecisionTravaux
@@ -1118,6 +1147,12 @@ export interface DecisionSupplementTravaux {
   montantCentimes: number
   /** Administrateur provisoire : pouvoirs de l'assemblée confiés par l'ordonnance à la date de la décision ; absent : non saisis. */
   pouvoirsAgConfies?: PouvoirsAgConfies | null
+  /**
+   * Administrateur provisoire investi d'une partie des pouvoirs (« partie ») : clause de l'ordonnance qui lui confie le
+   * pouvoir de décider ce supplément, vérifiée par le gestionnaire ; absente : non vérifiée, la décision ne compte pas
+   * (J67, R59).
+   */
+  clauseOrdonnance?: string | null
   /** Administrateur provisoire : date de l'avis du conseil syndical, au plus tard celle de la décision ; absente : non recueilli. */
   avisConseilSyndicalLe?: string | null
 }
@@ -1125,13 +1160,19 @@ export interface DecisionSupplementTravaux {
 /** Codes du contrôle du budget adopté à l'envoi d'un ordre de service (J67, R59). */
 export type CodeDepassementBudgetOs = Extract<
   CodeAnomalieBudgetTravaux,
-  'depassement_budget_os' | 'depassement_budget_os_urgence' | 'depassement_dans_la_marge_du_cabinet' | 'montant_os_inconnu' | 'supplement_pouvoirs_a_verifier'
+  'depassement_budget_os' | 'depassement_budget_os_urgence' | 'depassement_dans_la_marge_du_cabinet' | 'montant_os_inconnu'
 >
 export type AnomalieDepassementBudgetOs = AnomalieBudgetTravaux & { code: CodeDepassementBudgetOs }
 
 export interface EngagementAvantOs {
   /** Montant TTC de l'ordre de service (prévu de la demande) ; null : inconnu. */
   montantOsTtcCentimes: number | null
+  /**
+   * Part du montant de l'ordre de service déjà comprise dans les postes du budget : marché signé ou devis retenu, déjà
+   * porté au « Budget TTC » ou aux « Suppléments » d'un poste (LigneBudgetTravaux). Elle n'est pas comptée deux fois
+   * dans l'engagé. 0 par défaut : l'OS s'ajoute en entier aux postes. Au plus le montant de l'OS et l'engagé des postes.
+   */
+  partOsDansLesPostesCentimes?: number
   /** Date de l'envoi de l'ordre de service. */
   date: string
   /** Urgence constatée par l'administrateur provisoire (J16, J46), lue sur l'ordre de service. */
@@ -1142,46 +1183,67 @@ export interface EngagementAvantOs {
 }
 
 /** Opération de l'ordre de service, son budget, et ce qui couvre un dépassement (contexte d'envoi-ordre-service.ts). */
-export type BudgetTravauxDeLOs = { operation: OperationTravaux; budget: BudgetOperationTravaux } & Pick<EngagementAvantOs, 'decisions' | 'margeCabinetPct'>
+export type BudgetTravauxDeLOs = { operation: OperationTravaux; budget: BudgetOperationTravaux } & Pick<
+  EngagementAvantOs,
+  'decisions' | 'margeCabinetPct' | 'partOsDansLesPostesCentimes'
+>
 
 const FONDEMENT_DEPASSEMENT = 'L. 1965 art. 18, I ; art. 29-1, I'
 
 const LEVER_LE_DEPASSEMENT =
-  "pour l'envoyer : une nouvelle résolution d'assemblée qui couvre le supplément ; ou une décision de l'administrateur provisoire au registre (D. 1967 art. 62-8), s'il a reçu de l'ordonnance les pouvoirs de l'assemblée, après l'avis du conseil syndical (art. 62-7) ; ou l'urgence constatée (J16, J46) ; J67, R59"
+  "pour l'envoyer : une nouvelle résolution d'assemblée qui couvre le supplément ; ou une décision de l'administrateur provisoire au registre (D. 1967 art. 62-8), s'il a reçu de l'ordonnance les pouvoirs de l'assemblée (une partie seulement : avec la clause qui lui confie cette décision), après l'avis du conseil syndical (art. 62-7) ; ou l'urgence constatée (J16, J46) ; J67, R59"
 
-/** Décision lue : le supplément qu'elle couvre (0 si elle ne compte pas), pourquoi elle ne compte pas, ce qui est à vérifier. */
-function lireDecisionSupplement(d: DecisionSupplementTravaux, date: string): { couvre: number; ecart: string | null; aVerifier: string | null } {
+/**
+ * Pourquoi la décision de l'administrateur provisoire ne compte pas, faute de pouvoirs de l'assemblée (J67, R59) : aucun,
+ * étendue non saisie, ou une partie sans la clause de l'ordonnance qui lui confie cette décision ; null s'il les a.
+ */
+function ecartDesPouvoirs(d: DecisionSupplementTravaux, nom: string): string | null {
+  const pouvoirs = d.pouvoirsAgConfies ?? null
+  if (pouvoirs === 'tous' || (pouvoirs === 'partie' && d.clauseOrdonnance?.trim())) return null
+  if (pouvoirs === 'partie')
+    return `${nom} : l'administrateur provisoire n'a reçu qu'une partie des pouvoirs de l'assemblée (${FONDEMENT_POUVOIRS_AG}) ; vérifier que l'ordonnance lui confie cette décision et en citer la clause, faute de quoi il faut une assemblée`
+  const etendue = pouvoirs === 'aucun' ? "l'ordonnance ne lui en confie aucun" : 'étendue non saisie'
+  return `${nom} : l'administrateur provisoire n'a pas les pouvoirs de l'assemblée (${etendue}) ; il faut une assemblée`
+}
+
+/** Décision lue : le supplément qu'elle couvre (0 si elle ne compte pas), et pourquoi elle ne compte pas. */
+function lireDecisionSupplement(d: DecisionSupplementTravaux, date: string): { couvre: number; ecart: string | null } {
   if (!estDateIsoValide(d.date) || !d.reference.trim() || !Number.isInteger(d.montantCentimes) || d.montantCentimes <= 0)
     throw new Error(`Décision qui couvre le supplément « ${d.reference} » : date (AAAA-MM-JJ), référence et montant en centimes entiers strictement positifs attendus.`)
   const nom = `${d.reference.trim()} du ${dateIsoVersFr(d.date)}`
-  if (d.date > date) return { couvre: 0, ecart: `${nom} postérieure à l'envoi`, aVerifier: null }
-  if (d.origine !== 'administrateur') return { couvre: d.montantCentimes, ecart: null, aVerifier: null }
-  const pouvoirs = d.pouvoirsAgConfies ?? null
-  if (pouvoirs !== 'tous' && pouvoirs !== 'partie') {
-    const etendue = pouvoirs === 'aucun' ? "l'ordonnance ne lui en confie aucun" : 'étendue non saisie'
-    return { couvre: 0, ecart: `${nom} : l'administrateur provisoire n'a pas les pouvoirs de l'assemblée (${etendue}) ; il faut une assemblée`, aVerifier: null }
-  }
+  if (d.date > date) return { couvre: 0, ecart: `${nom} postérieure à l'envoi` }
+  if (d.origine !== 'administrateur') return { couvre: d.montantCentimes, ecart: null }
+  const sansPouvoirs = ecartDesPouvoirs(d, nom)
+  if (sansPouvoirs) return { couvre: 0, ecart: sansPouvoirs }
   const avis = d.avisConseilSyndicalLe ?? null
-  if (avis === null || !estDateIsoValide(avis) || avis > d.date) return { couvre: 0, ecart: `${nom} : sans l'avis préalable du conseil syndical (D. 1967 art. 62-7)`, aVerifier: null }
-  const aVerifier =
-    pouvoirs === 'partie'
-      ? `${nom} : l'administrateur provisoire n'a reçu qu'une partie des pouvoirs de l'assemblée ; vérifier que l'ordonnance lui confie cette décision (J67, R59).`
-      : null
-  return { couvre: d.montantCentimes, ecart: null, aVerifier }
+  if (avis === null || !estDateIsoValide(avis) || avis > d.date) return { couvre: 0, ecart: `${nom} : sans l'avis préalable du conseil syndical (D. 1967 art. 62-7)` }
+  return { couvre: d.montantCentimes, ecart: null }
+}
+
+/** Engagé de l'opération à l'envoi de l'OS : postes du budget, plus l'OS, moins la part de l'OS déjà portée aux postes. */
+function engageAvecLOs(numero: string, budget: BudgetOperationTravaux, montantOs: number, partDansLesPostes: number): number {
+  const postes = somme(budget.lignes.map((l) => l.budgetTtcCentimes + l.supplementsTtcCentimes))
+  verifierCentimes(partDansLesPostes, `Opération ${numero}, part de l'ordre de service déjà comprise dans les postes`)
+  if (partDansLesPostes > montantOs || partDansLesPostes > postes)
+    throw new Error(
+      `Opération ${numero} : part de l'ordre de service déjà comprise dans les postes (${eur(partDansLesPostes)}) au-delà du montant de l'OS (${eur(montantOs)}) ou de l'engagé des postes (${eur(postes)}).`,
+    )
+  return postes + montantOs - partDansLesPostes
 }
 
 /**
- * Contrôle, à l'envoi d'un ordre de service, du total engagé de l'opération (postes du budget, plus le montant de l'OS)
- * face au budget adopté (J67, R59 ; L. 1965 art. 18, I : exécuter les délibérations de l'assemblée ; art. 29-1, I) :
- * au-delà, bloquant, sauf une décision nouvelle qui couvre le supplément (résolution d'assemblée ; décision de
- * l'administrateur provisoire au registre s'il a les pouvoirs de l'assemblée, après l'avis du conseil syndical), prise au
- * plus tard le jour de l'envoi, ou l'urgence constatée (alerte) ; dans la marge du cabinet, information (règle interne).
- * Le message dit comment lever le blocage. Le suivi garde son alerte (engage_superieur_au_budget).
+ * Contrôle, à l'envoi d'un ordre de service, du total engagé de l'opération (postes du budget, plus le montant de l'OS,
+ * moins la part de l'OS déjà portée aux postes) face au budget adopté (J67, R59 ; L. 1965 art. 18, I : exécuter les
+ * délibérations de l'assemblée ; art. 29-1, I) : au-delà, bloquant, sauf une décision nouvelle qui couvre le supplément
+ * (résolution d'assemblée ; décision de l'administrateur provisoire au registre s'il a les pouvoirs de l'assemblée, ou la
+ * clause de l'ordonnance qui lui confie cette décision quand il n'en a qu'une partie, après l'avis du conseil syndical),
+ * prise au plus tard le jour de l'envoi, ou l'urgence constatée (alerte) ; dans la marge du cabinet, information (règle
+ * interne). Le message dit comment lever le blocage. Le suivi garde son alerte (engage_superieur_au_budget).
  */
 export function controlerDepassementBudgetAvantOs(
   operation: OperationTravaux,
   budget: BudgetOperationTravaux,
-  { montantOsTtcCentimes, date, urgenceConstatee, decisions = [], margeCabinetPct = 0 }: EngagementAvantOs,
+  { montantOsTtcCentimes, partOsDansLesPostesCentimes = 0, date, urgenceConstatee, decisions = [], margeCabinetPct = 0 }: EngagementAvantOs,
 ): AnomalieDepassementBudgetOs[] {
   verifierBudgetDeLOperation(operation, budget)
   const { numero } = operation
@@ -1191,24 +1253,24 @@ export function controlerDepassementBudgetAvantOs(
   if (montantOsTtcCentimes === null)
     return [anomalie('montant_os_inconnu', 'avertissement', `Ordre de service de l'opération ${numero} sans montant : le dépassement du budget adopté n'est pas contrôlé ; renseigner le prix ou associer le devis (J67, R59).`)]
   verifierCentimes(montantOsTtcCentimes, `Opération ${numero}, montant de l'ordre de service`)
-  const engage = somme(budget.lignes.map((l) => l.budgetTtcCentimes + l.supplementsTtcCentimes)) + montantOsTtcCentimes
+  const engage = engageAvecLOs(numero, budget, montantOsTtcCentimes, partOsDansLesPostesCentimes)
   const adopte = operation.decision ? operation.budgetTtcCentimes : 0
   const lues = decisions.map((d) => lireDecisionSupplement(d, date))
   const supplements = somme(lues.map((l) => l.couvre))
-  const verifications = lues.flatMap((l) => (l.aVerifier ? [anomalie('supplement_pouvoirs_a_verifier', 'avertissement', l.aVerifier, FONDEMENT_POUVOIRS_AG)] : []))
   const depassement = engage - adopte - supplements
-  if (depassement <= 0) return verifications
+  if (depassement <= 0) return []
   const sansDecision = operation.decision ? '' : `Opération ${numero} sans décision : aucun budget adopté. `
   const couvert = supplements > 0 ? ` et les suppléments décidés (${eur(supplements)})` : ''
-  const constat = `${sansDecision}Ordre de service de ${eur(montantOsTtcCentimes)} : le total engagé de l'opération ${numero} (${eur(engage)}) dépasse le budget adopté (${eur(adopte)})${couvert} de ${eur(depassement)}`
+  const dejaAuxPostes = partOsDansLesPostesCentimes > 0 ? `, dont ${eur(partOsDansLesPostesCentimes)} déjà portés aux postes du budget` : ''
+  const constat = `${sansDecision}Ordre de service de ${eur(montantOsTtcCentimes)}${dejaAuxPostes} : le total engagé de l'opération ${numero} (${eur(engage)}) dépasse le budget adopté (${eur(adopte)})${couvert} de ${eur(depassement)}`
   const marge = Math.floor((adopte * margeCabinetPct) / 100)
   if (depassement <= marge)
-    return [...verifications, anomalie('depassement_dans_la_marge_du_cabinet', 'information', `${constat}, dans la marge du cabinet (${margeCabinetPct} % du budget adopté, règle interne ; J67, R59).`)]
+    return [anomalie('depassement_dans_la_marge_du_cabinet', 'information', `${constat}, dans la marge du cabinet (${margeCabinetPct} % du budget adopté, règle interne ; J67, R59).`)]
   if (urgenceConstatee)
-    return [...verifications, anomalie('depassement_budget_os_urgence', 'avertissement', `${constat} ; ordre de service admis par l'urgence constatée (J16, J46 ; J67, R59).`, FONDEMENT_DEPASSEMENT)]
+    return [anomalie('depassement_budget_os_urgence', 'avertissement', `${constat} ; ordre de service admis par l'urgence constatée (J16, J46 ; J67, R59).`, FONDEMENT_DEPASSEMENT)]
   const ecarts = lues.flatMap((l) => (l.ecart ? [l.ecart] : []))
   const nonRetenues = ecarts.length > 0 ? ` ; décisions non retenues : ${ecarts.join(' ; ')}` : ''
-  return [...verifications, anomalie('depassement_budget_os', 'bloquant', `${constat}${nonRetenues} ; ${LEVER_LE_DEPASSEMENT}.`, FONDEMENT_DEPASSEMENT)]
+  return [anomalie('depassement_budget_os', 'bloquant', `${constat}${nonRetenues} ; ${LEVER_LE_DEPASSEMENT}.`, FONDEMENT_DEPASSEMENT)]
 }
 
 // ─── Comptes des charges de l'opération (J67, R60) ─────────────────────────────────────────────

@@ -734,8 +734,10 @@ describe('J67, R60 et R61 — comptes de l’opération : 673 des études, 102 v
     expect(() => virementProvisionsTravauxALaRealisation(projet(), { ...contexte, chargeCentimes: 1, solde102Centimes: 1 })).toThrow(/sans décision/)
   })
 
+  const fin = { date: '2026-12-31', segmentSyndicat: SEGMENT }
+
   it('R61 : solde au 12 d’une opération non clôturée en fin d’exercice, repris à l’ouverture par l’écriture contraire', () => {
-    const cloture = soldeTravauxEnFinDExercice(op, { id: 't-c', date: '2026-12-31', segmentSyndicat: SEGMENT, soldeChargesCentimes: 500_000, soldeProduitsCentimes: 400_000 })
+    const cloture = soldeTravauxEnFinDExercice(op, { ...fin, id: 't-c', soldeChargesCentimes: 500_000, soldesProduitsCentimes: { provisionsSurTravaux: 400_000 } })
     expect(lignes(cloture)).toEqual([
       ['TILL.67100.00042.0', 'credit', 500_000],
       ['TILL.70200.00042.0', 'debit', 400_000],
@@ -748,12 +750,33 @@ describe('J67, R60 et R61 — comptes de l’opération : 673 des études, 102 v
       ['TILL.70200.00042.0', 'credit', 400_000],
       ['TILL.12000.00042.0', 'credit', 100_000],
     ])
-    expect(lignes(soldeTravauxEnFinDExercice(etude, { id: 't-c2', date: '2026-12-31', segmentSyndicat: SEGMENT, soldeChargesCentimes: 80_000, soldeProduitsCentimes: 80_000 }))).toEqual([
+    expect(lignes(soldeTravauxEnFinDExercice(etude, { ...fin, id: 't-c2', soldeChargesCentimes: 80_000, soldesProduitsCentimes: { provisionsSurTravaux: 80_000 } }))).toEqual([
       ['TILL.67300.00042.0', 'credit', 80_000],
       ['TILL.70200.00042.0', 'debit', 80_000],
     ])
     expect(() => repriseSoldeTravauxALOuverture(cloture, { id: 't-o2', date: '2026-12-31' })).toThrow(/après le solde/)
-    expect(() => soldeTravauxEnFinDExercice(op, { id: 't-c3', date: '2026-12-31', segmentSyndicat: SEGMENT, soldeChargesCentimes: 0, soldeProduitsCentimes: 0 })).toThrow(/aucun solde/)
+    expect(() => soldeTravauxEnFinDExercice(op, { ...fin, id: 't-c3', soldeChargesCentimes: 0, soldesProduitsCentimes: {} })).toThrow(/aucun solde/)
+  })
+
+  it('relecture R61 : la subvention de l’opération (71147) passe au 12 avec le 702, chacun débité de son propre solde', () => {
+    // 671 = 10 000 €, 702 = 10 000 € (déjà viré du 102), subvention 71147 = 3 000 €
+    const cloture = soldeTravauxEnFinDExercice(op, { ...fin, id: 't-c4', soldeChargesCentimes: 1_000_000, soldesProduitsCentimes: { provisionsSurTravaux: 1_000_000, subventions: 300_000 } })
+    expect(lignes(cloture)).toEqual([
+      ['TILL.67100.00042.0', 'credit', 1_000_000],
+      ['TILL.70200.00042.0', 'debit', 1_000_000],
+      ['TILL.71147.00042.0', 'debit', 300_000],
+      ['TILL.12000.00042.0', 'credit', 300_000],
+    ])
+    expect(lignes(repriseSoldeTravauxALOuverture(cloture, { id: 't-o4', date: '2027-01-01' }))).toContainEqual(['TILL.71147.00042.0', 'credit', 300_000])
+    expect(() => soldeTravauxEnFinDExercice(op, { ...fin, id: 't-c5', soldeChargesCentimes: 1, soldesProduitsCentimes: { subventions: -1 } })).toThrow(/centimes entiers positifs ou nuls/)
+  })
+
+  it('relecture R61 et R60 : l’en-tête dit ce qui reste à brancher à l’écriture des factures (virement 102 → 702, alerte des classes 61 et 62)', () => {
+    const { texte } = enTeteDuModule('travaux-operations')
+    const branchements = texte.slice(texte.indexOf('Branchements à faire hors de ce module'))
+    for (const attendu of ['ecritureFactureVentilee', 'virementProvisionsTravauxALaRealisation', 'anomaliesComptesDesLignesDOperation'])
+      expect(branchements).toContain(attendu)
+    expect(texte).toContain("d'ici là, le 702 de l'opération reste à zéro")
   })
 })
 

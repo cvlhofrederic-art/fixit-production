@@ -89,9 +89,11 @@ import { STATUT_TRAVAUX, TYPE_TRAVAUX, type StatutTravaux, type TypeTravaux } fr
  *   charge (relevé Gestéam à faire : le compte de ces opérations dans la reprise) ;
  * - J67, R61 : l'appel de travaux crédite le 10200 de l'opération (arrêté, art. 10 : 102 « crédité des provisions
  *   appelées par le débit du compte 450 » ; type Gestéam « Travaux - Appels »), et non plus le 70200 ; à chaque charge,
- *   virementProvisionsTravauxALaRealisation vire du 102 au 702 le même montant, dans la limite du 102 ; en fin
+ *   virementProvisionsTravauxALaRealisation vire du 102 au 702 le même montant, dans la limite du 102 (pas encore appelé
+ *   à l'écriture des factures : branchement ci-dessous ; d'ici là, le 702 de l'opération reste à zéro) ; en fin
  *   d'exercice, soldeTravauxEnFinDExercice passe au 12000 le solde des charges et des produits d'une opération non
- *   clôturée, et repriseSoldeTravauxALOuverture le reprend à l'ouverture (écriture contraire, famille « Report de soldes
+ *   clôturée, chaque compte de produits de la série (702, 71147) débité de son propre solde, et
+ *   repriseSoldeTravauxALOuverture le reprend à l'ouverture (écriture contraire, famille « Report de soldes
  *   comptables ») ; relevé Gestéam à faire : le compte crédité par un appel de travaux (s'il crédite le 702, écart de
  *   reprise à signaler à Hugo) ;
  * - J67, R81 : la décision de l'administrateur provisoire tient lieu d'affectation du fonds de travaux à l'opération
@@ -195,7 +197,11 @@ import { STATUT_TRAVAUX, TYPE_TRAVAUX, type StatutTravaux, type TypeTravaux } fr
  *   l'ordonnance confie à l'administrateur provisoire le pouvoir de décider ces travaux ? » (VitFix : non vérifié) ;
  * - « Quel statut donner à une tranche dont les clés n'ont pas le même statut d'échéance ? » (VitFix : null) ;
  * - « Que portent le bouton "À voter" et le champ "Approbation" du bloc Décision de la fiche ? » (non repris).
- * Branchements à faire hors de ce module (fichiers non modifiés) : repartition-appels.ts — un champ
+ * Branchements à faire hors de ce module (fichiers non modifiés) : appelant d'ecritureFactureVentilee (facture-ventilee.ts,
+ * enregistrement d'une facture de l'opération) — pour chaque ligne au 671 ou au 673 de l'opération,
+ * virementProvisionsTravauxALaRealisation, avec le solde du 102 de l'opération lu au grand livre (J67, R61) ; et
+ * l'alerte des classes 61 et 62 (travaux-budget.ts, anomaliesComptesDesLignesDOperation, ou le suivi financier qui
+ * reçoit les lignes des factures ; J67, R60) ; repartition-appels.ts — un champ
  * `auxiliaireContrepartie` de l'échéance, lu par traitementAppelDeFonds, rendrait traitementAppelDeFondsTravaux inutile ;
  * suivi-a-faire.ts, depuisOperationsTravaux — identifiants « -C<k> » des opérations sur plusieurs clés
  * (idsEcheancesDeLaTranche) dans la branche « fonds bloqué », et opérations hors « En cours » ignorées
@@ -970,7 +976,8 @@ function verifierOperationSuivie(operation: OperationTravaux, le: string, objet:
  * « débité par le crédit du compte 702 [...] au fur et à mesure de la réalisation des travaux » (arrêté du 14 mars 2005,
  * art. 10 ; J67, R61), du montant de la charge, dans la limite du solde créditeur du 102 que l'appelant fournit. Rend le
  * traitement (« Saisie de mouvements », 🔵 : la famille Gestéam de ce virement n'a pas été observée), null quand le 102
- * est soldé, et la part de la charge que le 102 ne couvre pas.
+ * est soldé, et la part de la charge que le 102 ne couvre pas. Branchement à faire : à l'écriture de chaque facture de
+ * l'opération (appelant d'ecritureFactureVentilee, en-tête du module).
  */
 export function virementProvisionsTravauxALaRealisation(
   operation: OperationTravaux,
@@ -997,11 +1004,17 @@ export function virementProvisionsTravauxALaRealisation(
   return { traitement, vireCentimes, nonCouvertCentimes }
 }
 
+/** Comptes de produits de la série d'une opération : le 702 (provisions virées du 102) et le 71147 (subventions). */
+export const ROLES_PRODUITS_TRAVAUX = ['provisionsSurTravaux', 'subventions'] as const satisfies readonly RoleCompteTravaux[]
+export type RoleProduitTravaux = (typeof ROLES_PRODUITS_TRAVAUX)[number]
+
 /**
  * Solde au 12 d'une opération non clôturée en fin d'exercice : le compte 12 « reçoit le solde des opérations sur travaux
- * [...] qui ne peuvent pas être clôturées en fin d'exercice » (arrêté du 14 mars 2005, art. 10 ; J67, R61). Le compte de
- * charge (671, ou 673) est crédité de son solde débiteur, le 702 débité de son solde créditeur, la différence au 12000
- * de l'opération ; soldes fournis par l'appelant. Reprise à l'ouverture : repriseSoldeTravauxALOuverture.
+ * [...] qui ne peuvent pas être clôturées en fin d'exercice » (arrêté du 14 mars 2005, art. 10 ; J67, R61 : « le solde
+ * des charges et des produits »). Le compte de charge (671, ou 673) est crédité de son solde débiteur, chaque compte de
+ * produits de la série (702, 71147) débité de son propre solde créditeur, la différence au 12000 de l'opération ; soldes
+ * fournis par l'appelant, par compte (un compte de produits absent vaut zéro). Reprise à l'ouverture :
+ * repriseSoldeTravauxALOuverture.
  */
 export function soldeTravauxEnFinDExercice(
   operation: OperationTravaux,
@@ -1010,19 +1023,29 @@ export function soldeTravauxEnFinDExercice(
     date,
     segmentSyndicat,
     soldeChargesCentimes,
-    soldeProduitsCentimes,
-  }: { id: string; date: string; segmentSyndicat: string; soldeChargesCentimes: number; soldeProduitsCentimes: number },
+    soldesProduitsCentimes,
+  }: {
+    id: string
+    date: string
+    segmentSyndicat: string
+    soldeChargesCentimes: number
+    soldesProduitsCentimes: Readonly<Partial<Record<RoleProduitTravaux, number>>>
+  },
 ): Traitement {
   const { numero } = operation
-  if (!estCentimes(soldeChargesCentimes) || !estCentimes(soldeProduitsCentimes))
-    throw new Error(`Opération ${numero} : soldes des charges (${soldeChargesCentimes}) et des produits (${soldeProduitsCentimes}) en centimes entiers positifs ou nuls.`)
-  if (soldeChargesCentimes === 0 && soldeProduitsCentimes === 0) throw new Error(`Opération ${numero} : aucun solde à passer au 12.`)
+  const produits = ROLES_PRODUITS_TRAVAUX.map((role) => ({ role, montantCentimes: soldesProduitsCentimes[role] ?? 0 }))
+  if (!estCentimes(soldeChargesCentimes) || produits.some((p) => !estCentimes(p.montantCentimes)))
+    throw new Error(
+      `Opération ${numero} : soldes des charges (${soldeChargesCentimes}) et des produits (${produits.map((p) => `${p.role} ${p.montantCentimes}`).join(', ')}) en centimes entiers positifs ou nuls.`,
+    )
+  const totalProduits = produits.reduce((s, p) => s + p.montantCentimes, 0)
+  if (soldeChargesCentimes === 0 && totalProduits === 0) throw new Error(`Opération ${numero} : aucun solde à passer au 12.`)
   verifierOperationSuivie(operation, date, 'solde au 12')
   const liens = { travauxId: numero }
-  const ecart = soldeChargesCentimes - soldeProduitsCentimes
+  const ecart = soldeChargesCentimes - totalProduits
   const mouvements: LigneMouvement[] = [
     { compte: compteComplet(compteDeChargeDeLOperation(operation), segmentSyndicat), sens: 'credit' as const, montantCentimes: soldeChargesCentimes, liens },
-    { compte: numeroCompteTravaux(operation, 'provisionsSurTravaux', segmentSyndicat), sens: 'debit' as const, montantCentimes: soldeProduitsCentimes, liens },
+    ...produits.map((p) => ({ compte: numeroCompteTravaux(operation, p.role, segmentSyndicat), sens: 'debit' as const, montantCentimes: p.montantCentimes, liens })),
     { compte: numeroCompteTravaux(operation, 'soldeEnAttente', segmentSyndicat), sens: ecart > 0 ? ('debit' as const) : ('credit' as const), montantCentimes: Math.abs(ecart), liens },
   ].filter((ligne) => ligne.montantCentimes > 0)
   return creerTraitement({ id, famille: 'Saisie de mouvements', date, mouvements })
