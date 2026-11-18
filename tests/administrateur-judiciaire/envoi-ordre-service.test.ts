@@ -3,7 +3,12 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { CourrierSuivi } from '@/lib/administrateur-judiciaire/domain/courriers'
 import { composerDateIso } from '@/lib/administrateur-judiciaire/domain/dates'
-import type { DecisionAnnuelle, TypeDecisionAnnuelle } from '@/lib/administrateur-judiciaire/domain/decisions-annuelles-ag'
+import {
+  decisionsEnVigueur,
+  decisionsSelonPouvoirsAg,
+  type DecisionAnnuelle,
+  type TypeDecisionAnnuelle,
+} from '@/lib/administrateur-judiciaire/domain/decisions-annuelles-ag'
 import {
   codificationFacture,
   creerDemande,
@@ -66,6 +71,7 @@ import {
   type CircuitVisa,
   type ConstatUrgence,
   type ContexteEnvoiOs,
+  type DelegationCsExercee,
   type EvenementDiffusion,
   type OptionsVisa,
   type PieceVisee,
@@ -2866,6 +2872,14 @@ describe('J67 — recommandations validées par Hugo le 17/11/2026 (R67 à R75)'
     source: { origine: 'administrateur', reference: 'Registre des décisions, n° 3' },
   })
 
+  it('R67 : critère validé, le motif et l’anomalie de l’avis du conseil syndical ne sont plus « à confirmer »', () => {
+    const d = demande()
+    const s = sortie(d, { fondement: 'decision_aj_pouvoirs_ag', fondementReference: 'registre n° 7', decisionLe: '2026-10-02', justificatifs: { modeFinancement: 'appel de fonds' } })
+    expect(motifsVisa(d, s)).toMatchObject([{ code: 'avis_conseil_syndical_aj', aConfirmer: false }])
+    const absent = controlerAvantEnvoiOs(d, viser(s, d), CONTEXTE).find((a) => a.code === 'avis_conseil_syndical_aj_absent')
+    expect(absent).toMatchObject({ gravite: 'bloquant', aConfirmer: false })
+  })
+
   it('R68 : seuils de l’art. 21 fixés par l’administrateur provisoire au registre, lus comme ceux de l’assemblée ; l’auteur est nommé', () => {
     const seuils = [parAp('seuil_consultation_cs', 100_000), parAp('seuil_mise_en_concurrence', 500_000)]
     const options = { decisionsAgEnVigueur: seuils }
@@ -2882,6 +2896,29 @@ describe('J67 — recommandations validées par Hugo le 17/11/2026 (R67 à R75)'
     expect(concurrence[0].message).toMatch(/fixé par l'administrateur provisoire/)
     // seuils de l'assemblée : inchangé
     expect(motifsVisa(demande(), sortie(), { decisionsAgEnVigueur: SEUILS_ART21 })[0].message).toMatch(/fixé par l'assemblée/)
+  })
+
+  it('R68 (relecture) : sans pouvoir de l’assemblée confié, le seuil de l’administrateur provisoire ne vaut pas, celui de l’assemblée reste', () => {
+    const parAg = { ...decisionSeuil('seuil_consultation_cs', 100_000), date: '2025-04-01' }
+    const parAj = { ...parAp('seuil_consultation_cs', 1_000_000), id: 'dec-aj-seuil', date: '2026-04-01' }
+    const toutes = [parAg, parAj]
+    // calculées sans lui (decisionsSelonPouvoirsAg) : le seuil de l'assemblée (1 000 €) donne la consultation
+    const sansLui = { decisionsAgEnVigueur: decisionsEnVigueur(decisionsSelonPouvoirsAg(toutes, 'aucun'), '2026-10-03'), mandat: { pouvoirsAg: 'aucun' as const } }
+    const motifs = motifsVisa(demande(), sortie(), sansLui)
+    expect(codes(motifs)).toEqual(['consultation_conseil_syndical'])
+    expect(motifs[0].message).toMatch(/fixé par l'assemblée/)
+    // décisions fournies qui le portent encore : écarté du visa, et l'envoi est bloqué
+    const avecLui = { decisionsAgEnVigueur: decisionsEnVigueur(toutes, '2026-10-03'), mandat: { pouvoirsAg: 'aucun' as const } }
+    expect(motifsVisa(demande(), sortie(), avecLui)).toEqual([])
+    const bloque = controlerAvantEnvoiOs(demande(), sortie(), { ...CONTEXTE, ...avecLui })
+    expect(bloquants(bloque)).toEqual(['seuil_administrateur_sans_pouvoir'])
+    expect(bloque[0].message).toMatch(/le seuil voté par l'assemblée reste en vigueur/)
+    // une partie des pouvoirs, ou une étendue inconnue : le seuil compte, alerte à confirmer ; tous : rien
+    for (const pouvoirsAg of ['partie', null] as const) {
+      const lu = controlerAvantEnvoiOs(demande(), sortie(), { ...CONTEXTE, ...avecLui, mandat: { pouvoirsAg } })
+      expect(lu, String(pouvoirsAg)).toMatchObject([{ code: 'seuil_administrateur_a_verifier', gravite: 'alerte', aConfirmer: true }])
+    }
+    expect(controlerAvantEnvoiOs(demande(), sortie(), { ...CONTEXTE, ...avecLui, mandat: { pouvoirsAg: 'tous' } })).toEqual([])
   })
 
   describe('R69 : décision du conseil syndical délégataire', () => {
@@ -2949,6 +2986,35 @@ describe('J67 — recommandations validées par Hugo le 17/11/2026 (R67 à R75)'
       expect(hors[0].message).toMatch(/décision à prendre par l'administrateur provisoire/)
       expect(controlerAvantEnvoiOs(demande(), parCs(), { ...complet, mandat: { pouvoirsConseilSyndicalConfiesLe: '2026-05-01' } })).toEqual([])
     })
+
+    it('(2) relecture : le maximum est lu à la date de la décision du conseil syndical', () => {
+      // montant maximum voté le 01/09/2026, après la décision du 15/04/2026 : pas en vigueur ce jour
+      const tardif: DecisionAnnuelle = { ...plafond, id: 'plafond-tardif', date: '2026-09-01', montantCentimes: 10_000_000 }
+      const contexte = { ...complet, decisionsAg: [generale, plafond, tardif], delegationCs: { maximumId: 'plafond-tardif', depensesEngageesTtcCentimes: 0 } }
+      expect(() => controlerAvantEnvoiOs(demande(), parCs(), contexte)).toThrow(/pas en vigueur le 15\/04\/2026, date de la décision du conseil syndical/)
+    })
+
+    it('(2) relecture : le cumul suit ce que couvre le maximum (dépense de travaux, exercice du montant alloué)', () => {
+      const depasse = controlerAvantEnvoiOs(demande(), parCs(), { ...complet, delegationCs: { maximumId: 'plafond-1', depensesEngageesTtcCentimes: 200_000 } })
+      expect(depasse[0].message).toMatch(/Dépenses engagées pour cette dépense de travaux hors budget \(« Ravalement »\)/)
+      // montant alloué de l'exercice 2026 (D. 1967 art. 26-1, al. 1) : seulement les dépenses de cet exercice, et l'exercice de la décision
+      const enveloppe = (id: string, exerciceId: string, date: string): DecisionAnnuelle => ({
+        ...decisionSeuil('enveloppe_delegation_cs', 1_000_000),
+        id,
+        exerciceId,
+        date,
+      })
+      const decisionsAg = [generale, enveloppe('env-2025', 'ex-2025', '2024-04-10'), enveloppe('env-2026', 'ex-2026', '2025-04-10')]
+      const exercice2026 = { nom: '2026', ouverture: '2026-01-01', cloture: '2026-12-31' }
+      const parEnveloppe = (delegationCs: DelegationCsExercee) => controlerAvantEnvoiOs(demande(), parCs(), { ...complet, decisionsAg, delegationCs })
+      expect(parEnveloppe({ maximumId: 'env-2026', depensesEngageesTtcCentimes: 0, exercice: exercice2026 })).toEqual([])
+      const plein = parEnveloppe({ maximumId: 'env-2026', depensesEngageesTtcCentimes: 900_000, exercice: exercice2026 })
+      expect(bloquants(plein)).toEqual(['delegation_cs_depassee'])
+      expect(plein[0].message).toMatch(/sur le montant alloué de l'exercice 2026/)
+      const exercice2025 = { nom: '2025', ouverture: '2025-01-01', cloture: '2025-12-31' }
+      expect(() => parEnveloppe({ maximumId: 'env-2025', depensesEngageesTtcCentimes: 0, exercice: exercice2025 })).toThrow(/hors de l'exercice 2025/)
+      expect(() => parEnveloppe({ maximumId: 'env-2026', depensesEngageesTtcCentimes: 0 })).toThrow(/fournir l'exercice du montant/)
+    })
   })
 
   it('R70 : sans condition votée, plusieurs devis OU un devis descriptif soumis à au moins deux entreprises ; autre condition votée : case « respectée »', () => {
@@ -2969,6 +3035,17 @@ describe('J67 — recommandations validées par Hugo le 17/11/2026 (R67 à R75)'
       'conditions_concurrence_non_respectees',
     ])
     expect(() => sortie(demande(), { justificatifs: { entreprisesSurDevisDescriptif: -1 } })).toThrow(/devis descriptif/)
+  })
+
+  it('R70 (relecture) : la case « respectées » se décoche quand le texte des conditions votées change, sauf si la même saisie la coche', () => {
+    const d = demande()
+    const cochee = sortie(d, { justificatifs: { conditionsConcurrenceAg: 'Cahier des charges', conditionsConcurrenceRespectees: true } })
+    const respectees = (s: SortieOrdreService) => s.justificatifs.conditionsConcurrenceRespectees
+    expect(respectees(modifierSortieOs(cochee, d, { justificatifs: { conditionsConcurrenceAg: 'Appel d’offres ouvert, réponse sous 30 jours' } }))).toBe(false)
+    expect(respectees(modifierSortieOs(cochee, d, { justificatifs: { conditionsConcurrenceAg: ' Cahier  des charges ' } }))).toBe(true)
+    expect(respectees(modifierSortieOs(cochee, d, { justificatifs: { devisDemandes: 2 } }))).toBe(true)
+    const recochee = modifierSortieOs(cochee, d, { justificatifs: { conditionsConcurrenceAg: 'Appel d’offres', conditionsConcurrenceRespectees: true } })
+    expect(respectees(recochee)).toBe(true)
   })
 
   describe('R71 : convention liée, autorisation par l’assemblée (si elle a gardé ce pouvoir) ou par le juge, jamais par l’administrateur provisoire', () => {
@@ -3050,10 +3127,15 @@ describe('J67 — recommandations validées par Hugo le 17/11/2026 (R67 à R75)'
     expect(controlerAvantEnvoiOs(demande(), collaborateur(['col-direction', 'col-associe-2']), contexte('ensemble'))).toEqual([])
   })
 
-  it('R74 : réception par AR datée de la remise portée sur l’AR ; sans elle, ligne du journal et alerte ; la première présentation reste une information', () => {
+  /** R74 : OS avec devis associé, envoyé le 03/10 par courrier AR. */
+  const parCourrierAr = (() => {
     const d = demande({ devisAssocie: { devisId: 'devis-1', montantTtcCentimes: 120_000, montantHtCentimes: 109_091 } })
     const parAr: SaisieDiffusion = { ...ENVOI, canal: 'courrier_ar', courrierId: 'courrier-1', missionId: null, date: '2026-10-03' }
-    const envoye = envoyerOs(d, sortie(d, { canal: 'courrier_ar' }), parAr, CONTEXTE)
+    return { d, parAr, envoye: envoyerOs(d, sortie(d, { canal: 'courrier_ar' }), parAr, CONTEXTE) }
+  })()
+
+  it('R74 : réception par AR datée de la remise portée sur l’AR ; sans elle, ligne du journal et alerte ; la première présentation reste une information', () => {
+    const { d, parAr, envoye } = parCourrierAr
     const recue = (ar: SaisieReception['ar']) => enregistrerReception(envoye, { ...parAr, date: '2026-10-12', heure: '09:00', ar })
     const remise = recue({ reference: 'AR-1', premierePresentationLe: '2026-10-05', remiseLe: '2026-10-08' })
     expect(receptionOs(remise)).toMatchObject({ date: '2026-10-08', source: 'remise_ar', premierePresentationLe: '2026-10-05', alertes: [] })
@@ -3073,6 +3155,29 @@ describe('J67 — recommandations validées par Hugo le 17/11/2026 (R67 à R75)'
     expect(receptionOs(envoye)).toBeNull()
     const messagerie = enregistrerReception(envoyee(), { ...ENVOI, date: '2026-10-04', heure: '09:00' })
     expect(receptionOs(messagerie)).toMatchObject({ date: '2026-10-04', source: 'journal', alertes: [] })
+  })
+
+  describe('R74 (relecture) : réception la plus ancienne, et date de remise rapprochée du courrier lié à la lecture', () => {
+    const { d, parAr, envoye } = parCourrierAr
+    const arRevenu = (s: SortieOrdreService) => enregistrerReception(s, { ...parAr, date: '2026-10-09', heure: '09:00', ar: { reference: 'AR-1', remiseLe: '2026-10-08' } })
+
+    it('confirmation par la messagerie le 05/10, puis AR remis le 08/10 : la réception reste datée du 05/10, sans fausse caducité', () => {
+      const confirmee = enregistrerReception(envoye, { ...ENVOI, date: '2026-10-05', heure: '09:00' })
+      const lue = receptionOs(arRevenu(confirmee))
+      expect(lue).toMatchObject({ date: '2026-10-05', source: 'journal', alertes: [] })
+      expect(devisCaducALaReception(d, arRevenu(confirmee), '2026-10-06')).toEqual([])
+      // AR seul : la remise date la réception
+      expect(receptionOs(arRevenu(envoye))).toMatchObject({ date: '2026-10-08', source: 'remise_ar' })
+    })
+
+    it('AR saisi sans le courrier, remise différente du retrait du pli, lu avec le courrier : « ar_ecart_courrier »', () => {
+      const courrier: CourrierSuivi = { formeEnvoi: 'AR', dateDepot: '2026-10-03', datePremierePresentation: '2026-10-05', dateAccuseReception: '2026-10-06' }
+      const saisi = arRevenu(envoye)
+      const ligne = saisi.journal[1]
+      expect(preuveDeDiffusion(saisi, ligne, courrier)).toBe('ar_ecart_courrier')
+      expect(ecartArCourrier(ligne, courrier)).toMatch(/date de remise de l'AR \(08\/10\/2026\) différente de l'accusé de réception du courrier lié \(06\/10\/2026\)/)
+      expect(preuveDeDiffusion(saisi, ligne, { ...courrier, dateAccuseReception: '2026-10-08' })).toBe('ar')
+    })
   })
 
   describe('R75 : vigilance sous urgence constatée, alerte forte au lieu d’un blocage, et élément « à faire »', () => {
@@ -3097,6 +3202,23 @@ describe('J67 — recommandations validées par Hugo le 17/11/2026 (R67 à R75)'
       expect(vigilance?.message).toMatch(/alerte forte/)
       const decennale = controlerAvantEnvoiOs(gros, urgente(), { ...sansPieces, controle: { decennaleObligatoire: true } })
       expect(bloquants(decennale)).toEqual(['controle_declaratif_non_fait'])
+    })
+
+    it('relecture : montant HT inconnu (urgence sans devis), fournir les pièces ne bloque pas plus que ne pas les fournir', () => {
+      const sansPrix = demande({ prix: null })
+      const contexte = { ...CONTEXTE, controle: { decennaleObligatoire: false } }
+      const avecPieces = controlerAvantEnvoiOs(sansPrix, urgente(sansPrix), contexte)
+      expect(bloquants(avecPieces)).toEqual([])
+      expect(avecPieces.find((a) => a.code === 'seuil_vigilance_non_apprecie')).toMatchObject({ gravite: 'alerte' })
+      expect(bloquants(controlerAvantEnvoiOs(sansPrix, urgente(sansPrix), { ...contexte, pieces: undefined }))).toEqual([])
+      // pièces de vigilance manquantes : contrôlées comme au-delà du seuil, en alerte forte, et reprises dans l'élément « à faire »
+      const manque = controlerAvantEnvoiOs(sansPrix, urgente(sansPrix), { ...contexte, pieces: sansUrssaf })
+      expect(manque.find((a) => a.code === 'vigilance_urssaf_absente')).toMatchObject({ gravite: 'alerte' })
+      expect(bloquants(manque)).toEqual([])
+      // la décennale obligatoire manquante reste bloquante ; sans urgence constatée, le montant inconnu reste un contrôle impossible
+      const decennale = controlerAvantEnvoiOs(sansPrix, urgente(sansPrix), { ...CONTEXTE, pieces: { ...PIECES, decennale: null }, controle: { decennaleObligatoire: true } })
+      expect(bloquants(decennale)).toEqual(['decennale_absente'])
+      expect(bloquants(controlerAvantEnvoiOs(sansPrix, sortie(sansPrix), contexte))).toEqual(['controle_declaratif_impossible'])
     })
 
     it('élément « à faire » : pièces à obtenir, dû au délai du cabinet après l’envoi ; aucun sans urgence ou sans manque', () => {

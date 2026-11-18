@@ -80,7 +80,9 @@ import type { StatutOrdreMission } from '@/lib/syndic/messagerie-pro'
  *   (envoi-ordre-service.ts). Sans ordonnance qui lui donne ce pouvoir, les seuils votés par l'assemblée restent en
  *   vigueur ; sans aucun montant, ni consultation ni mise en concurrence ne sont obligatoires « à partir » d'un montant ;
  * - J67, R75 : avant l'OS, sous urgence constatée (OptionsControleDeclaratif.urgenceConstatee), les pièces de vigilance
- *   manquantes donnent une alerte forte au lieu d'un blocage (vigilance-entreprises.ts) ; la décennale reste bloquante.
+ *   manquantes donnent une alerte forte au lieu d'un blocage (vigilance-entreprises.ts) ; la décennale reste bloquante ;
+ *   montant HT inconnu, le contrôle se fait quand même (vigilance en alerte forte : relecture du 18/11/2026) au lieu
+ *   d'échouer, comme sans pièces.
  *
  * 🔵 Déduit (règles de ce module) :
  * - étape de chaque stade et avancement de la frise : voir AVANCEMENT_PAR_STADE ; « Refusée » arrête la frise à
@@ -792,11 +794,16 @@ export function controleDeclaratifDemande(d: Demande, pieces: PiecesEntreprise, 
   if (pieces.prestataireId !== d.prestataireId)
     throw new Error(`Demande ${d.id} : pièces d'une autre entreprise (${pieces.prestataireId}) que celle de la demande (${d.prestataireId}).`)
   const montantHtCentimes = montantHtOperationDemande(d, options.montantHtOperationCentimes)
-  if (montantHtCentimes === null)
-    throw new Error(`Demande ${d.id} : montant HT de l'opération inconnu (base HT du prix à saisir) ; le seuil de vigilance ne peut pas être apprécié.`)
+  const montantInconnu = () =>
+    new Error(`Demande ${d.id} : montant HT de l'opération inconnu (base HT du prix à saisir) ; le seuil de vigilance ne peut pas être apprécié.`)
   const { date, decennaleObligatoire } = options
   const dateOuvertureChantier = options.dateOuvertureChantier ?? null
-  if (options.moment === 'reglement') return controlerAvantReglement(pieces, { date, montantHtCentimes, decennaleObligatoire, dateOuvertureChantier })
+  if (options.moment === 'reglement') {
+    if (montantHtCentimes === null) throw montantInconnu()
+    return controlerAvantReglement(pieces, { date, montantHtCentimes, decennaleObligatoire, dateOuvertureChantier })
+  }
+  // J67, R75 (relecture du 18/11/2026) : sous urgence constatée, montant inconnu admis (vigilance-entreprises.ts)
+  if (montantHtCentimes === null && options.urgenceConstatee !== true) throw montantInconnu()
   return controlerAvantOrdreService(pieces, {
     date,
     montantHtCentimes,

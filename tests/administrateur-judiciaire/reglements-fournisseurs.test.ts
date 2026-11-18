@@ -1,6 +1,11 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import {
+  MOIS_MAX_SUSPENSION_PROROGEE,
+  MOIS_SUSPENSION_EXIGIBILITE,
+  calculerEcheancesLegales,
+} from '@/lib/administrateur-judiciaire/domain/delais-legaux'
 import { ecritureFactureVentilee } from '@/lib/administrateur-judiciaire/domain/facture-ventilee'
 import {
   creerCompteCoproprietaire,
@@ -12,8 +17,6 @@ import { creerOrdreVirement, emettreOrdre, type LigneVirement, type OrdreViremen
 import { regrouperVirements, type UnitePaiement } from '@/lib/administrateur-judiciaire/domain/paiement-fournisseurs'
 import type { ArreteRapprochement } from '@/lib/administrateur-judiciaire/domain/rapprochement-bancaire'
 import {
-  MOIS_MAX_SUSPENSION_PROROGEE,
-  MOIS_SUSPENSION_EXIGIBILITE,
   MOTIFS_LEVEE_SUSPENSION,
   STATUTS_REGLEMENT_FOURNISSEUR,
   changerStatutReglementFournisseur,
@@ -916,6 +919,15 @@ describe('J67, R79 — dettes du syndicat nées avant la désignation : exigibil
   })
   const r = creer()
   const codes = (anomalies: readonly { code: string }[]) => anomalies.map((a) => a.code)
+  const ancienne = { prestationLe: '2026-02-01', factureLe: '2026-02-15' }
+  const levee = (surcharge: Partial<LeveeSuspensionExigibilite> = {}): LeveeSuspensionExigibilite => ({
+    motif: 'creance_publique_ou_sociale',
+    precision: null,
+    collaborateurId: 'col-compta',
+    le: '2026-10-28',
+    ...surcharge,
+  })
+  const planHomologue = { homologueLe: '2026-09-15', termeLe: '2029-12-31', respecte: true }
 
   it('prestation antérieure à la désignation, pendant les douze mois : bloquant, avec la fin de la suspension et ce qui le lève', () => {
     expect(MOIS_SUSPENSION_EXIGIBILITE).toBe(12)
@@ -930,7 +942,6 @@ describe('J67, R79 — dettes du syndicat nées avant la désignation : exigibil
   })
 
   it('période : douze mois, ou la durée prorogée (trente mois au plus), puis tant que le plan homologué est respecté', () => {
-    const ancienne = { prestationLe: '2026-02-01', factureLe: '2026-02-15' }
     expect(controlerCreanceAnterieure(r, ancienne, suspension(), '2027-03-10')).toHaveLength(1)
     expect(controlerCreanceAnterieure(r, ancienne, suspension(), '2027-03-11')).toEqual([])
     expect(controlerCreanceAnterieure(r, ancienne, suspension({ dureeProrogeeMois: 30 }), '2028-09-01')).toHaveLength(1)
@@ -949,16 +960,9 @@ describe('J67, R79 — dettes du syndicat nées avant la désignation : exigibil
   })
 
   it('levée par un motif tracé : créance publique ou sociale, échéancier du plan homologué, autre avec texte ; jamais « contrat poursuivi »', () => {
-    const ancienne = { prestationLe: '2026-02-01', factureLe: '2026-02-15' }
-    const levee = (surcharge: Partial<LeveeSuspensionExigibilite> = {}): LeveeSuspensionExigibilite => ({
-      motif: 'creance_publique_ou_sociale',
-      precision: null,
-      collaborateurId: 'col-compta',
-      le: '2026-10-28',
-      ...surcharge,
-    })
     expect(controlerCreanceAnterieure(r, ancienne, suspension(), '2026-10-29', levee())).toEqual([])
-    expect(controlerCreanceAnterieure(r, ancienne, suspension(), '2026-10-29', levee({ motif: 'echeancier_plan_homologue' }))).toEqual([])
+    const echeancier = levee({ motif: 'echeancier_plan_homologue' })
+    expect(controlerCreanceAnterieure(r, ancienne, suspension({ planApurement: planHomologue }), '2026-10-29', echeancier)).toEqual([])
     expect(controlerCreanceAnterieure(r, ancienne, suspension(), '2026-10-29', levee({ motif: 'autre', precision: 'Accord écrit du créancier' }))).toEqual([])
     expect(() => controlerCreanceAnterieure(r, ancienne, suspension(), '2026-10-29', levee({ motif: 'autre' }))).toThrow(/texte/)
     expect(() => controlerCreanceAnterieure(r, ancienne, suspension(), '2026-10-29', levee({ collaborateurId: ' ' }))).toThrow(/collaborateur/)
@@ -967,8 +971,30 @@ describe('J67, R79 — dettes du syndicat nées avant la désignation : exigibil
     expect([...MOTIFS_LEVEE_SUSPENSION]).toEqual(['creance_publique_ou_sociale', 'echeancier_plan_homologue', 'autre'])
   })
 
+  it('relecture : la levée ne vaut ni tracée après le règlement, ni « échéancier » sans plan homologué à sa date', () => {
+    const tardive = controlerCreanceAnterieure(r, ancienne, suspension(), '2026-10-29', levee({ le: '2027-01-15' }))
+    expect(codes(tardive)).toEqual(['creance_anterieure_suspendue'])
+    expect(tardive[0].message).toMatch(/levée tracée le 15\/01\/2027, après le règlement du 29\/10\/2026/)
+    const echeancier = levee({ motif: 'echeancier_plan_homologue', le: '2026-10-28' })
+    const sansPlan = controlerCreanceAnterieure(r, ancienne, suspension(), '2026-10-29', echeancier)
+    expect(codes(sansPlan)).toEqual(['creance_anterieure_suspendue'])
+    expect(sansPlan[0].message).toMatch(/sans plan d'apurement homologué au 29\/10\/2026/)
+    const planPosterieur = suspension({ planApurement: { ...planHomologue, homologueLe: '2026-12-01' } })
+    expect(codes(controlerCreanceAnterieure(r, ancienne, planPosterieur, '2026-10-29', echeancier))).toEqual(['creance_anterieure_suspendue'])
+  })
+
+  it('fin de la suspension : la même que l’échéance du mandat (delais-legaux.ts), prorogation comprise', () => {
+    for (const dureeProrogeeMois of [null, 30]) {
+      const [bloque] = controlerCreanceAnterieure(r, ancienne, suspension({ dureeProrogeeMois }), '2026-10-29')
+      const echeance = calculerEcheancesLegales({ regime: 'ap291', dateOrdonnance: '2026-03-10', suspensionProrogeeJusquAMois: dureeProrogeeMois }).find(
+        (e) => e.regleId === 'fin-suspension-exigibilite-ap291',
+      )
+      const [annee, mois, jour] = (echeance?.dateLegale ?? '').split('-')
+      expect(bloque.justification).toContain(`jusqu'au ${jour}/${mois}/${annee}`)
+    }
+  })
+
   it('remboursement à un copropriétaire ou règlement avant la désignation : hors du contrôle', () => {
-    const ancienne = { prestationLe: '2026-02-01', factureLe: '2026-02-15' }
     expect(controlerCreanceAnterieure(creer({ beneficiaire: COPROPRIETAIRE, factureId: null }), ancienne, suspension(), '2026-10-29')).toEqual([])
     expect(controlerCreanceAnterieure(r, ancienne, suspension(), '2026-03-01')).toEqual([])
   })
@@ -1008,6 +1034,26 @@ describe('J67, R80 — remboursement d’un compte en indivision ou démembré :
     expect(codes(rembourse(['id-1']), [indivis[0], { ...indivis[1], dateSortie: '2026-06-30' }])).toEqual([])
     const parJ10 = creer({ beneficiaire: { type: 'indivisaire', compteCoproprietaireId: 'cpt-12', serie450: '00012', identiteId: 'id-1' }, factureId: null })
     expect(codes(parJ10, indivis)).toEqual(['indivisaire_sans_mandataire_commun'])
+  })
+
+  it('(1) relecture : payé seul, le mandataire commun passe par le contrôle de J10, quel que soit le type saisi', () => {
+    // mandataire dont la position d'indivisaire est sortie le 30/06/2026 : refusé comme en type « indivisaire »
+    const indivis = [{ ...position('id-m', 'Indivisaire'), dateSortie: '2026-06-30' }, position('id-1', 'Indivisaire'), position('id-2', 'Indivisaire')]
+    const designe = [compte({ mandataireCommunId: 'id-m' })]
+    expect(codes(rembourse(['id-m']), indivis, designe)).toEqual(['mandataire_commun_position_sortie'])
+    const parJ10 = creer({ beneficiaire: { type: 'indivisaire', compteCoproprietaireId: 'cpt-12', serie450: '00012', identiteId: 'id-m' }, factureId: null })
+    expect(codes(parJ10, indivis, designe)).toEqual(['mandataire_commun_position_sortie'])
+    // tiers désigné qui n'a jamais été indivisaire : admis, comme en J10
+    expect(codes(rembourse(['id-tiers']), indivis.slice(1), [compte({ mandataireCommunId: 'id-tiers' })])).toEqual([])
+  })
+
+  it('« tous ensemble » : personne d’autre que les titulaires en place du compte (indivision et démembrement)', () => {
+    const indivis = [position('id-1', 'Indivisaire'), position('id-2', 'Indivisaire')]
+    const [enTrop] = controlerBeneficiaireCompte(rembourse(['id-1', 'id-2', 'id-tiers']), indivis, '2026-10-29', [compte()])
+    expect(enTrop.code).toBe('paiement_indivision_hors_mandataire')
+    expect(enTrop.message).toMatch(/pas titulaires en place du compte : id-tiers/)
+    const demembre = [position('id-u', 'Usufruitier'), position('id-n', 'Nu propriétaire')]
+    expect(codes(rembourse(['id-u', 'id-n', 'id-tiers']), demembre)).toEqual(['demembrement_sans_accord'])
   })
 
   it('(2) usufruit et nue-propriété : la personne désignée par l’accord écrit des deux, ou les deux ensemble ; sans accord, refusé', () => {

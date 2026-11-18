@@ -250,6 +250,13 @@ describe('J67 — recommandations validées par Hugo le 17/11/2026 (R75 à R77)'
     expect([...CODES_PIECES_VIGILANCE]).toEqual(expect.arrayContaining(['vigilance_urssaf_absente', 'vigilance_urssaf_non_verifiee', 'immatriculation_absente']))
   })
 
+  it('R75 (relecture) : montant HT inconnu sous urgence constatée, vigilance contrôlée comme au-delà du seuil, en alerte ; sans urgence, erreur', () => {
+    const inconnu = { ...operation, montantHtCentimes: null, urgenceConstatee: true }
+    expect(controlerAvantOrdreService(pieces(), inconnu)).toMatchObject([{ code: 'seuil_vigilance_non_apprecie', gravite: 'alerte' }])
+    expect(codes(controlerAvantOrdreService(pieces({ attestationUrssafLe: null }), inconnu))).toEqual(['seuil_vigilance_non_apprecie', 'vigilance_urssaf_absente'])
+    expect(() => controlerAvantOrdreService(pieces(), { ...inconnu, urgenceConstatee: false })).toThrow(/montant HT de l'opération inconnu/i)
+  })
+
   it('R77 : L. 8222-1-1 pas encore en vigueur ; information « au plus tard le 26/12/2026 » tant que la date n’est pas atteinte', () => {
     expect(ENTREE_EN_VIGUEUR_MAX_L8222_1_1).toBe('2026-12-26')
     const st: SousTraitantAccepte = {

@@ -92,8 +92,12 @@ describe('J67, R69 et R73 — mode d’exercice des deux administrateurs et pouv
     expect(() => creerVoletJudiciaire({ ...deux, modeExercice: 'alterne' }, contexte)).toThrow(/mode d'exercice/i)
   })
 
-  it('R69 : le volet porte les pouvoirs du conseil syndical confiés à l’administrateur provisoire par l’ordonnance', () => {
-    expect(creerVoletJudiciaire(saisie({ pouvoirsConseilSyndicalConfies: true }), contexte).volet.pouvoirsConseilSyndicalConfies).toBe(true)
-    expect(creerVoletJudiciaire(saisie(), contexte).volet.pouvoirsConseilSyndicalConfies).toBeUndefined()
+  it('R69 : le volet porte la date de l’ordonnance qui confie les pouvoirs du conseil syndical à l’administrateur provisoire', () => {
+    // ordonnance plus tardive que la désignation (L. 1965 art. 29-1, I, al. 3 : mission modifiable à tout moment)
+    const plusTard = creerVoletJudiciaire(saisie({ pouvoirsConseilSyndicalConfiesLe: '2026-06-01' }), contexte).volet
+    expect(plusTard.pouvoirsConseilSyndicalConfiesLe).toBe('2026-06-01')
+    expect(creerVoletJudiciaire(saisie(), contexte).volet.pouvoirsConseilSyndicalConfiesLe).toBeUndefined()
+    expect(() => creerVoletJudiciaire(saisie({ pouvoirsConseilSyndicalConfiesLe: '01/06/2026' }), contexte)).toThrow(/AAAA-MM-JJ/)
+    expect(() => creerVoletJudiciaire(saisie({ pouvoirsConseilSyndicalConfiesLe: '2000-01-01' }), contexte)).toThrow(/avant l'ordonnance de désignation/)
   })
 })

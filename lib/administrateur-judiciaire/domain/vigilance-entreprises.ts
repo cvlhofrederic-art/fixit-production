@@ -41,7 +41,9 @@ import { ajouterMois, composerDateIso, dateIsoVersFr, estDateIsoValide } from '@
  *   sauvegarde (L. 1965 art. 18, I) : sous urgence constatée (OperationAControler.urgenceConstatee, J16, J46), les pièces
  *   de vigilance manquantes donnent une alerte forte au lieu d'un blocage ; envoi-ordre-service.ts en tire un élément
  *   « à faire » pour les obtenir. Sans urgence constatée, le blocage reste. La décennale n'est pas visée : elle reste
- *   bloquante ;
+ *   bloquante. Montant HT de l'opération inconnu sous urgence constatée (relecture du 18/11/2026) : le seuil n'est pas
+ *   appréciable, les pièces de vigilance sont contrôlées comme au-delà du seuil, en alerte forte, avec l'alerte
+ *   seuil_vigilance_non_apprecie ; fournir les pièces ne bloque donc pas plus que ne pas les fournir ;
  * - J67, R76 (RC professionnelle) : code confirmé. Le code des assurances impose la seule assurance décennale (C. ass.
  *   art. L. 241-1), justifiée par attestation jointe aux devis et factures (L. 243-2) ; aucune obligation générale de RC
  *   professionnelle pour une entreprise de travaux : son échéance reste une alerte de GESTION, sans texte cité. Une
@@ -135,6 +137,7 @@ export type CodeAnomalieEntreprise =
   | 'sous_traitants_obligation_a_venir'
   | 'sous_traitants_valeurs_decret_a_saisir'
   | 'sous_traitant_piece_a_obtenir'
+  | 'seuil_vigilance_non_apprecie'
 
 export interface AnomalieEntreprise {
   code: CodeAnomalieEntreprise
@@ -148,8 +151,11 @@ export interface AnomalieEntreprise {
 export interface OperationAControler {
   /** Date du contrôle : celle de l'ordre de service. */
   date: string
-  /** Montant hors taxes de l'opération entière (commandes successives de même objet additionnées). */
-  montantHtCentimes: number
+  /**
+   * Montant hors taxes de l'opération entière (commandes successives de même objet additionnées) ; null : inconnu, admis
+   * seulement sous urgence constatée (J67, R75 : vigilance contrôlée comme au-delà du seuil, en alerte forte).
+   */
+  montantHtCentimes: number | null
   /**
    * Travaux soumis à l'assurance décennale obligatoire (ouvrage au sens de l'art. 1792, hors exclusions de l'art.
    * L. 243-1-1) ? null : à qualifier.
@@ -181,9 +187,9 @@ const verifierDate = (quoi: string, valeur: string | null | undefined): void => 
   if (valeur != null && !estDateIsoValide(valeur)) throw new Error(`Date invalide pour ${quoi} (${valeur}) : AAAA-MM-JJ attendu.`)
 }
 
-function verifierSaisie(pieces: PiecesEntreprise, date: string, montantHtCentimes: number): void {
+function verifierSaisie(pieces: PiecesEntreprise, date: string, montantHtCentimes: number | null): void {
   if (!estDateIsoValide(date)) throw new Error(`Date du contrôle invalide (${date}) : AAAA-MM-JJ attendu.`)
-  if (!Number.isInteger(montantHtCentimes) || montantHtCentimes < 0)
+  if (montantHtCentimes !== null && (!Number.isInteger(montantHtCentimes) || montantHtCentimes < 0))
     throw new Error(`Montant HT invalide (${montantHtCentimes}) : centimes entiers positifs ou nuls attendus.`)
   verifierDate("l'attestation de vigilance URSSAF", pieces.attestationUrssafLe)
   if (pieces.immatriculation) {
@@ -394,20 +400,31 @@ const decennaleAQualifier = (): AnomalieEntreprise =>
     true,
   )
 
+/** Montant HT inconnu sous urgence constatée (J67, R75 ; relecture du 18/11/2026) : seuil non apprécié, vigilance contrôlée en alerte. */
+const seuilNonApprecie = (): AnomalieEntreprise =>
+  anomalie(
+    'seuil_vigilance_non_apprecie',
+    'alerte',
+    `Montant HT de l'opération inconnu : le seuil de vigilance (C. trav. art. R. 8222-1) n'est pas apprécié ; urgence constatée : les pièces de vigilance sont contrôlées comme au-delà du seuil, en alerte forte (J67, R75) ; saisir le montant HT.`,
+    FONDEMENT_VIGILANCE,
+  )
+
 /**
  * Contrôle avant l'envoi d'un ordre de service : vigilance (au-delà du seuil) et décennale BLOQUANTES, alertes pour le
- * reste. Lève une erreur sur une saisie invalide ; renvoie les anomalies (vide si tout va bien).
+ * reste ; sous urgence constatée, vigilance en alerte forte, montant HT inconnu compris (J67, R75). Lève une erreur sur
+ * une saisie invalide, ou un montant HT inconnu sans urgence constatée ; renvoie les anomalies (vide si tout va bien).
  */
 export function controlerAvantOrdreService(pieces: PiecesEntreprise, operation: OperationAControler): AnomalieEntreprise[] {
-  verifierSaisie(pieces, operation.date, operation.montantHtCentimes)
+  const montant = operation.montantHtCentimes
+  const urgence = operation.urgenceConstatee === true
+  if (montant === null && !urgence)
+    throw new Error("Montant HT de l'opération inconnu : le seuil de vigilance ne peut pas être apprécié ; seule l'urgence constatée laisse contrôler sans lui (J67, R75).")
+  verifierSaisie(pieces, operation.date, montant)
   verifierDate("l'ouverture du chantier", operation.dateOuvertureChantier)
   const anomalies: AnomalieEntreprise[] = []
-  if (operation.montantHtCentimes >= SEUIL_VIGILANCE_HT_CENTIMES)
-    anomalies.push(
-      ...(operation.urgenceConstatee === true
-        ? controlerVigilance(pieces, operation.date, 'alerte', 'urgence')
-        : controlerVigilance(pieces, operation.date, 'bloquant', 'ordre')),
-    )
+  if (montant === null) anomalies.push(seuilNonApprecie(), ...controlerVigilance(pieces, operation.date, 'alerte', 'urgence'))
+  else if (montant >= SEUIL_VIGILANCE_HT_CENTIMES)
+    anomalies.push(...(urgence ? controlerVigilance(pieces, operation.date, 'alerte', 'urgence') : controlerVigilance(pieces, operation.date, 'bloquant', 'ordre')))
   if (operation.decennaleObligatoire === true)
     anomalies.push(...controlerDecennale(pieces.decennale, operation.dateOuvertureChantier ?? operation.date, 'bloquant', operation.activite))
   else if (operation.decennaleObligatoire === null) anomalies.push(decennaleAQualifier())

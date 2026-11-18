@@ -1048,16 +1048,34 @@ export function decisionsEnVigueur(
 }
 
 /**
+ * Décision qui fixe le montant alloué au conseil syndical dans le budget d'un exercice (D. 1967 art. 26-1, al. 1) : la
+ * plus récente, prise au plus tard le `jusquAu` quand il est donné (J67, R69 : montant lu à la date de la décision du
+ * conseil syndical) ; undefined : aucune.
+ */
+export function decisionEnveloppeDelegationCs(decisions: readonly DecisionAnnuelle[], exerciceId: string, jusquAu?: string): DecisionAnnuelle | undefined {
+  verifierUnSyndicat(decisions)
+  if (jusquAu !== undefined) verifierDate(jusquAu, 'Date de lecture du montant alloué')
+  return decisions
+    .filter((d) => d.type === 'enveloppe_delegation_cs' && d.exerciceId === exerciceId && (jusquAu === undefined || debutDecision(d) <= jusquAu))
+    .sort(comparerDecisions)
+    .at(-1)
+}
+
+/**
  * Montant alloué au conseil syndical dans le budget d'un exercice pour sa délégation de pouvoirs (D. 1967 art. 26-1,
  * al. 1) : celui de la décision la plus récente ; null : aucun.
  */
-export function enveloppeDelegationCs(decisions: readonly DecisionAnnuelle[], exerciceId: string): number | null {
-  verifierUnSyndicat(decisions)
-  const duBudget = decisions
-    .filter((d) => d.type === 'enveloppe_delegation_cs' && d.exerciceId === exerciceId)
-    .sort(comparerDecisions)
-  return duBudget.at(-1)?.montantCentimes ?? null
-}
+export const enveloppeDelegationCs = (decisions: readonly DecisionAnnuelle[], exerciceId: string): number | null =>
+  decisionEnveloppeDelegationCs(decisions, exerciceId)?.montantCentimes ?? null
+
+/**
+ * Décisions qui peuvent valoir selon les pouvoirs de l'assemblée confiés à l'administrateur provisoire (J67, R68) :
+ * l'ordonnance ne lui en confiant aucun (« aucun »), ses décisions au registre ne valent pas (aucun_pouvoir_ag_confie)
+ * et sont écartées ; celles de l'assemblée restent. À appliquer avant decisionsEnVigueur : le seuil de l'art. 21 voté par
+ * l'assemblée reste alors en vigueur. Une partie des pouvoirs, tous, ou une étendue inconnue : rien n'est écarté.
+ */
+export const decisionsSelonPouvoirsAg = (decisions: readonly DecisionAnnuelle[], pouvoirsAg: PouvoirsAgConfies | null | undefined): DecisionAnnuelle[] =>
+  decisions.filter((d) => pouvoirsAg !== 'aucun' || d.source.origine !== 'administrateur')
 
 /** Seuils de L. 1965 art. 21, al. 2. */
 export type TypeSeuilArt21 = Extract<TypeDecisionAnnuelle, 'seuil_consultation_cs' | 'seuil_mise_en_concurrence'>

@@ -18,8 +18,10 @@ import { regimeDepuisFondement } from '@/lib/administrateur-judiciaire/domain/fo
  *   avertissement « mode d'exercice à vérifier dans l'ordonnance » ; le contrôle de l'OS (envoi-ordre-service.ts) exige
  *   l'accord des deux quand ils agissent ensemble ;
  * - J67, R69 : le juge peut aussi confier à l'administrateur provisoire les pouvoirs du conseil syndical (L. 1965 art.
- *   29-1, I, al. 2 ; portée exacte à confirmer) : pouvoirsConseilSyndicalConfies ; une décision du conseil syndical prise
- *   ensuite sort de ses pouvoirs (envoi-ordre-service.ts).
+ *   29-1, I, al. 2 ; portée exacte à confirmer), dès la désignation ou plus tard, la mission pouvant être modifiée à tout
+ *   moment (al. 3) : pouvoirsConseilSyndicalConfiesLe, date de l'ordonnance qui les confie (même nom que dans le contrôle
+ *   de l'OS, CadreMandatOs) ; une décision du conseil syndical prise après elle sort de ses pouvoirs
+ *   (envoi-ordre-service.ts).
  */
 
 /** Mode d'exercice de deux administrateurs judiciaires désignés, fixé par l'ordonnance (J67, R73). */
@@ -45,8 +47,11 @@ export interface SaisieVoletJudiciaire {
   ordonnanceCarence: OrdonnanceCarence | null
   /** Deux administrateurs : ils agissent ensemble, ou chacun seul (ordonnance) ; absent ou null : non saisi (J67, R73). */
   modeExercice?: ModeExerciceAdministrateurs | null
-  /** L'ordonnance confie à l'administrateur provisoire les pouvoirs du conseil syndical ; absent ou null : non saisi (J67, R69). */
-  pouvoirsConseilSyndicalConfies?: boolean | null
+  /**
+   * Date de l'ordonnance qui confie à l'administrateur provisoire les pouvoirs du conseil syndical (L. 1965 art. 29-1, I,
+   * al. 2 et 3) : celle de la désignation, ou d'une ordonnance plus tardive ; absent ou null : non confiés (J67, R69).
+   */
+  pouvoirsConseilSyndicalConfiesLe?: string | null
 }
 
 export type VoletJudiciaire = SaisieVoletJudiciaire
@@ -71,6 +76,11 @@ export function creerVoletJudiciaire(
     throw new Error(`Ouverture (${saisie.dateOuverture}) antérieure à l'ordonnance de désignation (${dateOrdonnance}).`)
   if (saisie.ordonnanceCarence && !estDateIsoValide(saisie.ordonnanceCarence.date))
     throw new Error(`Date de l'ordonnance de carence invalide (${saisie.ordonnanceCarence.date}) : AAAA-MM-JJ attendu.`)
+  const confiesLe = saisie.pouvoirsConseilSyndicalConfiesLe ?? null
+  if (confiesLe !== null && !estDateIsoValide(confiesLe))
+    throw new Error(`Date de l'ordonnance qui confie les pouvoirs du conseil syndical invalide (${confiesLe}) : AAAA-MM-JJ attendu.`)
+  if (confiesLe !== null && estDateIsoValide(dateOrdonnance) && confiesLe < dateOrdonnance)
+    throw new Error(`Pouvoirs du conseil syndical confiés le ${confiesLe}, avant l'ordonnance de désignation (${dateOrdonnance}).`)
   const modeExercice = saisie.modeExercice ?? null
   if (modeExercice !== null && !(MODES_EXERCICE_ADMINISTRATEURS as readonly string[]).includes(modeExercice))
     throw new Error(`Mode d'exercice inconnu : « ${modeExercice} » (ensemble ou chacun_seul).`)

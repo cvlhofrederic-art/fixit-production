@@ -1,8 +1,19 @@
 import { MODES_TENUE_COMPTES, NATURES_COMPTE_BANCAIRE, validerIban, type ModeTenueComptes, type NatureCompteBancaire } from '@/lib/administrateur-judiciaire/domain/comptes-bancaires'
-import { ajouterMois, dateIsoVersFr, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
-import { refLoi1965 } from '@/lib/administrateur-judiciaire/domain/delais-legaux'
+import { dateIsoVersFr, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
+import {
+  MOIS_MAX_SUSPENSION_PROROGEE,
+  MOIS_SUSPENSION_EXIGIBILITE,
+  finSuspensionExigibilite,
+  refLoi1965,
+} from '@/lib/administrateur-judiciaire/domain/delais-legaux'
 import { citerFondement } from '@/lib/administrateur-judiciaire/domain/fondements'
-import { statutPositionA, type CompteCoproprietaire, type Position, type QualitePosition } from '@/lib/administrateur-judiciaire/domain/identites-positions'
+import {
+  estQualiteCopropriete,
+  statutPositionA,
+  type CompteCoproprietaire,
+  type Position,
+  type QualitePosition,
+} from '@/lib/administrateur-judiciaire/domain/identites-positions'
 import {
   verifierIdentifiantsVirement,
   type LigneVirement,
@@ -145,13 +156,15 @@ import { MODE_REGLEMENT, type ModeReglement } from '@/lib/data/referentiels-gest
  *   est respecté, les suspensions sont maintenues (art. 29-5). Le texte n'interdit pas en toutes lettres de payer, mais
  *   payer un créancier ancien hors du plan romprait l'égalité que ce mécanisme organise : le paiement d'une facture dont
  *   la créance a son origine avant la décision est bloqué pendant la période de suspension (controlerCreanceAnterieure :
- *   douze mois, MOIS_SUSPENSION_EXIGIBILITE, ou la durée prorogée, au plus MOIS_MAX_SUSPENSION_PROROGEE, puis tant que le
- *   plan homologué s'applique et est respecté). Origine : la date de la prestation ; non saisie, une facture datée avant
- *   la décision est bloquée, une facture datée après donne l'alerte « origine à vérifier » (une facture récente peut
- *   porter une prestation ancienne). Levée par un motif tracé : créance publique ou sociale ; paiement prévu à
- *   l'échéancier du plan homologué ; autre, avec un texte. Le motif « contrat dont le juge a ordonné la poursuite » n'est
- *   pas retenu : le III de l'art. 29-3 ne dit rien des sommes dues avant la désignation, et une prestation faite après
- *   la décision a une origine postérieure, non bloquée. D. 1967 art. 62-17 à 62-23 non rouverts ; aucun arrêt lu ;
+ *   douze mois, MOIS_SUSPENSION_EXIGIBILITE, ou la durée prorogée, au plus MOIS_MAX_SUSPENSION_PROROGEE (durées et fin
+ *   tirées de delais-legaux.ts, finSuspensionExigibilite, comme l'échéance du mandat), puis tant que le plan homologué
+ *   s'applique et est respecté). Origine : la date de la prestation ; non saisie, une facture datée avant la décision
+ *   est bloquée, une facture datée après donne l'alerte « origine à vérifier » (une facture récente peut porter une
+ *   prestation ancienne). Levée par un motif tracé : créance publique ou sociale ; paiement prévu à l'échéancier du plan
+ *   homologué ; autre, avec un texte ; elle vaut tracée au plus tard le jour du règlement, et l'échéancier seulement avec
+ *   un plan homologué à cette date (relecture du 18/11/2026). Le motif « contrat dont le juge a ordonné la poursuite »
+ *   n'est pas retenu : le III de l'art. 29-3 ne dit rien des sommes dues avant la désignation, et une prestation faite
+ *   après la décision a une origine postérieure, non bloquée. D. 1967 art. 62-17 à 62-23 non rouverts ; aucun arrêt lu ;
  * - J67, R80 (remboursement d'un compte en indivision ou démembré ; lecture prudente) : « Le paiement doit être fait au
  *   créancier ou à la personne désignée pour le recevoir » (C. civ. art. 1342-2) ; L. 1965 art. 23 organise la
  *   représentation à l'assemblée (indivisaires : mandataire commun, al. 2 ; usufruit : nu-propriétaire à défaut d'accord,
@@ -161,7 +174,10 @@ import { MODE_REGLEMENT, type ModeReglement } from '@/lib/data/referentiels-gest
  *   désignée par un accord écrit des deux (CompteCoproprietaire.accordPaiementDemembrement), ou les deux ensemble ; sans
  *   cet accord, bloqué (jamais le nu-propriétaire par défaut : la règle de l'al. 3 vise le vote, et l'usufruitier qui a
  *   payé les provisions peut être le créancier) ; (3) un règlement qui ne nomme personne est bloqué (identiteIds du
- *   bénéficiaire « copropriétaire »). Accord écrit et identités payées : enregistrement à brancher.
+ *   bénéficiaire « copropriétaire »). Accord écrit et identités payées : enregistrement à brancher. Relecture du
+ *   18/11/2026 : payé seul, le mandataire commun passe par les contrôles de J10 quel que soit le type saisi (position
+ *   d'indivisaire sortie, aucun indivisaire en place : refusé) ; « tous ensemble » ne paie personne d'autre que les
+ *   titulaires en place du compte.
  * 🔴 Non établi (à trancher par Frédéric ou Hugo) :
  * - Gestéam passe-t-il l'écriture du « Règlement de factures » dès le traitement qui produit l'ordre (imputée plus
  *   tard), ou au paiement ? Non observé ; VitFix l'écrit au paiement (ci-dessus) ;
@@ -958,42 +974,77 @@ export function controlerBeneficiaireIndivisaire(
 type BeneficiaireCoproprietaire = Extract<BeneficiaireReglement, { type: 'coproprietaire' }>
 type CompteDuReglement = Pick<CompteCoproprietaire, 'id' | 'mandataireCommunId' | 'accordPaiementDemembrement'>
 
-/** Titulaires en place à la date, sur le compte, avec l'une des qualités données. */
-const titulairesEnPlace = (positions: readonly Position[], compteId: string, qualites: readonly QualitePosition[], date: string): string[] => [
+/** Titulaires en place à la date, sur le compte, dont la qualité est retenue. */
+const titulairesEnPlace = (positions: readonly Position[], compteId: string, retenue: (qualite: QualitePosition) => boolean, date: string): string[] => [
   ...new Set(
     positions
-      .filter((p) => p.compteId === compteId && qualites.includes(p.qualite) && statutPositionA(p, date) === 'En place')
+      .filter((p) => p.compteId === compteId && retenue(p.qualite) && statutPositionA(p, date) === 'En place')
       .map((p) => p.identiteId),
   ),
 ]
 
-const contientTous = (payes: readonly string[], titulaires: readonly string[]): boolean => titulaires.every((id) => payes.includes(id))
+/** Le règlement débité d'un compte copropriétaire, tel que le contrôle du bénéficiaire le lit (J67, R80). */
+interface PaiementDuCompte {
+  r: ReglementFournisseur
+  b: BeneficiaireCoproprietaire
+  /** Identités payées, sans doublon. */
+  payes: string[]
+  /** Titulaires en place du compte à la date, toutes qualités de copropriété confondues. */
+  titulaires: string[]
+  compte: CompteDuReglement
+  positions: Position[]
+  date: string
+}
 
-/** Compte en indivision (J10 ; J67, R80) : le mandataire commun, ou tous les indivisaires ensemble. */
-function anomalieIndivision(r: ReglementFournisseur, b: BeneficiaireCoproprietaire, payes: string[], indivisaires: string[], compte: CompteDuReglement): AnomalieReglement[] {
-  const mandataire = optionnel(compte.mandataireCommunId)
-  if (contientTous(payes, indivisaires) || (mandataire !== null && payes.length === 1 && payes[0] === mandataire)) return []
+/**
+ * Paiement à tous ensemble (J67, R80 : « compte à leurs noms ») : chaque titulaire du groupe est payé, et personne d'autre
+ * qu'un titulaire en place du compte (C. civ. art. 1342-2 : le créancier ou la personne désignée pour recevoir).
+ */
+const tousEnsemble = (p: PaiementDuCompte, groupe: readonly string[]): boolean =>
+  groupe.every((id) => p.payes.includes(id)) && p.payes.every((id) => p.titulaires.includes(id))
+
+/** Payé seul : l'identité attendue (mandataire commun, bénéficiaire de l'accord écrit), et elle seule. */
+const payeSeul = (p: PaiementDuCompte, attendu: string): boolean => p.payes.length === 1 && p.payes[0] === attendu
+
+/** Identités payées qui ne sont pas titulaires en place du compte, pour le message ; vide : aucune. */
+function horsTitulaires(p: PaiementDuCompte): string {
+  const autres = p.payes.filter((id) => !p.titulaires.includes(id))
+  return autres.length === 0 ? '' : ` ; identités payées qui ne sont pas titulaires en place du compte : ${autres.join(', ')}`
+}
+
+/**
+ * Compte en indivision (J10 ; J67, R80) : le mandataire commun, ou tous les indivisaires ensemble. Payé seul, le mandataire
+ * passe par le contrôle de J10 (anomalieMandataireDesigne) : sa position d'indivisaire sortie, ou aucun indivisaire en
+ * place, refuse le paiement, quel que soit le type de bénéficiaire saisi.
+ */
+function anomalieIndivision(p: PaiementDuCompte, indivisaires: string[]): AnomalieReglement[] {
+  if (tousEnsemble(p, indivisaires)) return []
+  const { r, b } = p
+  const mandataire = optionnel(p.compte.mandataireCommunId)
+  if (mandataire !== null && payeSeul(p, mandataire))
+    return anomalieMandataireDesigne(r, { type: 'indivisaire', compteCoproprietaireId: b.compteCoproprietaireId, serie450: b.serie450, identiteId: mandataire }, p.positions, p.date)
   return [
     {
       code: 'paiement_indivision_hors_mandataire',
-      message: `Règlement ${r.id} refusé : le compte ${b.compteCoproprietaireId} est en indivision ; payer le mandataire commun${mandataire === null ? ' (aucun désigné)' : ` (${mandataire})`}, ou tous les indivisaires ensemble (compte à leurs noms : ${indivisaires.join(', ')}) ; un paiement à un seul indivisaire qui n'est pas mandataire est refusé (J10 ; J67, R80).`,
+      message: `Règlement ${r.id} refusé : le compte ${b.compteCoproprietaireId} est en indivision ; payer le mandataire commun${mandataire === null ? ' (aucun désigné)' : ` (${mandataire})`}, ou tous les indivisaires ensemble (compte à leurs noms : ${indivisaires.join(', ')}) ; un paiement à un seul indivisaire qui n'est pas mandataire est refusé${horsTitulaires(p)} (J10 ; J67, R80).`,
       fondement: `${FONDEMENT_PAIEMENT} ; ${FONDEMENT_MANDATAIRE_COMMUN}`,
     },
   ]
 }
 
 /** Compte démembré (J67, R80) : la personne désignée par l'accord écrit des deux, en vigueur à la date, ou les deux ensemble. */
-function anomalieDemembrement(r: ReglementFournisseur, payes: string[], titulaires: string[], compte: CompteDuReglement, date: string): AnomalieReglement[] {
+function anomalieDemembrement(p: PaiementDuCompte, demembrement: string[]): AnomalieReglement[] {
+  const { r, compte, date } = p
   const accord = compte.accordPaiementDemembrement ?? null
   if (accord !== null && !estDateIsoValide(accord.signeLe))
     throw new Error(`Compte ${compte.id} : date de l'accord écrit invalide (${accord.signeLe}) : AAAA-MM-JJ attendu.`)
-  const parAccord = accord !== null && accord.signeLe <= date && payes.length === 1 && payes[0] === accord.beneficiaireId.trim()
-  if (parAccord || contientTous(payes, titulaires)) return []
+  const parAccord = accord !== null && accord.signeLe <= date && payeSeul(p, accord.beneficiaireId.trim())
+  if (parAccord || tousEnsemble(p, demembrement)) return []
   const accordLu = accord === null ? 'aucun accord écrit' : `accord écrit du ${dateIsoVersFr(accord.signeLe)} pour ${accord.beneficiaireId}`
   return [
     {
       code: 'demembrement_sans_accord',
-      message: `Règlement ${r.id} refusé : compte ${compte.id} démembré (usufruit et nue-propriété ; ${accordLu}) ; payer la personne désignée par un accord écrit des deux, en vigueur au règlement, ou les deux ensemble (${titulaires.join(', ')}) ; jamais le nu-propriétaire par défaut : la règle de L. 1965 art. 23, al. 3 vise le vote, et l'usufruitier qui a payé les provisions peut être le créancier (J67, R80).`,
+      message: `Règlement ${r.id} refusé : compte ${compte.id} démembré (usufruit et nue-propriété ; ${accordLu}) ; payer la personne désignée par un accord écrit des deux, en vigueur au règlement, ou les deux ensemble (${demembrement.join(', ')})${horsTitulaires(p)} ; jamais le nu-propriétaire par défaut : la règle de L. 1965 art. 23, al. 3 vise le vote, et l'usufruitier qui a payé les provisions peut être le créancier (J67, R80).`,
       fondement: FONDEMENT_PAIEMENT,
     },
   ]
@@ -1022,22 +1073,19 @@ export function controlerBeneficiaireCompte(r: ReglementFournisseur, positions: 
         fondement: FONDEMENT_PAIEMENT,
       },
     ]
-  const indivisaires = titulairesEnPlace(positions, b.compteCoproprietaireId, ['Indivisaire'], date)
-  const demembrement = titulairesEnPlace(positions, b.compteCoproprietaireId, ['Usufruitier', 'Nu propriétaire'], date)
+  const compteId = b.compteCoproprietaireId
+  const paiement: PaiementDuCompte = { r, b, payes, titulaires: titulairesEnPlace(positions, compteId, estQualiteCopropriete, date), compte, positions, date }
+  const indivisaires = titulairesEnPlace(positions, compteId, (qualite) => qualite === 'Indivisaire', date)
+  const demembrement = titulairesEnPlace(positions, compteId, (qualite) => qualite === 'Usufruitier' || qualite === 'Nu propriétaire', date)
   return [
-    ...(indivisaires.length > 0 ? anomalieIndivision(r, b, payes, indivisaires, compte) : []),
-    ...(demembrement.length > 0 ? anomalieDemembrement(r, payes, demembrement, compte, date) : []),
+    ...(indivisaires.length > 0 ? anomalieIndivision(paiement, indivisaires) : []),
+    ...(demembrement.length > 0 ? anomalieDemembrement(paiement, demembrement) : []),
   ]
 }
 
 // ─── Créances nées avant la désignation (J67, R79) ──────────────────────────────────────────
 
-/** L. 1965 art. 29-3, I : suspension de l'exigibilité des créances antérieures pour une période de douze mois. */
-export const MOIS_SUSPENSION_EXIGIBILITE = 12
-/** L. 1965 art. 29-3, II : prorogation par le juge, durée totale de trente mois au plus. */
-export const MOIS_MAX_SUSPENSION_PROROGEE = 30
-
-/** Ce que l'ordonnance et le plan disent de la suspension (enregistrement : à brancher ; delais-legaux.ts calcule la même fin). */
+/** Ce que l'ordonnance et le plan disent de la suspension (enregistrement : à brancher ; fin calculée par delais-legaux.ts). */
 export interface SuspensionExigibilite {
   /** Date de la décision qui désigne l'administrateur provisoire. */
   designationLe: string
@@ -1057,7 +1105,11 @@ export interface OrigineCreance {
 export const MOTIFS_LEVEE_SUSPENSION = ['creance_publique_ou_sociale', 'echeancier_plan_homologue', 'autre'] as const
 export type MotifLeveeSuspension = (typeof MOTIFS_LEVEE_SUSPENSION)[number]
 
-/** Levée tracée du blocage : motif, texte (obligatoire pour « autre »), collaborateur et date. */
+/**
+ * Levée tracée du blocage : motif, texte (obligatoire pour « autre »), collaborateur et date. Elle vaut pour un règlement
+ * fait le jour où elle est tracée ou après ; « échéancier du plan homologué » suppose un plan homologué à la date du
+ * règlement (leveeSansEffet).
+ */
 export interface LeveeSuspensionExigibilite {
   motif: MotifLeveeSuspension
   precision: string | null
@@ -1093,10 +1145,23 @@ function verifierLevee(levee: LeveeSuspensionExigibilite): void {
   if (!estDateIsoValide(levee.le)) throw new Error(`Date de la levée invalide (${levee.le}) : AAAA-MM-JJ attendu.`)
 }
 
+/**
+ * Levée qui ne vaut pas pour le règlement du `date` (relecture du 18/11/2026), motif à l'appui ; null : elle vaut. Une levée
+ * tracée après le règlement ne l'a pas autorisé ; le motif « échéancier du plan homologué » ne vaut que si un plan
+ * d'apurement est homologué au plus tard ce jour (L. 1965 art. 29-5 ; J67, R79).
+ */
+function leveeSansEffet(levee: LeveeSuspensionExigibilite, suspension: SuspensionExigibilite, date: string): string | null {
+  if (levee.le > date) return `levée tracée le ${dateIsoVersFr(levee.le)}, après le règlement du ${dateIsoVersFr(date)} : elle ne vaut pas pour lui`
+  const plan = suspension.planApurement
+  if (levee.motif === 'echeancier_plan_homologue' && (plan === null || plan.homologueLe > date))
+    return `levée « échéancier du plan homologué » sans plan d'apurement homologué au ${dateIsoVersFr(date)}`
+  return null
+}
+
 /** Période de suspension à la date : jusqu'à la fin des douze mois (ou de la prorogation), puis tant que le plan est respecté. */
 function periodeDeSuspension(s: SuspensionExigibilite, date: string): { suspendue: boolean; justification: string } {
   const mois = s.dureeProrogeeMois ?? MOIS_SUSPENSION_EXIGIBILITE
-  const fin = ajouterMois(s.designationLe, mois)
+  const fin = finSuspensionExigibilite(s.designationLe, s.dureeProrogeeMois)
   const plan = s.planApurement
   const planEnCours = plan !== null && plan.respecte && plan.homologueLe <= date && (plan.termeLe === null || date <= plan.termeLe)
   const duree = s.dureeProrogeeMois === null ? `${mois} mois (art. 29-3, I)` : `${mois} mois après prorogation (art. 29-3, II)`
@@ -1110,7 +1175,8 @@ function periodeDeSuspension(s: SuspensionExigibilite, date: string): { suspendu
 /**
  * Créance d'origine antérieure à la désignation de l'administrateur provisoire (J67, R79 ; L. 1965 art. 29-3, 29-5) :
  * pendant la période de suspension, le règlement d'une facture dont la prestation précède la décision est bloqué, sauf
- * levée tracée (créance publique ou sociale, échéancier du plan homologué, autre motif écrit) ; prestation non datée et
+ * levée tracée au plus tard le jour du règlement (créance publique ou sociale, échéancier du plan homologué quand un plan
+ * est homologué à cette date, autre motif écrit ; leveeSansEffet) ; prestation non datée et
  * facture postérieure à la décision : alerte « origine à vérifier ». Hors période, prestation postérieure, remboursement
  * à un copropriétaire : rien.
  */
@@ -1128,7 +1194,8 @@ export function controlerCreanceAnterieure(
   if (levee !== null) verifierLevee(levee)
   if (r.beneficiaire.type !== 'fournisseur') return []
   const periode = periodeDeSuspension(suspension, date)
-  if (!periode.suspendue || levee !== null) return []
+  const sansEffet = levee === null ? null : leveeSansEffet(levee, suspension, date)
+  if (!periode.suspendue || (levee !== null && sansEffet === null)) return []
   const reference = origine.prestationLe ?? origine.factureLe
   if (reference >= suspension.designationLe)
     return origine.prestationLe === null
@@ -1147,7 +1214,7 @@ export function controlerCreanceAnterieure(
     {
       code: 'creance_anterieure_suspendue',
       gravite: 'bloquant',
-      message: `Règlement ${r.id} refusé : créance d'origine antérieure à la désignation (${datee}), dont l'exigibilité est suspendue ; payer hors du plan romprait l'égalité des créanciers ; lever par un motif tracé : créance publique ou sociale, paiement prévu à l'échéancier du plan homologué, ou autre motif écrit.`,
+      message: `Règlement ${r.id} refusé : créance d'origine antérieure à la désignation (${datee}), dont l'exigibilité est suspendue ; payer hors du plan romprait l'égalité des créanciers ; lever par un motif tracé : créance publique ou sociale, paiement prévu à l'échéancier du plan homologué, ou autre motif écrit${sansEffet === null ? '' : ` (${sansEffet})`}.`,
       fondement: FONDEMENT_SUSPENSION,
       justification: periode.justification,
     },
