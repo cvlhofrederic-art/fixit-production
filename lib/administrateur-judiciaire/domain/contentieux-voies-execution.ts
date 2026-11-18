@@ -161,7 +161,8 @@ import type { TypeContentieux } from '@/lib/data/referentiels-gesteam-judiciaire
  *   al. 3), pas celles du syndicat contre un copropriétaire : elle ne bloque pas la saisie ;
  * - garantie de l'enchérisseur arrondie au centime supérieur (le texte ne dit rien de l'arrondi).
  *
- * 🔴 Non établi — questions exactes :
+ * 🔴 Non établi — questions exactes (les n° 3 et 5, tranchées par J35 et J36, ci-dessus, sont retirées ; les numéros
+ * restent ceux que le code cite) :
  * 1. (Frédéric ou Hugo) La décision qui autorise la saisie en vue de la vente se prend-elle à la majorité de l'art. 24
  *    (règle par défaut, L. 1965 art. 24, I : aucun texte spécial lu) ou de l'art. 25 ? Une résolution soumise à l'art. 24
  *    est admise, à confirmer (`aConfirmer`).
@@ -169,11 +170,9 @@ import type { TypeContentieux } from '@/lib/data/referentiels-gesteam-judiciaire
  *    l'assemblée, après avis du conseil syndical sauf urgence (D. 1967 art. 62-7, al. 1 ; 🔵) : sa décision inscrite au
  *    registre doit-elle porter la mise à prix et les sommes estimées définitivement perdues, alors que l'art. 11, I, 11°
  *    vise les projets notifiés avec l'ordre du jour d'une AG ? VitFix exige les deux montants dans les deux cas.
- * 3. Tranchée le 03/11/2026 (J35, ci-dessus), confirmée le 06/11/2026.
  * 4. (Frédéric) Quel plafond appliquer au montant de l'hypothèque : les cinq ans de l'art. 19, al. 4, ou l'année courante
  *    et les quatre dernières années échues de C. civ. art. 2402, 3° (visé par l'art. 19-1) ? VitFix n'applique que l'al. 4
  *    (postesHorsInscriptionHypotheque).
- * 5. Tranchée le 03/11/2026 (J36, ci-dessus), confirmée le 06/11/2026.
  * 6. (Frédéric) Une mise à prix ou des sommes perdues égales à 0 € sont-elles admises ? VitFix accepte un montant ≥ 0.
  * 7. (Frédéric) Faut-il un second champ pour la mise à prix fixée par le juge (CPCE L. 322-6, al. 2), distincte de la
  *    mise à prix initiale votée ? VitFix n'en garde qu'une.

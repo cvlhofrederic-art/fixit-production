@@ -24,6 +24,7 @@ import {
   selectionnerAFaire,
   type ElementAFaire,
 } from '@/lib/administrateur-judiciaire/domain/suivi-a-faire'
+import { enTeteDuModule } from './en-tete-module'
 
 /**
  * Suivi « à faire » — familles ajoutées (point 54 du bilan 2 ; cartographie Gestéam, tranche 38 § Réglage, tranche 43 § 9).
@@ -67,6 +68,14 @@ describe('familles et natures ajoutées', () => {
     expect(LIBELLES_FAMILLES_SUIVI.exercices).toBe('Exercices')
     for (const nature of [...NATURES_SUIVI.contentieux, ...NATURES_SUIVI.exercices, 'indemnite_differee'] as const)
       expect(LIBELLES_NATURES_SUIVI[nature]).toBeTruthy()
+  })
+
+  it('travaux : la libération de la garantie (point 32, travaux-retenue-garantie.ts) rejoint les fonds à appeler', () => {
+    expect(NATURES_SUIVI.travaux).toEqual(['fonds_a_appeler', 'liberation_garantie'])
+    expect(LIBELLES_NATURES_SUIVI.liberation_garantie).toBe('Libération de la garantie')
+    const { texte } = enTeteDuModule('suivi-a-faire')
+    expect(texte).not.toContain('libération de la retenue de garantie (🔴 à confirmer dans travaux-operations.ts)')
+    expect(texte).toMatch(/Travaux \(point 32, travaux-retenue-garantie\.ts\) : libération de la garantie.*depuisRetenuesGarantie.*echeancesLiberationGarantie/)
   })
 
   it('le réglage par défaut suit aussi les nouvelles familles', () => {

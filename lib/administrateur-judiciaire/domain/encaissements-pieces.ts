@@ -92,9 +92,9 @@ import { MODE_REGLEMENT, type ModeReglement } from '@/lib/data/referentiels-gest
  *   à la notification se solde) ; refusés : 45 (encaissement d'un copropriétaire), 70 (appels), 10 (provisions et fonds de
  *   travaux, appelés au 450), 711 (subvention : produit constaté au rythme de la charge, art. 10), 78 (reprise sans
  *   trésorerie) et tout autre compte.
+ * Décisions J25 et J29 de Hugo (03/11/2026) : espèces refusées ; elles entreraient au compte 53 « Caisse », que VitFix
+ * ne tient pas (J25 : aucun paiement en espèces ; J29 : remise d'espèces reçues refusée).
  * 🔴 Non établi (questions pour Frédéric ou Hugo) :
- * - espèces : refusées ; elles entreraient au compte 53 « Caisse », que VitFix ne tient pas (même question qu'au point
- *   38) ;
  * - « Chèque impayé ou virement reçu retourné : l'encaissement passe-t-il "Annulé" sous une écriture "Annulation
  *   d'encaissement", et son imputation sur les postes est-elle défaite ? Un encaissement isolé d'un lot (fichier de
  *   virements, remise) peut-il être annulé seul ? » (VitFix : aucun statut d'annulation, rien n'est pris en charge) ;
@@ -112,7 +112,7 @@ import { MODE_REGLEMENT, type ModeReglement } from '@/lib/data/referentiels-gest
 export const STATUTS_ENCAISSEMENT = ['Enregistré', 'Rapproché'] as const
 export type StatutEncaissement = (typeof STATUTS_ENCAISSEMENT)[number]
 
-/** Modes admis : ni « Pas de règlement », ni « Espèces » (compte 53 non tenu, 🔴). */
+/** Modes admis : ni « Pas de règlement », ni « Espèces » (compte 53 non tenu, décision J29 du 03/11/2026). */
 export type ModeEncaissement = Exclude<ModeReglement, 'Pas de règlement' | 'Espèces'>
 
 /** Pièce de l'encaissement (Gestéam, tranche 43 § 2 : mode · N° · Banque · Libellé). */
@@ -213,7 +213,7 @@ function verifierPiece(saisie: SaisiePieceEncaissement): PieceEncaissement {
   if (mode === 'Pas de règlement') throw new Error('Mode « Pas de règlement » : aucun encaissement à enregistrer.')
   if (mode === 'Espèces')
     throw new Error(
-      'Espèces : encaissement refusé ; il entrerait au compte 53 « Caisse », que VitFix ne tient pas, et non à un compte 512 (arrêté du 14 mars 2005, art. 7) ; à trancher.',
+      'Espèces : encaissement refusé (décision J29 du 03/11/2026) ; il entrerait au compte 53 « Caisse », que VitFix ne tient pas, et non à un compte 512 (arrêté du 14 mars 2005, art. 7).',
     )
   const numero = texteOuNull(saisie.numero)
   if (mode === 'Chèque' && numero === null)
@@ -238,7 +238,7 @@ const SUIVI_INITIAL = { statut: 'Enregistré', impute: false, traitementId: null
  * Enregistre un encaissement de copropriétaire (imputation-encaissements.Encaissement, par exemple issu de
  * encaissementDepuisReleve) avec sa pièce et son journal : statut « Enregistré », non imputé, sans traitement ni
  * rapprochement ; l'encaissement reçu n'est pas modifié. Refuse un encaissement sans compte ou déjà enregistré, une date
- * ou un montant invalides, un mode inconnu, « Pas de règlement » ou « Espèces » (🔴), un chèque sans numéro, un journal
+ * ou un montant invalides, un mode inconnu, « Pas de règlement » ou « Espèces » (J29), un chèque sans numéro, un journal
  * sans compte bancaire ou sans code, un compte d'encaissement qui n'est pas un 512 du syndicat (D1).
  */
 export function enregistrerEncaissement(

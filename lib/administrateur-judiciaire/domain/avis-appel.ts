@@ -139,6 +139,10 @@ import type { FormeEnvoiCourrier, ModeReglement, TypeAppelLieAuMouvement } from 
  *   compléter. travaux-operations.ts, hors de ce lot, fournit encore ces références en texte libre (il convertit même
  *   la résolution de l'opération en texte) : chaque emploi d'une opération porte ce signalement jusqu'à ce que sa
  *   saisie passe à la forme structurée, que l'avis reçoit déjà.
+ * - J25 et J29 (espèces ; registre, décisions du 03/11/2026, appliquées ici le 17/11/2026) : aucun encaissement en
+ *   espèces, compte 53 non tenu ; un compte au mode « Espèces » ne voit jamais ce mode sur l'avis : règlement hors
+ *   prélèvement (instructionsHorsPrelevement : virement, à défaut chèque) et avertissement especes_refusees, qui
+ *   demande de changer le mode du compte ; l'avis n'est pas bloqué (il précède l'exigibilité, D. 1967 art. 35-2).
  *
  * Décisions de Hugo du 06/11/2026 (registre des décisions juridiques, J42 ; PR #643, suite de J30) :
  * - J42 : la décision d'affectation de l'AG prend la forme date de l'AG + n° de la résolution, obligatoires ; un texte
@@ -173,7 +177,7 @@ import type { FormeEnvoiCourrier, ModeReglement, TypeAppelLieAuMouvement } from 
  * - « Indivision ou démembrement : un avis à chaque identité, ou au seul mandataire commun ? » (VitFix : chacune) ;
  * - « Vente du lot entre l'avis et l'exigibilité (D. 1967 art. 6-2) : qui reçoit l'avis, faut-il suspendre le mandat
  *   du vendeur ? » ; « Budget voté en cours d'exercice (art. 43) : l'avis doit-il le signaler ? » — non traités ;
- * - TIP et espèces (plafond du C. monét. fin., non relu) : signalés, sans instructions ;
+ * - TIP : signalé, sans instructions ;
  * - plafond d'emploi par lot (part du fonds attachée au lot, point 20) : non fait.
  */
 
@@ -300,7 +304,8 @@ export interface InstructionsPrelevement {
   mandat: MandatPrelevement | null
 }
 
-export type InstructionsReglement = InstructionsPrelevement | InstructionsVirement | InstructionsCheque | { mode: 'TIP' | 'Espèces' | 'Pas de règlement' }
+/** Jamais « Espèces » : l'avis n'invite pas à payer en espèces (J25, J29), il donne le règlement hors prélèvement. */
+export type InstructionsReglement = InstructionsPrelevement | InstructionsVirement | InstructionsCheque | { mode: 'TIP' | 'Pas de règlement' }
 
 export type CleMentionAvis = 'voie_postale' | 'ordre_du_jour' | 'fonds_travaux' | 'prenotification' | 'decision_administrateur'
 
@@ -333,6 +338,7 @@ export type CodeAnomalieAvis =
   | 'nature_non_couverte'
   | 'iban_syndicat_invalide'
   | 'mode_non_pris_en_charge'
+  | 'especes_refusees'
   | 'reglement_attendu'
   | 'emploi_fonds_non_autorise'
   | 'emploi_fonds_forme_incomplete'
@@ -828,12 +834,38 @@ function reglementParVirement(base: BaseCompte, options: OptionsContenuAvis): Re
   return { instructions: instructionsVirement(base, options, iban), anomalies: [] }
 }
 
-/** Compte en contentieux : prélèvement suspendu (preparerLotPrelevements l'exclut par défaut), règlement hors prélèvement. */
-function reglementSuspendu(base: BaseCompte, options: OptionsContenuAvis): ResultatReglement & { mode: ModeReglement } {
+/** Règlement hors prélèvement à la place du mode du compte : l'avis le donne, un avertissement dit pourquoi (`motif` reçoit son texte). */
+function reglementHorsPrelevementAuLieuDuMode(
+  base: BaseCompte,
+  options: OptionsContenuAvis,
+  code: CodeAnomalieAvis,
+  motif: (reglement: string) => string,
+): ResultatReglement & { mode: ModeReglement } {
   const instructions = instructionsHorsPrelevement(base, options)
-  const message = `Compte ${base.numeroCompte} en contentieux : prélèvement suspendu, l'avis n'annonce aucun débit et indique le règlement par ${texteHorsPrelevement(instructions)}.`
-  return { mode: instructions.mode, instructions, anomalies: [anomalie('prelevement_suspendu', 'avertissement', message)] }
+  return { mode: instructions.mode, instructions, anomalies: [anomalie(code, 'avertissement', motif(texteHorsPrelevement(instructions)))] }
 }
+
+/** Compte en contentieux : prélèvement suspendu (preparerLotPrelevements l'exclut par défaut), règlement hors prélèvement. */
+const reglementSuspendu = (base: BaseCompte, options: OptionsContenuAvis): ResultatReglement & { mode: ModeReglement } =>
+  reglementHorsPrelevementAuLieuDuMode(
+    base,
+    options,
+    'prelevement_suspendu',
+    (reglement) => `Compte ${base.numeroCompte} en contentieux : prélèvement suspendu, l'avis n'annonce aucun débit et indique le règlement par ${reglement}.`,
+  )
+
+/**
+ * Mode « Espèces » (J25, J29 : aucun encaissement en espèces, compte 53 non tenu) : l'avis n'en parle jamais et donne le
+ * règlement hors prélèvement ; il n'est pas bloqué, il doit partir avant l'exigibilité (D. 1967 art. 35-2).
+ */
+const reglementEspecesRefusees = (base: BaseCompte, options: OptionsContenuAvis): ResultatReglement & { mode: ModeReglement } =>
+  reglementHorsPrelevementAuLieuDuMode(
+    base,
+    options,
+    'especes_refusees',
+    (reglement) =>
+      `Compte ${base.numeroCompte} : mode « Espèces » refusé (aucun encaissement en espèces, compte 53 « Caisse » non tenu : décisions J25, J29) ; l'avis indique le règlement par ${reglement} ; changer le mode de règlement du compte.`,
+  )
 
 function reglementDuCompte(base: BaseCompte, options: OptionsContenuAvis): ResultatReglementMode {
   const reglement = options.reglements.find((r) => r.compteId === base.compteId)
@@ -848,6 +880,8 @@ function reglementDuCompte(base: BaseCompte, options: OptionsContenuAvis): Resul
       return { mode, ...reglementParVirement(base, options) }
     case 'Chèque':
       return { mode, instructions: instructionsCheque(base, options), anomalies: [] }
+    case 'Espèces':
+      return reglementEspecesRefusees(base, options)
     case 'Pas de règlement':
       return {
         mode,

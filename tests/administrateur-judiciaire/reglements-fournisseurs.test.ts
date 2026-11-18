@@ -598,9 +598,39 @@ describe('bénéficiaire indivisaire : le mandataire commun (décision J10 de Hu
     expect(codes([position()], [indivision(' id-7 ')])).toEqual([])
   })
 
-  it('signalé si la position est sortie, sur un autre compte ou d’une autre qualité', () => {
-    for (const surcharge of [{ dateSortie: '2026-06-30' }, { compteId: 'cpt-99' }, { qualite: 'Copropriétaire' as const }, { identiteId: 'id-8' }])
-      expect(codes([position(surcharge)])).toEqual(['indivisaire_sans_position'])
+  const SANS_POSITION_EN_PLACE = [{ dateSortie: '2026-06-30' }, { compteId: 'cpt-99' }, { qualite: 'Copropriétaire' as const }, { identiteId: 'id-8' }]
+
+  it('mandataire commun désigné qui n’est pas indivisaire (tiers désigné par le juge, L. 1965 art. 23, al. 2) : admis sans position, l’indivision restant en place (J10)', () => {
+    expect(codes([coIndivisaire])).toEqual([])
+    // une position sur un autre compte, ou d'une autre qualité, n'en fait pas un indivisaire de ce compte : il y est un tiers
+    for (const surcharge of [{ compteId: 'cpt-99' }, { qualite: 'Copropriétaire' as const }]) expect(codes([position(surcharge), coIndivisaire])).toEqual([])
+  })
+
+  it('mandataire désigné dont la position d’indivisaire sur ce compte a pris fin (part cédée) : refusé, la désignation non datée est à vérifier', () => {
+    const anomalies = controlerBeneficiaireIndivisaire(r, [position({ dateSortie: '2026-06-30' }), coIndivisaire], '2026-10-29', DESIGNE)
+    expect(anomalies).toEqual([expect.objectContaining({ code: 'mandataire_commun_position_sortie', fondement: 'L. 1965 art. 23, al. 2' })])
+    expect(anomalies[0].message).toMatch(/refusé/)
+    expect(anomalies[0].message).toMatch(/sortie le 2026-06-30/)
+    expect(anomalies[0].message).toMatch(/vérifier que la désignation vaut encore/)
+    // position pas encore commencée : même refus
+    expect(codes([position({ dateEntree: '2026-11-15' }), coIndivisaire])).toEqual(['mandataire_commun_position_sortie'])
+  })
+
+  it('plus aucun indivisaire en place sur le compte débité : refusé, que le mandataire ait été indivisaire ou soit un tiers', () => {
+    expect(codes([position({ dateSortie: '2026-06-30' }), position({ id: 'pos-2', identiteId: 'id-8', dateSortie: '2026-06-30' })])).toEqual([
+      'mandataire_commun_position_sortie',
+    ])
+    for (const positions of [[], [position({ identiteId: 'id-8', dateSortie: '2026-06-30' })], [position({ compteId: 'cpt-99' })]]) {
+      const anomalies = controlerBeneficiaireIndivisaire(r, positions, '2026-10-29', DESIGNE)
+      expect(anomalies).toEqual([expect.objectContaining({ code: 'indivision_sans_indivisaire_en_place', fondement: 'L. 1965 art. 23, al. 2' })])
+      expect(anomalies[0].message).toMatch(/aucun indivisaire en place le 2026-10-29 sur le compte cpt-14/)
+      expect(anomalies[0].message).toMatch(/vérifier que la désignation vaut encore/)
+    }
+  })
+
+  it('bénéficiaire qui n’est pas le mandataire désigné : refusé, et sa position reste contrôlée (sortie, autre compte, autre qualité)', () => {
+    for (const surcharge of SANS_POSITION_EN_PLACE)
+      expect(codes([position(surcharge)], [indivision('id-8')])).toEqual(['indivisaire_sans_position', 'indivisaire_non_mandataire_commun'])
   })
 
   it('sans mandataire commun désigné sur le compte (absent, null ou vide) : refusé, avec un message qui dit quoi faire', () => {
@@ -641,6 +671,13 @@ describe('bénéficiaire indivisaire : le mandataire commun (décision J10 de Hu
     const nonEtabli = entete.slice(entete.indexOf('🔴 Non établi'))
     expect(nonEtabli).not.toMatch(/bénéficiaire indivisaire : à qui payer/)
     expect(source).not.toMatch(/🔴 Ne dit pas si l'indivisaire peut recevoir seul le paiement/)
+    // J10 appliquée au mandataire tiers : plus une question ouverte
+    expect(nonEtabli).not.toMatch(/mandataire commun qui n'est pas lui-même indivisaire/)
+    expect(entete).toMatch(/mandataire commun désigné, indivisaire ou non \(tiers désigné par le président du tribunal judiciaire, L\. 1965 art\. 23, al\. 2 : ni J10 ni le texte n'exigent qu'il soit indivisaire\)/)
+    // relecture du 17/11/2026 : seul le tiers est dispensé de position ; la fin de position ou d'indivision reste un refus
+    expect(entete).toContain('mandataire_commun_position_sortie')
+    expect(entete).toContain('indivision_sans_indivisaire_en_place')
+    expect(nonEtabli).toMatch(/gravité de ces deux refus \(bloquants par prudence\) à confirmer par Hugo/)
   })
 })
 

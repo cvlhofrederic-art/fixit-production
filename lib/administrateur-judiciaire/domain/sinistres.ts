@@ -34,8 +34,9 @@ import {
  * inférieur à 5 jours ouvrés (2 pour le vol) depuis la connaissance du sinistre (art. L. 113-2) ; l'action se prescrit
  * par deux ans depuis l'événement (art. L. 114-1), délai interrompu ou reporté selon l'art. L. 114-2. Le contrat et
  * les faits du dossier priment : ces dates ne sont jamais présentées comme des échéances certaines.
- * 🔴 À confirmer sur Légifrance avant d'en faire des échéances au calendrier réglementaire. (L. 114-1 relu sur
- * Légifrance le 06/11/2026, version en vigueur depuis le 30/12/2021 : voir suggestionForclusion.)
+ * 🟢 L. 113-2, L. 114-1 et L. 114-2 relus sur Légifrance le 17/11/2026 (L. 113-2 et L. 114-2 en vigueur depuis le
+ * 01/04/2018, ordonnance n° 2017-1433 ; L. 114-1 depuis le 30/12/2021, loi n° 2021-1837 ; voir suggestionForclusion).
+ * Repères indicatifs : leur ajout au calendrier réglementaire est un choix de Frédéric.
  */
 
 export interface AssuranceSinistre {

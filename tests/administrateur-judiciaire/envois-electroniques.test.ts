@@ -29,7 +29,7 @@ import { enTeteDuModule } from './en-tete-module'
  * Gestéam 5.4.22, tranche 40 (menu Outils) : console Notifications (7 statuts) et console eSignature (8 statuts), listes
  * relevées dans les critères de recherche. Les transitions ne sont pas observées : elles sont déduites (🔵).
  * Valeur de notification : seule la transmission de l'avis électronique saisie sur le courrier compte (J50) ; aucun
- * statut de la console n'en tient lieu (🔴).
+ * statut de la console n'en tient lieu (J57, J66) ; le sens exact de chaque statut reste ouvert (🔴).
  */
 
 const H = (heure: string) => `2026-11-17T${heure}:00Z`
@@ -491,7 +491,7 @@ describe('machine d’états de la console eSignature (🔵 transitions déduite
   })
 })
 
-describe('lecture d’une notification électronique : aucun statut ne vaut notification (J50 ; 🔴)', () => {
+describe('lecture d’une notification électronique : aucun statut ne vaut notification (J50, J57, J66)', () => {
   const recu = () => enchainerNotification(notification(), ["Attente d'envoi", 'En cours', 'Envoyé OK', 'Reçu'])
 
   it('la notification se lit sur le courrier (date de transmission de l’avis), pas sur le statut de la console', () => {
@@ -520,7 +520,8 @@ describe('lecture d’une notification électronique : aucun statut ne vaut noti
     expect(lre.alertes.map((a) => a.code)).toEqual(['avis_a_saisir'])
     expect(lre.alertes[0].message).toMatch(/Console au statut « Reçu » : saisir sur le courrier C1 la date de transmission de l'avis électronique/)
     expect(lre.alertes[0].message).toMatch(/information du destinataire \(CPCE art\. R\. 53-3, I ; interprétation\)/)
-    expect(lre.alertes[0].message).toMatch(/aucun statut de la console ne la donne/)
+    expect(lre.alertes[0].message).toMatch(/aucun statut de la console ne la donne \(J57\)/)
+    expect(lre.alertes[0].message).not.toMatch(/🔴/)
     const prestataire = creerEnvoiNotificationElectronique({ id: 'E2', courrier: courrierPrestataire, horodatage: H('08:00') })
     const lecture = lireNotificationElectronique(
       enchainerNotification(prestataire, ["Attente d'envoi", 'En cours', 'Envoyé OK']),
@@ -603,10 +604,14 @@ describe('en-tête du module', () => {
     expect(texte).toMatch(/⚪/)
   })
 
-  it('rattache la valeur de notification à J50 seulement, et marque 🔴 la correspondance statut → avis', () => {
+  it('rattache la valeur de notification à J50, l’absence d’effet des statuts à J57 et J66, et marque 🔴 le sens de chaque statut', () => {
     expect(texte).toMatch(/J50/)
     expect(texte).toMatch(/D\. 1967 art\. 64, dernier al\./)
-    expect(item('🔴 Aucun statut de la console Notifications')).toMatch(/ne déduit ni date de notification ni délai/)
+    expect(texte).not.toContain('🔴 Aucun statut de la console Notifications')
+    expect(item('- J57 et J66 : aucun statut de la console')).toMatch(/ne déduit ni date de notification ni délai/)
+    // reste ouvert (L2-02) : le sens exact de chaque statut chez le prestataire branché
+    expect(item('🔴 Sens de chaque statut de la console Notifications')).toMatch(/« Envoyé OK » peut être le dépôt ou la transmission/)
+    expect(item('🔴 Sens de chaque statut de la console Notifications')).toMatch(/documentation du prestataire branché/)
   })
 
   it('attribue à J57 (et non à J50) l’effet d’une LRE refusée ou non réclamée ; J58 pour l’échec', () => {

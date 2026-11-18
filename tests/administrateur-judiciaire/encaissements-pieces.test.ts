@@ -108,6 +108,9 @@ describe('enregistrement d’un encaissement : pièce et journal', () => {
     expect(enregistrer({ mode: 'Chèque', numero: '  ' })).toThrow(/numéro du chèque/)
     expect(enregistrer({ mode: 'Pas de règlement' })).toThrow(/Pas de règlement/)
     expect(enregistrer({ mode: 'Espèces' })).toThrow(/compte 53/)
+    // J29 : la remise d'espèces reçues est refusée ; le message cite la décision, plus « à trancher »
+    expect(enregistrer({ mode: 'Espèces' })).toThrow(/^Espèces : encaissement refusé \(décision J29 du 03\/11\/2026\) ;/)
+    expect(enregistrer({ mode: 'Espèces' })).not.toThrow(/à trancher/)
     expect(enregistrer({ mode: 'Carte' as never })).toThrow(/Mode de règlement inconnu/)
     expect(enregistrer({ mode: 'Prélèvement' })).not.toThrow()
     expect(enregistrer({ mode: 'TIP' })).not.toThrow()

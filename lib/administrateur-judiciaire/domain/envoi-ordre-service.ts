@@ -378,7 +378,7 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   constat incomplet repris d'ailleurs ne vaut pas constat, alerte ; daté après l'envoi, il bloque celui-ci : J46) ;
  *   elle seule lève l'avis préalable de D. 1967 art. 62-7 et la suspension de L. 1965 art. 42, al. 3 (même constat pour
  *   les deux) ; un constat saisi sans délai « urgence » est signalé (alerte) et ne lève rien ; un délai « prioritaire » ne
- *   vaut pas urgence, même constatée (choix gardé, non contredit par Hugo) ; urgence non retenue : le message ne nomme ce
+ *   vaut pas urgence, même constatée (décision J16 du 03/11/2026) ; urgence non retenue : le message ne nomme ce
  *   qui reste dû que lorsque cela s'applique (l'avis pour une intervention au titre des pouvoirs de l'assemblée, la
  *   suspension pour l'exécution d'une résolution votée aux art. 25 ou 26) ;
  * - auteur du constat d'urgence face aux signataires habilités (décisions 6 et 8), interprétation à confirmer par Hugo :
@@ -408,8 +408,7 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *
  * 🔴 Non établi — questions :
  * - Hugo (suite de la décision 6) : critère proposé (entretien courant ou exécution d'une décision déjà prise = pouvoirs du
- *   syndic, sans avis ; travaux décidés au titre des pouvoirs de l'assemblée = avis, sauf urgence constatée) à confirmer ;
- *   un délai « prioritaire » peut-il valoir urgence (non ici) ?
+ *   syndic, sans avis ; travaux décidés au titre des pouvoirs de l'assemblée = avis, sauf urgence constatée) à confirmer.
  * - Hugo (suite de la décision 8) : l'auteur du constat d'urgence doit-il être un signataire habilité (ici :
  *   interprétation, alerte à confirmer constat_urgence_auteur_non_habilite, sans blocage) ? La lecture des textes cités
  *   (signature d'un collaborateur au nom de l'administrateur provisoire : pas une substitution) est-elle juste ? Les
