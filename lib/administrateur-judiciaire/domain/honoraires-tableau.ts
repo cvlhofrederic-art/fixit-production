@@ -102,9 +102,13 @@ import { portefeuille, ROLES_MANDAT, type AffectationMandat } from '@/lib/admini
  *   ordonnance qui les couvre (preparerFacture, J67, R3). Ils ne vont pas au compte provisoire détaillé des émoluments
  *   (61-1-5, II, qui ne vise que les émoluments) : ils iront dans son annexe « frais et débours exposés », demandés au
  *   juge avec la rémunération (Cass. 3e civ., 21 mai 2026, n° 24-20.377 ; Cass. 2e civ., 3 mars 2016, n° 15-12.129).
- *   L'annexe viendra avec le compte provisoire, qui n'existe pas encore dans le code. 🔵 R6 (dépense payée par le
- *   syndicat lui-même, pour l'envoi d'une mise en demeure) ne change rien ici : une dépense du syndicat n'est pas un
- *   élément du cabinet. Le choix entre R5 et R6 pour les frais d'envoi reste ouvert dans honoraires-sinistre.ts.
+ *   L'annexe viendra avec le compte provisoire, qui n'existe pas encore dans le code. J72 (décision de Hugo du
+ *   18/11/2026) : (a) l'envoi de la mise en demeure ou d'une relance d'un copropriétaire en retard est une dépense du
+ *   syndicat, payée sur la pièce du prestataire postal et imputée au copropriétaire (L. 1965 art. 10-1, a ; R6) : pas
+ *   un élément facturable du cabinet ; sa trace éventuelle, en Contrôle coûts (etapes-courrier.ts), reste hors des
+ *   facturables ; (b) les autres envois sont des frais du cabinet, comme ci-dessus : annexe « frais et débours »,
+ *   payés en vertu de l'ordonnance (C. com. R. 814-27 ; R5), signalés « à présenter au juge » dans honoraires-sinistre.ts.
+ *   Le tableau ne change pas.
  *
  * Questions ouvertes :
  * - 🔴 (Frédéric) Sur quoi porte le tableau : la date de l'élément (choix actuel), celle de la facture ou celle de

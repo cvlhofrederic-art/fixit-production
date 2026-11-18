@@ -42,7 +42,8 @@ import type { StatutContrat, TypeContrat } from '@/lib/data/referentiels-gesteam
  * A. 243-1, en vigueur depuis le 01/04/2018) renvoient la durée de la garantie aux conditions particulières, avec une fin
  * dix ans après la réception, et ne disent rien de la résiliation ; L. 242-1 non plus ; L. 113-12 (en vigueur depuis le
  * 28/05/2026, loi n° 2026-403) laisse la durée et la résiliation à la police, avec dérogation possible pour les risques
- * autres que ceux des particuliers. Souvent sans échéance annuelle : rien à calculer. Le message le dit. Une seule règle
+ * autres que ceux des particuliers. Souvent sans échéance annuelle : rien à calculer. Le message le dit et finit, sans
+ * prénom, par « vérifier la police avec le responsable du dossier » (décision de Hugo du 18/11/2026, J75). Une seule règle
  * pour ce module et pour la limite générique du suivi « à faire » : suivi-a-faire.sansDateDeResiliation (R57, point 1).
  * À préciser avec Hugo : R57, point 3 (« si la police prévoit une échéance et une faculté de résiliation, la saisir comme
  * pour une autre assurance ») contredit R57, point 1 (« ne jamais proposer de date de résiliation pour ce type ») pour un
@@ -421,10 +422,10 @@ function alerteContrat(c: ContratAResilier, aujourdhui: string, anticipationJour
       aAgirLe: aujourdhui,
       aConfirmer: true,
       // J67, R57 : jamais de date de résiliation proposée ; la police fixe la durée et la résiliation. Message de R57,
-      // sans nom de personne (dépôt public, message lu par tout cabinet) : « avant toute résiliation » au lieu du prénom.
+      // sans prénom (décision de Hugo du 18/11/2026, J75) : « vérifier la police avec le responsable du dossier ».
       fondement: 'C. assur. annexe II à l’art. A. 243-1 (point de départ et durée de la garantie) ; C. assur. art. L. 113-12',
       message:
-        "Assurance dommages-ouvrage : garantie jusqu'à dix ans après la réception (clauses types) ; la police fixe la durée et la résiliation (L. 113-12) ; résilier priverait le syndicat de cette garantie : vérifier la police avant toute résiliation.",
+        "Assurance dommages-ouvrage : garantie jusqu'à dix ans après la réception (clauses types) ; la police fixe la durée et la résiliation (L. 113-12) ; résilier priverait le syndicat de cette garantie : vérifier la police avec le responsable du dossier.",
     }
   const f = c.facturation
   if (!f)

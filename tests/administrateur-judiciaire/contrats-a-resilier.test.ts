@@ -233,13 +233,14 @@ describe('autres régimes', () => {
     expect(alertesAResilier([contrat({ type: 'Dommages Ouvrages' })], '2026-09-05')).toMatchObject([{ etat: 'non_resiliable', aConfirmer: true }])
   })
 
-  it('J67, R57 : dommages-ouvrage : jamais de date de résiliation proposée ; message précisé, sans nom de personne ; marque 🔴 remplacée', () => {
+  it('J67, R57 et J75 : dommages-ouvrage : jamais de date de résiliation proposée ; « vérifier la police avec le responsable du dossier », sans prénom', () => {
     for (const facturationSaisie of [facturation(), undefined]) {
       const [alerte] = alertesAResilier([contrat({ type: 'Dommages Ouvrages', facturation: facturationSaisie })], '2026-09-05')
       expect(alerte).toMatchObject({ etat: 'non_resiliable', aConfirmer: true, aAgirLe: '2026-09-05', dateLimite: null, terme: null, prochaineLimite: null })
       expect(alerte.message).toBe(
-        "Assurance dommages-ouvrage : garantie jusqu'à dix ans après la réception (clauses types) ; la police fixe la durée et la résiliation (L. 113-12) ; résilier priverait le syndicat de cette garantie : vérifier la police avant toute résiliation.",
+        "Assurance dommages-ouvrage : garantie jusqu'à dix ans après la réception (clauses types) ; la police fixe la durée et la résiliation (L. 113-12) ; résilier priverait le syndicat de cette garantie : vérifier la police avec le responsable du dossier.",
       )
+      expect(alerte.message).not.toMatch(/Hugo|Frédéric/)
       expect(alerte.fondement).toBe('C. assur. annexe II à l’art. A. 243-1 (point de départ et durée de la garantie) ; C. assur. art. L. 113-12')
     }
     const { texte } = enTeteDuModule('contrats-a-resilier')

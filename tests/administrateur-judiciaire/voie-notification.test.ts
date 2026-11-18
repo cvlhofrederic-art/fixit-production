@@ -3,13 +3,22 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { creerIdentite, type Identite } from '@/lib/administrateur-judiciaire/domain/identites-positions'
 import {
+  JOURS_AVANT_EFFET_RETOUR_VOIE_ELECTRONIQUE,
+  JOURS_AVANT_EFFET_VOIE_POSTALE,
   adresseElectroniqueDeNotification,
+  communicationDeLaRenonciation,
   controlerAvantEnvoiElectronique,
   creerCommunicationAdresseElectronique,
+  creerConsentementVoieElectronique,
   creerDemandeVoiePostale,
+  creerRenonciationVoiePostale,
+  demandesDepuisConsentements,
   effetDemandeVoiePostale,
+  effetRetourVoieElectronique,
   mentionFaculteVoiePostale,
+  motifNotificationAvantRetour,
   voieDeNotification,
+  type RenonciationVoiePostale,
 } from '@/lib/administrateur-judiciaire/domain/voie-notification'
 import { enTeteDuModule } from './en-tete-module'
 
@@ -165,16 +174,24 @@ describe('mention et marqueurs', () => {
     expect(mention.fondement).toBe('D. 1967 art. 64-2, 64-4, 64-9')
   })
 
-  it('J67, R17 : demande d’avant le 25/12/2025, effet à sa réception gardé, motif corrigé (l’ancien art. 64-4 avait déjà huit jours)', () => {
+  it('J67, R17 : demande d’avant le 25/12/2025, effet à sa réception gardé, motif corrigé (l’ancien texte avait déjà huit jours)', () => {
     const ancienne = creerDemandeVoiePostale({ identiteId: 'id-1', recueLe: '2025-06-01', origine: 'courrier' })
     const voie = voieDeNotification({ identiteId: 'id-1', demandes: [ancienne], date: '2026-01-05' })
     expect(voie).toMatchObject({ voie: 'postale', depuis: '2025-06-01', aConfirmer: null })
+    // correction R17 du registre : choix prudent, plus strict que le texte, et non « l'ancienne règle » ; sans prénom
     expect(voie.fondement).toBe(
-      "L. 1965 art. 42-1, al. 2 ; D. 1967 art. 64-1 ; demande reçue avant le 25/12/2025 : effet à sa réception (lecture prudente, plus stricte que l'ancien art. 64-4, qui donnait déjà effet au retrait de l'accord le lendemain du huitième jour suivant sa réception ; décret n° 2025-1292 sans règle transitoire, C. civ. art. 2 ; décision de Hugo du 17/11/2026, J52 ; J67, R17)",
+      "L. 1965 art. 42-1, al. 2 ; D. 1967 art. 64-1 ; demande reçue avant le 25/12/2025 : effet retenu à sa réception, choix prudent, plus strict que le texte : le retrait de l'accord prenait déjà effet le lendemain du huitième jour suivant sa réception (D. 1967 art. 64-4, version du 04/07/2020 au 24/12/2025 ; avant, art. 64-2 : lendemain du huitième jour du 29/06/2019 au 03/07/2020, lendemain de la réception du 24/10/2015 au 28/06/2019) ; décret n° 2025-1292 sans règle transitoire, C. civ. art. 2 ; J52 ; J67, R17",
     )
-    const { texte } = enTeteDuModule('voie-notification')
+    expect(voie.fondement).not.toMatch(/Hugo|ancienne règle/)
+    const source = readFileSync(join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'voie-notification.ts'), 'utf8')
+    expect(source).not.toMatch(/ANCIENNE_REGLE|AncienneRegle/)
+    const { texte, item } = enTeteDuModule('voie-notification')
     expect(texte).not.toContain('ancienne règle : effetDemandeVoiePostale')
     expect(texte).not.toMatch(/Le délai de huit jours de l'art\. 64-4 actuel ne vaut que/)
+    // la phrase sur le délai de huit jours : le texte l'avait déjà pour le retrait de l'accord
+    expect(texte).not.toMatch(/Le code n'applique le délai de huit\s+jours qu'à une demande reçue depuis le 25\/12\/2025/)
+    expect(item('- J52 :')).toMatch(/choix prudent, plus strict que le texte/)
+    expect(item('- J52 :')).toMatch(/29\/06\/2019 au 03\/07\/2020.*24\/10\/2015 au 28\/06\/2019/)
     const ouvert = texte.slice(texte.indexOf('🔴 Non établi'))
     expect(ouvert).not.toContain("accord exprès de l'art. 64-3 de la rédaction de 2020")
     expect(texte).toMatch(/J67, R17 : lecture prudente gardée/)
@@ -186,11 +203,17 @@ describe('mention et marqueurs', () => {
     )
   })
 
-  it('J67, R18 : retour à la voie électronique admis par renonciation, effet à choisir par Hugo (même règle que J59) ; code inchangé, marque gardée', () => {
-    const { texte } = enTeteDuModule('voie-notification')
+  it('J74 : retour à la voie électronique tranché ; la question 🔴 de R18 est retirée, la décision est citée', () => {
+    const { texte, item } = enTeteDuModule('voie-notification')
     const ouvert = texte.slice(texte.indexOf('🔴 Non établi'))
-    expect(ouvert).toMatch(/retour à la voie électronique après une DemandeVoiePostale : J67, R18 l'admet par une renonciation écrite et datée/)
-    expect(ouvert).toMatch(/d'ici là, le code ne change pas/)
+    expect(ouvert).not.toMatch(/retour à la voie électronique après une DemandeVoiePostale/)
+    expect(ouvert).not.toMatch(/d'ici là, le code ne change pas/)
+    const j74 = item('Décision de Hugo du 18/11/2026 (registre des décisions juridiques, J74')
+    expect(j74).toMatch(/RenonciationVoiePostale/)
+    expect(j74).toMatch(/lendemain du huitième jour suivant leur réception/)
+    expect(j74).toMatch(/JOURS_AVANT_EFFET_RETOUR_VOIE_ELECTRONIQUE/)
+    expect(j74).toMatch(/ne vaut pas notification/)
+    expect(j74).toMatch(/à faire après #741/)
   })
 
   it('l’en-tête date la vérification du texte et garde ses points ouverts', () => {
@@ -198,5 +221,156 @@ describe('mention et marqueurs', () => {
     expect(source).toMatch(/Légifrance le 28\/10\/2026/)
     expect(source).toMatch(/🔵/)
     expect(source).toMatch(/🔴/)
+  })
+})
+
+// ─── J74 : retour à la voie électronique (décision de Hugo du 18/11/2026 ; R18) ─────────────────────────────────
+
+describe('J74 — renonciation à la voie postale (R18) : écrite, datée, reçue par un moyen qui prouve sa date, avec une adresse', () => {
+  const saisie = {
+    identiteId: ' id-1 ',
+    dateeLe: '2026-02-28',
+    recueLe: '2026-03-02',
+    justificatif: ' Avis de réception n° 1A 234 ',
+    adresseElectronique: ' claire@example.org ',
+  }
+
+  it('enregistrée nettoyée ; chaque condition manquante est refusée avec son motif', () => {
+    expect(creerRenonciationVoiePostale(saisie)).toEqual({
+      identiteId: 'id-1',
+      dateeLe: '2026-02-28',
+      recueLe: '2026-03-02',
+      justificatif: 'Avis de réception n° 1A 234',
+      adresseElectronique: 'claire@example.org',
+    })
+    expect(() => creerRenonciationVoiePostale({ ...saisie, identiteId: ' ' })).toThrow(/identité attendue/)
+    expect(() => creerRenonciationVoiePostale({ ...saisie, dateeLe: '28/02/2026' })).toThrow(/date de l'écrit invalide.*AAAA-MM-JJ/i)
+    expect(() => creerRenonciationVoiePostale({ ...saisie, recueLe: '2026-02-30' })).toThrow(/date de réception invalide.*AAAA-MM-JJ/i)
+    expect(() => creerRenonciationVoiePostale({ ...saisie, dateeLe: '2026-03-03' })).toThrow(/écrit daté du 03\/03\/2026, après sa réception le 02\/03\/2026/)
+    expect(() => creerRenonciationVoiePostale({ ...saisie, justificatif: ' ' })).toThrow(/établir avec certitude sa date de réception.*J74/)
+    expect(() => creerRenonciationVoiePostale({ ...saisie, adresseElectronique: 'claire.example.org' })).toThrow(/adresse électronique.*art\. 65/)
+  })
+
+  it('son adresse électronique vaut adresse de notification communiquée à cet effet, à sa réception (D. 1967 art. 65)', () => {
+    expect(communicationDeLaRenonciation(creerRenonciationVoiePostale(saisie))).toEqual({
+      identiteId: 'id-1',
+      adresse: 'claire@example.org',
+      communiqueeLe: '2026-03-02',
+    })
+  })
+})
+
+describe('J74 — effet du retour à la voie électronique : le lendemain du huitième jour suivant la réception', () => {
+  it('même paramètre que la demande de voie postale (D. 1967 art. 64-4) ; date d’effet et justification', () => {
+    expect(JOURS_AVANT_EFFET_RETOUR_VOIE_ELECTRONIQUE).toBe(JOURS_AVANT_EFFET_VOIE_POSTALE)
+    expect(effetRetourVoieElectronique({ nature: 'renonciation', recueLe: '2026-03-02' })).toEqual({
+      nature: 'renonciation',
+      recueLe: '2026-03-02',
+      effet: '2026-03-11',
+      justification:
+        'Renonciation à la voie postale reçue le 02/03/2026 : effet le 11/03/2026, lendemain du 8e jour suivant sa réception (D. 1967 art. 64-4, même règle que la demande de voie postale ; J74).',
+    })
+    const accord = effetRetourVoieElectronique({ nature: 'accord', recueLe: '2025-12-26' })
+    expect(accord.effet).toBe('2026-01-04')
+    expect(accord.justification).toMatch(/^Accord à la voie électronique, donné après un refus, reçu le 26\/12\/2025 : effet le 04\/01\/2026, lendemain du 8e jour/)
+    // la durée est un paramètre : une autre valeur se passe à la fonction, rien n'est écrit en dur
+    expect(effetRetourVoieElectronique({ nature: 'renonciation', recueLe: '2026-03-02' }, 4)).toMatchObject({ effet: '2026-03-06' })
+    expect(effetRetourVoieElectronique({ nature: 'renonciation', recueLe: '2026-03-02' }, 4).justification).toContain('lendemain du 3e jour')
+    expect(() => effetRetourVoieElectronique({ nature: 'renonciation', recueLe: '02/03/2026' })).toThrow(/AAAA-MM-JJ/)
+    expect(() => effetRetourVoieElectronique({ nature: 'renonciation', recueLe: '2026-03-02' }, 0)).toThrow(/entier strictement positif/)
+  })
+})
+
+describe('J74 — voie de notification après une renonciation : postale jusqu’à son effet', () => {
+  const demande = creerDemandeVoiePostale({ identiteId: 'id-1', recueLe: '2026-02-01', origine: 'courrier' })
+  const renonciation = (surcharge: Partial<RenonciationVoiePostale> = {}): RenonciationVoiePostale =>
+    creerRenonciationVoiePostale({
+      identiteId: 'id-1',
+      dateeLe: '2026-02-28',
+      recueLe: '2026-03-02',
+      justificatif: 'Avis de réception n° 1A 234',
+      adresseElectronique: 'claire@example.org',
+      ...surcharge,
+    })
+
+  it('avant l’effet : voie postale, retour en attente ; une notification électronique envoyée avant ne vaut pas notification', () => {
+    const avant = voieDeNotification({ identiteId: 'id-1', demandes: [demande], renonciations: [renonciation()], date: '2026-03-10' })
+    expect(avant).toMatchObject({ voie: 'postale', depuis: '2026-02-10', retour: { nature: 'renonciation', recueLe: '2026-03-02', effet: '2026-03-11' } })
+    expect(avant.retour === null ? '' : motifNotificationAvantRetour(avant.retour, '2026-03-10')).toBe(
+      'Retour à la voie électronique pas encore en vigueur : Renonciation à la voie postale reçue le 02/03/2026 : effet le 11/03/2026, lendemain du 8e jour suivant sa réception (D. 1967 art. 64-4, même règle que la demande de voie postale ; J74). La notification électronique du 10/03/2026, envoyée avant cette date, ne vaut pas notification et ne fait courir aucun délai : la refaire par lettre recommandée avec avis de réception (D. 1967 art. 64-1 ; J74).',
+    )
+    // le jour même de la réception aussi
+    expect(voieDeNotification({ identiteId: 'id-1', demandes: [demande], renonciations: [renonciation()], date: '2026-03-02' }).voie).toBe('postale')
+  })
+
+  it('à l’effet : voie électronique, avec le retour qui l’a rétablie ; sans renonciation : voie postale, aucun retour', () => {
+    const apres = voieDeNotification({ identiteId: 'id-1', demandes: [demande], renonciations: [renonciation()], date: '2026-03-11' })
+    expect(apres).toMatchObject({ voie: 'electronique', depuis: null, aConfirmer: null, retour: { nature: 'renonciation', effet: '2026-03-11' } })
+    expect(apres.fondement).toBe('L. 1965 art. 42-1 ; D. 1967 art. 64, 64-4 ; renonciation à la voie postale (J74)')
+    expect(voieDeNotification({ identiteId: 'id-1', demandes: [demande], date: '2026-03-11' })).toMatchObject({ voie: 'postale', retour: null })
+    expect(voieDeNotification({ identiteId: 'id-1', demandes: [], date: '2026-03-11' })).toMatchObject({ voie: 'electronique', retour: null })
+  })
+
+  it('elle ne lève que les demandes reçues avant elle : une demande plus récente l’emporte ; même jour : la demande demeure (🔵)', () => {
+    const nouvelle = creerDemandeVoiePostale({ identiteId: 'id-1', recueLe: '2026-04-01', origine: 'extranet' })
+    expect(voieDeNotification({ identiteId: 'id-1', demandes: [demande, nouvelle], renonciations: [renonciation()], date: '2026-04-15' })).toMatchObject({
+      voie: 'postale',
+      depuis: '2026-04-10',
+      retour: null,
+    })
+    // entre son effet et celui de la nouvelle demande : voie électronique
+    expect(voieDeNotification({ identiteId: 'id-1', demandes: [demande, nouvelle], renonciations: [renonciation()], date: '2026-04-05' }).voie).toBe('electronique')
+    const memeJour = renonciation({ dateeLe: '2026-02-01', recueLe: '2026-02-01' })
+    expect(voieDeNotification({ identiteId: 'id-1', demandes: [demande], renonciations: [memeJour], date: '2026-03-15' })).toMatchObject({ voie: 'postale', retour: null })
+    // celle d'une autre identité ne compte pas
+    expect(voieDeNotification({ identiteId: 'id-1', demandes: [demande], renonciations: [renonciation({ identiteId: 'id-2' })], date: '2026-03-15' }).voie).toBe('postale')
+  })
+
+  it('demande reçue avant le 25/12/2025 (effet à sa réception, J52) levée par une renonciation reçue depuis : même effet', () => {
+    const ancienne = creerDemandeVoiePostale({ identiteId: 'id-1', recueLe: '2025-06-01', origine: 'courrier' })
+    const r = renonciation({ dateeLe: '2026-01-02', recueLe: '2026-01-05' })
+    expect(voieDeNotification({ identiteId: 'id-1', demandes: [ancienne], renonciations: [r], date: '2026-01-13' })).toMatchObject({
+      voie: 'postale',
+      depuis: '2025-06-01',
+      retour: { effet: '2026-01-14' },
+    })
+    expect(voieDeNotification({ identiteId: 'id-1', demandes: [ancienne], renonciations: [r], date: '2026-01-14' }).voie).toBe('electronique')
+  })
+
+  it('renonciation incomplète, telle qu’une base ou une reprise peut la porter : écartée, la voie postale demeure (lecture prudente)', () => {
+    const complete = { identiteId: 'id-1', dateeLe: '2026-02-28', recueLe: '2026-03-02', justificatif: 'AR', adresseElectronique: 'claire@example.org' }
+    for (const defaut of [{ recueLe: '2026-02-30' }, { dateeLe: '' }, { dateeLe: '2026-03-05' }, { justificatif: ' ' }, { adresseElectronique: 'claire' }]) {
+      const brute: RenonciationVoiePostale = { ...complete, ...defaut }
+      expect(voieDeNotification({ identiteId: 'id-1', demandes: [demande], renonciations: [brute], date: '2026-04-15' }), JSON.stringify(defaut)).toMatchObject({
+        voie: 'postale',
+        retour: null,
+      })
+    }
+  })
+})
+
+describe('J74 — accord donné après un refus (J59) : effet le lendemain du huitième jour suivant sa réception (avant : dès sa réception)', () => {
+  const refus = creerConsentementVoieElectronique({ identiteId: 'id-1', sens: 'refus', recuLe: '2025-12-20' })
+  const accord = creerConsentementVoieElectronique({ identiteId: 'id-1', sens: 'accord', recuLe: '2025-12-26' })
+
+  it('avant son effet : le refus reste une demande de voie postale, avec l’accord en attente ; la voie reste postale', () => {
+    const demandes = demandesDepuisConsentements([refus, accord], '2026-01-03')
+    expect(demandes).toEqual([
+      { identiteId: 'id-1', recueLe: '2025-12-20', origine: 'autre', agId: null, retourEnAttente: effetRetourVoieElectronique({ nature: 'accord', recueLe: '2025-12-26' }) },
+    ])
+    const voie = voieDeNotification({ identiteId: 'id-1', demandes, date: '2026-01-03' })
+    expect(voie).toMatchObject({ voie: 'postale', depuis: '2025-12-20', retour: { nature: 'accord', effet: '2026-01-04' } })
+    // le jour de sa réception : de même
+    expect(demandesDepuisConsentements([refus, accord], '2025-12-26')).toHaveLength(1)
+  })
+
+  it('à son effet : le refus n’est plus une demande (J59 inchangé sur le fond)', () => {
+    expect(demandesDepuisConsentements([refus, accord], '2026-01-04')).toEqual([])
+    expect(voieDeNotification({ identiteId: 'id-1', demandes: demandesDepuisConsentements([refus, accord], '2026-01-04'), date: '2026-01-04' }).voie).toBe('electronique')
+  })
+
+  it('un refus reçu après l’accord reste le dernier état : demande sans retour en attente', () => {
+    const second = creerConsentementVoieElectronique({ identiteId: 'id-1', sens: 'refus', recuLe: '2025-12-28' })
+    expect(demandesDepuisConsentements([refus, accord, second], '2026-01-10')).toEqual([{ identiteId: 'id-1', recueLe: '2025-12-28', origine: 'autre', agId: null }])
   })
 })

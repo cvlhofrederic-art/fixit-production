@@ -135,8 +135,10 @@ describe('J52 — demande, refus ou retrait reçu avant le 25/12/2025 : effet d�
   it('voie de notification après le 25/12/2025 : postale depuis la réception d’une demande reçue avant, fondement de J52', () => {
     const voie = voieDeNotification({ identiteId: 'id-1', demandes: [demandePostale(d(2025, 12, 20))], date: d(2025, 12, 27) })
     expect(voie).toMatchObject({ voie: 'postale', depuis: d(2025, 12, 20), aConfirmer: null })
-    expect(voie.fondement).toContain('décision de Hugo du 17/11/2026, J52')
-    expect(voie.fondement).toContain('effet à sa réception')
+    // motif corrigé (correction R17 du registre) : J52 cité, sans prénom dans le texte affiché
+    expect(voie.fondement).toContain('; J52 ;')
+    expect(voie.fondement).toContain('effet retenu à sa réception, choix prudent, plus strict que le texte')
+    expect(voie.fondement).not.toContain('Hugo')
     // demande reçue depuis le 25/12/2025 : fondement inchangé
     expect(voieDeNotification({ identiteId: 'id-1', demandes: [demandePostale(d(2026, 10, 1))], date: d(2026, 10, 29) }).fondement).toBe(
       'L. 1965 art. 42-1 ; D. 1967 art. 64-1, 64-4',
@@ -176,8 +178,13 @@ describe('J52 — demande, refus ou retrait reçu avant le 25/12/2025 : effet d�
     }
   })
 
-  it('inchangé (J50, lecture du code) : un refus d’avant le 25/12/2025 suivi d’un accord reçu avant l’envoi n’est plus une demande', () => {
-    expect(lreDu(d(2025, 12, 27), { consentements: [consent('refus', d(2025, 12, 20)), consent('accord', d(2025, 12, 26))] })).toMatchObject({ etat: 'calcule' })
+  // décision de Hugo du 18/11/2026 (J74) : l'accord donné après un refus prend effet le lendemain du huitième jour suivant
+  // sa réception (avant : dès sa réception, ce que ce test figeait)
+  it('J74 : un refus d’avant le 25/12/2025 suivi d’un accord n’est plus une demande qu’à l’effet de l’accord (réception + 9 jours)', () => {
+    const consentements = [consent('refus', d(2025, 12, 20)), consent('accord', d(2025, 12, 26))]
+    expect(lreDu(d(2025, 12, 27), { consentements })).toMatchObject({ etat: 'refuse', cause: 'voie_postale_demandee' })
+    expect(lreDu(d(2026, 1, 3), { consentements })).toMatchObject({ etat: 'refuse', cause: 'voie_postale_demandee' })
+    expect(lreDu(d(2026, 1, 4), { consentements })).toMatchObject({ etat: 'calcule' })
   })
 
   it('J51 : la fin du délai est inconnue, l’OS des travaux votés à l’art. 25 est bloqué, le message dit de notifier par LRAR', () => {

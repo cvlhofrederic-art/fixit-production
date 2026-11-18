@@ -120,13 +120,12 @@ import {
  * - J67, R12 : syndic désigné par le président du tribunal (D. 1967 art. 46) : honoraires de travaux votés selon l'art.
  *   18-1 A, III ; administration provisoire renforcée : hors barème, rémunération arrêtée par le juge (arrêté du 8
  *   octobre 2015, art. 11, dernier al., et 14 ; D. 1967 art. 61-1-5, I et III) ; les deux cadres ne sont plus « à
- *   confirmer ». L'administrateur provisoire de l'art. 47 garde le cadre « non établi » des honoraires de travaux, et
- *   tout honoraire voté sous ce cadre reste signalé ;
+ *   confirmer ». Pour l'administrateur provisoire de l'art. 47, R12 gardait le cadre « non établi » : J73 (ci-dessous)
+ *   le remplace ; tout honoraire voté sous ce cadre reste signalé ;
  * - J67, R1 (lot des honoraires : decisions-annuelles-ag.ts, honoraires-sinistre.ts, honoraires-facturation.ts) : la
  *   rémunération de l'administrateur provisoire de l'art. 47 est fixée par le président du tribunal judiciaire qui l'a
- *   désigné, sur justification des diligences (C. com. R. 814-27 ; provision possible, R. 814-28). CADRE_AP47 le dit
- *   dans son motif et ses fondements ; il reste « à confirmer », arreteParLeJuge faux, en attendant Hugo (question
- *   ci-dessous) ;
+ *   désigné, sur justification des diligences (C. com. R. 814-27 ; provision possible, R. 814-28) ; R1 et R12 se
+ *   contredisaient pour ce cadre : J73 (ci-dessous) les départage ;
  * - J67, R13 : sous le cadre du syndic, un barème voté à taux unique, ou dont un palier monte avec le montant, donne
  *   l'alerte « taux non dégressif » (art. 18-1 A, III : « à un taux dégressif selon l'importance des travaux »), jamais un
  *   blocage ; barème non saisi : non contrôlé (ResolutionHonorairesTravaux.paliers) ;
@@ -152,6 +151,16 @@ import {
  * - J67, R81 : part du fonds affectée par la décision de l'administrateur provisoire : il lui faut les pouvoirs de
  *   l'assemblée (travaux-operations.ts) ; aucun, ou étendue non saisie : emploi refusé et part bloquante ; une partie :
  *   alerte « à vérifier dans l'ordonnance ».
+ *
+ * Décision de Hugo du 18/11/2026 (registre des décisions juridiques, J73 ; question Q6, conflit R1 / R12 ; C. com.
+ * R. 814-27, en vigueur depuis le 25/05/2008, lu le 18/11/2026) : R1 l'emporte sur R12. La rémunération de
+ * l'administrateur provisoire de l'art. 47 est fixée, sur justification de l'accomplissement de la mission, par le
+ * président de la juridiction qui l'a désigné (C. com. R. 814-27 ; recours : CPC art. 714 à 718), comme pour les
+ * honoraires de sinistre (honoraires-sinistre.ts, cadre « rémunération fixée par le président »). CADRE_AP47 passe du
+ * cadre « non établi » au cadre fixe_par_le_president, arreteParLeJuge vrai, plus « à confirmer » : le poste « Honoraires
+ * cabinet » est une prévision à soumettre au président, jamais un élément à facturer au syndicat, et tout honoraire voté
+ * par l'assemblée reste signalé, avec le motif de l'art. 47 (MOTIF_VOTE_SOUS_LE_JUGE) et non celui de l'art. 29-1. Le
+ * cadre « non établi » ne sert plus qu'au régime inconnu (CADRE_REGIME_INCONNU).
  *
  * Règles :
  * - budget de l'opération en quatre postes (Travaux, Dommages-ouvrage, Honoraires cabinet, Honoraires presta.) : montant
@@ -195,7 +204,8 @@ import {
  *   par opération (J39 : droitProportionnelTravauxAdministrateurProvisoire pour une opération,
  *   droitsProportionnelsTravauxParOperation pour plusieurs), sur les travaux seuls, hors taxes (J55 :
  *   assietteDroitProportionnelTravaux), et présentée au juge opération par opération
- *   (compteProvisoireDroitsProportionnelsTravaux) ;
+ *   (compteProvisoireDroitsProportionnelsTravaux) ; sous l'art. 47, une prévision soumise au président de la juridiction
+ *   qui a désigné le cabinet (J73), sans barème ;
  * - le budget contrôlé est celui de l'opération (même n°, même syndicat, D1), au suivi comme au contrôle des honoraires ;
  *   la date de l'assemblée qui vote les honoraires est une date ISO valide.
  *
@@ -228,7 +238,8 @@ import {
  *   aussi se fait opération par opération) ; le total des droits de l'art. 11 des opérations est rapproché du seuil de
  *   l'art. 15 (75 000 euros), sans les droits des art. 12 et 13, que ce module ne connaît pas : un dépassement est
  *   certain, son absence ne l'est pas ;
- * - la rémunération de l'administrateur provisoire ne se vote pas : des honoraires votés sous ce régime sont signalés.
+ * - la rémunération de l'administrateur provisoire ne se vote pas : des honoraires votés sous ce régime sont signalés
+ *   (art. 29-1 et, depuis J73, art. 47).
  *
  * 🔴 Non établi (questions pour Frédéric ou Hugo) :
  * - « La ligne "Fonds de prévoyance" de l'onglet Budget porte-t-elle la part financée par le fonds de travaux (art.
@@ -250,11 +261,7 @@ import {
  * - « (Hugo) Une même opération fournie deux fois au calcul de plusieurs opérations
  *   (droitsProportionnelsTravauxParOperation, même numéro) est-elle refusée, ou ses montants s'additionnent-ils avant un
  *   seul calcul par tranches ? » (VitFix : refusée, choix de VitFix à confirmer : J39 ne le dit pas ; deux calculs pour
- *   une même opération feraient repartir le barème de sa première tranche) ;
- * - « Faut-il ranger l'administrateur provisoire de l'art. 47 sous le cadre « fixé par le juge » (arreteParLeJuge) ? »
- *   (VitFix : J67, R1 tranche sa rémunération, fixée par le président du tribunal qui l'a désigné, C. com. R. 814-27, et
- *   le motif de CADRE_AP47 le dit ; J67, R12 garde le cadre « non établi » des honoraires de travaux et le signalement de
- *   tout honoraire voté : cadre non établi, à confirmer, arreteParLeJuge faux, en attendant Hugo).
+ *   une même opération feraient repartir le barème de sa première tranche).
  * Ajouts hors de ce module : travaux-operations.ts (ajout du point 31) — champ facultatif nePasUtiliserFondsTravaux de
  * SaisieOperationTravaux, refus d'une part du fonds quand il est coché (verifierPartFondsSaisie), export
  * affectationFondsDeLOperation, extrait de controlerPartFonds et d'emploisFondsTravauxDesTranches (comportement
@@ -1328,6 +1335,7 @@ export const CADRES_HONORAIRES_TRAVAUX = [
   'vote_avec_les_travaux',
   'droit_proportionnel_administrateur_provisoire',
   'fixe_par_le_juge',
+  'fixe_par_le_president',
   'non_etabli',
 ] as const
 export type CodeCadreHonorairesTravaux = (typeof CADRES_HONORAIRES_TRAVAUX)[number]
@@ -1336,7 +1344,10 @@ export interface CadreHonorairesTravaux {
   cadre: CodeCadreHonorairesTravaux
   fondements: readonly string[]
   motif: string
-  /** La rémunération est arrêtée par le président du tribunal judiciaire (D. 1967 art. 61-1-5, II et III). */
+  /**
+   * La rémunération est arrêtée par le président du tribunal judiciaire (art. 29-1 : D. 1967 art. 61-1-5, II et III ;
+   * art. 47 : président de la juridiction qui a désigné le cabinet, C. com. R. 814-27, J73).
+   */
   arreteParLeJuge: boolean
   aConfirmer: boolean
 }
@@ -1364,14 +1375,18 @@ const CADRE_SYNDIC_JUDICIAIRE: CadreHonorairesTravaux = {
   aConfirmer: false,
 }
 
+/**
+ * J73 (R1 l'emporte sur R12) : rémunération de l'administrateur provisoire de l'art. 47 fixée par le président de la
+ * juridiction qui l'a désigné, sur justification de l'accomplissement de la mission (C. com. R. 814-27 ; recours : CPC
+ * art. 714 à 718) ; le barème de l'art. 61-1-5 ne vise que l'administrateur provisoire de l'art. 29-1.
+ */
 const CADRE_AP47: CadreHonorairesTravaux = {
-  cadre: 'non_etabli',
-  fondements: ['D. 1967 art. 47', 'C. com. R. 814-27'],
+  cadre: 'fixe_par_le_president',
+  fondements: ['D. 1967 art. 47', 'C. com. R. 814-27', 'CPC art. 714 à 718'],
   motif:
-    "Administrateur provisoire désigné faute de syndic (D. 1967 art. 47) : rémunération fixée par le président du tribunal judiciaire qui l'a désigné, sur justification des diligences (C. com. R. 814-27 ; J67, R1) ; cadre des honoraires de travaux non établi : le tarif de l'art. 61-1-5 vise l'administrateur provisoire de l'art. 29-1 (J67, R12).",
-  // J67, R1 et R12 : cadre gardé « non établi » et à confirmer, arreteParLeJuge faux, en attendant Hugo (en-tête, 🔴).
-  arreteParLeJuge: false,
-  aConfirmer: true,
+    "Administrateur provisoire désigné faute de syndic (D. 1967 art. 47) : rémunération fixée par le président de la juridiction qui l'a désigné, sur justification de l'accomplissement de la mission (C. com. R. 814-27 ; recours : CPC art. 714 à 718 ; J73) ; le barème de l'art. 61-1-5 ne vise que l'administrateur provisoire de l'art. 29-1.",
+  arreteParLeJuge: true,
+  aConfirmer: false,
 }
 
 const CADRE_AP_TARIF: CadreHonorairesTravaux = {
@@ -1889,7 +1904,17 @@ function controlerVoteHonoraires(
   return anomalies
 }
 
-/** Administrateur provisoire : le poste est une prévision ; un vote d'honoraires est signalé. */
+/**
+ * Ce que suit la rémunération que l'assemblée a votée à tort : art. 29-1 (décret et juge), ou art. 47 (président de la
+ * juridiction qui a désigné le cabinet, J73).
+ */
+const MOTIF_VOTE_SOUS_LE_JUGE: Readonly<Record<'art_29_1' | 'art_47', string>> = {
+  art_29_1: "la rémunération de l'administrateur provisoire suit le décret et la décision du juge (L. 1965 art. 29-1, II)",
+  art_47:
+    "la rémunération de l'administrateur provisoire désigné faute de syndic est fixée par le président de la juridiction qui l'a désigné (C. com. R. 814-27 ; J73)",
+}
+
+/** Administrateur provisoire (art. 29-1 ou, J73, art. 47) : le poste est une prévision ; un vote d'honoraires est signalé. */
 function anomaliesSousLeJuge(cadre: CadreHonorairesTravaux, honoraires: number, resolution: ResolutionHonorairesTravaux | null): AnomalieBudgetTravaux[] {
   const fondement = cadre.fondements.join(' ; ')
   const anomalies: AnomalieBudgetTravaux[] = []
@@ -1908,7 +1933,7 @@ function anomaliesSousLeJuge(cadre: CadreHonorairesTravaux, honoraires: number, 
       anomalie(
         'honoraires_votes_sous_administration_provisoire',
         'avertissement',
-        `${resolution.resolution} : honoraires votés par l'assemblée, alors que la rémunération de l'administrateur provisoire suit le décret et la décision du juge (L. 1965 art. 29-1, II), pas un vote de l'art. 18-1 A, III.`,
+        `${resolution.resolution} : honoraires votés par l'assemblée, alors que ${MOTIF_VOTE_SOUS_LE_JUGE[cadre.cadre === 'fixe_par_le_president' ? 'art_47' : 'art_29_1']}, pas un vote de l'art. 18-1 A, III.`,
         fondement,
         cadre.aConfirmer,
       ),
@@ -1918,7 +1943,8 @@ function anomaliesSousLeJuge(cadre: CadreHonorairesTravaux, honoraires: number, 
 
 /**
  * Contrôle du poste « Honoraires cabinet » selon le cadre (cadreHonorairesTravaux) : vote de l'art. 18-1 A, III ;
- * prévision soumise au juge sous administration provisoire ; cadre non établi. Aucun contrôle sans honoraires ni vote.
+ * prévision soumise au juge sous administration provisoire (art. 29-1 ; art. 47, J73) ; cadre non établi (régime
+ * inconnu). Aucun contrôle sans honoraires ni vote.
  */
 export function controlerHonorairesTravaux(
   operation: OperationTravaux,

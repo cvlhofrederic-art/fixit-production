@@ -129,19 +129,25 @@ export { SEUIL_LOTS_REMUNERATION_PAR_LE_JUGE }
  *   par l'assemblée). Si le cadre du contrat type sert un jour (question F6, Frédéric) : les copies afférentes à l'une
  *   des quatre diligences hors forfait sont comprises dans la rémunération de la prestation particulière, et seul
  *   l'envoi est remboursé à part (7.2.1) ; anomalieDeReprographie devra alors les signaler et le solde les écarter.
- *   Hors contrat type, une copie est un frais (question des frais d'envoi ci-dessous).
+ *   Hors contrat type, une copie est un frais (J72, b, ci-dessous).
+ *
+ * Décision de Hugo du 18/11/2026 (registre des décisions juridiques, J72 ; question Q5, conflit R5 / R6) :
+ * - J72 (décision de Hugo du 18/11/2026) : frais d'envoi. (b) Les envois du cabinet pour un dossier sinistre (timbre,
+ *   AR, copie, envois, diffuseurs) sont des frais du cabinet, à part de sa rémunération, présentés au juge en annexe
+ *   « frais et débours » et payés seulement en vertu de son ordonnance (C. com. R. 814-27 ; R5) : hors contrat type,
+ *   chaque frais du dossier Sinistre est signalé « à présenter au juge » (anomalie frais_a_presenter_au_juge, avec la
+ *   source propre au cadre : D. 1967 art. 61-1-5, II et III sous 500 lots ; arrêté du 8 octobre 2015, art. 3 à 500 lots
+ *   et plus ; C. com. R. 814-27 pour la rémunération fixée par le président ; régime à vérifier s'il est inconnu), jamais
+ *   facturé au syndicat sans l'ordonnance (preparerFacture, J67, R3) ; le solde les garde à part (fraisTtcCentimes). Au
+ *   contrat type de syndic, ils restent remboursés au syndic (7.1.5 et 7.2.1) et ne sont pas signalés. (a) La mise en
+ *   demeure et les relances d'un copropriétaire en retard sont une dépense du syndicat, imputée au seul copropriétaire
+ *   concerné (L. 1965 art. 10-1, a ; R6) : hors des sinistres, traitée dans etapes-courrier.ts. Une seule règle pour les
+ *   deux modules.
  *
  * Questions ouvertes :
  * - 🔴 (Frédéric) En administration provisoire (art. 29-1), comment le cabinet chiffre-t-il les actes hors tarif de
  *   l'art. 14 de l'arrêté (sinistres, recouvrement, mutation, réunions d'information) : temps passé × un taux horaire du
  *   cabinet, présenté au juge dans le compte provisoire détaillé des émoluments ? Aucun texte ne fixe le mode de calcul.
- * - 🔴 (Hugo) En administration provisoire de moins de 500 lots, et pour un mandat au cadre « rémunération fixée par le
- *   président », les frais d'envoi d'un dossier sinistre (timbre, AR) : J67 valide deux recommandations qui ne les
- *   traitent pas de la même façon. R5 : frais avancé par le cabinet, présenté au juge en annexe « frais et débours » et
- *   payé en vertu de son ordonnance (chaque frais signalé « à présenter au juge »). R6 : dépense du syndicat, payée sur
- *   son compte avec la pièce du prestataire postal, puis imputée au copropriétaire concerné. Une seule règle est à
- *   choisir pour les deux modules. Les deux s'accordent sur un point : aucun remboursement à part au cabinet, aucune
- *   facture au syndicat sans ordonnance (preparerFacture, J67, R3). Choix actuel : seule l'absence de fiche est signalée.
  * - 🔴 (Frédéric) Le cabinet gère-t-il dans VitFix des mandats de syndic conventionnels (seul cas où l'élément est créé) ?
  *   Question F6 ; pour le cabinet, C. com. L. 811-10 (J67, R14 et R15).
  * - 🔴 (Frédéric ou Hugo) Quel arrondi pour taux horaire × durée ? Choix actuel : durée en minutes exactes, heures au
@@ -545,6 +551,7 @@ export type NatureAnomalieHonorairesSinistre =
   | 'remuneration_fixee_par_le_juge'
   | 'remuneration_fixee_par_le_president'
   | 'regime_inconnu'
+  | 'frais_a_presenter_au_juge'
 
 export interface AnomalieHonorairesSinistre {
   elementId: string
@@ -622,19 +629,39 @@ const anomalieSansFiche = (element: ElementAFacturer): AnomalieHonorairesSinistr
     ? null
     : { elementId: element.id, nature: 'sans_fiche', message: 'Élément du dossier Sinistre sans fiche : rattacher le sinistre précis (point 47).' }
 
+/** J72 (b) : ce qui fonde la présentation des frais au juge, selon le cadre (hors contrat type). */
+const SOURCE_FRAIS_SELON_LE_CADRE: Readonly<Record<CadreSansElement, string>> = {
+  tarif_administrateur_provisoire: "administration provisoire de l'art. 29-1 : D. 1967 art. 61-1-5, II et III",
+  remuneration_fixee_par_le_juge: `${SEUIL_LOTS_REMUNERATION_PAR_LE_JUGE} lots et plus : le juge tient compte des frais engagés, ${SOURCE_REMUNERATION_PAR_LE_JUGE}`,
+  remuneration_fixee_par_le_president: 'rémunération fixée par le président qui a désigné le cabinet : C. com. R. 814-27',
+  regime_inconnu: 'régime du mandat à vérifier sur son fondement ; C. com. R. 814-27 ou D. 1967 art. 61-1-5',
+}
+
+/**
+ * J72 (b) : hors contrat type, un frais d'envoi du dossier Sinistre est un frais du cabinet, à présenter au juge en annexe
+ * « frais et débours », payé seulement en vertu de son ordonnance ; au contrat type, remboursé au syndic (7.1.5, 7.2.1).
+ */
+function anomalieDeFrais(element: ElementAFacturer, cadre: CadreRemunerationSinistre): AnomalieHonorairesSinistre | null {
+  if (cadre === 'contrat_type_syndic') return null
+  return {
+    elementId: element.id,
+    nature: 'frais_a_presenter_au_juge',
+    message:
+      `Tarif « ${element.tarif} » (${element.nature}) : frais du cabinet, à part de sa rémunération ; à présenter au juge en annexe ` +
+      `« frais et débours », payés seulement en vertu de son ordonnance (${SOURCE_FRAIS_SELON_LE_CADRE[cadre]} ; J72, b) ; pas à facturer au syndicat.`,
+  }
+}
+
 /**
  * Anomalies d'un élément. Offert ou contrôle des coûts (point 67) : la fiche seule, c'est la trace voulue. Rémunération :
  * fiche, diligence, puis cadre, sauf pour une diligence non due (elle n'est pas un acte hors tarif). Frais : la fiche,
- * puis à 500 lots et plus le cadre (le juge tient compte des frais engagés), au contrat type la reprographie d'une
- * diligence au forfait (7.1.1, al. 2).
+ * puis, hors contrat type, la présentation au juge (J72, b), au contrat type la reprographie d'une diligence au forfait
+ * (7.1.1, al. 2).
  */
 function anomaliesDeLElement(element: ElementAFacturer, cadre: CadreRemunerationSinistre): (AnomalieHonorairesSinistre | null)[] {
   if (!estFacturable(element)) return [anomalieSansFiche(element)]
   if (!estRemuneration(element))
-    return [
-      anomalieSansFiche(element),
-      cadre === 'remuneration_fixee_par_le_juge' ? anomalieDeCadre(element, cadre) : anomalieDeReprographie(element, cadre),
-    ]
+    return [anomalieSansFiche(element), cadre === 'contrat_type_syndic' ? anomalieDeReprographie(element, cadre) : anomalieDeFrais(element, cadre)]
   const diligence = anomalieDeDiligence(element, cadre)
   const duCadre = diligence?.nature === 'diligence_au_forfait' ? null : anomalieDeCadre(element, cadre)
   return [anomalieSansFiche(element), diligence, duCadre]

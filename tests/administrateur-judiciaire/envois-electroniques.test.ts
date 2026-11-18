@@ -22,6 +22,7 @@ import {
   type EnvoiNotificationElectronique,
   type EnvoiSignatureElectronique,
 } from '@/lib/administrateur-judiciaire/domain/envois-electroniques'
+import { effetRetourVoieElectronique } from '@/lib/administrateur-judiciaire/domain/voie-notification'
 import { STATUT_COURRIER } from '@/lib/data/referentiels-gesteam-judiciaire'
 import { enTeteDuModule } from './en-tete-module'
 
@@ -185,6 +186,16 @@ describe('création d’un envoi de notification électronique (lien avec le cou
     expect(notification({ voieDestinataire: { voie: null, depuis: null } }).statut).toBe('Préparation')
     // Un courriel simple n'est pas une notification : la demande de voie postale ne l'empêche pas.
     expect(notification({ courrier: { id: 'C3', formeEnvoi: 'Email' }, voieDestinataire }).modeNotification).toBeNull()
+  })
+
+  it('J74 : retour à la voie électronique reçu, pas encore en vigueur : refus, avec la date d’effet et sa justification', () => {
+    const retour = effetRetourVoieElectronique({ nature: 'renonciation', recueLe: '2026-11-12' })
+    const voieDestinataire = { voie: 'postale', depuis: '2026-10-10', retour } as const
+    expect(() => notification({ voieDestinataire })).toThrow(
+      /demande de voie postale en vigueur depuis le 10\/10\/2026.*64-1, 64-4\)\. Retour à la voie électronique pas encore en vigueur : Renonciation à la voie postale reçue le 12\/11\/2026 : effet le 21\/11\/2026.*J74\)\.$/,
+    )
+    // voie électronique rétablie : l'envoi est admis
+    expect(notification({ voieDestinataire: { voie: 'electronique', depuis: null, retour } }).statut).toBe('Préparation')
   })
 
   it('refuse une notification électronique tant qu’une anomalie bloquante d’avant envoi demeure (voie-notification.ts)', () => {

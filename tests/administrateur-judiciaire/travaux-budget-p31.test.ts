@@ -12,6 +12,7 @@ import type { ReglementFournisseur, StatutReglementFournisseur } from '@/lib/adm
 import {
   anomaliesComptesDesLignesDOperation,
   BAREME_DROIT_PROPORTIONNEL_TRAVAUX,
+  CADRES_HONORAIRES_TRAVAUX,
   cadreHonorairesTravaux,
   compteProposePourLePoste,
   controlerDepassementBudgetAvantOs,
@@ -337,25 +338,53 @@ describe('honoraires sur travaux : cadre selon le régime du mandat', () => {
     expect(cadreHonorairesTravaux({ regime: 'syndic' })).toMatchObject({ cadre: 'vote_avec_les_travaux', fondements: ['L. 1965 art. 18-1 A, III'], arreteParLeJuge: false, aConfirmer: false })
   })
 
-  it('syndic désigné en justice : même cadre (D. 1967 art. 46, al. 3 ; J67, R12) ; art. 47 : non établi', () => {
+  it('syndic désigné en justice : même cadre (D. 1967 art. 46, al. 3 ; J67, R12) ; art. 47 : fixée par le président (J73)', () => {
     expect(cadreHonorairesTravaux({ regime: 'sj' })).toMatchObject({ cadre: 'vote_avec_les_travaux', aConfirmer: false })
     expect(cadreHonorairesTravaux({ regime: 'sj' }).fondements).toContain('D. 1967 art. 46, al. 3')
     expect(cadreHonorairesTravaux({ regime: 'sj' }).motif).not.toContain('à confirmer')
-    expect(cadreHonorairesTravaux({ regime: 'ap47' })).toMatchObject({ cadre: 'non_etabli', aConfirmer: true })
+    expect(cadreHonorairesTravaux({ regime: 'ap47' })).toMatchObject({ cadre: 'fixe_par_le_president', aConfirmer: false })
   })
 
-  it('art. 47 : le motif suit J67, R1 (rémunération fixée par le président, C. com. R. 814-27) et J67, R12 (cadre non établi)', () => {
+  it('J73 : art. 47, R1 l’emporte sur R12 : rémunération fixée par le président de la juridiction qui l’a désigné (C. com. R. 814-27 ; CPC 714 à 718)', () => {
+    expect(CADRES_HONORAIRES_TRAVAUX).toContain('fixe_par_le_president')
     const ap47 = cadreHonorairesTravaux({ regime: 'ap47' })
-    // R1 tranche la rémunération ; le cadre des honoraires de travaux reste non établi (R12) ; le reste attend Hugo
-    expect(ap47).toMatchObject({ cadre: 'non_etabli', arreteParLeJuge: false, aConfirmer: true })
-    expect(ap47.fondements).toEqual(['D. 1967 art. 47', 'C. com. R. 814-27'])
-    expect(ap47.motif).toMatch(/rémunération fixée par le président du tribunal judiciaire qui l'a désigné, sur justification des diligences \(C\. com\. R\. 814-27 ; J67, R1\)/)
-    expect(ap47.motif).toMatch(/cadre des honoraires de travaux non établi.*\(J67, R12\)/)
-    expect(ap47.motif).not.toContain('aucun texte trouvé sur sa rémunération')
+    expect(ap47).toMatchObject({ cadre: 'fixe_par_le_president', arreteParLeJuge: true, aConfirmer: false })
+    expect(ap47.fondements).toEqual(['D. 1967 art. 47', 'C. com. R. 814-27', 'CPC art. 714 à 718'])
+    expect(ap47.motif).toMatch(
+      /^Administrateur provisoire désigné faute de syndic \(D\. 1967 art\. 47\) : rémunération fixée par le président de la juridiction qui l'a désigné, sur justification de l'accomplissement de la mission \(C\. com\. R\. 814-27 ; recours : CPC art\. 714 à 718 ; J73\)/,
+    )
+    expect(ap47.motif).not.toMatch(/non établi|à confirmer|R12|Hugo|Frédéric/)
     const op = operation()
-    expect(controlerHonorairesTravaux(op, budget(op), { cadre: ap47 })).toEqual([
-      expect.objectContaining({ code: 'honoraires_cadre_non_etabli', fondement: 'D. 1967 art. 47 ; C. com. R. 814-27', aConfirmer: true }),
+    // poste « Honoraires cabinet » : une prévision à soumettre au président, jamais un élément à facturer
+    const [information] = controlerHonorairesTravaux(op, budget(op), { cadre: ap47 })
+    expect(information).toMatchObject({
+      code: 'honoraires_arretes_par_le_juge',
+      gravite: 'information',
+      fondement: 'D. 1967 art. 47 ; C. com. R. 814-27 ; CPC art. 714 à 718',
+      aConfirmer: false,
+    })
+    expect(information.message).toContain('aucun élément à facturer au syndicat')
+    expect(codes(controlerHonorairesTravaux(op, budget(op), { cadre: ap47 }))).not.toContain('honoraires_cadre_non_etabli')
+  })
+
+  it('J73 : tout honoraire voté par l’assemblée sous l’art. 47 reste signalé, avec le motif de l’art. 47 (pas celui de l’art. 29-1)', () => {
+    const op = operation()
+    const vote = { date: '2026-03-12', resolution: 'Résolution 9', majorite: 'art24' as const, mode: 'pourcentage_ht' as const }
+    const anomalies = controlerHonorairesTravaux(op, budget(op), { cadre: cadreHonorairesTravaux({ regime: 'ap47' }), resolutionHonoraires: vote })
+    expect(codes(anomalies)).toEqual(['honoraires_arretes_par_le_juge', 'honoraires_votes_sous_administration_provisoire'])
+    const [, voteSignale] = anomalies
+    expect(voteSignale).toMatchObject({ gravite: 'avertissement', aConfirmer: false })
+    expect(voteSignale.message).toBe(
+      "Résolution 9 : honoraires votés par l'assemblée, alors que la rémunération de l'administrateur provisoire désigné faute de syndic est fixée par le président de la juridiction qui l'a désigné (C. com. R. 814-27 ; J73), pas un vote de l'art. 18-1 A, III.",
+    )
+    // sans honoraires au budget, le vote seul reste signalé
+    const sansHonoraires = creerBudgetOperationTravaux(op, { lignes: [{ poste: 'travaux', budgetTtcCentimes: 1 }] })
+    expect(codes(controlerHonorairesTravaux(op, sansHonoraires, { cadre: cadreHonorairesTravaux({ regime: 'ap47' }), resolutionHonoraires: vote }))).toEqual([
+      'honoraires_votes_sous_administration_provisoire',
     ])
+    // art. 29-1 : motif inchangé
+    const ap291 = controlerHonorairesTravaux(op, budget(op), { cadre: cadreHonorairesTravaux({ regime: 'ap291', nbLots: 120 }), resolutionHonoraires: vote })
+    expect(ap291[1].message).toContain('suit le décret et la décision du juge (L. 1965 art. 29-1, II)')
   })
 
   it('administrateur provisoire de l’art. 29-1 : barème de l’art. 11 sous 500 lots, juge à 500 lots et plus, renforcée à part', () => {
@@ -561,9 +590,9 @@ describe('honoraires sur travaux : contrôle du poste « Honoraires cabinet »',
     ])
   })
 
-  it('cadre non établi (art. 47) : avertissement à confirmer', () => {
+  it('J73 : art. 47, plus de cadre non établi : prévision soumise au président, information sans « à confirmer »', () => {
     expect(controlerHonorairesTravaux(op, b, { cadre: cadreHonorairesTravaux({ regime: 'ap47' }) })).toEqual([
-      expect.objectContaining({ code: 'honoraires_cadre_non_etabli', gravite: 'avertissement', aConfirmer: true }),
+      expect.objectContaining({ code: 'honoraires_arretes_par_le_juge', gravite: 'information', aConfirmer: false }),
     ])
   })
 })
@@ -1321,7 +1350,7 @@ describe('J67 (décisions de Hugo du 17/11/2026) — en-tête de travaux-budget.
   const { texte } = enTeteDuModule('travaux-budget')
   const nonEtabli = texte.slice(texte.indexOf('🔴 Non établi'))
 
-  it('les questions tranchées quittent le 🔴 ; pour l’art. 47, R1 tranche la rémunération et seul le cadre reste à choisir', () => {
+  it('les questions tranchées quittent le 🔴 ; pour l’art. 47, J73 range le cadre sous la rémunération fixée par le président', () => {
     expect(nonEtabli).toContain('🔴 Non établi')
     expect(nonEtabli).not.toContain("l'ordonnance fixe-t-elle un montant")
     expect(nonEtabli).not.toContain("La prime dommages-ouvrage d'une opération s'impute-t-elle au 671")
@@ -1330,11 +1359,17 @@ describe('J67 (décisions de Hugo du 17/11/2026) — en-tête de travaux-budget.
     expect(nonEtabli).not.toContain('Le syndic désigné en justice (D. 1967 art. 46) perçoit-il des honoraires de travaux')
     // R1 (lot des honoraires) dit qui fixe la rémunération : la question n'est plus « quelle rémunération »
     expect(nonEtabli).not.toContain("« Quelle rémunération pour l'administrateur provisoire de l'art. 47 ? »")
-    expect(nonEtabli).toMatch(
-      /« Faut-il ranger l'administrateur provisoire de l'art\. 47 sous le cadre « fixé par le juge » \(arreteParLeJuge\) \? » \(VitFix : J67, R1 .*C\. com\. R\. 814-27.*J67, R12 .*non établi.*en attendant Hugo\)/,
-    )
+    // J73 : R1 l'emporte sur R12 ; la question « fixé par le juge » est retirée
+    expect(nonEtabli).not.toContain("Faut-il ranger l'administrateur provisoire de l'art. 47")
+    expect(nonEtabli).not.toMatch(/en attendant Hugo/)
     const j67 = texte.slice(texte.indexOf('Décisions de Hugo du 17/11/2026 (registre des décisions juridiques, J67'), texte.indexOf('Règles :'))
     for (const r of ['R12', 'R13', 'R58', 'R59', 'R60', 'R81']) expect(j67).toContain(`J67, ${r}`)
     expect(j67).toMatch(/J67, R1 \(lot des honoraires.*\) : .*fixée par le président du tribunal judiciaire qui l'a désigné.*C\. com\. R\. 814-27/)
+    expect(j67).not.toMatch(/garde le cadre « non établi »|il reste « à confirmer », arreteParLeJuge faux/)
+    const j73 = texte.slice(texte.indexOf('Décision de Hugo du 18/11/2026 (registre des décisions juridiques, J73'), texte.indexOf('Règles :'))
+    expect(j73).toMatch(/R1 l'emporte sur R12/)
+    expect(j73).toMatch(/CADRE_AP47.*fixe_par_le_president.*arreteParLeJuge vrai/)
+    expect(j73).toMatch(/C\. com\. R\. 814-27.*CPC art\. 714 à 718/)
+    expect(j73).toMatch(/tout honoraire voté par l'assemblée reste signalé/)
   })
 })

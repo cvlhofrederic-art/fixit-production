@@ -284,8 +284,10 @@ describe('tableau des honoraires — en-tête : le tableau n’est pas le compte
     expect(decision).toMatch(/jamais facturés sans une ordonnance qui les couvre \(preparerFacture, J67, R3\)/)
     expect(decision).toMatch(/annexe « frais et débours exposés »/)
     expect(decision).toMatch(/61-1-5, III,\s+al\. 2, pour les seuls droits proportionnels au-delà de 75 000 € HT/)
-    // R6 ne vise que la dépense payée par le syndicat lui-même : le choix entre R5 et R6 reste dans honoraires-sinistre.ts.
-    expect(decision).toMatch(/R6 .*ne change rien ici.*honoraires-sinistre\.ts/)
+    // J72 concilie R5 et R6 : plus de choix « resté ouvert » ; la dépense du syndicat (a) n'est pas un élément du cabinet
+    expect(decision).not.toMatch(/reste ouvert/)
+    expect(decision).toMatch(/J72 \(décision de Hugo du 18\/11\/2026\) : \(a\) .*dépense du syndicat.*Contrôle coûts.*hors des facturables/)
+    expect(decision).toMatch(/\(b\) .*frais du cabinet.*annexe « frais et débours ».*honoraires-sinistre\.ts/)
   })
 
   it('J67, R5 (correction de texte) : le III, al. 2 du 61-1-5 ne joue que si les droits proportionnels des art. 11 à 13 dépassent 75 000 € HT', () => {

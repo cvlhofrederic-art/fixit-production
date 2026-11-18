@@ -228,6 +228,15 @@ describe('J59 — refus reçu avant le 25/12/2025 puis accord reçu depuis : l�
     expect(lreDu(d(2026, 3, 5), { consentements })).toMatchObject({ etat: 'calcule', avertissements: [] })
   })
 
+  it('J74 : l’accord prend effet le lendemain du huitième jour suivant sa réception (avant : dès sa réception) ; avant, la LRE ne vaut pas notification', () => {
+    const consentements = [refus, creerConsentementVoieElectronique({ identiteId: 'id-1', sens: 'accord', recuLe: d(2025, 12, 26) })]
+    // pendant les huit jours, le refus reste une demande de voie postale (l'accord y est en attente)
+    expect(demandesDepuisConsentements(consentements, d(2026, 1, 3))).toMatchObject([{ recueLe: d(2025, 12, 20), retourEnAttente: { nature: 'accord', effet: d(2026, 1, 4) } }])
+    expect(lreDu(d(2026, 1, 3), { consentements })).toMatchObject({ etat: 'refuse', cause: 'voie_postale_demandee' })
+    expect(demandesDepuisConsentements(consentements, d(2026, 1, 4))).toEqual([])
+    expect(lreDu(d(2026, 1, 4), { consentements })).toMatchObject({ etat: 'calcule', avertissements: [] })
+  })
+
   it('accord sans date valable : il ne l’emporte pas, le refus d’avant le 25/12/2025 reste une demande de voie postale (avant : calculé)', () => {
     for (const recuLe of ['2026-02-30', '2026-13-01', '26/12/2025']) {
       const consentements = [refus, accord(recuLe)]

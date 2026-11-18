@@ -8,7 +8,11 @@ import {
 } from '@/lib/administrateur-judiciaire/domain/courriers'
 import { dateIsoVersFr, decomposerDateIso, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
 import { normaliserEspaces } from '@/lib/administrateur-judiciaire/domain/texte'
-import type { AnomalieEnvoiElectronique, VoieNotification } from '@/lib/administrateur-judiciaire/domain/voie-notification'
+import {
+  retourPasEncoreEnVigueur,
+  type AnomalieEnvoiElectronique,
+  type VoieNotification,
+} from '@/lib/administrateur-judiciaire/domain/voie-notification'
 
 /**
  * Envois électroniques et signature électronique : cycles de statuts. Point 65 du bilan des écarts Gestéam → VitFix.
@@ -61,8 +65,10 @@ import type { AnomalieEnvoiElectronique, VoieNotification } from '@/lib/administ
  *   se fondent jamais (06_PIEGES § 4), même si « Préparation » figure dans les deux listes ;
  * - contrôle d'appoint à la création d'une notification électronique (LRE ou prestataire qualifié) : refus si la demande
  *   de voie postale du destinataire est en vigueur (voieDeNotification ; L. 1965 art. 42-1, al. 2 ; D. 1967 art. 64-1 et
- *   64-4) ou si une anomalie bloquante d'avant envoi demeure (controlerAvantEnvoiElectronique). Le calcul du délai
- *   (statut-assemblee.ts) reste seul juge, à la date du dépôt (J50).
+ *   64-4) ou si une anomalie bloquante d'avant envoi demeure (controlerAvantEnvoiElectronique). Retour à la voie
+ *   électronique reçu, pas encore en vigueur (J74 : renonciation ou accord après un refus, effet le lendemain du
+ *   huitième jour suivant leur réception) : le refus en donne la date d'effet et sa justification (retourPasEncoreEnVigueur).
+ *   Le calcul du délai (statut-assemblee.ts) reste seul juge, à la date du dépôt (J50).
  *
  * Valeur de notification, telle que 07_DECISIONS_JURIDIQUES.md la fixe (J50, décision de Hugo du 11/11/2026, textes lus
  * sur Légifrance le 11/11/2026) : une notification électronique est acquise à la transmission, par le prestataire, de
@@ -715,15 +721,22 @@ function modeElectroniqueDuCourrier(courrier: { id: string; formeEnvoi: string; 
   return mode
 }
 
-/** Contrôle d'appoint avant une notification électronique (point 60, voie-notification.ts). */
+/** Voie du destinataire passée par l'appelant (voieDeNotification) ; le retour à la voie électronique est facultatif (J74). */
+type VoieDestinataire = Pick<VoieNotification, 'voie' | 'depuis'> & Partial<Pick<VoieNotification, 'retour'>>
+
+/**
+ * Contrôle d'appoint avant une notification électronique (point 60, voie-notification.ts). Voie postale avec un retour à
+ * la voie électronique en attente (J74) : le refus en donne la date d'effet et sa justification.
+ */
 function controlerDestinataire(
-  voie: Pick<VoieNotification, 'voie' | 'depuis'> | null | undefined,
+  voie: VoieDestinataire | null | undefined,
   anomalies: readonly Pick<AnomalieEnvoiElectronique, 'gravite' | 'message'>[] = [],
 ): void {
   if (voie?.voie === 'postale') {
     const depuis = voie.depuis ? ` depuis le ${dateIsoVersFr(voie.depuis)}` : ''
+    const retour = voie.retour ? ` ${retourPasEncoreEnVigueur(voie.retour)}` : ''
     throw new Error(
-      `Notification électronique refusée : demande de voie postale en vigueur${depuis} ; notifier par lettre recommandée avec avis de réception (L. 1965 art. 42-1, al. 2 ; D. 1967 art. 64-1, 64-4).`,
+      `Notification électronique refusée : demande de voie postale en vigueur${depuis} ; notifier par lettre recommandée avec avis de réception (L. 1965 art. 42-1, al. 2 ; D. 1967 art. 64-1, 64-4).${retour}`,
     )
   }
   const bloquantes = anomalies.filter((a) => a.gravite === 'bloquant')
@@ -741,7 +754,7 @@ function controlerDestinataire(
 export function creerEnvoiNotificationElectronique(
   saisie: SaisieCreationEnvoi & {
     courrier: { id: string; formeEnvoi: string; modeNotification?: ModeNotification | null }
-    voieDestinataire?: Pick<VoieNotification, 'voie' | 'depuis'> | null
+    voieDestinataire?: VoieDestinataire | null
     anomaliesAvantEnvoi?: readonly Pick<AnomalieEnvoiElectronique, 'gravite' | 'message'>[]
   },
 ): EnvoiNotificationElectronique {

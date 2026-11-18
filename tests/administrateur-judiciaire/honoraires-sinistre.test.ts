@@ -169,11 +169,16 @@ describe('honoraires de sinistre — en-tête : décisions J67 (R1, R2, R8, R14)
     expect(texte).not.toMatch(/🔴 \(Frédéric\) Au contrat type, les copies/)
   })
 
-  it('frais d’envoi hors contrat type : la question reste ouverte, R5 et R6 ne les traitent pas de la même façon', () => {
-    const question = item('- 🔴 (Hugo) En administration provisoire de moins de 500 lots')
-    expect(question).toMatch(/R5/)
-    expect(question).toMatch(/R6/)
-    expect(question).toMatch(/Choix actuel : seule l'absence de fiche est signalée/)
+  it('J72 (b) : frais d’envoi hors contrat type tranchés ; la question 🔴 « R5 et R6 » est retirée', () => {
+    expect(texte).not.toMatch(/🔴 \(Hugo\) En administration provisoire de moins de 500 lots/)
+    expect(texte).not.toMatch(/Choix actuel : seule l'absence de fiche est signalée/)
+    expect(texte).not.toMatch(/R5 et R6 à concilier|Une seule règle est à\s+choisir/)
+    const j72 = item('- J72 (décision de Hugo du 18/11/2026')
+    expect(j72).toMatch(/frais du cabinet, à part de sa rémunération/)
+    expect(j72).toMatch(/annexe « frais et débours »/)
+    expect(j72).toMatch(/C\. com\. R\. 814-27/)
+    expect(j72).toMatch(/frais_a_presenter_au_juge/)
+    expect(j72).toMatch(/\(a\).*dépense du syndicat.*etapes-courrier\.ts/)
   })
 })
 
@@ -565,18 +570,31 @@ describe('honoraires de sinistre — contrôle des éléments', () => {
   const naturesDesFrais = (cadre: Parameters<typeof controlerHonorairesSinistre>[1]) =>
     controlerHonorairesSinistre(frais, cadre).map((a) => [a.elementId, a.nature])
 
-  it('frais d’envoi du dossier Sinistre : ni diligence ni cadre contrôlés (🔴 hors contrat type : R5 et R6 à concilier) ; seule l’absence de fiche est signalée', () => {
+  it('contrat type de syndic : frais d’envoi remboursés au syndic à part (7.1.5, 7.2.1) ; seule l’absence de fiche est signalée', () => {
     expect(naturesDesFrais('contrat_type_syndic')).toEqual([['el-ar', 'sans_fiche']])
-    expect(naturesDesFrais('tarif_administrateur_provisoire')).toEqual([['el-ar', 'sans_fiche']])
-    expect(naturesDesFrais('remuneration_fixee_par_le_president')).toEqual([['el-ar', 'sans_fiche']])
   })
 
-  it('500 lots et plus : les frais aussi sont soumis au juge, qui fixe la rémunération « en fonction des frais engagés » (arrêté, art. 3)', () => {
-    expect(naturesDesFrais('remuneration_fixee_par_le_juge')).toEqual([
-      ['el-timbre', 'remuneration_fixee_par_le_juge'],
-      ['el-ar', 'sans_fiche'],
-      ['el-ar', 'remuneration_fixee_par_le_juge'],
-    ])
+  it('J72 (b) : hors contrat type, chaque frais du dossier Sinistre est signalé « à présenter au juge », pas à facturer au syndicat', () => {
+    const cadres = ['tarif_administrateur_provisoire', 'remuneration_fixee_par_le_juge', 'remuneration_fixee_par_le_president', 'regime_inconnu'] as const
+    for (const cadre of cadres)
+      expect(naturesDesFrais(cadre), cadre).toEqual([
+        ['el-timbre', 'frais_a_presenter_au_juge'],
+        ['el-ar', 'sans_fiche'],
+        ['el-ar', 'frais_a_presenter_au_juge'],
+      ])
+    const message = (cadre: Parameters<typeof controlerHonorairesSinistre>[1]) =>
+      controlerHonorairesSinistre(frais, cadre).find((a) => a.elementId === 'el-timbre')?.message ?? ''
+    for (const cadre of cadres) {
+      expect(message(cadre), cadre).toMatch(
+        /^Tarif « Sinistre - Affranchissement » \(Timbre\) : frais du cabinet, à part de sa rémunération ; à présenter au juge en annexe « frais et débours », payés seulement en vertu de son ordonnance \(.*J72, b\) ; pas à facturer au syndicat\.$/,
+      )
+      expect(message(cadre)).not.toMatch(/Hugo|Frédéric/)
+    }
+    expect(message('tarif_administrateur_provisoire')).toContain('D. 1967 art. 61-1-5, II et III')
+    // 500 lots et plus : le juge fixe la rémunération « en fonction des frais engagés » (arrêté, art. 3)
+    expect(message('remuneration_fixee_par_le_juge')).toContain('arrêté du 8 octobre 2015, art. 3')
+    expect(message('remuneration_fixee_par_le_president')).toContain('C. com. R. 814-27')
+    expect(message('regime_inconnu')).toMatch(/régime du mandat à vérifier/)
   })
 
   it('aucune anomalie pour l’élément créé à l’ouverture en contrat type ; cadre inconnu refusé', () => {
@@ -636,10 +654,9 @@ describe('honoraires de sinistre — reprographie d’une diligence au forfait (
     })
   })
 
-  it('hors contrat type, le forfait du 7.1.1 ne s’applique pas : rien n’est écarté, et à 500 lots et plus tout est soumis au juge', () => {
-    expect(natures('tarif_administrateur_provisoire')).toEqual([])
-    expect(natures('remuneration_fixee_par_le_president')).toEqual([])
-    expect(natures('remuneration_fixee_par_le_juge')).toEqual(dossier.map((e) => [e.id, 'remuneration_fixee_par_le_juge']))
+  it('hors contrat type, le forfait du 7.1.1 ne s’applique pas : rien n’est écarté ; chaque copie et l’envoi sont à présenter au juge (J72, b)', () => {
+    for (const cadre of ['tarif_administrateur_provisoire', 'remuneration_fixee_par_le_president', 'remuneration_fixee_par_le_juge'] as const)
+      expect(natures(cadre), cadre).toEqual(dossier.map((e) => [e.id, 'frais_a_presenter_au_juge']))
     for (const cadre of ['tarif_administrateur_provisoire', 'remuneration_fixee_par_le_juge', 'remuneration_fixee_par_le_president'] as const)
       expect(soldeHonorairesSinistre(dossier, 'sin-42', [], cadre)).toMatchObject({ ecartesIds: [], fraisTtcCentimes: 4 * 720 + 155 })
   })
