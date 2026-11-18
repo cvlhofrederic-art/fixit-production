@@ -1,3 +1,4 @@
+import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
 import type { PlanComptable } from '@/lib/administrateur-judiciaire/domain/plan-comptable'
 import type { SourceComptable } from '@/lib/data/referentiels-gesteam-judiciaire'
 
@@ -51,10 +52,19 @@ import type { SourceComptable } from '@/lib/data/referentiels-gesteam-judiciaire
  *   double) : le numéro de compte (formaterNumeroCompte) ne porte que le code, d'où une collision possible dans un même
  *   mandat.
  *
+ * Décision de Hugo du 17/11/2026 (registre des décisions juridiques, J67, R107 ; arrêté du 14/03/2005, art. 7 à 10, et
+ * C. com. art. R. 814-37, relus le 17/11/2026) : (1) à la reprise, le type « Bascule gérance copropriété » reçoit un
+ * numéro de subdivision du 471 distinct de 47150, pour ne jamais confondre deux comptes : importerPlanComptable le
+ * propose (renumerotations : premier 4715x libre, ou le code réglé par le cabinet), sans l'appliquer ; (2) un solde
+ * créditeur d'une subdivision du 471 à la clôture est une anomalie, à reclasser en 472 ou à justifier ligne à ligne
+ * (controlerAttenteDebiteurALaCloture ; aucune compensation, art. 9 ; le compte 47 soldé ou justifié, art. 10) ; (3) le
+ * signalement « types_distincts » reste non bloquant. Une bascule entre gérance et copropriété doit répondre à un vrai
+ * mouvement de fonds : les fonds d'un mandat ne servent pas un autre mandat (R. 814-37). Application de la renumérotation
+ * en base et appel du contrôle à la procédure de clôture : à brancher.
+ *
  * 🔴 Non établi (à trancher par Frédéric ou Hugo) :
- * - le type « Bascule gérance copropriété » doit-il recevoir un numéro de subdivision distinct de 47150 (arrêté art. 6
- *   et 8), et son solde peut-il être créditeur alors que 471 est le compte d'attente débiteur (art. 7 et 9) ? Comment
- *   relier un compte à son entrée de plan pour distinguer les deux 47150 (la table des comptes ne porte que le numéro) ?
+ * - tant que la renumérotation proposée n'est pas appliquée, comment relier un compte à son entrée de plan pour
+ *   distinguer les deux 47150 (la table des comptes ne porte que le numéro) ?
  * - un même code peut-il porter à la fois une entrée sans sous-compte et des entrées à sous-compte (40100 générique à
  *   côté de 40100/00101) ? La tranche 21 § 4.2 ne l'établit pas. Si oui, l'entrée sans sous-compte est-elle une entrée
  *   distincte (lecture actuelle : importée sans signalement) ou un double à mettre en attente comme `type_absent` ?
@@ -152,6 +162,15 @@ export interface SignalementDoublePlan {
   message: string
 }
 
+/** Renumérotation proposée à la reprise (J67, R107), non appliquée : à confirmer par le cabinet. */
+export interface RenumerotationPlan {
+  id: string
+  code: string
+  /** Code proposé ; null : aucune subdivision 4715x libre, à choisir par le cabinet. */
+  codePropose: string | null
+  message: string
+}
+
 export interface ResultatImportPlanComptable {
   /** Une entrée par clé, dans l'ordre de première occurrence de l'import. */
   entrees: PlanComptable[]
@@ -161,6 +180,80 @@ export interface ResultatImportPlanComptable {
   signalements: SignalementDoublePlan[]
   /** Entrées des groupes bloquants, dans l'ordre de l'import. */
   enAttente: PlanComptable[]
+  /** Numéros distincts proposés au type « Bascule gérance copropriété » codé 47150 (J67, R107). */
+  renumerotations: RenumerotationPlan[]
+}
+
+/** Type Gestéam du compte de bascule (tranche 43 § 21) et code du compte d'attente qu'il partage. */
+const TYPE_BASCULE = 'Bascule gérance copropriété'
+const CODE_ATTENTE_GESTEAM = '47150'
+const FONDEMENT_ATTENTE = 'Arrêté du 14 mars 2005, art. 7, 9 et 10 ; J67, R107'
+
+/** Code réglé par le cabinet : une subdivision du 471, autre que 47150, libre dans la source. */
+function verifierCodeBascule(code: string, pris: ReadonlySet<string>): string {
+  if (!/^471\d\d$/.test(code)) throw new Error(`Code « ${code} » pour la bascule : subdivision du 471 attendue (471xx ; arrêté du 14 mars 2005, art. 8).`)
+  if (code === CODE_ATTENTE_GESTEAM) throw new Error(`Code de la bascule : numéro distinct de 47150 attendu (J67, R107).`)
+  if (pris.has(code)) throw new Error(`Code ${code} déjà pris dans le plan : choisir une autre subdivision du 471 pour la bascule.`)
+  return code
+}
+
+/** Premier code 47151 à 47159 libre dans la source (🔵 proposition, réglable par le cabinet). */
+function premierCodeLibre(pris: ReadonlySet<string>): string | null {
+  for (let n = 1; n <= 9; n++) {
+    const code = `${CODE_ATTENTE_GESTEAM.slice(0, 4)}${n}`
+    if (!pris.has(code)) return code
+  }
+  return null
+}
+
+/** J67, R107 (1) : les entrées « Bascule » codées 47150 reçoivent un numéro distinct proposé, un par entrée. */
+function renumerotationsBascule(entrees: readonly PlanComptable[], codeBascule: string | undefined): RenumerotationPlan[] {
+  const bascules = entrees.filter((e) => e.code === CODE_ATTENTE_GESTEAM && composanteCle(e.type) === TYPE_BASCULE)
+  return bascules.map((e) => {
+    const pris = new Set(entrees.filter((x) => x.source === e.source).map((x) => x.code))
+    const codePropose = codeBascule === undefined ? premierCodeLibre(pris) : verifierCodeBascule(codeBascule, pris)
+    const cible = codePropose ? `numéro ${codePropose} proposé` : 'aucune subdivision 4715x libre : numéro à choisir'
+    return {
+      id: e.id,
+      code: e.code,
+      codePropose,
+      message: `${designation(e, true)} : ${cible}, distinct du compte d'attente 47150, pour ne jamais confondre deux comptes (arrêté du 14 mars 2005, art. 8 : subdivision nécessaire) ; une bascule entre gérance et copropriété doit répondre à un vrai mouvement de fonds (C. com. R. 814-37) ; J67, R107.`,
+    }
+  })
+}
+
+/** Solde d'un compte à la clôture (etats-comptables.balance, LigneBalance). */
+export interface SoldeCompteCloture {
+  compte: string
+  soldeCrediteurCentimes: number
+}
+
+export interface AnomalieAttenteCloture {
+  code: 'attente_debiteur_crediteur'
+  compte: string
+  soldeCrediteurCentimes: number
+  message: string
+  fondement: string
+}
+
+/**
+ * J67, R107 (2) — contrôle de clôture : une subdivision du 471 (compte d'attente débiteur) au solde créditeur est une
+ * anomalie, à reclasser en 472 ou à justifier ligne à ligne (arrêté art. 7 : 471 débiteur, 472 créditeur ; art. 9 : aucune
+ * compensation ; art. 10 : le compte 47 soldé ou justifié). `justifies` : comptes déjà justifiés ligne à ligne.
+ */
+export function controlerAttenteDebiteurALaCloture(
+  lignes: readonly SoldeCompteCloture[],
+  { justifies = [] }: { justifies?: readonly string[] } = {},
+): AnomalieAttenteCloture[] {
+  return lignes
+    .filter((l) => l.compte.split('.')[1]?.startsWith('471') && l.soldeCrediteurCentimes > 0 && !justifies.includes(l.compte))
+    .map((l) => ({
+      code: 'attente_debiteur_crediteur',
+      compte: l.compte,
+      soldeCrediteurCentimes: l.soldeCrediteurCentimes,
+      message: `${l.compte} : solde créditeur de ${formatEurosCentimes(l.soldeCrediteurCentimes / 100)} à la clôture sur un compte d'attente débiteur ; le reclasser en 472 ou le justifier ligne à ligne.`,
+      fondement: FONDEMENT_ATTENTE,
+    }))
 }
 
 /**
@@ -341,9 +434,11 @@ function traiterFamille(famille: readonly PlanComptable[], acc: Accumulateur): v
  * Import du plan comptable Gestéam : une entrée par clé (source, code, sous-compte, type). Les doubles identiques au « _ »
  * final près sont fusionnés (l'entrée sans « _ » est conservée, sinon la première) ; les autres doubles sont signalés et
  * mis en attente ; un même code à plusieurs types est conservé et signalé sans blocage. Garantie : chaque entrée de l'import
- * se retrouve une seule fois, conservée, absorbée ou en attente. Un identifiant en double est refusé.
+ * se retrouve une seule fois, conservée, absorbée ou en attente. Un identifiant en double est refusé. Le type « Bascule
+ * gérance copropriété » codé 47150 reçoit un numéro distinct proposé (J67, R107) : `codeBascule`, réglé par le cabinet,
+ * sinon le premier 4715x libre.
  */
-export function importerPlanComptable(entrees: readonly PlanComptable[]): ResultatImportPlanComptable {
+export function importerPlanComptable(entrees: readonly PlanComptable[], { codeBascule }: { codeBascule?: string } = {}): ResultatImportPlanComptable {
   const acc: Accumulateur = { rangs: rangsParId(entrees), conservees: [], fusions: [], signalements: [], idsEnAttente: new Set() }
   for (const famille of grouper(entrees, cleFamille)) traiterFamille(famille, acc)
   return {
@@ -352,5 +447,6 @@ export function importerPlanComptable(entrees: readonly PlanComptable[]): Result
     remplacements: Object.fromEntries(acc.fusions.flatMap((f) => f.absorbesIds.map((id) => [id, f.conserveId]))),
     signalements: acc.signalements,
     enAttente: entrees.filter((e) => acc.idsEnAttente.has(e.id)),
+    renumerotations: renumerotationsBascule(entrees, codeBascule),
   }
 }

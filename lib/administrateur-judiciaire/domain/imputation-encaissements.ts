@@ -56,7 +56,16 @@ export interface PosteDette {
   baseCentimes?: number | null
   /** Tantièmes du lot et total de la clé au moment de l'appel (Gestéam « Taux n / total »). */
   tantiemes?: { lot: number; total: number } | null
+  /**
+   * Motif qui exclut le poste de la procédure de l'art. 19-2 (J3) : provision de l'art. 43, al. 2 (J67, R98) ; absent :
+   * rien ne l'exclut ici. Lecture par le contentieux (recouvrement.ts) : à brancher après la PR #741.
+   */
+  horsArt19_2?: string
 }
+
+/** J67, R98 : D. 1967 art. 43, al. 2, dernière phrase. */
+export const MOTIF_HORS_19_2_ART_43 =
+  "provision appelée sur le budget de l'exercice précédent, le budget n'étant voté qu'en cours d'exercice : « La procédure prévue à l'article 19-2 [...] ne s'applique pas à cette situation » (D. 1967 art. 43, al. 2 ; J67, R98)"
 
 /** Type d'appel Gestéam de chaque nature d'échéance (TYPE_APPEL_LIE_AU_MOUVEMENT). */
 const TYPE_APPEL_PAR_NATURE: Record<NatureEcheance, TypeAppelLieAuMouvement> = {
@@ -101,6 +110,7 @@ export function postesDepuisAvis(avis: AvisAppels, cles: CleRepartition[] = []):
           cle: ligne.cle,
           baseCentimes: echeance.montantCentimes,
           tantiemes: cle && lot ? { lot: lot.tantiemes, total: cle.totalTantiemes } : null,
+          ...(echeance.provisionArt43 ? { horsArt19_2: MOTIF_HORS_19_2_ART_43 } : {}),
         },
       ]
     }),

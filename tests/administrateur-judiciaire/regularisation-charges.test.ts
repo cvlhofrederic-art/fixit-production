@@ -4,7 +4,13 @@ import { describe, expect, it } from 'vitest'
 import { creerDecisionAnnuelle } from '@/lib/administrateur-judiciaire/domain/decisions-annuelles-ag'
 import { postesImputables } from '@/lib/administrateur-judiciaire/domain/echeancier-appels'
 import { changerStatutExercice, creerExercice, type Exercice } from '@/lib/administrateur-judiciaire/domain/exercices-budgets'
-import { creerCompteCoproprietaire, creerPosition, muterLot, type Position } from '@/lib/administrateur-judiciaire/domain/identites-positions'
+import {
+  creerCompteCoproprietaire,
+  creerPosition,
+  muterLot,
+  type NatureMutation,
+  type Position,
+} from '@/lib/administrateur-judiciaire/domain/identites-positions'
 import { annulerPiece, changerStatutPiece, dateEffetPiece } from '@/lib/administrateur-judiciaire/domain/journal-traitements'
 import {
   DELAI_EXIGIBILITE_OBSERVE_GESTEAM_JOURS,
@@ -12,6 +18,7 @@ import {
   appelsRegularisation,
   approbationDepuisDecision,
   calculerRegularisation,
+  debiteurDemembrement,
   decomptesIndividuels,
   depensesDeLExercice,
   depensesDepuisMouvements,
@@ -222,16 +229,30 @@ describe('paramètres typés de la répartition (tranche 43 § 6)', () => {
     expect(() => justificationExigibilite({ ...parametres(), delaiExigibiliteJours: -1 })).toThrow(/délai/i)
   })
 
-  it('refuse un exercice non clos, non voté, déjà réparti ; une exigibilité antérieure au passage ; un délai invalide', () => {
+  it('refuse un exercice non clos, déjà réparti ou non géré ; une exigibilité antérieure au passage ; un délai invalide', () => {
     expect(() => parametres({ dateEffet: '2025-12-31' })).toThrow(/clos/i)
     expect(() => parametres({ exigibilite: { date: '2026-01-31' } })).toThrow(/exigibilit/i)
     expect(() => parametres({ exigibilite: { delaiJours: -1 } })).toThrow(/délai/i)
     expect(() => parametres({ exigibilite: { delaiJours: 1.5 } })).toThrow(/délai/i)
     expect(() => parametres({ mandatCode: ' ' })).toThrow(/mandat/i)
     expect(() => parametres({ exercice: exercice({ statut: 'Réparti' }) })).toThrow(/Réparti/)
-    expect(() => parametres({ exercice: exercice({ statut: 'Préparation' }) })).toThrow(/Préparation/)
-    expect(() => parametres({ exercice: exercice({ statut: 'Budgété' }) })).toThrow(/Budgété/)
     expect(() => parametres({ exercice: exercice({ statut: 'Non géré' }) })).toThrow(/Non géré/)
+  })
+
+  it('J67, R103 : un exercice au budget jamais voté (Préparation, Budgété) se répartit, avec l’alerte « budget non voté »', () => {
+    for (const statut of ['Préparation', 'Budgété'] as const) {
+      const sansVote = exercice({ statut, agId: null, resolutions: { budget: null, complement: null, honoraires: null, travaux: null } })
+      expect(parametres({ exercice: sansVote }).au).toBe('2025-12-31')
+      const repartition = lancer({ exercice: sansVote })
+      expect(repartition.avertissements).toEqual([
+        expect.objectContaining({ code: 'budget_non_vote', message: expect.stringMatching(/comptes présentés sans budget voté \(décret n° 2005-240, art\. 8\)/) }),
+      ])
+      expect(repartition.piece.statut).toBe('Enregistré')
+    }
+    expect(lancer().avertissements).toEqual([])
+    const sansProvision = lancer({ exercice: exercice({ statut: 'Préparation' }), provisions: [] })
+    expect(sansProvision.regularisation.totalProvisionsCentimes).toBe(0)
+    expect(sansProvision.regularisation.totalDepensesCentimes).toBe(depenses.parCle.reduce((s, d) => s + d.centimes, 0))
   })
 
   it('quatre lignes génériques Date · Alpha · Entier · Réel, relues à l’identique', () => {
@@ -406,6 +427,72 @@ describe('calcul réalisé − provisions par copropriétaire et par clé', () =
     expect(calculerRegularisation(entree({ provisions701Centimes: 140_000 })).anomalies).toEqual([])
   })
 
+  /** Lot 2 démembré sous deux comptes : usufruit au compte B, nue-propriété au compte D. */
+  const demembre = [
+    position('p1', 'lot-1', 'cpt-A'),
+    position('p3', 'lot-3', 'cpt-C'),
+    creerPosition({ ...position('p2u', 'lot-2', 'cpt-B'), qualite: 'Usufruitier' }),
+    creerPosition({ ...position('p2n', 'lot-2', 'cpt-D'), qualite: 'Nu propriétaire' }),
+  ]
+
+  it('J67, R106 : lot démembré sous deux comptes — rien n’est dit : refus ; sans clause de solidarité : charges courantes à l’usufruitier, à confirmer', () => {
+    expect(calculerRegularisation(entree({ positions: demembre })).anomalies.map((a) => [a.code, a.cle, a.lotId])).toEqual([
+      ['comptes_multiples', '001', 'lot-2'],
+      ['comptes_multiples', '002', 'lot-2'],
+    ])
+    const usufruitier = calculerRegularisation(entree({ positions: demembre, attribution: { demembrement: { clauseSolidarite: false } } }))
+    expect(usufruitier.anomalies).toEqual([])
+    expect(usufruitier.decomptes.map((d) => d.compteId)).toEqual(['cpt-A', 'cpt-B', 'cpt-C'])
+    expect(usufruitier.avertissements).toEqual([
+      expect.objectContaining({ code: 'demembrement_usufruitier', lotId: 'lot-2', message: expect.stringMatching(/C\. civ\. art\. 605 et 608.*à confirmer/) }),
+    ])
+  })
+
+  it('J67, R106 : clause de solidarité du règlement : le compte choisi par le cabinet, à défaut de choix le refus demeure', () => {
+    const avecClause = (comptesChoisis?: Record<string, string>) =>
+      calculerRegularisation(entree({ positions: demembre, attribution: { demembrement: { clauseSolidarite: true, comptesChoisis } } }))
+    const choisi = avecClause({ 'lot-2': 'cpt-D' })
+    expect(choisi.anomalies).toEqual([])
+    expect(choisi.decomptes.map((d) => d.compteId)).toEqual(['cpt-A', 'cpt-C', 'cpt-D'])
+    expect(choisi.avertissements).toMatchObject([{ code: 'demembrement_solidarite', lotId: 'lot-2' }])
+    for (const refus of [avecClause(), avecClause({ 'lot-2': 'cpt-A' })])
+      expect(refus.anomalies).toEqual([
+        expect.objectContaining({ code: 'comptes_multiples', lotId: 'lot-2', detail: expect.stringMatching(/clause de solidarité.*choisir le compte/) }),
+        expect.objectContaining({ code: 'comptes_multiples', lotId: 'lot-2' }),
+      ])
+    expect(calculerRegularisation(entree({ positions: [...positions, position('p2b', 'lot-2', 'cpt-D')], attribution: { demembrement: { clauseSolidarite: false } } })).anomalies).toMatchObject([
+      { code: 'comptes_multiples', lotId: 'lot-2' },
+      { code: 'comptes_multiples', lotId: 'lot-2' },
+    ])
+  })
+
+  it('J67, R106 : débiteur d’un poste du lot démembré — courant : usufruitier ; travaux : classement obligatoire, sans défaut', () => {
+    expect(debiteurDemembrement({ nature: 'courant' })).toBe('usufruitier')
+    expect(debiteurDemembrement({ nature: 'travaux', classement: 'grosse_reparation' })).toBe('nu_proprietaire')
+    expect(debiteurDemembrement({ nature: 'travaux', classement: 'entretien' })).toBe('usufruitier')
+    expect(() => debiteurDemembrement({ nature: 'travaux' })).toThrow(/classer le poste.*C\. civ\. art\. 606/)
+  })
+
+  it('J67, R111 : copropriétaire entré par donation ou succession pendant l’exercice : même règle, « par analogie, à confirmer »', () => {
+    const muter = (nature: NatureMutation) =>
+      muterLot(positions, { lotId: 'lot-1', date: '2026-03-01', sortantes: ['p1'], nature, entrantes: [{ id: 'p4', identiteId: 'i-D', compteId: 'cpt-D', qualite: 'Copropriétaire', part: UN }] })
+        .positions
+    const donation = calculerRegularisation(entree({ positions: muter('donation'), coproprietairesAu: '2026-03-20', ouvertureExercice: '2025-01-01' }))
+    expect(donation.decomptes.map((d) => d.compteId)).toEqual(['cpt-B', 'cpt-C', 'cpt-D'])
+    expect(donation.avertissements).toEqual([
+      expect.objectContaining({ code: 'mutation_a_titre_gratuit', lotId: 'lot-1', message: expect.stringMatching(/par analogie, à confirmer/) }),
+    ])
+    expect(calculerRegularisation(entree({ positions: muter('onereuse'), coproprietairesAu: '2026-03-20' })).avertissements).toEqual([])
+    expect(calculerRegularisation(entree({ positions: muter('succession'), coproprietairesAu: '2026-03-20', ouvertureExercice: '2026-04-01' })).avertissements).toEqual([])
+    // J67, R112 : mutation le jour même de la lecture (approbation) : vendeur par défaut, acquéreur si l'acte précède le vote.
+    const memeJour = (ordre?: 'acte_avant_vote') =>
+      calculerRegularisation(entree({ positions: muter('onereuse'), coproprietairesAu: '2026-03-01', attribution: ordre ? { ordreMutationMemeJour: { 'lot-1': ordre } } : undefined }))
+    expect(memeJour().decomptes.map((d) => d.compteId)).toEqual(['cpt-A', 'cpt-B', 'cpt-C'])
+    expect(memeJour().avertissements).toMatchObject([{ code: 'mutation_meme_jour', lotId: 'lot-1' }])
+    expect(memeJour('acte_avant_vote').decomptes.map((d) => d.compteId)).toEqual(['cpt-B', 'cpt-C', 'cpt-D'])
+    expect(memeJour('acte_avant_vote').avertissements).toEqual([])
+  })
+
   it('refuse des centimes non entiers ou une provision négative', () => {
     expect(() => calculerRegularisation(entree({ provisions: [{ lotId: 'lot-1', cle: '001', centimes: -1 }] }))).toThrow(/provision/i)
     expect(() => calculerRegularisation(entree({ depenses: [{ cle: '001', centimes: 1.5 }] }))).toThrow(/dépense/i)
@@ -433,6 +520,15 @@ describe('écriture : remboursement et répartition par 450, passage par le 471,
     expect(totalSur(t, 'TILL.45000.00001.0')).toBe(-3_663)
     expect(t.mouvements.every((m) => m.origine?.type === 'repartition' && m.origine.repartitionId === 'rep-2025')).toBe(true)
     expect(t.mouvements.find((m) => m.compte === 'TILL.45000.00003.0')?.liens).toEqual({ compteCoproprietaireId: 'cpt-C' })
+  })
+
+  it('J67, R104 : sous-comptes du 450 créés par l’AG : remboursement et répartition au 450-1, le 471 reste soldé', () => {
+    const sousComptes450 = { decision: 'AG du 12/05/2024, résolution 9 (fictive)', planBudget: '45010' }
+    const t = lancerRepartition(saisie(), { ...OPTIONS, sousComptes450 }).piece.traitement
+    expect(t.mouvements.filter((m) => m.compte.includes('.45000.'))).toEqual([])
+    expect(totalSur(t, 'TILL.45010.00001.0')).toBe(-3_663)
+    expect(totalSur(t, 'TILL.47100.00000.0')).toBe(0)
+    expect(() => lancerRepartition(saisie(), { ...OPTIONS, sousComptes450: { ...sousComptes450, planBudget: '45000' } })).toThrow(/450-1/)
   })
 
   it('insuffisance : le 701 est crédité, le 471 reste soldé', () => {
@@ -625,6 +721,26 @@ describe('pièce : Enregistré → Imputé, ou Annulé tant que non imputée', (
     expect(imputerRepartition(relancee, { approbation: APPROBATION, positions: vente }).piece.statut).toBe('Imputé')
   })
 
+  it('J67, R112 : lot vendu le jour de l’approbation — ordre de l’acte et du vote fourni, sinon vendeur avec « même jour : à confirmer »', () => {
+    const memeJour = muterLot(positions, {
+      lotId: 'lot-1',
+      date: APPROBATION.date,
+      sortantes: ['p1'],
+      nature: 'onereuse',
+      entrantes: [{ id: 'p4', identiteId: 'i-D', compteId: 'cpt-D', qualite: 'Copropriétaire', part: UN }],
+    }).positions
+    const projet = lancer({ positions: memeJour, exigibilite: { date: '2026-04-15' } })
+    const imputer = (ordre?: 'acte_avant_vote' | 'acte_apres_vote') =>
+      imputerRepartition(projet, { approbation: APPROBATION, positions: memeJour, attribution: ordre ? { ordreMutationMemeJour: { 'lot-1': ordre } } : undefined })
+    const parDefaut = imputer()
+    expect(parDefaut.piece.statut).toBe('Imputé')
+    expect(parDefaut.avertissements).toEqual([
+      expect.objectContaining({ code: 'mutation_meme_jour', lotId: 'lot-1', message: expect.stringMatching(/même jour : à confirmer/) }),
+    ])
+    expect(imputer('acte_apres_vote').avertissements).toEqual([])
+    expect(() => imputer('acte_avant_vote')).toThrow(/lot-1/)
+  })
+
   it('statut de l’exercice après la répartition : « Répart. en cours », puis « Réparti » à l’imputation', () => {
     expect(statutExerciceApresRepartition('Enregistré')).toBe('Répart. en cours')
     expect(statutExerciceApresRepartition('Annulé')).toBe('Répart. en cours')
@@ -693,10 +809,27 @@ describe('en-tête et commentaires du module : citations et marqueurs', () => {
     expect(EN_TETE).not.toMatch(/14-3, al\. 1/)
   })
 
-  it('D. 1967 art. 6-2 cité avec son chapeau ; hors vente, la règle est déduite de l’art. 45-1 et la question posée', () => {
+  it('D. 1967 art. 6-2 cité avec son chapeau ; hors vente, la règle est déduite de l’art. 45-1, appliquée par analogie (J67, R111)', () => {
     expect(EN_TETE).toContain("D. 1967 art. 6-2 : « A l'occasion de la mutation à titre onéreux d'un lot : […] 3° Le trop ou moins perçu sur provisions")
-    expect(EN_TETE).toMatch(/🔵 Déduit :.*autre mutation \(succession, donation, démembrement\).*art\. 45-1/)
-    expect(EN_TETE).toMatch(/🔴 Non établi.*« Mutation à titre gratuit \(succession, donation\) ou démembrement/)
+    expect(EN_TETE).toMatch(/🔵 Déduit :.*autre mutation \(succession, donation\).*art\. 45-1/)
+    expect(EN_TETE).toMatch(/J67, R111.*« par analogie, à confirmer ».*démembrement.*R106/)
+  })
+
+  it('J67 : questions tranchées retirées des 🔴 (R102 à R106, R111, R112) ; la marque « annexes non lues » reste (R105)', () => {
+    const ouvert = EN_TETE.slice(EN_TETE.indexOf('🔴 Non établi'), EN_TETE.indexOf('Branchements à faire'))
+    for (const tranchee of [
+      /Le solde de régularisation peut-il être exigible avant l'approbation/,
+      /Lot vendu le jour même de l'approbation/,
+      /Sous-compte 450-1/,
+      /dont le budget n'a pas été voté/,
+      /solde-t-elle aussi les comptes de charges/,
+      /Usufruit et nue-propriété/,
+      /Mutation à titre gratuit/,
+    ])
+      expect(ouvert).not.toMatch(tranchee)
+    expect(ouvert).toMatch(/Faut-il proposer quinze jours après la date de passage/)
+    for (const n of ['R102', 'R103', 'R104', 'R105', 'R106', 'R111', 'R112']) expect(EN_TETE).toContain(`J67, ${n}`)
+    expect(EN_TETE).toMatch(/Annexes 1 à 5 du décret n° 2005-240.*non lues/)
   })
 
   it('tranche 37 : seul « À répartir » est relevé ; « Réparti » est la valeur VitFix (🔵)', () => {

@@ -219,6 +219,9 @@ export const CHAMPS_PAR_CONTEXTE: Readonly<Record<ContexteFusionCourrier, readon
     champ('mention.fondsTravaux', 'Sommes du fonds de travaux attachées aux lots (L. 1965 art. 14-2-1, III)'),
     champ('mention.prenotification', 'Pré-notification du prélèvement SEPA (montant, date, mandat, reste hors prélèvement)'),
     champ('mention.decisionAdministrateur', "Décision de l'administrateur provisoire jointe à l'appel (D. 1967 art. 62-9)"),
+    champ('mention.provisionArt43', "Provision sur le budget de l'exercice précédent (D. 1967 art. 43, al. 2 ; J67, R98)"),
+    champ('mention.confirmationAdresse', "Invitation à confirmer l'adresse électronique pour les avis (D. 1967 art. 35-2 ; J69)"),
+    champ('mention.payerUneFois', 'Même somme pour tout le lot, à payer une seule fois ; copie au mandataire commun (J67, R100)'),
   ],
 }
 
@@ -556,6 +559,9 @@ export const GABARITS_COURRIER = {
       "Rappel des dispositions de l'art. 10 du D. 1967 (questions à inscrire à l'ordre du jour)",
       'Prélèvement : montant et date du débit, qui valent pré-notification (recueil EPC SDD Core, règle du schéma) ; reste à régler hors prélèvement et son mode de règlement',
       "Administrateur provisoire : l'appel consécutif à sa décision est joint à la copie de celle-ci (D. 1967 art. 62-9)",
+      "Provision appelée sur le budget de l'exercice précédent : le dire, régularisée après le vote du budget (D. 1967 art. 43, al. 2 ; J67, R98)",
+      "Premier avis à l'adresse des notifications : inviter à confirmer l'adresse pour les avis ou à demander la lettre simple (J69)",
+      'Indivision ou démembrement : « Même somme pour tout le lot, à payer une seule fois » sur chaque avis (J67, R100)',
     ],
   },
 } as const satisfies Record<string, GabaritCourrier>

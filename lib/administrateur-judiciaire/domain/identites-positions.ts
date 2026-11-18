@@ -282,11 +282,24 @@ export function creerCompteCoproprietaire(saisie: CompteCoproprietaire): CompteC
   return { ...saisie, serie: brut.padStart(5, '0'), libelle: saisie.libelle.trim() }
 }
 
-/** Numéro du compte copropriétaire : <syndicat>.45000.<série>.0. */
-export const numeroCompteCoproprietaire = (compte: CompteCoproprietaire, segmentSyndicat: string): string =>
-  formaterNumeroCompte({ mandat: segmentSyndicat, planCode: '45000', auxiliaire: compte.serie })
+/**
+ * Numéro du compte copropriétaire : <syndicat>.45000.<série>.0 ; `planCode` : un sous-compte du 450 créé par l'AG (450-1,
+ * J67, R104 : repartition-appels.planDuCompteBudget).
+ */
+export const numeroCompteCoproprietaire = (compte: CompteCoproprietaire, segmentSyndicat: string, planCode = '45000'): string =>
+  formaterNumeroCompte({ mandat: segmentSyndicat, planCode, auxiliaire: compte.serie })
 
 export type StatutPosition = 'En place' | 'Futur' | 'Sorti'
+
+/**
+ * Nature de la mutation qui fait entrer une position (J67, R111) : à titre onéreux (vente), donation, succession,
+ * démembrement. D. 1967 art. 6-2 ne vise que la mutation à titre onéreux ; tout transfert est notifié au syndic (art. 6).
+ */
+export const NATURES_MUTATION = ['onereuse', 'donation', 'succession', 'demembrement'] as const
+export type NatureMutation = (typeof NATURES_MUTATION)[number]
+
+/** Donation ou succession : la règle de la vente (art. 6-2) s'applique par analogie, à confirmer (J67, R111). */
+export const estMutationATitreGratuit = (nature: NatureMutation | null | undefined): boolean => nature === 'donation' || nature === 'succession'
 
 export interface Position {
   id: string
@@ -300,6 +313,8 @@ export interface Position {
   statut: StatutPosition
   dateEntree: string
   dateSortie: string | null
+  /** Nature de la mutation qui a fait entrer la position (muterLot) ; absente : inconnue (position d'origine, reprise). */
+  natureMutation?: NatureMutation | null
 }
 
 export type SaisiePosition = Position
@@ -312,6 +327,9 @@ export function creerPosition(saisie: SaisiePosition): Position {
     if (!estDateIsoValide(saisie.dateSortie)) throw new Error(`Date de sortie invalide (${saisie.dateSortie}) : AAAA-MM-JJ attendu.`)
     if (saisie.dateSortie < saisie.dateEntree) throw new Error('Date de sortie antérieure à la date d’entrée.')
   }
+  const nature = saisie.natureMutation
+  if (nature !== null && nature !== undefined && !(NATURES_MUTATION as readonly string[]).includes(nature))
+    throw new Error(`Nature de mutation inconnue : « ${nature} » (${NATURES_MUTATION.join(', ')} attendues).`)
   if (estQualiteCopropriete(saisie.qualite)) {
     if (!saisie.compteId?.trim()) throw new Error(`${saisie.qualite} : rattacher la position à un compte copropriétaire.`)
     if (!saisie.part) throw new Error(`${saisie.qualite} : indiquer la part du droit.`)
@@ -475,8 +493,9 @@ export function participationsIdentite(
 }
 
 /**
- * Mutation d'un lot : les positions sortantes sont closes à la date (statut Sorti), les entrantes ouvertes (En place).
- * Rien n'est effacé ; renvoie les positions à jour et le contrôle des droits du lot à la date.
+ * Mutation d'un lot : les positions sortantes sont closes à la date (statut Sorti), les entrantes ouvertes (En place),
+ * avec la nature de la mutation quand elle est connue (J67, R111 ; enregistrement en base : à brancher). Rien n'est
+ * effacé ; renvoie les positions à jour et le contrôle des droits du lot à la date.
  */
 export function muterLot(
   positions: Position[],
@@ -485,14 +504,22 @@ export function muterLot(
     date,
     sortantes,
     entrantes,
-  }: { lotId: string; date: string; sortantes: string[]; entrantes: Omit<Position, 'lotId' | 'statut' | 'dateEntree' | 'dateSortie'>[] },
+    nature = null,
+  }: {
+    lotId: string
+    date: string
+    sortantes: string[]
+    entrantes: Omit<Position, 'lotId' | 'statut' | 'dateEntree' | 'dateSortie' | 'natureMutation'>[]
+    nature?: NatureMutation | null
+  },
 ): { positions: Position[]; anomalies: AnomalieDroits[] } {
   if (!estDateIsoValide(date)) throw new Error(`Date de mutation invalide (${date}) : AAAA-MM-JJ attendu.`)
   for (const id of sortantes)
     if (!positions.some((p) => p.id === id && p.lotId === lotId)) throw new Error(`Position sortante introuvable sur le lot : « ${id} ».`)
+  const natureMutation = nature ? { natureMutation: nature } : {}
   const apres = [
     ...positions.map((p) => (sortantes.includes(p.id) ? { ...p, statut: 'Sorti' as const, dateSortie: date } : p)),
-    ...entrantes.map((e) => creerPosition({ ...e, lotId, statut: 'En place', dateEntree: date, dateSortie: null })),
+    ...entrantes.map((e) => creerPosition({ ...e, lotId, statut: 'En place', dateEntree: date, dateSortie: null, ...natureMutation })),
   ]
   return { positions: apres, anomalies: controlerDroitsLot(positionsEnPlace(apres, lotId, date)) }
 }

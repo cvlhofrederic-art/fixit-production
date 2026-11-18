@@ -8,6 +8,7 @@ import {
   type ObjetDecaissementFondsTravaux,
   type ReglagesFondsTravaux,
 } from '@/lib/administrateur-judiciaire/domain/fonds-travaux'
+import type { Regime } from '@/lib/administrateur-judiciaire/domain/fondements'
 import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
 import { controlerContexteFusion } from '@/lib/administrateur-judiciaire/domain/gabarits-courrier'
 import {
@@ -94,7 +95,7 @@ import type { FormeEnvoiCourrier, ModeReglement, TypeAppelLieAuMouvement } from 
  *   tranche reprend le « maximum d'emploi » de Gestéam ;
  * - prélèvement : natures « Budget » = provisions, « Autres » = travaux et cotisations au fonds (hors budget) ; montant
  *   = min(natures couvertes, maxi du mandat, total à payer), jamais le solde antérieur ; pas de débit avant
- *   l'exigibilité (le terme profite au débiteur, C. civ. art. 1305-3, déjà retenu par imputation-encaissements.ts) ;
+ *   l'exigibilité, même si le mandat le prévoit (J67, R97, ci-dessous) ;
  *   mandat signé après l'émission de l'avis : bloquant (le consentement doit précéder la pré-notification qui le cite) ;
  *   mandat sans prélèvement présenté depuis 36 mois : bloquant et non simple avertissement, le recueil EPC (§ 4.2)
  *   interdisant alors au créancier tout prélèvement sous ce mandat ;
@@ -116,16 +117,13 @@ import type { FormeEnvoiCourrier, ModeReglement, TypeAppelLieAuMouvement } from 
  *   aucun débit annoncé et règlement hors prélèvement (contenu) ; détenteur sans courrier possible à la diffusion
  *   (adresse, fusion), les courriers des autres destinataires partent sans le débit, tout le total réglé hors
  *   prélèvement ; un blocage commun au compte (contenu, préavis recompté) ne laisse partir aucun courrier ;
- * - diffusion : l'avis n'est pas une notification (forme libre, aucun contrôle LRE) ; une demande de voie postale en
- *   vigueur fait partir l'avis par lettre simple ; un courrier par identité du compte (indivision, démembrement) ;
- *   diffusé après son émission, l'avis recompte la pré-notification depuis la diffusion (bloquant) et signale une
- *   diffusion à l'exigibilité ou après ; une diffusion antérieure à l'émission est refusée ;
- * - adresse électronique de l'avis : celle que le copropriétaire a communiquée pour les avis (art. 35-2, « à cet
- *   effet ») ; à défaut, celle qu'il a notifiée pour les notifications (art. 65, al. 1), tenue pour communiquée aussi à
- *   l'effet de recevoir les avis ;
+ * - diffusion : l'avis n'est pas une notification (forme libre, aucun contrôle LRE) ; canal et adresse électronique :
+ *   J69, ci-dessous ; un courrier par identité du compte (indivision, démembrement : J67, R100, ci-dessous) ; diffusé
+ *   après son émission, l'avis recompte la pré-notification depuis la diffusion (bloquant) et signale une diffusion à
+ *   l'exigibilité ou après ; une diffusion antérieure à l'émission est refusée ;
  * - les art. 35-2 et 10, écrits pour « le syndic », valent pour l'administrateur provisoire de l'art. 29-1, qui reçoit
  *   « tous les pouvoirs du syndic » (art. 29-1, I, al. 2) : le passage de ces pouvoirs aux obligations du syndic est
- *   déduit ; administrateurProvisoire désigne cet administrateur ;
+ *   déduit ; administrateurProvisoire donne le régime de l'administrateur (29-1 ou 47 : J67, R99, ci-dessous) ;
  * - D. 1967 art. 62-9 : l'appelant porte la décision de l'administrateur provisoire sur l'échéance dont l'appel accompagne la
  *   copie (premier appel consécutif à la décision) ; le circuit Courrier ne joint pas encore de pièce : avertissement.
  *
@@ -149,34 +147,60 @@ import type { FormeEnvoiCourrier, ModeReglement, TypeAppelLieAuMouvement } from 
  *   libre est refusé pour toute nouvelle saisie. L'interprétation de J30 est confirmée : sa marque de doute est retirée,
  *   comportement inchangé (l'avis reçoit des valeurs enregistrées : un texte libre d'avant J30 reste admis et signalé).
  *
+ * Décisions de Hugo du 17/11/2026 (registre des décisions juridiques, J67 : recommandations validées en bloc, et J69 ;
+ * textes relus sur Légifrance le 17/11/2026) :
+ * - J69 (J67, R20 ; modifie J52 pour l'avis d'appel) : l'avis part par voie électronique « à l'adresse communiquée par le
+ *   copropriétaire à cet effet », ou par lettre simple à défaut (D. 1967 art. 35-2, dernier al.) ; la demande de voie
+ *   postale vise les « notifications et mises en demeure » (art. 64-1, 64-4), pas les avis. Une adresse électronique
+ *   donnée pour les avis (communicationsAvis) sert donc même si la voie postale est demandée ; sans elle, l'adresse des
+ *   notifications (art. 65) sert, sauf demande de voie postale (lettre simple) : le premier avis envoyé ainsi invite à
+ *   confirmer l'adresse pour les avis ou à demander la lettre simple (mention.confirmationAdresse), et la lettre simple
+ *   remplace le courriel dès qu'un avis revient en erreur à cette adresse (courrielsAvis, anomalie
+ *   courriel_avis_en_erreur ; enregistrement des envois et des retours : à brancher). J52 reste valable pour les
+ *   notifications. L'avis garde la mention de l'art. 64-2 ; avant le 25/12/2025, régime antérieur inchangé ;
+ * - J67, R97 : pas de prélèvement avant l'exigibilité, même si le mandat le prévoit : la provision est exigible à la date
+ *   fixée par la loi ou l'AG (L. 1965 art. 14-1, I, al. 3) ; le terme profite au débiteur, qui seul peut y renoncer
+ *   (C. civ. art. 1305 et 1305-3) ; signer un mandat SEPA n'y renonce pas ; pour des débits plus tôt ou mensuels, une
+ *   modalité votée par l'AG déplace l'exigibilité elle-même (art. 14-1, I, al. 2). Blocage avant_exigibilite gardé ;
+ * - J67, R98 : provision de l'art. 43, al. 2 (EcheanceAppel.provisionArt43 : budget voté en cours d'exercice) : mention
+ *   « provision_art_43 » sur l'avis ; ses postes sont « hors art. 19-2 » (imputation-encaissements.postesDepuisAvis ;
+ *   lecture par le contentieux : à brancher après la PR #741) ; sans l'autorisation préalable de l'AG (ou de
+ *   l'administrateur provisoire qui en a les pouvoirs), anomalie bloquante « autorisation_art_43_manquante », à confirmer.
+ *   L'ajustement porté par l'avis qui suit le vote du budget n'est pas calculé ici (appels-budget.ts) ;
+ * - J67, R99 : administrateurProvisoire est un régime, 29-1 (« ap291 ») ou 47 (« ap47 »). L'art. 64-9 étend les art. 64-1
+ *   à 64-4 à celui de l'art. 29-1, pas à l'administrateur provisoire de l'art. 47 : pour lui, les mentions des art. 10 et
+ *   64-2 et l'envoi de l'art. 35-2 sont gardés par prudence (il agit à la place du syndic absent), sans citer l'art. 64-9 ;
+ *   la copie de l'art. 62-9 n'est demandée (decision_a_joindre) que si une décision fonde l'appel : toujours possible en
+ *   29-1, en 47 seulement si l'ordonnance lui donne un pouvoir de décision (la décision fournie en atteste) ;
+ * - J67, R100 : indivision ou démembrement : un avis par personne connue du compte, un seul montant, et sur chacun
+ *   « Même somme pour tout le lot, à payer une seule fois. » (mention.payerUneFois) ; si un mandataire commun est désigné
+ *   (CompteCoproprietaire.mandataireCommunId, L. 1965 art. 23 ; J10), il reçoit l'avis principal, les autres une copie
+ *   (DiffusionAvisCompte.exemplaire) ;
+ * - J67, R113 : vente du lot entre l'avis et l'exigibilité : les postes exigibles après la vente passent à l'acquéreur,
+ *   qui reçoit un avis ; le poste exigible le jour même reste au vendeur (D. 1967 art. 6-2, 1° et 2° ; J5 à J10) ;
+ *   effetsMutationSurAvis compare l'avis d'avant et celui d'après la mutation : postes transférés, comptes à rediffuser,
+ *   et message au vendeur dont le débit annoncé n'aura pas lieu ; l'adaptateur ne le prélève plus (son courrier ne porte
+ *   plus le débit du nouvel avis). Le syndic apprend la vente par la notification de l'art. 6 (toujours due) et, si le
+ *   vendeur n'a pas présenté de certificat du syndic, par l'avis de mutation du notaire (L. 1965 art. 20, I). Écriture
+ *   déjà passée de l'appel : son annulation et un nouvel appel suivent echeancier-appels.annulerAppelees.
+ *
  * 🔴 Non établi (questions pour Hugo ou Frédéric) :
  * - pré-notification de 14 jours calendaires, séquence FRST facultative depuis 2016, caducité d'un mandat inutilisé
  *   36 mois : règles du recueil EPC SDD Core 2025 (§ 4.3 et PT-04.02 ; historique des versions, v9.3 de 2016 ; § 4.2),
  *   pas des textes de loi ; v1.1 et v1.2 non lues ; format pain.008 et longueur de 35 caractères de l'EndToEndId
  *   (Implementation Guidelines non lues) : à valider avec la banque du syndicat, comme son ICS ;
- * - « Un copropriétaire qui a demandé la voie postale pour les notifications, mais a communiqué une adresse électronique,
- *   reçoit-il l'avis par courriel (art. 35-2) ou par lettre simple ? » (VitFix : lettre simple) ;
- * - « L'adresse électronique notifiée pour les notifications (art. 65) vaut-elle adresse "communiquée à cet effet" pour
- *   les avis (art. 35-2) ? » (VitFix : oui, à défaut d'adresse propre aux avis) ;
  * - « "À régler avant le" : la date d'exigibilité seule, ou une date de courtoisie postérieure, et de combien de
  *   jours ? » (VitFix : l'exigibilité, plus delaiReglementJours fourni par l'appelant, 0 par défaut) ;
  * - « L'emploi du fonds de travaux figure-t-il sur l'avis pour information, hors du total (VitFix), ou en déduction du
  *   montant appelé ? Le plafond par échéance vient-il de la résolution d'affectation ou d'un réglage du cabinet ? »
  *   (VitFix : part du fonds de l'opération × taux de la tranche, emploisFondsTravauxDesTranches) ;
- * - « L'administrateur provisoire de l'art. 47 du décret (syndicat dépourvu de syndic), que l'art. 64-9 ne vise pas, est-il
- *   tenu des mentions des art. 64-2 et 10, de l'envoi de l'art. 35-2 et de l'art. 62-9 ? » (VitFix : oui, par
- *   prudence, dès que administrateurProvisoire est vrai) ;
  * - « Le reste hors prélèvement et l'appel d'un compte en contentieux se règlent-ils par virement, ou selon le mode
  *   "Encaissement" (« Hors budget ») de l'onglet Banque ? » (VitFix : virement, à défaut chèque) ;
  * - « Contentieux ouvert entre l'avis et le débit : l'avis a annoncé un débit que preparerLotPrelevements exclut par
  *   défaut ; faut-il en informer le copropriétaire ? » (VitFix : non traité) ;
  * - « Copie des décisions de l'administrateur provisoire (art. 62-9) : faut-il un gabarit de courrier propre, auquel
  *   l'avis serait joint ? » (VitFix : avertissement « decision_a_joindre ») ;
- * - « Le prélèvement peut-il précéder l'exigibilité si le mandat le prévoit ? » (VitFix : non, bloquant) ;
  * - « Mandat jamais utilisé : la caducité de 36 mois court-elle de sa signature ? » (VitFix : non contrôlée) ;
- * - « Indivision ou démembrement : un avis à chaque identité, ou au seul mandataire commun ? » (VitFix : chacune) ;
- * - « Vente du lot entre l'avis et l'exigibilité (D. 1967 art. 6-2) : qui reçoit l'avis, faut-il suspendre le mandat
- *   du vendeur ? » ; « Budget voté en cours d'exercice (art. 43) : l'avis doit-il le signaler ? » — non traités ;
  * - TIP : signalé, sans instructions ;
  * - plafond d'emploi par lot (part du fonds attachée au lot, point 20) : non fait.
  */
@@ -307,7 +331,7 @@ export interface InstructionsPrelevement {
 /** Jamais « Espèces » : l'avis n'invite pas à payer en espèces (J25, J29), il donne le règlement hors prélèvement. */
 export type InstructionsReglement = InstructionsPrelevement | InstructionsVirement | InstructionsCheque | { mode: 'TIP' | 'Pas de règlement' }
 
-export type CleMentionAvis = 'voie_postale' | 'ordre_du_jour' | 'fonds_travaux' | 'prenotification' | 'decision_administrateur'
+export type CleMentionAvis = 'voie_postale' | 'ordre_du_jour' | 'fonds_travaux' | 'prenotification' | 'decision_administrateur' | 'provision_art_43'
 
 export interface MentionAvis {
   cle: CleMentionAvis
@@ -345,6 +369,7 @@ export type CodeAnomalieAvis =
   | 'emploi_superieur_au_fonds'
   | 'sous_montant_bloque'
   | 'cotisation_a_virer'
+  | 'autorisation_art_43_manquante'
 
 export interface AnomalieAvis {
   code: CodeAnomalieAvis
@@ -360,6 +385,8 @@ export interface ContenuAvisCompte {
   /** N° du compte 450 : <syndicat>.45000.<série>.0. */
   numeroCompte: string
   libelleCompte: string
+  /** Mandataire commun des indivisaires (J10) : il reçoit l'avis principal (J67, R100) ; null : aucun désigné. */
+  mandataireCommunId: string | null
   dateEmission: string
   aReglerAvantLe: string
   parExigibilite: { exigibilite: string; montantCentimes: number }[]
@@ -387,6 +414,9 @@ export interface ContenuAvisAppel {
   anomalies: AnomalieAvis[]
 }
 
+/** Régime de l'administrateur provisoire (fondements.ts) : L. 1965 art. 29-1 ou D. 1967 art. 47 (J67, R99). */
+export type RegimeAdministrateurProvisoire = Extract<Regime, 'ap291' | 'ap47'>
+
 /** Décision de l'administrateur provisoire qui fonde l'appel d'une échéance (L. 1965 art. 29-1, I, al. 2 ; D. 1967 art. 62-9). */
 export interface DecisionAdministrateurEcheance {
   echeanceId: string
@@ -413,9 +443,15 @@ export interface OptionsContenuAvis {
   /** Solde du fonds de travaux avant emploi ; absent : non contrôlé. */
   soldeFondsCentimes?: number | null
   reglagesFonds?: ReglagesFondsTravaux | null
-  /** Administrateur provisoire désigné (L. 1965 art. 29-1) : mentions des art. 64-2 et 64-9, décisions de l'art. 62-9. */
-  administrateurProvisoire?: boolean
-  /** Décisions de l'administrateur provisoire qui fondent l'appel (D. 1967 art. 62-9) ; exige administrateurProvisoire. */
+  /**
+   * Régime de l'administrateur provisoire désigné (J67, R99) : art. 29-1 (mentions des art. 64-2 et 64-9) ou art. 47
+   * (mentions gardées par prudence, sans l'art. 64-9) ; absent ou null : syndic.
+   */
+  administrateurProvisoire?: RegimeAdministrateurProvisoire | null
+  /**
+   * Décisions de l'administrateur provisoire qui fondent l'appel (D. 1967 art. 62-9) ; exige administrateurProvisoire ; en
+   * art. 47, seulement si l'ordonnance lui donne un pouvoir de décision.
+   */
   decisionsAdministrateur?: DecisionAdministrateurEcheance[]
   /** Comptes en contentieux (colonne « Ctx ») : prélèvement suspendu, l'avis donne le règlement hors prélèvement. */
   comptesEnContentieux?: ReadonlySet<string>
@@ -543,17 +579,47 @@ const mentionDecision = (decisions: string[]): MentionAvis => ({
   fondement: FONDEMENT_DECISION_ADMINISTRATEUR,
 })
 
-function mentionsDuCompte(souscriptionCentimes: number, instructions: InstructionsReglement | null, decisions: string[], options: OptionsContenuAvis): MentionAvis[] {
-  const mentions: MentionAvis[] = [
-    { cle: 'voie_postale', ...mentionFaculteVoiePostale({ administrateurProvisoire: options.administrateurProvisoire ?? false }) },
-    MENTION_ORDRE_DU_JOUR,
-  ]
-  if (souscriptionCentimes > 0) mentions.push(MENTION_FONDS_TRAVAUX)
+const FONDEMENT_ART_43 = 'D. 1967 art. 43, al. 2 ; J67, R98'
+
+/** J67, R98 : texte demandé par la recommandation, mot pour mot. */
+const MENTION_PROVISION_ART_43: MentionAvis = {
+  cle: 'provision_art_43',
+  texte: "Provision calculée sur le budget de l'exercice précédent (D. 1967 art. 43, al. 2), régularisée après le vote du budget.",
+  fondement: FONDEMENT_ART_43,
+}
+
+/**
+ * D. 1967 art. 64-2 : faculté de voie postale. L'art. 64-9 ne vise que l'administrateur de l'art. 29-1 ; pour celui de
+ * l'art. 47, la mention est gardée par prudence, adressée à lui, sans citer l'art. 64-9 (J67, R99).
+ */
+function mentionVoiePostale(regime: RegimeAdministrateurProvisoire | null): MentionAvis {
+  const mention = mentionFaculteVoiePostale({ administrateurProvisoire: regime !== null })
+  const fondement = regime === 'ap47' ? "D. 1967 art. 64-2, 64-4 (administrateur de l'art. 47 : par prudence, J67, R99)" : mention.fondement
+  return { cle: 'voie_postale', texte: mention.texte, fondement }
+}
+
+function mentionsDuCompte(lignes: LigneContenuAvis[], instructions: InstructionsReglement | null, decisions: string[], ctx: ContexteAvis): MentionAvis[] {
+  const mentions: MentionAvis[] = [mentionVoiePostale(ctx.options.administrateurProvisoire ?? null), MENTION_ORDRE_DU_JOUR]
+  if (totalNature(lignes, 'fonds_travaux') > 0) mentions.push(MENTION_FONDS_TRAVAUX)
   const debit = debitAnnonce(instructions)
   if (debit) mentions.push(mentionPrenotification(debit))
   if (decisions.length > 0) mentions.push(mentionDecision(decisions))
+  if (lignes.some((l) => ctx.echeances.get(l.echeanceId)?.provisionArt43)) mentions.push(MENTION_PROVISION_ART_43)
   return mentions
 }
+
+/** J67, R98 : sans l'autorisation préalable de l'AG, la provision de l'art. 43 bloque l'avis (à confirmer). */
+const anomaliesArt43 = (echeances: readonly EcheanceAppel[]): AnomalieAvis[] =>
+  echeances
+    .filter((e) => e.provisionArt43 && !e.provisionArt43.autorisation?.trim())
+    .map((e) =>
+      anomalie(
+        'autorisation_art_43_manquante',
+        'bloquant',
+        `${e.libelle} : autorisation de l'art. 43 manquante ; la provision sur le budget précédent exige l'autorisation préalable de l'assemblée générale (ou de l'administrateur provisoire qui en a les pouvoirs) ; blocage à confirmer.`,
+        FONDEMENT_ART_43,
+      ),
+    )
 
 // ─── Décisions de l'administrateur provisoire (D. 1967 art. 62-9) ────────────────────────────────────────────────
 
@@ -953,6 +1019,7 @@ function contenuDuCompte(avisCompte: AvisCompte, ctx: ContexteAvis): ContenuAvis
     serie: compte.serie,
     numeroCompte,
     libelleCompte: compte.libelle,
+    mandataireCommunId: compte.mandataireCommunId?.trim() || null,
     dateEmission: options.dateEmission,
     aReglerAvantLe: ajouterJours(exigibilites.at(-1) ?? options.dateEmission, options.delaiReglementJours ?? 0),
     parExigibilite: exigibilites.map((exigibilite) => ({ exigibilite, montantCentimes: somme(lignes.filter((l) => l.exigibilite === exigibilite)) })),
@@ -967,7 +1034,7 @@ function contenuDuCompte(avisCompte: AvisCompte, ctx: ContexteAvis): ContenuAvis
     totalAPayerCentimes: avisCompte.totalAPayerCentimes,
     modeReglement: reglement.mode,
     instructions: reglement.instructions,
-    mentions: mentionsDuCompte(souscriptionFondsTravauxCentimes, reglement.instructions, decisions, options),
+    mentions: mentionsDuCompte(lignes, reglement.instructions, decisions, ctx),
     anomalies: [...anomaliesCalendrier(options.dateEmission, exigibilites), ...anomaliesDecisions(decisions), ...reglement.anomalies],
   }
 }
@@ -1013,7 +1080,7 @@ export function contenuAvisAppel(avis: AvisAppels, options: OptionsContenuAvis):
     dateEmission: options.dateEmission,
     datePrelevement: options.datePrelevement ?? null,
     parCompte,
-    anomalies: [...anomaliesDeLAvis(options.dateEmission, parCompte), ...emplois.anomalies],
+    anomalies: [...anomaliesDeLAvis(options.dateEmission, parCompte), ...emplois.anomalies, ...anomaliesArt43(avis.echeances)],
   }
 }
 
@@ -1162,9 +1229,23 @@ export interface OptionsDiffusionAvis {
   communications: CommunicationAdresseElectronique[]
   /** Adresses électroniques communiquées pour recevoir les avis (D. 1967 art. 35-2, « à cet effet »). */
   communicationsAvis?: CommunicationAdresseElectronique[]
+  /** Avis déjà envoyés par courriel, avec leur retour en erreur (J69 ; enregistrement : à brancher). */
+  courrielsAvis?: readonly CourrielAvisEnvoye[]
+}
+
+/** Avis d'appel envoyé par courriel à une identité (J69) : premier envoi à une adresse, retour en erreur. */
+export interface CourrielAvisEnvoye {
+  identiteId: string
+  adresse: string
+  envoyeLe: string
+  /** Date du retour en erreur ; null : aucun. */
+  retourEnErreurLe: string | null
 }
 
 export type CanalAvis = 'electronique' | 'postal'
+
+/** Origine de l'adresse électronique de l'avis (J69) : donnée pour les avis, ou pour les notifications (art. 65). */
+export type OrigineAdresseAvis = 'avis' | 'notifications'
 
 export type CodeAnomalieDiffusion =
   | 'sans_destinataire'
@@ -1174,6 +1255,7 @@ export type CodeAnomalieDiffusion =
   | 'preavis_insuffisant'
   | 'diffuse_apres_exigibilite'
   | 'prenotification_impossible'
+  | 'courriel_avis_en_erreur'
   | AnomalieAdresse['code']
 
 export interface AnomalieDiffusion {
@@ -1188,6 +1270,10 @@ export interface DiffusionAvisCompte {
   canal: CanalAvis | null
   formeEnvoi: FormeEnvoiCourrier | null
   adresseElectronique: string | null
+  /** Origine de l'adresse électronique (J69) ; null : lettre simple. */
+  origineAdresse: OrigineAdresseAvis | null
+  /** Avis principal ou copie : le mandataire commun désigné reçoit l'avis principal, les autres une copie (J67, R100). */
+  exemplaire: 'principal' | 'copie'
   adressePostale: AdresseDatee | null
   valeursFusion: Record<string, unknown>
   /** Courrier au statut « Préparation » ; null tant qu'une anomalie bloquante subsiste. */
@@ -1255,6 +1341,7 @@ function valeursFusionAvis(compte: ContenuAvisCompte, destinataire: { nom: strin
     'mention.fondsTravaux': texteMention(compte, 'fonds_travaux'),
     'mention.prenotification': texteMention(compte, 'prenotification'),
     'mention.decisionAdministrateur': texteMention(compte, 'decision_administrateur'),
+    'mention.provisionArt43': texteMention(compte, 'provision_art_43'),
   }
   const debit = debitAnnonce(compte.instructions)
   if (debit) Object.assign(valeurs, champsDuDebit(compte, debit), { 'prelevement.resteCentimes': debit.resteHorsPrelevementCentimes })
@@ -1314,18 +1401,66 @@ const anomaliePrenotificationImpossible = (debit: DebitAnnonce): AnomalieDiffusi
   message: `Pas de courrier préparé pour le détenteur du compte débité (« ${debit.mandat.debiteur} ») : la pré-notification lui manque, le prélèvement sera écarté du lot ; cet avis n'annonce donc aucun débit et indique le règlement par ${texteHorsPrelevement(debit.horsPrelevement)}.`,
 })
 
+/** Canal de l'avis pour une identité, l'origine de l'adresse électronique, l'invitation à la confirmer, le retour en erreur. */
+interface CanalDiffusion {
+  canal: CanalAvis
+  adresseElectronique: string | null
+  origineAdresse: OrigineAdresseAvis | null
+  /** J69 : premier avis envoyé à l'adresse des notifications : texte de l'invitation à confirmer ; null sinon. */
+  invitation: string | null
+  anomalies: AnomalieDiffusion[]
+}
+
+const LETTRE_SIMPLE: CanalDiffusion = { canal: 'postal', adresseElectronique: null, origineAdresse: null, invitation: null, anomalies: [] }
+
+/** J69 : texte de l'invitation portée par le premier avis envoyé à l'adresse des notifications. */
+const INVITATION_CONFIRMATION_ADRESSE =
+  "Cet avis vous est envoyé à l'adresse électronique donnée pour les notifications (D. 1967 art. 65). Pour recevoir les avis d'appel de fonds à cette adresse, confirmez-la ; vous pouvez aussi demander à les recevoir par lettre simple (D. 1967 art. 35-2)."
+
+/** Avis déjà envoyés à cette adresse des notifications depuis sa communication, au plus tard à la date. */
+const envoisAAdresse = (identiteId: string, communication: CommunicationAdresseElectronique, options: OptionsDiffusionAvis): CourrielAvisEnvoye[] =>
+  (options.courrielsAvis ?? []).filter(
+    (c) =>
+      c.identiteId === identiteId &&
+      c.adresse.trim().toLowerCase() === communication.adresse.toLowerCase() &&
+      c.envoyeLe >= communication.communiqueeLe &&
+      c.envoyeLe <= options.date,
+  )
+
 /**
- * D. 1967 art. 35-2 : par voie électronique à l'adresse communiquée à cet effet, sinon lettre simple. 🔵 À défaut
- * d'adresse communiquée pour les avis, celle des notifications (art. 65) en tient lieu ; une demande de voie postale en
- * vigueur fait partir la lettre simple.
+ * J69 (J67, R20) — D. 1967 art. 35-2 : par voie électronique « à l'adresse communiquée par le copropriétaire à cet
+ * effet », ou par lettre simple à défaut. L'adresse donnée pour les avis sert même si la voie postale est demandée pour
+ * les notifications (art. 64-1, 64-4) ; sans elle, l'adresse des notifications (art. 65), sauf demande de voie postale :
+ * invitation à confirmer sur le premier avis envoyé ainsi, lettre simple après un retour en erreur. Avant le 25/12/2025
+ * (voie non calculée), lettre simple, comme avant.
  */
-function canalDeDiffusion(identiteId: string, options: OptionsDiffusionAvis): { canal: CanalAvis; adresseElectronique: string | null } {
+function canalDeDiffusion(identiteId: string, options: OptionsDiffusionAvis): CanalDiffusion {
   const { voie } = voieDeNotification({ identiteId, demandes: options.demandesVoiePostale, date: options.date })
+  if (voie === null) return LETTRE_SIMPLE
   const pourAvis = adresseElectroniqueDeNotification({ identiteId, communications: options.communicationsAvis ?? [], date: options.date })
-  const communication = pourAvis ?? adresseElectroniqueDeNotification({ identiteId, communications: options.communications, date: options.date })
-  return voie === 'electronique' && communication
-    ? { canal: 'electronique', adresseElectronique: communication.adresse }
-    : { canal: 'postal', adresseElectronique: null }
+  if (pourAvis) return { ...LETTRE_SIMPLE, canal: 'electronique', adresseElectronique: pourAvis.adresse, origineAdresse: 'avis' }
+  const notification = adresseElectroniqueDeNotification({ identiteId, communications: options.communications, date: options.date })
+  if (voie !== 'electronique' || !notification) return LETTRE_SIMPLE
+  const envois = envoisAAdresse(identiteId, notification, options)
+  const retour = envois.find((c) => c.retourEnErreurLe !== null && c.retourEnErreurLe <= options.date)
+  if (retour)
+    return {
+      ...LETTRE_SIMPLE,
+      anomalies: [
+        {
+          code: 'courriel_avis_en_erreur',
+          gravite: 'avertissement',
+          message: `Avis du ${dateIsoVersFr(retour.envoyeLe)} revenu en erreur le ${dateIsoVersFr(retour.retourEnErreurLe ?? retour.envoyeLe)} à ${notification.adresse} : lettre simple jusqu'à une nouvelle adresse (D. 1967 art. 35-2 ; J69).`,
+        },
+      ],
+    }
+  return {
+    ...LETTRE_SIMPLE,
+    canal: 'electronique',
+    adresseElectronique: notification.adresse,
+    origineAdresse: 'notifications',
+    invitation: envois.length === 0 ? INVITATION_CONFIRMATION_ADRESSE : null,
+  }
 }
 
 /** Lettre simple : sans adresse postale, pas d'envoi ; adresses concurrentes ou échue : avertissement (identites-positions.ts). */
@@ -1360,18 +1495,39 @@ interface DiffusionDuCompte {
   bloque: boolean
   detenteurId: string | null
   anomalies: AnomalieDiffusion[]
+  /** J67, R100 : plusieurs personnes connues du compte reçoivent l'avis ; mandataire commun désigné, ou null. */
+  plusieurs: boolean
+  mandataireId: string | null
+}
+
+/** J67, R100 : texte de la recommandation, mot pour mot ; la copie dit où va l'avis principal. */
+const MENTION_PAYER_UNE_FOIS = 'Même somme pour tout le lot, à payer une seule fois.'
+const MENTION_COPIE_MANDATAIRE = `${MENTION_PAYER_UNE_FOIS} Copie : l'avis principal est adressé au mandataire commun (L. 1965 art. 23).`
+
+const exemplaireDe = (identiteId: string, duCompte: DiffusionDuCompte): DiffusionAvisCompte['exemplaire'] =>
+  duCompte.mandataireId === null || duCompte.mandataireId === identiteId ? 'principal' : 'copie'
+
+function mentionPayerUneFois(exemplaire: DiffusionAvisCompte['exemplaire'], duCompte: DiffusionDuCompte): string | null {
+  if (!duCompte.plusieurs) return null
+  return exemplaire === 'copie' ? MENTION_COPIE_MANDATAIRE : MENTION_PAYER_UNE_FOIS
 }
 
 function diffusionPour(compte: ContenuAvisCompte, identite: Identite, duCompte: DiffusionDuCompte, options: OptionsDiffusionAvis): DiffusionAvisCompte {
-  const { canal, adresseElectronique } = canalDeDiffusion(identite.id, options)
+  const { canal, adresseElectronique, origineAdresse, invitation, anomalies: anomaliesCanal } = canalDeDiffusion(identite.id, options)
   const adressePostale = adresseDeNotification(identite, options.date)
   const anomalies: AnomalieDiffusion[] = [
+    ...anomaliesCanal,
     ...(canal === 'postal' ? anomaliesAdressePostale(identite, options.date) : []),
     ...anomaliesDateDiffusion(compte, options.date),
     ...duCompte.anomalies,
   ]
   const adresse = adressePostale ? texteAdresse(adressePostale) : adresseElectronique
-  const valeursFusion = valeursFusionAvis(compte, { nom: nomDestinataire(identite), adresse }, options.socle)
+  const exemplaire = exemplaireDe(identite.id, duCompte)
+  const valeursFusion = {
+    ...valeursFusionAvis(compte, { nom: nomDestinataire(identite), adresse }, options.socle),
+    'mention.confirmationAdresse': invitation,
+    'mention.payerUneFois': mentionPayerUneFois(exemplaire, duCompte),
+  }
   const fusion = controlerContexteFusion('avis_appel_fonds', valeursFusion)
   if (!fusion.complet)
     anomalies.push({ code: 'fusion_incomplete', gravite: 'bloquant', message: `Champs à compléter : ${[...fusion.manquants.map((c) => c.cle), ...fusion.invalides.map((c) => c.cle)].join(', ')}.` })
@@ -1391,6 +1547,8 @@ function diffusionPour(compte: ContenuAvisCompte, identite: Identite, duCompte: 
     canal,
     formeEnvoi: modele.formeEnvoi,
     adresseElectronique,
+    origineAdresse,
+    exemplaire,
     adressePostale,
     valeursFusion,
     courrier,
@@ -1406,6 +1564,8 @@ const diffusionSansCourrier = (compte: ContenuAvisCompte, anomalieDiffusion: Ano
   canal: null,
   formeEnvoi: null,
   adresseElectronique: null,
+  origineAdresse: null,
+  exemplaire: 'principal',
   adressePostale: null,
   valeursFusion: {},
   courrier: null,
@@ -1422,20 +1582,32 @@ const diffusionSansCourrier = (compte: ContenuAvisCompte, anomalieDiffusion: Ano
 function diffusionsDuCompte(contenu: ContenuAvisAppel, compte: ContenuAvisCompte, coproprietaires: Identite[], options: OptionsDiffusionAvis): DiffusionAvisCompte[] {
   const bloque = codesBloquants(contenu, compte).length > 0
   const debit = debitAnnonce(compte.instructions)
-  if (!debit) return coproprietaires.map((identite) => diffusionPour(compte, identite, { bloque, detenteurId: null, anomalies: [] }, options))
+  const personnes = { plusieurs: coproprietaires.length > 1, mandataireId: compte.mandataireCommunId }
+  if (!debit) return coproprietaires.map((identite) => diffusionPour(compte, identite, { bloque, detenteurId: null, anomalies: [], ...personnes }, options))
   const detenteurId = debit.mandat.debiteurIdentiteId
   const identites = destinatairesDuDebit(compte, coproprietaires, debit, options)
-  const sorties = identites.map((identite) => diffusionPour(compte, identite, { bloque, detenteurId, anomalies: [] }, options))
+  const sorties = identites.map((identite) => diffusionPour(compte, identite, { bloque, detenteurId, anomalies: [], ...personnes }, options))
   if (sorties.some((s) => s.prenotification && s.courrier !== null)) return sorties
   const sansDebit = sansLeDebit(compte, debit)
-  const duCompte: DiffusionDuCompte = { bloque, detenteurId, anomalies: [anomaliePrenotificationImpossible(debit)] }
+  const duCompte: DiffusionDuCompte = { bloque, detenteurId, anomalies: [anomaliePrenotificationImpossible(debit)], ...personnes }
   return sorties.map((s, n) => (s.prenotification || s.courrier === null ? s : diffusionPour(sansDebit, identites[n], duCompte, options)))
 }
 
 /**
+ * J67, R100 : personnes connues du compte, le mandataire commun désigné en tête (L. 1965 art. 23 ; J10), même s'il n'est
+ * pas lui-même indivisaire.
+ */
+function personnesDuCompte(compte: ContenuAvisCompte, coproprietaires: Identite[], options: OptionsDiffusionAvis): Identite[] {
+  const mandataireId = compte.mandataireCommunId
+  if (mandataireId === null) return coproprietaires
+  const mandataire = identiteDuCompte(mandataireId, compte.compteId, options)
+  return [mandataire, ...coproprietaires.filter((i) => i.id !== mandataireId)]
+}
+
+/**
  * Préparation de la diffusion par le circuit Courrier (gabarit « avis_appel_fonds ») : un courrier par compte et par
- * identité destinataire (copropriétaires, et détenteur du compte débité s'il n'en est pas), canal choisi selon
- * l'art. 35-2, valeurs de fusion contrôlées. Aucun envoi : le courrier reste en « Préparation » ; aucun courrier tant
+ * identité destinataire (mandataire commun en tête, copropriétaires, et détenteur du compte débité s'il n'en est pas),
+ * canal choisi selon l'art. 35-2 (J69), valeurs de fusion contrôlées. Aucun envoi : le courrier reste en « Préparation » ; aucun courrier tant
  * qu'une anomalie bloquante subsiste (contenu, adresse, fusion), ni pour un compte sans fonds appelé ; aucun débit
  * annoncé que son détenteur ne reçoit pas.
  */
@@ -1455,6 +1627,99 @@ export function preparerDiffusionAvis(contenu: ContenuAvisAppel, options: Option
           message: `Compte ${compte.numeroCompte} : aucun copropriétaire en place au ${dateIsoVersFr(options.date)} pour recevoir l'avis.`,
         }),
       ]
-    return diffusionsDuCompte(contenu, compte, coproprietaires, options)
+    return diffusionsDuCompte(contenu, compte, personnesDuCompte(compte, coproprietaires, options), options)
   })
+}
+
+// ─── Mutation entre l'avis et l'exigibilité (J67, R113) ──────────────────────────────────────────────────────────
+
+/** Ligne de l'avis passée d'un compte à un autre par la mutation du lot. */
+export interface PosteTransfere {
+  echeanceId: string
+  lotId: string
+  exigibilite: string
+  deCompteId: string
+  versCompteId: string
+  quotePartCentimes: number
+}
+
+/** Débit pré-notifié au détenteur du compte, qui n'aura pas lieu : le message à lui adresser. */
+export interface PrelevementAnnule {
+  compteId: string
+  identiteId: string
+  montantCentimes: number
+  date: string
+  message: string
+}
+
+export interface EffetsMutationAvis {
+  postesTransferes: PosteTransfere[]
+  /** Comptes dont l'avis change (vendeur, acquéreur), dans l'ordre des séries : à diffuser de nouveau (preparerDiffusionAvis). */
+  comptesARediffuser: string[]
+  prelevementsAnnules: PrelevementAnnule[]
+}
+
+const cleLigne = (l: Pick<LigneContenuAvis, 'echeanceId' | 'lotId'>): string => `${l.echeanceId}:${l.lotId ?? ''}`
+
+/** Compte de chaque ligne (échéance, lot) d'un avis. */
+function comptesDesLignes(contenu: ContenuAvisAppel): Map<string, { compteId: string; ligne: LigneContenuAvis }> {
+  return new Map(contenu.parCompte.flatMap((c) => c.lignes.map((ligne) => [cleLigne(ligne), { compteId: c.compteId, ligne }] as const)))
+}
+
+/** Le débit du compte change (montant ou date), ou disparaît, entre les deux avis. */
+function debitChange(avant: DebitAnnonce, apres: ContenuAvisCompte | undefined): boolean {
+  const nouveau = apres ? debitAnnonce(apres.instructions) : null
+  return !nouveau || nouveau.montantCentimes !== avant.montantCentimes || nouveau.date !== avant.date
+}
+
+function messageAnnulation(avant: ContenuAvisCompte, debit: DebitAnnonce, apres: ContenuAvisCompte | undefined): string {
+  const nouveau = apres ? debitAnnonce(apres.instructions) : null
+  const suite = nouveau ? ` Un nouvel avis annonce le prélèvement de ${eur(nouveau.montantCentimes)} le ${dateIsoVersFr(nouveau.date)}.` : ''
+  return `Le prélèvement SEPA de ${eur(debit.montantCentimes)} du ${dateIsoVersFr(debit.date)} (mandat ${debit.rum}), annoncé par l'avis du ${dateIsoVersFr(avant.dateEmission)}, n'aura pas lieu : après la vente du lot, les sommes exigibles depuis sa date sont dues par l'acquéreur (D. 1967 art. 6-2).${suite}`
+}
+
+/** Comptes de l'avis d'avant dont le débit pré-notifié (courrier préparé au détenteur) ne tient plus. */
+function prelevementsAnnules(avant: ContenuAvisAppel, apres: ContenuAvisAppel, comptes: ReadonlySet<string>, diffusions: readonly DiffusionAvisCompte[]): PrelevementAnnule[] {
+  return avant.parCompte.flatMap((compte) => {
+    const debit = debitAnnonce(compte.instructions)
+    const nouveau = apres.parCompte.find((c) => c.compteId === compte.compteId)
+    if (!debit || !comptes.has(compte.compteId) || !debitChange(debit, nouveau)) return []
+    const prevenu = diffusions.find((d) => d.compteId === compte.compteId && d.prenotification && d.courrier !== null && d.identiteId !== null)
+    if (!prevenu?.identiteId) return []
+    return [{ compteId: compte.compteId, identiteId: prevenu.identiteId, montantCentimes: debit.montantCentimes, date: debit.date, message: messageAnnulation(compte, debit, nouveau) }]
+  })
+}
+
+/**
+ * Effets d'une mutation enregistrée entre l'avis et l'exigibilité (J67, R113 ; D. 1967 art. 6-2, 1° et 2°) : `avant` est
+ * l'avis émis, `apres` le même avis recalculé avec les positions après la mutation (avisDAppel : le poste exigible le jour
+ * même reste au vendeur, les suivants vont à l'acquéreur). Rend les postes transférés, les comptes à rediffuser (l'acquéreur
+ * reçoit un avis) et, pour le détenteur qui a reçu la pré-notification d'un débit qui ne tient plus, le message disant que
+ * le prélèvement n'aura pas lieu. L'adaptateur echeancesPrelevementDepuisAvis, lancé sur `apres`, ne prélève plus le
+ * vendeur pour ces postes. Refuse deux avis d'émissions différentes.
+ */
+export function effetsMutationSurAvis(avant: ContenuAvisAppel, apres: ContenuAvisAppel, diffusionsAvant: readonly DiffusionAvisCompte[]): EffetsMutationAvis {
+  if (avant.dateEmission !== apres.dateEmission)
+    throw new Error(`Avis du ${dateIsoVersFr(avant.dateEmission)} et du ${dateIsoVersFr(apres.dateEmission)} : comparer le même avis, avant et après la mutation.`)
+  const nouveaux = comptesDesLignes(apres)
+  const postesTransferes: PosteTransfere[] = []
+  for (const [cle, { compteId, ligne }] of comptesDesLignes(avant)) {
+    const nouveau = nouveaux.get(cle)
+    if (nouveau && nouveau.compteId !== compteId)
+      postesTransferes.push({
+        echeanceId: ligne.echeanceId,
+        lotId: ligne.lotId ?? '',
+        exigibilite: ligne.exigibilite,
+        deCompteId: compteId,
+        versCompteId: nouveau.compteId,
+        quotePartCentimes: ligne.quotePartCentimes,
+      })
+  }
+  const touches = new Set(postesTransferes.flatMap((p) => [p.deCompteId, p.versCompteId]))
+  const ordre = [...avant.parCompte, ...apres.parCompte].map((c) => c.compteId)
+  return {
+    postesTransferes,
+    comptesARediffuser: [...new Set(ordre)].filter((id) => touches.has(id)),
+    prelevementsAnnules: prelevementsAnnules(avant, apres, touches, diffusionsAvant),
+  }
 }

@@ -4,6 +4,8 @@ import { describe, expect, it } from 'vitest'
 import {
   annulerAppelees,
   annulerAvantAppel,
+  controlerDateComptableAppel,
+  dateComptableAppel,
   echeancesAAppeler,
   fixerRegroupement,
   fixerRelancable,
@@ -264,6 +266,50 @@ describe('échéances à appeler, puis appelées par un traitement « Appel de f
     expect(traitement.mouvements.map((m) => m.compte)).not.toContain('TILL.70200.00000.0')
     expect(echeancesAAppeler([t0], { jusquAu: '2026-01-31' })).toEqual([])
   })
+
+  it('J67, R104 : écriture au 450-1 pour le budget et au 450 pour le reste : les débits se comparent par compte copropriétaire', () => {
+    const [b1, ft1] = suivies()
+    const avis = avisDAppel({ echeances: [b1, ft1], cles: [cle], positions, comptes })
+    const sousComptes450 = { decision: 'AG du 12/05/2025, résolution 9 (fictive)', planBudget: '45010' }
+    const traitement = traitementAppelDeFonds(avis, { id: 't-450-1', date: '2026-01-01', segmentSyndicat: SEGMENT, comptes, sousComptes450 })
+    expect(traitement.mouvements.filter((m) => m.sens === 'debit')).toHaveLength(4)
+    expect(marquerAppelees([b1, ft1], traitement, avis).map((e) => e.statut)).toEqual(['Appelé', 'Appelé'])
+  })
+})
+
+describe('J67, R96 : date comptable de l’appel = date d’exigibilité (décret n° 2005-240, art. 3, al. 2, et art. 4)', () => {
+  const exercices = [
+    { nom: '2025', ouverture: '2025-01-01', cloture: '2025-12-31' },
+    { nom: '2026', ouverture: '2026-01-01', cloture: '2026-12-31' },
+  ]
+  const [b1, ft1, b2] = suivreEcheances(ECHEANCES)
+  const avisJanvier = avisDAppel({ echeances: [b1, ft1], cles: [cle], positions, comptes })
+  const ecrit = (date: string, avis = avisJanvier) => traitementAppelDeFonds(avis, { id: `t-${date}`, date, segmentSyndicat: SEGMENT, comptes })
+
+  it('proposée : l’exigibilité de l’avis ; datée de l’exigibilité, l’écriture ne porte aucune anomalie', () => {
+    expect(dateComptableAppel(avisJanvier)).toBe('2026-01-01')
+    expect(controlerDateComptableAppel(ecrit('2026-01-01'), avisJanvier, exercices)).toEqual([])
+  })
+
+  it('datée de l’émission dans le même exercice : avertissement ; dans un autre exercice : refus bloquant', () => {
+    const avisAvril = avisDAppel({ echeances: [b2], cles: [cle], positions, comptes })
+    expect(controlerDateComptableAppel(ecrit('2026-03-20', avisAvril), avisAvril, exercices)).toEqual([
+      expect.objectContaining({ code: 'date_autre_que_exigibilite', gravite: 'avertissement', echeanceId: 'B-2026-2' }),
+    ])
+    const [refus] = controlerDateComptableAppel(ecrit('2025-12-20'), avisJanvier, exercices)
+    expect(refus).toMatchObject({ code: 'date_hors_exercice', gravite: 'bloquant', echeanceId: 'B-2026-1' })
+    expect(refus.message).toMatch(/20\/12\/2025.*exercice 2025.*01\/01\/2026.*exercice 2026/)
+    expect(refus.fondement).toMatch(/décret n° 2005-240, art\. 3, al\. 2 ; art\. 4 ; J67, R96/)
+  })
+
+  it('le refus s’applique à marquerAppelees quand les exercices sont fournis ; une exigibilité hors de tout exercice est refusée', () => {
+    expect(() => marquerAppelees([b1, ft1], ecrit('2025-12-20'), avisJanvier, { exercices })).toThrow(/exercice 2025.*exercice 2026/)
+    expect(marquerAppelees([b1, ft1], ecrit('2025-12-20'), avisJanvier).map((e) => e.statut)).toEqual(['Appelé', 'Appelé'])
+    expect(controlerDateComptableAppel(ecrit('2026-01-01'), avisJanvier, [exercices[0]])).toEqual([
+      expect.objectContaining({ code: 'exigibilite_hors_exercice', gravite: 'bloquant', echeanceId: 'B-2026-1' }),
+      expect.objectContaining({ code: 'exigibilite_hors_exercice', gravite: 'bloquant', echeanceId: 'FT-2026-1' }),
+    ])
+  })
 })
 
 describe('annulation d’un appel : écriture contraire (arrêté du 14 mars 2005, art. 5), jamais d’échéance négative', () => {
@@ -432,6 +478,13 @@ describe('en-tête du module', () => {
       "« sommes reçues ou à recevoir de chaque copropriétaire en vertu de l'obligation leur incombant, enregistrées à la date d'exigibilité »",
     )
     expect(EN_TETE).not.toContain('« enregistrés à la date')
+  })
+
+  it('J67, R96 : la date comptable de l’appel n’est plus une question ; la reprise Gestéam (date d’émission) est signalée', () => {
+    expect(EN_TETE).not.toMatch(/Date comptable du traitement "Appel de fonds"/)
+    expect(EN_TETE).not.toMatch(/non contrôlée/)
+    expect(EN_TETE).toMatch(/J67, R96.*date comptable = date d'exigibilité.*autre exercice.*refus.*même exercice.*avertissement/)
+    expect(EN_TETE).toMatch(/tranche 43 § 8.*reprise/)
   })
 
   it('montants négatifs de Gestéam : régularisations (tranche 30) ou annulations (tranche 43 § 23) ; la régularisation renvoyée au point 25', () => {

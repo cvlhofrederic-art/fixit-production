@@ -89,18 +89,25 @@ import { MODE_REGLEMENT, type ModeReglement } from '@/lib/data/referentiels-gest
  *   (identites-positions.numeroCompteCoproprietaire), jamais saisi ;
  * - recettes hors copropriétaires (crédit d'un autre compte que le 450) : comptes admis 471 et 472 (attente), 712
  *   (emprunt, art. 10), 713, 714, 716, 718 (produits encaissés), 441 et 443 (subvention notifiée : la créance constatée
- *   à la notification se solde) ; refusés : 45 (encaissement d'un copropriétaire), 70 (appels), 10 (provisions et fonds de
- *   travaux, appelés au 450), 711 (subvention : produit constaté au rythme de la charge, art. 10), 78 (reprise sans
- *   trésorerie) et tout autre compte.
+ *   à la notification se solde), 401, 409 et 461 (J67, R101, ci-dessous) ; refusés : 45 (encaissement d'un
+ *   copropriétaire), 70 (appels), 10 (provisions et fonds de travaux, appelés au 450), 711 (subvention : produit constaté
+ *   au rythme de la charge, art. 10), 487 (J67, R101), 78 (reprise sans trésorerie) et tout autre compte.
  * Décisions J25 et J29 de Hugo (03/11/2026) : espèces refusées ; elles entreraient au compte 53 « Caisse », que VitFix
  * ne tient pas (J25 : aucun paiement en espèces ; J29 : remise d'espèces reçues refusée).
+ * Décision de Hugo du 17/11/2026 (J67, R101 ; arrêté du 14/03/2005, art. 7 et 10, et décret n° 2005-240, art. 4, relus
+ * le 17/11/2026) : 401 et 409 « Fournisseurs débiteurs » admis en recette (remboursement ou avoir d'un fournisseur, qui
+ * solde sa dette), 461 « Débiteurs divers » aussi, avec la pièce (libellé exigé, art. 4) ; 487 « Produits encaissés
+ * d'avance » refusé à l'encaissement : c'est une écriture de régularisation de fin d'exercice ; 711 toujours refusé, même
+ * pour une subvention reçue sans notification préalable : le refus dit de passer d'abord la notification (débit du 441
+ * ou du 443, crédit du 131), datée de la décision ou, à défaut, du versement, puis d'encaisser au 441 ou au 443 ; une
+ * subvention versée sur plusieurs exercices est mentionnée à l'état des travaux (annexe 5) dès sa notification, puis
+ * inscrite selon la décision qui l'accorde (décret n° 2005-240, art. 4). L'écriture de notification n'a pas de fonction
+ * ici (à écrire avec le suivi des subventions de travaux).
  * 🔴 Non établi (questions pour Frédéric ou Hugo) :
  * - « Chèque impayé ou virement reçu retourné : l'encaissement passe-t-il "Annulé" sous une écriture "Annulation
  *   d'encaissement", et son imputation sur les postes est-elle défaite ? Un encaissement isolé d'un lot (fichier de
  *   virements, remise) peut-il être annulé seul ? » (VitFix : aucun statut d'annulation, rien n'est pris en charge) ;
  * - « Famille "Fichier carte bancaire" : quel mode de règlement ? » (le référentiel des modes n'a pas de carte ; refusée) ;
- * - « Faut-il admettre aussi en recette 401 ou 409 (remboursement d'un fournisseur), 461 (débiteurs divers), 487
- *   (produits encaissés d'avance) ? Une subvention versée sans notification préalable se crédite-t-elle en 711 ? » ;
  * - « Date de prise en compte d'un encaissement : remise, valeur ou relevé ? » (VitFix : le traitement est daté du jour de
  *   l'opération, qui est la date de l'encaissement — celle de la ligne du relevé à l'import — ou, pour un chèque remis, la
  *   date de la remise ; l'imputation sur les postes lit la date de l'encaissement ; le choix entre ces dates bancaires
@@ -256,8 +263,11 @@ export function enregistrerEncaissement(
 
 /** Comptes admis au crédit d'une recette hors copropriétaires : préfixe du code de plan → objet (🔵, voir l'en-tête). */
 export const COMPTES_RECETTE_HORS_COPROPRIETAIRES: ReadonlyMap<string, string> = new Map([
+  ['401', 'Fournisseur : remboursement ou avoir, qui solde sa dette (J67, R101)'],
+  ['409', 'Fournisseur débiteur : avance ou acompte remboursé (J67, R101)'],
   ['441', 'Subvention notifiée de l’État ou d’un organisme, à recevoir'],
   ['443', 'Aide notifiée d’une collectivité territoriale, à recevoir'],
+  ['461', 'Débiteur divers (J67, R101)'],
   ['471', 'Compte en attente d’imputation débiteur'],
   ['472', 'Compte en attente d’imputation créditeur'],
   ['712', 'Emprunt'],
@@ -272,7 +282,11 @@ const COMPTES_REFUSES: readonly (readonly [string, string])[] = [
   ['45', 'compte copropriétaire : enregistrer un encaissement (enregistrerEncaissement), imputé sur ses postes'],
   ['70', "appel de fonds : produit constaté au débit des comptes 450 par l'appel (traitementAppelDeFonds), jamais à l'encaissement"],
   ['10', 'provisions, avances et fonds de travaux : appelés au débit du compte 450 de chaque copropriétaire'],
-  ['711', 'subvention : créditer la créance 441 ou 443 constatée à la notification ; le produit 711 suit la charge (arrêté du 14 mars 2005, art. 10)'],
+  [
+    '711',
+    "subvention : créditer la créance 441 ou 443 constatée à la notification ; le produit 711 suit la charge (arrêté du 14 mars 2005, art. 10) ; reçue sans notification préalable : passer d'abord la notification (débit du 441 ou du 443, crédit du 131), datée de la décision ou, à défaut, du versement, puis créditer le 441 ou le 443 ; versée sur plusieurs exercices : mentionnée à l'état des travaux (annexe 5) dès sa notification, inscrite en comptabilité selon la décision qui l'accorde (décret n° 2005-240, art. 4) ; J67, R101",
+  ],
+  ['487', "produits encaissés d'avance : écriture de régularisation de fin d'exercice, jamais un encaissement (arrêté du 14 mars 2005, art. 10 ; J67, R101)"],
   ['78', 'reprise de dépréciation : écriture sans trésorerie'],
 ]
 

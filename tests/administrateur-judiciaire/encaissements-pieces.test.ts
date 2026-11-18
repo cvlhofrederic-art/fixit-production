@@ -184,8 +184,17 @@ describe('recettes hors copropriétaires (47x, 71x, subventions notifiées)', ()
     const refuser = (planCode: string) => () => enregistrerRecette({ ...SAISIE_RECETTE, planCode }, { segmentSyndicat: SEGMENT })
     for (const planCode of ['71500', '71700', '47300'])
       expect(refuser(planCode)).toThrow(
-        `Compte ${planCode} refusé pour une recette hors copropriétaires : compte non admis (admis : 441, 443, 471, 472, 712, 713, 714, 716, 718).`,
+        `Compte ${planCode} refusé pour une recette hors copropriétaires : compte non admis (admis : 401, 409, 441, 443, 461, 471, 472, 712, 713, 714, 716, 718).`,
       )
+  })
+
+  it('J67, R101 : admet 401, 409 et 461 avec la pièce ; refuse 487 (régularisation de fin d’exercice) et 711, même sans notification', () => {
+    for (const planCode of ['40100', '40900', '46100'])
+      expect(enregistrerRecette({ ...SAISIE_RECETTE, planCode, auxiliaire: '00042' }, { segmentSyndicat: SEGMENT }).compteCredite).toBe(`TILL.${planCode}.00042.0`)
+    const refuser = (planCode: string) => () => enregistrerRecette({ ...SAISIE_RECETTE, planCode }, { segmentSyndicat: SEGMENT })
+    expect(refuser('48700')).toThrow(/487.*régularisation de fin d'exercice.*arrêté du 14 mars 2005, art\. 10/)
+    expect(refuser('71100')).toThrow(/sans notification préalable : passer d'abord la notification \(débit du 441 ou du 443, crédit du 131\), datée de la décision ou, à défaut, du versement/)
+    expect(refuser('71100')).toThrow(/plusieurs exercices : mentionnée à l'état des travaux \(annexe 5\) dès sa notification, inscrite en comptabilité selon la décision qui l'accorde \(décret n° 2005-240, art\. 4\)/)
   })
 
   it('refuse un libellé vide, un auxiliaire invalide, une pièce invalide', () => {
@@ -452,5 +461,10 @@ describe('en-tête du module', () => {
     expect(EN_TETE).toMatch(/🔵 Déduit :.*le renvoi de l'arrêté au décret n° 83-1020, abrogé, vaut renvoi à C\. com\. R\. 123-174 \(D\. 2007-431 art\. 2 ;/)
     expect(EN_TETE).not.toMatch(/au plus tôt du jour des encaissements/)
     expect(EN_TETE).toMatch(/« Date de prise en compte d'un encaissement : remise, valeur ou relevé \? » \(VitFix : le traitement est daté du jour de l'opération/)
+  })
+
+  it('J67, R101 : la question des comptes 401, 409, 461, 487 et de la subvention sans notification est tranchée', () => {
+    expect(EN_TETE).not.toMatch(/Faut-il admettre aussi en recette 401 ou 409/)
+    expect(EN_TETE).toMatch(/J67, R101.*401 et 409.*461.*487.*711/)
   })
 })
