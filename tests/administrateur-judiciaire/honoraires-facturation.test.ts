@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   CATEGORIES_ELEMENT,
   CODES_PROCEDURE_TARIF,
+  COMPTES_CHARGE_PAR_DEFAUT,
   NATURES_ELEMENT,
   NATURES_REMUNERATION,
   QUALIFICATIONS_ELEMENT,
@@ -15,10 +16,14 @@ import {
   preparerFacture,
   qualificationDe,
   qualifierElement,
+  signalerElementsOfferts,
   totalElement,
   validerFacture,
+  type CadreFacturation,
+  type ElementAFacturer,
   type SaisieElement,
 } from '@/lib/administrateur-judiciaire/domain/honoraires-facturation'
+import { AP_120_LOTS, finDeMission, ordonnance } from './donnees-ordonnances-remuneration'
 import { enTeteDuModule } from './en-tete-module'
 
 /**
@@ -26,6 +31,7 @@ import { enTeteDuModule } from './en-tete-module'
  * - Élément : dossier, nature, tarif, mode de calcul (coût unitaire, coût horaire, barème temps), prix HT à 4 décimales.
  * - Facture : regroupe les éléments « A facturer » d'un mandat et d'un destinataire ; Préparation → Validée, non
  *   imputée → Imputée ; l'imputation est un traitement « Imputation des honoraires divers » au compte du SYNDICAT (D1).
+ * - Mission judiciaire (J67, R3) : la facture est refusée au-delà de ce que couvrent le droit fixe et les ordonnances.
  * - Scénario de gestion courante : montant périodique, fréquence en mois, libellé-modèle « [Trimestre] [Annee] ».
  */
 
@@ -45,6 +51,17 @@ const saisie = (surcharge: Partial<SaisieElement> = {}): SaisieElement => ({
   destinataire: 'Syndicat des copropriétaires',
   ...surcharge,
 })
+
+/** Élément d'AR non soumis à TVA : 6,15 € HT. */
+const ar = (surcharge: Partial<SaisieElement> = {}): ElementAFacturer =>
+  creerElement(saisie({ id: 'el-2', nature: 'AR', tarif: 'Gestion - RAR', soumisTva: false, prixUnitaireHtDixMilliemes: 61_500, ...surcharge }))
+
+const CONTRAT_TYPE: CadreFacturation = { mission: 'contrat_type_syndic' }
+
+const entete = { id: 'f-1', numero: 'H-2026-0001', date: '2026-10-27', mandatId: 'mandat-2026', destinataire: 'Syndicat des copropriétaires' }
+
+const preparer = (elements: ElementAFacturer[], cadre: CadreFacturation = CONTRAT_TYPE, date = entete.date) =>
+  preparerFacture(elements, { ...entete, date, cadre })
 
 describe('honoraires — référentiels', () => {
   it('reprend les 15 natures d’éléments et les codes de procédure des tarifs', () => {
@@ -119,33 +136,17 @@ describe('honoraires — fiche précise visée par l’élément (point 66, ratt
 
   it('la facture se prépare de la même façon avec ou sans fiche', () => {
     const elements = [creerElement(saisie({ fiche: { type: 'Contentieux', id: 'ctx-1' } })), creerElement(saisie({ id: 'el-2' }))]
-    const { facture } = preparerFacture(elements, {
-      id: 'f-1',
-      numero: 'H-2026-0001',
-      date: '2026-10-27',
-      mandatId: 'mandat-2026',
-      destinataire: 'Syndicat des copropriétaires',
-    })
+    const { facture } = preparer(elements)
     expect(facture.lignes.map((l) => l.elementId)).toEqual(['el-1', 'el-2'])
     expect(facture.totalHtCentimes).toBe(9_000)
   })
 })
 
 describe('honoraires — factures', () => {
-  const elements = [
-    creerElement(saisie()),
-    creerElement(saisie({ id: 'el-2', nature: 'AR', tarif: 'Gestion - RAR', soumisTva: false, prixUnitaireHtDixMilliemes: 61_500 })),
-    creerElement(saisie({ id: 'el-3', mandatId: 'autre-mandat' })),
-  ]
+  const elements = [creerElement(saisie()), ar(), creerElement(saisie({ id: 'el-3', mandatId: 'autre-mandat' }))]
 
   it('prépare une facture avec les éléments à facturer du mandat et du destinataire ; marque les éléments facturés', () => {
-    const { facture, elements: apres } = preparerFacture(elements, {
-      id: 'f-1',
-      numero: 'H-2026-0001',
-      date: '2026-10-27',
-      mandatId: 'mandat-2026',
-      destinataire: 'Syndicat des copropriétaires',
-    })
+    const { facture, elements: apres } = preparer(elements)
     expect(facture).toMatchObject({
       statut: 'Préparation',
       type: 'Facture',
@@ -163,37 +164,64 @@ describe('honoraires — factures', () => {
     ])
   })
 
-  it('refuse une facture sans élément à facturer', () => {
-    expect(() =>
-      preparerFacture(elements, { id: 'f', numero: 'H', date: '2026-10-27', mandatId: 'inconnu', destinataire: 'Syndicat des copropriétaires' }),
-    ).toThrow(/aucun élément/i)
+  it('chaque ligne garde sa TVA : la somme des lignes TTC égale le total de la facture', () => {
+    const { facture } = preparer(elements)
+    expect(facture.lignes.map((l) => [l.elementId, l.htCentimes, l.tvaCentimes])).toEqual([
+      ['el-1', 4_500, 900],
+      ['el-2', 615, 0],
+    ])
+    expect(facture.lignes.reduce((s, l) => s + l.htCentimes + l.tvaCentimes, 0)).toBe(facture.totalTtcCentimes)
   })
 
-  it('valide puis impute : traitement équilibré au compte du syndicat, débit 62111 / crédit fournisseur cabinet, TTC', () => {
-    const { facture } = preparerFacture(elements, {
-      id: 'f-1',
-      numero: 'H-2026-0001',
-      date: '2026-10-27',
-      mandatId: 'mandat-2026',
-      destinataire: 'Syndicat des copropriétaires',
+  it('refuse une facture sans élément à facturer, ou sans cadre connu', () => {
+    expect(() => preparerFacture(elements, { ...entete, mandatId: 'inconnu', cadre: CONTRAT_TYPE })).toThrow(/aucun élément/i)
+    expect(() => preparer(elements, { mission: 'forfait' } as never)).toThrow(/cadre/i)
+  })
+})
+
+describe('honoraires — imputation par catégorie (J67, R10)', () => {
+  const imputer = (elements: ElementAFacturer[], comptesCharge?: Parameters<typeof imputerFacture>[1]['comptesCharge']) =>
+    imputerFacture(validerFacture(preparer(elements).facture), {
+      traitementId: 't-9',
+      segmentSyndicat: 'TILL',
+      auxiliaireCabinet: 'CABAJ',
+      date: '2026-10-28',
+      comptesCharge,
     })
+
+  it('comptes par défaut : rémunération au 62111, frais (débours) au 62120', () => {
+    expect(COMPTES_CHARGE_PAR_DEFAUT).toEqual({ Rémunération: '62111', Frais: '62120' })
+  })
+
+  it('facture mixte : un débit par catégorie, crédit unique du compte fournisseur du cabinet, TTC', () => {
+    const { facture } = preparer([creerElement(saisie()), ar()])
     expect(() => imputerFacture(facture, { traitementId: 't-9', segmentSyndicat: 'TILL', auxiliaireCabinet: 'CABAJ', date: '2026-10-28' })).toThrow(/valid/i)
-    const validee = validerFacture(facture)
-    expect(validee.statut).toBe('Validée, non imputée')
-    const { facture: imputee, traitement } = imputerFacture(validee, { traitementId: 't-9', segmentSyndicat: 'TILL', auxiliaireCabinet: 'CABAJ', date: '2026-10-28' })
+    const { facture: imputee, traitement } = imputer([creerElement(saisie()), ar()])
     expect(imputee.statut).toBe('Imputée')
+    expect(imputee.lignes.map((l) => l.elementId)).toEqual(['el-1', 'el-2'])
     expect(traitement.famille).toBe('Imputation des honoraires divers')
     expect(traitement.mouvements).toEqual([
-      { compte: 'TILL.62111.00000.0', sens: 'debit', montantCentimes: 6_015, traitementId: 't-9' },
+      { compte: 'TILL.62111.00000.0', sens: 'debit', montantCentimes: 5_400, traitementId: 't-9' },
+      { compte: 'TILL.62120.00000.0', sens: 'debit', montantCentimes: 615, traitementId: 't-9' },
       { compte: 'TILL.40100.CABAJ.0', sens: 'credit', montantCentimes: 6_015, traitementId: 't-9' },
     ])
     expect(() => validerFacture(imputee)).toThrow(/Préparation/)
   })
+
+  it('facture de frais seuls : un seul débit, au compte des frais', () => {
+    expect(imputer([ar({ id: 'el-1' })]).traitement.mouvements.map((m) => [m.compte, m.sens, m.montantCentimes])).toEqual([
+      ['TILL.62120.00000.0', 'debit', 615],
+      ['TILL.40100.CABAJ.0', 'credit', 615],
+    ])
+  })
+
+  it('comptes réglables par catégorie (une subdivision de 6213 « Frais postaux », par exemple)', () => {
+    const comptes = imputer([creerElement(saisie()), ar()], { Frais: '62130' }).traitement.mouvements.map((m) => m.compte)
+    expect(comptes).toEqual(['TILL.62111.00000.0', 'TILL.62130.00000.0', 'TILL.40100.CABAJ.0'])
+  })
 })
 
 describe('honoraires — qualification de l’élément (point 67 ; Gestéam : « Traitement », tranche 43 § 13)', () => {
-  const facture = { id: 'f-1', numero: 'H-2026-0001', date: '2026-10-27', mandatId: 'mandat-2026', destinataire: 'Syndicat des copropriétaires' }
-
   it('trois qualifications Gestéam ; « Facturable » par défaut (tranche 42 : élément créé à l’ouverture d’un sinistre)', () => {
     expect(QUALIFICATIONS_ELEMENT).toEqual(['Facturable', 'Offert', 'Contrôle coûts'])
     expect(QUALIFICATION_PAR_DEFAUT).toBe('Facturable')
@@ -218,12 +246,12 @@ describe('honoraires — qualification de l’élément (point 67 ; Gestéam : �
 
   it('requalifie un élément encore « A facturer » sans modifier l’élément reçu ; refuse un élément facturé', () => {
     const element = creerElement(saisie())
-    const offert = qualifierElement(element, 'Offert')
+    const offert = qualifierElement(element, 'Offert', 'contrat_type_syndic')
     expect(offert).toEqual({ ...element, qualification: 'Offert' })
     expect(element.qualification).toBeUndefined()
-    expect(qualifierElement(offert, 'Facturable').qualification).toBe('Facturable')
-    expect(() => qualifierElement({ ...element, statut: 'Facturé' }, 'Offert')).toThrow(/facturé/i)
-    expect(() => qualifierElement(element, 'Gratuit' as never)).toThrow(/qualification inconnue/i)
+    expect(qualifierElement(offert, 'Facturable', 'contrat_type_syndic').qualification).toBe('Facturable')
+    expect(() => qualifierElement({ ...element, statut: 'Facturé' }, 'Offert', 'contrat_type_syndic')).toThrow(/facturé/i)
+    expect(() => qualifierElement(element, 'Gratuit' as never, 'contrat_type_syndic')).toThrow(/qualification inconnue/i)
   })
 
   it('seuls les éléments facturables entrent dans la facture ; offerts et contrôle des coûts restent « A facturer »', () => {
@@ -233,7 +261,7 @@ describe('honoraires — qualification de l’élément (point 67 ; Gestéam : �
       creerElement(saisie({ id: 'el-3', qualification: 'Contrôle coûts' })),
       creerElement(saisie({ id: 'el-4', qualification: 'Facturable', prixUnitaireHtDixMilliemes: 100_000 })),
     ]
-    const { facture: preparee, elements: apres } = preparerFacture(elements, facture)
+    const { facture: preparee, elements: apres } = preparer(elements)
     expect(preparee.lignes.map((l) => l.elementId)).toEqual(['el-1', 'el-4'])
     expect(preparee).toMatchObject({ totalHtCentimes: 5_500, totalTvaCentimes: 1_100, totalTtcCentimes: 6_600 })
     expect(apres.map((e) => [e.id, e.statut, e.qualification])).toEqual([
@@ -246,7 +274,96 @@ describe('honoraires — qualification de l’élément (point 67 ; Gestéam : �
 
   it('refuse une facture dont tous les éléments du mandat et du destinataire sont offerts ou en contrôle des coûts', () => {
     const elements = [creerElement(saisie({ qualification: 'Offert' })), creerElement(saisie({ id: 'el-2', qualification: 'Contrôle coûts' }))]
-    expect(() => preparerFacture(elements, facture)).toThrow(/aucun élément facturable/i)
+    expect(() => preparer(elements)).toThrow(/aucun élément facturable/i)
+  })
+})
+
+describe('honoraires — « Offert » refusé en mission judiciaire (J67, R9)', () => {
+  const element = creerElement(saisie())
+
+  it('qualifierElement refuse « Offert » : tracer en Contrôle coûts (règle professionnelle 244.1, lecture prudente)', () => {
+    expect(() => qualifierElement(element, 'Offert', 'judiciaire')).toThrow(
+      'Qualification « Offert » refusée. Mission judiciaire : tracer en Contrôle coûts ; une remise sur émoluments avant leur arrêté par le juge est à éviter (règle professionnelle 244.1, lecture prudente).',
+    )
+  })
+
+  it('« Contrôle coûts » et « Facturable » restent admis ; au contrat type, « Offert » aussi', () => {
+    expect(qualifierElement(element, 'Contrôle coûts', 'judiciaire').qualification).toBe('Contrôle coûts')
+    expect(qualifierElement(element, 'Facturable', 'judiciaire').qualification).toBe('Facturable')
+    expect(qualifierElement(element, 'Offert', 'contrat_type_syndic').qualification).toBe('Offert')
+  })
+
+  it('creerElement refuse « Offert » quand l’appelant passe la mission judiciaire ; sans mission, rien ne change', () => {
+    expect(() => creerElement(saisie({ qualification: 'Offert' }), 'judiciaire')).toThrow(/Offert.*refusée/)
+    expect(creerElement(saisie({ qualification: 'Offert' })).qualification).toBe('Offert')
+    expect(() => qualifierElement(element, 'Offert', 'autre' as never)).toThrow(/mission/i)
+  })
+
+  it('un élément déjà « Offert » n’est pas changé : il est signalé en mission judiciaire, pas au contrat type', () => {
+    const elements = [element, creerElement(saisie({ id: 'el-of', qualification: 'Offert' }))]
+    expect(signalerElementsOfferts(elements, 'judiciaire')).toEqual([
+      { elementId: 'el-of', message: expect.stringMatching(/^Élément « Offert » en mission judiciaire : .*244\.1, lecture prudente/) },
+    ])
+    expect(elements[1].qualification).toBe('Offert')
+    expect(signalerElementsOfferts(elements, 'contrat_type_syndic')).toEqual([])
+  })
+})
+
+describe('honoraires — facture d’une mission judiciaire couverte par les ordonnances (J67, R3)', () => {
+  /** Honoraires de ce montant HT (centimes), TVA 20 %. */
+  const honoraires = (id: string, htCentimes: number): ElementAFacturer => creerElement(saisie({ id, prixUnitaireHtDixMilliemes: htCentimes * 100 }))
+  const judiciaire = (surcharge: Partial<Extract<CadreFacturation, { mission: 'judiciaire' }>> = {}): CadreFacturation => ({
+    mission: 'judiciaire',
+    mandat: AP_120_LOTS,
+    ordonnances: [],
+    factures: [],
+    ...surcharge,
+  })
+  const AP_600_LOTS = { regime: 'ap291', nbLots: 600 } as const
+
+  it('AP art. 29-1 de moins de 500 lots, sans ordonnance : seul le droit fixe de 1 500 € HT se facture', () => {
+    const { couverture } = preparer([honoraires('el-1', 150_000)], judiciaire(), '2026-04-15')
+    expect(couverture).toMatchObject({ emolumentsHtCentimes: 150_000, droitFixeHtCentimes: 150_000, ordonnanceIds: [] })
+    const refus = () => preparer([honoraires('el-1', 150_001)], judiciaire(), '2026-04-15')
+    expect(refus).toThrow(/Facture refusée : rémunération de 1\s500,01\s€ HT au-delà de ce que couvrent les ordonnances/)
+    expect(refus).toThrow(/D\. 1967 art\. 61-1-5/)
+  })
+
+  it('500 lots et plus, syndic judiciaire, AP art. 47 : rien sans ordonnance (arrêté, art. 3 ; C. com. R. 814-27)', () => {
+    for (const mandat of [AP_600_LOTS, { regime: 'sj', nbLots: 40 }, { regime: 'ap47', nbLots: 40 }] as const)
+      expect(() => preparer([honoraires('el-1', 100)], judiciaire({ mandat }), '2026-04-15')).toThrow(/C\. com\. R\. 814-27/)
+  })
+
+  it('droit fixe et acomptes, moins ce qui est déjà facturé pour le mandat (les autres mandats ne comptent pas)', () => {
+    const ordonnances = [ordonnance()]
+    const anterieure = preparerFacture([honoraires('el-0', 400_000)], { ...entete, id: 'f-0', date: '2026-04-01', cadre: judiciaire({ ordonnances }) }).facture
+    const autreMandat = { ...anterieure, id: 'f-x', mandatId: 'autre-mandat' }
+    const cadre = judiciaire({ ordonnances, factures: [anterieure, autreMandat] })
+    expect(preparer([honoraires('el-1', 50_000)], cadre, '2026-04-15').facture.totalHtCentimes).toBe(50_000)
+    expect(() => preparer([honoraires('el-1', 50_001)], cadre, '2026-04-15')).toThrow(/4\s500,00\s€ HT couverts au 15\/04\/2026.*4\s000,00\s€ HT déjà facturés/)
+  })
+
+  it('frais : couverts par les seuls frais des ordonnances, jamais par le droit fixe', () => {
+    expect(() => preparer([ar({ id: 'el-1' })], judiciaire(), '2026-04-15')).toThrow(/Facture refusée : frais de 6,15\s€ HT/)
+    expect(preparer([ar({ id: 'el-1' })], judiciaire({ ordonnances: [ordonnance()] }), '2026-04-15').facture.totalTtcCentimes).toBe(615)
+  })
+
+  it('fin de mission : refusée pendant le mois de recours, avec le calcul du délai ; ensuite admise, certificat de non-recours conseillé', () => {
+    const cadre = judiciaire({ mandat: AP_600_LOTS, ordonnances: [finDeMission()] })
+    expect(() => preparer([honoraires('el-1', 600_000)], cadre, '2026-04-10')).toThrow(/délai de recours en cours.*exécutoire à partir du 11\/04\/2026/)
+    const { couverture } = preparer([honoraires('el-1', 600_000)], cadre, '2026-04-11')
+    expect(couverture?.etats[0].avertissement).toMatch(/certificat de non-recours/)
+  })
+
+  it('fin de mission : refusée tant qu’un recours est pendant, ou si la notification n’indique pas le recours', () => {
+    const pendant = judiciaire({ mandat: AP_600_LOTS, ordonnances: [finDeMission({ recours: { formeLe: '2026-04-02', decision: null } })] })
+    expect(() => preparer([honoraires('el-1', 100)], pendant, '2026-06-01')).toThrow(/pendant, suspensif d'exécution/)
+    const sansMention = judiciaire({ mandat: AP_600_LOTS, ordonnances: [finDeMission({ mentionDuRecours: false })] })
+    expect(() => preparer([honoraires('el-1', 100)], sansMention, '2026-06-01')).toThrow(/sans la mention de la voie de recours/)
+  })
+
+  it('contrat type de syndic : aucun contrôle des ordonnances', () => {
+    expect(preparer([honoraires('el-1', 9_000_000)]).couverture).toBeNull()
   })
 })
 
@@ -279,51 +396,35 @@ describe('honoraires — scénario de gestion courante', () => {
   })
 })
 
-describe('honoraires — en-tête : les questions ouvertes du point 67 citent les textes exactement', () => {
-  const { item } = enTeteDuModule('honoraires-facturation')
+describe('honoraires — en-tête : décisions J67 citées, questions tranchées retirées', () => {
+  const { texte, item } = enTeteDuModule('honoraires-facturation')
 
-  it('compte de charge : les comptes 621 à 624 de l’arrêté du 14 mars 2005 (art. 7), et 62111, subdivision de 6211 (art. 8)', () => {
-    const question = item('🔴 (Frédéric ou Hugo) Compte de charge')
-    expect(question).not.toMatch(/ne connaît que/)
-    const comptes = [
-      '6211 « Rémunération du syndic »',
-      '6212 « Débours »',
-      '6213 « Frais postaux »',
-      '6221 « Honoraires travaux »',
-      '6222 « Prestations particulières »',
-      '6223 « Autres honoraires »',
-      '623 « Rémunérations de tiers intervenants »',
-      '624 « Frais du conseil syndical »',
-    ]
-    for (const compte of comptes) expect(question).toContain(compte)
-    expect(question).toMatch(/« toute subdivision nécessaire »/)
-    expect(question).toMatch(/art\. 8\b/)
-    expect(question).not.toMatch(/art\. 8, al/)
-    expect(question).toMatch(/62111[^.]* subdivision de 6211/)
-    expect(question).toMatch(/6211 ou de 623/)
-    expect(question).toMatch(/Timbre, AR/)
-    expect(question).toMatch(/imputerFacture/)
+  it('J67, R10 : rémunération au 62111 (6211), frais au 62120 (6212), comptes réglables ; seul le 6221 reste ouvert', () => {
+    const decision = item('- J67, R10')
+    for (const reference of ['62111', '6211 « Rémunération du syndic »', '62120', '6212 « Débours »', '6213 « Frais postaux »', 'L. 1965 art. 29-1, I, al. 2', 'arrêté du 14 mars 2005, art. 7 et 8'])
+      expect(decision).toContain(reference)
+    expect(decision).toMatch(/imputerFacture/)
+    expect(texte).not.toMatch(/🔴 \(Frédéric ou Hugo\) Compte de charge/)
+    expect(item('🔴 (comptable du cabinet)')).toMatch(/6221 « Honoraires travaux »/)
   })
 
-  it('blocage de « Facturable » : tous les fondements de facturation lus, pas seulement l’annexe 2 et le dépassement du forfait', () => {
-    const question = item('🔴 (Frédéric ou Hugo) Gestion syndic : faut-il bloquer « Facturable »')
-    expect(question).toMatch(/annexe 2/)
-    expect(question).toMatch(/dépassement des horaires et durées[^;]*7\.1\.5/)
-    expect(question).toMatch(/frais d'affranchissement ou d'acheminement/)
-    expect(question).toMatch(/7\.2\.1/)
-    expect(question).toMatch(/L\. 1965 art\. 10-1, a et b/)
-    expect(question).toMatch(/point 9/)
-    expect(question).toMatch(/état daté au plus 380 € TTC/)
-    expect(question).toMatch(/destinataire/)
-    expect(question).not.toMatch(/dernier alinéa/)
+  it('J67, R15 : sans objet pour le cabinet (C. com. L. 811-10) ; les fondements lus restent écrits pour le jour où le cadre servirait', () => {
+    const decision = item('- J67, R15')
+    expect(decision).toMatch(/sans objet pour le cabinet \(C\. com\. L\. 811-10\)/)
+    expect(decision).toMatch(/annexe 2/)
+    expect(decision).toMatch(/dépassement des horaires et durées[^;]*7\.1\.5/)
+    expect(decision).toMatch(/L\. 1965 art\. 10-1, a et b/)
+    expect(decision).toMatch(/état daté au plus 380 € TTC/)
+    expect(texte).not.toMatch(/🔴 \(Frédéric ou Hugo\) Gestion syndic/)
   })
 
-  it('droit fixe de 1 500 € HT : perçu dès que la décision est portée à la connaissance de l’AP, moins de 500 lots seulement', () => {
-    const question = item('🔴 (Frédéric ou Hugo) Administration provisoire : preparerFacture')
-    expect(question).not.toMatch(/perçu dès la désignation/)
-    expect(question).toMatch(/dès que la décision de désignation est portée à sa connaissance/)
-    expect(question).toMatch(/moins de 500 lots/)
-    expect(question).toMatch(/par dérogation aux art\. 4 à 15 \(arrêté du 8 octobre 2015, art\. 3/)
-    expect(question).toMatch(/remuneration_fixee_par_le_juge/)
+  it('J67, R3 et R9 : droit fixe dès que la décision est portée à la connaissance de l’AP, moins de 500 lots ; « Offert » refusé, lecture prudente', () => {
+    const r3 = item('- J67, R3')
+    expect(r3).toMatch(/dès que la décision de désignation est portée à sa connaissance/)
+    expect(r3).toMatch(/moins de 500 lots/)
+    expect(r3).toMatch(/C\. pr\. civ\. art\. 714 à 718/)
+    expect(r3).toMatch(/ordonnances-remuneration\.ts/)
+    expect(item('- J67, R9')).toMatch(/244\.1.*section sur la concurrence/)
+    expect(texte).not.toMatch(/🔴 \(Frédéric ou Hugo\) Administration provisoire/)
   })
 })

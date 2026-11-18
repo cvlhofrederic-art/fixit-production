@@ -125,11 +125,6 @@ import { LIBELLES_ETATS_RESOLUTION, type Resolution } from '@/lib/administrateur
  * - remise des comptes au conseil syndical : aucun délai légal ; l'avance est un réglage du cabinet (0 par défaut) ;
  * - honoraires : majorité selon l'objet — rémunération du syndic fixée par son contrat (D. 1967 art. 29 : art. 25) ou
  *   honoraires de travaux (L. 1965 art. 18-1 A, III : majorité des travaux) ; une résolution à l'art. 24 est signalée ;
- * - honoraires votés sous mandat de justice : signalés à vérifier. Administrateur provisoire de l'art. 29-1 : sa
- *   rémunération, fixée selon le décret, est arrêtée par le président du tribunal judiciaire (L. 1965 art. 29-1, II ;
- *   D. 1967 art. 61-1-5) ; syndic désigné par le juge : qui fixe sa rémunération ? Aucun texte relu ne le dit, et il
- *   administre selon les art. 18 à 18-2 de la loi (D. 1967 art. 46, al. 3), honoraires de travaux votés par l'assemblée
- *   compris (art. 18-1 A, III) ; administrateur provisoire de l'art. 47 : qui fixe sa rémunération ? Aucun texte relu ;
  * - majorité du montant maximum par dépense de travaux hors budget (D. 1967 art. 26-1, al. 2) : celle de la délégation
  *   (art. 21-1) est retenue ;
  * - montant maximum par dépense de travaux hors budget au renouvellement exprès de la délégation générale (L. 1965 art.
@@ -145,6 +140,14 @@ import { LIBELLES_ETATS_RESOLUTION, type Resolution } from '@/lib/administrateur
  * avant la réunion) est confirmé (décision J5) ; les seuils de l'art. 21 (consultation du conseil syndical, mise en
  * concurrence) s'entendent TTC, le texte ne le précisant pas (décision J6). L'alerte du mandataire ad hoc est modélisée
  * à part, dans alerte-mandataire-ad-hoc.ts (décision J7, voir plus haut).
+ * Tranché par Hugo le 17/11/2026 (J67, R1 ; C. com. R. 814-27 et R. 814-28 lus sur Légifrance le 17/11/2026) : la
+ * rémunération du syndic désigné par le juge (D. 1967 art. 46) et de l'administrateur provisoire de l'art. 47 est fixée,
+ * sur justification des diligences, par le président du tribunal judiciaire qui les a désignés (R. 814-27), qui peut
+ * fixer une provision (R. 814-28) ; celle de l'administrateur provisoire de l'art. 29-1 est arrêtée par lui selon le
+ * décret (L. 1965 art. 29-1, II ; D. 1967 art. 61-1-5). Le syndic judiciaire administre selon les art. 18 à 18-2 de la
+ * loi (art. 46, al. 3), honoraires de travaux votés par l'assemblée compris (art. 18-1 A, III). L'alerte des honoraires
+ * votés sous mandat de justice est gardée, à vérifier (mission « en matière civile » : une déduction). Option non codée :
+ * citer l'ordonnance qui fixe la rémunération, quand le mandat l'enregistrera (ordonnances-remuneration.ts).
  *
  * La « reddition » de ce module (« Rendu des comptes N » de l'exercice) n'est ni la reddition de comptes de fin de mission
  * (planification-mandat.ts), ni celle de l'ancien syndic (L. 1965 art. 18-2).
@@ -825,10 +828,14 @@ function anomaliesExercice(decision: DecisionAnnuelle, exercice: Exercice | null
   return []
 }
 
+/** J67, R1 : rémunération du syndic de l'art. 46 et de l'AP de l'art. 47 (C. com. R. 814-27 et R. 814-28). */
+const FIXEE_PAR_LE_PRESIDENT =
+  "sa rémunération est fixée par le président du tribunal judiciaire qui l'a désigné, sur justification des diligences (C. com. R. 814-27 ; provision possible, R. 814-28)"
+
 /**
  * Honoraires votés sous mandat de justice, selon le régime : rémunération de l'administrateur provisoire de l'art. 29-1
- * arrêtée par le juge (texte relu) ; syndic désigné par le juge et administrateur provisoire de l'art. 47 : aucun texte relu
- * sur leur rémunération (🔴), le fondement ne cite que ce que les textes portent.
+ * arrêtée par le juge selon le décret ; syndic désigné par le juge et administrateur provisoire de l'art. 47 : fixée par
+ * le président qui les a désignés (J67, R1). Alerte gardée, à vérifier.
  */
 const HONORAIRES_SOUS_MANDAT: Record<Regime, { message: string; fondement: string }> = {
   ap291: {
@@ -837,14 +844,12 @@ const HONORAIRES_SOUS_MANDAT: Record<Regime, { message: string; fondement: strin
     fondement: 'L. 1965 art. 29-1, II ; D. 1967 art. 61-1-5',
   },
   sj: {
-    message:
-      "Honoraires votés sous syndic désigné par le président du tribunal judiciaire : aucun texte relu ne dit qui fixe sa rémunération ; il administre selon les art. 18 à 18-2 de la loi, honoraires spécifiques de travaux votés par l'assemblée compris ; vérifier ce que vise la résolution.",
-    fondement: 'D. 1967 art. 46, al. 3 ; L. 1965 art. 18-1 A, III',
+    message: `Honoraires votés sous syndic désigné par le président du tribunal judiciaire : ${FIXEE_PAR_LE_PRESIDENT} ; il administre selon les art. 18 à 18-2 de la loi, honoraires spécifiques de travaux votés par l'assemblée compris ; vérifier ce que vise la résolution.`,
+    fondement: 'C. com. R. 814-27 et R. 814-28 ; D. 1967 art. 46, al. 3 ; L. 1965 art. 18-1 A, III',
   },
   ap47: {
-    message:
-      "Honoraires votés sous administrateur provisoire d'un syndicat dépourvu de syndic : aucun texte relu ne dit qui fixe sa rémunération ; vérifier ce que vise la résolution.",
-    fondement: 'D. 1967 art. 47 (régime seul ; aucun texte relu sur la rémunération)',
+    message: `Honoraires votés sous administrateur provisoire d'un syndicat dépourvu de syndic : ${FIXEE_PAR_LE_PRESIDENT}, et n'est pas votée par l'assemblée ; vérifier ce que vise la résolution.`,
+    fondement: 'C. com. R. 814-27 et R. 814-28 ; D. 1967 art. 47',
   },
 }
 

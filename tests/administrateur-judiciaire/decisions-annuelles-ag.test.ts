@@ -456,23 +456,27 @@ describe('contrôle d’une décision', () => {
       { code: 'honoraires_sous_mandat_judiciaire', fondement: 'L. 1965 art. 29-1, II ; D. 1967 art. 61-1-5', aConfirmer: true },
     ])
     expect(ap291[0].message).toMatch(/arrêtée par le président du tribunal judiciaire.*n'est pas votée par l'assemblée/)
-    // Syndic désigné par le juge : il administre selon les art. 18 à 18-2 (D. 1967 art. 46, al. 3), donc avec des honoraires
-    // de travaux votés par l'assemblée (art. 18-1 A, III) ; aucun texte relu sur sa rémunération.
+    // J67, R1 : syndic désigné par le juge et AP de l'art. 47, rémunération fixée par le président qui les a désignés
+    // (C. com. R. 814-27 ; provision, R. 814-28) ; le syndic judiciaire administre selon les art. 18 à 18-2 (D. 1967
+    // art. 46, al. 3), donc avec des honoraires de travaux votés par l'assemblée (art. 18-1 A, III). Alerte gardée.
     const sj = controlerDecisionAnnuelle(honoraires, { ...adoptee, regime: 'sj' })
     expect(sj).toMatchObject([
-      { code: 'honoraires_sous_mandat_judiciaire', fondement: 'D. 1967 art. 46, al. 3 ; L. 1965 art. 18-1 A, III', aConfirmer: true },
+      {
+        code: 'honoraires_sous_mandat_judiciaire',
+        fondement: 'C. com. R. 814-27 et R. 814-28 ; D. 1967 art. 46, al. 3 ; L. 1965 art. 18-1 A, III',
+        aConfirmer: true,
+      },
     ])
-    expect(sj[0].message).toMatch(/aucun texte relu ne dit qui fixe sa rémunération/)
+    expect(sj[0].message).toMatch(/fixée par le président du tribunal judiciaire qui l'a désigné, sur justification des diligences/)
     expect(sj[0].message).toMatch(/art\. 18 à 18-2/)
-    expect(sj[0].message).not.toMatch(/n'est pas votée/)
+    expect(sj[0].message).not.toMatch(/aucun texte relu/)
     expect(sj[0].message).not.toMatch(/29-1, II/)
-    // Administrateur provisoire de l'art. 47 : le texte du régime ne dit rien de la rémunération, et le fondement le dit.
     const ap47 = controlerDecisionAnnuelle(honoraires, { ...adoptee, regime: 'ap47' })
     expect(ap47).toMatchObject([
-      { code: 'honoraires_sous_mandat_judiciaire', fondement: 'D. 1967 art. 47 (régime seul ; aucun texte relu sur la rémunération)' },
+      { code: 'honoraires_sous_mandat_judiciaire', fondement: 'C. com. R. 814-27 et R. 814-28 ; D. 1967 art. 47', aConfirmer: true },
     ])
-    expect(ap47[0].message).toMatch(/aucun texte relu ne dit qui fixe sa rémunération/)
-    expect(ap47[0].message).not.toMatch(/n'est pas votée/)
+    expect(ap47[0].message).toMatch(/fixée par le président du tribunal judiciaire qui l'a désigné.*n'est pas votée par l'assemblée/)
+    expect(ap47[0].message).not.toMatch(/aucun texte relu/)
     expect(REGLES_DECISIONS_ANNUELLES.honoraires.note).not.toMatch(/mandataire de justice, qui n'est pas votée/)
     expect(REGLES_DECISIONS_ANNUELLES.honoraires.note).toMatch(/administrateur provisoire de l'art\. 29-1/)
     expect(controlerDecisionAnnuelle(honoraires, adoptee)).toEqual([])
@@ -822,10 +826,10 @@ describe('en-tête du module', () => {
     expect(SOURCE).toMatch(/planification-mandat\.ts/)
   })
 
-  it('🔴 honoraires sous mandat de justice : la question est posée régime par régime, sans affirmer une règle non lue', () => {
+  it('honoraires sous mandat de justice : la question est tranchée (J67, R1), elle sort des points non établis', () => {
     expect(NON_ETABLI).not.toMatch(/la rémunération du mandataire n'étant pas votée par l'assemblée/)
-    expect(NON_ETABLI).toMatch(/syndic désigné par le juge : qui fixe sa rémunération \?/)
-    expect(NON_ETABLI).toMatch(/administrateur provisoire de l'art\. 47 : qui fixe sa rémunération \?/)
+    expect(NON_ETABLI).not.toMatch(/qui fixe sa rémunération \?/)
+    expect(EN_TETE).toMatch(/J67, R1.*C\. com\. R\. 814-27.*R\. 814-28.*alerte des honoraires votés sous mandat de justice est gardée/)
   })
 
   it('L. 1965 art. 25-1 cité à la lettre (droit24/loi65.txt)', () => {

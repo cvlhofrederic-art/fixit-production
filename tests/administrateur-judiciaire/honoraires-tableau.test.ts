@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   creerElement,
+  preparerFacture,
   type ElementAFacturer,
   type FactureHonoraires,
   type SaisieElement,
@@ -10,11 +11,15 @@ import {
   REGROUPEMENTS_TABLEAU_HONORAIRES,
   elementsImputes,
   etapeCycleElement,
+  etatDeFinDeMission,
   periodeMoisPrecedent,
+  suiviDesEmoluments,
   tableauDesHonoraires,
   type CumulHonoraires,
+  type RetributionTiers,
 } from '@/lib/administrateur-judiciaire/domain/honoraires-tableau'
 import type { AffectationMandat } from '@/lib/administrateur-judiciaire/domain/suivi-a-faire'
+import { AP_120_LOTS, finDeMission, ordonnance } from './donnees-ordonnances-remuneration'
 import { enTeteDuModule } from './en-tete-module'
 
 /**
@@ -48,7 +53,7 @@ const facture = (id: string, statut: FactureHonoraires['statut'], elementIds: st
   coproprieteId: 'copro-tilleuls',
   mandatId: 'mandat-a',
   destinataire: 'Syndicat des copropriétaires',
-  lignes: elementIds.map((elementId) => ({ elementId, date: '2026-10-05', nature: 'Honoraires', tarif: 'Gestion - HONORAIRES', quantite: 1, htCentimes: 0 })),
+  lignes: elementIds.map((elementId) => ({ elementId, date: '2026-10-05', nature: 'Honoraires', tarif: 'Gestion - HONORAIRES', quantite: 1, htCentimes: 0, tvaCentimes: 0 })),
   tvaParTaux: [],
   totalHtCentimes: 0,
   totalTvaCentimes: 0,
@@ -268,12 +273,111 @@ describe('tableau des honoraires — en-tête : le tableau n’est pas le compte
     expect(texte).toMatch(/62120 ↔ 951 « DEBOURS »/)
   })
 
-  it('🔴 les frais de l’administration provisoire : remboursés à part, ou critère de la rémunération fixée par le juge ?', () => {
-    const question = item('🔴 (Frédéric ou Hugo) Administration provisoire : les frais')
+  it('🔴 les frais de l’administration provisoire : la question reste ouverte, R5 et R6 ne règlent pas les frais d’envoi de la même façon', () => {
+    const question = item('🔴 (Hugo) Administration provisoire : les frais')
     expect(question).toMatch(/61-1-5, III/)
     expect(question).toMatch(/arrêté du 8 octobre 2015, art\. 3/)
     expect(question).toMatch(/compte provisoire détaillé des émoluments/)
+    expect(question).toMatch(/R5.*R6/)
     expect(question).toMatch(/Choix actuel/)
+  })
+
+  it('J67, R5 (correction de texte) : le III, al. 2 du 61-1-5 ne joue que si les droits proportionnels des art. 11 à 13 dépassent 75 000 € HT', () => {
+    expect(texte).toMatch(/III, al\. 2, qui ne joue que lorsque les droits proportionnels des art\. 11 à 13 de l'arrêté du 8 octobre 2015 dépassent 75 000 € HT/)
+  })
+
+  it('J67, R4 : la question des règles 810.4, 900.2 et 900.3 est tranchée ; suivi et état de fin de mission cités', () => {
+    expect(texte).not.toMatch(/Le cabinet applique-t-il à l'administration provisoire de copropriété les règles 810\.4/)
+    const decision = item('- J67, R4')
+    expect(decision).toMatch(/L\. 1965 art\. 29-1, III, dernier al\./)
+    expect(decision).toMatch(/suiviDesEmoluments.*etatDeFinDeMission/)
+    expect(decision).toMatch(/900\.2.*900\.3/)
+  })
+})
+
+describe('tableau des honoraires — émoluments taxés, perçus et restant à percevoir (J67, R4 ; règles 810.4, 900.2, 900.3)', () => {
+  /** Élément du mandat « mandat-2026 », de ce montant HT (centimes). */
+  const element = (id: string, htCentimes: number, surcharge: Partial<SaisieElement> = {}): ElementAFacturer =>
+    creerElement(saisie({ id, mandatId: 'mandat-2026', prixUnitaireHtDixMilliemes: htCentimes * 100, ...surcharge }))
+  const facturee = (id: string, elementsFactures: ElementAFacturer[], statut: FactureHonoraires['statut']): FactureHonoraires => ({
+    ...preparerFacture(elementsFactures, {
+      id,
+      numero: id,
+      date: '2026-04-15',
+      mandatId: 'mandat-2026',
+      destinataire: 'Syndicat des copropriétaires',
+      cadre: { mission: 'judiciaire', mandat: AP_120_LOTS, ordonnances: [ordonnance()], factures: [] },
+    }).facture,
+    statut,
+  })
+  const facturesDuMandat = [
+    facturee('f-droit-fixe', [element('el-df', 150_000)], 'Imputée'),
+    facturee('f-acompte', [element('el-ac', 100_000), element('el-ar', 10_000, { nature: 'AR', tarif: 'Gestion - RAR', soumisTva: false })], 'Imputée'),
+    facturee('f-validee', [element('el-va', 50_000)], 'Validée, non imputée'),
+  ]
+
+  it('par catégorie : taxé par les ordonnances, droit fixe à part, perçu (factures imputées), restant à percevoir', () => {
+    expect(suiviDesEmoluments('mandat-2026', AP_120_LOTS, [ordonnance()], facturesDuMandat)).toEqual({
+      mandatId: 'mandat-2026',
+      parCategorie: {
+        Rémunération: { taxeHtCentimes: 300_000, droitFixeHtCentimes: 150_000, percuHtCentimes: 250_000, resteAPercevoirHtCentimes: 200_000 },
+        Frais: { taxeHtCentimes: 20_000, droitFixeHtCentimes: 0, percuHtCentimes: 10_000, resteAPercevoirHtCentimes: 10_000 },
+      },
+      ordonnanceIds: ['ord-1'],
+    })
+  })
+
+  it('l’ordonnance de fin de mission arrête toute la rémunération : le droit fixe et les acomptes s’imputent sur elle', () => {
+    const suivi = suiviDesEmoluments('mandat-2026', AP_120_LOTS, [ordonnance(), finDeMission()], facturesDuMandat)
+    expect(suivi.parCategorie.Rémunération).toEqual({ taxeHtCentimes: 600_000, droitFixeHtCentimes: 0, percuHtCentimes: 250_000, resteAPercevoirHtCentimes: 350_000 })
+    expect(suivi.parCategorie.Frais.resteAPercevoirHtCentimes).toBe(30_000)
+    expect(suivi.ordonnanceIds).toEqual(['ord-fin'])
+  })
+
+  const retribution = (surcharge: Partial<RetributionTiers> = {}): RetributionTiers => ({
+    id: 'ret-1',
+    mandatId: 'mandat-2026',
+    tiers: "Tiers désigné par le juge pour assister l'administrateur provisoire",
+    date: '2026-06-30',
+    montantHtCentimes: 80_000,
+    ordonnance: 'Ordonnance du 02/03/2026',
+    ...surcharge,
+  })
+
+  it('état de fin de mission : synthèse par catégorie, ordonnances, rétributions des tiers et restant à percevoir (900.2, 900.3)', () => {
+    const etat = etatDeFinDeMission('mandat-2026', AP_120_LOTS, [ordonnance(), finDeMission()], facturesDuMandat, [
+      retribution(),
+      retribution({ id: 'ret-2', montantHtCentimes: 20_000, ordonnance: null }),
+    ])
+    expect(etat.emoluments.Rémunération.resteAPercevoirHtCentimes).toBe(350_000)
+    expect(etat.ordonnances.map((o) => [o.id, o.type, o.retenue, o.montants.emolumentsHtCentimes])).toEqual([
+      ['ord-1', 'acompte', false, 300_000],
+      ['ord-fin', 'fin_de_mission', true, 600_000],
+    ])
+    expect(etat.retributionsTiers.map((r) => r.id)).toEqual(['ret-1', 'ret-2'])
+    expect(etat.totalRetributionsTiersHtCentimes).toBe(100_000)
+    expect(etat.resteAPercevoirHtCentimes).toBe(350_000 + 30_000)
+    expect(etat.signalements).toEqual([expect.stringMatching(/^Rétribution ret-2 .*sans ordonnance enregistrée.*règle professionnelle 900\.2/)])
+  })
+
+  it('perçu au-delà du taxé : restant négatif, signalé à vérifier', () => {
+    const etat = etatDeFinDeMission('mandat-2026', { regime: 'ap291', nbLots: 600 }, [], facturesDuMandat, [])
+    expect(etat.emoluments.Rémunération.resteAPercevoirHtCentimes).toBe(-250_000)
+    expect(etat.signalements).toEqual([
+      expect.stringMatching(/^Rémunération : perçu au-delà du taxé \(2\s500,00\s€ HT\), à vérifier/),
+      expect.stringMatching(/^Frais : perçu au-delà du taxé \(100,00\s€ HT\), à vérifier/),
+    ])
+  })
+
+  it('les factures d’un autre mandat ne comptent pas ; refuse une rétribution invalide, d’un autre mandat ou en double', () => {
+    const autre = { ...facturesDuMandat[0], id: 'f-autre', mandatId: 'autre-mandat' }
+    expect(suiviDesEmoluments('mandat-2026', AP_120_LOTS, [], [autre]).parCategorie.Rémunération.percuHtCentimes).toBe(0)
+    const etat = (retributions: RetributionTiers[]) => () => etatDeFinDeMission('mandat-2026', AP_120_LOTS, [], [], retributions)
+    expect(etat([retribution({ mandatId: 'autre' })])).toThrow(/autre mandat/i)
+    expect(etat([retribution(), retribution()])).toThrow(/deux fois/i)
+    expect(etat([retribution({ montantHtCentimes: -1 })])).toThrow(/montant/i)
+    expect(etat([retribution({ date: '30/06/2026' })])).toThrow(/date/i)
+    expect(etat([retribution({ tiers: ' ' })])).toThrow(/tiers/i)
   })
 })
 

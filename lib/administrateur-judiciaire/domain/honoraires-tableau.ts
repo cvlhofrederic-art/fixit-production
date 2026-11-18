@@ -6,11 +6,14 @@ import {
   joursDansMois,
   verifierAujourdhui,
 } from '@/lib/administrateur-judiciaire/domain/dates'
+import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
 import {
   CATEGORIES_ELEMENT,
   QUALIFICATIONS_ELEMENT,
   categorieDe,
   estFacturable,
+  htParCategorie,
+  montantFixePour,
   qualificationDe,
   totalElement,
   type CategorieElement,
@@ -19,6 +22,14 @@ import {
   type QualificationElement,
   type TotauxElement,
 } from '@/lib/administrateur-judiciaire/domain/honoraires-facturation'
+import {
+  droitsTaxes,
+  montantsFixesPar,
+  type MandatRemunere,
+  type MontantsFixes,
+  type OrdonnanceRemuneration,
+  type TypeOrdonnanceRemuneration,
+} from '@/lib/administrateur-judiciaire/domain/ordonnances-remuneration'
 import { portefeuille, ROLES_MANDAT, type AffectationMandat } from '@/lib/administrateur-judiciaire/domain/suivi-a-faire'
 
 /**
@@ -52,7 +63,9 @@ import { portefeuille, ROLES_MANDAT, type AffectationMandat } from '@/lib/admini
  *   provisoire : le président du tribunal judiciaire fixe chaque année les acomptes « sur justification des diligences
  *   accomplies et au vu d'un compte provisoire détaillé des émoluments » (D. 1967 art. 61-1-5, II), et arrête la
  *   rémunération en fin de mission (III), le cas échéant « en considération des frais engagés, des prestations
- *   effectuées et de leur efficacité » (III, al. 2). 🔵 La période est libre (du / au), pour qu'un tableau puisse couvrir
+ *   effectuées et de leur efficacité » (III, al. 2, qui ne joue que lorsque les droits proportionnels des art. 11 à 13
+ *   de l'arrêté du 8 octobre 2015 dépassent 75 000 € HT : arrêté, art. 15 ; correction de J67, R5). 🔵 La période est
+ *   libre (du / au), pour qu'un tableau puisse couvrir
  *   l'année de ce compte ; le mois précédent n'est que le défaut Gestéam. 🔵 Le tableau n'est pas ce compte : le texte
  *   parle d'émoluments, et un timbre ou un AR n'en est pas un. Les facturables par catégorie (facturablesParCategorie)
  *   séparent la rémunération des frais ; ce que le compte reprend reste à trancher (🔴 ci-dessous).
@@ -64,6 +77,21 @@ import { portefeuille, ROLES_MANDAT, type AffectationMandat } from '@/lib/admini
  *   charge (L. 1965 art. 10-1, b ; contrat type, point 9). D'où le cumul des facturables par destinataire.
  * - 🟢 La désignation d'un AP met fin de plein droit au contrat de syndic (contrat type, point 10). 🔵 Par mandat, une
  *   ligne relève d'un seul régime ; par responsable, une ligne peut mêler syndic et administration provisoire.
+ *
+ * Décision de Hugo du 17/11/2026 (registre des décisions juridiques, J67 : recommandations validées en bloc) :
+ * - J67, R4 : par prudence, les règles 810.4, 900.2 et 900.3 valent en administration provisoire. Elles « régissent
+ *   l'activité de tous » les AJ et leurs missions de C. com. L. 811-1 ; la loi impose à l'administrateur provisoire non
+ *   AJ « les mêmes obligations que celles qui s'imposent aux administrateurs judiciaires » (L. 1965 art. 29-1, III,
+ *   dernier al.) ; le décret appelle « émoluments » sa rémunération (D. 1967 art. 61-1-5, II) et prévoit un compte rendu
+ *   de fin de mission (art. 62-11, I, al. 2). suiviDesEmoluments tient, par mandat et par catégorie, les émoluments
+ *   taxés (ordonnances d'acompte, de provision ou de fin de mission : ordonnances-remuneration.ts), le droit fixe, le
+ *   perçu (factures imputées) et le restant à percevoir ; etatDeFinDeMission sort la synthèse par catégorie, les
+ *   rétributions versées aux tiers (le tiers désigné par le juge pour assister l'administrateur, L. 1965 art. 29-1, I,
+ *   al. 2) avec les ordonnances qui les ont fixées (règle 900.2), et le restant à percevoir (règle 900.3). Limites : les
+ *   règles 900.x emploient le vocabulaire des procédures collectives, et l'arrêté n'a été lu qu'en version initiale.
+ *   🔵 Les catégories sont celles du code (rémunération, frais), pas les droits du tarif (fixe, gestion courante,
+ *   proportionnels, hors tarif), que les éléments ne portent pas. Enregistrement des ordonnances et des rétributions :
+ *   à brancher (écrans : Frédéric).
  *
  * Questions ouvertes :
  * - 🔴 (Frédéric) Sur quoi porte le tableau : la date de l'élément (choix actuel), celle de la facture ou celle de
@@ -84,14 +112,14 @@ import { portefeuille, ROLES_MANDAT, type AffectationMandat } from '@/lib/admini
  *   émoluments (annuel, D. 1967 art. 61-1-5, II) : année civile, ou année de mission ? Le tableau mensuel est-il un
  *   contrôle interne seulement (la seule assiette mensuelle du tarif est le droit fixe de gestion courante, arrêté du
  *   8 octobre 2015, art. 5) ?
- * - 🔴 (Frédéric ou Hugo) Le cabinet applique-t-il à l'administration provisoire de copropriété les règles 810.4 et
- *   900.2 / 900.3 (synthèse par catégorie, émoluments taxés restant à percevoir) ? Si oui, il faudrait distinguer taxé,
- *   perçu et restant à percevoir, ce que les étapes du cycle ne font pas (émoluments et frais, eux, sont séparés). Leur
- *   rédaction vise surtout les procédures collectives ; l'arrêté du 18 juillet 2018 n'a été lu qu'en version initiale.
- * - 🔴 (Frédéric ou Hugo) Administration provisoire : les frais (natures Timbre, AR, Copie, envois, diffuseurs) sont-ils
+ * - 🔴 (Hugo) Administration provisoire : les frais (natures Timbre, AR, Copie, envois, diffuseurs) sont-ils
  *   remboursés au cabinet à part de sa rémunération, ou seulement pris en compte par le juge pour la fixer (D. 1967
- *   art. 61-1-5, III, al. 2 ; à 500 lots et plus, arrêté du 8 octobre 2015, art. 3) ? Figurent-ils au compte provisoire
- *   détaillé des émoluments (II), à part ou pas du tout ? Choix actuel : le tableau les cumule à part
+ *   art. 61-1-5, III, al. 2, dans le seul cas des droits proportionnels au-delà de 75 000 € HT ; à 500 lots et plus,
+ *   arrêté du 8 octobre 2015, art. 3) ? Figurent-ils au compte provisoire détaillé des émoluments (II), à part ou pas du
+ *   tout ? J67 valide deux recommandations qui ne règlent pas les frais d'envoi de la même façon : R5 (frais à part de
+ *   la rémunération, présentés au juge en annexe « frais et débours », payés en vertu de son ordonnance) et R6 (envoi
+ *   d'une mise en demeure : dépense du syndicat payée sur son compte) ; une seule règle est à choisir. Acquis : aucun
+ *   frais facturé sans ordonnance qui le couvre (preparerFacture, J67, R3). Choix actuel : le tableau les cumule à part
  *   (facturablesParCategorie), sans rien en déduire ; la liste des natures de rémunération est déduite (🔵).
  * - 🔴 (Frédéric ou Hugo) Les déductions (réduction de 25 % après un mandat ad hoc, arrêté du 8 octobre 2015, art. 2 ;
  *   sommes de l'assureur et pénalités du contrat type, 6.1, 6.2, 7.2.4) doivent-elles figurer au tableau ? Non modélisé.
@@ -306,5 +334,142 @@ export function tableauDesHonoraires(
       .sort(([a], [b]) => comparerCles(a, b))
       .map(([cle, accumulateur]) => ({ cle, mandatIds: [...accumulateur.mandatIds].sort(comparerTextes), ...cumulsDe(accumulateur) })),
     total: cumulsDe(total),
+  }
+}
+
+/** Émoluments d'une catégorie d'un mandat (J67, R4 ; règles professionnelles 810.4 et 900.3). Montants HT en centimes. */
+export interface SuiviCategorieEmoluments {
+  /** Fixé par les ordonnances (acomptes, provisions ; ou fin de mission, qui arrête tout), décision sur recours comprise. */
+  taxeHtCentimes: number
+  /** Droit fixe de l'AP de l'art. 29-1 sous 500 lots, dû sans ordonnance ; 0 dès que la fin de mission est rendue (🔵). */
+  droitFixeHtCentimes: number
+  /** HT des factures imputées. */
+  percuHtCentimes: number
+  /** Taxé + droit fixe − perçu ; négatif : perçu au-delà du taxé, à vérifier. */
+  resteAPercevoirHtCentimes: number
+}
+
+export interface SuiviEmolumentsMandat {
+  mandatId: string
+  parCategorie: Record<CategorieElement, SuiviCategorieEmoluments>
+  /** Ordonnances retenues pour le taxé (la seule fin de mission, quand elle est rendue). */
+  ordonnanceIds: string[]
+}
+
+/**
+ * Émoluments taxés, perçus et restant à percevoir d'un mandat, par catégorie (J67, R4) : taxé par toutes les ordonnances
+ * rendues (droitsTaxes), perçu par les factures imputées du mandat (honoraires-facturation.ts, htParCategorie).
+ */
+export function suiviDesEmoluments(
+  mandatId: string,
+  mandat: MandatRemunere,
+  ordonnances: readonly OrdonnanceRemuneration[],
+  factures: readonly FactureHonoraires[],
+): SuiviEmolumentsMandat {
+  const droits = droitsTaxes(mandatId, mandat, ordonnances)
+  const percu = htParCategorie(factures.filter((f) => f.mandatId === mandatId && f.statut === 'Imputée'))
+  const suivi = (categorie: CategorieElement): SuiviCategorieEmoluments => {
+    const fixe = montantFixePour(categorie, droits)
+    const droitFixeHtCentimes = categorie === 'Rémunération' ? droits.droitFixeHtCentimes : 0
+    return {
+      taxeHtCentimes: fixe - droitFixeHtCentimes,
+      droitFixeHtCentimes,
+      percuHtCentimes: percu[categorie],
+      resteAPercevoirHtCentimes: fixe - percu[categorie],
+    }
+  }
+  return {
+    mandatId,
+    parCategorie: Object.fromEntries(CATEGORIES_ELEMENT.map((c) => [c, suivi(c)])) as Record<CategorieElement, SuiviCategorieEmoluments>,
+    ordonnanceIds: droits.ordonnanceIds,
+  }
+}
+
+/**
+ * Rétribution d'un tiers désigné par le juge pour assister l'administrateur provisoire, payée sur sa rémunération
+ * (L. 1965 art. 29-1, I, al. 2 ; règle professionnelle 900.2). Enregistrement : à brancher.
+ */
+export interface RetributionTiers {
+  id: string
+  mandatId: string
+  /** Qualité du tiers (sa fonction dans la mission). */
+  tiers: string
+  date: string
+  montantHtCentimes: number
+  /** Référence de l'ordonnance qui l'a fixée ; null : aucune enregistrée (signalée). */
+  ordonnance: string | null
+}
+
+export interface OrdonnanceDeLEtat {
+  id: string
+  type: TypeOrdonnanceRemuneration
+  date: string
+  /** Montants fixés, ou ceux de la décision sur le recours. */
+  montants: MontantsFixes
+  /** Retenue pour le taxé (une fin de mission rendue écarte les acomptes et les provisions). */
+  retenue: boolean
+}
+
+/** État de fin de mission (J67, R4 ; règles professionnelles 900.2 et 900.3). */
+export interface EtatFinDeMission {
+  mandatId: string
+  /** Synthèse par catégorie : taxé, droit fixe, perçu, restant à percevoir. */
+  emoluments: Record<CategorieElement, SuiviCategorieEmoluments>
+  /** Toutes les ordonnances du mandat, dans l'ordre reçu. */
+  ordonnances: OrdonnanceDeLEtat[]
+  retributionsTiers: RetributionTiers[]
+  totalRetributionsTiersHtCentimes: number
+  /** Restant à percevoir, toutes catégories (règle 900.3). */
+  resteAPercevoirHtCentimes: number
+  /** Rétribution sans ordonnance, perçu au-delà du taxé. */
+  signalements: string[]
+}
+
+const euros = (centimes: number): string => formatEurosCentimes(centimes / 100)
+
+function verifierRetributions(mandatId: string, retributions: readonly RetributionTiers[]): void {
+  const ids = new Set<string>()
+  for (const r of retributions) {
+    if (!r.id.trim()) throw new Error('Rétribution sans identifiant.')
+    if (r.mandatId !== mandatId) throw new Error(`Rétribution ${r.id} : elle vise un autre mandat (${r.mandatId}).`)
+    if (ids.has(r.id)) throw new Error(`Rétribution ${r.id} : fournie deux fois.`)
+    ids.add(r.id)
+    if (!r.tiers.trim()) throw new Error(`Rétribution ${r.id} : tiers non renseigné.`)
+    if (!estDateIsoValide(r.date)) throw new Error(`Rétribution ${r.id} : date invalide (${r.date}), AAAA-MM-JJ attendu.`)
+    if (!Number.isSafeInteger(r.montantHtCentimes) || r.montantHtCentimes < 0)
+      throw new Error(`Rétribution ${r.id} : montant invalide (${r.montantHtCentimes}), centimes entiers positifs ou nuls attendus.`)
+  }
+}
+
+/**
+ * État de fin de mission d'un mandat (J67, R4) : émoluments par catégorie (taxés, perçus, restant à percevoir), toutes les
+ * ordonnances, rétributions des tiers avec l'ordonnance qui les a fixées (règle 900.2), restant à percevoir (900.3).
+ */
+export function etatDeFinDeMission(
+  mandatId: string,
+  mandat: MandatRemunere,
+  ordonnances: readonly OrdonnanceRemuneration[],
+  factures: readonly FactureHonoraires[],
+  retributions: readonly RetributionTiers[],
+): EtatFinDeMission {
+  verifierRetributions(mandatId, retributions)
+  const { parCategorie, ordonnanceIds } = suiviDesEmoluments(mandatId, mandat, ordonnances, factures)
+  const retenues = new Set(ordonnanceIds)
+  const signalements = [
+    ...retributions
+      .filter((r) => r.ordonnance === null)
+      .map((r) => `Rétribution ${r.id} (${r.tiers}) sans ordonnance enregistrée : la règle professionnelle 900.2 demande l'ordonnance qui l'a fixée.`),
+    ...CATEGORIES_ELEMENT.filter((c) => parCategorie[c].resteAPercevoirHtCentimes < 0).map(
+      (c) => `${c} : perçu au-delà du taxé (${euros(-parCategorie[c].resteAPercevoirHtCentimes)} HT), à vérifier.`,
+    ),
+  ]
+  return {
+    mandatId,
+    emoluments: parCategorie,
+    ordonnances: ordonnances.map((o) => ({ id: o.id, type: o.type, date: o.date, montants: montantsFixesPar(o), retenue: retenues.has(o.id) })),
+    retributionsTiers: [...retributions],
+    totalRetributionsTiersHtCentimes: retributions.reduce((s, r) => s + r.montantHtCentimes, 0),
+    resteAPercevoirHtCentimes: CATEGORIES_ELEMENT.reduce((s, c) => s + parCategorie[c].resteAPercevoirHtCentimes, 0),
+    signalements,
   }
 }

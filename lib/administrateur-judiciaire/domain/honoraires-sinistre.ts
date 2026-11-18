@@ -17,7 +17,13 @@ import {
   type ElementAFacturer,
   type NatureElement,
 } from '@/lib/administrateur-judiciaire/domain/honoraires-facturation'
+import {
+  SEUIL_LOTS_REMUNERATION_PAR_LE_JUGE,
+  verifierNombreDeLots,
+} from '@/lib/administrateur-judiciaire/domain/ordonnances-remuneration'
 import { normaliserTexte } from '@/lib/administrateur-judiciaire/domain/texte'
+
+export { SEUIL_LOTS_REMUNERATION_PAR_LE_JUGE }
 
 /**
  * Honoraires rattachés à une fiche sinistre (point 66 du bilan 2). Fonctions pures, montants en CENTIMES ENTIERS (taux
@@ -54,9 +60,14 @@ import { normaliserTexte } from '@/lib/administrateur-judiciaire/domain/texte'
  *   l'art. 14 et son exclusion de la déclaration ne s'appliquent pas. Cadre « rémunération fixée par le juge ». 🔵 Aucun
  *   élément, aucune diligence refusée ; les frais aussi sont signalés, puisque le juge en tient compte. 🔵 Le seuil se
  *   compare au nombre de lots de la copropriété passé par l'appelant (l'article ne distingue pas les lots).
- * - 🔴 Aucun texte trouvé sur la rémunération de l'AP désigné faute de syndic (D. 1967 art. 47) ni de l'administrateur ad
- *   hoc (art. 49) : le tarif de l'art. 61-1-5 vise le seul AP de l'art. 29-1. Syndic judiciaire (art. 46) : non relu.
- *   D'où le cadre « non établi » pour ces régimes : signalement, aucun élément, aucune diligence refusée.
+ * - 🟢 Syndic désigné par le juge (D. 1967 art. 46), AP désigné faute de syndic (art. 47), administrateur ad hoc (art. 49) :
+ *   la rémunération est fixée, sur justification de l'accomplissement de la mission, par le président de la juridiction
+ *   qui a désigné le cabinet (C. com. R. 814-27, lu le 17/11/2026 ; recours : CPC art. 714 à 718) ; il peut fixer une
+ *   provision (R. 814-28). Le mandataire ad hoc des art. 29-1 A à 29-1 C a son propre régime, mais sa rémunération est
+ *   aussi arrêtée par le président en fin de mission (D. 1967 art. 61-1-4). D'où le cadre « rémunération fixée par le
+ *   président » (J67, R1), qui remplace le cadre « non établi » avec le même comportement : aucun élément « A facturer »,
+ *   un signalement « à soumettre au juge », aucune diligence refusée. 🔵 regimeDepuisFondement rend null pour les deux
+ *   « ad hoc » sans les distinguer : ce cadre les couvre tous deux. Mission « en matière civile » : une déduction.
  * 🔵 Le cadre « contrat type de syndic » ne se déduit d'aucun régime judiciaire : l'appelant le passe pour un mandat de
  * syndic conventionnel.
  * - 🟢 Frais d'envoi, contrat type : remboursés au syndic à part, pour les prestations du forfait (7.1.5, alinéa sur
@@ -87,48 +98,59 @@ import { normaliserTexte } from '@/lib/administrateur-judiciaire/domain/texte'
  *   (HEURES_A_L_OUVERTURE_SINISTRE) ; le temps passé se corrige ensuite (corrigerHeures). Choix actuel confirmé : il
  *   n'est plus « à trancher », et creerElement continue de refuser une quantité nulle.
  *
+ * Décisions de Hugo du 17/11/2026 (registre des décisions juridiques, J67 : recommandations validées en bloc ; textes
+ * relus sur Légifrance le 17/11/2026 ; lecture des textes, pas un avis d'avocat) :
+ * - J67, R1 : cadre « rémunération fixée par le président » (remuneration_fixee_par_le_president, ci-dessus), pour l'AP
+ *   de l'art. 47, l'administrateur ad hoc et le syndic judiciaire (C. com. R. 814-27 et R. 814-28).
+ * - J67, R2 : en administration provisoire, aucun élément « A facturer » au syndicat sans ordonnance d'acompte ou de fin
+ *   de mission : un signalement « à soumettre au juge » (choix actuel confirmé). Seul le droit fixe de 1 500 € HT est
+ *   perçu dès la désignation, sous 500 lots (D. 1967 art. 61-1-5, I ; arrêté, art. 3 et 4). La règle générale est dans
+ *   preparerFacture (honoraires-facturation.ts, J67, R3).
+ * - J67, R8 : la somme versée par l'assureur au titre des diligences se déduit de la rémunération due, TTC (choix actuel
+ *   confirmé ; contrat type, 7.2.1 et 7.2.4, dernier al. ; arrêté, art. 14). Ce qu'un tiers paie en contrepartie du
+ *   service fait partie du prix taxable (directive 2006/112/CE, art. 73) : la somme se lit TVA comprise. L'équivalent HT
+ *   est rendu à part (deductionHtEquivalentCentimes, un seul taux de TVA), car le tarif et le juge raisonnent en HT.
+ *   Point fiscal à faire confirmer par le comptable du cabinet. Pas de déduction quand l'assureur paie le SYNDICAT : les
+ *   deux textes visent la somme versée au syndic ou à l'administrateur provisoire. À 500 lots et plus, l'art. 14 ne
+ *   s'applique pas (art. 3) : la déduction est calculée et présentée au juge, sans être imposée (règle professionnelle
+ *   810.2 : appliquer le tarif « avec transparence et loyauté à l'égard de la juridiction »).
+ * - J67, R14 : sans objet pour le cabinet (C. com. L. 811-10 : un administrateur judiciaire ne peut être syndic désigné
+ *   par l'assemblée). Si le cadre du contrat type sert un jour (question F6, Frédéric) : les copies afférentes à l'une
+ *   des quatre diligences hors forfait sont comprises dans la rémunération de la prestation particulière, et seul
+ *   l'envoi est remboursé à part (7.2.1) ; anomalieDeReprographie devra alors les signaler et le solde les écarter.
+ *   Hors contrat type, une copie est un frais (question des frais d'envoi ci-dessous).
+ *
  * Questions ouvertes :
  * - 🔴 (Frédéric) En administration provisoire (art. 29-1), comment le cabinet chiffre-t-il les actes hors tarif de
  *   l'art. 14 de l'arrêté (sinistres, recouvrement, mutation, réunions d'information) : temps passé × un taux horaire du
  *   cabinet, présenté au juge dans le compte provisoire détaillé des émoluments ? Aucun texte ne fixe le mode de calcul.
- * - 🔴 (Frédéric) En administration provisoire, un élément d'honoraires est-il prélevé directement sur le compte du
- *   syndicat (« A facturer »), ou seulement après l'ordonnance d'acompte ou de fin de mission (« À soumettre au juge ») ?
- * - 🔴 (Frédéric) En administration provisoire de moins de 500 lots, et pour un mandat au cadre non établi, les frais
- *   d'envoi d'un dossier sinistre (timbre, AR) sont-ils remboursés à part au cabinet, et sur quel texte ? Le 7.2.1, al. 2
- *   ne vise que le contrat type de syndic ; l'arrêté du 8 octobre 2015 ne parle de frais qu'aux art. 3 et 8, III. Choix
- *   actuel : seule l'absence de fiche est signalée.
- * - 🔴 (Frédéric) Quelle base de rémunération le cabinet applique-t-il pour un AP désigné faute de syndic (art. 47), un
- *   administrateur ad hoc (art. 49) ou un syndic judiciaire (art. 46) : ce que fixe l'ordonnance ?
+ * - 🔴 (Hugo) En administration provisoire de moins de 500 lots, et pour un mandat au cadre « rémunération fixée par le
+ *   président », les frais d'envoi d'un dossier sinistre (timbre, AR) : J67 valide deux recommandations qui ne les
+ *   traitent pas de la même façon. R5 : frais avancé par le cabinet, présenté au juge en annexe « frais et débours » et
+ *   payé en vertu de son ordonnance (chaque frais signalé « à présenter au juge »). R6 : dépense du syndicat, payée sur
+ *   son compte avec la pièce du prestataire postal, puis imputée au copropriétaire concerné. Une seule règle est à
+ *   choisir pour les deux modules. Les deux s'accordent sur un point : aucun remboursement à part au cabinet, aucune
+ *   facture au syndicat sans ordonnance (preparerFacture, J67, R3). Choix actuel : seule l'absence de fiche est signalée.
  * - 🔴 (Frédéric) Le cabinet gère-t-il dans VitFix des mandats de syndic conventionnels (seul cas où l'élément est créé) ?
+ *   Question F6 ; pour le cabinet, C. com. L. 811-10 (J67, R14 et R15).
  * - 🔴 (Frédéric ou Hugo) Quel arrondi pour taux horaire × durée ? Choix actuel : durée en minutes exactes, heures au
  *   centième (comme le « Nbre d'heure » Gestéam), montant arrondi au centime par totalElement.
- * - 🔴 (Frédéric) La déduction des sommes de l'assureur s'impute-t-elle sur le TTC (choix actuel) ou sur le HT ?
- *   S'applique-t-elle aussi quand l'assureur verse au SYNDICAT une indemnité pour frais de gestion ? Et à 500 lots et
- *   plus, où l'art. 14 ne s'applique pas : choix actuel, la déduction est calculée et présentée au juge.
  * - 🔴 (Frédéric) Taux horaire et taux de TVA par défaut : réglages du cabinet, non relevés (passés par l'appelant).
  * - 🔴 (Frédéric) Administration provisoire de 500 lots et plus : le juge fixe la rémunération « en fonction des frais
  *   engagés et des diligences accomplies » (arrêté du 8 octobre 2015, art. 3). Un élément en contrôle des coûts doit-il
  *   alors être signalé « à soumettre au juge » comme justificatif ? Choix actuel : non (seule l'absence de fiche), il
  *   figure au tableau des honoraires (honoraires-tableau.ts). Et en AP de moins de 500 lots, faut-il créer à l'ouverture
  *   un élément « Contrôle coûts » plutôt que le seul signalement ? Choix actuel : inchangé (signalement).
- * - 🔴 (Frédéric) Au contrat type, les copies d'un dossier sinistre afférentes à l'une des quatre diligences hors forfait :
- *   frais remboursés à part, ou comprises dans la rémunération du 7.2.4 ? Le 7.2.1, al. 2 ne vise que les frais d'envoi,
- *   et le 7.1.1, al. 2 que la reprographie des prestations du forfait (celle-ci est déjà signalée et écartée). Choix
- *   actuel : des frais, sans anomalie, comme une copie dont le tarif ne nomme aucune diligence (rien ne dit alors à
- *   quelle diligence elle se rapporte).
  */
 
 export const CADRES_REMUNERATION_SINISTRE = [
   'contrat_type_syndic',
   'tarif_administrateur_provisoire',
   'remuneration_fixee_par_le_juge',
-  'non_etabli',
+  'remuneration_fixee_par_le_president',
 ] as const
 export type CadreRemunerationSinistre = (typeof CADRES_REMUNERATION_SINISTRE)[number]
 type CadreSansElement = Exclude<CadreRemunerationSinistre, 'contrat_type_syndic'>
-
-/** 🟢 À partir de ce nombre de lots, l'entière rémunération de l'AP est fixée par le juge (arrêté du 8 octobre 2015, art. 3). */
-export const SEUIL_LOTS_REMUNERATION_PAR_LE_JUGE = 500
 
 /** 🟢 Diligences rémunérées hors forfait (D. 1967 annexe 1, 7.2.4 ; annexe 2, III) et tarifs du catalogue (tranche 27). */
 export const DILIGENCES_SINISTRE_HORS_FORFAIT = [
@@ -199,9 +221,9 @@ const aLaNature =
 const estRemuneration = (element: ElementAFacturer): boolean => categorieDe(element) === 'Rémunération'
 const estReprographie = aLaNature(NATURES_REPROGRAPHIE_SINISTRE)
 
-/** Majoration en centièmes de point de pourcentage ; dix-millièmes d'unité pour 100 % (base du calcul entier). */
+/** Pourcentages en centièmes de point (majoration, taux de TVA) ; 100 % en centièmes de point (base des calculs entiers). */
 const CENTIEMES_PAR_POINT = 100
-const BASE_MAJORATION = 100 * CENTIEMES_PAR_POINT
+const CENT_POUR_CENT = 100 * CENTIEMES_PAR_POINT
 /** Écart toléré entre la majoration × 100 et son entier le plus proche (imprécision binaire, pas une décimale de plus). */
 const TOLERANCE_CENTIEMES = 1e-6
 
@@ -216,9 +238,9 @@ export function coutHoraireUrgence(coutHoraireHtDixMilliemes: number, majoration
   const majorationCentiemes = Math.round(majorationPct * CENTIEMES_PAR_POINT)
   if (Math.abs(majorationPct * CENTIEMES_PAR_POINT - majorationCentiemes) > TOLERANCE_CENTIEMES)
     throw new Error(`Majoration invalide (${majorationPct}) : deux décimales au plus attendues.`)
-  const produit = coutHoraireHtDixMilliemes * (BASE_MAJORATION + majorationCentiemes)
+  const produit = coutHoraireHtDixMilliemes * (CENT_POUR_CENT + majorationCentiemes)
   if (!Number.isSafeInteger(produit)) throw new Error(`Coût horaire trop élevé (${coutHoraireHtDixMilliemes}) pour un calcul exact.`)
-  return Math.round(produit / BASE_MAJORATION)
+  return Math.round(produit / CENT_POUR_CENT)
 }
 
 export type DiligenceLueDansTarif = DiligenceSinistre | 'hors_heures_ouvrables'
@@ -231,9 +253,11 @@ export const FONDEMENTS_HONORAIRES_SINISTRE: Readonly<Record<CadreRemunerationSi
   ],
   tarif_administrateur_provisoire: ['L. 1965 art. 29-1, II', 'D. 1967 art. 61-1-5, I à III', 'Arrêté du 8 octobre 2015, art. 14'],
   remuneration_fixee_par_le_juge: ['L. 1965 art. 29-1, II', 'D. 1967 art. 61-1-5, II et III', 'Arrêté du 8 octobre 2015, art. 3'],
-  non_etabli: [
-    "D. 1967 art. 61-1-5, I : tarif du seul administrateur provisoire de l'art. 29-1 de la loi",
-    'D. 1967 art. 47 et 49 : aucune disposition trouvée sur la rémunération',
+  remuneration_fixee_par_le_president: [
+    'C. com. R. 814-27 : rémunération fixée sur justification par le président qui a désigné ; recours, CPC art. 714 à 718',
+    'C. com. R. 814-28 : provision',
+    'D. 1967 art. 46, 47 et 49 : désignations par le président du tribunal judiciaire',
+    'D. 1967 art. 61-1-4 : mandataire ad hoc des art. 29-1 A à 29-1 C',
   ],
 }
 
@@ -242,10 +266,13 @@ const SOURCE_REMUNERATION_PAR_LE_JUGE = 'arrêté du 8 octobre 2015, art. 3'
 const SOURCE_FORFAIT = 'D. 1967 annexe 1, 7.1.1'
 const SOURCE_REPROGRAPHIE = 'D. 1967 annexe 1, 7.1.1, al. 2'
 const SOURCE_HORS_FORFAIT = 'D. 1967 annexe 2, III, 6° à 9°'
-const MANDATS_SANS_BASE = 'AP art. 47, administrateur ad hoc, syndic judiciaire'
 const AP_PAR_LE_JUGE =
   `Administration provisoire (art. 29-1), copropriété de ${SEUIL_LOTS_REMUNERATION_PAR_LE_JUGE} lots et plus : l'entière ` +
   `rémunération est fixée par le juge en fonction des frais engagés et des diligences accomplies`
+/** J67, R1 : syndic judiciaire (art. 46), AP faute de syndic (art. 47), administrateur ou mandataire ad hoc. */
+const PAR_LE_PRESIDENT =
+  "Mandat de justice hors du tarif de l'art. 29-1 (syndic judiciaire art. 46, AP art. 47, administrateur ou mandataire " +
+  'ad hoc) : rémunération fixée par le président du tribunal qui a désigné le cabinet, sur justification des diligences'
 
 function verifierCadre(cadre: CadreRemunerationSinistre): void {
   if (!(CADRES_REMUNERATION_SINISTRE as readonly string[]).includes(cadre)) throw new Error(`Cadre de rémunération inconnu : « ${cadre} ».`)
@@ -253,11 +280,13 @@ function verifierCadre(cadre: CadreRemunerationSinistre): void {
 
 /**
  * Cadre de rémunération d'un mandat judiciaire : seul l'AP de l'art. 29-1 a un tarif écrit (art. 61-1-5), sauf à 500 lots
- * et plus, où le juge fixe toute la rémunération (arrêté art. 3). Le nombre de lots n'est lu que pour l'AP de l'art. 29-1.
+ * et plus, où le juge fixe toute la rémunération (arrêté art. 3). Les autres régimes, et un régime null (ad hoc, ou
+ * fondement non reconnu) : rémunération fixée par le président qui a désigné (C. com. R. 814-27 ; J67, R1). Le nombre de
+ * lots n'est lu que pour l'AP de l'art. 29-1.
  */
 export function cadreRemunerationDuRegime(regime: Regime | null, nbLots: number): CadreRemunerationSinistre {
-  if (regime !== 'ap291') return 'non_etabli'
-  if (!Number.isInteger(nbLots) || nbLots <= 0) throw new Error(`Nombre de lots invalide (${nbLots}) : entier strictement positif attendu.`)
+  if (regime !== 'ap291') return 'remuneration_fixee_par_le_president'
+  verifierNombreDeLots(nbLots)
   return nbLots >= SEUIL_LOTS_REMUNERATION_PAR_LE_JUGE ? 'remuneration_fixee_par_le_juge' : 'tarif_administrateur_provisoire'
 }
 
@@ -330,7 +359,8 @@ function tarifDeLaDiligence(diligence: FicheDiligenceHorsForfait, tarif: string 
 
 /**
  * Hors contrat type, ni le forfait (7.1.1) ni l'annexe 2 : en AP de moins de 500 lots, seule la déclaration est refusée
- * (arrêté art. 14) ; à 500 lots et plus et en cadre non établi, rien n'est refusé. La cohérence du tarif reste contrôlée.
+ * (arrêté art. 14) ; à 500 lots et plus et quand le président fixe la rémunération (R. 814-27), rien n'est refusé. La
+ * cohérence du tarif reste contrôlée.
  */
 function verifierHorsContratType(code: DiligenceSinistre, tarif: string | undefined, cadre: CadreSansElement): void {
   const diligence = ficheDiligence(code)
@@ -367,7 +397,8 @@ export interface OuvertureSinistre {
   destinataire?: string
 }
 
-export type MotifSansElement = 'a_soumettre_au_juge' | 'base_non_etablie'
+/** Hors contrat type, la rémunération est toujours soumise au juge (J67, R1 et R2). */
+export type MotifSansElement = 'a_soumettre_au_juge'
 
 export type ResultatOuvertureSinistre =
   | { genere: true; element: ElementAFacturer }
@@ -380,7 +411,6 @@ export type ResultatOuvertureSinistre =
       fondements: readonly string[]
     }
 
-const BASE_NON_ETABLIE = `Base de rémunération non établie pour ce mandat (${MANDATS_SANS_BASE})`
 const AUCUN_ELEMENT = "aucun élément « A facturer » n'est créé"
 
 const SANS_ELEMENT: Readonly<Record<CadreSansElement, { motif: MotifSansElement; signalement: string }>> = {
@@ -394,9 +424,9 @@ const SANS_ELEMENT: Readonly<Record<CadreSansElement, { motif: MotifSansElement;
     motif: 'a_soumettre_au_juge',
     signalement: `${AP_PAR_LE_JUGE} (${SOURCE_REMUNERATION_PAR_LE_JUGE} ; D. 1967 art. 61-1-5, II et III) ; ${AUCUN_ELEMENT}.`,
   },
-  non_etabli: {
-    motif: 'base_non_etablie',
-    signalement: `${BASE_NON_ETABLIE} : ${AUCUN_ELEMENT} ; rémunération à confirmer selon l'ordonnance.`,
+  remuneration_fixee_par_le_president: {
+    motif: 'a_soumettre_au_juge',
+    signalement: `${PAR_LE_PRESIDENT} (C. com. R. 814-27 ; provision possible, R. 814-28) ; à lui soumettre ; ${AUCUN_ELEMENT}.`,
   },
 }
 
@@ -468,7 +498,7 @@ export type NatureAnomalieHonorairesSinistre =
   | 'diligence_non_identifiee'
   | 'hors_tarif_ap'
   | 'remuneration_fixee_par_le_juge'
-  | 'cadre_non_etabli'
+  | 'remuneration_fixee_par_le_president'
 
 export interface AnomalieHonorairesSinistre {
   elementId: string
@@ -479,7 +509,7 @@ export interface AnomalieHonorairesSinistre {
 /**
  * Diligence non due selon le cadre : contrat type, déclaration et règlement des indemnités (7.1.1), et tarif hors de la
  * liste limitative de l'annexe 2 ; AP de moins de 500 lots, la seule déclaration (arrêté art. 14, sans liste de
- * diligences) ; 500 lots et plus (arrêté art. 3) et cadre non établi : aucune règle appliquée.
+ * diligences) ; 500 lots et plus (arrêté art. 3) et rémunération fixée par le président (R. 814-27) : aucune règle.
  */
 function anomalieDeDiligence(element: ElementAFacturer, cadre: CadreRemunerationSinistre): AnomalieHonorairesSinistre | null {
   const lue = diligenceDuTarif(element.tarif)
@@ -502,7 +532,8 @@ function anomalieDeDiligence(element: ElementAFacturer, cadre: CadreRemuneration
 
 /**
  * Contrat type : la copie d'une diligence au forfait (tarif qui nomme la déclaration ou le règlement des indemnités) est
- * comprise dans le forfait (7.1.1, al. 2). Les autres copies, et tout autre cadre (le contrat a pris fin) : rien (🔴).
+ * comprise dans le forfait (7.1.1, al. 2). Les autres copies, et tout autre cadre (le contrat a pris fin) : rien (J67,
+ * R14 : sans objet pour le cabinet ; règle à coder si le contrat type sert un jour).
  */
 function anomalieDeReprographie(element: ElementAFacturer, cadre: CadreRemunerationSinistre): AnomalieHonorairesSinistre | null {
   if (cadre !== 'contrat_type_syndic' || !estReprographie(element) || !estAuForfait(diligenceDuTarif(element.tarif))) return null
@@ -524,7 +555,10 @@ const ANOMALIE_DU_CADRE: Readonly<Record<CadreSansElement, { nature: NatureAnoma
     nature: 'remuneration_fixee_par_le_juge',
     message: `${AP_PAR_LE_JUGE} (${SOURCE_REMUNERATION_PAR_LE_JUGE}) : à lui soumettre, pas à facturer au syndicat.`,
   },
-  non_etabli: { nature: 'cadre_non_etabli', message: `${BASE_NON_ETABLIE} : rémunération à confirmer selon l'ordonnance.` },
+  remuneration_fixee_par_le_president: {
+    nature: 'remuneration_fixee_par_le_president',
+    message: `${PAR_LE_PRESIDENT} (C. com. R. 814-27) : à lui soumettre, pas à facturer au syndicat.`,
+  },
 }
 
 function anomalieDeCadre(element: ElementAFacturer, cadre: CadreRemunerationSinistre): AnomalieHonorairesSinistre | null {
@@ -581,7 +615,13 @@ export interface SoldeHonorairesSinistre {
   totalHtCentimes: number
   totalTtcCentimes: number
   versementsCentimes: number
+  /** Déduction sur le TTC (J67, R8). */
   deductionCentimes: number
+  /**
+   * Équivalent HT de la déduction (J67, R8) : déduction ÷ (1 + taux), arrondie au centime, quand les éléments retenus ont
+   * un seul taux de TVA (non soumis : 0 %) ; null s'ils en ont plusieurs. Point fiscal à confirmer par le comptable.
+   */
+  deductionHtEquivalentCentimes: number | null
   resteAChargeTtcCentimes: number
   /** Versements de l'assureur au-delà des honoraires : signalés, jamais un reste négatif. */
   excedentCentimes: number
@@ -593,13 +633,22 @@ const sommeTtc = (elements: readonly ElementAFacturer[]): number => elements.red
 
 const visent = (element: ElementAFacturer, fiche: Rattachement): boolean => element.fiche?.type === fiche.type && element.fiche.id === fiche.id
 
+/** Équivalent HT d'un montant TTC au taux unique des éléments (centièmes de point, non soumis : 0) ; null si plusieurs taux. */
+function equivalentHt(ttcCentimes: number, elements: readonly ElementAFacturer[]): number | null {
+  const taux = new Set(elements.map((e) => (e.soumisTva ? Math.round(e.tauxTvaPct * CENTIEMES_PAR_POINT) : 0)))
+  if (taux.size > 1) return null
+  const [tauxCentiemes = 0] = taux
+  return Math.round((ttcCentimes * CENT_POUR_CENT) / (CENT_POUR_CENT + tauxCentiemes))
+}
+
 /**
  * Honoraires d'un sinistre, déduction faite des sommes versées par l'assureur au titre des diligences. 🟢 La déduction
  * porte sur la rémunération due (7.2.4, dernier alinéa ; arrêté art. 14, hors déclaration) : les éléments non dus dans
  * le cadre en sont écartés, avec la règle du contrôle ; au contrat type, la reprographie d'une diligence au forfait est
  * écartée des frais (7.1.1, al. 2). 🔵 Éléments de rémunération de la fiche, facturés ou non ; une diligence non
  * identifiée reste dans la base (à vérifier, pas déclarée non due) ; les autres frais restent à part ; déduction
- * sur le TTC (🔴 question), plafonnée au total. Les indemnités versées au SYNDICAT (sinistres.ts) ne sont pas ces sommes.
+ * sur le TTC, plafonnée au total, avec son équivalent HT (J67, R8). Les indemnités versées au SYNDICAT (sinistres.ts)
+ * ne sont pas ces sommes : aucune déduction pour elles (J67, R8).
  * 🔵 Point 67 : seuls les éléments facturables comptent ; un élément offert ou en contrôle des coûts est hors base, hors
  * frais et hors écartés (il n'est pas dû).
  */
@@ -630,6 +679,7 @@ export function soldeHonorairesSinistre(
     totalTtcCentimes,
     versementsCentimes,
     deductionCentimes,
+    deductionHtEquivalentCentimes: equivalentHt(deductionCentimes, retenus),
     resteAChargeTtcCentimes: totalTtcCentimes - deductionCentimes,
     excedentCentimes: versementsCentimes - deductionCentimes,
     fraisTtcCentimes: sommeTtc(dus.filter((e) => !estRemuneration(e))),
