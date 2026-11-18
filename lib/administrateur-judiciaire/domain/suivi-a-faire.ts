@@ -88,9 +88,9 @@ import type { StatutAssemblee, StatutContrat, TypeContrat } from '@/lib/data/ref
  * la dernière tranche ; unités d'horizon jours / semaines / mois (listes non ouvertes dans Gestéam).
  * 🔴 Signalés `aConfirmer` : échéances légales dont la certitude n'est pas TEXTE ; déclaration d'un sinistre de type
  * « Vandalisme » ou « Bris de glace » (un vol a pu y être rangé) ; déclaration d'un sinistre « Charges Impayées »,
- * « Loyers Impayés » (assurance crédit possible, L. 111-1 : prescription aussi), « Dommages Ouvrage » ou « Catastrophes
- * naturelles » (délais propres), avec sa raison (sinistres.REGIMES_A_CONFIRMER). Les 21 jours francs de convocation
- * (décompte de votes-ag.ts) sont confirmés (J5).
+ * « Loyers Impayés » (assurance crédit possible, L. 111-1 : prescription aussi) ou « Catastrophes naturelles » (délai
+ * propre), avec sa raison (sinistres.REGIMES_A_CONFIRMER) ; les dommages-ouvrage n'y sont plus : règle propre, sans
+ * marque (J67, R52). Les 21 jours francs de convocation (décompte de votes-ag.ts) sont confirmés (J5).
  * Sinistres (J67, R49) : déclaration « au plus tard », prescription « au plus tôt », échéances du suivi sans marque
  * (sinistres.reperesDelaisSinistre, C. assur. L. 113-2, 4°, L. 114-1 et L. 114-2) ; le contrat peut allonger le délai de
  * déclaration, jamais modifier la durée de la prescription (L. 114-3).

@@ -688,6 +688,10 @@ describe('J67 — en-tête de declaration-sinistre.ts : questions des R50 à R55
     expect(questions).not.toMatch(/Décompte de L\. 113-2, 4°/)
     expect(questions).toMatch(/quelle date le cabinet retient-il comme date de déclaration/)
     expect(questions).toMatch(/la date de publication de l'arrêté doit-elle devenir un champ de la fiche sinistre/)
+    // Depuis la relecture de J67, R49 (suivi-a-faire.ts), la date de cinq jours ouvrés est marquée « à confirmer ».
+    expect(questions).toMatch(
+      /suivi-a-faire\.ts applique encore à ce type cinq jours ouvrés depuis la connaissance, date marquée « à confirmer » avec sa raison \(sinistres\.REGIMES_A_CONFIRMER/,
+    )
     expect(questions).toMatch(/Phase saisie sans date de déclaration/)
   })
 

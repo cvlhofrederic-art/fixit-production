@@ -314,10 +314,19 @@ describe('sinistres — repères de délais (indicatifs)', () => {
     expect(texte).toMatch(/L\. 114-3 relu sur Légifrance le 17\/11\/2026/)
   })
 
+  it('en-tête, puce J67, R50 : le rappel vit dans RAPPEL_DECLARATION_DES_CONNAISSANCE ; l’avertissement du suivi prend le texte de R49', () => {
+    const { item } = enTeteDuModule('sinistres')
+    const r50 = item('- J67, R50 :')
+    expect(r50).not.toContain("Le message rappelle de déclarer dès la connaissance : le repère n'est que le minimum légal du délai prévu au contrat.")
+    expect(r50).toMatch(/rappel de R50 : RAPPEL_DECLARATION_DES_CONNAISSANCE \(lu par declaration-sinistre\.ts\)/)
+    expect(r50).toMatch(/l'avertissement de reperesDelaisSinistre prend le texte de J67, R49, qui garde ce rappel/)
+  })
+
   it('J67, R50 : l’avertissement rappelle de déclarer dès la connaissance ; le repère est le minimum légal du délai prévu au contrat', () => {
     for (const type of ['Dégât des eaux', 'Vol'] as const) {
       const reperes = reperesDelaisSinistre(creerSinistre(saisie({ type })))
-      // Empilement : texte de J67, R49 (documents-suivi, plus récent dans la pile), qui garde le rappel de R50.
+      // Empilement : texte de J67, R49, qui tranche la nature des dates (des échéances, plus des repères indicatifs) et
+      // reprend le rappel de R50 (déclarer dès la connaissance ; minimum légal ou délai du contrat).
       expect(reperes.avertissement).toMatch(
         /^Déclarer dès la connaissance du sinistre\. Déclaration au plus tard à la date retenue : délai du contrat s'il est saisi, sinon minimum légal \(C\. assur\. art\. L\. 113-2, 4°\)/,
       )
@@ -338,6 +347,12 @@ describe('sinistres — repères de délais (indicatifs)', () => {
     })
     expect(reperes.fondements).toEqual(['C. assur. art. L. 113-2', 'C. assur. annexe II à l’art. A. 243-1', 'C. assur. art. L. 114-1'])
     expect(reperes.avertissement).toMatch(/^Dommages-ouvrage : déclarer dès la connaissance du sinistre \(C\. assur\. art\. L\. 113-2, 4°\) ; aucun délai dans les clauses types/)
+    // Même prescription de deux ans que le droit commun (R52) : même phrase que celle de J67, R49.
+    const phrasePrescription =
+      "Prescription au plus tôt 24 mois après l'événement (art. L. 114-1) : une interruption peut la repousser (art. L. 114-2) ; le contrat ne peut pas en changer la durée (art. L. 114-3)."
+    expect(reperes.avertissement.endsWith(` ${phrasePrescription}`)).toBe(true)
+    expect(reperesDelaisSinistre(creerSinistre(saisie())).avertissement.endsWith(` ${phrasePrescription}`)).toBe(true)
+    expect(reperes.avertissement).not.toContain('Vérifier le contrat et le dossier.')
     // La police fixe un délai : il s'applique, sans plancher de cinq jours.
     expect(reperesDelaisSinistre(dommagesOuvrage, { delaiContratJoursOuvres: 3 })).toMatchObject({
       delaiDeclarationJoursOuvres: 3,

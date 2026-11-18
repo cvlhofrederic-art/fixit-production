@@ -129,7 +129,8 @@ import type {
  *   déclaration : le dépôt (Courrier.dateDepot), la première présentation ou l'accusé de réception ? Le contrat
  *   d'assurance du syndicat le précise-t-il ?
  * - Catastrophe naturelle : la date de publication de l'arrêté doit-elle devenir un champ de la fiche sinistre ?
- *   suivi-a-faire.ts applique encore à ce type cinq jours ouvrés depuis la connaissance.
+ *   suivi-a-faire.ts applique encore à ce type cinq jours ouvrés depuis la connaissance, date marquée « à confirmer » avec
+ *   sa raison (sinistres.REGIMES_A_CONFIRMER : délai compté de la publication de l'arrêté, relecture de J67, R49).
  * - Phase saisie sans date de déclaration : la phase « Accusé réception » suit-elle la déclaration (accusé de l'assureur)
  *   ou la précède-t-elle (accusé au copropriétaire, modèle « accusé déclaration copro » ; la liste Gestéam la place avant
  *   « Déclaration ») ? La phase « Déclaration » vaut-elle déclaration faite ? (Aujourd'hui : « Accusé réception » donne

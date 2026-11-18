@@ -50,8 +50,11 @@ import {
  * justification (départ, durée, texte, date retenue).
  * Décisions de Hugo du 17/11/2026 (registre des décisions juridiques, J67) :
  * - J67, R50 : le décompte est confirmé : jours ouvrés comptés du lendemain de la connaissance, sans samedi, dimanche ni
- *   jour férié (L. 113-2, 4° dit « jours ouvrés » ; jour de départ exclu, CPC art. 641, al. 1, par analogie). Le message
- *   rappelle de déclarer dès la connaissance : le repère n'est que le minimum légal du délai prévu au contrat.
+ *   jour férié (L. 113-2, 4° dit « jours ouvrés » ; jour de départ exclu, CPC art. 641, al. 1, par analogie). Le
+ *   rappel de R50 : RAPPEL_DECLARATION_DES_CONNAISSANCE (lu par declaration-sinistre.ts) : déclarer dès la connaissance,
+ *   le repère étant le minimum légal du délai prévu au contrat, ou ce délai. Dans ce module, l'avertissement de
+ *   reperesDelaisSinistre prend le texte de J67, R49, qui garde ce rappel : R49 fait de ces dates des échéances du suivi,
+ *   plus des repères indicatifs.
  * - J67, R52 : dommages-ouvrage, aucun minimum de cinq jours ouvrés. Les clauses types (annexe II à l'art. A. 243-1, lue
  *   le 17/11/2026, en vigueur depuis le 01/04/2018) ne fixent aucun délai à l'assuré ; L. 242-1 ne fixe que ceux de
  *   l'assureur. Repère = jour de la connaissance (déclarer dès la connaissance, L. 113-2, 4°), sauf délai fixé par la
@@ -434,14 +437,18 @@ const delaiMinimumJoursOuvres = (type: TypeSinistre): number => {
 export const RAPPEL_DECLARATION_DES_CONNAISSANCE =
   "Déclarer dès la connaissance du sinistre ; le repère est le minimum légal du délai prévu au contrat (C. assur. art. L. 113-2, 4°), ou ce délai, s'il est saisi et plus long."
 
-const RAPPEL_PRESCRIPTION = 'La prescription peut être interrompue (C. assur. art. L. 114-2). Vérifier le contrat et le dossier.'
+/**
+ * Prescription « au plus tôt » (J67, R49), commune au droit commun et aux dommages-ouvrage (J67, R52 : même prescription
+ * de deux ans) ; durée tirée de PRESCRIPTION_MOIS.
+ */
+const PHRASE_PRESCRIPTION = `Prescription au plus tôt ${PRESCRIPTION_MOIS} mois après l'événement (art. L. 114-1) : une interruption peut la repousser (art. L. 114-2) ; le contrat ne peut pas en changer la durée (art. L. 114-3).`
 
 /** Droit commun (J67, R49) : déclarer dès la connaissance, au plus tard à la date retenue ; prescription au plus tôt. */
 const AVERTISSEMENT_REPERES =
   "Déclarer dès la connaissance du sinistre. Déclaration au plus tard à la date retenue : délai du contrat s'il est saisi, sinon minimum légal (C. assur. art. L. 113-2, 4°), que le contrat peut seulement allonger. " +
-  `Prescription au plus tôt ${PRESCRIPTION_MOIS} mois après l'événement (art. L. 114-1) : une interruption peut la repousser (art. L. 114-2) ; le contrat ne peut pas en changer la durée (art. L. 114-3).`
+  PHRASE_PRESCRIPTION
 
-const AVERTISSEMENT_REPERES_DOMMAGES_OUVRAGE = `Dommages-ouvrage : déclarer dès la connaissance du sinistre (C. assur. art. L. 113-2, 4°) ; aucun délai dans les clauses types (C. assur. annexe II à l'art. A. 243-1), sauf délai fixé par la police. ${RAPPEL_PRESCRIPTION}`
+const AVERTISSEMENT_REPERES_DOMMAGES_OUVRAGE = `Dommages-ouvrage : déclarer dès la connaissance du sinistre (C. assur. art. L. 113-2, 4°) ; aucun délai dans les clauses types (C. assur. annexe II à l'art. A. 243-1), sauf délai fixé par la police. ${PHRASE_PRESCRIPTION}`
 
 /** Types Gestéam sous lesquels un vol a pu être rangé (effraction, bris) : 2 jours ouvrés s'il y a eu vol (J67, R49). */
 const TYPES_VOL_POSSIBLE: ReadonlySet<TypeSinistre> = new Set<TypeSinistre>(['Vandalisme', 'Bris de glace'])

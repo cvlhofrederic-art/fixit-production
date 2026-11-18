@@ -664,6 +664,16 @@ describe('sources — sinistres, équipements, diagnostics', () => {
       expect(texte).not.toMatch(/🔴 Signalés `aConfirmer` : repères de déclaration et de prescription des sinistres/)
       expect(texte).toMatch(/Sinistres \(J67, R49\) : déclaration « au plus tard », prescription « au plus tôt »[^🔵🔴]*L\. 114-3/)
     })
+
+    it('en-tête : « Dommages Ouvrage » quitte la liste 🔴 des signalés ; règle propre, sans marque (J67, R52)', () => {
+      const { texte } = enTeteDuModule('suivi-a-faire')
+      const debut = texte.indexOf('🔴 Signalés `aConfirmer`')
+      expect(debut).toBeGreaterThanOrEqual(0)
+      const signales = texte.slice(debut, texte.indexOf('Sinistres (J67, R49)', debut))
+      expect(signales).not.toContain('Dommages Ouvrage')
+      expect(signales).toContain('« Catastrophes naturelles » (délai propre)')
+      expect(signales).toMatch(/les dommages-ouvrage n'y sont plus : règle propre, sans marque \(J67, R52\)/)
+    })
   })
 
   it('équipement : remplacement et révision, même dépassés ; fin de garantie seulement si elle est à venir', () => {
