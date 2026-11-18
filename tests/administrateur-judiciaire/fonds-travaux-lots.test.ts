@@ -6,9 +6,11 @@ import {
   emploiDepuisOperation,
   fondsTravauxALaMutation,
   informationsFondsTravauxAcquereur,
+  informationsFondsTravauxAcquereurVente,
   partsFondsTravauxParLot,
   versementsFondsTravauxDepuisImputations,
   type EmploiFondsTravaux,
+  type ModificationLots,
   type VersementFondsTravaux,
 } from '@/lib/administrateur-judiciaire/domain/fonds-travaux-lots'
 import { creerCompteCoproprietaire, creerPosition, muterLot, type Position } from '@/lib/administrateur-judiciaire/domain/identites-positions'
@@ -106,6 +108,8 @@ const cession = (date: string, lotId = 'lot-1', vendeur = 'cpt-A', acquereur = '
 const exercices = [2022, 2023, 2024, 2025, 2026].map((a) => ({ ouverture: `${a}-01-01`, cloture: `${a}-12-31` }))
 const UN = { numerateur: 1, denominateur: 1 }
 const DEMI = { numerateur: 1, denominateur: 2 }
+/** J67, R87 : fondement d'une date antérieure à la création du fonds de travaux légal (01/01/2017). */
+const FONDEMENT_CREATION = 'L. 1965 art. 14-2, rédaction issue de la loi n° 2014-366, art. 58 (fonds de travaux créé le 01/01/2017)'
 
 describe('versements au fonds de travaux, depuis les imputations', () => {
   it('seule la part imputée sur les appels du fonds compte, au lot du poste, à la date de l’encaissement, avec sa cotisation', () => {
@@ -178,6 +182,7 @@ describe('part par lot à une date', () => {
         verseCentimes: 2_000,
         repriseCentimes: 0,
         employeCentimes: 0,
+        transfertCentimes: 0,
         partCentimes: 2_000,
         verseParCompte: [{ compteId: 'cpt-A', verseCentimes: 2_000 }],
         derniereCotisation: { posteId: 'FT-1:lot-1', appelId: 'FT-1', exigibilite: '2026-01-01', montantCentimes: 2_000, date: '2026-01-10', compteId: 'cpt-A' },
@@ -346,6 +351,94 @@ describe('part par lot à une date', () => {
       expect(etat.anomalies[0].message).toMatch(/^Emploi EMP-0 : Décision d'affectation de l'assemblée saisie en texte libre .* forme incomplète/)
       expect(etat.anomalies[1].message).toMatch(/forme exigée : juridiction, date et n° de l'ordonnance/)
     })
+  })
+})
+
+describe('J67, R89 — division ou réunion de lots : la part du fonds suit les lots issus (art. 14-2-1, III ; art. 11, par analogie)', () => {
+  const versements = [versement('V1', 'lot-1', 'cpt-A', '2026-01-10', 2_000, FT1_LOT1), versement('V2', 'lot-2', 'cpt-B', '2026-01-10', 3_000, FT1_LOT2)]
+  const etat = (modificationsLots: ModificationLots[], date = '2026-03-01', emplois: EmploiFondsTravaux[] = [], clesLues = cles) =>
+    partsFondsTravauxParLot({ versements, emplois, cles: clesLues, date, modificationsLots })
+  const lignes = (e: ReturnType<typeof etat>) => e.parts.map((p) => [p.lotId, p.verseCentimes, p.transfertCentimes, p.partCentimes])
+  const REUNION: ModificationLots = { id: 'MOD-1', type: 'reunion', date: '2026-02-01', lotsOrigine: ['lot-1', 'lot-2'], lotIssu: 'lot-12' }
+  const DIVISION: ModificationLots = {
+    id: 'MOD-2',
+    type: 'division',
+    date: '2026-02-01',
+    lotOrigine: 'lot-2',
+    repartition: { reference: 'Règlement modificatif du 01/02/2026', lots: [{ lotId: 'lot-2a', tantiemes: 1 }, { lotId: 'lot-2b', tantiemes: 2 }] },
+  }
+
+  it('réunion : la part du nouveau lot est la somme des parts des lots réunis ; avant sa date, rien ne bouge', () => {
+    const e = etat([REUNION])
+    expect(lignes(e)).toEqual([
+      ['lot-1', 2_000, -2_000, 0],
+      ['lot-2', 3_000, -3_000, 0],
+      ['lot-12', 0, 5_000, 5_000],
+    ])
+    expect(e.anomalies).toEqual([])
+    expect(e.parts.reduce((s, p) => s + p.partCentimes, 0)).toBe(e.totalVerseCentimes - e.totalDeduitDesPartsCentimes)
+    expect(etat([REUNION], '2026-01-31').parts.map((p) => [p.lotId, p.partCentimes])).toEqual([
+      ['lot-1', 2_000],
+      ['lot-2', 3_000],
+    ])
+  })
+
+  it('division : la part du lot d’origine se partage au prorata des tantièmes des lots issus, au centime', () => {
+    expect(lignes(etat([DIVISION]))).toEqual([
+      ['lot-1', 2_000, 0, 2_000],
+      ['lot-2', 3_000, -3_000, 0],
+      ['lot-2a', 0, 1_000, 1_000],
+      ['lot-2b', 0, 2_000, 2_000],
+    ])
+  })
+
+  it('division sans répartition saisie : la part reste sur le lot d’origine, résultat à confirmer', () => {
+    const e = etat([{ ...DIVISION, repartition: null }])
+    expect(lignes(e)).toEqual([
+      ['lot-1', 2_000, 0, 2_000],
+      ['lot-2', 3_000, 0, 3_000],
+    ])
+    expect(e.anomalies).toMatchObject([{ code: 'division_sans_repartition', refId: 'lot-2' }])
+    expect(e.anomalies[0].message).toMatch(/MOD-2.*règlement modificatif.*la part reste sur le lot d'origine, à confirmer/)
+  })
+
+  it('le même jour, les versements passent avant la modification, et la modification avant les emplois', () => {
+    const apres = creerCleRepartition({ id: 'cle-003', coproprieteId: 'copro-1', code: '003', libelle: 'Après division', lots: [{ lotId: 'lot-1', tantiemes: 400 }, { lotId: 'lot-2a', tantiemes: 200 }, { lotId: 'lot-2b', tantiemes: 400 }] })
+    const versementDuJour = versement('V3', 'lot-2', 'cpt-B', '2026-02-01', 3_000, { id: 'FT-2', exigibilite: '2026-01-01', appeleCentimes: 3_000 })
+    const e = partsFondsTravauxParLot({
+      versements: [...versements, versementDuJour],
+      emplois: [emploi({ date: '2026-02-01', cleId: 'cle-003', montantCentimes: 1_000, decaissement: { objet: 'travaux_ppt', montantCentimes: 1_000, decisionAg: AG_12 } })],
+      cles: [...cles, apres],
+      date: '2026-03-01',
+      modificationsLots: [DIVISION],
+    })
+    // 6 000 de lot-2 (versement du jour compris) partagés 2 000 / 4 000, puis l'emploi de 1 000 au prorata 2 000 / 2 000 / 4 000.
+    expect(e.parts.map((p) => [p.lotId, p.transfertCentimes, p.employeCentimes, p.partCentimes])).toEqual([
+      ['lot-1', 0, 250, 1_750],
+      ['lot-2', -6_000, 0, 0],
+      ['lot-2a', 2_000, 250, 1_750],
+      ['lot-2b', 4_000, 500, 3_500],
+    ])
+  })
+
+  it('mutation et information de l’acquéreur lisent les modifications : la part suit le lot issu', () => {
+    const positionsIssus = cession('2026-05-01', 'lot-12', 'cpt-A', 'cpt-C', '2026-02-01')
+    const mutation = fondsTravauxALaMutation({ positions: positionsIssus, lotId: 'lot-12', date: '2026-05-01', nbLotsPrincipaux: 40, versements, emplois: [], cles, postes: [], modificationsLots: [REUNION] })
+    expect(mutation.partRattacheeCentimes).toBe(5_000)
+    const info = informationsFondsTravauxAcquereur({ positions: positionsIssus, lotId: 'lot-12', datePromesse: '2026-04-01', dateArrete: '2026-03-31', nbLotsPrincipaux: 40, versements, emplois: [], cles, exercices, modificationsLots: [REUNION] })
+    expect(info.partRattacheeCentimes).toBe(5_000)
+  })
+
+  it('saisie refusée : identifiant en double, date invalide, réunion de moins de deux lots, division sans lot issu, tantièmes invalides, lot issu en double', () => {
+    expect(() => etat([REUNION, { ...DIVISION, id: 'MOD-1' }])).toThrow(/MOD-1.*deux fois/)
+    expect(() => etat([{ ...REUNION, date: '01/02/2026' }])).toThrow(/AAAA-MM-JJ/)
+    expect(() => etat([{ ...REUNION, lotsOrigine: ['lot-1'] }])).toThrow(/au moins deux lots/)
+    expect(() => etat([{ ...REUNION, lotsOrigine: ['lot-1', 'lot-1'] }])).toThrow(/au moins deux lots/)
+    const division = (repartition: { reference: string; lots: { lotId: string; tantiemes: number }[] }) => etat([{ ...DIVISION, repartition }])
+    expect(() => division({ reference: 'Règlement modificatif', lots: [] })).toThrow(/lot issu/)
+    expect(() => division({ reference: 'Règlement modificatif', lots: [{ lotId: 'lot-2a', tantiemes: 0 }] })).toThrow(/tantièmes/)
+    expect(() => division({ reference: 'Règlement modificatif', lots: [{ lotId: 'lot-2a', tantiemes: 1 }, { lotId: 'lot-2a', tantiemes: 1 }] })).toThrow(/lot-2a.*en double/)
+    expect(() => division({ reference: ' ', lots: [{ lotId: 'lot-2a', tantiemes: 1 }] })).toThrow(/référence/)
   })
 })
 
@@ -762,9 +855,14 @@ describe('mutation d’un lot', () => {
     expect(actuel.mention).toMatch(/acquéreur peut consentir/)
     expect(fondsA('2024-06-01', 250).fondements).toContain('L. 1965 art. 14-2-1, III')
     expect(fondsA('2022-06-01', null).fondements).toContain('L. 1965 art. 14-2, II (rédaction antérieure à la loi n° 2021-1104)')
-    // Nombre de lots inconnu entre 2023 et 2025, ou rédaction de l'ancien article non relue : à établir.
+    // Nombre de lots inconnu entre 2023 et 2025 : à établir.
     expect(fondsA('2024-06-01', null)).toMatchObject({ fondements: ['Loi n° 2021-1104 du 22 août 2021, art. 171, VI'], mention: expect.stringMatching(/à établir/) })
-    expect(fondsA('2018-01-01', 40).mention).toMatch(/non relue/)
+    // J67, R87 : du 01/01/2017 au 25/11/2018, même règle (sommes attachées aux lots) ; avant le 01/01/2017, aucun fonds légal.
+    expect(fondsA('2018-01-01', 40).fondements).toContain(ANCIEN_14_2)
+    expect(fondsA('2018-01-01', 40).mention).not.toMatch(/non relue/)
+    const avant2017 = fondsA('2016-12-31', 40)
+    expect(avant2017.fondements).toEqual([FONDEMENT_CREATION])
+    expect(avant2017.mention).toMatch(/^Aucun fonds de travaux légal à la date de mutation/)
   })
 
   it('8 — bornes exactes du régime : 200/201 et 50/51 lots, le 01/01 de chaque palier et la veille', () => {
@@ -772,6 +870,7 @@ describe('mutation d’un lot', () => {
       const { fondements } = fondsA(date, nbLots)
       if (fondements.includes('L. 1965 art. 14-2-1, III')) return 'actuel'
       if (fondements.includes(ANCIEN_14_2)) return 'ancien'
+      if (fondements.includes(FONDEMENT_CREATION)) return 'aucun fonds'
       return 'à établir'
     }
     const cas: [string, number | null, string][] = [
@@ -789,8 +888,11 @@ describe('mutation d’un lot', () => {
       ['2023-01-01', null, 'à établir'],
       ['2024-12-31', null, 'à établir'],
       ['2025-01-01', null, 'actuel'],
-      ['2018-11-24', 40, 'à établir'],
+      ['2018-11-24', 40, 'ancien'],
       ['2018-11-25', 40, 'ancien'],
+      ['2017-01-01', 40, 'ancien'],
+      ['2016-12-31', 40, 'aucun fonds'],
+      ['2016-12-31', null, 'aucun fonds'],
     ]
     expect(cas.map(([date, nbLots]) => [date, nbLots, regime(date, nbLots)])).toEqual(cas)
   })
@@ -883,13 +985,14 @@ describe('informations dues à l’acquéreur (CCH L. 721-2, II, 2°, d)', () =>
     expect(info([{ ouverture: '2025-01-01', cloture: '2025-12-31' }, { ouverture: '2026-01-01', cloture: '2026-12-31' }]).cotisationAnnuelleVendeur).toMatchObject({ montantCentimes: 8_000 })
   })
 
-  it('S4 — rédaction de L. 721-2 selon la date de la promesse et le nombre de lots (loi n° 2021-1104, art. 171, VII) ; à établir avant le 29/08/2015', () => {
+  it('S4 — rédaction de L. 721-2 selon la date de la promesse et le nombre de lots (loi n° 2021-1104, art. 171, VII) ; avant le 01/01/2017, aucun fonds légal (J67, R87)', () => {
     // Contrôle 20d, sonde S4 : 40 lots, promesse du 01/06/2025 → rédaction issue de l'ordonnance n° 2015-1075 (la loi de
     // 2021 n'entre en vigueur que le 01/01/2026 jusqu'à 50 lots), dont le d) et l'alinéa suivant sont les mêmes.
     const informations = (datePromesse: string, nbLotsPrincipaux: number | null) =>
       informationsFondsTravauxAcquereur({ positions: cession('2026-05-01', 'lot-1', 'cpt-A', 'cpt-C', '2010-01-01'), lotId: 'lot-1', datePromesse, dateArrete: '2014-12-31', nbLotsPrincipaux, versements: [], emplois: [], cles, exercices: [] })
     const redaction = (datePromesse: string, nbLots: number | null): string => {
       const [premier, second] = informations(datePromesse, nbLots).fondements
+      if (premier === FONDEMENT_CREATION) return 'aucun fonds'
       if (premier !== 'CCH art. L. 721-2, II, 2°, d) et alinéa suivant') return 'à établir'
       if (second.includes('ordonnance n° 2015-1075 ou de la loi n° 2021-1104')) return 'selon les lots'
       return second.startsWith("Rédaction issue de l'ordonnance n° 2015-1075") ? '2015' : '2021'
@@ -901,8 +1004,10 @@ describe('informations dues à l’acquéreur (CCH L. 721-2, II, 2°, d)', () =>
     ])
     expect(sonde.mention).not.toMatch(/à établir/)
     const cas: [string, number | null, string][] = [
-      ['2015-08-28', 40, 'à établir'],
-      ['2015-08-29', 40, '2015'],
+      ['2015-08-28', 40, 'aucun fonds'],
+      ['2015-08-29', 40, 'aucun fonds'],
+      ['2016-12-31', 40, 'aucun fonds'],
+      ['2017-01-01', 40, '2015'],
       ['2023-12-31', 201, '2015'],
       ['2024-01-01', 201, '2021'],
       ['2024-01-01', 200, '2015'],
@@ -920,10 +1025,62 @@ describe('informations dues à l’acquéreur (CCH L. 721-2, II, 2°, d)', () =>
     expect(cas.map(([date, nbLots]) => [date, nbLots, redaction(date, nbLots)])).toEqual(cas)
     expect(informations('2015-08-28', 40)).toMatchObject({
       aConfirmer: true,
-      fondements: ['CCH art. L. 721-2 : rédaction antérieure au 29/08/2015 à établir (non relue)'],
-      mention: expect.stringMatching(/^Fondement à établir : promesse antérieure au 29\/08\/2015/),
+      fondements: [FONDEMENT_CREATION],
+      mention: expect.stringMatching(/^Aucun fonds de travaux légal à la date de la promesse.*le d\) .* est sans objet/),
     })
     expect(() => informations('2025-06-01', -1)).toThrow(/lots/)
+  })
+
+  describe('J67, R110 — lot annexe vendu seul ; plusieurs lots vendus ensemble (CCH L. 721-2, II, 2°, d ; art. 14-2-1, III)', () => {
+    // cpt-A vend aussi sa cave (lot-3) : un appel de 500 réglé en 2025.
+    const cave = versement('VC-1', 'lot-3', 'cpt-A', '2025-01-10', 500, { id: 'FT25-1', exigibilite: '2025-01-01', appeleCentimes: 500 })
+    const commun = {
+      positions: [...avant, ...cession('2026-05-01', 'lot-3', 'cpt-A', 'cpt-C', '2010-01-01')],
+      datePromesse: '2026-04-01',
+      dateArrete: '2025-12-31',
+      nbLotsPrincipaux: 40,
+      versements: [...versements, cave],
+      emplois: [],
+      cles,
+      exercices,
+    }
+
+    it('lot annexe vendu seul : sa part et sa dernière cotisation sont données, avec un avertissement ; lot principal : sans', () => {
+      const seule = informationsFondsTravauxAcquereur({ ...commun, lotId: 'lot-3', lotAnnexe: true })
+      expect(seule).toMatchObject({ partRattacheeCentimes: 500, derniereCotisationVendeur: { posteId: 'FT25-1:lot-3', montantCentimes: 500 } })
+      expect(seule.avertissement).toMatch(/^Lot annexe vendu seul : CCH art\. L\. 721-2, II, 2°, d\) ne vise que le lot principal ; information donnée par prudence/)
+      expect(seule.mention).toContain(seule.avertissement as string)
+      expect(informationsFondsTravauxAcquereur({ ...commun, lotId: 'lot-1' }).avertissement).toBeNull()
+    })
+
+    it('plusieurs lots vendus ensemble : détail lot par lot et total ; l’annexe vendue avec son lot principal, sans avertissement', () => {
+      const vente = informationsFondsTravauxAcquereurVente({
+        ...commun,
+        lots: [
+          { lotId: 'lot-1', lotAnnexe: false },
+          { lotId: 'lot-3', lotAnnexe: true },
+        ],
+      })
+      expect(vente.lots.map((l) => [l.lotId, l.partRattacheeCentimes, l.avertissement])).toEqual([
+        ['lot-1', 8_000, null],
+        ['lot-3', 500, null],
+      ])
+      expect(vente.totalPartRattacheeCentimes).toBe(8_500)
+      expect(vente.lotPrincipalVendu).toBe(true)
+      const annexesSeules = informationsFondsTravauxAcquereurVente({ ...commun, lots: [{ lotId: 'lot-3', lotAnnexe: true }] })
+      expect(annexesSeules).toMatchObject({ lotPrincipalVendu: false, totalPartRattacheeCentimes: 500 })
+      expect(annexesSeules.lots[0].avertissement).toMatch(/^Lot annexe vendu seul/)
+      expect(() => informationsFondsTravauxAcquereurVente({ ...commun, lots: [] })).toThrow(/au moins un lot/)
+      expect(() =>
+        informationsFondsTravauxAcquereurVente({
+          ...commun,
+          lots: [
+            { lotId: 'lot-1', lotAnnexe: false },
+            { lotId: 'lot-1', lotAnnexe: false },
+          ],
+        }),
+      ).toThrow(/lot-1.*deux fois/)
+    })
   })
 
   it('8 — anomalies de l’information à l’acquéreur : part négative à l’arrêté ; un emploi postérieur à l’arrêté n’y figure pas', () => {
@@ -958,9 +1115,23 @@ describe('en-tête du module (marqueurs 🟢 / 🔵 / 🔴)', () => {
   it('3 — « dernière cotisation versée » : 🔴 laissée ouverte (le notaire choisit), deux lectures exposées, plus en 🔵', () => {
     expect(nonEtabli).toMatch(/« dernière cotisation versée » \(L\. 721-2, II, 2°, d\) — laissée ouverte \(Hugo, 30\/10\/2026 : le notaire choisit la/)
     expect(nonEtabli).toMatch(/cotisation ANNUELLE \(art\. 14-2-1, I, al\. 6\)/)
-    expect(nonEtabli).toMatch(/\(1\) le dernier appel du fonds entièrement versé/)
-    expect(nonEtabli).toMatch(/\(2\) la cotisation annuelle de l'exercice de cet appel/)
+    // J67, R109 : la lecture « cotisation annuelle », plus proche du mot de la loi, est présentée en premier, sans être choisie.
+    expect(nonEtabli).toMatch(/J67, R109/)
+    expect(nonEtabli).toMatch(/\(1\) la cotisation annuelle de l'exercice du dernier appel entièrement versé/)
+    expect(nonEtabli).toMatch(/\(2\) le dernier appel du fonds entièrement versé/)
     expect(deduit).not.toMatch(/« dernière cotisation versée »/)
+  })
+
+  it('J67, R87 à R89 et R110 : décisions inscrites ; leurs questions ne sont plus en 🔴', () => {
+    const j67 = entete.slice(entete.indexOf('Décisions de Hugo du 17/11/2026'))
+    expect(j67).toMatch(/J67, R87 : .*01\/01\/2017.*aucun fonds de travaux légal/)
+    expect(j67).toMatch(/J67, R88 : .*intérêts.*acquis au syndicat.*hors des parts des lots/)
+    expect(j67).toMatch(/J67, R89 : .*réunion.*division.*division_sans_repartition/)
+    expect(j67).toMatch(/J67, R110 : .*lot annexe vendu seul.*informationsFondsTravauxAcquereurVente/)
+    expect(nonEtabli).not.toMatch(/part d'un lot annexe vendu seul/)
+    expect(nonEtabli).not.toMatch(/intérêts du compte séparé/)
+    expect(nonEtabli).not.toMatch(/division ou réunion de lots/)
+    expect(nonEtabli).not.toMatch(/rédactions de L\. 721-2 antérieures au 29\/08\/2015/)
   })
 
   it('rubrique « Décisions de Hugo du 03/11/2026 » : J30, forme structurée, texte libre signalé, aucune date du jour', () => {

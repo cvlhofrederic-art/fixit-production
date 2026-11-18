@@ -1,5 +1,5 @@
 import { repartirAuxPlusFortsRestes } from '@/lib/administrateur-judiciaire/domain/arrondis'
-import { ajouterJours, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
+import { ajouterJours, composerDateIso, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
 import {
   numeroCompteCoproprietaire,
   positionsEnPlace,
@@ -57,12 +57,17 @@ import { creerTraitement, type Traitement } from '@/lib/administrateur-judiciair
  * réorganisation sous le même compte laisse le même redevable ; exigible la veille ou le lendemain : inchangé. Cohérent
  * avec fonds-travaux-lots.fondsTravauxALaMutation (vendeur en place la veille, appels du fonds exigibles au plus tard le
  * jour de la mutation dus par lui) ; postesDepuisAvis et l'imputation des encaissements lisent le compte porté par l'avis.
+ * Décision de Hugo du 17/11/2026 (registre des décisions juridiques, J67 ; textes relus sur Légifrance le 17/11/2026) :
+ * - J67, R87 : cotisation au fonds exigible du 01/01/2017 au 25/11/2018 : même règle qu'ensuite (ancien art. 14-2,
+ *   rédaction du 01/01/2017 au 25/11/2018 ; pour un appel exigible au plus tard le jour de la mutation, les 1° et 2° de
+ *   l'art. 6-2 désignent tous deux le vendeur) ; avant le 01/01/2017, aucun fonds de travaux légal (fonds-travaux.ts,
+ *   CREATION_FONDS_TRAVAUX). Mutation le jour d'une exigibilité antérieure au 01/09/2004 (avant l'art. 6-2, créé par le
+ *   décret n° 2004-479, art. 5 ; règle de l'époque non relue, créances de cet âge très probablement prescrites : L. 1965
+ *   art. 42, al. 1) : hors champ, l'appel n'est porté à aucun compte (anomalie mutation_avant_art_6_2).
  * 🔴 Non établi :
  * - mutation à titre gratuit (donation, succession) : l'art. 6-2 ne vise que la mutation à titre onéreux, et le modèle ne
  *   distingue pas la nature de la mutation (muterLot n'en porte aucune) ; la règle du vendeur est appliquée à toute
  *   mutation. Question : qui doit la provision exigible le jour d'une mutation à titre gratuit ?
- * - mutation antérieure au 01/09/2004 (création de l'art. 6-2 par le décret n° 2004-479) et cotisation au fonds exigible
- *   avant le 25/11/2018 (rédactions antérieures de l'art. 14-2 non relues) : même règle, sans texte relu.
  */
 
 export interface LotCle {
@@ -134,7 +139,8 @@ export interface AvisCompte {
 }
 
 export interface AnomalieAppel {
-  code: 'cle_inconnue' | 'lot_sans_compte' | 'comptes_multiples'
+  /** mutation_avant_art_6_2 : mutation le jour d'une exigibilité antérieure à l'art. 6-2, hors champ (J67, R87). */
+  code: 'cle_inconnue' | 'lot_sans_compte' | 'comptes_multiples' | 'mutation_avant_art_6_2'
   echeanceId: string
   lotId: string | null
 }
@@ -149,16 +155,27 @@ export interface AvisAppels {
 const proprietairesEnPlace = (positions: Position[], lotId: string, date: string): Position[] =>
   positionsEnPlace(positions, lotId, date).filter((p) => estQualiteCopropriete(p.qualite))
 
+/** D. 1967 art. 6-2, créé par le décret n° 2004-479 (art. 5), en vigueur le 01/09/2004 (J67, R87). */
+export const ENTREE_EN_VIGUEUR_ART_6_2 = composerDateIso(2004, 9, 1)
+
 /**
  * Comptes redevables de la quote-part du lot exigible à `exigibilite` : ceux des positions de copropriété en place ce
  * jour-là ; si le lot mute ce jour-là (une position de copropriété en place la veille sort, une autre entre), ceux des
- * positions en place la veille : le vendeur (D. 1967 art. 6-2 ; décision du 30/10/2026, voir l'en-tête).
+ * positions en place la veille : le vendeur (D. 1967 art. 6-2 ; décision du 30/10/2026, voir l'en-tête). `mutation` :
+ * le lot mute ce jour-là.
  */
-function comptesRedevables(positions: Position[], lotId: string, exigibilite: string): Set<string> {
+function comptesRedevables(positions: Position[], lotId: string, exigibilite: string): { comptes: Set<string>; mutation: boolean } {
   const duJour = proprietairesEnPlace(positions, lotId, exigibilite)
   const veille = proprietairesEnPlace(positions, lotId, ajouterJours(exigibilite, -1))
   const mutation = duJour.some((p) => p.dateEntree === exigibilite) && veille.some((p) => p.dateSortie === exigibilite)
-  return new Set((mutation ? veille : duJour).map((p) => p.compteId as string))
+  return { comptes: new Set((mutation ? veille : duJour).map((p) => p.compteId as string)), mutation }
+}
+
+/** Anomalie d'une quote-part qui n'est portée à aucun compte : mutation avant l'art. 6-2 (J67, R87), ou titulaires ≠ 1. */
+function anomalieDuTitulaire(redevables: { comptes: Set<string>; mutation: boolean }, exigibilite: string): AnomalieAppel['code'] | null {
+  if (redevables.mutation && exigibilite < ENTREE_EN_VIGUEUR_ART_6_2) return 'mutation_avant_art_6_2'
+  if (redevables.comptes.size === 1) return null
+  return redevables.comptes.size === 0 ? 'lot_sans_compte' : 'comptes_multiples'
 }
 
 /**
@@ -189,12 +206,13 @@ export function avisDAppel({
       continue
     }
     for (const part of repartir(echeance.montantCentimes, cle)) {
-      const titulaires = comptesRedevables(positions, part.lotId, echeance.exigibilite)
-      if (titulaires.size !== 1) {
-        anomalies.push({ code: titulaires.size === 0 ? 'lot_sans_compte' : 'comptes_multiples', echeanceId: echeance.id, lotId: part.lotId })
+      const redevables = comptesRedevables(positions, part.lotId, echeance.exigibilite)
+      const code = anomalieDuTitulaire(redevables, echeance.exigibilite)
+      if (code) {
+        anomalies.push({ code, echeanceId: echeance.id, lotId: part.lotId })
         continue
       }
-      const [compteId] = titulaires
+      const [compteId] = redevables.comptes
       lignes.set(compteId, [...(lignes.get(compteId) ?? []), { echeanceId: echeance.id, lotId: part.lotId, cle: cle.code, centimes: part.centimes }])
     }
   }

@@ -25,10 +25,26 @@ import { refLoi1965 } from '@/lib/administrateur-judiciaire/domain/delais-legaux
  *   Légifrance le 30/10/2026 : compte séparé rémunéré, sans fusion ni compensation) : à la Caisse des dépôts aussi, sans
  *   IBAN propre, il exige son compte de nature « fonds_travaux » (anomalie fonds_travaux_manquant).
  *
- * 🔴 Non établi : les textes qui fondent le dépôt à la Caisse des dépôts des fonds de l'administrateur provisoire restent
- *    à citer (C. com., livre VIII, non lu) ; seul L. 1965 art. 29-3, V, lu le 30/10/2026, vise les sommes qu'il y verse,
- *    sans en faire une obligation. Reste aussi à établir, pour ce compte, la portée de l'art. 18, II, al. 3 (compte
- *    séparé au nom du syndicat). D'ici là, aucun mode n'est présenté comme imposé par la loi.
+ * Décisions de Hugo du 17/11/2026 (registre des décisions juridiques, J67 et J71 ; recommandations validées en bloc) :
+ * - J67, R94 : le fondement probable du dépôt à la Caisse des dépôts des fonds de l'administrateur provisoire est C. com.
+ *   R. 814-41 (lu sur Légifrance le 17/11/2026, en vigueur depuis le 27/03/2007) : dans les mandats « en matière
+ *   civile », les administrateurs judiciaires déposent à la Caisse des dépôts, sur un compte ouvert à leur nom, dès
+ *   réception, tous les fonds reçus. Que l'administration provisoire de copropriété soit une mission « en matière
+ *   civile » est déduit, à confirmer (C. com. R. 811-28-2 range ces actes dans la spécialité commerciale). L. 1965
+ *   art. 29-3, V présuppose ce dépôt (aucune exécution sur ces sommes) : le dépôt n'est pas présenté comme imposé par la
+ *   loi de 1965, et la pratique du cabinet (J37) reste un réglage. Aucun changement de comportement.
+ * - J67, R95 : un compte à la Caisse des dépôts ne remplit probablement pas, à la lettre, l'obligation d'un compte séparé
+ *   « au nom du syndicat » (L. 1965 art. 18, II, al. 3) : le compte de R. 814-41 est ouvert au nom de l'administrateur.
+ *   Rien n'est imposé ni bloqué : une information accompagne les comptes actifs à la Caisse des dépôts
+ *   (informationsComptesMandat). Question à poser à un juriste ou au CNAJMJ.
+ * - J71 (placement du fonds de travaux) : un compte de placement au nom du syndicat peut être réservé au fonds
+ *   (reserveAuFondsTravaux) ; il tient alors le fonds, comme le compte séparé du fonds ou le compte repris qui le tenait
+ *   (estCompteDuFondsTravaux, lu par virement-interne.ts et fonds-detenus.ts). Enregistrement de la marque : à brancher.
+ *
+ * 🔴 Non établi : l'articulation entre le compte au nom de l'administrateur (C. com. R. 814-41) et le compte séparé au nom
+ *    du syndicat (L. 1965 art. 18, II, al. 3) : aucun texte lu ne dit si l'une cède devant l'autre ; l'intitulé exact des
+ *    comptes ouverts par la Caisse des dépôts (au nom de l'administrateur « ès qualités » ?) n'est pas vérifié. D'ici là,
+ *    aucun mode n'est présenté comme imposé par la loi.
  */
 
 const FONDEMENT_FONDS_TRAVAUX = citerFondement(refLoi1965('18, II, al. 4'))
@@ -44,6 +60,29 @@ export const NATURES_COMPTE_BANCAIRE = {
   repris_ancien_gestionnaire: { libelle: "Compte repris de l'ancien syndic ou administrateur" },
 } as const satisfies Record<string, { libelle: string }>
 export type NatureCompteBancaire = keyof typeof NATURES_COMPTE_BANCAIRE
+
+/** Marques d'un compte qui disent s'il tient le fonds de travaux (L. 1965 art. 18, II, al. 4). */
+export interface MarquesFondsTravaux {
+  nature: NatureCompteBancaire
+  /** Compte repris de l'ancien gestionnaire qui tenait le fonds : ses sommes restent au fonds. Réservé à cette nature. */
+  tenaitFondsTravaux?: boolean
+  /** J71 : compte de placement au nom du syndicat, réservé au fonds de travaux. Réservé à la nature « placement ». */
+  reserveAuFondsTravaux?: boolean
+}
+
+/** Compte qui tient le fonds de travaux : compte séparé du fonds, compte repris qui le tenait, placement réservé au fonds (J71). */
+export const estCompteDuFondsTravaux = (c: MarquesFondsTravaux): boolean =>
+  c.nature === 'fonds_travaux' ||
+  (c.nature === 'repris_ancien_gestionnaire' && c.tenaitFondsTravaux === true) ||
+  (c.nature === 'placement' && c.reserveAuFondsTravaux === true)
+
+/** Refuse une marque du fonds de travaux portée par un compte d'une autre nature ; `nom` désigne le compte. */
+export function verifierMarquesFondsTravaux(c: MarquesFondsTravaux, nom: string): void {
+  if (c.tenaitFondsTravaux && c.nature !== 'repris_ancien_gestionnaire')
+    throw new Error(`${nom} : seul un compte repris de l'ancien gestionnaire porte la mention « tenait le fonds de travaux ».`)
+  if (c.reserveAuFondsTravaux && c.nature !== 'placement')
+    throw new Error(`${nom} : seul un compte de placement porte la mention « réservé au fonds de travaux » (J71).`)
+}
 
 /** Modes de tenue proposés au cabinet ; le fonds de travaux s'ajoute toujours à part, quel que soit le mode. */
 export const MODES_TENUE_COMPTES = {
@@ -200,4 +239,28 @@ export function controlerComptesMandat(contexte: ContexteComptesMandat): Anomali
       })
 
   return anomalies
+}
+
+/** Information sans blocage sur les comptes d'un mandat (J67, R95). */
+export interface InformationComptes {
+  code: 'caisse_depots_articulation_non_etablie'
+  message: string
+  fondement: string
+}
+
+/**
+ * J67, R95 — informations, jamais bloquantes, sur les comptes actifs d'un mandat : une seule, dès qu'un compte actif est
+ * à la Caisse des dépôts, ouvert au nom de l'administrateur (C. com. R. 814-41), alors que la loi demande un compte séparé
+ * au nom du syndicat (L. 1965 art. 18, II, al. 3) ; aucun texte lu ne règle cette articulation.
+ */
+export function informationsComptesMandat(comptes: readonly Pick<CompteBancaireMandat, 'nature' | 'actif'>[]): InformationComptes[] {
+  if (!comptes.some((c) => c.actif && c.nature === 'caisse_depots')) return []
+  return [
+    {
+      code: 'caisse_depots_articulation_non_etablie',
+      message:
+        "Compte à la Caisse des dépôts : compte au nom de l'administrateur (C. com. R. 814-41) ; compte séparé au nom du syndicat (L. 1965 art. 18, II, al. 3) : articulation non établie. Information seulement, à faire préciser par un juriste ou le CNAJMJ.",
+      fondement: 'C. com. R. 814-41 ; L. 1965 art. 18, II, al. 3',
+    },
+  ]
 }

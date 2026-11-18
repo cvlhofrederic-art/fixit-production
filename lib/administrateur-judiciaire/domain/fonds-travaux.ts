@@ -1,5 +1,6 @@
 import { repartirAuxPlusFortsRestes } from '@/lib/administrateur-judiciaire/domain/arrondis'
 import {
+  ajouterJours,
   ajouterMois,
   composerDateIso,
   dateIsoVersFr,
@@ -63,6 +64,30 @@ import type { NaturePlanComptable } from '@/lib/data/referentiels-gesteam-judici
  *   inchangé (mêmes refus, mêmes causes, mêmes motifs, même lecture des valeurs enregistrées avant J30) : le motif d'un
  *   refus garde « forme attendue » pour la décision de l'AG et « forme exigée » pour l'ordonnance (CadreForme.exigence).
  *
+ * Décisions de Hugo du 17/11/2026 (registre des décisions juridiques, J67 ; recommandations validées en bloc ; textes
+ * relus sur Légifrance le 17/11/2026) :
+ * - J67, R84 : l'assiette des 2,5 % est le montant total des travaux de la partie du plan adoptée par l'assemblée, toutes
+ *   années confondues (« montant des travaux prévus dans le plan adopté », I, al. 8 ; le plan porte sur dix ans et
+ *   l'assemblée en adopte « tout ou partie », art. 14-2, I, 4°, et II) ; jamais une tranche annuelle ; les travaux non
+ *   adoptés n'y entrent pas. L'entrée est renommée totalTravauxPlanAdopteCentimes ; calcul inchangé.
+ * - J67, R85 : le minimum s'applique de plein droit, sans vote (« ne peut être inférieur à ») : au moins 5 % du budget
+ *   voté et, avec un plan adopté, au moins 2,5 % de ses travaux, les deux à la fois ; seul un montant supérieur se vote
+ *   (majorité de l'art. 25, I, al. 9) (cotisationAnnuelleDue). La suspension se vote à la majorité de l'art. 24 (le II ne
+ *   fixe pas de majorité), ou vient d'une ordonnance (art. 29-14, 1°, plan de sauvegarde) ; elle a un début et, si la
+ *   décision la fixe, une fin. Votée sans période, elle dure jusqu'à l'assemblée générale annuelle suivante ; votée par
+ *   l'assemblée, elle cesse dès qu'une condition du II n'est plus remplie, contrôlée à chaque exercice ; à sa fin, alerte
+ *   « reprise des cotisations » (etatSuspensionCotisationsFondsTravaux). Enregistrement de la suspension (début, fin,
+ *   date de l'AG suivante) : à brancher.
+ * - J67, R86 : avant l'entrée en vigueur applicable (loi n° 2021-1104, art. 171, VI), l'ancien art. 14-2 s'applique
+ *   (rédactions du 01/01/2017 au 25/11/2018 et du 25/11/2018 au 01/01/2023, relues) : fonds constitué cinq ans après la
+ *   réception, cotisation d'au moins 5 % du budget, dispenses (moins de dix lots, par décision unanime de l'assemblée ;
+ *   diagnostic technique global sans besoin de travaux dans les dix ans) ; avant le 01/01/2017, aucun fonds de travaux
+ *   légal. Le fonds constitué sous l'ancien régime continue tel quel (même compte 105, mêmes parts par lot :
+ *   fonds-travaux-lots.ts ne remet rien à zéro). Immeuble de cinq à dix ans à l'entrée en vigueur : le fonds existant
+ *   reste et ne sert qu'aux dépenses du I ; la cotisation n'est obligatoire qu'à dix ans (alerte
+ *   immeuble_moins_de_dix_ans). Petite copropriété dispensée : aucun fonds avant l'entrée en vigueur, obligation ensuite
+ *   (J4). Aucun texte transitoire lu : c'est une lecture, validée. Enregistrement de la dispense : à brancher.
+ *
  * 🔵 Déduit du texte (non écrit en toutes lettres) :
  * - le syndic décide seul des travaux urgents (art. 18), pas de l'usage du fonds : aucune disposition ne lui permet d'y
  *   puiser sans décision d'affectation de l'assemblée ;
@@ -71,17 +96,10 @@ import type { NaturePlanComptable } from '@/lib/data/referentiels-gesteam-judici
  * - les deux planchers d'une copropriété dotée d'un PPT jouent ensemble : le plus élevé s'impose ;
  * - un montant supérieur adopté au second vote de l'art. 25-1 (majorité de l'art. 24) est régulier ;
  * - hors des seuils du II, la cotisation reste due : une suspension votée en deçà est signalée, à confirmer ;
- * - seule l'année de construction connue : la réception est supposée faite au plus tard le 31/12 de cette année.
+ * - seule l'année de construction connue : la réception est supposée faite au plus tard le 31/12 de cette année ;
+ * - plan non renseigné (« inconnu ») : seul le plancher de 5 % est contrôlé, et les résultats sont marqués à confirmer.
  *
  * 🔴 Non établi :
- * - assiette des 2,5 % : le texte dit « montant des travaux prévus dans le plan adopté », sans dire s'il s'agit du total
- *   du plan ou d'une tranche annuelle, ni ce qui vaut quand l'assemblée n'adopte qu'une partie du plan ; VitFix prend le
- *   montant des travaux adoptés, fourni par l'appelant. Plan non renseigné (« inconnu ») : seul le plancher de 5 % est
- *   contrôlé, et les résultats sont marqués à confirmer ;
- * - vote d'une cotisation fixée au minimum (de plein droit, ou vote art. 24) ; durée et reprise d'une suspension ;
- * - régime antérieur : avant l'entrée en vigueur applicable, l'ancien art. 14-2 (fonds cinq ans après la réception,
- *   dispenses) n'est pas modélisé, la réponse est « à établir » ; sort des fonds constitués sous ce régime (immeubles de
- *   cinq à dix ans, petites copropriétés dispensées) ;
  * - affectation par clé : la part du fonds par lot et le signalement d'un emploi qui dépasse les parts des lots de sa clé
  *   sont dans fonds-travaux-lots.ts (point 20 du bilan) ; la méthode de déduction d'un emploi n'est fixée par aucun texte.
  *
@@ -105,6 +123,8 @@ import type { NaturePlanComptable } from '@/lib/data/referentiels-gesteam-judici
 const FONDEMENT_I = citerFondement(refLoi1965('14-2-1, I'))
 const FONDEMENT_II = citerFondement(refLoi1965('14-2-1, II'))
 const FONDEMENT_29_14 = citerFondement(refLoi1965('29-14'))
+const FONDEMENT_29_14_1 = citerFondement(refLoi1965('29-14, 1°'))
+const FONDEMENT_I_ET_III = citerFondement(refLoi1965('14-2-1, I et III'))
 const FONDEMENT_ENTREE_EN_VIGUEUR = 'Loi n° 2021-1104 du 22 août 2021, art. 171, VI'
 
 /**
@@ -511,6 +531,15 @@ export const ENTREE_EN_VIGUEUR_FONDS_TRAVAUX = [
   { lotsAuMoins: 0, annee: 2025 },
 ] as const
 
+/**
+ * J67, R86 et R87 — création du fonds de travaux légal : L. 1965 art. 14-2, rédaction issue de la loi n° 2014-366, art.
+ * 58, en vigueur le 01/01/2017 (la rédaction du 01/01/2002 au 01/01/2017 ne parle d'aucun fonds). Avant : aucun fonds.
+ */
+export const CREATION_FONDS_TRAVAUX = composerDateIso(2017, 1, 1)
+
+/** J67, R86 — ancien art. 14-2 (rédactions du 01/01/2017 au 01/01/2023) : fonds constitué cinq ans après la réception. */
+export const ANNEES_AVANT_FONDS_ANCIEN_14_2 = 5
+
 const entreeEnVigueur = (nbLots: number): string => {
   const palier = ENTREE_EN_VIGUEUR_FONDS_TRAVAUX.find((e) => nbLots >= e.lotsAuMoins) ?? ENTREE_EN_VIGUEUR_FONDS_TRAVAUX[2]
   return composerDateIso(palier.annee, 1, 1)
@@ -518,6 +547,20 @@ const entreeEnVigueur = (nbLots: number): string => {
 const PREMIERE_ENTREE = composerDateIso(ENTREE_EN_VIGUEUR_FONDS_TRAVAUX[0].annee, 1, 1)
 const DERNIERE_ENTREE = composerDateIso(ENTREE_EN_VIGUEUR_FONDS_TRAVAUX[2].annee, 1, 1)
 const plusTardive = (a: string, b: string): string => (a > b ? a : b)
+
+/** Fondement cité pour une date antérieure à la création du fonds de travaux légal (J67, R86 et R87). */
+export const FONDEMENT_CREATION_FONDS_TRAVAUX = `L. 1965 art. 14-2, rédaction issue de la loi n° 2014-366, art. 58 (fonds de travaux créé le ${dateIsoVersFr(CREATION_FONDS_TRAVAUX)})`
+const FONDEMENT_ANCIEN_14_2 = `L. 1965 art. 14-2 (rédactions en vigueur du ${dateIsoVersFr(CREATION_FONDS_TRAVAUX)} au ${dateIsoVersFr(PREMIERE_ENTREE)})`
+
+/**
+ * J67, R86 — dispenses de l'ancien art. 14-2 : moins de dix lots, par décision unanime de l'assemblée ; diagnostic
+ * technique global sans besoin de travaux dans les dix prochaines années. Elles ne valent plus depuis l'art. 14-2-1 (J4).
+ */
+export const DISPENSES_ANCIEN_14_2 = {
+  moins_de_dix_lots_unanimite: { libelle: "moins de dix lots, par décision unanime de l'assemblée" },
+  dtg_sans_besoin_de_travaux: { libelle: 'diagnostic technique global sans besoin de travaux dans les dix ans' },
+} as const satisfies Record<string, { libelle: string }>
+export type DispenseAncien14_2 = keyof typeof DISPENSES_ANCIEN_14_2
 
 export interface SaisieObligationFondsTravaux {
   /** Immeuble à destination totale ou partielle d'habitation ; null si non renseigné. */
@@ -528,6 +571,21 @@ export interface SaisieObligationFondsTravaux {
   anneeConstruction?: number | null
   /** Lots à usage de logements, de bureaux ou de commerces (caves et parkings exclus) ; null si inconnu. */
   nbLotsPrincipaux: number | null
+  /**
+   * J67, R86 — dispense de l'ancien art. 14-2, avant l'entrée en vigueur de l'art. 14-2-1 ; « aucune » : pas de dispense ;
+   * absente ou null : non renseignée (l'obligation de l'ancien régime vaut alors « sauf dispense », à confirmer).
+   */
+  dispenseAncien14_2?: DispenseAncien14_2 | 'aucune' | null
+}
+
+/** Régime du fonds à la date : aucun fonds légal, ancien art. 14-2, art. 14-2-1 ; null : à établir. */
+export type RegimeFondsTravaux = 'aucun_fonds' | 'ancien_14_2' | 'art_14_2_1'
+
+/** J67, R86 — alerte sur le passage de l'ancien art. 14-2 à l'art. 14-2-1. */
+export interface AlerteObligationFondsTravaux {
+  code: 'immeuble_moins_de_dix_ans'
+  message: string
+  fondement: string
 }
 
 export interface ObligationFondsTravaux {
@@ -538,12 +596,41 @@ export interface ObligationFondsTravaux {
   aConfirmer: boolean
   motif: string
   fondements: string[]
+  /** Régime du fonds à la date (J67, R86) ; null : à établir. */
+  regime: RegimeFondsTravaux | null
+  alertes: AlerteObligationFondsTravaux[]
 }
 
-/** Le syndicat doit-il constituer un fonds de travaux à la date `date` ? */
-export function obligationFondsTravaux(saisie: SaisieObligationFondsTravaux, date: string): ObligationFondsTravaux {
+/** Réception retenue : la date connue, ou le 31/12 de l'année de construction (supposée, à confirmer). */
+interface ContexteObligation {
+  date: string
+  reception: string
+  /** Mention à ajouter au motif quand la réception est supposée ; vide sinon. */
+  receptionSupposee: string
+  dispense: DispenseAncien14_2 | 'aucune' | null
+}
+
+const FONDEMENTS_REGIME: Record<RegimeFondsTravaux | 'a_etablir', string[]> = {
+  aucun_fonds: [FONDEMENT_CREATION_FONDS_TRAVAUX],
+  ancien_14_2: [FONDEMENT_ANCIEN_14_2, FONDEMENT_ENTREE_EN_VIGUEUR],
+  art_14_2_1: [FONDEMENT_I, FONDEMENT_ENTREE_EN_VIGUEUR],
+  a_etablir: [FONDEMENT_I, FONDEMENT_ENTREE_EN_VIGUEUR],
+}
+
+const reponse = (
+  regime: RegimeFondsTravaux | null,
+  champs: Pick<ObligationFondsTravaux, 'obligatoire' | 'depuis' | 'aConfirmer' | 'motif'>,
+  alertes: AlerteObligationFondsTravaux[] = [],
+): ObligationFondsTravaux => ({ ...champs, fondements: [...FONDEMENTS_REGIME[regime ?? 'a_etablir']], regime, alertes })
+
+const estDispense = (ctx: ContexteObligation): boolean => ctx.dispense !== null && ctx.dispense !== 'aucune'
+const finDixAns = (ctx: ContexteObligation): string => ajouterMois(ctx.reception, 12 * ANNEES_AVANT_FONDS_TRAVAUX)
+const finCinqAns = (ctx: ContexteObligation): string => ajouterMois(ctx.reception, 12 * ANNEES_AVANT_FONDS_ANCIEN_14_2)
+const SANS_DISPENSE = " Aucune dispense : celles de l'ancien art. 14-2 (moins de dix lots, DTG sans besoin de travaux) ont disparu."
+
+function verifierSaisieObligation(saisie: SaisieObligationFondsTravaux, date: string): void {
   if (!estDateIsoValide(date)) throw new Error(`Date invalide (${date}) : AAAA-MM-JJ attendu.`)
-  const { destinationHabitation, dateReception, nbLotsPrincipaux } = saisie
+  const { dateReception, nbLotsPrincipaux } = saisie
   const anneeConstruction = saisie.anneeConstruction ?? null
   if (dateReception !== null && !estDateIsoValide(dateReception))
     throw new Error(`Date de réception invalide (${dateReception}) : AAAA-MM-JJ attendu.`)
@@ -551,85 +638,175 @@ export function obligationFondsTravaux(saisie: SaisieObligationFondsTravaux, dat
     throw new Error(`Nombre de lots invalide (${nbLotsPrincipaux}) : entier positif ou nul attendu.`)
   if (anneeConstruction !== null && (!Number.isInteger(anneeConstruction) || anneeConstruction < 1 || anneeConstruction > decomposerDateIso(date).a))
     throw new Error(`Année de construction invalide (${anneeConstruction}) : année entière, au plus celle de la date de contrôle.`)
-  const fondements = [FONDEMENT_I, FONDEMENT_ENTREE_EN_VIGUEUR]
-  const reponse = (obligatoire: boolean | null, depuis: string | null, aConfirmer: boolean, motif: string) => ({
-    obligatoire,
-    depuis,
-    aConfirmer,
-    motif,
-    fondements,
-  })
+  const dispense = saisie.dispenseAncien14_2 ?? null
+  if (dispense !== null && dispense !== 'aucune' && !Object.hasOwn(DISPENSES_ANCIEN_14_2, dispense))
+    throw new Error(`Dispense de l'ancien art. 14-2 inconnue : « ${dispense} ».`)
+}
 
-  if (destinationHabitation === false)
-    return reponse(false, null, false, "Immeuble sans destination d'habitation : le fonds de travaux n'est pas obligatoire.")
-  if (destinationHabitation === null)
-    return reponse(
-      null,
-      null,
-      true,
-      "Destination de l'immeuble à renseigner : le fonds n'est obligatoire que si l'immeuble est, même en partie, à usage d'habitation.",
-    )
-
-  let reception: string
-  let receptionSupposee = ''
-  if (dateReception !== null) reception = dateReception
-  else if (anneeConstruction !== null) {
-    reception = composerDateIso(anneeConstruction, 12, 31)
-    receptionSupposee = ` Réception supposée au plus tard le 31/12 de l'année de construction (${anneeConstruction}) : à confirmer.`
-  } else
-    return reponse(
-      null,
-      null,
-      true,
-      `Date de réception des travaux de construction à renseigner : le fonds est obligatoire ${ANNEES_AVANT_FONDS_TRAVAUX} ans après.`,
-    )
-  const finDelai = ajouterMois(reception, 12 * ANNEES_AVANT_FONDS_TRAVAUX)
-  const supposee = receptionSupposee !== ''
-  const sansDispense = " Aucune dispense : celles de l'ancien art. 14-2 (moins de dix lots, DTG sans besoin de travaux) ont disparu."
-  const regimeAnterieur = (entree: string) =>
-    reponse(
-      null,
-      null,
-      true,
-      `Avant le ${dateIsoVersFr(entree)}, l'ancien art. 14-2 s'appliquait (fonds cinq ans après la réception, dispenses) : régime non modélisé, à établir.${receptionSupposee}`,
-    )
-
-  if (nbLotsPrincipaux === null) {
-    const auPlusTard = plusTardive(DERNIERE_ENTREE, finDelai)
-    const incertain = plusTardive(PREMIERE_ENTREE, finDelai) !== auPlusTard
-    const lots = ' (nombre de lots à usage de logements, de bureaux ou de commerces non renseigné)'
-    if (date >= auPlusTard)
-      return reponse(
-        true,
-        auPlusTard,
-        incertain || supposee,
-        `Fonds de travaux obligatoire ${incertain ? 'au plus tard ' : ''}depuis le ${dateIsoVersFr(auPlusTard)}${incertain ? lots : ''}.${sansDispense}${receptionSupposee}`,
-      )
-    if (date < DERNIERE_ENTREE) return regimeAnterieur(DERNIERE_ENTREE)
-    return reponse(
-      false,
-      finDelai,
-      supposee,
-      `Fonds de travaux pas encore obligatoire : il le sera le ${dateIsoVersFr(finDelai)}, ${ANNEES_AVANT_FONDS_TRAVAUX} ans après la réception.${receptionSupposee}`,
-    )
+/** Réception connue, ou supposée au 31/12 de l'année de construction ; null sans l'une ni l'autre. */
+function contexteObligation(saisie: SaisieObligationFondsTravaux, date: string): ContexteObligation | null {
+  const dispense = saisie.dispenseAncien14_2 ?? null
+  if (saisie.dateReception !== null) return { date, reception: saisie.dateReception, receptionSupposee: '', dispense }
+  const annee = saisie.anneeConstruction ?? null
+  if (annee === null) return null
+  return {
+    date,
+    reception: composerDateIso(annee, 12, 31),
+    receptionSupposee: ` Réception supposée au plus tard le 31/12 de l'année de construction (${annee}) : à confirmer.`,
+    dispense,
   }
+}
 
-  const entree = entreeEnVigueur(nbLotsPrincipaux)
-  if (date < entree) return regimeAnterieur(entree)
-  const depuis = plusTardive(entree, finDelai)
-  const detail = `le plus tardif entre l'entrée en vigueur pour ${nbLotsPrincipaux} lots (${dateIsoVersFr(entree)}) et la fin des ${ANNEES_AVANT_FONDS_TRAVAUX} ans après la réception (${dateIsoVersFr(finDelai)})`
-  if (date >= depuis)
-    return reponse(true, depuis, supposee, `Fonds de travaux obligatoire depuis le ${dateIsoVersFr(depuis)} (${detail}).${sansDispense}${receptionSupposee}`)
-  /** Fonds déjà dû sous l'ancien art. 14-2 (cinq ans après la réception) au jour de l'entrée en vigueur : transition non établie. */
-  const transition = ajouterMois(reception, 12 * 5) <= entree
+/**
+ * J67, R86 — avant l'entrée en vigueur `entree` de l'art. 14-2-1 : l'ancien art. 14-2. Fonds constitué cinq ans après la
+ * réception (au plus tôt le 01/01/2017), sauf dispense ; obligation née après l'entrée en vigueur : le nouveau régime
+ * (dix ans) en donne la date.
+ */
+function obligationAncien14_2(ctx: ContexteObligation, entree: string): ObligationFondsTravaux {
+  const supposee = ctx.receptionSupposee !== ''
+  const depuisNouveau = plusTardive(entree, finDixAns(ctx))
+  const nouveau = `obligatoire le ${dateIsoVersFr(depuisNouveau)}, sous l'art. 14-2-1 (entrée en vigueur le ${dateIsoVersFr(entree)}, ${ANNEES_AVANT_FONDS_TRAVAUX} ans après la réception)`
+  if (estDispense(ctx)) {
+    const libelle = DISPENSES_ANCIEN_14_2[ctx.dispense as DispenseAncien14_2].libelle
+    return reponse('ancien_14_2', {
+      obligatoire: false,
+      depuis: depuisNouveau,
+      aConfirmer: supposee,
+      motif: `Aucun fonds obligatoire avant le ${dateIsoVersFr(entree)} : dispense de l'ancien art. 14-2 (${libelle}) ; ensuite, plus aucune dispense : ${nouveau}.${ctx.receptionSupposee}`,
+    })
+  }
+  const depuisAncien = plusTardive(CREATION_FONDS_TRAVAUX, finCinqAns(ctx))
+  if (depuisAncien >= entree)
+    return reponse('ancien_14_2', {
+      obligatoire: false,
+      depuis: depuisNouveau,
+      aConfirmer: supposee,
+      motif: `Fonds de travaux pas encore obligatoire : les cinq ans de l'ancien art. 14-2 (le ${dateIsoVersFr(depuisAncien)}) ne sont pas atteints avant l'entrée en vigueur de l'art. 14-2-1 ; ${nouveau}.${ctx.receptionSupposee}`,
+    })
+  const sansDispenseConnue = ctx.dispense === null
+  const sauf = sansDispenseConnue ? ` ; sauf dispense (${Object.values(DISPENSES_ANCIEN_14_2).map((d) => d.libelle).join(' ; ')}) : à renseigner` : ''
+  const regle = `sous l'ancien art. 14-2 (fonds constitué ${ANNEES_AVANT_FONDS_ANCIEN_14_2} ans après la réception, cotisation d'au moins 5 % du budget prévisionnel)`
+  if (ctx.date >= depuisAncien)
+    return reponse('ancien_14_2', {
+      obligatoire: true,
+      depuis: depuisAncien,
+      aConfirmer: supposee || sansDispenseConnue,
+      motif: `Fonds de travaux obligatoire depuis le ${dateIsoVersFr(depuisAncien)}, ${regle}${sauf}.${ctx.receptionSupposee}`,
+    })
+  return reponse('ancien_14_2', {
+    obligatoire: false,
+    depuis: depuisAncien,
+    aConfirmer: supposee || sansDispenseConnue,
+    motif: `Fonds de travaux pas encore obligatoire : il le sera le ${dateIsoVersFr(depuisAncien)}, ${regle}${sauf}.${ctx.receptionSupposee}`,
+  })
+}
+
+/**
+ * Depuis l'entrée en vigueur `entree` de l'art. 14-2-1 : fonds obligatoire dix ans après la réception. Un fonds a pu être
+ * constitué sous l'ancien art. 14-2 (cinq ans atteints avant l'entrée en vigueur, sans dispense) : il continue tel quel ;
+ * immeuble de moins de dix ans : alerte (J67, R86).
+ */
+function obligationArt14_2_1(ctx: ContexteObligation, entree: string): ObligationFondsTravaux {
+  const fin = finDixAns(ctx)
+  const depuis = plusTardive(entree, fin)
+  const supposee = ctx.receptionSupposee !== ''
+  const fondsAncien = !estDispense(ctx) && finCinqAns(ctx) < entree
+  const detail = `le plus tardif entre l'entrée en vigueur (${dateIsoVersFr(entree)}) et la fin des ${ANNEES_AVANT_FONDS_TRAVAUX} ans après la réception (${dateIsoVersFr(fin)})`
+  if (ctx.date >= depuis) {
+    const continuite = fondsAncien ? " Le fonds constitué sous l'ancien art. 14-2 continue tel quel (mêmes parts par lot)." : ''
+    return reponse('art_14_2_1', {
+      obligatoire: true,
+      depuis,
+      aConfirmer: supposee,
+      motif: `Fonds de travaux obligatoire depuis le ${dateIsoVersFr(depuis)} (${detail}).${SANS_DISPENSE}${continuite}${ctx.receptionSupposee}`,
+    })
+  }
+  const alertes: AlerteObligationFondsTravaux[] = fondsAncien
+    ? [
+        {
+          code: 'immeuble_moins_de_dix_ans',
+          message: `Immeuble de moins de dix ans à l'entrée en vigueur de l'art. 14-2-1 (le ${dateIsoVersFr(entree)}) : le fonds constitué sous l'ancien art. 14-2, s'il existe, reste au syndicat, tel quel (mêmes parts par lot), et ne sert qu'aux dépenses de l'art. 14-2-1, I ; la cotisation n'est obligatoire qu'à dix ans, le ${dateIsoVersFr(depuis)} (J67, R86).`,
+          fondement: FONDEMENT_I_ET_III,
+        },
+      ]
+    : []
   return reponse(
-    false,
-    depuis,
-    supposee || transition,
-    `Fonds de travaux pas encore obligatoire : il le sera le ${dateIsoVersFr(depuis)} (${detail}).${
-      transition ? " Un fonds a pu être constitué sous l'ancien art. 14-2 (cinq ans après la réception) : son sort transitoire n'est pas établi." : ''
-    }${receptionSupposee}`,
+    'art_14_2_1',
+    {
+      obligatoire: false,
+      depuis,
+      aConfirmer: supposee,
+      motif: `Fonds de travaux pas encore obligatoire : il le sera le ${dateIsoVersFr(depuis)} (${detail}).${ctx.receptionSupposee}`,
+    },
+    alertes,
   )
+}
+
+/** Nombre de lots inconnu : l'entrée en vigueur se situe entre le 01/01/2023 et le 01/01/2025. */
+function obligationLotsInconnus(ctx: ContexteObligation): ObligationFondsTravaux {
+  const fin = finDixAns(ctx)
+  const auPlusTard = plusTardive(DERNIERE_ENTREE, fin)
+  const supposee = ctx.receptionSupposee !== ''
+  if (ctx.date >= auPlusTard) {
+    const incertain = plusTardive(PREMIERE_ENTREE, fin) !== auPlusTard
+    const lots = ' (nombre de lots à usage de logements, de bureaux ou de commerces non renseigné)'
+    return reponse('art_14_2_1', {
+      obligatoire: true,
+      depuis: auPlusTard,
+      aConfirmer: incertain || supposee,
+      motif: `Fonds de travaux obligatoire ${incertain ? 'au plus tard ' : ''}depuis le ${dateIsoVersFr(auPlusTard)}${incertain ? lots : ''}.${SANS_DISPENSE}${ctx.receptionSupposee}`,
+    })
+  }
+  if (ctx.date < PREMIERE_ENTREE) {
+    // Avant le 01/01/2023, l'ancien art. 14-2 s'applique quel que soit le nombre de lots ; une obligation déjà née est sûre.
+    const ancien = obligationAncien14_2(ctx, PREMIERE_ENTREE)
+    if (ancien.obligatoire === true) return ancien
+  }
+  if (ctx.date < DERNIERE_ENTREE)
+    return reponse(null, {
+      obligatoire: null,
+      depuis: null,
+      aConfirmer: true,
+      motif: `Entre le ${dateIsoVersFr(PREMIERE_ENTREE)} et le ${dateIsoVersFr(DERNIERE_ENTREE)}, l'ancien art. 14-2 ou l'art. 14-2-1 s'applique selon le nombre de lots : renseigner le nombre de lots à usage de logements, de bureaux ou de commerces.${ctx.receptionSupposee}`,
+    })
+  return reponse('art_14_2_1', {
+    obligatoire: false,
+    depuis: fin,
+    aConfirmer: supposee,
+    motif: `Fonds de travaux pas encore obligatoire : il le sera le ${dateIsoVersFr(fin)}, ${ANNEES_AVANT_FONDS_TRAVAUX} ans après la réception.${ctx.receptionSupposee}`,
+  })
+}
+
+/** Le syndicat doit-il constituer un fonds de travaux à la date `date` ? Régime à la date et alertes (J67, R86). */
+export function obligationFondsTravaux(saisie: SaisieObligationFondsTravaux, date: string): ObligationFondsTravaux {
+  verifierSaisieObligation(saisie, date)
+  if (saisie.destinationHabitation === false)
+    return reponse(null, { obligatoire: false, depuis: null, aConfirmer: false, motif: "Immeuble sans destination d'habitation : le fonds de travaux n'est pas obligatoire." })
+  if (saisie.destinationHabitation === null)
+    return reponse(null, {
+      obligatoire: null,
+      depuis: null,
+      aConfirmer: true,
+      motif: "Destination de l'immeuble à renseigner : le fonds n'est obligatoire que si l'immeuble est, même en partie, à usage d'habitation.",
+    })
+  const ctx = contexteObligation(saisie, date)
+  if (ctx === null)
+    return reponse(null, {
+      obligatoire: null,
+      depuis: null,
+      aConfirmer: true,
+      motif: `Date de réception des travaux de construction à renseigner : le fonds est obligatoire ${ANNEES_AVANT_FONDS_TRAVAUX} ans après.`,
+    })
+  if (date < CREATION_FONDS_TRAVAUX)
+    return reponse('aucun_fonds', {
+      obligatoire: false,
+      depuis: null,
+      aConfirmer: false,
+      motif: `Aucun fonds de travaux légal avant le ${dateIsoVersFr(CREATION_FONDS_TRAVAUX)} (J67, R86).`,
+    })
+  if (saisie.nbLotsPrincipaux === null) return obligationLotsInconnus(ctx)
+  const entree = entreeEnVigueur(saisie.nbLotsPrincipaux)
+  return date < entree ? obligationAncien14_2(ctx, entree) : obligationArt14_2_1(ctx, entree)
 }
 
 // ─── Cotisation ──────────────────────────────────────────────────────────────────────────────────────────────────
@@ -641,10 +818,11 @@ export interface AssietteCotisationFondsTravaux {
   /** Budget prévisionnel voté (art. 14-1 : dépenses courantes, hors travaux). */
   budgetPrevisionnelCentimes: number
   /**
-   * Montant des travaux prévus dans le plan pluriannuel adopté ; null : aucun plan adopté ; PPT_INCONNU : on ne sait pas
-   * (les résultats sont alors à confirmer). 🔴 Assiette : voir l'en-tête.
+   * Montant total des travaux du plan adopté (toutes années) : la partie du plan pluriannuel que l'assemblée a adoptée,
+   * toutes années confondues, jamais une tranche annuelle ; les travaux non adoptés n'y entrent pas (J67, R84 ; I, al.
+   * 8). null : aucun plan adopté ; PPT_INCONNU : on ne sait pas (les résultats sont alors à confirmer).
    */
-  travauxPptAdopteCentimes: number | null | typeof PPT_INCONNU
+  totalTravauxPlanAdopteCentimes: number | null | typeof PPT_INCONNU
 }
 
 export interface CotisationMinimale {
@@ -659,12 +837,12 @@ export interface CotisationMinimale {
 }
 
 const montantPpt = (assiette: AssietteCotisationFondsTravaux): number | null =>
-  typeof assiette.travauxPptAdopteCentimes === 'number' ? assiette.travauxPptAdopteCentimes : null
-const pptInconnu = (assiette: AssietteCotisationFondsTravaux): boolean => assiette.travauxPptAdopteCentimes === PPT_INCONNU
+  typeof assiette.totalTravauxPlanAdopteCentimes === 'number' ? assiette.totalTravauxPlanAdopteCentimes : null
+const pptInconnu = (assiette: AssietteCotisationFondsTravaux): boolean => assiette.totalTravauxPlanAdopteCentimes === PPT_INCONNU
 
 const verifierAssiette = (assiette: AssietteCotisationFondsTravaux): void => {
   verifierCentimes(assiette.budgetPrevisionnelCentimes, false)
-  const ppt = assiette.travauxPptAdopteCentimes
+  const ppt = assiette.totalTravauxPlanAdopteCentimes
   if (ppt !== null && ppt !== PPT_INCONNU) verifierCentimes(ppt, false)
 }
 
@@ -685,7 +863,64 @@ export function cotisationMinimaleFondsTravaux(assiette: AssietteCotisationFonds
   }
 }
 
+/** Plancher qui s'impose, en clair. */
+const libellePlancher = (minimum: CotisationMinimale): string =>
+  minimum.retenu === 'ppt' ? '2,5 % des travaux du plan adopté' : '5 % du budget prévisionnel'
+
+export interface CotisationDue {
+  cotisationCentimes: number
+  /** « minimum_de_plein_droit » : rien de voté, ou un montant inférieur au minimum ; « vote » : montant voté, au moins le minimum. */
+  origine: 'minimum_de_plein_droit' | 'vote'
+  minimum: CotisationMinimale
+  motif: string
+  fondement: string
+}
+
+/**
+ * J67, R85 — cotisation annuelle due pour un exercice : le minimum s'applique de plein droit, sans vote (« ne peut être
+ * inférieur à », I, al. 8 : 5 % du budget et, avec un plan adopté, 2,5 % de ses travaux) ; seul un montant supérieur se
+ * vote (I, al. 9). `montantVoteCentimes` : le montant voté, ou null si rien n'est voté. Un montant voté inférieur au
+ * minimum laisse le minimum dû (controlerCotisationFondsTravaux le signale).
+ */
+export function cotisationAnnuelleDue(assiette: AssietteCotisationFondsTravaux, montantVoteCentimes: number | null): CotisationDue {
+  if (montantVoteCentimes !== null) verifierCentimes(montantVoteCentimes, false)
+  const minimum = cotisationMinimaleFondsTravaux(assiette)
+  const plancher = `${eur(minimum.minimumCentimes)} (${libellePlancher(minimum)})`
+  if (montantVoteCentimes !== null && montantVoteCentimes >= minimum.minimumCentimes)
+    return { cotisationCentimes: montantVoteCentimes, origine: 'vote', minimum, motif: `Montant voté de ${eur(montantVoteCentimes)}, au moins égal au minimum légal de ${plancher}.`, fondement: FONDEMENT_I }
+  const motif =
+    montantVoteCentimes === null
+      ? `Aucun montant voté : le minimum légal de ${plancher} est dû de plein droit, sans vote.`
+      : `Montant voté de ${eur(montantVoteCentimes)} inférieur au minimum légal : le minimum de ${plancher} reste dû, de plein droit, sans vote.`
+  return { cotisationCentimes: minimum.minimumCentimes, origine: 'minimum_de_plein_droit', minimum, motif, fondement: FONDEMENT_I }
+}
+
 const MAJORITES_DE_TOUS: readonly TypeMajorite[] = ['art25', 'art26', 'unanimite']
+
+/**
+ * J67, R85 — suspension des cotisations au fonds : votée par l'assemblée (II, à la majorité de l'art. 24) ou ordonnée par
+ * le juge (art. 29-14, 1°, plan de sauvegarde).
+ */
+export interface SuspensionCotisationsFondsTravaux {
+  origine: 'ag' | 'juge_29_14'
+  /** Référence de la décision (résolution, ordonnance). */
+  reference: string
+  /** Premier jour de la suspension (AAAA-MM-JJ) : date de la décision, ou début de la période votée. */
+  debut: string
+  /** Dernier jour de la période votée ou ordonnée (AAAA-MM-JJ) ; absente ou null : sans période. */
+  fin?: string | null
+}
+
+function verifierSuspension(suspension: SuspensionCotisationsFondsTravaux): void {
+  if (!suspension.reference?.trim())
+    throw new Error('Suspension des cotisations : référence de la décision (assemblée ou juge) attendue.')
+  if (!estDateIsoValide(suspension.debut))
+    throw new Error(`Suspension des cotisations : date de début invalide (${suspension.debut}), AAAA-MM-JJ attendu.`)
+  const fin = suspension.fin ?? null
+  if (fin !== null && !estDateIsoValide(fin)) throw new Error(`Suspension des cotisations : date de fin invalide (${fin}), AAAA-MM-JJ attendu.`)
+  if (fin !== null && fin < suspension.debut)
+    throw new Error(`Suspension des cotisations : fin (${dateIsoVersFr(fin)}) antérieure au début (${dateIsoVersFr(suspension.debut)}).`)
+}
 
 export interface DecisionCotisationFondsTravaux {
   cotisationAnnuelleCentimes: number
@@ -694,7 +929,7 @@ export interface DecisionCotisationFondsTravaux {
   /** Montant adopté au second vote de l'art. 25-1 (majorité de l'art. 24), le premier ayant réuni le tiers des voix. */
   secondVoteArt25_1?: boolean
   /** Suspension des cotisations : votée par l'assemblée (II) ou ordonnée par le juge (art. 29-14, 1°). */
-  suspension?: { origine: 'ag' | 'juge_29_14'; reference: string } | null
+  suspension?: SuspensionCotisationsFondsTravaux | null
   /** Solde du fonds à la date du vote de la suspension ; absent ou null : seuils à vérifier. */
   soldeFondsCentimes?: number | null
 }
@@ -746,8 +981,7 @@ export function controlerCotisationFondsTravaux(
 
   const { suspension } = decision
   if (suspension) {
-    if (!suspension.reference?.trim())
-      throw new Error('Suspension des cotisations : référence de la décision (assemblée ou juge) attendue.')
+    verifierSuspension(suspension)
     if (suspension.origine === 'juge_29_14') return []
     const atteints = solde === null ? null : seuilsDeSuspensionAtteints(solde, assiette)
     if (atteints === true) return []
@@ -772,7 +1006,7 @@ export function controlerCotisationFondsTravaux(
 
   const anomalies: AnomalieCotisationFondsTravaux[] = []
   const cotisation = decision.cotisationAnnuelleCentimes
-  const plancher = minimum.retenu === 'ppt' ? '2,5 % des travaux du plan adopté' : '5 % du budget prévisionnel'
+  const plancher = libellePlancher(minimum)
   if (cotisation < minimum.minimumCentimes)
     anomalies.push({
       code: 'cotisation_sous_minimum',
@@ -822,6 +1056,104 @@ export function questionSuspensionFondsTravaux({
     message: `Le fonds de travaux (${eur(soldeFondsCentimes)}) excède ${libelleSeuils(assiette)} : porter à l'ordre du jour de la prochaine assemblée la question de la suspension des cotisations. L'assemblée doit se prononcer ; la suspension n'est pas automatique.`,
     fondement: FONDEMENT_II,
     aConfirmer: atteints === null,
+  }
+}
+
+/** J67, R85 — fin d'une suspension : les cotisations au fonds reprennent. */
+export interface AlerteRepriseCotisations {
+  code: 'reprise_des_cotisations'
+  message: string
+  fondement: string
+}
+
+export interface EtatSuspensionCotisations {
+  /** La cotisation est suspendue à la date. */
+  suspendue: boolean
+  /** Dernier jour connu de la suspension (fin de la période ; veille de l'AG annuelle suivante) ; null s'il n'est pas connu. */
+  jusquAu: string | null
+  motif: string
+  fondement: string
+  /** Suspension terminée à la date : alerte « reprise des cotisations » ; null sinon. */
+  alerte: AlerteRepriseCotisations | null
+  aConfirmer: boolean
+}
+
+export interface ControleSuspensionCotisations {
+  suspension: SuspensionCotisationsFondsTravaux
+  /** Date du contrôle (AAAA-MM-JJ) : à chaque exercice, à son ouverture ou à l'appel de la cotisation. */
+  date: string
+  /** Suspension votée sans période : date de l'AG annuelle qui suit le vote ; absente ou null : pas encore connue. */
+  dateAgAnnuelleSuivante?: string | null
+  /** Solde du fonds à la date ; null : seuils du II à vérifier. */
+  soldeFondsCentimes: number | null
+  /** Budget prévisionnel et plan adopté de l'exercice contrôlé. */
+  assiette: AssietteCotisationFondsTravaux
+}
+
+/** Dernier jour de la suspension, et ce qui le fixe : la période, ou l'AG annuelle suivante (votée sans période). */
+function termeDeLaSuspension(
+  suspension: SuspensionCotisationsFondsTravaux,
+  agSuivante: string | null,
+): { jusquAu: string | null; finPar: string } {
+  const fin = suspension.fin ?? null
+  const periode = suspension.origine === 'ag' ? 'la période votée' : 'la période fixée par l’ordonnance'
+  if (fin !== null) return { jusquAu: fin, finPar: `${periode} a pris fin le ${dateIsoVersFr(fin)}` }
+  if (suspension.origine === 'ag' && agSuivante !== null)
+    return { jusquAu: ajouterJours(agSuivante, -1), finPar: `la suspension, votée sans période, a pris fin à l'assemblée générale annuelle du ${dateIsoVersFr(agSuivante)}` }
+  return { jusquAu: null, finPar: '' }
+}
+
+function verifierControleSuspension({ suspension, date, dateAgAnnuelleSuivante, soldeFondsCentimes, assiette }: ControleSuspensionCotisations): void {
+  if (!estDateIsoValide(date)) throw new Error(`Date du contrôle invalide (${date}) : AAAA-MM-JJ attendu.`)
+  verifierSuspension(suspension)
+  verifierAssiette(assiette)
+  if (soldeFondsCentimes !== null) verifierCentimes(soldeFondsCentimes, false)
+  const ag = dateAgAnnuelleSuivante ?? null
+  if (ag !== null && (!estDateIsoValide(ag) || ag <= suspension.debut))
+    throw new Error(
+      `Suspension des cotisations : date de l'assemblée générale annuelle suivante invalide (${ag}) ; AAAA-MM-JJ, postérieure au début de la suspension, attendue.`,
+    )
+}
+
+/**
+ * J67, R85 — la suspension des cotisations s'applique-t-elle à `date` ? Elle commence à son début. Elle vaut pour la
+ * période votée ou ordonnée ; votée sans période, jusqu'à l'AG annuelle suivante (exclue) ; ordonnée sans période, son
+ * terme est à vérifier. Votée par l'assemblée, elle cesse en outre dès qu'une condition du II n'est plus remplie (le fonds
+ * n'excède plus le budget prévisionnel et, avec un plan adopté, la moitié de ses travaux), contrôlée à chaque exercice ;
+ * l'ordonnance (art. 29-14, 1°) n'y est pas soumise. Fin atteinte : alerte « reprise des cotisations ».
+ */
+export function etatSuspensionCotisationsFondsTravaux(controle: ControleSuspensionCotisations): EtatSuspensionCotisations {
+  verifierControleSuspension(controle)
+  const { suspension, date, soldeFondsCentimes, assiette } = controle
+  const fondement = suspension.origine === 'ag' ? FONDEMENT_II : FONDEMENT_29_14_1
+  const decision = `Suspension des cotisations ${suspension.origine === 'ag' ? "votée par l'assemblée" : 'ordonnée par le juge'} (${suspension.reference.trim()})`
+  const { jusquAu, finPar } = termeDeLaSuspension(suspension, controle.dateAgAnnuelleSuivante ?? null)
+  const reprise = (cause: string): EtatSuspensionCotisations => ({
+    suspendue: false,
+    jusquAu,
+    motif: `${decision} : ${cause}.`,
+    fondement,
+    alerte: { code: 'reprise_des_cotisations', message: `Reprise des cotisations au fonds de travaux : ${cause} ; appeler la cotisation de l'exercice.`, fondement },
+    aConfirmer: false,
+  })
+  if (date < suspension.debut)
+    return { suspendue: false, jusquAu, motif: `${decision} : elle commence le ${dateIsoVersFr(suspension.debut)}.`, fondement, alerte: null, aConfirmer: false }
+  if (jusquAu !== null && date > jusquAu) return reprise(finPar)
+  const atteints = suspension.origine === 'ag' && soldeFondsCentimes !== null ? seuilsDeSuspensionAtteints(soldeFondsCentimes, assiette) : null
+  if (atteints === false)
+    return reprise(`le fonds (${eur(soldeFondsCentimes as number)}) n'excède plus ${libelleSeuils(assiette)} : une condition du II n'est plus remplie`)
+  const aVerifier: string[] = []
+  if (jusquAu === null)
+    aVerifier.push(suspension.origine === 'ag' ? "date de l'assemblée générale annuelle suivante à renseigner" : "terme fixé par l'ordonnance à vérifier")
+  if (suspension.origine === 'ag' && atteints === null) aVerifier.push(`seuils du II à vérifier (${libelleSeuils(assiette)})`)
+  const jusqua = jusquAu === null ? '' : ` jusqu'au ${dateIsoVersFr(jusquAu)}`
+  return {
+    suspendue: true,
+    jusquAu,
+    motif: `${decision} : en cours${jusqua}${aVerifier.length > 0 ? ` ; ${aVerifier.join(' ; ')}` : ''}.`,
+    fondement,
+    alerte: null,
+    aConfirmer: aVerifier.length > 0,
   }
 }
 

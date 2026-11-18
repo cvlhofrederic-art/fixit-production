@@ -8,6 +8,7 @@ import {
   type EcheanceAppel,
   type NatureEcheance,
 } from '@/lib/administrateur-judiciaire/domain/repartition-appels'
+import { enTeteDuModule } from './en-tete-module'
 
 /**
  * Répartition des charges et avis d'appel (cartographie Gestéam, tranches 21, 25 et 30 ; D1 et D2).
@@ -242,5 +243,33 @@ describe('mutation du lot le jour de l’exigibilité : appel au compte du vende
 
   it('refuse une échéance dont l’exigibilité n’est pas une date ISO', () => {
     expect(() => avis([enPlace('pV', 'cpt-V')], 'budget', '01/04/2026')).toThrow(/exigibilit/i)
+  })
+
+  it.each(NATURES)('J67, R87 — %s : mutation le jour d’une exigibilité antérieure au 01/09/2004 (avant l’art. 6-2) : hors champ, non portée', (nature) => {
+    const venteDu = (date: string) =>
+      muterLot([enPlace('pV', 'cpt-V', { dateEntree: '2000-01-01' })], {
+        lotId: 'lot-9',
+        date,
+        sortantes: ['pV'],
+        entrantes: [{ id: 'pQ', identiteId: 'i-Q', compteId: 'cpt-Q', qualite: 'Copropriétaire', part: UN }],
+      }).positions
+    const avant = venteDu('2004-08-31')
+    expect(appeles(avant, nature, '2004-08-31')).toEqual({ comptes: [], anomalies: ['mutation_avant_art_6_2'] })
+    // Sans mutation ce jour-là, rien ne change : la veille au vendeur, le lendemain à l'acquéreur.
+    expect(appeles(avant, nature, '2004-08-30')).toEqual(au('cpt-V'))
+    expect(appeles(avant, nature, '2004-09-01')).toEqual(au('cpt-Q'))
+    // Dès le 01/09/2004 (D. 1967 art. 6-2, créé par le décret n° 2004-479) : au vendeur.
+    expect(appeles(venteDu('2004-09-01'), nature, '2004-09-01')).toEqual(au('cpt-V'))
+  })
+})
+
+describe('J67, R87 — en-tête : cotisations de 2017 à 2018 tranchées, mutation antérieure au 01/09/2004 hors champ', () => {
+  const { texte } = enTeteDuModule('repartition-appels')
+  const nonEtabli = texte.slice(texte.indexOf('🔴 Non établi'))
+
+  it('la question ne reste plus en 🔴 ; la décision est inscrite avec ses textes', () => {
+    expect(nonEtabli).not.toMatch(/mutation antérieure au 01\/09\/2004/)
+    expect(nonEtabli).not.toMatch(/cotisation au fonds exigible avant le 25\/11\/2018/)
+    expect(texte).toMatch(/J67, R87 : .*01\/01\/2017 au 25\/11\/2018.*même règle.*avant le 01\/01\/2017, aucun fonds de travaux légal.*01\/09\/2004.*mutation_avant_art_6_2/)
   })
 })
