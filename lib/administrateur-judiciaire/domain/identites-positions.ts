@@ -50,10 +50,15 @@ import { GROUPE_IDENTITE, QUALITE_IDENTITE, type GroupeIdentite } from '@/lib/da
  * J78 (réponse de Frédéric du 17/11/2026, sj-qualite-pro.json) : case « professionnel » sur la fiche identité, décochée
  * par défaut (Identite.professionnel, facultative). Décochée ou absente : destinataire non professionnel ; une LRE exige
  * alors son consentement, qui reste l'accord du critère LRE repris de Gestéam (CPCE art. L. 100 ; J53 ; accord sans
- * date valable écarté : J66). Cochée : ce consentement n'est pas exigé ; les autres règles restent (voie postale : J52,
- * J74 ; accord exprès avant le 25/12/2025 : J50). Lecture : qualiteProfessionnelleDe ; branchement sur le contrôle J53 :
- * avecQualiteProfessionnelle (statut-assemblee.ts inchangé). Ni table ni écran : la case s'enregistrera avec la table
- * des identités, qui n'existe pas encore.
+ * date valable écarté : J59, étendu à l'accord en vigueur par lecture prudente, à confirmer par Hugo
+ * (voie-notification.ts)). Cochée : ce consentement n'est pas exigé ; les autres règles restent (voie postale : J52,
+ * J74 ; accord exprès avant le 25/12/2025 : J50). Lecture : qualiteProfessionnelleDe. Qualité de chaque destinataire
+ * pour le contrôle J53 : avecQualiteProfessionnelle, écrit et testé, à brancher par l'appelant de
+ * finDelaiContestationAgParDestinataire (aucun aujourd'hui) ; la case y est la seule source : identité introuvable,
+ * null ; identité en double dans les fiches : erreur (données incohérentes). finDelaiContestationAg (notification
+ * unique) : la qualité reste une option de l'appelant, qui passe qualiteProfessionnelleDe(fiche de courrier.personneId) ;
+ * le domaine ne la relie pas à la fiche (statut-assemblee.ts inchangé). Ni table ni écran : la case s'enregistrera avec
+ * la table des identités, qui n'existe pas encore.
  * 🔴 Non établi : l'usage de l'adresse reste libre, valeurs Gestéam du champ « Usage » non relevées ; choix du jeu de
  * coordonnées par compte ou par syndicat (dans Gestéam, la fiche client désigne son jeu de coordonnées ; ici, l'adresse
  * vaut pour l'identité entière) ; parts sociales d'un associé de SCI qui n'est pas lui-même titulaire d'une position
@@ -226,6 +231,8 @@ export function creerIdentite(saisie: SaisieIdentite): Identite {
  * (statut-assemblee.ts : professionnel, null lu comme non professionnel) : null si l'identité est absente (non saisie) ;
  * sinon la case de la fiche, décochée par défaut (true seulement si elle est cochée ; toute autre valeur enregistrée :
  * non professionnelle, lecture prudente de J53). Lit l'état actuel de la case, sans date (question ouverte, en-tête).
+ * Notification unique (finDelaiContestationAg) : l'appelant lui passe la fiche de courrier.personneId, le destinataire
+ * du courrier ; le domaine ne fait pas ce lien.
  */
 export function qualiteProfessionnelleDe(identite: Pick<Identite, 'professionnel'> | null | undefined): boolean | null {
   if (identite === null || identite === undefined) return null
@@ -233,16 +240,24 @@ export function qualiteProfessionnelleDe(identite: Pick<Identite, 'professionnel
 }
 
 /**
- * J78 — branchement sur le contrôle J53 : la qualité de chaque destinataire (NotificationDestinataire de
- * statut-assemblee.ts, ou tout objet rattaché à une identité) lue sur sa fiche (qualiteProfessionnelleDe). La case est la
- * seule source : une valeur donnée par l'appelant est remplacée ; identité introuvable : null (non saisie, lue comme non
- * professionnelle). L'entrée n'est pas modifiée.
+ * J78 — qualité de chaque destinataire pour le contrôle J53 (NotificationDestinataire de statut-assemblee.ts, ou tout
+ * objet rattaché à une identité), lue sur sa fiche (qualiteProfessionnelleDe). Écrit et testé, à brancher par l'appelant
+ * de finDelaiContestationAgParDestinataire (aucun aujourd'hui). La case est la seule source : une valeur donnée par
+ * l'appelant est remplacée ; identité introuvable : null (non saisie, lue comme non professionnelle), même si l'appelant
+ * avait donné true. Identité en double dans les fiches : erreur (données incohérentes, comme une identité en double dans
+ * les notifications du procès-verbal) ; aucune des deux fiches ne l'emporte. L'entrée n'est pas modifiée.
  */
 export function avecQualiteProfessionnelle<T extends { identiteId: string }>(
   destinataires: readonly T[],
   identites: readonly Pick<Identite, 'id' | 'professionnel'>[],
 ): (T & { professionnel: boolean | null })[] {
-  return destinataires.map((d) => ({ ...d, professionnel: qualiteProfessionnelleDe(identites.find((i) => i.id === d.identiteId)) }))
+  const parId = new Map<string, Pick<Identite, 'id' | 'professionnel'>>()
+  for (const identite of identites) {
+    if (parId.has(identite.id))
+      throw new Error(`Identité ${identite.id} en double dans les fiches identité (case « professionnel ») : données incohérentes.`)
+    parId.set(identite.id, identite)
+  }
+  return destinataires.map((d) => ({ ...d, professionnel: qualiteProfessionnelleDe(parId.get(d.identiteId)) }))
 }
 
 const dansPeriode = (date: string, du: string, au: string | null): boolean => du <= date && (au === null || date <= au)
