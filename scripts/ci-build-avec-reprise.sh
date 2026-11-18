@@ -9,6 +9,15 @@
 # Solution d'attente : la correction de fond (polices auto-hébergées) est à valider avec Frédéric.
 set -uo pipefail
 
+# Mémoire de Node : le contrôle de types de next build dépassait la limite par défaut (environ 4 Go sur le runner)
+# avec TypeScript 6 (« JavaScript heap out of memory », train #733 du 17/11/2026). Les runners GitHub ont 16 Go.
+# Une valeur déjà posée dans NODE_OPTIONS est gardée.
+case " ${NODE_OPTIONS:-} " in
+  *--max-old-space-size*) ;;
+  *) export NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--max-old-space-size=${MEMOIRE_BUILD_MO:-6144}" ;;
+esac
+echo "NODE_OPTIONS=${NODE_OPTIONS}"
+
 # Commande de build : npm run build par défaut ; le déploiement passe « npx @opennextjs/cloudflare build »,
 # qui lance lui-même next build (mêmes erreurs de polices).
 COMMANDE="${COMMANDE_BUILD:-npm run build}"
