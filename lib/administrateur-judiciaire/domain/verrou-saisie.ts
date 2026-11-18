@@ -1,4 +1,4 @@
-import { ajouterJours, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
+import { ajouterJours, dateIsoVersFr, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
 import type { Exercice } from '@/lib/administrateur-judiciaire/domain/exercices-budgets'
 import type { PlanComptable } from '@/lib/administrateur-judiciaire/domain/plan-comptable'
 import type { FamilleTraitement } from '@/lib/administrateur-judiciaire/domain/traitements'
@@ -10,8 +10,8 @@ import { FAMILLE_TRAITEMENT } from '@/lib/data/referentiels-gesteam-judiciaire'
  * annulerTraitement (traitements.ts) refusent une écriture couverte par une borne. Les bornes se recalculent à chaque
  * appel à partir de leur source (édition figée, exercice clos, fiche du plan), jamais stockées. Rien ici ne lève une
  * borne : aucune fonction ne défige une édition, et la borne de l'arrêté ne se lève pas (arrêté du 14 mars 2005, art. 5 :
- * la clôture garantit « l'intangibilité des enregistrements » ; réouverture d'un exercice clos : 🔴 ci-dessous). Seule la
- * limite du plan suit sa fiche.
+ * la clôture garantit « l'intangibilité des enregistrements » ; un exercice clos ne se rouvre pas : J67, R121, ci-dessous).
+ * Seule la limite du plan suit sa fiche.
  *
  * Gestéam — 🟢 lu dans la cartographie :
  * - tranche 37 § Mouvements : onglet Statut « Inclus dans une édition », « Éditable » ; recherche « Édition », « Déjà
@@ -42,12 +42,17 @@ import { FAMILLE_TRAITEMENT } from '@/lib/data/referentiels-gesteam-judiciaire'
  *   art. 111-1, il s'applique à toute personne « soumise à l'obligation légale d'établir des comptes annuels comprenant
  *   le bilan, le compte de résultat et une annexe » ; art. 921-4, al. 3 : en comptabilité informatisée, l'opération
  *   d'une période déjà figée par la clôture est enregistrée au premier jour de la période non encore clôturée, avec
- *   mention expresse de sa date de survenance.
+ *   mention expresse de sa date de survenance ;
+ * - relus le 17/11/2026 (J67, R121 à R123) : arrêté du 14 mars 2005, art. 2 (le journal enregistre les opérations
+ *   « chronologiquement »), art. 4 (chaque écriture a un libellé qui identifie sa pièce justificative, « notamment date
+ *   et numéro de facture, date et référence du paiement ») et art. 5 (cité ci-dessus) ; décret n° 2005-240, art. 2
+ *   (charges de l'exercice « réglées et à régler ») et art. 5.
  *
  * 🔵 Déduit :
- * - PCG, art. 921-4 : non repris. Les comptes du syndicat suivent des règles spécifiques fixées par décret (loi,
- *   art. 14-3, al. 1) et ne sont pas les comptes annuels « bilan, compte de résultat, annexe » du PCG, art. 111-1.
- *   L'arrêté, art. 8, n'écarte le PCG que pour détailler les comptes : il ne fonde pas seul ce choix ;
+ * - PCG, art. 921-4 : non repris comme texte. Les comptes du syndicat suivent des règles spécifiques fixées par décret
+ *   (loi, art. 14-3, al. 1) et ne sont pas les comptes annuels « bilan, compte de résultat, annexe » du PCG, art. 111-1.
+ *   L'arrêté, art. 8, n'écarte le PCG que pour détailler les comptes : il ne fonde pas seul ce choix. dateHorsVerrou
+ *   retient la même solution pratique par prudence et pour la lisibilité (J67, R123), pas parce que le PCG s'impose ;
  * - borne de l'ARRÊTÉ = date de clôture de l'exercice (« date d'arrêté des comptes » de l'arrêté = « date de clôture » du
  *   décret), INCLUSE ; elle n'est posée qu'une fois la procédure de clôture exécutée, car les écritures d'inventaire
  *   (rattachements, compte 47, compte 12, répartition 450/701) se passent après coup en date de fin d'exercice ;
@@ -56,28 +61,34 @@ import { FAMILLE_TRAITEMENT } from '@/lib/data/referentiels-gesteam-judiciaire'
  *   (segment 2 du compte, y compris sur un compte « ____ ») ;
  * - borne d'ÉDITION = fin de la période éditée, INCLUSE, limitée aux comptes et aux familles de l'édition ; les dates
  *   antérieures au début de la période sont verrouillées aussi (chronologie figée ; le report du grand livre en dépend) ;
- * - ANNULATION : la contre-passation est contrôlée sur SA date ; un traitement d'une période verrouillée reste annulable
- *   par une écriture contraire datée après la borne (arrêté, art. 5) ;
  * - refus atomique : une seule ligne visée suffit à refuser tout le traitement ; une écriture mal formée (montant, compte)
  *   est refusée pour ce motif avant tout contrôle du verrou ;
  * - périmètre : une liste absente vise tout ; une liste vide, une famille inconnue ou une plage de comptes inversée sont
  *   refusées (elles donneraient une borne qui ne verrouille rien sans le dire) ;
  * - le verrou passé est celui du syndicat du traitement (l'appelant le compose).
  *
+ * Décisions de Hugo du 17/11/2026 (J67, recommandations validées en bloc ; textes relus le 17/11/2026, ci-dessus) :
+ * - J67, R121 : un exercice dont la procédure de clôture est exécutée ne se rouvre pas (arrêté, art. 5 : clôture
+ *   « destinée à figer la chronologie et à garantir l'intangibilité des enregistrements » ; aucun texte du syndicat ne
+ *   prévoit de réouverture). Une erreur trouvée après la clôture se corrige par une écriture contraire datée dans la
+ *   période ouverte (dateHorsVerrou), avec un libellé qui identifie la pièce d'origine (art. 4). Aucune fonction ni aucun
+ *   bouton « Rouvrir » ;
+ * - J67, R122 : la contre-passation est contrôlée sur SA date, jamais sur celle de l'écriture annulée : un traitement
+ *   d'une période verrouillée reste annulable par une écriture contraire datée après la borne (arrêté, art. 5 : « Une
+ *   écriture erronée est annulée par une écriture contraire » ; règle R6, J2 ; J9). L'annulation d'une répartition,
+ *   qui garde la date de clôture de son exercice (journal-traitements.ts), reste donc impossible une fois l'exercice clos ;
+ * - J67, R123 : une opération qui se rapporte à une période close (rejet de prélèvement, facture tardive) est
+ *   enregistrée à la date du fait si elle est ouverte, sinon au premier jour ouvert, lendemain de la dernière borne qui
+ *   la couvre ; dans les deux cas, le libellé porte la date d'origine et la référence de la pièce (arrêté, art. 4) :
+ *   dateHorsVerrou. Aucun texte propre au syndicat ne fixe cette date ; défaut prudent.
+ *
  * 🔴 Non établi (question pour Hugo ou Frédéric ; « non trouvé » = cherché sans résultat dans les textes lus ci-dessus,
  * les annexes 1 à 5 du décret n° 2005-240 et le PCG consolidé n'ayant pas été lus) :
  * - non trouvé : aucun texte propre au syndicat ne rattache un verrou à une édition ; le marquage « inclus dans une
  *   édition » est une pratique du logiciel (tranche 37) ;
- * - « Un exercice dont la procédure de clôture est exécutée peut-il être rouvert, et par quel acte tracé ? » (non
- *   trouvé ; en attendant la réponse, la borne de l'arrêté ne se lève pas) ;
  * - « Quel acte pose la borne de l'arrêté : le passage de l'exercice au statut « Réparti », l'approbation des comptes par
  *   l'AG, ou une action explicite « Clôturer l'exercice » ? » (borneArreteDesComptes ne se prononce pas : l'appelant ne la
  *   compose que pour un exercice clos) ;
- * - « La lecture stricte du bilan (« ni annulé ») doit-elle aussi refuser l'annulation d'un traitement dont la date est
- *   verrouillée, même par une contre-passation datée dans la période ouverte ? » (non retenu : l'art. 5 de l'arrêté impose
- *   de corriger par une écriture contraire) ;
- * - « À quelle date enregistrer une opération qui se rapporte à une période close (rejet de prélèvement, facture
- *   tardive) ? » (non trouvé dans les textes propres au syndicat ; ici, l'appelant choisit une date hors verrou) ;
  * - « Quelle édition Gestéam pose « Inclus dans une édition » : définitive seulement, ou aussi provisoire ? Que veulent
  *   dire « Éditable » et « Ne pas éditer » ? » (non repris) ;
  * - verrou du JOURNAL (R2 : dateLimiteSaisie, controlerDateLimite) : Traitement ne porte pas de journal ; à brancher avec
@@ -205,7 +216,8 @@ export function bornesDuPlan(entrees: readonly Pick<PlanComptable, 'code' | 'lim
 /**
  * Borne de l'arrêté des comptes d'un exercice (Exercice du domaine, exercices-budgets.ts) : sa date de clôture, incluse.
  * L'exercice est désigné par son nom (l'année chez Gestéam), comme dans les autres refus du domaine (appels-budget.ts).
- * 🔴 À composer seulement pour un exercice dont la procédure de clôture est exécutée ; elle ne se lève pas (voir l'en-tête).
+ * 🔴 À composer seulement pour un exercice dont la procédure de clôture est exécutée (acte qui la pose : voir l'en-tête) ;
+ * elle ne se lève pas, un exercice clos ne se rouvre pas (J67, R121).
  */
 export function borneArreteDesComptes({ nom, cloture }: Pick<Exercice, 'nom' | 'cloture'>): BorneVerrou {
   const designation = nom.trim()
@@ -213,4 +225,50 @@ export function borneArreteDesComptes({ nom, cloture }: Pick<Exercice, 'nom' | '
   if (!estDateIsoValide(cloture))
     throw new Error(`Date de clôture invalide pour l'exercice « ${designation} » : « ${cloture} » (AAAA-MM-JJ).`)
   return { jusquAu: cloture, origine: 'arrete', reference: designation }
+}
+
+/** Opération à dater qui se rapporte peut-être à une période close (rejet de prélèvement, facture tardive). */
+export interface OperationADater extends Omit<EcritureControlee, 'date'> {
+  /** Date du fait : date du rejet sur le relevé bancaire (comme J9 pour un virement rejeté), date de la facture… */
+  dateDuFait: string
+  /** Référence de la pièce (numéro de facture, référence du paiement…) : arrêté du 14 mars 2005, art. 4. */
+  reference: string
+}
+
+export interface DateHorsVerrou {
+  /** Date comptable retenue : date du fait si elle est ouverte, sinon premier jour ouvert. */
+  date: string
+  /** Borne qui couvrait la date du fait ; null : date du fait ouverte. */
+  borne: BorneVerrou | null
+  /** Mention à porter au libellé de l'écriture : référence et date d'origine de la pièce (arrêté, art. 4). */
+  mention: string
+  justification: string
+}
+
+/**
+ * Date comptable d'une opération qui se rapporte peut-être à une période close (J67, R123) : la date du fait si aucune
+ * borne ne la couvre ; sinon le lendemain de la borne applicable (la plus tardive de celles qui visent l'opération), qui
+ * n'est couvert par aucune borne de ce périmètre. Le libellé porte toujours la date d'origine et la référence de la pièce.
+ */
+export function dateHorsVerrou(verrou: VerrouSaisie, { dateDuFait, reference, famille, comptes }: OperationADater): DateHorsVerrou {
+  const piece = reference.trim()
+  if (!piece) throw new Error("Opération sans référence de la pièce : le libellé doit l'identifier (arrêté du 14 mars 2005, art. 4).")
+  const borne = borneApplicable(verrou, { date: dateDuFait, famille, comptes })
+  const mention = `pièce « ${piece} » du ${dateIsoVersFr(dateDuFait)}`
+  if (borne === null)
+    return {
+      date: dateDuFait,
+      borne,
+      mention,
+      justification: `Date du fait ${dateIsoVersFr(dateDuFait)} ouverte : opération enregistrée à cette date (J67, R123 ; arrêté du 14/03/2005, art. 4).`,
+    }
+  const date = ajouterJours(borne.jusquAu, 1)
+  return {
+    date,
+    borne,
+    mention,
+    justification:
+      `Date du fait ${dateIsoVersFr(dateDuFait)} verrouillée jusqu'au ${dateIsoVersFr(borne.jusquAu)} inclus par ${DESIGNATION[borne.origine]} « ${borne.reference} » : ` +
+      `opération enregistrée au premier jour ouvert, le ${dateIsoVersFr(date)}, avec sa date d'origine au libellé (J67, R123 ; arrêté du 14/03/2005, art. 4 et 5).`,
+  }
 }

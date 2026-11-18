@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import { enTeteDuModule } from './en-tete-module'
 import {
+  DELAIS_ASSURANCE_SINISTRE,
   NATURES_PARTIE_SINISTRE,
   ROLES_PARTIE_SINISTRE,
   controlerChronologieSinistre,
@@ -18,9 +20,9 @@ import {
  * - Type, phase et statut : référentiels Gestéam existants (TYPE_SINISTRE, PHASE_SINISTRE, STATUT_SINISTRE).
  * - L'étape de suivi se lit sur les dates (déclaration → expertise → rapport → règlement → clôture) ; elle ne remplace
  *   pas la phase Gestéam, saisie.
- * - Repères INDICATIFS, jamais présentés comme l'échéance certaine : déclaration dans le délai du contrat, au moins
- *   5 jours ouvrés (2 pour un vol) depuis la connaissance du sinistre (C. assur. art. L. 113-2) ; prescription de
- *   deux ans depuis l'événement (C. assur. art. L. 114-1), interrompue par les causes de l'art. L. 114-2.
+ * - Échéances du suivi (J67, R49) : déclaration au plus tard dans le délai du contrat, au moins 5 jours ouvrés (2 pour
+ *   un vol) depuis la connaissance du sinistre (C. assur. art. L. 113-2) ; prescription au plus tôt deux ans après
+ *   l'événement (C. assur. art. L. 114-1), interrompue par les causes de l'art. L. 114-2, durée non modifiable (L. 114-3).
  */
 
 const saisie = (surcharge: Partial<SaisieSinistre> = {}): SaisieSinistre => ({
@@ -241,7 +243,29 @@ describe('sinistres — repères de délais (indicatifs)', () => {
     const reperes = reperesDelaisSinistre(creerSinistre(saisie({ dateDeclaration: '2026-11-05' })))
     expect(reperes.declarationTardive).toBe(true)
     expect(reperes.fondements).toEqual(['C. assur. art. L. 113-2', 'C. assur. art. L. 114-1'])
-    expect(reperes.avertissement).toMatch(/indicatif/i)
+    expect(reperes.avertissement).toBe(
+      "Déclarer dès la connaissance du sinistre. Déclaration au plus tard à la date retenue : délai du contrat s'il est saisi, sinon minimum légal (C. assur. art. L. 113-2, 4°), que le contrat peut seulement allonger. Prescription au plus tôt deux ans après l'événement (art. L. 114-1) : une interruption peut la repousser (art. L. 114-2) ; le contrat ne peut pas en changer la durée (art. L. 114-3).",
+    )
+  })
+
+  it('J67, R49 : délais du code des assurances en paramètres, avec leur article', () => {
+    expect(DELAIS_ASSURANCE_SINISTRE).toEqual({ declarationMinimumJoursOuvres: 5, declarationVolJoursOuvres: 2, prescriptionMois: 24 })
+  })
+
+  it('J67, R49 : minimum légal ou délai du contrat ; « Vandalisme » et « Bris de glace » signalés (un vol a pu y être rangé)', () => {
+    expect(reperesDelaisSinistre(creerSinistre(saisie()))).toMatchObject({ minimumLegalJoursOuvres: 5, delaiDuContrat: false, volPossible: false })
+    expect(reperesDelaisSinistre(creerSinistre(saisie({ type: 'Vol' })))).toMatchObject({ minimumLegalJoursOuvres: 2, volPossible: false })
+    expect(reperesDelaisSinistre(creerSinistre(saisie()), { delaiContratJoursOuvres: 10 }).delaiDuContrat).toBe(true)
+    expect(reperesDelaisSinistre(creerSinistre(saisie()), { delaiContratJoursOuvres: 5 }).delaiDuContrat).toBe(false)
+    for (const type of ['Vandalisme', 'Bris de glace'] as const)
+      expect(reperesDelaisSinistre(creerSinistre(saisie({ type })))).toMatchObject({ minimumLegalJoursOuvres: 5, volPossible: true })
+  })
+
+  it('en-tête : échéances du suivi (J67, R49) ; L. 114-3 relu ; le contrat n’allonge que la déclaration', () => {
+    const { texte } = enTeteDuModule('sinistres')
+    expect(texte).not.toContain('ces dates ne sont jamais présentées comme des échéances certaines')
+    expect(texte).toMatch(/J67, R49/)
+    expect(texte).toMatch(/L\. 114-3 relu sur Légifrance le 17\/11\/2026/)
   })
 
   it('J67, R50 : l’avertissement rappelle de déclarer dès la connaissance ; le repère est le minimum légal du délai prévu au contrat', () => {

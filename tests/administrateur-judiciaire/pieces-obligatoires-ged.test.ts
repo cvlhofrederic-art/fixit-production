@@ -5,7 +5,10 @@ import { composerDateIso } from '@/lib/administrateur-judiciaire/domain/dates'
 import {
   DOCUMENTS_EXTRANET,
   DOCUMENTS_OBLIGATOIRES_SYNDICAT,
+  MENTIONS_OBLIGATOIRES,
   TYPES_GED_PAR_PIECE_REPRISE,
+  alerteFicheSynthetique,
+  avertissementExtranet,
   avisAppelDansExtranet,
   controlerPieces,
   documentsExtranetDuPublic,
@@ -14,9 +17,15 @@ import {
   type DocumentGed,
 } from '@/lib/administrateur-judiciaire/domain/pieces-obligatoires-ged'
 import {
+  AVERTISSEMENT_ART20_DROIT_DEMEMBRE,
+  AVERTISSEMENT_ETAT_DATE_USUFRUIT_CONSTITUE,
+  NATURE_CESSION_DROIT_REEL_ONEREUSE,
   NATURE_VENTE_AMIABLE,
+  inscriptionSyndicatConnue,
+  mutationDroitDemembre,
   piecesMutationSyndic,
   piecesRemiseAcquereur,
+  type InscriptionSyndicat,
   type NatureMutation,
 } from '@/lib/administrateur-judiciaire/domain/pieces-mutation-ged'
 import { PIECES_REPRISE, piecesRepriseRecues } from '@/lib/administrateur-judiciaire/domain/reprise'
@@ -237,6 +246,122 @@ describe('extranet (D. 2019-502) : trois publics exclusifs', () => {
   it('en-tête : les pièces « éventuelles » déduites sont toutes citées, assignations et décisions comprises', () => {
     expect(SOURCE('pieces-obligatoires-ged.ts')).toMatch(/pièces « éventuelles » : [^;]*assignations et décisions de justice/)
   })
+
+  describe('administration provisoire (J67, R119) : contrôle gardé par prudence, à confirmer, jamais bloquant', () => {
+    const AP = { ...HABITATION, administrationProvisoire: true }
+
+    it('ordonnance de désignation (et de prolongation) à la place du contrat de syndic, marquée « équivalence VitFix »', () => {
+      const pieces = documentsExtranetDuPublic('coproprietaires', AP)
+      expect(pieces.map((p) => p.cle)).not.toContain('contrat_syndic')
+      expect(pieces).toHaveLength(9)
+      expect(pieces.find((p) => p.cle === 'ordonnance_designation')).toMatchObject({
+        public: 'coproprietaires',
+        certitude: 'EQUIVALENCE_VITFIX',
+        presence: 'requise',
+        modeles: [
+          { categorie: 'Tribunal', type: 'Ordonnance de désignation' },
+          { categorie: 'Tribunal', type: 'Ordonnance de prolongation de mission' },
+        ],
+      })
+      const controle = controlerPieces([doc('o', 'Tribunal', 'Ordonnance de désignation')], COPRO, pieces)
+      expect(controle.presentes.map((p) => p.cle)).toContain('ordonnance_designation')
+    })
+
+    it('attestations : sans la carte professionnelle ; assurance et garantie « éventuelles »', () => {
+      const attestations = documentsExtranetDuPublic('conseil_syndical', AP).find((p) => p.cle === 'attestations_syndic')
+      expect(attestations?.presence).toBe('eventuelle')
+      expect(attestations?.libelle).not.toMatch(/Carte professionnelle/)
+      expect(attestations?.modeles.map((m) => m.type)).not.toContain('Carte professionnelle')
+      expect(controlerPieces([], COPRO, documentsExtranetDuPublic('conseil_syndical', AP)).manquantes.map((p) => p.cle)).not.toContain('attestations_syndic')
+    })
+
+    it('libellé « à confirmer » sous administration provisoire seulement ; syndic : liste inchangée', () => {
+      expect(avertissementExtranet(AP)).toBe(
+        "Obligation du syndic professionnel (L. 1965 art. 18, I), appliquée par prudence à l'administrateur provisoire : à confirmer (J67, R119). Alertes seulement, jamais bloquantes.",
+      )
+      expect(avertissementExtranet(HABITATION)).toBeNull()
+      expect(documentsExtranetDuPublic('coproprietaires', HABITATION).map((p) => p.cle)).toContain('contrat_syndic')
+      expect(documentsExtranetDuPublic('coproprietaires', { ...AP, accesEnLigneEcarteParAg: true })).toEqual([])
+    })
+
+    it('en-tête : la question de l’extranet sous administration provisoire quitte les points non établis', () => {
+      const source = SOURCE('pieces-obligatoires-ged.ts')
+      expect(source).not.toContain("doit-il tenir l'extranet du décret 2019-502 pour la copropriété administrée ? » (la loi vise")
+      expect(source).toMatch(/J67, R119[\s\S]*appliquée par prudence/)
+    })
+  })
+})
+
+describe('fiche synthétique à mettre à jour (J67, R120 ; D. 2016-1822 art. 1)', () => {
+  const fiche = (date: string) => doc(`f-${date}`, 'Base', 'Fiche synthétique', date)
+  const approbation = { date: '2026-06-10', parAdministrateurProvisoire: false, notificationsPv: ['2026-06-25', '2026-06-20'] }
+
+  it('deux mois depuis la plus tôt des notifications du PV, sans fiche datée après l’AG : à mettre à jour', () => {
+    const alerte = alerteFicheSynthetique([fiche('2025-08-01')], COPRO, approbation, '2026-08-21')
+    expect(alerte).toEqual({
+      aMettreAJour: true,
+      depart: '2026-06-20',
+      origineDepart: 'notification_pv',
+      echeance: '2026-08-20',
+      derniereFiche: { documentId: 'f-2025-08-01', date: '2025-08-01' },
+      aVerifier: [],
+      fondement: 'D. 2016-1822 art. 1 ; L. 1965 art. 8-2',
+      justification:
+        "Départ : la plus tôt des notifications du procès-verbal de l'assemblée du 10/06/2026 qui a approuvé les comptes, le 20/06/2026 ; données à établir dans les deux mois (D. 2016-1822 art. 1), au plus tard le 20/08/2026.",
+      message: "Fiche synthétique à mettre à jour : aucune fiche datée après l'assemblée du 10/06/2026, délai de deux mois échu le 20/08/2026.",
+      aConfirmer: false,
+    })
+  })
+
+  it('fiche faite dans le délai, après l’AG : pas d’alerte ; délai non échu : pas d’alerte', () => {
+    expect(alerteFicheSynthetique([fiche('2026-07-25')], COPRO, approbation, '2026-10-01')).toMatchObject({
+      aMettreAJour: false,
+      derniereFiche: { date: '2026-07-25' },
+    })
+    expect(alerteFicheSynthetique([], COPRO, approbation, '2026-08-20').aMettreAJour).toBe(false)
+    expect(alerteFicheSynthetique([fiche('2026-06-10')], COPRO, approbation, '2026-09-01').aMettreAJour).toBe(true)
+  })
+
+  it('sans notification saisie : départ à la date de l’AG (plus tôt, donc prudent)', () => {
+    expect(alerteFicheSynthetique([], COPRO, { ...approbation, notificationsPv: [] }, '2026-08-11')).toMatchObject({
+      aMettreAJour: true,
+      depart: '2026-06-10',
+      origineDepart: 'date_ag',
+      echeance: '2026-08-10',
+    })
+  })
+
+  it('comptes approuvés par l’administrateur provisoire : départ à sa décision, à confirmer', () => {
+    const decision = { date: '2026-05-04', parAdministrateurProvisoire: true, notificationsPv: [] }
+    const alerte = alerteFicheSynthetique([], COPRO, decision, '2026-07-05')
+    expect(alerte).toMatchObject({ aMettreAJour: true, depart: '2026-05-04', origineDepart: 'decision_administrateur', echeance: '2026-07-04', aConfirmer: true })
+    expect(alerte.justification).toMatch(/décision de l'administrateur provisoire du 04\/05\/2026.*à confirmer/)
+    expect(() => alerteFicheSynthetique([], COPRO, { ...decision, notificationsPv: ['2026-05-10'] }, '2026-07-05')).toThrow(/pas de procès-verbal/)
+  })
+
+  it('fiche à confirmer datée après l’AG : à vérifier, sans faire tomber l’alerte ; contrôles des dates', () => {
+    const suggestion: DocumentGed = { id: 's', ...COPRO, type: codeTypesAConfirmer([{ categorie: 'Base', type: 'Fiche synthétique' }], COPRO.entiteType), date: '2026-07-01' }
+    expect(alerteFicheSynthetique([suggestion], COPRO, approbation, '2026-09-01')).toMatchObject({ aMettreAJour: true, aVerifier: ['s'] })
+    expect(() => alerteFicheSynthetique([], COPRO, { ...approbation, notificationsPv: ['2026-06-01'] }, '2026-09-01')).toThrow(/avant l'assemblée/)
+    expect(() => alerteFicheSynthetique([], COPRO, approbation, '01/09/2026')).toThrow(/AAAA-MM-JJ/)
+  })
+
+  it('mentions obligatoires en données (aide-mémoire, aucun contrôle du contenu) : carnet d’entretien et fiche synthétique', () => {
+    expect(MENTIONS_OBLIGATOIRES.carnet_entretien.map((m) => m.fondement)).toEqual([
+      'D. 2001-477 art. 3',
+      'D. 2001-477 art. 3',
+      'D. 2001-477 art. 3',
+      'D. 2001-477 art. 4',
+      'D. 2001-477 art. 4',
+      'D. 2001-477 art. 4',
+      'D. 2001-477 art. 4',
+      'D. 2001-477 art. 4',
+    ])
+    expect(MENTIONS_OBLIGATOIRES.fiche_synthetique).toHaveLength(6)
+    expect(MENTIONS_OBLIGATOIRES.fiche_synthetique[1].libelle).toMatch(/syndic ou administrateur provisoire.*cadre de son intervention/)
+    const cles = new Set(DOCUMENTS_OBLIGATOIRES_SYNDICAT.map((p) => p.cle))
+    for (const cle of Object.keys(MENTIONS_OBLIGATOIRES)) expect(cles.has(cle)).toBe(true)
+  })
 })
 
 const VENTE: NatureMutation = NATURE_VENTE_AMIABLE
@@ -301,6 +426,73 @@ describe('pièces de mutation', () => {
     expect(controlerPieces([], mutation, piecesMutationSyndic(ADJUDICATION)).manquantes.map((p) => p.cle)).toEqual(['notification_art6'])
   })
 
+  describe('usufruit et nue-propriété (J67, R115)', () => {
+    it('constitution ou cession à titre onéreux : trois cases cochées, art. 20 en lecture prudente', () => {
+      expect(NATURE_CESSION_DROIT_REEL_ONEREUSE).toEqual({ acteConventionnel: true, titreOnereux: true, venteParActeAuthentique: true })
+      for (const droit of ['usufruit', 'nue_propriete'] as const)
+        expect(mutationDroitDemembre({ droit, operation: 'constitution', aTitreOnereux: true })).toEqual({
+          nature: NATURE_CESSION_DROIT_REEL_ONEREUSE,
+          avertissements: [AVERTISSEMENT_ART20_DROIT_DEMEMBRE],
+        })
+      expect(mutationDroitDemembre({ droit: 'nue_propriete', operation: 'cession', aTitreOnereux: true }).avertissements).toEqual([AVERTISSEMENT_ART20_DROIT_DEMEMBRE])
+      expect(AVERTISSEMENT_ART20_DROIT_DEMEMBRE).toMatch(/^Lecture prudente : art\. 20 appliqué à un droit démembré, à confirmer/)
+      const cles = piecesMutationSyndic(mutationDroitDemembre({ droit: 'usufruit', operation: 'constitution', aTitreOnereux: true }).nature).map((p) => p.cle)
+      expect(cles).toEqual(expect.arrayContaining(['certificat_art20_i', 'avis_mutation', 'certificat_art20_ii', 'notification_art6', 'etat_date']))
+    })
+
+    it('cession d’un usufruit déjà constitué : avertissement de plus sur l’état daté (D. 1967 art. 4 ne vise que la constitution)', () => {
+      expect(mutationDroitDemembre({ droit: 'usufruit', operation: 'cession', aTitreOnereux: true }).avertissements).toEqual([
+        AVERTISSEMENT_ART20_DROIT_DEMEMBRE,
+        AVERTISSEMENT_ETAT_DATE_USUFRUIT_CONSTITUE,
+      ])
+      expect(AVERTISSEMENT_ETAT_DATE_USUFRUIT_CONSTITUE).toMatch(/^État daté : lecture prudente \(D\. 1967 art\. 4 ne vise que la constitution/)
+    })
+
+    it('donation : seule la case « acte conventionnel » ; notification de l’art. 6 et état daté requis', () => {
+      const donation = mutationDroitDemembre({ droit: 'nue_propriete', operation: 'constitution', aTitreOnereux: false })
+      expect(donation).toEqual({ nature: DROIT_REEL, avertissements: [] })
+      const presence = new Map(piecesMutationSyndic(donation.nature).map((p) => [p.cle, p.presence]))
+      expect([presence.get('notification_art6'), presence.get('etat_date')]).toEqual(['requise', 'requise'])
+      expect(presence.has('certificat_art20_ii')).toBe(false)
+    })
+  })
+
+  describe('mainlevée de l’inscription du syndicat (J67, R116)', () => {
+    const mainlevee = (inscriptionSyndicat?: InscriptionSyndicat) =>
+      piecesMutationSyndic(VENTE, inscriptionSyndicat === undefined ? undefined : { inscriptionSyndicat }).find((p) => p.cle === 'procuration_mainlevee')
+
+    it('inscription connue : pièce requise, fondée sur L. 1965 art. 19, al. 2 et C. civ. art. 2435 et 2436, libellé élargi', () => {
+      expect(mainlevee('oui')).toMatchObject({
+        libelle: "Mainlevée de l'inscription du syndicat (acte authentique, procuration ou accord certifié par le notaire)",
+        fondement: 'L. 1965 art. 19, al. 2 ; C. civ. art. 2435 et 2436',
+        certitude: 'TEXTE',
+        presence: 'requise',
+      })
+    })
+
+    it('inscription inconnue (par défaut) : pièce éventuelle, comme avant ; absence établie : pièce non listée', () => {
+      const attendu = {
+        libelle: "Mainlevée de l'inscription du syndicat (acte authentique, procuration ou accord certifié par le notaire), à fournir si une inscription du syndicat existe sur le lot",
+        fondement: null,
+        certitude: 'GESTEAM',
+        presence: 'eventuelle',
+      }
+      expect(mainlevee()).toMatchObject(attendu)
+      expect(mainlevee('inconnue')).toMatchObject(attendu)
+      expect(mainlevee('non')).toBeUndefined()
+      expect(() => piecesMutationSyndic(VENTE, { inscriptionSyndicat: 'peut-être' as never })).toThrow(/oui, non ou inconnue/)
+    })
+
+    it('source : hypothèque inscrite au contentieux ou bordereau publié classé sur le lot ; sans l’un ni l’autre, inconnue (jamais « non »)', () => {
+      const lot = { entiteType: 'lot', entiteId: 'l1' }
+      const bordereau = doc('b', 'Base', 'Bordereau hypothèque publié', '2025-04-01', lot)
+      expect(inscriptionSyndicatConnue({ hypothequesInscritesLe: ['2025-03-10'], documents: [], lot })).toBe('oui')
+      expect(inscriptionSyndicatConnue({ hypothequesInscritesLe: [null], documents: [bordereau], lot })).toBe('oui')
+      expect(inscriptionSyndicatConnue({ hypothequesInscritesLe: [null], documents: [{ ...bordereau, entiteId: 'l2' }], lot })).toBe('inconnue')
+      expect(inscriptionSyndicatConnue({ hypothequesInscritesLe: [], documents: [doc('c', 'Base', "Carnet d'entretien", '2025-04-01', lot)], lot })).toBe('inconnue')
+    })
+  })
+
   it('nature incohérente : une vente est à titre onéreux', () => {
     expect(() => piecesMutationSyndic({ acteConventionnel: true, titreOnereux: false, venteParActeAuthentique: true })).toThrow(/onéreux/)
   })
@@ -332,16 +524,23 @@ describe('pièces de mutation', () => {
     expect(piecesRemiseAcquereur({ mode: 'vente_publique', ...sans, syndicatArt14_3Alinea2: true }).map((p) => p.cle)).not.toContain('2b')
   })
 
-  it('renvoi de L. 721-2 II 2° au 2e alinéa de l’art. 14-3 : 🔴 non harmonisé, drapeau faux par défaut (2° b et c exigés)', () => {
+  it('renvoi de L. 721-2 II 2° au 2e alinéa de l’art. 14-3 (J67, R114) : drapeau faux par défaut, 2° b et c exigés pour tous les syndicats', () => {
     const pieces = piecesRemiseAcquereur({ mode: 'promesse', acquereurDejaCoproprietaire: false, lotAnnexe: false })
     expect(pieces.map((p) => p.cle)).toEqual(expect.arrayContaining(['2b', '2c']))
     const source = SOURCE('pieces-mutation-ged.ts')
     expect(source).not.toContain("Syndicat relevant de l'art. 14-3, al. 2 de la loi de 1965")
     expect(source).not.toContain('est rédigée dans le 2° lui-même : appliquée partout')
-    expect(source).toMatch(/🔴[\s\S]*art\. 41-8[\s\S]*art\. 41-10/)
-    expect(source).toContain(
-      "« L'exception de CCH L. 721-2 II 2° (2° b et c non exigés), qui renvoie au 2e alinéa de l'art. 14-3 devenu sans objet, vise-t-elle les petites copropriétés de l'art. 41-8 (dispense de l'art. 41-10) ? »",
-    )
+    expect(source).not.toMatch(/🔴 Syndicat qui « relève du deuxième alinéa/)
+    expect(source).not.toContain('vise-t-elle les petites copropriétés')
+    expect(source).toMatch(/J67, R114[\s\S]*art\. 41-8[\s\S]*art\. 41-10/)
+    expect(source).toContain('version du 16/07/2006 au 01/06/2020')
+    expect(source).toContain('D. 2016-1822, art. 2, dernier alinéa')
+  })
+
+  it('en-tête (J67, R117) : informations financières et notice listées sans contrôle du contenu ; arrêtés cherchés, non trouvés', () => {
+    const source = SOURCE('pieces-mutation-ged.ts')
+    expect(source).not.toMatch(/🔴[^🔵🟢]*arrêtés prévus par L\. 721-2\) : non relus/)
+    expect(source).toMatch(/J67, R117[\s\S]*recherche du 17\/11\/2026[\s\S]*non trouvés, non vérifié/)
   })
 
   it('en-tête : L. 721-3 ne vise que les 1° et 2° (promesse), le 1° et le 2° c (acte sans promesse)', () => {

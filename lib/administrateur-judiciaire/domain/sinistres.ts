@@ -29,13 +29,20 @@ import {
  * Gestéam est SAISIE (où en est le traitement) ; l'étape de suivi, elle, se déduit des dates : deux axes, à ne pas
  * fusionner.
  *
- * Repères de délais (C. assur.) : INDICATIFS. La déclaration se fait dans le délai du contrat, qui ne peut être
- * inférieur à 5 jours ouvrés (2 pour le vol) depuis la connaissance du sinistre (art. L. 113-2) ; l'action se prescrit
- * par deux ans depuis l'événement (art. L. 114-1), délai interrompu ou reporté selon l'art. L. 114-2. Le contrat et
- * les faits du dossier priment : ces dates ne sont jamais présentées comme des échéances certaines.
+ * Délais du code des assurances (DELAIS_ASSURANCE_SINISTRE). La déclaration se fait dès la connaissance du sinistre et
+ * au plus tard dans le délai du contrat, qui ne peut être inférieur à 5 jours ouvrés (2 pour le vol) ; le contrat peut
+ * seulement l'allonger (art. L. 113-2, 4°). L'action se prescrit par deux ans depuis l'événement (art. L. 114-1) ; la
+ * prescription peut être interrompue (art. L. 114-2), mais le contrat ne peut pas en modifier la durée (art. L. 114-3).
  * 🟢 L. 113-2, L. 114-1 et L. 114-2 relus sur Légifrance le 17/11/2026 (L. 113-2 et L. 114-2 en vigueur depuis le
  * 01/04/2018, ordonnance n° 2017-1433 ; L. 114-1 depuis le 30/12/2021, loi n° 2021-1837 ; voir suggestionForclusion).
- * Repères indicatifs : leur ajout au calendrier réglementaire est un choix de Frédéric.
+ * 🟢 L. 114-3 relu sur Légifrance le 17/11/2026 (en vigueur depuis le 19/06/2008, loi n° 2008-561) : les parties ne
+ * peuvent, même d'un commun accord, modifier la durée de la prescription.
+ * Décision J67, R49 de Hugo (17/11/2026) : ces dates deviennent des échéances du suivi « à faire ». Déclaration « au
+ * plus tard » : connaissance + minimum légal ou délai du contrat s'il est plus long (déclarer avant est toujours dans les
+ * temps) ; « Vandalisme » et « Bris de glace » restent à confirmer, un vol ayant pu y être rangé (volPossible : 2 jours
+ * ouvrés s'il y a eu vol). Prescription « au plus tôt » : survenance + deux ans (son départ ne peut qu'être plus tard et
+ * une interruption la repousse : agir avant est toujours sûr). Jours ouvrés lus du lundi au vendredi, hors jours
+ * fériés (le texte ne les définit pas) ; leur ajout au calendrier réglementaire est un choix de Frédéric.
  * Décisions de Hugo du 17/11/2026 (registre des décisions juridiques, J67) :
  * - J67, R50 : le décompte est confirmé : jours ouvrés comptés du lendemain de la connaissance, sans samedi, dimanche ni
  *   jour férié (L. 113-2, 4° dit « jours ouvrés » ; jour de départ exclu, CPC art. 641, al. 1, par analogie). Le message
@@ -389,24 +396,33 @@ export function indemnitesSinistre(sinistre: FicheSinistre): IndemnitesSinistre 
   return { totalCentimes, regleCentimes, resteCentimes: totalCentimes - regleCentimes }
 }
 
-/** Le délai du contrat ne peut être inférieur à cinq jours ouvrés (C. assur. art. L. 113-2, 4°). */
-const DELAI_DECLARATION_MINIMUM_JOURS_OUVRES = 5
-/** Vol : minimum ramené à deux jours ouvrés (C. assur. art. L. 113-2, 4°). */
-const DELAI_DECLARATION_VOL_JOURS_OUVRES = 2
+/** Délais du code des assurances (relus le 17/11/2026). */
+export const DELAIS_ASSURANCE_SINISTRE = {
+  /** L. 113-2, 4° : le délai du contrat « ne peut être inférieur à cinq jours ouvrés ». */
+  declarationMinimumJoursOuvres: 5,
+  /** L. 113-2, 4° : délai ramené à deux jours ouvrés en cas de vol. */
+  declarationVolJoursOuvres: 2,
+  /** L. 114-1 : prescription par deux ans à compter de l'événement (L. 114-3 : durée non modifiable par contrat). */
+  prescriptionMois: 24,
+} as const
+
 /**
  * Prescription des actions dérivant du contrat d'assurance : deux ans (C. assur. art. L. 114-1, al. 1). Seule durée du
  * domaine : le repère du suivi « à faire » (reperesDelaisSinistre) et la suggestion de forclusion (fiche-sinistre.ts) la
- * lisent ici.
+ * lisent ici (DELAIS_ASSURANCE_SINISTRE).
  */
-export const PRESCRIPTION_MOIS = 24
+export const PRESCRIPTION_MOIS = DELAIS_ASSURANCE_SINISTRE.prescriptionMois
 
 /** Dommages-ouvrage : les clauses types ne fixent aucun délai de déclaration à l'assuré (J67, R52). */
 const DOMMAGES_OUVRAGE: TypeSinistre = 'Dommages Ouvrage'
 
-/** Minimum du délai de déclaration prévu au contrat, en jours ouvrés ; dommages-ouvrage : aucun (J67, R52). */
+/**
+ * Minimum du délai de déclaration prévu au contrat, en jours ouvrés (C. assur. art. L. 113-2, 4° : cinq, deux pour le
+ * vol) ; dommages-ouvrage : aucun (J67, R52).
+ */
 const delaiMinimumJoursOuvres = (type: TypeSinistre): number => {
   if (type === DOMMAGES_OUVRAGE) return 0
-  return type === 'Vol' ? DELAI_DECLARATION_VOL_JOURS_OUVRES : DELAI_DECLARATION_MINIMUM_JOURS_OUVRES
+  return type === 'Vol' ? DELAIS_ASSURANCE_SINISTRE.declarationVolJoursOuvres : DELAIS_ASSURANCE_SINISTRE.declarationMinimumJoursOuvres
 }
 
 /** Rappel du droit commun de la déclaration (J67, R50), repris par declaration-sinistre.ts. */
@@ -415,33 +431,49 @@ export const RAPPEL_DECLARATION_DES_CONNAISSANCE =
 
 const RAPPEL_PRESCRIPTION = 'La prescription peut être interrompue (C. assur. art. L. 114-2). Vérifier le contrat et le dossier.'
 
-const AVERTISSEMENT_REPERES = `Repère indicatif. ${RAPPEL_DECLARATION_DES_CONNAISSANCE} ${RAPPEL_PRESCRIPTION}`
+/** Droit commun (J67, R49) : déclarer dès la connaissance, au plus tard à la date retenue ; prescription au plus tôt. */
+const AVERTISSEMENT_REPERES =
+  "Déclarer dès la connaissance du sinistre. Déclaration au plus tard à la date retenue : délai du contrat s'il est saisi, sinon minimum légal (C. assur. art. L. 113-2, 4°), que le contrat peut seulement allonger. Prescription au plus tôt deux ans après l'événement (art. L. 114-1) : une interruption peut la repousser (art. L. 114-2) ; le contrat ne peut pas en changer la durée (art. L. 114-3)."
 
 const AVERTISSEMENT_REPERES_DOMMAGES_OUVRAGE = `Dommages-ouvrage : déclarer dès la connaissance du sinistre (C. assur. art. L. 113-2, 4°) ; aucun délai dans les clauses types (C. assur. annexe II à l'art. A. 243-1), sauf délai fixé par la police. ${RAPPEL_PRESCRIPTION}`
 
+/** Types Gestéam sous lesquels un vol a pu être rangé (effraction, bris) : 2 jours ouvrés s'il y a eu vol (J67, R49). */
+const TYPES_VOL_POSSIBLE: ReadonlySet<TypeSinistre> = new Set<TypeSinistre>(['Vandalisme', 'Bris de glace'])
+
 export interface ReperesDelaisSinistre {
+  /** Minimum légal de l'art. L. 113-2, 4° pour ce type (vol : 2 jours ouvrés). */
+  minimumLegalJoursOuvres: number
   delaiDeclarationJoursOuvres: number
+  /** Le délai du contrat, plus long que le minimum légal, est retenu. */
+  delaiDuContrat: boolean
+  /** Un vol a pu être rangé sous ce type : la date suppose qu'il n'y en a pas eu (J67, R49). */
+  volPossible: boolean
   declarationAuPlusTard: string
   /** Aucun délai (dommages-ouvrage sans délai de la police) : à déclarer dès la connaissance (J67, R52). */
   desLaConnaissance: boolean
   /** Déclaration faite après le repère ; false si non encore déclarée, ou sans délai à dépasser. */
   declarationTardive: boolean
+  /** Date la plus tôt possible de la prescription (L. 114-1). */
   prescription: string
   fondements: string[]
   avertissement: string
 }
 
-/** Repères indicatifs de déclaration et de prescription (voir l'en-tête du module). */
+/** Déclaration « au plus tard » et prescription « au plus tôt » (voir l'en-tête du module ; J67, R49). */
 export function reperesDelaisSinistre(
   sinistre: FicheSinistre,
   { delaiContratJoursOuvres }: { delaiContratJoursOuvres?: number } = {},
 ): ReperesDelaisSinistre {
   const dommagesOuvrage = sinistre.type === DOMMAGES_OUVRAGE
-  const delaiDeclarationJoursOuvres = Math.max(delaiMinimumJoursOuvres(sinistre.type), delaiContratJoursOuvres ?? 0)
+  const minimumLegalJoursOuvres = delaiMinimumJoursOuvres(sinistre.type)
+  const delaiDeclarationJoursOuvres = Math.max(minimumLegalJoursOuvres, delaiContratJoursOuvres ?? 0)
   const declarationAuPlusTard = ajouterJoursOuvres(sinistre.dateConnaissance, delaiDeclarationJoursOuvres)
   const desLaConnaissance = delaiDeclarationJoursOuvres === 0
   return {
+    minimumLegalJoursOuvres,
     delaiDeclarationJoursOuvres,
+    delaiDuContrat: delaiDeclarationJoursOuvres > minimumLegalJoursOuvres,
+    volPossible: TYPES_VOL_POSSIBLE.has(sinistre.type),
     declarationAuPlusTard,
     desLaConnaissance,
     declarationTardive: !desLaConnaissance && sinistre.dateDeclaration !== null && sinistre.dateDeclaration > declarationAuPlusTard,

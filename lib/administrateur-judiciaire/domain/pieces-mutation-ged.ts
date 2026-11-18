@@ -1,4 +1,10 @@
-import type { PieceAttendue, PresencePiece } from '@/lib/administrateur-judiciaire/domain/pieces-obligatoires-ged'
+import {
+  controlerPieces,
+  type DocumentGed,
+  type EntiteGed,
+  type PieceAttendue,
+  type PresencePiece,
+} from '@/lib/administrateur-judiciaire/domain/pieces-obligatoires-ged'
 import { modelesDe, type ModeleTypeDocument } from '@/lib/administrateur-judiciaire/domain/typologie-documents'
 
 /**
@@ -28,7 +34,19 @@ import { modelesDe, type ModeleTypeDocument } from '@/lib/administrateur-judicia
  * - L. 1965 art. 14-3, al. 2 (mod. ord. 2019-1101, en vigueur depuis le 01/06/2020) : charges et produits du syndicat
  *   « enregistrés dès leur engagement juridique », règle de TOUS les syndicats ; art. 41-8 : petites copropriétés (au
  *   plus cinq lots à usage de logements, de bureaux ou de commerces, ou budget prévisionnel moyen inférieur à
- *   15 000 €) ; art. 41-10 : « par dérogation à l'article 14-3 », pas de comptabilité en partie double.
+ *   15 000 €) ; art. 41-10 : « par dérogation à l'article 14-3 », pas de comptabilité en partie double ;
+ * - relus le 17/11/2026 (J67, R114) : L. 1965 art. 14-3, version du 16/07/2006 au 01/06/2020 (loi n° 2006-872) : son
+ *   al. 2 dispensait de la partie double le syndicat de moins de dix lots (logements, bureaux, commerces) dont le budget
+ *   prévisionnel moyen sur trois exercices était inférieur à 15 000 € (deux conditions cumulées) ; D. 2016-1822, art. 2,
+ *   dernier alinéa : même renvoi au 2e alinéa de l'art. 14-3 (fiche synthétique) ;
+ * - relus le 17/11/2026 (J67, R115 et R116) : D. 1967 art. 4 (transfert de propriété d'un lot ou « constitution » d'un
+ *   droit réel), art. 5 et 6 (notification de « toute constitution » d'un usufruit, d'une nue-propriété, d'un droit
+ *   d'usage ou d'habitation, et de « tout transfert de l'un de ces droits ») ; CCH L. 721-2, I (« cession d'un droit
+ *   réel immobilier relatif à un lot ») ; L. 1965 art. 19, al. 1 et 2 (hypothèque légale du syndicat ; le syndic peut en
+ *   « consentir la main levée » et, à l'extinction de la dette, en requérir la radiation) ; C. civ. art. 2435
+ *   (radiation de toute inscription du consentement des parties intéressées ou par jugement) et 2436 (acte authentique
+ *   portant consentement ; depuis le 01/01/2022, al. 3 : copie authentique d'un acte notarié certifiant l'accord du
+ *   créancier, à la demande du débiteur).
  * 🟢 Gestéam : tranche 43 § 19 (types de l'étude notariale et du copropriétaire : demande pré-état daté / état daté,
  * avis de mutation art. 20, certificat article 20-2, procuration main-levée hypothèque, notification de vente) ; tranche
  * 23 § 1.1 (deux types de mutation : « Mutation à titre onéreux » · « Constitution de droit réel ») ; tranche 23 § 1.3
@@ -48,20 +66,32 @@ import { modelesDe, type ModeleTypeDocument } from '@/lib/administrateur-judicia
  * - alinéas du L. 721-2 II comptés sur Légifrance : 20e = exception du lot annexe, 21e (avant-dernier) = définition du
  *   lot annexe ; la vente publique ne reprend donc pas l'exception de l'acquéreur déjà copropriétaire ;
  * - l'exception du 2° (2° b et c non exigés) est rédigée dans le 2° lui-même : les trois cadres de vente la reprennent
- *   (son champ est 🔴, ci-dessous) ;
+ *   (son champ : J67, R114, ci-dessous) ;
  * - informations financières (2°) et notice d'information (4°) : pas des types de document, pièces non contrôlables.
- * 🔴 Non établi :
- * - renvoi non harmonisé : CCH L. 721-2 II 2° écarte les b et c « lorsque le syndicat de copropriétaires relève du
+ * Décisions de Hugo du 17/11/2026 (J67, recommandations validées en bloc) :
+ * - J67, R114 (code gardé) : CCH L. 721-2 II 2° écarte les b et c « lorsque le syndicat de copropriétaires relève du
  *   deuxième alinéa de l'article 14-3 » ; cet alinéa ne désigne plus aucune catégorie de syndicat depuis l'ord.
- *   2019-1101 (dispense de partie double passée à l'art. 41-10, champ fixé par l'art. 41-8). Le drapeau
- *   `syndicatArt14_3Alinea2` reste faux par défaut. Question pour Frédéric ou Hugo : « L'exception de CCH L. 721-2 II 2°
- *   (2° b et c non exigés), qui renvoie au 2e alinéa de l'art. 14-3 devenu sans objet, vise-t-elle les petites
- *   copropriétés de l'art. 41-8 (dispense de l'art. 41-10) ? » ;
- * - « Une constitution ou une cession de droit réel consentie à titre onéreux (usufruit, nue-propriété) est-elle une
- *   "mutation à titre onéreux d'un lot" (L. 1965 art. 20, I) ou une "vente d'une fraction de lot" (art. 20, II) ? » —
- *   question pour Frédéric ou Hugo ; l'appelant renseigne NatureMutation en attendant ;
- * - « procuration main-levée hypothèque » : pièce de la pratique Gestéam, sans texte relu (certitude GESTEAM) ;
- * - contenu des informations financières et de la notice (arrêtés prévus par L. 721-2) : non relus.
+ *   2019-1101 (dispense de partie double passée à l'art. 41-10, champ fixé par l'art. 41-8 : au plus cinq lots OU budget
+ *   moyen inférieur à 15 000 €, critères différents de ceux de l'ancien al. 2). On ne peut pas dire avec certitude quels
+ *   syndicats le renvoi vise aujourd'hui : le drapeau `syndicatArt14_3Alinea2` reste faux par défaut et les 2° b et c
+ *   sont exigés pour tous les syndicats (les donner n'est jamais une faute, les omettre à tort peut l'être). Aucune case
+ *   à l'écran tant qu'un juriste n'a pas tranché le sens actuel du renvoi ;
+ * - J67, R115 : constitution ou cession à titre onéreux d'un usufruit ou d'une nue-propriété : les trois cases de
+ *   NatureMutation (NATURE_CESSION_DROIT_REEL_ONEREUSE), avec « lecture prudente : art. 20 appliqué à un droit démembré,
+ *   à confirmer » (l'art. 20 ne parle pas des droits démembrés) ; cession d'un usufruit déjà constitué : état daté en
+ *   lecture prudente (l'art. 4 ne vise que la constitution) ; donation : seule la case « acte conventionnel ». La
+ *   notification de l'art. 6 est due dans tous les cas (mutationDroitDemembre) ;
+ * - J67, R116 : la mainlevée n'est attendue que si une inscription du syndicat existe sur le lot (InscriptionSyndicat) :
+ *   connue, pièce requise, fondée sur L. 1965 art. 19, al. 2 et C. civ. art. 2435 et 2436 (la « procuration » n'est
+ *   qu'une forme de pratique) ; inconnue, pièce « éventuelle », comme avant ; absence établie, pièce non listée. Source :
+ *   hypothèque inscrite au dossier contentieux ou document « Bordereau hypothèque publié » (inscriptionSyndicatConnue) ;
+ *   l'absence d'inscription ne se déduit d'aucune source : elle se saisit (enregistrement à brancher). Que l'opposition
+ *   de l'art. 20, I dispense de toute inscription n'est pas vérifié (C. civ. art. 2402 non relu) ;
+ * - J67, R117 (code gardé) : informations financières (2° a à d) et notice (4°) listées sans contrôle de leur contenu,
+ *   sur le texte même de L. 721-2. Arrêtés du ministre chargé du logement prévus par L. 721-2 (contenu du 2° et du 4°) :
+ *   recherche du 17/11/2026 dans les titres sur Légifrance (« notice copropriétaires », « informations financières
+ *   copropriété », « L. 721-2 ») : non trouvés, non vérifié. À un juriste de dire s'ils existent ; s'ils existent, les
+ *   lire avant tout contrôle du contenu.
  */
 
 const mutation = (
@@ -85,16 +115,97 @@ export interface NatureMutation {
 /** Vente amiable d'un lot par acte authentique : le cas où toutes les pièces du syndic sont attendues. */
 export const NATURE_VENTE_AMIABLE: Readonly<NatureMutation> = { acteConventionnel: true, titreOnereux: true, venteParActeAuthentique: true }
 
+/**
+ * Constitution ou cession à titre onéreux d'un usufruit ou d'une nue-propriété : les trois cases, par prudence (J67,
+ * R115 ; l'art. 20 ne parle pas des droits démembrés).
+ */
+export const NATURE_CESSION_DROIT_REEL_ONEREUSE: Readonly<NatureMutation> = NATURE_VENTE_AMIABLE
+
+/** Donation d'un usufruit ou d'une nue-propriété : acte conventionnel seulement (J67, R115). */
+const NATURE_DONATION_DROIT_REEL: Readonly<NatureMutation> = { acteConventionnel: true, titreOnereux: false, venteParActeAuthentique: false }
+
+export const AVERTISSEMENT_ART20_DROIT_DEMEMBRE = 'Lecture prudente : art. 20 appliqué à un droit démembré, à confirmer (J67, R115).'
+
+export const AVERTISSEMENT_ETAT_DATE_USUFRUIT_CONSTITUE =
+  'État daté : lecture prudente (D. 1967 art. 4 ne vise que la constitution ; J67, R115).'
+
+/** Acte sur un usufruit ou une nue-propriété. */
+export interface OperationDroitDemembre {
+  droit: 'usufruit' | 'nue_propriete'
+  /** « constitution » : le droit naît de l'acte ; « cession » : il existait déjà. */
+  operation: 'constitution' | 'cession'
+  /** Faux : donation. */
+  aTitreOnereux: boolean
+}
+
+/**
+ * Nature de mutation et avertissements d'un acte sur un droit démembré (J67, R115). La notification de l'art. 6 reste
+ * due dans tous les cas (« toute constitution », « tout transfert »).
+ */
+export function mutationDroitDemembre({ droit, operation, aTitreOnereux }: OperationDroitDemembre): { nature: NatureMutation; avertissements: string[] } {
+  const avertissements = aTitreOnereux ? [AVERTISSEMENT_ART20_DROIT_DEMEMBRE] : []
+  if (droit === 'usufruit' && operation === 'cession') avertissements.push(AVERTISSEMENT_ETAT_DATE_USUFRUIT_CONSTITUE)
+  return { nature: { ...(aTitreOnereux ? NATURE_CESSION_DROIT_REEL_ONEREUSE : NATURE_DONATION_DROIT_REEL) }, avertissements }
+}
+
+/** Inscription prise par le syndicat sur le lot (hypothèque légale ou autre) : connue, absence établie, ou inconnue. */
+export type InscriptionSyndicat = 'oui' | 'non' | 'inconnue'
+
+/** Ce que le dossier dit de la mutation, au-delà de sa nature. */
+export interface ContexteMutation {
+  /** J67, R116 ; absent : inconnue. */
+  inscriptionSyndicat?: InscriptionSyndicat
+}
+
+const BORDEREAU_HYPOTHEQUE = modelesDe('Base', ['Bordereau hypothèque publié'])
+
+/**
+ * Inscription du syndicat sur le lot, d'après les sources de VitFix (J67, R116) : hypothèque datée au dossier contentieux
+ * du copropriétaire (contentieux-voies-execution.ts, « Date » du bloc Hypothèque), ou document de type confirmé
+ * « Bordereau hypothèque publié » classé sur le lot. Sans l'un ni l'autre : inconnue, jamais « non » (l'absence d'un
+ * document n'établit pas l'absence d'inscription).
+ */
+export function inscriptionSyndicatConnue({
+  hypothequesInscritesLe,
+  documents,
+  lot,
+}: {
+  hypothequesInscritesLe: readonly (string | null)[]
+  documents: readonly DocumentGed[]
+  lot: EntiteGed
+}): Exclude<InscriptionSyndicat, 'non'> {
+  if (hypothequesInscritesLe.some((date) => date !== null)) return 'oui'
+  const bordereau: PieceAttendue = { cle: 'bordereau_hypotheque', libelle: 'Bordereau d’inscription d’hypothèque publié', modeles: BORDEREAU_HYPOTHEQUE, fondement: null, certitude: 'GESTEAM', presence: 'eventuelle' }
+  return controlerPieces(documents, lot, [bordereau]).presentes.length > 0 ? 'oui' : 'inconnue'
+}
+
+type PieceVariable = Pick<PieceAttendue, 'libelle' | 'fondement' | 'certitude' | 'presence'>
+
 interface PieceMutation {
   piece: PieceAttendue
-  /** Pièce attendue pour cette nature de mutation. */
-  attendue: (nature: NatureMutation) => boolean
-  /** Présence selon la nature ; absent : celle de la pièce. */
-  presence?: (nature: NatureMutation) => PresencePiece
+  /** Pièce attendue pour cette nature de mutation et ce dossier. */
+  attendue: (nature: NatureMutation, contexte: ContexteMutation) => boolean
+  /** Ce qui change selon la nature et le dossier ; absent : la pièce telle quelle. */
+  selon?: (nature: NatureMutation, contexte: ContexteMutation) => Partial<PieceVariable>
 }
 
 const TOUTE_MUTATION = (): boolean => true
 const A_TITRE_ONEREUX = (nature: NatureMutation): boolean => nature.titreOnereux
+
+const LIBELLE_MAINLEVEE = "Mainlevée de l'inscription du syndicat (acte authentique, procuration ou accord certifié par le notaire)"
+
+/** J67, R116 : inscription connue, la mainlevée est due (texte) ; inconnue, elle reste éventuelle (pratique Gestéam). */
+const MAINLEVEE_SELON_INSCRIPTION: Readonly<Record<Exclude<InscriptionSyndicat, 'non'>, PieceVariable>> = {
+  oui: { libelle: LIBELLE_MAINLEVEE, fondement: 'L. 1965 art. 19, al. 2 ; C. civ. art. 2435 et 2436', certitude: 'TEXTE', presence: 'requise' },
+  inconnue: {
+    libelle: `${LIBELLE_MAINLEVEE}, à fournir si une inscription du syndicat existe sur le lot`,
+    fondement: null,
+    certitude: 'GESTEAM',
+    presence: 'eventuelle',
+  },
+}
+
+const inscriptionDuDossier = (contexte: ContexteMutation): InscriptionSyndicat => contexte.inscriptionSyndicat ?? 'inconnue'
 
 /** Pièces du dossier de mutation côté syndic, dans l'ordre de la procédure. */
 const PIECES_MUTATION_SYNDIC: readonly PieceMutation[] = [
@@ -117,7 +228,7 @@ const PIECES_MUTATION_SYNDIC: readonly PieceMutation[] = [
       'requise',
     ),
     attendue: TOUTE_MUTATION,
-    presence: (nature) => (nature.acteConventionnel ? 'requise' : 'eventuelle'),
+    selon: (nature) => ({ presence: nature.acteConventionnel ? 'requise' : 'eventuelle' }),
   },
   {
     piece: mutation(
@@ -176,24 +287,23 @@ const PIECES_MUTATION_SYNDIC: readonly PieceMutation[] = [
   {
     piece: {
       cle: 'procuration_mainlevee',
-      libelle: "Procuration de mainlevée d'hypothèque",
+      ...MAINLEVEE_SELON_INSCRIPTION.inconnue,
       modeles: modelesDe('Étude notariale', ['Procuration main-levée hypothèque']),
-      fondement: null,
-      certitude: 'GESTEAM',
-      presence: 'eventuelle',
     },
-    attendue: TOUTE_MUTATION,
+    attendue: (_nature, contexte) => inscriptionDuDossier(contexte) !== 'non',
+    selon: (_nature, contexte) => (inscriptionDuDossier(contexte) === 'oui' ? MAINLEVEE_SELON_INSCRIPTION.oui : {}),
   },
 ]
 
-/** Pièces du dossier de mutation côté syndic pour cette nature de mutation, dans l'ordre de la procédure. */
-export function piecesMutationSyndic(nature: NatureMutation): PieceAttendue[] {
+const INSCRIPTIONS: readonly InscriptionSyndicat[] = ['oui', 'non', 'inconnue']
+
+/** Pièces du dossier de mutation côté syndic pour cette nature de mutation et ce dossier, dans l'ordre de la procédure. */
+export function piecesMutationSyndic(nature: NatureMutation, contexte: ContexteMutation = {}): PieceAttendue[] {
   if (nature.venteParActeAuthentique && !nature.titreOnereux)
     throw new Error('Nature de mutation incohérente : une vente (L. 1965 art. 20, II) est une mutation à titre onéreux.')
-  return PIECES_MUTATION_SYNDIC.filter((p) => p.attendue(nature)).map((p) => ({
-    ...p.piece,
-    presence: p.presence ? p.presence(nature) : p.piece.presence,
-  }))
+  if (!INSCRIPTIONS.includes(inscriptionDuDossier(contexte)))
+    throw new Error(`Inscription du syndicat inconnue « ${String(contexte.inscriptionSyndicat)} » (oui, non ou inconnue).`)
+  return PIECES_MUTATION_SYNDIC.filter((p) => p.attendue(nature, contexte)).map((p) => ({ ...p.piece, ...p.selon?.(nature, contexte) }))
 }
 
 /** Cadre de la vente (CCH art. L. 721-2, II, III et IV). */
@@ -205,9 +315,10 @@ export interface CirconstancesVente {
   /** Lot annexe : stationnement, cave, grenier, débarras, placard, remise, garage, cellier (L. 721-2, II). */
   lotAnnexe: boolean
   /**
-   * 🔴 Syndicat qui « relève du deuxième alinéa de l'article 14-3 » (CCH L. 721-2, II, 2°) : renvoi non harmonisé, cet
-   * alinéa ne désignant plus aucune catégorie de syndicat (voir l'en-tête). À ne cocher qu'après la réponse de Frédéric
-   * ou Hugo ; absent : faux, les 2° b et c restent exigés.
+   * Syndicat qui « relève du deuxième alinéa de l'article 14-3 » (CCH L. 721-2, II, 2°) : renvoi non harmonisé, cet
+   * alinéa ne désignant plus aucune catégorie de syndicat (voir l'en-tête). J67, R114 : absent ou faux par défaut, les
+   * 2° b et c restent exigés pour tous les syndicats ; aucune case à l'écran tant qu'un juriste n'a pas dit si le renvoi
+   * vise les petites copropriétés de l'art. 41-8 (dispense de l'art. 41-10).
    */
   syndicatArt14_3Alinea2?: boolean
   /** L. 721-2, I : immeuble à usage total ou partiel d'habitation ; `false` → aucune pièce. Absent : à usage d'habitation. */

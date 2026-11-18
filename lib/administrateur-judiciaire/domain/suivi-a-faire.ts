@@ -1,4 +1,4 @@
-import type { AlerteMandataireAdHoc } from '@/lib/administrateur-judiciaire/domain/alerte-mandataire-ad-hoc'
+import type { AlerteMandataireAdHoc, CadreAlerte291A } from '@/lib/administrateur-judiciaire/domain/alerte-mandataire-ad-hoc'
 import {
   controlesAssurancesPno,
   type LotAssurancePno,
@@ -51,6 +51,7 @@ import {
   reperesDelaisSinistre,
   statutSinistre,
   type FicheSinistre,
+  type ReperesDelaisSinistre,
 } from '@/lib/administrateur-judiciaire/domain/sinistres'
 import {
   bilanStatutsMandats,
@@ -84,17 +85,24 @@ import type { StatutAssemblee, StatutContrat, TypeContrat } from '@/lib/data/ref
  * portefeuille ; un élément du week-end revient au vendredi qui précède (mieux vaut le traiter avant) ; les tranches des
  * périodicités autres que mensuelle (seule la mensuelle a été observée) ; un âge de trois périodes exactement tombe dans
  * la dernière tranche ; unités d'horizon jours / semaines / mois (listes non ouvertes dans Gestéam).
- * 🔴 Signalés `aConfirmer` : repères de déclaration et de prescription des sinistres (sinistres.ts) ; échéances légales
- * dont la certitude n'est pas TEXTE. Les 21 jours francs de convocation (décompte de votes-ag.ts) sont confirmés (J5).
+ * 🔴 Signalés `aConfirmer` : échéances légales dont la certitude n'est pas TEXTE ; déclaration d'un sinistre de type
+ * « Vandalisme » ou « Bris de glace » (un vol a pu y être rangé). Les 21 jours francs de convocation (décompte de
+ * votes-ag.ts) sont confirmés (J5).
+ * Sinistres (J67, R49) : déclaration « au plus tard », prescription « au plus tôt », échéances du suivi sans marque
+ * (sinistres.reperesDelaisSinistre, C. assur. L. 113-2, 4°, L. 114-1 et L. 114-2) ; le contrat peut allonger le délai de
+ * déclaration, jamais modifier la durée de la prescription (L. 114-3).
  * 🔵 Contentieux (réglage Gestéam : « Commandement depuis n », « Non réglés depuis n », « Soldés ») : les n jours sont des
  * réglages de GESTION du cabinet (DELAIS_SUIVI_CONTENTIEUX, modifiables), jamais des délais légaux ; les délais des voies
  * d'exécution relèvent du moteur de délais. Relances « non réglé » et « soldé, à clore » et échéancier impayé : dossiers
  * de recouvrement seulement (contentieux.etapeRecouvrementContentieux). Exercices : en rouge dans Gestéam (tranche 43 § 9),
  * l'exercice passé qui n'est pas « Réparti » ; l'exclusion de « Non géré » (exercice hors mission) est 🔵 déduite.
  * Alerte de l'art. 29-1 A (alerte-mandataire-ad-hoc.ts) : famille Exercices ; par syndicat, un élément (critères à traiter,
- * ou repère du délai sans vote qui court) et la copie de la requête à adresser (D. 1967 art. 61-5) ; 🔴 sous administrateur
- * provisoire (art. 29-1 ou D. 1967 art. 47) : signalée `aConfirmer` ; le syndic désigné par le président du tribunal
- * judiciaire (D. 1967 art. 46) ne l'est pas ; les arriérés comptés ne la rendent plus « à confirmer » (J67, R31).
+ * ou repère du délai sans vote qui court) et, dans le cadre de l'obligation du syndic, la copie de la requête à adresser
+ * (D. 1967 art. 61-5) ; selon le cadre de l'alerte (J67, R30), l'élément de l'administrateur de l'art. 29-1 est un constat
+ * à porter au prochain compte rendu au juge, celui de l'administrateur de l'art. 47 un signalement au juge, requête
+ * possible ; sous administrateur provisoire (art. 29-1 ou D. 1967 art. 47 ; J67, R30 : lecture déduite des textes, à
+ * confirmer) : signalée `aConfirmer` ; le syndic désigné par le président du tribunal judiciaire (D. 1967 art. 46) ne
+ * l'est pas ; les arriérés comptés ne la rendent plus « à confirmer » (J67, R31).
  * 🔵 Étapes (point 48, etapes-dossier.ts) : « à faire le » compte parmi les dates d'une étape à faire ; une étape
  * automatique encore à faire remonte à sa date de relance, N jours après sa création (tranche 43 § 1), avec l'horizon et
  * la règle du week-end comme les autres natures ; N (JOURS_SUIVI_ETAPE_AUTOMATIQUE) est un réglage de GESTION du
@@ -791,19 +799,31 @@ export function depuisFactures(factures: FactureSuivie[], aujourdhui: string): E
 const A_DECLARER_DES_LA_CONNAISSANCE = 'à déclarer dès la connaissance (L. 113-2, 4°) ; aucun délai dans les clauses types'
 
 /**
- * Sans date de suivi, une phase saisie qui suit la déclaration (phaseApresDeclaration) : à vérifier, pas à déclarer.
- * Sinon, sans délai (dommages-ouvrage, J67, R52) : à déclarer dès la connaissance.
+ * Libellé « à déclarer » (J67, R49) : date au plus tard, délai du contrat ou minimum légal ; sans délai (dommages-ouvrage
+ * sans délai de la police, J67, R52) : à déclarer dès la connaissance ; « 2 jours ouvrés s'il y a eu vol » pour un type
+ * sous lequel un vol a pu être rangé ; sans date de suivi, une phase saisie qui suit la déclaration
+ * (phaseApresDeclaration) : à vérifier.
  */
-const libelleADeclarer = (libelle: string, fiche: FicheSinistre, desLaConnaissance: boolean): string => {
+const libelleADeclarer = (libelle: string, fiche: FicheSinistre, reperes: ReperesDelaisSinistre): string => {
+  const delai = reperes.delaiDuContrat ? 'délai du contrat ; C. assur. L. 113-2, 4°' : 'minimum légal, C. assur. L. 113-2, 4° ; le contrat peut accorder plus'
   const phase = phaseApresDeclaration(fiche)
-  if (phase !== null) return `${libelle} — déclaration non datée (phase « ${phase} ») : à vérifier`
-  return desLaConnaissance ? `${libelle} — ${A_DECLARER_DES_LA_CONNAISSANCE}` : libelle
+  return [
+    reperes.desLaConnaissance
+      ? `${libelle} — ${A_DECLARER_DES_LA_CONNAISSANCE}`
+      : `${libelle} — à déclarer au plus tard le ${dateIsoVersFr(reperes.declarationAuPlusTard)} (${delai})`,
+    reperes.volPossible ? "2 jours ouvrés s'il y a eu vol" : null,
+    phase === null ? null : `déclaration non datée (phase « ${phase} ») : à vérifier`,
+  ]
+    .filter((partie): partie is string => partie !== null)
+    .join(' — ')
 }
 
 /**
- * Sinistre en cours : repère de déclaration tant qu'il n'est pas déclaré, et prescription (sinistres.ts) — deux repères
- * indicatifs, 🔴 à confirmer : le contrat peut allonger le délai de déclaration. Dommages-ouvrage sans délai de la
- * police : élément « à déclarer » daté du jour de la connaissance, sans repère de cinq jours ouvrés (J67, R52).
+ * Sinistre en cours : déclaration au plus tard tant qu'il n'est pas déclaré, et prescription au plus tôt (sinistres.ts) —
+ * deux échéances (J67, R49) : le contrat peut allonger le délai de déclaration, jamais la durée de la prescription
+ * (C. assur. L. 114-3) ; seule la déclaration d'un type sous lequel un vol a pu être rangé reste `aConfirmer`.
+ * Dommages-ouvrage sans délai de la police : élément « à déclarer » daté du jour de la connaissance, sans repère de cinq
+ * jours ouvrés (J67, R52).
  * Indemnité différée non réglée : à réclamer depuis le règlement de l'indemnité immédiate (à défaut le rapport, la
  * déclaration, la survenance) ; c'est un suivi de gestion, pas un repère légal. Sans date de suivi, une phase saisie qui
  * suit la déclaration garde l'élément « à déclarer » (même critère du réglage), libellé « déclaration non datée … : à
@@ -815,17 +835,24 @@ export function depuisSinistres(
   return items.flatMap(({ id, mandatId, libelle, fiche, delaiContratJoursOuvres }) => {
     if (statutSinistre(fiche) !== 'En cours') return []
     const reperes = reperesDelaisSinistre(fiche, { delaiContratJoursOuvres })
-    const champs = { libelle, mandatId, objetId: id, aConfirmer: true }
+    const champs = { mandatId, objetId: id }
     const elements: ElementAFaire[] = []
     if (etapeSuiviSinistre(fiche) === 'a_declarer')
       elements.push(
         elementSuivi('sinistres', 'a_declarer', `${id}:a_declarer`, {
           ...champs,
-          libelle: libelleADeclarer(libelle, fiche, reperes.desLaConnaissance),
+          libelle: libelleADeclarer(libelle, fiche, reperes),
           date: reperes.declarationAuPlusTard,
+          aConfirmer: reperes.volPossible,
         }),
       )
-    elements.push(elementSuivi('sinistres', 'prescription', `${id}:prescription`, { ...champs, date: reperes.prescription }))
+    elements.push(
+      elementSuivi('sinistres', 'prescription', `${id}:prescription`, {
+        ...champs,
+        libelle: `${libelle} — prescription au plus tôt le ${dateIsoVersFr(reperes.prescription)} (C. assur. L. 114-1 ; peut être repoussée par une interruption, L. 114-2)`,
+        date: reperes.prescription,
+      }),
+    )
     if (fiche.indemniteDiffereeCentimes > 0 && !fiche.indemniteDiffereeReglee)
       elements.push(
         elementSuivi('sinistres', 'indemnite_differee', `${id}:indemnite_differee`, {
@@ -955,14 +982,23 @@ export function depuisExercices(items: { id?: string; mandatId: string; exercice
 
 const TITRE_ALERTE_29_1_A = "Alerte de l'art. 29-1 A (mandataire ad hoc)"
 
+/** Ce que l'élément propose selon le cadre de l'alerte (J67, R30) ; obligation du syndic : les seuls constats. */
+const SUITE_SELON_CADRE: Readonly<Record<CadreAlerte291A, string>> = {
+  obligation_du_syndic: '',
+  compte_rendu_au_juge:
+    " — constat à porter au prochain compte rendu au juge (D. 1967 art. 62-11) ; si le conseil syndical garde ses pouvoirs, lui adresser l'état des impayés avant répartition (D. 1967 art. 61-4) ; ni requête ni copie de la requête (J67, R30)",
+  signalement_au_juge: ' — seuil atteint : à signaler au juge ; requête possible, après consultation du conseil syndical (D. 1967 art. 62-2)',
+}
+
 /**
- * Critères atteints que la requête ne couvre pas, à la date du plus tôt et avec leurs seuls constats ; à défaut, repère
- * du délai sans vote sur l'approbation des comptes qui court encore ; null : ni l'un ni l'autre.
+ * Critères atteints que la requête ne couvre pas, à la date du plus tôt et avec leurs seuls constats, suivis de ce que le
+ * cadre propose (à cette date : celle du constat, pas une échéance, hors obligation du syndic) ; à défaut, repère du délai
+ * sans vote sur l'approbation des comptes qui court encore ; null : ni l'un ni l'autre.
  */
 function etapeAlerte291A(alerte: AlerteMandataireAdHoc): { libelle: string; date: string } | null {
   if (alerte.aTraiterLe !== null) {
     const constats = [alerte.impayes, alerte.comptes].filter((c) => c.etat === 'atteint' && !c.traite).map((c) => c.message)
-    return { libelle: `${TITRE_ALERTE_29_1_A} : ${constats.join(' ')}`, date: alerte.aTraiterLe }
+    return { libelle: `${TITRE_ALERTE_29_1_A} : ${constats.join(' ')}${SUITE_SELON_CADRE[alerte.cadre]}`, date: alerte.aTraiterLe }
   }
   const { etat, atteintLe, message } = alerte.comptes
   if (etat !== 'non_atteint' || atteintLe === null) return null
@@ -977,10 +1013,13 @@ function etapeAlerte291A(alerte: AlerteMandataireAdHoc): { libelle: string; date
  *   couvre les impayés ; chaque critère atteint couvert et aucun délai qui court (délai atteint et couvert, ou aucun vote
  *   connu) : rien ;
  * - la copie de la requête au représentant de l'État, au maire et au président de l'EPCI (art. 29-1 A, dernier alinéa ;
- *   D. 1967 art. 61-5), à la date de la requête, tant qu'elle n'est pas adressée.
- * `aConfirmer` reprend celui de l'alerte : 🔴 sous administrateur provisoire (art. 29-1 ou D. 1967 art. 47) ; le syndic
- * désigné par le président du tribunal judiciaire (D. 1967 art. 46) ne l'est pas ; les arriérés comptés ne la rendent
- * plus « à confirmer » (J67, R31).
+ *   D. 1967 art. 61-5), à la date de la requête, tant qu'elle n'est pas adressée : seulement dans le cadre de
+ *   l'obligation du syndic (l'alerte ne la rend pas sinon, J67, R30).
+ * Cadre de l'alerte (J67, R30) : administrateur de l'art. 29-1, constat à porter au prochain compte rendu au juge ;
+ * administrateur de l'art. 47, signalement au juge, requête possible après consultation du conseil syndical.
+ * `aConfirmer` reprend celui de l'alerte : sous administrateur provisoire (art. 29-1 ou D. 1967 art. 47 ; J67, R30 :
+ * lecture déduite des textes, à confirmer) ; le syndic désigné par le président du tribunal judiciaire (D. 1967 art. 46)
+ * ne l'est pas ; les arriérés comptés ne la rendent plus « à confirmer » (J67, R31).
  */
 export function depuisAlertesMandataireAdHoc(items: { mandatId: string; alerte: AlerteMandataireAdHoc }[]): ElementAFaire[] {
   return items.flatMap(({ mandatId, alerte }) => {

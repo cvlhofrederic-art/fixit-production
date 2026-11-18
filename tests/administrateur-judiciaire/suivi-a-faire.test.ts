@@ -1,5 +1,6 @@
 import './fuseau-paris'
 import { describe, expect, it } from 'vitest'
+import { enTeteDuModule } from './en-tete-module'
 import { factureEnRetard, type FacturationContrat } from '@/lib/administrateur-judiciaire/domain/contrats-facturation'
 import type { EcheanceCalculee } from '@/lib/administrateur-judiciaire/domain/delais-legaux'
 import type { Etape } from '@/lib/administrateur-judiciaire/domain/etapes'
@@ -508,7 +509,7 @@ const equipement = (surcharge: Partial<FicheEquipement> = {}): FicheEquipement =
 })
 
 describe('sources — sinistres, équipements, diagnostics', () => {
-  it('sinistre non déclaré : repère de déclaration ; en cours : prescription — deux repères à confirmer', () => {
+  it('sinistre non déclaré : déclaration « au plus tard » ; en cours : prescription « au plus tôt » — deux échéances (J67, R49)', () => {
     const fiche = creerSinistre(saisieSinistre())
     const reperes = reperesDelaisSinistre(fiche)
     expect(depuisSinistres([{ id: 'S1', mandatId: 'M1', libelle: 'Dégât des eaux', fiche }])).toEqual([
@@ -516,14 +517,24 @@ describe('sources — sinistres, équipements, diagnostics', () => {
         id: 'sinistres:S1:a_declarer',
         famille: 'sinistres',
         nature: 'a_declarer',
-        libelle: 'Dégât des eaux',
+        libelle: 'Dégât des eaux — à déclarer au plus tard le 27/10/2026 (minimum légal, C. assur. L. 113-2, 4° ; le contrat peut accorder plus)',
         date: reperes.declarationAuPlusTard,
         mandatId: 'M1',
         objetId: 'S1',
         assigneId: null,
-        aConfirmer: true,
+        aConfirmer: false,
       },
-      expect.objectContaining({ id: 'sinistres:S1:prescription', nature: 'prescription', date: reperes.prescription, aConfirmer: true }),
+      {
+        id: 'sinistres:S1:prescription',
+        famille: 'sinistres',
+        nature: 'prescription',
+        libelle: 'Dégât des eaux — prescription au plus tôt le 20/10/2028 (C. assur. L. 114-1 ; peut être repoussée par une interruption, L. 114-2)',
+        date: reperes.prescription,
+        mandatId: 'M1',
+        objetId: 'S1',
+        assigneId: null,
+        aConfirmer: false,
+      },
     ])
     const declare = creerSinistre(saisieSinistre({ dateDeclaration: '2026-10-21' }))
     expect(ids(depuisSinistres([{ id: 'S2', mandatId: 'M1', libelle: 'x', fiche: declare }]))).toEqual(['sinistres:S2:prescription'])
@@ -535,13 +546,14 @@ describe('sources — sinistres, équipements, diagnostics', () => {
     const fiche = creerSinistre(saisieSinistre({ phase: "Mission d'expertise" }))
     expect(depuisSinistres([{ id: 'S4', mandatId: 'M1', libelle: 'Dégât des eaux', fiche }]).find((e) => e.nature === 'a_declarer')).toMatchObject({
       id: 'sinistres:S4:a_declarer',
-      libelle: "Dégât des eaux — déclaration non datée (phase « Mission d'expertise ») : à vérifier",
+      libelle:
+        "Dégât des eaux — à déclarer au plus tard le 27/10/2026 (minimum légal, C. assur. L. 113-2, 4° ; le contrat peut accorder plus) — déclaration non datée (phase « Mission d'expertise ») : à vérifier",
       date: reperesDelaisSinistre(fiche).declarationAuPlusTard,
-      aConfirmer: true,
+      aConfirmer: false,
     })
     const generale = creerSinistre(saisieSinistre({ phase: 'Général' }))
     expect(depuisSinistres([{ id: 'S5', mandatId: 'M1', libelle: 'Dégât des eaux', fiche: generale }]).find((e) => e.nature === 'a_declarer')?.libelle).toBe(
-      'Dégât des eaux',
+      'Dégât des eaux — à déclarer au plus tard le 27/10/2026 (minimum légal, C. assur. L. 113-2, 4° ; le contrat peut accorder plus)',
     )
   })
 
@@ -558,6 +570,42 @@ describe('sources — sinistres, équipements, diagnostics', () => {
     // Phase qui suit la déclaration, sans date : « à vérifier » prime.
     const [enExpertise] = depuisSinistres([{ id: 'S8', mandatId: 'M1', libelle: 'DO', fiche: { ...fiche, phase: "Mission d'expertise" } }])
     expect(enExpertise.libelle).toBe("DO — déclaration non datée (phase « Mission d'expertise ») : à vérifier")
+  })
+
+  describe('déclaration d’un sinistre (J67, R49 ; C. assur. L. 113-2, 4°)', () => {
+    const aDeclarer = (surcharge: Partial<SaisieSinistre>, delaiContratJoursOuvres?: number) =>
+      depuisSinistres([{ id: 'S', mandatId: 'M1', libelle: 'Sinistre', fiche: creerSinistre(saisieSinistre(surcharge)), delaiContratJoursOuvres }]).find(
+        (e) => e.nature === 'a_declarer',
+      )
+
+    it('« Vandalisme » et « Bris de glace » : un vol a pu y être rangé, la marque reste avec « 2 jours ouvrés s’il y a eu vol »', () => {
+      for (const type of ['Vandalisme', 'Bris de glace'] as const)
+        expect(aDeclarer({ type })).toMatchObject({
+          date: '2026-10-27',
+          aConfirmer: true,
+          libelle:
+            "Sinistre — à déclarer au plus tard le 27/10/2026 (minimum légal, C. assur. L. 113-2, 4° ; le contrat peut accorder plus) — 2 jours ouvrés s'il y a eu vol",
+        })
+    })
+
+    it('« Vol » : deux jours ouvrés, sans marque', () => {
+      expect(aDeclarer({ type: 'Vol' })).toMatchObject({ date: '2026-10-22', aConfirmer: false, libelle: expect.stringContaining('au plus tard le 22/10/2026 (minimum légal') })
+    })
+
+    it('délai du contrat saisi, plus long que le minimum légal : « délai du contrat » ; plus court : le minimum légal reste', () => {
+      expect(aDeclarer({}, 10)).toMatchObject({
+        date: '2026-11-03',
+        libelle: 'Sinistre — à déclarer au plus tard le 03/11/2026 (délai du contrat ; C. assur. L. 113-2, 4°)',
+        aConfirmer: false,
+      })
+      expect(aDeclarer({}, 3)?.libelle).toContain('(minimum légal, C. assur. L. 113-2, 4°')
+    })
+
+    it('en-tête : les sinistres ne sont plus des repères 🔴 ; le contrat n’allonge que la déclaration (L. 114-3)', () => {
+      const { texte } = enTeteDuModule('suivi-a-faire')
+      expect(texte).not.toMatch(/🔴 Signalés `aConfirmer` : repères de déclaration et de prescription des sinistres/)
+      expect(texte).toMatch(/Sinistres \(J67, R49\) : déclaration « au plus tard », prescription « au plus tôt »[^🔵🔴]*L\. 114-3/)
+    })
   })
 
   it('équipement : remplacement et révision, même dépassés ; fin de garantie seulement si elle est à venir', () => {

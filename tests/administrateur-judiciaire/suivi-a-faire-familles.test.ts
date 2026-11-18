@@ -389,8 +389,29 @@ describe('source — alerte de l’art. 29-1 A (mandataire ad hoc)', () => {
     ])
   })
 
-  it('🔴 sous administrateur provisoire de l’art. 29-1 : à confirmer', () => {
-    expect(depuisAlertesMandataireAdHoc([{ mandatId: 'M1', alerte: alerte({ regime: 'ap291' }) }])[0].aConfirmer).toBe(true)
+  it('administrateur provisoire de l’art. 29-1 (J67, R30) : constat à porter au compte rendu au juge, à sa date, sans copie ; à confirmer', () => {
+    const a = alerte({ regime: 'ap291', saisineLe: '2026-01-15' })
+    expect(depuisAlertesMandataireAdHoc([{ mandatId: 'M1', alerte: alerte({ regime: 'ap291' }) }])).toEqual([
+      expect.objectContaining({
+        id: 'exercices:copro-1:alerte_29_1_a',
+        libelle: `Alerte de l'art. 29-1 A (mandataire ad hoc) : ${a.message} — constat à porter au prochain compte rendu au juge (D. 1967 art. 62-11) ; si le conseil syndical garde ses pouvoirs, lui adresser l'état des impayés avant répartition (D. 1967 art. 61-4) ; ni requête ni copie de la requête (J67, R30)`,
+        date: '2025-12-31',
+        aConfirmer: true,
+      }),
+    ])
+    expect(depuisAlertesMandataireAdHoc([{ mandatId: 'M1', alerte: a }]).map((e) => e.id)).not.toContain('exercices:copro-1:alerte_29_1_a:copie_requete')
+  })
+
+  it('administrateur provisoire de l’art. 47 (J67, R30) : à signaler au juge, requête possible après consultation du conseil syndical, sans copie', () => {
+    const a = alerte({ regime: 'ap47' })
+    expect(depuisAlertesMandataireAdHoc([{ mandatId: 'M1', alerte: a }])).toEqual([
+      expect.objectContaining({
+        libelle: `Alerte de l'art. 29-1 A (mandataire ad hoc) : ${a.message} — seuil atteint : à signaler au juge ; requête possible, après consultation du conseil syndical (D. 1967 art. 62-2)`,
+        aConfirmer: true,
+      }),
+    ])
+    const investi = alerte({ regime: 'ap47', ordonnanceConferePouvoirsDuSyndic: true, saisineLe: '2026-01-15' })
+    expect(depuisAlertesMandataireAdHoc([{ mandatId: 'M1', alerte: investi }]).map((e) => e.id)).toContain('exercices:copro-1:alerte_29_1_a:copie_requete')
   })
 
   it('syndic désigné par le président du tribunal judiciaire, sans arriérés : pas à confirmer', () => {
@@ -441,6 +462,16 @@ describe('source — alerte de l’art. 29-1 A (mandataire ad hoc)', () => {
     expect(texte).not.toMatch(/arriérés des exercices antérieurs comptés/)
     expect(texte.match(/🔴 sous administrateur provisoire \(art\. 29-1 ou D\. 1967 art\. 47\) [:;] /g)).toHaveLength(2)
     expect(texte.match(/les arriérés comptés ne la rendent plus « à confirmer » \(J67, R31\)/g)).toHaveLength(2)
+  })
+
+  it('en-tête et documentation : sous administrateur provisoire, J67, R30 (à confirmer) ; 🔴 arriérés comptés ; pas sous tout mandat de justice', () => {
+    const SOURCE = readFileSync(join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'suivi-a-faire.ts'), 'utf8')
+    const texte = SOURCE.replaceAll(/\s*\n\s*\*\s*/g, ' ')
+    expect(texte).not.toMatch(/🔴 sous mandat de justice/)
+    expect(texte).not.toMatch(/🔴 sous administrateur provisoire/)
+    expect(
+      texte.match(/sous administrateur provisoire \(art\. 29-1 ou D\. 1967 art\. 47 ; J67, R30 : lecture déduite des textes, à confirmer\), ou 🔴 arriérés des exercices antérieurs comptés/g),
+    ).toHaveLength(2)
   })
 
   it('requête faite pour les comptes avant la clôture : les impayés de cette clôture restent à suivre, seuls, à leur date', () => {

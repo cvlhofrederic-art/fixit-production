@@ -43,7 +43,8 @@ import {
  * 🔵 Déduit : (1) toute voie d'annulation de la pièce d'une répartition, annulerPiece comprise, garde la date comptable de
  * la pièce : ni avant (ci-dessus), ni après, car les comptes sont « arrêtés à la date de clôture » (décret n° 2005-240
  * art. 5) et une écriture contraire datée de l'exercice suivant laisserait à l'exercice clos la répartition annulée EN
- * PLUS de la répartition relancée ; (2) le jour de l'annulation, que cette date comptable ne dit plus, est la DATE
+ * PLUS de la répartition relancée (J67, R122 : une fois l'exercice clos, l'annulation d'une répartition est impossible,
+ * ce qui est cohérent, la répartition faisant partie de l'arrêté des comptes ; verrou-saisie.ts) ; (2) le jour de l'annulation, que cette date comptable ne dit plus, est la DATE
  * D'EFFET de l'annulation, obligatoire, portée par l'unique ligne de paramètres de la pièce d'annulation (choix VitFix,
  * calqué sur la ligne 3 de la répartition, sans son entier 1 au sens non établi), jamais antérieure à la date d'effet de
  * la répartition annulée (on n'annule pas un traitement avant de l'avoir passé) ; (3) les autres pièces sont datées du

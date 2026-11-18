@@ -202,6 +202,9 @@ describe('point 58 — proposition de date de déclaration', () => {
   })
 })
 
+/** Libellé « à déclarer » du suivi (J67, R49) pour le repère du 03/11/2026. */
+const REPERE_SUIVI = 'à déclarer au plus tard le 03/11/2026 (minimum légal, C. assur. L. 113-2, 4° ; le contrat peut accorder plus)'
+
 describe('point 58 — report sur la fiche', () => {
   it('remplit une date vide depuis la proposition, sans modifier la fiche reçue', () => {
     const s = sinistre()
@@ -510,7 +513,7 @@ describe('point 58 — contrôle du délai de déclaration', () => {
       expect(resultat.message).not.toMatch(/sans attendre/i)
       // Suivi à faire : l'élément du critère « À déclarer » demeure, mais à vérifier, sans injonction.
       const elements = depuisSinistres([{ id: s.id, mandatId: 'm-1', libelle: 'DDE', fiche: s.fiche }]).filter((e) => e.nature === 'a_declarer')
-      expect(elements.map((e) => e.libelle)).toEqual([`DDE — déclaration non datée (phase « ${phase} ») : à vérifier`])
+      expect(elements.map((e) => e.libelle)).toEqual([`DDE — ${REPERE_SUIVI} — déclaration non datée (phase « ${phase} ») : à vérifier`])
     }
     expect(PHASES_APRES_DECLARATION).toEqual(['Accusé réception', "Mission d'expertise", 'Relances', 'Complément de document', 'Indemnités'])
   })
@@ -521,7 +524,7 @@ describe('point 58 — contrôle du délai de déclaration', () => {
     for (const phase of neutres) {
       const s = sinistre({ phase })
       expect(controlerDelaiDeclaration(s, [], { aujourdhui: '2026-12-20' })).toMatchObject({ etat: 'delai_depasse', message: expect.stringMatching(/sans attendre/) })
-      expect(depuisSinistres([{ id: s.id, mandatId: 'm-1', libelle: 'DDE', fiche: s.fiche }]).find((e) => e.nature === 'a_declarer')?.libelle).toBe('DDE')
+      expect(depuisSinistres([{ id: s.id, mandatId: 'm-1', libelle: 'DDE', fiche: s.fiche }]).find((e) => e.nature === 'a_declarer')?.libelle).toBe(`DDE — ${REPERE_SUIVI}`)
     }
   })
 
