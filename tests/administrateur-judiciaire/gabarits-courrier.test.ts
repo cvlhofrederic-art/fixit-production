@@ -229,6 +229,18 @@ describe('certificat de l’art. 20 II', () => {
     expect(tardif.motif).toMatch(/expiré le 01\/10\/2026/)
   })
 
+  it('certificat non délivrable et délai d’un mois passé : le courrier d’information part sans attendre (J67, R108)', () => {
+    const passe = controlerCertificatArt20({
+      unePersonneNotifieeCoproprietaire: true,
+      misesEnDemeure: [{ pointDeDepart: '2026-07-01', regleeLe: null }],
+      dateNotificationNotaire: '2026-09-01',
+      aujourdhui: '2026-11-18',
+    })
+    expect(passe).toMatchObject({ delivrable: false, echeance: '2026-10-01', courrierInformation: 'information_notaire_art20_ii' })
+    expect(passe.motif).toMatch(/Délai d'un mois expiré le 01\/10\/2026 : envoyer le courrier d'information sans attendre, sans détail de la dette \(J67, R108\)\.$/)
+    expect(passe.motif).not.toMatch(/au plus tard le/)
+  })
+
   it('refuse des dates invalides et des mises en demeure sans personne copropriétaire', () => {
     expect(() => controlerCertificatArt20({ unePersonneNotifieeCoproprietaire: false, misesEnDemeure: [], dateNotificationNotaire: '01/09/2026', aujourdhui: '2026-10-02' })).toThrow(/AAAA-MM-JJ/)
     expect(() => controlerCertificatArt20({ unePersonneNotifieeCoproprietaire: true, misesEnDemeure: [{ pointDeDepart: 'x', regleeLe: null }], dateNotificationNotaire: '2026-09-01', aujourdhui: '2026-10-02' })).toThrow(/AAAA-MM-JJ/)
@@ -305,7 +317,10 @@ describe('art. 20, II : information au notaire et certificat de règlement des c
     expect(g.sansTexte).toMatch(/aucun certificat négatif/)
     expect(g.mentions).toContain("Le certificat prévu au 2° de l'art. 20, II de la loi ne peut pas être délivré")
     expect(g.mentions).toContain('Aucun détail de la dette')
-    expect(g.delai).toMatchObject({ fondement: 'L. 1965 art. 20, II', certitude: 'TEXTE' })
+    // relecture : aucun texte ne prévoit ce courrier ; le mois est celui du certificat, repris comme bonne pratique
+    expect(g.sansTexte).toMatch(/^Pratique : /)
+    expect(g.delai).toMatchObject({ fondement: 'L. 1965 art. 20, II', certitude: 'A_CONFIRMER' })
+    expect(g.delai?.libelle).toMatch(/délai du certificat repris par J67, R108/)
   })
 
   it('certificat attestant du règlement des charges : à la fin des trente jours, sinon l’avant-contrat est réputé nul', () => {
@@ -350,6 +365,8 @@ describe('protocole d’apurement selon le régime du mandat (J67, R42)', () => 
     expect(ap47).toHaveLength(3)
     expect(ap47[2]).toMatch(/pouvoir de signer un tel accord n'est pas établi/)
     expect(() => protocoleApurementSelonRegime('ap99' as never)).toThrow(/Régime du mandat « ap99 » inconnu/)
+    // relecture : un régime inconnu n'est pas lu comme celui de l'art. 47
+    expect(() => protocoleApurementSelonRegime(null as never)).toThrow(/Régime du mandat requis \(sj, ap47 ou ap291\)/)
   })
 })
 

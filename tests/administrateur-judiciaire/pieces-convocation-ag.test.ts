@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   CODES_PIECES_ART_11,
   PIECES_ART_11,
+  PIECES_PAR_TYPE_QUESTION,
+  TYPES_QUESTION_ART_11,
   controlerPiecesConvocation,
   type QuestionConvocation,
 } from '@/lib/administrateur-judiciaire/domain/pieces-convocation-ag'
@@ -15,9 +17,52 @@ import { enTeteDuModule } from './en-tete-module'
 const comptes: QuestionConvocation = {
   id: 'q-1',
   libelle: "Approbation des comptes de l'exercice",
-  piecesAttendues: ['I-1', 'II-5'],
+  type: 'approbation_comptes',
   piecesJointes: ['I-1', 'II-5'],
 }
+
+describe('référentiel des pièces par type de question (relecture : le contrôle ne dépend pas de la mémoire du gestionnaire)', () => {
+  it('chaque type reprend le cas que l’art. 11 nomme ; « autre » : aucune pièce par défaut', () => {
+    expect(PIECES_PAR_TYPE_QUESTION.approbation_comptes.pieces).toEqual(['I-1', 'II-5'])
+    expect(PIECES_PAR_TYPE_QUESTION.budget.pieces).toEqual(['I-2', 'II-1'])
+    expect(PIECES_PAR_TYPE_QUESTION.contrat_devis_marche.pieces).toEqual(['I-3'])
+    // désignation du syndic et des membres du conseil syndical : L. 1965 art. 25, c, article cité au I, 7°
+    expect(PIECES_PAR_TYPE_QUESTION.mandat_syndic.pieces).toEqual(['I-4', 'I-7'])
+    expect(PIECES_PAR_TYPE_QUESTION.mandat_cs.pieces).toEqual(['I-7'])
+    expect(PIECES_PAR_TYPE_QUESTION.emprunt_collectif.pieces).toEqual(['II-9'])
+    expect(PIECES_PAR_TYPE_QUESTION.autre.pieces).toEqual([])
+    for (const type of TYPES_QUESTION_ART_11)
+      for (const code of PIECES_PAR_TYPE_QUESTION[type].pieces) expect(Object.hasOwn(PIECES_ART_11, code)).toBe(true)
+  })
+
+  it('approbation des comptes sans aucune pièce jointe : alerte forte (état financier, I, 1°) et avertissement (II, 5°)', () => {
+    const sansPiece: QuestionConvocation = { ...comptes, piecesJointes: [] }
+    const anomalies = controlerPiecesConvocation({ questions: [sansPiece], formulaireVoteJoint: true })
+    expect(anomalies.map((a) => [a.code, a.gravite, a.fondement])).toEqual([
+      ['piece_validite_manquante', 'alerte_forte', 'D. 1967 art. 11, I, 1°'],
+      ['piece_information_manquante', 'avertissement', 'D. 1967 art. 11, II, 5°'],
+    ])
+  })
+
+  it('pièces du type et pièces désignées en plus par l’appelant (rapport de l’administrateur provisoire), sans doublon', () => {
+    const issueDuRapport: QuestionConvocation = {
+      id: 'q-3',
+      libelle: 'Travaux de mise en sécurité',
+      type: 'contrat_devis_marche',
+      piecesAttendues: ['I-9', 'I-3'],
+      piecesJointes: [],
+    }
+    const anomalies = controlerPiecesConvocation({ questions: [issueDuRapport], formulaireVoteJoint: true })
+    expect(anomalies.map((a) => a.fondement)).toEqual(['D. 1967 art. 11, I, 3°', 'D. 1967 art. 11, I, 9°'])
+  })
+
+  it('refuse une question sans type ou d’un type inconnu', () => {
+    const avecType = (type: unknown) => () =>
+      controlerPiecesConvocation({ questions: [{ ...comptes, type: type as QuestionConvocation['type'] }], formulaireVoteJoint: true })
+    expect(avecType(undefined)).toThrow(/Question « q-1 » : type de question « undefined » inconnu/)
+    expect(avecType('travaux')).toThrow(/type de question « travaux » inconnu/)
+  })
+})
 
 describe('référentiel des pièces de l’art. 11', () => {
   it('14 pièces pour la validité de la décision (I), 10 pour l’information (II), dans l’ordre du texte', () => {
@@ -38,7 +83,7 @@ describe('contrôle des pièces de la convocation', () => {
   })
 
   it('pièce du I manquante : alerte forte (la décision risque l’annulation) ; du II : simple avertissement', () => {
-    const budget: QuestionConvocation = { id: 'q-2', libelle: 'Budget prévisionnel', piecesAttendues: ['I-2', 'II-1'], piecesJointes: [] }
+    const budget: QuestionConvocation = { id: 'q-2', libelle: 'Budget prévisionnel', type: 'budget', piecesJointes: [] }
     const anomalies = controlerPiecesConvocation({ questions: [comptes, budget], formulaireVoteJoint: true })
     expect(anomalies).toEqual([
       {
@@ -88,6 +133,7 @@ describe('contrôle des pièces de la convocation', () => {
     expect(texte).toContain('J67, R25')
     expect(texte).toMatch(/D\. 1967 art\. 11, version du 25\/12\/2025/)
     expect(texte).toMatch(/🔴 Rubriques du formulaire/)
+    expect(texte).toMatch(/type de la question \(PIECES_PAR_TYPE_QUESTION\)/)
     expect(texte).toMatch(/écran : Frédéric/)
     expect(texte).toMatch(/enregistrement des pièces jointes : à brancher/)
   })

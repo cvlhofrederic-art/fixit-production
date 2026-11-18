@@ -58,7 +58,9 @@ import {
  * Décisions de Hugo du 17/11/2026 (J67 : recommandations validées en bloc ; textes lus sur Légifrance le 17/11/2026) :
  * - J67, R108 : la variante « débiteur » du certificat 2° de Gestéam n'est pas reprise : L. 1965 art. 20, II ne prévoit
  *   aucun certificat négatif. Quand le certificat n'est pas délivrable, le notaire reçoit quand même dans le mois un
- *   courrier d'information, sans détail de la dette (information_notaire_art20_ii, proposé par controlerCertificatArt20) ;
+ *   courrier d'information, sans détail de la dette (information_notaire_art20_ii, proposé par controlerCertificatArt20,
+ *   « sans attendre » une fois le mois passé ; pratique : aucun texte ne prévoit ce courrier, le mois est celui du
+ *   certificat, d'où la certitude A_CONFIRMER de son délai) ;
  *   le « certificat attestant du règlement des charges » de la phase des trente jours a son gabarit
  *   (certificat_reglement_charges_art20_ii) ;
  * - J67, R42 : hors administration provisoire de l'art. 29-1 (syndic de l'art. 46, administrateur de l'art. 47), aucun
@@ -295,8 +297,13 @@ export const GABARITS_COURRIER = {
     formeObservee: null,
     fondements: ['L. 1965 art. 20, II'],
     sansTexte:
-      "Courrier d'information, pas un certificat : le texte ne prévoit aucun certificat négatif ; il répond au notaire dans le mois (J67, R108).",
-    delai: { libelle: 'Dans le mois de la notification du notaire, comme le certificat', fondement: 'L. 1965 art. 20, II', certitude: 'TEXTE' },
+      "Pratique : courrier d'information, pas un certificat ; le texte ne prévoit aucun certificat négatif ; il répond au notaire dans le mois (J67, R108).",
+    // aucun texte ne prévoit ce courrier : le mois est celui du certificat (art. 20, II), repris comme bonne pratique
+    delai: {
+      libelle: 'Dans le mois de la notification du notaire (délai du certificat repris par J67, R108)',
+      fondement: 'L. 1965 art. 20, II',
+      certitude: 'A_CONFIRMER',
+    },
     mentions: [
       "Le certificat prévu au 2° de l'art. 20, II de la loi ne peut pas être délivré",
       'Aucun détail de la dette',
@@ -766,18 +773,23 @@ export function controlerCertificatArt20({
   const bloquante = misesEnDemeure.find(
     (m) => (m.regleeLe === null || m.regleeLe > aujourdhui) && ecartJours(m.pointDeDepart, aujourdhui) > JOURS_MISE_EN_DEMEURE_ART20,
   )
-  if (bloquante)
+  const expire = aujourdhui > echeance
+  const expireLe = `Délai d'un mois expiré le ${dateIsoVersFr(echeance)}`
+  if (bloquante) {
+    const reponse = expire
+      ? `${expireLe} : envoyer le courrier d'information sans attendre, sans détail de la dette (J67, R108).`
+      : `Répondre quand même au notaire au plus tard le ${dateIsoVersFr(echeance)} par un courrier d'information, sans détail de la dette (J67, R108).`
     return {
       cle,
       delivrable: false,
       echeance,
-      motif: `Mise en demeure (départ le ${dateIsoVersFr(bloquante.pointDeDepart)}) restée infructueuse depuis plus de ${JOURS_MISE_EN_DEMEURE_ART20} jours : pas de certificat ; le notaire notifie aux parties l'impossibilité de conclure la vente. Si un avant-contrat est signé, les personnes notifiées (acquéreur, mandataires sociaux, associés, conjoints ou partenaires) disposent de trente jours à compter de cette notification pour s'acquitter de leur dette : un certificat de règlement sera alors à remettre (L. 1965 art. 20, II). Répondre quand même au notaire au plus tard le ${dateIsoVersFr(echeance)} par un courrier d'information, sans détail de la dette (J67, R108).`,
+      motif: `Mise en demeure (départ le ${dateIsoVersFr(bloquante.pointDeDepart)}) restée infructueuse depuis plus de ${JOURS_MISE_EN_DEMEURE_ART20} jours : pas de certificat ; le notaire notifie aux parties l'impossibilité de conclure la vente. Si un avant-contrat est signé, les personnes notifiées (acquéreur, mandataires sociaux, associés, conjoints ou partenaires) disposent de trente jours à compter de cette notification pour s'acquitter de leur dette : un certificat de règlement sera alors à remettre (L. 1965 art. 20, II). ${reponse}`,
       courrierInformation: 'information_notaire_art20_ii',
     }
-  const motif =
-    aujourdhui > echeance
-      ? `Délai d'un mois expiré le ${dateIsoVersFr(echeance)} : délivrer le certificat sans attendre (L. 1965 art. 20, II).`
-      : `Certificat à délivrer au notaire au plus tard le ${dateIsoVersFr(echeance)} (L. 1965 art. 20, II).`
+  }
+  const motif = expire
+    ? `${expireLe} : délivrer le certificat sans attendre (L. 1965 art. 20, II).`
+    : `Certificat à délivrer au notaire au plus tard le ${dateIsoVersFr(echeance)} (L. 1965 art. 20, II).`
   return { cle, delivrable: true, echeance, motif, courrierInformation: null }
 }
 
@@ -866,10 +878,11 @@ function accordDeDelais(fondementsDuRegime: readonly string[]): GabaritCourrier 
 /**
  * Gabarit d'établissement du protocole selon le régime (J67, R42) : sous l'art. 29-1, celui du registre (échéancier de
  * l'art. 29-5, V) ; syndic de l'art. 46, accord de délais de paiement, acte de recouvrement ordinaire (D. 1967 art. 46,
- * al. 3) ; administrateur de l'art. 47, même accord, avec un avertissement sur son pouvoir de le signer.
+ * al. 3) ; administrateur de l'art. 47, même accord, avec un avertissement sur son pouvoir de le signer. Refus : régime
+ * inconnu (null), qui n'est pas lu comme celui de l'art. 47, ou hors des trois régimes.
  */
 export function protocoleApurementSelonRegime(regime: Regime): ProtocoleSelonRegime {
-  controlerRegime(regime)
+  if (controlerRegime(regime) === null) throw new Error("Régime du mandat requis (sj, ap47 ou ap291) : le protocole en dépend (J67, R42).")
   if (regime === 'ap291') return { gabarit: GABARITS_COURRIER.protocole_apurement_etablissement, avertissements: [...AVERTISSEMENTS_PROTOCOLE] }
   if (regime === 'sj') return { gabarit: accordDeDelais(['D. 1967 art. 46, al. 3']), avertissements: [...AVERTISSEMENTS_PROTOCOLE] }
   return { gabarit: accordDeDelais([]), avertissements: [...AVERTISSEMENTS_PROTOCOLE, AVERTISSEMENT_PROTOCOLE_AP47] }

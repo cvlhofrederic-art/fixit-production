@@ -56,6 +56,14 @@ describe('constat', () => {
     expect(() => carence('ap47', { agId: ' ' })).toThrow(/assemblée/i)
     expect(() => carence('ap47', { motif: 'syndic_non_designe', objetDesignationSyndic: false })).toThrow(/désignation/i)
   })
+
+  it('relecture : refuse un régime hors des trois (sinon, suite de prorogation sans libellé ni fondement)', () => {
+    const horsListe = 'AP47' as Regime
+    expect(() => carence(horsListe)).toThrow(/Régime du mandat « AP47 » inconnu/)
+    expect(() => suitesProposees({ regime: horsListe, objetDesignationSyndic: true })).toThrow(/Régime du mandat « AP47 » inconnu/)
+    const lue = { ...carence('ap47'), regime: horsListe }
+    expect(() => controlerSuitesCarence(lue, { dateFinMission: null }, '2026-10-21')).toThrow(/Régime du mandat « AP47 » inconnu/)
+  })
 })
 
 describe('suites proposées selon le régime', () => {

@@ -13,9 +13,13 @@
  * J67, R25 : pour chaque question inscrite, une pièce du I qui la concerne et qui manque donne une alerte forte (la
  * décision risque l'annulation) ; une pièce du II, un simple avertissement ; le formulaire absent est signalé.
  *
- * 🔵 Choix : les pièces qui concernent une question sont désignées par l'appelant, d'après le cas que cite le texte
- * (champ « cas », null quand l'alinéa n'en écrit pas) ; aucune n'est déduite du libellé de la question. Les libellés
- * résument chaque alinéa, ils n'en sont pas la lettre. Formulaire absent : avertissement, R25 ne fixant pas sa gravité.
+ * Pièces d'une question (J67, R25 : référentiel « par type de question ») : celles du type de la question
+ * (PIECES_PAR_TYPE_QUESTION), pour les seuls cas que l'art. 11 nomme lui-même, puis celles que l'appelant désigne en plus
+ * d'après le cas du texte (champ « cas », null quand l'alinéa n'en écrit pas ; par exemple I, 9° pour une question née du
+ * rapport de l'administrateur provisoire). Chaque question porte un type, « autre » quand l'art. 11 ne nomme pas son
+ * cas : le contrôle ne dépend pas de la mémoire du gestionnaire. 🔵 Choix : aucune pièce n'est déduite du libellé de la
+ * question ; les libellés résument chaque alinéa, ils n'en sont pas la lettre ; formulaire absent : avertissement, R25
+ * ne fixant pas sa gravité.
  *
  * 🔴 Rubriques du formulaire (modèle annexé à l'arrêté du 2 juillet 2020, publié en image au JO du 03/07/2020) : non
  * lues ; à coder comme mentions obligatoires après leur lecture par Hugo (J67, R25).
@@ -94,11 +98,39 @@ export const PIECES_ART_11 = {
 export type CodePieceArt11 = keyof typeof PIECES_ART_11
 export const CODES_PIECES_ART_11 = Object.keys(PIECES_ART_11) as CodePieceArt11[]
 
-/** Une question de l'ordre du jour, les pièces de l'art. 11 qui la concernent et celles jointes à la convocation. */
+/**
+ * Pièces de chaque type de question (J67, R25) : seulement les cas que l'art. 11 nomme lui-même, par le « cas » de la
+ * pièce ou par son objet (annexes au budget, II, 1°). Désignation du syndic et des membres du conseil syndical : L. 1965
+ * art. 25, c, article cité au I, 7° (projet de résolution). « autre » : aucun cas nommé, aucune pièce par défaut.
+ */
+export const PIECES_PAR_TYPE_QUESTION = {
+  approbation_comptes: { libelle: 'Approbation des comptes', pieces: ['I-1', 'II-5'] },
+  budget: { libelle: 'Vote du budget prévisionnel', pieces: ['I-2', 'II-1'] },
+  contrat_devis_marche: { libelle: "Approbation d'un contrat, d'un devis ou d'un marché (travaux votés sur devis compris)", pieces: ['I-3'] },
+  mandat_syndic: { libelle: 'Désignation du syndic (L. 1965 art. 25, c)', pieces: ['I-4', 'I-7'] },
+  mandat_cs: { libelle: 'Désignation des membres du conseil syndical (L. 1965 art. 25, c)', pieces: ['I-7'] },
+  actes_copropriete: {
+    libelle: "Établissement ou modification du règlement de copropriété, de l'état descriptif de division ou de l'état de répartition des charges",
+    pieces: ['I-6'],
+  },
+  demande_en_justice: { libelle: 'Autorisation donnée au syndic d’introduire une demande en justice', pieces: ['I-8'] },
+  saisie_immobiliere: { libelle: "Autorisation de poursuivre la saisie immobilière d'un lot", pieces: ['I-11'] },
+  travaux_parties_privatives: { libelle: "Travaux d'intérêt collectif sur parties privatives", pieces: ['I-14'] },
+  emprunt_collectif: { libelle: "Souscription d'un emprunt collectif", pieces: ['II-9'] },
+  autre: { libelle: "Autre question (cas non nommé par l'art. 11)", pieces: [] },
+} as const satisfies Record<string, { libelle: string; pieces: readonly CodePieceArt11[] }>
+
+export type TypeQuestionArt11 = keyof typeof PIECES_PAR_TYPE_QUESTION
+export const TYPES_QUESTION_ART_11 = Object.keys(PIECES_PAR_TYPE_QUESTION) as TypeQuestionArt11[]
+
+/** Une question de l'ordre du jour, son type, les pièces désignées en plus et celles jointes à la convocation. */
 export interface QuestionConvocation {
   id: string
   libelle: string
-  piecesAttendues: readonly CodePieceArt11[]
+  /** Ses pièces viennent de PIECES_PAR_TYPE_QUESTION ; « autre » quand l'art. 11 ne nomme pas son cas. */
+  type: TypeQuestionArt11
+  /** Pièces en plus de celles du type, d'après le cas du texte (I, 7°, 9° ou 10° ; II, 3°…) ; absent : aucune. */
+  piecesAttendues?: readonly CodePieceArt11[]
   piecesJointes: readonly CodePieceArt11[]
 }
 
@@ -125,10 +157,19 @@ function verifierQuestions(questions: readonly QuestionConvocation[]): void {
     if (!question.libelle?.trim()) throw new Error(`Question « ${question.id} » sans libellé.`)
     if (vus.has(question.id)) throw new Error(`Question « ${question.id} » en double dans la convocation.`)
     vus.add(question.id)
-    verifierCodes(question.piecesAttendues, question.id)
+    if (!Object.hasOwn(PIECES_PAR_TYPE_QUESTION, question.type))
+      throw new Error(
+        `Question « ${question.id} » : type de question « ${String(question.type)} » inconnu (${TYPES_QUESTION_ART_11.join(', ')} attendu ; « autre » si l'art. 11 ne nomme pas son cas).`,
+      )
+    verifierCodes(question.piecesAttendues ?? [], question.id)
     verifierCodes(question.piecesJointes, question.id)
   }
 }
+
+/** Pièces attendues : celles du type, puis celles désignées en plus, sans doublon (J67, R25). */
+const piecesAttenduesDe = (question: QuestionConvocation): CodePieceArt11[] => [
+  ...new Set<CodePieceArt11>([...PIECES_PAR_TYPE_QUESTION[question.type].pieces, ...(question.piecesAttendues ?? [])]),
+]
 
 const SUITE_PAR_PARTIE: Record<PartieArt11, { code: AnomaliePiecesConvocation['code']; gravite: AnomaliePiecesConvocation['gravite']; pourquoi: string }> = {
   validite: {
@@ -141,7 +182,7 @@ const SUITE_PAR_PARTIE: Record<PartieArt11, { code: AnomaliePiecesConvocation['c
 
 function anomaliesDeLaQuestion(question: QuestionConvocation): AnomaliePiecesConvocation[] {
   const jointes = new Set<string>(question.piecesJointes)
-  return [...new Set(question.piecesAttendues)]
+  return piecesAttenduesDe(question)
     .filter((code) => !jointes.has(code))
     .map((code) => {
       const { partie, numero, piece } = PIECES_ART_11[code]
@@ -157,9 +198,10 @@ function anomaliesDeLaQuestion(question: QuestionConvocation): AnomaliePiecesCon
 }
 
 /**
- * Contrôle d'une convocation (J67, R25) : pour chaque question, les pièces attendues qui ne sont pas jointes (I : alerte
- * forte ; II : avertissement), puis le formulaire de vote par correspondance (D. 1967 art. 9). Refus : question sans
- * identifiant ou sans libellé, identifiant en double, code de pièce inconnu. Liste vide : rien à signaler.
+ * Contrôle d'une convocation (J67, R25) : pour chaque question, les pièces attendues (celles de son type, puis celles
+ * désignées en plus) qui ne sont pas jointes (I : alerte forte ; II : avertissement), puis le formulaire de vote par
+ * correspondance (D. 1967 art. 9). Refus : question sans identifiant ou sans libellé, identifiant en double, type de
+ * question inconnu ou absent, code de pièce inconnu. Liste vide : rien à signaler.
  */
 export function controlerPiecesConvocation({
   questions,

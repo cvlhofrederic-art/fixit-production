@@ -348,6 +348,14 @@ describe('contrôle d’une décision', () => {
     expect(controlerDecisionAnnuelle(mandat, { resolution: adoptee })).toEqual([])
   })
 
+  it('J67, R21 : montant maximum par dépense de travaux voté à l’art. 24 : majorité insuffisante, certaine ; au second vote de l’art. 25-1 : régulier', () => {
+    const plafond = permanente({ type: 'plafond_travaux_cs', objet: 'Toiture', montantCentimes: 900000 })
+    const anomalies = controlerDecisionAnnuelle(plafond, { resolution: resolution('art24', 300, 100) })
+    expect(anomalies.map((a) => [a.code, a.aConfirmer])).toEqual([['majorite_insuffisante', false]])
+    const adoptee = voterSecondVote(resolution('art25', 400, 100), { ...VOIX, pour: 400, contre: 100 })
+    expect(controlerDecisionAnnuelle(plafond, { resolution: adoptee })).toEqual([])
+  })
+
   it('majorité plus forte que requise admise ; travaux : pas de majorité imposée par le type', () => {
     expect(controlerDecisionAnnuelle(decision(), { resolution: resolution('art26', 800, 100, 15) })).toEqual([])
     const travaux = decision({ type: 'travaux', exerciceId: 'ex-2026', montantCentimes: 9000000 })
@@ -606,6 +614,20 @@ describe('décisions permanentes en vigueur et seuils', () => {
     const csD = permanente({ id: 'cs-d', type: 'mandat_cs', date: '2026-05-20', dureeMois: 12, designesIds: ['p2', 'p1'] })
     expect(csD.terme).toBe(csA.terme)
     expect(ids(decisionsEnVigueur([csA, csD], '2026-06-01'))).toEqual(['cs-d'])
+    // relecture : un seul terme à suivre, le nouveau ; l'échéance de la désignation vidée de ses membres est close
+    const aSuivre = (decisions: DecisionAnnuelle[]) => echeancesMandatsEtDelegations(decisions).map((e) => [e.objetId, e.date, e.accomplie])
+    expect(aSuivre([csA, csD])).toEqual([
+      ['cs-a', '2027-05-19', true],
+      ['cs-d', '2027-05-19', false],
+    ])
+    // terme plus court que l'ancien : même lecture
+    const csE = permanente({ id: 'cs-e', type: 'mandat_cs', date: '2025-05-20', dureeMois: 12, designesIds: ['p1', 'p2'] })
+    expect(ids(decisionsEnVigueur([csA, csE], '2025-06-01'))).toEqual(['cs-e'])
+    expect(ids(decisionsEnVigueur([csA, csE], '2026-06-01'))).toEqual([])
+    expect(aSuivre([csA, csE])).toEqual([
+      ['cs-e', '2026-05-19', false],
+      ['cs-a', '2027-05-19', true],
+    ])
     // une désignation saisie sans membres ne perd rien
     const sansMembres = permanente({ id: 'cs-0', type: 'mandat_cs', date: '2024-05-20', dureeMois: 36 })
     expect(ids(decisionsEnVigueur([sansMembres, csD], '2026-06-01'))).toEqual(['cs-0', 'cs-d'])

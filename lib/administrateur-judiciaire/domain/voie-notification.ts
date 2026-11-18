@@ -205,7 +205,7 @@ export function voieDeNotification({
       depuis: null,
       fondement: FONDEMENT_REGIME_ANTERIEUR,
       aConfirmer:
-        "Avant le 25/12/2025 : lettre recommandée avec avis de réception, sauf accord exprès à la voie électronique ; portée de l'art. 42-1 depuis le 11/04/2024 à vérifier.",
+        'Avant le 25/12/2025 : lettre recommandée avec avis de réception, sauf accord exprès à la voie électronique, exigé aussi du 11/04/2024 au 24/12/2025 (lecture prudente, J67, R17) ; voie non calculée ici : le calcul du délai en décide (statut-assemblee.ts).',
     }
   const effets = demandes
     .filter((d) => d.identiteId === identiteId)

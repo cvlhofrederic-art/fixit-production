@@ -178,6 +178,12 @@ describe('mention et marqueurs', () => {
     const ouvert = texte.slice(texte.indexOf('🔴 Non établi'))
     expect(ouvert).not.toContain("accord exprès de l'art. 64-3 de la rédaction de 2020")
     expect(texte).toMatch(/J67, R17 : lecture prudente gardée/)
+    // relecture : le message rendu ne présente plus la question comme ouverte
+    const avant = voieDeNotification({ identiteId: 'id-1', demandes: [], date: '2025-06-01' })
+    expect(avant).toMatchObject({ voie: null, depuis: null })
+    expect(avant.aConfirmer).toBe(
+      'Avant le 25/12/2025 : lettre recommandée avec avis de réception, sauf accord exprès à la voie électronique, exigé aussi du 11/04/2024 au 24/12/2025 (lecture prudente, J67, R17) ; voie non calculée ici : le calcul du délai en décide (statut-assemblee.ts).',
+    )
   })
 
   it('J67, R18 : retour à la voie électronique admis par renonciation, effet à choisir par Hugo (même règle que J59) ; code inchangé, marque gardée', () => {

@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import {
   BASES_LIGNES_HONORAIRES_COURRIER,
   DECLENCHEUR_HONORAIRES_MISE_EN_DEMEURE,
+  DESTINATAIRE_SYNDICAT,
   DECLENCHEUR_MISE_EN_DEMEURE,
   ID_REGLE_COPIE_AU_CS_POUR_INFO,
   ID_REGLE_HONORAIRES_MISE_EN_DEMEURE,
@@ -566,7 +567,8 @@ const ligneForfait: LigneHonorairesCourrier = {
   prixUnitaireHtDixMilliemes: 300_000,
   soumisTva: true,
   tauxTvaPct: 20,
-  destinataire: 'Copropriétaire débiteur',
+  // J67, R7 : le cabinet facture le forfait au syndicat, qui le paie
+  destinataire: 'Syndicat des copropriétaires',
 }
 
 const contexteHonoraires = (surcharge: Partial<ContexteHonorairesCourrier> = {}): ContexteHonorairesCourrier => ({
@@ -629,7 +631,7 @@ describe('honoraires du courrier : proposition de lignes, jamais écrites, désa
         prixUnitaireHtDixMilliemes: 300_000,
         soumisTva: true,
         tauxTvaPct: 20,
-        destinataire: 'Copropriétaire débiteur',
+        destinataire: 'Syndicat des copropriétaires',
       },
     ])
     // La saisie proposée passe creerElement, que l'appelant appelle s'il retient la proposition.
@@ -654,7 +656,26 @@ describe('honoraires du courrier : proposition de lignes, jamais écrites, désa
     expect(forfait.observation).toMatch(/une relance faite avant la mise en demeure n'est pas visée\. Montant et tarif : réglage du cabinet, aucun montant par défaut\.$/)
     expect(frais).toMatchObject({ objet: 'frais_envoi', aConfirmer: true, repartition: null })
     expect(frais.observation).toMatch(/administration provisoire/)
+    // relecture : l'art. 10-1, a est lu (R7) ; la question n° 4 revient à Hugo (R5 ou R6)
+    expect(frais.observation).toMatch(/^À trancher par Hugo \(question n° 4 : J67, R5 ou R6\)/)
+    expect(frais.observation).toContain('L. 1965 art. 10-1, a, lu le 17/11/2026 (J67, R7)')
+    expect(frais.observation).not.toMatch(/texte non relu|À confirmer avec le cabinet/)
     expect(BASES_LIGNES_HONORAIRES_COURRIER.forfait_mise_en_demeure.aConfirmer).toBe(true)
+  })
+
+  it('J67, R7 : le forfait se facture au syndicat, qui le paie ; un autre destinataire est refusé', () => {
+    const autre = { ...ligneForfait, destinataire: 'Copropriétaire débiteur' }
+    expect(() => regleHonorairesMiseEnDemeure({ lignes: [autre] })).toThrow(
+      /\(forfait de mise en demeure\) : destinataire « Copropriétaire débiteur » refusé.*J67, R7.*« Syndicat des copropriétaires »/,
+    )
+    // la saisie proposée et le payeur disent la même chose, quel que soit le régime
+    const regle = regleHonorairesMiseEnDemeure({ lignes: [ligneForfait], active: true })
+    for (const regime of [null, 'sj', 'ap47', 'ap291'] as const) {
+      const [forfait] = proposerHonorairesDuCourrier(courrier(), [regle], contexteHonoraires({ regime })).propositions
+      expect([forfait.saisie.destinataire, forfait.repartition?.payeur]).toEqual([DESTINATAIRE_SYNDICAT, 'syndicat'])
+    }
+    // frais d'envoi : destinataire laissé au cabinet (question n° 4)
+    expect(() => regleHonorairesMiseEnDemeure({ lignes: [{ ...ligneAr, destinataire: 'Copropriétaire débiteur' }] })).not.toThrow()
   })
 
   it('J67, R7 : selon le régime du mandat ; sous l’art. 29-1, montant à présenter au juge ; sous les art. 46 et 47, aucun texte', () => {
@@ -763,7 +784,8 @@ describe('relecture : constats confirmés', () => {
     const frais = BASES_LIGNES_HONORAIRES_COURRIER.frais_envoi
     expect(frais.aConfirmer).toBe(true)
     expect(frais.fondements).toContain('L. 1965 art. 10-1, a')
-    expect(frais.observation).toMatch(/^À confirmer/)
+    // J67 : toujours à confirmer (aConfirmer), la question n° 4 revient à Hugo (R5 ou R6)
+    expect(frais.observation).toMatch(/^À trancher par Hugo/)
     expect(frais.observation).toMatch(/administration provisoire/)
   })
 

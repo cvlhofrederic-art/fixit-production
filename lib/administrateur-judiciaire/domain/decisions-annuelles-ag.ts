@@ -100,10 +100,10 @@ import { LIBELLES_ETATS_RESOLUTION, type Resolution } from '@/lib/administrateur
  * - le conseil syndical est renouvelé par une désignation postérieure qui le porte au-delà du terme et prend effet moins
  *   de six mois avant lui, ou après, même sans reconduire chaque membre : l'assemblée annuelle se tient dans les six mois
  *   de la clôture (L. 1965 art. 14-1, I), si bien que, pour un conseil élu par l'assemblée annuelle, celle qui le
- *   renouvelle se tient moins de six mois avant son terme, ou après ; il l'est aussi quand chacun de ses membres est
- *   désigné de nouveau au-delà du terme, et sa désignation précédente sort alors des décisions en vigueur (elle n'ajoute
- *   rien : J67, R23, ci-dessous) ; une élection complémentaire, alignée
- *   sur le terme en cours ou de pleine durée plus tôt dans le mandat, ne le renouvelle pas ;
+ *   renouvelle se tient moins de six mois avant son terme, ou après ; une élection complémentaire, alignée sur le terme
+ *   en cours ou de pleine durée plus tôt dans le mandat, ne le renouvelle pas ; quand chacun de ses membres est désigné
+ *   de nouveau, quel que soit le terme de la nouvelle désignation, la précédente sort des décisions en vigueur et son
+ *   échéance est close : seul le nouveau terme est suivi (J67, R23, ci-dessous) ;
  * - échéance de l'assemblée budgétaire au même quantième six mois après la clôture (borné en fin de mois), accomplie par
  *   un budget décidé après la clôture et au plus tard douze mois après (avant la clôture de l'exercice suivant) ; sous
  *   administrateur provisoire de l'art. 29-1 investi de tous les pouvoirs de l'assemblée, la même date sert de repère à
@@ -134,7 +134,8 @@ import { LIBELLES_ETATS_RESOLUTION, type Resolution } from '@/lib/administrateur
  * - J67, R23 : un membre du conseil syndical désigné de nouveau avant le terme de son mandat n'a qu'un mandat, le nouveau,
  *   dès sa prise d'effet (D. 1967 art. 22 : « trois années renouvelables » ; L. 1965 art. 25, c) : decisionsEnVigueur le
  *   retire de la désignation précédente, qui reste en vigueur pour ses autres membres ; lecture seulement, la décision
- *   enregistrée ne change pas.
+ *   enregistrée ne change pas. Même lecture pour les échéances (echeancesMandatsEtDelegations) : la désignation dont
+ *   chaque membre est désigné de nouveau a son échéance close ; un seul terme reste suivi, le nouveau.
  *
  * 🔴 Non établi (à trancher par Frédéric ou Hugo) :
  * - sens de « Rendu des comptes N » : notification des comptes avec la convocation, ou date de l'assemblée qui les
@@ -996,11 +997,13 @@ function designationsAuDelaDuTerme(decision: DecisionAnnuelle, decisions: readon
   )
 }
 
-/** Chacun des membres désignés par `decision` l'est de nouveau par l'une des `suivantes`. */
-function membresTousRedesignes(decision: DecisionAnnuelle, suivantes: readonly DecisionAnnuelle[]): boolean {
-  const redesignes = new Set(suivantes.flatMap((d) => d.designesIds))
-  return decision.designesIds.length > 0 && decision.designesIds.every((id) => redesignes.has(id))
-}
+/**
+ * J67, R23 : membres désignés de nouveau, après `decision`, par une autre désignation du conseil syndical de `decisions`,
+ * quel que soit son terme. Lecture commune aux décisions en vigueur (avecSesSeulsMembres) et aux échéances
+ * (conseilRenouvele).
+ */
+const membresRedesignes = (decision: DecisionAnnuelle, decisions: readonly DecisionAnnuelle[]): Set<string> =>
+  new Set(decisions.filter((d) => d.type === 'mandat_cs' && comparerDecisions(d, decision) > 0).flatMap((d) => d.designesIds))
 
 /**
  * J67, R23 : un membre du conseil syndical désigné de nouveau par une désignation qui a pris effet (`prises`) sort de sa
@@ -1009,9 +1012,7 @@ function membresTousRedesignes(decision: DecisionAnnuelle, suivantes: readonly D
  */
 function avecSesSeulsMembres(decision: DecisionAnnuelle, prises: readonly DecisionAnnuelle[]): DecisionAnnuelle | null {
   if (decision.type !== 'mandat_cs' || decision.designesIds.length === 0) return decision
-  const redesignes = new Set(
-    prises.filter((d) => d.type === 'mandat_cs' && comparerDecisions(d, decision) > 0).flatMap((d) => d.designesIds),
-  )
+  const redesignes = membresRedesignes(decision, prises)
   const restants = decision.designesIds.filter((id) => !redesignes.has(id))
   if (restants.length === decision.designesIds.length) return decision
   return restants.length === 0 ? null : { ...decision, designesIds: restants }
@@ -1284,14 +1285,17 @@ const TERMES_SUIVIS: Partial<Record<TypeDecisionAnnuelle, TermeSuivi>> = {
 
 /**
  * Conseil syndical renouvelé : une désignation qui le porte au-delà de son terme et prend effet moins de six mois avant lui,
- * ou après, même sans reconduire chaque membre ; ou chacun de ses membres désigné de nouveau au-delà de ce terme. Une
- * élection complémentaire, alignée sur le terme ou de pleine durée plus tôt dans le mandat, ne le renouvelle pas.
+ * ou après, même sans reconduire chaque membre. Une élection complémentaire, alignée sur le terme ou de pleine durée plus
+ * tôt dans le mandat, ne le renouvelle pas. Échéance close aussi quand chacun de ses membres est désigné de nouveau par
+ * une désignation postérieure, quel que soit son terme (J67, R23) : ils n'ont plus que le nouveau mandat, dont le terme
+ * est suivi à la place de l'ancien (même lecture que decisionsEnVigueur).
  */
 function conseilRenouvele(decision: DecisionAnnuelle, decisions: readonly DecisionAnnuelle[]): boolean {
-  const suivantes = designationsAuDelaDuTerme(decision, decisions)
-  if (decision.terme === null || suivantes.length === 0) return false
+  if (decision.terme === null) return false
+  const redesignes = membresRedesignes(decision, decisions)
+  if (decision.designesIds.length > 0 && decision.designesIds.every((id) => redesignes.has(id))) return true
   const ouvertureFenetre = ajouterMois(decision.terme, -FENETRE_RENOUVELLEMENT_CS_MOIS)
-  return suivantes.some((d) => debutDecision(d) > ouvertureFenetre) || membresTousRedesignes(decision, suivantes)
+  return designationsAuDelaDuTerme(decision, decisions).some((d) => debutDecision(d) > ouvertureFenetre)
 }
 
 /** Renouvelée : une décision plus récente du même type ; pour le conseil syndical, voir conseilRenouvele. */

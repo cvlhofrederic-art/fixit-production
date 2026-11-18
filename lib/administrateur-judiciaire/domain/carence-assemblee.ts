@@ -1,5 +1,5 @@
 import { ajouterJours, dateIsoVersFr, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
-import type { Regime } from '@/lib/administrateur-judiciaire/domain/fondements'
+import { controlerRegime, type Regime } from '@/lib/administrateur-judiciaire/domain/fondements'
 
 /**
  * Carence d'une assemblée générale : constat et suites à donner (point 23 du bilan 2 ; cartographie Gestéam : bouton
@@ -131,6 +131,7 @@ const NOTIFICATION_PROCES_VERBAL: SuiteCarence = {
 /**
  * Suites que le droit prévoit selon le régime du mandat ; régime inconnu : la nouvelle convocation seule, et la
  * notification du procès-verbal quand l'assemblée s'est tenue sans désigner de syndic (`motif`, donné par le constat).
+ * Refus : régime hors des trois (controlerRegime), qui donnerait une suite sans libellé ni fondement.
  */
 export function suitesProposees({
   regime,
@@ -141,6 +142,7 @@ export function suitesProposees({
   objetDesignationSyndic: boolean
   motif?: MotifCarence | null
 }): SuiteCarence[] {
+  controlerRegime(regime)
   const suites: SuiteCarence[] = [
     {
       code: 'nouvelle_convocation',
@@ -204,6 +206,7 @@ export interface AnomalieCarence {
  * Contrôle des suites d'une carence au regard de la mission de son régime (syndic de l'art. 46, administrateurs des art.
  * 47 et 29-1) : réunion tenue après la fin de la mission, mission expirée, ou trop courte pour réunir une nouvelle
  * assemblée, ou fin de mission inconnue. `delaiConvocationJours` : délai du règlement s'il est plus long que 21 jours.
+ * Refus : régime de la carence hors des trois (donnée lue sans contrôle).
  */
 export function controlerSuitesCarence(
   carence: CarenceAg,
@@ -217,7 +220,7 @@ export function controlerSuitesCarence(
     throw new Error(`Date de fin de mission invalide (${dateFinMission}) : AAAA-MM-JJ attendu.`)
   if (!Number.isInteger(delaiConvocationJours) || delaiConvocationJours < DELAI_CONVOCATION_JOURS)
     throw new Error(`Délai de convocation invalide (${delaiConvocationJours}) : au moins ${DELAI_CONVOCATION_JOURS} jours.`)
-  const { regime } = carence
+  const regime = controlerRegime(carence.regime)
   if (regime === null) return []
   const fondement = FONDEMENT_MISSION[regime]
   if (dateFinMission === null)

@@ -459,7 +459,7 @@ describe('J64 — Copie au CS : née du courrier, sur les seules mises en demeur
       prixUnitaireHtDixMilliemes: 300_000,
       soumisTva: true,
       tauxTvaPct: 20,
-      destinataire: 'Copropriétaire débiteur',
+      destinataire: 'Syndicat des copropriétaires', // J67, R7 : le forfait se facture au syndicat
     } as const
     const regle = regleHonorairesMiseEnDemeure({ lignes: [forfait] })
     expect(regle).toMatchObject({ active: false, declencheur: { par: 'famille', famille: 'Contentieux', libelleContient: 'mise en demeure' } })

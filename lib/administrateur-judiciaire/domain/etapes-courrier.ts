@@ -86,7 +86,8 @@ import { DOSSIER, FAMILLE_MODELE_COURRIER, type Dossier, type FamilleModeleCourr
  *   gardent leur déclencheur (DECLENCHEUR_HONORAIRES_MISE_EN_DEMEURE : famille Contentieux, libellé « mise en demeure »).
  * - J67, R7 (décision de Hugo du 17/11/2026 ; textes lus sur Légifrance le 17/11/2026 : L. 1965 art. 10-1, a et 29-1,
  *   II ; D. 1967 art. 61-1-5 et annexe 1, 9.1 ; arrêté du 08/10/2015, art. 14) : forfait de mise en demeure en deux
- *   lignes : le cabinet facture le syndicat, qui paie (repartition.payeur) ; le syndicat peut ensuite imputer la somme au
+ *   lignes : le cabinet facture le syndicat, qui paie (repartition.payeur ; la ligne du cabinet a donc pour destinataire
+ *   DESTINATAIRE_SYNDICAT, tout autre est refusé) ; le syndicat peut ensuite imputer la somme au
  *   seul copropriétaire en retard, comme frais nécessaire (« les frais nécessaires exposés par le syndicat, notamment les
  *   frais de mise en demeure », art. 10-1, a), si la créance est justifiée, si la mise en demeure est partie et si le
  *   coût est nécessaire ; une relance faite avant la mise en demeure n'est pas visée (repartition.imputation ;
@@ -737,6 +738,12 @@ export interface BaseLigneHonorairesCourrier {
   repartition: Readonly<RepartitionLigneCourrier> | null
 }
 
+/**
+ * Destinataire de l'élément qui désigne le syndicat : 🟢 valeur de la liste « Destinataire » de Gestéam (tranche 27). Le
+ * forfait de mise en demeure n'en admet pas d'autre : le cabinet facture le syndicat, qui paie (J67, R7).
+ */
+export const DESTINATAIRE_SYNDICAT = 'Syndicat des copropriétaires'
+
 /** J67, R7 : le syndicat paie le forfait, puis peut l'imputer au copropriétaire en retard (L. 1965 art. 10-1, a). */
 const REPARTITION_FORFAIT: Readonly<RepartitionLigneCourrier> = Object.freeze({
   payeur: 'syndicat',
@@ -753,7 +760,7 @@ export const BASES_LIGNES_HONORAIRES_COURRIER: Readonly<Record<ObjetLigneHonorai
     aConfirmer: true,
     fondements: Object.freeze(['D. 1967 annexe 1, 7.1.5', 'D. 1967 annexe 1, 7.2.1', 'L. 1965 art. 10-1, a']),
     observation:
-      "À confirmer avec le cabinet : frais d'affranchissement ou d'acheminement de la mise en demeure remboursés à part au syndic, au contrat type de syndic (D. 1967 annexe 1, 7.1.5 et 7.2.1, lus pour honoraires-sinistre.ts), ou frais de recouvrement imputables au seul copropriétaire concerné (L. 1965 art. 10-1, a, qui vise aussi les frais de mise en demeure, d'après sa citation par un jugement ; texte non relu) ? En administration provisoire, base non établie (question ouverte de honoraires-sinistre.ts). Montant et destinataire : réglage du cabinet.",
+      "À trancher par Hugo (question n° 4 : J67, R5 ou R6) : frais d'affranchissement ou d'acheminement de la mise en demeure remboursés à part au syndic, au contrat type de syndic (D. 1967 annexe 1, 7.1.5 et 7.2.1), ou frais de recouvrement imputables au seul copropriétaire concerné (L. 1965 art. 10-1, a, lu le 17/11/2026 (J67, R7) : il vise « notamment les frais de mise en demeure ») ? En administration provisoire, R5 et R6 ne les règlent pas de la même façon : dépense du syndicat, payée sur son compte puis imputée au copropriétaire (R6), ou frais du cabinet présentés au juge (R5). Montant et destinataire : réglage du cabinet.",
     repartition: null,
   }),
   forfait_mise_en_demeure: Object.freeze({
@@ -844,6 +851,10 @@ function controlerLigne(ligne: LigneHonorairesCourrier, rang: number, quoi: stri
   if (!(MODES_CALCUL as readonly string[]).includes(calcul)) throw new Error(`${ou} : mode de calcul inconnu « ${calcul} ».`)
   const tarif = texteRequis(ligne.tarif, `${ou} : tarif du catalogue attendu.`)
   const destinataire = texteRequis(ligne.destinataire, `${ou} : destinataire attendu.`)
+  if (ligne.objet === 'forfait_mise_en_demeure' && destinataire !== DESTINATAIRE_SYNDICAT)
+    throw new Error(
+      `${ou} (forfait de mise en demeure) : destinataire « ${destinataire} » refusé : le cabinet facture le forfait au syndicat, qui le paie, puis le syndicat peut l’imputer au copropriétaire en retard (J67, R7). Destinataire attendu : « ${DESTINATAIRE_SYNDICAT} ».`,
+    )
   controlerMontantsLigne(ligne, ou)
   return { ...ligne, calcul, tarif, destinataire }
 }
@@ -870,8 +881,8 @@ export interface RegleHonorairesCourrier {
 
 /**
  * Règle contrôlée. Refus : identifiant ou libellé vides, déclencheur ou dossier invalides, aucune ligne, ligne invalide
- * (objet, nature, frais d'envoi d'une nature de rémunération, calcul, tarif, destinataire, quantité, prix, TVA,
- * qualification). Désactivée sans réglage.
+ * (objet, nature, frais d'envoi d'une nature de rémunération, calcul, tarif, destinataire, forfait de mise en demeure
+ * adressé à un autre que le syndicat (J67, R7), quantité, prix, TVA, qualification). Désactivée sans réglage.
  */
 export function creerRegleHonorairesCourrier(saisie: SaisieRegleHonorairesCourrier): RegleHonorairesCourrier {
   const id = texteRequis(saisie.id, 'Règle « courrier → honoraires » : identifiant de la règle attendu.')
