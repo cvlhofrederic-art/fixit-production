@@ -95,7 +95,9 @@ import { DOSSIER, FAMILLE_MODELE_COURRIER, type Dossier, type FamilleModeleCourr
  *   soumise au juge, à présenter dans le compte provisoire détaillé (D. 1967 art. 61-1-5, II ; arrêté du 08/10/2015,
  *   art. 14) ; sous les art. 46 et 47, aucun contrat type voté et aucun texte. Montant et tarif : réglage du cabinet,
  *   aucun montant par défaut. aConfirmer gardé : l'imputation d'une rémunération d'administrateur provisoire au
- *   copropriétaire n'est confirmée par aucun arrêt lu. Base selon le régime : baseLigneHonorairesCourrier.
+ *   copropriétaire n'est confirmée par aucun arrêt lu. Base selon le régime : baseLigneHonorairesCourrier. Le régime
+ *   et la mission (J67, R9) disent le même fait : un régime donné avec une mission autre que « judiciaire » est refusé
+ *   (proposerHonorairesDuCourrier).
  * - 🔵 Rappel de J1 et J50 (délai de l'art. 42, aucune décision sur les étapes) : un délai ouvert par une notification
  *   part de la première présentation ou de la transmission de l'avis électronique, lues sur le courrier (courriers.ts),
  *   jamais du dépôt ; la date de dépôt, ici date de création de l'étape, ne fait donc courir aucun délai, et l'étape née
@@ -938,8 +940,23 @@ export interface ContexteHonorairesCourrier {
   aujourdhui: string
   /** Identifiant de chaque élément proposé, fourni par l'appelant. */
   idElement: (cible: CibleLigneHonoraires) => string
-  /** Régime du mandat du courrier (baseLigneHonorairesCourrier, J67, R7) ; absent ou null : inconnu. */
+  /**
+   * Régime du mandat du courrier (baseLigneHonorairesCourrier, J67, R7) ; absent ou null : inconnu. Les trois régimes
+   * sont des mandats de justice : un régime donné exige la mission « judiciaire » (controlerAccordRegimeMission).
+   */
   regime?: Regime | null
+}
+
+/**
+ * Régime et mission disent le même fait : sj, ap47 et ap291 sont des mandats de justice (D. 1967 art. 46 et 47 ; L. 1965
+ * art. 29-1). Un régime donné avec une autre mission que « judiciaire » est refusé : sinon une ligne « Offert » passerait
+ * creerElement (J67, R9) alors que la base du forfait la dit soumise au juge (J67, R7). Régime inconnu : la mission seule.
+ */
+function controlerAccordRegimeMission(regime: Regime | null, mission: MissionHonoraires): void {
+  if (regime !== null && mission !== 'judiciaire')
+    throw new Error(
+      `Contexte incohérent : régime « ${regime} » (mandat de justice) et mission « ${mission} » ; un mandat de justice a la mission « judiciaire » (J67, R7 et R9).`,
+    )
 }
 
 /** Une saisie d'élément prête pour creerElement, que l'appelant enregistre ou non : rien n'est écrit ici. */
@@ -1035,7 +1052,8 @@ function propositionsDeLaRegle(
  * courrier), contrôlée par creerElement, avec sa base selon le régime du mandat (baseLigneHonorairesCourrier : forfait
  * en deux lignes, J67, R7 ; frais d'envoi à confirmer, 🔴). Rien n'est écrit. Règles écartées : inactive, dossier absent
  * ou ambigu, copropriété ou mandat manquants. Refus : courrier invalide ou non déposé, dépôt postérieur à aujourd'hui,
- * régime inconnu, règles invalides ou en double, identifiant d'élément vide ou en double.
+ * régime hors liste, régime de justice avec une mission autre que « judiciaire », règles invalides ou en double,
+ * identifiant d'élément vide ou en double.
  */
 export function proposerHonorairesDuCourrier(
   courrier: CourrierDeclencheur,
@@ -1043,7 +1061,7 @@ export function proposerHonorairesDuCourrier(
   contexte: ContexteHonorairesCourrier,
 ): ResultatHonorairesCourrier {
   const envoye = controlerCourrier(courrier, contexte.aujourdhui)
-  controlerRegime(contexte.regime ?? null)
+  controlerAccordRegimeMission(controlerRegime(contexte.regime ?? null), contexte.mission)
   const controlees = sansIdentifiantEnDouble(regles.map((regle) => creerRegleHonorairesCourrier(regle)))
   const resultat: ResultatHonorairesCourrier = { courrierId: envoye.id, propositions: [], ecartees: [] }
   const ids = new Set<string>()

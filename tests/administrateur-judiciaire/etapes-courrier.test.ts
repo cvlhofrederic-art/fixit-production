@@ -715,6 +715,22 @@ describe('honoraires du courrier : proposition de lignes, jamais écrites, désa
     expect(proposition.saisie.qualification).toBe('Offert')
   })
 
+  it('J67, R7 et R9 : un régime de mandat de justice exige la mission « judiciaire » ; le contexte incohérent est refusé', () => {
+    const regle = regleHonorairesMiseEnDemeure({ lignes: [{ ...ligneForfait, qualification: 'Offert' }], active: true })
+    for (const regime of ['sj', 'ap47', 'ap291'] as const) {
+      // sinon « Offert » passerait, alors que la base dit le forfait soumis au juge (ap291)
+      expect(() => proposerHonorairesDuCourrier(courrier(), [regle], contexteHonoraires({ mission: 'contrat_type_syndic', regime }))).toThrow(
+        new RegExp(`Contexte incohérent : régime « ${regime} » \\(mandat de justice\\) et mission « contrat_type_syndic »`),
+      )
+      // refusé avant toute règle : le contexte seul est en cause
+      expect(() =>
+        proposerHonorairesDuCourrier(courrier(), REGLES_HONORAIRES_COURRIER_PAR_DEFAUT, contexteHonoraires({ mission: 'contrat_type_syndic', regime })),
+      ).toThrow(/Contexte incohérent/)
+    }
+    // régime inconnu : la mission seule décide
+    expect(proposerHonorairesDuCourrier(courrier(), [regle], contexteHonoraires({ mission: 'contrat_type_syndic', regime: null })).propositions).toHaveLength(1)
+  })
+
   it('écartées : dossier absent, dossier ambigu (un envoi, une série de frais), copropriété ou mandat manquants ; courrier non visé : rien', () => {
     const regle = regleHonorairesMiseEnDemeure({ lignes: [ligneAr], active: true })
     const motif = (c: CourrierDeclencheur) => proposerHonorairesDuCourrier(c, [regle], contexteHonoraires()).ecartees.map((e) => e.motif)
