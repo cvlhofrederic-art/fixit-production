@@ -560,16 +560,28 @@ describe('sources — sinistres, équipements, diagnostics', () => {
   it('J67, R52 : dommages-ouvrage non déclaré : « à déclarer » daté de la connaissance, sans repère de cinq jours ; prescription gardée', () => {
     const fiche = creerSinistre(saisieSinistre({ type: 'Dommages Ouvrage', dateConnaissance: '2026-10-22' }))
     const elements = depuisSinistres([{ id: 'S6', mandatId: 'M1', libelle: 'DO', fiche }])
-    expect(elements.map((e) => [e.nature, e.date, e.libelle])).toEqual([
-      ['a_declarer', '2026-10-22', 'DO — à déclarer dès la connaissance (L. 113-2, 4°) ; aucun délai dans les clauses types'],
-      ['prescription', reperesDelaisSinistre(fiche).prescription, 'DO'],
+    // Empilement : libellés de J67, R49 (documents-suivi, plus récent dans la pile) ; le cas sans délai garde celui de R52.
+    expect(elements.map((e) => [e.nature, e.date, e.libelle, e.aConfirmer])).toEqual([
+      ['a_declarer', '2026-10-22', 'DO — à déclarer dès la connaissance (L. 113-2, 4°) ; aucun délai dans les clauses types', false],
+      [
+        'prescription',
+        reperesDelaisSinistre(fiche).prescription,
+        'DO — prescription au plus tôt le 20/10/2028 (C. assur. L. 114-1 ; peut être repoussée par une interruption, L. 114-2)',
+        false,
+      ],
     ])
     // La police fixe un délai : il s'applique, libellé ordinaire.
     const [avecDelai] = depuisSinistres([{ id: 'S7', mandatId: 'M1', libelle: 'DO', fiche, delaiContratJoursOuvres: 5 }])
-    expect(avecDelai).toMatchObject({ libelle: 'DO', date: reperesDelaisSinistre(fiche, { delaiContratJoursOuvres: 5 }).declarationAuPlusTard })
-    // Phase qui suit la déclaration, sans date : « à vérifier » prime.
+    expect(avecDelai).toMatchObject({
+      libelle: 'DO — à déclarer au plus tard le 29/10/2026 (délai du contrat ; C. assur. L. 113-2, 4°)',
+      date: reperesDelaisSinistre(fiche, { delaiContratJoursOuvres: 5 }).declarationAuPlusTard,
+      aConfirmer: false,
+    })
+    // Phase qui suit la déclaration, sans date : « à vérifier » s'ajoute au libellé (R49).
     const [enExpertise] = depuisSinistres([{ id: 'S8', mandatId: 'M1', libelle: 'DO', fiche: { ...fiche, phase: "Mission d'expertise" } }])
-    expect(enExpertise.libelle).toBe("DO — déclaration non datée (phase « Mission d'expertise ») : à vérifier")
+    expect(enExpertise.libelle).toBe(
+      "DO — à déclarer dès la connaissance (L. 113-2, 4°) ; aucun délai dans les clauses types — déclaration non datée (phase « Mission d'expertise ») : à vérifier",
+    )
   })
 
   describe('déclaration d’un sinistre (J67, R49 ; C. assur. L. 113-2, 4°)', () => {
@@ -624,12 +636,12 @@ describe('sources — sinistres, équipements, diagnostics', () => {
       }
     })
 
-    it('relecture : « Dommages Ouvrage » — pas de minimum légal annoncé, à confirmer jusqu’à la règle propre du type (J67, R52) ; prescription sans marque', () => {
+    it('relecture : « Dommages Ouvrage » — pas de minimum légal annoncé ; règle propre du type appliquée (J67, R52), sans marque ; prescription sans marque', () => {
+      // Empilement sur contentieux-sinistres : R52 est la règle propre attendue ; à déclarer dès la connaissance.
       expect(aDeclarer({ type: 'Dommages Ouvrage' })).toMatchObject({
-        date: '2026-10-27',
-        aConfirmer: true,
-        libelle:
-          "Sinistre — repère de déclaration du 27/10/2026 à confirmer, dommages-ouvrage : les clauses types ne fixent aucun délai à l'assuré (C. assur. annexe II à l'art. A. 243-1)",
+        date: '2026-10-20',
+        aConfirmer: false,
+        libelle: 'Sinistre — à déclarer dès la connaissance (L. 113-2, 4°) ; aucun délai dans les clauses types',
       })
       expect(prescription({ type: 'Dommages Ouvrage' })?.aConfirmer).toBe(false)
     })

@@ -840,10 +840,10 @@ const libellePrescription = (libelle: string, reperes: ReperesDelaisSinistre): s
  * Sinistre en cours : déclaration au plus tard tant qu'il n'est pas déclaré, et prescription au plus tôt (sinistres.ts) —
  * deux échéances (J67, R49) : le contrat peut allonger le délai de déclaration, jamais la durée de la prescription
  * (C. assur. L. 114-3). Restent `aConfirmer` : la déclaration d'un type sous lequel un vol a pu être rangé (J67, R49) ;
- * relecture de R49, celle d'un type au délai propre ou non établi (garantie impayés, dommages-ouvrage, catastrophe
- * naturelle) et la prescription de la garantie impayés (sinistres.REGIMES_A_CONFIRMER).
- * Dommages-ouvrage sans délai de la police : élément « à déclarer » daté du jour de la connaissance, sans repère de cinq
- * jours ouvrés (J67, R52).
+ * relecture de R49, celle d'un type au délai propre ou non établi (garantie impayés, catastrophe naturelle) et la
+ * prescription de la garantie impayés (sinistres.REGIMES_A_CONFIRMER). Dommages-ouvrage, règle propre (J67, R52), sans
+ * marque : sans délai de la police, élément « à déclarer » daté du jour de la connaissance, sans repère de cinq jours
+ * ouvrés ; avec un délai de la police, ce délai.
  * Indemnité différée non réglée : à réclamer depuis le règlement de l'indemnité immédiate (à défaut le rapport, la
  * déclaration, la survenance) ; c'est un suivi de gestion, pas un repère légal. Sans date de suivi, une phase saisie qui
  * suit la déclaration garde l'élément « à déclarer » (même critère du réglage), libellé « déclaration non datée … : à

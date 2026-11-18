@@ -264,7 +264,7 @@ describe('sinistres — repères de délais (indicatifs)', () => {
     )
   })
 
-  it('relecture : garantie impayés, dommages-ouvrage et catastrophe naturelle — le minimum de L. 113-2, 4° n’est pas sûr, raison donnée', () => {
+  it('relecture : garantie impayés et catastrophe naturelle — le minimum de L. 113-2, 4° n’est pas sûr, raison donnée ; dommages-ouvrage : règle propre (J67, R52)', () => {
     const regimes = (type: SaisieSinistre['type']) => {
       const { declarationAConfirmer, prescriptionAConfirmer } = reperesDelaisSinistre(creerSinistre(saisie({ type })))
       return { declarationAConfirmer, prescriptionAConfirmer }
@@ -274,10 +274,15 @@ describe('sinistres — repères de délais (indicatifs)', () => {
         declarationAConfirmer: 'assurance-crédit possible : seule la police fixe alors le délai (C. assur. L. 111-1)',
         prescriptionAConfirmer: "assurance-crédit possible : L. 114-1 ne s'applique alors pas, voir la police (C. assur. L. 111-1)",
       })
-    expect(regimes('Dommages Ouvrage')).toEqual({
-      declarationAConfirmer: "dommages-ouvrage : les clauses types ne fixent aucun délai à l'assuré (C. assur. annexe II à l'art. A. 243-1)",
-      prescriptionAConfirmer: null,
-    })
+    // Empilement sur contentieux-sinistres : la règle propre attendue par la relecture est J67, R52 (aucun minimum, à
+    // déclarer dès la connaissance) ; plus de repère à confirmer pour ce type.
+    expect(regimes('Dommages Ouvrage')).toEqual({ declarationAConfirmer: null, prescriptionAConfirmer: null })
+    expect(reperesDelaisSinistre(creerSinistre(saisie({ type: 'Dommages Ouvrage' }))).justificationDeclaration).toBe(
+      "Connaissance du 27/10/2026, sans délai (clauses types, C. assur. annexe II à l'art. A. 243-1 ; J67, R52) : à déclarer dès la connaissance (C. assur. L. 113-2, 4°).",
+    )
+    expect(reperesDelaisSinistre(creerSinistre(saisie({ type: 'Dommages Ouvrage' })), { delaiContratJoursOuvres: 3 }).justificationDeclaration).toBe(
+      'Connaissance du 27/10/2026 + 3 jours ouvrés, comptés du lendemain hors samedis, dimanches et jours fériés (délai du contrat ; C. assur. L. 113-2, 4°) : au plus tard le 30/10/2026.',
+    )
     expect(regimes('Catastrophes naturelles')).toEqual({
       declarationAConfirmer: "catastrophe naturelle : délai compté de la publication de l'arrêté (C. assur. L. 125-2)",
       prescriptionAConfirmer: null,
@@ -312,8 +317,9 @@ describe('sinistres — repères de délais (indicatifs)', () => {
   it('J67, R50 : l’avertissement rappelle de déclarer dès la connaissance ; le repère est le minimum légal du délai prévu au contrat', () => {
     for (const type of ['Dégât des eaux', 'Vol'] as const) {
       const reperes = reperesDelaisSinistre(creerSinistre(saisie({ type })))
-      expect(reperes.avertissement).toContain(
-        'Déclarer dès la connaissance du sinistre ; le repère est le minimum légal du délai prévu au contrat (C. assur. art. L. 113-2, 4°)',
+      // Empilement : texte de J67, R49 (documents-suivi, plus récent dans la pile), qui garde le rappel de R50.
+      expect(reperes.avertissement).toMatch(
+        /^Déclarer dès la connaissance du sinistre\. Déclaration au plus tard à la date retenue : délai du contrat s'il est saisi, sinon minimum légal \(C\. assur\. art\. L\. 113-2, 4°\)/,
       )
       expect(reperes.desLaConnaissance).toBe(false)
     }

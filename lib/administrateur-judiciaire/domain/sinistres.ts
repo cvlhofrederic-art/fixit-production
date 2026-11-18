@@ -45,8 +45,9 @@ import {
  * une interruption la repousse : agir avant est toujours sûr). Jours ouvrés lus du lundi au vendredi, hors jours
  * fériés (le texte ne les définit pas) ; leur ajout au calendrier réglementaire est un choix de Frédéric.
  * Relecture de R49 (sa contre-vérification n'a vu que le vol) : la garantie impayés (assurance crédit possible,
- * L. 111-1), « Dommages Ouvrage » et « Catastrophes naturelles » (délais propres) gardent un repère à confirmer, avec sa
- * raison (REGIMES_A_CONFIRMER) ; chaque date rend sa justification (départ, durée, texte, date retenue).
+ * L. 111-1) et « Catastrophes naturelles » (délai propre) gardent un repère à confirmer, avec sa raison
+ * (REGIMES_A_CONFIRMER) ; « Dommages Ouvrage » suit sa règle propre (J67, R52, ci-dessous) ; chaque date rend sa
+ * justification (départ, durée, texte, date retenue).
  * Décisions de Hugo du 17/11/2026 (registre des décisions juridiques, J67) :
  * - J67, R50 : le décompte est confirmé : jours ouvrés comptés du lendemain de la connaissance, sans samedi, dimanche ni
  *   jour férié (L. 113-2, 4° dit « jours ouvrés » ; jour de départ exclu, CPC art. 641, al. 1, par analogie). Le message
@@ -465,19 +466,15 @@ const ASSURANCE_CREDIT_POSSIBLE: RegimeAConfirmer = {
  * Relecture de J67, R49 : sa contre-vérification n'a vu que le vol. Pour ces types, le minimum de L. 113-2, 4° n'est pas
  * sûrement le délai : la date calculée reste un repère `aConfirmer`, avec sa raison, en attendant la règle propre du type.
  * - garantie impayés : ASSURANCE_CREDIT_POSSIBLE ;
- * - « Dommages Ouvrage » : les clauses types ne fixent aucun délai à l'assuré (declaration-sinistre.ts ; J67, R52, à
- *   appliquer à ce type dans son propre lot) ;
  * - « Catastrophes naturelles » : délai compté de la publication de l'arrêté (L. 125-2 ; declaration-sinistre.ts), date que
  *   la fiche ne porte pas.
- * « Tempête, Grêles, Neiges » n'y est pas : J67, R53 garde le repère de droit commun.
+ * « Tempête, Grêles, Neiges » n'y est pas : J67, R53 garde le repère de droit commun. « Dommages Ouvrage » n'y est plus :
+ * sa règle propre, attendue ici, est appliquée (J67, R52 : aucun minimum, à déclarer dès la connaissance, sauf délai de
+ * la police ; delaiMinimumJoursOuvres).
  */
 const REGIMES_A_CONFIRMER: Readonly<Partial<Record<TypeSinistre, RegimeAConfirmer>>> = {
   'Charges Impayées': ASSURANCE_CREDIT_POSSIBLE,
   'Loyers Impayés': ASSURANCE_CREDIT_POSSIBLE,
-  'Dommages Ouvrage': {
-    declaration: "dommages-ouvrage : les clauses types ne fixent aucun délai à l'assuré (C. assur. annexe II à l'art. A. 243-1)",
-    prescription: null,
-  },
   'Catastrophes naturelles': {
     declaration: "catastrophe naturelle : délai compté de la publication de l'arrêté (C. assur. L. 125-2)",
     prescription: null,
@@ -485,7 +482,7 @@ const REGIMES_A_CONFIRMER: Readonly<Partial<Record<TypeSinistre, RegimeAConfirme
 }
 
 export interface ReperesDelaisSinistre {
-  /** Minimum légal de l'art. L. 113-2, 4° pour ce type (vol : 2 jours ouvrés). */
+  /** Minimum légal de l'art. L. 113-2, 4° pour ce type (vol : 2 jours ouvrés ; dommages-ouvrage : aucun, J67, R52). */
   minimumLegalJoursOuvres: number
   delaiDeclarationJoursOuvres: number
   /** Le délai du contrat, saisi et au moins égal au minimum légal, est retenu. */
@@ -541,9 +538,10 @@ export function reperesDelaisSinistre(
     declarationAConfirmer: regime?.declaration ?? null,
     declarationAuPlusTard,
     desLaConnaissance,
-    justificationDeclaration:
-      `Connaissance du ${fr(sinistre.dateConnaissance)} + ${delaiDeclarationJoursOuvres} jours ouvrés, comptés du lendemain hors samedis, dimanches et jours fériés ` +
-      `(${texteDelaiDeclaration(delaiDuContrat, delaiContratJoursOuvres)}) : au plus tard le ${fr(declarationAuPlusTard)}.`,
+    justificationDeclaration: desLaConnaissance
+      ? `Connaissance du ${fr(sinistre.dateConnaissance)}, sans délai (clauses types, C. assur. annexe II à l'art. A. 243-1 ; J67, R52) : à déclarer dès la connaissance (C. assur. L. 113-2, 4°).`
+      : `Connaissance du ${fr(sinistre.dateConnaissance)} + ${delaiDeclarationJoursOuvres} jours ouvrés, comptés du lendemain hors samedis, dimanches et jours fériés ` +
+        `(${texteDelaiDeclaration(delaiDuContrat, delaiContratJoursOuvres)}) : au plus tard le ${fr(declarationAuPlusTard)}.`,
     declarationTardive: !desLaConnaissance && sinistre.dateDeclaration !== null && sinistre.dateDeclaration > declarationAuPlusTard,
     prescription,
     prescriptionAConfirmer: regime?.prescription ?? null,
