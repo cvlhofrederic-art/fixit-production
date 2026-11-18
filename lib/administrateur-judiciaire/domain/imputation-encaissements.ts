@@ -32,7 +32,10 @@ import { TYPE_APPEL_LIE_AU_MOUVEMENT, type TypeAppelLieAuMouvement } from '@/lib
  * imputation sur des appels non échus (`imputerSurAVenir`) suppose sa volonté ; même alors, un appel de FONDS DE
  * TRAVAUX non échu n'est jamais servi d'office, ces sommes étant définitivement acquises au syndicat dès leur versement
  * (L. 1965 art. 14-2-1, III).
- * L'écriture reste celle de R7 (débit banque / crédit 450) ; chaque crédit porte l'appel d'origine (R8).
+ * L'écriture reste celle de R7 (débit banque / crédit 450) ; chaque crédit porte l'appel d'origine (R8). Décision de Hugo
+ * du 17/11/2026 (J67, R104 ; arrêté du 14/03/2005, art. 10) : si l'AG a créé le sous-compte 450-1, les postes du budget
+ * (appel du budget, régularisation des charges) y sont crédités, comme ils y ont été débités ; le reste et le reliquat
+ * au 450, sans compensation entre les deux (art. 9).
  */
 
 export interface PosteDette {
@@ -61,7 +64,15 @@ export interface PosteDette {
    * rien ne l'exclut ici. Lecture par le contentieux (recouvrement.ts) : à brancher après la PR #741.
    */
   horsArt19_2?: string
+  /**
+   * J67, R104 : poste porté par le compte du budget (450-1 si l'AG l'a créé) sans être un appel « Budget » : la
+   * régularisation des charges (regularisation-charges.postesRegularisation). Un appel « Budget » l'est toujours.
+   */
+  compteBudget?: boolean
 }
+
+/** J67, R104 : poste porté par le compte du budget (450-1 si l'AG l'a créé) : appel du budget, régularisation des charges. */
+export const estPosteDuBudget = (poste: Pick<PosteDette, 'typeAppel' | 'compteBudget'>): boolean => poste.typeAppel === 'Budget' || poste.compteBudget === true
 
 /** J67, R98 : D. 1967 art. 43, al. 2, dernière phrase. */
 export const MOTIF_HORS_19_2_ART_43 =
@@ -358,18 +369,22 @@ export function imputerEncaissements(
 /**
  * R7 + R8 — écriture de l'encaissement imputé : débit banque du montant ; crédit du compte copropriétaire, une ligne par
  * poste imputé portant l'appel d'origine quand il est connu, plus le reliquat sans origine. Les postes sont lus dans le
- * résultat d'imputation lui-même.
+ * résultat d'imputation lui-même. J67, R104 : avec le 450-1 créé par l'AG (`compteBudget`), les postes du budget
+ * (estPosteDuBudget) y sont crédités, comme ils y ont été débités ; le reste et le reliquat au compte copropriétaire.
  */
 export function mouvementsEncaissementImpute({
   encaissement,
   resultat,
   compteBanque,
   compteCoproprietaire,
+  compteBudget = null,
 }: {
   encaissement: Encaissement
   resultat: ResultatImputation
   compteBanque: string
   compteCoproprietaire: string
+  /** J67, R104 : 450-1 du compte, si l'AG l'a créé ; absent : tout au compte copropriétaire. */
+  compteBudget?: string | null
 }): LigneMouvement[] {
   if (resultat.encaissementId !== encaissement.id) throw new Error("Le résultat d'imputation ne correspond pas à l'encaissement.")
   const impute = resultat.lignes.reduce((s, l) => s + l.montantCentimes, 0)
@@ -380,7 +395,8 @@ export function mouvementsEncaissementImpute({
     if (!poste) throw new Error(`Poste imputé introuvable (id=${ligne.posteId}).`)
     const origine =
       poste.appelId && poste.typeAppel ? { origine: { type: 'appel' as const, appelId: poste.appelId, typeAppel: poste.typeAppel } } : {}
-    return { compte: compteCoproprietaire, sens: 'credit', montantCentimes: ligne.montantCentimes, ...origine }
+    const compte = compteBudget && estPosteDuBudget(poste) ? compteBudget : compteCoproprietaire
+    return { compte, sens: 'credit', montantCentimes: ligne.montantCentimes, ...origine }
   })
   if (resultat.resteAImputerCentimes > 0)
     credits.push({ compte: compteCoproprietaire, sens: 'credit', montantCentimes: resultat.resteAImputerCentimes })

@@ -769,6 +769,23 @@ describe('retours de relecture du point 17 — contenu, mentions et diffusion', 
     expect(diffuse(contenu, { courrielsAvis: [enErreur], communications: [nouvelle] })[0]).toMatchObject({ canal: 'electronique', adresseElectronique: 'a2@exemple.invalid' })
   })
 
+  it('J69 (J67, R20) : réponse à l’invitation, lettre simple demandée pour les avis : lettre simple ; une adresse donnée ensuite pour les avis l’emporte', () => {
+    const contenu = contenuAvisAppel(avis, options())
+    const demande = { identiteId: 'i-cpt-A', recueLe: '2026-11-01' }
+    const [postal] = diffuse(contenu, { demandesLettreSimpleAvis: [demande] })
+    expect(postal).toMatchObject({ canal: 'postal', adresseElectronique: null, origineAdresse: null })
+    expect(postal.courrier?.modeleId).toBe('mod-postal')
+    expect(postal.valeursFusion['mention.confirmationAdresse']).toBeNull()
+    // Demande reçue après la diffusion : sans effet ; demande d'une autre identité : sans effet.
+    for (const sansEffet of [{ ...demande, recueLe: '2026-12-16' }, { ...demande, identiteId: 'i-cpt-B' }])
+      expect(diffuse(contenu, { demandesLettreSimpleAvis: [sansEffet] })[0]).toMatchObject({ canal: 'electronique', origineAdresse: 'notifications' })
+    // Adresse donnée pour les avis après la demande : courriel à cette adresse ; donnée avant : la demande l'emporte.
+    const pourAvis = creerCommunicationAdresseElectronique({ identiteId: 'i-cpt-A', adresse: 'avis-a@exemple.invalid', communiqueeLe: '2026-11-20' })
+    expect(diffuse(contenu, { demandesLettreSimpleAvis: [demande], communicationsAvis: [pourAvis] })[0]).toMatchObject({ canal: 'electronique', origineAdresse: 'avis' })
+    const pourAvisAvant = { ...pourAvis, communiqueeLe: '2026-02-01' }
+    expect(diffuse(contenu, { demandesLettreSimpleAvis: [demande], communicationsAvis: [pourAvisAvant] })[0]).toMatchObject({ canal: 'postal', origineAdresse: null })
+  })
+
   it('J67, R100 : indivision — un avis par personne, « à payer une seule fois » ; avis principal au mandataire commun, copie aux autres', () => {
     const indivision = [...positions, position('p3', 'lot-2', 'cpt-B', 'i-cpt-B2')]
     const duCompteB = (sorties: DiffusionAvisCompte[]) => sorties.filter((s) => s.compteId === 'cpt-B').map((s) => [s.identiteId, s.exemplaire, s.valeursFusion['mention.payerUneFois']])
@@ -1023,14 +1040,14 @@ describe('contrôle du point 17 — l’avis n’annonce que le débit que le lo
 
 describe('J67, R113 : vente du lot entre l’avis et l’exigibilité (D. 1967 art. 6-2, 1° et 2°)', () => {
   const comptesVente = [...comptes, creerCompteCoproprietaire({ id: 'cpt-Q', coproprieteId: 'copro-1', serie: '3', libelle: 'Acquéreur Q' })]
-  /** Lot 1 (compte A, prélevé) vendu à Q à la date donnée ; avis du 15/12/2026, exigibilité au 01/01/2027. */
-  const vendu = (date: string) =>
+  /** Lot 1 (compte A, prélevé) vendu à Q, ou au compte donné, à la date donnée ; avis du 15/12/2026, exigibilité au 01/01/2027. */
+  const vendu = (date: string, compteId = 'cpt-Q') =>
     muterLot(positions, {
       lotId: 'lot-1',
       date,
       sortantes: ['p1'],
       nature: 'onereuse',
-      entrantes: [{ id: 'pQ', identiteId: 'i-cpt-Q', compteId: 'cpt-Q', qualite: 'Copropriétaire', part: { numerateur: 1, denominateur: 1 } }],
+      entrantes: [{ id: 'pQ', identiteId: `i-${compteId}`, compteId, qualite: 'Copropriétaire', part: { numerateur: 1, denominateur: 1 } }],
     }).positions
   const soldesAnterieurs = { 'cpt-A': 10_000, 'cpt-B': -5_000 }
   const contenuApres = (date: string) =>
@@ -1051,12 +1068,34 @@ describe('J67, R113 : vente du lot entre l’avis et l’exigibilité (D. 1967 a
     ])
     expect(effets.comptesARediffuser).toEqual(['cpt-A', 'cpt-Q'])
     expect(effets.prelevementsAnnules).toEqual([
-      { compteId: 'cpt-A', identiteId: 'i-cpt-A', montantCentimes: 40_000, date: '2027-01-05', message: expect.stringMatching(/400,00.*05\/01\/2027.*n'aura pas lieu.*acquéreur.*D\. 1967 art\. 6-2/) },
+      {
+        compteId: 'cpt-A',
+        identiteId: 'i-cpt-A',
+        montantCentimes: 40_000,
+        date: '2027-01-05',
+        message: expect.stringMatching(
+          /400,00.*05\/01\/2027.*n'aura pas lieu : après la vente du lot, les sommes exigibles après le jour de la vente sont dues par l'acquéreur ; celle exigible le jour même reste à votre charge \(D\. 1967 art\. 6-2\)/,
+        ),
+      },
     ])
+    expect(effets.prelevementsAnnules[0].message).not.toMatch(/depuis sa date/)
     expect(compteDe(apres, 'cpt-Q').lignes.map((l) => l.echeanceId)).toEqual(['B-2027-001-1', 'FT-2027-1', '00042-T1'])
     const lot = echeancesPrelevementDepuisAvis(apres, { prefixeId: 'APP-2027-01', diffusions: diffusionsAvant })
     expect(lot.echeances).toEqual([])
     expect(lot.ecartees.map((e) => e.compteId)).not.toContain('cpt-A')
+  })
+
+  it('acquéreur déjà prélevé (compte B) : il reçoit le nouvel avis, jamais le message d’annulation prévu pour le vendeur', () => {
+    const mandatB = mandat({ rum: 'RUM-TILL-00002', debiteur: 'Copropriétaire B', debiteurIdentiteId: 'i-cpt-B' })
+    const prelevesTous = options({ reglements: [...reglements().filter((r) => r.compteId !== 'cpt-B'), { compteId: 'cpt-B', mode: 'Prélèvement', mandat: mandatB }] })
+    const avantB = contenuAvisAppel(avis, prelevesTous)
+    const apresB = contenuAvisAppel(avisDAppel({ echeances, cles: [cle], positions: vendu('2026-12-20', 'cpt-B'), comptes, soldesAnterieurs }), prelevesTous)
+    const debitDeB = (contenu: ContenuAvisAppel) => compteDe(contenu, 'cpt-B').instructions
+    expect(debitDeB(avantB)).toMatchObject({ mode: 'Prélèvement', montantCentimes: 60_000, date: '2027-01-05' })
+    expect(debitDeB(apresB)).toMatchObject({ mode: 'Prélèvement', montantCentimes: 100_000, date: '2027-01-05' })
+    const effets = effetsMutationSurAvis(avantB, apresB, diffuse(avantB))
+    expect(effets.comptesARediffuser).toEqual(['cpt-A', 'cpt-B'])
+    expect(effets.prelevementsAnnules.map((p) => p.compteId)).toEqual(['cpt-A'])
   })
 
   it('le poste exigible le jour de la vente reste au vendeur : rien ne change, aucun message', () => {

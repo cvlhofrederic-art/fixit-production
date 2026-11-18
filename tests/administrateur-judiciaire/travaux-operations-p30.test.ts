@@ -597,7 +597,7 @@ describe('écriture de l’appel sur l’auxiliaire de l’opération et statut 
       ['TILL.10200.00043.0', 50_000, '00043'],
       ['TILL.10200.00000.0', 4_000, null],
     ])
-    const appelees = marquerAppelees(suivreEcheances(echeances), traitement, avis)
+    const appelees = marquerAppelees(suivreEcheances(echeances), traitement, avis, { exercices: [{ nom: '2026', ouverture: '2026-01-01', cloture: '2026-12-31' }] })
     expect(statutsDesTranches(op42, appelees).map((t) => [t.rang, t.statut, t.montantCentimes])).toEqual([
       [1, 'Appelé', 100_000],
       [2, 'Prévu', 100_000],

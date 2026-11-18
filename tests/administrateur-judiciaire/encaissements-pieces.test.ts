@@ -306,6 +306,27 @@ describe('écriture des encaissements : un traitement de la famille Encaissement
     expect(() => traitementEncaissements(lignes, { ...options, famille: 'Encaissement' })).not.toThrow()
   })
 
+  it('J67, R104 : sous-comptes du 450 créés par l’AG : appel du budget et régularisation crédités au 450-1, le reste et le reliquat au 450', () => {
+    const sousComptes450 = { decision: 'AG du 12/05/2025, résolution 9 (fictive)', planBudget: '45010' }
+    const postes: PosteDette[] = [
+      POSTES[0],
+      { ...poste('T1:lot-1', 'cpt-A', 20_000), typeAppel: 'Travaux' },
+      { ...poste('rep-2025:cpt-A', 'cpt-A', 5_000), appelId: null, typeAppel: null, compteBudget: true },
+    ]
+    const e1 = virement('E1', 'cpt-A', 70_000)
+    const lignes = { encaissements: [{ encaissement: e1, resultat: imputerEncaissement(e1, postes) }] }
+    const credits = (reglage: typeof sousComptes450 | null) =>
+      traitementEncaissements(lignes, { ...options, sousComptes450: reglage }).traitement.mouvements.filter((m) => m.sens === 'credit').map((m) => [m.compte, m.montantCentimes])
+    expect(credits(sousComptes450)).toEqual([
+      ['TILL.45010.00001.0', 40_000],
+      ['TILL.45000.00001.0', 20_000],
+      ['TILL.45010.00001.0', 5_000],
+      ['TILL.45000.00001.0', 5_000],
+    ])
+    expect(credits(null).map(([compte]) => compte)).toEqual(Array(4).fill('TILL.45000.00001.0'))
+    expect(() => credits({ ...sousComptes450, planBudget: '45000' })).toThrow(/450-1/)
+  })
+
   it('refuse un encaissement déjà écrit, en double, d’un compte inconnu, d’un autre syndicat, postérieur au traitement', () => {
     const e1 = virement('E1', 'cpt-A', 10_000)
     const ligne = { encaissement: e1, resultat: imputerEncaissement(e1, POSTES) }
@@ -465,6 +486,8 @@ describe('en-tête du module', () => {
 
   it('J67, R101 : la question des comptes 401, 409, 461, 487 et de la subvention sans notification est tranchée', () => {
     expect(EN_TETE).not.toMatch(/Faut-il admettre aussi en recette 401 ou 409/)
-    expect(EN_TETE).toMatch(/J67, R101.*401 et 409.*461.*487.*711/)
+    // Arrêté du 14/03/2005, art. 7 : 401 « Factures parvenues », 409 « Fournisseurs débiteurs » (chacun son intitulé).
+    expect(EN_TETE).toMatch(/J67, R101.*401 « Factures parvenues » et 409 « Fournisseurs débiteurs ».*461.*487.*711/)
+    expect(EN_TETE).not.toMatch(/401 et 409 « Fournisseurs débiteurs »/)
   })
 })

@@ -407,6 +407,17 @@ describe('J67, R107 : 47150 « Bascule gérance copropriété » et 471 crédite
     expect(() => importerPlanComptable([attenteBascule, occupe], { codeBascule: '47151' })).toThrow(/déjà pris/)
   })
 
+  it('import : une seule proposition par entrée gardée, jamais pour une entrée absorbée par la fusion des doubles « _ » ni en attente', () => {
+    const doubleBascule = { ...attenteBascule, id: 'pc-47150-b2', libelle: `${attenteBascule.libelle}_` }
+    const fusionne = importerPlanComptable([attenteBascule, doubleBascule])
+    expect(fusionne.remplacements).toEqual({ 'pc-47150-b2': 'pc-47150-b' })
+    expect(fusionne.renumerotations.map((r) => [r.id, r.codePropose])).toEqual([['pc-47150-b', '47151']])
+    const autreLibelle = { ...attenteBascule, id: 'pc-47150-b3', libelle: 'AUTRE LIBELLÉ' }
+    const enAttente = importerPlanComptable([attenteBascule, autreLibelle])
+    expect(enAttente.enAttente.map((e) => e.id)).toEqual(['pc-47150-b', 'pc-47150-b3'])
+    expect(enAttente.renumerotations).toEqual([])
+  })
+
   it('clôture : une subdivision du 471 créditrice est une anomalie, à reclasser en 472 ou à justifier ligne à ligne', () => {
     const lignes = [
       { compte: 'TILL.47150.00000.0', soldeCrediteurCentimes: 12_000 },

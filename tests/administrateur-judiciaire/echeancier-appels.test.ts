@@ -71,11 +71,17 @@ const TRANCHE_FINANCEE: EcheanceAppel = {
 
 const suivies = () => suivreEcheances(ECHEANCES)
 
+/** Exercices du syndicat : marquerAppelees les exige pour contrôler la date comptable de l'appel (J67, R96). */
+const EXERCICES = [
+  { nom: '2025', ouverture: '2025-01-01', cloture: '2025-12-31' },
+  { nom: '2026', ouverture: '2026-01-01', cloture: '2026-12-31' },
+]
+
 /** Appel réel : avis, écriture « Appel de fonds » (repartition-appels.ts), puis suivi des échéances appelées. */
 function appeler(echeances: EcheanceAppelSuivie[], id: string) {
   const avis = avisDAppel({ echeances, cles: [cle], positions, comptes })
-  const traitement = traitementAppelDeFonds(avis, { id, date: '2025-12-20', segmentSyndicat: SEGMENT, comptes })
-  return { avis, traitement, echeances: marquerAppelees(echeances, traitement, avis) }
+  const traitement = traitementAppelDeFonds(avis, { id, date: '2026-01-01', segmentSyndicat: SEGMENT, comptes })
+  return { avis, traitement, echeances: marquerAppelees(echeances, traitement, avis, { exercices: EXERCICES }) }
 }
 
 describe('suivi des échéances d’appel', () => {
@@ -166,31 +172,32 @@ describe('échéances à appeler, puis appelées par un traitement « Appel de f
         { compte: 'TILL.45000.00001.0', sens: 'credit', montantCentimes: 105_000 },
       ],
     })
-    expect(() => marquerAppelees([b1, ft1], encaissement, avis)).toThrow(/« Appel de fonds »/)
-    expect(() => marquerAppelees([b1], traitement, avis)).toThrow(/Appel t-appel-1 : échéance\(s\) FT-2026-1 de l'avis absente\(s\) de la liste ; passer la liste complète/)
-    expect(() => marquerAppelees([], traitement, avis)).toThrow(/B-2026-1, FT-2026-1 de l'avis absente\(s\)/)
-    expect(() => marquerAppelees([b1, ft1], traitement, { ...avis, echeances: [] })).toThrow(/aucune échéance dans l'avis/)
-    expect(() => marquerAppelees([b1, b1], traitement, avis)).toThrow(/en double/)
-    expect(() => marquerAppelees([b1, mettreEnAttente(ft1, 'motif')], traitement, avis)).toThrow(/la reprendre/)
-    const autreAppel = traitementAppelDeFonds(avis, { id: 't-appel-2', date: '2025-12-20', segmentSyndicat: SEGMENT, comptes })
-    expect(() => marquerAppelees(marquerAppelees([b1, ft1], traitement, avis), autreAppel, avis)).toThrow(/« Appelé » → « Appelé »/)
-    expect(() => marquerAppelees([b1, { ...ft1, coproprieteId: 'copro-2' }], traitement, avis)).toThrow(/plusieurs syndicats/)
-    expect(() => marquerAppelees([b1, annulerAvantAppel(ft1)], traitement, avis)).toThrow(/« Annulé » → « Appelé »/)
+    expect(() => marquerAppelees([b1, ft1], encaissement, avis, { exercices: EXERCICES })).toThrow(/« Appel de fonds »/)
+    expect(() => marquerAppelees([b1], traitement, avis, { exercices: EXERCICES })).toThrow(/Appel t-appel-1 : échéance\(s\) FT-2026-1 de l'avis absente\(s\) de la liste ; passer la liste complète/)
+    expect(() => marquerAppelees([], traitement, avis, { exercices: EXERCICES })).toThrow(/B-2026-1, FT-2026-1 de l'avis absente\(s\)/)
+    expect(() => marquerAppelees([b1, ft1], traitement, { ...avis, echeances: [] }, { exercices: EXERCICES })).toThrow(/aucune échéance dans l'avis/)
+    expect(() => marquerAppelees([b1, b1], traitement, avis, { exercices: EXERCICES })).toThrow(/en double/)
+    expect(() => marquerAppelees([b1, mettreEnAttente(ft1, 'motif')], traitement, avis, { exercices: EXERCICES })).toThrow(/la reprendre/)
+    const autreAppel = traitementAppelDeFonds(avis, { id: 't-appel-2', date: '2026-01-01', segmentSyndicat: SEGMENT, comptes })
+    const appelees = marquerAppelees([b1, ft1], traitement, avis, { exercices: EXERCICES })
+    expect(() => marquerAppelees(appelees, autreAppel, avis, { exercices: EXERCICES })).toThrow(/« Appelé » → « Appelé »/)
+    expect(() => marquerAppelees([b1, { ...ft1, coproprieteId: 'copro-2' }], traitement, avis, { exercices: EXERCICES })).toThrow(/plusieurs syndicats/)
+    expect(() => marquerAppelees([b1, annulerAvantAppel(ft1)], traitement, avis, { exercices: EXERCICES })).toThrow(/« Annulé » → « Appelé »/)
   })
 
   it('refuse des échéances de même total qui ne sont pas celles de l’avis de l’appel (provisions égales d’un autre trimestre)', () => {
     const [b1, , b2] = suivies()
     const { traitement, avis } = appeler([b1], 't-appel-1')
     expect(b2.montantCentimes).toBe(b1.montantCentimes)
-    expect(() => marquerAppelees([b2], traitement, avis)).toThrow(/Appel t-appel-1 : échéance\(s\) B-2026-1 de l'avis absente\(s\) de la liste/)
-    expect(() => marquerAppelees([{ ...b1, montantCentimes: 99_999 }], traitement, avis)).toThrow(/B-2026-1 : 99999 centimes, l'avis porte 100000/)
+    expect(() => marquerAppelees([b2], traitement, avis, { exercices: EXERCICES })).toThrow(/Appel t-appel-1 : échéance\(s\) B-2026-1 de l'avis absente\(s\) de la liste/)
+    expect(() => marquerAppelees([{ ...b1, montantCentimes: 99_999 }], traitement, avis, { exercices: EXERCICES })).toThrow(/B-2026-1 : 99999 centimes, l'avis porte 100000/)
   })
 
   it('travaille sur la liste complète des échéances suivies : seules celles de l’avis passent « Appelé », avec la composition de l’appel', () => {
     const [b1, ft1, b2, t1] = suivies()
     const avis = avisDAppel({ echeances: [b1, ft1], cles: [cle], positions, comptes })
-    const traitement = traitementAppelDeFonds(avis, { id: 't-appel-1', date: '2025-12-20', segmentSyndicat: SEGMENT, comptes })
-    const resultat = marquerAppelees([t1, b1, b2, ft1], traitement, avis)
+    const traitement = traitementAppelDeFonds(avis, { id: 't-appel-1', date: '2026-01-01', segmentSyndicat: SEGMENT, comptes })
+    const resultat = marquerAppelees([t1, b1, b2, ft1], traitement, avis, { exercices: EXERCICES })
     expect(resultat.map((e) => [e.id, e.statut, e.traitementId, e.echeancesDeLAppel])).toEqual([
       ['00042-T1', 'Prévu', null, []],
       ['B-2026-1', 'Appelé', 't-appel-1', ['B-2026-1', 'FT-2026-1']],
@@ -205,20 +212,20 @@ describe('échéances à appeler, puis appelées par un traitement « Appel de f
     const [b1, , b2] = suivies()
     const avis1 = avisDAppel({ echeances: [b1], cles: [cle], positions, comptes })
     const avis2 = avisDAppel({ echeances: [b2], cles: [cle], positions, comptes })
-    const t1 = traitementAppelDeFonds(avis1, { id: 't-appel-1', date: '2025-12-20', segmentSyndicat: SEGMENT, comptes })
-    const liste = marquerAppelees([b1, b2], t1, avis1)
+    const t1 = traitementAppelDeFonds(avis1, { id: 't-appel-1', date: '2026-01-01', segmentSyndicat: SEGMENT, comptes })
+    const liste = marquerAppelees([b1, b2], t1, avis1, { exercices: EXERCICES })
     expect(liste.map((e) => [e.id, e.statut, e.traitementId])).toEqual([
       ['B-2026-1', 'Appelé', 't-appel-1'],
       ['B-2026-2', 'Prévu', null],
     ])
-    expect(() => marquerAppelees(liste, t1, avis2)).toThrow(
+    expect(() => marquerAppelees(liste, t1, avis2, { exercices: EXERCICES })).toThrow(
       /Appel t-appel-1 : il a déjà appelé B-2026-1 ; un traitement n'appelle qu'un lot d'échéances \(celles de son avis\), une seule fois/,
     )
-    expect(() => marquerAppelees(annulerAppelees(liste, annulerTraitement(t1, { id: 't-annul-1', date: '2026-01-15' }), postesDepuisAvis(avis1)), t1, avis2)).toThrow(
+    expect(() => marquerAppelees(annulerAppelees(liste, annulerTraitement(t1, { id: 't-annul-1', date: '2026-01-15' }), postesDepuisAvis(avis1)), t1, avis2, { exercices: EXERCICES })).toThrow(
       /il a déjà appelé B-2026-1/,
     )
     // Liste incomplète au marquage (sans B-2026-1) : invisible à ce moment, la composition retenue le signale ensuite.
-    const [b2MarqueSeul] = marquerAppelees([b2], t1, avis2)
+    const [b2MarqueSeul] = marquerAppelees([b2], t1, avis2, { exercices: EXERCICES })
     const marquees = [liste[0], b2MarqueSeul]
     const postes = [...postesDepuisAvis(avis1), ...postesDepuisAvis(avis2)]
     expect(() => postesImputables(postes, marquees)).toThrow(/Appel t-appel-1 : échéances marquées sur deux avis \(B-2026-1 \| B-2026-2\)/)
@@ -238,19 +245,19 @@ describe('échéances à appeler, puis appelées par un traitement « Appel de f
     const enBudget = { ...ft1, nature: 'budget' as const, compteContrepartie: '70100' }
     const ecritEnBudget = traitementAppelDeFonds(avisDAppel({ echeances: [enBudget], cles: [cle], positions, comptes }), {
       id: 't-autre',
-      date: '2025-12-20',
+      date: '2026-01-01',
       segmentSyndicat: SEGMENT,
       comptes,
     })
-    expect(() => marquerAppelees([ft1], ecritEnBudget, avisFonds)).toThrow(/Appel t-autre : contrepartie 10500 : 0 centimes crédités, l'avis en appelle 5000/)
+    expect(() => marquerAppelees([ft1], ecritEnBudget, avisFonds, { exercices: EXERCICES })).toThrow(/Appel t-autre : contrepartie 10500 : 0 centimes crédités, l'avis en appelle 5000/)
     const unSeulCompte = [position('p1', 'lot-1', 'cpt-A'), position('p2', 'lot-2', 'cpt-A')]
     const autreRepartition = traitementAppelDeFonds(avisDAppel({ echeances: [ft1], cles: [cle], positions: unSeulCompte, comptes }), {
       id: 't-autre',
-      date: '2025-12-20',
+      date: '2026-01-01',
       segmentSyndicat: SEGMENT,
       comptes,
     })
-    expect(() => marquerAppelees([ft1], autreRepartition, avisFonds)).toThrow(/Appel t-autre : débits des comptes 450 \(5000\) autres que ceux de l'avis \(2000, 3000\)/)
+    expect(() => marquerAppelees([ft1], autreRepartition, avisFonds, { exercices: EXERCICES })).toThrow(/Appel t-autre : débits des comptes 450 \(5000\) autres que ceux de l'avis \(2000, 3000\)/)
   })
 
   it('une échéance à 0 c (tranche entièrement financée par le fonds de travaux) s’appelle avec les autres sans bloquer l’écriture ; seule, elle attend', () => {
@@ -273,15 +280,12 @@ describe('échéances à appeler, puis appelées par un traitement « Appel de f
     const sousComptes450 = { decision: 'AG du 12/05/2025, résolution 9 (fictive)', planBudget: '45010' }
     const traitement = traitementAppelDeFonds(avis, { id: 't-450-1', date: '2026-01-01', segmentSyndicat: SEGMENT, comptes, sousComptes450 })
     expect(traitement.mouvements.filter((m) => m.sens === 'debit')).toHaveLength(4)
-    expect(marquerAppelees([b1, ft1], traitement, avis).map((e) => e.statut)).toEqual(['Appelé', 'Appelé'])
+    expect(marquerAppelees([b1, ft1], traitement, avis, { exercices: EXERCICES }).map((e) => e.statut)).toEqual(['Appelé', 'Appelé'])
   })
 })
 
 describe('J67, R96 : date comptable de l’appel = date d’exigibilité (décret n° 2005-240, art. 3, al. 2, et art. 4)', () => {
-  const exercices = [
-    { nom: '2025', ouverture: '2025-01-01', cloture: '2025-12-31' },
-    { nom: '2026', ouverture: '2026-01-01', cloture: '2026-12-31' },
-  ]
+  const exercices = EXERCICES
   const [b1, ft1, b2] = suivreEcheances(ECHEANCES)
   const avisJanvier = avisDAppel({ echeances: [b1, ft1], cles: [cle], positions, comptes })
   const ecrit = (date: string, avis = avisJanvier) => traitementAppelDeFonds(avis, { id: `t-${date}`, date, segmentSyndicat: SEGMENT, comptes })
@@ -302,9 +306,16 @@ describe('J67, R96 : date comptable de l’appel = date d’exigibilité (décre
     expect(refus.fondement).toMatch(/décret n° 2005-240, art\. 3, al\. 2 ; art\. 4 ; J67, R96/)
   })
 
-  it('le refus s’applique à marquerAppelees quand les exercices sont fournis ; une exigibilité hors de tout exercice est refusée', () => {
+  it('marquerAppelees exige les exercices et applique le refus ; une exigibilité hors de tout exercice est refusée', () => {
     expect(() => marquerAppelees([b1, ft1], ecrit('2025-12-20'), avisJanvier, { exercices })).toThrow(/exercice 2025.*exercice 2026/)
-    expect(marquerAppelees([b1, ft1], ecrit('2025-12-20'), avisJanvier).map((e) => e.statut)).toEqual(['Appelé', 'Appelé'])
+    // Sans les exercices, ou sans celui de l'exigibilité, l'appel n'est jamais marqué : le refus n'est pas facultatif.
+    // @ts-expect-error — appelant non typé (donnée reprise) : les exercices manquent.
+    expect(() => marquerAppelees([b1, ft1], ecrit('2025-12-20'), avisJanvier, {})).toThrow(/exercices du syndicat attendus.*J67, R96/)
+    expect(() => marquerAppelees([b1, ft1], ecrit('2026-01-01'), avisJanvier, { exercices: [] })).toThrow(/hors des exercices fournis/)
+    expect(marquerAppelees([b1, ft1], ecrit('2026-01-01'), avisJanvier, { exercices }).map((e) => e.statut)).toEqual(['Appelé', 'Appelé'])
+    // Datée de l'émission dans le même exercice : avertissement seulement, l'appel est marqué.
+    const avisAvril = avisDAppel({ echeances: [b2], cles: [cle], positions, comptes })
+    expect(marquerAppelees([b2], ecrit('2026-03-20', avisAvril), avisAvril, { exercices }).map((e) => e.statut)).toEqual(['Appelé'])
     expect(controlerDateComptableAppel(ecrit('2026-01-01'), avisJanvier, [exercices[0]])).toEqual([
       expect.objectContaining({ code: 'exigibilite_hors_exercice', gravite: 'bloquant', echeanceId: 'B-2026-1' }),
       expect.objectContaining({ code: 'exigibilite_hors_exercice', gravite: 'bloquant', echeanceId: 'FT-2026-1' }),

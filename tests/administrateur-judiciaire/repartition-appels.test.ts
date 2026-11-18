@@ -6,6 +6,7 @@ import {
   type NatureMutation,
   type Position,
 } from '@/lib/administrateur-judiciaire/domain/identites-positions'
+import { imputerEncaissement, mouvementsEncaissementImpute, postesDepuisAvis } from '@/lib/administrateur-judiciaire/domain/imputation-encaissements'
 import {
   avisDAppel,
   creerCleRepartition,
@@ -153,6 +154,19 @@ describe('avis d’appel par compte (D2)', () => {
     expect(() => ecrire({ ...sousComptes450, planBudget: '45000' })).toThrow(/450-1/)
     expect(() => ecrire({ ...sousComptes450, planBudget: '47100' })).toThrow(/450-1/)
     expect(() => ecrire({ ...sousComptes450, decision: ' ' })).toThrow(/décision/)
+    // Encaissement de tout l'appel du compte 1, plus 10 € : le 450-1 et le 450 sont soldés, le reliquat reste au crédit du 450.
+    const encaissement = { id: 'E1', compteId: 'cpt-A', date: '2026-04-01', montantCentimes: 74_260 }
+    const resultat = imputerEncaissement(encaissement, postesDepuisAvis(avis))
+    const credits = mouvementsEncaissementImpute({
+      encaissement,
+      resultat,
+      compteBanque: 'TILL.51200.00000.0',
+      compteCoproprietaire: 'TILL.45000.00001.0',
+      compteBudget: 'TILL.45010.00001.0',
+    })
+    const solde = (compte: string) =>
+      [...ecrire(sousComptes450).mouvements, ...credits].filter((m) => m.compte === compte).reduce((s, m) => s + (m.sens === 'debit' ? m.montantCentimes : -m.montantCentimes), 0)
+    expect([solde('TILL.45010.00001.0'), solde('TILL.45000.00001.0')]).toEqual([0, -1_000])
   })
 
   it('refuse d’écrire un appel qui comporte des anomalies', () => {

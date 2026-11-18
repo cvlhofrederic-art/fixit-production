@@ -206,11 +206,14 @@ function premierCodeLibre(pris: ReadonlySet<string>): string | null {
   return null
 }
 
-/** J67, R107 (1) : les entrées « Bascule » codées 47150 reçoivent un numéro distinct proposé, un par entrée. */
-function renumerotationsBascule(entrees: readonly PlanComptable[], codeBascule: string | undefined): RenumerotationPlan[] {
-  const bascules = entrees.filter((e) => e.code === CODE_ATTENTE_GESTEAM && composanteCle(e.type) === TYPE_BASCULE)
+/**
+ * J67, R107 (1) : les entrées « Bascule » codées 47150 GARDÉES par l'import (ni absorbées par une fusion, ni en attente)
+ * reçoivent un numéro distinct proposé, un par entrée ; les codes pris se lisent sur tout l'import de la source.
+ */
+function renumerotationsBascule(gardees: readonly PlanComptable[], importees: readonly PlanComptable[], codeBascule: string | undefined): RenumerotationPlan[] {
+  const bascules = gardees.filter((e) => e.code === CODE_ATTENTE_GESTEAM && composanteCle(e.type) === TYPE_BASCULE)
   return bascules.map((e) => {
-    const pris = new Set(entrees.filter((x) => x.source === e.source).map((x) => x.code))
+    const pris = new Set(importees.filter((x) => x.source === e.source).map((x) => x.code))
     const codePropose = codeBascule === undefined ? premierCodeLibre(pris) : verifierCodeBascule(codeBascule, pris)
     const cible = codePropose ? `numéro ${codePropose} proposé` : 'aucune subdivision 4715x libre : numéro à choisir'
     return {
@@ -436,17 +439,18 @@ function traiterFamille(famille: readonly PlanComptable[], acc: Accumulateur): v
  * mis en attente ; un même code à plusieurs types est conservé et signalé sans blocage. Garantie : chaque entrée de l'import
  * se retrouve une seule fois, conservée, absorbée ou en attente. Un identifiant en double est refusé. Le type « Bascule
  * gérance copropriété » codé 47150 reçoit un numéro distinct proposé (J67, R107) : `codeBascule`, réglé par le cabinet,
- * sinon le premier 4715x libre.
+ * sinon le premier 4715x libre ; seulement une entrée gardée (jamais une entrée absorbée ou en attente).
  */
 export function importerPlanComptable(entrees: readonly PlanComptable[], { codeBascule }: { codeBascule?: string } = {}): ResultatImportPlanComptable {
   const acc: Accumulateur = { rangs: rangsParId(entrees), conservees: [], fusions: [], signalements: [], idsEnAttente: new Set() }
   for (const famille of grouper(entrees, cleFamille)) traiterFamille(famille, acc)
+  const gardees = [...acc.conservees].sort((a, b) => a.rang - b.rang).map((c) => c.entree)
   return {
-    entrees: [...acc.conservees].sort((a, b) => a.rang - b.rang).map((c) => c.entree),
+    entrees: gardees,
     fusions: acc.fusions,
     remplacements: Object.fromEntries(acc.fusions.flatMap((f) => f.absorbesIds.map((id) => [id, f.conserveId]))),
     signalements: acc.signalements,
     enAttente: entrees.filter((e) => acc.idsEnAttente.has(e.id)),
-    renumerotations: renumerotationsBascule(entrees, codeBascule),
+    renumerotations: renumerotationsBascule(gardees, entrees, codeBascule),
   }
 }

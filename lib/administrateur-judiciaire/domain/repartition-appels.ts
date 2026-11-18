@@ -81,8 +81,9 @@ import { creerTraitement, type Traitement } from '@/lib/administrateur-judiciair
  * - J67, R104 (sous-comptes du 450) : si l'AG a créé les sous-comptes (arrêté du 14/03/2005, art. 7 et 10 ; décret
  *   n° 2005-240, art. 7), réglage du syndicat SousComptes450 : l'appel du budget est écrit au 450-1 « Copropriétaire -
  *   budget prévisionnel » (son code est donné par le réglage, aucun code n'est imposé), les autres natures au 450 ;
- *   sans réglage, tout au 45000, comme avant. L'encaissement et l'imputation sur ces postes créditent encore le 45000
- *   (imputation-encaissements.ts, encaissements-pieces.ts) : à brancher avant d'activer le réglage.
+ *   sans réglage, tout au 45000, comme avant. L'encaissement imputé sur ces postes crédite le même 450-1, le reste et le
+ *   reliquat au 45000 (encaissements-pieces.traitementEncaissements, même réglage ;
+ *   imputation-encaissements.estPosteDuBudget).
  */
 
 export interface LotCle {

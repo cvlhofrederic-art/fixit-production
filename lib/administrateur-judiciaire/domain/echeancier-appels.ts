@@ -68,10 +68,10 @@ import type { SensMouvement, Traitement } from '@/lib/administrateur-judiciaire/
  * Décision de Hugo du 17/11/2026 (registre des décisions juridiques, J67, R96 ; décret n° 2005-240, art. 3, al. 2, et
  * art. 4, relus le 17/11/2026) : date comptable = date d'exigibilité de l'échéance (dateComptableAppel la propose) ; la
  * date d'émission reste une information (date de l'avis). controlerDateComptableAppel : une date comptable dans un autre
- * exercice que celui de l'exigibilité est un refus (bloquant ; marquerAppelees le lève quand les exercices lui sont
- * fournis) ; une date autre que l'exigibilité dans le même exercice, un avertissement. Gestéam date le traitement de
- * l'émission (tranche 43 § 8) : à la reprise, le même contrôle signale l'écart, sans effet sur les montants (branchement
- * de la reprise des appels : à faire).
+ * exercice que celui de l'exigibilité est un refus (bloquant ; marquerAppelees exige les exercices du syndicat et le
+ * lève toujours) ; une date autre que l'exigibilité dans le même exercice, un avertissement. Gestéam date le traitement
+ * de l'émission (tranche 43 § 8) : à la reprise, le même contrôle signale l'écart, sans effet sur les montants
+ * (branchement de la reprise des appels : à faire).
  *
  * 🔴 Non établi (questions pour Frédéric ou Hugo) :
  * - « Une échéance "En attente" est-elle une échéance suspendue avant son appel (par exemple des travaux pendant le
@@ -379,14 +379,18 @@ export function controlerDateComptableAppel(
  * mêmes montants), du même syndicat (D1), toutes « Prévu », passent « Appelé » avec l'identifiant du traitement et la
  * composition de l'appel ; les autres sont inchangées. Refuse un traitement qui porte déjà sur une échéance de la liste
  * (il n'appelle qu'un lot, une fois), un avis qui ne concorde pas avec lui (crédits par contrepartie, débits des comptes
- * 450) et, quand les exercices sont fournis, une date comptable refusée par controlerDateComptableAppel (J67, R96).
+ * 450) et une date comptable refusée par controlerDateComptableAppel (J67, R96) : les exercices du syndicat sont
+ * obligatoires, le refus n'est jamais facultatif.
  */
 export function marquerAppelees<E extends EcheanceAppelSuivie>(
   echeances: E[],
   traitement: Traitement,
   avis: AvisAppels,
-  { exercices }: { exercices?: readonly BornesExercice[] } = {},
+  { exercices }: { exercices: readonly BornesExercice[] },
 ): E[] {
+  // Appelant non typé (donnée reprise, JavaScript) : sans les exercices, le contrôle de la date comptable serait sauté.
+  if (!Array.isArray(exercices))
+    throw new Error(`Appel ${traitement.id} : exercices du syndicat attendus, pour contrôler la date comptable de l'appel (J67, R96).`)
   if (traitement.famille !== 'Appel de fonds')
     throw new Error(`Traitement ${traitement.id} de la famille « ${traitement.famille} » : seul un « Appel de fonds » appelle des échéances.`)
   const index = indexerSuivies(echeances)
@@ -403,7 +407,7 @@ export function marquerAppelees<E extends EcheanceAppelSuivie>(
     verifierTransition(e, 'Appelé')
   }
   verifierAvisDuTraitement(avis, traitement)
-  const refus = exercices ? controlerDateComptableAppel(traitement, avis, exercices).filter((a) => a.gravite === 'bloquant') : []
+  const refus = controlerDateComptableAppel(traitement, avis, exercices).filter((a) => a.gravite === 'bloquant')
   if (refus.length > 0) throw new Error(`Appel ${traitement.id} refusé : ${refus.map((a) => a.message).join(' ; ')}`)
   const lot = appelees.map((e) => e.id)
   const ids = new Set(lot)

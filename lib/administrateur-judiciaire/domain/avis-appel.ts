@@ -154,10 +154,12 @@ import type { FormeEnvoiCourrier, ModeReglement, TypeAppelLieAuMouvement } from 
  *   postale vise les « notifications et mises en demeure » (art. 64-1, 64-4), pas les avis. Une adresse électronique
  *   donnée pour les avis (communicationsAvis) sert donc même si la voie postale est demandée ; sans elle, l'adresse des
  *   notifications (art. 65) sert, sauf demande de voie postale (lettre simple) : le premier avis envoyé ainsi invite à
- *   confirmer l'adresse pour les avis ou à demander la lettre simple (mention.confirmationAdresse), et la lettre simple
- *   remplace le courriel dès qu'un avis revient en erreur à cette adresse (courrielsAvis, anomalie
- *   courriel_avis_en_erreur ; enregistrement des envois et des retours : à brancher). J52 reste valable pour les
- *   notifications. L'avis garde la mention de l'art. 64-2 ; avant le 25/12/2025, régime antérieur inchangé ;
+ *   confirmer l'adresse pour les avis ou à demander la lettre simple (mention.confirmationAdresse) ; la demande de
+ *   lettre simple pour les avis (demandesLettreSimpleAvis) donne la lettre simple dès sa réception, sans toucher aux
+ *   notifications, tant qu'aucune adresse n'est donnée ensuite pour les avis ; la lettre simple remplace aussi le
+ *   courriel dès qu'un avis revient en erreur à cette adresse (courrielsAvis, anomalie courriel_avis_en_erreur ;
+ *   enregistrement des demandes, des envois et des retours : à brancher). J52 reste valable pour les notifications.
+ *   L'avis garde la mention de l'art. 64-2 ; avant le 25/12/2025, régime antérieur inchangé ;
  * - J67, R97 : pas de prélèvement avant l'exigibilité, même si le mandat le prévoit : la provision est exigible à la date
  *   fixée par la loi ou l'AG (L. 1965 art. 14-1, I, al. 3) ; le terme profite au débiteur, qui seul peut y renoncer
  *   (C. civ. art. 1305 et 1305-3) ; signer un mandat SEPA n'y renonce pas ; pour des débits plus tôt ou mensuels, une
@@ -1231,6 +1233,18 @@ export interface OptionsDiffusionAvis {
   communicationsAvis?: CommunicationAdresseElectronique[]
   /** Avis déjà envoyés par courriel, avec leur retour en erreur (J69 ; enregistrement : à brancher). */
   courrielsAvis?: readonly CourrielAvisEnvoye[]
+  /** Demandes de recevoir les avis par lettre simple, réponses à l'invitation (J69 ; enregistrement : à brancher). */
+  demandesLettreSimpleAvis?: readonly DemandeLettreSimpleAvis[]
+}
+
+/**
+ * J69 : le copropriétaire demande à recevoir les avis d'appel par lettre simple (réponse à l'invitation du premier avis
+ * envoyé à l'adresse des notifications). Elle vaut dès sa réception ; ce n'est pas une demande de voie postale pour les
+ * notifications (art. 64-1, 64-4), qui restent inchangées. Une adresse donnée ensuite pour les avis la remplace.
+ */
+export interface DemandeLettreSimpleAvis {
+  identiteId: string
+  recueLe: string
 }
 
 /** Avis d'appel envoyé par courriel à une identité (J69) : premier envoi à une adresse, retour en erreur. */
@@ -1427,17 +1441,28 @@ const envoisAAdresse = (identiteId: string, communication: CommunicationAdresseE
       c.envoyeLe <= options.date,
   )
 
+/** J69 : dernière demande de lettre simple pour les avis de l'identité, reçue au plus tard à la date ; null sinon. */
+function demandeLettreSimple(identiteId: string, options: OptionsDiffusionAvis): DemandeLettreSimpleAvis | null {
+  let derniere: DemandeLettreSimpleAvis | null = null
+  for (const d of options.demandesLettreSimpleAvis ?? [])
+    if (d.identiteId === identiteId && d.recueLe <= options.date && (derniere === null || d.recueLe > derniere.recueLe)) derniere = d
+  return derniere
+}
+
 /**
  * J69 (J67, R20) — D. 1967 art. 35-2 : par voie électronique « à l'adresse communiquée par le copropriétaire à cet
  * effet », ou par lettre simple à défaut. L'adresse donnée pour les avis sert même si la voie postale est demandée pour
  * les notifications (art. 64-1, 64-4) ; sans elle, l'adresse des notifications (art. 65), sauf demande de voie postale :
- * invitation à confirmer sur le premier avis envoyé ainsi, lettre simple après un retour en erreur. Avant le 25/12/2025
- * (voie non calculée), lettre simple, comme avant.
+ * invitation à confirmer sur le premier avis envoyé ainsi, lettre simple après un retour en erreur. Une demande de
+ * lettre simple pour les avis (réponse à l'invitation) donne la lettre simple, sauf adresse donnée pour les avis après
+ * elle ; à date égale, la lettre simple. Avant le 25/12/2025 (voie non calculée), lettre simple, comme avant.
  */
 function canalDeDiffusion(identiteId: string, options: OptionsDiffusionAvis): CanalDiffusion {
   const { voie } = voieDeNotification({ identiteId, demandes: options.demandesVoiePostale, date: options.date })
   if (voie === null) return LETTRE_SIMPLE
   const pourAvis = adresseElectroniqueDeNotification({ identiteId, communications: options.communicationsAvis ?? [], date: options.date })
+  const lettreSimple = demandeLettreSimple(identiteId, options)
+  if (lettreSimple && (!pourAvis || pourAvis.communiqueeLe <= lettreSimple.recueLe)) return LETTRE_SIMPLE
   if (pourAvis) return { ...LETTRE_SIMPLE, canal: 'electronique', adresseElectronique: pourAvis.adresse, origineAdresse: 'avis' }
   const notification = adresseElectroniqueDeNotification({ identiteId, communications: options.communications, date: options.date })
   if (voie !== 'electronique' || !notification) return LETTRE_SIMPLE
@@ -1675,15 +1700,18 @@ function debitChange(avant: DebitAnnonce, apres: ContenuAvisCompte | undefined):
 function messageAnnulation(avant: ContenuAvisCompte, debit: DebitAnnonce, apres: ContenuAvisCompte | undefined): string {
   const nouveau = apres ? debitAnnonce(apres.instructions) : null
   const suite = nouveau ? ` Un nouvel avis annonce le prélèvement de ${eur(nouveau.montantCentimes)} le ${dateIsoVersFr(nouveau.date)}.` : ''
-  return `Le prélèvement SEPA de ${eur(debit.montantCentimes)} du ${dateIsoVersFr(debit.date)} (mandat ${debit.rum}), annoncé par l'avis du ${dateIsoVersFr(avant.dateEmission)}, n'aura pas lieu : après la vente du lot, les sommes exigibles depuis sa date sont dues par l'acquéreur (D. 1967 art. 6-2).${suite}`
+  return `Le prélèvement SEPA de ${eur(debit.montantCentimes)} du ${dateIsoVersFr(debit.date)} (mandat ${debit.rum}), annoncé par l'avis du ${dateIsoVersFr(avant.dateEmission)}, n'aura pas lieu : après la vente du lot, les sommes exigibles après le jour de la vente sont dues par l'acquéreur ; celle exigible le jour même reste à votre charge (D. 1967 art. 6-2).${suite}`
 }
 
-/** Comptes de l'avis d'avant dont le débit pré-notifié (courrier préparé au détenteur) ne tient plus. */
-function prelevementsAnnules(avant: ContenuAvisAppel, apres: ContenuAvisAppel, comptes: ReadonlySet<string>, diffusions: readonly DiffusionAvisCompte[]): PrelevementAnnule[] {
+/**
+ * Comptes VENDEURS de l'avis d'avant dont le débit pré-notifié (courrier préparé au détenteur) ne tient plus (J67, R113
+ * (3) : le message ne va qu'au vendeur ; l'acquéreur reçoit le nouvel avis, qui vaut nouvelle pré-notification).
+ */
+function prelevementsAnnules(avant: ContenuAvisAppel, apres: ContenuAvisAppel, vendeurs: ReadonlySet<string>, diffusions: readonly DiffusionAvisCompte[]): PrelevementAnnule[] {
   return avant.parCompte.flatMap((compte) => {
     const debit = debitAnnonce(compte.instructions)
     const nouveau = apres.parCompte.find((c) => c.compteId === compte.compteId)
-    if (!debit || !comptes.has(compte.compteId) || !debitChange(debit, nouveau)) return []
+    if (!debit || !vendeurs.has(compte.compteId) || !debitChange(debit, nouveau)) return []
     const prevenu = diffusions.find((d) => d.compteId === compte.compteId && d.prenotification && d.courrier !== null && d.identiteId !== null)
     if (!prevenu?.identiteId) return []
     return [{ compteId: compte.compteId, identiteId: prevenu.identiteId, montantCentimes: debit.montantCentimes, date: debit.date, message: messageAnnulation(compte, debit, nouveau) }]
@@ -1694,9 +1722,10 @@ function prelevementsAnnules(avant: ContenuAvisAppel, apres: ContenuAvisAppel, c
  * Effets d'une mutation enregistrée entre l'avis et l'exigibilité (J67, R113 ; D. 1967 art. 6-2, 1° et 2°) : `avant` est
  * l'avis émis, `apres` le même avis recalculé avec les positions après la mutation (avisDAppel : le poste exigible le jour
  * même reste au vendeur, les suivants vont à l'acquéreur). Rend les postes transférés, les comptes à rediffuser (l'acquéreur
- * reçoit un avis) et, pour le détenteur qui a reçu la pré-notification d'un débit qui ne tient plus, le message disant que
- * le prélèvement n'aura pas lieu. L'adaptateur echeancesPrelevementDepuisAvis, lancé sur `apres`, ne prélève plus le
- * vendeur pour ces postes. Refuse deux avis d'émissions différentes.
+ * reçoit un avis) et, pour le seul vendeur dont le détenteur a reçu la pré-notification d'un débit qui ne tient plus, le
+ * message disant que le prélèvement n'aura pas lieu (un acquéreur déjà prélevé reçoit le nouvel avis, rien de plus).
+ * L'adaptateur echeancesPrelevementDepuisAvis, lancé sur `apres`, ne prélève plus le vendeur pour ces postes. Refuse
+ * deux avis d'émissions différentes.
  */
 export function effetsMutationSurAvis(avant: ContenuAvisAppel, apres: ContenuAvisAppel, diffusionsAvant: readonly DiffusionAvisCompte[]): EffetsMutationAvis {
   if (avant.dateEmission !== apres.dateEmission)
@@ -1720,6 +1749,6 @@ export function effetsMutationSurAvis(avant: ContenuAvisAppel, apres: ContenuAvi
   return {
     postesTransferes,
     comptesARediffuser: [...new Set(ordre)].filter((id) => touches.has(id)),
-    prelevementsAnnules: prelevementsAnnules(avant, apres, touches, diffusionsAvant),
+    prelevementsAnnules: prelevementsAnnules(avant, apres, new Set(postesTransferes.map((p) => p.deCompteId)), diffusionsAvant),
   }
 }

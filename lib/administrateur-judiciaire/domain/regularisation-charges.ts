@@ -175,28 +175,34 @@ import { planDuCompte } from '@/lib/administrateur-judiciaire/domain/verrou-sais
  * - J67, R103 : un exercice dont le budget n'a jamais été voté (« Préparation », « Budgété » : carence d'AG, fréquente en
  *   administration provisoire) se répartit sur les provisions réellement appelées (provisionsDepuisAvis, même nulles),
  *   avec l'avertissement « budget_non_vote » (décret n° 2005-240, art. 8 : comptes présentés « avec le budget voté
- *   correspondant à cet exercice ») ; l'imputation attend toujours l'approbation. Le cycle de
- *   exercices-budgets.changerStatutExercice ne mène pas encore « Préparation » ou « Budgété » à « Répart. en cours » :
- *   à revoir dans exercices-budgets.ts ;
+ *   correspondant à cet exercice ») ; l'imputation attend toujours l'approbation. Le cycle aboutit :
+ *   exercices-budgets.changerStatutExercice mène « Préparation » ou « Budgété » à « Répart. en cours », puis
+ *   « Réparti », et l'alerte « répartition en retard » s'éteint ;
  * - J67, R104 : si l'AG a créé le sous-compte 450-1 (arrêté art. 7 et 10 ; décret n° 2005-240, art. 7), la
  *   régularisation s'y écrit, comme l'appel du budget (réglage du syndicat repartition-appels.SousComptes450,
- *   OptionsEcritureRegularisation.sousComptes450) ; sinon au 45000, comme avant ;
+ *   OptionsEcritureRegularisation.sousComptes450) ; sinon au 45000, comme avant ; son poste (postesRegularisation)
+ *   est au compte du budget, et son encaissement crédite aussi le 450-1 (encaissements-pieces.traitementEncaissements) ;
  * - J67, R105 : la répartition ne solde ni les comptes de charges ni le 701 : seul le 701 reçoit l'écart (arrêté art. 10)
  *   et les charges restent en classe 6 jusqu'à la clôture qui fige les comptes (art. 5) ; code inchangé ; la marque
  *   « annexes non lues » du décret n° 2005-240 reste (ci-dessus) ;
  * - J67, R106 (lot en usufruit et nue-propriété sous deux comptes) : rien n'est dit par le syndicat : refus
  *   (comptes_multiples, comme avant) ; réglage RegleDemembrementSyndicat : avec la clause de solidarité du règlement
- *   (Cass. 3e civ., 14/04/2016, n° 15-12.545, publié : clause licite), le compte choisi par le cabinet, celui qui a reçu
- *   les provisions de l'exercice ; sans elle, charges courantes à l'usufruitier (C. civ. art. 605 et 608), avertissement
+ *   (Cass. 3e civ., 14/04/2016, n° 15-12.545, publié : clause licite), le compte choisi par le cabinet, qui doit être
+ *   celui qui a reçu les provisions de l'exercice : chaque provision garde son compte (ProvisionLot.compteId) ; un
+ *   autre compte choisi, ou des provisions venues de plusieurs comptes, sont refusés (comptes_multiples, avec le
+ *   motif) ; sans elle, charges courantes à l'usufruitier (C. civ. art. 605 et 608), avertissement
  *   « à confirmer » ; travaux : classement de chaque poste, grosse réparation (art. 606) au nu-propriétaire, entretien à
  *   l'usufruitier, sans défaut (debiteurDemembrement ; régularisation des travaux : travaux-operations.ts, à brancher) ;
  * - J67, R111 : après une donation ou une succession, le solde va aussi au copropriétaire lors de l'approbation, par
  *   analogie avec la vente : avertissement « mutation_a_titre_gratuit » (« par analogie, à confirmer ») quand ce
- *   copropriétaire est entré ainsi depuis l'ouverture de l'exercice ; le démembrement suit R106 ;
+ *   copropriétaire est entré ainsi depuis l'ouverture de l'exercice, ce jour compris ; le démembrement suit R106 ;
  * - J67, R112 : lot vendu le jour même de l'approbation : tout dépend de l'ordre de l'acte et du vote ; ordre fourni
  *   (ReglesAttributionLots.ordreMutationMemeJour) : acte avant le vote, l'acquéreur ; après, le vendeur ; sans lui, le
  *   vendeur (copropriétaire connu du syndicat à l'ouverture de l'AG), avertissement « même jour : à confirmer ». Une
- *   convention contraire n'a d'effet qu'entre les parties (art. 6-3). Enregistrement de ces réglages : à brancher.
+ *   convention contraire n'a d'effet qu'entre les parties (art. 6-3). La règle ne vaut que pour la lecture à
+ *   l'approbation : toujours à l'imputation, et au calcul si l'appelant le dit (lectureALApprobation) ; lus à la date
+ *   de passage d'un projet, les copropriétaires sont ceux en place ce jour-là, l'acquéreur s'il y a vente, comme avant.
+ *   Enregistrement de ces réglages : à brancher.
  *
  * 🔴 Non établi (questions pour Hugo ou Frédéric) :
  * - « Dans Gestéam, quelle est la contrepartie des écritures 450 de la répartition : le 471 soldé par le 701 (choix
@@ -453,6 +459,11 @@ export interface ProvisionLot {
   lotId: string
   cle: string
   centimes: number
+  /**
+   * Compte appelé (provisionsDepuisAvis : compte de l'avis) ; absent pour une provision saisie hors des avis. J67, R106 :
+   * sous clause de solidarité, la régularisation d'un lot démembré va au compte qui a reçu ses provisions.
+   */
+  compteId?: string
 }
 
 /** Dépenses nettes d'une clé (code) : débits moins crédits, en centimes (négatif si les produits l'emportent). */
@@ -591,8 +602,8 @@ function noterEcheancesRetenues(vues: Set<string>, retenues: ReadonlySet<string>
 }
 
 /**
- * Provisions appelées par lot et par clé : lignes des avis d'appel dont l'échéance est de nature « budget » et exigible
- * dans l'exercice (bornes incluses). Avec le suivi de l'échéancier (echeancier-appels.ts), seules les échéances
+ * Provisions appelées par lot et par clé, avec le compte appelé (J67, R106) : lignes des avis d'appel dont l'échéance est
+ * de nature « budget » et exigible dans l'exercice (bornes incluses). Avec le suivi de l'échéancier (echeancier-appels.ts), seules les échéances
  * « Appelé » comptent : une échéance annulée n'a rien appelé. Une échéance retenue présente dans deux avis est refusée.
  */
 export function provisionsDepuisAvis(
@@ -607,8 +618,9 @@ export function provisionsDepuisAvis(
   for (const a of avis) {
     const budget = new Set(a.echeances.filter(retenue).map((e) => e.id))
     noterEcheancesRetenues(vues, budget)
-    for (const ligne of a.parCompte.flatMap((compte) => compte.lignes))
-      if (budget.has(ligne.echeanceId)) provisions.push({ lotId: ligne.lotId, cle: ligne.cle, centimes: ligne.centimes })
+    for (const { compteId, lignes } of a.parCompte)
+      for (const ligne of lignes)
+        if (budget.has(ligne.echeanceId)) provisions.push({ lotId: ligne.lotId, cle: ligne.cle, centimes: ligne.centimes, compteId })
   }
   return provisions
 }
@@ -657,6 +669,8 @@ export interface Regularisation {
   avertissements: AvertissementRegularisation[]
   /** Règles d'attribution appliquées, reprises à l'imputation. */
   attribution: ReglesAttributionLots
+  /** Comptes qui ont reçu les provisions de chaque lot (J67, R106), repris à l'imputation ; lot absent : aucun compte connu. */
+  comptesDesProvisions: Readonly<Record<string, readonly string[]>>
 }
 
 export interface EntreeRegularisation {
@@ -673,8 +687,14 @@ export interface EntreeRegularisation {
   provisions701Centimes?: number
   /** Règles d'attribution des lots (J67, R106, R112) ; absentes : comme avant. */
   attribution?: ReglesAttributionLots
-  /** Ouverture de l'exercice : une donation ou une succession postérieure est signalée (J67, R111) ; absente : toutes. */
+  /** Ouverture de l'exercice : une donation ou une succession depuis ce jour, inclus, est signalée (J67, R111) ; absente : toutes. */
   ouvertureExercice?: string
+  /**
+   * `coproprietairesAu` est le jour de l'approbation des comptes : un lot muté ce jour-là suit la règle du même jour (J67,
+   * R112). Absent ou faux (date de passage d'un projet) : les copropriétaires en place ce jour-là, l'acquéreur s'il y a
+   * mutation.
+   */
+  lectureALApprobation?: boolean
 }
 
 const somme = (valeurs: readonly number[]): number => valeurs.reduce((total, v) => total + v, 0)
@@ -739,12 +759,22 @@ function lignesDeLaCle(
     .filter((l) => l.quotePartCentimes !== 0 || l.provisionsCentimes !== 0)
 }
 
-/** Lecture des copropriétaires d'un lot : date, règles d'attribution, ouverture de l'exercice. */
+/** Lecture des copropriétaires d'un lot : date, règles d'attribution, ouverture de l'exercice, comptes des provisions. */
 interface ContexteAttribution {
   positions: Position[]
   date: string
+  /** `date` est le jour de l'approbation des comptes (J67, R112). */
+  lectureALApprobation: boolean
   regles: ReglesAttributionLots
   ouvertureExercice?: string
+  comptesDesProvisions: Readonly<Record<string, readonly string[]>>
+}
+
+/** Comptes qui ont reçu les provisions de chaque lot, dans l'ordre des comptes (provisions saisies sans compte : ignorées). */
+function comptesDesProvisionsParLot(provisions: readonly ProvisionLot[]): Record<string, string[]> {
+  const parLot = new Map<string, Set<string>>()
+  for (const p of provisions) if (p.compteId) parLot.set(p.lotId, (parLot.get(p.lotId) ?? new Set<string>()).add(p.compteId))
+  return Object.fromEntries([...parLot.entries()].map(([lotId, comptes]) => [lotId, [...comptes].sort((a, b) => a.localeCompare(b))]))
 }
 
 /** Compte débiteur du lot, avec ses avertissements ; ou l'anomalie qui empêche de le désigner. */
@@ -761,10 +791,13 @@ const avertissement = (code: CodeAvertissementRegularisation, lotId: string, mes
   fondement,
 })
 
-/** J67, R112 : copropriétaires lus au jour d'une mutation du lot ; sans ordre fourni, le vendeur, à confirmer. */
+/**
+ * J67, R112 : lot muté le jour même de l'approbation des comptes : ordre de l'acte et du vote, sinon le vendeur, à
+ * confirmer. Lus à une autre date (date de passage d'un projet), les copropriétaires en place ce jour-là.
+ */
 function proprietairesALaDate(lotId: string, ctx: ContexteAttribution): { proprietaires: Position[]; avertissements: AvertissementRegularisation[] } {
   const { mutation, veille, duJour } = mutationDuJour(ctx.positions, lotId, ctx.date)
-  if (!mutation) return { proprietaires: duJour, avertissements: [] }
+  if (!mutation || !ctx.lectureALApprobation) return { proprietaires: duJour, avertissements: [] }
   const ordre = ctx.regles.ordreMutationMemeJour?.[lotId]
   if (ordre === 'acte_avant_vote') return { proprietaires: duJour, avertissements: [] }
   if (ordre === 'acte_apres_vote') return { proprietaires: veille, avertissements: [] }
@@ -781,13 +814,29 @@ function proprietairesALaDate(lotId: string, ctx: ContexteAttribution): { propri
   }
 }
 
+/**
+ * J67, R106 : sous clause de solidarité, la régularisation va au compte qui a reçu les provisions de l'exercice : le
+ * compte choisi doit être celui-là (un seul). Rend le motif du refus, ou null. Aucune provision au compte connu : le choix
+ * du cabinet tient.
+ */
+function ecartAuxProvisions(choisi: string, comptesDesProvisions: readonly string[]): string | null {
+  const regle = "la régularisation va au compte qui a reçu les provisions de l'exercice (J67, R106)"
+  if (comptesDesProvisions.length > 1)
+    return `lot démembré, clause de solidarité : provisions de l'exercice appelées sur plusieurs comptes (${comptesDesProvisions.join(', ')}) ; ${regle}, un seul attendu`
+  const [recu] = comptesDesProvisions
+  if (recu !== undefined && recu !== choisi) return `lot démembré, clause de solidarité : provisions de l'exercice reçues par ${recu}, compte choisi ${choisi} ; ${regle}`
+  return null
+}
+
 /** J67, R106 : lot en usufruit et nue-propriété sous deux comptes, selon le réglage du syndicat. */
-function attribuerLotDemembre(lotId: string, proprietaires: Position[], regle: RegleDemembrementSyndicat): AttributionLot {
+function attribuerLotDemembre(lotId: string, proprietaires: Position[], regle: RegleDemembrementSyndicat, comptesDesProvisions: readonly string[]): AttributionLot {
   const comptes = comptesDe(proprietaires)
   if (regle.clauseSolidarite) {
     const choisi = regle.comptesChoisis?.[lotId]
     if (!choisi || !comptes.has(choisi))
       return { anomalie: 'comptes_multiples', detail: "lot démembré, clause de solidarité : choisir le compte débiteur, celui qui a reçu les provisions de l'exercice (J67, R106)", avertissements: [] }
+    const ecart = ecartAuxProvisions(choisi, comptesDesProvisions)
+    if (ecart) return { anomalie: 'comptes_multiples', detail: ecart, avertissements: [] }
     const message = `Lot ${lotId} démembré : clause de solidarité du règlement, solde au compte choisi par le cabinet (${choisi}).`
     return { compteId: choisi, avertissements: [avertissement('demembrement_solidarite', lotId, message, 'Cass. 3e civ., 14/04/2016, n° 15-12.545 ; J67, R106')] }
   }
@@ -801,9 +850,12 @@ function attribuerLotDemembre(lotId: string, proprietaires: Position[], regle: R
 const estDemembrement = (proprietaires: readonly Position[]): boolean =>
   proprietaires.some((p) => p.qualite === 'Usufruitier') && proprietaires.every((p) => p.qualite === 'Usufruitier' || p.qualite === 'Nu propriétaire')
 
-/** J67, R111 : le débiteur est entré par donation ou succession depuis l'ouverture de l'exercice. */
+/**
+ * J67, R111 : le débiteur est entré par donation ou succession depuis l'ouverture de l'exercice, ce jour compris (le
+ * donateur doit alors la provision exigible ce jour-là : repartition-appels.avisDAppel).
+ */
 function avertissementsGratuits(lotId: string, debiteurs: readonly Position[], ouverture: string | undefined): AvertissementRegularisation[] {
-  const gratuite = debiteurs.find((p) => estMutationATitreGratuit(p.natureMutation) && (ouverture === undefined || p.dateEntree > ouverture))
+  const gratuite = debiteurs.find((p) => estMutationATitreGratuit(p.natureMutation) && (ouverture === undefined || p.dateEntree >= ouverture))
   if (!gratuite) return []
   const message = `Lot ${lotId} : copropriétaire entré par ${gratuite.natureMutation} le ${fr(gratuite.dateEntree)} ; solde à celui qui est copropriétaire lors de l'approbation, règle de la vente appliquée par analogie, à confirmer.`
   return [avertissement('mutation_a_titre_gratuit', lotId, message, 'D. 1967 art. 6-2, 3°, et 45-1 ; J67, R111')]
@@ -820,7 +872,8 @@ function attribuerLot(lotId: string, ctx: ContexteAttribution): AttributionLot {
   let attribution: AttributionLot
   if (comptes.size === 1) attribution = { compteId: [...comptes][0], avertissements: [] }
   else if (comptes.size === 0) attribution = { anomalie: 'lot_sans_compte', avertissements: [] }
-  else if (ctx.regles.demembrement && estDemembrement(proprietaires)) attribution = attribuerLotDemembre(lotId, proprietaires, ctx.regles.demembrement)
+  else if (ctx.regles.demembrement && estDemembrement(proprietaires))
+    attribution = attribuerLotDemembre(lotId, proprietaires, ctx.regles.demembrement, ctx.comptesDesProvisions[lotId] ?? [])
   else attribution = { anomalie: 'comptes_multiples', avertissements: [] }
   const gratuits = 'compteId' in attribution ? avertissementsGratuits(lotId, proprietaires.filter((p) => p.compteId === attribution.compteId), ctx.ouvertureExercice) : []
   return { ...attribution, avertissements: [...avertissements, ...attribution.avertissements, ...gratuits] }
@@ -884,7 +937,15 @@ export function calculerRegularisation(entree: EntreeRegularisation): Regularisa
   }
   const comptes = new Map(entree.comptes.filter((c) => c.coproprieteId === coproprieteId).map((c) => [c.id, c]))
   const attribution = entree.attribution ?? {}
-  const contexte = { positions: entree.positions, date: coproprietairesAu, regles: attribution, ouvertureExercice: entree.ouvertureExercice }
+  const comptesDesProvisions = comptesDesProvisionsParLot(entree.provisions)
+  const contexte: ContexteAttribution = {
+    positions: entree.positions,
+    date: coproprietairesAu,
+    lectureALApprobation: entree.lectureALApprobation === true,
+    regles: attribution,
+    ouvertureExercice: entree.ouvertureExercice,
+    comptesDesProvisions,
+  }
   const attributions = attributionsDesLots(
     lignes.map((l) => l.lotId),
     contexte,
@@ -914,6 +975,7 @@ export function calculerRegularisation(entree: EntreeRegularisation): Regularisa
     anomalies,
     avertissements: avertissementsDes(attributions),
     attribution,
+    comptesDesProvisions,
   }
 }
 
@@ -1053,6 +1115,8 @@ export interface SaisieRepartition {
   repartitionsExistantes: readonly PieceTraitement[]
   /** Date de lecture des copropriétaires ; par défaut la date de passage (projet avant l'approbation). */
   coproprietairesAu?: string
+  /** `coproprietairesAu` est le jour de l'approbation des comptes (J67, R112 : règle du même jour) ; absent : non. */
+  lectureALApprobation?: boolean
   provisions701Centimes?: number
   /** Règles d'attribution des lots (J67, R106, R112), reprises à l'imputation. */
   attribution?: ReglesAttributionLots
@@ -1145,6 +1209,7 @@ export function lancerRepartition(saisie: SaisieRepartition, options: OptionsPie
     positions: saisie.positions,
     comptes: saisie.comptes,
     coproprietairesAu: saisie.coproprietairesAu ?? parametres.dateEffet,
+    lectureALApprobation: saisie.coproprietairesAu !== undefined && saisie.lectureALApprobation === true,
     provisions701Centimes: saisie.provisions701Centimes,
     attribution: saisie.attribution,
     ouvertureExercice: parametres.du,
@@ -1235,8 +1300,10 @@ export function imputerRepartition(
   const { lots, avertissements } = lotsAReattribuer(repartition.regularisation, {
     positions,
     date: approbation.date,
+    lectureALApprobation: true,
     regles: attribution ?? repartition.regularisation.attribution,
     ouvertureExercice: repartition.parametres.du,
+    comptesDesProvisions: repartition.regularisation.comptesDesProvisions,
   })
   if (lots.length > 0)
     throw new Error(
@@ -1400,5 +1467,7 @@ export function postesRegularisation(repartition: RepartitionCharges): PosteDett
       montantCentimes: d.soldeCentimes,
       regleCentimes: 0,
       contentieux: false,
+      // J67, R104 : la régularisation est au compte du budget (450-1 si l'AG l'a créé), comme son encaissement.
+      compteBudget: true,
     }))
 }
