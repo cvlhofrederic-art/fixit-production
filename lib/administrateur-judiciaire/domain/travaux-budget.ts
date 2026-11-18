@@ -81,7 +81,10 @@ import {
  *   et 13 au-delà de 75 000 euros (HT) → D. 1967 art. 61-1-5, III, al. 2 et 3 ; art. 14 : les actes accomplis pour le
  *   placement sous administration provisoire renforcée sont rémunérés hors droits fixes et proportionnels ;
  * - D. 1967 art. 46, al. 3 : le syndic désigné par le président du tribunal judiciaire administre selon les art. 18 à
- *   18-2 de la loi ; art. 47 (administrateur provisoire faute de syndic) : rien sur sa rémunération.
+ *   18-2 de la loi ; art. 47 (administrateur provisoire faute de syndic) : rien sur sa rémunération ;
+ * - C. com. R. 814-27 (lu le 17/11/2026, J67, R1) : la rémunération des administrateurs judiciaires « au titre des
+ *   mandats qui leur sont confiés en matière civile » est fixée sur justification par le président de la juridiction qui
+ *   les a désignés.
  *
  * Décisions de Hugo du 06/11/2026 (registre des décisions juridiques, J39 ; question de la PR #651, point 31) :
  * - J39 : le barème du droit proportionnel de l'administrateur provisoire sur travaux (arrêté du 8 octobre 2015, art. 11 ;
@@ -117,8 +120,13 @@ import {
  * - J67, R12 : syndic désigné par le président du tribunal (D. 1967 art. 46) : honoraires de travaux votés selon l'art.
  *   18-1 A, III ; administration provisoire renforcée : hors barème, rémunération arrêtée par le juge (arrêté du 8
  *   octobre 2015, art. 11, dernier al., et 14 ; D. 1967 art. 61-1-5, I et III) ; les deux cadres ne sont plus « à
- *   confirmer ». L'administrateur provisoire de l'art. 47 garde le cadre « non établi » (question ci-dessous : R1 y
- *   voit une rémunération fixée par le juge, C. com. R. 814-27) ;
+ *   confirmer ». L'administrateur provisoire de l'art. 47 garde le cadre « non établi » des honoraires de travaux, et
+ *   tout honoraire voté sous ce cadre reste signalé ;
+ * - J67, R1 (lot des honoraires : decisions-annuelles-ag.ts, honoraires-sinistre.ts, honoraires-facturation.ts) : la
+ *   rémunération de l'administrateur provisoire de l'art. 47 est fixée par le président du tribunal judiciaire qui l'a
+ *   désigné, sur justification des diligences (C. com. R. 814-27 ; provision possible, R. 814-28). CADRE_AP47 le dit
+ *   dans son motif et ses fondements ; il reste « à confirmer », arreteParLeJuge faux, en attendant Hugo (question
+ *   ci-dessous) ;
  * - J67, R13 : sous le cadre du syndic, un barème voté à taux unique, ou dont un palier monte avec le montant, donne
  *   l'alerte « taux non dégressif » (art. 18-1 A, III : « à un taux dégressif selon l'importance des travaux »), jamais un
  *   blocage ; barème non saisi : non contrôlé (ResolutionHonorairesTravaux.paliers) ;
@@ -243,9 +251,10 @@ import {
  *   (droitsProportionnelsTravauxParOperation, même numéro) est-elle refusée, ou ses montants s'additionnent-ils avant un
  *   seul calcul par tranches ? » (VitFix : refusée, choix de VitFix à confirmer : J39 ne le dit pas ; deux calculs pour
  *   une même opération feraient repartir le barème de sa première tranche) ;
- * - « Quelle rémunération pour l'administrateur provisoire de l'art. 47 ? » (VitFix : cadre non établi, comme le dit
- *   J67, R12 ; J67, R1 la tient pour fixée par le juge, C. com. R. 814-27 : les deux recommandations ne disent pas la même
- *   chose, cadre inchangé en attendant Hugo).
+ * - « Faut-il ranger l'administrateur provisoire de l'art. 47 sous le cadre « fixé par le juge » (arreteParLeJuge) ? »
+ *   (VitFix : J67, R1 tranche sa rémunération, fixée par le président du tribunal qui l'a désigné, C. com. R. 814-27, et
+ *   le motif de CADRE_AP47 le dit ; J67, R12 garde le cadre « non établi » des honoraires de travaux et le signalement de
+ *   tout honoraire voté : cadre non établi, à confirmer, arreteParLeJuge faux, en attendant Hugo).
  * Ajouts hors de ce module : travaux-operations.ts (ajout du point 31) — champ facultatif nePasUtiliserFondsTravaux de
  * SaisieOperationTravaux, refus d'une part du fonds quand il est coché (verifierPartFondsSaisie), export
  * affectationFondsDeLOperation, extrait de controlerPartFonds et d'emploisFondsTravauxDesTranches (comportement
@@ -1357,9 +1366,10 @@ const CADRE_SYNDIC_JUDICIAIRE: CadreHonorairesTravaux = {
 
 const CADRE_AP47: CadreHonorairesTravaux = {
   cadre: 'non_etabli',
-  fondements: ['D. 1967 art. 47'],
+  fondements: ['D. 1967 art. 47', 'C. com. R. 814-27'],
   motif:
-    "Administrateur provisoire désigné faute de syndic (D. 1967 art. 47) : aucun texte trouvé sur sa rémunération ; le tarif de l'art. 61-1-5 vise l'administrateur provisoire de l'art. 29-1.",
+    "Administrateur provisoire désigné faute de syndic (D. 1967 art. 47) : rémunération fixée par le président du tribunal judiciaire qui l'a désigné, sur justification des diligences (C. com. R. 814-27 ; J67, R1) ; cadre des honoraires de travaux non établi : le tarif de l'art. 61-1-5 vise l'administrateur provisoire de l'art. 29-1 (J67, R12).",
+  // J67, R1 et R12 : cadre gardé « non établi » et à confirmer, arreteParLeJuge faux, en attendant Hugo (en-tête, 🔴).
   arreteParLeJuge: false,
   aConfirmer: true,
 }
