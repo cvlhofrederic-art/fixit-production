@@ -748,8 +748,9 @@ describe('honoraires du courrier : proposition de lignes, jamais écrites, désa
       expect(forfait.fondements).toEqual(['L. 1965 art. 10-1, a'])
       expect(forfait.observation).toMatch(/aucun contrat type voté ; les art\. 46 et 47 du décret ne disent rien de ce forfait : à confirmer\.$/)
     }
-    expect(propositions(null)[1]).toMatchObject(BASES_LIGNES_HONORAIRES_COURRIER.forfait_mise_en_demeure)
-    expect(baseLigneHonorairesCourrier('forfait_mise_en_demeure', { regime: 'ap291' }).observation).toBe(forfaitAp.observation)
+    // J77 : la base du forfait suit le cas du courrier ; ici, le recouvrement contre un copropriétaire en retard.
+    expect(propositions(null)[1]).toMatchObject(baseLigneHonorairesCourrier('forfait_mise_en_demeure', { cas: 'recouvrement' }))
+    expect(baseLigneHonorairesCourrier('forfait_mise_en_demeure', { regime: 'ap291', cas: 'recouvrement' }).observation).toBe(forfaitAp.observation)
     // frais d'envoi du recouvrement : même base quel que soit le régime (J72, a)
     expect(fraisAp).toMatchObject(baseLigneHonorairesCourrier('frais_envoi', { cas: 'recouvrement' }))
     expect(() => propositions('ap99' as Regime)).toThrow(/Régime du mandat « ap99 » inconnu/)
