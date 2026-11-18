@@ -720,9 +720,17 @@ export const contratMarqueAResilier = (contrat: { statut?: StatutContrat; type?:
   Boolean(contrat.aResilier) && (contrat.statut ?? 'En cours') === 'En cours' && contrat.type !== 'Contrat de travail'
 
 /**
- * Contrat en cours : limite de résiliation s'il se reconduit tacitement (contrats-facturation) et n'est pas marqué « à
- * résilier » ; mise en concurrence à l'ouverture de sa fenêtre, tant qu'elle n'est pas close ; facture attendue au premier
- * jour de retard au-delà de la tolérance du contrat.
+ * Assurance dommages-ouvrage : aucune date de résiliation proposée, ni limite générique ici, ni date « à résilier » dans
+ * contrats-a-resilier.ts. Une seule règle pour les deux modules (J67, R57, point 1 : la police fixe la durée et la
+ * résiliation, C. assur. art. L. 113-12).
+ */
+export const sansDateDeResiliation = (contrat: { type?: TypeContrat }): boolean => contrat.type === 'Dommages Ouvrages'
+
+/**
+ * Contrat en cours : limite de résiliation s'il se reconduit tacitement (contrats-facturation), n'est pas marqué « à
+ * résilier » et n'est pas une assurance dommages-ouvrage (sansDateDeResiliation, J67, R57) ; mise en concurrence à
+ * l'ouverture de sa fenêtre, tant qu'elle n'est pas close ; facture attendue au premier jour de retard au-delà de la
+ * tolérance du contrat.
  */
 export function depuisContrats(contrats: ContratSuivi[], aujourdhui: string): ElementAFaire[] {
   verifierDate(aujourdhui)
@@ -731,7 +739,7 @@ export function depuisContrats(contrats: ContratSuivi[], aujourdhui: string): El
     const champs = { libelle: contrat.libelle, mandatId: contrat.mandatId, objetId: contrat.id }
     const elements: ElementAFaire[] = []
     const { facturation } = contrat
-    if (facturation?.tacite && !contratMarqueAResilier(contrat))
+    if (facturation?.tacite && !contratMarqueAResilier(contrat) && !sansDateDeResiliation(contrat))
       elements.push(
         elementSuivi('contrats', 'limite_resiliation', `${contrat.id}:limite_resiliation`, {
           ...champs,

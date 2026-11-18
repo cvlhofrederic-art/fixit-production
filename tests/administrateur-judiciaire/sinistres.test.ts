@@ -139,6 +139,16 @@ describe('sinistres — champs de la fiche Gestéam (optionnels à la saisie)', 
     expect(erreursSaisieSinistre(saisie({ type: 'Grêle' as never, heureExpertise: '9h' }))).toHaveLength(2)
   })
 
+  it('J67, R51 : « transmis à la compagnie le » et « courtier mandaté par l’assureur », champs facultatifs de l’assurance, contrôlés', () => {
+    expect(creerSinistre(saisie()).assurance).toMatchObject({ transmisCompagnieLe: null, courtierMandateParAssureur: false })
+    const assurance = { compagnie: null, courtier: 'Courtier Démo', contrat: null, numeroSinistre: null }
+    expect(
+      creerSinistre(saisie({ assurance: { ...assurance, transmisCompagnieLe: '2026-11-03', courtierMandateParAssureur: true } })).assurance,
+    ).toMatchObject({ transmisCompagnieLe: '2026-11-03', courtierMandateParAssureur: true })
+    expect(() => creerSinistre(saisie({ assurance: { ...assurance, transmisCompagnieLe: '03/11/2026' } }))).toThrow(/transmisCompagnieLe/)
+    expect(() => creerSinistre(saisie({ assurance: { ...assurance, courtierMandateParAssureur: 1 as never } }))).toThrow(/mandat du courtier/i)
+  })
+
   it('rôles et natures des parties : grille Gestéam (« Lésé » observé, les autres déduits)', () => {
     expect(ROLES_PARTIE_SINISTRE).toEqual(['Lésé', 'Responsable', 'Autre'])
     expect(NATURES_PARTIE_SINISTRE).toEqual(['Entreprise', 'Immeuble', 'Personne'])

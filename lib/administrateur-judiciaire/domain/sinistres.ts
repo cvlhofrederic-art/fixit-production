@@ -62,6 +62,13 @@ export interface AssuranceSinistre {
   numeroCourtier?: string | null
   /** Contrat d'assurance du mandat choisi dans la liste (« Assurance => , compagnie (n°) ») ; null ou absent = aucun. */
   contratId?: string | null
+  /**
+   * Déclaration adressée au courtier : date de sa transmission à la compagnie (J67, R51), comparée au repère de
+   * déclaration (declaration-sinistre.controlerDelaiDeclaration) ; null ou absent = inconnue.
+   */
+  transmisCompagnieLe?: string | null
+  /** Le courtier gère les sinistres pour l'assureur, mandat vu (J67, R51) ; absent = non. */
+  courtierMandateParAssureur?: boolean
 }
 
 /**
@@ -161,6 +168,10 @@ const erreurDate = (champ: string, valeur: string | null | undefined): string | 
     ? `Date invalide pour ${champ} (${valeur}) : AAAA-MM-JJ attendu.`
     : null
 
+/** J67, R51 : le mandat du courtier, s'il est donné, est oui ou non (champ de la fiche, option du contrôle du délai). */
+export const erreurMandatCourtier = (valeur: unknown): string | null =>
+  valeur !== undefined && typeof valeur !== 'boolean' ? `Mandat du courtier invalide (${String(valeur)}) : oui ou non attendu.` : null
+
 const erreurCentimes = (champ: string, montant: number): string | null =>
   !Number.isInteger(montant) || montant < 0
     ? `Montant invalide pour ${champ} (${montant}) : centimes entiers positifs attendus.`
@@ -208,6 +219,8 @@ export function erreursSaisieSinistre(saisie: SaisieSinistre): string[] {
       : `Date de survenance invalide (${saisie.dateSurvenance}) : AAAA-MM-JJ attendu.`,
     erreurDate('dateConnaissance', saisie.dateConnaissance),
     ...DATES_SUIVI.map((champ) => erreurDate(champ, saisie[champ])),
+    erreurDate('transmisCompagnieLe', saisie.assurance.transmisCompagnieLe),
+    erreurMandatCourtier(saisie.assurance.courtierMandateParAssureur),
     erreurCentimes('indemniteImmediateCentimes', saisie.indemniteImmediateCentimes),
     erreurCentimes('indemniteDiffereeCentimes', saisie.indemniteDiffereeCentimes),
   ]
@@ -225,6 +238,8 @@ const assuranceComplete = (assurance: AssuranceSinistre): Required<AssuranceSini
   courtierId: assurance.courtierId ?? null,
   numeroCourtier: texteOuNull(assurance.numeroCourtier),
   contratId: assurance.contratId ?? null,
+  transmisCompagnieLe: assurance.transmisCompagnieLe ?? null,
+  courtierMandateParAssureur: assurance.courtierMandateParAssureur ?? false,
 })
 
 /** Champs de la fiche Gestéam nettoyés ; valeurs par défaut pour ceux qui ne sont pas saisis. */
@@ -378,8 +393,12 @@ export function indemnitesSinistre(sinistre: FicheSinistre): IndemnitesSinistre 
 const DELAI_DECLARATION_MINIMUM_JOURS_OUVRES = 5
 /** Vol : minimum ramené à deux jours ouvrés (C. assur. art. L. 113-2, 4°). */
 const DELAI_DECLARATION_VOL_JOURS_OUVRES = 2
-/** Prescription des actions dérivant du contrat d'assurance : deux ans (C. assur. art. L. 114-1, al. 1). */
-const PRESCRIPTION_MOIS = 24
+/**
+ * Prescription des actions dérivant du contrat d'assurance : deux ans (C. assur. art. L. 114-1, al. 1). Seule durée du
+ * domaine : le repère du suivi « à faire » (reperesDelaisSinistre) et la suggestion de forclusion (fiche-sinistre.ts) la
+ * lisent ici.
+ */
+export const PRESCRIPTION_MOIS = 24
 
 /** Dommages-ouvrage : les clauses types ne fixent aucun délai de déclaration à l'assuré (J67, R52). */
 const DOMMAGES_OUVRAGE: TypeSinistre = 'Dommages Ouvrage'

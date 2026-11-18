@@ -589,22 +589,70 @@ describe('J67, R51 — déclaration adressée au courtier', () => {
     expect(controlerCourriersDeclaration(sinistre(), auCourtier(), JOUR).map((a) => a.code)).toContain('destinataire_non_assureur')
   })
 
-  it('« transmis à la compagnie le » : cette date se compare au repère', () => {
-    expect(controlerDelaiDeclaration(sinistre(), auCourtier(), { aujourdhui, transmisCompagnieLe: '2026-11-03' })).toMatchObject({
-      etat: 'dans_le_delai',
-      dateRetenue: '2026-11-03',
-      source: 'transmission',
-      courrierId: null,
-    })
-    expect(controlerDelaiDeclaration(sinistre(), auCourtier(), { aujourdhui, transmisCompagnieLe: '2026-11-05' })).toMatchObject({
-      etat: 'tardive',
-      retardJours: 2,
-      source: 'transmission',
-    })
+  it('« transmis à la compagnie le » : cette date se compare au repère ; le message la nomme, le courrier au courtier reste désigné', () => {
+    const dansLeDelai = controlerDelaiDeclaration(sinistre(), auCourtier(), { aujourdhui, transmisCompagnieLe: '2026-11-03' })
+    expect(dansLeDelai).toMatchObject({ etat: 'dans_le_delai', dateRetenue: '2026-11-03', source: 'transmission', courrierId: 'c-1' })
+    expect(dansLeDelai.message).toBe(
+      'Transmission à la compagnie du 03/11/2026 (courrier au courtier du 02/11/2026), dans le repère indicatif du 03/11/2026.',
+    )
+    const tardive = controlerDelaiDeclaration(sinistre(), auCourtier(), { aujourdhui, transmisCompagnieLe: '2026-11-05' })
+    expect(tardive).toMatchObject({ etat: 'tardive', retardJours: 2, source: 'transmission', courrierId: 'c-1' })
+    expect(tardive.message).toBe(
+      'Transmission à la compagnie du 05/11/2026 (courrier au courtier du 02/11/2026), postérieure au repère indicatif du 03/11/2026.',
+    )
     const future = controlerDelaiDeclaration(sinistre(), auCourtier(), { aujourdhui, transmisCompagnieLe: '2026-11-25' })
     expect(future).toMatchObject({ etat: 'a_verifier', retardJours: 0 })
     expect(future.message).toMatch(/^Transmission à la compagnie saisie au 25\/11\/2026, après aujourd'hui/)
     expect(() => controlerDelaiDeclaration(sinistre(), auCourtier(), { aujourdhui, transmisCompagnieLe: '05/11/2026' })).toThrow(/transmission/i)
+  })
+
+  it('transmission datée avant le courrier au courtier (ou avant la survenance) : « à vérifier », la date du courrier est gardée', () => {
+    for (const [transmisCompagnieLe, saisie] of [
+      ['2026-10-28', '28/10/2026'],
+      ['2020-01-01', '01/01/2020'],
+    ]) {
+      const resultat = controlerDelaiDeclaration(sinistre(), auCourtier('2026-11-05'), { aujourdhui, transmisCompagnieLe })
+      expect(resultat).toMatchObject({ etat: 'a_verifier', dateRetenue: '2026-11-05', source: 'courrier', courrierId: 'c-1', retardJours: 0 })
+      expect(resultat.message).toBe(
+        `Transmission à la compagnie saisie au ${saisie}, avant le courrier au courtier du 05/11/2026 : date de transmission à vérifier ; délai non contrôlé (repère indicatif du 03/11/2026).`,
+      )
+    }
+  })
+
+  it('les deux champs se lisent aussi sur la fiche (assurance du sinistre) ; l’option de l’appelant prime', () => {
+    const assurance = { compagnie: null, courtier: 'Courtier Démo', contrat: null, numeroSinistre: null }
+    const transmise = sinistre({ assurance: { ...assurance, transmisCompagnieLe: '2026-11-05' } })
+    expect(controlerDelaiDeclaration(transmise, auCourtier(), { aujourdhui })).toMatchObject({ etat: 'tardive', source: 'transmission', dateRetenue: '2026-11-05' })
+    expect(controlerDelaiDeclaration(transmise, auCourtier(), { aujourdhui, transmisCompagnieLe: '2026-11-03' })).toMatchObject({
+      etat: 'dans_le_delai',
+      dateRetenue: '2026-11-03',
+    })
+    const mandate = sinistre({ assurance: { ...assurance, courtierMandateParAssureur: true } })
+    expect(controlerDelaiDeclaration(mandate, auCourtier(), { aujourdhui })).toMatchObject({ etat: 'dans_le_delai', source: 'courrier', dateRetenue: '2026-11-02' })
+    expect(controlerDelaiDeclaration(mandate, auCourtier(), { aujourdhui, courtierMandateParAssureur: false }).etat).toBe('a_verifier')
+  })
+
+  it('courrier au courtier, puis courrier direct à la compagnie dans le repère : ce dernier fait la date ; après le repère, « à vérifier » reste', () => {
+    const puisCompagnie = (dateDepot: string) => [
+      ...auCourtier(),
+      courrier({ id: 'c-2', typeDestinataire: "Compagnie d'assurance", dateDepot, datePremierePresentation: null }),
+    ]
+    expect(controlerDelaiDeclaration(sinistre(), puisCompagnie('2026-11-03'), { aujourdhui })).toMatchObject({
+      etat: 'dans_le_delai',
+      dateRetenue: '2026-11-03',
+      source: 'courrier',
+      courrierId: 'c-2',
+    })
+    expect(controlerDelaiDeclaration(sinistre(), puisCompagnie('2026-11-05'), { aujourdhui })).toMatchObject({
+      etat: 'a_verifier',
+      dateRetenue: '2026-11-02',
+      courrierId: 'c-1',
+    })
+    // Transmission connue, mais après l'avis direct : le premier avis reçu par la compagnie compte.
+    expect(controlerDelaiDeclaration(sinistre(), puisCompagnie('2026-11-03'), { aujourdhui, transmisCompagnieLe: '2026-11-05' })).toMatchObject({
+      etat: 'dans_le_delai',
+      courrierId: 'c-2',
+    })
   })
 
   it('courtier mandaté par l’assureur (mandat vu) : la date du courrier au courtier est retenue', () => {

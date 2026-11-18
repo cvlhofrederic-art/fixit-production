@@ -12,6 +12,7 @@ import {
   controlerPlausibiliteDatesSinistre,
   creerSinistre,
   erreursSaisieSinistre,
+  PRESCRIPTION_MOIS,
   statutSinistre,
   type AssuranceSinistre,
   type FicheSinistre,
@@ -271,8 +272,7 @@ export const centimesVersSaisieEuros = (centimes: number): string =>
 
 export const FONDEMENT_FORCLUSION = 'C. assur. art. L. 114-1'
 
-/** Prescription biennale (L. 114-1, al. 1). */
-const DUREE_PRESCRIPTION_MOIS = 24
+// Prescription biennale (L. 114-1, al. 1) : PRESCRIPTION_MOIS de sinistres.ts, une seule durée pour tout le domaine.
 
 /** Types dont l'action peut avoir pour cause le recours d'un tiers (point de départ reporté, L. 114-1). */
 const TYPES_RECOURS_TIERS: readonly TypeSinistre[] = ['Responsabilités civiles', 'Défense - Recours']
@@ -331,7 +331,7 @@ function avertissementSecheresse(dateContrat: string | null | undefined): string
 export function suggestionForclusion(fiche: BaseSuggestionForclusion): SuggestionForclusion {
   const connaissance = fiche.dateConnaissance ?? fiche.dateSurvenance
   const dateSiConnaissanceTardive =
-    connaissance > fiche.dateSurvenance ? ajouterMois(connaissance, DUREE_PRESCRIPTION_MOIS) : null
+    connaissance > fiche.dateSurvenance ? ajouterMois(connaissance, PRESCRIPTION_MOIS) : null
   const avertissements = [
     "Suggestion à confirmer : prescription biennale des actions dérivant du contrat d'assurance (C. assur. art. L. 114-1), interrompue notamment par la désignation d'un expert ou une lettre recommandée (art. L. 114-2). Vérifier le contrat et le dossier.",
   ]
@@ -345,8 +345,8 @@ export function suggestionForclusion(fiche: BaseSuggestionForclusion): Suggestio
     )
   if (fiche.type === 'Catastrophes naturelles') avertissements.push(avertissementSecheresse(fiche.dateContrat))
   return {
-    date: ajouterMois(fiche.dateSurvenance, DUREE_PRESCRIPTION_MOIS),
-    dureeMois: DUREE_PRESCRIPTION_MOIS,
+    date: ajouterMois(fiche.dateSurvenance, PRESCRIPTION_MOIS),
+    dureeMois: PRESCRIPTION_MOIS,
     base: 'survenance',
     dateSiConnaissanceTardive,
     marqueur: '🔵',
@@ -469,6 +469,7 @@ const CHAMPS_FICHE_RELUS = [
   'assistant',
 ] as const satisfies readonly (keyof SaisieSinistre)[]
 
+/** Champs texte (date comprise) ou null de l'assurance. */
 const CHAMPS_ASSURANCE = [
   'compagnie',
   'courtier',
@@ -478,7 +479,11 @@ const CHAMPS_ASSURANCE = [
   'courtierId',
   'numeroCourtier',
   'contratId',
+  'transmisCompagnieLe',
 ] as const satisfies readonly (keyof AssuranceSinistre)[]
+
+/** Champs oui ou non de l'assurance : le mandat du courtier (J67, R51). */
+const CHAMPS_ASSURANCE_BOOLEENS = ['courtierMandateParAssureur'] as const satisfies readonly (keyof AssuranceSinistre)[]
 
 /** Valeur par défaut des champs absents d'une ligne (ceux d'une saisie vide). */
 const SAISIE_PAR_DEFAUT: Pick<SaisieSinistre, (typeof CHAMPS_FICHE_RELUS)[number]> = {
@@ -523,6 +528,8 @@ const ASSURANCE_VIDE: Required<AssuranceSinistre> = {
   courtierId: null,
   numeroCourtier: null,
   contratId: null,
+  transmisCompagnieLe: null,
+  courtierMandateParAssureur: false,
 }
 
 /**
@@ -549,7 +556,7 @@ function saisieRelue(ligne: EnregistrementSinistre, type: TypeSinistre, dateSurv
     coproprieteId: ligne.coproprieteId,
     type,
     dateSurvenance,
-    assurance: { ...ASSURANCE_VIDE, ...valeursDefinies(ligne.assurance ?? {}, CHAMPS_ASSURANCE) },
+    assurance: { ...ASSURANCE_VIDE, ...valeursDefinies(ligne.assurance ?? {}, [...CHAMPS_ASSURANCE, ...CHAMPS_ASSURANCE_BOOLEENS]) },
   })
 }
 
@@ -559,6 +566,7 @@ function saisieRelue(ligne: EnregistrementSinistre, type: TypeSinistre, dateSurv
 const estTexte = (valeur: unknown): boolean => typeof valeur === 'string'
 const estTexteOuNull = (valeur: unknown): boolean => valeur === null || typeof valeur === 'string'
 const estObjet = (valeur: unknown): valeur is Record<string, unknown> => typeof valeur === 'object' && valeur !== null
+const estBooleen = (valeur: unknown): boolean => typeof valeur === 'boolean'
 
 /** Champs texte de la fiche, jamais null. */
 const CHAMPS_TEXTE = ['origine', 'lieu', 'dommages', 'notes'] as const
@@ -605,7 +613,10 @@ const intervenantLisible = (intervenant: unknown): boolean =>
   (estObjet(intervenant) && estTexte(intervenant.nom) && (intervenant.id === undefined || estTexteOuNull(intervenant.id)))
 
 const assuranceLisible = (assurance: unknown): boolean =>
-  assurance === undefined || (estObjet(assurance) && champsPresentsValides(assurance, CHAMPS_ASSURANCE, estTexteOuNull))
+  assurance === undefined ||
+  (estObjet(assurance) &&
+    champsPresentsValides(assurance, CHAMPS_ASSURANCE, estTexteOuNull) &&
+    champsPresentsValides(assurance, CHAMPS_ASSURANCE_BOOLEENS, estBooleen))
 
 /** Vrai si chaque champ présent de la ligne a le type de la fiche (sinon la relecture lèverait : ligne illisible). */
 function formatLigneLisible(ligne: EnregistrementSinistre): boolean {
@@ -615,7 +626,7 @@ function formatLigneLisible(ligne: EnregistrementSinistre): boolean {
     estTexte(champs.coproprieteId) &&
     champsPresentsValides(champs, CHAMPS_TEXTE, estTexte) &&
     champsPresentsValides(champs, CHAMPS_TEXTE_OU_NULL, estTexteOuNull) &&
-    champsPresentsValides(champs, CHAMPS_BOOLEENS, (valeur) => typeof valeur === 'boolean') &&
+    champsPresentsValides(champs, CHAMPS_BOOLEENS, estBooleen) &&
     champsPresentsValides(champs, ['responsable', 'assistant'], intervenantLisible) &&
     assuranceLisible(champs.assurance) &&
     (parties === undefined || (Array.isArray(parties) && parties.every(partieLisible)))

@@ -10,7 +10,13 @@ import {
   saisieEurosVersCentimes,
   suggestionForclusion,
 } from '@/lib/administrateur-judiciaire/domain/fiche-sinistre'
-import { creerSinistre, type FicheSinistre, type SaisieSinistre } from '@/lib/administrateur-judiciaire/domain/sinistres'
+import {
+  creerSinistre,
+  PRESCRIPTION_MOIS,
+  reperesDelaisSinistre,
+  type FicheSinistre,
+  type SaisieSinistre,
+} from '@/lib/administrateur-judiciaire/domain/sinistres'
 
 /**
  * Fiche sinistre complète sur le modèle de Gestéam (tranches 20, 28, 42, 43) : contrôles de cohérence (dates,
@@ -268,6 +274,12 @@ describe('fiche sinistre — forclusion : suggestion 🔵, jamais inventée', ()
     expect(suggestion.avertissements.join(' ')).toMatch(/L\. 114-2/)
   })
 
+  it('une seule durée de prescription (C. assur. art. L. 114-1) : celle de sinistres.ts, aussi lue par le repère du suivi « à faire »', () => {
+    const suggestion = suggestionForclusion(fiche())
+    expect(suggestion.dureeMois).toBe(PRESCRIPTION_MOIS)
+    expect(suggestion.date).toBe(reperesDelaisSinistre(fiche()).prescription)
+  })
+
   it('29 février → 28 février deux ans plus tard', () => {
     expect(suggestionForclusion(fiche({ dateSurvenance: '2024-02-29', dateOuverture: null })).date).toBe('2026-02-28')
   })
@@ -435,6 +447,13 @@ describe('fiche sinistre — relecture d’une ligne de la base', () => {
     expect(ficheDepuisEnregistrement({ id: 'x', ...complete })).toEqual(complete)
   })
 
+  it('J67, R51 : conserve la transmission à la compagnie et le mandat du courtier enregistrés', () => {
+    const transmise = fiche({
+      assurance: { compagnie: null, courtier: 'Courtier Démo', contrat: null, numeroSinistre: null, transmisCompagnieLe: '2026-10-29', courtierMandateParAssureur: true },
+    })
+    expect(ficheDepuisEnregistrement({ id: 'x', ...transmise })).toEqual(transmise)
+  })
+
   it('ligne illisible (sans type, type inconnu, montant non entier) : null', () => {
     expect(ficheDepuisEnregistrement({ coproprieteId: 'C1', dateSurvenance: '2026-10-01' })).toBeNull()
     expect(ficheDepuisEnregistrement({ coproprieteId: 'C1', type: 'Grêle' as never, dateSurvenance: '2026-10-01' })).toBeNull()
@@ -459,6 +478,8 @@ describe('fiche sinistre — relecture d’une ligne de la base', () => {
       { assistant: 'Awa' },
       { assurance: { compagnie: 12 } },
       { assurance: 'MMA' },
+      { assurance: { transmisCompagnieLe: 3 } },
+      { assurance: { courtierMandateParAssureur: 'oui' } },
       { partiesCommunesLesees: 'oui' },
     ]
     for (const surcharge of illisibles)

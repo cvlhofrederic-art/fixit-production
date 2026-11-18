@@ -13,6 +13,7 @@ import type { Rattachement } from '@/lib/administrateur-judiciaire/domain/fiches
 import { GABARITS_COURRIER, gabaritCourrier, type CleGabaritCourrier } from '@/lib/administrateur-judiciaire/domain/gabarits-courrier'
 import {
   controlerChronologieSinistre,
+  erreurMandatCourtier,
   etapeSuiviSinistre,
   phaseApresDeclaration,
   RAPPEL_DECLARATION_DES_CONNAISSANCE,
@@ -101,11 +102,15 @@ import type {
  * - J67, R51 : en principe, le courtier est le mandataire de l'assuré ; il peut, selon les circonstances, être aussi celui
  *   de l'assureur (Cass. 1re civ., 22/10/1996, n° 94-15.613, publié) ; L. 113-2, 4° vise l'avis « à l'assureur » et
  *   D. 125-6 « l'assureur ou son représentant local ». La date du courrier au courtier reste proposée et signalée (un fait
- *   exact). Deux options : « transmis à la compagnie le » (transmisCompagnieLe) : connue, cette date se compare au repère ;
- *   « courtier mandaté par l'assureur, mandat vu » (courtierMandateParAssureur) : la date du courrier au courtier est
- *   retenue. Sans l'une ni l'autre, l'état est « à vérifier : mandat du courtier et date de transmission à la compagnie »
- *   (sauf courrier déjà postérieur au repère : tardive). Aucun champ de la fiche ne les porte : enregistrement : à
- *   brancher ; saisie à l'écran : Frédéric.
+ *   exact). Deux champs facultatifs de l'assurance du sinistre (sinistres.AssuranceSinistre), que l'appelant peut aussi
+ *   passer en option (l'option prime) : « transmis à la compagnie le » (transmisCompagnieLe) : connue, cette date se
+ *   compare au repère ; « courtier mandaté par l'assureur, mandat vu » (courtierMandateParAssureur) : la date du courrier au
+ *   courtier est retenue. Sans l'une ni l'autre, l'état est « à vérifier : mandat du courtier et date de transmission à la
+ *   compagnie » (sauf courrier déjà postérieur au repère : tardive). Une transmission datée avant le courrier au courtier
+ *   est impossible : « à vérifier », la date du courrier est gardée. Un courrier adressé directement à la compagnie compte
+ *   aussi : le premier avis reçu par elle fait la date (sans transmission datée, seulement s'il tombe dans le repère, car la
+ *   transmission a pu le précéder). Les deux champs s'enregistrent avec la fiche, sans changement de schéma
+ *   (db/sinistres.ts) ; leur saisie à l'écran, et leur reprise par le formulaire à chaque enregistrement : Frédéric.
  * - J67, R52 : dommages-ouvrage, aucun délai dans les clauses types : ce module reste sans repère (inchangé) ; les autres
  *   modules sont alignés (voir ci-dessus).
  * - J67, R53 : « Tempête, Grêles, Neiges » garde le repère de droit commun ; l'avertissement ajoute, par prudence, les
@@ -472,10 +477,13 @@ export interface OptionsDelaiDeclaration {
   datePublicationArrete?: string | null
   /**
    * Déclaration adressée au courtier : date de sa transmission à la compagnie, comparée au repère si elle est connue
-   * (J67, R51) ; aucun champ de la fiche ne la porte.
+   * (J67, R51) ; absente ou null : celle de la fiche (assurance.transmisCompagnieLe).
    */
   transmisCompagnieLe?: string | null
-  /** Le courtier gère les sinistres pour l'assureur (mandat vu) : la date du courrier au courtier est retenue (J67, R51). */
+  /**
+   * Le courtier gère les sinistres pour l'assureur (mandat vu) : la date du courrier au courtier est retenue (J67, R51) ;
+   * absent : celui de la fiche (assurance.courtierMandateParAssureur).
+   */
   courtierMandateParAssureur?: boolean
 }
 
@@ -491,11 +499,14 @@ export interface ControleDelaiDeclaration {
   delai: DelaiDeclaration | null
   /**
    * Date saisie, à défaut dépôt du premier courrier de déclaration déposé au plus tard aujourd'hui ; courrier au
-   * courtier : sa transmission à la compagnie, si elle est connue (J67, R51).
+   * courtier : le premier avis reçu par la compagnie, sa transmission datée ou un courrier qui lui est adressé (J67, R51).
    */
   dateRetenue: string | null
   source: 'saisie' | 'courrier' | 'transmission' | null
-  /** Courrier dont le dépôt fait la date retenue (proposée ou égale à la date saisie). */
+  /**
+   * Courrier dont le dépôt fait la date retenue (proposée ou égale à la date saisie) ; source « transmission » : le
+   * courrier au courtier transmis à la compagnie (J67, R51).
+   */
   courrierId: string | null
   /** Jours calendaires au-delà du repère : déclaration tardive, ou repère dépassé sans déclaration ; 0 sinon. */
   retardJours: number
@@ -588,17 +599,31 @@ function verifierOptionsDelai(options: OptionsDelaiDeclaration): void {
     throw new Error(`Délai du contrat invalide (${delaiContratJoursOuvres}) : nombre entier de jours ouvrés attendu.`)
   verifierDateOption("Date de publication de l'arrêté", options.datePublicationArrete)
   verifierDateOption('Date de transmission à la compagnie', options.transmisCompagnieLe)
-  if (courtierMandateParAssureur !== undefined && typeof courtierMandateParAssureur !== 'boolean')
-    throw new Error(`Mandat du courtier invalide (${String(courtierMandateParAssureur)}) : oui ou non attendu.`)
+  const mandat = erreurMandatCourtier(courtierMandateParAssureur)
+  if (mandat) throw new Error(mandat)
 }
 
 interface DateRetenue {
   date: string | null
   source: ControleDelaiDeclaration['source']
+  /** Courrier qui fait la date ; source « transmission » : le courrier au courtier transmis. */
   courrier: CourrierDeclarationDepose | null
   /** Courrier au courtier, sans mandat de l'assureur vu ni transmission datée : à vérifier (J67, R51). */
   courtierAVerifier?: boolean
+  /** Transmission à la compagnie datée avant le courrier au courtier : non retenue, à vérifier (J67, R51). */
+  transmissionAnterieure?: string
 }
+
+/** Champs du courtier (J67, R51) : l'option de l'appelant, à défaut l'assurance de la fiche. */
+interface ChampsCourtier {
+  transmisCompagnieLe: string | null | undefined
+  mandate: boolean | undefined
+}
+
+const champsCourtier = ({ assurance }: FicheSinistre, options: OptionsDelaiDeclaration): ChampsCourtier => ({
+  transmisCompagnieLe: options.transmisCompagnieLe ?? assurance.transmisCompagnieLe,
+  mandate: options.courtierMandateParAssureur ?? assurance.courtierMandateParAssureur,
+})
 
 function dateRetenue(fiche: FicheSinistre, premier: CourrierDeclarationDepose | null): DateRetenue {
   const saisie = fiche.dateDeclaration
@@ -608,13 +633,28 @@ function dateRetenue(fiche: FicheSinistre, premier: CourrierDeclarationDepose | 
 }
 
 /**
- * J67, R51 : courrier retenu adressé au courtier. Mandat de l'assureur vu : sa date est retenue ; transmission à la
- * compagnie datée : elle fait la date, comparée au repère ; sinon, à vérifier.
+ * J67, R51 : courrier retenu adressé au courtier. Mandat de l'assureur vu : sa date est retenue. Sinon, le premier avis
+ * reçu par la compagnie fait la date : la transmission datée par le courtier, ou un courrier adressé directement à la
+ * compagnie. Sans transmission datée, ce courrier ne fait la date que s'il tombe dans le repère (la transmission a pu le
+ * précéder) ; sinon, à vérifier. Une transmission datée avant le courrier au courtier est impossible : elle n'est pas
+ * retenue, à vérifier. Ce courrier a passé le contrôle de chronologie (trierCourriers) : une date qui le précède précède
+ * aussi, le cas échéant, la survenance ou la connaissance.
  */
-function retenueViaCourtier(retenue: DateRetenue, { transmisCompagnieLe, courtierMandateParAssureur }: OptionsDelaiDeclaration): DateRetenue {
-  if (retenue.courrier?.typeDestinataire !== COURTIER || courtierMandateParAssureur === true) return retenue
-  if (transmisCompagnieLe) return { date: transmisCompagnieLe, source: 'transmission', courrier: null }
-  return { ...retenue, courtierAVerifier: true }
+function retenueViaCourtier(
+  retenue: DateRetenue,
+  admis: readonly CourrierDeclarationDepose[],
+  repere: string | null,
+  { transmisCompagnieLe, mandate }: ChampsCourtier,
+): DateRetenue {
+  const auCourtier = retenue.courrier
+  if (auCourtier?.typeDestinataire !== COURTIER || mandate === true) return retenue
+  if (transmisCompagnieLe && transmisCompagnieLe < auCourtier.dateDepot) return { ...retenue, transmissionAnterieure: transmisCompagnieLe }
+  const directe = admis.find((courrier) => courrier.typeDestinataire === COMPAGNIE)
+  const parDirecte = (avant: string | null): DateRetenue | null =>
+    directe && avant !== null && directe.dateDepot <= avant ? { date: directe.dateDepot, source: 'courrier', courrier: directe } : null
+  if (transmisCompagnieLe)
+    return parDirecte(transmisCompagnieLe) ?? { date: transmisCompagnieLe, source: 'transmission', courrier: auCourtier }
+  return parDirecte(repere) ?? { ...retenue, courtierAVerifier: true }
 }
 
 type EtatCalcule = Pick<ControleDelaiDeclaration, 'etat' | 'retardJours' | 'message'>
@@ -671,12 +711,25 @@ function etatSansDeclaration({ fiche, aujourdhui, repere, futur }: ContexteEtat)
   return futur ? { ...etat, message: `${etat.message} ${messageDepotFutur(futur)}` } : etat
 }
 
-function etatDeclare(date: string, { courrier, courtierAVerifier }: DateRetenue, { repere, fondements }: ContexteEtat): EtatCalcule {
+/** Date retenue nommée selon sa source : la transmission à la compagnie cite le courrier au courtier (J67, R51). */
+const designation = (date: string, { source, courrier }: DateRetenue): string =>
+  source === 'transmission' && courrier
+    ? `Transmission à la compagnie du ${dateIsoVersFr(date)} (courrier au courtier du ${dateIsoVersFr(courrier.dateDepot)})`
+    : `Déclaration du ${dateIsoVersFr(date)}`
+
+function etatDeclare(date: string, retenue: DateRetenue, { repere, fondements }: ContexteEtat): EtatCalcule {
+  const { source, courrier, courtierAVerifier, transmissionAnterieure } = retenue
+  if (transmissionAnterieure !== undefined)
+    return {
+      etat: 'a_verifier',
+      retardJours: 0,
+      message: `Transmission à la compagnie saisie au ${dateIsoVersFr(transmissionAnterieure)}, avant le courrier au courtier du ${dateIsoVersFr(date)} : date de transmission à vérifier ; délai non contrôlé (repère indicatif du ${dateIsoVersFr(repere)}).`,
+    }
   if (date > repere)
     return {
       etat: 'tardive',
       retardJours: ecartJours(repere, date),
-      message: `Déclaration du ${dateIsoVersFr(date)}, postérieure au repère indicatif du ${dateIsoVersFr(repere)}.`,
+      message: `${designation(date, retenue)}, postérieure au repère indicatif du ${dateIsoVersFr(repere)}.`,
     }
   if (courtierAVerifier === true)
     return {
@@ -684,14 +737,15 @@ function etatDeclare(date: string, { courrier, courtierAVerifier }: DateRetenue,
       retardJours: 0,
       message: `Déclaration adressée au courtier le ${dateIsoVersFr(date)}, dans le repère indicatif du ${dateIsoVersFr(repere)} : à vérifier : mandat du courtier et date de transmission à la compagnie.`,
     }
-  const reception = courrier ? receptionConnue(courrier) : null
+  // Transmission par le courtier : la réception de son courrier ne dit rien de celle de la compagnie.
+  const reception = courrier && source !== 'transmission' ? receptionConnue(courrier) : null
   if (reception !== null && reception > repere)
     return {
       etat: 'a_verifier',
       retardJours: 0,
       message: `Courrier déposé le ${dateIsoVersFr(date)}, dans le délai, mais reçu le ${dateIsoVersFr(reception)}, après le repère du ${dateIsoVersFr(repere)} : le texte ne dit pas si l'envoi ou la réception compte (${fondements.join(' ; ')}) ; vérifier le contrat.`,
     }
-  return { etat: 'dans_le_delai', retardJours: 0, message: `Déclaration du ${dateIsoVersFr(date)}, dans le repère indicatif du ${dateIsoVersFr(repere)}.` }
+  return { etat: 'dans_le_delai', retardJours: 0, message: `${designation(date, retenue)}, dans le repère indicatif du ${dateIsoVersFr(repere)}.` }
 }
 
 function etatDuDelai(retenue: DateRetenue, contexte: ContexteEtat): EtatCalcule {
@@ -716,8 +770,9 @@ const mentionReport = ({ date, dateReportee }: RepereDeclaration): string =>
 /**
  * Contrôle du délai de déclaration : date saisie, à défaut dépôt du premier courrier de déclaration déposé au plus tard
  * aujourd'hui, comparée au repère (droit commun : reperesDelaisSinistre ; catastrophe naturelle : publication de l'arrêté
- * + 30 jours, sans report ; dommages-ouvrage : aucun). Courrier au courtier : sa transmission à la compagnie, ou « à
- * vérifier » sans mandat de l'assureur vu (J67, R51). Sans date de déclaration, un suivi plus avancé (expertise, rapport,
+ * + 30 jours, sans report ; dommages-ouvrage : aucun). Courrier au courtier : le premier avis reçu par la compagnie (sa
+ * transmission datée, ou un courrier qui lui est adressé), ou « à vérifier » sans mandat de l'assureur vu ; transmission
+ * datée avant ce courrier : « à vérifier » (J67, R51). Sans date de déclaration, un suivi plus avancé (expertise, rapport,
  * règlement, clôture datés, à défaut phase saisie qui suit la déclaration) donne « déclaration non datée ». Signal
  * indicatif, à confirmer (voir l'en-tête du module).
  */
@@ -728,8 +783,8 @@ export function controlerDelaiDeclaration(
 ): ControleDelaiDeclaration {
   verifierOptionsDelai(options)
   const { admis, futurs } = trierCourriers(sinistre, courriers, options.aujourdhui)
-  const retenue = retenueViaCourtier(dateRetenue(sinistre.fiche, admis[0] ?? null), options)
   const repere = repereDeclaration(sinistre.fiche, options)
+  const retenue = retenueViaCourtier(dateRetenue(sinistre.fiche, admis[0] ?? null), admis, repere.date, champsCourtier(sinistre.fiche, options))
   const commun = {
     declarationAuPlusTard: repere.date,
     declarationAuPlusTardReportee: repere.dateReportee,
