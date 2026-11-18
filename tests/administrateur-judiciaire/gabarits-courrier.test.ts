@@ -14,9 +14,11 @@ import {
   echeanceOppositionArt20,
   gabaritCourrier,
   modeleCourrierDepuisGabarit,
+  protocoleApurementSelonRegime,
   verifierRegistreGabarits,
 } from '@/lib/administrateur-judiciaire/domain/gabarits-courrier'
 import type { ResultatDelaiContestation } from '@/lib/administrateur-judiciaire/domain/statut-assemblee'
+import { enTeteDuModule } from './en-tete-module'
 
 /**
  * Gabarits de courrier prioritaires d'un administrateur judiciaire (point 62 du bilan 2 ; Gestéam, tranche 43 § 22 :
@@ -40,7 +42,8 @@ const socle = {
 describe('registre des gabarits', () => {
   it('tient ses invariants : familles, formes, champs requis du contexte, fondement ou pratique déclarée', () => {
     expect(verifierRegistreGabarits()).toEqual([])
-    expect(CLES_GABARITS_COURRIER).toHaveLength(13)
+    // 13, plus l'information au notaire et le certificat de règlement des charges (J67, R108)
+    expect(CLES_GABARITS_COURRIER).toHaveLength(15)
   })
 
   it('avis d’appel de fonds (point 17) : forme libre, e-mail direct comme Gestéam, contexte « appel copropriétaire »', () => {
@@ -198,6 +201,7 @@ describe('certificat de l’art. 20 II', () => {
       delivrable: true,
       echeance: '2026-11-10',
       motif: 'Certificat à délivrer au notaire au plus tard le 10/11/2026 (L. 1965 art. 20, II).',
+      courrierInformation: null,
     })
   })
 
@@ -205,9 +209,13 @@ describe('certificat de l’art. 20 II', () => {
     const base = { unePersonneNotifieeCoproprietaire: true, dateNotificationNotaire: '2026-10-10', aujourdhui: '2026-10-20' }
     // Point de départ le 2026-09-04 : 46 jours au 2026-10-20.
     const refus = controlerCertificatArt20({ ...base, misesEnDemeure: [{ pointDeDepart: '2026-09-04', regleeLe: null }] })
-    expect(refus).toMatchObject({ cle: 'certificat_art20_ii_2', delivrable: false })
+    // J67, R108 : pas de certificat « débiteur », mais un courrier d'information au notaire dans le mois
+    expect(refus).toMatchObject({ cle: 'certificat_art20_ii_2', delivrable: false, courrierInformation: 'information_notaire_art20_ii' })
     expect(refus.motif).toMatch(/notaire notifie/i)
     expect(refus.motif).toMatch(/trente jours/)
+    expect(refus.motif).toMatch(
+      /Répondre quand même au notaire au plus tard le 10\/11\/2026 par un courrier d'information, sans détail de la dette \(J67, R108\)\.$/,
+    )
     // 45 jours tout juste : pas encore « plus de 45 jours ».
     expect(controlerCertificatArt20({ ...base, misesEnDemeure: [{ pointDeDepart: '2026-09-05', regleeLe: null }] }).delivrable).toBe(true)
     // Réglée avant la date du certificat : plus infructueuse ; réglée après : encore infructueuse.
@@ -287,6 +295,74 @@ describe('attestation de non-recours', () => {
     expect(() => controlerAttestationNonRecours([calcule('2026-10-04')], '01/12/2026', options(1))).toThrow(/AAAA-MM-JJ/)
     expect(() => controlerAttestationNonRecours([calcule('2026-10-04')], '2026-12-01', options(1, -1))).toThrow(/entier positif/)
     expect(() => controlerAttestationNonRecours([calcule('2026-10-04')], '2026-12-01', options(Number.NaN))).toThrow(/entier positif/)
+  })
+})
+
+describe('art. 20, II : information au notaire et certificat de règlement des charges (J67, R108)', () => {
+  it('information au notaire : un courrier, pas un certificat, sans détail de la dette, dans le mois', () => {
+    const g = gabaritCourrier('information_notaire_art20_ii')
+    expect(g).toMatchObject({ famille: 'Mutation', contexte: 'mutation', formeLegale: 'libre', libelleGesteam: null, fondements: ['L. 1965 art. 20, II'] })
+    expect(g.sansTexte).toMatch(/aucun certificat négatif/)
+    expect(g.mentions).toContain("Le certificat prévu au 2° de l'art. 20, II de la loi ne peut pas être délivré")
+    expect(g.mentions).toContain('Aucun détail de la dette')
+    expect(g.delai).toMatchObject({ fondement: 'L. 1965 art. 20, II', certitude: 'TEXTE' })
+  })
+
+  it('certificat attestant du règlement des charges : à la fin des trente jours, sinon l’avant-contrat est réputé nul', () => {
+    const g = gabaritCourrier('certificat_reglement_charges_art20_ii')
+    expect(g).toMatchObject({ famille: 'Mutation', contexte: 'mutation', formeLegale: 'libre', sansTexte: null, fondements: ['L. 1965 art. 20, II'] })
+    expect(g.objet).toMatch(/^Certificat attestant du règlement des charges/)
+    expect(g.champsPropres).toContain('reglementCharges.date')
+    expect(g.delai?.libelle).toMatch(/réputé nul et non avenu/)
+    expect(controlerContexteFusion('certificat_reglement_charges_art20_ii', { 'reglementCharges.date': '15/12/2026' }).invalides).toContainEqual({
+      cle: 'reglementCharges.date',
+      motif: 'date AAAA-MM-JJ attendue',
+    })
+  })
+})
+
+describe('protocole d’apurement selon le régime du mandat (J67, R42)', () => {
+  it('sous l’art. 29-1 : le gabarit du registre, avec les mots exacts de l’art. 29-5, V', () => {
+    const { gabarit, avertissements } = protocoleApurementSelonRegime('ap291')
+    expect(gabarit).toBe(GABARITS_COURRIER.protocole_apurement_etablissement)
+    expect(gabarit.fondements).toContain('L. 1965 art. 29-5, V')
+    expect(gabarit.mentions).toContain(
+      "Échéancier individualisé qui ne compromet pas le plan d'apurement des dettes du syndicat (L. 1965 art. 29-5, V : « dès lors qu'ils ne compromettent pas la réalisation du plan d'apurement »)",
+    )
+    expect(avertissements).toHaveLength(2)
+  })
+
+  it.each(['sj', 'ap47'] as const)('hors art. 29-1 (%s) : accord de délais de paiement, sans l’art. 29-5, V ni plan d’apurement', (regime) => {
+    const { gabarit } = protocoleApurementSelonRegime(regime)
+    expect(gabarit.objet).toBe('Accord de délais de paiement (établissement)')
+    expect(gabarit.libelleGesteam).toBe("protocole d'apurement (établissement)")
+    expect(gabarit.fondements.join(' ')).not.toMatch(/29-5/)
+    expect(gabarit.mentions.join(' ')).not.toMatch(/plan d'apurement/)
+    expect(gabarit.mentions).toContain('Dette reconnue par le débiteur (C. civ. art. 2240)')
+  })
+
+  it('avertissements : procédure de l’art. 19-2 et remise de dette dans tous les cas ; pouvoir de l’administrateur de l’art. 47 non établi', () => {
+    const [dixNeufDeux, remise] = protocoleApurementSelonRegime('sj').avertissements
+    expect(dixNeufDeux).toMatch(/art\. 19-2.*n'est peut-être plus « infructueuse » \(J3, point 4\)/)
+    expect(remise).toMatch(/remise de dette/)
+    expect(protocoleApurementSelonRegime('sj').gabarit.fondements).toContain('D. 1967 art. 46, al. 3')
+    const ap47 = protocoleApurementSelonRegime('ap47').avertissements
+    expect(ap47).toHaveLength(3)
+    expect(ap47[2]).toMatch(/pouvoir de signer un tel accord n'est pas établi/)
+    expect(() => protocoleApurementSelonRegime('ap99' as never)).toThrow(/Régime du mandat « ap99 » inconnu/)
+  })
+})
+
+describe('en-tête du module (J67)', () => {
+  it('variante « débiteur », portée du protocole et art. 11 tranchés ; seules les rubriques du formulaire restent ouvertes', () => {
+    const { texte } = enTeteDuModule('gabarits-courrier')
+    const ouvert = texte.slice(texte.indexOf('🔴 Non établi'))
+    expect(ouvert).not.toMatch(/variante « débiteur »/)
+    expect(ouvert).not.toMatch(/portée du protocole d'apurement/)
+    expect(ouvert).not.toMatch(/art\. 11 \(pièces jointes à la convocation\) non relu/)
+    expect(ouvert).toMatch(/rubriques du modèle annexé à l'arrêté du 2 juillet 2020 non relevées/)
+    for (const r of ['J67, R25', 'J67, R42', 'J67, R108']) expect(texte).toContain(r)
+    expect(texte).toContain("« dès lors qu'ils ne compromettent pas la réalisation du plan d'apurement »")
   })
 })
 

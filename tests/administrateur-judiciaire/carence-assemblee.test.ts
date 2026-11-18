@@ -9,6 +9,7 @@ import {
   type SaisieCarence,
 } from '@/lib/administrateur-judiciaire/domain/carence-assemblee'
 import type { Regime } from '@/lib/administrateur-judiciaire/domain/fondements'
+import { enTeteDuModule } from './en-tete-module'
 
 /**
  * Carence d'une assemblée (point 23 du bilan 2 ; Gestéam : bouton « Carence » de la fiche AG, nature « Judiciaire »,
@@ -58,9 +59,15 @@ describe('constat', () => {
 })
 
 describe('suites proposées selon le régime', () => {
-  it('administrateur de l’art. 47 : nouvelle convocation, requête en désignation (requérants de l’art. 17 et du D. 46), information du juge', () => {
+  it('administrateur de l’art. 47 : nouvelle convocation, requête en désignation (requérants de l’art. 17 et du D. 46), prorogation à demander au juge (J67, R26), information du juge', () => {
     const suites = suitesProposees({ regime: 'ap47', objetDesignationSyndic: true })
-    expect(codes(suites)).toEqual(['nouvelle_convocation', 'requete_designation_syndic', 'information_juge'])
+    expect(codes(suites)).toEqual(['nouvelle_convocation', 'requete_designation_syndic', 'prorogation_mission', 'information_juge'])
+    expect(suites.find((s) => s.code === 'prorogation_mission')).toEqual({
+      code: 'prorogation_mission',
+      libelle: 'Demander au président du tribunal judiciaire, avant le terme, de prolonger ou de modifier la mission',
+      fondement: 'L. 1965 art. 29-1, I, al. 3 ; D. 1967 art. 47 ; Cass. 3e civ., 14/01/2016, n° 14-24.989',
+      aConfirmer: true,
+    })
     const requete = suites.find((s) => s.code === 'requete_designation_syndic')
     expect(requete).toMatchObject({ fondement: 'L. 1965 art. 17, al. 3 ; D. 1967 art. 46' })
     expect(requete?.libelle).toMatch(/copropriétaires, un ou plusieurs membres du conseil syndical, le maire ou le président de l'EPCI/)
@@ -82,11 +89,31 @@ describe('suites proposées selon le régime', () => {
     expect(codes(suitesProposees({ regime: 'ap291', objetDesignationSyndic: false }))).toEqual(['nouvelle_convocation', 'information_juge'])
   })
 
-  it.each(['sj', 'ap47'] as const)('information du juge en régime « %s » : selon l’ordonnance, à confirmer', (regime) => {
-    expect(suitesProposees({ regime, objetDesignationSyndic: true }).find((s) => s.code === 'information_juge')).toMatchObject({
-      fondement: null,
+  it.each(['sj', 'ap47'] as const)('information du juge en régime « %s » : aucun texte ne l’impose, selon l’ordonnance, à confirmer (J67, R27)', (regime) => {
+    const information = suitesProposees({ regime, objetDesignationSyndic: true }).find((s) => s.code === 'information_juge')
+    expect(information).toMatchObject({
+      fondement: "D. 1967 art. 46 et 47 : aucune obligation d'information du juge ; voir l'ordonnance",
       aConfirmer: true,
     })
+    expect(information?.libelle).toBe(
+      "Informer le président du tribunal judiciaire, selon ce que prévoit l'ordonnance de désignation ; si la carence empêche de finir la mission avant son terme, le saisir avant ce terme",
+    )
+  })
+
+  it('assemblée tenue qui n’a pas désigné de syndic : son procès-verbal se notifie, le délai de l’art. 42 court (J67, R28) ; pas pour un PV de carence', () => {
+    const notification = {
+      code: 'notification_proces_verbal',
+      libelle:
+        "Notifier le procès-verbal aux copropriétaires opposants ou défaillants : l'assemblée s'est tenue et a voté ; leur délai de deux mois pour contester court de cette notification",
+      fondement: 'L. 1965 art. 42, al. 2 ; D. 1967 art. 18',
+      aConfirmer: false,
+    }
+    expect(carence('sj').suites).toContainEqual(notification)
+    expect(codes(carence(null).suites)).toEqual(['nouvelle_convocation', 'notification_proces_verbal'])
+    for (const motif of ['aucun_participant', 'reunion_non_tenue'] as const)
+      expect(codes(carence('sj', { motif }).suites)).not.toContain('notification_proces_verbal')
+    // Sans motif, suitesProposees ne la propose pas : elle naît du constat.
+    expect(codes(suitesProposees({ regime: 'sj', objetDesignationSyndic: true }))).not.toContain('notification_proces_verbal')
   })
 
   it('nouvelle convocation : délai plus long du règlement et urgence rappelés ; régime inconnu : cette suite seule', () => {
@@ -121,7 +148,8 @@ describe('contrôle des suites', () => {
     ])
     const ap47 = controlerSuitesCarence(carence('ap47'), { dateFinMission: '2026-11-15' }, aujourdhui)
     expect(ap47).toMatchObject([{ code: 'mission_trop_courte', aConfirmer: true }])
-    expect(ap47[0].message).toMatch(/saisir d’abord le juge/)
+    // J67, R26 : l'anomalie reprend le libellé de la suite de prorogation
+    expect(ap47[0].message).toMatch(/demander d’abord au président du tribunal judiciaire, avant le terme, de prolonger ou de modifier la mission \(à confirmer\)\.$/)
   })
 
   it('bornes : fin de mission le jour même, à J+21 et à J+22', () => {
@@ -162,5 +190,14 @@ describe('contrôle des suites', () => {
     expect(source).toMatch(/Légifrance le 29\/10\/2026/)
     expect(source).toMatch(/mandat-judiciaire\.ts/)
     expect(source).toMatch(/🔴/)
+  })
+
+  it('en-tête : prorogation de l’art. 47, information du juge et PV de carence tranchés (J67, R26 à R28) ; seule la définition reste ouverte', () => {
+    const { texte } = enTeteDuModule('carence-assemblee')
+    const ouvert = texte.slice(texte.indexOf('🔴 Non établi'))
+    expect(ouvert).toMatch(/n'est définie par aucun texte/)
+    for (const tranche of ["n'est pas proposée tant que", "dépend de l'ordonnance", 'Question laissée à Hugo'])
+      expect(ouvert).not.toContain(tranche)
+    for (const r of ['J67, R26', 'J67, R27', 'J67, R28']) expect(texte).toContain(r)
   })
 })

@@ -52,12 +52,16 @@ import type { Identite } from '@/lib/administrateur-judiciaire/domain/identites-
  * Décisions de Hugo du 17/11/2026 (numéros de registre proposés : J52 et J53, suites de J50 ; notes
  * DECISIONS-HUGO-2026-11-17.md, recommandations suivies) :
  * - J52 : une demande de voie postale, un refus de la voie électronique ou un retrait d'accord reçu AVANT le 25/12/2025
- *   prend effet dès sa réception (ancienne règle : effetDemandeVoiePostale), même pour un envoi électronique fait depuis
- *   le 25/12/2025 ; cet envoi ne vaut pas notification, le délai de contestation ne court pas pour ce copropriétaire
+ *   prend effet dès sa réception (effetDemandeVoiePostale), même pour un envoi électronique fait depuis le 25/12/2025 ;
+ *   cet envoi ne vaut pas notification, le délai de contestation ne court pas pour ce copropriétaire
  *   (statut-assemblee.ts). Fondement cité : décret n° 2025-1292 sans règle transitoire pour les notifications ; C. civ.
  *   art. 2 (la loi ne dispose que pour l'avenir) ; L. 1965 art. 42-1, al. 2 (« à tout moment et par tout moyen ») ;
- *   lecture prudente, retenue par Hugo. Le délai de huit jours de l'art. 64-4 actuel ne vaut que pour une demande reçue
- *   depuis le 25/12/2025. Remplace l'avertissement « à confirmer » de la fenêtre du 16 au 24/12/2025 ;
+ *   lecture prudente, retenue par Hugo. Motif corrigé par J67, R17 : ce n'est pas l'ancienne règle, mais une lecture plus
+ *   stricte qu'elle ; l'ancien art. 64-4 (rédaction du 04/07/2020 au 24/12/2025) donnait déjà effet au retrait de
+ *   l'accord « le lendemain du huitième jour suivant la réception par le syndic ». Le code n'applique le délai de huit
+ *   jours qu'à une demande reçue depuis le 25/12/2025 : un envoi électronique fait pendant ces huit jours ne fait pas
+ *   courir le délai, au prix d'une nouvelle notification par LRAR. Remplace l'avertissement « à confirmer » de la fenêtre
+ *   du 16 au 24/12/2025 ;
  * - J53 : l'accord du critère LRE repris de Gestéam (ConsentementVoieElectronique, sens « accord ») vaut consentement du
  *   destinataire non professionnel aux envois recommandés électroniques (CPCE art. L. 100) ; sans lui, une LRE ne vaut pas
  *   notification (statut-assemblee.ts, cause consentement_lre_absent) ; le procédé du prestataire qualifié (D. 1967
@@ -83,10 +87,19 @@ import type { Identite } from '@/lib/administrateur-judiciaire/domain/identites-
  * ou un retrait reçu à partir du 25/12/2025 est aussi une demande de voie postale (la demande se fait « par tout moyen »),
  * tant qu'un accord reçu ensuite ne le remplace pas (un refus d'avant le 25/12/2025 suivi d'un accord daté reçu depuis :
  * décision de Hugo du 17/11/2026 (J59), ci-dessus).
- * 🔴 Non établi : voie à une date antérieure au 25/12/2025 (accord exprès de l'art. 64-3 de la rédaction de 2020 ;
- * portée immédiate de l'art. 42-1 entre le 11/04/2024 et le 24/12/2025 débattue) : non calculée par voieDeNotification ;
- * retour à la voie électronique après une DemandeVoiePostale (un accord reçu ensuite ne la lève pas ; J59 ne vise que le
- * refus ou le retrait d'accord reçu avant le 25/12/2025) ; la qualité
+ *
+ * J67, R17 : lecture prudente gardée (décision de Hugo du 17/11/2026 ; D. 1967 art. 64-3 et 64-4, rédaction du
+ * 04/07/2020 au 24/12/2025, et L. 1965 art. 42-1 relus sur Légifrance le 17/11/2026) : un envoi électronique fait avant
+ * le 25/12/2025 exigeait l'accord exprès du copropriétaire, y compris du 11/04/2024 au 24/12/2025 (le décret renvoyait à
+ * un accord que la loi ne mentionnait plus ; deux lectures, aucun arrêt) ; elle ne fait jamais courir un délai à tort.
+ * voieDeNotification ne calcule rien avant cette date ; le calcul du délai (statut-assemblee.ts) en décide.
+ *
+ * 🔴 Non établi :
+ * retour à la voie électronique après une DemandeVoiePostale : J67, R18 l'admet par une renonciation écrite et datée,
+ * reçue par un moyen qui prouve sa date, avec une adresse électronique donnée à cet effet (D. 1967 art. 64-4, 65), mais
+ * laisse à Hugo le choix de son effet (lendemain du huitième jour suivant la réception, le plus prudent, ou dès la
+ * réception), le même que pour l'accord de J59 ; d'ici là, le code ne change pas (un accord reçu ensuite ne lève pas la
+ * demande) ; la qualité
  * professionnelle du destinataire n'a aucune source dans le module (non saisie : lue comme non professionnelle, J53) ;
  * le libellé « Voie électronique (accord exprès) » de l'écran d'AG (AgElectiveModule.tsx) est à
  * revoir avec Frédéric. Le mode de notification des courriers (LRAR, LRE, prestataire
@@ -118,7 +131,7 @@ export const ENTREE_EN_VIGUEUR_DECRET_2020 = composerDateIso(2020, 7, 4)
 
 const FONDEMENT_VOIE_POSTALE = 'L. 1965 art. 42-1 ; D. 1967 art. 64-1, 64-4'
 const FONDEMENT_VOIE_POSTALE_ANCIENNE_REGLE =
-  "L. 1965 art. 42-1, al. 2 ; D. 1967 art. 64-1 ; demande reçue avant le 25/12/2025 : effet à sa réception (ancienne règle ; décret n° 2025-1292 sans règle transitoire, C. civ. art. 2 ; décision de Hugo du 17/11/2026, J52)"
+  "L. 1965 art. 42-1, al. 2 ; D. 1967 art. 64-1 ; demande reçue avant le 25/12/2025 : effet à sa réception (lecture prudente, plus stricte que l'ancien art. 64-4, qui donnait déjà effet au retrait de l'accord le lendemain du huitième jour suivant sa réception ; décret n° 2025-1292 sans règle transitoire, C. civ. art. 2 ; décision de Hugo du 17/11/2026, J52 ; J67, R17)"
 const FONDEMENT_VOIE_ELECTRONIQUE = 'L. 1965 art. 42-1 ; D. 1967 art. 64'
 const FONDEMENT_REGIME_ANTERIEUR = 'D. 1967 art. 64 à 64-4, rédaction antérieure au décret n° 2025-1292'
 
@@ -149,13 +162,17 @@ export function creerDemandeVoiePostale(saisie: {
   return { identiteId, recueLe: saisie.recueLe, origine: saisie.origine, agId }
 }
 
-/** Demande reçue avant le 25/12/2025 : l'ancienne règle s'applique, effet dès sa réception (J52). */
+/**
+ * Demande reçue avant le 25/12/2025 : effet retenu dès sa réception (J52), plus strict que l'ancien art. 64-4, qui
+ * donnait déjà effet au retrait de l'accord le lendemain du huitième jour (J67, R17).
+ */
 export const estDemandeAncienneRegle = (demande: Pick<DemandeVoiePostale, 'recueLe'>): boolean => demande.recueLe < ENTREE_EN_VIGUEUR_VOIE_ELECTRONIQUE
 
 /**
  * Date d'effet : dès l'assemblée si la demande y est formulée, sinon le lendemain du huitième jour suivant sa réception
- * (D. 1967 art. 64-4) ; reçue avant le 25/12/2025, dès sa réception (ancienne règle, décision de Hugo du 17/11/2026, J52 :
- * le délai de huit jours ne vaut que pour une demande reçue depuis l'entrée en vigueur du décret n° 2025-1292).
+ * (D. 1967 art. 64-4) ; reçue avant le 25/12/2025, dès sa réception (J52 : le code n'applique le délai de huit jours
+ * qu'à une demande reçue depuis l'entrée en vigueur du décret n° 2025-1292 ; lecture prudente, plus stricte que l'ancien
+ * art. 64-4, J67, R17).
  */
 export function effetDemandeVoiePostale(demande: DemandeVoiePostale): string {
   if (demande.origine === 'ag' || estDemandeAncienneRegle(demande)) return demande.recueLe

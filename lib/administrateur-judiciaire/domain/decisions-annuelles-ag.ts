@@ -102,7 +102,7 @@ import { LIBELLES_ETATS_RESOLUTION, type Resolution } from '@/lib/administrateur
  *   de la clôture (L. 1965 art. 14-1, I), si bien que, pour un conseil élu par l'assemblée annuelle, celle qui le
  *   renouvelle se tient moins de six mois avant son terme, ou après ; il l'est aussi quand chacun de ses membres est
  *   désigné de nouveau au-delà du terme, et sa désignation précédente sort alors des décisions en vigueur (elle n'ajoute
- *   rien, quelle que soit la réponse à la question 🔴 sur le mandat précédent) ; une élection complémentaire, alignée
+ *   rien : J67, R23, ci-dessous) ; une élection complémentaire, alignée
  *   sur le terme en cours ou de pleine durée plus tôt dans le mandat, ne le renouvelle pas ;
  * - échéance de l'assemblée budgétaire au même quantième six mois après la clôture (borné en fin de mois), accomplie par
  *   un budget décidé après la clôture et au plus tard douze mois après (avant la clôture de l'exercice suivant) ; sous
@@ -117,22 +117,31 @@ import { LIBELLES_ETATS_RESOLUTION, type Resolution } from '@/lib/administrateur
  * au moins deux ans, un vote de rejet comptant comme un vote) est modélisée à part (alerte-mandataire-ad-hoc.ts) : une
  * approbation des comptes adoptée par l'assemblée et enregistrée ici y compte comme un vote.
  *
+ * Décisions de Hugo du 17/11/2026 (J67 : recommandations validées en bloc ; textes lus sur Légifrance le 17/11/2026) :
+ * - J67, R11 : la majorité qui vote des honoraires dépend de leur objet : rémunération du syndic fixée par son contrat,
+ *   approuvé avec sa désignation à la majorité de l'art. 25 (D. 1967 art. 29 ; L. 1965 art. 25, c) ; honoraires
+ *   spécifiques de travaux votés à la même assemblée que les travaux, « aux mêmes règles de majorité » (L. 1965 art.
+ *   18-1 A, III). Code confirmé : une résolution à l'art. 24 est signalée (majorite_a_verifier), sans la dire
+ *   irrégulière. Option non codée : comparer avec la majorité de la résolution de travaux liée ;
+ * - J67, R21 : le montant maximum alloué au conseil syndical pour une dépense de travaux hors budget se vote à la majorité
+ *   de la délégation, celle des voix de tous les copropriétaires (art25 ; L. 1965 art. 21-1, al. 1 ; ni l'art. 21-2 ni
+ *   D. 1967 art. 26-1, al. 2 ne fixent de majorité) : lecture prudente, passerelle de l'art. 25-1 comprise. Code
+ *   confirmé, marque levée (aConfirmer) ;
+ * - J67, R22 : un renouvellement exprès de la délégation générale (L. 1965 art. 21-3) ne reconduit pas le montant maximum
+ *   par dépense de travaux hors budget, fixé « pour chacune d'elles » (D. 1967 art. 26-1, al. 2) : l'assemblée le fixe
+ *   de nouveau. Code confirmé : un renouvellement décidé après lui l'écarte ; reconduit par la résolution, il se saisit de
+ *   nouveau à sa date. Option non codée : liste des montants qui tombent au renouvellement ;
+ * - J67, R23 : un membre du conseil syndical désigné de nouveau avant le terme de son mandat n'a qu'un mandat, le nouveau,
+ *   dès sa prise d'effet (D. 1967 art. 22 : « trois années renouvelables » ; L. 1965 art. 25, c) : decisionsEnVigueur le
+ *   retire de la désignation précédente, qui reste en vigueur pour ses autres membres ; lecture seulement, la décision
+ *   enregistrée ne change pas.
+ *
  * 🔴 Non établi (à trancher par Frédéric ou Hugo) :
  * - sens de « Rendu des comptes N » : notification des comptes avec la convocation, ou date de l'assemblée qui les
  *   approuve ? VitFix ne s'en sert que pour tenir la convocation de l'assemblée des comptes pour faite ;
  * - « Délégations Syndic € / CS € » : plafond d'une délégation de l'art. 25 a, montant alloué au conseil syndical dans le
  *   budget (D. 1967 art. 26-1) ou seuil de consultation (art. 21) ? VitFix garde des types distincts ;
  * - remise des comptes au conseil syndical : aucun délai légal ; l'avance est un réglage du cabinet (0 par défaut) ;
- * - honoraires : majorité selon l'objet — rémunération du syndic fixée par son contrat (D. 1967 art. 29 : art. 25) ou
- *   honoraires de travaux (L. 1965 art. 18-1 A, III : majorité des travaux) ; une résolution à l'art. 24 est signalée ;
- * - majorité du montant maximum par dépense de travaux hors budget (D. 1967 art. 26-1, al. 2) : celle de la délégation
- *   (art. 21-1) est retenue ;
- * - montant maximum par dépense de travaux hors budget au renouvellement exprès de la délégation générale (L. 1965 art.
- *   21-3) : est-il reconduit avec elle, ou l'assemblée doit-elle le fixer de nouveau ? VitFix ne le reconduit pas : un
- *   renouvellement décidé après lui l'écarte ; reconduit par la résolution, il se saisit de nouveau à sa date ;
- * - membre du conseil syndical désigné de nouveau avant le terme de son mandat, quand sa désignation précédente garde
- *   d'autres membres : le mandat précédent prend-il fin ? Les deux décisions restent en vigueur jusqu'à leur terme et ce
- *   membre figure dans les deux ;
  * - conseil syndical élu ou renouvelé par une assemblée tenue hors du délai de six mois après la clôture, ou par une
  *   assemblée extraordinaire : la fenêtre de six mois avant le terme suffit-elle à reconnaître son renouvellement, ou
  *   faut-il le saisir expressément ? VitFix s'en tient à la fenêtre.
@@ -300,7 +309,8 @@ export const REGLES_DECISIONS_ANNUELLES: Record<TypeDecisionAnnuelle, RegleDecis
     libelle: 'Montant maximum alloué au conseil syndical pour une dépense de travaux hors budget',
     majorite: 'art25',
     fondement: 'L. 1965 art. 21-1 et 21-2 ; D. 1967 art. 26-1, al. 2',
-    aConfirmer: true,
+    // J67, R21 (majorité de la délégation) et R22 (pas de reconduction) : confirmés
+    aConfirmer: false,
     portee: 'permanente',
     montant: 'requis',
     dureeMaxMois: null,
@@ -957,7 +967,8 @@ const enCours = (decision: DecisionAnnuelle, date: string, fins: readonly FinMan
 
 /**
  * Un montant maximum par dépense de travaux hors budget vaut avec la délégation générale en vigueur, décidée (date de la
- * décision, non de sa prise d'effet) au plus tard avec lui : un renouvellement décidé après lui ne le reconduit pas (🔴).
+ * décision, non de sa prise d'effet) au plus tard avec lui : un renouvellement décidé après lui ne le reconduit pas (J67,
+ * R22 : l'assemblée le fixe de nouveau).
  */
 function avecDelegationGenerale(enVigueur: DecisionAnnuelle[]): DecisionAnnuelle[] {
   const delegation = enVigueur.find((d) => d.type === 'delegation_generale_cs')
@@ -992,20 +1003,27 @@ function membresTousRedesignes(decision: DecisionAnnuelle, suivantes: readonly D
 }
 
 /**
- * Désignation du conseil syndical dont chaque membre est désigné de nouveau, au-delà de son terme, par une désignation qui a
- * pris effet : elle n'ajoute rien et sort des décisions en vigueur, quelle que soit la réponse à la question 🔴 sur le
- * mandat précédent.
+ * J67, R23 : un membre du conseil syndical désigné de nouveau par une désignation qui a pris effet (`prises`) sort de sa
+ * désignation précédente, qui garde ses autres membres ; sans membre restant, elle sort des décisions en vigueur (null).
+ * Lecture seulement : la décision enregistrée ne change pas. Une désignation saisie sans membres reste telle quelle.
  */
-const remplaceeParSesMembres = (decision: DecisionAnnuelle, prises: readonly DecisionAnnuelle[]): boolean =>
-  membresTousRedesignes(decision, designationsAuDelaDuTerme(decision, prises))
+function avecSesSeulsMembres(decision: DecisionAnnuelle, prises: readonly DecisionAnnuelle[]): DecisionAnnuelle | null {
+  if (decision.type !== 'mandat_cs' || decision.designesIds.length === 0) return decision
+  const redesignes = new Set(
+    prises.filter((d) => d.type === 'mandat_cs' && comparerDecisions(d, decision) > 0).flatMap((d) => d.designesIds),
+  )
+  const restants = decision.designesIds.filter((id) => !redesignes.has(id))
+  if (restants.length === decision.designesIds.length) return decision
+  return restants.length === 0 ? null : { ...decision, designesIds: restants }
+}
 
 /**
  * Décisions permanentes en vigueur à une date (décisions enregistrées, donc adoptées) : pour chaque type, la plus récente
  * qui a pris effet, sauf membres du conseil syndical, délégations de l'art. 25 a et montants maximum par dépense de
- * travaux, qui se cumulent ; une décision échue (terme ou fin passés), un mandat du syndic cessé avant son terme
- * (`options.finsMandatSyndic`) ou une désignation du conseil syndical dont chaque membre est désigné de nouveau au-delà de
- * son terme n'est plus en vigueur. Un membre désigné de nouveau alors que sa désignation précédente garde d'autres membres
- * figure dans les deux (🔴). Ordre des types, puis de prise d'effet.
+ * travaux, qui se cumulent ; une décision échue (terme ou fin passés) ou un mandat du syndic cessé avant son terme
+ * (`options.finsMandatSyndic`) n'est plus en vigueur. Un membre du conseil syndical désigné de nouveau n'a que son nouveau
+ * mandat : il sort de la désignation précédente, qui sort elle-même quand tous ses membres l'ont quittée (J67, R23).
+ * Ordre des types, puis de prise d'effet.
  */
 export function decisionsEnVigueur(
   decisions: readonly DecisionAnnuelle[],
@@ -1021,7 +1039,7 @@ export function decisionsEnVigueur(
   const enVigueur = TYPES_DECISION_ANNUELLE.flatMap((type) => {
     const duType = prises.filter((d) => d.type === type)
     const retenues = TYPES_CUMULATIFS.includes(type) ? duType : duType.slice(-1)
-    return retenues.filter((d) => enCours(d, date, fins) && !remplaceeParSesMembres(d, prises))
+    return retenues.filter((d) => enCours(d, date, fins)).flatMap((d) => avecSesSeulsMembres(d, prises) ?? [])
   })
   return avecDelegationGenerale(enVigueur)
 }

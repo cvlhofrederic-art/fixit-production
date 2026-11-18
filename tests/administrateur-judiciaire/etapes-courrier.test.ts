@@ -11,6 +11,7 @@ import {
   NAISSANCE_COPIE_AU_CS_PAR_DEFAUT,
   REGLES_ETAPES_COURRIER_PAR_DEFAUT,
   REGLES_HONORAIRES_COURRIER_PAR_DEFAUT,
+  baseLigneHonorairesCourrier,
   courrierDeclenche,
   courrierOrigineDe,
   creerRegleEtapeCourrier,
@@ -44,6 +45,7 @@ import {
   type EtapeDossier,
 } from '@/lib/administrateur-judiciaire/domain/etapes-dossier'
 import { creerRattachement } from '@/lib/administrateur-judiciaire/domain/fiches-liees'
+import type { Regime } from '@/lib/administrateur-judiciaire/domain/fondements'
 import { creerElement, totalElement } from '@/lib/administrateur-judiciaire/domain/honoraires-facturation'
 import {
   ETAPE_TYPE_COPIE_AU_CS_POUR_INFO,
@@ -636,15 +638,42 @@ describe('honoraires du courrier : proposition de lignes, jamais écrites, désa
     expect(totalElement(element)).toEqual({ htCentimes: 3_000, tvaCentimes: 600, ttcCentimes: 3_600 })
   })
 
-  it('🔴 forfait de mise en demeure : à confirmer avec le cabinet (L. 1965 art. 10-1, a) ; frais d’envoi : à confirmer aussi (relecture)', () => {
+  it('J67, R7 : forfait en deux lignes, payé par le syndicat puis imputable au copropriétaire en retard, aConfirmer gardé ; frais d’envoi : 🔴 (question n° 4)', () => {
     const regle = regleHonorairesMiseEnDemeure({ lignes: [ligneAr, ligneForfait], active: true })
     const [frais, forfait] = proposerHonorairesDuCourrier(courrier(), [regle], contexteHonoraires()).propositions
     expect(forfait).toMatchObject({ objet: 'forfait_mise_en_demeure', aConfirmer: true, fondements: ['L. 1965 art. 10-1, a'] })
-    expect(forfait.observation).toMatch(/^À confirmer avec le cabinet/)
-    expect(forfait.observation).toMatch(/réglage du cabinet/)
-    expect(frais).toMatchObject({ objet: 'frais_envoi', aConfirmer: true })
+    expect(forfait.repartition).toEqual({
+      payeur: 'syndicat',
+      imputation: {
+        a: 'coproprietaire_en_retard',
+        fondement: 'L. 1965 art. 10-1, a',
+        conditions: ['créance justifiée', 'mise en demeure partie (une relance faite avant elle n’est pas visée)', 'coût nécessaire'],
+      },
+    })
+    expect(forfait.observation).toMatch(/^Deux lignes \(J67, R7\) : le cabinet facture le forfait au syndicat, qui le paie/)
+    expect(forfait.observation).toMatch(/une relance faite avant la mise en demeure n'est pas visée\. Montant et tarif : réglage du cabinet, aucun montant par défaut\.$/)
+    expect(frais).toMatchObject({ objet: 'frais_envoi', aConfirmer: true, repartition: null })
     expect(frais.observation).toMatch(/administration provisoire/)
     expect(BASES_LIGNES_HONORAIRES_COURRIER.forfait_mise_en_demeure.aConfirmer).toBe(true)
+  })
+
+  it('J67, R7 : selon le régime du mandat ; sous l’art. 29-1, montant à présenter au juge ; sous les art. 46 et 47, aucun texte', () => {
+    const regle = regleHonorairesMiseEnDemeure({ lignes: [ligneAr, ligneForfait], active: true })
+    const propositions = (regime: Regime | null) => proposerHonorairesDuCourrier(courrier(), [regle], contexteHonoraires({ regime })).propositions
+    const [fraisAp, forfaitAp] = propositions('ap291')
+    expect(forfaitAp).toMatchObject({ aConfirmer: true, fondements: ['L. 1965 art. 10-1, a', 'L. 1965 art. 29-1, II', 'D. 1967 art. 61-1-5, II', 'arrêté du 08/10/2015, art. 14'] })
+    expect(forfaitAp.observation).toMatch(/à présenter au juge dans le compte provisoire détaillé \(D\. 1967 art\. 61-1-5, II ; arrêté du 08\/10\/2015, art\. 14\) ; seule la somme admise et payée par le syndicat est imputée au copropriétaire/)
+    expect(forfaitAp.observation).toMatch(/aucun arrêt lu : à confirmer\.$/)
+    for (const regime of ['sj', 'ap47'] as const) {
+      const [, forfait] = propositions(regime)
+      expect(forfait.fondements).toEqual(['L. 1965 art. 10-1, a'])
+      expect(forfait.observation).toMatch(/aucun contrat type voté ; les art\. 46 et 47 du décret ne disent rien de ce forfait : à confirmer\.$/)
+    }
+    expect(propositions(null)[1]).toMatchObject(BASES_LIGNES_HONORAIRES_COURRIER.forfait_mise_en_demeure)
+    expect(baseLigneHonorairesCourrier('forfait_mise_en_demeure', 'ap291').observation).toBe(forfaitAp.observation)
+    // frais d'envoi : même base quel que soit le régime (R5 et R6 à départager, question n° 4)
+    expect(fraisAp).toMatchObject(BASES_LIGNES_HONORAIRES_COURRIER.frais_envoi)
+    expect(() => propositions('ap99' as Regime)).toThrow(/Régime du mandat « ap99 » inconnu/)
   })
 
   it('qualification et calcul repris de la ligne du cabinet (point 67)', () => {
@@ -837,6 +866,12 @@ describe('modules existants et en-tête du module', () => {
     expect(texte).toContain('- Naissance de la Copie au CS : du courrier')
     expect(texte).toMatch(/L\. 1965 art\. 10-1, a/)
     expect(texte).toContain('🔴')
+    // J67, R7 ferme la question n° 3 ; la n° 4 (frais d'envoi) revient à Hugo, R5 et R6 à départager
+    expect(item('- J67, R7 (décision de Hugo du 17/11/2026')).toMatch(/deux lignes : le cabinet facture le syndicat, qui paie/)
+    expect(texte).toContain('3. Fermée par J67, R7 (ci-dessus).')
+    expect(texte).not.toContain('3. Cabinet (Frédéric ou Hugo)')
+    expect(texte).toMatch(/4\. Hugo \(question de droit\) : frais d'envoi de la mise en demeure.*J67, R5 et R6 ne les règlent pas de la même façon/)
+    expect(texte).not.toContain('4. Frédéric')
     const source = readFileSync(join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'etapes-courrier.ts'), 'utf8')
     expect(source).not.toMatch(/\d{4}-\d{2}-\d{2}/)
     expect(source).not.toMatch(/\bany\b/)

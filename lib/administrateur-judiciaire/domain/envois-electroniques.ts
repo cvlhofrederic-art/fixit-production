@@ -92,6 +92,17 @@ import type { AnomalieEnvoiElectronique, VoieNotification } from '@/lib/administ
  * - J57 et J66 : aucun statut de la console ne fait courir le délai : seule la date d'avis saisie sur le courrier compte
  *   (J50). Le module ne déduit ni date de notification ni délai d'un statut (valeurDuStatut : non_etablie), ni la date
  *   de dépôt.
+ * - J67, R16 (décision de Hugo du 17/11/2026 ; textes lus sur Légifrance et EUR-Lex le 17/11/2026) : la valeur probante
+ *   d'une signature électronique dépend de son niveau, donné par le prestataire (valeurProbanteSignature) : qualifiée,
+ *   présumée fiable ; simple, avancée ou inconnue, recevable mais à prouver. Un écrit électronique vaut un écrit papier si
+ *   son auteur est identifié et son intégrité garantie (C. civ. art. 1366) ; la fiabilité n'est présumée que pour une
+ *   signature qualifiée (C. civ. art. 1367, al. 2 ; décret n° 2017-1416, art. 1 ; eIDAS, art. 25, 2) ; une autre reste
+ *   recevable comme preuve, sans présomption (eIDAS, art. 25, 1 ; Cass. 3e civ., 05/03/2026, n° 24-21.034). Le niveau est
+ *   facultatif sur l'envoi, lu « inconnu » (la console Gestéam ne le montre pas) ; le statut « Signé » ne le dit pas.
+ *   Pour un procès-verbal d'assemblée tenu dans un registre électronique, la signature qualifiée est conseillée (D. 1967
+ *   art. 17). 🔵 Avant la signature obtenue, aucune valeur probante n'est lue (null). La mention « valeur probante
+ *   eIDAS » de la démonstration (SignatureElectroniqueModule.tsx, non modifié) ne doit jamais s'afficher sans ce niveau :
+ *   écran de Frédéric ; enregistrement du niveau : à brancher.
  *
  * Non établi :
  * - 🔴 Sens de chaque statut de la console Notifications : aucun n'est rattaché par 07_DECISIONS_JURIDIQUES.md à un
@@ -99,11 +110,8 @@ import type { AnomalieEnvoiElectronique, VoieNotification } from '@/lib/administ
  *   téléchargement (qui ne compte pas), « Reçu en erreur » un refus ou un rejet. Pour l'établir : la documentation du
  *   prestataire branché (correspondance entre ses statuts et la preuve de dépôt, l'avis, le téléchargement), puis une
  *   décision de Hugo.
- * - 🔴 Signature électronique : sa valeur probante n'est pas vérifiée dans 07_DECISIONS_JURIDIQUES.md (textes sur l'écrit
- *   et la signature électroniques, C. civ. art. 1366 et 1367 et règlement (UE) n° 910/2014 dit eIDAS, non lus pour ce
- *   module) ; rien n'en est affirmé (valeurProbante : non_etablie) et la mention « valeur probante eIDAS » de la
- *   démonstration (SignatureElectroniqueModule.tsx, non modifié) n'est pas reprise. « Signé » ne pose pas le statut d'AG
- *   « PV signé » (J2, statut-assemblee.ts) : lien à décider avec Hugo.
+ * - 🔴 Signature électronique et procès-verbal : « Signé » ne pose pas le statut d'AG « PV signé » (J2,
+ *   statut-assemblee.ts) : lien à décider (relevé du 17/11/2026, partie C, F8).
  * - 🔴 Questions à Hugo : les transitions et les finaux déduits (« Reçu en erreur » final, « Échec » jamais
  *   après « Envoyé OK », « Expiré » sans prolongation, « À relever » avant « Signé » et non l'inverse) sont-ils ceux du
  *   prestataire retenu ? Un envoi abandonné en « Préparation » ne se clôt qu'en passant par « Attente d'envoi » puis
@@ -288,7 +296,7 @@ export const STATUTS_ENVOI_ABOUTI: ReadonlySet<StatutNotificationElectronique> =
 
 /**
  * Statuts où la signature est obtenue (🔵 lecture des libellés, cohérente avec REFERENTIEL_SIGNATURE_ELECTRONIQUE : « À
- * relever » y est une signature faite, qui ne s'annule ni n'expire ; valeur probante non établie, 🔴).
+ * relever » y est une signature faite, qui ne s'annule ni n'expire ; valeur probante selon le niveau, J67, R16).
  */
 export const STATUTS_SIGNATURE_OBTENUE: ReadonlySet<StatutSignatureElectronique> = new Set<StatutSignatureElectronique>([
   'Signé',
@@ -327,10 +335,16 @@ export interface EnvoiNotificationElectronique {
   historique: EvenementEnvoiElectronique<StatutNotificationElectronique>[]
 }
 
+/** Niveau de la signature électronique, donné par le prestataire (J67, R16 ; eIDAS, art. 3, 25 à 29). */
+export const NIVEAUX_SIGNATURE_ELECTRONIQUE = ['simple', 'avancee', 'qualifiee', 'inconnu'] as const
+export type NiveauSignatureElectronique = (typeof NIVEAUX_SIGNATURE_ELECTRONIQUE)[number]
+
 export interface EnvoiSignatureElectronique {
   type: 'signature'
   id: string
   courrierId: string
+  /** Facultatif ; absent : lu « inconnu » (J67, R16). Enregistrement : à brancher. */
+  niveauSignature?: NiveauSignatureElectronique
   statut: StatutSignatureElectronique
   historique: EvenementEnvoiElectronique<StatutSignatureElectronique>[]
 }
@@ -739,12 +753,27 @@ export function creerEnvoiNotificationElectronique(
   return { type: 'notification', id, courrierId, modeNotification, ...ouvrir(MACHINE_NOTIFICATION, saisie) }
 }
 
-/** Demande de signature d'un courrier par la console eSignature : statut « Soumis ». */
-export function creerEnvoiSignatureElectronique(saisie: SaisieCreationEnvoi & { courrierId: string }): EnvoiSignatureElectronique {
+/** Niveau contrôlé ; absent ou null : « inconnu » (J67, R16). */
+function niveauDeSignature(niveau: NiveauSignatureElectronique | null | undefined): NiveauSignatureElectronique {
+  if (niveau === undefined || niveau === null) return 'inconnu'
+  if (!(NIVEAUX_SIGNATURE_ELECTRONIQUE as readonly string[]).includes(niveau))
+    throw new Error(`Niveau de signature « ${String(niveau)} » inconnu (simple, avancee, qualifiee ou inconnu attendu).`)
+  return niveau
+}
+
+/**
+ * Demande de signature d'un courrier par la console eSignature : statut « Soumis ». Niveau de signature facultatif,
+ * gardé seulement s'il est donné (J67, R16).
+ */
+export function creerEnvoiSignatureElectronique(
+  saisie: SaisieCreationEnvoi & { courrierId: string; niveauSignature?: NiveauSignatureElectronique | null },
+): EnvoiSignatureElectronique {
   const id = identifiant(saisie.id, "de l'envoi")
   const courrierId = identifiant(saisie.courrierId, 'du courrier')
+  const niveau = saisie.niveauSignature ?? null
+  if (niveau !== null) niveauDeSignature(niveau)
   controlerNouvelleTentative('signature', id, courrierId, saisie.horodatage, saisie.envoisExistants)
-  return { type: 'signature', id, courrierId, ...ouvrir(MACHINE_SIGNATURE, saisie) }
+  return { type: 'signature', id, courrierId, ...(niveau === null ? {} : { niveauSignature: niveau }), ...ouvrir(MACHINE_SIGNATURE, saisie) }
 }
 
 // ─── Lecture ─────────────────────────────────────────────────────────────────────────────────
@@ -858,19 +887,62 @@ export interface LectureSignatureElectronique {
   signatureObtenue: boolean
   /** Horodatage du premier passage à un statut de signature obtenue, tel que la console l'a enregistré. */
   signatureConstateeLe: string | null
-  /** 🔴 Valeur probante non vérifiée (en-tête). */
-  valeurProbante: 'non_etablie'
+  /** Niveau donné par le prestataire ; absent sur l'envoi : « inconnu » (J67, R16). */
+  niveauSignature: NiveauSignatureElectronique
+  /** Selon le niveau (valeurProbanteSignature) ; null tant que la signature n'est pas obtenue (🔵, en-tête). */
+  valeurProbante: ValeurProbanteSignature | null
+}
+
+export interface ValeurProbanteSignature {
+  /** Qualifiée : présumée fiable ; autre niveau : recevable, fiabilité à prouver si elle est contestée. */
+  valeur: 'presumee_fiable' | 'recevable_a_prouver'
+  niveau: NiveauSignatureElectronique
+  fondements: readonly string[]
+  message: string
+}
+
+const LIBELLES_NIVEAUX_SIGNATURE: Record<NiveauSignatureElectronique, string> = {
+  simple: 'Signature électronique simple',
+  avancee: 'Signature électronique avancée',
+  qualifiee: 'Signature électronique qualifiée',
+  inconnu: 'Niveau de signature inconnu (le statut « Signé » ne le dit pas)',
+}
+
+/**
+ * Valeur probante d'une signature électronique selon son niveau (J67, R16) : qualifiée, fiabilité présumée (C. civ. art.
+ * 1367, al. 2 ; décret n° 2017-1416, art. 1 ; eIDAS, art. 25, 2) ; simple, avancée ou inconnue (absent ou null),
+ * recevable comme preuve, sans présomption (C. civ. art. 1366 et 1367 ; eIDAS, art. 25, 1 ; Cass. 3e civ., 05/03/2026,
+ * n° 24-21.034). Niveau hors liste : refus.
+ */
+export function valeurProbanteSignature(niveauSaisi?: NiveauSignatureElectronique | null): ValeurProbanteSignature {
+  const niveau = niveauDeSignature(niveauSaisi)
+  if (niveau === 'qualifiee')
+    return {
+      valeur: 'presumee_fiable',
+      niveau,
+      fondements: ['C. civ. art. 1367, al. 2', 'décret n° 2017-1416, art. 1', 'règlement (UE) n° 910/2014 (eIDAS), art. 25, 2'],
+      message: `${LIBELLES_NIVEAUX_SIGNATURE[niveau]} : fiabilité présumée, même effet qu'une signature manuscrite (C. civ. art. 1367, al. 2 ; décret n° 2017-1416, art. 1 ; eIDAS, art. 25, 2).`,
+    }
+  return {
+    valeur: 'recevable_a_prouver',
+    niveau,
+    fondements: ['C. civ. art. 1366 et 1367', 'règlement (UE) n° 910/2014 (eIDAS), art. 25, 1', 'Cass. 3e civ., 05/03/2026, n° 24-21.034'],
+    message: `${LIBELLES_NIVEAUX_SIGNATURE[niveau]} : recevable comme preuve, sans présomption de fiabilité ; contestée, sa fiabilité est à prouver (C. civ. art. 1366 et 1367 ; eIDAS, art. 25, 1 ; Cass. 3e civ., 05/03/2026, n° 24-21.034). Pour un procès-verbal d'assemblée tenu dans un registre électronique, préférer la signature qualifiée, seule présumée fiable (D. 1967 art. 17).`,
+  }
 }
 
 export function lireSignatureElectronique(envoi: EnvoiSignatureElectronique): LectureSignatureElectronique {
   if (envoi.type !== 'signature')
     throw new Error(`Lecture refusée : l'envoi ${String(envoi.id)} est de type « ${String(envoi.type)} », pas une signature électronique.`)
   verifierEnvoi(MACHINE_SIGNATURE, envoi)
+  const signatureObtenue = STATUTS_SIGNATURE_OBTENUE.has(envoi.statut)
+  const niveauSignature = niveauDeSignature(envoi.niveauSignature)
   return {
     statut: envoi.statut,
     final: REFERENTIEL_SIGNATURE_ELECTRONIQUE[envoi.statut].final,
-    signatureObtenue: STATUTS_SIGNATURE_OBTENUE.has(envoi.statut),
+    signatureObtenue,
     signatureConstateeLe: envoi.historique.find((e) => STATUTS_SIGNATURE_OBTENUE.has(e.statut))?.horodatage ?? null,
-    valeurProbante: 'non_etablie',
+    niveauSignature,
+    valeurProbante: signatureObtenue ? valeurProbanteSignature(niveauSignature) : null,
   }
 }

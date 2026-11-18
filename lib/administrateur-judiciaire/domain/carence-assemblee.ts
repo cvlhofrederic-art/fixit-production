@@ -29,11 +29,26 @@ import type { Regime } from '@/lib/administrateur-judiciaire/domain/fondements'
  * 🔵 Déduit : la présentation de la convocation au plus tard (délai + 1) jours avant la réunion (21 jours francs, décompte
  * de votes-ag.ts et suivi-a-faire.ts, confirmé par la décision J5 du 30/10/2026) ; la réunion la plus proche possible se compte depuis le jour du
  * contrôle ; une réunion tenue après la fin de la mission l'a été sans pouvoirs.
- * 🔴 Non établi : l'assemblée sans aucun participant, ou qui ne peut se tenir, n'est définie par aucun texte ; la
- * prorogation de la mission de l'administrateur de l'art. 47 par l'art. 29-1, I, al. 3 (« même si celui-ci n'a été
- * désigné que pour convoquer l'assemblée générale ») n'est pas proposée tant que son application à l'art. 47 n'est pas
- * confirmée ; l'information du juge par le syndic de l'art. 46 ou l'administrateur de l'art. 47 dépend de l'ordonnance ;
- * un PV de carence notifié ouvre-t-il le délai de contestation de l'art. 42 ? Question laissée à Hugo.
+ *
+ * Décisions de Hugo du 17/11/2026 (J67 : recommandations validées en bloc ; textes lus sur Légifrance le 17/11/2026) :
+ * - J67, R26 : l'administrateur de l'art. 47 peut demander au juge de prolonger sa mission. Le président du tribunal
+ *   judiciaire peut la modifier ou la prolonger à la demande de l'administrateur provisoire, « même si celui-ci n'a été
+ *   désigné que pour convoquer l'assemblée générale en vue de désigner un syndic » (L. 1965 art. 29-1, I, al. 3) ; la
+ *   mission prend fin à la date de l'ordonnance, sauf si elle a été « judiciairement prorogée ou renouvelée » (Cass. 3e
+ *   civ., 14/01/2016, n° 14-24.989, rendu au visa de D. 1967 art. 47). Suite prorogation_mission proposée, à confirmer
+ *   (l'arrêt ne cite pas l'art. 29-1) ; l'anomalie mission_trop_courte reprend son libellé.
+ * - J67, R27 : aucun texte n'oblige le syndic de l'art. 46 ni l'administrateur de l'art. 47 à informer le juge d'une
+ *   carence (D. 1967 art. 46 et 47) ; le compte rendu annuel ne vise que l'administrateur de l'art. 29-1 (D. 1967 art.
+ *   62-11). La suite information_juge reste « selon l'ordonnance », à confirmer, avec ce fondement écrit ; conseil de
+ *   prudence : si la carence empêche de finir la mission avant son terme, saisir le juge avant ce terme.
+ * - J67, R28 : un PV de carence (aucun participant, ordre du jour non délibéré) ne porte aucune décision et n'ouvre pas
+ *   le délai de deux mois de l'art. 42 (L. 1965 art. 42, al. 2) : rien n'est calculé. Une assemblée qui s'est tenue et a
+ *   voté sans désigner de syndic (motif syndic_non_designe) a un procès-verbal ordinaire, à notifier aux opposants et
+ *   défaillants (D. 1967 art. 18) : suite notification_proces_verbal ; le délai se calcule comme d'habitude
+ *   (statut-assemblee.ts).
+ *
+ * 🔴 Non établi : l'assemblée sans aucun participant, ou qui ne peut se tenir, n'est définie par aucun texte (motifs de
+ * carence : relevé du 17/11/2026, partie C, F21).
  */
 
 export const MOTIFS_CARENCE = ['aucun_participant', 'syndic_non_designe', 'reunion_non_tenue'] as const
@@ -54,13 +69,18 @@ export interface SaisieCarence {
   objetDesignationSyndic: boolean
 }
 
-export type CodeSuiteCarence = 'nouvelle_convocation' | 'requete_designation_syndic' | 'prorogation_mission' | 'information_juge'
+export type CodeSuiteCarence =
+  | 'nouvelle_convocation'
+  | 'notification_proces_verbal'
+  | 'requete_designation_syndic'
+  | 'prorogation_mission'
+  | 'information_juge'
 
 export interface SuiteCarence {
   code: CodeSuiteCarence
   libelle: string
-  /** Texte qui fonde la suite ; null quand elle dépend de l'ordonnance. */
-  fondement: string | null
+  /** Texte qui fonde la suite ; pour une suite qui dépend de l'ordonnance, le texte dit qu'aucun ne l'impose (J67, R27). */
+  fondement: string
   aConfirmer: boolean
 }
 
@@ -76,13 +96,50 @@ const FONDEMENT_MISSION: Record<Regime, string> = {
   ap291: 'L. 1965 art. 29-1, I, al. 3',
 }
 
-/** Suites que le droit prévoit selon le régime du mandat ; régime inconnu : la nouvelle convocation seule. */
+/** J67, R26 : demande de l'administrateur de l'art. 47, reprise par l'anomalie mission_trop_courte. */
+const PROROGATION_AP47 = 'au président du tribunal judiciaire, avant le terme, de prolonger ou de modifier la mission'
+
+/** Demande de prorogation selon le régime, quand l'assemblée devait désigner un syndic. */
+const PROROGATIONS: Record<Regime, Omit<SuiteCarence, 'code'>> = {
+  sj: {
+    libelle: 'Demander la prorogation de la mission par requête au président du tribunal judiciaire, avant son terme',
+    fondement: FONDEMENT_MISSION.sj,
+    aConfirmer: false,
+  },
+  // J67, R26 : à confirmer, l'arrêt de 2016 ne cite pas l'art. 29-1
+  ap47: {
+    libelle: `Demander ${PROROGATION_AP47}`,
+    fondement: 'L. 1965 art. 29-1, I, al. 3 ; D. 1967 art. 47 ; Cass. 3e civ., 14/01/2016, n° 14-24.989',
+    aConfirmer: true,
+  },
+  ap291: {
+    libelle: 'Demander au président du tribunal judiciaire de prolonger ou de modifier la mission, avant son terme',
+    fondement: FONDEMENT_MISSION.ap291,
+    aConfirmer: false,
+  },
+}
+
+/** J67, R28 : l'assemblée s'est tenue et a voté ; son procès-verbal ouvre le délai de l'art. 42 (un PV de carence, non). */
+const NOTIFICATION_PROCES_VERBAL: SuiteCarence = {
+  code: 'notification_proces_verbal',
+  libelle:
+    "Notifier le procès-verbal aux copropriétaires opposants ou défaillants : l'assemblée s'est tenue et a voté ; leur délai de deux mois pour contester court de cette notification",
+  fondement: 'L. 1965 art. 42, al. 2 ; D. 1967 art. 18',
+  aConfirmer: false,
+}
+
+/**
+ * Suites que le droit prévoit selon le régime du mandat ; régime inconnu : la nouvelle convocation seule, et la
+ * notification du procès-verbal quand l'assemblée s'est tenue sans désigner de syndic (`motif`, donné par le constat).
+ */
 export function suitesProposees({
   regime,
   objetDesignationSyndic,
+  motif = null,
 }: {
   regime: Regime | null
   objetDesignationSyndic: boolean
+  motif?: MotifCarence | null
 }): SuiteCarence[] {
   const suites: SuiteCarence[] = [
     {
@@ -93,6 +150,7 @@ export function suitesProposees({
       aConfirmer: false,
     },
   ]
+  if (motif === 'syndic_non_designe') suites.push(NOTIFICATION_PROCES_VERBAL)
   if (regime === null) return suites
   if (objetDesignationSyndic && (regime === 'ap47' || regime === 'sj'))
     suites.push({
@@ -102,20 +160,7 @@ export function suitesProposees({
       fondement: 'L. 1965 art. 17, al. 3 ; D. 1967 art. 46',
       aConfirmer: false,
     })
-  if (objetDesignationSyndic && regime === 'sj')
-    suites.push({
-      code: 'prorogation_mission',
-      libelle: 'Demander la prorogation de la mission par requête au président du tribunal judiciaire, avant son terme',
-      fondement: FONDEMENT_MISSION.sj,
-      aConfirmer: false,
-    })
-  if (objetDesignationSyndic && regime === 'ap291')
-    suites.push({
-      code: 'prorogation_mission',
-      libelle: 'Demander au président du tribunal judiciaire de prolonger ou de modifier la mission, avant son terme',
-      fondement: FONDEMENT_MISSION.ap291,
-      aConfirmer: false,
-    })
+  if (objetDesignationSyndic) suites.push({ code: 'prorogation_mission', ...PROROGATIONS[regime] })
   suites.push(
     regime === 'ap291'
       ? {
@@ -125,9 +170,11 @@ export function suitesProposees({
           aConfirmer: false,
         }
       : {
+          // J67, R27 : aucun texte ne l'impose ; conseil de prudence avant le terme (R26)
           code: 'information_juge',
-          libelle: "Informer le président du tribunal judiciaire, selon ce que prévoit l'ordonnance de désignation",
-          fondement: null,
+          libelle:
+            "Informer le président du tribunal judiciaire, selon ce que prévoit l'ordonnance de désignation ; si la carence empêche de finir la mission avant son terme, le saisir avant ce terme",
+          fondement: "D. 1967 art. 46 et 47 : aucune obligation d'information du juge ; voir l'ordonnance",
           aConfirmer: true,
         },
   )
@@ -141,7 +188,7 @@ export function constaterCarence(saisie: SaisieCarence, { regime }: { regime: Re
   if (!(MOTIFS_CARENCE as readonly string[]).includes(saisie.motif)) throw new Error(`Motif de carence inconnu : « ${saisie.motif} ».`)
   if (saisie.motif === 'syndic_non_designe' && !saisie.objetDesignationSyndic)
     throw new Error("Carence « syndic non désigné » : l'assemblée devait être convoquée pour la désignation d'un syndic.")
-  return { ...saisie, regime, suites: suitesProposees({ regime, objetDesignationSyndic: saisie.objetDesignationSyndic }) }
+  return { ...saisie, regime, suites: suitesProposees({ regime, objetDesignationSyndic: saisie.objetDesignationSyndic, motif: saisie.motif }) }
 }
 
 export type CodeAnomalieCarence = 'mission_expiree' | 'mission_trop_courte' | 'fin_mission_inconnue' | 'reunion_apres_fin_mission'
@@ -207,7 +254,7 @@ export function controlerSuitesCarence(
     anomalies.push({
       code: 'mission_trop_courte',
       message: `La mission s'achève le ${dateIsoVersFr(dateFinMission)}, avant la réunion la plus proche possible (${dateIsoVersFr(reunionAuPlusTot)}) : ${
-        regime === 'ap47' ? 'saisir d’abord le juge (modification de la mission, à confirmer)' : 'demander d’abord la prorogation de la mission'
+        regime === 'ap47' ? `demander d’abord ${PROROGATION_AP47} (à confirmer)` : 'demander d’abord la prorogation de la mission'
       }.`,
       fondement,
       aConfirmer: regime === 'ap47',

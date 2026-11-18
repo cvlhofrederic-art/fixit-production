@@ -11,6 +11,7 @@ import {
   mentionFaculteVoiePostale,
   voieDeNotification,
 } from '@/lib/administrateur-judiciaire/domain/voie-notification'
+import { enTeteDuModule } from './en-tete-module'
 
 /**
  * Voie de notification d'un copropriétaire (point 60 du bilan 2 ; Gestéam : critère LRE de la fiche client, modes
@@ -162,6 +163,28 @@ describe('mention et marqueurs', () => {
     const mention = mentionFaculteVoiePostale({ administrateurProvisoire: true })
     expect(mention.texte).toMatch(/à l'administrateur provisoire/)
     expect(mention.fondement).toBe('D. 1967 art. 64-2, 64-4, 64-9')
+  })
+
+  it('J67, R17 : demande d’avant le 25/12/2025, effet à sa réception gardé, motif corrigé (l’ancien art. 64-4 avait déjà huit jours)', () => {
+    const ancienne = creerDemandeVoiePostale({ identiteId: 'id-1', recueLe: '2025-06-01', origine: 'courrier' })
+    const voie = voieDeNotification({ identiteId: 'id-1', demandes: [ancienne], date: '2026-01-05' })
+    expect(voie).toMatchObject({ voie: 'postale', depuis: '2025-06-01', aConfirmer: null })
+    expect(voie.fondement).toBe(
+      "L. 1965 art. 42-1, al. 2 ; D. 1967 art. 64-1 ; demande reçue avant le 25/12/2025 : effet à sa réception (lecture prudente, plus stricte que l'ancien art. 64-4, qui donnait déjà effet au retrait de l'accord le lendemain du huitième jour suivant sa réception ; décret n° 2025-1292 sans règle transitoire, C. civ. art. 2 ; décision de Hugo du 17/11/2026, J52 ; J67, R17)",
+    )
+    const { texte } = enTeteDuModule('voie-notification')
+    expect(texte).not.toContain('ancienne règle : effetDemandeVoiePostale')
+    expect(texte).not.toMatch(/Le délai de huit jours de l'art\. 64-4 actuel ne vaut que/)
+    const ouvert = texte.slice(texte.indexOf('🔴 Non établi'))
+    expect(ouvert).not.toContain("accord exprès de l'art. 64-3 de la rédaction de 2020")
+    expect(texte).toMatch(/J67, R17 : lecture prudente gardée/)
+  })
+
+  it('J67, R18 : retour à la voie électronique admis par renonciation, effet à choisir par Hugo (même règle que J59) ; code inchangé, marque gardée', () => {
+    const { texte } = enTeteDuModule('voie-notification')
+    const ouvert = texte.slice(texte.indexOf('🔴 Non établi'))
+    expect(ouvert).toMatch(/retour à la voie électronique après une DemandeVoiePostale : J67, R18 l'admet par une renonciation écrite et datée/)
+    expect(ouvert).toMatch(/d'ici là, le code ne change pas/)
   })
 
   it('l’en-tête date la vérification du texte et garde ses points ouverts', () => {

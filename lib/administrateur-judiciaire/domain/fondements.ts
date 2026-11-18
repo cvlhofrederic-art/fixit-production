@@ -60,6 +60,13 @@ export const FICHES_REGIMES: Record<Regime, FicheRegime> = {
   },
 }
 
+/** Régime contrôlé : null (régime inconnu) admis ; valeur hors des trois régimes : refus. */
+export function controlerRegime(regime: Regime | null): Regime | null {
+  if (regime !== null && !Object.hasOwn(FICHES_REGIMES, regime))
+    throw new Error(`Régime du mandat « ${String(regime)} » inconnu (sj, ap47 ou ap291 attendu).`)
+  return regime
+}
+
 /**
  * Fiche du régime d'une copropriété, par une heuristique plus grossière que regimeDepuisFondement
  * (« 29-1 » n'importe où → ap291, « 47 » → ap47, sinon sj, y compris pour un mandat ad hoc).
