@@ -307,8 +307,9 @@ describe('fiche synthétique à mettre à jour (J67, R120 ; D. 2016-1822 art. 1)
       aVerifier: [],
       fondement: 'D. 2016-1822 art. 1 ; L. 1965 art. 8-2',
       justification:
-        "Départ : la plus tôt des notifications du procès-verbal de l'assemblée du 10/06/2026 qui a approuvé les comptes, le 20/06/2026 ; données à établir dans les deux mois (D. 2016-1822 art. 1), au plus tard le 20/08/2026.",
-      message: "Fiche synthétique à mettre à jour : aucune fiche datée après l'assemblée du 10/06/2026, délai de deux mois échu le 20/08/2026.",
+        "Départ : la plus tôt des notifications du procès-verbal de l'assemblée du 10/06/2026 qui a approuvé les comptes, le 20/06/2026 ; données à établir dans les 2 mois (D. 2016-1822 art. 1), au plus tard le 20/08/2026.",
+      // Relecture : la durée affichée est lue dans DELAI_MISE_A_JOUR_FICHE_SYNTHETIQUE_MOIS, comme l'échéance.
+      message: "Fiche synthétique à mettre à jour : aucune fiche datée après l'assemblée du 10/06/2026, délai de 2 mois échu le 20/08/2026.",
       aConfirmer: false,
     })
   })

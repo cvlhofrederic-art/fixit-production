@@ -467,7 +467,7 @@ export interface AlerteFicheSynthetique {
   aMettreAJour: boolean
   depart: string
   origineDepart: OrigineDepartFiche
-  /** Dernier jour du délai de deux mois ; l'alerte part le lendemain. */
+  /** Dernier jour du délai (DELAI_MISE_A_JOUR_FICHE_SYNTHETIQUE_MOIS) ; l'alerte part le lendemain. */
   echeance: string
   /** Fiche de type confirmé la plus récente, quelle que soit sa date ; null : aucune. */
   derniereFiche: { documentId: string; date: string } | null
@@ -524,7 +524,7 @@ function messageFiche(approbation: ApprobationComptesFiche, derniere: DocumentGe
   const apres = `${approbation.parAdministrateurProvisoire ? "la décision de l'administrateur provisoire" : "l'assemblée"} du ${fr(approbation.date)}`
   if (aJour && derniere) return `Fiche synthétique à jour : fiche du ${fr(derniere.date)}, datée après ${apres}.`
   if (!aMettreAJour) return `Fiche synthétique à mettre à jour après ${apres}, au plus tard le ${fr(echeance)}.`
-  return `Fiche synthétique à mettre à jour : aucune fiche datée après ${apres}, délai de deux mois échu le ${fr(echeance)}.`
+  return `Fiche synthétique à mettre à jour : aucune fiche datée après ${apres}, délai de ${DELAI_MISE_A_JOUR_FICHE_SYNTHETIQUE_MOIS} mois échu le ${fr(echeance)}.`
 }
 
 /**
@@ -556,7 +556,7 @@ export function alerteFicheSynthetique(
       ...new Set(candidats.filter(({ document, ref }) => document.date > approbation.date && couvre(ref, FICHE_SYNTHETIQUE)).map(({ document }) => document.id)),
     ],
     fondement: 'D. 2016-1822 art. 1 ; L. 1965 art. 8-2',
-    justification: `${texte} ; données à établir dans les deux mois (D. 2016-1822 art. 1), au plus tard le ${fr(echeance)}.`,
+    justification: `${texte} ; données à établir dans les ${DELAI_MISE_A_JOUR_FICHE_SYNTHETIQUE_MOIS} mois (D. 2016-1822 art. 1), au plus tard le ${fr(echeance)}.`,
     message: messageFiche(approbation, derniere, aJour, echeance, aMettreAJour),
     aConfirmer: approbation.parAdministrateurProvisoire,
   }

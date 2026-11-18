@@ -13,6 +13,7 @@ import {
   statutSinistre,
   type SaisieSinistre,
 } from '@/lib/administrateur-judiciaire/domain/sinistres'
+import { TYPES_SINISTRE_IMPAYES } from '@/lib/administrateur-judiciaire/domain/contentieux-assurance-impayes'
 
 /**
  * Sinistres (cartographie Gestéam, tranches 20 et 28) : fiche, phase déduite des dates, chronologie, indemnités et
@@ -244,8 +245,45 @@ describe('sinistres — repères de délais (indicatifs)', () => {
     expect(reperes.declarationTardive).toBe(true)
     expect(reperes.fondements).toEqual(['C. assur. art. L. 113-2', 'C. assur. art. L. 114-1'])
     expect(reperes.avertissement).toBe(
-      "Déclarer dès la connaissance du sinistre. Déclaration au plus tard à la date retenue : délai du contrat s'il est saisi, sinon minimum légal (C. assur. art. L. 113-2, 4°), que le contrat peut seulement allonger. Prescription au plus tôt deux ans après l'événement (art. L. 114-1) : une interruption peut la repousser (art. L. 114-2) ; le contrat ne peut pas en changer la durée (art. L. 114-3).",
+      "Déclarer dès la connaissance du sinistre. Déclaration au plus tard à la date retenue : délai du contrat s'il est saisi, sinon minimum légal (C. assur. art. L. 113-2, 4°), que le contrat peut seulement allonger. Prescription au plus tôt 24 mois après l'événement (art. L. 114-1) : une interruption peut la repousser (art. L. 114-2) ; le contrat ne peut pas en changer la durée (art. L. 114-3).",
     )
+  })
+
+  it('relecture : chaque date donne sa justification (départ, durée, texte, résultat)', () => {
+    expect(reperesDelaisSinistre(creerSinistre(saisie()))).toMatchObject({
+      justificationDeclaration:
+        'Connaissance du 27/10/2026 + 5 jours ouvrés, comptés du lendemain hors samedis, dimanches et jours fériés (minimum légal, C. assur. L. 113-2, 4°) : au plus tard le 03/11/2026.',
+      justificationPrescription: 'Survenance du 27/10/2026 + 24 mois (C. assur. L. 114-1) : au plus tôt le 27/10/2028.',
+    })
+    const sinistre = creerSinistre(saisie())
+    expect(reperesDelaisSinistre(sinistre, { delaiContratJoursOuvres: 10 }).justificationDeclaration).toBe(
+      'Connaissance du 27/10/2026 + 10 jours ouvrés, comptés du lendemain hors samedis, dimanches et jours fériés (délai du contrat ; C. assur. L. 113-2, 4°) : au plus tard le 10/11/2026.',
+    )
+    expect(reperesDelaisSinistre(sinistre, { delaiContratJoursOuvres: 3 }).justificationDeclaration).toContain(
+      '(minimum légal, C. assur. L. 113-2, 4°, retenu au lieu des 3 jours ouvrés du contrat)',
+    )
+  })
+
+  it('relecture : garantie impayés, dommages-ouvrage et catastrophe naturelle — le minimum de L. 113-2, 4° n’est pas sûr, raison donnée', () => {
+    const regimes = (type: SaisieSinistre['type']) => {
+      const { declarationAConfirmer, prescriptionAConfirmer } = reperesDelaisSinistre(creerSinistre(saisie({ type })))
+      return { declarationAConfirmer, prescriptionAConfirmer }
+    }
+    for (const type of TYPES_SINISTRE_IMPAYES)
+      expect(regimes(type)).toEqual({
+        declarationAConfirmer: 'assurance-crédit possible : seule la police fixe alors le délai (C. assur. L. 111-1)',
+        prescriptionAConfirmer: "assurance-crédit possible : L. 114-1 ne s'applique alors pas, voir la police (C. assur. L. 111-1)",
+      })
+    expect(regimes('Dommages Ouvrage')).toEqual({
+      declarationAConfirmer: "dommages-ouvrage : les clauses types ne fixent aucun délai à l'assuré (C. assur. annexe II à l'art. A. 243-1)",
+      prescriptionAConfirmer: null,
+    })
+    expect(regimes('Catastrophes naturelles')).toEqual({
+      declarationAConfirmer: "catastrophe naturelle : délai compté de la publication de l'arrêté (C. assur. L. 125-2)",
+      prescriptionAConfirmer: null,
+    })
+    for (const type of ['Dégât des eaux', 'Vol', 'Vandalisme', 'Tempête, Grêles, Neiges', 'Perte de Loyer'] as const)
+      expect(regimes(type)).toEqual({ declarationAConfirmer: null, prescriptionAConfirmer: null })
   })
 
   it('J67, R49 : délais du code des assurances en paramètres, avec leur article', () => {
@@ -256,7 +294,10 @@ describe('sinistres — repères de délais (indicatifs)', () => {
     expect(reperesDelaisSinistre(creerSinistre(saisie()))).toMatchObject({ minimumLegalJoursOuvres: 5, delaiDuContrat: false, volPossible: false })
     expect(reperesDelaisSinistre(creerSinistre(saisie({ type: 'Vol' })))).toMatchObject({ minimumLegalJoursOuvres: 2, volPossible: false })
     expect(reperesDelaisSinistre(creerSinistre(saisie()), { delaiContratJoursOuvres: 10 }).delaiDuContrat).toBe(true)
-    expect(reperesDelaisSinistre(creerSinistre(saisie()), { delaiContratJoursOuvres: 5 }).delaiDuContrat).toBe(false)
+    // Relecture : un délai du contrat saisi égal au minimum légal est le délai du contrat ; plus court, il est sans effet.
+    expect(reperesDelaisSinistre(creerSinistre(saisie()), { delaiContratJoursOuvres: 5 }).delaiDuContrat).toBe(true)
+    expect(reperesDelaisSinistre(creerSinistre(saisie({ type: 'Vol' })), { delaiContratJoursOuvres: 2 }).delaiDuContrat).toBe(true)
+    expect(reperesDelaisSinistre(creerSinistre(saisie()), { delaiContratJoursOuvres: 3 }).delaiDuContrat).toBe(false)
     for (const type of ['Vandalisme', 'Bris de glace'] as const)
       expect(reperesDelaisSinistre(creerSinistre(saisie({ type })))).toMatchObject({ minimumLegalJoursOuvres: 5, volPossible: true })
   })

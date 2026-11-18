@@ -46,6 +46,7 @@ import {
   type EntrepriseRelance,
 } from '@/lib/administrateur-judiciaire/domain/relance-demandes'
 import {
+  DELAIS_ASSURANCE_SINISTRE,
   etapeSuiviSinistre,
   phaseApresDeclaration,
   reperesDelaisSinistre,
@@ -86,8 +87,10 @@ import type { StatutAssemblee, StatutContrat, TypeContrat } from '@/lib/data/ref
  * périodicités autres que mensuelle (seule la mensuelle a été observée) ; un âge de trois périodes exactement tombe dans
  * la dernière tranche ; unités d'horizon jours / semaines / mois (listes non ouvertes dans Gestéam).
  * 🔴 Signalés `aConfirmer` : échéances légales dont la certitude n'est pas TEXTE ; déclaration d'un sinistre de type
- * « Vandalisme » ou « Bris de glace » (un vol a pu y être rangé). Les 21 jours francs de convocation (décompte de
- * votes-ag.ts) sont confirmés (J5).
+ * « Vandalisme » ou « Bris de glace » (un vol a pu y être rangé) ; déclaration d'un sinistre « Charges Impayées »,
+ * « Loyers Impayés » (assurance crédit possible, L. 111-1 : prescription aussi), « Dommages Ouvrage » ou « Catastrophes
+ * naturelles » (délais propres), avec sa raison (sinistres.REGIMES_A_CONFIRMER). Les 21 jours francs de convocation
+ * (décompte de votes-ag.ts) sont confirmés (J5).
  * Sinistres (J67, R49) : déclaration « au plus tard », prescription « au plus tôt », échéances du suivi sans marque
  * (sinistres.reperesDelaisSinistre, C. assur. L. 113-2, 4°, L. 114-1 et L. 114-2) ; le contrat peut allonger le délai de
  * déclaration, jamais modifier la durée de la prescription (L. 114-3).
@@ -799,29 +802,46 @@ export function depuisFactures(factures: FactureSuivie[], aujourdhui: string): E
 const A_DECLARER_DES_LA_CONNAISSANCE = 'à déclarer dès la connaissance (L. 113-2, 4°) ; aucun délai dans les clauses types'
 
 /**
+ * Sans délai (dommages-ouvrage sans délai de la police, J67, R52) : à déclarer dès la connaissance ; sinon date « au plus
+ * tard » (J67, R49), ou repère à confirmer avec sa raison quand le minimum légal n'est pas sûr (relecture).
+ */
+const delaiADeclarer = (reperes: ReperesDelaisSinistre): string => {
+  if (reperes.desLaConnaissance) return A_DECLARER_DES_LA_CONNAISSANCE
+  const date = dateIsoVersFr(reperes.declarationAuPlusTard)
+  if (reperes.declarationAConfirmer !== null) return `repère de déclaration du ${date} à confirmer, ${reperes.declarationAConfirmer}`
+  const delai = reperes.delaiDuContrat ? 'délai du contrat ; C. assur. L. 113-2, 4°' : 'minimum légal, C. assur. L. 113-2, 4° ; le contrat peut accorder plus'
+  return `à déclarer au plus tard le ${date} (${delai})`
+}
+
+/**
  * Libellé « à déclarer » (J67, R49) : date au plus tard, délai du contrat ou minimum légal ; sans délai (dommages-ouvrage
- * sans délai de la police, J67, R52) : à déclarer dès la connaissance ; « 2 jours ouvrés s'il y a eu vol » pour un type
- * sous lequel un vol a pu être rangé ; sans date de suivi, une phase saisie qui suit la déclaration
+ * sans délai de la police, J67, R52) : à déclarer dès la connaissance ; « 2 jours ouvrés s'il y a eu vol »
+ * (DELAIS_ASSURANCE_SINISTRE) pour un type sous lequel un vol a pu être rangé ; repère à confirmer, avec sa raison, pour
+ * un type au délai propre ou non établi (relecture) ; sans date de suivi, une phase saisie qui suit la déclaration
  * (phaseApresDeclaration) : à vérifier.
  */
 const libelleADeclarer = (libelle: string, fiche: FicheSinistre, reperes: ReperesDelaisSinistre): string => {
-  const delai = reperes.delaiDuContrat ? 'délai du contrat ; C. assur. L. 113-2, 4°' : 'minimum légal, C. assur. L. 113-2, 4° ; le contrat peut accorder plus'
   const phase = phaseApresDeclaration(fiche)
   return [
-    reperes.desLaConnaissance
-      ? `${libelle} — ${A_DECLARER_DES_LA_CONNAISSANCE}`
-      : `${libelle} — à déclarer au plus tard le ${dateIsoVersFr(reperes.declarationAuPlusTard)} (${delai})`,
-    reperes.volPossible ? "2 jours ouvrés s'il y a eu vol" : null,
+    `${libelle} — ${delaiADeclarer(reperes)}`,
+    reperes.volPossible ? `${DELAIS_ASSURANCE_SINISTRE.declarationVolJoursOuvres} jours ouvrés s'il y a eu vol` : null,
     phase === null ? null : `déclaration non datée (phase « ${phase} ») : à vérifier`,
   ]
     .filter((partie): partie is string => partie !== null)
     .join(' — ')
 }
 
+/** Libellé « prescription au plus tôt » (J67, R49), suivi de la raison s'il reste à confirmer (garantie impayés). */
+const libellePrescription = (libelle: string, reperes: ReperesDelaisSinistre): string =>
+  `${libelle} — prescription au plus tôt le ${dateIsoVersFr(reperes.prescription)} (C. assur. L. 114-1 ; peut être repoussée par une interruption, L. 114-2)` +
+  (reperes.prescriptionAConfirmer === null ? '' : ` — à confirmer, ${reperes.prescriptionAConfirmer}`)
+
 /**
  * Sinistre en cours : déclaration au plus tard tant qu'il n'est pas déclaré, et prescription au plus tôt (sinistres.ts) —
  * deux échéances (J67, R49) : le contrat peut allonger le délai de déclaration, jamais la durée de la prescription
- * (C. assur. L. 114-3) ; seule la déclaration d'un type sous lequel un vol a pu être rangé reste `aConfirmer`.
+ * (C. assur. L. 114-3). Restent `aConfirmer` : la déclaration d'un type sous lequel un vol a pu être rangé (J67, R49) ;
+ * relecture de R49, celle d'un type au délai propre ou non établi (garantie impayés, dommages-ouvrage, catastrophe
+ * naturelle) et la prescription de la garantie impayés (sinistres.REGIMES_A_CONFIRMER).
  * Dommages-ouvrage sans délai de la police : élément « à déclarer » daté du jour de la connaissance, sans repère de cinq
  * jours ouvrés (J67, R52).
  * Indemnité différée non réglée : à réclamer depuis le règlement de l'indemnité immédiate (à défaut le rapport, la
@@ -843,14 +863,15 @@ export function depuisSinistres(
           ...champs,
           libelle: libelleADeclarer(libelle, fiche, reperes),
           date: reperes.declarationAuPlusTard,
-          aConfirmer: reperes.volPossible,
+          aConfirmer: reperes.volPossible || reperes.declarationAConfirmer !== null,
         }),
       )
     elements.push(
       elementSuivi('sinistres', 'prescription', `${id}:prescription`, {
         ...champs,
-        libelle: `${libelle} — prescription au plus tôt le ${dateIsoVersFr(reperes.prescription)} (C. assur. L. 114-1 ; peut être repoussée par une interruption, L. 114-2)`,
+        libelle: libellePrescription(libelle, reperes),
         date: reperes.prescription,
+        aConfirmer: reperes.prescriptionAConfirmer !== null,
       }),
     )
     if (fiche.indemniteDiffereeCentimes > 0 && !fiche.indemniteDiffereeReglee)

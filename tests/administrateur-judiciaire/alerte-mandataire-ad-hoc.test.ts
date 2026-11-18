@@ -435,15 +435,17 @@ describe('mandat de justice', () => {
     expect(() => alerteMandataireAdHoc(entree({ regime: 'ap291', ordonnanceConferePouvoirsDuSyndic: true }), DATE)).toThrow(/art\. 47/)
   })
 
+  /** Approbation des comptes par décision de l'administrateur provisoire, après le dernier vote du 10/06/2023. */
+  const decisionAp = creerDecisionAnnuelle({
+    id: 'd-ap',
+    coproprieteId: 'copro-1',
+    type: 'approbation_comptes',
+    exerciceId: 'ex-2024',
+    date: '2025-09-01',
+    source: { origine: 'administrateur', reference: 'reg-12' },
+  })
+
   it('comptes approuvés par l’administrateur provisoire après le dernier vote (J67, R30) : affiché au lieu de « sans vote depuis deux ans »', () => {
-    const decisionAp = creerDecisionAnnuelle({
-      id: 'd-ap',
-      coproprieteId: 'copro-1',
-      type: 'approbation_comptes',
-      exerciceId: 'ex-2024',
-      date: '2025-09-01',
-      source: { origine: 'administrateur', reference: 'reg-12' },
-    })
     const ancien = alerteMandataireAdHoc(entree({ regime: 'ap291', votes: [{ date: '2023-06-10', etat: 'adoptee' }], decisions: [decisionAp] }), DATE)
     expect(ancien.comptes).toMatchObject({ etat: 'atteint', approuvesParAdministrateurLe: '2025-09-01' })
     expect(ancien.comptes.message).toBe(
@@ -455,6 +457,16 @@ describe('mandat de justice', () => {
     const avantLeVote = alerteMandataireAdHoc(entree({ votes: [{ date: '2025-10-01', etat: 'adoptee' }], decisions: [decisionAp] }), DATE).comptes
     expect(avantLeVote.message).toMatch(/^Dernier vote de l'assemblée/)
     expect(alerteMandataireAdHoc(entree(), DATE).comptes.approuvesParAdministrateurLe).toBeNull()
+  })
+
+  it('relecture : hors administration provisoire de l’art. 29-1, une décision d’administrateur ne masque pas le délai atteint (J67, R30 : L3-35 vise l’art. 29-1)', () => {
+    const ATTEINT = "Aucun vote de l'assemblée sur l'approbation des comptes depuis le 10/06/2023 : 24 mois sans vote atteints le 10/06/2025."
+    for (const regime of [null, 'sj', 'ap47'] as const) {
+      const { comptes } = alerteMandataireAdHoc(entree({ regime, votes: [{ date: '2023-06-10', etat: 'adoptee' }], decisions: [decisionAp] }), DATE)
+      expect(comptes).toMatchObject({ etat: 'atteint', atteintLe: '2025-06-10', approuvesParAdministrateurLe: '2025-09-01', message: ATTEINT })
+    }
+    const { comptes } = alerteMandataireAdHoc(entree({ votes: [], decisions: [decisionAp] }), DATE)
+    expect(comptes.message).toMatch(/^Aucun vote de l'assemblée sur l'approbation des comptes n'est connu/)
   })
 })
 

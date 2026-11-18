@@ -111,7 +111,9 @@ import { ETATS_RESOLUTION, type EtatResolution } from '@/lib/administrateur-judi
  *   reçu de l'ordonnance le pouvoir d'approuver les comptes (art. 29-1, I : « tout ou partie des pouvoirs de l'assemblée
  *   générale des copropriétaires », hors a et b de l'art. 26), il les approuve sans vote de l'assemblée : sa décision
  *   n'est pas un vote, le critère des deux ans reste calculé sur les votes de l'assemblée, et son message dit « comptes
- *   approuvés par l'administrateur provisoire le … » (decisions, origine « administrateur ») ;
+ *   approuvés par l'administrateur provisoire le … » (decisions, origine « administrateur ») ; sous ce régime seulement
+ *   (L3-35 vise l'administrateur de l'art. 29-1) : sous un autre régime, une décision laissée par une mission passée ne
+ *   remplace pas le délai sans vote atteint, qui fonde l'obligation du syndic ;
  * - administrateur provisoire de l'art. 47, syndicat dépourvu de syndic (cadre « signalement_au_juge ») : il n'est pas le
  *   syndic ; « en l'absence de syndic », l'al. 2 ouvre la saisine aux personnes qu'il énumère, dès la clôture. Seuil
  *   atteint : à signaler au juge ; requête possible pour un administrateur provisoire de l'art. 29-1, après consultation
@@ -498,7 +500,10 @@ function approbationParAdministrateur(entree: EntreeAlerteMandataireAdHoc, date:
   return dates.reduce<string | null>((a, b) => (a === null || b > a ? b : a), null)
 }
 
-/** J67, R30 : comptes approuvés par l'administrateur provisoire, affiché au lieu de « sans vote depuis deux ans ». */
+/**
+ * J67, R30 : comptes approuvés par l'administrateur provisoire, affiché au lieu de « sans vote depuis deux ans ». Sous le
+ * régime de l'art. 29-1 seulement (L3-35) : sous un autre régime, le délai sans vote atteint reste dit (relecture).
+ */
 const prefixeApprobationAp = (le: string): string =>
   `Comptes approuvés par l'administrateur provisoire le ${fr(le)} (décision de l'administrateur, pas un vote de l'assemblée)`
 
@@ -508,30 +513,29 @@ const SUITE_AUCUN_VOTE =
 function critereComptes(entree: EntreeAlerteMandataireAdHoc, date: string, parametres: ParametresAlerte291A): Constat<CritereComptes291A> {
   const dates = datesDeVote(entree, date)
   const approuvesParAdministrateurLe = approbationParAdministrateur(entree, date)
+  /** Approbation à dire au message : sous administration provisoire de l'art. 29-1 seulement. */
+  const approbationAffichee = entree.regime === 'ap291' ? approuvesParAdministrateurLe : null
   if (dates.length === 0)
     return {
       etat: 'non_etabli',
       dernierVoteLe: null,
       atteintLe: null,
       approuvesParAdministrateurLe,
-      message:
-        approuvesParAdministrateurLe === null
-          ? `Aucun ${SUITE_AUCUN_VOTE}`
-          : `${prefixeApprobationAp(approuvesParAdministrateurLe)} ; aucun ${SUITE_AUCUN_VOTE}`,
+      message: approbationAffichee === null ? `Aucun ${SUITE_AUCUN_VOTE}` : `${prefixeApprobationAp(approbationAffichee)} ; aucun ${SUITE_AUCUN_VOTE}`,
     }
   const dernier = dates.reduce((a, b) => (b > a ? b : a), dates[0])
   const atteintLe = ajouterMois(dernier, parametres.sansVoteMois)
   const duree = `${parametres.sansVoteMois} mois sans vote`
-  const parAdministrateurDepuis = approuvesParAdministrateurLe !== null && approuvesParAdministrateurLe > dernier
   if (date >= atteintLe)
     return {
       etat: 'atteint',
       dernierVoteLe: dernier,
       atteintLe,
       approuvesParAdministrateurLe,
-      message: parAdministrateurDepuis
-        ? `${prefixeApprobationAp(approuvesParAdministrateurLe)} ; dernier vote de l'assemblée sur l'approbation des comptes le ${fr(dernier)}.`
-        : `Aucun vote de l'assemblée sur l'approbation des comptes depuis le ${fr(dernier)} : ${duree} atteints le ${fr(atteintLe)}.`,
+      message:
+        approbationAffichee !== null && approbationAffichee > dernier
+          ? `${prefixeApprobationAp(approbationAffichee)} ; dernier vote de l'assemblée sur l'approbation des comptes le ${fr(dernier)}.`
+          : `Aucun vote de l'assemblée sur l'approbation des comptes depuis le ${fr(dernier)} : ${duree} atteints le ${fr(atteintLe)}.`,
     }
   return {
     etat: 'non_atteint',

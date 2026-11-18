@@ -1,6 +1,7 @@
 import {
   ajouterJoursOuvres,
   ajouterMois,
+  dateIsoVersFr,
   estDateIsoValide,
   messagePlausibilite,
   plausibiliteDate,
@@ -43,6 +44,9 @@ import {
  * ouvrés s'il y a eu vol). Prescription « au plus tôt » : survenance + deux ans (son départ ne peut qu'être plus tard et
  * une interruption la repousse : agir avant est toujours sûr). Jours ouvrés lus du lundi au vendredi, hors jours
  * fériés (le texte ne les définit pas) ; leur ajout au calendrier réglementaire est un choix de Frédéric.
+ * Relecture de R49 (sa contre-vérification n'a vu que le vol) : la garantie impayés (assurance crédit possible,
+ * L. 111-1), « Dommages Ouvrage » et « Catastrophes naturelles » (délais propres) gardent un repère à confirmer, avec sa
+ * raison (REGIMES_A_CONFIRMER) ; chaque date rend sa justification (départ, durée, texte, date retenue).
  * Décisions de Hugo du 17/11/2026 (registre des décisions juridiques, J67) :
  * - J67, R50 : le décompte est confirmé : jours ouvrés comptés du lendemain de la connaissance, sans samedi, dimanche ni
  *   jour férié (L. 113-2, 4° dit « jours ouvrés » ; jour de départ exclu, CPC art. 641, al. 1, par analogie). Le message
@@ -433,30 +437,87 @@ const RAPPEL_PRESCRIPTION = 'La prescription peut être interrompue (C. assur. a
 
 /** Droit commun (J67, R49) : déclarer dès la connaissance, au plus tard à la date retenue ; prescription au plus tôt. */
 const AVERTISSEMENT_REPERES =
-  "Déclarer dès la connaissance du sinistre. Déclaration au plus tard à la date retenue : délai du contrat s'il est saisi, sinon minimum légal (C. assur. art. L. 113-2, 4°), que le contrat peut seulement allonger. Prescription au plus tôt deux ans après l'événement (art. L. 114-1) : une interruption peut la repousser (art. L. 114-2) ; le contrat ne peut pas en changer la durée (art. L. 114-3)."
+  "Déclarer dès la connaissance du sinistre. Déclaration au plus tard à la date retenue : délai du contrat s'il est saisi, sinon minimum légal (C. assur. art. L. 113-2, 4°), que le contrat peut seulement allonger. " +
+  `Prescription au plus tôt ${PRESCRIPTION_MOIS} mois après l'événement (art. L. 114-1) : une interruption peut la repousser (art. L. 114-2) ; le contrat ne peut pas en changer la durée (art. L. 114-3).`
 
 const AVERTISSEMENT_REPERES_DOMMAGES_OUVRAGE = `Dommages-ouvrage : déclarer dès la connaissance du sinistre (C. assur. art. L. 113-2, 4°) ; aucun délai dans les clauses types (C. assur. annexe II à l'art. A. 243-1), sauf délai fixé par la police. ${RAPPEL_PRESCRIPTION}`
 
 /** Types Gestéam sous lesquels un vol a pu être rangé (effraction, bris) : 2 jours ouvrés s'il y a eu vol (J67, R49). */
 const TYPES_VOL_POSSIBLE: ReadonlySet<TypeSinistre> = new Set<TypeSinistre>(['Vandalisme', 'Bris de glace'])
 
+/** Raison pour laquelle le code des assurances ne fixe pas sûrement la date ; null : il la fixe. */
+interface RegimeAConfirmer {
+  declaration: string
+  prescription: string | null
+}
+
+/**
+ * Garantie impayés (« Charges Impayées », « Loyers Impayés » : contentieux-assurance-impayes.TYPES_SINISTRE_IMPAYES) : une
+ * opération d'assurance crédit échappe aux titres I à III du livre I (L. 111-1), donc à L. 113-2 et à L. 114-1 ; seule
+ * la police fixe alors la déclaration et la prescription (contentieux-assurance-impayes.ts, 🔴 1, non tranché).
+ */
+const ASSURANCE_CREDIT_POSSIBLE: RegimeAConfirmer = {
+  declaration: 'assurance-crédit possible : seule la police fixe alors le délai (C. assur. L. 111-1)',
+  prescription: "assurance-crédit possible : L. 114-1 ne s'applique alors pas, voir la police (C. assur. L. 111-1)",
+}
+
+/**
+ * Relecture de J67, R49 : sa contre-vérification n'a vu que le vol. Pour ces types, le minimum de L. 113-2, 4° n'est pas
+ * sûrement le délai : la date calculée reste un repère `aConfirmer`, avec sa raison, en attendant la règle propre du type.
+ * - garantie impayés : ASSURANCE_CREDIT_POSSIBLE ;
+ * - « Dommages Ouvrage » : les clauses types ne fixent aucun délai à l'assuré (declaration-sinistre.ts ; J67, R52, à
+ *   appliquer à ce type dans son propre lot) ;
+ * - « Catastrophes naturelles » : délai compté de la publication de l'arrêté (L. 125-2 ; declaration-sinistre.ts), date que
+ *   la fiche ne porte pas.
+ * « Tempête, Grêles, Neiges » n'y est pas : J67, R53 garde le repère de droit commun.
+ */
+const REGIMES_A_CONFIRMER: Readonly<Partial<Record<TypeSinistre, RegimeAConfirmer>>> = {
+  'Charges Impayées': ASSURANCE_CREDIT_POSSIBLE,
+  'Loyers Impayés': ASSURANCE_CREDIT_POSSIBLE,
+  'Dommages Ouvrage': {
+    declaration: "dommages-ouvrage : les clauses types ne fixent aucun délai à l'assuré (C. assur. annexe II à l'art. A. 243-1)",
+    prescription: null,
+  },
+  'Catastrophes naturelles': {
+    declaration: "catastrophe naturelle : délai compté de la publication de l'arrêté (C. assur. L. 125-2)",
+    prescription: null,
+  },
+}
+
 export interface ReperesDelaisSinistre {
   /** Minimum légal de l'art. L. 113-2, 4° pour ce type (vol : 2 jours ouvrés). */
   minimumLegalJoursOuvres: number
   delaiDeclarationJoursOuvres: number
-  /** Le délai du contrat, plus long que le minimum légal, est retenu. */
+  /** Le délai du contrat, saisi et au moins égal au minimum légal, est retenu. */
   delaiDuContrat: boolean
   /** Un vol a pu être rangé sous ce type : la date suppose qu'il n'y en a pas eu (J67, R49). */
   volPossible: boolean
+  /** Le minimum de L. 113-2, 4° n'est pas sûrement le délai de ce type : raison (REGIMES_A_CONFIRMER) ; null : il l'est. */
+  declarationAConfirmer: string | null
   declarationAuPlusTard: string
   /** Aucun délai (dommages-ouvrage sans délai de la police) : à déclarer dès la connaissance (J67, R52). */
   desLaConnaissance: boolean
+  /** Départ, durée, texte et date retenue pour la déclaration. */
+  justificationDeclaration: string
   /** Déclaration faite après le repère ; false si non encore déclarée, ou sans délai à dépasser. */
   declarationTardive: boolean
   /** Date la plus tôt possible de la prescription (L. 114-1). */
   prescription: string
+  /** L. 114-1 ne s'applique peut-être pas à ce type : raison (REGIMES_A_CONFIRMER) ; null : il s'applique. */
+  prescriptionAConfirmer: string | null
+  /** Départ, durée, texte et date retenue pour la prescription. */
+  justificationPrescription: string
   fondements: string[]
   avertissement: string
+}
+
+const fr = dateIsoVersFr
+
+/** Texte retenu pour le délai de déclaration : délai du contrat, ou minimum légal (au lieu d'un délai du contrat plus court). */
+function texteDelaiDeclaration(delaiDuContrat: boolean, delaiContratJoursOuvres: number | undefined): string {
+  if (delaiDuContrat) return 'délai du contrat ; C. assur. L. 113-2, 4°'
+  if (delaiContratJoursOuvres === undefined) return 'minimum légal, C. assur. L. 113-2, 4°'
+  return `minimum légal, C. assur. L. 113-2, 4°, retenu au lieu des ${delaiContratJoursOuvres} jours ouvrés du contrat`
 }
 
 /** Déclaration « au plus tard » et prescription « au plus tôt » (voir l'en-tête du module ; J67, R49). */
@@ -467,17 +528,26 @@ export function reperesDelaisSinistre(
   const dommagesOuvrage = sinistre.type === DOMMAGES_OUVRAGE
   const minimumLegalJoursOuvres = delaiMinimumJoursOuvres(sinistre.type)
   const delaiDeclarationJoursOuvres = Math.max(minimumLegalJoursOuvres, delaiContratJoursOuvres ?? 0)
+  const delaiDuContrat = delaiContratJoursOuvres !== undefined && delaiContratJoursOuvres >= minimumLegalJoursOuvres
   const declarationAuPlusTard = ajouterJoursOuvres(sinistre.dateConnaissance, delaiDeclarationJoursOuvres)
   const desLaConnaissance = delaiDeclarationJoursOuvres === 0
+  const prescription = ajouterMois(sinistre.dateSurvenance, PRESCRIPTION_MOIS)
+  const regime = REGIMES_A_CONFIRMER[sinistre.type]
   return {
     minimumLegalJoursOuvres,
     delaiDeclarationJoursOuvres,
-    delaiDuContrat: delaiDeclarationJoursOuvres > minimumLegalJoursOuvres,
+    delaiDuContrat,
     volPossible: TYPES_VOL_POSSIBLE.has(sinistre.type),
+    declarationAConfirmer: regime?.declaration ?? null,
     declarationAuPlusTard,
     desLaConnaissance,
+    justificationDeclaration:
+      `Connaissance du ${fr(sinistre.dateConnaissance)} + ${delaiDeclarationJoursOuvres} jours ouvrés, comptés du lendemain hors samedis, dimanches et jours fériés ` +
+      `(${texteDelaiDeclaration(delaiDuContrat, delaiContratJoursOuvres)}) : au plus tard le ${fr(declarationAuPlusTard)}.`,
     declarationTardive: !desLaConnaissance && sinistre.dateDeclaration !== null && sinistre.dateDeclaration > declarationAuPlusTard,
-    prescription: ajouterMois(sinistre.dateSurvenance, PRESCRIPTION_MOIS),
+    prescription,
+    prescriptionAConfirmer: regime?.prescription ?? null,
+    justificationPrescription: `Survenance du ${fr(sinistre.dateSurvenance)} + ${PRESCRIPTION_MOIS} mois (C. assur. L. 114-1) : au plus tôt le ${fr(prescription)}.`,
     fondements: dommagesOuvrage
       ? ['C. assur. art. L. 113-2', 'C. assur. annexe II à l’art. A. 243-1', 'C. assur. art. L. 114-1']
       : ['C. assur. art. L. 113-2', 'C. assur. art. L. 114-1'],

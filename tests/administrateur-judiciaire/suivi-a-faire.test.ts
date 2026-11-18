@@ -601,6 +601,52 @@ describe('sources — sinistres, équipements, diagnostics', () => {
       expect(aDeclarer({}, 3)?.libelle).toContain('(minimum légal, C. assur. L. 113-2, 4°')
     })
 
+    it('relecture : délai du contrat saisi égal au minimum légal : « délai du contrat »', () => {
+      expect(aDeclarer({}, 5)?.libelle).toBe('Sinistre — à déclarer au plus tard le 27/10/2026 (délai du contrat ; C. assur. L. 113-2, 4°)')
+      expect(aDeclarer({ type: 'Vol' }, 2)?.libelle).toBe('Sinistre — à déclarer au plus tard le 22/10/2026 (délai du contrat ; C. assur. L. 113-2, 4°)')
+    })
+
+    const prescription = (surcharge: Partial<SaisieSinistre>) =>
+      depuisSinistres([{ id: 'S', mandatId: 'M1', libelle: 'Sinistre', fiche: creerSinistre(saisieSinistre(surcharge)) }]).find((e) => e.nature === 'prescription')
+
+    it('relecture : « Charges Impayées » et « Loyers Impayés » — assurance-crédit possible (L. 111-1) : déclaration et prescription à confirmer', () => {
+      for (const type of ['Charges Impayées', 'Loyers Impayés'] as const) {
+        expect(aDeclarer({ type }, 3)).toMatchObject({
+          date: '2026-10-27',
+          aConfirmer: true,
+          libelle: 'Sinistre — repère de déclaration du 27/10/2026 à confirmer, assurance-crédit possible : seule la police fixe alors le délai (C. assur. L. 111-1)',
+        })
+        expect(prescription({ type })).toMatchObject({
+          aConfirmer: true,
+          libelle:
+            "Sinistre — prescription au plus tôt le 20/10/2028 (C. assur. L. 114-1 ; peut être repoussée par une interruption, L. 114-2) — à confirmer, assurance-crédit possible : L. 114-1 ne s'applique alors pas, voir la police (C. assur. L. 111-1)",
+        })
+      }
+    })
+
+    it('relecture : « Dommages Ouvrage » — pas de minimum légal annoncé, à confirmer jusqu’à la règle propre du type (J67, R52) ; prescription sans marque', () => {
+      expect(aDeclarer({ type: 'Dommages Ouvrage' })).toMatchObject({
+        date: '2026-10-27',
+        aConfirmer: true,
+        libelle:
+          "Sinistre — repère de déclaration du 27/10/2026 à confirmer, dommages-ouvrage : les clauses types ne fixent aucun délai à l'assuré (C. assur. annexe II à l'art. A. 243-1)",
+      })
+      expect(prescription({ type: 'Dommages Ouvrage' })?.aConfirmer).toBe(false)
+    })
+
+    it('relecture : « Catastrophes naturelles » — délai propre (L. 125-2), à confirmer ; prescription sans marque', () => {
+      expect(aDeclarer({ type: 'Catastrophes naturelles', phase: "Mission d'expertise" })).toMatchObject({
+        aConfirmer: true,
+        libelle:
+          "Sinistre — repère de déclaration du 27/10/2026 à confirmer, catastrophe naturelle : délai compté de la publication de l'arrêté (C. assur. L. 125-2) — déclaration non datée (phase « Mission d'expertise ») : à vérifier",
+      })
+      expect(prescription({ type: 'Catastrophes naturelles' })?.aConfirmer).toBe(false)
+    })
+
+    it('relecture : « Tempête, Grêles, Neiges » suit le droit commun, sans marque (J67, R53 : repère inchangé)', () => {
+      expect(aDeclarer({ type: 'Tempête, Grêles, Neiges' })).toMatchObject({ aConfirmer: false, libelle: expect.stringContaining('(minimum légal, C. assur. L. 113-2, 4°') })
+    })
+
     it('en-tête : les sinistres ne sont plus des repères 🔴 ; le contrat n’allonge que la déclaration (L. 114-3)', () => {
       const { texte } = enTeteDuModule('suivi-a-faire')
       expect(texte).not.toMatch(/🔴 Signalés `aConfirmer` : repères de déclaration et de prescription des sinistres/)

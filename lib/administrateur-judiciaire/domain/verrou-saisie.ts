@@ -249,10 +249,12 @@ export interface DateHorsVerrou {
  * Date comptable d'une opération qui se rapporte peut-être à une période close (J67, R123) : la date du fait si aucune
  * borne ne la couvre ; sinon le lendemain de la borne applicable (la plus tardive de celles qui visent l'opération), qui
  * n'est couvert par aucune borne de ce périmètre. Le libellé porte toujours la date d'origine et la référence de la pièce.
+ * Refuse une opération sans compte : aucune borne ne la viserait, et une date d'un exercice clos serait proposée.
  */
 export function dateHorsVerrou(verrou: VerrouSaisie, { dateDuFait, reference, famille, comptes }: OperationADater): DateHorsVerrou {
   const piece = reference.trim()
   if (!piece) throw new Error("Opération sans référence de la pièce : le libellé doit l'identifier (arrêté du 14 mars 2005, art. 4).")
+  if (comptes.length === 0) throw new Error('Opération sans compte : date hors verrou impossible à établir (aucune borne ne la viserait).')
   const borne = borneApplicable(verrou, { date: dateDuFait, famille, comptes })
   const mention = `pièce « ${piece} » du ${dateIsoVersFr(dateDuFait)}`
   if (borne === null)

@@ -322,4 +322,8 @@ describe('verrou de saisie — date d’une opération d’une période close (J
     expect(() => dateHorsVerrou([arrete], { ...rejet, reference: ' ', dateDuFait: '2026-01-15' })).toThrow(/référence de la pièce/)
     expect(() => dateHorsVerrou([arrete], { ...rejet, dateDuFait: '15/01/2026' })).toThrow(/date comptable invalide/i)
   })
+
+  it('relecture : refuse une opération sans compte (aucune borne ne la viserait : date d’un exercice clos proposée à tort)', () => {
+    expect(() => dateHorsVerrou([arrete], { ...rejet, comptes: [], dateDuFait: '2025-06-01' })).toThrow(/Opération sans compte/)
+  })
 })
