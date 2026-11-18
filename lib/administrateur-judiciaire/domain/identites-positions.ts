@@ -254,10 +254,26 @@ export interface CompteCoproprietaire {
   /**
    * Décision J10 (Hugo, 30/10/2026) — identité du mandataire commun des indivisaires du compte (L. 1965 art. 23, al. 2 :
    * désigné d'accord entre eux ou, à défaut, par le président du tribunal judiciaire). Facultatif et non indexé ; absent,
-   * null ou vide : aucun désigné. Seul ce mandataire reçoit un règlement destiné à l'indivision
-   * (reglements-fournisseurs.ts, controlerBeneficiaireIndivisaire).
+   * null ou vide : aucun désigné. Seul ce mandataire reçoit un règlement destiné à un indivisaire
+   * (reglements-fournisseurs.ts, controlerBeneficiaireIndivisaire) ; un remboursement du compte va à lui, ou à tous les
+   * indivisaires ensemble (J67, R80 : controlerBeneficiaireCompte).
    */
   mandataireCommunId?: string | null
+  /**
+   * J67, R80 (17/11/2026) — compte démembré (usufruit, nue-propriété) : accord écrit des deux qui désigne la personne à
+   * payer (C. civ. art. 1342-2) ; absent ou null : aucun, le remboursement va aux deux ensemble ou il est refusé
+   * (reglements-fournisseurs.ts, controlerBeneficiaireCompte). Enregistrement : à brancher.
+   */
+  accordPaiementDemembrement?: AccordPaiementDemembrement | null
+}
+
+/** Accord écrit de l'usufruitier et du nu-propriétaire sur la personne qui reçoit les paiements du compte (J67, R80). */
+export interface AccordPaiementDemembrement {
+  /** Identité désignée pour recevoir le paiement. */
+  beneficiaireId: string
+  /** Pièce de l'accord (document de la GED). */
+  documentId: string
+  signeLe: string
 }
 
 export function creerCompteCoproprietaire(saisie: CompteCoproprietaire): CompteCoproprietaire {

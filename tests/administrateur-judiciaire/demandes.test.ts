@@ -38,6 +38,7 @@ import {
   type PiecesEntreprise,
 } from '@/lib/administrateur-judiciaire/domain/vigilance-entreprises'
 import { STADE_INTERVENTION, STATUT_DEMANDE } from '@/lib/data/referentiels-gesteam-judiciaire'
+import { enTeteDuModule } from './en-tete-module'
 
 /**
  * Demandes d'intervention et ordres de service : modèle et cycle jusqu'à la facture (point 43 du bilan 2 ; Gestéam,
@@ -629,5 +630,35 @@ describe('phaseSuggereeParExecution (exécution forcée reliée au contentieux, 
     expect(phaseSuggereeParExecution([validee], 'cx-1')).toBe('Exécution en cours')
     const terminee = terminerDemande(marquerSansFacture(validee, true), [], '2026-10-20')
     expect(phaseSuggereeParExecution([terminee], 'cx-1')).toBeNull()
+  })
+})
+
+describe('J67 — recommandations validées par Hugo le 17/11/2026 (R48, R67, R68, R75)', () => {
+  it('R75 : contrôle déclaratif avant l’OS sous urgence constatée : la vigilance donne une alerte forte au lieu d’un blocage', () => {
+    const gros = demande({ prix: { montantTtcCentimes: 660_000, remiseCentimes: 0, tauxTvaPct: 10, baseHtCentimes: 600_000 } })
+    const sansPieces = {
+      prestataireId: 'ent-1',
+      etablieEnFrance: true,
+      attestationUrssafLe: null,
+      immatriculation: null,
+      listeSalariesEtrangersLe: '2026-09-01',
+    } satisfies PiecesEntreprise
+    const options = { date: '2026-10-02', decennaleObligatoire: false, moment: 'ordre_de_service' as const }
+    const urgence = controleDeclaratifDemande(gros, sansPieces, { ...options, urgenceConstatee: true })
+    expect(urgence.map((a) => [a.code, a.gravite])).toEqual([
+      ['vigilance_urssaf_absente', 'alerte'],
+      ['immatriculation_absente', 'alerte'],
+    ])
+    expect(controleDeclaratifDemande(gros, sansPieces, options).every((a) => a.gravite === 'bloquant')).toBe(true)
+  })
+
+  it('en-tête : la facture du commissaire de justice (R48), l’avis du conseil syndical (R67) et les seuils fixés par l’administrateur provisoire (R68) ne sont plus des questions', () => {
+    const { texte } = enTeteDuModule('demandes')
+    const questions = texte.slice(texte.indexOf('🔴 Non établi'))
+    expect(questions).not.toContain('facture du commissaire de justice')
+    expect(questions).not.toContain('fixe-t-il lui-même les deux seuils')
+    expect(questions).toContain('« Non facturé »')
+    for (const attendu of ['J67, R48', 'J67, R67', 'J67, R68', 'fraisCommissaireJusticeAReporter', '« à ce titre »', 'maintenance'])
+      expect(texte).toContain(attendu)
   })
 })

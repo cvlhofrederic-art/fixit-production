@@ -1,4 +1,4 @@
-import { ajouterMois, dateIsoVersFr, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
+import { ajouterMois, composerDateIso, dateIsoVersFr, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
 
 /**
  * Contrôle des entreprises avant un ordre de service et avant un règlement (point 37 du bilan 2). Fonctions pures,
@@ -33,15 +33,34 @@ import { ajouterMois, dateIsoVersFr, estDateIsoValide } from '@/lib/administrate
  * - « moins de six mois » s'apprécie à la date du contrôle (ordre de service ou règlement) ; une pièce datée APRÈS le
  *   contrôle ne prouve pas la remise à cette date : elle compte comme absente, avec une alerte de saisie.
  *
+ * Recommandations validées par Hugo le 17/11/2026 (J67 ; textes lus sur Légifrance le 17/11/2026) :
+ * - J67, R75 (travaux d'urgence) : la vigilance s'applique quand même. L'art. L. 8221-2 exclut les travaux d'urgence
+ *   « des interdictions prévues au présent chapitre », le chapitre Ier (travail dissimulé) ; la vigilance est au
+ *   chapitre II (L. 8222-1), que l'exclusion ne vise pas ; le donneur d'ordre qui ne vérifie pas reste exposé à la
+ *   solidarité financière (L. 8222-2). L'administrateur provisoire doit pourtant faire exécuter d'urgence les travaux de
+ *   sauvegarde (L. 1965 art. 18, I) : sous urgence constatée (OperationAControler.urgenceConstatee, J16, J46), les pièces
+ *   de vigilance manquantes donnent une alerte forte au lieu d'un blocage ; envoi-ordre-service.ts en tire un élément
+ *   « à faire » pour les obtenir. Sans urgence constatée, le blocage reste. La décennale n'est pas visée : elle reste
+ *   bloquante ;
+ * - J67, R76 (RC professionnelle) : code confirmé. Le code des assurances impose la seule assurance décennale (C. ass.
+ *   art. L. 241-1), justifiée par attestation jointe aux devis et factures (L. 243-2) ; aucune obligation générale de RC
+ *   professionnelle pour une entreprise de travaux : son échéance reste une alerte de GESTION, sans texte cité. Une
+ *   profession soumise à une obligation propre (architecte, maître d'œuvre) se traitera à part, après lecture du texte
+ *   (non vérifié) ;
+ * - J67, R77 (sous-traitants acceptés) : C. trav. art. L. 8222-1-1, créé par la loi n° 2026-534 du 25/06/2026, art. 95,
+ *   « À venir » sur Légifrance au 17/11/2026 : en vigueur à une date fixée par décret, au plus tard six mois après la
+ *   promulgation, soit le 26/12/2026 (ENTREE_EN_VIGUEUR_MAX_L8222_1_1). Le maître de l'ouvrage vérifie périodiquement,
+ *   jusqu'à la fin du sous-traité d'un montant minimal, que le sous-traitant qu'il accepte (loi n° 75-1334, art. 3)
+ *   s'acquitte de ses formalités ; il est réputé l'avoir fait s'il se fait remettre les documents fixés par décret. Le
+ *   syndicat n'est pas un « particulier » : il est concerné. Contrôle préparé (controlerSousTraitantsAcceptes,
+ *   verificationsSousTraitantsDues), activé à la date du décret ; montant minimal, pièces et période à saisir quand il
+ *   paraît (ReglageSousTraitantsAcceptes ; décret non trouvé publié : non vérifié). Avant, une information « nouvelle
+ *   obligation au plus tard le 26/12/2026 ». Enregistrement des sous-traitants acceptés : à brancher.
+ *
  * 🔴 Non établi :
  * - qualification des travaux soumis à l'assurance décennale (ouvrage au sens de l'art. 1792, hors exclusions de l'art.
  *   L. 243-1-1) : laissée à l'utilisateur (`decennaleObligatoire: null` → alerte à qualifier) ;
- * - travaux d'urgence : l'art. L. 8221-2 les exclut des interdictions du chapitre I, sans dire si la vigilance du
- *   chapitre II s'efface ; VitFix contrôle quand même ;
- * - avant un règlement, aucun texte n'impose de vérifier : VitFix ALERTE, ne bloque jamais un paiement ;
- * - RC professionnelle : aucune obligation légale générale relevée ; son échéance est une alerte de GESTION ;
- * - art. L. 8222-1-1 (vigilance sur les sous-traitants acceptés), loi n° 2026-534, en vigueur au plus tard le 26/12/2026,
- *   décret des pièces non publié : à intégrer à son entrée en vigueur.
+ * - avant un règlement, aucun texte n'impose de vérifier : VitFix ALERTE, ne bloque jamais un paiement.
  *
  * Gestéam — fiche entreprise, onglet Informations : RCS, TVA intracommunautaire, bouton « Contrôle déclaratif » ; R.C.
  * décennale et Responsabilité civile du … au, police, n°, compagnie (tranches 34, 37). Le marqueur « nécessaire » n'est
@@ -113,6 +132,9 @@ export type CodeAnomalieEntreprise =
   | 'decennale_a_qualifier'
   | 'ouverture_chantier_inconnue'
   | 'rcp_echue'
+  | 'sous_traitants_obligation_a_venir'
+  | 'sous_traitants_valeurs_decret_a_saisir'
+  | 'sous_traitant_piece_a_obtenir'
 
 export interface AnomalieEntreprise {
   code: CodeAnomalieEntreprise
@@ -137,6 +159,11 @@ export interface OperationAControler {
   dateOuvertureChantier?: string | null
   /** Activité commandée, à retrouver parmi les activités couvertes par la décennale. */
   activite?: string | null
+  /**
+   * Urgence constatée par l'administrateur provisoire (J16, J46) : les pièces de vigilance manquantes donnent une alerte
+   * forte au lieu d'un blocage (J67, R75 ; C. trav. art. L. 8221-2 et L. 8222-1). La décennale n'est pas visée.
+   */
+  urgenceConstatee?: boolean
 }
 
 export interface ReglementAControler {
@@ -258,6 +285,17 @@ const piecesExigees = (pieces: PiecesEntreprise): PieceControlee[] => [
   },
 ]
 
+/** Moment du contrôle : avant l'OS, avant l'OS sous urgence constatée (J67, R75), ou avant un règlement. */
+type MomentVigilance = 'ordre' | 'urgence' | 'reglement'
+
+/** Ce qu'il faut faire de la pièce, selon le moment du contrôle. */
+const QUAND_PAR_MOMENT: Readonly<Record<MomentVigilance, string>> = {
+  ordre: 'avant de commander',
+  urgence:
+    "dès que possible : urgence constatée, l'ordre de service part sans elle, alerte forte au lieu d'un blocage (J67, R75 ; C. trav. art. L. 8221-2 : l'exclusion des travaux d'urgence ne vise pas la vigilance), élément « à faire » pour l'obtenir",
+  reglement: 'pendant l’exécution',
+}
+
 /**
  * Vigilance à la date `date`, avec la gravité `gravite` (sauf la liste des salariés étrangers, toujours en alerte). Une
  * pièce datée après le contrôle compte comme absente, avec une alerte de saisie en plus.
@@ -266,10 +304,10 @@ function controlerVigilance(
   pieces: PiecesEntreprise,
   date: string,
   gravite: GraviteAnomalieEntreprise,
-  moment: 'ordre' | 'reglement',
+  moment: MomentVigilance,
 ): AnomalieEntreprise[] {
   const anomalies: AnomalieEntreprise[] = []
-  const quand = moment === 'ordre' ? 'avant de commander' : 'pendant l’exécution'
+  const quand = QUAND_PAR_MOMENT[moment]
   for (const piece of piecesExigees(pieces)) {
     const etat = etatPiece(piece.le, date)
     const g = piece.gravite ?? gravite
@@ -364,7 +402,12 @@ export function controlerAvantOrdreService(pieces: PiecesEntreprise, operation: 
   verifierSaisie(pieces, operation.date, operation.montantHtCentimes)
   verifierDate("l'ouverture du chantier", operation.dateOuvertureChantier)
   const anomalies: AnomalieEntreprise[] = []
-  if (operation.montantHtCentimes >= SEUIL_VIGILANCE_HT_CENTIMES) anomalies.push(...controlerVigilance(pieces, operation.date, 'bloquant', 'ordre'))
+  if (operation.montantHtCentimes >= SEUIL_VIGILANCE_HT_CENTIMES)
+    anomalies.push(
+      ...(operation.urgenceConstatee === true
+        ? controlerVigilance(pieces, operation.date, 'alerte', 'urgence')
+        : controlerVigilance(pieces, operation.date, 'bloquant', 'ordre')),
+    )
   if (operation.decennaleObligatoire === true)
     anomalies.push(...controlerDecennale(pieces.decennale, operation.dateOuvertureChantier ?? operation.date, 'bloquant', operation.activite))
   else if (operation.decennaleObligatoire === null) anomalies.push(decennaleAQualifier())
@@ -389,6 +432,15 @@ const CODES_VIGILANCE_REGROUPES: ReadonlySet<CodeAnomalieEntreprise> = new Set([
   'pieces_etranger_a_renouveler',
 ])
 const CODES_ABSENCE: ReadonlySet<CodeAnomalieEntreprise> = new Set(['vigilance_urssaf_absente', 'immatriculation_absente', 'pieces_etranger_absentes'])
+
+/**
+ * Pièces de vigilance (attestation, authenticité, immatriculation, pièces étrangères) : sous urgence constatée, leur
+ * absence donne une alerte forte et un élément « à faire » (J67, R75 ; envoi-ordre-service.ts).
+ */
+export const CODES_PIECES_VIGILANCE: ReadonlySet<CodeAnomalieEntreprise> = new Set<CodeAnomalieEntreprise>([
+  ...CODES_VIGILANCE_REGROUPES,
+  'vigilance_urssaf_non_verifiee',
+])
 
 /**
  * Contrôle avant un règlement, pendant l'exécution : ALERTES seulement, aucun texte n'imposant de vérifier à chaque
@@ -430,4 +482,217 @@ export function controlerAvantReglement(pieces: PiecesEntreprise, reglement: Reg
       )
   } else if (decennaleObligatoire === null) anomalies.push(decennaleAQualifier())
   return anomalies
+}
+
+// ─── Sous-traitants acceptés (C. trav. art. L. 8222-1-1 ; J67, R77) ──────────────────────────
+
+/**
+ * C. trav. art. L. 8222-1-1 (loi n° 2026-534 du 25/06/2026, art. 95 ; version « À venir » lue sur Légifrance le
+ * 17/11/2026) : en vigueur à une date fixée par décret, et au plus tard six mois après la promulgation, soit le 26/12/2026.
+ */
+export const ENTREE_EN_VIGUEUR_MAX_L8222_1_1 = composerDateIso(2026, 12, 26)
+
+const FONDEMENT_SOUS_TRAITANTS = 'C. trav. art. L. 8222-1-1'
+
+/** Valeurs du décret d'application (non trouvé publié au 17/11/2026 : non vérifié), à saisir quand il paraît (J67, R77). */
+export interface ReglageSousTraitantsAcceptes {
+  /** Date d'entrée en vigueur fixée par le décret ; null : non fixée (au plus tard ENTREE_EN_VIGUEUR_MAX_L8222_1_1). */
+  entreeEnVigueurLe: string | null
+  /** Montant minimal du sous-traité, hors taxes ; null : non publié. */
+  montantMinimalHtCentimes: number | null
+  /** Documents à se faire remettre (natures) ; null : non publiés. */
+  piecesExigees: readonly string[] | null
+  /** Période de la vérification, en mois ; null : non publiée. */
+  periodiciteMois: number | null
+}
+
+/** Rien n'est encore fixé par décret : l'obligation s'active au plus tard le 26/12/2026, ses valeurs restent à saisir. */
+export const REGLAGE_SOUS_TRAITANTS_PAR_DEFAUT: ReglageSousTraitantsAcceptes = Object.freeze({
+  entreeEnVigueurLe: null,
+  montantMinimalHtCentimes: null,
+  piecesExigees: null,
+  periodiciteMois: null,
+})
+
+export interface PieceSousTraitant {
+  nature: string
+  le: string
+}
+
+/** Sous-traitant accepté par le syndicat, maître de l'ouvrage (loi n° 75-1334, art. 3). Enregistrement : à brancher. */
+export interface SousTraitantAccepte {
+  sousTraitantId: string
+  /** Marché principal (demande ou ordre de service) dont relève le sous-traité. */
+  marcheId: string
+  /** Date de l'acceptation du sous-traitant. */
+  accepteLe: string
+  /** Montant hors taxes du sous-traité. */
+  montantHtCentimes: number
+  /** Fin du sous-traité ; null : en cours. */
+  finLe: string | null
+  /** Documents remis par le sous-traitant. */
+  pieces: readonly PieceSousTraitant[]
+}
+
+/** Vérification périodique due (élément « à faire »), avec sa justification. */
+export interface VerificationSousTraitantDue {
+  id: string
+  sousTraitantId: string
+  marcheId: string
+  /** Date à laquelle la vérification est due. */
+  date: string
+  /** Documents à se faire remettre à cette date. */
+  pieces: string[]
+  justification: string
+}
+
+interface ValeursDecret {
+  montantMinimalHtCentimes: number
+  piecesExigees: readonly string[]
+  periodiciteMois: number
+}
+
+interface EcheanceDocument {
+  date: string
+  justification: string
+}
+
+/** Début de l'obligation : la date du décret, jamais après le 26/12/2026 ; à défaut, le 26/12/2026. */
+function debutObligation(reglage: ReglageSousTraitantsAcceptes): string {
+  const fixee = reglage.entreeEnVigueurLe
+  if (fixee === null) return ENTREE_EN_VIGUEUR_MAX_L8222_1_1
+  verifierDate("l'entrée en vigueur de l'art. L. 8222-1-1", fixee)
+  if (fixee > ENTREE_EN_VIGUEUR_MAX_L8222_1_1)
+    throw new Error(
+      `Entrée en vigueur de l'art. L. 8222-1-1 le ${dateIsoVersFr(fixee)} : au plus tard le ${dateIsoVersFr(ENTREE_EN_VIGUEUR_MAX_L8222_1_1)} (six mois après la promulgation de la loi n° 2026-534).`,
+    )
+  return fixee
+}
+
+/** Valeurs du décret, toutes saisies ; null s'il en manque une. */
+function valeursDecret(reglage: ReglageSousTraitantsAcceptes): ValeursDecret | null {
+  const { montantMinimalHtCentimes, piecesExigees, periodiciteMois } = reglage
+  if (montantMinimalHtCentimes === null || piecesExigees === null || piecesExigees.length === 0 || periodiciteMois === null) return null
+  if (!Number.isInteger(montantMinimalHtCentimes) || montantMinimalHtCentimes < 0 || !Number.isInteger(periodiciteMois) || periodiciteMois < 1)
+    throw new Error('Valeurs du décret (art. L. 8222-1-1) invalides : montant en centimes entiers, période en mois entiers à partir de 1.')
+  return { montantMinimalHtCentimes, piecesExigees, periodiciteMois }
+}
+
+function verifierSousTraitant(st: SousTraitantAccepte): void {
+  if (!estDateIsoValide(st.accepteLe))
+    throw new Error(`Sous-traitant ${st.sousTraitantId} : date d'acceptation invalide (${st.accepteLe}) : AAAA-MM-JJ attendu.`)
+  verifierDate(`la fin du sous-traité ${st.sousTraitantId}`, st.finLe)
+  if (!Number.isInteger(st.montantHtCentimes) || st.montantHtCentimes < 0)
+    throw new Error(`Sous-traitant ${st.sousTraitantId} : montant HT en centimes entiers positifs attendu.`)
+  for (const piece of st.pieces) verifierDate(`le document « ${piece.nature} » du sous-traitant ${st.sousTraitantId}`, piece.le)
+}
+
+/**
+ * Échéance d'un document : sa dernière remise (au plus tard `jusquau`) plus la période du décret ; jamais remis : dû dès
+ * l'acceptation du sous-traitant, ou dès l'entrée en vigueur si elle est postérieure.
+ */
+function echeanceDocument(st: SousTraitantAccepte, nature: string, valeurs: ValeursDecret, debut: string, jusquau: string | null): EcheanceDocument {
+  const remises = st.pieces.filter((p) => p.nature === nature && (jusquau === null || p.le <= jusquau)).map((p) => p.le)
+  const derniere = remises.sort((a, b) => a.localeCompare(b)).at(-1)
+  if (derniere === undefined) {
+    const date = st.accepteLe > debut ? st.accepteLe : debut
+    return {
+      date,
+      justification: `aucun document « ${nature} » remis : dû dès le ${dateIsoVersFr(date)} (acceptation du sous-traitant le ${dateIsoVersFr(st.accepteLe)}, obligation en vigueur le ${dateIsoVersFr(debut)})`,
+    }
+  }
+  const date = ajouterMois(derniere, valeurs.periodiciteMois)
+  return {
+    date,
+    justification: `document « ${nature} » remis le ${dateIsoVersFr(derniere)}, à renouveler tous les ${valeurs.periodiciteMois} mois (période fixée par décret) : dû le ${dateIsoVersFr(date)}`,
+  }
+}
+
+/** Sous-traité d'au moins le montant minimal, en cours à la date ; sans date : non terminé. */
+function sousTraiteConcerne(st: SousTraitantAccepte, valeurs: ValeursDecret, date: string | null): boolean {
+  if (st.montantHtCentimes < valeurs.montantMinimalHtCentimes) return false
+  if (date === null) return st.finLe === null
+  return st.accepteLe <= date && (st.finLe === null || st.finLe >= date)
+}
+
+/**
+ * Contrôle des sous-traitants acceptés à `date` (J67, R77 ; C. trav. art. L. 8222-1-1) : avant l'entrée en vigueur, une
+ * information « nouvelle obligation au plus tard le 26/12/2026 » ; en vigueur sans les valeurs du décret, une alerte à
+ * confirmer ; ensuite, pour chaque sous-traité d'au moins le montant minimal en cours à la date, une alerte par document
+ * à se faire remettre (jamais remis, ou remis depuis la période du décret). Alertes seulement : le texte organise une
+ * vérification, il ne fait pas bloquer le marché.
+ */
+export function controlerSousTraitantsAcceptes(
+  sousTraitants: readonly SousTraitantAccepte[],
+  reglage: ReglageSousTraitantsAcceptes,
+  date: string,
+): AnomalieEntreprise[] {
+  if (!estDateIsoValide(date)) throw new Error(`Date du contrôle invalide (${date}) : AAAA-MM-JJ attendu.`)
+  sousTraitants.forEach(verifierSousTraitant)
+  const debut = debutObligation(reglage)
+  if (date < debut)
+    return [
+      anomalie(
+        'sous_traitants_obligation_a_venir',
+        'alerte',
+        `Nouvelle obligation au plus tard le ${dateIsoVersFr(ENTREE_EN_VIGUEUR_MAX_L8222_1_1)} (loi n° 2026-534 du 25/06/2026) : vérifier périodiquement, jusqu'à la fin du sous-traité, que chaque sous-traitant accepté s'acquitte de ses formalités ; contrôle activé le ${dateIsoVersFr(debut)}${reglage.entreeEnVigueurLe === null ? ' au plus tard (date du décret à saisir)' : ''}.`,
+        FONDEMENT_SOUS_TRAITANTS,
+      ),
+    ]
+  const valeurs = valeursDecret(reglage)
+  if (valeurs === null)
+    return [
+      anomalie(
+        'sous_traitants_valeurs_decret_a_saisir',
+        'alerte',
+        `Obligation en vigueur depuis le ${dateIsoVersFr(debut)} : montant minimal du sous-traité, documents et période fixés par décret à saisir ; les sous-traitants acceptés ne peuvent pas encore être contrôlés.`,
+        FONDEMENT_SOUS_TRAITANTS,
+        true,
+      ),
+    ]
+  return sousTraitants
+    .filter((st) => sousTraiteConcerne(st, valeurs, date))
+    .flatMap((st) =>
+      valeurs.piecesExigees
+        .map((nature) => echeanceDocument(st, nature, valeurs, debut, date))
+        .filter((echeance) => echeance.date <= date)
+        .map((echeance) =>
+          anomalie(
+            'sous_traitant_piece_a_obtenir',
+            'alerte',
+            `Sous-traitant ${st.sousTraitantId} (marché ${st.marcheId}) : ${echeance.justification} ; se le faire remettre.`,
+            FONDEMENT_SOUS_TRAITANTS,
+          ),
+        ),
+    )
+}
+
+/**
+ * Prochaine vérification de chaque sous-traité en cours d'au moins le montant minimal (élément « à faire » périodique ;
+ * J67, R77) : la plus proche échéance de ses documents, avec ceux qui sont dus ce jour-là et la justification. Aucune
+ * sans les valeurs du décret. Branchement au suivi « à faire » : à faire.
+ */
+export function verificationsSousTraitantsDues(
+  sousTraitants: readonly SousTraitantAccepte[],
+  reglage: ReglageSousTraitantsAcceptes,
+): VerificationSousTraitantDue[] {
+  sousTraitants.forEach(verifierSousTraitant)
+  const debut = debutObligation(reglage)
+  const valeurs = valeursDecret(reglage)
+  if (valeurs === null) return []
+  return sousTraitants
+    .filter((st) => sousTraiteConcerne(st, valeurs, null))
+    .map((st): VerificationSousTraitantDue => {
+      const echeances = valeurs.piecesExigees.map((nature) => ({ nature, ...echeanceDocument(st, nature, valeurs, debut, null) }))
+      const date = echeances.map((e) => e.date).sort((a, b) => a.localeCompare(b))[0]
+      const dues = echeances.filter((e) => e.date === date)
+      return {
+        id: `vigilance:sous_traitant:${st.marcheId}:${st.sousTraitantId}`,
+        sousTraitantId: st.sousTraitantId,
+        marcheId: st.marcheId,
+        date,
+        pieces: dues.map((e) => e.nature),
+        justification: `${dues.map((e) => e.justification).join(' ; ')} (${FONDEMENT_SOUS_TRAITANTS}).`,
+      }
+    })
 }

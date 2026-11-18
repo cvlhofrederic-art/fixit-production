@@ -1,6 +1,13 @@
 import { etatNotificationCourrier, type CourrierSuivi, type EtatNotificationCourrier } from '@/lib/administrateur-judiciaire/domain/courriers'
 import { ajouterJours, ajouterMois, dateIsoVersFr, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
-import { seuilsAtteints, type DecisionAnnuelle } from '@/lib/administrateur-judiciaire/domain/decisions-annuelles-ag'
+import {
+  decisionsEnVigueur,
+  seuilEnVigueur,
+  seuilsAtteints,
+  type DecisionAnnuelle,
+  type PouvoirsAgConfies,
+  type TypeSeuilArt21,
+} from '@/lib/administrateur-judiciaire/domain/decisions-annuelles-ag'
 import {
   controleDeclaratifDemande,
   estRefusee,
@@ -14,11 +21,13 @@ import {
 import { creerRattachement, FICHES_PORTEUSES, memeRattachement, type Rattachement } from '@/lib/administrateur-judiciaire/domain/fiches-liees'
 import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
 import { MAJORITES_AG, type TypeMajorite } from '@/lib/administrateur-judiciaire/domain/majorites-ag'
+import type { ModeExerciceAdministrateurs } from '@/lib/administrateur-judiciaire/domain/mandat-judiciaire'
 import { ROLES_CABINET, type RoleCabinet } from '@/lib/administrateur-judiciaire/domain/roles-cabinet'
 import type { ElementAFaire } from '@/lib/administrateur-judiciaire/domain/suivi-a-faire'
 import type { CauseDelaiNonCalcule, ResultatDelaiContestationAg } from '@/lib/administrateur-judiciaire/domain/statut-assemblee'
 import { normaliserTexte } from '@/lib/administrateur-judiciaire/domain/texte'
 import {
+  CODES_PIECES_VIGILANCE,
   SEUIL_VIGILANCE_HT_CENTIMES,
   type AnomalieEntreprise,
   type CodeAnomalieEntreprise,
@@ -150,8 +159,9 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   rémunération. », le seul concours que cet alinéa prévoit ; lecture de ces textes, à confirmer par Hugo (🔵) : la
  *   signature d'un collaborateur, au nom et sous la responsabilité de l'administrateur provisoire, n'est pas une
  *   substitution, ni une délégation de pouvoir, et le collaborateur n'est pas le tiers qui assiste l'administrateur
- *   provisoire (aucune désignation par le président du tribunal judiciaire n'est demandée ici) : ces points restent des
- *   questions (🔴) ; l'administrateur désigné signe toujours (« pas seulement l'administrateur désigné ») :
+ *   provisoire (aucune désignation par le président du tribunal judiciaire n'est demandée ici) : ces points sont tranchés
+ *   par J67, R72 (ci-dessous), marque gardée jusqu'à l'avis d'un juriste (🔴) ; l'administrateur désigné signe toujours
+ *   (« pas seulement l'administrateur désigné ») :
  *   administrateurDesigneId, l'administrateur provisoire désigné pour ce mandat par la décision du président du tribunal
  *   judiciaire (L. 1965 art. 29-1, I), fourni par l'appelant, accepté même hors de la liste ; un autre collaborateur signe
  *   s'il figure dans la liste du cabinet (signatairesHabilites, réglage du cabinet fourni par l'appelant ; absente : non
@@ -159,10 +169,10 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   fourni) ; contrôle par la liste du cabinet : règle de gestion, sans texte (signataire_non_habilite : bloquant,
  *   fondement null, plus « à confirmer ») ;
  * - 9 (J19). preuve : l'AR (accusé de réception) FAIT PREUVE de la réception de l'OS ; la réception, distincte de l'envoi
- *   (enregistrerReception ; 🔵 : déduit de « l'AR fait preuve », qui suppose une réception distincte de l'envoi, à
- *   confirmer par Hugo), peut porter son AR (ArReceptionOs : référence, et date de première présentation du pli si elle
- *   est connue, comme la décision J1) ; « AR caduc après 1 an » : précisé par J47 (ci-dessous), c'est le devis qui
- *   devient caduc un an après sa date.
+ *   (enregistrerReception ; déduit de « l'AR fait preuve », qui suppose une réception distincte de l'envoi, confirmé par
+ *   J67, R74, ci-dessous : C. civ. art. 1121), peut porter son AR (ArReceptionOs : référence, date de première
+ *   présentation du pli si elle est connue, comme la décision J1, et date de remise, J67, R74) ; « AR caduc après 1 an » :
+ *   précisé par J47 (ci-dessous), c'est le devis qui devient caduc un an après sa date.
  *
  * Décisions de Hugo du 06/11/2026 (registre des décisions juridiques : J46 et J47, suites de J16 et J19 ; confirmation
  * de J17) :
@@ -290,6 +300,87 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   connue : un N° de ce format dont la date diffère de celle de l'envoi (attribué pour un envoi qui a échoué, repris un
  *   autre jour) n'est pas signalé ; l'appelant l'attribue le jour de l'envoi et ne l'enregistre qu'une fois l'envoi fait.
  *
+ * Recommandations validées par Hugo le 17/11/2026 (J67 ; QUESTIONS-OUVERTES-DU-CODE-2026-11-17.md, partie A, R67 à R75 ;
+ * textes lus sur Légifrance le 17/11/2026) :
+ * - J67, R67 (avis du conseil syndical sous administration provisoire ; code confirmé) : quand il a les pouvoirs de
+ *   l'assemblée, l'administrateur provisoire « doit avant de prendre à ce titre les décisions qui lui paraissent
+ *   nécessaires à l'accomplissement de sa mission », sauf urgence, recueillir l'avis du conseil syndical et préciser le
+ *   mode de financement (D. 1967 art. 62-7) ; « à ce titre » : au titre des pouvoirs de l'assemblée. C'est la base du
+ *   critère, lecture du texte que J16 rangeait en proposition, validée avec R67 : les pouvoirs du syndic (L. 1965 art. 18,
+ *   I : exécuter les décisions déjà prises, administrer, conserver, entretenir), que l'administrateur provisoire a tous
+ *   (art. 29-1, I), ne demandent pas d'avis ; l'« entretien courant » (fondement administration_courante) s'entend de la
+ *   maintenance comprise dans le budget prévisionnel ; les travaux de conservation ou d'entretien autres que de
+ *   maintenance sont hors budget (D. 1967 art. 44, 1° et 2°) et demandent une décision d'assemblée : décidés par
+ *   l'administrateur provisoire (fondement decision_aj_pouvoirs_ag), ils demandent l'avis. Aucun seuil : l'avis est dû pour
+ *   chaque décision prise à ce titre, quel que soit le montant ; compte la décision de faire les travaux, pas l'acceptation
+ *   du devis. Les seuils de l'art. 21 sont une règle à part, qui s'ajoute ; le classement d'un OS reste au cas par cas ;
+ * - J67, R68 (seuils de l'art. 21 fixés par l'administrateur provisoire) : les deux montants sont arrêtés par l'assemblée
+ *   à la majorité de l'art. 25 (L. 1965 art. 21, al. 2) ; ce pouvoir n'est pas dans les exceptions (art. 26 a et b) de
+ *   l'art. 29-1, I : l'administrateur provisoire qui a les pouvoirs de l'assemblée les fixe par une décision inscrite au
+ *   registre (D. 1967 art. 62-8), après avis du conseil syndical (art. 62-7). Le contrôle lit aussi ces décisions, de même
+ *   forme qu'une décision annuelle d'assemblée (decisionsAgEnVigueur, origine « administrateur ») ; messages et fondements
+ *   nomment l'auteur du seuil (seuilEnVigueur, decisions-annuelles-ag.ts). Sans ordonnance qui lui donne ce pouvoir, les
+ *   seuils votés par l'assemblée restent en vigueur ; sans aucun montant, ni consultation ni mise en concurrence ne sont
+ *   obligatoires « à partir » d'un montant (rappel J6 : seuils comparés en TTC) ;
+ * - J67, R69 (décision du conseil syndical délégataire) : (1) la délégation se lit à la date de la décision du conseil
+ *   (decisionLe), qui exerce le pouvoir délégué (deux ans au plus : L. 1965 art. 21-3), et non à celle de l'envoi : une
+ *   décision prise pendant la délégation reste valable si l'OS part après sa fin (decisionsAg ; à défaut, les décisions
+ *   en vigueur à l'envoi, decisionsAgEnVigueur : alerte delegation_cs_lue_a_l_envoi) ; (2) « L'assemblée générale fixe le
+ *   montant maximum des sommes allouées au conseil syndical pour mettre en œuvre sa délégation » (art. 21-2 ; même règle
+ *   pour la délégation de l'art. 25, a) : toutes les dépenses engagées au titre de la même délégation depuis son début,
+ *   OS contrôlé compris (delegationCs), se comparent au maximum : au-delà, bloquant (delegation_cs_depassee) ; cumul
+ *   inconnu, alerte ; (3) la délégation ne porte que sur des décisions de la majorité de l'art. 24 (art. 21-1 ; art. 25,
+ *   a) : une décision d'une autre majorité est hors délégation, bloquant (majoriteResolution : ici, la majorité dont
+ *   relève l'objet) ; le procès-verbal signé par deux membres reste exigé (D. 1967 art. 21-1) ; (4) le juge peut aussi
+ *   confier à l'administrateur provisoire les pouvoirs du conseil syndical (L. 1965 art. 29-1, I, al. 2, portée exacte à
+ *   confirmer) : une décision du conseil prise après cette ordonnance sort de ses pouvoirs, bloquant, « décision à prendre
+ *   par l'administrateur provisoire » (mandat.pouvoirsConseilSyndicalConfiesLe ; mandat-judiciaire.ts) ;
+ * - J67, R70 (conditions de mise en concurrence) : l'assemblée fixe le montant et peut fixer les conditions ; « lorsque
+ *   l'assemblée générale n'en a pas fixé les conditions », la mise en concurrence « résulte de la demande de plusieurs
+ *   devis ou de l'établissement d'un devis descriptif soumis à l'évaluation de plusieurs entreprises » (D. 1967 art.
+ *   19-2) : le nombre de devis exigé par l'assemblée est gardé ; sans condition votée, l'une ou l'autre forme, au moins
+ *   deux devis ou au moins deux entreprises (entreprisesSurDevisDescriptif ; « plusieurs » : au moins deux) ; toute autre
+ *   condition votée se saisit en texte (conditionsConcurrenceAg) et se coche « respectée » avant l'envoi, alerte sinon ;
+ * - J67, R71 (convention liée) : D. 1967 art. 39 ; L. 1965 art. 18-1 A, II. Les collaborateurs du cabinet sont traités en
+ *   « préposés » de l'administrateur provisoire, qui a les pouvoirs du syndic (lecture prudente). Sa propre décision ne
+ *   vaut pas autorisation : il s'autoriserait lui-même dans le conflit d'intérêts que ces textes contrôlent (bloquant).
+ *   Autorisation acceptée : résolution d'assemblée, seulement si l'assemblée a gardé ce pouvoir (elle ne garde que ceux
+ *   « qui ne seraient pas compris dans la mission » : art. 29-1, I), ou ordonnance du juge, qui peut à tout moment modifier
+ *   la mission (art. 29-1, I, al. 3) ; tous les pouvoirs de l'assemblée confiés, seule l'ordonnance vaut ; une partie, ou
+ *   une étendue inconnue, alerte à confirmer ; le message dit les voies selon l'étendue saisie au mandat
+ *   (mandat.pouvoirsAg ; absent : non contrôlé). Aucun arrêt lu ;
+ * - J67, R72 (signature d'un collaborateur ; marque gardée, ci-dessous) : l'administrateur provisoire « exécute
+ *   personnellement la mission » (L. 1965 art. 29-1, I) ; les tâches du mandat « incombent personnellement » à l'AJ
+ *   désigné, qui peut en déléguer tout ou partie « à un administrateur judiciaire salarié, sous [sa] responsabilité »
+ *   (C. com. art. L. 811-1) ; le « tiers » de l'art. 29-1, I est une personne extérieure adjointe sur requête (D. 1967
+ *   art. 62-10), pas un collaborateur ; l'art. 18, IV vise le syndic qui confie ses pouvoirs à un autre. J18 gardée : un
+ *   AJ salarié signe sur délégation ; un autre collaborateur signe « pour ordre », sous la responsabilité de l'AJ
+ *   (signatairesHabilites porte la qualité, qualiteSignataireOs), avec sur l'OS la mention « Pour l'administrateur
+ *   provisoire, [nom de l'AJ] » (mentionSignatureOs). Aucun blocage nouveau ;
+ * - J67, R73 (deux administrateurs désignés) : les textes lus ne disent pas s'ils agissent ensemble ou chacun seul :
+ *   c'est l'ordonnance qui décide (mandat.modeExercice) ; le contrôle lit la liste des AJ du mandat
+ *   (mandat.administrateursIds, avec administrateurDesigneId). Chacun seul, ou mode non saisi : l'OS signé par l'un d'eux
+ *   ou par un collaborateur habilité (J18) est accepté, avec l'alerte « mode d'exercice à vérifier dans l'ordonnance »
+ *   tant qu'il n'est pas saisi ; ensemble : l'accord des deux est exigé (deux signatures, ou une signature et l'accord
+ *   écrit de l'autre, accordsAdministrateursIds ; un collaborateur ne signe alors que sur instruction des deux), bloquant
+ *   sinon. Aucun arrêt lu ;
+ * - J67, R74 (preuve de la réception) : la réception compte, pas l'envoi : le contrat est conclu « dès que l'acceptation
+ *   parvient à l'offrant » (C. civ. art. 1121). Par lettre AR, la date de remise portée sur l'AR (CPC art. 669 : date
+ *   apposée lors de la remise de la lettre à son destinataire), quand elle est saisie, date la réception
+ *   (ArReceptionOs.remiseLe, receptionOs, devisCaducALaReception) ; à défaut, comportement gardé (réception datée par sa
+ *   ligne du journal), avec l'alerte « date de remise de l'AR non saisie ». La première présentation, date la plus
+ *   précoce, ne vaut réception que là où un texte le dit (D. 1967 art. 64-1 pour l'AG, J1) : elle reste une information.
+ *   Sans AR : courriel admis si l'entreprise a donné son adresse (C. civ. art. 1126, 1127), SMS courrier électronique
+ *   (loi n° 2004-575, art. 1er, IV), preuve par la réponse ou l'accusé de l'entreprise (art. 1127-4) ; sans rien,
+ *   « sans preuve » (comportement gardé). Aucun texte ne fixe de délai d'acheminement : aucun n'est inventé ; pour un
+ *   courrier, la caducité du devis se juge au jour de l'envoi, avec l'alerte actuelle ;
+ * - J67, R75 (vigilance et urgence) : C. trav. art. L. 8221-2 exclut les travaux d'urgence des interdictions du chapitre
+ *   Ier, non de la vigilance (chapitre II, L. 8222-1) ; le donneur d'ordre reste exposé à la solidarité financière
+ *   (L. 8222-2). Sous urgence constatée (décision 6, J16, J46), l'absence de pièces de vigilance donne une alerte forte
+ *   au lieu d'un blocage (vigilance-entreprises.ts), et un élément « à faire » demande les pièces au délai réglé par le
+ *   cabinet (piecesVigilanceApresUrgence ; réglage non fixé : dû le jour de l'envoi) ; sans urgence constatée, le
+ *   blocage reste ; la décennale obligatoire reste bloquante.
+ *
  * 🔵 Déduit (règles de ce module) :
  * - N° (séquence par mandat : décision 1) : attribué au premier envoi (J56), une fois, puis figé ; un N° hors du format,
  *   ou d'un autre segment mandat que celui de la séquence (segmentMandat), est signalé hors séquence, un N° déjà porté par une autre demande du
@@ -342,9 +433,9 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   sans AR, jamais comme prouvée ; le journal ne se réécrit pas : un AR revenu après une réception déjà enregistrée
  *   s'inscrit sur une nouvelle ligne « reception » (par courrier AR), et preuveReceptionOs donne la preuve de l'OS
  *   lui-même (« ar » dès qu'une réception porte son AR ; il ne lit que les lignes : l'écart d'un AR avec son courrier
- *   lié se lit par preuveDeDiffusion) ; la réception reste datée de sa première ligne (estRecu,
- *   devisCaducALaReception ; la première présentation n'en tient pas lieu : question ouverte) ; l'envoi, la rediffusion
- *   et la relance ne portent pas d'AR ;
+ *   lié se lit par preuveDeDiffusion) ; la réception reste datée de sa première ligne (estRecu), sauf date de remise
+ *   saisie sur l'AR (receptionOs, devisCaducALaReception ; la première présentation n'en tient pas lieu : J67, R74) ;
+ *   l'envoi, la rediffusion et la relance ne portent pas d'AR ;
  * - date de relance : jamais avant la demande (refusée à la création), ni avant le premier envoi (refusée après l'envoi ;
  *   avant l'envoi, une date antérieure bloque celui-ci) ;
  * - relance (décision 3) : un OS envoyé, ni terminé ni refusé, attend de l'entreprise (attendusOs) : (a) la réponse à l'OS,
@@ -369,10 +460,12 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   pas ;
  * - caducité du devis associé : appréciée quand l'OS parvient à l'entreprise ; le jour de l'envoi pour la messagerie, le
  *   courriel et le SMS ; pour le courrier simple ou AR, qui ne parvient pas le jour même, une fin de validité au jour de
- *   l'envoi ou avant est signalée (à confirmer) ; à la réception enregistrée, devisCaducALaReception ;
+ *   l'envoi ou avant est signalée (à confirmer ; aucun délai d'acheminement inventé : J67, R74) ; à la réception
+ *   enregistrée, devisCaducALaReception ;
  * - contrôle déclaratif (point 37) avant l'envoi d'une intervention, avec les gravités de vigilance-entreprises.ts : c'est le
  *   blocage de l'envoi que le point 37 renvoie au 44 ; pièces non fournies : bloquant si l'opération atteint le seuil de
- *   vigilance, si son montant HT est inconnu ou si la décennale est obligatoire, sinon alerte ;
+ *   vigilance, si son montant HT est inconnu ou si la décennale est obligatoire, sinon alerte ; sous urgence constatée,
+ *   la vigilance donne une alerte forte au lieu d'un blocage (J67, R75) ;
  * - urgence RETENUE (décision 6) : délai « urgence » ou fondement « urgence de sauvegarde », AVEC le constat complet de
  *   l'administrateur provisoire (date valide, motif non vide, collaborateur identifié ; refusé incomplet à la saisie ; un
  *   constat incomplet repris d'ailleurs ne vaut pas constat, alerte ; daté après l'envoi, il bloque celui-ci : J46) ;
@@ -386,13 +479,10 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   liste du cabinet (signatairesHabilites), un constat dont l'auteur n'y figure pas, et n'est pas l'administrateur
  *   désigné (administrateurDesigneId), est signalé, alerte à confirmer (constat_urgence_auteur_non_habilite), sans
  *   blocage : il ne change pas l'urgence retenue ou non ;
- * - avis préalable sous administration provisoire (D. 1967 art. 62-7), critère proposé, non contredit par Hugo (pas une
- *   décision) : un OS d'entretien courant, ou qui exécute une décision déjà prise, relève des pouvoirs du syndic (sans
- *   avis) ; des travaux décidés au titre des pouvoirs de l'assemblée (fondement decision_aj_pouvoirs_ag) exigent l'avis,
- *   sauf urgence constatée ;
  * - convention liée sous administration provisoire : le « syndic » de D. 1967 art. 39 est l'administrateur provisoire,
- *   ses « préposés » les collaborateurs du cabinet ; la réponse sur le lien (entrepriseLiee) vaut pour l'entreprise de la
- *   demande au moment où elle est saisie (entrepriseLieeDeclareePour) : l'entreprise changée, la réponse est périmée
+ *   ses « préposés » les collaborateurs du cabinet (J67, R71) ; la réponse sur le lien (entrepriseLiee) vaut pour
+ *   l'entreprise de la demande au moment où elle est saisie (entrepriseLieeDeclareePour) : l'entreprise changée, la
+ *   réponse est périmée
  *   (bloquant jusqu'à ce qu'elle soit redite, ni motif de visa ni autorisation tirés d'elle) ; l'autorisation spéciale de
  *   l'assemblée vise la convention avec une entreprise : elle vaut pour l'entreprise de la demande au moment où elle est
  *   saisie (autorisationConventionLieePour), que la réponse sur le lien soit alors connue ou non ; pour une autre
@@ -402,23 +492,16 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   décisions de l'administrateur provisoire, mentionnées « à leur date » : D. 1967 art. 62-8) postérieure à l'envoi :
  *   bloquant, l'OS ne part pas avant la décision qu'il exécute ;
  * - conseil syndical délégataire : alerte à confirmer quand aucune délégation (générale, ou de l'art. 25 a au conseil
- *   syndical) ne figure dans les décisions d'assemblée en vigueur fournies ;
+ *   syndical) n'est en vigueur à la date de la décision du conseil (J67, R69) ;
  * - majorité de la résolution exécutée : « art25 » aussi pour une décision de l'art. 25 adoptée au second vote de l'art.
  *   25-1.
  *
  * 🔴 Non établi — questions :
- * - Hugo (suite de la décision 6) : critère proposé (entretien courant ou exécution d'une décision déjà prise = pouvoirs du
- *   syndic, sans avis ; travaux décidés au titre des pouvoirs de l'assemblée = avis, sauf urgence constatée) à confirmer.
  * - Hugo (suite de la décision 8) : l'auteur du constat d'urgence doit-il être un signataire habilité (ici :
- *   interprétation, alerte à confirmer constat_urgence_auteur_non_habilite, sans blocage) ? La lecture des textes cités
- *   (signature d'un collaborateur au nom de l'administrateur provisoire : pas une substitution) est-elle juste ? Les
- *   collaborateurs du cabinet sont-ils des « tiers » au sens de L. 1965 art. 29-1, I (assistance par un tiers désigné par
- *   le président du tribunal judiciaire sur proposition de l'administrateur provisoire, rétribué sur sa rémunération) ?
- *   Si oui, la signature de l'OS par l'un d'eux suppose-t-elle cette désignation (ici : non demandée) ? Est-elle une
- *   « délégation de pouvoir » de L. 1965 art. 18, IV, que seule l'assemblée autorise (ici : non) ? (textes sur
- *   l'habilitation des collaborateurs non lus) Un mandat qui nomme deux administrateurs judiciaires (volet judiciaire :
- *   Associé 1, Associé 2, mandat-judiciaire.ts) : signent-ils tous deux toujours (ici : un seul administrateurDesigneId ;
- *   l'autre signe s'il figure dans la liste du cabinet) ?
+ *   interprétation, alerte à confirmer constat_urgence_auteur_non_habilite, sans blocage) ?
+ * - Hugo, avec un juriste (J67, R72 appliquée ; marque gardée, comme R72 le demande) : aucun texte ni arrêt lu ne dit
+ *   qu'un salarié qui n'est pas administrateur judiciaire engage le syndicat en signant l'OS « pour ordre » ; avis d'un
+ *   juriste à demander avant de retirer cette marque.
  * - Frédéric : quand un visa de gestion est-il nécessaire (seuil, natures, exécution forcée : aucun par défaut) et quels
  *   rôles visent (Direction par défaut ; Juridique ?) ; le rédacteur ou le signataire peut-il viser ; un visa donné
  *   tombe-t-il quand l'OS change (oui ici) ? Pour les courriers (même circuit, décision 4) : quels motifs déclenchent leur
@@ -426,26 +509,12 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  * - Frédéric ou Hugo : les seuils de L. 1965 art. 21, al. 2 déclenchent-ils le visa automatiquement (oui ici) ? Sans montant
  *   fixé par l'assemblée, la consultation n'est pas obligatoire : faut-il un seuil par défaut du cabinet
  *   (seuilPrevuTtcCentimes, règle de gestion) ?
- * - Hugo (suite de la décision 5) : les conditions de mise en concurrence fixées par l'assemblée se réduisent-elles à un
- *   nombre de devis (devisExigesParAssemblee) ?
- * - non établi : l'administrateur provisoire investi des pouvoirs de l'assemblée peut-il autoriser lui-même une convention
- *   liée ? (la référence d'une autorisation est exigée ici) Le « syndic » de D. 1967 art. 39 est-il bien l'administrateur
- *   provisoire, et ses « préposés » les collaborateurs du cabinet (oui ici) ?
  * - Frédéric : la fiche entreprise portera-t-elle le lien avec le cabinet ou le syndic ? Sinon entrepriseLiee se déclare à
  *   la main, pour l'entreprise de la demande (alerte tant qu'il est inconnu, bloquant quand l'entreprise a changé depuis
  *   la réponse).
- * - Hugo ou Frédéric : délégation du conseil syndical appréciée sur les décisions fournies (decisionsAgEnVigueur, à la date
- *   de l'envoi), et non à la date de la décision du conseil syndical (decisionLe) : l'appelant doit-il fournir les
- *   décisions en vigueur à cette date ? Le prévu n'est pas comparé au montant maximum alloué au conseil syndical (L. 1965
- *   art. 21-2 : enveloppe_delegation_cs, annuelle et cumulée ; plafond_travaux_cs, par dépense) : quel cumul retenir ?
- * - Hugo, preuve (suite de la décision 9) : la réception distincte de l'envoi convient-elle (ici : oui, déduit de « l'AR
- *   fait preuve ») ? La première présentation d'un AR (décision J1) vaut-elle réception de l'OS au sens de C. civ. art.
- *   1121 (non ici : la réception reste datée de sa première ligne du journal, même quand l'AR revient plus tard) ? Quelle
- *   preuve pour une réception sans AR, par courrier simple, messagerie VitFix, courriel ou SMS (ici : admise, « sans
- *   preuve » ; un AR n'y est pas admis, même un accusé de réception électronique au sens de C. civ. art. 1127-4) ? Quel
- *   délai d'acheminement d'un courrier retenir pour la caducité du devis (jour même ici) ?
- * - vigilance du code du travail (relevée au point 43, non relue le 30/10/2026) : bloquante avant l'envoi par le contrôle
- *   déclaratif, y compris quand les pièces ne sont pas fournies, à confirmer.
+ * - vigilance du code du travail (relevée au point 43 ; L. 8221-2 et L. 8222-1 relus le 17/11/2026 pour J67, R75 : sous
+ *   urgence constatée, alerte forte) : bloquante avant l'envoi sans urgence constatée, y compris quand les pièces ne
+ *   sont pas fournies, à confirmer.
  * - Hugo (suite de J51) : deux contournements du blocage restent ouverts, laissés tels quels : une majorité de la
  *   résolution non saisie ne donne qu'une alerte (majorite_resolution_non_renseignee) et la fin du délai n'est alors pas
  *   regardée ; un fondement non saisi ne donne qu'une alerte (fondement_non_renseigne) et l'art. 42 n'est pas contrôlé.
@@ -475,11 +544,17 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  * référence ; courrier de l'envoi ou de la rediffusion qui a porté l'OS, aussi pour une réception par courrier AR sans
  * AR ; première présentation tirée du courrier), puis devisCaducALaReception et preuveReceptionOs ; preuveDeDiffusion
  * avec la sortie et le courrier lié de toute ligne par courrier AR (« ar_ecart_courrier » : montrer ecartArCourrier) ;
- * signataires (décision 8) : signatairesHabilites tiré du réglage du cabinet, administrateurDesigneId tiré du MANDAT
- * (l'administrateur provisoire que la décision du président du tribunal judiciaire désigne pour ce mandat, L. 1965
- * art. 29-1, I ; volet judiciaire de mandat-judiciaire.ts, Associé 1 et Associé 2, saisis en noms : à rapprocher de
- * l'identifiant du collaborateur), jamais de ce réglage ; enregistrerRapport quand l'entreprise dépose un document
- * « rapport » dans la messagerie VitFix (TypeDocumentPrestataire, lib/syndic/messagerie-pro.ts) ; courriers
+ * signataires (décision 8) : signatairesHabilites tiré du réglage du cabinet, avec la qualité de chacun (J67, R72),
+ * administrateurDesigneId tiré du MANDAT (l'administrateur provisoire que la décision du président du tribunal
+ * judiciaire désigne pour ce mandat, L. 1965 art. 29-1, I ; volet judiciaire de mandat-judiciaire.ts, Associé 1 et
+ * Associé 2, saisis en noms : à rapprocher de l'identifiant du collaborateur), jamais de ce réglage ; mandat (J67 :
+ * administrateurs désignés, mode d'exercice, pouvoirs de l'assemblée et du conseil syndical confiés) tiré du volet
+ * judiciaire ; decisionsAg et delegationCs (J67, R69 : enregistrement des dépenses de la délégation à brancher) ;
+ * mentionSignatureOs au corps de l'OS (J67, R72) ; receptionOs à la place de la première ligne du journal (J67, R74) ;
+ * piecesVigilanceApresUrgence au suivi « à faire » (J67, R75 : nouvelle nature et son libellé, Frédéric) ; nouveaux
+ * justificatifs (devis descriptif, conditions votées et leur case, voie de l'autorisation, accords des administrateurs)
+ * et date de remise de l'AR à enregistrer et à saisir à l'écran (Frédéric) ; enregistrerRapport quand l'entreprise dépose
+ * un document « rapport » dans la messagerie VitFix (TypeDocumentPrestataire, lib/syndic/messagerie-pro.ts) ; courriers
  * (décision 4) : courriers.ts
  * (preparerCourrier, controlerDepot), gabarits-courrier.ts et les écrans des courriers porteront un CircuitVisa, décriront
  * le courrier en PieceVisee (sortie : « le dépôt »), appliqueront appliquerActionVisa et revoirCircuitVisa, et refuseront
@@ -565,7 +640,7 @@ const DESTINATAIRES: ReadonlySet<string> = new Set(FICHES_PORTEUSES)
 export const LONGUEUR_MAX_NUMERO_OS = 50
 /** Borne de objet (ajOrdrePrestataireSchema, lib/validation.ts : requis, 200 caractères au plus après suppression des espaces). */
 export const LONGUEUR_MAX_OBJET_OS = 200
-/** « Plusieurs devis » (D. 1967 art. 19-2) : au moins deux (🔵). */
+/** « Plusieurs devis », ou « plusieurs entreprises » pour un devis descriptif (D. 1967 art. 19-2) : au moins deux (J67, R70). */
 export const NOMBRE_MIN_DEVIS_CONCURRENCE = 2
 /**
  * Durée au-delà de laquelle le devis accepté par l'OS est caduc, comptée de sa date (décision J47 de Hugo du 06/11/2026) :
@@ -593,6 +668,12 @@ const FONDEMENT_DELEGATION_CS = 'L. 1965 art. 21-1, 21-3, 25 a'
 const FONDEMENT_CADUCITE = 'C. civ. art. 1117, al. 1 ; art. 1121'
 const FONDEMENT_VIGILANCE = 'C. trav. art. L. 8222-1, R. 8222-1, D. 8222-5'
 const FONDEMENT_DECENNALE = 'C. ass. art. L. 241-1, L. 243-2'
+const FONDEMENT_REGISTRE_AJ = 'L. 1965 art. 29-1, I ; D. 1967 art. 62-8'
+const FONDEMENT_MAXIMUM_CS = 'L. 1965 art. 21-2 ; art. 25, a'
+const FONDEMENT_OBJET_CS = 'L. 1965 art. 21-1 ; art. 25, a'
+const FONDEMENT_POUVOIRS_CS = 'L. 1965 art. 29-1, I, al. 2'
+const FONDEMENT_RECEPTION_AR = 'C. civ. art. 1121 ; CPC art. 669'
+const FONDEMENT_SIGNATURE = 'L. 1965 art. 29-1, I ; C. com. art. L. 811-1'
 
 // ─── Outils ───────────────────────────────────────────────────────────────────────────────────
 
@@ -791,8 +872,13 @@ export interface EvenementDiffusion {
 export interface ArReceptionOs {
   /** Référence de l'AR : numéro du pli recommandé, ou pièce numérisée (identifiant). */
   reference: string
-  /** Première présentation du pli, si elle est connue (comme la décision J1) ; null : inconnue. */
+  /** Première présentation du pli, si elle est connue (comme la décision J1) ; null : inconnue. Information seulement (J67, R74). */
   premierePresentationLe: string | null
+  /**
+   * Date de remise de la lettre à l'entreprise, portée sur l'AR (CPC art. 669) : elle date la réception de l'OS (J67, R74) ;
+   * absente : non saisie, la réception reste datée de sa ligne du journal (receptionOs).
+   */
+  remiseLe?: string | null
 }
 
 export interface SaisieDiffusion {
@@ -809,6 +895,8 @@ export interface SaisieDiffusion {
 export interface SaisieArReception {
   reference: string
   premierePresentationLe?: string | null
+  /** Date de remise portée sur l'AR (J67, R74). */
+  remiseLe?: string | null
 }
 
 /**
@@ -824,19 +912,43 @@ export interface JustificatifsOs {
   avisConseilSyndicalLe: string | null
   /** Mode de financement précisé lors de la consultation par l'administrateur provisoire (D. 1967 art. 62-7, al. 3). */
   modeFinancement: string | null
-  /** Nombre de devis demandés, ou d'entreprises consultées sur un devis descriptif (D. 1967 art. 19-2). */
+  /** Nombre de devis demandés (D. 1967 art. 19-2 : plusieurs devis). */
   devisDemandes: number | null
+  /** Nombre d'entreprises à qui un devis descriptif a été soumis (D. 1967 art. 19-2 ; J67, R70). */
+  entreprisesSurDevisDescriptif: number | null
   /**
    * Nombre de devis exigé par les conditions de mise en concurrence fixées par l'assemblée (L. 1965 art. 21, al. 2) ;
    * null : aucune condition fixée, plusieurs devis (D. 1967 art. 19-2).
    */
   devisExigesParAssemblee: number | null
   /**
-   * Référence de la résolution qui autorise la convention liée (L. 1965 art. 18-1 A, II ; D. 1967 art. 39) ; elle vaut pour
+   * Autres conditions de mise en concurrence votées par l'assemblée (cahier des charges, délai de réponse, appel
+   * d'offres…), en texte ; null : aucune (J67, R70). Elles se cochent « respectées » avant l'envoi.
+   */
+  conditionsConcurrenceAg: string | null
+  /** Case « conditions de mise en concurrence respectées » (J67, R70). */
+  conditionsConcurrenceRespectees: boolean
+  /**
+   * Référence de l'autorisation de la convention liée (L. 1965 art. 18-1 A, II ; D. 1967 art. 39) ; elle vaut pour
    * l'entreprise de la demande au moment où elle est saisie (SortieOrdreService.autorisationConventionLieePour).
    */
   autorisationConventionLiee: string | null
+  /**
+   * Voie de cette autorisation (J67, R71) : résolution d'assemblée, ordonnance du juge, ou décision de l'administrateur
+   * provisoire (refusée comme autorisation) ; null : non dite, lue comme une résolution d'assemblée.
+   */
+  sourceAutorisationConventionLiee: SourceAutorisationConvention | null
+  /**
+   * Administrateurs judiciaires désignés qui ont donné leur accord écrit à l'OS, en plus du signataire (J67, R73 : exigé
+   * des deux quand l'ordonnance les fait agir ensemble).
+   */
+  accordsAdministrateursIds: readonly string[]
 }
+
+/** Voies d'autorisation d'une convention liée (J67, R71). */
+export const SOURCES_AUTORISATION_CONVENTION = ['resolution_ag', 'ordonnance_juge', 'decision_administrateur'] as const
+export type SourceAutorisationConvention = (typeof SOURCES_AUTORISATION_CONVENTION)[number]
+const SOURCES_AUTORISATION: ReadonlySet<string> = new Set(SOURCES_AUTORISATION_CONVENTION)
 
 /**
  * Constat de l'urgence par l'administrateur provisoire lui-même (décision de Hugo du 03/11/2026 : « nous constatons
@@ -882,7 +994,10 @@ export interface SortieOrdreService extends CircuitVisa<CodeMotifVisa> {
    * décisions de l'administrateur provisoire (D. 1967 art. 62-8).
    */
   decisionLe: string | null
-  /** Majorité de la résolution exécutée (L. 1965 art. 42, al. 3) ; null : non renseignée. */
+  /**
+   * Majorité de la résolution exécutée (L. 1965 art. 42, al. 3) ; pour une décision du conseil syndical délégataire,
+   * majorité dont relève son objet (J67, R69 : seules les décisions de l'art. 24 se délèguent) ; null : non renseignée.
+   */
   majoriteResolution: TypeMajorite | null
   /**
    * Convention liée au sens de D. 1967 art. 39 : avec le syndic (ici l'administrateur provisoire), ses préposés, son
@@ -933,8 +1048,13 @@ const JUSTIFICATIFS_VIDES: JustificatifsOs = {
   avisConseilSyndicalLe: null,
   modeFinancement: null,
   devisDemandes: null,
+  entreprisesSurDevisDescriptif: null,
   devisExigesParAssemblee: null,
+  conditionsConcurrenceAg: null,
+  conditionsConcurrenceRespectees: false,
   autorisationConventionLiee: null,
+  sourceAutorisationConventionLiee: null,
+  accordsAdministrateursIds: [],
 }
 
 function verifierSortie(s: SortieOrdreService): void {
@@ -947,16 +1067,28 @@ function verifierSortie(s: SortieOrdreService): void {
   verifierDate('Date de la décision', s.decisionLe)
   verifierDate('Avis du conseil syndical', s.justificatifs.avisConseilSyndicalLe)
   verifierNombre('Nombre de devis demandés', s.justificatifs.devisDemandes, 0)
+  verifierNombre("Nombre d'entreprises consultées sur un devis descriptif", s.justificatifs.entreprisesSurDevisDescriptif, 0)
   verifierNombre("Nombre de devis exigé par l'assemblée", s.justificatifs.devisExigesParAssemblee, 1)
+  const source = s.justificatifs.sourceAutorisationConventionLiee
+  if (source !== null && !SOURCES_AUTORISATION.has(source))
+    throw new Error(`Voie de l'autorisation de la convention liée inconnue : « ${source} » (${SOURCES_AUTORISATION_CONVENTION.join(', ')}).`)
 }
+
+/** Identifiants rognés, sans vide ni doublon. */
+const identifiants = (ids: readonly string[]): string[] => [...new Set(ids.map((id) => id.trim()).filter((id) => id !== ''))]
 
 function appliquerJustificatifs(actuels: JustificatifsOs, j: Partial<JustificatifsOs>): JustificatifsOs {
   return {
     avisConseilSyndicalLe: garder(j.avisConseilSyndicalLe, actuels.avisConseilSyndicalLe),
     modeFinancement: texteOuNull(garder(j.modeFinancement, actuels.modeFinancement)),
     devisDemandes: garder(j.devisDemandes, actuels.devisDemandes),
+    entreprisesSurDevisDescriptif: garder(j.entreprisesSurDevisDescriptif, actuels.entreprisesSurDevisDescriptif),
     devisExigesParAssemblee: garder(j.devisExigesParAssemblee, actuels.devisExigesParAssemblee),
+    conditionsConcurrenceAg: texteOuNull(garder(j.conditionsConcurrenceAg, actuels.conditionsConcurrenceAg)),
+    conditionsConcurrenceRespectees: garder(j.conditionsConcurrenceRespectees, actuels.conditionsConcurrenceRespectees),
     autorisationConventionLiee: texteOuNull(garder(j.autorisationConventionLiee, actuels.autorisationConventionLiee)),
+    sourceAutorisationConventionLiee: garder(j.sourceAutorisationConventionLiee, actuels.sourceAutorisationConventionLiee),
+    accordsAdministrateursIds: identifiants(garder(j.accordsAdministrateursIds, actuels.accordsAdministrateursIds)),
   }
 }
 
@@ -979,7 +1111,11 @@ function appliquerLien(s: SortieOrdreService, saisie: SaisieSortieOs, prestatair
   if (saisie.entrepriseLiee === undefined) return s
   const lien: SortieOrdreService = { ...s, entrepriseLiee: saisie.entrepriseLiee, entrepriseLieeDeclareePour: prestataireId }
   if (!autorisationPourAutre(s, prestataireId)) return lien
-  return { ...lien, justificatifs: { ...s.justificatifs, autorisationConventionLiee: null }, autorisationConventionLieePour: null }
+  return {
+    ...lien,
+    justificatifs: { ...s.justificatifs, autorisationConventionLiee: null, sourceAutorisationConventionLiee: null },
+    autorisationConventionLieePour: null,
+  }
 }
 
 /** Éléments du constat d'urgence et leur présence (décision de Hugo du 03/11/2026 : daté, motivé, attribué). */
@@ -1156,26 +1292,42 @@ function motifsDeGestion(d: Demande, regles: ReglesVisaOs): MotifVisa[] {
   return motifs
 }
 
-/** Seuils de L. 1965 art. 21, al. 2, comparés au prévu TTC (décision J6) ; prévu inconnu face à un seuil décidé : motif. */
+/** Auteur d'une décision : l'assemblée, ou l'administrateur provisoire qui a ses pouvoirs, au registre (J67, R68). */
+const auteurDecision = (decision: DecisionAnnuelle): string =>
+  decision.source.origine === 'assemblee' ? "l'assemblée" : "l'administrateur provisoire (décision au registre)"
+
+/** Qui a fixé le seuil en vigueur, et le texte de plus pour une décision de l'administrateur provisoire (J67, R68). */
+function auteurSeuil(type: TypeSeuilArt21, decisions: readonly DecisionAnnuelle[] | undefined): { auteur: string; texte: string } {
+  const decision = seuilEnVigueur(type, decisions ?? [])
+  if (decision === undefined || decision.source.origine === 'assemblee') return { auteur: "l'assemblée", texte: '' }
+  return { auteur: auteurDecision(decision), texte: ` ; ${FONDEMENT_REGISTRE_AJ}` }
+}
+
+/**
+ * Seuils de L. 1965 art. 21, al. 2, comparés au prévu TTC (décision J6), fixés par l'assemblée ou par l'administrateur
+ * provisoire au registre (J67, R68) ; prévu inconnu face à un seuil décidé : motif.
+ */
 function motifsSeuilsArt21(prevu: number | null, decisions: readonly DecisionAnnuelle[] | undefined): MotifVisa[] {
   if (!decisions) return []
   const atteints = seuilsAtteints(prevu ?? 0, decisions)
   if (prevu === null) return atteints.consultationCs === null && atteints.miseEnConcurrence === null ? [] : [motifPrevuInconnu()]
   const motifs: MotifVisa[] = []
+  const consultation = auteurSeuil('seuil_consultation_cs', decisions)
+  const concurrence = auteurSeuil('seuil_mise_en_concurrence', decisions)
   if (atteints.consultationCs)
     motifs.push(
       motif(
         'consultation_conseil_syndical',
-        `Prévu de ${euros(prevu)} TTC : consultation du conseil syndical obligatoire à partir du seuil fixé par l'assemblée (montant égal compris).`,
-        FONDEMENT_CONSULTATION,
+        `Prévu de ${euros(prevu)} TTC : consultation du conseil syndical obligatoire à partir du seuil fixé par ${consultation.auteur} (montant égal compris).`,
+        FONDEMENT_CONSULTATION + consultation.texte,
       ),
     )
   if (atteints.miseEnConcurrence)
     motifs.push(
       motif(
         'mise_en_concurrence',
-        `Prévu de ${euros(prevu)} TTC : mise en concurrence obligatoire à partir du seuil fixé par l'assemblée (montant égal compris).`,
-        FONDEMENT_CONCURRENCE,
+        `Prévu de ${euros(prevu)} TTC : mise en concurrence obligatoire à partir du seuil fixé par ${concurrence.auteur} (montant égal compris).`,
+        FONDEMENT_CONCURRENCE + concurrence.texte,
       ),
     )
   return motifs
@@ -1548,6 +1700,17 @@ export type CodeAnomalieEnvoiOs =
   | 'date_devis_inconnue'
   | 'controle_declaratif_non_fait'
   | 'controle_declaratif_impossible'
+  | 'delegation_cs_lue_a_l_envoi'
+  | 'delegation_cs_depassee'
+  | 'delegation_cs_cumul_inconnu'
+  | 'delegation_cs_hors_objet'
+  | 'delegation_cs_objet_non_qualifie'
+  | 'decision_cs_hors_pouvoirs'
+  | 'conditions_concurrence_non_respectees'
+  | 'autorisation_convention_a_verifier'
+  | 'mode_exercice_a_verifier'
+  | 'accord_administrateurs_manquant'
+  | 'date_remise_ar_non_saisie'
 
 export interface AnomalieEnvoiOs {
   /** Code du point 44, ou code du contrôle déclaratif de l'entreprise (vigilance-entreprises.ts). */
@@ -1557,6 +1720,37 @@ export interface AnomalieEnvoiOs {
   /** Texte qui fonde l'anomalie ; null pour une règle de gestion. */
   fondement: string | null
   aConfirmer: boolean
+}
+
+/** Qualité d'un signataire habilité, autre que l'administrateur désigné (J67, R72). */
+export const QUALITES_SIGNATAIRE_OS = ['aj_salarie', 'collaborateur_pour_ordre'] as const
+export type QualiteSignataireOs = (typeof QUALITES_SIGNATAIRE_OS)[number]
+const QUALITES_SIGNATAIRE: ReadonlySet<string> = new Set(QUALITES_SIGNATAIRE_OS)
+
+/** Ce que l'ordonnance, portée par le mandat, dit des administrateurs et des pouvoirs confiés (J67 ; enregistrement : à brancher). */
+export interface CadreMandatOs {
+  /**
+   * Administrateurs judiciaires désignés (un ou deux : Associé 1, Associé 2 de mandat-judiciaire.ts), identifiants des
+   * collaborateurs du cabinet (J67, R73) ; ils s'ajoutent à administrateurDesigneId.
+   */
+  administrateursIds?: readonly string[]
+  /** Deux administrateurs : ensemble, ou chacun seul (ordonnance) ; null : non saisi (J67, R73). */
+  modeExercice?: ModeExerciceAdministrateurs | null
+  /** Étendue des pouvoirs de l'assemblée confiés (L. 1965 art. 29-1, I, al. 2) ; null : inconnue ; absent : non contrôlé (J67, R71). */
+  pouvoirsAg?: PouvoirsAgConfies | null
+  /** Date de l'ordonnance qui confie à l'administrateur provisoire les pouvoirs du conseil syndical ; absent ou null : non confiés (J67, R69). */
+  pouvoirsConseilSyndicalConfiesLe?: string | null
+}
+
+/** Délégation du conseil syndical exercée par la décision qui fonde l'OS (J67, R69 ; enregistrement : à brancher). */
+export interface DelegationCsExercee {
+  /**
+   * Décision qui fixe le montant maximum des sommes allouées (L. 1965 art. 21-2 ; art. 25, a) : délégation de l'art. 25 a
+   * au conseil syndical, montant alloué dans le budget, ou montant maximum d'une dépense de travaux hors budget.
+   */
+  maximumId: string
+  /** Dépenses déjà engagées au titre de la même délégation depuis son début, TTC, hors l'OS contrôlé. */
+  depensesEngageesTtcCentimes: number
 }
 
 export interface ContexteEnvoiOs extends OptionsVisa {
@@ -1575,9 +1769,10 @@ export interface ContexteEnvoiOs extends OptionsVisa {
    * Collaborateurs habilités par le cabinet à signer un OS (décision de Hugo du 03/11/2026 : un collaborateur peut signer,
    * pas seulement l'administrateur désigné) : réglage du cabinet, fourni par l'appelant ; absent : non contrôlé. Fournie,
    * la liste vaut pour tout signataire autre que l'administrateur désigné (administrateurDesigneId) : vide, elle ne laisse
-   * signer que lui, et bloque tout envoi quand il n'est pas fourni.
+   * signer que lui, et bloque tout envoi quand il n'est pas fourni. Avec leur qualité (J67, R72) : AJ salarié, qui signe
+   * sur délégation, ou collaborateur qui signe « pour ordre » ; sans qualité (ensemble d'identifiants) : « pour ordre ».
    */
-  signatairesHabilites?: ReadonlySet<string>
+  signatairesHabilites?: ReadonlySet<string> | ReadonlyMap<string, QualiteSignataireOs>
   /**
    * Collaborateur du cabinet qui est l'administrateur provisoire désigné pour ce mandat par la décision du président du
    * tribunal judiciaire (L. 1965 art. 29-1, I), fourni par l'appelant depuis le mandat, jamais depuis le réglage du
@@ -1607,6 +1802,16 @@ export interface ContexteEnvoiOs extends OptionsVisa {
    * une fin minimale ou sans report) est refusée depuis la relecture du 14/11/2026.
    */
   delaiContestationAg?: ResultatDelaiContestationAg
+  /**
+   * Toutes les décisions adoptées du syndicat (assemblée, et registre de l'administrateur provisoire) : la délégation du
+   * conseil syndical se lit à la date de sa décision, non à celle de l'envoi (J67, R69) ; absent : decisionsAgEnVigueur,
+   * lues à l'envoi (alerte).
+   */
+  decisionsAg?: readonly DecisionAnnuelle[]
+  /** Délégation exercée par la décision du conseil syndical, et dépenses déjà engagées à son titre (J67, R69). */
+  delegationCs?: DelegationCsExercee
+  /** Administrateurs désignés, mode d'exercice et pouvoirs confiés par l'ordonnance (J67, R69, R71, R73). */
+  mandat?: CadreMandatOs
 }
 
 type Gravite = AnomalieEnvoiOs['gravite']
@@ -1844,8 +2049,78 @@ function anomaliesUrgence(d: Demande, s: SortieOrdreService, date: string): Anom
  */
 function horsDesHabilites(collaborateurId: string, contexte: ContexteEnvoiOs): boolean {
   const habilites = contexte.signatairesHabilites
-  if (habilites === undefined || collaborateurId === texteOuNull(contexte.administrateurDesigneId)) return false
+  if (habilites === undefined || administrateursDesignes(contexte).includes(collaborateurId)) return false
   return !habilites.has(collaborateurId)
+}
+
+type ContexteSignature = Pick<ContexteEnvoiOs, 'signatairesHabilites' | 'administrateurDesigneId' | 'mandat'>
+
+/** Administrateurs judiciaires désignés pour ce mandat : la liste du mandat (J67, R73) et administrateurDesigneId. */
+function administrateursDesignes(contexte: Pick<ContexteEnvoiOs, 'administrateurDesigneId' | 'mandat'>): string[] {
+  const ids = [...(contexte.mandat?.administrateursIds ?? []), contexte.administrateurDesigneId ?? '']
+  return identifiants(ids)
+}
+
+/**
+ * Qualité du signataire (J67, R72) : administrateur désigné ; AJ salarié du cabinet, qui signe sur délégation (C. com.
+ * art. L. 811-1) ; collaborateur qui signe « pour ordre », sous la responsabilité de l'administrateur provisoire (aussi
+ * quand la liste du cabinet ne dit pas la qualité, ou n'est pas fournie : lecture prudente) ; null : hors de la liste.
+ */
+export function qualiteSignataireOs(collaborateurId: string, contexte: ContexteSignature): 'administrateur_designe' | QualiteSignataireOs | null {
+  const id = collaborateurId.trim()
+  if (administrateursDesignes(contexte).includes(id)) return 'administrateur_designe'
+  const habilites = contexte.signatairesHabilites
+  if (habilites === undefined) return 'collaborateur_pour_ordre'
+  if (!habilites.has(id)) return null
+  if (!('get' in habilites)) return 'collaborateur_pour_ordre'
+  const qualite = habilites.get(id) ?? 'collaborateur_pour_ordre'
+  if (!QUALITES_SIGNATAIRE.has(qualite)) throw new Error(`Qualité du signataire ${id} inconnue : « ${qualite} » (${QUALITES_SIGNATAIRE_OS.join(', ')}).`)
+  return qualite
+}
+
+/**
+ * Mention à porter sur l'OS signé « pour ordre » par un collaborateur (J67, R72) : « Pour l'administrateur provisoire,
+ * [nom de l'AJ] » ; null pour l'administrateur désigné ou un AJ salarié. Le nom est fourni par l'appelant au moment
+ * d'imprimer (aucune donnée personnelle ici). Branchement au corps de l'OS : à faire.
+ */
+export function mentionSignatureOs(s: SortieOrdreService, contexte: ContexteSignature, nomAdministrateur: string): string | null {
+  if (s.signataireId === null) throw new Error(`OS ${s.demandeId} sans signataire : aucune mention de signature.`)
+  const nom = texteOuNull(nomAdministrateur)
+  if (nom === null) throw new Error("Mention de signature : nom de l'administrateur provisoire attendu.")
+  return qualiteSignataireOs(s.signataireId, contexte) === 'collaborateur_pour_ordre' ? `Pour l'administrateur provisoire, ${nom}` : null
+}
+
+/**
+ * Deux administrateurs désignés (J67, R73) : c'est l'ordonnance qui dit s'ils agissent ensemble ou chacun seul. Mode non
+ * saisi : alerte, l'OS signé par l'un d'eux ou par un collaborateur habilité (J18) est accepté ; « ensemble » : l'accord
+ * des deux est exigé (deux signatures, ou une signature et l'accord écrit de l'autre ; un collaborateur ne signe que sur
+ * instruction des deux), bloquant sinon ; « chacun seul » : rien.
+ */
+function anomaliesAccordAdministrateurs(s: SortieOrdreService, contexte: ContexteEnvoiOs): AnomalieEnvoiOs[] {
+  const designes = administrateursDesignes(contexte)
+  if (designes.length < 2 || s.signataireId === null) return []
+  const mode = contexte.mandat?.modeExercice ?? null
+  if (mode === null)
+    return [
+      anomalie(
+        'mode_exercice_a_verifier',
+        'alerte',
+        "Deux administrateurs judiciaires désignés : mode d'exercice à vérifier dans l'ordonnance (ensemble, ou chacun seul) ; à défaut, l'OS signé par l'un d'eux ou par un collaborateur habilité est accepté.",
+        FONDEMENT_SIGNATURE,
+      ),
+    ]
+  if (mode === 'chacun_seul') return []
+  const accords = new Set([s.signataireId, ...s.justificatifs.accordsAdministrateursIds])
+  const manquent = designes.filter((id) => !accords.has(id))
+  if (manquent.length === 0) return []
+  return [
+    anomalie(
+      'accord_administrateurs_manquant',
+      'bloquant',
+      `L'ordonnance fait agir les deux administrateurs judiciaires ensemble : l'OS exige l'accord des deux (deux signatures, ou une signature avec l'accord écrit de l'autre ; un collaborateur ne signe que sur instruction des deux) ; accord manquant : ${manquent.join(', ')}.`,
+      FONDEMENT_SIGNATURE,
+    ),
+  ]
 }
 
 /**
@@ -1891,6 +2166,7 @@ function anomaliesSortie(d: Demande, s: SortieOrdreService, contexte: ContexteEn
   if (!s.diffusable) anomalies.push(anomalie('non_diffusable', 'bloquant', 'Ordre de service non diffusable : cocher « Diffusable » pour l’envoyer.'))
   return [
     ...anomalies,
+    ...anomaliesAccordAdministrateurs(s, contexte),
     ...anomaliesChronologie(d, s, contexte.date),
     ...anomaliesUrgence(d, s, contexte.date),
     ...anomaliesAuteurConstat(s, contexte),
@@ -1933,7 +2209,60 @@ function anomaliesChronologie(d: Demande, s: SortieOrdreService, date: string): 
 const anomaliesVisa = (d: Demande, s: SortieOrdreService, motifs: readonly MotifVisa[]): AnomalieEnvoiOs[] =>
   anomaliesCircuitVisa(s, pieceOs(d), motifs).map((a) => anomalie(a.code, 'bloquant', a.message))
 
-function anomaliesConvention(d: Demande, s: SortieOrdreService, codes: ReadonlySet<CodeMotifVisa>): AnomalieEnvoiOs[] {
+/** Voies d'autorisation acceptées selon l'étendue des pouvoirs de l'assemblée confiés (J67, R71 ; L. 1965 art. 29-1, I). */
+function voiesAutorisationConvention(pouvoirsAg: PouvoirsAgConfies | null | undefined): string {
+  if (pouvoirsAg === 'tous')
+    return "l'ordonnance confie tous les pouvoirs de l'assemblée à l'administrateur provisoire, l'assemblée n'a plus celui-ci : seule une ordonnance du juge vaut autorisation"
+  if (pouvoirsAg === 'partie' || pouvoirsAg === null)
+    return "saisir la résolution de l'assemblée qui l'autorise (si elle a gardé ce pouvoir : à vérifier dans l'ordonnance), ou l'ordonnance du juge"
+  return "saisir la résolution de l'assemblée qui l'autorise, ou l'ordonnance du juge"
+}
+
+/** Ni l'administrateur provisoire ni ses préposés (les collaborateurs du cabinet) ne s'autorisent eux-mêmes (J67, R71). */
+const AUTORISATION_PAR_SOI =
+  "la décision de l'administrateur provisoire ne vaut pas autorisation : il s'autoriserait lui-même dans le conflit d'intérêts que ces textes contrôlent"
+
+/** Fondement d'une autorisation qui dépend des pouvoirs gardés par l'assemblée (L. 1965 art. 29-1, I ; J67, R71). */
+const FONDEMENT_CONVENTION_SOUS_AP = `${FONDEMENT_CONVENTION_LIEE} ; L. 1965 art. 29-1, I`
+
+/**
+ * Autorisation saisie de la convention liée (J67, R71) : décision de l'administrateur provisoire, refusée ; ordonnance du
+ * juge, admise ; résolution d'assemblée (voie non dite comprise), refusée si l'ordonnance confie tous les pouvoirs de
+ * l'assemblée, à vérifier si elle en confie une partie ou si l'étendue est inconnue (pouvoirs non fournis : non contrôlé).
+ */
+function anomaliesAutorisationSaisie(s: SortieOrdreService, reference: string, pouvoirsAg: PouvoirsAgConfies | null | undefined): AnomalieEnvoiOs[] {
+  const source = s.justificatifs.sourceAutorisationConventionLiee ?? 'resolution_ag'
+  if (source === 'decision_administrateur')
+    return [
+      anomalie(
+        'convention_liee_non_autorisee',
+        'bloquant',
+        `Décision de l'administrateur provisoire « ${reference} » : elle ne vaut pas autorisation de la convention liée (il s'autoriserait lui-même) ; inopposable au syndicat sans autorisation spéciale ; ${voiesAutorisationConvention(pouvoirsAg)}.`,
+        FONDEMENT_CONVENTION_LIEE,
+      ),
+    ]
+  if (source === 'ordonnance_juge' || pouvoirsAg === undefined || pouvoirsAg === 'aucun') return []
+  if (pouvoirsAg === 'tous')
+    return [
+      anomalie(
+        'convention_liee_non_autorisee',
+        'bloquant',
+        `Résolution d'assemblée « ${reference} » : ${voiesAutorisationConvention('tous')} (L. 1965 art. 29-1, I, al. 3 : le juge peut à tout moment modifier la mission).`,
+        FONDEMENT_CONVENTION_SOUS_AP,
+      ),
+    ]
+  return [
+    anomalie(
+      'autorisation_convention_a_verifier',
+      'alerte',
+      `Résolution d'assemblée « ${reference} » : l'assemblée ne garde que les pouvoirs qui ne sont pas compris dans la mission de l'administrateur provisoire ; vérifier dans l'ordonnance qu'elle a gardé celui d'autoriser cette convention, sinon seule une ordonnance du juge vaut autorisation.`,
+      FONDEMENT_CONVENTION_SOUS_AP,
+      true,
+    ),
+  ]
+}
+
+function anomaliesConvention(d: Demande, s: SortieOrdreService, codes: ReadonlySet<CodeMotifVisa>, mandat: CadreMandatOs | undefined): AnomalieEnvoiOs[] {
   if (lienPerime(d, s))
     return [
       anomalie(
@@ -1953,11 +2282,15 @@ function anomaliesConvention(d: Demande, s: SortieOrdreService, codes: ReadonlyS
         true,
       ),
     ]
-  if (!codes.has('convention_liee') || autorisationConvention(d, s) !== null) return []
+  if (!codes.has('convention_liee')) return []
+  const pouvoirsAg = mandat?.pouvoirsAg
+  const autorisation = autorisationConvention(d, s)
+  if (autorisation !== null) return anomaliesAutorisationSaisie(s, autorisation, pouvoirsAg)
+  const voies = voiesAutorisationConvention(pouvoirsAg)
   const message = autorisationPourAutre(s, d.prestataireId)
-    ? `Autorisation de l'assemblée (« ${s.justificatifs.autorisationConventionLiee} ») saisie pour l'entreprise ${s.autorisationConventionLieePour ?? '(aucune)'}, alors que l'ordre de service part à ${d.prestataireId ?? '(aucune)'} : elle ne vaut pas pour la convention avec cette entreprise, inopposable au syndicat sans autorisation spéciale de l'assemblée ; saisir la résolution qui l'autorise.`
-    : "Convention liée sans autorisation spéciale de l'assemblée : inopposable au syndicat ; saisir la résolution qui l'autorise."
-  return [anomalie('convention_liee_non_autorisee', 'bloquant', message, FONDEMENT_CONVENTION_LIEE)]
+    ? `Autorisation (« ${s.justificatifs.autorisationConventionLiee} ») saisie pour l'entreprise ${s.autorisationConventionLieePour ?? '(aucune)'}, alors que l'ordre de service part à ${d.prestataireId ?? '(aucune)'} : elle ne vaut pas pour la convention avec cette entreprise, inopposable au syndicat sans autorisation spéciale ; ${voies}.`
+    : `Convention liée sans autorisation spéciale : inopposable au syndicat ; ${voies} ; ${AUTORISATION_PAR_SOI}.`
+  return [anomalie('convention_liee_non_autorisee', 'bloquant', message, pouvoirsAg === 'tous' ? FONDEMENT_CONVENTION_SOUS_AP : FONDEMENT_CONVENTION_LIEE)]
 }
 
 /** Consultation du conseil syndical par l'administrateur provisoire (D. 1967 art. 62-7, al. 1 et 3 ; art. 62-8). */
@@ -1990,65 +2323,233 @@ function anomaliesAvisAj(s: SortieOrdreService, date: string): AnomalieEnvoiOs[]
   return anomalies
 }
 
-function anomaliesMiseEnConcurrence(s: SortieOrdreService): AnomalieEnvoiOs[] {
-  const { devisDemandes, devisExigesParAssemblee } = s.justificatifs
+/**
+ * Conditions de mise en concurrence votées par l'assemblée (J67, R70 ; L. 1965 art. 21, al. 2) : le nombre de devis
+ * exigé, et toute autre condition saisie en texte, à cocher « respectée » avant l'envoi (alerte sinon).
+ */
+function conditionsVotees(s: SortieOrdreService, auteur: string): AnomalieEnvoiOs[] {
+  const { devisDemandes, devisExigesParAssemblee, conditionsConcurrenceAg, conditionsConcurrenceRespectees } = s.justificatifs
   const demandes = devisDemandes ?? 0
-  if (devisExigesParAssemblee !== null)
-    return demandes >= devisExigesParAssemblee
-      ? []
-      : [
-          anomalie(
-            'mise_en_concurrence_non_justifiee',
-            'alerte',
-            `Mise en concurrence obligatoire à partir du seuil fixé par l'assemblée : ${devisExigesParAssemblee} devis à demander selon ses conditions ; nombre de devis demandés : ${demandes}.`,
-            FONDEMENT_CONDITIONS_AG,
-            true,
-          ),
-        ]
-  if (demandes >= NOMBRE_MIN_DEVIS_CONCURRENCE) return []
+  const anomalies: AnomalieEnvoiOs[] = []
+  if (devisExigesParAssemblee !== null && demandes < devisExigesParAssemblee)
+    anomalies.push(
+      anomalie(
+        'mise_en_concurrence_non_justifiee',
+        'alerte',
+        `Mise en concurrence obligatoire à partir du seuil fixé par ${auteur} : ${devisExigesParAssemblee} devis à demander selon les conditions de l'assemblée ; nombre de devis demandés : ${demandes}.`,
+        FONDEMENT_CONDITIONS_AG,
+        true,
+      ),
+    )
+  if (conditionsConcurrenceAg !== null && !conditionsConcurrenceRespectees)
+    anomalies.push(
+      anomalie(
+        'conditions_concurrence_non_respectees',
+        'alerte',
+        `Conditions de mise en concurrence fixées par l'assemblée : « ${conditionsConcurrenceAg} » ; cocher « respectées » avant l'envoi.`,
+        FONDEMENT_CONDITIONS_AG,
+      ),
+    )
+  return anomalies
+}
+
+/**
+ * Mise en concurrence à partir du seuil (L. 1965 art. 21, al. 2) : les conditions votées par l'assemblée (conditionsVotees) ;
+ * sans elles, l'une ou l'autre forme de D. 1967 art. 19-2 : plusieurs devis demandés, ou un devis descriptif soumis à
+ * plusieurs entreprises, au moins NOMBRE_MIN_DEVIS_CONCURRENCE (J67, R70).
+ */
+function anomaliesMiseEnConcurrence(s: SortieOrdreService, auteur: string): AnomalieEnvoiOs[] {
+  const { devisDemandes, entreprisesSurDevisDescriptif, devisExigesParAssemblee, conditionsConcurrenceAg } = s.justificatifs
+  if (devisExigesParAssemblee !== null || conditionsConcurrenceAg !== null) return conditionsVotees(s, auteur)
+  const demandes = devisDemandes ?? 0
+  const entreprises = entreprisesSurDevisDescriptif ?? 0
+  if (demandes >= NOMBRE_MIN_DEVIS_CONCURRENCE || entreprises >= NOMBRE_MIN_DEVIS_CONCURRENCE) return []
   return [
     anomalie(
       'mise_en_concurrence_non_justifiee',
       'alerte',
-      `Mise en concurrence obligatoire à partir du seuil fixé par l'assemblée : sans conditions fixées par elle, demander plusieurs devis (au moins ${NOMBRE_MIN_DEVIS_CONCURRENCE}) ou soumettre un devis descriptif à plusieurs entreprises ; nombre de devis demandés : ${demandes}.`,
+      `Mise en concurrence obligatoire à partir du seuil fixé par ${auteur} : sans conditions fixées par l'assemblée, demander plusieurs devis (au moins ${NOMBRE_MIN_DEVIS_CONCURRENCE}) ou soumettre un devis descriptif à plusieurs entreprises (au moins ${NOMBRE_MIN_DEVIS_CONCURRENCE}) ; nombre de devis demandés : ${demandes} ; entreprises consultées sur un devis descriptif : ${entreprises}.`,
       FONDEMENT_CONCURRENCE,
       true,
     ),
   ]
 }
 
-function anomaliesConseilSyndical(s: SortieOrdreService, codes: ReadonlySet<CodeMotifVisa>, date: string): AnomalieEnvoiOs[] {
+function anomaliesConseilSyndical(
+  s: SortieOrdreService,
+  codes: ReadonlySet<CodeMotifVisa>,
+  date: string,
+  decisions: readonly DecisionAnnuelle[] | undefined,
+): AnomalieEnvoiOs[] {
   const anomalies = codes.has('avis_conseil_syndical_aj') ? anomaliesAvisAj(s, date) : []
   const avisLe = s.justificatifs.avisConseilSyndicalLe
+  const consultation = auteurSeuil('seuil_consultation_cs', decisions)
   if (codes.has('consultation_conseil_syndical') && (avisLe === null || avisLe > date))
     anomalies.push(
       anomalie(
         'avis_conseil_syndical_non_enregistre',
         'alerte',
-        "Consultation du conseil syndical obligatoire à partir du seuil fixé par l'assemblée : avis non enregistré.",
-        FONDEMENT_CONSULTATION,
+        `Consultation du conseil syndical obligatoire à partir du seuil fixé par ${consultation.auteur} : avis non enregistré.`,
+        FONDEMENT_CONSULTATION + consultation.texte,
         true,
       ),
     )
-  if (codes.has('mise_en_concurrence')) anomalies.push(...anomaliesMiseEnConcurrence(s))
+  if (codes.has('mise_en_concurrence')) anomalies.push(...anomaliesMiseEnConcurrence(s, auteurSeuil('seuil_mise_en_concurrence', decisions).auteur))
   return anomalies
 }
 
 const delegueAuConseilSyndical = (decision: DecisionAnnuelle): boolean =>
   decision.type === 'delegation_generale_cs' || (decision.type === 'delegation_art25a' && decision.delegataire === 'conseil_syndical')
 
-/** Délégation de pouvoirs au conseil syndical dans les décisions d'assemblée fournies (absentes : non contrôlé). */
-function anomaliesDelegationCs(decisions: readonly DecisionAnnuelle[] | undefined): AnomalieEnvoiOs[] {
-  if (!decisions || decisions.some(delegueAuConseilSyndical)) return []
+/** Décisions qui fixent le montant maximum alloué au conseil syndical pour sa délégation (L. 1965 art. 21-2 ; art. 25, a). */
+const MAXIMUMS_CS: ReadonlySet<string> = new Set(['delegation_art25a', 'enveloppe_delegation_cs', 'plafond_travaux_cs'])
+
+const DELEGATIONS_POSSIBLES =
+  "délégation générale de deux ans au plus, renouvelable par décision expresse, ou délégation de l'art. 25 a"
+
+/**
+ * Pouvoirs du conseil syndical confiés à l'administrateur provisoire par l'ordonnance (J67, R69 ; L. 1965 art. 29-1, I,
+ * al. 2, portée exacte à confirmer) : une décision du conseil prise après l'ordonnance sort de ses pouvoirs, bloquant.
+ */
+function decisionCsHorsPouvoirs(s: SortieOrdreService, contexte: ContexteEnvoiOs): AnomalieEnvoiOs | null {
+  const confiesLe = contexte.mandat?.pouvoirsConseilSyndicalConfiesLe ?? null
+  verifierDate("Ordonnance qui confie les pouvoirs du conseil syndical", confiesLe)
+  const decideLe = s.decisionLe ?? contexte.date
+  if (confiesLe === null || decideLe <= confiesLe) return null
+  return anomalie(
+    'decision_cs_hors_pouvoirs',
+    'bloquant',
+    `Décision du conseil syndical du ${fr(decideLe)}${s.decisionLe === null ? " (date non saisie : jour de l'envoi)" : ''}, après l'ordonnance du ${fr(confiesLe)} qui confie les pouvoirs du conseil syndical à l'administrateur provisoire : elle sort de ses pouvoirs ; décision à prendre par l'administrateur provisoire.`,
+    FONDEMENT_POUVOIRS_CS,
+    true,
+  )
+}
+
+/**
+ * Délégation de pouvoirs au conseil syndical (J67, R69) : lue à la date de la décision du conseil (decisionsAg) ; à
+ * défaut des décisions, dans celles en vigueur à l'envoi (decisionsAgEnVigueur, alerte si une délégation y est trouvée) ;
+ * aucune décision fournie : non contrôlée (trouvee null).
+ */
+function lireDelegationCs(s: SortieOrdreService, contexte: ContexteEnvoiOs): { trouvee: boolean | null; anomalies: AnomalieEnvoiOs[] } {
+  if (contexte.decisionsAg) {
+    const date = s.decisionLe ?? contexte.date
+    const trouvee = decisionsEnVigueur(contexte.decisionsAg, date).some(delegueAuConseilSyndical)
+    const anomalies: AnomalieEnvoiOs[] =
+      s.decisionLe === null
+        ? [anomalie('date_decision_non_renseignee', 'alerte', "Date de la décision du conseil syndical non saisie : la délégation est lue à la date de l'envoi.", FONDEMENT_DELEGATION_CS)]
+        : []
+    if (!trouvee)
+      anomalies.push(
+        anomalie(
+          'delegation_cs_absente',
+          'alerte',
+          `Aucune délégation de pouvoirs au conseil syndical en vigueur le ${fr(date)}, date de la décision du conseil syndical (${DELEGATIONS_POSSIBLES}) : la décision sort de la délégation.`,
+          FONDEMENT_DELEGATION_CS,
+          true,
+        ),
+      )
+    return { trouvee, anomalies }
+  }
+  const decisions = contexte.decisionsAgEnVigueur
+  if (!decisions) return { trouvee: null, anomalies: [] }
+  if (!decisions.some(delegueAuConseilSyndical))
+    return {
+      trouvee: false,
+      anomalies: [
+        anomalie(
+          'delegation_cs_absente',
+          'alerte',
+          `Aucune délégation de pouvoirs au conseil syndical dans les décisions d'assemblée en vigueur fournies (${DELEGATIONS_POSSIBLES}) : vérifier qu'elle était en vigueur à la date de la décision du conseil syndical.`,
+          FONDEMENT_DELEGATION_CS,
+          true,
+        ),
+      ],
+    }
+  return {
+    trouvee: true,
+    anomalies: [
+      anomalie(
+        'delegation_cs_lue_a_l_envoi',
+        'alerte',
+        "Délégation du conseil syndical lue dans les décisions en vigueur à l'envoi : elle doit l'être à la date de la décision du conseil syndical ; fournir les décisions (decisionsAg).",
+        FONDEMENT_DELEGATION_CS,
+      ),
+    ],
+  }
+}
+
+/** Objet de la décision du conseil syndical : seules les décisions de la majorité de l'art. 24 se délèguent (J67, R69). */
+function anomaliesObjetCs(s: SortieOrdreService): AnomalieEnvoiOs[] {
+  const majorite = s.majoriteResolution
+  if (majorite === 'art24') return []
+  if (majorite === null)
+    return [
+      anomalie(
+        'delegation_cs_objet_non_qualifie',
+        'alerte',
+        "Majorité dont relève l'objet de la décision du conseil syndical non saisie : la délégation ne porte que sur des décisions de la majorité de l'art. 24 ; la saisir.",
+        FONDEMENT_OBJET_CS,
+      ),
+    ]
   return [
     anomalie(
-      'delegation_cs_absente',
-      'alerte',
-      "Aucune délégation de pouvoirs au conseil syndical dans les décisions d'assemblée en vigueur fournies (délégation générale de deux ans au plus, renouvelable par décision expresse, ou délégation de l'art. 25 a) : vérifier qu'elle était en vigueur à la date de la décision du conseil syndical.",
-      FONDEMENT_DELEGATION_CS,
-      true,
+      'delegation_cs_hors_objet',
+      'bloquant',
+      `Décision du conseil syndical dont l'objet relève de la ${MAJORITES_AG[majorite].libelle} : la délégation ne porte que sur des décisions de la majorité de l'art. 24 ; elle sort de la délégation.`,
+      FONDEMENT_OBJET_CS,
     ),
   ]
+}
+
+/** Décision qui fixe le montant maximum de la délégation exercée (J67, R69) ; erreur si elle est introuvable ou sans montant. */
+function maximumDeLaDelegation(delegation: DelegationCsExercee, contexte: ContexteEnvoiOs): DecisionAnnuelle & { montantCentimes: number } {
+  const decisions = contexte.decisionsAg ?? contexte.decisionsAgEnVigueur ?? []
+  const fixeLeMaximum = (decision: DecisionAnnuelle): boolean =>
+    MAXIMUMS_CS.has(decision.type) && (decision.type !== 'delegation_art25a' || decision.delegataire === 'conseil_syndical')
+  const maximum = decisions.find((decision) => decision.id === delegation.maximumId && fixeLeMaximum(decision))
+  if (maximum === undefined || maximum.montantCentimes === null)
+    throw new Error(
+      `Délégation du conseil syndical : décision ${delegation.maximumId} introuvable, ou sans montant maximum (délégation de l'art. 25 a au conseil syndical, montant alloué dans le budget, ou montant maximum d'une dépense de travaux hors budget).`,
+    )
+  return { ...maximum, montantCentimes: maximum.montantCentimes }
+}
+
+/**
+ * Montant maximum de la délégation (J67, R69 ; L. 1965 art. 21-2 ; art. 25, a) : toutes les dépenses engagées à son
+ * titre depuis son début, plus le prévu TTC de l'OS contrôlé ; au-delà du maximum, bloquant ; cumul inconnu, alerte.
+ */
+function anomaliesMaximumCs(d: Demande, contexte: ContexteEnvoiOs): AnomalieEnvoiOs[] {
+  const delegation = contexte.delegationCs
+  const prevu = prevuDemande(d)
+  if (delegation === undefined || prevu === null)
+    return [
+      anomalie(
+        'delegation_cs_cumul_inconnu',
+        'alerte',
+        `${delegation === undefined ? 'Délégation exercée et dépenses déjà engagées à son titre non fournies' : 'Prévu inconnu'} : le cumul des dépenses de la délégation ne peut pas être comparé au montant maximum fixé par l'assemblée.`,
+        FONDEMENT_MAXIMUM_CS,
+      ),
+    ]
+  const maximum = maximumDeLaDelegation(delegation, contexte)
+  const cumul = delegation.depensesEngageesTtcCentimes + prevu
+  if (cumul <= maximum.montantCentimes) return []
+  return [
+    anomalie(
+      'delegation_cs_depassee',
+      'bloquant',
+      `Dépenses engagées au titre de la délégation depuis son début : ${euros(delegation.depensesEngageesTtcCentimes)} ; avec cet ordre de service (${euros(prevu)} TTC), ${euros(cumul)}, au-delà du montant maximum de ${euros(maximum.montantCentimes)} fixé par ${auteurDecision(maximum)} le ${fr(maximum.date)} : l'OS sort de la délégation, une nouvelle décision est nécessaire.`,
+      FONDEMENT_MAXIMUM_CS,
+    ),
+  ]
+}
+
+/** OS qui exécute une décision du conseil syndical délégataire (J67, R69) : pouvoirs, délégation à sa date, objet, maximum. */
+function anomaliesDelegationCs(d: Demande, s: SortieOrdreService, contexte: ContexteEnvoiOs): AnomalieEnvoiOs[] {
+  const horsPouvoirs = decisionCsHorsPouvoirs(s, contexte)
+  if (horsPouvoirs !== null) return [horsPouvoirs]
+  const lecture = lireDelegationCs(s, contexte)
+  if (lecture.trouvee === false) return lecture.anomalies
+  return [...lecture.anomalies, ...anomaliesObjetCs(s), ...anomaliesMaximumCs(d, contexte)]
 }
 
 /**
@@ -2229,7 +2730,7 @@ function anomaliesFondement(d: Demande, s: SortieOrdreService, contexte: Context
         'D. 1967 art. 37',
       ),
     )
-  if (s.fondement === 'decision_conseil_syndical') anomalies.push(...anomaliesDelegationCs(contexte.decisionsAgEnVigueur))
+  if (s.fondement === 'decision_conseil_syndical') anomalies.push(...anomaliesDelegationCs(d, s, contexte))
   if (s.fondement === 'execution_resolution_ag') anomalies.push(...anomaliesSuspensionArt42(d, s, contexte))
   return anomalies
 }
@@ -2238,7 +2739,11 @@ function anomaliesFondement(d: Demande, s: SortieOrdreService, contexte: Context
 function anomaliesCadreLegal(d: Demande, s: SortieOrdreService, motifs: readonly MotifVisa[], contexte: ContexteEnvoiOs): AnomalieEnvoiOs[] {
   if (d.type !== 'intervention') return []
   const codes = new Set(motifs.map((m) => m.code))
-  return [...anomaliesConvention(d, s, codes), ...anomaliesConseilSyndical(s, codes, contexte.date), ...anomaliesFondement(d, s, contexte)]
+  return [
+    ...anomaliesConvention(d, s, codes, contexte.mandat),
+    ...anomaliesConseilSyndical(s, codes, contexte.date, contexte.decisionsAgEnVigueur),
+    ...anomaliesFondement(d, s, contexte),
+  ]
 }
 
 /** Devis associé échu avant que l'OS parvienne à l'entreprise (le jour même, sauf courrier : dès le jour de l'envoi). */
@@ -2325,28 +2830,47 @@ function blocageSansPieces(d: Demande, contexte: ContexteEnvoiOs): { raison: str
   return null
 }
 
-/** Contrôle déclaratif de l'entreprise avant l'OS (point 37, via demandes.ts) ; une saisie impossible bloque l'envoi. */
-function anomaliesControleDeclaratif(d: Demande, contexte: ContexteEnvoiOs): AnomalieEnvoiOs[] {
-  if (d.type !== 'intervention' || d.prestataireId === null) return []
-  if (!contexte.pieces) {
-    const blocage = blocageSansPieces(d, contexte)
-    if (blocage)
-      return [
-        anomalie(
-          'controle_declaratif_non_fait',
-          'bloquant',
-          `Contrôle déclaratif de l'entreprise non fait alors que ${blocage.raison} : fournir ses pièces (vigilance, décennale) avant l'envoi.`,
-          blocage.fondement,
-          true,
-        ),
-      ]
+/**
+ * Pièces de l'entreprise non fournies : bloquant quand l'opération atteint le seuil de vigilance, que son montant est
+ * inconnu ou que la décennale est obligatoire, sinon alerte ; sous urgence constatée, la vigilance seule donne une alerte
+ * forte au lieu du blocage (J67, R75), la décennale obligatoire reste bloquante.
+ */
+function controleSansPieces(d: Demande, contexte: ContexteEnvoiOs, urgence: boolean): AnomalieEnvoiOs[] {
+  const blocage = blocageSansPieces(d, contexte)
+  if (blocage === null)
     return [anomalie('controle_declaratif_non_fait', 'alerte', "Contrôle déclaratif de l'entreprise non fait : fournir ses pièces (vigilance, décennale) avant l'envoi.")]
-  }
+  if (urgence && blocage.fondement === FONDEMENT_VIGILANCE)
+    return [
+      anomalie(
+        'controle_declaratif_non_fait',
+        'alerte',
+        `Contrôle déclaratif de l'entreprise non fait alors que ${blocage.raison} : urgence constatée, l'OS part, alerte forte au lieu d'un blocage (J67, R75 ; C. trav. art. L. 8221-2 : l'exclusion des travaux d'urgence ne vise pas la vigilance) ; obtenir ses pièces de vigilance au plus vite (élément « à faire »).`,
+        blocage.fondement,
+        true,
+      ),
+    ]
+  return [
+    anomalie(
+      'controle_declaratif_non_fait',
+      'bloquant',
+      `Contrôle déclaratif de l'entreprise non fait alors que ${blocage.raison} : fournir ses pièces (vigilance, décennale) avant l'envoi.`,
+      blocage.fondement,
+      true,
+    ),
+  ]
+}
+
+/** Contrôle déclaratif de l'entreprise avant l'OS (point 37, via demandes.ts) ; une saisie impossible bloque l'envoi. */
+function anomaliesControleDeclaratif(d: Demande, s: SortieOrdreService, contexte: ContexteEnvoiOs): AnomalieEnvoiOs[] {
+  if (d.type !== 'intervention' || d.prestataireId === null) return []
+  const urgence = urgenceConstatee(s)
+  if (!contexte.pieces) return controleSansPieces(d, contexte, urgence)
   const options: OptionsControleDeclaratif = {
     ...contexte.controle,
     moment: 'ordre_de_service',
     date: contexte.date,
     decennaleObligatoire: contexte.controle?.decennaleObligatoire ?? null,
+    urgenceConstatee: urgence,
   }
   try {
     return controleDeclaratifDemande(d, contexte.pieces, options).map(depuisAnomalieEntreprise)
@@ -2371,6 +2895,7 @@ export function controlerAvantEnvoiOs(d: Demande, s: SortieOrdreService, context
     )
   if (contexte.delaiContestationAg?.etat === 'calcule')
     verifierDate('Fin du délai de contestation (la plus tardive)', contexte.delaiContestationAg.echeanceLaPlusTardive)
+  verifierDelegationCs(contexte.delegationCs)
   const motifs = motifsVisa(d, s, contexte)
   return [
     ...anomaliesDemande(d, s.canal, contexte),
@@ -2379,8 +2904,68 @@ export function controlerAvantEnvoiOs(d: Demande, s: SortieOrdreService, context
     ...anomaliesCadreLegal(d, s, motifs, contexte),
     ...anomaliesDevisAssocie(d, s, contexte),
     ...anomaliesAncienneteDevis(d, contexte),
-    ...anomaliesControleDeclaratif(d, contexte),
+    ...anomaliesControleDeclaratif(d, s, contexte),
   ]
+}
+
+function verifierDelegationCs(delegation: DelegationCsExercee | undefined): void {
+  if (delegation === undefined) return
+  if (texteOuNull(delegation.maximumId) === null) throw new Error('Délégation du conseil syndical : décision du montant maximum attendue.')
+  if (!Number.isInteger(delegation.depensesEngageesTtcCentimes) || delegation.depensesEngageesTtcCentimes < 0)
+    throw new Error(`Dépenses déjà engagées au titre de la délégation invalides (${delegation.depensesEngageesTtcCentimes}) : centimes entiers positifs attendus.`)
+}
+
+/** Réglage du cabinet : jours laissés après l'envoi d'un OS urgent pour obtenir les pièces de vigilance (J67, R75 ; aucun texte). */
+export interface ReglagePiecesVigilanceUrgence {
+  /** null : non réglé, l'élément est dû le jour de l'envoi (aucun délai inventé). */
+  delaiJours: number | null
+}
+
+/**
+ * Élément « à faire » (J67, R75) : pièces de vigilance à obtenir de l'entreprise après un OS urgent parti sans elles.
+ * Branchement au suivi « à faire » (nouvelle nature et son libellé d'écran) : Frédéric.
+ */
+export type PiecesVigilanceAFaire = Omit<ElementAFaire, 'famille' | 'nature'> & {
+  /** Anomalies de vigilance relevées à l'envoi. */
+  codes: string[]
+  justification: string
+}
+
+/** Manque de vigilance passé en alerte forte sous urgence constatée (J67, R75). */
+const estManqueDeVigilance = (a: AnomalieEnvoiOs): boolean =>
+  a.gravite === 'alerte' &&
+  ((CODES_PIECES_VIGILANCE as ReadonlySet<string>).has(a.code) || (a.code === 'controle_declaratif_non_fait' && a.fondement === FONDEMENT_VIGILANCE))
+
+/**
+ * Pièces de vigilance à obtenir après l'envoi d'un OS urgent (J67, R75) : seulement pour un OS envoyé sous urgence
+ * constatée, quand les anomalies de son contrôle avant l'envoi (controlerAvantEnvoiOs) en signalent ; dû au délai du
+ * cabinet après le premier envoi, assigné au collaborateur de cet envoi ; null sinon.
+ */
+export function piecesVigilanceApresUrgence(
+  d: Demande,
+  s: SortieOrdreService,
+  anomaliesEnvoi: readonly AnomalieEnvoiOs[],
+  reglage: ReglagePiecesVigilanceUrgence,
+): PiecesVigilanceAFaire | null {
+  verifierLien(d, s)
+  verifierNombre('Délai pour obtenir les pièces de vigilance', reglage.delaiJours, 0)
+  const envoi = premierEnvoi(s)
+  if (envoi === null || !urgenceConstatee(s)) return null
+  const codes = [...new Set(anomaliesEnvoi.filter(estManqueDeVigilance).map((a) => a.code))]
+  if (codes.length === 0) return null
+  const delai =
+    reglage.delaiJours === null ? "délai du cabinet non réglé : dû le jour de l'envoi (aucun délai inventé)" : `délai du cabinet : ${reglage.delaiJours} jours après l'envoi`
+  return {
+    id: `demandes:pieces_vigilance_os:${d.id}`,
+    libelle: `Obtenir de l'entreprise ses pièces de vigilance : ordre de service urgent ${d.numero ?? d.id} (${d.objet}) envoyé sans elles`,
+    date: reglage.delaiJours === null ? envoi.date : ajouterJours(envoi.date, reglage.delaiJours),
+    mandatId: d.mandatId,
+    objetId: d.id,
+    assigneId: envoi.collaborateurId,
+    aConfirmer: false,
+    codes,
+    justification: `OS envoyé le ${fr(envoi.date)} sous urgence constatée, pièces de vigilance manquantes (${codes.join(', ')}) ; ${delai} (C. trav. art. L. 8222-1 ; J67, R75).`,
+  }
 }
 
 // ─── Envoi, journal de diffusion et relance ───────────────────────────────────────────────────
@@ -2552,11 +3137,34 @@ function lireArReception(
   if (reference === null) throw new Error("AR de la réception : référence attendue (numéro du pli recommandé ou pièce numérisée).")
   const saisie = ar.premierePresentationLe ?? null
   verifierDate("Première présentation de l'AR", saisie)
-  const lu: ArReceptionOs = { reference, premierePresentationLe: saisie ?? courrier?.datePremierePresentation ?? null }
-  const ecart = courrier ? ecartDuCourrier(lu, courrier) : null
+  const remiseLe = ar.remiseLe ?? null
+  verifierDate("Date de remise de l'AR", remiseLe)
+  const lu: ArReceptionOs = {
+    reference,
+    premierePresentationLe: saisie ?? courrier?.datePremierePresentation ?? null,
+    ...(remiseLe === null ? {} : { remiseLe }),
+  }
+  const ecart = courrier ? (ecartDuCourrier(lu, courrier) ?? ecartRemise(remiseLe, courrier)) : null
   if (ecart !== null) throw new Error(`AR de la réception refusé : ${ecart} ; corriger l'AR saisi ou le suivi du courrier (courriers.ts).`)
   verifierBornesPresentation(lu.premierePresentationLe, reception, pli)
+  verifierBornesRemise(remiseLe, lu.premierePresentationLe, reception, pli)
   return lu
+}
+
+/** Date de remise saisie différente de l'accusé de réception (retrait du pli) du courrier lié ; null : cohérentes ou inconnues. */
+function ecartRemise(remiseLe: string | null, courrier: CourrierSuivi): string | null {
+  const retrait = courrier.dateAccuseReception
+  if (remiseLe === null || !retrait || remiseLe === retrait) return null
+  return `date de remise de l'AR (${fr(remiseLe)}) différente de l'accusé de réception du courrier lié (${fr(retrait)})`
+}
+
+/** Date de remise, si elle est saisie : ni avant l'envoi du pli ni avant sa première présentation, ni après la réception (J67, R74). */
+function verifierBornesRemise(remiseLe: string | null, presentation: string | null, reception: EvenementDiffusion, pli: EvenementDiffusion): void {
+  if (remiseLe === null) return
+  const borneBasse = presentation !== null && presentation > pli.date ? presentation : pli.date
+  if (remiseLe < borneBasse)
+    throw new Error(`Date de remise de l'AR (${fr(remiseLe)}) antérieure à ${borneBasse === presentation ? 'la première présentation' : "l'envoi de l'OS"} (${fr(borneBasse)}).`)
+  if (remiseLe > reception.date) throw new Error(`Date de remise de l'AR (${fr(remiseLe)}) après la réception enregistrée le ${fr(reception.date)}.`)
 }
 
 /** Courrier lié fourni avec la réception : seulement pour une réception par courrier AR, envoyé en forme « AR ». */
@@ -2598,8 +3206,8 @@ export function enregistrerReception(s: SortieOrdreService, saisie: SaisieRecept
 export function devisCaducALaReception(d: Demande, s: SortieOrdreService, validiteDevisAu: string | null): AnomalieEnvoiOs[] {
   verifierLien(d, s)
   verifierDate('Fin de validité du devis associé', validiteDevisAu)
-  const reception = s.journal.find((e) => e.nature === 'reception')
-  if (d.devisAssocie === null || validiteDevisAu === null || !reception || reception.date <= validiteDevisAu) return []
+  const reception = receptionOs(s)
+  if (d.devisAssocie === null || validiteDevisAu === null || reception === null || reception.date <= validiteDevisAu) return []
   return [
     anomalie(
       'devis_caduc',
@@ -2608,7 +3216,64 @@ export function devisCaducALaReception(d: Demande, s: SortieOrdreService, validi
       FONDEMENT_CADUCITE,
       true,
     ),
+    ...reception.alertes,
   ]
+}
+
+/** Date de réception de l'OS, sa source et sa justification (J67, R74). */
+export interface ReceptionOs {
+  date: string
+  /** « remise_ar » : date de remise portée sur l'AR ; « journal » : première ligne « reception » du journal. */
+  source: 'remise_ar' | 'journal'
+  /** Première présentation d'un AR, information seulement : elle ne vaut pas réception de l'OS. */
+  premierePresentationLe: string | null
+  justification: string
+  alertes: AnomalieEnvoiOs[]
+}
+
+const premiereDate = (dates: readonly (string | null | undefined)[]): string | null =>
+  dates.filter((date): date is string => typeof date === 'string').sort((a, b) => a.localeCompare(b))[0] ?? null
+
+/**
+ * Réception de l'OS (J67, R74) : la réception compte, pas l'envoi (C. civ. art. 1121). Par lettre AR, la date de remise
+ * portée sur l'AR (CPC art. 669), quand elle est saisie ; sinon, comportement gardé : la première ligne « reception » du
+ * journal, avec l'alerte « date de remise de l'AR non saisie » pour une réception par courrier AR. La première
+ * présentation n'en tient jamais lieu (elle ne vaut réception que là où un texte le dit : D. 1967 art. 64-1, J1) : elle
+ * reste une information. Aucun délai d'acheminement n'est inventé. null : jamais reçu.
+ */
+export function receptionOs(s: SortieOrdreService): ReceptionOs | null {
+  const receptions = s.journal.filter((e) => e.nature === 'reception')
+  const premiere = receptions[0]
+  if (premiere === undefined) return null
+  const ars = receptions.flatMap((e) => (e.ar ? [e.ar] : []))
+  const premierePresentationLe = premiereDate(ars.map((ar) => ar.premierePresentationLe))
+  const remise = premiereDate(ars.map((ar) => ar.remiseLe))
+  if (remise !== null)
+    return {
+      date: remise,
+      source: 'remise_ar',
+      premierePresentationLe,
+      justification: `Reçu le ${fr(remise)} : date de remise de la lettre à l'entreprise, portée sur l'AR (CPC art. 669) ; le contrat se forme quand l'acceptation parvient (C. civ. art. 1121) ; J67, R74.`,
+      alertes: [],
+    }
+  const presentation = premierePresentationLe === null ? '' : ` ; la première présentation (${fr(premierePresentationLe)}) n'en tient pas lieu, elle reste une information`
+  const alertes = receptions.some((e) => e.canal === 'courrier_ar')
+    ? [
+        anomalie(
+          'date_remise_ar_non_saisie',
+          'alerte',
+          `Date de remise de l'AR non saisie : la réception de l'OS est datée de sa ligne du journal (${fr(premiere.date)})${presentation} ; saisir la date de remise portée sur l'AR.`,
+          FONDEMENT_RECEPTION_AR,
+        ),
+      ]
+    : []
+  return {
+    date: premiere.date,
+    source: 'journal',
+    premierePresentationLe,
+    justification: `Reçu le ${fr(premiere.date)} : première ligne « reception » du journal (J67, R74 : sans date de remise de l'AR, comportement gardé).`,
+    alertes,
+  }
 }
 
 /**

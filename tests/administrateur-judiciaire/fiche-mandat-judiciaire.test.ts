@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  MODES_EXERCICE_ADMINISTRATEURS,
   REPARTITION_FICHE_MANDAT_GESTEAM,
   creerVoletJudiciaire,
   type SaisieVoletJudiciaire,
@@ -77,5 +78,22 @@ describe('D1 — répartition de la fiche mandat Gestéam entre syndicat et mand
   it('aucun champ n’est attribué aux deux', () => {
     const communs = REPARTITION_FICHE_MANDAT_GESTEAM.syndicat.filter((c) => (REPARTITION_FICHE_MANDAT_GESTEAM.mandat as readonly string[]).includes(c))
     expect(communs).toEqual([])
+  })
+})
+
+describe('J67, R69 et R73 — mode d’exercice des deux administrateurs et pouvoirs du conseil syndical confiés', () => {
+  it('R73 : deux administrateurs sans mode d’exercice saisi : avertissement « à vérifier dans l’ordonnance » ; ensemble ou chacun seul : aucun', () => {
+    const deux = saisie({ administrateurs: ['Associé A', 'Associé B'] })
+    expect(creerVoletJudiciaire(deux, contexte).avertissements).toEqual([expect.stringMatching(/mode d'exercice à vérifier dans l'ordonnance/)])
+    for (const modeExercice of MODES_EXERCICE_ADMINISTRATEURS)
+      expect(creerVoletJudiciaire({ ...deux, modeExercice }, contexte)).toMatchObject({ volet: { modeExercice }, avertissements: [] })
+    expect(creerVoletJudiciaire(saisie({ modeExercice: null }), contexte).avertissements).toEqual([])
+    // @ts-expect-error — mode hors MODES_EXERCICE_ADMINISTRATEURS
+    expect(() => creerVoletJudiciaire({ ...deux, modeExercice: 'alterne' }, contexte)).toThrow(/mode d'exercice/i)
+  })
+
+  it('R69 : le volet porte les pouvoirs du conseil syndical confiés à l’administrateur provisoire par l’ordonnance', () => {
+    expect(creerVoletJudiciaire(saisie({ pouvoirsConseilSyndicalConfies: true }), contexte).volet.pouvoirsConseilSyndicalConfies).toBe(true)
+    expect(creerVoletJudiciaire(saisie(), contexte).volet.pouvoirsConseilSyndicalConfies).toBeUndefined()
   })
 })

@@ -2,12 +2,18 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
+  CODES_PIECES_VIGILANCE,
+  ENTREE_EN_VIGUEUR_MAX_L8222_1_1,
+  REGLAGE_SOUS_TRAITANTS_PAR_DEFAUT,
   SEUIL_VIGILANCE_HT_CENTIMES,
   VALIDITE_VIGILANCE_MOIS,
   controlerAvantOrdreService,
   controlerAvantReglement,
+  controlerSousTraitantsAcceptes,
+  verificationsSousTraitantsDues,
   type AnomalieEntreprise,
   type PiecesEntreprise,
+  type SousTraitantAccepte,
 } from '@/lib/administrateur-judiciaire/domain/vigilance-entreprises'
 
 /**
@@ -222,5 +228,84 @@ describe('saisie invalide et marqueurs', () => {
     expect(source).toMatch(/Légifrance, décisions lues sur Judilibre, le 29\/10\/2026/)
     expect(source).toMatch(/🔵/)
     expect(source).toMatch(/🔴/)
+  })
+})
+
+describe('J67 — recommandations validées par Hugo le 17/11/2026 (R75 à R77)', () => {
+  it('R75 : sous urgence constatée, la vigilance reste contrôlée mais donne une alerte forte au lieu d’un blocage ; la décennale reste bloquante', () => {
+    const urgence = { ...operation, urgenceConstatee: true }
+    const sansPieces = controlerAvantOrdreService(pieces({ attestationUrssafLe: null, immatriculation: null }), urgence)
+    expect(codes(sansPieces)).toEqual(['vigilance_urssaf_absente', 'immatriculation_absente'])
+    expect(sansPieces.every((a) => a.gravite === 'alerte')).toBe(true)
+    expect(sansPieces[0].message).toMatch(/alerte forte/)
+    expect(sansPieces[0].message).toMatch(/J67, R75/)
+    expect(sansPieces[0].fondement).toBe('C. trav. art. L. 8222-1, R. 8222-1, D. 8222-5')
+    expect(controlerAvantOrdreService(pieces({ attestationUrssafVerifiee: false }), urgence)).toMatchObject([
+      { code: 'vigilance_urssaf_non_verifiee', gravite: 'alerte' },
+    ])
+    // la décennale n'est pas visée par R75 : elle reste bloquante
+    expect(controlerAvantOrdreService(pieces({ decennale: null }), urgence)).toMatchObject([{ code: 'decennale_absente', gravite: 'bloquant' }])
+    // sans urgence constatée : inchangé
+    expect(controlerAvantOrdreService(pieces({ attestationUrssafLe: null }), operation)).toMatchObject([{ gravite: 'bloquant' }])
+    expect([...CODES_PIECES_VIGILANCE]).toEqual(expect.arrayContaining(['vigilance_urssaf_absente', 'vigilance_urssaf_non_verifiee', 'immatriculation_absente']))
+  })
+
+  it('R77 : L. 8222-1-1 pas encore en vigueur ; information « au plus tard le 26/12/2026 » tant que la date n’est pas atteinte', () => {
+    expect(ENTREE_EN_VIGUEUR_MAX_L8222_1_1).toBe('2026-12-26')
+    const st: SousTraitantAccepte = {
+      sousTraitantId: 'st-1',
+      marcheId: 'dem-1',
+      accepteLe: '2026-11-02',
+      montantHtCentimes: 2_000_000,
+      finLe: null,
+      pieces: [],
+    }
+    const avant = controlerSousTraitantsAcceptes([st], REGLAGE_SOUS_TRAITANTS_PAR_DEFAUT, '2026-11-17')
+    expect(avant).toMatchObject([{ code: 'sous_traitants_obligation_a_venir', gravite: 'alerte', fondement: 'C. trav. art. L. 8222-1-1' }])
+    expect(avant[0].message).toMatch(/au plus tard le 26\/12\/2026/)
+    // date atteinte, valeurs du décret non saisies : contrôle impossible, alerte à confirmer
+    const sansDecret = controlerSousTraitantsAcceptes([st], REGLAGE_SOUS_TRAITANTS_PAR_DEFAUT, '2026-12-26')
+    expect(sansDecret).toMatchObject([{ code: 'sous_traitants_valeurs_decret_a_saisir', gravite: 'alerte', aConfirmer: true }])
+    // date fixée par le décret au-delà du 26/12/2026 : refusée
+    expect(() =>
+      controlerSousTraitantsAcceptes([st], { ...REGLAGE_SOUS_TRAITANTS_PAR_DEFAUT, entreeEnVigueurLe: '2027-01-01' }, '2026-11-17'),
+    ).toThrow(/26\/12\/2026/)
+  })
+
+  it('R77 : activé à la date du décret, avec ses valeurs : pièces des sous-traitants acceptés vérifiées périodiquement, élément « à faire »', () => {
+    const reglage = { entreeEnVigueurLe: '2026-12-01', montantMinimalHtCentimes: 500_000, piecesExigees: ['attestation_vigilance'], periodiciteMois: 6 }
+    const st: SousTraitantAccepte = {
+      sousTraitantId: 'st-1',
+      marcheId: 'dem-1',
+      accepteLe: '2026-12-02',
+      montantHtCentimes: 2_000_000,
+      finLe: null,
+      pieces: [{ nature: 'attestation_vigilance', le: '2026-12-02' }],
+    }
+    expect(controlerSousTraitantsAcceptes([st], reglage, '2027-01-15')).toEqual([])
+    const perimee = controlerSousTraitantsAcceptes([st], reglage, '2027-06-02')
+    expect(perimee).toMatchObject([{ code: 'sous_traitant_piece_a_obtenir', gravite: 'alerte', fondement: 'C. trav. art. L. 8222-1-1' }])
+    // sous le montant minimal, ou sous-traité terminé : rien
+    expect(controlerSousTraitantsAcceptes([{ ...st, montantHtCentimes: 400_000, pieces: [] }], reglage, '2027-06-02')).toEqual([])
+    expect(controlerSousTraitantsAcceptes([{ ...st, finLe: '2027-03-01', pieces: [] }], reglage, '2027-06-02')).toEqual([])
+    const [aFaire] = verificationsSousTraitantsDues([st], reglage)
+    expect(aFaire).toMatchObject({ sousTraitantId: 'st-1', marcheId: 'dem-1', date: '2027-06-02' })
+    expect(aFaire.justification).toMatch(/2 décembre 2026|02\/12\/2026/)
+    expect(aFaire.justification).toMatch(/6 mois/)
+    // sans les valeurs du décret : aucun élément calculé
+    expect(verificationsSousTraitantsDues([st], REGLAGE_SOUS_TRAITANTS_PAR_DEFAUT)).toEqual([])
+  })
+
+  it('en-tête : R75, R76 et R77 tranchées (J67) ; restent ouvertes la qualification décennale et l’alerte avant règlement', () => {
+    const source = readFileSync(join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'vigilance-entreprises.ts'), 'utf8')
+    const enTete = source.slice(0, source.indexOf('*/')).replaceAll(/\r?\n \* */g, ' ')
+    const questions = enTete.slice(enTete.indexOf('🔴 Non établi'), enTete.indexOf('Gestéam — fiche entreprise'))
+    expect(questions).not.toContain("travaux d'urgence")
+    expect(questions).not.toContain('RC professionnelle')
+    expect(questions).not.toContain('L. 8222-1-1')
+    expect(questions).toContain('qualification des travaux soumis à l\'assurance décennale')
+    expect(questions).toContain('avant un règlement')
+    for (const attendu of ['J67, R75', 'J67, R76', 'J67, R77', 'L. 8221-2', 'chapitre II', 'loi n° 2026-534', '26/12/2026'])
+      expect(enTete).toContain(attendu)
   })
 })

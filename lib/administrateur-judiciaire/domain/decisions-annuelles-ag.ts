@@ -79,10 +79,12 @@ import { LIBELLES_ETATS_RESOLUTION, type Resolution } from '@/lib/administrateur
  *   porte le code 'art25' ;
  * - une résolution soumise à une majorité plus forte que celle requise fonde la décision ; adoptée au second vote de
  *   l'art. 25-1 ou 26-1, elle garde sa majorité requise (resolutions-ag.ts) et reste régulière ;
- * - la décision de l'administrateur provisoire de l'art. 29-1 investi des pouvoirs de l'assemblée tient lieu de vote ;
- *   aucun autre régime (art. 46, 47) ne reçoit ces pouvoirs ; investi de tous, il décide seul : une résolution de
- *   l'assemblée sur une décision annuelle (aucune ne relève de l'art. 26 a ou b) est signalée ; investi d'une partie, ou
- *   d'une étendue inconnue, elle est à vérifier ;
+ * - la décision de l'administrateur provisoire de l'art. 29-1 investi des pouvoirs de l'assemblée tient lieu de vote
+ *   (J67, R68 : y compris pour les deux seuils de L. 1965 art. 21, al. 2, par une décision inscrite au registre, D. 1967
+ *   art. 62-8, après avis du conseil syndical, art. 62-7 ; seuilEnVigueur dit qui a fixé le seuil, lu par
+ *   envoi-ordre-service.ts) ; aucun autre régime (art. 46, 47) ne reçoit ces pouvoirs ; investi de tous, il décide
+ *   seul : une résolution de l'assemblée sur une décision annuelle (aucune ne relève de l'art. 26 a ou b) est signalée ;
+ *   investi d'une partie, ou d'une étendue inconnue, elle est à vérifier ;
  * - seuils, délégations, accès de la police municipale et mandats valent jusqu'à une nouvelle décision ou jusqu'à leur
  *   terme, d'un exercice à l'autre ; la fin d'une délégation de l'art. 25 a (exécution, compte rendu) se saisit comme
  *   terme ; « à partir duquel » s'entend d'un montant égal ou supérieur au seuil ; un montant maximum par dépense de
@@ -1057,6 +1059,16 @@ export function enveloppeDelegationCs(decisions: readonly DecisionAnnuelle[], ex
   return duBudget.at(-1)?.montantCentimes ?? null
 }
 
+/** Seuils de L. 1965 art. 21, al. 2. */
+export type TypeSeuilArt21 = Extract<TypeDecisionAnnuelle, 'seuil_consultation_cs' | 'seuil_mise_en_concurrence'>
+
+/**
+ * Décision qui fixe le seuil en vigueur (la dernière de `enVigueur`, decisionsEnVigueur), votée par l'assemblée ou prise
+ * par l'administrateur provisoire qui a ses pouvoirs (J67, R68 : décision au registre, même forme) ; undefined : aucune.
+ */
+export const seuilEnVigueur = (type: TypeSeuilArt21, enVigueur: readonly DecisionAnnuelle[]): DecisionAnnuelle | undefined =>
+  enVigueur.findLast((d) => d.type === type)
+
 /**
  * Le montant d'un marché ou d'un contrat (hors contrat de syndic pour la mise en concurrence) atteint-il les seuils en
  * vigueur ? « À partir duquel » : montant égal ou supérieur. null : aucun seuil décidé. `enVigueur` : decisionsEnVigueur.
@@ -1067,8 +1079,8 @@ export function seuilsAtteints(
 ): { consultationCs: boolean | null; miseEnConcurrence: boolean | null } {
   if (!Number.isInteger(montantCentimes) || montantCentimes < 0)
     throw new Error(`Montant invalide (${montantCentimes}) : centimes entiers positifs attendus.`)
-  const atteint = (type: TypeDecisionAnnuelle): boolean | null => {
-    const seuil = enVigueur.findLast((d) => d.type === type)?.montantCentimes
+  const atteint = (type: TypeSeuilArt21): boolean | null => {
+    const seuil = seuilEnVigueur(type, enVigueur)?.montantCentimes
     return seuil === undefined || seuil === null ? null : montantCentimes >= seuil
   }
   return { consultationCs: atteint('seuil_consultation_cs'), miseEnConcurrence: atteint('seuil_mise_en_concurrence') }
