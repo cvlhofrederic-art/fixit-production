@@ -292,10 +292,25 @@ describe('fiche sinistre — forclusion : suggestion 🔵, jamais inventée', ()
     expect(suggestionForclusion(fiche()).avertissements.join(' ')).not.toMatch(/tiers/)
   })
 
-  it('catastrophe naturelle : rappel des cinq ans de la sécheresse-réhydratation, à vérifier 🔴', () => {
-    const texte = suggestionForclusion(fiche({ type: 'Catastrophes naturelles' })).avertissements.join(' ')
-    expect(texte).toMatch(/cinq ans/)
-    expect(texte).toMatch(/🔴/)
+  it('J67, R56 : catastrophe naturelle : cinq ans pour la seule sécheresse-réhydratation, selon la date du contrat ; date suggérée inchangée, sans 🔴', () => {
+    const avertissement = (dateContrat?: string | null) => {
+      const suggestion = suggestionForclusion({ ...fiche({ type: 'Catastrophes naturelles' }), dateContrat })
+      expect(suggestion.date).toBe('2028-10-27')
+      expect(suggestion.avertissements.join(' ')).not.toMatch(/🔴/)
+      return suggestion.avertissements.at(-1)
+    }
+    const secheresse =
+      'Sécheresse-réhydratation seulement (mouvements de terrain consécutifs, reconnus catastrophe naturelle, C. assur. art. L. 114-1)'
+    for (const inconnue of [undefined, null, '29/12/2021'])
+      expect(avertissement(inconnue)).toBe(
+        `${secheresse} : cinq ans seulement si le contrat a été conclu après le 29/12/2021 (loi n° 2021-1837, art. 10) ; contrat reconduit : à vérifier ; à défaut, deux ans.`,
+      )
+    expect(avertissement('2021-12-30')).toBe(`${secheresse} : contrat conclu le 30/12/2021, après le 29/12/2021 : cinq ans (loi n° 2021-1837, art. 10).`)
+    expect(avertissement('2021-12-29')).toBe(
+      `${secheresse} : contrat conclu le 29/12/2021, en cours à la publication de la loi n° 2021-1837 (art. 10 : elle ne s'applique pas aux contrats en cours) : deux ans ; reconduit depuis : à vérifier, deux ans par prudence.`,
+    )
+    // Autre type : aucune mention des cinq ans, même avec la date du contrat.
+    expect(suggestionForclusion({ ...fiche(), dateContrat: '2023-01-01' }).avertissements.join(' ')).not.toMatch(/cinq ans/)
   })
 })
 

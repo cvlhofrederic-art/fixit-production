@@ -6,6 +6,7 @@ import {
   estDateIsoValide,
   messagePlausibilite,
   plausibiliteDate,
+  reporterAuJourOuvrable,
   verifierAujourdhui,
 } from '@/lib/administrateur-judiciaire/domain/dates'
 import type { Rattachement } from '@/lib/administrateur-judiciaire/domain/fiches-liees'
@@ -14,6 +15,7 @@ import {
   controlerChronologieSinistre,
   etapeSuiviSinistre,
   phaseApresDeclaration,
+  RAPPEL_DECLARATION_DES_CONNAISSANCE,
   reperesDelaisSinistre,
   type FicheSinistre,
 } from '@/lib/administrateur-judiciaire/domain/sinistres'
@@ -72,47 +74,57 @@ import type {
  *    alinéa : la déchéance pour retard suppose une clause du contrat et un préjudice établi par l'assureur ; elle est
  *    exclue en cas fortuit ou de force majeure. Le contrôle est donc un SIGNAL, jamais une déchéance. Le repère est celui
  *    de reperesDelaisSinistre (sinistres.ts), réutilisé : jours ouvrés comptés à partir du lendemain de la connaissance,
- *    samedi, dimanche et jours fériés exclus ; le repère tombe donc toujours un jour ouvré.
+ *    samedi, dimanche et jours fériés exclus ; le repère tombe donc toujours un jour ouvré (décompte confirmé : J67, R50).
  * 🟢 Art. L. 125-2, al. 4 (version en vigueur depuis le 28/05/2026, loi n° 2026-403) : catastrophe naturelle, avis au plus
- *    tard trente jours après la publication de l'arrêté interministériel ; un décret en Conseil d'État en précise les
- *    modalités, les dérogations et les conséquences de sa méconnaissance par l'assuré. Art. D. 125-6 (en vigueur depuis
- *    le 01/01/2023) : déclaration « à l'assureur ou à son représentant local », dans les trente jours suivant la
- *    publication ; il ne fixe aucune conséquence du retard. Seul autre article de la section, R. 125-6-1 vise l'emploi de
- *    l'indemnité (sécheresse). L'avertissement de ce type ne reprend donc pas le régime de L. 113-2 (voir 🔴). La date de
- *    publication n'est pas sur la fiche : passée en option, sinon pas de repère.
- *    🔵 Décompte : trente jours calendaires à partir du lendemain de la publication, sans report d'un dernier jour non
- *    ouvré (voir 🔴).
+ *    tard trente jours après la publication de l'arrêté interministériel, sans sanction propre du retard. La phrase de cet
+ *    article qui renvoie à un décret en Conseil d'État (modalités, dérogations, conséquences de la méconnaissance) vise
+ *    l'emploi de l'indemnité en sécheresse ; ce décret est pris : R. 125-6-1 (décret n° 2024-82 du 05/02/2024, en vigueur
+ *    depuis le 07/02/2024). Art. D. 125-6 (décret simple, en vigueur depuis le 01/01/2023) : déclaration « à l'assureur ou
+ *    à son représentant local », dans les trente jours suivant la publication ; il ne fixe aucune conséquence du retard.
+ *    L'ancienne clause type (annexe I à l'art. A. 125-1) est abrogée. La règle générale de L. 113-2, avant-dernier alinéa,
+ *    s'applique donc (J67, R54). La date de publication n'est pas sur la fiche : passée en option, sinon pas de repère.
+ *    Décompte : publication + trente jours calendaires, soit le 30e jour compté du lendemain, sans report (J67, R55).
  * 🟢 Annexe II à l'art. A. 243-1 (dommages-ouvrage) : aucun délai de déclaration n'est fixé à l'assuré ; les délais de
  *    l'assureur courent de la réception de la déclaration réputée constituée. Pas de repère (gabarit
- *    declaration_sinistre_do).
+ *    declaration_sinistre_do) ; déclarer dès la connaissance (J67, R52 : sinistres.reperesDelaisSinistre et
+ *    suivi-a-faire.depuisSinistres datent l'élément « à déclarer » du jour de la connaissance).
  * 🔵 Aucun des textes relus ne dit si l'avis est daté de l'envoi ou de la réception. La date proposée est le DÉPÔT
  *    (ligne 58 du bilan). Si la réception connue (première présentation, à défaut l'accusé de réception) tombe après le
  *    repère alors que le dépôt est dans le délai, l'état est « à vérifier », sans conclure au retard ; le message cite le
  *    texte du délai appliqué.
  *
+ * Décisions de Hugo du 17/11/2026 (registre des décisions juridiques, J67 ; textes lus sur Légifrance le 17/11/2026) :
+ * - J67, R50 : le décompte de L. 113-2, 4° est confirmé (« jours ouvrés » : lundi à vendredi hors jours fériés ; jour de
+ *   la connaissance exclu, CPC art. 641, al. 1, par analogie) ; calcul inchangé. L'avertissement du droit commun rappelle
+ *   de déclarer dès la connaissance : le repère n'est que le minimum légal du délai prévu au contrat
+ *   (sinistres.RAPPEL_DECLARATION_DES_CONNAISSANCE).
+ * - J67, R51 : en principe, le courtier est le mandataire de l'assuré ; il peut, selon les circonstances, être aussi celui
+ *   de l'assureur (Cass. 1re civ., 22/10/1996, n° 94-15.613, publié) ; L. 113-2, 4° vise l'avis « à l'assureur » et
+ *   D. 125-6 « l'assureur ou son représentant local ». La date du courrier au courtier reste proposée et signalée (un fait
+ *   exact). Deux options : « transmis à la compagnie le » (transmisCompagnieLe) : connue, cette date se compare au repère ;
+ *   « courtier mandaté par l'assureur, mandat vu » (courtierMandateParAssureur) : la date du courrier au courtier est
+ *   retenue. Sans l'une ni l'autre, l'état est « à vérifier : mandat du courtier et date de transmission à la compagnie »
+ *   (sauf courrier déjà postérieur au repère : tardive). Aucun champ de la fiche ne les porte : enregistrement : à
+ *   brancher ; saisie à l'écran : Frédéric.
+ * - J67, R52 : dommages-ouvrage, aucun délai dans les clauses types : ce module reste sans repère (inchangé) ; les autres
+ *   modules sont alignés (voir ci-dessus).
+ * - J67, R53 : « Tempête, Grêles, Neiges » garde le repère de droit commun ; l'avertissement ajoute, par prudence, les
+ *   quatre jours de la grêle (C. assur. art. L. 123-1, en vigueur depuis le 08/01/1981, loi n° 81-5 : « envoi » de la
+ *   déclaration dans les quatre jours de la survenance), dont l'application à la multirisque n'est pas établie (seul
+ *   arrêt lu : Cass. 1re civ., 18/06/1991, n° 89-18.283, vergers).
+ * - J67, R54 : catastrophe naturelle, signal, jamais une déchéance : AVERTISSEMENT_DELAI_CATASTROPHE_NATURELLE réécrit
+ *   (aucun décret « attendu » ; règle générale de L. 113-2). Aucune marque de veille.
+ * - J67, R55 : catastrophe naturelle, le 30e jour n'est pas reporté (ni L. 125-2 ni D. 125-6 ne le prévoient ; CPC art.
+ *   642 vise les actes d'une procédure) ; l'alerte suit la date sans report. Si elle tombe un samedi, un dimanche ou un
+ *   jour férié, le premier jour ouvrable suivant est donné à titre d'information (declarationAuPlusTardReportee), avec la
+ *   mention « report non prévu par le texte ».
+ *
  * 🔴 Questions pour Frédéric ou Hugo :
  * - Pour un avis de sinistre de droit commun (L. 113-2, 4°), quelle date le cabinet retient-il comme date de
  *   déclaration : le dépôt (Courrier.dateDepot), la première présentation ou l'accusé de réception ? Le contrat
  *   d'assurance du syndicat le précise-t-il ?
- * - Une déclaration adressée au courtier (cas observé en T42) vaut-elle avis « à l'assureur », ou faut-il la date de
- *   transmission du courtier à la compagnie ? En catastrophe naturelle, le courtier est-il le « représentant local » de
- *   l'assureur au sens de D. 125-6 ? Faut-il ne proposer la date que si le destinataire est la compagnie ? (Aujourd'hui :
- *   la date est proposée et le destinataire est signalé.)
- * - Dommages-ouvrage : faut-il un contrôle de délai de déclaration ? Ce module n'en donne aucun, alors que
- *   reperesDelaisSinistre et suivi-a-faire.ts (depuisSinistres) appliquent encore cinq jours ouvrés à ce type.
  * - Catastrophe naturelle : la date de publication de l'arrêté doit-elle devenir un champ de la fiche sinistre ?
  *   suivi-a-faire.ts applique encore à ce type cinq jours ouvrés depuis la connaissance.
- * - Catastrophe naturelle : quelles conséquences d'une déclaration tardive ? L. 125-2 les renvoie à un décret en Conseil
- *   d'État et D. 125-6 n'en fixe aucune. Le cabinet connaît-il ce texte, ou applique-t-il à défaut l'avant-dernier alinéa
- *   de L. 113-2 (clause et préjudice) ?
- * - Catastrophe naturelle : le délai de trente jours court du lendemain de la publication ; un dernier jour samedi,
- *   dimanche ou férié n'est pas reporté, aucun texte relu ne le prévoyant. Le cabinet le reporte-t-il au premier jour
- *   ouvré suivant ?
- * - Le délai de quatre jours de l'art. L. 123-1 (grêle, « envoi » de la déclaration) s'applique-t-il à la garantie
- *   « Tempête, Grêles, Neiges » d'une multirisque immeuble ? Non branché : ce type suit le droit commun.
- * - Décompte de L. 113-2, 4° : le jour de la connaissance est exclu et seuls les jours ouvrés comptent (samedi exclu) ;
- *   aucun texte relu ne fixe ce décompte. Le cabinet lit-il « jours ouvrés » ainsi, et non en jours ouvrables (samedi
- *   compris) ?
  * - Phase saisie sans date de déclaration : la phase « Accusé réception » suit-elle la déclaration (accusé de l'assureur)
  *   ou la précède-t-elle (accusé au copropriétaire, modèle « accusé déclaration copro » ; la liste Gestéam la place avant
  *   « Déclaration ») ? La phase « Déclaration » vaut-elle déclaration faite ? (Aujourd'hui : « Accusé réception » donne
@@ -158,11 +170,14 @@ export const GABARITS_DECLARATION_SINISTRE = ['declaration_sinistre', 'declarati
 const DECLARATION_DROIT_COMMUN = GABARITS_COURRIER.declaration_sinistre
 const DECLARATION_DO = GABARITS_COURRIER.declaration_sinistre_do
 const CATASTROPHE_NATURELLE: TypeSinistre = 'Catastrophes naturelles'
+/** Type Gestéam de la garantie « Tempête, Grêle, Neige » d'une multirisque (J67, R53). */
+const TEMPETE_GRELE_NEIGE: TypeSinistre = 'Tempête, Grêles, Neiges'
 const FONDEMENTS_DROIT_COMMUN: readonly string[] = [DECLARATION_DROIT_COMMUN.delai.fondement]
 /** Délai de la catastrophe naturelle : la loi (L. 125-2, al. 4) et son décret (D. 125-6). */
 const FONDEMENTS_CATASTROPHE_NATURELLE: readonly string[] = ['C. assur. art. L. 125-2', 'C. assur. art. D. 125-6']
 /** Le gabarit réunit les références du délai dans une chaîne d'affichage : une référence par élément. */
 const FONDEMENTS_DO: readonly string[] = DECLARATION_DO.delai.fondement.split(' ; ')
+/** Avis au plus tard trente jours après la publication de l'arrêté interministériel (C. assur. art. L. 125-2, al. 4). */
 const JOURS_CATASTROPHE_NATURELLE = 30
 
 /** Libellé normalisé (objet VitFix ou libellé Gestéam) → famille du gabarit de déclaration. */
@@ -305,6 +320,7 @@ const anomalie = (
 ): AnomalieDeclarationCourrier => ({ code, gravite, courrierId, message })
 
 const COMPAGNIE: TypeEntreprise = "Compagnie d'assurance"
+const COURTIER: TypeEntreprise = 'Courtier'
 
 /** Question du courtier, posée au regard du texte qui régit l'avis pour ce type de sinistre. */
 function messageCourtier(type: TypeSinistre): string {
@@ -319,7 +335,7 @@ function anomalieDestinataire(courrier: CourrierDeclarationDepose, typeSinistre:
   const type = courrier.typeDestinataire ?? null
   if (type === null || type === COMPAGNIE) return null
   const message =
-    type === 'Courtier'
+    type === COURTIER
       ? messageCourtier(typeSinistre)
       : `Déclaration adressée à un destinataire « ${type} », pas à une compagnie d'assurance : destinataire ou modèle à vérifier.`
   return anomalie('destinataire_non_assureur', 'avertissement', courrier.id, message)
@@ -454,16 +470,31 @@ export interface OptionsDelaiDeclaration {
   delaiContratJoursOuvres?: number
   /** Catastrophe naturelle : publication de l'arrêté interministériel (L. 125-2) ; aucun champ de la fiche ne la porte. */
   datePublicationArrete?: string | null
+  /**
+   * Déclaration adressée au courtier : date de sa transmission à la compagnie, comparée au repère si elle est connue
+   * (J67, R51) ; aucun champ de la fiche ne la porte.
+   */
+  transmisCompagnieLe?: string | null
+  /** Le courtier gère les sinistres pour l'assureur (mandat vu) : la date du courrier au courtier est retenue (J67, R51). */
+  courtierMandateParAssureur?: boolean
 }
 
 export interface ControleDelaiDeclaration {
   etat: EtatDelaiDeclaration
   /** null : pas de repère (dommages-ouvrage, catastrophe naturelle sans date d'arrêté). */
   declarationAuPlusTard: string | null
+  /**
+   * Catastrophe naturelle : premier jour ouvrable suivant un repère qui tombe un samedi, un dimanche ou un jour férié,
+   * pour information seulement (report non prévu par le texte, J67, R55) ; null sinon.
+   */
+  declarationAuPlusTardReportee: string | null
   delai: DelaiDeclaration | null
-  /** Date saisie, à défaut dépôt du premier courrier de déclaration déposé au plus tard aujourd'hui. */
+  /**
+   * Date saisie, à défaut dépôt du premier courrier de déclaration déposé au plus tard aujourd'hui ; courrier au
+   * courtier : sa transmission à la compagnie, si elle est connue (J67, R51).
+   */
   dateRetenue: string | null
-  source: 'saisie' | 'courrier' | null
+  source: 'saisie' | 'courrier' | 'transmission' | null
   /** Courrier dont le dépôt fait la date retenue (proposée ou égale à la date saisie). */
   courrierId: string | null
   /** Jours calendaires au-delà du repère : déclaration tardive, ou repère dépassé sans déclaration ; 0 sinon. */
@@ -478,11 +509,21 @@ export interface ControleDelaiDeclaration {
 export const AVERTISSEMENT_DELAI_DECLARATION =
   "Signal indicatif, jamais une déchéance : la déchéance pour déclaration tardive suppose une clause du contrat et un préjudice établi par l'assureur ; elle est exclue en cas fortuit ou de force majeure (C. assur. art. L. 113-2, avant-dernier alinéa). Vérifier le contrat et le dossier."
 
+/** J67, R54 : aucun texte propre ne sanctionne le retard ; règle générale de L. 113-2, avant-dernier alinéa. */
 export const AVERTISSEMENT_DELAI_CATASTROPHE_NATURELLE =
-  "Signal indicatif, jamais une déchéance : en catastrophe naturelle, l'art. L. 125-2 du C. assur. renvoie à un décret en Conseil d'État les conséquences d'une déclaration tardive, et l'art. D. 125-6 n'en fixe aucune. Vérifier le contrat et le dossier."
+  "Signal indicatif, jamais une déchéance : ni L. 125-2 ni D. 125-6 ne fixent de sanction du retard ; règle générale de L. 113-2 : déchéance seulement si le contrat la prévoit et si l'assureur prouve un préjudice, jamais en cas fortuit ou de force majeure. Vérifier le contrat et le dossier."
+
+/** J67, R53 : grêle, par prudence ; l'application de C. assur. art. L. 123-1 à la multirisque n'est pas établie. */
+export const AVERTISSEMENT_GRELE =
+  'En cas de grêle, par prudence, envoyer la déclaration dans les quatre jours de la survenance (C. assur. L. 123-1 ; application à la multirisque à vérifier sur la police).'
+
+/** Droit commun : déclarer dès la connaissance (J67, R50), puis le régime de la déchéance. */
+const AVERTISSEMENT_DROIT_COMMUN = `${RAPPEL_DECLARATION_DES_CONNAISSANCE} ${AVERTISSEMENT_DELAI_DECLARATION}`
 
 interface RepereDeclaration {
   date: string | null
+  /** Premier jour ouvrable suivant le repère, s'il en diffère (catastrophe naturelle, J67, R55) ; null sinon. */
+  dateReportee: string | null
   delai: DelaiDeclaration | null
   fondements: string[]
   avertissement: string
@@ -496,13 +537,18 @@ function repereCatastropheNaturelle(publication: string | null): RepereDeclarati
     return {
       ...commun,
       date: null,
+      dateReportee: null,
       delai: null,
       motifSansRepere:
         "Catastrophe naturelle : le délai de trente jours court de la publication de l'arrêté interministériel, date non renseignée. Pas de repère.",
     }
+  // Publication + 30 jours calendaires : le 30e jour compté du lendemain ; aucun report (J67, R55).
+  const date = ajouterJours(publication, JOURS_CATASTROPHE_NATURELLE)
+  const reportee = reporterAuJourOuvrable(date)
   return {
     ...commun,
-    date: ajouterJours(publication, JOURS_CATASTROPHE_NATURELLE),
+    date,
+    dateReportee: reportee === date ? null : reportee,
     delai: { jours: JOURS_CATASTROPHE_NATURELLE, unite: 'jours' },
     motifSansRepere: '',
   }
@@ -512,6 +558,7 @@ function repereDeclaration(fiche: FicheSinistre, options: OptionsDelaiDeclaratio
   if (fiche.type === 'Dommages Ouvrage')
     return {
       date: null,
+      dateReportee: null,
       delai: null,
       fondements: [...FONDEMENTS_DO],
       avertissement: AVERTISSEMENT_DELAI_DECLARATION,
@@ -521,25 +568,36 @@ function repereDeclaration(fiche: FicheSinistre, options: OptionsDelaiDeclaratio
   const reperes = reperesDelaisSinistre(fiche, { delaiContratJoursOuvres: options.delaiContratJoursOuvres })
   return {
     date: reperes.declarationAuPlusTard,
+    dateReportee: null,
     delai: { jours: reperes.delaiDeclarationJoursOuvres, unite: 'jours_ouvres' },
     fondements: [...FONDEMENTS_DROIT_COMMUN],
-    avertissement: AVERTISSEMENT_DELAI_DECLARATION,
+    avertissement: fiche.type === TEMPETE_GRELE_NEIGE ? `${AVERTISSEMENT_DROIT_COMMUN} ${AVERTISSEMENT_GRELE}` : AVERTISSEMENT_DROIT_COMMUN,
     motifSansRepere: '',
   }
 }
 
-function verifierOptionsDelai({ aujourdhui, delaiContratJoursOuvres, datePublicationArrete }: OptionsDelaiDeclaration): void {
+/** Date facultative des options : ISO si elle est renseignée. */
+function verifierDateOption(libelle: string, date: string | null | undefined): void {
+  if (date !== undefined && date !== null && !estDateIsoValide(date)) throw new Error(`${libelle} invalide (${date}) : AAAA-MM-JJ attendu.`)
+}
+
+function verifierOptionsDelai(options: OptionsDelaiDeclaration): void {
+  const { aujourdhui, delaiContratJoursOuvres, courtierMandateParAssureur } = options
   verifierAujourdhui(aujourdhui)
   if (delaiContratJoursOuvres !== undefined && (!Number.isInteger(delaiContratJoursOuvres) || delaiContratJoursOuvres < 0))
     throw new Error(`Délai du contrat invalide (${delaiContratJoursOuvres}) : nombre entier de jours ouvrés attendu.`)
-  if (datePublicationArrete !== undefined && datePublicationArrete !== null && !estDateIsoValide(datePublicationArrete))
-    throw new Error(`Date de publication de l'arrêté invalide (${datePublicationArrete}) : AAAA-MM-JJ attendu.`)
+  verifierDateOption("Date de publication de l'arrêté", options.datePublicationArrete)
+  verifierDateOption('Date de transmission à la compagnie', options.transmisCompagnieLe)
+  if (courtierMandateParAssureur !== undefined && typeof courtierMandateParAssureur !== 'boolean')
+    throw new Error(`Mandat du courtier invalide (${String(courtierMandateParAssureur)}) : oui ou non attendu.`)
 }
 
 interface DateRetenue {
   date: string | null
   source: ControleDelaiDeclaration['source']
   courrier: CourrierDeclarationDepose | null
+  /** Courrier au courtier, sans mandat de l'assureur vu ni transmission datée : à vérifier (J67, R51). */
+  courtierAVerifier?: boolean
 }
 
 function dateRetenue(fiche: FicheSinistre, premier: CourrierDeclarationDepose | null): DateRetenue {
@@ -547,6 +605,16 @@ function dateRetenue(fiche: FicheSinistre, premier: CourrierDeclarationDepose | 
   if (saisie !== null) return { date: saisie, source: 'saisie', courrier: premier?.dateDepot === saisie ? premier : null }
   if (premier) return { date: premier.dateDepot, source: 'courrier', courrier: premier }
   return { date: null, source: null, courrier: null }
+}
+
+/**
+ * J67, R51 : courrier retenu adressé au courtier. Mandat de l'assureur vu : sa date est retenue ; transmission à la
+ * compagnie datée : elle fait la date, comparée au repère ; sinon, à vérifier.
+ */
+function retenueViaCourtier(retenue: DateRetenue, { transmisCompagnieLe, courtierMandateParAssureur }: OptionsDelaiDeclaration): DateRetenue {
+  if (retenue.courrier?.typeDestinataire !== COURTIER || courtierMandateParAssureur === true) return retenue
+  if (transmisCompagnieLe) return { date: transmisCompagnieLe, source: 'transmission', courrier: null }
+  return { ...retenue, courtierAVerifier: true }
 }
 
 type EtatCalcule = Pick<ControleDelaiDeclaration, 'etat' | 'retardJours' | 'message'>
@@ -603,12 +671,18 @@ function etatSansDeclaration({ fiche, aujourdhui, repere, futur }: ContexteEtat)
   return futur ? { ...etat, message: `${etat.message} ${messageDepotFutur(futur)}` } : etat
 }
 
-function etatDeclare(date: string, courrier: CourrierDeclarationDepose | null, { repere, fondements }: ContexteEtat): EtatCalcule {
+function etatDeclare(date: string, { courrier, courtierAVerifier }: DateRetenue, { repere, fondements }: ContexteEtat): EtatCalcule {
   if (date > repere)
     return {
       etat: 'tardive',
       retardJours: ecartJours(repere, date),
       message: `Déclaration du ${dateIsoVersFr(date)}, postérieure au repère indicatif du ${dateIsoVersFr(repere)}.`,
+    }
+  if (courtierAVerifier === true)
+    return {
+      etat: 'a_verifier',
+      retardJours: 0,
+      message: `Déclaration adressée au courtier le ${dateIsoVersFr(date)}, dans le repère indicatif du ${dateIsoVersFr(repere)} : à vérifier : mandat du courtier et date de transmission à la compagnie.`,
     }
   const reception = courrier ? receptionConnue(courrier) : null
   if (reception !== null && reception > repere)
@@ -622,23 +696,30 @@ function etatDeclare(date: string, courrier: CourrierDeclarationDepose | null, {
 
 function etatDuDelai(retenue: DateRetenue, contexte: ContexteEtat): EtatCalcule {
   if (retenue.date === null) return etatSansDeclaration(contexte)
-  // Seule une date saisie peut suivre aujourd'hui (les courriers déposés après ce jour sont écartés) : jamais remplacée,
-  // elle n'est pas comparée au repère.
+  // Seule une date saisie (déclaration, ou transmission à la compagnie) peut suivre aujourd'hui (les courriers déposés
+  // après ce jour sont écartés) : jamais remplacée, elle n'est pas comparée au repère.
   if (retenue.date > contexte.aujourdhui)
     return {
       etat: 'a_verifier',
       retardJours: 0,
-      message: `Déclaration saisie au ${dateIsoVersFr(retenue.date)}, après aujourd'hui : date saisie à vérifier ; délai non contrôlé.`,
+      message: `${retenue.source === 'transmission' ? 'Transmission à la compagnie saisie' : 'Déclaration saisie'} au ${dateIsoVersFr(retenue.date)}, après aujourd'hui : date saisie à vérifier ; délai non contrôlé.`,
     }
-  return etatDeclare(retenue.date, retenue.courrier, contexte)
+  return etatDeclare(retenue.date, retenue, contexte)
 }
+
+/** J67, R55 : repère d'un jour non ouvrable ; le report est donné pour information, l'alerte suit la date sans report. */
+const mentionReport = ({ date, dateReportee }: RepereDeclaration): string =>
+  date !== null && dateReportee !== null
+    ? ` Premier jour ouvrable suivant : ${dateIsoVersFr(dateReportee)} ; report non prévu par le texte : déclarer au plus tard le ${dateIsoVersFr(date)}.`
+    : ''
 
 /**
  * Contrôle du délai de déclaration : date saisie, à défaut dépôt du premier courrier de déclaration déposé au plus tard
  * aujourd'hui, comparée au repère (droit commun : reperesDelaisSinistre ; catastrophe naturelle : publication de l'arrêté
- * + 30 jours ; dommages-ouvrage : aucun). Sans date de déclaration, un suivi plus avancé (expertise, rapport, règlement,
- * clôture datés, à défaut phase saisie qui suit la déclaration) donne « déclaration non datée ». Signal indicatif, à
- * confirmer (voir l'en-tête du module).
+ * + 30 jours, sans report ; dommages-ouvrage : aucun). Courrier au courtier : sa transmission à la compagnie, ou « à
+ * vérifier » sans mandat de l'assureur vu (J67, R51). Sans date de déclaration, un suivi plus avancé (expertise, rapport,
+ * règlement, clôture datés, à défaut phase saisie qui suit la déclaration) donne « déclaration non datée ». Signal
+ * indicatif, à confirmer (voir l'en-tête du module).
  */
 export function controlerDelaiDeclaration(
   sinistre: SinistreIdentifie,
@@ -647,10 +728,11 @@ export function controlerDelaiDeclaration(
 ): ControleDelaiDeclaration {
   verifierOptionsDelai(options)
   const { admis, futurs } = trierCourriers(sinistre, courriers, options.aujourdhui)
-  const retenue = dateRetenue(sinistre.fiche, admis[0] ?? null)
+  const retenue = retenueViaCourtier(dateRetenue(sinistre.fiche, admis[0] ?? null), options)
   const repere = repereDeclaration(sinistre.fiche, options)
   const commun = {
     declarationAuPlusTard: repere.date,
+    declarationAuPlusTardReportee: repere.dateReportee,
     delai: repere.delai,
     dateRetenue: retenue.date,
     source: retenue.source,
@@ -667,5 +749,6 @@ export function controlerDelaiDeclaration(
     fondements: repere.fondements,
     futur: futurs[0],
   }
-  return { ...commun, ...etatDuDelai(retenue, contexte) }
+  const etat = etatDuDelai(retenue, contexte)
+  return { ...commun, ...etat, message: `${etat.message}${mentionReport(repere)}` }
 }

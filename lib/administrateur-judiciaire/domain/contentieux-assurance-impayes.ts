@@ -6,6 +6,12 @@ import {
   verifierAujourdhui,
   type PlausibiliteDate,
 } from '@/lib/administrateur-judiciaire/domain/dates'
+import {
+  controlerDecisionSouscriptionAssurance,
+  type CauseAutorisationVente,
+  type ContexteAutorisationVente,
+  type DecisionDeSouscription,
+} from '@/lib/administrateur-judiciaire/domain/contentieux-voies-execution'
 import { indemnitesSinistre, type FicheSinistre, type IndemnitesSinistre } from '@/lib/administrateur-judiciaire/domain/sinistres'
 import type { TypeContentieux, TypeSinistre } from '@/lib/data/referentiels-gesteam-judiciaire'
 
@@ -45,6 +51,19 @@ import type { TypeContentieux, TypeSinistre } from '@/lib/data/referentiels-gest
  *   fiches-liees.ts ne donne que le Flux des fiches rattachées (point 47), pas les changements du dossier. Rien n'est
  *   relié ici et aucun écran n'est créé : branchement à faire avec la table des contentieux.
  *
+ * Décision de Hugo du 17/11/2026 (registre des décisions juridiques, J67, R47 ; question 3, en partie) :
+ * - sous administration provisoire, la souscription d'une police impayés au nom du syndicat suit la mission de
+ *   l'ordonnance (L. 1965 art. 29-1, I, al. 2, lu sur Légifrance le 17/11/2026, en vigueur depuis le 11/04/2024).
+ *   L'administrateur provisoire qui a reçu ce pouvoir de l'AG décide, après avis du conseil syndical sauf urgence
+ *   (D. 1967 art. 62-7), et porte la décision à sa date au registre (art. 62-8) ; sinon l'AG vote (art. 24 par défaut,
+ *   aucun texte spécial lu ; contrat type de syndic, D. 1967 annexe 1, annexe au contrat, V, 16° : souscription soumise au
+ *   vote de l'AG). Une police impayés n'est pas une assurance de responsabilité civile : le secours de l'art. 18, I (le
+ *   syndic souscrit si l'AG refuse) ne joue pas. controlerSouscriptionAssuranceImpayes relie le contrat à sa décision,
+ *   avec le contrôle des pouvoirs de la saisie (contentieux-voies-execution.controlerDecisionSouscriptionAssurance) : une
+ *   alerte non bloquante, jamais un refus ; sans décision liée, « souscription non rattachée à une décision : vérifier les
+ *   pouvoirs de l'ordonnance ». Aucun champ du contrat ne porte cette décision : enregistrement : à brancher ; alerte à
+ *   produire sur la fiche du contrat (écran : Frédéric).
+ *
  * 🔵 Déduit :
  * - la garantie impayés se déclare comme un sinistre « Charges Impayées » ou « Loyers Impayés » : le contentieux porte la
  *   couverture, la date de déclaration et le lien `sinistreId` ; les indemnités se LISENT sur le sinistre
@@ -68,9 +87,8 @@ import type { TypeContentieux, TypeSinistre } from '@/lib/data/referentiels-gest
  *    non opposable au débiteur tant qu'elle n'est ni notifiée ni prise en acte par lui, mais il peut l'invoquer dès qu'il
  *    la connaît (art. 1346-5, al. 1) et elle est opposable aux tiers dès le paiement (al. 2).
  * 3. (Frédéric ou Hugo) La case « Couverture impayés » découle-t-elle d'un contrat d'assurance du mandat (TYPE_CONTRAT
- *    « Assurance loyer impayé », garantie de la multirisque) à relier, ou est-elle saisie librement ? Sous administration
- *    provisoire, la souscription d'une police au nom du syndicat suit-elle la mission de l'ordonnance (loi art. 29-1, I,
- *    al. 2 ; contrat type de syndic, prestation V-16° : vote de l'AG) ?
+ *    « Assurance loyer impayé », garantie de la multirisque) à relier, ou est-elle saisie librement ? (Qui décide de la
+ *    souscription : tranché par J67, R47, ci-dessus.)
  */
 
 /** Types de sinistre de la garantie impayés (référentiel Gestéam TYPE_SINISTRE). */
@@ -223,6 +241,40 @@ export function controlerAssuranceImpayes(
 export interface VueAssuranceImpayes extends AssuranceImpayesContentieux {
   /** Indemnités lues sur le sinistre lié (indemnitesSinistre) ; null sans fiche. Jamais déduites du solde dû (🔴 2). */
   indemnites: IndemnitesSinistre | null
+}
+
+/**
+ * Contrat d'assurance impayés et décision qui l'a souscrit (J67, R47). Aucun champ du contrat ne porte cette décision :
+ * enregistrement : à brancher.
+ */
+export interface SouscriptionAssuranceImpayes extends DecisionDeSouscription {
+  contratId: string
+}
+
+export interface ControleSouscriptionAssuranceImpayes {
+  cause: CauseAutorisationVente
+  /** Avertissement à afficher : décision absente, non admise ou à vérifier. */
+  aSignaler: boolean
+  /** Jamais un refus (J67, R47). */
+  bloquant: false
+  message: string
+  fondement: string
+  /** Points non contrôlés ici (avis du conseil syndical, mode de financement : D. 1967 art. 62-7). */
+  rappels: string[]
+}
+
+/**
+ * Décision de souscription d'une police impayés au nom du syndicat (J67, R47) : contrôle des pouvoirs de la saisie en
+ * vue de la vente, sans date (contentieux-voies-execution.controlerDecisionSouscriptionAssurance) ; à signaler dès que la
+ * décision manque, n'est pas admise ou reste à vérifier. Signale, ne refuse pas ; lève une erreur d'appel si la
+ * résolution ou l'assemblée fournie n'est pas celle du lien.
+ */
+export function controlerSouscriptionAssuranceImpayes(
+  souscription: SouscriptionAssuranceImpayes,
+  contexte: ContexteAutorisationVente = {},
+): ControleSouscriptionAssuranceImpayes {
+  const { autorise, aConfirmer, cause, motif, fondement, rappels } = controlerDecisionSouscriptionAssurance(souscription, contexte)
+  return { cause, aSignaler: !autorise || aConfirmer, bloquant: false, message: motif, fondement, rappels }
 }
 
 /** Bloc Assurance de la fiche : la saisie du contentieux et les « Indemnités totales » lues sur le sinistre lié. */

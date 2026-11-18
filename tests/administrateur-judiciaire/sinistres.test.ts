@@ -233,4 +233,36 @@ describe('sinistres — repères de délais (indicatifs)', () => {
     expect(reperes.fondements).toEqual(['C. assur. art. L. 113-2', 'C. assur. art. L. 114-1'])
     expect(reperes.avertissement).toMatch(/indicatif/i)
   })
+
+  it('J67, R50 : l’avertissement rappelle de déclarer dès la connaissance ; le repère est le minimum légal du délai prévu au contrat', () => {
+    for (const type of ['Dégât des eaux', 'Vol'] as const) {
+      const reperes = reperesDelaisSinistre(creerSinistre(saisie({ type })))
+      expect(reperes.avertissement).toContain(
+        'Déclarer dès la connaissance du sinistre ; le repère est le minimum légal du délai prévu au contrat (C. assur. art. L. 113-2, 4°)',
+      )
+      expect(reperes.desLaConnaissance).toBe(false)
+    }
+  })
+
+  it('J67, R52 : dommages-ouvrage, pas de minimum de cinq jours ouvrés : repère au jour de la connaissance, sauf délai du contrat', () => {
+    const dommagesOuvrage = creerSinistre(saisie({ type: 'Dommages Ouvrage', dateConnaissance: '2026-11-02', dateDeclaration: '2026-11-04' }))
+    const reperes = reperesDelaisSinistre(dommagesOuvrage)
+    expect(reperes).toMatchObject({
+      delaiDeclarationJoursOuvres: 0,
+      declarationAuPlusTard: '2026-11-02',
+      desLaConnaissance: true,
+      // Aucun délai à dépasser : la déclaration n'est jamais « tardive » au regard du repère.
+      declarationTardive: false,
+      prescription: '2028-10-27',
+    })
+    expect(reperes.fondements).toEqual(['C. assur. art. L. 113-2', 'C. assur. annexe II à l’art. A. 243-1', 'C. assur. art. L. 114-1'])
+    expect(reperes.avertissement).toMatch(/^Dommages-ouvrage : déclarer dès la connaissance du sinistre \(C\. assur\. art\. L\. 113-2, 4°\) ; aucun délai dans les clauses types/)
+    // La police fixe un délai : il s'applique, sans plancher de cinq jours.
+    expect(reperesDelaisSinistre(dommagesOuvrage, { delaiContratJoursOuvres: 3 })).toMatchObject({
+      delaiDeclarationJoursOuvres: 3,
+      declarationAuPlusTard: '2026-11-05',
+      desLaConnaissance: false,
+      declarationTardive: false,
+    })
+  })
 })

@@ -126,6 +126,51 @@ import type { TypeContentieux } from '@/lib/data/referentiels-gesteam-judiciaire
  *   saisie, CPCE R. 321-1. L'admission d'une action hors recouvrement reste à confirmer pour une autre raison, inchangée :
  *   l'antériorité de la décision à l'introduction de l'action n'est pas contrôlée.
  *
+ * Décisions de Hugo du 17/11/2026 (registre des décisions juridiques, J67 : recommandations R43 à R47, validées en bloc ;
+ * textes lus sur Légifrance le 17/11/2026, versions en vigueur à cette date) :
+ * - J67, R43 (question 9 fermée) : sous la case « Échéancier », le jalon « Commandement » du dossier est signalé lui aussi.
+ *   controlerExecutionSousEcheancierDuJuge lit les jalons et nomme le commandement en tête de l'alerte : « Commandement
+ *   daté du JJ/MM/AAAA : procédure d'exécution engagée, suspendue par la décision du juge (C. civ. art. 1343-5, al. 4) »,
+ *   avec la réserve de J43 (vérifier sur la décision). Le commandement aux fins de saisie-vente est l'« acte qui engage la
+ *   mesure d'exécution forcée » (Cass. com., 17/01/2024, n° 22-20.185, publié) ; sans être lui-même un acte d'exécution
+ *   forcée, il l'engage (Cass. 2e civ., avis du 05/03/2026, n° 25-70.021, publié). C. civ. art. 1343-5, al. 4 (en vigueur
+ *   depuis le 01/10/2016) : la décision du juge suspend les procédures engagées. executionEngagee et la phase suggérée sont
+ *   inchangées. Limites : aucun arrêt lu n'applique l'art. 1343-5 au seul commandement ; le jalon ne dit pas de quel
+ *   commandement il s'agit.
+ * - J67, R44 (question 1 fermée) : la saisie en vue de la vente se vote à la majorité de l'art. 24 (L. 1965 art. 24, I,
+ *   règle par défaut, en vigueur depuis le 18/06/2025, loi n° 2025-541, art. 9 ; ni l'art. 25 ni l'art. 26 ne la visent ;
+ *   D. 1967 art. 55, en vigueur depuis le 25/12/2025, ne fixe aucune majorité) ; une majorité plus forte (25 ou 26) est
+ *   admise aussi. La marque « à confirmer » de l'art. 24 est retirée. Rappel ajouté : la résolution vise ce copropriétaire
+ *   nommément, l'assemblée ne pouvant donner une autorisation générale et à l'avance contre un copropriétaire non désigné
+ *   (Cass. 3e civ., 15/02/2006, n° 04-20.261, publié) ; elle peut autoriser la saisie avant le titre exécutoire (Cass. 3e
+ *   civ., 03/07/2013, n° 12-18.952, publié). Le décompte des voix sans le débiteur (L. 1965 art. 19-2, al. 5) reste à
+ *   brancher (module AG).
+ * - J67, R45 (question 2 fermée) : la décision de l'administrateur provisoire porte, comme la résolution d'AG, la mise à
+ *   prix et les sommes estimées définitivement perdues. C'est une règle de VitFix : D. 1967 art. 11, I, 11° (en vigueur
+ *   depuis le 25/12/2025) ne vise que le projet de résolution notifié avec l'ordre du jour d'une AG ; les deux montants
+ *   servent à l'avis du conseil syndical et au mode de financement, précisé « à ces occasions » (art. 62-7, al. 3, en
+ *   vigueur depuis le 01/01/2020 : consultation du conseil syndical, réunion des copropriétaires) ; la décision est portée
+ *   à sa date au registre (art. 62-8, en vigueur depuis le 01/09/2004) ; la mise à prix sert de toute façon à la procédure
+ *   (CPCE art. L. 322-6, al. 1). Le message du refus le dit ; une résolution d'AG garde le sien (le texte l'exige). Zéro
+ *   euro reste admis pour les sommes perdues : la règle ne bloque rien en pratique. La décision vise le copropriétaire
+ *   nommément (même arrêt de 2006) : rappel ajouté aux deux voies.
+ * - J67, R46 (question 4 fermée) : l'hypothèque que le syndic fait inscrire (bloc Hypothèque) n'a qu'un plafond : aucune
+ *   inscription pour des créances exigibles depuis plus de cinq ans (L. 1965 art. 19, al. 4, en vigueur depuis le
+ *   01/06/2020, ordonnance n° 2019-1101, art. 18) ; postesHorsInscriptionHypotheque est inchangé. L'art. 19-1 (en vigueur
+ *   depuis le 01/01/2022, ordonnance n° 2021-1192, art. 35) rattache ces créances à l'hypothèque légale du code civil ;
+ *   C. civ. art. 2402, 3° (en vigueur depuis le 01/01/2022) garantit, sur le lot vendu, les créances de l'année courante
+ *   et des quatre dernières années échues : une autre garantie, liée à la vente du lot, à modéliser plus tard dans le
+ *   module des ventes de lots, sans la mélanger avec l'inscription. Non lus : règles d'inscription et de rang de cette hypothèque
+ *   spéciale ; sens de « année » (civile ou exercice).
+ * - J67, R47 : la souscription d'une police impayés au nom du syndicat suit la mission de l'ordonnance (L. 1965 art. 29-1,
+ *   I, al. 2, en vigueur depuis le 11/04/2024). L'administrateur provisoire décide s'il a reçu ce pouvoir de l'AG, après
+ *   avis du conseil syndical sauf urgence (D. 1967 art. 62-7), décision portée à sa date au registre (art. 62-8) ; sinon
+ *   l'AG vote (art. 24 par défaut ; contrat type de syndic, D. 1967 annexe 1, annexe au contrat, V, 16°, en vigueur
+ *   depuis le 25/12/2025 : souscription soumise au vote de l'AG ; le secours de L. 1965 art. 18, I ne vaut que pour la
+ *   responsabilité civile). controlerDecisionSouscriptionAssurance applique les mêmes règles de pouvoirs que la saisie,
+ *   sans contrôle de date ; contentieux-assurance-impayes.controlerSouscriptionAssuranceImpayes en fait une alerte, jamais
+ *   un refus.
+ *
  * 🔵 Déduit :
  * - la saisie immobilière est ENGAGÉE dès qu'une de ses dates (Engagée le, Audience éventuelle, Adjudication) est saisie ;
  *   cochée sans date, elle se prépare (projet de résolution) et n'exige encore rien ; son PREMIER ACTE est la date la
@@ -161,27 +206,13 @@ import type { TypeContentieux } from '@/lib/data/referentiels-gesteam-judiciaire
  *   al. 3), pas celles du syndicat contre un copropriétaire : elle ne bloque pas la saisie ;
  * - garantie de l'enchérisseur arrondie au centime supérieur (le texte ne dit rien de l'arrondi).
  *
- * 🔴 Non établi — questions exactes (les n° 3 et 5, tranchées par J35 et J36, ci-dessus, sont retirées ; les numéros
- * restent ceux que le code cite) :
- * 1. (Frédéric ou Hugo) La décision qui autorise la saisie en vue de la vente se prend-elle à la majorité de l'art. 24
- *    (règle par défaut, L. 1965 art. 24, I : aucun texte spécial lu) ou de l'art. 25 ? Une résolution soumise à l'art. 24
- *    est admise, à confirmer (`aConfirmer`).
- * 2. (Frédéric) L'administrateur provisoire de l'art. 29-1 investi des pouvoirs de l'AG décide de la saisie sans vote de
- *    l'assemblée, après avis du conseil syndical sauf urgence (D. 1967 art. 62-7, al. 1 ; 🔵) : sa décision inscrite au
- *    registre doit-elle porter la mise à prix et les sommes estimées définitivement perdues, alors que l'art. 11, I, 11°
- *    vise les projets notifiés avec l'ordre du jour d'une AG ? VitFix exige les deux montants dans les deux cas.
- * 4. (Frédéric) Quel plafond appliquer au montant de l'hypothèque : les cinq ans de l'art. 19, al. 4, ou l'année courante
- *    et les quatre dernières années échues de C. civ. art. 2402, 3° (visé par l'art. 19-1) ? VitFix n'applique que l'al. 4
- *    (postesHorsInscriptionHypotheque).
+ * 🔴 Non établi — questions exactes (les n° 3 et 5, tranchées par J35 et J36, et les n° 1, 2, 4 et 9, tranchées par J67,
+ * ci-dessus, sont retirées ; les numéros restent ceux que le code cite) :
  * 6. (Frédéric) Une mise à prix ou des sommes perdues égales à 0 € sont-elles admises ? VitFix accepte un montant ≥ 0.
  * 7. (Frédéric) Faut-il un second champ pour la mise à prix fixée par le juge (CPCE L. 322-6, al. 2), distincte de la
  *    mise à prix initiale votée ? VitFix n'en garde qu'une.
  * 8. (Frédéric) Libellés : ceux de Gestéam (« Saisie arrêt salaire », « Saisie arrêt loyer ») ou ceux du code (saisie des
  *    rémunérations, saisie-attribution) ? VitFix garde ceux de Gestéam et donne la désignation du code.
- * 9. (Frédéric ou Hugo, suite de J43) Le jalon « Commandement » du dossier (contentieux.ts), qui donne la phase suggérée
- *    « Exécution en cours », compte-t-il aussi comme une exécution engagée à signaler sous la case « Échéancier » ?
- *    VitFix : non, seules les mesures du bloc Voie d'exécution (executionEngagee), celles que la question tranchée par J43
- *    énumérait.
  *
  * Branchements à faire plus tard (fichiers d'autres PR, écran) : suivi « à faire » (audience d'adjudication à venir,
  * saisie en vue de la vente non autorisée ; NATURES_SUIVI.contentieux est figé) ; alerte de
@@ -190,7 +221,10 @@ import type { TypeContentieux } from '@/lib/data/referentiels-gesteam-judiciaire
  * signalée ; compte rendu à la prochaine AG des actions introduites (art. 55, al. 4) ; décompte des voix sans le débiteur
  * (art. 19-2, al. 5, module AG) ; notification du projet avec l'ordre du jour (art. 11, I) ; reglementsSurContentieux
  * par le compteId du dossier ; registre des décisions de l'administrateur provisoire (art. 62-8 : référence et date) et
- * avis du conseil syndical (art. 62-7) ; table des contentieux et onglet Règlements (Frédéric).
+ * avis du conseil syndical (art. 62-7) ; table des contentieux et onglet Règlements (Frédéric) ; contrat d'assurance
+ * impayés relié à sa décision de souscription (J67, R47) : aucun champ du contrat ne la porte, enregistrement à brancher,
+ * alerte à produire sur la fiche du contrat (écran : Frédéric) ; hypothèque spéciale de C. civ. art. 2402, 3° (J67, R46),
+ * à modéliser dans le module des ventes de lots (opposition sur le prix).
  */
 
 // ─── Référentiel des saisies (tenu à part du point 29) ─────────────────────────────────────────────────────────────
@@ -423,7 +457,12 @@ export function executionEngagee(voies: VoiesExecutionContentieux | null | undef
   return voies.saisies.length > 0 || voies.expulsionLe !== null || saisieVenteEngagee(voies)
 }
 
-// ─── Exécution engagée sous l'échéancier du juge (décision J43) ──────────────────────────────────────────────────
+// ─── Exécution engagée sous l'échéancier du juge (décisions J43 et J67, R43) ─────────────────────────────────────
+
+export const FONDEMENT_SUSPENSION_EXECUTION = 'C. civ. art. 1343-5, al. 4'
+
+/** C. civ. art. 1343-5, al. 4, première phrase (relue sur Légifrance le 06/11/2026, puis le 17/11/2026). */
+const SUSPENSION_PAR_LE_JUGE = "« La décision du juge suspend les procédures d'exécution qui auraient été engagées par le créancier. »"
 
 /** Mesures engagées, dans l'ordre de la fiche : saisies cochées, premier acte de la saisie immobilière, expulsion datée. */
 function mesuresEngagees(voies: VoiesExecutionContentieux): string[] {
@@ -434,33 +473,42 @@ function mesuresEngagees(voies: VoiesExecutionContentieux): string[] {
   return mesures
 }
 
-export const FONDEMENT_SUSPENSION_EXECUTION = 'C. civ. art. 1343-5, al. 4'
-
-/** C. civ. art. 1343-5, al. 4, première phrase (relue sur Légifrance le 06/11/2026). */
-const SUSPENSION_PAR_LE_JUGE = "« La décision du juge suspend les procédures d'exécution qui auraient été engagées par le créancier. »"
+/**
+ * Jalon « Commandement » du dossier : il engage la mesure d'exécution forcée (Cass. com., 17/01/2024, n° 22-20.185),
+ * que la décision du juge suspend (J67, R43).
+ */
+const libelleCommandement = (date: string): string =>
+  `Commandement daté du ${dateIsoVersFr(date)} : procédure d'exécution engagée, suspendue par la décision du juge (${FONDEMENT_SUSPENSION_EXECUTION})`
 
 export interface AlerteExecutionSousEcheancier {
   code: 'execution_engagee_sous_echeancier_du_juge'
   /** Avertissement, non bloquant (décision J43 ; gravité justifiée dans l'en-tête). */
   gravite: 'avertissement'
   bloquant: false
-  /** Mesures engagées, nommées, dans l'ordre de la fiche. */
+  /** Commandement daté (J67, R43), puis mesures engagées, dans l'ordre de la fiche. */
   mesures: string[]
   message: string
   fondement: string
 }
 
+/** Dossier lu sous la case « Échéancier », typé par sa structure (contentieux.DossierContentieux y répond). */
+export interface DossierSousEcheancier {
+  voiesExecution?: VoiesExecutionContentieux
+  /** Jalons du dossier : seul le commandement est lu (J67, R43). */
+  jalons?: Partial<Record<'commandement', string>>
+}
+
 /**
- * Décision J43 : case « Échéancier » cochée (échéancier fixé par décision du juge, J33) et exécution déjà engagée sur le
- * même dossier (executionEngagee) : avertissement non bloquant, qui nomme chaque mesure ; null sinon. Signale, ne refuse
- * pas : le dossier reste tel quel.
+ * Décisions J43 et J67, R43 : case « Échéancier » cochée (échéancier fixé par décision du juge, J33) et procédure
+ * d'exécution déjà engagée sur le même dossier (commandement daté, ou mesure d'executionEngagee) : avertissement non
+ * bloquant, qui nomme le commandement puis chaque mesure ; null sinon. Signale, ne refuse pas : le dossier reste tel quel.
  */
-export function controlerExecutionSousEcheancierDuJuge(
-  dossier: Pick<DossierVoiesExecution, 'voiesExecution'>,
-): AlerteExecutionSousEcheancier | null {
+export function controlerExecutionSousEcheancierDuJuge(dossier: DossierSousEcheancier): AlerteExecutionSousEcheancier | null {
   const voies = dossier.voiesExecution
-  if (voies === undefined || !voies.caseEcheancier || !executionEngagee(voies)) return null
-  const mesures = mesuresEngagees(voies)
+  if (voies === undefined || !voies.caseEcheancier) return null
+  const commandement = dossier.jalons?.commandement
+  const mesures = [...(commandement ? [libelleCommandement(commandement)] : []), ...mesuresEngagees(voies)]
+  if (mesures.length === 0) return null
   return {
     code: 'execution_engagee_sous_echeancier_du_juge',
     gravite: 'avertissement',
@@ -484,12 +532,20 @@ function montantsManquants(venteLot: VenteLot | null): string[] {
   return manquants
 }
 
-const messageMontants = (sujet: string, manquants: readonly string[]): string =>
-  `${sujet} sans ${manquants.join(' et ')} : le projet de résolution qui l'autorise en mentionne le montant (${FONDEMENT_MONTANTS}).`
+/** Résolution d'AG : le texte exige les deux montants (D. 1967 art. 11, I, 11°). */
+const MONTANTS_EXIGES_PAR_LE_TEXTE = `le projet de résolution qui l'autorise en mentionne le montant (${FONDEMENT_MONTANTS})`
+
+/** Décision de l'administrateur provisoire : les deux montants sont une règle de VitFix, aucun texte (J67, R45). */
+const MONTANTS_EXIGES_PAR_VITFIX = `exigé par VitFix, par analogie avec ${FONDEMENT_MONTANTS} ; utile à l'avis du conseil syndical et au mode de financement (art. 62-7) ; aucun texte ne l'impose à la décision de l'administrateur provisoire`
+const FONDEMENT_MONTANTS_AP = `Règle de VitFix, par analogie avec ${FONDEMENT_MONTANTS} ; D. 1967 art. 62-7`
+
+const messageMontants = (sujet: string, manquants: readonly string[], decision: SourceDecisionContentieux): string =>
+  `${sujet} sans ${manquants.join(' et ')} : ${decision.origine === 'administrateur' ? MONTANTS_EXIGES_PAR_VITFIX : MONTANTS_EXIGES_PAR_LE_TEXTE}.`
 
 /**
  * Refus structurel (appelé par contentieux.creerDossierContentieux) : une saisie immobilière engagée exige une décision
- * liée et les deux montants du projet de résolution. Les autres voies d'exécution n'exigent rien (art. 55, al. 3).
+ * liée et les deux montants (projet de résolution ; décision de l'administrateur provisoire : règle de VitFix, J67, R45).
+ * Les autres voies d'exécution n'exigent rien (art. 55, al. 3).
  */
 export function exigerAutorisationVente(
   voies: VoiesExecutionContentieux | null | undefined,
@@ -501,7 +557,7 @@ export function exigerAutorisationVente(
       `Saisie immobilière engagée sans décision liée : rattacher la résolution d'assemblée qui l'autorise, ou la décision de l'administrateur provisoire investi des pouvoirs de l'assemblée (${FONDEMENT_AUTORISATION}).`,
     )
   const manquants = montantsManquants(voies?.venteLot ?? null)
-  if (manquants.length > 0) throw new Error(messageMontants('Saisie immobilière engagée', manquants))
+  if (manquants.length > 0) throw new Error(messageMontants('Saisie immobilière engagée', manquants, decision))
 }
 
 // ─── Contrôle de fond ────────────────────────────────────────────────────────────────────────────────────────────
@@ -554,13 +610,14 @@ export interface ResultatAutorisationVente {
   motif: string
   fondement: string
   /**
-   * Admise sous réserve d'une question ouverte (majorité, étendue des pouvoirs confiés) ou d'un point non contrôlé
-   * (antériorité de l'autorisation d'une action en justice).
+   * Admise sous réserve d'une question ouverte (étendue des pouvoirs confiés) ou d'un point non contrôlé (antériorité de
+   * l'autorisation d'une action en justice). La majorité n'en est plus une (J67, R44).
    */
   aConfirmer: boolean
   /**
    * Points que le module ne contrôle pas, pour une décision admise : décompte des voix et notification du projet (résolution
-   * d'AG) ; avis du conseil syndical et mode de financement (décision de l'administrateur provisoire).
+   * d'AG) ; avis du conseil syndical et mode de financement (décision de l'administrateur provisoire) ; pour la saisie,
+   * copropriétaire visé nommément (J67, R44 et R45).
    */
   rappels: string[]
 }
@@ -581,9 +638,14 @@ const resultat = (
   rappels: options.rappels ?? [],
 })
 
+/** Saisie en vue de la vente, résolution d'AG ou décision de l'administrateur provisoire (J67, R44 et R45). */
+const RAPPEL_COPROPRIETAIRE_DESIGNE =
+  "La décision vise ce copropriétaire nommément : l'assemblée ne peut donner une autorisation générale et à l'avance contre un copropriétaire non désigné (Cass. 3e civ., 15/02/2006, n° 04-20.261)."
+
 export const RAPPELS_RESOLUTION_VENTE: readonly string[] = Object.freeze([
   "Au vote, la voix du copropriétaire débiteur n'est pas comptée et il ne peut recevoir mandat (L. 1965 art. 19-2, al. 5) : décompte à vérifier au procès-verbal.",
   "Le projet de résolution doit avoir été notifié au plus tard avec l'ordre du jour (D. 1967 art. 11, I, 11°) : notification non contrôlée ici.",
+  RAPPEL_COPROPRIETAIRE_DESIGNE,
 ])
 
 export const RAPPELS_DECISION_ADMINISTRATEUR: readonly string[] = Object.freeze([
@@ -643,9 +705,9 @@ const RESOLUTION_SOUS_AP: Record<'partie' | 'inconnue', string> = {
 }
 
 /**
- * Ce qu'autorise la décision liée : la saisie en vue de la vente d'un lot (art. 55, al. 3), ou une action en justice
- * hors recouvrement (art. 55, al. 1 ; J35). Les règles sont les mêmes ; sujet, fondement et rappels
- * changent.
+ * Ce qu'autorise la décision liée : la saisie en vue de la vente d'un lot (art. 55, al. 3), une action en justice hors
+ * recouvrement (art. 55, al. 1 ; J35) ou la souscription d'une police impayés (J67, R47). Les règles sont les mêmes ;
+ * sujet, fondement et rappels changent. Toute majorité est admise, l'art. 24 compris (J67, R44).
  */
 interface ObjetAutorisation {
   /** Sujet des messages, au féminin (« Saisie immobilière autorisée », « Action en justice autorisée »). */
@@ -655,8 +717,6 @@ interface ObjetAutorisation {
   /** Ce qui revient à l'administrateur provisoire investi de tous les pouvoirs de l'assemblée. */
   decisionDeLAdministrateur: string
   fondement: string
-  /** La majorité de l'art. 24 est-elle à confirmer (🔴 1, saisie seulement) ? */
-  majoriteADouter: boolean
   /**
    * Toute admission est à confirmer : l'antériorité de la décision à l'introduction de l'action n'est pas contrôlée
    * (action en justice seulement ; la saisie contrôle la date de son premier acte).
@@ -678,10 +738,9 @@ const AUTORISATION_VENTE: ObjetAutorisation = {
   designation: 'la saisie en vue de la vente',
   decisionDeLAdministrateur: 'la décision de saisir en vue de la vente',
   fondement: FONDEMENT_AUTORISATION,
-  majoriteADouter: true,
   aConfirmer: false,
   rappelsResolution: RAPPELS_RESOLUTION_VENTE,
-  rappelsAdministrateur: RAPPELS_DECISION_ADMINISTRATEUR,
+  rappelsAdministrateur: [...RAPPELS_DECISION_ADMINISTRATEUR, RAPPEL_COPROPRIETAIRE_DESIGNE],
 }
 
 const AUTORISATION_ACTION: ObjetAutorisation = {
@@ -689,21 +748,31 @@ const AUTORISATION_ACTION: ObjetAutorisation = {
   designation: "l'action en justice",
   decisionDeLAdministrateur: "l'autorisation d'agir en justice",
   fondement: FONDEMENT_ACTION,
-  majoriteADouter: false,
   aConfirmer: true,
   rappelsResolution: RAPPELS_ACTION_EN_JUSTICE,
   rappelsAdministrateur: [...RAPPELS_DECISION_ADMINISTRATEUR, ...RAPPELS_ACTION_EN_JUSTICE],
 }
 
+/** Contrat type de syndic : souscription des polices au nom du syndicat soumise au vote de l'AG (J67, R47). */
+const FONDEMENT_SOUSCRIPTION = 'D. 1967 annexe 1 (contrat type), annexe au contrat, V, 16°'
+
+const AUTORISATION_SOUSCRIPTION: ObjetAutorisation = {
+  sujet: 'Souscription de la police impayés',
+  designation: 'la souscription de la police impayés',
+  decisionDeLAdministrateur: 'la décision de souscrire la police impayés',
+  fondement: FONDEMENT_SOUSCRIPTION,
+  aConfirmer: false,
+  rappelsResolution: [],
+  rappelsAdministrateur: RAPPELS_DECISION_ADMINISTRATEUR,
+}
+
 const resolutionAgDessaisie = (objet: ObjetAutorisation): string =>
   `Résolution votée alors que l'ordonnance confie tous les pouvoirs de l'assemblée (hors art. 26 a et b) à l'administrateur provisoire : l'assemblée ne garde que ceux qui ne sont pas compris dans sa mission ; ${objet.decisionDeLAdministrateur} revient à l'administrateur provisoire, portée à sa date au registre.`
 
-const MAJORITE_A_CONFIRMER =
-  "Résolution soumise à la majorité de l'art. 24 : à confirmer, aucun texte lu ne dit si la saisie en vue de la vente se vote à la majorité de l'art. 24 ou de l'art. 25."
-
 /**
- * Résolution adoptée, de la même copropriété (votée à temps, pour la saisie) : refusée si l'ordonnance confiait alors
- * tous les pouvoirs de l'assemblée à l'administrateur provisoire ; sinon admise, sous réserve du régime et de la majorité.
+ * Résolution adoptée, de la même copropriété (votée à temps, pour la saisie), à toute majorité (J67, R44) : refusée si
+ * l'ordonnance confiait alors tous les pouvoirs de l'assemblée à l'administrateur provisoire ; sinon admise, sous réserve
+ * du régime.
  */
 function admissionResolution(
   resolution: Resolution,
@@ -714,12 +783,10 @@ function admissionResolution(
   const fondementSousAp = `${objet.fondement} ; ${FONDEMENT_POUVOIRS_AP}`
   if (etendue === 'tous') return resultat('pouvoir_ag_confie_a_l_administrateur', resolutionAgDessaisie(objet), fondementSousAp)
   const sousAp = etendue === 'partie' || etendue === 'inconnue'
-  const majoriteDouteuse = objet.majoriteADouter && resolution.majorite === 'art24'
   const notes = [`${objet.sujet} autorisée par la résolution n° ${resolution.numero}, adoptée.`]
   if (sousAp) notes.push(RESOLUTION_SOUS_AP[etendue])
-  if (majoriteDouteuse) notes.push(MAJORITE_A_CONFIRMER)
   return resultat(sousAp ? 'pouvoirs_ag_a_verifier' : 'admise', notes.join(' '), sousAp ? fondementSousAp : objet.fondement, {
-    aConfirmer: objet.aConfirmer || sousAp || majoriteDouteuse,
+    aConfirmer: objet.aConfirmer || sousAp,
     rappels: [...objet.rappelsResolution],
   })
 }
@@ -849,7 +916,12 @@ export function controlerAutorisationSaisieVente(
       FONDEMENT_AUTORISATION,
     )
   const manquants = montantsManquants(dossier.voiesExecution?.venteLot ?? null)
-  if (manquants.length > 0) return resultat('montants_manquants', messageMontants('Saisie immobilière', manquants), FONDEMENT_MONTANTS)
+  if (manquants.length > 0)
+    return resultat(
+      'montants_manquants',
+      messageMontants('Saisie immobilière', manquants, decision),
+      decision.origine === 'administrateur' ? FONDEMENT_MONTANTS_AP : FONDEMENT_MONTANTS,
+    )
   return decision.origine === 'assemblee'
     ? controlerResolution(dossier.coproprieteId, saisie, decision, contexte)
     : controlerDecisionAdministrateur(saisie, decision, contexte)
@@ -914,13 +986,55 @@ export function controlerAutorisationActionEnJustice(
   if (dossier.type === TYPE_CONTESTATION_AG)
     return resultat('non_requise', CONTESTATION_EN_DEFENSE, 'D. 1967 art. 55, al. 3 ; L. 1965 art. 42, al. 2')
   if (decision === null) return resultat('decision_manquante', ACTION_SANS_DECISION, FONDEMENT_AUTORISATION, { aConfirmer: true })
+  return controlerDecisionSansDate(dossier.coproprieteId, decision, contexte, AUTORISATION_ACTION)
+}
+
+/**
+ * Décision liée contrôlée sans date : résolution adoptée de la même copropriété (pouvoirs de l'AG sous administrateur
+ * provisoire), ou décision datée de l'administrateur provisoire, selon les pouvoirs de l'AG que l'ordonnance lui confie.
+ */
+function controlerDecisionSansDate(
+  coproprieteId: string,
+  decision: SourceDecisionContentieux,
+  contexte: ContexteAutorisationVente,
+  objet: ObjetAutorisation,
+): ResultatAutorisationVente {
   if (decision.origine === 'administrateur') {
     dateDecisionAdministrateur(decision.date)
-    return admissionDecisionAdministrateur(contexte, AUTORISATION_ACTION)
+    return admissionDecisionAdministrateur(contexte, objet)
   }
-  const liee = lireResolutionLiee(dossier.coproprieteId, decision, contexte, AUTORISATION_ACTION)
+  const liee = lireResolutionLiee(coproprieteId, decision, contexte, objet)
   if (liee.refus !== null) return liee.refus
-  return admissionResolution(liee.resolution, contexte, AUTORISATION_ACTION)
+  return admissionResolution(liee.resolution, contexte, objet)
+}
+
+/** Contrat dont la souscription se rattache à une décision, typé par sa structure (J67, R47). */
+export interface DecisionDeSouscription {
+  coproprieteId: string
+  /** Résolution d'assemblée ou décision de l'administrateur provisoire ; absente ou null : non rattachée. */
+  decision?: SourceDecisionContentieux | null
+}
+
+/** J67, R47 : un contrat sans décision liée est signalé, jamais refusé (le message le dit à l'appelant). */
+const SOUSCRIPTION_SANS_DECISION =
+  "Souscription non rattachée à une décision : vérifier les pouvoirs de l'ordonnance (résolution d'assemblée, ou décision de l'administrateur provisoire investi de ce pouvoir de l'assemblée)."
+
+/**
+ * Décision de souscrire une police au nom du syndicat (J67, R47) : mêmes règles de pouvoirs que la saisie en vue de la
+ * vente, sans contrôle de date (résolution adoptée de la même copropriété, ou décision de l'administrateur provisoire de
+ * l'art. 29-1 investi de ce pouvoir de l'AG). Sans décision liée : cause « decision_manquante ». Lève une erreur si la
+ * résolution ou l'assemblée fournie n'est pas celle du lien, ou si la décision de l'administrateur provisoire n'est pas
+ * datée (erreur d'appel). contentieux-assurance-impayes.controlerSouscriptionAssuranceImpayes en fait une alerte.
+ */
+export function controlerDecisionSouscriptionAssurance(
+  souscription: DecisionDeSouscription,
+  contexte: ContexteAutorisationVente = {},
+): ResultatAutorisationVente {
+  const decision = souscription.decision ?? null
+  verifierContexteDuLien(decision, contexte)
+  if (decision === null)
+    return resultat('decision_manquante', SOUSCRIPTION_SANS_DECISION, `${FONDEMENT_SOUSCRIPTION} ; ${FONDEMENT_POUVOIRS_AP}`)
+  return controlerDecisionSansDate(souscription.coproprieteId, decision, contexte, AUTORISATION_SOUSCRIPTION)
 }
 
 /** « Engagée le » encore vide, et la date ne suit pas l'audience ou l'adjudication déjà datée ; sinon erreur. */
@@ -1139,8 +1253,9 @@ export const ANNEES_INSCRIPTION_HYPOTHEQUE_MAX = 5
 
 /**
  * Postes exigibles depuis plus de cinq ans à la date d'inscription : aucune inscription, même complémentaire, ne peut
- * les garantir (L. 1965 art. 19, al. 4 ; articulation avec C. civ. art. 2402, 3° : 🔴 4). Les cinq ans se comptent de
- * date à date depuis l'exigibilité (sans quantième identique, le dernier jour du mois : dates.ajouterMois) ; exigible
+ * les garantir (L. 1965 art. 19, al. 4 : seul plafond de l'inscription faite par le syndic, J67, R46 ; l'hypothèque
+ * spéciale de C. civ. art. 2402, 3° relève des ventes de lots). Les cinq ans se comptent de date à date depuis
+ * l'exigibilité (sans quantième identique, le dernier jour du mois : dates.ajouterMois) ; exigible
  * depuis cinq ans pile, le poste reste inscriptible. Renvoie leurs identifiants. Les postes sont typés par leur structure
  * (imputation-encaissements.PosteDette y répond).
  */

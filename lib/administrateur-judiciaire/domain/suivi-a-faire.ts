@@ -779,18 +779,27 @@ export function depuisFactures(factures: FactureSuivie[], aujourdhui: string): E
   })
 }
 
-/** Sans date de suivi, une phase saisie qui suit la déclaration (phaseApresDeclaration) : à vérifier, pas à déclarer. */
-const libelleADeclarer = (libelle: string, fiche: FicheSinistre): string => {
+/** Dommages-ouvrage sans délai fixé par la police (J67, R52) : élément daté du jour de la connaissance. */
+const A_DECLARER_DES_LA_CONNAISSANCE = 'à déclarer dès la connaissance (L. 113-2, 4°) ; aucun délai dans les clauses types'
+
+/**
+ * Sans date de suivi, une phase saisie qui suit la déclaration (phaseApresDeclaration) : à vérifier, pas à déclarer.
+ * Sinon, sans délai (dommages-ouvrage, J67, R52) : à déclarer dès la connaissance.
+ */
+const libelleADeclarer = (libelle: string, fiche: FicheSinistre, desLaConnaissance: boolean): string => {
   const phase = phaseApresDeclaration(fiche)
-  return phase === null ? libelle : `${libelle} — déclaration non datée (phase « ${phase} ») : à vérifier`
+  if (phase !== null) return `${libelle} — déclaration non datée (phase « ${phase} ») : à vérifier`
+  return desLaConnaissance ? `${libelle} — ${A_DECLARER_DES_LA_CONNAISSANCE}` : libelle
 }
 
 /**
  * Sinistre en cours : repère de déclaration tant qu'il n'est pas déclaré, et prescription (sinistres.ts) — deux repères
- * indicatifs, 🔴 à confirmer : le contrat peut allonger le délai de déclaration. Indemnité différée non réglée : à
- * réclamer depuis le règlement de l'indemnité immédiate (à défaut le rapport, la déclaration, la survenance) ; c'est un
- * suivi de gestion, pas un repère légal. Sans date de suivi, une phase saisie qui suit la déclaration garde l'élément
- * « à déclarer » (même critère du réglage), libellé « déclaration non datée … : à vérifier » (declaration-sinistre.ts).
+ * indicatifs, 🔴 à confirmer : le contrat peut allonger le délai de déclaration. Dommages-ouvrage sans délai de la
+ * police : élément « à déclarer » daté du jour de la connaissance, sans repère de cinq jours ouvrés (J67, R52).
+ * Indemnité différée non réglée : à réclamer depuis le règlement de l'indemnité immédiate (à défaut le rapport, la
+ * déclaration, la survenance) ; c'est un suivi de gestion, pas un repère légal. Sans date de suivi, une phase saisie qui
+ * suit la déclaration garde l'élément « à déclarer » (même critère du réglage), libellé « déclaration non datée … : à
+ * vérifier » (declaration-sinistre.ts).
  */
 export function depuisSinistres(
   items: { id: string; mandatId: string; libelle: string; fiche: FicheSinistre; delaiContratJoursOuvres?: number }[],
@@ -804,7 +813,7 @@ export function depuisSinistres(
       elements.push(
         elementSuivi('sinistres', 'a_declarer', `${id}:a_declarer`, {
           ...champs,
-          libelle: libelleADeclarer(libelle, fiche),
+          libelle: libelleADeclarer(libelle, fiche, reperes.desLaConnaissance),
           date: reperes.declarationAuPlusTard,
         }),
       )

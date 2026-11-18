@@ -36,6 +36,15 @@ import {
  * 🟢 L. 113-2, L. 114-1 et L. 114-2 relus sur Légifrance le 17/11/2026 (L. 113-2 et L. 114-2 en vigueur depuis le
  * 01/04/2018, ordonnance n° 2017-1433 ; L. 114-1 depuis le 30/12/2021, loi n° 2021-1837 ; voir suggestionForclusion).
  * Repères indicatifs : leur ajout au calendrier réglementaire est un choix de Frédéric.
+ * Décisions de Hugo du 17/11/2026 (registre des décisions juridiques, J67) :
+ * - J67, R50 : le décompte est confirmé : jours ouvrés comptés du lendemain de la connaissance, sans samedi, dimanche ni
+ *   jour férié (L. 113-2, 4° dit « jours ouvrés » ; jour de départ exclu, CPC art. 641, al. 1, par analogie). Le message
+ *   rappelle de déclarer dès la connaissance : le repère n'est que le minimum légal du délai prévu au contrat.
+ * - J67, R52 : dommages-ouvrage, aucun minimum de cinq jours ouvrés. Les clauses types (annexe II à l'art. A. 243-1, lue
+ *   le 17/11/2026, en vigueur depuis le 01/04/2018) ne fixent aucun délai à l'assuré ; L. 242-1 ne fixe que ceux de
+ *   l'assureur. Repère = jour de la connaissance (déclarer dès la connaissance, L. 113-2, 4°), sauf délai fixé par la
+ *   police (delaiContratJoursOuvres) ; prescription de deux ans inchangée (L. 114-1). Sans délai, rien à dépasser : la
+ *   déclaration n'est jamais « tardive » au regard du repère. suivi-a-faire.depuisSinistres suit.
  */
 
 export interface AssuranceSinistre {
@@ -365,10 +374,38 @@ export function indemnitesSinistre(sinistre: FicheSinistre): IndemnitesSinistre 
   return { totalCentimes, regleCentimes, resteCentimes: totalCentimes - regleCentimes }
 }
 
+/** Le délai du contrat ne peut être inférieur à cinq jours ouvrés (C. assur. art. L. 113-2, 4°). */
+const DELAI_DECLARATION_MINIMUM_JOURS_OUVRES = 5
+/** Vol : minimum ramené à deux jours ouvrés (C. assur. art. L. 113-2, 4°). */
+const DELAI_DECLARATION_VOL_JOURS_OUVRES = 2
+/** Prescription des actions dérivant du contrat d'assurance : deux ans (C. assur. art. L. 114-1, al. 1). */
+const PRESCRIPTION_MOIS = 24
+
+/** Dommages-ouvrage : les clauses types ne fixent aucun délai de déclaration à l'assuré (J67, R52). */
+const DOMMAGES_OUVRAGE: TypeSinistre = 'Dommages Ouvrage'
+
+/** Minimum du délai de déclaration prévu au contrat, en jours ouvrés ; dommages-ouvrage : aucun (J67, R52). */
+const delaiMinimumJoursOuvres = (type: TypeSinistre): number => {
+  if (type === DOMMAGES_OUVRAGE) return 0
+  return type === 'Vol' ? DELAI_DECLARATION_VOL_JOURS_OUVRES : DELAI_DECLARATION_MINIMUM_JOURS_OUVRES
+}
+
+/** Rappel du droit commun de la déclaration (J67, R50), repris par declaration-sinistre.ts. */
+export const RAPPEL_DECLARATION_DES_CONNAISSANCE =
+  "Déclarer dès la connaissance du sinistre ; le repère est le minimum légal du délai prévu au contrat (C. assur. art. L. 113-2, 4°), ou ce délai, s'il est saisi et plus long."
+
+const RAPPEL_PRESCRIPTION = 'La prescription peut être interrompue (C. assur. art. L. 114-2). Vérifier le contrat et le dossier.'
+
+const AVERTISSEMENT_REPERES = `Repère indicatif. ${RAPPEL_DECLARATION_DES_CONNAISSANCE} ${RAPPEL_PRESCRIPTION}`
+
+const AVERTISSEMENT_REPERES_DOMMAGES_OUVRAGE = `Dommages-ouvrage : déclarer dès la connaissance du sinistre (C. assur. art. L. 113-2, 4°) ; aucun délai dans les clauses types (C. assur. annexe II à l'art. A. 243-1), sauf délai fixé par la police. ${RAPPEL_PRESCRIPTION}`
+
 export interface ReperesDelaisSinistre {
   delaiDeclarationJoursOuvres: number
   declarationAuPlusTard: string
-  /** Déclaration faite après le repère ; false si non encore déclarée. */
+  /** Aucun délai (dommages-ouvrage sans délai de la police) : à déclarer dès la connaissance (J67, R52). */
+  desLaConnaissance: boolean
+  /** Déclaration faite après le repère ; false si non encore déclarée, ou sans délai à dépasser. */
   declarationTardive: boolean
   prescription: string
   fondements: string[]
@@ -380,16 +417,19 @@ export function reperesDelaisSinistre(
   sinistre: FicheSinistre,
   { delaiContratJoursOuvres }: { delaiContratJoursOuvres?: number } = {},
 ): ReperesDelaisSinistre {
-  const minimumLegal = sinistre.type === 'Vol' ? 2 : 5
-  const delaiDeclarationJoursOuvres = Math.max(minimumLegal, delaiContratJoursOuvres ?? 0)
+  const dommagesOuvrage = sinistre.type === DOMMAGES_OUVRAGE
+  const delaiDeclarationJoursOuvres = Math.max(delaiMinimumJoursOuvres(sinistre.type), delaiContratJoursOuvres ?? 0)
   const declarationAuPlusTard = ajouterJoursOuvres(sinistre.dateConnaissance, delaiDeclarationJoursOuvres)
+  const desLaConnaissance = delaiDeclarationJoursOuvres === 0
   return {
     delaiDeclarationJoursOuvres,
     declarationAuPlusTard,
-    declarationTardive: sinistre.dateDeclaration !== null && sinistre.dateDeclaration > declarationAuPlusTard,
-    prescription: ajouterMois(sinistre.dateSurvenance, 24),
-    fondements: ['C. assur. art. L. 113-2', 'C. assur. art. L. 114-1'],
-    avertissement:
-      "Repère indicatif : le contrat fixe le délai de déclaration et la prescription peut être interrompue (C. assur. art. L. 114-2). Vérifier le contrat et le dossier.",
+    desLaConnaissance,
+    declarationTardive: !desLaConnaissance && sinistre.dateDeclaration !== null && sinistre.dateDeclaration > declarationAuPlusTard,
+    prescription: ajouterMois(sinistre.dateSurvenance, PRESCRIPTION_MOIS),
+    fondements: dommagesOuvrage
+      ? ['C. assur. art. L. 113-2', 'C. assur. annexe II à l’art. A. 243-1', 'C. assur. art. L. 114-1']
+      : ['C. assur. art. L. 113-2', 'C. assur. art. L. 114-1'],
+    avertissement: dommagesOuvrage ? AVERTISSEMENT_REPERES_DOMMAGES_OUVRAGE : AVERTISSEMENT_REPERES,
   }
 }

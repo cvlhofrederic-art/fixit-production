@@ -23,6 +23,7 @@ import {
 } from '@/lib/administrateur-judiciaire/domain/sinistres'
 import { depuisSinistres } from '@/lib/administrateur-judiciaire/domain/suivi-a-faire'
 import { PHASE_SINISTRE } from '@/lib/data/referentiels-gesteam-judiciaire'
+import { enTeteDuModule } from './en-tete-module'
 
 /**
  * Point 58 du bilan 2 : date de déclaration d'un sinistre tirée du courrier de déclaration rattaché, sans écraser une date
@@ -274,7 +275,7 @@ describe('point 58 — anomalies des courriers de déclaration', () => {
     ])
   })
 
-  it('destinataire : un courtier (🔴 vaut-il avis à l’assureur ?) ou un tiers qui n’est pas une compagnie', () => {
+  it('destinataire : un courtier (signal conservé, J67, R51) ou un tiers qui n’est pas une compagnie', () => {
     const [courtier] = controlerCourriersDeclaration(sinistre(), [courrier({ typeDestinataire: 'Courtier' })], JOUR)
     expect(courtier).toMatchObject({ code: 'destinataire_non_assureur', gravite: 'avertissement' })
     expect(courtier.message).toMatch(/courtier/i)
@@ -427,7 +428,7 @@ describe('point 58 — contrôle du délai de déclaration', () => {
 
   it('signal, jamais une déchéance ; date du jour contrôlée', () => {
     const resultat = controlerDelaiDeclaration(sinistre({ dateDeclaration: '2026-11-05' }), [], { aujourdhui })
-    expect(resultat.avertissement).toBe(AVERTISSEMENT_DELAI_DECLARATION)
+    expect(resultat.avertissement).toContain(AVERTISSEMENT_DELAI_DECLARATION)
     expect(resultat.avertissement).toMatch(/préjudice/i)
     expect(resultat.avertissement).toMatch(/force majeure/i)
     expect(() => controlerDelaiDeclaration(sinistre(), [], { aujourdhui: '2026-13-01' })).toThrow(/jour/i)
@@ -445,13 +446,42 @@ describe('point 58 — contrôle du délai de déclaration', () => {
     expect(resultat.message).not.toMatch(/L\. 113-2/)
   })
 
-  it('catastrophe naturelle : avertissement propre, sans le régime de déchéance de L. 113-2 (L. 125-2 renvoie à un décret)', () => {
+  it('J67, R54 : catastrophe naturelle : signal, jamais une déchéance ; aucune sanction propre, règle générale de L. 113-2, sans décret « attendu »', () => {
     const resultat = controlerDelaiDeclaration(sinistre({ type: 'Catastrophes naturelles' }), [], { aujourdhui, datePublicationArrete: '2026-11-02' })
     expect(resultat.avertissement).toBe(AVERTISSEMENT_DELAI_CATASTROPHE_NATURELLE)
-    expect(resultat.avertissement).toMatch(/jamais une déchéance/i)
-    expect(resultat.avertissement).toMatch(/L\. 125-2/)
-    expect(resultat.avertissement).toMatch(/D\. 125-6/)
-    expect(resultat.avertissement).not.toMatch(/L\. 113-2/)
+    expect(AVERTISSEMENT_DELAI_CATASTROPHE_NATURELLE).toBe(
+      "Signal indicatif, jamais une déchéance : ni L. 125-2 ni D. 125-6 ne fixent de sanction du retard ; règle générale de L. 113-2 : déchéance seulement si le contrat la prévoit et si l'assureur prouve un préjudice, jamais en cas fortuit ou de force majeure. Vérifier le contrat et le dossier.",
+    )
+    expect(resultat.avertissement).not.toMatch(/décret/)
+  })
+
+  it('J67, R50 : jours ouvrés depuis le lendemain ; l’avertissement rappelle de déclarer dès la connaissance (droit commun seulement)', () => {
+    const rappel = 'Déclarer dès la connaissance du sinistre ; le repère est le minimum légal du délai prévu au contrat (C. assur. art. L. 113-2, 4°)'
+    for (const type of ['Dégât des eaux', 'Vol'] as const) expect(controlerDelaiDeclaration(sinistre({ type }), [], { aujourdhui }).avertissement).toContain(rappel)
+    // Dommages-ouvrage (aucun repère) et catastrophe naturelle (autre délai) : pas de minimum légal à rappeler.
+    expect(controlerDelaiDeclaration(sinistre({ type: 'Dommages Ouvrage' }), [], { aujourdhui }).avertissement).toBe(AVERTISSEMENT_DELAI_DECLARATION)
+    expect(controlerDelaiDeclaration(sinistre({ type: 'Catastrophes naturelles' }), [], { aujourdhui }).avertissement).not.toContain(rappel)
+  })
+
+  it('J67, R53 : « Tempête, Grêles, Neiges » : repère de droit commun, avertissement de prudence pour la grêle (L. 123-1)', () => {
+    const tempete = controlerDelaiDeclaration(sinistre({ type: 'Tempête, Grêles, Neiges' }), [], { aujourdhui: '2026-11-03' })
+    expect(tempete).toMatchObject({ etat: 'a_declarer', declarationAuPlusTard: '2026-11-03', delai: { jours: 5, unite: 'jours_ouvres' } })
+    expect(tempete.avertissement).toContain(
+      'En cas de grêle, par prudence, envoyer la déclaration dans les quatre jours de la survenance (C. assur. L. 123-1 ; application à la multirisque à vérifier sur la police).',
+    )
+    expect(controlerDelaiDeclaration(sinistre(), [], { aujourdhui }).avertissement).not.toMatch(/grêle/)
+  })
+
+  it('J67, R55 : catastrophe naturelle, 30e jour un samedi : date reportée donnée pour information ; l’alerte suit la date sans report', () => {
+    const catnat = sinistre({ type: 'Catastrophes naturelles' })
+    const samedi = controlerDelaiDeclaration(catnat, [], { aujourdhui: '2026-12-06', datePublicationArrete: '2026-11-05' })
+    expect(samedi).toMatchObject({ etat: 'delai_depasse', declarationAuPlusTard: '2026-12-05', declarationAuPlusTardReportee: '2026-12-07', retardJours: 1 })
+    expect(samedi.message).toContain('Premier jour ouvrable suivant : 07/12/2026 ; report non prévu par le texte : déclarer au plus tard le 05/12/2026.')
+    // 30e jour ouvrable, ou droit commun : rien de reporté.
+    const mercredi = controlerDelaiDeclaration(catnat, [], { aujourdhui: '2026-11-20', datePublicationArrete: '2026-11-02' })
+    expect(mercredi).toMatchObject({ declarationAuPlusTard: '2026-12-02', declarationAuPlusTardReportee: null })
+    expect(mercredi.message).not.toMatch(/report/)
+    expect(controlerDelaiDeclaration(sinistre(), [], { aujourdhui }).declarationAuPlusTardReportee).toBeNull()
   })
 
   it('suivi plus avancé sans date de déclaration : ni « à déclarer » ni « déclarer sans attendre »', () => {
@@ -523,7 +553,7 @@ describe('point 58 — contrôle du délai de déclaration', () => {
     expect(resultat.message).toMatch(/02\/11\/2026, après aujourd'hui/)
   })
 
-  it('décompte de L. 113-2, 4° (🔴) : jours ouvrés depuis le lendemain de la connaissance, le repère tombe toujours un jour ouvré', () => {
+  it('décompte de L. 113-2, 4° (J67, R50) : jours ouvrés depuis le lendemain de la connaissance, le repère tombe toujours un jour ouvré', () => {
     let jour = '2026-01-01'
     for (let i = 0; i < 365; i++, jour = ajouterJours(jour, 1))
       for (const type of ['Dégât des eaux', 'Vol'] as const) {
@@ -534,9 +564,87 @@ describe('point 58 — contrôle du délai de déclaration', () => {
     expect(controlerDelaiDeclaration(sinistre({ dateSurvenance: '2026-11-02' }), [], { aujourdhui }).declarationAuPlusTard).toBe('2026-11-09')
   })
 
-  it('décompte de la catastrophe naturelle (🔴) : trente jours calendaires, un dernier jour samedi n’est pas reporté', () => {
+  it('décompte de la catastrophe naturelle (J67, R55) : trente jours calendaires, un dernier jour samedi n’est pas reporté', () => {
     const resultat = controlerDelaiDeclaration(sinistre({ type: 'Catastrophes naturelles' }), [], { aujourdhui, datePublicationArrete: '2026-11-05' })
     expect(resultat.declarationAuPlusTard).toBe('2026-12-05')
     expect(jourSemaine('2026-12-05')).toBe(6)
+  })
+})
+
+/**
+ * J67, R51 (décision de Hugo du 17/11/2026) : en principe, le courtier est le mandataire de l'assuré (Cass. 1re civ.,
+ * 22/10/1996, n° 94-15.613). La date de transmission à la compagnie, si elle est connue, se compare au repère ; un mandat
+ * de l'assureur vu fait retenir la date du courrier au courtier ; sinon l'état reste « à vérifier ».
+ */
+describe('J67, R51 — déclaration adressée au courtier', () => {
+  const aujourdhui = '2026-11-20'
+  const auCourtier = (dateDepot = '2026-11-02') => [courrier({ typeDestinataire: 'Courtier', dateDepot, datePremierePresentation: null })]
+
+  it('sans mandat vu ni transmission datée : « à vérifier : mandat du courtier et date de transmission à la compagnie » ; signal conservé', () => {
+    const resultat = controlerDelaiDeclaration(sinistre(), auCourtier(), { aujourdhui })
+    expect(resultat).toMatchObject({ etat: 'a_verifier', dateRetenue: '2026-11-02', source: 'courrier', courrierId: 'c-1', retardJours: 0 })
+    expect(resultat.message).toBe(
+      'Déclaration adressée au courtier le 02/11/2026, dans le repère indicatif du 03/11/2026 : à vérifier : mandat du courtier et date de transmission à la compagnie.',
+    )
+    expect(controlerCourriersDeclaration(sinistre(), auCourtier(), JOUR).map((a) => a.code)).toContain('destinataire_non_assureur')
+  })
+
+  it('« transmis à la compagnie le » : cette date se compare au repère', () => {
+    expect(controlerDelaiDeclaration(sinistre(), auCourtier(), { aujourdhui, transmisCompagnieLe: '2026-11-03' })).toMatchObject({
+      etat: 'dans_le_delai',
+      dateRetenue: '2026-11-03',
+      source: 'transmission',
+      courrierId: null,
+    })
+    expect(controlerDelaiDeclaration(sinistre(), auCourtier(), { aujourdhui, transmisCompagnieLe: '2026-11-05' })).toMatchObject({
+      etat: 'tardive',
+      retardJours: 2,
+      source: 'transmission',
+    })
+    const future = controlerDelaiDeclaration(sinistre(), auCourtier(), { aujourdhui, transmisCompagnieLe: '2026-11-25' })
+    expect(future).toMatchObject({ etat: 'a_verifier', retardJours: 0 })
+    expect(future.message).toMatch(/^Transmission à la compagnie saisie au 25\/11\/2026, après aujourd'hui/)
+    expect(() => controlerDelaiDeclaration(sinistre(), auCourtier(), { aujourdhui, transmisCompagnieLe: '05/11/2026' })).toThrow(/transmission/i)
+  })
+
+  it('courtier mandaté par l’assureur (mandat vu) : la date du courrier au courtier est retenue', () => {
+    expect(
+      controlerDelaiDeclaration(sinistre(), auCourtier(), { aujourdhui, courtierMandateParAssureur: true, transmisCompagnieLe: '2026-11-05' }),
+    ).toMatchObject({ etat: 'dans_le_delai', dateRetenue: '2026-11-02', source: 'courrier', courrierId: 'c-1' })
+  })
+
+  it('courrier au courtier déjà postérieur au repère : tardive ; déclaration à la compagnie : les deux champs sont sans effet', () => {
+    expect(controlerDelaiDeclaration(sinistre(), auCourtier('2026-11-05'), { aujourdhui })).toMatchObject({ etat: 'tardive', retardJours: 2 })
+    const aLaCompagnie = [courrier({ typeDestinataire: "Compagnie d'assurance", dateDepot: '2026-11-02', datePremierePresentation: null })]
+    expect(controlerDelaiDeclaration(sinistre(), aLaCompagnie, { aujourdhui, transmisCompagnieLe: '2026-11-05' })).toMatchObject({
+      etat: 'dans_le_delai',
+      dateRetenue: '2026-11-02',
+      source: 'courrier',
+    })
+  })
+})
+
+describe('J67 — en-tête de declaration-sinistre.ts : questions des R50 à R55 fermées', () => {
+  const { texte } = enTeteDuModule('declaration-sinistre')
+  const questions = texte.slice(texte.indexOf('🔴 Questions'))
+
+  it('questions tranchées retirées ; questions encore ouvertes gardées', () => {
+    expect(questions).not.toMatch(/vaut-elle avis « à l'assureur »/)
+    expect(questions).not.toMatch(/Dommages-ouvrage : faut-il un contrôle de délai/)
+    expect(questions).not.toMatch(/quelles conséquences d'une déclaration tardive/)
+    expect(questions).not.toMatch(/Le cabinet le reporte-t-il au premier jour ouvré suivant/)
+    expect(questions).not.toMatch(/Le délai de quatre jours de l'art\. L\. 123-1/)
+    expect(questions).not.toMatch(/Décompte de L\. 113-2, 4°/)
+    expect(questions).toMatch(/quelle date le cabinet retient-il comme date de déclaration/)
+    expect(questions).toMatch(/la date de publication de l'arrêté doit-elle devenir un champ de la fiche sinistre/)
+    expect(questions).toMatch(/Phase saisie sans date de déclaration/)
+  })
+
+  it('décisions J67 citées avec leurs textes ; le décret de L. 125-2 vise l’emploi de l’indemnité', () => {
+    for (const r of ['R50', 'R51', 'R52', 'R53', 'R54', 'R55']) expect(texte).toContain(`J67, ${r}`)
+    expect(texte).toMatch(/Cass\. 1re civ\., 22\/10\/1996, n° 94-15\.613/)
+    expect(texte).toMatch(/R\. 125-6-1 \(décret n° 2024-82 du 05\/02\/2024, en vigueur depuis le 07\/02\/2024\)/)
+    expect(texte).not.toMatch(/un décret en Conseil d'État en précise les modalités, les dérogations et les conséquences de sa méconnaissance par l'assuré\. Art\. D\. 125-6/)
+    expect(texte).toMatch(/C\. assur\. art\. L\. 123-1/)
   })
 })

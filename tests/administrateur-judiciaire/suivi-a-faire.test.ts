@@ -545,6 +545,21 @@ describe('sources — sinistres, équipements, diagnostics', () => {
     )
   })
 
+  it('J67, R52 : dommages-ouvrage non déclaré : « à déclarer » daté de la connaissance, sans repère de cinq jours ; prescription gardée', () => {
+    const fiche = creerSinistre(saisieSinistre({ type: 'Dommages Ouvrage', dateConnaissance: '2026-10-22' }))
+    const elements = depuisSinistres([{ id: 'S6', mandatId: 'M1', libelle: 'DO', fiche }])
+    expect(elements.map((e) => [e.nature, e.date, e.libelle])).toEqual([
+      ['a_declarer', '2026-10-22', 'DO — à déclarer dès la connaissance (L. 113-2, 4°) ; aucun délai dans les clauses types'],
+      ['prescription', reperesDelaisSinistre(fiche).prescription, 'DO'],
+    ])
+    // La police fixe un délai : il s'applique, libellé ordinaire.
+    const [avecDelai] = depuisSinistres([{ id: 'S7', mandatId: 'M1', libelle: 'DO', fiche, delaiContratJoursOuvres: 5 }])
+    expect(avecDelai).toMatchObject({ libelle: 'DO', date: reperesDelaisSinistre(fiche, { delaiContratJoursOuvres: 5 }).declarationAuPlusTard })
+    // Phase qui suit la déclaration, sans date : « à vérifier » prime.
+    const [enExpertise] = depuisSinistres([{ id: 'S8', mandatId: 'M1', libelle: 'DO', fiche: { ...fiche, phase: "Mission d'expertise" } }])
+    expect(enExpertise.libelle).toBe("DO — déclaration non datée (phase « Mission d'expertise ») : à vérifier")
+  })
+
   it('équipement : remplacement et révision, même dépassés ; fin de garantie seulement si elle est à venir', () => {
     expect(depuisEquipements([{ id: 'EQ1', mandatId: 'M1', libelle: 'Porte de garage', fiche: equipement() }], AUJOURDHUI)).toEqual([
       {

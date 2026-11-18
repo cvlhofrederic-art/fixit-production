@@ -7,6 +7,7 @@ import {
 } from '@/lib/administrateur-judiciaire/domain/contrats-a-resilier'
 import type { FacturationContrat } from '@/lib/administrateur-judiciaire/domain/contrats-facturation'
 import { depuisContrats, reglageParDefaut, selectionnerAFaire, type ReglageSuivi } from '@/lib/administrateur-judiciaire/domain/suivi-a-faire'
+import { enTeteDuModule } from './en-tete-module'
 
 /**
  * Marque « À résilier » d'un contrat (point 34 du bilan 2 ; Gestéam, tranche 33 : case « À résilier », Préavis, Limite,
@@ -224,6 +225,21 @@ describe('autres régimes', () => {
 
   it('dommages-ouvrage : pas d’échéance annuelle à attendre (à confirmer)', () => {
     expect(alertesAResilier([contrat({ type: 'Dommages Ouvrages' })], '2026-09-05')).toMatchObject([{ etat: 'non_resiliable', aConfirmer: true }])
+  })
+
+  it('J67, R57 : dommages-ouvrage : jamais de date de résiliation proposée ; message précisé ; marque 🔴 remplacée', () => {
+    for (const facturationSaisie of [facturation(), undefined]) {
+      const [alerte] = alertesAResilier([contrat({ type: 'Dommages Ouvrages', facturation: facturationSaisie })], '2026-09-05')
+      expect(alerte).toMatchObject({ etat: 'non_resiliable', aConfirmer: true, aAgirLe: '2026-09-05', dateLimite: null, terme: null, prochaineLimite: null })
+      expect(alerte.message).toBe(
+        "Assurance dommages-ouvrage : garantie jusqu'à dix ans après la réception (clauses types) ; la police fixe la durée et la résiliation (L. 113-12) ; résilier priverait le syndicat de cette garantie : vérifier la police avec Hugo.",
+      )
+      expect(alerte.fondement).toBe('C. assur. annexe II à l’art. A. 243-1 (point de départ et durée de la garantie) ; C. assur. art. L. 113-12')
+    }
+    const { texte } = enTeteDuModule('contrats-a-resilier')
+    expect(texte).not.toMatch(/🔴 Non établi : résiliation de l'assurance dommages-ouvrage/)
+    expect(texte).toMatch(/J67, R57 \(décision de Hugo du 17\/11\/2026/)
+    expect(texte).toMatch(/🔴 Non établi : contrat d'eau ou d'assainissement/)
   })
 
   it('sans reconduction tacite : fin au terme (C. civ. art. 1212) ; terme dépassé : reconduction possible en durée indéterminée', () => {
