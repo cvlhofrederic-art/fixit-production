@@ -7,7 +7,13 @@ import {
   type MouvementBudget,
 } from '@/lib/administrateur-judiciaire/domain/exercices-budgets'
 import type { LigneFacture } from '@/lib/administrateur-judiciaire/domain/facture-ventilee'
-import { PARTS_RECUPERABLES_DECRET_87_713, type CategorieRecuperable } from '@/lib/administrateur-judiciaire/domain/personnel-syndicat'
+import {
+  FONDEMENT_COMPTE_JAMAIS_RECUPERABLE,
+  PARTS_RECUPERABLES_DECRET_87_713,
+  estCompteJamaisRecuperable,
+  messageCompteJamaisRecuperable,
+  type CategorieRecuperable,
+} from '@/lib/administrateur-judiciaire/domain/personnel-syndicat'
 import { estPourcentage, type FamilleTraitement, type Traitement } from '@/lib/administrateur-judiciaire/domain/traitements'
 
 /**
@@ -92,7 +98,10 @@ import { estPourcentage, type FamilleTraitement, type Traitement } from '@/lib/a
  * l'employé d'immeuble, 10 % pour l'encadrement technique en régie) et une alerte non bloquante signale un taux au-delà
  * du plafond (alertePlafondRecuperablePersonnel). Ce décret règle les rapports entre bailleur et locataire, pas les
  * comptes du syndicat : la part récupérable n'est qu'une aide au copropriétaire bailleur. Loi n° 89-462, art. 23 : non
- * relue le 17/11/2026. Proposition du taux à la création de la fiche : écran (Frédéric).
+ * relue le 17/11/2026. Proposition du taux à la création de la fiche : écran (Frédéric). Analytique d'un compte 644
+ * (médecine du travail, mutuelle, souvent réglées sur facture) : jamais récupérable (décret n° 87-713, art. 2, c ; J67,
+ * R38 et R39) ; la ligne de facture est mise à 0 % quel que soit le taux de la fiche, et alerteRecuperableCompte644 le
+ * signale sans bloquer.
  *
  * 🔴 Non établi — questions pour Hugo (ce que montre Gestéam) :
  * (a) Gestéam impose-t-il un total de 100 % aux douze pondérations du budget progressif ? (VitFix l'exige.)
@@ -191,6 +200,7 @@ export interface AnomalieAnalytique {
     | 'seuil_invalide'
     | 'saisonnalite_invalide'
     | 'recuperable_au_dela_du_plafond'
+    | 'recuperable_exclu_force'
   message: string
 }
 
@@ -316,6 +326,20 @@ export function alertePlafondRecuperablePersonnel(fiche: FicheAnalytique, catego
   }
 }
 
+/**
+ * J67, R38 et R39 — alerte non bloquante : analytique d'un compte 644 (médecine du travail, mutuelle) qui porte une part
+ * récupérable ; ligneDepuisAnalytique met la ligne à 0 %. null pour un autre compte ou une part nulle. Lève une erreur
+ * sur une fiche invalide.
+ */
+export function alerteRecuperableCompte644(fiche: FicheAnalytique): AnomalieAnalytique | null {
+  exigerFicheValide(fiche)
+  if (!estCompteJamaisRecuperable(fiche.comptePlan) || fiche.recuperablePct === 0) return null
+  return {
+    code: 'recuperable_exclu_force',
+    message: `Analytique ${fiche.code} : ${messageCompteJamaisRecuperable(pourcentFr(fiche.recuperablePct))} (${FONDEMENT_COMPTE_JAMAIS_RECUPERABLE}).`,
+  }
+}
+
 /** Clé de répartition retenue : celle du syndicat, à défaut celle de la fiche ; null sans l'une ni l'autre. */
 export const cleEffective = (fiche: FicheAnalytique, cleSyndicat?: string | null): string | null =>
   texte(cleSyndicat) ?? texte(fiche.cle)
@@ -351,8 +375,9 @@ const estCentimesPositifs = (montant: number): boolean => Number.isSafeInteger(m
 /**
  * Ligne de facture imputée sur une analytique : compte, rubrique, code fiscal, part récupérable et marque « non
  * déductible » de la fiche ; clé du syndicat, à défaut de la fiche ; honoraires selon la fiche (base = HT fourni).
- * Refuse une fiche invalide ou hors service, un montant nul, négatif ou non entier (creerTraitement le refuserait à
- * l'écriture), une ligne sans clé.
+ * Compte 644 (médecine du travail, mutuelle) : part récupérable à 0 %, quel que soit le taux de la fiche (J67, R38 et
+ * R39 ; alerteRecuperableCompte644). Refuse une fiche invalide ou hors service, un montant nul, négatif ou non entier
+ * (creerTraitement le refuserait à l'écriture), une ligne sans clé.
  */
 export function ligneDepuisAnalytique(fiche: FicheAnalytique, saisie: ImputationAnalytique): LigneFacture {
   exigerFicheValide(fiche)
@@ -369,7 +394,7 @@ export function ligneDepuisAnalytique(fiche: FicheAnalytique, saisie: Imputation
     rubrique: fiche.rubrique,
     codeFiscal: fiche.codeFiscal,
     montantTtcCentimes,
-    recupLocatairePct: fiche.recuperablePct,
+    recupLocatairePct: estCompteJamaisRecuperable(fiche.comptePlan) ? 0 : fiche.recuperablePct,
     nonDeductible: fiche.nonDeductible,
     lotId: saisie.lotId ?? null,
     rattachement: saisie.rattachement ?? null,

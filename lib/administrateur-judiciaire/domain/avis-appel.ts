@@ -12,8 +12,8 @@ import type { Regime } from '@/lib/administrateur-judiciaire/domain/fondements'
 import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
 import { controlerContexteFusion } from '@/lib/administrateur-judiciaire/domain/gabarits-courrier'
 import {
-  adresseDeNotification,
-  controlerAdresses,
+  adressePourCourrierSimple,
+  controlerAdresseDeCourrierSimple,
   estQualiteCopropriete,
   numeroCompteCoproprietaire,
   statutPositionA,
@@ -1488,9 +1488,13 @@ function canalDeDiffusion(identiteId: string, options: OptionsDiffusionAvis): Ca
   }
 }
 
-/** Lettre simple : sans adresse postale, pas d'envoi ; adresses concurrentes ou échue : avertissement (identites-positions.ts). */
+/**
+ * Lettre simple : sans adresse postale, pas d'envoi ; adresses concurrentes ou échue : avertissement (identites-positions.ts).
+ * L'avis n'est pas une notification : à défaut d'adresse de notification, une adresse d'origine « autre » sert, avec un
+ * avertissement (J67, R19).
+ */
 function anomaliesAdressePostale(identite: Identite, date: string): AnomalieDiffusion[] {
-  return controlerAdresses(identite, date).map((a) => {
+  return controlerAdresseDeCourrierSimple(identite, date).map((a) => {
     const gravite: AnomalieDiffusion['gravite'] = a.code === 'sans_adresse' ? 'bloquant' : 'avertissement'
     return { code: a.code, gravite, message: a.message }
   })
@@ -1539,7 +1543,7 @@ function mentionPayerUneFois(exemplaire: DiffusionAvisCompte['exemplaire'], duCo
 
 function diffusionPour(compte: ContenuAvisCompte, identite: Identite, duCompte: DiffusionDuCompte, options: OptionsDiffusionAvis): DiffusionAvisCompte {
   const { canal, adresseElectronique, origineAdresse, invitation, anomalies: anomaliesCanal } = canalDeDiffusion(identite.id, options)
-  const adressePostale = adresseDeNotification(identite, options.date)
+  const adressePostale = adressePourCourrierSimple(identite, options.date)
   const anomalies: AnomalieDiffusion[] = [
     ...anomaliesCanal,
     ...(canal === 'postal' ? anomaliesAdressePostale(identite, options.date) : []),

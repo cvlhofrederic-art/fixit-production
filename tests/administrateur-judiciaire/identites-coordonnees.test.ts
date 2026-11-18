@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   ORIGINES_ADRESSE,
   adresseDeNotification,
+  adressePourCourrierSimple,
   adressesValablesA,
+  controlerAdresseDeCourrierSimple,
   controlerAdresseDeNotification,
   controlerAdresses,
   creerAdresseDatee,
@@ -143,6 +145,31 @@ describe('J67, R19 — origine de l’adresse (D. 1967 art. 65, al. 1 et 2 ; art
     expect(anomalie.code).toBe('sans_adresse')
     expect(anomalie.message).toMatch(/« adr-2 » \(origine « autre »\) ne vaut pas pour notifier/)
     expect(anomalie.message).toMatch(/D\. 1967 art\. 65, al\. 2 ; J67, R19/)
+    // Le message bloque une notification : il ne promet pas un courrier simple que l'adresse ne permettrait pas toujours.
+    expect(anomalie.message).not.toMatch(/courrier simple/)
+  })
+
+  it('courrier simple (avis par lettre simple) : l’adresse « autre » en cours sert à défaut d’adresse de notification, avec un avertissement', () => {
+    const seule = identite({ adresses: [recherchee] })
+    expect(adressePourCourrierSimple(seule, '2026-04-01')?.id).toBe('adr-2')
+    const [avertissement, ...autres] = controlerAdresseDeCourrierSimple(seule, '2026-04-01')
+    expect(autres).toEqual([])
+    expect(avertissement).toEqual({
+      code: 'adresse_autre',
+      message: 'Adresse « adr-2 » (origine « autre ») retenue pour ce courrier simple : elle ne vaudrait pas pour une notification (D. 1967 art. 65, al. 2 ; J67, R19).',
+    })
+    // Une adresse de notification existe : elle prime, même close ; aucun avertissement d'origine.
+    const avecNotification = identite({ adresses: [adresse({ origine: 'coproprietaire', au: '2026-02-28' }), recherchee] })
+    expect(adressePourCourrierSimple(avecNotification, '2026-04-01')?.id).toBe('adr-1')
+    expect(controlerAdresseDeCourrierSimple(avecNotification, '2026-04-01').map((a) => a.code)).toEqual(['adresse_echue'])
+    // Adresse « autre » pas encore en cours, ou close : rien pour le courrier simple, « sans_adresse » reste.
+    expect(adressePourCourrierSimple(seule, '2026-02-01')).toBeNull()
+    expect(controlerAdresseDeCourrierSimple(seule, '2026-02-01').map((a) => a.code)).toEqual(['sans_adresse'])
+    const close = identite({ adresses: [{ ...recherchee, au: '2026-03-31' }] })
+    expect(adressePourCourrierSimple(close, '2026-04-01')).toBeNull()
+    // Deux adresses « autre » qui se valent : aucune n'est choisie.
+    const deux = identite({ adresses: [recherchee, { ...recherchee, id: 'adr-3' }] })
+    expect(adressePourCourrierSimple(deux, '2026-04-01')).toBeNull()
   })
 
   it('notification de transfert (art. 6, al. 2) : admise comme l’adresse communiquée par le copropriétaire', () => {

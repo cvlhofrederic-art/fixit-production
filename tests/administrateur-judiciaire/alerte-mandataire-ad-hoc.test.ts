@@ -418,8 +418,10 @@ describe('J67, R32 — nombre de lots : tous les lots, caves et parkings compris
   const lots = (nombre: number, coproprieteId = 'copro-1') => Array.from({ length: nombre }, (_, i) => ({ id: `lot-${i + 1}`, coproprieteId }))
   const sommes = [ex('ex-2025', E2025, provisions2025(600_000))]
 
-  it('sans liste des lots : le nombre saisi seul, aucun écart', () => {
+  it('sans liste des lots, ou liste vide (pas encore chargée) : le nombre saisi seul, aucun écart ni faux seuil', () => {
     expect(alerteMandataireAdHoc(entree(), DATE)).toMatchObject({ lotsDeLaListe: null, ecartLots: null })
+    expect(alerteMandataireAdHoc(entree({ lots: null }), DATE)).toMatchObject({ lotsDeLaListe: null, ecartLots: null })
+    expect(alerteMandataireAdHoc(entree({ nombreLots: 250, lots: [] }), DATE)).toMatchObject({ lotsDeLaListe: null, ecartLots: null })
   })
 
   it('liste conforme au nombre saisi : comptée, aucun écart ; un lot cité deux fois compte une fois', () => {

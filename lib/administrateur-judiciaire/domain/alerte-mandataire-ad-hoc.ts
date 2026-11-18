@@ -182,7 +182,7 @@ export interface EntreeAlerteMandataireAdHoc {
    * (caves, parkings ; L. 1965 art. 1, I). C'est lui qui fixe le seuil (25 %, ou 15 % au-delà de deux cents lots).
    */
   nombreLots: number
-  /** J67, R32 — lots du syndicat, quand la liste est connue : comptés pour signaler un écart ; absents ou null : non fournis. */
+  /** J67, R32 — lots du syndicat, quand la liste est connue : comptés pour signaler un écart ; absents, null ou vides : non fournis. */
   lots?: readonly Pick<LotEnregistre, 'id' | 'coproprieteId'>[] | null
   exercices?: readonly ExerciceAlerte[]
   /** Votes de l'assemblée sur l'approbation des comptes (résolution et date de l'assemblée). */
@@ -377,11 +377,13 @@ const seuilApplicable = (nombreLots: number, parametres: ParametresAlerte291A): 
 
 /**
  * J67, R32 — lots de la liste du syndicat (un lot cité deux fois compte une fois) et écart avec le nombre saisi, qui reste
- * celui du seuil ; le seuil de la liste est dit quand il diffère.
+ * celui du seuil ; le seuil de la liste est dit quand il diffère. Liste vide : non fournie (une copropriété compte au
+ * moins deux lots ; une liste pas encore chargée ne doit pas donner un faux écart).
  */
 function controleNombreLots(entree: EntreeAlerteMandataireAdHoc, parametres: ParametresAlerte291A): Pick<AlerteMandataireAdHoc, 'lotsDeLaListe' | 'ecartLots'> {
-  if (estAbsent(entree.lots)) return { lotsDeLaListe: null, ecartLots: null }
-  const lotsDeLaListe = new Set((entree.lots ?? []).map((lot) => lot.id)).size
+  const lots = entree.lots ?? []
+  if (lots.length === 0) return { lotsDeLaListe: null, ecartLots: null }
+  const lotsDeLaListe = new Set(lots.map((lot) => lot.id)).size
   if (lotsDeLaListe === entree.nombreLots) return { lotsDeLaListe, ecartLots: null }
   const seuilDeLaListe = seuilApplicable(lotsDeLaListe, parametres)
   const borne = `${lotsDeLaListe > parametres.lotsGrandeCopropriete ? 'plus de' : 'au plus'} ${parametres.lotsGrandeCopropriete} lots`

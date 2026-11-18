@@ -87,12 +87,14 @@ import { MODE_REGLEMENT, QUALITE_IDENTITE, type ModeReglement, type TypeEntrepri
  *   l'élimination des rejets, 75 % de sa rémunération et des charges sociales et fiscales (c), 40 % s'il n'assure qu'une
  *   des deux tâches ; employé d'immeuble qui assure l'une ou l'autre, 100 % (d) ; encadrement technique en régie, 10 %.
  *   Ne sont jamais récupérables : le salaire en nature, l'intéressement et la participation, les indemnités et primes de
- *   départ à la retraite, les indemnités de licenciement, la cotisation patronale à une mutuelle, la cotisation à la
- *   médecine du travail. La fonction est la qualité du salarié (Gardien, Employé d'immeuble) ; ses tâches sont saisies
- *   (tachesContrat) et donnent le taux (categorieRecuperable). Le taux repris de l'analytique est gardé, mais contrôlé
- *   (controlerRecuperablePaie : écart, ou « à confirmer » sans tâches saisies) ; les éléments exclus sont mis à 0 %
- *   selon la nature de la ligne, quelle que soit l'analytique : la ligne 644 de la paie (part patronale de mutuelle) et
- *   la part du brut faite du salaire en nature et des éléments exclus (une seconde ligne au 641). La taxe sur les
+ *   départ à la retraite, les indemnités de licenciement, la cotisation patronale à une mutuelle, la participation au
+ *   comité d'entreprise et à l'effort de construction, la cotisation à la médecine du travail. La fonction est la
+ *   qualité du salarié (Gardien, Employé d'immeuble) ; ses tâches sont saisies (tachesContrat) et donnent le taux
+ *   (categorieRecuperable). Le taux repris de l'analytique est gardé, mais contrôlé (controlerRecuperablePaie : écart, ou
+ *   « à confirmer » sans tâches saisies) ; les éléments exclus sont mis à 0 % selon la nature de la ligne, quelle que
+ *   soit l'analytique : la ligne 644 de la paie (mutuelle, médecine du travail ; le compte entier, J67, R39), la ligne
+ *   d'une facture imputée sur une analytique du 644 (ligneDepuisAnalytique d'analytiques.ts) et la part du brut faite du
+ *   salaire en nature et des éléments exclus (une seconde ligne au 641). La taxe sur les
  *   salaires, charge fiscale de la rémunération, reste dans la base. Ce n'est pas le syndicat qui récupère, mais le
  *   copropriétaire bailleur : le module donne seulement la part récupérable.
  * - J67, R39 : part patronale de la prévoyance au 642 par défaut, réglable cotisation par cotisation (comptePatronal) :
@@ -137,6 +139,9 @@ import { MODE_REGLEMENT, QUALITE_IDENTITE, type ModeReglement, type TypeEntrepri
  * - les 64x, en classe 6, remontent dans mouvementsARepartir (charges à répartir) ; les attributs (analytique, rubrique,
  *   récupérable) sont repris de l'analytique fournie, jamais calculés, sauf la part récupérable des éléments exclus,
  *   mise à 0 % (J67, R38) ; sans analytique fournie, rien n'est forcé : une seule ligne au 641 ;
+ * - tout le 644 est tenu pour jamais récupérable, par son compte, faute de nature saisie sur la cotisation (J67, R39 : « le
+ *   644 reste entièrement non récupérable ») : une prévoyance que le cabinet y passerait (comptePatronal) perdrait sa part
+ *   récupérable ; c'est la lecture prudente pour le locataire, et Hugo choisira si Gestéam la met au 644 (question 3) ;
  * - SIRET attendu dès qu'un salarié est en poste (la DSN porte le numéro d'identité de l'employeur : CSS art. R133-14, V,
  *   1°, a) ; les autres identifiants employeur : alerte de gestion, jamais bloquante.
  *
@@ -158,6 +163,12 @@ import { MODE_REGLEMENT, QUALITE_IDENTITE, type ModeReglement, type TypeEntrepri
  *    charge (net incohérent) ; C. trav. L3242-1 et R3243-1 et suivants non lus. Faut-il les traiter, et sur quels comptes ?
  * 9. Bulletin d'un mois postérieur à la sortie du salarié (rappel de salaire, régularisation) : admis sans alerte. Faut-il
  *    une alerte, ou le limiter au mois du paiement ?
+ * 11. Hugo (J67, R38, points restés ouverts) : la participation au comité d'entreprise et à l'effort de construction,
+ *    jamais récupérable (décret n° 87-713, art. 2, c), n'est pas modélisée ; passée en cotisation au 642, elle garde le
+ *    taux de l'analytique. Pour la mettre à 0 %, il faudrait la nature de chaque cotisation sur le bulletin (donnée du
+ *    prestataire de paie). Le décret de la part récupérable dans les logements sociaux n'a pas été lu : le module ne vaut
+ *    que pour les baux de la loi du 6 juillet 1989 ; il faudrait le lire, avec la loi n° 89-462, art. 23, avant de
+ *    l'étendre.
  *
  * Branchements à faire plus tard (fichiers sous PR, non modifiés ici) : facture-ventilee.ts (controlerVentilation),
  * statuts-facture.ts et imputation-facture.ts : appeler controlerFactureHorsPaie ; reglements-fournisseurs.ts : refuser un
@@ -609,8 +620,8 @@ function lignesSalaires(b: BulletinPaie, ctx: ContextePaie): LigneMouvement[] {
  * Écriture de la paie d'un bulletin (🔵 contreparties déduites) : débit 641 (brut), 642 et 644 (cotisations patronales,
  * selon le compte de charge de chaque cotisation) ; crédit 421 du salarié (net), 431 / 432 par organisme (cotisations
  * salariales et patronales), 442 (prélèvement à la source) et, s'il y en a, compte des avantages en nature. Lignes à zéro
- * omises. Part récupérable à 0 % sur la ligne 644 (part patronale de mutuelle) et sur la part non récupérable du brut
- * (J67, R38). Lève une erreur sur un bulletin incohérent, d'un autre salarié ou d'avant son entrée.
+ * omises. Part récupérable à 0 % sur la ligne 644 (mutuelle, médecine du travail : le compte entier) et sur la part non
+ * récupérable du brut (J67, R38 et R39). Lève une erreur sur un bulletin incohérent, d'un autre salarié ou d'avant son entrée.
  */
 export function ecrituresConstatationPaie(b: BulletinPaie, salarie: SalarieSyndicat, ctx: ContextePaie): LigneMouvement[] {
   verifierPlanPaie(ctx.plan)
@@ -669,8 +680,20 @@ const LIGNES_REMUNERATION = ['salaires', 'chargesSociales', 'taxeSalaires'] as c
 const libelleComptePaie = (cle: CleComptePaie): string => `Compte ${COMPTES_NOMENCLATURE_PAIE[cle].compte} « ${COMPTES_NOMENCLATURE_PAIE[cle].libelle} »`
 
 /**
+ * J67, R38 et R39 — le 644 et ses subdivisions (médecine du travail, mutuelle) ne sont jamais récupérables (décret
+ * n° 87-713, art. 2, c) : vrai pour un code du plan qui commence par 644.
+ */
+export const estCompteJamaisRecuperable = (comptePlan: string): boolean => comptePlan.startsWith(COMPTES_NOMENCLATURE_PAIE.autresFrais.compte)
+
+export const FONDEMENT_COMPTE_JAMAIS_RECUPERABLE = 'Décret n° 87-713, art. 2, c ; J67, R38 et R39'
+
+/** Message commun à la paie et aux analytiques, sans point final : 0 % appliqué au 644 au lieu du taux repris (mis en forme). */
+export const messageCompteJamaisRecuperable = (reprisPct: string): string =>
+  `${libelleComptePaie('autresFrais')} : jamais récupérable, 0 % appliqué au lieu des ${reprisPct} % de l'analytique`
+
+/**
  * J67, R38 — part récupérable reprise de l'analytique, contrôlée sans bloquer : écart avec le taux de la fonction et des
- * tâches du contrat ; « à confirmer » sans tâches saisies ; part patronale de mutuelle (644) mise à 0 % malgré
+ * tâches du contrat ; « à confirmer » sans tâches saisies ; compte 644 (mutuelle, médecine du travail) mis à 0 % malgré
  * l'analytique. Le taux repris n'est jamais remplacé, sauf sur les éléments exclus (ecrituresConstatationPaie).
  */
 export function controlerRecuperablePaie(salarie: SalarieSyndicat, ctx: Pick<ContextePaie, 'attributs'>): AnomaliePaie[] {
@@ -693,15 +716,9 @@ export function controlerRecuperablePaie(salarie: SalarieSyndicat, ctx: Pick<Con
         ),
       )
   }
-  const mutuelle = ctx.attributs?.autresFrais?.recupLocatairePct
-  if (mutuelle !== undefined && mutuelle > 0)
-    anomalies.push(
-      anomalie(
-        'recuperable_exclu_force',
-        `${libelleComptePaie('autresFrais')} : part patronale de mutuelle, jamais récupérable : 0 % appliqué au lieu des ${mutuelle} % de l'analytique.`,
-        'Décret n° 87-713, art. 2, c ; J67, R38',
-      ),
-    )
+  const autresFrais = ctx.attributs?.autresFrais?.recupLocatairePct
+  if (autresFrais !== undefined && autresFrais > 0)
+    anomalies.push(anomalie('recuperable_exclu_force', `${messageCompteJamaisRecuperable(String(autresFrais))}.`, FONDEMENT_COMPTE_JAMAIS_RECUPERABLE))
   return anomalies
 }
 

@@ -434,11 +434,13 @@ describe('source — alerte de l’art. 29-1 A (mandataire ad hoc)', () => {
     ])
   })
 
-  it('en-tête et documentation : 🔴 sous administrateur provisoire ou arriérés comptés, pas sous tout mandat de justice', () => {
+  it('en-tête et documentation : 🔴 sous administrateur provisoire seulement ; ni sous tout mandat de justice, ni pour les arriérés (J67, R31)', () => {
     const SOURCE = readFileSync(join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'suivi-a-faire.ts'), 'utf8')
     const texte = SOURCE.replaceAll(/\s*\n\s*\*\s*/g, ' ')
     expect(texte).not.toMatch(/🔴 sous mandat de justice/)
-    expect(texte.match(/🔴 sous administrateur provisoire \(art\. 29-1 ou D\. 1967 art\. 47\), ou arriérés des exercices antérieurs comptés/g)).toHaveLength(2)
+    expect(texte).not.toMatch(/arriérés des exercices antérieurs comptés/)
+    expect(texte.match(/🔴 sous administrateur provisoire \(art\. 29-1 ou D\. 1967 art\. 47\) [:;] /g)).toHaveLength(2)
+    expect(texte.match(/les arriérés comptés ne la rendent plus « à confirmer » \(J67, R31\)/g)).toHaveLength(2)
   })
 
   it('requête faite pour les comptes avant la clôture : les impayés de cette clôture restent à suivre, seuls, à leur date', () => {

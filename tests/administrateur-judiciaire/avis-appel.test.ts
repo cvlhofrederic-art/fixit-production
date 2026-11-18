@@ -884,6 +884,16 @@ describe('préparation de la diffusion par le circuit Courrier', () => {
     expect(b[1].anomalies).toContainEqual(expect.objectContaining({ code: 'sans_adresse', gravite: 'bloquant' }))
   })
 
+  it('J67, R19 : seule une adresse d’origine « autre » ; l’avis, lettre simple et non notification, part à cette adresse, avec un avertissement', () => {
+    const autre = creerAdresseDatee({ ...adresse('adr-B-autre'), origine: 'autre' })
+    const avecAutre = identites.map((i) => (i.id === 'i-cpt-B' ? creerIdentite({ ...i, adresses: [autre] }) : i))
+    const b = preparerDiffusionAvis(contenuAvisAppel(avis, options()), diffusion({ identites: avecAutre })).find((s) => s.compteId === 'cpt-B')
+    expect(b).toMatchObject({ canal: 'postal', formeEnvoi: 'Normal' })
+    expect(b?.adressePostale?.id).toBe('adr-B-autre')
+    expect(b?.courrier?.modeleId).toBe('mod-postal')
+    expect(b?.anomalies).toEqual([expect.objectContaining({ code: 'adresse_autre', gravite: 'avertissement' })])
+  })
+
   it('aucun destinataire en place, ou contenu bloqué : pas de courrier', () => {
     const sansB = preparerDiffusionAvis(contenuAvisAppel(avis, options()), diffusion({ positions: [positions[0]] })).find((s) => s.compteId === 'cpt-B')
     expect(sansB).toMatchObject({ identiteId: null, courrier: null })

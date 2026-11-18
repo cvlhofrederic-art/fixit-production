@@ -12,6 +12,7 @@ import {
   verifierAujourdhui,
   type OptionsJoursFeries,
 } from '@/lib/administrateur-judiciaire/domain/dates'
+import { estAuCentieme } from '@/lib/administrateur-judiciaire/domain/facture-ventilee'
 import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
 import {
   controlerBulletinSalarie,
@@ -140,8 +141,9 @@ import type { Traitement } from '@/lib/administrateur-judiciaire/domain/traiteme
  * - J67, R34 : l'effectif des seuils de 11 et de 50 salariés (R243-6, II et R243-6-1) est celui du code de la sécurité
  *   sociale (CSS L130-1, I : moyenne des mois de l'année civile précédente ; R130-1 : temps partiel et prorata ; L130-1,
  *   II : seuil franchi à la hausse compté après cinq années civiles de suite), décompté par la DSN (R133-14, IV, 7°).
- *   VitFix ne le calcule pas : il saisit l'effectif annuel moyen retenu en DSN par le prestataire de paie, et alerte sans
- *   bloquer près d'un seuil. Pour le DUERP (C. trav. R4121-2, 1°), le décompte est celui du Code du travail (L1111-2).
+ *   VitFix ne le calcule pas : il saisit l'effectif annuel moyen retenu en DSN par le prestataire de paie, arrondi au
+ *   centième (R130-1, I : un temps partiel compte au prorata, 0,62 par exemple), et alerte sans bloquer près d'un seuil.
+ *   Pour le DUERP (C. trav. R4121-2, 1°), le décompte est celui du Code du travail (L1111-2).
  * - J67, R35 : la fin du contrat de travail, et le début et la fin d'un arrêt de travail quand l'employeur n'est pas
  *   subrogé dans les indemnités journalières, se signalent en DSN dans un délai fixé par arrêté, qui ne peut excéder cinq
  *   jours ouvrés (CSS R133-14, II, al. 2) ; l'arrêté du 2 juillet 2013, art. 1, le fixe à « cinq jours ouvrés ». Sans
@@ -149,7 +151,8 @@ import type { Traitement } from '@/lib/administrateur-judiciaire/domain/traiteme
  *   Événement survenu du 1er à la veille du 15 dont le délai finit avant le 15 : la DSN du mois précédent part dans ce
  *   délai (R133-14, I, al. 2). Jours ouvrés lus comme du lundi au vendredi, hors jours fériés, comptés un par un
  *   (ajouterJoursOuvres de dates.ts, Alsace-Moselle comprise) ; point de départ (non écrit) : la date de l'événement,
- *   « à confirmer ».
+ *   « à confirmer ». Fin du contrat : son dernier jour, veille de sortieLe (premier jour hors poste, période
+ *   semi-ouverte) ; c'est la lecture prudente, le délai part un jour plus tôt.
  * - J67, R36 : la version de R4624-31 en vigueur depuis le 15/06/2026 vaut pour les arrêts délivrés à compter du
  *   lendemain de la publication du décret n° 2026-503 (art. 5, JORF du 14/06/2026). La rédaction antérieure prévoit les
  *   mêmes cas et le même délai, sans dispense ; elle vaut pour les arrêts commençant après le 31/03/2022 (décret
@@ -193,6 +196,9 @@ import type { Traitement } from '@/lib/administrateur-judiciaire/domain/traiteme
  * - signalement DSN (J67, R35) : subrogation ou retenue non saisies, le signalement est dû (lecture prudente) et son
  *   libellé demande la saisie ; « fin de l'arrêt » : la reprise, son repère pratique ; un signalement est soldé par la
  *   date où il a été fait ; l'avancement de la DSN du mois précédent vaut pour tout événement daté, signalé ou non ;
+ *   un événement daté d'une période déjà déclarée (au plus tard le dernier jour de derniereDsn) n'est plus signalé à
+ *   part : cette DSN déposée le porte, et un retard ne se rattrape plus (sans dernière DSN connue, tous les événements
+ *   restent suivis) ;
  * - DUERP absent : à établir dès la première entrée (aucun délai écrit) ; transmission au service de prévention et de
  *   santé au travail à la date de la mise à jour (aucun délai écrit) : à confirmer ;
  * - salaire à payer au dernier jour du mois du bulletin tant que les règlements du net en vigueur rattachés au bulletin
@@ -334,7 +340,8 @@ export interface EtatEmployeur {
   salaries: readonly SalarieSyndicat[]
   /**
    * J67, R34 — effectif annuel moyen de l'année civile précédente, tel que retenu en DSN par le prestataire de paie (CSS
-   * L130-1 et R130-1) : saisi, jamais calculé.
+   * L130-1 et R130-1) : saisi, jamais calculé ; positif ou nul, arrondi au centième (R130-1, I : 0,62 pour un temps
+   * partiel).
    */
   effectif: number
   /** Paie faite au cours du mois travaillé (CCN art. 22, 3 : au plus tard le dernier jour du mois). */
@@ -405,6 +412,11 @@ const VIGUEUR_R4624_31 = composerDateIso(2026, 6, 15)
 /** Décret n° 2022-372, art. 6 : rédaction à 60 jours, sans dispense, pour les arrêts commençant après le 31/03/2022 (J67, R36). */
 const VIGUEUR_R4624_31_2022 = composerDateIso(2022, 4, 1)
 const MOIS_MISE_A_JOUR_DUERP = 12
+/** C. trav. R4121-4 : versions successives du DUERP conservées 40 ans, jusqu'au dépôt sur le portail (J67, R37). */
+const ANS_CONSERVATION_DUERP = 40
+/** C. trav. L4121-3-1, V, B, b : dépôt du DUERP sur le portail au plus tard à cette date sous ce seuil de salariés. */
+const DEPOT_DUERP_AU_PLUS_TARD = composerDateIso(2024, 7, 1)
+const SEUIL_DEPOT_DUERP_SALARIES = 150
 /** CSS R133-14, II, al. 2 ; arrêté du 2 juillet 2013, art. 1 : signalement d'un événement en « cinq jours ouvrés » (J67, R35). */
 const JOURS_OUVRES_SIGNALEMENT_DSN = 5
 /** CSS R133-14, I, al. 2 : événement du 1er à la veille du 15, délai fini avant le 15 : la DSN du mois précédent l'accompagne. */
@@ -626,6 +638,20 @@ const estRenseigne = (valeur: unknown): boolean => valeur !== undefined && valeu
 /** Signalement à part : employeur non subrogé, et retenue sur le salaire du mois (R133-14, II, 1°) ; non saisis : dû. */
 const signalementArretDu = (a: ArretTravail): boolean => a.subrogation !== true && a.retenueSurSalaire !== false
 
+/**
+ * 🔵 Événement daté d'une période déjà déclarée (derniereDsn) : la DSN déposée le porte, plus de signalement à part ;
+ * sans dernière DSN connue, tout événement reste suivi.
+ */
+function nonDeclare(etat: EtatEmployeur): (e: EvenementDsn) => boolean {
+  if (etat.derniereDsn === null) return () => true
+  const derniere = indexPeriode(etat.derniereDsn)
+  return (e) => indexPeriode(periodeDeDate(e.le)) > derniere
+}
+
+/**
+ * Événements à signaler. Fin du contrat : son dernier jour, veille de sortieLe (premier jour hors poste), lecture
+ * prudente du point de départ (J67, R35).
+ */
 function evenementsDsn(etat: EtatEmployeur, options: OptionsJoursFeries): EvenementDsn[] {
   const evenement = (cle: string, objet: string, detail: string, le: string, salarieId: string, signale: boolean): EvenementDsn => ({
     cle: `signalement_dsn:${cle}`,
@@ -637,11 +663,12 @@ function evenementsDsn(etat: EtatEmployeur, options: OptionsJoursFeries): Evenem
     signale,
   })
   const signalees: ReadonlySet<string> = new Set((etat.finsDeContratSignalees ?? []).map((f) => f.salarieId))
-  const fins = etat.salaries.flatMap((s) =>
-    s.sortieLe === null
-      ? []
-      : [evenement(`fin_contrat:${s.id}`, 'de la fin du contrat de travail', `sortie le ${dateIsoVersFr(s.sortieLe)}`, s.sortieLe, s.id, signalees.has(s.id))],
-  )
+  const fins = etat.salaries.flatMap((s) => {
+    if (s.sortieLe === null) return []
+    const finLe = ajouterJours(s.sortieLe, -1)
+    const detail = `fin du contrat le ${dateIsoVersFr(finLe)}, veille de la sortie`
+    return [evenement(`fin_contrat:${s.id}`, 'de la fin du contrat de travail', detail, finLe, s.id, signalees.has(s.id))]
+  })
   const arrets = etat.arrets.filter(signalementArretDu).flatMap((a) => {
     const motif = LIBELLES_MOTIF_ARRET[a.motif]
     const aSaisir = estRenseigne(a.subrogation) && estRenseigne(a.retenueSurSalaire) ? '' : ' ; subrogation et retenue sur salaire à saisir'
@@ -650,7 +677,7 @@ function evenementsDsn(etat: EtatEmployeur, options: OptionsJoursFeries): Evenem
     const detailFin = `${motif}, reprise le ${dateIsoVersFr(a.repriseLe)}${aSaisir}`
     return [debut, evenement(`fin_arret:${a.id}`, "de la fin de l'arrêt de travail", detailFin, a.repriseLe, a.salarieId, estRenseigne(a.finSignaleeLe))]
   })
-  return [...fins, ...arrets]
+  return [...fins, ...arrets].filter(nonDeclare(etat))
 }
 
 function echeancesSignalementDsn(evenements: readonly EvenementDsn[]): EcheanceEmployeur[] {
@@ -862,12 +889,12 @@ function depotDuerp(misAJourLe: string, deposeLe: string | null): EcheanceEmploy
     {
       obligation: 'duerp',
       cle: 'duerp:depot',
-      libelle: `DUERP mis à jour le ${dateIsoVersFr(misAJourLe)} : le déposer sur le portail s'il est ouvert ; sinon, le conserver avec les versions précédentes (40 ans) et afficher l'avis d'accès (rappel de gestion)`,
+      libelle: `DUERP mis à jour le ${dateIsoVersFr(misAJourLe)} : le déposer sur le portail s'il est ouvert ; sinon, le conserver avec les versions précédentes (${ANS_CONSERVATION_DUERP} ans) et afficher l'avis d'accès (rappel de gestion)`,
       date: misAJourLe,
       salarieId: null,
       nature: 'gestion',
       aConfirmer: true,
-      fondement: 'C. trav. art. L4121-3-1, V, B, b (au plus tard depuis le 01/07/2024 sous 150 salariés) et R4121-4 ; J67, R37',
+      fondement: `C. trav. art. L4121-3-1, V, B, b (au plus tard depuis le ${dateIsoVersFr(DEPOT_DUERP_AU_PLUS_TARD)} sous ${SEUIL_DEPOT_DUERP_SALARIES} salariés) et R4121-4 ; J67, R37`,
     },
   ]
 }
@@ -1181,7 +1208,9 @@ function verifierTaxe(taxe: TaxeSalairesSuivie | null): void {
 
 function verifierEtat(etat: EtatEmployeur): void {
   if (!etat.coproprieteId) throw new Error('Employeur : syndicat attendu (D1).')
-  if (!Number.isInteger(etat.effectif) || etat.effectif < 0) throw new Error(`Effectif invalide (${etat.effectif}) : entier positif ou nul attendu.`)
+  // J67, R34 : effectif annuel moyen de la DSN, arrondi au centième (CSS R130-1, I).
+  if (!estAuCentieme(etat.effectif) || etat.effectif < 0)
+    throw new Error(`Effectif invalide (${etat.effectif}) : nombre positif ou nul, au centième près, attendu (CSS art. R130-1, I).`)
   if (etat.versementTrimestrielCotisations && etat.effectif >= SEUIL_ONZE_SALARIES)
     throw new Error('Versement trimestriel des cotisations : réservé à un effectif de moins de 11 salariés (CSS art. R243-6-1).')
   if (etat.derniereDsn && !estPeriodeValide(etat.derniereDsn.annee, etat.derniereDsn.mois))
@@ -1238,7 +1267,7 @@ export interface AlerteEmployeur {
 function alertesEffectif(effectif: number): AlerteEmployeur[] {
   const plage = PLAGES_EFFECTIF_PROCHE.find((p) => effectif >= p.de && effectif <= p.a)
   if (plage === undefined) return []
-  const message = `Effectif de ${effectif} : seuil de ${plage.seuil} salariés proche : vérifier le décompte, la règle des cinq ans, et pour le DUERP le décompte du Code du travail (J67, R34).`
+  const message = `Effectif de ${String(effectif).replace('.', ',')} : seuil de ${plage.seuil} salariés proche : vérifier le décompte, la règle des cinq ans, et pour le DUERP le décompte du Code du travail (J67, R34).`
   return [{ code: 'effectif_proche_seuil', message, fondement: plage.fondement, aConfirmer: false }]
 }
 

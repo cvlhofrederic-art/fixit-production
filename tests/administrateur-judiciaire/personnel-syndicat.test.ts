@@ -340,9 +340,23 @@ describe('J67, R38 — part récupérable sur le locataire (décret n° 87-713, 
     const [alerte] = controlerRecuperablePaie(salarie('Gardien', 'entretien_et_rejets'), { ...CTX, attributs })
     expect(alerte).toEqual({
       code: 'recuperable_exclu_force',
-      message: "Compte 644 « Autres (médecine du travail, mutuelles, etc.) » : part patronale de mutuelle, jamais récupérable : 0 % appliqué au lieu des 75 % de l'analytique.",
-      fondement: 'Décret n° 87-713, art. 2, c ; J67, R38',
+      message: "Compte 644 « Autres (médecine du travail, mutuelles, etc.) » : jamais récupérable, 0 % appliqué au lieu des 75 % de l'analytique.",
+      fondement: 'Décret n° 87-713, art. 2, c ; J67, R38 et R39',
     })
+  })
+
+  it('prévoyance passée au 644 par le cabinet : le compte entier reste à 0 % (J67, R39), sans la nommer « mutuelle » ; au 642, elle garde son taux', () => {
+    const prevoyance = { organisme: 'autre_organisme', salarialeCentimes: 2_000, patronaleCentimes: 20_000 } as const
+    const attributs = { chargesSociales: { analytique: '010', recupLocatairePct: 75 }, autresFrais: { analytique: '010', recupLocatairePct: 75 } }
+    const au644 = bulletin({ cotisations: [...bulletin().cotisations, { ...prevoyance, comptePatronal: 'autresFrais' }], netAPayerCentimes: 148_000 })
+    const ligne644 = ecrituresConstatationPaie(au644, gardien, { ...CTX, attributs }).find((l) => l.compte === 'M001.64400.00000.0')
+    expect(ligne644).toMatchObject({ montantCentimes: 20_000, attributs: { recupLocatairePct: 0 } })
+    const alerte = controlerRecuperablePaie(salarie('Gardien', 'entretien_et_rejets'), { ...CTX, attributs }).find((a) => a.code === 'recuperable_exclu_force')
+    expect(alerte?.message).not.toMatch(/part patronale de mutuelle/)
+    expect(alerte?.message).toMatch(/jamais récupérable, 0 % appliqué au lieu des 75 %/)
+    const au642 = bulletin({ cotisations: [...bulletin().cotisations, prevoyance], netAPayerCentimes: 148_000 })
+    const ligne642 = ecrituresConstatationPaie(au642, gardien, { ...CTX, attributs }).find((l) => l.compte === 'M001.64200.00000.0')
+    expect(ligne642?.attributs?.recupLocatairePct).toBe(75)
   })
 
   it('salaire en nature et éléments exclus retirés de la base récupérable : une seconde ligne au 641, à 0 %', () => {
@@ -707,6 +721,14 @@ describe('en-tête du module (marqueurs 🟢 / 🔵 / 🔴)', () => {
     expect(nonEtabli).not.toMatch(/Récupérabilité des salaires du gardien/)
     expect(nonEtabli).not.toMatch(/Part patronale de la prévoyance : 642/)
     expect(source).not.toMatch(/🔴 8/)
+  })
+
+  it('J67, R38 : liste complète des éléments jamais récupérables ; points restés ouverts marqués en 🔴 ; tout le 644 à 0 % en 🔵', () => {
+    const j67 = entete.slice(entete.indexOf('Décisions de Hugo du 17/11/2026'), entete.indexOf('🔵 Déduit'))
+    expect(j67).toMatch(/la participation au comité d'entreprise et à l'effort de construction, la cotisation à la médecine du travail/)
+    expect(nonEtabli).toMatch(/11\. Hugo \(J67, R38, points restés ouverts\) : la participation au comité d'entreprise et à l'effort de construction/)
+    expect(nonEtabli).toMatch(/logements sociaux n'a pas été lu/)
+    expect(deduit).toMatch(/tout le 644 est tenu pour jamais récupérable, par son compte/)
   })
 
   it('J25 : C. trav. L3241-1 relu (version, phrase exacte)', () => {

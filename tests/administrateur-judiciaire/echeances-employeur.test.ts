@@ -579,6 +579,17 @@ describe('J67, R34 — effectif annuel moyen retenu en DSN (CSS L130-1, R130-1) 
     expect(cinquante.message).toMatch(/^Effectif de 52 : seuil de 50 salariés proche/)
     expect(cinquante.fondement).toBe('CSS art. L130-1 et R130-1 ; R243-6, II')
   })
+
+  it('effectif au centième (R130-1, I) : un temps partiel est admis ; près d’un seuil, l’alerte l’écrit au format français', () => {
+    expect(codesAlertes(0.62)).toEqual([])
+    expect(de(echeances({ effectif: 0.75 }), 'dsn').map((e) => e.date)).toEqual(['2026-11-16'])
+    const [alerte] = alertesEmployeur(etat({ effectif: 10.53 }), AUJ)
+    expect(alerte.message).toMatch(/^Effectif de 10,53 : seuil de 11 salariés proche/)
+    expect(alertesEmployeur(etat({ effectif: 10.5 }), AUJ)[0].message).toMatch(/^Effectif de 10,5 : seuil de 11/)
+    // Sous 11 salariés, même au centième près : versement trimestriel admis.
+    expect(() => echeances({ effectif: 10.99, versementTrimestrielCotisations: true })).not.toThrow()
+    for (const effectif of [1.555, -0.5, Number.NaN]) expect(() => echeances({ effectif })).toThrow(/Effectif invalide .* au centième près/)
+  })
 })
 
 describe('J67, R35 — signalement en DSN des événements (CSS R133-14 ; arrêté du 2 juillet 2013, art. 1)', () => {
@@ -594,7 +605,8 @@ describe('J67, R35 — signalement en DSN des événements (CSS R133-14 ; arrêt
     retenueSurSalaire: true,
     ...champs,
   })
-  const signalements = (champs: Partial<EtatEmployeur>) => de(echeances(champs), 'signalement_dsn')
+  /** Dernière DSN : juin 2026, avant les événements de ces tests (ceux d'une période déjà déclarée ne sont plus suivis). */
+  const signalements = (champs: Partial<EtatEmployeur>) => de(echeances({ derniereDsn: { annee: 2026, mois: 6 }, ...champs }), 'signalement_dsn')
 
   it('cinq jours ouvrés comptés un par un : un mercredi donne le mercredi suivant ; un jour férié ne compte pas ; Alsace-Moselle', () => {
     expect(ajouterJoursOuvres('2026-10-14', 5)).toBe('2026-10-21')
@@ -603,11 +615,12 @@ describe('J67, R35 — signalement en DSN des événements (CSS R133-14 ; arrêt
     expect(ajouterJoursOuvres('2027-03-22', 5, { alsaceMoselle: true })).toBe('2027-03-31')
   })
 
-  it('fin de contrat : date de sortie + 5 jours ouvrés, point de départ à confirmer ; plus rien une fois signalée', () => {
+  it('fin de contrat : dernier jour du contrat (veille de la sortie) + 5 jours ouvrés, point de départ à confirmer ; plus rien une fois signalée', () => {
+    // Sortie le mercredi 14/10 : dernier jour le mardi 13/10, signalement au plus tard le mardi 20/10.
     const [fin, ...autres] = signalements({ salaries: [sortiLe('2026-10-14')] })
     expect(autres).toEqual([])
-    expect(fin).toMatchObject({ cle: 'signalement_dsn:fin_contrat:sal-1', date: '2026-10-21', salarieId: 'sal-1', nature: 'legale', aConfirmer: true })
-    expect(fin.libelle).toBe('Signalement en DSN de la fin du contrat de travail (sortie le 14/10/2026)')
+    expect(fin).toMatchObject({ cle: 'signalement_dsn:fin_contrat:sal-1', date: '2026-10-20', salarieId: 'sal-1', nature: 'legale', aConfirmer: true })
+    expect(fin.libelle).toBe('Signalement en DSN de la fin du contrat de travail (fin du contrat le 13/10/2026, veille de la sortie)')
     expect(fin.fondement).toBe(
       "CSS art. R133-14, II, al. 2 ; arrêté du 2 juillet 2013, art. 1 : 5 jours ouvrés après l'événement, comptés un par un ; point de départ à confirmer (J67, R35)",
     )
@@ -637,7 +650,8 @@ describe('J67, R35 — signalement en DSN des événements (CSS R133-14 ; arrêt
   })
 
   it('événement du 1er à la veille du 15, délai fini avant le 15 : la DSN du mois précédent part dans ce délai (R133-14, I, al. 2)', () => {
-    const avance = echeances({ salaries: [sortiLe('2026-10-01')], derniereDsn: { annee: 2026, mois: 8 } })
+    // Sortie le 02/10 : contrat fini le jeudi 01/10, délai au jeudi 08/10.
+    const avance = echeances({ salaries: [sortiLe('2026-10-02')], derniereDsn: { annee: 2026, mois: 8 } })
     expect(de(avance, 'dsn').map((e) => [e.cle, e.date])).toEqual([
       ['dsn:2026-09', '2026-10-08'],
       ['dsn:2026-10', '2026-11-16'],
@@ -648,12 +662,33 @@ describe('J67, R35 — signalement en DSN des événements (CSS R133-14 ; arrêt
       'CSS art. L133-5-3, R133-14, I et R243-6, II ; avancée au 08/10/2026 par le signalement de la fin du contrat de travail (CSS art. R133-14, I, al. 2 ; J67, R35)',
     )
     expect(de(avance, 'versement_cotisations').map((e) => [e.cle, e.date])).toEqual([['cotisations:2026-09', '2026-10-15']])
-    // Délai qui finit le 15 ou après, ou événement du 15 : rien n'est avancé.
-    for (const sortie of ['2026-10-09', '2026-10-15'])
+    // Sortie le 08/10 : contrat fini le mercredi 07/10, délai au mercredi 14/10, avant le 15 : la DSN de septembre est avancée.
+    const sortie08 = echeances({ salaries: [sortiLe('2026-10-08')], derniereDsn: { annee: 2026, mois: 8 } })
+    expect(de(sortie08, 'signalement_dsn').map((e) => e.date)).toEqual(['2026-10-14'])
+    expect(de(sortie08, 'dsn').map((e) => e.date)).toEqual(['2026-10-14', '2026-11-16'])
+    // Délai qui finit le 15 ou après, événement du 15, ou contrat fini le 30/09 (sortie le 01/10) : rien n'est avancé.
+    for (const sortie of ['2026-10-01', '2026-10-09', '2026-10-15', '2026-10-16'])
       expect(de(echeances({ salaries: [sortiLe(sortie)], derniereDsn: { annee: 2026, mois: 8 } }), 'dsn').map((e) => e.date)).toEqual([
         '2026-10-15',
         '2026-11-16',
       ])
+  })
+
+  it('événement d’une période déjà déclarée (dernière DSN) : plus de signalement à part ; sans dernière DSN connue, il reste suivi', () => {
+    const ancien = creerSalarieSyndicat({ ...gardien, id: 'sal-2', identiteId: 'identite-2', auxiliaire421: '00002', entreeLe: '2017-01-02', sortieLe: '2024-03-12' })
+    const ancienArret = arret({ id: 'arr-2', salarieId: 'sal-2', du: '2023-01-09', repriseLe: '2023-01-20' })
+    const suivi = { salaries: [gardien, ancien], arrets: [ancienArret] }
+    expect(de(echeances({ ...suivi, derniereDsn: { annee: 2026, mois: 9 } }), 'signalement_dsn')).toEqual([])
+    // Arrêt commencé en août (déclaré), repris en octobre (pas encore déclaré) : seule la fin reste à signaler.
+    const aCheval = arret({ du: '2026-08-24', repriseLe: '2026-10-05' })
+    expect(de(echeances({ arrets: [aCheval], derniereDsn: { annee: 2026, mois: 9 } }), 'signalement_dsn').map((e) => e.cle)).toEqual([
+      'signalement_dsn:fin_arret:arr-1',
+    ])
+    expect(de(echeances({ ...suivi, derniereDsn: null }), 'signalement_dsn').map((e) => e.cle)).toEqual([
+      'signalement_dsn:debut_arret:arr-2',
+      'signalement_dsn:fin_arret:arr-2',
+      'signalement_dsn:fin_contrat:sal-2',
+    ])
   })
 
   it('contrôles : fin de contrat signalée d’un salarié inconnu, dates invalides, saisie non booléenne', () => {
@@ -730,7 +765,7 @@ describe('assemblage et adaptateur vers le suivi « à faire »', () => {
     expect(dates(toutes)).toEqual([...dates(toutes)].sort((a, b) => a.localeCompare(b)))
     expect(() => echeancesEmployeur(etat(), '30/10/2026')).toThrow(/AAAA-MM-JJ/)
     expect(() => echeances({ salaries: [creerSalarieSyndicat({ ...gardien, coproprieteId: 'copro-2' })] })).toThrow(/syndicat/)
-    expect(() => echeances({ effectif: 1.5 })).toThrow(/Effectif/)
+    expect(() => echeances({ effectif: -1 })).toThrow(/Effectif/)
     expect(() => echeances({ suivisMedicaux: [{ salarieId: 'sal-9', derniereVisiteLe: null, prochaineLe: null }] })).toThrow(/sal-9/)
     expect(() => echeances({}, { rappelDuerpMois: 0 })).toThrow(/rappel/)
   })

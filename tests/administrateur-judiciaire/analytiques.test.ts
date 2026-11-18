@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   alertePlafondRecuperablePersonnel,
+  alerteRecuperableCompte644,
   alertesBudgetProgressif,
   budgetProgressif,
   controlerBudgetProgressif,
@@ -145,6 +146,22 @@ describe('J67, R38 — part récupérable d’une analytique de personnel (décr
     expect(alertePlafondRecuperablePersonnel(fiche({ recuperablePct: 100 }), 'employe_immeuble')).toBeNull()
     expect(alertePlafondRecuperablePersonnel(fiche({ recuperablePct: 15 }), 'encadrement_technique_regie')?.message).toMatch(/plafond de 10 %/)
     expect(() => alertePlafondRecuperablePersonnel(fiche({ recuperablePct: 120 }), 'employe_immeuble')).toThrow(/récupérable/)
+  })
+
+  it('compte 644 (médecine du travail payée sur facture, mutuelle) : ligne de facture à 0 % malgré la fiche, avec une alerte non bloquante', () => {
+    const medecine = fiche({ id: 'an-012', code: '012', libelle: 'Médecine du travail', comptePlan: '64400', cle: '001', recuperablePct: 75 })
+    expect(controlerFicheAnalytique(medecine)).toEqual([])
+    expect(ligneDepuisAnalytique(medecine, { montantTtcCentimes: 12_000 }).recupLocatairePct).toBe(0)
+    expect(alerteRecuperableCompte644(medecine)).toEqual({
+      code: 'recuperable_exclu_force',
+      message:
+        "Analytique 012 : Compte 644 « Autres (médecine du travail, mutuelles, etc.) » : jamais récupérable, 0 % appliqué au lieu des 75 % de l'analytique (Décret n° 87-713, art. 2, c ; J67, R38 et R39).",
+    })
+    expect(alerteRecuperableCompte644({ ...medecine, comptePlan: '64410', recuperablePct: 12.5 })?.message).toMatch(/au lieu des 12,5 %/)
+    // Part déjà nulle, ou autre compte : rien à signaler, le taux de la fiche est repris.
+    expect(alerteRecuperableCompte644({ ...medecine, recuperablePct: 0 })).toBeNull()
+    expect(alerteRecuperableCompte644(fiche())).toBeNull()
+    expect(ligneDepuisAnalytique(fiche({ cle: '001' }), { montantTtcCentimes: 12_000 }).recupLocatairePct).toBe(75)
   })
 
   it('en-tête : la question (i) est tranchée (J67, R38), retirée du 🔴', () => {

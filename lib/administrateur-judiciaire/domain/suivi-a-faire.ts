@@ -93,8 +93,8 @@ import type { StatutAssemblee, StatutContrat, TypeContrat } from '@/lib/data/ref
  * l'exercice passé qui n'est pas « Réparti » ; l'exclusion de « Non géré » (exercice hors mission) est 🔵 déduite.
  * Alerte de l'art. 29-1 A (alerte-mandataire-ad-hoc.ts) : famille Exercices ; par syndicat, un élément (critères à traiter,
  * ou repère du délai sans vote qui court) et la copie de la requête à adresser (D. 1967 art. 61-5) ; 🔴 sous administrateur
- * provisoire (art. 29-1 ou D. 1967 art. 47), ou arriérés des exercices antérieurs comptés : signalée `aConfirmer` ; le
- * syndic désigné par le président du tribunal judiciaire (D. 1967 art. 46) ne l'est pas.
+ * provisoire (art. 29-1 ou D. 1967 art. 47) : signalée `aConfirmer` ; le syndic désigné par le président du tribunal
+ * judiciaire (D. 1967 art. 46) ne l'est pas ; les arriérés comptés ne la rendent plus « à confirmer » (J67, R31).
  * 🔵 Étapes (point 48, etapes-dossier.ts) : « à faire le » compte parmi les dates d'une étape à faire ; une étape
  * automatique encore à faire remonte à sa date de relance, N jours après sa création (tranche 43 § 1), avec l'horizon et
  * la règle du week-end comme les autres natures ; N (JOURS_SUIVI_ETAPE_AUTOMATIQUE) est un réglage de GESTION du
@@ -961,9 +961,9 @@ function etapeAlerte291A(alerte: AlerteMandataireAdHoc): { libelle: string; date
  *   connu) : rien ;
  * - la copie de la requête au représentant de l'État, au maire et au président de l'EPCI (art. 29-1 A, dernier alinéa ;
  *   D. 1967 art. 61-5), à la date de la requête, tant qu'elle n'est pas adressée.
- * `aConfirmer` reprend celui de l'alerte : 🔴 sous administrateur provisoire (art. 29-1 ou D. 1967 art. 47), ou arriérés
- * des exercices antérieurs comptés ; le syndic désigné par le président du tribunal judiciaire (D. 1967 art. 46) ne
- * l'est pas.
+ * `aConfirmer` reprend celui de l'alerte : 🔴 sous administrateur provisoire (art. 29-1 ou D. 1967 art. 47) ; le syndic
+ * désigné par le président du tribunal judiciaire (D. 1967 art. 46) ne l'est pas ; les arriérés comptés ne la rendent
+ * plus « à confirmer » (J67, R31).
  */
 export function depuisAlertesMandataireAdHoc(items: { mandatId: string; alerte: AlerteMandataireAdHoc }[]): ElementAFaire[] {
   return items.flatMap(({ mandatId, alerte }) => {

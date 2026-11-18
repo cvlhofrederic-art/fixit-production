@@ -34,9 +34,12 @@ import { GROUPE_IDENTITE, QUALITE_IDENTITE, type GroupeIdentite } from '@/lib/da
  *   « au dernier domicile communiqué par le copropriétaire à cet effet ») ou par la notification du transfert de
  *   propriété, qui porte le « domicile réel ou élu » de l'acquéreur (art. 6, al. 2). Chaque adresse porte donc son
  *   origine (ORIGINES_ADRESSE). Une adresse d'origine « autre » (courrier retourné, recherche, annuaire, adresse donnée
- *   pour un autre usage) ne sert jamais à notifier ; elle reste parmi les adresses valables, pour un courrier simple.
- *   Origine inconnue (reprise de Gestéam) : adresse admise, avec l'alerte « origine à vérifier » avant une notification
- *   (controlerAdresseDeNotification). Enregistrement de l'origine : à brancher avec la table des identités.
+ *   pour un autre usage) ne sert jamais à notifier ; elle reste parmi les adresses valables, pour un courrier simple :
+ *   à défaut d'adresse de notification, la dernière adresse « autre » en cours sert à la lettre simple
+ *   (adressePourCourrierSimple, avec un avertissement : controlerAdresseDeCourrierSimple), comme l'avis d'appel de fonds
+ *   (D. 1967 art. 35-2). Origine inconnue (reprise de Gestéam) : adresse admise, avec l'alerte « origine à vérifier »
+ *   avant une notification (controlerAdresseDeNotification). Enregistrement de l'origine : à brancher avec la table des
+ *   identités.
  * - Groupes bornés par GROUPE_IDENTITE ; représentant légal daté, réservé à la personne morale (plusieurs co-gérants
  *   possibles) ; participations DÉRIVÉES des positions (D2 : la part est portée par la position), sans entité.
  * 🟢 Adresse électronique de notification datée : voie-notification.ts (CommunicationAdresseElectronique, reçue le
@@ -233,13 +236,32 @@ const indiscernables = (a: AdresseDatee, b: AdresseDatee): boolean => priseDEffe
  * si deux se valent.
  */
 export function adresseDeNotification(identite: Pick<Identite, 'adresses'>, date: string): AdresseDatee | null {
-  const [premiere, seconde] = candidatesNotification(identite, date).candidates
+  return premiereRetenue(candidatesNotification(identite, date).candidates)
+}
+
+/** Première de candidates triées ; null si aucune, ou si les deux premières se valent. */
+function premiereRetenue(candidates: readonly AdresseDatee[]): AdresseDatee | null {
+  const [premiere, seconde] = candidates
   if (!premiere) return null
   return seconde && indiscernables(premiere, seconde) ? null : premiere
 }
 
+/** Adresses d'origine « autre » reçues et en cours à la date, la dernière à prendre effet en tête. */
+const autresEnCours = (identite: Pick<Identite, 'adresses'>, date: string): AdresseDatee[] =>
+  identite.adresses.filter((a) => !sertANotifier(a) && priseDEffet(a) <= date && (a.au === null || date <= a.au)).sort(comparerCandidates)
+
+/**
+ * J67, R19 — adresse d'un courrier simple, qui n'est pas une notification (lettre simple de l'avis d'appel de fonds,
+ * D. 1967 art. 35-2) : l'adresse de notification ; sans aucune adresse de notification, la dernière adresse d'origine
+ * « autre » en cours à la date (elle « peut servir pour un courrier simple ») ; null sinon, ou si deux se valent.
+ */
+export function adressePourCourrierSimple(identite: Pick<Identite, 'adresses'>, date: string): AdresseDatee | null {
+  const { candidates } = candidatesNotification(identite, date)
+  return premiereRetenue(candidates.length > 0 ? candidates : autresEnCours(identite, date))
+}
+
 export interface AnomalieAdresse {
-  code: 'sans_adresse' | 'adresses_concurrentes' | 'adresse_echue' | 'origine_a_verifier'
+  code: 'sans_adresse' | 'adresses_concurrentes' | 'adresse_echue' | 'origine_a_verifier' | 'adresse_autre'
   message: string
 }
 
@@ -247,7 +269,7 @@ export interface AnomalieAdresse {
 function messageSansAdresse(identite: Pick<Identite, 'adresses'>, date: string): string {
   const autres = identite.adresses.filter((a) => !sertANotifier(a) && priseDEffet(a) <= date).map((a) => `« ${a.id} »`)
   if (autres.length === 0) return `Aucune adresse postale communiquée au ${date}.`
-  return `Aucune adresse postale communiquée au ${date} : ${autres.join(', ')} (origine « autre ») ne vaut pas pour notifier, seulement pour un courrier simple (D. 1967 art. 65, al. 2 ; J67, R19).`
+  return `Aucune adresse postale communiquée au ${date} : ${autres.join(', ')} (origine « autre ») ne vaut pas pour notifier (D. 1967 art. 65, al. 2 ; J67, R19).`
 }
 
 export function controlerAdresses(identite: Pick<Identite, 'adresses'>, date: string): AnomalieAdresse[] {
@@ -279,6 +301,21 @@ export function controlerAdresseDeNotification(identite: Pick<Identite, 'adresse
     {
       code: 'origine_a_verifier',
       message: `Adresse « ${retenue.id} » : origine à vérifier (reprise) ; elle ne vaut pour notifier que si le copropriétaire l'a communiquée à cet effet, ou si elle vient de la notification du transfert de propriété (D. 1967 art. 65, al. 2, et art. 6, al. 2 ; J67, R19).`,
+    },
+  ]
+}
+
+/**
+ * Contrôle avant un courrier simple : celui de controlerAdresses ; sans adresse de notification, une adresse « autre »
+ * en cours permet l'envoi, avec l'avertissement « adresse_autre » à la place de « sans_adresse » (J67, R19).
+ */
+export function controlerAdresseDeCourrierSimple(identite: Pick<Identite, 'adresses'>, date: string): AnomalieAdresse[] {
+  const retenue = adressePourCourrierSimple(identite, date)
+  if (retenue === null || sertANotifier(retenue)) return controlerAdresses(identite, date)
+  return [
+    {
+      code: 'adresse_autre',
+      message: `Adresse « ${retenue.id} » (origine « autre ») retenue pour ce courrier simple : elle ne vaudrait pas pour une notification (D. 1967 art. 65, al. 2 ; J67, R19).`,
     },
   ]
 }
