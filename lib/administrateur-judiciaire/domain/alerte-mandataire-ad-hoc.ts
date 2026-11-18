@@ -1,3 +1,4 @@
+import type { LotEnregistre } from '@/lib/administrateur-judiciaire/domain/coproprietes'
 import { ajouterJours, ajouterMois, dateIsoVersFr, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
 import type { DecisionAnnuelle } from '@/lib/administrateur-judiciaire/domain/decisions-annuelles-ag'
 import type { Exercice } from '@/lib/administrateur-judiciaire/domain/exercices-budgets'
@@ -85,23 +86,45 @@ import { ETATS_RESOLUTION, type EtatResolution } from '@/lib/administrateur-judi
  * - syndic désigné par le président du tribunal judiciaire (D. 1967 art. 46) : il est le syndic, l'obligation lui
  *   incombe.
  *
+ * Décisions de Hugo du 17/11/2026 (J67 du registre des décisions juridiques ; textes relus sur Légifrance le 17/11/2026) :
+ * - J67, R31 : période des sommes exigibles (le texte ne la fixe pas) : au dénominateur, les sommes devenues exigibles
+ *   au cours de l'exercice clos (les provisions sont votées et appelées par exercice : art. 14-1, I ; art. 14-2-1, I) ;
+ *   au numérateur, tous les impayés à la clôture, arriérés des exercices antérieurs compris, moins ceux du dernier mois
+ *   (D. 1967 art. 61-2). C'est la lecture de l'état des impayés « à la date de la clôture de l'exercice comptable »
+ *   (art. 61-4), la plus protectrice : le calcul est gardé, les arriérés ne rendent plus l'alerte « à confirmer », leur
+ *   montant reste dans le message. Avec de gros arriérés, le rapport peut dépasser 100 %.
+ * - J67, R32 : tous les lots de l'état descriptif de division, lots secondaires compris (caves, parkings) : tout lot
+ *   comporte une partie privative et une quote-part de parties communes (L. 1965 art. 1, I) ; quand la loi ne compte que
+ *   certains lots, elle le dit (art. 41-8 : « lots à usage de logements, de bureaux ou de commerces »). C'est aussi la
+ *   lecture la plus prudente (plus de syndicats passent au seuil de 15 %). Le nombre saisi reste celui du seuil ; quand
+ *   la liste des lots du syndicat est fournie, elle est comptée et l'écart est signalé (ecartLots).
+ *
+ * Décision J67, R30 de Hugo (17/11/2026 ; textes relus le 17/11/2026 : L. 1965 art. 29-1 A, 29-1 B et 29-1, I à III ;
+ * D. 1967 art. 46, 47, 61-2, 61-4, 61-5, 62-2, 62-7 et 62-11). Aucun texte ne règle le cas des administrateurs
+ * provisoires : lecture déduite des textes, aConfirmer gardé (pas de texte) ; le résultat porte le régime et le cadre.
+ * - administrateur provisoire de l'art. 29-1 (cadre « compte_rendu_au_juge ») : il a reçu tous les pouvoirs du syndic
+ *   (art. 29-1, I, al. 2), mais le juge qui l'a nommé est déjà saisi et suit la mission ; le mandataire ad hoc est
+ *   l'étape AVANT l'administration provisoire (art. 29-1 B ; art. 29-1, III). Ni requête au juge ni copie de la requête :
+ *   le constat est porté au prochain compte rendu au juge (D. 1967 art. 62-11) ; si le conseil syndical garde ses
+ *   pouvoirs, l'état des impayés avant répartition lui est adressé (art. 61-4). Le constat des exercices d'avant la
+ *   désignation peut fonder l'imputation des frais au syndic qui n'a pas saisi le juge (art. 29-1, II, al. 2) ; s'il a
+ *   reçu de l'ordonnance le pouvoir d'approuver les comptes (art. 29-1, I : « tout ou partie des pouvoirs de l'assemblée
+ *   générale des copropriétaires », hors a et b de l'art. 26), il les approuve sans vote de l'assemblée : sa décision
+ *   n'est pas un vote, le critère des deux ans reste calculé sur les votes de l'assemblée, et son message dit « comptes
+ *   approuvés par l'administrateur provisoire le … » (decisions, origine « administrateur ») ; sous ce régime seulement
+ *   (L3-35 vise l'administrateur de l'art. 29-1) : sous un autre régime, une décision laissée par une mission passée ne
+ *   remplace pas le délai sans vote atteint, qui fonde l'obligation du syndic ;
+ * - administrateur provisoire de l'art. 47, syndicat dépourvu de syndic (cadre « signalement_au_juge ») : il n'est pas le
+ *   syndic ; « en l'absence de syndic », l'al. 2 ouvre la saisine aux personnes qu'il énumère, dès la clôture. Seuil
+ *   atteint : à signaler au juge ; requête possible pour un administrateur provisoire de l'art. 29-1, après consultation
+ *   du conseil syndical (D. 1967 art. 62-2) ; pas de copie de requête. Si l'ordonnance lui confère expressément les
+ *   pouvoirs du syndic (entrée ordonnanceConferePouvoirsDuSyndic), l'obligation du syndic s'applique (cadre
+ *   « obligation_du_syndic ») ;
+ * - syndic désigné (D. 1967 art. 46) : inchangé.
+ *
  * 🔴 Non établi (à trancher par Frédéric ou Hugo) :
- * - période des sommes exigibles : le texte ne la fixe pas ; VitFix retient celles devenues exigibles au cours de
- *   l'exercice clos et compte dans les impayés tous les impayés à la clôture, arriérés des exercices antérieurs compris
- *   (lecture la plus protectrice) ; quand il y en a, l'alerte est à confirmer ;
- * - « lots » : tous les lots, ou les seuls lots principaux ? Le texte ne le précise pas ; VitFix prend le nombre fourni ;
  * - aucun vote connu sur l'approbation des comptes : depuis quand compter les deux ans ? Le critère reste non établi tant
- *   que la date de la dernière assemblée qui s'est prononcée n'est pas saisie ;
- * - administrateur provisoire de l'art. 29-1 : il a reçu tous les pouvoirs du syndic (art. 29-1, I, al. 2), mais aucun
- *   texte relu ne dit si l'obligation de l'art. 29-1 A lui incombe, alors que le juge est déjà saisi et que la procédure du
- *   mandataire ad hoc précède l'administration provisoire (art. 29-1 B ; art. 29-1, III) ; s'il a reçu de l'ordonnance le
- *   pouvoir d'approuver les comptes (art. 29-1, I : « tout ou partie des pouvoirs de l'assemblée générale des
- *   copropriétaires », hors a et b de l'art. 26), il les approuve sans vote de l'assemblée : le critère des deux ans
- *   joue-t-il encore ? VitFix établit le constat, utile aussi à l'imputation des frais au syndic défaillant (art. 29-1, II, al. 2), sans en tirer
- *   d'obligation ;
- * - administrateur provisoire de l'art. 47 (syndicat dépourvu de syndic) : en l'absence de syndic, l'al. 2 ouvre la
- *   saisine aux personnes qu'il énumère ; aucun texte relu ne dit si l'obligation du syndic incombe à l'administrateur
- *   provisoire, dont la mission est celle de l'ordonnance.
+ *   que la date de la dernière assemblée qui s'est prononcée n'est pas saisie.
  */
 
 export interface ParametresAlerte291A {
@@ -167,7 +190,13 @@ export interface VoteApprobationComptes {
 export interface EntreeAlerteMandataireAdHoc {
   /** D1 : le syndicat. */
   coproprieteId: string
+  /**
+   * J67, R32 — nombre de lots du syndicat : tous les lots de l'état descriptif de division, lots secondaires compris
+   * (caves, parkings ; L. 1965 art. 1, I). C'est lui qui fixe le seuil (25 %, ou 15 % au-delà de deux cents lots).
+   */
   nombreLots: number
+  /** J67, R32 — lots du syndicat, quand la liste est connue : comptés pour signaler un écart ; absents, null ou vides : non fournis. */
+  lots?: readonly Pick<LotEnregistre, 'id' | 'coproprieteId'>[] | null
   exercices?: readonly ExerciceAlerte[]
   /** Votes de l'assemblée sur l'approbation des comptes (résolution et date de l'assemblée). */
   votes?: readonly VoteApprobationComptes[]
@@ -175,6 +204,11 @@ export interface EntreeAlerteMandataireAdHoc {
   decisions?: readonly DecisionAnnuelle[]
   /** Régime du mandat de justice en cours ; absent ou null : aucun (syndic). */
   regime?: Regime | null
+  /**
+   * Administrateur provisoire de l'art. 47 : l'ordonnance lui confère expressément les pouvoirs du syndic, l'obligation
+   * du syndic s'applique (J67, R30) ; absent : non. Sans objet pour un autre régime.
+   */
+  ordonnanceConferePouvoirsDuSyndic?: boolean
   /** Requête au président du tribunal judiciaire pour la désignation d'un mandataire ad hoc ; absente ou null : aucune. */
   saisineLe?: string | null
   /**
@@ -197,7 +231,7 @@ export interface CritereImpayes291A {
   impayesCentimes: number
   /** Impayés des sommes devenues exigibles dans le mois précédant la clôture, écartés (D. 1967 art. 61-2). */
   ecartesCentimes: number
-  /** Part des impayés retenus qui vient d'exercices antérieurs (🔴 assiette à confirmer). */
+  /** Part des impayés retenus qui vient d'exercices antérieurs (comptée : J67, R31). */
   arrieresCentimes: number
   message: string
   /** Atteint, et couvert par une requête au juge datée du jour de la clôture ou d'après, au plus tard à la date de référence. */
@@ -209,13 +243,25 @@ export interface CritereComptes291A {
   dernierVoteLe: string | null
   /** Date à laquelle le délai sans vote est atteint ; null : aucun vote connu. */
   atteintLe: string | null
+  /** Dernière approbation des comptes par décision de l'administrateur provisoire (pas un vote) ; null : aucune. */
+  approuvesParAdministrateurLe: string | null
   message: string
   /** Atteint, et couvert par une requête au juge datée du jour où le délai est atteint ou d'après, au plus tard à la date de référence. */
   traite: boolean
 }
 
+/**
+ * Ce que le suivi propose (J67, R30) : l'obligation du syndic (syndic, syndic désigné, administrateur de l'art. 47
+ * investi des pouvoirs du syndic) ; le constat au prochain compte rendu au juge (administrateur de l'art. 29-1) ; le
+ * signalement au juge, requête possible (administrateur de l'art. 47).
+ */
+export type CadreAlerte291A = 'obligation_du_syndic' | 'compte_rendu_au_juge' | 'signalement_au_juge'
+
 export interface AlerteMandataireAdHoc {
   coproprieteId: string
+  /** Régime du mandat de justice en cours ; null : syndic. */
+  regime: Regime | null
+  cadre: CadreAlerte291A
   date: string
   declenchee: boolean
   /** Date du premier critère atteint ; null : aucun. */
@@ -231,7 +277,8 @@ export interface AlerteMandataireAdHoc {
   saisineParDautresLe: string | null
   /**
    * Copie de la requête à adresser au représentant de l'État, au maire et au président de l'EPCI (D. 1967 art. 61-5), due
-   * depuis la requête ; null : aucune requête enregistrée à la date, ou copie adressée.
+   * depuis la requête ; null : aucune requête enregistrée à la date, copie adressée, ou cadre sans obligation du syndic
+   * (J67, R30).
    */
   copieRequeteDueLe: string | null
   impayes: CritereImpayes291A
@@ -241,8 +288,15 @@ export interface AlerteMandataireAdHoc {
   /** Ce que prévoit le texte selon le régime. */
   conduite: string
   fondement: string
-  /** Point 🔴 en jeu : mandat de justice sans texte, ou arriérés comptés dans les impayés. */
+  /**
+   * Administrateur provisoire sans les pouvoirs du syndic (lecture déduite, J67, R30) ; les arriérés ne rendent plus
+   * l'alerte à confirmer (J67, R31).
+   */
   aConfirmer: boolean
+  /** J67, R32 — nombre de lots de la liste du syndicat, quand elle est fournie ; null : liste non fournie. */
+  lotsDeLaListe: number | null
+  /** J67, R32 — écart entre le nombre de lots saisi et la liste ; null : aucun écart, ou liste non fournie. */
+  ecartLots: string | null
 }
 
 const fr = dateIsoVersFr
@@ -298,6 +352,10 @@ function verifierEntree(entree: EntreeAlerteMandataireAdHoc): void {
   for (const vote of entree.votes ?? []) verifierVote(vote)
   for (const decision of entree.decisions ?? [])
     if (decision.coproprieteId !== entree.coproprieteId) throw new Error(`Décision ${decision.id} d'un autre syndicat que celui de l'alerte.`)
+  for (const lot of entree.lots ?? [])
+    if (lot.coproprieteId !== entree.coproprieteId) throw new Error(`Lot ${lot.id} d'un autre syndicat que celui de l'alerte.`)
+  if (entree.ordonnanceConferePouvoirsDuSyndic && entree.regime !== 'ap47')
+    throw new Error("Pouvoirs du syndic conférés par l'ordonnance : sans objet hors administration provisoire de l'art. 47 (D. 1967 art. 47).")
   verifierRequete(entree)
 }
 
@@ -344,7 +402,7 @@ function messageImpayes(exercice: Exercice, total: Assiette, seuil: number): str
   const pourcent = Math.floor((total.impayes * 100) / total.exigibles)
   const precisions = [
     total.ecartes > 0 ? `hors ${euros(total.ecartes)} devenus exigibles dans le mois précédant la clôture` : null,
-    total.arrieres > 0 ? `dont ${euros(total.arrieres)} d'arriérés des exercices antérieurs (assiette à confirmer)` : null,
+    total.arrieres > 0 ? `dont ${euros(total.arrieres)} d'arriérés des exercices antérieurs` : null,
   ].filter((p): p is string => p !== null)
   const suite = precisions.length > 0 ? `, ${precisions.join(', ')}` : ''
   return `Impayés à la clôture du ${fr(exercice.cloture)} (exercice ${exercice.nom}) : ${euros(total.impayes)} pour ${euros(total.exigibles)} de sommes exigibles, soit ${pourcent} % (seuil ${seuil} %)${suite}.`
@@ -352,6 +410,26 @@ function messageImpayes(exercice: Exercice, total: Assiette, seuil: number): str
 
 const seuilApplicable = (nombreLots: number, parametres: ParametresAlerte291A): number =>
   nombreLots > parametres.lotsGrandeCopropriete ? parametres.seuilGrandeCoproprietePourcent : parametres.seuilPourcent
+
+/**
+ * J67, R32 — lots de la liste du syndicat (un lot cité deux fois compte une fois) et écart avec le nombre saisi, qui reste
+ * celui du seuil ; le seuil de la liste est dit quand il diffère. Liste vide : non fournie (une copropriété compte au
+ * moins deux lots ; une liste pas encore chargée ne doit pas donner un faux écart).
+ */
+function controleNombreLots(entree: EntreeAlerteMandataireAdHoc, parametres: ParametresAlerte291A): Pick<AlerteMandataireAdHoc, 'lotsDeLaListe' | 'ecartLots'> {
+  const lots = entree.lots ?? []
+  if (lots.length === 0) return { lotsDeLaListe: null, ecartLots: null }
+  const lotsDeLaListe = new Set(lots.map((lot) => lot.id)).size
+  if (lotsDeLaListe === entree.nombreLots) return { lotsDeLaListe, ecartLots: null }
+  const seuilDeLaListe = seuilApplicable(lotsDeLaListe, parametres)
+  const borne = `${lotsDeLaListe > parametres.lotsGrandeCopropriete ? 'plus de' : 'au plus'} ${parametres.lotsGrandeCopropriete} lots`
+  const autreSeuil =
+    seuilDeLaListe === seuilApplicable(entree.nombreLots, parametres) ? '' : ` Avec la liste, le seuil serait de ${seuilDeLaListe} % (${borne}).`
+  return {
+    lotsDeLaListe,
+    ecartLots: `Nombre de lots saisi : ${entree.nombreLots} ; liste des lots du syndicat : ${lotsDeLaListe}. Tous les lots comptent, caves et parkings compris (L. 1965 art. 1, I, et art. 29-1 A, al. 1 ; J67, R32) : vérifier le nombre saisi.${autreSeuil}`,
+  }
+}
 
 function dernierExerciceClos(exercices: readonly ExerciceAlerte[], date: string): ExerciceAlerte | null {
   const clos = exercices.filter((e) => e.exercice.cloture < date).sort((a, b) => a.exercice.cloture.localeCompare(b.exercice.cloture))
@@ -414,15 +492,36 @@ function datesDeVote(entree: EntreeAlerteMandataireAdHoc, date: string): string[
   return [...votes, ...decisions].filter((d) => d <= date)
 }
 
+/** Dernière approbation des comptes par décision de l'administrateur provisoire, au plus tard à la date de référence. */
+function approbationParAdministrateur(entree: EntreeAlerteMandataireAdHoc, date: string): string | null {
+  const dates = (entree.decisions ?? [])
+    .filter((d) => d.type === 'approbation_comptes' && d.source.origine === 'administrateur' && d.date <= date)
+    .map((d) => d.date)
+  return dates.reduce<string | null>((a, b) => (a === null || b > a ? b : a), null)
+}
+
+/**
+ * J67, R30 : comptes approuvés par l'administrateur provisoire, affiché au lieu de « sans vote depuis deux ans ». Sous le
+ * régime de l'art. 29-1 seulement (L3-35) : sous un autre régime, le délai sans vote atteint reste dit (relecture).
+ */
+const prefixeApprobationAp = (le: string): string =>
+  `Comptes approuvés par l'administrateur provisoire le ${fr(le)} (décision de l'administrateur, pas un vote de l'assemblée)`
+
+const SUITE_AUCUN_VOTE =
+  "vote de l'assemblée sur l'approbation des comptes n'est connu : saisir la date de la dernière assemblée qui s'est prononcée (adoption ou rejet)."
+
 function critereComptes(entree: EntreeAlerteMandataireAdHoc, date: string, parametres: ParametresAlerte291A): Constat<CritereComptes291A> {
   const dates = datesDeVote(entree, date)
+  const approuvesParAdministrateurLe = approbationParAdministrateur(entree, date)
+  /** Approbation à dire au message : sous administration provisoire de l'art. 29-1 seulement. */
+  const approbationAffichee = entree.regime === 'ap291' ? approuvesParAdministrateurLe : null
   if (dates.length === 0)
     return {
       etat: 'non_etabli',
       dernierVoteLe: null,
       atteintLe: null,
-      message:
-        "Aucun vote de l'assemblée sur l'approbation des comptes n'est connu : saisir la date de la dernière assemblée qui s'est prononcée (adoption ou rejet).",
+      approuvesParAdministrateurLe,
+      message: approbationAffichee === null ? `Aucun ${SUITE_AUCUN_VOTE}` : `${prefixeApprobationAp(approbationAffichee)} ; aucun ${SUITE_AUCUN_VOTE}`,
     }
   const dernier = dates.reduce((a, b) => (b > a ? b : a), dates[0])
   const atteintLe = ajouterMois(dernier, parametres.sansVoteMois)
@@ -432,12 +531,17 @@ function critereComptes(entree: EntreeAlerteMandataireAdHoc, date: string, param
       etat: 'atteint',
       dernierVoteLe: dernier,
       atteintLe,
-      message: `Aucun vote de l'assemblée sur l'approbation des comptes depuis le ${fr(dernier)} : ${duree} atteints le ${fr(atteintLe)}.`,
+      approuvesParAdministrateurLe,
+      message:
+        approbationAffichee !== null && approbationAffichee > dernier
+          ? `${prefixeApprobationAp(approbationAffichee)} ; dernier vote de l'assemblée sur l'approbation des comptes le ${fr(dernier)}.`
+          : `Aucun vote de l'assemblée sur l'approbation des comptes depuis le ${fr(dernier)} : ${duree} atteints le ${fr(atteintLe)}.`,
     }
   return {
     etat: 'non_atteint',
     dernierVoteLe: dernier,
     atteintLe,
+    approuvesParAdministrateurLe,
     message: `Dernier vote de l'assemblée sur l'approbation des comptes le ${fr(dernier)} : sans nouveau vote, ${duree} atteints le ${fr(atteintLe)}.`,
   }
 }
@@ -445,6 +549,7 @@ function critereComptes(entree: EntreeAlerteMandataireAdHoc, date: string, param
 // ─── Conduite selon le régime ───────────────────────────────────────────────────────────────
 
 interface Conduite {
+  cadre: CadreAlerte291A
   texte: string
   fondement: string
   aConfirmer: boolean
@@ -460,33 +565,48 @@ const FONDEMENT_SYNDIC = 'L. 1965 art. 29-1 A, al. 1 et dernier alinéa ; D. 196
 const SAISINE_PAR_D_AUTRES =
   "le juge peut être saisi par des copropriétaires représentant ensemble au moins 15 % des voix ou le président du conseil syndical, un créancier sous les conditions du 2°, le représentant de l'État ou le procureur de la République, le maire, le président de l'EPCI compétent en matière d'habitat"
 
-const CONDUITES: Record<Regime | 'syndic', Conduite> = {
+const A_CONFIRMER_J67_R30 = 'Lecture déduite des textes, à confirmer (J67, R30).'
+
+const CONDUITES: Record<Regime | 'syndic' | 'ap47_pouvoirs_du_syndic', Conduite> = {
   syndic: {
+    cadre: 'obligation_du_syndic',
     texte: `Le syndic doit ${OBLIGATION_DU_SYNDIC}.`,
     fondement: FONDEMENT_SYNDIC,
     aConfirmer: false,
     sansSyndic: false,
   },
   sj: {
+    cadre: 'obligation_du_syndic',
     texte: `Syndic désigné par le président du tribunal judiciaire : il est le syndic et doit ${OBLIGATION_DU_SYNDIC}.`,
     fondement: `${FONDEMENT_SYNDIC} ; D. 1967 art. 46`,
     aConfirmer: false,
     sansSyndic: false,
   },
   ap291: {
-    texte:
-      "Administrateur provisoire de l'art. 29-1 : il a reçu tous les pouvoirs du syndic, dont le mandat a cessé ; aucun texte relu ne dit si l'obligation de l'art. 29-1 A lui incombe, alors que le juge est déjà saisi (à confirmer). Le président du tribunal judiciaire peut imputer au syndic tout ou partie des frais de l'administration provisoire s'il n'a pas saisi le juge dans les conditions de l'art. 29-1 A, sur le rapport de l'administrateur provisoire.",
-    fondement: 'L. 1965 art. 29-1 A ; art. 29-1, I, al. 2 et II, al. 2',
+    cadre: 'compte_rendu_au_juge',
+    texte: `Administrateur provisoire de l'art. 29-1 : pas d'alerte de l'art. 29-1 A à faire, ni requête au juge ni copie de la requête ; reporter le constat dans le prochain compte rendu au juge (D. 1967 art. 62-11) ; si le conseil syndical garde ses pouvoirs, lui adresser l'état des impayés avant répartition (D. 1967 art. 61-4). Le constat peut servir à l'imputation au syndic de tout ou partie des frais de l'administration provisoire, s'il n'a pas saisi le juge dans les conditions de l'art. 29-1 A (art. 29-1, II, al. 2). ${A_CONFIRMER_J67_R30}`,
+    fondement: 'L. 1965 art. 29-1 A ; art. 29-1, I, al. 2 et II, al. 2 ; D. 1967 art. 61-4 et 62-11',
     aConfirmer: true,
     sansSyndic: true,
   },
   ap47: {
-    texte: `Administrateur provisoire d'un syndicat dépourvu de syndic : en l'absence de syndic, ${SAISINE_PAR_D_AUTRES} ; aucun texte relu ne dit si l'obligation du syndic incombe à l'administrateur provisoire, dont la mission est celle de l'ordonnance (à confirmer).`,
-    fondement: 'L. 1965 art. 29-1 A, al. 2 ; D. 1967 art. 47',
+    cadre: 'signalement_au_juge',
+    texte: `Administrateur provisoire d'un syndicat dépourvu de syndic : pas d'obligation écrite ; seuil atteint : à signaler au juge qui a désigné l'administrateur et au conseil syndical ; requête possible au président du tribunal judiciaire pour la désignation d'un administrateur provisoire de l'art. 29-1, après consultation du conseil syndical (D. 1967 art. 62-2). En l'absence de syndic, ${SAISINE_PAR_D_AUTRES}, dès la clôture. ${A_CONFIRMER_J67_R30}`,
+    fondement: 'L. 1965 art. 29-1 A, al. 2 ; D. 1967 art. 47 et 62-2',
     aConfirmer: true,
     sansSyndic: true,
   },
+  ap47_pouvoirs_du_syndic: {
+    cadre: 'obligation_du_syndic',
+    texte: `Administrateur provisoire d'un syndicat dépourvu de syndic, investi par l'ordonnance des pouvoirs du syndic : il doit ${OBLIGATION_DU_SYNDIC} (J67, R30).`,
+    fondement: `${FONDEMENT_SYNDIC} ; D. 1967 art. 47`,
+    aConfirmer: false,
+    sansSyndic: true,
+  },
 }
+
+const conduiteDe = ({ regime, ordonnanceConferePouvoirsDuSyndic }: EntreeAlerteMandataireAdHoc): Conduite =>
+  regime === 'ap47' && ordonnanceConferePouvoirsDuSyndic ? CONDUITES.ap47_pouvoirs_du_syndic : CONDUITES[regime ?? 'syndic']
 
 /**
  * Saisine par les personnes de l'al. 2 au titre des impayés : dès la clôture sans syndic ; sinon au lendemain du mois
@@ -522,8 +642,8 @@ function couvertParRequete(etat: EtatCritere291A, le: string | null, saisineLe: 
  * moins deux ans (un rejet est un vote). Renvoie chaque critère et s'il est traité, la date du déclenchement, celle du
  * plus tôt des critères non traités, la requête éventuelle (lue critère par critère), la date d'ouverture de la saisine
  * aux personnes de l'al. 2, la copie de la requête encore due au représentant de l'État, au maire et au président de
- * l'EPCI, et ce que prévoit le texte selon le régime. Lève une erreur sur une saisie invalide ou des éléments d'un autre
- * syndicat.
+ * l'EPCI (seulement dans le cadre de l'obligation du syndic), le régime, le cadre et ce que prévoit le texte selon le
+ * régime (J67, R30). Lève une erreur sur une saisie invalide ou des éléments d'un autre syndicat.
  */
 export function alerteMandataireAdHoc(
   entree: EntreeAlerteMandataireAdHoc,
@@ -538,7 +658,7 @@ export function alerteMandataireAdHoc(
   const constatComptes = critereComptes(entree, date, parametres)
   const impayes: CritereImpayes291A = { ...constatImpayes, traite: couvertParRequete(constatImpayes.etat, constatImpayes.cloture, saisineLe, date) }
   const comptes: CritereComptes291A = { ...constatComptes, traite: couvertParRequete(constatComptes.etat, constatComptes.atteintLe, saisineLe, date) }
-  const conduite = CONDUITES[entree.regime ?? 'syndic']
+  const conduite = conduiteDe(entree)
   /** Critères atteints et jour de leur déclenchement : clôture pour les impayés, terme du délai sans vote pour les comptes. */
   const atteints = [
     { critere: impayes, le: impayes.cloture },
@@ -547,6 +667,8 @@ export function alerteMandataireAdHoc(
   const declencheeLe = plusTot(atteints.map(({ le }) => le))
   return {
     coproprieteId: entree.coproprieteId,
+    regime: entree.regime ?? null,
+    cadre: conduite.cadre,
     date,
     declenchee: declencheeLe !== null,
     declencheeLe,
@@ -556,12 +678,13 @@ export function alerteMandataireAdHoc(
       comptes.etat === 'atteint' ? comptes.atteintLe : null,
       saisineParDautresImpayes(impayes, conduite.sansSyndic, saisineLe, parametres),
     ]),
-    copieRequeteDueLe: copieRequeteDue(saisineLe, entree.copieRequeteAdresseeLe ?? null, date),
+    copieRequeteDueLe: conduite.cadre === 'obligation_du_syndic' ? copieRequeteDue(saisineLe, entree.copieRequeteAdresseeLe ?? null, date) : null,
     impayes,
     comptes,
     message: atteints.map(({ critere }) => critere.message).join(' '),
     conduite: conduite.texte,
     fondement: conduite.fondement,
-    aConfirmer: conduite.aConfirmer || impayes.arrieresCentimes > 0,
+    aConfirmer: conduite.aConfirmer,
+    ...controleNombreLots(entree, parametres),
   }
 }

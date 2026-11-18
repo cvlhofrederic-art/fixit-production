@@ -1,3 +1,5 @@
+import { readdirSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   alertesAResilier,
@@ -6,7 +8,14 @@ import {
   type ContratAResilier,
 } from '@/lib/administrateur-judiciaire/domain/contrats-a-resilier'
 import type { FacturationContrat } from '@/lib/administrateur-judiciaire/domain/contrats-facturation'
-import { depuisContrats, reglageParDefaut, selectionnerAFaire, type ReglageSuivi } from '@/lib/administrateur-judiciaire/domain/suivi-a-faire'
+import {
+  depuisContrats,
+  reglageParDefaut,
+  sansDateDeResiliation,
+  selectionnerAFaire,
+  type ReglageSuivi,
+} from '@/lib/administrateur-judiciaire/domain/suivi-a-faire'
+import { enTeteDuModule } from './en-tete-module'
 
 /**
  * Marque « À résilier » d'un contrat (point 34 du bilan 2 ; Gestéam, tranche 33 : case « À résilier », Préavis, Limite,
@@ -224,6 +233,47 @@ describe('autres régimes', () => {
 
   it('dommages-ouvrage : pas d’échéance annuelle à attendre (à confirmer)', () => {
     expect(alertesAResilier([contrat({ type: 'Dommages Ouvrages' })], '2026-09-05')).toMatchObject([{ etat: 'non_resiliable', aConfirmer: true }])
+  })
+
+  it('J67, R57 et J75 : dommages-ouvrage : jamais de date de résiliation proposée ; « vérifier la police avec le responsable du dossier », sans prénom', () => {
+    for (const facturationSaisie of [facturation(), undefined]) {
+      const [alerte] = alertesAResilier([contrat({ type: 'Dommages Ouvrages', facturation: facturationSaisie })], '2026-09-05')
+      expect(alerte).toMatchObject({ etat: 'non_resiliable', aConfirmer: true, aAgirLe: '2026-09-05', dateLimite: null, terme: null, prochaineLimite: null })
+      expect(alerte.message).toBe(
+        "Assurance dommages-ouvrage : garantie jusqu'à dix ans après la réception (clauses types) ; la police fixe la durée et la résiliation (L. 113-12) ; résilier priverait le syndicat de cette garantie : vérifier la police avec le responsable du dossier.",
+      )
+      expect(alerte.message).not.toMatch(/Hugo|Frédéric/)
+      expect(alerte.fondement).toBe('C. assur. annexe II à l’art. A. 243-1 (point de départ et durée de la garantie) ; C. assur. art. L. 113-12')
+    }
+    const { texte } = enTeteDuModule('contrats-a-resilier')
+    expect(texte).not.toMatch(/🔴 Non établi : résiliation de l'assurance dommages-ouvrage/)
+    expect(texte).toMatch(/J67, R57 \(décision de Hugo du 17\/11\/2026/)
+    expect(texte).toMatch(/🔴 Non établi : contrat d'eau ou d'assainissement/)
+    // Aucune consigne de changer le type de la police ; les points 1 et 3 de R57 restent à préciser.
+    expect(texte).not.toMatch(/type « Assurance »/)
+    expect(texte).toMatch(/R57, point 3/)
+  })
+
+  it('J75, relecture : aucun prénom dans le code du domaine hors commentaires (messages affichés) ; statut-assemblee.ts : à faire après #741', () => {
+    const dossier = join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain')
+    const sansCommentaires = (source: string): string =>
+      source
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/^\s*\/\/.*$/gm, '')
+        .replace(/\s\/\/\s.*$/gm, '')
+    const avecPrenom = readdirSync(dossier, { recursive: true })
+      .map(String)
+      .filter((fichier) => fichier.endsWith('.ts') && /Hugo|Frédéric/.test(sansCommentaires(readFileSync(join(dossier, fichier), 'utf8'))))
+    expect(avecPrenom).toEqual(['statut-assemblee.ts'])
+  })
+
+  it('J67, R57 : une seule règle pour les deux modules : le suivi « à faire » ne propose pas de limite de résiliation pour une dommages-ouvrage', () => {
+    const police = { id: 'ctr-do', mandatId: 'm-1', libelle: 'Police', facturation: facturation({ preavisMois: 2 }) }
+    expect(depuisContrats([{ ...police, type: 'Assurance' }], '2026-09-05')).toMatchObject([{ nature: 'limite_resiliation', date: '2026-11-01' }])
+    expect(depuisContrats([{ ...police, type: 'Dommages Ouvrages' }], '2026-09-05')).toEqual([])
+    expect(sansDateDeResiliation({ type: 'Dommages Ouvrages' })).toBe(true)
+    expect(sansDateDeResiliation({ type: 'Assurance' })).toBe(false)
+    expect(sansDateDeResiliation({})).toBe(false)
   })
 
   it('sans reconduction tacite : fin au terme (C. civ. art. 1212) ; terme dépassé : reconduction possible en durée indéterminée', () => {

@@ -209,6 +209,26 @@ export function reporterAuJourOuvrable(dateIso: string, options: OptionsJoursFer
   return date
 }
 
+/** Dernier jour ouvrable au plus tard le `dateIso` (la date elle-même si elle est ouvrable) : sens inverse du report. */
+export function avancerAuJourOuvrable(dateIso: string, options: OptionsJoursFeries = {}): string {
+  let date = dateIso
+  while (!estJourOuvrable(date, options)) date = ajouterJours(date, -1)
+  return date
+}
+
+/**
+ * Ajoute des jours ouvrés, comptés un par un à partir du lendemain (ni samedi, ni dimanche, ni jour férié). Ce n'est pas
+ * un report : un mercredi + 5 jours ouvrés donne le mercredi suivant, et non le lundi.
+ */
+export function ajouterJoursOuvres(dateIso: string, jours: number, options: OptionsJoursFeries = {}): string {
+  let date = dateIso
+  for (let compte = 0; compte < jours; ) {
+    date = ajouterJours(date, 1)
+    if (estJourOuvrable(date, options)) compte++
+  }
+  return date
+}
+
 /** « JJ/MM/AAAA » → ISO, avec validation stricte (31/02 → null). */
 export function dateFrVersIso(valeur: string | null | undefined): string | null {
   if (!valeur) return null

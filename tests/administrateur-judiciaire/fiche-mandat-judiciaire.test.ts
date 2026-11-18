@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  MODES_EXERCICE_ADMINISTRATEURS,
   REPARTITION_FICHE_MANDAT_GESTEAM,
   creerVoletJudiciaire,
   type SaisieVoletJudiciaire,
@@ -77,5 +78,26 @@ describe('D1 — répartition de la fiche mandat Gestéam entre syndicat et mand
   it('aucun champ n’est attribué aux deux', () => {
     const communs = REPARTITION_FICHE_MANDAT_GESTEAM.syndicat.filter((c) => (REPARTITION_FICHE_MANDAT_GESTEAM.mandat as readonly string[]).includes(c))
     expect(communs).toEqual([])
+  })
+})
+
+describe('J67, R69 et R73 — mode d’exercice des deux administrateurs et pouvoirs du conseil syndical confiés', () => {
+  it('R73 : deux administrateurs sans mode d’exercice saisi : avertissement « à vérifier dans l’ordonnance » ; ensemble ou chacun seul : aucun', () => {
+    const deux = saisie({ administrateurs: ['Associé A', 'Associé B'] })
+    expect(creerVoletJudiciaire(deux, contexte).avertissements).toEqual([expect.stringMatching(/mode d'exercice à vérifier dans l'ordonnance/)])
+    for (const modeExercice of MODES_EXERCICE_ADMINISTRATEURS)
+      expect(creerVoletJudiciaire({ ...deux, modeExercice }, contexte)).toMatchObject({ volet: { modeExercice }, avertissements: [] })
+    expect(creerVoletJudiciaire(saisie({ modeExercice: null }), contexte).avertissements).toEqual([])
+    // @ts-expect-error — mode hors MODES_EXERCICE_ADMINISTRATEURS
+    expect(() => creerVoletJudiciaire({ ...deux, modeExercice: 'alterne' }, contexte)).toThrow(/mode d'exercice/i)
+  })
+
+  it('R69 : le volet porte la date de l’ordonnance qui confie les pouvoirs du conseil syndical à l’administrateur provisoire', () => {
+    // ordonnance plus tardive que la désignation (L. 1965 art. 29-1, I, al. 3 : mission modifiable à tout moment)
+    const plusTard = creerVoletJudiciaire(saisie({ pouvoirsConseilSyndicalConfiesLe: '2026-06-01' }), contexte).volet
+    expect(plusTard.pouvoirsConseilSyndicalConfiesLe).toBe('2026-06-01')
+    expect(creerVoletJudiciaire(saisie(), contexte).volet.pouvoirsConseilSyndicalConfiesLe).toBeUndefined()
+    expect(() => creerVoletJudiciaire(saisie({ pouvoirsConseilSyndicalConfiesLe: '01/06/2026' }), contexte)).toThrow(/AAAA-MM-JJ/)
+    expect(() => creerVoletJudiciaire(saisie({ pouvoirsConseilSyndicalConfiesLe: '2000-01-01' }), contexte)).toThrow(/avant l'ordonnance de désignation/)
   })
 })

@@ -61,6 +61,29 @@ import type { StatutOrdreMission } from '@/lib/syndic/messagerie-pro'
  *   18-1 A III), carnet d'entretien (L. 1965 art. 18 I ; décret 2001-477). Les seuils de l'art. 21 et l'avis de D. 1967
  *   art. 62-7 déclenchent le visa de l'ordre de service dans envoi-ordre-service.ts (point 44).
  *
+ * Recommandations validées par Hugo le 17/11/2026 (J67 ; textes lus sur Légifrance le 17/11/2026) :
+ * - J67, R48 : la facture du commissaire de justice d'une exécution forcée se reporte au décompte du débiteur, pour la
+ *   seule part « à la charge du débiteur » (L. 1965 art. 10-1, a ; CPCE art. L. 111-8), sous le poste « Frais de
+ *   recouvrement (art. 10-1 a) : actes du commissaire de justice », avec quatre garde-fous (créance justifiée, pas de
+ *   double compte, ventilation débiteur et créancier, report qui tombe si le juge donne raison au copropriétaire) :
+ *   fraisCommissaireJusticeAReporter (decompte-contentieux.ts), qui lit la demande « Huissier - exécution forcée », son
+ *   dossier contentieux et ses factures ;
+ * - J67, R67 : sous administration provisoire, l'avis du conseil syndical est dû avant chaque décision que
+ *   l'administrateur provisoire prend « à ce titre » (D. 1967 art. 62-7 : au titre des pouvoirs de l'assemblée), sans
+ *   seuil, quel que soit le montant ; ce qui compte est la décision de faire les travaux, pas l'acceptation du devis. Les
+ *   pouvoirs du syndic (L. 1965 art. 18, I ; 29-1, I) n'en demandent pas ; l'« entretien courant » du syndic s'entend de
+ *   la maintenance comprise dans le budget prévisionnel (D. 1967 art. 44, 1° et 2° : les autres travaux d'entretien sont
+ *   hors budget). Les seuils de l'art. 21 sont une règle à part, qui s'ajoute (envoi-ordre-service.ts, code confirmé) ;
+ * - J67, R68 : l'administrateur provisoire qui a les pouvoirs de l'assemblée fixe lui-même les deux seuils de L. 1965
+ *   art. 21, al. 2 (ce pouvoir n'est pas dans les exceptions de l'art. 29-1, I), par une décision inscrite au registre
+ *   (D. 1967 art. 62-8), après avis du conseil syndical (art. 62-7) ; le contrôle de l'OS lit aussi ces décisions
+ *   (envoi-ordre-service.ts). Sans ordonnance qui lui donne ce pouvoir, les seuils votés par l'assemblée restent en
+ *   vigueur ; sans aucun montant, ni consultation ni mise en concurrence ne sont obligatoires « à partir » d'un montant ;
+ * - J67, R75 : avant l'OS, sous urgence constatée (OptionsControleDeclaratif.urgenceConstatee), les pièces de vigilance
+ *   manquantes donnent une alerte forte au lieu d'un blocage (vigilance-entreprises.ts) ; la décennale reste bloquante ;
+ *   montant HT inconnu, le contrôle se fait quand même (vigilance en alerte forte : relecture du 18/11/2026) au lieu
+ *   d'échouer, comme sans pièces.
+ *
  * 🔵 Déduit (règles de ce module) :
  * - étape de chaque stade et avancement de la frise : voir AVANCEMENT_PAR_STADE ; « Refusée » arrête la frise à
  *   l'acceptation ; le statut « Accepté » vaut acceptation ;
@@ -117,12 +140,7 @@ import type { StatutOrdreMission } from '@/lib/syndic/messagerie-pro'
  * - Hugo : les statuts « Accepté » / « Refusé » suivent-ils la réponse au devis, et les stades « Acceptée » / « Refusée »
  *   la réponse à l'OS ?
  * - Hugo : une demande peut-elle porter plusieurs factures (acompte puis solde) ? (admis ici)
- * - Hugo : la facture du commissaire de justice d'une exécution forcée entre-t-elle au décompte du débiteur
- *   (decompte-contentieux.ts ; L. 1965 art. 10-1 a), et sous quel poste ? (rien n'y est reporté ici)
  * - Frédéric : la pièce exigée en retour doit-elle bloquer la clôture de la demande ?
- * - Frédéric : quand l'ordonnance confie à l'administrateur provisoire les pouvoirs de l'AG, fixe-t-il lui-même les deux
- *   seuils de L. 1965 art. 21 al. 2, et recueille-t-il l'avis du conseil syndical (D. 1967 art. 62-7) pour chaque
- *   acceptation de devis, ou seulement au-delà du seuil ?
  * - Frédéric : faut-il une table Dexie `demandes` unique (un seul objet, distingué par la Nature) à la place des tables
  *   Devis et Intervention, jamais alimentées ?
  */
@@ -734,6 +752,11 @@ export interface OptionsControleDeclaratif {
   /** Activité commandée (contrôle avant l'ordre de service seulement). */
   activite?: string | null
   dateOuvertureChantier?: string | null
+  /**
+   * Avant l'ordre de service : urgence constatée par l'administrateur provisoire (J16, J46) ; les pièces de vigilance
+   * manquantes donnent alors une alerte forte au lieu d'un blocage (J67, R75).
+   */
+  urgenceConstatee?: boolean
 }
 
 /**
@@ -771,12 +794,24 @@ export function controleDeclaratifDemande(d: Demande, pieces: PiecesEntreprise, 
   if (pieces.prestataireId !== d.prestataireId)
     throw new Error(`Demande ${d.id} : pièces d'une autre entreprise (${pieces.prestataireId}) que celle de la demande (${d.prestataireId}).`)
   const montantHtCentimes = montantHtOperationDemande(d, options.montantHtOperationCentimes)
-  if (montantHtCentimes === null)
-    throw new Error(`Demande ${d.id} : montant HT de l'opération inconnu (base HT du prix à saisir) ; le seuil de vigilance ne peut pas être apprécié.`)
+  const montantInconnu = () =>
+    new Error(`Demande ${d.id} : montant HT de l'opération inconnu (base HT du prix à saisir) ; le seuil de vigilance ne peut pas être apprécié.`)
   const { date, decennaleObligatoire } = options
   const dateOuvertureChantier = options.dateOuvertureChantier ?? null
-  if (options.moment === 'reglement') return controlerAvantReglement(pieces, { date, montantHtCentimes, decennaleObligatoire, dateOuvertureChantier })
-  return controlerAvantOrdreService(pieces, { date, montantHtCentimes, decennaleObligatoire, activite: options.activite ?? null, dateOuvertureChantier })
+  if (options.moment === 'reglement') {
+    if (montantHtCentimes === null) throw montantInconnu()
+    return controlerAvantReglement(pieces, { date, montantHtCentimes, decennaleObligatoire, dateOuvertureChantier })
+  }
+  // J67, R75 (relecture du 18/11/2026) : sous urgence constatée, montant inconnu admis (vigilance-entreprises.ts)
+  if (montantHtCentimes === null && options.urgenceConstatee !== true) throw montantInconnu()
+  return controlerAvantOrdreService(pieces, {
+    date,
+    montantHtCentimes,
+    decennaleObligatoire,
+    activite: options.activite ?? null,
+    dateOuvertureChantier,
+    urgenceConstatee: options.urgenceConstatee === true,
+  })
 }
 
 /** Statut de l'ordre de mission VitFix → stade d'intervention (🔵) ; la validation reste au cabinet. */

@@ -1,6 +1,8 @@
 import {
   NATURES_COMPTE_BANCAIRE,
+  estCompteDuFondsTravaux,
   resoudreModeComptes,
+  verifierMarquesFondsTravaux,
   type ModeTenueComptes,
   type NatureCompteBancaire,
   type ReglagesComptesCabinet,
@@ -9,14 +11,17 @@ import {
   ANNEE_PLANCHER,
   ajouterJours,
   ajouterMois,
+  avancerAuJourOuvrable,
   composerDateIso,
   dateIsoVersFr,
   decomposerDateIso,
   estDateIsoValide,
+  type OptionsJoursFeries,
 } from '@/lib/administrateur-judiciaire/domain/dates'
 import { balance, grandLivre, type CompteGrandLivre } from '@/lib/administrateur-judiciaire/domain/etats-comptables'
-import { LIBELLES_REGIMES, regimeDepuisFondement } from '@/lib/administrateur-judiciaire/domain/fondements'
+import { LIBELLES_REGIMES, regimeDepuisFondement, type Regime } from '@/lib/administrateur-judiciaire/domain/fondements'
 import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
+import { suspensA, type ElementRapprochement, type SuspensALaDate } from '@/lib/administrateur-judiciaire/domain/rapprochement-bancaire'
 import { normaliserEspaces, sansAccentsMinuscules } from '@/lib/administrateur-judiciaire/domain/texte'
 import type { Traitement } from '@/lib/administrateur-judiciaire/domain/traitements'
 import type { CompteVirementInterne } from '@/lib/administrateur-judiciaire/domain/virement-interne'
@@ -63,6 +68,29 @@ import type { CompteVirementInterne } from '@/lib/administrateur-judiciaire/doma
  *   (C. com. R. 814-30) = le 14 au plus tard (lecture prudente) : dates limites de l'attestation du commissaire aux
  *   comptes le 14/03 et le 14/09 (echeancesFondsDetenusDeLAnnee, comportement inchangé).
  *
+ * Décisions de Hugo du 17/11/2026 (registre des décisions juridiques, J67 et J71 ; validées en bloc ; C. com. relu sur
+ * Légifrance le 17/11/2026) :
+ * - J67, R90 : R. 814-21 calcule la cotisation sur « les fonds non distribués » au 31 décembre, sans dire ce qu'ils
+ *   comprennent ; R. 814-37 et R. 814-34 vont dans le sens d'un périmètre large. Le défaut « tout inclus » est gardé par
+ *   prudence, avec le détail par rubrique et par nature, pour que le cabinet retire ce que la caisse exclurait ; à
+ *   ajuster après la réponse de la caisse de garantie (J65 ; courriel préparé). Comportement inchangé.
+ * - J67, R91 : R. 814-30 demande les fonds « par catégorie de mission », sans les définir ; R. 814-34 demande déjà, pour
+ *   chaque mandat, « la nature de la mission concernée ». La liste des catégories est un réglage du cabinet
+ *   (creerCategoriesMission ; option categoriesMission), par défaut le régime du mandat (art. 46, art. 47, art. 29-1) ; à
+ *   faire valider par le commissaire aux comptes (J65). Un régime reconnu que le cabinet n'a rangé dans aucune catégorie
+ *   va dans « Régime hors des catégories du cabinet », distinct d'un fondement non reconnu. Enregistrement du réglage : à
+ *   brancher.
+ * - J67, R92 : les fonds détenus restent le solde comptable des comptes 512 (la comptabilité spéciale contrôlée, R.
+ *   814-29) ; en annexe, le solde bancaire à la même date et les suspens de rapprochement (annexeSoldeBancaireEtSuspens,
+ *   qui lit rapprochement-bancaire.suspensA) ; un écart que les suspens n'expliquent pas est signalé. Le commissaire aux
+ *   comptes choisit la présentation. Branchement du relevé à la date : à faire.
+ * - J67, R93 : « avant le 15 mars », « avant le 15 septembre » (R. 814-30) et « dans les quinze jours » (R. 814-35) : aucun
+ *   report à un jour ouvrable (l'art. 642 du code de procédure civile vise les délais de procédure ; J63). Une date
+ *   limite qui tombe un samedi, un dimanche ou un jour férié porte une alerte : envoyer au plus tard le dernier jour
+ *   ouvré précédent (dernierJourOuvre, alerteJourNonOuvre), date la plus prudente, comme pour J1.
+ * - J71 : un compte de placement au nom du syndicat réservé au fonds de travaux est rangé dans la rubrique « fonds de
+ *   travaux » (comptes-bancaires.estCompteDuFondsTravaux).
+ *
  * 🔵 Déduit (par la note, ou choix de ce module) :
  * - (note) un stock à une date, jamais un maximum : 31/12 (cotisation), 30/06 et 31/12 (commissaire aux comptes), fins
  *   de trimestre (états par mandat) ; la note rattache l'attestation du 15/03 à l'arrêté du 31/12 et celle du 15/09 à
@@ -71,18 +99,20 @@ import type { CompteVirementInterne } from '@/lib/administrateur-judiciaire/doma
  *   à la date (écritures datées au plus tard ce jour, ce jour compris) : solde débit − crédit du sous-compte 512 de chaque
  *   compte bancaire, comme la comptabilité spéciale arrêtée de R. 814-29. Ni le solde porté par le compte
  *   (CompteBancaireMandat.soldeCentimes, sans date) ni l'arrêté de rapprochement (rapprochement-bancaire.ts, à ses seules
- *   dates) ne donnent un solde à une date quelconque ; aucune autre source n'est créée ;
+ *   dates) ne donnent un solde à une date quelconque ; aucune autre source n'est créée ; le solde bancaire n'est lu
+ *   qu'en annexe, sur le relevé à la date fourni par l'appelant (J67, R92) ;
  * - date limite = dernier jour pour agir, sans report au jour ouvrable : état trimestriel, fin du trimestre + 15 jours
  *   (« dans les quinze jours suivant ») ; attestation du commissaire aux comptes, le 14 mars et le 14 septembre (« avant
- *   le 15 » : décision J63 ci-dessus) ;
- * - rubrique de chaque compte (rubriqueDuCompte) : fonds de travaux d'abord (compte séparé, ou compte repris qui le
- *   tenait, comme virement-interne.ts), puis Caisse des dépôts, compte courant (seule nature dont le libellé dit « au nom
- *   du syndicat »), autres natures (avance travaux, placement, sous-compte du centralisateur, compte repris : le domaine
- *   ne porte pas leur titulaire) ;
+ *   le 15 » : décision J63 ci-dessus) ; un jour non ouvré porte une alerte (J67, R93) ;
+ * - rubrique de chaque compte (rubriqueDuCompte) : fonds de travaux d'abord (compte séparé, compte repris qui le tenait,
+ *   ou placement réservé au fonds, comme virement-interne.ts), puis Caisse des dépôts, compte courant (seule nature dont
+ *   le libellé dit « au nom du syndicat »), autres natures (avance travaux, placement, sous-compte du centralisateur,
+ *   compte repris : le domaine ne porte pas leur titulaire) ;
  * - ventilation : par mandat, par compte, par nature (D-BANQUE), par établissement (Banque.etablissement ; un compte de
  *   nature « Caisse des dépôts » sans établissement saisi y est rangé ; casse, accents et espaces ne séparent pas deux
- *   établissements), par catégorie de mission = régime du mandat (regimeDepuisFondement : art. 46, art. 47, art. 29-1 ;
- *   tout autre fondement à part), comme la note le propose (§ 4.2) ;
+ *   établissements), par catégorie de mission (réglage du cabinet, J67, R91 ; par défaut le régime du mandat,
+ *   regimeDepuisFondement : art. 46, art. 47, art. 29-1 ; à part, un régime reconnu hors de la liste du cabinet
+ *   (« hors catégories ») et tout autre fondement (« non reconnu ») ;
  * - montants : un compte au solde négatif n'est pas un fonds détenu et ne vient jamais en déduction des autres comptes,
  *   ni des autres mandats : les totaux additionnent les soldes positifs ; les négatifs sont totalisés à part et signalés ;
  * - couverture (R. 814-37), sur tous les comptes du mandat, quel que soit le périmètre : sous-compte d'un compte partagé
@@ -99,19 +129,11 @@ import type { CompteVirementInterne } from '@/lib/administrateur-judiciaire/doma
  *   nature, IBAN, établissement), et un identifiant de compte ne désigne qu'un 512 : sinon les données sont refusées.
  *
  * 🔴 Non établi (note, § 4.3 et 6.6 ; à trancher par Hugo) :
- * - ce que comprennent les « fonds non distribués » (R. 814-21) : comptes à la Caisse des dépôts, comptes au nom du
- *   syndicat (L. 1965 art. 18, II), fonds de travaux ? Réglage du cabinet (PerimetreFondsDetenus) : par défaut tout est
- *   inclus, valeur prudente choisie par VitFix, qu'aucun texte lu ne fixe ;
- * - ce que sont les « catégories de mission » de R. 814-30 : non définies par les textes lus ; le régime du mandat est
- *   une proposition ;
- * - solde comptable ou solde en banque : les textes lus ne le disent pas ; les suspens de rapprochement
- *   (rapprochement-bancaire.suspensA) ne sont pas intégrés ;
  * - rééditer un état « dans son état de la fin du trimestre » (1033.5) : le calcul relit les écritures datées au plus
  *   tard ce jour ; une écriture passée après coup à une date antérieure le changerait. La garantie relève du verrou de
  *   saisie (verrou-saisie.ts : édition figée, arrêté des comptes), que ce module ne pose pas ;
  * - comptes de placement tenus en classe 50 : non lus (sous-comptes 512 seulement, comme virement-interne.ts) ;
  * - totaux sur les seuls soldes positifs : choix de prudence à confirmer ;
- * - date limite tombant un samedi, un dimanche ou un jour férié : son report n'est pas établi (aucun n'est appliqué) ;
  * - mandats successifs d'un même syndicat (Frédéric, données de l'appelant) : ses comptes sont au syndicat (D1), et ce
  *   module ne connaît pas les dates des mandats ; deux mandats qui déclarent le même compte ne sont pas départagés par
  *   date (compte non ventilé) : l'appelant ne passe que les mandats qui détiennent les fonds à la date ;
@@ -139,7 +161,7 @@ function verifierDate(date: string, nom = 'Date'): void {
   if (!estDateIsoValide(date)) throw new Error(`${nom} invalide (${date}) : AAAA-MM-JJ attendu.`)
 }
 
-// ─── Périmètre (🔴 réglage du cabinet) ──────────────────────────────────────────────────────
+// ─── Périmètre (réglage du cabinet ; J67, R90) ──────────────────────────────────────────────
 
 /** Rubriques dont l'inclusion dans les « fonds non distribués » n'est pas établie (note, § 2.6 et 4.3). */
 export const RUBRIQUES_FONDS_DETENUS = {
@@ -155,7 +177,10 @@ const RUBRIQUES = Object.keys(RUBRIQUES_FONDS_DETENUS) as RubriqueFondsDetenus[]
 /** Rubriques comptées dans les fonds détenus : réglage du cabinet, jamais une règle légale. */
 export type PerimetreFondsDetenus = Readonly<Record<RubriqueFondsDetenus, boolean>>
 
-/** 🔴 Valeur par défaut prudente : tout inclure. Choix de VitFix, qu'aucun texte lu ne fixe. */
+/**
+ * Valeur par défaut prudente : tout inclure (J67, R90), qu'aucun texte lu ne fixe ; à ajuster après la réponse de la caisse
+ * de garantie (J65).
+ */
 export const PERIMETRE_FONDS_DETENUS_PAR_DEFAUT: PerimetreFondsDetenus = Object.freeze({
   caisse_depots: true,
   au_nom_du_syndicat: true,
@@ -178,12 +203,12 @@ export function creerPerimetreFondsDetenus(saisie: Partial<Record<RubriqueFondsD
 }
 
 /**
- * Rubrique d'un compte : le fonds de travaux d'abord (compte séparé, ou compte repris qui le tenait), puis la Caisse des
- * dépôts, le compte courant au nom du syndicat, les autres natures (le domaine ne porte pas leur titulaire).
+ * Rubrique d'un compte : le fonds de travaux d'abord (compte séparé, compte repris qui le tenait, placement réservé au
+ * fonds : J71), puis la Caisse des dépôts, le compte courant au nom du syndicat, les autres natures (le domaine ne porte
+ * pas leur titulaire).
  */
-export function rubriqueDuCompte(compte: Pick<CompteFondsDetenus, 'nature' | 'tenaitFondsTravaux'>): RubriqueFondsDetenus {
-  if (compte.nature === 'fonds_travaux' || (compte.nature === 'repris_ancien_gestionnaire' && compte.tenaitFondsTravaux === true))
-    return 'fonds_travaux'
+export function rubriqueDuCompte(compte: Pick<CompteFondsDetenus, 'nature' | 'tenaitFondsTravaux' | 'reserveAuFondsTravaux'>): RubriqueFondsDetenus {
+  if (estCompteDuFondsTravaux(compte)) return 'fonds_travaux'
   if (compte.nature === 'caisse_depots') return 'caisse_depots'
   if (compte.nature === 'courant') return 'au_nom_du_syndicat'
   return 'autres_comptes'
@@ -191,20 +216,84 @@ export function rubriqueDuCompte(compte: Pick<CompteFondsDetenus, 'nature' | 'te
 
 // ─── Données ────────────────────────────────────────────────────────────────────────────────
 
-/** Catégorie de mission (🔴 R. 814-30 ne la définit pas) : le régime du mandat, ou « non reconnue ». */
-export const CATEGORIES_MISSION = {
-  sj: LIBELLES_REGIMES.sj.libelle,
-  ap47: LIBELLES_REGIMES.ap47.libelle,
-  ap291: LIBELLES_REGIMES.ap291.libelle,
-  non_reconnue: 'Fondement non reconnu (mandat ad hoc ou autre)',
-} as const satisfies Record<string, string>
-export type CategorieMission = keyof typeof CATEGORIES_MISSION
+/**
+ * Catégorie de mission du cabinet (J67, R91 ; C. com. R. 814-30 ne la définit pas) : son libellé et les régimes de mandat
+ * qu'elle regroupe.
+ */
+export interface CategorieMissionCabinet {
+  cle: string
+  libelle: string
+  regimes: readonly Regime[]
+}
+
+/** Liste des catégories de mission du cabinet, dans son ordre ; un régime est au plus dans une catégorie. */
+export type CategoriesMission = readonly CategorieMissionCabinet[]
+
+/** Clé de catégorie de mission : celle d'une catégorie du cabinet, CATEGORIE_HORS_CABINET ou CATEGORIE_NON_RECONNUE. */
+export type CategorieMission = string
+
+/** Mandat dont le régime est reconnu (art. 46, art. 47, art. 29-1) mais rangé dans aucune catégorie du cabinet (J67, R91). */
+export const CATEGORIE_HORS_CABINET: CategorieMission = 'hors_categories'
+const LIBELLE_HORS_CABINET = 'Régime hors des catégories du cabinet'
+/** Mandat dont le fondement n'est pas reconnu (mandat ad hoc…). */
+export const CATEGORIE_NON_RECONNUE: CategorieMission = 'non_reconnue'
+const LIBELLE_NON_RECONNUE = 'Fondement non reconnu (mandat ad hoc ou autre)'
+const CLE_NON_VENTILE = 'non_ventile'
+const CLES_RESERVEES: ReadonlySet<string> = new Set([CATEGORIE_HORS_CABINET, CATEGORIE_NON_RECONNUE, CLE_NON_VENTILE])
+const REGIMES = Object.keys(LIBELLES_REGIMES) as Regime[]
+
+/** J67, R91 — par défaut : une catégorie par régime du mandat (art. 46, art. 47, art. 29-1), avec son libellé. */
+export const CATEGORIES_MISSION_PAR_DEFAUT: CategoriesMission = Object.freeze(
+  REGIMES.map((regime) => Object.freeze({ cle: regime, libelle: LIBELLES_REGIMES[regime].libelle, regimes: Object.freeze([regime]) })),
+)
+
+function verifierCategorie(c: CategorieMissionCabinet, cles: Set<string>, rangs: Map<Regime, string>): CategorieMissionCabinet {
+  const cle = c.cle.trim()
+  if (!cle) throw new Error('Catégorie de mission sans clé.')
+  if (CLES_RESERVEES.has(cle)) throw new Error(`Catégorie de mission « ${cle} » : clé réservée.`)
+  if (cles.has(cle)) throw new Error(`Catégorie de mission « ${cle} » en double.`)
+  cles.add(cle)
+  const libelle = normaliserEspaces(c.libelle)
+  if (!libelle) throw new Error(`Catégorie de mission « ${cle} » sans libellé.`)
+  if (c.regimes.length === 0) throw new Error(`Catégorie de mission « ${cle} » : aucun régime.`)
+  for (const regime of c.regimes) {
+    if (!Object.hasOwn(LIBELLES_REGIMES, regime)) throw new Error(`Catégorie de mission « ${cle} » : régime inconnu « ${regime} ».`)
+    const deja = rangs.get(regime)
+    if (deja !== undefined) throw new Error(`Régime « ${regime} » rangé dans deux catégories de mission (« ${deja} », « ${cle} »).`)
+    rangs.set(regime, cle)
+  }
+  return Object.freeze({ cle, libelle, regimes: Object.freeze([...c.regimes]) })
+}
+
+/**
+ * J67, R91 — réglage du cabinet : sa liste de catégories de mission, à faire valider par le commissaire aux comptes
+ * (J65). Refuse une liste vide, une clé vide, en double ou réservée (« hors_categories », « non_reconnue »,
+ * « non_ventile »), un libellé vide, une catégorie sans régime, un régime inconnu ou rangé dans deux catégories. Un
+ * régime absent de la liste n'est pas refusé : ses mandats vont dans « hors_categories ».
+ */
+export function creerCategoriesMission(saisie: readonly CategorieMissionCabinet[]): CategoriesMission {
+  if (saisie.length === 0) throw new Error('Catégories de mission : au moins une catégorie attendue.')
+  const cles = new Set<string>()
+  const rangs = new Map<Regime, string>()
+  return Object.freeze(saisie.map((c) => verifierCategorie(c, cles, rangs)))
+}
+
+/**
+ * Catégorie d'un mandat : celle du cabinet qui contient son régime ; régime reconnu absent de la liste du cabinet :
+ * « hors catégories » ; fondement non reconnu : « non reconnue ».
+ */
+function categorieDuMandat(fondement: string, categories: CategoriesMission): CategorieMission {
+  const regime = regimeDepuisFondement(fondement)
+  if (regime === null) return CATEGORIE_NON_RECONNUE
+  return categories.find((c) => c.regimes.includes(regime))?.cle ?? CATEGORIE_HORS_CABINET
+}
 
 const LIBELLE_NON_VENTILE = 'Comptes partagés entre mandats, non ventilés'
 const LIBELLE_ETABLISSEMENT_NON_RENSEIGNE = 'Établissement non renseigné'
 
 /** Compte bancaire d'un mandat, tel que le calcul le lit (D-BANQUE : nature ; plan comptable : son 512). */
-export interface CompteFondsDetenus extends Pick<CompteVirementInterne, 'banqueId' | 'nature' | 'iban' | 'compte512' | 'tenaitFondsTravaux'> {
+export interface CompteFondsDetenus
+  extends Pick<CompteVirementInterne, 'banqueId' | 'nature' | 'iban' | 'compte512' | 'tenaitFondsTravaux' | 'reserveAuFondsTravaux'> {
   /** Établissement de crédit (Banque.etablissement) ; null ou vide : non renseigné. */
   etablissement: string | null
 }
@@ -237,6 +326,8 @@ export interface DonneesFondsDetenus {
 export interface OptionsFondsDetenus {
   /** Réglage du cabinet ; absent : PERIMETRE_FONDS_DETENUS_PAR_DEFAUT. */
   perimetre?: PerimetreFondsDetenus
+  /** Réglage du cabinet (J67, R91) ; absent : CATEGORIES_MISSION_PAR_DEFAUT, le régime du mandat. */
+  categoriesMission?: CategoriesMission
   /** Filtre de mandats ; absent : tous. Un identifiant inconnu est refusé. */
   mandatIds?: readonly string[]
 }
@@ -302,6 +393,7 @@ export type CodeAnomalieFondsDetenus =
   | 'couverture_non_verifiable'
   | 'compte_solde_negatif'
   | 'mandat_solde_negatif'
+  | 'ecart_banque_non_explique'
 
 export interface AnomalieFondsDetenus {
   code: CodeAnomalieFondsDetenus
@@ -327,7 +419,7 @@ const CODES_COUVERTURE: ReadonlySet<CodeAnomalieFondsDetenus> = new Set<CodeAnom
 export interface FondsDetenus {
   date: string
   perimetre: PerimetreFondsDetenus
-  /** Le périmètre est celui par défaut (🔴 valeur prudente, non fixée par un texte lu). */
+  /** Le périmètre est celui par défaut (valeur prudente, non fixée par un texte lu ; J67, R90). */
   perimetreParDefaut: boolean
   avertissement: string
   /** Tous les comptes, inclus ou non, dans l'ordre des mandats. */
@@ -338,7 +430,8 @@ export interface FondsDetenus {
   parNature: TotalFondsDetenus<NatureCompteBancaire>[]
   /** Clé : nom normalisé (minuscules, sans accents), ou « non_renseigne ». */
   parEtablissement: TotalFondsDetenus<string>[]
-  parCategorie: TotalFondsDetenus<CategorieMission | 'non_ventile'>[]
+  /** Catégories du cabinet dans son ordre, puis « hors_categories », « non_reconnue » et « non_ventile » (J67, R91). */
+  parCategorie: TotalFondsDetenus<CategorieMission>[]
   /** Soldes positifs des comptes inclus. */
   totalCentimes: number
   /** Part du total tenue sur des comptes non ventilés entre mandats. */
@@ -391,8 +484,7 @@ function verifierCompte(c: CompteFondsDetenus, m: MandatFondsDetenus): void {
   const nom = `Mandat ${m.mandatId}, compte ${c.banqueId}`
   if (texteVide(c.banqueId)) throw new Error(`Mandat ${m.mandatId} : compte sans identifiant.`)
   if (!Object.hasOwn(NATURES_COMPTE_BANCAIRE, c.nature)) throw new Error(`${nom} : nature inconnue « ${c.nature} ».`)
-  if (c.tenaitFondsTravaux && c.nature !== 'repris_ancien_gestionnaire')
-    throw new Error(`${nom} : seul un compte repris de l'ancien gestionnaire porte la mention « tenait le fonds de travaux ».`)
+  verifierMarquesFondsTravaux(c, nom)
   const lu = COMPTE_512.exec(c.compte512)
   if (!lu) throw new Error(`${nom} : compte « ${c.compte512} », 512 au format <syndicat>.512xx.<auxiliaire>.<repère> attendu.`)
   if (lu[1] !== m.segmentSyndicat)
@@ -508,8 +600,9 @@ function partageDuCompte(c: CompteResolu, mandatsParIban: ReadonlyMap<string, Re
  * Lit et contrôle les données : chaque compte une fois, avec tous les mandats qui le déclarent. Le partage d'un compte
  * (même 512, même IBAN) se lit sur TOUS les mandats, filtre ou non : filtrer ne fait pas d'un compte partagé un compte
  * propre. Seuls les mandats retenus, et les comptes que l'un d'eux déclare, restent ; leur comptabilité est exigée.
+ * La catégorie de chaque mandat suit les catégories du cabinet (J67, R91).
  */
-function resoudre(donnees: DonneesFondsDetenus, filtre: readonly string[] | undefined): Resolution {
+function resoudre(donnees: DonneesFondsDetenus, filtre: readonly string[] | undefined, categories: CategoriesMission): Resolution {
   const traitements = indexerComptabilites(donnees.comptabilites)
   const retenus = new Set(mandatsRetenus(donnees.mandats, filtre).map((m) => m.mandatId))
   const segments = new Map<string, string>()
@@ -522,7 +615,7 @@ function resoudre(donnees: DonneesFondsDetenus, filtre: readonly string[] | unde
     return {
       mandatId: m.mandatId,
       coproprieteId: m.coproprieteId,
-      categorie: regimeDepuisFondement(m.fondement) ?? 'non_reconnue',
+      categorie: categorieDuMandat(m.fondement, categories),
       mode,
       ventilationAbsente: mode === 'centralisateur_cabinet' && !m.comptes.some((c) => c.nature === 'sous_compte_centralisateur'),
       sansCompte: m.comptes.length === 0,
@@ -539,6 +632,9 @@ function resoudre(donnees: DonneesFondsDetenus, filtre: readonly string[] | unde
     .map((c) => ({ ...c, mutualise: partageDuCompte(c, mandatsParIban) }))
   return { mandats: mandats.filter((m) => retenus.has(m.mandatId)), comptes: lus, traitements }
 }
+
+const categoriesRetenues = (categories: CategoriesMission | undefined): CategoriesMission =>
+  categories === undefined ? CATEGORIES_MISSION_PAR_DEFAUT : creerCategoriesMission(categories)
 
 function perimetreRetenu(perimetre: PerimetreFondsDetenus | undefined): PerimetreFondsDetenus {
   return perimetre === undefined ? PERIMETRE_FONDS_DETENUS_PAR_DEFAUT : creerPerimetreFondsDetenus(perimetre)
@@ -634,7 +730,7 @@ function anomalieDuSoldeNegatif(l: LigneFondsDetenus, mandatId: string, jour: st
       ...commun,
       code: 'couverture_non_verifiable',
       gravite: 'bloquant',
-      message: `${solde}, sur un compte sans IBAN, traité comme le compte global de l'administrateur tant que son IBAN n'est pas saisi (décision de Hugo du 17/11/2026, J62 ; C. com. R. 814-37, R. 814-41 ; règle professionnelle 512.5) : découvert ou fonds d'un autre mandat, la couverture n'est pas vérifiable ; saisir l'IBAN de chaque compte du mandat.`,
+      message: `${solde}, sur un compte sans IBAN, traité comme le compte global de l'administrateur tant que son IBAN n'est pas saisi (J62 ; C. com. R. 814-37, R. 814-41 ; règle professionnelle 512.5) : découvert ou fonds d'un autre mandat, la couverture n'est pas vérifiable ; saisir l'IBAN de chaque compte du mandat.`,
       fondement: FONDEMENT_COUVERTURE,
     }
   return {
@@ -720,7 +816,20 @@ function parEtablissement(lignes: readonly LigneFondsDetenus[]): TotalFondsDeten
 }
 
 const NATURES = Object.keys(NATURES_COMPTE_BANCAIRE) as NatureCompteBancaire[]
-const CATEGORIES = [...(Object.keys(CATEGORIES_MISSION) as CategorieMission[]), 'non_ventile'] as const
+
+/**
+ * Totaux par catégorie : celles du cabinet dans son ordre, puis les régimes hors de ses catégories, les fondements non
+ * reconnus et les comptes non ventilés.
+ */
+function parCategorie(inclus: readonly LigneFondsDetenus[], categories: CategoriesMission): TotalFondsDetenus<CategorieMission>[] {
+  const libelles = new Map<string, string>([
+    ...categories.map((c): [string, string] => [c.cle, c.libelle]),
+    [CATEGORIE_HORS_CABINET, LIBELLE_HORS_CABINET],
+    [CATEGORIE_NON_RECONNUE, LIBELLE_NON_RECONNUE],
+    [CLE_NON_VENTILE, LIBELLE_NON_VENTILE],
+  ])
+  return totaliser([...libelles.keys()], inclus, (l) => l.categorie ?? CLE_NON_VENTILE, (cle) => libelles.get(cle) ?? cle)
+}
 
 // ─── Calcul à une date ──────────────────────────────────────────────────────────────────────
 
@@ -732,7 +841,8 @@ const CATEGORIES = [...(Object.keys(CATEGORIES_MISSION) as CategorieMission[]), 
 export function fondsDetenusA(date: string, donnees: DonneesFondsDetenus, options: OptionsFondsDetenus = {}): FondsDetenus {
   verifierDate(date)
   const perimetre = perimetreRetenu(options.perimetre)
-  const resolution = resoudre(donnees, options.mandatIds)
+  const categories = categoriesRetenues(options.categoriesMission)
+  const resolution = resoudre(donnees, options.mandatIds, categories)
   const comptes = lignesA(date, resolution, perimetre)
   const mandats = fondsDesMandats(resolution.mandats, comptes)
   const inclus = comptes.filter((l) => l.inclus)
@@ -749,12 +859,7 @@ export function fondsDetenusA(date: string, donnees: DonneesFondsDetenus, option
     }),
     parNature: totaliser(NATURES, inclus, (l) => l.nature, (cle) => NATURES_COMPTE_BANCAIRE[cle].libelle),
     parEtablissement: parEtablissement(inclus),
-    parCategorie: totaliser(
-      CATEGORIES,
-      inclus,
-      (l) => l.categorie ?? 'non_ventile',
-      (cle) => (cle === 'non_ventile' ? LIBELLE_NON_VENTILE : CATEGORIES_MISSION[cle]),
-    ),
+    parCategorie: parCategorie(inclus, categories),
     totalCentimes: sommePositive(inclus),
     nonVentileCentimes: sommePositive(inclus.filter((l) => l.mandatId === null)),
     horsPerimetreCentimes: sommePositive(comptes.filter((l) => !l.inclus)),
@@ -770,6 +875,85 @@ export function fondsDetenusA(date: string, donnees: DonneesFondsDetenus, option
  */
 export function controlerCouvertureA(date: string, donnees: DonneesFondsDetenus, options: Pick<OptionsFondsDetenus, 'mandatIds'> = {}): AnomalieFondsDetenus[] {
   return fondsDetenusA(date, donnees, options).anomalies.filter((a) => CODES_COUVERTURE.has(a.code))
+}
+
+// ─── Annexe : solde bancaire et suspens de rapprochement (J67, R92) ─────────────────────────
+
+/** Relevé d'un compte à la date des fonds : solde en banque et éléments de rapprochement du compte. */
+export interface ReleveBancaireALaDate {
+  banqueId: string
+  /** Solde du relevé bancaire à la date, en centimes signés. */
+  soldeBanqueCentimes: number
+  /** Éléments de rapprochement du compte (rapprochement-bancaire.ts) : seuls leurs suspens à la date sont lus. */
+  elements: readonly ElementRapprochement[]
+}
+
+export interface LigneAnnexeBancaire {
+  mandatId: string | null
+  banqueId: string
+  compte512: string
+  /** Solde comptable : la base des fonds détenus, inchangée. */
+  soldeComptableCentimes: number
+  /** Solde bancaire à la date ; null : relevé non fourni. */
+  soldeBancaireCentimes: number | null
+  /** Suspens de rapprochement à la date (suspensA) ; null sans relevé. */
+  suspens: SuspensALaDate | null
+  /** (banque − suspens banque) − (compta − suspens compta) : 0 quand les suspens expliquent l'écart ; null sans relevé. */
+  ecartNonExpliqueCentimes: number | null
+}
+
+export interface AnnexeSoldeBancaire {
+  date: string
+  lignes: LigneAnnexeBancaire[]
+  anomalies: AnomalieFondsDetenus[]
+}
+
+function relevesParCompte(fonds: FondsDetenus, releves: readonly ReleveBancaireALaDate[]): Map<string, ReleveBancaireALaDate> {
+  const parBanque = new Map<string, ReleveBancaireALaDate>()
+  for (const r of releves) {
+    if (!fonds.comptes.some((l) => l.banqueId === r.banqueId))
+      throw new Error(`Relevé du compte ${r.banqueId} : compte absent des fonds détenus au ${dateIsoVersFr(fonds.date)}.`)
+    if (parBanque.has(r.banqueId)) throw new Error(`Relevé du compte ${r.banqueId} fourni deux fois.`)
+    if (!Number.isInteger(r.soldeBanqueCentimes))
+      throw new Error(`Relevé du compte ${r.banqueId} : solde invalide (${r.soldeBanqueCentimes}), centimes entiers attendus.`)
+    parBanque.set(r.banqueId, r)
+  }
+  return parBanque
+}
+
+function ligneAnnexe(l: LigneFondsDetenus, releve: ReleveBancaireALaDate | undefined, date: string): LigneAnnexeBancaire {
+  const commun = { mandatId: l.mandatId, banqueId: l.banqueId, compte512: l.compte512, soldeComptableCentimes: l.soldeCentimes }
+  if (!releve) return { ...commun, soldeBancaireCentimes: null, suspens: null, ecartNonExpliqueCentimes: null }
+  const suspens = suspensA([...releve.elements], date)
+  const ecart = releve.soldeBanqueCentimes - suspens.totalBanqueCentimes - (l.soldeCentimes - suspens.totalComptaCentimes)
+  return { ...commun, soldeBancaireCentimes: releve.soldeBanqueCentimes, suspens, ecartNonExpliqueCentimes: ecart }
+}
+
+/**
+ * J67, R92 — annexe aux fonds détenus à une date : pour chaque compte, à côté du solde comptable (la base des fonds
+ * détenus, inchangée), le solde bancaire à la même date et les suspens de rapprochement (rapprochement-bancaire.suspensA) ;
+ * un écart que les suspens n'expliquent pas est signalé (alerte, sans blocage). Le commissaire aux comptes choisit la
+ * présentation. Refuse le relevé d'un compte absent des fonds, un relevé fourni deux fois, un solde qui n'est pas un
+ * nombre entier de centimes.
+ */
+export function annexeSoldeBancaireEtSuspens(fonds: FondsDetenus, releves: readonly ReleveBancaireALaDate[]): AnnexeSoldeBancaire {
+  const parBanque = relevesParCompte(fonds, releves)
+  const jour = dateIsoVersFr(fonds.date)
+  const anomalies: AnomalieFondsDetenus[] = []
+  const lignes = fonds.comptes.map((l) => {
+    const ligne = ligneAnnexe(l, parBanque.get(l.banqueId), fonds.date)
+    if (ligne.ecartNonExpliqueCentimes)
+      anomalies.push({
+        code: 'ecart_banque_non_explique',
+        gravite: 'alerte',
+        mandatIds: [...l.mandatIds],
+        banqueId: l.banqueId,
+        message: `Compte ${l.banqueId} au ${jour} : solde bancaire de ${euros(ligne.soldeBancaireCentimes ?? 0)}, solde comptable de ${euros(l.soldeCentimes)} ; écart de ${euros(ligne.ecartNonExpliqueCentimes)} que les suspens de rapprochement n'expliquent pas : vérifier le rapprochement bancaire.`,
+        fondement: null,
+      })
+    return ligne
+  })
+  return { date: fonds.date, lignes, anomalies }
 }
 
 // ─── Dates de référence et échéances ────────────────────────────────────────────────────────
@@ -802,13 +986,36 @@ export interface EcheanceFondsDetenus {
   dateLimiteDeduite: boolean | null
   /** Date limite, sinon date des fonds : ce qui reste à faire jusqu'à ce jour. */
   echeance: string
+  /**
+   * J67, R93 — date limite un samedi, un dimanche ou un jour férié : elle n'est pas reportée (J63) ; dernier jour ouvré qui
+   * la précède, date d'envoi la plus prudente. Null : date limite un jour ouvré, ou aucune date limite.
+   */
+  dernierJourOuvre: string | null
+  /** Alerte qui accompagne dernierJourOuvre ; null sinon. */
+  alerteJourNonOuvre: string | null
 }
 
 const acteAttestation = (avantLe: string): string =>
   `Attestation du commissaire aux comptes, avant le ${dateIsoVersFr(avantLe)} : fonds détenus par catégorie de mission et par établissement de crédit`
 const ACTE_ETATS = 'Envoi des états trimestriels de chaque mandat non clos au greffe et au procureur de la République'
 
-function echeance(date: string, objet: ObjetEcheanceFondsDetenus, libelle: string, limite: { date: string; acte: string } | null): EcheanceFondsDetenus {
+/** J67, R93 — dernier jour ouvré avant une date limite non ouvrée, et son alerte ; rien pour un jour ouvré. */
+function jourNonOuvre(dateLimite: string | null, options: OptionsJoursFeries): Pick<EcheanceFondsDetenus, 'dernierJourOuvre' | 'alerteJourNonOuvre'> {
+  const ouvre = dateLimite === null ? null : avancerAuJourOuvrable(dateLimite, options)
+  if (dateLimite === null || ouvre === dateLimite || ouvre === null) return { dernierJourOuvre: null, alerteJourNonOuvre: null }
+  return {
+    dernierJourOuvre: ouvre,
+    alerteJourNonOuvre: `Date limite du ${dateIsoVersFr(dateLimite)}, jour non ouvré, sans report (J63) : envoyer au plus tard le dernier jour ouvré précédent, le ${dateIsoVersFr(ouvre)} (J67, R93).`,
+  }
+}
+
+function echeance(
+  date: string,
+  objet: ObjetEcheanceFondsDetenus,
+  libelle: string,
+  limite: { date: string; acte: string } | null,
+  options: OptionsJoursFeries,
+): EcheanceFondsDetenus {
   return {
     date,
     objet,
@@ -818,14 +1025,18 @@ function echeance(date: string, objet: ObjetEcheanceFondsDetenus, libelle: strin
     acteAttendu: limite?.acte ?? null,
     dateLimiteDeduite: limite === null ? null : true,
     echeance: limite?.date ?? date,
+    ...jourNonOuvre(limite?.date ?? null, options),
   }
 }
 
 const comparerEcheances = (a: EcheanceFondsDetenus, b: EcheanceFondsDetenus): number =>
   a.date.localeCompare(b.date) || ORDRE_OBJETS.indexOf(a.objet) - ORDRE_OBJETS.indexOf(b.objet)
 
-/** Dates de référence d'une année : fins de trimestre, 30/06 et 31/12 (commissaire aux comptes), 31/12 (caisse de garantie). */
-export function echeancesFondsDetenusDeLAnnee(annee: number): EcheanceFondsDetenus[] {
+/**
+ * Dates de référence d'une année : fins de trimestre, 30/06 et 31/12 (commissaire aux comptes), 31/12 (caisse de
+ * garantie). `options` : jours fériés du cabinet (Alsace-Moselle), pour l'alerte d'une date limite non ouvrée (J67, R93).
+ */
+export function echeancesFondsDetenusDeLAnnee(annee: number, options: OptionsJoursFeries = {}): EcheanceFondsDetenus[] {
   if (!Number.isInteger(annee) || annee < ANNEE_MIN || annee > ANNEE_MAX)
     throw new Error(`Année invalide (${annee}) : entier de ${ANNEE_MIN} à ${ANNEE_MAX} attendu.`)
   const liste: EcheanceFondsDetenus[] = []
@@ -837,25 +1048,37 @@ export function echeancesFondsDetenusDeLAnnee(annee: number): EcheanceFondsDeten
   ] as const) {
     const fin = composerDateIso(annee, mois, jour)
     const fr = dateIsoVersFr(fin)
-    liste.push(echeance(fin, 'etat_trimestriel', `États du trimestre clos le ${fr}, pour chaque mandat non clos`, { date: ajouterJours(fin, 15), acte: ACTE_ETATS }))
+    liste.push(
+      echeance(fin, 'etat_trimestriel', `États du trimestre clos le ${fr}, pour chaque mandat non clos`, { date: ajouterJours(fin, 15), acte: ACTE_ETATS }, options),
+    )
     if (mois === 6 || mois === 12) {
       // R. 814-30 : « avant le 15 mars et le 15 septembre » : le 14 au plus tard (décision de Hugo du 17/11/2026, J63).
       const avantLe = mois === 6 ? composerDateIso(annee, 9, 15) : composerDateIso(annee + 1, 3, 15)
       liste.push(
-        echeance(fin, 'arrete_comptabilite_speciale', `Arrêté de la comptabilité spéciale au ${fr}`, { date: ajouterJours(avantLe, -1), acte: acteAttestation(avantLe) }),
+        echeance(
+          fin,
+          'arrete_comptabilite_speciale',
+          `Arrêté de la comptabilité spéciale au ${fr}`,
+          { date: ajouterJours(avantLe, -1), acte: acteAttestation(avantLe) },
+          options,
+        ),
       )
     }
     if (mois === 12)
-      liste.push(echeance(fin, 'cotisation_caisse_garantie', `Fonds non distribués au ${fr} : base de la cotisation ${annee + 1} à la caisse de garantie`, null))
+      liste.push(echeance(fin, 'cotisation_caisse_garantie', `Fonds non distribués au ${fr} : base de la cotisation ${annee + 1} à la caisse de garantie`, null, options))
   }
   return liste.sort(comparerEcheances)
 }
 
 /**
  * Prochaines échéances à partir d'une date : celles dont l'échéance (date limite, sinon date des fonds) tombe ce jour ou
- * après, pour des dates de fonds jusqu'à `jusquAu` (par défaut douze mois plus tard), triées par échéance.
+ * après, pour des dates de fonds jusqu'à `jusquAu` (par défaut douze mois plus tard), triées par échéance. Jours fériés
+ * du cabinet (Alsace-Moselle) : pour l'alerte d'une date limite non ouvrée (J67, R93).
  */
-export function prochainesEcheancesFondsDetenus(depuis: string, { jusquAu }: { jusquAu?: string } = {}): EcheanceFondsDetenus[] {
+export function prochainesEcheancesFondsDetenus(
+  depuis: string,
+  { jusquAu, ...joursFeries }: { jusquAu?: string } & OptionsJoursFeries = {},
+): EcheanceFondsDetenus[] {
   verifierDate(depuis, 'Date de départ')
   const fin = jusquAu ?? ajouterMois(depuis, 12)
   verifierDate(fin, 'Fin de l’horizon')
@@ -863,7 +1086,7 @@ export function prochainesEcheancesFondsDetenus(depuis: string, { jusquAu }: { j
   const liste: EcheanceFondsDetenus[] = []
   const derniere = Math.min(decomposerDateIso(fin).a, ANNEE_MAX)
   for (let annee = Math.max(decomposerDateIso(depuis).a - 1, ANNEE_MIN); annee <= derniere; annee += 1)
-    liste.push(...echeancesFondsDetenusDeLAnnee(annee).filter((e) => e.echeance >= depuis && e.date <= fin))
+    liste.push(...echeancesFondsDetenusDeLAnnee(annee, joursFeries).filter((e) => e.echeance >= depuis && e.date <= fin))
   return liste.sort((a, b) => a.echeance.localeCompare(b.echeance) || comparerEcheances(a, b))
 }
 
@@ -892,7 +1115,7 @@ export function maximumInterneFondsDetenus(du: string, au: string, donnees: Donn
   verifierDate(au, 'Fin de période')
   if (du > au) throw new Error(`Période invalide : du ${du} au ${au}.`)
   const perimetre = perimetreRetenu(options.perimetre)
-  const resolution = resoudre(donnees, options.mandatIds)
+  const resolution = resoudre(donnees, options.mandatIds, categoriesRetenues(options.categoriesMission))
   const livres = new Map<string, Map<string, CompteGrandLivre>>()
   for (const coproprieteId of new Set(resolution.comptes.map((c) => c.coproprieteId)))
     livres.set(coproprieteId, new Map(grandLivre(resolution.traitements.get(coproprieteId) ?? [], { du, au }).map((g) => [g.compte, g])))

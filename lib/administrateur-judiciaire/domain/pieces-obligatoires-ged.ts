@@ -1,4 +1,4 @@
-import { ajouterMois, composerDateIso, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
+import { ajouterMois, composerDateIso, dateIsoVersFr, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
 import { TYPES_DOCUMENT_PAR_CATEGORIE } from '@/lib/administrateur-judiciaire/domain/referentiel-types-document'
 import type { ClePieceReprise } from '@/lib/administrateur-judiciaire/domain/reprise'
 import {
@@ -62,15 +62,32 @@ import {
  *   une pièce de reprise qu'un type candidat seul couvrirait est « à vérifier », jamais couverte ;
  * - les fenêtres « trois dernières AG », « trois dernières années », « en cours de validité » disent ce qui est mis
  *   à disposition ; ce ne sont pas des durées de conservation (voir conservation-documents-ged.ts).
+ * Décisions de Hugo du 17/11/2026 (J67, recommandations validées en bloc) :
+ * - J67, R119 (textes relus le 17/11/2026 : L. 1965 art. 18, I, 18-2 et 29-1, I, al. 2 ; D. 2019-502 art. 1 à 4 ; D.
+ *   2016-1822 art. 1 et 2) : le contrôle de l'extranet est gardé pour un mandat d'administration provisoire,
+ *   obligation du syndic professionnel appliquée par prudence à l'administrateur provisoire : à confirmer
+ *   (avertissementExtranet). Le contrat de syndic (art. 1, 9°) est sans objet : l'ordonnance de désignation et, le cas
+ *   échéant, de prolongation en tient lieu (certitude EQUIVALENCE_VITFIX). La carte professionnelle (art. 3, 5°) est
+ *   sans objet pour un administrateur judiciaire ; les attestations d'assurance et de garantie deviennent « éventuelles ».
+ *   Les pièces manquantes de l'extranet restent des alertes, jamais un blocage. Le texte ne tranche pas : aucun texte ni
+ *   arrêt lu sur ce point précis ;
+ * - J67, R120 (D. 2001-477 art. 1 à 5 et D. 2016-1822 art. 1 et 2 relus le 17/11/2026 ; rubriques de l'art. 2 relues
+ *   le 18/11/2026) : contrôle de PRÉSENCE inchangé, plus une alerte de date (alerteFicheSynthetique) : fiche synthétique
+ *   à mettre à jour deux mois après la plus tôt des notifications du procès-verbal de la dernière AG qui a approuvé les
+ *   comptes, à défaut après la date de l'AG (départ plus tôt, prudent), si aucune fiche n'est datée après cette AG ;
+ *   comptes approuvés par l'administrateur provisoire lui-même (pouvoirs de l'AG, L. 1965 art. 29-1, I) : départ à sa
+ *   décision, par analogie, à confirmer. Carnet d'entretien : aucun contrôle de date (le D. 2001-477 n'en fixe pas).
+ *   Mentions obligatoires du carnet et rubriques de la fiche en données (MENTIONS_OBLIGATOIRES), comme aide-mémoire, sans
+ *   contrôle automatique du contenu.
+ * 🔵 Déduit (J67, R120) : « aucune fiche depuis cette AG » : une fiche datée du jour même de l'AG ne compte pas (elle a
+ *   pu être établie avant la séance) ; une fiche de type « à confirmer » datée après l'AG est « à vérifier » et ne fait
+ *   pas tomber l'alerte.
  * 🔴 Non établi :
- * - « L'administrateur judiciaire nommé administrateur provisoire doit-il tenir l'extranet du décret 2019-502 pour la
- *   copropriété administrée ? » (la loi vise le « syndic professionnel » ; l'administrateur provisoire reçoit « tous les
- *   pouvoirs du syndic », L. 1965 art. 29-1) — question pour Frédéric ou Hugo ;
  * - registre des décisions de l'administrateur provisoire (D. 1967 art. 62-8) : le type « Procès-Verbal de prise de
  *   décisions par l'AJ » (tranche 18) le couvrirait, mais sa catégorie n'est relevée ni en tranche 22 ni en tranche 43
  *   (question pour Hugo, voir typologie-documents.ts) : pièce non contrôlable en attendant ;
- * - contenu des pièces (carnet d'entretien, fiche synthétique, diagnostics) : textes d'application non relus ; seule la
- *   PRÉSENCE est contrôlée.
+ * - diagnostics (amiante, plomb, termites, DPE, DTG) : textes non relus ; seule la PRÉSENCE est contrôlée, rien de plus
+ *   avant leur lecture par un juriste (J67, R120).
  */
 
 /** Document vu par la GED ; l'appelant convertit DocumentLocal (dateCreation → date ISO). */
@@ -88,8 +105,11 @@ export interface EntiteGed {
   entiteId: string
 }
 
-/** `TEXTE` : obligation lue sur Légifrance ; `GESTEAM` : pièce de la pratique Gestéam, sans texte relu. */
-export type CertitudePiece = 'TEXTE' | 'GESTEAM'
+/**
+ * `TEXTE` : obligation lue sur Légifrance ; `GESTEAM` : pièce de la pratique Gestéam, sans texte relu ;
+ * `EQUIVALENCE_VITFIX` : pièce retenue par VitFix à la place d'une pièce du texte sans objet pour le mandat (J67, R119).
+ */
+export type CertitudePiece = 'TEXTE' | 'GESTEAM' | 'EQUIVALENCE_VITFIX'
 
 /** `requise` : toujours attendue ; `eventuelle` : attendue selon les circonstances (« le cas échéant », alternative). */
 export type PresencePiece = 'requise' | 'eventuelle'
@@ -292,22 +312,55 @@ export const DOCUMENTS_EXTRANET: readonly PieceExtranet[] = [
   ),
 ]
 
-/** Circonstances de la copropriété qui retirent des pièces de l'extranet. */
+/** Circonstances de la copropriété qui retirent ou remplacent des pièces de l'extranet. */
 export interface ContexteExtranet {
   /** L. 1965 art. 8-2, dernier alinéa : aucune fiche synthétique, donc pas de 2° de l'art. 1 du D. 2019-502. */
   destinationTotaleAutreQueHabitation: boolean
   /** L. 1965 art. 18 I : accès en ligne écarté par l'AG à la majorité de l'art. 25 ; aucune pièce due au titre de l'extranet. */
   accesEnLigneEcarteParAg: boolean
+  /** Mandat d'administration provisoire (L. 1965 art. 29-1 ou D. 1967 art. 47) : J67, R119 ; absent : syndic. */
+  administrationProvisoire?: boolean
 }
 
-/** Pièces de l'extranet dues à ce public, compte tenu de la dispense votée par l'AG et de l'art. 8-2. */
+/** J67, R119 : pièces de l'extranet remplacées sous administration provisoire, par clé de la pièce du syndic. */
+const EXTRANET_ADMINISTRATION_PROVISOIRE: Readonly<Record<string, PieceExtranet>> = {
+  contrat_syndic: {
+    ...extranet(
+      'coproprietaires',
+      'ordonnance_designation',
+      "Ordonnance de désignation de l'administrateur provisoire et, le cas échéant, de prolongation (équivalence VitFix du contrat de syndic)",
+      modelesDe('Tribunal', ['Ordonnance de désignation', 'Ordonnance de prolongation de mission']),
+      'D. 2019-502 art. 1, 9°, par équivalence ; L. 1965 art. 29-1, I, al. 2',
+    ),
+    certitude: 'EQUIVALENCE_VITFIX',
+  },
+  attestations_syndic: extranet(
+    'conseil_syndical',
+    'attestations_syndic',
+    "Attestations de responsabilité civile professionnelle et de garantie financière de l'administrateur, le cas échéant (pas de carte professionnelle pour un administrateur judiciaire)",
+    modelesDe('Base', ['Attestation assurance civile professionnelle', 'Attestation de garantie financière', 'Attestation garantie financière']),
+    'D. 2019-502 art. 3, 5°',
+    'eventuelle',
+  ),
+}
+
+/**
+ * Pièces de l'extranet dues à ce public, compte tenu de la dispense votée par l'AG, de l'art. 8-2 et, sous
+ * administration provisoire, des pièces remplacées (J67, R119 ; avertissementExtranet).
+ */
 export function documentsExtranetDuPublic(publicVise: PublicExtranet, contexte: ContexteExtranet): PieceExtranet[] {
   if (contexte.accesEnLigneEcarteParAg) return []
-  return sansFicheSynthetiqueHorsHabitation(
-    DOCUMENTS_EXTRANET.filter((p) => p.public === publicVise),
-    contexte,
+  const pieces = DOCUMENTS_EXTRANET.filter((p) => p.public === publicVise).map((p) =>
+    contexte.administrationProvisoire ? (EXTRANET_ADMINISTRATION_PROVISOIRE[p.cle] ?? p) : p,
   )
+  return sansFicheSynthetiqueHorsHabitation(pieces, contexte)
 }
+
+/** Libellé à afficher avec le contrôle de l'extranet ; null : syndic, obligation du texte (L. 1965 art. 18, I). */
+export const avertissementExtranet = (contexte: ContexteExtranet): string | null =>
+  contexte.administrationProvisoire
+    ? "Obligation du syndic professionnel (L. 1965 art. 18, I), appliquée par prudence à l'administrateur provisoire : à confirmer (J67, R119). Alertes seulement, jamais bloquantes."
+    : null
 
 /** Date ISO valide, ou absente (null / undefined) ; erreur explicite sinon. */
 export function verifierDateGed(valeur: string | null | undefined, origine: string): void {
@@ -391,6 +444,156 @@ export function controlerPieces(documents: readonly DocumentGed[], entite: Entit
     else rangerPieceAbsente(controle, attendue, candidats)
   }
   return controle
+}
+
+// ─── Fiche synthétique et mentions obligatoires (J67, R120) ────────────────────────────────
+
+/** D. 2016-1822 art. 1 : données établies « dans les deux mois » de la notification du PV qui approuve les comptes. */
+export const DELAI_MISE_A_JOUR_FICHE_SYNTHETIQUE_MOIS = 2
+
+/** Dernière approbation des comptes de l'exercice clos : par l'AG, ou par l'administrateur provisoire lui-même. */
+export interface ApprobationComptesFiche {
+  /** Date de l'AG, ou de la décision de l'administrateur provisoire. */
+  date: string
+  /** L'administrateur provisoire a approuvé les comptes (pouvoirs de l'AG, L. 1965 art. 29-1, I) : pas de PV à notifier. */
+  parAdministrateurProvisoire: boolean
+  /** Dates de notification du PV aux copropriétaires ; vide : non saisies. */
+  notificationsPv: readonly string[]
+}
+
+export type OrigineDepartFiche = 'notification_pv' | 'date_ag' | 'decision_administrateur'
+
+export interface AlerteFicheSynthetique {
+  aMettreAJour: boolean
+  depart: string
+  origineDepart: OrigineDepartFiche
+  /** Dernier jour du délai (DELAI_MISE_A_JOUR_FICHE_SYNTHETIQUE_MOIS) ; l'alerte part le lendemain. */
+  echeance: string
+  /** Fiche de type confirmé la plus récente, quelle que soit sa date ; null : aucune. */
+  derniereFiche: { documentId: string; date: string } | null
+  /** Documents « à confirmer » qu'une fiche datée après l'approbation pourrait être. */
+  aVerifier: string[]
+  fondement: string
+  justification: string
+  message: string
+  /** Départ à la décision de l'administrateur provisoire : analogie, pas texte. */
+  aConfirmer: boolean
+}
+
+const fr = dateIsoVersFr
+
+function departFiche(approbation: ApprobationComptesFiche): { depart: string; origineDepart: OrigineDepartFiche; texte: string } {
+  if (approbation.parAdministrateurProvisoire)
+    return {
+      depart: approbation.date,
+      origineDepart: 'decision_administrateur',
+      texte: `Départ : décision de l'administrateur provisoire du ${fr(approbation.date)} qui a approuvé les comptes, sans procès-verbal à notifier (par analogie, à confirmer)`,
+    }
+  const notification = approbation.notificationsPv.reduce<string | null>((a, b) => (a === null || b < a ? b : a), null)
+  if (notification === null)
+    return {
+      depart: approbation.date,
+      origineDepart: 'date_ag',
+      texte: `Départ : notification du procès-verbal non saisie, date de l'assemblée du ${fr(approbation.date)} qui a approuvé les comptes (départ plus tôt, prudent)`,
+    }
+  return {
+    depart: notification,
+    origineDepart: 'notification_pv',
+    texte: `Départ : la plus tôt des notifications du procès-verbal de l'assemblée du ${fr(approbation.date)} qui a approuvé les comptes, le ${fr(notification)}`,
+  }
+}
+
+/** Date ISO obligatoire et valide ; erreur explicite sinon. */
+function exigerDateGed(valeur: string, origine: string): void {
+  if (!estDateIsoValide(valeur)) throw new Error(`Date invalide (${origine}) : « ${valeur} » (attendu AAAA-MM-JJ).`)
+}
+
+function verifierApprobation(approbation: ApprobationComptesFiche): void {
+  exigerDateGed(approbation.date, 'approbation des comptes')
+  if (approbation.parAdministrateurProvisoire && approbation.notificationsPv.length > 0)
+    throw new Error("Comptes approuvés par l'administrateur provisoire : pas de procès-verbal d'assemblée à notifier.")
+  for (const notification of approbation.notificationsPv) {
+    exigerDateGed(notification, 'notification du procès-verbal')
+    if (notification < approbation.date)
+      throw new Error(`Notification du procès-verbal du ${fr(notification)} avant l'assemblée du ${fr(approbation.date)}.`)
+  }
+}
+
+/** Message de l'alerte selon son état : fiche à jour, délai qui court, ou délai échu. */
+function messageFiche(approbation: ApprobationComptesFiche, derniere: DocumentGed | null, aJour: boolean, echeance: string, aMettreAJour: boolean): string {
+  const apres = `${approbation.parAdministrateurProvisoire ? "la décision de l'administrateur provisoire" : "l'assemblée"} du ${fr(approbation.date)}`
+  if (aJour && derniere) return `Fiche synthétique à jour : fiche du ${fr(derniere.date)}, datée après ${apres}.`
+  if (!aMettreAJour) return `Fiche synthétique à mettre à jour après ${apres}, au plus tard le ${fr(echeance)}.`
+  return `Fiche synthétique à mettre à jour : aucune fiche datée après ${apres}, délai de ${DELAI_MISE_A_JOUR_FICHE_SYNTHETIQUE_MOIS} mois échu le ${fr(echeance)}.`
+}
+
+/**
+ * Fiche synthétique à mettre à jour (J67, R120 ; D. 2016-1822 art. 1) : la date du jour dépasse le départ (plus tôt des
+ * notifications du PV d'approbation des comptes, à défaut date de l'AG ; décision de l'administrateur provisoire, à
+ * confirmer) plus deux mois, et aucune fiche de type confirmé n'est datée après l'approbation. Alerte seule.
+ */
+export function alerteFicheSynthetique(
+  documents: readonly DocumentGed[],
+  entite: EntiteGed,
+  approbation: ApprobationComptesFiche,
+  aujourdhui: string,
+): AlerteFicheSynthetique {
+  exigerDateGed(aujourdhui, 'date du jour')
+  verifierApprobation(approbation)
+  const { references, candidats } = documentsDeLEntite(documents, entite)
+  const derniere = plusRecentCouvrant(references, FICHE_SYNTHETIQUE)
+  const { depart, origineDepart, texte } = departFiche(approbation)
+  const echeance = ajouterMois(depart, DELAI_MISE_A_JOUR_FICHE_SYNTHETIQUE_MOIS)
+  const aJour = derniere !== null && derniere.date > approbation.date
+  const aMettreAJour = !aJour && aujourdhui > echeance
+  return {
+    aMettreAJour,
+    depart,
+    origineDepart,
+    echeance,
+    derniereFiche: derniere && { documentId: derniere.id, date: derniere.date },
+    aVerifier: [
+      ...new Set(candidats.filter(({ document, ref }) => document.date > approbation.date && couvre(ref, FICHE_SYNTHETIQUE)).map(({ document }) => document.id)),
+    ],
+    fondement: 'D. 2016-1822 art. 1 ; L. 1965 art. 8-2',
+    justification: `${texte} ; données à établir dans les ${DELAI_MISE_A_JOUR_FICHE_SYNTHETIQUE_MOIS} mois (D. 2016-1822 art. 1), au plus tard le ${fr(echeance)}.`,
+    message: messageFiche(approbation, derniere, aJour, echeance, aMettreAJour),
+    aConfirmer: approbation.parAdministrateurProvisoire,
+  }
+}
+
+export interface MentionObligatoire {
+  libelle: string
+  fondement: string
+}
+
+/**
+ * Mentions obligatoires, aide-mémoire affiché avec la pièce (J67, R120) : aucun contrôle automatique du contenu (la
+ * lecture automatique d'un PDF n'est pas fiable). Carnet d'entretien : D. 2001-477 art. 3 (minimales) et art. 4
+ * (« également ») ; fiche synthétique : les six rubriques du D. 2016-1822 art. 2.
+ */
+export const MENTIONS_OBLIGATOIRES: Readonly<Record<'carnet_entretien' | 'fiche_synthetique', readonly MentionObligatoire[]>> = {
+  carnet_entretien: [
+    { libelle: "Adresse de l'immeuble", fondement: 'D. 2001-477 art. 3' },
+    { libelle: 'Identité du syndic en exercice', fondement: 'D. 2001-477 art. 3' },
+    { libelle: "Contrats d'assurance de l'immeuble souscrits par le syndicat et leurs échéances", fondement: 'D. 2001-477 art. 3' },
+    { libelle: 'Année des travaux importants et entreprises qui les ont réalisés', fondement: 'D. 2001-477 art. 4' },
+    { libelle: 'Assurance dommages-ouvrage en cours', fondement: 'D. 2001-477 art. 4' },
+    { libelle: "Contrats d'entretien et de maintenance des équipements communs et leurs échéances", fondement: 'D. 2001-477 art. 4' },
+    { libelle: 'Travaux prévus par le diagnostic technique global, s’il existe', fondement: 'D. 2001-477 art. 4' },
+    { libelle: 'Échéancier du programme pluriannuel de travaux voté, s’il existe', fondement: 'D. 2001-477 art. 4' },
+  ],
+  fiche_synthetique: [
+    { libelle: '1° Identification de la copropriété', fondement: 'D. 2016-1822 art. 2' },
+    {
+      libelle: '2° Représentant légal qui a établi la fiche (syndic ou administrateur provisoire) et cadre de son intervention',
+      fondement: 'D. 2016-1822 art. 2',
+    },
+    { libelle: '3° Organisation juridique', fondement: 'D. 2016-1822 art. 2' },
+    { libelle: '4° Caractéristiques techniques', fondement: 'D. 2016-1822 art. 2' },
+    { libelle: '5° Équipements', fondement: 'D. 2016-1822 art. 2' },
+    { libelle: '6° Caractéristiques financières', fondement: 'D. 2016-1822 art. 2' },
+  ],
 }
 
 /** 🔵 Types GED qui couvrent chaque pièce de reprise (reprise.ts) ; « clés » et « compteurs » n'ont pas de type. */

@@ -34,8 +34,14 @@ import {
  * - D. 1967 art. 64-5 et 64-8 : le prestataire de lettre recommandée électronique conserve les preuves de dépôt et de
  *   transmission et l'historique « pendant une durée minimale d'un an » ; obligation du prestataire, pas du syndic
  *   (🔵 déduit : pour garder la preuve plus longtemps, le cabinet l'archive lui-même dans la GED).
- * 🔵 Déduit : types GED retenus comme pièces justificatives comptables (MODELES_PIECES_JUSTIFICATIVES) ; une règle du
- * cabinet plus courte que les dix ans du texte est signalée, pas refusée (« sauf dispositions expresses contraires » :
+ * Décision J67, R118 de Hugo (17/11/2026 ; D. 2005-240 art. 6, al. 1 et arrêté du 14/03/2005, art. 4 relus le
+ * 17/11/2026 : le texte donne un critère, pas une liste) : tout document lié à une écriture comptable (un traitement)
+ * comme sa pièce est une pièce justificative, quel que soit son type (entrée rattacheAUnTraitement ; le lien entre un
+ * document et un traitement n'est pas encore enregistré : à brancher) ; liste par type (MODELES_PIECES_JUSTIFICATIVES) :
+ * les 7 types d'origine et ceux qui fondent une écriture par nature (appels de fonds, répartitions, rejets de virement,
+ * notes internes comptables, salaires, DSN et bordereaux sociaux et fiscaux, ordonnance de taxe, relevé individuel
+ * d'eau froide) ; ni devis, ni contrats, ni courriers. La liste ne sert qu'à rappeler les 10 ans : aucune purge.
+ * 🔵 Déduit : une règle du cabinet plus courte que les dix ans du texte est signalée, pas refusée (« sauf dispositions expresses contraires » :
  * aucune disposition contraire trouvée, aucune inventée) ; une règle par type l'emporte sur une règle par catégorie ;
  * deux règles de même précision et d'effets différents ne sont jamais départagées en silence (statut
  * « regles_en_conflit ») et verifierReglesConservation refuse deux règles de même cible ; une règle visant un type sans
@@ -48,8 +54,7 @@ import {
  * - « Le délai de conservation de 10 ans des pièces justificatives court-il, pour le cabinet, à partir de la date de la
  *   pièce, de la clôture de l'exercice ou de l'approbation des comptes ? » ;
  * - « Le cabinet applique-t-il une durée interne pour les autres archives (RC/EDD, registre des PV, contrats,
- *   correspondances, pièces de la mission judiciaire), ou VitFix doit-il afficher "durée non fixée par le texte" ? » ;
- * - « Quels types GED sont des pièces justificatives comptables au sens du D. 2005-240 art. 6 ? ».
+ *   correspondances, pièces de la mission judiciaire), ou VitFix doit-il afficher "durée non fixée par le texte" ? ».
  */
 
 export interface DureeConservationTexte {
@@ -67,16 +72,45 @@ export const CONSERVATION_PIECES_JUSTIFICATIVES: DureeConservationTexte = {
   pointDepart: null,
 }
 
-/** 🔵 Types GED retenus comme pièces justificatives comptables. */
+/** Types GED qui fondent une écriture par nature : pièces justificatives comptables (J67, R118). */
 export const MODELES_PIECES_JUSTIFICATIVES: readonly ModeleTypeDocument[] = [
   ...modelesDe(null, ['Facture/avoir fournisseur', 'Avis de virement']),
-  ...modelesDe('Base', ['Facture/avoir honoraires', 'Relevé bancaire', 'Chèque', 'Verso chèque encaissé']),
-  ...modelesDe('Copropriétaire', ['Chèque encaissé']),
+  ...modelesDe('Base', [
+    'Facture/avoir honoraires',
+    'Relevé bancaire',
+    'Chèque',
+    'Verso chèque encaissé',
+    'Bulletin de salaire',
+    'Bordereau URSSAF',
+    'Bordereau retraite',
+    'Bordereau prévoyance',
+    'Bordereau mutuelle',
+    'Bordereau DGFIP',
+  ]),
+  ...modelesDe('Copropriétaire', ['Chèque encaissé', 'Appel de fonds', 'Répartition de charges', 'Relevé individuel eau froide']),
+  ...modelesDe('Interne', [
+    'Rejet de virement',
+    'Notes internes (modification comptable, créance irrécouvrable, jugement, remboursement copropriétaire)',
+  ]),
+  ...modelesDe("Gardien/Employé d'immeuble", ['Salaire et charges sociales', 'Déclaration DSN']),
+  ...modelesDe('Tribunal', ['Ordonnance de taxe']),
 ]
 
-/** Durée fixée par un texte relu pour ce type ; null : aucune durée dans les textes relus. */
-export function dureeConservationDuTexte(ref: ReferenceTypeDocument): DureeConservationTexte | null {
-  return MODELES_PIECES_JUSTIFICATIVES.some((m) => correspondAuModele(ref, m)) ? CONSERVATION_PIECES_JUSTIFICATIVES : null
+/** Ce que l'appelant sait du document, au-delà de son type. */
+export interface ContexteDocumentConservation {
+  /** Document lié à une écriture comptable (un traitement) comme sa pièce (J67, R118) ; absent : non. */
+  rattacheAUnTraitement?: boolean
+}
+
+/**
+ * Durée fixée par un texte relu pour ce document ; null : aucune durée dans les textes relus. Pièce justificative (D.
+ * 2005-240 art. 6) : document rattaché à un traitement, quel que soit son type, ou type qui fonde une écriture par nature.
+ */
+export function dureeConservationDuTexte(
+  ref: ReferenceTypeDocument,
+  { rattacheAUnTraitement = false }: ContexteDocumentConservation = {},
+): DureeConservationTexte | null {
+  return rattacheAUnTraitement || MODELES_PIECES_JUSTIFICATIVES.some((m) => correspondAuModele(ref, m)) ? CONSERVATION_PIECES_JUSTIFICATIVES : null
 }
 
 export type PointDepartConservation = 'date_document' | 'cloture_exercice' | 'fin_mandat'
@@ -170,7 +204,7 @@ export function verifierReglesConservation(regles: readonly RegleConservation[])
 }
 
 /** Dates fournies par l'appelant (fiche mandat, exercice) ; null ou absente : point de départ inconnu. */
-export interface ContexteConservation {
+export interface ContexteConservation extends ContexteDocumentConservation {
   clotureExercice?: string | null
   finMandat?: string | null
 }
@@ -182,7 +216,7 @@ export interface CandidatConservation {
 }
 
 export type EcheanceConservation =
-  | { statut: 'non_classe' }
+  | { statut: 'non_classe'; texte: DureeConservationTexte | null }
   | { statut: 'a_confirmer'; candidats: CandidatConservation[] }
   | { statut: 'non_reglee'; texte: DureeConservationTexte | null }
   | { statut: 'regles_en_conflit'; regles: RegleConservation[]; texte: DureeConservationTexte | null }
@@ -195,11 +229,15 @@ const DEPART: Readonly<Record<PointDepartConservation, (document: DocumentGed, c
   fin_mandat: (_document, contexte) => contexte.finMandat ?? null,
 }
 
-/** Document sans référence GED : « à confirmer » s'il a des types candidats, sinon non classé. */
-function sansReference(document: DocumentGed): EcheanceConservation {
+/**
+ * Document sans référence GED : « à confirmer » s'il a des types candidats, sinon non classé ; rattaché à un traitement,
+ * la durée des pièces justificatives est rappelée dans les deux cas (J67, R118).
+ */
+function sansReference(document: DocumentGed, contexte: ContexteDocumentConservation): EcheanceConservation {
   const candidats = candidatsDuDocument(document)
-  if (candidats.length === 0) return { statut: 'non_classe' }
-  return { statut: 'a_confirmer', candidats: candidats.map((ref) => ({ ref, texte: dureeConservationDuTexte(ref) })) }
+  if (candidats.length === 0)
+    return { statut: 'non_classe', texte: contexte.rattacheAUnTraitement ? CONSERVATION_PIECES_JUSTIFICATIVES : null }
+  return { statut: 'a_confirmer', candidats: candidats.map((ref) => ({ ref, texte: dureeConservationDuTexte(ref, contexte) })) }
 }
 
 /** Fin de conservation d'un document selon les règles du cabinet ; la durée du texte est rappelée, jamais appliquée seule. */
@@ -212,8 +250,8 @@ export function echeanceConservation(
   verifierDateGed(contexte.clotureExercice, "clôture de l'exercice")
   verifierDateGed(contexte.finMandat, 'fin du mandat')
   const ref = referenceDuDocument(document)
-  if (!ref) return sansReference(document)
-  const texte = dureeConservationDuTexte(ref)
+  if (!ref) return sansReference(document, contexte)
+  const texte = dureeConservationDuTexte(ref, contexte)
   const retenues = reglesLesPlusPrecises(ref, regles)
   if (retenues.length === 0) return { statut: 'non_reglee', texte }
   const regle = retenues[0]

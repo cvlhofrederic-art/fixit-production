@@ -29,6 +29,17 @@ import { GROUPE_IDENTITE, QUALITE_IDENTITE, type GroupeIdentite } from '@/lib/da
  *   bornée l'emporte ; sinon aucune n'est retenue et le contrôle le signale. Si aucune adresse n'est en cours (ancienne
  *   adresse close, nouvelle pas encore reçue), la dernière communiquée reste l'adresse de notification, et le contrôle
  *   signale qu'elle est échue.
+ * - J67, R19 (décision de Hugo du 17/11/2026) : seule vaut pour notifier l'adresse communiquée par le copropriétaire
+ *   lui-même (D. 1967 art. 65, al. 1 : il « notifie au syndic son domicile réel ou élu » ; al. 2 : notification valable
+ *   « au dernier domicile communiqué par le copropriétaire à cet effet ») ou par la notification du transfert de
+ *   propriété, qui porte le « domicile réel ou élu » de l'acquéreur (art. 6, al. 2). Chaque adresse porte donc son
+ *   origine (ORIGINES_ADRESSE). Une adresse d'origine « autre » (courrier retourné, recherche, annuaire, adresse donnée
+ *   pour un autre usage) ne sert jamais à notifier ; elle reste parmi les adresses valables, pour un courrier simple :
+ *   à défaut d'adresse de notification, la dernière adresse « autre » en cours sert à la lettre simple
+ *   (adressePourCourrierSimple, avec un avertissement : controlerAdresseDeCourrierSimple), comme l'avis d'appel de fonds
+ *   (D. 1967 art. 35-2). Origine inconnue (reprise de Gestéam) : adresse admise, avec l'alerte « origine à vérifier »
+ *   avant une notification (controlerAdresseDeNotification). Enregistrement de l'origine : à brancher avec la table des
+ *   identités.
  * - Groupes bornés par GROUPE_IDENTITE ; représentant légal daté, réservé à la personne morale (plusieurs co-gérants
  *   possibles) ; participations DÉRIVÉES des positions (D2 : la part est portée par la position), sans entité.
  * 🟢 Adresse électronique de notification datée : voie-notification.ts (CommunicationAdresseElectronique, reçue le
@@ -36,10 +47,10 @@ import { GROUPE_IDENTITE, QUALITE_IDENTITE, type GroupeIdentite } from '@/lib/da
  * télécoms (Telecom) restent sans date, voulu : l'adresse de notification n'est pas un simple télécom ; contrôle avant
  * envoi : controlerAvantEnvoiElectronique (voie-notification.ts), écrit et testé, à brancher par l'appelant de
  * creerEnvoiNotificationElectronique (anomaliesAvantEnvoi).
- * 🔴 Non établi : portée de « à cet effet » (toute adresse connue du syndic vaut-elle ?) — l'usage de l'adresse reste
- * libre, valeurs Gestéam non relevées ; choix du jeu de coordonnées par compte ou par syndicat (dans Gestéam, la fiche
- * client désigne son jeu de coordonnées ; ici, l'adresse vaut pour l'identité entière) ; parts sociales d'un associé de
- * SCI qui n'est pas lui-même titulaire d'une position (hors champ).
+ * 🔴 Non établi : l'usage de l'adresse reste libre, valeurs Gestéam du champ « Usage » non relevées ; choix du jeu de
+ * coordonnées par compte ou par syndicat (dans Gestéam, la fiche client désigne son jeu de coordonnées ; ici, l'adresse
+ * vaut pour l'identité entière) ; parts sociales d'un associé de SCI qui n'est pas lui-même titulaire d'une position
+ * (hors champ).
  */
 
 const QUALITES_COPROPRIETE = QUALITE_IDENTITE.copropriete
@@ -60,6 +71,14 @@ export interface Telecom {
   valeur: string
 }
 
+/**
+ * J67, R19 — origine d'une adresse : communiquée par le copropriétaire (D. 1967 art. 65, al. 1), notification du
+ * transfert de propriété (art. 6, al. 2), ou autre (trouvée autrement : jamais pour notifier).
+ */
+export const ORIGINES_ADRESSE = ['coproprietaire', 'transfert_art_6', 'autre'] as const
+export type OrigineAdresse = (typeof ORIGINES_ADRESSE)[number]
+const ORIGINES_ADMISES: ReadonlySet<string> = new Set(ORIGINES_ADRESSE)
+
 /** Adresse postale datée : valable du `du` au `au` INCLUS (au null : sans fin). */
 export interface AdresseDatee {
   id: string
@@ -73,6 +92,8 @@ export interface AdresseDatee {
   au: string | null
   /** Réception de l'adresse par le syndic (D. 1967 art. 65) ; null : inconnue, la date de début fait foi. */
   communiqueeLe: string | null
+  /** J67, R19 — origine de l'adresse ; absente ou null : inconnue (reprise de Gestéam), admise avec une alerte. */
+  origine?: OrigineAdresse | null
 }
 
 /** Représentant légal ou statutaire d'une personne morale, du `du` au `au` INCLUS. */
@@ -128,6 +149,9 @@ export function creerAdresseDatee(saisie: AdresseDatee): AdresseDatee {
   verifierPeriode(saisie.du, saisie.au, `l'adresse « ${saisie.id} »`)
   if (saisie.communiqueeLe !== null && !estDateIsoValide(saisie.communiqueeLe))
     throw new Error(`Date de communication invalide (${saisie.communiqueeLe}) pour l'adresse « ${saisie.id} » : AAAA-MM-JJ attendu.`)
+  const origine = saisie.origine ?? null
+  if (origine !== null && !ORIGINES_ADMISES.has(origine))
+    throw new Error(`Origine « ${String(origine)} » de l'adresse « ${saisie.id} » inconnue (${ORIGINES_ADRESSE.join(', ')}).`)
   return { ...saisie, lignes, codePostal, ville, pays, usage: saisie.usage?.trim() || null }
 }
 
@@ -189,13 +213,16 @@ const priseDEffet = (a: AdresseDatee): string => (a.communiqueeLe !== null && a.
 const comparerCandidates = (a: AdresseDatee, b: AdresseDatee): number =>
   priseDEffet(b).localeCompare(priseDEffet(a)) || Number(b.au !== null) - Number(a.au !== null)
 
+/** J67, R19 : une adresse d'origine « autre » ne sert jamais à notifier (origine inconnue : admise, avec une alerte). */
+const sertANotifier = (a: AdresseDatee): boolean => a.origine !== 'autre'
+
 /**
  * Adresses candidates à la notification, la dernière à prendre effet en tête (bornée d'abord à égalité) : celles en
- * cours à la date, ou à défaut les adresses communiquées et déjà closes (`echue`).
+ * cours à la date, ou à défaut les adresses communiquées et déjà closes (`echue`). Jamais une adresse « autre ».
  */
 function candidatesNotification(identite: Pick<Identite, 'adresses'>, date: string): { candidates: AdresseDatee[]; echue: boolean } {
   verifierDate(date)
-  const communiquees = identite.adresses.filter((a) => priseDEffet(a) <= date)
+  const communiquees = identite.adresses.filter((a) => sertANotifier(a) && priseDEffet(a) <= date)
   const enCours = communiquees.filter((a) => a.au === null || date <= a.au)
   if (enCours.length > 0) return { candidates: enCours.sort(comparerCandidates), echue: false }
   return { candidates: communiquees.sort(comparerCandidates), echue: communiquees.length > 0 }
@@ -205,23 +232,50 @@ const indiscernables = (a: AdresseDatee, b: AdresseDatee): boolean => priseDEffe
 
 /**
  * D. 1967 art. 65 al. 2 — adresse postale de notification à la date : la dernière communiquée qui vaut à cette date,
- * à défaut la dernière communiquée, même close ; null si aucune, ou si deux se valent.
+ * à défaut la dernière communiquée, même close ; jamais une adresse d'origine « autre » (J67, R19) ; null si aucune, ou
+ * si deux se valent.
  */
 export function adresseDeNotification(identite: Pick<Identite, 'adresses'>, date: string): AdresseDatee | null {
-  const [premiere, seconde] = candidatesNotification(identite, date).candidates
+  return premiereRetenue(candidatesNotification(identite, date).candidates)
+}
+
+/** Première de candidates triées ; null si aucune, ou si les deux premières se valent. */
+function premiereRetenue(candidates: readonly AdresseDatee[]): AdresseDatee | null {
+  const [premiere, seconde] = candidates
   if (!premiere) return null
   return seconde && indiscernables(premiere, seconde) ? null : premiere
 }
 
+/** Adresses d'origine « autre » reçues et en cours à la date, la dernière à prendre effet en tête. */
+const autresEnCours = (identite: Pick<Identite, 'adresses'>, date: string): AdresseDatee[] =>
+  identite.adresses.filter((a) => !sertANotifier(a) && priseDEffet(a) <= date && (a.au === null || date <= a.au)).sort(comparerCandidates)
+
+/**
+ * J67, R19 — adresse d'un courrier simple, qui n'est pas une notification (lettre simple de l'avis d'appel de fonds,
+ * D. 1967 art. 35-2) : l'adresse de notification ; sans aucune adresse de notification, la dernière adresse d'origine
+ * « autre » en cours à la date (elle « peut servir pour un courrier simple ») ; null sinon, ou si deux se valent.
+ */
+export function adressePourCourrierSimple(identite: Pick<Identite, 'adresses'>, date: string): AdresseDatee | null {
+  const { candidates } = candidatesNotification(identite, date)
+  return premiereRetenue(candidates.length > 0 ? candidates : autresEnCours(identite, date))
+}
+
 export interface AnomalieAdresse {
-  code: 'sans_adresse' | 'adresses_concurrentes' | 'adresse_echue'
+  code: 'sans_adresse' | 'adresses_concurrentes' | 'adresse_echue' | 'origine_a_verifier' | 'adresse_autre'
   message: string
+}
+
+/** Sans adresse de notification : les adresses « autre » déjà reçues, écartées (J67, R19), sont nommées. */
+function messageSansAdresse(identite: Pick<Identite, 'adresses'>, date: string): string {
+  const autres = identite.adresses.filter((a) => !sertANotifier(a) && priseDEffet(a) <= date).map((a) => `« ${a.id} »`)
+  if (autres.length === 0) return `Aucune adresse postale communiquée au ${date}.`
+  return `Aucune adresse postale communiquée au ${date} : ${autres.join(', ')} (origine « autre ») ne vaut pas pour notifier (D. 1967 art. 65, al. 2 ; J67, R19).`
 }
 
 export function controlerAdresses(identite: Pick<Identite, 'adresses'>, date: string): AnomalieAdresse[] {
   const { candidates, echue } = candidatesNotification(identite, date)
   const [premiere, seconde] = candidates
-  if (!premiere) return [{ code: 'sans_adresse', message: `Aucune adresse postale communiquée au ${date}.` }]
+  if (!premiere) return [{ code: 'sans_adresse', message: messageSansAdresse(identite, date) }]
   if (seconde && indiscernables(premiere, seconde))
     return [{ code: 'adresses_concurrentes', message: `Adresses « ${premiere.id} » et « ${seconde.id} » concurrentes : préciser laquelle a été communiquée en dernier.` }]
   if (echue)
@@ -232,6 +286,38 @@ export function controlerAdresses(identite: Pick<Identite, 'adresses'>, date: st
       },
     ]
   return []
+}
+
+/**
+ * Contrôle avant une notification : celui de controlerAdresses, et l'alerte « origine à vérifier » quand l'adresse
+ * retenue a une origine inconnue (reprise de Gestéam ; J67, R19). Un courrier simple n'en a pas besoin.
+ */
+export function controlerAdresseDeNotification(identite: Pick<Identite, 'adresses'>, date: string): AnomalieAdresse[] {
+  const anomalies = controlerAdresses(identite, date)
+  const retenue = adresseDeNotification(identite, date)
+  if (retenue === null || (retenue.origine ?? null) !== null) return anomalies
+  return [
+    ...anomalies,
+    {
+      code: 'origine_a_verifier',
+      message: `Adresse « ${retenue.id} » : origine à vérifier (reprise) ; elle ne vaut pour notifier que si le copropriétaire l'a communiquée à cet effet, ou si elle vient de la notification du transfert de propriété (D. 1967 art. 65, al. 2, et art. 6, al. 2 ; J67, R19).`,
+    },
+  ]
+}
+
+/**
+ * Contrôle avant un courrier simple : celui de controlerAdresses ; sans adresse de notification, une adresse « autre »
+ * en cours permet l'envoi, avec l'avertissement « adresse_autre » à la place de « sans_adresse » (J67, R19).
+ */
+export function controlerAdresseDeCourrierSimple(identite: Pick<Identite, 'adresses'>, date: string): AnomalieAdresse[] {
+  const retenue = adressePourCourrierSimple(identite, date)
+  if (retenue === null || sertANotifier(retenue)) return controlerAdresses(identite, date)
+  return [
+    {
+      code: 'adresse_autre',
+      message: `Adresse « ${retenue.id} » (origine « autre ») retenue pour ce courrier simple : elle ne vaudrait pas pour une notification (D. 1967 art. 65, al. 2 ; J67, R19).`,
+    },
+  ]
 }
 
 /** Représentants légaux d'une personne morale à une date (bornes incluses) ; [] pour une personne physique. */
@@ -254,10 +340,26 @@ export interface CompteCoproprietaire {
   /**
    * Décision J10 (Hugo, 30/10/2026) — identité du mandataire commun des indivisaires du compte (L. 1965 art. 23, al. 2 :
    * désigné d'accord entre eux ou, à défaut, par le président du tribunal judiciaire). Facultatif et non indexé ; absent,
-   * null ou vide : aucun désigné. Seul ce mandataire reçoit un règlement destiné à l'indivision
-   * (reglements-fournisseurs.ts, controlerBeneficiaireIndivisaire).
+   * null ou vide : aucun désigné. Seul ce mandataire reçoit un règlement destiné à un indivisaire
+   * (reglements-fournisseurs.ts, controlerBeneficiaireIndivisaire) ; un remboursement du compte va à lui, ou à tous les
+   * indivisaires ensemble (J67, R80 : controlerBeneficiaireCompte).
    */
   mandataireCommunId?: string | null
+  /**
+   * J67, R80 (17/11/2026) — compte démembré (usufruit, nue-propriété) : accord écrit des deux qui désigne la personne à
+   * payer (C. civ. art. 1342-2) ; absent ou null : aucun, le remboursement va aux deux ensemble ou il est refusé
+   * (reglements-fournisseurs.ts, controlerBeneficiaireCompte). Enregistrement : à brancher.
+   */
+  accordPaiementDemembrement?: AccordPaiementDemembrement | null
+}
+
+/** Accord écrit de l'usufruitier et du nu-propriétaire sur la personne qui reçoit les paiements du compte (J67, R80). */
+export interface AccordPaiementDemembrement {
+  /** Identité désignée pour recevoir le paiement. */
+  beneficiaireId: string
+  /** Pièce de l'accord (document de la GED). */
+  documentId: string
+  signeLe: string
 }
 
 export function creerCompteCoproprietaire(saisie: CompteCoproprietaire): CompteCoproprietaire {
@@ -266,11 +368,24 @@ export function creerCompteCoproprietaire(saisie: CompteCoproprietaire): CompteC
   return { ...saisie, serie: brut.padStart(5, '0'), libelle: saisie.libelle.trim() }
 }
 
-/** Numéro du compte copropriétaire : <syndicat>.45000.<série>.0. */
-export const numeroCompteCoproprietaire = (compte: CompteCoproprietaire, segmentSyndicat: string): string =>
-  formaterNumeroCompte({ mandat: segmentSyndicat, planCode: '45000', auxiliaire: compte.serie })
+/**
+ * Numéro du compte copropriétaire : <syndicat>.45000.<série>.0 ; `planCode` : un sous-compte du 450 créé par l'AG (450-1,
+ * J67, R104 : repartition-appels.planDuCompteBudget).
+ */
+export const numeroCompteCoproprietaire = (compte: CompteCoproprietaire, segmentSyndicat: string, planCode = '45000'): string =>
+  formaterNumeroCompte({ mandat: segmentSyndicat, planCode, auxiliaire: compte.serie })
 
 export type StatutPosition = 'En place' | 'Futur' | 'Sorti'
+
+/**
+ * Nature de la mutation qui fait entrer une position (J67, R111) : à titre onéreux (vente), donation, succession,
+ * démembrement. D. 1967 art. 6-2 ne vise que la mutation à titre onéreux ; tout transfert est notifié au syndic (art. 6).
+ */
+export const NATURES_MUTATION = ['onereuse', 'donation', 'succession', 'demembrement'] as const
+export type NatureMutation = (typeof NATURES_MUTATION)[number]
+
+/** Donation ou succession : la règle de la vente (art. 6-2) s'applique par analogie, à confirmer (J67, R111). */
+export const estMutationATitreGratuit = (nature: NatureMutation | null | undefined): boolean => nature === 'donation' || nature === 'succession'
 
 export interface Position {
   id: string
@@ -284,6 +399,8 @@ export interface Position {
   statut: StatutPosition
   dateEntree: string
   dateSortie: string | null
+  /** Nature de la mutation qui a fait entrer la position (muterLot) ; absente : inconnue (position d'origine, reprise). */
+  natureMutation?: NatureMutation | null
 }
 
 export type SaisiePosition = Position
@@ -296,6 +413,9 @@ export function creerPosition(saisie: SaisiePosition): Position {
     if (!estDateIsoValide(saisie.dateSortie)) throw new Error(`Date de sortie invalide (${saisie.dateSortie}) : AAAA-MM-JJ attendu.`)
     if (saisie.dateSortie < saisie.dateEntree) throw new Error('Date de sortie antérieure à la date d’entrée.')
   }
+  const nature = saisie.natureMutation
+  if (nature !== null && nature !== undefined && !(NATURES_MUTATION as readonly string[]).includes(nature))
+    throw new Error(`Nature de mutation inconnue : « ${nature} » (${NATURES_MUTATION.join(', ')} attendues).`)
   if (estQualiteCopropriete(saisie.qualite)) {
     if (!saisie.compteId?.trim()) throw new Error(`${saisie.qualite} : rattacher la position à un compte copropriétaire.`)
     if (!saisie.part) throw new Error(`${saisie.qualite} : indiquer la part du droit.`)
@@ -459,8 +579,9 @@ export function participationsIdentite(
 }
 
 /**
- * Mutation d'un lot : les positions sortantes sont closes à la date (statut Sorti), les entrantes ouvertes (En place).
- * Rien n'est effacé ; renvoie les positions à jour et le contrôle des droits du lot à la date.
+ * Mutation d'un lot : les positions sortantes sont closes à la date (statut Sorti), les entrantes ouvertes (En place),
+ * avec la nature de la mutation quand elle est connue (J67, R111 ; enregistrement en base : à brancher). Rien n'est
+ * effacé ; renvoie les positions à jour et le contrôle des droits du lot à la date.
  */
 export function muterLot(
   positions: Position[],
@@ -469,14 +590,22 @@ export function muterLot(
     date,
     sortantes,
     entrantes,
-  }: { lotId: string; date: string; sortantes: string[]; entrantes: Omit<Position, 'lotId' | 'statut' | 'dateEntree' | 'dateSortie'>[] },
+    nature = null,
+  }: {
+    lotId: string
+    date: string
+    sortantes: string[]
+    entrantes: Omit<Position, 'lotId' | 'statut' | 'dateEntree' | 'dateSortie' | 'natureMutation'>[]
+    nature?: NatureMutation | null
+  },
 ): { positions: Position[]; anomalies: AnomalieDroits[] } {
   if (!estDateIsoValide(date)) throw new Error(`Date de mutation invalide (${date}) : AAAA-MM-JJ attendu.`)
   for (const id of sortantes)
     if (!positions.some((p) => p.id === id && p.lotId === lotId)) throw new Error(`Position sortante introuvable sur le lot : « ${id} ».`)
+  const natureMutation = nature ? { natureMutation: nature } : {}
   const apres = [
     ...positions.map((p) => (sortantes.includes(p.id) ? { ...p, statut: 'Sorti' as const, dateSortie: date } : p)),
-    ...entrantes.map((e) => creerPosition({ ...e, lotId, statut: 'En place', dateEntree: date, dateSortie: null })),
+    ...entrantes.map((e) => creerPosition({ ...e, lotId, statut: 'En place', dateEntree: date, dateSortie: null, ...natureMutation })),
   ]
   return { positions: apres, anomalies: controlerDroitsLot(positionsEnPlace(apres, lotId, date)) }
 }

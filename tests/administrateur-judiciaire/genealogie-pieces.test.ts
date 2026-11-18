@@ -75,7 +75,7 @@ const elementDuSinistre = () =>
     soumisTva: true,
     tauxTvaPct: 20,
     destinataire: 'Syndicat des copropriétaires',
-  })
+  }, 'judiciaire')
 const lignes = (arbre: ReturnType<typeof construireArbreFlux>, replies?: ReadonlySet<string>) =>
   lignesDuFlux(arbre, replies).map(({ piece: p, profondeur }) => `${'  '.repeat(profondeur - 1)}${p.nature} ${p.id} (${p.statut ?? '—'})`)
 

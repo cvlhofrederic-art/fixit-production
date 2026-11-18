@@ -12,19 +12,25 @@ import {
   annulerRepartitionOperation,
   changementsStatutAHistoriser,
   changerStatutOperationTravaux,
+  compteDeChargeDeLOperation,
   constaterRepartitionOperation,
   creerOperationTravaux,
   decisionDepuisResolution,
   echeancesTravaux,
   emploisFondsTravauxDesTranches,
   estOperationEnCours,
+  etatPartFondsTravaux,
   idsEcheancesDeLaTranche,
   numeroCompteTravaux,
+  pouvoirsDeLAffectationParLAdministrateur,
   referenceDecisionTravaux,
   reglementsDeLOperation,
   reglementsSansOperation,
+  repriseSoldeTravauxALOuverture,
+  soldeTravauxEnFinDExercice,
   statutsDesTranches,
   traitementAppelDeFondsTravaux,
+  virementProvisionsTravauxALaRealisation,
   type ChangementStatutTravaux,
   type OperationTravaux,
   type SaisieOperationTravaux,
@@ -78,12 +84,12 @@ const reprise = (statut: SaisieOperationTravaux['statut'], le: string): Partial<
 })
 
 describe('compatibilité : une opération à une seule clé', () => {
-  it('mêmes échéances qu’avant le point 30 : ids « <n°>-T<k> », contrepartie 70200, aucun champ ajouté', () => {
+  it('mêmes échéances qu’avant le point 30 : ids « <n°>-T<k> », aucun champ ajouté ; contrepartie 10200 (J67, R61)', () => {
     const [premiere] = echeancesTravaux(creerOperationTravaux(saisie()))
     expect(Object.keys(premiere).sort((a, b) => a.localeCompare(b))).toEqual(
       ['cleId', 'compteContrepartie', 'coproprieteId', 'exigibilite', 'id', 'libelle', 'montantCentimes', 'nature'],
     )
-    expect(premiere).toMatchObject({ id: '00042-T1', compteContrepartie: '70200', montantCentimes: 3_000_000 })
+    expect(premiere).toMatchObject({ id: '00042-T1', compteContrepartie: '10200', montantCentimes: 3_000_000 })
   })
 })
 
@@ -447,7 +453,7 @@ describe('majorité de la décision', () => {
   })
 
   it('affectation du fonds par la décision de l’administrateur provisoire : référée à sa décision (registre), pas à une AG', () => {
-    const decision = { date: '2026-03-12', resolution: 'Registre des décisions, n° 4', origine: 'administrateur' as const }
+    const decision = { date: '2026-03-12', resolution: 'Registre des décisions, n° 4', origine: 'administrateur' as const, pouvoirsAgConfies: 'tous' as const }
     const reference = "Registre des décisions, n° 4 (décision de l'administrateur provisoire du 12/03/2026)"
     expect(referenceDecisionTravaux(decision)).toBe(reference)
     expect(new Set(emploisFondsTravauxDesTranches(creerOperationTravaux(saisie({ decision }))).map((e) => e.affectation.decisionAg))).toEqual(new Set([reference]))
@@ -573,7 +579,7 @@ describe('écriture de l’appel sur l’auxiliaire de l’opération et statut 
     )
   const budget: EcheanceAppel = { id: 'B-2026-2', coproprieteId: 'copro-1', cleId: 'cle-001', exigibilite: '2026-04-01', libelle: 'Budget 2026 — provision 2/4', montantCentimes: 20_000, nature: 'budget' }
 
-  it('crédits par compte complet <syndicat>.70200.<n°>.0 avec le lien travaux ; débits 450 inchangés ; admis par marquerAppelees', () => {
+  it('crédits par compte complet <syndicat>.10200.<n°>.0 avec le lien travaux (J67, R61) ; débits 450 inchangés ; admis par marquerAppelees', () => {
     const op42 = operation('00042', 200_000)
     const op43 = operation('00043', 100_000)
     const horsOperation: EcheanceAppel = { ...echeancesTravaux(op43)[1], id: 'REPRISE-T1', libelle: 'Appel repris', montantCentimes: 4_000 }
@@ -587,11 +593,11 @@ describe('écriture de l’appel sur l’auxiliaire de l’opération et statut 
     expect(traitement.mouvements.filter((m) => m.sens === 'debit')).toEqual(base.mouvements.filter((m) => m.sens === 'debit'))
     expect(traitement.mouvements.filter((m) => m.sens === 'credit').map((m) => [m.compte, m.montantCentimes, m.liens?.travauxId ?? null])).toEqual([
       ['TILL.70100.00000.0', 20_000, null],
-      ['TILL.70200.00042.0', 100_000, '00042'],
-      ['TILL.70200.00043.0', 50_000, '00043'],
-      ['TILL.70200.00000.0', 4_000, null],
+      ['TILL.10200.00042.0', 100_000, '00042'],
+      ['TILL.10200.00043.0', 50_000, '00043'],
+      ['TILL.10200.00000.0', 4_000, null],
     ])
-    const appelees = marquerAppelees(suivreEcheances(echeances), traitement, avis)
+    const appelees = marquerAppelees(suivreEcheances(echeances), traitement, avis, { exercices: [{ nom: '2026', ouverture: '2026-01-01', cloture: '2026-12-31' }] })
     expect(statutsDesTranches(op42, appelees).map((t) => [t.rang, t.statut, t.montantCentimes])).toEqual([
       [1, 'Appelé', 100_000],
       [2, 'Prévu', 100_000],
@@ -608,7 +614,7 @@ describe('écriture de l’appel sur l’auxiliaire de l’opération et statut 
       traitementAppelDeFondsTravaux(avis, { ...contexte, operations: [op44Ailleurs] })
         .mouvements.filter((m) => m.sens === 'credit')
         .map((m) => [m.compte, m.montantCentimes, m.liens?.travauxId ?? null]),
-    ).toEqual([['TILL.70200.00000.0', 50_000, null]])
+    ).toEqual([['TILL.10200.00000.0', 50_000, null]])
   })
 
   it('sans opération fournie, les crédits restent sur 00000 ; un n° en double dans le syndicat est refusé (D1)', () => {
@@ -692,6 +698,121 @@ describe('règlements rattachés à l’opération', () => {
   })
 })
 
+describe('J67, R60 et R61 — comptes de l’opération : 673 des études, 102 viré au 702, solde au 12 (arrêté du 14 mars 2005, art. 7 et 10)', () => {
+  const SEGMENT = 'TILL'
+  const op = creerOperationTravaux(saisie())
+  const etude = creerOperationTravaux(saisie({ libelle: 'Diagnostic technique global', etude: true }))
+  const lignes = (t: { mouvements: { compte: string; sens: string; montantCentimes: number }[] } | null) =>
+    (t?.mouvements ?? []).map((m) => [m.compte, m.sens, m.montantCentimes])
+
+  it('R60 : une opération qui n’est qu’une étude porte ses charges au 673 de l’opération, les autres au 671', () => {
+    expect(etude.serieComptes.map((c) => [c.role, c.planCode])).toEqual([
+      ['provisionsTravauxDecides', '10200'],
+      ['soldeEnAttente', '12000'],
+      ['etudesTechniques', '67300'],
+      ['provisionsSurTravaux', '70200'],
+      ['subventions', '71147'],
+    ])
+    expect(compteDeChargeDeLOperation(etude)).toMatchObject({ planCode: '67300', auxiliaire: '00042', intitule: 'Etudes techniques, diagnostic, consultation' })
+    expect(compteDeChargeDeLOperation(op)).toMatchObject({ planCode: '67100', intitule: "Travaux décidés par l'assemblée générale" })
+    expect(numeroCompteTravaux(etude, 'etudesTechniques', SEGMENT)).toBe('TILL.67300.00042.0')
+  })
+
+  it('R61 : à chaque charge, le 102 est viré au 702 du même montant, dans la limite de son solde', () => {
+    const contexte = { id: 't-v1', date: '2026-06-30', segmentSyndicat: SEGMENT }
+    const entier = virementProvisionsTravauxALaRealisation(op, { ...contexte, chargeCentimes: 300_000, solde102Centimes: 1_000_000 })
+    expect(entier.traitement?.famille).toBe('Saisie de mouvements')
+    expect(lignes(entier.traitement)).toEqual([
+      ['TILL.10200.00042.0', 'debit', 300_000],
+      ['TILL.70200.00042.0', 'credit', 300_000],
+    ])
+    expect(entier.traitement?.mouvements.map((m) => m.liens?.travauxId)).toEqual(['00042', '00042'])
+    expect(entier).toMatchObject({ vireCentimes: 300_000, nonCouvertCentimes: 0 })
+    expect(virementProvisionsTravauxALaRealisation(op, { ...contexte, chargeCentimes: 300_000, solde102Centimes: 100_000 })).toMatchObject({ vireCentimes: 100_000, nonCouvertCentimes: 200_000 })
+    expect(virementProvisionsTravauxALaRealisation(op, { ...contexte, chargeCentimes: 300_000, solde102Centimes: 0 })).toEqual({ traitement: null, vireCentimes: 0, nonCouvertCentimes: 300_000 })
+    expect(() => virementProvisionsTravauxALaRealisation(op, { ...contexte, chargeCentimes: 0, solde102Centimes: 1 })).toThrow(/charge de l'opération/)
+    expect(() => virementProvisionsTravauxALaRealisation(projet(), { ...contexte, chargeCentimes: 1, solde102Centimes: 1 })).toThrow(/sans décision/)
+  })
+
+  const fin = { date: '2026-12-31', segmentSyndicat: SEGMENT }
+
+  it('R61 : solde au 12 d’une opération non clôturée en fin d’exercice, repris à l’ouverture par l’écriture contraire', () => {
+    const cloture = soldeTravauxEnFinDExercice(op, { ...fin, id: 't-c', soldeChargesCentimes: 500_000, soldesProduitsCentimes: { provisionsSurTravaux: 400_000 } })
+    expect(lignes(cloture)).toEqual([
+      ['TILL.67100.00042.0', 'credit', 500_000],
+      ['TILL.70200.00042.0', 'debit', 400_000],
+      ['TILL.12000.00042.0', 'debit', 100_000],
+    ])
+    const reprise = repriseSoldeTravauxALOuverture(cloture, { id: 't-o', date: '2027-01-01' })
+    expect(reprise.famille).toBe('Report de soldes comptables')
+    expect(lignes(reprise)).toEqual([
+      ['TILL.67100.00042.0', 'debit', 500_000],
+      ['TILL.70200.00042.0', 'credit', 400_000],
+      ['TILL.12000.00042.0', 'credit', 100_000],
+    ])
+    expect(lignes(soldeTravauxEnFinDExercice(etude, { ...fin, id: 't-c2', soldeChargesCentimes: 80_000, soldesProduitsCentimes: { provisionsSurTravaux: 80_000 } }))).toEqual([
+      ['TILL.67300.00042.0', 'credit', 80_000],
+      ['TILL.70200.00042.0', 'debit', 80_000],
+    ])
+    expect(() => repriseSoldeTravauxALOuverture(cloture, { id: 't-o2', date: '2026-12-31' })).toThrow(/après le solde/)
+    expect(() => soldeTravauxEnFinDExercice(op, { ...fin, id: 't-c3', soldeChargesCentimes: 0, soldesProduitsCentimes: {} })).toThrow(/aucun solde/)
+  })
+
+  it('relecture R61 : la subvention de l’opération (71147) passe au 12 avec le 702, chacun débité de son propre solde', () => {
+    // 671 = 10 000 €, 702 = 10 000 € (déjà viré du 102), subvention 71147 = 3 000 €
+    const cloture = soldeTravauxEnFinDExercice(op, { ...fin, id: 't-c4', soldeChargesCentimes: 1_000_000, soldesProduitsCentimes: { provisionsSurTravaux: 1_000_000, subventions: 300_000 } })
+    expect(lignes(cloture)).toEqual([
+      ['TILL.67100.00042.0', 'credit', 1_000_000],
+      ['TILL.70200.00042.0', 'debit', 1_000_000],
+      ['TILL.71147.00042.0', 'debit', 300_000],
+      ['TILL.12000.00042.0', 'credit', 300_000],
+    ])
+    expect(lignes(repriseSoldeTravauxALOuverture(cloture, { id: 't-o4', date: '2027-01-01' }))).toContainEqual(['TILL.71147.00042.0', 'credit', 300_000])
+    expect(() => soldeTravauxEnFinDExercice(op, { ...fin, id: 't-c5', soldeChargesCentimes: 1, soldesProduitsCentimes: { subventions: -1 } })).toThrow(/centimes entiers positifs ou nuls/)
+  })
+
+  it('relecture R61 et R60 : l’en-tête dit ce qui reste à brancher à l’écriture des factures (virement 102 → 702, alerte des classes 61 et 62)', () => {
+    const { texte } = enTeteDuModule('travaux-operations')
+    const branchements = texte.slice(texte.indexOf('Branchements à faire hors de ce module'))
+    for (const attendu of ['ecritureFactureVentilee', 'virementProvisionsTravauxALaRealisation', 'anomaliesComptesDesLignesDOperation'])
+      expect(branchements).toContain(attendu)
+    expect(texte).toContain("d'ici là, le 702 de l'opération reste à zéro")
+  })
+})
+
+describe('J67, R81 — le fonds affecté par la décision de l’administrateur provisoire : pouvoirs de l’assemblée confiés par l’ordonnance', () => {
+  const decision = { date: '2026-03-12', resolution: 'Registre des décisions, n° 4', origine: 'administrateur' as const }
+  const parAp = (pouvoirsAgConfies?: 'tous' | 'partie' | 'aucun' | null) => creerOperationTravaux(saisie({ decision: { ...decision, pouvoirsAgConfies } }))
+
+  it('tous les pouvoirs : sa décision tient lieu d’affectation ; une partie : admise, à vérifier dans l’ordonnance', () => {
+    expect(pouvoirsDeLAffectationParLAdministrateur(parAp('tous'))).toBeNull()
+    expect(echeancesTravaux(parAp('tous'))).toHaveLength(3)
+    const partie = pouvoirsDeLAffectationParLAdministrateur(parAp('partie'))
+    expect(partie).toMatchObject({ refuse: false, fondement: 'L. 1965 art. 29-1, I, al. 2' })
+    expect(partie?.motif).toContain("vérifier que l'ordonnance lui confie l'affectation du fonds de travaux")
+    expect(echeancesTravaux(parAp('partie'))).toHaveLength(3)
+  })
+
+  it('aucun pouvoir, ou étendue non saisie : refus ; il faut un vote de l’assemblée ou une ordonnance de l’art. 29-14, 2°', () => {
+    for (const pouvoirs of ['aucun', null] as const) {
+      const op = parAp(pouvoirs)
+      expect(pouvoirsDeLAffectationParLAdministrateur(op)).toMatchObject({ refuse: true })
+      expect(() => echeancesTravaux(op)).toThrow(/vote de l'assemblée ou une ordonnance de l'art\. 29-14, 2°/)
+      expect(etatPartFondsTravaux(op)).toMatchObject({ autorise: false })
+    }
+    expect(pouvoirsDeLAffectationParLAdministrateur(parAp(null))?.motif).toContain("étendue des pouvoirs de l'assemblée")
+  })
+
+  it('hors de ce cas : décision d’affectation distincte, usage judiciaire, décision de l’assemblée ; pouvoirs sans objet pour l’assemblée', () => {
+    expect(pouvoirsDeLAffectationParLAdministrateur(creerOperationTravaux(saisie({ decision, affectationFonds: { objet: 'travaux_hors_ppt', decisionAg: 'Résolution 3 (AG du 10/01/2026)' } })))).toBeNull()
+    expect(pouvoirsDeLAffectationParLAdministrateur(creerOperationTravaux(saisie({ decision, affectationFonds: { objet: 'redressement_29_14', autorisationJuge: 'TJ, ordonnance n° 26/1' } })))).toBeNull()
+    expect(pouvoirsDeLAffectationParLAdministrateur(creerOperationTravaux(saisie()))).toBeNull()
+    expect(() => creerOperationTravaux(saisie({ decision: { date: '2026-03-12', resolution: 'Résolution 8', pouvoirsAgConfies: 'tous' } }))).toThrow(/sans objet pour une décision de l'assemblée/)
+    // @ts-expect-error — étendue hors PouvoirsAgConfies
+    expect(() => parAp('moitie')).toThrow(/étendue des pouvoirs inconnue/)
+  })
+})
+
 describe('en-tête : textes cités et questions ouvertes', () => {
   const { texte, item } = enTeteDuModule('travaux-operations')
 
@@ -718,17 +839,20 @@ describe('en-tête : textes cités et questions ouvertes', () => {
     )
   })
 
-  it('compte de charge des études et diagnostics : question sur le 673 (arrêté, art. 7 et 8)', () => {
-    expect(texte).toContain(
-      '« Les opérations d\'études, de diagnostic ou d\'expertise gardent-elles le 671xx de Gestéam ou passent-elles au 673 "Etudes techniques, diagnostic, consultation" (arrêté, art. 7 et 8) ? »',
-    )
+  it('J67 (17/11/2026) : 673 des études (R60), 102 puis 702 et 12 (R61), pouvoirs de l’assemblée (R81) quittent le 🔴', () => {
+    const nonEtabli = texte.slice(texte.indexOf('🔴 Non établi'))
+    expect(nonEtabli).not.toContain("gardent-elles le 671xx de Gestéam ou passent-elles au 673")
+    expect(nonEtabli).not.toContain("L'appel de travaux crédite-t-il le 102 de l'opération")
+    expect(nonEtabli).not.toContain('Le virement 102 → 702 et le passage au 12 en fin d\'exercice sont-ils à produire ici ?')
+    expect(nonEtabli).not.toContain("tient-elle lieu de la décision d'affectation du fonds de travaux par l'assemblée")
+    // le pouvoir de décider les travaux eux-mêmes (F69, partie C) reste une question
+    expect(nonEtabli).toContain("Faut-il vérifier que l'ordonnance confie à l'administrateur provisoire le pouvoir de décider ces travaux ?")
+    const j67 = texte.slice(texte.indexOf('Décisions de Hugo du 17/11/2026'), texte.indexOf('Règles :'))
+    for (const attendu of ['J67, R60', 'J67, R61', 'J67, R81', '67300', '10200', 'Report de soldes comptables']) expect(j67).toContain(attendu)
   })
 
-  it('affectation du fonds par l’administrateur provisoire : référence au registre et question ouverte', () => {
+  it('affectation du fonds par l’administrateur provisoire : référence au registre', () => {
     expect(texte).toContain("« <référence au registre> (décision de l'administrateur provisoire du <date>) »")
-    expect(texte).toContain(
-      "« La décision de l'administrateur provisoire investi des pouvoirs de l'assemblée (art. 29-1, I, al. 2) tient-elle lieu de la décision d'affectation du fonds de travaux par l'assemblée (art. 14-2-1, I, al. 7) ? »",
-    )
   })
 
   it('« Rejeté » et « Réparti » : définitifs, chacun avec sa seule sortie', () => {

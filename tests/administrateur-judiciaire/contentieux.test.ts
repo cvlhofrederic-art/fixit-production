@@ -201,6 +201,10 @@ describe('contentieux — lien avec le recouvrement et les relances', () => {
   it('un débiteur sous protocole d’accord (contentieux avec échéancier) passe au groupe 6', () => {
     expect(relanceDepuisEtape('procedure', true)).toEqual({ stade: '9', groupe: '6' })
   })
+
+  it('J67, R40 : un échéancier amiable en cours ne bloque pas l’étape « exigibilite » (groupe 6, stade 3)', () => {
+    expect(relanceDepuisEtape('exigibilite', true)).toEqual({ stade: '3', groupe: '6' })
+  })
 })
 
 /**
@@ -340,6 +344,16 @@ describe('contentieux — en-tête du point 57 : sources et points ouverts', () 
     expect(source).toMatch(/tranches 20 § 3 et 28/)
     expect(source).not.toMatch(/Où se saisit la Particularité/)
     expect(source).not.toMatch(/particulariteSuggeree|ParticulariteContentieux|particularite:/)
+  })
+
+  it('J67, R40 : la marque « À valider » de l’exigibilité sous échéancier amiable est remplacée par la justification', () => {
+    expect(source).not.toMatch(/le groupe 6 ne bloque donc pas l'étape « exigibilite »\. À valider\./)
+    const r40 = source.slice(source.indexOf('J67, R40'))
+    expect(r40).toMatch(/^J67, R40 \(décision de Hugo du 17\/11\/2026\) : un échéancier amiable en cours ne bloque pas l'exigibilité/)
+    expect(r40).toMatch(/L\. 1965 art\. 14-1/)
+    expect(r40).toMatch(/C\. civ\. art\. 1305-2/)
+    expect(r40).toMatch(/postes-creance\.avertissementsProcedure/)
+    expect(r40).toMatch(/J3.*« restée infructueuse ».*point non tranché/)
   })
 
   it('rubrique « Décisions de Hugo du 03/11/2026 » : J33 inscrite, art. 1343-5 relu', () => {
