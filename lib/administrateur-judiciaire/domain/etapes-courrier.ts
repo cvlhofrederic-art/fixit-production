@@ -23,6 +23,7 @@ import {
   categorieDe,
   creerElement,
   qualificationDe,
+  verifierQualificationAdmise,
   type MissionHonoraires,
   type ModeCalcul,
   type NatureElement,
@@ -105,9 +106,8 @@ import {
  *   art. 14) ; sous les art. 46 et 47, aucun contrat type voté et aucun texte. Montant et tarif : réglage du cabinet,
  *   aucun montant par défaut. aConfirmer gardé : l'imputation d'une rémunération d'administrateur provisoire au
  *   copropriétaire n'est confirmée par aucun arrêt lu. Base selon le régime : baseLigneHonorairesCourrier ; imputation
- *   selon le cas du courrier et montant non saisi : J77, ci-dessous. Le régime
- *   et la mission (J67, R9) disent le même fait : un régime donné avec une mission autre que « judiciaire » est refusé
- *   (proposerHonorairesDuCourrier).
+ *   selon le cas du courrier et montant non saisi : J77, ci-dessous. Le régime et la mission (J67, R9) disent le même
+ *   fait : un régime donné avec une mission autre que « judiciaire » est refusé (proposerHonorairesDuCourrier).
  * - J72 (décision de Hugo du 18/11/2026 ; question Q5, conflit R5 / R6 ; textes : L. 1965 art. 10-1, a, version en
  *   vigueur depuis le 01/06/2020, « frais nécessaires exposés par le syndicat, notamment les frais de mise en demeure » ;
  *   C. com. R. 814-27) : frais d'envoi, deux cas (baseLigneHonorairesCourrier, selon le cas du courrier,
@@ -140,12 +140,23 @@ import {
  *   forfait n'est imputé au copropriétaire que pour un recouvrement contre un copropriétaire en retard ; aucune
  *   imputation pour un courrier à un locataire, un autre contentieux ou un envoi qui n'est ni une mise en demeure ni une
  *   relance ; à confirmer, sans imputation, si le dossier ne dit pas qui il poursuit (BASES_FORFAIT ; jamais
- *   d'imputation par défaut). Le cabinet facture toujours le forfait au syndicat, qui le paie (J67, R7, inchangé) ; les
- *   conditions de R7 restent portées par l'imputation (une relance faite avant la mise en demeure n'est pas visée).
- *   (b) Montant : aucun montant par défaut ; 0, null ou absent vaut « non saisi » (prixDeLaLigne). Tant qu'il n'est pas
- *   saisi, la ligne du forfait n'est pas proposée et une alerte dit quoi saisir (motif montant_non_saisi) ; les autres
- *   lignes de la règle restent proposées. Seul le forfait est visé : un frais d'envoi à 0 reste proposé, et creerElement
- *   (honoraires-facturation.ts) admet toujours un prix de 0. Enregistrement de la ligne d'imputation : à brancher.
+ *   d'imputation par défaut). De même sans cas du courrier (baseLigneHonorairesCourrier sans cas,
+ *   BASES_LIGNES_HONORAIRES_COURRIER) : cas du courrier non fourni, à confirmer, sans imputation, sans motif supposé. Le
+ *   cabinet facture toujours le forfait au syndicat, qui le paie (J67, R7, inchangé) ; les conditions de R7 restent
+ *   portées par l'imputation (une relance faite avant la mise en demeure n'est pas visée). Sous l'art. 29-1, la limite
+ *   de R7 (seule la somme admise et payée par le syndicat est imputée) et la réserve « aucun arrêt lu » suivent
+ *   l'imputation : affirmées pour le recouvrement, au conditionnel quand l'imputation est possible mais non établie
+ *   (dossier muet, cas non fourni), absentes quand rien n'est imputable.
+ *   (b) Montant : aucun montant par défaut ; 0, null ou absent vaut « non saisi » (prixDeLaLigne). Tant que le montant
+ *   d'un forfait n'est pas saisi, la règle ne propose aucune ligne, frais d'envoi compris (Frédéric : « la proposition
+ *   de lignes reste désactivée tant que ce montant n'est pas saisi ») : un seul écart (motif montant_non_saisi) dit quoi
+ *   saisir et cite les lignes du forfait. L'état « active » de la règle ne change pas : c'est la proposition qui reste
+ *   désactivée. Les refus qui ne dépendent pas du montant restent levés : « Offert » en mission judiciaire (J67, R9),
+ *   « Facturable » de l'envoi d'un recouvrement (J72, a). creerElement (honoraires-facturation.ts) admet toujours un
+ *   prix de 0. Enregistrement de la ligne d'imputation : à brancher.
+ *   🔵 À confirmer (Hugo, puis Frédéric) : faut-il proposer les autres lignes de la règle quand seul le forfait attend
+ *   son montant ? Un frais d'envoi à 0 vaut-il aussi « non saisi » ? J77 ne parle que du montant du forfait : dans une
+ *   règle sans forfait, un frais d'envoi à 0 reste proposé.
  * - 🔵 Rappel de J1 et J50 (délai de l'art. 42, aucune décision sur les étapes) : un délai ouvert par une notification
  *   part de la première présentation ou de la transmission de l'avis électronique, lues sur le courrier (courriers.ts),
  *   jamais du dépôt ; la date de dépôt, ici date de création de l'étape, ne fait donc courir aucun délai, et l'étape née
@@ -182,8 +193,9 @@ import {
  *   règles désactivées par défaut, aucune ligne ni aucun montant par défaut (réglage du cabinet) ; date = dépôt du
  *   courrier (🟢 le forfait observé était daté du jour du dossier) ; un seul dossier visé (un envoi, une série de
  *   frais) ; frais d'envoi d'une nature de frais seulement (categorieDe) ; calcul « Coût unitaire » par défaut ; forfait
- *   en deux lignes pour le recouvrement contre un copropriétaire, une seule sinon, jamais proposé sans montant saisi
- *   (J67, R7 ; J77, ci-dessus) ; frais d'envoi selon le cas du courrier et la mission (J72, ci-dessus).
+ *   en deux lignes pour le recouvrement contre un copropriétaire, une seule sinon ; règle sans aucune proposition tant
+ *   que le montant d'un forfait n'est pas saisi (J67, R7 ; J77, ci-dessus) ; frais d'envoi selon le cas du courrier et
+ *   la mission (J72, ci-dessus).
  *
  * 🔴 Non établi — questions :
  * 1. et 2. Fermées par J64 (ci-dessus) : la Copie au CS naît du courrier ; les mises en demeure du contentieux la font
@@ -955,18 +967,43 @@ const BASES_FORFAIT: Readonly<Record<CasFraisEnvoi, Readonly<BaseLigneHonoraires
 })
 
 /**
- * Ce que la proposition dit de chaque objet, régime du mandat inconnu et cas par défaut (sources : tranches 27 et 43 § 1 ;
- * J67, R7 ; J72 ; J77) : la base des autres envois du cabinet, qui n'impute rien à un copropriétaire (frais d'envoi en
- * mission judiciaire : J72, b ; forfait : J77). baseLigneHonorairesCourrier rend celle du cas et de la mission
- * (BASES_FRAIS_ENVOI, BASES_FORFAIT).
+ * J77 : forfait sans cas du courrier (baseLigneHonorairesCourrier sans cas). Rien ne dit qui le courrier poursuit : à
+ * confirmer, rien n'est imputé, et aucun motif n'est supposé (Hugo : « à confirmer » si le dossier ne le dit pas).
+ */
+const BASE_FORFAIT_CAS_NON_FOURNI: Readonly<BaseLigneHonorairesCourrier> = baseDeFrais(
+  true,
+  [],
+  `À confirmer (J77) : cas du courrier non fourni ; rien ne dit s'il poursuit un copropriétaire en retard. Le cabinet facture le forfait au syndicat, qui le paie (J67, R7). Le forfait n'est imputable qu'au copropriétaire en retard que poursuit un recouvrement, comme frais nécessaire (L. 1965 art. 10-1, a), aux conditions de J67, R7 ; tant que le cas n'est pas établi, rien n'est imputé à un copropriétaire. ${MONTANT_DU_FORFAIT}`,
+  'facture_du_cabinet',
+  null,
+)
+
+/**
+ * Ce que la proposition dit de chaque objet, régime du mandat inconnu et cas non fourni (sources : tranches 27 et 43 § 1 ;
+ * J67, R7 ; J72 ; J77). Frais d'envoi : la base des autres envois du cabinet en mission judiciaire (J72, b). Forfait : cas
+ * du courrier non fourni, à confirmer, sans imputation (J77). baseLigneHonorairesCourrier rend celle du cas et de la
+ * mission (BASES_FRAIS_ENVOI, BASES_FORFAIT).
  */
 export const BASES_LIGNES_HONORAIRES_COURRIER: Readonly<Record<ObjetLigneHonorairesCourrier, Readonly<BaseLigneHonorairesCourrier>>> = Object.freeze({
   frais_envoi: BASES_FRAIS_ENVOI.judiciaire.autre_envoi,
-  forfait_mise_en_demeure: BASES_FORFAIT.autre_envoi,
+  forfait_mise_en_demeure: BASE_FORFAIT_CAS_NON_FOURNI,
 })
 
-/** Complément de l'observation du forfait selon le régime ; `impute` : le forfait est imputé au copropriétaire (J77). */
-type ComplementForfait = (impute: boolean) => string
+/**
+ * J77 : imputation du forfait au copropriétaire. « imputee » : recouvrement contre un copropriétaire en retard ;
+ * « a_confirmer » : possible, mais le dossier ne dit pas qui il poursuit, ou le cas n'est pas fourni ; « aucune » : rien
+ * n'est imputable (autre envoi).
+ */
+type ImputationDuForfait = 'imputee' | 'a_confirmer' | 'aucune'
+
+const IMPUTATION_DU_FORFAIT: Readonly<Record<CasFraisEnvoi, ImputationDuForfait>> = Object.freeze({
+  recouvrement: 'imputee',
+  autre_envoi: 'aucune',
+  non_etabli: 'a_confirmer',
+})
+
+/** Complément de l'observation du forfait selon le régime et l'imputation du forfait (J77). */
+type ComplementForfait = (imputation: ImputationDuForfait) => string
 
 /** J67, R7 : sous les art. 46 et 47, aucun contrat type voté et aucun texte (D. 1967 art. 46 et 47, muets). */
 const FORFAIT_SANS_TEXTE_46_47: { fondements: readonly string[]; complement: ComplementForfait } = {
@@ -979,17 +1016,26 @@ const FORFAIT_SANS_TEXTE_46_47: { fondements: readonly string[]; complement: Com
 const REMUNERATION_SOUMISE_AU_JUGE =
   'Administration provisoire (art. 29-1) : ce montant fait partie de la rémunération soumise au juge, à présenter au juge dans le compte provisoire détaillé (D. 1967 art. 61-1-5, II ; arrêté du 08/10/2015, art. 14)'
 
+/** J67, R7 : réserve sur l'imputation d'une rémunération d'administrateur provisoire. */
+const RESERVE_IMPUTATION_AP =
+  "Cette imputation d'une rémunération d'administrateur provisoire n'est confirmée par aucun arrêt lu : à confirmer."
+
+/** J67, R7, sous l'art. 29-1, selon l'imputation du forfait (J77) : limite affirmée, au conditionnel, ou sans objet. */
+const COMPLEMENT_AP291: Readonly<Record<ImputationDuForfait, string>> = Object.freeze({
+  imputee: `${REMUNERATION_SOUMISE_AU_JUGE} ; seule la somme admise et payée par le syndicat est imputée au copropriétaire. ${RESERVE_IMPUTATION_AP}`,
+  a_confirmer: `${REMUNERATION_SOUMISE_AU_JUGE} ; s'il est imputé au copropriétaire, seule la somme admise et payée par le syndicat l'est. ${RESERVE_IMPUTATION_AP}`,
+  aucune: `${REMUNERATION_SOUMISE_AU_JUGE}.`,
+})
+
 /**
  * Forfait selon le régime du mandat (J67, R7) : textes ajoutés et complément de l'observation. Sous l'art. 29-1, la
- * phrase sur la somme imputée ne figure que si le forfait est imputé au copropriétaire (J77).
+ * limite de R7 (somme admise et payée) et sa réserve suivent l'imputation du forfait (J77) : affirmées s'il est imputé,
+ * au conditionnel si l'imputation est possible mais non établie, absentes si rien n'est imputable.
  */
 const FORFAIT_SELON_REGIME: Readonly<Record<Regime, { fondements: readonly string[]; complement: ComplementForfait }>> = Object.freeze({
   ap291: {
     fondements: ['L. 1965 art. 29-1, II', 'D. 1967 art. 61-1-5, II', 'arrêté du 08/10/2015, art. 14'],
-    complement: (impute: boolean) =>
-      impute
-        ? `${REMUNERATION_SOUMISE_AU_JUGE} ; seule la somme admise et payée par le syndicat est imputée au copropriétaire. Cette imputation d'une rémunération d'administrateur provisoire n'est confirmée par aucun arrêt lu : à confirmer.`
-        : `${REMUNERATION_SOUMISE_AU_JUGE}.`,
+    complement: (imputation: ImputationDuForfait) => COMPLEMENT_AP291[imputation],
   },
   sj: FORFAIT_SANS_TEXTE_46_47,
   ap47: FORFAIT_SANS_TEXTE_46_47,
@@ -1002,36 +1048,38 @@ export interface OptionsBaseLigneCourrier {
   /** Absente : « judiciaire », celle du cabinet (le contrat type de syndic est sans objet pour lui, J67, R14). */
   mission?: MissionHonoraires
   /**
-   * Cas du courrier (casDesFraisDEnvoi), pour les frais d'envoi (J72) et le forfait (J77) ; absent : « autre_envoi »
-   * (J72, b ; aucune imputation au copropriétaire).
+   * Cas du courrier (casDesFraisDEnvoi), pour les frais d'envoi (J72) et le forfait (J77). Absent : frais d'envoi
+   * « autre_envoi » (J72, b) ; forfait « cas du courrier non fourni », à confirmer, sans imputation (J77). Jamais
+   * d'imputation au copropriétaire par défaut.
    */
   cas?: CasFraisEnvoi
 }
 
 /**
  * Base d'une ligne selon son objet : forfait selon le cas du courrier (J77 : imputé au copropriétaire pour le seul
- * recouvrement contre un copropriétaire en retard, BASES_FORFAIT), complété pour le régime du mandat (J67, R7) ; frais
- * d'envoi selon la mission et le cas du courrier, quel que soit le régime (J72 : BASES_FRAIS_ENVOI). Refus : régime,
- * mission ou cas hors liste, et régime de justice avec une mission autre que « judiciaire » (controlerAccordRegimeMission).
+ * recouvrement contre un copropriétaire en retard, BASES_FORFAIT ; sans cas, à confirmer, sans imputation), complété
+ * pour le régime du mandat (J67, R7) ; frais d'envoi selon la mission et le cas du courrier, quel que soit le régime
+ * (J72 : BASES_FRAIS_ENVOI ; sans cas, autre envoi). Refus : régime, mission ou cas hors liste, et régime de justice avec
+ * une mission autre que « judiciaire » (controlerAccordRegimeMission).
  */
 export function baseLigneHonorairesCourrier(
   objet: ObjetLigneHonorairesCourrier,
-  { regime = null, mission = 'judiciaire', cas = 'autre_envoi' }: OptionsBaseLigneCourrier = {},
+  { regime = null, mission = 'judiciaire', cas }: OptionsBaseLigneCourrier = {},
 ): Readonly<BaseLigneHonorairesCourrier> {
   if (!(MISSIONS_HONORAIRES as readonly string[]).includes(mission))
     throw new Error(`Base de la ligne du courrier : mission inconnue « ${mission} » (judiciaire ou contrat_type_syndic attendue).`)
-  if (!(CAS_FRAIS_ENVOI as readonly string[]).includes(cas))
+  if (cas !== undefined && !(CAS_FRAIS_ENVOI as readonly string[]).includes(cas))
     throw new Error(`Base de la ligne du courrier : cas des frais d’envoi inconnu « ${cas} » (recouvrement, autre_envoi ou non_etabli attendu, J72).`)
   const controle = controlerRegime(regime)
   controlerAccordRegimeMission(controle, mission)
-  if (objet === 'frais_envoi') return BASES_FRAIS_ENVOI[mission][cas]
-  const base = BASES_FORFAIT[cas]
+  if (objet === 'frais_envoi') return BASES_FRAIS_ENVOI[mission][cas ?? 'autre_envoi']
+  const base = cas === undefined ? BASE_FORFAIT_CAS_NON_FOURNI : BASES_FORFAIT[cas]
   if (controle === null) return base
   const { fondements, complement } = FORFAIT_SELON_REGIME[controle]
   return {
     ...base,
     fondements: [...base.fondements, ...fondements],
-    observation: `${base.observation} ${complement(base.repartition.imputation !== null)}`,
+    observation: `${base.observation} ${complement(cas === undefined ? 'a_confirmer' : IMPUTATION_DU_FORFAIT[cas])}`,
   }
 }
 
@@ -1046,8 +1094,8 @@ export interface LigneHonorairesCourrier {
   quantite: number
   /**
    * Prix unitaire HT en dix-millièmes d'euro (honoraires-facturation.ts). Forfait de mise en demeure : 0, null ou absent
-   * vaut « non saisi » (J77) ; la ligne n'est pas proposée tant qu'il n'est pas saisi. Frais d'envoi : nombre entier,
-   * positif ou nul, obligatoire.
+   * vaut « non saisi » (J77) ; la règle ne propose aucune ligne tant qu'il n'est pas saisi. Frais d'envoi : nombre
+   * entier, positif ou nul, obligatoire.
    */
   prixUnitaireHtDixMilliemes: number | null
   soumisTva: boolean
@@ -1138,7 +1186,8 @@ export interface RegleHonorairesCourrier {
  * Règle contrôlée. Refus : identifiant ou libellé vides, déclencheur ou dossier invalides, aucune ligne, ligne invalide
  * (objet, nature, frais d'envoi d'une nature de rémunération, calcul, tarif, destinataire, forfait de mise en demeure
  * adressé à un autre que le syndicat (J67, R7), quantité, prix, TVA, qualification). Désactivée sans réglage. Forfait
- * sans montant (0, null ou absent) : admis, prix null (« non saisi », J77) ; il ne sera pas proposé.
+ * sans montant (0, null ou absent) : admis, prix null (« non saisi », J77) ; tant qu'il n'est pas saisi, la règle ne
+ * propose aucune ligne (proposerHonorairesDuCourrier). L'état « active » reste celui du réglage.
  */
 export function creerRegleHonorairesCourrier(saisie: SaisieRegleHonorairesCourrier): RegleHonorairesCourrier {
   const id = texteRequis(saisie.id, 'Règle « courrier → honoraires » : identifiant de la règle attendu.')
@@ -1236,8 +1285,8 @@ export interface PropositionLigneHonoraires extends BaseLigneHonorairesCourrier 
 }
 
 /**
- * Écarts : la règle entière (inactive, dossier absent ou ambigu, rattachement incomplet), ou une seule ligne du forfait
- * dont le montant n'est pas saisi (montant_non_saisi, J77 ; les autres lignes de la règle restent proposées).
+ * Raisons d'écarter une règle entière : inactive, dossier absent ou ambigu, rattachement incomplet, ou montant d'un
+ * forfait non saisi (montant_non_saisi, J77 : la règle ne propose aucune ligne, frais d'envoi compris).
  */
 export const MOTIFS_HONORAIRES_ECARTES = ['inactive', 'dossier_absent', 'dossier_ambigu', 'rattachement_incomplet', 'montant_non_saisi'] as const
 export type MotifHonorairesEcartes = (typeof MOTIFS_HONORAIRES_ECARTES)[number]
@@ -1245,8 +1294,8 @@ export type MotifHonorairesEcartes = (typeof MOTIFS_HONORAIRES_ECARTES)[number]
 export interface RegleHonorairesEcartee {
   regleId: string
   motif: MotifHonorairesEcartes
-  /** montant_non_saisi : rang de la ligne écartée dans la règle, à partir de 1 ; absent pour un écart de la règle. */
-  rang?: number
+  /** montant_non_saisi : rangs des lignes du forfait sans montant, à partir de 1 ; absent pour les autres motifs. */
+  rangs?: readonly number[]
   message: string
 }
 
@@ -1304,35 +1353,51 @@ function qualificationDeLaLigne(
   return ligne.qualification ?? 'Contrôle coûts'
 }
 
-/** J77 : ligne du forfait sans montant saisi, écartée avec ce qu'il faut saisir. */
-function ecartMontantNonSaisi(regle: RegleHonorairesCourrier, ligne: LigneHonorairesCourrierControlee, rang: number): RegleHonorairesEcartee {
-  const objet = LIBELLES_OBJETS_LIGNE_HONORAIRES_COURRIER[ligne.objet].toLocaleLowerCase('fr-FR')
+/** « ligne 2 » ; « lignes 1 et 3 » ; « lignes 1, 2 et 4 ». */
+const lignesCitees = (rangs: readonly number[]): string =>
+  rangs.length === 1 ? `ligne ${rangs[0]}` : `lignes ${rangs.slice(0, -1).join(', ')} et ${rangs[rangs.length - 1]}`
+
+/** J77 : règle dont le montant d'un forfait n'est pas saisi : aucune ligne proposée ; l'écart dit quoi saisir. */
+function ecartMontantNonSaisi(regle: RegleHonorairesCourrier, rangs: readonly number[]): RegleHonorairesEcartee {
+  const tarifs = [...new Set(rangs.map((rang) => regle.lignes[rang - 1].tarif))].map((tarif) => `« ${tarif} »`)
   return {
     regleId: regle.id,
     motif: 'montant_non_saisi',
-    rang,
-    message: `Règle « ${regle.libelle} », ligne ${rang} (${objet}) : montant non saisi (0 ou vide) ; aucune ligne de forfait proposée. Saisir le prix unitaire HT du forfait (tarif « ${ligne.tarif} ») dans le réglage du cabinet : aucun montant par défaut.`,
+    rangs,
+    message: `Règle « ${regle.libelle} » : montant du forfait de mise en demeure non saisi (0 ou vide), ${lignesCitees(rangs)} ; aucune ligne de la règle proposée, frais d’envoi compris. Saisir le prix unitaire HT du forfait (${tarifs.length === 1 ? 'tarif' : 'tarifs'} ${tarifs.join(', ')}) dans le réglage du cabinet : aucun montant par défaut.`,
   }
 }
 
+type LigneSaisie = LigneHonorairesCourrierControlee & { prixUnitaireHtDixMilliemes: number }
+
+/**
+ * Lignes proposées par la règle, ou l'écart montant_non_saisi (J77) : tant que le montant d'un forfait n'est pas saisi,
+ * la règle ne propose aucune ligne. Les refus qui ne dépendent pas du montant restent levés d'abord : « Facturable » de
+ * l'envoi d'un recouvrement (J72, a), « Offert » en mission judiciaire (J67, R9, la règle que creerElement applique).
+ */
 function propositionsDeLaRegle(
   courrier: CourrierEnvoye,
   regle: RegleHonorairesCourrier,
   { dossier, coproprieteId, mandatId }: CibleHonoraires,
   contexte: ContexteHonorairesCourrier,
   ids: Set<string>,
-): Pick<ResultatHonorairesCourrier, 'propositions' | 'ecartees'> {
+): PropositionLigneHonoraires[] | RegleHonorairesEcartee {
   const cas = casDesFraisDEnvoi(courrier.modele, contexte.recouvrementContreUnCoproprietaire ?? null)
   const regime = contexte.regime ?? null
-  const resultat: Pick<ResultatHonorairesCourrier, 'propositions' | 'ecartees'> = { propositions: [], ecartees: [] }
-  for (const [i, ligne] of regle.lignes.entries()) {
-    const rang = i + 1
-    const prixUnitaireHtDixMilliemes = ligne.prixUnitaireHtDixMilliemes
-    // J77 : seul un forfait sans montant saisi a un prix null (controlerLigne) ; il n'est pas proposé.
-    if (prixUnitaireHtDixMilliemes === null) {
-      resultat.ecartees.push(ecartMontantNonSaisi(regle, ligne, rang))
-      continue
+  // Seul un forfait sans montant saisi a un prix null (controlerLigne).
+  const saisies = regle.lignes.filter((ligne): ligne is LigneSaisie => ligne.prixUnitaireHtDixMilliemes !== null)
+  if (saisies.length < regle.lignes.length) {
+    for (const [i, ligne] of regle.lignes.entries()) {
+      const qualification = qualificationDeLaLigne(ligne, regle, { mission: contexte.mission, cas }, i + 1)
+      verifierQualificationAdmise(qualificationDe({ qualification }), contexte.mission)
     }
+    return ecartMontantNonSaisi(
+      regle,
+      regle.lignes.flatMap((ligne, i) => (ligne.prixUnitaireHtDixMilliemes === null ? [i + 1] : [])),
+    )
+  }
+  return saisies.map((ligne, i) => {
+    const rang = i + 1
     const id = texteRequis(
       contexte.idElement({ regle, ligne, rang, dossier }),
       `Règle « ${regle.libelle} », ligne ${rang} : identifiant d’élément attendu.`,
@@ -1351,7 +1416,7 @@ function propositionsDeLaRegle(
       tarif: ligne.tarif,
       calcul: ligne.calcul,
       quantite: ligne.quantite,
-      prixUnitaireHtDixMilliemes,
+      prixUnitaireHtDixMilliemes: ligne.prixUnitaireHtDixMilliemes,
       soumisTva: ligne.soumisTva,
       tauxTvaPct: ligne.tauxTvaPct,
       destinataire: ligne.destinataire,
@@ -1359,14 +1424,8 @@ function propositionsDeLaRegle(
     }
     // Contrôle seul : la saisie passe les règles de l'élément (point 66 ; J67, R9 pour la mission), rien n'est écrit.
     creerElement(saisie, contexte.mission)
-    resultat.propositions.push({
-      regleId: regle.id,
-      objet: ligne.objet,
-      saisie,
-      ...baseLigneHonorairesCourrier(ligne.objet, { regime, mission: contexte.mission, cas }),
-    })
-  }
-  return resultat
+    return { regleId: regle.id, objet: ligne.objet, saisie, ...baseLigneHonorairesCourrier(ligne.objet, { regime, mission: contexte.mission, cas }) }
+  })
 }
 
 /**
@@ -1377,12 +1436,12 @@ function propositionsDeLaRegle(
  * contre un copropriétaire en retard, J77 ; frais d'envoi, J72, casDesFraisDEnvoi : dépense du syndicat pour la mise en
  * demeure ou la relance d'un copropriétaire en retard, tracée en Contrôle coûts en mission judiciaire ; frais du cabinet
  * à présenter au juge pour les autres envois ; à confirmer si le dossier ne dit pas qui il poursuit). Rien n'est écrit.
- * Règles écartées : inactive, dossier absent ou ambigu, copropriété ou mandat manquants. Ligne écartée : forfait dont le
- * montant n'est pas saisi (J77 : montant_non_saisi, avec ce qu'il faut saisir ; les autres lignes restent proposées).
+ * Règles écartées : inactive, dossier absent ou ambigu, copropriété ou mandat manquants, montant d'un forfait non saisi
+ * (J77 : montant_non_saisi, avec ce qu'il faut saisir ; aucune ligne de la règle proposée, frais d'envoi compris).
  * Refus : courrier invalide ou non déposé, dépôt postérieur à aujourd'hui, régime hors liste, régime de justice avec une
  * mission autre que « judiciaire », fait du recouvrement qui n'est ni oui, ni non, ni non établi, règles invalides ou en
  * double, identifiant d'élément vide ou en double, ligne d'envoi du recouvrement « Facturable » en mission judiciaire
- * (J72, a).
+ * (J72, a), ligne « Offert » en mission judiciaire (J67, R9), montant saisi ou non.
  */
 export function proposerHonorairesDuCourrier(
   courrier: CourrierDeclencheur,
@@ -1397,13 +1456,9 @@ export function proposerHonorairesDuCourrier(
   const ids = new Set<string>()
   for (const regle of controlees.filter((r) => declenche(envoye, r.declencheur))) {
     const cible = cibleDesHonoraires(envoye, regle)
-    if ('motif' in cible) {
-      resultat.ecartees.push(cible)
-      continue
-    }
-    const { propositions, ecartees } = propositionsDeLaRegle(envoye, regle, cible, contexte, ids)
-    resultat.propositions.push(...propositions)
-    resultat.ecartees.push(...ecartees)
+    const issue = 'motif' in cible ? cible : propositionsDeLaRegle(envoye, regle, cible, contexte, ids)
+    if (Array.isArray(issue)) resultat.propositions.push(...issue)
+    else resultat.ecartees.push(issue)
   }
   return resultat
 }

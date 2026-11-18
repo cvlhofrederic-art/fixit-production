@@ -148,53 +148,88 @@ describe('J77 (a) — forfait de mise en demeure : imputé au copropriétaire po
         }
   })
 
-  it('base sans cas (absent) : aucune imputation au copropriétaire ; avec le cas « recouvrement » : imputation de J67, R7', () => {
-    expect(baseLigneHonorairesCourrier('forfait_mise_en_demeure').repartition).toEqual(SANS_IMPUTATION)
-    expect(BASES_LIGNES_HONORAIRES_COURRIER.forfait_mise_en_demeure.repartition).toEqual(SANS_IMPUTATION)
-    expect(BASES_LIGNES_HONORAIRES_COURRIER.forfait_mise_en_demeure.aConfirmer).toBe(true)
+  it('base sans cas (absent) : « à confirmer », sans imputation, sans motif inventé ; avec le cas « recouvrement » : imputation de J67, R7', () => {
+    for (const base of [baseLigneHonorairesCourrier('forfait_mise_en_demeure'), BASES_LIGNES_HONORAIRES_COURRIER.forfait_mise_en_demeure]) {
+      expect(base.repartition).toEqual(SANS_IMPUTATION)
+      expect(base.aConfirmer).toBe(true)
+      // Le cas n'est pas connu : la base ne dit pas que le courrier ne poursuit pas un copropriétaire (J77 : « à confirmer »).
+      expect(base.observation).toMatch(/^À confirmer \(J77\) : cas du courrier non fourni/)
+      expect(base.observation).not.toMatch(/ne poursuit pas un copropriétaire/)
+      expect(base.observation).toMatch(/rien n'est imputé à un copropriétaire/)
+    }
+    expect(baseLigneHonorairesCourrier('forfait_mise_en_demeure', { cas: undefined })).toEqual(BASES_LIGNES_HONORAIRES_COURRIER.forfait_mise_en_demeure)
     expect(baseLigneHonorairesCourrier('forfait_mise_en_demeure', { cas: 'recouvrement' }).repartition.imputation).toEqual(IMPUTATION_ART_10_1_A)
     for (const cas of CAS)
       expect(baseLigneHonorairesCourrier('forfait_mise_en_demeure', { cas }).repartition, cas).toMatchObject({
         payeur: 'syndicat',
         paiement: 'facture_du_cabinet',
       })
+    // Frais d'envoi : le défaut de J72 (b) est inchangé (autre envoi du cabinet).
+    expect(baseLigneHonorairesCourrier('frais_envoi')).toEqual(baseLigneHonorairesCourrier('frais_envoi', { cas: 'autre_envoi' }))
   })
 
-  it('art. 29-1 : la phrase sur la somme imputée au copropriétaire ne figure que si le forfait est imputé', () => {
-    const base = (cas: CasFraisEnvoi) => baseLigneHonorairesCourrier('forfait_mise_en_demeure', { regime: 'ap291', cas })
+  it('art. 29-1 : la limite de R7 (somme admise et payée) suit l’imputation : faite, possible (à confirmer) ou aucune', () => {
+    const base = (cas?: CasFraisEnvoi) => baseLigneHonorairesCourrier('forfait_mise_en_demeure', { regime: 'ap291', cas })
+    const RESERVE = /Cette imputation d'une rémunération d'administrateur provisoire n'est confirmée par aucun arrêt lu : à confirmer\./
     expect(base('recouvrement').observation).toMatch(/seule la somme admise et payée par le syndicat est imputée au copropriétaire/)
-    for (const cas of ['autre_envoi', 'non_etabli'] as const) {
-      expect(base(cas).observation, cas).not.toMatch(/est imputée au copropriétaire/)
-      expect(base(cas).observation, cas).toMatch(/rémunération soumise au juge/)
-      expect(base(cas).fondements, cas).toEqual(['L. 1965 art. 29-1, II', 'D. 1967 art. 61-1-5, II', 'arrêté du 08/10/2015, art. 14'])
+    expect(base('recouvrement').observation).toMatch(RESERVE)
+    // Imputation possible mais non établie (dossier muet, ou cas non fourni) : la limite de R7 reste, au conditionnel.
+    for (const cas of ['non_etabli', undefined] as const) {
+      const quoi = String(cas)
+      expect(base(cas).observation, quoi).toMatch(/s'il est imputé au copropriétaire, seule la somme admise et payée par le syndicat l'est/)
+      expect(base(cas).observation, quoi).toMatch(RESERVE)
+      expect(base(cas).observation, quoi).not.toMatch(/est imputée au copropriétaire/)
+    }
+    // Aucune imputation possible (autre envoi) : ni la limite, ni la réserve.
+    expect(base('autre_envoi').observation).not.toMatch(/somme admise et payée/)
+    expect(base('autre_envoi').observation).not.toMatch(RESERVE)
+    for (const cas of [...CAS, undefined]) {
+      expect(base(cas).observation, String(cas)).toMatch(/rémunération soumise au juge/)
+      expect(base(cas).fondements, String(cas)).toEqual(
+        cas === 'recouvrement'
+          ? ['L. 1965 art. 10-1, a', 'L. 1965 art. 29-1, II', 'D. 1967 art. 61-1-5, II', 'arrêté du 08/10/2015, art. 14']
+          : ['L. 1965 art. 29-1, II', 'D. 1967 art. 61-1-5, II', 'arrêté du 08/10/2015, art. 14'],
+      )
     }
   })
 
   it('aucun prénom dans les observations du forfait (J75)', () => {
-    for (const cas of CAS)
+    for (const cas of [...CAS, undefined])
       for (const regime of REGIMES)
-        expect(baseLigneHonorairesCourrier('forfait_mise_en_demeure', { regime, cas }).observation, `${cas}, ${String(regime)}`).not.toMatch(
+        expect(baseLigneHonorairesCourrier('forfait_mise_en_demeure', { regime, cas }).observation, `${String(cas)}, ${String(regime)}`).not.toMatch(
           /Hugo|Frédéric/,
         )
   })
 })
 
-describe('J77 (b) — montant du forfait : 0 ou absent vaut « non saisi », aucune ligne de forfait proposée', () => {
-  it('forfait à 0 : aucune ligne de forfait proposée, alerte qui dit quoi saisir ; les frais d’envoi restent proposés', () => {
+describe('J77 (b) — montant du forfait : 0 ou absent vaut « non saisi », la règle ne propose aucune ligne', () => {
+  it('forfait à 0 : aucune ligne de la règle proposée, frais d’envoi compris ; un seul écart dit quoi saisir', () => {
+    // Frédéric : « la proposition de lignes reste désactivée tant que ce montant n'est pas saisi » ; Hugo : « aucune
+    // proposition tant que le montant n'est pas saisi ».
     const r = regle([ligneAr, { ...ligneForfait, prixUnitaireHtDixMilliemes: 0 }])
     const { propositions, ecartees } = proposerHonorairesDuCourrier(courrier(), [r], contexte({ recouvrementContreUnCoproprietaire: true }))
-    expect(propositions.map((p) => p.objet)).toEqual(['frais_envoi'])
+    expect(propositions).toEqual([])
     expect(ecartees).toEqual([
       {
         regleId: r.id,
         motif: 'montant_non_saisi',
-        rang: 2,
+        rangs: [2],
         message: expect.stringMatching(
-          /ligne 2 \(forfait de mise en demeure\) : montant non saisi.*aucune ligne de forfait proposée.*Saisir le prix unitaire HT du forfait/,
+          /montant du forfait de mise en demeure non saisi \(0 ou vide\), ligne 2 ; aucune ligne de la règle proposée, frais d’envoi compris.*Saisir le prix unitaire HT du forfait \(tarif « Contentieux - MISE EN DEMEURE »\)/,
         ),
       },
     ])
     expect(ecartees[0].message).not.toMatch(/Hugo|Frédéric/)
+  })
+
+  it('deux forfaits sans montant dans la règle : un seul écart, qui cite les deux lignes', () => {
+    const sansMontant = { ...ligneForfait, prixUnitaireHtDixMilliemes: 0 }
+    const r = regle([sansMontant, ligneAr, { ...sansMontant, tarif: 'Contentieux - RELANCE' }])
+    const { propositions, ecartees } = proposerHonorairesDuCourrier(courrier(), [r], contexte())
+    expect(propositions).toEqual([])
+    expect(ecartees.map((e) => [e.motif, e.rangs])).toEqual([['montant_non_saisi', [1, 3]]])
+    expect(ecartees[0].message).toMatch(/lignes 1 et 3/)
+    expect(ecartees[0].message).toMatch(/tarifs « Contentieux - MISE EN DEMEURE », « Contentieux - RELANCE »/)
   })
 
   it('forfait sans montant (absent ou null) : même chose ; la règle se crée sans refus (relue d’un stockage)', () => {
@@ -203,13 +238,31 @@ describe('J77 (b) — montant du forfait : 0 ou absent vaut « non saisi », auc
       expect(() =>
         creerRegleHonorairesCourrier({ id: 'r', libelle: 'r', declencheur: { par: 'modele', modeleIds: ['mod-1'] }, dossier: 'Contentieux', lignes: [ligne] }),
       ).not.toThrow()
-      const { propositions, ecartees } = proposerHonorairesDuCourrier(courrier(), [regle([ligne])], contexte())
+      const { propositions, ecartees } = proposerHonorairesDuCourrier(courrier(), [regle([ligneAr, ligne])], contexte())
       expect(propositions, String(prix)).toEqual([])
       expect(
-        ecartees.map((e) => [e.motif, e.rang]),
+        ecartees.map((e) => [e.motif, e.rangs]),
         String(prix),
-      ).toEqual([['montant_non_saisi', 1]])
+      ).toEqual([['montant_non_saisi', [2]]])
     }
+  })
+
+  it('montant non saisi : les refus de qualification restent levés (« Offert » en mission judiciaire, J67, R9 ; « Facturable » d’un envoi du recouvrement, J72, a)', () => {
+    const forfaitOffert = { ...ligneForfait, prixUnitaireHtDixMilliemes: 0, qualification: 'Offert' as const }
+    expect(() => proposerHonorairesDuCourrier(courrier(), [regle([forfaitOffert])], contexte())).toThrow(/Qualification « Offert » refusée\. Mission judiciaire/)
+    // Contrat type de syndic : « Offert » admis ; seul l'écart du montant non saisi.
+    const syndic = proposerHonorairesDuCourrier(courrier(), [regle([forfaitOffert])], contexte({ mission: 'contrat_type_syndic' }))
+    expect(syndic.propositions).toEqual([])
+    expect(syndic.ecartees.map((e) => e.motif)).toEqual(['montant_non_saisi'])
+    // Frais d'envoi « Facturable » d'une mise en demeure du recouvrement, en mission judiciaire : refusé (J72, a).
+    const fraisFacturable = { ...ligneAr, qualification: 'Facturable' as const }
+    expect(() =>
+      proposerHonorairesDuCourrier(
+        courrier(),
+        [regle([fraisFacturable, { ...ligneForfait, prixUnitaireHtDixMilliemes: 0 }])],
+        contexte({ recouvrementContreUnCoproprietaire: true }),
+      ),
+    ).toThrow(/ligne 1 \(frais d’envoi\) : « Facturable » refusé/)
   })
 
   it('0 vaut « non saisi » : la règle contrôlée porte null', () => {
@@ -234,7 +287,7 @@ describe('J77 (b) — montant du forfait : 0 ou absent vaut « non saisi », auc
     expect(proposerHonorairesDuCourrier(courrier(), [r], contexte()).propositions).toEqual([])
   })
 
-  it('seul le forfait est visé : un frais d’envoi à 0 reste proposé (null refusé) ; creerElement admet toujours un prix de 0', () => {
+  it('seul le montant du forfait est visé : dans une règle sans forfait, un frais d’envoi à 0 reste proposé (null refusé) ; creerElement admet toujours un prix de 0', () => {
     const [frais] = proposerHonorairesDuCourrier(courrier(), [regle([{ ...ligneAr, prixUnitaireHtDixMilliemes: 0 }])], contexte()).propositions
     expect(frais.saisie.prixUnitaireHtDixMilliemes).toBe(0)
     expect(() => regle([{ ...ligneAr, prixUnitaireHtDixMilliemes: null as unknown as number }])).toThrow(/prix unitaire invalide/)
@@ -255,5 +308,10 @@ describe('J77 (b) — montant du forfait : 0 ou absent vaut « non saisi », auc
     expect(j77).toMatch(/à confirmer/)
     expect(j77).toMatch(/non saisi/)
     expect(j77).toMatch(/montant_non_saisi/)
+    expect(j77).toMatch(/la règle ne propose aucune ligne, frais d'envoi compris/)
+    expect(j77).not.toMatch(/les autres lignes de la règle restent proposées/)
+    // Choix laissés à confirmer, écrits comme tels.
+    expect(j77).toMatch(/🔵 À confirmer.*frais d'envoi à 0/)
+    expect(j77).toMatch(/cas du courrier non fourni/)
   })
 })

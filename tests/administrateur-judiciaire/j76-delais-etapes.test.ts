@@ -11,6 +11,7 @@ import {
   processusDuDossier,
   processusDuModele,
 } from '@/lib/administrateur-judiciaire/domain/modeles-etapes'
+import { depuisEtapes, depuisEtapesAutomatiques } from '@/lib/administrateur-judiciaire/domain/suivi-a-faire'
 import { enTeteDuModule } from './en-tete-module'
 
 /**
@@ -107,6 +108,40 @@ describe('J76 — aucun délai par défaut entre les étapes (réponse de Fréd�
     expect(intervention.limite).toBeNull()
     // Modèle de reprise, sans délai de gestion : converti sans refus, aucun délai inventé.
     expect(processusDuModele(modeleReprise()).map((p) => p.delaiJours)).toEqual(modeleReprise().etapes.map(() => null))
+  })
+
+  it('suivi « à faire » (comportement actuel, question ouverte n° 6) : une étape enchaînée sans délai saisi n’y remonte pas', () => {
+    // Point de contact avec J20, non tranché : l'étape enchaînée est d'origine « manuelle », donc hors de la règle des
+    // N jours ; sans délai, elle n'a ni limite, ni « à faire le », ni alerte. Ce test fige l'état actuel pour que tout
+    // changement soit vu ; il sera réécrit avec la réponse de Hugo ou de Frédéric.
+    const processus = processusDuDossier('Sinistre')
+    const information = enchainerEtapeDossier(declarationRealisee(processus[0].etapeType), processus, {
+      id: 's-2',
+      date: '2026-11-03',
+      creeeParId: 'collab-A',
+    })!
+    expect(information).toMatchObject({ origine: 'manuelle', limite: null, aFaireLe: null, alerteSecurite: null })
+    for (const jour of ['2026-11-04', '2027-11-03']) {
+      expect(depuisEtapes([{ mandatId: 'M1', etape: information }], jour), jour).toEqual([])
+      expect(depuisEtapesAutomatiques([{ mandatId: 'M1', etape: information }], jour), jour).toEqual([])
+    }
+    // Avec un délai saisi par le cabinet, la limite la fait remonter.
+    const avecDelai = processus.map((p, i) => (i === 1 ? { ...p, delaiJours: 7 } : p))
+    const informationDatee = enchainerEtapeDossier(declarationRealisee(processus[0].etapeType), avecDelai, {
+      id: 's-2',
+      date: '2026-11-03',
+      creeeParId: 'collab-A',
+    })!
+    expect(depuisEtapes([{ mandatId: 'M1', etape: informationDatee }], '2026-11-04').map((e) => e.date)).toEqual(['2026-11-10'])
+  })
+
+  it('en-têtes : la conséquence sur le suivi « à faire » est écrite comme question ouverte (n° 6, point de contact avec J20)', () => {
+    const { texte, item } = enTeteDuModule('modeles-etapes')
+    // J20 : la liste instanciée remonte par sa limite, quand elle en a une.
+    expect(item('- J20 : instancier une liste')).toMatch(/par sa limite, quand elle en a une ; sans délai saisi, elle ne remonte pas.*question n° 6/)
+    expect(item('- J76 (réponse de Frédéric du 17/11/2026')).toMatch(/suivi « à faire ».*question n° 6/)
+    expect(texte).toMatch(/6\. Hugo ou Frédéric \(registre J76, point de contact avec J20\).*suivi « à faire ».*date de création.*sans date/)
+    expect(enTeteDuModule('etapes').texte).toMatch(/ne remonte alors pas au suivi « à faire ».*question n° 6/)
   })
 
   it('en-tête de modeles-etapes.ts : J76 cité, question n° 1 fermée, n° 2 fermée en partie (base du délai et replanification ouvertes)', () => {

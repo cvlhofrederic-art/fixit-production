@@ -9,7 +9,8 @@ import { ajouterJours, estDateIsoValide } from '@/lib/administrateur-judiciaire/
  * rendu ; bouton Enchaînement.
  * 🔵 Enchaînement modélisé comme une suite ordonnée d'étapes types avec un délai après la réalisation de la précédente.
  * Délai non saisi (null) : l'étape enchaînée n'a pas de limite (J76, réponse de Frédéric du 17/11/2026 : aucun délai par
- * défaut entre les étapes ; un délai d'étape est un délai de gestion du cabinet, jamais un délai légal).
+ * défaut entre les étapes ; un délai d'étape est un délai de gestion du cabinet, jamais un délai légal). Sans « à faire
+ * le » ni alerte, elle ne remonte alors pas au suivi « à faire » : question ouverte (modeles-etapes.ts, question n° 6).
  */
 
 export interface Etape {
