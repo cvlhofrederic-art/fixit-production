@@ -403,6 +403,9 @@ describe('J4 — obligation de constituer le fonds (art. 14-2-1, I ; loi n° 202
     expect(obligation).toMatchObject({ obligatoire: false, depuis: null, aConfirmer: false, regime: 'aucun_fonds', alertes: [] })
     expect(obligation.motif).toMatch(/aucun fonds de travaux légal/i)
     expect(obligation.fondements).toEqual([FONDEMENT_CREATION])
+    // Avant le 01/01/2017, la réponse ne dépend d'aucune donnée : destination ou réception manquante comprise.
+    for (const surcharge of [{ destinationHabitation: null }, { dateReception: null }, { destinationHabitation: null, dateReception: null, nbLotsPrincipaux: null }])
+      expect(obligationFondsTravaux(immeuble(surcharge), '2015-06-01')).toMatchObject({ obligatoire: false, aConfirmer: false, regime: 'aucun_fonds' })
   })
 
   it('J67, R86 — avant l’entrée en vigueur applicable : l’ancien art. 14-2 (fonds cinq ans après la réception, sauf dispense)', () => {
@@ -469,6 +472,44 @@ describe('J4 — obligation de constituer le fonds (art. 14-2-1, I ; loi n° 202
     expect(selonLesLots.motif).toMatch(/renseigner le nombre de lots/)
   })
 
+  it('J67, R86 (a) — nombre de lots inconnu avant le 01/01/2023 : l’ancien art. 14-2 répond, quel que soit ce nombre', () => {
+    const avecLots = (nbLotsPrincipaux: number | null, surcharge: Partial<SaisieObligationFondsTravaux>, date: string) =>
+      obligationFondsTravaux(immeuble({ nbLotsPrincipaux, ...surcharge }), date)
+    // Cinq ans atteints avant le 01/01/2023 : même réponse que pour 5, 100 ou 300 lots.
+    const avant2023 = { dateReception: '2016-06-01', dispenseAncien14_2: 'aucune' as const }
+    const inconnu = avecLots(null, avant2023, '2020-01-01')
+    for (const nbLots of [5, 100, 300]) expect(inconnu).toEqual(avecLots(nbLots, avant2023, '2020-01-01'))
+    expect(inconnu).toMatchObject({ obligatoire: false, depuis: '2021-06-01', aConfirmer: false, regime: 'ancien_14_2' })
+    expect(inconnu.motif).not.toMatch(/Entre le 01\/01\/2023/)
+    // Dispense : pas obligatoire à la date ; seule la date à laquelle il le deviendra dépend du nombre de lots.
+    const dispense = avecLots(null, { dateReception: '2010-01-01', dispenseAncien14_2: 'moins_de_dix_lots_unanimite' }, '2020-01-01')
+    expect(dispense).toMatchObject({ obligatoire: false, depuis: null, aConfirmer: true, regime: 'ancien_14_2', alertes: [] })
+    expect(dispense.motif).toMatch(
+      /^Fonds de travaux pas obligatoire au 01\/01\/2020 : dispense de l'ancien art\. 14-2 \(moins de dix lots.*selon le nombre de lots.*renseigner le nombre de lots/,
+    )
+    // Cinq ans atteints le 01/01/2023 ou après : pas obligatoire à la date ; l'échéance dépend du nombre de lots.
+    const recent = avecLots(null, { dateReception: '2019-03-01' }, '2022-06-01')
+    expect(recent).toMatchObject({ obligatoire: false, depuis: null, aConfirmer: true, regime: 'ancien_14_2' })
+    expect(recent.motif).toMatch(/les cinq ans de l'ancien art\. 14-2 ne sont atteints que le 01\/03\/2024/)
+    expect([50, 300].map((nbLots) => avecLots(nbLots, { dateReception: '2019-03-01' }, '2022-06-01').depuis)).toEqual(['2024-03-01', '2029-03-01'])
+  })
+
+  it('J67, R86 — nombre de lots inconnu : alerte « immeuble de moins de dix ans » et continuité du fonds, quand l’ancien régime a pu le constituer', () => {
+    const inconnu = (surcharge: Partial<SaisieObligationFondsTravaux>, date = '2026-01-01') => obligationFondsTravaux(immeuble({ nbLotsPrincipaux: null, ...surcharge }), date)
+    const recent = inconnu({ dateReception: '2017-06-01' })
+    expect(recent).toMatchObject({ obligatoire: false, depuis: '2027-06-01', regime: 'art_14_2_1' })
+    expect(recent.alertes).toMatchObject([{ code: 'immeuble_moins_de_dix_ans', fondement: 'L. 1965 art. 14-2-1, I et III' }])
+    expect(recent.alertes[0].message).toMatch(
+      /entrée en vigueur de l'art\. 14-2-1 \(entre le 01\/01\/2023 et le 01\/01\/2025, selon le nombre de lots\).*reste au syndicat, tel quel.*01\/06\/2027/,
+    )
+    // Dispense de l'ancien régime : aucun fonds constitué, pas d'alerte ; cinq ans atteints après le 01/01/2023 : alerte incertaine, non émise.
+    expect(inconnu({ dateReception: '2017-06-01', dispenseAncien14_2: 'dtg_sans_besoin_de_travaux' }).alertes).toEqual([])
+    expect(inconnu({ dateReception: '2018-06-01' }).alertes).toEqual([])
+    // Obligatoire : le fonds constitué sous l'ancien régime continue tel quel.
+    expect(inconnu({ dateReception: '2000-01-01' }, AUJOURDHUI).motif).toMatch(/fonds constitué sous l'ancien art\. 14-2 continue tel quel/)
+    expect(inconnu({ dateReception: '2000-01-01', dispenseAncien14_2: 'dtg_sans_besoin_de_travaux' }, AUJOURDHUI).motif).not.toMatch(/continue tel quel/)
+  })
+
   it('seule l’année de construction est connue : réponse marquée à confirmer', () => {
     const ancien = obligationFondsTravaux(immeuble({ dateReception: null, anneeConstruction: 1975 }), AUJOURDHUI)
     expect(ancien).toMatchObject({ obligatoire: true, depuis: '2025-01-01', aConfirmer: true })
@@ -497,6 +538,12 @@ describe('J4 — obligation de constituer le fonds (art. 14-2-1, I ; loi n° 202
     expect(() => obligationFondsTravaux(immeuble({ nbLotsPrincipaux: 2.5 }), AUJOURDHUI)).toThrow(/lots/i)
     expect(() => obligationFondsTravaux(immeuble({ dateReception: null, anneeConstruction: 1975.5 }), AUJOURDHUI)).toThrow(/année/i)
     expect(() => obligationFondsTravaux(immeuble({ dateReception: null, anneeConstruction: 2027 }), AUJOURDHUI)).toThrow(/année/i)
+    // J67, R86 : la dispense « moins de dix lots » est impossible à partir de dix lots principaux (ils comptent dans les lots).
+    for (const nbLotsPrincipaux of [10, 50])
+      expect(() => obligationFondsTravaux(immeuble({ nbLotsPrincipaux, dispenseAncien14_2: 'moins_de_dix_lots_unanimite' }), '2020-06-01')).toThrow(
+        new RegExp(`moins de dix lots.*${nbLotsPrincipaux} lots principaux`),
+      )
+    expect(obligationFondsTravaux(immeuble({ nbLotsPrincipaux: 9, dispenseAncien14_2: 'moins_de_dix_lots_unanimite' }), '2020-06-01').obligatoire).toBe(false)
   })
 })
 
@@ -656,6 +703,16 @@ describe('J67, R85 — cotisation minimale due sans vote (art. 14-2-1, I, al. 8 
     expect(sous).toMatchObject({ cotisationCentimes: 45_350, origine: 'minimum_de_plein_droit' })
     expect(sous.motif).toMatch(/inférieur au minimum/)
     expect(() => cotisationAnnuelleDue(assiette, -1)).toThrow(/centimes/)
+  })
+
+  it('plan pluriannuel non renseigné : le minimum annoncé est à confirmer, et le motif le dit', () => {
+    const inconnu = { budgetPrevisionnelCentimes: 1_000_000, totalTravauxPlanAdopteCentimes: PPT_INCONNU }
+    const due = cotisationAnnuelleDue(inconnu, null)
+    expect(due).toMatchObject({ cotisationCentimes: 50_000, origine: 'minimum_de_plein_droit', aConfirmer: true })
+    expect(due.motif).toMatch(/sans vote\. Plan pluriannuel de travaux non renseigné : s'il est adopté, la cotisation annuelle doit aussi atteindre 2,5 % de ses travaux\.$/)
+    expect(cotisationAnnuelleDue(inconnu, 60_000)).toMatchObject({ origine: 'vote', aConfirmer: true })
+    expect(cotisationAnnuelleDue(assiette, null).aConfirmer).toBe(false)
+    expect(cotisationAnnuelleDue(assiette, null).motif).not.toMatch(/non renseigné/)
   })
 })
 

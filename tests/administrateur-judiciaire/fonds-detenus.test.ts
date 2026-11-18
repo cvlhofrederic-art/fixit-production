@@ -465,14 +465,18 @@ describe('J67, R91 — catégories de mission (C. com. R. 814-30) : réglage du 
     ])
   })
 
-  it('régime absent de la liste du cabinet, ou fondement non reconnu : « non reconnue », rangée après ses catégories', () => {
+  it('régime reconnu absent de la liste du cabinet : « hors catégories » ; fondement non reconnu : « non reconnue » ; après ses catégories', () => {
     const categoriesMission = creerCategoriesMission([{ cle: 'sj', libelle: 'Syndic désigné en justice', regimes: ['sj'] }])
     const fonds = fondsDetenusA('2026-12-31', donnees(), { categoriesMission })
-    expect(fonds.mandats.map((m) => m.categorie)).toEqual(['non_reconnue', 'sj'])
-    expect(fonds.parCategorie.map((g) => [g.cle, g.fondsDetenusCentimes])).toEqual([
-      ['sj', 480_000],
-      ['non_reconnue', 1_100_000],
+    expect(fonds.mandats.map((m) => m.categorie)).toEqual(['hors_categories', 'sj'])
+    expect(fonds.parCategorie.map((g) => [g.cle, g.libelle, g.fondsDetenusCentimes])).toEqual([
+      ['sj', 'Syndic désigné en justice', 480_000],
+      ['hors_categories', 'Régime hors des catégories du cabinet', 1_100_000],
     ])
+    // Un mandat ad hoc reste « non reconnue », rangée après les régimes hors catégories.
+    const avecAdHoc = donnees({ mandats: [mandatTill({ fondement: 'Mandat ad hoc' }), mandatAcac()] })
+    const seuleAp = creerCategoriesMission([{ cle: 'ap', libelle: 'Administration provisoire', regimes: ['ap291'] }])
+    expect(fondsDetenusA('2026-12-31', avecAdHoc, { categoriesMission: seuleAp }).parCategorie.map((g) => g.cle)).toEqual(['hors_categories', 'non_reconnue'])
   })
 
   it('réglage refusé : liste vide, clé vide, en double ou réservée, libellé vide, régime inconnu, absent ou rangé deux fois', () => {
@@ -480,7 +484,7 @@ describe('J67, R91 — catégories de mission (C. com. R. 814-30) : réglage du 
     expect(() => creerCategoriesMission([])).toThrow(/au moins une catégorie/)
     expect(() => creerCategoriesMission([{ ...une, cle: ' ' }])).toThrow(/clé/)
     expect(() => creerCategoriesMission([une, { ...une, regimes: ['sj'] }])).toThrow(/« ap » en double/)
-    for (const cle of ['non_reconnue', 'non_ventile']) expect(() => creerCategoriesMission([{ ...une, cle }])).toThrow(/réservée/)
+    for (const cle of ['hors_categories', 'non_reconnue', 'non_ventile']) expect(() => creerCategoriesMission([{ ...une, cle }])).toThrow(/réservée/)
     expect(() => creerCategoriesMission([{ ...une, libelle: '' }])).toThrow(/libellé/)
     expect(() => creerCategoriesMission([{ ...une, regimes: ['art99' as never] }])).toThrow(/art99/)
     expect(() => creerCategoriesMission([{ ...une, regimes: [] }])).toThrow(/aucun régime/)

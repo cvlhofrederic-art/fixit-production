@@ -742,6 +742,9 @@ describe('en-tête : sources et marqueurs', () => {
     expect(nonEtabli).not.toContain('471, 472')
     expect(j67).toMatch(/J67, R83 : écriture directe de 512 à 512, sans compte d'attente/)
     expect(j67).toMatch(/subdivision du 512 \(arrêté du 14 mars 2005, art\. 8/)
+    // R83 et J71 : un placement relève de la classe 50, mais le code ne lit que des sous-comptes 512 : question marquée.
+    expect(j67).toMatch(/le 50 « Fonds placés » reste pour un vrai placement \(D\. 1967 art\. 35-1\), non pris en charge ici \(ci-dessous\)/)
+    expect(nonEtabli).toMatch(/compte de placement \(J71 compris\) lu en sous-compte 512 .*classe 50 « Fonds placés » \(J67, R83\) non prise en charge, à trancher/)
     // R82 : le syndic ne prend jamais seul sur le fonds pour des travaux urgents.
     expect(nonEtabli).not.toMatch(/le syndic peut-il prélever sur le fonds/)
     expect(j67).toMatch(/J67, R82 : .*D\. 1967 art\. 37.*Blocage gardé/)

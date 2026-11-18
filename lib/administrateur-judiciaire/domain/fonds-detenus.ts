@@ -77,7 +77,9 @@ import type { CompteVirementInterne } from '@/lib/administrateur-judiciaire/doma
  * - J67, R91 : R. 814-30 demande les fonds « par catégorie de mission », sans les définir ; R. 814-34 demande déjà, pour
  *   chaque mandat, « la nature de la mission concernée ». La liste des catégories est un réglage du cabinet
  *   (creerCategoriesMission ; option categoriesMission), par défaut le régime du mandat (art. 46, art. 47, art. 29-1) ; à
- *   faire valider par le commissaire aux comptes (J65). Enregistrement du réglage : à brancher.
+ *   faire valider par le commissaire aux comptes (J65). Un régime reconnu que le cabinet n'a rangé dans aucune catégorie
+ *   va dans « Régime hors des catégories du cabinet », distinct d'un fondement non reconnu. Enregistrement du réglage : à
+ *   brancher.
  * - J67, R92 : les fonds détenus restent le solde comptable des comptes 512 (la comptabilité spéciale contrôlée, R.
  *   814-29) ; en annexe, le solde bancaire à la même date et les suspens de rapprochement (annexeSoldeBancaireEtSuspens,
  *   qui lit rapprochement-bancaire.suspensA) ; un écart que les suspens n'expliquent pas est signalé. Le commissaire aux
@@ -109,7 +111,8 @@ import type { CompteVirementInterne } from '@/lib/administrateur-judiciaire/doma
  * - ventilation : par mandat, par compte, par nature (D-BANQUE), par établissement (Banque.etablissement ; un compte de
  *   nature « Caisse des dépôts » sans établissement saisi y est rangé ; casse, accents et espaces ne séparent pas deux
  *   établissements), par catégorie de mission (réglage du cabinet, J67, R91 ; par défaut le régime du mandat,
- *   regimeDepuisFondement : art. 46, art. 47, art. 29-1 ; un régime hors de la liste, ou tout autre fondement, à part) ;
+ *   regimeDepuisFondement : art. 46, art. 47, art. 29-1 ; à part, un régime reconnu hors de la liste du cabinet
+ *   (« hors catégories ») et tout autre fondement (« non reconnu ») ;
  * - montants : un compte au solde négatif n'est pas un fonds détenu et ne vient jamais en déduction des autres comptes,
  *   ni des autres mandats : les totaux additionnent les soldes positifs ; les négatifs sont totalisés à part et signalés ;
  * - couverture (R. 814-37), sur tous les comptes du mandat, quel que soit le périmètre : sous-compte d'un compte partagé
@@ -226,14 +229,17 @@ export interface CategorieMissionCabinet {
 /** Liste des catégories de mission du cabinet, dans son ordre ; un régime est au plus dans une catégorie. */
 export type CategoriesMission = readonly CategorieMissionCabinet[]
 
-/** Clé de catégorie de mission : celle d'une catégorie du cabinet, ou CATEGORIE_NON_RECONNUE. */
+/** Clé de catégorie de mission : celle d'une catégorie du cabinet, CATEGORIE_HORS_CABINET ou CATEGORIE_NON_RECONNUE. */
 export type CategorieMission = string
 
-/** Mandat dont le régime n'est dans aucune catégorie du cabinet, ou dont le fondement n'est pas reconnu (mandat ad hoc…). */
+/** Mandat dont le régime est reconnu (art. 46, art. 47, art. 29-1) mais rangé dans aucune catégorie du cabinet (J67, R91). */
+export const CATEGORIE_HORS_CABINET: CategorieMission = 'hors_categories'
+const LIBELLE_HORS_CABINET = 'Régime hors des catégories du cabinet'
+/** Mandat dont le fondement n'est pas reconnu (mandat ad hoc…). */
 export const CATEGORIE_NON_RECONNUE: CategorieMission = 'non_reconnue'
 const LIBELLE_NON_RECONNUE = 'Fondement non reconnu (mandat ad hoc ou autre)'
 const CLE_NON_VENTILE = 'non_ventile'
-const CLES_RESERVEES: ReadonlySet<string> = new Set([CATEGORIE_NON_RECONNUE, CLE_NON_VENTILE])
+const CLES_RESERVEES: ReadonlySet<string> = new Set([CATEGORIE_HORS_CABINET, CATEGORIE_NON_RECONNUE, CLE_NON_VENTILE])
 const REGIMES = Object.keys(LIBELLES_REGIMES) as Regime[]
 
 /** J67, R91 — par défaut : une catégorie par régime du mandat (art. 46, art. 47, art. 29-1), avec son libellé. */
@@ -261,8 +267,9 @@ function verifierCategorie(c: CategorieMissionCabinet, cles: Set<string>, rangs:
 
 /**
  * J67, R91 — réglage du cabinet : sa liste de catégories de mission, à faire valider par le commissaire aux comptes
- * (J65). Refuse une liste vide, une clé vide, en double ou réservée (« non_reconnue », « non_ventile »), un libellé vide,
- * une catégorie sans régime, un régime inconnu ou rangé dans deux catégories.
+ * (J65). Refuse une liste vide, une clé vide, en double ou réservée (« hors_categories », « non_reconnue »,
+ * « non_ventile »), un libellé vide, une catégorie sans régime, un régime inconnu ou rangé dans deux catégories. Un
+ * régime absent de la liste n'est pas refusé : ses mandats vont dans « hors_categories ».
  */
 export function creerCategoriesMission(saisie: readonly CategorieMissionCabinet[]): CategoriesMission {
   if (saisie.length === 0) throw new Error('Catégories de mission : au moins une catégorie attendue.')
@@ -271,10 +278,14 @@ export function creerCategoriesMission(saisie: readonly CategorieMissionCabinet[
   return Object.freeze(saisie.map((c) => verifierCategorie(c, cles, rangs)))
 }
 
-/** Catégorie d'un mandat : celle du cabinet qui contient son régime, sinon « non reconnue ». */
+/**
+ * Catégorie d'un mandat : celle du cabinet qui contient son régime ; régime reconnu absent de la liste du cabinet :
+ * « hors catégories » ; fondement non reconnu : « non reconnue ».
+ */
 function categorieDuMandat(fondement: string, categories: CategoriesMission): CategorieMission {
   const regime = regimeDepuisFondement(fondement)
-  return categories.find((c) => regime !== null && c.regimes.includes(regime))?.cle ?? CATEGORIE_NON_RECONNUE
+  if (regime === null) return CATEGORIE_NON_RECONNUE
+  return categories.find((c) => c.regimes.includes(regime))?.cle ?? CATEGORIE_HORS_CABINET
 }
 
 const LIBELLE_NON_VENTILE = 'Comptes partagés entre mandats, non ventilés'
@@ -419,7 +430,7 @@ export interface FondsDetenus {
   parNature: TotalFondsDetenus<NatureCompteBancaire>[]
   /** Clé : nom normalisé (minuscules, sans accents), ou « non_renseigne ». */
   parEtablissement: TotalFondsDetenus<string>[]
-  /** Catégories du cabinet dans son ordre, puis « non_reconnue », puis « non_ventile » (J67, R91). */
+  /** Catégories du cabinet dans son ordre, puis « hors_categories », « non_reconnue » et « non_ventile » (J67, R91). */
   parCategorie: TotalFondsDetenus<CategorieMission>[]
   /** Soldes positifs des comptes inclus. */
   totalCentimes: number
@@ -806,10 +817,14 @@ function parEtablissement(lignes: readonly LigneFondsDetenus[]): TotalFondsDeten
 
 const NATURES = Object.keys(NATURES_COMPTE_BANCAIRE) as NatureCompteBancaire[]
 
-/** Totaux par catégorie : celles du cabinet dans son ordre, puis « non reconnue », puis les comptes non ventilés. */
+/**
+ * Totaux par catégorie : celles du cabinet dans son ordre, puis les régimes hors de ses catégories, les fondements non
+ * reconnus et les comptes non ventilés.
+ */
 function parCategorie(inclus: readonly LigneFondsDetenus[], categories: CategoriesMission): TotalFondsDetenus<CategorieMission>[] {
   const libelles = new Map<string, string>([
     ...categories.map((c): [string, string] => [c.cle, c.libelle]),
+    [CATEGORIE_HORS_CABINET, LIBELLE_HORS_CABINET],
     [CATEGORIE_NON_RECONNUE, LIBELLE_NON_RECONNUE],
     [CLE_NON_VENTILE, LIBELLE_NON_VENTILE],
   ])

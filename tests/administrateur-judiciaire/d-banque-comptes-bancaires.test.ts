@@ -133,6 +133,8 @@ describe('J37 — compte de l’administrateur provisoire : la pratique du cabin
     const j67 = entete.slice(entete.indexOf('Décisions de Hugo du 17/11/2026'), entete.indexOf('🔴'))
     expect(j67).toMatch(/J67, R94 : .*C\. com\. R\. 814-41 \(lu sur Légifrance le 17\/11\/2026/)
     expect(j67).toMatch(/« en matière civile » est déduit, à confirmer/)
+    // R. 811-28-2 parle du stage de la spécialité commerciale, pas de la nature de la mission.
+    expect(j67).toMatch(/C\. com\. R\. 811-28-2 range ces actes dans le stage de la spécialité commerciale \(note du point 72\)/)
     expect(j67).toMatch(/n'est pas présenté comme imposé par la loi de 1965/)
     expect(j67).toMatch(/J67, R95 : .*informationsComptesMandat/)
     expect(entete).not.toMatch(/livre VIII, non lu/)

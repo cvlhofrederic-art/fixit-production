@@ -138,7 +138,9 @@ import { etatPartFondsTravaux, type OperationTravaux } from '@/lib/administrateu
  * - J67, R87 : le fonds de travaux légal n'existe que depuis le 01/01/2017 (L. 1965 art. 14-2, rédaction issue de la loi
  *   n° 2014-366, art. 58 ; la rédaction du 01/01/2002 au 01/01/2017 ne parle d'aucun fonds) : une mutation ou une
  *   promesse antérieure reçoit la réponse « aucun fonds de travaux légal à cette date » (CREATION_FONDS_TRAVAUX,
- *   fonds-travaux.ts). L'ancien art. 14-2 du 01/01/2017 au 25/11/2018 dit déjà que les sommes sont « attachées aux lots »,
+ *   fonds-travaux.ts) : ni part ni cotisation données (0 et null), pas d'avertissement « lot annexe » ; les sommes lues
+ *   sur les appels du fonds à cette date sont signalées, à qualifier (sommes_avant_fonds_legal). L'ancien art. 14-2 du
+ *   01/01/2017 au 25/11/2018 dit déjà que les sommes sont « attachées aux lots »,
  *   sans remboursement à la cession : même règle qu'ensuite (fondement ANCIEN_14_2 ci-dessous). Le D. 1967 art. 6-2 (en
  *   vigueur depuis le 01/09/2004) a la même règle qu'aujourd'hui ; une mutation antérieure est hors champ
  *   (repartition-appels.ts).
@@ -151,10 +153,13 @@ import { etatPartFondsTravaux, type OperationTravaux } from '@/lib/administrateu
  *   nouveau lot est la somme des parts des lots réunis ; division, la part du lot d'origine se partage entre les lots
  *   issus au prorata de leurs tantièmes dans la clé du fonds, fixés par le règlement modificatif ou la décision de
  *   l'assemblée (ou de l'administrateur provisoire qui en a les pouvoirs) ; sans répartition saisie, la part reste sur le
- *   lot d'origine, à confirmer (anomalie division_sans_repartition). Aucun texte ne règle ce cas : sommes « attachées aux
- *   lots » (art. 14-2-1, III) et, par analogie, art. 11 (troisième phrase : aliénation séparée de fractions d'un lot). Le
- *   même jour, les versements passent avant la modification, et la modification avant les emplois. Enregistrement : à
- *   brancher.
+ *   lot d'origine, à confirmer (anomalie division_sans_repartition, portée aussi par chaque lot issu, saisi même sans
+ *   répartition). Aucun texte ne règle ce cas : sommes « attachées aux lots » (art. 14-2-1, III) et, par analogie, art. 11
+ *   (troisième phrase : aliénation séparée de fractions d'un lot). Le même jour, les versements passent avant la
+ *   modification, et la modification avant les emplois. Un versement reçu ensuite par un lot réuni ou divisé (arriéré)
+ *   suit la part vers les lots issus, de proche en proche. Lot vendu issu d'une modification : dernière cotisation et
+ *   versements du vendeur lus sur ce seul lot ; ses versements sur un lot d'origine sont signalés, à confirmer
+ *   (versements_vendeur_lots_origine). Enregistrement : à brancher.
  * - J67, R110 : un lot annexe vendu seul (cave, stationnement) : sa part du fonds et sa dernière cotisation sont données,
  *   par prudence, avec l'avertissement que L. 721-2, II, 2°, d ne vise que le lot principal (lotAnnexe) ; plusieurs lots
  *   vendus ensemble : détail lot par lot et total (informationsFondsTravauxAcquereurVente), les annexes vendues avec leur
@@ -201,11 +206,15 @@ export interface AnomalieFondsTravauxLots {
     | 'versements_poste_incoherents'
     | 'emplois_operation_excedent'
     | 'division_sans_repartition'
+    | 'versements_vendeur_lots_origine'
+    | 'sommes_avant_fonds_legal'
   refId: string
   message: string
   nonCouvertCentimes?: number
   /** Part d'un emploi au-delà de la part du fonds de son opération (emplois_operation_excedent) : non déduite des parts. */
   excedentCentimes?: number
+  /** Lots touchés quand l'anomalie en concerne plusieurs (division sans répartition : lot d'origine, puis lots issus). */
+  lotIds?: string[]
 }
 
 const comparer = (a: string, b: string): number => (a < b ? -1 : Number(a > b))
@@ -562,12 +571,18 @@ export interface RepartitionDivision {
   lots: { lotId: string; tantiemes: number }[]
 }
 
-/** J67, R89 — réunion de lots ou division d'un lot, à sa date ; division sans répartition saisie : null. */
+/**
+ * J67, R89 — réunion de lots ou division d'un lot, à sa date. Division : `lotsIssus`, les lots qui en sont issus, à saisir
+ * quand la répartition ne l'est pas (null) ; avec une répartition, ce sont ses lots (lotsIssus facultatif, alors le même
+ * ensemble).
+ */
 export type ModificationLots =
   | { id: string; type: 'reunion'; date: string; lotsOrigine: string[]; lotIssu: string }
-  | { id: string; type: 'division'; date: string; lotOrigine: string; repartition: RepartitionDivision | null }
+  | { id: string; type: 'division'; date: string; lotOrigine: string; lotsIssus?: string[]; repartition: RepartitionDivision | null }
 
-function verifierRepartition(m: Extract<ModificationLots, { type: 'division' }>, repartition: RepartitionDivision): void {
+type Division = Extract<ModificationLots, { type: 'division' }>
+
+function verifierRepartition(m: Division, repartition: RepartitionDivision): void {
   const nom = `Division du lot ${m.lotOrigine} (${m.id})`
   if (!repartition.reference.trim()) throw new Error(`${nom} : référence de la répartition (règlement modificatif ou décision) attendue.`)
   if (repartition.lots.length === 0) throw new Error(`${nom} : au moins un lot issu attendu.`)
@@ -580,7 +595,34 @@ function verifierRepartition(m: Extract<ModificationLots, { type: 'division' }>,
       throw new Error(`${nom} : tantièmes invalides pour le lot issu « ${l.lotId} » (entier strictement positif attendu).`)
 }
 
-/** Modifications de lots : identifiants uniques, dates ISO ; réunion d'au moins deux lots distincts ; division complète. */
+/** Lots issus d'une division : saisis et non vides sans répartition ; avec une répartition, le même ensemble que ses lots. */
+function verifierLotsIssus(m: Division): void {
+  const nom = `Division du lot ${m.lotOrigine} (${m.id})`
+  const saisis = m.lotsIssus ?? null
+  if (saisis === null && m.repartition) return
+  if (saisis === null || saisis.length === 0) throw new Error(`${nom} : lots issus attendus, même sans répartition saisie.`)
+  if (saisis.some((lotId) => !lotId.trim())) throw new Error(`${nom} : lot issu vide.`)
+  verifierUnicite(saisis, (id) => `${nom} : lot issu ${id} en double.`)
+  const repartis = m.repartition?.lots.map((l) => l.lotId)
+  if (repartis && (repartis.length !== saisis.length || repartis.some((lotId) => !saisis.includes(lotId))))
+    throw new Error(`${nom} : lots issus différents de ceux de la répartition.`)
+}
+
+/** Réunion : au moins deux lots d'origine distincts, aucun vide, et le lot issu. */
+function verifierReunion(m: Extract<ModificationLots, { type: 'reunion' }>): void {
+  if (new Set(m.lotsOrigine).size < 2) throw new Error(`Réunion de lots ${m.id} : au moins deux lots distincts à réunir.`)
+  if (m.lotsOrigine.some((lotId) => !lotId.trim())) throw new Error(`Réunion de lots ${m.id} : lot d'origine vide.`)
+  if (!m.lotIssu.trim()) throw new Error(`Réunion de lots ${m.id} : lot issu attendu.`)
+}
+
+/** Division : le lot d'origine, une répartition complète si elle est saisie, et ses lots issus. */
+function verifierDivision(m: Division): void {
+  if (!m.lotOrigine.trim()) throw new Error(`Division ${m.id} : lot d'origine attendu.`)
+  if (m.repartition) verifierRepartition(m, m.repartition)
+  verifierLotsIssus(m)
+}
+
+/** Modifications de lots : identifiants uniques, dates ISO, réunions et divisions complètes. */
 function verifierModifications(modifications: ModificationLots[]): void {
   verifierUnicite(
     modifications.map((m) => m.id),
@@ -588,42 +630,71 @@ function verifierModifications(modifications: ModificationLots[]): void {
   )
   for (const m of modifications) {
     verifierDate(m.date, `Date de la modification de lots ${m.id}`)
-    if (m.type === 'reunion') {
-      if (new Set(m.lotsOrigine).size < 2) throw new Error(`Réunion de lots ${m.id} : au moins deux lots distincts à réunir.`)
-      if (!m.lotIssu.trim()) throw new Error(`Réunion de lots ${m.id} : lot issu attendu.`)
-    } else if (!m.lotOrigine.trim()) throw new Error(`Division ${m.id} : lot d'origine attendu.`)
-    else if (m.repartition) verifierRepartition(m, m.repartition)
+    if (m.type === 'reunion') verifierReunion(m)
+    else verifierDivision(m)
   }
 }
 
+/** Lots issus d'une modification : le lot réuni ; ceux de la répartition d'une division, à défaut ceux saisis. */
+function lotsIssusDe(m: ModificationLots): string[] {
+  if (m.type === 'reunion') return [m.lotIssu]
+  return m.repartition ? m.repartition.lots.map((l) => l.lotId) : (m.lotsIssus ?? [])
+}
+
+/** Lots d'origine d'une modification : les lots réunis (distincts), ou le lot divisé. */
+const lotsOrigineDe = (m: ModificationLots): string[] => (m.type === 'reunion' ? [...new Set(m.lotsOrigine)] : [m.lotOrigine])
+
+/** Ce que reçoit chaque lot issu de `montant` : tout au lot réuni ; au prorata des tantièmes d'une division, au centime. */
+function partage(m: ModificationLots, montant: number): [string, number][] {
+  if (m.type === 'reunion') return [[m.lotIssu, montant]]
+  const { lots } = m.repartition as RepartitionDivision
+  return repartirAuxPlusFortsRestes(montant, lots.map((l) => l.tantiemes)).map((part, i): [string, number] => [lots[i].lotId, part])
+}
+
+/** Déplace `montant` du lot `origine` vers les lots issus de `m` (partage, plus forts restes) ; rend ce que chacun reçoit. */
+function deplacer(cumuls: Map<string, Cumul>, m: ModificationLots, origine: string, montant: number): [string, number][] {
+  const recus = partage(m, montant)
+  cumulDe(cumuls, origine).transfert -= montant
+  for (const [lotId, part] of recus) cumulDe(cumuls, lotId).transfert += part
+  return recus
+}
+
+/** Lot réuni ou divisé (répartition saisie), et la modification qui l'a remplacé ; un lot qui en est issu à nouveau en sort. */
+type LotsRemplaces = Map<string, ModificationLots>
+
 /**
  * J67, R89 — applique une modification de lots aux cumuls : réunion, la part du nouveau lot est la somme des parts des
- * lots réunis ; division, la part (positive) du lot d'origine se partage au prorata des tantièmes des lots issus, au
- * centime (plus forts restes) ; sans répartition saisie, la part reste sur le lot d'origine et l'anomalie le dit.
+ * lots réunis ; division, la part (positive) du lot d'origine se partage au prorata des tantièmes des lots issus ; sans
+ * répartition saisie, la part reste sur le lot d'origine et l'anomalie le dit, au lot d'origine et à chaque lot issu.
  */
-function appliquerModification(cumuls: Map<string, Cumul>, m: ModificationLots): AnomalieFondsTravauxLots[] {
-  if (m.type === 'reunion') {
-    const parts = [...new Set(m.lotsOrigine)].map((lotId): [string, number] => [lotId, partDe(cumuls.get(lotId))])
-    for (const [lotId, part] of parts) cumulDe(cumuls, lotId).transfert -= part
-    cumulDe(cumuls, m.lotIssu).transfert += parts.reduce((s, [, part]) => s + part, 0)
-    return []
-  }
-  if (!m.repartition)
+function appliquerModification(cumuls: Map<string, Cumul>, remplaces: LotsRemplaces, m: ModificationLots): AnomalieFondsTravauxLots[] {
+  if (m.type === 'division' && !m.repartition)
     return [
       {
         code: 'division_sans_repartition',
         refId: m.lotOrigine,
-        message: `Division du lot ${m.lotOrigine} (${m.id}, ${dateIsoVersFr(m.date)}) : répartition de sa part du fonds entre les lots issus non saisie (règlement modificatif, ou décision de l'assemblée ou de l'administrateur provisoire qui en a les pouvoirs) ; la part reste sur le lot d'origine, à confirmer.`,
+        lotIds: [m.lotOrigine, ...lotsIssusDe(m)],
+        message: `Division du lot ${m.lotOrigine} (${m.id}, ${dateIsoVersFr(m.date)}) : répartition de sa part du fonds entre les lots issus (${lotsIssusDe(m).join(', ')}) non saisie (règlement modificatif, ou décision de l'assemblée ou de l'administrateur provisoire qui en a les pouvoirs) ; la part reste sur le lot d'origine, à confirmer.`,
       },
     ]
-  const part = partDe(cumuls.get(m.lotOrigine))
-  if (part <= 0) return []
-  const { lots } = m.repartition
-  cumulDe(cumuls, m.lotOrigine).transfert -= part
-  repartirAuxPlusFortsRestes(part, lots.map((l) => l.tantiemes)).forEach((partage, i) => {
-    cumulDe(cumuls, lots[i].lotId).transfert += partage
-  })
+  const issus = lotsIssusDe(m)
+  for (const origine of lotsOrigineDe(m)) {
+    const part = partDe(cumuls.get(origine))
+    if (m.type === 'reunion' || part > 0) deplacer(cumuls, m, origine, part)
+    if (!issus.includes(origine)) remplaces.set(origine, m)
+  }
+  for (const issu of issus) remplaces.delete(issu)
   return []
+}
+
+/**
+ * J67, R89 — somme reçue par un lot déjà réuni ou divisé (versement daté après la modification : arriéré d'un appel du
+ * lot d'origine…) : elle suit la part vers les lots issus, selon la même règle, et de proche en proche.
+ */
+function transmettre(cumuls: Map<string, Cumul>, remplaces: LotsRemplaces, lotId: string, montant: number): void {
+  const m = remplaces.get(lotId)
+  if (!m) return
+  for (const [issu, part] of deplacer(cumuls, m, lotId, montant)) transmettre(cumuls, remplaces, issu, part)
 }
 
 type Evenement =
@@ -824,15 +895,17 @@ export function partsFondsTravauxParLot({
   verifierModifications(modificationsLots)
   const cumuls = new Map<string, Cumul>()
   const cumulsOperations = new Map<string, number>()
+  const remplaces: LotsRemplaces = new Map()
   const anomalies: AnomalieFondsTravauxLots[] = []
   let totalPreleveCentimes = 0
   for (const evenement of evenementsJusquA(versements, emplois, modificationsLots, date)) {
     if (evenement.rang === 0) {
       ajouterVersement(cumuls, evenement.versement)
+      transmettre(cumuls, remplaces, evenement.versement.lotId, evenement.versement.montantCentimes)
       continue
     }
     if (evenement.rang === 1) {
-      anomalies.push(...appliquerModification(cumuls, evenement.modification))
+      anomalies.push(...appliquerModification(cumuls, remplaces, evenement.modification))
       continue
     }
     totalPreleveCentimes += evenement.emploi.montantCentimes
@@ -862,12 +935,12 @@ export function partsFondsTravauxParLot({
 const ANOMALIES_D_UN_LOT: ReadonlySet<AnomalieFondsTravauxLots['code']> = new Set(['part_negative', 'division_sans_repartition'])
 
 /**
- * Anomalies qui concernent un lot : sa part négative, sa division sans répartition, et les emplois sur une clé qui le
- * contient ou sur une clé inconnue.
+ * Anomalies qui concernent un lot : sa part négative, une division sans répartition dont il est le lot d'origine ou un lot
+ * issu, et les emplois sur une clé qui le contient ou sur une clé inconnue.
  */
 function anomaliesDuLot(anomalies: AnomalieFondsTravauxLots[], emplois: EmploiFondsTravaux[], cles: CleRepartition[], lotId: string): AnomalieFondsTravauxLots[] {
   return anomalies.filter((a) => {
-    if (ANOMALIES_D_UN_LOT.has(a.code)) return a.refId === lotId
+    if (ANOMALIES_D_UN_LOT.has(a.code)) return (a.lotIds ?? [a.refId]).includes(lotId)
     const emploi = emplois.find((e) => e.id === a.refId)
     const cle = cles.find((c) => c.id === emploi?.cleId)
     return !cle || cle.lots.some((l) => l.lotId === lotId)
@@ -1021,11 +1094,59 @@ function verifierNbLots(nbLots: number | null): void {
     throw new Error(`Nombre de lots invalide (${nbLots}) : entier positif ou nul attendu.`)
 }
 
+/**
+ * J67, R89 — lot vendu issu d'une réunion ou d'une division datée au plus tard à `date` : la dernière cotisation et les
+ * versements du vendeur ne se lisent que sur ce lot ; ce que le vendeur a versé sur un lot d'origine, jusqu'à la
+ * modification, est signalé, à confirmer.
+ */
+function versementsDuVendeurSurLotsOrigine(
+  modifications: ModificationLots[],
+  versements: VersementFondsTravaux[],
+  lotId: string,
+  compteId: string,
+  date: string,
+): AnomalieFondsTravauxLots[] {
+  return modifications
+    .filter((m) => m.date <= date && lotsIssusDe(m).includes(lotId))
+    .flatMap((m): AnomalieFondsTravauxLots[] => {
+      const origines = lotsOrigineDe(m).filter((o) => o !== lotId)
+      const lus = somme(versements.filter((v) => origines.includes(v.lotId) && v.compteId === compteId && v.source === 'encaissement' && v.date <= m.date))
+      if (lus === 0) return []
+      const lots = origines.length > 1 ? `les lots d'origine ${origines.join(', ')}` : `le lot d'origine ${origines[0]}`
+      return [
+        {
+          code: 'versements_vendeur_lots_origine',
+          refId: lotId,
+          message: `Lot ${lotId} issu de la ${m.type === 'reunion' ? 'réunion' : 'division'} ${m.id} du ${dateIsoVersFr(m.date)} : ${lus} centimes versés par le vendeur sur ${lots}, non relus pour sa dernière cotisation ni pour ses versements ; à confirmer (J67, R89).`,
+        },
+      ]
+    })
+}
+
+/**
+ * J67, R87 — avant le 01/01/2017, aucun fonds de travaux légal : part et cotisations ne sont pas données ; les sommes lues
+ * sur les appels du fonds du lot à `date` sont signalées, à qualifier. Rien si aucune.
+ */
+function sommesAvantFondsLegal(versements: VersementFondsTravaux[], lotId: string, date: string): AnomalieFondsTravauxLots[] {
+  const lues = somme(versements.filter((v) => v.lotId === lotId && v.date <= date))
+  if (lues === 0) return []
+  return [
+    {
+      code: 'sommes_avant_fonds_legal',
+      refId: lotId,
+      message: `Lot ${lotId} : ${lues} centimes lus sur les appels « Fonds travaux » au ${dateIsoVersFr(date)} ; avant le ${CREATION_FR}, ce ne sont pas des cotisations à un fonds de travaux légal (J67, R87) : part et cotisations non données, sommes à qualifier.`,
+    },
+  ]
+}
+
 export interface FondsTravauxMutation {
   lotId: string
   date: string
   compteVendeurId: string
-  /** Part rattachée au lot au jour de la mutation : inchangée par la mutation, elle suit le lot. */
+  /**
+   * Part rattachée au lot au jour de la mutation : inchangée par la mutation, elle suit le lot. Avant le 01/01/2017 : 0,
+   * aucun fonds légal, les sommes lues sont signalées (J67, R87) ; de même pour les deux montants suivants.
+   */
   partRattacheeCentimes: number
   /** Encaissements du compte vendeur sur le lot pendant sa présence continue, jusqu'à la mutation incluse, hors reprise. */
   verseParLeVendeurCentimes: number
@@ -1037,7 +1158,8 @@ export interface FondsTravauxMutation {
   postesAReattribuer: PosteAReattribuer[]
   /**
    * Anomalies de l'état par lot qui touchent ce lot (part négative, emploi non déduit, non couvert ou en excédent sur sa
-   * clé), et postes du vendeur dont les versements dépassent le réglé.
+   * clé, division sans répartition), postes du vendeur dont les versements dépassent le réglé, versements du vendeur sur
+   * un lot d'origine (J67, R89), sommes antérieures au 01/01/2017 (J67, R87).
    */
   anomalies: AnomalieFondsTravauxLots[]
   mention: string
@@ -1085,18 +1207,26 @@ export function fondsTravauxALaMutation({
   const vendeur = vendeurEnPlace(positions, lotId, ajouterJours(date, -1), `Mutation du lot ${lotId} : compte vendeur introuvable ou multiple la veille du ${dateIsoVersFr(date)}.`)
   const etat = partsFondsTravauxParLot({ versements, emplois, cles, date, mode, modificationsLots })
   const duLot = versements.filter((v) => v.lotId === lotId && v.date <= date)
-  const cession = CESSION[regimeCession(date, nbLotsPrincipaux)]
+  const regime = regimeCession(date, nbLotsPrincipaux)
+  const cession = CESSION[regime]
+  const sansFonds = regime === 'aucun_fonds'
+  const montant = (centimes: number): number => (sansFonds ? 0 : centimes)
   const cotisations = cotisationsALaMutation(postes, versements, lotId, vendeur.compteId, date)
   return {
     lotId,
     date,
     compteVendeurId: vendeur.compteId,
-    partRattacheeCentimes: etat.parts.find((p) => p.lotId === lotId)?.partCentimes ?? 0,
-    verseParLeVendeurCentimes: somme(duLot.filter((v) => v.source === 'encaissement' && v.compteId === vendeur.compteId && v.date >= vendeur.depuis)),
-    partRepriseCentimes: somme(duLot.filter((v) => v.source === 'reprise')),
+    partRattacheeCentimes: montant(etat.parts.find((p) => p.lotId === lotId)?.partCentimes ?? 0),
+    verseParLeVendeurCentimes: montant(somme(duLot.filter((v) => v.source === 'encaissement' && v.compteId === vendeur.compteId && v.date >= vendeur.depuis))),
+    partRepriseCentimes: montant(somme(duLot.filter((v) => v.source === 'reprise'))),
     cotisationsImpayeesVendeur: cotisations.impayees,
     postesAReattribuer: cotisations.aReattribuer,
-    anomalies: [...anomaliesDuLot(etat.anomalies, emplois, cles, lotId), ...cotisations.anomalies],
+    anomalies: [
+      ...anomaliesDuLot(etat.anomalies, emplois, cles, lotId),
+      ...cotisations.anomalies,
+      ...versementsDuVendeurSurLotsOrigine(modificationsLots, versements, lotId, vendeur.compteId, date),
+      ...(sansFonds ? sommesAvantFondsLegal(versements, lotId, date) : []),
+    ],
     mention: cession.mention,
     fondements: [...cession.fondements],
     aConfirmer: true,
@@ -1109,7 +1239,7 @@ export interface InformationsFondsTravauxAcquereur {
   /** Clôture de l'exercice dont les comptes ont été soumis à la dernière AG annuelle d'approbation avant la promesse. */
   dateArrete: string
   compteVendeurId: string
-  /** Part rattachée au lot à la date d'arrêté. */
+  /** Part rattachée au lot à la date d'arrêté ; promesse antérieure au 01/01/2017 : 0, aucun fonds légal (J67, R87). */
   partRattacheeCentimes: number
   /**
    * 🔴 Lecture « cotisation annuelle » (art. 14-2-1, I, al. 6), présentée en premier (J67, R109) : appels entièrement
@@ -1123,7 +1253,7 @@ export interface InformationsFondsTravauxAcquereur {
    */
   derniereCotisationVendeur: DerniereCotisation | null
   anomalies: AnomalieFondsTravauxLots[]
-  /** J67, R110 — lot annexe vendu seul : information donnée par prudence ; null sinon. */
+  /** J67, R110 — lot annexe vendu seul : information donnée par prudence ; null sinon, et sans fonds légal (J67, R87). */
   avertissement: string | null
   mention: string
   fondements: string[]
@@ -1176,14 +1306,18 @@ const REDACTIONS_RELUES: Record<Exclude<RedactionInformation, 'aucun_fonds'>, st
     "Rédaction issue de l'ordonnance n° 2015-1075 ou de la loi n° 2021-1104 selon le nombre de lots (art. 171, VII) : d) et alinéa suivant identiques dans les deux",
 }
 
-/** Fondement et mention de l'information selon la date de la promesse et le nombre de lots : rédaction relue, ou aucun fonds. */
-function fondementInformation(datePromesse: string, dateArrete: string, nbLots: number | null): { mention: string; fondements: string[] } {
+/**
+ * Fondement et mention de l'information selon la date de la promesse et le nombre de lots : rédaction relue, ou aucun
+ * fonds (`sansFonds` : promesse antérieure au 01/01/2017, J67, R87).
+ */
+function fondementInformation(datePromesse: string, dateArrete: string, nbLots: number | null): { mention: string; fondements: string[]; sansFonds: boolean } {
   const arrete = `Montants arrêtés au ${dateIsoVersFr(dateArrete)}, à jour des comptes soumis à l'assemblée générale annuelle précédant la promesse ; à remettre au plus tard à la signature de la promesse. ${DERNIERE_COTISATION_A_TRANCHER}`
   const redaction = redactionInformation(datePromesse, nbLots)
-  if (redaction !== 'aucun_fonds') return { mention: arrete, fondements: [D_ET_ALINEA_SUIVANT, REDACTIONS_RELUES[redaction]] }
+  if (redaction !== 'aucun_fonds') return { mention: arrete, fondements: [D_ET_ALINEA_SUIVANT, REDACTIONS_RELUES[redaction]], sansFonds: false }
   return {
     mention: `Aucun fonds de travaux légal à la date de la promesse : le fonds de travaux n'existe que depuis le ${CREATION_FR} (J67, R87) ; le d) du 2° de CCH art. L. 721-2 (« lorsque le syndicat dispose d'un fonds de travaux ») est sans objet.`,
     fondements: [FONDEMENT_CREATION_FONDS_TRAVAUX],
+    sansFonds: true,
   }
 }
 
@@ -1245,17 +1379,31 @@ export function informationsFondsTravauxAcquereur({
     dateArrete,
   )
   const derniere = plusRecenteDes(soldees)
-  const { mention, fondements } = fondementInformation(datePromesse, dateArrete, nbLotsPrincipaux)
-  const avertissement = lotAnnexe ? AVERTISSEMENT_LOT_ANNEXE : null
+  const { mention, fondements, sansFonds } = fondementInformation(datePromesse, dateArrete, nbLotsPrincipaux)
+  // J67, R87 : avant le 01/01/2017, ni part ni cotisation, et pas d'avertissement « lot annexe » (le d) est sans objet).
+  const lu = sansFonds
+    ? { part: 0, annuelle: null, derniere: null, avertissement: null, horsFonds: sommesAvantFondsLegal(versements, lotId, dateArrete) }
+    : {
+        part: etat.parts.find((p) => p.lotId === lotId)?.partCentimes ?? 0,
+        annuelle: cotisationAnnuelleSoldee(soldees, derniere, exercices),
+        derniere,
+        avertissement: lotAnnexe ? AVERTISSEMENT_LOT_ANNEXE : null,
+        horsFonds: [],
+      }
+  const { avertissement } = lu
   return {
     lotId,
     datePromesse,
     dateArrete,
     compteVendeurId: vendeur.compteId,
-    partRattacheeCentimes: etat.parts.find((p) => p.lotId === lotId)?.partCentimes ?? 0,
-    cotisationAnnuelleVendeur: cotisationAnnuelleSoldee(soldees, derniere, exercices),
-    derniereCotisationVendeur: derniere,
-    anomalies: anomaliesDuLot(etat.anomalies, emplois, cles, lotId),
+    partRattacheeCentimes: lu.part,
+    cotisationAnnuelleVendeur: lu.annuelle,
+    derniereCotisationVendeur: lu.derniere,
+    anomalies: [
+      ...anomaliesDuLot(etat.anomalies, emplois, cles, lotId),
+      ...versementsDuVendeurSurLotsOrigine(modificationsLots, versements, lotId, vendeur.compteId, dateArrete),
+      ...lu.horsFonds,
+    ],
     avertissement,
     mention: avertissement ? `${avertissement} ${mention}` : mention,
     fondements,

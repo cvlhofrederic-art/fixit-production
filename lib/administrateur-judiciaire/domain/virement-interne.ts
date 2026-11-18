@@ -91,7 +91,8 @@ import {
  *   en attente d'imputation et se solde à la clôture ou se justifie ligne à ligne (arrêté du 14 mars 2005, art. 7 et
  *   10) ; un décalage entre les deux relevés se voit au rapprochement bancaire. Le compte séparé rémunéré du fonds (L.
  *   1965 art. 18, II, al. 4) est une subdivision du 512 (arrêté du 14 mars 2005, art. 8 : « toute subdivision
- *   nécessaire »), comme chez Gestéam ; le 50 « Fonds placés » reste pour un vrai placement (D. 1967 art. 35-1).
+ *   nécessaire »), comme chez Gestéam ; le 50 « Fonds placés » reste pour un vrai placement (D. 1967 art. 35-1), non
+ *   pris en charge ici (ci-dessous).
  * - J67, R94 : le dépôt à la Caisse des dépôts des fonds de l'administrateur provisoire a pour fondement probable C. com.
  *   R. 814-41 (mandats « en matière civile » ; compte au nom de l'administrateur) ; « matière civile » : déduit, à
  *   confirmer ; le dépôt n'est pas présenté comme imposé par la loi de 1965 (art. 29-3, V le présuppose). Détail :
@@ -169,7 +170,10 @@ import {
  * - aucune famille d'annulation observée pour « Règlement de banque à banque » (relevé Gestéam à faire) : l'écriture
  *   contraire d'un virement rejeté (J68) prend « Annulation de règlements », la famille des règlements de factures ;
  *   annulerTraitement (traitements.ts) refuse toujours la contre-passation générale de ce traitement ; laquelle retenir ?
- * - que recouvre la famille « Ajustement bancaire fonds travaux » du référentiel (non observée) ? Non utilisée ici.
+ * - que recouvre la famille « Ajustement bancaire fonds travaux » du référentiel (non observée) ? Non utilisée ici ;
+ * - compte de placement (J71 compris) lu en sous-compte 512 (COMPTE_512), comme les placements de Gestéam (tranche 29) ;
+ *   un placement décidé par l'assemblée relève pourtant du 50 « Fonds placés » (D. 1967 art. 35-1) : classe 50 « Fonds
+ *   placés » (J67, R83) non prise en charge, à trancher (même marque dans fonds-detenus.ts).
  */
 
 /** Famille Gestéam du traitement d'un virement interne (référentiel FAMILLE_TRAITEMENT, bloc Règlements). */

@@ -30,9 +30,10 @@ import { refLoi1965 } from '@/lib/administrateur-judiciaire/domain/delais-legaux
  *   R. 814-41 (lu sur Légifrance le 17/11/2026, en vigueur depuis le 27/03/2007) : dans les mandats « en matière
  *   civile », les administrateurs judiciaires déposent à la Caisse des dépôts, sur un compte ouvert à leur nom, dès
  *   réception, tous les fonds reçus. Que l'administration provisoire de copropriété soit une mission « en matière
- *   civile » est déduit, à confirmer (C. com. R. 811-28-2 range ces actes dans la spécialité commerciale). L. 1965
- *   art. 29-3, V présuppose ce dépôt (aucune exécution sur ces sommes) : le dépôt n'est pas présenté comme imposé par la
- *   loi de 1965, et la pratique du cabinet (J37) reste un réglage. Aucun changement de comportement.
+ *   civile » est déduit, à confirmer (C. com. R. 811-28-2 range ces actes dans le stage de la spécialité commerciale
+ *   (note du point 72)). L. 1965 art. 29-3, V présuppose ce dépôt (aucune exécution sur ces sommes) : le dépôt n'est
+ *   pas présenté comme imposé par la loi de 1965, et la pratique du cabinet (J37) reste un réglage. Aucun changement de
+ *   comportement.
  * - J67, R95 : un compte à la Caisse des dépôts ne remplit probablement pas, à la lettre, l'obligation d'un compte séparé
  *   « au nom du syndicat » (L. 1965 art. 18, II, al. 3) : le compte de R. 814-41 est ouvert au nom de l'administrateur.
  *   Rien n'est imposé ni bloqué : une information accompagne les comptes actifs à la Caisse des dépôts

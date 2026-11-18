@@ -72,7 +72,8 @@ import type { NaturePlanComptable } from '@/lib/data/referentiels-gesteam-judici
  *   adoptés n'y entrent pas. L'entrée est renommée totalTravauxPlanAdopteCentimes ; calcul inchangé.
  * - J67, R85 : le minimum s'applique de plein droit, sans vote (« ne peut être inférieur à ») : au moins 5 % du budget
  *   voté et, avec un plan adopté, au moins 2,5 % de ses travaux, les deux à la fois ; seul un montant supérieur se vote
- *   (majorité de l'art. 25, I, al. 9) (cotisationAnnuelleDue). La suspension se vote à la majorité de l'art. 24 (le II ne
+ *   (majorité de l'art. 25, I, al. 9) (cotisationAnnuelleDue ; plan non renseigné : aConfirmer, et motif complété comme
+ *   l'anomalie plancher_ppt_a_verifier). La suspension se vote à la majorité de l'art. 24 (le II ne
  *   fixe pas de majorité), ou vient d'une ordonnance (art. 29-14, 1°, plan de sauvegarde) ; elle a un début et, si la
  *   décision la fixe, une fin. Votée sans période, elle dure jusqu'à l'assemblée générale annuelle suivante ; votée par
  *   l'assemblée, elle cesse dès qu'une condition du II n'est plus remplie, contrôlée à chaque exercice ; à sa fin, alerte
@@ -86,7 +87,11 @@ import type { NaturePlanComptable } from '@/lib/data/referentiels-gesteam-judici
  *   fonds-travaux-lots.ts ne remet rien à zéro). Immeuble de cinq à dix ans à l'entrée en vigueur : le fonds existant
  *   reste et ne sert qu'aux dépenses du I ; la cotisation n'est obligatoire qu'à dix ans (alerte
  *   immeuble_moins_de_dix_ans). Petite copropriété dispensée : aucun fonds avant l'entrée en vigueur, obligation ensuite
- *   (J4). Aucun texte transitoire lu : c'est une lecture, validée. Enregistrement de la dispense : à brancher.
+ *   (J4) ; la dispense « moins de dix lots » est refusée à partir de dix lots principaux. Nombre de lots inconnu : avant
+ *   le 01/01/2023, l'ancien art. 14-2 répond quel que soit ce nombre (seule la date d'une obligation à venir peut en
+ *   dépendre) ; ensuite, continuité et alerte dès que les cinq ans tombent avant le 01/01/2023. Avant le 01/01/2017, la
+ *   réponse « aucun fonds » ne dépend d'aucune autre donnée. Aucun texte transitoire lu : c'est une lecture, validée.
+ *   Enregistrement de la dispense : à brancher.
  *
  * 🔵 Déduit du texte (non écrit en toutes lettres) :
  * - le syndic décide seul des travaux urgents (art. 18), pas de l'usage du fonds : aucune disposition ne lui permet d'y
@@ -562,6 +567,12 @@ export const DISPENSES_ANCIEN_14_2 = {
 } as const satisfies Record<string, { libelle: string }>
 export type DispenseAncien14_2 = keyof typeof DISPENSES_ANCIEN_14_2
 
+/**
+ * J67, R86 — ancien art. 14-2, II : la dispense par décision unanime n'est ouverte qu'à l'immeuble de « moins de dix lots ».
+ * Les lots principaux comptent parmi les lots de l'immeuble : à partir de ce nombre de lots principaux, elle est impossible.
+ */
+export const LOTS_FERMANT_DISPENSE_ANCIEN_14_2 = 10
+
 export interface SaisieObligationFondsTravaux {
   /** Immeuble à destination totale ou partielle d'habitation ; null si non renseigné. */
   destinationHabitation: boolean | null
@@ -627,6 +638,27 @@ const estDispense = (ctx: ContexteObligation): boolean => ctx.dispense !== null 
 const finDixAns = (ctx: ContexteObligation): string => ajouterMois(ctx.reception, 12 * ANNEES_AVANT_FONDS_TRAVAUX)
 const finCinqAns = (ctx: ContexteObligation): string => ajouterMois(ctx.reception, 12 * ANNEES_AVANT_FONDS_ANCIEN_14_2)
 const SANS_DISPENSE = " Aucune dispense : celles de l'ancien art. 14-2 (moins de dix lots, DTG sans besoin de travaux) ont disparu."
+/** Obligation de l'ancien art. 14-2 : cinq ans après la réception, au plus tôt à la création du fonds légal. */
+const debutAncien14_2 = (ctx: ContexteObligation): string => plusTardive(CREATION_FONDS_TRAVAUX, finCinqAns(ctx))
+const libelleDispense = (ctx: ContexteObligation): string => DISPENSES_ANCIEN_14_2[ctx.dispense as DispenseAncien14_2].libelle
+/**
+ * J67, R86 (b) — un fonds a pu être constitué sous l'ancien art. 14-2 : cinq ans atteints avant l'entrée en vigueur
+ * `entree` de l'art. 14-2-1, sans dispense.
+ */
+const fondsAncienPossible = (ctx: ContexteObligation, entree: string): boolean => !estDispense(ctx) && finCinqAns(ctx) < entree
+const CONTINUITE_FONDS_ANCIEN = " Le fonds constitué sous l'ancien art. 14-2 continue tel quel (mêmes parts par lot)."
+const RENSEIGNER_LOTS = 'renseigner le nombre de lots à usage de logements, de bureaux ou de commerces'
+const PLAGE_ENTREES = `entre le ${dateIsoVersFr(PREMIERE_ENTREE)} et le ${dateIsoVersFr(DERNIERE_ENTREE)}, selon le nombre de lots`
+
+/**
+ * J67, R86 (c) — immeuble de moins de dix ans à l'entrée en vigueur de l'art. 14-2-1 (`quand` : sa date, ou la plage selon
+ * le nombre de lots) : le fonds de l'ancien régime reste ; la cotisation n'est obligatoire qu'à dix ans, le `depuis`.
+ */
+const alerteMoinsDeDixAns = (quand: string, depuis: string): AlerteObligationFondsTravaux => ({
+  code: 'immeuble_moins_de_dix_ans',
+  message: `Immeuble de moins de dix ans à l'entrée en vigueur de l'art. 14-2-1 (${quand}) : le fonds constitué sous l'ancien art. 14-2, s'il existe, reste au syndicat, tel quel (mêmes parts par lot), et ne sert qu'aux dépenses de l'art. 14-2-1, I ; la cotisation n'est obligatoire qu'à dix ans, le ${dateIsoVersFr(depuis)} (J67, R86).`,
+  fondement: FONDEMENT_I_ET_III,
+})
 
 function verifierSaisieObligation(saisie: SaisieObligationFondsTravaux, date: string): void {
   if (!estDateIsoValide(date)) throw new Error(`Date invalide (${date}) : AAAA-MM-JJ attendu.`)
@@ -641,6 +673,10 @@ function verifierSaisieObligation(saisie: SaisieObligationFondsTravaux, date: st
   const dispense = saisie.dispenseAncien14_2 ?? null
   if (dispense !== null && dispense !== 'aucune' && !Object.hasOwn(DISPENSES_ANCIEN_14_2, dispense))
     throw new Error(`Dispense de l'ancien art. 14-2 inconnue : « ${dispense} ».`)
+  if (dispense === 'moins_de_dix_lots_unanimite' && nbLotsPrincipaux !== null && nbLotsPrincipaux >= LOTS_FERMANT_DISPENSE_ANCIEN_14_2)
+    throw new Error(
+      `Dispense de l'ancien art. 14-2 « ${DISPENSES_ANCIEN_14_2.moins_de_dix_lots_unanimite.libelle} » impossible avec ${nbLotsPrincipaux} lots principaux : ils comptent parmi les lots de l'immeuble.`,
+    )
 }
 
 /** Réception connue, ou supposée au 31/12 de l'année de construction ; null sans l'une ni l'autre. */
@@ -666,16 +702,14 @@ function obligationAncien14_2(ctx: ContexteObligation, entree: string): Obligati
   const supposee = ctx.receptionSupposee !== ''
   const depuisNouveau = plusTardive(entree, finDixAns(ctx))
   const nouveau = `obligatoire le ${dateIsoVersFr(depuisNouveau)}, sous l'art. 14-2-1 (entrée en vigueur le ${dateIsoVersFr(entree)}, ${ANNEES_AVANT_FONDS_TRAVAUX} ans après la réception)`
-  if (estDispense(ctx)) {
-    const libelle = DISPENSES_ANCIEN_14_2[ctx.dispense as DispenseAncien14_2].libelle
+  if (estDispense(ctx))
     return reponse('ancien_14_2', {
       obligatoire: false,
       depuis: depuisNouveau,
       aConfirmer: supposee,
-      motif: `Aucun fonds obligatoire avant le ${dateIsoVersFr(entree)} : dispense de l'ancien art. 14-2 (${libelle}) ; ensuite, plus aucune dispense : ${nouveau}.${ctx.receptionSupposee}`,
+      motif: `Aucun fonds obligatoire avant le ${dateIsoVersFr(entree)} : dispense de l'ancien art. 14-2 (${libelleDispense(ctx)}) ; ensuite, plus aucune dispense : ${nouveau}.${ctx.receptionSupposee}`,
     })
-  }
-  const depuisAncien = plusTardive(CREATION_FONDS_TRAVAUX, finCinqAns(ctx))
+  const depuisAncien = debutAncien14_2(ctx)
   if (depuisAncien >= entree)
     return reponse('ancien_14_2', {
       obligatoire: false,
@@ -710,26 +744,16 @@ function obligationArt14_2_1(ctx: ContexteObligation, entree: string): Obligatio
   const fin = finDixAns(ctx)
   const depuis = plusTardive(entree, fin)
   const supposee = ctx.receptionSupposee !== ''
-  const fondsAncien = !estDispense(ctx) && finCinqAns(ctx) < entree
+  const fondsAncien = fondsAncienPossible(ctx, entree)
   const detail = `le plus tardif entre l'entrée en vigueur (${dateIsoVersFr(entree)}) et la fin des ${ANNEES_AVANT_FONDS_TRAVAUX} ans après la réception (${dateIsoVersFr(fin)})`
-  if (ctx.date >= depuis) {
-    const continuite = fondsAncien ? " Le fonds constitué sous l'ancien art. 14-2 continue tel quel (mêmes parts par lot)." : ''
+  if (ctx.date >= depuis)
     return reponse('art_14_2_1', {
       obligatoire: true,
       depuis,
       aConfirmer: supposee,
-      motif: `Fonds de travaux obligatoire depuis le ${dateIsoVersFr(depuis)} (${detail}).${SANS_DISPENSE}${continuite}${ctx.receptionSupposee}`,
+      motif: `Fonds de travaux obligatoire depuis le ${dateIsoVersFr(depuis)} (${detail}).${SANS_DISPENSE}${fondsAncien ? CONTINUITE_FONDS_ANCIEN : ''}${ctx.receptionSupposee}`,
     })
-  }
-  const alertes: AlerteObligationFondsTravaux[] = fondsAncien
-    ? [
-        {
-          code: 'immeuble_moins_de_dix_ans',
-          message: `Immeuble de moins de dix ans à l'entrée en vigueur de l'art. 14-2-1 (le ${dateIsoVersFr(entree)}) : le fonds constitué sous l'ancien art. 14-2, s'il existe, reste au syndicat, tel quel (mêmes parts par lot), et ne sert qu'aux dépenses de l'art. 14-2-1, I ; la cotisation n'est obligatoire qu'à dix ans, le ${dateIsoVersFr(depuis)} (J67, R86).`,
-          fondement: FONDEMENT_I_ET_III,
-        },
-      ]
-    : []
+  const alertes = fondsAncien ? [alerteMoinsDeDixAns(`le ${dateIsoVersFr(entree)}`, depuis)] : []
   return reponse(
     'art_14_2_1',
     {
@@ -742,11 +766,37 @@ function obligationArt14_2_1(ctx: ContexteObligation, entree: string): Obligatio
   )
 }
 
-/** Nombre de lots inconnu : l'entrée en vigueur se situe entre le 01/01/2023 et le 01/01/2025. */
+/**
+ * J67, R86 (a) — nombre de lots inconnu, avant le 01/01/2023 : l'ancien art. 14-2 s'applique, quel que soit ce nombre,
+ * puisque l'art. 14-2-1 n'entre en vigueur qu'à partir de cette date. Cinq ans atteints avant le 01/01/2023, sans dispense :
+ * la réponse ne dépend pas du nombre de lots. Sinon (dispense, ou cinq ans atteints le 01/01/2023 ou après), le fonds
+ * n'est pas obligatoire à la date ; seule la date à laquelle il le deviendra dépend du nombre de lots.
+ */
+function obligationAncienLotsInconnus(ctx: ContexteObligation): ObligationFondsTravaux {
+  const depuisAncien = debutAncien14_2(ctx)
+  if (!estDispense(ctx) && depuisAncien < PREMIERE_ENTREE) return obligationAncien14_2(ctx, PREMIERE_ENTREE)
+  const raison = estDispense(ctx)
+    ? `dispense de l'ancien art. 14-2 (${libelleDispense(ctx)}), jusqu'à l'entrée en vigueur de l'art. 14-2-1`
+    : `les cinq ans de l'ancien art. 14-2 ne sont atteints que le ${dateIsoVersFr(depuisAncien)}`
+  return reponse('ancien_14_2', {
+    obligatoire: false,
+    depuis: null,
+    aConfirmer: true,
+    motif: `Fonds de travaux pas obligatoire au ${dateIsoVersFr(ctx.date)} : ${raison}. La date à laquelle il le deviendra dépend de l'entrée en vigueur de l'art. 14-2-1 (${PLAGE_ENTREES}) : ${RENSEIGNER_LOTS}.${ctx.receptionSupposee}`,
+  })
+}
+
+/**
+ * Nombre de lots inconnu : l'entrée en vigueur se situe entre le 01/01/2023 et le 01/01/2025. Cinq ans atteints avant le
+ * 01/01/2023, sans dispense : un fonds a pu être constitué sous l'ancien art. 14-2, quel que soit ce nombre (J67, R86 :
+ * continuité, alerte « immeuble de moins de dix ans »).
+ */
 function obligationLotsInconnus(ctx: ContexteObligation): ObligationFondsTravaux {
+  if (ctx.date < PREMIERE_ENTREE) return obligationAncienLotsInconnus(ctx)
   const fin = finDixAns(ctx)
   const auPlusTard = plusTardive(DERNIERE_ENTREE, fin)
   const supposee = ctx.receptionSupposee !== ''
+  const fondsAncien = fondsAncienPossible(ctx, PREMIERE_ENTREE)
   if (ctx.date >= auPlusTard) {
     const incertain = plusTardive(PREMIERE_ENTREE, fin) !== auPlusTard
     const lots = ' (nombre de lots à usage de logements, de bureaux ou de commerces non renseigné)'
@@ -754,32 +804,40 @@ function obligationLotsInconnus(ctx: ContexteObligation): ObligationFondsTravaux
       obligatoire: true,
       depuis: auPlusTard,
       aConfirmer: incertain || supposee,
-      motif: `Fonds de travaux obligatoire ${incertain ? 'au plus tard ' : ''}depuis le ${dateIsoVersFr(auPlusTard)}${incertain ? lots : ''}.${SANS_DISPENSE}${ctx.receptionSupposee}`,
+      motif: `Fonds de travaux obligatoire ${incertain ? 'au plus tard ' : ''}depuis le ${dateIsoVersFr(auPlusTard)}${incertain ? lots : ''}.${SANS_DISPENSE}${fondsAncien ? CONTINUITE_FONDS_ANCIEN : ''}${ctx.receptionSupposee}`,
     })
-  }
-  if (ctx.date < PREMIERE_ENTREE) {
-    // Avant le 01/01/2023, l'ancien art. 14-2 s'applique quel que soit le nombre de lots ; une obligation déjà née est sûre.
-    const ancien = obligationAncien14_2(ctx, PREMIERE_ENTREE)
-    if (ancien.obligatoire === true) return ancien
   }
   if (ctx.date < DERNIERE_ENTREE)
     return reponse(null, {
       obligatoire: null,
       depuis: null,
       aConfirmer: true,
-      motif: `Entre le ${dateIsoVersFr(PREMIERE_ENTREE)} et le ${dateIsoVersFr(DERNIERE_ENTREE)}, l'ancien art. 14-2 ou l'art. 14-2-1 s'applique selon le nombre de lots : renseigner le nombre de lots à usage de logements, de bureaux ou de commerces.${ctx.receptionSupposee}`,
+      motif: `Entre le ${dateIsoVersFr(PREMIERE_ENTREE)} et le ${dateIsoVersFr(DERNIERE_ENTREE)}, l'ancien art. 14-2 ou l'art. 14-2-1 s'applique selon le nombre de lots : ${RENSEIGNER_LOTS}.${ctx.receptionSupposee}`,
     })
-  return reponse('art_14_2_1', {
-    obligatoire: false,
-    depuis: fin,
-    aConfirmer: supposee,
-    motif: `Fonds de travaux pas encore obligatoire : il le sera le ${dateIsoVersFr(fin)}, ${ANNEES_AVANT_FONDS_TRAVAUX} ans après la réception.${ctx.receptionSupposee}`,
-  })
+  // Depuis le 01/01/2025, l'art. 14-2-1 est en vigueur quel que soit le nombre de lots, et les dix ans ne sont pas atteints.
+  return reponse(
+    'art_14_2_1',
+    {
+      obligatoire: false,
+      depuis: fin,
+      aConfirmer: supposee,
+      motif: `Fonds de travaux pas encore obligatoire : il le sera le ${dateIsoVersFr(fin)}, ${ANNEES_AVANT_FONDS_TRAVAUX} ans après la réception.${ctx.receptionSupposee}`,
+    },
+    fondsAncien ? [alerteMoinsDeDixAns(PLAGE_ENTREES, fin)] : [],
+  )
 }
 
 /** Le syndicat doit-il constituer un fonds de travaux à la date `date` ? Régime à la date et alertes (J67, R86). */
 export function obligationFondsTravaux(saisie: SaisieObligationFondsTravaux, date: string): ObligationFondsTravaux {
   verifierSaisieObligation(saisie, date)
+  // Avant le 01/01/2017, aucun fonds légal : la réponse ne dépend ni de la destination, ni de la réception (J67, R86 et R87).
+  if (date < CREATION_FONDS_TRAVAUX)
+    return reponse('aucun_fonds', {
+      obligatoire: false,
+      depuis: null,
+      aConfirmer: false,
+      motif: `Aucun fonds de travaux légal avant le ${dateIsoVersFr(CREATION_FONDS_TRAVAUX)} (J67, R86).`,
+    })
   if (saisie.destinationHabitation === false)
     return reponse(null, { obligatoire: false, depuis: null, aConfirmer: false, motif: "Immeuble sans destination d'habitation : le fonds de travaux n'est pas obligatoire." })
   if (saisie.destinationHabitation === null)
@@ -796,13 +854,6 @@ export function obligationFondsTravaux(saisie: SaisieObligationFondsTravaux, dat
       depuis: null,
       aConfirmer: true,
       motif: `Date de réception des travaux de construction à renseigner : le fonds est obligatoire ${ANNEES_AVANT_FONDS_TRAVAUX} ans après.`,
-    })
-  if (date < CREATION_FONDS_TRAVAUX)
-    return reponse('aucun_fonds', {
-      obligatoire: false,
-      depuis: null,
-      aConfirmer: false,
-      motif: `Aucun fonds de travaux légal avant le ${dateIsoVersFr(CREATION_FONDS_TRAVAUX)} (J67, R86).`,
     })
   if (saisie.nbLotsPrincipaux === null) return obligationLotsInconnus(ctx)
   const entree = entreeEnVigueur(saisie.nbLotsPrincipaux)
@@ -874,7 +925,12 @@ export interface CotisationDue {
   minimum: CotisationMinimale
   motif: string
   fondement: string
+  /** Plan pluriannuel non renseigné : le plancher de 2,5 % de ses travaux n'a pas pu être pris en compte (minimum.aConfirmer). */
+  aConfirmer: boolean
 }
+
+/** Plan non renseigné : le plancher de 2,5 % reste à vérifier (cotisation due, contrôle de la cotisation votée). */
+const PLANCHER_PPT_A_VERIFIER = "Plan pluriannuel de travaux non renseigné : s'il est adopté, la cotisation annuelle doit aussi atteindre 2,5 % de ses travaux."
 
 /**
  * J67, R85 — cotisation annuelle due pour un exercice : le minimum s'applique de plein droit, sans vote (« ne peut être
@@ -886,13 +942,15 @@ export function cotisationAnnuelleDue(assiette: AssietteCotisationFondsTravaux, 
   if (montantVoteCentimes !== null) verifierCentimes(montantVoteCentimes, false)
   const minimum = cotisationMinimaleFondsTravaux(assiette)
   const plancher = `${eur(minimum.minimumCentimes)} (${libellePlancher(minimum)})`
+  const reserve = minimum.aConfirmer ? ` ${PLANCHER_PPT_A_VERIFIER}` : ''
+  const commun = { minimum, fondement: FONDEMENT_I, aConfirmer: minimum.aConfirmer }
   if (montantVoteCentimes !== null && montantVoteCentimes >= minimum.minimumCentimes)
-    return { cotisationCentimes: montantVoteCentimes, origine: 'vote', minimum, motif: `Montant voté de ${eur(montantVoteCentimes)}, au moins égal au minimum légal de ${plancher}.`, fondement: FONDEMENT_I }
+    return { ...commun, cotisationCentimes: montantVoteCentimes, origine: 'vote', motif: `Montant voté de ${eur(montantVoteCentimes)}, au moins égal au minimum légal de ${plancher}.${reserve}` }
   const motif =
     montantVoteCentimes === null
       ? `Aucun montant voté : le minimum légal de ${plancher} est dû de plein droit, sans vote.`
       : `Montant voté de ${eur(montantVoteCentimes)} inférieur au minimum légal : le minimum de ${plancher} reste dû, de plein droit, sans vote.`
-  return { cotisationCentimes: minimum.minimumCentimes, origine: 'minimum_de_plein_droit', minimum, motif, fondement: FONDEMENT_I }
+  return { ...commun, cotisationCentimes: minimum.minimumCentimes, origine: 'minimum_de_plein_droit', motif: `${motif}${reserve}` }
 }
 
 const MAJORITES_DE_TOUS: readonly TypeMajorite[] = ['art25', 'art26', 'unanimite']
@@ -1017,7 +1075,7 @@ export function controlerCotisationFondsTravaux(
   else if (minimum.aConfirmer)
     anomalies.push({
       code: 'plancher_ppt_a_verifier',
-      message: `Plan pluriannuel de travaux non renseigné : s'il est adopté, la cotisation annuelle doit aussi atteindre 2,5 % de ses travaux.`,
+      message: PLANCHER_PPT_A_VERIFIER,
       fondement: FONDEMENT_I,
       aConfirmer: true,
     })
