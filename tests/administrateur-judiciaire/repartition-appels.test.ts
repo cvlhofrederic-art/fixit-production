@@ -124,6 +124,12 @@ describe('avis d’appel par compte (D2)', () => {
     expect(traitement.mouvements.at(-1)).toMatchObject({ compte: 'TILL.10500.00000.0', sens: 'credit', montantCentimes: 100_000 })
   })
 
+  it('appel de travaux sans compte propre : crédit du 102 « Provisions pour travaux décidés » (arrêté du 14 mars 2005, art. 10 ; J67, R61)', () => {
+    const avis = avisDAppel({ echeances: [{ ...echeances[1], nature: 'travaux', id: 'e-TX' }], cles: [cle], positions, comptes })
+    const traitement = traitementAppelDeFonds(avis, { id: 't-tx', date: '2026-03-20', segmentSyndicat: 'TILL', comptes })
+    expect(traitement.mouvements.at(-1)).toMatchObject({ compte: 'TILL.10200.00000.0', sens: 'credit', montantCentimes: 100_000 })
+  })
+
   it('refuse d’écrire un appel qui comporte des anomalies', () => {
     const avis = avisDAppel({ echeances: [echeances[0]], cles: [cle], positions: [], comptes })
     expect(() => traitementAppelDeFonds(avis, { id: 't', date: '2026-01-01', segmentSyndicat: 'TILL', comptes })).toThrow(/anomalie/i)

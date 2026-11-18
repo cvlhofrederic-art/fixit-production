@@ -11,6 +11,7 @@ import {
 } from '@/lib/administrateur-judiciaire/domain/facture-ventilee'
 import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
 import type { ReglementFournisseur } from '@/lib/administrateur-judiciaire/domain/reglements-fournisseurs'
+import type { ApprobationComptes } from '@/lib/administrateur-judiciaire/domain/regularisation-charges'
 import type { ElementAFaire } from '@/lib/administrateur-judiciaire/domain/suivi-a-faire'
 import { creerTraitement, estPourcentage, type LiensMouvement, type Traitement } from '@/lib/administrateur-judiciaire/domain/traitements'
 import { reglementsDeLOperation, type OperationTravaux } from '@/lib/administrateur-judiciaire/domain/travaux-operations'
@@ -66,6 +67,37 @@ import { reglementsDeLOperation, type OperationTravaux } from '@/lib/administrat
  *   Non trouvé dans l'art. 31 : la retenue de garantie ; qui établit la part déductible ; une obligation du syndic de la
  *   communiquer aux bailleurs.
  *
+ * Décisions de Hugo du 17/11/2026 (registre des décisions juridiques, J67 et J70 : recommandations validées en bloc ;
+ * textes relus sur Légifrance le 17/11/2026 : loi n° 71-584, art. 1er, 2 et 3 ; arrêté du 14 mars 2005, art. 3 ; CPC
+ * art. 640 à 642 et 668 ; CGI art. 31, I, 1° ; Cass. 3e civ., 22/09/2004, n° 03-12.639, 13/04/2010, n° 09-11.173, et
+ * 09/02/2000, n° 98-15.139) :
+ * - J67, R62 : la retenue et son plafond de 5 % se calculent sur le TTC de chaque situation (art. 1er : « au plus à 5 p.
+ *   100 de leur montant » ; le syndicat, non assujetti, enregistre TTC : arrêté, art. 3) ; le taux du marché, s'il est
+ *   plus faible, s'applique ; code confirmé ;
+ * - J67, R63 : échéance au même quantième un an après la réception, somme à libérer le lendemain, sans report au jour
+ *   ouvrable (code gardé ; la variante du lendemain, sans base, reste une simple information du suivi et quitte le
+ *   libellé de l'échéance) ; l'opposition est à temps si la lettre a été présentée (ou remise) à la caution ou au
+ *   consignataire au plus tard le jour de l'échéance (notifieeLe) ; envoyée à temps (envoyeeLe) mais présentée après :
+ *   « opposition peut-être tardive, à confirmer », ni blocage ni libération automatiques ; destinataire saisi qui n'est
+ *   ni la caution ni le consignataire : alerte ; rappel « opposition à envoyer » avant l'échéance, au réglage du cabinet
+ *   (delaiRappelOppositionJours) ; la marque « à confirmer » reste ;
+ * - J67, R64 : une opposition notifiée avant la réception, ou sans réception datée, n'a pas de validité établie : plus de
+ *   blocage automatique ; alerte pour la notifier de nouveau dès la réception datée, avant l'échéance ; à l'échéance,
+ *   sans nouvelle opposition, ni blocage ni libération automatiques : la libération demande une confirmation motivée et
+ *   tracée du gestionnaire (ConfirmationLiberation, portée sur la restitution) ; l'opposition remplacée reste tracée
+ *   (oppositionsPrecedentes) ; la marque « à confirmer » reste ;
+ * - J67, R65 : une caution fournie en cours de chantier n'oblige pas à rendre les retenues déjà faites ; leur restitution
+ *   avant l'expiration reste une mainlevée anticipée, en information, qui rappelle Cass. 3e civ., 09/02/2000 ; ajout de
+ *   l'historique daté des cautions (cautions : montant, date de fourniture, établissement) : la condition « pour un
+ *   montant égal » se juge à la date de chaque facture avec la caution alors fournie ;
+ * - J67, R66 : aucun texte n'impose au syndic de communiquer la part déductible : « à la demande » gardé ; vue par
+ *   exercice approuvé et par lot (partsDeductiblesDeLExercice : provisions pour travaux appelées, part déductible, part
+ *   non déductible), répartition inchangée (charges de chaque copropriétaire dans l'opération), mention gardée ;
+ * - J70 (Q3) : caution inférieure à la retenue stipulée : par défaut, la retenue stipulée est pratiquée en entier, avec
+ *   l'alerte « caution insuffisante » ; la seule différence (retenue stipulée − caution, au prorata de la facture) est
+ *   permise marché par marché, avec un motif enregistré (retenueLimiteeALaDifference) : l'alerte devient alors une
+ *   information qui rappelle le motif.
+ *
  * Règles :
  * - garantie du marché : retenue (taux stipulé, 5 % au plus, art. 1er, al. 1), caution ou aucune ; sous caution, la
  *   retenue reste stipulée (taux exigé aussi) et « n'est pas pratiquée » si la caution est fournie « pour un montant
@@ -76,9 +108,10 @@ import { reglementsDeLOperation, type OperationTravaux } from '@/lib/administrat
  *   (facture-ventilee.ts, retenueAuDelaDuPlafond) ;
  * - délai d'un an « à compter de la date de réception, faite avec ou sans réserve » (art. 2) : sans réception datée, pas
  *   d'échéance ; des réserves à la réception ne changent pas le délai (gardées pour l'information) ; l'opposition se
- *   saisit avec sa date de notification et son motif (« motivée par l'inexécution des obligations de l'entrepreneur »),
- *   et sa mainlevée (date et origine : amiable ou décision de justice) : l'art. 2 verse les sommes « même en l'absence
- *   de mainlevée » faute d'opposition, la mainlevée est donc l'issue d'une opposition notifiée ;
+ *   saisit avec sa date de présentation (ou de remise), sa date d'envoi et son destinataire (J67, R63), son motif
+ *   (« motivée par l'inexécution des obligations de l'entrepreneur »), et sa mainlevée (date et origine : amiable ou
+ *   décision de justice) : l'art. 2 verse les sommes « même en l'absence de mainlevée » faute d'opposition, la mainlevée
+ *   est donc l'issue d'une opposition notifiée ;
  * - consignation (art. 1er, al. 2 et 3) : consigné inférieur au retenu → avertissement ;
  * - saisies contrôlées : factures (TTC en centimes entiers strictement positifs, date AAAA-MM-JJ du calendrier),
  *   consignations et restitutions (montant en centimes entiers strictement positifs, date AAAA-MM-JJ du calendrier) ;
@@ -90,7 +123,8 @@ import { reglementsDeLOperation, type OperationTravaux } from '@/lib/administrat
  *   retirés du réglé, du marché comme du pied de l'opération (le réglé fourni à suiviRetenueMarche s'entend sans eux) ;
  * - suivi par marché (Gestéam « Garantie (taux, montant, restituée) », pied « Garantie · Réglé · Dû ») : facturé,
  *   retenu, consigné, restitué et date de la dernière restitution, reste retenu, réglé fourni, dû, dernier avancement,
- *   expiration du délai (et sa variante du lendemain, rendue à côté), opposition, état ; anomalies au format du point 31
+ *   expiration du délai (et, en simple information, sa variante du lendemain), opposition, état ; anomalies au format
+ *   du point 31
  *   (code, gravité, message, fondement, aConfirmer) avec l'objet concerné ;
  * - pied de l'opération (garantieDeLOperation, « Budget / Fact. · Garantie · Réglé · Dû ») : facturé de toutes les
  *   factures de l'opération (hors marché comprises), garantie restant retenue, réglé des règlements de l'opération
@@ -101,15 +135,17 @@ import { reglementsDeLOperation, type OperationTravaux } from '@/lib/administrat
  *   retenue stipulée ; entrée d'ecritureFactureVentilee ;
  * - écritures : la facture (facture-ventilee.ts) crédite le 401 de son montant entier (arrêté, art. 10) puis fait passer
  *   la retenue au 47200 ; la libération la ramène du 47200 au 401 du fournisseur (« Saisie de mouvements »), réglée
- *   ensuite comme toute facture (reglements-fournisseurs.ts) ; refusée au-delà du reste retenu, sous opposition en cours
- *   à sa date (sans mainlevée), sans rien de retenu sur un marché qui ne pratique pas la retenue, ou tant que le suivi
+ *   ensuite comme toute facture (reglements-fournisseurs.ts) ; refusée au-delà du reste retenu, sous opposition à temps
+ *   en cours à sa date (sans mainlevée), sous une opposition de validité non établie sans la confirmation du gestionnaire
+ *   (J67, R63 et R64), sans rien de retenu sur un marché qui ne pratique pas la retenue, ou tant que le suivi
  *   porte une saisie écartée qui fausse le reste retenu (resteRetenuFaussePar : facture invalide portant une retenue,
  *   retenue invalide, restitution au montant invalide) ; une retenue pratiquée avant une caution, ou malgré elle, est au
  *   47200 et reste libérable ;
  * - échéance de libération pour le suivi « à faire » (echeancesLiberationGarantie) : à l'expiration du délai ; une
- *   retenue tant qu'il en reste à restituer, une caution jusqu'à l'expiration ; sous opposition en cours, l'élément
- *   reste (« sous opposition depuis le … ») jusqu'à la mainlevée ; une saisie écartée qui fausse le reste retenu est
- *   rappelée au libellé (libération suspendue jusqu'à sa correction) ;
+ *   retenue tant qu'il en reste à restituer, une caution jusqu'à l'expiration ; sous opposition à temps en cours,
+ *   l'élément reste (« sous opposition depuis le … ») jusqu'à la mainlevée ; sous une opposition de validité non établie,
+ *   il demande la confirmation du gestionnaire ; une saisie écartée qui fausse le reste retenu est rappelée au libellé
+ *   (libération suspendue jusqu'à sa correction) ; rappel « opposition à envoyer » au réglage du cabinet (J67, R63) ;
  * - total à passer au retour après rejet d'un virement (statuts-facture.ts, J9) quand le reste dû est net de la
  *   retenue : TTC − retenue (baseRetourApresRejet) ;
  * - part déductible : saisie par marché (Gestéam « Déduction fiscale € »), au plus le montant du marché, avec sa
@@ -117,35 +153,30 @@ import { reglementsDeLOperation, type OperationTravaux } from '@/lib/administrat
  *   agrandissement : exclue du b) ; répartie entre les copropriétaires au prorata de leurs charges de l'opération (plus
  *   forts restes), rendue pour les bailleurs avec la part non déductible (a quater : provisions déduites puis diminuées
  *   de la part non déductible) et une mention : information du cabinet, à apprécier par le copropriétaire selon son
- *   régime d'imposition.
+ *   régime d'imposition ; par opération, et par exercice approuvé et par lot (J67, R66).
  *
  * 🔵 Déduit :
  * - expiration du délai d'un an : même quantième un an après la réception (dernier jour du mois s'il n'existe pas,
- *   ajouterMois), la plus courte des deux lectures, donc la plus prudente pour l'opposition (comme J1 retient la date
- *   la plus courte) ; la variante d'un délai parti du lendemain de la réception (J1 pour l'art. 42, par analogie) est
- *   rendue à côté (expirationSiDepartLendemainLe) et au libellé de l'échéance, jamais retenue ; l'opposition notifiée le
- *   jour de l'expiration est dans le délai ; la retenue est « à libérer » le lendemain ; une opposition notifiée après
- *   n'empêche pas la libération (art. 2 : versées « si le maître de l'ouvrage n'a pas notifié ») : avertissement ;
- * - l'opposition retient la garantie de sa notification à sa mainlevée (le jour de la mainlevée, elle ne retient plus) ;
- *   la mainlevée se date au plus tôt le jour de l'opposition ;
- * - une opposition notifiée avant la réception, ou sans réception datée, est saisie et signalée (avertissement, à
- *   confirmer) : l'art. 2 fait courir le délai de la réception mais ne fixe aucun point de départ à la notification ;
- *   VitFix la tient pour notifiée dans le délai (question ci-dessous) : sans réception datée, l'opposition est dans le
- *   délai, et elle retient la garantie dès sa notification jusqu'à sa mainlevée (état « opposition », libération
- *   refusée, restitution « malgré l'opposition »), comme sous une réception datée ;
- * - une caution inférieure à la retenue stipulée ne remplit pas la condition « pour un montant égal » : avertissement,
- *   et la retenue stipulée se pratique (au taux du marché) ; la retenue stipulée est le taux du marché appliqué à son
- *   montant TTC, suppléments compris ;
+ *   ajouterMois ; J67, R63) ; la retenue est « à libérer » le lendemain ; une opposition présentée après n'empêche pas
+ *   la libération (art. 2 : versées « si le maître de l'ouvrage n'a pas notifié ») : avertissement ;
+ * - l'opposition à temps retient la garantie de sa présentation à sa mainlevée (le jour de la mainlevée, elle ne retient
+ *   plus) ; la mainlevée se date au plus tôt le jour de l'opposition ; une opposition peut-être tardive vaut, pour la
+ *   confirmation qu'elle demande, dès son envoi ;
+ * - la retenue stipulée est le taux du marché appliqué à son montant TTC, suppléments compris ;
  * - caution fournie en cours de marché (al. 4, substitution, ou marché passé de la retenue à la caution) : elle vaut pour
  *   les factures datées du jour de sa fourniture ou après (la date de la facture tient lieu de celle du paiement de
  *   l'acompte) ; les retenues déjà pratiquées ne sont pas requalifiées, restent au 47200 et se libèrent (avant
- *   l'expiration : mainlevée anticipée, information) ; seule la caution actuelle est suivie (montant, date), une
- *   caution antérieure ne l'est pas ;
+ *   l'expiration : mainlevée anticipée, information) ; sans historique saisi, la caution actuelle tient lieu
+ *   d'historique (J67, R65) ;
+ * - différence de la retenue avec la caution (J70) : la retenue stipulée moins la caution fournie à la date de la
+ *   facture, répartie au prorata du TTC de la facture sur le montant du marché (plus forts restes), au plus la retenue
+ *   au taux ;
  * - états : une caution, l'expiration passée sans opposition en cours, est « libérée » (art. 2 : « la caution est
  *   libérée ») ; une retenue stipulée sans rien de retenu est « sans retenue » (ni en délai, ni à libérer) ;
  * - une restitution au plus tard le jour de l'expiration est une mainlevée anticipée, à justifier (information) ; datée
- *   du jour de la notification d'une opposition dans le délai ou après, avant sa mainlevée : avertissement ; antérieure
- *   à la notification : mainlevée anticipée ;
+ *   du jour de la notification d'une opposition à temps ou après, avant sa mainlevée : avertissement ; sous une
+ *   opposition de validité non établie, sans confirmation du gestionnaire : avertissement ; antérieure à la
+ *   notification : mainlevée anticipée ;
  * - la retenue d'une facture se compare au taux du marché (au centime le plus proche, le demi-centime au-dessus, en
  *   calcul entier, bornée au plafond de 5 % arrondi au centime inférieur : retenueAuTaux) : un écart est un
  *   avertissement, au-delà de 5 % un blocage ; une facture sans retenue (nulle ou absente, confondues) sur un marché à
@@ -177,32 +208,23 @@ import { reglementsDeLOperation, type OperationTravaux } from '@/lib/administrat
  *   pour un lot d'habitation (b) ; pour un lot professionnel ou commercial, écartée et signalée « à vérifier » (b bis :
  *   amiante ou accueil des handicapés seulement) ; usage non renseigné : comptée et signalée ; une déduction saisie sur
  *   un marché de construction, reconstruction ou agrandissement est écartée (avertissement) ;
- * - l'échéance de libération est `aConfirmer` : le délai d'un an est lu (art. 2), son jour exact est déduit (question
- *   ci-dessous) ; les anomalies qui dépendent de ce jour (opposition tardive, restitution anticipée ou malgré opposition)
- *   le sont aussi, comme l'opposition antérieure à la réception.
+ * - l'échéance de libération est `aConfirmer` : le délai d'un an est lu (art. 2), son jour exact reste à confirmer
+ *   faute d'arrêt (J67, R63) ; les anomalies qui dépendent de ce jour (opposition tardive ou peut-être tardive,
+ *   restitution anticipée, malgré l'opposition ou sans confirmation) le sont aussi, comme l'opposition antérieure à la
+ *   réception (J67, R64).
  *
  * 🔴 Non établi (questions pour Frédéric ou Hugo) :
- * - « Le délai d'une année de l'art. 2 se compte-t-il du jour de la réception (même quantième un an plus tard), ou de son
- *   lendemain comme J1 pour l'art. 42 ? » (VitFix : du jour de la réception, date la plus courte ; la variante du
- *   lendemain est rendue à côté) ; « L'opposition de l'art. 2 est-elle à temps si la lettre recommandée est envoyée, ou
- *   première présentée (comme J1), le jour anniversaire de la réception ? La libération est-elle due ce jour-là ou le
- *   lendemain ? » (VitFix : opposition au plus tard le jour anniversaire ; « à libérer » le lendemain) ;
- * - « Une opposition notifiée avant la réception vaut-elle pour l'art. 2 ? » (VitFix : oui, saisie et signalée) ;
- *   « Comment Gestéam enregistre-t-il la mainlevée d'une opposition à la retenue : date, origine (levée amiable du
- *   maître de l'ouvrage, décision de justice), pièce ? » (VitFix : date et origine) ;
- * - « Une caution inférieure à la retenue stipulée laisse-t-elle pratiquer la retenue en entier, ou pour la seule
- *   différence ? » (VitFix : en entier, au taux du marché, signalée) ; « Une caution fournie en cours de marché ouvre-t-elle
- *   la restitution des retenues déjà pratiquées, ou celles-ci restent-elles retenues jusqu'à l'expiration du délai ?
- *   Gestéam garde-t-il l'historique des cautions d'un marché (montant, date de fourniture) ? » (VitFix : caution actuelle
- *   et sa date ; retenues antérieures libérables, restitution avant l'expiration signalée comme mainlevée anticipée) ;
+ * - « Comment Gestéam enregistre-t-il la mainlevée d'une opposition à la retenue : date, origine (levée amiable du maître
+ *   de l'ouvrage, décision de justice), pièce ? » (VitFix : date et origine) ;
+ * - (relevé Gestéam, Hugo ; J67, R65) « Gestéam garde-t-il plusieurs cautions successives sur une ligne de marché (zone
+ *   Garantie), ou une seule ? » (VitFix : historique daté des cautions) ;
  * - « Le cabinet consigne-t-il les retenues (art. 1er, al. 2), auprès de quel consignataire, et comment Gestéam
  *   l'enregistre-t-il (compte 461 "Débiteurs divers" ?, compte bancaire distinct ?) ; à la libération, le consignataire
  *   verse-t-il directement à l'entrepreneur ? » (VitFix : consignation suivie en montant et en date, sans écriture ; la
  *   libération passe par le 401 et un règlement du syndicat) ;
  * - « Où Gestéam porte-t-il la retenue : 472xx, 47150 "Compte d'attente_", subdivision du 401 (arrêté, art. 8) ? »
  *   (VitFix : 47200, à l'auxiliaire du fournisseur) ; « Quelle famille de traitement porte le reclassement 47200 → 401 à
- *   la libération ? » (VitFix : « Saisie de mouvements ») ; « La retenue se calcule-t-elle sur le TTC de chaque
- *   situation ? » (VitFix : TTC, le syndicat n'étant pas assujetti) ;
+ *   la libération ? » (VitFix : « Saisie de mouvements ») ;
  * - « Une facture soldée hors retenue est-elle "Réglée" ou "Rgt. partiel" ? » (statuts-facture.ts la laisse
  *   « Rgt. partiel » tant que le réglé est inférieur au TTC ; après le rejet d'un virement, le réglé se déduit du total
  *   net de la retenue, baseRetourApresRejet, et le statut rétabli n'en dépend pas) ; « "Restituée", sur la ligne de
@@ -216,10 +238,6 @@ import { reglementsDeLOperation, type OperationTravaux } from '@/lib/administrat
  *   § 20) se saisit-il en facture au TTC négatif ? Diminue-t-il le facturé du marché et la retenue pratiquée ? »
  *   (VitFix : TTC strictement positif, comme l'en-tête de la facture ; une facture au TTC nul ou négatif est bloquante et
  *   écartée des totaux, l'avoir n'est pas suivi ici) ;
- * - « La part déductible se communique-t-elle aux bailleurs avec les comptes de l'exercice, par opération, ou par année
- *   civile de paiement (CGI art. 31 : dépenses "effectivement supportées") ? Un texte l'impose-t-il au syndic ? » (aucun
- *   texte trouvé ; VitFix : par opération, à la demande) ; « Sa répartition suit-elle les charges de chaque copropriétaire
- *   dans l'opération, ou la clé du marché quand l'opération en porte plusieurs ? » (VitFix : les charges de l'opération) ;
  * - « Qui qualifie l'usage du lot (habitation, professionnel) pour le b et le b bis du CGI art. 31 ? » (VitFix : donnée
  *   fournie par l'appelant, non vérifiée) ;
  * - « La marque "Non déductible" des lignes de facture (point 28) doit-elle se rapprocher de la déduction du marché ? »
@@ -246,7 +264,11 @@ import { reglementsDeLOperation, type OperationTravaux } from '@/lib/administrat
  * règlement ; plan comptable importé — compte 47200 (ou le 47150 de Gestéam selon la réponse) ; db/schema.ts (Frédéric)
  * — Facture : avancementPct, retenueGarantieCentimes, marcheId ; tables des marchés de travaux (garantie, taux, caution
  * et sa date de fourniture, réception, opposition et sa mainlevée, qualification et déduction fiscales), des
- * consignations et des restitutions ;
+ * consignations et des restitutions ; enregistrement des ajouts J67 et J70, à brancher : historique des cautions,
+ * retenue limitée à la différence et son motif, date d'envoi et destinataire de l'opposition, oppositions remplacées,
+ * confirmation de la restitution ; réglage du cabinet du rappel « opposition à envoyer » (delaiRappelOppositionJours,
+ * à passer par suivi-a-faire.depuisRetenuesGarantie) ; lots des charges et provisions appelées de l'exercice
+ * (partsDeductiblesDeLExercice) ; écrans : Frédéric ;
  * fiche-entreprise.ts — le fournisseur du marché.
  */
 
@@ -277,12 +299,43 @@ export interface MainleveeOpposition {
   origine: OrigineMainlevee
 }
 
+/** Destinataire de la lettre d'opposition : l'art. 2 la veut notifiée « à la caution ou au consignataire » (J67, R63). */
+export const DESTINATAIRES_OPPOSITION = ['caution', 'consignataire', 'entreprise', 'autre'] as const
+export type DestinataireOpposition = (typeof DESTINATAIRES_OPPOSITION)[number]
+
 /** Opposition motivée notifiée par lettre recommandée à la caution ou au consignataire (art. 2), et sa mainlevée. */
 export interface OppositionGarantie {
+  /**
+   * Date de présentation (ou de remise) de la lettre à la caution ou au consignataire : celle qui se compare à l'échéance
+   * (J67, R63 : la date d'envoi ne suffit pas).
+   */
   notifieeLe: string
+  /** Date d'envoi de la lettre recommandée, au plus tard sa présentation ; absente : non saisie (J67, R63). */
+  envoyeeLe?: string | null
+  /** Destinataire de la lettre ; absent : non saisi (J67, R63). */
+  destinataire?: DestinataireOpposition | null
   motif: string
   /** Absente : opposition en cours. */
   mainlevee?: MainleveeOpposition | null
+}
+
+/** Caution de l'historique daté des cautions du marché (art. 1er, al. 4 ; J67, R65). */
+export interface CautionDuMarche {
+  montantCentimes: number
+  /** Date de fourniture ; null : dès le marché (la première seulement). */
+  fournieLe: string | null
+  /** Établissement qui se porte caution (identifiant) ; absent : non saisi. */
+  etablissementId?: string | null
+}
+
+/**
+ * Confirmation motivée et tracée du gestionnaire qui libère la garantie malgré une opposition dont la validité n'est pas
+ * établie : antérieure à la réception (J67, R64) ou peut-être tardive (J67, R63).
+ */
+export interface ConfirmationLiberation {
+  motif: string
+  /** Collaborateur qui confirme (identifiant). */
+  confirmeePar: string
 }
 
 export interface SaisieMarcheTravaux {
@@ -304,10 +357,22 @@ export interface SaisieMarcheTravaux {
    * de ce jour ou après ; absente : fournie dès le marché. Sans objet hors caution.
    */
   cautionFournieLe?: string | null
+  /**
+   * Historique daté des cautions (J67, R65), dans l'ordre de fourniture ; la dernière est la caution actuelle
+   * (cautionCentimes et cautionFournieLe, s'ils sont saisis, doivent l'égaler) ; absent : la seule caution actuelle.
+   */
+  cautions?: readonly CautionDuMarche[] | null
+  /**
+   * Retenue limitée à la différence entre la retenue stipulée et une caution inférieure, au prorata de chaque facture :
+   * permis marché par marché, avec un motif enregistré (J70) ; absente : retenue stipulée pratiquée en entier.
+   */
+  retenueLimiteeALaDifference?: { motif: string } | null
   /** Date de réception des travaux, avec ou sans réserve (art. 2) ; absente : délai non commencé. */
   dateReception?: string | null
   reserves?: boolean | null
   opposition?: OppositionGarantie | null
+  /** Oppositions remplacées par une nouvelle notification (trace : J67, R64) ; sans effet sur la garantie. */
+  oppositionsPrecedentes?: readonly OppositionGarantie[] | null
   qualificationFiscale?: QualificationFiscaleTravaux | null
   /** Gestéam « Déduction fiscale € » de la ligne de marché ; absente : aucune part déductible. */
   deductionFiscaleCentimes?: number | null
@@ -317,9 +382,12 @@ export interface MarcheTravaux extends SaisieMarcheTravaux {
   tauxRetenuePct: number
   cautionCentimes: number
   cautionFournieLe: string | null
+  cautions: CautionDuMarche[]
+  retenueLimiteeALaDifference: { motif: string } | null
   dateReception: string | null
   reserves: boolean
   opposition: OppositionGarantie | null
+  oppositionsPrecedentes: OppositionGarantie[]
   qualificationFiscale: QualificationFiscaleTravaux | null
   deductionFiscaleCentimes: number
 }
@@ -374,15 +442,71 @@ function verifierMainlevee(id: string, { notifieeLe, mainlevee }: OppositionGara
     )
 }
 
-/** Réception datée ; opposition motivée sur un marché garanti, et sa mainlevée (avant la réception : signalée, 🔵). */
-function verifierReceptionEtOpposition({ id, garantie, dateReception, opposition }: SaisieMarcheTravaux): void {
-  if (dateReception) verifierDate(dateReception, `Marché ${id}, réception`)
-  if (!opposition) return
+const DESTINATAIRES_CONNUS: ReadonlySet<string> = new Set(DESTINATAIRES_OPPOSITION)
+
+/**
+ * Opposition motivée, datée de sa présentation ; envoi au plus tard ce jour-là et destinataire connu (J67, R63) ; sa
+ * mainlevée.
+ */
+function verifierOpposition(id: string, opposition: OppositionGarantie): void {
   verifierDate(opposition.notifieeLe, `Marché ${id}, opposition`)
-  if (garantie === 'aucune') throw new Error(`Marché ${id} : opposition sans garantie (ni retenue ni caution).`)
   if (!opposition.motif.trim())
     throw new Error(`Marché ${id} : opposition « motivée par l'inexécution des obligations de l'entrepreneur » (loi n° 71-584, art. 2) : motif exigé.`)
+  const { envoyeeLe, destinataire } = opposition
+  if (envoyeeLe != null) {
+    verifierDate(envoyeeLe, `Marché ${id}, envoi de l'opposition`)
+    if (envoyeeLe > opposition.notifieeLe)
+      throw new Error(`Marché ${id} : envoi de l'opposition le ${envoyeeLe}, après sa présentation le ${opposition.notifieeLe} (J67, R63).`)
+  }
+  if (destinataire != null && !DESTINATAIRES_CONNUS.has(destinataire))
+    throw new Error(`Marché ${id} : destinataire de l'opposition inconnu « ${destinataire} » (caution, consignataire, entreprise ou autre).`)
   verifierMainlevee(id, opposition)
+}
+
+/**
+ * Réception datée ; opposition (et oppositions remplacées, J67, R64) motivées sur un marché garanti, et leur mainlevée ;
+ * une opposition antérieure à la réception est admise et signalée (J67, R64).
+ */
+function verifierReceptionEtOpposition({ id, garantie, dateReception, opposition, oppositionsPrecedentes }: SaisieMarcheTravaux): void {
+  if (dateReception) verifierDate(dateReception, `Marché ${id}, réception`)
+  const oppositions = [...(oppositionsPrecedentes ?? []), ...(opposition ? [opposition] : [])]
+  if (oppositions.length === 0) return
+  if (garantie === 'aucune') throw new Error(`Marché ${id} : opposition sans garantie (ni retenue ni caution).`)
+  for (const o of oppositions) verifierOpposition(id, o)
+}
+
+/**
+ * Historique des cautions (J67, R65) : celui saisi, à défaut la seule caution actuelle ; vide hors caution. Saisi : sous
+ * caution, non vide, montants en centimes entiers strictement positifs, dates de fourniture croissantes, la première
+ * seule sans date ; la caution actuelle saisie (montant, date) égale la dernière.
+ */
+function cautionsDuMarche({ id, garantie, cautions, cautionCentimes, cautionFournieLe }: SaisieMarcheTravaux): CautionDuMarche[] {
+  if (cautions == null) return garantie === 'caution' && estCentimesPositifs(cautionCentimes) ? [{ montantCentimes: cautionCentimes, fournieLe: cautionFournieLe ?? null }] : []
+  const refus = (raison: string): Error => new Error(`Marché ${id} : historique des cautions ${raison} (J67, R65).`)
+  if (garantie !== 'caution') throw refus(`sans caution (garantie « ${garantie} »)`)
+  if (cautions.length === 0) throw refus('vide')
+  let precedente: string | null = null
+  cautions.forEach(({ montantCentimes, fournieLe }, rang) => {
+    if (!estCentimesPositifs(montantCentimes)) throw refus(`: montant (${montantCentimes}) en centimes entiers strictement positifs attendu`)
+    if (fournieLe === null) {
+      if (rang > 0) throw refus(': seule la première caution peut être sans date de fourniture')
+      return
+    }
+    verifierDate(fournieLe, `Marché ${id}, fourniture de la caution`)
+    if (precedente !== null && fournieLe <= precedente) throw refus(': dates de fourniture croissantes attendues')
+    precedente = fournieLe
+  })
+  const actuelle = cautions[cautions.length - 1]
+  if ((cautionCentimes != null && cautionCentimes !== actuelle.montantCentimes) || (cautionFournieLe != null && cautionFournieLe !== actuelle.fournieLe))
+    throw new Error(`Marché ${id} : caution actuelle (montant, date) différente de la dernière de l'historique des cautions (J67, R65).`)
+  return cautions.map((c) => ({ ...c }))
+}
+
+/** Retenue limitée à la différence (J70) : sous caution seulement, avec un motif enregistré. */
+function verifierRetenueALaDifference({ id, garantie, retenueLimiteeALaDifference: option }: SaisieMarcheTravaux): void {
+  if (option == null) return
+  if (garantie !== 'caution') throw new Error(`Marché ${id} : retenue limitée à la différence avec la caution, sous caution seulement (J70).`)
+  if (!option.motif.trim()) throw new Error(`Marché ${id} : retenue limitée à la différence avec la caution : motif exigé (J70).`)
 }
 
 /** Déduction fiscale : centimes entiers, au plus le marché, qualifiée dès qu'elle est positive. */
@@ -396,46 +520,71 @@ function verifierDeduction({ id, montantTtcCentimes, qualificationFiscale, deduc
     throw new Error(`Marché ${id} : déduction fiscale sans qualification des travaux (CGI art. 31, I, 1°, a, b ou b bis).`)
 }
 
-/** Champs facultatifs à leur valeur par défaut : ni taux, ni caution, ni réception, ni opposition, ni déduction. */
-const normaliserMarche = (saisie: SaisieMarcheTravaux): MarcheTravaux => ({
-  ...saisie,
-  tauxRetenuePct: saisie.tauxRetenuePct ?? 0,
-  cautionCentimes: saisie.cautionCentimes ?? 0,
-  cautionFournieLe: saisie.cautionFournieLe ?? null,
-  dateReception: saisie.dateReception ?? null,
-  reserves: saisie.reserves ?? false,
-  opposition: saisie.opposition ?? null,
-  qualificationFiscale: saisie.qualificationFiscale ?? null,
-  deductionFiscaleCentimes: saisie.deductionFiscaleCentimes ?? 0,
-})
+/**
+ * Champs facultatifs à leur valeur par défaut : ni taux, ni caution, ni réception, ni opposition, ni déduction ; la
+ * caution actuelle est la dernière de l'historique (J67, R65).
+ */
+function normaliserMarche(saisie: SaisieMarcheTravaux, cautions: CautionDuMarche[]): MarcheTravaux {
+  const actuelle = cautions.at(-1)
+  return {
+    ...saisie,
+    tauxRetenuePct: saisie.tauxRetenuePct ?? 0,
+    cautionCentimes: actuelle?.montantCentimes ?? saisie.cautionCentimes ?? 0,
+    cautionFournieLe: actuelle ? actuelle.fournieLe : (saisie.cautionFournieLe ?? null),
+    cautions,
+    retenueLimiteeALaDifference: saisie.retenueLimiteeALaDifference ?? null,
+    dateReception: saisie.dateReception ?? null,
+    reserves: saisie.reserves ?? false,
+    opposition: saisie.opposition ?? null,
+    oppositionsPrecedentes: [...(saisie.oppositionsPrecedentes ?? [])],
+    qualificationFiscale: saisie.qualificationFiscale ?? null,
+    deductionFiscaleCentimes: saisie.deductionFiscaleCentimes ?? 0,
+  }
+}
 
-/** Crée le marché garanti d'une opération : garantie, réception, opposition, qualification et déduction fiscales. */
+/**
+ * Crée le marché garanti d'une opération : garantie (historique des cautions, J67, R65 ; retenue limitée à la
+ * différence, J70), réception, opposition, qualification et déduction fiscales.
+ */
 export function creerMarcheTravaux(saisie: SaisieMarcheTravaux): MarcheTravaux {
   const { id, travauxId, montantTtcCentimes } = saisie
   if (!id.trim() || !saisie.coproprieteId.trim() || !saisie.fournisseurId.trim())
     throw new Error('Marché : identifiant, syndicat et fournisseur exigés.')
   if (!/^[0-9A-Z]{5}$/.test(travauxId)) throw new Error(`Marché ${id} : n° d'opération « ${travauxId} », 5 caractères attendus.`)
   if (!estCentimesPositifs(montantTtcCentimes)) throw new Error(`Marché ${id} : montant (${montantTtcCentimes}) en centimes entiers strictement positifs.`)
-  verifierGarantie(saisie)
-  verifierDateCaution(saisie)
+  const cautions = cautionsDuMarche(saisie)
+  const actuelle = cautions.at(-1)
+  const avecCautionActuelle = actuelle ? { ...saisie, cautionCentimes: actuelle.montantCentimes, cautionFournieLe: actuelle.fournieLe } : saisie
+  verifierGarantie(avecCautionActuelle)
+  verifierDateCaution(avecCautionActuelle)
+  verifierRetenueALaDifference(saisie)
   verifierReceptionEtOpposition(saisie)
   verifierDeduction(saisie)
-  return normaliserMarche(saisie)
+  return normaliserMarche(saisie, cautions)
 }
 
 /** Retenue stipulée sur le montant du marché (taux du marché, retenueAuTaux) : ce que la caution doit égaler (al. 4). */
 export const retenueStipuleeDuMarche = (marche: Pick<MarcheTravaux, 'montantTtcCentimes' | 'tauxRetenuePct'>): number =>
   retenueAuTaux(marche.montantTtcCentimes, marche.tauxRetenuePct)
 
-/** Caution fournie à la date donnée (ce jour ou avant ; sans date de fourniture, dès le marché) ; null : caution actuelle. */
-const cautionFournieA = (marche: MarcheTravaux, le: string | null): boolean => le === null || marche.cautionFournieLe === null || marche.cautionFournieLe <= le
+/**
+ * Caution fournie à la date donnée : la dernière de l'historique fournie ce jour ou avant (sans date de fourniture : dès
+ * le marché) ; null : aucune, ou hors caution. Date null : la caution actuelle (J67, R65).
+ */
+function cautionALaDate(marche: MarcheTravaux, le: string | null): CautionDuMarche | null {
+  if (marche.garantie !== 'caution') return null
+  const fournies = le === null ? marche.cautions : marche.cautions.filter((c) => c.fournieLe === null || c.fournieLe <= le)
+  return fournies.at(-1) ?? null
+}
 
 /**
  * Caution fournie « pour un montant égal » à la retenue stipulée (art. 1er, al. 4), à la date donnée (null : la caution
  * actuelle) : la retenue n'est pas pratiquée.
  */
-const cautionCouvreLaRetenue = (marche: MarcheTravaux, le: string | null = null): boolean =>
-  marche.garantie === 'caution' && marche.cautionCentimes >= retenueStipuleeDuMarche(marche) && cautionFournieA(marche, le)
+function cautionCouvreLaRetenue(marche: MarcheTravaux, le: string | null = null): boolean {
+  const caution = cautionALaDate(marche, le)
+  return caution !== null && caution.montantCentimes >= retenueStipuleeDuMarche(marche)
+}
 
 /**
  * Motif pour lequel la retenue n'est pas pratiquée à la date donnée (null : à ce jour) : sans retenue stipulée (art. 1er,
@@ -445,35 +594,77 @@ const cautionCouvreLaRetenue = (marche: MarcheTravaux, le: string | null = null)
 function motifRetenueInterdite(marche: MarcheTravaux, le: string | null = null): string | null {
   if (marche.garantie === 'aucune')
     return `sans retenue stipulée au marché ${marche.id} (art. 1er : retenue « garantissant contractuellement l'exécution des travaux »)`
-  if (!cautionCouvreLaRetenue(marche, le)) return null
-  const fournie = marche.cautionFournieLe ? ` fournie le ${dateIsoVersFr(marche.cautionFournieLe)}` : ''
-  return `sur un marché couvert par une caution de ${eur(marche.cautionCentimes)}${fournie}, « pour un montant égal » à la retenue stipulée de ${eur(retenueStipuleeDuMarche(marche))} : la retenue « n'est pas pratiquée » (loi n° 71-584, art. 1er, al. 4)`
+  const caution = cautionALaDate(marche, le)
+  if (caution === null || !cautionCouvreLaRetenue(marche, le)) return null
+  const fournie = caution.fournieLe ? ` fournie le ${dateIsoVersFr(caution.fournieLe)}` : ''
+  return `sur un marché couvert par une caution de ${eur(caution.montantCentimes)}${fournie}, « pour un montant égal » à la retenue stipulée de ${eur(retenueStipuleeDuMarche(marche))} : la retenue « n'est pas pratiquée » (loi n° 71-584, art. 1er, al. 4)`
 }
 
-/** Expiration du délai d'un an à compter de la réception (art. 2) : même quantième un an après (🔵) ; null sans réception. */
+/**
+ * Retenue attendue sur une facture du marché, à sa date (null : à ce jour) : au taux du marché (retenueAuTaux) ; sous une
+ * caution inférieure et l'option « différence » du marché (J70), la retenue stipulée moins la caution alors fournie, au
+ * prorata de la facture (plus forts restes, en calcul entier), bornée par la retenue au taux.
+ */
+function retenueAttendue(marche: MarcheTravaux, totalTtcCentimes: number, le: string | null): number {
+  const auTaux = retenueAuTaux(totalTtcCentimes, marche.tauxRetenuePct)
+  const caution = marche.retenueLimiteeALaDifference ? cautionALaDate(marche, le) : null
+  if (caution === null) return auTaux
+  const difference = Math.max(0, retenueStipuleeDuMarche(marche) - caution.montantCentimes)
+  const [prorata] = repartirAuxPlusFortsRestes(difference, [totalTtcCentimes, Math.max(0, marche.montantTtcCentimes - totalTtcCentimes)])
+  return Math.min(auTaux, prorata)
+}
+
+/**
+ * Expiration du délai d'un an à compter de la réception (art. 2) : même quantième un an après, sans report au jour
+ * ouvrable (J67, R63 ; par analogie, CPC art. 641 et 642) ; null sans réception.
+ */
 export const expirationDelaiGarantie = ({ dateReception }: Pick<MarcheTravaux, 'dateReception'>): string | null =>
   dateReception ? ajouterMois(dateReception, 12) : null
 
 /**
- * Variante 🔴 rendue à côté, jamais retenue : délai parti du lendemain de la réception, comme J1 le fixe pour l'art. 42
- * (même quantième un an après ce lendemain) ; null sans réception.
+ * Simple information, jamais retenue : délai parti du lendemain de la réception ; cette variante n'a pas de base (J67,
+ * R63 : le lendemain de J1 vient de D. 1967 art. 64-1, qui ne vise pas la retenue) ; null sans réception.
  */
 export const expirationDelaiGarantieSiDepartLendemain = ({ dateReception }: Pick<MarcheTravaux, 'dateReception'>): string | null =>
   dateReception ? ajouterMois(ajouterJours(dateReception, 1), 12) : null
 
 /**
- * Opposition notifiée dans le délai (au plus tard le jour de l'expiration, 🔵) ; sans réception datée, le délai n'a pas
- * commencé : l'opposition y est (tenue pour notifiée dans le délai, 🔵, question 🔴 de l'en-tête).
+ * Portée de l'opposition au regard du délai de l'art. 2 : à temps, présentée (ou remise) à la caution ou au consignataire
+ * au plus tard le jour de l'échéance (J67, R63) ; de validité non établie, soit antérieure à la réception ou sans
+ * réception datée (J67, R64), soit peut-être tardive, envoyée à temps mais présentée après (J67, R63) ; tardive, envoyée
+ * et présentée après l'échéance. `depuis` : date à partir de laquelle elle vaut (l'envoi pour une opposition peut-être
+ * tardive).
  */
-const oppositionDansLeDelai = (marche: MarcheTravaux, expiration: string | null): boolean =>
-  Boolean(marche.opposition && (expiration === null || marche.opposition.notifieeLe <= expiration))
+type PorteeOpposition = 'a_temps' | 'avant_reception' | 'peut_etre_tardive' | 'tardive'
 
-/** Opposition qui retient la garantie au jour donné : notifiée dans le délai, ce jour ou avant, sans mainlevée à cette date. */
-function oppositionEnCours(marche: MarcheTravaux, expiration: string | null, le: string): boolean {
-  const opposition = marche.opposition
-  if (!opposition || !oppositionDansLeDelai(marche, expiration) || opposition.notifieeLe > le) return false
-  return !opposition.mainlevee || opposition.mainlevee.le > le
+function porteeDeLOpposition(marche: MarcheTravaux, expiration: string | null): { portee: PorteeOpposition; depuis: string } | null {
+  const { opposition, dateReception } = marche
+  if (!opposition) return null
+  const { notifieeLe, envoyeeLe } = opposition
+  if (!dateReception || expiration === null || notifieeLe < dateReception) return { portee: 'avant_reception', depuis: notifieeLe }
+  if (notifieeLe <= expiration) return { portee: 'a_temps', depuis: notifieeLe }
+  if (envoyeeLe != null && envoyeeLe <= expiration) return { portee: 'peut_etre_tardive', depuis: envoyeeLe }
+  return { portee: 'tardive', depuis: notifieeLe }
 }
+
+const PORTEES_DOUTEUSES: ReadonlySet<PorteeOpposition> = new Set<PorteeOpposition>(['avant_reception', 'peut_etre_tardive'])
+
+/** L'opposition d'une portée donnée vaut au jour donné : depuis sa date, sans mainlevée à cette date. */
+function oppositionValantLe(marche: MarcheTravaux, expiration: string | null, le: string, douteuse: boolean): boolean {
+  const lecture = porteeDeLOpposition(marche, expiration)
+  if (!lecture || PORTEES_DOUTEUSES.has(lecture.portee) !== douteuse || lecture.portee === 'tardive' || lecture.depuis > le) return false
+  const mainlevee = marche.opposition?.mainlevee
+  return !mainlevee || mainlevee.le > le
+}
+
+/** Opposition qui retient la garantie au jour donné : à temps, ce jour ou avant, sans mainlevée à cette date. */
+const oppositionEnCours = (marche: MarcheTravaux, expiration: string | null, le: string): boolean => oppositionValantLe(marche, expiration, le, false)
+
+/**
+ * Opposition dont la validité n'est pas établie, en cours au jour donné : ni blocage ni libération automatiques, la
+ * libération demande une confirmation motivée et tracée du gestionnaire (J67, R63 et R64).
+ */
+const oppositionDouteuseEnCours = (marche: MarcheTravaux, expiration: string | null, le: string): boolean => oppositionValantLe(marche, expiration, le, true)
 
 // ─── Factures, consignations, restitutions ───────────────────────────────────────────────────
 
@@ -506,6 +697,8 @@ export interface RestitutionRetenue extends RattacheAuMarche {
   montantCentimes: number
   /** Écriture de libération (ecritureLiberationRetenue) ; absente : saisie sans écriture. */
   traitementId?: string | null
+  /** Confirmation du gestionnaire, quand une opposition de validité non établie est en cours (J67, R63 et R64). */
+  confirmation?: ConfirmationLiberation | null
 }
 
 const duMarche =
@@ -530,7 +723,8 @@ const retenueComptee = (f: Pick<FactureDuMarche, 'retenueGarantieCentimes' | 'to
  * En-tête « travaux » de la facture d'un marché, entrée d'ecritureFactureVentilee : avancement déclaré et retenue, au taux
  * du marché par défaut (retenueAuTaux) ; aucune retenue sans retenue stipulée ni sous une caution « pour un montant égal »
  * (art. 1er, al. 1 et 4), fournie à la date de la facture (sans date : la caution actuelle) ; sous une caution
- * inférieure, ou avant sa fourniture, la retenue stipulée se pratique (🔵).
+ * inférieure, ou avant sa fourniture, la retenue stipulée se pratique en entier (J70, défaut), ou, si le marché le
+ * choisit avec un motif, la seule différence avec la caution, au prorata de la facture (J70 : retenueAttendue).
  */
 export function enTeteFactureDuMarche(
   marche: MarcheTravaux,
@@ -548,7 +742,7 @@ export function enTeteFactureDuMarche(
     if ((retenueCentimes ?? 0) !== 0) throw new Error(`Marché ${marche.id} : retenue ${interdite}.`)
     return { avancementPct, retenueGarantie: null }
   }
-  const montantCentimes = retenueCentimes ?? retenueAuTaux(totalTtcCentimes, marche.tauxRetenuePct)
+  const montantCentimes = retenueCentimes ?? retenueAttendue(marche, totalTtcCentimes, date)
   return { avancementPct, retenueGarantie: { montantCentimes, travauxId: marche.travauxId, marcheId: marche.id } }
 }
 
@@ -578,8 +772,11 @@ export type CodeAnomalieRetenue =
   | 'restitution_au_dela_du_retenu'
   | 'restitution_anticipee'
   | 'restitution_malgre_opposition'
+  | 'restitution_sans_confirmation'
   | 'opposition_tardive'
+  | 'opposition_peut_etre_tardive'
   | 'opposition_avant_reception'
+  | 'opposition_mauvais_destinataire'
   | 'reception_non_datee'
   | 'regle_au_dela_du_du'
   | 'deduction_sur_construction'
@@ -594,7 +791,10 @@ export interface AnomalieRetenue {
   message: string
   /** Texte qui fonde le signalement ; null pour une règle de gestion (aucun texte cité). */
   fondement: string | null
-  /** Repère qui dépend d'un point 🔴 (jour exact du délai de l'art. 2, opposition antérieure à la réception). */
+  /**
+   * Repère qui reste à confirmer (J67, R63 et R64 : jour exact du délai de l'art. 2, opposition antérieure à la réception
+   * ou peut-être tardive, faute de texte ou d'arrêt).
+   */
   aConfirmer: boolean
 }
 
@@ -640,9 +840,13 @@ function anomalieRetenueFacture(marche: MarcheTravaux, f: FactureDuMarche): Anom
   }
   if (retenueAuDelaDuPlafond(f.totalTtcCentimes, retenue))
     return anomalie('retenue_au_dela_du_plafond', 'bloquant', f.id, `Facture ${f.id} : retenue de ${eur(retenue)} au-delà de ${TAUX_MAXIMAL_RETENUE_GARANTIE_PCT} % de ${eur(f.totalTtcCentimes)} (art. 1er, al. 1).`, FONDEMENTS.plafond)
-  const attendue = retenueAuTaux(f.totalTtcCentimes, marche.tauxRetenuePct)
+  const attendue = retenueAttendue(marche, f.totalTtcCentimes, f.date)
   if (retenue === attendue) return null
-  return anomalie('ecart_taux_contractuel', 'avertissement', f.id, `Facture ${f.id} : retenue de ${eur(retenue)}, ${eur(attendue)} au taux du marché (${marche.tauxRetenuePct} %).`)
+  const base =
+    attendue === retenueAuTaux(f.totalTtcCentimes, marche.tauxRetenuePct)
+      ? `au taux du marché (${marche.tauxRetenuePct} %)`
+      : 'attendus : différence entre la retenue stipulée et la caution, au prorata de la facture (J70)'
+  return anomalie('ecart_taux_contractuel', 'avertissement', f.id, `Facture ${f.id} : retenue de ${eur(retenue)}, ${eur(attendue)} ${base}.`)
 }
 
 /** Date saisie (AAAA-MM-JJ, jour du calendrier) : null si valide, le motif sinon. */
@@ -729,10 +933,18 @@ function anomaliesFacture(marche: MarcheTravaux, factureCentimes: number, avance
   return anomalies
 }
 
+/** Confirmation du gestionnaire saisie : motif et collaborateur non vides (J67, R63 et R64). */
+const confirmationSaisie = (c: ConfirmationLiberation | null | undefined): c is ConfirmationLiberation =>
+  Boolean(c?.motif.trim() && c.confirmeePar.trim())
+
+const SANS_LIBERATION_AUTOMATIQUE =
+  'ni blocage ni libération automatiques : la libération demande une confirmation motivée et tracée du gestionnaire'
+
 /**
  * Restitutions : le restitué (restitutions mal datées comprises) au plus le retenu ; les restitutions datées, malgré une
- * opposition en cours à leur date (notifiée dans le délai, ce jour ou avant, sans mainlevée), ou anticipées (au plus
- * tard à l'expiration).
+ * opposition à temps en cours à leur date (ce jour ou avant, sans mainlevée), sous une opposition de validité non établie
+ * sans confirmation du gestionnaire (J67, R63 et R64), ou anticipées (au plus tard à l'expiration : mainlevée anticipée,
+ * information qui rappelle Cass. 3e civ., 09/02/2000, n° 98-15.139 ; J67, R65).
  */
 function anomaliesRestitutions(
   marche: MarcheTravaux,
@@ -742,30 +954,49 @@ function anomaliesRestitutions(
   if (restitue > retenu)
     anomalies.push(anomalie('restitution_au_dela_du_retenu', 'bloquant', marche.id, `Marché ${marche.id} : restitué ${eur(restitue)} pour ${eur(retenu)} retenus.`))
   for (const r of datees) {
+    const quand = `Restitution ${r.id} du ${dateIsoVersFr(r.le)}`
     if (oppositionEnCours(marche, expiration, r.le))
-      anomalies.push(anomalie('restitution_malgre_opposition', 'avertissement', r.id, `Restitution ${r.id} du ${dateIsoVersFr(r.le)} malgré l'opposition notifiée le ${dateIsoVersFr(marche.opposition?.notifieeLe ?? r.le)}, sans mainlevée (art. 2).`, FONDEMENTS.liberation, true))
+      anomalies.push(anomalie('restitution_malgre_opposition', 'avertissement', r.id, `${quand} malgré l'opposition notifiée le ${dateIsoVersFr(marche.opposition?.notifieeLe ?? r.le)}, sans mainlevée (art. 2).`, FONDEMENTS.liberation, true))
+    else if (oppositionDouteuseEnCours(marche, expiration, r.le) && !confirmationSaisie(r.confirmation))
+      anomalies.push(
+        anomalie('restitution_sans_confirmation', 'avertissement', r.id, `${quand} sous une opposition dont la validité n'est pas établie, sans confirmation : ${SANS_LIBERATION_AUTOMATIQUE} (art. 2 ; J67, R63 et R64).`, FONDEMENTS.liberation, true),
+      )
     else if (!expiration || r.le <= expiration)
-      anomalies.push(anomalie('restitution_anticipee', 'information', r.id, `Restitution ${r.id} du ${dateIsoVersFr(r.le)} avant l'expiration du délai d'un an depuis la réception : mainlevée à justifier.`, FONDEMENTS.liberation, true))
+      anomalies.push(
+        anomalie(
+          'restitution_anticipee',
+          'information',
+          r.id,
+          `${quand} avant l'expiration du délai d'un an depuis la réception : mainlevée anticipée à justifier ; admise après une réception sans réserve, sans réclamation précise du maître de l'ouvrage (Cass. 3e civ., 09/02/2000, n° 98-15.139 ; J67, R65).`,
+          FONDEMENTS.liberation,
+          true,
+        ),
+      )
   }
   return anomalies
 }
 
 /**
  * Caution actuelle inférieure à la retenue stipulée : la condition « pour un montant égal » (art. 1er, al. 4) n'est pas
- * remplie.
+ * remplie ; par défaut, avertissement, la retenue stipulée se pratique en entier ; avec l'option « différence » du marché,
+ * information qui en rappelle le motif (J70).
  */
 function anomalieCaution(marche: MarcheTravaux): AnomalieRetenue[] {
   if (marche.garantie !== 'caution' || cautionCouvreLaRetenue(marche)) return []
   const stipulee = retenueStipuleeDuMarche(marche)
-  return [
-    anomalie(
-      'caution_insuffisante',
-      'avertissement',
-      marche.id,
-      `Marché ${marche.id} : caution de ${eur(marche.cautionCentimes)} pour une retenue stipulée de ${eur(stipulee)} (${marche.tauxRetenuePct} % de ${eur(marche.montantTtcCentimes)}) ; la retenue « n'est pas pratiquée » si la caution est fournie « pour un montant égal » (loi n° 71-584, art. 1er, al. 4) : condition non remplie, la retenue stipulée peut être pratiquée.`,
-      FONDEMENTS.caution,
-    ),
-  ]
+  const constat = `Marché ${marche.id} : caution de ${eur(marche.cautionCentimes)} pour une retenue stipulée de ${eur(stipulee)} (${marche.tauxRetenuePct} % de ${eur(marche.montantTtcCentimes)}) ; la retenue « n'est pas pratiquée » si la caution est fournie « pour un montant égal » (loi n° 71-584, art. 1er, al. 4) : condition non remplie`
+  const option = marche.retenueLimiteeALaDifference
+  if (option)
+    return [
+      anomalie(
+        'caution_insuffisante',
+        'information',
+        marche.id,
+        `${constat} ; retenue limitée à la différence (${eur(stipulee - marche.cautionCentimes)}), au prorata de chaque facture, choix du cabinet pour ce marché (motif : ${option.motif.trim()} ; J70).`,
+        FONDEMENTS.caution,
+      ),
+    ]
+  return [anomalie('caution_insuffisante', 'avertissement', marche.id, `${constat}, la retenue stipulée peut être pratiquée.`, FONDEMENTS.caution)]
 }
 
 /** Garantie : caution d'un montant égal, consignation complète (art. 1er, al. 2 à 4), réception datée (art. 2). */
@@ -778,18 +1009,49 @@ function anomaliesGarantie(marche: MarcheTravaux, { retenu, consigne, expiration
   return anomalies
 }
 
-/** Opposition : notifiée avant la réception (signalée, 🔵) ou après l'expiration du délai (tardive, art. 2). */
-function anomaliesOpposition(marche: MarcheTravaux, expiration: string | null): AnomalieRetenue[] {
+const RENOUVELER_L_OPPOSITION = "la notifier de nouveau, motivée par les réserves ou l'inexécution, à la caution ou au consignataire"
+
+/** Message selon la portée de l'opposition (J67, R63 et R64) ; null quand elle est à temps. */
+function messageDeLaPortee(marche: MarcheTravaux, portee: PorteeOpposition, expiration: string | null): string | null {
   const { opposition, dateReception } = marche
-  if (!opposition) return []
+  if (!opposition || portee === 'a_temps') return null
+  const notifiee = `Marché ${marche.id} : opposition notifiée le ${dateIsoVersFr(opposition.notifieeLe)}`
+  if (portee === 'tardive')
+    return `${notifiee}, après l'expiration du délai le ${dateIsoVersFr(expiration ?? opposition.notifieeLe)} (art. 2) : elle n'empêche pas la libération.`
+  if (portee === 'peut_etre_tardive')
+    return `Marché ${marche.id} : opposition envoyée le ${dateIsoVersFr(opposition.envoyeeLe ?? opposition.notifieeLe)}, dans le délai, mais présentée le ${dateIsoVersFr(opposition.notifieeLe)}, après l'expiration du ${dateIsoVersFr(expiration ?? opposition.notifieeLe)} : opposition peut-être tardive, à confirmer ; ${SANS_LIBERATION_AUTOMATIQUE} (loi n° 71-584, art. 2 ; J67, R63).`
+  if (dateReception && expiration)
+    return `${notifiee}, avant la réception du ${dateIsoVersFr(dateReception)} : sa validité n'est pas établie ; ${RENOUVELER_L_OPPOSITION}, avant le ${dateIsoVersFr(expiration)} ; à l'échéance, sans nouvelle opposition, ${SANS_LIBERATION_AUTOMATIQUE} (loi n° 71-584, art. 2 ; J67, R64).`
+  return `${notifiee}, sans réception datée : sa validité n'est pas établie ; dès la réception datée, ${RENOUVELER_L_OPPOSITION}, avant l'échéance ; d'ici là, ${SANS_LIBERATION_AUTOMATIQUE} (loi n° 71-584, art. 2 ; J67, R64).`
+}
+
+const CODES_DE_LA_PORTEE: Readonly<Record<Exclude<PorteeOpposition, 'a_temps'>, CodeAnomalieRetenue>> = {
+  avant_reception: 'opposition_avant_reception',
+  peut_etre_tardive: 'opposition_peut_etre_tardive',
+  tardive: 'opposition_tardive',
+}
+
+/**
+ * Opposition : antérieure à la réception (J67, R64), peut-être tardive (J67, R63) ou tardive (art. 2) : avertissement à
+ * confirmer ; destinataire saisi qui n'est ni la caution ni le consignataire : avertissement (J67, R63).
+ */
+function anomaliesOpposition(marche: MarcheTravaux, expiration: string | null): AnomalieRetenue[] {
+  const lecture = porteeDeLOpposition(marche, expiration)
+  if (!lecture) return []
   const anomalies: AnomalieRetenue[] = []
-  const notifiee = dateIsoVersFr(opposition.notifieeLe)
-  if (!dateReception || opposition.notifieeLe < dateReception) {
-    const quand = dateReception ? `avant la réception du ${dateIsoVersFr(dateReception)}` : 'sans réception datée'
-    anomalies.push(anomalie('opposition_avant_reception', 'avertissement', marche.id, `Marché ${marche.id} : opposition notifiée le ${notifiee}, ${quand} ; l'art. 2 fait courir le délai d'un an de la réception mais ne fixe aucun point de départ à la notification de l'opposition : tenue pour notifiée dans le délai, à confirmer.`, FONDEMENTS.liberation, true))
-  }
-  if (expiration && opposition.notifieeLe > expiration)
-    anomalies.push(anomalie('opposition_tardive', 'avertissement', marche.id, `Marché ${marche.id} : opposition notifiée le ${notifiee}, après l'expiration du délai le ${dateIsoVersFr(expiration)} (art. 2) : elle n'empêche pas la libération.`, FONDEMENTS.liberation, true))
+  const message = messageDeLaPortee(marche, lecture.portee, expiration)
+  if (message && lecture.portee !== 'a_temps') anomalies.push(anomalie(CODES_DE_LA_PORTEE[lecture.portee], 'avertissement', marche.id, message, FONDEMENTS.liberation, true))
+  const destinataire = marche.opposition?.destinataire ?? null
+  if (destinataire === 'entreprise' || destinataire === 'autre')
+    anomalies.push(
+      anomalie(
+        'opposition_mauvais_destinataire',
+        'avertissement',
+        marche.id,
+        `Marché ${marche.id} : opposition adressée ${destinataire === 'entreprise' ? "à l'entreprise" : 'à un autre destinataire'} ; l'art. 2 la veut notifiée à la caution ou au consignataire (J67, R63).`,
+        FONDEMENTS.liberation,
+      ),
+    )
   return anomalies
 }
 
@@ -797,11 +1059,21 @@ function anomaliesOpposition(marche: MarcheTravaux, expiration: string | null): 
 
 /**
  * État de la garantie : sans garantie ; restituée (tout le retenu rendu) ; sans retenue (retenue stipulée, rien de
- * retenu) ; sous opposition en cours (notifiée dans le délai, réception datée ou non, sans mainlevée) ; avant réception ;
- * en délai (jusqu'au jour de l'expiration compris) ; à libérer (après l'expiration, retenue restant à verser) ; libérée
+ * retenu) ; sous opposition à temps en cours (sans mainlevée) ; avant réception ; en délai (jusqu'au jour de l'expiration
+ * compris) ; opposition à confirmer (après l'expiration, sous une opposition de validité non établie : ni blocage ni
+ * libération automatiques, J67, R63 et R64) ; à libérer (après l'expiration, retenue restant à verser) ; libérée
  * (caution, après l'expiration, rien de retenu : art. 2, « la caution est libérée »).
  */
-export type EtatGarantieMarche = 'sans_garantie' | 'restituee' | 'sans_retenue' | 'avant_reception' | 'en_delai' | 'opposition' | 'a_liberer' | 'liberee'
+export type EtatGarantieMarche =
+  | 'sans_garantie'
+  | 'restituee'
+  | 'sans_retenue'
+  | 'avant_reception'
+  | 'en_delai'
+  | 'opposition'
+  | 'opposition_a_confirmer'
+  | 'a_liberer'
+  | 'liberee'
 
 export interface SuiviRetenueMarche {
   marcheId: string
@@ -839,7 +1111,7 @@ export interface SuiviRetenueMarche {
   dateReception: string | null
   /** Expiration retenue (même quantième un an après la réception, date la plus courte). */
   expirationLe: string | null
-  /** Variante 🔴 rendue à côté (délai parti du lendemain, comme J1) ; null sans réception. */
+  /** Simple information, sans base (délai parti du lendemain ; J67, R63), jamais retenue ; null sans réception. */
   expirationSiDepartLendemainLe: string | null
   /** Opposition du marché (notification, motif, mainlevée) ; null sans opposition. */
   opposition: OppositionGarantie | null
@@ -854,6 +1126,7 @@ function etatGarantie(marche: MarcheTravaux, { retenu, resteRetenu, expiration, 
   if (oppositionEnCours(marche, expiration, aujourdhui)) return 'opposition'
   if (!expiration) return 'avant_reception'
   if (aujourdhui <= expiration) return 'en_delai'
+  if (oppositionDouteuseEnCours(marche, expiration, aujourdhui)) return 'opposition_a_confirmer'
   return resteRetenu > 0 ? 'a_liberer' : 'liberee'
 }
 
@@ -1055,8 +1328,10 @@ export function garantieDeLOperation(operation: OperationTravaux, sources: Sourc
  * rien de retenu sur un marché qui ne pratique pas la retenue (ni retenue stipulée, ni caution inférieure à elle), sous
  * opposition en cours à la date de la libération (notifiée dans le délai, réception datée ou non, sans mainlevée), tant
  * que le suivi porte une saisie écartée qui fausse le reste retenu (resteRetenuFaussePar), ou au-delà du reste retenu ;
- * une retenue pratiquée avant la fourniture d'une caution, ou malgré elle, est au 47200 et se libère. Rend aussi la
- * restitution à enregistrer.
+ * sous une opposition dont la validité n'est pas établie (antérieure à la réception, ou peut-être tardive), refusée sans
+ * la confirmation motivée du gestionnaire, qui est alors tracée sur la restitution (J67, R63 et R64) ; une retenue
+ * pratiquée avant la fourniture d'une caution, ou malgré elle, est au 47200 et se libère. Rend aussi la restitution à
+ * enregistrer.
  */
 export function ecritureLiberationRetenue({
   id,
@@ -1066,6 +1341,7 @@ export function ecritureLiberationRetenue({
   marche,
   suivi,
   montantCentimes,
+  confirmation = null,
 }: {
   id: string
   date: string
@@ -1074,6 +1350,8 @@ export function ecritureLiberationRetenue({
   marche: MarcheTravaux
   suivi: SuiviRetenueMarche
   montantCentimes: number
+  /** Confirmation motivée du gestionnaire, exigée sous une opposition de validité non établie (J67, R63 et R64). */
+  confirmation?: ConfirmationLiberation | null
 }): { traitement: Traitement; restitution: RestitutionRetenue } {
   const sansRetenue = suivi.retenuCentimes === 0 && motifRetenueInterdite(marche) !== null
   if (sansRetenue || suivi.marcheId !== marche.id || suivi.coproprieteId !== marche.coproprieteId)
@@ -1083,6 +1361,13 @@ export function ecritureLiberationRetenue({
   verifierDate(date, `Libération de la retenue du marché ${marche.id}`)
   if (oppositionEnCours(marche, suivi.expirationLe, date))
     throw new Error(`Marché ${marche.id} : opposition notifiée le ${dateIsoVersFr(marche.opposition?.notifieeLe ?? date)}, sans mainlevée au ${dateIsoVersFr(date)} (loi n° 71-584, art. 2) ; libération refusée.`)
+  const douteuse = oppositionDouteuseEnCours(marche, suivi.expirationLe, date)
+  if (douteuse && !confirmationSaisie(confirmation))
+    throw new Error(
+      `Marché ${marche.id} : opposition notifiée le ${dateIsoVersFr(marche.opposition?.notifieeLe ?? date)}, de validité non établie (antérieure à la réception, ou peut-être tardive) ; libération soumise à une confirmation motivée et tracée du gestionnaire (motif et collaborateur ; J67, R63 et R64).`,
+    )
+  if (!douteuse && confirmation !== null)
+    throw new Error(`Marché ${marche.id} : confirmation sans objet, aucune opposition de validité non établie au ${dateIsoVersFr(date)}.`)
   if (suivi.resteRetenuFaussePar.length > 0)
     throw new Error(
       `Marché ${marche.id} : reste retenu faussé par des saisies écartées du suivi (${suivi.resteRetenuFaussePar.join(', ')}) : facture invalide portant une retenue, retenue invalide ou restitution au montant invalide ; libération refusée jusqu'à leur correction.`,
@@ -1101,7 +1386,15 @@ export function ecritureLiberationRetenue({
   })
   return {
     traitement,
-    restitution: { id: `${id}:restitution`, coproprieteId: marche.coproprieteId, marcheId: marche.id, le: date, montantCentimes, traitementId: id },
+    restitution: {
+      id: `${id}:restitution`,
+      coproprieteId: marche.coproprieteId,
+      marcheId: marche.id,
+      le: date,
+      montantCentimes,
+      traitementId: id,
+      ...(confirmation ? { confirmation: { motif: confirmation.motif.trim(), confirmeePar: confirmation.confirmeePar.trim() } } : {}),
+    },
   }
 }
 
@@ -1132,7 +1425,7 @@ export function baseRetourApresRejet({
  */
 export type EcheanceLiberationGarantie = Omit<ElementAFaire, 'famille' | 'nature'> & { famille: 'travaux'; nature: 'liberation_garantie' }
 
-const ETATS_SUIVIS: ReadonlySet<EtatGarantieMarche> = new Set<EtatGarantieMarche>(['en_delai', 'a_liberer', 'opposition'])
+const ETATS_SUIVIS: ReadonlySet<EtatGarantieMarche> = new Set<EtatGarantieMarche>(['en_delai', 'a_liberer', 'opposition', 'opposition_a_confirmer'])
 
 /** Garanties du marché : la caution, la retenue restant à verser. */
 function garantiesDuMarche(suivi: SuiviRetenueMarche): string {
@@ -1144,12 +1437,33 @@ function garantiesDuMarche(suivi: SuiviRetenueMarche): string {
 
 function libelleLiberation(suivi: SuiviRetenueMarche, expiration: string): string {
   const garanties = garantiesDuMarche(suivi)
-  const opposition = suivi.etat === 'opposition' ? suivi.opposition : null
-  if (opposition)
+  const opposition = suivi.opposition
+  if (opposition && suivi.etat === 'opposition')
     return `${suivi.libelle} — ${garanties} sous opposition depuis le ${dateIsoVersFr(opposition.notifieeLe)} (motif : ${opposition.motif}) : libération suspendue jusqu'à la mainlevée de l'opposition, amiable ou par décision de justice (loi n° 71-584, art. 2 ; délai de garantie expirant le ${dateIsoVersFr(expiration)}, à confirmer).`
+  if (opposition && suivi.etat === 'opposition_a_confirmer')
+    return `${suivi.libelle} — ${garanties} : opposition notifiée le ${dateIsoVersFr(opposition.notifieeLe)} (motif : ${opposition.motif}), de validité non établie (antérieure à la réception, ou peut-être tardive) ; ${SANS_LIBERATION_AUTOMATIQUE} (loi n° 71-584, art. 2 ; J67, R63 et R64 ; délai de garantie expiré le ${dateIsoVersFr(expiration)}, à confirmer).`
   const suite = suivi.resteRetenuCentimes > 0 ? 'à libérer' : 'libérée'
-  const variante = suivi.expirationSiDepartLendemainLe ?? expiration
-  return `${suivi.libelle} — délai de garantie d'un an depuis la réception du ${dateIsoVersFr(suivi.dateReception ?? expiration)} expirant le ${dateIsoVersFr(expiration)} (${dateIsoVersFr(variante)} si le délai part du lendemain de la réception, à confirmer) : opposition motivée par lettre recommandée au plus tard ce jour, à défaut ${garanties} ${suite} (loi n° 71-584, art. 2).`
+  return `${suivi.libelle} — délai de garantie d'un an depuis la réception du ${dateIsoVersFr(suivi.dateReception ?? expiration)} expirant le ${dateIsoVersFr(expiration)} : opposition motivée par lettre recommandée, présentée (ou remise) à la caution ou au consignataire au plus tard ce jour, à défaut ${garanties} ${suite} (loi n° 71-584, art. 2 ; J67, R63).`
+}
+
+/**
+ * Rappel « opposition à envoyer » (J67, R63) : la lettre doit être présentée à la caution ou au consignataire au plus
+ * tard le jour de l'échéance ; le rappel tombe `jours` avant (réglage du cabinet, aucun texte) ; seulement en délai, sans
+ * opposition à temps, pour une garantie à protéger ; null sinon.
+ */
+function rappelOppositionAEnvoyer(mandatId: string, suivi: SuiviRetenueMarche, expiration: string, jours: number): EcheanceLiberationGarantie | null {
+  if (suivi.etat !== 'en_delai') return null
+  return {
+    id: `travaux:${suivi.coproprieteId}:${suivi.marcheId}:opposition_a_envoyer`,
+    famille: 'travaux',
+    nature: 'liberation_garantie',
+    libelle: `${suivi.libelle} — opposition éventuelle à la libération (${garantiesDuMarche(suivi)}) : la lettre recommandée motivée doit être présentée au plus tard le ${dateIsoVersFr(expiration)} à la caution ou au consignataire ; à envoyer dès maintenant (réglage du cabinet : ${jours} jours avant ; loi n° 71-584, art. 2 ; J67, R63).`,
+    date: ajouterJours(expiration, -jours),
+    mandatId,
+    objetId: `${suivi.coproprieteId}:${suivi.travauxId}`,
+    assigneId: null,
+    aConfirmer: true,
+  }
 }
 
 /** Rappel d'une saisie écartée qui fausse le reste retenu : la libération attend sa correction (ecritureLiberationRetenue). */
@@ -1160,16 +1474,25 @@ const mentionSaisiesEcartees = ({ resteRetenuFaussePar }: SuiviRetenueMarche): s
  * Échéances de libération des garanties pour le suivi « à faire » : à la date d'expiration du délai d'un an depuis la
  * réception (la plus courte des deux lectures) ; une retenue tant qu'il en reste à restituer, même le délai passé (la
  * somme est à verser) ; une caution jusqu'à l'expiration seulement (elle est ensuite libérée de plein droit) ; sous
- * opposition en cours, l'élément reste, « sous opposition depuis le … », jusqu'à la mainlevée ; une saisie écartée qui
- * fausse le reste retenu est rappelée au libellé (libération suspendue jusqu'à sa correction). `aConfirmer` : le jour
- * exact du délai est 🔴 (la variante du lendemain figure au libellé). La clé et la fiche d'origine portent le syndicat
- * (D1), comme depuisOperationsTravaux. Branchement : suivi-a-faire.depuisRetenuesGarantie.
+ * opposition à temps en cours, l'élément reste, « sous opposition depuis le … », jusqu'à la mainlevée ; sous une
+ * opposition de validité non établie, après l'échéance, il demande la confirmation du gestionnaire (J67, R63 et R64) ;
+ * une saisie écartée qui fausse le reste retenu est rappelée au libellé (libération suspendue jusqu'à sa correction).
+ * Avec `delaiRappelOppositionJours` (réglage du cabinet, aucun texte ; absent : pas de rappel), un rappel « opposition
+ * à envoyer » tombe ce nombre de jours avant l'échéance (J67, R63). `aConfirmer` : le jour exact du délai reste à
+ * confirmer (J67, R63). La clé et la fiche d'origine portent le syndicat (D1), comme depuisOperationsTravaux.
+ * Branchement : suivi-a-faire.depuisRetenuesGarantie (sans le réglage du rappel : à brancher).
  */
-export function echeancesLiberationGarantie(items: readonly { mandatId: string; suivi: SuiviRetenueMarche }[]): EcheanceLiberationGarantie[] {
+export function echeancesLiberationGarantie(
+  items: readonly { mandatId: string; suivi: SuiviRetenueMarche }[],
+  { delaiRappelOppositionJours = null }: { delaiRappelOppositionJours?: number | null } = {},
+): EcheanceLiberationGarantie[] {
+  if (delaiRappelOppositionJours !== null && (!Number.isInteger(delaiRappelOppositionJours) || delaiRappelOppositionJours <= 0))
+    throw new Error(`Rappel « opposition à envoyer » : ${delaiRappelOppositionJours} jours ; entier strictement positif attendu (réglage du cabinet).`)
   return items.flatMap(({ mandatId, suivi }): EcheanceLiberationGarantie[] => {
     const expiration = suivi.expirationLe
     if (!expiration || !ETATS_SUIVIS.has(suivi.etat)) return []
     if (suivi.garantie !== 'caution' && suivi.resteRetenuCentimes <= 0) return []
+    const rappel = delaiRappelOppositionJours === null ? null : rappelOppositionAEnvoyer(mandatId, suivi, expiration, delaiRappelOppositionJours)
     return [
       {
         id: `travaux:${suivi.coproprieteId}:${suivi.marcheId}:liberation_garantie`,
@@ -1182,6 +1505,7 @@ export function echeancesLiberationGarantie(items: readonly { mandatId: string; 
         assigneId: null,
         aConfirmer: true,
       },
+      ...(rappel ? [rappel] : []),
     ]
   })
 }
@@ -1197,6 +1521,8 @@ export type UsageLotFiscal = 'habitation' | 'professionnel'
 /** Charges d'un copropriétaire dans l'opération (sa part des dépenses réparties) ; bailleur et usage du lot fournis. */
 export interface ChargesCoproprietaireOperation {
   compteId: string
+  /** Lot de ces charges, pour la vue par lot (J67, R66) ; absent : charges du compte, tous lots. */
+  lotId?: string | null
   chargesCentimes: number
   bailleur: boolean
   usage?: UsageLotFiscal | null
@@ -1291,4 +1617,98 @@ export function partsDeductiblesBailleurs(
   )
   const lignes = charges.flatMap((c, rang) => (c.bailleur ? [ligneDuBailleur(c, partsTotales[rang], retenus)] : []))
   return { lignes, anomalies }
+}
+
+// ─── Part déductible par exercice approuvé et par lot (J67, R66) ─────────────────────────────
+
+/** Provisions pour travaux appelées sur l'exercice, pour un bailleur et un lot (lues sur les appels de l'exercice). */
+export interface ProvisionsTravauxAppelees {
+  compteId: string
+  /** Lot appelé ; absent : provisions du compte, tous lots. */
+  lotId?: string | null
+  montantCentimes: number
+}
+
+export interface LignePartDeductibleExercice {
+  compteId: string
+  lotId: string | null
+  /** Provisions pour travaux appelées sur l'exercice (CGI art. 31, I, 1°, a quater : provisions de l'année). */
+  provisionsAppeleesCentimes: number
+  /** Charges des opérations de l'exercice, cumulées. */
+  chargesCentimes: number
+  partDeductibleCentimes: number
+  /** Part non déductible : celle qui diminue, l'année suivante, les provisions déduites (a quater). */
+  partNonDeductibleCentimes: number
+  aVerifier: string[]
+  mention: string
+}
+
+export interface PartsDeductiblesDeLExercice {
+  coproprieteId: string
+  exerciceId: string
+  approbation: ApprobationComptes
+  /** Une ligne par compte et par lot, dans l'ordre des opérations puis des provisions. */
+  lignes: LignePartDeductibleExercice[]
+  anomalies: AnomalieRetenue[]
+}
+
+/**
+ * Parts déductibles des bailleurs par exercice approuvé et par lot (J67, R66), à la demande : aucun texte n'impose au
+ * syndic de les communiquer ; le propriétaire déduit les provisions de l'année, diminuées de la part non déductible des
+ * provisions déduites l'année précédente, connue à l'approbation des comptes (CGI art. 31, I, 1°, a quater). Pour chaque
+ * opération de l'exercice, la répartition reste celle de partsDeductiblesBailleurs (charges de chaque copropriétaire
+ * dans l'opération ; une opération sans déduction laisse toutes ses charges non déductibles) ; les lignes sont cumulées
+ * par compte et par lot, avec les provisions pour travaux appelées sur l'exercice et la mention. Refus : exercice sans
+ * approbation datée et référencée, marché d'un autre syndicat (D1), provisions qui ne sont pas en centimes entiers.
+ */
+export function partsDeductiblesDeLExercice(
+  { coproprieteId, exerciceId, approbation }: { coproprieteId: string; exerciceId: string; approbation: ApprobationComptes },
+  operations: readonly { marches: readonly MarcheTravaux[]; charges: readonly ChargesCoproprietaireOperation[] }[],
+  provisions: readonly ProvisionsTravauxAppelees[] = [],
+): PartsDeductiblesDeLExercice {
+  if (!exerciceId.trim() || !estDateIsoValide(approbation.date) || !approbation.reference.trim())
+    throw new Error(
+      `Parts déductibles de l'exercice « ${exerciceId} » : exercice approuvé attendu (date AAAA-MM-JJ et référence de l'approbation des comptes ; J67, R66).`,
+    )
+  const lignes = new Map<string, LignePartDeductibleExercice>()
+  const ligneDe = (compteId: string, lotId: string | null): LignePartDeductibleExercice => {
+    const cle = `${compteId}|${lotId ?? ''}`
+    const existante = lignes.get(cle)
+    if (existante) return existante
+    const nouvelle: LignePartDeductibleExercice = {
+      compteId,
+      lotId,
+      provisionsAppeleesCentimes: 0,
+      chargesCentimes: 0,
+      partDeductibleCentimes: 0,
+      partNonDeductibleCentimes: 0,
+      aVerifier: [],
+      mention: MENTION_PART_DEDUCTIBLE,
+    }
+    lignes.set(cle, nouvelle)
+    return nouvelle
+  }
+  const anomalies: AnomalieRetenue[] = []
+  for (const { marches, charges } of operations) {
+    const etranger = marches.find((m) => m.coproprieteId !== coproprieteId)
+    if (etranger) throw new Error(`Marché ${etranger.id} d'un autre syndicat que ${coproprieteId} (D1).`)
+    const resultat = partsDeductiblesBailleurs(marches, charges)
+    anomalies.push(...resultat.anomalies)
+    charges
+      .filter((c) => c.bailleur)
+      .forEach((c, rang) => {
+        const part = resultat.lignes.at(rang)
+        const ligne = ligneDe(c.compteId, c.lotId ?? null)
+        ligne.chargesCentimes += c.chargesCentimes
+        ligne.partDeductibleCentimes += part?.partDeductibleCentimes ?? 0
+        ligne.partNonDeductibleCentimes += part?.partNonDeductibleCentimes ?? c.chargesCentimes
+        ligne.aVerifier.push(...(part?.aVerifier ?? []))
+      })
+  }
+  for (const p of provisions) {
+    if (!Number.isInteger(p.montantCentimes) || p.montantCentimes < 0)
+      throw new Error(`Compte ${p.compteId} : provisions pour travaux appelées (${p.montantCentimes}) en centimes entiers positifs ou nuls.`)
+    ligneDe(p.compteId, p.lotId ?? null).provisionsAppeleesCentimes += p.montantCentimes
+  }
+  return { coproprieteId, exerciceId, approbation: { ...approbation }, lignes: [...lignes.values()], anomalies }
 }

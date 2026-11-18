@@ -20,6 +20,7 @@ import {
   type OrdonnanceJuge,
   type SaisieObligationFondsTravaux,
 } from '@/lib/administrateur-judiciaire/domain/fonds-travaux'
+import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
 import { NATURE_PLAN_COMPTABLE } from '@/lib/data/referentiels-gesteam-judiciaire'
 import { enTeteDuModule } from './en-tete-module'
 
@@ -320,6 +321,37 @@ describe('J30 — forme de l’ordonnance de l’art. 29-14, 2° et de la décis
     expect(branchements).toMatch(/fonds-travaux-lots\.ts et avis-appel\.ts reçoivent la forme structurée.*`aujourdhui: null`/)
     expect(branchements).toMatch(/travaux-operations\.ts.*perd/)
     expect(branchements).not.toMatch(/passent encore la décision et l'ordonnance en texte libre \(signalé/)
+  })
+})
+
+/**
+ * J67, R58 (décision de Hugo du 17/11/2026) : l'art. 29-14, 2° ne fixe aucun montant ; l'ordonnance porte un montant
+ * facultatif et son objet ; si un montant est écrit, aucun emploi ne le dépasse (bloquant).
+ */
+describe('J67, R58 — montant et objet de l’ordonnance de l’art. 29-14, 2°', () => {
+  const ORDONNANCE: OrdonnanceJuge = { juridiction: 'TJ', date: '2026-09-02', numero: 'RG 26/01234', montantMaximumCentimes: 1_000_000 }
+  const parLeJuge = (autorisationJuge: DecaissementFondsTravaux['autorisationJuge'], options: OptionsControleAffectation = {}, montantCentimes = 1_000_000) =>
+    controlerAffectationFondsTravaux(decaissement({ objet: 'redressement_29_14', decisionAg: null, autorisationJuge, montantCentimes }), { aujourdhui: AUJOURDHUI, ...options })
+
+  it('emploi dans le montant de l’ordonnance : admis ; au-delà : refusé, motif et montant à l’appui', () => {
+    expect(parLeJuge(ORDONNANCE)).toMatchObject({ autorise: true, cause: 'admis' })
+    const auDela = parLeJuge(ORDONNANCE, {}, 1_000_001)
+    expect(auDela).toMatchObject({ autorise: false, cause: 'au_dela_de_l_ordonnance', fondement: 'L. 1965 art. 29-14' })
+    expect(auDela.motif).toContain(`usage autorisé jusqu'à ${formatEurosCentimes(10_000)}`)
+    expect(auDela.motif).toContain('J67, R58')
+  })
+
+  it('les emplois déjà faits sous la même ordonnance comptent ; sans montant écrit, rien ne change', () => {
+    expect(parLeJuge(ORDONNANCE, { dejaEmployeSousOrdonnanceCentimes: 1 })).toMatchObject({ autorise: false, cause: 'au_dela_de_l_ordonnance' })
+    expect(parLeJuge(ORDONNANCE, { dejaEmployeSousOrdonnanceCentimes: 0 }, 999_999)).toMatchObject({ autorise: true })
+    expect(parLeJuge({ ...ORDONNANCE, montantMaximumCentimes: null }, { dejaEmployeSousOrdonnanceCentimes: 50_000_000 })).toMatchObject({ autorise: true })
+    expect(() => parLeJuge(ORDONNANCE, { dejaEmployeSousOrdonnanceCentimes: -1 })).toThrow(/Montant invalide/)
+  })
+
+  it('objet de l’ordonnance connu (redressement, gestion courante, opérations nommées) ; montant ou objet mal saisi : refus', () => {
+    for (const objet of ['redressement', 'gestion_courante', 'operations_nommees'] as const) expect(parLeJuge({ ...ORDONNANCE, objet })).toMatchObject({ autorise: true })
+    expect(parLeJuge({ ...ORDONNANCE, objet: 'travaux' as never })).toMatchObject({ autorise: false, cause: 'reference_invalide' })
+    for (const montantMaximumCentimes of [0, -5, 1.5]) expect(parLeJuge({ ...ORDONNANCE, montantMaximumCentimes })).toMatchObject({ autorise: false, cause: 'reference_invalide' })
   })
 })
 

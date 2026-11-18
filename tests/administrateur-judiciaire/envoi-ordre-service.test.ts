@@ -91,6 +91,8 @@ import {
   type LigneHistoriqueComplete,
   type ResultatDelaiContestationAg,
 } from '@/lib/administrateur-judiciaire/domain/statut-assemblee'
+import { creerBudgetOperationTravaux } from '@/lib/administrateur-judiciaire/domain/travaux-budget'
+import { creerOperationTravaux } from '@/lib/administrateur-judiciaire/domain/travaux-operations'
 import { creerDemandeVoiePostale } from '@/lib/administrateur-judiciaire/domain/voie-notification'
 import type { PiecesEntreprise } from '@/lib/administrateur-judiciaire/domain/vigilance-entreprises'
 import { FORME_ENVOI_COURRIER } from '@/lib/data/referentiels-gesteam-judiciaire'
@@ -456,6 +458,40 @@ describe('visa de sortie : circuit, viseur et historique', () => {
     const revue = revoirVisa(liee, demande(), evenement('col-gestion', 'Gestion', '11:00'))
     expect(revue.visa).toBe('Visa nécessaire')
     expect(revue.motifsVisa).toEqual(['convention_liee'])
+  })
+})
+
+describe('J67, R59 — OS qui fait dépasser le budget adopté de l’opération de travaux : bloqué sans décision nouvelle', () => {
+  // Opération au budget adopté de 10 000 € TTC, 9 000 € déjà engagés ; l'OS de la demande vaut 1 200 € TTC.
+  const operation = creerOperationTravaux({
+    numero: '00042',
+    coproprieteId: 'copro-1',
+    libelle: 'Ravalement',
+    cleId: 'cle-001',
+    decision: { date: '2026-03-12', resolution: 'Résolution 8' },
+    budgetTtcCentimes: 1_000_000,
+    financementFondsTravauxCentimes: 0,
+    affectationFonds: null,
+    tranches: [],
+  })
+  const budgetTravaux = { operation, budget: creerBudgetOperationTravaux(operation, { lignes: [{ poste: 'travaux', budgetTtcCentimes: 900_000 }] }) }
+
+  it('dépassement sans décision nouvelle : bloquant, avec le moyen de lever le blocage', () => {
+    const anomalies = controlerAvantEnvoiOs(demande(), sortie(), { ...CONTEXTE, budgetTravaux })
+    expect(bloquants(anomalies)).toEqual(['depassement_budget_os'])
+    expect(anomalies[0].message).toContain("nouvelle résolution d'assemblée")
+    expect(anomalies[0].fondement).toBe('L. 1965 art. 18, I ; art. 29-1, I')
+  })
+
+  it('décision qui couvre le supplément, ou urgence constatée : l’OS part (alerte pour l’urgence) ; hors opération : non contrôlé', () => {
+    const resolution = { origine: 'assemblee' as const, date: '2026-09-30', reference: 'Résolution 3', montantCentimes: 200_000 }
+    expect(controlerAvantEnvoiOs(demande(), sortie(), { ...CONTEXTE, budgetTravaux: { ...budgetTravaux, decisions: [resolution] } })).toEqual([])
+    const urgente = sortie(demande(), { delai: 'urgence', constatUrgence: CONSTAT })
+    const anomalies = controlerAvantEnvoiOs(demande(), urgente, { ...CONTEXTE, budgetTravaux })
+    expect(bloquants(anomalies)).toEqual([])
+    expect(codes(anomalies)).toContain('depassement_budget_os_urgence')
+    expect(anomalies.find((a) => a.code === 'depassement_budget_os_urgence')?.gravite).toBe('alerte')
+    expect(controlerAvantEnvoiOs(demande(), sortie(), { ...CONTEXTE, budgetTravaux: null })).toEqual([])
   })
 })
 

@@ -1,5 +1,7 @@
 import { ajouterMois, dateIsoVersFr, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
+import type { PouvoirsAgConfies } from '@/lib/administrateur-judiciaire/domain/decisions-annuelles-ag'
 import {
+  AFFECTATION_FONDS_TRAVAUX,
   controlerAffectationFondsTravaux,
   type DecaissementFondsTravaux,
   type ObjetDecaissementFondsTravaux,
@@ -78,6 +80,27 @@ import { STATUT_TRAVAUX, TYPE_TRAVAUX, type StatutTravaux, type TypeTravaux } fr
  *   exigibilité » ; art. 8 : pour les travaux, la répartition « ne peut intervenir qu'à la clôture définitive de chacune
  *   des opérations concernées ».
  *
+ * Décisions de Hugo du 17/11/2026 (registre des décisions juridiques, J67 : recommandations validées en bloc ; textes
+ * relus sur Légifrance le 17/11/2026 : arrêté du 14 mars 2005, art. 3, 7, 8 et 10 ; D. 1967 art. 44, 62-7 et 62-8 ; L.
+ * 1965 art. 29-1, I et 14-2-1, I, al. 7) :
+ * - J67, R60 : une opération qui n'est qu'une étude (diagnostic, DTG, audit, projet de plan de travaux : D. 1967 art.
+ *   44, 4° ; champ etude) porte ses charges au 67300 « Etudes techniques, diagnostic, consultation » de l'opération, à la
+ *   place du 67100 (arrêté, art. 7 et 8 : même subdivision par opération) ; compteDeChargeDeLOperation rend le compte de
+ *   charge (relevé Gestéam à faire : le compte de ces opérations dans la reprise) ;
+ * - J67, R61 : l'appel de travaux crédite le 10200 de l'opération (arrêté, art. 10 : 102 « crédité des provisions
+ *   appelées par le débit du compte 450 » ; type Gestéam « Travaux - Appels »), et non plus le 70200 ; à chaque charge,
+ *   virementProvisionsTravauxALaRealisation vire du 102 au 702 le même montant, dans la limite du 102 ; en fin
+ *   d'exercice, soldeTravauxEnFinDExercice passe au 12000 le solde des charges et des produits d'une opération non
+ *   clôturée, et repriseSoldeTravauxALOuverture le reprend à l'ouverture (écriture contraire, famille « Report de soldes
+ *   comptables ») ; relevé Gestéam à faire : le compte crédité par un appel de travaux (s'il crédite le 702, écart de
+ *   reprise à signaler à Hugo) ;
+ * - J67, R81 : la décision de l'administrateur provisoire tient lieu d'affectation du fonds de travaux à l'opération
+ *   (art. 14-2-1, I, al. 7) s'il a reçu de l'ordonnance les pouvoirs de l'assemblée (art. 29-1, I, al. 2) : étendue
+ *   saisie sur la décision (pouvoirsAgConfies) ; aucun pouvoir, ou étendue non saisie : refus, il faut un vote de
+ *   l'assemblée ou une ordonnance de l'art. 29-14, 2° ; une partie : admise, à vérifier dans l'ordonnance
+ *   (pouvoirsDeLAffectationParLAdministrateur) ; l'avis du conseil syndical (D. 1967 art. 62-7) et le registre (art.
+ *   62-8) restent les conditions de cette décision.
+ *
  * Règles :
  * - statut de l'opération typé sur STATUT_TRAVAUX, distinct du statut de chaque tranche (statutsDesTranches, typé sur
  *   les statuts d'échéance d'echeancier-appels.ts) ; type typé sur TYPE_TRAVAUX ;
@@ -110,8 +133,9 @@ import { STATUT_TRAVAUX, TYPE_TRAVAUX, type StatutTravaux, type TypeTravaux } fr
  *   affectation votée à part l'est à la même majorité que les travaux (art. 14-2-1, I, al. 7) ; « Ne pas utiliser les
  *   fonds travaux » (point 31) refuse toute part du fonds ; affectationFondsDeLOperation (point 31) rend l'affectation
  *   sans montant, pour le contrôle de chaque emploi du fonds (travaux-budget.ts) ;
- * - série de comptes générée à la création : 10200, 12000, 67100, 70200, 71147, auxiliaire = n° d'opération (règle
- *   « No des travaux ») ; les appels sont crédités sur l'auxiliaire de l'opération (traitementAppelDeFondsTravaux, qui
+ * - série de comptes générée à la création : 10200, 12000, 67100 (67300 pour une étude, J67, R60), 70200, 71147,
+ *   auxiliaire = n° d'opération (règle « No des travaux ») ; les appels sont crédités au 10200 (J67, R61), sur
+ *   l'auxiliaire de l'opération (traitementAppelDeFondsTravaux, qui
  *   retrouve l'opération par l'identifiant de l'échéance ; les échéances elles-mêmes restent celles d'avant le point 30),
  *   les règlements fournisseurs s'y rattachent par leur n° d'opération (reglementsDeLOperation) ; les factures le sont
  *   déjà (facture-ventilee.ts) ; l'encaissé de chaque tranche vient des postes de dette nés de ses échéances
@@ -142,16 +166,12 @@ import { STATUT_TRAVAUX, TYPE_TRAVAUX, type StatutTravaux, type TypeTravaux } fr
  *   l'administrateur provisoire (D. 1967 art. 62-8 : registre des décisions, sans assemblée) ;
  * - statut d'une tranche : celui de ses échéances (« Prévu » sans suivi, défaut d'echeancier-appels.ts) ; null quand les
  *   clés divergent ;
- * - compte crédité par l'appel : 70200 (défaut de repartition-appels.ts), sur l'auxiliaire de l'opération ; règlement
- *   « réglé » : enregistré ou rapproché ; « en cours » : demandé ou à régler ; annulé ou rejeté : exclu ;
+ * - règlement « réglé » : enregistré ou rapproché ; « en cours » : demandé ou à régler ; annulé ou rejeté : exclu ;
  * - « Encaissements effectués » d'une tranche : réglé des postes de dette dont l'échéance d'origine est une échéance de
  *   la tranche ; les postes fournis sont ceux du syndicat de l'opération (D1) ;
  * - historique : l'annulation et le traitement de répartition, sans colonne dans la table ChangementStatut, sont repris
  *   dans le motif.
  * 🔴 Non établi (questions pour Frédéric ou Hugo) :
- * - « L'appel de travaux crédite-t-il le 102 de l'opération (arrêté, art. 10 ; type Gestéam "Travaux - Appels" du
- *   10200), viré au 702 au fur et à mesure de la réalisation, ou directement le 702 (D. 2005-240 art. 4 : produits
- *   constatés à l'exigibilité ; défaut VitFix 70200) ? » (VitFix : 70200, inchangé) ;
  * - « Le solde en attente d'une opération va-t-il au 12000 (série "120xx" de Gestéam) ou à la subdivision 12-1 "Travaux
  *   décidés par l'assemblée générale" ? » (VitFix : 12000) ; « Le 71147 de l'opération s'ouvre-t-il à sa création ou à
  *   la première subvention notifiée ? » (VitFix : à la création) ;
@@ -159,9 +179,6 @@ import { STATUT_TRAVAUX, TYPE_TRAVAUX, type StatutTravaux, type TypeTravaux } fr
  *   de la clé − part du fonds de travaux de la clé) ? » (VitFix : oui) ; « La part du fonds de travaux par clé doit-elle
  *   être rapprochée des cotisations versées sur cette clé (fonds-travaux-lots.ts) ? » (VitFix : part par clé saisie, non
  *   rapprochée) ;
- * - « La décision de l'administrateur provisoire investi des pouvoirs de l'assemblée (art. 29-1, I, al. 2) tient-elle
- *   lieu de la décision d'affectation du fonds de travaux par l'assemblée (art. 14-2-1, I, al. 7) ? » (VitFix : oui,
- *   comme la résolution des travaux) ;
  * - « Une opération reprise d'un précédent syndic, déjà répartie, se crée-t-elle "Réparti" sans le traitement de
  *   répartition ? » (VitFix : non, création à "Réparti" refusée) ; « Une adoption saisie par erreur s'annule-t-elle ? »
  *   (VitFix : non, ni la décision ni le retour à "Projet") ;
@@ -173,13 +190,9 @@ import { STATUT_TRAVAUX, TYPE_TRAVAUX, type StatutTravaux, type TypeTravaux } fr
  *   urgents" et "Travaux urgents - Provisions") forment-ils une filière distincte de l'opération décidée ? » (VitFix :
  *   oui, hors de ce module, qui n'admet ni statut décidé ni appel sans décision ; provision au tiers du devis non codée,
  *   demandes.ts) ;
- * - « Les opérations d'études, de diagnostic ou d'expertise gardent-elles le 671xx de Gestéam ou passent-elles au 673
- *   "Etudes techniques, diagnostic, consultation" (arrêté, art. 7 et 8) ? » (VitFix : 67100 dans la série de toute
- *   opération, comme Gestéam tranche 43 § 11 ; la facture garde son compte de charge par ligne, facture-ventilee.ts) ;
  * - « La majorité requise se contrôle-t-elle selon la nature des travaux ? » (VitFix : non ; un même TYPE_TRAVAUX, par
  *   exemple "Ascenseur", relève de l'art. 24, II, a ou de l'art. 25, n selon l'objet) ; « Faut-il vérifier que
  *   l'ordonnance confie à l'administrateur provisoire le pouvoir de décider ces travaux ? » (VitFix : non vérifié) ;
- * - « Le virement 102 → 702 et le passage au 12 en fin d'exercice sont-ils à produire ici ? » (VitFix : non) ;
  * - « Quel statut donner à une tranche dont les clés n'ont pas le même statut d'échéance ? » (VitFix : null) ;
  * - « Que portent le bouton "À voter" et le champ "Approbation" du bloc Décision de la fiche ? » (non repris).
  * Branchements à faire hors de ce module (fichiers non modifiés) : repartition-appels.ts — un champ
@@ -227,6 +240,11 @@ export interface DecisionTravaux {
   majorite?: TypeMajorite | null
   /** Majorité du second vote immédiat qui l'a adoptée : art. 24 après l'art. 25 (art. 25-1), art. 25 après l'art. 26 (art. 26-1). */
   secondVote?: 'art24' | 'art25' | null
+  /**
+   * Décision de l'administrateur provisoire : étendue des pouvoirs de l'assemblée que l'ordonnance lui confie à cette date
+   * (L. 1965 art. 29-1, I, al. 2 ; D. 1967 art. 62-5 ; J67, R81) ; absente : non saisie. Sans objet pour l'assemblée.
+   */
+  pouvoirsAgConfies?: PouvoirsAgConfies | null
 }
 
 export interface SaisieOperationTravaux {
@@ -244,6 +262,12 @@ export interface SaisieOperationTravaux {
    * datée de la décision).
    */
   changementStatut?: { le: string; motif?: string | null } | null
+  /**
+   * Opération qui n'est qu'une étude (diagnostic, DTG, audit, projet de plan de travaux : D. 1967 art. 44, 4°) : ses
+   * charges vont au 673 « Etudes techniques, diagnostic, consultation » de l'opération, au lieu du 671 (arrêté du 14 mars
+   * 2005, art. 7 et 8 ; J67, R60) ; absente : non.
+   */
+  etude?: boolean | null
   /** Clé de l'opération ; avec la grille `cles`, la clé de sa première ligne. */
   cleId: string
   /** Grille des clés, quand l'opération en porte plusieurs ; absente, la seule clé `cleId` porte tout. */
@@ -288,6 +312,7 @@ export const ROLES_COMPTES_TRAVAUX = [
   'provisionsTravauxDecides',
   'soldeEnAttente',
   'travauxDecides',
+  'etudesTechniques',
   'provisionsSurTravaux',
   'subventions',
 ] as const
@@ -312,6 +337,15 @@ export const SERIE_COMPTES_TRAVAUX: readonly { role: RoleCompteTravaux; planCode
   { role: 'provisionsSurTravaux', planCode: '70200', intitule: "Provisions sur travaux du I de l'article 14-2 et opérations exceptionnelles" },
   { role: 'subventions', planCode: '71147', intitule: 'Subventions' },
 ]
+
+/**
+ * Compte crédité par l'appel de travaux : le 102 de l'opération, « crédité des provisions appelées par le débit du compte
+ * 450 » (arrêté du 14 mars 2005, art. 10 ; J67, R61), viré au 702 au fur et à mesure des charges.
+ */
+const COMPTE_APPEL_TRAVAUX = '10200'
+
+/** Compte de charge d'une opération qui n'est qu'une étude, à la place du 671 (arrêté, art. 7 ; J67, R60). */
+const COMPTE_ETUDES_TECHNIQUES = { role: 'etudesTechniques', planCode: '67300', intitule: 'Etudes techniques, diagnostic, consultation' } as const
 
 export interface OperationTravaux extends SaisieOperationTravaux {
   type: TypeTravaux | null
@@ -373,14 +407,24 @@ function verifierMajoriteDecision({ majorite, secondVote }: DecisionTravaux, num
     )
 }
 
-/** Décision : date et résolution ; majorité et second vote pour l'assemblée seulement. */
+const POUVOIRS_AG_CONNUS: ReadonlySet<string> = new Set<PouvoirsAgConfies>(['tous', 'partie', 'aucun'])
+
+/**
+ * Décision : date et résolution ; majorité et second vote pour l'assemblée seulement ; étendue des pouvoirs de
+ * l'assemblée connue, pour l'administrateur provisoire seulement (J67, R81).
+ */
 function verifierDecision(decision: DecisionTravaux, numero: string): void {
   if (!estDateIsoValide(decision.date) || !decision.resolution.trim())
     throw new Error('Décision incomplète (assemblée ou administrateur provisoire) : date (AAAA-MM-JJ) et résolution ou référence au registre attendues.')
   const origine = decision.origine ?? 'assemblee'
   if (!ORIGINES_DECISION.has(origine)) throw new Error(`Opération ${numero} : origine de décision inconnue « ${origine} ».`)
-  if (origine === 'assemblee') verifierMajoriteDecision(decision, numero)
-  else if (decision.majorite || decision.secondVote)
+  const pouvoirs = decision.pouvoirsAgConfies ?? null
+  if (pouvoirs !== null && !POUVOIRS_AG_CONNUS.has(pouvoirs))
+    throw new Error(`Opération ${numero} : étendue des pouvoirs inconnue « ${pouvoirs} » (tous, partie ou aucun).`)
+  if (origine === 'assemblee') {
+    if (pouvoirs !== null) throw new Error(`Opération ${numero} : pouvoirs de l'assemblée confiés à l'administrateur provisoire, sans objet pour une décision de l'assemblée.`)
+    verifierMajoriteDecision(decision, numero)
+  } else if (decision.majorite || decision.secondVote)
     throw new Error(`Opération ${numero} : décision de l'administrateur provisoire (L. 1965 art. 29-1) : ni vote ni majorité.`)
 }
 
@@ -525,7 +569,7 @@ export function adopterOperationTravaux(operation: OperationTravaux, decision: D
   return ajouterChangement(adoptee, changementAdoption(decision.date))
 }
 
-const CODES_SERIE: ReadonlySet<string> = new Set(SERIE_COMPTES_TRAVAUX.map((c) => c.planCode))
+const CODES_SERIE: ReadonlySet<string> = new Set([...SERIE_COMPTES_TRAVAUX.map((c) => c.planCode), COMPTE_ETUDES_TECHNIQUES.planCode])
 
 /**
  * Mouvement de l'opération : au segment de son syndicat (le n° n'est unique qu'en son sein, D1), lien travaux ou compte
@@ -691,10 +735,50 @@ export function affectationFondsDeLOperation(operation: SaisieOperationTravaux):
   }
 }
 
-/** Contrôle d'affectation de la part (positive) du fonds ; null si l'affectation n'est pas précisée. */
+export const FONDEMENT_POUVOIRS_AG = 'L. 1965 art. 29-1, I, al. 2'
+
+/** Pouvoirs de l'assemblée de l'administrateur provisoire, pour l'affectation du fonds par sa décision (J67, R81). */
+const POUVOIRS_DE_L_AFFECTATION: Readonly<Record<PouvoirsAgConfies | 'inconnue', { refuse: boolean; constat: string } | null>> = {
+  tous: null,
+  partie: {
+    refuse: false,
+    constat:
+      "l'ordonnance confie à l'administrateur provisoire une partie des pouvoirs de l'assemblée : vérifier que l'ordonnance lui confie l'affectation du fonds de travaux",
+  },
+  aucun: { refuse: true, constat: "l'ordonnance ne confie à l'administrateur provisoire aucun pouvoir de l'assemblée" },
+  inconnue: { refuse: true, constat: "l'étendue des pouvoirs de l'assemblée confiés à l'administrateur provisoire par l'ordonnance n'est pas saisie" },
+}
+
+/**
+ * Part du fonds affectée par la décision de l'administrateur provisoire qui décide les travaux (objet du I de l'art.
+ * 14-2-1, aucune décision d'affectation distincte) : sa décision ne tient lieu d'affectation que s'il a reçu de
+ * l'ordonnance les pouvoirs de l'assemblée (L. 1965 art. 29-1, I, al. 2 ; art. 14-2-1, I, al. 7 ; J67, R81). Aucun
+ * pouvoir, ou étendue non saisie : refus, il faut un vote de l'assemblée ou une ordonnance de l'art. 29-14, 2° ; une
+ * partie seulement : admise, à vérifier dans l'ordonnance ; null hors de ce cas ou avec tous les pouvoirs.
+ */
+export function pouvoirsDeLAffectationParLAdministrateur(
+  operation: SaisieOperationTravaux,
+): { refuse: boolean; motif: string; fondement: string } | null {
+  const { affectationFonds, decision } = operation
+  if (!affectationFonds || decision?.origine !== 'administrateur' || affectationFonds.decisionAg?.trim()) return null
+  if (AFFECTATION_FONDS_TRAVAUX[affectationFonds.objet].base !== 'affectation_ag') return null
+  const pouvoirs = POUVOIRS_DE_L_AFFECTATION[decision.pouvoirsAgConfies ?? 'inconnue']
+  if (pouvoirs === null) return null
+  const suite = pouvoirs.refuse
+    ? " ; sa décision ne tient pas lieu d'affectation du fonds : il faut un vote de l'assemblée ou une ordonnance de l'art. 29-14, 2°"
+    : ' ; à défaut, il faut un vote de l\'assemblée ou une ordonnance de l\'art. 29-14, 2°'
+  return { refuse: pouvoirs.refuse, motif: `Opération ${operation.numero} : ${pouvoirs.constat}${suite} (J67, R81).`, fondement: FONDEMENT_POUVOIRS_AG }
+}
+
+/**
+ * Contrôle d'affectation de la part (positive) du fonds ; null si l'affectation n'est pas précisée. Refus quand elle
+ * repose sur une décision de l'administrateur provisoire sans les pouvoirs de l'assemblée (J67, R81).
+ */
 function controlerPartFonds(operation: SaisieOperationTravaux): ResultatAffectation | null {
   const affectation = affectationFondsDeLOperation(operation)
   if (!affectation) return null
+  const pouvoirs = pouvoirsDeLAffectationParLAdministrateur(operation)
+  if (pouvoirs?.refuse) return { autorise: false, cause: 'decision_manquante', motif: pouvoirs.motif, fondement: pouvoirs.fondement, formeIncomplete: null }
   return controlerAffectationFondsTravaux({ ...affectation, montantCentimes: operation.financementFondsTravauxCentimes })
 }
 
@@ -788,10 +872,15 @@ function clesDeLaSaisie(saisie: SaisieOperationTravaux): CleOperationNormalisee[
   return normalisees
 }
 
-/** Série de comptes de l'opération, générée à sa création : auxiliaire = n° d'opération (règle « No des travaux »). */
-function serieComptesDe({ numero, libelle }: SaisieOperationTravaux): CompteSerieTravaux[] {
+/**
+ * Série de comptes de l'opération, générée à sa création : auxiliaire = n° d'opération (règle « No des travaux ») ; une
+ * opération qui n'est qu'une étude prend le 673 à la place du 671 (J67, R60).
+ */
+function serieComptesDe({ numero, libelle, etude }: SaisieOperationTravaux): CompteSerieTravaux[] {
   const auxiliaire = genererSegmentAuxiliaire({ regleNumeroCompte: 'No des travaux' }, { regle: 'No des travaux', valeur: numero })
-  return SERIE_COMPTES_TRAVAUX.map(({ role, planCode, intitule }) => ({ role, planCode, auxiliaire, intitule, libelle }))
+  return SERIE_COMPTES_TRAVAUX.map((compte) => (etude && compte.role === 'travauxDecides' ? COMPTE_ETUDES_TECHNIQUES : compte)).map(
+    ({ role, planCode, intitule }) => ({ role, planCode, auxiliaire, intitule, libelle }),
+  )
 }
 
 const STATUTS_DATES_PAR_LA_DECISION: ReadonlySet<StatutTravaux> = new Set<StatutTravaux>(['Projet', 'Adopté'])
@@ -848,11 +937,116 @@ export function creerOperationTravaux(saisie: SaisieOperationTravaux): Operation
   return tracerStatutDeCreation(projet, statut, changementStatut)
 }
 
+/** Compte complet d'un compte de la série, au segment du syndicat (D1) : `<syndicat>.<plan>.<n°>.0`. */
+const compteComplet = (compte: CompteSerieTravaux, segmentSyndicat: string): string =>
+  formaterNumeroCompte({ mandat: segmentSyndicat, planCode: compte.planCode, auxiliaire: compte.auxiliaire })
+
 /** Numéro du compte de la série de l'opération, au segment du syndicat (D1) : `<syndicat>.<plan>.<n°>.0`. */
 export function numeroCompteTravaux(operation: OperationTravaux, role: RoleCompteTravaux, segmentSyndicat: string): string {
   const compte = operation.serieComptes.find((c) => c.role === role)
   if (!compte) throw new Error(`Opération ${operation.numero} : compte « ${role} » absent de sa série.`)
-  return formaterNumeroCompte({ mandat: segmentSyndicat, planCode: compte.planCode, auxiliaire: compte.auxiliaire })
+  return compteComplet(compte, segmentSyndicat)
+}
+
+/** Compte de charge de l'opération : le 673 d'une opération qui n'est qu'une étude, le 671 sinon (J67, R60). */
+export function compteDeChargeDeLOperation(operation: OperationTravaux): CompteSerieTravaux {
+  const compte = operation.serieComptes.find((c) => c.role === 'travauxDecides' || c.role === 'etudesTechniques')
+  if (!compte) throw new Error(`Opération ${operation.numero} : compte de charge absent de sa série.`)
+  return compte
+}
+
+// ─── Provisions et solde de l'opération (arrêté du 14 mars 2005, art. 10 ; J67, R61) ──────────
+
+/** Opération décidée, pas encore répartie : ses provisions et son solde se suivent encore ; acte daté après la décision. */
+function verifierOperationSuivie(operation: OperationTravaux, le: string, objet: string): void {
+  if (!operation.decision) throw new Error(`Opération ${operation.numero} sans décision : ${objet} sans objet.`)
+  if (operation.statut === 'Réparti') throw new Error(`Opération ${operation.numero} « Réparti » : clôturée, ${objet} sans objet.`)
+  verifierDate(le, `Opération ${operation.numero}, ${objet}`)
+  verifierApresLaDecision(operation, le, objet)
+}
+
+/**
+ * Virement du 102 au 702 de l'opération à l'enregistrement d'une de ses charges (671, ou 673 d'une étude) : le 102 est
+ * « débité par le crédit du compte 702 [...] au fur et à mesure de la réalisation des travaux » (arrêté du 14 mars 2005,
+ * art. 10 ; J67, R61), du montant de la charge, dans la limite du solde créditeur du 102 que l'appelant fournit. Rend le
+ * traitement (« Saisie de mouvements », 🔵 : la famille Gestéam de ce virement n'a pas été observée), null quand le 102
+ * est soldé, et la part de la charge que le 102 ne couvre pas.
+ */
+export function virementProvisionsTravauxALaRealisation(
+  operation: OperationTravaux,
+  { id, date, segmentSyndicat, chargeCentimes, solde102Centimes }: { id: string; date: string; segmentSyndicat: string; chargeCentimes: number; solde102Centimes: number },
+): { traitement: Traitement | null; vireCentimes: number; nonCouvertCentimes: number } {
+  const { numero } = operation
+  if (!Number.isInteger(chargeCentimes) || chargeCentimes <= 0)
+    throw new Error(`Opération ${numero} : charge de l'opération (${chargeCentimes}) en centimes entiers strictement positifs.`)
+  if (!estCentimes(solde102Centimes)) throw new Error(`Opération ${numero} : solde du 102 (${solde102Centimes}) en centimes entiers positifs ou nuls.`)
+  verifierOperationSuivie(operation, date, 'virement du 102 au 702')
+  const vireCentimes = Math.min(chargeCentimes, solde102Centimes)
+  const nonCouvertCentimes = chargeCentimes - vireCentimes
+  if (vireCentimes === 0) return { traitement: null, vireCentimes, nonCouvertCentimes }
+  const liens = { travauxId: numero }
+  const traitement = creerTraitement({
+    id,
+    famille: 'Saisie de mouvements',
+    date,
+    mouvements: [
+      { compte: numeroCompteTravaux(operation, 'provisionsTravauxDecides', segmentSyndicat), sens: 'debit', montantCentimes: vireCentimes, liens },
+      { compte: numeroCompteTravaux(operation, 'provisionsSurTravaux', segmentSyndicat), sens: 'credit', montantCentimes: vireCentimes, liens },
+    ],
+  })
+  return { traitement, vireCentimes, nonCouvertCentimes }
+}
+
+/**
+ * Solde au 12 d'une opération non clôturée en fin d'exercice : le compte 12 « reçoit le solde des opérations sur travaux
+ * [...] qui ne peuvent pas être clôturées en fin d'exercice » (arrêté du 14 mars 2005, art. 10 ; J67, R61). Le compte de
+ * charge (671, ou 673) est crédité de son solde débiteur, le 702 débité de son solde créditeur, la différence au 12000
+ * de l'opération ; soldes fournis par l'appelant. Reprise à l'ouverture : repriseSoldeTravauxALOuverture.
+ */
+export function soldeTravauxEnFinDExercice(
+  operation: OperationTravaux,
+  {
+    id,
+    date,
+    segmentSyndicat,
+    soldeChargesCentimes,
+    soldeProduitsCentimes,
+  }: { id: string; date: string; segmentSyndicat: string; soldeChargesCentimes: number; soldeProduitsCentimes: number },
+): Traitement {
+  const { numero } = operation
+  if (!estCentimes(soldeChargesCentimes) || !estCentimes(soldeProduitsCentimes))
+    throw new Error(`Opération ${numero} : soldes des charges (${soldeChargesCentimes}) et des produits (${soldeProduitsCentimes}) en centimes entiers positifs ou nuls.`)
+  if (soldeChargesCentimes === 0 && soldeProduitsCentimes === 0) throw new Error(`Opération ${numero} : aucun solde à passer au 12.`)
+  verifierOperationSuivie(operation, date, 'solde au 12')
+  const liens = { travauxId: numero }
+  const ecart = soldeChargesCentimes - soldeProduitsCentimes
+  const mouvements: LigneMouvement[] = [
+    { compte: compteComplet(compteDeChargeDeLOperation(operation), segmentSyndicat), sens: 'credit' as const, montantCentimes: soldeChargesCentimes, liens },
+    { compte: numeroCompteTravaux(operation, 'provisionsSurTravaux', segmentSyndicat), sens: 'debit' as const, montantCentimes: soldeProduitsCentimes, liens },
+    { compte: numeroCompteTravaux(operation, 'soldeEnAttente', segmentSyndicat), sens: ecart > 0 ? ('debit' as const) : ('credit' as const), montantCentimes: Math.abs(ecart), liens },
+  ].filter((ligne) => ligne.montantCentimes > 0)
+  return creerTraitement({ id, famille: 'Saisie de mouvements', date, mouvements })
+}
+
+/**
+ * Reprise à l'ouverture de l'exercice suivant du solde passé au 12 (arrêté du 14 mars 2005, art. 10 : débits et crédits
+ * de fin d'exercice repris à l'ouverture ; J67, R61) : l'écriture contraire, datée de l'ouverture, famille « Report de
+ * soldes comptables » (🔵 : famille Gestéam non observée pour cette reprise).
+ */
+export function repriseSoldeTravauxALOuverture(solde: Traitement, { id, date }: { id: string; date: string }): Traitement {
+  if (!estDateIsoValide(date) || date <= solde.date)
+    throw new Error(`Reprise du solde ${solde.id} : date d'ouverture (${date}) après le solde du ${dateIsoVersFr(solde.date)} attendue.`)
+  return creerTraitement({
+    id,
+    famille: 'Report de soldes comptables',
+    date,
+    mouvements: solde.mouvements.map(({ compte, sens, montantCentimes, liens }) => ({
+      compte,
+      sens: sens === 'debit' ? 'credit' : 'debit',
+      montantCentimes,
+      ...(liens ? { liens } : {}),
+    })),
+  })
 }
 
 // ─── Appels ──────────────────────────────────────────────────────────────────────────────────
@@ -925,7 +1119,7 @@ export function echeancesTravaux(operation: OperationTravaux): EcheanceAppel[] {
     libelle: `${operation.libelle} — appel n° ${l.rang} (${l.tranche.tauxPct} %)`,
     montantCentimes: l.montantCentimes,
     nature: 'travaux' as const,
-    compteContrepartie: '70200',
+    compteContrepartie: COMPTE_APPEL_TRAVAUX,
   }))
 }
 

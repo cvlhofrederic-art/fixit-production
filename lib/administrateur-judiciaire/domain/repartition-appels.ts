@@ -20,8 +20,10 @@ import { creerTraitement, type Traitement } from '@/lib/administrateur-judiciair
  * Gestéam — l'échéance d'appel porte (mandat, clé, exercice ou travaux / tranche, exigibilité) ; l'avis d'appel d'un
  * copropriétaire liste, par clé, sa quote-part (tantièmes du lot / total de la clé), le solde antérieur et le total.
  * Arrondi : plus forts restes, la somme des quotes-parts égale exactement l'échéance (aucun centime perdu ni créé).
- * 🔵 Comptes de contrepartie par défaut : 70100 (provisions, budget), 70200 (travaux), 10500 (fonds de travaux, compte
- *    observé tranche 25) ; remplaçables par échéance.
+ * 🔵 Comptes de contrepartie par défaut : 70100 (provisions, budget), 10500 (fonds de travaux, compte observé tranche
+ *    25) ; remplaçables par échéance. Travaux : 10200, le 102 « crédité des provisions appelées par le débit du compte
+ *    450 » (arrêté du 14 mars 2005, art. 10 ; décision de Hugo du 17/11/2026, J67, R61), viré au 702 au fil des charges
+ *    (travaux-operations.ts).
  * 🔵 Une échéance à 0 centime (tranche de travaux entièrement financée par le fonds de travaux) reste dans l'avis (l'avis
  *    du n° 17 y rattache l'emploi du fonds) mais n'écrit aucune ligne : débits et crédits nuls sont omis de l'écriture.
  *
@@ -98,7 +100,7 @@ export function repartir(montantCentimes: number, cle: CleRepartition): { lotId:
 
 export type NatureEcheance = 'budget' | 'travaux' | 'fonds_travaux'
 
-const CONTREPARTIE_PAR_DEFAUT: Record<NatureEcheance, string> = { budget: '70100', travaux: '70200', fonds_travaux: '10500' }
+const CONTREPARTIE_PAR_DEFAUT: Record<NatureEcheance, string> = { budget: '70100', travaux: '10200', fonds_travaux: '10500' }
 
 /** Code du plan crédité par l'appel de l'échéance : le sien, à défaut celui de sa nature. */
 export const codeContrepartie = (e: Pick<EcheanceAppel, 'nature' | 'compteContrepartie'>): string =>

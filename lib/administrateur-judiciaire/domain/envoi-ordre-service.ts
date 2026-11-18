@@ -31,6 +31,11 @@ import type { ElementAFaire } from '@/lib/administrateur-judiciaire/domain/suivi
 import type { CauseDelaiNonCalcule, ResultatDelaiContestationAg } from '@/lib/administrateur-judiciaire/domain/statut-assemblee'
 import { normaliserEspaces, normaliserTexte } from '@/lib/administrateur-judiciaire/domain/texte'
 import {
+  controlerDepassementBudgetAvantOs,
+  type BudgetTravauxDeLOs,
+  type CodeDepassementBudgetOs,
+} from '@/lib/administrateur-judiciaire/domain/travaux-budget'
+import {
   CODES_PIECES_VIGILANCE,
   SEUIL_VIGILANCE_HT_CENTIMES,
   type AnomalieEntreprise,
@@ -1753,8 +1758,11 @@ export type CodeAnomalieEnvoiOs =
   | 'seuil_administrateur_a_verifier'
 
 export interface AnomalieEnvoiOs {
-  /** Code du point 44, ou code du contrôle déclaratif de l'entreprise (vigilance-entreprises.ts). */
-  code: CodeAnomalieEnvoiOs | CodeAnomalieEntreprise
+  /**
+   * Code du point 44, du contrôle déclaratif de l'entreprise (vigilance-entreprises.ts) ou du budget adopté de
+   * l'opération de travaux (travaux-budget.ts ; J67, R59).
+   */
+  code: CodeAnomalieEnvoiOs | CodeAnomalieEntreprise | CodeDepassementBudgetOs
   gravite: 'bloquant' | 'alerte'
   message: string
   /** Texte qui fonde l'anomalie ; null pour une règle de gestion. */
@@ -1864,6 +1872,12 @@ export interface ContexteEnvoiOs extends OptionsVisa {
   delegationCs?: DelegationCsExercee
   /** Administrateurs désignés, mode d'exercice et pouvoirs confiés par l'ordonnance (J67, R69, R71, R73). */
   mandat?: CadreMandatOs
+  /**
+   * Opération de travaux de l'OS, son budget, les décisions qui couvrent un supplément et la marge du cabinet : le total
+   * engagé, OS compris, est contrôlé face au budget adopté (J67, R59 ; controlerDepassementBudgetAvantOs) ; absent ou
+   * null : OS hors opération de travaux, non contrôlé.
+   */
+  budgetTravaux?: BudgetTravauxDeLOs | null
 }
 
 type Gravite = AnomalieEnvoiOs['gravite']
@@ -3010,6 +3024,21 @@ function anomaliesControleDeclaratif(d: Demande, s: SortieOrdreService, contexte
 }
 
 /**
+ * Budget adopté de l'opération de travaux (intervention ; J67, R59) : le total engagé, OS compris, au-delà du budget
+ * adopté bloque l'envoi sans décision nouvelle ; l'urgence retenue, constatée au plus tard le jour de l'envoi (J16, J46),
+ * le laisse partir avec une alerte.
+ */
+function anomaliesBudgetTravaux(d: Demande, s: SortieOrdreService, contexte: ContexteEnvoiOs): AnomalieEnvoiOs[] {
+  const budgetTravaux = contexte.budgetTravaux ?? null
+  if (d.type !== 'intervention' || budgetTravaux === null) return []
+  const { operation, budget, ...couverture } = budgetTravaux
+  const urgence = urgenceConstatee(s) && !constatApresEnvoi(s.constatUrgence, contexte.date)
+  return controlerDepassementBudgetAvantOs(operation, budget, { ...couverture, montantOsTtcCentimes: prevuDemande(d), date: contexte.date, urgenceConstatee: urgence }).map(
+    (a) => anomalie(a.code, a.gravite === 'bloquant' ? 'bloquant' : 'alerte', a.message, a.fondement, a.aConfirmer),
+  )
+}
+
+/**
  * Contrôle avant l'envoi de l'OS : bloquants (l'envoi est refusé) et alertes. La route « envoyer » devra l'appeler avant
  * de créer la mission (branchement à faire).
  */
@@ -3035,6 +3064,7 @@ export function controlerAvantEnvoiOs(d: Demande, s: SortieOrdreService, context
     ...anomaliesDevisAssocie(d, s, contexte),
     ...anomaliesAncienneteDevis(d, contexte),
     ...anomaliesControleDeclaratif(d, s, contexte),
+    ...anomaliesBudgetTravaux(d, s, contexte),
   ]
 }
 

@@ -190,12 +190,27 @@ export type ObjetDecaissementFondsTravaux = keyof typeof AFFECTATION_FONDS_TRAVA
 /** Exclusions qu'une ordonnance de l'art. 29-14, 2° peut ouvrir à l'administrateur provisoire. */
 const OUVERTS_PAR_LE_JUGE: ReadonlySet<ObjetDecaissementFondsTravaux> = new Set(['charges_courantes', 'frais_contentieux'])
 
+/**
+ * Objet de l'ordonnance de l'art. 29-14, 2° (J67, R58) : actions de redressement, maintien de la gestion courante, ou
+ * opérations nommées. Lu et contrôlé dans sa forme ; il ne change pas les objets de décaissement admis.
+ */
+export const OBJETS_ORDONNANCE_FONDS_TRAVAUX = ['redressement', 'gestion_courante', 'operations_nommees'] as const
+export type ObjetOrdonnanceFondsTravaux = (typeof OBJETS_ORDONNANCE_FONDS_TRAVAUX)[number]
+const OBJETS_ORDONNANCE_CONNUS: ReadonlySet<string> = new Set(OBJETS_ORDONNANCE_FONDS_TRAVAUX)
+
 /** Ordonnance du juge (art. 29-14, 2°), forme exigée par la décision J30 : juridiction, date et n°, chacun obligatoire. */
 export interface OrdonnanceJuge {
   juridiction: string
   /** Date de l'ordonnance (AAAA-MM-JJ), jamais postérieure à aujourd'hui. */
   date: string
   numero: string
+  /**
+   * Montant jusqu'auquel l'ordonnance autorise l'usage du fonds, s'il y en a un (J67, R58 : l'art. 29-14, 2° n'en fixe
+   * aucun, l'ordonnance fixe l'étendue de l'autorisation) ; aucun emploi ne le dépasse. Absent : aucun montant écrit.
+   */
+  montantMaximumCentimes?: number | null
+  /** Objet de l'autorisation (J67, R58) ; absent : non saisi. */
+  objet?: ObjetOrdonnanceFondsTravaux | null
 }
 
 /** Décision d'affectation de l'assemblée (I, al. 7) : date de l'AG et n° de la résolution, obligatoires (J30, J42). */
@@ -303,7 +318,13 @@ export function lireDecisionAffectationAg(
   return lireReference(valeur, CADRE_DECISION_AG)
 }
 
-export type CauseAffectation = 'admis' | 'exclu' | 'decision_manquante' | 'autorisation_manquante' | 'reference_invalide'
+export type CauseAffectation =
+  | 'admis'
+  | 'exclu'
+  | 'decision_manquante'
+  | 'autorisation_manquante'
+  | 'reference_invalide'
+  | 'au_dela_de_l_ordonnance'
 
 /** Référence admise mais saisie en texte libre avant J30 : ce qui manque à la forme exigée. */
 export interface FormeIncomplete {
@@ -336,10 +357,14 @@ const resultatAffectation = (
  *   (parts du fonds par lot, avis d'appel), dont la date n'est pas comparée au jour ; la forme reste contrôlée.
  * - `nouvelleSaisie` : la référence est saisie maintenant ; un texte libre est alors refusé, motif « forme incomplète » à
  *   l'appui. Absent ou faux : valeur enregistrée, dont le texte libre d'avant J30 est admis et signalé.
+ * - `dejaEmployeSousOrdonnanceCentimes` : emplois déjà faits sous la même ordonnance, avant ce décaissement (toutes
+ *   opérations, gestion courante comprise), fournis par l'appelant ; absent : zéro, seul ce décaissement est comparé au
+ *   montant de l'ordonnance (J67, R58).
  */
 export interface OptionsControleAffectation {
   aujourdhui?: string | null
   nouvelleSaisie?: boolean
+  dejaEmployeSousOrdonnanceCentimes?: number
 }
 
 /** Contrôle de la forme d'une référence présente : refus motivé, ou admission (avec la désignation ou le signalement). */
@@ -389,9 +414,33 @@ function motifExclusion(objet: ObjetDecaissementFondsTravaux, libelle: string): 
   return motif
 }
 
+/**
+ * Montant et objet d'une ordonnance structurée (J67, R58) : objet inconnu ou montant qui n'est pas en centimes entiers
+ * strictement positifs, refus « reference_invalide » ; emploi qui, ajouté aux emplois déjà faits sous cette ordonnance,
+ * dépasse son montant, refus « au_dela_de_l_ordonnance » ; null sinon (texte libre ou aucun montant écrit compris).
+ */
+function refusDuMontantDeLOrdonnance(
+  valeur: DecaissementFondsTravaux['autorisationJuge'],
+  montantCentimes: number,
+  dejaEmploye: number,
+): { cause: CauseAffectation; motif: string } | null {
+  if (valeur === null || valeur === undefined || typeof valeur === 'string') return null
+  const { montantMaximumCentimes: maximum = null, objet = null } = valeur
+  if (objet !== null && !OBJETS_ORDONNANCE_CONNUS.has(objet))
+    return { cause: 'reference_invalide', motif: `objet de l'ordonnance inconnu « ${objet} » (redressement, gestion courante ou opérations nommées).` }
+  if (maximum === null) return null
+  if (!Number.isInteger(maximum) || maximum <= 0)
+    return { cause: 'reference_invalide', motif: `montant de l'ordonnance invalide (${maximum}) : centimes entiers strictement positifs attendus.` }
+  if (dejaEmploye + montantCentimes <= maximum) return null
+  return {
+    cause: 'au_dela_de_l_ordonnance',
+    motif: `usage autorisé jusqu'à ${eur(maximum)} ; emploi de ${eur(montantCentimes)} après ${eur(dejaEmploye)} déjà employés sous cette ordonnance : au-delà de son montant, refusé (J67, R58).`,
+  }
+}
+
 function controlerOrdonnance(
   libelle: string,
-  valeur: DecaissementFondsTravaux['autorisationJuge'],
+  { autorisationJuge: valeur, montantCentimes }: Pick<DecaissementFondsTravaux, 'autorisationJuge' | 'montantCentimes'>,
   options: OptionsControleAffectation,
 ): ResultatAffectation {
   const lecture = lireOrdonnanceJuge(valeur)
@@ -403,6 +452,8 @@ function controlerOrdonnance(
     )
   const controle = controlerReference(lecture, CADRE_ORDONNANCE, options)
   if (controle.refus !== null) return resultatAffectation('reference_invalide', `${libelle} : ${controle.refus}`, FONDEMENT_29_14)
+  const auDela = refusDuMontantDeLOrdonnance(valeur, montantCentimes, options.dejaEmployeSousOrdonnanceCentimes ?? 0)
+  if (auDela) return resultatAffectation(auDela.cause, `${libelle}${controle.designation} : ${auDela.motif}`, FONDEMENT_29_14)
   return resultatAffectation('admis', `${libelle} : usage autorisé par le juge${controle.designation}.`, FONDEMENT_29_14, controle.formeIncomplete)
 }
 
@@ -428,21 +479,23 @@ function controlerDecisionAg(
  * sur décision d'affectation de l'assemblée, ou pour l'usage judiciaire de l'art. 29-14, 2°, sur ordonnance du juge.
  * Décision et ordonnance en forme structurée (J30) : un champ manquant, une date invalide ou postérieure à
  * `aujourdhui` (sauf `aujourdhui: null`) est refusé, motif à l'appui. En texte libre : refusées pour une nouvelle
- * saisie (`nouvelleSaisie`) ; valeur enregistrée avant J30 : admises, signalées « forme incomplète ».
- * Lève une erreur sur une saisie invalide (montant, objet inconnu) et, pour une forme structurée, si `aujourdhui`
- * manque ou est invalide ; renvoie un refus motivé sinon.
+ * saisie (`nouvelleSaisie`) ; valeur enregistrée avant J30 : admises, signalées « forme incomplète ». Ordonnance qui
+ * porte un montant : aucun emploi ne le dépasse, emplois déjà faits sous elle compris (J67, R58).
+ * Lève une erreur sur une saisie invalide (montant, déjà employé, objet inconnu) et, pour une forme structurée, si
+ * `aujourdhui` manque ou est invalide ; renvoie un refus motivé sinon.
  */
 export function controlerAffectationFondsTravaux(
   decaissement: DecaissementFondsTravaux,
   options: OptionsControleAffectation = {},
 ): ResultatAffectation {
   verifierCentimes(decaissement.montantCentimes, true)
+  verifierCentimes(options.dejaEmployeSousOrdonnanceCentimes ?? 0, false)
   if (!Object.hasOwn(AFFECTATION_FONDS_TRAVAUX, decaissement.objet))
     throw new Error(`Objet de décaissement inconnu : « ${decaissement.objet} ».`)
   const affectation: { libelle: string; admis: boolean; base: BaseAffectation | null } =
     AFFECTATION_FONDS_TRAVAUX[decaissement.objet]
   if (!affectation.admis) return resultatAffectation('exclu', motifExclusion(decaissement.objet, affectation.libelle))
-  if (affectation.base === 'autorisation_juge') return controlerOrdonnance(affectation.libelle, decaissement.autorisationJuge, options)
+  if (affectation.base === 'autorisation_juge') return controlerOrdonnance(affectation.libelle, decaissement, options)
   return controlerDecisionAg(decaissement.objet, affectation.libelle, decaissement.decisionAg, options)
 }
 
