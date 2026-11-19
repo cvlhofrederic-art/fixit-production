@@ -371,6 +371,9 @@ export const ERREURS_METIER_SQL_QR = [
   'diffusion_inactive', 'aucun_destinataire', 'perimetre_change',
   // Migration 20261113, réglages du cabinet (route D-R8) : activation refusée, réglage manquant ou langue non ouverte (H9).
   'cabinet_incomplet', 'langue_non_ouverte',
+  // Migration 20261119 (bureaux des cabinets) : nom déjà porté dans le cabinet, plafond atteint, fermeture d'un bureau
+  // encore utilisé, nouvelle fiche sans bureau (ou retrait), rattachement à un bureau fermé.
+  'nom_pris', 'plafond_bureaux', 'bureau_utilise', 'bureau_requis', 'bureau_ferme',
 ] as const
 export type ErreurMetierSqlQr = (typeof ERREURS_METIER_SQL_QR)[number]
 

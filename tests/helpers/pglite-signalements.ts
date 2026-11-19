@@ -37,6 +37,9 @@ export const MIGRATIONS_SIGNALEMENTS_QR = [
   '20261113_signalements_qr_diffusion.sql',
   // Logo d'un cabinet client (13/11/2026) : indépendante de la 20261113, jouable avant ou après elle.
   '20261114_signalements_qr_logo_cabinet.sql',
+  // Bureaux des cabinets clients (19/11/2026) : après la 20261112 (création d'une fiche reprise), sans lien avec les deux
+  // précédentes ; jouée ici en dernier, comme en production.
+  '20261119_signalements_qr_bureaux.sql',
 ] as const
 
 const DOSSIER_MIGRATIONS = join(process.cwd(), 'supabase/migrations')
