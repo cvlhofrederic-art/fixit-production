@@ -24,8 +24,8 @@ import { enTeteDuModule } from './en-tete-module'
  * J78 — réponse de Frédéric du 17/11/2026 (page de validation, sj-qualite-pro.json, choix « accord ») : « case
  * « professionnel » sur la fiche identité, décochée par défaut. Le consentement d'un non-professionnel reste celui du
  * critère LRE (J53). » Partie domaine seulement : la qualité sur l'identité, son lecteur, et la qualité de chaque
- * destinataire pour le contrôle J53 (statut-assemblee.ts, inchangé), écrite et testée, sans appelant de production
- * aujourd'hui. Décisions J78 du 19/11/2026 (case datée, lue à la date du dépôt saisie, sinon de l'événement ; cochée sur
+ * destinataire pour le contrôle J53 (statut-assemblee.ts : calcul du délai inchangé ; date de l'envoi extraite,
+ * dateEnvoiCourrierNotification, par la PR « base D2 »), écrite et testée, sans appelant de production aujourd'hui. Décisions J78 du 19/11/2026 (case datée, lue à la date du dépôt saisie, sinon de l'événement ; cochée sur
  * une justification écrite) : codées avec la table des identités par la PR « base D2 » (qualite-professionnelle.ts ;
  * tests qualite-professionnelle.test.ts et identites-db.test.ts) ; ici, l'en-tête les fige et le comportement de la case
  * sans date ne change pas.
@@ -330,7 +330,7 @@ describe('J78 — en-têtes', () => {
     // l'événement ; sans écart aujourd'hui pour la case (LRE seule, avis antérieur au dépôt refusé avant)
     // PR « base D2 » (table des identités) : la date de J50 est reprise telle que ce code la calcule, extraite sans recopie
     expect(datee).toContain(
-      "Précision (choix de rédaction de Claude, relecture du 19/11/2026) : le code de J50 (statut-assemblee.ts, evaluerNotification) ne garde le dépôt que s'il ne suit pas l'événement ; sinon, il retient l'événement. L'en-tête de statut-assemblee.ts et le registre (J50) ne le disent pas. Dans ce calcul, la case ne compte que pour une LRE (J53), et une LRE dont l'avis précède le dépôt est refusée avant (preuve_a_saisir) : aucun écart aujourd'hui. Codé avec la table des identités : la date est celle que ce code calcule (dateEnvoiNotification, extraite d'evaluerNotification sans recopie ; qualite-professionnelle.ts).",
+      "Précision (choix de rédaction de Claude, relecture du 19/11/2026) : le code de J50 (statut-assemblee.ts, evaluerNotification) ne garde le dépôt que s'il ne suit pas l'événement ; sinon, il retient l'événement. L'en-tête de statut-assemblee.ts et le registre (J50) ne le disent pas. Dans ce calcul, la case ne compte que pour une LRE (J53), et une LRE dont l'avis précède le dépôt est refusée avant (preuve_a_saisir) : aucun écart aujourd'hui. Codé avec la table des identités : la date est celle que ce code calcule (dateEnvoiCourrierNotification, extraite d'evaluerNotification sans recopie ; qualite-professionnelle.ts).",
     )
     expect(datee).not.toContain('Au codage de la table des identités')
     // l'ancienne lecture (« Hugo n'a pas choisi cette date ») est remplacée par la décision

@@ -9,13 +9,13 @@ import {
   type EtatQualiteProfessionnelle,
   type IdentiteQualiteDatee,
 } from '@/lib/administrateur-judiciaire/domain/qualite-professionnelle'
-import { dateEnvoiNotification, finDelaiContestationAgParDestinataire } from '@/lib/administrateur-judiciaire/domain/statut-assemblee'
+import { dateEnvoiCourrierNotification, finDelaiContestationAgParDestinataire } from '@/lib/administrateur-judiciaire/domain/statut-assemblee'
 import { chaineLe, lreLe } from './donnees-delai-contestation'
 
 /**
  * J78 — case « professionnel » datée, codée avec la table des identités (décisions du 19/11/2026, à valider par
  * Frédéric avant toute fusion) : cochée seulement sur une justification écrite ; lue à la date de l'envoi (le dépôt s'il
- * est saisi, sinon l'événement, telle que le code de J50 la calcule : dateEnvoiNotification, extraite
+ * est saisi, sinon l'événement, telle que le code de J50 la calcule : dateEnvoiCourrierNotification, extraite
  * d'evaluerNotification) ; décocher plus tard ne change pas les envois déjà faits. Un changement prend effet le
  * lendemain de sa saisie : un envoi du jour même est relu avec l'état d'avant, coché comme décoché. Données fictives.
  */
@@ -124,18 +124,18 @@ describe('qualiteProfessionnelleA : lecture à une date', () => {
   })
 })
 
-describe('date de l’envoi : celle du code de J50 (dateEnvoiNotification, extraite d’evaluerNotification)', () => {
+describe('date de l’envoi : celle du code de J50 (dateEnvoiCourrierNotification, extraite d’evaluerNotification)', () => {
   it('dépôt saisi qui ne suit pas l’événement : le dépôt ; sans dépôt : l’événement ; dépôt après l’événement : l’événement', () => {
-    expect(dateEnvoiNotification(lreLe(d(2026, 3, 5), { dateDepot: d(2026, 3, 3) }))).toBe(d(2026, 3, 3))
-    expect(dateEnvoiNotification(lreLe(d(2026, 3, 5), { dateDepot: null }))).toBe(d(2026, 3, 5))
+    expect(dateEnvoiCourrierNotification(lreLe(d(2026, 3, 5), { dateDepot: d(2026, 3, 3) }))).toBe(d(2026, 3, 3))
+    expect(dateEnvoiCourrierNotification(lreLe(d(2026, 3, 5), { dateDepot: null }))).toBe(d(2026, 3, 5))
     const lrar = { formeEnvoi: 'AR' as const, modeNotification: 'lrar' as const, dateAvisElectronique: null, datePremierePresentation: d(2026, 3, 5) }
-    expect(dateEnvoiNotification(lreLe(d(2026, 3, 5), { ...lrar, dateDepot: d(2026, 3, 3) }))).toBe(d(2026, 3, 3))
-    expect(dateEnvoiNotification(lreLe(d(2026, 3, 5), { ...lrar, dateDepot: d(2026, 3, 7) }))).toBe(d(2026, 3, 5))
+    expect(dateEnvoiCourrierNotification(lreLe(d(2026, 3, 5), { ...lrar, dateDepot: d(2026, 3, 3) }))).toBe(d(2026, 3, 3))
+    expect(dateEnvoiCourrierNotification(lreLe(d(2026, 3, 5), { ...lrar, dateDepot: d(2026, 3, 7) }))).toBe(d(2026, 3, 5))
   })
 
   it('notification non prouvée (avis ou présentation non saisis, envoi non qualifié) : null', () => {
-    expect(dateEnvoiNotification(lreLe(d(2026, 3, 5), { dateAvisElectronique: null }))).toBeNull()
-    expect(dateEnvoiNotification(lreLe(d(2026, 3, 5), { formeEnvoi: 'Normal', modeNotification: null }))).toBeNull()
+    expect(dateEnvoiCourrierNotification(lreLe(d(2026, 3, 5), { dateAvisElectronique: null }))).toBeNull()
+    expect(dateEnvoiCourrierNotification(lreLe(d(2026, 3, 5), { formeEnvoi: 'Normal', modeNotification: null }))).toBeNull()
   })
 })
 

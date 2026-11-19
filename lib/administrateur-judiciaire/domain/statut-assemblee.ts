@@ -667,7 +667,7 @@ function dateDeLEnvoi(dateDepot: string | null | undefined, evenement: string): 
  * antérieur au dépôt). La case « professionnel » datée se lit à cette date (J78, décisions du 19/11/2026 :
  * qualite-professionnelle.ts, qualiteProfessionnelleALEnvoi).
  */
-export function dateEnvoiNotification(courrier: CourrierNotification): string | null {
+export function dateEnvoiCourrierNotification(courrier: CourrierNotification): string | null {
   const preuve = courrierPreuve(courrier.id, [courrier], null, null)
   return 'motif' in preuve ? null : dateDeLEnvoi(preuve.courrier.dateDepot, preuve.evenement)
 }

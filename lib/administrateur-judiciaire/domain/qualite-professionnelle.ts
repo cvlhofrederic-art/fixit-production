@@ -1,6 +1,6 @@
 import { ajouterJours, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
 import type { Identite } from '@/lib/administrateur-judiciaire/domain/identites-positions'
-import { dateEnvoiNotification, type CourrierNotification } from '@/lib/administrateur-judiciaire/domain/statut-assemblee'
+import { dateEnvoiCourrierNotification, type CourrierNotification } from '@/lib/administrateur-judiciaire/domain/statut-assemblee'
 
 /**
  * J78 — case « professionnel » datée de la fiche identité (CPCE art. L. 100 ; contrôle J53), codée avec la table des
@@ -8,7 +8,7 @@ import { dateEnvoiNotification, type CourrierNotification } from '@/lib/administ
  * pures, dates ISO (AAAA-MM-JJ). Décisions du 19/11/2026 (en-tête d'identites-positions.ts), à valider par Frédéric
  * avant toute fusion :
  * - la qualité se lit à la date de l'envoi : le dépôt quand il est saisi, sinon l'événement, telle que le code de J50
- *   la calcule (statut-assemblee.ts, dateEnvoiNotification, extraite d'evaluerNotification sans recopie : le dépôt
+ *   la calcule (statut-assemblee.ts, dateEnvoiCourrierNotification, extraite d'evaluerNotification sans recopie : le dépôt
  *   n'est gardé que s'il ne suit pas l'événement) ; décocher la case plus tard ne change pas le calcul des envois déjà
  *   faits ;
  * - la case ne se coche que sur une justification écrite (texte obligatoire ; pièce de la GED facultative), jamais du
@@ -28,6 +28,16 @@ import { dateEnvoiNotification, type CourrierNotification } from '@/lib/administ
  * 🔴 Question pour Frédéric : sans dépôt saisi, la date lue est l'événement (première présentation, transmission de
  * l'avis), postérieur à l'envoi ; un changement saisi entre l'envoi et l'événement modifie donc encore la lecture. Faut-il
  * exiger le dépôt pour lire la case, ou garder la décision telle quelle ?
+ * 🔴 Question pour Frédéric (relecture du 19/11/2026) : la limite ci-dessus va dans le sens non prudent (case décochée
+ * le jour d'un envoi : lu comme fait à un professionnel, consentement non exigé, délai qui court ; or, cochée à tort, la
+ * notification est irrégulière). Variante proposée : un décochage prend effet le jour de sa saisie, un cochage le
+ * lendemain ; la lecture reste alors toujours prudente, au prix d'un envoi du jour même relu après coup quand la case
+ * est décochée. Écart à noter avec la convention du code de J50 (voie-notification.ts) : une date y vaut dès le jour
+ * même (recuLe, communiqueeLe <= date) ; un effet n'y est retardé que par le texte (D. 1967 art. 64-4 : demande de voie
+ * postale reçue depuis le 25/12/2025) ou par analogie avec lui (J74 : retour à la voie électronique), et la lecture
+ * prudente l'emporte quand elle s'en écarte (J52 : demande, refus ou retrait reçu avant le 25/12/2025, effet dès sa
+ * réception). L'effet au lendemain de la case n'a pas de texte ; la variante ne le garde que dans le sens prudent.
+ * Garder l'effet au lendemain dans les deux sens, ou retenir la variante ?
  */
 
 /** État de la case à compter d'un jour (J78). */
@@ -119,7 +129,7 @@ export function qualiteProfessionnelleA(identite: IdentiteQualiteDatee | null | 
 }
 
 /**
- * Qualité du destinataire à la date de SON envoi (dateEnvoiNotification : dépôt saisi, sinon événement) : null si
+ * Qualité du destinataire à la date de SON envoi (dateEnvoiCourrierNotification : dépôt saisi, sinon événement) : null si
  * l'identité est absente, ou si l'envoi n'est pas prouvé (courrier absent, événement non saisi) — le moteur de délais
  * refuse alors de toute façon. C'est la qualité à passer à finDelaiContestationAg (notification unique), lue sur la
  * fiche de courrier.personneId.
@@ -129,7 +139,7 @@ export function qualiteProfessionnelleALEnvoi(
   courrier: CourrierNotification | null | undefined,
 ): boolean | null {
   if (identite === null || identite === undefined || courrier === null || courrier === undefined) return null
-  const date = dateEnvoiNotification(courrier)
+  const date = dateEnvoiCourrierNotification(courrier)
   return date === null ? null : qualiteProfessionnelleA(identite, date)
 }
 

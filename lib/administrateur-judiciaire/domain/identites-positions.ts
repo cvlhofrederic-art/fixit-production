@@ -65,7 +65,7 @@ import { GROUPE_IDENTITE, QUALITE_IDENTITE, type GroupeIdentite } from '@/lib/da
  * contrôle J53 (J78 : décocher la case plus tard ne change pas les envois déjà faits). finDelaiContestationAg
  * (notification unique) : la qualité reste une option de l'appelant, qui passe qualiteProfessionnelleALEnvoi(fiche de
  * courrier.personneId, courrier) ; le domaine ne la relie pas à la fiche (statut-assemblee.ts : seule la date de
- * l'envoi, dateEnvoiNotification, est extraite d'evaluerNotification, sans changer le calcul). Table : identites
+ * l'envoi, dateEnvoiCourrierNotification, est extraite d'evaluerNotification, sans changer le calcul). Table : identites
  * (version 3 de db/schema.ts) ; écriture de la case : enregistrerQualiteProfessionnelle (db/identites.ts) ; écran : à
  * brancher.
  * J78, décisions de Hugo du 19/11/2026 (« VALIDE TOUT », puis « ok » pour la date de lecture, sur les recommandations de
@@ -79,7 +79,7 @@ import { GROUPE_IDENTITE, QUALITE_IDENTITE, type GroupeIdentite } from '@/lib/da
  *   evaluerNotification) ne garde le dépôt que s'il ne suit pas l'événement ; sinon, il retient l'événement. L'en-tête
  *   de statut-assemblee.ts et le registre (J50) ne le disent pas. Dans ce calcul, la case ne compte que pour une LRE
  *   (J53), et une LRE dont l'avis précède le dépôt est refusée avant (preuve_a_saisir) : aucun écart aujourd'hui. Codé
- *   avec la table des identités : la date est celle que ce code calcule (dateEnvoiNotification, extraite
+ *   avec la table des identités : la date est celle que ce code calcule (dateEnvoiCourrierNotification, extraite
  *   d'evaluerNotification sans recopie ; qualite-professionnelle.ts). Décocher la case plus tard ne change pas le
  *   calcul des envois déjà faits. Aujourd'hui, qualiteProfessionnelleDe lit l'état actuel de la case, sans date. Ce
  *   lecteur ne change pas ici. Lien entre cette case sans date et la case datée (proposé, à valider par Frédéric ;
