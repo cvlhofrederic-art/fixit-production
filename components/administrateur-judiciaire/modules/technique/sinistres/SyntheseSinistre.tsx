@@ -69,6 +69,16 @@ const AUCUN_COURRIER = [] as const
 const euros = (centimes: number): string => formatEurosCentimes(centimes / 100)
 
 /**
+ * Avertissement du contrôle, suivi entre parenthèses de ses fondements qu'il ne cite pas déjà sous la même forme
+ * (décision du 19/11, #759, point 20). Droit commun : le rappel cite déjà « C. assur. art. L. 113-2, 4° », la parenthèse
+ * disparaît. L'autre forme (« C. assur. L. … ») vient du domaine et n'est pas comparée ici.
+ */
+function avertissementEtFondements(controle: ControleDelaiDeclaration): string {
+  const nonCites = controle.fondements.filter((fondement) => !controle.avertissement.includes(fondement))
+  return nonCites.length === 0 ? controle.avertissement : `${controle.avertissement} (${nonCites.join(' · ')})`
+}
+
+/**
  * Lignes du bandeau, sous l'état du délai. La justification du repère et sa raison « à confirmer » ne sont données que
  * si le contrôle retient ce même repère, ou aucun délai (dommages-ouvrage) : sans date d'arrêté, la catastrophe
  * naturelle n'a pas de repère, le titre en donne la raison.
@@ -81,7 +91,7 @@ function lignesReperes(reperes: ReperesDelaisSinistre, controle: ControleDelaiDe
     reperes.volPossible
       ? `Repère à confirmer : ${DELAIS_ASSURANCE_SINISTRE.declarationVolJoursOuvres} jours ouvrés s'il y a eu vol.`
       : null,
-    `${controle.avertissement} (${controle.fondements.join(' · ')})`,
+    avertissementEtFondements(controle),
     `Prescription, repère indicatif : ${reperes.justificationPrescription}`,
     reperes.prescriptionAConfirmer === null ? null : `Prescription à confirmer : ${reperes.prescriptionAConfirmer}.`,
   ]

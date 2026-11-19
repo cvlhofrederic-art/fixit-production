@@ -237,6 +237,31 @@ describe('Synthèse — repères de délai, présentés comme des signaux', () =
     expect(bandeau(rendreSynthese(f)).textContent).toContain('(minimum légal, C. assur. L. 113-2, 4°)')
   })
 
+  it('droit commun : un fondement déjà cité sous la même forme par le rappel n’est pas redit entre parenthèses (décision du 19/11, #759, point 20)', () => {
+    for (const type of ['Dégât des eaux', 'Vol', 'Tempête, Grêles, Neiges'] as const) {
+      const f = fiche({ type })
+      const { avertissement, fondements } = controle(f)
+      expect(fondements.length).toBeGreaterThan(0)
+      expect(fondements.every((fondement) => avertissement.includes(fondement))).toBe(true)
+      const texte = bandeau(rendreSynthese(f)).textContent ?? ''
+      expect(texte).toContain(avertissement)
+      expect(texte).not.toContain(`${avertissement} (`)
+      // Une seule fois sous cette forme, dans le rappel ; l'autre forme (« C. assur. L. … ») relève du domaine.
+      for (const fondement of fondements) expect(texte.split(fondement)).toHaveLength(2)
+      cleanup()
+    }
+  })
+
+  it('dommages-ouvrage et catastrophe naturelle : fondements absents du texte, toujours ajoutés entre parenthèses', () => {
+    for (const type of ['Dommages Ouvrage', 'Catastrophes naturelles'] as const) {
+      const f = fiche({ type, dateDeclaration: null, dateExpertise: null, phase: 'Général' })
+      const { avertissement, fondements } = controle(f)
+      expect(fondements.some((fondement) => avertissement.includes(fondement))).toBe(false)
+      expect(bandeau(rendreSynthese(f)).textContent).toContain(`${avertissement} (${fondements.join(' · ')})`)
+      cleanup()
+    }
+  })
+
   it('prescription au plus tôt, présentée comme un repère ; garantie impayés : à confirmer', () => {
     const f = fiche({ type: 'Charges Impayées' })
     const reperes = reperesDelaisSinistre(f)
