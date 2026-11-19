@@ -578,18 +578,26 @@ export async function chargerGestionnairesQr(
 }
 
 export type ResultatCreationGestionnaireQr =
-  | { ok: true; gestionnaire: GestionnaireQr; emailEnvoye: boolean; coproprietesAvecAdresseSaisie: number }
+  | {
+    ok: true; gestionnaire: GestionnaireQr; emailEnvoye: boolean
+    /** Nombre de copropriétés dont les adresses saisies contiennent déjà cette adresse (RG-06 bis-5). */
+    coproprietesAvecAdresseSaisie: number
+  }
   | EchecQr
 
-/** Création d'une fiche, puis envoi du lien de confirmation d'adresse (par le serveur). */
+/**
+ * Création d'une fiche, puis envoi du lien de confirmation d'adresse (par le serveur). La route rend la LISTE { id, nom }
+ * des copropriétés où l'adresse est déjà saisie : l'écran n'en garde que le nombre.
+ */
 export async function creerGestionnaireQr(saisie: SaisieGestionnaireQr, fetchImpl: Fetch = fetch): Promise<ResultatCreationGestionnaireQr> {
   const r = await appelerEspace(fetchImpl, `${URL_API_QR}/gestionnaires`, 'POST', saisie)
   if (!r.ok) return r
   const c = estObjet(r.corps) ? r.corps : {}
   if (!estObjet(c.gestionnaire) || typeof c.gestionnaire.id !== 'string') return { ok: false, code: 'serveur' }
+  const saisies = Array.isArray(c.coproprietesAvecAdresseSaisie) ? c.coproprietesAvecAdresseSaisie.filter(estObjet) : []
   return {
     ok: true, gestionnaire: avecBureauLu<GestionnaireQr>(c.gestionnaire), emailEnvoye: c.emailEnvoye === true,
-    coproprietesAvecAdresseSaisie: entier(c.coproprietesAvecAdresseSaisie),
+    coproprietesAvecAdresseSaisie: saisies.length,
   }
 }
 

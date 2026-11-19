@@ -112,10 +112,20 @@ describe('gestionnaires', () => {
     expect(s.corps()).toEqual(saisie)
   })
 
-  it('création réussie : la fiche, l’état de l’e-mail et le nombre de copropriétés où l’adresse est déjà saisie', async () => {
-    const s = simuler({ gestionnaire: { id: G1, nom: 'Marie Exemple' }, emailEnvoye: false, coproprietesAvecAdresseSaisie: 2 }, 201)
+  it('création réussie : la fiche, l’état de l’e-mail et le nombre de copropriétés où l’adresse est déjà saisie (la route rend leur liste)', async () => {
+    // Forme rendue par POST /gestionnaires : la liste des copropriétés { id, nom } où l'adresse est déjà saisie.
+    const saisies = [{ id: C1, nom: 'Résidence Exemple' }, { id: '66666666-6666-4666-8666-666666666666', nom: 'Les Tilleuls Exemple' }]
+    const s = simuler({ gestionnaire: { id: G1, nom: 'Marie Exemple' }, emailEnvoye: false, coproprietesAvecAdresseSaisie: saisies }, 201)
     const r = await creerGestionnaireQr({ nom: 'Marie Exemple', email: 'marie.exemple@exemple.test', cabinetId: K1, coproprieteIds: [], forcerDomaine: true }, s.fetchImpl)
     expect(r).toMatchObject({ ok: true, emailEnvoye: false, coproprietesAvecAdresseSaisie: 2 })
+  })
+
+  it('création réussie sans copropriété à adresse saisie (liste vide), ou réponse sans la liste : 0', async () => {
+    const saisie = { nom: 'Marie Exemple', email: 'marie.exemple@exemple.test', cabinetId: K1, coproprieteIds: [], forcerDomaine: false }
+    const vide = simuler({ gestionnaire: { id: G1, nom: 'Marie Exemple' }, emailEnvoye: true, coproprietesAvecAdresseSaisie: [] }, 201)
+    expect(await creerGestionnaireQr(saisie, vide.fetchImpl)).toMatchObject({ ok: true, coproprietesAvecAdresseSaisie: 0 })
+    const absente = simuler({ gestionnaire: { id: G1, nom: 'Marie Exemple' }, emailEnvoye: true }, 201)
+    expect(await creerGestionnaireQr(saisie, absente.fetchImpl)).toMatchObject({ ok: true, coproprietesAvecAdresseSaisie: 0 })
   })
 
   it('fiche, modification, renvoi, attributions, départ : adresses et méthodes', async () => {
