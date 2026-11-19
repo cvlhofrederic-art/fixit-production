@@ -7,8 +7,10 @@ import {
 } from '@/lib/data/referentiels-gesteam-judiciaire'
 
 /**
- * Traitements et mouvements en partie double (intégration Gestéam, T23 — règles pures, sans table : les clés
- * étrangères des tables comptables dépendent de la décision D1). Montants en CENTIMES ENTIERS.
+ * Traitements et mouvements en partie double (intégration Gestéam, T23 — règles pures). Montants en CENTIMES ENTIERS.
+ * Table : chaque traitement est rangé dans sa pièce (PieceTraitement.traitement, journal-traitements.ts ; table
+ * traitements, version 3 de db/schema.ts ; écriture par db/traitements.ts seulement) ; D1 : syndicat propriétaire
+ * (coproprieteId), mandat auteur (mandatId).
  *
  * R6 — tout mouvement appartient à un traitement ; annuler = créer un traitement symétrique, jamais supprimer.
  * R7 — encaissement : débit banque / crédit copropriétaire ; décaissement : crédit banque / débit du compte de

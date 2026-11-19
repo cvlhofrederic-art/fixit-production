@@ -1,5 +1,11 @@
 import { creerRepository, type Repository } from '@/lib/administrateur-judiciaire/db/repository'
-import { ajDb, type Ag, type Courrier } from '@/lib/administrateur-judiciaire/db/schema'
+import {
+  ajDb,
+  type Ag,
+  type Courrier,
+  type IdentiteEnregistree,
+  type PieceTraitementEnregistree,
+} from '@/lib/administrateur-judiciaire/db/schema'
 
 /**
  * Un repository par table, créé une seule fois au chargement du module (même ordre que la maquette).
@@ -122,5 +128,88 @@ export const repoCourriers: Repository<Courrier> = {
   async update(id, patch, options) {
     if ('formeEnvoi' in patch) throw new Error("La forme d'envoi d'un courrier est figée à sa création.")
     return repoCourriersSansGarde.update(id, patch, options)
+  },
+}
+
+// ─── D1 et D2 (version 3) ─────────────────────────────────────────────────────────────────────────────────────────
+// Les échéances d'appel (clé composée [coproprieteId+id]) n'ont pas de repository : db/echeances-appel.ts.
+
+const repoIdentitesSansGarde = creerRepository(ajDb.identites, 'identites')
+
+/** Champs de la case « professionnel » (J78), écrits par enregistrerQualiteProfessionnelle seulement. */
+const CHAMPS_QUALITE_PROFESSIONNELLE = ['professionnel', 'historiqueProfessionnel'] as const
+
+function refuserQualiteProfessionnelle(donnees: object): void {
+  const champs = CHAMPS_QUALITE_PROFESSIONNELLE.filter((champ) => champ in donnees)
+  if (champs.length > 0)
+    throw new Error(
+      `Identité : ${champs.join(', ')} ne s'écrit que par enregistrerQualiteProfessionnelle (db/identites.ts) : case datée, cochée sur justification écrite (J78).`,
+    )
+}
+
+/**
+ * Identités (D2). La case « professionnel » et ses états datés (J78) ne s'écrivent que par enregistrerQualiteProfessionnelle
+ * (db/identites.ts) : création et modification qui les portent sont refusées. La modification se fait dans une
+ * transaction (lecture puis écriture), sérialisée avec enregistrerQualiteProfessionnelle : une modification concurrente
+ * de la fiche ne réécrit jamais la ligne lue avant l'ajout d'un état daté.
+ */
+export const repoIdentites: Repository<IdentiteEnregistree> = {
+  ...repoIdentitesSansGarde,
+  async create(donnees, options) {
+    refuserQualiteProfessionnelle(donnees)
+    return repoIdentitesSansGarde.create(donnees, options)
+  },
+  async update(id, patch, options) {
+    refuserQualiteProfessionnelle(patch)
+    return ajDb.transaction('rw', ajDb.identites, ajDb.activityLog, () => repoIdentitesSansGarde.update(id, patch, options))
+  },
+}
+
+/** Positions (D2). Écrites par les fonctions du domaine (creerPosition, muterLot) et par la migration des fiches. */
+export const repoPositions = creerRepository(ajDb.positions, 'positions')
+/** Comptes copropriétaires (D2, compte 450 à série). Écrits par le domaine (creerCompteCoproprietaire) et la migration. */
+export const repoComptesCoproprietaires = creerRepository(ajDb.comptesCoproprietaires, 'comptesCoproprietaires')
+/** Clés de répartition du syndicat. Écrites par le domaine (creerCleRepartition). */
+export const repoClesRepartition = creerRepository(ajDb.clesRepartition, 'clesRepartition')
+
+const repoTraitementsSansGarde = creerRepository(ajDb.traitements, 'traitements')
+
+/** Champs d'une pièce figés après son enregistrement : seules les fonctions de db/traitements.ts les écrivent. */
+const CHAMPS_FIGES_PIECE = [
+  'numero',
+  'famille',
+  'date',
+  'coproprieteId',
+  'mandatId',
+  'nbLignes',
+  'statut',
+  'parametres',
+  'traitement',
+  'annuleePar',
+] as const
+
+/**
+ * Pièces du journal des traitements (D1), en lecture. Une pièce s'enregistre par enregistrerPieceTraitement (numéro de
+ * la séquence du cabinet, segment du syndicat), son statut avance par changerStatutTraitement et elle s'annule par une
+ * écriture contraire (annulerPieceTraitement, R6) : db/traitements.ts. Le repository refuse la création, toute
+ * modification d'un champ de la pièce et la suppression.
+ */
+export const repoTraitements: Repository<PieceTraitementEnregistree> = {
+  ...repoTraitementsSansGarde,
+  async create() {
+    throw new Error(
+      'Une pièce de traitement s’enregistre par enregistrerPieceTraitement (db/traitements.ts) : numéro de la séquence du cabinet, segment du syndicat.',
+    )
+  },
+  async update(id, patch, options) {
+    const figes = CHAMPS_FIGES_PIECE.filter((champ) => champ in patch)
+    if (figes.length > 0)
+      throw new Error(
+        `Pièce de traitement : ${figes.join(', ')} figé(s) ; le statut change par changerStatutTraitement, l'annulation par une écriture contraire (annulerPieceTraitement).`,
+      )
+    return repoTraitementsSansGarde.update(id, patch, options)
+  },
+  async remove() {
+    throw new Error('Une pièce de traitement ne se supprime pas : elle s’annule par une écriture contraire (R6 ; annulerPieceTraitement).')
   },
 }
