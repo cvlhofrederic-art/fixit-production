@@ -6,7 +6,10 @@
 // « attribuée à tous » (par la fonction d'attribution), fin de mission prévue (diffusionFinGestionLe, décision H7 de Hugo,
 // PR 3 : à partir de ce jour, plus aucune diffusion ; null l'efface ; colonne de la migration 20261113, absente → 503
 // base_absente avant toute écriture). Corps actuels de l'écran acceptés tels quels. Le cabinet ne se change pas ici
-// (rattachement par POST /cabinets/[id]/rattachement, définitif).
+// (rattachement par POST /cabinets/[id]/rattachement, définitif). Bureaux (migration 20261119 ; choix 1, facultatif) :
+// bureauId (ou null pour le retirer), un bureau du cabinet de la copropriété, contrôlé avant toute écriture (sans
+// cabinet → 409 sans_cabinet ; fermé → 409 bureau_ferme ; d'un autre cabinet ou inconnu → 409 a_reverifier ; migration
+// absente → 503) ; journal copropriete.modifiee, champ « bureau » ; la copropriété rendue porte son bureau.
 //   - doublons revérifiés si nom, code postal, immatriculation ou référence changent (forçage du super admin) ;
 //   - une adresse AJOUTÉE aux destinataires est refusée si c'est celle d'une fiche gestionnaire (400), et soumise à
 //     confirmerHorsDomaine si elle est hors des domaines du cabinet (409) ; une adresse déjà présente ne bloque rien ;
@@ -43,6 +46,9 @@ import {
   lireFichesDesAdressesQr, lireLigneCoproprieteQr, porteeDuProfilQr, reponseErreur, reponseErreurDiffusionQr, reponseErreurSqlQr, reponseInvalide,
   reponseLectureGestionnaireQr, reponsePriveeQr, reponseStructureGestionnaireQr, type LigneCoproprieteQr,
 } from '@/lib/aj-signalement/serveur'
+import {
+  avecBureauxCoproprietesQr, controlerBureauDuCabinetQr, lireBureauIdQr, reponseErreurBureauxQr,
+} from '@/lib/aj-signalement/serveur-bureaux'
 
 const CONTEXTE = '[AJ SIGNALEMENT]'
 
@@ -59,7 +65,28 @@ type Modification = {
   nom?: string; adresse?: string; codePostal?: string; ville?: string; immatriculation?: string; referenceCabinet?: string
   batiments?: string[]; emailsDestinataires?: string[]; actif?: boolean; regenererJeton?: true; attribueeATous?: boolean
   diffusionFinGestionLe?: string | null
+  /** Bureaux (migration 20261119) : super admin seulement (le corps d'un gestionnaire le refuse). */
+  bureauId?: string | null
   forcerDoublon?: boolean; confirmerDoublonProbable?: boolean; confirmerHorsDomaine?: boolean
+}
+
+/**
+ * Bureaux (migration 20261119) : bureau actuel de la copropriété et contrôle du bureau demandé, seulement quand le corps
+ * le change, AVANT toute écriture. Sans cabinet → 409 sans_cabinet ; bureau fermé → 409 bureau_ferme (un bureau
+ * inchangé, même fermé, est gardé) ; d'un autre cabinet ou inconnu → 409 a_reverifier ; migration absente → 503
+ * base_absente. La base revérifie (trigger, clé composée, contrôle « jamais sans cabinet »).
+ */
+async function controlerBureauDemande(
+  id: string, bureauId: string | null, cabinetId: string | null,
+): Promise<{ ok: true; avant: string | null } | { ok: false; reponse: NextResponse }> {
+  if (bureauId && !cabinetId) return { ok: false, reponse: reponseErreur('sans_cabinet', 409) }
+  const actuel = await lireBureauIdQr(TABLE_COPROPRIETES_QR, id)
+  if (!actuel.ok) return { ok: false, reponse: reponseErreurBureauxQr(actuel.erreur, 'bureau d’une copropriété', { copropriete: id }) }
+  if (bureauId && cabinetId && bureauId !== actuel.valeur) {
+    const bureau = await controlerBureauDuCabinetQr(bureauId, cabinetId, 'bureau d’une copropriété', { copropriete: id })
+    if (!bureau.ok) return bureau
+  }
+  return { ok: true, avant: actuel.valeur }
 }
 
 /**
@@ -75,7 +102,7 @@ async function lireFinMission(id: string): Promise<{ ok: true; valeur: string | 
 
 /** Valeurs à écrire (colonnes de la base) et NOMS des champs réellement changés (journal). */
 function ecritures(
-  m: Modification, avant: LigneCoproprieteQr, finMissionAvant: string | null = null,
+  m: Modification, avant: LigneCoproprieteQr, finMissionAvant: string | null = null, bureauAvant: string | null = null,
 ): { valeurs: Record<string, unknown>; champs: string[] } {
   const valeurs: Record<string, unknown> = {}
   const champs: string[] = []
@@ -97,6 +124,7 @@ function ecritures(
     poser('emailsDestinataires', 'emails_destinataires', canoniques(m.emailsDestinataires), canoniques(avant.emails_destinataires ?? []))
   }
   if (m.diffusionFinGestionLe !== undefined) poser('diffusionFinGestionLe', 'diffusion_fin_gestion_le', m.diffusionFinGestionLe, finMissionAvant)
+  if (m.bureauId !== undefined) poser('bureau', 'bureau_id', m.bureauId, bureauAvant)
   if (m.actif !== undefined) valeurs.actif = m.actif
   if (m.regenererJeton) valeurs.jeton = genererJetonQr()
   return { valeurs, champs }
@@ -225,6 +253,12 @@ export async function PATCH(request: NextRequest, { params }: Contexte) {
       if (!fin.ok) return fin.reponse
       finMissionAvant = fin.valeur
     }
+    let bureauAvant: string | null = null
+    if (m.bureauId !== undefined) {
+      const bureau = await controlerBureauDemande(id, m.bureauId, cabinetId)
+      if (!bureau.ok) return bureau.reponse
+      bureauAvant = bureau.avant
+    }
 
     const doublons = await controlerDoublons(id, m, avant, 'super_admin')
     if ('erreur' in doublons) return doublons.erreur
@@ -236,7 +270,7 @@ export async function PATCH(request: NextRequest, { params }: Contexte) {
     const refusAdresses = await controlerAdressesAjoutees(m, avant)
     if (refusAdresses) return refusAdresses
 
-    const { valeurs, champs } = ecritures(m, avant, finMissionAvant)
+    const { valeurs, champs } = ecritures(m, avant, finMissionAvant, bureauAvant)
     const refusEcriture = await mettreAJour(id, valeurs)
     if (refusEcriture) return refusEcriture
     if (m.attribueeATous !== undefined) {
@@ -255,7 +289,9 @@ export async function PATCH(request: NextRequest, { params }: Contexte) {
     const complete = await lireCoproprieteCompleteQr(id)
     if (!complete.ok) return reponseErreurSqlQr(complete.erreur, 'relecture de la copropriété', { copropriete: id })
     if (!complete.copropriete) return reponseErreur('introuvable', 404)
-    return NextResponse.json({ copropriete: complete.copropriete })
+    // Vue du super admin : la copropriété porte son bureau quand elle en a un (migration 20261119).
+    const [copropriete] = await avecBureauxCoproprietesQr([complete.copropriete])
+    return NextResponse.json({ copropriete })
   } catch (e: unknown) {
     logger.error(`${CONTEXTE} modification de copropriété`, { message: e instanceof Error ? e.name : 'inconnue' }, e)
     return reponseErreur('serveur', 500)

@@ -3,6 +3,8 @@
 // GET (P1-R15) — export RGPD des données d'un gestionnaire (droit d'accès, demandé par le cabinet, responsable de
 // traitement ; VitFix est sous-traitant) : fiche, envois (jamais le jeton), attributions, ses lignes du journal. Fichier
 // JSON en pièce jointe, jamais en cache ; l'export lui-même est journalisé (gestionnaire.exporte). 10 par heure.
+// Bureaux (migration 20261119) : le bureau de la fiche (identifiant et nom), une donnée de la fiche ; null sans bureau,
+// ou tant que la migration manque (repli journalisé).
 
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
@@ -12,6 +14,7 @@ import {
   TABLE_ATTRIBUTIONS_QR, TABLE_JOURNAL_QR, controlerAccesQr, estUuid, journaliserQr, reponseErreur, reponseErreurSqlQr,
 } from '@/lib/aj-signalement/serveur'
 import { COLONNES_JOURNAL_QR, envoiDepuisLigneQr, lireEnvoisQr, lireFicheQr } from '@/lib/aj-signalement/serveur-gestion'
+import { avecBureauxGestionnairesQr } from '@/lib/aj-signalement/serveur-bureaux'
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -28,12 +31,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const f = fiche.valeur
     if (!f) return reponseErreur('introuvable', 404)
 
-    const [envois, attributions, journal] = await Promise.all([
+    const [envois, attributions, journal, [avecBureau]] = await Promise.all([
       lireEnvoisQr([id]),
       supabaseAdmin.from(TABLE_ATTRIBUTIONS_QR).select('copropriete_id, origine, created_at').eq('gestionnaire_id', id),
       supabaseAdmin.from(TABLE_JOURNAL_QR).select(COLONNES_JOURNAL_QR).or(`gestionnaire_id.eq.${id},acteur_gestionnaire_id.eq.${id}`)
         .order('created_at', { ascending: true }),
+      avecBureauxGestionnairesQr([{ id }]),
     ])
+    const bureau = avecBureau?.bureau ? { id: avecBureau.bureau.id, nom: avecBureau.bureau.nom } : null
     if (!envois.ok) return reponseErreurSqlQr(envois.erreur, 'export : envois', { gestionnaire: id })
     for (const r of [attributions, journal]) if (r.error) return reponseErreurSqlQr(r.error, 'export', { gestionnaire: id })
 
@@ -43,7 +48,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       fiche: {
         id: f.id, cabinetId: f.cabinet_id, nom: f.nom, email: f.email, actif: f.actif === true, domaineForce: f.domaine_force === true,
         creeLe: f.created_at, adresseConfirmeeLe: f.adresse_confirmee_le, adresseContesteeLe: f.adresse_contestee_le,
-        desactiveLe: f.desactive_le, pseudonymiseLe: f.pseudonymise_le,
+        desactiveLe: f.desactive_le, pseudonymiseLe: f.pseudonymise_le, bureau,
       },
       envois: envois.valeur.map(envoiDepuisLigneQr),
       attributions: attributions.data ?? [],

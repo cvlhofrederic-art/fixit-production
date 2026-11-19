@@ -15,6 +15,7 @@ import { urlConfirmationAdresseQr } from '@/lib/aj-signalement/chemin-cabinet'
 import { envoyerConfirmationAdresseQr } from '@/lib/aj-signalement/email'
 import { etatGestionnaireQr, nomCourtQr } from '@/lib/aj-signalement/gestionnaires'
 import { lireMetaLogosQr } from '@/lib/aj-signalement/serveur-logo'
+import { avecBureauxGestionnairesQr, nombresBureauxParCabinetQr } from '@/lib/aj-signalement/serveur-bureaux'
 import {
   ACTIONS_JOURNAL_QR, OBJETS_ENVOI_QR, ORIGINES_ATTRIBUTION_QR, PROFILS_ACTEUR_QR, REFUS_ENVOI_QR,
   type ActionJournalQr, type CabinetQr, type CabinetResumeQr, type EnvoiGestionnaireQr, type EvenementJournalQr, type GestionnaireQr,
@@ -45,7 +46,8 @@ interface LigneCabinetCompleteQr { id: string; nom: string | null; identifiant: 
  * Cabinets avec domaines et compteurs ; identifiant figé dès une copropriété ou un gestionnaire (même règle que le
  * trigger de la migration). `ids` : ces cabinets seulement. Triés par nom. Logo (migration 20261114) : ses métadonnées
  * seulement, posées sur le cabinet qui en a un (clé absente sinon, et tant que la migration manque : réponse identique à
- * avant) ; jamais l'image.
+ * avant) ; jamais l'image. Bureaux (migration 20261119) : nbBureaux (fermés compris) et nbBureauxOuverts, même règle
+ * (clés posées seulement sur un cabinet qui a un bureau).
  */
 export async function lireCabinetsCompletsQr(ids?: readonly string[]): Promise<Lecture<CabinetQr[]>> {
   const liste = ids ? [...ids] : null
@@ -56,11 +58,12 @@ export async function lireCabinetsCompletsQr(ids?: readonly string[]): Promise<L
   const qDomaines = supabaseAdmin.from(TABLE_DOMAINES_QR).select('cabinet_id, domaine')
   const qCopros = supabaseAdmin.from(TABLE_COPROPRIETES_QR).select('cabinet_id').not('cabinet_id', 'is', null)
   const qFiches = supabaseAdmin.from(TABLE_GESTIONNAIRES_QR).select('cabinet_id')
-  const [domaines, copros, fiches, logos] = await Promise.all([
+  const [domaines, copros, fiches, logos, bureaux] = await Promise.all([
     lire<{ cabinet_id: string; domaine: string }>(liste ? qDomaines.in('cabinet_id', liste) : qDomaines),
     lire<{ cabinet_id: string | null }>(liste ? qCopros.in('cabinet_id', liste) : qCopros),
     lire<{ cabinet_id: string }>(liste ? qFiches.in('cabinet_id', liste) : qFiches),
     lireMetaLogosQr(liste),
+    nombresBureauxParCabinetQr(liste),
   ])
   for (const r of [domaines, copros, fiches]) if (!r.ok) return r
   const compter = (lignes: ReadonlyArray<{ cabinet_id: string | null }>) => {
@@ -76,11 +79,13 @@ export async function lireCabinetsCompletsQr(ids?: readonly string[]): Promise<L
     const nbCoproprietes = nbCopros.get(c.id) ?? 0
     const nbGestionnaires = nbFiches.get(c.id) ?? 0
     const logo = logos.get(c.id)
+    const nombres = bureaux.get(c.id)
     return {
       id: c.id, nom: chaine(c.nom), identifiant: chaine(c.identifiant), langue: langueCabinetQr(c.langue),
       domaines: [...(domainesPar.get(c.id) ?? [])].sort((a, b) => a.localeCompare(b)),
       identifiantFige: nbCoproprietes > 0 || nbGestionnaires > 0, nbCoproprietes, nbGestionnaires,
       ...(logo ? { logo } : {}),
+      ...(nombres ? { nbBureaux: nombres.total, nbBureauxOuverts: nombres.ouverts } : {}),
     }
   })
   return { ok: true, valeur: resultat.sort((a, b) => a.nom.localeCompare(b.nom, 'fr')) }
@@ -182,8 +187,9 @@ const champsAccesQr = (a: LigneAccesFicheQr | undefined): Pick<GestionnaireQr, '
 /**
  * Formes publiques des fiches (liste et page profil) : cabinet, état calculé (etatGestionnaireQr), nombre de copropriétés
  * attribuées, signalements ouverts et urgents de sa portée (attributions ∪ « à tous » de SON cabinet), et, si la
- * migration 20261112 est appliquée, les champs d'accès (PR 2). Fiches contestées en tête, puis par nom. Compteurs
- * indisponibles : 0.
+ * migration 20261112 est appliquée, les champs d'accès (PR 2) ; si la migration 20261119 est appliquée, le bureau de la
+ * fiche qui en a un (vue du super admin : seules ses routes appellent cette fonction). Fiches contestées en tête, puis par
+ * nom. Compteurs indisponibles : 0.
  */
 export async function gestionnairesDepuisFichesQr(fiches: readonly LigneFicheQr[]): Promise<Lecture<GestionnaireQr[]>> {
   if (fiches.length === 0) return { ok: true, valeur: [] }
@@ -244,7 +250,9 @@ export async function gestionnairesDepuisFichesQr(fiches: readonly LigneFicheQr[
     }
   })
   const rang = (g: GestionnaireQr) => (g.etat === 'adresse_contestee' ? 0 : 1)
-  return { ok: true, valeur: liste.sort((a, b) => rang(a) - rang(b) || (a.nom ?? '').localeCompare(b.nom ?? '', 'fr')) }
+  // Bureaux (migration 20261119) : posés sur les fiches qui en ont un ; migration absente : réponse d'avant.
+  const avecBureaux = await avecBureauxGestionnairesQr(liste)
+  return { ok: true, valeur: avecBureaux.sort((a, b) => rang(a) - rang(b) || (a.nom ?? '').localeCompare(b.nom ?? '', 'fr')) }
 }
 
 /** Origine d'une attribution lue en base (liste fermée de la migration). */
