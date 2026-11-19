@@ -395,6 +395,21 @@ describe('Sinistres — « Déclarer un sinistre » : tous les champs de la fich
     expect(boite.getByLabelText('Forclusion')).toHaveValue('2028-05-29')
   })
 
+  it('survenance tapée en 9998 : la fiche reste à l’écran avec la saisie, sans suggestion ; l’enregistrement est refusé (année improbable)', () => {
+    const { push } = rendre()
+    ouvrirDeclaration()
+    const boite = within(dialogue())
+    fireEvent.change(boite.getByRole('combobox', { name: 'Type de sinistre' }), { target: { value: 'Vol' } })
+    fireEvent.change(boite.getByLabelText(SURVENANCE), { target: { value: '9998-03-01' } })
+    fireEvent.click(boite.getByRole('button', { name: 'Compléter le bloc Suivi' }))
+    expect(boite.getByLabelText(SURVENANCE)).toHaveValue('9998-03-01')
+    expect(boite.queryByText(/Suggestion :/)).toBeNull()
+    expect(boite.queryByRole('button', { name: 'Reprendre la suggestion' })).toBeNull()
+    fireEvent.click(boite.getByRole('button', { name: 'Enregistrer' }))
+    expect(resumeErreurs().textContent).toMatch(/01\/03\/9998 : année improbable/)
+    expect(push).not.toHaveBeenCalled()
+  })
+
   it('parties : ajout d’une partie (rôle, nature, fiche ou saisie libre) puis retrait', () => {
     useSelectionDossier.setState({ code: 'TL' })
     rendre()

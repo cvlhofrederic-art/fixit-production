@@ -3,6 +3,7 @@ import {
   ajouterJours,
   dateIsoVersFr,
   ecartJours,
+  estAnneeImprobable,
   estDateIsoValide,
   messagePlausibilite,
   plausibiliteDate,
@@ -12,6 +13,7 @@ import {
 import type { Rattachement } from '@/lib/administrateur-judiciaire/domain/fiches-liees'
 import { GABARITS_COURRIER, gabaritCourrier, type CleGabaritCourrier } from '@/lib/administrateur-judiciaire/domain/gabarits-courrier'
 import {
+  anneeImprobableDesReperes,
   controlerChronologieSinistre,
   erreurMandatCourtier,
   etapeSuiviSinistre,
@@ -543,6 +545,13 @@ interface RepereDeclaration {
   motifSansRepere: string
 }
 
+/**
+ * Pas de repère : date de départ d'une année improbable (dates.estAnneeImprobable, faute de frappe). Aucun délai n'en
+ * part (depuis 9999, trente jours tombent en l'an 10000, hors du calendrier ISO) ; la date est à corriger.
+ */
+const motifAnneeImprobable = (message: string | null): string =>
+  [message, 'Pas de repère : corriger la date.'].filter((partie) => partie !== null).join(' ')
+
 function repereCatastropheNaturelle(publication: string | null): RepereDeclaration {
   const commun = { fondements: [...FONDEMENTS_CATASTROPHE_NATURELLE], avertissement: AVERTISSEMENT_DELAI_CATASTROPHE_NATURELLE }
   if (publication === null)
@@ -553,6 +562,14 @@ function repereCatastropheNaturelle(publication: string | null): RepereDeclarati
       delai: null,
       motifSansRepere:
         "Catastrophe naturelle : le délai de trente jours court de la publication de l'arrêté interministériel, date non renseignée. Pas de repère.",
+    }
+  if (estAnneeImprobable(publication))
+    return {
+      ...commun,
+      date: null,
+      dateReportee: null,
+      delai: null,
+      motifSansRepere: motifAnneeImprobable(messagePlausibilite("Publication de l'arrêté datée", publication, 'annee_improbable')),
     }
   // Publication + 30 jours calendaires : le 30e jour compté du lendemain ; aucun report (J67, R55).
   const date = ajouterJours(publication, JOURS_CATASTROPHE_NATURELLE)
@@ -577,13 +594,19 @@ function repereDeclaration(fiche: FicheSinistre, options: OptionsDelaiDeclaratio
       motifSansRepere: `Dommages-ouvrage (gabarit « ${DECLARATION_DO.objet} ») : ${DECLARATION_DO.delai.libelle}. Pas de repère, à confirmer.`,
     }
   if (fiche.type === CATASTROPHE_NATURELLE) return repereCatastropheNaturelle(options.datePublicationArrete ?? null)
+  const droitCommun = {
+    fondements: [...FONDEMENTS_DROIT_COMMUN],
+    avertissement: fiche.type === TEMPETE_GRELE_NEIGE ? `${AVERTISSEMENT_DROIT_COMMUN} ${AVERTISSEMENT_GRELE}` : AVERTISSEMENT_DROIT_COMMUN,
+  }
   const reperes = reperesDelaisSinistre(fiche, { delaiContratJoursOuvres: options.delaiContratJoursOuvres })
+  // Null : survenance ou connaissance d'une année improbable (anneeImprobableDesReperes).
+  if (reperes === null)
+    return { ...droitCommun, date: null, dateReportee: null, delai: null, motifSansRepere: motifAnneeImprobable(anneeImprobableDesReperes(fiche)) }
   return {
+    ...droitCommun,
     date: reperes.declarationAuPlusTard,
     dateReportee: null,
     delai: { jours: reperes.delaiDeclarationJoursOuvres, unite: 'jours_ouvres' },
-    fondements: [...FONDEMENTS_DROIT_COMMUN],
-    avertissement: fiche.type === TEMPETE_GRELE_NEIGE ? `${AVERTISSEMENT_DROIT_COMMUN} ${AVERTISSEMENT_GRELE}` : AVERTISSEMENT_DROIT_COMMUN,
     motifSansRepere: '',
   }
 }
@@ -774,8 +797,9 @@ const mentionReport = ({ date, dateReportee }: RepereDeclaration): string =>
  * + 30 jours, sans report ; dommages-ouvrage : aucun). Courrier au courtier : le premier avis reçu par la compagnie (sa
  * transmission datée, ou un courrier qui lui est adressé), ou « à vérifier » sans mandat de l'assureur vu ; transmission
  * datée avant ce courrier : « à vérifier » (J67, R51). Sans date de déclaration, un suivi plus avancé (expertise, rapport,
- * règlement, clôture datés, à défaut phase saisie qui suit la déclaration) donne « déclaration non datée ». Signal
- * indicatif, à confirmer (voir l'en-tête du module).
+ * règlement, clôture datés, à défaut phase saisie qui suit la déclaration) donne « déclaration non datée ». Survenance,
+ * connaissance ou publication de l'arrêté d'une année improbable (faute de frappe) : « sans repère », date à corriger.
+ * Signal indicatif, à confirmer (voir l'en-tête du module).
  */
 export function controlerDelaiDeclaration(
   sinistre: SinistreIdentifie,
