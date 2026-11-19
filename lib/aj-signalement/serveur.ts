@@ -78,6 +78,11 @@ export const MIGRATION_DIFFUSION_QR = 'supabase/migrations/20261113_signalements
  * pages, affiches, e-mails comme avant), envoi et retrait 503 base_absente (journalisé une fois par isolat).
  */
 export const MIGRATION_LOGO_QR = 'supabase/migrations/20261114_signalements_qr_logo_cabinet.sql'
+/**
+ * Migration des bureaux des cabinets (19/11/2026), après la 20261112 ; d'ici là, listes et fiches sans bureau (réponses
+ * d'avant), actions sur les bureaux et filtres par bureau 503 base_absente (journalisé une fois par isolat).
+ */
+export const MIGRATION_BUREAUX_QR = 'supabase/migrations/20261119_signalements_qr_bureaux.sql'
 /** Signalements renvoyés au tableau de bord (les plus récents). */
 export const SIGNALEMENTS_MAX = 500
 /** Signalements renvoyés pour la page de suivi d'un gestionnaire (P1-R1 ?gestionnaire=). */
@@ -169,6 +174,14 @@ export function journaliserRepliLogoQr(operation: string, erreur: ErreurBase | n
   logger.warn(`${CONTEXTE} migration du 14/11/2026 absente : repli (${operation})`, { migration: MIGRATION_LOGO_QR, code: erreur?.code })
 }
 
+/** Même règle pour la migration du 19/11/2026 (bureaux des cabinets) : le code seul. */
+export function journaliserRepliBureauxQr(operation: string, erreur: ErreurBase | null | undefined): void {
+  const cle = `bureaux:${operation}`
+  if (replisJournalises.has(cle)) return
+  replisJournalises.add(cle)
+  logger.warn(`${CONTEXTE} migration du 19/11/2026 absente : repli (${operation})`, { migration: MIGRATION_BUREAUX_QR, code: erreur?.code })
+}
+
 /**
  * Réponse d'une erreur de la base sur une route de diffusion : structure absente (table, colonne, fonction de la
  * migration du 13/11/2026) → 503 base_absente, journalisé une fois ; sinon comme reponseErreurSqlQr (code seul).
@@ -213,6 +226,8 @@ const CONTRAINTES_UNIQUES_QR: ReadonlyArray<[string, string]> = [
   ['uq_signalements_qr_copros_immatriculation', 'doublon'],
   ['uq_signalements_qr_copros_reference', 'doublon'],
   ['signalements_qr_operations_pkey', 'a_reverifier'],
+  // Migration du 19/11/2026 : nom d'un bureau déjà porté dans le cabinet (écriture hors de la fonction de création).
+  ['uq_signalements_qr_bureaux_nom', 'nom_pris'],
 ]
 
 /**
@@ -1006,15 +1021,23 @@ export function reponseStructureGestionnaireQr(erreur: ErreurBase, operation: st
 /**
  * Tableau de bord : copropriétés (compteurs, champs de gestion et, sans adresse, la dernière adresse proposée) et
  * signalements les plus récents. Options (P1-R1) : `cabinet` (ses copropriétés), `gestionnaire` (sa page de suivi : sa
- * portée, 100 signalements au plus). Colonne inconnue (migrations du 06/11/2026) : relecture par select('*').
+ * portée, 100 signalements au plus), `coproprietes` (bureaux, 19/11/2026 : ces copropriétés seulement, celles d'un
+ * bureau ; signalements filtrés comme pour un cabinet). Colonne inconnue (migrations du 06/11/2026) : relecture par
+ * select('*').
  */
-export async function lireTableauQr(options: { cabinet?: string; gestionnaire?: string } = {}): Promise<LectureTableauQr> {
+export async function lireTableauQr(
+  options: { cabinet?: string; gestionnaire?: string; coproprietes?: readonly string[] } = {},
+): Promise<LectureTableauQr> {
   const copros = await lireLignesCoproprietesQr(options.cabinet ? { cabinet: options.cabinet } : {})
   if (!copros.ok) {
     logger.error(`${CONTEXTE} lecture des copropriétés`, { code: copros.erreur.code, message: copros.erreur.message })
     return { ok: false, code: tableAbsenteQr(copros.erreur) ? 'base_absente' : 'serveur' }
   }
   let lignesCopros = copros.lignes
+  if (options.coproprietes) {
+    const retenues = new Set(options.coproprietes)
+    lignesCopros = lignesCopros.filter((c) => retenues.has(c.id))
+  }
   let suivi: GestionnaireSuiviQr | undefined
   if (options.gestionnaire) {
     const portee = await porteeSuiviQr(options.gestionnaire, lignesCopros)
@@ -1027,7 +1050,7 @@ export async function lireTableauQr(options: { cabinet?: string; gestionnaire?: 
     lignesCopros = lignesCopros.filter((c) => portee.visibles.has(c.id))
     suivi = { id: portee.fiche.id, nom: portee.fiche.nom ?? null, actif: portee.fiche.actif === true, cabinet: { id: portee.fiche.cabinet_id, nom: '', identifiant: '' } }
   }
-  const filtre = options.cabinet || options.gestionnaire ? lignesCopros.map((c) => c.id) : null
+  const filtre = options.cabinet || options.gestionnaire || options.coproprietes ? lignesCopros.map((c) => c.id) : null
   const limite = options.gestionnaire ? SIGNALEMENTS_SUIVI_MAX : SIGNALEMENTS_MAX
   let lignesSignalements: LigneSignalementQr[] = []
   if (!filtre || filtre.length > 0) {
