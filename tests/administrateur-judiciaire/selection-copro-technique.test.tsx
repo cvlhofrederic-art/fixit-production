@@ -159,7 +159,7 @@ describe('Sinistres', () => {
     expect(lignesTableau()).toHaveLength(3)
     expect(kpi('Sinistres suivis')).toBe('3')
     expect(kpi('Assureurs')).toBe('2')
-    expect(screen.getByText('Mutuelle Exemple · Compagnie Exemple')).toBeInTheDocument()
+    expect(screen.getByText('Assureur Exemple · Compagnie Exemple')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /Déclarer un sinistre/ }))
     expect(within(screen.getByRole('dialog')).getByRole('combobox', { name: 'Copropriété' })).toHaveValue('Résidence Le Méridien')
   })

@@ -98,7 +98,7 @@ describe('Sinistres — liste à colonnes Gestéam', () => {
     expect(colonne(1)).toEqual(['CV.00014', 'TL.00009', 'LM.00031'])
     expect(colonne(0)).toEqual(['29/05/2026', '12/04/2026', '18/12/2025'])
     expect(colonne(6)).toEqual(['En cours', 'En cours', 'Terminé'])
-    expect(colonne(7)).toEqual(['Mutuelle Exemple', 'Compagnie Exemple', 'Mutuelle Exemple'])
+    expect(colonne(7)).toEqual(['Assureur Exemple', 'Compagnie Exemple', 'Assureur Exemple'])
   })
 
   it('filtres statut, type et phase cumulables, compteur annoncé', () => {
@@ -492,10 +492,12 @@ describe('Sinistres — « Détails » : fiche complète, modifiable', () => {
     expect(boite.getByLabelText('Origine, cause')).toHaveValue('Infiltration en toiture-terrasse')
   })
 
-  it('une fiche close affiche le statut « Terminé » et ses indemnités réglées', () => {
+  it('une fiche close affiche son assureur, le statut « Terminé » et ses indemnités réglées', () => {
     rendre()
     ouvrirDetails('LM.00031')
     const boite = within(dialogue())
+    expect(boite.getByLabelText('Compagnie')).toHaveDisplayValue('Assureur Exemple')
+    expect(boite.getByLabelText('N° compagnie')).toHaveValue('AEX-25-778301')
     expect(boite.getByLabelText('Statut')).toHaveValue('Terminé')
     expect(boite.getByLabelText('Clos le')).toHaveValue('2026-03-02')
     expect(boite.getByLabelText('Indemnité immédiate')).toHaveValue('1240,00')

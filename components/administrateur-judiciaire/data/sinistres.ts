@@ -7,9 +7,11 @@ import { creerSinistre, type FicheSinistre } from '@/lib/administrateur-judiciai
 /**
  * Sinistres de démonstration : trois fiches FICTIVES complètes sur le modèle de la fiche Gestéam (aucune donnée de
  * copropriété venue de Gestéam). Mêmes copropriétés et numéros d'ordre que la maquette, numéro au format Gestéam
- * (code + « . » + rang sur 5 chiffres). Assureurs, courtiers et intervenants fictifs : les assureurs réels de la
- * maquette sont remplacés par ceux des contrats de démonstration (CV · Mutuelle Exemple, TL · Compagnie Exemple,
- * LM · Mutuelle Exemple). Référence chez l'assureur : trois lettres, année sur deux chiffres, rang sur six chiffres.
+ * (code + « . » + rang sur 5 chiffres). Assureurs, courtiers et intervenants fictifs. Chaque sinistre est chez
+ * l'assureur d'un contrat de démonstration qui couvre sa copropriété : CV et LM (dégât des eaux, bris de glace) chez
+ * Assureur Exemple (multirisque immeuble), TL (infiltration, parties communes responsables) chez Compagnie Exemple
+ * (RC du syndicat). La maquette rattachait CV et LM à l'assureur de la protection juridique, qui ne couvre que TL.
+ * Référence chez l'assureur : trois lettres, année sur deux chiffres, rang sur six chiffres.
  */
 
 /** Option d'une liste de choix de la fiche sinistre (identifiant de l'annuaire, libellé affiché). */
@@ -94,9 +96,9 @@ export const DEMO_SINISTRES: readonly SinistreDemo[] = [
         lieu: '4e étage, palier',
         dommages: 'Plafond et peintures du palier',
         assurance: {
-          compagnie: 'Mutuelle Exemple',
-          compagnieId: 'demo-compagnie-mutuelle-exemple',
-          numeroSinistre: 'MEX-26-055120',
+          compagnie: 'Assureur Exemple',
+          compagnieId: 'demo-compagnie-assureur-exemple',
+          numeroSinistre: 'AEX-26-055120',
           courtier: 'Valmont Courtage',
           courtierId: 'demo-courtier-valmont',
           numeroCourtier: 'VC-2026-118',
@@ -159,9 +161,9 @@ export const DEMO_SINISTRES: readonly SinistreDemo[] = [
         lieu: "Hall d'entrée",
         dommages: 'Vitrage de la porte du hall',
         assurance: {
-          compagnie: 'Mutuelle Exemple',
-          compagnieId: 'demo-compagnie-mutuelle-exemple',
-          numeroSinistre: 'MEX-25-778301',
+          compagnie: 'Assureur Exemple',
+          compagnieId: 'demo-compagnie-assureur-exemple',
+          numeroSinistre: 'AEX-25-778301',
           courtier: null,
           contrat: null,
         },

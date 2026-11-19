@@ -1,7 +1,12 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { DEMO_COMPAGNIES_ASSURANCE, DEMO_SINISTRES } from '@/components/administrateur-judiciaire/data/sinistres'
+import { DEMO_COPROPRIETES } from '@/components/administrateur-judiciaire/data/coproprietes'
+import {
+  DEMO_COMPAGNIES_ASSURANCE,
+  DEMO_CONTRATS_SINISTRE,
+  DEMO_SINISTRES,
+} from '@/components/administrateur-judiciaire/data/sinistres'
 
 /**
  * Jeu de démonstration du module administrateur judiciaire : assureurs et courtiers FICTIFS. Le dépôt est public et la
@@ -39,6 +44,16 @@ describe('jeu de démonstration : assureurs fictifs', () => {
     for (const { numero, assurance } of DEMO_SINISTRES) {
       const compagnie = DEMO_COMPAGNIES_ASSURANCE.find(({ id }) => id === assurance.compagnieId)
       expect(compagnie?.libelle, `${numero}`).toBe(assurance.compagnie)
+    }
+  })
+
+  it('chaque sinistre est chez un assureur dont un contrat de démonstration couvre sa copropriété', () => {
+    for (const { numero, coproprieteId, assurance } of DEMO_SINISTRES) {
+      const code = DEMO_COPROPRIETES.find(({ id }) => id === coproprieteId)?.code
+      const contratsCouvrants = DEMO_CONTRATS_SINISTRE.filter(
+        ({ compagnieId, copros }) => compagnieId === assurance.compagnieId && !!code && copros.includes(code),
+      ).map(({ libelle }) => libelle)
+      expect(contratsCouvrants, `${numero} (${code ?? coproprieteId}) chez ${assurance.compagnie}`).not.toEqual([])
     }
   })
 
