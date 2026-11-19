@@ -16,6 +16,8 @@ const CLE_STOCKAGE_MODE = 'vitfix.aj.mode'
 const IBAN_A = 'FR76 3000 6000 0112 3456 7890 189'
 const IBAN_B = 'FR14 2004 1010 0505 0001 3M02 606'
 const IBAN_FAUX = 'FR76 3000 6000 0112 3456 7890 188'
+// BIC visiblement fictif (« EXEM » pour exemple) : aucun établissement réel.
+const BIC_FICTIF = 'EXEMFRPP'
 
 type Push = (options: { kind?: string; title?: ReactNode; desc?: ReactNode }) => number | undefined
 
@@ -151,7 +153,7 @@ describe('Comptes bancaires en mode réel — affichage et contrôles', () => {
 
   it('« Nouveau compte » : écrit en base, affiché (IBAN groupé, solde « — »), comptes conformes au mode', async () => {
     const { push } = await rendre()
-    await saisirCompte({ libelle: 'Compte principal', iban: IBAN_A, bic: 'EXEMFRPP', etablissement: 'Banque d’exemple' })
+    await saisirCompte({ libelle: 'Compte principal', iban: IBAN_A, bic: BIC_FICTIF, etablissement: 'Banque d’exemple' })
     await enregistrer()
     const lignes = await ajDb.banques.toArray()
     expect(lignes).toHaveLength(1)
@@ -163,8 +165,11 @@ describe('Comptes bancaires en mode réel — affichage et contrôles', () => {
     expect(ligne.textContent).toContain('Compte courant au nom du syndicat')
     expect(ligne.textContent).toContain('Compte principal')
     expect(ligne.textContent).toContain('FR76 3000 6000 0112 3456 7890 189')
-    expect(ligne.textContent).toContain('EXEMFRPP · Banque d’exemple')
+    expect(ligne.textContent).toContain(`${BIC_FICTIF} · Banque d’exemple`)
     expect(within(ligne).getByText('—')).toBeInTheDocument()
+    // Actions de la ligne nommées avec le compte visé (le texte visible reste en tête du nom, WCAG 2.5.3).
+    expect(within(ligne).getByRole('button', { name: 'Modifier Compte principal' })).toBeInTheDocument()
+    expect(within(ligne).getByRole('button', { name: 'Clôturer Compte principal' })).toBeInTheDocument()
     expect(panneau().textContent).toContain('Solde par compte')
     expect(titresAlertes()).toContain('Comptes conformes au mode appliqué.')
   })
@@ -266,6 +271,37 @@ describe('Comptes bancaires en mode réel — affichage et contrôles', () => {
     await rendre()
     expect(titresAlertes()).toContain('1 compte de la base non affiché')
     expect(lignesComptes()).toHaveLength(0)
+    // La base a une ligne : « Aucun compte enregistré » la contredirait.
+    expect(dansPanneau().queryByText('Aucun compte enregistré pour cette copropriété.')).toBeNull()
+  })
+
+  it('deux anomalies de même message (IBAN invalides écrits hors de l’écran) : toutes deux affichées, sans clé React en double', async () => {
+    const ligneExterne = (id: string) => ({
+      id,
+      createdAt: '2026-11-01T08:00:00.000Z',
+      updatedAt: '2026-11-01T08:00:00.000Z',
+      createdBy: null,
+      updatedBy: null,
+      coproprieteId: copro.id,
+      nature: 'courant' as const,
+      iban: 'FR7630006000011234567890188',
+      actif: true,
+    })
+    await ajDb.banques.bulkAdd([ligneExterne('banque-externe-1'), ligneExterne('banque-externe-2')])
+    const espion = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    await rendre()
+    const messages = espion.mock.calls.map((appel) => appel.map(String).join(' '))
+    espion.mockRestore()
+    expect(titresAlertes().filter((titre) => titre === 'Compte courant au nom du syndicat : IBAN invalide (format ou clé).')).toHaveLength(2)
+    expect(messages.filter((message) => /same key/.test(message))).toEqual([])
+  })
+
+  it('aucune copropriété choisie : message, « Nouveau compte » inactif, aucune liste de mode', async () => {
+    useSelectionDossier.setState({ code: 'ZZ-INCONNUE', coproprietaireId: null })
+    await rendre()
+    expect(dansPanneau().getByText('Aucune copropriété choisie.')).toBeInTheDocument()
+    expect(dansPanneau().getByRole('button', { name: /Nouveau compte/ })).toBeDisabled()
+    expect(dansPanneau().queryByLabelText('Ce mandat')).toBeNull()
   })
 })
 
@@ -273,7 +309,7 @@ describe('Comptes bancaires en mode réel — modifier et clôturer', () => {
   it('« Modifier » : formulaire prérempli, même ligne en base', async () => {
     const cree = await ajouter({ libelle: 'Compte principal', iban: IBAN_A })
     const { push } = await rendre()
-    fireEvent.click(within(lignesComptes()[0]).getByRole('button', { name: 'Modifier' }))
+    fireEvent.click(within(lignesComptes()[0]).getByRole('button', { name: /^Modifier/ }))
     expect(dialogue().getByLabelText('Libellé')).toHaveValue('Compte principal')
     expect(dialogue().getByLabelText('IBAN')).toHaveValue('FR76 3000 6000 0112 3456 7890 189')
     fireEvent.change(dialogue().getByLabelText('Libellé'), { target: { value: 'Compte de gestion' } })
@@ -289,7 +325,7 @@ describe('Comptes bancaires en mode réel — modifier et clôturer', () => {
     const cree = await ajouter({ iban: IBAN_A })
     const { push } = await rendre()
     expect(titresAlertes()).toContain('Comptes conformes au mode appliqué.')
-    fireEvent.click(within(lignesComptes()[0]).getByRole('button', { name: 'Clôturer' }))
+    fireEvent.click(within(lignesComptes()[0]).getByRole('button', { name: /^Clôturer/ }))
     await act(async () => {
       fireEvent.click(dialogue().getByRole('button', { name: 'Clôturer le compte' }))
     })
@@ -297,16 +333,31 @@ describe('Comptes bancaires en mode réel — modifier et clôturer', () => {
     expect((await ajDb.banques.get(cree.id))?.actif).toBe(false)
     expect(dernierToast(push)).toMatchObject({ kind: 'success', title: 'Compte clôturé' })
     expect(within(lignesComptes()[0]).getByText('Clôturé')).toBeInTheDocument()
-    expect(within(lignesComptes()[0]).queryByRole('button', { name: 'Clôturer' })).toBeNull()
+    expect(within(lignesComptes()[0]).queryByRole('button', { name: /^Clôturer/ })).toBeNull()
     expect(titresAlertes()).toContain(
       'Compte courant au nom du syndicat : compte à ouvrir, requis par le mode retenu (Compte séparé au nom du syndicat).',
     )
   })
 
+  it('compte du fonds de travaux clôturé : « Clôturé », sans la pastille « Tient le fonds de travaux »', async () => {
+    await ajouter({ nature: 'courant', iban: IBAN_A })
+    await ajouter({ nature: 'fonds_travaux', iban: IBAN_B })
+    await rendre()
+    const ligneFonds = () => lignesComptes().find((ligne) => ligne.textContent?.includes('Compte séparé du fonds de travaux')) as HTMLElement
+    expect(within(ligneFonds()).getByText('Tient le fonds de travaux')).toBeInTheDocument()
+    fireEvent.click(within(ligneFonds()).getByRole('button', { name: /^Clôturer/ }))
+    await act(async () => {
+      fireEvent.click(dialogue().getByRole('button', { name: 'Clôturer le compte' }))
+    })
+    await patienter()
+    expect(within(ligneFonds()).getByText('Clôturé')).toBeInTheDocument()
+    expect(within(ligneFonds()).queryByText('Tient le fonds de travaux')).toBeNull()
+  })
+
   it('« Clôturer » puis « Annuler » : rien ne change', async () => {
     const cree = await ajouter({ iban: IBAN_A })
     await rendre()
-    fireEvent.click(within(lignesComptes()[0]).getByRole('button', { name: 'Clôturer' }))
+    fireEvent.click(within(lignesComptes()[0]).getByRole('button', { name: /^Clôturer/ }))
     fireEvent.click(dialogue().getByRole('button', { name: 'Annuler' }))
     await patienter()
     expect(screen.queryByRole('dialog')).toBeNull()
@@ -371,6 +422,37 @@ describe('Comptes bancaires en mode réel — modes de tenue et leur origine', (
   it('syndic judiciaire : aucune pratique d’administrateur provisoire affichée', async () => {
     await rendre()
     expect(panneau().textContent).not.toContain('administrateur provisoire')
+  })
+
+  it('copropriété sans mandat chargé : indication, liste « Ce mandat » inactive, le réglage du cabinet s’applique', async () => {
+    useDonneesStore.setState({ mandats: [] })
+    await rendre()
+    const choix = dansPanneau().getByLabelText('Ce mandat')
+    expect(choix).toBeDisabled()
+    expect(choix.closest('.field')?.querySelector('.field-hint')?.textContent).toBe('Aucun mandat enregistré pour cette copropriété.')
+    expect(dansPanneau().getByText('Réglage du cabinet')).toBeInTheDocument()
+    expect((await ajDb.mandats.get(copro.mandatId))?.modeComptesBancaires ?? null).toBeNull()
+  })
+
+  it('mode du mandat illisible (écrit hors de l’écran) : alerte, la liste montre ce mode ; un mode valide le remplace', async () => {
+    await ajDb.mandats.update(copro.mandatId, { modeComptesBancaires: 'livret' as never })
+    await reinitialiserStore()
+    useSelectionDossier.setState({ code: copro.code, coproprietaireId: null })
+    const { push } = await rendre()
+    expect(titresAlertes()).toEqual(['Mode du mandat illisible'])
+    expect(panneau().textContent).toContain('Mode de tenue inconnu : « livret ».')
+    expect(panneau().textContent).not.toContain('Mode appliqué')
+    // La liste ne doit pas afficher « Comme le cabinet », que le bandeau contredirait.
+    expect(dansPanneau().getByLabelText('Ce mandat')).toHaveDisplayValue('Mode illisible : « livret »')
+
+    await act(async () => {
+      fireEvent.change(dansPanneau().getByLabelText('Ce mandat'), { target: { value: 'caisse_depots' } })
+    })
+    await patienter()
+    expect(dernierToast(push)).toMatchObject({ kind: 'success', title: 'Mode du mandat enregistré' })
+    expect((await ajDb.mandats.get(copro.mandatId))?.modeComptesBancaires).toBe('caisse_depots')
+    expect(titresAlertes()).not.toContain('Mode du mandat illisible')
+    expect(dansPanneau().getByText('Choix du mandat')).toBeInTheDocument()
   })
 })
 

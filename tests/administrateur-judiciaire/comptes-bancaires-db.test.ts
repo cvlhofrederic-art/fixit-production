@@ -183,6 +183,12 @@ describe('Modes de tenue — réglage du cabinet et choix du mandat (D-BANQUE)',
     expect(await ajDb.cabinets.count()).toBe(0)
   })
 
+  it('réglage du cabinet : deux écritures simultanées sur une table vide, une seule ligne, le dernier choix gardé', async () => {
+    await Promise.all([enregistrerModeComptesCabinet('caisse_depots'), enregistrerModeComptesCabinet('banque_et_caisse_depots')])
+    expect(await ajDb.cabinets.count()).toBe(1)
+    expect(await lireReglagesComptesCabinet()).toEqual({ modeParDefaut: 'banque_et_caisse_depots' })
+  })
+
   it('réglage du cabinet : écrit dans « cabinets », une seule ligne même après deux changements', async () => {
     await enregistrerModeComptesCabinet('caisse_depots')
     await enregistrerModeComptesCabinet('banque_et_caisse_depots')

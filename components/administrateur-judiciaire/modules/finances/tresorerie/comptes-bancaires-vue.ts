@@ -24,13 +24,17 @@ import {
 /**
  * Vue du panneau « Comptes bancaires du mandat » : ce que rend le domaine (domain/comptes-bancaires.ts,
  * domain/fonds-travaux.ts) sur les comptes lus dans la base locale. Aucune règle propre à l'écran.
- * Entrées du domaine que la base ne stocke pas :
- * - données de l'immeuble (destination, réception des travaux, lots principaux) : passées comme non renseignées (null) ;
- *   obligationFondsTravaux répond alors « à établir » (obligatoire : null), avec son motif ;
- * - « la copropriété est dotée d'un fonds de travaux » (controlerComptesMandat) : le domaine n'a pas de valeur inconnue ;
- *   seule une obligation établie (obligatoire : true) lance le contrôle « fonds de travaux manquant » ;
- * - solde de chaque compte : les écritures 512 ne sont rattachées à aucun compte. Le contrôle « compte repris à solder »
- *   ne peut donc pas être lancé ; le panneau le dit pour chaque compte repris actif.
+ * Entrées du domaine que la base ne stocke pas (point ouvert, soumis à Frédéric) :
+ * - données de l'immeuble lues par obligationFondsTravaux : passées comme non renseignées (null), car la date de
+ *   réception des travaux (ou l'année de construction) n'est stockée nulle part, et la fiche de copropriété (lots
+ *   d'habitation et de commerce, 0 par défaut) n'est pas lue en attendant sa réponse. Le domaine répond alors
+ *   « à établir » (obligatoire : null), avec son motif ;
+ * - « la copropriété est dotée d'un fonds de travaux » (controlerComptesMandat) : le domaine n'a pas de valeur inconnue.
+ *   La vue lui passe une valeur neutre, « non dotée » tant que l'obligation n'est pas établie : le contrôle « fonds de
+ *   travaux manquant » est donc neutralisé ;
+ * - solde de chaque compte : les écritures 512 ne sont rattachées à aucun compte. La vue passe un solde neutre de 0 (lu
+ *   comme « soldé ») : le contrôle « compte repris à solder » est donc neutralisé, et un seul bandeau le signale dès
+ *   qu'un compte repris est actif.
  */
 
 /** Compte lisible (nature connue), prêt à afficher. */
@@ -44,7 +48,7 @@ export interface CompteAffiche {
   actif: boolean
   tenaitFondsTravaux: boolean
   reserveAuFondsTravaux: boolean
-  /** Compte qui tient le fonds de travaux (estCompteDuFondsTravaux, J71). */
+  /** Compte actif qui tient le fonds de travaux (estCompteDuFondsTravaux, J71) ; un compte clôturé ne le tient plus. */
   tientLeFonds: boolean
 }
 
@@ -73,14 +77,14 @@ export interface EntreeVueComptes {
   aujourdhui: string
 }
 
-/** Données de l'immeuble lues par obligationFondsTravaux : aucune n'est stockée dans la base locale. */
+/** Données de l'immeuble lues par obligationFondsTravaux : non renseignées (voir l'en-tête). */
 const IMMEUBLE_NON_RENSEIGNE: SaisieObligationFondsTravaux = {
   destinationHabitation: null,
   dateReception: null,
   nbLotsPrincipaux: null,
 }
 
-/** Solde passé au contrôle : aucun solde par compte n'est connu (voir l'en-tête). */
+/** Solde neutre passé au contrôle (lu comme « soldé ») : aucun solde par compte n'est connu (voir l'en-tête). */
 const SOLDE_NON_RATTACHE = 0
 
 const estNatureConnue = (nature: unknown): nature is NatureCompteBancaire =>
@@ -89,6 +93,7 @@ const estNatureConnue = (nature: unknown): nature is NatureCompteBancaire =>
 function compteAffiche(ligne: Banque & { nature: NatureCompteBancaire }): CompteAffiche {
   const tenaitFondsTravaux = ligne.tenaitFondsTravaux === true
   const reserveAuFondsTravaux = ligne.reserveAuFondsTravaux === true
+  const actif = ligne.actif !== false
   return {
     id: ligne.id,
     nature: ligne.nature,
@@ -96,10 +101,11 @@ function compteAffiche(ligne: Banque & { nature: NatureCompteBancaire }): Compte
     iban: ligne.iban ?? null,
     bic: ligne.bic ?? null,
     etablissement: ligne.etablissement ?? null,
-    actif: ligne.actif !== false,
+    actif,
     tenaitFondsTravaux,
     reserveAuFondsTravaux,
-    tientLeFonds: estCompteDuFondsTravaux({ nature: ligne.nature, tenaitFondsTravaux, reserveAuFondsTravaux }),
+    // Comme le domaine (controlerComptesMandat ne lit que les comptes actifs).
+    tientLeFonds: actif && estCompteDuFondsTravaux({ nature: ligne.nature, tenaitFondsTravaux, reserveAuFondsTravaux }),
   }
 }
 
@@ -124,6 +130,7 @@ export function vueComptesBancaires(entree: EntreeVueComptes): VueComptesBancair
     comptes,
     illisibles: entree.comptes.length - lisibles.length,
     resolu,
+    // « Dotée d'un fonds » : valeur neutre (non dotée) tant que l'obligation n'est pas établie (voir l'en-tête).
     anomalies: controlerComptesMandat({ mode: resolu.mode, fondsTravaux: obligationFonds.obligatoire === true, comptes: controles }),
     informations: informationsComptesMandat(controles),
     obligationFonds,

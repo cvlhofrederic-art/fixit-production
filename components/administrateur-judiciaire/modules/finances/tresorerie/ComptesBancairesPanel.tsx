@@ -106,11 +106,21 @@ function TableauComptes({ comptes, ouvrir }: { comptes: readonly CompteAffiche[]
               <td>
                 {compte.actif && (
                   <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                    <button type="button" className="btn ghost sm" onClick={() => ouvrir({ type: 'modifier', compte })}>
+                    <button
+                      type="button"
+                      className="btn ghost sm"
+                      aria-label={`Modifier ${nomDuCompte(compte)}`}
+                      onClick={() => ouvrir({ type: 'modifier', compte })}
+                    >
                       <Icon name="pencil" />
                       Modifier
                     </button>
-                    <button type="button" className="btn ghost sm" onClick={() => ouvrir({ type: 'cloturer', compte })}>
+                    <button
+                      type="button"
+                      className="btn ghost sm"
+                      aria-label={`Clôturer ${nomDuCompte(compte)}`}
+                      onClick={() => ouvrir({ type: 'cloturer', compte })}
+                    >
                       <Icon name="archive" />
                       Clôturer
                     </button>
@@ -132,9 +142,10 @@ function AlertesComptes({ vue }: { vue: VueComptesBancaires }) {
       {vue.anomalies.length === 0 ? (
         <Alert kind="info" icon="check" title="Comptes conformes au mode appliqué." />
       ) : (
-        vue.anomalies.map((anomalie) => (
+        // Clé avec l'index : deux comptes de même nature peuvent donner le même message (IBAN invalide).
+        vue.anomalies.map((anomalie, index) => (
           <Alert
-            key={anomalie.code + anomalie.message}
+            key={`${index}-${anomalie.code}`}
             kind={anomalie.gravite === 'bloquant' ? 'rust' : 'warn'}
             icon="alert"
             title={anomalie.message}
@@ -255,6 +266,8 @@ export function ComptesBancairesPanel({ copro }: { copro: CoproprieteVue | undef
     aujourdhui: AUJOURDHUI_ISO,
   })
   const pret = !!copro && !lus.chargement && !lus.erreur
+  const choixMandat: string = mandat?.modeComptesBancaires ?? ''
+  const choixInconnu = choixMandat !== '' && !Object.hasOwn(MODES_TENUE_COMPTES, choixMandat)
 
   return (
     <Panel
@@ -300,12 +313,18 @@ export function ComptesBancairesPanel({ copro }: { copro: CoproprieteVue | undef
               }
             >
               <select
-                value={mandat?.modeComptesBancaires ?? ''}
+                value={choixMandat}
                 disabled={!pret || !mandat}
                 onChange={(evenement) =>
                   void ecritures.choisirModeMandat((evenement.target.value || null) as ModeTenueComptes | null)
                 }
               >
+                {/* Mode enregistré inconnu : montré tel quel (sinon la liste afficherait « Comme le cabinet »), à remplacer. */}
+                {choixInconnu && (
+                  <option value={choixMandat} disabled>
+                    {`Mode illisible : « ${choixMandat} »`}
+                  </option>
+                )}
                 <option value="">Comme le cabinet</option>
                 {MODES.map(([cle, mode]) => (
                   <option key={cle} value={cle}>
@@ -341,12 +360,12 @@ export function ComptesBancairesPanel({ copro }: { copro: CoproprieteVue | undef
             vue &&
             !lus.erreur && (
               <>
-                {vue.comptes.length === 0 ? (
+                {vue.comptes.length > 0 && <TableauComptes comptes={vue.comptes} ouvrir={setEdition} />}
+                {/* Lignes illisibles seulement : le bandeau d'erreur les signale, sans « aucun compte ». */}
+                {vue.comptes.length === 0 && vue.illisibles === 0 && (
                   <p className="muted" style={{ fontSize: 13 }}>
                     Aucun compte enregistré pour cette copropriété.
                   </p>
-                ) : (
-                  <TableauComptes comptes={vue.comptes} ouvrir={setEdition} />
                 )}
                 <p className="muted" style={{ fontSize: 12, margin: '0 0 14px' }}>
                   Solde par compte : « — » tant que le relevé importé n’est pas rattaché à un compte.

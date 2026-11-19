@@ -3,7 +3,7 @@
 import { useDonneesStore } from '@/lib/administrateur-judiciaire/db/donnees-store'
 import { repoBanques, repoCabinets, repoCoproprietes, repoMandats } from '@/lib/administrateur-judiciaire/db/repositories'
 import type { OptionsEcriture } from '@/lib/administrateur-judiciaire/db/repository'
-import type { Banque, Cabinet, Mandat } from '@/lib/administrateur-judiciaire/db/schema'
+import { ajDb, type Banque, type Cabinet, type Mandat } from '@/lib/administrateur-judiciaire/db/schema'
 import {
   NATURES_COMPTE_BANCAIRE,
   creerReglagesComptesCabinet,
@@ -116,14 +116,20 @@ export async function lireReglagesComptesCabinet(): Promise<ReglagesComptesCabin
   return creerReglagesComptesCabinet({ modeParDefaut: (await ligneCabinet())?.modeComptesBancaires })
 }
 
-/** Enregistre le mode par défaut du cabinet (créé à la première écriture). Mode inconnu : refusé par le domaine. */
+/**
+ * Enregistre le mode par défaut du cabinet (créé à la première écriture). Mode inconnu : refusé par le domaine. Lecture
+ * et écriture dans une seule transaction : deux appels qui se chevauchent (deux changements rapides de la liste) passent
+ * l'un après l'autre, sans créer une seconde ligne ; le dernier choix est gardé.
+ */
 export async function enregistrerModeComptesCabinet(mode: ModeTenueComptes, options: OptionsEcriture = {}): Promise<Cabinet> {
   const { modeParDefaut } = creerReglagesComptesCabinet({ modeParDefaut: mode })
-  const existant = await ligneCabinet()
   const ecriture = { actor: options.actor ?? null }
-  return existant
-    ? repoCabinets.update(existant.id, { modeComptesBancaires: modeParDefaut }, ecriture)
-    : repoCabinets.create({ modeComptesBancaires: modeParDefaut }, ecriture)
+  return ajDb.transaction('rw', ajDb.cabinets, ajDb.activityLog, async () => {
+    const existant = await ligneCabinet()
+    return existant
+      ? repoCabinets.update(existant.id, { modeComptesBancaires: modeParDefaut }, ecriture)
+      : repoCabinets.create({ modeComptesBancaires: modeParDefaut }, ecriture)
+  })
 }
 
 /**
