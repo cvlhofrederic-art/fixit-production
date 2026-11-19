@@ -389,6 +389,20 @@ describe('Comptes bancaires en mode réel — modifier et clôturer', () => {
     expect(within(ligneFonds()).queryByText('Tient le fonds de travaux')).toBeNull()
   })
 
+  it('confirmation « Clôturer » : dit qu’il n’y a pas de retour depuis cet écran, et aucune action ne rouvre le compte', async () => {
+    await ajouter({ iban: IBAN_A })
+    await rendre()
+    fireEvent.click(within(lignesComptes()[0]).getByRole('button', { name: /^Clôturer/ }))
+    // Décision du 19/11 (#758, point 2) : la confirmation le dit avant le clic.
+    expect(screen.getByRole('dialog').textContent).toContain('Sans retour depuis cet écran.')
+    await act(async () => {
+      fireEvent.click(dialogue().getByRole('button', { name: 'Clôturer le compte' }))
+    })
+    await patienter()
+    expect(within(lignesComptes()[0]).getByText('Clôturé')).toBeInTheDocument()
+    expect(dansPanneau().queryByRole('button', { name: /Rouvrir/ })).toBeNull()
+  })
+
   it('« Clôturer » puis « Annuler » : rien ne change', async () => {
     const cree = await ajouter({ iban: IBAN_A })
     await rendre()
