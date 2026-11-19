@@ -154,9 +154,10 @@ import {
  *   désactivée. Les refus qui ne dépendent pas du montant restent levés : « Offert » en mission judiciaire (J67, R9),
  *   « Facturable » de l'envoi d'un recouvrement (J72, a). creerElement (honoraires-facturation.ts) admet toujours un
  *   prix de 0. Enregistrement de la ligne d'imputation : à brancher.
- *   🔵 À confirmer (Hugo, puis Frédéric) : faut-il proposer les autres lignes de la règle quand seul le forfait attend
- *   son montant ? Un frais d'envoi à 0 vaut-il aussi « non saisi » ? J77 ne parle que du montant du forfait : dans une
- *   règle sans forfait, un frais d'envoi à 0 reste proposé.
+ *   Décisions de Hugo du 19/11/2026 : (i) le texte de Frédéric est gardé : tant que le montant du forfait n'est pas
+ *   saisi, toute la règle attend, frais d'envoi compris ; (ii) un frais d'envoi à 0 reste proposé (J77 ne parle que du
+ *   forfait), y compris dans une règle dont le forfait a un montant saisi. Seul le forfait a donc un prix « non saisi »
+ *   (prixDeLaLigne) ; l'écart montant_non_saisi ne cite jamais un frais d'envoi.
  * - 🔵 Rappel de J1 et J50 (délai de l'art. 42, aucune décision sur les étapes) : un délai ouvert par une notification
  *   part de la première présentation ou de la transmission de l'avis électronique, lues sur le courrier (courriers.ts),
  *   jamais du dépôt ; la date de dépôt, ici date de création de l'étape, ne fait donc courir aucun délai, et l'étape née
@@ -1095,7 +1096,7 @@ export interface LigneHonorairesCourrier {
   /**
    * Prix unitaire HT en dix-millièmes d'euro (honoraires-facturation.ts). Forfait de mise en demeure : 0, null ou absent
    * vaut « non saisi » (J77) ; la règle ne propose aucune ligne tant qu'il n'est pas saisi. Frais d'envoi : nombre
-   * entier, positif ou nul, obligatoire.
+   * entier, positif ou nul, obligatoire ; 0 reste proposé (décision de Hugo du 19/11/2026).
    */
   prixUnitaireHtDixMilliemes: number | null
   soumisTva: boolean
@@ -1120,7 +1121,8 @@ function controlerNatureLigne(ligne: LigneHonorairesCourrier, ou: string): void 
 }
 
 /**
- * Prix de la ligne contrôlé. J77 : pour le forfait de mise en demeure, 0, null ou absent vaut « non saisi » (null). Refus :
+ * Prix de la ligne contrôlé. J77 : pour le forfait de mise en demeure, 0, null ou absent vaut « non saisi » (null). Un
+ * frais d'envoi à 0 reste un prix saisi, proposé (décision de Hugo du 19/11/2026 : J77 ne parle que du forfait). Refus :
  * prix non entier ou négatif ; frais d'envoi sans prix (seul le forfait est visé par J77).
  */
 function prixDeLaLigne(ligne: LigneHonorairesCourrier, ou: string): number | null {
