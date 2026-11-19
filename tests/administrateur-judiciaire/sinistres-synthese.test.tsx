@@ -14,12 +14,13 @@ import { ToastContext, type ToastApi } from '@/components/administrateur-judicia
 import { useDonneesStore } from '@/lib/administrateur-judiciaire/db/donnees-store'
 import { viderBaseLocale } from '@/lib/administrateur-judiciaire/db/reset'
 import { initialiserBaseDemo } from '@/lib/administrateur-judiciaire/db/seed-demo'
-import { controlerDelaiDeclaration } from '@/lib/administrateur-judiciaire/domain/declaration-sinistre'
+import { AVERTISSEMENT_GRELE, controlerDelaiDeclaration } from '@/lib/administrateur-judiciaire/domain/declaration-sinistre'
 import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
 import {
   controlerChronologieSinistre,
   creerSinistre,
   etapeSuiviSinistre,
+  RAPPEL_DECLARATION_DES_CONNAISSANCE,
   reperesDelaisSinistre,
   type FicheSinistre,
   type SaisieSinistre,
@@ -184,6 +185,19 @@ describe('Synthèse — repères de délai, présentés comme des signaux', () =
     expect(alerte.textContent).toContain(controle(f).avertissement)
   })
 
+  it('tempête, grêle, neige : le second délai du domaine (grêle, quatre jours) suit le rappel du droit commun', () => {
+    const f = fiche({ type: 'Tempête, Grêles, Neiges' })
+    expect(controle(f).avertissement).toContain(AVERTISSEMENT_GRELE)
+    const texte = bandeau(rendreSynthese(f)).textContent ?? ''
+    expect(texte).toContain(RAPPEL_DECLARATION_DES_CONNAISSANCE)
+    expect(texte).toContain(AVERTISSEMENT_GRELE)
+    expect(texte.indexOf(AVERTISSEMENT_GRELE)).toBeGreaterThan(texte.indexOf(RAPPEL_DECLARATION_DES_CONNAISSANCE))
+    expect(texte).toContain(reperesDelaisSinistre(f).justificationDeclaration)
+    cleanup()
+    // Les autres types du droit commun n'ont pas ce second délai.
+    expect(bandeau(rendreSynthese(fiche())).textContent).not.toContain(AVERTISSEMENT_GRELE)
+  })
+
   it('vandalisme : un vol a pu y être rangé, repère à confirmer (2 jours ouvrés s’il y a eu vol)', () => {
     const f = fiche({ type: 'Vandalisme' })
     expect(reperesDelaisSinistre(f).volPossible).toBe(true)
@@ -257,9 +271,16 @@ describe('Synthèse — chronologie signalée, comme la maquette', () => {
   })
 })
 
-// Point ouvert, hors de cette PR (domaine) : une survenance en 9998 ou au-delà fait lever « Date ISO invalide » à
-// reperesDelaisSinistre et controlerDelaiDeclaration (ajouterMois compose une année à cinq chiffres, dates.ts).
-it.todo('survenance en 9998 ou au-delà : le domaine ne lève plus (dates.ts, ajouterMois), la synthèse s’affiche')
+// Point ouvert, hors de cette PR (domaine). « Date ISO invalide » est levée dès qu'une date CALCULÉE dépasse l'an 9999 :
+// ajouterMois et ajouterJours (dates.ts) rendent une année à cinq chiffres, que la relecture (decomposerDateIso) refuse.
+// - Prescription = survenance + 24 mois : survenance en 9998 ou après.
+// - Repère = connaissance + jours ouvrés : une connaissance de fin 9999, avec une survenance normale, suffit.
+// reperesDelaisSinistre lève pour tout type (sur la connaissance, sauf les dommages-ouvrage : aucun jour ouvré) ;
+// controlerDelaiDeclaration seulement pour le droit commun (ni dommages-ouvrage ni catastrophe naturelle).
+// Sur main, le même chemin existe dans « Détails », ou à la déclaration après ouverture du bloc Suivi (suggestion de
+// forclusion) ; avec cette PR, à la déclaration dès le type et la survenance. Correction à faire dans le domaine, avec
+// son test, proposée dans une tâche séparée.
+it.todo('date calculée au-delà de l’an 9999 (prescription ou repère) : le domaine ne lève plus, la synthèse s’affiche')
 
 describe('Synthèse — délais entre étapes (décision #699)', () => {
   it('sans délai saisi par le cabinet : aucun délai affiché entre les étapes', () => {
