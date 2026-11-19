@@ -35,8 +35,14 @@
 // Logo du cabinet (demande de Hugo du 13/11/2026) : chaque carte reçoit les métadonnées du logo du cabinet de sa
 // copropriété, prises dans les données déjà chargées (liste des cabinets du super admin ; profil du gestionnaire), sans
 // requête par copropriété ; l'image n'est lue qu'au clic sur « Affiche PDF ».
+// Bureaux des cabinets (E7, migration 20261119 ; BROUILLON soumis avant fusion) : super admin seulement, filtre « Bureau »
+// dans les vues Copropriétés et Signalements (un seul choix pour les deux), à côté des filtres existants : « Tous les
+// bureaux », puis les bureaux que portent les copropriétés. Un bureau choisi relit le tableau par ?bureau=<id>
+// (useTableauDuBureauQr) ; il est relu à chaque changement du tableau complet. Tableau de bord, autres vues de l'espace et
+// vue d'un gestionnaire : inchangés. Tant qu'aucune copropriété n'a de bureau : aucun filtre, aucune requête nouvelle.
+// Copropriété créée sans son bureau (207) : message d'avertissement dans la vue.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
 import { heureCourte, remplir } from '@/lib/coproprietaire/textes'
 import { Badge, Bouton, Carte, Encadre, EtatVide, Modale, Montant } from '@/components/coproprietaire-dashboard/ui'
@@ -54,7 +60,8 @@ import {
   LIBELLE_STATUT_QR, TEXTES_TABLEAU_QR as T, TON_STATUT_QR, compteursTableauQr, dateHeureParis, filtrerSignalementsQr,
   lieuSignalementQr, messageErreurTableauQr, nomDeclarantQr, situationLotQr, texteSignalementLieQr,
 } from '@/lib/aj-signalement/affichage'
-import { TEXTES_GESTION_QR as G, filtrerCoproprietesQr } from '@/lib/aj-signalement/affichage-gestion'
+import { TEXTES_GESTION_QR as G, bureauxDesCoproprietesQr, filtrerCoproprietesQr, type OptionBureauQr } from '@/lib/aj-signalement/affichage-gestion'
+import { lectureBureauEnAttenteQr, useTableauDuBureauQr, type LectureTableauBureauQr } from '@/components/aj-signalement/useTableauDuBureauQr'
 import { TEXTES_IMPORT_QR as I } from '@/lib/aj-signalement/import/textes'
 import { coproprietesGestionnaireOrdonneesQr, idCarteCoproprieteQr, messageErreurGestionnaireQr } from '@/lib/aj-signalement/affichage-gestionnaire'
 
@@ -100,6 +107,20 @@ type Etat =
   | { statut: 'pret'; tableau: TableauQr; miseAJourLe: Date }
   | { statut: 'erreur'; code: CodeErreurQr }
 
+/** Message de la vue Copropriétés : succès, ou avertissement (copropriété créée sans son bureau). */
+type MessageVueQr = { texte: string; ton: 'succes' | 'avertissement' }
+
+/** Filtre « Bureau » (E7) d'une vue : options, choix, et la lecture du tableau du bureau choisi (null : aucun). */
+interface FiltreBureauVueQr {
+  options: readonly OptionBureauQr[]
+  valeur: string
+  onChange: (bureauId: string) => void
+  lecture: LectureTableauBureauQr | null
+  onReessayer: () => void
+}
+
+const AUCUNE_OPTION: OptionBureauQr[] = []
+
 type Fenetre =
   | { type: 'creation' } | { type: 'import' } | { type: 'modification'; copropriete: CoproprieteQr } | { type: 'detail'; id: string }
   // PR 3 : diffusion (message, ou historique de la copropriété ; portée « signalement » depuis le détail).
@@ -120,6 +141,21 @@ function fusionnerCoproprieteQr(connue: CoproprieteQr, enregistree: CoproprieteQ
   }
 }
 
+/**
+ * Signalement du détail : dans le tableau, sinon dans celui du bureau choisi (E7 : il peut rendre des signalements plus
+ * anciens que ceux du tableau complet).
+ */
+function signalementDuDetailQr(id: string, signalements: readonly SignalementQr[], duBureau: TableauQr | null): SignalementQr | null {
+  return signalements.find((s) => s.id === id) ?? duBureau?.signalements.find((s) => s.id === id) ?? null
+}
+
+/** Vue Signalements sous un bureau lu : ses copropriétés et ses signalements ; un filtre par copropriété hors du bureau est ignoré. */
+function listeDuBureauQr(liste: PropsListeSignalementsQr, duBureau: TableauQr | null): PropsListeSignalementsQr {
+  if (!duBureau) return liste
+  const filtre = duBureau.coproprietes.some((c) => c.id === liste.filtre) ? liste.filtre : ''
+  return { ...liste, coproprietes: duBureau.coproprietes, signalements: duBureau.signalements, filtre }
+}
+
 /** Origine des liens encodés dans les QR codes : le site courant (ce que l'on voit est ce que l'on imprime). */
 function origineCourante(): string {
   return typeof window === 'undefined' ? 'https://vitfix.io' : window.location.origin
@@ -132,7 +168,9 @@ export default function TableauSignalementsQr({
   const [fenetre, setFenetre] = useState<Fenetre>(null)
   const [filtreCopro, setFiltreCopro] = useState('')
   const [filtreListe, setFiltreListe] = useState('')
-  const [message, setMessage] = useState<string | null>(null)
+  const [message, setMessage] = useState<MessageVueQr | null>(null)
+  // E7 : bureau choisi dans les vues Copropriétés et Signalements ('' : tous).
+  const [filtreBureau, setFiltreBureau] = useState('')
   // PR 3 : protection de la fenêtre de diffusion (saisie, envoi), remontée par elle ; demande de fermeture à lui passer.
   const [gardeDiffusion, setGardeDiffusion] = useState<GardeDiffusionQr>('libre')
   const [demandeFermetureDiffusion, setDemandeFermetureDiffusion] = useState(0)
@@ -183,6 +221,15 @@ export default function TableauSignalementsQr({
     if (tableauPret && onTableau) onTableau(tableauPret)
   }, [tableauPret, onTableau])
 
+  // E7 (super admin) : options du filtre « Bureau » ; un bureau qui ne porte plus de copropriété n'est plus retenu. Son
+  // tableau est relu à chaque changement du tableau complet (rechargement, copropriété enregistrée, statut changé).
+  const optionsBureau = useMemo(
+    () => (vueGestionnaire || !tableauPret ? AUCUNE_OPTION : bureauxDesCoproprietesQr(tableauPret.coproprietes)),
+    [tableauPret, vueGestionnaire],
+  )
+  const bureauRetenu = optionsBureau.some((o) => o.id === filtreBureau) ? filtreBureau : ''
+  const duBureau = useTableauDuBureauQr(jeton, bureauRetenu, tableauPret)
+
   // Fin d'un rechargement demandé : l'espace est prévenu APRÈS le rendu du tableau et son partage (effet précédent),
   // pour que la liste à jour et le message de l'action arrivent ensemble.
   useEffect(() => {
@@ -195,7 +242,7 @@ export default function TableauSignalementsQr({
     setFenetre(nouvelle)
   }
 
-  const mettreAJourCopro = (copropriete: CoproprieteQr, texte?: string) => {
+  const mettreAJourCopro = (copropriete: CoproprieteQr, texte?: string, avertissement = false) => {
     setEtat((e) => {
       if (e.statut !== 'pret') return e
       const existante = e.tableau.coproprietes.some((c) => c.id === copropriete.id)
@@ -205,14 +252,15 @@ export default function TableauSignalementsQr({
       const signalements = e.tableau.signalements.map((s) => (s.coproprieteId === copropriete.id ? { ...s, coproprieteNom: copropriete.nom } : s))
       return { ...e, tableau: { ...e.tableau, coproprietes, signalements } }
     })
-    setMessage(texte ?? null)
+    const ton: MessageVueQr['ton'] = avertissement ? 'avertissement' : 'succes'
+    setMessage(texte ? { texte, ton } : null)
     setFenetre(null)
   }
 
   /** Copropriété supprimée (sans signalement) : retirée de la liste. */
   const retirerCopro = (id: string) => {
     setEtat((e) => (e.statut === 'pret' ? { ...e, tableau: { ...e.tableau, coproprietes: e.tableau.coproprietes.filter((c) => c.id !== id) } } : e))
-    setMessage(G.copropriete.supprimee)
+    setMessage({ texte: G.copropriete.supprimee, ton: 'succes' })
     setFenetre(null)
   }
 
@@ -288,7 +336,8 @@ export default function TableauSignalementsQr({
   }
 
   const { coproprietes, signalements } = etat.tableau
-  const detail = fenetre?.type === 'detail' ? signalements.find((s) => s.id === fenetre.id) ?? null : null
+  const tableauBureau = duBureau.lecture?.etat === 'pret' ? duBureau.lecture.tableau : null
+  const detail = fenetre?.type === 'detail' ? signalementDuDetailQr(fenetre.id, signalements, tableauBureau) : null
   // PR 3 : droit « diffuser » sur la copropriété du détail (H11) ; copropriété de la fenêtre de diffusion.
   const coproDetail = detail ? coproprietes.find((c) => c.id === detail.coproprieteId) : undefined
   const diffusionDetail = coproDetail !== undefined && peutDiffuserCoproprieteQr(coproDetail, vueGestionnaire)
@@ -301,6 +350,10 @@ export default function TableauSignalementsQr({
     onFiltre: setFiltreCopro,
     onOuvrir: (id) => ouvrir({ type: 'detail', id }),
   }
+  // E7 : filtre « Bureau » des vues Copropriétés et Signalements ; absent tant qu'aucune copropriété n'a de bureau.
+  const filtreBureauVue: FiltreBureauVueQr | undefined = optionsBureau.length > 0
+    ? { options: optionsBureau, valeur: bureauRetenu, onChange: setFiltreBureau, lecture: duBureau.lecture, onReessayer: duBureau.reessayer }
+    : undefined
 
   return (
     <div className="space-y-6">
@@ -318,9 +371,10 @@ export default function TableauSignalementsQr({
           vueGestionnaire={vueGestionnaire}
           onDiffusion={(c, contenu) => ouvrir({ type: 'diffusion', coproprieteId: c.id, contenu })}
           logoCabinet={logoCabinet}
+          bureau={filtreBureauVue}
         />
       )}
-      {vue === 'signalements' && <ListeSignalementsQr {...liste} />}
+      {vue === 'signalements' && <ListeSignalementsQr {...listeDuBureauQr(liste, tableauBureau)} bureau={filtreBureauVue} />}
 
       <p className="flex flex-wrap items-center justify-between gap-3 text-sm text-[#4A5E78]">
         <span>{remplir(T.derniereMiseAJour, { heure: heureCourte(etat.miseAJourLe, 'fr') })}</span>
@@ -421,7 +475,7 @@ function VueTableauDeBordQr({ liste }: Readonly<{ liste: PropsListeSignalementsQ
 
 interface PropsVueCoproprietesQr {
   coproprietes: readonly CoproprieteQr[]
-  message: string | null
+  message: MessageVueQr | null
   /** Filtre de la liste (filtrerCoproprietesQr) : '' = toutes. */
   filtre: string
   onFiltre: (filtre: string) => void
@@ -436,15 +490,20 @@ interface PropsVueCoproprietesQr {
   onDiffusion?: (copropriete: CoproprieteQr, contenu: 'message' | 'historique') => void
   /** Logo du cabinet d'une copropriété (métadonnées déjà chargées) ; null : aucun. */
   logoCabinet: (copropriete: CoproprieteQr) => LogoCabinetQr | null
+  /** E7 : filtre « Bureau » (super admin) ; absent : aucun bureau, la barre et la liste sont celles d'avant. */
+  bureau?: FiltreBureauVueQr
 }
 
 function VueCoproprietesQr({
   coproprietes, message, filtre, onFiltre, onAjouter, onImporter, onModifier, onUtiliserAdresse, vueGestionnaire = false, onDiffusion, logoCabinet,
+  bureau,
 }: Readonly<PropsVueCoproprietesQr>) {
   const origine = origineCourante()
+  // E7 : sous un bureau lu, ses copropriétés (le filtre de la liste s'y applique ensuite).
+  const source = bureau?.lecture?.etat === 'pret' ? bureau.lecture.tableau.coproprietes : coproprietes
   const visibles = useMemo(
-    () => (vueGestionnaire ? coproprietesGestionnaireOrdonneesQr(coproprietes) : filtrerCoproprietesQr(coproprietes, filtre)),
-    [coproprietes, filtre, vueGestionnaire],
+    () => (vueGestionnaire ? coproprietesGestionnaireOrdonneesQr(coproprietes) : filtrerCoproprietesQr(source, filtre)),
+    [coproprietes, source, filtre, vueGestionnaire],
   )
   // Gestionnaires cités par les copropriétés : un filtre chacun (SPEC § 1.8).
   const gestionnaires = useMemo(() => {
@@ -452,52 +511,114 @@ function VueCoproprietesQr({
     for (const c of coproprietes) for (const g of c.gestionnaires) noms.set(g.id, g.nom ?? G.fiche.ancien)
     return [...noms].sort((a, b) => a[1].localeCompare(b[1], 'fr'))
   }, [coproprietes])
-  const filtres = G.copropriete.filtres
   return (
     <>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        {coproprietes.length > 0 && !vueGestionnaire ? (
-          <label className="flex items-center gap-2 text-sm text-[#4A5E78]">
-            <span>{G.copropriete.filtre}</span>
-            <select value={filtre} onChange={(e) => onFiltre(e.target.value)} className="min-h-[44px] rounded-xl border-2 border-[#E4DDD0] bg-white px-3 text-base text-[#0D1B2E]">
-              {(Object.keys(filtres) as Array<keyof typeof filtres>).map((cle) => <option key={cle} value={cle}>{filtres[cle]}</option>)}
-              {gestionnaires.map(([id, nom]) => <option key={id} value={`gestionnaire:${id}`}>{remplir(G.copropriete.filtreGestionnaire, { nom })}</option>)}
-            </select>
-          </label>
-        ) : <span />}
+        <FiltresCoproprietesQr
+          visible={coproprietes.length > 0 && !vueGestionnaire} filtre={filtre} onFiltre={onFiltre} gestionnaires={gestionnaires} bureau={bureau}
+        />
         <div className="flex flex-wrap gap-2">
           {onImporter && <Bouton variante="secondaire" icone="documents" onClick={onImporter}>{I.bouton}</Bouton>}
           <Bouton variante="or" icone="plus" onClick={onAjouter}>{T.ajouterCopro}</Bouton>
         </div>
       </div>
-      {message && <Encadre ton="succes">{message}</Encadre>}
-      {coproprietes.length === 0 ? (
-        <EtatVide texte={T.aucuneCopro} icone="qr" />
-      ) : visibles.length === 0 ? (
-        <EtatVide texte={G.copropriete.aucuneFiltre} icone="qr" />
-      ) : (
-        // Groupe nommé natif (rôle group) ; min-w-0 annule le min-inline-size: min-content que le navigateur donne à un
-        // fieldset (bordure, marge et retrait sont déjà remis à zéro par Tailwind) : même rendu que l'ancien div.
-        <fieldset className="grid min-w-0 gap-4" aria-label={T.coproprietes}>
-          {visibles.map((c) => {
-            const diffuser = onDiffusion !== undefined && peutDiffuserCoproprieteQr(c, vueGestionnaire)
-            return (
-              <CarteCoproprieteQr
-                key={c.id}
-                copropriete={c}
-                origine={origine}
-                onModifier={() => onModifier(c)}
-                onUtiliserAdresse={vueGestionnaire ? undefined : (adresse) => onUtiliserAdresse(c, adresse)}
-                vueGestionnaire={vueGestionnaire}
-                onDiffuser={diffuser ? () => onDiffusion?.(c, 'message') : undefined}
-                onHistoriqueDiffusion={diffuser ? () => onDiffusion?.(c, 'historique') : undefined}
-                logoCabinet={logoCabinet(c)}
-              />
-            )
-          })}
-        </fieldset>
-      )}
+      {message && <Encadre ton={message.ton}>{message.texte}</Encadre>}
+      <CartesCoproprietesQr total={coproprietes.length} visibles={visibles} bureau={bureau}>
+        {visibles.map((c) => {
+          const diffuser = onDiffusion !== undefined && peutDiffuserCoproprieteQr(c, vueGestionnaire)
+          return (
+            <CarteCoproprieteQr
+              key={c.id}
+              copropriete={c}
+              origine={origine}
+              onModifier={() => onModifier(c)}
+              onUtiliserAdresse={vueGestionnaire ? undefined : (adresse) => onUtiliserAdresse(c, adresse)}
+              vueGestionnaire={vueGestionnaire}
+              onDiffuser={diffuser ? () => onDiffusion?.(c, 'message') : undefined}
+              onHistoriqueDiffusion={diffuser ? () => onDiffusion?.(c, 'historique') : undefined}
+              logoCabinet={logoCabinet(c)}
+            />
+          )
+        })}
+      </CartesCoproprietesQr>
     </>
+  )
+}
+
+/** Filtres de la liste des copropriétés (super admin) : « Afficher », puis « Bureau » (E7) s'il existe ; sinon la barre d'avant. */
+function FiltresCoproprietesQr({ visible, filtre, onFiltre, gestionnaires, bureau }: Readonly<{
+  visible: boolean
+  filtre: string
+  onFiltre: (filtre: string) => void
+  /** Gestionnaires cités par les copropriétés : [id, nom]. */
+  gestionnaires: ReadonlyArray<readonly [string, string]>
+  bureau?: FiltreBureauVueQr
+}>) {
+  if (!visible) return <span />
+  const filtres = G.copropriete.filtres
+  const liste = (
+    <label className="flex items-center gap-2 text-sm text-[#4A5E78]">
+      <span>{G.copropriete.filtre}</span>
+      <select value={filtre} onChange={(e) => onFiltre(e.target.value)} className="min-h-[44px] rounded-xl border-2 border-[#E4DDD0] bg-white px-3 text-base text-[#0D1B2E]">
+        {(Object.keys(filtres) as Array<keyof typeof filtres>).map((cle) => <option key={cle} value={cle}>{filtres[cle]}</option>)}
+        {gestionnaires.map(([id, nom]) => <option key={id} value={`gestionnaire:${id}`}>{remplir(G.copropriete.filtreGestionnaire, { nom })}</option>)}
+      </select>
+    </label>
+  )
+  if (!bureau) return liste
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      {liste}
+      <FiltreBureauQr options={bureau.options} valeur={bureau.valeur} onChange={bureau.onChange} />
+    </div>
+  )
+}
+
+/**
+ * Liste des cartes : aucune copropriété, aucune pour ce filtre, ou les cartes (`children`) ; sous un bureau choisi, sa
+ * lecture en cours ou son échec à la place.
+ */
+function CartesCoproprietesQr({ total, visibles, bureau, children }: Readonly<{
+  total: number
+  visibles: readonly CoproprieteQr[]
+  bureau?: FiltreBureauVueQr
+  children: ReactNode
+}>) {
+  const lecture = bureau?.lecture ?? null
+  if (lectureBureauEnAttenteQr(lecture)) return <LectureBureauQr lecture={lecture} onReessayer={bureau?.onReessayer} />
+  if (total === 0) return <EtatVide texte={T.aucuneCopro} icone="qr" />
+  if (visibles.length === 0) return <EtatVide texte={G.copropriete.aucuneFiltre} icone="qr" />
+  return (
+    // Groupe nommé natif (rôle group) ; min-w-0 annule le min-inline-size: min-content que le navigateur donne à un
+    // fieldset (bordure, marge et retrait sont déjà remis à zéro par Tailwind) : même rendu que l'ancien div.
+    <fieldset className="grid min-w-0 gap-4" aria-label={T.coproprietes}>{children}</fieldset>
+  )
+}
+
+/** Filtre « Bureau » (E7) : « Tous les bureaux », puis les bureaux ; mêmes classes que le filtre par copropriété. */
+function FiltreBureauQr({ options, valeur, onChange }: Readonly<Pick<FiltreBureauVueQr, 'options' | 'valeur' | 'onChange'>>) {
+  return (
+    <label className="flex min-w-0 max-w-full items-center gap-2 text-sm text-[#4A5E78]">
+      <span>{G.bureaux.filtre.libelle}</span>
+      <select value={valeur} onChange={(e) => onChange(e.target.value)} className="min-h-[44px] min-w-0 max-w-full rounded-xl border-2 border-[#E4DDD0] bg-white px-3 text-base text-[#0D1B2E]">
+        <option value="">{G.bureaux.filtre.tous}</option>
+        {options.map((o) => <option key={o.id} value={o.id}>{o.libelle}</option>)}
+      </select>
+    </label>
+  )
+}
+
+/** Tableau d'un bureau en cours de lecture, ou son échec (message et « Réessayer »), à la place de la liste (comme E3). */
+function LectureBureauQr({ lecture, onReessayer }: Readonly<{
+  lecture: Exclude<LectureTableauBureauQr, { etat: 'pret' }>
+  onReessayer?: () => void
+}>) {
+  if (lecture.etat === 'chargement') return <p role="status" className="py-10 text-center text-base text-[#4A5E78]">{G.chargement}</p>
+  return (
+    <div className="space-y-3">
+      <Encadre ton="erreur">{lecture.message}</Encadre>
+      <Bouton variante="principal" icone="actualiser" onClick={onReessayer}>{G.reessayer}</Bouton>
+    </div>
   )
 }
 
@@ -509,13 +630,15 @@ interface PropsListeSignalementsQr {
   onOuvrir: (id: string) => void
   /** Titre (h2) posé à gauche du filtre : tableau de bord ; sans titre, le filtre seul à droite (vue Signalements). */
   titre?: { id: string; texte: string }
+  /** E7 : filtre « Bureau » (vue Signalements du super admin) ; absent : la barre d'avant. */
+  bureau?: FiltreBureauVueQr
 }
 
 /**
  * Liste des signalements reçus, du plus récent au plus ancien, et son filtre par copropriété : la même dans la vue
  * Signalements et sous les carrés du tableau de bord (mêmes lignes, même « Voir le détail », même filtre).
  */
-function ListeSignalementsQr({ coproprietes, signalements, filtre, onFiltre, onOuvrir, titre }: Readonly<PropsListeSignalementsQr>) {
+function ListeSignalementsQr({ coproprietes, signalements, filtre, onFiltre, onOuvrir, titre, bureau }: Readonly<PropsListeSignalementsQr>) {
   const visibles = useMemo(() => filtrerSignalementsQr(signalements, filtre), [signalements, filtre])
   return (
     <>
@@ -523,6 +646,7 @@ function ListeSignalementsQr({ coproprietes, signalements, filtre, onFiltre, onO
           min-w-0 et max-w-full : un nom de copropriété très long n'élargit pas la page au-delà de l'écran. */}
       <div className={`flex flex-wrap items-center gap-3 ${titre ? 'justify-between' : 'justify-end'}`}>
         {titre && <h2 id={titre.id} className="text-lg font-bold leading-snug text-[#0D1B2E]">{titre.texte}</h2>}
+        {bureau && <FiltreBureauQr options={bureau.options} valeur={bureau.valeur} onChange={bureau.onChange} />}
         <label className="flex min-w-0 max-w-full items-center gap-2 text-sm text-[#4A5E78]">
           <span>{T.filtrerCopro}</span>
           <select value={filtre} onChange={(e) => onFiltre(e.target.value)} className="min-h-[44px] min-w-0 max-w-full rounded-xl border-2 border-[#E4DDD0] bg-white px-3 text-base text-[#0D1B2E]">
@@ -531,14 +655,26 @@ function ListeSignalementsQr({ coproprietes, signalements, filtre, onFiltre, onO
           </select>
         </label>
       </div>
-      {visibles.length === 0 ? (
-        <EtatVide texte={filtre ? T.aucunSignalementFiltre : T.aucunSignalement} icone="demandes" />
-      ) : (
-        <ul className="space-y-3" aria-label={T.signalements}>
-          {visibles.map((s) => <LigneSignalement key={s.id} signalement={s} onOuvrir={() => onOuvrir(s.id)} />)}
-        </ul>
-      )}
+      <SignalementsVisiblesQr visibles={visibles} filtre={filtre !== '' || Boolean(bureau?.valeur)} bureau={bureau} onOuvrir={onOuvrir} />
     </>
+  )
+}
+
+/** Lignes de la liste, ou « aucun signalement » (avec ou sans filtre) ; sous un bureau choisi, sa lecture en cours ou son échec. */
+function SignalementsVisiblesQr({ visibles, filtre, bureau, onOuvrir }: Readonly<{
+  visibles: readonly SignalementQr[]
+  /** Un filtre (copropriété ou bureau) est choisi. */
+  filtre: boolean
+  bureau?: FiltreBureauVueQr
+  onOuvrir: (id: string) => void
+}>) {
+  const lecture = bureau?.lecture ?? null
+  if (lectureBureauEnAttenteQr(lecture)) return <LectureBureauQr lecture={lecture} onReessayer={bureau?.onReessayer} />
+  if (visibles.length === 0) return <EtatVide texte={filtre ? T.aucunSignalementFiltre : T.aucunSignalement} icone="demandes" />
+  return (
+    <ul className="space-y-3" aria-label={T.signalements}>
+      {visibles.map((s) => <LigneSignalement key={s.id} signalement={s} onOuvrir={() => onOuvrir(s.id)} />)}
+    </ul>
   )
 }
 

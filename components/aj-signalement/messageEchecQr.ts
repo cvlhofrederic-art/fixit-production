@@ -6,7 +6,9 @@
 import { toast } from 'sonner'
 import type { CodeErreurQr } from '@/lib/aj-signalement/api'
 import { messageErreurTableauQr } from '@/lib/aj-signalement/affichage'
-import { messageErreurBureauQr, messageReactivationFicheQr, messageRefusAvecBureauQr } from '@/lib/aj-signalement/affichage-gestion'
+import {
+  messageErreurBureauQr, messageFiltreBureauQr, messageReactivationFicheQr, messageRefusAvecBureauQr, messageRefusCoproprieteQr,
+} from '@/lib/aj-signalement/affichage-gestion'
 
 /** Le message, et un toast quand le réseau est coupé. */
 function avecToastReseau(code: CodeErreurQr, message: string): string {
@@ -37,4 +39,17 @@ export function messageEchecAvecBureauQr(code: CodeErreurQr, bureauEnvoye: boole
 /** Réactivation d'une fiche (liste E3, page profil E4) : restée dans un bureau fermé → la marche à suivre. */
 export function messageEchecReactivationQr(code: CodeErreurQr): string {
   return avecToastReseau(code, messageReactivationFicheQr(code))
+}
+
+/**
+ * Enregistrement d'une copropriété (fenêtre du super admin, E5) : réactivation dans un bureau fermé → la marche à suivre ;
+ * bureau envoyé et données changées → « les bureaux ont changé » (messageRefusCoproprieteQr) ; sinon le message commun.
+ */
+export function messageEchecCoproprieteQr(code: CodeErreurQr, envoi: Readonly<{ bureauEnvoye: boolean; reactivation: boolean }>): string {
+  return avecToastReseau(code, messageRefusCoproprieteQr(code, envoi))
+}
+
+/** Lecture du tableau d'un bureau (filtre « Bureau » des vues Copropriétés et Signalements, E7). */
+export function messageEchecFiltreBureauQr(code: CodeErreurQr): string {
+  return avecToastReseau(code, messageFiltreBureauQr(code))
 }

@@ -14,6 +14,7 @@ import { describe, expect, it } from 'vitest'
 import {
   TEXTES_GESTION_QR as G, aBureauOuvertQr, bureauACompleterQr, bureauxOuvertsQr, cabinetEtBureauQr, compteursBureauQr, libelleBureauQr,
   changementBureauPossibleQr, messageErreurBureauQr, messageReactivationFicheQr, messageRefusAvecBureauQr, nbBureauxCabinetQr, refusBureauARelireQr,
+  bureauxDesCoproprietesQr, messageFiltreBureauQr, messageRefusCoproprieteQr,
 } from '@/lib/aj-signalement/affichage-gestion'
 import { TEXTES_TABLEAU_QR as T, messageErreurTableauQr } from '@/lib/aj-signalement/affichage'
 import { remplir } from '@/lib/coproprietaire/textes'
@@ -167,5 +168,58 @@ describe('« Changer de bureau » sur la page profil (E4)', () => {
     expect(changementBureauPossibleQr(fiche(), [{ id: K1 }, { id: K2, nbBureaux: 2 }])).toBe(false)
     expect(changementBureauPossibleQr(fiche(), null)).toBe(false)
     expect(changementBureauPossibleQr(fiche(), undefined)).toBe(false)
+  })
+})
+
+// Lot 3 (E5, E7) : refus de l'enregistrement d'une copropriété, options et lecture du filtre « Bureau » du tableau.
+describe('refus de l’enregistrement d’une copropriété (E5)', () => {
+  it('réactivation refusée, aucun bureau envoyé (409 bureau_ferme) : la marche à suivre propre à la copropriété', () => {
+    expect(messageRefusCoproprieteQr('bureau_ferme', { bureauEnvoye: false, reactivation: true })).toBe(B.copropriete.reactivationBureauFerme)
+    expect(B.copropriete.reactivationBureauFerme).toMatch(/Aucun bureau/)
+  })
+
+  it('bureau choisi fermé entre-temps : le message commun du bureau fermé (même pendant une réactivation)', () => {
+    expect(messageRefusCoproprieteQr('bureau_ferme', { bureauEnvoye: true, reactivation: true })).toBe(T.erreurs.bureau_ferme)
+    expect(messageRefusCoproprieteQr('bureau_ferme', { bureauEnvoye: true, reactivation: false })).toBe(T.erreurs.bureau_ferme)
+  })
+
+  it('bureau envoyé : données changées → « les bureaux ont changé » ; base absente → fonction pas encore disponible ; sinon le message commun', () => {
+    expect(messageRefusCoproprieteQr('a_reverifier', { bureauEnvoye: true, reactivation: false })).toBe(B.aReverifier)
+    expect(messageRefusCoproprieteQr('base_absente', { bureauEnvoye: true, reactivation: false })).toBe(B.indisponible)
+    expect(messageRefusCoproprieteQr('a_reverifier', { bureauEnvoye: false, reactivation: false })).toBe(T.erreurs.a_reverifier)
+    expect(messageRefusCoproprieteQr('base_absente', { bureauEnvoye: false, reactivation: false })).toBe(T.erreurs.base_absente)
+    expect(messageRefusCoproprieteQr('hors_domaine', { bureauEnvoye: true, reactivation: true })).toBe(T.erreurs.hors_domaine)
+  })
+})
+
+describe('filtre « Bureau » du tableau (E7)', () => {
+  const RESUME_K1 = { id: K1, nom: 'Cabinet Exemple', identifiant: 'cabinet-exemple' }
+  const RESUME_K2 = { id: K2, nom: 'Autre Exemple', identifiant: 'autre-exemple' }
+  const copro = (cabinet: typeof RESUME_K1 | null, bureau?: typeof nord) => ({ cabinet, ...(bureau ? { bureau } : {}) })
+
+  it('aucun bureau (aucune clé bureau) : aucune option, le filtre n’existe pas', () => {
+    expect(bureauxDesCoproprietesQr([])).toEqual([])
+    expect(bureauxDesCoproprietesQr([copro(RESUME_K1), copro(null)])).toEqual([])
+  })
+
+  it('un seul cabinet : chaque bureau une fois, fermé signalé, par ordre alphabétique ; la liste donnée n’est pas modifiée', () => {
+    const coproprietes = [copro(RESUME_K1, sud), copro(RESUME_K1, nord), copro(RESUME_K1), copro(RESUME_K1, nord)]
+    const avant = [...coproprietes]
+    expect(bureauxDesCoproprietesQr(coproprietes)).toEqual([{ id: 'b1', libelle: 'Nord' }, { id: 'b2', libelle: 'Sud (fermé)' }])
+    expect(coproprietes).toEqual(avant)
+  })
+
+  it('plusieurs cabinets : « Cabinet · Bureau » (deux cabinets peuvent avoir un bureau du même nom)', () => {
+    const nordAutre = { id: 'b9', nom: 'Nord', ferme: false }
+    expect(bureauxDesCoproprietesQr([copro(RESUME_K1, nord), copro(RESUME_K2, nordAutre)])).toEqual([
+      { id: 'b9', libelle: 'Autre Exemple · Nord' }, { id: 'b1', libelle: 'Cabinet Exemple · Nord' },
+    ])
+  })
+
+  it('lecture du tableau d’un bureau en échec : base absente → fonction pas encore disponible ; sinon le message du tableau', () => {
+    expect(messageFiltreBureauQr('base_absente')).toBe(B.indisponible)
+    expect(messageFiltreBureauQr('serveur')).toBe(T.erreurs.serveur)
+    expect(messageFiltreBureauQr('introuvable')).toBe(T.erreurs.introuvable)
+    expect(messageFiltreBureauQr('reseau')).toBe(T.erreurs.reseau)
   })
 })

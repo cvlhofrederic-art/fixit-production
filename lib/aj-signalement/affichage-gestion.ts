@@ -311,6 +311,47 @@ export function messageRefusAvecBureauQr(code: CodeErreurQr, bureauEnvoye: boole
 export const messageReactivationFicheQr = (code: CodeErreurQr): string =>
   (code === 'bureau_ferme' ? TEXTES_GESTION_QR.bureaux.gestionnaire.reactivationBureauFerme : messageErreurTableauQr(code))
 
+/**
+ * Refus de l'enregistrement d'une copropriété (fenêtre du super admin, E5) : réactivation d'une copropriété restée dans un
+ * bureau fermé (409 bureau_ferme sans bureau envoyé) → la marche à suivre ; sinon messageRefusAvecBureauQr (bureau envoyé :
+ * « les bureaux ont changé », fonction pas encore disponible ; bureau choisi fermé entre-temps : le message commun).
+ */
+export function messageRefusCoproprieteQr(code: CodeErreurQr, envoi: Readonly<{ bureauEnvoye: boolean; reactivation: boolean }>): string {
+  if (code === 'bureau_ferme' && envoi.reactivation && !envoi.bureauEnvoye) return TEXTES_GESTION_QR.bureaux.copropriete.reactivationBureauFerme
+  return messageRefusAvecBureauQr(code, envoi.bureauEnvoye)
+}
+
+/** Option du filtre « Bureau » des vues Copropriétés et Signalements (E7). */
+export interface OptionBureauQr {
+  id: string
+  libelle: string
+}
+
+/**
+ * Options du filtre « Bureau » des vues Copropriétés et Signalements (E7) : les bureaux que portent les copropriétés (vue
+ * du super admin), chacun une fois, par ordre alphabétique ; « Cabinet · Bureau » dès que les bureaux viennent de plusieurs
+ * cabinets (deux cabinets peuvent avoir un bureau du même nom). Aucune copropriété avec un bureau : aucune option, pas de
+ * filtre. La liste donnée n'est pas modifiée.
+ */
+export function bureauxDesCoproprietesQr(coproprietes: ReadonlyArray<Pick<CoproprieteQr, 'cabinet' | 'bureau'>>): OptionBureauQr[] {
+  const vus = new Map<string, { bureau: BureauResumeQr; cabinetId: string; cabinetNom: string }>()
+  for (const c of coproprietes) {
+    if (c.bureau && !vus.has(c.bureau.id)) vus.set(c.bureau.id, { bureau: c.bureau, cabinetId: c.cabinet?.id ?? '', cabinetNom: c.cabinet?.nom ?? '' })
+  }
+  const lus = [...vus.values()]
+  const plusieursCabinets = new Set(lus.map((v) => v.cabinetId)).size > 1
+  const options = lus.map((v) => ({
+    id: v.bureau.id,
+    libelle: plusieursCabinets ? cabinetEtBureauQr(v.cabinetNom, v.bureau) : libelleBureauQr(v.bureau),
+  }))
+  options.sort((a, b) => a.libelle.localeCompare(b.libelle, 'fr'))
+  return options
+}
+
+/** Lecture du tableau d'un bureau (filtre E7) en échec : base absente → « fonction pas encore disponible » ; sinon le message du tableau. */
+export const messageFiltreBureauQr = (code: CodeErreurQr): string =>
+  (code === 'base_absente' ? TEXTES_GESTION_QR.bureaux.indisponible : messageErreurTableauQr(code))
+
 // ── Textes ───────────────────────────────────────────────────────────────────
 
 export const TEXTES_GESTION_QR = {
