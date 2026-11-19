@@ -6,7 +6,7 @@ import { ajDb, type Ag, type Courrier } from '@/lib/administrateur-judiciaire/db
  * Les repositories sans usage dans la maquette sont exportés pour complétude ; leur création n'a aucun effet de bord.
  */
 
-/** Sans usage dans la maquette. */
+/** Réglage du cabinet (mode de tenue des comptes), écrit par db/comptes-bancaires.ts. */
 export const repoCabinets = creerRepository(ajDb.cabinets, 'cabinets')
 /** Sans usage dans la maquette. */
 export const repoSocietes = creerRepository(ajDb.societes, 'societes')
@@ -56,7 +56,7 @@ export const repoAppelsDeFonds = creerRepository(ajDb.appelsDeFonds, 'appelsDeFo
 export const repoImpayes = creerRepository(ajDb.impayes, 'impayes')
 /** Sans usage dans la maquette. */
 export const repoFondsTravaux = creerRepository(ajDb.fondsTravaux, 'fondsTravaux')
-/** Sans usage dans la maquette. */
+/** Comptes bancaires des copropriétés, écrits par db/comptes-bancaires.ts (écran « Banque et recouvrement »). */
 export const repoBanques = creerRepository(ajDb.banques, 'banques')
 /** Sans usage dans la maquette. */
 export const repoRapprochements = creerRepository(ajDb.rapprochements, 'rapprochements')
