@@ -169,7 +169,7 @@ describe('Comptes bancaires en mode réel — affichage et contrôles', () => {
     expect(ligne.textContent).toContain('FR76 3000 6000 0112 3456 7890 189')
     // IBAN jamais renvoyé à la ligne (relu chiffre à chiffre) : sur téléphone, le tableau défile dans son cadre .tbl-wrap.
     expect(within(ligne).getByText('FR76 3000 6000 0112 3456 7890 189')).toHaveStyle({ whiteSpace: 'nowrap' })
-    // Largeur minimale, comme les tableaux .tbl du module : la colonne « Nature » reste lisible, le cadre défile.
+    // Largeur minimale de 640 px (style en ligne) : la colonne « Nature » reste lisible, le cadre défile.
     expect(ligne.closest('table')).toHaveStyle({ minWidth: '640px' })
     expect(ligne.textContent).toContain(`${BIC_FICTIF} · Banque d’exemple`)
     expect(within(ligne).getByText('—')).toBeInTheDocument()
@@ -500,6 +500,33 @@ describe('Comptes bancaires en mode réel — modes de tenue et leur origine', (
     expect(titresAlertes()).toContain('Mode du mandat illisible')
     expect(panneau().textContent).not.toContain('Mode appliqué')
     expect(titresAlertes()).not.toContain('Comptes conformes au mode appliqué.')
+  })
+
+  it('mode du mandat illisible et lecture impossible : les deux bandeaux, sans « Mode appliqué »', async () => {
+    await ajDb.mandats.update(copro.mandatId, { modeComptesBancaires: 'livret' as never })
+    await reinitialiserStore()
+    useSelectionDossier.setState({ code: copro.code, coproprietaireId: null })
+    const espion = vi.spyOn(ajDb.banques, 'toArray').mockRejectedValueOnce(new Error('Base verrouillée'))
+    await rendre()
+    espion.mockRestore()
+    // Le refus du mode par le domaine ne dépend pas du réglage du cabinet : le bandeau reste, réglage non lu.
+    expect(titresAlertes()).toContain('Comptes bancaires illisibles')
+    expect(titresAlertes()).toContain('Mode du mandat illisible')
+    expect(panneau().textContent).toContain('Mode de tenue inconnu : « livret ».')
+    expect(panneau().textContent).not.toContain('Mode appliqué')
+  })
+
+  it('mode du mandat illisible pendant la première lecture : bandeau affiché, sans « Mode appliqué »', async () => {
+    await ajDb.mandats.update(copro.mandatId, { modeComptesBancaires: 'livret' as never })
+    await reinitialiserStore()
+    useSelectionDossier.setState({ code: copro.code, coproprietaireId: null })
+    // Lecture jamais terminée : le réglage du cabinet n'est pas lu.
+    const espion = vi.spyOn(ajDb.banques, 'toArray').mockReturnValueOnce(new Promise<never>(() => undefined) as never)
+    await rendre()
+    espion.mockRestore()
+    expect(dansPanneau().getByText('Chargement…')).toBeInTheDocument()
+    expect(titresAlertes()).toContain('Mode du mandat illisible')
+    expect(panneau().textContent).not.toContain('Mode appliqué')
   })
 })
 

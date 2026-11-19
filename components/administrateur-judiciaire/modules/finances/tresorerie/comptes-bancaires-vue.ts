@@ -3,6 +3,7 @@ import {
   MODE_COMPTES_ADMINISTRATEUR_PROVISOIRE,
   NATURES_COMPTE_BANCAIRE,
   controlerComptesMandat,
+  creerReglagesComptesCabinet,
   estCompteDuFondsTravaux,
   informationsComptesMandat,
   resoudreModeComptes,
@@ -126,14 +127,19 @@ const estAdministrateurProvisoire = (fondement: string): boolean => {
   return regime === 'ap47' || regime === 'ap291'
 }
 
-/** Mode résolu par le domaine, ou son refus (choix du mandat enregistré inconnu) ; rien tant que le réglage n'est pas lu. */
+/**
+ * Mode résolu par le domaine, ou son refus (choix du mandat enregistré inconnu). Réglage du cabinet non lu : aucun mode
+ * résolu, mais le choix du mandat est quand même contrôlé par le domaine, dont le refus ne dépend pas du cabinet (comme
+ * db/comptes-bancaires.ts, avec le réglage par défaut du domaine ; seule l'erreur est gardée).
+ */
 function resoudreMode(
   reglages: ReglagesComptesCabinet | null,
   choixMandat: ModeTenueComptes | null | undefined,
 ): { resolu: ModeResolu | null; erreurMode: string | null } {
-  if (reglages === null) return { resolu: null, erreurMode: null }
   try {
-    return { resolu: resoudreModeComptes(reglages, choixMandat ?? null), erreurMode: null }
+    if (reglages !== null) return { resolu: resoudreModeComptes(reglages, choixMandat ?? null), erreurMode: null }
+    if (choixMandat != null) resoudreModeComptes(creerReglagesComptesCabinet({}), choixMandat)
+    return { resolu: null, erreurMode: null }
   } catch (erreur) {
     return { resolu: null, erreurMode: erreur instanceof Error ? erreur.message : String(erreur) }
   }
