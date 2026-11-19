@@ -340,4 +340,9 @@ describe('messages de refus affichés sous le champ', () => {
     for (const m of motifs) expect(MESSAGES_REFUS_TEXTE_DIFFUSION_QR[m].length).toBeGreaterThan(10)
     expect(MESSAGES_REFUS_TEXTE_DIFFUSION_QR.conseilEspaceApresPoint).toContain('espace après le point')
   })
+  it('adresse e-mail refusée : le message ne dit plus que les personnes répondent (décision de Hugo du 16/11/2026)', () => {
+    expect(MESSAGES_REFUS_TEXTE_DIFFUSION_QR.adresse_email)
+      .toBe('Le message ne peut contenir aucune adresse e-mail : l’adresse de contact du cabinet figure déjà au bas de chaque message.')
+    expect(MESSAGES_REFUS_TEXTE_DIFFUSION_QR.adresse_email).not.toMatch(/répond/i)
+  })
 })
