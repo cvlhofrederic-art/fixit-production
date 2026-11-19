@@ -252,7 +252,8 @@ export async function gestionnairesDepuisFichesQr(fiches: readonly LigneFicheQr[
   const rang = (g: GestionnaireQr) => (g.etat === 'adresse_contestee' ? 0 : 1)
   // Bureaux (migration 20261119) : posés sur les fiches qui en ont un ; migration absente : réponse d'avant.
   const avecBureaux = await avecBureauxGestionnairesQr(liste)
-  return { ok: true, valeur: avecBureaux.sort((a, b) => rang(a) - rang(b) || (a.nom ?? '').localeCompare(b.nom ?? '', 'fr')) }
+  avecBureaux.sort((a, b) => rang(a) - rang(b) || (a.nom ?? '').localeCompare(b.nom ?? '', 'fr'))
+  return { ok: true, valeur: avecBureaux }
 }
 
 /** Origine d'une attribution lue en base (liste fermée de la migration). */

@@ -196,8 +196,16 @@ Script complet, relu et exécuté dans les tests (PGlite) : `supabase/retours-ar
 remet `signalements_qr_inviter_gestionnaire` dans son texte de la 20261112 (même signature, mêmes droits), retire les
 clés étrangères, le contrôle et les colonnes `bureau_id` (fiche gestionnaire, copropriété), puis la table
 `signalements_qr_bureaux`. ATTENTION : les bureaux et les rattachements sont perdus ; les lignes du journal restent
-(actions existantes). Relever avant, en nombres seulement : bureaux, fiches rattachées, copropriétés rattachées (requête en
-tête du script). Le code de la PR se replie sans ces objets (listes sans bureau, actions sur les bureaux 503).
+(actions existantes). Relever avant, en nombres seulement : bureaux, fiches rattachées, copropriétés rattachées (relevé
+décrit en tête du script), par cette requête :
+
+```sql
+SELECT (SELECT count(*) FROM signalements_qr_bureaux) AS bureaux,
+       (SELECT count(*) FROM signalements_qr_gestionnaires WHERE bureau_id IS NOT NULL) AS fiches_rattachees,
+       (SELECT count(*) FROM signalements_qr_coproprietes WHERE bureau_id IS NOT NULL) AS coproprietes_rattachees;
+```
+
+Le code de la PR se replie sans ces objets (listes sans bureau, actions sur les bureaux 503).
 
 ---
 

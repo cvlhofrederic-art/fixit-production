@@ -92,7 +92,8 @@ export async function lireBureauxCompletsQr(filtre: { cabinet: string } | { ids:
   const nbFiches = compter(fiches.valeur)
   const nbCopros = compter(copros.valeur)
   const liste = bureaux.valeur.map((b) => bureauDepuisLigneQr(b, { gestionnaires: nbFiches.get(b.id) ?? 0, coproprietes: nbCopros.get(b.id) ?? 0 }))
-  return { ok: true, valeur: liste.sort((a, b) => a.nom.localeCompare(b.nom, 'fr')) }
+  liste.sort((a, b) => a.nom.localeCompare(b.nom, 'fr'))
+  return { ok: true, valeur: liste }
 }
 
 /**
@@ -105,7 +106,7 @@ export async function controlerBureauDuCabinetQr(
 ): Promise<{ ok: true; bureau: LigneBureauQr } | RefusBureauQr> {
   const lu = await lireBureauQr(bureauId)
   if (!lu.ok) return { ok: false, reponse: reponseErreurBureauxQr(lu.erreur, operation, { ...ids, bureau: bureauId }) }
-  if (!lu.valeur || lu.valeur.cabinet_id !== cabinetId) return { ok: false, reponse: reponseErreur('a_reverifier', 409) }
+  if (lu.valeur?.cabinet_id !== cabinetId) return { ok: false, reponse: reponseErreur('a_reverifier', 409) }
   if (lu.valeur.ferme_le) return { ok: false, reponse: reponseErreur('bureau_ferme', 409) }
   return { ok: true, bureau: lu.valeur }
 }

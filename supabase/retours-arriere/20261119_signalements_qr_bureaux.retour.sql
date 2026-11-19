@@ -3,10 +3,10 @@
 --
 -- PAS une migration : ce fichier n'est jamais appliqué par la chaîne (il n'est pas dans supabase/migrations). À exécuter
 -- seulement sur décision, par l'éditeur SQL de Supabase (tout ou rien), après avoir relevé ce qu'il fera perdre (des
--- nombres seulement) :
---   SELECT (SELECT count(*) FROM signalements_qr_bureaux) AS bureaux,
---          (SELECT count(*) FROM signalements_qr_gestionnaires WHERE bureau_id IS NOT NULL) AS fiches_rattachees,
---          (SELECT count(*) FROM signalements_qr_coproprietes WHERE bureau_id IS NOT NULL) AS coproprietes_rattachees;
+-- nombres seulement) : le nombre de bureaux (lignes de signalements_qr_bureaux), celui des fiches rattachées (lignes de
+-- signalements_qr_gestionnaires dont bureau_id est renseigné) et celui des copropriétés rattachées (lignes de
+-- signalements_qr_coproprietes dont bureau_id est renseigné) ; la requête de ce relevé est dans
+-- docs/rollback-procedures.md (section de la migration 20261119).
 -- Ce qui est perdu : les bureaux et les rattachements des fiches et des copropriétés. Ce qui reste : les lignes du
 -- journal (actions existantes, option A : aucune n'empêche le retour).
 -- Avant : déployer un code qui se replie sans les bureaux (le code de la PR 1 le fait : listes sans bureau, actions sur

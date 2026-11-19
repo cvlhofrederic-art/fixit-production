@@ -18,6 +18,7 @@
 // (« vue en tant que » comprise) ou accès retiré (acces_retire) · 400 paramètre inconnu · 503 base_absente.
 
 import { type NextRequest } from 'next/server'
+import type { z } from 'zod'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { tableauQrQuerySchema, validateBody } from '@/lib/validation'
 import { logger } from '@/lib/logger'
@@ -27,8 +28,11 @@ import {
 } from '@/lib/aj-signalement/serveur'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { avecBureauxCoproprietesQr, lireBureauQr, reponseErreurBureauxQr } from '@/lib/aj-signalement/serveur-bureaux'
+import type { ProfilGestionnaireQr } from '@/lib/aj-signalement/types'
 
 const STATUTS_LECTURE = { base_absente: 503, introuvable: 404, serveur: 500 } as const
+
+type ParametresTableauQr = z.infer<typeof tableauQrQuerySchema>
 
 /**
  * Filtre ?bureau= (super admin) : le cabinet du bureau et ses copropriétés ; null : bureau inconnu (404) ; réponse : la
@@ -44,6 +48,37 @@ async function coproprietesDuBureau(bureauId: string): Promise<{ cabinet: string
   return { cabinet: bureau.valeur.cabinet_id, ids: copros.valeur.map((c) => c.id) }
 }
 
+/** Gestionnaire connecté : SA portée seulement, réponse minimisée (aucune clé de bureau). */
+async function tableauDuGestionnaireQr(profil: ProfilGestionnaireQr, parametres: ParametresTableauQr): Promise<Response> {
+  // Vues d'un cabinet, d'un collègue ou d'un bureau : réservées au super admin, même vers son propre cabinet.
+  if (parametres.cabinet || parametres.gestionnaire || parametres.bureau) return reponseErreur('interdit', 403)
+  const vue = await lireTableauGestionnaireQr(profil)
+  if (!vue.ok) return reponseLectureGestionnaireQr(vue.erreur, 'tableau d’un gestionnaire', { gestionnaire: profil.gestionnaireId })
+  return reponsePriveeQr({ tableau: vue.tableau })
+}
+
+/** Super admin : tout le tableau, ou celui d'un cabinet, d'un gestionnaire, d'un bureau ; chaque copropriété porte son bureau. */
+async function tableauDuSuperAdminQr({ cabinet, gestionnaire, bureau }: ParametresTableauQr): Promise<Response> {
+  let restriction: { cabinet: string; ids: string[] } | undefined
+  if (bureau) {
+    const duBureau = await coproprietesDuBureau(bureau)
+    if (duBureau instanceof Response) return duBureau
+    if (!duBureau) return reponseErreur('introuvable', 404)
+    restriction = duBureau
+  }
+  // ?cabinet= d'un autre cabinet que celui du bureau : la restriction aux copropriétés du bureau ne laisse rien.
+  const cabinetLu = cabinet ?? restriction?.cabinet
+  const lecture = await lireTableauQr({
+    ...(cabinetLu ? { cabinet: cabinetLu } : {}),
+    ...(gestionnaire ? { gestionnaire } : {}),
+    ...(restriction ? { coproprietes: restriction.ids } : {}),
+  })
+  if (!lecture.ok) return reponseErreur(lecture.code, STATUTS_LECTURE[lecture.code])
+  // Vue du super admin : chaque copropriété porte son bureau quand elle en a un (migration 20261119).
+  const coproprietes = await avecBureauxCoproprietesQr(lecture.tableau.coproprietes)
+  return reponsePriveeQr({ tableau: { ...lecture.tableau, coproprietes } })
+}
+
 export async function GET(request: NextRequest) {
   try {
     const ip = getClientIP(request)
@@ -55,33 +90,9 @@ export async function GET(request: NextRequest) {
     const validation = validateBody(tableauQrQuerySchema, parametresQr(request))
     if (!validation.success) return reponseInvalide(validation.error)
 
-    if (controle.profil.type === 'gestionnaire') {
-      // Vues d'un cabinet, d'un collègue ou d'un bureau : réservées au super admin, même vers son propre cabinet.
-      if (validation.data.cabinet || validation.data.gestionnaire || validation.data.bureau) return reponseErreur('interdit', 403)
-      const vue = await lireTableauGestionnaireQr(controle.profil)
-      if (!vue.ok) return reponseLectureGestionnaireQr(vue.erreur, 'tableau d’un gestionnaire', { gestionnaire: controle.profil.gestionnaireId })
-      return reponsePriveeQr({ tableau: vue.tableau })
-    }
-
-    const { cabinet, gestionnaire, bureau } = validation.data
-    let restriction: { cabinet: string; ids: string[] } | undefined
-    if (bureau) {
-      const duBureau = await coproprietesDuBureau(bureau)
-      if (duBureau instanceof Response) return duBureau
-      if (!duBureau) return reponseErreur('introuvable', 404)
-      restriction = duBureau
-    }
-    // ?cabinet= d'un autre cabinet que celui du bureau : la restriction aux copropriétés du bureau ne laisse rien.
-    const cabinetLu = cabinet ?? restriction?.cabinet
-    const lecture = await lireTableauQr({
-      ...(cabinetLu ? { cabinet: cabinetLu } : {}),
-      ...(gestionnaire ? { gestionnaire } : {}),
-      ...(restriction ? { coproprietes: restriction.ids } : {}),
-    })
-    if (!lecture.ok) return reponseErreur(lecture.code, STATUTS_LECTURE[lecture.code])
-    // Vue du super admin : chaque copropriété porte son bureau quand elle en a un (migration 20261119).
-    const coproprietes = await avecBureauxCoproprietesQr(lecture.tableau.coproprietes)
-    return reponsePriveeQr({ tableau: { ...lecture.tableau, coproprietes } })
+    return controle.profil.type === 'gestionnaire'
+      ? await tableauDuGestionnaireQr(controle.profil, validation.data)
+      : await tableauDuSuperAdminQr(validation.data)
   } catch (e: unknown) {
     logger.error('[AJ SIGNALEMENT] tableau', { message: e instanceof Error ? e.message : String(e) }, e)
     return reponseErreur('serveur', 500)

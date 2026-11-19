@@ -1018,6 +1018,56 @@ export function reponseStructureGestionnaireQr(erreur: ErreurBase, operation: st
   return reponseErreurSqlQr(erreur, operation, ids)
 }
 
+/** Tableau d'un bureau (19/11/2026) : ces copropriétés seulement, celles du bureau ; sans liste, toutes celles lues. */
+function coproprietesRetenuesQr(lignes: LigneCoproprieteQr[], coproprietes: readonly string[] | undefined): LigneCoproprieteQr[] {
+  if (!coproprietes) return lignes
+  const retenues = new Set(coproprietes)
+  return lignes.filter((c) => retenues.has(c.id))
+}
+
+/**
+ * Page de suivi d'un gestionnaire (?gestionnaire=) : les copropriétés de sa portée parmi celles lues, et le suivi posé
+ * sur le tableau (son cabinet complété après l'assemblage). Fiche inconnue → introuvable ; structure absente →
+ * base_absente ; autre erreur → serveur (journalisée, code seul).
+ */
+async function suiviDuGestionnaireQr(gestionnaireId: string, lignesCopros: readonly LigneCoproprieteQr[]): Promise<
+  { ok: true; lignes: LigneCoproprieteQr[]; suivi: GestionnaireSuiviQr } | { ok: false; code: 'base_absente' | 'serveur' | 'introuvable' }
+> {
+  const portee = await porteeSuiviQr(gestionnaireId, lignesCopros)
+  if (!portee.ok) {
+    if (structureAbsenteQr(portee.erreur)) return { ok: false, code: 'base_absente' }
+    logger.error(`${CONTEXTE} lecture de la portée d'un gestionnaire`, { code: portee.erreur.code, gestionnaire: gestionnaireId })
+    return { ok: false, code: 'serveur' }
+  }
+  const fiche = portee.fiche
+  if (!fiche) return { ok: false, code: 'introuvable' }
+  return {
+    ok: true,
+    lignes: lignesCopros.filter((c) => portee.visibles.has(c.id)),
+    suivi: { id: fiche.id, nom: fiche.nom ?? null, actif: fiche.actif === true, cabinet: { id: fiche.cabinet_id, nom: '', identifiant: '' } },
+  }
+}
+
+/**
+ * Signalements les plus récents du tableau : ceux de ces copropriétés (aucune : aucune lecture), ou tous (filtre
+ * null), `limite` au plus. Colonne inconnue (migrations du 06/11/2026) : relecture par select('*'), journalisée une fois.
+ */
+async function lireSignalementsDuTableauQr(filtre: readonly string[] | null, limite: number): Promise<
+  { ok: true; lignes: LigneSignalementQr[] } | { ok: false; code: 'base_absente' | 'serveur' }
+> {
+  if (filtre?.length === 0) return { ok: true, lignes: [] }
+  let signalements = await lireSignalementsTableau(COLONNES_SIGNALEMENT_QR, filtre, limite)
+  if (colonneInconnue(signalements.error)) {
+    journaliserRepliColonnesSignalementQr('lecture du tableau', signalements.error)
+    signalements = await lireSignalementsTableau('*', filtre, limite)
+  }
+  if (signalements.error) {
+    logger.error(`${CONTEXTE} lecture des signalements`, { code: signalements.error.code, message: signalements.error.message })
+    return { ok: false, code: baseAbsente(signalements.error) ? 'base_absente' : 'serveur' }
+  }
+  return { ok: true, lignes: (signalements.data ?? []) as unknown as LigneSignalementQr[] }
+}
+
 /**
  * Tableau de bord : copropriétés (compteurs, champs de gestion et, sans adresse, la dernière adresse proposée) et
  * signalements les plus récents. Options (P1-R1) : `cabinet` (ses copropriétés), `gestionnaire` (sa page de suivi : sa
@@ -1033,39 +1083,18 @@ export async function lireTableauQr(
     logger.error(`${CONTEXTE} lecture des copropriétés`, { code: copros.erreur.code, message: copros.erreur.message })
     return { ok: false, code: tableAbsenteQr(copros.erreur) ? 'base_absente' : 'serveur' }
   }
-  let lignesCopros = copros.lignes
-  if (options.coproprietes) {
-    const retenues = new Set(options.coproprietes)
-    lignesCopros = lignesCopros.filter((c) => retenues.has(c.id))
-  }
+  let lignesCopros = coproprietesRetenuesQr(copros.lignes, options.coproprietes)
   let suivi: GestionnaireSuiviQr | undefined
   if (options.gestionnaire) {
-    const portee = await porteeSuiviQr(options.gestionnaire, lignesCopros)
-    if (!portee.ok) {
-      if (structureAbsenteQr(portee.erreur)) return { ok: false, code: 'base_absente' }
-      logger.error(`${CONTEXTE} lecture de la portée d'un gestionnaire`, { code: portee.erreur.code, gestionnaire: options.gestionnaire })
-      return { ok: false, code: 'serveur' }
-    }
-    if (!portee.fiche) return { ok: false, code: 'introuvable' }
-    lignesCopros = lignesCopros.filter((c) => portee.visibles.has(c.id))
-    suivi = { id: portee.fiche.id, nom: portee.fiche.nom ?? null, actif: portee.fiche.actif === true, cabinet: { id: portee.fiche.cabinet_id, nom: '', identifiant: '' } }
+    const duSuivi = await suiviDuGestionnaireQr(options.gestionnaire, lignesCopros)
+    if (!duSuivi.ok) return duSuivi
+    lignesCopros = duSuivi.lignes
+    suivi = duSuivi.suivi
   }
   const filtre = options.cabinet || options.gestionnaire || options.coproprietes ? lignesCopros.map((c) => c.id) : null
-  const limite = options.gestionnaire ? SIGNALEMENTS_SUIVI_MAX : SIGNALEMENTS_MAX
-  let lignesSignalements: LigneSignalementQr[] = []
-  if (!filtre || filtre.length > 0) {
-    let signalements = await lireSignalementsTableau(COLONNES_SIGNALEMENT_QR, filtre, limite)
-    if (colonneInconnue(signalements.error)) {
-      journaliserRepliColonnesSignalementQr('lecture du tableau', signalements.error)
-      signalements = await lireSignalementsTableau('*', filtre, limite)
-    }
-    if (signalements.error) {
-      logger.error(`${CONTEXTE} lecture des signalements`, { code: signalements.error.code, message: signalements.error.message })
-      return { ok: false, code: baseAbsente(signalements.error) ? 'base_absente' : 'serveur' }
-    }
-    lignesSignalements = (signalements.data ?? []) as unknown as LigneSignalementQr[]
-  }
-  const assemble = await assemblerTableauQr(lignesCopros, lignesSignalements, false)
+  const signalements = await lireSignalementsDuTableauQr(filtre, options.gestionnaire ? SIGNALEMENTS_SUIVI_MAX : SIGNALEMENTS_MAX)
+  if (!signalements.ok) return signalements
+  const assemble = await assemblerTableauQr(lignesCopros, signalements.lignes, false)
   // Contexte d'affichage : vide pour ce qui ne se lit pas, jamais un échec (branche gardée pour le typage).
   if (!assemble.ok) return { ok: false, code: 'serveur' }
   const { tableau, contexte } = assemble.valeur
