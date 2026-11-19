@@ -53,7 +53,8 @@ import { DOSSIER, type Dossier } from '@/lib/data/referentiels-gesteam-judiciair
  * - J20 : instancier une liste est un geste du collaborateur : chaque étape est d'origine « manuelle », « Créée par » ce
  *   collaborateur (obligatoire), jamais « Automatique » (🔵 par analogie avec l'étape enchaînée de J20) ; la règle « étape
  *   automatique non réalisée après N jours » ne la vise donc pas : elle remonte au suivi « à faire » par sa limite, quand
- *   elle en a une ; sans délai saisi, elle ne remonte pas (question n° 6 ci-dessous).
+ *   elle en a une ; sans délai saisi, elle y remonte chaque jour, marquée « sans délai », jamais en retard (question n° 6
+ *   ci-dessous).
  * - J21 : les durées d'étape sont en minutes ; 🔵 les délais d'un modèle, eux, sont en jours entiers (écart entre deux
  *   limites), comme EtapeTypeProcessus.delaiJours : deux grandeurs distinctes.
  * - J24 et J41 : « Copie au CS pour info » reste un usage du cabinet, inactif par défaut (etapeCopieAuCsPourInfo,
@@ -75,9 +76,10 @@ import { DOSSIER, type Dossier } from '@/lib/data/referentiels-gesteam-judiciair
  *   référentiel et processusDuDossier ne portent donc aucun délai (null), et processusDuModele garde « non saisi » (null) :
  *   enchaînée sans délai saisi, l'étape suivante n'a pas de limite (etapes.enchainer), comme dans une liste instanciée ;
  *   un délai saisi par le cabinet, 0 compris, fixe la limite. Ferme la question n° 1 et, en partie, la n° 2.
- *   Conséquence non tranchée : enchaînée sans délai, l'étape n'a ni limite, ni « à faire le », ni alerte, et la règle
- *   des N jours ne vise pas une étape « manuelle » (J20) ; elle ne remonte donc jamais au suivi « à faire »
- *   (suivi-a-faire.depuisEtapes). Sur main, le délai de 0 jour lui donnait une limite. Voir la question n° 6 ci-dessous.
+ *   Conséquence : enchaînée sans délai, l'étape n'a ni limite, ni « à faire le », ni alerte, et la règle des N jours ne
+ *   vise pas une étape « manuelle » (J20). Sur main, le délai de 0 jour lui donnait une limite. Elle remonte maintenant
+ *   au suivi « à faire » chaque jour, à la date de référence, marquée « sans délai », jamais en retard
+ *   (suivi-a-faire.depuisEtapes) : voir la question n° 6 ci-dessous.
  *
  * 🔵 Choix VitFix :
  * - codes d'étape type (etapeType) : « <dossier>.<titre sans accent> », Gestéam ne montrant pas les siens ; ordre du
@@ -122,12 +124,15 @@ import { DOSSIER, type Dossier } from '@/lib/data/referentiels-gesteam-judiciair
  *    suivante, déjà présente. Et l'instanciation d'un coup crée toutes les étapes le jour du départ, si bien que
  *    « En cours depuis » (J23 : depuis la création) court pour toutes dès ce jour. Faut-il un seul des deux usages par
  *    modèle, ou créer chaque étape à la réalisation de la précédente ?
- * 6. Hugo ou Frédéric (registre J76, point de contact avec J20) : une étape sans délai saisi, enchaînée ou instanciée
- *    d'une liste, n'a ni limite, ni « à faire le », ni alerte ; d'origine « manuelle », elle échappe à la règle des N
- *    jours. Elle ne remonte donc jamais au suivi « à faire ». Doit-elle y remonter (par exemple à sa date de création,
- *    sans jamais être en retard), ou rester sans date ? Le manque existait déjà pour la liste instanciée ; J76 l'étend à
- *    l'enchaînement. Rien n'est tranché ici. L'en-tête d'etapes-dossier.ts (J20) dit encore que l'enchaînement fixe
- *    toujours une limite : à corriger avec la réponse, en accord avec la PR #741, qui modifie ce fichier.
+ * 6. Proposition de Hugo du 19/11/2026, codée, à valider par Frédéric avant fusion (registre J76, point de contact avec
+ *    J20) : une étape sans délai saisi, enchaînée ou instanciée d'une liste, n'a ni limite, ni « à faire le », ni alerte ;
+ *    d'origine « manuelle », elle échappe à la règle des N jours. Elle remonte au suivi « à faire »
+ *    (suivi-a-faire.depuisEtapes) à la date de référence, chaque jour, marquée « sans délai », pour ne pas être oubliée :
+ *    due le jour même, elle n'est jamais en retard. Une étape automatique sans date n'y remonte pas ainsi : sa relance à
+ *    N jours la suit déjà (depuisEtapesAutomatiques), sans doublon. Une étape datée et une étape à valider sont
+ *    inchangées. Reste à obtenir : l'accord écrit de Frédéric. L'en-tête d'etapes-dossier.ts (J20) dit encore que
+ *    l'enchaînement fixe toujours une limite : à corriger après cet accord, en accord avec la PR #741, qui modifie ce
+ *    fichier.
  *
  * Délais : un délai de modèle est un délai de GESTION, réglage du cabinet ; il ne s'affiche jamais comme un délai légal.
  * Les délais légaux de la prise de fonction et de la reprise (notification de l'ordonnance, remise des pièces par l'ancien
