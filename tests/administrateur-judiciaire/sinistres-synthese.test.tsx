@@ -31,9 +31,10 @@ import { useSelectionDossier } from '@/lib/administrateur-judiciaire/selection'
 /**
  * Synthèse en tête de la fiche sinistre (plan § 6) : frise des étapes (etapeSuiviSinistre), indemnités
  * (indemnitesSinistre), repères de délai (reperesDelaisSinistre) et état du délai de déclaration
- * (controlerDelaiDeclaration). Les attentes lisent ce que rend le domaine, sans retaper ses libellés quand il les
- * fournit. Entrées non enregistrées : délai du contrat (minimum légal), courriers de déclaration (aucun), date de
- * l'arrêté de catastrophe naturelle (pas de repère). Décision #699 : aucun délai entre étapes affiché par défaut.
+ * (controlerDelaiDeclaration). La plupart des attentes lisent ce que rend le domaine ; quelques-unes fixent
+ * volontairement le texte attendu (messages de l'état du délai, anomalie de chronologie). Entrées non enregistrées :
+ * délai du contrat (minimum légal), courriers de déclaration (aucun), date de l'arrêté de catastrophe naturelle (pas de
+ * repère). Décision #699 : aucun délai entre étapes affiché par défaut.
  * Chronologie (controlerChronologieSinistre) signalée dans la synthèse dès l'ouverture, comme la maquette : la fiche ne
  * la montre qu'après un clic sur « Enregistrer ».
  */
