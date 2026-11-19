@@ -327,7 +327,17 @@ describe('Script de retour arrière', () => {
     expect(suivi).toMatch(/PAS une migration/)
     expect(suivi).toMatch(/Ce qui est perdu : les bureaux et les rattachements/)
     expect(suivi).toMatch(/les lignes du journal/)
-    expect(suivi).toMatch(/SELECT \(SELECT count\(\*\) FROM signalements_qr_bureaux\) AS bureaux/)
+    // Le relevé est dit en phrase (aucune requête en commentaire) ; la requête toute prête est dans la procédure.
+    expect(suivi).toMatch(/le nombre de bureaux \(lignes de signalements_qr_bureaux\)/)
+    expect(suivi).toMatch(/celui des fiches rattachées \(lignes de signalements_qr_gestionnaires dont bureau_id est renseigné\)/)
+    expect(suivi).toMatch(/celui des copropriétés rattachées \(lignes de signalements_qr_coproprietes dont bureau_id est renseigné\)/)
+    expect(suivi).toContain('docs/rollback-procedures.md')
+    expect(retour.slice(0, retour.indexOf('-- ── 1.'))).not.toMatch(/^--\s*(SELECT|\(SELECT)\b/im)
+    const procedure = lire(join(process.cwd(), 'docs/rollback-procedures.md'))
+    const section = procedure.slice(procedure.indexOf('## Migration 20261119'))
+    expect(section).toContain('SELECT (SELECT count(*) FROM signalements_qr_bureaux) AS bureaux,')
+    expect(section).toContain('(SELECT count(*) FROM signalements_qr_gestionnaires WHERE bureau_id IS NOT NULL) AS fiches_rattachees,')
+    expect(section).toContain('(SELECT count(*) FROM signalements_qr_coproprietes WHERE bureau_id IS NOT NULL) AS coproprietes_rattachees;')
   })
 
   it('retire les triggers, les fonctions nouvelles, les contraintes, les colonnes et la table ; IF EXISTS partout', () => {

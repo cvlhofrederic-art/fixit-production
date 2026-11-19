@@ -68,8 +68,17 @@ export const bureauResumeDepuisLigneQr = (l: Pick<LigneBureauQr, 'id' | 'nom' | 
   id: l.id, nom: l.nom ?? '', ferme: estFerme(l),
 })
 
+/** Nombres de rattachements actifs d'un bureau (gestionnaires, copropriétés). */
+interface RattachementsBureauQr {
+  readonly gestionnaires: number
+  readonly coproprietes: number
+}
+
+/** Aucun rattachement : valeur par défaut de bureauDepuisLigneQr. */
+const AUCUN_RATTACHEMENT_QR: RattachementsBureauQr = Object.freeze({ gestionnaires: 0, coproprietes: 0 })
+
 /** Bureau de la liste d'un cabinet, avec les nombres de rattachements actifs (0 s'ils ne sont pas donnés). */
-export function bureauDepuisLigneQr(l: LigneBureauQr, rattaches: { gestionnaires: number; coproprietes: number } = { gestionnaires: 0, coproprietes: 0 }): BureauQr {
+export function bureauDepuisLigneQr(l: LigneBureauQr, rattaches: RattachementsBureauQr = AUCUN_RATTACHEMENT_QR): BureauQr {
   return {
     ...bureauResumeDepuisLigneQr(l),
     cabinetId: l.cabinet_id,

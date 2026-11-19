@@ -37,11 +37,13 @@ export function simulerFonctionsBureauxQr(base: BaseQr = baseQr): void {
   base.etat.fonctions.signalements_qr_enregistrer_bureau = (a) => {
     const nom = typeof a.p_nom === 'string' ? a.p_nom.trim() : ''
     if (!a.p_cabinet || !a.p_acteur || nom.length < 1 || nom.length > 80) return { error: { code: '22023', message: 'parametre_invalide' } }
-    if (!base.table('signalements_qr_cabinets').some((c) => c.id === a.p_cabinet)) return ERREUR_METIER('a_reverifier')
+    // Identifiants des cabinets en texte : une autre valeur ne désigne aucun cabinet (a_reverifier).
+    const cabinetId = typeof a.p_cabinet === 'string' ? a.p_cabinet : null
+    if (cabinetId === null || !base.table('signalements_qr_cabinets').some((c) => c.id === cabinetId)) return ERREUR_METIER('a_reverifier')
     const bureaux = base.table('signalements_qr_bureaux')
     const existant = a.p_bureau ? bureaux.find((b) => b.id === a.p_bureau && b.cabinet_id === a.p_cabinet) : undefined
     if (a.p_bureau && !existant) return ERREUR_METIER('a_reverifier')
-    if (existant && existant.nom === nom) return { data: { id: existant.id, cree: false, modifie: false } }
+    if (existant?.nom === nom) return { data: { id: existant.id, cree: false, modifie: false } }
     if (bureaux.some((b) => b.cabinet_id === a.p_cabinet && String(b.nom).trim().toLowerCase() === nom.toLowerCase() && b.id !== a.p_bureau)) {
       return ERREUR_METIER('nom_pris')
     }
@@ -53,7 +55,7 @@ export function simulerFonctionsBureauxQr(base: BaseQr = baseQr): void {
     if (bureaux.filter((b) => b.cabinet_id === a.p_cabinet).length >= 100) return ERREUR_METIER('plafond_bureaux')
     compteurBureaux += 1
     const id = idBureauSimule(compteurBureaux)
-    bureaux.push(ligneBureauQr(id, String(a.p_cabinet), nom, { cree_par: a.p_acteur }))
+    bureaux.push(ligneBureauQr(id, cabinetId, nom, { cree_par: a.p_acteur }))
     journal(a.p_cabinet, a.p_acteur, { bureau: 'cree', bureauId: id })
     return { data: { id, cree: true, modifie: true } }
   }

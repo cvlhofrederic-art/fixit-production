@@ -15,6 +15,7 @@
 // absente → 503 base_absente. Aucun détail interne au navigateur.
 
 import { type NextRequest } from 'next/server'
+import type { z } from 'zod'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { modificationBureauQrSchema, validateBody } from '@/lib/validation'
@@ -23,6 +24,27 @@ import { controlerAccesQr, estUuid, reponseErreur, reponseInvalide, reponsePrive
 import { lireBureauQr, lireBureauxCompletsQr, reponseErreurBureauxQr } from '@/lib/aj-signalement/serveur-bureaux'
 
 const CONTEXTE = '[AJ SIGNALEMENT]'
+
+type ModificationBureauQr = z.infer<typeof modificationBureauQrSchema>
+
+/** Réponse d'une fonction des bureaux : vrai seulement si la base dit avoir modifié le bureau. */
+const modifieParLaBase = (data: unknown): boolean => (data as { modifie?: unknown } | null)?.modifie === true
+
+/**
+ * L'action demandée, par sa fonction SQL (une transaction avec son journal) : renommage par
+ * signalements_qr_enregistrer_bureau, fermeture ou réouverture par signalements_qr_fermer_bureau. `operation` : son nom
+ * pour le journal du serveur ; `modifie` : faux quand le bureau était déjà dans l'état demandé.
+ */
+async function appliquerModificationBureauQr(action: ModificationBureauQr, bureauId: string, cabinetId: string, acteur: string) {
+  if ('nom' in action) {
+    const { data, error } = await supabaseAdmin.rpc('signalements_qr_enregistrer_bureau', {
+      p_cabinet: cabinetId, p_bureau: bureauId, p_nom: action.nom, p_acteur: acteur,
+    })
+    return { error, operation: 'renommage d’un bureau', modifie: modifieParLaBase(data) }
+  }
+  const { data, error } = await supabaseAdmin.rpc('signalements_qr_fermer_bureau', { p_bureau: bureauId, p_fermer: action.fermer, p_acteur: acteur })
+  return { error, operation: 'fermeture ou réouverture d’un bureau', modifie: modifieParLaBase(data) }
+}
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -37,25 +59,20 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const body: unknown = await request.json().catch(() => null)
     const validation = validateBody(modificationBureauQrSchema, body)
     if (!validation.success) return reponseInvalide(validation.error)
-    const action = validation.data
 
     const existant = await lireBureauQr(id)
     if (!existant.ok) return reponseErreurBureauxQr(existant.erreur, 'lecture du bureau', { bureau: id })
     if (!existant.valeur) return reponseErreur('introuvable', 404)
     const ids = { bureau: id, cabinet: existant.valeur.cabinet_id }
 
-    const { data, error } = 'nom' in action
-      ? await supabaseAdmin.rpc('signalements_qr_enregistrer_bureau', {
-        p_cabinet: existant.valeur.cabinet_id, p_bureau: id, p_nom: action.nom, p_acteur: controle.user.id,
-      })
-      : await supabaseAdmin.rpc('signalements_qr_fermer_bureau', { p_bureau: id, p_fermer: action.fermer, p_acteur: controle.user.id })
-    if (error) return reponseErreurBureauxQr(error, 'nom' in action ? 'renommage d’un bureau' : 'fermeture ou réouverture d’un bureau', ids)
+    const resultat = await appliquerModificationBureauQr(validation.data, id, existant.valeur.cabinet_id, controle.user.id)
+    if (resultat.error) return reponseErreurBureauxQr(resultat.error, resultat.operation, ids)
 
     const relu = await lireBureauxCompletsQr({ ids: [id] })
     if (!relu.ok) return reponseErreurBureauxQr(relu.erreur, 'relecture du bureau', ids)
     const bureau = relu.valeur[0]
     if (!bureau) return reponseErreur('a_reverifier', 409)
-    return reponsePriveeQr({ bureau, modifie: (data as { modifie?: unknown } | null)?.modifie === true })
+    return reponsePriveeQr({ bureau, modifie: resultat.modifie })
   } catch (e: unknown) {
     logger.error(`${CONTEXTE} modification d’un bureau`, { message: e instanceof Error ? e.name : 'inconnue' }, e)
     return reponseErreur('serveur', 500)
