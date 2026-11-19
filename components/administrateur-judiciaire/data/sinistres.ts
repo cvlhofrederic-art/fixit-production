@@ -6,8 +6,10 @@ import { creerSinistre, type FicheSinistre } from '@/lib/administrateur-judiciai
 
 /**
  * Sinistres de démonstration : trois fiches FICTIVES complètes sur le modèle de la fiche Gestéam (aucune donnée de
- * copropriété venue de Gestéam). Mêmes copropriétés, numéros d'ordre et assureurs que la maquette (CV · MMA, TL · AXA,
- * LM · MMA), numéro au format Gestéam (code + « . » + rang sur 5 chiffres). Courtiers et intervenants fictifs.
+ * copropriété venue de Gestéam). Mêmes copropriétés et numéros d'ordre que la maquette, numéro au format Gestéam
+ * (code + « . » + rang sur 5 chiffres). Assureurs, courtiers et intervenants fictifs : les assureurs réels de la
+ * maquette sont remplacés par ceux des contrats de démonstration (CV · Mutuelle Exemple, TL · Compagnie Exemple,
+ * LM · Mutuelle Exemple). Référence chez l'assureur : trois lettres, année sur deux chiffres, rang sur six chiffres.
  */
 
 /** Option d'une liste de choix de la fiche sinistre (identifiant de l'annuaire, libellé affiché). */
@@ -92,9 +94,9 @@ export const DEMO_SINISTRES: readonly SinistreDemo[] = [
         lieu: '4e étage, palier',
         dommages: 'Plafond et peintures du palier',
         assurance: {
-          compagnie: 'MMA',
-          compagnieId: 'demo-compagnie-mma',
-          numeroSinistre: 'MMA-26-055120',
+          compagnie: 'Mutuelle Exemple',
+          compagnieId: 'demo-compagnie-mutuelle-exemple',
+          numeroSinistre: 'MEX-26-055120',
           courtier: 'Valmont Courtage',
           courtierId: 'demo-courtier-valmont',
           numeroCourtier: 'VC-2026-118',
@@ -124,7 +126,13 @@ export const DEMO_SINISTRES: readonly SinistreDemo[] = [
         origine: 'Infiltration toiture',
         lieu: 'Toiture-terrasse, bât. A',
         dommages: "Plafonds du 3e étage et de la cage d'escalier",
-        assurance: { compagnie: 'AXA', compagnieId: 'demo-compagnie-axa', numeroSinistre: 'AXA-26-004512', courtier: null, contrat: null },
+        assurance: {
+          compagnie: 'Compagnie Exemple',
+          compagnieId: 'demo-compagnie-compagnie-exemple',
+          numeroSinistre: 'CEX-26-004512',
+          courtier: null,
+          contrat: null,
+        },
         carnetEntretien: true,
         publieExtranet: true,
         notes: "Bâche posée sur la toiture en attendant l'expertise.",
@@ -150,7 +158,13 @@ export const DEMO_SINISTRES: readonly SinistreDemo[] = [
         origine: 'Choc accidentel',
         lieu: "Hall d'entrée",
         dommages: 'Vitrage de la porte du hall',
-        assurance: { compagnie: 'MMA', compagnieId: 'demo-compagnie-mma', numeroSinistre: 'MMA-25-778301', courtier: null, contrat: null },
+        assurance: {
+          compagnie: 'Mutuelle Exemple',
+          compagnieId: 'demo-compagnie-mutuelle-exemple',
+          numeroSinistre: 'MEX-25-778301',
+          courtier: null,
+          contrat: null,
+        },
         indemniteImmediateCentimes: 124_000,
         indemniteImmediateReglee: true,
         causesSupprimees: true,
