@@ -1,4 +1,4 @@
-import { dateVersIso } from '@/lib/administrateur-judiciaire/domain/dates'
+import { dateVersIso, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
 import {
   migrerCoproprietaire,
   type CompteCoproprietaire,
@@ -20,8 +20,11 @@ import {
  * - nature « physique », sans déduction (fixée par migrerCoproprietaire) : une personne morale migrée (« SCI … ») ne
  *   peut pas recevoir de représentant légal avant sa correction ; aucune case « professionnel » (J78 : non saisie) ;
  *   téléphone et courriel en télécoms, sans valeur de notification (aucune adresse électronique de notification datée) ;
- * - série du compte : à la suite du plus grand numéro numérique du syndicat, fiches triées par n° de lot, nom,
- *   identifiant (même résultat d'un appel à l'autre) ; une série prise n'est jamais reprise ;
+ * - série du compte : à la suite du plus grand numéro numérique pris dans le syndicat, par un compte en base ou par un
+ *   compte que le journal d'activité garde (état avant et après : compte supprimé ou renuméroté depuis, seriesDuJournal),
+ *   fiches triées par n° de lot, nom, identifiant (même résultat d'un appel à l'autre). Une série prise n'est donc
+ *   jamais redonnée à un autre débiteur (D2 : le numéro du compte désigne le débiteur). Limite : une base vidée (mode
+ *   réel, démonstration restaurée) repart sans journal ; une ligne écrite hors de l'application n'y laisse pas de trace ;
  * - date d'entrée : la première ordonnance des mandats du syndicat (date locale, dateVersIso), à défaut le jour de
  *   création de la fiche ; marquée à vérifier (ReprisePosition) ;
  * - solde et statut : gardés sur le compte comme donnée de reprise (RepriseSoldeCompte : centimes, positifs quand ils
@@ -75,11 +78,11 @@ export interface EntreesMigrationD2 {
   lots: readonly { id: string; coproprieteId: string; numero: string }[]
   /** Mandats (ordonnance : Date locale). */
   mandats: readonly { coproprieteId: string; ordonnance: unknown }[]
-  /** Comptes copropriétaires déjà en base : séries prises. */
+  /** Séries prises : comptes copropriétaires en base, et ceux que le journal d'activité garde (seriesDuJournal). */
   comptes: readonly Pick<CompteCoproprietaire, 'coproprieteId' | 'serie'>[]
   /** Identifiants déjà connus : lignes D2 en base et entités du journal d'activité. */
   idsConnus: ReadonlySet<string>
-  /** Jour de la migration (AAAA-MM-JJ). */
+  /** Jour de la migration (AAAA-MM-JJ, contrôlé) : jour du relevé du solde sur chaque compte créé. */
   aujourdhui: string
 }
 
@@ -99,6 +102,24 @@ export const idsMigration = (coproprietaireId: string): { identite: string; comp
   compte: `cpt-${coproprietaireId}`,
   position: `pos-${coproprietaireId}`,
 })
+
+/**
+ * Séries que le journal d'activité des comptes copropriétaires garde (entrées de l'entité « comptesCoproprietaires » :
+ * état avant et après de chaque création, modification et suppression), pour qu'une série sortie (compte supprimé ou
+ * renuméroté) ne soit jamais redonnée. Un état illisible (ligne écrite hors de l'application) est ignoré. Fonction pure.
+ */
+export function seriesDuJournal(
+  entrees: readonly { avant: unknown; apres: unknown }[],
+): Pick<CompteCoproprietaire, 'coproprieteId' | 'serie'>[] {
+  const series: Pick<CompteCoproprietaire, 'coproprieteId' | 'serie'>[] = []
+  for (const { avant, apres } of entrees)
+    for (const etat of [avant, apres]) {
+      if (etat === null || typeof etat !== 'object') continue
+      const { coproprieteId, serie } = etat as Record<string, unknown>
+      if (typeof coproprieteId === 'string' && typeof serie === 'string') series.push({ coproprieteId, serie })
+    }
+  return series
+}
 
 const SERIE_MAX = 99_999
 const MOTIF_LOT_A_REGULARISER =
@@ -182,8 +203,12 @@ const comparer = (a: FicheValide, b: FicheValide): number =>
   a.nom.localeCompare(b.nom, 'fr') ||
   a.id.localeCompare(b.id)
 
-/** Plan de la migration : lignes à créer, fiches déjà migrées, fiches écartées, lots à régulariser. Fonction pure. */
+/**
+ * Plan de la migration : lignes à créer, fiches déjà migrées, fiches écartées, lots à régulariser. Fonction pure. Jour de
+ * la migration invalide : erreur, rien n'est planifié (il serait écrit tel quel dans le relevé de chaque compte).
+ */
 export function planifierMigrationD2({ fiches, lots, mandats, comptes, idsConnus, aujourdhui }: EntreesMigrationD2): PlanMigrationD2 {
+  if (!estDateIsoValide(aujourdhui)) throw new Error(`Migration D2 : date invalide (${aujourdhui}), AAAA-MM-JJ attendu.`)
   const dejaMigrees: string[] = []
   const ecartees: (FicheEcartee & { rang: number })[] = []
   const valides: FicheValide[] = []

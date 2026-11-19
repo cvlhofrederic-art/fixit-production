@@ -4,6 +4,7 @@ import { ajDb } from '@/lib/administrateur-judiciaire/db/schema'
 import {
   idsMigration,
   planifierMigrationD2,
+  seriesDuJournal,
   type FicheEcartee,
   type LotARegulariser,
 } from '@/lib/administrateur-judiciaire/domain/migration-d2'
@@ -14,8 +15,9 @@ import {
  * après un import de liste, et une erreur y bloquerait l'ouverture de toute la base) et hors store (sa forme est figée
  * par l'oracle de la base locale).
  *
- * Une seule transaction : lecture des fiches, des lots, des mandats, des lignes D2 et du journal d'activité, plan pur
- * (planifierMigrationD2 : les erreurs de données y sont prises fiche par fiche et rendues avec leur motif), puis les
+ * Une seule transaction : lecture des fiches, des lots, des mandats, des lignes D2 et du journal d'activité (fiches déjà
+ * migrées ; séries sorties des comptes, seriesDuJournal), plan pur (planifierMigrationD2 : les erreurs de données y sont
+ * prises fiche par fiche et rendues avec leur motif ; jour de la migration invalide : erreur, rien n'est écrit), puis les
  * écritures en création (repositories : champs de suivi, une entrée de journal par ligne). Deux appels concurrents
  * (deux onglets) se suivent : le second voit les lignes du premier et ne crée rien. Une erreur d'écriture annule tout.
  * L'ancienne table `coproprietaires` n'est ni vidée, ni modifiée, ni marquée.
@@ -39,11 +41,13 @@ const sansId = <T extends { id: string }>({ id, ...reste }: T): { id: string; do
 export function migrerFichesCoproprietaires({ aujourdhui, actor = null }: OptionsEcriture & { aujourdhui: string }): Promise<RapportMigrationD2> {
   const tables = [ajDb.coproprietaires, ajDb.lots, ajDb.mandats, ajDb.identites, ajDb.comptesCoproprietaires, ajDb.positions, ajDb.activityLog]
   return ajDb.transaction('rw', tables, async () => {
-    const [fiches, lots, mandats, comptes] = await Promise.all([
+    const [fiches, lots, mandats, comptes, journalComptes] = await Promise.all([
       ajDb.coproprietaires.toArray(),
       ajDb.lots.toArray(),
       ajDb.mandats.toArray(),
       ajDb.comptesCoproprietaires.toArray(),
+      // entité du journal des comptes copropriétaires (repositories.ts, repoComptesCoproprietaires) : séries sorties
+      ajDb.activityLog.where('entite').equals('comptesCoproprietaires').toArray(),
     ])
     const candidats = fiches.flatMap((f) => (typeof f.id === 'string' && f.id.trim() ? Object.values(idsMigration(f.id)) : []))
     const [identites, positions, comptesD2, journal] = await Promise.all([
@@ -60,7 +64,7 @@ export function migrerFichesCoproprietaires({ aujourdhui, actor = null }: Option
       fiches: fiches as unknown as Record<string, unknown>[],
       lots,
       mandats,
-      comptes,
+      comptes: [...comptes, ...seriesDuJournal(journalComptes)],
       idsConnus,
       aujourdhui,
     })

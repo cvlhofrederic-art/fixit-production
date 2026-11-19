@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEMO_COPROPRIETAIRES } from '@/components/administrateur-judiciaire/data/coproprietaires'
 import { useDonneesStore } from '@/lib/administrateur-judiciaire/db/donnees-store'
 import { migrerFichesCoproprietaires } from '@/lib/administrateur-judiciaire/db/migration-d2'
-import { repoCoproprietes, repoIdentites, repoPositions } from '@/lib/administrateur-judiciaire/db/repositories'
+import { repoComptesCoproprietaires, repoCoproprietes, repoIdentites, repoPositions } from '@/lib/administrateur-judiciaire/db/repositories'
 import { viderBaseLocale } from '@/lib/administrateur-judiciaire/db/reset'
 import { ajDb } from '@/lib/administrateur-judiciaire/db/schema'
 import { initialiserBaseDemo } from '@/lib/administrateur-judiciaire/db/seed-demo'
@@ -129,6 +129,36 @@ describe('base de démonstration', () => {
     expect(await ajDb.identites.get('id-P1')).toBeUndefined()
   })
 
+  it('les trois lignes supprimées après la migration : jamais recréées, la trace du journal d’activité suffit', async () => {
+    await migrerFichesCoproprietaires({ aujourdhui: DATE_DEMO_ISO })
+    await repoIdentites.remove('id-P1')
+    await repoComptesCoproprietaires.remove('cpt-P1')
+    await repoPositions.remove('pos-P1')
+    const avant = await compter()
+    const rapport = await migrerFichesCoproprietaires({ aujourdhui: DATE_DEMO_ISO })
+    expect(rapport.creees).toEqual([])
+    expect(rapport.dejaMigrees).toContain('P1')
+    expect(await ajDb.identites.get('id-P1')).toBeUndefined()
+    expect(await ajDb.comptesCoproprietaires.get('cpt-P1')).toBeUndefined()
+    expect(await ajDb.positions.get('pos-P1')).toBeUndefined()
+    expect(await compter()).toEqual(avant)
+  })
+
+  it('compte à la plus grande série supprimé, puis nouvelle fiche migrée : la série sortie n’est jamais redonnée (journal d’activité)', async () => {
+    await migrerFichesCoproprietaires({ aujourdhui: DATE_DEMO_ISO })
+    const comptesC1 = (await ajDb.comptesCoproprietaires.where('coproprieteId').equals('C1').toArray()).sort((a, b) => a.serie.localeCompare(b.serie))
+    const dernier = comptesC1.at(-1)
+    expect(dernier?.serie).toBe('00003')
+    const ficheDuDernier = await ajDb.coproprietaires.get(String(dernier?.id).replace(/^cpt-/, ''))
+    expect(ficheDuDernier).toBeDefined()
+    await repoComptesCoproprietaires.remove(String(dernier?.id))
+    // nouvelle fiche sur le même lot (import après une vente) : fictive
+    await ajDb.coproprietaires.add({ ...(ficheDuDernier as NonNullable<typeof ficheDuDernier>), id: 'PNEW', nom: 'Personne nouvelle' })
+    const rapport = await migrerFichesCoproprietaires({ aujourdhui: DATE_DEMO_ISO })
+    expect(rapport.creees).toEqual(['PNEW'])
+    expect((await ajDb.comptesCoproprietaires.get('cpt-PNEW'))?.serie).toBe('00004')
+  })
+
   it('échec d’écriture au milieu : rien n’est écrit, l’erreur remonte', async () => {
     const original = repoPositions.create
     let appels = 0
@@ -140,6 +170,12 @@ describe('base de démonstration', () => {
     const journalAvant = await ajDb.activityLog.count()
     await expect(migrerFichesCoproprietaires({ aujourdhui: DATE_DEMO_ISO })).rejects.toThrow('Écriture refusée')
     expect(await compter()).toEqual({ identites: 0, comptesCoproprietaires: 0, positions: 0, activityLog: journalAvant })
+  })
+
+  it('jour de la migration invalide : refusé, rien n’est écrit', async () => {
+    const avant = await compter()
+    await expect(migrerFichesCoproprietaires({ aujourdhui: '19/11/2026' })).rejects.toThrow('Migration D2 : date invalide (19/11/2026), AAAA-MM-JJ attendu.')
+    expect(await compter()).toEqual(avant)
   })
 
   it('le store n’est pas touché', async () => {

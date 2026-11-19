@@ -1,7 +1,7 @@
 import './fuseau-paris'
 import { describe, expect, it } from 'vitest'
 import { controlerDroitsLot, creerIdentite, migrerCoproprietaire, positionsEnPlace } from '@/lib/administrateur-judiciaire/domain/identites-positions'
-import { idsMigration, planifierMigrationD2, type EntreesMigrationD2 } from '@/lib/administrateur-judiciaire/domain/migration-d2'
+import { idsMigration, planifierMigrationD2, seriesDuJournal, type EntreesMigrationD2 } from '@/lib/administrateur-judiciaire/domain/migration-d2'
 
 /**
  * Migration D2 des anciennes fiches copropriétaire (une par lot : identité, position et solde mêlés), plan pur : une
@@ -164,6 +164,41 @@ describe('séries : à la suite de celles du syndicat, ordre stable', () => {
     const plan = planifierMigrationD2(entrees({ fiches: [fiche('P1', 'L12')], comptes: [{ coproprieteId: 'C1', serie: '99999' }] }))
     expect(plan.aCreer).toEqual([])
     expect(plan.ecartees).toEqual([{ coproprietaireId: 'P1', motif: expect.stringMatching(/série/) }])
+  })
+
+  it('séries gardées par le journal d’activité des comptes (avant et après) : compte supprimé ou renuméroté, série jamais redonnée', () => {
+    const journal = [
+      // création puis suppression : la série 00007 est sortie
+      { avant: null, apres: { id: 'cpt-X', coproprieteId: 'C1', serie: '00007' } },
+      { avant: { id: 'cpt-X', coproprieteId: 'C1', serie: '00007' }, apres: null },
+      // renumérotation : l'ancienne série (00009) comme la nouvelle (00003) sont prises
+      { avant: { id: 'cpt-Y', coproprieteId: 'C1', serie: '00009' }, apres: { id: 'cpt-Y', coproprieteId: 'C1', serie: '00003' } },
+      { avant: null, apres: { id: 'cpt-Z', coproprieteId: 'C2', serie: '00040' } },
+      // entrées illisibles (ligne écrite hors application) : ignorées
+      { avant: 'texte', apres: { coproprieteId: 'C1', serie: 12 } },
+      { avant: { serie: '00500' }, apres: { coproprieteId: 7, serie: '00600' } },
+    ]
+    expect(seriesDuJournal(journal)).toEqual([
+      { coproprieteId: 'C1', serie: '00007' },
+      { coproprieteId: 'C1', serie: '00007' },
+      { coproprieteId: 'C1', serie: '00009' },
+      { coproprieteId: 'C1', serie: '00003' },
+      { coproprieteId: 'C2', serie: '00040' },
+    ])
+    const plan = planifierMigrationD2(entrees({ fiches: [fiche('P1', 'L12'), fiche('P9', 'L4')], comptes: seriesDuJournal(journal) }))
+    expect(plan.aCreer.map((l) => [l.coproprietaireId, l.compte.serie])).toEqual([
+      ['P1', '00010'],
+      ['P9', '00041'],
+    ])
+  })
+})
+
+describe('jour de la migration', () => {
+  it('pas au format AAAA-MM-JJ : refusé, rien n’est planifié (le relevé du solde le porte)', () => {
+    for (const aujourdhui of ['19/11/2026', '2026-02-30', '', '2026-11-19T10:00:00.000Z'])
+      expect(() => planifierMigrationD2(entrees({ fiches: [fiche('P1', 'L12')], aujourdhui })), aujourdhui).toThrow(
+        `Migration D2 : date invalide (${aujourdhui}), AAAA-MM-JJ attendu.`,
+      )
   })
 })
 
