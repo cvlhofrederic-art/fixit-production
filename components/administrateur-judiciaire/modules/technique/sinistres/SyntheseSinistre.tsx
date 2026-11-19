@@ -126,12 +126,15 @@ function ContenuSynthese({ fiche, aujourdhui }: Readonly<{ fiche: FicheSinistre;
           ))}
         </ol>
         {/*
-          Sur la ligne de la frise, comme la maquette (décision du 19/11, #759, écart 24). Dans la fiche (720 px), frise
-          et phase ne tiennent pas côte à côte à leur largeur naturelle : la phase prend la place restante (flex 1), son
-          texte passe à la ligne dans cette place, aligné à droite. Sur téléphone, la frise occupe la ligne : la phase
-          passe dessous, alignée à droite.
+          Sur la ligne de la frise, comme la maquette (décision du 19/11, #759, écart 24). Dans la fiche à sa largeur
+          maximale (720 px), frise et phase ne tiennent pas côte à côte à leur largeur naturelle : la phase prend la
+          place restante à droite de la frise (environ 190 px, 175 px avec une barre de défilement classique), son
+          texte passe sur deux lignes, trois pour les phases les plus longues, aligné à droite. Base de 165 px : à cette
+          largeur, chaque phase Gestéam tient sur trois lignes au plus (la plus longue, « Complément de document », dès
+          161 px). S'il reste moins de place (écran de moins de 745 à 760 px environ, selon la barre de défilement), la
+          phase passe sous la frise, sur une ligne, alignée à droite, comme sur téléphone.
         */}
-        <span style={{ marginLeft: 'auto', fontSize: 12.5, flex: 1, textAlign: 'right' }}>
+        <span style={{ marginLeft: 'auto', fontSize: 12.5, flex: '1 1 165px', textAlign: 'right' }}>
           Phase Gestéam : <b>{fiche.phase ?? '—'}</b> · Statut : <b>{statutSinistre(fiche)}</b>
         </span>
       </div>

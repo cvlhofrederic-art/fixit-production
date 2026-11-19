@@ -127,9 +127,16 @@ describe('Synthèse — frise des étapes', () => {
     expect(phase.parentElement).toBe(frise.parentElement)
     // jsdom ne calcule pas la mise en page : on vérifie les propriétés qui la donnent. Dans la fiche (720 px), la frise
     // et la phase ne tiennent pas côte à côte à leur largeur naturelle : la phase prend la place qui reste à droite de
-    // la frise (base nulle, croissance 1), son texte passe à la ligne dans cette place, aligné à droite. Sur
-    // téléphone, la frise occupe toute la ligne : la phase passe dessous, alignée à droite, comme avant.
-    expect(phase).toHaveStyle({ flexGrow: '1', flexBasis: '0%', textAlign: 'right', marginLeft: 'auto' })
+    // la frise, son texte passe à la ligne dans cette place, aligné à droite. Base de 165 px : s'il reste moins de
+    // place (fiche plus étroite), la phase passe sous la frise, sur la largeur de la ligne, au lieu de se tasser dans
+    // une colonne étroite (jusqu'à six lignes avec une base nulle).
+    expect(phase).toHaveStyle({
+      flexGrow: '1',
+      flexShrink: '1',
+      flexBasis: '165px',
+      textAlign: 'right',
+      marginLeft: 'auto',
+    })
   })
 })
 
