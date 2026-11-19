@@ -19,23 +19,40 @@
 // confirmation, réactivation, accès, accès groupé) attend la liste rechargée (onModifie) avant de fermer sa fenêtre et
 // d'annoncer son succès, boutons désactivés jusque-là ; rechargement en échec : le succès reste annoncé au-dessus de
 // l'erreur de chargement.
+// Bureaux des cabinets (migration 20261119, écrans E2 et E3 du plan des bureaux, BROUILLON soumis avant fusion) :
+//   - E2 : liste « Bureau » dans « Ajouter un gestionnaire », OBLIGATOIRE dès que le cabinet choisi a un bureau ouvert,
+//     absente sinon (useChoixBureauFicheQr) ; bureaux fermés jamais proposés ; refus 409 bureau_requis, bureau_ferme,
+//     a_reverifier expliqués, bureaux relus ;
+//   - E3 : « Cabinet · Bureau » sur chaque ligne ; badge « Bureau à compléter » (fiche sans bureau d'un cabinet qui a un
+//     bureau ouvert) ; filtre « Bureau » (tous, chaque bureau du cabinet, « Bureau à compléter ») qui relit les fiches
+//     par ?bureau= ; sous ce filtre, chaque action relit aussi ses fiches avant d'annoncer son succès ;
+//   - tant qu'aucun bureau n'existe (aucune clé nbBureaux ni bureau) : la vue est celle d'avant, sans requête nouvelle.
+// Réactivation d'une fiche restée dans un bureau fermé (409 bureau_ferme) : la marche à suivre.
 
-import { useId, useState } from 'react'
+import { useCallback, useId, useRef, useState } from 'react'
 import { remplir } from '@/lib/coproprietaire/textes'
 import { Badge, Bouton, Champ, CLASSES_SAISIE, Encadre, EtatVide, Modale } from '@/components/coproprietaire-dashboard/ui'
 import { ChoixCoproprietesQr } from '@/components/aj-signalement/ChoixMultipleQr'
-import { messageEchecQr } from '@/components/aj-signalement/messageEchecQr'
+import ChoixBureauQr from '@/components/aj-signalement/ChoixBureauQr'
+import { messageEchecAvecBureauQr, messageEchecQr, messageEchecReactivationQr } from '@/components/aj-signalement/messageEchecQr'
+import { attendreAuPlusQr } from '@/components/aj-signalement/attenteListesQr'
+import { useBureauxCabinetQr } from '@/components/aj-signalement/useBureauxCabinetQr'
+import { useChoixBureauFicheQr } from '@/components/aj-signalement/useChoixBureauFicheQr'
 import {
-  creerGestionnaireQr, modifierGestionnaireQr, ouvrirAccesGestionnaireQr, ouvrirAccesGroupeQr, renvoyerConfirmationQr, type CodeErreurQr,
-  type ResultatCreationGestionnaireQr,
+  chargerGestionnairesQr, creerGestionnaireQr, modifierGestionnaireQr, ouvrirAccesGestionnaireQr, ouvrirAccesGroupeQr, renvoyerConfirmationQr,
+  type CodeErreurQr, type ResultatCreationGestionnaireQr,
 } from '@/lib/aj-signalement/api'
 import { messageErreurTableauQr } from '@/lib/aj-signalement/affichage'
 import {
-  LIBELLE_ETAT_GESTIONNAIRE_QR as ETAT, TEXTES_GESTION_QR as G, TON_ETAT_GESTIONNAIRE_QR as TON, actionAccesGestionnaireQr, connexionABloquerQr,
-  dateParisQr, fichesAccesOuvrablesQr,
+  LIBELLE_ETAT_GESTIONNAIRE_QR as ETAT, TEXTES_GESTION_QR as G, TON_ETAT_GESTIONNAIRE_QR as TON, actionAccesGestionnaireQr, bureauACompleterQr,
+  cabinetEtBureauQr, connexionABloquerQr, dateParisQr, fichesAccesOuvrablesQr, libelleBureauQr, nbBureauxCabinetQr,
 } from '@/lib/aj-signalement/affichage-gestion'
+import { FILTRE_SANS_BUREAU_QR, type BureauResumeQr } from '@/lib/aj-signalement/bureaux'
 import { emailDansDomainesQr } from '@/lib/aj-signalement/gestionnaires'
 import type { CabinetQr, CoproprieteQr, GestionnaireQr } from '@/lib/aj-signalement/types'
+
+const BG = G.bureaux.gestionnaire
+const BF = G.bureaux.filtre
 
 export interface PropsListeGestionnairesQr {
   /** null : chargement en cours. */
@@ -77,8 +94,68 @@ async function appelerActionLigneQr(g: GestionnaireQr, action: ActionLigneQr): P
     return { ok: true, textes: [r.emailEnvoye ? remplir(G.gestionnaires.renvoye, { email: g.email ?? '' }) : G.gestionnaires.renvoiSansEmail] }
   }
   const r = await modifierGestionnaireQr(g.id, { actif: true })
-  if (!r.ok) return { ok: false, message: messageEchecQr(r.code) }
+  if (!r.ok) return { ok: false, message: messageEchecReactivationQr(r.code) }
   return { ok: true, textes: [G.gestionnaires.reactive], ...(r.incomplet ? { avertissement: G.compte.nonDebloquee } : {}) }
+}
+
+// ── Filtre « Bureau » (E3) ───────────────────────────────────────────────────
+
+/** Fiches d'un filtre « Bureau » lues au serveur : en cours, lues, ou l'échec (message déjà choisi). */
+type LectureFichesBureauQr = { etat: 'chargement' } | { etat: 'pret'; fiches: GestionnaireQr[] } | { etat: 'erreur'; message: string }
+
+/**
+ * Filtre « Bureau » : '' (tous : la liste de l'espace), l'id d'un bureau, ou FILTRE_SANS_BUREAU_QR (« Bureau à
+ * compléter »). Chaque choix relit les fiches (GET /gestionnaires?etat=tous&bureau=…) ; une réponse dépassée par un autre
+ * choix est ignorée. `relire` (après une action) garde la liste affichée pendant la relecture.
+ */
+function useFichesDuBureauQr() {
+  const [filtre, setFiltre] = useState('')
+  const [lu, setLu] = useState<{ filtre: string; lecture: LectureFichesBureauQr } | null>(null)
+  const derniere = useRef(0)
+
+  const lire = useCallback(async (f: string, garder: boolean): Promise<void> => {
+    derniere.current += 1
+    const numero = derniere.current
+    if (!garder) setLu({ filtre: f, lecture: { etat: 'chargement' } })
+    const r = await chargerGestionnairesQr({ etat: 'tous', bureau: f })
+    if (numero !== derniere.current) return
+    setLu({ filtre: f, lecture: r.ok ? { etat: 'pret', fiches: r.gestionnaires } : { etat: 'erreur', message: messageEchecAvecBureauQr(r.code, true) } })
+  }, [])
+
+  const choisir = (f: string) => {
+    setFiltre(f)
+    // « Tous » : une lecture encore en cours pour un bureau est ignorée.
+    derniere.current += 1
+    if (f) void lire(f, false)
+  }
+  /** Relecture du filtre choisi ; `garder` : la liste affichée reste en place. Sans filtre : rien à relire. */
+  const relire = (garder = true): Promise<void> => (filtre ? lire(filtre, garder) : Promise.resolve())
+  return {
+    filtre,
+    /** null : aucun filtre (la liste de l'espace). */
+    lecture: filtre && lu?.filtre === filtre ? lu.lecture : null,
+    choisir,
+    relire,
+    reessayer: () => { void relire(false) },
+  }
+}
+
+/**
+ * Cabinet dont les bureaux font les options du filtre « Bureau » : celui du filtre « Cabinet », sinon le seul cabinet
+ * qui a des bureaux (plusieurs : « Tous » et « Bureau à compléter » seulement, jusqu'au choix d'un cabinet). Filtre
+ * visible dès qu'un cabinet de la portée a des bureaux ; jamais tant qu'aucun bureau n'existe.
+ */
+function porteeFiltreBureauQr(cabinets: readonly CabinetQr[] | null, filtreCabinet: string): { visible: boolean; cabinet: CabinetQr | null } {
+  const choisi = cabinets?.find((c) => c.id === filtreCabinet)
+  if (choisi) return { visible: nbBureauxCabinetQr(choisi) > 0, cabinet: choisi }
+  const avecBureaux = (cabinets ?? []).filter((c) => nbBureauxCabinetQr(c) > 0)
+  return { visible: avecBureaux.length > 0, cabinet: avecBureaux.length === 1 ? avecBureaux[0] : null }
+}
+
+/** Fiches à montrer : celles de l'espace sans filtre « Bureau », celles lues pour ce filtre, aucune pendant sa lecture. */
+function fichesAfficheesQr(gestionnaires: readonly GestionnaireQr[], lecture: LectureFichesBureauQr | null): readonly GestionnaireQr[] {
+  if (!lecture) return gestionnaires
+  return lecture.etat === 'pret' ? lecture.fiches : []
 }
 
 export default function ListeGestionnairesQr({
@@ -91,6 +168,11 @@ export default function ListeGestionnairesQr({
   const [erreurAction, setErreurAction] = useState<string | null>(null)
   const [occupe, setOccupe] = useState<string | null>(null)
   const [confirmerGroupe, setConfirmerGroupe] = useState(false)
+  const fichesBureau = useFichesDuBureauQr()
+  const portee = porteeFiltreBureauQr(cabinets, filtreCabinet)
+  const { bureaux: bureauxFiltre } = useBureauxCabinetQr(portee.visible ? portee.cabinet : null)
+  // Stable : la fenêtre de création garde le focus quand les listes de l'espace sont relues (la Modale ne se réinitialise pas).
+  const fermerCreation = useCallback(() => setCreation(false), [])
 
   const annonces = (
     <>
@@ -110,8 +192,22 @@ export default function ListeGestionnairesQr({
   }
   if (gestionnaires === null) return <p role="status" className="py-10 text-center text-base text-[#4A5E78]">{G.chargement}</p>
 
-  const visibles = filtreCabinet ? gestionnaires.filter((g) => g.cabinet.id === filtreCabinet) : gestionnaires
+  const fiches = fichesAfficheesQr(gestionnaires, fichesBureau.lecture)
+  const visibles = filtreCabinet ? fiches.filter((g) => g.cabinet.id === filtreCabinet) : fiches
   const ouvrables = fichesAccesOuvrablesQr(visibles)
+
+  /**
+   * Listes relues après une action : celles de l'espace (onModifie, attente déjà bornée par l'espace) et, sous un filtre
+   * « Bureau », ses fiches (attente bornée ici : DELAI_MAX_LISTES_QR_MS).
+   */
+  const listesRelues = async (): Promise<void> => {
+    await Promise.all([onModifie(), attendreAuPlusQr(fichesBureau.relire())])
+  }
+
+  const choisirCabinet = (id: string) => {
+    setFiltreCabinet(id)
+    fichesBureau.choisir('')
+  }
 
   const agir = async (g: GestionnaireQr, action: ActionLigneQr) => {
     if (occupe) return
@@ -124,7 +220,7 @@ export default function ListeGestionnairesQr({
       return setErreurAction(r.message)
     }
     // Fait : boutons désactivés (aucun nouvel envoi) jusqu'à la liste à jour, puis le message.
-    await onModifie()
+    await listesRelues()
     setOccupe(null)
     setMessages(r.textes)
     if (r.avertissement) setErreurAction(r.avertissement)
@@ -143,7 +239,7 @@ export default function ListeGestionnairesQr({
       const r = await ouvrirAccesGroupeQr(ouvrables.slice(i, i + LOT_ACCES_QR).map((g) => g.id))
       if (!r.ok) {
         // Lots déjà partis : la liste les montre avant l'échec du suivant.
-        if (envoyes > 0) await onModifie()
+        if (envoyes > 0) await listesRelues()
         setOccupe(null)
         setErreurAction(messageEchecQr(r.code))
         return
@@ -152,14 +248,14 @@ export default function ListeGestionnairesQr({
       echecs.push(...r.echecs.map((e) => e.id))
     }
     const noms = echecs.map((id) => gestionnaires.find((g) => g.id === id)?.nom ?? G.fiche.ancien)
-    await onModifie()
+    await listesRelues()
     setOccupe(null)
     setMessages([remplir(G.acces.groupeEnvoye, { n: envoyes }), ...(noms.length > 0 ? [remplir(G.acces.groupeEchecs, { noms: noms.join(', ') })] : [])])
   }
 
   /** Fiche créée : la fenêtre reste ouverte et occupée jusqu'à la liste à jour, puis elle se ferme sur le message. */
   const creee = async (r: Extract<ResultatCreationGestionnaireQr, { ok: true }>) => {
-    await onModifie()
+    await listesRelues()
     setCreation(false)
     setMessages([
       r.emailEnvoye ? remplir(G.gestionnaires.cree, { email: r.gestionnaire.email ?? '' }) : G.gestionnaires.creeSansEmail,
@@ -171,18 +267,10 @@ export default function ListeGestionnairesQr({
     <div className="space-y-6">
       <p className="text-base text-[#1F2D3D]">{G.gestionnaires.intro}</p>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        {cabinets && cabinets.length > 1 ? (
-          <label className="flex items-center gap-2 text-sm text-[#4A5E78]" htmlFor={`${idBase}-cabinet`}>
-            <span>{G.gestionnaires.filtreCabinet}</span>
-            <select
-              id={`${idBase}-cabinet`} value={filtreCabinet} onChange={(e) => setFiltreCabinet(e.target.value)}
-              className="min-h-[44px] rounded-xl border-2 border-[#E4DDD0] bg-white px-3 text-base text-[#0D1B2E]"
-            >
-              <option value="">{G.gestionnaires.tousCabinets}</option>
-              {cabinets.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
-            </select>
-          </label>
-        ) : <span />}
+        <FiltresListeQr
+          idBase={idBase} cabinets={cabinets} filtreCabinet={filtreCabinet} onCabinet={choisirCabinet}
+          bureau={portee.visible ? { options: bureauxFiltre, valeur: fichesBureau.filtre, onChange: fichesBureau.choisir } : null}
+        />
         <div className="flex flex-wrap gap-2">
           {ouvrables.length > 0 && (
             <Bouton variante="secondaire" icone="envoyer" disabled={occupe !== null} onClick={() => setConfirmerGroupe(true)}>
@@ -205,47 +293,13 @@ export default function ListeGestionnairesQr({
       )}
       {annonces}
 
-      {visibles.length === 0 ? <EtatVide texte={G.gestionnaires.aucun} icone="assemblees" /> : (
-        <ul className="space-y-3" aria-label={G.gestionnaires.liste}>
-          {visibles.map((g) => (
-            <li key={g.id} className="rounded-2xl border border-[#E4DDD0] bg-white px-5 py-4 shadow-sm">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0 flex-1 space-y-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-base font-bold text-[#0D1B2E]">{g.nom ?? G.fiche.ancien}</h3>
-                    <Badge ton={TON[g.etat]}>{ETAT[g.etat]}</Badge>
-                    {g.domaineForce && <Badge ton="ambre">{G.gestionnaires.domaineForce}</Badge>}
-                    {g.effacementDemandeLe && <Badge ton="ambre">{remplir(G.acces.effacementDemandeLe, { date: dateParisQr(g.effacementDemandeLe) })}</Badge>}
-                    {connexionABloquerQr(g) && <Badge ton="ambre">{G.compte.aBloquer}</Badge>}
-                  </div>
-                  {g.email && <p className="break-all text-sm text-[#1F2D3D]">{g.email}</p>}
-                  <p className="text-sm text-[#4A5E78]">{remplir(G.gestionnaires.compteurs, { copros: g.coproprietes, ouverts: g.ouverts, urgents: g.urgents })}</p>
-                  <p className="text-sm text-[#4A5E78]">
-                    {g.cabinet.nom} · {remplir(G.gestionnaires.ajouteLe, { date: dateParisQr(g.creeLe) })}
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Bouton variante="secondaire" petit icone="chevron-droite" onClick={() => onOuvrir(g.id)}>{G.gestionnaires.ouvrir}</Bouton>
-                  {confirmationEnAttente(g) && (
-                    <Bouton variante="discret" petit icone="envoyer" disabled={occupe !== null} onClick={() => { void agir(g, 'renvoyer') }}>{G.gestionnaires.renvoyer}</Bouton>
-                  )}
-                  {g.etat === 'desactive' && g.nom !== null && (
-                    <Bouton variante="discret" petit icone="actualiser" disabled={occupe !== null} onClick={() => { void agir(g, 'reactiver') }}>{G.gestionnaires.reactiver}</Bouton>
-                  )}
-                  {actionAccesGestionnaireQr(g) && (
-                    <Bouton variante="discret" petit icone="cadenas" disabled={occupe !== null} onClick={() => { void agir(g, 'acces') }}>
-                      {actionAccesGestionnaireQr(g) === 'renvoyer' ? G.acces.renvoyer : G.acces.ouvrir}
-                    </Bouton>
-                  )}
-                </div>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
+      <FichesListeQr
+        lecture={fichesBureau.lecture} visibles={visibles} cabinets={cabinets} libre={occupe === null}
+        onOuvrir={onOuvrir} onAgir={(g, action) => { void agir(g, action) }} onReessayer={fichesBureau.reessayer}
+      />
 
       {creation && cabinets && (
-        <Modale titre={G.gestionnaires.titreCreation} onFermer={() => setCreation(false)} labelFermer={G.fermer}>
+        <Modale titre={G.gestionnaires.titreCreation} onFermer={fermerCreation} labelFermer={G.fermer}>
           <FormulaireGestionnaireQr
             cabinets={cabinets} coproprietes={coproprietes} onFermer={() => setCreation(false)} onCree={creee}
             onOuvrir={(id) => { setCreation(false); onOuvrir(id) }}
@@ -254,6 +308,128 @@ export default function ListeGestionnairesQr({
         </Modale>
       )}
     </div>
+  )
+}
+
+// ── Filtres « Cabinet » et « Bureau » ─────────────────────────────────────────
+
+const CLASSES_FILTRE = 'min-h-[44px] rounded-xl border-2 border-[#E4DDD0] bg-white px-3 text-base text-[#0D1B2E]'
+
+interface PropsFiltres {
+  idBase: string
+  cabinets: readonly CabinetQr[] | null
+  filtreCabinet: string
+  onCabinet: (id: string) => void
+  /** Filtre « Bureau » ; null : aucun bureau dans la portée, le filtre n'existe pas (la barre est celle d'avant). */
+  bureau: { options: readonly BureauResumeQr[]; valeur: string; onChange: (valeur: string) => void } | null
+}
+
+function FiltresListeQr({ idBase, cabinets, filtreCabinet, onCabinet, bureau }: Readonly<PropsFiltres>) {
+  const liste = cabinets ?? []
+  const cabinet = liste.length > 1 ? (
+    <label className="flex items-center gap-2 text-sm text-[#4A5E78]" htmlFor={`${idBase}-cabinet`}>
+      <span>{G.gestionnaires.filtreCabinet}</span>
+      <select id={`${idBase}-cabinet`} value={filtreCabinet} onChange={(e) => onCabinet(e.target.value)} className={CLASSES_FILTRE}>
+        <option value="">{G.gestionnaires.tousCabinets}</option>
+        {liste.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
+      </select>
+    </label>
+  ) : null
+  if (!bureau) return cabinet ?? <span />
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      {cabinet}
+      <label className="flex items-center gap-2 text-sm text-[#4A5E78]" htmlFor={`${idBase}-bureau`}>
+        <span>{BF.libelle}</span>
+        <select id={`${idBase}-bureau`} value={bureau.valeur} onChange={(e) => bureau.onChange(e.target.value)} className={CLASSES_FILTRE}>
+          <option value="">{BF.tous}</option>
+          {bureau.options.map((b) => <option key={b.id} value={b.id}>{libelleBureauQr(b)}</option>)}
+          <option value={FILTRE_SANS_BUREAU_QR}>{BF.aCompleter}</option>
+        </select>
+      </label>
+    </div>
+  )
+}
+
+// ── Liste des fiches ─────────────────────────────────────────────────────────
+
+interface PropsFichesListe {
+  /** Lecture d'un filtre « Bureau » ; null : aucun filtre. */
+  lecture: LectureFichesBureauQr | null
+  visibles: readonly GestionnaireQr[]
+  cabinets: readonly CabinetQr[] | null
+  /** Faux pendant une action : les boutons d'action sont désactivés. */
+  libre: boolean
+  onOuvrir: (id: string) => void
+  onAgir: (g: GestionnaireQr, action: ActionLigneQr) => void
+  onReessayer: () => void
+}
+
+function FichesListeQr({ lecture, visibles, cabinets, libre, onOuvrir, onAgir, onReessayer }: Readonly<PropsFichesListe>) {
+  if (lecture?.etat === 'chargement') return <p role="status" className="py-10 text-center text-base text-[#4A5E78]">{G.chargement}</p>
+  if (lecture?.etat === 'erreur') {
+    return (
+      <div className="space-y-3">
+        <Encadre ton="erreur">{lecture.message}</Encadre>
+        <Bouton variante="principal" icone="actualiser" onClick={onReessayer}>{G.reessayer}</Bouton>
+      </div>
+    )
+  }
+  if (visibles.length === 0) return <EtatVide texte={lecture ? BF.aucunGestionnaire : G.gestionnaires.aucun} icone="assemblees" />
+  return (
+    <ul className="space-y-3" aria-label={G.gestionnaires.liste}>
+      {visibles.map((g) => (
+        <LigneGestionnaireQr key={g.id} g={g} aCompleter={bureauACompleterQr(g, cabinets)} libre={libre} onOuvrir={onOuvrir} onAgir={onAgir} />
+      ))}
+    </ul>
+  )
+}
+
+interface PropsLigne {
+  g: GestionnaireQr
+  /** Badge « Bureau à compléter » (bureauACompleterQr). */
+  aCompleter: boolean
+  libre: boolean
+  onOuvrir: (id: string) => void
+  onAgir: (g: GestionnaireQr, action: ActionLigneQr) => void
+}
+
+function LigneGestionnaireQr({ g, aCompleter, libre, onOuvrir, onAgir }: Readonly<PropsLigne>) {
+  const acces = actionAccesGestionnaireQr(g)
+  return (
+    <li className="rounded-2xl border border-[#E4DDD0] bg-white px-5 py-4 shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1 space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-base font-bold text-[#0D1B2E]">{g.nom ?? G.fiche.ancien}</h3>
+            <Badge ton={TON[g.etat]}>{ETAT[g.etat]}</Badge>
+            {g.domaineForce && <Badge ton="ambre">{G.gestionnaires.domaineForce}</Badge>}
+            {g.effacementDemandeLe && <Badge ton="ambre">{remplir(G.acces.effacementDemandeLe, { date: dateParisQr(g.effacementDemandeLe) })}</Badge>}
+            {connexionABloquerQr(g) && <Badge ton="ambre">{G.compte.aBloquer}</Badge>}
+            {aCompleter && <Badge ton="ambre">{BG.aCompleter}</Badge>}
+          </div>
+          {g.email && <p className="break-all text-sm text-[#1F2D3D]">{g.email}</p>}
+          <p className="text-sm text-[#4A5E78]">{remplir(G.gestionnaires.compteurs, { copros: g.coproprietes, ouverts: g.ouverts, urgents: g.urgents })}</p>
+          <p className="text-sm text-[#4A5E78]">
+            {cabinetEtBureauQr(g.cabinet.nom, g.bureau)} · {remplir(G.gestionnaires.ajouteLe, { date: dateParisQr(g.creeLe) })}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Bouton variante="secondaire" petit icone="chevron-droite" onClick={() => onOuvrir(g.id)}>{G.gestionnaires.ouvrir}</Bouton>
+          {confirmationEnAttente(g) && (
+            <Bouton variante="discret" petit icone="envoyer" disabled={!libre} onClick={() => onAgir(g, 'renvoyer')}>{G.gestionnaires.renvoyer}</Bouton>
+          )}
+          {g.etat === 'desactive' && g.nom !== null && (
+            <Bouton variante="discret" petit icone="actualiser" disabled={!libre} onClick={() => onAgir(g, 'reactiver')}>{G.gestionnaires.reactiver}</Bouton>
+          )}
+          {acces && (
+            <Bouton variante="discret" petit icone="cadenas" disabled={!libre} onClick={() => onAgir(g, 'acces')}>
+              {acces === 'renvoyer' ? G.acces.renvoyer : G.acces.ouvrir}
+            </Bouton>
+          )}
+        </div>
+      </div>
+    </li>
   )
 }
 
@@ -271,6 +447,14 @@ interface PropsFormulaire {
 
 const FORMAT_EMAIL_QR = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
+/** Premier manque de la saisie, dans l'ordre des champs : son message ; null si rien ne manque. */
+function manqueSaisieQr(nom: string, email: string, cabinet: CabinetQr | null, bureauManquant: boolean): string | null {
+  if (!nom) return G.gestionnaires.nomRequis
+  if (!FORMAT_EMAIL_QR.test(email)) return G.gestionnaires.emailInvalide
+  if (!cabinet) return G.gestionnaires.cabinetRequis
+  return bureauManquant ? BG.requis : null
+}
+
 function FormulaireGestionnaireQr({ cabinets, coproprietes, onFermer, onCree, onOuvrir, onCabinets }: Readonly<PropsFormulaire>) {
   const idBase = useId()
   const [nom, setNom] = useState('')
@@ -284,15 +468,32 @@ function FormulaireGestionnaireQr({ cabinets, coproprietes, onFermer, onCree, on
   const cabinet = cabinets.find((c) => c.id === cabinetId) ?? null
   const coprosCabinet = coproprietes.filter((c) => c.cabinet?.id === cabinetId)
   const sansDomaine = cabinet !== null && cabinet.domaines.length === 0
+  // Bureau (E2) : liste et choix exigé seulement si le cabinet a un bureau ouvert ; sinon la fenêtre est celle d'avant.
+  const bureau = useChoixBureauFicheQr(cabinet)
+
+  const choisirCabinet = (id: string) => {
+    setCabinetId(id)
+    setSelection([])
+    setHorsDomaine(false)
+    bureau.oublier()
+  }
+
+  /** Refus de la route : hors domaine (avertissement), fiche existante (lien), bureaux relus si besoin, et le message. */
+  const refuser = (code: CodeErreurQr, idExistant: string | undefined) => {
+    if (code === 'hors_domaine') return setHorsDomaine(true)
+    if (code === 'domaine_autre_cabinet') setHorsDomaine(false)
+    if (code === 'existe_deja' && idExistant) setFicheExistante(idExistant)
+    bureau.apresRefus([code])
+    setErreur(messageEchecAvecBureauQr(code, bureau.bureauId !== ''))
+  }
 
   const envoyer = async (forcerDomaine: boolean) => {
     if (occupe) return
     const nomPropre = nom.trim()
     const emailPropre = email.trim().toLowerCase()
     setFicheExistante(null)
-    if (!nomPropre) return setErreur(G.gestionnaires.nomRequis)
-    if (!FORMAT_EMAIL_QR.test(emailPropre)) return setErreur(G.gestionnaires.emailInvalide)
-    if (!cabinet) return setErreur(G.gestionnaires.cabinetRequis)
+    const manque = manqueSaisieQr(nomPropre, emailPropre, cabinet, bureau.manquant)
+    if (manque || !cabinet) return setErreur(manque ?? G.gestionnaires.cabinetRequis)
     setErreur(null)
     const dansCabinet = emailDansDomainesQr(emailPropre, cabinet.domaines)
     // Domaine d'un AUTRE cabinet client : refusé, sans « Créer quand même » (§ 6 ; le serveur refuse aussi).
@@ -306,6 +507,8 @@ function FormulaireGestionnaireQr({ cabinets, coproprietes, onFermer, onCree, on
     const ids = new Set(coprosCabinet.map((c) => c.id))
     const r = await creerGestionnaireQr({
       nom: nomPropre, email: emailPropre, cabinetId: cabinet.id, coproprieteIds: selection.filter((id) => ids.has(id)), forcerDomaine,
+      // Bureau seulement s'il est choisi : sans bureau, le corps reste celui d'avant.
+      ...(bureau.bureauId ? { bureauId: bureau.bureauId } : {}),
     })
     if (r.ok) {
       // Créée : la fenêtre reste occupée (aucun nouvel envoi) jusqu'à la liste à jour, puis elle se ferme.
@@ -313,10 +516,7 @@ function FormulaireGestionnaireQr({ cabinets, coproprietes, onFermer, onCree, on
       return setOccupe(false)
     }
     setOccupe(false)
-    if (r.code === 'hors_domaine') return setHorsDomaine(true)
-    if (r.code === 'domaine_autre_cabinet') setHorsDomaine(false)
-    if (r.code === 'existe_deja' && r.id) setFicheExistante(r.id)
-    setErreur(messageEchecQr(r.code))
+    refuser(r.code, r.id)
   }
 
   return (
@@ -332,14 +532,17 @@ function FormulaireGestionnaireQr({ cabinets, coproprietes, onFermer, onCree, on
         />
       </Champ>
       <Champ id={`${idBase}-cabinet`} etiquette={G.gestionnaires.cabinet}>
-        <select
-          id={`${idBase}-cabinet`} value={cabinetId} className={CLASSES_SAISIE}
-          onChange={(e) => { setCabinetId(e.target.value); setSelection([]); setHorsDomaine(false) }}
-        >
+        <select id={`${idBase}-cabinet`} value={cabinetId} className={CLASSES_SAISIE} onChange={(e) => choisirCabinet(e.target.value)}>
           {cabinets.length !== 1 && <option value="">{G.gestionnaires.choisirCabinet}</option>}
           {cabinets.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
         </select>
       </Champ>
+      {bureau.avecBureaux && (
+        <ChoixBureauQr
+          id={`${idBase}-bureau`} etiquette={BG.champ} aide={BG.aide} lecture={bureau.lecture} bureaux={bureau.ouverts} valeur={bureau.bureauId}
+          requis onChange={bureau.choisir} onReessayer={bureau.recharger}
+        />
+      )}
 
       {sansDomaine ? (
         <Encadre ton="avertissement">
@@ -369,7 +572,7 @@ function FormulaireGestionnaireQr({ cabinets, coproprietes, onFermer, onCree, on
       )}
 
       <div className="flex flex-col gap-3 sm:flex-row">
-        <Bouton variante="principal" type="submit" icone="envoyer" disabled={occupe || sansDomaine || horsDomaine} className="flex-1">{G.gestionnaires.creer}</Bouton>
+        <Bouton variante="principal" type="submit" icone="envoyer" disabled={occupe || sansDomaine || horsDomaine || bureau.enAttente} className="flex-1">{G.gestionnaires.creer}</Bouton>
         <Bouton variante="secondaire" onClick={onFermer} disabled={occupe} className="flex-1">{G.annuler}</Bouton>
       </div>
     </form>

@@ -13,7 +13,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   TEXTES_GESTION_QR as G, aBureauOuvertQr, bureauACompleterQr, bureauxOuvertsQr, cabinetEtBureauQr, compteursBureauQr, libelleBureauQr,
-  messageErreurBureauQr, nbBureauxCabinetQr,
+  changementBureauPossibleQr, messageErreurBureauQr, messageReactivationFicheQr, messageRefusAvecBureauQr, nbBureauxCabinetQr, refusBureauARelireQr,
 } from '@/lib/aj-signalement/affichage-gestion'
 import { TEXTES_TABLEAU_QR as T, messageErreurTableauQr } from '@/lib/aj-signalement/affichage'
 import { remplir } from '@/lib/coproprietaire/textes'
@@ -120,5 +120,52 @@ describe('textes des écrans E1 à E7 et de l’import', () => {
       expect(texte.length).toBeGreaterThan(2)
     }
     expect(remplir(B.copropriete.ligne, { bureau: 'Nord' })).toBe('Bureau : Nord')
+  })
+})
+
+// Lot 2 (E2, E3, E4, import) : refus d'une écriture qui porte un bureau (fiche créée, fiche changée de bureau).
+describe('refus d’une écriture qui porte un bureau', () => {
+  it('bureaux à relire : bureau requis (un bureau ouvert entre-temps), bureau fermé, ou bureau envoyé inconnu ou d’un autre cabinet', () => {
+    expect(refusBureauARelireQr('bureau_requis', false)).toBe(true)
+    expect(refusBureauARelireQr('bureau_ferme', true)).toBe(true)
+    expect(refusBureauARelireQr('a_reverifier', true)).toBe(true)
+    // Sans bureau envoyé, a_reverifier vise le cabinet (inconnu) : rien à relire côté bureaux.
+    expect(refusBureauARelireQr('a_reverifier', false)).toBe(false)
+    for (const code of ['hors_domaine', 'existe_deja', 'serveur', 'reseau', 'invalide'] as const) expect(refusBureauARelireQr(code, true), code).toBe(false)
+  })
+
+  it('message : bureau envoyé et données changées → « les bureaux ont changé » ; base absente → fonction pas encore disponible ; sinon le message commun', () => {
+    expect(messageRefusAvecBureauQr('a_reverifier', true)).toBe(B.aReverifier)
+    expect(messageRefusAvecBureauQr('base_absente', true)).toBe(B.indisponible)
+    expect(messageRefusAvecBureauQr('a_reverifier', false)).toBe(T.erreurs.a_reverifier)
+    expect(messageRefusAvecBureauQr('bureau_requis', false)).toBe(T.erreurs.bureau_requis)
+    expect(messageRefusAvecBureauQr('bureau_ferme', true)).toBe(T.erreurs.bureau_ferme)
+    expect(messageRefusAvecBureauQr('hors_domaine', true)).toBe(T.erreurs.hors_domaine)
+  })
+
+  it('réactivation d’une fiche refusée : restée dans un bureau fermé → la marche à suivre ; sinon le message commun', () => {
+    expect(messageReactivationFicheQr('bureau_ferme')).toBe(B.gestionnaire.reactivationBureauFerme)
+    expect(messageReactivationFicheQr('serveur')).toBe(T.erreurs.serveur)
+    expect(messageReactivationFicheQr('introuvable')).toBe(T.erreurs.introuvable)
+  })
+
+  it('filtre « Bureau » d’une liste : aucun résultat dit en clair', () => {
+    expect(B.filtre.aucunGestionnaire).toBe('Aucun gestionnaire pour ce filtre.')
+  })
+})
+
+describe('« Changer de bureau » sur la page profil (E4)', () => {
+  const fiche = (bureau?: typeof nord) => ({ cabinet: { id: K1, nom: 'Cabinet Exemple', identifiant: 'cabinet-exemple' }, ...(bureau ? { bureau } : {}) })
+
+  it('proposé : fiche qui a un bureau (même fermé), ou fiche d’un cabinet qui a des bureaux (fermés compris)', () => {
+    expect(changementBureauPossibleQr(fiche(nord), null)).toBe(true)
+    expect(changementBureauPossibleQr(fiche(sud), [{ id: K1 }])).toBe(true)
+    expect(changementBureauPossibleQr(fiche(), [{ id: K1, nbBureaux: 1 }])).toBe(true)
+  })
+
+  it('jamais tant qu’aucun bureau n’existe : fiche sans bureau d’un cabinet sans bureau, cabinets non chargés ou non transmis', () => {
+    expect(changementBureauPossibleQr(fiche(), [{ id: K1 }, { id: K2, nbBureaux: 2 }])).toBe(false)
+    expect(changementBureauPossibleQr(fiche(), null)).toBe(false)
+    expect(changementBureauPossibleQr(fiche(), undefined)).toBe(false)
   })
 })

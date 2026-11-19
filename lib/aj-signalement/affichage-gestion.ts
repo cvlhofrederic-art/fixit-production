@@ -263,6 +263,18 @@ export function bureauACompleterQr(
 }
 
 /**
+ * « Changer de bureau » (page profil, E4) : fiche qui a un bureau (même fermé), ou fiche d'un cabinet qui a des bureaux
+ * (fermés compris : la fenêtre dit alors qu'aucun n'est ouvert). Tant qu'aucun bureau n'existe : jamais.
+ */
+export function changementBureauPossibleQr(
+  fiche: Pick<GestionnaireQr, 'bureau' | 'cabinet'>, cabinets: ReadonlyArray<Pick<CabinetQr, 'id' | 'nbBureaux'>> | null | undefined,
+): boolean {
+  if (fiche.bureau) return true
+  const cabinet = cabinets?.find((c) => c.id === fiche.cabinet.id)
+  return cabinet ? nbBureauxCabinetQr(cabinet) > 0 : false
+}
+
+/**
  * Message d'un échec sur les bureaux : migration absente → « fonction pas encore disponible » ; données changées ou
  * bureau disparu → la liste est relue ; 400 → nom refusé ; 500 → lecture (`lecture`) ou enregistrement impossible ;
  * les autres codes : le message commun.
@@ -275,6 +287,29 @@ export function messageErreurBureauQr(code: CodeErreurQr, lecture = false): stri
   if (code === 'serveur') return lecture ? b.fenetre.erreurLecture : b.fenetre.erreurEnregistrement
   return messageErreurTableauQr(code)
 }
+
+/**
+ * Refus d'une écriture qui porte un bureau (fiche créée : E2 et import ; fiche changée de bureau : E4) : faut-il relire
+ * les bureaux du cabinet ? Oui pour bureau_requis (un bureau a été ouvert depuis la lecture des cabinets : la liste
+ * « Bureau » doit apparaître), bureau_ferme (le bureau choisi a été fermé entre-temps) et, quand un bureau a été envoyé,
+ * a_reverifier (bureau disparu ou d'un autre cabinet). Sans bureau envoyé, a_reverifier vise le cabinet.
+ */
+export const refusBureauARelireQr = (code: CodeErreurQr, bureauEnvoye: boolean): boolean =>
+  code === 'bureau_requis' || code === 'bureau_ferme' || (bureauEnvoye && code === 'a_reverifier')
+
+/**
+ * Message du refus d'une écriture qui porte un bureau : bureau envoyé et données changées → « les bureaux ont changé,
+ * la liste est mise à jour » ; bureau envoyé sans la migration → « fonction pas encore disponible » ; sinon le message
+ * commun (bureau_requis et bureau_ferme compris).
+ */
+export function messageRefusAvecBureauQr(code: CodeErreurQr, bureauEnvoye: boolean): string {
+  if (bureauEnvoye && (code === 'a_reverifier' || code === 'base_absente')) return messageErreurBureauQr(code)
+  return messageErreurTableauQr(code)
+}
+
+/** Réactivation d'une fiche refusée : restée dans un bureau fermé (409 bureau_ferme) → la marche à suivre ; sinon le message commun. */
+export const messageReactivationFicheQr = (code: CodeErreurQr): string =>
+  (code === 'bureau_ferme' ? TEXTES_GESTION_QR.bureaux.gestionnaire.reactivationBureauFerme : messageErreurTableauQr(code))
 
 // ── Textes ───────────────────────────────────────────────────────────────────
 
@@ -631,6 +666,8 @@ export const TEXTES_GESTION_QR = {
       libelle: 'Bureau',
       tous: 'Tous les bureaux',
       aCompleter: 'Bureau à compléter',
+      // E3 : liste des gestionnaires filtrée par bureau (?bureau=), sans résultat.
+      aucunGestionnaire: 'Aucun gestionnaire pour ce filtre.',
     },
     // E5 fenêtre d'une copropriété (création et modification), E6 carte d'une copropriété.
     copropriete: {
