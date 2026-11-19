@@ -8,6 +8,7 @@ import {
   mettreEnAttente,
   reprendreEcheance,
   suivreEcheances,
+  type EcheanceAppelSuivie,
 } from '@/lib/administrateur-judiciaire/domain/echeancier-appels'
 import type { EcheanceAppel } from '@/lib/administrateur-judiciaire/domain/repartition-appels'
 
@@ -31,20 +32,31 @@ export function echeancesAppelDuSyndicat(coproprieteId: string): Promise<Echeanc
   return ajDb.echeancesAppel.where('coproprieteId').equals(coproprieteId).toArray()
 }
 
+/** Contrôles du lot, sans la base : un seul syndicat, puis le suivi par défaut (suivreEcheances, qui refuse). */
+function echeancesSuiviesDUnSyndicat(echeances: EcheanceAppel[], relancable: boolean): EcheanceAppelSuivie[] {
+  const syndicats = new Set(echeances.map((e) => e.coproprieteId))
+  if (syndicats.size > 1) throw new Error(`Échéances de ${syndicats.size} syndicats (${[...syndicats].join(', ')}) : un seul syndicat par ajout.`)
+  return suivreEcheances(echeances, { relancable })
+}
+
 /**
  * Ajoute des échéances produites par le domaine (appels-budget, fonds-travaux, travaux-operations) à l'échéancier de LEUR
  * syndicat, avec le suivi par défaut (suivreEcheances : « Prévu », relançable par défaut). Refus, rien n'est écrit : lot
- * de plusieurs syndicats, échéance déjà dans l'échéancier du syndicat, échéance que suivreEcheances refuse.
+ * de plusieurs syndicats ou échéance que suivreEcheances refuse (contrôlés avant la transaction : promesse rejetée, sans
+ * attendre la base ni annuler une transaction parente) ; échéance déjà dans l'échéancier du syndicat (lu dans la
+ * transaction : dans une transaction parente, ce refus l'annule).
  */
 export function ajouterEcheancesAppel(
   echeances: EcheanceAppel[],
   { actor = null, relancable = true }: OptionsEcriture & { relancable?: boolean } = {},
 ): Promise<EcheanceAppelEnregistree[]> {
-  // refus du domaine dans la transaction (comme changerSuiviEcheances) : la promesse est rejetée, rien n'est écrit
+  let suivies: EcheanceAppelSuivie[]
+  try {
+    suivies = echeancesSuiviesDUnSyndicat(echeances, relancable)
+  } catch (erreur) {
+    return Promise.reject(erreur instanceof Error ? erreur : new Error(String(erreur)))
+  }
   return ajDb.transaction('rw', ajDb.echeancesAppel, ajDb.activityLog, async () => {
-    const syndicats = new Set(echeances.map((e) => e.coproprieteId))
-    if (syndicats.size > 1) throw new Error(`Échéances de ${syndicats.size} syndicats (${[...syndicats].join(', ')}) : un seul syndicat par ajout.`)
-    const suivies = suivreEcheances(echeances, { relancable })
     const deja = (await ajDb.echeancesAppel.bulkGet(suivies.map((e): [string, string] => [e.coproprieteId, e.id]))).filter((e) => e !== undefined)
     if (deja.length > 0) {
       const identifiants = deja.map((e) => `« ${e.id} »`).join(', ')

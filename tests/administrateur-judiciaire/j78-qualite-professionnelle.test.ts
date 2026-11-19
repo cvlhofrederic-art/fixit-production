@@ -85,20 +85,35 @@ describe('J78 — case « professionnel » sur la fiche identité, décochée pa
       )
   })
 
-  it('valeur refusée lisible dans le message : un texte ou un nombre tel quel, un objet ou un tableau en JSON (jamais « [object Object] »)', () => {
-    const message = (valeur: unknown): string => {
-      try {
-        creerIdentite(saisie({ professionnel: valeur as boolean }))
-      } catch (erreur) {
-        return erreur instanceof Error ? erreur.message : String(erreur)
-      }
-      throw new Error(`Valeur acceptée : ${JSON.stringify(valeur)}.`)
+  /** Message du refus de la case pour cette valeur (une valeur acceptée fait échouer le test). */
+  const message = (valeur: unknown): string => {
+    try {
+      creerIdentite(saisie({ professionnel: valeur as boolean }))
+    } catch (erreur) {
+      return erreur instanceof Error ? erreur.message : String(erreur)
     }
+    throw new Error(`Valeur acceptée : ${typeof valeur}.`)
+  }
+
+  it('valeur refusée lisible dans le message : un texte ou un nombre tel quel, un objet ou un tableau sérialisable en JSON (jamais « [object Object] »)', () => {
     expect(message('oui')).toContain('(reçu « oui »)')
     expect(message(1)).toContain('(reçu « 1 »)')
     expect(message({ coche: true })).toContain('(reçu « {"coche":true} »)')
     // un tableau [true] ne se lit pas « true », la valeur attendue : il est rendu tel quel
     expect(message([true])).toContain('(reçu « [true] »)')
+  })
+
+  it('objet que JSON ne rend pas (cycle, BigInt, toJSON sans valeur) : le refus du domaine reste, jamais une TypeError de JSON', () => {
+    // un évènement React passé à la place de e.target.checked : son nœud DOM est relié à sa fibre, qui le désigne (cycle)
+    const noeud: Record<string, unknown> = { tagName: 'INPUT', checked: true }
+    noeud.__reactFiber = { stateNode: noeud }
+    const evenement = { type: 'change', target: noeud }
+    const refus = /Case « professionnel » de Durand : cochée ou décochée attendue/
+    expect(message(evenement)).toMatch(refus)
+    expect(message(evenement)).toContain('(reçu « [object Object] non sérialisable (TypeError) »)')
+    expect(message({ n: BigInt(1) })).toContain('(reçu « [object Object] non sérialisable (TypeError) »)')
+    // toJSON qui ne rend rien : JSON.stringify rend undefined, le message ne dit pas « undefined »
+    expect(message({ toJSON: () => undefined })).toContain('(reçu « [object Object] »)')
   })
 
   it('personne morale sans case cochée : non professionnelle (décision de Hugo du 19/11/2026 : jamais du seul fait d’être une personne morale)', () => {

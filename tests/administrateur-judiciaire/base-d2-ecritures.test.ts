@@ -255,6 +255,41 @@ describe('échéancier des appels : db/echeances-appel.ts', () => {
     expect(await ajDb.activityLog.where('entite').equals('echeancesAppel').count()).toBe(4)
   })
 
+  it('refus du lot (deux syndicats, échéance refusée par le domaine) avant la transaction : une transaction parente qui l’intercepte aboutit', async () => {
+    const melange = [...echeances('C2', 4_000), { ...echeances('C1', 4_000)[0], id: 'autre' }]
+    const negative = [{ ...echeances('C2', 4_000)[0], montantCentimes: -1 }]
+    const refus = await ajDb.transaction('rw', ajDb.echeancesAppel, ajDb.activityLog, async () => {
+      const messages: string[] = []
+      for (const lot of [melange, negative]) {
+        try {
+          await ajouterEcheancesAppel(lot)
+        } catch (erreur) {
+          messages.push(erreur instanceof Error ? erreur.message : String(erreur))
+        }
+      }
+      // écriture après les refus, dans la même transaction parente
+      await ajouterEcheancesAppel(echeances('C1', 40_000))
+      return messages
+    })
+    expect(refus).toEqual([expect.stringMatching(/un seul syndicat/), expect.stringMatching(/montant invalide/)])
+    expect((await echeancesAppelDuSyndicat('C1')).map((e) => e.id)).toEqual(['B-2026-001-1', 'B-2026-001-2', 'B-2026-001-3', 'B-2026-001-4'])
+    expect(await echeancesAppelDuSyndicat('C2')).toEqual([])
+  })
+
+  it('refus du lot avant la base : base fermée, l’appelant reçoit le refus du domaine, pas l’erreur de la base', async () => {
+    ajDb.close()
+    try {
+      await expect(ajouterEcheancesAppel([...echeances('C2', 4_000), { ...echeances('C1', 4_000)[0], id: 'autre' }])).rejects.toThrow(
+        /un seul syndicat/,
+      )
+      // un lot valide atteint la base : l'erreur de la base fermée
+      await expect(ajouterEcheancesAppel(echeances('C1', 40_000))).rejects.toThrow(/closed/i)
+    } finally {
+      await ajDb.open()
+    }
+    expect(await ajDb.echeancesAppel.count()).toBe(0)
+  })
+
   it('suivi par les fonctions du domaine : mise en attente, reprise, annulation avant appel, regroupement, relançable', async () => {
     await ajouterEcheancesAppel(echeances('C1', 40_000))
     await ajouterEcheancesAppel(echeances('C2', 80_000))

@@ -234,8 +234,21 @@ function verifierRepresentants(identite: Pick<Identite, 'id' | 'nature' | 'nom'>
   }
 }
 
-/** Valeur reçue, lisible dans un message : un objet ou un tableau en JSON (jamais « [object Object] »), le reste tel quel. */
-const valeurRecue = (valeur: unknown): string => (typeof valeur === 'object' && valeur !== null ? JSON.stringify(valeur) : String(valeur))
+/**
+ * Valeur reçue, lisible dans un message : un objet ou un tableau en JSON, le reste tel quel. Ne lève jamais (le refus du
+ * domaine reste le message) : un objet que JSON ne rend pas (cycle, comme un évènement React et son nœud DOM ; BigInt ;
+ * toJSON sans valeur) est donné par son type (« [object Object] »), avec la cause si JSON a levé.
+ */
+function valeurRecue(valeur: unknown): string {
+  if (typeof valeur !== 'object' || valeur === null) return String(valeur)
+  const type = Object.prototype.toString.call(valeur)
+  try {
+    const json: string | undefined = JSON.stringify(valeur)
+    return json ?? type
+  } catch (erreur) {
+    return `${type} non sérialisable (${erreur instanceof Error ? erreur.name : typeof erreur})`
+  }
+}
 
 /** J78 : case cochée ou décochée gardée ; absente ou null, rien (non saisie) ; toute autre valeur refusée. */
 function caseProfessionnel(valeur: unknown, nom: string): Pick<Identite, 'professionnel'> {
