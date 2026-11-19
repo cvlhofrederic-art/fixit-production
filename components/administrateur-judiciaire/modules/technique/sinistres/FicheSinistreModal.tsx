@@ -18,6 +18,7 @@ import type {
   ChoixSinistre,
   CoproChoixSinistre,
 } from '@/components/administrateur-judiciaire/modules/technique/sinistres/choix-sinistre'
+import { SyntheseSinistre } from '@/components/administrateur-judiciaire/modules/technique/sinistres/SyntheseSinistre'
 import {
   evaluerFicheSinistre,
   valeursDepuisFiche,
@@ -42,7 +43,8 @@ import type { StatutSinistre } from '@/lib/data/referentiels-gesteam-judiciaire'
  * Enregistrement refusé : chaque champ en erreur porte son message (aria-invalid, role="alert" de Field) et le résumé
  * des erreurs, en tête du corps défilant, reçoit le focus (ce qui l'amène à l'écran) ; ses changements ultérieurs sont
  * annoncés poliment. Points d'attention et annonces en aria-live="polite". La modale est remontée pour chaque fiche
- * (clé = id), son état repart de la fiche.
+ * (clé = id), son état repart de la fiche. En tête des blocs, la synthèse (SyntheseSinistre : étapes, indemnités,
+ * repères de délai), calculée sur la saisie en cours dès que le type et la survenance sont lisibles.
  */
 
 /** Fiche identifiée (ligne de la base relue, ou fiche de démonstration). */
@@ -242,6 +244,7 @@ export function FicheSinistreModal(props: FicheSinistreModalProps) {
       <ModalBody>
         {tentative && <ResumeErreurs erreurs={evaluation.bloquants} refResume={refResume} />}
         <GrilleFiche>
+          <SyntheseSinistre fiche={evaluation.fiche} aujourdhui={aujourdhui} />
           {BLOCS_FICHE_SINISTRE.map((bloc) => (
             <BlocFiche
               key={bloc.id}
