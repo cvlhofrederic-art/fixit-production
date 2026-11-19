@@ -51,9 +51,10 @@ import { GROUPE_IDENTITE, QUALITE_IDENTITE, type GroupeIdentite } from '@/lib/da
  * par défaut (Identite.professionnel, facultative). Décochée ou absente : destinataire non professionnel ; une LRE exige
  * alors son consentement, qui reste l'accord du critère LRE repris de Gestéam (CPCE art. L. 100 ; J53 ; accord sans
  * date valable écarté : J59, étendu par J66 (validé par Hugo le 17/11/2026) à tout usage, consentement de J53 compris ;
- * code : accordElectroniqueEnVigueur, voie-notification.ts, PR #728 ; les commentaires de ce fichier disent encore
- * l'extension « à confirmer » : à mettre à jour à part). Cochée : ce consentement n'est pas exigé ; les autres règles
- * restent (voie postale : J52, J74 ; accord exprès avant le 25/12/2025 : J50). Lecture : qualiteProfessionnelleDe.
+ * code : accordElectroniqueEnVigueur, voie-notification.ts, PR #728 ; les commentaires de voie-notification.ts
+ * (accordElectroniqueEnVigueur, estAccordSansDateValable, en-tête) disent encore l'extension « à confirmer » : à mettre
+ * à jour à part). Cochée : ce consentement n'est pas exigé ; les autres règles restent (voie postale : J52, J74 ; accord
+ * exprès avant le 25/12/2025 : J50). Lecture : qualiteProfessionnelleDe.
  * Qualité de chaque destinataire pour le contrôle J53 : avecQualiteProfessionnelle, écrit et testé, à brancher par
  * l'appelant de finDelaiContestationAgParDestinataire (aucun aujourd'hui) ; la case y est la seule source : identité
  * introuvable, null ; identité en double dans les fiches : erreur (données incohérentes). finDelaiContestationAg
@@ -62,18 +63,21 @@ import { GROUPE_IDENTITE, QUALITE_IDENTITE, type GroupeIdentite } from '@/lib/da
  * case s'enregistrera avec la table des identités, qui n'existe pas encore.
  * J78, décisions de Hugo du 19/11/2026 (« VALIDE TOUT », sur les recommandations de Claude) : à coder avec la table des
  * identités, pas ici ; à valider par Frédéric avant toute fusion. Elles remplacent les deux questions laissées à Hugo.
- * - Case datée : la qualité se lit à la date de l'envoi, comme la voie (J50 la juge à la date du dépôt). Décocher la
- *   case plus tard ne change pas le calcul des envois déjà faits. Aujourd'hui, qualiteProfessionnelleDe lit l'état
- *   actuel de la case, sans date.
+ * - Case datée : la qualité se lit à la date de l'envoi (lecture de Claude, alignée sur J50 : date du dépôt de l'envoi
+ *   quand elle est saisie, sinon celle de l'événement ; 🔵, encore ouverte en J50 ; Hugo n'a pas choisi cette date).
+ *   Décocher la case plus tard ne change pas le calcul des envois déjà faits. Aujourd'hui, qualiteProfessionnelleDe lit
+ *   l'état actuel de la case, sans date. Lien entre cette case sans date et la case datée : à vérifier au codage de la
+ *   table des identités.
  * - Case cochée seulement sur une justification écrite (par exemple une société qui reçoit l'envoi pour son activité,
- *   avec son SIREN), jamais du seul fait d'être une personne morale. Cochée à tort, la notification est irrégulière et
- *   le délai ne court pas. Repère : code de la consommation, article liminaire (version en vigueur depuis le
- *   24/04/2024, loi n° 2024-364 du 22/04/2024, art. 2 ; lu sur Légifrance le 19/11/2026) : « Non-professionnel : toute
- *   personne morale qui n'agit pas à des fins professionnelles » (2°) ; « Professionnel : toute personne physique ou
- *   morale, publique ou privée, qui agit à des fins entrant dans le cadre de son activité commerciale, industrielle,
- *   artisanale, libérale ou agricole […] » (3°). Une personne morale peut donc être non professionnelle. 🔵 Ces
- *   définitions valent « pour l'application du présent code » ; CPCE art. L. 100 ne définit pas « professionnel » : les
- *   reprendre ici est une lecture par analogie.
+ *   avec son SIREN), jamais du seul fait d'être une personne morale. Le SIREN n'est qu'un exemple : aucun texte lu ne
+ *   l'exige. Cochée à tort, la notification est irrégulière et le délai ne court pas. Repère : code de la consommation,
+ *   article liminaire (version en vigueur depuis le 24/04/2024, loi n° 2024-364 du 22/04/2024, art. 2 ; lu sur
+ *   Légifrance le 19/11/2026) : « Non-professionnel : toute personne morale qui n'agit pas à des fins
+ *   professionnelles » (2°) ; « Professionnel : toute personne physique ou morale, publique ou privée, qui agit à des
+ *   fins entrant dans le cadre de son activité commerciale, industrielle, artisanale, libérale ou agricole […] » (3°).
+ *   Une personne morale peut donc être non professionnelle. 🔵 Ces définitions valent « pour l'application du présent
+ *   code » ; CPCE art. L. 100 ne définit pas « professionnel » et n'y renvoie pas : les reprendre ici est une lecture
+ *   par analogie, à vérifier.
  *
  * 🔴 Non établi : l'usage de l'adresse reste libre, valeurs Gestéam du champ « Usage » non relevées ; choix du jeu de
  * coordonnées par compte ou par syndicat (dans Gestéam, la fiche client désigne son jeu de coordonnées ; ici, l'adresse
@@ -149,7 +153,8 @@ export interface Identite {
   /**
    * J78 — case « professionnel » (CPCE art. L. 100 ; contrôle J53), décochée par défaut. Absente : non saisie, lue comme
    * non professionnelle (qualiteProfessionnelleDe). Non indexée ; enregistrement et écran : à brancher. Sans date ici :
-   * la date et la justification écrite (décisions de Hugo du 19/11/2026, en-tête) viendront avec la table des identités.
+   * la date et la justification écrite (décisions de Hugo du 19/11/2026, en-tête) viendront avec la table des identités ;
+   * lien entre cette case sans date et la case datée : à vérifier au codage de la table des identités.
    */
   professionnel?: boolean
 }

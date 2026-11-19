@@ -1,4 +1,6 @@
 import './fuseau-paris'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { composerDateIso as d } from '@/lib/administrateur-judiciaire/domain/dates'
 import {
@@ -303,9 +305,25 @@ describe('J78 — en-têtes', () => {
 
   it('identites-positions.ts : case datée, lue à la date de l’envoi (décision de Hugo du 19/11/2026) ; le lecteur actuel reste sans date', () => {
     const datee = enTeteDuModule('identites-positions').item('- Case datée')
-    expect(datee).toContain("la qualité se lit à la date de l'envoi, comme la voie (J50 la juge à la date du dépôt)")
+    // registre, J78 (relecture 8ce9576c) : la date du dépôt est une lecture de Claude, 🔵, encore ouverte en J50 ;
+    // Hugo n'a pas choisi cette date (statut-assemblee.ts, controlerVoie : « dépôt, à défaut l'événement »)
+    expect(datee).toContain(
+      "la qualité se lit à la date de l'envoi (lecture de Claude, alignée sur J50 : date du dépôt de l'envoi quand elle est saisie, sinon celle de l'événement ; 🔵, encore ouverte en J50 ; Hugo n'a pas choisi cette date).",
+    )
+    expect(datee).not.toContain('J50 la juge à la date du dépôt')
     expect(datee).toContain('Décocher la case plus tard ne change pas le calcul des envois déjà faits.')
     expect(datee).toContain("Aujourd'hui, qualiteProfessionnelleDe lit l'état actuel de la case, sans date.")
+    expect(datee).toContain('Lien entre cette case sans date et la case datée : à vérifier au codage de la table des identités.')
+  })
+
+  it('identites-positions.ts : champ Identite.professionnel, lien entre la case sans date et la case datée à vérifier au codage', () => {
+    const chemin = join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'identites-positions.ts')
+    const source = readFileSync(chemin, 'utf8').replaceAll('\r\n', '\n')
+    const fin = source.indexOf('\n  professionnel?: boolean\n')
+    expect(fin).toBeGreaterThan(0)
+    const doc = source.slice(source.lastIndexOf('/**', fin), fin).replaceAll(/\n\s+\*\s+/g, ' ')
+    expect(doc).toContain('J78 — case « professionnel »')
+    expect(doc).toContain('lien entre cette case sans date et la case datée : à vérifier au codage de la table des identités')
   })
 
   it('identites-positions.ts : case cochée sur une justification écrite, jamais du seul fait d’être une personne morale ; article liminaire du code de la consommation cité avec sa version', () => {
@@ -313,15 +331,18 @@ describe('J78 — en-têtes', () => {
     expect(justification).toContain(
       "(par exemple une société qui reçoit l'envoi pour son activité, avec son SIREN), jamais du seul fait d'être une personne morale.",
     )
+    // registre, J78 : « Le SIREN est un exemple de justification : aucun texte lu ne l'exige. »
+    expect(justification).toContain("Le SIREN n'est qu'un exemple : aucun texte lu ne l'exige.")
     expect(justification).toContain('Cochée à tort, la notification est irrégulière et le délai ne court pas.')
     expect(justification).toContain(
       'code de la consommation, article liminaire (version en vigueur depuis le 24/04/2024, loi n° 2024-364 du 22/04/2024, art. 2 ; lu sur Légifrance le 19/11/2026)',
     )
     expect(justification).toContain("« Non-professionnel : toute personne morale qui n'agit pas à des fins professionnelles » (2°)")
     expect(justification).toContain('Une personne morale peut donc être non professionnelle.')
-    // CPCE art. L. 100 ne définit pas « professionnel » : reprendre le code de la consommation est une lecture, marquée 🔵
+    // CPCE art. L. 100 ne définit pas « professionnel » et ne renvoie pas au code de la consommation : reprendre ses
+    // définitions est une lecture, marquée 🔵 et « à vérifier » (registre, J78)
     expect(justification).toContain(
-      "🔵 Ces définitions valent « pour l'application du présent code » ; CPCE art. L. 100 ne définit pas « professionnel » : les reprendre ici est une lecture par analogie.",
+      "🔵 Ces définitions valent « pour l'application du présent code » ; CPCE art. L. 100 ne définit pas « professionnel » et n'y renvoie pas : les reprendre ici est une lecture par analogie, à vérifier.",
     )
   })
 
@@ -333,6 +354,11 @@ describe('J78 — en-têtes', () => {
       'accord sans date valable écarté : J59, étendu par J66 (validé par Hugo le 17/11/2026) à tout usage, consentement de J53 compris ; code : accordElectroniqueEnVigueur, voie-notification.ts, PR #728',
     )
     expect(texte).not.toContain('à confirmer par Hugo')
+    // le fichier dont les commentaires sont à mettre à jour est nommé : voie-notification.ts, pas celui-ci
+    expect(texte).toContain(
+      "les commentaires de voie-notification.ts (accordElectroniqueEnVigueur, estAccordSansDateValable, en-tête) disent encore l'extension « à confirmer » : à mettre à jour à part",
+    )
+    expect(texte).not.toContain('les commentaires de ce fichier')
   })
 
   it('identites-positions.ts : rien n’est branché hors des tests ; l’appelant de la notification unique passe la qualité', () => {
