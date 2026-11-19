@@ -68,9 +68,14 @@ import { GROUPE_IDENTITE, QUALITE_IDENTITE, type GroupeIdentite } from '@/lib/da
  *   l'envoi quand elle est saisie, sinon celle de l'événement. Elle reprend la lecture de J50 (statut-assemblee.ts,
  *   controlerVoie : régime, accord exprès, consentement et demande de voie postale jugés à cette date), qui reste
  *   ouverte en J50 (🔵) : cette décision ne tranche pas J50 ; si J50 est tranchée autrement, les deux dates se relisent
- *   ensemble. Décocher la case plus tard ne change pas le calcul des envois déjà faits. Aujourd'hui,
- *   qualiteProfessionnelleDe lit l'état actuel de la case, sans date. Ce lecteur ne change pas ici. Lien entre cette case
- *   sans date et la case datée : à vérifier au codage de la table des identités.
+ *   ensemble. Précision (choix de rédaction de Claude, relecture du 19/11/2026) : le code de J50 (statut-assemblee.ts,
+ *   evaluerNotification) ne garde le dépôt que s'il ne suit pas l'événement ; sinon, il retient l'événement. L'en-tête
+ *   de statut-assemblee.ts et le registre (J50) ne le disent pas. Dans ce calcul, la case ne compte que pour une LRE
+ *   (J53), et une LRE dont l'avis précède le dépôt est refusée avant (preuve_a_saisir) : aucun écart aujourd'hui. Au
+ *   codage de la table des identités, reprendre la date de J50 telle que ce code la calcule. Décocher la case plus tard
+ *   ne change pas le calcul des envois déjà faits. Aujourd'hui, qualiteProfessionnelleDe lit l'état actuel de la case,
+ *   sans date. Ce lecteur ne change pas ici. Lien entre cette case sans date et la case datée : à vérifier au codage de
+ *   la table des identités.
  * - Case cochée seulement sur une justification écrite (par exemple une société qui reçoit l'envoi pour son activité,
  *   avec son SIREN), jamais du seul fait d'être une personne morale. Le SIREN n'est qu'un exemple : aucun texte lu ne
  *   l'exige. Cochée à tort, la notification est irrégulière et le délai ne court pas. Repère : code de la consommation,

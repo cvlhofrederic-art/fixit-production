@@ -237,6 +237,18 @@ describe('J78 — de bout en bout : délai de contestation de l’AG (J50, J53),
     }
   })
 
+  it('dépôt saisi après l’événement (J50 retient alors l’événement) : la case ne change rien, LRE refusée avant (preuve_a_saisir), LRAR inchangée', () => {
+    // LRE avisée le 05/03/2026, dépôt saisi le 07/03/2026 : refusée avant de lire la case
+    const lre = lreLe(LE, { dateDepot: d(2026, 3, 7) })
+    for (const identite of [...nonCochees(), cochee()])
+      expect(delaiPour([identite], lre), forme(identite)).toMatchObject({ etat: 'refuse', cause: 'preuve_a_saisir' })
+    // LRAR présentée le 05/03/2026, dépôt saisi le 07/03/2026 : calculée, la case n'est pas lue (J53 ne vise que la LRE)
+    const lrar = lreLe(LE, { formeEnvoi: 'AR', modeNotification: 'lrar', dateDepot: d(2026, 3, 7), datePremierePresentation: LE, dateAvisElectronique: null })
+    const reference = delaiPour([sansCase()], lrar)
+    expect(reference).toMatchObject({ etat: 'calcule' })
+    for (const identite of [decocheeExplicite(), cochee()]) expect(delaiPour([identite], lrar), forme(identite)).toEqual(reference)
+  })
+
   it('deux opposants : le professionnel est calculé, le non-professionnel sans accord bloque la fin de l’AG', () => {
     const identites = [cochee(), creerIdentite(saisie({ id: 'id-2', nom: 'Petit' }))]
     const delai = finDelaiContestationAgParDestinataire(chaineLe(LE), [lreLe(LE), lreLe(LE, { id: 'k2', personneId: 'id-2' })], 'ag-1', {
@@ -312,6 +324,11 @@ describe('J78 — en-têtes', () => {
     )
     expect(datee).toContain(
       'Elle reprend la lecture de J50 (statut-assemblee.ts, controlerVoie : régime, accord exprès, consentement et demande de voie postale jugés à cette date), qui reste ouverte en J50 (🔵) : cette décision ne tranche pas J50 ; si J50 est tranchée autrement, les deux dates se relisent ensemble.',
+    )
+    // relecture du 19/11/2026 (choix de rédaction de Claude) : le code de J50 ne garde le dépôt que s'il ne suit pas
+    // l'événement ; sans écart aujourd'hui pour la case (LRE seule, avis antérieur au dépôt refusé avant)
+    expect(datee).toContain(
+      "Précision (choix de rédaction de Claude, relecture du 19/11/2026) : le code de J50 (statut-assemblee.ts, evaluerNotification) ne garde le dépôt que s'il ne suit pas l'événement ; sinon, il retient l'événement. L'en-tête de statut-assemblee.ts et le registre (J50) ne le disent pas. Dans ce calcul, la case ne compte que pour une LRE (J53), et une LRE dont l'avis précède le dépôt est refusée avant (preuve_a_saisir) : aucun écart aujourd'hui. Au codage de la table des identités, reprendre la date de J50 telle que ce code la calcule.",
     )
     // l'ancienne lecture (« Hugo n'a pas choisi cette date ») est remplacée par la décision
     expect(datee).not.toContain("Hugo n'a pas choisi cette date")
