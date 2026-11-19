@@ -431,6 +431,38 @@ export interface Intervention extends EntiteEnregistree {
   prestataireId: string
 }
 
+// ─── D1 et D2 (version 3) : identités, positions, comptes, clés, échéances, pièces de traitement ─────────────────────
+// Objets du domaine rangés tels quels, avec les champs de suivi ; dates métier en AAAA-MM-JJ, montants en centimes.
+// D1 : propriétaire = le syndicat (coproprieteId), auteur d'une opération = le mandat (mandatId, sur la pièce).
+
+/** Identité (D2) : la personne physique ou morale, saisie une fois pour tout le cabinet (aucun syndicat propriétaire). */
+export interface IdentiteEnregistree
+  extends EntiteEnregistree,
+    Omit<import('@/lib/administrateur-judiciaire/domain/identites-positions').Identite, 'id'> {}
+
+/** Position (D2) : rôle d'une identité sur un lot ; le syndicat se lit par le lot (Lot.coproprieteId), sans copie. */
+export interface PositionEnregistree
+  extends EntiteEnregistree,
+    Omit<import('@/lib/administrateur-judiciaire/domain/identites-positions').Position, 'id'> {}
+
+/** Compte copropriétaire (D2) : le débiteur du syndicat, compte 450 à numéro de série (une série par syndicat). */
+export interface CompteCoproprietaireEnregistre
+  extends EntiteEnregistree,
+    Omit<import('@/lib/administrateur-judiciaire/domain/identites-positions').CompteCoproprietaire, 'id'> {}
+
+/** Clé de répartition du syndicat (un code par syndicat). */
+export type CleRepartitionEnregistree = EntiteEnregistree & import('@/lib/administrateur-judiciaire/domain/repartition-appels').CleRepartition
+
+/**
+ * Échéance d'appel suivie (echeancier-appels.ts). Son identifiant n'est unique qu'au sein du syndicat (D1 ; ex.
+ * « B-2026-001-1 » pour tout syndicat qui a un exercice « 2026 » et une clé « 001 ») : la table la range sous la clé
+ * [coproprieteId+id], sans repository générique (db/echeances-appel.ts).
+ */
+export type EcheanceAppelEnregistree = ChampsSuivi & import('@/lib/administrateur-judiciaire/domain/echeancier-appels').EcheanceAppelSuivie
+
+/** Pièce du journal des traitements (D1) : syndicat propriétaire, mandat auteur, numéro de la séquence du cabinet. */
+export type PieceTraitementEnregistree = EntiteEnregistree & import('@/lib/administrateur-judiciaire/domain/journal-traitements').PieceTraitement
+
 // ─── Journal d'activité ────────────────────────────────────────────────────────────────────
 
 export type ActionJournal = 'create' | 'update' | 'remove'
@@ -495,6 +527,12 @@ export class AdministrateurJudiciaireDb extends Dexie {
   declare planComptable: Table<PlanComptable, string>
   declare modelesCourrier: Table<ModeleCourrier, string>
   declare courriers: Table<Courrier, string>
+  declare identites: Table<IdentiteEnregistree, string>
+  declare positions: Table<PositionEnregistree, string>
+  declare comptesCoproprietaires: Table<CompteCoproprietaireEnregistre, string>
+  declare clesRepartition: Table<CleRepartitionEnregistree, string>
+  declare echeancesAppel: Table<EcheanceAppelEnregistree, [string, string]>
+  declare traitements: Table<PieceTraitementEnregistree, string>
 
   constructor() {
     super(NOM_BASE_LOCALE)
@@ -551,6 +589,20 @@ export class AdministrateurJudiciaireDb extends Dexie {
       modelesCourrier: 'id, famille, libelle, contexte, formeEnvoi',
       courriers:
         'id, coproprieteId, mandatId, personneId, entrepriseId, modeleId, statut, formeEnvoi, dateDepot, dateAccuseReception, referenceDiffusion',
+    })
+    // Version 3 (D1, D2 ; plan des écrans, § 5.5) : AJOUTE six tables. Les blocs version(1) et version(2) ci-dessus ne
+    // sont jamais modifiés ; aucune fonction upgrade : la montée de version crée des tables vides et ne touche à aucune
+    // donnée. Les anciennes fiches `coproprietaires` restent ; leur migration est une fonction à part, relançable.
+    // Index : les lectures de l'écran Appels (positions d'un lot ou d'une identité, lignes d'un syndicat, pièces d'un
+    // mandat pour la reddition des comptes) ; uniques : une série et un code de clé par syndicat, un numéro de pièce par
+    // cabinet. Échéances : clé composée, leur identifiant n'étant unique qu'au sein du syndicat (D1).
+    this.version(3).stores({
+      identites: 'id',
+      positions: 'id, lotId, identiteId',
+      comptesCoproprietaires: 'id, coproprieteId, &[coproprieteId+serie]',
+      clesRepartition: 'id, coproprieteId, &[coproprieteId+code]',
+      echeancesAppel: '[coproprieteId+id], coproprieteId',
+      traitements: 'id, coproprieteId, mandatId, &numero',
     })
   }
 }
