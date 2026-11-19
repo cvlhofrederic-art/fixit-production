@@ -1,7 +1,9 @@
 'use client'
 
+import { useState } from 'react'
+import { BlocFiche } from '@/components/administrateur-judiciaire/modules/technique/sinistres/ChampsFiche'
 import { Alert } from '@/components/administrateur-judiciaire/ui/Alert'
-import { Champ, Section } from '@/components/administrateur-judiciaire/ui/FicheBlocs'
+import { Champ } from '@/components/administrateur-judiciaire/ui/FicheBlocs'
 import { Pill } from '@/components/administrateur-judiciaire/ui/Pill'
 import {
   controlerDelaiDeclaration,
@@ -36,6 +38,8 @@ import {
  *   sur « Enregistrer » (résumé des erreurs), et l'état du délai peut se lire sur une date que la chronologie refuse.
  * - Annoncés poliment : le message de l'état du délai et les alertes de chronologie, pas les textes de loi.
  * - Décision #699 : aucun délai entre étapes ; aucun délai de gestion du cabinet n'est enregistré.
+ * - Repliable comme les neuf autres blocs (BlocFiche), décision du 19/11 (#759, point 12) : replié, le bouton dit
+ *   « Déplier ».
  * Même affichage en démonstration et en données réelles : rien ici ne lit le mode.
  */
 
@@ -91,15 +95,15 @@ function couleurEtape(index: number, rang: number): 'gold' | 'sage' | undefined 
   return undefined
 }
 
-export function SyntheseSinistre({ fiche, aujourdhui }: Readonly<{ fiche: FicheSinistre | null; aujourdhui: string }>) {
-  if (!fiche) return null
+/** Contenu de la synthèse, calculé seulement quand le bloc est ouvert (BlocFiche ne rend pas un contenu replié). */
+function ContenuSynthese({ fiche, aujourdhui }: Readonly<{ fiche: FicheSinistre; aujourdhui: string }>) {
   const rang = ETAPES.findIndex((etape) => etape.cle === etapeSuiviSinistre(fiche))
   const indemnites = indemnitesSinistre(fiche)
   const reperes = reperesDelaisSinistre(fiche)
   const controle = controlerDelaiDeclaration({ id: 'fiche', fiche }, AUCUN_COURRIER, { aujourdhui })
   const chronologie = controlerChronologieSinistre(fiche)
   return (
-    <Section titre="Synthèse" icone="history" large>
+    <>
       <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
         <ol
           aria-label="Étapes du suivi"
@@ -138,6 +142,27 @@ export function SyntheseSinistre({ fiche, aujourdhui }: Readonly<{ fiche: FicheS
           <Alert key={anomalie.champ} kind="warn" icon="alert" title={anomalie.message} />
         ))}
       </div>
-    </Section>
+    </>
+  )
+}
+
+/**
+ * Bloc « Synthèse » : le bloc repliable des autres blocs de la fiche (BlocFiche), ouvert à l'ouverture de la fiche.
+ * Replié, son bouton dit « Déplier » (rien à compléter ici). Il reste replié pendant la saisie, même si la synthèse
+ * disparaît puis revient (type effacé puis choisi) : le composant reste monté.
+ */
+export function SyntheseSinistre({ fiche, aujourdhui }: Readonly<{ fiche: FicheSinistre | null; aujourdhui: string }>) {
+  const [ouvert, setOuvert] = useState(true)
+  if (!fiche) return null
+  return (
+    <BlocFiche
+      titre="Synthèse"
+      icone="history"
+      ouvert={ouvert}
+      onBasculer={() => setOuvert((precedent) => !precedent)}
+      actionRepliee="Déplier"
+    >
+      <ContenuSynthese fiche={fiche} aujourdhui={aujourdhui} />
+    </BlocFiche>
   )
 }

@@ -121,6 +121,32 @@ describe('Synthèse — frise des étapes', () => {
   })
 })
 
+describe('Synthèse — bouton « Replier » des blocs de la fiche (décision du 19/11, #759, point 12)', () => {
+  it('ouverte par défaut ; « Replier » ne laisse que son titre ; repliée, le bouton dit « Déplier » et la rouvre', () => {
+    const synthese = rendreSynthese(fiche())
+    const bouton = within(synthese).getByRole('button', { name: 'Replier le bloc Synthèse' })
+    expect(bouton).toHaveAttribute('aria-expanded', 'true')
+    expect(bouton.textContent).toBe('Replier')
+    const contenu = document.getElementById(bouton.getAttribute('aria-controls') as string)
+    expect(contenu).toContainElement(within(synthese).getByRole('list', { name: 'Étapes du suivi' }))
+    expect(contenu).toContainElement(bandeau(synthese))
+
+    fireEvent.click(bouton)
+    expect(bouton).toHaveAttribute('aria-expanded', 'false')
+    expect(bouton).toHaveAccessibleName('Déplier le bloc Synthèse')
+    // WCAG 2.5.3 : le nom accessible contient le texte visible du bouton.
+    expect(bouton.textContent).toBe('Déplier')
+    expect(screen.getByRole('region', { name: 'Synthèse' })).toBe(synthese)
+    expect(within(synthese).queryByRole('list', { name: 'Étapes du suivi' })).toBeNull()
+    expect(synthese.querySelector('.alert')).toBeNull()
+    expect(synthese.textContent).not.toContain('Phase Gestéam')
+
+    fireEvent.click(bouton)
+    expect(bouton).toHaveAccessibleName('Replier le bloc Synthèse')
+    expect(etapes(synthese)).toEqual(ETAPES)
+  })
+})
+
 describe('Synthèse — indemnités', () => {
   it('total, réglé et reste à recevoir (indemnitesSinistre)', () => {
     const synthese = rendreSynthese(fiche())
@@ -355,6 +381,26 @@ describe('Synthèse — dans la fiche sinistre (démonstration)', () => {
     expect(regions[0]).toBe('Synthèse')
     expect(regions).toHaveLength(10)
     expect(etapeCourante(within(dialogue()).getByRole('region', { name: 'Synthèse' }))).toBe('Expertise')
+  })
+
+  it('« Détails » : la synthèse a le bouton « Replier » des neuf autres blocs ; repliée, elle dit « Déplier », eux « Compléter »', () => {
+    rendreEcran()
+    ouvrirDetails('TL.00009')
+    const boite = within(dialogue())
+    const regions = boite.getAllByRole('region')
+    expect(regions).toHaveLength(10)
+    for (const region of regions)
+      expect(within(region).getByRole('button', { name: `Replier le bloc ${region.getAttribute('aria-label')}` })).toHaveAttribute(
+        'aria-expanded',
+        'true',
+      )
+    fireEvent.click(boite.getByRole('button', { name: 'Replier le bloc Synthèse' }))
+    fireEvent.click(boite.getByRole('button', { name: 'Replier le bloc Indemnités' }))
+    expect(boite.getByRole('button', { name: 'Déplier le bloc Synthèse' })).toHaveAttribute('aria-expanded', 'false')
+    expect(boite.getByRole('button', { name: 'Compléter le bloc Indemnités' })).toHaveAttribute('aria-expanded', 'false')
+    // Repliée, la synthèse le reste pendant la saisie : seul le bouton la rouvre.
+    fireEvent.change(boite.getByLabelText('Déclaration'), { target: { value: '2026-05-04' } })
+    expect(within(boite.getByRole('region', { name: 'Synthèse' })).queryByRole('list', { name: 'Étapes du suivi' })).toBeNull()
   })
 
   it('déclaration : aucune synthèse tant que le type et la survenance manquent, puis elle apparaît', () => {

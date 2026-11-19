@@ -49,23 +49,27 @@ export function CaseModifiable({
 /**
  * Bloc de la fiche (région nommée par son titre). Repliable : bouton « Compléter » / « Replier » (aria-expanded,
  * aria-controls), nommé « Compléter le bloc … » / « Replier le bloc … » : le nom accessible contient le texte visible
- * (WCAG 2.5.3). Le contenu replié n'est pas rendu, les valeurs restent dans l'état du formulaire.
+ * (WCAG 2.5.3). Le contenu replié n'est pas rendu, les valeurs restent dans l'état du formulaire. `actionRepliee`
+ * remplace « Compléter » pour un bloc sans saisie (la synthèse : « Déplier »).
  */
 export function BlocFiche({
   titre,
   icone,
   ouvert,
   onBasculer,
+  actionRepliee = 'Compléter',
   children,
 }: {
   titre: string
   icone: string
   ouvert: boolean
   onBasculer: () => void
+  /** Libellé du bouton quand le bloc est replié. */
+  actionRepliee?: string
   children: ReactNode
 }) {
   const idContenu = `bloc-sinistre-${useId()}`
-  const action = ouvert ? 'Replier' : 'Compléter'
+  const action = ouvert ? 'Replier' : actionRepliee
   return (
     <Section titre={titre} icone={icone} large>
       <button
