@@ -1,0 +1,216 @@
+import './fuseau-paris'
+import 'fake-indexeddb/auto'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { DEMO_COPROPRIETAIRES } from '@/components/administrateur-judiciaire/data/coproprietaires'
+import { useDonneesStore } from '@/lib/administrateur-judiciaire/db/donnees-store'
+import { migrerFichesCoproprietaires } from '@/lib/administrateur-judiciaire/db/migration-d2'
+import { repoCoproprietes, repoIdentites, repoPositions } from '@/lib/administrateur-judiciaire/db/repositories'
+import { viderBaseLocale } from '@/lib/administrateur-judiciaire/db/reset'
+import { ajDb } from '@/lib/administrateur-judiciaire/db/schema'
+import { initialiserBaseDemo } from '@/lib/administrateur-judiciaire/db/seed-demo'
+import { CLE_STOCKAGE_MODE, DATE_DEMO_ISO } from '@/lib/administrateur-judiciaire/mode'
+
+/**
+ * Migration des fiches copropriétaire en base (db/migration-d2.ts) : une seule transaction (lecture, plan pur, écritures
+ * en add), relançable sans doublon, sans effacer ni modifier l'ancienne table, sans toucher au store. Base de
+ * démonstration (neuve et restaurée) et base réelle remplie par l'import de liste. Données fictives.
+ */
+
+const D2 = ['identites', 'comptesCoproprietaires', 'positions'] as const
+const NOUVELLES = new Set<string>([...D2, 'clesRepartition', 'echeancesAppel', 'traitements'])
+const etat = () => useDonneesStore.getState()
+
+/** Contenu de toutes les tables des versions 1 et 2, hors journal d'activité. */
+async function tablesAnciennes(): Promise<Record<string, unknown[]>> {
+  const r: Record<string, unknown[]> = {}
+  for (const t of ajDb.tables) if (!NOUVELLES.has(t.name) && t.name !== 'activityLog') r[t.name] = await t.toArray()
+  return r
+}
+
+const compter = async () => ({
+  identites: await ajDb.identites.count(),
+  comptesCoproprietaires: await ajDb.comptesCoproprietaires.count(),
+  positions: await ajDb.positions.count(),
+  activityLog: await ajDb.activityLog.count(),
+})
+
+/** Lignes D2 sans les horodatages « maintenant ». */
+async function lignesD2() {
+  const sansHorodatage = <T extends { createdAt: string; updatedAt: string }>({ createdAt: _c, updatedAt: _u, ...reste }: T) => reste
+  return {
+    identites: (await ajDb.identites.toArray()).map(sansHorodatage),
+    comptes: (await ajDb.comptesCoproprietaires.toArray()).map(sansHorodatage),
+    positions: (await ajDb.positions.toArray()).map(sansHorodatage),
+  }
+}
+
+async function demonstration(): Promise<void> {
+  localStorage.removeItem(CLE_STOCKAGE_MODE)
+  await viderBaseLocale()
+  await initialiserBaseDemo()
+  useDonneesStore.setState({ loading: false })
+  await etat().loadAll()
+}
+
+beforeEach(async () => {
+  await demonstration()
+})
+
+afterEach(() => {
+  vi.restoreAllMocks()
+})
+
+describe('base de démonstration', () => {
+  it('une identité, un compte et une position par fiche ; trois entrées de journal par fiche ; ancienne table et autres tables inchangées', async () => {
+    const n = DEMO_COPROPRIETAIRES.length
+    expect(n).toBe(8)
+    const avant = await tablesAnciennes()
+    const journalAvant = await ajDb.activityLog.count()
+    const rapport = await migrerFichesCoproprietaires({ aujourdhui: DATE_DEMO_ISO, actor: 'migration-d2' })
+    expect(rapport.creees).toHaveLength(n)
+    expect(rapport.dejaMigrees).toEqual([])
+    expect(rapport.ecartees).toEqual([])
+    expect(rapport.lotsARegulariser).toEqual([])
+    expect(await compter()).toEqual({ identites: n, comptesCoproprietaires: n, positions: n, activityLog: journalAvant + 3 * n })
+    expect(await tablesAnciennes()).toEqual(avant)
+    const journal = await ajDb.activityLog.where('entite').anyOf([...D2]).toArray()
+    expect(journal.every((l) => l.action === 'create' && l.qui === 'migration-d2')).toBe(true)
+  })
+
+  it('dates d’entrée exactes (première ordonnance, date locale) ; séries par syndicat ; soldes relevés ; personne morale restée physique', async () => {
+    await migrerFichesCoproprietaires({ aujourdhui: DATE_DEMO_ISO })
+    const lots = await ajDb.lots.toArray()
+    const coproDuLot = new Map(lots.map((l) => [l.id, l.coproprieteId]))
+    const positions = await ajDb.positions.toArray()
+    const dates = new Map(positions.map((p) => [coproDuLot.get(p.lotId), p.dateEntree]))
+    // ordonnances de la démonstration : C1 le 12/03/2026, C4 le 28/04/2026 (stockées la veille à 23 h ou 22 h UTC)
+    expect(dates.get('C1')).toBe('2026-03-12')
+    expect(dates.get('C4')).toBe('2026-04-28')
+    for (const p of positions) expect(p.reprise).toEqual({ coproprietaireId: p.id.replace(/^pos-/, ''), origineDateEntree: 'ordonnance' })
+    // en place à la date figée de la démonstration
+    expect(positions.every((p) => p.dateEntree <= DATE_DEMO_ISO && p.statut === 'En place')).toBe(true)
+    const comptes = await ajDb.comptesCoproprietaires.toArray()
+    const seriesC1 = comptes.filter((c) => c.coproprieteId === 'C1').map((c) => c.serie).sort((a, b) => a.localeCompare(b))
+    expect(seriesC1).toEqual(['00001', '00002', '00003'])
+    expect((await ajDb.comptesCoproprietaires.get('cpt-P5'))?.reprise).toEqual({
+      coproprietaireId: 'P5',
+      soldeDuCentimes: 920_000,
+      statutFiche: 'Contentieux',
+      releveLe: DATE_DEMO_ISO,
+    })
+    expect((await ajDb.identites.get('id-P5'))?.nature).toBe('physique')
+  })
+
+  it('relance : rien de créé, aucun doublon, journal inchangé', async () => {
+    await migrerFichesCoproprietaires({ aujourdhui: DATE_DEMO_ISO })
+    const apresPremiere = await compter()
+    const rapport = await migrerFichesCoproprietaires({ aujourdhui: DATE_DEMO_ISO })
+    expect(rapport.creees).toEqual([])
+    expect([...rapport.dejaMigrees].sort((a, b) => a.localeCompare(b))).toEqual(DEMO_COPROPRIETAIRES.map((c) => c.id).sort((a, b) => a.localeCompare(b)))
+    expect(await compter()).toEqual(apresPremiere)
+  })
+
+  it('deux migrations lancées ensemble (deux onglets) : aucune erreur, aucun doublon, la seconde ne crée rien', async () => {
+    const [a, b] = await Promise.all([
+      migrerFichesCoproprietaires({ aujourdhui: DATE_DEMO_ISO }),
+      migrerFichesCoproprietaires({ aujourdhui: DATE_DEMO_ISO }),
+    ])
+    expect([a.creees.length, b.creees.length].sort((x, y) => x - y)).toEqual([0, DEMO_COPROPRIETAIRES.length])
+    expect(await ajDb.identites.count()).toBe(DEMO_COPROPRIETAIRES.length)
+  })
+
+  it('identité supprimée après la migration (rapprochement de doublons) : jamais recréée', async () => {
+    await migrerFichesCoproprietaires({ aujourdhui: DATE_DEMO_ISO })
+    await repoIdentites.remove('id-P1')
+    await repoPositions.remove('pos-P1')
+    const rapport = await migrerFichesCoproprietaires({ aujourdhui: DATE_DEMO_ISO })
+    expect(rapport.creees).toEqual([])
+    expect(rapport.dejaMigrees).toContain('P1')
+    expect(await ajDb.identites.get('id-P1')).toBeUndefined()
+  })
+
+  it('échec d’écriture au milieu : rien n’est écrit, l’erreur remonte', async () => {
+    const original = repoPositions.create
+    let appels = 0
+    vi.spyOn(repoPositions, 'create').mockImplementation(async (...args) => {
+      appels++
+      if (appels === 3) throw new Error('Écriture refusée')
+      return original(...args)
+    })
+    const journalAvant = await ajDb.activityLog.count()
+    await expect(migrerFichesCoproprietaires({ aujourdhui: DATE_DEMO_ISO })).rejects.toThrow('Écriture refusée')
+    expect(await compter()).toEqual({ identites: 0, comptesCoproprietaires: 0, positions: 0, activityLog: journalAvant })
+  })
+
+  it('le store n’est pas touché', async () => {
+    const avant = JSON.stringify(etat())
+    await migrerFichesCoproprietaires({ aujourdhui: DATE_DEMO_ISO })
+    expect(JSON.stringify(etat())).toBe(avant)
+  })
+
+  it('démonstration restaurée (base vidée, seed, migration) : mêmes identifiants, mêmes séries, mêmes lignes', async () => {
+    await migrerFichesCoproprietaires({ aujourdhui: DATE_DEMO_ISO })
+    const premiere = await lignesD2()
+    await demonstration()
+    expect(await ajDb.identites.count()).toBe(0)
+    await migrerFichesCoproprietaires({ aujourdhui: DATE_DEMO_ISO })
+    const seconde = await lignesD2()
+    // les lots de la démonstration reçoivent de nouveaux identifiants à chaque seed : on compare hors lotId
+    const sansLot = (l: Awaited<ReturnType<typeof lignesD2>>) => ({ ...l, positions: l.positions.map(({ lotId: _l, ...p }) => p) })
+    expect(sansLot(seconde)).toEqual(sansLot(premiere))
+  })
+})
+
+describe('base réelle déjà remplie (import de la liste des copropriétaires)', () => {
+  it('fiches importées puis migrées ; import suivant, puis relance : seules les nouvelles fiches', async () => {
+    localStorage.setItem(CLE_STOCKAGE_MODE, 'reel')
+    await viderBaseLocale()
+    await repoCoproprietes.create(
+      { code: 'ZZ', nom: 'Résidence fictive', adresse: '1 rue Fictive', nbLots: 0, budget: 0, depense: 0, impayes: 0, fondsTravaux: 0 },
+      { id: 'CR1' },
+    )
+    await ajDb.mandats.add({
+      id: 'MR1',
+      coproprieteId: 'CR1',
+      fondement: 'Art. 29-1',
+      motif: 'Essai',
+      tribunal: 'TJ Fictif',
+      rg: '26/00009',
+      ordonnance: new Date(2026, 8, 15),
+      dureeMois: 12,
+      echeance: new Date(2027, 8, 15),
+      statut: 'Actif',
+      pill: 'ok',
+      notifOrdonnance: '',
+      createdAt: '2026-09-16T08:00:00.000Z',
+      updatedAt: '2026-09-16T08:00:00.000Z',
+      createdBy: null,
+      updatedBy: null,
+    })
+    useDonneesStore.setState({ loading: false })
+    await etat().loadAll()
+    const ligne = (n: number, solde = 0) => ({ lot: `Lot ${n}`, nom: `Personne ${n}`, tel: '', mail: '', solde, tantiemes: { numerateur: 100, denominateur: 1000 } })
+    await etat().importerCoproprietaires('CR1', [ligne(1), ligne(2, -50)])
+    const premier = await migrerFichesCoproprietaires({ aujourdhui: '2026-11-19' })
+    expect(premier.creees).toHaveLength(2)
+    expect((await ajDb.positions.toArray()).map((p) => p.dateEntree)).toEqual(['2026-09-15', '2026-09-15'])
+
+    // import suivant : une nouvelle personne, et la même liste (mise à jour des deux premières fiches)
+    await etat().importerCoproprietaires('CR1', [ligne(1), ligne(2, -80), ligne(10)])
+    const second = await migrerFichesCoproprietaires({ aujourdhui: '2026-11-20' })
+    expect(second.creees).toHaveLength(1)
+    expect(second.dejaMigrees).toHaveLength(2)
+    const comptes = (await ajDb.comptesCoproprietaires.toArray()).map((c) => [c.libelle, c.serie, c.reprise?.soldeDuCentimes, c.reprise?.releveLe])
+    expect(comptes.sort((a, b) => String(a[1]).localeCompare(String(b[1])))).toEqual([
+      ['Personne 1', '00001', 0, '2026-11-19'],
+      // relevé de la première migration : la mise à jour de la fiche n'est pas reportée (deux modèles en parallèle)
+      ['Personne 2', '00002', 5_000, '2026-11-19'],
+      ['Personne 10', '00003', 0, '2026-11-20'],
+    ])
+  })
+
+  it('base vide : rien à migrer', async () => {
+    await viderBaseLocale()
+    expect(await migrerFichesCoproprietaires({ aujourdhui: '2026-11-19' })).toEqual({ creees: [], dejaMigrees: [], ecartees: [], lotsARegulariser: [] })
+  })
+})

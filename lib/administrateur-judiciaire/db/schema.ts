@@ -450,12 +450,18 @@ export interface IdentiteEnregistree
 /** Position (D2) : rôle d'une identité sur un lot ; le syndicat se lit par le lot (Lot.coproprieteId), sans copie. */
 export interface PositionEnregistree
   extends EntiteEnregistree,
-    Omit<import('@/lib/administrateur-judiciaire/domain/identites-positions').Position, 'id'> {}
+    Omit<import('@/lib/administrateur-judiciaire/domain/identites-positions').Position, 'id'> {
+  /** Position née de la migration d'une ancienne fiche : origine de sa date d'entrée, à vérifier. Absente sinon. */
+  reprise?: import('@/lib/administrateur-judiciaire/domain/migration-d2').ReprisePosition | null
+}
 
 /** Compte copropriétaire (D2) : le débiteur du syndicat, compte 450 à numéro de série (une série par syndicat). */
 export interface CompteCoproprietaireEnregistre
   extends EntiteEnregistree,
-    Omit<import('@/lib/administrateur-judiciaire/domain/identites-positions').CompteCoproprietaire, 'id'> {}
+    Omit<import('@/lib/administrateur-judiciaire/domain/identites-positions').CompteCoproprietaire, 'id'> {
+  /** Compte né de la migration : solde et statut de l'ancienne fiche relevés ce jour-là, sans écriture. Absent sinon. */
+  reprise?: import('@/lib/administrateur-judiciaire/domain/migration-d2').RepriseSoldeCompte | null
+}
 
 /** Clé de répartition du syndicat (un code par syndicat). */
 export type CleRepartitionEnregistree = EntiteEnregistree & import('@/lib/administrateur-judiciaire/domain/repartition-appels').CleRepartition

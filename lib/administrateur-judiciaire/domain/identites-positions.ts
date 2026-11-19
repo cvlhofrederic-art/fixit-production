@@ -8,7 +8,8 @@ import { GROUPE_IDENTITE, QUALITE_IDENTITE, type GroupeIdentite } from '@/lib/da
 /**
  * Décision D2 (Hugo Carvalho, 27/10/2026) — Identité / Position / Compte copropriétaire. Fonctions pures, dates ISO
  * (AAAA-MM-JJ), sans écran. Tables : version 3 de la base locale (db/schema.ts : identites, positions,
- * comptesCoproprietaires), écrites par ces fonctions.
+ * comptesCoproprietaires), écrites par ces fonctions ; migration des anciennes fiches : migration-d2.ts (plan pur, par
+ * migrerCoproprietaire) et db/migration-d2.ts (écriture), sans appel au démarrage.
  *
  * Gestéam — fiche client (tranche 30) : la position (« client » : compte, statut En place / Futur…) porte une grille
  * Identité · Relation · Part ; les relations sont les qualités de QUALITE_IDENTITE (tranche 20). Le compte 450 porte un
@@ -724,7 +725,10 @@ export interface CoproprietaireHistorique {
   statut: string
 }
 
-/** Migration D2 : une identité, un compte et une position de pleine propriété (1/1) par ancienne fiche. */
+/**
+ * Migration D2 : une identité, un compte et une position de pleine propriété (1/1) par ancienne fiche. Appelée sur toutes
+ * les fiches de la base par migration-d2.ts (planifierMigrationD2 : séries, date d'entrée, fiches déjà migrées).
+ */
 export function migrerCoproprietaire(
   ancien: CoproprietaireHistorique,
   { coproprieteId, serie, dateEntree }: { coproprieteId: string; serie: string; dateEntree: string },
