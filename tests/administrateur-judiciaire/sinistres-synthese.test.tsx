@@ -119,6 +119,18 @@ describe('Synthèse — frise des étapes', () => {
     expect(etapeCourante(close)).toBe('Clos')
     expect(close.textContent).toContain('Statut : Terminé')
   })
+
+  it('phase et statut sur la ligne de la frise, comme la maquette (décision du 19/11, #759, écart 24)', () => {
+    const synthese = rendreSynthese(fiche())
+    const frise = within(synthese).getByRole('list', { name: 'Étapes du suivi' })
+    const phase = within(synthese).getByText(/^Phase Gestéam/)
+    expect(phase.parentElement).toBe(frise.parentElement)
+    // jsdom ne calcule pas la mise en page : on vérifie les propriétés qui la donnent. Dans la fiche (720 px), la frise
+    // et la phase ne tiennent pas côte à côte à leur largeur naturelle : la phase prend la place qui reste à droite de
+    // la frise (base nulle, croissance 1), son texte passe à la ligne dans cette place, aligné à droite. Sur
+    // téléphone, la frise occupe toute la ligne : la phase passe dessous, alignée à droite, comme avant.
+    expect(phase).toHaveStyle({ flexGrow: '1', flexBasis: '0%', textAlign: 'right', marginLeft: 'auto' })
+  })
 })
 
 describe('Synthèse — bouton « Replier » des blocs de la fiche (décision du 19/11, #759, point 12)', () => {

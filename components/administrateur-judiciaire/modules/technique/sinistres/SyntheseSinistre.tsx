@@ -125,7 +125,13 @@ function ContenuSynthese({ fiche, aujourdhui }: Readonly<{ fiche: FicheSinistre;
             </li>
           ))}
         </ol>
-        <span style={{ marginLeft: 'auto', fontSize: 12.5 }}>
+        {/*
+          Sur la ligne de la frise, comme la maquette (décision du 19/11, #759, écart 24). Dans la fiche (720 px), frise
+          et phase ne tiennent pas côte à côte à leur largeur naturelle : la phase prend la place restante (flex 1), son
+          texte passe à la ligne dans cette place, aligné à droite. Sur téléphone, la frise occupe la ligne : la phase
+          passe dessous, alignée à droite.
+        */}
+        <span style={{ marginLeft: 'auto', fontSize: 12.5, flex: 1, textAlign: 'right' }}>
           Phase Gestéam : <b>{fiche.phase ?? '—'}</b> · Statut : <b>{statutSinistre(fiche)}</b>
         </span>
       </div>
