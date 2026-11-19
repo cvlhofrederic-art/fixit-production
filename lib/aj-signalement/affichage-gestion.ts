@@ -6,10 +6,15 @@
 // (vitfix.io/<identifiant>/confirmation-adresse/) a ses textes ici aussi (FR seulement, SPEC § 1.7.4).
 
 import {
-  type ActionJournalQr, type AnalyseDomainesQr, type AttributionVueQr, type CoproprieteQr, type DecisionDepartQr, type EnvoiGestionnaireQr,
-  type EtatGestionnaireQr, type EvenementJournalQr, type FiltreCoproprietesQr, type GestionnaireQr, type GroupesDepartQr, type OrigineAttributionQr,
+  type ActionJournalQr, type AnalyseDomainesQr, type AttributionVueQr, type CabinetQr, type CoproprieteQr, type DecisionDepartQr,
+  type EnvoiGestionnaireQr, type EtatGestionnaireQr, type EvenementJournalQr, type FiltreCoproprietesQr, type GestionnaireQr,
+  type GroupesDepartQr, type OrigineAttributionQr,
 } from '@/lib/aj-signalement/types'
+import type { BureauQr, BureauResumeQr } from '@/lib/aj-signalement/bureaux'
+import type { CodeErreurQr } from '@/lib/aj-signalement/api'
+import { messageErreurTableauQr } from '@/lib/aj-signalement/affichage'
 import { validerDomaineCabinetQr } from '@/lib/aj-signalement/gestionnaires'
+import { remplir } from '@/lib/coproprietaire/textes'
 
 /** Teinte d'une pastille (socle UI du portail copropriétaire). */
 export type TonPastilleQr = 'vert' | 'ambre' | 'rouge' | 'gris' | 'bleu' | 'or'
@@ -219,6 +224,57 @@ export const connexionADebloquerQr = (g: ChampsCompteFicheQr): boolean =>
 
 /** Fiche effacée (nom effacé) dont le compte relié n'a pas été supprimé (effacement en 207) : « Supprimer son compte ». */
 export const compteASupprimerQr = (g: ChampsCompteFicheQr): boolean => g.nom === null && g.compteRelie === true
+
+// ── Bureaux d'un cabinet (migration 20261119, super admin seul) ──────────────────────────────────────────────────
+// Tant qu'aucun bureau n'existe, les réponses n'ont ni nbBureaux, ni nbBureauxOuverts, ni bureau : rien ne s'affiche en
+// plus, sauf « Bureaux (0) » sur la carte du cabinet. Le bureau n'est qu'un classement et un filtre (choix 5).
+
+/** Bureaux du cabinet, fermés compris (« Bureaux (n) ») ; 0 quand la réponse n'en porte pas. */
+export const nbBureauxCabinetQr = (c: Pick<CabinetQr, 'nbBureaux'>): number => c.nbBureaux ?? 0
+
+/** Le cabinet a-t-il un bureau ouvert ? Alors une nouvelle fiche doit avoir un bureau (choix 2 ; la route le redit). */
+export const aBureauOuvertQr = (c: Pick<CabinetQr, 'nbBureauxOuverts'> | null | undefined): boolean => (c?.nbBureauxOuverts ?? 0) > 0
+
+/** Bureaux ouverts (ceux où l'on peut rattacher), dans l'ordre reçu ; la liste donnée n'est pas modifiée. */
+export const bureauxOuvertsQr = <T extends Pick<BureauResumeQr, 'ferme'>>(bureaux: readonly T[]): T[] => bureaux.filter((b) => !b.ferme)
+
+/** « Nord », ou « Sud (fermé) ». */
+export const libelleBureauQr = (b: Pick<BureauResumeQr, 'nom' | 'ferme'>): string =>
+  (b.ferme ? remplir(TEXTES_GESTION_QR.bureaux.nomFerme, { nom: b.nom }) : b.nom)
+
+/** « Cabinet Exemple · Nord » ; sans bureau, le nom du cabinet seul (la ligne d'avant). */
+export function cabinetEtBureauQr(cabinet: string, bureau?: Pick<BureauResumeQr, 'nom' | 'ferme'> | null): string {
+  return bureau ? remplir(TEXTES_GESTION_QR.bureaux.cabinetBureau, { cabinet, bureau: libelleBureauQr(bureau) }) : cabinet
+}
+
+/** « 2 gestionnaire(s) actif(s) · 3 copropriété(s) active(s) » (ceux qui empêchent la fermeture). */
+export const compteursBureauQr = (b: Pick<BureauQr, 'nbGestionnaires' | 'nbCoproprietes'>): string =>
+  remplir(TEXTES_GESTION_QR.bureaux.fenetre.compteurs, { gestionnaires: b.nbGestionnaires, coproprietes: b.nbCoproprietes })
+
+/**
+ * Badge « Bureau à compléter » : fiche sans bureau d'un cabinet qui a un bureau ouvert (même règle que le filtre
+ * ?bureau=aucun de la route). Cabinets pas encore chargés : non.
+ */
+export function bureauACompleterQr(
+  fiche: Pick<GestionnaireQr, 'bureau' | 'cabinet'>, cabinets: ReadonlyArray<Pick<CabinetQr, 'id' | 'nbBureauxOuverts'>> | null,
+): boolean {
+  if (fiche.bureau || !cabinets) return false
+  return aBureauOuvertQr(cabinets.find((c) => c.id === fiche.cabinet.id))
+}
+
+/**
+ * Message d'un échec sur les bureaux : migration absente → « fonction pas encore disponible » ; données changées ou
+ * bureau disparu → la liste est relue ; 400 → nom refusé ; 500 → lecture (`lecture`) ou enregistrement impossible ;
+ * les autres codes : le message commun.
+ */
+export function messageErreurBureauQr(code: CodeErreurQr, lecture = false): string {
+  const b = TEXTES_GESTION_QR.bureaux
+  if (code === 'base_absente') return b.indisponible
+  if (code === 'a_reverifier' || code === 'introuvable') return b.aReverifier
+  if (code === 'invalide') return b.fenetre.nomRefuse
+  if (code === 'serveur') return lecture ? b.fenetre.erreurLecture : b.fenetre.erreurEnregistrement
+  return messageErreurTableauQr(code)
+}
 
 // ── Textes ───────────────────────────────────────────────────────────────────
 
@@ -514,6 +570,82 @@ export const TEXTES_GESTION_QR = {
     },
     filtreGestionnaire: 'Gestionnaire : {nom}',
     aucuneFiltre: 'Aucune copropriété pour ce filtre.',
+  },
+  // Bureaux des cabinets clients (migration 20261119 ; accord du 17/11/2026 sur les cinq choix de la note des bureaux),
+  // super admin seul : écrans E1 à E7 du plan des bureaux et import. BROUILLON : écrans soumis avant la fusion.
+  bureaux: {
+    // Communs à tous les écrans.
+    indisponible: 'Fonction pas encore disponible : les bureaux s’ouvriront après la mise à jour de la base.',
+    aReverifier: 'Les bureaux ont changé entre-temps : la liste a été mise à jour, vérifiez-la avant de recommencer.',
+    nomFerme: '{nom} (fermé)',
+    cabinetBureau: '{cabinet} · {bureau}',
+    choisir: 'Choisir…',
+    // E1 — vue Cabinets : bouton de la carte et fenêtre des bureaux du cabinet.
+    fenetre: {
+      bouton: 'Bureaux ({n})',
+      titre: 'Bureaux du cabinet {cabinet}',
+      intro: 'Les bureaux classent les gestionnaires et les copropriétés du cabinet ; ils ne changent ni ce que chacun voit, ni les destinataires des e-mails. Dès qu’un bureau est ouvert, chaque nouveau gestionnaire du cabinet doit en avoir un.',
+      chargement: 'Chargement des bureaux…',
+      erreurLecture: 'Les bureaux n’ont pas pu être chargés. Réessayez.',
+      aucun: 'Aucun bureau pour le moment : le cabinet fonctionne sans bureau.',
+      liste: 'Bureaux du cabinet',
+      ouvert: 'Ouvert',
+      ferme: 'Fermé',
+      compteurs: '{gestionnaires} gestionnaire(s) actif(s) · {coproprietes} copropriété(s) active(s)',
+      nom: 'Nom du nouveau bureau',
+      nomAide: '80 caractères au plus. Deux bureaux du cabinet ne portent jamais le même nom, même fermés.',
+      nomRequis: 'Indiquez le nom du bureau.',
+      nomRefuse: 'Nom refusé : 1 à 80 caractères, sans tabulation ni retour à la ligne.',
+      erreurEnregistrement: 'Enregistrement impossible pour le moment. Réessayez.',
+      ajouter: 'Ajouter un bureau',
+      ajout: 'Ajout…',
+      ajoute: 'Bureau « {nom} » ajouté.',
+      renommer: 'Renommer',
+      renommerNomme: 'Renommer le bureau {nom}',
+      nouveauNom: 'Nouveau nom du bureau {nom}',
+      renomme: 'Bureau renommé : « {nom} ».',
+      fermer: 'Fermer',
+      fermerNomme: 'Fermer le bureau {nom}',
+      fermeFait: 'Bureau « {nom} » fermé : plus aucun gestionnaire ni aucune copropriété ne peut y être rattaché. Il peut être rouvert.',
+      rouvrir: 'Rouvrir',
+      rouvrirNomme: 'Rouvrir le bureau {nom}',
+      rouvert: 'Bureau « {nom} » rouvert.',
+      inchange: 'Rien n’a changé : le bureau était déjà dans cet état.',
+      fermerFenetre: 'Fermer',
+    },
+    // E2 « Ajouter un gestionnaire », E3 liste des gestionnaires (badge), E4 page profil d'un gestionnaire.
+    gestionnaire: {
+      champ: 'Bureau',
+      aide: 'Obligatoire : ce cabinet a des bureaux. Le bureau classe la fiche ; il ne change ni ses copropriétés ni ses e-mails.',
+      requis: 'Choisissez le bureau.',
+      aCompleter: 'Bureau à compléter',
+      changer: 'Changer de bureau',
+      nouveauBureau: 'Nouveau bureau',
+      changerAide: 'Le bureau se change, il ne se retire pas.',
+      aucunAutre: 'Aucun autre bureau ouvert dans ce cabinet : ouvrez-en un depuis la vue Cabinets.',
+      change: 'Bureau enregistré : {bureau}.',
+      reactivationBureauFerme: 'Réactivation impossible : la fiche est rattachée à un bureau fermé. Changez-la d’abord de bureau, ou rouvrez ce bureau depuis la vue Cabinets.',
+    },
+    // E3 et E7 : filtre « Bureau » des listes (gestionnaires ; copropriétés et signalements).
+    filtre: {
+      libelle: 'Bureau',
+      tous: 'Tous les bureaux',
+      aCompleter: 'Bureau à compléter',
+    },
+    // E5 fenêtre d'une copropriété (création et modification), E6 carte d'une copropriété.
+    copropriete: {
+      champ: 'Bureau (facultatif)',
+      aucun: 'Aucun bureau',
+      ligne: 'Bureau : {bureau}',
+      bureauNonPose: 'La copropriété est créée, mais pas son bureau : ouvrez « Modifier » pour le choisir de nouveau.',
+      reactivationBureauFerme: 'Réactivation impossible : la copropriété est rattachée à un bureau fermé. Choisissez un bureau ouvert, ou « Aucun bureau », dans la même modification.',
+    },
+    // Import : étape qui crée les fiches des gestionnaires inconnus (bureau obligatoire dès qu'un bureau est ouvert).
+    import: {
+      champ: 'Bureau des fiches à créer',
+      aide: 'Ce cabinet a des bureaux : chaque nouvelle fiche doit en avoir un. Celui-ci est donné à toutes les fiches créées ici ; il se change ensuite sur leur page profil.',
+      requis: 'Choisissez le bureau des fiches à créer.',
+    },
   },
   choix: {
     rechercher: 'Rechercher',

@@ -705,6 +705,8 @@ export interface SaisieGestionCoproprieteQr {
   forcerDoublon?: boolean
   confirmerDoublonProbable?: boolean
   confirmerHorsDomaine?: boolean
+  /** Bureau (migration 20261119), super admin : facultatif ; envoyé seulement s'il est choisi. */
+  bureauId?: string
 }
 
 /** Saisie d'un cabinet client (POST /cabinets). */
@@ -722,6 +724,11 @@ export interface SaisieGestionnaireQr {
   cabinetId: string
   coproprieteIds: string[]
   forcerDomaine: boolean
+  /**
+   * Bureau (migration 20261119) : exigé par la route dès que le cabinet a un bureau ouvert (409 bureau_requis sinon) ;
+   * envoyé seulement s'il est choisi (sans bureau, le corps reste celui d'avant).
+   */
+  bureauId?: string
 }
 
 /** Succession d'une copropriété au départ d'un gestionnaire : un successeur, ou null (sans gestionnaire, ou retrait seul). */

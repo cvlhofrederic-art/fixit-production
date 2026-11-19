@@ -18,17 +18,22 @@
 // Logo du cabinet (demande de Hugo du 13/11/2026, BROUILLON pour Frédéric) : « Logo » sur chaque cabinet ouvre sa
 // fenêtre (LogoCabinetQr : logo actuel, nouveau fichier converti en PNG sur l'appareil, retrait) ; une ligne de la carte
 // dit s'il en a un.
+// Bureaux du cabinet (migration 20261119, écran E1 du plan des bureaux, BROUILLON soumis avant fusion) : « Bureaux (n) » sur
+// chaque cabinet (n : bureaux fermés compris ; 0 tant que la réponse n'en porte pas) ouvre sa fenêtre (BureauxCabinetQr :
+// liste, ajout, renommage, fermeture, réouverture). La fenêtre reste ouverte d'une action à l'autre : chaque action relit
+// la liste des cabinets (compteur) et son annonce reste dans la vue, au-dessus d'une erreur de chargement éventuelle.
 
-import { useId, useState } from 'react'
+import { useCallback, useId, useState } from 'react'
 import { remplir } from '@/lib/coproprietaire/textes'
 import { Badge, Bouton, Carte, Champ, CLASSES_SAISIE, Encadre, EtatVide, Modale } from '@/components/coproprietaire-dashboard/ui'
 import { ChoixCoproprietesQr } from '@/components/aj-signalement/ChoixMultipleQr'
 import { messageEchecQr } from '@/components/aj-signalement/messageEchecQr'
 import ReglagesDiffusionCabinetQr from '@/components/aj-signalement/ReglagesDiffusionCabinetQr'
 import LogoCabinetQr from '@/components/aj-signalement/LogoCabinetQr'
+import BureauxCabinetQr from '@/components/aj-signalement/BureauxCabinetQr'
 import { TEXTES_ECRAN_DIFFUSION_QR as TD } from '@/lib/aj-signalement/affichage-ecran-diffusion'
 import { creerCabinetQr, modifierCabinetQr, rattacherCoproprietesQr, type CodeErreurQr } from '@/lib/aj-signalement/api'
-import { TEXTES_GESTION_QR as G, analyserDomainesQr, apercuCheminCabinetQr } from '@/lib/aj-signalement/affichage-gestion'
+import { TEXTES_GESTION_QR as G, analyserDomainesQr, apercuCheminCabinetQr, nbBureauxCabinetQr } from '@/lib/aj-signalement/affichage-gestion'
 import { messageErreurTableauQr } from '@/lib/aj-signalement/affichage'
 import { proposerIdentifiantCabinetQr, validerIdentifiantCabinetQr } from '@/lib/aj-signalement/chemin-cabinet'
 import {
@@ -53,12 +58,13 @@ export interface PropsCabinetsQr {
 
 type Fenetre =
   | { type: 'creation' } | { type: 'modification'; cabinet: CabinetQr } | { type: 'diffusion'; cabinet: CabinetQr }
-  | { type: 'logo'; cabinet: CabinetQr } | null
+  | { type: 'logo'; cabinet: CabinetQr } | { type: 'bureaux'; cabinet: CabinetQr } | null
 
 export default function CabinetsQr({ cabinets, erreur, coproprietes, onModifie, onReessayer, onJournal }: Readonly<PropsCabinetsQr>) {
   const [fenetre, setFenetre] = useState<Fenetre>(null)
   const [messages, setMessages] = useState<string[]>([])
-  const fermer = () => setFenetre(null)
+  // Stable : la fenêtre des bureaux reste ouverte quand la liste des cabinets est relue (la Modale ne se réinitialise pas).
+  const fermer = useCallback(() => setFenetre(null), [])
   const ouvrir = (f: Exclude<Fenetre, null>) => {
     setMessages([])
     setFenetre(f)
@@ -100,6 +106,9 @@ export default function CabinetsQr({ cabinets, erreur, coproprietes, onModifie, 
                   <Bouton variante="secondaire" petit icone="outil" onClick={() => ouvrir({ type: 'modification', cabinet: c })}>{G.cabinets.modifier}</Bouton>
                   <Bouton variante="secondaire" petit icone="annonces" onClick={() => ouvrir({ type: 'diffusion', cabinet: c })}>{TD.reglages.bouton}</Bouton>
                   <Bouton variante="secondaire" petit onClick={() => ouvrir({ type: 'logo', cabinet: c })}>{G.cabinets.logo.bouton}</Bouton>
+                  <Bouton variante="secondaire" petit onClick={() => ouvrir({ type: 'bureaux', cabinet: c })}>
+                    {remplir(G.bureaux.fenetre.bouton, { n: nbBureauxCabinetQr(c) })}
+                  </Bouton>
                 </>
               )}
             >
@@ -138,6 +147,17 @@ export default function CabinetsQr({ cabinets, erreur, coproprietes, onModifie, 
               await onModifie()
               setFenetre(null)
               setMessages([message])
+            }}
+          />
+        </Modale>
+      )}
+      {fenetre?.type === 'bureaux' && (
+        <Modale titre={remplir(G.bureaux.fenetre.titre, { cabinet: fenetre.cabinet.nom })} onFermer={fermer} labelFermer={G.fermer}>
+          <BureauxCabinetQr
+            key={fenetre.cabinet.id} cabinet={fenetre.cabinet} onFermer={fermer}
+            onModifie={async (message) => {
+              await onModifie()
+              if (message) setMessages([message])
             }}
           />
         </Modale>

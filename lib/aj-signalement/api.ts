@@ -21,7 +21,11 @@
 //     copropriété qui lui est attribuée nommément (D-R1 à D-R7, H11). Aucune adresse de déclarant ne passe par ces appels ;
 //   - logo d'un cabinet (demande de Hugo du 13/11/2026) : envoyerLogoCabinetQr, retirerLogoCabinetQr (super admin ; le
 //     PNG part déjà converti par le navigateur, jamais le fichier choisi) ; chargerLogoAfficheQr (image lue par la route
-//     publique pour une affiche PDF, super admin et gestionnaire).
+//     publique pour une affiche PDF, super admin et gestionnaire) ;
+//   - bureaux d'un cabinet (migration 20261119, super admin seul) : chargerBureauxCabinetQr, creerBureauQr,
+//     modifierBureauQr (renommer, fermer, rouvrir) ; bureauId de la création d'une fiche ou d'une copropriété, { bureauId }
+//     d'une fiche, bureauId ou null d'une copropriété, filtres ?bureau= des fiches et du tableau ; le bureau d'une fiche ou
+//     d'une copropriété n'est gardé que s'il a la forme attendue, et aucune clé n'est ajoutée quand il n'y en a pas.
 // Les codes 409 / 410 des routes (doublon, hors_domaine, identifiant_fige…) sont rendus tels quels (CODES_METIER_QR),
 // avec leurs compléments utiles à l'écran (doublon, id de la fiche existante ; diffusion : motif d'un texte refusé, ce
 // qui manque à l'activation, heure d'écriture d'un message à reprendre) ; jamais un texte du serveur.
@@ -44,6 +48,7 @@ import {
   type SignalementSemblableQr,
   type StatutSignalementQr, type SuccessionDepartQr, type SuitePageQr, type TableauQr, type VerificationImportQr,
 } from '@/lib/aj-signalement/types'
+import type { BureauQr, BureauResumeQr } from '@/lib/aj-signalement/bureaux'
 import { analyserPngQr, base64DepuisOctetsQr, cheminLogoCabinetQr, metaLogoDepuisLigneQr } from '@/lib/aj-signalement/logo'
 import type { LogoAfficheQr } from '@/lib/aj-signalement/qr'
 
@@ -60,6 +65,9 @@ export const CODES_METIER_QR = [
   // depuis l'aperçu, reprise d'un message de plus d'une heure à confirmer (409), message non parti en 24 h (410) ;
   // activation du cabinet refusée (réglage manquant, langue non ouverte).
   'diffusion_inactive', 'aucun_destinataire', 'perimetre_change', 'a_confirmer', 'perime', 'cabinet_incomplet', 'langue_non_ouverte',
+  // Bureaux des cabinets (migration 20261119) : nom déjà porté dans le cabinet, 100 bureaux atteints, fermeture d'un
+  // bureau encore utilisé, nouvelle fiche sans bureau, rattachement ou réactivation dans un bureau fermé.
+  'nom_pris', 'plafond_bureaux', 'bureau_utilise', 'bureau_requis', 'bureau_ferme',
 ] as const
 export type CodeMetierQr = (typeof CODES_METIER_QR)[number]
 
@@ -154,6 +162,33 @@ function entetes(jeton: string | null | undefined, json: boolean): Record<string
 const estObjet = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
 const chaine = (v: unknown): string => (typeof v === 'string' ? v : '')
 const entier = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0)
+
+/** Bureau tel qu'une fiche ou une copropriété le porte (vue du super admin), gardé seulement s'il a la forme attendue. */
+export function bureauResumeDepuisCorpsQr(v: unknown): BureauResumeQr | null {
+  if (!estObjet(v) || typeof v.id !== 'string' || typeof v.nom !== 'string' || typeof v.ferme !== 'boolean') return null
+  return { id: v.id, nom: v.nom, ferme: v.ferme }
+}
+
+/** Bureau de la liste d'un cabinet ; écarté sans id, nom ni état ; les autres champs manquants prennent leur valeur par défaut. */
+export function bureauDepuisCorpsQr(v: unknown): BureauQr | null {
+  const resume = bureauResumeDepuisCorpsQr(v)
+  if (!resume || !estObjet(v)) return null
+  return {
+    ...resume, cabinetId: chaine(v.cabinetId), fermeLe: typeof v.fermeLe === 'string' ? v.fermeLe : null, creeLe: chaine(v.creeLe),
+    nbGestionnaires: entier(v.nbGestionnaires), nbCoproprietes: entier(v.nbCoproprietes),
+  }
+}
+
+/**
+ * Objet reçu (fiche, copropriété) avec son bureau seulement s'il a la forme attendue : clé absente quand il n'y en a pas
+ * (aucun bureau, migration 20261119 absente : la réponse reste celle d'avant), écartée si elle est mal formée.
+ */
+function avecBureauLu<T>(v: Record<string, unknown>): T {
+  if (!('bureau' in v)) return v as unknown as T
+  const { bureau, ...reste } = v
+  const resume = bureauResumeDepuisCorpsQr(bureau)
+  return (resume ? { ...reste, bureau: resume } : reste) as unknown as T
+}
 
 /** Doublon d'une réponse 409, gardé seulement s'il a la forme attendue. */
 function doublonDepuisCorps(v: unknown): DoublonRenduQr | null {
@@ -319,7 +354,7 @@ export function normaliserCoproprieteQr(brute: unknown): CoproprieteQr {
     ? (c.creePar as CoproprieteQr['creePar'])
     : defaut.creePar
   return {
-    ...(c as unknown as CoproprieteQr),
+    ...avecBureauLu<CoproprieteQr>(c),
     cabinet: cabinetResume(c.cabinet),
     codePostal: typeof c.codePostal === 'string' ? c.codePostal : defaut.codePostal,
     ville: typeof c.ville === 'string' ? c.ville : defaut.ville,
@@ -339,12 +374,13 @@ export function normaliserCoproprieteQr(brute: unknown): CoproprieteQr {
 
 /**
  * Copropriétés (avec leur QR code) et signalements reçus — super admin. filtre.gestionnaire : la page de suivi de ce
- * gestionnaire (ses copropriétés : attributions et « à tous » de son cabinet).
+ * gestionnaire (ses copropriétés : attributions et « à tous » de son cabinet). filtre.bureau (migration 20261119) : les
+ * copropriétés de ce bureau et leurs signalements (bureau inconnu → introuvable ; migration absente → base_absente).
  */
 export async function chargerTableauQr(
-  jeton: string | null, fetchImpl: Fetch = fetch, filtre: { gestionnaire?: string; cabinet?: string } = {},
+  jeton: string | null, fetchImpl: Fetch = fetch, filtre: { gestionnaire?: string; cabinet?: string; bureau?: string } = {},
 ): Promise<ResultatTableauQr> {
-  const url = `${URL_API_QR}/tableau${requete({ gestionnaire: filtre.gestionnaire, cabinet: filtre.cabinet })}`
+  const url = `${URL_API_QR}/tableau${requete({ gestionnaire: filtre.gestionnaire, cabinet: filtre.cabinet, bureau: filtre.bureau })}`
   const r = await appeler(fetchImpl, url, { method: 'GET', headers: entetes(jeton, false) })
   if (!r.ok) return r
   const tableau = (r.corps as { tableau?: TableauQr } | null)?.tableau
@@ -359,16 +395,27 @@ const coproprieteDepuisCorps = (corps: unknown): ResultatCoproprieteQr => {
     : { ok: false, code: 'serveur' }
 }
 
+/**
+ * Création d'une copropriété. bureauNonPose (bureaux, migration 20261119 : réponse 207 bureau_non_pose) : la copropriété
+ * est créée, mais son bureau n'a pas pu être posé (l'écran le dit ; il se repose par la modification).
+ */
+export type ResultatCreationCoproprieteQr = { ok: true; copropriete: CoproprieteQr; bureauNonPose: boolean } | EchecQr
+
 export async function creerCoproprieteQr(
   saisie: SaisieCoproprieteQr & SaisieGestionCoproprieteQr, jeton: string | null, fetchImpl: Fetch = fetch,
-): Promise<ResultatCoproprieteQr> {
+): Promise<ResultatCreationCoproprieteQr> {
   const r = await appeler(fetchImpl, `${URL_API_QR}/coproprietes`, {
     method: 'POST', headers: entetes(jeton, true), body: JSON.stringify(saisie),
   })
-  return r.ok ? coproprieteDepuisCorps(r.corps) : r
+  if (!r.ok) return r
+  const lue = coproprieteDepuisCorps(r.corps)
+  return lue.ok ? { ...lue, bureauNonPose: estObjet(r.corps) && r.corps.error === 'bureau_non_pose' } : lue
 }
 
-export interface ModificationCoproprieteQr extends Partial<SaisieCoproprieteQr>, Omit<SaisieGestionCoproprieteQr, 'cabinetId' | 'gestionnaireIds'> {
+export interface ModificationCoproprieteQr
+  extends Partial<SaisieCoproprieteQr>, Omit<SaisieGestionCoproprieteQr, 'cabinetId' | 'gestionnaireIds' | 'bureauId'> {
+  /** Bureaux (migration 20261119), super admin : un bureau ouvert du cabinet de la copropriété ; null le retire (facultatif). */
+  bureauId?: string | null
   actif?: boolean
   /** Tire un nouveau jeton : l'ancien QR code ne répond plus (404). */
   regenererJeton?: boolean
@@ -515,14 +562,19 @@ export async function modifierCoproprieteGestionnaireQr(
 
 export type ResultatGestionnairesQr = { ok: true; gestionnaires: GestionnaireQr[] } | EchecQr
 
-/** Fiches gestionnaires (état « actifs » par défaut côté serveur ; « tous » pour la liste de l'espace). */
+/**
+ * Fiches gestionnaires (état « actifs » par défaut côté serveur ; « tous » pour la liste de l'espace). filtre.bureau
+ * (migration 20261119) : l'id d'un bureau (ses fiches), ou FILTRE_SANS_BUREAU_QR (« aucun » : fiches sans bureau d'un
+ * cabinet qui a un bureau ouvert, le « bureau à compléter ») ; migration absente → base_absente.
+ */
 export async function chargerGestionnairesQr(
-  filtre: { etat?: 'actifs' | 'desactives' | 'tous'; cabinet?: string } = {}, fetchImpl: Fetch = fetch,
+  filtre: { etat?: 'actifs' | 'desactives' | 'tous'; cabinet?: string; bureau?: string } = {}, fetchImpl: Fetch = fetch,
 ): Promise<ResultatGestionnairesQr> {
-  const r = await appelerEspace(fetchImpl, `${URL_API_QR}/gestionnaires${requete({ etat: filtre.etat, cabinet: filtre.cabinet })}`, 'GET')
+  const url = `${URL_API_QR}/gestionnaires${requete({ etat: filtre.etat, cabinet: filtre.cabinet, bureau: filtre.bureau })}`
+  const r = await appelerEspace(fetchImpl, url, 'GET')
   if (!r.ok) return r
   const liste = estObjet(r.corps) ? r.corps.gestionnaires : null
-  return { ok: true, gestionnaires: Array.isArray(liste) ? (liste as GestionnaireQr[]) : [] }
+  return { ok: true, gestionnaires: Array.isArray(liste) ? liste.filter(estObjet).map((g) => avecBureauLu<GestionnaireQr>(g)) : [] }
 }
 
 export type ResultatCreationGestionnaireQr =
@@ -536,7 +588,7 @@ export async function creerGestionnaireQr(saisie: SaisieGestionnaireQr, fetchImp
   const c = estObjet(r.corps) ? r.corps : {}
   if (!estObjet(c.gestionnaire) || typeof c.gestionnaire.id !== 'string') return { ok: false, code: 'serveur' }
   return {
-    ok: true, gestionnaire: c.gestionnaire as unknown as GestionnaireQr, emailEnvoye: c.emailEnvoye === true,
+    ok: true, gestionnaire: avecBureauLu<GestionnaireQr>(c.gestionnaire), emailEnvoye: c.emailEnvoye === true,
     coproprietesAvecAdresseSaisie: entier(c.coproprietesAvecAdresseSaisie),
   }
 }
@@ -553,7 +605,7 @@ export async function chargerFicheGestionnaireQr(id: string, fetchImpl: Fetch = 
   return {
     ok: true,
     fiche: {
-      gestionnaire: c.gestionnaire as unknown as GestionnaireQr,
+      gestionnaire: avecBureauLu<GestionnaireQr>(c.gestionnaire),
       envois: liste(c.envois), attributions: liste(c.attributions), creations: liste(c.creations), journal: liste<EvenementJournalQr>(c.journal),
     },
   }
@@ -570,16 +622,20 @@ export type ResultatGestionnaireQr = { ok: true; gestionnaire: GestionnaireQr | 
 /** Code d'une réponse 207 (« fait, sauf … ») ; null si la réponse n'en porte pas. */
 const codeIncomplet = (corps: unknown): string | null => (estObjet(corps) && typeof corps.error === 'string' ? corps.error : null)
 
-/** Une seule action : nom, réactivation, ou effacement (fiche désactivée seulement). */
+/**
+ * Une seule action : nom, réactivation, effacement (fiche désactivée seulement), ou changement de bureau (migration
+ * 20261119 : { bureauId } seul, un bureau ouvert de son cabinet ; jamais « aucun »). Réactivation d'une fiche restée dans
+ * un bureau fermé → bureau_ferme.
+ */
 export async function modifierGestionnaireQr(
-  id: string, action: { nom: string } | { actif: true } | { pseudonymiser: true }, fetchImpl: Fetch = fetch,
+  id: string, action: { nom: string } | { actif: true } | { pseudonymiser: true } | { bureauId: string }, fetchImpl: Fetch = fetch,
 ): Promise<ResultatGestionnaireQr> {
   const r = await appelerEspace(fetchImpl, `${URL_API_QR}/gestionnaires/${segment(id)}`, 'PATCH', action)
   if (!r.ok) return r
   const g = estObjet(r.corps) ? r.corps.gestionnaire : null
   const code = codeIncomplet(r.corps)
   const incomplet = code === 'connexion_non_debloquee' || code === 'compte_non_supprime' ? code : null
-  return { ok: true, gestionnaire: estObjet(g) ? (g as unknown as GestionnaireQr) : null, incomplet }
+  return { ok: true, gestionnaire: estObjet(g) ? avecBureauLu<GestionnaireQr>(g) : null, incomplet }
 }
 
 /**
@@ -758,6 +814,42 @@ export async function chargerLogoAfficheQr(identifiantCabinet: string, logo: Log
   const analyse = analyserPngQr(octets)
   if (!analyse.ok) return { ok: false, code: 'serveur' }
   return { ok: true, logo: { png: octets, largeur: analyse.largeur, hauteur: analyse.hauteur } }
+}
+
+// ── Bureaux d'un cabinet (migration 20261119, super admin seul) ─────────────
+// Routes de la PR 1 : GET et POST /cabinets/[id]/bureaux, PATCH /bureaux/[id]. Refus : 409 nom_pris, plafond_bureaux,
+// bureau_utilise, a_reverifier ; 404 introuvable ; 503 base_absente tant que la migration manque.
+
+export type ResultatBureauxQr = { ok: true; bureaux: BureauQr[] } | EchecQr
+/** Bureau créé ou modifié, relu par la route ; modifie faux : il était déjà dans l'état demandé. */
+export type ResultatBureauQr = { ok: true; bureau: BureauQr; modifie: boolean } | EchecQr
+/** Une seule action par appel : renommer, fermer (fermer: true) ou rouvrir (fermer: false). */
+export type ModificationBureauQr = { nom: string } | { fermer: boolean }
+
+/** Bureaux du cabinet, ouverts et fermés, triés par nom par le serveur, avec leurs rattachements actifs. */
+export async function chargerBureauxCabinetQr(cabinetId: string, fetchImpl: Fetch = fetch): Promise<ResultatBureauxQr> {
+  const r = await appelerEspace(fetchImpl, `${URL_API_QR}/cabinets/${segment(cabinetId)}/bureaux`, 'GET')
+  if (!r.ok) return r
+  const liste = estObjet(r.corps) ? r.corps.bureaux : null
+  return { ok: true, bureaux: Array.isArray(liste) ? liste.map(bureauDepuisCorpsQr).filter((b): b is BureauQr => b !== null) : [] }
+}
+
+/** Bureau d'une réponse de création ou de modification ; sans bureau lisible → serveur. */
+const resultatBureau = (corps: unknown, modifie: boolean): ResultatBureauQr => {
+  const bureau = bureauDepuisCorpsQr(estObjet(corps) ? corps.bureau : null)
+  return bureau ? { ok: true, bureau, modifie } : { ok: false, code: 'serveur' }
+}
+
+/** Création d'un bureau { nom } (rogné par l'écran, 1 à 80 caractères). */
+export async function creerBureauQr(cabinetId: string, nom: string, fetchImpl: Fetch = fetch): Promise<ResultatBureauQr> {
+  const r = await appelerEspace(fetchImpl, `${URL_API_QR}/cabinets/${segment(cabinetId)}/bureaux`, 'POST', { nom })
+  return r.ok ? resultatBureau(r.corps, true) : r
+}
+
+/** Renommer, fermer ou rouvrir un bureau (une seule action). */
+export async function modifierBureauQr(bureauId: string, action: ModificationBureauQr, fetchImpl: Fetch = fetch): Promise<ResultatBureauQr> {
+  const r = await appelerEspace(fetchImpl, `${URL_API_QR}/bureaux/${segment(bureauId)}`, 'PATCH', action)
+  return r.ok ? resultatBureau(r.corps, estObjet(r.corps) && r.corps.modifie === true) : r
 }
 
 // ── Import des copropriétés (lot 5, P1-R19) ──────────────────────────────────
