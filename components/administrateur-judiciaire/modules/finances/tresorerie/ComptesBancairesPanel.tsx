@@ -51,16 +51,19 @@ type Edition = null | { type: 'nouveau' } | { type: 'modifier'; compte: CompteAf
 const messageErreur = (erreur: unknown): string => (erreur instanceof Error ? erreur.message : String(erreur))
 
 const STYLE_SECONDAIRE = { display: 'block', fontSize: 11.5 } as const
+/** IBAN jamais coupé : il se relit chiffre à chiffre. Sur téléphone, le tableau défile alors dans son cadre .tbl-wrap. */
+const STYLE_IBAN = { whiteSpace: 'nowrap' } as const
 
 /**
  * Tableau des comptes, repris de la maquette (Nature, IBAN, Solde ; mêmes styles en ligne), complété du libellé, du BIC
  * et de l'établissement, des pastilles (fonds de travaux, clôture) et des actions. Dans un cadre .tbl-wrap : sur
- * téléphone, il défile dans ce cadre s'il ne tient pas, sans faire déborder la page.
+ * téléphone, il garde une largeur minimale (comme les tableaux .tbl du module) et défile dans ce cadre, l'IBAN jamais
+ * coupé, sans faire déborder la page.
  */
 function TableauComptes({ comptes, ouvrir }: { comptes: readonly CompteAffiche[]; ouvrir: (edition: Edition) => void }) {
   return (
     <div className="tbl-wrap" style={{ marginBottom: 12 }}>
-      <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 13 }}>
+      <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 640, fontSize: 13 }}>
         <thead>
           <tr>
             <th style={{ textAlign: 'left' }}>Nature</th>
@@ -95,7 +98,9 @@ function TableauComptes({ comptes, ouvrir }: { comptes: readonly CompteAffiche[]
                 )}
               </td>
               <td>
-                <span className="mono">{compte.iban ? ibanGroupe(compte.iban) : '—'}</span>
+                <span className="mono" style={STYLE_IBAN}>
+                  {compte.iban ? ibanGroupe(compte.iban) : '—'}
+                </span>
                 {(compte.bic || compte.etablissement) && (
                   <span className="muted" style={STYLE_SECONDAIRE}>
                     {[compte.bic, compte.etablissement].filter(Boolean).join(' · ')}

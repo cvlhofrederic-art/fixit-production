@@ -165,6 +165,10 @@ describe('Comptes bancaires en mode réel — affichage et contrôles', () => {
     expect(ligne.textContent).toContain('Compte courant au nom du syndicat')
     expect(ligne.textContent).toContain('Compte principal')
     expect(ligne.textContent).toContain('FR76 3000 6000 0112 3456 7890 189')
+    // IBAN jamais coupé (relu chiffre à chiffre) : sur téléphone, le tableau défile dans son cadre .tbl-wrap.
+    expect(within(ligne).getByText('FR76 3000 6000 0112 3456 7890 189')).toHaveStyle({ whiteSpace: 'nowrap' })
+    // Largeur minimale, comme les tableaux .tbl du module : la colonne « Nature » reste lisible, le cadre défile.
+    expect(ligne.closest('table')).toHaveStyle({ minWidth: '640px' })
     expect(ligne.textContent).toContain(`${BIC_FICTIF} · Banque d’exemple`)
     expect(within(ligne).getByText('—')).toBeInTheDocument()
     // Actions de la ligne nommées avec le compte visé (le texte visible reste en tête du nom, WCAG 2.5.3).
