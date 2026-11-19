@@ -1358,7 +1358,7 @@ function qualificationDeLaLigne(
 
 /** « ligne 2 » ; « lignes 1 et 3 » ; « lignes 1, 2 et 4 ». */
 const lignesCitees = (rangs: readonly number[]): string =>
-  rangs.length === 1 ? `ligne ${rangs[0]}` : `lignes ${rangs.slice(0, -1).join(', ')} et ${rangs[rangs.length - 1]}`
+  rangs.length === 1 ? `ligne ${rangs[0]}` : `lignes ${rangs.slice(0, -1).join(', ')} et ${rangs.at(-1)}`
 
 /** J77 : règle dont le montant d'un forfait n'est pas saisi : aucune ligne proposée ; l'écart dit quoi saisir. */
 function ecartMontantNonSaisi(regle: RegleHonorairesCourrier, rangs: readonly number[]): RegleHonorairesEcartee {
