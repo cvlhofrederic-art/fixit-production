@@ -9,7 +9,9 @@
 // (rattachement par POST /cabinets/[id]/rattachement, définitif). Bureaux (migration 20261119 ; choix 1, facultatif) :
 // bureauId (ou null pour le retirer), un bureau du cabinet de la copropriété, contrôlé avant toute écriture (sans
 // cabinet → 409 sans_cabinet ; fermé → 409 bureau_ferme ; d'un autre cabinet ou inconnu → 409 a_reverifier ; migration
-// absente → 503) ; journal copropriete.modifiee, champ « bureau » ; la copropriété rendue porte son bureau.
+// absente → 503) ; journal copropriete.modifiee, champ « bureau » ; la copropriété rendue porte son bureau. Réactivation
+// (actif: true) d'une copropriété restée dans un bureau fermé : refusée par la base (trigger), rien d'écrit → 409
+// bureau_ferme ; changer de bureau (ou le retirer) dans le même corps.
 //   - doublons revérifiés si nom, code postal, immatriculation ou référence changent (forçage du super admin) ;
 //   - une adresse AJOUTÉE aux destinataires est refusée si c'est celle d'une fiche gestionnaire (400), et soumise à
 //     confirmerHorsDomaine si elle est hors des domaines du cabinet (409) ; une adresse déjà présente ne bloque rien ;

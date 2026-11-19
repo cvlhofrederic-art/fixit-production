@@ -168,9 +168,9 @@ describe('Fonctions et triggers', () => {
     for (const nom of FONCTIONS_TRIGGER) expect(fonction(nom).entete).toMatch(/RETURNS trigger/)
   })
 
-  it('triggers : nouvelle fiche, changement de bureau d’une fiche ou d’une copropriété ; updated_at des bureaux', () => {
-    expect(code).toMatch(/CREATE OR REPLACE TRIGGER trg_signalements_qr_gestionnaires_bureau\s+BEFORE INSERT OR UPDATE OF bureau_id ON signalements_qr_gestionnaires\s+FOR EACH ROW EXECUTE FUNCTION signalements_qr_bureau_du_gestionnaire\(\);/)
-    expect(code).toMatch(/CREATE OR REPLACE TRIGGER trg_signalements_qr_copros_bureau\s+BEFORE INSERT OR UPDATE OF bureau_id ON signalements_qr_coproprietes\s+FOR EACH ROW EXECUTE FUNCTION signalements_qr_bureau_de_la_copropriete\(\);/)
+  it('triggers : nouvelle fiche, changement de bureau ou réactivation d’une fiche ou d’une copropriété ; updated_at des bureaux', () => {
+    expect(code).toMatch(/CREATE OR REPLACE TRIGGER trg_signalements_qr_gestionnaires_bureau\s+BEFORE INSERT OR UPDATE OF bureau_id, actif ON signalements_qr_gestionnaires\s+FOR EACH ROW EXECUTE FUNCTION signalements_qr_bureau_du_gestionnaire\(\);/)
+    expect(code).toMatch(/CREATE OR REPLACE TRIGGER trg_signalements_qr_copros_bureau\s+BEFORE INSERT OR UPDATE OF bureau_id, actif ON signalements_qr_coproprietes\s+FOR EACH ROW EXECUTE FUNCTION signalements_qr_bureau_de_la_copropriete\(\);/)
     expect(code).toMatch(/CREATE OR REPLACE TRIGGER trg_signalements_qr_bureaux_updated_at\s+BEFORE UPDATE ON signalements_qr_bureaux FOR EACH ROW EXECUTE FUNCTION set_updated_at\(\);/)
   })
 
@@ -180,6 +180,16 @@ describe('Fonctions et triggers', () => {
     expect(corps).toContain('SELECT b.ferme_le INTO v_ferme FROM signalements_qr_bureaux b WHERE b.id = NEW.bureau_id FOR SHARE;')
     expect(corps).toContain("RAISE EXCEPTION 'bureau_ferme'")
     expect(corps).not.toMatch(/INSERT|DELETE|UPDATE signalements/)
+  })
+
+  it('réactivation (actif faux → vrai, bureau inchangé) : contrôlée comme un rattachement, fiche et copropriété (bureau_ferme)', () => {
+    const fiche = compacter(fonction('signalements_qr_bureau_du_gestionnaire').corps)
+    expect(fiche).toContain("IF TG_OP = 'UPDATE' AND NEW.bureau_id IS NOT DISTINCT FROM OLD.bureau_id THEN")
+    expect(fiche).toContain('IF NEW.bureau_id IS NULL OR NOT NEW.actif OR OLD.actif THEN RETURN NEW; END IF;')
+    expect(fiche.indexOf('NOT NEW.actif OR OLD.actif')).toBeLessThan(fiche.indexOf('FOR SHARE'))
+    const copro = compacter(fonction('signalements_qr_bureau_de_la_copropriete').corps)
+    expect(copro).toContain("(TG_OP = 'UPDATE' AND NEW.bureau_id IS NOT DISTINCT FROM OLD.bureau_id AND (NOT NEW.actif OR OLD.actif))")
+    expect(copro.indexOf('NOT NEW.actif OR OLD.actif')).toBeLessThan(copro.indexOf('FOR SHARE'))
   })
 
   it('copropriété : seul le rattachement à un bureau fermé est refusé (bureau facultatif)', () => {

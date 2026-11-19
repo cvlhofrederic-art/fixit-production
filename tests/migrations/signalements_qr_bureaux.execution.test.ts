@@ -10,7 +10,8 @@
 //   - règles : nom unique à la casse et aux espaces près, bureau d'un autre cabinet refusé (fiche et copropriété),
 //     copropriété sans cabinet sans bureau, nouvelle fiche sans bureau refusée si le cabinet a un bureau OUVERT (et
 //     seulement alors), fiches existantes jamais bloquées, bureau d'une fiche changé mais jamais retiré, bureau fermé
-//     refusé pour un nouveau rattachement, fermeture d'un bureau utilisé refusée ;
+//     refusé pour un nouveau rattachement et pour une réactivation (fiche ou copropriété : un bureau fermé n'a jamais
+//     de rattachement actif), fermeture d'un bureau utilisé refusée ;
 //   - journal : actions existantes (cabinet.modifie {bureaux}), énumérations et identifiants, jamais le nom ;
 //   - droits : RLS sans politique, rien pour anon ni authenticated, EXECUTE à service_role seul ;
 //   - retour arrière : il s'exécute, rend le schéma d'avant (empreinte), se rejoue, et la migration repasse ensuite.
@@ -168,6 +169,10 @@ async function inviter(cab: string, bureauId?: string | null): Promise<Appel<{ r
     g, { id: randomUUID(), invite_token: randomBytes(24).toString('hex'), email }, [], SUPER_ADMIN,
   ])
 }
+
+/** Réactivation d'une fiche par la fonction de la route (PATCH /gestionnaires/[id] { actif: true }). */
+const reactiverFiche = (fiche: string) =>
+  sous<{ r: boolean }>('service_role', 'SELECT signalements_qr_reactiver_gestionnaire($1, $2) AS r', [fiche, SUPER_ADMIN])
 
 async function copro(cab: string | null, bureauId: string | null = null, actif = true): Promise<Appel<{ id: string }>> {
   compteur += 1
@@ -354,14 +359,39 @@ describe('bureau d’une fiche gestionnaire', () => {
     expect(await bureauDe('signalements_qr_gestionnaires', fiche)).toBe(sud)
   })
 
-  it('rattachée à un bureau fermé depuis : la fiche le garde, et reste modifiable (désactivée, réactivée, renommée)', async () => {
+  it('rattachée à un bureau fermé depuis : la fiche le garde et reste modifiable ; sa réactivation est refusée (bureau_ferme) tant qu’elle n’a pas changé de bureau', async () => {
     const cab = await cabinet()
     const nord = await bureau(cab, 'Nord')
+    const sud = await bureau(cab, 'Sud')
     const fiche = (await inviter(cab, nord)).lignes[0].r
     await q('UPDATE signalements_qr_gestionnaires SET actif = false WHERE id = $1', [fiche])
     expect((await fermer(nord, true)).erreur).toBeNull()
-    expect((await sous('service_role', `UPDATE signalements_qr_gestionnaires SET actif = true, nom = 'Prénom Autre' WHERE id = $1`, [fiche])).erreur).toBeNull()
-    expect(await bureauDe('signalements_qr_gestionnaires', fiche)).toBe(nord)
+    expect((await sous('service_role', `UPDATE signalements_qr_gestionnaires SET nom = 'Prénom Autre' WHERE id = $1`, [fiche])).erreur).toBeNull()
+    // Réactivation par la fonction de la route (PATCH { actif: true }) comme en écriture directe : refusée, rien d'écrit.
+    expect((await reactiverFiche(fiche)).erreur).toMatchObject({ code: 'P0001', message: 'bureau_ferme' })
+    expect((await sous('service_role', 'UPDATE signalements_qr_gestionnaires SET actif = true WHERE id = $1', [fiche])).erreur)
+      .toMatchObject({ code: 'P0001', message: 'bureau_ferme' })
+    expect(await q('SELECT actif, bureau_id FROM signalements_qr_gestionnaires WHERE id = $1', [fiche])).toEqual([{ actif: false, bureau_id: nord }])
+    expect(await q(`SELECT 1 FROM signalements_qr_journal WHERE gestionnaire_id = $1 AND action = 'gestionnaire.reactive'`, [fiche])).toEqual([])
+    // Changer de bureau d'abord (permis sur une fiche désactivée : PATCH { bureauId }), puis réactiver : accepté.
+    expect((await sous('service_role', 'UPDATE signalements_qr_gestionnaires SET bureau_id = $2 WHERE id = $1', [fiche, sud])).erreur).toBeNull()
+    expect((await reactiverFiche(fiche)).lignes[0]?.r).toBe(true)
+  })
+
+  it('réactivation acceptée : bureau ouvert, ou changé dans la même écriture ; actif redit sur une fiche active : jamais une réactivation', async () => {
+    const cab = await cabinet()
+    const nord = await bureau(cab, 'Nord')
+    const sud = await bureau(cab, 'Sud')
+    const ouverte = (await inviter(cab, nord)).lignes[0].r
+    const deplacee = (await inviter(cab, nord)).lignes[0].r
+    await q('UPDATE signalements_qr_gestionnaires SET actif = false WHERE id = ANY ($1)', [[ouverte, deplacee]])
+    expect((await reactiverFiche(ouverte)).lignes[0]?.r).toBe(true)
+    await q('UPDATE signalements_qr_gestionnaires SET bureau_id = $2 WHERE id = $1', [ouverte, sud])
+    expect((await fermer(nord, true)).erreur).toBeNull()
+    expect((await sous('service_role', 'UPDATE signalements_qr_gestionnaires SET bureau_id = $2, actif = true WHERE id = $1', [deplacee, sud])).erreur).toBeNull()
+    // Bureau fermé par une écriture hors des fonctions, fiche restée active : actif = true redit ne la bloque pas.
+    await q('UPDATE signalements_qr_bureaux SET ferme_le = now() WHERE id = $1', [sud])
+    expect((await sous('service_role', `UPDATE signalements_qr_gestionnaires SET nom = 'Prénom Actif', actif = true WHERE id = $1`, [ouverte])).erreur).toBeNull()
   })
 })
 
@@ -395,8 +425,27 @@ describe('bureau d’une copropriété', () => {
     const autre = (await copro(cab)).lignes[0].id
     expect((await sous('service_role', 'UPDATE signalements_qr_coproprietes SET bureau_id = $2 WHERE id = $1', [autre, nord])).erreur)
       .toMatchObject({ code: 'P0001', message: 'bureau_ferme' })
-    expect((await sous('service_role', `UPDATE signalements_qr_coproprietes SET nom = 'Résidence renommée', actif = true, bureau_id = $2 WHERE id = $1`, [c, nord])).erreur).toBeNull()
+    expect((await sous('service_role', `UPDATE signalements_qr_coproprietes SET nom = 'Résidence renommée', bureau_id = $2 WHERE id = $1`, [c, nord])).erreur).toBeNull()
     expect(await bureauDe('signalements_qr_coproprietes', c)).toBe(nord)
+  })
+
+  it('réactivation dans un bureau fermé : refusée (bureau_ferme), bureau gardé ou redit ; acceptée en changeant de bureau, ou en le retirant, dans la même écriture', async () => {
+    const cab = await cabinet()
+    const nord = await bureau(cab, 'Nord')
+    const sud = await bureau(cab, 'Sud')
+    const c1 = (await copro(cab, nord, false)).lignes[0].id
+    const c2 = (await copro(cab, nord, false)).lignes[0].id
+    expect((await fermer(nord, true)).erreur).toBeNull()
+    for (const sql of ['UPDATE signalements_qr_coproprietes SET actif = true WHERE id = $1',
+      `UPDATE signalements_qr_coproprietes SET actif = true, nom = 'Résidence active', bureau_id = '${nord}' WHERE id = $1`]) {
+      expect((await sous('service_role', sql, [c1])).erreur, sql).toMatchObject({ code: 'P0001', message: 'bureau_ferme' })
+    }
+    expect(await q('SELECT actif, bureau_id FROM signalements_qr_coproprietes WHERE id = $1', [c1])).toEqual([{ actif: false, bureau_id: nord }])
+    expect((await sous('service_role', 'UPDATE signalements_qr_coproprietes SET actif = true, bureau_id = $2 WHERE id = $1', [c1, sud])).erreur).toBeNull()
+    expect((await sous('service_role', 'UPDATE signalements_qr_coproprietes SET actif = true, bureau_id = NULL WHERE id = $1', [c2])).erreur).toBeNull()
+    // Bureau fermé par une écriture hors des fonctions, copropriété restée active : actif = true redit ne la bloque pas.
+    await q('UPDATE signalements_qr_bureaux SET ferme_le = now() WHERE id = $1', [sud])
+    expect((await sous('service_role', `UPDATE signalements_qr_coproprietes SET nom = 'Résidence Sud', actif = true WHERE id = $1`, [c1])).erreur).toBeNull()
   })
 
   it('changer de bureau ne change pas le cabinet ; le rattachement définitif au cabinet reste (cabinet_fige)', async () => {
@@ -439,6 +488,29 @@ describe('fermeture et réouverture d’un bureau', () => {
     expect(await bureauDe('signalements_qr_coproprietes', c)).toBe(nord)
   })
 
+  it('bureau fermé : aucune réactivation ne le rend de nouveau « utilisé » (fiche par la fonction de la route, copropriété : bureau_ferme) ; rouvert, elles se réactivent', async () => {
+    const cab = await cabinet()
+    const nord = await bureau(cab, 'Nord')
+    const fiche = (await inviter(cab, nord)).lignes[0].r
+    const c = (await copro(cab, nord)).lignes[0].id
+    expect((await fermer(nord, true)).erreur).toMatchObject({ code: 'P0001', message: 'bureau_utilise' })
+    await q('UPDATE signalements_qr_gestionnaires SET actif = false, desactive_le = now() WHERE id = $1', [fiche])
+    await q('UPDATE signalements_qr_coproprietes SET actif = false WHERE id = $1', [c])
+    expect((await fermer(nord, true)).erreur).toBeNull()
+    expect((await reactiverFiche(fiche)).erreur).toMatchObject({ code: 'P0001', message: 'bureau_ferme' })
+    expect((await sous('service_role', 'UPDATE signalements_qr_coproprietes SET actif = true WHERE id = $1', [c])).erreur)
+      .toMatchObject({ code: 'P0001', message: 'bureau_ferme' })
+    const etat = async () => (await q<{ bureau_ferme: boolean; fiches_actives: number; copros_actives: number }>(
+      `SELECT (SELECT ferme_le IS NOT NULL FROM signalements_qr_bureaux WHERE id = $1) AS bureau_ferme,
+              (SELECT count(*)::int FROM signalements_qr_gestionnaires WHERE bureau_id = $1 AND actif) AS fiches_actives,
+              (SELECT count(*)::int FROM signalements_qr_coproprietes WHERE bureau_id = $1 AND actif) AS copros_actives`, [nord]))[0]
+    expect(await etat()).toEqual({ bureau_ferme: true, fiches_actives: 0, copros_actives: 0 })
+    expect((await fermer(nord, false)).erreur).toBeNull()
+    expect((await reactiverFiche(fiche)).lignes[0]?.r).toBe(true)
+    expect((await sous('service_role', 'UPDATE signalements_qr_coproprietes SET actif = true WHERE id = $1', [c])).erreur).toBeNull()
+    expect(await etat()).toEqual({ bureau_ferme: false, fiches_actives: 1, copros_actives: 1 })
+  })
+
   it('bureau inconnu : a_reverifier ; paramètre absent : 22023', async () => {
     expect((await fermer(randomUUID(), true)).erreur).toMatchObject({ code: 'P0001', message: 'a_reverifier' })
     const id = await bureau(await cabinet(), 'Nord')
@@ -470,12 +542,18 @@ describe('droits : anon et authenticated n’ont rien, service_role seul exécut
     }
   })
 
-  it('copropriété : droits d’aujourd’hui gardés (RLS sans politique) : anon ne lit aucune ligne, pas même son bureau', async () => {
+  it.each(['anon', 'authenticated'] as const)('copropriété : droits d’aujourd’hui gardés (droits de la table jamais retirés, RLS sans politique) : %s ne lit ni ne change aucune ligne, pas même son bureau', async (role) => {
     const cab = await cabinet()
-    await copro(cab, await bureau(cab, 'Nord'))
-    const r = await sous('anon', 'SELECT bureau_id FROM signalements_qr_coproprietes')
-    expect(r.erreur).toBeNull()
-    expect(r.lignes).toEqual([])
+    const c = (await copro(cab, await bureau(cab, 'Nord'))).lignes[0].id
+    // Écart avec le plan § 3.7, à trancher : les droits de la table ne sont pas retirés ici ; seule la RLS les arrête.
+    expect((await q<{ x: boolean }>(`SELECT has_column_privilege($1, 'signalements_qr_coproprietes', 'bureau_id', 'SELECT') AS x`, [role]))[0].x).toBe(true)
+    const lecture = await sous(role, 'SELECT bureau_id FROM signalements_qr_coproprietes')
+    expect(lecture.erreur).toBeNull()
+    expect(lecture.lignes).toEqual([])
+    const ecriture = await sous(role, 'UPDATE signalements_qr_coproprietes SET bureau_id = NULL RETURNING id')
+    expect(ecriture.erreur).toBeNull()
+    expect(ecriture.lignes).toEqual([])
+    expect(await bureauDe('signalements_qr_coproprietes', c)).not.toBeNull()
   })
 
   it('service_role exécute les trois fonctions des routes ; RLS active sans aucune politique sur la table des bureaux', async () => {

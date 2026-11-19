@@ -3,8 +3,8 @@
 // GET (P1-R15) — export RGPD des données d'un gestionnaire (droit d'accès, demandé par le cabinet, responsable de
 // traitement ; VitFix est sous-traitant) : fiche, envois (jamais le jeton), attributions, ses lignes du journal. Fichier
 // JSON en pièce jointe, jamais en cache ; l'export lui-même est journalisé (gestionnaire.exporte). 10 par heure.
-// Bureaux (migration 20261119) : le bureau de la fiche (identifiant et nom), une donnée de la fiche ; null sans bureau,
-// ou tant que la migration manque (repli journalisé).
+// Bureaux (migration 20261119) : le bureau de la fiche (identifiant et nom), une donnée de la fiche ; clé ABSENTE sans
+// bureau, ou tant que la migration manque (repli journalisé) : l'export reste celui d'avant tant qu'aucun bureau n'existe.
 
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
@@ -38,7 +38,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         .order('created_at', { ascending: true }),
       avecBureauxGestionnairesQr([{ id }]),
     ])
-    const bureau = avecBureau?.bureau ? { id: avecBureau.bureau.id, nom: avecBureau.bureau.nom } : null
+    const champBureau = avecBureau?.bureau ? { bureau: { id: avecBureau.bureau.id, nom: avecBureau.bureau.nom } } : {}
     if (!envois.ok) return reponseErreurSqlQr(envois.erreur, 'export : envois', { gestionnaire: id })
     for (const r of [attributions, journal]) if (r.error) return reponseErreurSqlQr(r.error, 'export', { gestionnaire: id })
 
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       fiche: {
         id: f.id, cabinetId: f.cabinet_id, nom: f.nom, email: f.email, actif: f.actif === true, domaineForce: f.domaine_force === true,
         creeLe: f.created_at, adresseConfirmeeLe: f.adresse_confirmee_le, adresseContesteeLe: f.adresse_contestee_le,
-        desactiveLe: f.desactive_le, pseudonymiseLe: f.pseudonymise_le, bureau,
+        desactiveLe: f.desactive_le, pseudonymiseLe: f.pseudonymise_le, ...champBureau,
       },
       envois: envois.valeur.map(envoiDepuisLigneQr),
       attributions: attributions.data ?? [],

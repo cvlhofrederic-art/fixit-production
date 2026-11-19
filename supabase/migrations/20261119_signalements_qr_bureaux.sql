@@ -7,7 +7,8 @@
 -- (3) bureaux créés par le super admin seul en V1 ; (4) pas d'adresse de contact par bureau en V1 ; (5) visibilité
 -- inchangée, le bureau sert de filtre. Réponses proposées aux questions ouvertes du plan, appliquées ici et à valider :
 -- bureau facultatif pour une copropriété ; un bureau encore utilisé (gestionnaire actif ou copropriété active) ne se
--- ferme pas ; le bureau d'une fiche se change, il ne se retire pas ; journal par des actions EXISTANTES (option A).
+-- ferme pas, et rien ne s'y réactive une fois fermé (un bureau fermé n'a jamais de rattachement actif) ; le bureau
+-- d'une fiche se change, il ne se retire pas ; journal par des actions EXISTANTES (option A).
 -- Aucune valeur ici (ni cabinet, ni bureau) : le dépôt est public, les bureaux se saisissent dans l'espace.
 --
 -- Contenu : la table signalements_qr_bureaux (cabinet, nom unique dans le cabinet à la casse et aux espaces près,
@@ -18,7 +19,9 @@
 --   - nouvelle fiche sans bureau dans un cabinet qui a un bureau ouvert : bureau_requis (une fiche existante n'est
 --     jamais bloquée ; tant qu'aucun bureau n'existe, rien ne change pour personne) ;
 --   - fiche qui a un bureau : il se change, il ne se retire pas (bureau_requis) ;
---   - rattacher une fiche ou une copropriété à un bureau fermé : bureau_ferme (ce qui y est déjà rattaché le reste).
+--   - rattacher une fiche ou une copropriété à un bureau fermé : bureau_ferme (ce qui y est déjà rattaché le reste) ;
+--   - réactiver une fiche ou une copropriété (actif faux → vrai) restée dans un bureau fermé : bureau_ferme, comme un
+--     rattachement (changer de bureau d'abord, ou dans la même écriture) ; sinon la fermeture se contournerait.
 -- Fonctions appelées par les routes : signalements_qr_enregistrer_bureau (création ou renommage),
 -- signalements_qr_fermer_bureau (fermeture ou réouverture), et signalements_qr_inviter_gestionnaire, MÊME signature,
 -- redéfinie à partir de son texte de la 20261112 (dernière définition), avec une seule différence : elle lit bureauId
@@ -32,8 +35,9 @@
 -- quelles au navigateur.
 -- Droits : RLS activée sans politique sur la table nouvelle, droits retirés à PUBLIC, anon et authenticated ; EXECUTE
 -- des fonctions à service_role seul ; fonctions SECURITY INVOKER, chemin de recherche figé. Droits de la fiche redits
--- (colonne nouvelle, sans effet). La copropriété garde ses droits d'aujourd'hui : RLS sans politique, comme ses autres
--- colonnes.
+-- (colonne nouvelle, sans effet). La copropriété garde ses droits d'aujourd'hui, comme ses autres colonnes : les droits
+-- de la table n'ont jamais été retirés à anon et authenticated (20261104), seule la RLS sans politique les arrête (aucune
+-- ligne lue ni écrite) ; les retirer toucherait une table existante (à trancher, hors de cette migration).
 --
 -- Additive et rejouable (modèle 20261114) : CREATE TABLE / INDEX IF NOT EXISTS, ADD COLUMN IF NOT EXISTS, contraintes
 -- nommées créées seulement si absentes de pg_constraint, en NOT VALID puis VALIDATE, CREATE OR REPLACE FUNCTION et
@@ -66,7 +70,7 @@ CREATE TABLE IF NOT EXISTS signalements_qr_bureaux (
 CREATE UNIQUE INDEX IF NOT EXISTS uq_signalements_qr_bureaux_nom
   ON signalements_qr_bureaux (cabinet_id, lower(btrim(nom)));
 COMMENT ON TABLE signalements_qr_bureaux IS 'AJ Signalement : bureaux d''un cabinet client, créés par le super admin (V1 : nom et fermeture, aucune adresse de contact).';
-COMMENT ON COLUMN signalements_qr_bureaux.ferme_le IS 'NULL : bureau ouvert ; une date : bureau fermé (aucun nouveau rattachement ; ce qui y est rattaché le reste).';
+COMMENT ON COLUMN signalements_qr_bureaux.ferme_le IS 'NULL : bureau ouvert ; une date : bureau fermé (aucun nouveau rattachement ni aucune réactivation ; ce qui y est rattaché le reste).';
 
 -- ── 2. Bureau d'une fiche gestionnaire et d'une copropriété ──
 ALTER TABLE signalements_qr_gestionnaires ADD COLUMN IF NOT EXISTS bureau_id UUID;
@@ -108,17 +112,21 @@ COMMENT ON COLUMN signalements_qr_coproprietes.bureau_id IS 'Bureau de la coprop
 -- ── 3. Règles posées par la base (fonctions de trigger) ──
 -- Fiche gestionnaire. Nouvelle fiche sans bureau : refusée dès que son cabinet a un bureau OUVERT (choix 2) ;
 -- une fiche existante ne passe jamais par l'insertion (rien ne la bloque). Fiche qui a un bureau : il se change, il ne se
--- retire pas. Bureau fermé : refusé pour un nouveau rattachement ; le bureau est verrouillé (FOR SHARE) jusqu'à la fin de
--- la transaction : une fermeture concurrente attend, puis voit ce rattachement (bureau_utilise).
+-- retire pas. Bureau fermé : refusé pour un nouveau rattachement, et pour une réactivation (actif faux → vrai, bureau
+-- inchangé : la fermeture ne compte que les fiches actives, une réactivation la contournerait) ; le bureau est verrouillé
+-- (FOR SHARE) jusqu'à la fin de la transaction : une fermeture concurrente attend, puis voit ce rattachement
+-- (bureau_utilise).
 CREATE OR REPLACE FUNCTION signalements_qr_bureau_du_gestionnaire() RETURNS trigger
 LANGUAGE plpgsql SECURITY INVOKER SET search_path = public, pg_temp AS $fn$
 DECLARE
   v_ferme timestamptz;
 BEGIN
   IF TG_OP = 'UPDATE' AND NEW.bureau_id IS NOT DISTINCT FROM OLD.bureau_id THEN
-    RETURN NEW;
-  END IF;
-  IF NEW.bureau_id IS NULL THEN
+    -- Bureau inchangé : seule une réactivation dans un bureau est contrôlée (fermé : bureau_ferme, plus bas).
+    IF NEW.bureau_id IS NULL OR NOT NEW.actif OR OLD.actif THEN
+      RETURN NEW;
+    END IF;
+  ELSIF NEW.bureau_id IS NULL THEN
     IF TG_OP = 'UPDATE' OR EXISTS (SELECT 1 FROM signalements_qr_bureaux b
                                     WHERE b.cabinet_id = NEW.cabinet_id AND b.ferme_le IS NULL) THEN
       RAISE EXCEPTION 'bureau_requis' USING ERRCODE = 'P0001';
@@ -133,13 +141,15 @@ BEGIN
   RETURN NEW;
 END $fn$;
 
--- Copropriété : bureau facultatif ; seul le rattachement à un bureau fermé est refusé (même verrou que la fiche).
+-- Copropriété : bureau facultatif ; seuls le rattachement à un bureau fermé et la réactivation d'une copropriété restée
+-- dans un bureau fermé sont refusés (même verrou que la fiche).
 CREATE OR REPLACE FUNCTION signalements_qr_bureau_de_la_copropriete() RETURNS trigger
 LANGUAGE plpgsql SECURITY INVOKER SET search_path = public, pg_temp AS $fn$
 DECLARE
   v_ferme timestamptz;
 BEGIN
-  IF NEW.bureau_id IS NULL OR (TG_OP = 'UPDATE' AND NEW.bureau_id IS NOT DISTINCT FROM OLD.bureau_id) THEN
+  IF NEW.bureau_id IS NULL
+     OR (TG_OP = 'UPDATE' AND NEW.bureau_id IS NOT DISTINCT FROM OLD.bureau_id AND (NOT NEW.actif OR OLD.actif)) THEN
     RETURN NEW;
   END IF;
   SELECT b.ferme_le INTO v_ferme FROM signalements_qr_bureaux b WHERE b.id = NEW.bureau_id FOR SHARE;
@@ -205,9 +215,10 @@ END $fn$;
 
 -- Fermeture (p_fermer vrai) ou réouverture d'un bureau (route du super admin). Fermer un bureau auquel est encore
 -- rattaché un gestionnaire actif ou une copropriété active : bureau_utilise (proposé, à valider : rattacher d'abord
--- ailleurs). Bureau inconnu : a_reverifier. Déjà dans l'état demandé : rien n'est écrit ni journalisé (modifie = false).
--- Le bureau est verrouillé (FOR UPDATE) avant le contrôle : un rattachement concurrent attend, puis voit la fermeture
--- (bureau_ferme), ou se fait attendre et est vu (bureau_utilise).
+-- ailleurs). Les rattachements inactifs restent, mais ne s'y réactivent plus tant qu'il est fermé (triggers, section 3).
+-- Bureau inconnu : a_reverifier. Déjà dans l'état demandé : rien n'est écrit ni journalisé (modifie = false).
+-- Le bureau est verrouillé (FOR UPDATE) avant le contrôle : un rattachement ou une réactivation concurrents attendent,
+-- puis voient la fermeture (bureau_ferme), ou se font attendre et sont vus (bureau_utilise).
 CREATE OR REPLACE FUNCTION signalements_qr_fermer_bureau(p_bureau uuid, p_fermer boolean, p_acteur uuid) RETURNS jsonb
 LANGUAGE plpgsql SECURITY INVOKER SET search_path = public, pg_temp AS $fn$
 DECLARE
@@ -330,10 +341,10 @@ END $fn$;
 CREATE OR REPLACE TRIGGER trg_signalements_qr_bureaux_updated_at
   BEFORE UPDATE ON signalements_qr_bureaux FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 CREATE OR REPLACE TRIGGER trg_signalements_qr_gestionnaires_bureau
-  BEFORE INSERT OR UPDATE OF bureau_id ON signalements_qr_gestionnaires
+  BEFORE INSERT OR UPDATE OF bureau_id, actif ON signalements_qr_gestionnaires
   FOR EACH ROW EXECUTE FUNCTION signalements_qr_bureau_du_gestionnaire();
 CREATE OR REPLACE TRIGGER trg_signalements_qr_copros_bureau
-  BEFORE INSERT OR UPDATE OF bureau_id ON signalements_qr_coproprietes
+  BEFORE INSERT OR UPDATE OF bureau_id, actif ON signalements_qr_coproprietes
   FOR EACH ROW EXECUTE FUNCTION signalements_qr_bureau_de_la_copropriete();
 
 -- ── 7. Droits : EXECUTE réservé à service_role (signatures complètes) ──

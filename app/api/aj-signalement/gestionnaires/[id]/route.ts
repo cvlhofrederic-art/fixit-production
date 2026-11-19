@@ -15,6 +15,8 @@
 //   fiche sans compte : la réponse de la PR 1, sans appel à l'authentification.
 //   Bureaux (migration 20261119) : action seule `bureauId` (changer de bureau, jamais revenir à « aucun ») ; journal
 //   gestionnaire.modifie, champs {bureau}. La fiche rendue (GET et PATCH) porte son bureau quand elle en a un.
+//   Réactivation d'une fiche restée dans un bureau fermé : refusée par la base (trigger) → 409 bureau_ferme ; changer
+//   d'abord de bureau (permis sur une fiche désactivée).
 
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'

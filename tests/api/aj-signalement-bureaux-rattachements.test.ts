@@ -8,9 +8,11 @@
 //   POST  /gestionnaires                bureauId transmis à la fonction SQL ; 409 bureau_requis (cabinet qui a un bureau
 //                                       ouvert, aucun choisi), bureau_ferme, a_reverifier (bureau d'un autre cabinet) ;
 //   PATCH /gestionnaires/[id]           action seule { bureauId } (changer, jamais retirer), journal {bureau} ;
-//   GET   /gestionnaires/[id]/export    bureau de la fiche dans l'export ;
+//                                       { actif: true } dans un bureau fermé : 409 bureau_ferme (refus de la base) ;
+//   GET   /gestionnaires/[id]/export    bureau de la fiche dans l'export (clé posée seulement si elle en a un) ;
 //   POST  /coproprietes                 bureauId facultatif, posé juste après la création (207 s'il ne l'est pas) ;
-//   PATCH /coproprietes/[id]            bureauId (ou null), journal {bureau} ;
+//   PATCH /coproprietes/[id]            bureauId (ou null), journal {bureau} ; { actif: true } dans un bureau fermé :
+//                                       409 bureau_ferme (refus de la base) ;
 //   GET   /tableau                      bureau de chaque copropriété ; ?bureau=<id>.
 // Non-régression (choix 5, visibilité inchangée) : un gestionnaire voit exactement la même chose avec ou sans
 // bureaux, et ses réponses n'ont aucune clé nouvelle ; il ne peut ni filtrer par bureau ni poser un bureau. Tant
@@ -131,6 +133,8 @@ const modifierFiche = (id: string, corps: unknown) => MODIFIER_FICHE(requeteQr(`
 const creerCopro = (corps: unknown) => CREER_COPRO(requeteQr('/api/aj-signalement/coproprietes', 'POST', corps))
 const modifierCopro = (id: string, corps: unknown) => MODIFIER_COPRO(requeteQr(`/api/aj-signalement/coproprietes/${id}`, 'PATCH', corps), contexteQr(id))
 const appels = (nom: string) => baseQr.etat.appelsRpc.filter((a) => a.nom === nom)
+const exporterFiche = async (id: string) =>
+  (await json(await EXPORT(requeteQr(`/api/aj-signalement/gestionnaires/${id}/export`), contexteQr(id)))).fiche as Ligne
 
 describe('tant qu’aucun bureau n’existe : rien ne change pour personne', () => {
   it('cabinets, gestionnaires, fiche et tableau du super admin : aucune clé de bureau', async () => {
@@ -143,6 +147,7 @@ describe('tant qu’aucun bureau n’existe : rien ne change pour personne', () 
     for (const g of gestionnaires) expect(g).not.toHaveProperty('bureau')
     const fiche = await json(await FICHE(requeteQr(`/api/aj-signalement/gestionnaires/${G1}`), contexteQr(G1)))
     expect(fiche.gestionnaire).not.toHaveProperty('bureau')
+    expect(await exporterFiche(G1)).not.toHaveProperty('bureau')
     const { corps } = await lireTableau()
     for (const c of (corps.tableau as { coproprietes: Ligne[] }).coproprietes) expect(c).not.toHaveProperty('bureau')
   })
@@ -328,14 +333,42 @@ describe('PATCH /gestionnaires/[id] : { bureauId } (changer, jamais retirer)', (
 })
 
 describe('GET /gestionnaires/[id]/export : bureau de la fiche', () => {
-  it('nom et identifiant du bureau de la fiche ; null sans bureau ; null aussi sans la migration', async () => {
+  it('nom et identifiant du bureau de la fiche ; clé absente sans bureau, et sans la migration (export d’avant)', async () => {
     poserBureaux()
     Object.assign(ligne('signalements_qr_gestionnaires', G1), { bureau_id: NORD })
-    const exporter = async (id: string) => (await json(await EXPORT(requeteQr(`/api/aj-signalement/gestionnaires/${id}/export`), contexteQr(id)))).fiche as Ligne
-    expect((await exporter(G1)).bureau).toEqual({ id: NORD, nom: 'Nord' })
-    expect((await exporter(G2)).bureau).toBeNull()
+    expect((await exporterFiche(G1)).bureau).toEqual({ id: NORD, nom: 'Nord' })
+    expect(await exporterFiche(G2)).not.toHaveProperty('bureau')
     simulerProductionAvantBureauxQr()
-    expect((await exporter(G1)).bureau).toBeNull()
+    expect(await exporterFiche(G1)).not.toHaveProperty('bureau')
+  })
+})
+
+describe('réactivation dans un bureau fermé (refus de la base, trigger) : 409 bureau_ferme, rien de réactivé ni journalisé', () => {
+  beforeEach(poserBureaux)
+
+  it('PATCH /gestionnaires/[id] { actif: true } : 409 bureau_ferme (changer de bureau d’abord)', async () => {
+    Object.assign(ligne('signalements_qr_gestionnaires', G2), { bureau_id: FERME, actif: false, desactive_le: '2026-11-18T09:00:00+00:00' })
+    baseQr.etat.fonctions.signalements_qr_reactiver_gestionnaire = () => ({ error: { code: 'P0001', message: 'bureau_ferme' } })
+    const res = await modifierFiche(G2, { actif: true })
+    expect(res.status).toBe(409)
+    expect(await json(res)).toEqual({ error: 'bureau_ferme' })
+    expect(ligne('signalements_qr_gestionnaires', G2).actif).toBe(false)
+    // Le changement de bureau passe sur la fiche désactivée.
+    expect((await modifierFiche(G2, { bureauId: SUD })).status).toBe(200)
+    expect(ligne('signalements_qr_gestionnaires', G2).bureau_id).toBe(SUD)
+  })
+
+  it('PATCH /coproprietes/[id] { actif: true } : 409 bureau_ferme, aucun journal copropriete.reactivee', async () => {
+    Object.assign(ligne('signalements_qr_coproprietes', C1), { bureau_id: FERME, actif: false })
+    const restaurer = refuserEcriture('signalements_qr_coproprietes', { code: 'P0001', message: 'bureau_ferme' })
+    try {
+      const res = await modifierCopro(C1, { actif: true })
+      expect(res.status).toBe(409)
+      expect(await json(res)).toEqual({ error: 'bureau_ferme' })
+    } finally {
+      restaurer()
+    }
+    expect(baseQr.table('signalements_qr_journal').filter((j) => j.copropriete_id === C1)).toEqual([])
   })
 })
 
