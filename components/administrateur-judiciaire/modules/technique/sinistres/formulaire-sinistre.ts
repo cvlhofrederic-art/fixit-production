@@ -349,7 +349,8 @@ export interface EvaluationFicheSinistre {
   saisie: SaisieSinistre | null
   /**
    * Fiche lue sur la saisie en cours, même si une anomalie de la fiche bloque l'enregistrement (synthèse de la fiche) ;
-   * null tant qu'une erreur du formulaire ou de format empêche de la lire.
+   * null tant qu'une erreur du formulaire (type ou survenance manquants, montant illisible) ou de format (date illisible)
+   * empêche de la lire.
    */
   fiche: FicheSinistre | null
   bloquants: string[]
@@ -375,8 +376,9 @@ const refusee = (erreurs: readonly ErreurChamp[], bloquants: string[]): Evaluati
 
 /**
  * Évalue le formulaire : erreurs du formulaire, puis de format (domaine), puis anomalies de la fiche entière (statut
- * choisi compris). Seules les anomalies bloquantes empêchent l'enregistrement. La fiche lue est rendue dès que le format
- * est valide : la synthèse se calcule sur la saisie en cours, comme les points d'attention.
+ * choisi compris). Seules les anomalies bloquantes empêchent l'enregistrement. La fiche lue est rendue dès que le
+ * formulaire et le format sont valides, même si la fiche a une anomalie bloquante : la synthèse se calcule sur la saisie
+ * en cours, comme les points d'attention.
  */
 export function evaluerFicheSinistre(
   valeurs: ValeursFicheSinistre,
@@ -402,4 +404,37 @@ export function evaluerFicheSinistre(
     erreursChamps: parChamp(bloquantes),
     alertes: anomalies.filter((anomalie) => anomalie.niveau === 'alerte').map((anomalie) => anomalie.message),
   }
+}
+
+/** Montants saisis des deux indemnités (texte des champs). */
+export type MontantsIndemnites = Pick<ValeursFicheSinistre, 'indemniteImmediate' | 'indemniteDifferee'>
+
+/**
+ * Derniers montants lisibles : la saisie d'un montant ne remplace le précédent que si elle est lisible. Une frappe en
+ * cours (« 1800, » avant « 1800,50 ») laisse le précédent.
+ */
+export function retenirMontantLisible(
+  precedents: MontantsIndemnites,
+  cle: keyof MontantsIndemnites,
+  saisie: string,
+): MontantsIndemnites {
+  return saisieEurosVersCentimes(saisie) === null ? precedents : { ...precedents, [cle]: saisie }
+}
+
+/**
+ * Fiche de la synthèse : la fiche lue sur la saisie (evaluerFicheSinistre) ; un montant illisible y est remplacé par le
+ * dernier montant lisible du champ (`derniersMontants`), pour que la synthèse ne disparaisse pas pendant la frappe.
+ * null sans type ni survenance, ou sur une date illisible. Rien n'est enregistré : l'enregistrement lit l'évaluation.
+ */
+export function ficheDeSynthese(
+  valeurs: ValeursFicheSinistre,
+  derniersMontants: MontantsIndemnites,
+  contexte: Omit<ContexteControleFiche, 'statutSaisi'>,
+): FicheSinistre | null {
+  const montant = (cle: keyof MontantsIndemnites): string =>
+    saisieEurosVersCentimes(valeurs[cle]) === null ? derniersMontants[cle] : valeurs[cle]
+  return evaluerFicheSinistre(
+    { ...valeurs, indemniteImmediate: montant('indemniteImmediate'), indemniteDifferee: montant('indemniteDifferee') },
+    contexte,
+  ).fiche
 }

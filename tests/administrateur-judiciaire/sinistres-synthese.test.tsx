@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SinistresModule } from '@/components/administrateur-judiciaire/modules/technique/SinistresModule'
 import {
   evaluerFicheSinistre,
+  ficheDeSynthese,
+  retenirMontantLisible,
   valeursDepuisFiche,
 } from '@/components/administrateur-judiciaire/modules/technique/sinistres/formulaire-sinistre'
 import { SyntheseSinistre } from '@/components/administrateur-judiciaire/modules/technique/sinistres/SyntheseSinistre'
@@ -15,6 +17,7 @@ import { initialiserBaseDemo } from '@/lib/administrateur-judiciaire/db/seed-dem
 import { controlerDelaiDeclaration } from '@/lib/administrateur-judiciaire/domain/declaration-sinistre'
 import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
 import {
+  controlerChronologieSinistre,
   creerSinistre,
   etapeSuiviSinistre,
   reperesDelaisSinistre,
@@ -30,6 +33,8 @@ import { useSelectionDossier } from '@/lib/administrateur-judiciaire/selection'
  * (controlerDelaiDeclaration). Les attentes lisent ce que rend le domaine, sans retaper ses libellés quand il les
  * fournit. Entrées non enregistrées : délai du contrat (minimum légal), courriers de déclaration (aucun), date de
  * l'arrêté de catastrophe naturelle (pas de repère). Décision #699 : aucun délai entre étapes affiché par défaut.
+ * Chronologie (controlerChronologieSinistre) signalée dans la synthèse dès l'ouverture, comme la maquette : la fiche ne
+ * la montre qu'après un clic sur « Enregistrer ».
  */
 
 vi.mock('next/dynamic', () => ({
@@ -84,8 +89,11 @@ const etapes = (synthese: HTMLElement) =>
     .getAllByRole('listitem')
     .map((item) => item.textContent)
 const etapeCourante = (synthese: HTMLElement) => synthese.querySelector('[aria-current="step"]')?.textContent
-/** Bandeau des repères de délai (Alert du module). */
+/** Bandeau des repères de délai (Alert du module) : le premier de la synthèse. */
 const bandeau = (synthese: HTMLElement) => synthese.querySelector('.alert') as HTMLElement
+/** Alertes de chronologie (Alert « warn » de la maquette), dans l'ordre. */
+const alertesChronologie = (synthese: HTMLElement) =>
+  Array.from(synthese.querySelectorAll('.alert.warn')).map((alerte) => alerte.textContent)
 
 afterEach(() => cleanup())
 
@@ -161,16 +169,19 @@ describe('Synthèse — repères de délai, présentés comme des signaux', () =
     expect(alerte.textContent).not.toContain('au plus tard le')
   })
 
-  it('catastrophe naturelle sans date d’arrêté : pas de repère, à confirmer', () => {
+  it('catastrophe naturelle sans date d’arrêté : pas de repère, sans « repère à confirmer » qui renverrait à une date absente', () => {
     const f = fiche({ type: 'Catastrophes naturelles', dateDeclaration: null, dateExpertise: null, phase: 'Général' })
     const reperes = reperesDelaisSinistre(f)
+    expect(reperes.declarationAConfirmer).not.toBeNull()
     expect(controle(f).etat).toBe('sans_repere')
     const alerte = bandeau(rendreSynthese(f))
     expect(alerte.querySelector('b')?.textContent).toBe(controle(f).message)
     expect(alerte.textContent).toContain('Pas de repère.')
-    expect(alerte.textContent).toContain(`Repère à confirmer : ${reperes.declarationAConfirmer}.`)
-    // Le repère de cinq jours ouvrés du suivi « à faire » n'est pas repris : le contrôle n'a pas de repère.
+    // La raison « à confirmer » du domaine qualifie la date à cinq jours ouvrés de reperesDelaisSinistre, que la
+    // synthèse ne montre pas pour ce type : le contrôle n'a pas de repère sans la date de l'arrêté.
+    expect(alerte.textContent).not.toContain('Repère à confirmer')
     expect(alerte.textContent).not.toContain('au plus tard le')
+    expect(alerte.textContent).toContain(controle(f).avertissement)
   })
 
   it('vandalisme : un vol a pu y être rangé, repère à confirmer (2 jours ouvrés s’il y a eu vol)', () => {
@@ -203,11 +214,52 @@ describe('Synthèse — repères de délai, présentés comme des signaux', () =
     }
   })
 
-  it('le contrôle de chronologie, déjà affiché par la fiche, n’est pas doublé', () => {
-    const texte = rendreSynthese(fiche({ dateRapport: '2026-05-25', dateCloture: '2026-05-20' })).textContent
-    expect(texte).not.toContain('avant une étape qui doit la précéder')
+  it('seul le message de l’état du délai est annoncé poliment, pas les textes de loi', () => {
+    const f = fiche()
+    const alerte = bandeau(rendreSynthese(f))
+    const annonces = alerte.querySelectorAll('[aria-live="polite"]')
+    expect(annonces).toHaveLength(1)
+    expect(annonces[0].textContent).toBe(controle(f).message)
   })
 })
+
+describe('Synthèse — chronologie signalée, comme la maquette', () => {
+  it('dates incohérentes : chaque anomalie de chronologie du domaine, en alerte, après le bandeau', () => {
+    const f = fiche({ dateRapport: '2026-05-25', dateCloture: '2026-05-20' })
+    const anomalies = controlerChronologieSinistre(f)
+    expect(anomalies.length).toBeGreaterThan(0)
+    const synthese = rendreSynthese(f)
+    expect(alertesChronologie(synthese)).toEqual(anomalies.map((anomalie) => anomalie.message))
+    expect(bandeau(synthese)).not.toHaveClass('warn')
+    const premiere = synthese.querySelector('.alert.warn') as HTMLElement
+    expect(bandeau(synthese).compareDocumentPosition(premiere) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('déclaration datée avant la survenance : « dans le repère » n’est jamais affiché sans le signal de chronologie', () => {
+    const f = fiche({ dateDeclaration: '2026-04-01', dateExpertise: null })
+    expect(controle(f).etat).toBe('dans_le_delai')
+    const [anomalie] = controlerChronologieSinistre(f)
+    expect(anomalie.champ).toBe('dateDeclaration')
+    const synthese = rendreSynthese(f)
+    expect(bandeau(synthese).querySelector('b')?.textContent).toBe(controle(f).message)
+    expect(alertesChronologie(synthese)).toEqual([anomalie.message])
+  })
+
+  it('chronologie cohérente : aucune alerte de chronologie ; la zone des alertes, présente, est annoncée poliment', () => {
+    const synthese = rendreSynthese(fiche())
+    expect(alertesChronologie(synthese)).toEqual([])
+    const zone = bandeau(synthese).nextElementSibling
+    expect(zone).toHaveAttribute('aria-live', 'polite')
+    expect(zone).toBeEmptyDOMElement()
+    cleanup()
+    const incoherente = rendreSynthese(fiche({ dateRapport: '2026-05-25', dateCloture: '2026-05-20' }))
+    expect(incoherente.querySelector('.alert.warn')?.closest('[aria-live]')).toBe(bandeau(incoherente).nextElementSibling)
+  })
+})
+
+// Point ouvert, hors de cette PR (domaine) : une survenance en 9998 ou au-delà fait lever « Date ISO invalide » à
+// reperesDelaisSinistre et controlerDelaiDeclaration (ajouterMois compose une année à cinq chiffres, dates.ts).
+it.todo('survenance en 9998 ou au-delà : le domaine ne lève plus (dates.ts, ajouterMois), la synthèse s’affiche')
 
 describe('Synthèse — délais entre étapes (décision #699)', () => {
   it('sans délai saisi par le cabinet : aucun délai affiché entre les étapes', () => {
@@ -224,6 +276,24 @@ describe('Synthèse — calculée sur la saisie en cours du formulaire', () => {
     expect(evaluation.saisie).toBeNull()
     expect(evaluation.fiche?.dateCloture).toBe('2026-05-20')
     expect(evaluerFicheSinistre({ ...incoherente, type: '' }, { aujourdhui: AUJOURDHUI }).fiche).toBeNull()
+  })
+
+  it('un montant en cours de frappe (« 1800, ») ne remplace pas le dernier montant lisible', () => {
+    const derniers = { indemniteImmediate: '1800', indemniteDifferee: '640' }
+    expect(retenirMontantLisible(derniers, 'indemniteImmediate', '1800,')).toBe(derniers)
+    expect(retenirMontantLisible(derniers, 'indemniteImmediate', '1800,5')).toEqual({ ...derniers, indemniteImmediate: '1800,5' })
+    expect(retenirMontantLisible(derniers, 'indemniteDifferee', '')).toEqual({ ...derniers, indemniteDifferee: '' })
+  })
+
+  it('fiche de la synthèse : montant illisible remplacé par le dernier lisible ; toujours nulle sans type', () => {
+    const valeurs = { ...valeursDepuisFiche(fiche()), indemniteImmediate: '1800,' }
+    const derniers = { indemniteImmediate: '1800', indemniteDifferee: '640' }
+    expect(evaluerFicheSinistre(valeurs, { aujourdhui: AUJOURDHUI }).fiche).toBeNull()
+    const lue = ficheDeSynthese(valeurs, derniers, { aujourdhui: AUJOURDHUI })
+    expect(lue?.indemniteImmediateCentimes).toBe(180_000)
+    expect(lue?.indemniteDiffereeCentimes).toBe(64_000)
+    expect(ficheDeSynthese({ ...valeurs, type: '' }, derniers, { aujourdhui: AUJOURDHUI })).toBeNull()
+    expect(ficheDeSynthese({ ...valeurs, dateSurvenance: '' }, derniers, { aujourdhui: AUJOURDHUI })).toBeNull()
   })
 })
 
@@ -277,14 +347,48 @@ describe('Synthèse — dans la fiche sinistre (démonstration)', () => {
     expect(bandeau(synthese).querySelector('b')?.textContent).toMatch(/^Sinistre à déclarer, repère indicatif au /)
   })
 
-  it('une date de déclaration modifiée change aussitôt l’état du délai', () => {
+  it('une date de déclaration modifiée change aussitôt l’état du délai, annoncé poliment', () => {
     rendreEcran()
     ouvrirDetails('TL.00009')
     const boite = within(dialogue())
     const synthese = () => boite.getByRole('region', { name: 'Synthèse' })
+    const annonce = () => bandeau(synthese()).querySelector('[aria-live="polite"]')
     expect(bandeau(synthese())).toHaveClass('info')
+    const avant = annonce()
     fireEvent.change(boite.getByLabelText('Déclaration'), { target: { value: '2026-05-04' } })
     expect(bandeau(synthese())).toHaveClass('rust')
     expect(bandeau(synthese()).querySelector('b')?.textContent).toMatch(/^Déclaration du 04\/05\/2026, postérieure au repère indicatif/)
+    // Même zone annoncée, texte remplacé : le lecteur d'écran entend le nouvel état.
+    expect(annonce()).toBe(avant)
+    expect(annonce()?.textContent).toMatch(/^Déclaration du 04\/05\/2026, postérieure au repère indicatif/)
+  })
+
+  it('déclaration datée avant la survenance : la chronologie est signalée dans la synthèse avant tout « Enregistrer »', () => {
+    rendreEcran()
+    ouvrirDetails('TL.00009')
+    const boite = within(dialogue())
+    fireEvent.change(boite.getByLabelText('Déclaration'), { target: { value: '2026-04-01' } })
+    const synthese = boite.getByRole('region', { name: 'Synthèse' })
+    expect(alertesChronologie(synthese)).toEqual(['Déclaration datée avant une étape qui doit la précéder.'])
+    // Le résumé des erreurs n'apparaît qu'après un clic sur « Enregistrer » : la synthèse est alors seule à le dire.
+    expect(boite.queryByRole('group', { name: 'Erreurs de la fiche' })).toBeNull()
+  })
+
+  it('taper « 1800, » dans « Indemnité immédiate » ne retire pas la synthèse, qui garde le dernier montant lisible', () => {
+    rendreEcran()
+    ouvrirDetails('TL.00009')
+    const boite = within(dialogue())
+    const synthese = () => boite.getByRole('region', { name: 'Synthèse' })
+    fireEvent.change(boite.getByLabelText(/^Indemnité différée/), { target: { value: '0' } })
+    const immediate = boite.getByLabelText(/^Indemnité immédiate/)
+    fireEvent.change(immediate, { target: { value: '1800' } })
+    expect(synthese().textContent).toContain(`Total : ${formatEurosCentimes(1800)}`)
+    fireEvent.change(immediate, { target: { value: '1800,' } })
+    expect(synthese().textContent).toContain(`Total : ${formatEurosCentimes(1800)}`)
+    fireEvent.change(immediate, { target: { value: '1800,5' } })
+    expect(synthese().textContent).toContain(`Total : ${formatEurosCentimes(1800.5)}`)
+    // Le type effacé, la synthèse disparaît : plus rien à lire.
+    fireEvent.change(boite.getByRole('combobox', { name: 'Type de sinistre' }), { target: { value: '' } })
+    expect(boite.queryByRole('region', { name: 'Synthèse' })).toBeNull()
   })
 })

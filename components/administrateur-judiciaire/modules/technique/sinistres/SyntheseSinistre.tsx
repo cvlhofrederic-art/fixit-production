@@ -10,6 +10,7 @@ import {
 } from '@/lib/administrateur-judiciaire/domain/declaration-sinistre'
 import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
 import {
+  controlerChronologieSinistre,
   DELAIS_ASSURANCE_SINISTRE,
   etapeSuiviSinistre,
   indemnitesSinistre,
@@ -22,15 +23,18 @@ import {
 
 /**
  * Synthèse en tête de la fiche sinistre, d'après la maquette du 27/10/2026 (MaquetteSinistrePanel, sans son sélecteur
- * d'exemples) : frise des étapes, phase et statut, indemnités, repères de délai. Tout est lu dans le domaine :
- * etapeSuiviSinistre, statutSinistre, indemnitesSinistre, reperesDelaisSinistre et controlerDelaiDeclaration.
- * - Calculée sur la saisie en cours du formulaire (evaluerFicheSinistre, champ fiche), comme les points d'attention et
- *   la suggestion de forclusion ; rien n'est affiché tant que le type et la survenance ne sont pas lisibles.
+ * d'exemples) : frise des étapes, phase et statut, indemnités, repères de délai, chronologie. Tout est lu dans le
+ * domaine : etapeSuiviSinistre, statutSinistre, indemnitesSinistre, reperesDelaisSinistre, controlerDelaiDeclaration et
+ * controlerChronologieSinistre.
+ * - Calculée sur la saisie en cours du formulaire (ficheDeSynthese), comme les points d'attention ; absente (fiche
+ *   null) sans type ni survenance, ou sur une date illisible.
  * - Entrées non enregistrées, repli prévu par le domaine : délai du contrat absent (minimum légal) ; aucun courrier de
  *   déclaration rattaché (contrôle sur la date saisie) ; date de l'arrêté de catastrophe naturelle absente (pas de
  *   repère). Leur enregistrement reste à brancher.
- * - Les repères sont des signaux, jamais une déchéance : l'avertissement du contrôle du délai est toujours affiché. Le
- *   contrôle de chronologie, déjà affiché par la fiche (controlerFicheSinistre), n'est pas repris.
+ * - Les repères sont des signaux, jamais une déchéance : l'avertissement du contrôle du délai est toujours affiché.
+ * - Chronologie signalée dès l'ouverture, comme la maquette (Alert « warn ») : la fiche ne la montre qu'après un clic
+ *   sur « Enregistrer » (résumé des erreurs), et l'état du délai peut se lire sur une date que la chronologie refuse.
+ * - Annoncés poliment : le message de l'état du délai et les alertes de chronologie, pas les textes de loi.
  * - Décision #699 : aucun délai entre étapes ; aucun délai de gestion du cabinet n'est enregistré.
  * Même affichage en démonstration et en données réelles : rien ici ne lit le mode.
  */
@@ -61,14 +65,15 @@ const AUCUN_COURRIER = [] as const
 const euros = (centimes: number): string => formatEurosCentimes(centimes / 100)
 
 /**
- * Lignes du bandeau, sous l'état du délai. La justification du repère n'est donnée que si le contrôle retient ce même
- * repère, ou aucun délai (dommages-ouvrage) : sans date d'arrêté, la catastrophe naturelle n'a pas de repère.
+ * Lignes du bandeau, sous l'état du délai. La justification du repère et sa raison « à confirmer » ne sont données que
+ * si le contrôle retient ce même repère, ou aucun délai (dommages-ouvrage) : sans date d'arrêté, la catastrophe
+ * naturelle n'a pas de repère, le titre en donne la raison.
  */
 function lignesReperes(reperes: ReperesDelaisSinistre, controle: ControleDelaiDeclaration): string[] {
   const memeRepere = reperes.desLaConnaissance || controle.declarationAuPlusTard === reperes.declarationAuPlusTard
   const lignes = [
     memeRepere ? reperes.justificationDeclaration : null,
-    reperes.declarationAConfirmer === null ? null : `Repère à confirmer : ${reperes.declarationAConfirmer}.`,
+    memeRepere && reperes.declarationAConfirmer !== null ? `Repère à confirmer : ${reperes.declarationAConfirmer}.` : null,
     reperes.volPossible
       ? `Repère à confirmer : ${DELAIS_ASSURANCE_SINISTRE.declarationVolJoursOuvres} jours ouvrés s'il y a eu vol.`
       : null,
@@ -85,6 +90,7 @@ export function SyntheseSinistre({ fiche, aujourdhui }: { fiche: FicheSinistre |
   const indemnites = indemnitesSinistre(fiche)
   const reperes = reperesDelaisSinistre(fiche)
   const controle = controlerDelaiDeclaration({ id: 'fiche', fiche }, AUCUN_COURRIER, { aujourdhui })
+  const chronologie = controlerChronologieSinistre(fiche)
   return (
     <Section titre="Synthèse" icone="history" large>
       <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -113,13 +119,18 @@ export function SyntheseSinistre({ fiche, aujourdhui }: { fiche: FicheSinistre |
           }
         />
       </div>
-      <Alert kind={COULEUR_ETAT[controle.etat]} icon="clock" title={controle.message}>
+      <Alert kind={COULEUR_ETAT[controle.etat]} icon="clock" title={<span aria-live="polite">{controle.message}</span>}>
         {lignesReperes(reperes, controle).map((ligne) => (
           <span key={ligne} style={{ display: 'block' }}>
             {ligne}
           </span>
         ))}
       </Alert>
+      <div aria-live="polite">
+        {chronologie.map((anomalie) => (
+          <Alert key={anomalie.champ} kind="warn" icon="alert" title={anomalie.message} />
+        ))}
+      </div>
     </Section>
   )
 }
