@@ -26,8 +26,8 @@ import { enTeteDuModule } from './en-tete-module'
  * critère LRE (J53). » Partie domaine seulement : la qualité sur l'identité, son lecteur, et la qualité de chaque
  * destinataire pour le contrôle J53 (statut-assemblee.ts, inchangé), écrite et testée, sans appelant de production
  * aujourd'hui. Ni écran ni table (aucune table des identités n'existe encore). Décisions de Hugo du 19/11/2026 (case
- * datée, cochée sur une justification écrite) : à coder avec la table des identités ; ici, l'en-tête les fige et le
- * comportement ne change pas.
+ * datée, lue à la date du dépôt saisie, sinon de l'événement ; cochée sur une justification écrite) : à coder avec la
+ * table des identités ; ici, l'en-tête les fige et le comportement ne change pas.
  */
 
 const saisie = (surcharge: Partial<SaisieIdentite> = {}): SaisieIdentite => ({
@@ -292,7 +292,7 @@ describe('J78 — en-têtes', () => {
     const { texte } = enTeteDuModule('identites-positions')
     expect(texte).toContain('J78 (réponse de Frédéric du 17/11/2026, sj-qualite-pro.json)')
     expect(texte).toContain(
-      'J78, décisions de Hugo du 19/11/2026 (« VALIDE TOUT », sur les recommandations de Claude) : à coder avec la table des identités, pas ici ; à valider par Frédéric avant toute fusion. Elles remplacent les deux questions laissées à Hugo.',
+      'J78, décisions de Hugo du 19/11/2026 (« VALIDE TOUT », puis « ok » pour la date de lecture, sur les recommandations de Claude) : à coder avec la table des identités, pas ici ; à valider par Frédéric avant toute fusion. Elles remplacent les deux questions laissées à Hugo.',
     )
     // les deux questions sont fermées : plus rien sur J78 dans « Non établi »
     const nonEtabli = texte.slice(texte.indexOf('🔴 Non établi'))
@@ -305,15 +305,30 @@ describe('J78 — en-têtes', () => {
 
   it('identites-positions.ts : case datée, lue à la date de l’envoi (décision de Hugo du 19/11/2026) ; le lecteur actuel reste sans date', () => {
     const datee = enTeteDuModule('identites-positions').item('- Case datée')
-    // registre, J78 (relecture 8ce9576c) : la date du dépôt est une lecture de Claude, 🔵, encore ouverte en J50 ;
-    // Hugo n'a pas choisi cette date (statut-assemblee.ts, controlerVoie : « dépôt, à défaut l'événement »)
+    // date de lecture : « ok » de Hugo du 19/11/2026 à la recommandation de Claude (dépôt saisi, sinon événement) ;
+    // elle reprend la lecture de J50 (statut-assemblee.ts, controlerVoie), qui reste ouverte en J50 : J50 non tranchée
     expect(datee).toContain(
-      "la qualité se lit à la date de l'envoi (lecture de Claude, alignée sur J50 : date du dépôt de l'envoi quand elle est saisie, sinon celle de l'événement ; 🔵, encore ouverte en J50 ; Hugo n'a pas choisi cette date).",
+      "la qualité se lit à la date de l'envoi. Date retenue (« ok » de Hugo du 19/11/2026) : date du dépôt de l'envoi quand elle est saisie, sinon celle de l'événement.",
     )
+    expect(datee).toContain(
+      'Elle reprend la lecture de J50 (statut-assemblee.ts, controlerVoie : régime, accord exprès, consentement et demande de voie postale jugés à cette date), qui reste ouverte en J50 (🔵) : cette décision ne tranche pas J50 ; si J50 est tranchée autrement, les deux dates se relisent ensemble.',
+    )
+    // l'ancienne lecture (« Hugo n'a pas choisi cette date ») est remplacée par la décision
+    expect(datee).not.toContain("Hugo n'a pas choisi cette date")
+    expect(datee).not.toContain('lecture de Claude, alignée sur J50')
     expect(datee).not.toContain('J50 la juge à la date du dépôt')
     expect(datee).toContain('Décocher la case plus tard ne change pas le calcul des envois déjà faits.')
-    expect(datee).toContain("Aujourd'hui, qualiteProfessionnelleDe lit l'état actuel de la case, sans date.")
+    expect(datee).toContain("Aujourd'hui, qualiteProfessionnelleDe lit l'état actuel de la case, sans date. Ce lecteur ne change pas ici.")
     expect(datee).toContain('Lien entre cette case sans date et la case datée : à vérifier au codage de la table des identités.')
+    // doc du lecteur : même date, toujours à venir avec la table des identités
+    const chemin = join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'identites-positions.ts')
+    const source = readFileSync(chemin, 'utf8').replaceAll('\r\n', '\n')
+    const fin = source.indexOf('\nexport function qualiteProfessionnelleDe(')
+    expect(fin).toBeGreaterThan(0)
+    const doc = source.slice(source.lastIndexOf('/**', fin), fin).replaceAll(/\n\s+\*\s+/g, ' ')
+    expect(doc).toContain(
+      "Lit l'état actuel de la case, sans date ; la lecture à la date de l'envoi (dépôt saisi, sinon événement : décisions de Hugo du 19/11/2026, en-tête) viendra avec la table des identités.",
+    )
   })
 
   it('identites-positions.ts : champ Identite.professionnel, lien entre la case sans date et la case datée à vérifier au codage', () => {

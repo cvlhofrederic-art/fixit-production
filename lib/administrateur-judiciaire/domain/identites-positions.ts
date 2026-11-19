@@ -61,13 +61,16 @@ import { GROUPE_IDENTITE, QUALITE_IDENTITE, type GroupeIdentite } from '@/lib/da
  * (notification unique) : la qualité reste une option de l'appelant, qui passe qualiteProfessionnelleDe(fiche de
  * courrier.personneId) ; le domaine ne la relie pas à la fiche (statut-assemblee.ts inchangé). Ni table ni écran : la
  * case s'enregistrera avec la table des identités, qui n'existe pas encore.
- * J78, décisions de Hugo du 19/11/2026 (« VALIDE TOUT », sur les recommandations de Claude) : à coder avec la table des
- * identités, pas ici ; à valider par Frédéric avant toute fusion. Elles remplacent les deux questions laissées à Hugo.
- * - Case datée : la qualité se lit à la date de l'envoi (lecture de Claude, alignée sur J50 : date du dépôt de l'envoi
- *   quand elle est saisie, sinon celle de l'événement ; 🔵, encore ouverte en J50 ; Hugo n'a pas choisi cette date).
- *   Décocher la case plus tard ne change pas le calcul des envois déjà faits. Aujourd'hui, qualiteProfessionnelleDe lit
- *   l'état actuel de la case, sans date. Lien entre cette case sans date et la case datée : à vérifier au codage de la
- *   table des identités.
+ * J78, décisions de Hugo du 19/11/2026 (« VALIDE TOUT », puis « ok » pour la date de lecture, sur les recommandations de
+ * Claude) : à coder avec la table des identités, pas ici ; à valider par Frédéric avant toute fusion. Elles remplacent
+ * les deux questions laissées à Hugo.
+ * - Case datée : la qualité se lit à la date de l'envoi. Date retenue (« ok » de Hugo du 19/11/2026) : date du dépôt de
+ *   l'envoi quand elle est saisie, sinon celle de l'événement. Elle reprend la lecture de J50 (statut-assemblee.ts,
+ *   controlerVoie : régime, accord exprès, consentement et demande de voie postale jugés à cette date), qui reste
+ *   ouverte en J50 (🔵) : cette décision ne tranche pas J50 ; si J50 est tranchée autrement, les deux dates se relisent
+ *   ensemble. Décocher la case plus tard ne change pas le calcul des envois déjà faits. Aujourd'hui,
+ *   qualiteProfessionnelleDe lit l'état actuel de la case, sans date. Ce lecteur ne change pas ici. Lien entre cette case
+ *   sans date et la case datée : à vérifier au codage de la table des identités.
  * - Case cochée seulement sur une justification écrite (par exemple une société qui reçoit l'envoi pour son activité,
  *   avec son SIREN), jamais du seul fait d'être une personne morale. Le SIREN n'est qu'un exemple : aucun texte lu ne
  *   l'exige. Cochée à tort, la notification est irrégulière et le délai ne court pas. Repère : code de la consommation,
@@ -251,7 +254,7 @@ export function creerIdentite(saisie: SaisieIdentite): Identite {
  * (statut-assemblee.ts : professionnel, null lu comme non professionnel) : null si l'identité est absente (non saisie) ;
  * sinon la case de la fiche, décochée par défaut (true seulement si elle est cochée ; toute autre valeur enregistrée :
  * non professionnelle, lecture prudente de J53). Lit l'état actuel de la case, sans date ; la lecture à la date de
- * l'envoi (décision de Hugo du 19/11/2026, en-tête) viendra avec la table des identités.
+ * l'envoi (dépôt saisi, sinon événement : décisions de Hugo du 19/11/2026, en-tête) viendra avec la table des identités.
  * Notification unique (finDelaiContestationAg) : l'appelant lui passe la fiche de courrier.personneId, le destinataire
  * du courrier ; le domaine ne fait pas ce lien.
  */
