@@ -72,8 +72,9 @@ import type { Identite } from '@/lib/administrateur-judiciaire/domain/identites-
  *
  * J78 (réponse de Frédéric du 17/11/2026) : la qualité professionnelle du destinataire vient de la case « professionnel »
  * de la fiche identité, décochée par défaut (identites-positions.ts, qualiteProfessionnelleDe, avecQualiteProfessionnelle) ;
- * décochée ou absente : non professionnelle, le consentement reste l'accord du critère LRE (J53). Table des identités et
- * écran : à brancher.
+ * décochée ou absente : non professionnelle, le consentement reste l'accord du critère LRE (J53). Lue à la date de
+ * l'envoi (J78, décisions du 19/11/2026) : qualite-professionnelle.ts (qualiteProfessionnelleA,
+ * avecQualiteProfessionnelleALEnvoi), sur la table des identités (version 3 de db/schema.ts) ; écran : à brancher.
  *
  * Suite, décision de Hugo du 17/11/2026 (J59) (DECISIONS-HUGO-2026-11-17.md, section « Suite » : recommandations
  * validées en bloc, numéro de registre proposé) : un refus de la voie électronique reçu avant le 25/12/2025, suivi d'un

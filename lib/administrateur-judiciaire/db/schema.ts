@@ -435,10 +435,17 @@ export interface Intervention extends EntiteEnregistree {
 // Objets du domaine rangés tels quels, avec les champs de suivi ; dates métier en AAAA-MM-JJ, montants en centimes.
 // D1 : propriétaire = le syndicat (coproprieteId), auteur d'une opération = le mandat (mandatId, sur la pièce).
 
-/** Identité (D2) : la personne physique ou morale, saisie une fois pour tout le cabinet (aucun syndicat propriétaire). */
+/**
+ * Identité (D2) : la personne physique ou morale, saisie une fois pour tout le cabinet (aucun syndicat propriétaire).
+ * La case « professionnel » et ses états datés (J78) ne s'écrivent que par enregistrerQualiteProfessionnelle
+ * (db/identites.ts) ; repoIdentites les refuse.
+ */
 export interface IdentiteEnregistree
   extends EntiteEnregistree,
-    Omit<import('@/lib/administrateur-judiciaire/domain/identites-positions').Identite, 'id'> {}
+    Omit<import('@/lib/administrateur-judiciaire/domain/identites-positions').Identite, 'id'> {
+  /** J78 : états datés de la case, dans l'ordre des saisies (non indexé) ; absent : jamais saisie. */
+  historiqueProfessionnel?: import('@/lib/administrateur-judiciaire/domain/qualite-professionnelle').EtatQualiteProfessionnelle[]
+}
 
 /** Position (D2) : rôle d'une identité sur un lot ; le syndicat se lit par le lot (Lot.coproprieteId), sans copie. */
 export interface PositionEnregistree

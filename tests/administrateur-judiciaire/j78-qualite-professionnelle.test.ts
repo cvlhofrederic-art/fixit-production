@@ -25,9 +25,10 @@ import { enTeteDuModule } from './en-tete-module'
  * « professionnel » sur la fiche identité, décochée par défaut. Le consentement d'un non-professionnel reste celui du
  * critère LRE (J53). » Partie domaine seulement : la qualité sur l'identité, son lecteur, et la qualité de chaque
  * destinataire pour le contrôle J53 (statut-assemblee.ts, inchangé), écrite et testée, sans appelant de production
- * aujourd'hui. Ni écran ni table (aucune table des identités n'existe encore). Décisions de Hugo du 19/11/2026 (case
- * datée, lue à la date du dépôt saisie, sinon de l'événement ; cochée sur une justification écrite) : à coder avec la
- * table des identités ; ici, l'en-tête les fige et le comportement ne change pas.
+ * aujourd'hui. Décisions J78 du 19/11/2026 (case datée, lue à la date du dépôt saisie, sinon de l'événement ; cochée sur
+ * une justification écrite) : codées avec la table des identités par la PR « base D2 » (qualite-professionnelle.ts ;
+ * tests qualite-professionnelle.test.ts et identites-db.test.ts) ; ici, l'en-tête les fige et le comportement de la case
+ * sans date ne change pas.
  */
 
 const saisie = (surcharge: Partial<SaisieIdentite> = {}): SaisieIdentite => ({
@@ -327,35 +328,45 @@ describe('J78 — en-têtes', () => {
     )
     // relecture du 19/11/2026 (choix de rédaction de Claude) : le code de J50 ne garde le dépôt que s'il ne suit pas
     // l'événement ; sans écart aujourd'hui pour la case (LRE seule, avis antérieur au dépôt refusé avant)
+    // PR « base D2 » (table des identités) : la date de J50 est reprise telle que ce code la calcule, extraite sans recopie
     expect(datee).toContain(
-      "Précision (choix de rédaction de Claude, relecture du 19/11/2026) : le code de J50 (statut-assemblee.ts, evaluerNotification) ne garde le dépôt que s'il ne suit pas l'événement ; sinon, il retient l'événement. L'en-tête de statut-assemblee.ts et le registre (J50) ne le disent pas. Dans ce calcul, la case ne compte que pour une LRE (J53), et une LRE dont l'avis précède le dépôt est refusée avant (preuve_a_saisir) : aucun écart aujourd'hui. Au codage de la table des identités, reprendre la date de J50 telle que ce code la calcule.",
+      "Précision (choix de rédaction de Claude, relecture du 19/11/2026) : le code de J50 (statut-assemblee.ts, evaluerNotification) ne garde le dépôt que s'il ne suit pas l'événement ; sinon, il retient l'événement. L'en-tête de statut-assemblee.ts et le registre (J50) ne le disent pas. Dans ce calcul, la case ne compte que pour une LRE (J53), et une LRE dont l'avis précède le dépôt est refusée avant (preuve_a_saisir) : aucun écart aujourd'hui. Codé avec la table des identités : la date est celle que ce code calcule (dateEnvoiNotification, extraite d'evaluerNotification sans recopie ; qualite-professionnelle.ts).",
     )
+    expect(datee).not.toContain('Au codage de la table des identités')
     // l'ancienne lecture (« Hugo n'a pas choisi cette date ») est remplacée par la décision
     expect(datee).not.toContain("Hugo n'a pas choisi cette date")
     expect(datee).not.toContain('lecture de Claude, alignée sur J50')
     expect(datee).not.toContain('J50 la juge à la date du dépôt')
     expect(datee).toContain('Décocher la case plus tard ne change pas le calcul des envois déjà faits.')
     expect(datee).toContain("Aujourd'hui, qualiteProfessionnelleDe lit l'état actuel de la case, sans date. Ce lecteur ne change pas ici.")
-    expect(datee).toContain('Lien entre cette case sans date et la case datée : à vérifier au codage de la table des identités.')
-    // doc du lecteur : même date, toujours à venir avec la table des identités
+    // PR « base D2 » : le lien entre la case sans date et la case datée est proposé (à valider par Frédéric)
+    expect(datee).toContain(
+      "Lien entre cette case sans date et la case datée (proposé, à valider par Frédéric ; qualite-professionnelle.ts) : la case sans date est le dernier état saisi ; la lecture à la date de l'envoi ne lit que les états datés, qui prennent effet le lendemain de leur saisie.",
+    )
+    expect(datee).not.toContain('à vérifier au codage de la table des identités')
+    // doc du lecteur : la lecture à la date de l'envoi existe (qualite-professionnelle.ts), seule à passer au contrôle J53
     const chemin = join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'identites-positions.ts')
     const source = readFileSync(chemin, 'utf8').replaceAll('\r\n', '\n')
     const fin = source.indexOf('\nexport function qualiteProfessionnelleDe(')
     expect(fin).toBeGreaterThan(0)
     const doc = source.slice(source.lastIndexOf('/**', fin), fin).replaceAll(/\n\s+\*\s+/g, ' ')
     expect(doc).toContain(
-      "Lit l'état actuel de la case, sans date ; la lecture à la date de l'envoi (dépôt saisi, sinon événement : décisions de Hugo du 19/11/2026, en-tête) viendra avec la table des identités.",
+      "Lit l'état actuel de la case, sans date ; la lecture à la date de l'envoi (dépôt saisi, sinon événement : J78, en-tête), seule à passer au contrôle J53, est qualiteProfessionnelleALEnvoi (qualite-professionnelle.ts).",
     )
+    expect(doc).not.toContain('viendra avec la table des identités')
   })
 
-  it('identites-positions.ts : champ Identite.professionnel, lien entre la case sans date et la case datée à vérifier au codage', () => {
+  it('identites-positions.ts : champ Identite.professionnel, dernier état saisi ; les états datés sont dans la table des identités', () => {
     const chemin = join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'identites-positions.ts')
     const source = readFileSync(chemin, 'utf8').replaceAll('\r\n', '\n')
     const fin = source.indexOf('\n  professionnel?: boolean\n')
     expect(fin).toBeGreaterThan(0)
     const doc = source.slice(source.lastIndexOf('/**', fin), fin).replaceAll(/\n\s+\*\s+/g, ' ')
     expect(doc).toContain('J78 — case « professionnel »')
-    expect(doc).toContain('lien entre cette case sans date et la case datée : à vérifier au codage de la table des identités')
+    expect(doc).toContain(
+      "Sans date ici : c'est le dernier état saisi ; la date et la justification écrite (J78, en-tête) sont dans les états datés de la table des identités (IdentiteEnregistree.historiqueProfessionnel, qualite-professionnelle.ts), seuls lus par le contrôle J53.",
+    )
+    expect(doc).not.toContain('à vérifier au codage de la table des identités')
   })
 
   it('identites-positions.ts : case cochée sur une justification écrite, jamais du seul fait d’être une personne morale ; article liminaire du code de la consommation cité avec sa version', () => {
@@ -393,15 +404,18 @@ describe('J78 — en-têtes', () => {
     expect(texte).not.toContain('les commentaires de ce fichier')
   })
 
-  it('identites-positions.ts : rien n’est branché hors des tests ; l’appelant de la notification unique passe la qualité', () => {
+  it('identites-positions.ts : rien n’est branché hors des tests ; l’appelant de la notification unique passe la qualité à la date de l’envoi', () => {
     const { texte } = enTeteDuModule('identites-positions')
     expect(texte).not.toContain('branchement sur le contrôle J53')
+    // PR « base D2 » : le contrôle J53 lit la case à la date de chaque envoi (qualite-professionnelle.ts)
     expect(texte).toContain(
-      "avecQualiteProfessionnelle, écrit et testé, à brancher par l'appelant de finDelaiContestationAgParDestinataire (aucun aujourd'hui)",
+      "Qualité de chaque destinataire pour le contrôle J53, lue à la date de son envoi : avecQualiteProfessionnelleALEnvoi (qualite-professionnelle.ts), écrit et testé, à brancher par l'appelant de finDelaiContestationAgParDestinataire (aucun aujourd'hui)",
     )
     expect(texte).toContain('identité en double dans les fiches : erreur (données incohérentes)')
+    expect(texte).toContain('avecQualiteProfessionnelle, qui lit la case sans date, ne sert plus au contrôle J53')
     expect(texte).toContain(
-      "finDelaiContestationAg (notification unique) : la qualité reste une option de l'appelant, qui passe qualiteProfessionnelleDe(fiche de courrier.personneId) ; le domaine ne la relie pas à la fiche",
+      "finDelaiContestationAg (notification unique) : la qualité reste une option de l'appelant, qui passe qualiteProfessionnelleALEnvoi(fiche de courrier.personneId, courrier) ; le domaine ne la relie pas à la fiche",
     )
+    expect(texte).not.toContain("qui n'existe pas encore")
   })
 })
