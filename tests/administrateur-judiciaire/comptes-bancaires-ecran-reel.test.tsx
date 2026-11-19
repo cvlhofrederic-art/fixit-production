@@ -1,6 +1,6 @@
 import './fuseau-paris'
 import 'fake-indexeddb/auto'
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ComponentType, ReactNode } from 'react'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -82,8 +82,13 @@ const patienter = () =>
     await new Promise((resoudre) => setTimeout(resoudre, 30))
   })
 
-async function rendre() {
+/** Toasts de l'écran rendu en dernier : chaque enregistrement en émet un (succès ou refus), signe que l'écriture est finie. */
+let pushCourant: ReturnType<typeof vi.fn<Push>> | null = null
+
+/** `lectureFinie: false` : pour les tests qui gardent exprès la lecture en attente. */
+async function rendre({ lectureFinie = true }: { lectureFinie?: boolean } = {}) {
   const push = vi.fn<Push>(() => undefined)
+  pushCourant = push
   await act(async () => {
     render(
       <ToastContext.Provider value={{ push, dismiss: vi.fn() }}>
@@ -92,6 +97,8 @@ async function rendre() {
     )
   })
   await patienter()
+  // Première lecture finie (base froide : plus de 30 ms), sans délai fixe.
+  if (lectureFinie) await waitFor(() => expect(screen.queryByText('Chargement…')).toBeNull())
   return { push }
 }
 
@@ -118,9 +125,12 @@ async function saisirCompte(champs: { nature?: string; libelle?: string; iban?: 
 }
 
 async function enregistrer() {
+  const toasts = pushCourant?.mock.calls.length ?? 0
   await act(async () => {
     fireEvent.click(dialogue().getByRole('button', { name: 'Enregistrer' }))
   })
+  // Écriture finie quand son toast est émis (sans délai fixe : la base froide peut dépasser 30 ms), puis relecture.
+  await waitFor(() => expect(pushCourant?.mock.calls.length ?? 0).toBeGreaterThan(toasts))
   await patienter()
 }
 
@@ -276,7 +286,7 @@ describe('Comptes bancaires en mode réel — affichage et contrôles', () => {
   it('lecture en cours : « Chargement… », ni « Mode appliqué » ni réglage du cabinet présenté comme lu', async () => {
     // Lecture jamais terminée : le panneau reste dans l'état « Chargement… ».
     const espion = vi.spyOn(ajDb.banques, 'toArray').mockReturnValueOnce(new Promise<never>(() => undefined) as never)
-    await rendre()
+    await rendre({ lectureFinie: false })
     espion.mockRestore()
     expect(dansPanneau().getByText('Chargement…')).toBeInTheDocument()
     expect(panneau().textContent).not.toContain('Mode appliqué')
@@ -522,7 +532,7 @@ describe('Comptes bancaires en mode réel — modes de tenue et leur origine', (
     useSelectionDossier.setState({ code: copro.code, coproprietaireId: null })
     // Lecture jamais terminée : le réglage du cabinet n'est pas lu.
     const espion = vi.spyOn(ajDb.banques, 'toArray').mockReturnValueOnce(new Promise<never>(() => undefined) as never)
-    await rendre()
+    await rendre({ lectureFinie: false })
     espion.mockRestore()
     expect(dansPanneau().getByText('Chargement…')).toBeInTheDocument()
     expect(titresAlertes()).toContain('Mode du mandat illisible')
