@@ -84,7 +84,14 @@ function lignesReperes(reperes: ReperesDelaisSinistre, controle: ControleDelaiDe
   return lignes.filter((ligne): ligne is string => ligne !== null)
 }
 
-export function SyntheseSinistre({ fiche, aujourdhui }: { fiche: FicheSinistre | null; aujourdhui: string }) {
+/** Couleur d'une étape de la frise : l'étape en cours, les étapes passées, puis les suivantes (sans couleur). */
+function couleurEtape(index: number, rang: number): 'gold' | 'sage' | undefined {
+  if (index === rang) return 'gold'
+  if (index < rang) return 'sage'
+  return undefined
+}
+
+export function SyntheseSinistre({ fiche, aujourdhui }: Readonly<{ fiche: FicheSinistre | null; aujourdhui: string }>) {
   if (!fiche) return null
   const rang = ETAPES.findIndex((etape) => etape.cle === etapeSuiviSinistre(fiche))
   const indemnites = indemnitesSinistre(fiche)
@@ -100,7 +107,7 @@ export function SyntheseSinistre({ fiche, aujourdhui }: { fiche: FicheSinistre |
         >
           {ETAPES.map((etape, index) => (
             <li key={etape.cle} aria-current={index === rang ? 'step' : undefined}>
-              <Pill kind={index === rang ? 'gold' : index < rang ? 'sage' : undefined}>{etape.libelle}</Pill>
+              <Pill kind={couleurEtape(index, rang)}>{etape.libelle}</Pill>
             </li>
           ))}
         </ol>
