@@ -243,6 +243,18 @@ describe('Comptes bancaires en mode réel — affichage et contrôles', () => {
     expect(panneau().textContent).not.toContain('Fonds de travaux : ouvrir un compte séparé')
   })
 
+  it('obligation du fonds de travaux non établie : le bandeau dit que la saisie de la destination n’existe pas encore', async () => {
+    await rendre()
+    const bandeau = Array.from(panneau().querySelectorAll('.alert')).find(
+      (alerte) => alerte.querySelector('b')?.textContent === 'Obligation du fonds de travaux non établie',
+    )
+    // Décision du 19/11 (#758, point 6) : dit dans le bandeau, sans créer la saisie ici (aucun champ dans le panneau).
+    expect(bandeau?.textContent).toContain(
+      "Destination de l'immeuble à renseigner : le fonds n'est obligatoire que si l'immeuble est, même en partie, à usage d'habitation. La saisie de la destination de l'immeuble n'existe pas encore. Le contrôle « fonds de travaux à ouvrir » n'est donc pas lancé.",
+    )
+    expect(dansPanneau().queryByLabelText(/Destination/)).toBeNull()
+  })
+
   it('compte repris de l’ancien gestionnaire : marque « tenait le fonds », pastille, solde inconnu signalé', async () => {
     await rendre()
     await saisirCompte({ nature: 'repris_ancien_gestionnaire', iban: IBAN_B })
