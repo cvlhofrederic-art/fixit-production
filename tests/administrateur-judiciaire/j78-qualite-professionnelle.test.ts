@@ -23,7 +23,9 @@ import { enTeteDuModule } from './en-tete-module'
  * « professionnel » sur la fiche identité, décochée par défaut. Le consentement d'un non-professionnel reste celui du
  * critère LRE (J53). » Partie domaine seulement : la qualité sur l'identité, son lecteur, et la qualité de chaque
  * destinataire pour le contrôle J53 (statut-assemblee.ts, inchangé), écrite et testée, sans appelant de production
- * aujourd'hui. Ni écran ni table (aucune table des identités n'existe encore).
+ * aujourd'hui. Ni écran ni table (aucune table des identités n'existe encore). Décisions de Hugo du 19/11/2026 (case
+ * datée, cochée sur une justification écrite) : à coder avec la table des identités ; ici, l'en-tête les fige et le
+ * comportement ne change pas.
  */
 
 const saisie = (surcharge: Partial<SaisieIdentite> = {}): SaisieIdentite => ({
@@ -78,6 +80,17 @@ describe('J78 — case « professionnel » sur la fiche identité, décochée pa
       expect(() => creerIdentite(saisie({ professionnel: valeur as unknown as boolean })), String(valeur)).toThrow(
         /Case « professionnel » de Durand : cochée ou décochée attendue/,
       )
+  })
+
+  it('personne morale sans case cochée : non professionnelle (décision de Hugo du 19/11/2026 : jamais du seul fait d’être une personne morale)', () => {
+    const societe = (surcharge: Partial<SaisieIdentite> = {}): Identite =>
+      creerIdentite(saisie({ nature: 'morale', civilite: 'Société', nom: 'Exemple', prenom: null, ...surcharge }))
+    for (const identite of [societe(), societe({ professionnel: false })]) {
+      expect(qualiteProfessionnelleDe(identite), forme(identite)).toBe(false)
+      expect(delaiPour([identite]), forme(identite)).toMatchObject({ etat: 'refuse', cause: 'consentement_lre_absent' })
+    }
+    // cochée (sur une justification écrite, à enregistrer avec la table des identités) : professionnelle
+    expect(qualiteProfessionnelleDe(societe({ professionnel: true }))).toBe(true)
   })
 
   it('migration de l’ancienne fiche copropriétaire : aucune case (l’ancienne fiche n’en a pas), lue non professionnelle', () => {
@@ -273,21 +286,53 @@ describe('J78 — en-têtes', () => {
     )
   })
 
-  it('identites-positions.ts : J78 citée ; preuve et date de la qualité laissées ouvertes (question à Hugo)', () => {
+  it('identites-positions.ts : J78 citée ; décisions de Hugo du 19/11/2026 à la place des deux questions, à coder avec la table des identités', () => {
     const { texte } = enTeteDuModule('identites-positions')
     expect(texte).toContain('J78 (réponse de Frédéric du 17/11/2026, sj-qualite-pro.json)')
+    expect(texte).toContain(
+      'J78, décisions de Hugo du 19/11/2026 (« VALIDE TOUT », sur les recommandations de Claude) : à coder avec la table des identités, pas ici ; à valider par Frédéric avant toute fusion. Elles remplacent les deux questions laissées à Hugo.',
+    )
+    // les deux questions sont fermées : plus rien sur J78 dans « Non établi »
     const nonEtabli = texte.slice(texte.indexOf('🔴 Non établi'))
-    expect(nonEtabli).toContain('ce qui justifie de cocher la case « professionnel »')
-    expect(nonEtabli).toContain('si cette qualité doit être datée')
+    expect(nonEtabli).not.toContain('J78')
+    expect(nonEtabli).not.toContain('ce qui justifie de cocher')
+    expect(nonEtabli).not.toContain('si cette qualité doit être datée')
+    // une décision de Hugo ne vaut pas validation de Frédéric
+    expect(texte).not.toMatch(/validée? par Frédéric/)
   })
 
-  it('identites-positions.ts : accord sans date valable écarté par J59 (et non J66), extension à confirmer', () => {
-    const { texte } = enTeteDuModule('identites-positions')
-    expect(texte).toContain(
-      "accord sans date valable écarté : J59, étendu à l'accord en vigueur par lecture prudente, à confirmer par Hugo (voie-notification.ts)",
+  it('identites-positions.ts : case datée, lue à la date de l’envoi (décision de Hugo du 19/11/2026) ; le lecteur actuel reste sans date', () => {
+    const datee = enTeteDuModule('identites-positions').item('- Case datée')
+    expect(datee).toContain("la qualité se lit à la date de l'envoi, comme la voie (J50 la juge à la date du dépôt)")
+    expect(datee).toContain('Décocher la case plus tard ne change pas le calcul des envois déjà faits.')
+    expect(datee).toContain("Aujourd'hui, qualiteProfessionnelleDe lit l'état actuel de la case, sans date.")
+  })
+
+  it('identites-positions.ts : case cochée sur une justification écrite, jamais du seul fait d’être une personne morale ; article liminaire du code de la consommation cité avec sa version', () => {
+    const justification = enTeteDuModule('identites-positions').item('- Case cochée seulement sur une justification écrite')
+    expect(justification).toContain(
+      "(par exemple une société qui reçoit l'envoi pour son activité, avec son SIREN), jamais du seul fait d'être une personne morale.",
     )
-    // J66 traite du statut « Reçu en erreur » (envois-electroniques.ts), pas de l'accord sans date
-    expect(texte).not.toContain('J66')
+    expect(justification).toContain('Cochée à tort, la notification est irrégulière et le délai ne court pas.')
+    expect(justification).toContain(
+      'code de la consommation, article liminaire (version en vigueur depuis le 24/04/2024, loi n° 2024-364 du 22/04/2024, art. 2 ; lu sur Légifrance le 19/11/2026)',
+    )
+    expect(justification).toContain("« Non-professionnel : toute personne morale qui n'agit pas à des fins professionnelles » (2°)")
+    expect(justification).toContain('Une personne morale peut donc être non professionnelle.')
+    // CPCE art. L. 100 ne définit pas « professionnel » : reprendre le code de la consommation est une lecture, marquée 🔵
+    expect(justification).toContain(
+      "🔵 Ces définitions valent « pour l'application du présent code » ; CPCE art. L. 100 ne définit pas « professionnel » : les reprendre ici est une lecture par analogie.",
+    )
+  })
+
+  it('identites-positions.ts : accord sans date valable écarté : J59, étendu par J66 (validé par Hugo le 17/11/2026), consentement de J53 compris', () => {
+    const { texte } = enTeteDuModule('identites-positions')
+    // registre, J66 : « Validé aussi : un accord de voie électronique sans date valable est écarté partout, y compris
+    // comme consentement de J53 (lecture prudente de J59). Code : PR #728. »
+    expect(texte).toContain(
+      'accord sans date valable écarté : J59, étendu par J66 (validé par Hugo le 17/11/2026) à tout usage, consentement de J53 compris ; code : accordElectroniqueEnVigueur, voie-notification.ts, PR #728',
+    )
+    expect(texte).not.toContain('à confirmer par Hugo')
   })
 
   it('identites-positions.ts : rien n’est branché hors des tests ; l’appelant de la notification unique passe la qualité', () => {

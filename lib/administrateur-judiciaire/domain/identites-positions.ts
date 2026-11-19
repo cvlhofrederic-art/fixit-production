@@ -50,21 +50,35 @@ import { GROUPE_IDENTITE, QUALITE_IDENTITE, type GroupeIdentite } from '@/lib/da
  * J78 (réponse de Frédéric du 17/11/2026, sj-qualite-pro.json) : case « professionnel » sur la fiche identité, décochée
  * par défaut (Identite.professionnel, facultative). Décochée ou absente : destinataire non professionnel ; une LRE exige
  * alors son consentement, qui reste l'accord du critère LRE repris de Gestéam (CPCE art. L. 100 ; J53 ; accord sans
- * date valable écarté : J59, étendu à l'accord en vigueur par lecture prudente, à confirmer par Hugo
- * (voie-notification.ts)). Cochée : ce consentement n'est pas exigé ; les autres règles restent (voie postale : J52,
- * J74 ; accord exprès avant le 25/12/2025 : J50). Lecture : qualiteProfessionnelleDe. Qualité de chaque destinataire
- * pour le contrôle J53 : avecQualiteProfessionnelle, écrit et testé, à brancher par l'appelant de
- * finDelaiContestationAgParDestinataire (aucun aujourd'hui) ; la case y est la seule source : identité introuvable,
- * null ; identité en double dans les fiches : erreur (données incohérentes). finDelaiContestationAg (notification
- * unique) : la qualité reste une option de l'appelant, qui passe qualiteProfessionnelleDe(fiche de courrier.personneId) ;
- * le domaine ne la relie pas à la fiche (statut-assemblee.ts inchangé). Ni table ni écran : la case s'enregistrera avec
- * la table des identités, qui n'existe pas encore.
+ * date valable écarté : J59, étendu par J66 (validé par Hugo le 17/11/2026) à tout usage, consentement de J53 compris ;
+ * code : accordElectroniqueEnVigueur, voie-notification.ts, PR #728 ; les commentaires de ce fichier disent encore
+ * l'extension « à confirmer » : à mettre à jour à part). Cochée : ce consentement n'est pas exigé ; les autres règles
+ * restent (voie postale : J52, J74 ; accord exprès avant le 25/12/2025 : J50). Lecture : qualiteProfessionnelleDe.
+ * Qualité de chaque destinataire pour le contrôle J53 : avecQualiteProfessionnelle, écrit et testé, à brancher par
+ * l'appelant de finDelaiContestationAgParDestinataire (aucun aujourd'hui) ; la case y est la seule source : identité
+ * introuvable, null ; identité en double dans les fiches : erreur (données incohérentes). finDelaiContestationAg
+ * (notification unique) : la qualité reste une option de l'appelant, qui passe qualiteProfessionnelleDe(fiche de
+ * courrier.personneId) ; le domaine ne la relie pas à la fiche (statut-assemblee.ts inchangé). Ni table ni écran : la
+ * case s'enregistrera avec la table des identités, qui n'existe pas encore.
+ * J78, décisions de Hugo du 19/11/2026 (« VALIDE TOUT », sur les recommandations de Claude) : à coder avec la table des
+ * identités, pas ici ; à valider par Frédéric avant toute fusion. Elles remplacent les deux questions laissées à Hugo.
+ * - Case datée : la qualité se lit à la date de l'envoi, comme la voie (J50 la juge à la date du dépôt). Décocher la
+ *   case plus tard ne change pas le calcul des envois déjà faits. Aujourd'hui, qualiteProfessionnelleDe lit l'état
+ *   actuel de la case, sans date.
+ * - Case cochée seulement sur une justification écrite (par exemple une société qui reçoit l'envoi pour son activité,
+ *   avec son SIREN), jamais du seul fait d'être une personne morale. Cochée à tort, la notification est irrégulière et
+ *   le délai ne court pas. Repère : code de la consommation, article liminaire (version en vigueur depuis le
+ *   24/04/2024, loi n° 2024-364 du 22/04/2024, art. 2 ; lu sur Légifrance le 19/11/2026) : « Non-professionnel : toute
+ *   personne morale qui n'agit pas à des fins professionnelles » (2°) ; « Professionnel : toute personne physique ou
+ *   morale, publique ou privée, qui agit à des fins entrant dans le cadre de son activité commerciale, industrielle,
+ *   artisanale, libérale ou agricole […] » (3°). Une personne morale peut donc être non professionnelle. 🔵 Ces
+ *   définitions valent « pour l'application du présent code » ; CPCE art. L. 100 ne définit pas « professionnel » : les
+ *   reprendre ici est une lecture par analogie.
+ *
  * 🔴 Non établi : l'usage de l'adresse reste libre, valeurs Gestéam du champ « Usage » non relevées ; choix du jeu de
  * coordonnées par compte ou par syndicat (dans Gestéam, la fiche client désigne son jeu de coordonnées ; ici, l'adresse
  * vaut pour l'identité entière) ; parts sociales d'un associé de SCI qui n'est pas lui-même titulaire d'une position
- * (hors champ) ; J78, questions à Hugo : ce qui justifie de cocher la case « professionnel » (cochée à tort, la
- * notification est irrégulière et le délai ne court pas) et si cette qualité doit être datée (J50 juge la voie à la
- * date du dépôt ; la case, sans date, est lue dans son état actuel).
+ * (hors champ).
  */
 
 const QUALITES_COPROPRIETE = QUALITE_IDENTITE.copropriete
@@ -134,7 +148,8 @@ export interface Identite {
   representants: RepresentantLegal[]
   /**
    * J78 — case « professionnel » (CPCE art. L. 100 ; contrôle J53), décochée par défaut. Absente : non saisie, lue comme
-   * non professionnelle (qualiteProfessionnelleDe). Non indexée ; enregistrement et écran : à brancher.
+   * non professionnelle (qualiteProfessionnelleDe). Non indexée ; enregistrement et écran : à brancher. Sans date ici :
+   * la date et la justification écrite (décisions de Hugo du 19/11/2026, en-tête) viendront avec la table des identités.
    */
   professionnel?: boolean
 }
@@ -230,7 +245,8 @@ export function creerIdentite(saisie: SaisieIdentite): Identite {
  * J78 — qualité professionnelle du destinataire (CPCE art. L. 100), telle que le contrôle J53 l'attend
  * (statut-assemblee.ts : professionnel, null lu comme non professionnel) : null si l'identité est absente (non saisie) ;
  * sinon la case de la fiche, décochée par défaut (true seulement si elle est cochée ; toute autre valeur enregistrée :
- * non professionnelle, lecture prudente de J53). Lit l'état actuel de la case, sans date (question ouverte, en-tête).
+ * non professionnelle, lecture prudente de J53). Lit l'état actuel de la case, sans date ; la lecture à la date de
+ * l'envoi (décision de Hugo du 19/11/2026, en-tête) viendra avec la table des identités.
  * Notification unique (finDelaiContestationAg) : l'appelant lui passe la fiche de courrier.personneId, le destinataire
  * du courrier ; le domaine ne fait pas ce lien.
  */
