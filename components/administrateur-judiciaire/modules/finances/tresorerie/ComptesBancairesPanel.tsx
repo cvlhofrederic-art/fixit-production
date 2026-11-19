@@ -50,6 +50,13 @@ type Edition = null | { type: 'nouveau' } | { type: 'modifier'; compte: CompteAf
 
 const messageErreur = (erreur: unknown): string => (erreur instanceof Error ? erreur.message : String(erreur))
 
+/** Indication sous « Ce mandat » : aucun mandat enregistré, ou pratique du cabinet pour un administrateur provisoire (J37). */
+function indicationMandat(aUnMandat: boolean, pratique: ModeTenueComptes | null): string | undefined {
+  if (!aUnMandat) return 'Aucun mandat enregistré pour cette copropriété.'
+  if (!pratique) return undefined
+  return `Pratique du cabinet pour un administrateur provisoire : ${MODES_TENUE_COMPTES[pratique].libelle}. Proposée, jamais imposée.`
+}
+
 const STYLE_SECONDAIRE = { display: 'block', fontSize: 11.5 } as const
 /** IBAN jamais renvoyé à la ligne : il se relit chiffre à chiffre. Sur téléphone, le tableau défile alors dans son cadre .tbl-wrap. */
 const STYLE_IBAN = { whiteSpace: 'nowrap' } as const
@@ -60,7 +67,7 @@ const STYLE_IBAN = { whiteSpace: 'nowrap' } as const
  * téléphone, il garde une largeur minimale de 640 px et défile dans ce cadre, l'IBAN jamais renvoyé à la ligne, sans
  * faire déborder la page.
  */
-function TableauComptes({ comptes, ouvrir }: { comptes: readonly CompteAffiche[]; ouvrir: (edition: Edition) => void }) {
+function TableauComptes({ comptes, ouvrir }: Readonly<{ comptes: readonly CompteAffiche[]; ouvrir: (edition: Edition) => void }>) {
   return (
     <div className="tbl-wrap" style={{ marginBottom: 12 }}>
       <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 640, fontSize: 13 }}>
@@ -144,7 +151,7 @@ function TableauComptes({ comptes, ouvrir }: { comptes: readonly CompteAffiche[]
  * Alertes du domaine : anomalies (ou comptes conformes), seulement quand le mode se résout ; information Caisse des
  * dépôts et entrées non connues, qui ne dépendent pas du mode.
  */
-function AlertesComptes({ vue }: { vue: VueComptesBancaires }) {
+function AlertesComptes({ vue }: Readonly<{ vue: VueComptesBancaires }>) {
   return (
     <>
       {vue.controle &&
@@ -250,7 +257,7 @@ function useEcrituresComptes(copro: CoproprieteVue | undefined, relire: () => vo
   }
 }
 
-export function ComptesBancairesPanel({ copro }: { copro: CoproprieteVue | undefined }) {
+export function ComptesBancairesPanel({ copro }: Readonly<{ copro: CoproprieteVue | undefined }>) {
   const { push } = useToast()
   const [edition, setEdition] = useState<Edition>(null)
   const lus = useComptesBancaires(copro?.id ?? null, (message) =>
@@ -310,13 +317,7 @@ export function ComptesBancairesPanel({ copro }: { copro: CoproprieteVue | undef
             <Field
               label="Ce mandat"
               name="mode-comptes-mandat"
-              hint={
-                !mandat
-                  ? 'Aucun mandat enregistré pour cette copropriété.'
-                  : vue.pratiqueAdministrateurProvisoire
-                    ? `Pratique du cabinet pour un administrateur provisoire : ${MODES_TENUE_COMPTES[vue.pratiqueAdministrateurProvisoire].libelle}. Proposée, jamais imposée.`
-                    : undefined
-              }
+              hint={indicationMandat(!!mandat, vue.pratiqueAdministrateurProvisoire)}
             >
               <select
                 value={choixMandat}

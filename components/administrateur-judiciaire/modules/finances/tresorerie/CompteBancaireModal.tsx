@@ -62,7 +62,7 @@ export interface CompteBancaireModalProps {
 }
 
 /** « Nouveau compte » et « Modifier ». La modale est remontée pour chaque compte (clé = id) : son état repart du compte. */
-export function CompteBancaireModal({ compte, onClose, onEnregistrer }: CompteBancaireModalProps) {
+export function CompteBancaireModal({ compte, onClose, onEnregistrer }: Readonly<CompteBancaireModalProps>) {
   const [valeurs, setValeurs] = useState<ValeursCompte>(() => valeursInitiales(compte))
   const [enCours, setEnCours] = useState(false)
   const changer = <K extends keyof ValeursCompte>(cle: K, valeur: ValeursCompte[K]) =>
@@ -148,7 +148,7 @@ export interface ClotureCompteModalProps {
 }
 
 /** Confirmation « Clôturer » : le compte reste en base, inactif. */
-export function ClotureCompteModal({ compte, onClose, onConfirmer }: ClotureCompteModalProps) {
+export function ClotureCompteModal({ compte, onClose, onConfirmer }: Readonly<ClotureCompteModalProps>) {
   const [enCours, setEnCours] = useState(false)
   const confirmer = async () => {
     if (enCours) return

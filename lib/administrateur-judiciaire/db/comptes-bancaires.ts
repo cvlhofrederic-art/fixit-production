@@ -108,7 +108,8 @@ export async function cloturerCompteBancaire(id: string, options: OptionsEcritur
 /** Ligne du cabinet : la plus ancienne de la table (une seule est écrite par cet écran) ; null si la table est vide. */
 async function ligneCabinet(): Promise<Cabinet | null> {
   const cabinets = await repoCabinets.list()
-  return cabinets.sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0] ?? null
+  cabinets.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+  return cabinets[0] ?? null
 }
 
 /** Réglage du cabinet : son mode enregistré, sinon le défaut du domaine (compte séparé au nom du syndicat). */
@@ -122,14 +123,16 @@ export async function lireReglagesComptesCabinet(): Promise<ReglagesComptesCabin
  * l'un après l'autre, sans créer une seconde ligne ; le dernier choix est gardé.
  */
 export async function enregistrerModeComptesCabinet(mode: ModeTenueComptes, options: OptionsEcriture = {}): Promise<Cabinet> {
+  // Mode refusé par le domaine : promesse rejetée (fonction asynchrone), jamais une erreur levée à l'appel.
   const { modeParDefaut } = creerReglagesComptesCabinet({ modeParDefaut: mode })
   const ecriture = { actor: options.actor ?? null }
-  return ajDb.transaction('rw', ajDb.cabinets, ajDb.activityLog, async () => {
+  const enregistre = await ajDb.transaction('rw', ajDb.cabinets, ajDb.activityLog, async () => {
     const existant = await ligneCabinet()
     return existant
       ? repoCabinets.update(existant.id, { modeComptesBancaires: modeParDefaut }, ecriture)
       : repoCabinets.create({ modeComptesBancaires: modeParDefaut }, ecriture)
   })
+  return enregistre
 }
 
 /**
