@@ -204,6 +204,22 @@ const comparer = (a: FicheValide, b: FicheValide): number =>
   a.id.localeCompare(b.id)
 
 /**
+ * Lots touchés par la migration (une ligne créée) qui portent plusieurs fiches : indivision ou mutation à régulariser.
+ * Fiches de chaque lot dans l'ordre des identifiants, lots dans l'ordre des identifiants.
+ */
+function lotsARegulariserDe(fiches: EntreesMigrationD2['fiches'], aCreer: readonly LigneMigrationD2[]): LotARegulariser[] {
+  const lotsTouches = new Set(aCreer.map((l) => l.position.lotId))
+  const parLot = new Map<string, string[]>()
+  for (const fiche of fiches)
+    if (typeof fiche.lotId === 'string' && lotsTouches.has(fiche.lotId) && typeof fiche.id === 'string')
+      parLot.set(fiche.lotId, [...(parLot.get(fiche.lotId) ?? []), fiche.id])
+  return [...parLot.entries()]
+    .filter(([, ids]) => ids.length > 1)
+    .map(([lotId, ids]) => ({ lotId, coproprietaireIds: [...ids].sort((a, b) => a.localeCompare(b)), motif: MOTIF_LOT_A_REGULARISER }))
+    .sort((a, b) => a.lotId.localeCompare(b.lotId))
+}
+
+/**
  * Plan de la migration : lignes à créer, fiches déjà migrées, fiches écartées, lots à régulariser. Fonction pure. Jour de
  * la migration invalide : erreur, rien n'est planifié (il serait écrit tel quel dans le relevé de chaque compte).
  */
@@ -281,20 +297,11 @@ export function planifierMigrationD2({ fiches, lots, mandats, comptes, idsConnus
     })
   }
 
-  const lotsTouches = new Set(aCreer.map((l) => l.position.lotId))
-  const parLot = new Map<string, string[]>()
-  for (const fiche of fiches)
-    if (typeof fiche.lotId === 'string' && lotsTouches.has(fiche.lotId) && typeof fiche.id === 'string')
-      parLot.set(fiche.lotId, [...(parLot.get(fiche.lotId) ?? []), fiche.id])
-  const lotsARegulariser = [...parLot.entries()]
-    .filter(([, ids]) => ids.length > 1)
-    .map(([lotId, ids]) => ({ lotId, coproprietaireIds: [...ids].sort((a, b) => a.localeCompare(b)), motif: MOTIF_LOT_A_REGULARISER }))
-    .sort((a, b) => a.lotId.localeCompare(b.lotId))
-
+  ecartees.sort((a, b) => a.rang - b.rang)
   return {
     aCreer,
     dejaMigrees,
-    ecartees: ecartees.sort((a, b) => a.rang - b.rang).map(({ coproprietaireId, motif }) => ({ coproprietaireId, motif })),
-    lotsARegulariser,
+    ecartees: ecartees.map(({ coproprietaireId, motif }) => ({ coproprietaireId, motif })),
+    lotsARegulariser: lotsARegulariserDe(fiches, aCreer),
   }
 }

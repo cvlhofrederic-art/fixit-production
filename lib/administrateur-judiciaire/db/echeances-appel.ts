@@ -36,22 +36,29 @@ export function echeancesAppelDuSyndicat(coproprieteId: string): Promise<Echeanc
  * syndicat, avec le suivi par défaut (suivreEcheances : « Prévu », relançable par défaut). Refus, rien n'est écrit : lot
  * de plusieurs syndicats, échéance déjà dans l'échéancier du syndicat, échéance que suivreEcheances refuse.
  */
-export async function ajouterEcheancesAppel(
+export function ajouterEcheancesAppel(
   echeances: EcheanceAppel[],
   { actor = null, relancable = true }: OptionsEcriture & { relancable?: boolean } = {},
 ): Promise<EcheanceAppelEnregistree[]> {
-  const syndicats = new Set(echeances.map((e) => e.coproprieteId))
-  if (syndicats.size > 1) throw new Error(`Échéances de ${syndicats.size} syndicats (${[...syndicats].join(', ')}) : un seul syndicat par ajout.`)
-  const suivies = suivreEcheances(echeances, { relancable })
+  // refus du domaine dans la transaction (comme changerSuiviEcheances) : la promesse est rejetée, rien n'est écrit
   return ajDb.transaction('rw', ajDb.echeancesAppel, ajDb.activityLog, async () => {
+    const syndicats = new Set(echeances.map((e) => e.coproprieteId))
+    if (syndicats.size > 1) throw new Error(`Échéances de ${syndicats.size} syndicats (${[...syndicats].join(', ')}) : un seul syndicat par ajout.`)
+    const suivies = suivreEcheances(echeances, { relancable })
     const deja = (await ajDb.echeancesAppel.bulkGet(suivies.map((e): [string, string] => [e.coproprieteId, e.id]))).filter((e) => e !== undefined)
-    if (deja.length > 0)
-      throw new Error(`Échéance(s) ${deja.map((e) => `« ${e.id} »`).join(', ')} déjà dans l'échéancier du syndicat ${deja[0].coproprieteId}.`)
+    if (deja.length > 0) {
+      const identifiants = deja.map((e) => `« ${e.id} »`).join(', ')
+      throw new Error(`Échéance(s) ${identifiants} déjà dans l'échéancier du syndicat ${deja[0].coproprieteId}.`)
+    }
     const maintenant = new Date().toISOString()
     const lignes: EcheanceAppelEnregistree[] = suivies.map((e) => ({ ...e, createdAt: maintenant, updatedAt: maintenant, createdBy: actor, updatedBy: actor }))
     await ajDb.echeancesAppel.bulkAdd(lignes)
-    for (const ligne of lignes)
-      await journaliserActivite({ entite: 'echeancesAppel', entiteId: entiteIdEcheance(ligne), action: 'create', qui: actor, avant: null, apres: ligne })
+    // entrées du journal placées dans l'ordre des lignes (journaliserActivite pose son ajout sans attente préalable)
+    await Promise.all(
+      lignes.map((ligne) =>
+        journaliserActivite({ entite: 'echeancesAppel', entiteId: entiteIdEcheance(ligne), action: 'create', qui: actor, avant: null, apres: ligne }),
+      ),
+    )
     return lignes
   })
 }

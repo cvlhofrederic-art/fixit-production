@@ -236,6 +236,11 @@ describe('échéancier des appels : db/echeances-appel.ts', () => {
     expect(await ajDb.echeancesAppel.count()).toBe(8)
     const journal = await ajDb.activityLog.where('entiteId').equals('C1:B-2026-001-1').toArray()
     expect(journal.map((l) => [l.entite, l.action, l.qui])).toEqual([['echeancesAppel', 'create', 'test']])
+    // une entrée de journal par échéance ajoutée
+    const entites = (await ajDb.activityLog.where('entite').equals('echeancesAppel').toArray()).map((l) => l.entiteId)
+    expect(entites.sort((a, b) => a.localeCompare(b))).toEqual(
+      ['C1', 'C2'].flatMap((syndicat) => [1, 2, 3, 4].map((rang) => `${syndicat}:B-2026-001-${rang}`)),
+    )
   })
 
   it('ajout refusé, rien n’est écrit : échéance déjà dans l’échéancier du syndicat, deux syndicats mêlés, échéance négative', async () => {
@@ -246,6 +251,8 @@ describe('échéancier des appels : db/echeances-appel.ts', () => {
     )
     await expect(ajouterEcheancesAppel([{ ...echeances('C2', 4_000)[0], montantCentimes: -1 }])).rejects.toThrow(/montant invalide/)
     expect(await ajDb.echeancesAppel.count()).toBe(4)
+    // ni échéance ni entrée de journal : seules les quatre du premier ajout
+    expect(await ajDb.activityLog.where('entite').equals('echeancesAppel').count()).toBe(4)
   })
 
   it('suivi par les fonctions du domaine : mise en attente, reprise, annulation avant appel, regroupement, relançable', async () => {

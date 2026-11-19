@@ -234,10 +234,13 @@ function verifierRepresentants(identite: Pick<Identite, 'id' | 'nature' | 'nom'>
   }
 }
 
+/** Valeur reçue, lisible dans un message : un objet ou un tableau en JSON (jamais « [object Object] »), le reste tel quel. */
+const valeurRecue = (valeur: unknown): string => (typeof valeur === 'object' && valeur !== null ? JSON.stringify(valeur) : String(valeur))
+
 /** J78 : case cochée ou décochée gardée ; absente ou null, rien (non saisie) ; toute autre valeur refusée. */
 function caseProfessionnel(valeur: unknown, nom: string): Pick<Identite, 'professionnel'> {
   if (valeur === undefined || valeur === null) return {}
-  if (typeof valeur !== 'boolean') throw new Error(`Case « professionnel » de ${nom} : cochée ou décochée attendue (reçu « ${String(valeur)} »).`)
+  if (typeof valeur !== 'boolean') throw new Error(`Case « professionnel » de ${nom} : cochée ou décochée attendue (reçu « ${valeurRecue(valeur)} »).`)
   return { professionnel: valeur }
 }
 

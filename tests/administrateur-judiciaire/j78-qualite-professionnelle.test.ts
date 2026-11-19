@@ -85,6 +85,22 @@ describe('J78 — case « professionnel » sur la fiche identité, décochée pa
       )
   })
 
+  it('valeur refusée lisible dans le message : un texte ou un nombre tel quel, un objet ou un tableau en JSON (jamais « [object Object] »)', () => {
+    const message = (valeur: unknown): string => {
+      try {
+        creerIdentite(saisie({ professionnel: valeur as boolean }))
+      } catch (erreur) {
+        return erreur instanceof Error ? erreur.message : String(erreur)
+      }
+      throw new Error(`Valeur acceptée : ${JSON.stringify(valeur)}.`)
+    }
+    expect(message('oui')).toContain('(reçu « oui »)')
+    expect(message(1)).toContain('(reçu « 1 »)')
+    expect(message({ coche: true })).toContain('(reçu « {"coche":true} »)')
+    // un tableau [true] ne se lit pas « true », la valeur attendue : il est rendu tel quel
+    expect(message([true])).toContain('(reçu « [true] »)')
+  })
+
   it('personne morale sans case cochée : non professionnelle (décision de Hugo du 19/11/2026 : jamais du seul fait d’être une personne morale)', () => {
     const societe = (surcharge: Partial<SaisieIdentite> = {}): Identite =>
       creerIdentite(saisie({ nature: 'morale', civilite: 'Société', nom: 'Exemple', prenom: null, ...surcharge }))
