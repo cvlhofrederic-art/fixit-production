@@ -111,9 +111,35 @@ describe('bouton « Bureaux (n) » sur la carte d’un cabinet', () => {
     expect(within(c).getByRole('button', { name: G.cabinets.modifier })).toBeInTheDocument()
     expect(within(c).getByRole('button', { name: G.cabinets.logo.bouton })).toBeInTheDocument()
   })
+
+  it('téléphone : « Bureaux (n) » est dans la rangée des boutons de la carte, bornée à la carte et qui passe à la ligne (jamais hors de l’écran)', () => {
+    rendre()
+    const rangee = within(carte('Cabinet Exemple')).getByRole('button', { name: 'Bureaux (0)' }).parentElement as HTMLElement
+    expect(rangee).toContainElement(within(carte('Cabinet Exemple')).getByRole('button', { name: G.cabinets.logo.bouton }))
+    expect(rangee).toHaveClass('flex-wrap', 'max-w-full')
+  })
 })
 
 describe('fenêtre des bureaux : lecture', () => {
+  it('titre « Bureaux — Cabinet Exemple » (jamais « Bureaux du cabinet Cabinet Exemple »)', async () => {
+    rendre()
+    const f = await ouvrir()
+    expect(within(f).getByRole('heading', { level: 2 })).toHaveTextContent(/^Bureaux — Cabinet Exemple$/)
+  })
+
+  it('téléphone : dans chaque ligne, « Renommer » et « Fermer » passent sous le nom et les compteurs (côte à côte au-delà de sm, motif flex-col sm:flex-row des fenêtres)', async () => {
+    bureaux = [bureau(B1, 'Nord', false, 1, 1), bureau(B2, 'Sud', true)]
+    rendre()
+    const f = await ouvrir()
+    for (const ligne of within(within(f).getByRole('list', { name: B.liste })).getAllByRole('listitem')) {
+      const nom = within(ligne).getByRole('heading', { level: 3 })
+      const disposition = nom.closest('.space-y-1')?.parentElement as HTMLElement
+      expect(disposition).toContainElement(within(ligne).getByRole('button', { name: remplir(B.renommerNomme, { nom: nom.textContent ?? '' }) }))
+      expect(disposition).toHaveClass('flex', 'flex-col', 'sm:flex-row', 'sm:justify-between')
+      expect(disposition).not.toHaveClass('flex-wrap')
+    }
+  })
+
   it('titre, intro ; chaque bureau : nom, ouvert ou fermé, gestionnaires actifs et copropriétés actives ; GET de ce cabinet', async () => {
     bureaux = [bureau(B1, 'Nord', false, 2, 3), bureau(B2, 'Sud', true)]
     rendre()

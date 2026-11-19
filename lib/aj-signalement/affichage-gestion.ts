@@ -660,7 +660,8 @@ export const TEXTES_GESTION_QR = {
     // E1 — vue Cabinets : bouton de la carte et fenêtre des bureaux du cabinet.
     fenetre: {
       bouton: 'Bureaux ({n})',
-      titre: 'Bureaux du cabinet {cabinet}',
+      // Nom du cabinet tel quel (« Bureaux du cabinet Cabinet Exemple » sinon) : motif de « Diffusion d’informations — {cabinet} ».
+      titre: 'Bureaux — {cabinet}',
       intro: 'Les bureaux classent les gestionnaires et les copropriétés du cabinet ; ils ne changent ni ce que chacun voit, ni les destinataires des e-mails. Dès qu’un bureau est ouvert, chaque nouveau gestionnaire du cabinet doit en avoir un.',
       chargement: 'Chargement des bureaux…',
       erreurLecture: 'Les bureaux n’ont pas pu être chargés. Réessayez.',

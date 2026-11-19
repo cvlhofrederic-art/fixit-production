@@ -121,6 +121,12 @@ interface FiltreBureauVueQr {
 
 const AUCUNE_OPTION: OptionBureauQr[] = []
 
+/**
+ * Boutons de la barre de la vue Copropriétés : avec le filtre « Bureau », en haut de la barre (sur la ligne de
+ * « Afficher », le groupe des filtres pouvant passer sur deux lignes) ; sans lui, les classes d'avant.
+ */
+const classesBoutonsBarreQr = (avecBureau: boolean) => (avecBureau ? 'flex flex-wrap gap-2 self-start' : 'flex flex-wrap gap-2')
+
 type Fenetre =
   | { type: 'creation' } | { type: 'import' } | { type: 'modification'; copropriete: CoproprieteQr } | { type: 'detail'; id: string }
   // PR 3 : diffusion (message, ou historique de la copropriété ; portée « signalement » depuis le détail).
@@ -517,7 +523,7 @@ function VueCoproprietesQr({
         <FiltresCoproprietesQr
           visible={coproprietes.length > 0 && !vueGestionnaire} filtre={filtre} onFiltre={onFiltre} gestionnaires={gestionnaires} bureau={bureau}
         />
-        <div className="flex flex-wrap gap-2">
+        <div className={classesBoutonsBarreQr(bureau !== undefined)}>
           {onImporter && <Bouton variante="secondaire" icone="documents" onClick={onImporter}>{I.bouton}</Bouton>}
           <Bouton variante="or" icone="plus" onClick={onAjouter}>{T.ajouterCopro}</Bouton>
         </div>
@@ -566,8 +572,12 @@ function FiltresCoproprietesQr({ visible, filtre, onFiltre, gestionnaires, burea
     </label>
   )
   if (!bureau) return liste
+  // Groupe des filtres (élément de la barre) : flex-1, il prend la place que laissent les boutons et y passe à la ligne
+  // (« Bureau » sous « Afficher ») ; les boutons restent sur la première ligne, à droite, comme avant le filtre « Bureau ».
+  // Sa largeur minimale est celle de « Afficher » (jamais écrasé), bornée à la barre (max-w-full) : un nom de bureau long
+  // n'élargit pas la page.
   return (
-    <div className="flex flex-wrap items-center gap-3">
+    <div className="flex max-w-full flex-1 flex-wrap items-center gap-3">
       {liste}
       <FiltreBureauQr options={bureau.options} valeur={bureau.valeur} onChange={bureau.onChange} />
     </div>

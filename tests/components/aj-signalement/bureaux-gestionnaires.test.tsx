@@ -472,15 +472,43 @@ describe('E3 liste des gestionnaires', () => {
     expect(simul.toastErreur).toHaveBeenCalledWith(T.erreurs.reseau)
   })
 
-  it('filtre « Bureau » : mêmes classes que le filtre « Bureau » des vues Copropriétés et Signalements, groupe des filtres compris (un nom long ne déborde pas de l’écran)', async () => {
+  it('filtre « Bureau » : un nom long ne déborde pas de l’écran (liste rétrécie dans son étiquette, bornée à la barre)', async () => {
     rendreListe([marie, paul], [cabinetAvec])
     const filtre = screen.getByLabelText(BF.libelle)
     await waitFor(() => expect(options(filtre)).toContain('Nord'))
-    expect(filtre).toHaveClass('min-w-0', 'max-w-full')
+    // La liste rétrécit dans son étiquette (min-w-0) ; sans max-w-full, qui ferait d'elle un contrôle « compressible »
+    // (largeur minimale de contenu nulle selon le navigateur) : le groupe des filtres garde sa largeur naturelle (ci-dessous).
+    expect(filtre).toHaveClass('min-w-0')
+    expect(filtre).not.toHaveClass('max-w-full')
     const etiquette = filtre.closest('label') as HTMLElement
     expect(etiquette).toHaveClass('min-w-0', 'max-w-full')
-    // Le groupe des filtres « Cabinet » et « Bureau » (élément de la barre) peut lui aussi rétrécir sous sa largeur de contenu.
-    expect(etiquette.parentElement).toHaveClass('min-w-0', 'max-w-full')
+    expect(etiquette.parentElement).toHaveClass('max-w-full')
+  })
+
+  it('barre des filtres, ordinateur : les boutons restent à droite, sur la ligne du filtre « Cabinet » ; « Bureau » passe à la ligne dans le groupe des filtres', async () => {
+    rendreListe([marie, paul], [cabinetAvec, autre])
+    const filtre = screen.getByLabelText(BF.libelle)
+    await waitFor(() => expect(options(filtre)).toContain('Nord'))
+    const groupe = (filtre.closest('label') as HTMLElement).parentElement as HTMLElement
+    expect(groupe).toContainElement(screen.getByLabelText(G.gestionnaires.filtreCabinet))
+    // flex-1 : le groupe prend la place laissée par les boutons et y passe à la ligne ; sa largeur minimale est celle de son
+    // filtre le plus large (sans min-w-0), bornée à la barre (max-w-full) : les boutons ne passent dessous que s'il ne tient pas.
+    expect(groupe).toHaveClass('flex', 'flex-1', 'flex-wrap', 'max-w-full')
+    expect(groupe).not.toHaveClass('min-w-0')
+    const boutons = screen.getByRole('button', { name: G.gestionnaires.ajouter }).parentElement as HTMLElement
+    expect(boutons.parentElement).toBe(groupe.parentElement)
+    // En haut de la barre (sur la ligne du filtre « Cabinet »), pas au milieu des deux lignes de filtres.
+    expect(boutons).toHaveClass('flex', 'flex-wrap', 'gap-2', 'self-start')
+  })
+
+  it('barre des filtres sans bureau : celle d’avant (filtre « Cabinet » directement dans la barre, boutons sans classe nouvelle)', () => {
+    rendreListe([fiche(G1, 'Marie Exemple'), paul, jean], [cabinetSans, autre])
+    const etiquette = screen.getByLabelText(G.gestionnaires.filtreCabinet).closest('label') as HTMLElement
+    const barre = etiquette.parentElement as HTMLElement
+    expect(barre.className).toBe('flex flex-wrap items-center justify-between gap-3')
+    const boutons = screen.getByRole('button', { name: G.gestionnaires.ajouter }).parentElement as HTMLElement
+    expect(boutons.parentElement).toBe(barre)
+    expect(boutons.className).toBe('flex flex-wrap gap-2')
   })
 })
 

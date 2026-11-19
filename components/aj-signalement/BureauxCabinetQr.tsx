@@ -212,8 +212,10 @@ function ListeBureauxQr({ bureaux, renommage, ...ligne }: Readonly<PropsListe>) 
 type PropsLigne = Readonly<Omit<PropsListe, 'bureaux' | 'renommage'> & { bureau: BureauQr }>
 
 function LigneBureauQr({ bureau: b, libre, idRenommer, onRenommer, onBasculer }: PropsLigne) {
+  // Téléphone : les boutons passent sous le nom et les compteurs (côte à côte, le nom n'avait qu'environ 110 px dans la
+  // fenêtre et les compteurs s'étalaient sur cinq lignes) ; côte à côte au-delà de sm (motif flex-col sm:flex-row).
   return (
-    <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0 flex-1 space-y-1">
         <div className="flex flex-wrap items-center gap-2">
           <h3 className="text-base font-bold text-[#0D1B2E]">{b.nom}</h3>

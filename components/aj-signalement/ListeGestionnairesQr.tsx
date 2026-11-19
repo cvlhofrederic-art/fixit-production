@@ -160,6 +160,12 @@ function fichesAfficheesQr(gestionnaires: readonly GestionnaireQr[], lecture: Le
   return lecture.etat === 'pret' ? lecture.fiches : []
 }
 
+/**
+ * Boutons de la barre des filtres : avec le filtre « Bureau », en haut de la barre (sur la ligne du filtre « Cabinet »,
+ * le groupe des filtres pouvant passer sur deux lignes) ; sans lui, les classes d'avant.
+ */
+const classesBoutonsBarreQr = (avecBureau: boolean) => (avecBureau ? 'flex flex-wrap gap-2 self-start' : 'flex flex-wrap gap-2')
+
 export default function ListeGestionnairesQr({
   gestionnaires, cabinets, erreur, coproprietes, onOuvrir, onModifie, onReessayer, onCabinets,
 }: Readonly<PropsListeGestionnairesQr>) {
@@ -276,7 +282,7 @@ export default function ListeGestionnairesQr({
             options: optionsBureau.bureaux, chargement: optionsBureau.lecture.etat === 'chargement', valeur: fichesBureau.filtre, onChange: fichesBureau.choisir,
           } : null}
         />
-        <div className="flex flex-wrap gap-2">
+        <div className={classesBoutonsBarreQr(portee.visible)}>
           {ouvrables.length > 0 && (
             <Bouton variante="secondaire" icone="envoyer" disabled={occupe !== null} onClick={() => setConfirmerGroupe(true)}>
               {remplir(G.acces.groupe, { n: ouvrables.length })}
@@ -345,15 +351,19 @@ function FiltresListeQr({ idBase, cabinets, filtreCabinet, onCabinet, bureau }: 
     </label>
   ) : null
   if (!bureau) return cabinet ?? <span />
-  // Classes du filtre « Bureau » de E7 (min-w-0 max-w-full), jusqu'au groupe des filtres (élément de la barre, sinon tenu à
-  // sa largeur de contenu) : un nom de bureau long n'élargit pas la page.
+  // Groupe des filtres (élément de la barre) : flex-1, il prend la place que laissent les boutons et y passe à la ligne
+  // (« Bureau » sous « Cabinet ») ; les boutons restent sur la première ligne, à droite, comme avant le filtre « Bureau ».
+  // Sa largeur minimale est celle de son filtre le plus large (pas de min-w-0 : jamais écrasé), bornée à la barre
+  // (max-w-full) ; la liste « Bureau » rétrécit dans son étiquette (min-w-0) : un nom de bureau long n'élargit pas la page.
+  // Pas de max-w-full sur la liste : il en ferait un contrôle « compressible » (largeur minimale nulle selon le
+  // navigateur), et le groupe, seul avec elle (un seul cabinet), pourrait être écrasé à côté des boutons.
   return (
-    <div className="flex min-w-0 max-w-full flex-wrap items-center gap-3">
+    <div className="flex max-w-full flex-1 flex-wrap items-center gap-3">
       {cabinet}
       <label className="flex min-w-0 max-w-full items-center gap-2 text-sm text-[#4A5E78]" htmlFor={`${idBase}-bureau`}>
         <span>{BF.libelle}</span>
         <select
-          id={`${idBase}-bureau`} value={bureau.valeur} onChange={(e) => bureau.onChange(e.target.value)} className={`${CLASSES_FILTRE} min-w-0 max-w-full`}
+          id={`${idBase}-bureau`} value={bureau.valeur} onChange={(e) => bureau.onChange(e.target.value)} className={`${CLASSES_FILTRE} min-w-0`}
         >
           <option value="">{BF.tous}</option>
           {bureau.options.map((b) => <option key={b.id} value={b.id}>{libelleBureauQr(b)}</option>)}

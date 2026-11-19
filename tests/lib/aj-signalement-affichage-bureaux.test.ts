@@ -128,6 +128,11 @@ describe('textes des écrans E1 à E7 et de l’import', () => {
     }
     expect(remplir(B.copropriete.ligne, { bureau: 'Nord' })).toBe('Bureau : Nord')
   })
+
+  it('titre de la fenêtre des bureaux : le nom du cabinet tel quel, jamais « cabinet Cabinet … » (motif de la fenêtre « Diffusion d’informations — {cabinet} »)', () => {
+    expect(remplir(B.fenetre.titre, { cabinet: 'Cabinet Exemple' })).toBe('Bureaux — Cabinet Exemple')
+    expect(remplir(B.fenetre.titre, { cabinet: 'Exemple Gestion' })).toBe('Bureaux — Exemple Gestion')
+  })
 })
 
 // Lot 2 (E2, E3, E4, import) : refus d'une écriture qui porte un bureau (fiche créée, fiche changée de bureau).

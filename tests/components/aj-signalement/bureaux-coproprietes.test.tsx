@@ -485,6 +485,30 @@ describe('E7 filtre « Bureau » (vues Copropriétés et Signalements du super a
     expect(screen.getByText(G.copropriete.aucuneFiltre)).toBeInTheDocument()
   })
 
+  it('barre de la vue Copropriétés, ordinateur : « Ajouter une copropriété » reste à droite, sur la ligne de « Afficher » ; « Bureau » passe à la ligne dans le groupe des filtres', async () => {
+    tableauComplet = { coproprietes: [une, deux, trois], signalements: [fuite, porte, lampe] }
+    await rendreTableau('coproprietes')
+    const groupe = (screen.getByLabelText(BF.libelle).closest('label') as HTMLElement).parentElement as HTMLElement
+    expect(groupe).toContainElement(screen.getByLabelText(G.copropriete.filtre))
+    // flex-1 : le groupe prend la place laissée par les boutons et y passe à la ligne ; sa largeur minimale est celle de son
+    // filtre le plus large (« Afficher »), bornée à la barre (max-w-full : un nom de bureau long n'élargit pas la page).
+    expect(groupe).toHaveClass('flex', 'flex-1', 'flex-wrap', 'max-w-full')
+    const boutons = screen.getByRole('button', { name: T.ajouterCopro }).parentElement as HTMLElement
+    expect(boutons.parentElement).toBe(groupe.parentElement)
+    // En haut de la barre (sur la ligne de « Afficher »), pas au milieu des deux lignes de filtres.
+    expect(boutons).toHaveClass('flex', 'flex-wrap', 'gap-2', 'self-start')
+  })
+
+  it('barre de la vue Copropriétés sans bureau : celle d’avant (« Afficher » directement dans la barre, boutons sans classe nouvelle)', async () => {
+    tableauComplet = { coproprietes: [copro(C1, 'Résidence Une'), trois], signalements: [fuite, lampe] }
+    await rendreTableau('coproprietes', [cabinetSans])
+    const barre = (screen.getByLabelText(G.copropriete.filtre).closest('label') as HTMLElement).parentElement as HTMLElement
+    expect(barre.className).toBe('flex flex-wrap items-center justify-between gap-3')
+    const boutons = screen.getByRole('button', { name: T.ajouterCopro }).parentElement as HTMLElement
+    expect(boutons.parentElement).toBe(barre)
+    expect(boutons.className).toBe('flex flex-wrap gap-2')
+  })
+
   it('plusieurs cabinets avec des bureaux : « Cabinet · Bureau », par ordre alphabétique', async () => {
     const nordAutre = { id: B4, nom: 'Nord', ferme: false }
     tableauComplet = { coproprietes: [une, copro(C2, 'Résidence Deux', { cabinet: RESUME_K2, bureau: nordAutre })], signalements: [] }
