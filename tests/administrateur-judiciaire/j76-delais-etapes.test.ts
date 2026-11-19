@@ -13,6 +13,7 @@ import {
   fixerDelaiEtapeModele,
   instancierModele,
   modeleDuDossier,
+  modelePriseDeFonction,
   modeleReprise,
   processusDuDossier,
   processusDuModele,
@@ -149,23 +150,43 @@ describe('J76 — aucun délai par défaut entre les étapes (réponse de Fréd�
 
   it('en-têtes : le suivi des étapes sans délai est la proposition de Hugo du 19/11/2026, codée, à valider par Frédéric (question n° 6)', () => {
     const { texte, item } = enTeteDuModule('modeles-etapes')
-    // J20 : la liste instanciée remonte par sa limite, quand elle en a une ; sans délai saisi, « sans délai ».
+    // J20 et J76 : la règle est attribuée à Hugo, à valider par Frédéric ; elle ne fait pas partie de la réponse de Frédéric.
     expect(item('- J20 : instancier une liste')).toMatch(
-      /par sa limite, quand elle en a une ; sans délai saisi, elle y remonte chaque jour, marquée « sans délai », jamais en retard.*question n° 6/,
+      /par sa limite, quand elle en a une ; sans délai saisi, elle y remonte chaque jour, marquée « sans délai », jamais en retard \(proposition de Hugo du 19\/11\/2026, à valider par Frédéric ; question n° 6 ci-dessous\)/,
     )
-    expect(item('- J76 (réponse de Frédéric du 17/11/2026')).toMatch(/suivi « à faire ».*« sans délai ».*question n° 6/)
-    expect(item('- J76 (réponse de Frédéric du 17/11/2026')).not.toMatch(/ne remonte donc jamais/)
-    expect(texte).toMatch(
-      /6\. Proposition de Hugo du 19\/11\/2026, codée, à valider par Frédéric avant fusion \(registre J76, point de contact avec J20\).*suivi « à faire ».*date de référence.*« sans délai ».*jamais en retard/,
+    const j76 = item('- J76 (réponse de Frédéric du 17/11/2026')
+    expect(j76).toMatch(/suivi « à faire ».*« sans délai ».*jamais en retard \(suivi-a-faire\.depuisEtapes ; proposition de Hugo du 19\/11\/2026, à valider par Frédéric\).*question n° 6/)
+    expect(j76).not.toMatch(/ne remonte donc jamais/)
+    // Question n° 6 : ce que Hugo a tranché, puis les choix de codage, à valider aussi.
+    const q6 = texte.slice(texte.indexOf('6. Proposition de Hugo'), texte.indexOf('Délais : un délai de modèle'))
+    expect(q6).toMatch(
+      /^6\. Proposition de Hugo du 19\/11\/2026, codée, à valider par Frédéric avant fusion \(registre J76 : « décision de Hugo du 19\/11\/2026 » ; point de contact avec J20\)/,
     )
-    expect(texte).toMatch(/6\. Proposition de Hugo.*étape automatique.*depuisEtapesAutomatiques/)
+    expect(q6).toMatch(/Ce que Hugo a tranché : elle remonte au suivi « à faire » \(suivi-a-faire\.depuisEtapes\), marquée « sans délai », jamais en retard, pour ne pas être oubliée\./)
+    expect(q6).toMatch(
+      /🔵 Choix de codage, à valider aussi \(Hugo ne dit pas à quelle date\) : l'élément est daté de la date de référence, dû le jour même, chaque jour, et non de la date de création de l'étape ; jamais avant cette création/,
+    )
+    expect(q6).toMatch(/une étape automatique sans date reste suivie par sa seule relance à N jours \(depuisEtapesAutomatiques\), sans doublon/)
+    expect(q6).toMatch(/Conséquence à valider : une liste instanciée sans délai remonte entière, chaque jour, dès l'instanciation \(Prise de fonction : 8 éléments ; Reprise : 12\).*question n° 5/)
+    expect(q6).toMatch(/« sans délai » se lit aussi « immédiatement » ; un autre libellé, par exemple « aucun délai saisi », reste possible/)
+    expect(q6).toMatch(/Reste à obtenir : l'accord écrit de Frédéric, date comprise \(date du jour ou date de création\)/)
+    // La date de référence n'est plus présentée comme venant de Hugo.
+    expect(q6).not.toMatch(/Elle remonte au suivi « à faire » \(suivi-a-faire\.depuisEtapes\) à la date de référence/)
     expect(texte).not.toContain('6. Hugo ou Frédéric (registre J76')
     expect(texte).not.toContain("Rien n'est tranché ici")
     const etapes = enTeteDuModule('etapes').texte
-    expect(etapes).toMatch(/remonte au suivi « à faire ».*« sans délai ».*jamais en retard.*proposition de Hugo du 19\/11\/2026, à valider par Frédéric.*question n° 6/)
+    expect(etapes).toMatch(
+      /remonte au suivi « à faire », marquée « sans délai », jamais en retard \(proposition de Hugo du 19\/11\/2026, à valider par Frédéric\) ; 🔵 choix de codage, à valider aussi : chaque jour, à la date de référence, jamais avant sa création.*question n° 6/,
+    )
     expect(etapes).not.toContain('ne remonte alors pas au suivi « à faire »')
     const suivi = enTeteDuModule('suivi-a-faire').texte
-    expect(suivi).toMatch(/Étapes \(point 48.*sans aucune date.*« sans délai ».*jamais en retard.*proposition de Hugo du 19\/11\/2026, à valider par Frédéric/)
+    expect(suivi).toMatch(
+      /Étapes \(point 48.*sans aucune date.*remonte au suivi, marquée « sans délai », jamais en retard \(proposition de Hugo du 19\/11\/2026, à valider par Frédéric\) ; 🔵 choix de codage, à valider aussi : chaque jour à la date de référence, jamais avant sa création ; une étape automatique sans date n'y remonte que par sa relance/,
+    )
+    // etapes-courrier.ts, J64 : la question n° 6 fermée est l'ancienne (courrier ou enchaînement), pas celle de J76.
+    expect(enTeteDuModule('etapes-courrier').item('- J64 (décision de Hugo du 17/11/2026')).toMatch(
+      /Ferme les questions n° 1 et 2 ci-dessous et l'ancienne question n° 6 de modeles-etapes\.ts \(courrier ou enchaînement\)\./,
+    )
   })
 
   it('en-tête de modeles-etapes.ts : J76 cité, question n° 1 fermée, n° 2 fermée en partie (base du délai et replanification ouvertes)', () => {
@@ -251,6 +272,84 @@ describe('J76, question n° 6 — étape sans délai au suivi « à faire » (pr
         '2026-11-04',
       ).map((e) => [e.id, e.date, e.libelle]),
     ).toEqual(liste.etapes.map((e) => [`etapes:${e.id}:a_faire`, '2026-11-04', `${e.titre} — sans délai`]))
+  })
+
+  it('étape créée à une date future (instanciée ou enchaînée) : jamais avant sa création, puis à la date de référence', () => {
+    // Choix de codage (question n° 6) : une étape qui n'existe pas encore n'est pas due ; sa réalisation serait refusée.
+    const liste = instancierModele(modeleDuDossier('Contentieux', { id: 'm-ctx', titre: 'Contentieux' }), {
+      ids: ['c-1', 'c-2'],
+      creeeParId: 'collab-A',
+      dossierId: 'C-3',
+      depart: '2026-12-15',
+      demandeurId: 'collab-A',
+      demandeurNature: 'collaborateur',
+      realisateurId: 'collab-B',
+    })
+    const items = liste.etapes.map((etape) => ({ mandatId: 'M1', etape }))
+    expect(() => realiserEtapeDossier(liste.etapes[0], { date: '2026-11-19', compteRendu: '' })).toThrow(/précède la création/)
+    // Avant sa création : datée du jour de sa création, donc non retenue à l'horizon « Maintenant ».
+    expect(depuisEtapes(items, '2026-11-19').map((e) => [e.id, e.date])).toEqual([
+      ['etapes:c-1:a_faire', '2026-12-15'],
+      ['etapes:c-2:a_faire', '2026-12-15'],
+    ])
+    expect(selectionnerAFaire(depuisEtapes(items, '2026-11-19'), reglageParDefaut('collab-B'), AFFECTATIONS, '2026-11-19')).toEqual([])
+    // Le jour de sa création, puis chaque jour : à la date de référence, retenue.
+    for (const jour of ['2026-12-15', '2026-12-16']) {
+      const elements = depuisEtapes(items, jour)
+      expect(elements.map((e) => e.date), jour).toEqual([jour, jour])
+      expect(
+        selectionnerAFaire(elements, reglageParDefaut('collab-B'), AFFECTATIONS, jour)
+          .map((e) => e.id)
+          .sort(),
+        jour,
+      ).toEqual(['etapes:c-1:a_faire', 'etapes:c-2:a_faire'])
+    }
+    // Étape enchaînée, créée le 01/12/2026 : même règle, jamais en retard.
+    const processus = processusDuDossier('Sinistre')
+    const enchainee = enchainerEtapeDossier(declarationRealisee(processus[0].etapeType), processus, {
+      id: 's-2',
+      date: '2026-12-01',
+      creeeParId: 'collab-A',
+    })!
+    expect(depuisEtapes([{ mandatId: 'M1', etape: enchainee }], '2026-11-19').map((e) => [e.date, e.libelle])).toEqual([
+      ['2026-12-01', 'Information lésé — sans délai'],
+    ])
+    for (const jour of ['2026-11-19', '2026-12-01', '2026-12-02'])
+      expect(
+        depuisEtapes([{ mandatId: 'M1', etape: enchainee }], jour).every((e) => e.date >= jour),
+        jour,
+      ).toBe(true)
+    // Date de création invalide : refusée.
+    expect(() => depuisEtapes([{ mandatId: 'M1', etape: { ...enchainee, creeeLe: '2026-13-01' } }], '2026-11-19')).toThrow(
+      /Date de création de l'étape s-2 invalide/,
+    )
+  })
+
+  it('conséquence à valider : une liste instanciée sans délai remonte entière dès l’instanciation (Prise de fonction 8, Reprise 12)', () => {
+    for (const [modele, nombre] of [
+      [modelePriseDeFonction(), 8],
+      [modeleReprise(), 12],
+    ] as const) {
+      const liste = instancierModele(modele, {
+        ids: modele.etapes.map((_, i) => `l-${i + 1}`),
+        creeeParId: 'collab-A',
+        dossierId: 'D-1',
+        depart: '2026-11-19',
+        demandeurId: 'collab-A',
+        demandeurNature: 'collaborateur',
+        realisateurId: 'collab-B',
+      })
+      expect(liste.etapes.map((e) => e.limite), modele.titre).toEqual(liste.etapes.map(() => null))
+      const elements = depuisEtapes(
+        liste.etapes.map((etape) => ({ mandatId: 'M1', etape })),
+        '2026-11-19',
+      )
+      expect(elements, modele.titre).toHaveLength(nombre)
+      expect(
+        elements.every((e) => e.date === '2026-11-19' && e.libelle.endsWith(' — sans délai')),
+        modele.titre,
+      ).toBe(true)
+    }
   })
 
   it('retenue par selectionnerAFaire à l’horizon « Maintenant » : réalisateur désigné et portefeuille, critère « À faire »', () => {

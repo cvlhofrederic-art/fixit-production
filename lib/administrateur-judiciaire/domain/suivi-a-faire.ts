@@ -111,9 +111,10 @@ import type { StatutAssemblee, StatutContrat, TypeContrat } from '@/lib/data/ref
  * automatique encore à faire remonte à sa date de relance, N jours après sa création (tranche 43 § 1), avec l'horizon et
  * la règle du week-end comme les autres natures ; N (JOURS_SUIVI_ETAPE_AUTOMATIQUE) est un réglage de GESTION du
  * cabinet, jamais un délai légal ; le critère Gestéam « Relance d'étape » en est rapproché sans certitude. Une étape à
- * faire sans aucune date (ni « à faire le », ni alerte, ni limite ; J76) remonte chaque jour à la date de référence,
- * marquée « sans délai », jamais en retard ; une étape automatique sans date n'y remonte que par sa relance (pas de
- * doublon) ; proposition de Hugo du 19/11/2026, à valider par Frédéric (modeles-etapes.ts, question n° 6).
+ * faire sans aucune date (ni « à faire le », ni alerte, ni limite ; J76) remonte au suivi, marquée « sans délai », jamais
+ * en retard (proposition de Hugo du 19/11/2026, à valider par Frédéric) ; 🔵 choix de codage, à valider aussi : chaque
+ * jour à la date de référence, jamais avant sa création ; une étape automatique sans date n'y remonte que par sa relance
+ * (pas de doublon) (modeles-etapes.ts, question n° 6).
  * 🔵 Demandes (point 46, relance-demandes.ts ; Gestéam tranche 38, blocs « Dem. interv. » et « Demandes devis », critère
  * « À relancer » ; tranche 39, réglages de relance de l'entreprise par service) : relance d'une demande de devis ou
  * d'intervention au délai de relance de l'entreprise ; date de relance saisie sur l'OS (relancesOsDues, point 44) ;
@@ -544,16 +545,30 @@ function dateEtapeAFaire(etape: Etape & { aFaireLe?: string | null }): string | 
 const MARQUE_SANS_DELAI = 'sans délai'
 
 /**
+ * Date d'une étape à faire sans aucune date (🔵 choix de codage, à valider par Frédéric ; modeles-etapes.ts, question
+ * n° 6) : la date de référence, jamais avant la création de l'étape (une étape instanciée ou enchaînée à une date future
+ * n'existe pas encore : sa réalisation serait refusée). Jamais antérieure à `aujourdhui` : jamais en retard.
+ */
+function dateEtapeSansDelai(etape: { id: string; creeeLe?: string }, aujourdhui: string): string {
+  if (etape.creeeLe === undefined) return aujourdhui
+  verifierDate(etape.creeeLe, `Date de création de l'étape ${etape.id}`)
+  return etape.creeeLe > aujourdhui ? etape.creeeLe : aujourdhui
+}
+
+/**
  * Étape à faire : à la plus proche de « à faire le », de son alerte et de sa limite, pour son réalisateur. Sans aucune
- * de ces dates (J76 : aucun délai par défaut ; étape enchaînée ou instanciée sans délai saisi) : émise à la date de
- * référence, libellé marqué « sans délai », même nature « à faire » (les réglages qui la suivent l'affichent). Due le
- * jour même, chaque jour, elle n'est jamais en retard (sa date n'est jamais antérieure à `aujourdhui`) : l'élément se
- * recalcule à chaque date de référence. Une étape automatique sans date n'est pas émise ici : sa relance à N jours la
- * suit déjà (depuisEtapesAutomatiques ; J20, tranche 43), sans doublon. Proposition de Hugo du 19/11/2026, à valider par
- * Frédéric. À valider : pour son validateur.
+ * de ces dates (J76 : aucun délai par défaut ; étape enchaînée ou instanciée sans délai saisi) : émise, libellé marqué
+ * « sans délai », même nature « à faire » (les réglages qui la suivent l'affichent), jamais en retard (proposition de
+ * Hugo du 19/11/2026, à valider par Frédéric). 🔵 Choix de codage, à valider aussi : datée de la date de référence, due
+ * le jour même, chaque jour, jamais avant sa création (dateEtapeSansDelai) ; l'élément se recalcule à chaque date de
+ * référence. Une étape automatique sans date n'est pas émise ici : sa relance à N jours la suit déjà
+ * (depuisEtapesAutomatiques ; J20, tranche 43), sans doublon. À valider : pour son validateur.
  */
 export function depuisEtapes(
-  items: { mandatId: string | null; etape: Etape & { aFaireLe?: string | null; origine?: OrigineEtape } }[],
+  items: {
+    mandatId: string | null
+    etape: Etape & { aFaireLe?: string | null; origine?: OrigineEtape; creeeLe?: string }
+  }[],
   aujourdhui: string,
 ): ElementAFaire[] {
   verifierDate(aujourdhui)
@@ -568,7 +583,7 @@ export function depuisEtapes(
         elementSuivi('etapes', 'a_faire', `${etape.id}:a_faire`, {
           ...champs,
           libelle: `${etape.titre} — ${MARQUE_SANS_DELAI}`,
-          date: aujourdhui,
+          date: dateEtapeSansDelai(etape, aujourdhui),
           assigneId: etape.realisateurId,
         }),
       ]

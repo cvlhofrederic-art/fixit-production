@@ -92,8 +92,9 @@ import {
  *   (NAISSANCE_COPIE_AU_CS_PAR_DEFAUT), seulement pour les mises en demeure du contentieux, procédure 19-2 comprise, pas
  *   pour les simples relances (DECLENCHEUR_MISE_EN_DEMEURE, estMiseEnDemeureDuContentieux) ; réglage désactivé par
  *   défaut (J41) ; usage du cabinet, sans obligation légale (J24 ; L. 1965 art. 21). Ferme les questions n° 1 et 2
- *   ci-dessous et la question n° 6 de modeles-etapes.ts. Les honoraires de la mise en demeure, que J64 ne vise pas,
- *   gardent leur déclencheur (DECLENCHEUR_HONORAIRES_MISE_EN_DEMEURE : famille Contentieux, libellé « mise en demeure »).
+ *   ci-dessous et l'ancienne question n° 6 de modeles-etapes.ts (courrier ou enchaînement). Les honoraires de la mise en
+ *   demeure, que J64 ne vise pas, gardent leur déclencheur (DECLENCHEUR_HONORAIRES_MISE_EN_DEMEURE : famille
+ *   Contentieux, libellé « mise en demeure »).
  * - J67, R7 (décision de Hugo du 17/11/2026 ; textes lus sur Légifrance le 17/11/2026 : L. 1965 art. 10-1, a et 29-1,
  *   II ; D. 1967 art. 61-1-5 et annexe 1, 9.1 ; arrêté du 08/10/2015, art. 14) : forfait de mise en demeure en deux
  *   lignes : le cabinet facture le syndicat, qui paie (repartition.payeur ; la ligne du cabinet a donc pour destinataire
@@ -154,10 +155,10 @@ import {
  *   désactivée. Les refus qui ne dépendent pas du montant restent levés : « Offert » en mission judiciaire (J67, R9),
  *   « Facturable » de l'envoi d'un recouvrement (J72, a). creerElement (honoraires-facturation.ts) admet toujours un
  *   prix de 0. Enregistrement de la ligne d'imputation : à brancher.
- *   Décisions de Hugo du 19/11/2026 : (i) le texte de Frédéric est gardé : tant que le montant du forfait n'est pas
- *   saisi, toute la règle attend, frais d'envoi compris ; (ii) un frais d'envoi à 0 reste proposé (J77 ne parle que du
- *   forfait), y compris dans une règle dont le forfait a un montant saisi. Seul le forfait a donc un prix « non saisi »
- *   (prixDeLaLigne) ; l'écart montant_non_saisi ne cite jamais un frais d'envoi.
+ *   Décisions de Hugo du 19/11/2026, à valider par Frédéric avant fusion : (i) le texte de Frédéric est gardé : tant que
+ *   le montant du forfait n'est pas saisi, toute la règle attend, frais d'envoi compris ; (ii) un frais d'envoi à 0 reste
+ *   proposé (J77 ne parle que du forfait), y compris dans une règle dont le forfait a un montant saisi. Seul le forfait a
+ *   donc un prix « non saisi » (prixDeLaLigne) ; l'écart montant_non_saisi ne cite jamais un frais d'envoi.
  * - 🔵 Rappel de J1 et J50 (délai de l'art. 42, aucune décision sur les étapes) : un délai ouvert par une notification
  *   part de la première présentation ou de la transmission de l'avis électronique, lues sur le courrier (courriers.ts),
  *   jamais du dépôt ; la date de dépôt, ici date de création de l'étape, ne fait donc courir aucun délai, et l'étape née
@@ -1096,7 +1097,7 @@ export interface LigneHonorairesCourrier {
   /**
    * Prix unitaire HT en dix-millièmes d'euro (honoraires-facturation.ts). Forfait de mise en demeure : 0, null ou absent
    * vaut « non saisi » (J77) ; la règle ne propose aucune ligne tant qu'il n'est pas saisi. Frais d'envoi : nombre
-   * entier, positif ou nul, obligatoire ; 0 reste proposé (décision de Hugo du 19/11/2026).
+   * entier, positif ou nul, obligatoire ; 0 reste proposé (décision de Hugo du 19/11/2026, à valider par Frédéric).
    */
   prixUnitaireHtDixMilliemes: number | null
   soumisTva: boolean
@@ -1122,8 +1123,8 @@ function controlerNatureLigne(ligne: LigneHonorairesCourrier, ou: string): void 
 
 /**
  * Prix de la ligne contrôlé. J77 : pour le forfait de mise en demeure, 0, null ou absent vaut « non saisi » (null). Un
- * frais d'envoi à 0 reste un prix saisi, proposé (décision de Hugo du 19/11/2026 : J77 ne parle que du forfait). Refus :
- * prix non entier ou négatif ; frais d'envoi sans prix (seul le forfait est visé par J77).
+ * frais d'envoi à 0 reste un prix saisi, proposé (décision de Hugo du 19/11/2026, à valider par Frédéric : J77 ne parle
+ * que du forfait). Refus : prix non entier ou négatif ; frais d'envoi sans prix (seul le forfait est visé par J77).
  */
 function prixDeLaLigne(ligne: LigneHonorairesCourrier, ou: string): number | null {
   // Lu comme inconnu : une règle relue d'un stockage peut ne pas porter le champ.

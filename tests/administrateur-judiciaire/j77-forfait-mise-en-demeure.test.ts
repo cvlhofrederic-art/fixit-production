@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   BASES_LIGNES_HONORAIRES_COURRIER,
@@ -334,13 +336,26 @@ describe('J77 (b) — montant du forfait : 0 ou absent vaut « non saisi », la 
     expect(j77).toMatch(/montant_non_saisi/)
     expect(j77).toMatch(/la règle ne propose aucune ligne, frais d'envoi compris/)
     expect(j77).not.toMatch(/les autres lignes de la règle restent proposées/)
-    // Les deux questions du (b) sont décidées par Hugo le 19/11/2026 : écrites comme décisions, plus comme questions.
+    // Les deux questions du (b) sont décidées par Hugo le 19/11/2026 : écrites comme décisions, plus comme questions,
+    // et à valider par Frédéric avant fusion (registre J77).
     expect(j77).toMatch(
-      /Décisions de Hugo du 19\/11\/2026 : \(i\) le texte de Frédéric est gardé : tant que le montant du forfait n'est pas saisi, toute la règle attend, frais d'envoi compris ; \(ii\) un frais d'envoi à 0 reste proposé \(J77 ne parle que du forfait\), y compris dans une règle dont le forfait a un montant saisi/,
+      /Décisions de Hugo du 19\/11\/2026, à valider par Frédéric avant fusion : \(i\) le texte de Frédéric est gardé : tant que le montant du forfait n'est pas saisi, toute la règle attend, frais d'envoi compris ; \(ii\) un frais d'envoi à 0 reste proposé \(J77 ne parle que du forfait\), y compris dans une règle dont le forfait a un montant saisi/,
     )
+    expect(j77).not.toMatch(/Décisions de Hugo du 19\/11\/2026 :/)
     expect(j77).not.toMatch(/🔵 À confirmer \(Hugo, puis Frédéric\)/)
     expect(j77).not.toMatch(/Un frais d'envoi à 0 vaut-il aussi « non saisi » \?/)
     expect(j77).not.toMatch(/faut-il proposer les autres lignes de la règle/)
     expect(j77).toMatch(/cas du courrier non fourni/)
+  })
+
+  it('docs du prix (LigneHonorairesCourrier, prixDeLaLigne) : la décision (ii) de Hugo du 19/11/2026 reste à valider par Frédéric', () => {
+    const source = readFileSync(join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'etapes-courrier.ts'), 'utf8')
+      .replaceAll('\r\n', '\n')
+      .replaceAll(/\n\s*\*\s+/g, ' ')
+    expect(source).toMatch(/Frais d'envoi : nombre entier, positif ou nul, obligatoire ; 0 reste proposé \(décision de Hugo du 19\/11\/2026, à valider par Frédéric\)/)
+    expect(source).toMatch(
+      /Un frais d'envoi à 0 reste un prix saisi, proposé \(décision de Hugo du 19\/11\/2026, à valider par Frédéric : J77 ne parle que du forfait\)/,
+    )
+    expect(source.match(/décision de Hugo du 19\/11\/2026(?!, à valider par Frédéric)/g)).toBeNull()
   })
 })
