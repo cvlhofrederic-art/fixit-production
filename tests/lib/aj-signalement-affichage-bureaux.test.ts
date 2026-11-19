@@ -96,7 +96,9 @@ describe('libellés d’un bureau', () => {
 
 describe('badge « Bureau à compléter »', () => {
   const cabinets = [{ id: K1, nbBureauxOuverts: 1 }, { id: K2 }]
-  const fiche = (cabinet: string, bureau?: typeof nord) => ({ cabinet: { id: cabinet, nom: 'Cabinet Exemple', identifiant: 'cabinet-exemple' }, ...(bureau ? { bureau } : {}) })
+  const fiche = (cabinet: string, bureau?: typeof nord, nom: string | null = 'Marie Exemple') => ({
+    nom, cabinet: { id: cabinet, nom: 'Cabinet Exemple', identifiant: 'cabinet-exemple' }, ...(bureau ? { bureau } : {}),
+  })
 
   it('fiche sans bureau d’un cabinet qui a un bureau ouvert (même règle que ?bureau=aucun)', () => {
     expect(bureauACompleterQr(fiche(K1), cabinets)).toBe(true)
@@ -107,6 +109,10 @@ describe('badge « Bureau à compléter »', () => {
     expect(bureauACompleterQr(fiche(K1, sud), cabinets)).toBe(false)
     expect(bureauACompleterQr(fiche(K2), cabinets)).toBe(false)
     expect(bureauACompleterQr(fiche(K1), null)).toBe(false)
+  })
+
+  it('jamais sur une fiche effacée (nom null) : aucun bureau ne peut plus lui être posé (409 fiche_effacee)', () => {
+    expect(bureauACompleterQr(fiche(K1, undefined, null), cabinets)).toBe(false)
   })
 })
 

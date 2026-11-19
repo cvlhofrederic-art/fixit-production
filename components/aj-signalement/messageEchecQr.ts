@@ -29,6 +29,14 @@ export function messageEchecBureauQr(code: CodeErreurQr): string {
 }
 
 /**
+ * Lecture des bureaux d'un cabinet en échec (fenêtre E1, listes « Bureau » de E2, E4, E5 et de l'import, options du
+ * filtre E3) : le message de lecture, et le toast quand le réseau est coupé. Appelée une fois, à la réponse.
+ */
+export function messageEchecLectureBureauxQr(code: CodeErreurQr): string {
+  return avecToastReseau(code, messageErreurBureauQr(code, true))
+}
+
+/**
  * Écriture d'une fiche qui porte un bureau (création : E2 et import ; changement de bureau : E4) : bureau envoyé et
  * données changées → « les bureaux ont changé » (messageRefusAvecBureauQr) ; sinon le message commun.
  */

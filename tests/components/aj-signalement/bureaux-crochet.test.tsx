@@ -8,12 +8,17 @@
 //     dire que la fonction n'est pas encore disponible) ;
 //   - 503 base_absente → « indisponible » ; autre échec → « erreur » avec son code ;
 //   - les bureaux ouverts à part (choix d'un rattachement) ; recharger() relit et rend la lecture ;
-//   - autre cabinet choisi : « chargement » jusqu'à sa réponse, jamais les bureaux du précédent.
+//   - autre cabinet choisi : « chargement » jusqu'à sa réponse, jamais les bureaux du précédent ;
+//   - réseau coupé : un toast (Sonner), une seule fois, à la réponse ; jamais pour une réponse dépassée.
 // Données fictives : « Cabinet Exemple », bureaux « Nord » et « Sud ».
 
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { toast } from 'sonner'
 import { useBureauxCabinetQr } from '@/components/aj-signalement/useBureauxCabinetQr'
+import { TEXTES_TABLEAU_QR as T } from '@/lib/aj-signalement/affichage'
+
+vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
 
 const K1 = 'a0000000-0000-4000-8000-0000000000a1'
 const K2 = 'a0000000-0000-4000-8000-0000000000a2'
@@ -31,7 +36,10 @@ function simulerFetch(routeur: (url: string) => Response | Promise<Response>) {
   }))
 }
 
-beforeEach(() => simulerFetch((url) => json({ bureaux: url.includes(K2) ? [est] : [nord, sud] })))
+beforeEach(() => {
+  vi.clearAllMocks()
+  simulerFetch((url) => json({ bureaux: url.includes(K2) ? [est] : [nord, sud] }))
+})
 afterEach(() => vi.unstubAllGlobals())
 
 describe('useBureauxCabinetQr', () => {
@@ -92,5 +100,42 @@ describe('useBureauxCabinetQr', () => {
     rerender({ id: K2 })
     expect(result.current.lecture).toEqual({ etat: 'chargement' })
     await waitFor(() => expect(result.current.bureaux.map((b) => b.nom)).toEqual(['Est']))
+  })
+
+  it('réseau coupé : erreur « reseau » et un toast, une seule fois, à la réponse (rendus suivants : aucun autre)', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    simulerFetch(() => { throw new TypeError('Failed to fetch') })
+    const { result, rerender } = renderHook(() => useBureauxCabinetQr({ id: K1, nbBureaux: 1 }))
+    await waitFor(() => expect(result.current.lecture).toEqual({ etat: 'erreur', code: 'reseau' }))
+    rerender()
+    rerender()
+    expect(toast.error).toHaveBeenCalledTimes(1)
+    expect(toast.error).toHaveBeenCalledWith(T.erreurs.reseau)
+  })
+
+  it('autre échec (500) : aucun toast, le message reste celui de l’écran', async () => {
+    simulerFetch(() => json({ error: 'serveur' }, 500))
+    const { result } = renderHook(() => useBureauxCabinetQr({ id: K1, nbBureaux: 1 }))
+    await waitFor(() => expect(result.current.lecture).toEqual({ etat: 'erreur', code: 'serveur' }))
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('réponse « réseau coupé » dépassée par une plus récente (autre cabinet) : aucun toast', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    let relache: () => void = () => {}
+    simulerFetch((url) => {
+      if (url.includes(K2)) return json({ bureaux: [est] })
+      return new Promise<Response>((_resoudre, rejeter) => { relache = () => rejeter(new TypeError('Failed to fetch')) })
+    })
+    const { result, rerender } = renderHook(({ id }) => useBureauxCabinetQr({ id, nbBureaux: 1 }), { initialProps: { id: K1 } })
+    rerender({ id: K2 })
+    await waitFor(() => expect(result.current.bureaux.map((b) => b.nom)).toEqual(['Est']))
+    await act(async () => {
+      relache()
+      await new Promise((r) => { setTimeout(r, 0) })
+    })
+    expect(console.warn).toHaveBeenCalled()
+    expect(result.current.bureaux.map((b) => b.nom)).toEqual(['Est'])
+    expect(toast.error).not.toHaveBeenCalled()
   })
 })

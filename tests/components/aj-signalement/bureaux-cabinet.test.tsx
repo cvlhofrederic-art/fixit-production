@@ -168,6 +168,47 @@ describe('fenêtre des bureaux : lecture', () => {
     fireEvent.click(within(f).getByRole('button', { name: G.reessayer }))
     expect(await within(f).findByRole('heading', { name: 'Nord' })).toBeInTheDocument()
     expect(lectures()).toHaveLength(2)
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('lecture, réseau coupé : le message et « Réessayer » dans la fenêtre, et un toast (une fois)', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    simulerFetch(() => { throw new TypeError('Failed to fetch') })
+    rendre()
+    const f = await ouvrir()
+    expect(within(f).getByText(T.erreurs.reseau)).toBeInTheDocument()
+    expect(within(f).getByRole('button', { name: G.reessayer })).toBeInTheDocument()
+    expect(toast.error).toHaveBeenCalledTimes(1)
+    expect(toast.error).toHaveBeenCalledWith(T.erreurs.reseau)
+  })
+})
+
+describe('relecture de l’espace en échec après une action', () => {
+  /** Espace simulé : la relecture des listes échoue (erreur « serveur ») ; « Réessayer » l'efface et rend la liste. */
+  function Hote() {
+    const [erreur, setErreur] = React.useState<'serveur' | null>(null)
+    return (
+      <CabinetsQr
+        cabinets={[sansBureau]} erreur={erreur} coproprietes={[]} onJournal={vi.fn()}
+        onModifie={async () => { setErreur('serveur') }} onReessayer={() => setErreur(null)}
+      />
+    )
+  }
+
+  it('après un ajout : fenêtre fermée, l’ajout reste annoncé au-dessus de l’erreur, focus sur « Réessayer » ; « Réessayer » ne rouvre pas la fenêtre', async () => {
+    render(<Hote />)
+    const f = await ouvrir()
+    fireEvent.change(within(f).getByLabelText(B.nom), { target: { value: 'Sud' } })
+    fireEvent.click(within(f).getByRole('button', { name: B.ajouter }))
+    expect(await screen.findByText(remplir(B.ajoute, { nom: 'Sud' }))).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.getByText(T.erreurs.serveur)).toBeInTheDocument()
+    const reessayer = screen.getByRole('button', { name: G.reessayer })
+    await waitFor(() => expect(document.activeElement).toBe(reessayer))
+
+    fireEvent.click(reessayer)
+    expect(within(carte('Cabinet Exemple')).getByRole('button', { name: 'Bureaux (0)' })).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 })
 
@@ -183,7 +224,8 @@ describe('ajout d’un bureau', () => {
     expect(rappels.onModifie).toHaveBeenCalledTimes(1)
     expect(within(f).getByRole('heading', { name: 'Sud' })).toBeInTheDocument()
     expect((within(f).getByLabelText(B.nom) as HTMLInputElement).value).toBe('')
-    expect(annonce.closest('[tabindex="-1"]')).toBe(document.activeElement)
+    // Focus posé par un effet, après le rendu qui montre l'annonce : attendu (un rendu hors événement peut le précéder).
+    await waitFor(() => expect(document.activeElement).toBe(annonce.closest('[tabindex="-1"]')))
   })
 
   it('fenêtre occupée (aucun second envoi) jusqu’à la liste des cabinets relue ; puis le message reste dans la vue', async () => {

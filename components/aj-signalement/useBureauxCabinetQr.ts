@@ -7,13 +7,16 @@
 //   - Tant que le cabinet n'annonce aucun bureau (clé nbBureaux absente : aucun bureau, ou migration absente), AUCUNE
 //     requête : liste vide tout de suite, les écrans restent ceux d'avant. `toujours` force la lecture (fenêtre E1 : créer
 //     le premier bureau, dire que la fonction n'est pas encore disponible).
-//   - 503 base_absente → « indisponible » ; autre échec → « erreur » avec son code (message à l'écran qui l'affiche).
+//   - 503 base_absente → « indisponible » ; autre échec → « erreur » avec son code (message à l'écran qui l'affiche) ;
+//     réseau coupé : en plus, un toast, une seule fois, à la réponse (messageEchecLectureBureauxQr), comme les autres
+//     lectures de l'espace ; jamais pour une réponse dépassée.
 //   - Autre cabinet : « chargement » jusqu'à sa réponse, jamais les bureaux du précédent ; une réponse dépassée par une
 //     plus récente (changement de cabinet, recharger) est ignorée.
 //   - recharger() relit et rend la lecture ; la liste affichée reste en place pendant la relecture.
 // Rien n'est gardé dans le navigateur.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { messageEchecLectureBureauxQr } from '@/components/aj-signalement/messageEchecQr'
 import { chargerBureauxCabinetQr, type CodeErreurQr, type ResultatBureauxQr } from '@/lib/aj-signalement/api'
 import { bureauxOuvertsQr, nbBureauxCabinetQr } from '@/lib/aj-signalement/affichage-gestion'
 import type { BureauQr } from '@/lib/aj-signalement/bureaux'
@@ -54,10 +57,15 @@ export function useBureauxCabinetQr(
   // Numéro de la dernière lecture demandée : une réponse plus ancienne n'écrase jamais une plus récente.
   const derniere = useRef(0)
 
-  /** Lecture n° `numero` du cabinet `id`, posée seulement si aucune plus récente n'a été demandée depuis. */
+  /**
+   * Lecture n° `numero` du cabinet `id`, posée seulement si aucune plus récente n'a été demandée depuis ; posée en échec
+   * sur un réseau coupé : le toast.
+   */
   const poser = useCallback((id: string, numero: number, r: ResultatBureauxQr): LectureBureauxQr => {
     const lecture = lectureDepuis(r)
-    if (numero === derniere.current) setLu({ cle: id, lecture })
+    if (numero !== derniere.current) return lecture
+    setLu({ cle: id, lecture })
+    if (!r.ok) messageEchecLectureBureauxQr(r.code)
     return lecture
   }, [])
 

@@ -93,7 +93,10 @@ const json = (corps: unknown, status = 200) => new Response(JSON.stringify(corps
 
 /** Bureaux du cabinet Exemple rendus par GET /cabinets/[id]/bureaux (triés par nom, comme le serveur). */
 let bureaux: Bureau[] = []
-/** Réponse refusée à la prochaine écriture (POST, PATCH) ; `refusLecture` : à la prochaine lecture des bureaux. */
+/**
+ * Réponse refusée à la prochaine écriture (POST, PATCH) ; `refusLecture` : à la prochaine lecture des bureaux (code
+ * « reseau » : l'appel lui-même échoue, comme un réseau coupé).
+ */
 let refus: { code: string; status: number } | null = null
 let refusLecture: { code: string; status: number } | null = null
 /** Fiches rendues par GET /gestionnaires?bureau=<valeur>. */
@@ -110,6 +113,7 @@ function lectureBureaux(): Response {
   if (refusLecture) {
     const r = refusLecture
     refusLecture = null
+    if (r.code === 'reseau') throw new TypeError('Failed to fetch')
     return reponseRefusee(r)
   }
   return json({ bureaux })
@@ -312,6 +316,18 @@ describe('E2 « Ajouter un gestionnaire » : liste « Bureau »', () => {
     fireEvent.click(within(f).getByRole('button', { name: G.reessayer }))
     expect(await within(f).findByLabelText(BG.champ)).toBeInTheDocument()
     expect(within(f).getByRole('button', { name: G.gestionnaires.creer })).not.toBeDisabled()
+    expect(simul.toastErreur).not.toHaveBeenCalled()
+  })
+
+  it('lecture des bureaux, réseau coupé : le message et « Réessayer » dans la fenêtre, et un toast (une fois)', async () => {
+    await rendreListe([], [cabinetAvec])
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    refusLecture = { code: 'reseau', status: 0 }
+    const f = ouvrir()
+    expect(await within(f).findByText(T.erreurs.reseau)).toBeInTheDocument()
+    expect(within(f).getByRole('button', { name: G.reessayer })).toBeInTheDocument()
+    expect(simul.toastErreur).toHaveBeenCalledTimes(1)
+    expect(simul.toastErreur).toHaveBeenCalledWith(T.erreurs.reseau)
   })
 })
 
@@ -417,6 +433,54 @@ describe('E3 liste des gestionnaires', () => {
     expect(await screen.findByText(T.erreurs.serveur)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: G.reessayer }))
     await waitFor(() => expect(noms()).toEqual(['Marie Exemple']))
+  })
+
+  it('fiche effacée (« Ancien gestionnaire ») sans bureau d’un cabinet qui a un bureau ouvert : aucun badge « Bureau à compléter » (aucun bureau ne peut lui être posé)', () => {
+    const effacee: GestionnaireQr = { ...fiche(G4, 'Fiche Effacee'), nom: null, email: null, etat: 'desactive' }
+    rendreListe([effacee, paul], [cabinetAvec])
+    expect(within(ligne(G.fiche.ancien)).queryByText(BG.aCompleter)).toBeNull()
+    expect(within(ligne('Paul Exemple')).getByText(BG.aCompleter)).toBeInTheDocument()
+  })
+
+  it('options du filtre « Bureau » en cours de lecture : « Chargement des bureaux… » annoncé, puis les bureaux', async () => {
+    rendreListe([marie, paul], [cabinetAvec])
+    expect(screen.getByText(B.fenetre.chargement).closest('[role="status"]')).not.toBeNull()
+    await waitFor(() => expect(options(screen.getByLabelText(BF.libelle))).toContain('Nord'))
+    expect(screen.queryByText(B.fenetre.chargement)).toBeNull()
+  })
+
+  it('options du filtre « Bureau » en échec (500) : message annoncé et « Réessayer », qui les relit ; aucun toast', async () => {
+    refusLecture = { code: 'serveur', status: 500 }
+    rendreListe([marie, paul], [cabinetAvec])
+    const message = await screen.findByText(B.fenetre.erreurLecture)
+    expect(message.closest('[role="alert"]')).not.toBeNull()
+    expect(options(screen.getByLabelText(BF.libelle))).toEqual([BF.tous, BF.aCompleter])
+    fireEvent.click(screen.getByRole('button', { name: G.reessayer }))
+    await waitFor(() => expect(options(screen.getByLabelText(BF.libelle))).toEqual([BF.tous, 'Nord', 'Sud (fermé)', BF.aCompleter]))
+    expect(screen.queryByText(B.fenetre.erreurLecture)).toBeNull()
+    expect(lecturesBureaux()).toHaveLength(2)
+    expect(simul.toastErreur).not.toHaveBeenCalled()
+  })
+
+  it('options du filtre « Bureau », réseau coupé : le message, « Réessayer » et un toast (une fois)', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    refusLecture = { code: 'reseau', status: 0 }
+    rendreListe([marie, paul], [cabinetAvec])
+    expect(await screen.findByText(T.erreurs.reseau)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: G.reessayer })).toBeInTheDocument()
+    expect(simul.toastErreur).toHaveBeenCalledTimes(1)
+    expect(simul.toastErreur).toHaveBeenCalledWith(T.erreurs.reseau)
+  })
+
+  it('filtre « Bureau » : mêmes classes que le filtre « Bureau » des vues Copropriétés et Signalements, groupe des filtres compris (un nom long ne déborde pas de l’écran)', async () => {
+    rendreListe([marie, paul], [cabinetAvec])
+    const filtre = screen.getByLabelText(BF.libelle)
+    await waitFor(() => expect(options(filtre)).toContain('Nord'))
+    expect(filtre).toHaveClass('min-w-0', 'max-w-full')
+    const etiquette = filtre.closest('label') as HTMLElement
+    expect(etiquette).toHaveClass('min-w-0', 'max-w-full')
+    // Le groupe des filtres « Cabinet » et « Bureau » (élément de la barre) peut lui aussi rétrécir sous sa largeur de contenu.
+    expect(etiquette.parentElement).toHaveClass('min-w-0', 'max-w-full')
   })
 })
 

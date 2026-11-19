@@ -10,6 +10,7 @@
 //     s'il est donné, sinon rien. E5 (bureau facultatif d'une copropriété) : `premiere` nomme l'option vide (« Aucun bureau »).
 // Mêmes composants que les champs voisins (Champ, CLASSES_SAISIE, Encadre, Bouton) : aucun nouveau style. Le choix exigé
 // est annoncé (aria-required) ; le contrôle reste celui de l'écran, comme pour la liste « Cabinet » de la même fenêtre.
+// EchecLectureBureauxQr (base absente, ou l'échec et « Réessayer ») sert aussi aux options du filtre « Bureau » de E3.
 
 import { Bouton, Champ, CLASSES_SAISIE, Encadre } from '@/components/coproprietaire-dashboard/ui'
 import type { LectureBureauxQr } from '@/components/aj-signalement/useBureauxCabinetQr'
@@ -37,19 +38,23 @@ export interface PropsChoixBureauQr {
   premiere?: string
 }
 
+/** Bureaux non lus : « Fonction pas encore disponible » (503 base_absente), ou l'échec et « Réessayer » ; sinon rien. */
+export function EchecLectureBureauxQr({ lecture, onReessayer }: Readonly<{ lecture: LectureBureauxQr; onReessayer: () => void }>) {
+  if (lecture.etat === 'indisponible') return <Encadre ton="avertissement">{G.bureaux.indisponible}</Encadre>
+  if (lecture.etat !== 'erreur') return null
+  return (
+    <Encadre ton="erreur">
+      <p>{messageErreurBureauQr(lecture.code, true)}</p>
+      <div className="mt-2"><Bouton variante="secondaire" petit icone="actualiser" onClick={onReessayer}>{G.reessayer}</Bouton></div>
+    </Encadre>
+  )
+}
+
 export default function ChoixBureauQr({
   id, etiquette, aide, lecture, bureaux, valeur, onChange, onReessayer, requis = false, disabled = false, vide, premiere = G.bureaux.choisir,
 }: Readonly<PropsChoixBureauQr>) {
   if (lecture.etat === 'chargement') return <p role="status" className="text-sm text-[#4A5E78]">{G.bureaux.fenetre.chargement}</p>
-  if (lecture.etat === 'indisponible') return <Encadre ton="avertissement">{G.bureaux.indisponible}</Encadre>
-  if (lecture.etat === 'erreur') {
-    return (
-      <Encadre ton="erreur">
-        <p>{messageErreurBureauQr(lecture.code, true)}</p>
-        <div className="mt-2"><Bouton variante="secondaire" petit icone="actualiser" onClick={onReessayer}>{G.reessayer}</Bouton></div>
-      </Encadre>
-    )
-  }
+  if (lecture.etat !== 'pret') return <EchecLectureBureauxQr lecture={lecture} onReessayer={onReessayer} />
   if (bureaux.length === 0) return vide ? <p role="status" className="text-sm text-[#4A5E78]">{vide}</p> : null
   return (
     <Champ id={id} etiquette={etiquette} aide={aide}>

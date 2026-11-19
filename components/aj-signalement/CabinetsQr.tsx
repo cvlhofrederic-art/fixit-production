@@ -22,8 +22,10 @@
 // chaque cabinet (n : bureaux fermés compris ; 0 tant que la réponse n'en porte pas) ouvre sa fenêtre (BureauxCabinetQr :
 // liste, ajout, renommage, fermeture, réouverture). La fenêtre reste ouverte d'une action à l'autre : chaque action relit
 // la liste des cabinets (compteur) et son annonce reste dans la vue, au-dessus d'une erreur de chargement éventuelle.
+// Relecture en échec, fenêtre des bureaux ouverte : la vue passe à l'erreur, la fenêtre est fermée (sinon « Réessayer »
+// la rouvrirait sans demande) et le focus va à « Réessayer » (le bouton « Bureaux (n) » qui l'a ouverte n'est plus affiché).
 
-import { useCallback, useId, useState } from 'react'
+import { useCallback, useEffect, useId, useState } from 'react'
 import { remplir } from '@/lib/coproprietaire/textes'
 import { Badge, Bouton, Carte, Champ, CLASSES_SAISIE, Encadre, EtatVide, Modale } from '@/components/coproprietaire-dashboard/ui'
 import { ChoixCoproprietesQr } from '@/components/aj-signalement/ChoixMultipleQr'
@@ -63,12 +65,27 @@ type Fenetre =
 export default function CabinetsQr({ cabinets, erreur, coproprietes, onModifie, onReessayer, onJournal }: Readonly<PropsCabinetsQr>) {
   const [fenetre, setFenetre] = useState<Fenetre>(null)
   const [messages, setMessages] = useState<string[]>([])
+  // Vrai tant que la vue est en erreur après avoir fermé la fenêtre des bureaux : le focus va à « Réessayer ».
+  const [focusReessayer, setFocusReessayer] = useState(false)
+  const idReessayer = useId()
   // Stable : la fenêtre des bureaux reste ouverte quand la liste des cabinets est relue (la Modale ne se réinitialise pas).
   const fermer = useCallback(() => setFenetre(null), [])
   const ouvrir = (f: Exclude<Fenetre, null>) => {
     setMessages([])
     setFenetre(f)
   }
+
+  // Ajustement au rendu (aucun rendu intermédiaire) : la relecture en échec ferme la fenêtre des bureaux.
+  if (erreur && fenetre?.type === 'bureaux') {
+    setFenetre(null)
+    setFocusReessayer(true)
+  } else if (!erreur && focusReessayer) {
+    setFocusReessayer(false)
+  }
+  // Après le démontage de la fenêtre (qui rend le focus à son bouton d'origine, disparu) : « Réessayer ».
+  useEffect(() => {
+    if (erreur && focusReessayer) document.getElementById(idReessayer)?.focus()
+  }, [erreur, focusReessayer, idReessayer])
 
   const succes = messages.length > 0 && <Encadre ton="succes">{messages.map((m) => <p key={m}>{m}</p>)}</Encadre>
   // Liste relue en échec après une action réussie : l'action reste annoncée au-dessus de l'erreur de chargement.
@@ -77,7 +94,7 @@ export default function CabinetsQr({ cabinets, erreur, coproprietes, onModifie, 
       <div className="space-y-4">
         {succes}
         <Encadre ton="erreur">{messageErreurTableauQr(erreur)}</Encadre>
-        <Bouton variante="principal" icone="actualiser" onClick={onReessayer}>{G.reessayer}</Bouton>
+        <Bouton id={idReessayer} variante="principal" icone="actualiser" onClick={onReessayer}>{G.reessayer}</Bouton>
       </div>
     )
   }

@@ -252,13 +252,14 @@ export const compteursBureauQr = (b: Pick<BureauQr, 'nbGestionnaires' | 'nbCopro
   remplir(TEXTES_GESTION_QR.bureaux.fenetre.compteurs, { gestionnaires: b.nbGestionnaires, coproprietes: b.nbCoproprietes })
 
 /**
- * Badge « Bureau à compléter » : fiche sans bureau d'un cabinet qui a un bureau ouvert (même règle que le filtre
- * ?bureau=aucun de la route). Cabinets pas encore chargés : non.
+ * Badge « Bureau à compléter » : fiche sans bureau d'un cabinet qui a un bureau ouvert (règle du filtre ?bureau=aucun de
+ * la route). Jamais sur une fiche effacée (nom null, « Ancien gestionnaire ») : aucun bureau ne peut plus lui être posé
+ * (409 fiche_effacee, et la page profil n'a pas « Changer de bureau »). Cabinets pas encore chargés : non.
  */
 export function bureauACompleterQr(
-  fiche: Pick<GestionnaireQr, 'bureau' | 'cabinet'>, cabinets: ReadonlyArray<Pick<CabinetQr, 'id' | 'nbBureauxOuverts'>> | null,
+  fiche: Pick<GestionnaireQr, 'nom' | 'bureau' | 'cabinet'>, cabinets: ReadonlyArray<Pick<CabinetQr, 'id' | 'nbBureauxOuverts'>> | null,
 ): boolean {
-  if (fiche.bureau || !cabinets) return false
+  if (fiche.nom === null || fiche.bureau || !cabinets) return false
   return aBureauOuvertQr(cabinets.find((c) => c.id === fiche.cabinet.id))
 }
 

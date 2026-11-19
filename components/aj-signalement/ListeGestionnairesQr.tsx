@@ -23,9 +23,11 @@
 //   - E2 : liste « Bureau » dans « Ajouter un gestionnaire », OBLIGATOIRE dès que le cabinet choisi a un bureau ouvert,
 //     absente sinon (useChoixBureauFicheQr) ; bureaux fermés jamais proposés ; refus 409 bureau_requis, bureau_ferme,
 //     a_reverifier expliqués, bureaux relus ;
-//   - E3 : « Cabinet · Bureau » sur chaque ligne ; badge « Bureau à compléter » (fiche sans bureau d'un cabinet qui a un
-//     bureau ouvert) ; filtre « Bureau » (tous, chaque bureau du cabinet, « Bureau à compléter ») qui relit les fiches
-//     par ?bureau= ; sous ce filtre, chaque action relit aussi ses fiches avant d'annoncer son succès ;
+//   - E3 : « Cabinet · Bureau » sur chaque ligne ; badge « Bureau à compléter » (fiche sans bureau, non effacée, d'un
+//     cabinet qui a un bureau ouvert) ; filtre « Bureau » (tous, chaque bureau du cabinet, « Bureau à compléter ») qui
+//     relit les fiches par ?bureau= ; sous ce filtre, chaque action relit aussi ses fiches avant d'annoncer son succès ;
+//     lecture de ses options : en cours annoncée (« Chargement des bureaux… »), en échec dite avec « Réessayer » (toast
+//     si le réseau est coupé), comme les listes « Bureau » ; un nom long ne l'élargit pas (classes du filtre E7) ;
 //   - tant qu'aucun bureau n'existe (aucune clé nbBureaux ni bureau) : la vue est celle d'avant, sans requête nouvelle.
 // Réactivation d'une fiche restée dans un bureau fermé (409 bureau_ferme) : la marche à suivre.
 
@@ -33,7 +35,7 @@ import { useCallback, useId, useRef, useState } from 'react'
 import { remplir } from '@/lib/coproprietaire/textes'
 import { Badge, Bouton, Champ, CLASSES_SAISIE, Encadre, EtatVide, Modale } from '@/components/coproprietaire-dashboard/ui'
 import { ChoixCoproprietesQr } from '@/components/aj-signalement/ChoixMultipleQr'
-import ChoixBureauQr from '@/components/aj-signalement/ChoixBureauQr'
+import ChoixBureauQr, { EchecLectureBureauxQr } from '@/components/aj-signalement/ChoixBureauQr'
 import { messageEchecAvecBureauQr, messageEchecQr, messageEchecReactivationQr } from '@/components/aj-signalement/messageEchecQr'
 import { attendreAuPlusQr } from '@/components/aj-signalement/attenteListesQr'
 import { useBureauxCabinetQr } from '@/components/aj-signalement/useBureauxCabinetQr'
@@ -170,7 +172,8 @@ export default function ListeGestionnairesQr({
   const [confirmerGroupe, setConfirmerGroupe] = useState(false)
   const fichesBureau = useFichesDuBureauQr()
   const portee = porteeFiltreBureauQr(cabinets, filtreCabinet)
-  const { bureaux: bureauxFiltre } = useBureauxCabinetQr(portee.visible ? portee.cabinet : null)
+  // Options du filtre « Bureau » : lecture en cours annoncée, échec dit sous la barre (EchecLectureBureauxQr).
+  const optionsBureau = useBureauxCabinetQr(portee.visible ? portee.cabinet : null)
   // Stable : la fenêtre de création garde le focus quand les listes de l'espace sont relues (la Modale ne se réinitialise pas).
   const fermerCreation = useCallback(() => setCreation(false), [])
 
@@ -269,7 +272,9 @@ export default function ListeGestionnairesQr({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <FiltresListeQr
           idBase={idBase} cabinets={cabinets} filtreCabinet={filtreCabinet} onCabinet={choisirCabinet}
-          bureau={portee.visible ? { options: bureauxFiltre, valeur: fichesBureau.filtre, onChange: fichesBureau.choisir } : null}
+          bureau={portee.visible ? {
+            options: optionsBureau.bureaux, chargement: optionsBureau.lecture.etat === 'chargement', valeur: fichesBureau.filtre, onChange: fichesBureau.choisir,
+          } : null}
         />
         <div className="flex flex-wrap gap-2">
           {ouvrables.length > 0 && (
@@ -280,6 +285,7 @@ export default function ListeGestionnairesQr({
           <Bouton variante="or" icone="plus" disabled={!cabinets} onClick={() => { setMessages([]); setCreation(true) }}>{G.gestionnaires.ajouter}</Bouton>
         </div>
       </div>
+      <EchecLectureBureauxQr lecture={optionsBureau.lecture} onReessayer={() => { void optionsBureau.recharger() }} />
       {confirmerGroupe && ouvrables.length > 0 && (
         <Encadre ton="info">
           <p>{G.acces.groupeAide}</p>
@@ -320,8 +326,11 @@ interface PropsFiltres {
   cabinets: readonly CabinetQr[] | null
   filtreCabinet: string
   onCabinet: (id: string) => void
-  /** Filtre « Bureau » ; null : aucun bureau dans la portée, le filtre n'existe pas (la barre est celle d'avant). */
-  bureau: { options: readonly BureauResumeQr[]; valeur: string; onChange: (valeur: string) => void } | null
+  /**
+   * Filtre « Bureau » ; null : aucun bureau dans la portée, le filtre n'existe pas (la barre est celle d'avant).
+   * `chargement` : ses options (les bureaux du cabinet) sont en cours de lecture.
+   */
+  bureau: { options: readonly BureauResumeQr[]; chargement: boolean; valeur: string; onChange: (valeur: string) => void } | null
 }
 
 function FiltresListeQr({ idBase, cabinets, filtreCabinet, onCabinet, bureau }: Readonly<PropsFiltres>) {
@@ -336,17 +345,22 @@ function FiltresListeQr({ idBase, cabinets, filtreCabinet, onCabinet, bureau }: 
     </label>
   ) : null
   if (!bureau) return cabinet ?? <span />
+  // Classes du filtre « Bureau » de E7 (min-w-0 max-w-full), jusqu'au groupe des filtres (élément de la barre, sinon tenu à
+  // sa largeur de contenu) : un nom de bureau long n'élargit pas la page.
   return (
-    <div className="flex flex-wrap items-center gap-3">
+    <div className="flex min-w-0 max-w-full flex-wrap items-center gap-3">
       {cabinet}
-      <label className="flex items-center gap-2 text-sm text-[#4A5E78]" htmlFor={`${idBase}-bureau`}>
+      <label className="flex min-w-0 max-w-full items-center gap-2 text-sm text-[#4A5E78]" htmlFor={`${idBase}-bureau`}>
         <span>{BF.libelle}</span>
-        <select id={`${idBase}-bureau`} value={bureau.valeur} onChange={(e) => bureau.onChange(e.target.value)} className={CLASSES_FILTRE}>
+        <select
+          id={`${idBase}-bureau`} value={bureau.valeur} onChange={(e) => bureau.onChange(e.target.value)} className={`${CLASSES_FILTRE} min-w-0 max-w-full`}
+        >
           <option value="">{BF.tous}</option>
           {bureau.options.map((b) => <option key={b.id} value={b.id}>{libelleBureauQr(b)}</option>)}
           <option value={FILTRE_SANS_BUREAU_QR}>{BF.aCompleter}</option>
         </select>
       </label>
+      {bureau.chargement && <p role="status" className="text-sm text-[#4A5E78]">{G.bureaux.fenetre.chargement}</p>}
     </div>
   )
 }
