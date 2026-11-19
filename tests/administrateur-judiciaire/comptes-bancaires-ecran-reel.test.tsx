@@ -149,6 +149,8 @@ describe('Comptes bancaires en mode réel — affichage et contrôles', () => {
     expect(titresAlertes()).toContain(
       'Compte courant au nom du syndicat : compte à ouvrir, requis par le mode retenu (Compte séparé au nom du syndicat).',
     )
+    // Sans tableau, pas de colonne « Solde » : la phrase qui l'explique n'a rien à expliquer.
+    expect(panneau().textContent).not.toContain('Solde par compte')
   })
 
   it('« Nouveau compte » : écrit en base, affiché (IBAN groupé, solde « — »), comptes conformes au mode', async () => {
@@ -165,7 +167,7 @@ describe('Comptes bancaires en mode réel — affichage et contrôles', () => {
     expect(ligne.textContent).toContain('Compte courant au nom du syndicat')
     expect(ligne.textContent).toContain('Compte principal')
     expect(ligne.textContent).toContain('FR76 3000 6000 0112 3456 7890 189')
-    // IBAN jamais coupé (relu chiffre à chiffre) : sur téléphone, le tableau défile dans son cadre .tbl-wrap.
+    // IBAN jamais renvoyé à la ligne (relu chiffre à chiffre) : sur téléphone, le tableau défile dans son cadre .tbl-wrap.
     expect(within(ligne).getByText('FR76 3000 6000 0112 3456 7890 189')).toHaveStyle({ whiteSpace: 'nowrap' })
     // Largeur minimale, comme les tableaux .tbl du module : la colonne « Nature » reste lisible, le cadre défile.
     expect(ligne.closest('table')).toHaveStyle({ minWidth: '640px' })
@@ -240,7 +242,9 @@ describe('Comptes bancaires en mode réel — affichage et contrôles', () => {
     expect((await ajDb.banques.toArray())[0]).toMatchObject({ nature: 'repris_ancien_gestionnaire', tenaitFondsTravaux: true })
     const ligne = lignesComptes()[0]
     expect(within(ligne).getByText('Tient le fonds de travaux')).toBeInTheDocument()
-    expect(panneau().textContent).toContain("Compte repris de l'ancien gestionnaire : solde inconnu ici.")
+    // Même libellé que la nature du compte, dans le tableau et dans le bandeau.
+    expect(titresAlertes()).toContain("Compte repris de l'ancien syndic ou administrateur : solde inconnu ici.")
+    expect(panneau().textContent).not.toContain('ancien gestionnaire')
     expect(panneau().textContent).not.toContain('non soldé')
   })
 
@@ -261,6 +265,23 @@ describe('Comptes bancaires en mode réel — affichage et contrôles', () => {
     expect(push).toHaveBeenCalledWith({ kind: 'warn', title: 'Comptes bancaires illisibles', desc: 'Base verrouillée' })
     expect(titresAlertes()).toEqual(['Comptes bancaires illisibles'])
     expect(dansPanneau().getByRole('button', { name: /Nouveau compte/ })).toBeDisabled()
+    // Réglage du cabinet non lu : ni « Mode appliqué » ni le défaut du domaine présenté comme le réglage enregistré.
+    expect(panneau().textContent).not.toContain('Mode appliqué')
+    expect(dansPanneau().queryByText('Réglage du cabinet')).toBeNull()
+    const reglage = dansPanneau().getByLabelText('Réglage du cabinet (mode par défaut)')
+    expect(reglage).toHaveDisplayValue('—')
+    expect(reglage).toBeDisabled()
+  })
+
+  it('lecture en cours : « Chargement… », ni « Mode appliqué » ni réglage du cabinet présenté comme lu', async () => {
+    // Lecture jamais terminée : le panneau reste dans l'état « Chargement… ».
+    const espion = vi.spyOn(ajDb.banques, 'toArray').mockReturnValueOnce(new Promise<never>(() => undefined) as never)
+    await rendre()
+    espion.mockRestore()
+    expect(dansPanneau().getByText('Chargement…')).toBeInTheDocument()
+    expect(panneau().textContent).not.toContain('Mode appliqué')
+    expect(dansPanneau().queryByText('Réglage du cabinet')).toBeNull()
+    expect(dansPanneau().getByLabelText('Réglage du cabinet (mode par défaut)')).toHaveDisplayValue('—')
   })
 
   it('ligne sans nature écrite hors de l’écran : comptée et signalée, hors des contrôles', async () => {
@@ -443,9 +464,13 @@ describe('Comptes bancaires en mode réel — modes de tenue et leur origine', (
     await reinitialiserStore()
     useSelectionDossier.setState({ code: copro.code, coproprietaireId: null })
     const { push } = await rendre()
-    expect(titresAlertes()).toEqual(['Mode du mandat illisible'])
+    expect(titresAlertes()).toContain('Mode du mandat illisible')
     expect(panneau().textContent).toContain('Mode de tenue inconnu : « livret ».')
     expect(panneau().textContent).not.toContain('Mode appliqué')
+    // Les contrôles dépendent du mode : masqués. Les comptes, eux, restent affichés (ici : aucun).
+    expect(titresAlertes()).not.toContain('Comptes conformes au mode appliqué.')
+    expect(titresAlertes().filter((titre) => titre.includes('compte à ouvrir'))).toEqual([])
+    expect(dansPanneau().getByText('Aucun compte enregistré pour cette copropriété.')).toBeInTheDocument()
     // La liste ne doit pas afficher « Comme le cabinet », que le bandeau contredirait.
     expect(dansPanneau().getByLabelText('Ce mandat')).toHaveDisplayValue('Mode illisible : « livret »')
 
@@ -457,6 +482,24 @@ describe('Comptes bancaires en mode réel — modes de tenue et leur origine', (
     expect((await ajDb.mandats.get(copro.mandatId))?.modeComptesBancaires).toBe('caisse_depots')
     expect(titresAlertes()).not.toContain('Mode du mandat illisible')
     expect(dansPanneau().getByText('Choix du mandat')).toBeInTheDocument()
+  })
+
+  it('mode du mandat illisible : un compte créé reste visible dans le tableau, contrôles masqués', async () => {
+    await ajDb.mandats.update(copro.mandatId, { modeComptesBancaires: 'livret' as never })
+    await reinitialiserStore()
+    useSelectionDossier.setState({ code: copro.code, coproprietaireId: null })
+    const { push } = await rendre()
+    await saisirCompte({ libelle: 'Compte principal', iban: IBAN_A })
+    await enregistrer()
+    expect(dernierToast(push)).toMatchObject({ kind: 'success', title: 'Compte enregistré' })
+    expect(lignesComptes()).toHaveLength(1)
+    expect(lignesComptes()[0].textContent).toContain('Compte principal')
+    expect(dansPanneau().queryByText('Aucun compte enregistré pour cette copropriété.')).toBeNull()
+    expect(panneau().textContent).toContain('Solde par compte')
+    // Bandeau gardé ; « Mode appliqué » et contrôles (qui dépendent du mode) masqués.
+    expect(titresAlertes()).toContain('Mode du mandat illisible')
+    expect(panneau().textContent).not.toContain('Mode appliqué')
+    expect(titresAlertes()).not.toContain('Comptes conformes au mode appliqué.')
   })
 })
 

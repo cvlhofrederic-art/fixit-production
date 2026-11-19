@@ -52,12 +52,23 @@ export interface CompteAffiche {
   tientLeFonds: boolean
 }
 
+/** Mode appliqué au mandat et contrôles qui en dépendent (controlerComptesMandat). */
+export interface ControleComptes {
+  resolu: ModeResolu
+  anomalies: AnomalieComptes[]
+}
+
 export interface VueComptesBancaires {
   comptes: CompteAffiche[]
   /** Lignes de la base sans nature connue : non affichées, hors des contrôles, comptées. */
   illisibles: number
-  resolu: ModeResolu
-  anomalies: AnomalieComptes[]
+  /**
+   * Mode appliqué et contrôles ; null quand le mode ne se résout pas : réglage du cabinet non lu, ou choix du mandat
+   * illisible (erreurMode). Les comptes et les informations qui ne dépendent pas du mode restent calculés.
+   */
+  controle: ControleComptes | null
+  /** Erreur du domaine quand le choix du mandat enregistré est un mode inconnu ; null sinon. */
+  erreurMode: string | null
   informations: InformationComptes[]
   obligationFonds: ObligationFondsTravaux
   /** Comptes repris actifs : leur solde n'est pas connu ici. */
@@ -68,7 +79,8 @@ export interface VueComptesBancaires {
 
 export interface EntreeVueComptes {
   comptes: readonly Banque[]
-  reglagesCabinet: ReglagesComptesCabinet
+  /** Réglage du cabinet lu dans la base ; null tant qu'il n'est pas lu (lecture en cours ou impossible). */
+  reglagesCabinet: ReglagesComptesCabinet | null
   /** Choix du mandat (Mandat.modeComptesBancaires) ; null ou absent : comme le cabinet. */
   choixMandat: ModeTenueComptes | null | undefined
   /** Fondement du mandat (régime : administrateur provisoire ou non). */
@@ -114,11 +126,27 @@ const estAdministrateurProvisoire = (fondement: string): boolean => {
   return regime === 'ap47' || regime === 'ap291'
 }
 
-/** Vue du panneau. Lève l'erreur du domaine si le choix du mandat enregistré est un mode inconnu. */
+/** Mode résolu par le domaine, ou son refus (choix du mandat enregistré inconnu) ; rien tant que le réglage n'est pas lu. */
+function resoudreMode(
+  reglages: ReglagesComptesCabinet | null,
+  choixMandat: ModeTenueComptes | null | undefined,
+): { resolu: ModeResolu | null; erreurMode: string | null } {
+  if (reglages === null) return { resolu: null, erreurMode: null }
+  try {
+    return { resolu: resoudreModeComptes(reglages, choixMandat ?? null), erreurMode: null }
+  } catch (erreur) {
+    return { resolu: null, erreurMode: erreur instanceof Error ? erreur.message : String(erreur) }
+  }
+}
+
+/**
+ * Vue du panneau. Les comptes sont toujours rendus ; le mode appliqué et les contrôles, seulement quand le mode se
+ * résout (sinon controle est null, et erreurMode porte le refus du domaine s'il y en a un).
+ */
 export function vueComptesBancaires(entree: EntreeVueComptes): VueComptesBancaires {
   const lisibles = entree.comptes.filter((ligne): ligne is Banque & { nature: NatureCompteBancaire } => estNatureConnue(ligne.nature))
   const comptes = lisibles.map(compteAffiche)
-  const resolu = resoudreModeComptes(entree.reglagesCabinet, entree.choixMandat ?? null)
+  const { resolu, erreurMode } = resoudreMode(entree.reglagesCabinet, entree.choixMandat)
   const obligationFonds = obligationFondsTravaux(IMMEUBLE_NON_RENSEIGNE, entree.aujourdhui)
   const controles: CompteBancaireMandat[] = comptes.map((compte) => ({
     nature: compte.nature,
@@ -129,9 +157,14 @@ export function vueComptesBancaires(entree: EntreeVueComptes): VueComptesBancair
   return {
     comptes,
     illisibles: entree.comptes.length - lisibles.length,
-    resolu,
-    // « Dotée d'un fonds » : valeur neutre (non dotée) tant que l'obligation n'est pas établie (voir l'en-tête).
-    anomalies: controlerComptesMandat({ mode: resolu.mode, fondsTravaux: obligationFonds.obligatoire === true, comptes: controles }),
+    controle: resolu
+      ? {
+          resolu,
+          // « Dotée d'un fonds » : valeur neutre (non dotée) tant que l'obligation n'est pas établie (voir l'en-tête).
+          anomalies: controlerComptesMandat({ mode: resolu.mode, fondsTravaux: obligationFonds.obligatoire === true, comptes: controles }),
+        }
+      : null,
+    erreurMode,
     informations: informationsComptesMandat(controles),
     obligationFonds,
     reprisActifs: comptes.filter((compte) => compte.actif && compte.nature === 'repris_ancien_gestionnaire').length,

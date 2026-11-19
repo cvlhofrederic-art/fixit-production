@@ -3,12 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { lireReglagesComptesCabinet, listerComptesBancaires } from '@/lib/administrateur-judiciaire/db/comptes-bancaires'
 import type { Banque } from '@/lib/administrateur-judiciaire/db/schema'
-import { creerReglagesComptesCabinet, type ReglagesComptesCabinet } from '@/lib/administrateur-judiciaire/domain/comptes-bancaires'
+import type { ReglagesComptesCabinet } from '@/lib/administrateur-judiciaire/domain/comptes-bancaires'
 
 /**
  * Lecture des comptes bancaires d'une copropriété et du réglage du cabinet. Ces tables ne sont pas chargées par le store
  * (sa forme est figée par l'oracle de la base locale) : elles sont lues ici, à l'affichage, puis relues après chaque
- * écriture de l'écran (`relire`). Un échec de lecture est remonté par `erreur` et signalé à `signalerErreur`.
+ * écriture de l'écran (`relire`). Un échec de lecture est remonté par `erreur` et signalé à `signalerErreur`. Le réglage
+ * du cabinet reste null tant qu'il n'a pas été lu : le défaut du domaine n'est jamais présenté comme le réglage enregistré.
  */
 
 export interface ComptesBancairesLus {
@@ -17,7 +18,8 @@ export interface ComptesBancairesLus {
   erreur: string | null
   /** Comptes de la copropriété, actifs et clôturés, dans l'ordre de création. */
   comptes: Banque[]
-  reglagesCabinet: ReglagesComptesCabinet
+  /** Réglage du cabinet lu dans la base ; null avant la première lecture et quand la lecture échoue. */
+  reglagesCabinet: ReglagesComptesCabinet | null
   /** Relit la base (après une écriture). */
   relire: () => void
 }
@@ -25,11 +27,9 @@ export interface ComptesBancairesLus {
 interface Lecture {
   coproprieteId: string | null
   comptes: Banque[]
-  reglagesCabinet: ReglagesComptesCabinet
+  reglagesCabinet: ReglagesComptesCabinet | null
   erreur: string | null
 }
-
-const REGLAGES_PAR_DEFAUT = creerReglagesComptesCabinet({})
 
 export function useComptesBancaires(
   coproprieteId: string | null,
@@ -52,7 +52,7 @@ export function useComptesBancaires(
       (erreur: unknown) => {
         if (abandonnee) return
         const message = erreur instanceof Error ? erreur.message : String(erreur)
-        setLecture({ coproprieteId, comptes: [], reglagesCabinet: REGLAGES_PAR_DEFAUT, erreur: message })
+        setLecture({ coproprieteId, comptes: [], reglagesCabinet: null, erreur: message })
         refSignaler.current(message)
       },
     )
@@ -68,7 +68,8 @@ export function useComptesBancaires(
     chargement: !aJour,
     erreur: aJour ? lecture.erreur : null,
     comptes: aJour ? lecture.comptes : [],
-    reglagesCabinet: lecture?.reglagesCabinet ?? REGLAGES_PAR_DEFAUT,
+    // Réglage global du cabinet : celui de la lecture précédente reste valable pendant un changement de copropriété.
+    reglagesCabinet: lecture?.reglagesCabinet ?? null,
     relire,
   }
 }

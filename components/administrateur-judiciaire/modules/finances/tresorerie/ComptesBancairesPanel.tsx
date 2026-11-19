@@ -51,14 +51,14 @@ type Edition = null | { type: 'nouveau' } | { type: 'modifier'; compte: CompteAf
 const messageErreur = (erreur: unknown): string => (erreur instanceof Error ? erreur.message : String(erreur))
 
 const STYLE_SECONDAIRE = { display: 'block', fontSize: 11.5 } as const
-/** IBAN jamais coupé : il se relit chiffre à chiffre. Sur téléphone, le tableau défile alors dans son cadre .tbl-wrap. */
+/** IBAN jamais renvoyé à la ligne : il se relit chiffre à chiffre. Sur téléphone, le tableau défile alors dans son cadre .tbl-wrap. */
 const STYLE_IBAN = { whiteSpace: 'nowrap' } as const
 
 /**
  * Tableau des comptes, repris de la maquette (Nature, IBAN, Solde ; mêmes styles en ligne), complété du libellé, du BIC
  * et de l'établissement, des pastilles (fonds de travaux, clôture) et des actions. Dans un cadre .tbl-wrap : sur
- * téléphone, il garde une largeur minimale (comme les tableaux .tbl du module) et défile dans ce cadre, l'IBAN jamais
- * coupé, sans faire déborder la page.
+ * téléphone, il garde une largeur minimale de 640 px et défile dans ce cadre, l'IBAN jamais renvoyé à la ligne, sans
+ * faire déborder la page.
  */
 function TableauComptes({ comptes, ouvrir }: { comptes: readonly CompteAffiche[]; ouvrir: (edition: Edition) => void }) {
   return (
@@ -140,25 +140,29 @@ function TableauComptes({ comptes, ouvrir }: { comptes: readonly CompteAffiche[]
   )
 }
 
-/** Alertes du domaine : anomalies (ou comptes conformes), information Caisse des dépôts, entrées non connues. */
+/**
+ * Alertes du domaine : anomalies (ou comptes conformes), seulement quand le mode se résout ; information Caisse des
+ * dépôts et entrées non connues, qui ne dépendent pas du mode.
+ */
 function AlertesComptes({ vue }: { vue: VueComptesBancaires }) {
   return (
     <>
-      {vue.anomalies.length === 0 ? (
-        <Alert kind="info" icon="check" title="Comptes conformes au mode appliqué." />
-      ) : (
-        // Clé avec l'index : deux comptes de même nature peuvent donner le même message (IBAN invalide).
-        vue.anomalies.map((anomalie, index) => (
-          <Alert
-            key={`${index}-${anomalie.code}`}
-            kind={anomalie.gravite === 'bloquant' ? 'rust' : 'warn'}
-            icon="alert"
-            title={anomalie.message}
-          >
-            {anomalie.fondement && <span style={{ fontSize: 12 }}>Fondement : {anomalie.fondement}</span>}
-          </Alert>
-        ))
-      )}
+      {vue.controle &&
+        (vue.controle.anomalies.length === 0 ? (
+          <Alert kind="info" icon="check" title="Comptes conformes au mode appliqué." />
+        ) : (
+          // Clé avec l'index : deux comptes de même nature peuvent donner le même message (IBAN invalide).
+          vue.controle.anomalies.map((anomalie, index) => (
+            <Alert
+              key={`${index}-${anomalie.code}`}
+              kind={anomalie.gravite === 'bloquant' ? 'rust' : 'warn'}
+              icon="alert"
+              title={anomalie.message}
+            >
+              {anomalie.fondement && <span style={{ fontSize: 12 }}>Fondement : {anomalie.fondement}</span>}
+            </Alert>
+          ))
+        ))}
       {vue.informations.map((information) => (
         <Alert key={information.code} kind="" icon="info" title="Information, sans blocage">
           {information.message}
@@ -170,7 +174,7 @@ function AlertesComptes({ vue }: { vue: VueComptesBancaires }) {
         </Alert>
       )}
       {vue.reprisActifs > 0 && (
-        <Alert kind="" icon="info" title="Compte repris de l'ancien gestionnaire : solde inconnu ici.">
+        <Alert kind="" icon="info" title={`${NATURES_COMPTE_BANCAIRE.repris_ancien_gestionnaire.libelle} : solde inconnu ici.`}>
           Le rappel « solder puis clôturer » attend le solde par compte.
         </Alert>
       )}
@@ -246,15 +250,6 @@ function useEcrituresComptes(copro: CoproprieteVue | undefined, relire: () => vo
   }
 }
 
-/** Vue calculée, ou l'erreur du domaine (choix du mandat enregistré inconnu). */
-function calculerVue(entree: Parameters<typeof vueComptesBancaires>[0]): { vue: VueComptesBancaires | null; erreur: string | null } {
-  try {
-    return { vue: vueComptesBancaires(entree), erreur: null }
-  } catch (erreur) {
-    return { vue: null, erreur: messageErreur(erreur) }
-  }
-}
-
 export function ComptesBancairesPanel({ copro }: { copro: CoproprieteVue | undefined }) {
   const { push } = useToast()
   const [edition, setEdition] = useState<Edition>(null)
@@ -263,7 +258,7 @@ export function ComptesBancairesPanel({ copro }: { copro: CoproprieteVue | undef
   )
   const mandat = useDonneesStore((etat) => etat.mandats.find((candidat) => candidat.id === copro?.mandatId))
   const ecritures = useEcrituresComptes(copro, lus.relire, () => setEdition(null))
-  const { vue, erreur } = calculerVue({
+  const vue = vueComptesBancaires({
     comptes: lus.comptes,
     reglagesCabinet: lus.reglagesCabinet,
     choixMandat: mandat?.modeComptesBancaires,
@@ -295,10 +290,16 @@ export function ComptesBancairesPanel({ copro }: { copro: CoproprieteVue | undef
           <div className="card-grid cols-2">
             <Field label="Réglage du cabinet (mode par défaut)" name="mode-comptes-cabinet">
               <select
-                value={lus.reglagesCabinet.modeParDefaut}
+                value={lus.reglagesCabinet?.modeParDefaut ?? ''}
                 disabled={!pret}
                 onChange={(evenement) => void ecritures.reglerCabinet(evenement.target.value as ModeTenueComptes)}
               >
+                {/* Réglage non lu (lecture en cours ou impossible) : « — », jamais le défaut du domaine présenté comme lu. */}
+                {!lus.reglagesCabinet && (
+                  <option value="" disabled>
+                    —
+                  </option>
+                )}
                 {MODES.map(([cle, mode]) => (
                   <option key={cle} value={cle}>
                     {mode.libelle}
@@ -312,7 +313,7 @@ export function ComptesBancairesPanel({ copro }: { copro: CoproprieteVue | undef
               hint={
                 !mandat
                   ? 'Aucun mandat enregistré pour cette copropriété.'
-                  : vue?.pratiqueAdministrateurProvisoire
+                  : vue.pratiqueAdministrateurProvisoire
                     ? `Pratique du cabinet pour un administrateur provisoire : ${MODES_TENUE_COMPTES[vue.pratiqueAdministrateurProvisoire].libelle}. Proposée, jamais imposée.`
                     : undefined
               }
@@ -344,16 +345,17 @@ export function ComptesBancairesPanel({ copro }: { copro: CoproprieteVue | undef
               {lus.erreur}
             </Alert>
           )}
-          {erreur && (
+          {vue.erreurMode && (
             <Alert kind="rust" icon="alert" title="Mode du mandat illisible">
-              {erreur}
+              {vue.erreurMode}
             </Alert>
           )}
-          {vue && (
+          {/* Mode non résolu (réglage non lu, choix du mandat illisible) : ni mode appliqué ni contrôles. */}
+          {vue.controle && (
             <div style={{ fontSize: 13, marginBottom: 10 }}>
-              Mode appliqué : <b>{MODES_TENUE_COMPTES[vue.resolu.mode].libelle}</b>{' '}
-              <Pill kind={vue.resolu.origine === 'mandat' ? 'gold' : 'navy'}>
-                {vue.resolu.origine === 'mandat' ? 'Choix du mandat' : 'Réglage du cabinet'}
+              Mode appliqué : <b>{MODES_TENUE_COMPTES[vue.controle.resolu.mode].libelle}</b>{' '}
+              <Pill kind={vue.controle.resolu.origine === 'mandat' ? 'gold' : 'navy'}>
+                {vue.controle.resolu.origine === 'mandat' ? 'Choix du mandat' : 'Réglage du cabinet'}
               </Pill>
             </div>
           )}
@@ -362,19 +364,23 @@ export function ComptesBancairesPanel({ copro }: { copro: CoproprieteVue | undef
               Chargement…
             </p>
           ) : (
-            vue &&
             !lus.erreur && (
               <>
-                {vue.comptes.length > 0 && <TableauComptes comptes={vue.comptes} ouvrir={setEdition} />}
+                {/* Comptes affichés même quand le mode ne se résout pas : un compte créé reste visible. */}
+                {vue.comptes.length > 0 && (
+                  <>
+                    <TableauComptes comptes={vue.comptes} ouvrir={setEdition} />
+                    <p className="muted" style={{ fontSize: 12, margin: '0 0 14px' }}>
+                      Solde par compte : « — » tant que le relevé importé n’est pas rattaché à un compte.
+                    </p>
+                  </>
+                )}
                 {/* Lignes illisibles seulement : le bandeau d'erreur les signale, sans « aucun compte ». */}
                 {vue.comptes.length === 0 && vue.illisibles === 0 && (
                   <p className="muted" style={{ fontSize: 13 }}>
                     Aucun compte enregistré pour cette copropriété.
                   </p>
                 )}
-                <p className="muted" style={{ fontSize: 12, margin: '0 0 14px' }}>
-                  Solde par compte : « — » tant que le relevé importé n’est pas rattaché à un compte.
-                </p>
                 <AlertesComptes vue={vue} />
               </>
             )
