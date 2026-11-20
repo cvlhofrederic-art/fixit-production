@@ -15,8 +15,8 @@
 //     signalements semblables de la copropriété du jeton (parties communes, ouverts, moins de 60 jours, même
 //     bâtiment et même zone) ; un numéro introuvable est ignoré, le dépôt reste acquis.
 // Limites : 5 dépôts par minute et par adresse IP, 30 par 10 minutes et par copropriété (QR code public).
-// Codes : 400 invalide · 404 introuvable (jeton inconnu ou désactivé) · 429 · 503 base_absente (migration
-// 20261104 non appliquée) · 500 serveur. Aucun lien avec les tables du logiciel Syndic.
+// Codes : 400 invalide · 400 batiment_inconnu (voir plus bas) · 404 introuvable (jeton inconnu ou désactivé) · 429 ·
+// 503 base_absente (migration 20261104 non appliquée) · 500 serveur. Aucun lien avec les tables du logiciel Syndic.
 // Migrations 20261106_signalements_qr_confirmation.sql puis 20261106_signalements_qr_geoloc_qualite.sql : appliquées
 // en production le 11/11/2026 ; sans elles, insertion et état des e-mails se replient sur les colonnes d'origine
 // (lib/aj-signalement/serveur.ts).
@@ -49,12 +49,19 @@
 // Logo du cabinet (demande de Hugo du 13/11/2026) : l'accusé (envoi unitaire) le porte en pièce jointe EN LIGNE ; les
 // e-mails aux destinataires (un lot, que Resend ne laisse porter aucune pièce jointe) restent sans logo, jamais avec une
 // image distante. Copropriété sans cabinet, cabinet sans logo, migration 20261114 absente ou erreur : accusé d'avant.
+// Bâtiments saisis par le cabinet (demande de Hugo du 17/11/2026 ; un déclarant de Parc Bel Ombre avait saisi « A ») : lus
+// avec la copropriété du jeton (même requête) ; quand la liste n'est pas vide, un bâtiment absent de la liste est refusé
+// (400 batiment_inconnu, message de la page dans sa langue, ni la liste ni la saisie, rien d'écrit ni d'envoyé), la
+// comparaison ignore la casse et les espaces en trop, et le nom enregistré (puis envoyé) est celui saisi par le cabinet
+// (batimentListeQrSchema). Copropriété sans bâtiment, ou colonne absente (migration du 11/11/2026) : dépôt d'avant.
 
 import { NextResponse, type NextRequest } from 'next/server'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
-import { signalementQrSchema, validateBody } from '@/lib/validation'
+import { batimentListeQrSchema, signalementQrSchema, validateBody } from '@/lib/validation'
 import { logger } from '@/lib/logger'
-import { CHEMIN_TABLEAU_QR, numeroSignalementQr, type SignalementQr } from '@/lib/aj-signalement/types'
+import { CHEMIN_TABLEAU_QR, numeroSignalementQr, type LangueSignalementQr, type SignalementQr } from '@/lib/aj-signalement/types'
+import { batimentsProposesQr } from '@/lib/aj-signalement/batiments'
+import { TEXTES_SIGNALEMENT_QR } from '@/lib/aj-signalement/textes'
 import {
   coproprieteActiveQr, corrigerEmailsEnvoyesQr, enregistrerEtatEmailsQr, identifiantCabinetDuSuiviQr, insererSignalementQr,
   lireGestionnairesDestinatairesQr, lireRepliSansDestinataireQr, lireSemblablesQr, reponseErreurBase, reponseErreur, reserverEmailsQr,
@@ -76,6 +83,21 @@ import { annonceDiffusionFaiteQr, annonceDiffusionQr, politiqueCabinetDeCopropri
 import { lireLogoEmailDeCoproprieteQr } from '@/lib/aj-signalement/serveur-logo'
 
 const CONTEXTE = '[AJ SIGNALEMENT]'
+
+/** Bâtiment absent de la liste du cabinet : 400 avec le texte de la page, dans sa langue ; ni la liste ni la saisie. */
+const reponseBatimentInconnu = (langue: LangueSignalementQr): NextResponse =>
+  NextResponse.json({ error: 'batiment_inconnu', message: TEXTES_SIGNALEMENT_QR[langue].erreurs.batiment_inconnu }, { status: 400 })
+
+/**
+ * Bâtiment à enregistrer : la saisie telle quelle quand la copropriété n'a pas de bâtiment saisi (comportement d'avant) ;
+ * sinon le nom du cabinet qui lui correspond (casse et espaces en trop ignorés), ou null s'il n'est pas dans la liste.
+ */
+function batimentAEnregistrer(saisi: string, copropriete: LigneCoproprieteQr): string | null {
+  const batiments = batimentsProposesQr(copropriete.batiments)
+  if (batiments.length === 0) return saisi
+  const controle = validateBody(batimentListeQrSchema(batiments), saisi)
+  return controle.success ? controle.data : null
+}
 
 /** Erreur conservée (et montrée au super admin) quand la limite par adresse bloque la confirmation. */
 const ERREUR_LIMITE_CONFIRMATION = `limite atteinte : ${LIMITE_CONFIRMATIONS_PAR_ADRESSE} confirmations par heure au plus vers cette boîte (variantes « + » comprises)`
@@ -225,10 +247,16 @@ export async function POST(request: NextRequest) {
     if (!validation.success) return NextResponse.json({ error: 'invalide', details: validation.error }, { status: 400 })
     const saisie = validation.data
 
-    const active = await coproprieteActiveQr(saisie.jeton)
+    const active = await coproprieteActiveQr(saisie.jeton, { batiments: true })
     if (!active.ok) return active.reponse
     const copropriete = active.copropriete
     if (!(await checkRateLimit(`qr_signalement_copro_${copropriete.id}`, 30, 600_000))) return rateLimitResponse()
+
+    const batiment = batimentAEnregistrer(saisie.batiment, copropriete)
+    if (batiment === null) {
+      logger.info(`${CONTEXTE} dépôt refusé : bâtiment absent de la liste de la copropriété`, { copropriete: copropriete.id })
+      return reponseBatimentInconnu(saisie.langue)
+    }
 
     const ligne = {
       copropriete_id: copropriete.id,
@@ -237,7 +265,7 @@ export async function POST(request: NextRequest) {
       telephone: saisie.telephone,
       // En minuscules : c'est l'adresse de réponse de l'e-mail et une clé de recherche possible.
       email: saisie.email.trim().toLowerCase(),
-      batiment: saisie.batiment,
+      batiment,
       etage: saisie.etage,
       num_lot: saisie.numLot,
       est_partie_commune: saisie.estPartieCommune,
@@ -250,7 +278,7 @@ export async function POST(request: NextRequest) {
       qualite_declarant: saisie.qualiteDeclarant,
       // Adresse déjà renseignée (même entre-temps) : la proposition est ignorée.
       adresse_proposee: (copropriete.adresse ?? '').trim() ? null : saisie.adresseProposee || null,
-      signalement_lie_id: await resoudreSignalementLie(copropriete.id, saisie),
+      signalement_lie_id: await resoudreSignalementLie(copropriete.id, { ...saisie, batiment }),
     }
     const { data, error } = await insererSignalementQr(ligne)
     if (error || !data) {

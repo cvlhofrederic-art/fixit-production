@@ -116,13 +116,16 @@ describe('dépôt public, vrai lib/email.ts, SDK Resend simulé', () => {
     expect((resend.simples[0] as MessageResend).tags).toEqual([{ name: 'type', value: 'aj-signalement-confirmation' }])
     expect(etatFinal()).toMatchObject({ email_envoye_le: expect.any(String), email_erreur: null, confirmation_envoyee_le: expect.any(String) })
     // Le dépôt ne nomme aucune table du 11/11 : destinataires et budget passent par des fonctions (PGRST202), repli
-    // journalisé une fois chacun.
+    // journalisé une fois chacun. Depuis le 17/11/2026, il lit aussi la colonne batiments de la copropriété (contrôle du
+    // bâtiment saisi) : colonne absente, copropriété relue sans elle, troisième repli journalisé une fois.
     expect(baseQr.etat.tablesAbsentesLues).toEqual([])
     // PR 3, lot 7 : l'accusé interroge aussi l'annonce de la diffusion (fonction de la 20261113, absente : sans phrases).
     expect(baseQr.etat.appelsRpc.map((a) => a.nom)).toEqual([
       'signalements_qr_emails_gestionnaires', 'signalements_qr_reserver_emails', 'signalements_qr_diffusion_annonce',
     ])
-    expect(simulQr.logger.warn.mock.calls.map((c) => String(c[0])).filter((m) => m.includes('migration du 11/11/2026 absente'))).toHaveLength(2)
+    const replis = simulQr.logger.warn.mock.calls.map((c) => String(c[0])).filter((m) => m.includes('migration du 11/11/2026 absente'))
+    expect(replis).toHaveLength(3)
+    expect(replis.filter((m) => m.includes('bâtiments du dépôt public'))).toHaveLength(1)
   })
 
   it('lot refusé par Resend (validation stricte) : renvoi un par un, tout part, email_erreur vide', async () => {
