@@ -112,7 +112,7 @@ describe('Import du relevé : choix du compte bancaire', () => {
     analyser(CSV)
     expect(boutonImporter()).toBeEnabled()
     expect(await importer(push)).toMatchObject({ kind: 'success', title: 'Relevé importé' })
-    expect(String(push.mock.calls.at(-1)?.[0].desc)).toContain('sur « Compte principal »')
+    expect(push.mock.calls.at(-1)?.[0]).toMatchObject({ desc: expect.stringContaining('sur « Compte principal »') })
     const banque = (await ajDb.ecritures.toArray()).filter((ecriture) => ecriture.compte.startsWith('512'))
     expect(banque.map((ecriture) => ecriture.compte)).toEqual([`512-${compte.id}`, `512-${compte.id}`])
     // Solde du sous-compte dans « Comptes bancaires du mandat » : 1 840,00 − 312,40.
