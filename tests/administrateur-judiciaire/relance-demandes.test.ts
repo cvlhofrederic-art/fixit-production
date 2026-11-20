@@ -432,7 +432,8 @@ describe('suivi « à faire » : famille « demandes » (depuisDemandes, suivi-a
 
   it('famille et natures : devis et interventions à relancer, relance datée de l’OS, seuil de l’entreprise', () => {
     expect(FAMILLES_SUIVI).toContain('demandes')
-    expect(NATURES_SUIVI.demandes).toEqual(['devis_a_relancer', 'intervention_a_relancer', 'relance_os', 'plafond_demandes'])
+    // vérification semestrielle de la vigilance ajoutée par la décision du 20/11/2026 (partie C, F90)
+    expect(NATURES_SUIVI.demandes).toEqual(['devis_a_relancer', 'intervention_a_relancer', 'relance_os', 'plafond_demandes', 'vigilance_semestrielle'])
     expect(LIBELLES_FAMILLES_SUIVI.demandes).toBe('Demandes (devis et interventions)')
     for (const nature of NATURES_SUIVI.demandes) expect(LIBELLES_NATURES_SUIVI[nature]).toBeTruthy()
     expect(reglageParDefaut('u1').familles.demandes?.actif).toBe(true)

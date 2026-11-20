@@ -68,6 +68,7 @@ import {
   type OperationTravaux,
 } from '@/lib/administrateur-judiciaire/domain/travaux-operations'
 import { echeancesLiberationGarantie, type SuiviRetenueMarche } from '@/lib/administrateur-judiciaire/domain/travaux-retenue-garantie'
+import { verificationVigilanceDue, type MarcheEnExecution } from '@/lib/administrateur-judiciaire/domain/vigilance-entreprises'
 import type { StatutAssemblee, StatutContrat, TypeContrat } from '@/lib/data/referentiels-gesteam-judiciaire'
 
 /**
@@ -121,6 +122,10 @@ import type { StatutAssemblee, StatutContrat, TypeContrat } from '@/lib/data/ref
  * demandes en cours au-delà du seuil d'alerte ou au maximum de l'entreprise. Délais et seuils : réglages de GESTION,
  * aucun texte de la loi de 1965 ni du décret de 1967 (relevé du 03/11/2026). Critère « En cours » des deux blocs : non
  * codé (🔴 date et demandes visées à préciser par Hugo).
+ * Décision du 20/11/2026 (partie C, F90) : pendant l'exécution d'un marché d'au moins 5 000 € HT, un élément « à faire »
+ * tous les six mois depuis la conclusion pour demander l'attestation de vigilance à jour (famille « demandes », nature
+ * « vigilance_semestrielle », depuisVigilanceMarches, qui rend vigilance-entreprises.verificationVigilanceDue sans la
+ * recalculer ; C. trav. art. L. 8222-1, D. 8222-5 : échéance légale certaine, aConfirmer faux).
  * Sans source dans VitFix à ce jour, donc sans adaptateur : courriers à relancer, mouvement crédit d'un contentieux,
  * mémos, tickets d'appel, agenda.
  * 🔵 Travaux (point 32, travaux-retenue-garantie.ts) : libération de la garantie (retenue ou caution) à l'expiration du
@@ -169,7 +174,7 @@ export const NATURES_SUIVI = {
   assemblees: ['convocation_a_presenter', 'pv_a_signer'],
   etapes: ['a_faire', 'a_valider', 'automatique_non_realisee'],
   taches: ['tache'],
-  demandes: ['devis_a_relancer', 'intervention_a_relancer', 'relance_os', 'plafond_demandes'],
+  demandes: ['devis_a_relancer', 'intervention_a_relancer', 'relance_os', 'plafond_demandes', 'vigilance_semestrielle'],
   travaux: ['fonds_a_appeler', 'liberation_garantie'],
   contrats: ['limite_resiliation', 'a_resilier', 'mise_en_concurrence', 'facture_attendue'],
   factures: ['reglement'],
@@ -211,6 +216,7 @@ export const LIBELLES_NATURES_SUIVI: Record<NatureSuivi, string> = {
   intervention_a_relancer: "Demande d'intervention à relancer",
   relance_os: "Relance datée de l'ordre de service",
   plafond_demandes: "Demandes en cours au-delà du seuil de l'entreprise",
+  vigilance_semestrielle: 'Attestation de vigilance à jour à demander (marché en cours)',
   fonds_a_appeler: 'Fonds à appeler',
   liberation_garantie: 'Libération de la garantie',
   limite_resiliation: 'Limite de résiliation',
@@ -695,6 +701,26 @@ export function depuisDemandes(
   )
   return [...relancesOsDues(avecSortie), ...relances, ...alertes]
 }
+
+/**
+ * Décision du 20/11/2026 (partie C, F90) : vérification semestrielle de la vigilance pendant l'exécution d'un marché
+ * (vigilance-entreprises.verificationVigilanceDue, rendue sans être recalculée) ; aucun élément sous le seuil de
+ * vigilance ou après la fin de l'exécution. Assignée au collaborateur qui suit le marché.
+ */
+export const depuisVigilanceMarches = (marches: readonly MarcheEnExecution[]): ElementAFaire[] =>
+  marches.flatMap((m) => {
+    const due = verificationVigilanceDue(m)
+    if (due === null) return []
+    return [
+      elementSuivi('demandes', 'vigilance_semestrielle', `vigilance_semestrielle:${m.id}`, {
+        libelle: `Demander à l'entreprise son attestation de vigilance à jour (marché ${m.id} en cours d'exécution, vérification n° ${due.rang})`,
+        date: due.date,
+        mandatId: due.mandatId,
+        objetId: m.id,
+        assigneId: due.assigneId,
+      }),
+    ]
+  })
 
 /**
  * Travaux votés : chaque appel de tranche pas encore lancé, à son exigibilité (travaux-operations) ; non votés : rien.
