@@ -251,9 +251,12 @@ describe('en-tête du module equipe-immeuble.ts', () => {
     expect(EN_TETE).toMatch(/AUCUNE règle d'unicité n'a été relevée/)
   })
 
-  it('🔴 questions : portefeuille des membres de l’équipe, mandat de plusieurs immeubles', () => {
-    expect(EN_TETE).toMatch(/« de mon portefeuille » comprend-il les mandats où le collaborateur n'est que membre de l'équipe/)
+  it('🔴 questions : mandat de plusieurs immeubles ; le portefeuille des membres de l’équipe est tranché (F29)', () => {
     expect(EN_TETE).toMatch(/plusieurs immeubles a-t-il une équipe par immeuble/)
+    expect(EN_TETE).not.toMatch(/« de mon portefeuille » comprend-il les mandats/)
+    expect(EN_TETE).toMatch(
+      /Décision du 20\/11\/2026 \(partie C, F29\) : non par défaut.*trois rôles du mandat \(responsable, comptable, assistant\), comme Gestéam.*option du cabinet.*« mandats où je suis membre de l'équipe de l'immeuble », désactivée par défaut/,
+    )
   })
 })
 

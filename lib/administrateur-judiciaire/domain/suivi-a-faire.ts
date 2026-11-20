@@ -59,6 +59,7 @@ import {
   bilanStatutsMandats,
   demandesDesMandatsSuivis,
   mandatHorsSuivi,
+  mentionArchivesExclus,
   type PorteeStatuts,
   type StatutDeMandat,
 } from '@/lib/administrateur-judiciaire/domain/statut-mandat'
@@ -131,9 +132,12 @@ import type { StatutAssemblee, StatutContrat, TypeContrat } from '@/lib/data/ref
  * 🔵 Statut du mandat (point 55, statut-mandat.ts ; Gestéam tranche 41) : un mandat Prospect ou Archivé sort du
  * portefeuille, du suivi « à faire » (même désigné ou suivi sur tout le cabinet), des demandes en cours d'une entreprise
  * (depuisDemandes) et de la balance âgée ; « En clôture » et « En gestion, en clôture » restent suivis ; une valeur
- * inconnue garde le mandat, l'anomalie se lit par bilanStatutsMandats(affectations). Le statut COURANT s'applique, même à
- * une balance âgée datée du passé (aucun historique du statut). Aucun texte ne règle ce statut (relevé du 03/11/2026) :
- * règle de GESTION.
+ * inconnue garde le mandat, l'anomalie se lit par bilanStatutsMandats(affectations) ; un « Prospect » dont l'ordonnance
+ * est datée (ordonnanceLe) reste suivi, avec une anomalie (décision du 20/11/2026, partie C, F32). Le statut COURANT
+ * s'applique au suivi du jour ; une balance âgée datée du passé compte un mandat archivé après sa date de référence
+ * quand la date d'archivage est donnée (archiveLe), et sinon l'écarte avec la mention « mandats archivés depuis :
+ * exclus » (décision du 20/11/2026, partie C, F33). Aucun texte ne règle ce statut (relevé du 03/11/2026) : règle de
+ * GESTION.
  * 🔵 Lots (point 71, assurance-pno-lots.ts ; Gestéam tranche 43 § 17, statut PNO des lots avec échéance) : famille
  * AJOUTÉE par VitFix — aucun bloc PNO dans le réglage Gestéam du syndic (tranche 38 ; seul le bloc « Baux », en
  * gérance, suit des « Attestations Assurance »). Attestation PNO à renouveler à son échéance, même dépassée ; à obtenir
@@ -273,6 +277,10 @@ export interface AffectationMandat extends RolesMandat {
    * mandat du portefeuille, du suivi et de la balance âgée ; absente ou inconnue, le mandat reste suivi.
    */
   statut?: string | null
+  /** Date ISO de l'ordonnance qui a désigné le cabinet : un « Prospect » qui la porte reste suivi (statut-mandat.ts, F32). */
+  ordonnanceLe?: string | null
+  /** Date ISO d'archivage : une balance âgée datée d'avant elle compte encore le mandat (statut-mandat.ts, F33). */
+  archiveLe?: string | null
 }
 
 const CHAMP_ROLE: Record<RoleMandat, keyof RolesMandat> = {
@@ -1050,16 +1058,23 @@ const SUITE_SELON_CADRE: Readonly<Record<CadreAlerte291A, string>> = {
 /**
  * Critères atteints que la requête ne couvre pas, à la date du plus tôt et avec leurs seuls constats, suivis de ce que le
  * cadre propose (à cette date : celle du constat, pas une échéance, hors obligation du syndic) ; à défaut, repère du délai
- * sans vote sur l'approbation des comptes qui court encore ; null : ni l'un ni l'autre.
+ * sans vote sur l'approbation des comptes qui court encore ; null : ni l'un ni l'autre. Réserve : celle de l'alerte, ou
+ * celle du critère des comptes « atteint, à confirmer » quand il reste seul à traiter (impayés couverts, F35).
  */
-function etapeAlerte291A(alerte: AlerteMandataireAdHoc): { libelle: string; date: string } | null {
+function etapeAlerte291A(alerte: AlerteMandataireAdHoc): { libelle: string; date: string; aConfirmer: boolean } | null {
   if (alerte.aTraiterLe !== null) {
-    const constats = [alerte.impayes, alerte.comptes].filter((c) => c.etat === 'atteint' && !c.traite).map((c) => c.message)
-    return { libelle: `${TITRE_ALERTE_29_1_A} : ${constats.join(' ')}${SUITE_SELON_CADRE[alerte.cadre]}`, date: alerte.aTraiterLe }
+    const restants = [alerte.impayes, alerte.comptes].filter((c) => c.etat === 'atteint' && !c.traite)
+    const constats = restants.map((c) => c.message)
+    const seulsComptesAConfirmer = !restants.includes(alerte.impayes) && alerte.comptes.aConfirmer
+    return {
+      libelle: `${TITRE_ALERTE_29_1_A} : ${constats.join(' ')}${SUITE_SELON_CADRE[alerte.cadre]}`,
+      date: alerte.aTraiterLe,
+      aConfirmer: alerte.aConfirmer || seulsComptesAConfirmer,
+    }
   }
   const { etat, atteintLe, message } = alerte.comptes
   if (etat !== 'non_atteint' || atteintLe === null) return null
-  return { libelle: `${TITRE_ALERTE_29_1_A} à venir : ${message}`, date: atteintLe }
+  return { libelle: `${TITRE_ALERTE_29_1_A} à venir : ${message}`, date: atteintLe, aConfirmer: alerte.aConfirmer }
 }
 
 /**
@@ -1071,7 +1086,13 @@ function etapeAlerte291A(alerte: AlerteMandataireAdHoc): { libelle: string; date
  *   connu) : rien ;
  * - la copie de la requête au représentant de l'État, au maire et au président de l'EPCI (art. 29-1 A, dernier alinéa ;
  *   D. 1967 art. 61-5), à la date de la requête, tant qu'elle n'est pas adressée : seulement dans le cadre de
- *   l'obligation du syndic (l'alerte ne la rend pas sinon, J67, R30).
+ *   l'obligation du syndic (l'alerte ne la rend pas sinon, J67, R30) ;
+ * - décision du 20/11/2026 (partie C, F35) : tant qu'aucun vote sur l'approbation des comptes n'est connu, la tâche
+ *   « saisir la date de la dernière assemblée qui s'est prononcée sur les comptes », sans réserve (une saisie, pas un
+ *   repère juridique) ; 🔵 choix de codage, comme une étape sans délai (J76) : datée de la date de référence de
+ *   l'alerte, due le jour même, jamais en retard. Le critère « atteint, à confirmer » depuis le début de la mission
+ *   garde sa réserve sur l'élément de l'alerte quand il reste seul à traiter ; des impayés atteints et non couverts la
+ *   rendent ferme, et la copie d'une requête déposée reste due sans réserve (D. 1967 art. 61-5).
  * Cadre de l'alerte (J67, R30) : administrateur de l'art. 29-1, constat à porter au prochain compte rendu au juge ;
  * administrateur de l'art. 47, signalement au juge, requête possible après consultation du conseil syndical.
  * `aConfirmer` reprend celui de l'alerte : sous administrateur provisoire (art. 29-1 ou D. 1967 art. 47 ; J67, R30 :
@@ -1092,6 +1113,19 @@ export function depuisAlertesMandataireAdHoc(items: { mandatId: string; alerte: 
           ...champs,
           libelle: `${TITRE_ALERTE_29_1_A} : requête au juge du ${dateIsoVersFr(copieDueLe)}, copie à adresser au représentant de l'État dans le département, au maire de la commune de l'immeuble et au président de l'EPCI compétent en matière d'habitat (art. 29-1 A, dernier alinéa ; D. 1967 art. 61-5)`,
           date: copieDueLe,
+          // Due dès la requête, dans le seul cadre de l'obligation du syndic (jamais à confirmer) ; la réserve du critère
+          // des comptes (F35) ne la touche pas.
+          aConfirmer: false,
+        }),
+      )
+    const tache = alerte.comptes.tacheDernierVote
+    if (tache !== null)
+      elements.push(
+        elementSuivi('exercices', 'alerte_29_1_a', `${cle}:dernier_vote`, {
+          ...champs,
+          libelle: `${TITRE_ALERTE_29_1_A} : ${tache}`,
+          date: alerte.date,
+          aConfirmer: false,
         }),
       )
     return elements
@@ -1224,6 +1258,11 @@ export interface BalanceAgee {
   lignes: LigneBalanceAgee[]
   sousTotaux: (CompteurDossiers & { cabinetId: string | null })[]
   total: CompteurDossiers
+  /**
+   * Mention à écrire sous la balance quand un dossier d'un mandat archivé sans date d'archivage en est écarté
+   * (statut-mandat.mentionArchivesExclus, décision du 20/11/2026, partie C, F33) ; absente : aucune.
+   */
+  mention?: string
 }
 
 const MOIS_PAR_PERIODE: Record<Exclude<PeriodiciteAnalyse, 'trente_jours'>, number> = { mensuelle: 1, trimestre: 3, annee: 12 }
@@ -1287,9 +1326,25 @@ function totaliser(lignes: LigneBalanceAgee[]): Pick<BalanceAgee, 'sousTotaux' |
 }
 
 /**
+ * Décision du 20/11/2026 (partie C, F33) : mention sous la balance quand un dossier ouvert à la date de référence, dans
+ * les cabinets retenus, est écarté parce que son mandat est « Archivé » sans date d'archivage.
+ */
+function mentionDeLaBalance(
+  dossiers: readonly DossierOuvert[],
+  archivesSansDate: ReadonlySet<string>,
+  parMandat: ReadonlyMap<string, AffectationMandat>,
+  { dateReference, cabinets }: { dateReference: string; cabinets?: (string | null)[] },
+): Pick<BalanceAgee, 'mention'> {
+  const retenu = (mandatId: string): boolean => cabinets === undefined || cabinets.includes(parMandat.get(mandatId)?.cabinetId ?? null)
+  const ecarte = dossiers.some((d) => d.mandatId !== null && d.ouvertLe <= dateReference && archivesSansDate.has(d.mandatId) && retenu(d.mandatId))
+  return ecarte ? { mention: mentionArchivesExclus(dateReference) } : {}
+}
+
+/**
  * « Suivi des éléments en cours » : par cabinet et collaborateur, les dossiers ouverts à la date de référence, puis
  * ceux en cours par ancienneté ; sous-total par cabinet, total général. Un dossier ouvert après la date est ignoré, comme
- * celui d'un mandat Prospect ou Archivé (point 55) ; un mandat en clôture reste compté.
+ * celui d'un mandat Prospect ou Archivé (point 55) ; un mandat en clôture reste compté. F33 : un mandat archivé après la
+ * date de référence (archiveLe) y est encore compté ; archivé sans date, il est écarté avec une mention.
  */
 export function balanceAgee(
   dossiers: DossierOuvert[],
@@ -1303,7 +1358,7 @@ export function balanceAgee(
 ): BalanceAgee {
   verifierDate(dateReference)
   const parMandat = new Map(affectations.map((a) => [a.mandatId, a]))
-  const { horsSuivi } = bilanStatutsMandats(affectations)
+  const { horsSuivi, archivesSansDate } = bilanStatutsMandats(affectations, { dateReference })
   const cabinetsRetenus = cabinets ? new Set(cabinets) : null
   const lignes = new Map<string, LigneBalanceAgee>()
   for (const dossier of dossiers) {
@@ -1325,5 +1380,10 @@ export function balanceAgee(
     (a, b) => nullEnDernier(a.cabinetId, b.cabinetId) || nullEnDernier(a.collaborateurId, b.collaborateurId),
   )
   const [t1, t2, t3, t4] = LIBELLES_TRANCHES[periodicite]
-  return { libellesTranches: [t1, t2, t3, t4], lignes: triees, ...totaliser(triees) }
+  return {
+    libellesTranches: [t1, t2, t3, t4],
+    lignes: triees,
+    ...totaliser(triees),
+    ...mentionDeLaBalance(dossiers, archivesSansDate, parMandat, { dateReference, cabinets }),
+  }
 }

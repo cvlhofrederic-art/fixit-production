@@ -139,12 +139,19 @@ import { LIBELLES_ETATS_RESOLUTION, type Resolution } from '@/lib/administrateur
  *   enregistrée ne change pas. Même lecture pour les échéances (echeancesMandatsEtDelegations) : la désignation dont
  *   chaque membre est désigné de nouveau a son échéance close ; un seul terme reste suivi, le nouveau.
  *
+ * Décision du 20/11/2026 (partie C, F15) : la remise des comptes au conseil syndical avant la convocation n'a aucun
+ * délai légal (L. 1965 art. 18, II ; art. 21, al. 1 ; D. 1967 art. 26 : concertation sur le budget et l'ordre du jour) ;
+ * son avance sur la convocation garde 0 jour par défaut (AVANCE_REMISE_CS_JOURS_PAR_DEFAUT), réglable par le cabinet
+ * (avanceRemiseCsJours), et l'échéance n'est jamais présentée comme un délai légal : libellé « repère de gestion du
+ * cabinet » ou « réglage du cabinet : N jours avant la convocation », toujours suivi de « aucun délai légal » ; marque
+ * aConfirmer levée. Pour être alerté plus tôt, le cabinet choisit une valeur de pratique, par exemple 15 jours avant la
+ * limite d'envoi de la convocation.
+ *
  * 🔴 Non établi (à trancher par Frédéric ou Hugo) :
  * - sens de « Rendu des comptes N » : notification des comptes avec la convocation, ou date de l'assemblée qui les
  *   approuve ? VitFix ne s'en sert que pour tenir la convocation de l'assemblée des comptes pour faite ;
  * - « Délégations Syndic € / CS € » : plafond d'une délégation de l'art. 25 a, montant alloué au conseil syndical dans le
  *   budget (D. 1967 art. 26-1) ou seuil de consultation (art. 21) ? VitFix garde des types distincts ;
- * - remise des comptes au conseil syndical : aucun délai légal ; l'avance est un réglage du cabinet (0 par défaut) ;
  * - conseil syndical élu ou renouvelé par une assemblée tenue hors du délai de six mois après la clôture, ou par une
  *   assemblée extraordinaire : la fenêtre de six mois avant le terme suffit-elle à reconnaître son renouvellement, ou
  *   faut-il le saisir expressément ? VitFix s'en tient à la fenêtre.
@@ -1159,7 +1166,10 @@ export interface OptionsEcheancesExercice {
   suivi?: SuiviClotureExercice | null
   /** Décisions du syndicat (celles d'un autre syndicat sont ignorées). */
   decisions?: readonly DecisionAnnuelle[]
-  /** Réglage du cabinet : jours d'avance de la remise des comptes au conseil syndical sur la convocation. */
+  /**
+   * Réglage du cabinet : jours d'avance de la remise des comptes au conseil syndical sur la convocation ; absent :
+   * AVANCE_REMISE_CS_JOURS_PAR_DEFAUT (décision du 20/11/2026, partie C, F15).
+   */
   avanceRemiseCsJours?: number
   /** Délai de convocation du règlement s'il dépasse 21 jours (D. 1967 art. 9). */
   delaiConvocationJours?: number
@@ -1167,6 +1177,19 @@ export interface OptionsEcheancesExercice {
   regime?: Regime | null
   /** Avec le régime 'ap291' : pouvoirs de l'assemblée confiés à l'administrateur provisoire (D. 1967 art. 7, al. 3). */
   pouvoirsAgConfies?: PouvoirsAgConfies | null
+}
+
+/**
+ * Décision du 20/11/2026 (partie C, F15) : avance par défaut de la remise des comptes au conseil syndical sur la
+ * convocation, 0 jour, réglable par le cabinet ; aucun délai légal (exemple de valeur de pratique : 15 jours).
+ */
+export const AVANCE_REMISE_CS_JOURS_PAR_DEFAUT = 0
+
+/** Mention de la remise au conseil syndical : réglage ou repère du cabinet, jamais un délai légal (F15). */
+function mentionRemiseCs(avanceJours: number): string {
+  if (avanceJours === AVANCE_REMISE_CS_JOURS_PAR_DEFAUT) return 'repère de gestion du cabinet, aucun délai légal'
+  const jours = avanceJours > 1 ? 'jours' : 'jour'
+  return `réglage du cabinet : ${avanceJours} ${jours} avant la convocation, aucun délai légal`
 }
 
 function verifierOptionsExercice(exercice: Exercice, options: OptionsEcheancesExercice): void {
@@ -1182,7 +1205,7 @@ function verifierOptionsExercice(exercice: Exercice, options: OptionsEcheancesEx
     if (valeur <= exercice.cloture)
       throw new Error(`${quoi} (${fr(valeur)}) antérieure ou égale à la clôture de l'exercice ${exercice.nom} (${fr(exercice.cloture)}).`)
   }
-  const { avanceRemiseCsJours = 0, delaiConvocationJours = DELAI_CONVOCATION_JOURS } = options
+  const { avanceRemiseCsJours = AVANCE_REMISE_CS_JOURS_PAR_DEFAUT, delaiConvocationJours = DELAI_CONVOCATION_JOURS } = options
   if (!Number.isInteger(avanceRemiseCsJours) || avanceRemiseCsJours < 0)
     throw new Error(`Jours d'avance de la remise au conseil syndical invalides (${avanceRemiseCsJours}) : entier positif attendu.`)
   if (!Number.isInteger(delaiConvocationJours) || delaiConvocationJours < DELAI_CONVOCATION_JOURS)
@@ -1258,7 +1281,7 @@ function echeanceBudget(
 export function echeancesExercice(exercice: Exercice, options: OptionsEcheancesExercice): EcheanceDecisionAnnuelle[] {
   verifierOptionsExercice(exercice, options)
   if (exercice.statut === 'Non géré') return []
-  const { exerciceId, dateAg, conseilSyndical, suivi = null, avanceRemiseCsJours = 0 } = options
+  const { exerciceId, dateAg, conseilSyndical, suivi = null, avanceRemiseCsJours = AVANCE_REMISE_CS_JOURS_PAR_DEFAUT } = options
   const delai = options.delaiConvocationJours ?? DELAI_CONVOCATION_JOURS
   const decisions = (options.decisions ?? []).filter((d) => d.coproprieteId === exercice.coproprieteId)
   const echeances: EcheanceDecisionAnnuelle[] = [echeanceBudget(exercice, options, decisions)]
@@ -1269,10 +1292,11 @@ export function echeancesExercice(exercice: Exercice, options: OptionsEcheancesE
     echeances.push({
       code: 'comptes_au_conseil_syndical',
       objetId: exerciceId,
-      libelle: `Exercice ${exercice.nom} : comptes à remettre au conseil syndical avant la convocation de l'assemblée du ${fr(dateAg)} (repère de gestion, aucun délai légal)`,
+      libelle: `Exercice ${exercice.nom} : comptes à remettre au conseil syndical avant la convocation de l'assemblée du ${fr(dateAg)} (${mentionRemiseCs(avanceRemiseCsJours)})`,
       date: ajouterJours(convocation, -avanceRemiseCsJours),
       fondement: 'L. 1965 art. 18, II ; art. 21, al. 1 ; D. 1967 art. 26',
-      aConfirmer: true,
+      // Décision du 20/11/2026 (partie C, F15) : réglage du cabinet confirmé, sans délai légal
+      aConfirmer: false,
       accomplie: !estAbsent(suivi?.comptesRemisAuCsLe),
     })
   echeances.push({
