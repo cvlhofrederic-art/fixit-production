@@ -43,9 +43,11 @@ import type { DocumentPrestataire } from '@/lib/syndic/messagerie-pro'
  * sur la facture, il reste un indice de rapprochement (comportement gardé). Règles fiscales de facturation (CGI, art. 289) :
  * non relues, non vérifiées.
  *
- * 🔴 Non établi — questions :
- * - Hugo : la tolérance de 5 % entre le prévu et le facturé (reprise des contrats) convient-elle aux demandes, ou faut-il
- *   un réglage propre ?
+ * Décision du 20/11/2026 (partie C, F91), recommandation acceptée : 5 % par défaut, réglage propre aux demandes
+ * (TOLERANCE_PREVU_PCT, ajusté par le cabinet avec tolerancePct du contexte ou de la comparaison), au départ égal à celui
+ * des contrats (contrats-facturation.ts, 5 %), sans le toucher. Aucun texte ne fixe de tolérance : elle ne sert qu'à
+ * départager des demandes d'un même prestataire, jamais à accepter un écart de prix ; un écart au-delà reste signalé
+ * (facture_au_dessus_prevu, facture_en_dessous_prevu).
  *
  * Règles de GESTION (aucun texte) : prestataire retrouvé comme pour un contrat (identifiant saisi, SIRET, SIREN, nom
  * exact) ; demandes candidates : même copropriété, même prestataire, intervention pouvant recevoir une facture (ni devis,
@@ -64,7 +66,10 @@ import type { DocumentPrestataire } from '@/lib/syndic/messagerie-pro'
  * déposé en euros (DocumentPrestataire) converti en centimes par arrondi au centime.
  */
 
-/** Tolérance d'écart entre le prévu et le facturé (règle de gestion, comme contrats-facturation). */
+/**
+ * Tolérance d'écart entre le prévu et le facturé : réglage du cabinet propre aux demandes, 5 % par défaut, au départ égal
+ * à celui des contrats (Décision du 20/11/2026, partie C, F91 ; règle de gestion, aucun texte).
+ */
 export const TOLERANCE_PREVU_PCT = 5
 
 export interface ContexteRapprochementDemande {
@@ -73,6 +78,7 @@ export interface ContexteRapprochementDemande {
   demandes: readonly Demande[]
   /** Prestataire déjà choisi par le gestionnaire (ou connu de l'ordre VitFix). */
   prestataireId?: string | null
+  /** Réglage du cabinet propre aux demandes (F91) ; absent : TOLERANCE_PREVU_PCT. */
   tolerancePct?: number
 }
 
