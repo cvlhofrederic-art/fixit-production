@@ -127,6 +127,10 @@ export const STATUTS_ECRANS = {
     // Fiche sinistre Gestéam enregistrée dans la table locale « sinistres » (06/11/2026) ; simulée en démonstration
     // (simulesEnDemonstration : statut « demo » dans ce mode).
     'sinistres',
+    // Échéancier, avis par copropriétaire et écriture de l'appel sur les tables D2 (20/11/2026) ; en démonstration,
+    // l'écran d'origine, simulé (simulesEnDemonstration). Rien n'y reste en démonstration en données réelles : onglets et
+    // tableau de démonstration ne sont pas affichés ; ce qui n'est pas branché (mandats SEPA, diffusion) est dit à l'écran.
+    'appels',
   ],
   partiel: [
     'cockpit',
@@ -149,7 +153,7 @@ export const STATUTS_ECRANS = {
    * les écrans marqués « Données réelles » enregistrent »). Les autres écrans « reel » écrivent aussi dans la base
    * locale de démonstration.
    */
-  simulesEnDemonstration: ['sinistres'],
+  simulesEnDemonstration: ['sinistres', 'appels'],
 } as const
 
 export type StatutEcran = 'reel' | 'partiel' | 'demo'
