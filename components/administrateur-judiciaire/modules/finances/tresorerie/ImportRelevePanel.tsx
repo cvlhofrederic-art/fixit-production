@@ -9,12 +9,17 @@ import {
   type AnalyseReleve,
   type SelectionsImputation,
 } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/analyse-releve'
+import {
+  AUCUN_COMPTE_ACTIF,
+  ChoixCompteBancaire,
+  comptesActifs,
+  type EtatComptes,
+} from '@/components/administrateur-judiciaire/modules/finances/tresorerie/ChoixCompteBancaire'
 import { nomDuCompte } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/CompteBancaireModal'
-import { ibanGroupe, type CompteAffiche } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/comptes-bancaires-vue'
+import type { CompteAffiche } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/comptes-bancaires-vue'
 import { imputerEnFile } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/file-ecritures'
 import { ResultatAnalyseReleve } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/ResultatAnalyseReleve'
 import { Alert } from '@/components/administrateur-judiciaire/ui/Alert'
-import { Field } from '@/components/administrateur-judiciaire/ui/Field'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { Panel } from '@/components/administrateur-judiciaire/ui/Panel'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
@@ -33,18 +38,11 @@ import type { PersonneCopropriete } from '@/lib/administrateur-judiciaire/domain
  * avant lecture au-delà de 10 Mo ; un fichier structuré qui contient une erreur n'est pas importé.
  */
 
-/** Lecture des comptes bancaires par l'écran. */
-export type EtatComptes = 'chargement' | 'erreur' | 'lu'
-
 /** Fichiers proposés : CSV, CFONB 120 (.txt, .cfonb) et camt.053 (.xml, .053). */
 const FICHIERS_ACCEPTES = '.csv,.txt,.xml,.053,.cfonb,text/csv,application/xml,text/xml'
 
-const AUCUN_COMPTE_ACTIF = 'Aucun compte bancaire actif : enregistrer d’abord le compte dans « Comptes bancaires du mandat ».'
 const COMPTE_A_CHOISIR = 'Choisir le compte bancaire du relevé.'
 const COMPTES_NON_LUS = 'Comptes bancaires non lus : import impossible pour l’instant.'
-
-/** Libellé d'un compte dans la liste : son nom et son IBAN groupé. */
-const libelleCompte = (compte: CompteAffiche): string => (compte.iban ? `${nomDuCompte(compte)} · ${ibanGroupe(compte.iban)}` : nomDuCompte(compte))
 
 /** « 1 ligne enregistrée », « 2 lignes enregistrées ». */
 const accord = (nombre: number, singulier: string, plurielle: string): string => `${nombre} ${nombre > 1 ? plurielle : singulier}`
@@ -54,34 +52,6 @@ function motifSansCompte(etat: EtatComptes, actifs: number, choisi: CompteAffich
   if (choisi) return null
   if (etat !== 'lu') return COMPTES_NON_LUS
   return actifs === 0 ? AUCUN_COMPTE_ACTIF : COMPTE_A_CHOISIR
-}
-
-interface ChoixCompteProps {
-  etat: EtatComptes
-  actifs: readonly CompteAffiche[]
-  choisi: CompteAffiche | null
-  choisir: (id: string) => void
-}
-
-/** Liste « Compte bancaire du relevé ». */
-function ChoixCompte({ etat, actifs, choisi, choisir }: Readonly<ChoixCompteProps>) {
-  const indisponible = etat === 'chargement' ? 'Chargement…' : 'Comptes bancaires illisibles'
-  return (
-    <div className="card-grid cols-2">
-      <Field label="Compte bancaire du relevé" name="releve-compte" hint={etat === 'lu' && actifs.length === 0 ? AUCUN_COMPTE_ACTIF : undefined}>
-        <select value={choisi?.id ?? ''} disabled={etat !== 'lu' || actifs.length === 0} onChange={(evenement) => choisir(evenement.target.value)}>
-          {etat !== 'lu' && <option value="">{indisponible}</option>}
-          {etat === 'lu' && actifs.length === 0 && <option value="">Aucun compte actif</option>}
-          {actifs.length > 1 && <option value="">Choisir le compte…</option>}
-          {actifs.map((compte) => (
-            <option key={compte.id} value={compte.id}>
-              {libelleCompte(compte)}
-            </option>
-          ))}
-        </select>
-      </Field>
-    </div>
-  )
 }
 
 export interface ImportRelevePanelProps {
@@ -101,7 +71,7 @@ export function ImportRelevePanel({ copro, comptes, etatComptes, personnes, lign
   const [selections, setSelections] = useState<SelectionsImputation>({})
   const [importEnCours, setImportEnCours] = useState(false)
   const [choixCompte, setChoixCompte] = useState('')
-  const actifs = etatComptes === 'lu' ? comptes.filter((compte) => compte.actif) : []
+  const actifs = comptesActifs(comptes, etatComptes)
   const compteChoisi = actifs.length === 1 ? actifs[0] : (actifs.find((compte) => compte.id === choixCompte) ?? null)
   // Changement de copropriété (sélecteur du haut ou select local) ou de compte : l'analyse faite pour l'ancien est
   // abandonnée. Ajustement pendant le rendu, sans remontage de l'écran.
@@ -191,7 +161,15 @@ export function ImportRelevePanel({ copro, comptes, etatComptes, personnes, lign
       sub="Relevé de la banque : CSV (date, libellé, montant, ou débit et crédit), CFONB 120 ou camt.053. Coller le texte ou choisir un fichier."
       icon="upload"
     >
-      <ChoixCompte etat={etatComptes} actifs={actifs} choisi={compteChoisi} choisir={setChoixCompte} />
+      <ChoixCompteBancaire
+        label="Compte bancaire du relevé"
+        name="releve-compte"
+        etat={etatComptes}
+        actifs={actifs}
+        choisi={compteChoisi}
+        choisir={setChoixCompte}
+        choixExige
+      />
       <div
         style={{
           display: 'flex',

@@ -1,10 +1,12 @@
 'use client'
 
+import type { EtatComptes } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/ChoixCompteBancaire'
 import { nomDuCompte } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/CompteBancaireModal'
 import { ComptesBancairesPanel } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/ComptesBancairesPanel'
 import { comptesLisibles, type CompteAffiche } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/comptes-bancaires-vue'
 import { enFileEcrituresTresorerie, imputerEnFile } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/file-ecritures'
-import { ImportRelevePanel, type EtatComptes } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/ImportRelevePanel'
+import { ImportRelevePanel } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/ImportRelevePanel'
+import { RapprochementPanel } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/RapprochementPanel'
 import { naviguerVers } from '@/components/administrateur-judiciaire/shell/navigation'
 import { Alert } from '@/components/administrateur-judiciaire/ui/Alert'
 import { DataTable } from '@/components/administrateur-judiciaire/ui/DataTable'
@@ -66,9 +68,10 @@ const etatLectureComptes = (lus: { chargement: boolean; erreur: string | null })
 }
 
 /**
- * Banque et recouvrement (données réelles de la base locale) : comptes bancaires du mandat, import d'un relevé sur le
- * compte bancaire choisi (CSV, dédoublonnage, rapprochement des encaissements), lettrage des lignes de banque et dossiers
- * de recouvrement de l'art. 19-2. Les comptes bancaires sont lus ici et partagés par les panneaux.
+ * Banque et recouvrement (données réelles de la base locale) : comptes bancaires du mandat, arrêtés de rapprochement,
+ * import d'un relevé sur le compte bancaire choisi (CSV, CFONB 120, camt.053 ; dédoublonnage, imputation des
+ * encaissements aux copropriétaires), lettrage des lignes de banque et dossiers de recouvrement de l'art. 19-2. Les
+ * comptes bancaires sont lus ici et partagés par les panneaux.
  */
 export function TresorerieModule() {
   const { push } = useToast()
@@ -87,6 +90,7 @@ export function TresorerieModule() {
     .filter((ecriture) => estCompteBanque(ecriture.compte))
     .sort((a, b) => b.date.getTime() - a.date.getTime())
   const comptes = comptesLisibles(lus.comptes, lignesBanque)
+  const etatComptes = etatLectureComptes(lus)
   // Ids des écritures de banque déjà imputées, relevés à la fin du libellé des contreparties 450-* (« … relevé <id> »).
   const idsImputes = new Set(
     ecrituresJournal
@@ -201,10 +205,11 @@ export function TresorerieModule() {
         ]}
       />
       <ComptesBancairesPanel copro={copro} lus={lus} ecrituresBanque={lignesBanque} />
+      <RapprochementPanel comptes={comptes} etatComptes={etatComptes} ecrituresBanque={lignesBanque} />
       <ImportRelevePanel
         copro={copro}
         comptes={comptes}
-        etatComptes={etatLectureComptes(lus)}
+        etatComptes={etatComptes}
         personnes={personnes}
         lignesBanque={lignesBanque}
       />
