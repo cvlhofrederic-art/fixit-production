@@ -63,7 +63,10 @@ function reseau(numerotation: () => Promise<Response>) {
 
 
 const monter = (onBack = vi.fn()) => {
-  render(<DevisFactureFormBTP artisan={ARTISAN} services={[]} bookings={[]} onBack={onBack} initialData={BROUILLON as never} />)
+  const rendu = render(<DevisFactureFormBTP artisan={ARTISAN} services={[]} bookings={[]} onBack={onBack} initialData={BROUILLON as never} />)
+  // Comme l'écran parent, « retour » ferme le formulaire : sa sauvegarde automatique (1,5 s après l'ouverture) s'arrête
+  // avec lui. Resté affiché, il réécrivait le brouillon après la validation quand le test tournait lentement.
+  onBack.mockImplementation(() => rendu.unmount())
   return onBack
 }
 
