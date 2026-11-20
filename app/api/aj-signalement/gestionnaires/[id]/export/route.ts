@@ -5,6 +5,8 @@
 // JSON en pièce jointe, jamais en cache ; l'export lui-même est journalisé (gestionnaire.exporte). 10 par heure.
 // Bureaux (migration 20261119) : le bureau de la fiche (identifiant et nom), une donnée de la fiche ; clé ABSENTE sans
 // bureau, ou tant que la migration manque (repli journalisé) : l'export reste celui d'avant tant qu'aucun bureau n'existe.
+// Lecture du bureau en panne (autre cause que la migration absente) : 503 { error: 'serveur' }, rien n'est exporté ni
+// journalisé — un export ne part jamais incomplet (décision du 20/11/2026).
 
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
@@ -14,7 +16,7 @@ import {
   TABLE_ATTRIBUTIONS_QR, TABLE_JOURNAL_QR, controlerAccesQr, estUuid, journaliserQr, reponseErreur, reponseErreurSqlQr,
 } from '@/lib/aj-signalement/serveur'
 import { COLONNES_JOURNAL_QR, envoiDepuisLigneQr, lireEnvoisQr, lireFicheQr } from '@/lib/aj-signalement/serveur-gestion'
-import { avecBureauxGestionnairesQr } from '@/lib/aj-signalement/serveur-bureaux'
+import { champBureauExportQr } from '@/lib/aj-signalement/serveur-bureaux'
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -31,16 +33,17 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const f = fiche.valeur
     if (!f) return reponseErreur('introuvable', 404)
 
-    const [envois, attributions, journal, [avecBureau]] = await Promise.all([
+    const [envois, attributions, journal, bureau] = await Promise.all([
       lireEnvoisQr([id]),
       supabaseAdmin.from(TABLE_ATTRIBUTIONS_QR).select('copropriete_id, origine, created_at').eq('gestionnaire_id', id),
       supabaseAdmin.from(TABLE_JOURNAL_QR).select(COLONNES_JOURNAL_QR).or(`gestionnaire_id.eq.${id},acteur_gestionnaire_id.eq.${id}`)
         .order('created_at', { ascending: true }),
-      avecBureauxGestionnairesQr([{ id }]),
+      champBureauExportQr(id, 'export : bureau de la fiche'),
     ])
-    const champBureau = avecBureau?.bureau ? { bureau: { id: avecBureau.bureau.id, nom: avecBureau.bureau.nom } } : {}
     if (!envois.ok) return reponseErreurSqlQr(envois.erreur, 'export : envois', { gestionnaire: id })
     for (const r of [attributions, journal]) if (r.error) return reponseErreurSqlQr(r.error, 'export', { gestionnaire: id })
+    // Jamais un export sans son bureau (décision du 20/11/2026) : lecture en panne (déjà journalisée) → 503, rien d'exporté.
+    if (!bureau.ok) return reponseErreur('serveur', 503)
 
     await journaliserQr({ action: 'gestionnaire.exporte', cabinetId: f.cabinet_id, acteurId: controle.user.id, gestionnaireId: id })
     const contenu = {
@@ -48,7 +51,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       fiche: {
         id: f.id, cabinetId: f.cabinet_id, nom: f.nom, email: f.email, actif: f.actif === true, domaineForce: f.domaine_force === true,
         creeLe: f.created_at, adresseConfirmeeLe: f.adresse_confirmee_le, adresseContesteeLe: f.adresse_contestee_le,
-        desactiveLe: f.desactive_le, pseudonymiseLe: f.pseudonymise_le, ...champBureau,
+        desactiveLe: f.desactive_le, pseudonymiseLe: f.pseudonymise_le, ...bureau.champ,
       },
       envois: envois.valeur.map(envoiDepuisLigneQr),
       attributions: attributions.data ?? [],

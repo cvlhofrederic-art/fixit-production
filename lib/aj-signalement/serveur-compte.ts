@@ -12,7 +12,9 @@
 //   - RGPD en libre-service : delete-account REFUSE pour un compte gestionnaire ou relié à une fiche (403
 //     demande_au_cabinet : la demande est datée sur la fiche, journalisée et transmise au super admin sans nom ni adresse,
 //     rien n'est supprimé) ; export-data ajoute sa fiche, ses attributions et son journal (12 mois), sans donnée d'une
-//     autre personne.
+//     autre personne ; sa fiche porte son bureau { id, nom } comme l'export du super admin (migration 20261119, décision
+//     du 20/11/2026 : clé absente sans bureau, et tant que la migration manque) ; bureau non lu pour une autre cause →
+//     503 au message générique, rien d'exporté ni journalisé (jamais un export sans son bureau).
 //
 // Règle de sûreté (fusion avant les migrations) : chaque lecture de user_id / connexion_bloquee_le / effacement_demande_le
 // (20261112) a son repli : colonne ou table absente → l'opération de la PR 1 reste exactement la même, sans aucun appel à
@@ -29,6 +31,7 @@ import {
   journaliserQr, journaliserRepliAccesQr, lireParValeursQr, structureAbsenteQr, type ErreurBase,
 } from '@/lib/aj-signalement/serveur'
 import { alerterAdministrateurQr } from '@/lib/aj-signalement/serveur-acces'
+import { champBureauExportQr, type ChampBureauExportQr } from '@/lib/aj-signalement/serveur-bureaux'
 
 const CONTEXTE = '[AJ SIGNALEMENT]'
 
@@ -268,60 +271,114 @@ async function lireJournalExportQr(ficheId: string, userId: string): Promise<{ o
   return { ok: true, lignes }
 }
 
+interface LigneAttributionExportQr {
+  copropriete_id: string
+  origine: string | null
+  created_at: string | null
+}
+
 /**
- * Section aj_signalement de l'export d'un compte relié à une fiche (rôle gestionnaire, ou compte relié) : sa fiche,
- * ses attributions et les lignes du journal (12 mois) où il est l'auteur ou le sujet ; aucun identifiant, aucun nom ni
- * aucune adresse d'une autre personne, ni le nom d'une copropriété qu'un doublon refusé lui a tue (coproprieteNommeeQr).
- * L'export est journalisé (gestionnaire.exporte, acteur : lui-même). null : aucune
- * fiche, structure absente (repli journalisé une fois) ou lecture impossible (journal serveur) — la section est omise.
- * Ne lève jamais.
+ * Noms des copropriétés citées par l'export (attributions, lignes du journal qui peuvent la nommer) ; lecture en panne :
+ * aucun nom (journal serveur, code seul).
  */
-export async function exportGestionnaireDuCompteQr(user: { id: string }): Promise<Record<string, unknown> | null> {
+async function nomsCoproprietesExportQr(
+  ficheId: string, attributions: readonly LigneAttributionExportQr[], journal: readonly LigneJournalExportQr[],
+): Promise<Map<string, string | null>> {
+  const coproIds = [...new Set([
+    ...attributions.map((a) => a.copropriete_id),
+    ...journal.filter(coproprieteNommeeQr).map((l) => l.copropriete_id),
+  ].filter((v): v is string => typeof v === 'string'))]
+  const noms = new Map<string, string | null>()
+  // Jusqu'à ATTRIBUTIONS_MAX_PAR_GESTIONNAIRE_QR attributions, plus les copropriétés du journal : noms lus par lots
+  // filtrés et ordonnés (lireParValeursQr : URL bornée, pages de 1 000 ; un seul .in() serait tronqué par max-rows).
+  const copros = await lireParValeursQr<{ id: string; nom: string | null }>(coproIds, (lot) =>
+    supabaseAdmin.from(TABLE_COPROPRIETES_QR).select('id, nom').in('id', lot).order('id', { ascending: true }))
+  if (copros.ok) for (const c of copros.valeur) noms.set(c.id, c.nom ?? null)
+  else logger.warn(`${CONTEXTE} noms des copropriétés de l’export non lus`, { code: copros.erreur.code, gestionnaire: ficheId })
+  return noms
+}
+
+interface DonneesSectionExportQr {
+  fiche: LigneFicheDuCompteQr
+  userId: string
+  /** Nom du cabinet (null : inconnu). */
+  cabinet: string | null
+  /** Son bureau ({} : aucun, ou migration 20261119 absente). */
+  bureau: ChampBureauExportQr
+  attributions: readonly LigneAttributionExportQr[]
+  journal: readonly LigneJournalExportQr[]
+  noms: ReadonlyMap<string, string | null>
+}
+
+/** Forme publique de la section aj_signalement : aucune donnée d'une autre personne. */
+function sectionExportQr(d: DonneesSectionExportQr): Record<string, unknown> {
+  const f = d.fiche
+  return {
+    fiche: {
+      nom: f.nom, email: f.email, cabinet: d.cabinet, actif: f.actif === true,
+      creeLe: f.created_at, adresseConfirmeeLe: f.adresse_confirmee_le, accesOuvertLe: f.acces_ouvert_le, desactiveLe: f.desactive_le,
+      connexionBloqueeLe: f.connexion_bloquee_le, effacementDemandeLe: f.effacement_demande_le, ...d.bureau,
+    },
+    attributions: d.attributions.map((a) => ({ copropriete: d.noms.get(a.copropriete_id) ?? null, origine: a.origine, depuis: a.created_at })),
+    journal: d.journal.map((l) => ({
+      date: l.created_at, action: l.action, auteur: auteurLigneQr(l, f.id, d.userId),
+      copropriete: coproprieteNommeeQr(l) ? d.noms.get(l.copropriete_id) ?? null : null, champs: Array.isArray(l.champs) ? l.champs : [],
+    })),
+  }
+}
+
+/** Corps 503 de l'export en libre-service qui partirait incomplet : message générique, aucune cause interne. */
+export const MESSAGE_EXPORT_INDISPONIBLE_QR = 'Export momentanément indisponible, réessayez dans quelques minutes.'
+
+/** Pour GET /api/user/export-data : le champ à ajouter à l'export ({ aj_signalement } ou rien), ou la réponse 503. */
+export type ExportGestionnaireDuCompteQr =
+  | { ok: true; champ: { aj_signalement?: Record<string, unknown> } }
+  | { ok: false; reponse: NextResponse }
+
+const SANS_SECTION_QR: ExportGestionnaireDuCompteQr = { ok: true, champ: {} }
+
+/**
+ * Section aj_signalement de l'export d'un compte relié à une fiche (rôle gestionnaire, ou compte relié) : sa fiche
+ * (avec son bureau, migration 20261119), ses attributions et les lignes du journal (12 mois) où il est l'auteur ou le
+ * sujet ; aucun identifiant, aucun nom ni aucune adresse d'une autre personne, ni le nom d'une copropriété qu'un doublon
+ * refusé lui a tue (coproprieteNommeeQr). L'export est journalisé (gestionnaire.exporte, acteur : lui-même).
+ * Section omise (champ vide) : aucune fiche, structure absente (repli journalisé une fois) ou lecture impossible de la
+ * fiche, du cabinet, des attributions ou du journal (journal serveur). Bureau non lu pour une autre cause que la
+ * migration absente : ok: false (503, message générique), rien n'est journalisé — jamais un export sans son bureau
+ * (décision du 20/11/2026). Ne lève jamais.
+ */
+export async function exportGestionnaireDuCompteQr(user: { id: string }): Promise<ExportGestionnaireDuCompteQr> {
   try {
     const lue = await ficheDuCompteQr(user.id, 'fiche du compte (export)')
-    if (lue.etat !== 'fiche') return null
+    if (lue.etat !== 'fiche') return SANS_SECTION_QR
     const f = lue.fiche
-    const [cabinet, attributions, journal] = await Promise.all([
+    const [cabinet, attributions, journal, bureau] = await Promise.all([
       supabaseAdmin.from(TABLE_CABINETS_QR).select('nom').eq('id', f.cabinet_id).maybeSingle(),
       supabaseAdmin.from(TABLE_ATTRIBUTIONS_QR).select('copropriete_id, origine, created_at').eq('gestionnaire_id', f.id),
       lireJournalExportQr(f.id, user.id),
+      champBureauExportQr(f.id, 'export du compte gestionnaire : bureau de la fiche'),
     ])
+    // Lecture du bureau en panne (déjà journalisée, code seul) : 503 avant toute écriture, rien d'exporté.
+    if (!bureau.ok) return { ok: false, reponse: NextResponse.json({ error: MESSAGE_EXPORT_INDISPONIBLE_QR }, { status: 503 }) }
     const erreur = cabinet.error ?? attributions.error ?? (journal.ok ? null : journal.erreur)
     if (erreur) {
       if (structureAbsenteQr(erreur)) journaliserRepliAccesQr('export du compte gestionnaire', erreur)
       else logger.warn(`${CONTEXTE} export du compte gestionnaire incomplet`, { code: erreur.code, gestionnaire: f.id })
-      return null
+      return SANS_SECTION_QR
     }
-    const lignesAttributions = (attributions.data ?? []) as Array<{ copropriete_id: string; origine: string | null; created_at: string | null }>
+    const lignesAttributions = (attributions.data ?? []) as LigneAttributionExportQr[]
     const lignesJournal = journal.ok ? journal.lignes : []
-    const coproIds = [...new Set([
-      ...lignesAttributions.map((a) => a.copropriete_id),
-      ...lignesJournal.filter(coproprieteNommeeQr).map((l) => l.copropriete_id),
-    ].filter((v): v is string => typeof v === 'string'))]
-    const noms = new Map<string, string | null>()
-    // Jusqu'à ATTRIBUTIONS_MAX_PAR_GESTIONNAIRE_QR attributions, plus les copropriétés du journal : noms lus par lots
-    // filtrés et ordonnés (lireParValeursQr : URL bornée, pages de 1 000 ; un seul .in() serait tronqué par max-rows).
-    const copros = await lireParValeursQr<{ id: string; nom: string | null }>(coproIds, (lot) =>
-      supabaseAdmin.from(TABLE_COPROPRIETES_QR).select('id, nom').in('id', lot).order('id', { ascending: true }))
-    if (copros.ok) for (const c of copros.valeur) noms.set(c.id, c.nom ?? null)
-    else logger.warn(`${CONTEXTE} noms des copropriétés de l’export non lus`, { code: copros.erreur.code, gestionnaire: f.id })
+    const noms = await nomsCoproprietesExportQr(f.id, lignesAttributions, lignesJournal)
     await journaliserQr({
       action: 'gestionnaire.exporte', cabinetId: f.cabinet_id, acteurId: user.id, profil: 'gestionnaire', acteurGestionnaireId: f.id, gestionnaireId: f.id,
     })
-    return {
-      fiche: {
-        nom: f.nom, email: f.email, cabinet: (cabinet.data as { nom?: string | null } | null)?.nom ?? null, actif: f.actif === true,
-        creeLe: f.created_at, adresseConfirmeeLe: f.adresse_confirmee_le, accesOuvertLe: f.acces_ouvert_le, desactiveLe: f.desactive_le,
-        connexionBloqueeLe: f.connexion_bloquee_le, effacementDemandeLe: f.effacement_demande_le,
-      },
-      attributions: lignesAttributions.map((a) => ({ copropriete: noms.get(a.copropriete_id) ?? null, origine: a.origine, depuis: a.created_at })),
-      journal: lignesJournal.map((l) => ({
-        date: l.created_at, action: l.action, auteur: auteurLigneQr(l, f.id, user.id),
-        copropriete: coproprieteNommeeQr(l) ? noms.get(l.copropriete_id) ?? null : null, champs: Array.isArray(l.champs) ? l.champs : [],
-      })),
-    }
+    const nomCabinet = (cabinet.data as { nom?: string | null } | null)?.nom ?? null
+    const section = sectionExportQr({
+      fiche: f, userId: user.id, cabinet: nomCabinet, bureau: bureau.champ, attributions: lignesAttributions, journal: lignesJournal, noms,
+    })
+    return { ok: true, champ: { aj_signalement: section } }
   } catch (e: unknown) {
     logger.error(`${CONTEXTE} export du compte gestionnaire`, { message: e instanceof Error ? e.name : 'inconnue' })
-    return null
+    return SANS_SECTION_QR
   }
 }
