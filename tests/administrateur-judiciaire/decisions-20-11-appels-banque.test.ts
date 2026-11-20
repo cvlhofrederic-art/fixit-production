@@ -28,15 +28,6 @@ import {
   type EcheanceAppelSuivie,
 } from '@/lib/administrateur-judiciaire/domain/echeancier-appels'
 import {
-  PERIMETRE_FONDS_DETENUS_PAR_DEFAUT,
-  RUBRIQUES_FONDS_DETENUS,
-  creerPerimetreFondsDetenus,
-  fondsDetenusA,
-  rubriqueDuCompte,
-  type CompteFondsDetenus,
-  type DonneesFondsDetenus,
-} from '@/lib/administrateur-judiciaire/domain/fonds-detenus'
-import {
   SIGNAL_FONDS_TRAVAUX_HORS_COMPTE_DU_FONDS,
   annulerEncaissement,
   enregistrerEncaissement,
@@ -48,6 +39,16 @@ import {
   type EncaissementEnregistre,
   type JournalEncaissement,
 } from '@/lib/administrateur-judiciaire/domain/encaissements-pieces'
+import { creerExercice } from '@/lib/administrateur-judiciaire/domain/exercices-budgets'
+import {
+  PERIMETRE_FONDS_DETENUS_PAR_DEFAUT,
+  RUBRIQUES_FONDS_DETENUS,
+  creerPerimetreFondsDetenus,
+  fondsDetenusA,
+  rubriqueDuCompte,
+  type CompteFondsDetenus,
+  type DonneesFondsDetenus,
+} from '@/lib/administrateur-judiciaire/domain/fonds-detenus'
 import { controlerContexteFusion } from '@/lib/administrateur-judiciaire/domain/gabarits-courrier'
 import {
   creerAdresseDatee,
@@ -63,16 +64,17 @@ import {
   type PosteDette,
 } from '@/lib/administrateur-judiciaire/domain/imputation-encaissements'
 import { creerOrdreVirement, creerRemiseCheques, genererPain001, type LigneVirement } from '@/lib/administrateur-judiciaire/domain/ordres-banque'
-import type { ArreteRapprochement } from '@/lib/administrateur-judiciaire/domain/rapprochement-bancaire'
-import { borneArreteDesComptes } from '@/lib/administrateur-judiciaire/domain/verrou-saisie'
-import {
-  alimentationsDuFonds,
-  creerVirementInterne,
-  emettreLotVirementsInternes,
-  type CompteVirementInterne,
-  type VirementInterne,
-} from '@/lib/administrateur-judiciaire/domain/virement-interne'
 import { genererPain008, preparerLotPrelevements } from '@/lib/administrateur-judiciaire/domain/prelevements-sepa'
+import type { ArreteRapprochement } from '@/lib/administrateur-judiciaire/domain/rapprochement-bancaire'
+import {
+  DELAI_EXIGIBILITE_OBSERVE_GESTEAM_JOURS,
+  MENTION_DELAI_EXIGIBILITE_PROPOSE,
+  justificationExigibilite,
+  parametresRepartition,
+  propositionExigibiliteSolde,
+  type ExigibiliteDecidee,
+  type ExigibiliteSolde,
+} from '@/lib/administrateur-judiciaire/domain/regularisation-charges'
 import { avisDAppel, creerCleRepartition, traitementAppelDeFonds, type EcheanceAppel } from '@/lib/administrateur-judiciaire/domain/repartition-appels'
 import { annulerTraitement, creerTraitement, type Traitement } from '@/lib/administrateur-judiciaire/domain/traitements'
 import {
@@ -82,6 +84,14 @@ import {
   type FicheValidationBanque,
   type SaisieFicheValidationBanque,
 } from '@/lib/administrateur-judiciaire/domain/validation-banque'
+import { borneArreteDesComptes } from '@/lib/administrateur-judiciaire/domain/verrou-saisie'
+import {
+  alimentationsDuFonds,
+  creerVirementInterne,
+  emettreLotVirementsInternes,
+  type CompteVirementInterne,
+  type VirementInterne,
+} from '@/lib/administrateur-judiciaire/domain/virement-interne'
 import { creerCommunicationAdresseElectronique } from '@/lib/administrateur-judiciaire/domain/voie-notification'
 import { enTeteDuModule } from './en-tete-module'
 
@@ -1102,5 +1112,66 @@ describe('F114, F116, F118 — en-tête de l’avis : les décisions remplacent 
     expect(item('- Décision du 20/11/2026 (partie C, F114)')).toMatch(/exigibilité.*délai 0.*réglage du cabinet.*ne change jamais l'exigibilité.*« exigible le … ; à régler au plus tard le … »/)
     expect(item('- Décision du 20/11/2026 (partie C, F116)')).toMatch(/contentieux après l'avis.*courrier simple.*n'aura pas lieu ; merci de régler par virement.*pas un acte du contentieux/)
     expect(item('- Décision du 20/11/2026 (partie C, F118)')).toMatch(/aucun TIP.*refusé pour les nouveaux comptes.*virement.*avertissement.*gabarit d'instructions TIP fourni par la banque/)
+  })
+})
+
+// ─── F119 : exigibilité du solde de régularisation ───────────────────────────────────────────
+
+describe('F119 — solde de régularisation : 15 jours seulement proposés (« usage observé chez Gestéam, aucun texte ») ; la date fixée par l’AG ou l’administrateur provisoire vaut', () => {
+  const exerciceRepartition = creerExercice({
+    coproprieteId: 'copro-1',
+    nom: '2025',
+    ouverture: '2025-01-01',
+    cloture: '2025-12-31',
+    statut: 'Voté',
+    statutIrc: 'Non déclaré',
+    agId: 'ag-2024',
+    resolutions: { budget: 'R4', complement: null, honoraires: null, travaux: null },
+  })
+  const parametres = (exigibilite: ExigibiliteSolde, exigibiliteDecidee?: ExigibiliteDecidee | null) =>
+    parametresRepartition({ exercice: exerciceRepartition, dateEffet: '2026-02-01', mandatCode: 'TILL', exigibilite, exigibiliteDecidee })
+  const parAg: ExigibiliteDecidee = { date: '2026-03-15', source: { origine: 'assemblee', agId: 'ag-2025', resolutionId: 'R9' } }
+  const parAp: ExigibiliteDecidee = { date: '2026-03-20', source: { origine: 'administrateur', reference: 'décision fictive n° 3' } }
+
+  it('sans date décidée : le délai reste à remplir ; 15 jours sont proposés, avec la mention, jamais appliqués d’office', () => {
+    expect(MENTION_DELAI_EXIGIBILITE_PROPOSE).toBe('usage observé chez Gestéam, aucun texte')
+    expect(DELAI_EXIGIBILITE_OBSERVE_GESTEAM_JOURS).toBe(15)
+    expect(propositionExigibiliteSolde(null)).toEqual({
+      origine: 'usage_gesteam',
+      aRemplir: true,
+      exigibilite: { delaiJours: 15 },
+      mention: 'usage observé chez Gestéam, aucun texte',
+    })
+    expect(parametres({ delaiJours: 30 })).toMatchObject({ exigibilite: '2026-03-03', delaiExigibiliteJours: 30 })
+  })
+
+  it('date fixée par l’assemblée, ou par l’administrateur provisoire qui en a les pouvoirs : c’est elle qui vaut', () => {
+    expect(propositionExigibiliteSolde(parAg)).toEqual({
+      origine: 'decision',
+      aRemplir: false,
+      exigibilite: { date: '2026-03-15' },
+      mention: "date fixée par l'assemblée générale (assemblée ag-2025, résolution R9) : c'est elle qui vaut",
+    })
+    expect(propositionExigibiliteSolde(parAp).mention).toBe(
+      "date fixée par l'administrateur provisoire qui en a les pouvoirs (décision fictive n° 3) : c'est elle qui vaut",
+    )
+    expect(() => parametres({ delaiJours: 15 }, parAg)).toThrow(/fixée au 15\/03\/2026 par l'assemblée générale.*c'est elle qui vaut/)
+    expect(() => parametres({ date: '2026-03-16' }, parAg)).toThrow(/c'est elle qui vaut/)
+    const p = parametres({ date: '2026-03-15' }, parAg)
+    expect(p).toMatchObject({ exigibilite: '2026-03-15', delaiExigibiliteJours: null })
+    expect(justificationExigibilite(p)).toMatch(
+      /^Solde exigible le 15\/03\/2026 : date fixée par l'assemblée générale \(assemblée ag-2025, résolution R9\), 42 jour\(s\) après la date de passage du 01\/02\/2026 — aucun texte/,
+    )
+    expect(justificationExigibilite(parametres({ date: '2026-03-15' }))).toMatch(/date fixée par le gestionnaire/)
+    expect(() => propositionExigibiliteSolde({ ...parAp, date: '20/03/2026' })).toThrow(/AAAA-MM-JJ/)
+  })
+
+  it('en-tête : la décision F119 remplace la question 🔴', () => {
+    const { texte, item } = enTeteDuModule('regularisation-charges')
+    const ouvert = texte.slice(texte.indexOf('🔴 Non établi'))
+    expect(ouvert).not.toMatch(/Faut-il proposer quinze jours après la date de passage/)
+    expect(item('- Décision du 20/11/2026 (partie C, F119)')).toMatch(
+      /pas une règle.*reste à remplir.*15 jours.*« usage observé chez Gestéam, aucun texte ».*assemblée.*administrateur provisoire.*c'est elle qui vaut/,
+    )
   })
 })
