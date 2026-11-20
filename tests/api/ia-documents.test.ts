@@ -67,6 +67,11 @@ const imageEnvoyee = (entrees: Record<string, unknown>) =>
   (entrees.messages as Array<{ content: Array<{ type: string; image_url?: { url: string } }> }>)[0].content
     .find(p => p.type === 'image_url')?.image_url?.url ?? ''
 
+/** Consigne transmise au modèle (première partie du message). */
+const consigneEnvoyee = (entrees: Record<string, unknown>) =>
+  (entrees.messages as Array<{ content: Array<{ type: string; text?: string }> }>)[0].content
+    .find(p => p.type === 'text')?.text ?? ''
+
 const FOURNISSEURS = /groq|cerebras|claude|anthropic|workers|cloudflare|gemma|qwen|llama|model|api[_ ]?key|clé/i
 
 let remettreCles: () => void
@@ -258,6 +263,38 @@ describe('/api/supplier-invoice-scan (BTP)', () => {
     const reponse = await lireFactureFournisseur(json('http://localhost/api/supplier-invoice-scan', { image_base64: IMAGE_DATA_URL }))
     expect(reponse.status).toBe(503)
     expect(((await reponse.json()) as { error: string }).error).not.toMatch(FOURNISSEURS)
+  })
+
+  // Constat du 20/11/2026 : une facture portugaise (IVA 23 %) revenait à 20 %, seul taux normal accepté.
+  const LIGNES_LUES = [
+    { name: 'Cimento 25 kg', qty: 4, unit: 'sac', unitPriceHT: 5, tvaRate: 23 },
+    { name: 'Tinta interior', qty: 1, unit: 'u', unitPriceHT: 20, tvaRate: 6 },
+    { name: 'Areia', qty: 1, unit: 'u', unitPriceHT: 10, tvaRate: 13 },
+    { name: 'Cola', qty: 1, unit: 'u', unitPriceHT: 3, tvaRate: 20 },
+    { name: 'Gesso', qty: 1, unit: 'u', unitPriceHT: 4, tvaRate: 5.5 },
+  ]
+  const lireAvec = async (corps: Record<string, unknown>) => {
+    const appels = installerWorkersAI(() => sortieWorkersAI(JSON.stringify({ supplier: 'Fornecedor', lines: LIGNES_LUES, confidence: 'haute' })))
+    const reponse = await lireFactureFournisseur(json('http://localhost/api/supplier-invoice-scan', { image_base64: IMAGE_DATA_URL, ...corps }))
+    const { result } = (await reponse.json()) as { result: { lines: Array<{ tvaRate: number }> } }
+    return { taux: result.lines.map(l => l.tvaRate), consigne: consigneEnvoyee(appels[0].entrees) }
+  }
+
+  it('formulaire portugais : taux d\'IVA portugais gardés, tout autre taux lu devient 23 %', async () => {
+    const { taux, consigne } = await lireAvec({ pays: 'pt' })
+    expect(taux).toEqual([23, 6, 13, 23, 23])
+    expect(consigne).toContain("- tvaRate = taux d'IVA portugais applicable (23, 13, 6 ou 0). Par défaut 23\n")
+    expect(consigne).toContain('"tvaRate": 23\n')
+    expect(consigne).not.toMatch(/20, 10, 5\.5/)
+  })
+
+  it('sans pays ou en France : consigne et taux inchangés (23 % lu devient 20 %)', async () => {
+    for (const corps of [{}, { pays: 'fr' }, { pays: 12 }]) {
+      const { taux, consigne } = await lireAvec(corps)
+      expect(taux).toEqual([20, 20, 20, 20, 5.5])
+      expect(consigne).toContain('- tvaRate = taux TVA applicable (20, 10, 5.5 ou 0). Par défaut 20\n')
+      expect(consigne).toContain('"tvaRate": 20\n')
+    }
   })
 })
 
