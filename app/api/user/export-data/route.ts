@@ -177,9 +177,11 @@ export async function GET(request: NextRequest) {
       .eq('user_id', userId)
       .maybeSingle()
 
-    // 12 bis. AJ Signalement (PR 2, SPEC § 2.10) : fiche, attributions et journal d'un gestionnaire d'un cabinet client ;
-    // null pour tout autre compte (section omise, export inchangé), et tant que les migrations manquent.
+    // 12 bis. AJ Signalement (PR 2, SPEC § 2.10) : fiche (avec son bureau), attributions et journal d'un gestionnaire d'un
+    // cabinet client ; section omise pour tout autre compte (export inchangé), et tant que les migrations manquent.
+    // Bureau non lu (autre cause que la migration absente) : 503 au message générique, rien d'exporté ni journalisé.
     const ajSignalement = await exportGestionnaireDuCompteQr(user)
+    if (!ajSignalement.ok) return ajSignalement.reponse
 
     // 12 ter. Société BTP (pro_societe) : sauvegarde du stockage du navigateur et tables du BTP. Les autres rôles gardent
     // leur export (règle n° 1 artisan / BTP).
@@ -222,7 +224,7 @@ export async function GET(request: NextRequest) {
         signalements: syndicSignalements,
         planning_events: syndicPlanningEvents,
       },
-      ...(ajSignalement ? { aj_signalement: ajSignalement } : {}),
+      ...ajSignalement.champ,
       ...(donneesBtp ? { user_storage: donneesBtp.userStorage, btp: donneesBtp.btp } : {}),
     }
 

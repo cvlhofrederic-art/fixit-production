@@ -29,6 +29,22 @@ const BodySchema = z.object({
   contexte: z.record(z.string(), z.unknown()).default({}),
 })
 
+/**
+ * Métadonnées de la trace Langfuse : des nombres, aucun texte (question, historique, contexte, réponse) ; ces textes
+ * portent des noms de débiteurs et des montants dus que le masquage ne couvre pas. L'évaluation nocturne
+ * (langfuse-eval.yml) ne lit que le nom des traces et leur statut.
+ */
+function metadonneesTrace({ agent, message, historique, contexte }: z.infer<typeof BodySchema>, tailleContexte: number) {
+  return {
+    succursale: 'administrateur-judiciaire',
+    agent,
+    longueurQuestion: message.length,
+    echangesPrecedents: historique.length,
+    tailleContexte,
+    elementsContexte: Object.values(contexte).reduce<number>((n, v) => n + (Array.isArray(v) ? v.length : 0), 0),
+  }
+}
+
 export async function POST(req: NextRequest) {
   const ip = getClientIP(req)
   if (!(await checkRateLimit(`aj-agent:${ip}`, 30, 60_000))) return rateLimitResponse()
@@ -61,7 +77,12 @@ export async function POST(req: NextRequest) {
 
   try {
     const reponse = await traceAgent(
-      { agent_id: `aj-${agent}`, user_id: user.id, prompt: message, metadata: { succursale: 'administrateur-judiciaire' } },
+      {
+        agent_id: `aj-${agent}`,
+        user_id: user.id,
+        metadonneesSeules: true,
+        metadata: metadonneesTrace(parsed.data, contexteJson.length),
+      },
       () =>
         callClaudeWithRetry(
           {

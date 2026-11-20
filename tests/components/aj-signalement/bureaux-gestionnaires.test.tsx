@@ -8,8 +8,11 @@
 //     et a_reverifier expliqués, la liste des bureaux relue ;
 //   - E3 liste des gestionnaires : « Cabinet · Bureau » sur chaque ligne ; badge « Bureau à compléter » ; filtre
 //     « Bureau » (tous, chaque bureau du cabinet, « Bureau à compléter ») qui passe par ?bureau= ;
-//   - E4 page profil : « Cabinet · Bureau » sous le nom ; « Changer de bureau » (bureaux ouverts du cabinet sauf l'actuel,
-//     jamais « aucun » : PATCH { bureauId } seul) ; réactivation refusée 409 bureau_ferme expliquée ;
+//   - E4 page profil : sous le nom, deux lignes « Cabinet : … » puis « Bureau : … » (forme de la carte d'une copropriété,
+//     E6 ; point e-11 validé le 20/11/2026), la ligne « Cabinet : … » seule sans bureau ; « Changer de
+//     bureau » (bureaux ouverts du cabinet sauf l'actuel, jamais « aucun » : PATCH { bureauId } seul) ; aucun bureau à
+//     proposer : « Aucun autre bureau ouvert… » pour une fiche qui a un bureau, « Aucun bureau ouvert… » pour une fiche
+//     qui n'en a pas (point e-12) ; réactivation refusée 409 bureau_ferme expliquée ;
 //   - import : un bureau pour toutes les fiches créées, obligatoire dès que le cabinet a un bureau ouvert ;
 //   - tant qu'aucun bureau n'existe (aucune clé nbBureaux, nbBureauxOuverts ni bureau dans les réponses) : écrans
 //     identiques à avant, aucun libellé de bureau, aucune requête nouvelle ; l'espace d'un gestionnaire ne change pas.
@@ -522,12 +525,21 @@ async function rendreFiche(g: GestionnaireQr, cabinets?: CabinetQr[] | null) {
   await screen.findByRole('heading', { name: g.nom ?? G.fiche.ancien, level: 2 })
 }
 const entete = (nom: string) => screen.getByRole('heading', { name: nom, level: 2 }).closest('section') as HTMLElement
+/** Sous-titre de la page profil (paragraphe sous le nom) ; ses lignes : une par élément enfant, ou son texte seul. */
+const sousTitre = (nom: string) => screen.getByRole('heading', { name: nom, level: 2 }).nextElementSibling as HTMLElement
+const lignesSousTitre = (nom: string): string[] => {
+  const p = sousTitre(nom)
+  return p.children.length > 0 ? [...p.children].map((e) => e.textContent ?? '') : [p.textContent ?? '']
+}
 
 describe('E4 page profil d’un gestionnaire', () => {
   it('cabinet sans bureau (ou cabinets non transmis) : « Cabinet : Cabinet Exemple » d’avant, aucun bouton ni libellé de bureau, aucune requête', async () => {
     await rendreFiche(fiche(G1, 'Marie Exemple'), [cabinetSans])
     const e = entete('Marie Exemple')
     expect(within(e).getByText('Cabinet : Cabinet Exemple')).toBeInTheDocument()
+    // Le sous-titre d'avant : le texte seul, sans élément ajouté.
+    expect(sousTitre('Marie Exemple').children).toHaveLength(0)
+    expect(lignesSousTitre('Marie Exemple')).toEqual(['Cabinet : Cabinet Exemple'])
     expect(within(e).queryByText(/bureau/i)).toBeNull()
     expect(screen.queryByRole('button', { name: BG.changer })).toBeNull()
     expect(lecturesBureaux()).toEqual([])
@@ -539,10 +551,19 @@ describe('E4 page profil d’un gestionnaire', () => {
     expect(screen.queryByRole('button', { name: BG.changer })).toBeNull()
   })
 
-  it('« Cabinet : Cabinet Exemple · Nord » ; « Changer de bureau » : bureaux ouverts sauf l’actuel, jamais « aucun » ; PATCH { bureauId } seul ; fiche relue avant l’annonce', async () => {
+  it('e-11 : sous le nom, deux lignes « Cabinet : … » puis « Bureau : … » (forme de la carte d’une copropriété), plus « Cabinet : … · Nord »', async () => {
+    await rendreFiche(marie, [cabinetAvec])
+    expect(lignesSousTitre('Marie Exemple')).toEqual(['Cabinet : Cabinet Exemple', remplir(BG.ligne, { bureau: 'Nord' })])
+    expect(BG.ligne).toBe(B.copropriete.ligne)
+    // Deux lignes : chaque partie est un bloc (le sous-titre reste un seul paragraphe de la carte).
+    for (const ligne of sousTitre('Marie Exemple').children) expect(ligne).toHaveClass('block')
+    expect(within(entete('Marie Exemple')).queryByText(/Cabinet Exemple · Nord/)).toBeNull()
+  })
+
+  it('« Changer de bureau » : bureaux ouverts sauf l’actuel, jamais « aucun » ; PATCH { bureauId } seul ; fiche relue avant l’annonce', async () => {
     bureaux = [est, nord, sud]
     await rendreFiche(marie, [{ ...cabinetAvec, nbBureaux: 3, nbBureauxOuverts: 2 }])
-    expect(within(entete('Marie Exemple')).getByText('Cabinet : Cabinet Exemple · Nord')).toBeInTheDocument()
+    expect(lignesSousTitre('Marie Exemple')).toEqual(['Cabinet : Cabinet Exemple', 'Bureau : Nord'])
     // Bureaux lus seulement à l'ouverture du panneau.
     expect(lecturesBureaux()).toEqual([])
     fireEvent.click(screen.getByRole('button', { name: BG.changer }))
@@ -556,25 +577,47 @@ describe('E4 page profil d’un gestionnaire', () => {
     expect(await screen.findByText(remplir(BG.change, { bureau: 'Est' }))).toBeInTheDocument()
     expect(appels.filter((a) => a.methode === 'PATCH')).toEqual([{ url: `/api/aj-signalement/gestionnaires/${G1}`, methode: 'PATCH', corps: { bureauId: B3 } }])
     expect(rappelsFiche.onModifie).toHaveBeenCalled()
-    expect(within(entete('Marie Exemple')).getByText('Cabinet : Cabinet Exemple · Est')).toBeInTheDocument()
+    expect(lignesSousTitre('Marie Exemple')).toEqual(['Cabinet : Cabinet Exemple', 'Bureau : Est'])
     expect(screen.queryByLabelText(BG.nouveauBureau)).toBeNull()
   })
 
   it('fiche à compléter (sans bureau, cabinet avec un bureau ouvert) : « Changer de bureau » propose les bureaux ouverts', async () => {
     await rendreFiche(paul, [cabinetAvec])
-    expect(within(entete('Paul Exemple')).getByText('Cabinet : Cabinet Exemple')).toBeInTheDocument()
+    expect(lignesSousTitre('Paul Exemple')).toEqual(['Cabinet : Cabinet Exemple'])
+    expect(sousTitre('Paul Exemple').children).toHaveLength(0)
     fireEvent.click(screen.getByRole('button', { name: BG.changer }))
     expect(options(await screen.findByLabelText(BG.nouveauBureau))).toEqual([B.choisir, 'Nord'])
   })
 
-  it('aucun autre bureau ouvert : le dit, sans liste ni enregistrement possible', async () => {
+  it('aucun autre bureau ouvert (fiche qui a un bureau) : « Aucun autre bureau ouvert… », sans liste ni enregistrement possible', async () => {
     await rendreFiche(marie, [cabinetAvec])
     fireEvent.click(screen.getByRole('button', { name: BG.changer }))
     expect(await screen.findByText(BG.aucunAutre)).toBeInTheDocument()
+    expect(screen.queryByText(BG.aucunOuvert)).toBeNull()
     expect(screen.queryByLabelText(BG.nouveauBureau)).toBeNull()
     expect(screen.getByRole('button', { name: G.enregistrer })).toBeDisabled()
     fireEvent.click(screen.getByRole('button', { name: G.annuler }))
     expect(screen.queryByText(BG.aucunAutre)).toBeNull()
+  })
+
+  it('e-12 : fiche sans bureau, aucun bureau ouvert dans le cabinet : « Aucun bureau ouvert… » (sans « autre »), sans liste ni enregistrement possible', async () => {
+    expect(BG.aucunOuvert).toBe('Aucun bureau ouvert dans ce cabinet : ouvrez-en un depuis la vue Cabinets.')
+    expect(BG.aucunAutre).toBe('Aucun autre bureau ouvert dans ce cabinet : ouvrez-en un depuis la vue Cabinets.')
+    bureaux = [sud]
+    await rendreFiche(paul, [{ ...cabinetAvec, nbBureaux: 1, nbBureauxOuverts: 0 }])
+    fireEvent.click(screen.getByRole('button', { name: BG.changer }))
+    expect(await screen.findByText(BG.aucunOuvert)).toBeInTheDocument()
+    expect(screen.queryByText(BG.aucunAutre)).toBeNull()
+    expect(screen.queryByLabelText(BG.nouveauBureau)).toBeNull()
+    expect(screen.getByRole('button', { name: G.enregistrer })).toBeDisabled()
+  })
+
+  it('e-12 : fiche restée dans un bureau fermé, aucun autre ouvert : « Aucun autre bureau ouvert… » (elle a un bureau)', async () => {
+    bureaux = [sud]
+    await rendreFiche(lea, [{ ...cabinetAvec, nbBureaux: 1, nbBureauxOuverts: 0 }])
+    fireEvent.click(screen.getByRole('button', { name: BG.changer }))
+    expect(await screen.findByText(BG.aucunAutre)).toBeInTheDocument()
+    expect(screen.queryByText(BG.aucunOuvert)).toBeNull()
   })
 
   it('409 bureau_ferme au changement (fermé entre-temps) : expliqué ; bureaux relus', async () => {
@@ -592,7 +635,7 @@ describe('E4 page profil d’un gestionnaire', () => {
 
   it('bureau fermé de la fiche signalé ; réactivation refusée (409 bureau_ferme) : la marche à suivre, rien de réactivé', async () => {
     await rendreFiche(lea, [cabinetAvec])
-    expect(within(entete('Léa Exemple')).getByText('Cabinet : Cabinet Exemple · Sud (fermé)')).toBeInTheDocument()
+    expect(lignesSousTitre('Léa Exemple')).toEqual(['Cabinet : Cabinet Exemple', 'Bureau : Sud (fermé)'])
     refus = { code: 'bureau_ferme', status: 409 }
     fireEvent.click(screen.getByRole('button', { name: G.gestionnaires.reactiver }))
     expect(await screen.findByText(BG.reactivationBureauFerme)).toBeInTheDocument()
@@ -671,14 +714,14 @@ const PREMIER_RENDU = { timeout: 5000 }
 describe('dans l’espace', () => {
   afterEach(() => window.history.replaceState(null, '', '/'))
 
-  it('super admin : la page profil reçoit les cabinets de l’espace (« Cabinet · Bureau », « Changer de bureau »)', async () => {
+  it('super admin : la page profil reçoit les cabinets de l’espace (lignes « Cabinet : … » et « Bureau : … », « Changer de bureau »)', async () => {
     ficheServie = detail(marie)
     simul.signOut.mockResolvedValue({ error: null })
     simul.getUser.mockResolvedValue(utilisateur({ role: 'super_admin' }))
     window.history.replaceState(null, '', `/fr/aj-signalement/#gestionnaire/${G1}`)
     render(<EspaceAjSignalement />)
     expect(await screen.findByRole('heading', { name: 'Marie Exemple', level: 2 }, PREMIER_RENDU)).toBeInTheDocument()
-    expect(within(entete('Marie Exemple')).getByText('Cabinet : Cabinet Exemple · Nord')).toBeInTheDocument()
+    expect(lignesSousTitre('Marie Exemple')).toEqual(['Cabinet : Cabinet Exemple', 'Bureau : Nord'])
     expect(await screen.findByRole('button', { name: BG.changer })).toBeInTheDocument()
   })
 

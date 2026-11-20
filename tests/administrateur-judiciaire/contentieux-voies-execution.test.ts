@@ -716,11 +716,12 @@ describe('voies d’exécution — dates : plausibilité et ordre (signale, ne r
     ])
   })
 
-  it('signale une année improbable ou une date trop lointaine (Gestéam accepte 2525)', () => {
-    const anomalies = controler({ saisieImmobiliere: { engageeLe: '0026-05-04', adjudicationLe: '2525-02-01' } })
+  it('signale une année improbable (0026 ; Gestéam accepte 2525) ou une date trop lointaine', () => {
+    const anomalies = controler({ saisieImmobiliere: { engageeLe: '0026-05-04', audienceLe: '2031-01-15', adjudicationLe: '2525-02-01' } })
     expect(anomalies.filter((a) => a.code === 'date_non_plausible').map((a) => [a.champ, a.nature])).toEqual([
       ['engageeLe', 'annee_improbable'],
-      ['adjudicationLe', 'trop_lointaine'],
+      ['audienceLe', 'trop_lointaine'],
+      ['adjudicationLe', 'annee_improbable'],
     ])
     expect(anomalies[0].message).toMatch(/04\/05\/0026/)
   })
