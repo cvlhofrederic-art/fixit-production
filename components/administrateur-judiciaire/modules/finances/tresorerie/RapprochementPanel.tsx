@@ -109,7 +109,13 @@ function ArreteAffiche({ arrete, decloturer, occupe }: Readonly<{ arrete: Arrete
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
         <Pill kind={cloture ? 'sage' : 'gold'}>{arrete.statut}</Pill>
         {cloture && (
-          <button type="button" className="btn ghost sm" disabled={occupe} onClick={decloturer}>
+          <button
+            type="button"
+            className="btn ghost sm"
+            aria-label={`Déclôturer l’arrêté du ${dateIsoVersFr(arrete.dateArrete)}`}
+            disabled={occupe}
+            onClick={decloturer}
+          >
             <Icon name="history" />
             Déclôturer
           </button>
@@ -259,7 +265,13 @@ export function RapprochementPanel({ comptes, etatComptes, ecrituresBanque }: Re
       icon="check"
       right={
         courant?.statut === 'En cours' ? (
-          <button type="button" className="btn gold sm" disabled={!pret || occupe} onClick={() => void lancer(() => ecritures.cloturer(courant))}>
+          <button
+            type="button"
+            className="btn gold sm"
+            aria-label={`Clôturer l’arrêté du ${dateIsoVersFr(courant.dateArrete)}`}
+            disabled={!pret || occupe}
+            onClick={() => void lancer(() => ecritures.cloturer(courant))}
+          >
             <Icon name="check" />
             Clôturer
           </button>

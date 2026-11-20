@@ -117,7 +117,7 @@ describe('Rapprochement : panneau et « Nouvel arrêté »', () => {
     expect(panneau().textContent).toContain(`Écart ${formatEurosCentimes(0)}`)
     // Un arrêté en cours : « Clôturer » remplace « Nouvel arrêté » (un seul arrêté en cours par compte).
     expect(dansPanneau().queryByRole('button', { name: /Nouvel arrêté/ })).toBeNull()
-    expect(dansPanneau().getByRole('button', { name: 'Clôturer' })).toBeEnabled()
+    expect(dansPanneau().getByRole('button', { name: 'Clôturer l’arrêté du 31/05/2026' })).toBeEnabled()
   })
 
   it('saisie à corriger (date après aujourd’hui, solde illisible) : toast, formulaire ouvert, rien n’est écrit', async () => {
@@ -173,7 +173,7 @@ describe('Rapprochement : panneau et « Nouvel arrêté »', () => {
     await ouvrirArreteCompte(banqueId, { dateArrete: '2026-05-31', soldeBanqueCentimes: 32_950 })
     await ajDb.rapprochements.add({ id: 'arrete-externe', ...illisible })
     await rendre()
-    expect(dansPanneau().getByRole('button', { name: 'Clôturer' })).toBeDisabled()
+    expect(dansPanneau().getByRole('button', { name: 'Clôturer l’arrêté du 31/05/2026' })).toBeDisabled()
   })
 })
 
@@ -182,7 +182,7 @@ describe('Rapprochement : clôture et déclôture', () => {
     await ouvrirArreteCompte(banqueId, { dateArrete: '2026-05-31', soldeBanqueCentimes: 40_000 })
     await rendre()
     expect(panneau().textContent).toContain(`Écart ${formatEurosCentimes(70.5)}`)
-    await cliquerEtAttendre(dansPanneau().getByRole('button', { name: 'Clôturer' }))
+    await cliquerEtAttendre(dansPanneau().getByRole('button', { name: 'Clôturer l’arrêté du 31/05/2026' }))
     expect(dernierToast()).toEqual({
       kind: 'warn',
       title: 'Clôture refusée',
@@ -195,11 +195,11 @@ describe('Rapprochement : clôture et déclôture', () => {
   it('à l’équilibre : clôturé, puis déclôturé (dernier arrêté du compte)', async () => {
     await ouvrirArreteCompte(banqueId, { dateArrete: '2026-05-31', soldeBanqueCentimes: 32_950 })
     await rendre()
-    await cliquerEtAttendre(dansPanneau().getByRole('button', { name: 'Clôturer' }))
+    await cliquerEtAttendre(dansPanneau().getByRole('button', { name: 'Clôturer l’arrêté du 31/05/2026' }))
     expect(dernierToast()).toMatchObject({ kind: 'success', title: 'Arrêté clôturé' })
     expect(dansPanneau().getByText('Clôturé')).toBeInTheDocument()
     expect(dansPanneau().getByRole('button', { name: /Nouvel arrêté/ })).toBeEnabled()
-    await cliquerEtAttendre(dansPanneau().getByRole('button', { name: 'Déclôturer' }))
+    await cliquerEtAttendre(dansPanneau().getByRole('button', { name: 'Déclôturer l’arrêté du 31/05/2026' }))
     expect(dernierToast()).toMatchObject({ kind: 'success', title: 'Arrêté déclôturé' })
     expect((await ajDb.rapprochements.toArray())[0].statut).toBe('En cours')
     expect(dansPanneau().getByText('En cours')).toBeInTheDocument()
