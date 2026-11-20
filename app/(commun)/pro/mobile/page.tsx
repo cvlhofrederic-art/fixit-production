@@ -10,7 +10,7 @@ import { subscribeWithReconnect } from '@/lib/realtime-reconnect'
 import { formatPrice } from '@/lib/utils'
 import { useTranslation } from '@/lib/i18n/context'
 import { estAppMobile } from '@/lib/app-mobile'
-import { localeTva, tauxTvaParDefaut } from '@/lib/tva-calculator'
+import { htDepuisTtcTauxNormal, localeTva, tauxTvaParDefaut } from '@/lib/tva-calculator'
 import dynamic from 'next/dynamic'
 import type { User } from '@supabase/supabase-js'
 import type { Artisan, Booking, Service, Availability, ChatMessage } from '@/lib/types'
@@ -1346,7 +1346,8 @@ export default function MobileDashboard() {
     const pMin = motifForm.price_min ? parseFloat(motifForm.price_min) : 0
     const pMax = motifForm.price_max ? parseFloat(motifForm.price_max) : pMin
     const avgTTC = pMin && pMax ? (pMin + pMax) / 2 : pMin || pMax || 0
-    const priceHt = avgTTC / 1.2
+    // Prix saisi TTC : HT au taux normal du pays (÷ 1,23 sur /pt ; ÷ 1,2 en France, inchangé)
+    const priceHt = htDepuisTtcTauxNormal(avgTTC, localeTva(locale))
     const { data } = await supabase.from('services').insert({
       artisan_id: artisan.id,
       name: motifForm.name,
@@ -2165,18 +2166,19 @@ export default function MobileDashboard() {
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-semibold text-gray-500 block mb-1">{locale === 'pt' ? 'IVA (%)' : 'TVA (%)'}</label>
+                    <label className="text-xs font-semibold text-gray-500 block mb-1">TVA (%)</label>
                     <select
                       value={devisForm.tva}
                       onChange={e => setDevisForm(p => ({ ...p, tva: e.target.value }))}
                       className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#FFC107] bg-white"
                     >
+                      {/* Portugal : taux portugais (le module « Devis rapide » n'est pas encore traduit) */}
                       {locale === 'pt' ? (
                         <>
-                          <option value="0">0% (isento)</option>
-                          <option value="6">6% (taxa reduzida)</option>
-                          <option value="13">13% (taxa intermédia)</option>
-                          <option value="23">23% (taxa normal)</option>
+                          <option value="0">0% (exonéré)</option>
+                          <option value="6">6% (réduit)</option>
+                          <option value="13">13% (intermédiaire)</option>
+                          <option value="23">23% (normal)</option>
                         </>
                       ) : (
                         <>

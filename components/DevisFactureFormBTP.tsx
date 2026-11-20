@@ -917,6 +917,12 @@ export default function DevisFactureFormBTP({
     const montantLigne = (l: ProductLine) => montantNetLigne(l.qty || 0, l.priceHT || 0, l.remise)
     // Sous-total via centimes entiers (sumMoney), avant la remise commerciale globale.
     const subTotalBrut = sumMoney(allLines.map(montantLigne))
+    // Portugal : une ligne vide (sans désignation ni montant, au taux par défaut 23 %) ne fait pas apparaître
+    // « IVA 23 % 0,00 € » à côté des vrais taux (6 % d'une rénovation, 20 % d'un document d'avant), comme le PDF
+    // téléchargé depuis la liste (lib/pdf/download-saved-devis.ts) ; un document encore vide garde sa ligne à 23 %.
+    // France : calcul inchangé.
+    const ligneVide = (l: ProductLine) => !(l.description || '').trim() && montantLigne(l) === 0
+    const lignesTva = paysTva === 'pt' && allLines.some(l => !ligneVide(l)) ? allLines.filter(l => !ligneVide(l)) : allLines
 
     // Source unique de vérité : lib/tva-calculator.ts
     // En franchise/autoliquidation, la TVA est forcée à 0 (override silencieux
@@ -927,7 +933,7 @@ export default function DevisFactureFormBTP({
     // (horsRemise) restent hors de sa base.
     const tva = computeTva({
       regime: regimeTva,
-      lines: allLines.map(l => ({
+      lines: lignesTva.map(l => ({
         totalHT: montantLigne(l),
         tvaRate: l.tvaRate || 0,
         horsRemise: l.horsRemise === true,
@@ -967,7 +973,7 @@ export default function DevisFactureFormBTP({
     // Base de la remise globale : les travaux, sans les déductions d'acompte d'une facture de solde.
     const baseRemise = tva.baseRemiseHT
     return { subTotalBrut, remise, totalHT, tvaEntries, tvaBreakdown, totalTva, totalTTC, totalLabel: tva.totalLabel, lignesRemise, baseRemise }
-  }, [lines, materialLines, fraisLines, materialLinesEnabled, fraisLinesEnabled, customTables, regimeTva, remiseGlobale])
+  }, [lines, materialLines, fraisLines, materialLinesEnabled, fraisLinesEnabled, customTables, regimeTva, remiseGlobale, paysTva])
   // Autoliquidation ou franchise : pas de taux à afficher dans le résumé (il montrait « TVA 20 % » à 0,00 €)
   const ligneTvaResume = ligneTvaHorsClassique(regimeTva)
 
@@ -3890,7 +3896,8 @@ export default function DevisFactureFormBTP({
               ligneTvaResume ? (
                 <div className="dv-resume-row tva"><span>{tx(ligneTvaResume.libelle)}</span><span>{tx(ligneTvaResume.valeur)}</span></div>
               ) : totaux.tvaEntries.length === 0 ? (
-                <div className="dv-resume-row tva"><span>{tx('TVA 20 %')}</span><span>{fmt(0)}</span></div>
+                // Aucune ligne taxée (toutes à 0 %) : « IVA 0 % » au Portugal ; France inchangée
+                <div className="dv-resume-row tva"><span>{paysTva === 'pt' ? <>{tx('TVA')}{' '}0 %</> : tx('TVA 20 %')}</span><span>{fmt(0)}</span></div>
               ) : (
                 <>
                   {totaux.tvaEntries.map(([taux, montant]) => (

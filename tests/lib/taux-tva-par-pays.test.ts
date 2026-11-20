@@ -3,7 +3,7 @@
 // conditions. Une seule liste par pays, reprise par les formulaires artisan et BTP, Fixy, la lecture des factures
 // fournisseurs et le devis rapide de l'appli.
 import { describe, it, expect } from 'vitest'
-import { TAUX_TVA_PROPOSES, localeTva, tauxTvaParDefaut, tauxTvaSelecteur } from '@/lib/tva-calculator'
+import { TAUX_TVA_PROPOSES, htDepuisTtcTauxNormal, localeTva, tauxTvaParDefaut, tauxTvaSelecteur } from '@/lib/tva-calculator'
 
 describe('taux proposés par pays', () => {
   it('Portugal : 23 % par défaut, puis 13, 6 et 0 %, aucun taux français', () => {
@@ -44,5 +44,13 @@ describe('sélecteur d\'une ligne', () => {
     tauxTvaSelecteur('pt', 20)
     tauxTvaSelecteur('fr', 2.1)
     expect(TAUX_TVA_PROPOSES).toEqual({ fr: [20, 10, 5.5, 0], pt: [23, 13, 6, 0] })
+  })
+})
+
+describe('prix saisi toutes taxes comprises (Fixy, motif de l\'appli)', () => {
+  it('Portugal : ÷ 1,23 (123 € → 100 € HT) ; France : exactement l\'ancien ÷ 1,2', () => {
+    expect(htDepuisTtcTauxNormal(123, 'pt')).toBeCloseTo(100, 10)
+    expect(htDepuisTtcTauxNormal(1230, 'pt')).toBeCloseTo(1000, 10)
+    for (const ttc of [0, 0.01, 1, 99.99, 120, 123.45, 1500, 98765.43]) expect(htDepuisTtcTauxNormal(ttc, 'fr')).toBe(ttc / 1.2)
   })
 })

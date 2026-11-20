@@ -49,6 +49,14 @@ const valeurs = (s: HTMLSelectElement) => Array.from(s.options).map((o) => o.val
 const libelles = (s: HTMLSelectElement) => Array.from(s.options).map((o) => o.textContent)
 const affiche = (s: HTMLSelectElement) => s.options[s.selectedIndex]?.textContent
 
+/** Lignes TVA du résumé du formulaire BTP (« libellé | montant », espaces insécables normalisés). */
+const lignesResumeTva = (racine: HTMLElement) => Array.from(racine.querySelectorAll('.dv-resume-row.tva, .dv-resume-row.tva-total'))
+  .map((ligne) => Array.from(ligne.querySelectorAll('span')).map((s) => (s.textContent || '').replace(/\s+/g, ' ').trim()).join(' | '))
+/** Corps des appels à la lecture des factures fournisseurs. */
+const appelsLectureFournisseur = () => (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls
+  .filter(([url]) => url === '/api/supplier-invoice-scan')
+  .map(([, init]) => JSON.parse(String((init as RequestInit).body)) as { pays?: string })
+
 /** Ligne de document enregistrée avant le correctif, à 20 %. */
 const LIGNE_20 = { id: 1, description: 'Reboco', qty: 10, unit: 'm2', priceHT: 30, tvaRate: 20, totalHT: 300 }
 
@@ -132,6 +140,39 @@ describe('formulaire BTP sur /pt', () => {
     expect(selecteursTva(container)[0].value).toBe('23')
   })
 
+  it('lecture d\'une facture fournisseur : le formulaire transmet le pays (« pt »)', async () => {
+    const { container } = monterBtp()
+    const fichier = container.querySelector<HTMLInputElement>('input[type="file"][accept=".pdf,image/jpeg,image/png,image/webp"]')
+    expect(fichier).not.toBeNull()
+    fireEvent.change(fichier!, { target: { files: [new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], 'fatura.png', { type: 'image/png' })] } })
+    await waitFor(() => expect(appelsLectureFournisseur()).toHaveLength(1))
+    expect(appelsLectureFournisseur()[0].pays).toBe('pt')
+  })
+
+  it('résumé : une ligne vide (23 % par défaut) n\'ajoute pas « IVA 23 % 0,00 € » à côté du vrai taux', () => {
+    // Main-d'œuvre à 6 % (rénovation d'un logement), matériaux et frais laissés vides
+    const { container } = monterBtp({ initialData: { lines: [{ ...LIGNE_20, tvaRate: 6 }] } })
+    expect(lignesResumeTva(container)).toEqual(['IVA 6 % | 18,00 €'])
+  })
+
+  it('résumé d\'un brouillon d\'avant à 20 %, rouvert sans matériaux ni frais : identique (ni « IVA 23 % », ni total)', () => {
+    const { container } = monterBtp({ initialData: {
+      id: '6f1c2a34-0000-4000-8000-00000000d001', docType: 'devis', status: 'brouillon', clientName: 'Cliente Exemplo',
+      lines: [LIGNE_20], materialLines: [], fraisLines: [],
+    } })
+    expect(lignesResumeTva(container)).toEqual(['IVA 20 % | 60,00 €'])
+  })
+
+  it('résumé, lignes toutes à 0 % (isento) : « IVA 0 % », plus « IVA 20 % »', () => {
+    const { container } = monterBtp({ initialData: { lines: [{ ...LIGNE_20, tvaRate: 0 }] } })
+    expect(lignesResumeTva(container)).toEqual(['IVA 0 % | 0,00 €'])
+  })
+
+  it('document encore vide : le résumé montre le taux de ses lignes, 23 %', () => {
+    const { container } = monterBtp()
+    expect(lignesResumeTva(container)).toEqual(['IVA 23 % | 0,00 €'])
+  })
+
   it('document enregistré à 20 % : chaque ligne garde 20 %, affiché tel quel parmi les taux portugais', () => {
     const { container } = monterBtp({ initialData: {
       docType: 'devis', docNumber: 'DEV-2026-001', status: 'envoye', clientName: 'Cliente Exemplo', lines: [LIGNE_20],
@@ -161,6 +202,18 @@ describe('formulaire BTP en français : inchangé', () => {
     }
     fireEvent.click(screen.getByText('+ Ajouter une ligne'))
     expect(selecteursTva(container).map((s) => s.value)).toEqual(['20', '20', '20', '20'])
+  })
+
+  it('résumé et lecture fournisseur inchangés (lignes vides comprises, « TVA 20 % » quand rien n\'est taxé)', async () => {
+    const reduit = monterBtp({ initialData: { lines: [{ ...LIGNE_20, tvaRate: 10 }] } })
+    expect(lignesResumeTva(reduit.container)).toEqual(['TVA 10 % | 30,00 €', 'TVA 20 % | 0,00 €', 'Total TVA | 30,00 €'])
+    cleanup()
+    const exonere = monterBtp({ initialData: { lines: [{ ...LIGNE_20, tvaRate: 0 }] } })
+    expect(lignesResumeTva(exonere.container)).toEqual(['TVA 20 % | 0,00 €'])
+    const fichier = exonere.container.querySelector<HTMLInputElement>('input[type="file"][accept=".pdf,image/jpeg,image/png,image/webp"]')
+    fireEvent.change(fichier!, { target: { files: [new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], 'facture.png', { type: 'image/png' })] } })
+    await waitFor(() => expect(appelsLectureFournisseur()).toHaveLength(1))
+    expect(appelsLectureFournisseur()[0].pays).toBe('fr')
   })
 
   it('table ajoutée : 10 % comme avant', () => {
