@@ -39,6 +39,16 @@
 // d'avant ; espace global du super admin : aucun logo.
 // Bureaux des cabinets (migration 20261119, écran E4) : la page profil reçoit les cabinets de l'espace (« Changer de
 // bureau » pour une fiche d'un cabinet qui a des bureaux) ; l'espace d'un gestionnaire ne change pas.
+// Défauts d'affichage relevés par les captures du 19/11/2026, corrigés le 20/11 (point h-02 validé) :
+// - en-tête, téléphone : le titre de la vue était tronqué à une lettre à côté de « Panneau admin » et « Se
+//   déconnecter » (bloc des boutons tenu à leur largeur, rangée sans retour à la ligne) ; la rangée passe à la ligne,
+//   titre au-dessus des boutons, seulement quand le titre de la vue ne tient pas à côté d'eux (voir textesEntete) :
+//   l'espace d'un gestionnaire (un bouton) et l'ordinateur gardent l'en-tête d'avant. Boutons bornés à la largeur
+//   (max-w-full, motif de la carte commune) : ils passent à la ligne s'ils ne tiennent pas côte à côte ;
+// - barre latérale, ordinateur : « Signalements par QR code » (ou le nom du cabinet) tronqué → deux lignes au plus ;
+// - barre du bas à cinq entrées (super admin) : « Cabinets » sortait de 3 px et « Tableau de bord » tenait sur trois
+//   lignes, plus haut que la barre → libellés en text-xs, centrés, interligne serré (leading-tight, motif de la barre
+//   du portail copropriétaire), 4 px au moins entre eux ; à trois entrées (gestionnaire), la barre tenait : celle d'avant.
 
 import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react'
 import { toast } from 'sonner'
@@ -203,12 +213,16 @@ function CoquilleEspaceQr({ role, lienAdmin, onDeconnexion, cabinetNom, vueGesti
   const entree = entrees.find((e) => e.vue === vue) ?? entrees[0]
   // Gestionnaire : sous-titres de ses vues (il ne voit ni les gestionnaires ni les cabinets).
   const sousTitre = (vueGestionnaire ? EC.sousTitres[entree.vue] : undefined) ?? entree.sousTitre
-  // Textes de l'en-tête de la page ; avec un logo, ils passent à sa droite (même bloc, mêmes classes).
+  // Textes de l'en-tête de la page ; avec un logo, ils passent à sa droite (même bloc, mêmes classes). Seul le titre de
+  // la vue donne au bloc sa largeur propre : les deux autres lignes (w-0 min-w-full) prennent la largeur du bloc sans
+  // l'élargir, et le bloc s'étend (grow) sur la place que laissent les boutons. La rangée de l'en-tête (flex-wrap) ne
+  // passe donc à la ligne, titre au-dessus des boutons, que si le titre de la vue ne tient pas à côté d'eux (super admin
+  // sur téléphone : titre tronqué à une lettre jusqu'au 20/11/2026) ; sinon, l'en-tête d'avant, lignes tronquées comprises.
   const textesEntete = (
-    <div className="min-w-0">
-      <p className="truncate text-sm font-semibold uppercase tracking-[1.5px] text-[#6F5313]">{cabinetNom ? `${E.nom} · ${cabinetNom}` : E.nom}</p>
+    <div className="min-w-0 grow">
+      <p className="w-0 min-w-full truncate text-sm font-semibold uppercase tracking-[1.5px] text-[#6F5313]">{cabinetNom ? `${E.nom} · ${cabinetNom}` : E.nom}</p>
       <h1 ref={titre} tabIndex={-1} className="truncate font-serif text-xl text-[#0D1B2E] outline-none md:text-2xl">{entree.libelle}</h1>
-      <p className="truncate text-sm text-[#4A5E78]">{sousTitre}</p>
+      <p className="w-0 min-w-full truncate text-sm text-[#4A5E78]">{sousTitre}</p>
     </div>
   )
   // Tableau chargé par TableauSignalementsQr, partagé avec les autres vues ; actualisation : rechargement demandé.
@@ -359,7 +373,7 @@ function CoquilleEspaceQr({ role, lienAdmin, onDeconnexion, cabinetNom, vueGesti
           </div>
           <div className="min-w-0">
             <div className="font-serif text-lg leading-tight">{E.nom}</div>
-            <div className="truncate text-sm font-semibold uppercase tracking-[1.5px] text-[#C9A84C]">{cabinetNom || E.marque}</div>
+            <div className="line-clamp-2 break-words text-sm font-semibold uppercase tracking-[1.5px] text-[#C9A84C]">{cabinetNom || E.marque}</div>
           </div>
         </div>
         <MenuEspaceQr entrees={entrees} vue={vue} allerA={allerAVue} disposition="lateral" />
@@ -367,14 +381,14 @@ function CoquilleEspaceQr({ role, lienAdmin, onDeconnexion, cabinetNom, vueGesti
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-30 border-b border-[#E4DDD0] bg-white px-4 py-3 md:px-9">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             {logo ? (
-              <div className="flex min-w-0 items-center gap-3">
+              <div className="flex min-w-0 grow items-center gap-3">
                 <ImageLogoCabinetQr logo={logo} boite={BOITE_LOGO_ENTETE_QR} className="hidden shrink-0 sm:block" />
                 {textesEntete}
               </div>
             ) : textesEntete}
-            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+            <div className="flex max-w-full shrink-0 flex-wrap items-center justify-end gap-2">
               {lienAdmin && <Bouton variante="discret" petit href={lienAdmin} icone="cadenas">{E.panneauAdmin}</Bouton>}
               <Bouton variante="secondaire" petit icone="deconnexion" onClick={onDeconnexion}>{E.seDeconnecter}</Bouton>
             </div>
@@ -413,6 +427,18 @@ interface PropsMenu {
   disposition: 'lateral' | 'bas'
 }
 
+/** Lien de la barre du bas, à la taille de libellé donnée. */
+const lienBarreDuBasQr = (taille: 'text-sm' | 'text-xs') =>
+  `flex h-full flex-col items-center justify-center gap-0.5 ${taille} font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#C9A84C]`
+
+/**
+ * Entrées de la barre du bas au-delà desquelles ses libellés sont serrés. Cinq entrées (super admin) : 75 px chacune sur
+ * un téléphone de 375 px, où « Gestionnaires », « Copropriétés » et « Signalements » en text-sm prenaient 87 à 91 px :
+ * « Cabinets » sortait de l'écran et « Tableau de bord », réduit à 51 px, passait sur trois lignes, plus haut que la
+ * barre (captures du 19/11/2026). Trois entrées (gestionnaire) : 125 px chacune, la barre tenait.
+ */
+const ENTREES_BARRE_DU_BAS_LARGE_QR = 3
+
 const CLASSES_MENU = {
   lateral: {
     nav: 'flex-1 overflow-y-auto px-3 py-3',
@@ -424,7 +450,13 @@ const CLASSES_MENU = {
   bas: {
     nav: 'fixed inset-x-0 bottom-0 z-40 h-16 border-t border-[#E4DDD0] bg-white md:hidden',
     liste: 'flex h-full',
-    lien: 'flex h-full flex-col items-center justify-center gap-0.5 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#C9A84C]',
+    lien: lienBarreDuBasQr('text-sm'),
+    // Plus de ENTREES_BARRE_DU_BAS_LARGE_QR entrées : text-xs, libellé centré à interligne serré (leading-tight, motif de
+    // la barre du portail copropriétaire) ; « Tableau de bord » tient sur deux lignes dans la barre. px-0.5 : 4 px au
+    // moins entre deux libellés (sans lui, « Copropriétés », « Signalements » et « Gestionnaires » se touchaient à 375 px).
+    // Mesuré dans Chrome de 360 à 412 px : tout tient dans l'écran et dans la barre.
+    lienSerre: `${lienBarreDuBasQr('text-xs')} px-0.5`,
+    libelleSerre: 'text-center leading-tight',
     actif: 'text-[#6F5313]',
     inactif: 'text-[#4A5E78]',
   },
@@ -433,6 +465,8 @@ const CLASSES_MENU = {
 /** Entrées en liens d'ancre (clic du milieu, copie du lien) ; le clic simple change de vue sans recharger. */
 function MenuEspaceQr({ entrees, vue, allerA, disposition }: Readonly<PropsMenu>) {
   const c = CLASSES_MENU[disposition]
+  const serree = disposition === 'bas' && entrees.length > ENTREES_BARRE_DU_BAS_LARGE_QR
+  const lien = serree ? CLASSES_MENU.bas.lienSerre : c.lien
   const surClic = (evenement: MouseEvent<HTMLAnchorElement>, cible: VueEspaceQr) => {
     if (evenement.metaKey || evenement.ctrlKey || evenement.shiftKey || evenement.button !== 0) return
     evenement.preventDefault()
@@ -449,10 +483,10 @@ function MenuEspaceQr({ entrees, vue, allerA, disposition }: Readonly<PropsMenu>
                 href={`#${e.vue}`}
                 onClick={(evenement) => surClic(evenement, e.vue)}
                 aria-current={actif ? 'page' : undefined}
-                className={`${c.lien} ${actif ? c.actif : c.inactif}`}
+                className={`${lien} ${actif ? c.actif : c.inactif}`}
               >
                 <Icone nom={ICONES_VUES[e.vue]} taille={disposition === 'bas' ? 22 : 20} />
-                <span>{e.libelle}</span>
+                <span className={serree ? CLASSES_MENU.bas.libelleSerre : undefined}>{e.libelle}</span>
               </a>
             </li>
           )

@@ -4,6 +4,11 @@
 // migration 20261114 non appliquée), l'espace du cabinet (connexion, suivi, invitation, confirmation d'adresse) et la
 // page publique ouverte par le QR code rendent EXACTEMENT le même DOM qu'avant le logo. Les instantanés ci-dessous ont
 // été écrits sur le code d'avant le logo (commit 055e7f24) : ils ne doivent plus bouger.
+// Seule exception, voulue et sans lien avec le logo : les corrections d'affichage du 20/11/2026 (point h-02 validé)
+// changent des classes de la coquille de l'espace, avec ou sans logo — sous-titre de la barre latérale
+// (truncate → line-clamp-2 break-words), rangée de l'en-tête (flex-wrap), bloc de ses textes (grow), première et
+// dernière lignes de ces textes (w-0 min-w-full) et bloc de ses boutons (max-w-full). Instantanés de l'espace du
+// gestionnaire mis à jour sur ces classes seulement ; son en-tête s'affiche comme avant (mesuré dans Chrome).
 // Supabase, sonner et fetch sont simulés : aucune requête réelle ; données fictives (exemple.test).
 
 import React from 'react'
@@ -513,7 +518,7 @@ describe('sans logo : DOM identique à celui d’avant le logo', () => {
             AJ Signalement
           </div>
           <div
-            class="truncate text-sm font-semibold uppercase tracking-[1.5px] text-[#C9A84C]"
+            class="line-clamp-2 break-words text-sm font-semibold uppercase tracking-[1.5px] text-[#C9A84C]"
           >
             Cabinet Exemple
           </div>
@@ -525,13 +530,13 @@ describe('sans logo : DOM identique à celui d’avant le logo', () => {
         class="sticky top-0 z-30 border-b border-[#E4DDD0] bg-white px-4 py-3 md:px-9"
       >
         <div
-          class="flex items-center justify-between gap-3"
+          class="flex flex-wrap items-center justify-between gap-3"
         >
           <div
-            class="min-w-0"
+            class="min-w-0 grow"
           >
             <p
-              class="truncate text-sm font-semibold uppercase tracking-[1.5px] text-[#6F5313]"
+              class="w-0 min-w-full truncate text-sm font-semibold uppercase tracking-[1.5px] text-[#6F5313]"
             >
               AJ Signalement · Cabinet Exemple
             </p>
@@ -542,13 +547,13 @@ describe('sans logo : DOM identique à celui d’avant le logo', () => {
               Tableau de bord
             </h1>
             <p
-              class="truncate text-sm text-[#4A5E78]"
+              class="w-0 min-w-full truncate text-sm text-[#4A5E78]"
             >
               Vue d’ensemble des signalements de vos copropriétés
             </p>
           </div>
           <div
-            class="flex shrink-0 flex-wrap items-center justify-end gap-2"
+            class="flex max-w-full shrink-0 flex-wrap items-center justify-end gap-2"
           >
             <button
               class="inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition-colors min-h-[44px] px-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C9A84C] disabled:opacity-50 disabled:cursor-not-allowed  bg-white text-[#0D1B2E] border border-[#C9B99A] hover:bg-[#F7F4EE] "
