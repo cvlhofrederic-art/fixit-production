@@ -1554,7 +1554,8 @@ class DocumentMethod {
 
   /**
    * « acrescido de IVA à taxa legal de 23 % » : « legal » seulement pour les taux du continent portugais
-   * (23, 13, 6 %). Le formulaire BTP ne propose que les taux français : 20 % n'y est pas un taux légal.
+   * (23, 13, 6 %). Le formulaire BTP les propose sur /pt depuis le 20/11/2026 ; un document d'avant peut porter
+   * 20 %, qui n'est pas un taux légal portugais.
    */
   private texteIvaPrix(): string {
     if (this.regime === 'autoliquidation_btp') return 'com IVA em regime de autoliquidação'

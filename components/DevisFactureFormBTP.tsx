@@ -59,6 +59,9 @@ import {
   computeTva,
   validateRegime,
   REGIME_ERROR_MESSAGES,
+  localeTva,
+  tauxTvaParDefaut,
+  tauxTvaSelecteur,
   type TvaRegime,
 } from '@/lib/tva-calculator'
 import * as Sentry from '@sentry/nextjs'
@@ -114,8 +117,6 @@ const UNITES_TABLEAU = [
   // Facturation
   { value: 'f',        label: 'f — Forfait' },
 ] as const
-
-const TVA_RATES = [20, 10, 5.5, 0] as const
 
 // Mapping catalogue BTP → devis (identifiants courts). Partagé entre
 // l'aliment allServices et selectMotif (étapes).
@@ -248,6 +249,12 @@ export default function DevisFactureFormBTP({
   // Les valeurs enregistrées (mode et délai de paiement, escompte, déclencheur d'acompte…) restent en français :
   // les PDF et le calcul de l'échéance les lisent ainsi.
   const tx = useMemo(() => traducteurDevisBtp(locale), [locale])
+  // Taux de TVA du pays (lib/tva-calculator.ts) : une ligne neuve part à 23 % sur /pt et propose 23, 13, 6 et 0 % ;
+  // en France, 20 % et 20, 10, 5,5 et 0 % comme avant. Une ligne enregistrée garde son taux.
+  const paysTva = localeTva(locale)
+  const tauxTvaDefaut = tauxTvaParDefaut(paysTva)
+  // Première ligne d'une table ajoutée : 10 % en France (comportement antérieur), le taux normal au Portugal.
+  const tauxTvaTableAjoutee = paysTva === 'pt' ? tauxTvaDefaut : 10
 
   /* ──────── State ──────── */
   const [docType, setDocType] = useState<'devis' | 'facture'>(
@@ -579,7 +586,7 @@ export default function DevisFactureFormBTP({
   const [lines, setLines] = useState<ProductLine[]>(
     initialData?.lines && initialData.lines.length > 0
       ? initialData.lines
-      : [{ id: 1, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: 20, totalHT: 0 }]
+      : [{ id: 1, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: tauxTvaDefaut, totalHT: 0 }]
   )
   // Lignes matériaux (section séparée)
   //
@@ -596,13 +603,13 @@ export default function DevisFactureFormBTP({
   const [materialLines, setMaterialLines] = useState<ProductLine[]>(
     Array.isArray(_initialMaterial) && _initialMaterial.length > 0
       ? _initialMaterial
-      : [{ id: 1, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: 20, totalHT: 0 }]
+      : [{ id: 1, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: tauxTvaDefaut, totalHT: 0 }]
   )
   // Lignes frais annexes (déplacements, etc.)
   const [fraisLines, setFraisLines] = useState<ProductLine[]>(
     Array.isArray(_initialFrais) && _initialFrais.length > 0
       ? _initialFrais
-      : [{ id: 1, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: 20, totalHT: 0 }]
+      : [{ id: 1, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: tauxTvaDefaut, totalHT: 0 }]
   )
 
   // Tables BTP : noms personnalisables, désactivation douce et tables custom additionnelles.
@@ -910,6 +917,12 @@ export default function DevisFactureFormBTP({
     const montantLigne = (l: ProductLine) => montantNetLigne(l.qty || 0, l.priceHT || 0, l.remise)
     // Sous-total via centimes entiers (sumMoney), avant la remise commerciale globale.
     const subTotalBrut = sumMoney(allLines.map(montantLigne))
+    // Portugal : une ligne vide (sans désignation ni montant, au taux par défaut 23 %) ne fait pas apparaître
+    // « IVA 23 % 0,00 € » à côté des vrais taux (6 % d'une rénovation, 20 % d'un document d'avant), comme le PDF
+    // téléchargé depuis la liste (lib/pdf/download-saved-devis.ts) ; un document encore vide garde sa ligne à 23 %.
+    // France : calcul inchangé.
+    const ligneVide = (l: ProductLine) => !(l.description || '').trim() && montantLigne(l) === 0
+    const lignesTva = paysTva === 'pt' && allLines.some(l => !ligneVide(l)) ? allLines.filter(l => !ligneVide(l)) : allLines
 
     // Source unique de vérité : lib/tva-calculator.ts
     // En franchise/autoliquidation, la TVA est forcée à 0 (override silencieux
@@ -920,7 +933,7 @@ export default function DevisFactureFormBTP({
     // (horsRemise) restent hors de sa base.
     const tva = computeTva({
       regime: regimeTva,
-      lines: allLines.map(l => ({
+      lines: lignesTva.map(l => ({
         totalHT: montantLigne(l),
         tvaRate: l.tvaRate || 0,
         horsRemise: l.horsRemise === true,
@@ -960,7 +973,7 @@ export default function DevisFactureFormBTP({
     // Base de la remise globale : les travaux, sans les déductions d'acompte d'une facture de solde.
     const baseRemise = tva.baseRemiseHT
     return { subTotalBrut, remise, totalHT, tvaEntries, tvaBreakdown, totalTva, totalTTC, totalLabel: tva.totalLabel, lignesRemise, baseRemise }
-  }, [lines, materialLines, fraisLines, materialLinesEnabled, fraisLinesEnabled, customTables, regimeTva, remiseGlobale])
+  }, [lines, materialLines, fraisLines, materialLinesEnabled, fraisLinesEnabled, customTables, regimeTva, remiseGlobale, paysTva])
   // Autoliquidation ou franchise : pas de taux à afficher dans le résumé (il montrait « TVA 20 % » à 0,00 €)
   const ligneTvaResume = ligneTvaHorsClassique(regimeTva)
 
@@ -989,7 +1002,7 @@ export default function DevisFactureFormBTP({
 
   const addLine = () => {
     const nextId = Math.max(0, ...lines.map((l) => l.id)) + 1
-    setLines([...lines, { id: nextId, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: 20, totalHT: 0 }])
+    setLines([...lines, { id: nextId, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: tauxTvaDefaut, totalHT: 0 }])
   }
 
   const removeLine = (id: number) => {
@@ -1014,7 +1027,7 @@ export default function DevisFactureFormBTP({
 
   const addMaterialLine = () => {
     const nextId = Math.max(0, ...materialLines.map((l) => l.id)) + 1
-    setMaterialLines([...materialLines, { id: nextId, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: 20, totalHT: 0 }])
+    setMaterialLines([...materialLines, { id: nextId, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: tauxTvaDefaut, totalHT: 0 }])
   }
 
   const removeMaterialLine = (id: number) => {
@@ -1042,7 +1055,7 @@ export default function DevisFactureFormBTP({
 
   const addFraisLine = () => {
     const nextId = Math.max(0, ...fraisLines.map((l) => l.id)) + 1
-    setFraisLines([...fraisLines, { id: nextId, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: 20, totalHT: 0 }])
+    setFraisLines([...fraisLines, { id: nextId, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: tauxTvaDefaut, totalHT: 0 }])
   }
 
   const removeFraisLine = (id: number) => {
@@ -1078,7 +1091,7 @@ export default function DevisFactureFormBTP({
     setCustomTables(prev => prev.map(t => {
       if (t.id !== tableId) return t
       const nextId = (t.lines?.reduce((m, l) => Math.max(m, l.id), 0) || 0) + 1
-      return { ...t, lines: [...(t.lines || []), { id: nextId, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: 20, totalHT: 0 }] }
+      return { ...t, lines: [...(t.lines || []), { id: nextId, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: tauxTvaDefaut, totalHT: 0 }] }
     }))
   }
 
@@ -1154,7 +1167,8 @@ export default function DevisFactureFormBTP({
       const res = await fetch('/api/supplier-invoice-scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...scanAuthHeader },
-        body: JSON.stringify({ image_base64: imageBase64, mime_type: mimeType }),
+        // Pays des taux : une facture portugaise est lue aux taux d'IVA portugais (23 % par défaut)
+        body: JSON.stringify({ image_base64: imageBase64, mime_type: mimeType, pays: paysTva }),
       })
 
       if (!res.ok) {
@@ -1200,7 +1214,7 @@ export default function DevisFactureFormBTP({
     } finally {
       setSupplierScanning(false)
     }
-  }, [materialLines, tx])
+  }, [materialLines, tx, paysTva])
 
   /* ──────── Handlers acomptes ──────── */
 
@@ -1337,7 +1351,7 @@ export default function DevisFactureFormBTP({
           qty: 1,
           unit: 'f',
           priceHT: b.price_ht || 0,
-          tvaRate: 20,
+          tvaRate: tauxTvaDefaut,
           totalHT: b.price_ht || 0,
         }
         return [...filtered, newLine]
@@ -1872,10 +1886,10 @@ export default function DevisFactureFormBTP({
                // Total = quantité déjà saisie × prix (et non 1 × prix), remise de la ligne déduite :
                // sinon le total stocké diverge du total affiché et part tel quel dans la liste, la
                // base et le PDF téléchargé.
-               tvaRate: 20, totalHT: montantNetLigne(line.qty || 0, price, line.remise),
+               tvaRate: tauxTvaDefaut, totalHT: montantNetLigne(line.qty || 0, price, line.remise),
                etapes: copiedEtapes.length > 0 ? copiedEtapes : undefined }
     }))
-  }, [allServices, catalogueBTP, tvaEnabled])
+  }, [allServices, catalogueBTP, tvaEnabled, tauxTvaDefaut])
 
   // svgToImageDataUrl : extrait dans lib/signature-canvas.ts (partagé avec le
   // formulaire artisan, audit 2026-06-10).
@@ -2945,7 +2959,7 @@ export default function DevisFactureFormBTP({
                       {remiseDisponible && <td><ChampRemiseLigne remise={l.remise} base={montantNetLigne(l.qty || 0, l.priceHT || 0)} onChange={(r) => updateLine(l.id, { remise: r })} /></td>}
                       <td>
                         <select value={autoliquidationBTP ? 0 : l.tvaRate} onChange={(e) => updateLine(l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled || autoliquidationBTP} title={autoliquidationBTP ? tx('TVA verrouillée à 0 % en autoliquidation BTP (art. 283, 2 nonies CGI)') : undefined}>
-                          {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
+                          {tauxTvaSelecteur(paysTva, autoliquidationBTP ? 0 : l.tvaRate).map((r) => <option key={r} value={r}>{r}%</option>)}
                         </select>
                       </td>
                       {lireRemise(l.remise) ? cellulesTotauxRemises(lineHT, lineTTC) : (<>
@@ -3053,7 +3067,7 @@ export default function DevisFactureFormBTP({
                       {remiseDisponible && <td><ChampRemiseLigne remise={l.remise} base={montantNetLigne(l.qty || 0, l.priceHT || 0)} onChange={(r) => updateMaterialLine(l.id, { remise: r })} /></td>}
                       <td>
                         <select value={autoliquidationBTP ? 0 : l.tvaRate} onChange={(e) => updateMaterialLine(l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled || autoliquidationBTP} title={autoliquidationBTP ? tx('TVA verrouillée à 0 % en autoliquidation BTP (art. 283, 2 nonies CGI)') : undefined}>
-                          {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
+                          {tauxTvaSelecteur(paysTva, autoliquidationBTP ? 0 : l.tvaRate).map((r) => <option key={r} value={r}>{r}%</option>)}
                         </select>
                       </td>
                       {lireRemise(l.remise) ? cellulesTotauxRemises(lineHT, lineTTC) : (<>
@@ -3153,7 +3167,7 @@ export default function DevisFactureFormBTP({
                       {remiseDisponible && <td><ChampRemiseLigne remise={l.remise} base={montantNetLigne(l.qty || 0, l.priceHT || 0)} onChange={(r) => updateFraisLine(l.id, { remise: r })} /></td>}
                       <td>
                         <select value={autoliquidationBTP ? 0 : l.tvaRate} onChange={(e) => updateFraisLine(l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled || autoliquidationBTP} title={autoliquidationBTP ? tx('TVA verrouillée à 0 % en autoliquidation BTP (art. 283, 2 nonies CGI)') : undefined}>
-                          {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
+                          {tauxTvaSelecteur(paysTva, autoliquidationBTP ? 0 : l.tvaRate).map((r) => <option key={r} value={r}>{r}%</option>)}
                         </select>
                       </td>
                       {lireRemise(l.remise) ? cellulesTotauxRemises(lineHT, lineTTC) : (<>
@@ -3283,7 +3297,7 @@ export default function DevisFactureFormBTP({
                         {remiseDisponible && <td>{tbl.id === ID_TABLE_ACOMPTES_DEDUITS ? null : <ChampRemiseLigne remise={l.remise} base={montantNetLigne(l.qty || 0, l.priceHT || 0)} onChange={(r) => updateCustomLine(tbl.id, l.id, { remise: r })} />}</td>}
                         <td>
                           <select value={autoliquidationBTP ? 0 : l.tvaRate} onChange={(e) => updateCustomLine(tbl.id, l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled || autoliquidationBTP} title={autoliquidationBTP ? tx('TVA verrouillée à 0 % en autoliquidation BTP (art. 283, 2 nonies CGI)') : undefined}>
-                            {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
+                            {tauxTvaSelecteur(paysTva, autoliquidationBTP ? 0 : l.tvaRate).map((r) => <option key={r} value={r}>{r}%</option>)}
                           </select>
                         </td>
                         <td style={{ textAlign: 'right' }}>{lineHT ? lineHT.toFixed(2) : '0,00'} €</td>
@@ -3882,7 +3896,8 @@ export default function DevisFactureFormBTP({
               ligneTvaResume ? (
                 <div className="dv-resume-row tva"><span>{tx(ligneTvaResume.libelle)}</span><span>{tx(ligneTvaResume.valeur)}</span></div>
               ) : totaux.tvaEntries.length === 0 ? (
-                <div className="dv-resume-row tva"><span>{tx('TVA 20 %')}</span><span>{fmt(0)}</span></div>
+                // Aucune ligne taxée (toutes à 0 %) : « IVA 0 % » au Portugal ; France inchangée
+                <div className="dv-resume-row tva"><span>{paysTva === 'pt' ? <>{tx('TVA')}{' '}0 %</> : tx('TVA 20 %')}</span><span>{fmt(0)}</span></div>
               ) : (
                 <>
                   {totaux.tvaEntries.map(([taux, montant]) => (
@@ -4027,7 +4042,7 @@ export default function DevisFactureFormBTP({
                     id: `ct_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,
                     name: newTableModal.name.trim().toUpperCase(),
                     category: cat,
-                    lines: [{ id: 1, description: '', qty: 1, unit: cat === 'labor' ? 'f' : 'u', priceHT: 0, tvaRate: 10, totalHT: 0 }],
+                    lines: [{ id: 1, description: '', qty: 1, unit: cat === 'labor' ? 'f' : 'u', priceHT: 0, tvaRate: tauxTvaTableAjoutee, totalHT: 0 }],
                   }])
                   setNewTableModal(m => ({ ...m, open: false, name: '' }))
                 } else if (e.key === 'Escape') {
@@ -4052,7 +4067,7 @@ export default function DevisFactureFormBTP({
                     id: `ct_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,
                     name: newTableModal.name.trim().toUpperCase(),
                     category: cat,
-                    lines: [{ id: 1, description: '', qty: 1, unit: cat === 'labor' ? 'f' : 'u', priceHT: 0, tvaRate: 10, totalHT: 0 }],
+                    lines: [{ id: 1, description: '', qty: 1, unit: cat === 'labor' ? 'f' : 'u', priceHT: 0, tvaRate: tauxTvaTableAjoutee, totalHT: 0 }],
                   }])
                   setNewTableModal(m => ({ ...m, open: false, name: '' }))
                 }}

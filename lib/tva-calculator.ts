@@ -32,6 +32,54 @@ export type TvaRegime = typeof TVA_REGIMES[number]
 export type TvaLocale = 'fr' | 'pt'
 
 /**
+ * Taux proposés ligne par ligne dans les formulaires de devis et de factures (artisan et BTP), selon le pays du
+ * tableau de bord ; le premier est le taux d'une ligne neuve.
+ *   - France : 20 % (normal), 10 % (intermédiaire), 5,5 % (réduit), 0 %.
+ *   - Portugal continental : 23 % (taxa normal), 13 % (taxa intermédia), 6 % (taxa reduzida, dans les seuls cas
+ *     de la Lista I anexa ao CIVA, par exemple verba 2.27 — empreitadas de beneficiação, remodelação, renovação,
+ *     restauro, reparação ou conservação de imóveis afetos à habitação, matériaux incorporés jusqu'à 20 % du
+ *     total —, verba 2.23 — reabilitação em área de reabilitação urbana — ou verba 2.42.1 — construção ou
+ *     reabilitação de habitação), 0 % (isenção, autoliquidação).
+ * Le taux réduit reste un choix de l'utilisateur, ligne par ligne : il n'est jamais posé d'office.
+ */
+export const TAUX_TVA_PROPOSES: Readonly<Record<TvaLocale, readonly number[]>> = {
+  fr: [20, 10, 5.5, 0],
+  pt: [23, 13, 6, 0],
+}
+
+/** Pays des taux d'un tableau de bord : 'pt' sur l'interface portugaise, 'fr' sinon (comportement antérieur). */
+export function localeTva(locale: string | null | undefined): TvaLocale {
+  return locale === 'pt' ? 'pt' : 'fr'
+}
+
+/** Taux d'une ligne neuve : 20 % en France, 23 % au Portugal. */
+export function tauxTvaParDefaut(locale: TvaLocale): number {
+  return TAUX_TVA_PROPOSES[locale][0]
+}
+
+/**
+ * Montant hors taxe d'un prix saisi toutes taxes comprises, au taux normal du pays (montant dicté à Fixy, motif saisi
+ * TTC dans l'appli) : ÷ 1,23 au Portugal ; en France ÷ 1,2, au résultat identique à l'ancien calcul.
+ */
+export function htDepuisTtcTauxNormal(ttc: number, locale: TvaLocale): number {
+  return ttc / (1 + tauxTvaParDefaut(locale) / 100)
+}
+
+/**
+ * Taux du sélecteur d'une ligne : ceux du pays, plus le taux que porte déjà la ligne s'il n'en fait pas partie
+ * (document enregistré avant, ligne importée). Sans lui, le sélecteur afficherait le premier taux de la liste
+ * alors que les totaux gardent celui de la ligne. Ordre décroissant, comme la liste du pays.
+ */
+export function tauxTvaSelecteur(locale: TvaLocale, tauxLigne?: number | null): number[] {
+  const taux = [...TAUX_TVA_PROPOSES[locale]]
+  if (typeof tauxLigne === 'number' && Number.isFinite(tauxLigne) && !taux.includes(tauxLigne)) {
+    taux.push(tauxLigne)
+    taux.sort((a, b) => b - a)
+  }
+  return taux
+}
+
+/**
  * Mentions légales obligatoires à apposer sur la facture selon le régime et la locale.
  *
  * Wording conforme aux sources officielles (vérifié 2026-05-12) :
