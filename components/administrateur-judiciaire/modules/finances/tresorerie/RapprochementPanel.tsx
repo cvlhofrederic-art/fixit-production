@@ -230,12 +230,15 @@ export function RapprochementPanel({ comptes, etatComptes, ecrituresBanque }: Re
   const ecritures = useEcrituresArretes(lus.relire, () => setFormulaire(false))
   const courant = arreteCourant(lus.arretes)
   const pret = compte !== null && !lus.chargement && !lus.erreur
-  // Une écriture à la fois (double clic) ; les écritures ne rejettent jamais (toast).
+  // Une écriture à la fois (double clic) ; les écritures signalent elles-mêmes leur échec (toast).
   const lancer = async (action: () => Promise<void>) => {
     if (occupe) return
     setOccupe(true)
-    await action()
-    setOccupe(false)
+    try {
+      await action()
+    } finally {
+      setOccupe(false)
+    }
   }
 
   return (

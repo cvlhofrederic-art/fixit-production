@@ -47,12 +47,70 @@ const COMPTES_NON_LUS = 'Comptes bancaires non lus : import impossible pour l’
 /** « 1 ligne enregistrée », « 2 lignes enregistrées ». */
 const accord = (nombre: number, singulier: string, plurielle: string): string => `${nombre} ${nombre > 1 ? plurielle : singulier}`
 
+const messageErreur = (erreur: unknown): string => (erreur instanceof Error ? erreur.message : String(erreur))
+
 /** Motif qui empêche l'import faute de compte choisi ; null : un compte est choisi. */
 function motifSansCompte(etat: EtatComptes, actifs: number, choisi: CompteAffiche | null): string | null {
   if (choisi) return null
   if (etat !== 'lu') return COMPTES_NON_LUS
   return actifs === 0 ? AUCUN_COMPTE_ACTIF : COMPTE_A_CHOISIR
 }
+
+/** Compte de l'import : le seul compte actif, sinon celui choisi dans la liste ; null : aucun. */
+const compteDeLImport = (actifs: readonly CompteAffiche[], choix: string): CompteAffiche | null =>
+  actifs.length === 1 ? actifs[0] : (actifs.find((compte) => compte.id === choix) ?? null)
+
+/** Copropriétaire proposé pour chaque ligne retenue (« » : ne pas imputer). */
+const selectionsProposees = (analyse: AnalyseReleve): SelectionsImputation =>
+  Object.fromEntries(analyse.rapprochements.map((rapprochement, index): [number, string] => [index, rapprochement.candidat?.id ?? '']))
+
+/**
+ * Importe les lignes retenues sur le sous-compte 512 du compte, puis impute les encaissements choisis, chacun à son tour
+ * dans la file des écritures de l'écran. Renvoie le nombre de lignes enregistrées et d'encaissements imputés.
+ */
+async function importerEtImputer(
+  coproprieteId: string,
+  compte: CompteAffiche,
+  analyse: AnalyseReleve,
+  selections: SelectionsImputation,
+): Promise<{ lignes: number; imputes: number }> {
+  const ecrituresCreees = await importerReleveSurCompte(coproprieteId, compte.id, analyse.retenues)
+  let imputes = 0
+  for (const [index, ecriture] of ecrituresCreees.entries()) {
+    const coproprietaireId = selections[index]
+    // Ligne déjà imputée à la main pendant la boucle : ni seconde imputation, ni décompte.
+    if (coproprietaireId && ecriture.sens === 'debit' && (await imputerEnFile(ecriture.id, coproprietaireId))) imputes++
+  }
+  return { lignes: ecrituresCreees.length, imputes }
+}
+
+/** Texte du toast d'un import réussi. */
+function descriptionImport(compte: CompteAffiche, lignes: number, imputes: number, doublons: number): string {
+  const ecartes = doublons ? `, ${accord(doublons, 'doublon écarté', 'doublons écartés')}` : ''
+  return (
+    `${accord(lignes, 'ligne enregistrée', 'lignes enregistrées')} sur « ${nomDuCompte(compte)} », ` +
+    `${accord(imputes, 'encaissement imputé', 'encaissements imputés')}${ecartes}.`
+  )
+}
+
+/**
+ * Lit un fichier de relevé : refusé avant lecture au-delà du seuil de taille (tout est lu en mémoire), puis décodé
+ * (UTF-8, à défaut Windows-1252). Le texte lu ou le motif du refus est rendu par `lu` ou `refuse`.
+ */
+function lireFichierReleve(fichier: File, lu: (texte: string) => void, refuse: (motif: string) => void): void {
+  const refus = refusTailleReleve(fichier.size)
+  if (refus) {
+    refuse(refus)
+    return
+  }
+  const lecteur = new FileReader()
+  lecteur.onload = () => lu(lecteur.result instanceof ArrayBuffer ? decoderTexteReleve(lecteur.result) : '')
+  lecteur.onerror = () => refuse(lecteur.error?.message ?? 'Lecture du fichier impossible.')
+  lecteur.readAsArrayBuffer(fichier)
+}
+
+/** « Importer 1 ligne », « Importer 2 lignes ». */
+const libelleImporter = (nombre: number): string => `Importer ${nombre} ligne${nombre > 1 ? 's' : ''}`
 
 export interface ImportRelevePanelProps {
   copro: CoproprieteVue | undefined
@@ -72,7 +130,7 @@ export function ImportRelevePanel({ copro, comptes, etatComptes, personnes, lign
   const [importEnCours, setImportEnCours] = useState(false)
   const [choixCompte, setChoixCompte] = useState('')
   const actifs = comptesActifs(comptes, etatComptes)
-  const compteChoisi = actifs.length === 1 ? actifs[0] : (actifs.find((compte) => compte.id === choixCompte) ?? null)
+  const compteChoisi = compteDeLImport(actifs, choixCompte)
   // Changement de copropriété (sélecteur du haut ou select local) ou de compte : l'analyse faite pour l'ancien est
   // abandonnée. Ajustement pendant le rendu, sans remontage de l'écran.
   const [codeAnalyse, setCodeAnalyse] = useState(copro?.code)
@@ -92,64 +150,33 @@ export function ImportRelevePanel({ copro, comptes, etatComptes, personnes, lign
       personnes: personnes.map((personne) => ({ id: personne.id, nom: personne.nom, solde: personne.solde })),
     })
     setAnalyse(resultat)
-    setSelections(
-      Object.fromEntries(
-        resultat.rapprochements.map((rapprochement, index): [number, string] => [index, rapprochement.candidat ? rapprochement.candidat.id : '']),
-      ),
-    )
+    setSelections(selectionsProposees(resultat))
   }
 
   const choisirFichier = (evenement: ChangeEvent<HTMLInputElement>) => {
-    const fichier = evenement.target.files && evenement.target.files[0]
+    const fichier = evenement.target.files?.[0]
     if (!fichier) return
-    // Tout le fichier est lu en mémoire : un fichier trop gros est refusé avant sa lecture.
-    const refus = refusTailleReleve(fichier.size)
-    if (refus) {
-      push({ kind: 'warn', title: 'Fichier non lu', desc: refus })
-      return
-    }
-    const lecteur = new FileReader()
-    lecteur.onload = () => {
-      setTexteReleve(lecteur.result instanceof ArrayBuffer ? decoderTexteReleve(lecteur.result) : '')
-      setAnalyse(null)
-    }
-    lecteur.onerror = () => {
-      push({ kind: 'warn', title: 'Fichier non lu', desc: lecteur.error?.message ?? 'Lecture du fichier impossible.' })
-    }
-    lecteur.readAsArrayBuffer(fichier)
+    lireFichierReleve(
+      fichier,
+      (texte) => {
+        setTexteReleve(texte)
+        setAnalyse(null)
+      },
+      (motif) => push({ kind: 'warn', title: 'Fichier non lu', desc: motif }),
+    )
   }
 
   const importer = async () => {
     if (!copro || !analyse || !compteChoisi) return
     setImportEnCours(true)
     try {
-      const ecrituresCreees = await importerReleveSurCompte(copro.id, compteChoisi.id, analyse.retenues)
-      let imputes = 0
-      for (let index = 0; index < ecrituresCreees.length; index++) {
-        const coproprietaireId = selections[index]
-        // Ligne déjà imputée à la main pendant la boucle : ni seconde imputation, ni décompte.
-        if (coproprietaireId && ecrituresCreees[index].sens === 'debit' && (await imputerEnFile(ecrituresCreees[index].id, coproprietaireId)))
-          imputes++
-      }
-      const nombre = ecrituresCreees.length,
-        doublons = analyse.doublons.length
-      push({
-        kind: 'success',
-        title: 'Relevé importé',
-        desc:
-          `${accord(nombre, 'ligne enregistrée', 'lignes enregistrées')} sur « ${nomDuCompte(compteChoisi)} », ` +
-          accord(imputes, 'encaissement imputé', 'encaissements imputés') +
-          `${doublons ? `, ${accord(doublons, 'doublon écarté', 'doublons écartés')}` : ''}.`,
-      })
+      const { lignes, imputes } = await importerEtImputer(copro.id, compteChoisi, analyse, selections)
+      push({ kind: 'success', title: 'Relevé importé', desc: descriptionImport(compteChoisi, lignes, imputes, analyse.doublons.length) })
       setTexteReleve('')
       setAnalyse(null)
       setSelections({})
     } catch (erreur) {
-      push({
-        kind: 'warn',
-        title: 'Import impossible',
-        desc: erreur instanceof Error ? erreur.message : String(erreur),
-      })
+      push({ kind: 'warn', title: 'Import impossible', desc: messageErreur(erreur) })
     } finally {
       setImportEnCours(false)
     }
@@ -235,10 +262,7 @@ export function ImportRelevePanel({ copro, comptes, etatComptes, personnes, lign
               disabled={importEnCours || analyse.retenues.length === 0 || motifCompte !== null || analyse.blocage !== null}
             >
               <Icon name="check" />
-              {'Importer '}
-              {analyse.retenues.length}
-              {' ligne'}
-              {analyse.retenues.length > 1 ? 's' : ''}
+              {libelleImporter(analyse.retenues.length)}
             </button>
             <span
               style={{

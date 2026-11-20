@@ -124,8 +124,106 @@ export interface ResultatAnalyseReleveProps {
   setSelections: Dispatch<SetStateAction<SelectionsImputation>>
 }
 
-export function ResultatAnalyseReleve({ analyse, personnes, selections, setSelections }: Readonly<ResultatAnalyseReleveProps>) {
-  const pluriel = (nombre: number) => (nombre > 1 ? 's' : '')
+/** Ligne retenue du tableau : proposition d'imputation et son rang. */
+type LigneRetenue = AnalyseReleve['rapprochements'][number] & { i: number }
+
+interface CelluleCoproprietaireProps {
+  ligne: LigneRetenue
+  personnes: readonly PersonneCopropriete[]
+  selections: SelectionsImputation
+  setSelections: Dispatch<SetStateAction<SelectionsImputation>>
+}
+
+/** Copropriétaire à imputer (encaissement) ; « débit » pour une sortie. */
+function CelluleCoproprietaire({ ligne, personnes, selections, setSelections }: Readonly<CelluleCoproprietaireProps>) {
+  if (ligne.ligne.montant <= 0)
+    return (
+      <span
+        style={{
+          color: 'var(--navy-300)',
+          fontSize: 12,
+        }}
+      >
+        débit
+      </span>
+    )
+  return (
+    <select
+      aria-label={`Copropriétaire ligne ${ligne.i + 1}`}
+      value={selections[ligne.i] || ''}
+      onChange={(evenement) =>
+        setSelections((precedentes) => ({
+          ...precedentes,
+          [ligne.i]: evenement.target.value,
+        }))
+      }
+    >
+      <option value="">Ne pas imputer</option>
+      {personnes.map((personne) => (
+        <option value={personne.id} key={personne.id}>
+          {personne.nom}
+          {' · '}
+          {personne.lot}
+          {' · '}
+          {formatEurosCentimes(personne.solde)}
+        </option>
+      ))}
+    </select>
+  )
+}
+
+/** Confiance et motif de l'imputation proposée. */
+function CelluleImputationProposee({ ligne }: Readonly<{ ligne: LigneRetenue }>) {
+  if (!ligne.confiance) return <span style={STYLE_DISCRET}>{ligne.motif}</span>
+  return (
+    <>
+      <Pill kind={PILL_CONFIANCE_RAPPROCHEMENT[ligne.confiance].kind} noDot>
+        {PILL_CONFIANCE_RAPPROCHEMENT[ligne.confiance].label}
+      </Pill>{' '}
+      <span style={STYLE_DISCRET}>{ligne.motif}</span>
+    </>
+  )
+}
+
+/** Lignes retenues avec le copropriétaire proposé. */
+function TableauLignesRetenues({ analyse, personnes, selections, setSelections }: Readonly<ResultatAnalyseReleveProps>) {
+  return (
+    <DataTable
+      rowKey="i"
+      columns={[
+        {
+          h: 'Date',
+          render: (ligne) => <span className="mono">{dateIsoVersFr(ligne.ligne.date)}</span>,
+        },
+        {
+          h: 'Libellé',
+          render: (ligne) => ligne.ligne.libelle,
+        },
+        {
+          h: 'Montant',
+          render: (ligne) => (
+            <span className="mono" style={{ color: ligne.ligne.montant < 0 ? 'var(--rust-500)' : 'var(--sage-600, inherit)' }}>
+              {formatEurosCentimes(ligne.ligne.montant)}
+            </span>
+          ),
+        },
+        {
+          h: 'Copropriétaire',
+          render: (ligne) => <CelluleCoproprietaire ligne={ligne} personnes={personnes} selections={selections} setSelections={setSelections} />,
+        },
+        {
+          h: 'Rapprochement',
+          render: (ligne) => <CelluleImputationProposee ligne={ligne} />,
+        },
+      ]}
+      rows={analyse.rapprochements.map((rapprochement, index): LigneRetenue => ({ ...rapprochement, i: index }))}
+    />
+  )
+}
+
+export function ResultatAnalyseReleve(props: Readonly<ResultatAnalyseReleveProps>) {
+  const { analyse } = props
+  const s = analyse.doublons.length > 1 ? 's' : ''
   return (
     <>
       <p className="muted" style={{ fontSize: 12, margin: '0 0 10px' }}>
@@ -134,96 +232,11 @@ export function ResultatAnalyseReleve({ analyse, personnes, selections, setSelec
       <BandeauxLecture analyse={analyse} />
       {analyse.releves.length > 0 && <TableauRelevesLus releves={analyse.releves} />}
       {analyse.doublons.length > 0 && (
-        <Alert
-          kind="info"
-          icon="history"
-          title={`${analyse.doublons.length} doublon${pluriel(analyse.doublons.length)} déjà importé${pluriel(analyse.doublons.length)}, écarté${pluriel(analyse.doublons.length)}`}
-        >
+        <Alert kind="info" icon="history" title={`${analyse.doublons.length} doublon${s} déjà importé${s}, écarté${s}`}>
           {analyse.doublons.map((ligne) => `${dateIsoVersFr(ligne.date)} ${ligne.libelle}`).join(' · ')}
         </Alert>
       )}
-      {analyse.retenues.length > 0 && (
-        <DataTable
-          rowKey="i"
-          columns={[
-            {
-              h: 'Date',
-              render: (rapprochement) => <span className="mono">{dateIsoVersFr(rapprochement.ligne.date)}</span>,
-            },
-            {
-              h: 'Libellé',
-              render: (rapprochement) => rapprochement.ligne.libelle,
-            },
-            {
-              h: 'Montant',
-              render: (rapprochement) => (
-                <span
-                  className="mono"
-                  style={{
-                    color: rapprochement.ligne.montant < 0 ? 'var(--rust-500)' : 'var(--sage-600, inherit)',
-                  }}
-                >
-                  {formatEurosCentimes(rapprochement.ligne.montant)}
-                </span>
-              ),
-            },
-            {
-              h: 'Copropriétaire',
-              render: (rapprochement) =>
-                rapprochement.ligne.montant > 0 ? (
-                  <select
-                    aria-label={`Copropriétaire ligne ${rapprochement.i + 1}`}
-                    value={selections[rapprochement.i] || ''}
-                    onChange={(evenement) =>
-                      setSelections((precedentes) => ({
-                        ...precedentes,
-                        [rapprochement.i]: evenement.target.value,
-                      }))
-                    }
-                  >
-                    <option value="">Ne pas imputer</option>
-                    {personnes.map((personne) => (
-                      <option value={personne.id} key={personne.id}>
-                        {personne.nom}
-                        {' · '}
-                        {personne.lot}
-                        {' · '}
-                        {formatEurosCentimes(personne.solde)}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <span
-                    style={{
-                      color: 'var(--navy-300)',
-                      fontSize: 12,
-                    }}
-                  >
-                    débit
-                  </span>
-                ),
-            },
-            {
-              h: 'Rapprochement',
-              render: (rapprochement) =>
-                rapprochement.confiance ? (
-                  <>
-                    <Pill kind={PILL_CONFIANCE_RAPPROCHEMENT[rapprochement.confiance].kind} noDot>
-                      {PILL_CONFIANCE_RAPPROCHEMENT[rapprochement.confiance].label}
-                    </Pill>{' '}
-                    <span style={STYLE_DISCRET}>{rapprochement.motif}</span>
-                  </>
-                ) : (
-                  <span style={STYLE_DISCRET}>{rapprochement.motif}</span>
-                ),
-            },
-          ]}
-          rows={analyse.rapprochements.map((rapprochement, index) => ({
-            ...rapprochement,
-            i: index,
-          }))}
-        />
-      )}
+      {analyse.retenues.length > 0 && <TableauLignesRetenues {...props} />}
     </>
   )
 }
