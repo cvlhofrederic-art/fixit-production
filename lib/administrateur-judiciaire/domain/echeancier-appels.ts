@@ -104,7 +104,8 @@ import {
  *   avec la désimputation : l'annulation défait d'abord l'imputation, le règlement devient un crédit « à imputer » du 450,
  *   puis il est réimputé sur les dettes échues, selon l'indication du copropriétaire, à défaut sur la plus ancienne
  *   (arrêté du 14/03/2005, art. 9 ; C. civ. art. 1342-10), avec une trace ; le copropriétaire le voit sur l'avis suivant.
- *   La même désimputation servira au chèque impayé (F110) ;
+ *   La désimputation existe depuis le chèque impayé (F110 : imputation-encaissements.desimputerEncaissement) ; cette
+ *   seconde étape (réimputation de l'art. 9) reste à faire ;
  * - Décision du 20/11/2026 (partie C, F106) : un poste en contentieux est exclu par défaut de la relance ordinaire (sa
  *   procédure propre : mise en demeure, délai de trente jours, J3) ; inclusion à la main possible, avec un motif
  *   (postesARelancer, inclusionsContentieux). Les autres postes du même copropriétaire restent relancés ;

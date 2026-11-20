@@ -540,7 +540,7 @@ describe('F104 à F108 — en-tête de l’échéancier : les décisions remplac
     for (const question of [/annuler une seule échéance/, /crédit "à imputer"/, /Un poste en contentieux reste-t-il/, /"REGUL CH\.", "SOLDE AU"/, /0 centime appelée seule/])
       expect(ouvert).not.toMatch(question)
     expect(item('- Décision du 20/11/2026 (partie C, F104)')).toMatch(/écriture contraire.*450.*motif.*arrêté du 14\/03\/2005, art\. 5/)
-    expect(item('- Décision du 20/11/2026 (partie C, F105)')).toMatch(/refus.*désimputation/)
+    expect(item('- Décision du 20/11/2026 (partie C, F105)')).toMatch(/refus.*désimputation.*desimputerEncaissement.*reste à faire/)
     expect(item('- Décision du 20/11/2026 (partie C, F106)')).toMatch(/exclu par défaut.*motif/)
     expect(item('- Décision du 20/11/2026 (partie C, F107)')).toMatch(/solde repris.*exercice/)
     expect(item('- Décision du 20/11/2026 (partie C, F108)')).toMatch(/« Appelé » sans écriture.*autorisé/)
