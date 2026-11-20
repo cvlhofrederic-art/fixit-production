@@ -180,7 +180,10 @@ export function BlocParties({
   )
 }
 
-/** Suggestion de forclusion 🔵 (C. assur. L. 114-1), à confirmer : l'utilisateur la reprend, ou non. */
+/**
+ * Suggestion de forclusion 🔵 (C. assur. L. 114-1), à confirmer : l'utilisateur la reprend, ou non. Aucune suggestion
+ * sur une survenance illisible ou d'une année improbable (faute de frappe, signalée par la fiche).
+ */
 function SuggestionForclusionVue({ valeurs, changer, annoncer }: PropsBloc & { annoncer: Annoncer }) {
   if (!estDateIsoValide(valeurs.dateSurvenance)) return null
   const suggestion = suggestionForclusion({
@@ -188,6 +191,7 @@ function SuggestionForclusionVue({ valeurs, changer, annoncer }: PropsBloc & { a
     dateConnaissance: estDateIsoValide(valeurs.dateConnaissance) ? valeurs.dateConnaissance : null,
     type: valeurs.type || null,
   })
+  if (!suggestion) return null
   const date = dateIsoVersFr(suggestion.date)
   return (
     <div>
