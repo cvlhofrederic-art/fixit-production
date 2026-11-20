@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { getProfilePath } from '@/lib/utils'
+import { useLiensFrais } from '@/hooks/useLiensFrais'
 
 function safeBlobUrl(file: File): string {
   const url = URL.createObjectURL(file)
@@ -96,6 +97,10 @@ export default function CarnetDeVisiteSection({ artisan, orgRole }: { artisan: i
     setPhotos(updated)
     localStorage.setItem(storageKey, JSON.stringify(updated))
   }
+
+  // Société BTP : miniatures et agrandissement par un lien frais (le lien gardé au dépôt cesse de s'afficher au bout
+  // de 7 jours) ; la valeur enregistrée n'est pas réécrite. Côté artisan, rien ne change.
+  const lienPhoto = useLiensFrais(orgRole === 'pro_societe', photos.map(p => p.url))
 
   const handleFileSelect = (file: File) => {
     setPendingFile(file)
@@ -244,7 +249,7 @@ export default function CarnetDeVisiteSection({ artisan, orgRole }: { artisan: i
         {preview && (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }} onClick={() => setPreview(null)}>
             <div style={{ position: 'relative', maxWidth: 768, width: '100%' }} onClick={e => e.stopPropagation()}>
-              <Image src={preview.url} alt={preview.title} width={800} height={600} style={{ width: '100%', borderRadius: 6 }} sizes="(max-width: 768px) 100vw, 768px" />
+              <Image src={lienPhoto(preview.url) ?? preview.url} alt={preview.title} width={800} height={600} style={{ width: '100%', borderRadius: 6 }} sizes="(max-width: 768px) 100vw, 768px" />
               <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,.6)', borderRadius: '0 0 6px 6px', padding: 12 }}>
                 <div style={{ fontWeight: 600, color: '#fff', fontSize: 13 }}>{preview.title}</div>
                 <div style={{ fontSize: 11, color: '#ccc' }}>
@@ -293,7 +298,7 @@ export default function CarnetDeVisiteSection({ artisan, orgRole }: { artisan: i
           <div className="v5-gal">
             {filtered.map(photo => (
               <div key={photo.id} className="v5-gal-card" style={{ cursor: 'pointer', position: 'relative' }} onClick={() => setPreview(photo)}>
-                <div className="v5-gal-thumb" style={{ backgroundImage: `url(${photo.url})`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
+                <div className="v5-gal-thumb" style={{ backgroundImage: `url(${lienPhoto(photo.url)})`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
                   {!photo.url && '🏗️'}
                 </div>
                 <div className="v5-gal-inf">

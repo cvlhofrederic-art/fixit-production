@@ -55,3 +55,11 @@ export function useOrgRoleContext(): OrgRoleContextValue {
   }
   return ctx
 }
+
+/**
+ * Comme useOrgRoleContext, sans exiger le fournisseur : undefined hors du tableau de bord pro. Pour un composant
+ * commun, aussi rendu ailleurs, qui doit seulement savoir s'il sert une société BTP.
+ */
+export function useOrgRoleFacultatif(): OrgRoleContextValue | undefined {
+  return useContext(OrgRoleContext)
+}

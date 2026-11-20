@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { logger } from '@/lib/logger'
+import { SEAU_DOCUMENTS, signerValeurs } from '@/lib/storage/liens-stockage'
 import {
   computeKycScore,
   decideKycStatus,
@@ -49,6 +50,24 @@ function validateNifFormat(nif: string): boolean {
 // ---------------------------------------------------------------------------
 // Network helpers
 // ---------------------------------------------------------------------------
+
+const DUREE_LIEN_KYC_S = 5 * 60
+
+/**
+ * Liens de téléchargement des pièces de la fiche, dans l'ordre reçu (une seule requête au stockage). La fiche garde
+ * le chemin de chaque pièce dans le seau privé (ou, pour une fiche ancienne, un lien signé peut-être expiré, ou dont
+ * le jeton a été retiré) : un lien frais est créé à partir de ce chemin, s'il est rangé dans un dossier du
+ * titulaire. Toute autre adresse est lue comme avant ; une valeur sans lien possible devient null.
+ */
+async function liensPieces(valeurs: unknown[], ownerUserId: string): Promise<Array<string | null>> {
+  const liens = await signerValeurs(SEAU_DOCUMENTS, valeurs, {
+    dossiers: [`${ownerUserId}/`, `kbis/${ownerUserId}/`, `insurance/${ownerUserId}/`, `misc/${ownerUserId}/`],
+    dureeS: DUREE_LIEN_KYC_S,
+    origine: '[kyc-orchestrate]',
+  })
+  return valeurs.map((valeur, i) =>
+    liens[i] ?? (typeof valeur === 'string' && /^https?:\/\//i.test(valeur) ? valeur : null))
+}
 
 async function downloadBuffer(url: string): Promise<Buffer | null> {
   try {
@@ -276,6 +295,19 @@ export async function runKycPipeline(
     return { ok: false, status: 403 }
   }
 
+  // Pièces à lire (Kbis ou Certidão, pièce d'identité) : la fiche garde leur chemin dans le seau privé, pas un lien
+  // signé. Les étapes suivantes les téléchargent par un lien frais de quelques minutes, posé ici sur la copie lue
+  // de la fiche (jamais réécrite en base : la mise à jour finale ne porte que les colonnes kyc_* et *_extracted).
+  let liens: Array<string | null> = [null, null]
+  try {
+    liens = await liensPieces([artisan.kbis_url, artisan.id_document_url], ownerUserId)
+  } catch (err) {
+    // Non bloquant, comme un téléchargement en échec : le score tient compte des pièces non lues.
+    logger.warn('[kyc-orchestrate] liens des pièces non créés', { artisan_id, erreur: err instanceof Error ? err.name : 'inconnue' })
+  }
+  artisan.kbis_url = liens[0]
+  artisan.id_document_url = liens[1]
+
   // Determine market
   const market = determineMarket(artisan)
 
@@ -404,9 +436,10 @@ export async function runKycPipeline(
           }
         }
       }
-    } catch {
+    } catch (err) {
       // OCR failure is non-blocking
       checks.docOcrSuccess = false
+      logger.warn('[kyc-orchestrate] lecture du Kbis en échec', { artisan_id, erreur: err instanceof Error ? err.name : 'inconnue' })
     }
   }
 
@@ -436,8 +469,9 @@ export async function runKycPipeline(
           }
         }
       }
-    } catch {
+    } catch (err) {
       // ID OCR failure is non-blocking
+      logger.warn('[kyc-orchestrate] lecture de la pièce d’identité en échec', { artisan_id, erreur: err instanceof Error ? err.name : 'inconnue' })
     }
   }
 

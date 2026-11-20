@@ -20,10 +20,15 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { toast } from 'sonner'
 import { useLocale } from '@/lib/i18n/context'
 import { surActivationClavier } from '@/lib/a11y/activation-clavier'
 import { supabase } from '@/lib/supabase'
 import type { Artisan } from '@/lib/types'
+import {
+  lireCatalogueAuServeur, lireCatalogueLocal, prendreServicePublie, rangerServicesParNom, reporterLiensServices,
+  appliquerLiensServices, type LienService, type LigneServicePublie, type ServicesParNom,
+} from '@/lib/btp/catalogue-prestations'
 
 type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
 
@@ -114,6 +119,21 @@ function prestationToServicePayload(p: Omit<Prestation, 'id'>, artisanId: string
   }
 }
 
+/**
+ * Services déjà publiés par ce module pour la fiche, par nom (lib/btp/catalogue-prestations.ts) ; null si la lecture
+ * échoue (rien n'est alors publié).
+ */
+async function lireServicesPublies(artisanId: string): Promise<ServicesParNom | null> {
+  try {
+    const { data, error } = await supabase.from('services').select('id, name, description, duration_minutes').eq('artisan_id', artisanId)
+    if (error) { console.warn('[prestations] lecture des services publiés impossible', error); return null }
+    return rangerServicesParNom((data || []) as LigneServicePublie[])
+  } catch (e) {
+    console.warn('[prestations] lecture des services publiés impossible', e)
+    return null
+  }
+}
+
 async function upsertPrestationToSupabase(p: Prestation, artisanId: string): Promise<string | null> {
   if (p.type !== 'prest') return null
   const payload = prestationToServicePayload(p, artisanId)
@@ -131,6 +151,17 @@ async function upsertPrestationToSupabase(p: Prestation, artisanId: string): Pro
     console.warn('[prestations] supabase sync threw', e)
     return p.supabase_id || null
   }
+}
+
+/**
+ * Rattrapage au chargement d'une prestation qui n'a pas d'identifiant de service : un service du même nom déjà
+ * publié par ce module pour la fiche, et relié à aucun autre élément du catalogue (`pris`, complété ici), est repris
+ * tel quel au lieu d'être créé une seconde fois sur la fiche publique (constat stockage-local-miroir-5) ; sinon la
+ * prestation est publiée comme avant. Un service créé ailleurs n'est jamais repris.
+ */
+async function publierSansDoublon(p: Prestation, artisanId: string, publies: ServicesParNom, pris: Set<string>): Promise<string | null> {
+  if (p.type !== 'prest') return null
+  return prendreServicePublie(publies, p.name, pris) ?? upsertPrestationToSupabase(p, artisanId)
 }
 
 async function deletePrestationFromSupabase(supabaseId: string): Promise<void> {
@@ -209,46 +240,107 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
     }
   }, [availableLots, activeLot])
 
-  // Chargement : le catalogue enregistré pour la fiche, tel quel. Rien d'enregistré (compte neuf) : catalogue vide,
-  // et rien n'est écrit au chargement — ni catalogue d'exemple, ni liste vide qui pourrait remplacer, par le miroir du
-  // stockage, un catalogue pas encore revenu du serveur sur un nouvel appareil. Limite antérieure : une saisie faite
-  // avant ce retour le remplace encore.
+  // Chargement : le catalogue enregistré pour la fiche, tel quel. `etatCatalogue` vaut « charge » quand la liste
+  // affichée est le catalogue de la société (navigateur ou serveur), ou la liste vide d'une société qui n'en a nulle
+  // part (catalogue vierge à la création du compte, sans exemple), et « echec » quand le serveur n'a pas pu dire ce
+  // qu'il détient (une modification refusée dans cet état relance la lecture : catalogueModifiable). Tant qu'il ne vaut
+  // pas « charge », rien n'est publié ni enregistré. Rien n'est écrit au chargement : ni catalogue d'exemple, ni liste
+  // vide qui pourrait remplacer, par le miroir du stockage, un catalogue pas encore revenu du serveur.
+  const [etatCatalogue, setEtatCatalogue] = useState<'chargement' | 'charge' | 'echec'>('chargement')
+  // Nombre de relectures demandées après un échec : chacune relance le chargement ci-dessous.
+  const [relectures, setRelectures] = useState(0)
+  const catalogueCharge = etatCatalogue === 'charge'
   useEffect(() => {
     if (!artisan?.id) return
-    try {
-      const saved = localStorage.getItem(storageKey)
-      setItems(saved ? JSON.parse(saved) : [])
-    } catch (e) {
-      console.warn('[prestations] catalogue enregistré illisible', e)
-      setItems([])
+    let annule = false
+    setEtatCatalogue('chargement')
+    const local = lireCatalogueLocal<Prestation>(storageKey)
+    if (local.etat === 'present') {
+      setItems(local.catalogue)
+      setEtatCatalogue('charge')
+      return
     }
-  }, [artisan?.id, storageKey])
+    // Rien de lisible dans ce navigateur (compte neuf, appareil neuf, données du site effacées, restauration depuis le
+    // serveur pas encore arrivée ou en échec) : le serveur dit s'il détient un catalogue pour ce compte. S'il en a un,
+    // il s'affiche sans rien écrire ici (constat stockage-local-miroir-5) ; s'il n'en a aucun, la liste reste vide.
+    void lireCatalogueAuServeur<Prestation>(storageKey).then((serveur) => {
+      if (annule) return
+      if (serveur.etat === 'present') {
+        setItems(serveur.catalogue)
+        setEtatCatalogue('charge')
+        return
+      }
+      if (serveur.etat === 'absent') {
+        // La restauration a pu recopier le catalogue pendant la question au serveur. Sinon, catalogue vide, et rien
+        // n'est écrit (une valeur illisible déjà enregistrée reste telle quelle).
+        const relu = lireCatalogueLocal<Prestation>(storageKey)
+        setItems(relu.etat === 'present' ? relu.catalogue : [])
+        setEtatCatalogue('charge')
+        return
+      }
+      setEtatCatalogue('echec')
+      toast.error(isPt
+        ? 'Catálogo de serviços indisponível: não foi possível verificar o que está guardado na sua conta. Recarregue a página; nada foi alterado.'
+        : 'Catalogue de prestations indisponible : impossible de vérifier celui enregistré pour votre compte. Rechargez la page ; rien n\'a été modifié.')
+    })
+    return () => { annule = true }
+  }, [artisan?.id, storageKey, isPt, relectures])
+
+  /** Reporte des identifiants de services sur l'écran et dans le catalogue enregistré, relu au moment d'écrire. */
+  function reporterLiens(liens: LienService[], affiche: Prestation[]) {
+    setItems((prev) => appliquerLiensServices(prev, liens))
+    reporterLiensServices(storageKey, liens, () => affiche)
+  }
 
   // Backfill Supabase : synchronise les prestations du localStorage qui n'ont
   // pas encore de supabase_id. Assure la visibilité publique des prestations
   // pour les comptes sociétés/BTP (bug : catalogue en localStorage jamais exposé).
   const backfilledRef = useRef(false)
   useEffect(() => {
-    if (!artisan?.id) return
+    if (!artisan?.id || !catalogueCharge) return
     if (backfilledRef.current) return
     if (items.length === 0) return
     const toBackfill = items.filter((p) => p.type === 'prest' && !p.supabase_id)
     if (toBackfill.length === 0) { backfilledRef.current = true; return }
     backfilledRef.current = true
+    const affiche = items
     ;(async () => {
-      const updates = new Map<number, string>()
+      const publies = await lireServicesPublies(artisan.id)
+      if (!publies) return
+      const pris = new Set(affiche.map((p) => p.supabase_id).filter((id): id is string => !!id))
+      const liens: LienService[] = []
       for (const p of toBackfill) {
-        const newId = await upsertPrestationToSupabase(p, artisan.id)
-        if (newId) updates.set(p.id, newId)
+        const newId = await publierSansDoublon(p, artisan.id, publies, pris)
+        if (newId) liens.push({ id: p.id, name: p.name, type: p.type, supabase_id: newId })
       }
-      if (updates.size === 0) return
-      setItems((prev) => {
-        const next = prev.map((p) => updates.has(p.id) ? { ...p, supabase_id: updates.get(p.id) } : p)
-        try { localStorage.setItem(storageKey, JSON.stringify(next)) } catch { /* ignore */ }
-        return next
-      })
+      if (liens.length === 0) return
+      // Le catalogue enregistré est relu au moment d'écrire (lib/btp/catalogue-prestations.ts) : la restauration
+      // depuis le serveur a pu le remplacer pendant la publication.
+      setItems((prev) => appliquerLiensServices(prev, liens))
+      reporterLiensServices(storageKey, liens, () => affiche)
     })()
-  }, [artisan?.id, items, storageKey])
+  }, [artisan?.id, items, storageKey, catalogueCharge])
+
+  /**
+   * Rien ne s'enregistre tant que le catalogue de la société n'est pas chargé : l'écran l'écraserait. Après un échec du
+   * chargement, la modification refusée relance la lecture (navigateur, puis serveur) : la restauration depuis le
+   * serveur a pu arriver, ou le réseau revenir, entre-temps. Elle reste refusée : la liste affichée n'est pas celle de
+   * la société, la modification est à refaire une fois son catalogue affiché.
+   */
+  function catalogueModifiable(): boolean {
+    if (catalogueCharge) return true
+    if (etatCatalogue === 'echec') {
+      setRelectures((n) => n + 1)
+      toast.error(isPt
+        ? 'Catálogo de serviços indisponível: nova tentativa de carregamento em curso; nada foi alterado. Volte a tentar quando o catálogo aparecer.'
+        : 'Catalogue de prestations indisponible : nouvelle tentative de chargement en cours ; rien n\'a été modifié. Recommencez une fois le catalogue affiché.')
+    } else {
+      toast.error(isPt
+        ? 'Catálogo ainda a carregar: aguarde um instante antes de o alterar.'
+        : 'Catalogue en cours de chargement : patientez un instant avant de le modifier.')
+    }
+    return false
+  }
 
   function persist(next: Prestation[]) {
     // Le rattrapage ci-dessus ne vaut que pour le catalogue trouvé au chargement : passé la première saisie, chaque
@@ -319,6 +411,17 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
 
   async function handleSave() {
     if (!form.name.trim()) return
+    if (!catalogueModifiable()) return
+    // Une modification ne s'applique qu'au même élément de la liste affichée maintenant (même identifiant, même nom,
+    // même type, comme appliquerLiensServices), repris avec ses données à jour, identifiant de service compris : jamais
+    // à un autre élément, ni au service publié d'un élément qui n'est plus affiché (liste d'une fiche précédente).
+    const actuel = editing ? items.find((i) => i.id === editing.id && i.name === editing.name && i.type === editing.type) : undefined
+    if (editing && !actuel) {
+      toast.error(isPt
+        ? 'Este elemento já não corresponde ao catálogo apresentado: nada foi alterado. Cancele e volte a abri-lo a partir da lista para o editar.'
+        : 'Cet élément ne correspond plus au catalogue affiché : rien n\'a été modifié. Annulez, puis rouvrez-le depuis la liste pour le modifier.')
+      return
+    }
     const price = {
       min: form.price.min,
       max: priceRange ? form.price.max : form.price.min,
@@ -340,37 +443,32 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
     // Ferme la modale immédiatement — la sync Supabase est non-bloquante
     setModal(false)
 
-    if (editing) {
-      const updated: Prestation = { ...editing, ...form, price, priceAchat, etapes, description }
-      persist(items.map((i) => i.id === editing.id ? updated : i))
+    if (actuel) {
+      const updated: Prestation = { ...actuel, ...form, price, priceAchat, etapes, description }
+      const next = items.map((i) => i === actuel ? updated : i)
+      persist(next)
       if (artisan?.id && updated.type === 'prest') {
         const supabase_id = await upsertPrestationToSupabase(updated, artisan.id)
         if (supabase_id && supabase_id !== updated.supabase_id) {
-          setItems((prev) => {
-            const next = prev.map((p) => p.id === updated.id ? { ...p, supabase_id } : p)
-            try { localStorage.setItem(storageKey, JSON.stringify(next)) } catch { /* ignore */ }
-            return next
-          })
+          reporterLiens([{ id: updated.id, name: updated.name, type: updated.type, supabase_id }], next)
         }
       }
     } else {
       const nextId = Math.max(0, ...items.map((i) => i.id)) + 1
       const created: Prestation = { id: nextId, ...form, price, priceAchat, etapes, description }
-      persist([...items, created])
+      const next = [...items, created]
+      persist(next)
       if (artisan?.id && created.type === 'prest') {
         const supabase_id = await upsertPrestationToSupabase(created, artisan.id)
         if (supabase_id) {
-          setItems((prev) => {
-            const next = prev.map((p) => p.id === created.id ? { ...p, supabase_id } : p)
-            try { localStorage.setItem(storageKey, JSON.stringify(next)) } catch { /* ignore */ }
-            return next
-          })
+          reporterLiens([{ id: created.id, name: created.name, type: created.type, supabase_id }], next)
         }
       }
     }
   }
 
   async function handleDelete(id: number) {
+    if (!catalogueModifiable()) return
     const target = items.find((i) => i.id === id)
     persist(items.filter((i) => i.id !== id))
     if (target?.supabase_id) {

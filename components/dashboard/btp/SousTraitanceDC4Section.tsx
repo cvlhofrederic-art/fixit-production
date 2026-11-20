@@ -83,7 +83,8 @@ function lignesFicheSubempreitada(st: SousTraitant, ttc: number): string[] {
   ]
 }
 
-export function SousTraitanceDC4Section({ userId, orgRole }: { userId: string; orgRole?: string }) {
+// userId : fiche société (clés du navigateur) ; authUserId : compte, clé de cache commune aux écrans BTP (donnees-btp-15).
+export function SousTraitanceDC4Section({ userId, authUserId, orgRole }: { userId: string; authUserId?: string; orgRole?: string }) {
   const { t } = useTranslation()
   const locale = useLocale()
   const isFR = locale !== 'pt'
@@ -94,8 +95,8 @@ export function SousTraitanceDC4Section({ userId, orgRole }: { userId: string; o
   const tauxTvaPossibles = isFR ? [20, 10, 5.5, 0] : [23, 13, 6, 0]
   const tauxTvaDefaut = tauxTvaPossibles[0]
 
-  const { items: soustraitants, add: addDC4, update: updateDC4 } = useBTPData<SousTraitant>({ table: 'dc4', artisanId: userId, userId })
-  const { items: analyses, add: addDCE, update: updateDCE } = useBTPData<DCEAnalysis>({ table: 'dce_analyses', artisanId: userId, userId })
+  const { items: soustraitants, add: addDC4, update: updateDC4 } = useBTPData<SousTraitant>({ table: 'dc4', artisanId: userId, userId: authUserId || userId })
+  const { items: analyses, add: addDCE, update: updateDCE } = useBTPData<DCEAnalysis>({ table: 'dce_analyses', artisanId: userId, userId: authUserId || userId })
 
   // ── State ──
   const [tab, setTab] = useState<'sous_traitants' | 'analyse_dce' | 'memoire' | 'checklist'>('sous_traitants')
@@ -108,7 +109,9 @@ export function SousTraitanceDC4Section({ userId, orgRole }: { userId: string; o
 
   // ── Sous-traitants logic ──
   const addST = async () => {
-    await addDC4({ ...form, chantier_id: form.chantier_id || undefined, statut: 'en_attente', dc4Genere: false })
+    const cree = await addDC4({ ...form, chantier_id: form.chantier_id || undefined, statut: 'en_attente', dc4Genere: false })
+    // Formulaire et saisie gardés si l'enregistrement échoue (le hook en affiche la raison).
+    if (!cree) return
     setShowForm(false); setForm({ chantier_id: '', entreprise: '', siret: '', responsable: '', email: '', telephone: '', adresse: '', chantier: '', lot: '', montantMarche: 0, tauxTVA: tauxTvaDefaut })
   }
   const agreer = async (id: string) => { await updateDC4(id, { statut: 'agréé', dateAgrement: new Date().toISOString().split('T')[0] }) }
@@ -306,6 +309,7 @@ export function SousTraitanceDC4Section({ userId, orgRole }: { userId: string; o
                   <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isFR ? 'Chantier' : 'Obra'}</label>
                   <ChantierSelect
                     userId={userId}
+                    authUserId={authUserId}
                     orgRole={orgRole}
                     value={form.chantier_id}
                     onChange={(id, titre) => setForm({ ...form, chantier_id: id, chantier: titre })}

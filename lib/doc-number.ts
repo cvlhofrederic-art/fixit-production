@@ -4,8 +4,18 @@
 // son état — GARDER LES DEUX ALIGNÉS (même format, même API /api/doc-number).
 
 import { supabase } from '@/lib/supabase'
+import { NumerotationIndisponibleError } from '@/lib/emission-hors-serveur'
 
 export type DocSeriesType = 'devis' | 'facture' | 'avoir' | 'acompte'
+
+export interface OptionsNumerotation {
+  /**
+   * false (émissions des sociétés BTP) : sans réponse du serveur, aucun numéro n'est tiré du compteur du navigateur,
+   * que le serveur ignore ; l'appel échoue avec NumerotationIndisponibleError et rien n'est émis. Par défaut (true) :
+   * repli local d'origine, inchangé pour les artisans.
+   */
+  repliLocal?: boolean
+}
 
 /**
  * Compteur localStorage — DERNIER recours (peut diverger entre devices).
@@ -34,10 +44,15 @@ export function localFallbackDocNumber(artisanId: string | undefined, docType: D
  * Prochain numéro légal via la séquence atomique serveur. 3 niveaux de fallback :
  *   1. API HTTP /api/doc-number (rate limit + auth Bearer)
  *   2. RPC Supabase next_doc_number (SECURITY DEFINER)
- *   3. Compteur localStorage (dernier recours)
+ *   3. Compteur localStorage (dernier recours) — sauf avec { repliLocal: false } (sociétés BTP) : l'appel échoue
+ *      alors avec NumerotationIndisponibleError.
  * Ne renvoie JAMAIS de chaîne vide (un acompte émis a toujours un numéro légal).
  */
-export async function fetchNextDocNumber(docType: DocSeriesType, artisanId: string | undefined): Promise<string> {
+export async function fetchNextDocNumber(
+  docType: DocSeriesType,
+  artisanId: string | undefined,
+  options: OptionsNumerotation = {},
+): Promise<string> {
   const year = new Date().getFullYear()
 
   // Session récupérée UNE fois : l'access_token sert à l'API, l'uid d'auth
@@ -81,6 +96,7 @@ export async function fetchNextDocNumber(docType: DocSeriesType, artisanId: stri
     }
   } catch { /* fallthrough */ }
 
-  // 3) Fallback localStorage (clé = id profil `artisanId`)
+  // 3) Fallback localStorage (clé = id profil `artisanId`). Société BTP : pas de numéro du navigateur.
+  if (options.repliLocal === false) throw new NumerotationIndisponibleError()
   return localFallbackDocNumber(artisanId, docType)
 }

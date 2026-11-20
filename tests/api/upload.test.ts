@@ -211,16 +211,34 @@ describe('POST /api/upload — photo de portfolio', () => {
   })
 })
 
-describe('POST /api/upload — mise à jour du profil', () => {
+describe('POST /api/upload — pièce du profil enregistrée par son chemin', () => {
+  // kbis_url, insurance_url et id_document_url : un lien signé enregistré dans la fiche ouvrait la pièce sans
+  // contrôle de qui le lisait, puis mourait au bout de 7 jours. La fiche reçoit le chemin ; la réponse garde un
+  // lien signé pour l'affichage immédiat.
   it.each([
-    ['kbis_url', 'kbis', 'artisan-documents'],
-    ['insurance_url', 'insurance', 'artisan-documents'],
-    ['profile_photo_url', 'profiles', 'profile-photos'],
-    ['logo_url', 'logos', 'profile-photos'],
-  ])('%s mis à jour même sans colonne portfolio_photos (schéma de production)', async (field, folder, bucket) => {
+    ['kbis_url', 'kbis'],
+    ['insurance_url', 'insurance'],
+    ['id_document_url', 'kbis'],
+  ])('%s : la fiche reçoit le chemin du fichier, la réponse un lien signé', async (field, folder) => {
+    const res = await appeler({ folder, bucket: 'artisan-documents', artisan_id: ARTISAN_ID, field })
+    expect(res.status).toBe(200)
+    const chemin = mocks.upload.mock.calls[0][0] as string
+    expect(mocks.update).toHaveBeenCalledWith(expect.objectContaining({ [field]: chemin }))
+    expect(await res.json()).toMatchObject({ success: true, url: `https://signe/${chemin}`, path: chemin })
+  })
+})
+
+describe('POST /api/upload — mise à jour du profil', () => {
+  // Pièces du seau privé : la fiche reçoit le chemin (voir plus haut) ; photo et logo, du seau public : l'URL.
+  it.each([
+    ['kbis_url', 'kbis', 'artisan-documents', new RegExp(`^kbis/${USER_ID}/`)],
+    ['insurance_url', 'insurance', 'artisan-documents', new RegExp(`^insurance/${USER_ID}/`)],
+    ['profile_photo_url', 'profiles', 'profile-photos', /^https:\/\//],
+    ['logo_url', 'logos', 'profile-photos', /^https:\/\//],
+  ])('%s mis à jour même sans colonne portfolio_photos (schéma de production)', async (field, folder, bucket, attendu) => {
     mocks.colonnesAbsentes = ['portfolio_photos']
     const res = await appeler({ folder, bucket, artisan_id: ARTISAN_ID, field })
     expect(res.status).toBe(200)
-    expect(mocks.update).toHaveBeenCalledWith(expect.objectContaining({ [field]: expect.stringMatching(/^https:\/\//) }))
+    expect(mocks.update).toHaveBeenCalledWith(expect.objectContaining({ [field]: expect.stringMatching(attendu) }))
   })
 })

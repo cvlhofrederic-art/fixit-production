@@ -13,7 +13,7 @@ import { downloadSavedDevis } from '@/lib/pdf/download-saved-devis'
 import { useDocumentCancel, isDocDraftStatus } from './useDocumentCancel'
 import { supabase } from '@/lib/supabase'
 import { computeDocumentTotalHT } from '@/lib/devis-totals'
-import { getDocSeq, dedupeDocsByIdentity, stableDocId } from '@/lib/devis-utils'
+import { getDocSeq, dedupeDocsByIdentity, stableDocId, optionsFusionPourRole, numeroPorteParUnAutreDocument } from '@/lib/devis-utils'
 import { useOrgRoleContext, type OrgRole } from '@/lib/hooks/useOrgRoleContext'
 import { AcompteQuickModal } from '@/components/dashboard/FacturesSection'
 import { buildAcomptePrefill } from '@/lib/acompte-prefill'
@@ -23,11 +23,12 @@ import { appliquerRibCourant, chargerRibProfil } from '@/lib/rib-profil'
 import { appliquerFormeProfil } from '@/lib/statut-juridique-btp'
 import { emitDocument } from '@/lib/emit-document'
 import { fetchNextDocNumber } from '@/lib/doc-number'
+import { messageEmissionArretee } from '@/lib/emission-hors-serveur'
 import { syncDocumentSafe } from '@/lib/document-sync'
 import type { ChampRecherche } from '@/lib/documents/recherche-documents'
 import {
   BoutonsTelechargementGroupe, CelluleSelection, EnteteSelection, FiltreStatut, IndiceResultat,
-  useRechercheDocuments, useSelectionDocuments, useTelechargementGroupe,
+  cleDocumentBtp, useRechercheDocuments, useSelectionDocuments, useTelechargementGroupe,
 } from '@/components/dashboard/documents/OutilsListeDocuments'
 
 // Colonnes de la liste V5 des devis : une recherche qui les touche n'a pas besoin d'indice « trouvé dans… ».
@@ -55,6 +56,16 @@ function devisDansFiltre(doc: { status?: string; docNumber?: string }, filtre: F
   if (filtre === 'horsBrouillons') return statut !== 'brouillons' && aNumeroDefinitif(doc)
   return statut === filtre
 }
+
+/**
+ * Société BTP : refus d'une action que le serveur rattache au seul numéro du devis (annulation, « Accepté » ou
+ * « Refusé ») quand un autre devis de la liste porte ce numéro : c'est l'autre devis qui serait modifié en base
+ * (relecture adverse du lot numérotation, 16/11/2026).
+ */
+const messageNumeroDevisEnDouble = (numero: string, action: 'annulation' | 'statut'): string =>
+  action === 'annulation'
+    ? `Deux devis portent le numéro ${numero} : l'annulation est bloquée tant que ce numéro est en double, pour ne pas annuler le mauvais.`
+    : `Deux devis portent le numéro ${numero} : son statut ne peut pas changer tant que ce numéro est en double, pour ne pas modifier le mauvais.`
 
 interface DevisLine {
   totalHT?: number
@@ -131,8 +142,9 @@ export default function DevisSection({
     const localDrafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]') as DevisDocument[]
     // Fusion par identité stable (id ; brouillons sans numéro inclus) : le
     // localStorage fraîchement écrit prime sur le state, l'ordre est préservé,
-    // les entrées DB-only sont conservées (cf. dedupeDocsByIdentity).
-    setSavedDocuments(prev => dedupeDocsByIdentity(prev, [...localDocs, ...localDrafts]))
+    // les entrées DB-only sont conservées (cf. dedupeDocsByIdentity). Société BTP :
+    // deux devis distincts au même numéro restent tous les deux (optionsFusionPourRole).
+    setSavedDocuments(prev => dedupeDocsByIdentity(prev, [...localDocs, ...localDrafts], optionsFusionPourRole(orgRole)))
   }
 
   const [pendingDraftDelete, setPendingDraftDelete] = useState<DevisDocument | null>(null)
@@ -152,6 +164,11 @@ export default function DevisSection({
   const handleRemoveDoc = (doc: DevisDocument) => {
     if (isDocDraftStatus(doc.status, 'devis')) {
       setPendingDraftDelete(doc)
+      return
+    }
+    // BTP : annulation refusée tant qu'un autre devis porte le même numéro (le serveur annule par numéro).
+    if (orgRole === 'pro_societe' && doc.docNumber && numeroPorteParUnAutreDocument(doc, savedDocuments)) {
+      toast.error(messageNumeroDevisEnDouble(doc.docNumber, 'annulation'))
       return
     }
     _handleRemoveDocRaw(doc)
@@ -523,8 +540,10 @@ function DevisSectionV5({
       const emitted = await emitDocument({
         payload: appliquerFormeProfil(appliquerRibCourant(resultat.payload, rib), (artisan as { legal_form?: string } | null)?.legal_form),
         artisanId: artisan.id,
-        getNumber: () => fetchNextDocNumber('facture', artisan.id),
+        // Numéro du serveur seulement, place du navigateur vérifiée avant de le tirer (lib/emission-hors-serveur.ts).
+        getNumber: () => fetchNextDocNumber('facture', artisan.id, { repliLocal: false }),
         sync: syncDocumentSafe,
+        verifierPlaceAvantNumero: true,
       })
       setSavedDocuments(prev => [...prev, emitted as unknown as DevisDocument])
       const deduits = resultat.acomptesDeduits.length
@@ -540,7 +559,9 @@ function DevisSectionV5({
       )
     } catch (err) {
       console.warn('[DevisFactureEmit] émission échouée', err)
-      toast.error(isPt ? 'Não foi possível emitir a fatura. Tente novamente.' : 'Impossible d\'émettre la facture. Réessayez.', { id: tid })
+      // Numéro introuvable sur le serveur ou stockage plein : message en français ; le texte portugais reste inchangé.
+      const message = isPt ? null : messageEmissionArretee(err, 'facture', 'emission')
+      toast.error(message ?? (isPt ? 'Não foi possível emitir a fatura. Tente novamente.' : 'Impossible d\'émettre la facture. Réessayez.'), { id: tid })
     } finally {
       emissionEnCours.current = false
     }
@@ -558,8 +579,9 @@ function DevisSectionV5({
   const filtered = recherche.documents
     .filter(d => devisDansFiltre(d, filtreStatut))
     .sort((a, b) => getDocSeq(b) - getDocSeq(a))
-  // Cases à cocher et téléchargement groupé (une archive ZIP) — artisan et BTP.
-  const selection = useSelectionDocuments(filtered)
+  // Cases à cocher et téléchargement groupé (une archive ZIP) — artisan et BTP. Société BTP : une case par devis, même
+  // quand deux devis portent le même numéro (cleDocumentBtp).
+  const selection = useSelectionDocuments(filtered, orgRole === 'pro_societe' ? cleDocumentBtp : undefined)
   const devisCoches = selection.selectionnes(devisDocs)
   const { progression, telecharger, annuler } = useTelechargementGroupe({
     artisan, locale, t, useBtpDesign, nomListe: t('proDash.documentsListe.archiveDevis'),
@@ -582,6 +604,11 @@ function DevisSectionV5({
   // Met à jour localStorage + DB. L'audit log est généré par le trigger 080.
   const updateDevisStatus = async (doc: DevisDocument, newStatus: 'accepted' | 'rejected') => {
     if (!doc.docNumber) return
+    // BTP : le statut est envoyé au serveur avec le seul numéro ; refus tant qu'un autre devis porte ce numéro.
+    if (orgRole === 'pro_societe' && numeroPorteParUnAutreDocument(doc, devisDocs)) {
+      toast.error(messageNumeroDevisEnDouble(doc.docNumber, 'statut'))
+      return
+    }
     const isPt = locale === 'pt'
     const labelAccept = isPt ? 'Aceite' : 'Accepté'
     const labelReject = isPt ? 'Recusado' : 'Refusé'
@@ -940,8 +967,13 @@ function DevisSectionV5({
               const emitted = await emitDocument({
                 payload: prefilled,
                 artisanId: artisan.id,
-                getNumber: () => fetchNextDocNumber('acompte', artisan.id),
+                // BTP : numéro du serveur seulement, place du navigateur vérifiée avant de le tirer
+                // (lib/emission-hors-serveur.ts). Artisan : inchangé.
+                getNumber: estBtp
+                  ? () => fetchNextDocNumber('acompte', artisan.id, { repliLocal: false })
+                  : () => fetchNextDocNumber('acompte', artisan.id),
                 sync: syncDocumentSafe,
+                ...(estBtp ? { verifierPlaceAvantNumero: true } : {}),
               })
               setSavedDocuments(prev => [...prev, emitted as unknown as DevisDocument])
               toast.success(
@@ -952,7 +984,10 @@ function DevisSectionV5({
               )
             } catch (err) {
               console.warn('[DevisAcompteEmit] émission échouée', err)
-              toast.error(isPt && estBtp ? 'Não foi possível emitir o adiantamento. Tente novamente.' : 'Impossible d\'émettre l\'acompte. Réessayez.', { id: tid })
+              // BTP en français : numéro introuvable sur le serveur ou stockage plein, dit clairement. Artisan et texte
+              // portugais : inchangés.
+              const message = estBtp && !isPt ? messageEmissionArretee(err, 'acompte', 'emission') : null
+              toast.error(message ?? (isPt && estBtp ? 'Não foi possível emitir o adiantamento. Tente novamente.' : 'Impossible d\'émettre l\'acompte. Réessayez.'), { id: tid })
             } finally {
               if (estBtp) emissionEnCours.current = false
             }

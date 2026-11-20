@@ -202,18 +202,24 @@ describe('syncDocumentToSupabase — refresh + retry', () => {
   })
 })
 
-// ── Filet anti-collision : 409 { numero_collision } → renumérote + resync 1× ──
-// Cause racine du bug « doc qui disparaît » : un device neuf retombait sur le
-// fallback localStorage et émettait FACT-2026-001 alors qu'un FACT-2026-001
-// PAYÉ existait déjà en base (autre doc) → 409 → l'ancien code DROPPAIT le doc.
-// syncDocumentSafe doit désormais : tirer un nouveau numéro (fetchNextDocNumber),
-// réécrire docNumber/numero en localStorage ET en mémoire, retenter UNE fois.
-describe('syncDocumentSafe — renumérotation sur collision de numéro', () => {
+// ── Filet anti-collision : 409 { numero_collision } → document refusé, JAMAIS renuméroté ──
+// Le serveur ne répond numero_collision qu'à une société BTP (app/api/devis/sync/route.ts), quand un AUTRE
+// document du compte porte déjà le numéro. Ces tests attendaient auparavant une renumérotation automatique
+// (nouveau numéro tiré, réécrit en mémoire et dans le navigateur, puis renvoyé) : attente fausse, car le document
+// refusé peut être une facture déjà remise au client avec son numéro, et un document enregistré ne se renumérote
+// jamais (audit des fondations BTP du 11/11/2026, constat api-coeur-11). Cette renumérotation ne s'est d'ailleurs
+// jamais produite en production : le serveur ne renvoyait jamais numero_collision. Désormais : le document reste
+// tel quel (en mémoire et dans le navigateur, donc jamais perdu), rien n'est renvoyé, et un message clair le dit.
+describe('syncDocumentSafe — collision de numéro : refus, sans renumérotation', () => {
   beforeEach(() => {
+    // Module rechargé à chaque test : le délai anti-rafale des messages (30 s par type) repart de zéro.
+    vi.resetModules()
     mockFetch.mockReset()
     getSession.mockReset()
     refreshSession.mockReset()
     mockFetchNextDocNumber.mockReset()
+    // Un numéro libre serait disponible : il ne doit pas être utilisé.
+    mockFetchNextDocNumber.mockResolvedValue('FACT-2026-007')
     localStorage.clear()
     getSession.mockResolvedValue({ data: freshSession('token-A') })
   })
@@ -222,7 +228,7 @@ describe('syncDocumentSafe — renumérotation sur collision de numéro', () => 
     return { status: 409, text: async () => JSON.stringify({ error: 'numero_collision' }) }
   }
 
-  it('renumérote le doc et resync une fois après numero_collision (doc NON perdu)', async () => {
+  it('ni nouveau numéro ni réécriture : le document reste tel quel, en mémoire et dans le navigateur', async () => {
     const ARTISAN = 'artisan-collide'
     const doc: Record<string, unknown> = {
       id: '11111111-1111-4111-8111-111111111111',
@@ -231,38 +237,21 @@ describe('syncDocumentSafe — renumérotation sur collision de numéro', () => 
       status: 'envoye',
     }
     // Le doc est déjà persisté en localStorage (comme après saveAndSend).
-    localStorage.setItem(`fixit_documents_${ARTISAN}`, JSON.stringify([{ ...doc }]))
-
-    // 1er sync → collision ; 2e sync (après renumérotation) → 200.
-    mockFetch
-      .mockResolvedValueOnce(collisionResponse())
-      .mockResolvedValueOnce({ status: 200, text: async () => JSON.stringify({ id: 'row-1', numero: 'FACT-2026-007' }) })
-    mockFetchNextDocNumber.mockResolvedValue('FACT-2026-007')
+    const enregistre = JSON.stringify([{ ...doc }])
+    localStorage.setItem(`fixit_documents_${ARTISAN}`, enregistre)
+    mockFetch.mockResolvedValueOnce(collisionResponse())
 
     const { syncDocumentSafe } = await import('../lib/document-sync')
     await syncDocumentSafe(doc, ARTISAN)
 
-    // fetchNextDocNumber appelé avec le bon type + artisanId
-    expect(mockFetchNextDocNumber).toHaveBeenCalledWith('facture', ARTISAN)
-    // Deux POST : l'échec puis le retry avec le nouveau numéro
-    expect(mockFetch).toHaveBeenCalledTimes(2)
-    const secondBody = JSON.parse((mockFetch.mock.calls[1]![1] as { body: string }).body)
-    expect(secondBody.doc.docNumber).toBe('FACT-2026-007')
-
-    // Le doc en mémoire est renuméroté (pas perdu)
-    expect(doc.docNumber).toBe('FACT-2026-007')
-
-    // localStorage réécrit avec le nouveau numéro
-    const stored = JSON.parse(localStorage.getItem(`fixit_documents_${ARTISAN}`) || '[]')
-    expect(stored).toHaveLength(1)
-    expect(stored[0].docNumber).toBe('FACT-2026-007')
-
-    // Pas de toast de perte sur le chemin résolu (le doc est sauvé)
-    const { toast } = await import('sonner')
-    expect(toast.error).not.toHaveBeenCalled()
+    expect(mockFetchNextDocNumber).not.toHaveBeenCalled()
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+    expect(doc.docNumber).toBe('FACT-2026-001')
+    expect(doc).not.toHaveProperty('numero')
+    expect(localStorage.getItem(`fixit_documents_${ARTISAN}`)).toBe(enregistre)
   })
 
-  it('toaste seulement si le retry après renumérotation échoue encore', async () => {
+  it('un message clair dit que le numéro est déjà pris et que le document n\'est pas enregistré sur le serveur', async () => {
     const ARTISAN = 'artisan-collide-2'
     const doc: Record<string, unknown> = {
       id: '22222222-2222-4222-8222-222222222222',
@@ -270,25 +259,16 @@ describe('syncDocumentSafe — renumérotation sur collision de numéro', () => 
       docNumber: 'FACT-2026-001',
       status: 'envoye',
     }
-    localStorage.setItem(`fixit_documents_${ARTISAN}`, JSON.stringify([{ ...doc }]))
+    mockFetch.mockResolvedValueOnce(collisionResponse())
 
-    // collision puis 500 persistant (retry exponentiel épuisé) sur le 2e numéro
-    mockFetch
-      .mockResolvedValueOnce(collisionResponse())
-      .mockResolvedValue({ status: 500, text: async () => 'down' })
-    mockFetchNextDocNumber.mockResolvedValue('FACT-2026-007')
-
-    vi.useFakeTimers()
     const { syncDocumentSafe } = await import('../lib/document-sync')
-    const p = syncDocumentSafe(doc, ARTISAN)
-    await vi.runAllTimersAsync()
-    await p
-    vi.useRealTimers()
+    await syncDocumentSafe(doc, ARTISAN)
 
-    // La renumérotation a bien eu lieu (doc renuméroté, jamais silencieusement perdu)
-    expect(doc.docNumber).toBe('FACT-2026-007')
-    // Mais comme le retry échoue, on surface un toast
     const { toast } = await import('sonner')
-    expect(toast.error).toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalledWith(
+      expect.stringMatching(/numéro.*déjà/i),
+      expect.objectContaining({ description: expect.stringMatching(/pas été enregistré sur le serveur/) }),
+    )
+    expect(toast.error).not.toHaveBeenCalledWith(expect.stringMatching(/renumérotation/i), expect.anything())
   })
 })

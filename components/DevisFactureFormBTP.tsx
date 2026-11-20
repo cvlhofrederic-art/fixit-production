@@ -33,7 +33,9 @@ import { codeStatutJuridiqueBtp, mentionIdentificationBtp, statutAvecCapitalSoci
 import { estClientProfessionnel, formaterImmatriculationRcs, ligneTvaHorsClassique } from '@/lib/devis-btp-affichage'
 import { fmtQty, fmtN, fmtN4 } from '@/lib/devis-format'
 import { svgToImageDataUrl } from '@/lib/signature-canvas'
-import { localFallbackDocNumber } from '@/lib/doc-number'
+import {
+  messageEmissionArretee, NumerotationIndisponibleError, placePourEmettre, StockageNavigateurPleinError,
+} from '@/lib/emission-hors-serveur'
 import { DecimalInput } from '@/components/common/DecimalInput'
 import { ChampRemiseGlobale, ChampRemiseLigne } from '@/components/devis/RemiseCommerciale'
 import {
@@ -65,6 +67,7 @@ import { phrasePhotosAnnexePt, traducteurDevisBtp } from '@/lib/devis-btp-traduc
 import { supabase } from '@/lib/supabase'
 import { fetchAuthentifie } from '@/lib/fetch-authentifie'
 import { syncDocumentSafe } from '@/lib/document-sync'
+import { lireCatalogueBTPNavigateur } from '@/lib/btp/catalogue-prestations'
 import RentabiliteDevisModal from '@/components/dashboard/btp/RentabiliteDevisModal'
 
 /* ─────────────────────────────────────────────────────────────────
@@ -129,8 +132,8 @@ function mapCatalogueUnit(u?: string): string {
   return UNIT_CATALOGUE_TO_DEVIS[u] || 'u'
 }
 
-/** Élément du catalogue du module Prestations, tel que le formulaire le lit. */
-interface ElementCatalogueBTP {
+/** Élément du catalogue du module Prestations, tel que le formulaire le lit (lib/btp/catalogue-prestations.ts). */
+interface ElementCatalogueFormulaire {
   id: number
   name: string
   type: string
@@ -138,26 +141,6 @@ interface ElementCatalogueBTP {
   price?: { min?: number; max?: number }
   unit?: string
   etapes?: Array<string | { label: string; price?: number; unit?: string }>
-}
-
-/**
- * Catalogue du module Prestations enregistré dans le navigateur : clé du module (v5), à défaut l'ancienne copie (v4)
- * que plus rien n'écrit. Lecture seule. Rien d'enregistré, ou valeur illisible : aucun catalogue ; un élément sans
- * nom est écarté.
- */
-function lireCatalogueBTP(artisanId: string | undefined): ElementCatalogueBTP[] {
-  if (typeof window === 'undefined') return []
-  const fiche = artisanId || 'guest'
-  try {
-    const brut = localStorage.getItem(`fixit_prestations_btp_v5_${fiche}`) ?? localStorage.getItem(`fixit_prestations_btp_v4_${fiche}`)
-    const valeur: unknown = brut ? JSON.parse(brut) : []
-    if (!Array.isArray(valeur)) return []
-    return valeur.filter((e): e is ElementCatalogueBTP =>
-      typeof e === 'object' && e !== null && typeof (e as { name?: unknown }).name === 'string')
-  } catch (erreur) {
-    console.warn('[devis BTP] catalogue Prestations illisible :', erreur)
-    return []
-  }
 }
 
 const DECLENCHEURS_ACOMPTE = [
@@ -236,10 +219,10 @@ const scaleLinesBy = (arr: ProductLine[], r: number): ProductLine[] => lignesALE
 // le formulaire artisan, audit 2026-06-10). Gagne au passage le select() au
 // focus (saisie par-dessus sans effacer) — harmonisation UX autorisée par Frédéric.
 
-// localFallbackDocNumber (numéro local-only, DERNIER recours, conforme art.
-// 242 nonies A I 2° CGI) : importé de lib/doc-number.ts (canonique, partagé
-// avec fetchNextDocNumber). La copie locale identique a été supprimée — audit
-// 2026-06-10.
+// Numéro légal : du serveur seulement (route /api/doc-number, puis fonction next_doc_number). Le compteur du
+// navigateur (localFallbackDocNumber), que le serveur ignore, n'est plus utilisé ici : il pouvait donner le même
+// numéro à deux factures (audit du 11/11/2026, constat documents-cycle-1). Sans numéro du serveur, le document reste
+// un brouillon (lib/emission-hors-serveur.ts).
 
 // Identité document : UUID stable via stableDocId() (lib/devis-utils). Un
 // brouillon n'a PAS de numéro (numéro légal tiré à la validation seulement) ;
@@ -768,9 +751,10 @@ export default function DevisFactureFormBTP({
 
   // Catalogue du module Prestations, lu une fois : la liste des prestations, celle des matériaux et les étapes reprises
   // viennent de la même lecture (sinon une ligne pourrait recevoir le nom d'une prestation et les étapes d'une autre).
-  // Lecture seule : le formulaire n'écrit plus de catalogue d'exemple quand rien n'est enregistré (catalogue vierge à
-  // la création du compte, demande de Frédéric du 17/11/2026).
-  const catalogueBTP = useMemo(() => lireCatalogueBTP(artisan?.id), [artisan?.id])
+  // Clé du module, à défaut l'ancienne copie ; rien d'enregistré : aucun catalogue, jamais d'exemple (catalogue vierge
+  // à la création du compte, demande de Frédéric du 17/11/2026). Lecture seule, rien n'est écrit (constat
+  // stockage-local-miroir-10, lib/btp/catalogue-prestations.ts).
+  const catalogueBTP = useMemo(() => lireCatalogueBTPNavigateur<ElementCatalogueFormulaire>(artisan?.id), [artisan?.id])
 
   const allServices = useMemo(() => {
     const supaServices: ServiceBasic[] = (services as ServiceBasic[]) || []
@@ -829,10 +813,11 @@ export default function DevisFactureFormBTP({
    * Récupère le prochain numéro de document via la séquence atomique serveur
    * (art. 242 nonies A I 2° CGI : numérotation continue, sans rupture).
    *
-   * 3 niveaux de fallback (mirror DevisFactureForm artisan) :
+   * Deux sources, toutes deux sur le serveur :
    * 1. API HTTP /api/doc-number (avec rate limit + auth Bearer)
    * 2. RPC Supabase `next_doc_number` (SECURITY DEFINER)
-   * 3. Compteur localStorage (DERNIER recours, peut diverger entre devices)
+   * Sans numéro de l'une ou de l'autre : NumerotationIndisponibleError. Plus de compteur du navigateur (il pouvait
+   * diverger entre appareils et donner le même numéro à deux factures) : le document reste un brouillon.
    *
    * Préfixes selon docType : DEV-/FACT-/AV-. La séquence est PAR docType,
    * pas partagée — devis et factures ont leur compteur indépendant.
@@ -864,11 +849,16 @@ export default function DevisFactureFormBTP({
       })
       if (res.ok) {
         const { number } = await res.json()
-        docNumberRef.current = number
-        setDocNumber(number)
-        return number
+        if (number) {
+          docNumberRef.current = String(number)
+          setDocNumber(String(number))
+          return String(number)
+        }
       }
-    } catch { /* fallthrough */ }
+      console.warn('[DevisBTP] /api/doc-number sans numéro, appel direct de next_doc_number', res.status)
+    } catch (err) {
+      console.warn('[DevisBTP] /api/doc-number injoignable, appel direct de next_doc_number', err)
+    }
 
     // 2) RPC Supabase direct
     // ⚠️ next_doc_number exige auth.uid() = p_artisan_user_id → UID D'AUTH
@@ -888,15 +878,15 @@ export default function DevisFactureFormBTP({
           setDocNumber(number)
           return number
         }
+        console.warn('[DevisBTP] next_doc_number sans numéro', error?.message)
       }
-    } catch { /* fallthrough */ }
+    } catch (err) {
+      console.warn('[DevisBTP] next_doc_number injoignable', err)
+    }
 
-    // 3) Fallback localStorage (compatible préfixes DEV/FACT/AV)
-    const fallback = localFallbackDocNumber(artisan?.id, rpcDocType)
-    docNumberRef.current = fallback
-    setDocNumber(fallback)
-    return fallback
-  }, [artisan?.id, artisan?.user_id, docType, factureSubType])
+    // 3) Aucun numéro du serveur : pas de numéro tiré du navigateur, le document reste un brouillon (saveAndSend).
+    throw new NumerotationIndisponibleError()
+  }, [artisan?.user_id, docType, factureSubType])
 
   // Méthode pro (modèle Stripe) : un brouillon n'a PAS de numéro. docNumber reste
   // vide tant que le document n'est pas validé ; le numéro légal (DEV-/FACT-/AV-/
@@ -1692,14 +1682,35 @@ export default function DevisFactureFormBTP({
       // ── Attribution du numéro DÉFINITIF (méthode pro) ──
       // Jusqu'ici le document portait un numéro provisoire BR-AAAA-NNN (non
       // comptable). C'est SEULEMENT ici, à la validation, qu'on consomme le vrai
-      // numéro de séquence (next_doc_number serveur ; fallback local sinon) —
+      // numéro de séquence (next_doc_number serveur, jamais un compteur du navigateur) —
       // d'où une numérotation comptable continue, sans trou (242 nonies A I 2°).
       // Un brouillon ouvert puis abandonné ne consomme donc aucun numéro légal.
       const provisional = docNumberRef.current || docNumber
       let finalNumber = provisional
       if (!provisional || provisional.toUpperCase().startsWith('BR-')) {
+        const sujet = docType === 'facture' ? 'facture' : 'devis'
+        // Les messages détaillés (lib/emission-hors-serveur.ts) sont en français seulement : en portugais, le message
+        // traduit « Impossible de valider… » du formulaire, comme dans DevisSection.
+        const enPortugais = locale === 'pt'
+        // Place dans le navigateur vérifiée AVANT de consommer un numéro du serveur : un stockage plein faisait
+        // échouer l'enregistrement après coup, et le numéro tiré était perdu (trou dans la série).
+        if (!placePourEmettre(`fixit_documents_${artisan.id}`, buildPayload())) {
+          toast.error(enPortugais
+            ? (docType === 'facture' ? tx('Impossible de valider la facture') : tx('Impossible de valider le devis'))
+            : messageEmissionArretee(new StockageNavigateurPleinError(), sujet, 'validation'))
+          return
+        }
         docNumberRef.current = '' // purge le provisoire pour forcer le vrai numéro
-        finalNumber = await fetchDocNumber()
+        try {
+          finalNumber = await fetchDocNumber()
+        } catch (err) {
+          // Serveur muet : aucun numéro attribué, le document reste un brouillon (enregistré par la sauvegarde
+          // automatique) et l'utilisateur le lit.
+          const message = enPortugais ? null : messageEmissionArretee(err, sujet, 'validation')
+          if (!message) throw err
+          toast.error(message)
+          return
+        }
       }
       const payload = { ...buildPayload(), docNumber: finalNumber, status: 'envoye', savedAt: new Date().toISOString(), sentAt: new Date().toISOString() }
       // Identité = id stable : le doc passe de brouillon (sans numéro) à émis

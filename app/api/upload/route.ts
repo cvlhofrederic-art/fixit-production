@@ -261,9 +261,13 @@ export async function POST(request: NextRequest) {
             }
           }
         } else {
+          // Pièce du seau privé (Kbis, assurance, pièce d'identité) : la fiche reçoit le chemin du fichier, jamais
+          // le lien signé (valable 7 jours, puis mort). Le lien se crée à la lecture (lib/storage/liens-stockage.ts) ;
+          // la réponse garde le lien signé pour l'affichage immédiat.
+          const champPiece = bucket === 'artisan-documents' && ['insurance_url', 'kbis_url', 'id_document_url'].includes(field)
           const { error: updateError } = await supabaseAdmin
             .from('profiles_artisan')
-            .update({ [field]: publicUrl, updated_at: new Date().toISOString() })
+            .update({ [field]: champPiece ? cheminDepose : publicUrl, updated_at: new Date().toISOString() })
             .eq('id', verifiedArtisanId)
           if (updateError) {
             logger.error('[UPLOAD] Erreur mise à jour profil:', updateError)

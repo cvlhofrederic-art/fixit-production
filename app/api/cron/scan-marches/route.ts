@@ -37,9 +37,11 @@ const ALL_METIERS = [
 export async function GET(request: NextRequest) {
   try {
     // Verify cron secret (Cloudflare cron forwards CRON_SECRET via Authorization)
+    // Garde explicite, comme les autres tâches planifiées (booking-reminder, devis-reminder, referral) :
+    // sans CRON_SECRET défini côté Worker, tout appel est refusé.
     const authHeader = request.headers.get('authorization')
     const cronSecret = process.env.CRON_SECRET
-    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+    if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
