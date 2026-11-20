@@ -1,5 +1,5 @@
 import { dateIsoVersFr, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
-import type { FicheLot } from '@/lib/administrateur-judiciaire/domain/fiche-lot'
+import { OCCUPATIONS_LOT, type FicheLot, type OccupationLot } from '@/lib/administrateur-judiciaire/domain/fiche-lot'
 import { normaliserEspaces } from '@/lib/administrateur-judiciaire/domain/texte'
 
 /**
@@ -25,7 +25,8 @@ import { normaliserEspaces } from '@/lib/administrateur-judiciaire/domain/texte'
  *
  * Règles du module (contrôle d'un lot, une alerte au plus), dans cet ordre, la première qui s'applique l'emporte :
  * 1. « Pas de PNO » : aucun contrôle (rien à contrôler), même avec une échéance saisie, lisible ou non ; le lot figure
- *    au bilan (bilanAssurancesPno), sans être qualifié de manquement (🔴 ci-dessous), et l'échéance saisie y est
+ *    au bilan (bilanAssurancesPno), sans être qualifié de manquement (décision du 20/11/2026, partie C, F55 : seule une
+ *    alerte non bloquante, alertesPnoLotsNonOccupes, pour un lot connu comme loué ou vacant), et l'échéance saisie y est
  *    signalée (contradictoire, et illisible le cas échéant).
  * 2. « Extérieure + sans contrat » : attestation à obtenir, même avec une échéance saisie (reprise au contrôle si elle
  *    est lisible, mais non suivie comme date) ; lecture du statut à confirmer (🔴 sens du statut non établi : lu, comme
@@ -69,21 +70,42 @@ import { normaliserEspaces } from '@/lib/administrateur-judiciaire/domain/texte'
  *   l'échéance déjà saisie (LotsCoproprietairesModule, statut absent).
  * - Appelant du suivi : passer à suivi-a-faire.depuisAssurancesPno chaque lot avec le mandat de sa copropriété.
  * - Écran : liste des attestations à contrôler à une date (attestationsPnoAControler) et bilan par statut.
+ * - Occupation du lot (F55) et date de reprise du lot (F59) : aucun champ enregistré ne les porte ; paramètres de
+ *   l'appelant (LotAssurancePno.occupation, LotAssurancePno.repriseLe), enregistrement et saisie à brancher.
+ *
+ * Décisions du 20/11/2026 (partie C ; règles de gestion, aucun texte n'impose au syndic de contrôler ces assurances) :
+ * - Décision du 20/11/2026 (partie C, F55) : « Pas de PNO » n'est pas un manquement en soi : rien ne change si
+ *   l'occupation est inconnue ou si le propriétaire occupe le lot (règle 1 inchangée : aucun contrôle, rien au suivi).
+ *   Pour un lot connu comme « loué » ou « vacant », une alerte jamais bloquante (alertesPnoLotsNonOccupes,
+ *   MESSAGE_PNO_LOT_NON_OCCUPE) : « lot non occupé par son propriétaire, sans PNO renseignée : l'art. 9-1 impose une
+ *   assurance de responsabilité civile ; aucun texte n'impose au syndic de la contrôler ». L. 1965 art. 9-1 (relu le
+ *   17/11/2026) oblige le copropriétaire occupant à sa propre assurance d'occupant, pas à une PNO. L'alerte ne vise que
+ *   le statut « Pas de PNO » ; elle n'entre ni dans les contrôles ni dans le suivi « à faire » (rien à obtenir).
+ * - Décision du 20/11/2026 (partie C, F56) : non par défaut : VitFix ne recueille pas les attestations des
+ *   copropriétaires occupants (art. 9-1 oblige le copropriétaire ; le contrat type, D. 1967 annexe 1, V, 16° à 18°, ne
+ *   cite aucun contrôle des attestations). Un réglage du cabinet, désactivé par défaut
+ *   (REGLAGES_PNO_CABINET_PAR_DEFAUT.suivreAttestationsOccupants), permettra plus tard de les suivre avec le même
+ *   contrôle que la PNO ; aucun contrôle ne le lit encore.
+ * - Décision du 20/11/2026 (partie C, F57) : relancer 30 jours avant l'échéance
+ *   (REGLAGES_PNO_CABINET_PAR_DEFAUT.relanceJoursAvantEcheance, valeur réglable par le cabinet), puis rappeler à
+ *   l'échéance si rien n'est reçu ; le réglage du collaborateur, s'il existe, reste prioritaire. Aucun texte ne fixe ce
+ *   délai ; 30 jours est aussi l'anticipation par défaut des contrats à résilier (contrats-a-resilier.ts). La relance
+ *   passe par l'horizon du suivi (suivi-a-faire.HORIZONS_CABINET_PAR_DEFAUT, qui remplace « Maintenant », horizon par
+ *   défaut de tout collaborateur) ; le rappel, par le libellé du contrôle fait à une date (`rappel`) : échéance
+ *   atteinte sans nouvelle échéance saisie (le domaine ne sait pas autrement qu'une attestation est reçue).
+ * - Décision du 20/11/2026 (partie C, F58) : garder l'échéance au suivi, comme aujourd'hui, avec un libellé propre au
+ *   statut « Cabinet » : « renouveler le contrat PNO souscrit par le cabinet », au lieu de « obtenir l'attestation ».
+ *   Le libellé vise l'échéance (motif a_renouveler) ; « Cabinet » sans échéance saisie garde son libellé.
+ * - Décision du 20/11/2026 (partie C, F59) : garder « Maintenant » (date du jour du calcul) pour une attestation à
+ *   obtenir, comme aujourd'hui ; ajouter, quand elle est connue, la date depuis laquelle l'attestation manque
+ *   (`aObtenirDepuis`, « à obtenir depuis le … ») : échéance lisible dépassée (« Extérieure + sans contrat »), à défaut
+ *   date de reprise du lot ; jamais une date postérieure au jour du calcul. Sans date du calcul (controlesAssurancesPno
+ *   appelé sans `aujourdhui`), ni rappel ni « depuis ».
  *
  * 🔴 Non établi (questions) :
  * - Hugo : sens exact de « Sans échéance » (échéance inconnue, à obtenir — retenu — ou contrat sans terme ?) et de
  *   « Extérieure + sans contrat » (attestation extérieure non fournie ?) ; le statut est-il saisi sur le lot, ou calculé
  *   par Gestéam (contrat d'abonnement du lot, échéance) ?
- * - Hugo : « Pas de PNO » sur un lot occupé par son propriétaire est-il normal (l'art. 9-1 lui impose alors sa propre
- *   assurance d'occupant, que Gestéam ne suit pas ici) ? Faut-il croiser avec l'occupation du lot et signaler un lot
- *   non occupé sans PNO ? Rien n'est signalé à ce jour.
- * - Hugo : le cabinet recueille-t-il aussi l'attestation des copropriétaires occupants (art. 9-1) ? Non modélisé.
- * - Hugo : à quel moment relancer avant l'échéance (horizon du suivi, réglé par le collaborateur, à défaut) ?
- * - Hugo : sous le statut « Cabinet », l'échéance d'un contrat souscrit par le cabinet doit-elle remonter au suivi (le
- *   cabinet détient alors le contrat) ? VitFix la suit comme une autre.
- * - Hugo : à quelle date une attestation « à obtenir » doit-elle remonter (statut sans échéance, échéance illisible,
- *   « Extérieure + sans contrat ») ? Faute de date connue, le suivi la date du jour où il est calculé : elle reste
- *   « Maintenant » tant qu'elle n'est pas obtenue.
  */
 
 /** Statuts du sélecteur PNO de Gestéam (tranche 43 § 17), dans l'ordre relevé. */
@@ -116,7 +138,32 @@ export interface LotAssurancePno {
   numero: string
   /** null : aucune information PNO sur le lot. */
   assurancePno: AssurancePnoLot | null
+  /**
+   * Occupation du lot (décision du 20/11/2026, partie C, F55) ; absente ou null : inconnue. Aucun champ enregistré ne la
+   * porte (FicheLot n'a que « occupeDepuis ») : paramètre de l'appelant.
+   */
+  occupation?: OccupationLot | null
+  /**
+   * Date de reprise du lot, AAAA-MM-JJ (décision du 20/11/2026, partie C, F59) : à défaut d'échéance dépassée, date
+   * depuis laquelle une attestation à obtenir manque ; absente ou null : inconnue. Aucun champ enregistré ne la porte :
+   * paramètre de l'appelant.
+   */
+  repriseLe?: string | null
 }
+
+/** Réglages du cabinet pour l'assurance des lots (décisions du 20/11/2026, partie C, F56 et F57). */
+export interface ReglagesPnoCabinet {
+  /** F57 : relance n jours avant l'échéance (horizon du suivi tant que le collaborateur n'a pas choisi le sien). */
+  relanceJoursAvantEcheance: number
+  /** F56 : suivre les attestations d'assurance des copropriétaires occupants ; aucun contrôle ne le lit encore. */
+  suivreAttestationsOccupants: boolean
+}
+
+/** F57 : 30 jours, réglables par le cabinet ; F56 : attestations des occupants non recueillies. */
+export const REGLAGES_PNO_CABINET_PAR_DEFAUT: Readonly<ReglagesPnoCabinet> = Object.freeze({
+  relanceJoursAvantEcheance: 30,
+  suivreAttestationsOccupants: false,
+})
 
 /** Lit l'échéance déjà saisie sur la fiche lot (FicheLot.echeancePno) ; statut absent, faute de champ. */
 export const assurancePnoDepuisFicheLot = (fiche: Pick<FicheLot, 'echeancePno'>): AssurancePnoLot | null =>
@@ -139,7 +186,24 @@ export interface ControlePno {
    * message ; ce n'est pas un repère juridique.
    */
   lectureStatutAConfirmer: boolean
+  /**
+   * Échéance atteinte au jour du calcul, sans nouvelle échéance saisie (décision du 20/11/2026, partie C, F57) : rappel,
+   * dit dans le message ; faux avant l'échéance ou sans date du calcul.
+   */
+  rappel: boolean
+  /**
+   * Attestation à obtenir : date depuis laquelle elle manque, quand elle est connue (décision du 20/11/2026, partie C,
+   * F59) : échéance lisible dépassée, à défaut date de reprise du lot ; null sinon, toujours pour une attestation à
+   * renouveler, et sans date du calcul.
+   */
+  aObtenirDepuis: string | null
   message: string
+}
+
+/** Jour du calcul des contrôles. */
+export interface OptionsControlesPno {
+  /** AAAA-MM-JJ : rappel à l'échéance (F57) et « à obtenir depuis » (F59) ; absent : ni l'un ni l'autre. */
+  aujourdhui?: string
 }
 
 const MENTION_A_CONFIRMER = ' (lecture du statut à confirmer)'
@@ -156,10 +220,28 @@ interface ChampsControle {
   echeance: string | null
   /** Suite du message, après « Lot n : ». */
   texte: string
+  /** Échéance atteinte au jour du calcul (attestation à renouveler, F57) ; absent : non. */
+  rappel?: boolean
 }
 
-function controle(lot: LotAssurancePno, { statut, motif, echeance, texte }: ChampsControle): ControlePno {
+/** F59 : date depuis laquelle une attestation à obtenir manque ; jamais après le jour du calcul. */
+function dateAObtenirDepuis(echeance: string | null, reprise: string | null, aujourdhui: string): string | null {
+  if (echeance !== null && echeance < aujourdhui) return echeance
+  return reprise !== null && reprise <= aujourdhui ? reprise : null
+}
+
+/** « à obtenir depuis le … » (F59) : l'échéance illisible n'a pas de « à obtenir » dans son texte, on l'y ajoute. */
+function mentionDepuis(motif: MotifControlePno, depuis: string | null): string {
+  if (depuis === null) return ''
+  const le = `depuis le ${dateIsoVersFr(depuis)}`
+  return motif === 'echeance_illisible' ? ` ; attestation à obtenir ${le}` : ` ${le}`
+}
+
+function controle(lot: LotAssurancePno, champs: ChampsControle, aujourdhui: string | null): ControlePno {
+  const { statut, motif, echeance, texte } = champs
   const lectureStatutAConfirmer = MOTIFS_TIRES_DU_STATUT.has(motif) && statut !== null && STATUTS_A_CONFIRMER.has(statut)
+  const aObtenirDepuis =
+    motif === 'a_renouveler' || aujourdhui === null ? null : dateAObtenirDepuis(echeance, lot.repriseLe ?? null, aujourdhui)
   return {
     lotId: lot.lotId,
     numero: lot.numero,
@@ -168,12 +250,29 @@ function controle(lot: LotAssurancePno, { statut, motif, echeance, texte }: Cham
     motif,
     date: motif === 'a_renouveler' ? echeance : null,
     lectureStatutAConfirmer,
-    message: `Lot ${lot.numero} : ${texte}${lectureStatutAConfirmer ? MENTION_A_CONFIRMER : ''}.`,
+    rappel: champs.rappel ?? false,
+    aObtenirDepuis,
+    message: `Lot ${lot.numero} : ${texte}${mentionDepuis(motif, aObtenirDepuis)}${lectureStatutAConfirmer ? MENTION_A_CONFIRMER : ''}.`,
   }
 }
 
-/** Contrôle d'un lot (règles de l'en-tête) ; null : rien à contrôler. */
-function controleDuLot(lot: LotAssurancePno): ControlePno | null {
+/**
+ * Attestation à renouveler : relance avant l'échéance, rappel une fois l'échéance atteinte (F57) ; statut « Cabinet » :
+ * le contrat souscrit par le cabinet à renouveler (F58).
+ */
+function texteARenouveler(statut: StatutPno | null, echeance: string, rappel: boolean): string {
+  const le = dateIsoVersFr(echeance)
+  if (statut === 'Cabinet')
+    return rappel
+      ? `rappel : renouveler le contrat PNO souscrit par le cabinet, échéance du ${le} atteinte sans nouvelle échéance saisie`
+      : `renouveler le contrat PNO souscrit par le cabinet, échéance du ${le}`
+  return rappel
+    ? `rappel : attestation PNO à renouveler, échéance du ${le} atteinte sans nouvelle attestation saisie`
+    : `attestation PNO à renouveler à l'échéance du ${le}`
+}
+
+/** Contrôle d'un lot (règles de l'en-tête) au jour du calcul, s'il est donné ; null : rien à contrôler. */
+function controleDuLot(lot: LotAssurancePno, aujourdhui: string | null): ControlePno | null {
   const assurance = lot.assurancePno
   if (!assurance) return null
   const statut = lireStatutPno(assurance.statut)
@@ -181,44 +280,105 @@ function controleDuLot(lot: LotAssurancePno): ControlePno | null {
   const saisie = assurance.echeance ?? null
   const echeance = estDateIsoValide(saisie) ? saisie : null
   if (statut === 'Extérieure + sans contrat')
-    return controle(lot, { statut, motif: 'attestation_absente', echeance, texte: 'PNO extérieure sans contrat ; attestation à obtenir' })
+    return controle(
+      lot,
+      { statut, motif: 'attestation_absente', echeance, texte: 'PNO extérieure sans contrat ; attestation à obtenir' },
+      aujourdhui,
+    )
   if (saisie !== null && echeance === null)
-    return controle(lot, {
-      statut,
-      motif: 'echeance_illisible',
-      echeance,
-      texte: `échéance PNO illisible (« ${saisie} ») ; à ressaisir (AAAA-MM-JJ)`,
-    })
-  if (echeance !== null)
-    return controle(lot, {
-      statut,
-      motif: 'a_renouveler',
-      echeance,
-      texte: `attestation PNO à renouveler à l'échéance du ${dateIsoVersFr(echeance)}`,
-    })
+    return controle(
+      lot,
+      { statut, motif: 'echeance_illisible', echeance, texte: `échéance PNO illisible (« ${saisie} ») ; à ressaisir (AAAA-MM-JJ)` },
+      aujourdhui,
+    )
+  if (echeance !== null) {
+    const rappel = aujourdhui !== null && echeance <= aujourdhui
+    return controle(lot, { statut, motif: 'a_renouveler', echeance, rappel, texte: texteARenouveler(statut, echeance, rappel) }, aujourdhui)
+  }
   if (statut === null) return null
-  return controle(lot, { statut, motif: 'echeance_absente', echeance, texte: `PNO « ${statut} » sans échéance saisie ; attestation à obtenir` })
+  return controle(
+    lot,
+    { statut, motif: 'echeance_absente', echeance, texte: `PNO « ${statut} » sans échéance saisie ; attestation à obtenir` },
+    aujourdhui,
+  )
+}
+
+/** Date de reprise du lot (F59) : paramètre de l'appelant, AAAA-MM-JJ s'il est renseigné. */
+function verifierRepriseLot({ numero, repriseLe }: LotAssurancePno): void {
+  if (repriseLe !== undefined && repriseLe !== null && !estDateIsoValide(repriseLe))
+    throw new Error(`Date de reprise du lot ${numero} invalide (${repriseLe}) : AAAA-MM-JJ attendu.`)
 }
 
 /**
  * Contrôles des attestations PNO : pour chaque lot, au plus un contrôle — à renouveler à l'échéance (même dépassée),
  * échéance ou attestation à obtenir, échéance à ressaisir. Ordre des lots conservé ; « Pas de PNO » et les lots sans
- * information n'en produisent aucun.
+ * information n'en produisent aucun. Avec le jour du calcul : rappel à l'échéance atteinte (F57) et « à obtenir depuis
+ * le … » (F59). Lève une erreur si le jour du calcul ou une date de reprise n'est pas AAAA-MM-JJ.
  */
-export function controlesAssurancesPno(lots: readonly LotAssurancePno[]): ControlePno[] {
+export function controlesAssurancesPno(lots: readonly LotAssurancePno[], { aujourdhui }: OptionsControlesPno = {}): ControlePno[] {
+  if (aujourdhui !== undefined && !estDateIsoValide(aujourdhui))
+    throw new Error(`Date du calcul invalide : « ${aujourdhui} » (attendu AAAA-MM-JJ).`)
   return lots.flatMap((lot) => {
-    const resultat = controleDuLot(lot)
+    verifierRepriseLot(lot)
+    const resultat = controleDuLot(lot, aujourdhui ?? null)
     return resultat ? [resultat] : []
   })
 }
 
 /**
  * Attestations à contrôler à la date donnée (comme attestationsEntreprisesAControler) : échéance antérieure ou égale à
- * la date, ou attestation / échéance à obtenir. Lève une erreur si la date n'est pas AAAA-MM-JJ.
+ * la date, ou attestation / échéance à obtenir ; contrôles faits à cette date (rappel, « depuis »). Lève une erreur si la
+ * date n'est pas AAAA-MM-JJ.
  */
 export function attestationsPnoAControler(lots: readonly LotAssurancePno[], dateIso: string): ControlePno[] {
   if (!estDateIsoValide(dateIso)) throw new Error(`Date invalide : « ${dateIso} » (attendu AAAA-MM-JJ).`)
-  return controlesAssurancesPno(lots).filter((c) => c.date === null || c.date <= dateIso)
+  return controlesAssurancesPno(lots, { aujourdhui: dateIso }).filter((c) => c.date === null || c.date <= dateIso)
+}
+
+/** Décision du 20/11/2026 (partie C, F55), mot pour mot. */
+export const MESSAGE_PNO_LOT_NON_OCCUPE =
+  "lot non occupé par son propriétaire, sans PNO renseignée : l'art. 9-1 impose une assurance de responsabilité civile ; aucun texte n'impose au syndic de la contrôler"
+
+/** Occupations qui font signaler « Pas de PNO » (F55). */
+const OCCUPATIONS_SANS_PROPRIETAIRE: ReadonlySet<OccupationLot> = new Set<OccupationLot>(['loue', 'vacant'])
+
+export interface AlertePnoLotNonOccupe {
+  lotId: string
+  numero: string
+  occupation: OccupationLot
+  /** Jamais bloquante (F55). */
+  bloquant: false
+  message: string
+  fondement: string
+}
+
+function verifierOccupation({ numero }: LotAssurancePno, occupation: OccupationLot | null): void {
+  if (occupation !== null && !(OCCUPATIONS_LOT as readonly string[]).includes(occupation))
+    throw new Error(`Occupation du lot ${numero} inconnue (« ${String(occupation)} ») : ${OCCUPATIONS_LOT.join(', ')} attendu.`)
+}
+
+/**
+ * Lots « Pas de PNO » connus comme loués ou vacants (décision du 20/11/2026, partie C, F55) : une alerte non bloquante
+ * par lot, ordre des lots conservé. Occupation inconnue, propriétaire occupant ou autre statut : rien. Hors contrôles et
+ * hors suivi « à faire ». Lève une erreur pour une occupation hors liste.
+ */
+export function alertesPnoLotsNonOccupes(lots: readonly LotAssurancePno[]): AlertePnoLotNonOccupe[] {
+  return lots.flatMap((lot): AlertePnoLotNonOccupe[] => {
+    const occupation = lot.occupation ?? null
+    verifierOccupation(lot, occupation)
+    if (occupation === null || !OCCUPATIONS_SANS_PROPRIETAIRE.has(occupation)) return []
+    if (lireStatutPno(lot.assurancePno?.statut) !== 'Pas de PNO') return []
+    return [
+      {
+        lotId: lot.lotId,
+        numero: lot.numero,
+        occupation,
+        bloquant: false,
+        message: `Lot ${lot.numero} : ${MESSAGE_PNO_LOT_NON_OCCUPE}.`,
+        fondement: 'L. 1965 art. 9-1',
+      },
+    ]
+  })
 }
 
 export const MOTIFS_ANOMALIE_PNO = ['statut_inconnu', 'echeance_illisible', 'echeance_contradictoire'] as const

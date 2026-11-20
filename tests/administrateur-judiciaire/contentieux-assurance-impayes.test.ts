@@ -2,12 +2,24 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
+  AVERTISSEMENT_REPERE_POLICE_IMPAYES,
+  COMPTE_ATTENTE_ASSUREUR,
+  FAITS_GENERATEURS_IMPAYES,
+  LIBELLE_COMPTE_ATTENTE_ASSUREUR,
+  LIBELLES_FAITS_GENERATEURS_IMPAYES,
+  POLICE_IMPAYES_NON_RENSEIGNEE,
   SANS_ASSURANCE_IMPAYES,
   TYPES_SINISTRE_IMPAYES,
+  UNITES_DELAI_POLICE_IMPAYES,
   controlerAssuranceImpayes,
   creerAssuranceImpayes,
+  creerPoliceAssuranceImpayes,
+  repereDeclarationImpayes,
+  ventilerSoldeImpayes,
   vueAssuranceImpayes,
   type AssuranceImpayesContentieux,
+  type PoliceAssuranceImpayes,
+  type SaisiePoliceAssuranceImpayes,
   type SinistreLie,
 } from '@/lib/administrateur-judiciaire/domain/contentieux-assurance-impayes'
 import { creerDossierContentieux, type SaisieContentieux } from '@/lib/administrateur-judiciaire/domain/contentieux'
@@ -235,7 +247,8 @@ describe('assurance impayés — en-tête : lecture des textes', () => {
   it('C. assur. art. L. 111-1 : l’application de L. 113-2 et de L. 121-12 à une garantie impayés reste à établir', () => {
     expect(source).toMatch(/L\. 111-1/)
     expect(source).toMatch(/opérations d'assurance crédit/)
-    expect(source).toMatch(/opération d'assurance crédit \?/)
+    // Question fermée par la décision du 20/11/2026 (partie C, F51) : la qualification se fait sur la police.
+    expect(source).toMatch(/qualification de la garantie \(opération d'assurance crédit ou non\) se fait à la lecture de la police/)
     expect(source).not.toMatch(/assureur de biens/)
     expect(source).toMatch(/assurances de dommages/)
   })
@@ -256,5 +269,226 @@ describe('assurance impayés — en-tête : lecture des textes', () => {
     expect(decisions).toMatch(/historique du dossier de contentieux/)
     expect(decisions).toMatch(/aucun historique du dossier de contentieux/)
     expect(source).not.toMatch(/Que trace le bouton « Historique »/)
+  })
+})
+
+// ─── Décisions du 20/11/2026 (partie C, F51 et F52) ─────────────────────────────────────────
+
+describe('F51 — police impayés : délai de déclaration et fait qui déclenche le sinistre, repère « selon la police »', () => {
+  const remplie = (surcharge: Partial<SaisiePoliceAssuranceImpayes> = {}): PoliceAssuranceImpayes =>
+    creerPoliceAssuranceImpayes({ delaiDeclaration: { nombre: 30, unite: 'jours' }, faitGenerateur: 'premiere_echeance_impayee', ...surcharge })
+
+  it('les cinq faits de la décision, dans son ordre, et leurs libellés', () => {
+    expect(FAITS_GENERATEURS_IMPAYES).toEqual([
+      'premiere_echeance_impayee',
+      'mise_en_demeure_sans_effet',
+      'decision_de_justice',
+      'seuil_de_dette',
+      'autre',
+    ])
+    expect(FAITS_GENERATEURS_IMPAYES.map((fait) => LIBELLES_FAITS_GENERATEURS_IMPAYES[fait])).toEqual([
+      'Première échéance impayée',
+      'Mise en demeure restée sans effet',
+      'Décision de justice',
+      'Seuil de dette',
+      'Autre',
+    ])
+    expect(UNITES_DELAI_POLICE_IMPAYES).toEqual(['jours', 'jours_ouvres', 'mois'])
+  })
+
+  it('par défaut, les deux champs sont vides et la police n’est pas lue', () => {
+    expect(POLICE_IMPAYES_NON_RENSEIGNEE).toEqual({ delaiDeclaration: null, faitGenerateur: null, lue: false })
+    expect(creerPoliceAssuranceImpayes({})).toEqual(POLICE_IMPAYES_NON_RENSEIGNEE)
+  })
+
+  it('choix actuel gardé : aucun délai calculé tant que les deux champs ne sont pas remplis', () => {
+    for (const police of [
+      POLICE_IMPAYES_NON_RENSEIGNEE,
+      creerPoliceAssuranceImpayes({ delaiDeclaration: { nombre: 30, unite: 'jours' } }),
+      creerPoliceAssuranceImpayes({ faitGenerateur: 'decision_de_justice' }),
+    ]) {
+      const repere = repereDeclarationImpayes(police, { dateFaitGenerateur: '2026-02-01', declareLe: null, aujourdhui: AUJOURDHUI })
+      expect(repere).toMatchObject({ etat: 'sans_repere', date: null, retardJours: 0 })
+      expect(repere.message).toMatch(/aucun délai de déclaration calculé/i)
+    }
+  })
+
+  it('champs remplis, date du fait non renseignée : pas de repère, le message dit quel fait dater', () => {
+    const repere = repereDeclarationImpayes(remplie({ faitGenerateur: 'mise_en_demeure_sans_effet' }), {
+      dateFaitGenerateur: null,
+      declareLe: null,
+      aujourdhui: AUJOURDHUI,
+    })
+    expect(repere).toMatchObject({ etat: 'sans_repere', date: null })
+    expect(repere.message).toContain('« Mise en demeure restée sans effet »')
+  })
+
+  it('repère du fait + délai : jours calendaires, jours ouvrés (11 novembre exclu), mois au même quantième', () => {
+    const date = (police: PoliceAssuranceImpayes, dateFaitGenerateur: string) =>
+      repereDeclarationImpayes(police, { dateFaitGenerateur, declareLe: null, aujourdhui: '2026-01-01' }).date
+    expect(date(remplie(), '2026-02-01')).toBe('2026-03-03')
+    expect(date(remplie({ delaiDeclaration: { nombre: 5, unite: 'jours_ouvres' } }), '2026-11-06')).toBe('2026-11-16')
+    expect(date(remplie({ delaiDeclaration: { nombre: 1, unite: 'mois' } }), '2026-01-31')).toBe('2026-02-28')
+  })
+
+  it('états : à déclarer, repère dépassé, dans le repère, après le repère (signal, jamais une déchéance)', () => {
+    const etat = (declareLe: string | null, aujourdhui: string) =>
+      repereDeclarationImpayes(remplie(), { dateFaitGenerateur: '2026-02-01', declareLe, aujourdhui })
+    expect(etat(null, '2026-03-03')).toMatchObject({ etat: 'a_declarer', date: '2026-03-03', retardJours: 0 })
+    expect(etat(null, '2026-03-05')).toMatchObject({ etat: 'repere_depasse', retardJours: 2 })
+    expect(etat('2026-03-03', '2026-10-29')).toMatchObject({ etat: 'dans_le_repere', retardJours: 0 })
+    const apres = etat('2026-03-10', '2026-10-29')
+    expect(apres).toMatchObject({ etat: 'apres_le_repere', retardJours: 7, selonLaPolice: true })
+    expect(apres.message).toMatch(/selon la police/)
+    expect(apres.avertissement).toBe(AVERTISSEMENT_REPERE_POLICE_IMPAYES)
+    expect(AVERTISSEMENT_REPERE_POLICE_IMPAYES).toMatch(/jamais une déchéance/)
+    expect(apres.message).not.toMatch(/tardive|déchu|déchéance encourue/i)
+  })
+
+  it('refuse un délai mal formé, un fait inconnu, une date du fait ou du jour non ISO', () => {
+    expect(() => creerPoliceAssuranceImpayes({ delaiDeclaration: { nombre: 0, unite: 'jours' } })).toThrow(/délai/i)
+    expect(() => creerPoliceAssuranceImpayes({ delaiDeclaration: { nombre: 2.5, unite: 'mois' } })).toThrow(/délai/i)
+    expect(() => creerPoliceAssuranceImpayes({ delaiDeclaration: { nombre: 5, unite: 'semaines' as never } })).toThrow(/unité/i)
+    expect(() => creerPoliceAssuranceImpayes({ faitGenerateur: 'jugement' as never })).toThrow(/fait/i)
+    expect(() => creerPoliceAssuranceImpayes({ lue: 'oui' as never })).toThrow(/lue/i)
+    expect(() =>
+      repereDeclarationImpayes(remplie(), { dateFaitGenerateur: '01/02/2026', declareLe: null, aujourdhui: AUJOURDHUI }),
+    ).toThrow(/fait/i)
+    expect(() =>
+      repereDeclarationImpayes(remplie(), { dateFaitGenerateur: '2026-02-01', declareLe: '2026-02-30', aujourdhui: AUJOURDHUI }),
+    ).toThrow(/déclaration/i)
+    expect(() =>
+      repereDeclarationImpayes(remplie(), { dateFaitGenerateur: '2026-02-01', declareLe: null, aujourdhui: '29/10/2026' }),
+    ).toThrow(/date/i)
+  })
+})
+
+describe('F52 — indemnité de l’assureur impayés : à part par défaut, ventilée une fois la police lue', () => {
+  const lue = creerPoliceAssuranceImpayes({ lue: true })
+  const ventiler = (soldeDuCentimes: number, recupereDepuisIndemniteCentimes: number, indemniteRegleeCentimes = 120_000) =>
+    ventilerSoldeImpayes(lue, { soldeDuCentimes, indemniteRegleeCentimes, recupereDepuisIndemniteCentimes })
+
+  it('par défaut (police non lue) : l’indemnité s’affiche à part, ni déduite du solde dû, ni imputée comme un règlement', () => {
+    const vue = ventilerSoldeImpayes(POLICE_IMPAYES_NON_RENSEIGNEE, {
+      soldeDuCentimes: 300_000,
+      indemniteRegleeCentimes: 120_000,
+      recupereDepuisIndemniteCentimes: 50_000,
+    })
+    expect(vue).toMatchObject({
+      ventilee: false,
+      soldeDuParLeDebiteurCentimes: 300_000,
+      dontPartSyndicatCentimes: null,
+      dontPartAssureurCentimes: null,
+      aReverserAssureurCentimes: 0,
+      indemniteRegleeCentimes: 120_000,
+    })
+    expect(vue.message).toMatch(/à part/)
+    expect(vue.message).toMatch(/ni déduite du solde dû, ni imputée comme un règlement du débiteur/)
+  })
+
+  it('police lue, rien récupéré depuis l’indemnité : solde inchangé, dont part du syndicat et dont part de l’assureur', () => {
+    expect(ventiler(300_000, 0)).toMatchObject({
+      ventilee: true,
+      soldeDuParLeDebiteurCentimes: 300_000,
+      dontPartSyndicatCentimes: 180_000,
+      dontPartAssureurCentimes: 120_000,
+      aReverserAssureurCentimes: 0,
+    })
+  })
+
+  it('le récupéré va d’abord à la part du syndicat (C. civ. art. 1346-3)', () => {
+    expect(ventiler(250_000, 50_000)).toMatchObject({
+      dontPartSyndicatCentimes: 130_000,
+      dontPartAssureurCentimes: 120_000,
+      aReverserAssureurCentimes: 0,
+    })
+  })
+
+  it('au-delà de la part du syndicat : compte d’attente « à reverser à l’assureur », jusqu’à décision', () => {
+    const vue = ventiler(100_000, 200_000)
+    expect(vue).toMatchObject({
+      soldeDuParLeDebiteurCentimes: 100_000,
+      dontPartSyndicatCentimes: 0,
+      dontPartAssureurCentimes: 100_000,
+      aReverserAssureurCentimes: 20_000,
+    })
+    expect(vue.message).toMatch(/à reverser à l'assureur/)
+    expect(vue.message).toMatch(/jusqu'à décision/)
+    expect(LIBELLE_COMPTE_ATTENTE_ASSUREUR).toBe("À reverser à l'assureur")
+  })
+
+  it('le compte d’attente est le 472 créditeur (somme due par le syndicat), jamais le 471 débiteur', () => {
+    expect(COMPTE_ATTENTE_ASSUREUR).toEqual({
+      compte: '472',
+      intitule: "Compte en attente d'imputation créditeur",
+      subdivision: "À reverser à l'assureur",
+    })
+  })
+
+  it('la part de l’assureur ne dépasse ni son paiement ni la créance (C. civ. art. 1346-4)', () => {
+    expect(ventiler(50_000, 0)).toMatchObject({ dontPartSyndicatCentimes: 0, dontPartAssureurCentimes: 50_000 })
+    expect(ventiler(300_000, 0, 0)).toMatchObject({ dontPartSyndicatCentimes: 300_000, dontPartAssureurCentimes: 0 })
+  })
+
+  it('solde négatif (excédent du débiteur) : aucune part restante, l’excédent n’est pas à l’assureur', () => {
+    expect(ventiler(-10_000, 310_000)).toMatchObject({
+      soldeDuParLeDebiteurCentimes: -10_000,
+      dontPartSyndicatCentimes: 0,
+      dontPartAssureurCentimes: 0,
+      aReverserAssureurCentimes: 120_000,
+    })
+  })
+
+  it('les parts restantes font toujours le solde dû, quand il est positif ou nul', () => {
+    for (const [solde, recupere] of [
+      [300_000, 0],
+      [250_000, 50_000],
+      [100_000, 200_000],
+      [0, 300_000],
+    ]) {
+      const vue = ventiler(solde, recupere)
+      expect((vue.dontPartSyndicatCentimes ?? 0) + (vue.dontPartAssureurCentimes ?? 0)).toBe(solde)
+    }
+  })
+
+  it('montants en centimes entiers ; récupéré et indemnité positifs', () => {
+    expect(() => ventiler(100.5, 0)).toThrow(/centimes/i)
+    expect(() => ventiler(100_000, -1)).toThrow(/centimes/i)
+    expect(() => ventiler(100_000, 0, -5)).toThrow(/centimes/i)
+  })
+})
+
+describe('en-tête : décisions du 20/11/2026 (partie C, F51 et F52)', () => {
+  const source = readFileSync(
+    join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'contentieux-assurance-impayes.ts'),
+    'utf8',
+  ).replaceAll(/\r?\n\s*\*\s*/g, ' ')
+
+  it('les deux décisions sont citées ; les questions 1 et 2 sont fermées, la 3 reste ouverte', () => {
+    expect(source).toContain('Décision du 20/11/2026 (partie C, F51)')
+    expect(source).toContain('Décision du 20/11/2026 (partie C, F52)')
+    expect(source).not.toMatch(/La police impayés du cabinet est-elle une opération d'assurance crédit \?/)
+    expect(source).not.toMatch(/la police prévoit-elle une subrogation de l'assureur/)
+    expect(source).not.toMatch(/\(🔴 1 et 2\)|\(🔴 2\)/)
+    expect(source).toMatch(/La case « Couverture impayés » découle-t-elle d'un contrat d'assurance du mandat/)
+  })
+
+  it('le décompte renvoie à la ventilation, sans déduire l’indemnité (F52)', () => {
+    const decompte = readFileSync(
+      join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'decompte-contentieux.ts'),
+      'utf8',
+    ).replaceAll(/\r?\n\s*\*\s*/g, ' ')
+    expect(decompte).toContain('Décision du 20/11/2026 (partie C, F52)')
+    expect(decompte).toMatch(/ventilerSoldeImpayes ; le solde dû reste inchangé/)
+  })
+
+  it('sinistres.ts ne renvoie plus à la question 1 fermée : il cite la décision F51', () => {
+    const sinistres = readFileSync(
+      join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'sinistres.ts'),
+      'utf8',
+    ).replaceAll(/\r?\n\s*\*\s*/g, ' ')
+    expect(sinistres).not.toMatch(/🔴 1, non tranché/)
+    expect(sinistres).toContain('Décision du 20/11/2026 (partie C, F51)')
+    expect(sinistres).toMatch(/repereDeclarationImpayes/)
   })
 })
