@@ -150,11 +150,12 @@ export function statutJuridiqueDocumentBtp(statutDocument: string | null | undef
 
 /**
  * Statut juridique initial du formulaire de devis et facture BTP. Le champ est verrouillé, « défini à
- * l'inscription ». Un document déjà enregistré garde le sien (statutJuridiqueDocumentBtp) : le formulaire
- * réenregistre un brouillon dès son ouverture, et un document existant ne doit pas être modifié à son insu. Un
- * nouveau document, même tiré d'un plus ancien (facture depuis un devis, avoir, duplication), prend la forme du
- * profil : avant, il recopiait celle du document source, restée en EI quand le profil n'avait pas encore de forme
- * juridique.
+ * l'inscription ». Un document déjà enregistré garde le sien : le formulaire réenregistre un brouillon dès son
+ * ouverture, et un document existant ne doit pas être modifié à son insu. Seule exception, voulue par Frédéric le
+ * 20/11/2026 : la forme française d'un document d'une société portugaise (statutJuridiqueDocumentBtp), qu'un
+ * brouillon réenregistre donc corrigée. Un nouveau document, même tiré d'un plus ancien (facture depuis un devis,
+ * avoir, duplication), prend la forme du profil : avant, il recopiait celle du document source, restée en EI quand
+ * le profil n'avait pas encore de forme juridique.
  */
 export function statutJuridiqueInitialBtp(
   document: { companyStatus?: string | null; docNumber?: string | null; id?: unknown; savedAt?: unknown; isDuplicate?: unknown } | null | undefined,
@@ -181,9 +182,15 @@ export function couvertureAssuranceBtp(couverture: string | null | undefined, fo
 /**
  * Document BTP émis en un clic, sans repasser par le formulaire (facture totale, acompte par taux) : forme juridique
  * du profil au jour de l'émission, comme le RIB (`appliquerRibCourant`), au lieu de celle recopiée du devis. Le
- * document est neuf : rien d'enregistré n'est modifié. Sans forme au profil, celle du devis reste.
+ * document est neuf : rien d'enregistré n'est modifié. Sans forme au profil, celle du devis reste. Société
+ * portugaise : « France métropolitaine » recopiée du devis est retirée (couvertureAssuranceBtp), la couverture de la
+ * fiche la remplace à l'ouverture.
  */
 export function appliquerFormeProfil<T extends Record<string, unknown>>(payload: T, formeProfil: string | null | undefined): T {
   if (!String(formeProfil || '').trim()) return payload
-  return { ...payload, companyStatus: statutJuridiqueInitialBtp(undefined, formeProfil) }
+  const avecForme = { ...payload, companyStatus: statutJuridiqueInitialBtp(undefined, formeProfil) }
+  const couverture = payload.insuranceCoverage
+  return typeof couverture === 'string' && couverture && !couvertureAssuranceBtp(couverture, formeProfil)
+    ? { ...avecForme, insuranceCoverage: '' }
+    : avecForme
 }

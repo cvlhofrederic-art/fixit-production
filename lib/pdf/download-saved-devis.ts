@@ -19,7 +19,7 @@ import { getDecennaleEligibility } from '@/lib/decennale-eligibility'
 import { buildV2Input, type BuildV2InputParams } from '@/lib/pdf/build-v2-input'
 import { sumMoney, round2, mulMoney } from '@/lib/money'
 import { resolveTvaEnabledV2 } from '@/lib/devis-utils'
-import { codeStatutJuridiqueBtp, couvertureAssuranceBtp, statutJuridiqueDocumentBtp } from '@/lib/statut-juridique-btp'
+import { codeStatutJuridiqueBtp, couvertureAssuranceBtp, statutJuridiqueDocumentBtp, statutPortugais } from '@/lib/statut-juridique-btp'
 import { svgToImageDataUrl } from '@/lib/signature-canvas'
 import { computeTva, type TvaRegime } from '@/lib/tva-calculator'
 import { buildDocumentLines } from '@/lib/devis-totals'
@@ -568,8 +568,10 @@ async function genererAvecV3(
     companyAPE: doc.companyAPE || fiche.ape_code || '',
     insuranceName: doc.insuranceName || '',
     insuranceNumber: doc.insuranceNumber || '',
-    // Société portugaise : « France métropolitaine » (défaut de la fiche recopié) n'est pas sa couverture
-    insuranceCoverage: couvertureAssuranceBtp(doc.insuranceCoverage, fiche.legal_form),
+    // Société portugaise : « France métropolitaine » (défaut de la fiche recopié) n'est pas sa couverture ; à défaut,
+    // « Portugal continental », comme le formulaire (sinon le modèle V3 sur /fr imprimerait son défaut français)
+    insuranceCoverage: couvertureAssuranceBtp(doc.insuranceCoverage, fiche.legal_form)
+      || (statutPortugais(fiche.legal_form) ? 'Portugal continental' : ''),
     insuranceType: doc.insuranceType || 'rc_pro',
     decennaleEligibility: getDecennaleEligibility(artisanCategories ?? artisanTypeActivite),
     mediatorName: doc.mediatorName || '',

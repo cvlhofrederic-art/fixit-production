@@ -10,12 +10,14 @@ const recu = vi.hoisted(() => ({
 
 vi.mock('@/lib/supabase', () => {
   const chaine: Record<string, unknown> = {}
-  chaine.select = () => chaine
+  let colonnes: string[] = []
+  // Comme PostgREST : seules les colonnes demandées par le select reviennent
+  chaine.select = (liste: string) => { colonnes = liste.split(',').map((c) => c.trim()); return chaine }
   chaine.eq = () => chaine
-  chaine.single = async () => ({
-    data: { paiement_modes: [], categories: null, type_activite: null, logo_url: null, ...recu.fiche },
-    error: null,
-  })
+  chaine.single = async () => {
+    const fiche: Record<string, unknown> = { paiement_modes: [], categories: null, type_activite: null, logo_url: null, ...recu.fiche }
+    return { data: Object.fromEntries(Object.entries(fiche).filter(([cle]) => colonnes.includes(cle))), error: null }
+  }
   return { supabase: { from: () => chaine } }
 })
 
@@ -125,10 +127,12 @@ describe('downloadSavedDevis (BTP) — libellés alignés sur le formulaire', ()
 describe('downloadSavedDevis (BTP) — anciens documents d\'une société portugaise', () => {
   const ANCIEN = { companyStatus: 'Entreprise Individuelle (EI)', insuranceName: 'Seguradora Exemplo', insuranceNumber: 'RC-2026-000123' }
 
-  it('forme portugaise de la fiche à la place de l\'EI, couverture française écartée', async () => {
+  it('forme portugaise de la fiche à la place de l\'EI, couverture française remplacée par le défaut portugais', async () => {
     recu.fiche = { legal_form: 'Sociedade por Quotas (Lda.)' }
     const e = await telecharger(document({ ...ANCIEN, insuranceCoverage: 'France metropolitaine' }), 'pt')
-    expect(e).toMatchObject({ companyStatus: 'lda', insuranceCoverage: '' })
+    expect(e).toMatchObject({ companyStatus: 'lda', insuranceCoverage: 'Portugal continental' })
+    // Sur /fr aussi : le modèle V3 n'imprime pas son défaut « France métropolitaine »
+    expect(await telecharger(document({ ...ANCIEN, insuranceCoverage: '' }))).toMatchObject({ companyStatus: 'lda', insuranceCoverage: 'Portugal continental' })
   })
 
   it('forme portugaise déjà enregistrée et couverture portugaise : gardées', async () => {
