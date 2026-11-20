@@ -296,15 +296,20 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
       fiche = { ...form, ...SANS_POSITION }
     }
     setSaving(true)
+    // En cas d'échec, le hook affiche la raison ; la fenêtre et la saisie restent pour réessayer (rien n'est perdu).
+    let enregistre: boolean
     if (editId) {
       // Seuls les champs modifiés depuis l'ouverture : une fiche ouverte avant un changement fait ailleurs (position
       // placée sur place, rayon ou employés de l'onglet Affectations) ne le défait plus.
+      // Rien de modifié : rien à envoyer, la fenêtre se ferme.
       const modifies = ouverte ? champsModifies(ouverte, fiche) : fiche
-      if (Object.keys(modifies).length > 0) await update(editId, modifies)
+      enregistre = Object.keys(modifies).length === 0 || await update(editId, modifies)
     } else {
-      await add(fiche)
+      enregistre = (await add(fiche)) !== null
     }
-    setSaving(false); setShowModal(false); setEditId(null); setForm(EMPTY_FORM)
+    setSaving(false)
+    if (!enregistre) return
+    setShowModal(false); setEditId(null); setForm(EMPTY_FORM)
   }
 
   const handleEdit = (c: ChantierForm & { id: string }) => {
@@ -329,8 +334,8 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
     setDeleteConfirm(null)
   }
 
-  const changeStatut = async (id: string, statut: string) => {
-    await update(id, { statut } as any)
+  const changeStatut = async (id: string, statut: string): Promise<boolean> => {
+    return update(id, { statut } as any)
   }
 
   // ── Prolongation ──
@@ -339,8 +344,8 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
     const c = prolongModal.chantier
     const newEnd = new Date(c.dateFin)
     newEnd.setDate(newEnd.getDate() + prolongDays)
-    await update(c.id, { dateFin: newEnd.toISOString().split('T')[0] } as any)
-    setProlongModal(null)
+    // Fenêtre gardée si la prolongation n'est pas enregistrée (le hook en affiche la raison).
+    if (await update(c.id, { dateFin: newEnd.toISOString().split('T')[0] } as any)) setProlongModal(null)
   }
 
   // ── Rentabilité par chantier ──
@@ -818,7 +823,7 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
                 <button
                   className={isV5 ? "v5-btn v5-btn-s" : "v22-btn v22-btn-secondary"}
                   style={{ width: '100%', padding: '10px 14px', justifyContent: 'center' }}
-                  onClick={async () => { await changeStatut(c.id, 'Terminé'); setProlongModal(null) }}
+                  onClick={async () => { if (await changeStatut(c.id, 'Terminé')) setProlongModal(null) }}
                 >
                   <CheckCircle2 size={14} /> {isPt ? 'Sim, encerrar a obra' : 'Oui, clôturer le chantier'}
                 </button>

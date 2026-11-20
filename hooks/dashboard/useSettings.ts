@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { authFetch } from '@/lib/api-client'
+import { ficheSocieteFrancaise } from '@/lib/btp/fiche-societe-francaise'
 
 interface SettingsForm {
   company_name: string
@@ -36,6 +37,15 @@ const DEFAULT_SETTINGS: SettingsForm = {
   mediator_name: '', mediator_url: '',
 }
 
+/** Champs dont la valeur diffère de la référence (fiche telle que chargée, puis dernier enregistrement). */
+function champsModifies(champs: SettingsForm, reference: SettingsForm): Partial<SettingsForm> {
+  return Object.fromEntries(
+    (Object.keys(champs) as Array<keyof SettingsForm>)
+      .filter((cle) => champs[cle] !== reference[cle])
+      .map((cle) => [cle, champs[cle]]),
+  ) as Partial<SettingsForm>
+}
+
 export function useSettings(
   artisan: any,
   setArtisan: (a: any) => void,
@@ -49,43 +59,18 @@ export function useSettings(
   const [profilePhotoPreview, setProfilePhotoPreview] = useState<string>('')
   const [profilePhotoUploading, setProfilePhotoUploading] = useState(false)
   const [uploadMsg, setUploadMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  // Société BTP française (pro_societe, fiche qui n'est pas en portugais) : valeurs de la fiche au chargement, puis
+  // après chaque enregistrement. Seuls les champs changés depuis partent : un formulaire chargé une fois ne réécrit plus
+  // ce qui a été enregistré entre-temps (assurance d'une attestation déposée dans Conformité), ni l'e-mail des devis par
+  // celui de connexion.
+  // null (artisan, société inscrite au Portugal) : les 18 champs partent à chaque enregistrement, comme avant.
+  const valeursEnregistrees = useRef<SettingsForm | null>(null)
 
   const saveSettings = useCallback(async () => {
     if (!artisan) return
     setSavingSettings(true)
     try {
-      const { data: { session } } = await supabase.auth.getSession()
-      const token = session?.access_token
-      if (!token) { alert(t('proDash.alerts.sessionExpired')); setSavingSettings(false); return }
-
-      const res = await authFetch('/api/artisan-settings', token, {
-        method: 'POST',
-        body: JSON.stringify({
-          company_name: settingsForm.company_name,
-          bio: settingsForm.bio,
-          phone: settingsForm.phone,
-          email: settingsForm.email,
-          auto_reply_message: settingsForm.auto_reply_message,
-          auto_block_duration_minutes: settingsForm.auto_block_duration_minutes,
-          zone_radius_km: settingsForm.zone_radius_km,
-          rcs_number: settingsForm.rcs_number,
-          ape_code: settingsForm.ape_code,
-          share_capital: settingsForm.share_capital,
-          tva_intra: settingsForm.tva_intra,
-          insurance_name: settingsForm.insurance_name,
-          insurance_number: settingsForm.insurance_number,
-          insurance_coverage: settingsForm.insurance_coverage,
-          insurance_type: settingsForm.insurance_type,
-          insurance_expiry: settingsForm.insurance_expiry,
-          mediator_name: settingsForm.mediator_name,
-          mediator_url: settingsForm.mediator_url,
-        }),
-      })
-      const json = await res.json()
-      if (!res.ok) { alert(`\u274c ${t('proDash.alerts.error')}: ${json.error || t('proDash.alerts.cantSave')}`); setSavingSettings(false); return }
-
-      setArtisan({
-        ...artisan,
+      const champs: SettingsForm = {
         company_name: settingsForm.company_name,
         bio: settingsForm.bio,
         phone: settingsForm.phone,
@@ -104,6 +89,30 @@ export function useSettings(
         insurance_expiry: settingsForm.insurance_expiry,
         mediator_name: settingsForm.mediator_name,
         mediator_url: settingsForm.mediator_url,
+      }
+      const reference = valeursEnregistrees.current
+      const aEnregistrer = reference ? champsModifies(champs, reference) : champs
+      if (reference && Object.keys(aEnregistrer).length === 0) {
+        // Société BTP, rien de changé : la fiche est déjà à jour
+        toast.success(t('proDash.alerts.profileUpdated'))
+        return
+      }
+
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+      if (!token) { alert(t('proDash.alerts.sessionExpired')); setSavingSettings(false); return }
+
+      const res = await authFetch('/api/artisan-settings', token, {
+        method: 'POST',
+        body: JSON.stringify(aEnregistrer),
+      })
+      const json = await res.json()
+      if (!res.ok) { alert(`\u274c ${t('proDash.alerts.error')}: ${json.error || t('proDash.alerts.cantSave')}`); setSavingSettings(false); return }
+
+      if (reference) valeursEnregistrees.current = { ...reference, ...aEnregistrer }
+      setArtisan({
+        ...artisan,
+        ...aEnregistrer,
         ...(json.slug ? { slug: json.slug } : {}),
       })
       // Re-save dayServices marker after bio update
@@ -166,10 +175,10 @@ export function useSettings(
     }
   }, [artisan, setArtisan, isPt])
 
-  /** Initialize settings form from artisan data (called once on load) */
-  const initSettingsForm = useCallback((artisanData: any, userEmail: string) => {
+  /** Initialize settings form from artisan data (called once on load). `orgRole` : rôle du compte connecté. */
+  const initSettingsForm = useCallback((artisanData: any, userEmail: string, orgRole?: string) => {
     const cleanBio = (artisanData.bio || '').replace(/\s*<!--DS:[\s\S]*?-->/, '').trim()
-    setSettingsForm({
+    const formulaire: SettingsForm = {
       company_name: artisanData.company_name || '',
       // L'e-mail professionnel enregistré dans le profil d'abord : partir de l'adresse de connexion le remplaçait à
       // chaque enregistrement des réglages (devis, factures, fiche publique). L'adresse de connexion ne sert que de
@@ -194,7 +203,16 @@ export function useSettings(
       insurance_expiry: artisanData.insurance_expiry || '',
       mediator_name: artisanData.mediator_name || '',
       mediator_url: artisanData.mediator_url || '',
-    })
+    }
+    if (orgRole === 'pro_societe' && ficheSocieteFrancaise(artisanData)) {
+      // Société BTP française : la référence garde l'e-mail de la fiche, celui des devis et factures. Une fiche sans
+      // e-mail affiche celui de connexion, qui est alors enregistré au premier clic, comme avant (la référence garde
+      // l'e-mail vide de la fiche). Société inscrite au Portugal : hors de ce correctif, envoi d'avant.
+      valeursEnregistrees.current = { ...formulaire, email: artisanData.email || '' }
+    } else {
+      valeursEnregistrees.current = null
+    }
+    setSettingsForm(formulaire)
   }, [])
 
   return {

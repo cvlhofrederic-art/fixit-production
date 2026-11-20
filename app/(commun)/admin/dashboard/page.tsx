@@ -308,17 +308,34 @@ export default function AdminDashboardPage() {
     }
   }, [getToken])
 
+  // Une décision qui échoue le dit (avant : aucun message, dossier resté en attente) ; la fenêtre du motif de rejet
+  // reste alors ouverte, motif compris. Décision enregistrée sans e-mail parti : avertissement pour prévenir le dossier.
+  // Le message ne promet pas qu'un nouvel essai réussira : certains dossiers échouent encore à chaque essai.
   const handleKycAction = async (artisanId: string, action: 'approve' | 'reject', reason?: string) => {
-    const token = await getToken()
-    const res = await fetch('/api/admin/kyc', {
-      method: 'PATCH',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ artisan_id: artisanId, action, rejection_reason: reason }),
-    })
-    if (res.ok) {
+    const echec = action === 'approve'
+      ? "L'approbation n'a pas été enregistrée : le dossier reste en attente. Si l'erreur persiste, signalez-la."
+      : "Le rejet n'a pas été enregistré : le dossier reste en attente. Si l'erreur persiste, signalez-la."
+    try {
+      const token = await getToken()
+      const res = await fetch('/api/admin/kyc', {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ artisan_id: artisanId, action, rejection_reason: reason }),
+      })
+      if (!res.ok) {
+        toast.error(echec)
+        return
+      }
+      const resultat = await res.json().catch(() => ({})) as { email_envoye?: boolean }
       setKycRejectModalId(null)
       setKycRejectReason('')
+      if (resultat.email_envoye === false) {
+        toast.warning("Décision enregistrée, mais l'e-mail n'a pas pu être envoyé : prévenez le titulaire du dossier directement.")
+      }
       await fetchKycRows(kycFilter)
+    } catch (e) {
+      console.error('[admin] handleKycAction error:', e)
+      toast.error(echec)
     }
   }
 

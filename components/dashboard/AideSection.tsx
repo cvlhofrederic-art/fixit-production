@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { useLocale } from '@/lib/i18n/context'
+import { CONTACT_EMAIL } from '@/lib/constants'
 import { useThemeVars } from './useThemeVars'
 
 type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
@@ -44,15 +45,33 @@ const FAQ_ITEMS_SOCIETE_PT = [
   { q: 'Como contactar o suporte?', a: 'E-mail: support@vitfix.io • Chat Fixy 24/7 (botão amarelo em baixo à direita).' },
 ]
 
+// Société BTP : la réponse « contacter le support » donne l'adresse de contact du site (lib/constants.ts), sans le
+// numéro d'exemple. Le tableau de bord artisan, qui affiche aussi la FAQ « société », garde la sienne (règle n° 1).
+const REPONSE_SUPPORT_BTP: Record<string, string> = {
+  'Comment contacter le support ?': `Email : ${CONTACT_EMAIL} • Chat Fixy 24/7 (bouton jaune en bas à droite).`,
+  'Como contactar o suporte?': `E-mail: ${CONTACT_EMAIL} • Chat Fixy 24/7 (botão amarelo em baixo à direita).`,
+}
+const faqSocieteBtp = (items: typeof FAQ_ITEMS_SOCIETE_FR) =>
+  items.map(item => (REPONSE_SUPPORT_BTP[item.q] ? { ...item, a: REPONSE_SUPPORT_BTP[item.q] } : item))
+const FAQ_ITEMS_BTP_FR = faqSocieteBtp(FAQ_ITEMS_SOCIETE_FR)
+const FAQ_ITEMS_BTP_PT = faqSocieteBtp(FAQ_ITEMS_SOCIETE_PT)
+
+/** Société BTP : « Ouvrir un ticket » ouvre un e-mail vers l'adresse de contact du site, au lieu d'un faux accusé de réception. */
+function ecrireAuSupport(isPt: boolean) {
+  const objet = isPt ? 'Pedido de assistência: empresa de construção' : 'Demande d’assistance — Société BTP'
+  window.location.href = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(objet)}`
+}
+
 export default function AideSection({ navigateTo, orgRole = 'artisan' }: AideSectionProps) {
   const [openFaq, setOpenFaq] = useState<number | null>(null)
   const locale = useLocale()
   const isPt = locale === 'pt'
   const isSociete = orgRole === 'pro_societe' || orgRole === 'artisan'
+  const estBtp = orgRole === 'pro_societe'
   const isV5 = isSociete
   const tv = useThemeVars(isV5)
   const FAQ_ITEMS = isSociete
-    ? (isPt ? FAQ_ITEMS_SOCIETE_PT : FAQ_ITEMS_SOCIETE_FR)
+    ? (estBtp ? (isPt ? FAQ_ITEMS_BTP_PT : FAQ_ITEMS_BTP_FR) : (isPt ? FAQ_ITEMS_SOCIETE_PT : FAQ_ITEMS_SOCIETE_FR))
     : (isPt ? FAQ_ITEMS_ARTISAN_PT : FAQ_ITEMS_ARTISAN_FR)
 
   // ═══════════════════════════════════════════════════════
@@ -104,11 +123,11 @@ export default function AideSection({ navigateTo, orgRole = 'artisan' }: AideSec
         <div className="v5-card" style={{ marginTop: '1rem' }}>
           <div className="v5-st">{isPt ? 'Contacto de suporte' : 'Contact support'}</div>
           <div style={{ fontSize: 12, color: '#666', lineHeight: 1.6 }}>
-            {isPt ? 'E-mail:' : 'Email :'} <strong>support@vitfix.io</strong><br />
-            {!isPt && <>Tél : <strong>04 91 00 00 00</strong><br /></>}
+            {isPt ? 'E-mail:' : 'Email :'} <strong>{estBtp ? CONTACT_EMAIL : 'support@vitfix.io'}</strong><br />
+            {!isPt && !estBtp && <>Tél : <strong>04 91 00 00 00</strong><br /></>}
             {isPt ? 'Chat Fixy 24/7 (botão amarelo em baixo à direita)' : 'Chat Fixy 24/7 (bouton jaune en bas à droite)'}
           </div>
-          <button className="v5-btn v5-btn-p" style={{ marginTop: 10 }} onClick={() => toast.info(isPt ? 'Pedido criado: resposta em 24 h' : 'Ticket créé — réponse sous 24h')}>{isPt ? 'Abrir pedido de suporte' : 'Ouvrir un ticket'}</button>
+          <button className="v5-btn v5-btn-p" style={{ marginTop: 10 }} onClick={() => (estBtp ? ecrireAuSupport(isPt) : toast.info(isPt ? 'Pedido criado: resposta em 24 h' : 'Ticket créé — réponse sous 24h'))}>{isPt ? 'Abrir pedido de suporte' : 'Ouvrir un ticket'}</button>
         </div>
       </div>
     )

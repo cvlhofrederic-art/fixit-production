@@ -7,6 +7,7 @@ import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { useThemeVars } from './useThemeVars'
 import { getWalletDocuments, type WalletDocConfig, type WalletDocObtenir } from '@/lib/walletConformite'
 import { resolveCategoriesWithNafFallback } from '@/lib/naf-to-categories'
+import { useLiensFrais } from '@/hooks/useLiensFrais'
 import { getWalletDocumentsPt, caseDocumentDejaDepose } from '@/lib/wallet-conformite-pt'
 
 type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
@@ -408,6 +409,10 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
     localStorage.setItem(storageKey, JSON.stringify(updated))
   }
 
+  // Société BTP : « Voir » et « Envoyer le dossier » utilisent un lien frais (le lien gardé au dépôt cesse de s'ouvrir
+  // au bout de 7 jours) ; la valeur enregistrée n'est pas réécrite. Côté artisan, rien ne change.
+  const lienDocument = useLiensFrais(orgRole === 'pro_societe', Object.values(docs).map(d => d?.url))
+
   const syncToSyndic = async (docKey: string, hasDocument: boolean, expiryDate?: string) => {
     try {
       const { data: { session } } = await supabase.auth.getSession()
@@ -529,7 +534,7 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
   const obligatoryMissing = obligatoryDocs.filter(d => getStatus(docs[d.id]) !== 'valid' && getStatus(docs[d.id]) !== 'expiring').length
 
   const handleSendDossier = () => {
-    const lines = WALLET_DOCS.filter(d => docs[d.id]?.url).map(d => `${d.nom}${isPt ? ':' : ' :'} ${docs[d.id].url}`).join('\n')
+    const lines = WALLET_DOCS.filter(d => docs[d.id]?.url).map(d => `${d.nom}${isPt ? ':' : ' :'} ${lienDocument(docs[d.id].url)}`).join('\n')
     const subject = encodeURIComponent(isPt
       ? `${t('proDash.wallet.dossierConformiteSubject')}: ${artisan?.company_name || 'Profissional'}`
       : `${t('proDash.wallet.dossierConformiteSubject')} — ${artisan?.company_name || 'Artisan'}`)
@@ -631,7 +636,7 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
                 <div className="v5-w-doc-acts">
                   {doc?.url && (
                     <>
-                      <button onClick={() => safeOpen(doc.url, { allowedOrigins: originesSupabase() })} className="v5-btn v5-btn-sm" title={isPt ? 'Ver' : 'Voir'}>👁️</button>
+                      <button onClick={() => safeOpen(lienDocument(doc.url), { allowedOrigins: originesSupabase() })} className="v5-btn v5-btn-sm" title={isPt ? 'Ver' : 'Voir'}>👁️</button>
                       <button onClick={() => removeDoc(docDef.id)} disabled={!!removing[docDef.id]} className="v5-btn v5-btn-sm" title={isPt ? 'Eliminar' : 'Supprimer'} style={{ opacity: removing[docDef.id] ? 0.5 : 1 }}>
                         {removing[docDef.id] ? '⏳' : '🗑️'}
                       </button>

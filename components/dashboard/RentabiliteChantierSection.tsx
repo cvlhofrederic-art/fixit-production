@@ -6,7 +6,7 @@ import { DollarSign, Settings, HardHat, MapPin, CheckCircle, AlertTriangle, Aler
 import { calculeRentabilite } from '@/lib/rentabilite/engine'
 import { loadRefTaux } from '@/lib/rentabilite/ref-taux'
 import { calculeQuotePartFixes } from '@/lib/rentabilite/repartition'
-import { useBTPSettings } from '@/lib/hooks/use-btp-data'
+import { signalerPlafondsAtteints, useBTPSettings } from '@/lib/hooks/use-btp-data'
 import { formatPrice } from '@/lib/utils'
 import type { RefTaux, ResultatRentabilite, FormeJuridique, Juridiction } from '@/lib/rentabilite/types'
 
@@ -235,6 +235,8 @@ export default function RentabiliteChantierSection({ artisan, orgRole }: { artis
         const dp = dpRes.ok ? await dpRes.json() : null
         const pt = ptRes.ok ? await ptRes.json() : null
         const sit = sitRes.ok ? await sitRes.json() : null
+        // Liste coupée par la route (au-delà de 500 pointages, 200 chantiers…) : la rentabilité est incomplète, on le dit.
+        for (const reponse of [ch, mb, dp, pt, sit]) signalerPlafondsAtteints(reponse)
         if (ch?.chantiers?.length) setChantiers(ch.chantiers.map((c: Record<string, unknown>) => ({
           id: c.id, titre: c.titre || c.title || '', client: c.client || '',
           adresse: c.adresse || c.address || '', dateDebut: c.date_debut || c.dateDebut || '',

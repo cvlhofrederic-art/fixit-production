@@ -114,6 +114,28 @@ export function escapeHTML(str: string): string {
 }
 
 /**
+ * Texte sûr dans le HTML d'un e-mail (contenu, ou attribut entre guillemets) : fonction commune des gabarits
+ * (lib/email.ts, lib/email-rfq.ts, lib/email-referral.ts, app/api/devis/send-email). Toute valeur saisie par un
+ * compte ou lue en base y passe avant d'entrer dans un gabarit. Même conversion en texte qu'un gabarit littéral (une
+ * valeur absente devient une chaîne vide), puis échappement de & < > " '.
+ */
+export function echapperHtmlEmail(valeur: unknown): string {
+  return escapeHTML(valeur === null || valeur === undefined ? '' : String(valeur))
+}
+
+/**
+ * Texte ramené à une seule ligne : sauts de ligne et caractères de contrôle remplacés par une espace, puis coupe à
+ * `longueurMax` caractères si une borne est donnée. Sert à l'objet d'un e-mail, qui est du texte brut : l'échapper
+ * comme du HTML y afficherait des entités (« &amp; », « &#039; »).
+ */
+export function texteSurUneLigne(valeur: unknown, longueurMax?: number): string {
+  const texte = (valeur === null || valeur === undefined ? '' : String(valeur)).replace(/[\p{Cc}\p{Zl}\p{Zp}]+/gu, ' ').trim()
+  if (longueurMax === undefined) return texte
+  // Coupe par caractère entier (jamais au milieu d'une paire de substitution) ; la première coupe borne le travail.
+  return Array.from(texte.slice(0, longueurMax * 2)).slice(0, longueurMax).join('')
+}
+
+/**
  * Sanitize user input for safe storage/display.
  * Strips all HTML tags and limits length.
  */
