@@ -202,7 +202,7 @@ function nombreTransactions(ntry: ElementXml, transactions: readonly ElementXml[
 }
 
 /** Détails d'une écriture simple (au plus une transaction) : ceux de sa TxDtls, suivis du texte de l'écriture. */
-function detailsTransaction(tx: ElementXml | null, textesEcriture: string[]): Omit<DetailsEcriture, 'transactions'> {
+function detailsTransaction(tx: ElementXml | null, textesEcriture: string[], nombre: number): DetailsEcriture {
   const rmtInf = enfant(tx, 'RmtInf'),
     reference = texteSuivi(tx, 'Refs', 'EndToEndId')
   return {
@@ -217,6 +217,7 @@ function detailsTransaction(tx: ElementXml | null, textesEcriture: string[]): Om
     referenceClient: reference === REFERENCE_NON_FOURNIE ? null : reference,
     motifRejet: texteSuivi(tx, 'RtrInf', 'Rsn', 'Cd'),
     referenceTransaction: texteSuivi(tx, 'Refs', 'AcctSvcrRef'),
+    transactions: nombre,
   }
 }
 
@@ -229,7 +230,7 @@ function detailsEcriture(ntry: ElementXml): DetailsEcriture {
   const transactions = enfantsNommes(ntry, 'NtryDtls').flatMap((details) => enfantsNommes(details, 'TxDtls')),
     nombre = nombreTransactions(ntry, transactions),
     textesEcriture = textesUtiles(texteSuivi(ntry, 'AddtlNtryInf'))
-  if (nombre <= 1) return { ...detailsTransaction(transactions.at(0) ?? null, textesEcriture), transactions: nombre }
+  if (nombre <= 1) return detailsTransaction(transactions.at(0) ?? null, textesEcriture, nombre)
   return {
     textes: [...textesEcriture, `(écriture globale de ${nombre} transactions)`],
     payeur: null,
