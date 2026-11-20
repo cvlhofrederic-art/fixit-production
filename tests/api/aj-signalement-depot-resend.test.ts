@@ -7,7 +7,8 @@
 //     (replyTo, que le SDK transmet en reply_to), étiquette « aj-signalement » ; le récapitulatif au déclarant part
 //     par emails.send ;
 //   - lot refusé par Resend (une adresse refusée suffit) : renvoi un par un, email_erreur résumé sans adresse ;
-//   - copropriété sans adresse saisie : un message à ADMIN_EMAIL, avec le bouton du tableau.
+//   - copropriété sans adresse saisie : plus de signalement complet à ADMIN_EMAIL (D9, décision de Hugo du 17/11/2026) ;
+//     une alerte sans données, avec le bouton de l'espace.
 // Base : la production d'avant la migration du 11/11/2026 (simulerProductionAvant1111Qr : tables absentes en PGRST205
 // comme PostgREST 13, colonnes et fonctions du 11/11 absentes ; colonnes du 06/11 présentes, migrations appliquées le
 // 11/11/2026). Données fictives (@exemple.test, @externe.test).
@@ -147,13 +148,17 @@ describe('dépôt public, vrai lib/email.ts, SDK Resend simulé', () => {
     expect(texteJournalServeurQr()).not.toMatch(/gestion@exemple|Invalid/)
   })
 
-  it('copropriété sans adresse saisie : un message à ADMIN_EMAIL, avec le bouton du tableau', async () => {
+  it('copropriété sans adresse saisie : aucun signalement à ADMIN_EMAIL, une alerte sans données avec le bouton de l’espace', async () => {
     expect((await deposer({ ...CORPS, jeton: JETON_SANS_ADRESSE })).status).toBe(200)
+    expect(resend.lots).toHaveLength(1)
     const lot = resend.lots[0] as MessageResend[]
     expect(lot.map((m) => m.to)).toEqual([['admin@exemple.test']])
-    expect(lot[0].replyTo).toBe('declarant@exemple.test')
-    expect(lot[0].html).toContain('Ouvrir le tableau des signalements')
+    expect(lot[0].subject).toBe('AJ Signalement — un signalement attend un destinataire')
+    expect(lot[0].replyTo).toBeUndefined()
+    expect(lot[0].html).toContain('Ouvrir AJ Signalement')
     expect(lot[0].html).toContain('https://vitfix.io/fr/aj-signalement/#signalements')
+    for (const donnee of ['Déclarant', 'Fuite d’eau', 'Les Tilleuls', '06 00 00 00 00']) expect(lot[0].html, donnee).not.toContain(donnee)
+    expect(etatFinal()).toMatchObject({ email_envoye_le: null, email_erreur: 'aucun destinataire configuré' })
   })
 })
 
