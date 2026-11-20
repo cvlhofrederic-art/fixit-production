@@ -25,8 +25,10 @@ import { SEUIL_LOTS_REMUNERATION_PAR_LE_JUGE, type MandatRemunere } from '@/lib/
  * aucun élément « A facturer » n'est créé (honoraires-sinistre.ts garde son signalement), etatDesActesHorsTarif rend
  * l'état acte par acte (MENTION_ACTES_HORS_TARIF), sur la période du compte provisoire (par défaut l'année de mission,
  * periodeAnneeDeMission de honoraires-tableau.ts, décision du 20/11/2026, F3).
- * - Montant d'un acte : minutes × taux ÷ 60, arrondi une seule fois au centime le plus proche (demi au-dessus) ; le
- *   total est la somme des lignes. 🔵 Le montant est HT : le tarif et le juge raisonnent en HT ; aucune TVA n'est
+ * - Montant d'un acte : minutes × taux ÷ 60, en minutes exactes, sans arrondi intermédiaire des heures. 🔵 Un seul
+ *   arrondi, au centime le plus proche (demi au-dessus), et le total est la somme des lignes : la décision ne fixe pas
+ *   l'arrondi ; celui des éléments au coût horaire (heures au centième, totalElement) reste une question ouverte de
+ *   honoraires-sinistre.ts, inchangée. 🔵 Le montant est HT : le tarif et le juge raisonnent en HT ; aucune TVA n'est
  *   calculée ici.
  * - Fiche liée : obligatoire, une fiche de dossier (🔵 par exemple Sinistre, Mutation pour une vente de lot, Contentieux
  *   pour un recouvrement ; le type d'une réunion n'est pas fixé), jamais une fiche porteuse (copropriété, identité,

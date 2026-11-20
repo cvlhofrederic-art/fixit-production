@@ -191,4 +191,13 @@ describe('actes hors tarif — en-tête du module', () => {
     expect(texte).toMatch(/taux horaire du cabinet.*passé par l'appelant/)
     expect(texte).not.toMatch(/🔴/)
   })
+
+  it('l’arrondi n’est pas fixé par la décision : choix 🔵, à part de la question ouverte des éléments horaires', () => {
+    const { item } = enTeteDuModule('actes-hors-tarif')
+    const montant = item("- Montant d'un acte")
+    expect(montant).toMatch(/sans arrondi intermédiaire des heures/)
+    expect(montant).toMatch(/🔵 Un seul arrondi, au centime le plus proche \(demi au-dessus\)/)
+    expect(montant).toMatch(/la décision ne fixe pas l'arrondi/)
+    expect(montant).toMatch(/heures au centième.*question ouverte de honoraires-sinistre\.ts/)
+  })
 })
