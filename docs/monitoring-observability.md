@@ -239,11 +239,13 @@ Implémenté dans `lib/rate-limit.ts` avec Upstash Redis en production et un fal
 - **Algorithme** : Sliding window
 - **Limite** : 20 requêtes par fenêtre de 60 secondes
 - **Préfixe Redis** : `fixit:ratelimit`
-- **Analytics** : activées (visible dans le dashboard Upstash)
+- **Analytics** : coupées (D13, décision du 17/11/2026). Les relevés écrits avant, sous `fixit:ratelimit:*:events:*`, restent à effacer dans la console d'Upstash.
 
 ### Identifiants de rate limit
 
 Chaque endpoint utilise un identifiant spécifique : `upload_${ip}`, `api_${userId}`, etc. Cela permet des limites différenciées par type d'opération.
+
+Upstash ne reçoit jamais cet identifiant en clair. Il reçoit son empreinte HMAC-SHA-256, sous une clé dérivée (HKDF-SHA-256) de `SUPABASE_SERVICE_ROLE_KEY`. Si Upstash est configuré sans ce secret, rien n'est envoyé à Upstash : les limites restent en mémoire, et une erreur part au journal.
 
 ### Fallback en mémoire
 

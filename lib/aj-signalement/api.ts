@@ -83,11 +83,12 @@ export type CodeRefusQr = (typeof CODES_REFUS_QR)[number]
  * non_authentifie (401), interdit (403 : pas super admin), base_absente (503 : migration non appliquée),
  * serveur (5xx), reseau ; et les codes métier des 409 / 410 (CODES_METIER_QR). PR 3 : texte_refuse (400 : texte d'une
  * diffusion refusé par le contrôle, motif dans le corps), configuration_incomplete (503 : clé de signature des liens de
- * désinscription absente).
+ * désinscription absente). Dépôt public (17/11/2026) : batiment_inconnu (400 : bâtiment absent de la liste saisie par le
+ * cabinet ; l'écran montre son propre texte, jamais celui du serveur).
  */
 export type CodeErreurQr =
   | 'invalide' | 'introuvable' | 'trop_de_demandes' | 'non_authentifie' | 'interdit' | 'base_absente' | 'serveur' | 'reseau'
-  | 'texte_refuse' | 'configuration_incomplete'
+  | 'texte_refuse' | 'configuration_incomplete' | 'batiment_inconnu'
   | CodeMetierQr | CodeRefusQr
 
 /** Échec d'un appel : le code, et pour certains refus ce que l'écran en montre. */
@@ -142,6 +143,7 @@ export function codeDepuisReponseQr(status: number, corps: unknown): CodeErreurQ
   if (erreur === 'base_absente') return 'base_absente'
   if (status === 503 && erreur === 'configuration_incomplete') return 'configuration_incomplete'
   if (status === 400 && erreur === 'texte_refuse') return 'texte_refuse'
+  if (status === 400 && erreur === 'batiment_inconnu') return 'batiment_inconnu'
   if ((status === 409 || status === 410) && estCodeMetier(erreur)) return erreur
   if (status === 410) return 'expire'
   if (status === 401) return 'non_authentifie'

@@ -15,6 +15,8 @@
 // sans logo, la page est celle d'avant.
 // R70 du dossier téléphonie (14/11/2026, brouillon : textes Hugo, présentation Frédéric, portugais H4) : la confirmation
 // d'un signalement envoyé comme urgent répète la consigne renforcée d'appel aux secours (ConsigneSecoursQr.tsx).
+// Bâtiments saisis par le cabinet (demande de Hugo du 17/11/2026) : lus par la page serveur avec la copropriété, passés
+// au formulaire (liste à choix du champ « Bâtiment ») ; sans bâtiment, le formulaire est celui d'avant.
 
 import { useState } from 'react'
 import { dateLongue, remplir, textesCopro } from '@/lib/coproprietaire/textes'
@@ -124,6 +126,7 @@ export default function AppSignalementQr({ jeton, copropriete, langue, informati
               tq={tq}
               adresseProposee={adresse.etat === 'proposee' ? adresse.adresse : ''}
               information={information}
+              batiments={copropriete.batiments}
               onEnvoye={(c) => { setConfirmation(c); enHaut() }}
             />
           </>
