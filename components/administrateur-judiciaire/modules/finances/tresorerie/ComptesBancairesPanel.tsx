@@ -10,6 +10,7 @@ import {
   ibanGroupe,
   vueComptesBancaires,
   type CompteAffiche,
+  type EcritureSolde,
   type VueComptesBancaires,
 } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/comptes-bancaires-vue'
 import { Alert } from '@/components/administrateur-judiciaire/ui/Alert'
@@ -26,13 +27,14 @@ import {
   type SaisieCompteBancaire,
 } from '@/lib/administrateur-judiciaire/db/comptes-bancaires'
 import { useDonneesStore } from '@/lib/administrateur-judiciaire/db/donnees-store'
-import { useComptesBancaires } from '@/lib/administrateur-judiciaire/db/use-comptes-bancaires'
+import type { ComptesBancairesLus } from '@/lib/administrateur-judiciaire/db/use-comptes-bancaires'
 import type { CoproprieteVue } from '@/lib/administrateur-judiciaire/domain/coproprietes'
 import {
   MODES_TENUE_COMPTES,
   NATURES_COMPTE_BANCAIRE,
   type ModeTenueComptes,
 } from '@/lib/administrateur-judiciaire/domain/comptes-bancaires'
+import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
 import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
 
 /**
@@ -40,7 +42,9 @@ import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
  * sélecteur d'exemples) : réglage du cabinet et choix du mandat (D-BANQUE), mode appliqué et son origine, comptes de la
  * copropriété choisie, contrôles et informations du domaine (comptes-bancaires-vue.ts). Comptes, réglage et choix s'enregistrent
  * dans la base locale (db/comptes-bancaires.ts), comme le reste de l'écran, en démonstration aussi. Chaque écriture est
- * confirmée ou refusée par un toast.
+ * confirmée ou refusée par un toast. Les comptes sont lus par l'écran (useComptesBancaires), qui les partage avec l'import
+ * du relevé et le rapprochement ; le solde de chaque compte est celui de son sous-compte 512 (lignes de relevé importées
+ * sur ce compte).
  */
 
 const MODES = Object.entries(MODES_TENUE_COMPTES) as [ModeTenueComptes, (typeof MODES_TENUE_COMPTES)[ModeTenueComptes]][]
@@ -114,7 +118,9 @@ function TableauComptes({ comptes, ouvrir }: Readonly<{ comptes: readonly Compte
                   </span>
                 )}
               </td>
-              <td style={{ textAlign: 'right' }}>—</td>
+              <td className="mono" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                {compte.soldeCentimes === null ? '—' : formatEurosCentimes(compte.soldeCentimes / 100)}
+              </td>
               <td>
                 {compte.actif && (
                   <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
@@ -189,7 +195,8 @@ function AlertesComptes({ vue }: Readonly<{ vue: VueComptesBancaires }>) {
       )}
       {vue.reprisActifs > 0 && (
         <Alert kind="" icon="info" title={`${NATURES_COMPTE_BANCAIRE.repris_ancien_gestionnaire.libelle} : solde inconnu ici.`}>
-          Le rappel « solder puis clôturer » attend le solde par compte.
+          Le rappel « solder puis clôturer » n’est pas lancé : le solde affiché ne reprend pas le solde du compte avant le
+          premier relevé importé.
         </Alert>
       )}
       {vue.illisibles > 0 && (
@@ -264,16 +271,21 @@ function useEcrituresComptes(copro: CoproprieteVue | undefined, relire: () => vo
   }
 }
 
-export function ComptesBancairesPanel({ copro }: Readonly<{ copro: CoproprieteVue | undefined }>) {
-  const { push } = useToast()
+export interface ComptesBancairesPanelProps {
+  copro: CoproprieteVue | undefined
+  /** Comptes et réglage du cabinet lus par l'écran (useComptesBancaires). */
+  lus: ComptesBancairesLus
+  /** Écritures du journal de banque de la copropriété : solde de chaque compte. */
+  ecrituresBanque: readonly EcritureSolde[]
+}
+
+export function ComptesBancairesPanel({ copro, lus, ecrituresBanque }: Readonly<ComptesBancairesPanelProps>) {
   const [edition, setEdition] = useState<Edition>(null)
-  const lus = useComptesBancaires(copro?.id ?? null, (message) =>
-    push({ kind: 'warn', title: 'Comptes bancaires illisibles', desc: message }),
-  )
   const mandat = useDonneesStore((etat) => etat.mandats.find((candidat) => candidat.id === copro?.mandatId))
   const ecritures = useEcrituresComptes(copro, lus.relire, () => setEdition(null))
   const vue = vueComptesBancaires({
     comptes: lus.comptes,
+    ecritures: ecrituresBanque,
     reglagesCabinet: lus.reglagesCabinet,
     choixMandat: mandat?.modeComptesBancaires,
     fondement: copro?.fondement ?? '',
@@ -379,7 +391,8 @@ export function ComptesBancairesPanel({ copro }: Readonly<{ copro: CoproprieteVu
                   <>
                     <TableauComptes comptes={vue.comptes} ouvrir={setEdition} />
                     <p className="muted" style={{ fontSize: 12, margin: '0 0 14px' }}>
-                      Solde par compte : « — » tant que le relevé importé n’est pas rattaché à un compte.
+                      Solde par compte : solde de son sous-compte 512, somme des lignes de relevé importées sur ce compte
+                      (sans le solde d’avant le premier relevé importé) ; « — » : aucune ligne importée.
                     </p>
                   </>
                 )}
