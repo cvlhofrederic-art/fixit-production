@@ -581,8 +581,13 @@ IA aux utilisateurs individuels.
 
 #### Upstash (Risque MOYEN)
 
-Upstash stocke les adresses IP et compteurs de rate limiting. La région
-d'hébergement n'est pas confirmée.
+Upstash stocke les compteurs de rate limiting. Depuis la décision D13 du
+17/11/2026, il reçoit une empreinte HMAC de l'identifiant (adresse IP,
+identifiant de compte), et non plus l'adresse IP en clair ; l'option
+analytics est coupée. Les relevés écrits avant restent à effacer dans la
+console d'Upstash. `lib/cache.ts` y garde aussi, quelques minutes, les
+réponses de deux routes (catalogue des artisans, marchés), sans adresse IP.
+La région d'hébergement n'est pas confirmée.
 
 **Actions requises :**
 1. Vérifier la région dans le dashboard Upstash
