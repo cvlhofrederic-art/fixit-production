@@ -337,7 +337,11 @@ export const LIBELLES_FAITS_GENERATEURS_IMPAYES: Readonly<Record<FaitGenerateurI
 export const UNITES_DELAI_POLICE_IMPAYES = ['jours', 'jours_ouvres', 'mois'] as const
 export type UniteDelaiPoliceImpayes = (typeof UNITES_DELAI_POLICE_IMPAYES)[number]
 
-const LIBELLES_UNITES_DELAI: Readonly<Record<UniteDelaiPoliceImpayes, string>> = { jours: 'jours', jours_ouvres: 'jours ouvrés', mois: 'mois' }
+const LIBELLES_UNITES_DELAI: Readonly<Record<UniteDelaiPoliceImpayes, string>> = {
+  jours: 'jours',
+  jours_ouvres: 'jours ouvrés',
+  mois: 'mois',
+}
 
 export interface DelaiPoliceImpayes {
   nombre: number
@@ -459,7 +463,13 @@ export function repereDeclarationImpayes(police: PoliceAssuranceImpayes, dates: 
   verifierDatesRepere(dates)
   const { delaiDeclaration: delai, faitGenerateur } = police
   const commun = { selonLaPolice: true as const, faitGenerateur, delai, avertissement: AVERTISSEMENT_REPERE_POLICE_IMPAYES }
-  const sansRepere = (message: string): RepereDeclarationImpayes => ({ ...commun, etat: 'sans_repere', date: null, retardJours: 0, message })
+  const sansRepere = (message: string): RepereDeclarationImpayes => ({
+    ...commun,
+    etat: 'sans_repere',
+    date: null,
+    retardJours: 0,
+    message,
+  })
   if (delai === null || faitGenerateur === null)
     return sansRepere(
       'Aucun délai de déclaration calculé : « délai de déclaration prévu par la police » et « fait qui déclenche le sinistre » à renseigner sur le contrat, après lecture de la police.',
@@ -469,7 +479,8 @@ export function repereDeclarationImpayes(police: PoliceAssuranceImpayes, dates: 
     return sansRepere(`Aucun délai de déclaration calculé : date du fait « ${fait} » non renseignée.`)
   const date = dateRepereImpayes(dates.dateFaitGenerateur, delai)
   const etat = etatRepereImpayes(date, dates.declareLe, dates.aujourdhui)
-  const base = `${delai.nombre} ${LIBELLES_UNITES_DELAI[delai.unite]} après « ${fait} » du ${dateFrAnneeComplete(dates.dateFaitGenerateur)}`
+  const duFait = dateFrAnneeComplete(dates.dateFaitGenerateur)
+  const base = `${delai.nombre} ${LIBELLES_UNITES_DELAI[delai.unite]} après « ${fait} » du ${duFait}`
   return { ...commun, date, ...etat, message: `${etat.message} Repère : ${base}.` }
 }
 
@@ -506,11 +517,12 @@ export interface VentilationSoldeImpayes {
 
 const eurosImpayes = (centimes: number): string => formatEurosCentimes(centimes / 100)
 
-function verifierVentilation({ soldeDuCentimes, indemniteRegleeCentimes, recupereDepuisIndemniteCentimes }: SaisieVentilationImpayes): void {
+function verifierVentilation(saisie: SaisieVentilationImpayes): void {
+  const { soldeDuCentimes } = saisie
   if (!Number.isInteger(soldeDuCentimes)) throw new Error(`Solde dû invalide (${soldeDuCentimes}) : centimes entiers attendus.`)
   const montants: [string, number][] = [
-    ["Indemnité réglée par l'assureur", indemniteRegleeCentimes],
-    ['Sommes récupérées depuis l’indemnité', recupereDepuisIndemniteCentimes],
+    ["Indemnité réglée par l'assureur", saisie.indemniteRegleeCentimes],
+    ['Sommes récupérées depuis l’indemnité', saisie.recupereDepuisIndemniteCentimes],
   ]
   for (const [libelle, montant] of montants)
     if (!Number.isInteger(montant) || montant < 0) throw new Error(`${libelle} invalide (${montant}) : centimes entiers positifs attendus.`)
@@ -523,10 +535,17 @@ function verifierVentilation({ soldeDuCentimes, indemniteRegleeCentimes, recuper
  * le syndicat pour le reste ; le récupéré s'impute d'abord sur la part du syndicat (art. 1346-3), l'excédent va au compte
  * d'attente « à reverser à l'assureur », jusqu'à décision. Un excédent du débiteur (solde négatif) n'est pas à l'assureur.
  */
-export function ventilerSoldeImpayes(police: Pick<PoliceAssuranceImpayes, 'lue'>, saisie: SaisieVentilationImpayes): VentilationSoldeImpayes {
+export function ventilerSoldeImpayes(
+  police: Pick<PoliceAssuranceImpayes, 'lue'>,
+  saisie: SaisieVentilationImpayes,
+): VentilationSoldeImpayes {
   verifierVentilation(saisie)
   const { soldeDuCentimes, indemniteRegleeCentimes: indemnite, recupereDepuisIndemniteCentimes: recupere } = saisie
-  const commun = { soldeDuParLeDebiteurCentimes: soldeDuCentimes, indemniteRegleeCentimes: indemnite, fondement: FONDEMENT_VENTILATION_IMPAYES }
+  const commun = {
+    soldeDuParLeDebiteurCentimes: soldeDuCentimes,
+    indemniteRegleeCentimes: indemnite,
+    fondement: FONDEMENT_VENTILATION_IMPAYES,
+  }
   if (!police.lue)
     return {
       ...commun,
