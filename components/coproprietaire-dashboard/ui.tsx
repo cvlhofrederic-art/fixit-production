@@ -107,7 +107,9 @@ export function Carte({
             {titre && <h2 className="text-lg font-bold text-[#0D1B2E] leading-snug">{titre}</h2>}
             {sousTitre && <p className="text-sm text-[#4A5E78] mt-1">{sousTitre}</p>}
           </div>
-          {actions && <div className="flex flex-wrap gap-2 shrink-0">{actions}</div>}
+          {/* max-w-full : une rangée de boutons plus large que la carte passe à la ligne au lieu de sortir de l'écran
+              (shrink-0 la tenait sinon à la largeur de tous ses boutons sur une ligne) ; sans effet tant qu'elle tient. */}
+          {actions && <div className="flex max-w-full flex-wrap gap-2 shrink-0">{actions}</div>}
         </header>
       )}
       <div className={titre || actions ? 'px-5 pb-5' : 'p-5'}>{children}</div>

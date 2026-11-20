@@ -216,12 +216,37 @@ export interface Tache extends EntiteEnregistree {
   assigneId: string | null
 }
 
-// ─── Tables déclarées mais jamais alimentées (seuls les champs indexés sont connus) ────────
-
 export interface Cabinet extends EntiteEnregistree {
-  /** Mode de tenue des comptes bancaires par défaut des mandats (D-BANQUE) ; absent = compte séparé au nom du syndicat. */
+  /**
+   * Mode de tenue des comptes bancaires par défaut des mandats (D-BANQUE) ; absent = compte séparé au nom du syndicat.
+   * Écrit par l'écran « Banque et recouvrement » (db/comptes-bancaires.ts), sur la seule ligne de la table.
+   */
   modeComptesBancaires?: ModeTenueComptes
 }
+
+/**
+ * Compte bancaire d'une copropriété : plusieurs par copropriété, chacun avec sa nature (D-BANQUE). Champs non indexés.
+ * Écrit par l'écran « Banque et recouvrement » (db/comptes-bancaires.ts).
+ */
+export interface Banque extends EntiteEnregistree {
+  coproprieteId: string
+  nature?: NatureCompteBancaire
+  libelle?: string
+  iban?: string | null
+  bic?: string | null
+  etablissement?: string | null
+  /** Compte clôturé = false ; absent = actif. */
+  actif?: boolean
+  /**
+   * Marques du fonds de travaux (J71, domain/comptes-bancaires : MarquesFondsTravaux) : compte repris qui tenait le
+   * fonds, placement réservé au fonds. Optionnelles et non indexées : aucun changement de version de la base ; absentes
+   * des comptes écrits avant elles, lues comme false.
+   */
+  tenaitFondsTravaux?: boolean
+  reserveAuFondsTravaux?: boolean
+}
+
+// ─── Tables déclarées mais jamais alimentées (seuls les champs indexés sont connus) ────────
 
 export interface Societe extends EntiteEnregistree {
   cabinetId: string
@@ -295,18 +320,6 @@ export interface AppelDeFonds extends EntiteEnregistree {
 
 export interface FondsTravaux extends EntiteEnregistree {
   coproprieteId: string
-}
-
-/** Compte bancaire d'une copropriété : plusieurs par copropriété, chacun avec sa nature (D-BANQUE). Champs non indexés. */
-export interface Banque extends EntiteEnregistree {
-  coproprieteId: string
-  nature?: NatureCompteBancaire
-  libelle?: string
-  iban?: string | null
-  bic?: string | null
-  etablissement?: string | null
-  /** Compte clôturé = false ; absent = actif. */
-  actif?: boolean
 }
 
 /** Arrêté de rapprochement d'un compte bancaire du syndicat ; champs non indexés : voir domain/rapprochement-bancaire. */

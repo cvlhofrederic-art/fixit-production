@@ -164,7 +164,11 @@ function verifierMission(mission: MissionHonoraires): void {
 const OFFERT_EN_MISSION_JUDICIAIRE =
   'tracer en Contrôle coûts ; une remise sur émoluments avant leur arrêté par le juge est à éviter (règle professionnelle 244.1, lecture prudente)'
 
-function verifierQualificationAdmise(qualification: QualificationElement, mission: MissionHonoraires): void {
+/**
+ * Règle de la mission (J67, R9) : « Offert » est refusé en mission judiciaire. creerElement l'applique d'abord ; exportée
+ * pour une ligne contrôlée sans élément (etapes-courrier.ts : forfait dont le montant n'est pas saisi, J77).
+ */
+export function verifierQualificationAdmise(qualification: QualificationElement, mission: MissionHonoraires): void {
   verifierMission(mission)
   if (mission === 'judiciaire' && qualification === 'Offert')
     throw new Error(`Qualification « Offert » refusée. Mission judiciaire : ${OFFERT_EN_MISSION_JUDICIAIRE}.`)

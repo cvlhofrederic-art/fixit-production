@@ -78,6 +78,11 @@ export const MIGRATION_DIFFUSION_QR = 'supabase/migrations/20261113_signalements
  * pages, affiches, e-mails comme avant), envoi et retrait 503 base_absente (journalisé une fois par isolat).
  */
 export const MIGRATION_LOGO_QR = 'supabase/migrations/20261114_signalements_qr_logo_cabinet.sql'
+/**
+ * Migration des bureaux des cabinets (19/11/2026), après la 20261112 ; d'ici là, listes et fiches sans bureau (réponses
+ * d'avant), actions sur les bureaux et filtres par bureau 503 base_absente (journalisé une fois par isolat).
+ */
+export const MIGRATION_BUREAUX_QR = 'supabase/migrations/20261119_signalements_qr_bureaux.sql'
 /** Signalements renvoyés au tableau de bord (les plus récents). */
 export const SIGNALEMENTS_MAX = 500
 /** Signalements renvoyés pour la page de suivi d'un gestionnaire (P1-R1 ?gestionnaire=). */
@@ -169,6 +174,14 @@ export function journaliserRepliLogoQr(operation: string, erreur: ErreurBase | n
   logger.warn(`${CONTEXTE} migration du 14/11/2026 absente : repli (${operation})`, { migration: MIGRATION_LOGO_QR, code: erreur?.code })
 }
 
+/** Même règle pour la migration du 19/11/2026 (bureaux des cabinets) : le code seul. */
+export function journaliserRepliBureauxQr(operation: string, erreur: ErreurBase | null | undefined): void {
+  const cle = `bureaux:${operation}`
+  if (replisJournalises.has(cle)) return
+  replisJournalises.add(cle)
+  logger.warn(`${CONTEXTE} migration du 19/11/2026 absente : repli (${operation})`, { migration: MIGRATION_BUREAUX_QR, code: erreur?.code })
+}
+
 /**
  * Réponse d'une erreur de la base sur une route de diffusion : structure absente (table, colonne, fonction de la
  * migration du 13/11/2026) → 503 base_absente, journalisé une fois ; sinon comme reponseErreurSqlQr (code seul).
@@ -213,6 +226,8 @@ const CONTRAINTES_UNIQUES_QR: ReadonlyArray<[string, string]> = [
   ['uq_signalements_qr_copros_immatriculation', 'doublon'],
   ['uq_signalements_qr_copros_reference', 'doublon'],
   ['signalements_qr_operations_pkey', 'a_reverifier'],
+  // Migration du 19/11/2026 : nom d'un bureau déjà porté dans le cabinet (écriture hors de la fonction de création).
+  ['uq_signalements_qr_bureaux_nom', 'nom_pris'],
 ]
 
 /**
@@ -1003,46 +1018,83 @@ export function reponseStructureGestionnaireQr(erreur: ErreurBase, operation: st
   return reponseErreurSqlQr(erreur, operation, ids)
 }
 
+/** Tableau d'un bureau (19/11/2026) : ces copropriétés seulement, celles du bureau ; sans liste, toutes celles lues. */
+function coproprietesRetenuesQr(lignes: LigneCoproprieteQr[], coproprietes: readonly string[] | undefined): LigneCoproprieteQr[] {
+  if (!coproprietes) return lignes
+  const retenues = new Set(coproprietes)
+  return lignes.filter((c) => retenues.has(c.id))
+}
+
+/**
+ * Page de suivi d'un gestionnaire (?gestionnaire=) : les copropriétés de sa portée parmi celles lues, et le suivi posé
+ * sur le tableau (son cabinet complété après l'assemblage). Fiche inconnue → introuvable ; structure absente →
+ * base_absente ; autre erreur → serveur (journalisée, code seul).
+ */
+async function suiviDuGestionnaireQr(gestionnaireId: string, lignesCopros: readonly LigneCoproprieteQr[]): Promise<
+  { ok: true; lignes: LigneCoproprieteQr[]; suivi: GestionnaireSuiviQr } | { ok: false; code: 'base_absente' | 'serveur' | 'introuvable' }
+> {
+  const portee = await porteeSuiviQr(gestionnaireId, lignesCopros)
+  if (!portee.ok) {
+    if (structureAbsenteQr(portee.erreur)) return { ok: false, code: 'base_absente' }
+    logger.error(`${CONTEXTE} lecture de la portée d'un gestionnaire`, { code: portee.erreur.code, gestionnaire: gestionnaireId })
+    return { ok: false, code: 'serveur' }
+  }
+  const fiche = portee.fiche
+  if (!fiche) return { ok: false, code: 'introuvable' }
+  return {
+    ok: true,
+    lignes: lignesCopros.filter((c) => portee.visibles.has(c.id)),
+    suivi: { id: fiche.id, nom: fiche.nom ?? null, actif: fiche.actif === true, cabinet: { id: fiche.cabinet_id, nom: '', identifiant: '' } },
+  }
+}
+
+/**
+ * Signalements les plus récents du tableau : ceux de ces copropriétés (aucune : aucune lecture), ou tous (filtre
+ * null), `limite` au plus. Colonne inconnue (migrations du 06/11/2026) : relecture par select('*'), journalisée une fois.
+ */
+async function lireSignalementsDuTableauQr(filtre: readonly string[] | null, limite: number): Promise<
+  { ok: true; lignes: LigneSignalementQr[] } | { ok: false; code: 'base_absente' | 'serveur' }
+> {
+  if (filtre?.length === 0) return { ok: true, lignes: [] }
+  let signalements = await lireSignalementsTableau(COLONNES_SIGNALEMENT_QR, filtre, limite)
+  if (colonneInconnue(signalements.error)) {
+    journaliserRepliColonnesSignalementQr('lecture du tableau', signalements.error)
+    signalements = await lireSignalementsTableau('*', filtre, limite)
+  }
+  if (signalements.error) {
+    logger.error(`${CONTEXTE} lecture des signalements`, { code: signalements.error.code, message: signalements.error.message })
+    return { ok: false, code: baseAbsente(signalements.error) ? 'base_absente' : 'serveur' }
+  }
+  return { ok: true, lignes: (signalements.data ?? []) as unknown as LigneSignalementQr[] }
+}
+
 /**
  * Tableau de bord : copropriétés (compteurs, champs de gestion et, sans adresse, la dernière adresse proposée) et
  * signalements les plus récents. Options (P1-R1) : `cabinet` (ses copropriétés), `gestionnaire` (sa page de suivi : sa
- * portée, 100 signalements au plus). Colonne inconnue (migrations du 06/11/2026) : relecture par select('*').
+ * portée, 100 signalements au plus), `coproprietes` (bureaux, 19/11/2026 : ces copropriétés seulement, celles d'un
+ * bureau ; signalements filtrés comme pour un cabinet). Colonne inconnue (migrations du 06/11/2026) : relecture par
+ * select('*').
  */
-export async function lireTableauQr(options: { cabinet?: string; gestionnaire?: string } = {}): Promise<LectureTableauQr> {
+export async function lireTableauQr(
+  options: { cabinet?: string; gestionnaire?: string; coproprietes?: readonly string[] } = {},
+): Promise<LectureTableauQr> {
   const copros = await lireLignesCoproprietesQr(options.cabinet ? { cabinet: options.cabinet } : {})
   if (!copros.ok) {
     logger.error(`${CONTEXTE} lecture des copropriétés`, { code: copros.erreur.code, message: copros.erreur.message })
     return { ok: false, code: tableAbsenteQr(copros.erreur) ? 'base_absente' : 'serveur' }
   }
-  let lignesCopros = copros.lignes
+  let lignesCopros = coproprietesRetenuesQr(copros.lignes, options.coproprietes)
   let suivi: GestionnaireSuiviQr | undefined
   if (options.gestionnaire) {
-    const portee = await porteeSuiviQr(options.gestionnaire, lignesCopros)
-    if (!portee.ok) {
-      if (structureAbsenteQr(portee.erreur)) return { ok: false, code: 'base_absente' }
-      logger.error(`${CONTEXTE} lecture de la portée d'un gestionnaire`, { code: portee.erreur.code, gestionnaire: options.gestionnaire })
-      return { ok: false, code: 'serveur' }
-    }
-    if (!portee.fiche) return { ok: false, code: 'introuvable' }
-    lignesCopros = lignesCopros.filter((c) => portee.visibles.has(c.id))
-    suivi = { id: portee.fiche.id, nom: portee.fiche.nom ?? null, actif: portee.fiche.actif === true, cabinet: { id: portee.fiche.cabinet_id, nom: '', identifiant: '' } }
+    const duSuivi = await suiviDuGestionnaireQr(options.gestionnaire, lignesCopros)
+    if (!duSuivi.ok) return duSuivi
+    lignesCopros = duSuivi.lignes
+    suivi = duSuivi.suivi
   }
-  const filtre = options.cabinet || options.gestionnaire ? lignesCopros.map((c) => c.id) : null
-  const limite = options.gestionnaire ? SIGNALEMENTS_SUIVI_MAX : SIGNALEMENTS_MAX
-  let lignesSignalements: LigneSignalementQr[] = []
-  if (!filtre || filtre.length > 0) {
-    let signalements = await lireSignalementsTableau(COLONNES_SIGNALEMENT_QR, filtre, limite)
-    if (colonneInconnue(signalements.error)) {
-      journaliserRepliColonnesSignalementQr('lecture du tableau', signalements.error)
-      signalements = await lireSignalementsTableau('*', filtre, limite)
-    }
-    if (signalements.error) {
-      logger.error(`${CONTEXTE} lecture des signalements`, { code: signalements.error.code, message: signalements.error.message })
-      return { ok: false, code: baseAbsente(signalements.error) ? 'base_absente' : 'serveur' }
-    }
-    lignesSignalements = (signalements.data ?? []) as unknown as LigneSignalementQr[]
-  }
-  const assemble = await assemblerTableauQr(lignesCopros, lignesSignalements, false)
+  const filtre = options.cabinet || options.gestionnaire || options.coproprietes ? lignesCopros.map((c) => c.id) : null
+  const signalements = await lireSignalementsDuTableauQr(filtre, options.gestionnaire ? SIGNALEMENTS_SUIVI_MAX : SIGNALEMENTS_MAX)
+  if (!signalements.ok) return signalements
+  const assemble = await assemblerTableauQr(lignesCopros, signalements.lignes, false)
   // Contexte d'affichage : vide pour ce qui ne se lit pas, jamais un échec (branche gardée pour le typage).
   if (!assemble.ok) return { ok: false, code: 'serveur' }
   const { tableau, contexte } = assemble.valeur

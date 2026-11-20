@@ -13,6 +13,10 @@
 //   de la PR 1 est toujours faite d'abord ; si celle du compte échoue : 207 { gestionnaire, error:
 //   'connexion_non_debloquee' | 'compte_non_supprime' }, et le même bouton la relance. Migration 20261112 absente ou
 //   fiche sans compte : la réponse de la PR 1, sans appel à l'authentification.
+//   Bureaux (migration 20261119) : action seule `bureauId` (changer de bureau, jamais revenir à « aucun ») ; journal
+//   gestionnaire.modifie, champs {bureau}. La fiche rendue (GET et PATCH) porte son bureau quand elle en a un.
+//   Réactivation d'une fiche restée dans un bureau fermé : refusée par la base (trigger) → 409 bureau_ferme ; changer
+//   d'abord de bureau (permis sur une fiche désactivée).
 
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
@@ -29,6 +33,7 @@ import {
   type LigneFicheQr, type LigneJournalQr,
 } from '@/lib/aj-signalement/serveur-gestion'
 import { debloquerConnexionQr, lireCompteFicheQr, supprimerCompteFicheQr } from '@/lib/aj-signalement/serveur-compte'
+import { controlerBureauDuCabinetQr, lireBureauIdQr, reponseErreurBureauxQr } from '@/lib/aj-signalement/serveur-bureaux'
 
 const CONTEXTE = '[AJ SIGNALEMENT]'
 const EXTRAIT_JOURNAL = 50
@@ -103,6 +108,29 @@ async function effacer(fiche: LigneFicheQr, journal: { cabinetId: string; acteur
   if (compte.etat === 'erreur') return { incomplet: 'compte_non_supprime' }
   if (!compte.userId) return { incomplet: null }
   return { incomplet: (await supprimerCompteFicheQr(fiche.id, compte.userId)) ? null : 'compte_non_supprime' }
+}
+
+/**
+ * Bureaux (migration 20261119) : la fiche change de bureau, dans son cabinet ; elle ne revient jamais à « aucun » (le
+ * schéma refuse null ; la base aussi, bureau_requis). Fiche effacée → 409 fiche_effacee ; même bureau : rien d'écrit ni
+ * journalisé ; bureau fermé → 409 bureau_ferme, d'un autre cabinet ou inconnu → 409 a_reverifier (contrôlés avant
+ * d'écrire, revérifiés par la base) ; migration absente → 503 base_absente. Journal gestionnaire.modifie, champs
+ * {bureau}, identifiants seulement (jamais le nom du bureau). null : fait.
+ */
+async function changerBureau(
+  fiche: LigneFicheQr, bureauId: string, journal: { cabinetId: string; acteurId: string; gestionnaireId: string },
+): Promise<NextResponse | null> {
+  if (fiche.pseudonymise_le) return reponseErreur('fiche_effacee', 409)
+  const ids = { gestionnaire: fiche.id }
+  const actuel = await lireBureauIdQr(TABLE_GESTIONNAIRES_QR, fiche.id)
+  if (!actuel.ok) return reponseErreurBureauxQr(actuel.erreur, 'bureau d’une fiche', ids)
+  if (actuel.valeur === bureauId) return null
+  const bureau = await controlerBureauDuCabinetQr(bureauId, fiche.cabinet_id, 'bureau d’une fiche', ids)
+  if (!bureau.ok) return bureau.reponse
+  const { error } = await supabaseAdmin.from(TABLE_GESTIONNAIRES_QR).update({ bureau_id: bureauId }).eq('id', fiche.id).is('pseudonymise_le', null)
+  if (error) return reponseErreurBureauxQr(error, 'changement de bureau d’une fiche', ids)
+  await journaliserQr({ ...journal, action: 'gestionnaire.modifie', champs: ['bureau'], details: { bureauId, ancienBureauId: actuel.valeur } })
+  return null
 }
 
 async function formePublique(fiche: LigneFicheQr): Promise<NextResponse | { gestionnaire: FicheGestionnaireDetailQr['gestionnaire'] }> {
@@ -192,6 +220,9 @@ export async function PATCH(request: NextRequest, { params }: Contexte) {
       const r = await reactiver(fiche, controle.user.id)
       if (r instanceof NextResponse) return r
       suite = r
+    } else if ('bureauId' in action) {
+      const refus = await changerBureau(fiche, action.bureauId, journal)
+      if (refus) return refus
     } else {
       const r = await effacer(fiche, journal)
       if (r instanceof NextResponse) return r

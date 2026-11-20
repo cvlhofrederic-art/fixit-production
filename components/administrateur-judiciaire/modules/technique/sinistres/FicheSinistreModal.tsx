@@ -18,13 +18,17 @@ import type {
   ChoixSinistre,
   CoproChoixSinistre,
 } from '@/components/administrateur-judiciaire/modules/technique/sinistres/choix-sinistre'
+import { SyntheseSinistre } from '@/components/administrateur-judiciaire/modules/technique/sinistres/SyntheseSinistre'
 import {
   evaluerFicheSinistre,
+  ficheDeSynthese,
+  retenirMontantLisible,
   valeursDepuisFiche,
   valeursAvecContrat,
   valeursAvecCopro,
   valeursNouvelleDeclaration,
   type ErreursChamps,
+  type MontantsIndemnites,
   type ValeursFicheSinistre,
 } from '@/components/administrateur-judiciaire/modules/technique/sinistres/formulaire-sinistre'
 import { Alert } from '@/components/administrateur-judiciaire/ui/Alert'
@@ -42,7 +46,10 @@ import type { StatutSinistre } from '@/lib/data/referentiels-gesteam-judiciaire'
  * Enregistrement refusé : chaque champ en erreur porte son message (aria-invalid, role="alert" de Field) et le résumé
  * des erreurs, en tête du corps défilant, reçoit le focus (ce qui l'amène à l'écran) ; ses changements ultérieurs sont
  * annoncés poliment. Points d'attention et annonces en aria-live="polite". La modale est remontée pour chaque fiche
- * (clé = id), son état repart de la fiche.
+ * (clé = id), son état repart de la fiche. En tête des blocs, la synthèse (SyntheseSinistre : étapes, indemnités,
+ * repères de délai, chronologie), calculée sur la saisie en cours, à la déclaration comme dans « Détails » : absente
+ * sans type ni survenance, ou sur une date illisible ; pendant la frappe d'un montant illisible (« 1800, »), elle garde
+ * le dernier montant lisible du champ (ficheDeSynthese).
  */
 
 /** Fiche identifiée (ligne de la base relue, ou fiche de démonstration). */
@@ -174,14 +181,24 @@ export function FicheSinistreModal(props: FicheSinistreModalProps) {
   const [enCours, setEnCours] = useState(false)
   const [annonce, setAnnonce] = useState('')
   const { refResume, signalerRefus } = useFocusSurRefus()
-  const evaluation = evaluerFicheSinistre(valeurs, {
+  const [derniersMontants, setDerniersMontants] = useState<MontantsIndemnites>(() => ({
+    indemniteImmediate: valeurs.indemniteImmediate,
+    indemniteDifferee: valeurs.indemniteDifferee,
+  }))
+  const contexte = {
     aujourdhui,
     numerosExistants,
     contratChoisi: contratDe(choix, valeurs),
     refsCopropriete: refsDeLaCopro(choix, valeurs.coproprieteId),
-  })
+  }
+  const evaluation = evaluerFicheSinistre(valeurs, contexte)
+  const fichePourSynthese = evaluation.fiche ?? ficheDeSynthese(valeurs, derniersMontants, contexte)
 
-  const changer: ChangerValeur = (cle, valeur) => setValeurs((precedentes) => ({ ...precedentes, [cle]: valeur }))
+  const changer: ChangerValeur = (cle, valeur) => {
+    setValeurs((precedentes) => ({ ...precedentes, [cle]: valeur }))
+    if ((cle === 'indemniteImmediate' || cle === 'indemniteDifferee') && typeof valeur === 'string')
+      setDerniersMontants((precedents) => retenirMontantLisible(precedents, cle, valeur))
+  }
   const basculer = (id: IdBloc) => setOuverts((precedents) => basculerBloc(precedents, id))
   // Le numéro d'une fiche existante n'est jamais reproposé.
   const numeroPropose = (coproprieteId: string) =>
@@ -242,6 +259,7 @@ export function FicheSinistreModal(props: FicheSinistreModalProps) {
       <ModalBody>
         {tentative && <ResumeErreurs erreurs={evaluation.bloquants} refResume={refResume} />}
         <GrilleFiche>
+          <SyntheseSinistre fiche={fichePourSynthese} aujourdhui={aujourdhui} />
           {BLOCS_FICHE_SINISTRE.map((bloc) => (
             <BlocFiche
               key={bloc.id}

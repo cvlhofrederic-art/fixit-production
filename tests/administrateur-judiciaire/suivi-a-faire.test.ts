@@ -294,7 +294,7 @@ const saisieTravaux = (surcharge: Partial<SaisieOperationTravaux> = {}): SaisieO
 })
 
 describe('sources — étapes, tâches, travaux', () => {
-  it('étape à faire : à sa date la plus proche (alerte ou limite), pour son réalisateur ; à valider : pour son validateur', () => {
+  it('étape à faire : à sa date la plus proche (alerte ou limite), pour son réalisateur ; sans aucune date : à la date de référence, « sans délai » (J76) ; à valider : pour son validateur', () => {
     const elements = depuisEtapes(
       [
         { mandatId: 'M1', etape: etape() },
@@ -319,6 +319,9 @@ describe('sources — étapes, tâches, travaux', () => {
       },
       expect.objectContaining({ id: 'etapes:E2:a_valider', nature: 'a_valider', date: '2026-10-20', assigneId: 'u1' }),
       expect.objectContaining({ id: 'etapes:E3:a_faire', date: '2026-10-29', assigneId: 'u2' }),
+      // Ni limite, ni alerte, ni « à faire le » : due le jour même, jamais en retard (J76, question n° 6 de modeles-etapes.ts ;
+      // proposition de Hugo du 19/11/2026, à valider par Frédéric).
+      expect.objectContaining({ id: 'etapes:E4:a_faire', nature: 'a_faire', date: AUJOURDHUI, libelle: 'Relancer l’ancien syndic — sans délai', assigneId: 'u2' }),
     ])
   })
 
