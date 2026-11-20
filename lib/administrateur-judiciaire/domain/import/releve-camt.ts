@@ -360,6 +360,7 @@ function lireStatement(stmt: ElementXml, rang: number, resultat: ResultatLecture
       format: 'camt053',
       rang,
       identifiant: texteSuivi(stmt, 'Id'),
+      numeroSequence: texteSuivi(stmt, 'ElctrncSeqNb'),
       compte,
       devise,
       decimales: contexte.decimales,

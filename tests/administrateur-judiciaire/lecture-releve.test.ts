@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { detecterFormatReleve, lireReleve } from '@/lib/administrateur-judiciaire/domain/import/lecture-releve'
-import { dedoublonnerReleve, parserReleveBancaire } from '@/lib/administrateur-judiciaire/domain/import/releve-bancaire'
+import { dedoublonnerRelevesStructures, empreinteReleve, empreintesMouvements } from '@/lib/administrateur-judiciaire/domain/import/doublons-releves'
+import { parserReleveBancaire } from '@/lib/administrateur-judiciaire/domain/import/releve-bancaire'
 
 /**
  * Détection du format d'un relevé bancaire (CSV, CFONB 120, camt.053) à partir de son contenu, et lecture commune qui
@@ -60,9 +61,10 @@ describe('lecture commune d’un relevé', () => {
     expect(camt.lignes.map((ligne) => ligne.montant)).toEqual([350, -1234.56, 120, -12.5])
   })
 
-  it('les lignes se dédoublonnent comme celles du CSV : un relevé réimporté n’apporte rien', () => {
-    const { lignes } = lireReleve(CAMT)
-    expect(dedoublonnerReleve(lignes, lignes).retenues).toEqual([])
+  it('formats structurés : un relevé réimporté n’apporte rien, reconnu par relevé et non ligne à ligne', () => {
+    const { releves } = lireReleve(CAMT),
+      dejaImporte = { releves: releves.map(empreinteReleve), mouvements: releves.flatMap(empreintesMouvements) }
+    expect(dedoublonnerRelevesStructures(lireReleve(CAMT).releves, dejaImporte).lignes).toEqual([])
   })
 
   it('un relevé dans une autre devise que celle de la comptabilité est refusé', () => {

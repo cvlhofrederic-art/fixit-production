@@ -45,6 +45,7 @@ describe('relevé camt.053 — lecture (version 001.02)', () => {
     expect(lecture.releves[0]).toMatchObject({
       format: 'camt053',
       compte: { iban: 'FR7612345000100001234567849', rib: null, autreIdentifiant: null, titulaire: 'SDC LES TILLEULS' },
+      numeroSequence: '41',
       devise: 'EUR',
       decimales: 2,
       dateOuverture: '2026-09-30',
@@ -59,6 +60,7 @@ describe('relevé camt.053 — lecture (version 001.02)', () => {
   it('l’ancien solde peut être le solde clos précédent (PRCD) ; un relevé sans écriture', () => {
     expect(lecture.releves[1]).toMatchObject({ soldeOuvertureMineur: 500_000, soldeClotureMineur: 500_000, dateOuverture: '2026-09-30', mouvements: [] })
     expect(lecture.releves[1].compte.titulaire).toBeNull()
+    expect(lecture.releves[1].numeroSequence).toBeNull()
   })
 
   it('une écriture est une LigneReleve (montant positif = encaissement) avec ses références et ses parties', () => {

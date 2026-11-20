@@ -26,13 +26,20 @@ import {
  * d'un autre compte est refusé (compteCorrespond : IBAN, ou RIB comparé à la partie nationale d'un IBAN FR / MC). Les
  * erreurs ne bloquent pas les autres relevés : c'est à l'appelant de décider s'il importe un fichier partiellement refusé
  * (🔴 à faire valider par Frédéric).
+ *
+ * Doublons : les lignes d'un CSV passent dans dedoublonnerReleve (releve-bancaire.ts) ; les relevés d'un format structuré
+ * passent dans dedoublonnerRelevesStructures (doublons-releves.ts), jamais dans dedoublonnerReleve, qui confondrait deux
+ * mouvements identiques d'un même relevé dont le solde vient d'être contrôlé.
  */
 
 export type FormatReleve = 'csv' | 'cfonb120' | 'camt053' | 'inconnu'
 
 export interface LectureReleve {
   format: FormatReleve
-  /** Lignes à importer : lignes CSV lues, ou mouvements des relevés retenus dans l'ordre du fichier. */
+  /**
+   * Lignes lues : lignes CSV, ou mouvements des relevés retenus dans l'ordre du fichier (à dédoublonner par relevé avec
+   * dedoublonnerRelevesStructures, voir l'en-tête).
+   */
   lignes: LigneReleve[]
   /** Relevés contrôlés (CFONB 120, camt.053) ; vide pour le CSV, qui ne porte pas de solde. */
   releves: ReleveCompte[]

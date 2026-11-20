@@ -61,6 +61,7 @@ describe('relevé CFONB 120 — lecture', () => {
     expect(releve).toMatchObject({
       format: 'cfonb120',
       identifiant: null,
+      numeroSequence: null,
       compte: { iban: null, rib: { banque: '12345', guichet: '00010', numero: '00012345678', cle: '49' }, autreIdentifiant: null, titulaire: null },
       devise: 'EUR',
       decimales: 2,

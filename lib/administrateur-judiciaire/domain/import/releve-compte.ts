@@ -8,8 +8,11 @@ import { normaliserTexte } from '@/lib/administrateur-judiciaire/domain/texte'
  * du relevé (les centimes pour l'euro), positifs pour un crédit au compte (encaissement), négatifs pour un débit.
  *
  * Un mouvement est une LigneReleve (releve-bancaire.ts : date ISO, libellé, montant en euros décimaux, positif =
- * encaissement) : il passe tel quel dans dedoublonnerReleve et proposerImputations. Le montant décimal y est dérivé du
- * montant entier (montantMineur / 10^décimales), jamais l'inverse.
+ * encaissement) : il passe tel quel dans proposerImputations. Il ne passe PAS dans dedoublonnerReleve, qui écarte aussi
+ * les répétitions internes (même date, montant et libellé) : deux mouvements identiques d'un relevé dont le solde est
+ * contrôlé sont deux mouvements réels (deux frais, deux virements d'un même copropriétaire). Les doublons des relevés
+ * structurés se traitent par relevé et par référence : dedoublonnerRelevesStructures (doublons-releves.ts). Le montant
+ * décimal y est dérivé du montant entier (montantMineur / 10^décimales), jamais l'inverse.
  *
  * Contrôle des soldes — 🟢 CFONB, « Relevé de compte sur support informatique » (juillet 2004), § 2 : le nouveau solde
  * (07) est le solde au dernier jour de la période et « est repris comme ancien solde du relevé de la période suivante » ;
@@ -84,6 +87,8 @@ export interface ReleveCompte {
   rang: number
   /** Identifiant du relevé (camt.053 Stmt/Id) ; null en CFONB 120. */
   identifiant: string | null
+  /** Numéro de séquence du relevé (camt.053 Stmt/ElctrncSeqNb) ; null s'il est absent et en CFONB 120. */
+  numeroSequence: string | null
   compte: CompteReleve
   devise: string
   decimales: number

@@ -288,6 +288,7 @@ function fermerReleve(lecture: Lecture, numero: number, ligne: string, longueur:
       format: 'cfonb120',
       rang: releve.rang,
       identifiant: null,
+      numeroSequence: null,
       compte: releve.compte,
       devise: releve.devise,
       decimales: releve.decimales,
