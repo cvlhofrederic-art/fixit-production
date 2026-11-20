@@ -38,6 +38,10 @@ import type { PhaseContentieux, TypeContentieux } from '@/lib/data/referentiels-
  * procédure (art. 10-1, avant-dernier al.), sauf décision contraire du juge (dernier al.). La ventilation de la facture et
  * les frais déjà recouvrés sont des données nouvelles : enregistrement à brancher ; écran : Frédéric.
  * Les règlements s'imputent globalement : l'imputation poste par poste (C. civ. art. 1342-10 et 1343-1) n'est pas faite ici.
+ * Décision du 20/11/2026 (partie C, F52) : l'indemnité de l'assureur impayés n'entre pas dans ce décompte, ni déduite du
+ * solde dû, ni imputée comme un règlement du débiteur. Une fois la police lue, la ventilation du solde (« dont part du
+ * syndicat », « dont part de l'assureur », compte d'attente « à reverser à l'assureur ») se calcule à partir de
+ * soldeDuCentimes par contentieux-assurance-impayes.ventilerSoldeImpayes ; le solde dû reste inchangé.
  * 🔵 Unités de périodicité de l'échéancier : la liste Gestéam n'a pas été ouverte (jours, semaines, mois retenus).
  */
 
