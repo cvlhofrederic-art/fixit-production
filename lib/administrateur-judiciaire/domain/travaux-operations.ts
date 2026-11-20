@@ -172,7 +172,12 @@ import { STATUT_TRAVAUX, TYPE_TRAVAUX, type StatutTravaux, type TypeTravaux } fr
  * - « Encaissements effectués » d'une tranche : réglé des postes de dette dont l'échéance d'origine est une échéance de
  *   la tranche ; les postes fournis sont ceux du syndicat de l'opération (D1) ;
  * - historique : l'annulation et le traitement de répartition, sans colonne dans la table ChangementStatut, sont repris
- *   dans le motif.
+ *   dans le motif ;
+ * - virement du 102 au 702 (virementProvisionsTravauxALaRealisation) : ses deux lignes portent la clé de la charge virée
+ *   (attributs.cle), à donner pour une opération sur plusieurs clés, la clé unique de l'opération sinon ; une clé
+ *   étrangère à l'opération est refusée. Les deux balances, par comptes et par clés, sont « en concordance » (arrêté du 14
+ *   mars 2005, art. 2) : un 702 sans clé n'aurait pas de place dans la balance par clés, et les annexes 4 et 5
+ *   (comptes-syndicat-annexes.ts) le présenteraient « sans clé de répartition » (relecture des annexes du 20/11/2026).
  * 🔴 Non établi (questions pour Frédéric ou Hugo) :
  * - « Le solde en attente d'une opération va-t-il au 12000 (série "120xx" de Gestéam) ou à la subdivision 12-1 "Travaux
  *   décidés par l'assemblée générale" ? » (VitFix : 12000) ; « Le 71147 de l'opération s'ouvre-t-il à sa création ou à
@@ -199,7 +204,8 @@ import { STATUT_TRAVAUX, TYPE_TRAVAUX, type StatutTravaux, type TypeTravaux } fr
  * - « Que portent le bouton "À voter" et le champ "Approbation" du bloc Décision de la fiche ? » (non repris).
  * Branchements à faire hors de ce module (fichiers non modifiés) : appelant d'ecritureFactureVentilee (facture-ventilee.ts,
  * enregistrement d'une facture de l'opération) — pour chaque ligne au 671 ou au 673 de l'opération,
- * virementProvisionsTravauxALaRealisation, avec le solde du 102 de l'opération lu au grand livre (J67, R61) ; et
+ * virementProvisionsTravauxALaRealisation, avec le solde du 102 de l'opération lu au grand livre (J67, R61) et la clé de
+ * la ligne ; et
  * l'alerte des classes 61 et 62 (travaux-budget.ts, anomaliesComptesDesLignesDOperation, ou le suivi financier qui
  * reçoit les lignes des factures ; J67, R60) ; repartition-appels.ts — un champ
  * `auxiliaireContrepartie` de l'échéance, lu par traitementAppelDeFonds, rendrait traitementAppelDeFondsTravaux inutile ;
@@ -976,32 +982,54 @@ function verifierOperationSuivie(operation: OperationTravaux, le: string, objet:
  * « débité par le crédit du compte 702 [...] au fur et à mesure de la réalisation des travaux » (arrêté du 14 mars 2005,
  * art. 10 ; J67, R61), du montant de la charge, dans la limite du solde créditeur du 102 que l'appelant fournit. Rend le
  * traitement (« Saisie de mouvements », 🔵 : la famille Gestéam de ce virement n'a pas été observée), null quand le 102
- * est soldé, et la part de la charge que le 102 ne couvre pas. Branchement à faire : à l'écriture de chaque facture de
- * l'opération (appelant d'ecritureFactureVentilee, en-tête du module).
+ * est soldé, et la part de la charge que le 102 ne couvre pas. Les deux lignes portent la clé de la charge (`cleId`, à
+ * donner pour une opération sur plusieurs clés ; la clé unique de l'opération sinon ; 🔵, en-tête). Branchement à faire :
+ * à l'écriture de chaque ligne de facture de l'opération, avec sa clé (appelant d'ecritureFactureVentilee, en-tête).
  */
 export function virementProvisionsTravauxALaRealisation(
   operation: OperationTravaux,
-  { id, date, segmentSyndicat, chargeCentimes, solde102Centimes }: { id: string; date: string; segmentSyndicat: string; chargeCentimes: number; solde102Centimes: number },
+  {
+    id,
+    date,
+    segmentSyndicat,
+    chargeCentimes,
+    solde102Centimes,
+    cleId,
+  }: { id: string; date: string; segmentSyndicat: string; chargeCentimes: number; solde102Centimes: number; cleId?: string },
 ): { traitement: Traitement | null; vireCentimes: number; nonCouvertCentimes: number } {
   const { numero } = operation
   if (!Number.isInteger(chargeCentimes) || chargeCentimes <= 0)
     throw new Error(`Opération ${numero} : charge de l'opération (${chargeCentimes}) en centimes entiers strictement positifs.`)
   if (!estCentimes(solde102Centimes)) throw new Error(`Opération ${numero} : solde du 102 (${solde102Centimes}) en centimes entiers positifs ou nuls.`)
+  const cle = cleDuVirement(operation, cleId)
   verifierOperationSuivie(operation, date, 'virement du 102 au 702')
   const vireCentimes = Math.min(chargeCentimes, solde102Centimes)
   const nonCouvertCentimes = chargeCentimes - vireCentimes
   if (vireCentimes === 0) return { traitement: null, vireCentimes, nonCouvertCentimes }
   const liens = { travauxId: numero }
+  const attributs = { cle }
   const traitement = creerTraitement({
     id,
     famille: 'Saisie de mouvements',
     date,
     mouvements: [
-      { compte: numeroCompteTravaux(operation, 'provisionsTravauxDecides', segmentSyndicat), sens: 'debit', montantCentimes: vireCentimes, liens },
-      { compte: numeroCompteTravaux(operation, 'provisionsSurTravaux', segmentSyndicat), sens: 'credit', montantCentimes: vireCentimes, liens },
+      { compte: numeroCompteTravaux(operation, 'provisionsTravauxDecides', segmentSyndicat), sens: 'debit', montantCentimes: vireCentimes, attributs, liens },
+      { compte: numeroCompteTravaux(operation, 'provisionsSurTravaux', segmentSyndicat), sens: 'credit', montantCentimes: vireCentimes, attributs, liens },
     ],
   })
   return { traitement, vireCentimes, nonCouvertCentimes }
+}
+
+/** Clé du virement : celle de la charge, exigée parmi les clés de l'opération ; à défaut, la clé unique de l'opération. */
+function cleDuVirement(operation: OperationTravaux, cleId: string | undefined): string {
+  const { numero, cles } = operation
+  if (cleId === undefined) {
+    if (cles.length > 1)
+      throw new Error(`Opération ${numero} sur plusieurs clés (${cles.map((k) => k.cleId).join(', ')}) : clé de la charge à donner pour le virement du 102 au 702.`)
+    return cles[0].cleId
+  }
+  if (!cles.some((k) => k.cleId === cleId)) throw new Error(`Opération ${numero} : clé ${cleId} hors des clés de l'opération (${cles.map((k) => k.cleId).join(', ')}).`)
+  return cleId
 }
 
 /** Comptes de produits de la série d'une opération : le 702 (provisions virées du 102) et le 71147 (subventions). */

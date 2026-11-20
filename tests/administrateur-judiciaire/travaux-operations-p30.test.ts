@@ -734,6 +734,26 @@ describe('J67, R60 et R61 — comptes de l’opération : 673 des études, 102 v
     expect(() => virementProvisionsTravauxALaRealisation(projet(), { ...contexte, chargeCentimes: 1, solde102Centimes: 1 })).toThrow(/sans décision/)
   })
 
+  it('relecture des annexes (20/11/2026) : le virement porte la clé de la charge, exigée pour une opération sur plusieurs clés', () => {
+    const contexte = { id: 't-v2', date: '2026-06-30', segmentSyndicat: SEGMENT, chargeCentimes: 300_000, solde102Centimes: 1_000_000 }
+    const cles = (r: ReturnType<typeof virementProvisionsTravauxALaRealisation>) => r.traitement?.mouvements.map((m) => m.attributs?.cle)
+    // Une seule clé : celle de l'opération, sans avoir à la donner.
+    expect(cles(virementProvisionsTravauxALaRealisation(op, contexte))).toEqual(['cle-001', 'cle-001'])
+    expect(cles(virementProvisionsTravauxALaRealisation(op, { ...contexte, cleId: 'cle-001' }))).toEqual(['cle-001', 'cle-001'])
+    expect(() => virementProvisionsTravauxALaRealisation(op, { ...contexte, cleId: 'cle-bat-B' })).toThrow(/cle-bat-B/)
+    const deuxCles = creerOperationTravaux(
+      saisie({
+        cles: [
+          { cleId: 'cle-001', budgetTtcCentimes: 8_000_000, financementFondsTravauxCentimes: 2_000_000 },
+          { cleId: 'cle-bat-B', budgetTtcCentimes: 4_000_000, financementFondsTravauxCentimes: 0 },
+        ],
+      }),
+    )
+    expect(cles(virementProvisionsTravauxALaRealisation(deuxCles, { ...contexte, cleId: 'cle-bat-B' }))).toEqual(['cle-bat-B', 'cle-bat-B'])
+    expect(() => virementProvisionsTravauxALaRealisation(deuxCles, contexte)).toThrow(/plusieurs clés/)
+    expect(() => virementProvisionsTravauxALaRealisation(deuxCles, { ...contexte, cleId: 'cle-inconnue' })).toThrow(/cle-inconnue/)
+  })
+
   const fin = { date: '2026-12-31', segmentSyndicat: SEGMENT }
 
   it('R61 : solde au 12 d’une opération non clôturée en fin d’exercice, repris à l’ouverture par l’écriture contraire', () => {
