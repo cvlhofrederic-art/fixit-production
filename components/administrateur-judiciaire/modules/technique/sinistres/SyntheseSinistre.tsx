@@ -83,7 +83,10 @@ function avertissementEtFondements(controle: ControleDelaiDeclaration): string {
  * si le contrôle retient ce même repère, ou aucun délai (dommages-ouvrage) : sans date d'arrêté, la catastrophe
  * naturelle n'a pas de repère, le titre en donne la raison.
  */
-function lignesReperes(reperes: ReperesDelaisSinistre, controle: ControleDelaiDeclaration): string[] {
+function lignesReperes(reperes: ReperesDelaisSinistre | null, controle: ControleDelaiDeclaration): string[] {
+  // Aucun repère : survenance ou connaissance d'une année improbable (#757). Le titre du bandeau, message du contrôle,
+  // en donne la raison ; seul le rappel des textes reste.
+  if (reperes === null) return [avertissementEtFondements(controle)]
   const memeRepere = reperes.desLaConnaissance || controle.declarationAuPlusTard === reperes.declarationAuPlusTard
   const lignes = [
     memeRepere ? reperes.justificationDeclaration : null,
