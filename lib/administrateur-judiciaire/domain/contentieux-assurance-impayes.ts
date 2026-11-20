@@ -4,6 +4,7 @@ import {
   ajouterMois,
   decomposerDateIso,
   ecartJours,
+  estAnneeImprobable,
   estDateIsoValide,
   messagePlausibilite,
   plausibiliteDate,
@@ -457,6 +458,8 @@ function etatRepereImpayes(repere: string, declareLe: string | null, aujourdhui:
 /**
  * Repère de déclaration « selon la police » d'un impayé (F51) : date du fait qui déclenche le sinistre, plus le délai
  * prévu par la police. Sans l'un des deux champs, ou sans la date du fait, aucun délai n'est calculé (choix gardé).
+ * Fait daté d'une année improbable (dates.estAnneeImprobable, faute de frappe) : « sans repère », la date est à corriger,
+ * comme pour les sinistres (depuis 9999-12-20, trente jours tombaient en l'an 10000, hors du calendrier ISO).
  * Signal, jamais une déchéance. Lève une erreur si une date fournie n'est pas AAAA-MM-JJ.
  */
 export function repereDeclarationImpayes(police: PoliceAssuranceImpayes, dates: DatesRepereImpayes): RepereDeclarationImpayes {
@@ -477,6 +480,10 @@ export function repereDeclarationImpayes(police: PoliceAssuranceImpayes, dates: 
   const fait = LIBELLES_FAITS_GENERATEURS_IMPAYES[faitGenerateur]
   if (dates.dateFaitGenerateur === null)
     return sansRepere(`Aucun délai de déclaration calculé : date du fait « ${fait} » non renseignée.`)
+  if (estAnneeImprobable(dates.dateFaitGenerateur))
+    return sansRepere(
+      `${messagePlausibilite(`Fait « ${fait} » daté`, dates.dateFaitGenerateur, 'annee_improbable')} Pas de repère : corriger la date.`,
+    )
   const date = dateRepereImpayes(dates.dateFaitGenerateur, delai)
   const etat = etatRepereImpayes(date, dates.declareLe, dates.aujourdhui)
   const duFait = dateFrAnneeComplete(dates.dateFaitGenerateur)

@@ -347,6 +347,39 @@ describe('F51 — police impayés : délai de déclaration et fait qui déclench
     expect(apres.message).not.toMatch(/tardive|déchu|déchéance encourue/i)
   })
 
+  it('fait daté d’une année improbable (2525, 0026, 9999) : « sans repère », la date fautive est citée, aucune erreur interne', () => {
+    const cas = [
+      ['2525-02-01', 'Fait « Première échéance impayée » daté du 01/02/2525 : année improbable (faute de frappe ?). Pas de repère : corriger la date.'],
+      ['0026-02-01', 'Fait « Première échéance impayée » daté du 01/02/0026 : année improbable (faute de frappe ?). Pas de repère : corriger la date.'],
+      // Depuis 9999-12-20, trente jours tombaient en l'an 10000 : « Date ISO invalide » levée au lieu d'un repère.
+      ['9999-12-20', 'Fait « Première échéance impayée » daté du 20/12/9999 : année improbable (faute de frappe ?). Pas de repère : corriger la date.'],
+    ] as const
+    for (const [dateFaitGenerateur, message] of cas)
+      for (const declareLe of [null, '2026-03-10']) {
+        const repere = repereDeclarationImpayes(remplie(), { dateFaitGenerateur, declareLe, aujourdhui: AUJOURDHUI })
+        expect(repere, `${dateFaitGenerateur} ${declareLe}`).toEqual({
+          etat: 'sans_repere',
+          date: null,
+          selonLaPolice: true,
+          faitGenerateur: 'premiere_echeance_impayee',
+          delai: { nombre: 30, unite: 'jours' },
+          retardJours: 0,
+          message,
+          avertissement: AVERTISSEMENT_REPERE_POLICE_IMPAYES,
+        })
+      }
+    // Mois et jours ouvrés : même règle, même depuis le dernier jour de l'an 9999.
+    for (const delaiDeclaration of [{ nombre: 1, unite: 'mois' }, { nombre: 5, unite: 'jours_ouvres' }] as const)
+      expect(
+        repereDeclarationImpayes(remplie({ delaiDeclaration }), { dateFaitGenerateur: '9999-12-31', declareLe: null, aujourdhui: AUJOURDHUI }),
+      ).toMatchObject({ etat: 'sans_repere', date: null })
+    // Bornes : 1900 et 2100 restent plausibles, le repère se calcule.
+    const date = (dateFaitGenerateur: string) =>
+      repereDeclarationImpayes(remplie(), { dateFaitGenerateur, declareLe: null, aujourdhui: AUJOURDHUI }).date
+    expect(date('1900-01-01')).toBe('1900-01-31')
+    expect(date('2100-01-01')).toBe('2100-01-31')
+  })
+
   it('refuse un délai mal formé, un fait inconnu, une date du fait ou du jour non ISO', () => {
     expect(() => creerPoliceAssuranceImpayes({ delaiDeclaration: { nombre: 0, unite: 'jours' } })).toThrow(/délai/i)
     expect(() => creerPoliceAssuranceImpayes({ delaiDeclaration: { nombre: 2.5, unite: 'mois' } })).toThrow(/délai/i)
