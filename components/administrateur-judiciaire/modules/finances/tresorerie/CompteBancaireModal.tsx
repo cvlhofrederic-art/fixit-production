@@ -147,7 +147,10 @@ export interface ClotureCompteModalProps {
   onConfirmer: () => Promise<boolean>
 }
 
-/** Confirmation « Clôturer » : le compte reste en base, inactif. */
+/**
+ * Confirmation « Clôturer » : le compte reste en base, inactif. Aucune action ne le rouvre depuis l'écran (le tableau
+ * n'en propose que pour les comptes actifs) : la confirmation le dit avant le clic.
+ */
 export function ClotureCompteModal({ compte, onClose, onConfirmer }: Readonly<ClotureCompteModalProps>) {
   const [enCours, setEnCours] = useState(false)
   const confirmer = async () => {
@@ -164,7 +167,8 @@ export function ClotureCompteModal({ compte, onClose, onConfirmer }: Readonly<Cl
           {compte.iban ? ` · ${ibanGroupe(compte.iban)}` : ''}
         </p>
         <p className="muted" style={{ margin: '8px 0 0', fontSize: 12.5 }}>
-          Le compte reste dans la liste, marqué « Clôturé ». Il ne compte plus dans les contrôles du mandat.
+          Le compte reste dans la liste, marqué « Clôturé ». Il ne compte plus dans les contrôles du mandat. Sans retour
+          depuis cet écran.
         </p>
       </ModalBody>
       <ModalFooter>
