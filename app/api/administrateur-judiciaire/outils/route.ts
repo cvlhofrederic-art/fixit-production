@@ -6,7 +6,8 @@
 // - « saisie-facture » : lecture d'une facture fournisseur, image ou PDF de 4 Mo au plus (Outils IA › Saisie de factures).
 // Même garde que la route des agents (app/api/administrateur-judiciaire/agent) : session Supabase avec rôle syndic,
 // limite de débit, données personnelles masquées avant le modèle et rétablies dans la réponse. Le fichier de la
-// facture n'est pas masqué (le base64 serait altéré) ; il ne part ni dans les journaux ni dans Langfuse.
+// facture n'est pas masqué (le base64 serait altéré) ; il ne part ni dans les journaux ni dans Langfuse, qui ne
+// reçoit, pour chaque outil, que des métadonnées (tâche, longueurs, nombres, jetons, statut, latence).
 import { NextResponse, type NextRequest } from 'next/server'
 import { z } from 'zod'
 import { createServerSupabaseClient } from '@/lib/supabase-server-component'
@@ -79,12 +80,15 @@ const BodySchema = z.discriminatedUnion('tache', [
 
 type Corps = z.infer<typeof BodySchema>
 
-/** Requête prête pour Claude : messages, configuration, table des jetons PII et libellé de trace (sans le document). */
+/**
+ * Requête prête pour Claude : messages, configuration, table des jetons PII et métadonnées de trace (des nombres et
+ * des types, aucun texte de la demande).
+ */
 interface Demande {
   opts: GroqCallOptions
   config: ClaudeCallConfig
   tokenMap: Map<string, string>
-  trace: string
+  trace: Record<string, string | number>
 }
 
 const erreur = (code: string, status: number) => NextResponse.json({ error: code }, { status })
@@ -123,8 +127,14 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    // Trace Langfuse sans aucun texte (devis, PV, facture, réponse, message d'erreur) : seulement des métadonnées.
     const reponse = await traceAgent(
-      { agent_id: `aj-${corps.tache}`, user_id: user.id, prompt: demande.trace, metadata: { succursale: 'administrateur-judiciaire' } },
+      {
+        agent_id: `aj-${corps.tache}`,
+        user_id: user.id,
+        metadonneesSeules: true,
+        metadata: { succursale: 'administrateur-judiciaire', tache: corps.tache, ...demande.trace },
+      },
       () => callClaudeWithRetry(demande.opts, demande.config),
     )
     const choix = reponse.choices?.[0]
@@ -174,11 +184,12 @@ function construireDemande(corps: Corps): Demande | NextResponse {
         },
         config: { effort: 'medium' },
         tokenMap,
-        trace: `Analyse d'un devis ou d'une facture (${corps.texte.length} caractères)`,
+        trace: { longueurTexte: corps.texte.length },
       }
     }
     case 'redaction-pv': {
-      if (JSON.stringify(corps.contexte).length > TAILLE_MAX_CONTEXTE) return erreur('contexte_trop_volumineux', 413)
+      const tailleContexte = JSON.stringify(corps.contexte).length
+      if (tailleContexte > TAILLE_MAX_CONTEXTE) return erreur('contexte_trop_volumineux', 413)
       // Contexte, copropriété et résolutions masqués ensemble (même table de jetons).
       const { sanitized, tokenMap } = sanitizeContextForLLM({
         contexte: corps.contexte,
@@ -195,7 +206,7 @@ function construireDemande(corps: Corps): Demande | NextResponse {
         },
         config: { effort: 'medium' },
         tokenMap,
-        trace: `Projet de PV : ${corps.resolutions.length} résolution(s)`,
+        trace: { resolutions: corps.resolutions.length, tailleContexte },
       }
     }
     case 'saisie-facture': {
@@ -225,7 +236,7 @@ function construireDemande(corps: Corps): Demande | NextResponse {
         },
         config: { effort: 'low', disableGroqFallback: true },
         tokenMap,
-        trace: `Lecture d'une facture fournisseur (${fichier.type}, ${fichier.octets} octets)`,
+        trace: { typeFichier: fichier.type, octets: fichier.octets, coproprietes: corps.coproprietes.length },
       }
     }
   }
