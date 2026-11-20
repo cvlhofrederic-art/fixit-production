@@ -61,10 +61,15 @@ export function composerDateIso(annee: number, mois: number, jour: number): stri
   return `${String(annee).padStart(4, '0')}-${String(mois).padStart(2, '0')}-${String(jour).padStart(2, '0')}`
 }
 
-/** Tous les calculs de délais se font en UTC. */
+/**
+ * Tous les calculs de délais se font en UTC. Pas de Date.UTC : il ramène les années 0 à 99 au XXe siècle
+ * (Date.UTC(26, 2, 15) donne le 15/03/1926) ; setUTCFullYear prend l'année telle quelle.
+ */
 export function dateIsoVersUtcMs(valeur: string): number {
   const { a, m, j } = decomposerDateIso(valeur)
-  return Date.UTC(a, m - 1, j)
+  const date = new Date(0)
+  date.setUTCFullYear(a, m - 1, j)
+  return date.getTime()
 }
 
 export function utcMsVersDateIso(ms: number): string {
