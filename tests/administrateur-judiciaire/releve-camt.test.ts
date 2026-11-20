@@ -190,6 +190,108 @@ describe('relevé camt.053 — fichier hostile', () => {
     expect(ecriture.libelle.length).toBeLessThanOrEqual(1_000 + ' DURAND CLAIRE'.length)
     expect(lecture.avertissements).toEqual(['Relevé 1, écriture 1 : libellé limité à 1 000 caractères, textes suivants omis.'])
   })
+
+  it('20 000 soldes OPBD répétés : relevé refusé en moins d’une seconde et demie', () => {
+    const debut = performance.now(),
+      lecture = lireReleveCamt053(releveEur(solde('OPBD', '1.00').repeat(20_000) + solde('CLBD', '1.00')))
+    expect(performance.now() - debut).toBeLessThan(1_500)
+    expect(lecture.releves).toEqual([])
+    expect(lecture.erreurs[0]).toBe('Relevé 1 : plusieurs soldes OPBD.')
+  })
+})
+
+/** Relevé EUR d'un compte IBAN fictif : contenu du Stmt après Acct (soldes, totaux, écritures) et pagination éventuelle. */
+const releveEur = (contenu: string, pagination = '') =>
+  '<?xml version="1.0" encoding="UTF-8"?><Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.02"><BkToCstmrStmt>' +
+  `<GrpHdr><MsgId>M1</MsgId><CreDtTm>2026-10-01T20:00:00</CreDtTm>${pagination}</GrpHdr>` +
+  `<Stmt><Id>S1</Id><Acct><Id><IBAN>FR7612345000100001234567849</IBAN></Id><Ccy>EUR</Ccy></Acct>${contenu}</Stmt></BkToCstmrStmt></Document>`
+function solde(code: string, montant: string) {
+  return `<Bal><Tp><CdOrPrtry><Cd>${code}</Cd></CdOrPrtry></Tp><Amt Ccy="EUR">${montant}</Amt><CdtDbtInd>CRDT</CdtDbtInd><Dt><Dt>2026-10-01</Dt></Dt></Bal>`
+}
+const ecriture = (montant: string, sens: 'CRDT' | 'DBIT', contenu = '', statut = 'BOOK') =>
+  `<Ntry><Amt Ccy="EUR">${montant}</Amt><CdtDbtInd>${sens}</CdtDbtInd><Sts>${statut}</Sts><BookgDt><Dt>2026-10-01</Dt></BookgDt>${contenu}</Ntry>`
+/** Totaux annoncés : [nombre, somme] des écritures au crédit puis au débit. */
+const totaux = ([nbCredits, credits]: [number, string], [nbDebits, debits]: [number, string]) =>
+  `<TxsSummry><TtlNtries><NbOfNtries>${nbCredits + nbDebits}</NbOfNtries><Sum>${(Number(credits) + Number(debits)).toFixed(2)}</Sum></TtlNtries>` +
+  `<TtlCdtNtries><NbOfNtries>${nbCredits}</NbOfNtries><Sum>${credits}</Sum></TtlCdtNtries>` +
+  `<TtlDbtNtries><NbOfNtries>${nbDebits}</NbOfNtries><Sum>${debits}</Sum></TtlDbtNtries></TxsSummry>`
+
+describe('relevé camt.053 — totaux annoncés et pagination', () => {
+  it('écritures comptées au crédit ou au débit selon CdtDbtInd, y compris une écriture à 0,00', () => {
+    const lecture = lireReleveCamt053(
+      releveEur(
+        solde('OPBD', '100.00') +
+          solde('CLBD', '100.00') +
+          totaux([1, '0'], [1, '0']) +
+          ecriture('0.00', 'CRDT', '<AddtlNtryInf>FRAIS OFFERTS</AddtlNtryInf>') +
+          ecriture('0.00', 'DBIT', '<AddtlNtryInf>COMMISSION NULLE</AddtlNtryInf>'),
+      ),
+    )
+    expect(lecture.erreurs).toEqual([])
+    expect(lecture.releves[0].mouvements.map((m) => m.libelle)).toEqual(['FRAIS OFFERTS', 'COMMISSION NULLE'])
+  })
+
+  it('seules les écritures comptabilisées comptent dans les totaux annoncés (guide CFONB V1.2, p. 32)', () => {
+    const lecture = lireReleveCamt053(
+      releveEur(solde('OPBD', '0') + solde('CLBD', '10.00') + totaux([1, '10.00'], [0, '0']) + ecriture('10.00', 'CRDT') + ecriture('5.00', 'CRDT', '', 'PDNG')),
+    )
+    expect(lecture.erreurs).toEqual([])
+    expect(lecture.releves[0].mouvements.map((m) => m.montant)).toEqual([10])
+    expect(lecture.avertissements).toEqual(['Relevé 1, écriture 2 : écriture au statut PDNG, non comptabilisée, écartée.'])
+  })
+
+  it('pagination : « page 01, dernière page » est un message unique ; une autre page ou un numéro illisible est refusé', () => {
+    const page = (numero: string, derniere = 'true') => `<MsgPgntn><PgNb>${numero}</PgNb><LastPgInd>${derniere}</LastPgInd></MsgPgntn>`,
+      soldes = solde('OPBD', '100.00') + solde('CLBD', '100.00')
+    expect(lireReleveCamt053(releveEur(soldes, page('01')))).toMatchObject({ erreurs: [], releves: [{ identifiant: 'S1' }] })
+    expect(lireReleveCamt053(releveEur(soldes, page('00001'))).erreurs).toEqual([])
+    expect(lireReleveCamt053(releveEur(soldes, page('2'))).erreurs).toEqual([
+      'Message 1 refusé : relevé paginé (page 2, dernière page : oui) ; la lecture d’un relevé réparti sur plusieurs messages n’est pas traitée.',
+    ])
+    expect(lireReleveCamt053(releveEur(soldes, page('1A'))).erreurs[0]).toMatch(/^Message 1 refusé : relevé paginé \(page 1A,/)
+    expect(lireReleveCamt053(releveEur(soldes, page('000000'))).erreurs[0]).toMatch(/^Message 1 refusé : relevé paginé \(page 000000,/)
+  })
+})
+
+describe('relevé camt.053 — écriture globale (lot de transactions)', () => {
+  const transaction = (nom: string, montant: string, reference: string) =>
+    `<TxDtls><Refs><AcctSvcrRef>TX-${reference}</AcctSvcrRef><EndToEndId>E2E-${reference}</EndToEndId></Refs><AmtDtls><TxAmt><Amt Ccy="EUR">${montant}</Amt></TxAmt></AmtDtls>` +
+    `<RltdPties><Dbtr><Nm>${nom}</Nm></Dbtr></RltdPties><RmtInf><Ustrd>APPEL DE FONDS T4 ${nom}</Ustrd></RmtInf><AddtlTxInf>/LIB/VIR SEPA RECU /DE ${nom}</AddtlTxInf></TxDtls>`
+  const lot = (details: string) =>
+    lireReleveCamt053(
+      releveEur(solde('OPBD', '0') + solde('CLBD', '300.00') + ecriture('300.00', 'CRDT', `<AddtlNtryInf>REMISE VIREMENTS T4</AddtlNtryInf><NtryDtls>${details}</NtryDtls>`)),
+    )
+
+  it('plusieurs transactions : ni payeur, ni bénéficiaire, ni référence, ni texte des transactions ; avertissement', () => {
+    const lecture = lot(`<Btch><NbOfTxs>2</NbOfTxs></Btch>${transaction('DURAND CLAIRE', '100.00', '1')}${transaction('MARTIN PAUL', '200.00', '2')}`)
+    expect(lecture.erreurs).toEqual([])
+    const [mouvement] = lecture.releves[0].mouvements
+    expect(mouvement).toMatchObject({
+      montant: 300,
+      libelle: 'REMISE VIREMENTS T4 (écriture globale de 2 transactions)',
+      payeur: null,
+      beneficiaire: null,
+      referenceClient: null,
+      referenceBanque: null,
+      motifRejet: null,
+    })
+    expect(lecture.avertissements).toEqual([
+      'Relevé 1, écriture 1 : écriture globale de 2 transactions non éclatée ; payeurs, bénéficiaires, références et textes des transactions non repris.',
+    ])
+    const [proposition] = proposerImputations([mouvement], [
+      { nom: 'Durand Claire', solde: -100 },
+      { nom: 'Martin Paul', solde: -200 },
+    ])
+    expect(proposition.candidat).toBeNull()
+  })
+
+  it('le nombre de transactions est le plus grand de Btch/NbOfTxs et du nombre de TxDtls', () => {
+    expect(lot(`<Btch><NbOfTxs>3</NbOfTxs></Btch>${transaction('DURAND CLAIRE', '300.00', '1')}`).avertissements[0]).toMatch(/écriture globale de 3 transactions/)
+    expect(lot(`${transaction('DURAND CLAIRE', '100.00', '1')}${transaction('MARTIN PAUL', '200.00', '2')}`).avertissements[0]).toMatch(/écriture globale de 2 transactions/)
+    const unique = lot(`<Btch><NbOfTxs>1</NbOfTxs></Btch>${transaction('DURAND CLAIRE', '300.00', '1')}`)
+    expect(unique.avertissements).toEqual([])
+    expect(unique.releves[0].mouvements[0]).toMatchObject({ payeur: 'DURAND CLAIRE', referenceClient: 'E2E-1', referenceBanque: 'TX-1' })
+  })
 })
 
 describe('relevé camt.053 — refus', () => {

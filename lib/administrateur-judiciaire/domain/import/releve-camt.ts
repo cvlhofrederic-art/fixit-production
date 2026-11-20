@@ -31,7 +31,11 @@ import { enfant, enfantsNommes, lireXml, suivre, texteSuivi, type ElementXml } f
  *    RmtInf, AddtlTxInf), AddtlNtryInf ; § 2.10 : AddtlTxInf reprend le libellé CFONB précédé du mot-clé « /LIB/ », AddtlNtryInf
  *    porte « /ECM/Yes|No » (exonération de commission) ; § 1.11 : point décimal, 5 décimales au plus, nombre de décimales
  *    compatible avec ISO 4217 ; § 1.12 : un fichier peut regrouper plusieurs messages ; « Il contient uniquement des
- *    informations sur des écritures déjà comptabilisées ».
+ *    informations sur des écritures déjà comptabilisées ». P. 31 : GrpHdr/MsgPgntn, PgNb de type Max5NumericText
+ *    (« 01 » vaut 1), LastPgInd ; Stmt/ElctrncSeqNb [0..1], « Numéro de séquence du relevé, s'incrémente de 1 à chaque
+ *    relevé envoyé ». P. 32-33 : TxsSummry, « nombre et somme des écritures comptabilisées », TtlCdtNtries et
+ *    TtlDbtNtries (« Indiquer "0" s'il n'y a pas d'écriture »). P. 37 : NtryDtls/Btch/NbOfTxs (Max15NumericText, « Nombre
+ *    de chèques dans la remise ») ; TxDtls [0..n], « Une seule occurrence » dans le guide.
  * 🟢 Payments Canada, guide camt.053.001.08 (MyStandards, 19/04/2024) : Sts devient un choix (Sts/Cd « BOOK ») ; Dbtr et Cdtr
  *    deviennent des choix (Dbtr/Pty/Nm) ; BookgDt en Dt ou DtTm ; RvslInd « Should only be present when the value is true ».
  * 🟢 Banques nordiques (POP Pankki, Nordea) : PRCD, solde clos précédent, peut tenir lieu d'ancien solde.
@@ -41,11 +45,15 @@ import { enfant, enfantsNommes, lireXml, suivre, texteSuivi, type ElementXml } f
  *    AddtlTxInf (valeurs « /LIB/ » seules s'il y a des mots-clés), RmtInf/Ustrd, RmtInf/Strd/CdtrRefInf/Ref, AddtlNtryInf
  *    (mêmes règles), puis la contrepartie (payeur d'un crédit, bénéficiaire d'un débit, inversés pour une contre-passation
  *    dont les parties restent celles de l'opération d'origine), au plus 1 000 caractères (composerLibelle, avertissement
- *    au-delà) ; totaux annoncés (TxsSummry) comparés aux écritures lues
- *    quand ils sont présents ; montant à zéros de fin admis au-delà des décimales de la devise (« 10.500 » en EUR).
+ *    au-delà) ; totaux annoncés (TxsSummry), quand ils sont présents, comparés aux seules écritures comptabilisées, chacune
+ *    comptée au crédit ou au débit selon son CdtDbtInd (une écriture à 0,00 au crédit est un crédit) ; montant à zéros de
+ *    fin admis au-delà des décimales de la devise (« 10.500 » en EUR) ; message unique si PgNb vaut 1 et LastPgInd est vrai.
+ *    Écriture globale (plus d'une TxDtls, ou Btch/NbOfTxs supérieur à 1) : rendue comme une seule écriture, sans payeur,
+ *    bénéficiaire, référence ni texte des transactions (le nom d'un seul débiteur ferait imputer tout le lot à un
+ *    copropriétaire), libellé = AddtlNtryInf suivi de « (écriture globale de N transactions) », avec un avertissement.
  * 🔴 Non établi / non traité : versions 001.03 à 001.07 et après 001.08 non relues une à une (seuls les éléments ci-dessus
- *    sont lus, par leur nom local) ; relevé paginé sur plusieurs messages (refusé) ; écritures globales (lots, TxDtls
- *    multiples) non éclatées en transactions ; soldes de type propriétaire (Prtry) ignorés ; validation XSD complète.
+ *    sont lus, par leur nom local) ; relevé paginé sur plusieurs messages (refusé) ; écritures globales non éclatées en
+ *    transactions ; soldes de type propriétaire (Prtry) ignorés ; validation XSD complète.
  */
 
 const ESPACE_CAMT053 = /^urn:iso:std:iso:20022:tech:xsd:camt\.053\.001\.\d{2}$/
@@ -104,31 +112,37 @@ interface SoldeLu {
   date: string
 }
 
-/** Soldes OPBD (à défaut PRCD) et CLBD du relevé ; erreurs consignées dans le contexte. */
-function lireSoldes(stmt: ElementXml, contexte: Contexte): { ouverture: SoldeLu | null; cloture: SoldeLu | null } {
+/** Soldes du relevé (Bal) rangés par code de type (Tp/CdOrPrtry/Cd), dans l'ordre du document. */
+function soldesParCode(stmt: ElementXml): Map<string, ElementXml[]> {
   const parCode = new Map<string, ElementXml[]>()
   for (const bal of enfantsNommes(stmt, 'Bal')) {
-    const code = texteSuivi(bal, 'Tp', 'CdOrPrtry', 'Cd')
-    if (code) parCode.set(code, [...(parCode.get(code) ?? []), bal])
+    const code = texteSuivi(bal, 'Tp', 'CdOrPrtry', 'Cd'),
+      deja = code ? parCode.get(code) : undefined
+    if (deja) deja.push(bal)
+    else if (code) parCode.set(code, [bal])
   }
-  const lire = (codes: string[], nature: string): SoldeLu | null => {
-    const code = codes.find((candidat) => parCode.has(candidat))
-    if (!code) {
-      contexte.erreurs.push(`Relevé ${contexte.rang} : ${nature} (${codes.join(' ou ')}) absent.`)
-      return null
-    }
-    const [bal, ...autres] = parCode.get(code) ?? []
-    if (autres.length > 0) {
-      contexte.erreurs.push(`Relevé ${contexte.rang} : plusieurs soldes ${code}.`)
-      return null
-    }
-    const montant = montantSigne(bal, contexte),
-      date = lireJour(enfant(bal, 'Dt'))
-    if (typeof montant === 'string') contexte.erreurs.push(`Relevé ${contexte.rang} : ${nature} ${code} : ${montant}`)
-    if (!date) contexte.erreurs.push(`Relevé ${contexte.rang} : date du ${nature} ${code} absente ou invalide.`)
-    return typeof montant === 'number' && date ? { montant, date } : null
-  }
-  return { ouverture: lire(['OPBD', 'PRCD'], 'ancien solde'), cloture: lire(['CLBD'], 'nouveau solde') }
+  return parCode
+}
+
+/** Solde du premier code présent parmi `codes` (une seule occurrence admise) ; erreurs consignées dans le contexte. */
+function lireSolde(parCode: ReadonlyMap<string, ElementXml[]>, codes: readonly string[], nature: string, contexte: Contexte): SoldeLu | null {
+  const code = codes.find((candidat) => parCode.has(candidat)),
+    soldes = code ? (parCode.get(code) ?? []) : []
+  if (!code) contexte.erreurs.push(`Relevé ${contexte.rang} : ${nature} (${codes.join(' ou ')}) absent.`)
+  else if (soldes.length > 1) contexte.erreurs.push(`Relevé ${contexte.rang} : plusieurs soldes ${code}.`)
+  if (!code || soldes.length !== 1) return null
+  const [bal] = soldes,
+    montant = montantSigne(bal, contexte),
+    date = lireJour(enfant(bal, 'Dt'))
+  if (typeof montant === 'string') contexte.erreurs.push(`Relevé ${contexte.rang} : ${nature} ${code} : ${montant}`)
+  if (!date) contexte.erreurs.push(`Relevé ${contexte.rang} : date du ${nature} ${code} absente ou invalide.`)
+  return typeof montant === 'number' && date ? { montant, date } : null
+}
+
+/** Soldes OPBD (à défaut PRCD) et CLBD du relevé ; erreurs consignées dans le contexte. */
+function lireSoldes(stmt: ElementXml, contexte: Contexte): { ouverture: SoldeLu | null; cloture: SoldeLu | null } {
+  const parCode = soldesParCode(stmt)
+  return { ouverture: lireSolde(parCode, ['OPBD', 'PRCD'], 'ancien solde', contexte), cloture: lireSolde(parCode, ['CLBD'], 'nouveau solde', contexte) }
 }
 
 /** Textes utiles d'un champ libre : valeurs « /LIB/ » s'il commence par un mot-clé « /XXX/ », sinon le texte entier. */
@@ -164,6 +178,69 @@ function estComptabilisee(ntry: ElementXml, prefixe: string, contexte: Contexte,
   return false
 }
 
+/** Parties, références et textes d'une écriture (ceux de sa transaction s'il n'y en a qu'une). */
+interface DetailsEcriture {
+  textes: (string | null)[]
+  payeur: string | null
+  beneficiaire: string | null
+  referenceClient: string | null
+  motifRejet: string | null
+  /** Refs/AcctSvcrRef de la transaction, à défaut de celle de l'écriture. */
+  referenceTransaction: string | null
+  /** Nombre de transactions de l'écriture (voir nombreTransactions). */
+  transactions: number
+}
+
+/** Le plus grand du nombre de TxDtls et de la somme des Btch/NbOfTxs lisibles de l'écriture. */
+function nombreTransactions(ntry: ElementXml, transactions: readonly ElementXml[]): number {
+  const annonce = enfantsNommes(ntry, 'NtryDtls')
+    .flatMap((details) => enfantsNommes(details, 'Btch'))
+    .map((lot) => texteSuivi(lot, 'NbOfTxs') ?? '')
+    .filter((nombre) => /^\d{1,15}$/.test(nombre))
+    .reduce((somme, nombre) => somme + Number(nombre), 0)
+  return Math.max(transactions.length, annonce)
+}
+
+/** Détails d'une écriture simple (au plus une transaction) : ceux de sa TxDtls, suivis du texte de l'écriture. */
+function detailsTransaction(tx: ElementXml | null, textesEcriture: string[]): Omit<DetailsEcriture, 'transactions'> {
+  const rmtInf = enfant(tx, 'RmtInf'),
+    reference = texteSuivi(tx, 'Refs', 'EndToEndId')
+  return {
+    textes: [
+      ...textesUtiles(texteSuivi(tx, 'AddtlTxInf')),
+      ...enfantsNommes(rmtInf, 'Ustrd').map((ustrd) => ustrd.texte),
+      ...enfantsNommes(rmtInf, 'Strd').map((strd) => texteSuivi(strd, 'CdtrRefInf', 'Ref')),
+      ...textesEcriture,
+    ],
+    payeur: nomPartie(suivre(tx, 'RltdPties', 'Dbtr')),
+    beneficiaire: nomPartie(suivre(tx, 'RltdPties', 'Cdtr')),
+    referenceClient: reference === REFERENCE_NON_FOURNIE ? null : reference,
+    motifRejet: texteSuivi(tx, 'RtrInf', 'Rsn', 'Cd'),
+    referenceTransaction: texteSuivi(tx, 'Refs', 'AcctSvcrRef'),
+  }
+}
+
+/**
+ * Détails d'une écriture. Écriture globale (plus d'une transaction) : rien n'est pris des transactions — ni payeur, ni
+ * bénéficiaire, ni référence, ni texte —, le libellé est le texte de l'écriture suivi de « (écriture globale de N
+ * transactions) » (voir l'en-tête).
+ */
+function detailsEcriture(ntry: ElementXml): DetailsEcriture {
+  const transactions = enfantsNommes(ntry, 'NtryDtls').flatMap((details) => enfantsNommes(details, 'TxDtls')),
+    nombre = nombreTransactions(ntry, transactions),
+    textesEcriture = textesUtiles(texteSuivi(ntry, 'AddtlNtryInf'))
+  if (nombre <= 1) return { ...detailsTransaction(transactions.at(0) ?? null, textesEcriture), transactions: nombre }
+  return {
+    textes: [...textesEcriture, `(écriture globale de ${nombre} transactions)`],
+    payeur: null,
+    beneficiaire: null,
+    referenceClient: null,
+    motifRejet: null,
+    referenceTransaction: null,
+    transactions: nombre,
+  }
+}
+
 /** Écriture comptabilisée → mouvement ; null si elle est écartée (statut) ou fausse (erreur consignée). */
 function lireEcriture(ntry: ElementXml, rangEcriture: number, contexte: Contexte, avertissements: string[]): MouvementReleve | null {
   const prefixe = `Relevé ${contexte.rang}, écriture ${rangEcriture}`
@@ -175,20 +252,15 @@ function lireEcriture(ntry: ElementXml, rangEcriture: number, contexte: Contexte
   if (typeof montantMineur === 'string') contexte.erreurs.push(`${prefixe} : ${montantMineur}`)
   if (!date) contexte.erreurs.push(`${prefixe} : date de comptabilisation absente ou invalide.`)
   if (typeof montantMineur === 'string' || !date) return null
-  const transactions = enfantsNommes(ntry, 'NtryDtls').flatMap((details) => enfantsNommes(details, 'TxDtls')),
-    payeur = premier(transactions.map((tx) => nomPartie(suivre(tx, 'RltdPties', 'Dbtr')))),
-    beneficiaire = premier(transactions.map((tx) => nomPartie(suivre(tx, 'RltdPties', 'Cdtr')))),
+  const details = detailsEcriture(ntry),
     contrepassation = ['true', '1'].includes(texteSuivi(ntry, 'RvslInd') ?? ''),
     credit = montantMineur > 0,
-    textes = [
-      ...transactions.flatMap((tx) => [
-        ...textesUtiles(texteSuivi(tx, 'AddtlTxInf')),
-        ...enfantsNommes(enfant(tx, 'RmtInf'), 'Ustrd').map((ustrd) => ustrd.texte),
-        ...enfantsNommes(enfant(tx, 'RmtInf'), 'Strd').map((strd) => texteSuivi(strd, 'CdtrRefInf', 'Ref')),
-      ]),
-      ...textesUtiles(texteSuivi(ntry, 'AddtlNtryInf')),
-    ],
-    { libelle, tronque } = composerLibelle(textes, credit !== contrepassation ? payeur : beneficiaire)
+    { libelle, tronque } = composerLibelle(details.textes, credit === contrepassation ? details.beneficiaire : details.payeur)
+  if (details.transactions > 1)
+    avertissements.push(
+      `${prefixe} : écriture globale de ${details.transactions} transactions non éclatée ; ` +
+        'payeurs, bénéficiaires, références et textes des transactions non repris.',
+    )
   if (tronque) avertissements.push(avertissementLibelleTronque(prefixe))
   return {
     date,
@@ -197,17 +269,12 @@ function lireEcriture(ntry: ElementXml, rangEcriture: number, contexte: Contexte
     montantMineur,
     dateValeur,
     codeOperation: codeOperation(ntry),
-    referenceBanque: texteSuivi(ntry, 'AcctSvcrRef') ?? premier(transactions.map((tx) => texteSuivi(tx, 'Refs', 'AcctSvcrRef'))),
+    referenceBanque: texteSuivi(ntry, 'AcctSvcrRef') ?? details.referenceTransaction,
     numeroEcriture: texteSuivi(ntry, 'NtryRef'),
-    payeur,
-    beneficiaire,
-    referenceClient: premier(
-      transactions.map((tx) => {
-        const reference = texteSuivi(tx, 'Refs', 'EndToEndId')
-        return reference === REFERENCE_NON_FOURNIE ? null : reference
-      }),
-    ),
-    motifRejet: premier(transactions.map((tx) => texteSuivi(tx, 'RtrInf', 'Rsn', 'Cd'))),
+    payeur: details.payeur,
+    beneficiaire: details.beneficiaire,
+    referenceClient: details.referenceClient,
+    motifRejet: details.motifRejet,
     contrepassation,
     complements: [],
   }
@@ -223,27 +290,48 @@ function lireCompte(stmt: ElementXml, contexte: Contexte): CompteReleve {
   return { iban, rib: null, autreIdentifiant, titulaire: texteSuivi(stmt, 'Acct', 'Ownr', 'Nm') }
 }
 
-/** Contrôle des totaux annoncés (TxsSummry) quand ils sont présents. */
+interface TotalLu {
+  nombre: number
+  /** Somme des montants, en valeur absolue. */
+  somme: number
+}
+
+/**
+ * Totaux des écritures comptabilisées (statut BOOK), au crédit et au débit selon CdtDbtInd — et non selon le signe du
+ * montant, nul pour une écriture à 0,00. Appelé sur un relevé sans erreur : montants et sens sont lisibles.
+ */
+function totauxComptabilises(ecritures: readonly ElementXml[], contexte: Contexte): { credits: TotalLu; debits: TotalLu } {
+  const credits: TotalLu = { nombre: 0, somme: 0 },
+    debits: TotalLu = { nombre: 0, somme: 0 }
+  for (const ntry of ecritures) {
+    const montant = statutEcriture(ntry) === STATUT_COMPTABILISE ? montantSigne(ntry, contexte) : null
+    if (typeof montant !== 'number') continue
+    const total = lireSens(ntry) === 1 ? credits : debits
+    total.nombre += 1
+    total.somme += Math.abs(montant)
+  }
+  return { credits, debits }
+}
+
+/** Contrôle des totaux annoncés (TxsSummry) quand ils sont présents, sur les seules écritures comptabilisées. */
 function controlerTotaux(stmt: ElementXml, ecritures: ElementXml[], contexte: Contexte): void {
   const resume = enfant(stmt, 'TxsSummry')
   if (!resume) return
-  const montants = ecritures.map((ntry) => montantSigne(ntry, contexte)).filter((m): m is number => typeof m === 'number'),
-    { credits, debits } = totauxMouvements(montants.map((montantMineur) => ({ montantMineur }))),
-    nombreCredits = montants.filter((m) => m > 0).length,
+  const { credits, debits } = totauxComptabilises(ecritures, contexte),
     montant = (valeur: number) => formaterMontantMineur(valeur, contexte.decimales, contexte.devise),
     incoherence = (detail: string) => contexte.erreurs.push(`Relevé ${contexte.rang} : totaux annoncés incohérents : ${detail}.`)
-  const comparer = (bloc: string, ecrituresDuBloc: string, montantsDuBloc: string, nombreLu: number, sommeLue: number) => {
+  const comparer = (bloc: string, ecrituresDuBloc: string, montantsDuBloc: string, lu: TotalLu) => {
     const nombre = texteSuivi(resume, bloc, 'NbOfNtries'),
       somme = texteSuivi(resume, bloc, 'Sum')
-    if (nombre !== null && Number(nombre) !== nombreLu) incoherence(`${nombre} ${ecrituresDuBloc} annoncées, ${nombreLu} lues`)
+    if (nombre !== null && Number(nombre) !== lu.nombre) incoherence(`${nombre} ${ecrituresDuBloc} annoncées, ${lu.nombre} lues`)
     if (somme === null) return
     const annonce = lireMontant(somme, contexte.devise, contexte.decimales)
     if (typeof annonce === 'string') incoherence(`${montantsDuBloc} : ${annonce}`)
-    else if (annonce !== sommeLue) incoherence(`${montantsDuBloc} annoncés ${montant(annonce)}, lus ${montant(sommeLue)}`)
+    else if (annonce !== lu.somme) incoherence(`${montantsDuBloc} annoncés ${montant(annonce)}, lus ${montant(lu.somme)}`)
   }
-  comparer('TtlNtries', 'écritures', 'montants des écritures', ecritures.length, credits + debits)
-  comparer('TtlCdtNtries', 'écritures au crédit', 'crédits', nombreCredits, credits)
-  comparer('TtlDbtNtries', 'écritures au débit', 'débits', ecritures.length - nombreCredits, debits)
+  comparer('TtlNtries', 'écritures', 'montants des écritures', { nombre: credits.nombre + debits.nombre, somme: credits.somme + debits.somme })
+  comparer('TtlCdtNtries', 'écritures au crédit', 'crédits', credits)
+  comparer('TtlDbtNtries', 'écritures au débit', 'débits', debits)
 }
 
 /** Un relevé (Stmt) : retenu dans `releves` s'il est complet et équilibré, sinon ses erreurs et son refus. */
@@ -288,6 +376,22 @@ function lireStatement(stmt: ElementXml, rang: number, resultat: ResultatLecture
   else resultat.releves.push(releve)
 }
 
+/**
+ * Motif du refus d'un message paginé, null s'il n'est pas paginé ou s'il est seul : PgNb de 1 à 5 chiffres valant 1
+ * (« 1 », « 01 »… : Max5NumericText) et LastPgInd vrai.
+ */
+function refusPagination(message: ElementXml, numero: number): string | null {
+  const pagination = suivre(message, 'GrpHdr', 'MsgPgntn')
+  if (!pagination) return null
+  const page = texteSuivi(pagination, 'PgNb') ?? '?',
+    derniere = ['true', '1'].includes(texteSuivi(pagination, 'LastPgInd') ?? '')
+  if (/^\d{1,5}$/.test(page) && Number(page) === 1 && derniere) return null
+  return (
+    `Message ${numero} refusé : relevé paginé (page ${page}, dernière page : ${derniere ? 'oui' : 'non'}) ; ` +
+    'la lecture d’un relevé réparti sur plusieurs messages n’est pas traitée.'
+  )
+}
+
 /** Relevés d'un message ; rend le nombre de relevés (Stmt) qu'il contient. */
 function lireMessage(document: ElementXml, numero: number, rangPrecedent: number, resultat: ResultatLectureReleves): number {
   if (document.nom !== 'Document' || !ESPACE_CAMT053.test(document.espaceDeNoms)) {
@@ -302,21 +406,14 @@ function lireMessage(document: ElementXml, numero: number, rangPrecedent: number
     return 0
   }
   const statements = enfantsNommes(message, 'Stmt'),
-    pagination = suivre(message, 'GrpHdr', 'MsgPgntn')
+    refus = refusPagination(message, numero)
   if (statements.length === 0) {
     resultat.erreurs.push(`Message ${numero} : aucun relevé (Stmt).`)
     return 0
   }
-  if (pagination) {
-    const page = texteSuivi(pagination, 'PgNb') ?? '?',
-      derniere = texteSuivi(pagination, 'LastPgInd')
-    if (page !== '1' || (derniere !== 'true' && derniere !== '1')) {
-      resultat.erreurs.push(
-        `Message ${numero} refusé : relevé paginé (page ${page}, dernière page : ${derniere === 'true' || derniere === '1' ? 'oui' : 'non'}) ; ` +
-          'la lecture d’un relevé réparti sur plusieurs messages n’est pas traitée.',
-      )
-      return statements.length
-    }
+  if (refus) {
+    resultat.erreurs.push(refus)
+    return statements.length
   }
   statements.forEach((stmt, index) => lireStatement(stmt, rangPrecedent + index + 1, resultat))
   return statements.length
