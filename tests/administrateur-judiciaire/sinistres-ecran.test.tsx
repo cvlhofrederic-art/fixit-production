@@ -98,7 +98,7 @@ describe('Sinistres — liste à colonnes Gestéam', () => {
     expect(colonne(1)).toEqual(['CV.00014', 'TL.00009', 'LM.00031'])
     expect(colonne(0)).toEqual(['29/05/2026', '12/04/2026', '18/12/2025'])
     expect(colonne(6)).toEqual(['En cours', 'En cours', 'Terminé'])
-    expect(colonne(7)).toEqual(['MMA', 'AXA', 'MMA'])
+    expect(colonne(7)).toEqual(['Assureur Exemple', 'Compagnie Exemple', 'Assureur Exemple'])
   })
 
   it('filtres statut, type et phase cumulables, compteur annoncé', () => {
@@ -270,10 +270,10 @@ describe('Sinistres — « Déclarer un sinistre » : tous les champs de la fich
     const boite = within(dialogue())
     const contrat = () => boite.getByLabelText('Contrat')
     fireEvent.change(contrat(), { target: { value: optionContenant(contrat(), 'Multirisque') } })
-    expect(boite.getByLabelText('Compagnie')).toHaveDisplayValue('Generali')
+    expect(boite.getByLabelText('Compagnie')).toHaveDisplayValue('Assureur Exemple')
     expect(boite.getByLabelText('N° du contrat')).toHaveValue('MRI-44120')
     fireEvent.change(contrat(), { target: { value: optionContenant(contrat(), 'Protection juridique') } })
-    expect(boite.getByLabelText('Compagnie')).toHaveDisplayValue('MMA')
+    expect(boite.getByLabelText('Compagnie')).toHaveDisplayValue('Mutuelle Exemple')
     expect(boite.getByLabelText('N° du contrat')).toHaveValue('')
     fireEvent.change(boite.getByRole('combobox', { name: 'Copropriété' }), { target: { value: 'Le Clos des Vignes' } })
     expect(contrat()).toHaveValue('')
@@ -288,10 +288,10 @@ describe('Sinistres — « Déclarer un sinistre » : tous les champs de la fich
     const boite = within(dialogue())
     fireEvent.change(boite.getByRole('combobox', { name: 'Type de sinistre' }), { target: { value: 'Vol' } })
     fireEvent.change(boite.getByLabelText(SURVENANCE), { target: { value: '2026-05-30' } })
-    fireEvent.change(boite.getByLabelText('Compagnie'), { target: { value: optionContenant(boite.getByLabelText('Compagnie'), 'AXA') } })
+    fireEvent.change(boite.getByLabelText('Compagnie'), { target: { value: optionContenant(boite.getByLabelText('Compagnie'), 'Compagnie Exemple') } })
     fireEvent.change(boite.getByLabelText('Contrat'), { target: { value: optionContenant(boite.getByLabelText('Contrat'), 'Multirisque') } })
-    expect(boite.getByLabelText('Compagnie')).toHaveDisplayValue('AXA')
-    expect(boite.getByText(/Points d’attention/).closest('[aria-live]')?.textContent).toMatch(/AXA.*Generali/)
+    expect(boite.getByLabelText('Compagnie')).toHaveDisplayValue('Compagnie Exemple')
+    expect(boite.getByText(/Points d’attention/).closest('[aria-live]')?.textContent).toMatch(/Compagnie Exemple.*Assureur Exemple/)
   })
 
   it('changer de copropriété repropose le numéro et le mandat ; un numéro saisi est conservé', () => {
@@ -314,7 +314,13 @@ describe('Sinistres — « Déclarer un sinistre » : tous les champs de la fich
     const boite = within(dialogue())
     expect(options(boite.getByLabelText('Contrat')).join(' | ')).toMatch(/Dommages-ouvrage/)
     expect(options(boite.getByLabelText('Compagnie'))).toEqual(
-      expect.arrayContaining(['Generali', 'AXA', 'SMABTP', 'MMA', 'Saisie libre…']),
+      expect.arrayContaining([
+        'Assureur Exemple',
+        'Compagnie Exemple',
+        'Assurance Construction Exemple',
+        'Mutuelle Exemple',
+        'Saisie libre…',
+      ]),
     )
     expect(options(boite.getByLabelText('Courtier'))).toContain('Saisie libre…')
     fireEvent.click(boite.getByRole('button', { name: 'Compléter le bloc Responsable et assistant' }))
@@ -329,7 +335,7 @@ describe('Sinistres — « Déclarer un sinistre » : tous les champs de la fich
     const contrat = boite.getByLabelText('Contrat') as HTMLSelectElement
     const multirisque = Array.from(contrat.options).find((option) => option.textContent?.includes('Multirisque'))
     fireEvent.change(contrat, { target: { value: multirisque?.value } })
-    expect(boite.getByLabelText('Compagnie')).toHaveDisplayValue('Generali')
+    expect(boite.getByLabelText('Compagnie')).toHaveDisplayValue('Assureur Exemple')
     expect(boite.getByLabelText('N° du contrat')).toHaveValue('MRI-44120')
     fireEvent.change(boite.getByLabelText('Courtier'), { target: { value: '__libre__' } })
     fireEvent.change(boite.getByLabelText('Courtier (saisie libre)'), { target: { value: 'Courtier hors annuaire' } })
@@ -393,6 +399,21 @@ describe('Sinistres — « Déclarer un sinistre » : tous les champs de la fich
     expect(boite.getByText(/L\. 114-1/, { selector: 'p' })).toBeInTheDocument()
     fireEvent.click(boite.getByRole('button', { name: 'Reprendre la suggestion' }))
     expect(boite.getByLabelText('Forclusion')).toHaveValue('2028-05-29')
+  })
+
+  it('survenance tapée en 9998 : la fiche reste à l’écran avec la saisie, sans suggestion ; l’enregistrement est refusé (année improbable)', () => {
+    const { push } = rendre()
+    ouvrirDeclaration()
+    const boite = within(dialogue())
+    fireEvent.change(boite.getByRole('combobox', { name: 'Type de sinistre' }), { target: { value: 'Vol' } })
+    fireEvent.change(boite.getByLabelText(SURVENANCE), { target: { value: '9998-03-01' } })
+    fireEvent.click(boite.getByRole('button', { name: 'Compléter le bloc Suivi' }))
+    expect(boite.getByLabelText(SURVENANCE)).toHaveValue('9998-03-01')
+    expect(boite.queryByText(/Suggestion :/)).toBeNull()
+    expect(boite.queryByRole('button', { name: 'Reprendre la suggestion' })).toBeNull()
+    fireEvent.click(boite.getByRole('button', { name: 'Enregistrer' }))
+    expect(resumeErreurs().textContent).toMatch(/01\/03\/9998 : année improbable/)
+    expect(push).not.toHaveBeenCalled()
   })
 
   it('parties : ajout d’une partie (rôle, nature, fiche ou saisie libre) puis retrait', () => {
@@ -476,7 +497,7 @@ describe('Sinistres — « Détails » : fiche complète, modifiable', () => {
     expect(boite.getByRole('combobox', { name: 'Type de sinistre' })).toHaveValue('Dégât des eaux')
     expect(boite.getByLabelText('Phase')).toHaveValue("Mission d'expertise")
     expect(boite.getByRole('combobox', { name: 'Copropriété' })).toHaveValue('Copropriété Les Tilleuls')
-    expect(boite.getByLabelText('Compagnie')).toHaveDisplayValue('AXA')
+    expect(boite.getByLabelText('Compagnie')).toHaveDisplayValue('Compagnie Exemple')
     expect(boite.getByLabelText('Origine, cause')).toHaveValue('Infiltration toiture')
     expect(boite.getByLabelText('Parties communes lésées')).toBeChecked()
     expect(boite.getByLabelText('Expertise')).toHaveValue('2026-06-18')
@@ -486,10 +507,12 @@ describe('Sinistres — « Détails » : fiche complète, modifiable', () => {
     expect(boite.getByLabelText('Origine, cause')).toHaveValue('Infiltration en toiture-terrasse')
   })
 
-  it('une fiche close affiche le statut « Terminé » et ses indemnités réglées', () => {
+  it('une fiche close affiche son assureur, le statut « Terminé » et ses indemnités réglées', () => {
     rendre()
     ouvrirDetails('LM.00031')
     const boite = within(dialogue())
+    expect(boite.getByLabelText('Compagnie')).toHaveDisplayValue('Assureur Exemple')
+    expect(boite.getByLabelText('N° compagnie')).toHaveValue('AEX-25-778301')
     expect(boite.getByLabelText('Statut')).toHaveValue('Terminé')
     expect(boite.getByLabelText('Clos le')).toHaveValue('2026-03-02')
     expect(boite.getByLabelText('Indemnité immédiate')).toHaveValue('1240,00')

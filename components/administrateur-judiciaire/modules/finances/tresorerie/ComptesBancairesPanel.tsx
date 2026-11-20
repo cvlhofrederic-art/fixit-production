@@ -148,6 +148,13 @@ function TableauComptes({ comptes, ouvrir }: Readonly<{ comptes: readonly Compte
 }
 
 /**
+ * Aucun écran ne saisit encore la destination de l'immeuble : la vue la passe toujours comme non renseignée
+ * (comptes-bancaires-vue.ts), et le bandeau de l'obligation du fonds de travaux le dit (décision du 19/11, #758,
+ * point 6). La saisie viendra dans une PR à part.
+ */
+const SAISIE_IMMEUBLE_ABSENTE = "La saisie de la destination de l'immeuble n'existe pas encore."
+
+/**
  * Alertes du domaine : anomalies (ou comptes conformes), seulement quand le mode se résout ; information Caisse des
  * dépôts et entrées non connues, qui ne dépendent pas du mode.
  */
@@ -177,7 +184,7 @@ function AlertesComptes({ vue }: Readonly<{ vue: VueComptesBancaires }>) {
       ))}
       {vue.obligationFonds.obligatoire === null && (
         <Alert kind="" icon="info" title="Obligation du fonds de travaux non établie">
-          {`${vue.obligationFonds.motif} Le contrôle « fonds de travaux à ouvrir » n'est donc pas lancé.`}
+          {`${vue.obligationFonds.motif} ${SAISIE_IMMEUBLE_ABSENTE} Le contrôle « fonds de travaux à ouvrir » n'est donc pas lancé.`}
         </Alert>
       )}
       {vue.reprisActifs > 0 && (

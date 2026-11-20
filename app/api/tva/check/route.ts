@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { createClient } from '@supabase/supabase-js'
 import { getTvaStatus, shouldNotify, type TvaCountry, type TvaNotifiedLevel } from '@/lib/tva-thresholds'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { logger } from '@/lib/logger'
 
 const tvaCheckSchema = z.object({
   ca_ht: z.number().nonnegative(),
@@ -88,7 +89,7 @@ export async function POST(req: NextRequest) {
       tva_auto_activate: profile.tva_auto_activate,
     })
   } catch (e) {
-    console.error('[TVA CHECK]', e)
+    logger.error('[TVA CHECK]', e)
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }

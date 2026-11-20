@@ -784,6 +784,25 @@ function FormulaireArtisan() {
 
 // ─── Formulaire générique Pro (Société / Conciergerie / Gestionnaire) ─────────
 
+// Inscription d'une société française arrêtée à mi-chemin (fiche ou pièces non enregistrées). « Patientez une
+// minute » : un nouvel essai refait l'inscription du compte, que le service d'authentification n'accepte qu'une
+// fois par minute pour une même adresse e-mail. Il renvoie alors l'e-mail de confirmation avec un nouveau lien, qui
+// remplace celui de l'e-mail précédent.
+const INSCRIPTION_SOCIETE_REESSAYER =
+  'Patientez une minute, puis cliquez de nouveau sur « Créer mon compte » pour terminer votre inscription. Un nouvel e-mail de confirmation vous sera envoyé : utilisez le lien du dernier e-mail reçu. Si le message revient, contactez le support Vitfix.'
+const INSCRIPTION_SOCIETE_FICHE_NON_ENREGISTREE =
+  `Votre compte a été créé, mais la fiche de votre société n'a pas pu être enregistrée. ${INSCRIPTION_SOCIETE_REESSAYER}`
+// Compte créé plus de 10 minutes avant cet essai (adresse déjà inscrite, pas encore confirmée) : /api/auth/create-profile
+// refuse alors la fiche (réponse 403, message ci-dessous), à chaque essai. Un nouveau clic n'y changerait rien.
+const CREATION_FICHE_DELAI_DEPASSE = 'Profile creation window expired'
+const INSCRIPTION_SOCIETE_COMPTE_EXISTANT =
+  'Un compte existe déjà avec cette adresse e-mail. Confirmez-la avec le lien du dernier e-mail de confirmation reçu, puis connectez-vous. Si la fiche de votre société est incomplète, contactez le support Vitfix.'
+// Trop d'essais depuis la même connexion (réponse 429 de /api/auth/create-profile) : la limite ne se libère qu'au bout
+// de plusieurs minutes, le plus souvent après le délai de 10 minutes qui suit la création du compte (refus ci-dessus).
+// Patienter une minute puis recliquer n'aboutirait le plus souvent pas : le message renvoie vers le support.
+const INSCRIPTION_SOCIETE_TROP_D_ESSAIS =
+  "Votre compte a été créé, mais l'inscription de votre société n'a pas pu être terminée : trop d'essais ont été faits en peu de temps depuis cette connexion. Contactez le support Vitfix pour la terminer."
+
 function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
   const { t } = useTranslation()
   const locale = useLocale()
@@ -918,6 +937,11 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
 
       // ── Créer profil artisan BTP pour le KYC ──
       if (authData.user) {
+        // Société française : une fiche ou des pièces non enregistrées arrêtent l'inscription sur un message, au lieu
+        // de « Compte créé ! » sur un compte qu'aucun écran ne permet ensuite de compléter. Un nouveau clic sur
+        // « Créer mon compte » relance la fin de l'inscription (fiche retrouvée, pièce déjà déposée jamais remplacée,
+        // dans les 10 minutes qui suivent la création du compte). Portugal hors de ce correctif : inchangé.
+        let inscriptionInachevee = ''
         try {
           const localeCookie = document.cookie.match(/(?:^|;\s*)locale=(\w+)/)?.[1]
           const btpCountry = localeCookie === 'pt' ? 'PT' : 'FR'
@@ -945,6 +969,15 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
           })
           const profileResult = await profileRes.json()
           const btpProfile = profileRes.ok ? { id: profileResult.id } : null
+          if (!btpProfile?.id) {
+            if (profileRes.status === 403 && profileResult?.error === CREATION_FICHE_DELAI_DEPASSE) {
+              inscriptionInachevee = INSCRIPTION_SOCIETE_COMPTE_EXISTANT
+            } else if (profileRes.status === 429) {
+              inscriptionInachevee = INSCRIPTION_SOCIETE_TROP_D_ESSAIS
+            } else {
+              inscriptionInachevee = INSCRIPTION_SOCIETE_FICHE_NON_ENREGISTREE
+            }
+          }
 
           if (btpProfile?.id) {
             // ── Kbis, pièce d'identité et KYC anti-fraude, côté serveur ──
@@ -965,11 +998,21 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
               // Non bloquant : le compte est créé, seules les pièces ou le KYC manquent
               console.warn('[register] finalize failed:', uploadErr)
               if (kbisFile || idFile || idFileVerso) {
-                setError(`${t('register.accountErrorUpload')}: ${uploadErr instanceof Error ? uploadErr.message : String(uploadErr)}`)
+                const messagePieces = `${t('register.accountErrorUpload')}: ${uploadErr instanceof Error ? uploadErr.message : String(uploadErr)}`
+                setError(messagePieces)
+                inscriptionInachevee = `${messagePieces}${/[.!?]\s*$/.test(messagePieces) ? '' : '.'} ${INSCRIPTION_SOCIETE_REESSAYER}`
               }
             }
           }
-        } catch { /* Création profil BTP non-bloquante */ }
+        } catch (profilErr: unknown) {
+          // Création profil BTP non bloquante au Portugal (inchangé) ; arrêt sur message pour une société française
+          console.warn('[register] create-profile failed:', profilErr)
+          inscriptionInachevee = INSCRIPTION_SOCIETE_FICHE_NON_ENREGISTREE
+        }
+        if (inscriptionInachevee && registrationCountry === 'FR') {
+          setError(inscriptionInachevee)
+          return
+        }
       }
 
       // ── Spécialités granulaires BTP (non-bloquant, uniquement pour societe_btp) ──

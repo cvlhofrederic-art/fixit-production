@@ -9,6 +9,7 @@
 // DEUX ALIGNÉS : mêmes clés localStorage, même statut, même sync.
 
 import { stableDocId } from '@/lib/devis-utils'
+import { placePourEmettre, StockageNavigateurPleinError } from '@/lib/emission-hors-serveur'
 
 export interface EmitDocumentOptions {
   /** Document prêt à émettre (brouillon scalé : acompte au %, TVA conservées). */
@@ -20,6 +21,11 @@ export interface EmitDocumentOptions {
   sync?: (doc: Record<string, unknown>, artisanId: string) => void
   /** Horodatage injectable (tests). Défaut : maintenant. */
   nowIso?: string
+  /**
+   * Sociétés BTP : vérifier, AVANT de tirer le numéro, que le navigateur peut enregistrer le document. Stockage plein :
+   * StockageNavigateurPleinError, aucun numéro consommé, rien d'écrit. Par défaut : ordre d'origine (artisan).
+   */
+  verifierPlaceAvantNumero?: boolean
 }
 
 function safeArray(raw: string | null): Array<Record<string, unknown>> {
@@ -39,18 +45,26 @@ export async function emitDocument(opts: EmitDocumentOptions): Promise<Record<st
   // Numéro définitif : tiré seulement si le doc n'en a pas (vide) ou porte un
   // numéro provisoire BR- (brouillon). Un numéro déjà légal n'est jamais réécrit.
   const provisional = String(payload.docNumber || '')
-  const docNumber = (!provisional || provisional.toUpperCase().startsWith('BR-'))
-    ? await getNumber()
-    : provisional
+  const numeroATirer = !provisional || provisional.toUpperCase().startsWith('BR-')
+  // Identité stable OBLIGATOIRE (UUID). buildAcomptePrefill pose id:undefined ;
+  // sans id, la dédup localStorage (`d.id !== finalDoc.id`) supprimait tous les
+  // docs sans id (un 2e acompte écrasait le 1er) ET la sync DB (onConflict='id')
+  // ne persistait pas → l'acompte disparaissait de la liste Factures.
+  const id = (payload.id as string) || stableDocId()
+  const docsKey = `fixit_documents_${artisanId}`
+
+  // Société BTP : place vérifiée AVANT de consommer un numéro du serveur. Avant, un stockage plein faisait échouer
+  // l'écriture après coup : numéro perdu, trou dans la série.
+  if (opts.verifierPlaceAvantNumero && numeroATirer && !placePourEmettre(docsKey, { ...payload, id })) {
+    throw new StockageNavigateurPleinError()
+  }
+
+  const docNumber = numeroATirer ? await getNumber() : provisional
 
   const now = opts.nowIso || new Date().toISOString()
   const finalDoc: Record<string, unknown> = {
     ...payload,
-    // Identité stable OBLIGATOIRE (UUID). buildAcomptePrefill pose id:undefined ;
-    // sans id, la dédup localStorage (`d.id !== finalDoc.id`) supprimait tous les
-    // docs sans id (un 2e acompte écrasait le 1er) ET la sync DB (onConflict='id')
-    // ne persistait pas → l'acompte disparaissait de la liste Factures.
-    id: (payload.id as string) || stableDocId(),
+    id,
     docNumber,
     status: 'envoye',
     savedAt: now,
@@ -58,7 +72,6 @@ export async function emitDocument(opts: EmitDocumentOptions): Promise<Record<st
   }
 
   // Persistance : (ré)insère dans les documents émis (dédup par id), retire des brouillons.
-  const docsKey = `fixit_documents_${artisanId}`
   const docs = safeArray(localStorage.getItem(docsKey))
   localStorage.setItem(docsKey, JSON.stringify([...docs.filter(d => d.id !== finalDoc.id), finalDoc]))
 

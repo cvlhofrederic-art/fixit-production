@@ -883,7 +883,8 @@ const libellePrescription = (libelle: string, reperes: ReperesDelaisSinistre): s
  * Indemnité différée non réglée : à réclamer depuis le règlement de l'indemnité immédiate (à défaut le rapport, la
  * déclaration, la survenance) ; c'est un suivi de gestion, pas un repère légal. Sans date de suivi, une phase saisie qui
  * suit la déclaration garde l'élément « à déclarer » (même critère du réglage), libellé « déclaration non datée … : à
- * vérifier » (declaration-sinistre.ts).
+ * vérifier » (declaration-sinistre.ts). Survenance ou connaissance d'une année improbable (faute de frappe, bloquante
+ * sur la fiche) : ni déclaration ni prescription datées, aucun repère n'en part (reperesDelaisSinistre).
  */
 export function depuisSinistres(
   items: { id: string; mandatId: string; libelle: string; fiche: FicheSinistre; delaiContratJoursOuvres?: number }[],
@@ -893,7 +894,7 @@ export function depuisSinistres(
     const reperes = reperesDelaisSinistre(fiche, { delaiContratJoursOuvres })
     const champs = { mandatId, objetId: id }
     const elements: ElementAFaire[] = []
-    if (etapeSuiviSinistre(fiche) === 'a_declarer')
+    if (reperes !== null && etapeSuiviSinistre(fiche) === 'a_declarer')
       elements.push(
         elementSuivi('sinistres', 'a_declarer', `${id}:a_declarer`, {
           ...champs,
@@ -902,14 +903,15 @@ export function depuisSinistres(
           aConfirmer: reperes.volPossible || reperes.declarationAConfirmer !== null,
         }),
       )
-    elements.push(
-      elementSuivi('sinistres', 'prescription', `${id}:prescription`, {
-        ...champs,
-        libelle: libellePrescription(libelle, reperes),
-        date: reperes.prescription,
-        aConfirmer: reperes.prescriptionAConfirmer !== null,
-      }),
-    )
+    if (reperes !== null)
+      elements.push(
+        elementSuivi('sinistres', 'prescription', `${id}:prescription`, {
+          ...champs,
+          libelle: libellePrescription(libelle, reperes),
+          date: reperes.prescription,
+          aConfirmer: reperes.prescriptionAConfirmer !== null,
+        }),
+      )
     if (fiche.indemniteDiffereeCentimes > 0 && !fiche.indemniteDiffereeReglee)
       elements.push(
         elementSuivi('sinistres', 'indemnite_differee', `${id}:indemnite_differee`, {

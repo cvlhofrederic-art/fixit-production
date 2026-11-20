@@ -225,26 +225,26 @@ describe('sinistres — repères de délais (indicatifs)', () => {
   })
 
   it('les jours fériés ne comptent pas (11 novembre)', () => {
-    expect(reperesDelaisSinistre(creerSinistre(saisie({ dateSurvenance: '2026-11-06' }))).declarationAuPlusTard).toBe('2026-11-16')
+    expect(reperesDelaisSinistre(creerSinistre(saisie({ dateSurvenance: '2026-11-06' })))?.declarationAuPlusTard).toBe('2026-11-16')
   })
 
   it('le délai du contrat remplace le minimum légal s’il est plus long, jamais s’il est plus court', () => {
     const sinistre = creerSinistre(saisie())
-    expect(reperesDelaisSinistre(sinistre, { delaiContratJoursOuvres: 10 }).delaiDeclarationJoursOuvres).toBe(10)
-    expect(reperesDelaisSinistre(sinistre, { delaiContratJoursOuvres: 3 }).delaiDeclarationJoursOuvres).toBe(5)
+    expect(reperesDelaisSinistre(sinistre, { delaiContratJoursOuvres: 10 })?.delaiDeclarationJoursOuvres).toBe(10)
+    expect(reperesDelaisSinistre(sinistre, { delaiContratJoursOuvres: 3 })?.delaiDeclarationJoursOuvres).toBe(5)
   })
 
   it('part de la connaissance du sinistre quand elle est postérieure à la survenance', () => {
     expect(
-      reperesDelaisSinistre(creerSinistre(saisie({ dateConnaissance: '2026-11-02' }))).declarationAuPlusTard,
+      reperesDelaisSinistre(creerSinistre(saisie({ dateConnaissance: '2026-11-02' })))?.declarationAuPlusTard,
     ).toBe('2026-11-09')
   })
 
   it('signale une déclaration faite après le repère, avec les fondements et l’avertissement', () => {
     const reperes = reperesDelaisSinistre(creerSinistre(saisie({ dateDeclaration: '2026-11-05' })))
-    expect(reperes.declarationTardive).toBe(true)
-    expect(reperes.fondements).toEqual(['C. assur. art. L. 113-2', 'C. assur. art. L. 114-1'])
-    expect(reperes.avertissement).toBe(
+    expect(reperes?.declarationTardive).toBe(true)
+    expect(reperes?.fondements).toEqual(['C. assur. art. L. 113-2', 'C. assur. art. L. 114-1'])
+    expect(reperes?.avertissement).toBe(
       "Déclarer dès la connaissance du sinistre. Déclaration au plus tard à la date retenue : délai du contrat s'il est saisi, sinon minimum légal (C. assur. art. L. 113-2, 4°), que le contrat peut seulement allonger. Prescription au plus tôt 24 mois après l'événement (art. L. 114-1) : une interruption peut la repousser (art. L. 114-2) ; le contrat ne peut pas en changer la durée (art. L. 114-3).",
     )
   })
@@ -256,18 +256,18 @@ describe('sinistres — repères de délais (indicatifs)', () => {
       justificationPrescription: 'Survenance du 27/10/2026 + 24 mois (C. assur. L. 114-1) : au plus tôt le 27/10/2028.',
     })
     const sinistre = creerSinistre(saisie())
-    expect(reperesDelaisSinistre(sinistre, { delaiContratJoursOuvres: 10 }).justificationDeclaration).toBe(
+    expect(reperesDelaisSinistre(sinistre, { delaiContratJoursOuvres: 10 })?.justificationDeclaration).toBe(
       'Connaissance du 27/10/2026 + 10 jours ouvrés, comptés du lendemain hors samedis, dimanches et jours fériés (délai du contrat ; C. assur. L. 113-2, 4°) : au plus tard le 10/11/2026.',
     )
-    expect(reperesDelaisSinistre(sinistre, { delaiContratJoursOuvres: 3 }).justificationDeclaration).toContain(
+    expect(reperesDelaisSinistre(sinistre, { delaiContratJoursOuvres: 3 })?.justificationDeclaration).toContain(
       '(minimum légal, C. assur. L. 113-2, 4°, retenu au lieu des 3 jours ouvrés du contrat)',
     )
   })
 
   it('relecture : garantie impayés et catastrophe naturelle — le minimum de L. 113-2, 4° n’est pas sûr, raison donnée ; dommages-ouvrage : règle propre (J67, R52)', () => {
     const regimes = (type: SaisieSinistre['type']) => {
-      const { declarationAConfirmer, prescriptionAConfirmer } = reperesDelaisSinistre(creerSinistre(saisie({ type })))
-      return { declarationAConfirmer, prescriptionAConfirmer }
+      const reperes = reperesDelaisSinistre(creerSinistre(saisie({ type })))
+      return { declarationAConfirmer: reperes?.declarationAConfirmer, prescriptionAConfirmer: reperes?.prescriptionAConfirmer }
     }
     for (const type of TYPES_SINISTRE_IMPAYES)
       expect(regimes(type)).toEqual({
@@ -277,10 +277,10 @@ describe('sinistres — repères de délais (indicatifs)', () => {
     // Empilement sur contentieux-sinistres : la règle propre attendue par la relecture est J67, R52 (aucun minimum, à
     // déclarer dès la connaissance) ; plus de repère à confirmer pour ce type.
     expect(regimes('Dommages Ouvrage')).toEqual({ declarationAConfirmer: null, prescriptionAConfirmer: null })
-    expect(reperesDelaisSinistre(creerSinistre(saisie({ type: 'Dommages Ouvrage' }))).justificationDeclaration).toBe(
+    expect(reperesDelaisSinistre(creerSinistre(saisie({ type: 'Dommages Ouvrage' })))?.justificationDeclaration).toBe(
       "Connaissance du 27/10/2026, sans délai (clauses types, C. assur. annexe II à l'art. A. 243-1 ; J67, R52) : à déclarer dès la connaissance (C. assur. L. 113-2, 4°).",
     )
-    expect(reperesDelaisSinistre(creerSinistre(saisie({ type: 'Dommages Ouvrage' })), { delaiContratJoursOuvres: 3 }).justificationDeclaration).toBe(
+    expect(reperesDelaisSinistre(creerSinistre(saisie({ type: 'Dommages Ouvrage' })), { delaiContratJoursOuvres: 3 })?.justificationDeclaration).toBe(
       'Connaissance du 27/10/2026 + 3 jours ouvrés, comptés du lendemain hors samedis, dimanches et jours fériés (délai du contrat ; C. assur. L. 113-2, 4°) : au plus tard le 30/10/2026.',
     )
     expect(regimes('Catastrophes naturelles')).toEqual({
@@ -298,11 +298,11 @@ describe('sinistres — repères de délais (indicatifs)', () => {
   it('J67, R49 : minimum légal ou délai du contrat ; « Vandalisme » et « Bris de glace » signalés (un vol a pu y être rangé)', () => {
     expect(reperesDelaisSinistre(creerSinistre(saisie()))).toMatchObject({ minimumLegalJoursOuvres: 5, delaiDuContrat: false, volPossible: false })
     expect(reperesDelaisSinistre(creerSinistre(saisie({ type: 'Vol' })))).toMatchObject({ minimumLegalJoursOuvres: 2, volPossible: false })
-    expect(reperesDelaisSinistre(creerSinistre(saisie()), { delaiContratJoursOuvres: 10 }).delaiDuContrat).toBe(true)
+    expect(reperesDelaisSinistre(creerSinistre(saisie()), { delaiContratJoursOuvres: 10 })?.delaiDuContrat).toBe(true)
     // Relecture : un délai du contrat saisi égal au minimum légal est le délai du contrat ; plus court, il est sans effet.
-    expect(reperesDelaisSinistre(creerSinistre(saisie()), { delaiContratJoursOuvres: 5 }).delaiDuContrat).toBe(true)
-    expect(reperesDelaisSinistre(creerSinistre(saisie({ type: 'Vol' })), { delaiContratJoursOuvres: 2 }).delaiDuContrat).toBe(true)
-    expect(reperesDelaisSinistre(creerSinistre(saisie()), { delaiContratJoursOuvres: 3 }).delaiDuContrat).toBe(false)
+    expect(reperesDelaisSinistre(creerSinistre(saisie()), { delaiContratJoursOuvres: 5 })?.delaiDuContrat).toBe(true)
+    expect(reperesDelaisSinistre(creerSinistre(saisie({ type: 'Vol' })), { delaiContratJoursOuvres: 2 })?.delaiDuContrat).toBe(true)
+    expect(reperesDelaisSinistre(creerSinistre(saisie()), { delaiContratJoursOuvres: 3 })?.delaiDuContrat).toBe(false)
     for (const type of ['Vandalisme', 'Bris de glace'] as const)
       expect(reperesDelaisSinistre(creerSinistre(saisie({ type })))).toMatchObject({ minimumLegalJoursOuvres: 5, volPossible: true })
   })
@@ -327,10 +327,10 @@ describe('sinistres — repères de délais (indicatifs)', () => {
       const reperes = reperesDelaisSinistre(creerSinistre(saisie({ type })))
       // Empilement : texte de J67, R49, qui tranche la nature des dates (des échéances, plus des repères indicatifs) et
       // reprend le rappel de R50 (déclarer dès la connaissance ; minimum légal ou délai du contrat).
-      expect(reperes.avertissement).toMatch(
+      expect(reperes?.avertissement).toMatch(
         /^Déclarer dès la connaissance du sinistre\. Déclaration au plus tard à la date retenue : délai du contrat s'il est saisi, sinon minimum légal \(C\. assur\. art\. L\. 113-2, 4°\)/,
       )
-      expect(reperes.desLaConnaissance).toBe(false)
+      expect(reperes?.desLaConnaissance).toBe(false)
     }
   })
 
@@ -345,14 +345,14 @@ describe('sinistres — repères de délais (indicatifs)', () => {
       declarationTardive: false,
       prescription: '2028-10-27',
     })
-    expect(reperes.fondements).toEqual(['C. assur. art. L. 113-2', 'C. assur. annexe II à l’art. A. 243-1', 'C. assur. art. L. 114-1'])
-    expect(reperes.avertissement).toMatch(/^Dommages-ouvrage : déclarer dès la connaissance du sinistre \(C\. assur\. art\. L\. 113-2, 4°\) ; aucun délai dans les clauses types/)
+    expect(reperes?.fondements).toEqual(['C. assur. art. L. 113-2', 'C. assur. annexe II à l’art. A. 243-1', 'C. assur. art. L. 114-1'])
+    expect(reperes?.avertissement).toMatch(/^Dommages-ouvrage : déclarer dès la connaissance du sinistre \(C\. assur\. art\. L\. 113-2, 4°\) ; aucun délai dans les clauses types/)
     // Même prescription de deux ans que le droit commun (R52) : même phrase que celle de J67, R49.
     const phrasePrescription =
       "Prescription au plus tôt 24 mois après l'événement (art. L. 114-1) : une interruption peut la repousser (art. L. 114-2) ; le contrat ne peut pas en changer la durée (art. L. 114-3)."
-    expect(reperes.avertissement.endsWith(` ${phrasePrescription}`)).toBe(true)
-    expect(reperesDelaisSinistre(creerSinistre(saisie())).avertissement.endsWith(` ${phrasePrescription}`)).toBe(true)
-    expect(reperes.avertissement).not.toContain('Vérifier le contrat et le dossier.')
+    expect(reperes?.avertissement.endsWith(` ${phrasePrescription}`)).toBe(true)
+    expect(reperesDelaisSinistre(creerSinistre(saisie()))?.avertissement.endsWith(` ${phrasePrescription}`)).toBe(true)
+    expect(reperes?.avertissement).not.toContain('Vérifier le contrat et le dossier.')
     // La police fixe un délai : il s'applique, sans plancher de cinq jours.
     expect(reperesDelaisSinistre(dommagesOuvrage, { delaiContratJoursOuvres: 3 })).toMatchObject({
       delaiDeclarationJoursOuvres: 3,
@@ -360,5 +360,28 @@ describe('sinistres — repères de délais (indicatifs)', () => {
       desLaConnaissance: false,
       declarationTardive: false,
     })
+  })
+})
+
+describe('sinistres — repères de délais : aucun calcul depuis une année improbable (faute de frappe)', () => {
+  it('survenance en 9998 ou en 9999 : aucun repère, au lieu de lever « Date ISO invalide » (survenance + 24 mois = an 10000)', () => {
+    for (const dateSurvenance of ['9998-03-01', '9999-12-31'])
+      expect(reperesDelaisSinistre(creerSinistre(saisie({ dateSurvenance }))), dateSurvenance).toBeNull()
+  })
+
+  it('connaissance d’une année improbable (9999) : aucun repère, au lieu de lever (jours ouvrés comptés en l’an 10000)', () => {
+    expect(reperesDelaisSinistre(creerSinistre(saisie({ dateConnaissance: '9999-12-30' })))).toBeNull()
+  })
+
+  it('année antérieure à 1900 (1026 pour 2026) : aucun repère calculé depuis la faute de frappe', () => {
+    expect(reperesDelaisSinistre(creerSinistre(saisie({ dateSurvenance: '1026-10-27' })))).toBeNull()
+  })
+
+  it('bornes plausibles (1900, 2100) : repères calculés, dans le calendrier', () => {
+    expect(reperesDelaisSinistre(creerSinistre(saisie({ dateSurvenance: '2100-12-31' })))).toMatchObject({
+      declarationAuPlusTard: '2101-01-07',
+      prescription: '2102-12-31',
+    })
+    expect(reperesDelaisSinistre(creerSinistre(saisie({ dateSurvenance: '1900-01-01' })))?.prescription).toBe('1902-01-01')
   })
 })

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useSyncExternalStore } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { verifierSessionNavigateur } from '@/lib/auth/session-navigateur'
@@ -18,9 +18,19 @@ const SPACES = [
   { id: 'syndic' as Espace, emoji: '🏢', labelKey: 'auth.espacePro', descKey: 'auth.espaceProDesc', registerHref: '/pro/register' },
 ]
 
+// Arrivée depuis l'inscription d'une société dont l'adresse e-mail a déjà un compte : le formulaire d'inscription
+// renvoie ici avec ?email_exists=1. Lu dans l'adresse du navigateur, jamais au rendu serveur (false), sans écart à
+// l'hydratation.
+const sansAbonnement = () => () => {}
+const adresseDejaInscriteDansUrl = () => new URLSearchParams(window.location.search).get('email_exists') === '1'
+const adresseDejaInscriteAuServeur = () => false
+
 export default function LoginPage() {
   const { t } = useTranslation()
   const locale = useLocale()
+  // Message en français ; la page portugaise reste inchangée (Portugal hors de ce correctif)
+  const adresseDejaInscrite = useSyncExternalStore(sansAbonnement, adresseDejaInscriteDansUrl, adresseDejaInscriteAuServeur)
+    && locale !== 'pt'
   const [step, setStep] = useState<'select' | 'form'>('select')
   const [espace, setEspace] = useState<Espace | null>(null)
   const [email, setEmail] = useState('')
@@ -234,6 +244,17 @@ export default function LoginPage() {
           }}>
             {t('auth.chooseSpace')}
           </p>
+
+          {adresseDejaInscrite && (
+            <div role="status" style={{
+              background: '#FEF2F2', color: '#DC2626',
+              padding: '12px 16px', borderRadius: '10px',
+              fontSize: '14px', border: '1px solid #FECACA',
+              marginBottom: '20px',
+            }}>
+              Un compte existe déjà avec cette adresse e-mail : choisissez votre espace, puis connectez-vous avec votre mot de passe (« Mot de passe oublié ? » si besoin).
+            </div>
+          )}
 
           {/* ── STEP 1: Space Selector ── */}
           {step === 'select' && (

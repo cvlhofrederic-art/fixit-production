@@ -45,6 +45,8 @@ type UserData = {
   created_at: string
   role: string
   full_name: string
+  /** Administrateur en « vue en tant que » (app_metadata._original_role) : ce n'est pas son propre rôle. */
+  vueEnTantQue: boolean
 }
 
 export default function MesDonneesRgpd({ variante = 'fr' }: Readonly<{ variante?: VarianteMesDonnees }>) {
@@ -74,6 +76,7 @@ export default function MesDonneesRgpd({ variante = 'fr' }: Readonly<{ variante?
         created_at: u.created_at,
         role: u.app_metadata?.role || 'particulier',
         full_name: u.user_metadata?.full_name || '',
+        vueEnTantQue: Boolean(u.app_metadata?._original_role),
       })
       setLoading(false)
     }
@@ -128,10 +131,19 @@ export default function MesDonneesRgpd({ variante = 'fr' }: Readonly<{ variante?
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) throw new Error(textes.nonAuthentifie)
 
-      const res = await fetch('/api/user/delete-account', {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      })
+      // Société BTP (pro_societe), hors « vue en tant que » d'un administrateur : la route exige la confirmation dans le
+      // corps de la requête. Les autres rôles gardent leur requête (règle n° 1 artisan / BTP).
+      const confirmationBtp = user?.role === 'pro_societe' && !user.vueEnTantQue
+      const res = await fetch('/api/user/delete-account', confirmationBtp
+        ? {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ confirmation: 'DELETE_MY_ACCOUNT' }),
+        }
+        : {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        })
 
       if (!res.ok) {
         const data = await res.json()
