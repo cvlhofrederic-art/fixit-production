@@ -103,7 +103,7 @@ import { FAMILLE_TRAITEMENT, type StatutTravaux } from '@/lib/data/referentiels-
  *   des garde-fous de non-régression du calcul. Ils ne disent rien de la concordance des deux balances, par comptes et
  *   par clés (arrêté, art. 2) : un mouvement sans clé la rompt, et seule l'anomalie mouvement_sans_cle le révèle.
  *
- * 🔴 Non établi — questions pour Hugo (ce que montre Gestéam) et Frédéric :
+ * 🔴 Non établi — questions à trancher (ce que montre Gestéam, choix de présentation) :
  * (a) Colonne « budget voté » de la partie travaux de l'annexe 2 : montant voté des opérations, part prévue sur
  *     l'exercice, ou rien ? (VitFix : null.)
  * (b) Le compte de gestion de l'exercice qui suit un passage au 12 reprend-il les travaux des exercices antérieurs
