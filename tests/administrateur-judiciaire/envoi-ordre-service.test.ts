@@ -92,7 +92,7 @@ import {
   type ResultatDelaiContestationAg,
 } from '@/lib/administrateur-judiciaire/domain/statut-assemblee'
 import { creerBudgetOperationTravaux } from '@/lib/administrateur-judiciaire/domain/travaux-budget'
-import { creerOperationTravaux } from '@/lib/administrateur-judiciaire/domain/travaux-operations'
+import { creerOperationTravaux, rejeterOperationTravauxAdoptee } from '@/lib/administrateur-judiciaire/domain/travaux-operations'
 import { creerDemandeVoiePostale } from '@/lib/administrateur-judiciaire/domain/voie-notification'
 import type { PiecesEntreprise } from '@/lib/administrateur-judiciaire/domain/vigilance-entreprises'
 import { FORME_ENVOI_COURRIER } from '@/lib/data/referentiels-gesteam-judiciaire'
@@ -494,6 +494,32 @@ describe('J67, R59 — OS qui fait dépasser le budget adopté de l’opération
     expect(codes(anomalies)).toContain('depassement_budget_os_urgence')
     expect(anomalies.find((a) => a.code === 'depassement_budget_os_urgence')?.gravite).toBe('alerte')
     expect(controlerAvantEnvoiOs(demande(), sortie(), { ...CONTEXTE, budgetTravaux: null })).toEqual([])
+  })
+})
+
+describe('décision du 20/11/2026 (partie C, F67) — opération de travaux « Rejeté » : plus aucun ordre de service', () => {
+  const operation = creerOperationTravaux({
+    numero: '00042',
+    coproprieteId: 'copro-1',
+    libelle: 'Ravalement',
+    cleId: 'cle-001',
+    decision: { date: '2026-03-12', resolution: 'Résolution 8' },
+    budgetTtcCentimes: 1_000_000,
+    financementFondsTravauxCentimes: 0,
+    affectationFonds: null,
+    tranches: [],
+  })
+  const jugement = { nature: 'jugement' as const, juridiction: 'Tribunal judiciaire de Lyon', date: '2026-06-10', numero: 'RG 26/04567' }
+  const { operation: rejetee } = rejeterOperationTravauxAdoptee(operation, { le: '2026-06-12', motif: 'Résolution 8 annulée', acte: jugement })
+  const budgetDe = (op: typeof operation) => ({ operation: op, budget: creerBudgetOperationTravaux(op, { lignes: [{ poste: 'travaux', budgetTtcCentimes: 100_000 }] }) })
+
+  it('OS d’une opération « Rejeté » : bloquant, motif et fondement de la décision ; opération adoptée : l’OS part', () => {
+    const anomalies = controlerAvantEnvoiOs(demande(), sortie(), { ...CONTEXTE, budgetTravaux: budgetDe(rejetee) })
+    expect(bloquants(anomalies)).toEqual(['operation_travaux_rejetee'])
+    const rejet = anomalies.find((a) => a.code === 'operation_travaux_rejetee')
+    expect(rejet?.message).toMatch(/plus aucun appel ni ordre de service.*partie C, F67/)
+    expect(rejet?.fondement).toBe('L. 1965 art. 42, al. 2')
+    expect(controlerAvantEnvoiOs(demande(), sortie(), { ...CONTEXTE, budgetTravaux: budgetDe(operation) })).toEqual([])
   })
 })
 

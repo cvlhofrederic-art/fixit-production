@@ -805,14 +805,19 @@ const controleDeLEmploi = (emploi: EmploiFondsTravaux): ResultatAffectation =>
 
 /**
  * Décision ou ordonnance admise mais en texte libre d'avant J30 : signalée « forme incomplète », l'emploi reste déduit ;
- * sa date n'est pas lisible, donc pas contrôlée face à l'emploi : à ressaisir en forme structurée (F94).
+ * sa date n'est pas lisible, donc pas contrôlée face à l'emploi, sauf la date de décision connue de l'emploi
+ * (`dateDecision`, rapprochée de lui) : à ressaisir en forme structurée (F94).
  */
 function formeIncompleteDeLEmploi(emploi: EmploiFondsTravaux, controle: ResultatAffectation): AnomalieFondsTravauxLots | null {
   if (!controle.formeIncomplete) return null
+  const date =
+    emploi.dateDecision === null
+      ? "Sa date n'est pas lisible, date non contrôlée face à l'emploi"
+      : `Sa forme n'est pas lisible ; l'emploi est rapproché de la date de décision connue (${dateIsoVersFr(emploi.dateDecision)})`
   return {
     code: 'emploi_forme_incomplete',
     refId: emploi.id,
-    message: `Emploi ${emploi.id} : ${controle.formeIncomplete.message} Sa date n'est pas lisible, date non contrôlée face à l'emploi : la ressaisir en forme structurée (décision du 20/11/2026, partie C, F94).`,
+    message: `Emploi ${emploi.id} : ${controle.formeIncomplete.message} ${date} : la ressaisir en forme structurée (décision du 20/11/2026, partie C, F94).`,
   }
 }
 

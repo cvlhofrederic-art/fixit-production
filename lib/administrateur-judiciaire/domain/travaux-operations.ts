@@ -122,10 +122,11 @@ import { STATUT_TRAVAUX, TYPE_TRAVAUX, type StatutTravaux, type TypeTravaux } fr
  *   fait passer l'opération à « Rejeté » par une transition tracée depuis « Adopté », « Commandé » ou « Commencé »
  *   (rejeterOperationTravauxAdoptee), avec un motif et la référence de l'acte (jugement : juridiction, date, n° ; ou
  *   assemblée et n° de résolution) : plus aucun appel ni ordre de service (refusAppelOuOrdreDeServiceOperation, appliqué
- *   par echeancesTravaux), échéances non appelées annulées (annulerEcheancesNonAppeleesDeLOperation), écritures passées
- *   gardées, dépenses faites à régler et à répartir (la décision reste enregistrée). Depuis « Terminé », « A clôturer » ou
- *   « Réparti », pas de passage automatique : une alerte à traiter par le gestionnaire du dossier, les travaux étant faits
- *   (contestation : L. 1965 art. 42, al. 2) ;
+ *   par echeancesTravaux, le suivi « à faire » de suivi-a-faire.ts et controlerAvantEnvoiOs d'envoi-ordre-service.ts
+ *   quand l'opération de l'OS est fournie), échéances non appelées annulées (annulerEcheancesNonAppeleesDeLOperation),
+ *   écritures passées gardées, dépenses faites à régler et à répartir (la décision reste enregistrée). Depuis « Terminé »,
+ *   « A clôturer » ou « Réparti », pas de passage automatique : une alerte à traiter par le gestionnaire du dossier, les
+ *   travaux étant faits (contestation : L. 1965 art. 42, al. 2) ;
  * - Décision du 20/11/2026 (partie C, F69) : (1) le mandat porte l'étendue des pouvoirs de l'assemblée confiés par
  *   l'ordonnance (tous, une partie, aucun ; D. 1967 art. 62-5 ; L. 1965 art. 29-1, I) : une décision de l'administrateur
  *   provisoire « au titre des pouvoirs de l'AG » est bloquée s'il n'en a aucun et donne l'alerte « à vérifier dans
@@ -247,8 +248,8 @@ import { STATUT_TRAVAUX, TYPE_TRAVAUX, type StatutTravaux, type TypeTravaux } fr
  * décision de l'administrateur provisoire) ; db/schema.ts (Frédéric) — table Travaux : statut, type, cles, décision
  * (origine, majorité, second vote), serieComptes, historiqueStatuts (reprise, auteur et acte des changements : F66,
  * F67) ; mandat — étendue des pouvoirs de l'assemblée (pouvoirsAgDuMandat, F69), passée à creerOperationTravaux et
- * adopterOperationTravaux ; envoi-ordre-service.ts — refusAppelOuOrdreDeServiceOperation avant l'envoi d'un ordre de
- * service (F67) ; EntiteAStatutHistorise complété de 'travaux'
+ * adopterOperationTravaux ; appelant de controlerAvantEnvoiOs (envoi-ordre-service.ts) — l'opération de l'OS
+ * (budgetTravaux), sans quoi le refus de F67 n'y est pas lu ; EntiteAStatutHistorise complété de 'travaux'
  * (changementsStatutAHistoriser), lignes écrites et relues dans l'ordre de saisie (createdAt), pas par date d'effet
  * comme historiqueTrie des AG (statut-assemblee.ts) : la date vraie d'un changement corrigé peut précéder son annulation.
  */
@@ -893,8 +894,8 @@ export function rejeterOperationTravauxAdoptee(
 
 /**
  * Refus d'un nouvel appel ou d'un ordre de service pour une opération « Rejeté » (décision du 20/11/2026, partie C,
- * F67) : la décision qui la fondait est tombée, ou le projet a été rejeté ; null sinon. echeancesTravaux l'applique ;
- * branchement à faire : envoi-ordre-service.ts.
+ * F67) : la décision qui la fondait est tombée, ou le projet a été rejeté ; null sinon. echeancesTravaux, le suivi « à
+ * faire » (suivi-a-faire.ts) et controlerAvantEnvoiOs (envoi-ordre-service.ts, opération de l'OS fournie) l'appliquent.
  */
 export function refusAppelOuOrdreDeServiceOperation(operation: Pick<OperationTravaux, 'numero' | 'statut'>): { motif: string; fondement: string } | null {
   if (operation.statut !== 'Rejeté') return null

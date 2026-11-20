@@ -812,7 +812,8 @@ function refusCleSansPart(operation: OperationTravaux, { cleId, partCle }: Conte
 
 /**
  * Refus qui ne dépendent pas de la réponse à la question ouverte sur le bouton « Ne pas utiliser les fonds travaux »
- * (🔴 en-tête), dans l'ordre : opération sans décision (Projet ou Rejeté : aucune dépense décidée à financer), part nulle
+ * (🔴 en-tête), dans l'ordre : opération sans décision (projet, rejeté ou non : aucune dépense décidée à financer ; une
+ * opération rejetée après son adoption garde sa décision, F67), part nulle
  * (aucune décision n'affecte le fonds à ses dépenses, al. 7, refus certain ; usage judiciaire : part nulle, art. 29-14,
  * 2°, à confirmer). La case exige une part nulle : cochée, elle est rappelée au motif sans masquer ces refus ; null si
  * aucun.

@@ -15,6 +15,7 @@ import {
 } from '@/lib/administrateur-judiciaire/domain/fonds-travaux-lots'
 import type { ReglementFournisseur } from '@/lib/administrateur-judiciaire/domain/reglements-fournisseurs'
 import { creerCleRepartition } from '@/lib/administrateur-judiciaire/domain/repartition-appels'
+import { depuisOperationsTravaux } from '@/lib/administrateur-judiciaire/domain/suivi-a-faire'
 import {
   CONSIGNE_OPERATION_EN_DOUBLE,
   controlerReglementDepuisLeFondsOperation,
@@ -345,6 +346,16 @@ describe('F67 — résolution annulée en justice ou rapportée : passage tracé
     ])
     expect(() => annulerEcheancesNonAppeleesDeLOperation(op, suivies)).toThrow(/« Rejeté »/)
   })
+
+  it('le suivi « à faire » ne propose plus aucun appel de l’opération « Rejeté », sans interrompre la liste des autres opérations', () => {
+    const { operation } = rejeterOperationTravauxAdoptee(commencee(), { le: '2026-06-12', motif: 'Résolution 8 annulée', acte: jugement })
+    const autre = creerOperationTravaux(saisie({ numero: '00043' }))
+    const elements = depuisOperationsTravaux([
+      { mandatId: 'm-1', operation, appelees: [] },
+      { mandatId: 'm-1', operation: autre, appelees: [] },
+    ])
+    expect(elements.map((e) => e.id)).toEqual(['travaux:copro-tilleuls:00043-T1', 'travaux:copro-tilleuls:00043-T2'])
+  })
 })
 
 // ─── F69 ──────────────────────────────────────────────────────────────────────────────────────
@@ -481,6 +492,20 @@ describe('F94 — dépense du fonds datée avant l’ordonnance du juge qui l’
     expect(forme?.message).toContain('date non contrôlée')
     expect(forme?.message).toContain('la ressaisir en forme structurée')
     expect(etat.totalDeduitDesPartsCentimes).toBe(1_000)
+  })
+
+  it('texte libre dont la date de décision est connue (dateDecision) : la date est rapprochée, l’alerte ne la dit pas « non contrôlée »', () => {
+    const libre = emploiFonds({
+      montantCentimes: 1_000,
+      dateDecision: '2026-01-15',
+      decaissement: { objet: 'travaux_ppt', montantCentimes: 1_000, decisionAg: 'AG du 15/01/2026, résolution 12' },
+    })
+    const etat = partsFondsTravauxParLot({ versements: versementsFonds, emplois: [libre], cles: [cleFonds], date: '2026-02-28' })
+    const forme = etat.anomalies.find((a) => a.code === 'emploi_forme_incomplete')
+    expect(forme?.message).not.toContain('date non contrôlée')
+    expect(forme?.message).toContain('la ressaisir en forme structurée')
+    const veille = partsFondsTravauxParLot({ versements: versementsFonds, emplois: [{ ...libre, date: '2026-01-14' }], cles: [cleFonds], date: '2026-02-28' })
+    expect(veille.anomalies.some((a) => a.code === 'emploi_avant_decision')).toBe(true)
   })
 })
 

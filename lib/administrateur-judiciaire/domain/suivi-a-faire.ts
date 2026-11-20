@@ -65,6 +65,7 @@ import {
 import {
   echeancesTravaux,
   etatPartFondsTravaux,
+  refusAppelOuOrdreDeServiceOperation,
   type OperationTravaux,
 } from '@/lib/administrateur-judiciaire/domain/travaux-operations'
 import { echeancesLiberationGarantie, type SuiviRetenueMarche } from '@/lib/administrateur-judiciaire/domain/travaux-retenue-garantie'
@@ -697,9 +698,11 @@ export function depuisDemandes(
 }
 
 /**
- * Travaux votés : chaque appel de tranche pas encore lancé, à son exigibilité (travaux-operations) ; non votés : rien.
- * Part du fonds de travaux pas encore autorisée (décision d'affectation ou ordonnance du juge attendue) : un seul
- * élément, à la date du premier appel à lancer, qui dit ce qui bloque, sans interrompre la liste des autres opérations.
+ * Travaux votés : chaque appel de tranche pas encore lancé, à son exigibilité (travaux-operations) ; non votés : rien ;
+ * « Rejeté » (décision tombée, la décision restant enregistrée) : rien, plus aucun appel (décision du 20/11/2026, partie
+ * C, F67 : refusAppelOuOrdreDeServiceOperation). Part du fonds de travaux pas encore autorisée (décision d'affectation
+ * ou ordonnance du juge attendue) : un seul élément, à la date du premier appel à lancer, qui dit ce qui bloque, sans
+ * interrompre la liste des autres opérations.
  * `appelees` : ids d'appel (« 00042-T1 ») déjà lancés. Le n° d'opération n'est unique qu'au sein du syndicat (D1) : la clé
  * et la fiche d'origine portent la copropriété.
  */
@@ -707,7 +710,7 @@ export function depuisOperationsTravaux(
   items: { mandatId: string; operation: OperationTravaux; appelees: string[] }[],
 ): ElementAFaire[] {
   return items.flatMap(({ mandatId, operation, appelees }) => {
-    if (!operation.decision) return []
+    if (!operation.decision || refusAppelOuOrdreDeServiceOperation(operation)) return []
     const objetId = `${operation.coproprieteId}:${operation.numero}`
     const etatFonds = etatPartFondsTravaux(operation)
     if (etatFonds && !etatFonds.autorise) {
