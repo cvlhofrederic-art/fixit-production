@@ -5,13 +5,21 @@
 // modèle, latence, statut, type d'erreur). Sans l'option, les traces des autres agents ne changent pas.
 // Le SDK Langfuse est simulé ; aucun appel réseau.
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
-type CorpsTrace = { input?: unknown; output?: unknown; metadata?: Record<string, unknown> }
+type CorpsTrace = {
+  name?: string
+  userId?: string
+  sessionId?: string
+  input?: unknown
+  output?: unknown
+  metadata?: Record<string, unknown>
+}
 
-const h = vi.hoisted(() => ({
-  trace: vi.fn((_corps: CorpsTrace) => ({ update: vi.fn() })),
-}))
+const h = vi.hoisted(() => {
+  const update = vi.fn()
+  return { update, trace: vi.fn((_corps: CorpsTrace) => ({ update })) }
+})
 
 vi.mock('langfuse', () => ({
   Langfuse: class {
@@ -19,7 +27,7 @@ vi.mock('langfuse', () => ({
   },
 }))
 
-const { traceAgent } = await import('@/lib/langfuse')
+const { traceAgent, pseudonymizeUserId } = await import('@/lib/langfuse')
 
 /** Erreur d'un fournisseur d'IA dont le texte recopie une partie de la demande (cas à ne pas tracer). */
 class ErreurFournisseur extends Error {
@@ -44,6 +52,11 @@ describe('traceAgent — option metadonneesSeules', () => {
     vi.stubEnv('LANGFUSE_PUBLIC_KEY', 'pk-test')
     vi.stubEnv('LANGFUSE_SECRET_KEY', 'sk-test')
     h.trace.mockClear()
+    h.update.mockClear()
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
   })
 
   it('sans l’option, la question et le texte de l’erreur partent comme avant (autres agents inchangés)', async () => {
@@ -52,6 +65,37 @@ describe('traceAgent — option metadonneesSeules', () => {
 
     await expect(traceAgent({ agent_id: 'fixy', user_id: 'u1' }, async () => { throw new Error('Groq 500: panne') })).rejects.toThrow()
     expect(derniereTrace().metadata?.error).toBe('Groq 500: panne')
+  })
+
+  it('sans l’option, le corps complet de la trace reste celui d’avant (nom, utilisateur pseudonymisé, session, textes masqués, statut)', async () => {
+    await traceAgent(
+      {
+        agent_id: 'max',
+        user_id: 'u1',
+        conversation_id: 'conv-1',
+        prompt: 'Écrire à a@b.fr',
+        response: 'Appeler le 06 12 34 56 78',
+        tools_called: ['recherche_reglement'],
+        metadata: { succursale: 'syndic' },
+      },
+      async () => REPONSE,
+    )
+    const corps = derniereTrace()
+    expect(corps).toEqual({
+      name: 'agent:max',
+      userId: pseudonymizeUserId('u1'),
+      sessionId: 'conv-1',
+      input: 'Écrire à [email]',
+      output: 'Appeler le [tel]',
+      metadata: { succursale: 'syndic', latency_ms: expect.any(Number), success: true, tools_called: ['recherche_reglement'] },
+    })
+    // Les jetons et le modèle ne s'ajoutent qu'avec l'option.
+    expect(corps.metadata).not.toHaveProperty('jetons')
+    expect(corps.metadata).not.toHaveProperty('modele')
+    expect(h.update).toHaveBeenLastCalledWith({ output: { status: 'completed' } })
+
+    await expect(traceAgent({ agent_id: 'max', user_id: 'u1' }, async () => { throw new Error('boom') })).rejects.toThrow('boom')
+    expect(h.update).toHaveBeenLastCalledWith({ output: { status: 'error' } })
   })
 
   it('avec l’option, ni question ni réponse : seulement les métadonnées, les jetons et le modèle', async () => {
@@ -69,8 +113,11 @@ describe('traceAgent — option metadonneesSeules', () => {
     expect(resultat).toBe(REPONSE)
 
     const trace = derniereTrace()
+    expect(trace.name).toBe('agent:aj-lea')
+    expect(trace.userId).toBe(pseudonymizeUserId('u1'))
     expect(trace.input).toBeUndefined()
     expect(trace.output).toBeUndefined()
+    expect(h.update).toHaveBeenLastCalledWith({ output: { status: 'completed' } })
     expect(trace.metadata).toMatchObject({
       succursale: 'administrateur-judiciaire',
       longueurQuestion: QUESTION.length,
@@ -95,7 +142,8 @@ describe('traceAgent — option metadonneesSeules', () => {
       traceAgent({ agent_id: 'aj-fixy', user_id: 'u1', metadonneesSeules: true }, async () => { throw new Error(QUESTION) }),
     ).rejects.toThrow()
     expect(derniereTrace().metadata).toMatchObject({ success: false, error: 'Error' })
-    expect(JSON.stringify(h.trace.mock.calls)).not.toMatch(DONNEES_PERSONNELLES)
+    expect(h.update).toHaveBeenLastCalledWith({ output: { status: 'error' } })
+    expect(JSON.stringify([h.trace.mock.calls, h.update.mock.calls])).not.toMatch(DONNEES_PERSONNELLES)
   })
 
   it('avec l’option, un résultat sans jetons ni modèle ne casse pas la trace', async () => {

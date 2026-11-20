@@ -191,6 +191,47 @@ function typeErreur(error: unknown): string | undefined {
   return statut === undefined ? error.name : `${error.name} ${statut}`
 }
 
+/** Issue de l'appel tracé par traceAgent. */
+interface IssueAppel {
+  success: boolean
+  result: unknown
+  error: unknown
+  latency_ms: number
+}
+
+/**
+ * Entrée, sortie et métadonnées de la trace. Avec `metadonneesSeules` : aucun texte (ni question, ni réponse, ni
+ * message d'erreur), mais les jetons et le modèle ; sans l'option, la trace des autres agents est inchangée.
+ */
+function contenuTrace(params: TraceAgentParams, issue: IssueAppel) {
+  const { success, result, error, latency_ms } = issue
+  if (params.metadonneesSeules === true) {
+    return {
+      input: undefined,
+      output: undefined,
+      metadata: {
+        ...params.metadata,
+        ...(success ? jetonsEtModele(result) : {}),
+        latency_ms,
+        success,
+        error: typeErreur(error),
+        tools_called: params.tools_called,
+      },
+    }
+  }
+  return {
+    input: scrubForTrace(params.prompt),
+    output: scrubForTrace(params.response),
+    metadata: {
+      ...params.metadata,
+      latency_ms,
+      success,
+      error: error instanceof Error ? error.message : undefined,
+      tools_called: params.tools_called,
+    },
+  }
+}
+
 export async function traceAgent<T>(
   params: TraceAgentParams,
   fn: () => Promise<T>,
@@ -211,22 +252,11 @@ export async function traceAgent<T>(
     try {
       const lf = getLangfuse()
       if (lf) {
-        const seules = params.metadonneesSeules === true
-        const messageErreur = error instanceof Error ? error.message : undefined
         const t = lf.trace({
           name: `agent:${params.agent_id}`,
           userId: pseudonymizeUserId(params.user_id),
           sessionId: params.conversation_id,
-          input: seules ? undefined : scrubForTrace(params.prompt),
-          output: seules ? undefined : scrubForTrace(params.response),
-          metadata: {
-            ...params.metadata,
-            ...(seules && success ? jetonsEtModele(result) : {}),
-            latency_ms,
-            success,
-            error: seules ? typeErreur(error) : messageErreur,
-            tools_called: params.tools_called,
-          },
+          ...contenuTrace(params, { success, result, error, latency_ms }),
         })
         t.update({ output: { status: success ? 'completed' : 'error' } })
       }
