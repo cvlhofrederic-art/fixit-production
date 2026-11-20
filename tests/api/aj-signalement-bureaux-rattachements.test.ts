@@ -10,6 +10,7 @@
 //   PATCH /gestionnaires/[id]           action seule { bureauId } (changer, jamais retirer), journal {bureau} ;
 //                                       { actif: true } dans un bureau fermé : 409 bureau_ferme (refus de la base) ;
 //   GET   /gestionnaires/[id]/export    bureau de la fiche dans l'export (clé posée seulement si elle en a un) ;
+//                                       lecture du bureau en panne : 503, jamais un export sans son bureau ;
 //   POST  /coproprietes                 bureauId facultatif, posé juste après la création (207 s'il ne l'est pas) ;
 //   PATCH /coproprietes/[id]            bureauId (ou null), journal {bureau} ; { actif: true } dans un bureau fermé :
 //                                       409 bureau_ferme (refus de la base) ;
@@ -30,11 +31,12 @@ vi.mock('@/lib/email', async () => (await import('../helpers/aj-signalement-rout
 vi.mock('@/lib/logger', async () => (await import('../helpers/aj-signalement-routes')).mockLogger())
 
 const { baseQr } = await import('../helpers/aj-signalement-base')
-const { ADMIN_QR, contexteQr, messagesEnvoyesQr, reinitialiserSimulQr, requeteQr } = await import('../helpers/aj-signalement-routes')
+const { ADMIN_QR, contexteQr, messagesEnvoyesQr, reinitialiserSimulQr, requeteQr, simulQr } = await import('../helpers/aj-signalement-routes')
 const A = await import('../helpers/aj-signalement-acces')
 const { CAB, CAB_AUTRE, COMPTE_G1, C1, C2, C3, C_SANS, C_TOUS, G1, G2, G3, S1, S2, connecterQr, poserJeuAccesQr, simulerCreationCoproprietesQr } = A
-const { ligneBureauQr, simulerFonctionsBureauxQr, simulerProductionAvantBureauxQr } = await import('../helpers/aj-signalement-bureaux')
+const { ligneBureauQr, refuserLecturesQr, simulerFonctionsBureauxQr, simulerProductionAvantBureauxQr } = await import('../helpers/aj-signalement-bureaux')
 const { reinitialiserReplisQr } = await import('@/lib/aj-signalement/serveur')
+const { COLONNES_BUREAU_QR } = await import('@/lib/aj-signalement/serveur-bureaux')
 const { GET: CABINETS } = await import('@/app/api/aj-signalement/cabinets/route')
 const { GET: LISTE, POST: CREER_FICHE } = await import('@/app/api/aj-signalement/gestionnaires/route')
 const { GET: FICHE, PATCH: MODIFIER_FICHE } = await import('@/app/api/aj-signalement/gestionnaires/[id]/route')
@@ -49,6 +51,8 @@ const AILLEURS = 'b0000000-0000-4000-8000-0000000000a3'
 const FERME = 'b0000000-0000-4000-8000-0000000000a4'
 const INCONNU = 'b0000000-0000-4000-8000-0000000000ff'
 const NOUVELLE = { nom: 'Julie Nouvelle', email: 'julie.nouvelle@exemple.test', cabinetId: CAB }
+/** Panne de la base (autre chose que la migration absente). */
+const PANNE_LECTURE = { code: 'XX000', message: 'panne de lecture simulée' }
 
 type Ligne = Record<string, unknown>
 const ligne = (table: string, id: string): Ligne => {
@@ -133,8 +137,8 @@ const modifierFiche = (id: string, corps: unknown) => MODIFIER_FICHE(requeteQr(`
 const creerCopro = (corps: unknown) => CREER_COPRO(requeteQr('/api/aj-signalement/coproprietes', 'POST', corps))
 const modifierCopro = (id: string, corps: unknown) => MODIFIER_COPRO(requeteQr(`/api/aj-signalement/coproprietes/${id}`, 'PATCH', corps), contexteQr(id))
 const appels = (nom: string) => baseQr.etat.appelsRpc.filter((a) => a.nom === nom)
-const exporterFiche = async (id: string) =>
-  (await json(await EXPORT(requeteQr(`/api/aj-signalement/gestionnaires/${id}/export`), contexteQr(id)))).fiche as Ligne
+const exporterReponse = (id: string) => EXPORT(requeteQr(`/api/aj-signalement/gestionnaires/${id}/export`), contexteQr(id))
+const exporterFiche = async (id: string) => (await json(await exporterReponse(id))).fiche as Ligne
 
 describe('tant qu’aucun bureau n’existe : rien ne change pour personne', () => {
   it('cabinets, gestionnaires, fiche et tableau du super admin : aucune clé de bureau', async () => {
@@ -363,6 +367,41 @@ describe('GET /gestionnaires/[id]/export : bureau de la fiche', () => {
     expect(await exporterFiche(G2)).not.toHaveProperty('bureau')
     simulerProductionAvantBureauxQr()
     expect(await exporterFiche(G1)).not.toHaveProperty('bureau')
+  })
+
+  it('migration absente : export d’avant (200, pièce jointe, journalisé), repli journalisé une fois', async () => {
+    simulerProductionAvantBureauxQr()
+    for (let i = 0; i < 2; i += 1) {
+      const res = await exporterReponse(G1)
+      expect(res.status).toBe(200)
+      expect(res.headers.get('content-disposition')).toBe(`attachment; filename="gestionnaire-${G1}.json"`)
+      expect((await json(res)).fiche).not.toHaveProperty('bureau')
+    }
+    expect(simulQr.logger.warn.mock.calls.filter((c) => /19\/11\/2026/.test(String(c[0])))).toHaveLength(1)
+    expect(baseQr.table('signalements_qr_journal').filter((j) => j.action === 'gestionnaire.exporte')).toHaveLength(2)
+  })
+
+  it.each([
+    ['bureaux illisibles, fiche rattachée', G1, () => refuserLecturesQr('signalements_qr_bureaux', COLONNES_BUREAU_QR, PANNE_LECTURE)],
+    ['rattachement de la fiche illisible, fiche sans bureau', G2, () => refuserLecturesQr('signalements_qr_gestionnaires', 'id, bureau_id', PANNE_LECTURE)],
+  ])('lecture du bureau en panne (%s) : 503 au message générique, aucun export servi ni journalisé', async (_cas, id, panne) => {
+    poserBureaux()
+    Object.assign(ligne('signalements_qr_gestionnaires', G1), { bureau_id: NORD })
+    const restaurer = panne()
+    try {
+      const res = await exporterReponse(id)
+      expect(res.status).toBe(503)
+      expect(await json(res)).toEqual({ error: 'serveur' })
+      expect(res.headers.get('content-disposition')).toBeNull()
+    } finally {
+      restaurer()
+    }
+    expect(baseQr.table('signalements_qr_journal').filter((j) => j.action === 'gestionnaire.exporte')).toEqual([])
+    // Journal serveur : le code seul, jamais le nom d'un bureau ni le message de la base.
+    expect(simulQr.logger.error).toHaveBeenCalledWith(expect.stringContaining('bureau'), { code: 'XX000' })
+    const journalServeur = JSON.stringify([...simulQr.logger.error.mock.calls, ...simulQr.logger.warn.mock.calls])
+    expect(journalServeur).not.toContain('Nord')
+    expect(journalServeur).not.toContain(PANNE_LECTURE.message)
   })
 })
 

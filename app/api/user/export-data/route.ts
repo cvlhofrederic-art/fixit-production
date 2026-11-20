@@ -106,9 +106,11 @@ export async function GET(request: NextRequest) {
       .eq('user_id', userId)
       .maybeSingle()
 
-    // 12 bis. AJ Signalement (PR 2, SPEC § 2.10) : fiche, attributions et journal d'un gestionnaire d'un cabinet client ;
-    // null pour tout autre compte (section omise, export inchangé), et tant que les migrations manquent.
+    // 12 bis. AJ Signalement (PR 2, SPEC § 2.10) : fiche (avec son bureau), attributions et journal d'un gestionnaire d'un
+    // cabinet client ; section omise pour tout autre compte (export inchangé), et tant que les migrations manquent.
+    // Bureau non lu (autre cause que la migration absente) : 503 au message générique, rien d'exporté ni journalisé.
     const ajSignalement = await exportGestionnaireDuCompteQr(user)
+    if (!ajSignalement.ok) return ajSignalement.reponse
 
     // 13. Audit log export (RGPD transparency)
     try {
@@ -147,7 +149,7 @@ export async function GET(request: NextRequest) {
         signalements: syndicSignalements,
         planning_events: syndicPlanningEvents,
       },
-      ...(ajSignalement ? { aj_signalement: ajSignalement } : {}),
+      ...ajSignalement.champ,
     }
 
     return new Response(JSON.stringify(exportData, null, 2), {

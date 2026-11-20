@@ -74,6 +74,26 @@ export function simulerFonctionsBureauxQr(base: BaseQr = baseQr): void {
   }
 }
 
+/**
+ * Chaque LECTURE de ces colonnes dans la table reçoit cette erreur (une panne de la base, pas la migration absente) ;
+ * les autres requêtes passent. Rend la fonction qui remet le client simulé.
+ */
+export function refuserLecturesQr(table: string, colonnes: string, erreur: { code: string; message: string }, base: BaseQr = baseQr): () => void {
+  const original = base.client.from
+  base.client.from = ((nom: string, ...reste: unknown[]) => {
+    const q = (original as (t: string, ...r: unknown[]) => Record<string, unknown>)(nom, ...reste)
+    if (nom === table) {
+      const select = q.select as (c?: string, ...r: unknown[]) => unknown
+      q.select = (c?: string, ...r: unknown[]) => {
+        if (c === colonnes) base.etat.erreursPonctuelles[table] = erreur
+        return select(c, ...r)
+      }
+    }
+    return q
+  }) as typeof original
+  return () => { base.client.from = original }
+}
+
 // ── La production avant la migration du 19/11/2026 (bureaux) ─────────────────────────────────────────────────────
 
 export const TABLES_MIGRATION_BUREAUX_QR: readonly string[] = ['signalements_qr_bureaux']
