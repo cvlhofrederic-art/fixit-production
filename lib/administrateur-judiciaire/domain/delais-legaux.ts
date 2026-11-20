@@ -153,6 +153,12 @@ export interface RegleDelaiLegal {
   condition?: ConditionRegle
 }
 
+/** L. 1965 art. 29-3, I : suspension de l'exigibilité des créances antérieures à la désignation, pour douze mois. */
+export const MOIS_SUSPENSION_EXIGIBILITE = 12
+/** L. 1965 art. 29-3, II : prorogation par le juge, durée totale de trente mois au plus. */
+export const MOIS_MAX_SUSPENSION_PROROGEE = 30
+const ID_FIN_SUSPENSION_EXIGIBILITE = 'fin-suspension-exigibilite-ap291'
+
 export const REGLES_DELAIS_LEGAUX: RegleDelaiLegal[] = [
   {
     id: 'notification-ordonnance-46-47',
@@ -287,13 +293,13 @@ export const REGLES_DELAIS_LEGAUX: RegleDelaiLegal[] = [
     },
   },
   {
-    id: 'fin-suspension-exigibilite-ap291',
+    id: ID_FIN_SUSPENSION_EXIGIBILITE,
     regimes: ['ap291'],
     libelle: "Fin de la suspension de l'exigibilité des créances antérieures",
     nature: 'effet',
     fondements: [refLoi1965('29-3, I et II')],
     depart: 'ordonnance',
-    delai: delaiMois(12),
+    delai: delaiMois(MOIS_SUSPENSION_EXIGIBILITE),
     certitude: 'TEXTE',
     note: "Créances autres que publiques et sociales, nées avant la décision. Prorogation possible jusqu'à trente mois à la demande de l'administrateur provisoire (art. 29-3 II), avec la même publicité. Maintien tant que le plan d'apurement homologué est respecté (art. 29-5 III).",
   },
@@ -467,6 +473,27 @@ export function resoudreDateDepart(contexte: ContexteMandat, evenement: Evenemen
         }
 }
 
+/** Valeur du délai d'une règle : pour la fin de la suspension de l'exigibilité, la durée prorogée quand elle est saisie (art. 29-3, II). */
+const valeurDuDelai = (regle: RegleDelaiLegal, delai: Delai, contexte: Pick<ContexteMandat, 'suspensionProrogeeJusquAMois'>): number =>
+  regle.id === ID_FIN_SUSPENSION_EXIGIBILITE && contexte.suspensionProrogeeJusquAMois ? contexte.suspensionProrogeeJusquAMois : delai.valeur
+
+/** Date au bout du délai d'une règle, compté depuis `dateDepart` (avant ou après, lendemain compris). */
+function dateDuDelai(regle: RegleDelaiLegal, delai: Delai, dateDepart: string, contexte: Pick<ContexteMandat, 'suspensionProrogeeJusquAMois'>): string {
+  const applique: Delai = { valeur: valeurDuDelai(regle, delai, contexte), unite: delai.unite }
+  return delai.sens === 'avant' ? retrancherDelai(dateDepart, applique) : appliquerDelai(dateDepart, applique, regle.lendemain)
+}
+
+/**
+ * Fin de la suspension de l'exigibilité des créances antérieures (L. 1965 art. 29-3, I et II) : le même calcul que
+ * l'échéance « fin-suspension-exigibilite-ap291 » du mandat, depuis la décision de désignation, sur douze mois ou la durée
+ * totale prorogée (J67, R79 : reglements-fournisseurs.ts s'en sert pour bloquer le paiement des créances antérieures).
+ */
+export function finSuspensionExigibilite(dateOrdonnance: string, suspensionProrogeeJusquAMois: number | null): string {
+  const regle = REGLES_DELAIS_LEGAUX.find((r) => r.id === ID_FIN_SUSPENSION_EXIGIBILITE)
+  if (!regle?.delai) throw new Error(`Règle ${ID_FIN_SUSPENSION_EXIGIBILITE} introuvable ou sans délai.`)
+  return dateDuDelai(regle, regle.delai, dateOrdonnance, { suspensionProrogeeJusquAMois })
+}
+
 /**
  * Libellé du délai d'une règle : « 1 mois après le prononcé de l'ordonnance », « à la fin de la mission »,
  * « délai fixé par l'ordonnance, à compter de … ». « mois » est invariable ; « jour(s) » s'accorde.
@@ -474,10 +501,7 @@ export function resoudreDateDepart(contexte: ContexteMandat, evenement: Evenemen
 export function libelleDelaiRegle(regle: RegleDelaiLegal, contexte: ContexteMandat): string {
   const depart = EVENEMENTS_DEPART[regle.depart].libelle
   if (!regle.delai) return `délai fixé par l'ordonnance, à compter de ${depart}`
-  const valeur =
-    regle.id === 'fin-suspension-exigibilite-ap291' && contexte.suspensionProrogeeJusquAMois
-      ? contexte.suspensionProrogeeJusquAMois
-      : regle.delai.valeur
+  const valeur = valeurDuDelai(regle, regle.delai, contexte)
   if (valeur === 0) return `à ${depart}`
   const unite = regle.delai.unite === 'mois' ? 'mois' : valeur > 1 ? 'jours' : 'jour'
   return `${valeur} ${unite} ${regle.delai.sens === 'avant' ? 'avant' : 'après'} ${depart}`
@@ -549,17 +573,7 @@ export function calculerEcheancesLegales(contexte: ContexteMandat, options: Opti
       else if (regle.delaiOrdonnance) {
         dateLegale = appliquerDelaiOrdonnance(dateDepart, contexte.delaisOrdonnance?.[regle.delaiOrdonnance])
         if (!dateLegale) statut = 'DELAI_A_SAISIR'
-      } else if (regle.delai) {
-        const delai: Delai = {
-          valeur:
-            regle.id === 'fin-suspension-exigibilite-ap291' && contexte.suspensionProrogeeJusquAMois
-              ? contexte.suspensionProrogeeJusquAMois
-              : regle.delai.valeur,
-          unite: regle.delai.unite,
-        }
-        dateLegale =
-          regle.delai.sens === 'avant' ? retrancherDelai(dateDepart, delai) : appliquerDelai(dateDepart, delai, regle.lendemain)
-      }
+      } else if (regle.delai) dateLegale = dateDuDelai(regle, regle.delai, dateDepart, contexte)
     }
     let dateProrogee: string | null = null,
       dateRetenue = dateLegale
@@ -639,10 +653,10 @@ export function controlerContexteMandat(contexte: ContexteMandat): AnomalieConte
       message: 'Durée de mission inconnue : les échéances liées à la fin de mission ne sont pas calculées.',
     })
   const suspension = contexte.suspensionProrogeeJusquAMois
-  if (suspension != null && (suspension < 12 || suspension > 30))
+  if (suspension != null && (suspension < MOIS_SUSPENSION_EXIGIBILITE || suspension > MOIS_MAX_SUSPENSION_PROROGEE))
     anomalies.push({
       niveau: 'erreur',
-      message: "Suspension de l'exigibilité : durée totale entre 12 et 30 mois (L. 1965 art. 29-3).",
+      message: `Suspension de l'exigibilité : durée totale entre ${MOIS_SUSPENSION_EXIGIBILITE} et ${MOIS_MAX_SUSPENSION_PROROGEE} mois (L. 1965 art. 29-3).`,
     })
   return anomalies
 }

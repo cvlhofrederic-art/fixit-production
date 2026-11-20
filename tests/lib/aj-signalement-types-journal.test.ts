@@ -10,6 +10,8 @@
 // appliquée) et lève ses erreurs métier (diffusion_inactive, aucun_destinataire, perimetre_change) : la liste des actions
 // est lue dans la DERNIÈRE définition de la contrainte (ordre des fichiers = ordre d'application), les erreurs et les
 // actions écrites dans l'union des fichiers.
+// Bureaux des cabinets (20261119_signalements_qr_bureaux.sql, PR 1) : journal par des actions EXISTANTES (la liste n'est
+// pas remplacée) ; erreurs métier nouvelles (nom_pris, plafond_bureaux, bureau_utilise, bureau_requis, bureau_ferme).
 
 import { describe, it, expect } from 'vitest'
 import { existsSync, readFileSync, readdirSync } from 'fs'
@@ -25,6 +27,8 @@ const code = lireSql('20261111_signalements_qr_gestionnaires.sql')
 const code1112 = lireSql('20261112_signalements_qr_acces_gestionnaires.sql')
 const FICHIER_DIFFUSION = '20261113_signalements_qr_diffusion.sql'
 const code1113 = existsSync(join(DOSSIER, FICHIER_DIFFUSION)) ? lireSql(FICHIER_DIFFUSION) : ''
+const FICHIER_BUREAUX = '20261119_signalements_qr_bureaux.sql'
+const code1119 = existsSync(join(DOSSIER, FICHIER_BUREAUX)) ? lireSql(FICHIER_BUREAUX) : ''
 /** Migrations d'AJ Signalement dans l'ordre d'application (nom de fichier, comme la CLI Supabase). */
 const MIGRATIONS_QR = readdirSync(DOSSIER).filter((f) => f.includes('signalements_qr') && f.endsWith('.sql')).sort((a, b) => a.localeCompare(b))
 const codeTout = MIGRATIONS_QR.map(lireSql).join('\n')
@@ -95,15 +99,16 @@ describe('autres listes fermées', () => {
     expect(LANGUES_CABINET_QR[0]).toBe('fr')
   })
 
-  it('ERREURS_METIER_SQL_QR = messages levés en P0001 par les fonctions des TROIS migrations (chacun traduit en 409)', () => {
-    const levees = new Set([...`${code}\n${code1112}\n${code1113}`.matchAll(/RAISE EXCEPTION '([a-z_]+)' USING ERRCODE = 'P0001'/g)].map((m) => m[1]))
+  it('ERREURS_METIER_SQL_QR = messages levés en P0001 par les fonctions des QUATRE migrations (chacun traduit en 409)', () => {
+    const levees = new Set([...`${code}\n${code1112}\n${code1113}\n${code1119}`.matchAll(/RAISE EXCEPTION '([a-z_]+)' USING ERRCODE = 'P0001'/g)].map((m) => m[1]))
     expect(trie(levees)).toEqual(trie(ERREURS_METIER_SQL_QR))
     expect(ERREURS_METIER_SQL_QR).toContain('deja_ouvert')
     expect(ERREURS_METIER_SQL_QR).toContain('adresse_contestee')
     for (const erreur of ['diffusion_inactive', 'aucun_destinataire', 'perimetre_change']) expect(ERREURS_METIER_SQL_QR).toContain(erreur)
+    for (const erreur of ['nom_pris', 'plafond_bureaux', 'bureau_utilise', 'bureau_requis', 'bureau_ferme']) expect(ERREURS_METIER_SQL_QR).toContain(erreur)
   })
 
-  it('les erreurs métier de toutes les migrations d’AJ Signalement sont celles des trois fichiers ci-dessus', () => {
+  it('les erreurs métier de toutes les migrations d’AJ Signalement sont celles des quatre fichiers ci-dessus', () => {
     const levees = new Set([...codeTout.matchAll(/RAISE EXCEPTION '([a-z_]+)' USING ERRCODE = 'P0001'/g)].map((m) => m[1]))
     expect(trie(levees)).toEqual(trie(ERREURS_METIER_SQL_QR))
   })

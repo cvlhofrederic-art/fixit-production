@@ -129,7 +129,8 @@ describe('règles des décisions annuelles', () => {
     expect(REGLES_DECISIONS_ANNUELLES.delegation_generale_cs.note).toMatch(/Sans montant/)
     expect(REGLES_DECISIONS_ANNUELLES.enveloppe_delegation_cs).toMatchObject({ portee: 'exercice', montant: 'requis' })
     expect(REGLES_DECISIONS_ANNUELLES.enveloppe_delegation_cs.fondement).toMatch(/D\. 1967 art\. 26-1, al\. 1/)
-    expect(REGLES_DECISIONS_ANNUELLES.plafond_travaux_cs).toMatchObject({ portee: 'permanente', montant: 'requis', aConfirmer: true })
+    // J67, R21 et R22 : majorité de la délégation et absence de reconduction confirmées, la marque est levée
+    expect(REGLES_DECISIONS_ANNUELLES.plafond_travaux_cs).toMatchObject({ portee: 'permanente', montant: 'requis', majorite: 'art25', aConfirmer: false })
     expect(REGLES_DECISIONS_ANNUELLES.plafond_travaux_cs.fondement).toMatch(/D\. 1967 art\. 26-1, al\. 2/)
   })
 
@@ -347,6 +348,14 @@ describe('contrôle d’une décision', () => {
     expect(controlerDecisionAnnuelle(mandat, { resolution: adoptee })).toEqual([])
   })
 
+  it('J67, R21 : montant maximum par dépense de travaux voté à l’art. 24 : majorité insuffisante, certaine ; au second vote de l’art. 25-1 : régulier', () => {
+    const plafond = permanente({ type: 'plafond_travaux_cs', objet: 'Toiture', montantCentimes: 900000 })
+    const anomalies = controlerDecisionAnnuelle(plafond, { resolution: resolution('art24', 300, 100) })
+    expect(anomalies.map((a) => [a.code, a.aConfirmer])).toEqual([['majorite_insuffisante', false]])
+    const adoptee = voterSecondVote(resolution('art25', 400, 100), { ...VOIX, pour: 400, contre: 100 })
+    expect(controlerDecisionAnnuelle(plafond, { resolution: adoptee })).toEqual([])
+  })
+
   it('majorité plus forte que requise admise ; travaux : pas de majorité imposée par le type', () => {
     expect(controlerDecisionAnnuelle(decision(), { resolution: resolution('art26', 800, 100, 15) })).toEqual([])
     const travaux = decision({ type: 'travaux', exerciceId: 'ex-2026', montantCentimes: 9000000 })
@@ -456,23 +465,27 @@ describe('contrôle d’une décision', () => {
       { code: 'honoraires_sous_mandat_judiciaire', fondement: 'L. 1965 art. 29-1, II ; D. 1967 art. 61-1-5', aConfirmer: true },
     ])
     expect(ap291[0].message).toMatch(/arrêtée par le président du tribunal judiciaire.*n'est pas votée par l'assemblée/)
-    // Syndic désigné par le juge : il administre selon les art. 18 à 18-2 (D. 1967 art. 46, al. 3), donc avec des honoraires
-    // de travaux votés par l'assemblée (art. 18-1 A, III) ; aucun texte relu sur sa rémunération.
+    // J67, R1 : syndic désigné par le juge et AP de l'art. 47, rémunération fixée par le président qui les a désignés
+    // (C. com. R. 814-27 ; provision, R. 814-28) ; le syndic judiciaire administre selon les art. 18 à 18-2 (D. 1967
+    // art. 46, al. 3), donc avec des honoraires de travaux votés par l'assemblée (art. 18-1 A, III). Alerte gardée.
     const sj = controlerDecisionAnnuelle(honoraires, { ...adoptee, regime: 'sj' })
     expect(sj).toMatchObject([
-      { code: 'honoraires_sous_mandat_judiciaire', fondement: 'D. 1967 art. 46, al. 3 ; L. 1965 art. 18-1 A, III', aConfirmer: true },
+      {
+        code: 'honoraires_sous_mandat_judiciaire',
+        fondement: 'C. com. R. 814-27 et R. 814-28 ; D. 1967 art. 46, al. 3 ; L. 1965 art. 18-1 A, III',
+        aConfirmer: true,
+      },
     ])
-    expect(sj[0].message).toMatch(/aucun texte relu ne dit qui fixe sa rémunération/)
+    expect(sj[0].message).toMatch(/fixée par le président du tribunal judiciaire qui l'a désigné, sur justification des diligences/)
     expect(sj[0].message).toMatch(/art\. 18 à 18-2/)
-    expect(sj[0].message).not.toMatch(/n'est pas votée/)
+    expect(sj[0].message).not.toMatch(/aucun texte relu/)
     expect(sj[0].message).not.toMatch(/29-1, II/)
-    // Administrateur provisoire de l'art. 47 : le texte du régime ne dit rien de la rémunération, et le fondement le dit.
     const ap47 = controlerDecisionAnnuelle(honoraires, { ...adoptee, regime: 'ap47' })
     expect(ap47).toMatchObject([
-      { code: 'honoraires_sous_mandat_judiciaire', fondement: 'D. 1967 art. 47 (régime seul ; aucun texte relu sur la rémunération)' },
+      { code: 'honoraires_sous_mandat_judiciaire', fondement: 'C. com. R. 814-27 et R. 814-28 ; D. 1967 art. 47', aConfirmer: true },
     ])
-    expect(ap47[0].message).toMatch(/aucun texte relu ne dit qui fixe sa rémunération/)
-    expect(ap47[0].message).not.toMatch(/n'est pas votée/)
+    expect(ap47[0].message).toMatch(/fixée par le président du tribunal judiciaire qui l'a désigné.*n'est pas votée par l'assemblée/)
+    expect(ap47[0].message).not.toMatch(/aucun texte relu/)
     expect(REGLES_DECISIONS_ANNUELLES.honoraires.note).not.toMatch(/mandataire de justice, qui n'est pas votée/)
     expect(REGLES_DECISIONS_ANNUELLES.honoraires.note).toMatch(/administrateur provisoire de l'art\. 29-1/)
     expect(controlerDecisionAnnuelle(honoraires, adoptee)).toEqual([])
@@ -551,7 +564,7 @@ describe('décisions permanentes en vigueur et seuils', () => {
     expect(ids(decisionsEnVigueur([dg, plafond, anterieur], '2026-08-01'))).toEqual(['dg-1', 'pl-1'])
   })
 
-  it('montant maximum par dépense de travaux : un renouvellement de la délégation générale décidé après lui ne le reconduit pas (🔴, à saisir de nouveau)', () => {
+  it('montant maximum par dépense de travaux : un renouvellement de la délégation générale décidé après lui ne le reconduit pas (J67, R22 : à voter de nouveau)', () => {
     const dgA = permanente({ id: 'dg-a', type: 'delegation_generale_cs', dureeMois: 24 })
     const toiture = permanente({ id: 'pl-t', type: 'plafond_travaux_cs', date: '2027-01-15', objet: 'Toiture', montantCentimes: 900000 })
     const dgB = permanente({ id: 'dg-b', type: 'delegation_generale_cs', date: '2028-05-15', dureeMois: 24 })
@@ -559,9 +572,8 @@ describe('décisions permanentes en vigueur et seuils', () => {
     expect(ids(decisionsEnVigueur([dgA, toiture, dgB], '2028-06-01'))).toEqual(['dg-b'])
     const resaisi = permanente({ id: 'pl-t2', type: 'plafond_travaux_cs', date: '2028-05-15', objet: 'Toiture', montantCentimes: 900000 })
     expect(ids(decisionsEnVigueur([dgA, toiture, dgB, resaisi], '2028-06-01'))).toEqual(['dg-b', 'pl-t2'])
-    expect(NON_ETABLI).toMatch(
-      /montant maximum par dépense de travaux hors budget au renouvellement exprès de la délégation générale \(L\. 1965 art\. 21-3\) : est-il reconduit avec elle, ou l'assemblée doit-elle le fixer de nouveau \?/,
-    )
+    expect(NON_ETABLI).not.toMatch(/est-il reconduit avec elle/)
+    expect(EN_TETE).toMatch(/J67, R22 : un renouvellement exprès de la délégation générale \(L\. 1965 art\. 21-3\) ne reconduit pas/)
     expect(EN_TETE).toMatch(/décidée \(date de la décision, non de sa prise d'effet\) au plus tard avec lui/)
   })
 
@@ -577,15 +589,48 @@ describe('décisions permanentes en vigueur et seuils', () => {
     ])
   })
 
-  it('conseil syndical dont un seul membre est désigné de nouveau : la désignation précédente reste (🔴), son échéance aussi', () => {
+  it('conseil syndical dont un seul membre est désigné de nouveau : il n’a plus que le nouveau mandat, les autres membres gardent le leur (J67, R23)', () => {
     const csA = permanente({ id: 'cs-a', type: 'mandat_cs', date: '2024-05-20', dureeMois: 36, designesIds: ['p1', 'p2'] })
     const csC = permanente({ id: 'cs-c', type: 'mandat_cs', date: '2026-05-20', dureeMois: 36, designesIds: ['p1'] })
-    expect(ids(decisionsEnVigueur([csA, csC], '2026-06-01'))).toEqual(['cs-a', 'cs-c'])
+    const membresEtTermes = (date: string) => decisionsEnVigueur([csA, csC], date).map((d) => [d.id, d.designesIds, d.terme])
+    expect(membresEtTermes('2026-06-01')).toEqual([
+      ['cs-a', ['p2'], '2027-05-19'],
+      ['cs-c', ['p1'], '2029-05-19'],
+    ])
+    // avant la prise d'effet de la nouvelle désignation, rien ne change
+    expect(membresEtTermes('2026-05-19')).toEqual([['cs-a', ['p1', 'p2'], '2027-05-19']])
+    // lecture seulement : la décision enregistrée garde ses deux membres
+    expect(csA.designesIds).toEqual(['p1', 'p2'])
     expect(echeancesMandatsEtDelegations([csA, csC]).map((e) => [e.objetId, e.accomplie])).toEqual([
       ['cs-a', false],
       ['cs-c', false],
     ])
-    expect(NON_ETABLI).toMatch(/membre du conseil syndical désigné de nouveau avant le terme de son mandat.*le mandat précédent prend-il fin \?/)
+    expect(NON_ETABLI).not.toMatch(/le mandat précédent prend-il fin/)
+    expect(EN_TETE).toMatch(/J67, R23 : un membre du conseil syndical désigné de nouveau avant le terme de son mandat/)
+  })
+
+  it('chaque membre désigné de nouveau, même pour un terme qui ne dépasse pas l’ancien : la désignation précédente sort (J67, R23)', () => {
+    const csA = permanente({ id: 'cs-a', type: 'mandat_cs', date: '2024-05-20', dureeMois: 36, designesIds: ['p1', 'p2'] })
+    const csD = permanente({ id: 'cs-d', type: 'mandat_cs', date: '2026-05-20', dureeMois: 12, designesIds: ['p2', 'p1'] })
+    expect(csD.terme).toBe(csA.terme)
+    expect(ids(decisionsEnVigueur([csA, csD], '2026-06-01'))).toEqual(['cs-d'])
+    // relecture : un seul terme à suivre, le nouveau ; l'échéance de la désignation vidée de ses membres est close
+    const aSuivre = (decisions: DecisionAnnuelle[]) => echeancesMandatsEtDelegations(decisions).map((e) => [e.objetId, e.date, e.accomplie])
+    expect(aSuivre([csA, csD])).toEqual([
+      ['cs-a', '2027-05-19', true],
+      ['cs-d', '2027-05-19', false],
+    ])
+    // terme plus court que l'ancien : même lecture
+    const csE = permanente({ id: 'cs-e', type: 'mandat_cs', date: '2025-05-20', dureeMois: 12, designesIds: ['p1', 'p2'] })
+    expect(ids(decisionsEnVigueur([csA, csE], '2025-06-01'))).toEqual(['cs-e'])
+    expect(ids(decisionsEnVigueur([csA, csE], '2026-06-01'))).toEqual([])
+    expect(aSuivre([csA, csE])).toEqual([
+      ['cs-e', '2026-05-19', false],
+      ['cs-a', '2027-05-19', true],
+    ])
+    // une désignation saisie sans membres ne perd rien
+    const sansMembres = permanente({ id: 'cs-0', type: 'mandat_cs', date: '2024-05-20', dureeMois: 36 })
+    expect(ids(decisionsEnVigueur([sansMembres, csD], '2026-06-01'))).toEqual(['cs-0', 'cs-d'])
   })
 
   it('enveloppe de la délégation au conseil syndical : celle du budget de chaque exercice, pas un montant figé sur deux ans', () => {
@@ -822,10 +867,17 @@ describe('en-tête du module', () => {
     expect(SOURCE).toMatch(/planification-mandat\.ts/)
   })
 
-  it('🔴 honoraires sous mandat de justice : la question est posée régime par régime, sans affirmer une règle non lue', () => {
+  it('honoraires sous mandat de justice : la question est tranchée (J67, R1), elle sort des points non établis', () => {
     expect(NON_ETABLI).not.toMatch(/la rémunération du mandataire n'étant pas votée par l'assemblée/)
-    expect(NON_ETABLI).toMatch(/syndic désigné par le juge : qui fixe sa rémunération \?/)
-    expect(NON_ETABLI).toMatch(/administrateur provisoire de l'art\. 47 : qui fixe sa rémunération \?/)
+    expect(NON_ETABLI).not.toMatch(/qui fixe sa rémunération \?/)
+    expect(EN_TETE).toMatch(/J67, R1.*C\. com\. R\. 814-27.*R\. 814-28.*alerte des honoraires votés sous mandat de justice est gardée/)
+  })
+
+  it('J67, R11 et R21 : majorité des honoraires selon leur objet et majorité du montant maximum confirmées, sorties des points ouverts', () => {
+    expect(NON_ETABLI).not.toMatch(/honoraires : majorité selon l'objet/)
+    expect(NON_ETABLI).not.toMatch(/majorité du montant maximum par dépense de travaux hors budget/)
+    expect(EN_TETE).toMatch(/J67, R11 : la majorité qui vote des honoraires dépend de leur objet/)
+    expect(EN_TETE).toMatch(/J67, R21 : le montant maximum alloué au conseil syndical pour une dépense de travaux hors budget se vote à la majorité de la délégation/)
   })
 
   it('L. 1965 art. 25-1 cité à la lettre (droit24/loi65.txt)', () => {

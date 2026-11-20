@@ -17,9 +17,10 @@ import { DOSSIER, type Dossier } from '@/lib/data/referentiels-gesteam-judiciair
 /**
  * Modèles d'étapes par type de dossier : listes de contrôle (point 49 du bilan 2). Fonctions pures, dates AAAA-MM-JJ,
  * délais en jours entiers, sans écran ni table : l'écran des modèles, leur table et celle des listes instanciées relèvent
- * de Frédéric. S'appuie sur etapes.ts (EtapeTypeProcessus, enchainer) et etapes-dossier.ts (point 48 : creerEtapeDossier,
- * enchainerEtapeDossier), inchangés. prise-de-fonction.ts et reprise.ts restent inchangés, exports compris : leurs listes
- * sont converties ici en modèles (adaptateurs modelePriseDeFonction et modeleReprise).
+ * de Frédéric. S'appuie sur etapes.ts (EtapeTypeProcessus, enchainer ; depuis J76, un délai null n'y fixe aucune limite) et
+ * etapes-dossier.ts (point 48 : creerEtapeDossier, enchainerEtapeDossier), inchangé. prise-de-fonction.ts et reprise.ts
+ * restent inchangés, exports compris : leurs listes sont converties ici en modèles (adaptateurs modelePriseDeFonction et
+ * modeleReprise).
  *
  * Gestéam (cartographie, tranches lues) :
  * 🟢 Tranche 42, complément du 28/10/2026 (Étapes → recherche → critère Dossier → sélecteur « Étape type ») : types
@@ -51,7 +52,9 @@ import { DOSSIER, type Dossier } from '@/lib/data/referentiels-gesteam-judiciair
  * Décisions de Hugo (registre des décisions juridiques) :
  * - J20 : instancier une liste est un geste du collaborateur : chaque étape est d'origine « manuelle », « Créée par » ce
  *   collaborateur (obligatoire), jamais « Automatique » (🔵 par analogie avec l'étape enchaînée de J20) ; la règle « étape
- *   automatique non réalisée après N jours » ne la vise donc pas : elle remonte au suivi « à faire » par sa limite.
+ *   automatique non réalisée après N jours » ne la vise donc pas : elle remonte au suivi « à faire » par sa limite, quand
+ *   elle en a une ; sans délai saisi, elle y remonte chaque jour, marquée « sans délai », jamais en retard (proposition
+ *   de Hugo du 19/11/2026, à valider par Frédéric ; question n° 6 ci-dessous).
  * - J21 : les durées d'étape sont en minutes ; 🔵 les délais d'un modèle, eux, sont en jours entiers (écart entre deux
  *   limites), comme EtapeTypeProcessus.delaiJours : deux grandeurs distinctes.
  * - J24 et J41 : « Copie au CS pour info » reste un usage du cabinet, inactif par défaut (etapeCopieAuCsPourInfo,
@@ -67,21 +70,31 @@ import { DOSSIER, type Dossier } from '@/lib/data/referentiels-gesteam-judiciair
  *   défaut (J41). Ferme l'ancienne question n° 6 (courrier ou enchaînement). processusDuDossier et modeleDuDossier,
  *   inchangés, la portent toujours quand l'usage est actif : retirer les types nés du courrier avant l'instanciation
  *   relève de modeleSansEtapesNeesDuCourrier (question n° 5 ci-dessous et n° 6 de etapes-courrier.ts).
+ * - J76 (réponse de Frédéric du 17/11/2026 sur sa page de validation ; registre : J76) : aucun délai par défaut entre les
+ *   étapes des dossiers Sinistre et Contentieux ; le cabinet saisit les siens dans ses modèles, comptés d'une étape à la
+ *   suivante, jamais tous depuis le départ ; un délai d'étape est un délai de GESTION, jamais présenté comme légal. Le
+ *   référentiel et processusDuDossier ne portent donc aucun délai (null), et processusDuModele garde « non saisi » (null) :
+ *   enchaînée sans délai saisi, l'étape suivante n'a pas de limite (etapes.enchainer), comme dans une liste instanciée ;
+ *   un délai saisi par le cabinet, 0 compris, fixe la limite. Ferme la question n° 1 et, en partie, la n° 2.
+ *   Conséquence : enchaînée sans délai, l'étape n'a ni limite, ni « à faire le », ni alerte, et la règle des N jours ne
+ *   vise pas une étape « manuelle » (J20). Sur main, le délai de 0 jour lui donnait une limite. Elle remonte maintenant
+ *   au suivi « à faire », marquée « sans délai », jamais en retard (suivi-a-faire.depuisEtapes ; proposition de Hugo du
+ *   19/11/2026, à valider par Frédéric) : voir la question n° 6 ci-dessous.
  *
  * 🔵 Choix VitFix :
  * - codes d'étape type (etapeType) : « <dossier>.<titre sans accent> », Gestéam ne montrant pas les siens ; ordre du
  *   processus = ordre affiché ; « Votes par correspondance » hors des suites (type commun, pas une étape d'un processus) ;
- * - délais du référentiel : 0 jour (aucun relevé ; EtapeTypeProcessus exige un nombre). Ce 0 n'est pas neutre :
- *   enchaînée telle quelle, l'étape suivante a pour limite le jour de la réalisation de la précédente et passe en retard
- *   dès le lendemain. Un modèle tiré du référentiel (modeleDuDossier) part donc « sans délai saisi » (null) : le cabinet
- *   saisit les siens, puis processusDuModele les convertit pour l'enchaînement ;
+ * - délais du référentiel : aucun (null ; aucun relevé, J76). Enchaînée telle quelle, l'étape suivante n'a pas de limite
+ *   et n'est jamais en retard. Un modèle tiré du référentiel (modeleDuDossier) part de même « sans délai saisi » (null) :
+ *   le cabinet saisit les siens, puis processusDuModele les convertit pour l'enchaînement ;
  * - modèle : titre, type de dossier (référentiel DOSSIER : le rattachement du point 47), classe Gestéam facultative,
  *   étapes ordonnées (type, titre, délai, instructions) ; ajout, retrait, renommage, déplacement, délai. Contrôles :
  *   identifiants et titres non vides, aucun type ni titre en double (casse et espaces ignorés), au moins une étape, au
  *   plus ETAPES_PAR_MODELE_MAX, délai entier de 0 à DELAI_ETAPE_MAX_JOURS (garde-fous) ;
  * - délais d'une liste instanciée : comptés depuis la limite de l'étape précédente (depuis le départ pour la première),
  *   donc cumulés ; une étape sans délai (null) n'a pas de limite et n'ajoute rien au cumul. Converti pour l'enchaînement
- *   (processusDuModele), le délai garde la définition d'etapes.ts : après la réalisation de l'étape précédente ;
+ *   (processusDuModele), le délai garde la définition d'etapes.ts : après la réalisation de l'étape précédente ; non
+ *   saisi, il reste null (pas de limite, J76) ;
  * - instanciation : toutes les étapes créées d'un coup, le jour du départ, rattachées au dossier du modèle (et aux
  *   rattachements fournis), instructions recopiées. C'est une copie : modifier le modèle ensuite ne change pas la liste ;
  * - avancement : réalisées (« fait le ») sur total, pourcentage arrondi à l'inférieur (100 % seulement quand tout est
@@ -96,10 +109,10 @@ import { DOSSIER, type Dossier } from '@/lib/data/referentiels-gesteam-judiciair
  *   dossier « Mandat de syndic ».
  *
  * 🔴 Non établi — questions :
- * 1. Frédéric : délais de gestion par défaut des processus Sinistre et Contentieux (aucun relevé ; 0 jour dans le
- *    référentiel, aucun dans un modèle) ?
- * 2. Frédéric ou Hugo : délais d'une liste comptés de limite à limite (choix actuel) ou tous depuis le départ ? À la
- *    réalisation d'une étape, faut-il replanifier les suivantes (l'enchaînement compte, lui, depuis la réalisation) ?
+ * 1. Fermée par J76 (ci-dessus) : aucun délai de gestion par défaut ; le cabinet saisit les siens.
+ * 2. En partie fermée par J76 : d'une étape à la suivante, jamais tous depuis le départ. Reste ouvert (Frédéric ou Hugo,
+ *    registre J76) : le délai part-il de la limite de l'étape précédente (liste instanciée, choix actuel) ou de sa
+ *    réalisation (enchaînement, choix actuel) ? À la réalisation d'une étape, faut-il replanifier les suivantes ?
  * 3. Hugo : contenu des listes de contrôle Gestéam (dont « Nouveau mandat de syndic ») et types d'étapes des dossiers non
  *    relevés : à relever en lecture seule si le cabinet en a besoin ; rien n'est inventé ici.
  * 4. Hugo : les fondements et délais légaux cités par prise-de-fonction.ts (« 1 mois après le prononcé », « sous 15
@@ -111,6 +124,20 @@ import { DOSSIER, type Dossier } from '@/lib/data/referentiels-gesteam-judiciair
  *    suivante, déjà présente. Et l'instanciation d'un coup crée toutes les étapes le jour du départ, si bien que
  *    « En cours depuis » (J23 : depuis la création) court pour toutes dès ce jour. Faut-il un seul des deux usages par
  *    modèle, ou créer chaque étape à la réalisation de la précédente ?
+ * 6. Proposition de Hugo du 19/11/2026, codée, à valider par Frédéric avant fusion (registre J76 : « décision de Hugo du
+ *    19/11/2026 » ; point de contact avec J20) : une étape sans délai saisi, enchaînée ou instanciée d'une liste, n'a ni
+ *    limite, ni « à faire le », ni alerte ; d'origine « manuelle », elle échappe à la règle des N jours. Ce que Hugo a
+ *    tranché : elle remonte au suivi « à faire » (suivi-a-faire.depuisEtapes), marquée « sans délai », jamais en retard,
+ *    pour ne pas être oubliée. 🔵 Choix de codage, à valider aussi (Hugo ne dit pas à quelle date) : l'élément est daté
+ *    de la date de référence, dû le jour même, chaque jour, et non de la date de création de l'étape ; jamais avant cette
+ *    création (étape instanciée ou enchaînée à une date future) ; une étape automatique sans date reste suivie par sa
+ *    seule relance à N jours (depuisEtapesAutomatiques), sans doublon. Une étape datée et une étape à valider sont
+ *    inchangées. Conséquence à valider : une liste instanciée sans délai remonte entière, chaque jour, dès
+ *    l'instanciation (Prise de fonction : 8 éléments ; Reprise : 12), y compris les étapes dont la précédente n'est pas
+ *    faite (question n° 5). À noter : « sans délai » se lit aussi « immédiatement » ; un autre libellé, par exemple
+ *    « aucun délai saisi », reste possible si Frédéric le préfère. Reste à obtenir : l'accord écrit de Frédéric, date
+ *    comprise (date du jour ou date de création). L'en-tête d'etapes-dossier.ts (J20) dit encore que l'enchaînement fixe
+ *    toujours une limite : à corriger après cet accord, en accord avec la PR #741, qui modifie ce fichier.
  *
  * Délais : un délai de modèle est un délai de GESTION, réglage du cabinet ; il ne s'affiche jamais comme un délai légal.
  * Les délais légaux de la prise de fonction et de la reprise (notification de l'ordonnance, remise des pièces par l'ancien
@@ -200,9 +227,9 @@ const codeDuTitre = (titre: string): string =>
     .filter(Boolean)
     .join('_')
 
-/** 🔵 Délai 0 : aucun délai relevé (voir l'en-tête) ; délai de GESTION, jamais légal. */
+/** J76 : aucun délai par défaut (null) ; le cabinet saisit les siens, délais de GESTION, jamais légaux. */
 const typeEtape = (prefixe: string, titre: string): Readonly<EtapeTypeProcessus> =>
-  Object.freeze({ etapeType: `${prefixe}.${codeDuTitre(titre)}`, titre, delaiJours: 0 })
+  Object.freeze({ etapeType: `${prefixe}.${codeDuTitre(titre)}`, titre, delaiJours: null })
 
 const TITRES_CONTENTIEUX = ['Ouverture de dossier', 'Lettre de mise en demeure', TITRE_COPIE_AU_CS_POUR_INFO] as const
 
@@ -268,9 +295,9 @@ function typesDeLaSuite(dossier: DossierOutille, usages: UsagesEtapesCabinet): E
 
 /**
  * Processus d'un dossier outillé (sans le type commun), à passer à enchainerEtapeDossier ; copie. J41 : sans réglage du
- * cabinet qui active l'usage, le processus du contentieux s'arrête à la mise en demeure. Délais à 0 (aucun relevé) :
- * enchaînée telle quelle, l'étape suivante est en retard dès le lendemain de la réalisation de la précédente ; pour des
- * limites réelles, passer par modeleDuDossier, les délais du cabinet, puis processusDuModele.
+ * cabinet qui active l'usage, le processus du contentieux s'arrête à la mise en demeure. J76 : aucun délai (null) ;
+ * enchaînée telle quelle, l'étape suivante n'a pas de limite. Pour des limites, passer par modeleDuDossier, les délais
+ * saisis par le cabinet, puis processusDuModele.
  */
 export function processusDuDossier(
   dossier: DossierOutille,
@@ -478,18 +505,12 @@ export function modeleDuDossier(
 
 /**
  * Le modèle en EtapeTypeProcessus[], pour enchainerEtapeDossier (délai après la réalisation de l'étape précédente).
- * Le délai de la première étape n'est jamais lu par l'enchaînement : non saisi, il vaut 0. Refus : une étape suivante sans
- * délai saisi (etapes.enchainer fixe toujours une limite), modèle invalide.
+ * Délai non saisi : null, gardé tel quel (J76 : aucun délai par défaut) ; l'étape enchaînée n'a alors pas de limite,
+ * comme dans la liste instanciée (limitesDuModele). Refus : modèle invalide.
  */
 export function processusDuModele(modele: ModeleListeControle): EtapeTypeProcessus[] {
   const controle = creerModeleListeControle(modele)
-  return controle.etapes.map((etape, i) => {
-    if (etape.delaiJours === null && i > 0)
-      throw new Error(
-        `Enchaînement impossible : délai de gestion non saisi pour « ${etape.titre} » (modèle « ${controle.titre} ») ; l’enchaînement fixe toujours une limite (réalisation + délai).`,
-      )
-    return { etapeType: etape.etapeType, titre: etape.titre, delaiJours: etape.delaiJours ?? 0 }
-  })
+  return controle.etapes.map(({ etapeType, titre, delaiJours }) => ({ etapeType, titre, delaiJours }))
 }
 
 /**

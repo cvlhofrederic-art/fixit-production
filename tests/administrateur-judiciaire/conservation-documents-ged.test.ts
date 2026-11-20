@@ -10,6 +10,7 @@ import {
 import type { DocumentGed } from '@/lib/administrateur-judiciaire/domain/pieces-obligatoires-ged'
 import { TYPES_GENERIQUES_DOCUMENT } from '@/lib/administrateur-judiciaire/domain/referentiel-types-document'
 import { codeTypeDocument, codeTypesAConfirmer, creerReferenceTypeDocument, memeLibelle } from '@/lib/administrateur-judiciaire/domain/typologie-documents'
+import { enTeteDuModule } from './en-tete-module'
 
 /**
  * Durées de conservation de la GED (point 64 du bilan 2). Seule durée trouvée dans les textes relus : 10 ans pour les
@@ -50,6 +51,54 @@ describe('durée fixée par le texte', () => {
     expect(dureeConservationDuTexte({ categorie: 'Base', type: 'Relevé bancaire' })).toBe(CONSERVATION_PIECES_JUSTIFICATIVES)
     expect(dureeConservationDuTexte({ categorie: 'Base', type: "Procès-verbal d'assemblée" })).toBeNull()
     expect(dureeConservationDuTexte({ categorie: 'Base', type: "Carnet d'entretien" })).toBeNull()
+  })
+
+  it('J67, R118 : types qui fondent une écriture par nature ajoutés ; devis, contrats et courriers non', () => {
+    const ajoutes = [
+      ['Copropriétaire', 'Appel de fonds'],
+      ['Copropriétaire', 'Répartition de charges'],
+      ['Copropriétaire', 'Relevé individuel eau froide'],
+      ['Interne', 'Rejet de virement'],
+      ['Interne', 'Notes internes (modification comptable, créance irrécouvrable, jugement, remboursement copropriétaire)'],
+      ['Base', 'Bulletin de salaire'],
+      ['Base', 'Bordereau URSSAF'],
+      ['Base', 'Bordereau retraite'],
+      ['Base', 'Bordereau prévoyance'],
+      ['Base', 'Bordereau mutuelle'],
+      ['Base', 'Bordereau DGFIP'],
+      ["Gardien/Employé d'immeuble", 'Salaire et charges sociales'],
+      ["Gardien/Employé d'immeuble", 'Déclaration DSN'],
+      ['Tribunal', 'Ordonnance de taxe'],
+    ] as const
+    for (const [categorie, type] of ajoutes) expect(dureeConservationDuTexte({ categorie, type }), type).toBe(CONSERVATION_PIECES_JUSTIFICATIVES)
+    expect(MODELES_PIECES_JUSTIFICATIVES).toHaveLength(7 + ajoutes.length)
+    for (const ref of [
+      { categorie: 'Fournisseur', type: 'Devis fournisseur' },
+      { categorie: 'Fournisseur', type: 'Contrat, avenant entreprise' },
+      { categorie: 'Copropriétaire', type: 'Courrier copropriétaire' },
+    ] as const)
+      expect(dureeConservationDuTexte(ref)).toBeNull()
+  })
+
+  it('J67, R118 : tout document rattaché à un traitement comme sa pièce est une pièce justificative, quel que soit son type', () => {
+    expect(dureeConservationDuTexte({ categorie: 'Base', type: "Procès-verbal d'assemblée" }, { rattacheAUnTraitement: true })).toBe(CONSERVATION_PIECES_JUSTIFICATIVES)
+    expect(echeanceConservation(PV, [], { rattacheAUnTraitement: true })).toEqual({ statut: 'non_reglee', texte: CONSERVATION_PIECES_JUSTIFICATIVES })
+    expect(echeanceConservation({ ...PV, type: 'Pièce libre' }, [], { rattacheAUnTraitement: true })).toEqual({
+      statut: 'non_classe',
+      texte: CONSERVATION_PIECES_JUSTIFICATIVES,
+    })
+    const devis = { categorie: 'Fournisseur', type: 'Devis fournisseur' } as const
+    expect(echeanceConservation({ ...PV, type: codeTypesAConfirmer([devis], 'copropriete') }, [], { rattacheAUnTraitement: true })).toEqual({
+      statut: 'a_confirmer',
+      candidats: [{ ref: devis, texte: CONSERVATION_PIECES_JUSTIFICATIVES }],
+    })
+  })
+
+  it('en-tête : la question « quels types sont des pièces justificatives » est tranchée (J67, R118) ; les autres restent ouvertes', () => {
+    const { texte } = enTeteDuModule('conservation-documents-ged')
+    expect(texte).not.toContain('« Quels types GED sont des pièces justificatives comptables au sens du D. 2005-240 art. 6 ? »')
+    expect(texte).toMatch(/Décision J67, R118 de Hugo .* : tout document lié à une écriture comptable \(un traitement\) comme sa pièce/)
+    expect(texte).toMatch(/🔴 Non établi.*court-il, pour le cabinet.*durée interne pour les autres archives/)
   })
 })
 
@@ -160,8 +209,8 @@ describe('échéance de conservation', () => {
   })
 
   it('document sans type GED (libellé libre, journal de reprise) : non classé', () => {
-    expect(echeanceConservation({ ...FACTURE, type: 'Facture' }, [parType])).toEqual({ statut: 'non_classe' })
-    expect(echeanceConservation({ ...FACTURE, entiteType: 'reprise', type: 'archives' }, [parType])).toEqual({ statut: 'non_classe' })
+    expect(echeanceConservation({ ...FACTURE, type: 'Facture' }, [parType])).toEqual({ statut: 'non_classe', texte: null })
+    expect(echeanceConservation({ ...FACTURE, entiteType: 'reprise', type: 'archives' }, [parType])).toEqual({ statut: 'non_classe', texte: null })
   })
 
   it('document « à confirmer » (suggestion d’après le texte) : à confirmer, distinct de non classé ; durée du texte de chaque candidat rappelée, aucune règle appliquée', () => {

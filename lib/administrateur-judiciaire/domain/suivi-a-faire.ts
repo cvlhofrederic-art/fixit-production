@@ -1,4 +1,4 @@
-import type { AlerteMandataireAdHoc } from '@/lib/administrateur-judiciaire/domain/alerte-mandataire-ad-hoc'
+import type { AlerteMandataireAdHoc, CadreAlerte291A } from '@/lib/administrateur-judiciaire/domain/alerte-mandataire-ad-hoc'
 import {
   controlesAssurancesPno,
   type LotAssurancePno,
@@ -31,6 +31,7 @@ import {
   relanceEtapeAutomatique,
   verifierJoursSuiviEtape,
   type EtapeDossier,
+  type OrigineEtape,
 } from '@/lib/administrateur-judiciaire/domain/etapes-dossier'
 import type { Exercice } from '@/lib/administrateur-judiciaire/domain/exercices-budgets'
 import { echeanceReglement } from '@/lib/administrateur-judiciaire/domain/facture-ventilee'
@@ -46,11 +47,13 @@ import {
   type EntrepriseRelance,
 } from '@/lib/administrateur-judiciaire/domain/relance-demandes'
 import {
+  DELAIS_ASSURANCE_SINISTRE,
   etapeSuiviSinistre,
   phaseApresDeclaration,
   reperesDelaisSinistre,
   statutSinistre,
   type FicheSinistre,
+  type ReperesDelaisSinistre,
 } from '@/lib/administrateur-judiciaire/domain/sinistres'
 import {
   bilanStatutsMandats,
@@ -64,6 +67,7 @@ import {
   etatPartFondsTravaux,
   type OperationTravaux,
 } from '@/lib/administrateur-judiciaire/domain/travaux-operations'
+import { echeancesLiberationGarantie, type SuiviRetenueMarche } from '@/lib/administrateur-judiciaire/domain/travaux-retenue-garantie'
 import type { StatutAssemblee, StatutContrat, TypeContrat } from '@/lib/data/referentiels-gesteam-judiciaire'
 
 /**
@@ -83,21 +87,34 @@ import type { StatutAssemblee, StatutContrat, TypeContrat } from '@/lib/data/ref
  * portefeuille ; un élément du week-end revient au vendredi qui précède (mieux vaut le traiter avant) ; les tranches des
  * périodicités autres que mensuelle (seule la mensuelle a été observée) ; un âge de trois périodes exactement tombe dans
  * la dernière tranche ; unités d'horizon jours / semaines / mois (listes non ouvertes dans Gestéam).
- * 🔴 Signalés `aConfirmer` : repères de déclaration et de prescription des sinistres (sinistres.ts) ; échéances légales
- * dont la certitude n'est pas TEXTE. Les 21 jours francs de convocation (décompte de votes-ag.ts) sont confirmés (J5).
+ * 🔴 Signalés `aConfirmer` : échéances légales dont la certitude n'est pas TEXTE ; déclaration d'un sinistre de type
+ * « Vandalisme » ou « Bris de glace » (un vol a pu y être rangé) ; déclaration d'un sinistre « Charges Impayées »,
+ * « Loyers Impayés » (assurance crédit possible, L. 111-1 : prescription aussi) ou « Catastrophes naturelles » (délai
+ * propre), avec sa raison (sinistres.REGIMES_A_CONFIRMER) ; les dommages-ouvrage n'y sont plus : règle propre, sans
+ * marque (J67, R52). Les 21 jours francs de convocation (décompte de votes-ag.ts) sont confirmés (J5).
+ * Sinistres (J67, R49) : déclaration « au plus tard », prescription « au plus tôt », échéances du suivi sans marque
+ * (sinistres.reperesDelaisSinistre, C. assur. L. 113-2, 4°, L. 114-1 et L. 114-2) ; le contrat peut allonger le délai de
+ * déclaration, jamais modifier la durée de la prescription (L. 114-3).
  * 🔵 Contentieux (réglage Gestéam : « Commandement depuis n », « Non réglés depuis n », « Soldés ») : les n jours sont des
  * réglages de GESTION du cabinet (DELAIS_SUIVI_CONTENTIEUX, modifiables), jamais des délais légaux ; les délais des voies
  * d'exécution relèvent du moteur de délais. Relances « non réglé » et « soldé, à clore » et échéancier impayé : dossiers
  * de recouvrement seulement (contentieux.etapeRecouvrementContentieux). Exercices : en rouge dans Gestéam (tranche 43 § 9),
  * l'exercice passé qui n'est pas « Réparti » ; l'exclusion de « Non géré » (exercice hors mission) est 🔵 déduite.
  * Alerte de l'art. 29-1 A (alerte-mandataire-ad-hoc.ts) : famille Exercices ; par syndicat, un élément (critères à traiter,
- * ou repère du délai sans vote qui court) et la copie de la requête à adresser (D. 1967 art. 61-5) ; 🔴 sous administrateur
- * provisoire (art. 29-1 ou D. 1967 art. 47), ou arriérés des exercices antérieurs comptés : signalée `aConfirmer` ; le
- * syndic désigné par le président du tribunal judiciaire (D. 1967 art. 46) ne l'est pas.
+ * ou repère du délai sans vote qui court) et, dans le cadre de l'obligation du syndic, la copie de la requête à adresser
+ * (D. 1967 art. 61-5) ; selon le cadre de l'alerte (J67, R30), l'élément de l'administrateur de l'art. 29-1 est un constat
+ * à porter au prochain compte rendu au juge, celui de l'administrateur de l'art. 47 un signalement au juge, requête
+ * possible ; sous administrateur provisoire (art. 29-1 ou D. 1967 art. 47 ; J67, R30 : lecture déduite des textes, à
+ * confirmer) : signalée `aConfirmer` ; le syndic désigné par le président du tribunal judiciaire (D. 1967 art. 46) ne
+ * l'est pas ; les arriérés comptés ne la rendent plus « à confirmer » (J67, R31).
  * 🔵 Étapes (point 48, etapes-dossier.ts) : « à faire le » compte parmi les dates d'une étape à faire ; une étape
  * automatique encore à faire remonte à sa date de relance, N jours après sa création (tranche 43 § 1), avec l'horizon et
  * la règle du week-end comme les autres natures ; N (JOURS_SUIVI_ETAPE_AUTOMATIQUE) est un réglage de GESTION du
- * cabinet, jamais un délai légal ; le critère Gestéam « Relance d'étape » en est rapproché sans certitude.
+ * cabinet, jamais un délai légal ; le critère Gestéam « Relance d'étape » en est rapproché sans certitude. Une étape à
+ * faire sans aucune date (ni « à faire le », ni alerte, ni limite ; J76) remonte au suivi, marquée « sans délai », jamais
+ * en retard (proposition de Hugo du 19/11/2026, à valider par Frédéric) ; 🔵 choix de codage, à valider aussi : chaque
+ * jour à la date de référence, jamais avant sa création ; une étape automatique sans date n'y remonte que par sa relance
+ * (pas de doublon) (modeles-etapes.ts, question n° 6).
  * 🔵 Demandes (point 46, relance-demandes.ts ; Gestéam tranche 38, blocs « Dem. interv. » et « Demandes devis », critère
  * « À relancer » ; tranche 39, réglages de relance de l'entreprise par service) : relance d'une demande de devis ou
  * d'intervention au délai de relance de l'entreprise ; date de relance saisie sur l'OS (relancesOsDues, point 44) ;
@@ -105,7 +122,11 @@ import type { StatutAssemblee, StatutContrat, TypeContrat } from '@/lib/data/ref
  * aucun texte de la loi de 1965 ni du décret de 1967 (relevé du 03/11/2026). Critère « En cours » des deux blocs : non
  * codé (🔴 date et demandes visées à préciser par Hugo).
  * Sans source dans VitFix à ce jour, donc sans adaptateur : courriers à relancer, mouvement crédit d'un contentieux,
- * mémos, tickets d'appel, agenda ; libération de la retenue de garantie (🔴 à confirmer dans travaux-operations.ts).
+ * mémos, tickets d'appel, agenda.
+ * 🔵 Travaux (point 32, travaux-retenue-garantie.ts) : libération de la garantie (retenue ou caution) à l'expiration du
+ * délai d'un an depuis la réception (loi n° 71-584, art. 2) ; adaptateur depuisRetenuesGarantie, qui rend
+ * echeancesLiberationGarantie sans la recalculer ; échéance au même quantième un an après la réception (J67, R63 ; code
+ * gardé) ; aConfirmer gardé, comme R63 le demande.
  * Source disponible, adaptateur à écrire : factures en attente de bon à payer (statuts-facture.ts).
  * 🔵 Statut du mandat (point 55, statut-mandat.ts ; Gestéam tranche 41) : un mandat Prospect ou Archivé sort du
  * portefeuille, du suivi « à faire » (même désigné ou suivi sur tout le cabinet), des demandes en cours d'une entreprise
@@ -149,7 +170,7 @@ export const NATURES_SUIVI = {
   etapes: ['a_faire', 'a_valider', 'automatique_non_realisee'],
   taches: ['tache'],
   demandes: ['devis_a_relancer', 'intervention_a_relancer', 'relance_os', 'plafond_demandes'],
-  travaux: ['fonds_a_appeler'],
+  travaux: ['fonds_a_appeler', 'liberation_garantie'],
   contrats: ['limite_resiliation', 'a_resilier', 'mise_en_concurrence', 'facture_attendue'],
   factures: ['reglement'],
   sinistres: ['a_declarer', 'prescription', 'indemnite_differee'],
@@ -191,6 +212,7 @@ export const LIBELLES_NATURES_SUIVI: Record<NatureSuivi, string> = {
   relance_os: "Relance datée de l'ordre de service",
   plafond_demandes: "Demandes en cours au-delà du seuil de l'entreprise",
   fonds_a_appeler: 'Fonds à appeler',
+  liberation_garantie: 'Libération de la garantie',
   limite_resiliation: 'Limite de résiliation',
   a_resilier: 'À résilier',
   mise_en_concurrence: 'Mise en concurrence',
@@ -519,12 +541,34 @@ function dateEtapeAFaire(etape: Etape & { aFaireLe?: string | null }): string | 
   return dates.reduce((a, b) => (a < b ? a : b), dates[0])
 }
 
+/** Marque du libellé d'une étape à faire sans aucune date (J76, question n° 6 de modeles-etapes.ts). */
+const MARQUE_SANS_DELAI = 'sans délai'
+
 /**
- * Étape à faire : à la plus proche de « à faire le », de son alerte et de sa limite, pour son réalisateur ; sans aucune
- * de ces dates, elle ne remonte pas. À valider : pour son validateur.
+ * Date d'une étape à faire sans aucune date (🔵 choix de codage, à valider par Frédéric ; modeles-etapes.ts, question
+ * n° 6) : la date de référence, jamais avant la création de l'étape (une étape instanciée ou enchaînée à une date future
+ * n'existe pas encore : sa réalisation serait refusée). Jamais antérieure à `aujourdhui` : jamais en retard.
+ */
+function dateEtapeSansDelai(etape: { id: string; creeeLe?: string }, aujourdhui: string): string {
+  if (etape.creeeLe === undefined) return aujourdhui
+  verifierDate(etape.creeeLe, `Date de création de l'étape ${etape.id}`)
+  return etape.creeeLe > aujourdhui ? etape.creeeLe : aujourdhui
+}
+
+/**
+ * Étape à faire : à la plus proche de « à faire le », de son alerte et de sa limite, pour son réalisateur. Sans aucune
+ * de ces dates (J76 : aucun délai par défaut ; étape enchaînée ou instanciée sans délai saisi) : émise, libellé marqué
+ * « sans délai », même nature « à faire » (les réglages qui la suivent l'affichent), jamais en retard (proposition de
+ * Hugo du 19/11/2026, à valider par Frédéric). 🔵 Choix de codage, à valider aussi : datée de la date de référence, due
+ * le jour même, chaque jour, jamais avant sa création (dateEtapeSansDelai) ; l'élément se recalcule à chaque date de
+ * référence. Une étape automatique sans date n'est pas émise ici : sa relance à N jours la suit déjà
+ * (depuisEtapesAutomatiques ; J20, tranche 43), sans doublon. À valider : pour son validateur.
  */
 export function depuisEtapes(
-  items: { mandatId: string | null; etape: Etape & { aFaireLe?: string | null } }[],
+  items: {
+    mandatId: string | null
+    etape: Etape & { aFaireLe?: string | null; origine?: OrigineEtape; creeeLe?: string }
+  }[],
   aujourdhui: string,
 ): ElementAFaire[] {
   verifierDate(aujourdhui)
@@ -533,7 +577,16 @@ export function depuisEtapes(
     const champs = { libelle: etape.titre, mandatId, objetId: etape.id }
     if (statut === 'a_faire') {
       const date = dateEtapeAFaire(etape)
-      return date ? [elementSuivi('etapes', 'a_faire', `${etape.id}:a_faire`, { ...champs, date, assigneId: etape.realisateurId })] : []
+      if (date) return [elementSuivi('etapes', 'a_faire', `${etape.id}:a_faire`, { ...champs, date, assigneId: etape.realisateurId })]
+      if (etape.origine === 'automatique') return []
+      return [
+        elementSuivi('etapes', 'a_faire', `${etape.id}:a_faire`, {
+          ...champs,
+          libelle: `${etape.titre} — ${MARQUE_SANS_DELAI}`,
+          date: dateEtapeSansDelai(etape, aujourdhui),
+          assigneId: etape.realisateurId,
+        }),
+      ]
     }
     if (statut === 'a_valider' && etape.faitLe)
       return [elementSuivi('etapes', 'a_valider', `${etape.id}:a_valider`, { ...champs, date: etape.faitLe, assigneId: etape.validateurId })]
@@ -683,6 +736,15 @@ export function depuisOperationsTravaux(
   })
 }
 
+/**
+ * Libération de la garantie d'un marché de travaux (point 32, travaux-retenue-garantie.echeancesLiberationGarantie) : à
+ * l'expiration du délai d'un an depuis la réception, une retenue tant qu'il en reste à restituer, une caution jusqu'à
+ * l'expiration ; sous opposition, jusqu'à la mainlevée. Les éléments sont rendus tels que le module les calcule
+ * (échéance au même quantième un an après la réception, J67, R63 ; `aConfirmer` gardé, comme R63 le demande).
+ */
+export const depuisRetenuesGarantie = (items: readonly { mandatId: string; suivi: SuiviRetenueMarche }[]): ElementAFaire[] =>
+  echeancesLiberationGarantie(items)
+
 export interface ContratSuivi {
   id: string
   mandatId: string
@@ -705,9 +767,17 @@ export const contratMarqueAResilier = (contrat: { statut?: StatutContrat; type?:
   Boolean(contrat.aResilier) && (contrat.statut ?? 'En cours') === 'En cours' && contrat.type !== 'Contrat de travail'
 
 /**
- * Contrat en cours : limite de résiliation s'il se reconduit tacitement (contrats-facturation) et n'est pas marqué « à
- * résilier » ; mise en concurrence à l'ouverture de sa fenêtre, tant qu'elle n'est pas close ; facture attendue au premier
- * jour de retard au-delà de la tolérance du contrat.
+ * Assurance dommages-ouvrage : aucune date de résiliation proposée, ni limite générique ici, ni date « à résilier » dans
+ * contrats-a-resilier.ts. Une seule règle pour les deux modules (J67, R57, point 1 : la police fixe la durée et la
+ * résiliation, C. assur. art. L. 113-12).
+ */
+export const sansDateDeResiliation = (contrat: { type?: TypeContrat }): boolean => contrat.type === 'Dommages Ouvrages'
+
+/**
+ * Contrat en cours : limite de résiliation s'il se reconduit tacitement (contrats-facturation), n'est pas marqué « à
+ * résilier » et n'est pas une assurance dommages-ouvrage (sansDateDeResiliation, J67, R57) ; mise en concurrence à
+ * l'ouverture de sa fenêtre, tant qu'elle n'est pas close ; facture attendue au premier jour de retard au-delà de la
+ * tolérance du contrat.
  */
 export function depuisContrats(contrats: ContratSuivi[], aujourdhui: string): ElementAFaire[] {
   verifierDate(aujourdhui)
@@ -716,7 +786,7 @@ export function depuisContrats(contrats: ContratSuivi[], aujourdhui: string): El
     const champs = { libelle: contrat.libelle, mandatId: contrat.mandatId, objetId: contrat.id }
     const elements: ElementAFaire[] = []
     const { facturation } = contrat
-    if (facturation?.tacite && !contratMarqueAResilier(contrat))
+    if (facturation?.tacite && !contratMarqueAResilier(contrat) && !sansDateDeResiliation(contrat))
       elements.push(
         elementSuivi('contrats', 'limite_resiliation', `${contrat.id}:limite_resiliation`, {
           ...champs,
@@ -764,18 +834,56 @@ export function depuisFactures(factures: FactureSuivie[], aujourdhui: string): E
   })
 }
 
-/** Sans date de suivi, une phase saisie qui suit la déclaration (phaseApresDeclaration) : à vérifier, pas à déclarer. */
-const libelleADeclarer = (libelle: string, fiche: FicheSinistre): string => {
-  const phase = phaseApresDeclaration(fiche)
-  return phase === null ? libelle : `${libelle} — déclaration non datée (phase « ${phase} ») : à vérifier`
+/** Dommages-ouvrage sans délai fixé par la police (J67, R52) : élément daté du jour de la connaissance. */
+const A_DECLARER_DES_LA_CONNAISSANCE = 'à déclarer dès la connaissance (L. 113-2, 4°) ; aucun délai dans les clauses types'
+
+/**
+ * Sans délai (dommages-ouvrage sans délai de la police, J67, R52) : à déclarer dès la connaissance ; sinon date « au plus
+ * tard » (J67, R49), ou repère à confirmer avec sa raison quand le minimum légal n'est pas sûr (relecture).
+ */
+const delaiADeclarer = (reperes: ReperesDelaisSinistre): string => {
+  if (reperes.desLaConnaissance) return A_DECLARER_DES_LA_CONNAISSANCE
+  const date = dateIsoVersFr(reperes.declarationAuPlusTard)
+  if (reperes.declarationAConfirmer !== null) return `repère de déclaration du ${date} à confirmer, ${reperes.declarationAConfirmer}`
+  const delai = reperes.delaiDuContrat ? 'délai du contrat ; C. assur. L. 113-2, 4°' : 'minimum légal, C. assur. L. 113-2, 4° ; le contrat peut accorder plus'
+  return `à déclarer au plus tard le ${date} (${delai})`
 }
 
 /**
- * Sinistre en cours : repère de déclaration tant qu'il n'est pas déclaré, et prescription (sinistres.ts) — deux repères
- * indicatifs, 🔴 à confirmer : le contrat peut allonger le délai de déclaration. Indemnité différée non réglée : à
- * réclamer depuis le règlement de l'indemnité immédiate (à défaut le rapport, la déclaration, la survenance) ; c'est un
- * suivi de gestion, pas un repère légal. Sans date de suivi, une phase saisie qui suit la déclaration garde l'élément
- * « à déclarer » (même critère du réglage), libellé « déclaration non datée … : à vérifier » (declaration-sinistre.ts).
+ * Libellé « à déclarer » (J67, R49) : date au plus tard, délai du contrat ou minimum légal ; sans délai (dommages-ouvrage
+ * sans délai de la police, J67, R52) : à déclarer dès la connaissance ; « 2 jours ouvrés s'il y a eu vol »
+ * (DELAIS_ASSURANCE_SINISTRE) pour un type sous lequel un vol a pu être rangé ; repère à confirmer, avec sa raison, pour
+ * un type au délai propre ou non établi (relecture) ; sans date de suivi, une phase saisie qui suit la déclaration
+ * (phaseApresDeclaration) : à vérifier.
+ */
+const libelleADeclarer = (libelle: string, fiche: FicheSinistre, reperes: ReperesDelaisSinistre): string => {
+  const phase = phaseApresDeclaration(fiche)
+  return [
+    `${libelle} — ${delaiADeclarer(reperes)}`,
+    reperes.volPossible ? `${DELAIS_ASSURANCE_SINISTRE.declarationVolJoursOuvres} jours ouvrés s'il y a eu vol` : null,
+    phase === null ? null : `déclaration non datée (phase « ${phase} ») : à vérifier`,
+  ]
+    .filter((partie): partie is string => partie !== null)
+    .join(' — ')
+}
+
+/** Libellé « prescription au plus tôt » (J67, R49), suivi de la raison s'il reste à confirmer (garantie impayés). */
+const libellePrescription = (libelle: string, reperes: ReperesDelaisSinistre): string =>
+  `${libelle} — prescription au plus tôt le ${dateIsoVersFr(reperes.prescription)} (C. assur. L. 114-1 ; peut être repoussée par une interruption, L. 114-2)` +
+  (reperes.prescriptionAConfirmer === null ? '' : ` — à confirmer, ${reperes.prescriptionAConfirmer}`)
+
+/**
+ * Sinistre en cours : déclaration au plus tard tant qu'il n'est pas déclaré, et prescription au plus tôt (sinistres.ts) —
+ * deux échéances (J67, R49) : le contrat peut allonger le délai de déclaration, jamais la durée de la prescription
+ * (C. assur. L. 114-3). Restent `aConfirmer` : la déclaration d'un type sous lequel un vol a pu être rangé (J67, R49) ;
+ * relecture de R49, celle d'un type au délai propre ou non établi (garantie impayés, catastrophe naturelle) et la
+ * prescription de la garantie impayés (sinistres.REGIMES_A_CONFIRMER). Dommages-ouvrage, règle propre (J67, R52), sans
+ * marque : sans délai de la police, élément « à déclarer » daté du jour de la connaissance, sans repère de cinq jours
+ * ouvrés ; avec un délai de la police, ce délai.
+ * Indemnité différée non réglée : à réclamer depuis le règlement de l'indemnité immédiate (à défaut le rapport, la
+ * déclaration, la survenance) ; c'est un suivi de gestion, pas un repère légal. Sans date de suivi, une phase saisie qui
+ * suit la déclaration garde l'élément « à déclarer » (même critère du réglage), libellé « déclaration non datée … : à
+ * vérifier » (declaration-sinistre.ts).
  */
 export function depuisSinistres(
   items: { id: string; mandatId: string; libelle: string; fiche: FicheSinistre; delaiContratJoursOuvres?: number }[],
@@ -783,17 +891,25 @@ export function depuisSinistres(
   return items.flatMap(({ id, mandatId, libelle, fiche, delaiContratJoursOuvres }) => {
     if (statutSinistre(fiche) !== 'En cours') return []
     const reperes = reperesDelaisSinistre(fiche, { delaiContratJoursOuvres })
-    const champs = { libelle, mandatId, objetId: id, aConfirmer: true }
+    const champs = { mandatId, objetId: id }
     const elements: ElementAFaire[] = []
     if (etapeSuiviSinistre(fiche) === 'a_declarer')
       elements.push(
         elementSuivi('sinistres', 'a_declarer', `${id}:a_declarer`, {
           ...champs,
-          libelle: libelleADeclarer(libelle, fiche),
+          libelle: libelleADeclarer(libelle, fiche, reperes),
           date: reperes.declarationAuPlusTard,
+          aConfirmer: reperes.volPossible || reperes.declarationAConfirmer !== null,
         }),
       )
-    elements.push(elementSuivi('sinistres', 'prescription', `${id}:prescription`, { ...champs, date: reperes.prescription }))
+    elements.push(
+      elementSuivi('sinistres', 'prescription', `${id}:prescription`, {
+        ...champs,
+        libelle: libellePrescription(libelle, reperes),
+        date: reperes.prescription,
+        aConfirmer: reperes.prescriptionAConfirmer !== null,
+      }),
+    )
     if (fiche.indemniteDiffereeCentimes > 0 && !fiche.indemniteDiffereeReglee)
       elements.push(
         elementSuivi('sinistres', 'indemnite_differee', `${id}:indemnite_differee`, {
@@ -923,14 +1039,23 @@ export function depuisExercices(items: { id?: string; mandatId: string; exercice
 
 const TITRE_ALERTE_29_1_A = "Alerte de l'art. 29-1 A (mandataire ad hoc)"
 
+/** Ce que l'élément propose selon le cadre de l'alerte (J67, R30) ; obligation du syndic : les seuls constats. */
+const SUITE_SELON_CADRE: Readonly<Record<CadreAlerte291A, string>> = {
+  obligation_du_syndic: '',
+  compte_rendu_au_juge:
+    " — constat à porter au prochain compte rendu au juge (D. 1967 art. 62-11) ; si le conseil syndical garde ses pouvoirs, lui adresser l'état des impayés avant répartition (D. 1967 art. 61-4) ; ni requête ni copie de la requête (J67, R30)",
+  signalement_au_juge: ' — seuil atteint : à signaler au juge ; requête possible, après consultation du conseil syndical (D. 1967 art. 62-2)',
+}
+
 /**
- * Critères atteints que la requête ne couvre pas, à la date du plus tôt et avec leurs seuls constats ; à défaut, repère
- * du délai sans vote sur l'approbation des comptes qui court encore ; null : ni l'un ni l'autre.
+ * Critères atteints que la requête ne couvre pas, à la date du plus tôt et avec leurs seuls constats, suivis de ce que le
+ * cadre propose (à cette date : celle du constat, pas une échéance, hors obligation du syndic) ; à défaut, repère du délai
+ * sans vote sur l'approbation des comptes qui court encore ; null : ni l'un ni l'autre.
  */
 function etapeAlerte291A(alerte: AlerteMandataireAdHoc): { libelle: string; date: string } | null {
   if (alerte.aTraiterLe !== null) {
     const constats = [alerte.impayes, alerte.comptes].filter((c) => c.etat === 'atteint' && !c.traite).map((c) => c.message)
-    return { libelle: `${TITRE_ALERTE_29_1_A} : ${constats.join(' ')}`, date: alerte.aTraiterLe }
+    return { libelle: `${TITRE_ALERTE_29_1_A} : ${constats.join(' ')}${SUITE_SELON_CADRE[alerte.cadre]}`, date: alerte.aTraiterLe }
   }
   const { etat, atteintLe, message } = alerte.comptes
   if (etat !== 'non_atteint' || atteintLe === null) return null
@@ -945,10 +1070,13 @@ function etapeAlerte291A(alerte: AlerteMandataireAdHoc): { libelle: string; date
  *   couvre les impayés ; chaque critère atteint couvert et aucun délai qui court (délai atteint et couvert, ou aucun vote
  *   connu) : rien ;
  * - la copie de la requête au représentant de l'État, au maire et au président de l'EPCI (art. 29-1 A, dernier alinéa ;
- *   D. 1967 art. 61-5), à la date de la requête, tant qu'elle n'est pas adressée.
- * `aConfirmer` reprend celui de l'alerte : 🔴 sous administrateur provisoire (art. 29-1 ou D. 1967 art. 47), ou arriérés
- * des exercices antérieurs comptés ; le syndic désigné par le président du tribunal judiciaire (D. 1967 art. 46) ne
- * l'est pas.
+ *   D. 1967 art. 61-5), à la date de la requête, tant qu'elle n'est pas adressée : seulement dans le cadre de
+ *   l'obligation du syndic (l'alerte ne la rend pas sinon, J67, R30).
+ * Cadre de l'alerte (J67, R30) : administrateur de l'art. 29-1, constat à porter au prochain compte rendu au juge ;
+ * administrateur de l'art. 47, signalement au juge, requête possible après consultation du conseil syndical.
+ * `aConfirmer` reprend celui de l'alerte : sous administrateur provisoire (art. 29-1 ou D. 1967 art. 47 ; J67, R30 :
+ * lecture déduite des textes, à confirmer) ; le syndic désigné par le président du tribunal judiciaire (D. 1967 art. 46)
+ * ne l'est pas ; les arriérés comptés ne la rendent plus « à confirmer » (J67, R31).
  */
 export function depuisAlertesMandataireAdHoc(items: { mandatId: string; alerte: AlerteMandataireAdHoc }[]): ElementAFaire[] {
   return items.flatMap(({ mandatId, alerte }) => {

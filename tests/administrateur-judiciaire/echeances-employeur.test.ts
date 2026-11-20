@@ -1,8 +1,11 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { ajouterJoursOuvres } from '@/lib/administrateur-judiciaire/domain/dates'
 import {
   REGLAGES_SUIVI_EMPLOYEUR_PAR_DEFAUT,
+  alertesEmployeur,
+  avisExonerationTaxeSalaires,
   dateEcheanceDsn,
   datesVisitePeriodique,
   echeancesEmployeur,
@@ -12,6 +15,7 @@ import {
   versElementsAFaire,
   versementCotisations,
   visiteRepriseRequise,
+  type ArretTravail,
   type EcheanceEmployeur,
   type EtatEmployeur,
   type ReglagesSuiviEmployeur,
@@ -38,7 +42,7 @@ const gardien = creerSalarieSyndicat({
   sortieLe: null,
 })
 
-/** Employeur à jour : DSN de septembre faite, visite passée, DUERP mis à jour et transmis. */
+/** Employeur à jour : DSN de septembre faite, visite passée, DUERP mis à jour, transmis et déposé (ou conservé). */
 const etat = (champs: Partial<EtatEmployeur> = {}): EtatEmployeur => ({
   coproprieteId: 'copro-1',
   salaries: [gardien],
@@ -50,7 +54,7 @@ const etat = (champs: Partial<EtatEmployeur> = {}): EtatEmployeur => ({
   adhesionSanteTravailLe: '2024-03-10',
   suivisMedicaux: [{ salarieId: 'sal-1', derniereVisiteLe: '2025-05-01', prochaineLe: null }],
   arrets: [],
-  duerp: { misAJourLe: '2026-02-01', transmisLe: '2026-02-01' },
+  duerp: { misAJourLe: '2026-02-01', transmisLe: '2026-02-01', deposeLe: '2026-02-01' },
   bulletins: [],
   reglements: [],
   traitements: [],
@@ -283,7 +287,8 @@ describe('santé au travail', () => {
       { cle: 'visite_reprise:arr-1', date: '2026-08-23', salarieId: 'sal-1', aConfirmer: false },
     ])
     expect(de(echeances({ arrets: [{ ...arret, visiteRepriseLe: '2026-08-17' }] }), 'visite_reprise')).toEqual([])
-    expect(de(echeances({ arrets: [{ ...arret, du: '2026-05-01' }] }), 'visite_reprise')).toMatchObject([{ aConfirmer: true }])
+    // J67, R36 : arrêt commencé du 01/04/2022 au 14/06/2026 : mêmes cas et même délai, sans « à confirmer ».
+    expect(de(echeances({ arrets: [{ ...arret, du: '2026-05-01' }] }), 'visite_reprise')).toMatchObject([{ aConfirmer: false }])
     // Maladie non professionnelle de 45 jours : aucune reprise exigée par le Code (60 jours) ; la seule CCN, en option.
     expect(de(echeances({ arrets: [{ ...arret, motif: 'non_professionnel' }] }), 'visite_reprise')).toEqual([])
     expect(de(echeances({ arrets: [{ ...arret, motif: 'non_professionnel' }] }, { referenceMedicale: 'ccn_1043' }), 'visite_reprise')).toMatchObject([
@@ -331,7 +336,7 @@ describe('DUERP (C. trav. R4121-1 à R4121-4, L4121-3-1)', () => {
   })
 
   it('mise à jour non transmise au service de prévention et de santé au travail', () => {
-    expect(de(echeances({ duerp: { misAJourLe: '2026-02-01', transmisLe: '2025-01-15' } }), 'duerp')).toMatchObject([
+    expect(de(echeances({ duerp: { misAJourLe: '2026-02-01', transmisLe: '2025-01-15', deposeLe: '2026-02-01' } }), 'duerp')).toMatchObject([
       { cle: 'duerp:transmission', date: '2026-02-01', aConfirmer: true, fondement: 'C. trav. art. L4121-3-1, VI' },
       { cle: 'duerp:revue', date: '2027-02-01' },
     ])
@@ -519,13 +524,248 @@ describe('taxe sur les salaires (CGI art. 231, 1679 ; annexe III, art. 369)', ()
   })
 })
 
+describe('J67, R33 — exonération de taxe sur les salaires : trois paliers, toujours à confirmer, jamais calculée', () => {
+  const avis = (produits: number) => avisExonerationTaxeSalaires(produits, AUJ)
+
+  it('au plus 37 500 € : exonération possible ; jusqu’à 85 000 € : plafond non établi ; au-delà : taxe due (franchise, décote)', () => {
+    expect(avis(3_750_000)).toMatchObject({ palier: 'exoneration_possible', aConfirmer: true })
+    expect(avis(3_750_000).message).toMatch(
+      /^Produits \(classe 7\) de l'année civile 2025 : 37\s500,00\s€ : exonération possible \(art\. 231, 1, al\. 2\), à confirmer\.$/,
+    )
+    expect(avis(3_750_001)).toMatchObject({ palier: 'plafond_non_etabli', aConfirmer: true })
+    expect(avis(8_500_000).message).toMatch(/: à confirmer : plafond applicable au syndicat non établi \(37\s500,00\s€ ou 85\s000,00\s€/)
+    expect(avis(8_500_001)).toMatchObject({ palier: 'taxe_due', aConfirmer: true })
+    expect(avis(8_500_001).message).toMatch(/la taxe est due, sous la franchise de 1\s200,00\s€ et la décote jusqu'à 2\s040,00\s€ \(art\. 1679\), à confirmer/)
+    expect(avis(8_500_001).fondement).toMatch(/ ; CGI art\. 1679$/)
+  })
+
+  it('fondement : art. 293 B jusqu’au 31/12/2026 ; CIBS art. L. 233-9 et L. 233-10 dès le 01/01/2027 ; montants inchangés', () => {
+    expect(avisExonerationTaxeSalaires(3_000_000, '2026-12-31').fondement).toBe('CGI art. 231, 1, al. 2 ; art. 293 B, I et I bis')
+    const en2027 = avisExonerationTaxeSalaires(3_000_000, '2027-01-01')
+    expect(en2027).toMatchObject({ palier: 'exoneration_possible', fondement: 'CGI art. 231, 1, al. 2 ; CIBS art. L. 233-9 et L. 233-10' })
+    expect(en2027.message).toMatch(/année civile 2026/)
+    expect(() => avis(-1)).toThrow(/centimes/)
+    expect(() => avis(1.5)).toThrow(/centimes/)
+    expect(() => avisExonerationTaxeSalaires(1, '31/12/2026')).toThrow(/AAAA-MM-JJ/)
+  })
+
+  it('alertes de l’employeur : l’avis n’apparaît que si la taxe est suivie et les produits saisis ; saisie contrôlée', () => {
+    const taxe = { acquitteeAnneePrecedenteCentimes: 300_000 }
+    expect(alertesEmployeur(etat(), AUJ)).toEqual([])
+    expect(alertesEmployeur(etat({ taxeSalaires: taxe }), AUJ)).toEqual([])
+    expect(alertesEmployeur(etat({ taxeSalaires: { ...taxe, produitsAnneeCivilePrecedenteCentimes: 9_000_000 } }), AUJ)).toMatchObject([
+      { code: 'taxe_salaires_exoneration', aConfirmer: true, fondement: 'CGI art. 231, 1, al. 2 ; art. 293 B, I et I bis ; CGI art. 1679' },
+    ])
+    expect(() => echeances({ taxeSalaires: { ...taxe, produitsAnneeCivilePrecedenteCentimes: -5 } })).toThrow(/centimes/)
+  })
+})
+
+describe('J67, R34 — effectif annuel moyen retenu en DSN (CSS L130-1, R130-1) : saisi, jamais calculé', () => {
+  const codesAlertes = (effectif: number) => alertesEmployeur(etat({ effectif }), AUJ).map((a) => a.code)
+
+  it('alerte non bloquante de 9 à 12 salariés et de 45 à 55 ; aucune ailleurs', () => {
+    for (const effectif of [0, 1, 8, 13, 44, 56]) expect(codesAlertes(effectif)).toEqual([])
+    for (const effectif of [9, 10, 12, 45, 50, 55]) expect(codesAlertes(effectif)).toEqual(['effectif_proche_seuil'])
+  })
+
+  it('message : vérifier le décompte, la règle des cinq ans, et pour le DUERP le décompte du Code du travail', () => {
+    const [onze] = alertesEmployeur(etat({ effectif: 10 }), AUJ)
+    expect(onze).toMatchObject({ code: 'effectif_proche_seuil', aConfirmer: false })
+    expect(onze.message).toBe(
+      'Effectif de 10 : seuil de 11 salariés proche : vérifier le décompte, la règle des cinq ans, et pour le DUERP le décompte du Code du travail (J67, R34).',
+    )
+    expect(onze.fondement).toBe('CSS art. L130-1 et R130-1 ; R243-6-1 ; C. trav. art. R4121-2, 1° et L1111-2')
+    const [cinquante] = alertesEmployeur(etat({ effectif: 52 }), AUJ)
+    expect(cinquante.message).toMatch(/^Effectif de 52 : seuil de 50 salariés proche/)
+    expect(cinquante.fondement).toBe('CSS art. L130-1 et R130-1 ; R243-6, II')
+  })
+
+  it('effectif au centième (R130-1, I) : un temps partiel est admis ; près d’un seuil, l’alerte l’écrit au format français', () => {
+    expect(codesAlertes(0.62)).toEqual([])
+    expect(de(echeances({ effectif: 0.75 }), 'dsn').map((e) => e.date)).toEqual(['2026-11-16'])
+    const [alerte] = alertesEmployeur(etat({ effectif: 10.53 }), AUJ)
+    expect(alerte.message).toMatch(/^Effectif de 10,53 : seuil de 11 salariés proche/)
+    expect(alertesEmployeur(etat({ effectif: 10.5 }), AUJ)[0].message).toMatch(/^Effectif de 10,5 : seuil de 11/)
+    // Sous 11 salariés, même au centième près : versement trimestriel admis.
+    expect(() => echeances({ effectif: 10.99, versementTrimestrielCotisations: true })).not.toThrow()
+    for (const effectif of [1.555, -0.5, Number.NaN]) expect(() => echeances({ effectif })).toThrow(/Effectif invalide .* au centième près/)
+  })
+})
+
+describe('J67, R35 — signalement en DSN des événements (CSS R133-14 ; arrêté du 2 juillet 2013, art. 1)', () => {
+  const sortiLe = (sortieLe: string) => creerSalarieSyndicat({ ...gardien, sortieLe })
+  const arret = (champs: Partial<ArretTravail> = {}): ArretTravail => ({
+    id: 'arr-1',
+    salarieId: 'sal-1',
+    motif: 'non_professionnel',
+    du: '2026-07-01',
+    repriseLe: '2026-08-17',
+    visiteRepriseLe: null,
+    subrogation: false,
+    retenueSurSalaire: true,
+    ...champs,
+  })
+  /** Dernière DSN : juin 2026, avant les événements de ces tests (ceux d'une période déjà déclarée ne sont plus suivis). */
+  const signalements = (champs: Partial<EtatEmployeur>) => de(echeances({ derniereDsn: { annee: 2026, mois: 6 }, ...champs }), 'signalement_dsn')
+
+  it('cinq jours ouvrés comptés un par un : un mercredi donne le mercredi suivant ; un jour férié ne compte pas ; Alsace-Moselle', () => {
+    expect(ajouterJoursOuvres('2026-10-14', 5)).toBe('2026-10-21')
+    expect(ajouterJoursOuvres('2026-11-10', 5)).toBe('2026-11-18')
+    expect(ajouterJoursOuvres('2027-03-22', 5)).toBe('2027-03-30')
+    expect(ajouterJoursOuvres('2027-03-22', 5, { alsaceMoselle: true })).toBe('2027-03-31')
+  })
+
+  it('fin de contrat : dernier jour du contrat (veille de la sortie) + 5 jours ouvrés, point de départ à confirmer ; plus rien une fois signalée', () => {
+    // Sortie le mercredi 14/10 : dernier jour le mardi 13/10, signalement au plus tard le mardi 20/10.
+    const [fin, ...autres] = signalements({ salaries: [sortiLe('2026-10-14')] })
+    expect(autres).toEqual([])
+    expect(fin).toMatchObject({ cle: 'signalement_dsn:fin_contrat:sal-1', date: '2026-10-20', salarieId: 'sal-1', nature: 'legale', aConfirmer: true })
+    expect(fin.libelle).toBe('Signalement en DSN de la fin du contrat de travail (fin du contrat le 13/10/2026, veille de la sortie)')
+    expect(fin.fondement).toBe(
+      "CSS art. R133-14, II, al. 2 ; arrêté du 2 juillet 2013, art. 1 : 5 jours ouvrés après l'événement, comptés un par un ; point de départ à confirmer (J67, R35)",
+    )
+    expect(signalements({ salaries: [sortiLe('2026-10-14')], finsDeContratSignalees: [{ salarieId: 'sal-1', le: '2026-10-16' }] })).toEqual([])
+    expect(signalements({})).toEqual([])
+  })
+
+  it('arrêt sans subrogation, avec retenue : début + 5 jours ouvrés, puis fin (la reprise) + 5 jours ouvrés', () => {
+    expect(signalements({ arrets: [arret()] }).map((e) => [e.cle, e.date, e.libelle])).toEqual([
+      ['signalement_dsn:debut_arret:arr-1', '2026-07-08', "Signalement en DSN du début de l'arrêt de travail (maladie ou accident non professionnel, du 01/07/2026)"],
+      ['signalement_dsn:fin_arret:arr-1', '2026-08-24', "Signalement en DSN de la fin de l'arrêt de travail (maladie ou accident non professionnel, reprise le 17/08/2026)"],
+    ])
+    expect(signalements({ arrets: [arret({ repriseLe: null })] }).map((e) => e.cle)).toEqual(['signalement_dsn:debut_arret:arr-1'])
+    expect(signalements({ arrets: [arret({ debutSignaleLe: '2026-07-03' })] }).map((e) => e.cle)).toEqual(['signalement_dsn:fin_arret:arr-1'])
+    expect(signalements({ arrets: [arret({ debutSignaleLe: '2026-07-03', finSignaleeLe: '2026-08-18' })] })).toEqual([])
+  })
+
+  it('employeur subrogé, ou aucune retenue sur le salaire du mois : pas de signalement à part (R133-14, II, 1°)', () => {
+    expect(signalements({ arrets: [arret({ subrogation: true })] })).toEqual([])
+    expect(signalements({ arrets: [arret({ retenueSurSalaire: false })] })).toEqual([])
+  })
+
+  it('subrogation et retenue non saisies : signalement dû (lecture prudente), le libellé le dit', () => {
+    const [debut] = signalements({ arrets: [arret({ subrogation: null, retenueSurSalaire: null })] })
+    expect(debut).toMatchObject({ cle: 'signalement_dsn:debut_arret:arr-1', date: '2026-07-08', aConfirmer: true })
+    expect(debut.libelle).toMatch(/ ; subrogation et retenue sur salaire à saisir\)$/)
+  })
+
+  it('événement du 1er à la veille du 15, délai fini avant le 15 : la DSN du mois précédent part dans ce délai (R133-14, I, al. 2)', () => {
+    // Sortie le 02/10 : contrat fini le jeudi 01/10, délai au jeudi 08/10.
+    const avance = echeances({ salaries: [sortiLe('2026-10-02')], derniereDsn: { annee: 2026, mois: 8 } })
+    expect(de(avance, 'dsn').map((e) => [e.cle, e.date])).toEqual([
+      ['dsn:2026-09', '2026-10-08'],
+      ['dsn:2026-10', '2026-11-16'],
+    ])
+    const [dsn09] = de(avance, 'dsn')
+    expect(dsn09).toMatchObject({ libelle: 'DSN de 09/2026', aConfirmer: true })
+    expect(dsn09.fondement).toBe(
+      'CSS art. L133-5-3, R133-14, I et R243-6, II ; avancée au 08/10/2026 par le signalement de la fin du contrat de travail (CSS art. R133-14, I, al. 2 ; J67, R35)',
+    )
+    expect(de(avance, 'versement_cotisations').map((e) => [e.cle, e.date])).toEqual([['cotisations:2026-09', '2026-10-15']])
+    // Sortie le 08/10 : contrat fini le mercredi 07/10, délai au mercredi 14/10, avant le 15 : la DSN de septembre est avancée.
+    const sortie08 = echeances({ salaries: [sortiLe('2026-10-08')], derniereDsn: { annee: 2026, mois: 8 } })
+    expect(de(sortie08, 'signalement_dsn').map((e) => e.date)).toEqual(['2026-10-14'])
+    expect(de(sortie08, 'dsn').map((e) => e.date)).toEqual(['2026-10-14', '2026-11-16'])
+    // Délai qui finit le 15 ou après, événement du 15, ou contrat fini le 30/09 (sortie le 01/10) : rien n'est avancé.
+    for (const sortie of ['2026-10-01', '2026-10-09', '2026-10-15', '2026-10-16'])
+      expect(de(echeances({ salaries: [sortiLe(sortie)], derniereDsn: { annee: 2026, mois: 8 } }), 'dsn').map((e) => e.date)).toEqual([
+        '2026-10-15',
+        '2026-11-16',
+      ])
+  })
+
+  it('événement d’une période déjà déclarée (dernière DSN) : plus de signalement à part ; sans dernière DSN connue, il reste suivi', () => {
+    const ancien = creerSalarieSyndicat({ ...gardien, id: 'sal-2', identiteId: 'identite-2', auxiliaire421: '00002', entreeLe: '2017-01-02', sortieLe: '2024-03-12' })
+    const ancienArret = arret({ id: 'arr-2', salarieId: 'sal-2', du: '2023-01-09', repriseLe: '2023-01-20' })
+    const suivi = { salaries: [gardien, ancien], arrets: [ancienArret] }
+    expect(de(echeances({ ...suivi, derniereDsn: { annee: 2026, mois: 9 } }), 'signalement_dsn')).toEqual([])
+    // Arrêt commencé en août (déclaré), repris en octobre (pas encore déclaré) : seule la fin reste à signaler.
+    const aCheval = arret({ du: '2026-08-24', repriseLe: '2026-10-05' })
+    expect(de(echeances({ arrets: [aCheval], derniereDsn: { annee: 2026, mois: 9 } }), 'signalement_dsn').map((e) => e.cle)).toEqual([
+      'signalement_dsn:fin_arret:arr-1',
+    ])
+    expect(de(echeances({ ...suivi, derniereDsn: null }), 'signalement_dsn').map((e) => e.cle)).toEqual([
+      'signalement_dsn:debut_arret:arr-2',
+      'signalement_dsn:fin_arret:arr-2',
+      'signalement_dsn:fin_contrat:sal-2',
+    ])
+  })
+
+  it('contrôles : fin de contrat signalée d’un salarié inconnu, dates invalides, saisie non booléenne', () => {
+    expect(() => echeances({ finsDeContratSignalees: [{ salarieId: 'sal-9', le: '2026-10-16' }] })).toThrow(/sal-9/)
+    expect(() => echeances({ finsDeContratSignalees: [{ salarieId: 'sal-1', le: '16/10/2026' }] })).toThrow(/AAAA-MM-JJ/)
+    expect(() => echeances({ arrets: [arret({ debutSignaleLe: '2026-02-30' })] })).toThrow(/AAAA-MM-JJ/)
+    expect(() => echeances({ arrets: [arret({ subrogation: 'oui' as never })] })).toThrow(/subrogation/)
+  })
+})
+
+describe('J67, R36 — visite de reprise selon la version de R4624-31 applicable au premier jour d’arrêt', () => {
+  const ancien = creerSalarieSyndicat({ ...gardien, entreeLe: '2020-01-06' })
+  const arret = (champs: Partial<ArretTravail> = {}): ArretTravail => ({
+    id: 'arr-1',
+    salarieId: 'sal-1',
+    motif: 'non_professionnel',
+    du: '2022-03-01',
+    repriseLe: '2022-04-05',
+    visiteRepriseLe: null,
+    ...champs,
+  })
+  const reprises = (a: ArretTravail) => de(echeances({ salaries: [ancien], arrets: [a] }), 'visite_reprise')
+
+  it('arrêt commencé au plus tard le 31/03/2022 : 30 jours pour une maladie ou un accident non professionnel, à confirmer', () => {
+    expect(visiteRepriseRequise(arret(), 'code_du_travail')).toBe(true) // 35 jours
+    expect(visiteRepriseRequise(arret({ du: '2022-04-01', repriseLe: '2022-05-06' }), 'code_du_travail')).toBe(false) // 35 jours
+    const [reprise] = reprises(arret())
+    expect(reprise).toMatchObject({ date: '2022-04-13', aConfirmer: true })
+    expect(reprise.fondement).toBe('C. trav. art. R4624-31, version du 01/01/2017 au 31/03/2022 (décret n° 2016-1908 : 30 jours) ; J67, R36')
+  })
+
+  it('arrêt commencé du 01/04/2022 au 14/06/2026 : 60 jours et 8 jours certains, sans dispense', () => {
+    const [reprise] = reprises(arret({ du: '2026-03-02', repriseLe: '2026-05-04' })) // 63 jours
+    expect(reprise).toMatchObject({ date: '2026-05-12', aConfirmer: false })
+    expect(reprise.fondement).toBe(
+      'C. trav. art. R4624-31, rédaction des arrêts commencés du 01/04/2022 au 14/06/2026 (décret n° 2022-372, art. 6), sans dispense ; J67, R36',
+    )
+  })
+
+  it('dispense constatée : admise pour un arrêt commencé à partir du 15/06/2026, refusée avant (aucune dérogation dans la version antérieure)', () => {
+    const apres = arret({ motif: 'accident_travail', du: '2026-07-01', repriseLe: '2026-08-15', visiteRepriseLe: '2026-08-15', visiteRepriseNature: 'dispense' })
+    expect(reprises(apres)).toEqual([])
+    const avant = { ...apres, du: '2026-05-01' }
+    expect(() => reprises(avant)).toThrow(/Arrêt arr-1 commencé le 01\/05\/2026 : aucune dispense de visite de reprise avant le 15\/06\/2026/)
+    expect(reprises({ ...avant, visiteRepriseNature: 'visite' })).toEqual([])
+    expect(() => reprises({ ...apres, visiteRepriseLe: null })).toThrow(/date de la visite ou de la dispense attendue/)
+    expect(() => reprises({ ...apres, visiteRepriseNature: 'autre' as never })).toThrow(/visite ou dispense attendue/)
+  })
+})
+
+describe('J67, R37 — DUERP : rappel de dépôt sur le portail, ou de conservation des versions, à chaque mise à jour', () => {
+  it('mise à jour sans dépôt ni conservation constatés : rappel de gestion à confirmer, daté de la mise à jour, aucune échéance de dépôt', () => {
+    const rappels = de(echeances({ duerp: { misAJourLe: '2026-02-01', transmisLe: '2026-02-01' } }), 'duerp').filter((e) => e.cle === 'duerp:depot')
+    expect(rappels).toMatchObject([{ date: '2026-02-01', nature: 'gestion', aConfirmer: true }])
+    expect(rappels[0].libelle).toBe(
+      "DUERP mis à jour le 01/02/2026 : le déposer sur le portail s'il est ouvert ; sinon, le conserver avec les versions précédentes (40 ans) et afficher l'avis d'accès (rappel de gestion)",
+    )
+    expect(rappels[0].fondement).toBe('C. trav. art. L4121-3-1, V, B, b (au plus tard depuis le 01/07/2024 sous 150 salariés) et R4121-4 ; J67, R37')
+    expect(versElementsAFaire(rappels, 'mandat-1')).toMatchObject([{ aConfirmer: true }])
+  })
+
+  it('dépôt ou conservation constaté depuis la mise à jour : plus de rappel ; constat antérieur : le rappel revient', () => {
+    const cles = (duerp: EtatEmployeur['duerp']) => de(echeances({ duerp }), 'duerp').map((e) => e.cle)
+    expect(cles({ misAJourLe: '2026-02-01', transmisLe: '2026-02-01', deposeLe: '2026-02-01' })).not.toContain('duerp:depot')
+    expect(cles({ misAJourLe: '2026-02-01', transmisLe: '2026-02-01', deposeLe: '2025-02-01' })).toContain('duerp:depot')
+    expect(cles({ misAJourLe: null, transmisLe: null })).toEqual(['duerp:etablir'])
+    expect(() => cles({ misAJourLe: '2026-02-01', transmisLe: null, deposeLe: '2026-02-30' })).toThrow(/AAAA-MM-JJ/)
+  })
+})
+
 describe('assemblage et adaptateur vers le suivi « à faire »', () => {
   it('échéances triées par date ; contrôles d’entrée', () => {
     const toutes = echeances({ derniereDsn: { annee: 2026, mois: 7 }, adhesionSanteTravailLe: null })
     expect(dates(toutes)).toEqual([...dates(toutes)].sort((a, b) => a.localeCompare(b)))
     expect(() => echeancesEmployeur(etat(), '30/10/2026')).toThrow(/AAAA-MM-JJ/)
     expect(() => echeances({ salaries: [creerSalarieSyndicat({ ...gardien, coproprieteId: 'copro-2' })] })).toThrow(/syndicat/)
-    expect(() => echeances({ effectif: 1.5 })).toThrow(/Effectif/)
+    expect(() => echeances({ effectif: -1 })).toThrow(/Effectif/)
     expect(() => echeances({ suivisMedicaux: [{ salarieId: 'sal-9', derniereVisiteLe: null, prochaineLe: null }] })).toThrow(/sal-9/)
     expect(() => echeances({}, { rappelDuerpMois: 0 })).toThrow(/rappel/)
   })
@@ -561,9 +801,12 @@ describe('en-tête du module (marqueurs 🟢 / 🔵 / 🔴)', () => {
     expect(deduit).toMatch(/aucun calcul de ces échéances observé/)
   })
 
-  it('🔴 2 : la question sur l’exonération cite le BOFiP § 180, déjà lu', () => {
-    expect(entete).toMatch(/§ 180/)
-    expect(nonEtabli).toMatch(/§ 180/)
+  it('J67, R33 : l’exonération est tranchée (les provisions comptent : BOFiP § 180) ; seule la pratique du cabinet reste en 🔴', () => {
+    const j67 = entete.slice(entete.indexOf('Décisions de Hugo du 17/11/2026'), entete.indexOf('🔵 Déduit'))
+    expect(j67).toMatch(/J67, R33 : .*§ 180/)
+    expect(j67).toMatch(/CIBS art\. L\. 233-9 et L\. 233-10/)
+    expect(nonEtabli).not.toMatch(/§ 180/)
+    expect(nonEtabli).toMatch(/pratique du cabinet/)
   })
 
   it('J28 : le report du versement des cotisations est une décision (pratique de l’Urssaf), pas un texte lu', () => {
@@ -621,10 +864,24 @@ describe('en-tête du module (marqueurs 🟢 / 🔵 / 🔴)', () => {
     for (const marqueur of ['🟢', '🔵', '🔴']) expect(entete).toContain(marqueur)
   })
 
-  it('🔴 restants : exonération de taxe sur les salaires ; plus les questions tranchées (CCN ou Code, DUERP, report)', () => {
-    expect(nonEtabli).toMatch(/bénéficie-t-il de l'exonération de taxe sur les salaires/)
+  it('🔴 restants : pratique du cabinet pour la taxe, ouverture du portail du DUERP, CCN non lue, catégorie de suivi ; plus les questions tranchées', () => {
+    expect(nonEtabli).not.toMatch(/bénéficie-t-il de l'exonération de taxe sur les salaires/)
     expect(nonEtabli).not.toMatch(/faut-il retenir la CCN IDCC 1043, art\. 13/)
     expect(nonEtabli).not.toMatch(/rappel de gestion de 12 mois/)
+    // J67, R34 à R36 : effectif, événements DSN et version de R4624-31 tranchés.
+    expect(nonEtabli).not.toMatch(/R130-1 non lu/)
+    expect(nonEtabli).not.toMatch(/délai fixé par un arrêté non lu/)
+    expect(nonEtabli).not.toMatch(/rédaction antérieure non lue/)
+    expect(nonEtabli).toMatch(/le portail de dépôt du DUERP est-il ouvert/)
+    expect(nonEtabli).toMatch(/contribution conventionnelle à la formation/)
+  })
+
+  it('J67, R34 à R37 : décisions citées dans l’en-tête, avec leurs textes', () => {
+    const j67 = entete.slice(entete.indexOf('Décisions de Hugo du 17/11/2026'), entete.indexOf('🔵 Déduit'))
+    expect(j67).toMatch(/J67, R34 : .*CSS L130-1/)
+    expect(j67).toMatch(/J67, R35 : .*arrêté du 2 juillet 2013, art\. 1/)
+    expect(j67).toMatch(/J67, R36 : .*décret n° 2022-372, art\. 6/)
+    expect(j67).toMatch(/J67, R37 : .*R4121-4/)
   })
 
   it('aucune date ISO dans la source', () => {

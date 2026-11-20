@@ -86,8 +86,16 @@ import {
  *   suspend les exécutions (C. consom. art. L. 722-2 et L. 722-5) : un échéancier d'une autre origine que
  *   'surendettement' devrait alors cesser d'être actif. La recevabilité n'est pas le plan (origine 'surendettement') :
  *   faut-il, en plus de l'origine, un fait daté « recevabilité du surendettement » sur le contentieux ?
- * - 🔴 (Frédéric) Un échéancier amiable en cours n'écarte pas, selon les textes lus, l'exigibilité des provisions qui
- *   échoient ensuite (loi art. 14-1 et 19-2) : le groupe 6 ne bloque donc pas l'étape « exigibilite ». À valider.
+ * - 🟢 J67, R40 (décision de Hugo du 17/11/2026) : un échéancier amiable en cours ne bloque pas l'exigibilité des
+ *   provisions qui échoient ensuite. La provision est exigible le premier jour de chaque trimestre ou de la période fixée
+ *   par l'AG, sans exception pour un copropriétaire qui a un échéancier (L. 1965 art. 14-1) ; l'art. 19-2 ne prévoit aucun
+ *   accord qui l'écarte. relanceDepuisEtape garde donc l'étape « exigibilite » avec le groupe 6. L'échéancier ne couvre que
+ *   les sommes qu'il vise : elles ont un terme convenu et ne peuvent être exigées avant (C. civ. art. 1305-2), sauf clause
+ *   de déchéance de l'accord ; postes-creance.avertissementsProcedure le signale, sans bloquer, quand une demande 19-2 les
+ *   inclut. Rappel de J3 : un échéancier demandé ou signé pendant les trente jours de la mise en demeure peut lui ôter son
+ *   caractère infructueux (mise en demeure « restée infructueuse », art. 19-2 ; point non tranché). Textes lus sur
+ *   Légifrance le 17/11/2026 : L. 1965 art. 14-1 et 19-2
+ *   (en vigueur depuis le 01/01/2023, loi n° 2021-1104, art. 171) ; C. civ. art. 1305-2 (depuis le 01/10/2016).
  * - 🔴 (Frédéric) Faut-il que `phaseSuggeree` propose « Déclaration Assurance » dès qu'une déclaration à l'assureur
  *   impayés est datée sur un dossier de recouvrement ? Aujourd'hui cette phase ne se déduit d'aucune date (un test le
  *   garde) : la date « Déclaré le » n'est pas lue par `phaseSuggeree`.
@@ -112,7 +120,9 @@ import {
  *   signalée par contentieux-voies-execution.controlerExecutionSousEcheancierDuJuge, avertissement non bloquant (gravité
  *   justifiée et art. 1343-5 relu sur Légifrance le 06/11/2026 : en-tête de contentieux-voies-execution.ts). C. civ.
  *   art. 1343-5, al. 4 : la décision du juge suspend les procédures d'exécution qui auraient été engagées par le
- *   créancier. La question 🔴 correspondante disparaît ; la phase suggérée n'en dépend toujours pas.
+ *   créancier. La question 🔴 correspondante disparaît ; la phase suggérée n'en dépend toujours pas. Depuis J67, R43
+ *   (17/11/2026), le jalon « Commandement » daté est signalé lui aussi (il engage la procédure d'exécution) ;
+ *   executionEngagee et la phase suggérée sont inchangées.
  * - J44 : la « Particularité » du contentieux est supprimée : plus de champ sur le dossier (SaisieContentieux), plus de
  *   contrôle à la création, plus de particularité suggérée. Le comportement de l'échéancier du juge (J33) est
  *   identique, sans passer par elle : echeancierDuContentieux et relanceDuContentieux lisent la grille et la case
@@ -395,7 +405,10 @@ const STADE_PAR_ETAPE: Record<EtapeRecouvrement, CodeStadeRelance> = {
   solde: '0',
 }
 
-/** Stade et groupe de relance du compte (🔵 correspondance déduite) ; protocole d'accord si échéancier signé. */
+/**
+ * Stade et groupe de relance du compte (🔵 correspondance déduite) ; protocole d'accord si échéancier signé, à toute
+ * étape sauf « solde », l'exigibilité comprise (J67, R40 : un échéancier amiable ne la bloque pas).
+ */
 export function relanceDepuisEtape(
   etape: EtapeRecouvrement,
   avecEcheancier: boolean,

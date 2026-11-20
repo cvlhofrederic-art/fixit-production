@@ -157,13 +157,16 @@ describe('critère des impayés à la clôture (art. 29-1 A, al. 1 ; D. 1967 art
     expect(alerteMandataireAdHoc(entree({ exercices: [ex('ex-2025', E2025, autre)] }), DATE).impayes.etat).toBe('non_etabli')
   })
 
-  it('🔴 arriérés des exercices antérieurs : comptés dans les impayés, hors des sommes exigibles de l’exercice ; alerte à confirmer', () => {
+  it('J67, R31 — arriérés des exercices antérieurs : comptés dans les impayés, hors des sommes exigibles de l’exercice ; plus « à confirmer », montant gardé dans le message', () => {
     const sommes = [...provisions2025(600_000), somme('2024-10-01', 1_000_000, 400_000)]
     const a = alerteMandataireAdHoc(entree({ exercices: [ex('ex-2025', E2025, sommes)] }), DATE)
     expect(a.impayes).toMatchObject({ exigiblesCentimes: 4_000_000, impayesCentimes: 1_000_000, arrieresCentimes: 400_000, etat: 'atteint' })
-    expect(a.impayes.message).toMatch(/arriérés des exercices antérieurs/)
-    expect(a.aConfirmer).toBe(true)
+    expect(a.impayes.message).toMatch(/dont 4\s000,00\s€ d'arriérés des exercices antérieurs/)
+    expect(a.impayes.message).not.toMatch(/à confirmer/)
+    expect(a.aConfirmer).toBe(false)
     expect(alerteMandataireAdHoc(entree({ exercices: [ex('ex-2025', E2025, provisions2025(1_000_000))] }), DATE).aConfirmer).toBe(false)
+    // Le mandat de justice sans texte reste à confirmer, arriérés ou non.
+    expect(alerteMandataireAdHoc(entree({ regime: 'ap291', exercices: [ex('ex-2025', E2025, sommes)] }), DATE).aConfirmer).toBe(true)
   })
 
   it('dernier exercice clos avant la date : chaque clôture renouvelle le constat ; le jour de la clôture, l’exercice n’est pas clos', () => {
@@ -392,22 +395,110 @@ describe('mandat de justice', () => {
     expect(a.fondement).toMatch(/D\. 1967 art\. 46/)
   })
 
-  it('🔴 administrateur provisoire de l’art. 29-1 : constat établi, obligation non établie ; frais imputables au syndic défaillant', () => {
-    const a = declenchee('ap291')
-    expect(a.aConfirmer).toBe(true)
-    expect(a.saisineParDautresLe).toBe('2025-12-31')
-    expect(a.conduite).toMatch(/tous les pouvoirs du syndic/)
-    expect(a.conduite).toMatch(/aucun texte relu ne dit si/)
-    expect(a.conduite).toMatch(/frais de l'administration provisoire/)
-    expect(a.fondement).toMatch(/art\. 29-1, I, al\. 2 et II, al\. 2/)
+  it('syndic et syndic désigné : le régime et le cadre « obligation du syndic » sont dans le résultat', () => {
+    expect(declenchee(null)).toMatchObject({ regime: null, cadre: 'obligation_du_syndic' })
+    expect(declenchee('sj')).toMatchObject({ regime: 'sj', cadre: 'obligation_du_syndic' })
   })
 
-  it('🔴 administrateur provisoire de l’art. 47 : sans syndic, saisine ouverte à d’autres dès la clôture ; obligation non établie', () => {
+  it('administrateur provisoire de l’art. 29-1 (J67, R30) : constat à porter au compte rendu au juge, ni requête ni copie ; à confirmer', () => {
+    const a = declenchee('ap291')
+    expect(a).toMatchObject({ regime: 'ap291', cadre: 'compte_rendu_au_juge', aConfirmer: true, saisineParDautresLe: '2025-12-31' })
+    expect(a.conduite).toBe(
+      "Administrateur provisoire de l'art. 29-1 : pas d'alerte de l'art. 29-1 A à faire, ni requête au juge ni copie de la requête ; reporter le constat dans le prochain compte rendu au juge (D. 1967 art. 62-11) ; si le conseil syndical garde ses pouvoirs, lui adresser l'état des impayés avant répartition (D. 1967 art. 61-4). Le constat peut servir à l'imputation au syndic de tout ou partie des frais de l'administration provisoire, s'il n'a pas saisi le juge dans les conditions de l'art. 29-1 A (art. 29-1, II, al. 2). Lecture déduite des textes, à confirmer (J67, R30).",
+    )
+    expect(a.fondement).toBe('L. 1965 art. 29-1 A ; art. 29-1, I, al. 2 et II, al. 2 ; D. 1967 art. 61-4 et 62-11')
+  })
+
+  it('administrateur provisoire de l’art. 47 (J67, R30) : à signaler au juge, requête possible après consultation du conseil syndical ; à confirmer', () => {
     const a = declenchee('ap47')
-    expect(a.aConfirmer).toBe(true)
-    expect(a.saisineParDautresLe).toBe('2025-12-31')
-    expect(a.conduite).toMatch(/en l'absence de syndic/)
-    expect(a.fondement).toMatch(/D\. 1967 art\. 47/)
+    expect(a).toMatchObject({ regime: 'ap47', cadre: 'signalement_au_juge', aConfirmer: true, saisineParDautresLe: '2025-12-31' })
+    expect(a.conduite).toMatch(/^Administrateur provisoire d'un syndicat dépourvu de syndic : pas d'obligation écrite ; seuil atteint : à signaler au juge/)
+    expect(a.conduite).toContain("requête possible au président du tribunal judiciaire pour la désignation d'un administrateur provisoire de l'art. 29-1, après consultation du conseil syndical (D. 1967 art. 62-2)")
+    expect(a.conduite).toMatch(/En l'absence de syndic, le juge peut être saisi par .*, dès la clôture\./)
+    expect(a.fondement).toBe('L. 1965 art. 29-1 A, al. 2 ; D. 1967 art. 47 et 62-2')
+  })
+
+  it('administrateur provisoire sans les pouvoirs du syndic : aucune copie de requête due, même si une requête est enregistrée', () => {
+    for (const regime of ['ap291', 'ap47'] as const)
+      expect(alerteMandataireAdHoc(entree({ regime, saisineLe: '2026-01-20', exercices: [ex('ex-2025', E2025, provisions2025(1_000_000))] }), DATE).copieRequeteDueLe).toBeNull()
+    expect(alerteMandataireAdHoc(entree({ regime: 'sj', saisineLe: '2026-01-20' }), DATE).copieRequeteDueLe).toBe('2026-01-20')
+  })
+
+  it('administrateur provisoire de l’art. 47 investi par l’ordonnance des pouvoirs du syndic (J67, R30) : l’obligation du syndic s’applique', () => {
+    const a = alerteMandataireAdHoc(
+      entree({ regime: 'ap47', ordonnanceConferePouvoirsDuSyndic: true, exercices: [ex('ex-2025', E2025, provisions2025(1_000_000))] }),
+      DATE,
+    )
+    expect(a).toMatchObject({ regime: 'ap47', cadre: 'obligation_du_syndic', aConfirmer: false, saisineParDautresLe: '2025-12-31' })
+    expect(a.conduite).toMatch(/investi par l'ordonnance des pouvoirs du syndic : il doit informer le conseil syndical.*copie de la requête/)
+    expect(a.fondement).toBe('L. 1965 art. 29-1 A, al. 1 et dernier alinéa ; D. 1967 art. 61-2 à 61-5 ; D. 1967 art. 47')
+    expect(() => alerteMandataireAdHoc(entree({ regime: 'ap291', ordonnanceConferePouvoirsDuSyndic: true }), DATE)).toThrow(/art\. 47/)
+  })
+
+  /** Approbation des comptes par décision de l'administrateur provisoire, après le dernier vote du 10/06/2023. */
+  const decisionAp = creerDecisionAnnuelle({
+    id: 'd-ap',
+    coproprieteId: 'copro-1',
+    type: 'approbation_comptes',
+    exerciceId: 'ex-2024',
+    date: '2025-09-01',
+    source: { origine: 'administrateur', reference: 'reg-12' },
+  })
+
+  it('comptes approuvés par l’administrateur provisoire après le dernier vote (J67, R30) : affiché au lieu de « sans vote depuis deux ans »', () => {
+    const ancien = alerteMandataireAdHoc(entree({ regime: 'ap291', votes: [{ date: '2023-06-10', etat: 'adoptee' }], decisions: [decisionAp] }), DATE)
+    expect(ancien.comptes).toMatchObject({ etat: 'atteint', approuvesParAdministrateurLe: '2025-09-01' })
+    expect(ancien.comptes.message).toBe(
+      "Comptes approuvés par l'administrateur provisoire le 01/09/2025 (décision de l'administrateur, pas un vote de l'assemblée) ; dernier vote de l'assemblée sur l'approbation des comptes le 10/06/2023.",
+    )
+    const sansVote = alerteMandataireAdHoc(entree({ regime: 'ap291', votes: [], decisions: [decisionAp] }), DATE).comptes
+    expect(sansVote).toMatchObject({ etat: 'non_etabli', approuvesParAdministrateurLe: '2025-09-01' })
+    expect(sansVote.message).toMatch(/^Comptes approuvés par l'administrateur provisoire le 01\/09\/2025 .*; aucun vote de l'assemblée.*saisir la date/)
+    const avantLeVote = alerteMandataireAdHoc(entree({ votes: [{ date: '2025-10-01', etat: 'adoptee' }], decisions: [decisionAp] }), DATE).comptes
+    expect(avantLeVote.message).toMatch(/^Dernier vote de l'assemblée/)
+    expect(alerteMandataireAdHoc(entree(), DATE).comptes.approuvesParAdministrateurLe).toBeNull()
+  })
+
+  it('relecture : hors administration provisoire de l’art. 29-1, une décision d’administrateur ne masque pas le délai atteint (J67, R30 : L3-35 vise l’art. 29-1)', () => {
+    const ATTEINT = "Aucun vote de l'assemblée sur l'approbation des comptes depuis le 10/06/2023 : 24 mois sans vote atteints le 10/06/2025."
+    for (const regime of [null, 'sj', 'ap47'] as const) {
+      const { comptes } = alerteMandataireAdHoc(entree({ regime, votes: [{ date: '2023-06-10', etat: 'adoptee' }], decisions: [decisionAp] }), DATE)
+      expect(comptes).toMatchObject({ etat: 'atteint', atteintLe: '2025-06-10', approuvesParAdministrateurLe: '2025-09-01', message: ATTEINT })
+    }
+    const { comptes } = alerteMandataireAdHoc(entree({ votes: [], decisions: [decisionAp] }), DATE)
+    expect(comptes.message).toMatch(/^Aucun vote de l'assemblée sur l'approbation des comptes n'est connu/)
+  })
+})
+
+describe('J67, R32 — nombre de lots : tous les lots, caves et parkings compris (L. 1965 art. 1, I)', () => {
+  const lots = (nombre: number, coproprieteId = 'copro-1') => Array.from({ length: nombre }, (_, i) => ({ id: `lot-${i + 1}`, coproprieteId }))
+  const sommes = [ex('ex-2025', E2025, provisions2025(600_000))]
+
+  it('sans liste des lots, ou liste vide (pas encore chargée) : le nombre saisi seul, aucun écart ni faux seuil', () => {
+    expect(alerteMandataireAdHoc(entree(), DATE)).toMatchObject({ lotsDeLaListe: null, ecartLots: null })
+    expect(alerteMandataireAdHoc(entree({ lots: null }), DATE)).toMatchObject({ lotsDeLaListe: null, ecartLots: null })
+    expect(alerteMandataireAdHoc(entree({ nombreLots: 250, lots: [] }), DATE)).toMatchObject({ lotsDeLaListe: null, ecartLots: null })
+  })
+
+  it('liste conforme au nombre saisi : comptée, aucun écart ; un lot cité deux fois compte une fois', () => {
+    expect(alerteMandataireAdHoc(entree({ lots: lots(40) }), DATE)).toMatchObject({ lotsDeLaListe: 40, ecartLots: null })
+    expect(alerteMandataireAdHoc(entree({ lots: [...lots(40), { id: 'lot-1', coproprieteId: 'copro-1' }] }), DATE).lotsDeLaListe).toBe(40)
+  })
+
+  it('écart avec la liste : signalé ; le nombre saisi reste celui du seuil ; le seuil de la liste est dit s’il diffère', () => {
+    const a = alerteMandataireAdHoc(entree({ nombreLots: 180, lots: lots(205), exercices: sommes }), DATE)
+    expect(a.impayes).toMatchObject({ seuilPourcent: 25, etat: 'non_atteint' })
+    expect(a.lotsDeLaListe).toBe(205)
+    expect(a.ecartLots).toMatch(/Nombre de lots saisi : 180 ; liste des lots du syndicat : 205/)
+    expect(a.ecartLots).toMatch(/caves et parkings compris \(L\. 1965 art\. 1, I, et art\. 29-1 A, al\. 1 ; J67, R32\)/)
+    expect(a.ecartLots).toMatch(/Avec la liste, le seuil serait de 15 % \(plus de 200 lots\)/)
+    const memeSeuil = alerteMandataireAdHoc(entree({ nombreLots: 38, lots: lots(40) }), DATE).ecartLots
+    expect(memeSeuil).toMatch(/saisi : 38 ; liste des lots du syndicat : 40/)
+    expect(memeSeuil).not.toMatch(/seuil serait/)
+  })
+
+  it('un lot d’un autre syndicat : refusé', () => {
+    expect(() => alerteMandataireAdHoc(entree({ lots: [...lots(39), { id: 'lot-x', coproprieteId: 'copro-2' }] }), DATE)).toThrow(/autre syndicat/)
   })
 })
 
@@ -455,7 +546,13 @@ describe('en-tête du module', () => {
       "« Lorsqu'à la clôture des comptes les impayés atteignent 25 % des sommes exigibles en vertu des articles 14-1 et 14-2-1 ou en l'absence de vote de l'assemblée générale sur l'approbation des comptes depuis au moins deux ans »",
     )
     expect(EN_TETE).toMatch(/D\. 1967 art\. 61-2/)
-    expect(EN_TETE).toMatch(/🔴 Non établi.*administrateur provisoire de l'art\. 29-1/)
+  })
+
+  it('administrateurs provisoires (J67, R30) : la question quitte les points non établis ; décision citée, aConfirmer gardé', () => {
+    const nonEtabli = EN_TETE.slice(EN_TETE.indexOf('🔴 Non établi'))
+    expect(nonEtabli).not.toMatch(/administrateur provisoire de l'art\. 29-1 : il a reçu tous les pouvoirs du syndic/)
+    expect(nonEtabli).not.toMatch(/administrateur provisoire de l'art\. 47 \(syndicat dépourvu de syndic\)/)
+    expect(EN_TETE).toMatch(/Décision J67, R30 de Hugo \(17\/11\/2026 ;.*aConfirmer gardé.*\(D\. 1967 art\. 62-11\).*\(D\. 1967 art\. 62-2\)/)
   })
 
   it('administrateur provisoire de l’art. 29-1 : tout ou partie des pouvoirs de l’assemblée selon l’ordonnance, pas tous (art. 29-1, I)', () => {
@@ -484,5 +581,14 @@ describe('en-tête du module', () => {
 
   it('aucune date ISO écrite en dur', () => {
     expect(SOURCE).not.toMatch(/['`"]\d{4}-\d{2}-\d{2}['`"]/)
+  })
+
+  it('J67, R31 et R32 : période des sommes exigibles et définition des lots tranchées, retirées du 🔴', () => {
+    const nonEtabli = EN_TETE.slice(EN_TETE.indexOf('🔴 Non établi'))
+    expect(nonEtabli).not.toMatch(/période des sommes exigibles/)
+    expect(nonEtabli).not.toMatch(/ou les seuls lots principaux/)
+    expect(EN_TETE).toMatch(/J67, R31 : .*arriérés des exercices antérieurs compris/)
+    expect(EN_TETE).toMatch(/J67, R32 : tous les lots de l'état descriptif de division, lots secondaires compris \(caves, parkings\)/)
+    expect(SOURCE).not.toMatch(/🔴 assiette à confirmer/)
   })
 })

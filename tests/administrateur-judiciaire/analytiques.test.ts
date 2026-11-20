@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
+  alertePlafondRecuperablePersonnel,
+  alerteRecuperableCompte644,
   alertesBudgetProgressif,
   budgetProgressif,
   controlerBudgetProgressif,
@@ -19,6 +21,7 @@ import {
 } from '@/lib/administrateur-judiciaire/domain/analytiques'
 import { creerBudget } from '@/lib/administrateur-judiciaire/domain/exercices-budgets'
 import { ecritureFactureVentilee, type LigneFacture } from '@/lib/administrateur-judiciaire/domain/facture-ventilee'
+import { PARTS_RECUPERABLES_DECRET_87_713 } from '@/lib/administrateur-judiciaire/domain/personnel-syndicat'
 import { creerTraitement, type Traitement } from '@/lib/administrateur-judiciaire/domain/traitements'
 
 /**
@@ -122,6 +125,52 @@ describe('fiche analytique', () => {
       nonDeductible: false,
     })
     expect(creee).toEqual(fiche({ id: 'an-460', code: '460', libelle: 'Entretien espaces verts', comptePlan: '61500', rubrique: null, tvaLibre: false, recuperablePct: 100 }))
+  })
+})
+
+describe('J67, R38 — part récupérable d’une analytique de personnel (décret n° 87-713, art. 2)', () => {
+  it('valeur libre de 0 à 100 % : jamais refusée au-delà du plafond ; le plafond est le taux proposé par défaut', () => {
+    expect(controlerFicheAnalytique(fiche({ recuperablePct: 90 }))).toEqual([])
+    const proposee = fiche({ recuperablePct: PARTS_RECUPERABLES_DECRET_87_713.gardien_une_tache })
+    expect(alertePlafondRecuperablePersonnel(proposee, 'gardien_une_tache')).toBeNull()
+  })
+
+  it('alerte non bloquante au-delà du plafond de la catégorie ; aucune en deçà ou au plafond', () => {
+    expect(alertePlafondRecuperablePersonnel(fiche(), 'gardien_entretien_et_rejets')).toBeNull()
+    expect(alertePlafondRecuperablePersonnel(fiche({ recuperablePct: 80 }), 'gardien_entretien_et_rejets')).toEqual({
+      code: 'recuperable_au_dela_du_plafond',
+      message:
+        "Part récupérable de 80 % au-delà du plafond de 75 % : plafond du décret n° 87-713 pour un bail d'habitation ; 75 % ou 40 % selon le contrat de travail du gardien (J67, R38).",
+    })
+    expect(alertePlafondRecuperablePersonnel(fiche(), 'gardien_une_tache')?.message).toMatch(/au-delà du plafond de 40 %/)
+    expect(alertePlafondRecuperablePersonnel(fiche({ recuperablePct: 100 }), 'employe_immeuble')).toBeNull()
+    expect(alertePlafondRecuperablePersonnel(fiche({ recuperablePct: 15 }), 'encadrement_technique_regie')?.message).toMatch(/plafond de 10 %/)
+    expect(() => alertePlafondRecuperablePersonnel(fiche({ recuperablePct: 120 }), 'employe_immeuble')).toThrow(/récupérable/)
+  })
+
+  it('compte 644 (médecine du travail payée sur facture, mutuelle) : ligne de facture à 0 % malgré la fiche, avec une alerte non bloquante', () => {
+    const medecine = fiche({ id: 'an-012', code: '012', libelle: 'Médecine du travail', comptePlan: '64400', cle: '001', recuperablePct: 75 })
+    expect(controlerFicheAnalytique(medecine)).toEqual([])
+    expect(ligneDepuisAnalytique(medecine, { montantTtcCentimes: 12_000 }).recupLocatairePct).toBe(0)
+    expect(alerteRecuperableCompte644(medecine)).toEqual({
+      code: 'recuperable_exclu_force',
+      message:
+        "Analytique 012 : Compte 644 « Autres (médecine du travail, mutuelles, etc.) » : jamais récupérable, 0 % appliqué au lieu des 75 % de l'analytique (Décret n° 87-713, art. 2, c ; J67, R38 et R39).",
+    })
+    expect(alerteRecuperableCompte644({ ...medecine, comptePlan: '64410', recuperablePct: 12.5 })?.message).toMatch(/au lieu des 12,5 %/)
+    // Part déjà nulle, ou autre compte : rien à signaler, le taux de la fiche est repris.
+    expect(alerteRecuperableCompte644({ ...medecine, recuperablePct: 0 })).toBeNull()
+    expect(alerteRecuperableCompte644(fiche())).toBeNull()
+    expect(ligneDepuisAnalytique(fiche({ cle: '001' }), { montantTtcCentimes: 12_000 }).recupLocatairePct).toBe(75)
+  })
+
+  it('en-tête : la question (i) est tranchée (J67, R38), retirée du 🔴', () => {
+    const source = readFileSync(join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'analytiques.ts'), 'utf8').replaceAll(
+      /\r?\n\s*\*\s*/g,
+      ' ',
+    )
+    expect(source).not.toMatch(/\(i\) Part récupérable : la limiter aux pourcentages du décret/)
+    expect(source).toMatch(/J67, R38 \(décision de Hugo du 17\/11\/2026\) : part récupérable laissée libre, de 0 à 100 %/)
   })
 })
 

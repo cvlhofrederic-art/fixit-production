@@ -5,8 +5,11 @@ import {
   NATURES_COMPTE_BANCAIRE,
   controlerComptesMandat,
   creerReglagesComptesCabinet,
+  estCompteDuFondsTravaux,
+  informationsComptesMandat,
   resoudreModeComptes,
   validerIban,
+  verifierMarquesFondsTravaux,
   type CompteBancaireMandat,
 } from '@/lib/administrateur-judiciaire/domain/comptes-bancaires'
 import { enTeteDuModule } from './en-tete-module'
@@ -120,17 +123,26 @@ describe('J37 — compte de l’administrateur provisoire : la pratique du cabin
     expect(avecFonds).toEqual([])
   })
 
-  it('en-tête : rubrique « Décisions de Hugo du 03/11/2026 » avec J37 ; les textes du dépôt et la portée de l’art. 18, II, al. 3 restent ouverts', () => {
+  it('en-tête : J37 ; J67, R94 cite C. com. R. 814-41 (« matière civile » à confirmer) ; seule l’articulation avec l’art. 18, II, al. 3 reste ouverte (R95)', () => {
     const { texte: entete } = enTeteDuModule('comptes-bancaires')
     const decisions = entete.slice(entete.indexOf('Décisions de Hugo du 03/11/2026'), entete.indexOf('🔴'))
     expect(decisions).toMatch(/J37/)
     expect(decisions).toMatch(/compte à la Caisse des dépôts, pas un compte centralisateur du cabinet/)
     expect(decisions).toMatch(/D-BANQUE/)
     expect(decisions).toContain('art. 18, II, al. 4')
+    const j67 = entete.slice(entete.indexOf('Décisions de Hugo du 17/11/2026'), entete.indexOf('🔴'))
+    expect(j67).toMatch(/J67, R94 : .*C\. com\. R\. 814-41 \(lu sur Légifrance le 17\/11\/2026/)
+    expect(j67).toMatch(/« en matière civile » est déduit, à confirmer/)
+    // R. 811-28-2 parle du stage de la spécialité commerciale, pas de la nature de la mission.
+    expect(j67).toMatch(/C\. com\. R\. 811-28-2 range ces actes dans le stage de la spécialité commerciale \(note du point 72\)/)
+    expect(j67).toMatch(/n'est pas présenté comme imposé par la loi de 1965/)
+    expect(j67).toMatch(/J67, R95 : .*informationsComptesMandat/)
+    expect(entete).not.toMatch(/livre VIII, non lu/)
     const nonEtabli = entete.slice(entete.indexOf('🔴'))
-    expect(nonEtabli).toMatch(/textes qui fondent le dépôt à la Caisse des dépôts/)
-    expect(nonEtabli).toMatch(/la portée de l'art\. 18, II, al\. 3 \(compte séparé au nom du syndicat\)/)
-    expect(nonEtabli).not.toMatch(/C\. com\., livre VIII\) et la portée/)
+    expect(nonEtabli).not.toMatch(/textes qui fondent le dépôt/)
+    expect(nonEtabli).toMatch(
+      /articulation entre le compte au nom de l'administrateur \(C\. com\. R\. 814-41\) et le compte séparé au nom du syndicat \(L\. 1965 art\. 18, II, al\. 3\)/,
+    )
   })
 
   it('en-tête : le compte séparé du fonds de travaux est fondé sur L. 1965 art. 18, II, al. 4, pas sur l’art. 14-2-1', () => {
@@ -230,5 +242,42 @@ describe('D-BANQUE — contrôle des comptes d\'un mandat', () => {
         comptes: [compte({ nature: 'sous_compte_centralisateur', iban: null })],
       }),
     ).toEqual([])
+  })
+})
+
+describe('J67, R95 — compte à la Caisse des dépôts : une information, sans blocage', () => {
+  it('compte actif à la Caisse des dépôts : une information ; aucune anomalie de plus', () => {
+    const comptes = [compte({ nature: 'caisse_depots', iban: null }), compte({ nature: 'fonds_travaux', iban: null })]
+    expect(controlerComptesMandat({ mode: 'caisse_depots', fondsTravaux: true, comptes })).toEqual([])
+    const [information, ...autres] = informationsComptesMandat(comptes)
+    expect(autres).toEqual([])
+    expect(information).toMatchObject({ code: 'caisse_depots_articulation_non_etablie', fondement: 'C. com. R. 814-41 ; L. 1965 art. 18, II, al. 3' })
+    expect(information.message).toMatch(/compte au nom de l'administrateur \(C\. com\. R\. 814-41\)/)
+    expect(information.message).toMatch(/compte séparé au nom du syndicat \(L\. 1965 art\. 18, II, al\. 3\) : articulation non établie/)
+    expect(information.message).not.toMatch(/bloqu|interdit|refus/i)
+  })
+
+  it('sans compte actif à la Caisse des dépôts : aucune information', () => {
+    expect(informationsComptesMandat([compte({}), compte({ nature: 'caisse_depots', iban: null, actif: false })])).toEqual([])
+  })
+})
+
+describe('J71 — comptes qui tiennent le fonds de travaux (virement-interne.ts, fonds-detenus.ts)', () => {
+  it('compte séparé du fonds, compte repris qui le tenait, compte de placement réservé au fonds', () => {
+    expect(estCompteDuFondsTravaux({ nature: 'fonds_travaux' })).toBe(true)
+    expect(estCompteDuFondsTravaux({ nature: 'repris_ancien_gestionnaire', tenaitFondsTravaux: true })).toBe(true)
+    expect(estCompteDuFondsTravaux({ nature: 'placement', reserveAuFondsTravaux: true })).toBe(true)
+    for (const nature of ['placement', 'repris_ancien_gestionnaire', 'courant', 'caisse_depots'] as const)
+      expect(estCompteDuFondsTravaux({ nature })).toBe(false)
+  })
+
+  it('chaque marque est réservée à sa nature', () => {
+    expect(() => verifierMarquesFondsTravaux({ nature: 'courant', tenaitFondsTravaux: true }, 'Compte b-1')).toThrow(
+      /Compte b-1 : seul un compte repris de l'ancien gestionnaire porte la mention « tenait le fonds de travaux »/,
+    )
+    expect(() => verifierMarquesFondsTravaux({ nature: 'fonds_travaux', reserveAuFondsTravaux: true }, 'Compte b-1')).toThrow(
+      /Compte b-1 : seul un compte de placement porte la mention « réservé au fonds de travaux » \(J71\)/,
+    )
+    expect(() => verifierMarquesFondsTravaux({ nature: 'placement', reserveAuFondsTravaux: true }, 'Compte b-1')).not.toThrow()
   })
 })

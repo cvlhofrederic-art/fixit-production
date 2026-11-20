@@ -6,6 +6,14 @@ import type { ReferenceJurisprudence } from '@/lib/administrateur-judiciaire/dom
  * Les deux voies coexistent : procédure accélérée au fond de l'art. 19-2 (provisions exigibles après mise en demeure
  * restée infructueuse) et action de droit commun. Le fondement n'est donc pas porté par le dossier mais par CHAQUE
  * poste de créance, pour un exercice donné. Le registre recouvrement.ts (figé par les tests oracle) n'est pas touché.
+ *
+ * J67, R40 (décision de Hugo du 17/11/2026) : un échéancier amiable en cours ne bloque pas l'exigibilité des provisions
+ * qui échoient ensuite (L. 1965 art. 14-1 et 19-2, lus sur Légifrance le 17/11/2026 ; voir contentieux.ts). Il ne couvre
+ * que les sommes qu'il vise : elles ont un terme convenu et ne peuvent être exigées avant (C. civ. art. 1305-2), sauf
+ * clause de déchéance de l'accord. Un poste qu'il couvre le dit (`echeancierAmiableEnCours`) ; dans une demande 19-2,
+ * avertissementsProcedure ajoute un avertissement non bloquant, avec le rappel de J3 (un échéancier demandé ou signé
+ * pendant les trente jours de la mise en demeure peut lui ôter son caractère infructueux : point non tranché). Le poste
+ * n'est pas persisté : enregistrement : à brancher.
  */
 
 export const FONDEMENTS_RECOUVREMENT = ['art_19_2', 'droit_commun'] as const
@@ -24,9 +32,14 @@ export interface PosteCreance {
   nature: string
   montantCentimes: number
   fondement: FondementRecouvrement
+  /** Somme couverte par un échéancier amiable en cours (J67, R40) ; absent : non. */
+  echeancierAmiableEnCours?: boolean
 }
 
-/** Vérifie un poste de créance : exercice et nature renseignés, montant en centimes entiers > 0, fondement connu. */
+/**
+ * Vérifie un poste de créance : exercice et nature renseignés, montant en centimes entiers > 0, fondement connu,
+ * échéancier amiable à oui ou non s'il est renseigné.
+ */
 export function creerPosteCreance(poste: PosteCreance): PosteCreance {
   if (!(FONDEMENTS_RECOUVREMENT as readonly string[]).includes(poste.fondement))
     throw new Error(`Fondement de recouvrement inconnu : « ${poste.fondement} ».`)
@@ -34,6 +47,8 @@ export function creerPosteCreance(poste: PosteCreance): PosteCreance {
   if (!poste.nature.trim()) throw new Error('Poste de créance sans nature : la nature est obligatoire.')
   if (!Number.isInteger(poste.montantCentimes) || poste.montantCentimes <= 0)
     throw new Error(`Montant invalide (${poste.montantCentimes}) : centimes entiers strictement positifs attendus.`)
+  if (poste.echeancierAmiableEnCours !== undefined && typeof poste.echeancierAmiableEnCours !== 'boolean')
+    throw new Error(`Échéancier amiable en cours invalide (${String(poste.echeancierAmiableEnCours)}) : oui ou non attendu.`)
   return { ...poste }
 }
 
@@ -103,8 +118,10 @@ export function controlerMiseEnDemeure19_2(
 }
 
 export interface AvertissementProcedure {
-  code: 'autorite_chose_jugee' | 'pas_de_demande_reconventionnelle'
+  code: 'autorite_chose_jugee' | 'pas_de_demande_reconventionnelle' | 'sommes_sous_echeancier_amiable'
   texte: string
+  /** Postes visés (sommes sous échéancier amiable seulement, J67, R40). */
+  postesIds?: string[]
 }
 
 /** Avertissements à afficher dès qu'un poste relève de l'art. 19-2 (décision J3 ; certitude : à confirmer). */
@@ -120,7 +137,25 @@ export const AVERTISSEMENTS_PROCEDURE_19_2: AvertissementProcedure[] = [
   },
 ]
 
+/**
+ * J67, R40 : sommes d'une demande 19-2 couvertes par un échéancier amiable en cours (terme convenu, C. civ. art. 1305-2),
+ * avec le rappel de J3 sur la mise en demeure ; avertissement non bloquant ; null sans telle somme.
+ */
+function avertissementEcheancierAmiable(postes19_2: PosteCreance[]): AvertissementProcedure | null {
+  const sousAccord = postes19_2.filter((poste) => poste.echeancierAmiableEnCours === true)
+  if (sousAccord.length === 0) return null
+  const sommes = sousAccord.map((poste) => `« ${poste.nature} » (exercice ${poste.exercice})`).join(', ')
+  return {
+    code: 'sommes_sous_echeancier_amiable',
+    texte: `Sommes sous échéancier amiable en cours, ${sommes} : ces sommes ont un terme convenu : vérifier la clause de déchéance de l'accord avant de les réclamer (C. civ. art. 1305-2). Un échéancier demandé ou signé pendant les trente jours de la mise en demeure peut aussi lui ôter son caractère « infructueux » (L. 1965 art. 19-2 ; J3 : point non tranché).`,
+    postesIds: sousAccord.map((poste) => poste.id),
+  }
+}
+
 /** Avertissements de procédure applicables à un ensemble de postes. */
 export function avertissementsProcedure(postes: PosteCreance[]): AvertissementProcedure[] {
-  return postes.some((poste) => poste.fondement === 'art_19_2') ? AVERTISSEMENTS_PROCEDURE_19_2 : []
+  const postes19_2 = postes.filter((poste) => poste.fondement === 'art_19_2')
+  if (postes19_2.length === 0) return []
+  const echeancier = avertissementEcheancierAmiable(postes19_2)
+  return echeancier === null ? AVERTISSEMENTS_PROCEDURE_19_2 : [...AVERTISSEMENTS_PROCEDURE_19_2, echeancier]
 }

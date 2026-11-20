@@ -10,11 +10,18 @@ import { emploiDepuisOperation, type EmploiFondsTravaux } from '@/lib/administra
 import type { PosteDette } from '@/lib/administrateur-judiciaire/domain/imputation-encaissements'
 import type { ReglementFournisseur, StatutReglementFournisseur } from '@/lib/administrateur-judiciaire/domain/reglements-fournisseurs'
 import {
+  anomaliesComptesDesLignesDOperation,
   BAREME_DROIT_PROPORTIONNEL_TRAVAUX,
+  CADRES_HONORAIRES_TRAVAUX,
   cadreHonorairesTravaux,
+  compteProposePourLePoste,
+  controlerDepassementBudgetAvantOs,
   controlerEmploiFondsOperation,
   controlerHonorairesTravaux,
   creerBudgetOperationTravaux,
+  type DecisionSupplementTravaux,
+  type EngagementAvantOs,
+  type LigneCompteOperation,
   droitProportionnelTravauxAdministrateurProvisoire,
   droitsProportionnelsTravauxParOperation,
   marquerNePasUtiliserFondsTravaux,
@@ -301,12 +308,12 @@ describe('suivi financier : anomalies', () => {
     expect(suiviFinancierOperationTravaux(op, budget(op), { emploisFonds: [emploiLibre('E6', 2_000_000)] }).anomalies).toEqual([])
   })
 
-  it('engagé au-delà du budget adopté (à confirmer) ; tranches qui ne couvrent pas le montant à appeler', () => {
+  it('engagé au-delà du budget adopté (alerte du suivi gardée, J67, R59) ; tranches qui ne couvrent pas le montant à appeler', () => {
     const op = sansFonds({ budgetTtcCentimes: 10_000_000, tranches: [{ date: '2026-05-01', tauxPct: 50 }] })
     const suivi = suiviFinancierOperationTravaux(op, budget(op))
     expect(suivi.soldeBudgetaireCentimes).toBe(-800_000)
     expect(suivi.anomalies.map((a) => [a.code, a.gravite, a.aConfirmer])).toEqual([
-      ['engage_superieur_au_budget', 'avertissement', true],
+      ['engage_superieur_au_budget', 'avertissement', false],
       ['tranches_inferieures_au_montant_a_appeler', 'information', false],
     ])
     expect(suivi.appelsVotesCentimes).toBe(5_000_000)
@@ -331,16 +338,61 @@ describe('honoraires sur travaux : cadre selon le régime du mandat', () => {
     expect(cadreHonorairesTravaux({ regime: 'syndic' })).toMatchObject({ cadre: 'vote_avec_les_travaux', fondements: ['L. 1965 art. 18-1 A, III'], arreteParLeJuge: false, aConfirmer: false })
   })
 
-  it('syndic désigné en justice : même cadre, à confirmer (D. 1967 art. 46, al. 3) ; art. 47 : non établi', () => {
-    expect(cadreHonorairesTravaux({ regime: 'sj' })).toMatchObject({ cadre: 'vote_avec_les_travaux', aConfirmer: true })
+  it('syndic désigné en justice : même cadre (D. 1967 art. 46, al. 3 ; J67, R12) ; art. 47 : fixée par le président (J73)', () => {
+    expect(cadreHonorairesTravaux({ regime: 'sj' })).toMatchObject({ cadre: 'vote_avec_les_travaux', aConfirmer: false })
     expect(cadreHonorairesTravaux({ regime: 'sj' }).fondements).toContain('D. 1967 art. 46, al. 3')
-    expect(cadreHonorairesTravaux({ regime: 'ap47' })).toMatchObject({ cadre: 'non_etabli', aConfirmer: true })
+    expect(cadreHonorairesTravaux({ regime: 'sj' }).motif).not.toContain('à confirmer')
+    expect(cadreHonorairesTravaux({ regime: 'ap47' })).toMatchObject({ cadre: 'fixe_par_le_president', aConfirmer: false })
+  })
+
+  it('J73 : art. 47, R1 l’emporte sur R12 : rémunération fixée par le président de la juridiction qui l’a désigné (C. com. R. 814-27 ; CPC 714 à 718)', () => {
+    expect(CADRES_HONORAIRES_TRAVAUX).toContain('fixe_par_le_president')
+    const ap47 = cadreHonorairesTravaux({ regime: 'ap47' })
+    expect(ap47).toMatchObject({ cadre: 'fixe_par_le_president', arreteParLeJuge: true, aConfirmer: false })
+    expect(ap47.fondements).toEqual(['D. 1967 art. 47', 'C. com. R. 814-27', 'CPC art. 714 à 718'])
+    expect(ap47.motif).toMatch(
+      /^Administrateur provisoire désigné faute de syndic \(D\. 1967 art\. 47\) : rémunération fixée par le président de la juridiction qui l'a désigné, sur justification de l'accomplissement de la mission \(C\. com\. R\. 814-27 ; recours : CPC art\. 714 à 718 ; J73\)/,
+    )
+    expect(ap47.motif).not.toMatch(/non établi|à confirmer|R12|Hugo|Frédéric/)
+    const op = operation()
+    // poste « Honoraires cabinet » : une prévision à soumettre au président, jamais un élément à facturer
+    const [information] = controlerHonorairesTravaux(op, budget(op), { cadre: ap47 })
+    expect(information).toMatchObject({
+      code: 'honoraires_arretes_par_le_juge',
+      gravite: 'information',
+      fondement: 'D. 1967 art. 47 ; C. com. R. 814-27 ; CPC art. 714 à 718',
+      aConfirmer: false,
+    })
+    expect(information.message).toContain('aucun élément à facturer au syndicat')
+    expect(codes(controlerHonorairesTravaux(op, budget(op), { cadre: ap47 }))).not.toContain('honoraires_cadre_non_etabli')
+  })
+
+  it('J73 : tout honoraire voté par l’assemblée sous l’art. 47 reste signalé, avec le motif de l’art. 47 (pas celui de l’art. 29-1)', () => {
+    const op = operation()
+    const vote = { date: '2026-03-12', resolution: 'Résolution 9', majorite: 'art24' as const, mode: 'pourcentage_ht' as const }
+    const anomalies = controlerHonorairesTravaux(op, budget(op), { cadre: cadreHonorairesTravaux({ regime: 'ap47' }), resolutionHonoraires: vote })
+    expect(codes(anomalies)).toEqual(['honoraires_arretes_par_le_juge', 'honoraires_votes_sous_administration_provisoire'])
+    const [, voteSignale] = anomalies
+    expect(voteSignale).toMatchObject({ gravite: 'avertissement', aConfirmer: false })
+    expect(voteSignale.message).toBe(
+      "Résolution 9 : honoraires votés par l'assemblée, alors que la rémunération de l'administrateur provisoire désigné faute de syndic est fixée par le président de la juridiction qui l'a désigné (C. com. R. 814-27 ; J73), pas un vote de l'art. 18-1 A, III.",
+    )
+    // sans honoraires au budget, le vote seul reste signalé
+    const sansHonoraires = creerBudgetOperationTravaux(op, { lignes: [{ poste: 'travaux', budgetTtcCentimes: 1 }] })
+    expect(codes(controlerHonorairesTravaux(op, sansHonoraires, { cadre: cadreHonorairesTravaux({ regime: 'ap47' }), resolutionHonoraires: vote }))).toEqual([
+      'honoraires_votes_sous_administration_provisoire',
+    ])
+    // art. 29-1 : motif inchangé
+    const ap291 = controlerHonorairesTravaux(op, budget(op), { cadre: cadreHonorairesTravaux({ regime: 'ap291', nbLots: 120 }), resolutionHonoraires: vote })
+    expect(ap291[1].message).toContain('suit le décret et la décision du juge (L. 1965 art. 29-1, II)')
   })
 
   it('administrateur provisoire de l’art. 29-1 : barème de l’art. 11 sous 500 lots, juge à 500 lots et plus, renforcée à part', () => {
     expect(cadreHonorairesTravaux({ regime: 'ap291', nbLots: 499 })).toMatchObject({ cadre: 'droit_proportionnel_administrateur_provisoire', arreteParLeJuge: true })
     expect(cadreHonorairesTravaux({ regime: 'ap291', nbLots: 500 })).toMatchObject({ cadre: 'fixe_par_le_juge', arreteParLeJuge: true, aConfirmer: false })
-    expect(cadreHonorairesTravaux({ regime: 'ap291', nbLots: 40, administrationRenforcee: true })).toMatchObject({ cadre: 'fixe_par_le_juge', aConfirmer: true })
+    // administration provisoire renforcée : hors barème, rémunération arrêtée par le juge, confirmé (J67, R12)
+    expect(cadreHonorairesTravaux({ regime: 'ap291', nbLots: 40, administrationRenforcee: true })).toMatchObject({ cadre: 'fixe_par_le_juge', aConfirmer: false })
+    expect(cadreHonorairesTravaux({ regime: 'ap291', nbLots: 40, administrationRenforcee: true }).motif).not.toContain('à confirmer')
     expect(cadreHonorairesTravaux({ regime: 'ap291', nbLots: 40 }).fondements).toEqual(['L. 1965 art. 29-1, II', 'D. 1967 art. 61-1-5', 'Arrêté du 8 octobre 2015, art. 11'])
   })
 
@@ -485,10 +537,40 @@ describe('honoraires sur travaux : contrôle du poste « Honoraires cabinet »',
     ])
   })
 
-  it('projet sans décision : honoraires sans travaux votés ; syndic judiciaire : à confirmer', () => {
+  it('projet sans décision : honoraires sans travaux votés ; syndic judiciaire : même cadre, confirmé (J67, R12)', () => {
     const projet = sansFonds({ decision: null })
     const [anomalie] = controlerHonorairesTravaux(projet, budget(projet), { cadre: cadreHonorairesTravaux({ regime: 'sj' }), resolutionHonoraires: vote })
-    expect(anomalie).toMatchObject({ code: 'honoraires_sans_vote', aConfirmer: true, message: expect.stringContaining('sans travaux votés') })
+    expect(anomalie).toMatchObject({ code: 'honoraires_sans_vote', aConfirmer: false, message: expect.stringContaining('sans travaux votés') })
+  })
+
+  describe('J67, R13 — taux dégressif selon l’importance des travaux (art. 18-1 A, III) : alerte, jamais un blocage', () => {
+    const paliers = (...taux: number[]) => taux.map((tauxPct, i) => ({ jusquACentimes: i === taux.length - 1 ? null : (i + 1) * 5_000_000, tauxPct }))
+    const controle = (p: ReturnType<typeof paliers>, cadre = syndic) => controlerHonorairesTravaux(op, b, { cadre, resolutionHonoraires: { ...vote, paliers: p } })
+
+    it('barème dégressif : rien à signaler ; barème non saisi : non contrôlé', () => {
+      expect(controle(paliers(3, 2.5, 2))).toEqual([])
+      expect(controlerHonorairesTravaux(op, b, { cadre: syndic, resolutionHonoraires: vote })).toEqual([])
+    })
+
+    it('taux unique, ou palier dont le taux monte avec le montant : avertissement « à vérifier »', () => {
+      for (const p of [paliers(3), paliers(2, 2), paliers(2, 3), paliers(3, 2, 2.5)]) {
+        const anomalies = controle(p)
+        expect(anomalies).toEqual([expect.objectContaining({ code: 'honoraires_taux_non_degressif', gravite: 'avertissement', fondement: 'L. 1965 art. 18-1 A, III' })])
+        expect(anomalies[0].message).toContain('taux dégressif selon l\'importance des travaux')
+        expect(anomalies[0].message).toContain('travaux du II de l\'art. 14-1')
+        expect(anomalies[0].message).toContain('à vérifier')
+      }
+      expect(controle(paliers(3))[0].message).toContain('taux unique de 3 %')
+      expect(controle(paliers(2, 3))[0].message).toMatch(/taux de 3 % au-delà de 50\s000,00\s€, supérieur au palier précédent \(2 %\)/)
+    })
+
+    it('hors du cadre du syndic, le barème n’est pas contrôlé ; un barème mal saisi est refusé', () => {
+      expect(codes(controle(paliers(3), cadreHonorairesTravaux({ regime: 'ap291', nbLots: 120 })))).not.toContain('honoraires_taux_non_degressif')
+      expect(() => controle([{ jusquACentimes: null, tauxPct: 0 }])).toThrow(/barème des honoraires/)
+      expect(() => controle([{ jusquACentimes: 5_000_000, tauxPct: 3 }])).toThrow(/barème des honoraires/)
+      expect(() => controle([{ jusquACentimes: 5_000_000, tauxPct: 3 }, { jusquACentimes: 4_000_000, tauxPct: 2 }, { jusquACentimes: null, tauxPct: 1 }])).toThrow(/barème des honoraires/)
+      expect(() => controlerHonorairesTravaux(op, b, { cadre: syndic, resolutionHonoraires: { ...vote, mode: 'forfait_ttc', paliers: paliers(3) } })).toThrow(/barème des honoraires/)
+    })
   })
 
   it('aucun honoraire ni vote : aucun contrôle', () => {
@@ -508,9 +590,9 @@ describe('honoraires sur travaux : contrôle du poste « Honoraires cabinet »',
     ])
   })
 
-  it('cadre non établi (art. 47) : avertissement à confirmer', () => {
+  it('J73 : art. 47, plus de cadre non établi : prévision soumise au président, information sans « à confirmer »', () => {
     expect(controlerHonorairesTravaux(op, b, { cadre: cadreHonorairesTravaux({ regime: 'ap47' }) })).toEqual([
-      expect.objectContaining({ code: 'honoraires_cadre_non_etabli', gravite: 'avertissement', aConfirmer: true }),
+      expect.objectContaining({ code: 'honoraires_arretes_par_le_juge', gravite: 'information', aConfirmer: false }),
     ])
   })
 })
@@ -707,18 +789,19 @@ describe('relecture du point 31 — dépassement d’une part fondée sur l’or
     affectationFonds: { objet: 'redressement_29_14', autorisationJuge: 'TJ, ordonnance du 02/02/2026, n° 26/00042' },
   })
 
-  it('controlerEmploiFondsOperation cite l’art. 29-14, 2°, sans parler de décision d’affectation, à confirmer', () => {
+  it('controlerEmploiFondsOperation cite l’art. 29-14, 2°, sans parler de décision d’affectation ; la part borne l’emploi (J67, R58)', () => {
     const controle = controlerEmploiFondsOperation(ap, { montantCentimes: 600_000 })
-    expect(controle).toMatchObject({ autorise: false, cause: 'au_dela_de_la_part', fondement: 'L. 1965 art. 29-14, 2°', aConfirmer: true })
+    expect(controle).toMatchObject({ autorise: false, cause: 'au_dela_de_la_part', fondement: 'L. 1965 art. 29-14, 2°', aConfirmer: false })
     expect(controle.motif).not.toContain("décision d'affectation")
     expect(controle.motif).toContain('ordonnance du juge')
+    expect(controle.motif).toContain('nouvelle décision au registre (D. 1967 art. 62-8)')
   })
 
-  it('le suivi cite l’art. 29-14, 2° pour des emplois au-delà de la part', () => {
+  it('le suivi cite l’art. 29-14, 2° pour des emplois au-delà de la part (J67, R58)', () => {
     const anomalie = suiviFinancierOperationTravaux(ap, budget(ap), { emploisFonds: [emploiLibre('E7', 600_000, 'redressement_29_14')] }).anomalies.find(
       (a) => a.code === 'emploi_au_dela_de_la_part',
     )
-    expect(anomalie).toMatchObject({ gravite: 'bloquant', fondement: 'L. 1965 art. 29-14, 2°', aConfirmer: true })
+    expect(anomalie).toMatchObject({ gravite: 'bloquant', fondement: 'L. 1965 art. 29-14, 2°', aConfirmer: false })
     expect(anomalie?.message).not.toContain("décision d'affectation")
   })
 })
@@ -984,9 +1067,9 @@ describe('relecture du point 31, tour 2 — usage judiciaire à part nulle : ref
     affectationFonds: { objet: 'redressement_29_14', autorisationJuge: ORDONNANCE },
   })
 
-  it('controlerEmploiFondsOperation : « sans_part », art. 29-14, 2°, à confirmer, sans parler de décision d’affectation', () => {
+  it('controlerEmploiFondsOperation : « sans_part », art. 29-14, 2° (J67, R58), sans parler de décision d’affectation', () => {
     const controle = controlerEmploiFondsOperation(apSansPart, { montantCentimes: 1_000 })
-    expect(controle).toMatchObject({ autorise: false, cause: 'sans_part', fondement: 'L. 1965 art. 29-14, 2°', aConfirmer: true })
+    expect(controle).toMatchObject({ autorise: false, cause: 'sans_part', fondement: 'L. 1965 art. 29-14, 2°', aConfirmer: false })
     expect(controle.motif).toContain('ordonnance du juge')
     expect(controle.motif).not.toContain("aucune décision n'affecte")
   })
@@ -1002,14 +1085,15 @@ describe('relecture du point 31, tour 2 — usage judiciaire à part nulle : ref
       suiviFinancierOperationTravaux(op, budget(op), sources)
         .anomalies.filter((a) => a.gravite === 'bloquant')
         .map((a) => [a.code, a.fondement, a.aConfirmer])
+    // la part de l'opération borne l'usage judiciaire : décision de l'administrateur provisoire au registre (J67, R58)
     expect(marqueurs(apSansPart)).toEqual([
-      ['emploi_au_dela_de_la_part', 'L. 1965 art. 29-14, 2°', true],
-      ['reglement_sur_compte_du_fonds', 'L. 1965 art. 29-14, 2°', true],
+      ['emploi_au_dela_de_la_part', 'L. 1965 art. 29-14, 2°', false],
+      ['reglement_sur_compte_du_fonds', 'L. 1965 art. 29-14, 2°', false],
     ])
     // case cochée : le règlement est exclu dans les deux lectures du bouton, plus rien à confirmer pour lui
     expect(marqueurs(marquerNePasUtiliserFondsTravaux(apSansPart, true))).toEqual([
       ['emploi_fonds_exclu', null, true],
-      ['emploi_au_dela_de_la_part', 'L. 1965 art. 29-14, 2°', true],
+      ['emploi_au_dela_de_la_part', 'L. 1965 art. 29-14, 2°', false],
       ['reglement_sur_compte_du_fonds', 'L. 1965 art. 29-14, 2°', false],
     ])
   })
@@ -1096,5 +1180,196 @@ describe('J30 (PR #643) — emploi du fonds rattaché à l’opération : décis
   it('en-tête : le contrôle de chaque emploi suit J30 (PR #643), le texte libre signalé par emploi_fonds_forme_incomplete', () => {
     const rubrique = enTeteDuModule('travaux-budget').item("fonds de travaux : la part de l'opération passe le contrôle d'affectation")
     for (const attendu of ['J30', 'PR #643', '`aujourdhui: null`', 'emploi_fonds_forme_incomplete', 'avis-appel.ts']) expect(rubrique).toContain(attendu)
+  })
+
+  it('J67, R58 : ordonnance qui porte un montant ; l’emploi qui le dépasse, emplois antérieurs sous elle compris, est refusé', () => {
+    const plafonnee: OrdonnanceJuge = { ...ORDONNANCE_STRUCTUREE, montantMaximumCentimes: 1_500_000 }
+    const emplois = [
+      { ...surOrdonnance(plafonnee), id: 'E2', date: '2026-05-01' },
+      { ...surOrdonnance(plafonnee), id: 'E1', date: '2026-04-01' },
+    ]
+    const refus = suiviFinancierOperationTravaux(ap, budget(ap), { emploisFonds: emplois }).anomalies.filter((a) => a.code === 'emploi_fonds_non_autorise')
+    expect(refus).toEqual([expect.objectContaining({ gravite: 'bloquant', fondement: 'L. 1965 art. 29-14' })])
+    expect(refus[0].message).toContain('Emploi E2')
+    expect(refus[0].message).toContain('J67, R58')
+    expect(suiviFinancierOperationTravaux(ap, budget(ap), { emploisFonds: emplois.slice(1) }).anomalies).toEqual([])
+  })
+
+  it('relecture J67, R58 : le cumul sous une même ordonnance compte les emplois des autres opérations et ceux hors opération', () => {
+    const plafonnee: OrdonnanceJuge = { ...ORDONNANCE_STRUCTUREE, montantMaximumCentimes: 1_500_000 }
+    const deLOperation = { ...surOrdonnance(plafonnee), id: 'E2', date: '2026-05-01' }
+    const autres = [
+      { ...surOrdonnance(plafonnee), id: 'E1', date: '2026-04-01', operationNumero: '00043' },
+      { ...surOrdonnance(plafonnee), id: 'E0', date: '2026-04-01', operationNumero: null, partOperationCentimes: null },
+    ]
+    for (const autre of autres) {
+      const suivi = suiviFinancierOperationTravaux(ap, budget(ap), { emploisFonds: [deLOperation, autre] })
+      const refus = suivi.anomalies.filter((a) => a.code === 'emploi_fonds_non_autorise')
+      expect(refus).toEqual([expect.objectContaining({ gravite: 'bloquant', fondement: 'L. 1965 art. 29-14' })])
+      expect(refus[0].message).toContain('Emploi E2')
+      expect(refus[0].message).toMatch(/après 10\s000,00\s€ déjà employés sous cette ordonnance/)
+      // l'emploi de l'autre opération, ou hors opération, n'entre ni à la trésorerie ni aux autres contrôles de celle-ci
+      expect(suivi.emploiFondsTravauxCentimes).toBe(1_000_000)
+    }
+  })
+})
+
+describe('J67, R59 — commande au-delà du budget adopté : nouvelle décision avant l’ordre de service', () => {
+  const op = sansFonds()
+  const b = creerBudgetOperationTravaux(op, { lignes: [{ poste: 'travaux', budgetTtcCentimes: 9_000_000 }] })
+  const controle = (montantOsTtcCentimes: number | null, autres: Partial<EngagementAvantOs> = {}) =>
+    controlerDepassementBudgetAvantOs(op, b, { montantOsTtcCentimes, urgenceConstatee: false, date: '2026-06-01', ...autres })
+  const RESOLUTION: DecisionSupplementTravaux = { origine: 'assemblee', date: '2026-05-20', reference: 'Résolution 4', montantCentimes: 1_000_000 }
+  const REGISTRE: DecisionSupplementTravaux = { origine: 'administrateur', date: '2026-05-20', reference: 'Registre n° 7', montantCentimes: 1_000_000, avisConseilSyndicalLe: '2026-05-15' }
+
+  it('dans le budget adopté : rien ; au-delà : bloquant, et le message dit comment lever le blocage', () => {
+    expect(controle(3_000_000)).toEqual([])
+    const [blocage, ...reste] = controle(4_000_000)
+    expect(reste).toEqual([])
+    expect(blocage).toMatchObject({ code: 'depassement_budget_os', gravite: 'bloquant', fondement: 'L. 1965 art. 18, I ; art. 29-1, I', aConfirmer: false })
+    expect(blocage.message).toMatch(/dépasse le budget adopté \(120\s000,00\s€\) de 10\s000,00\s€/)
+    for (const voie of ["nouvelle résolution d'assemblée", "pouvoirs de l'assemblée", 'urgence constatée', 'J67, R59']) expect(blocage.message).toContain(voie)
+  })
+
+  it('levé par une résolution d’assemblée qui couvre le supplément, prise au plus tard le jour de l’envoi', () => {
+    expect(controle(4_000_000, { decisions: [RESOLUTION] })).toEqual([])
+    expect(codes(controle(4_000_001, { decisions: [RESOLUTION] }))).toEqual(['depassement_budget_os'])
+    expect(controle(4_000_000, { decisions: [{ ...RESOLUTION, date: '2026-06-02' }] })[0].message).toContain("postérieure à l'envoi")
+    expect(() => controle(4_000_000, { decisions: [{ ...RESOLUTION, reference: ' ' }] })).toThrow(/Décision qui couvre le supplément/)
+  })
+
+  it('décision de l’administrateur provisoire : seulement avec les pouvoirs de l’assemblée, après l’avis du conseil syndical', () => {
+    expect(controle(4_000_000, { decisions: [{ ...REGISTRE, pouvoirsAgConfies: 'tous' }] })).toEqual([])
+    for (const pouvoirsAgConfies of ['aucun', null] as const) {
+      const [blocage] = controle(4_000_000, { decisions: [{ ...REGISTRE, pouvoirsAgConfies }] })
+      expect(blocage.code).toBe('depassement_budget_os')
+      expect(blocage.message).toContain('il faut une assemblée')
+    }
+    const [sansAvis] = controle(4_000_000, { decisions: [{ ...REGISTRE, pouvoirsAgConfies: 'tous', avisConseilSyndicalLe: null }] })
+    expect(sansAvis.message).toContain('avis préalable du conseil syndical (D. 1967 art. 62-7)')
+  })
+
+  it('relecture : une partie des pouvoirs ne lève pas le blocage sans la clause de l’ordonnance qui confie cette décision', () => {
+    const partie: DecisionSupplementTravaux = { ...REGISTRE, pouvoirsAgConfies: 'partie' }
+    const [blocage, ...reste] = controle(4_000_000, { decisions: [partie] })
+    expect(reste).toEqual([])
+    expect(blocage).toMatchObject({ code: 'depassement_budget_os', gravite: 'bloquant' })
+    expect(blocage.message).toContain("vérifier que l'ordonnance lui confie cette décision et en citer la clause, faute de quoi il faut une assemblée")
+    expect(blocage.message).toContain('L. 1965 art. 29-1, I, al. 2')
+    expect(codes(controle(4_000_000, { decisions: [{ ...partie, clauseOrdonnance: '  ' }] }))).toEqual(['depassement_budget_os'])
+    const avecClause = { ...partie, clauseOrdonnance: 'Ordonnance du 02/02/2026, art. 3 : budget des travaux de ravalement' }
+    expect(controle(4_000_000, { decisions: [avecClause] })).toEqual([])
+    // la clause ne dispense pas de l'avis préalable du conseil syndical
+    expect(codes(controle(4_000_000, { decisions: [{ ...avecClause, avisConseilSyndicalLe: null }] }))).toEqual(['depassement_budget_os'])
+  })
+
+  it('relecture : l’OS d’un marché déjà porté au poste n’est pas compté deux fois (part de l’OS dans les postes)', () => {
+    // budget adopté 120 000 € ; poste travaux 90 000 € = le marché signé ; OS de démarrage de ce marché : 90 000 €
+    expect(codes(controle(9_000_000))).toEqual(['depassement_budget_os'])
+    expect(controle(9_000_000, { partOsDansLesPostesCentimes: 9_000_000 })).toEqual([])
+    // OS de 130 000 € dont 90 000 € déjà au poste : seuls 40 000 € s'ajoutent, 10 000 € au-delà du budget adopté
+    const [blocage] = controle(13_000_000, { partOsDansLesPostesCentimes: 9_000_000 })
+    expect(blocage.code).toBe('depassement_budget_os')
+    expect(blocage.message).toMatch(/dont 90\s000,00\s€ déjà portés aux postes du budget/)
+    expect(blocage.message).toMatch(/de 10\s000,00\s€/)
+    expect(() => controle(1_000, { partOsDansLesPostesCentimes: 2_000 })).toThrow(/déjà comprise dans les postes/)
+    expect(() => controle(20_000_000, { partOsDansLesPostesCentimes: 10_000_000 })).toThrow(/déjà comprise dans les postes/)
+    expect(() => controle(9_000_000, { partOsDansLesPostesCentimes: -1 })).toThrow(/déjà comprise dans les postes/)
+  })
+
+  it('urgence constatée : pas de blocage, une alerte ; montant de l’OS inconnu : alerte ; marge du cabinet : règle interne, nulle par défaut', () => {
+    expect(controle(4_000_000, { urgenceConstatee: true })).toEqual([expect.objectContaining({ code: 'depassement_budget_os_urgence', gravite: 'avertissement' })])
+    expect(controle(null)).toEqual([expect.objectContaining({ code: 'montant_os_inconnu', gravite: 'avertissement' })])
+    expect(controle(4_000_000, { margeCabinetPct: 10 })).toEqual([
+      expect.objectContaining({ code: 'depassement_dans_la_marge_du_cabinet', gravite: 'information', fondement: null }),
+    ])
+    expect(codes(controle(4_000_000, { margeCabinetPct: 5 }))).toEqual(['depassement_budget_os'])
+    expect(() => controle(4_000_000, { margeCabinetPct: -1 })).toThrow(/marge du cabinet/)
+  })
+
+  it('opération sans décision : aucun budget adopté, l’ordre de service est bloqué ; budget d’une autre opération refusé', () => {
+    const projet = sansFonds({ decision: null })
+    const [blocage] = controlerDepassementBudgetAvantOs(projet, budget(projet), { montantOsTtcCentimes: 1, urgenceConstatee: false, date: '2026-06-01' })
+    expect(blocage).toMatchObject({ code: 'depassement_budget_os', gravite: 'bloquant' })
+    expect(blocage.message).toContain('sans décision')
+    expect(() => controlerDepassementBudgetAvantOs(operation({ numero: '00099' }), b, { montantOsTtcCentimes: 1, urgenceConstatee: false, date: '2026-06-01' })).toThrow(/appliqué à l'opération 00099/)
+  })
+})
+
+describe('J67, R60 — comptes de l’opération : dommages-ouvrage et honoraires au 671, étude au 673 ; alerte en classe 61 ou 62', () => {
+  it('compte proposé par poste : celui de l’opération (671, ou 673 pour une étude) ; aucun pour les honoraires du cabinet', () => {
+    const op = operation()
+    for (const poste of ['travaux', 'dommagesOuvrage', 'honorairesPrestataires'] as const) expect(compteProposePourLePoste(op, poste)).toMatchObject({ planCode: '67100', auxiliaire: '00042' })
+    expect(compteProposePourLePoste(op, 'honorairesCabinet')).toBeNull()
+    expect(compteProposePourLePoste(operation({ etude: true }), 'honorairesPrestataires')?.planCode).toBe('67300')
+  })
+
+  it('ligne de facture de l’opération en classe 61 ou 62 : avertissement, jamais un blocage ; lignes d’une autre opération ignorées', () => {
+    const ligne = (comptePlan: string, id = '00042'): LigneCompteOperation => ({ comptePlan, montantTtcCentimes: 120_000, rattachement: { type: 'travaux', id } })
+    const anomalies = anomaliesComptesDesLignesDOperation(operation(), [ligne('61600'), ligne('62300'), ligne('67100'), ligne('61600', '00099'), { ...ligne('62300'), rattachement: null }])
+    expect(anomalies.map((a) => [a.code, a.gravite, a.fondement])).toEqual([
+      ['ligne_operation_en_gestion_courante', 'avertissement', 'Arrêté du 14 mars 2005, art. 3 et 7'],
+      ['ligne_operation_en_gestion_courante', 'avertissement', 'Arrêté du 14 mars 2005, art. 3 et 7'],
+    ])
+    expect(anomalies[0].message).toContain('61600')
+    expect(anomalies[0].message).toContain('67100')
+    expect(anomalies[0].message).toContain('J67, R60')
+  })
+
+  it('relecture : le suivi financier rend l’alerte quand il reçoit les lignes des factures du syndicat', () => {
+    const op = sansFonds()
+    const lignesFactures: LigneCompteOperation[] = [
+      { comptePlan: '62300', montantTtcCentimes: 120_000, rattachement: { type: 'travaux', id: '00042' } },
+      { comptePlan: '67100', montantTtcCentimes: 900_000, rattachement: { type: 'travaux', id: '00042' } },
+    ]
+    const suivi = suiviFinancierOperationTravaux(op, budget(op), { lignesFactures })
+    expect(suivi.anomalies.filter((a) => a.code === 'ligne_operation_en_gestion_courante').map((a) => a.gravite)).toEqual(['avertissement'])
+    expect(codes(suiviFinancierOperationTravaux(op, budget(op)).anomalies)).not.toContain('ligne_operation_en_gestion_courante')
+  })
+})
+
+describe('J67, R81 — part du fonds affectée par la décision de l’administrateur provisoire : pouvoirs de l’assemblée', () => {
+  const decisionAp = { date: '2026-03-12', resolution: 'Décision AP-3', origine: 'administrateur' as const }
+
+  it('aucun pouvoir de l’assemblée : l’emploi est refusé avant le décaissement ; la part est bloquante au suivi', () => {
+    const op = operation({ decision: { ...decisionAp, pouvoirsAgConfies: 'aucun' } })
+    expect(controlerEmploiFondsOperation(op, { montantCentimes: 1_000 })).toMatchObject({ autorise: false, cause: 'decision_manquante', fondement: 'L. 1965 art. 29-1, I, al. 2', aConfirmer: false })
+    expect(suiviFinancierOperationTravaux(op, budget(op)).anomalies).toContainEqual(expect.objectContaining({ code: 'part_fonds_non_autorisee', gravite: 'bloquant' }))
+  })
+
+  it('une partie des pouvoirs : l’emploi est admis, le suivi avertit (à vérifier dans l’ordonnance)', () => {
+    const op = operation({ decision: { ...decisionAp, pouvoirsAgConfies: 'partie' } })
+    expect(controlerEmploiFondsOperation(op, { montantCentimes: 1_000 }).autorise).toBe(true)
+    expect(suiviFinancierOperationTravaux(op, budget(op)).anomalies).toContainEqual(
+      expect.objectContaining({ code: 'affectation_pouvoirs_a_verifier', gravite: 'avertissement', fondement: 'L. 1965 art. 29-1, I, al. 2' }),
+    )
+  })
+})
+
+describe('J67 (décisions de Hugo du 17/11/2026) — en-tête de travaux-budget.ts', () => {
+  const { texte } = enTeteDuModule('travaux-budget')
+  const nonEtabli = texte.slice(texte.indexOf('🔴 Non établi'))
+
+  it('les questions tranchées quittent le 🔴 ; pour l’art. 47, J73 range le cadre sous la rémunération fixée par le président', () => {
+    expect(nonEtabli).toContain('🔴 Non établi')
+    expect(nonEtabli).not.toContain("l'ordonnance fixe-t-elle un montant")
+    expect(nonEtabli).not.toContain("La prime dommages-ouvrage d'une opération s'impute-t-elle au 671")
+    expect(nonEtabli).not.toContain('Un engagement au-delà du budget adopté exige-t-il une nouvelle décision avant la commande ?')
+    expect(nonEtabli).not.toContain('de l\'art. 18-1 A, III se contrôle-t-il ?')
+    expect(nonEtabli).not.toContain('Le syndic désigné en justice (D. 1967 art. 46) perçoit-il des honoraires de travaux')
+    // R1 (lot des honoraires) dit qui fixe la rémunération : la question n'est plus « quelle rémunération »
+    expect(nonEtabli).not.toContain("« Quelle rémunération pour l'administrateur provisoire de l'art. 47 ? »")
+    // J73 : R1 l'emporte sur R12 ; la question « fixé par le juge » est retirée
+    expect(nonEtabli).not.toContain("Faut-il ranger l'administrateur provisoire de l'art. 47")
+    expect(nonEtabli).not.toMatch(/en attendant Hugo/)
+    const j67 = texte.slice(texte.indexOf('Décisions de Hugo du 17/11/2026 (registre des décisions juridiques, J67'), texte.indexOf('Règles :'))
+    for (const r of ['R12', 'R13', 'R58', 'R59', 'R60', 'R81']) expect(j67).toContain(`J67, ${r}`)
+    expect(j67).toMatch(/J67, R1 \(lot des honoraires.*\) : .*fixée par le président du tribunal judiciaire qui l'a désigné.*C\. com\. R\. 814-27/)
+    expect(j67).not.toMatch(/garde le cadre « non établi »|il reste « à confirmer », arreteParLeJuge faux/)
+    const j73 = texte.slice(texte.indexOf('Décision de Hugo du 18/11/2026 (registre des décisions juridiques, J73'), texte.indexOf('Règles :'))
+    expect(j73).toMatch(/R1 l'emporte sur R12/)
+    expect(j73).toMatch(/CADRE_AP47.*fixe_par_le_president.*arreteParLeJuge vrai/)
+    expect(j73).toMatch(/C\. com\. R\. 814-27.*CPC art\. 714 à 718/)
+    expect(j73).toMatch(/tout honoraire voté par l'assemblée reste signalé/)
   })
 })

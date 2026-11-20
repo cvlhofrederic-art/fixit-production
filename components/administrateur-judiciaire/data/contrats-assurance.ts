@@ -12,8 +12,8 @@ export type ContratAssuranceDemo = [
 ]
 
 export const DEMO_CONTRATS_ASSURANCE: ContratAssuranceDemo[] = [
-  ['Multirisque immeuble', 'Generali · police n° MRI-44120', 'Échéance 31/12/2026', 'sage', ['LM', 'CV', 'TL', 'VM']],
-  ['RC du syndicat (obligatoire)', 'AXA · Loi ALUR art. 9-1', 'Échéance 31/12/2026', 'sage', ['LM', 'CV', 'TL', 'VM']],
-  ['Dommages-ouvrage', 'SMABTP · travaux toiture Les Tilleuls', 'En cours de souscription', 'amber', ['TL']],
-  ['Protection juridique', 'MMA · contentieux copropriété', 'Échéance 30/06/2026', 'gold', ['TL']],
+  ['Multirisque immeuble', 'Assureur Exemple · police n° MRI-44120', 'Échéance 31/12/2026', 'sage', ['LM', 'CV', 'TL', 'VM']],
+  ['RC du syndicat (obligatoire)', 'Compagnie Exemple · Loi ALUR art. 9-1', 'Échéance 31/12/2026', 'sage', ['LM', 'CV', 'TL', 'VM']],
+  ['Dommages-ouvrage', 'Assurance Construction Exemple · travaux toiture Les Tilleuls', 'En cours de souscription', 'amber', ['TL']],
+  ['Protection juridique', 'Mutuelle Exemple · contentieux copropriété', 'Échéance 30/06/2026', 'gold', ['TL']],
 ]

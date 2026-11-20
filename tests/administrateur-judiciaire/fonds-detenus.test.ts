@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { creerReglagesComptesCabinet } from '@/lib/administrateur-judiciaire/domain/comptes-bancaires'
-import { ajouterJours } from '@/lib/administrateur-judiciaire/domain/dates'
+import { ajouterJours, avancerAuJourOuvrable } from '@/lib/administrateur-judiciaire/domain/dates'
 import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
 import * as moduleFonds from '@/lib/administrateur-judiciaire/domain/fonds-detenus'
 import {
+  CATEGORIES_MISSION_PAR_DEFAUT,
   PERIMETRE_FONDS_DETENUS_PAR_DEFAUT,
+  annexeSoldeBancaireEtSuspens,
   controlerCouvertureA,
+  creerCategoriesMission,
   creerPerimetreFondsDetenus,
   echeancesFondsDetenusDeLAnnee,
   fondsDetenusA,
@@ -193,10 +196,12 @@ describe('fonds détenus à une date — soldes', () => {
   })
 })
 
-describe('fonds détenus — périmètre (réglage du cabinet, 🔴 non établi)', () => {
-  it('rubrique de chaque nature : fonds de travaux d’abord (compte séparé ou compte repris qui le tenait), Caisse des dépôts, compte au nom du syndicat, autres', () => {
+describe('fonds détenus — périmètre (réglage du cabinet ; J67, R90 : tout inclus par défaut)', () => {
+  it('rubrique de chaque nature : fonds de travaux d’abord (compte séparé, compte repris qui le tenait, placement réservé au fonds), Caisse des dépôts, compte au nom du syndicat, autres', () => {
     expect(rubriqueDuCompte({ nature: 'fonds_travaux' })).toBe('fonds_travaux')
     expect(rubriqueDuCompte({ nature: 'repris_ancien_gestionnaire', tenaitFondsTravaux: true })).toBe('fonds_travaux')
+    // J71 : un placement au nom du syndicat réservé au fonds tient le fonds.
+    expect(rubriqueDuCompte({ nature: 'placement', reserveAuFondsTravaux: true })).toBe('fonds_travaux')
     expect(rubriqueDuCompte({ nature: 'repris_ancien_gestionnaire' })).toBe('autres_comptes')
     expect(rubriqueDuCompte({ nature: 'caisse_depots' })).toBe('caisse_depots')
     expect(rubriqueDuCompte({ nature: 'courant' })).toBe('au_nom_du_syndicat')
@@ -431,6 +436,108 @@ describe('fonds détenus — couverture par mandat (C. com. R. 814-37)', () => {
   })
 })
 
+describe('J67, R91 — catégories de mission (C. com. R. 814-30) : réglage du cabinet, le régime du mandat par défaut', () => {
+  const regroupees = () =>
+    creerCategoriesMission([
+      { cle: 'administration_provisoire', libelle: 'Administration provisoire (art. 29-1 et art. 47)', regimes: ['ap291', 'ap47'] },
+      { cle: 'syndic_judiciaire', libelle: 'Syndic désigné en justice', regimes: ['sj'] },
+    ])
+
+  it('par défaut : une catégorie par régime du mandat (art. 46, art. 47, art. 29-1)', () => {
+    expect(CATEGORIES_MISSION_PAR_DEFAUT.map((c) => [c.cle, c.regimes])).toEqual([
+      ['sj', ['sj']],
+      ['ap47', ['ap47']],
+      ['ap291', ['ap291']],
+    ])
+    expect(fondsDetenusA('2026-12-31', donnees(), { categoriesMission: CATEGORIES_MISSION_PAR_DEFAUT })).toEqual(fondsDetenusA('2026-12-31', donnees()))
+  })
+
+  it('le cabinet regroupe les régimes à sa façon : catégories des mandats et totaux suivent sa liste, dans son ordre', () => {
+    const fonds = fondsDetenusA('2026-12-31', donnees(), { categoriesMission: regroupees() })
+    expect(fonds.mandats.map((m) => [m.mandatId, m.categorie])).toEqual([
+      ['m-till', 'administration_provisoire'],
+      ['m-acac', 'syndic_judiciaire'],
+    ])
+    expect(fonds.comptes.map((l) => l.categorie)).toEqual(['administration_provisoire', 'administration_provisoire', 'syndic_judiciaire', 'syndic_judiciaire'])
+    expect(fonds.parCategorie.map((g) => [g.cle, g.libelle, g.fondsDetenusCentimes])).toEqual([
+      ['administration_provisoire', 'Administration provisoire (art. 29-1 et art. 47)', 1_100_000],
+      ['syndic_judiciaire', 'Syndic désigné en justice', 480_000],
+    ])
+  })
+
+  it('régime reconnu absent de la liste du cabinet : « hors catégories » ; fondement non reconnu : « non reconnue » ; après ses catégories', () => {
+    const categoriesMission = creerCategoriesMission([{ cle: 'sj', libelle: 'Syndic désigné en justice', regimes: ['sj'] }])
+    const fonds = fondsDetenusA('2026-12-31', donnees(), { categoriesMission })
+    expect(fonds.mandats.map((m) => m.categorie)).toEqual(['hors_categories', 'sj'])
+    expect(fonds.parCategorie.map((g) => [g.cle, g.libelle, g.fondsDetenusCentimes])).toEqual([
+      ['sj', 'Syndic désigné en justice', 480_000],
+      ['hors_categories', 'Régime hors des catégories du cabinet', 1_100_000],
+    ])
+    // Un mandat ad hoc reste « non reconnue », rangée après les régimes hors catégories.
+    const avecAdHoc = donnees({ mandats: [mandatTill({ fondement: 'Mandat ad hoc' }), mandatAcac()] })
+    const seuleAp = creerCategoriesMission([{ cle: 'ap', libelle: 'Administration provisoire', regimes: ['ap291'] }])
+    expect(fondsDetenusA('2026-12-31', avecAdHoc, { categoriesMission: seuleAp }).parCategorie.map((g) => g.cle)).toEqual(['hors_categories', 'non_reconnue'])
+  })
+
+  it('réglage refusé : liste vide, clé vide, en double ou réservée, libellé vide, régime inconnu, absent ou rangé deux fois', () => {
+    const une = { cle: 'ap', libelle: 'Administration provisoire', regimes: ['ap291' as const] }
+    expect(() => creerCategoriesMission([])).toThrow(/au moins une catégorie/)
+    expect(() => creerCategoriesMission([{ ...une, cle: ' ' }])).toThrow(/clé/)
+    expect(() => creerCategoriesMission([une, { ...une, regimes: ['sj'] }])).toThrow(/« ap » en double/)
+    for (const cle of ['hors_categories', 'non_reconnue', 'non_ventile']) expect(() => creerCategoriesMission([{ ...une, cle }])).toThrow(/réservée/)
+    expect(() => creerCategoriesMission([{ ...une, libelle: '' }])).toThrow(/libellé/)
+    expect(() => creerCategoriesMission([{ ...une, regimes: ['art99' as never] }])).toThrow(/art99/)
+    expect(() => creerCategoriesMission([{ ...une, regimes: [] }])).toThrow(/aucun régime/)
+    expect(() => creerCategoriesMission([une, { cle: 'autre', libelle: 'Autre', regimes: ['ap291'] }])).toThrow(/ap291.*deux catégories/)
+  })
+})
+
+describe('J67, R92 — fonds détenus : solde comptable, avec en annexe le solde bancaire et les suspens de rapprochement', () => {
+  /** b-acac-courant au 31/12/2026 : solde comptable 380 000 ; la sortie du 31/12 (− 120 000) n'est pas encore au relevé. */
+  const releve = (soldeBanqueCentimes: number) => ({
+    banqueId: 'b-acac-courant',
+    soldeBanqueCentimes,
+    elements: [
+      { id: 'compta-acac-3', cote: 'compta' as const, montantCentimes: -120_000, rapproche: false as const, date: '2026-12-31' },
+      { id: 'compta-acac-1', cote: 'compta' as const, montantCentimes: 500_000, rapproche: 'auto' as const, date: '2026-02-01', rapprocheLe: '2026-02-03' },
+      { id: 'banque-2027', cote: 'banque' as const, montantCentimes: 9_999, rapproche: false as const, date: '2027-01-02' },
+    ],
+  })
+
+  it('écart expliqué par les suspens : aucune anomalie ; les fonds détenus restent le solde comptable', () => {
+    const fonds = fondsDetenusA('2026-12-31', donnees())
+    const annexe = annexeSoldeBancaireEtSuspens(fonds, [releve(500_000)])
+    expect(annexe.date).toBe('2026-12-31')
+    expect(annexe.lignes.map((l) => [l.mandatId, l.banqueId, l.soldeComptableCentimes, l.soldeBancaireCentimes, l.ecartNonExpliqueCentimes])).toEqual([
+      ['m-till', 'b-till-cdc', 800_000, null, null],
+      ['m-till', 'b-till-ft', 300_000, null, null],
+      ['m-acac', 'b-acac-courant', 380_000, 500_000, 0],
+      ['m-acac', 'b-acac-ft', 100_000, null, null],
+    ])
+    const courant = annexe.lignes[2]
+    expect(courant.suspens?.compta.map((e) => e.id)).toEqual(['compta-acac-3'])
+    expect(courant.suspens?.totalComptaCentimes).toBe(-120_000)
+    expect(courant.suspens?.banque).toEqual([])
+    expect(annexe.anomalies).toEqual([])
+    expect(fonds.totalCentimes).toBe(1_580_000)
+  })
+
+  it('écart que les suspens n’expliquent pas : signalé, sans bloquer', () => {
+    const annexe = annexeSoldeBancaireEtSuspens(fondsDetenusA('2026-12-31', donnees()), [releve(510_000)])
+    expect(annexe.lignes[2].ecartNonExpliqueCentimes).toBe(10_000)
+    expect(annexe.anomalies.map((a) => [a.code, a.gravite, a.mandatIds, a.banqueId])).toEqual([['ecart_banque_non_explique', 'alerte', ['m-acac'], 'b-acac-courant']])
+    expect(annexe.anomalies[0].message).toContain(formatEurosCentimes(100))
+    expect(annexe.anomalies[0].message).toMatch(/rapprochement/)
+  })
+
+  it('relevé d’un compte inconnu, fourni deux fois, ou solde non entier : refusé', () => {
+    const fonds = fondsDetenusA('2026-12-31', donnees())
+    expect(() => annexeSoldeBancaireEtSuspens(fonds, [{ ...releve(500_000), banqueId: 'b-inconnu' }])).toThrow(/b-inconnu/)
+    expect(() => annexeSoldeBancaireEtSuspens(fonds, [releve(500_000), releve(500_000)])).toThrow(/deux fois/)
+    expect(() => annexeSoldeBancaireEtSuspens(fonds, [releve(500_000.5)])).toThrow(/centimes/)
+  })
+})
+
 describe('fonds détenus — données refusées', () => {
   it('date invalide', () => {
     expect(() => fondsDetenusA('2026-02-30', donnees())).toThrow(/AAAA-MM-JJ/)
@@ -480,6 +587,9 @@ describe('fonds détenus — données refusées', () => {
     expect(() => fondsDetenusA('2026-12-31', donnees({ mandats: [nature] }))).toThrow(/especes/)
     const mention = mandatTill({ comptes: [compte({ banqueId: 'b', compte512: TILL_CDC, nature: 'courant', tenaitFondsTravaux: true })] })
     expect(() => fondsDetenusA('2026-12-31', donnees({ mandats: [mention] }))).toThrow(/repris/)
+    // J71 : « réservé au fonds de travaux » ne se porte que sur un compte de placement.
+    const reserve = mandatTill({ comptes: [compte({ banqueId: 'b', compte512: TILL_CDC, nature: 'courant', reserveAuFondsTravaux: true })] })
+    expect(() => fondsDetenusA('2026-12-31', donnees({ mandats: [reserve] }))).toThrow(/Mandat m-till, compte b : seul un compte de placement/)
     expect(() => fondsDetenusA('2026-12-31', donnees({ mandats: [mandatTill({ segmentSyndicat: 'TIL' })] }))).toThrow(/segment/i)
     expect(() => fondsDetenusA('2026-12-31', donnees({ mandats: [mandatTill({ modeComptes: 'coffre' as never })] }))).toThrow(/coffre/)
   })
@@ -519,6 +629,27 @@ describe('fonds détenus — dates de référence et échéances', () => {
       ['2028-12-31', 'arrete_comptabilite_speciale'],
     ])
     expect(prochainesEcheancesFondsDetenus('2027-03-15', { jusquAu: '2027-03-31' }).map((e) => e.objet)).toEqual(['etat_trimestriel'])
+  })
+
+  it('J67, R93 — date limite un samedi, un dimanche ou un jour férié : aucun report ; alerte, envoi au plus tard le dernier jour ouvré précédent', () => {
+    const annee = echeancesFondsDetenusDeLAnnee(2026)
+    // Attestation de l'arrêté du 31/12/2026 : « avant le 15 mars » → le 14/03/2027, un dimanche.
+    const attestation = annee.find((e) => e.date === '2026-12-31' && e.objet === 'arrete_comptabilite_speciale')
+    expect(attestation).toMatchObject({ dateLimite: '2027-03-14', echeance: '2027-03-14', dernierJourOuvre: '2027-03-12' })
+    expect(attestation?.alerteJourNonOuvre).toMatch(/14\/03\/2027.*jour non ouvré.*sans report \(J63\).*au plus tard le dernier jour ouvré précédent, le 12\/03\/2027/)
+    // Un jour ouvré : rien à signaler ; sans date limite (cotisation) : rien non plus.
+    expect(annee.find((e) => e.date === '2026-03-31')).toMatchObject({ dateLimite: '2026-04-15', dernierJourOuvre: null, alerteJourNonOuvre: null })
+    expect(annee.find((e) => e.objet === 'cotisation_caisse_garantie')).toMatchObject({ dernierJourOuvre: null, alerteJourNonOuvre: null })
+    // État du trimestre clos le 31/12/2027 : le 15/01/2028 est un samedi.
+    expect(echeancesFondsDetenusDeLAnnee(2027).find((e) => e.date === '2027-12-31' && e.objet === 'etat_trimestriel')).toMatchObject({
+      dateLimite: '2028-01-15',
+      dernierJourOuvre: '2028-01-14',
+    })
+    expect(prochainesEcheancesFondsDetenus('2027-03-01', { jusquAu: '2027-03-31' }).find((e) => e.objet === 'arrete_comptabilite_speciale')?.dernierJourOuvre).toBe('2027-03-12')
+    // Dernier jour ouvrable au plus tard le jour donné : jours fériés compris (lundi de Pâques 2026 : le 06/04).
+    expect(avancerAuJourOuvrable('2026-04-06')).toBe('2026-04-03')
+    expect(avancerAuJourOuvrable('2026-04-07')).toBe('2026-04-07')
+    expect(avancerAuJourOuvrable('2026-12-26', { alsaceMoselle: true })).toBe('2026-12-24')
   })
 
   it('les dates limites sont déduites (décompte, rattachement à l’arrêté) ; la cotisation n’en a pas (⚪ aucune trouvée)', () => {
@@ -613,6 +744,19 @@ describe('fonds détenus — en-tête et vocabulaire', () => {
       '⚪',
     ])
       expect(texte).toContain(attendu)
+  })
+
+  it('J67, R90 à R93 : décisions inscrites ; leurs questions ne sont plus en 🔴', () => {
+    const decisions = texte.slice(texte.indexOf('Décisions de Hugo du 17/11/2026'), texte.indexOf('🔵 Déduit'))
+    const nonEtabli = texte.slice(texte.indexOf('🔴 Non établi'))
+    expect(decisions).toMatch(/J67, R90 : .*tout inclus.*J65/)
+    expect(decisions).toMatch(/J67, R91 : .*réglage du cabinet.*creerCategoriesMission/)
+    expect(decisions).toMatch(/J67, R92 : .*solde comptable.*annexeSoldeBancaireEtSuspens/)
+    expect(decisions).toMatch(/J67, R93 : .*aucun report.*dernier jour ouvré/)
+    expect(nonEtabli).not.toMatch(/ce que comprennent les « fonds non distribués »/)
+    expect(nonEtabli).not.toMatch(/ce que sont les « catégories de mission »/)
+    expect(nonEtabli).not.toMatch(/solde comptable ou solde en banque/)
+    expect(nonEtabli).not.toMatch(/son report n'est pas établi/)
   })
 
   it('ne présente jamais un calcul de « pointe » : aucune fonction ni constante ainsi nommée', () => {

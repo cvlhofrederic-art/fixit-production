@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { controlerSouscriptionAssuranceImpayes } from '@/lib/administrateur-judiciaire/domain/contentieux-assurance-impayes'
 import {
   GARANTIE_ENCHERE_MINIMUM_CENTIMES,
   SAISIES_EXECUTION,
@@ -373,10 +374,25 @@ describe('voies d’exécution — contrôle de fond de l’autorisation de la s
     expect(r.rappels.join(' ')).toMatch(/au plus tard avec l'ordre du jour/)
   })
 
-  it('admise à confirmer : résolution soumise à la majorité de l’art. 24 (🔴 majorité)', () => {
-    const r = controlerAutorisationSaisieVente(dossierVente(), { ...CONTEXTE_AG, resolution: resolution({ majorite: 'art24' }) })
-    expect(r).toMatchObject({ autorise: true, cause: 'admise', aConfirmer: true })
-    expect(r.motif).toMatch(/art\. 24 ou de l'art\. 25/)
+  it('J67, R44 : la majorité de l’art. 24 suffit, sans « à confirmer » ; une majorité plus forte (25 ou 26) est admise aussi', () => {
+    for (const majorite of ['art24', 'art25', 'art26'] as const) {
+      const r = controlerAutorisationSaisieVente(dossierVente(), { ...CONTEXTE_AG, resolution: resolution({ majorite }) })
+      expect(r).toMatchObject({ autorise: true, cause: 'admise', aConfirmer: false })
+      expect(r.motif).not.toMatch(/art\. 24 ou de l'art\. 25/)
+    }
+  })
+
+  it('J67, R44 et R45 : la résolution et la décision de l’administrateur provisoire visent le copropriétaire nommément', () => {
+    const parAg = controlerAutorisationSaisieVente(dossierVente(), CONTEXTE_AG).rappels
+    const parAp = controlerAutorisationSaisieVente(dossierVente(undefined, DECISION_AP), { regime: 'ap291', pouvoirsAgConfies: 'tous' }).rappels
+    for (const rappels of [parAg, parAp])
+      expect(rappels).toContain(
+        "La décision vise ce copropriétaire nommément : l'assemblée ne peut donner une autorisation générale et à l'avance contre un copropriétaire non désigné (Cass. 3e civ., 15/02/2006, n° 04-20.261).",
+      )
+    // L'action en justice hors recouvrement n'est pas une saisie : pas de ce rappel.
+    expect(
+      controlerAutorisationActionEnJustice({ coproprieteId: 'copro-1', type: 'Litige entreprise', decision: DECISION_AG }, CONTEXTE_AG).rappels.join(' '),
+    ).not.toMatch(/nommément/)
   })
 
   it('résolution d’AG votée alors que l’ordonnance confie tous les pouvoirs de l’AG à l’administrateur provisoire : refusée', () => {
@@ -430,9 +446,10 @@ describe('voies d’exécution — contrôle de fond de l’autorisation de la s
     for (const pouvoirsAgConfies of ['tous', 'partie'] as const) {
       const r = ap({ regime: 'ap291', pouvoirsAgConfies })
       expect(r.fondement).toMatch(/D\. 1967 art\. 62-7/)
-      expect(r.rappels).toHaveLength(2)
+      expect(r.rappels).toHaveLength(3)
       expect(r.rappels[0]).toMatch(/avis du conseil syndical.*sauf urgence.*D\. 1967 art\. 62-7, al\. 1/)
       expect(r.rappels[1]).toMatch(/mode de financement.*art\. 62-7, al\. 3/)
+      expect(r.rappels[2]).toMatch(/copropriétaire nommément/)
     }
   })
 
@@ -449,13 +466,30 @@ describe('voies d’exécution — contrôle de fond de l’autorisation de la s
     expect(() => engagerSaisieImmobiliere(dossierVente({}, tardive), '2026-05-04', ctx)).toThrow(/avant la décision/)
   })
 
-  it('les deux montants restent exigés pour la décision de l’administrateur provisoire (🔴 Frédéric)', () => {
+  it('J67, R45 : les deux montants restent exigés pour la décision de l’administrateur provisoire, comme règle de VitFix (aucun texte)', () => {
+    const regleVitfix =
+      "exigé par VitFix, par analogie avec D. 1967 art. 11, I, 11° ; utile à l'avis du conseil syndical et au mode de financement (art. 62-7) ; aucun texte ne l'impose à la décision de l'administrateur provisoire"
+    const r = controlerAutorisationSaisieVente(dossierVente(undefined, DECISION_AP, { miseAPrixCentimes: 1 }), {
+      regime: 'ap291',
+      pouvoirsAgConfies: 'tous',
+    })
+    expect(r).toMatchObject({ autorise: false, cause: 'montants_manquants' })
+    expect(r.motif).toBe(`Saisie immobilière sans sommes estimées définitivement perdues : ${regleVitfix}.`)
+    expect(r.fondement).toMatch(/D\. 1967 art\. 11, I, 11°.*art\. 62-7/)
+    expect(() =>
+      creerDossierContentieux(saisie({ decision: DECISION_AP, voiesExecution: voies({ saisieImmobiliere: { engageeLe: '2026-05-04' }, venteLot: null }) })),
+    ).toThrow(`Saisie immobilière engagée sans mise à prix et sommes estimées définitivement perdues : ${regleVitfix}.`)
+    // 0 € de sommes perdues : rien ne bloque.
     expect(
-      controlerAutorisationSaisieVente(dossierVente(undefined, DECISION_AP, { miseAPrixCentimes: 1 }), {
+      controlerAutorisationSaisieVente(dossierVente(undefined, DECISION_AP, { miseAPrixCentimes: 1, sommesEstimeesPerduesCentimes: 0 }), {
         regime: 'ap291',
         pouvoirsAgConfies: 'tous',
       }).cause,
-    ).toBe('montants_manquants')
+    ).toBe('admise')
+    // Résolution d'AG : message inchangé, le texte l'exige (D. 1967 art. 11, I, 11°).
+    expect(controlerAutorisationSaisieVente(dossierVente({}, DECISION_AG, { miseAPrixCentimes: 1 }), CONTEXTE_AG).motif).toBe(
+      "Saisie immobilière sans sommes estimées définitivement perdues : le projet de résolution qui l'autorise en mentionne le montant (D. 1967 art. 11, I, 11°).",
+    )
   })
 })
 
@@ -550,6 +584,51 @@ describe('J35 — autorisation d’une action en justice hors recouvrement (D. 1
   it('la saisie en vue de la vente garde son propre contrôle, motif inchangé', () => {
     expect(controlerAutorisationSaisieVente(dossierVente(), { ...CONTEXTE_AG, resolution: resolution({ etat: 'rejetee' }) }).motif).toMatch(
       /^Saisie immobilière : la résolution n° 7 est rejetée/,
+    )
+  })
+})
+
+/**
+ * J67, R47 (décision de Hugo du 17/11/2026) : la souscription d'une police impayés au nom du syndicat suit la mission de
+ * l'ordonnance (L. 1965 art. 29-1, I, al. 2) ; mêmes règles de pouvoirs que la saisie, sans contrôle de date. Une
+ * alerte, jamais un refus.
+ */
+describe('J67, R47 — décision de souscription de la police impayés (alerte non bloquante)', () => {
+  const souscription = (decision: SourceDecisionContentieux | null = DECISION_AG) => ({ coproprieteId: 'copro-1', contratId: 'k-impayes', decision })
+
+  it('sans décision liée : alerte « souscription non rattachée à une décision : vérifier les pouvoirs de l’ordonnance »', () => {
+    const controle = controlerSouscriptionAssuranceImpayes(souscription(null))
+    expect(controle).toMatchObject({ cause: 'decision_manquante', aSignaler: true, bloquant: false })
+    expect(controle.message).toMatch(/^Souscription non rattachée à une décision : vérifier les pouvoirs de l'ordonnance/)
+    expect(controle.fondement).toMatch(/L\. 1965 art\. 29-1, I, al\. 2/)
+  })
+
+  it('résolution d’assemblée adoptée hors administration provisoire, ou décision de l’administrateur provisoire investi de ce pouvoir : rien à signaler', () => {
+    const parAg = controlerSouscriptionAssuranceImpayes(souscription(), CONTEXTE_AG)
+    expect(parAg).toMatchObject({ cause: 'admise', aSignaler: false, bloquant: false })
+    expect(parAg.message).toBe('Souscription de la police impayés autorisée par la résolution n° 7, adoptée.')
+    const parAp = controlerSouscriptionAssuranceImpayes(souscription(DECISION_AP), { regime: 'ap291', pouvoirsAgConfies: 'tous' })
+    expect(parAp).toMatchObject({ cause: 'admise', aSignaler: false })
+    // Avis du conseil syndical (sauf urgence) et mode de financement : rappelés, non contrôlés (D. 1967 art. 62-7).
+    expect(parAp.rappels.join(' ')).toMatch(/D\. 1967 art\. 62-7, al\. 1.*art\. 62-7, al\. 3/)
+  })
+
+  it('mêmes règles de pouvoirs que la saisie : dessaisie, sans pouvoir, pouvoirs à vérifier ou non établis, résolution à rattacher ou rejetée', () => {
+    const cas: [SourceDecisionContentieux, ContexteAutorisationVente, string][] = [
+      [DECISION_AG, { ...CONTEXTE_AG, regime: 'ap291', pouvoirsAgConfies: 'tous' }, 'pouvoir_ag_confie_a_l_administrateur'],
+      [DECISION_AG, { ...CONTEXTE_AG, regime: 'ap291', pouvoirsAgConfies: 'partie' }, 'pouvoirs_ag_a_verifier'],
+      [DECISION_AG, {}, 'resolution_a_rattacher'],
+      [DECISION_AG, { ...CONTEXTE_AG, resolution: resolution({ etat: 'rejetee' }) }, 'resolution_non_adoptee'],
+      [DECISION_AP, { regime: 'ap291', pouvoirsAgConfies: 'aucun' }, 'pouvoirs_ag_non_confies'],
+      [DECISION_AP, { regime: 'ap291', pouvoirsAgConfies: null }, 'pouvoirs_ag_non_etablis'],
+    ]
+    for (const [decision, contexte, cause] of cas)
+      expect(controlerSouscriptionAssuranceImpayes(souscription(decision), contexte)).toMatchObject({ cause, aSignaler: true, bloquant: false })
+    expect(
+      controlerSouscriptionAssuranceImpayes(souscription(), { ...CONTEXTE_AG, regime: 'ap291', pouvoirsAgConfies: 'tous' }).message,
+    ).toMatch(/la décision de souscrire la police impayés revient à l'administrateur provisoire/)
+    expect(() => controlerSouscriptionAssuranceImpayes(souscription(), { ...CONTEXTE_AG, resolution: resolution({ id: 'res-8' }) })).toThrow(
+      /n'est pas celle du dossier/,
     )
   })
 })
@@ -784,6 +863,26 @@ describe('J43 — case « Échéancier » cochée et exécution déjà engagée 
     expect(controlerExecutionSousEcheancierDuJuge(dossier)?.mesures).toEqual(['Saisie attribution'])
     expect(phaseSuggeree(dossier).phase).toBe('Exécution en cours')
   })
+
+  it('J67, R43 : un commandement daté compte comme une procédure engagée, nommée en tête de l’alerte, avec la réserve de J43', () => {
+    const commandement =
+      "Commandement daté du 02/03/2026 : procédure d'exécution engagée, suspendue par la décision du juge (C. civ. art. 1343-5, al. 4)"
+    const seul = controlerExecutionSousEcheancierDuJuge({ voiesExecution: voies({ caseEcheancier: true }), jalons: { commandement: '2026-03-02' } })
+    expect(seul).toMatchObject({ code: 'execution_engagee_sous_echeancier_du_juge', gravite: 'avertissement', bloquant: false, mesures: [commandement] })
+    expect(seul?.message).toMatch(/vérifier sur la décision, dont le dossier ne porte ni la date ni les délais/)
+    const avecSaisie = controlerExecutionSousEcheancierDuJuge({
+      voiesExecution: voies({ caseEcheancier: true, saisies: ['attribution'] }),
+      jalons: { commandement: '2026-03-02' },
+    })
+    expect(avecSaisie?.mesures).toEqual([commandement, 'Saisie attribution'])
+    // Case décochée : rien à signaler.
+    expect(controlerExecutionSousEcheancierDuJuge({ voiesExecution: voies({}), jalons: { commandement: '2026-03-02' } })).toBeNull()
+    // executionEngagee et la phase suggérée sont inchangées.
+    const dossier = creerDossierContentieux(saisie({ jalons: { commandement: '2026-03-02' }, voiesExecution: voies({ caseEcheancier: true }) }))
+    expect(executionEngagee(dossier.voiesExecution)).toBe(false)
+    expect(phaseSuggeree(dossier).phase).toBe('Exécution en cours')
+    expect(controlerExecutionSousEcheancierDuJuge(dossier)?.mesures).toEqual([commandement])
+  })
 })
 
 describe('voies d’exécution — garantie de l’enchérisseur et hypothèque', () => {
@@ -839,10 +938,34 @@ describe('voies d’exécution — en-têtes : sources et points ouverts', () =>
     expect(source).toMatch(/manque dans Gestéam/)
   })
 
-  it('pose les questions 🔴 : majorité, administrateur provisoire, zéro euro', () => {
-    expect(source).toMatch(/majorité de l'art\. 24 \(règle par défaut, L\. 1965 art\. 24, I/)
-    expect(source).toMatch(/L'administrateur provisoire de l'art\. 29-1 investi des pouvoirs de l'AG/)
-    expect(source).toMatch(/égales à 0 € sont-elles admises/)
+  it('pose la question 🔴 du zéro euro ; celles de la majorité, des montants de l’administrateur provisoire et du plafond de l’hypothèque sont fermées (J67)', () => {
+    const nonEtabli = source.slice(source.indexOf('🔴 Non établi'), source.indexOf('Branchements à faire plus tard'))
+    expect(nonEtabli).toMatch(/égales à 0 € sont-elles admises/)
+    expect(nonEtabli).not.toMatch(/ 1\. \(Frédéric ou Hugo\) La décision qui autorise la saisie/)
+    expect(nonEtabli).not.toMatch(/ 2\. \(Frédéric\) L'administrateur provisoire/)
+    expect(nonEtabli).not.toMatch(/ 4\. \(Frédéric\) Quel plafond/)
+    expect(source).not.toMatch(/🔴 [1249]\b/)
+    expect(source).not.toMatch(/MAJORITE_A_CONFIRMER|majoriteADouter/)
+  })
+
+  it('rubrique « Décisions de Hugo du 17/11/2026 » : J67, R43 à R47, avec les textes relus', () => {
+    const decisions1711 = source.slice(source.indexOf('Décisions de Hugo du 17/11/2026'), source.indexOf('🔵 Déduit :'))
+    expect(decisions1711).toMatch(/J67, R43 \(question 9 fermée\) : /)
+    expect(decisions1711).toMatch(/Cass\. com\., 17\/01\/2024, n° 22-20\.185/)
+    expect(decisions1711).toMatch(/Cass\. 2e civ\., avis du 05\/03\/2026, n° 25-70\.021/)
+    expect(decisions1711).toMatch(/J67, R44 \(question 1 fermée\) : /)
+    expect(decisions1711).toMatch(/Cass\. 3e civ\., 15\/02\/2006, n° 04-20\.261/)
+    expect(decisions1711).toMatch(/J67, R45 \(question 2 fermée\) : /)
+    expect(decisions1711).toMatch(/règle de VitFix/)
+    expect(decisions1711).toMatch(/J67, R46 \(question 4 fermée\) : /)
+    expect(decisions1711).toMatch(/C\. civ\. art\. 2402, 3°/)
+    expect(decisions1711).toMatch(/ventes de lots/)
+    expect(decisions1711).toMatch(/J67, R47 : /)
+    expect(decisions1711).toMatch(/controlerDecisionSouscriptionAssurance/)
+    expect(decisions1711).toMatch(/lu(s)? (sur Légifrance )?le 17\/11\/2026/)
+    const branchements = source.slice(source.indexOf('Branchements à faire plus tard'), source.indexOf('Référentiel des saisies (tenu à part du point 29)'))
+    expect(branchements).toMatch(/hypothèque spéciale de C\. civ\. art\. 2402, 3° \(J67, R46\)/)
+    expect(branchements).toMatch(/décision de souscription \(J67, R47\)/)
   })
 
   it('rubrique « Décisions de Hugo du 03/11/2026 » : J33, J35 et J36 inscrites, J35 et J36 confirmées le 06/11/2026 ; questions 3 et 5 fermées', () => {
@@ -863,8 +986,12 @@ describe('voies d’exécution — en-têtes : sources et points ouverts', () =>
     const nonEtabli = source.slice(source.indexOf('🔴 Non établi'))
     expect(nonEtabli).not.toMatch(/se saisit-elle sans que la case Saisie/)
     expect(nonEtabli).not.toMatch(/dates fixées à l'avance ou constats/)
-    expect(nonEtabli).toMatch(/3\. Tranchée le 03\/11\/2026 \(J35, ci-dessus\), confirmée le 06\/11\/2026\./)
-    expect(nonEtabli).toMatch(/5\. Tranchée le 03\/11\/2026 \(J36, ci-dessus\), confirmée le 06\/11\/2026\./)
+    // questions 3 et 5 tranchées (J35, J36), puis 1, 2, 4 et 9 (J67) : retirées de la liste 🔴, sans renuméroter les autres
+    expect(nonEtabli).not.toMatch(/3\. Tranchée le 03\/11\/2026/)
+    expect(nonEtabli).not.toMatch(/5\. Tranchée le 03\/11\/2026/)
+    expect(nonEtabli).toMatch(/ 6\. \(Frédéric\) Une mise à prix ou des sommes perdues égales à 0 €/)
+    expect(nonEtabli).toMatch(/ 7\. \(Frédéric\) Faut-il un second champ pour la mise à prix/)
+    expect(nonEtabli).toMatch(/ 8\. \(Frédéric\) Libellés/)
     expect(source).not.toMatch(/case « Échéancier » est conservée sans effet/)
   })
 
@@ -910,10 +1037,10 @@ describe('voies d’exécution — en-têtes : sources et points ouverts', () =>
     expect(decisions0611).toMatch(/Pas un refus : la suspension est l'effet de cette décision, non d'un contrôle de VitFix/)
     expect(decisions0611).toMatch(/comme J2 : une donnée fausse vaut moins qu'une donnée incomplète et signalée/)
     expect(decisions0611).toMatch(/la case ne porte ni la date de la décision ni les délais accordés/)
-    // Question 9 (suite de J43, jalon « Commandement ») : posée dans la partie 🔴, avec le choix actuel de VitFix.
+    // Question 9 (suite de J43, jalon « Commandement ») : fermée par J67, R43, le commandement est signalé aussi.
     const nonEtabli = source.slice(source.indexOf('🔴 Non établi'), source.indexOf('Branchements à faire plus tard'))
-    expect(nonEtabli).toMatch(/9\. \(Frédéric ou Hugo, suite de J43\) Le jalon « Commandement » du dossier/)
-    expect(nonEtabli).toMatch(/VitFix : non, seules les mesures du bloc Voie d'exécution \(executionEngagee\)/)
+    expect(nonEtabli).not.toMatch(/9\. \(Frédéric ou Hugo, suite de J43\) Le jalon « Commandement » du dossier/)
+    expect(source).not.toMatch(/VitFix : non, seules les mesures du bloc Voie d'exécution \(executionEngagee\)/)
   })
 
   it('J43 : l’alerte, produite par aucun flux existant, figure dans les « Branchements à faire plus tard »', () => {

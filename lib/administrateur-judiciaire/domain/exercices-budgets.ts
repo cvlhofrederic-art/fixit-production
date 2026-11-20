@@ -12,6 +12,11 @@ import { estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
  * à l'assemblée qui l'approuve et à une résolution par objet (budget, complément, honoraires, travaux votés). Budget :
  * lignes (clé, compte, rubrique) → prévu TTC ; réalisé lu sur les mouvements imputés.
  * 🔵 Le cycle (ordre des cinq premiers statuts) et « Non géré » pour un exercice hors mission sont DÉDUITS.
+ *
+ * Décision de Hugo du 17/11/2026 (registre des décisions juridiques, J67, R103 ; décret n° 2005-240, art. 8, relu le
+ * 17/11/2026) : un exercice dont le budget n'a jamais été voté se répartit (regularisation-charges.ts). « Préparation »
+ * ou « Budgété » passe donc directement à « Répart. en cours », pour la répartition seulement ; il suit ensuite le
+ * cycle jusqu'à « Réparti ». Le passage à « Voté » exige toujours l'assemblée et la résolution du budget.
  */
 
 export const STATUTS_EXERCICE = ['Préparation', 'Budgété', 'Voté', 'Répart. en cours', 'Réparti', 'Non géré'] as const
@@ -21,6 +26,16 @@ export const STATUTS_IRC = ['Non déclaré', 'Commencé', 'Validé', 'Transmis',
 export type StatutIrc = (typeof STATUTS_IRC)[number]
 
 const CYCLE_EXERCICE: readonly StatutExercice[] = ['Préparation', 'Budgété', 'Voté', 'Répart. en cours', 'Réparti']
+
+/** J67, R103 : statuts d'un budget jamais voté, qui passent à « Répart. en cours » sans être « Voté ». */
+const BUDGET_NON_VOTE: ReadonlySet<StatutExercice> = new Set<StatutExercice>(['Préparation', 'Budgété'])
+
+/** Une étape en avant ; ou, budget jamais voté, directement à la répartition (J67, R103). */
+const passageAdmis = (avant: StatutExercice, apres: StatutExercice): boolean => {
+  const rang = CYCLE_EXERCICE.indexOf(avant)
+  if (rang >= 0 && CYCLE_EXERCICE.indexOf(apres) === rang + 1) return true
+  return apres === 'Répart. en cours' && BUDGET_NON_VOTE.has(avant)
+}
 
 export interface ResolutionsExercice {
   budget: string | null
@@ -59,8 +74,9 @@ export function creerExercice(saisie: SaisieExercice): Exercice {
 }
 
 /**
- * Fait avancer le statut d'une étape. « Voté » exige l'assemblée et la résolution du budget ; « Non géré » ne s'applique
- * qu'à un exercice encore en préparation. Renvoie un nouvel exercice.
+ * Fait avancer le statut d'une étape. « Voté » exige l'assemblée et la résolution du budget ; un budget jamais voté
+ * (« Préparation », « Budgété ») passe aussi à « Répart. en cours » (J67, R103) ; « Non géré » ne s'applique qu'à un
+ * exercice encore en préparation. Renvoie un nouvel exercice.
  */
 export function changerStatutExercice(
   exercice: Exercice,
@@ -71,8 +87,7 @@ export function changerStatutExercice(
     if (exercice.statut !== 'Préparation') throw new Error('« Non géré » ne s’applique qu’à un exercice en préparation.')
     return { ...exercice, statut: nouveau }
   }
-  const rang = CYCLE_EXERCICE.indexOf(exercice.statut)
-  if (rang < 0 || CYCLE_EXERCICE.indexOf(nouveau) !== rang + 1)
+  if (!passageAdmis(exercice.statut, nouveau))
     throw new Error(`Changement refusé : « ${exercice.statut} » → « ${nouveau} » (une étape en avant seulement).`)
   if (nouveau !== 'Voté') return { ...exercice, statut: nouveau }
   const ag = agId ?? exercice.agId

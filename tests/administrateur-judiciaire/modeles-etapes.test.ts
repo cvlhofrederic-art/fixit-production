@@ -129,13 +129,13 @@ describe('Référentiel des types d’étapes par dossier (tranche 42, compléme
   })
 
   it('« Votes par correspondance » : type commun, hors des suites', () => {
-    expect(TYPE_ETAPE_COMMUN).toEqual({ etapeType: 'commun.votes_par_correspondance', titre: 'Votes par correspondance', delaiJours: 0 })
+    expect(TYPE_ETAPE_COMMUN).toEqual({ etapeType: 'commun.votes_par_correspondance', titre: 'Votes par correspondance', delaiJours: null })
     for (const dossier of DOSSIERS_OUTILLES) expect(titres(TYPES_ETAPES_PAR_DOSSIER[dossier])).not.toContain('Votes par correspondance')
   })
 
-  it('aucun délai relevé : 0 jour partout ; codes uniques', () => {
+  it('J76 : aucun délai par défaut (null partout) ; codes uniques', () => {
     const tous = [...TYPES_ETAPES_PAR_DOSSIER.Contentieux, ...TYPES_ETAPES_PAR_DOSSIER.Sinistre, TYPE_ETAPE_COMMUN]
-    expect(tous.every((e) => e.delaiJours === 0)).toBe(true)
+    expect(tous.every((e) => e.delaiJours === null)).toBe(true)
     expect(new Set(tous.map((e) => e.etapeType)).size).toBe(tous.length)
   })
 
@@ -176,7 +176,7 @@ describe('Référentiel des types d’étapes par dossier (tranche 42, compléme
     const processus = processusDuDossier('Sinistre')
     processus[0].delaiJours = 99
     expect(TYPES_ETAPES_PAR_DOSSIER.Contentieux[0].titre).toBe('Ouverture de dossier')
-    expect(TYPES_ETAPES_PAR_DOSSIER.Sinistre[0].delaiJours).toBe(0)
+    expect(TYPES_ETAPES_PAR_DOSSIER.Sinistre[0].delaiJours).toBeNull()
     expect(typesEtapesDuDossier('Contentieux')).toHaveLength(4)
     expect(Object.isFrozen(TYPES_ETAPES_PAR_DOSSIER.Sinistre)).toBe(true)
     expect(Object.isFrozen(TYPES_ETAPES_PAR_DOSSIER.Sinistre[0])).toBe(true)
@@ -201,8 +201,8 @@ describe('Référentiel des types d’étapes par dossier (tranche 42, compléme
     const faite = realiserEtapeDossier(ouvertureContentieux(processus[0].etapeType), { date: '2026-11-03', compteRendu: '' }).etape
     const med = enchainerEtapeDossier(faite, processus, { id: 'c-2', date: '2026-11-03', creeeParId: 'collab-A' })
     expect(med?.titre).toBe('Lettre de mise en demeure')
-    // 0 jour : l'étape enchaînée a pour limite le jour de la réalisation de la précédente.
-    expect(med?.limite).toBe('2026-11-03')
+    // J76 : aucun délai par défaut ; sans délai saisi par le cabinet, l'étape enchaînée n'a pas de limite.
+    expect(med?.limite).toBeNull()
     const medFaite = realiserEtapeDossier(med!, { date: '2026-11-05', compteRendu: '' }).etape
     const copie = enchainerEtapeDossier(medFaite, processus, { id: 'c-3', date: '2026-11-05', creeeParId: 'collab-A' })
     expect(copie?.etapeType).toBe(ETAPE_TYPE_COPIE_AU_CS_POUR_INFO)
@@ -225,7 +225,7 @@ describe('Référentiel des types d’étapes par dossier (tranche 42, compléme
     expect(processusDuDossier('Sinistre')).toHaveLength(14)
   })
 
-  it('délai 0 du référentiel : pas neutre, l’étape enchaînée telle quelle est en retard dès le lendemain', () => {
+  it('J76 : sans délai saisi, l’étape enchaînée depuis le référentiel n’a pas de limite et n’est jamais en retard', () => {
     const processus = processusDuDossier('Sinistre')
     const declaration = creerEtapeDossier({
       id: 's-1',
@@ -239,8 +239,9 @@ describe('Référentiel des types d’étapes par dossier (tranche 42, compléme
     })
     const faite = realiserEtapeDossier(declaration, { date: '2026-11-03', compteRendu: '' }).etape
     const information = enchainerEtapeDossier(faite, processus, { id: 's-2', date: '2026-11-03', creeeParId: 'collab-A' })!
+    expect(information.limite).toBeNull()
     expect(etatEtape(information, '2026-11-03').enRetard).toBe(false)
-    expect(etatEtape(information, '2026-11-04').enRetard).toBe(true)
+    expect(etatEtape(information, '2026-11-04').enRetard).toBe(false)
   })
 })
 
@@ -469,10 +470,15 @@ describe('Délais de gestion : limites prévues et conversion en EtapeTypeProces
     expect(suivante).toMatchObject({ titre: 'Expertise', limite: '2026-11-10', creeeParId: 'collab-A', origine: 'manuelle' })
   })
 
-  it('processusDuModele : sans délai, la première étape vaut 0 (jamais lu par l’enchaînement) ; refus pour une suivante', () => {
+  it('J76 : processusDuModele garde « non saisi » (null), première étape comprise ; enchaînée, l’étape n’a pas de limite', () => {
     const premiere = fixerDelaiEtapeModele(fixerDelaiEtapeModele(modele(), 'sinistre.expertise', 7), 'sinistre.declaration_sinistre', null)
-    expect(processusDuModele(premiere)[0].delaiJours).toBe(0)
-    expect(() => processusDuModele(modele())).toThrow(/délai de gestion non saisi pour « Expertise »/)
+    expect(processusDuModele(premiere)[0].delaiJours).toBeNull()
+    const processus = processusDuModele(modele())
+    expect(processus.map((p) => p.delaiJours)).toEqual([2, null, 30])
+    const liste = instancierModele(modele(), instanciation())
+    const declaration = realiserEtapeDossier(liste.etapes[0], { date: '2026-11-03', compteRendu: '' }).etape
+    const expertise = enchainerEtapeDossier(declaration, processus, { id: 'e-9', date: '2026-11-03', creeeParId: 'collab-A' })
+    expect(expertise).toMatchObject({ titre: 'Expertise', limite: null })
   })
 
   it('modeleDuDossier : le processus Gestéam en modèle paramétrable, délais à saisir par le cabinet', () => {
@@ -714,8 +720,8 @@ describe('Reprise des pièces auprès de l’ancien syndic : second modèle (lis
     for (const etape of modeleReprise().etapes) expect(etape.instructions).not.toMatch(/délai : (pratique|apurement)/)
   })
 
-  it('converti en EtapeTypeProcessus[] une fois les délais de gestion saisis par le cabinet', () => {
-    expect(() => processusDuModele(modeleReprise())).toThrow(/délai de gestion non saisi/)
+  it('converti en EtapeTypeProcessus[] : sans délai saisi, aucun délai (J76) ; avec les délais de gestion saisis par le cabinet', () => {
+    expect(processusDuModele(modeleReprise()).every((p) => p.delaiJours === null)).toBe(true)
     const m = modeleReprise().etapes.reduce((acc, e) => fixerDelaiEtapeModele(acc, e.etapeType, 3), modeleReprise())
     const processus = processusDuModele(m)
     expect(processus).toHaveLength(12)
@@ -757,8 +763,9 @@ describe('En-tête du module : sources, décisions et points non établis', () =
     expect(texte).toContain('delais-legaux.ts')
   })
 
-  it('fidèle aux sources : sens du bouton Enchaînement déduit (tranche 35), délai 0 non neutre, J44 limité à « À faire le » et « Prévue le »', () => {
+  it('fidèle aux sources : sens du bouton Enchaînement déduit (tranche 35), aucun délai par défaut (J76), J44 limité à « À faire le » et « Prévue le »', () => {
     expect(texte).toContain("bouton Enchaînement (🔵 étape suivante d'un processus)")
+    expect(texte).not.toContain('délais du référentiel : 0 jour')
     expect(texte).not.toContain('valeur neutre')
     expect(texte).not.toContain('se reprogramme comme toute limite')
     expect(texte).not.toContain('aucun délai n’est affiché')
