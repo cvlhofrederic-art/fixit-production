@@ -1,10 +1,12 @@
+import { dateIsoVersFr, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
 import { normaliserEspaces } from '@/lib/administrateur-judiciaire/domain/texte'
 import { STATUT_MANDAT, type StatutMandat } from '@/lib/data/referentiels-gesteam-judiciaire'
 
 /**
  * Statut du mandat (point 55 du bilan 2) : lecture typée de la valeur libre `Mandat.statut` sur le référentiel
  * STATUT_MANDAT, et borne du portefeuille, du suivi « à faire » et de la balance âgée (suivi-a-faire.ts). Fonctions
- * pures, sans date, sans écran ni table : db/schema.ts garde `statut: string`, ce module le lit.
+ * pures, dates ISO (AAAA-MM-JJ) données par l'appelant, sans écran ni table : db/schema.ts garde `statut: string`, ce
+ * module le lit.
  *
  * Sources Gestéam :
  * - 🟢 Tranche 18 § 2 et tranche 24 § 1 (recherche de mandats) : Statut, cinq valeurs — Prospect · En gestion ·
@@ -26,7 +28,18 @@ import { STATUT_MANDAT, type StatutMandat } from '@/lib/data/referentiels-gestea
  *   Fixy sur le portefeuille. Prospect : mandat pas encore en gestion (aucune mission en cours) ; Archivé : mandat
  *   terminé. Une copropriété citée par son nom reste interrogeable quel que soit son statut. Un élément désigné à un
  *   collaborateur ou suivi sur tout le cabinet ne fait pas exception ; un élément du cabinet (sans mandat) n'est jamais
- *   écarté.
+ *   écarté. Exception pour Prospect : ci-dessous (F32).
+ * - Décision du 20/11/2026 (partie C, F32) : « Prospect » seulement tant qu'aucune ordonnance n'a désigné le cabinet
+ *   (simple sollicitation). Un mandat judiciaire « Prospect » dont l'appelant donne la date de l'ordonnance
+ *   (ordonnanceLe) reste SUIVI (portefeuille, « à faire », balance âgée, demandes, échéances du portefeuille, rappels et
+ *   réponses de Fixy) et une anomalie le signale (prospect_ordonnance_datee), car des délais légaux courent dès la
+ *   décision (textes cités par la décision) : portée à la connaissance des copropriétaires dans le mois de son prononcé
+ *   (D. 1967 art. 62-5), rapport intermédiaire au plus tard à l'issue des six premiers mois (L. 1965 art. 29-1, I,
+ *   al. 3), délais fixés par l'ordonnance pour l'administrateur de l'art. 47 (D. 1967 art. 47). Sans date
+ *   d'ordonnance, il reste hors suivi. Donnée : l'appelant passe ordonnanceLe (StatutDeMandat, AffectationMandat) ; les
+ *   échéances du portefeuille et Fixy la lisent dans la vue (Date de Mandat.ordonnance ; une valeur qui n'est pas une
+ *   Date vaut absence). Aucun champ ne distingue aujourd'hui une ordonnance saisie d'une valeur par défaut :
+ *   Mandat.ordonnance est obligatoire au schéma (à voir avec l'écran de création).
  * - 🔵 En clôture reste SUIVI et visible (enCloture) : la mission prend fin, des diligences de sortie peuvent rester dues
  *   selon le régime (voir le droit ci-dessous). La 5e valeur, « En gestion, en clôture », reste une valeur CONNUE :
  *   suivie, lue comme une clôture en cours (enCloture), sans être convertie ; 🔴 à confirmer par Hugo (ci-dessous).
@@ -102,9 +115,6 @@ import { STATUT_MANDAT, type StatutMandat } from '@/lib/data/referentiels-gestea
  *   l'art. 18-2 (quinze jours, un mois, puis deux mois suivants, à compter de la cessation des fonctions) ; faut-il
  *   attendre leur expiration, ou la remise effective, avant d'archiver, et s'en servir aussi pour un administrateur
  *   provisoire, qu'aucun texte n'y soumet à sa sortie ?
- * - Hugo : un mandat judiciaire peut-il être « Prospect » au cabinet (ordonnance reçue, mission pas encore acceptée) ? Si
- *   oui, ses échéances légales doivent-elles rester au suivi ? VitFix applique la règle du bilan : il sort du suivi, des
- *   échéances du portefeuille et des rappels de Fixy (branchements ci-dessus).
  * - Hugo : une balance âgée datée du passé doit-elle encore compter un mandat archivé depuis ? Le statut n'a pas
  *   d'historique (seul le statut courant est lu) : il n'est plus compté.
  * - Hugo : faut-il refuser d'archiver un mandat qui a encore des dossiers ouverts (contentieux, sinistre) ou des demandes
@@ -126,17 +136,42 @@ export type LectureStatutMandat =
 
 const STATUTS_CONNUS: ReadonlyMap<string, StatutMandat> = new Map(STATUT_MANDAT.map((statut) => [normaliserEspaces(statut), statut]))
 
-/** Lit la valeur libre de `Mandat.statut` : statut du référentiel, valeur inconnue (signalée) ou statut absent. */
-export function lireStatutMandat(valeur: string | null | undefined): LectureStatutMandat {
+/** Lecture du statut avec la date de l'ordonnance qui a désigné le cabinet (décision du 20/11/2026, partie C, F32). */
+export interface OptionsLectureStatut {
+  /** Date ISO de l'ordonnance (mandat de justice) ; absente ou null : aucune ordonnance (simple sollicitation). */
+  ordonnanceLe?: string | null
+}
+
+/** Une date d'ordonnance est donnée (et valide) ; une date mal formée est refusée. */
+function ordonnanceDatee(ordonnanceLe: string | null | undefined): boolean {
+  if (ordonnanceLe === null || ordonnanceLe === undefined) return false
+  if (!estDateIsoValide(ordonnanceLe)) throw new Error(`Date de l'ordonnance invalide (${ordonnanceLe}) : AAAA-MM-JJ attendu.`)
+  return true
+}
+
+/**
+ * Lit la valeur libre de `Mandat.statut` : statut du référentiel, valeur inconnue (signalée) ou statut absent. F32 :
+ * un « Prospect » dont la date de l'ordonnance est donnée est suivi.
+ */
+export function lireStatutMandat(valeur: string | null | undefined, { ordonnanceLe }: OptionsLectureStatut = {}): LectureStatutMandat {
+  const datee = ordonnanceDatee(ordonnanceLe)
   if (valeur === null || valeur === undefined) return { etat: 'absent', suivi: true, enCloture: false }
   const normalisee = normaliserEspaces(valeur)
   const statut = STATUTS_CONNUS.get(normalisee)
   if (statut === undefined) return { etat: 'inconnu', valeur: normalisee, suivi: true, enCloture: false }
-  return { etat: 'connu', statut, suivi: !STATUTS_HORS_SUIVI.has(statut), enCloture: STATUTS_EN_CLOTURE.has(statut) }
+  const suivi = !STATUTS_HORS_SUIVI.has(statut) || (statut === 'Prospect' && datee)
+  return { etat: 'connu', statut, suivi, enCloture: STATUTS_EN_CLOTURE.has(statut) }
 }
 
 /** Le mandat de ce statut est-il suivi ? Faux pour Prospect et Archivé ; vrai pour une valeur absente ou inconnue. */
 export const estMandatSuivi = (statut: string | null | undefined): boolean => lireStatutMandat(statut).suivi
+
+/**
+ * Même question avec la date de l'ordonnance (F32) : un « Prospect » dont l'ordonnance est datée est suivi. Pour les
+ * échéances du portefeuille et la veille de Fixy, qui lisent la vue de la copropriété.
+ */
+export const estMandatSuiviAvecOrdonnance = (statut: string | null | undefined, ordonnanceLe: string | null): boolean =>
+  lireStatutMandat(statut, { ordonnanceLe }).suivi
 
 /** « suivis » : sans les mandats Prospect ni Archivé ; « tous » : quel que soit le statut du mandat. */
 export type PorteeStatuts = 'suivis' | 'tous'
@@ -145,9 +180,11 @@ export type PorteeStatuts = 'suivis' | 'tous'
 export interface StatutDeMandat {
   mandatId: string
   statut?: string | null
+  /** Date ISO de l'ordonnance qui a désigné le cabinet ; absente ou null : aucune (F32 : « Prospect » hors suivi). */
+  ordonnanceLe?: string | null
 }
 
-export const MOTIFS_ANOMALIE_STATUT = ['valeur_inconnue', 'statuts_contradictoires'] as const
+export const MOTIFS_ANOMALIE_STATUT = ['valeur_inconnue', 'statuts_contradictoires', 'prospect_ordonnance_datee'] as const
 export type MotifAnomalieStatut = (typeof MOTIFS_ANOMALIE_STATUT)[number]
 
 export interface AnomalieStatutMandat {
@@ -159,37 +196,62 @@ export interface AnomalieStatutMandat {
 }
 
 export interface BilanStatutsMandats {
-  /** Mandats Prospect ou Archivé, sans contradiction : hors portefeuille, hors suivi, hors balance âgée. */
+  /** Mandats Prospect (sans ordonnance datée) ou Archivé, sans contradiction : hors portefeuille, hors suivi, hors balance âgée. */
   horsSuivi: Set<string>
   /** Mandats suivis dont la clôture est en cours (En clôture, En gestion, en clôture). */
   enCloture: Set<string>
-  /** Valeurs inconnues et statuts contradictoires : mandats gardés au suivi, à faire qualifier. */
+  /** Valeurs inconnues, statuts contradictoires, « Prospect » dont l'ordonnance est datée : mandats gardés au suivi, à faire qualifier. */
   anomalies: AnomalieStatutMandat[]
 }
 
 const LISTE_STATUTS = STATUT_MANDAT.map((statut) => `« ${statut} »`).join(', ')
 
-const messageAnomalie = (mandatId: string, motif: MotifAnomalieStatut, valeurs: string[]): string =>
+type MotifValeurLue = Exclude<MotifAnomalieStatut, 'prospect_ordonnance_datee'>
+
+const messageAnomalie = (mandatId: string, motif: MotifValeurLue, valeurs: string[]): string =>
   motif === 'valeur_inconnue'
     ? `Mandat ${mandatId} : statut « ${valeurs[0]} » hors du référentiel (${LISTE_STATUTS}) ; mandat gardé au suivi, statut à qualifier.`
     : `Mandat ${mandatId} : statuts contradictoires (${valeurs.map((v) => `« ${v} »`).join(', ')}) ; mandat gardé au suivi, statut à qualifier.`
 
-const anomalie = (mandatId: string, motif: MotifAnomalieStatut, valeurs: string[]): AnomalieStatutMandat => ({
+const anomalie = (mandatId: string, motif: MotifValeurLue, valeurs: string[]): AnomalieStatutMandat => ({
   mandatId,
   motif,
   valeurs,
   message: messageAnomalie(mandatId, motif, valeurs),
 })
 
+/** Décision du 20/11/2026 (partie C, F32) : « Prospect » dont l'ordonnance est datée, gardé au suivi. */
+const anomalieProspect = (mandatId: string, ordonnanceLe: string): AnomalieStatutMandat => ({
+  mandatId,
+  motif: 'prospect_ordonnance_datee',
+  valeurs: ['Prospect'],
+  message: `Mandat ${mandatId} : « Prospect » alors que l'ordonnance du ${dateIsoVersFr(ordonnanceLe)} a désigné le cabinet ; mandat gardé au suivi (échéances du portefeuille, rappels de Fixy), statut à qualifier.`,
+})
+
 type LectureTransmise = Exclude<LectureStatutMandat, { etat: 'absent' }>
 
 const valeurLue = (lecture: LectureTransmise): string => (lecture.etat === 'connu' ? lecture.statut : lecture.valeur)
 
+/** Dates données pour un mandat : la première non nulle de ses lignes. */
+interface ReperesMandat {
+  ordonnanceLe: string | null
+}
+
+function reperesParMandat(mandats: readonly StatutDeMandat[]): Map<string, ReperesMandat> {
+  const reperes = new Map<string, ReperesMandat>()
+  for (const { mandatId, ordonnanceLe } of mandats) {
+    const repere = reperes.get(mandatId) ?? { ordonnanceLe: null }
+    repere.ordonnanceLe ??= ordonnanceLe ?? null
+    reperes.set(mandatId, repere)
+  }
+  return reperes
+}
+
 /** Lectures par mandat, une par valeur (normalisée), dans l'ordre d'arrivée ; les statuts absents n'y sont pas. */
-function lecturesParMandat(mandats: readonly StatutDeMandat[]): Map<string, Map<string, LectureTransmise>> {
+function lecturesParMandat(mandats: readonly StatutDeMandat[], reperes: ReadonlyMap<string, ReperesMandat>): Map<string, Map<string, LectureTransmise>> {
   const parMandat = new Map<string, Map<string, LectureTransmise>>()
   for (const { mandatId, statut } of mandats) {
-    const lecture = lireStatutMandat(statut)
+    const lecture = lireStatutMandat(statut, reperes.get(mandatId))
     if (lecture.etat === 'absent') continue
     const lectures = parMandat.get(mandatId) ?? new Map<string, LectureTransmise>()
     if (!lectures.has(valeurLue(lecture))) lectures.set(valeurLue(lecture), lecture)
@@ -199,15 +261,19 @@ function lecturesParMandat(mandats: readonly StatutDeMandat[]): Map<string, Map<
 }
 
 /**
- * Lit le statut de chaque mandat transmis : mandats hors suivi (Prospect, Archivé), mandats en clôture, anomalies
- * (valeur inconnue, ou deux statuts différents pour le même mandat). Un mandat en anomalie reste suivi.
+ * Lit le statut de chaque mandat transmis : mandats hors suivi (Prospect sans ordonnance datée, Archivé), mandats en
+ * clôture, anomalies (valeur inconnue, deux statuts différents pour le même mandat, « Prospect » dont l'ordonnance est
+ * datée : F32). Un mandat en anomalie reste suivi.
  */
 export function bilanStatutsMandats(mandats: readonly StatutDeMandat[]): BilanStatutsMandats {
   const bilan: BilanStatutsMandats = { horsSuivi: new Set(), enCloture: new Set(), anomalies: [] }
-  for (const [mandatId, parValeur] of lecturesParMandat(mandats)) {
+  const reperes = reperesParMandat(mandats)
+  for (const [mandatId, parValeur] of lecturesParMandat(mandats, reperes)) {
     const [lecture, ...autres] = parValeur.values()
+    const ordonnanceLe = reperes.get(mandatId)?.ordonnanceLe ?? null
     if (autres.length > 0) bilan.anomalies.push(anomalie(mandatId, 'statuts_contradictoires', [...parValeur.keys()]))
     else if (lecture.etat === 'inconnu') bilan.anomalies.push(anomalie(mandatId, 'valeur_inconnue', [lecture.valeur]))
+    else if (lecture.statut === 'Prospect' && ordonnanceLe !== null) bilan.anomalies.push(anomalieProspect(mandatId, ordonnanceLe))
     else if (!lecture.suivi) bilan.horsSuivi.add(mandatId)
     else if (lecture.enCloture) bilan.enCloture.add(mandatId)
   }
@@ -232,11 +298,14 @@ export function demandesDesMandatsSuivis<T extends { demande: { mandatId: string
   return items.filter((item) => !mandatHorsSuivi(item.demande.mandatId, horsSuivi))
 }
 
-/** Mandats que l'écran du portefeuille garde : tous sauf Prospect et Archivé ; les anomalies sont à afficher. */
-export function filtrerMandatsSuivis<T extends { id: string; statut?: string | null }>(
+/**
+ * Mandats que l'écran du portefeuille garde : tous sauf Prospect (sans ordonnance datée, F32) et Archivé ; les anomalies
+ * sont à afficher.
+ */
+export function filtrerMandatsSuivis<T extends { id: string; statut?: string | null; ordonnanceLe?: string | null }>(
   mandats: readonly T[],
 ): { suivis: T[]; horsSuivi: T[]; anomalies: AnomalieStatutMandat[] } {
-  const { horsSuivi, anomalies } = bilanStatutsMandats(mandats.map((m) => ({ mandatId: m.id, statut: m.statut })))
+  const { horsSuivi, anomalies } = bilanStatutsMandats(mandats.map((m) => ({ mandatId: m.id, statut: m.statut, ordonnanceLe: m.ordonnanceLe })))
   return {
     suivis: mandats.filter((m) => !horsSuivi.has(m.id)),
     horsSuivi: mandats.filter((m) => horsSuivi.has(m.id)),

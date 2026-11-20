@@ -9,7 +9,7 @@ import {
   type EcheanceCalculee,
 } from '@/lib/administrateur-judiciaire/domain/delais-legaux'
 import { regimeDepuisFondement } from '@/lib/administrateur-judiciaire/domain/fondements'
-import { estMandatSuivi, type PorteeStatuts } from '@/lib/administrateur-judiciaire/domain/statut-mandat'
+import { estMandatSuiviAvecOrdonnance, type PorteeStatuts } from '@/lib/administrateur-judiciaire/domain/statut-mandat'
 import type { CoproprieteVue } from '@/lib/administrateur-judiciaire/domain/coproprietes'
 
 /**
@@ -19,6 +19,8 @@ import type { CoproprieteVue } from '@/lib/administrateur-judiciaire/domain/copr
  * portefeuille (listerEcheancesPortefeuille, portée « suivis » par défaut) écartent les mandats Prospect et Archivé ;
  * « En clôture », une valeur absente ou inconnue les gardent. Les échéances d'UNE copropriété
  * (calculerEcheancesCopropriete : fiche 360, reprise) ne sont pas bornées par le statut.
+ * Décision du 20/11/2026 (partie C, F32) : un mandat « Prospect » dont l'ordonnance est datée (Date de la vue) garde
+ * ses échéances au portefeuille ; sans ordonnance, il en sort.
  */
 
 /** Champs d'une copropriété lus pour construire le contexte du moteur. */
@@ -92,7 +94,7 @@ export type EtatMoteur = 'chargement' | 'indisponible' | 'introuvable' | 'ordonn
 export type CoproprieteMoteur = Pick<CoproprieteVue, 'code' | 'fondement' | 'dureeMois' | 'notifOrdonnance'> & {
   ordonnance?: unknown
   echeance?: unknown
-  /** Valeur libre de `Mandat.statut` (CoproprieteVue.statut), lue par statut-mandat.estMandatSuivi (point 55). */
+  /** Valeur libre de `Mandat.statut` (CoproprieteVue.statut), lue par statut-mandat (point 55 ; F32 avec l'ordonnance). */
   statut?: string | null
 }
 
@@ -158,14 +160,14 @@ export interface EcheancePortefeuille<C = CoproprieteVue> {
 
 /**
  * Toutes les échéances du portefeuille, triées par date retenue (sans date en dernier) : sans les mandats Prospect ni
- * Archivé (point 55), sauf portée « tous ».
+ * Archivé (point 55), sauf portée « tous » ; un Prospect dont l'ordonnance est datée y reste (F32).
  */
 export function listerEcheancesPortefeuille<C extends CoproprieteMoteur>(
   copros: C[],
   portee: PorteeStatuts = 'suivis',
 ): EcheancePortefeuille<C>[] {
   return copros
-    .filter((copro) => portee === 'tous' || estMandatSuivi(copro.statut))
+    .filter((copro) => portee === 'tous' || estMandatSuiviAvecOrdonnance(copro.statut, dateVersIsoMoteur(copro.ordonnance)))
     .flatMap((copro) =>
       calculerEcheancesCopropriete(copro).echeances.map((echeance) => ({
         copro,

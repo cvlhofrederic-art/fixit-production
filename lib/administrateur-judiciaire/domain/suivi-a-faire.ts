@@ -131,9 +131,10 @@ import type { StatutAssemblee, StatutContrat, TypeContrat } from '@/lib/data/ref
  * 🔵 Statut du mandat (point 55, statut-mandat.ts ; Gestéam tranche 41) : un mandat Prospect ou Archivé sort du
  * portefeuille, du suivi « à faire » (même désigné ou suivi sur tout le cabinet), des demandes en cours d'une entreprise
  * (depuisDemandes) et de la balance âgée ; « En clôture » et « En gestion, en clôture » restent suivis ; une valeur
- * inconnue garde le mandat, l'anomalie se lit par bilanStatutsMandats(affectations). Le statut COURANT s'applique, même à
- * une balance âgée datée du passé (aucun historique du statut). Aucun texte ne règle ce statut (relevé du 03/11/2026) :
- * règle de GESTION.
+ * inconnue garde le mandat, l'anomalie se lit par bilanStatutsMandats(affectations) ; un « Prospect » dont l'ordonnance
+ * est datée (ordonnanceLe) reste suivi, avec une anomalie (décision du 20/11/2026, partie C, F32). Le statut COURANT
+ * s'applique, même à une balance âgée datée du passé (aucun historique du statut). Aucun texte ne règle ce statut (relevé
+ * du 03/11/2026) : règle de GESTION.
  * 🔵 Lots (point 71, assurance-pno-lots.ts ; Gestéam tranche 43 § 17, statut PNO des lots avec échéance) : famille
  * AJOUTÉE par VitFix — aucun bloc PNO dans le réglage Gestéam du syndic (tranche 38 ; seul le bloc « Baux », en
  * gérance, suit des « Attestations Assurance »). Attestation PNO à renouveler à son échéance, même dépassée ; à obtenir
@@ -273,6 +274,8 @@ export interface AffectationMandat extends RolesMandat {
    * mandat du portefeuille, du suivi et de la balance âgée ; absente ou inconnue, le mandat reste suivi.
    */
   statut?: string | null
+  /** Date ISO de l'ordonnance qui a désigné le cabinet : un « Prospect » qui la porte reste suivi (statut-mandat.ts, F32). */
+  ordonnanceLe?: string | null
 }
 
 const CHAMP_ROLE: Record<RoleMandat, keyof RolesMandat> = {

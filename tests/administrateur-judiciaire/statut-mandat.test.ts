@@ -22,6 +22,7 @@ import {
   bilanStatutsMandats,
   demandesDesMandatsSuivis,
   estMandatSuivi,
+  estMandatSuiviAvecOrdonnance,
   filtrerMandatsSuivis,
   lireStatutMandat,
   mandatHorsSuivi,
@@ -389,7 +390,6 @@ describe('en-tête du module', () => {
     expect(item('Hugo : « En gestion, en clôture »')).toMatch(/\?/)
     expect(item('Frédéric et Hugo : `Mandat.statut`')).toMatch(/\?/)
     expect(item('Hugo : quand un mandat passe-t-il')).toMatch(/\?/)
-    expect(item('Hugo : un mandat judiciaire peut-il être « Prospect »')).toMatch(/\?/)
     expect(item('Hugo : une balance âgée datée du passé')).toMatch(/\?/)
     expect(item("Hugo : faut-il refuser d'archiver")).toMatch(/\?/)
     expect(texte).toMatch(/L\. 1965 art\. 29-1, IV/)
@@ -414,9 +414,60 @@ describe('estMandatSuivi et mandatHorsSuivi — prédicats partagés', () => {
   })
 })
 
+describe('décision du 20/11/2026 (partie C, F32) — « Prospect » dont l’ordonnance est datée : suivi et anomalie', () => {
+  it('lireStatutMandat : « Prospect » suivi dès que la date de l’ordonnance est donnée ; sans elle, hors suivi comme avant', () => {
+    expect(lireStatutMandat('Prospect', { ordonnanceLe: '2026-09-01' })).toEqual({ etat: 'connu', statut: 'Prospect', suivi: true, enCloture: false })
+    expect(lireStatutMandat('Prospect', { ordonnanceLe: null })).toMatchObject({ suivi: false })
+    expect(lireStatutMandat('Prospect')).toMatchObject({ suivi: false })
+    // La date de l'ordonnance ne garde pas un mandat archivé : seul « Prospect » est concerné.
+    expect(lireStatutMandat('Archivé', { ordonnanceLe: '2026-09-01' })).toMatchObject({ suivi: false })
+    expect(() => lireStatutMandat('Prospect', { ordonnanceLe: '01/09/2026' })).toThrow(/ordonnance.*AAAA-MM-JJ/)
+    expect([estMandatSuiviAvecOrdonnance('Prospect', '2026-09-01'), estMandatSuiviAvecOrdonnance('Prospect', null)]).toEqual([true, false])
+  })
+
+  it('bilanStatutsMandats et filtrerMandatsSuivis : mandat gardé au suivi, anomalie « prospect_ordonnance_datee »', () => {
+    const bilan = bilanStatutsMandats([
+      { mandatId: 'M-po', statut: 'Prospect', ordonnanceLe: '2026-09-01' },
+      { mandatId: 'M-ps', statut: 'Prospect' },
+    ])
+    expect([...bilan.horsSuivi]).toEqual(['M-ps'])
+    expect(bilan.anomalies).toEqual([
+      {
+        mandatId: 'M-po',
+        motif: 'prospect_ordonnance_datee',
+        valeurs: ['Prospect'],
+        message:
+          "Mandat M-po : « Prospect » alors que l'ordonnance du 01/09/2026 a désigné le cabinet ; mandat gardé au suivi (échéances du portefeuille, rappels de Fixy), statut à qualifier.",
+      },
+    ])
+    const { suivis, horsSuivi, anomalies } = filtrerMandatsSuivis([
+      { id: 'A', statut: 'Prospect', ordonnanceLe: '2026-09-01' },
+      { id: 'B', statut: 'Prospect', ordonnanceLe: null },
+    ])
+    expect([suivis.map((m) => m.id), horsSuivi.map((m) => m.id), anomalies.map((a) => a.motif)]).toEqual([['A'], ['B'], ['prospect_ordonnance_datee']])
+  })
+
+  it('portefeuille, suivi « à faire » et demandes : le « Prospect » dont l’ordonnance est datée y reste', () => {
+    const avecOrdonnance = affectations.map((a) => (a.mandatId === 'M-prospect' ? { ...a, ordonnanceLe: '2026-09-01' } : a))
+    expect(portefeuille('u1', avecOrdonnance).has('M-prospect')).toBe(true)
+    const elements = avecOrdonnance.map((a) => element(a.mandatId, a.mandatId))
+    expect(selectionnerAFaire(elements, reglageParDefaut('u1'), avecOrdonnance, AUJOURDHUI).map((e) => e.mandatId)).toContain('M-prospect')
+    const items = [{ demande: devis('dev-prospect', 'M-prospect', '2026-10-06') }]
+    expect(demandesDesMandatsSuivis(items, avecOrdonnance)).toEqual(items)
+  })
+
+  it('en-tête : la question du « Prospect » est remplacée par la décision', () => {
+    const { texte } = enTeteDuModule('statut-mandat')
+    expect(texte).not.toMatch(/un mandat judiciaire peut-il être « Prospect »/)
+    expect(texte).toMatch(
+      /Décision du 20\/11\/2026 \(partie C, F32\) : « Prospect » seulement tant qu'aucune ordonnance n'a désigné le cabinet \(simple sollicitation\).*D\. 1967 art\. 62-5.*L\. 1965 art\. 29-1, I, al\. 3.*D\. 1967 art\. 47/,
+    )
+  })
+})
+
 describe('échéances du portefeuille et veille de Fixy — un mandat archivé ne produit plus d’« à faire »', () => {
-  /** Administrateur provisoire de l'art. 47, ordonnance du 01/09/2026, notification non faite. */
-  const vue = (code: string, statut: string): CoproprieteVue =>
+  /** Administrateur provisoire de l'art. 47, ordonnance du 01/09/2026 (null : aucune ordonnance), notification non faite. */
+  const vue = (code: string, statut: string, ordonnance: Date | null = new Date(2026, 8, 1)): CoproprieteVue =>
     fusionnerCoproMandat(
       {
         id: `copro-${code}`,
@@ -433,23 +484,32 @@ describe('échéances du portefeuille et veille de Fixy — un mandat archivé n
       {
         id: `M-${code}`,
         fondement: 'Administrateur provisoire (art. 47)',
-        ordonnance: new Date(2026, 8, 1),
+        ordonnance,
         dureeMois: 12,
         echeance: new Date(2027, 8, 1),
         statut,
         notifOrdonnance: 'À faire',
       },
     )
-  const vues = [vue('ZAR', 'Archivé'), vue('ZPR', 'Prospect'), vue('ZEC', 'En clôture'), vue('ZEG', 'En gestion'), vue('ZMQ', 'En cours')]
+  // ZPR : « Prospect » dont l'ordonnance est datée, gardé au suivi (décision du 20/11/2026, partie C, F32) ;
+  // ZPS : « Prospect » sans ordonnance (simple sollicitation), hors suivi.
+  const vues = [
+    vue('ZAR', 'Archivé'),
+    vue('ZPR', 'Prospect'),
+    vue('ZPS', 'Prospect', null),
+    vue('ZEC', 'En clôture'),
+    vue('ZEG', 'En gestion'),
+    vue('ZMQ', 'En cours'),
+  ]
   const codes = (items: { copro: { code: string } }[]) => [...new Set(items.map((i) => i.copro.code))].sort()
 
-  it('listerEcheancesPortefeuille (Cockpit, Calendrier réglementaire) écarte Prospect et Archivé ; En clôture et la valeur inconnue restent', () => {
-    expect(codes(listerEcheancesPortefeuille(vues))).toEqual(['ZEC', 'ZEG', 'ZMQ'])
+  it('listerEcheancesPortefeuille (Cockpit, Calendrier réglementaire) écarte Archivé et le Prospect sans ordonnance ; le Prospect dont l’ordonnance est datée reste (F32)', () => {
+    expect(codes(listerEcheancesPortefeuille(vues))).toEqual(['ZEC', 'ZEG', 'ZMQ', 'ZPR'])
     expect(codes(listerEcheancesPortefeuille(vues, 'tous'))).toEqual(['ZAR', 'ZEC', 'ZEG', 'ZMQ', 'ZPR'])
   })
 
   it('les obligations en cours (écran Obligations & échéances) suivent la même borne', () => {
-    expect(codes(filtrerObligationsEnCours(listerEcheancesPortefeuille(vues)))).toEqual(['ZEC', 'ZEG', 'ZMQ'])
+    expect(codes(filtrerObligationsEnCours(listerEcheancesPortefeuille(vues)))).toEqual(['ZEC', 'ZEG', 'ZMQ', 'ZPR'])
   })
 
   it('la recherche globale, qui n’est pas une liste d’« à faire », garde les échéances d’un mandat archivé', () => {
@@ -458,24 +518,26 @@ describe('échéances du portefeuille et veille de Fixy — un mandat archivé n
     expect([...echeances].sort()).toEqual(['ZAR', 'ZEC', 'ZEG', 'ZMQ', 'ZPR'])
   })
 
-  it('la veille de Fixy ne donne aucun rappel pour un mandat Prospect ou Archivé ; En clôture en donne', () => {
-    const donnees = { lots: [], coproprietaires: [], echeances: [], contrats: [], sinistres: [], prestataires: [] }
-    const fiches = vues.map((v) => construireFiche360Copropriete(v, donnees, AUJOURDHUI))
+  /** Un copropriétaire débiteur par copropriété (données fictives). */
+  const donneesFiche = {
+    lots: vues.map((v) => ({ id: `lot-${v.code}`, coproprieteId: v.id, numero: '1' })),
+    coproprietaires: vues.map((v) => ({ id: `p-${v.code}`, lotId: `lot-${v.code}`, nom: `Débiteur ${v.code}`, solde: -100, statut: 'Impayé' })),
+    echeances: [],
+    contrats: [],
+    sinistres: [],
+    prestataires: [],
+  }
+
+  it('la veille de Fixy ne donne aucun rappel pour un mandat Archivé ou un Prospect sans ordonnance ; En clôture et le Prospect dont l’ordonnance est datée en donnent (F32)', () => {
+    const fiches = vues.map((v) => construireFiche360Copropriete(v, donneesFiche, AUJOURDHUI))
     const rappels = calculerVeilleFixy({ reference: AUJOURDHUI, fiches, impayes: [], piecesRecues: [], nbPieces: 0 })
     expect(rappels.map((r) => r.id)).toContain('notif:ZEC')
-    expect([...new Set(rappels.map((r) => r.id.split(':')[1]))].sort()).toEqual(['ZEC', 'ZEG', 'ZMQ'])
+    expect(rappels.map((r) => r.id)).toContain('notif:ZPR')
+    expect(rappels.map((r) => r.id)).not.toContain('deb:p-ZPS')
+    expect([...new Set(rappels.map((r) => r.id.split(':')[1].replace('p-', '')))].sort()).toEqual(['ZEC', 'ZEG', 'ZMQ', 'ZPR'])
   })
 
-  describe('réponse de Fixy à une demande libre — le portefeuille sans Prospect ni Archivé, une copropriété citée sur tous les statuts', () => {
-    /** Un copropriétaire débiteur par copropriété (données fictives). */
-    const donneesFiche = {
-      lots: vues.map((v) => ({ id: `lot-${v.code}`, coproprieteId: v.id, numero: '1' })),
-      coproprietaires: vues.map((v) => ({ id: `p-${v.code}`, lotId: `lot-${v.code}`, nom: `Débiteur ${v.code}`, solde: -100, statut: 'Impayé' })),
-      echeances: [],
-      contrats: [],
-      sinistres: [],
-      prestataires: [],
-    }
+  describe('réponse de Fixy à une demande libre — le portefeuille sans Archivé ni Prospect sans ordonnance, une copropriété citée sur tous les statuts', () => {
     const fiches = new Map(vues.map((v) => [v.code, construireFiche360Copropriete(v, donneesFiche, AUJOURDHUI)]))
     const donnees: DonneesFixy = {
       reference: AUJOURDHUI,
@@ -496,13 +558,13 @@ describe('échéances du portefeuille et veille de Fixy — un mandat archivé n
       "2 copropriétés hors suivi (mandat Prospect ou Archivé) ne sont pas comptées ; cite la copropriété pour l'interroger."
 
     it.each(['Qu’est-ce que j’ai à faire ?', 'Quelles échéances sont en retard ?'])(
-      '« %s » : aucune échéance d’un mandat Prospect ou Archivé ; En clôture et la valeur inconnue restent ; les mandats écartés sont dits',
+      '« %s » : aucune échéance d’un mandat Archivé ; En clôture, la valeur inconnue et le Prospect dont l’ordonnance est datée restent ; les mandats écartés sont dits',
       (texte) => {
         const { intention, reponse } = demander(texte)
         expect([intention.type, intention.cible]).toEqual(['echeances', null])
         expect(reponse.titre).toBe('Échéances légales au 03/11/2026')
-        expect(coprosCitees(reponse.lignes)).toEqual(['ZEC', 'ZEG', 'ZMQ'])
-        expect(reponse.lignes.some((l) => /ZAR|ZPR/.test(l))).toBe(false)
+        expect(coprosCitees(reponse.lignes)).toEqual(['ZEC', 'ZEG', 'ZMQ', 'ZPR'])
+        expect(reponse.lignes.some((l) => /ZAR|ZPS/.test(l))).toBe(false)
         expect(reponse.lignes.at(-1)).toBe(NOTE_HORS_SUIVI)
         expect(reponse.actions.map((a) => a.id)).toEqual(['nav:cockpit:'])
       },
@@ -511,8 +573,8 @@ describe('échéances du portefeuille et veille de Fixy — un mandat archivé n
     it('les débiteurs du portefeuille suivent la même borne que la balance âgée', () => {
       const { intention, reponse } = demander('Qui sont les débiteurs ?')
       expect([intention.type, intention.cible]).toEqual(['debiteurs', null])
-      expect(reponse.titre).toMatch(/^3 débiteurs · /)
-      expect(coprosCitees(reponse.lignes)).toEqual(['ZEC', 'ZEG', 'ZMQ'])
+      expect(reponse.titre).toMatch(/^4 débiteurs · /)
+      expect(coprosCitees(reponse.lignes)).toEqual(['ZEC', 'ZEG', 'ZMQ', 'ZPR'])
       expect(reponse.lignes.at(-1)).toBe(NOTE_HORS_SUIVI)
     })
 
@@ -521,23 +583,23 @@ describe('échéances du portefeuille et veille de Fixy — un mandat archivé n
       expect(echeances.intention.cible?.selection?.code).toBe('ZAR')
       expect(coprosCitees(echeances.reponse.lignes)).toEqual(['ZAR'])
       expect(echeances.reponse.lignes.some((l) => l.includes('hors suivi'))).toBe(false)
-      const debiteurs = demander('Débiteurs de la copropriété ZPR ?')
+      const debiteurs = demander('Débiteurs de la copropriété ZPS ?')
       expect(debiteurs.reponse.titre).toMatch(/^1 débiteur · /)
-      expect(coprosCitees(debiteurs.reponse.lignes)).toEqual(['ZPR'])
+      expect(coprosCitees(debiteurs.reponse.lignes)).toEqual(['ZPS'])
       expect(debiteurs.reponse.lignes.some((l) => l.includes('hors suivi'))).toBe(false)
     })
 
     it('un portefeuille sans mandat suivi : aucune échéance, et la note le dit', () => {
-      const seuls: DonneesFixy = { ...donnees, copros: donnees.copros.filter((c) => c.code === 'ZAR' || c.code === 'ZPR') }
+      const seuls: DonneesFixy = { ...donnees, copros: donnees.copros.filter((c) => c.code === 'ZAR' || c.code === 'ZPS') }
       expect(demander('Qu’est-ce que j’ai à faire ?', seuls).reponse.lignes).toEqual(['Aucune échéance datée en cours.', NOTE_HORS_SUIVI])
       expect(demander('Qui sont les débiteurs ?', seuls).reponse.lignes).toEqual(['Aucun débiteur enregistré.', NOTE_HORS_SUIVI])
     })
 
     it('sans mandat écarté, la réponse ne porte aucune note', () => {
-      const suivis: DonneesFixy = { ...donnees, copros: donnees.copros.filter((c) => c.code !== 'ZAR' && c.code !== 'ZPR') }
+      const suivis: DonneesFixy = { ...donnees, copros: donnees.copros.filter((c) => c.code !== 'ZAR' && c.code !== 'ZPS') }
       const { reponse } = demander('Qu’est-ce que j’ai à faire ?', suivis)
       expect(reponse.lignes.some((l) => l.includes('hors suivi'))).toBe(false)
-      expect(coprosCitees(reponse.lignes)).toEqual(['ZEC', 'ZEG', 'ZMQ'])
+      expect(coprosCitees(reponse.lignes)).toEqual(['ZEC', 'ZEG', 'ZMQ', 'ZPR'])
     })
   })
 })
