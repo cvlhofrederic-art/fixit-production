@@ -1,18 +1,21 @@
 import { sendEmail } from './email'
+import { echapperHtmlEmail as e, texteSurUneLigne } from './sanitize'
 import type { RFQ, RFQItem } from './rfq-types'
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://vitfix.io'
 
+// Titre, message et lignes sont saisis par la société, le nom vient de la fiche du fournisseur : dans le HTML, chaque
+// valeur passe par e() (fonction commune, lib/sanitize.ts) et ne devient jamais du balisage.
 export function buildSupplierEmailHTML(rfq: RFQ, items: RFQItem[], offerToken: string, supplierName: string): string {
   const lang = rfq.country === 'PT' ? 'pt' : 'fr'
   const offerUrl = `${BASE_URL}/rfq/repondre/${offerToken}`
 
   const itemsRows = items.map(item => `
     <tr>
-      <td style="padding:8px 12px;border-bottom:1px solid #e8e8e4;">${item.product_name}${item.product_ref ? ` (${item.product_ref})` : ''}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid #e8e8e4;text-align:center;">${item.quantity} ${item.unit}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid #e8e8e4;color:#888;">${item.category || '—'}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid #e8e8e4;color:#666;font-size:12px;">${item.notes || ''}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e8e8e4;">${e(item.product_name)}${item.product_ref ? ` (${e(item.product_ref)})` : ''}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e8e8e4;text-align:center;">${e(item.quantity)} ${e(item.unit)}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e8e8e4;color:#888;">${e(item.category || '—')}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e8e8e4;color:#666;font-size:12px;">${e(item.notes || '')}</td>
     </tr>
   `).join('')
 
@@ -27,13 +30,13 @@ export function buildSupplierEmailHTML(rfq: RFQ, items: RFQItem[], offerToken: s
       <span style="color:#666;font-size:13px;">— Pedido de Orçamento Profissional</span>
     </div>
     <div style="padding:28px 24px;">
-      <p style="font-size:14px;color:#555;margin:0 0 16px;">Olá ${supplierName},</p>
+      <p style="font-size:14px;color:#555;margin:0 0 16px;">Olá ${e(supplierName)},</p>
       <p style="font-size:14px;color:#333;margin:0 0 20px;">Recebeu um novo pedido de orçamento de uma empresa de construção através da plataforma Vitfix.</p>
 
       <div style="background:#f7f7f5;border:1px solid #e8e8e4;border-radius:4px;padding:16px;margin:0 0 20px;">
         <p style="margin:0 0 8px;font-size:12px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.05em;">Referência</p>
-        <p style="margin:0;font-size:15px;font-weight:600;color:#0d0d0d;">${rfq.title}</p>
-        ${rfq.message ? `<p style="margin:8px 0 0;font-size:13px;color:#555;">${rfq.message}</p>` : ''}
+        <p style="margin:0;font-size:15px;font-weight:600;color:#0d0d0d;">${e(rfq.title)}</p>
+        ${rfq.message ? `<p style="margin:8px 0 0;font-size:13px;color:#555;">${e(rfq.message)}</p>` : ''}
       </div>
 
       <p style="margin:0 0 12px;font-size:12px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.05em;">Materiais Solicitados</p>
@@ -49,7 +52,7 @@ export function buildSupplierEmailHTML(rfq: RFQ, items: RFQItem[], offerToken: s
         <tbody>${itemsRows}</tbody>
       </table>
 
-      <a href="${offerUrl}" style="display:inline-block;background:#ffd600;color:#0d0d0d;font-weight:600;font-size:14px;padding:12px 28px;border-radius:4px;text-decoration:none;">Responder ao Pedido →</a>
+      <a href="${e(offerUrl)}" style="display:inline-block;background:#ffd600;color:#0d0d0d;font-weight:600;font-size:14px;padding:12px 28px;border-radius:4px;text-decoration:none;">Responder ao Pedido →</a>
       <p style="margin:16px 0 0;font-size:12px;color:#aaa;">Este link é válido durante 7 dias. Não necessita de criar uma conta.</p>
     </div>
     <div style="background:#f7f7f5;padding:16px 24px;border-top:1px solid #e8e8e4;">
@@ -70,13 +73,13 @@ export function buildSupplierEmailHTML(rfq: RFQ, items: RFQItem[], offerToken: s
       <span style="color:#666;font-size:13px;margin-left:12px;">— Demande de Devis Professionnel</span>
     </div>
     <div style="padding:28px 24px;">
-      <p style="font-size:14px;color:#555;margin:0 0 16px;">Bonjour ${supplierName},</p>
+      <p style="font-size:14px;color:#555;margin:0 0 16px;">Bonjour ${e(supplierName)},</p>
       <p style="font-size:14px;color:#333;margin:0 0 20px;">Vous avez reçu une nouvelle demande de devis d'une société BTP via la plateforme Vitfix.</p>
 
       <div style="background:#f7f7f5;border:1px solid #e8e8e4;border-radius:4px;padding:16px;margin:0 0 20px;">
         <p style="margin:0 0 8px;font-size:12px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.05em;">Référence</p>
-        <p style="margin:0;font-size:15px;font-weight:600;color:#0d0d0d;">${rfq.title}</p>
-        ${rfq.message ? `<p style="margin:8px 0 0;font-size:13px;color:#555;">${rfq.message}</p>` : ''}
+        <p style="margin:0;font-size:15px;font-weight:600;color:#0d0d0d;">${e(rfq.title)}</p>
+        ${rfq.message ? `<p style="margin:8px 0 0;font-size:13px;color:#555;">${e(rfq.message)}</p>` : ''}
       </div>
 
       <p style="margin:0 0 12px;font-size:12px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.05em;">Matériaux demandés</p>
@@ -92,7 +95,7 @@ export function buildSupplierEmailHTML(rfq: RFQ, items: RFQItem[], offerToken: s
         <tbody>${itemsRows}</tbody>
       </table>
 
-      <a href="${offerUrl}" style="display:inline-block;background:#ffd600;color:#0d0d0d;font-weight:600;font-size:14px;padding:12px 28px;border-radius:4px;text-decoration:none;">Répondre à la demande →</a>
+      <a href="${e(offerUrl)}" style="display:inline-block;background:#ffd600;color:#0d0d0d;font-weight:600;font-size:14px;padding:12px 28px;border-radius:4px;text-decoration:none;">Répondre à la demande →</a>
       <p style="margin:16px 0 0;font-size:12px;color:#aaa;">Ce lien est valable 7 jours. Aucun compte requis pour répondre.</p>
     </div>
     <div style="background:#f7f7f5;padding:16px 24px;border-top:1px solid #e8e8e4;">
@@ -108,13 +111,15 @@ export async function sendRFQToSuppliers(
   items: RFQItem[],
   suppliers: Array<{ id: string; name: string; email: string; token: string }>
 ): Promise<void> {
+  // L'objet est du texte brut : pas d'échappement HTML (des entités s'y afficheraient), mais une seule ligne.
+  const titre = texteSurUneLigne(rfq.title)
   const emails = suppliers.map(s => ({
     to: s.email,
     subject: rfq.country === 'PT'
-      ? `Novo pedido de orçamento — ${rfq.title}`
-      : `Nouvelle demande de devis — ${rfq.title}`,
+      ? `Novo pedido de orçamento — ${titre}`
+      : `Nouvelle demande de devis — ${titre}`,
     html: buildSupplierEmailHTML(rfq, items, s.token, s.name),
   }))
 
-  await Promise.allSettled(emails.map(e => sendEmail(e)))
+  await Promise.allSettled(emails.map(message => sendEmail(message)))
 }

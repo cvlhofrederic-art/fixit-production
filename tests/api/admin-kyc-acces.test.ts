@@ -15,10 +15,13 @@ import {
 
 const h = vi.hoisted(() => {
   const resultatListe = { data: [] as unknown[], error: null, count: 0 }
-  const resultatMaj = { data: { email: null, first_name: null, last_name: null, company_name: null, kyc_market: 'fr' }, error: null }
+  // Dossier d'artisan lu avant la décision (sans adresse : aucun e-mail), puis ligne relue après l'écriture
+  const resultatDossier = { data: { id: 'dossier', user_id: null, email: null, company_name: null, kyc_market: 'fr_artisan' }, error: null }
+  const resultatMaj = { data: { id: 'dossier' }, error: null }
   const chaine: Record<string, ReturnType<typeof vi.fn>> = {}
   for (const m of ['select', 'eq', 'order', 'update']) chaine[m] = vi.fn(() => chaine)
   chaine.range = vi.fn(async () => resultatListe)
+  chaine.maybeSingle = vi.fn(async () => resultatDossier)
   chaine.single = vi.fn(async () => resultatMaj)
   return { user: null as User | null, chaine, from: vi.fn(() => chaine) }
 })
@@ -118,7 +121,7 @@ describe('PATCH /api/admin/kyc — contrôle d\'accès', () => {
     h.user = superAdminAutorise()
     const res = await PATCH(requetePatch())
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ success: true, status: 'approved' })
+    expect(await res.json()).toEqual({ success: true, status: 'approved', email_envoye: false })
     expect(h.chaine.update).toHaveBeenCalledTimes(1)
   })
 })

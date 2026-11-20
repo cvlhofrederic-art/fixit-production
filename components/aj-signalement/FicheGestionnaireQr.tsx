@@ -20,13 +20,14 @@
 // Relecture du correctif : rien ne change avant la fin de l'attente ; la fiche relue est posée en même temps que la
 // fermeture et le message (une fiche relue avant les listes réécrivait la fenêtre de départ encore ouverte) ; l'attente
 // est bornée (attenteListesQr) : une lecture sans réponse ne bloque plus l'action.
-// Bureaux des cabinets (migration 20261119, écran E4 du plan des bureaux, BROUILLON soumis avant fusion) : « Cabinet ·
-// Bureau » sous le nom ; « Changer de bureau » (fiche qui a un bureau, ou d'un cabinet qui en a) ouvre un panneau qui lit
+// Bureaux des cabinets (migration 20261119, écran E4 du plan des bureaux, #768) : sous le nom, « Cabinet : … » puis, sur
+// une seconde ligne, « Bureau : … » (forme de la carte d'une copropriété, E6 ; point e-11 validé le 20/11/2026) ;
+// « Changer de bureau » (fiche qui a un bureau, ou d'un cabinet qui en a) ouvre un panneau qui lit
 // les bureaux du cabinet et propose les ouverts sauf l'actuel — jamais « aucun » (PATCH { bureauId } seul) ; refus
 // bureau_ferme ou a_reverifier : bureaux relus. Réactivation d'une fiche restée dans un bureau fermé (409 bureau_ferme) :
 // la marche à suivre. Tant qu'aucun bureau n'existe, la page est celle d'avant (aucune requête nouvelle).
 
-import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { remplir } from '@/lib/coproprietaire/textes'
 import { Badge, Bouton, Carte, Champ, CLASSES_SAISIE, Encadre, Modale } from '@/components/coproprietaire-dashboard/ui'
 import SuiviGestionnaireQr, { type PropsSuiviGestionnaireQr } from '@/components/aj-signalement/SuiviGestionnaireQr'
@@ -43,7 +44,7 @@ import {
 import { dateHeureParis } from '@/lib/aj-signalement/affichage'
 import {
   LIBELLE_ACTION_JOURNAL_QR, LIBELLE_ETAT_GESTIONNAIRE_QR as ETAT, LIBELLE_ORIGINE_ATTRIBUTION_QR, TEXTES_GESTION_QR as G,
-  TON_ETAT_GESTIONNAIRE_QR as TON, actionAccesGestionnaireQr, auteurJournalQr, cabinetEtBureauQr, changementBureauPossibleQr, compteASupprimerQr,
+  TON_ETAT_GESTIONNAIRE_QR as TON, actionAccesGestionnaireQr, auteurJournalQr, changementBureauPossibleQr, compteASupprimerQr,
   connexionABloquerQr, connexionADebloquerQr, dateParisQr, libelleBureauQr, refusBureauARelireQr,
 } from '@/lib/aj-signalement/affichage-gestion'
 import type { BureauResumeQr } from '@/lib/aj-signalement/bureaux'
@@ -87,6 +88,22 @@ function texteEnvoi(e: EnvoiGestionnaireQr): string {
   if (e.refus === 'pas_moi') parties.push(G.fiche.envoiRefuse)
   if (e.refus === 'compte_autre_espace') parties.push(G.acces.envoiRefuseAutreEspace)
   return parties.join(' · ')
+}
+
+/**
+ * Sous le nom (E4, point e-11) : « Cabinet : … » ; fiche qui a un bureau : deux lignes, « Cabinet : … » puis
+ * « Bureau : … » (« Sud (fermé) » pour un bureau fermé), forme et espacement de la carte d'une copropriété (E6). Sans
+ * bureau : le texte d'avant, seul.
+ */
+function sousTitreFicheQr(g: Pick<GestionnaireQr, 'cabinet' | 'bureau'>): ReactNode {
+  const cabinet = remplir(G.fiche.cabinet, { nom: g.cabinet.nom })
+  if (!g.bureau) return cabinet
+  return (
+    <>
+      <span className="block">{cabinet}</span>
+      <span className="mt-1 block">{remplir(BG.ligne, { bureau: libelleBureauQr(g.bureau) })}</span>
+    </>
+  )
 }
 
 export default function FicheGestionnaireQr({
@@ -273,7 +290,7 @@ export default function FicheGestionnaireQr({
 
       <Carte
         titre={g.nom ?? G.fiche.ancien}
-        sousTitre={remplir(G.fiche.cabinet, { nom: cabinetEtBureauQr(g.cabinet.nom, g.bureau) })}
+        sousTitre={sousTitreFicheQr(g)}
         actions={<Badge ton={TON[g.etat]}>{ETAT[g.etat]}</Badge>}
       >
         <div className="space-y-3">
@@ -440,8 +457,9 @@ interface PropsPanneauBureau {
 
 /**
  * Bureaux du cabinet de la fiche, lus à l'ouverture du panneau (même si la liste des cabinets n'est pas à jour) ; les
- * ouverts sauf l'actuel. Aucun autre : le dit. Jamais d'option « aucun » : le bureau d'une fiche se change, il ne se
- * retire pas (choix 2 ; la route le refuse).
+ * ouverts sauf l'actuel. Aucun à proposer : le dit, « Aucun autre bureau ouvert… » pour une fiche qui a un bureau (même
+ * fermé), « Aucun bureau ouvert… » pour une fiche qui n'en a pas (point e-12). Jamais d'option « aucun » : le bureau
+ * d'une fiche se change, il ne se retire pas (choix 2 ; la route le refuse).
  */
 function PanneauBureauQr({ id, fiche, occupe, onEnregistrer, onAnnuler }: Readonly<PropsPanneauBureau>) {
   const [choix, setChoix] = useState('')
@@ -461,7 +479,7 @@ function PanneauBureauQr({ id, fiche, occupe, onEnregistrer, onAnnuler }: Readon
     >
       <ChoixBureauQr
         id={id} etiquette={BG.nouveauBureau} aide={BG.changerAide} lecture={lecture} bureaux={proposes} valeur={choisi?.id ?? ''} disabled={occupe}
-        vide={BG.aucunAutre} onChange={setChoix} onReessayer={() => { void recharger() }}
+        vide={fiche.bureau ? BG.aucunAutre : BG.aucunOuvert} onChange={setChoix} onReessayer={() => { void recharger() }}
       />
       <div className="flex flex-wrap gap-2">
         <Bouton variante="principal" type="submit" petit disabled={occupe || !choisi}>{G.enregistrer}</Bouton>

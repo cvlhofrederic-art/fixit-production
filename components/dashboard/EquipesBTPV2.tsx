@@ -388,13 +388,11 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
       actif: mForm.actif,
     }
 
-    if (editingMembre) {
-      await updateMembre(editingMembre.id, data)
-    } else {
-      await addMembre(data)
-    }
-
+    // En cas d'échec, le hook affiche la raison ; la fenêtre et la saisie restent pour réessayer (rien n'est perdu).
+    const enregistre = editingMembre ? await updateMembre(editingMembre.id, data) : (await addMembre(data)) !== null
     setSaving(false)
+    if (!enregistre) return
+
     setShowMembreModal(false)
     setEditingMembre(null)
     setMForm({ ...EMPTY_MFORM, charges_salariales_pct: defaultChargesSalariales, charges_patronales_pct: defaultChargesPatronales, chargesPct: defaultChargesPatronales, heures_hebdo: defaultHeuresHebdo })
@@ -440,12 +438,9 @@ export default function EquipesBTPV2({ artisan, orgRole }: { artisan: import('@/
   const submitEquipe = async () => {
     if (!eForm.nom.trim()) return
     setSaving(true)
-    if (editingEquipe) {
-      await updateEquipe(editingEquipe.id, eForm as any)
-    } else {
-      await addEquipe(eForm as any)
-    }
+    const enregistre = editingEquipe ? await updateEquipe(editingEquipe.id, eForm as any) : (await addEquipe(eForm as any)) !== null
     setSaving(false)
+    if (!enregistre) return
     setShowEquipeModal(false)
     setEditingEquipe(null)
     setEForm({ nom: '', metier: '', chantierId: '', membreIds: [] })

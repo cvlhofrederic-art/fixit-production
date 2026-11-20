@@ -4,6 +4,7 @@ import { cookies } from 'next/headers'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { validateBody, declarationSocialeSchema } from '@/lib/validation'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { logger } from '@/lib/logger'
 import {
   getPeriodeActuelle,
   calculerCotisations,
@@ -88,7 +89,7 @@ export async function GET(request: NextRequest) {
       historique: historique || [],
     })
   } catch (err) {
-    console.error('[declaration-sociale] GET error:', err)
+    logger.error('[declaration-sociale] GET error:', err)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }
@@ -181,7 +182,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ error: 'Action inconnue' }, { status: 400 })
   } catch (err) {
-    console.error('[declaration-sociale] POST error:', err)
+    logger.error('[declaration-sociale] POST error:', err)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }

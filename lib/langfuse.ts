@@ -157,6 +157,79 @@ export interface TraceAgentParams {
   response?: string
   tools_called?: string[]
   metadata?: Record<string, unknown>
+  /**
+   * Trace sans aucun texte : ni `prompt`, ni `response`, ni message d'erreur (seulement son type et son statut HTTP).
+   * S'y ajoutent les jetons et le modèle lus dans la réponse (forme GroqResponse). Pour les agents dont les textes
+   * portent des données personnelles que le masquage ne couvre pas (noms, montants dus) : `metadata` ne doit alors
+   * contenir que des valeurs sans contenu (type de demande, longueurs, nombres d'éléments).
+   */
+  metadonneesSeules?: boolean
+}
+
+const champ = (objet: unknown, cle: string): unknown =>
+  typeof objet === 'object' && objet !== null ? (objet as Record<string, unknown>)[cle] : undefined
+
+const nombre = (valeur: unknown): number | undefined => (typeof valeur === 'number' ? valeur : undefined)
+
+/** Jetons et modèle d'une réponse au format GroqResponse, sans rien lire de son texte. */
+function jetonsEtModele(resultat: unknown): Record<string, unknown> {
+  const usage = champ(resultat, 'usage')
+  const modele = champ(resultat, 'model')
+  return {
+    modele: typeof modele === 'string' ? modele : undefined,
+    jetons:
+      typeof usage === 'object' && usage !== null
+        ? { entree: nombre(champ(usage, 'prompt_tokens')), sortie: nombre(champ(usage, 'completion_tokens')), total: nombre(champ(usage, 'total_tokens')) }
+        : undefined,
+  }
+}
+
+/** Type d'une erreur et statut HTTP s'il y en a un (ErreurClaude), jamais son message. */
+function typeErreur(error: unknown): string | undefined {
+  if (!(error instanceof Error)) return undefined
+  const statut = nombre(champ(error, 'statut'))
+  return statut === undefined ? error.name : `${error.name} ${statut}`
+}
+
+/** Issue de l'appel tracé par traceAgent. */
+interface IssueAppel {
+  success: boolean
+  result: unknown
+  error: unknown
+  latency_ms: number
+}
+
+/**
+ * Entrée, sortie et métadonnées de la trace. Avec `metadonneesSeules` : aucun texte (ni question, ni réponse, ni
+ * message d'erreur), mais les jetons et le modèle ; sans l'option, la trace des autres agents est inchangée.
+ */
+function contenuTrace(params: TraceAgentParams, issue: IssueAppel) {
+  const { success, result, error, latency_ms } = issue
+  if (params.metadonneesSeules === true) {
+    return {
+      input: undefined,
+      output: undefined,
+      metadata: {
+        ...params.metadata,
+        ...(success ? jetonsEtModele(result) : {}),
+        latency_ms,
+        success,
+        error: typeErreur(error),
+        tools_called: params.tools_called,
+      },
+    }
+  }
+  return {
+    input: scrubForTrace(params.prompt),
+    output: scrubForTrace(params.response),
+    metadata: {
+      ...params.metadata,
+      latency_ms,
+      success,
+      error: error instanceof Error ? error.message : undefined,
+      tools_called: params.tools_called,
+    },
+  }
 }
 
 export async function traceAgent<T>(
@@ -183,15 +256,7 @@ export async function traceAgent<T>(
           name: `agent:${params.agent_id}`,
           userId: pseudonymizeUserId(params.user_id),
           sessionId: params.conversation_id,
-          input: scrubForTrace(params.prompt),
-          output: scrubForTrace(params.response),
-          metadata: {
-            ...params.metadata,
-            latency_ms,
-            success,
-            error: error instanceof Error ? error.message : undefined,
-            tools_called: params.tools_called,
-          },
+          ...contenuTrace(params, { success, result, error, latency_ms }),
         })
         t.update({ output: { status: success ? 'completed' : 'error' } })
       }

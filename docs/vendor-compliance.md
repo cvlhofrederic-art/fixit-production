@@ -172,7 +172,7 @@ Langfuse stocke les traces completes des interactions IA (prompts + reponses). E
 
 **Risque : Moyen**
 
-Upstash stocke les IP et identifiants de session pour le rate limiting. La region par defaut peut etre US.
+Upstash stocke les compteurs du rate limiting. Depuis la decision D13 du 17/11/2026, il recoit une empreinte HMAC de l'identifiant (IP, identifiant de compte), jamais l'IP en clair, et l'option analytics est coupee. Les releves ecrits avant restent a effacer dans la console d'Upstash. `lib/cache.ts` y garde aussi, quelques minutes, les reponses de deux routes (catalogue des artisans, marches), sans IP. La region par defaut peut etre US.
 
 **Actions :**
 1. Verifier la region actuelle du cluster Redis dans le dashboard Upstash

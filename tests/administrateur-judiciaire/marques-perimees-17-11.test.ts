@@ -62,6 +62,28 @@ describe('marques périmées retirées des en-têtes', () => {
     expect(texte).toMatch(/Décisions J25 et J29 de Hugo \(03\/11\/2026\) : espèces refusées/)
   })
 
+  it('D10 — étapes (etapes-dossier.ts) : le point de départ d’un délai légal renvoie à J3 et J50, le report à J67 (R41) ; seul l’affichage reste à Frédéric', () => {
+    const { texte } = enTeteDuModule('etapes-dossier')
+    expect(texte).not.toContain("la limite de l'étape suivante doit-elle partir de la première présentation")
+    const apresHuit = apres(texte, '8. Point de départ tranché (J3, J50)')
+    const huit = apresHuit.slice(0, apresHuit.indexOf(' 9. '))
+    expect(huit).toMatch(/recouvrement\.ts.*CPC art\. 642.*J67, R41/)
+    // la question de droit n'est plus posée, et jamais à Frédéric (R41 : « Décide : Hugo »)
+    expect(huit).not.toMatch(/s'applique-t-elle/)
+    const frederic = apres(huit, 'Reste à Frédéric')
+    expect(frederic).toBe("Reste à Frédéric : afficher ou non cette limite légale dans l'étape.")
+  })
+
+  it('D10 — recouvrement.ts : report tranché (J67, R41) et voie du débiteur contrôlée (J52, J53) ; seule la borne reste à Hugo', () => {
+    const { texte } = enTeteDuModule('recouvrement')
+    expect(texte).toMatch(/décisions J3, J50 et J67 \(R41\)/)
+    expect(texte).toContain('controle-voie-notification.ts')
+    const nonEtabli = apres(texte, '🔴 Non établi')
+    expect(nonEtabli).not.toContain('CPC art. 642')
+    expect(nonEtabli).not.toMatch(/J52, J53\) n'est pas contrôlée/)
+    expect(nonEtabli).toMatch(/borne à confirmer par Hugo/)
+  })
+
   it('D11 — suivi « à faire » (suivi-a-faire.ts) : le jour de fin de la garantie est tranché (J67, R63), aConfirmer gardé', () => {
     const { texte } = enTeteDuModule('suivi-a-faire')
     expect(texte).toContain(

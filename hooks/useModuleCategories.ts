@@ -8,6 +8,15 @@ export type ModCategory = { id: string; name: string; open: boolean; modules: Ca
 
 const STORAGE_KEY = 'fixit_modules_categories_v3'
 
+/**
+ * Clé de l'organisation du menu. Avec un identifiant de compte (société BTP), une clé propre au compte : ce que la
+ * société enregistre n'est plus partagé avec les autres comptes du même navigateur. Sans identifiant (artisan, autres
+ * rôles), la clé commune d'origine.
+ */
+export function cleOrganisationMenu(compteId?: string): string {
+  return compteId ? `${STORAGE_KEY}_${compteId}` : STORAGE_KEY
+}
+
 // Aligned 1:1 with V5Sidebar (pro_societe BTP) structure
 const DEFAULT_STRUCTURE: Array<{ id: string; name: string; namePt: string; modIds: string[] }> = [
   { id: 'cat-pilotage', name: 'Pilotage', namePt: 'Gestão', modIds: ['home', 'gestion_comptes', 'stats', 'revenus', 'motifs'] },
@@ -106,8 +115,16 @@ export function buildDefaultCategories(ALL_MODULES: ModuleDef[]): ModCategory[] 
 /**
  * Hook shared between V5Sidebar and ModulesSection.
  * Persists to localStorage; ensures any new ALL_MODULES entry is auto-appended.
+ * `compteId` (société BTP) : organisation lue et enregistrée sous la clé du compte, relue quand l'identifiant arrive.
+ * Tant que le compte n'a rien enregistré, il suit l'ancienne clé commune, relue à chaque montage : ce qu'un tableau de
+ * bord sans identifiant (artisan, autres rôles) y enregistre sur ce navigateur s'y reporte donc encore. Avec
+ * l'identifiant, rien n'est écrit sous la clé commune ni supprimé.
+ * Sans `compteId`, la clé commune comme avant — y compris au premier rendu du tableau de bord BTP, avant que le rôle
+ * soit connu : elle y est lue, et la migration unique d'estimation_materiaux (ci-dessous) peut y être enregistrée,
+ * comme avant.
  */
-export function useModuleCategories(ALL_MODULES: ModuleDef[]) {
+export function useModuleCategories(ALL_MODULES: ModuleDef[], compteId?: string) {
+  const cle = cleOrganisationMenu(compteId)
   const defaults = useMemo(() => buildDefaultCategories(ALL_MODULES), [ALL_MODULES])
   const [categories, setCategoriesState] = useState<ModCategory[]>(defaults)
   const [ready, setReady] = useState(false)
@@ -117,13 +134,21 @@ export function useModuleCategories(ALL_MODULES: ModuleDef[]) {
   useEffect(() => {
     if (typeof window === 'undefined') return
     let loaded: ModCategory[] | null = null
+    // Vrai quand l'organisation vient de l'ancienne clé commune (compte sans organisation enregistrée).
+    let depuisCleCommune = false
     try {
-      const raw = localStorage.getItem(STORAGE_KEY)
+      let raw = localStorage.getItem(cle)
+      if (raw === null && cle !== STORAGE_KEY) {
+        raw = localStorage.getItem(STORAGE_KEY)
+        depuisCleCommune = raw !== null
+      }
       if (raw) {
         const parsed = JSON.parse(raw) as ModCategory[]
         if (Array.isArray(parsed) && parsed.length > 0) loaded = parsed
       }
-    } catch {}
+    } catch (e) {
+      console.warn('[storage] modules categories (lecture)', e)
+    }
     const base = loaded ?? defaults
 
     // Migrations one-shot : s'assurer que les modules ciblés sont dans la bonne catégorie
@@ -182,9 +207,10 @@ export function useModuleCategories(ALL_MODULES: ModuleDef[]) {
         else targetCat.modules.push(entree)
       }
     }
-    // Persiste la migration si elle a eu lieu (pour éviter de la refaire à chaque mount)
-    if (migrated && loaded) {
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(base)) } catch {}
+    // Persiste la migration si elle a eu lieu (pour éviter de la refaire à chaque mount), sous la clé lue : jamais
+    // dans la clé commune pour un compte (la migration est alors refaite au montage, sans rien écrire).
+    if (migrated && loaded && !depuisCleCommune) {
+      try { localStorage.setItem(cle, JSON.stringify(base)) } catch (e) { console.warn('[storage] modules categories (migration)', e) }
     }
     // Re-sync icon/name from ALL_MODULES (authoritative)
     const byId = new Map(ALL_MODULES.map(m => [m.id, { ...m, label: m.label }]))
@@ -204,18 +230,18 @@ export function useModuleCategories(ALL_MODULES: ModuleDef[]) {
     setCategoriesState(synced)
     setReady(true)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [cle])
 
   const setCategories = useCallback((next: ModCategory[]) => {
     setCategoriesState(next)
     if (typeof window !== 'undefined') {
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(remettreLesMasques(next, masques.current)))
+        localStorage.setItem(cle, JSON.stringify(remettreLesMasques(next, masques.current)))
       } catch (e) {
         console.warn('[storage] modules categories', e)
       }
     }
-  }, [])
+  }, [cle])
 
   return { categories, setCategories, ready }
 }

@@ -7,7 +7,9 @@
 // ni adresse d'un collègue ou du super admin : l'auteur d'une ligne est « vous », « collegue », « cabinet » ou
 // « systeme »). L'export est journalisé (gestionnaire.exporte, acteur : lui-même). Aucun autre compte ne change, et la
 // section est simplement omise tant que les migrations 20261111 / 20261112 manquent (repli journalisé une fois).
-// Données fictives : @exemple.test.
+// Bureaux (migration 20261119, décision du 20/11/2026) : sa fiche porte son bureau { id, nom }, comme l'export du super
+// admin (clé absente sans bureau, et tant que la migration manque : export d'avant) ; lecture du bureau en panne : 503
+// au message générique, jamais un export sans son bureau. Données fictives : @exemple.test, bureau « Nord ».
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
@@ -27,6 +29,11 @@ const { POST: CREER } = await import('@/app/api/aj-signalement/coproprietes/rout
 const { PATCH: MODIFIER } = await import('@/app/api/aj-signalement/coproprietes/[id]/route')
 const { reinitialiserReplisQr } = await import('@/lib/aj-signalement/serveur')
 const { ATTRIBUTIONS_MAX_PAR_GESTIONNAIRE_QR } = await import('@/lib/aj-signalement/types')
+const { COLONNES_BUREAU_QR } = await import('@/lib/aj-signalement/serveur-bureaux')
+const { MESSAGE_EXPORT_INDISPONIBLE_QR } = await import('@/lib/aj-signalement/serveur-compte')
+const {
+  EXCEPTION_LECTURE_QR, MESSAGE_EXCEPTION_LECTURE_QR, ligneBureauQr, refuserLecturesQr, simulerProductionAvantBureauxQr,
+} = await import('../helpers/aj-signalement-bureaux')
 
 const CLIENT = { id: '0c000000-0000-4000-8000-000000000001', email: 'client@exemple.test', app_metadata: { role: 'client' } }
 /** Clés de l'export tel qu'il est rendu à tout compte avant la PR 2. */
@@ -34,6 +41,15 @@ const CLES_EXPORT = [
   'artisan_photos', 'artisan_profile', 'bookings_as_artisan', 'bookings_as_client', 'client_profile', 'devis', 'exported_at', 'factures',
   'messages', 'pt_fiscal_documents', 'pt_fiscal_series', 'rgpd_article', 'services', 'subscription', 'syndic', 'user',
 ]
+/** Fiche de G1 dans la section aj_signalement (sans bureau). */
+const FICHE_G1_EXPORTEE = {
+  nom: 'Marie Exemple', email: A.EMAIL_G1, cabinet: 'Cabinet Exemple', actif: true, creeLe: '2026-11-05T08:00:00+00:00',
+  adresseConfirmeeLe: '2026-11-05T09:00:00+00:00', accesOuvertLe: '2026-11-06T09:00:00+00:00', desactiveLe: null,
+  connexionBloqueeLe: null, effacementDemandeLe: null,
+}
+const NORD = 'b0000000-0000-4000-8000-0000000000a1'
+/** Panne de la base (autre chose que la migration absente). */
+const PANNE_LECTURE = { code: 'XX000', message: 'panne de lecture simulée' }
 const trie = (v: string[]) => [...v].sort((a, b) => a.localeCompare(b))
 const ilYA = (jours: number) => new Date(Date.now() - jours * 24 * 3600 * 1000).toISOString()
 
@@ -70,11 +86,7 @@ describe('compte d’un gestionnaire : section aj_signalement', () => {
     expect(status).toBe(200)
     expect(trie(Object.keys(corps))).toEqual(trie([...CLES_EXPORT, 'aj_signalement']))
     const section = corps.aj_signalement as Record<string, unknown>
-    expect(section.fiche).toEqual({
-      nom: 'Marie Exemple', email: A.EMAIL_G1, cabinet: 'Cabinet Exemple', actif: true, creeLe: '2026-11-05T08:00:00+00:00',
-      adresseConfirmeeLe: '2026-11-05T09:00:00+00:00', accesOuvertLe: '2026-11-06T09:00:00+00:00', desactiveLe: null,
-      connexionBloqueeLe: null, effacementDemandeLe: null,
-    })
+    expect(section.fiche).toEqual(FICHE_G1_EXPORTEE)
     expect(section.attributions).toEqual([{ copropriete: 'Résidence Une', origine: 'super_admin', depuis: '2026-11-05T09:00:00+00:00' }])
     const lignes = section.journal as Array<Record<string, unknown>>
     expect(lignes.map((l) => [l.action, l.auteur, l.copropriete])).toEqual([
@@ -142,6 +154,85 @@ describe('compte d’un gestionnaire : section aj_signalement', () => {
     expect(status).toBe(200)
     expect(trie(Object.keys(corps))).toEqual(CLES_EXPORT)
     expect(simulQr.logger.warn).toHaveBeenCalled()
+  })
+})
+
+describe('bureau de sa fiche (migration 20261119, décision du 20/11/2026)', () => {
+  beforeEach(() => {
+    A.connecterQr(A.COMPTE_G1)
+    baseQr.etat.tables.signalements_qr_bureaux = [ligneBureauQr(NORD, A.CAB, 'Nord')]
+  })
+  const rattacherG1 = () => Object.assign(baseQr.table('signalements_qr_gestionnaires').find((g) => g.id === A.G1) ?? {}, { bureau_id: NORD })
+  const ficheExportee = (corps: Record<string, unknown>) => (corps.aj_signalement as { fiche: Record<string, unknown> }).fiche
+  const exportsJournalises = () => baseQr.table('signalements_qr_journal').filter((l) => l.action === 'gestionnaire.exporte')
+
+  it('fiche rattachée : son bureau (identifiant et nom) dans sa fiche, comme l’export du super admin ; rien d’autre ne change', async () => {
+    rattacherG1()
+    const { status, corps } = await exporter()
+    expect(status).toBe(200)
+    expect(ficheExportee(corps)).toEqual({ ...FICHE_G1_EXPORTEE, bureau: { id: NORD, nom: 'Nord' } })
+    expect(exportsJournalises()).toHaveLength(1)
+  })
+
+  it('fiche sans bureau : clé absente (export d’avant)', async () => {
+    const { status, corps } = await exporter()
+    expect(status).toBe(200)
+    expect(ficheExportee(corps)).toEqual(FICHE_G1_EXPORTEE)
+  })
+
+  it('migration absente : 200, export d’avant (section servie sans clé de bureau, export journalisé), repli journalisé une fois', async () => {
+    simulerProductionAvantBureauxQr()
+    for (let i = 0; i < 2; i += 1) {
+      const { status, corps } = await exporter()
+      expect(status).toBe(200)
+      expect(trie(Object.keys(corps))).toEqual(trie([...CLES_EXPORT, 'aj_signalement']))
+      expect(ficheExportee(corps)).toEqual(FICHE_G1_EXPORTEE)
+    }
+    expect(simulQr.logger.warn.mock.calls.filter((c) => /19\/11\/2026/.test(String(c[0])))).toHaveLength(1)
+    expect(exportsJournalises()).toHaveLength(2)
+  })
+
+  it.each([
+    ['bureaux illisibles, fiche rattachée', true, () => refuserLecturesQr('signalements_qr_bureaux', COLONNES_BUREAU_QR, PANNE_LECTURE)],
+    ['rattachement de la fiche illisible, fiche sans bureau', false, () => refuserLecturesQr('signalements_qr_gestionnaires', 'id, bureau_id', PANNE_LECTURE)],
+  ])('lecture du bureau en panne (%s) : 503 au message générique, aucun export servi ni journalisé', async (_cas, rattachee, panne) => {
+    if (rattachee) rattacherG1()
+    const restaurer = panne()
+    let res: Response
+    try {
+      res = await GET(requeteQr('/api/user/export-data'))
+    } finally {
+      restaurer()
+    }
+    expect(res.status).toBe(503)
+    expect(await res.json()).toEqual({ error: MESSAGE_EXPORT_INDISPONIBLE_QR })
+    expect(MESSAGE_EXPORT_INDISPONIBLE_QR).not.toMatch(/bureau/i)
+    expect(res.headers.get('content-disposition')).toBeNull()
+    // Ni journal d'AJ Signalement (gestionnaire.exporte) ni audit_logs (EXPORT_DATA) : rien n'a été exporté.
+    expect(baseQr.etat.ecritures).toEqual([])
+    // Journal serveur : le code seul, jamais le nom d'un bureau ni le message de la base.
+    expect(simulQr.logger.error).toHaveBeenCalledWith(expect.stringContaining('bureau'), { code: 'XX000' })
+    const journalServeur = JSON.stringify([...simulQr.logger.error.mock.calls, ...simulQr.logger.warn.mock.calls])
+    expect(journalServeur).not.toContain('Nord')
+    expect(journalServeur).not.toContain(PANNE_LECTURE.message)
+  })
+
+  it('lecture du bureau qui lève (client ou réseau en panne) : 503 aussi, jamais l’export d’avant ; rien d’écrit', async () => {
+    rattacherG1()
+    const restaurer = refuserLecturesQr('signalements_qr_gestionnaires', 'id, bureau_id', EXCEPTION_LECTURE_QR)
+    let res: Response
+    try {
+      res = await GET(requeteQr('/api/user/export-data'))
+    } finally {
+      restaurer()
+    }
+    expect(res.status).toBe(503)
+    expect(await res.json()).toEqual({ error: MESSAGE_EXPORT_INDISPONIBLE_QR })
+    expect(res.headers.get('content-disposition')).toBeNull()
+    expect(baseQr.etat.ecritures).toEqual([])
+    // Journal serveur : le nom de l'exception seul, jamais son message.
+    expect(simulQr.logger.warn).toHaveBeenCalledWith(expect.stringContaining('bureau'), { exception: 'Error' })
+    expect(JSON.stringify([...simulQr.logger.error.mock.calls, ...simulQr.logger.warn.mock.calls])).not.toContain(MESSAGE_EXCEPTION_LECTURE_QR)
   })
 })
 

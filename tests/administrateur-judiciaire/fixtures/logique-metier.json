@@ -76196,8 +76196,12 @@
    "libelle": "Mise en demeure",
    "base": "L. 1965 art. 19-2",
    "conseil": "Lettre recommandée, nature et montant de chaque provision impayée par exercice. Trente jours courent.",
-   "exigibiliteLe": "2026-06-11",
-   "joursAvantExigibilite": 7,
+   "exigibiliteLe": null,
+   "joursAvantExigibilite": null,
+   "exigibilite": {
+    "etat": "non_calculable",
+    "alerte": "Exigibilité anticipée non calculable : date de première présentation de la mise en demeure à saisir (ou, pour un envoi électronique, date de transmission de l'avis électronique), sur le courrier rattaché au dossier ; les trente jours partent de son lendemain, jamais de la date de l'étape (L. 1965 art. 19-2 ; D. 1967 art. 64-1, al. 2, et art. 64, dernier al. ; J3, J50)."
+   },
    "prescriptionLe": "2026-06-04",
    "prochaine": "exigibilite"
   }
@@ -76216,8 +76220,12 @@
    "libelle": "Mise en demeure",
    "base": "L. 1965 art. 19-2",
    "conseil": "Lettre recommandée, nature et montant de chaque provision impayée par exercice. Trente jours courent.",
-   "exigibiliteLe": "2026-06-11",
-   "joursAvantExigibilite": 0,
+   "exigibiliteLe": null,
+   "joursAvantExigibilite": null,
+   "exigibilite": {
+    "etat": "non_calculable",
+    "alerte": "Exigibilité anticipée non calculable : date de première présentation de la mise en demeure à saisir (ou, pour un envoi électronique, date de transmission de l'avis électronique), sur le courrier rattaché au dossier ; les trente jours partent de son lendemain, jamais de la date de l'étape (L. 1965 art. 19-2 ; D. 1967 art. 64-1, al. 2, et art. 64, dernier al. ; J3, J50)."
+   },
    "prescriptionLe": null,
    "prochaine": "exigibilite"
   }
@@ -76237,8 +76245,12 @@
    "libelle": "Mise en demeure",
    "base": "L. 1965 art. 19-2",
    "conseil": "Lettre recommandée, nature et montant de chaque provision impayée par exercice. Trente jours courent.",
-   "exigibiliteLe": "2026-06-11",
-   "joursAvantExigibilite": -9,
+   "exigibiliteLe": null,
+   "joursAvantExigibilite": null,
+   "exigibilite": {
+    "etat": "non_calculable",
+    "alerte": "Exigibilité anticipée non calculable : date de première présentation de la mise en demeure à saisir (ou, pour un envoi électronique, date de transmission de l'avis électronique), sur le courrier rattaché au dossier ; les trente jours partent de son lendemain, jamais de la date de l'étape (L. 1965 art. 19-2 ; D. 1967 art. 64-1, al. 2, et art. 64, dernier al. ; J3, J50)."
+   },
    "prescriptionLe": null,
    "prochaine": "exigibilite"
   }
@@ -76260,6 +76272,10 @@
    "conseil": "Lettre recommandée, nature et montant de chaque provision impayée par exercice. Trente jours courent.",
    "exigibiliteLe": null,
    "joursAvantExigibilite": null,
+   "exigibilite": {
+    "etat": "non_calculable",
+    "alerte": "Exigibilité anticipée non calculable : date de première présentation de la mise en demeure à saisir (ou, pour un envoi électronique, date de transmission de l'avis électronique), sur le courrier rattaché au dossier ; les trente jours partent de son lendemain, jamais de la date de l'étape (L. 1965 art. 19-2 ; D. 1967 art. 64-1, al. 2, et art. 64, dernier al. ; J3, J50)."
+   },
    "prescriptionLe": "2029-02-28",
    "prochaine": "exigibilite"
   }
@@ -76281,6 +76297,7 @@
    "conseil": "Relance simple, puis mise en demeure si elle reste sans effet.",
    "exigibiliteLe": null,
    "joursAvantExigibilite": null,
+   "exigibilite": null,
    "prescriptionLe": null,
    "prochaine": "mise_en_demeure"
   }
@@ -76301,6 +76318,7 @@
    "conseil": "Relance simple, puis mise en demeure si elle reste sans effet.",
    "exigibiliteLe": null,
    "joursAvantExigibilite": null,
+   "exigibilite": null,
    "prescriptionLe": null,
    "prochaine": "mise_en_demeure"
   }
@@ -76322,6 +76340,7 @@
    "conseil": "Procédure accélérée au fond devant le président du tribunal judiciaire ; hypothèque légale ; opposition sur le prix en cas de vente.",
    "exigibiliteLe": null,
    "joursAvantExigibilite": null,
+   "exigibilite": null,
    "prescriptionLe": "2025-12-31",
    "prochaine": "solde"
   }
@@ -76343,6 +76362,7 @@
    "conseil": "Dossier clos.",
    "exigibiliteLe": null,
    "joursAvantExigibilite": null,
+   "exigibilite": null,
    "prescriptionLe": null,
    "prochaine": null
   }
@@ -76364,6 +76384,7 @@
    "conseil": "Passé trente jours, les provisions non échues et les sommes dues des exercices précédents sont exigibles.",
    "exigibiliteLe": null,
    "joursAvantExigibilite": null,
+   "exigibilite": null,
    "prescriptionLe": "2031-06-04",
    "prochaine": "procedure"
   }
@@ -76384,6 +76405,7 @@
    "conseil": "Relance simple, puis mise en demeure si elle reste sans effet.",
    "exigibiliteLe": null,
    "joursAvantExigibilite": null,
+   "exigibilite": null,
    "prescriptionLe": null,
    "prochaine": "mise_en_demeure"
   }
@@ -76403,8 +76425,12 @@
    "libelle": "Mise en demeure",
    "base": "L. 1965 art. 19-2",
    "conseil": "Lettre recommandée, nature et montant de chaque provision impayée par exercice. Trente jours courent.",
-   "exigibiliteLe": "2027-01-14",
-   "joursAvantExigibilite": 14,
+   "exigibiliteLe": null,
+   "joursAvantExigibilite": null,
+   "exigibilite": {
+    "etat": "non_calculable",
+    "alerte": "Exigibilité anticipée non calculable : date de première présentation de la mise en demeure à saisir (ou, pour un envoi électronique, date de transmission de l'avis électronique), sur le courrier rattaché au dossier ; les trente jours partent de son lendemain, jamais de la date de l'étape (L. 1965 art. 19-2 ; D. 1967 art. 64-1, al. 2, et art. 64, dernier al. ; J3, J50)."
+   },
    "prescriptionLe": "2031-01-31",
    "prochaine": "exigibilite"
   }

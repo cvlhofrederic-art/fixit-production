@@ -66,8 +66,17 @@ vi.mock('@/lib/hooks/useOrgRoleContext', () => ({
 }))
 vi.mock('@/lib/hooks/use-btp-data', () => ({ prefetchBTPTables: vi.fn() }))
 vi.mock('@/lib/bookings-fetch', () => ({ fetchAllBookings: vi.fn() }))
-vi.mock('@/lib/document-sync', () => ({ fetchDocumentsFromSupabase: vi.fn(async () => []), persistEmittedDocsToCache: vi.fn() }))
-vi.mock('@/lib/devis-utils', () => ({ dedupeDocsByIdentity: (docs: unknown[]) => docs }))
+// page.tsx fusionne les documents de la base par fusionnerDocumentsDeLaBase(…, optionsFusionPourRole(role)) : les deux
+// fonctions sont simulées, pour qu'un cas qui rend des documents ne bute pas sur un export absent de la simulation.
+vi.mock('@/lib/document-sync', () => ({
+  fetchDocumentsFromSupabase: vi.fn(async () => []),
+  persistEmittedDocsToCache: vi.fn(),
+  fusionnerDocumentsDeLaBase: vi.fn((_id: string, liste: unknown[]) => liste),
+}))
+vi.mock('@/lib/devis-utils', () => ({
+  dedupeDocsByIdentity: (docs: unknown[]) => docs,
+  optionsFusionPourRole: vi.fn(() => undefined),
+}))
 vi.mock('@/lib/seed-demo-localStorage', () => ({ seedDemoLocalStorage: vi.fn() }))
 vi.mock('@/lib/service-utils', () => ({ getPriceRangeLabel: vi.fn(), getPricingUnit: vi.fn(), getCleanDescription: vi.fn() }))
 vi.mock('@/lib/messagerie-pro', () => ({ notificationOuvreMessagerie: vi.fn() }))
