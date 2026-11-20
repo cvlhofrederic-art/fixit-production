@@ -4,9 +4,17 @@
 // fiches qui reçoivent (actives, adresse confirmée et non contestée, attribuées à la copropriété ou « à tous » du même
 // cabinet) sont choisies en base par signalements_qr_emails_gestionnaires ; ce module pur assemble l'envoi :
 //   (adresses saisies MOINS les saisies reconnues comme celles de fiches inactives ou contestées) ∪ gestionnaires,
-//   dédoublonnés sur l'adresse canonique ; une adresse des deux côtés garde le type « gestionnaire » ; ADMIN_EMAIL /
-//   ADMIN_EMAIL_2 seulement si l'union est vide (règle actuelle, Q3) ; plafond de 100 (un lot Resend), le reste compté
-//   sans adresse.
+//   dédoublonnés sur l'adresse canonique ; une adresse des deux côtés garde le type « gestionnaire » ; plafond de 100
+//   (un lot Resend), le reste compté sans adresse.
+// D9 (décision de Hugo du 17/11/2026, au nom de VitFix, point 7) : le repli vers les boîtes de VitFix (ADMIN_EMAIL /
+// ADMIN_EMAIL_2) est COUPÉ. Union vide : l'adresse de contact du cabinet de la copropriété (type « cabinet ») reçoit le
+// signalement, pour qu'il ne reste jamais sans lecteur ; le calcul le marque « en attente » (enAttente), et la route
+// envoie à VitFix une alerte SANS AUCUNE DONNÉE du signalement. Sans adresse de contact, ou pour une copropriété
+// rattachée à aucun cabinet, personne ne le reçoit par e-mail : l'alerte le dit, le signalement reste dans le tableau.
+// Relecture du 17/11/2026 : la coupure vaut aussi pour une copropriété sans cabinet, car le code ne distingue pas une
+// copropriété d'essai de VitFix d'une copropriété du cabinet client pas encore rattachée (la migration du 11/11/2026
+// laisse cabinet_id vide pour « les copropriétés existantes »). Pour recevoir le signalement complet d'une copropriété
+// d'essai, on lui saisit une adresse destinataire.
 // Une adresse est celle d'une fiche (adresseDeFicheQr, sur LA règle estAdresseDeFicheQr, jumelle de la fonction SQL
 // signalements_qr_adresse_de_fiche de la 20261112) quand elle a la même BOÎTE (boiteEmailQr : « prenom+etiquette@ » est
 // « prenom@ », relecture 2 du lot 6), ou, corrections du tour 2, la même partie locale de boîte sur un domaine DÉCLARÉ
@@ -16,11 +24,15 @@
 
 import { boiteEmailQr, boitesDeFicheQr, emailCanoniqueQr } from '@/lib/aj-signalement/gestionnaires'
 import type {
-  CabinetsDesDomainesQr, CalculDestinatairesQr, DestinataireQr, FicheAdresseQr, LigneEmailGestionnaireQr, SaisiesVisiblesQr,
+  CabinetsDesDomainesQr, CalculDestinatairesQr, DestinataireQr, FicheAdresseQr, LigneEmailGestionnaireQr, RepliSansDestinataireQr,
+  SaisiesVisiblesQr, SituationAttenteQr,
 } from '@/lib/aj-signalement/types'
 
 /** Destinataires d'un dépôt au plus : un lot de sendBatchEmails. */
 export const DESTINATAIRES_MAX_QR = 100
+
+/** Copropriété rattachée à aucun cabinet (valeur par défaut, et réponse de la route quand elle n'a rien lu). */
+export const SANS_CABINET_QR: RepliSansDestinataireQr = { etat: 'sans_cabinet' }
 
 /** Aucun domaine connu : seule la boîte rapproche une adresse d'une fiche. */
 const AUCUN_DOMAINE_QR: CabinetsDesDomainesQr = new Map()
@@ -57,17 +69,15 @@ export function adresseDeFicheQr(
   }
 }
 
+type CoproprieteDestinatairesQr = { emails_destinataires?: readonly string[] | null }
+
 /**
- * Destinataires d'un nouveau signalement. `gestionnaires` : lignes de signalements_qr_emails_gestionnaires (exclu =
- * false : destinataire ; exclu = true : saisie reconnue comme celle d'une fiche inactive ou contestée, retirée de l'envoi
- * avec ses sous-adresses ; la 20261112 rend la saisie elle-même, la 20261111 l'adresse de la fiche). Ordre : saisies,
- * puis gestionnaires ; repli administrateur si rien ne reste.
+ * Union (saisies MOINS fiches exclues) ∪ gestionnaires, dédoublonnée, sans aucun repli ; `exclues` : boîtes des saisies
+ * reconnues comme celles de fiches inactives ou contestées.
  */
-export function destinatairesSignalementQr(
-  copro: { emails_destinataires?: readonly string[] | null },
-  gestionnaires: readonly LigneEmailGestionnaireQr[],
-  env: Record<string, string | undefined> = process.env,
-): CalculDestinatairesQr {
+function unionDestinatairesQr(
+  copro: CoproprieteDestinatairesQr, gestionnaires: readonly LigneEmailGestionnaireQr[],
+): { liste: DestinataireQr[]; exclues: Set<string> } {
   const exclues = boites(gestionnaires.filter((g) => g.exclu).map((g) => g.email))
   const fiches = new Map<string, LigneEmailGestionnaireQr>()
   for (const g of gestionnaires) {
@@ -88,14 +98,52 @@ export function destinatairesSignalementQr(
     ajouter(fiche ? { email, type: 'gestionnaire', accesOuvert: fiche.accesOuvert } : { email, type: 'saisi', accesOuvert: false })
   }
   for (const [email, fiche] of fiches) ajouter({ email, type: 'gestionnaire', accesOuvert: fiche.accesOuvert })
+  return { liste, exclues }
+}
 
+/**
+ * D9 : la copropriété n'a-t-elle aucun destinataire direct (ni adresse saisie restante, ni gestionnaire) ? La route ne lit
+ * le cabinet de la copropriété et son adresse de contact que dans ce cas.
+ */
+export function aucunDestinataireDirectQr(copro: CoproprieteDestinatairesQr, gestionnaires: readonly LigneEmailGestionnaireQr[]): boolean {
+  return unionDestinatairesQr(copro, gestionnaires).liste.length === 0
+}
+
+/**
+ * Destinataires d'un nouveau signalement. `gestionnaires` : lignes de signalements_qr_emails_gestionnaires (exclu =
+ * false : destinataire ; exclu = true : saisie reconnue comme celle d'une fiche inactive ou contestée, retirée de l'envoi
+ * avec ses sous-adresses ; la 20261112 rend la saisie elle-même, la 20261111 l'adresse de la fiche). Ordre : saisies,
+ * puis gestionnaires. Si rien ne reste (D9) : l'adresse de contact du cabinet de la copropriété (`repli` : etat
+ * « cabinet ») seule, écartée si c'est la boîte d'une fiche exclue ; sinon aucun destinataire. Jamais ADMIN_EMAIL ;
+ * toujours `enAttente`.
+ */
+export function destinatairesSignalementQr(
+  copro: CoproprieteDestinatairesQr,
+  gestionnaires: readonly LigneEmailGestionnaireQr[],
+  repli: RepliSansDestinataireQr = SANS_CABINET_QR,
+): CalculDestinatairesQr {
+  const { liste, exclues } = unionDestinatairesQr(copro, gestionnaires)
   if (liste.length === 0) {
-    for (const email of canoniques([env.ADMIN_EMAIL, env.ADMIN_EMAIL_2])) ajouter({ email, type: 'administrateur', accesOuvert: false })
+    const contact = repli.etat === 'cabinet' ? emailCanoniqueQr(repli.contact) : null
+    const destinataires: DestinataireQr[] = contact && !dansBoites(contact, exclues)
+      ? [{ email: contact, type: 'cabinet', accesOuvert: false }]
+      : []
+    return { destinataires, auDelaDuPlafond: 0, enAttente: true }
   }
   return {
     destinataires: liste.slice(0, DESTINATAIRES_MAX_QR),
     auDelaDuPlafond: Math.max(0, liste.length - DESTINATAIRES_MAX_QR),
   }
+}
+
+/**
+ * D9 : ce que l'alerte sans données dit d'un signalement en attente. `destinataires` : nombre d'adresses calculées (0 ou
+ * 1, l'adresse de contact) ; `envoye` : un message est parti.
+ */
+export function situationAttenteQr(repli: RepliSansDestinataireQr, destinataires: number, envoye: boolean): SituationAttenteQr {
+  if (repli.etat !== 'cabinet') return repli.etat
+  if (destinataires === 0) return 'cabinet_sans_contact'
+  return envoye ? 'contact_prevenu' : 'contact_non_prevenu'
 }
 
 /**

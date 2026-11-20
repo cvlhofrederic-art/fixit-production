@@ -310,5 +310,7 @@ export const TEXTES_TABLEAU_QR = {
     bureau_utilise: 'Ce bureau ne peut pas être fermé : des gestionnaires actifs ou des copropriétés actives y sont encore rattachés. Changez-les de bureau d’abord.',
     bureau_requis: 'Choisissez le bureau : chaque nouveau gestionnaire de ce cabinet doit en avoir un.',
     bureau_ferme: 'Ce bureau est fermé : choisissez un bureau ouvert, ou rouvrez-le depuis la vue Cabinets.',
+    // Dépôt public seulement (17/11/2026) : la page publique a son propre texte (lib/aj-signalement/textes.ts).
+    batiment_inconnu: 'Ce bâtiment ne figure pas dans la liste de la copropriété.',
   } satisfies Record<CodeErreurQr, string>,
 } as const
