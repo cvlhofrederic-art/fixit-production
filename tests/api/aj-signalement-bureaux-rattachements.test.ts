@@ -34,7 +34,9 @@ const { baseQr } = await import('../helpers/aj-signalement-base')
 const { ADMIN_QR, contexteQr, messagesEnvoyesQr, reinitialiserSimulQr, requeteQr, simulQr } = await import('../helpers/aj-signalement-routes')
 const A = await import('../helpers/aj-signalement-acces')
 const { CAB, CAB_AUTRE, COMPTE_G1, C1, C2, C3, C_SANS, C_TOUS, G1, G2, G3, S1, S2, connecterQr, poserJeuAccesQr, simulerCreationCoproprietesQr } = A
-const { ligneBureauQr, refuserLecturesQr, simulerFonctionsBureauxQr, simulerProductionAvantBureauxQr } = await import('../helpers/aj-signalement-bureaux')
+const {
+  EXCEPTION_LECTURE_QR, MESSAGE_EXCEPTION_LECTURE_QR, ligneBureauQr, refuserLecturesQr, simulerFonctionsBureauxQr, simulerProductionAvantBureauxQr,
+} = await import('../helpers/aj-signalement-bureaux')
 const { reinitialiserReplisQr } = await import('@/lib/aj-signalement/serveur')
 const { COLONNES_BUREAU_QR } = await import('@/lib/aj-signalement/serveur-bureaux')
 const { GET: CABINETS } = await import('@/app/api/aj-signalement/cabinets/route')
@@ -402,6 +404,24 @@ describe('GET /gestionnaires/[id]/export : bureau de la fiche', () => {
     const journalServeur = JSON.stringify([...simulQr.logger.error.mock.calls, ...simulQr.logger.warn.mock.calls])
     expect(journalServeur).not.toContain('Nord')
     expect(journalServeur).not.toContain(PANNE_LECTURE.message)
+  })
+
+  it('lecture du bureau qui lève (client ou réseau en panne) : 503 aussi, jamais l’export d’avant ni journalisé', async () => {
+    poserBureaux()
+    Object.assign(ligne('signalements_qr_gestionnaires', G1), { bureau_id: NORD })
+    const restaurer = refuserLecturesQr('signalements_qr_gestionnaires', 'id, bureau_id', EXCEPTION_LECTURE_QR)
+    try {
+      const res = await exporterReponse(G1)
+      expect(res.status).toBe(503)
+      expect(await json(res)).toEqual({ error: 'serveur' })
+      expect(res.headers.get('content-disposition')).toBeNull()
+    } finally {
+      restaurer()
+    }
+    expect(baseQr.table('signalements_qr_journal').filter((j) => j.action === 'gestionnaire.exporte')).toEqual([])
+    // Journal serveur : le nom de l'exception seul, jamais son message.
+    expect(simulQr.logger.warn).toHaveBeenCalledWith(expect.stringContaining('bureau'), { exception: 'Error' })
+    expect(JSON.stringify([...simulQr.logger.error.mock.calls, ...simulQr.logger.warn.mock.calls])).not.toContain(MESSAGE_EXCEPTION_LECTURE_QR)
   })
 })
 

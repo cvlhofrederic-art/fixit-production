@@ -74,18 +74,28 @@ export function simulerFonctionsBureauxQr(base: BaseQr = baseQr): void {
   }
 }
 
+/** Message de l'exception levée par refuserLecturesQr(…, EXCEPTION_LECTURE_QR) : ne doit jamais atteindre un journal. */
+export const MESSAGE_EXCEPTION_LECTURE_QR = 'exception de lecture simulée'
+/** Au lieu d'une erreur de la base : la lecture LÈVE (client ou réseau en panne). */
+export const EXCEPTION_LECTURE_QR = 'exception'
+
 /**
- * Chaque LECTURE de ces colonnes dans la table reçoit cette erreur (une panne de la base, pas la migration absente) ;
- * les autres requêtes passent. Rend la fonction qui remet le client simulé.
+ * Chaque LECTURE de ces colonnes dans la table reçoit cette erreur (une panne de la base, pas la migration absente),
+ * ou lève (EXCEPTION_LECTURE_QR) ; les autres requêtes passent. Rend la fonction qui remet le client simulé.
  */
-export function refuserLecturesQr(table: string, colonnes: string, erreur: { code: string; message: string }, base: BaseQr = baseQr): () => void {
+export function refuserLecturesQr(
+  table: string, colonnes: string, erreur: { code: string; message: string } | typeof EXCEPTION_LECTURE_QR, base: BaseQr = baseQr,
+): () => void {
   const original = base.client.from
   base.client.from = ((nom: string, ...reste: unknown[]) => {
     const q = (original as (t: string, ...r: unknown[]) => Record<string, unknown>)(nom, ...reste)
     if (nom === table) {
       const select = q.select as (c?: string, ...r: unknown[]) => unknown
       q.select = (c?: string, ...r: unknown[]) => {
-        if (c === colonnes) base.etat.erreursPonctuelles[table] = erreur
+        if (c === colonnes) {
+          if (erreur === EXCEPTION_LECTURE_QR) throw new Error(MESSAGE_EXCEPTION_LECTURE_QR)
+          base.etat.erreursPonctuelles[table] = erreur
+        }
         return select(c, ...r)
       }
     }

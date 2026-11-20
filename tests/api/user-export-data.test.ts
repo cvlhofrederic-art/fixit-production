@@ -31,7 +31,9 @@ const { reinitialiserReplisQr } = await import('@/lib/aj-signalement/serveur')
 const { ATTRIBUTIONS_MAX_PAR_GESTIONNAIRE_QR } = await import('@/lib/aj-signalement/types')
 const { COLONNES_BUREAU_QR } = await import('@/lib/aj-signalement/serveur-bureaux')
 const { MESSAGE_EXPORT_INDISPONIBLE_QR } = await import('@/lib/aj-signalement/serveur-compte')
-const { ligneBureauQr, refuserLecturesQr, simulerProductionAvantBureauxQr } = await import('../helpers/aj-signalement-bureaux')
+const {
+  EXCEPTION_LECTURE_QR, MESSAGE_EXCEPTION_LECTURE_QR, ligneBureauQr, refuserLecturesQr, simulerProductionAvantBureauxQr,
+} = await import('../helpers/aj-signalement-bureaux')
 
 const CLIENT = { id: '0c000000-0000-4000-8000-000000000001', email: 'client@exemple.test', app_metadata: { role: 'client' } }
 /** Clés de l'export tel qu'il est rendu à tout compte avant la PR 2. */
@@ -213,6 +215,24 @@ describe('bureau de sa fiche (migration 20261119, décision du 20/11/2026)', () 
     const journalServeur = JSON.stringify([...simulQr.logger.error.mock.calls, ...simulQr.logger.warn.mock.calls])
     expect(journalServeur).not.toContain('Nord')
     expect(journalServeur).not.toContain(PANNE_LECTURE.message)
+  })
+
+  it('lecture du bureau qui lève (client ou réseau en panne) : 503 aussi, jamais l’export d’avant ; rien d’écrit', async () => {
+    rattacherG1()
+    const restaurer = refuserLecturesQr('signalements_qr_gestionnaires', 'id, bureau_id', EXCEPTION_LECTURE_QR)
+    let res: Response
+    try {
+      res = await GET(requeteQr('/api/user/export-data'))
+    } finally {
+      restaurer()
+    }
+    expect(res.status).toBe(503)
+    expect(await res.json()).toEqual({ error: MESSAGE_EXPORT_INDISPONIBLE_QR })
+    expect(res.headers.get('content-disposition')).toBeNull()
+    expect(baseQr.etat.ecritures).toEqual([])
+    // Journal serveur : le nom de l'exception seul, jamais son message.
+    expect(simulQr.logger.warn).toHaveBeenCalledWith(expect.stringContaining('bureau'), { exception: 'Error' })
+    expect(JSON.stringify([...simulQr.logger.error.mock.calls, ...simulQr.logger.warn.mock.calls])).not.toContain(MESSAGE_EXCEPTION_LECTURE_QR)
   })
 })
 
