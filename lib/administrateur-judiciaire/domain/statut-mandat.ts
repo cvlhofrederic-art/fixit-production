@@ -1,4 +1,11 @@
-import { ajouterJours, ajouterMois, dateIsoVersFr, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
+import {
+  ajouterJours,
+  ajouterMois,
+  dateIsoVersFr,
+  estAnneeImprobable,
+  estDateIsoValide,
+  messagePlausibilite,
+} from '@/lib/administrateur-judiciaire/domain/dates'
 import type { Regime } from '@/lib/administrateur-judiciaire/domain/fondements'
 import { normaliserEspaces } from '@/lib/administrateur-judiciaire/domain/texte'
 import { STATUT_MANDAT, type StatutMandat } from '@/lib/data/referentiels-gesteam-judiciaire'
@@ -105,7 +112,9 @@ import { STATUT_MANDAT, type StatutMandat } from '@/lib/data/referentiels-gestea
  *   sous un mois, avec bordereau, D. 1967 art. 33-1 ; état des comptes dans les deux mois suivants) ; administrateur de
  *   l'art. 47 : fonds et documents remis au syndic élu. Aucun texte n'impose l'art. 18-2 à la sortie d'un administrateur
  *   provisoire : ses délais servent de simple rappel (echeanceImposee faux). La date de fin de mission doit être saisie
- *   avant l'archivage et reste lisible après (L. 1965 art. 29-1, IV). Données : la fin de mission, l'ordonnance qui y met
+ *   avant l'archivage et reste lisible après (L. 1965 art. 29-1, IV). Fin de mission ou dépôt du compte rendu d'une
+ *   année improbable (dates.estAnneeImprobable, faute de frappe) : aucun délai n'en part, archivage refusé
+ *   (date_improbable), date à corriger. Données : la fin de mission, l'ordonnance qui y met
  *   fin, l'acceptation du syndic élu et les dates des remises sont des paramètres explicites, qu'aucune table
  *   n'enregistre aujourd'hui (écran : à voir).
  *
@@ -564,7 +573,11 @@ export const listeControleArchivage = (regime: Regime): Omit<PointControleArchiv
     return { code, libelle, fondement, echeanceImposee: delai?.impose ?? false }
   })
 
-export const MOTIFS_REFUS_ARCHIVAGE = ['pas_en_cloture', 'fin_mission_inconnue', 'regime_inconnu', 'controle_non_fait'] as const
+/**
+ * date_improbable : fin de mission ou dépôt du compte rendu de fin de mission d'une année improbable
+ * (dates.estAnneeImprobable, faute de frappe) ; aucun délai n'en part, la date est à corriger.
+ */
+export const MOTIFS_REFUS_ARCHIVAGE = ['pas_en_cloture', 'fin_mission_inconnue', 'date_improbable', 'regime_inconnu', 'controle_non_fait'] as const
 export type MotifRefusArchivage = (typeof MOTIFS_REFUS_ARCHIVAGE)[number]
 
 export interface EntreeArchivage {
@@ -605,6 +618,7 @@ function verifierEntreeArchivage({ regime, finMissionLe, faits = {} }: EntreeArc
 /**
  * F31 : le délai d'observations d'un mois court de la réception du compte rendu de fin de mission (D. 1967 art. 62-11,
  * III), qui suit son dépôt : il n'est pas passé sans compte rendu déposé, ni avant le lendemain d'un mois après le dépôt.
+ * Dépôt d'une année improbable (faute de frappe) : aucun délai n'en part ; motif date_improbable (motifsRefusArchivage).
  */
 function verifierDelaiObservations(faits: Partial<Record<ControleArchivage, string>>): void {
   const passeLe = faits.delai_observations
@@ -613,6 +627,7 @@ function verifierDelaiObservations(faits: Partial<Record<ControleArchivage, stri
   const depot = faits.compte_rendu_fin_mission
   if (depot === undefined)
     throw new Error(`${prefixe}, sans compte rendu de fin de mission déposé : il court de la réception de ce compte rendu.`)
+  if (estAnneeImprobable(depot)) return
   const auPlusTot = ajouterJours(ajouterMois(depot, 1), 1)
   if (passeLe < auPlusTot)
     throw new Error(
@@ -620,9 +635,30 @@ function verifierDelaiObservations(faits: Partial<Record<ControleArchivage, stri
     )
 }
 
+/** Échéance d'un point depuis la fin de mission ; null : aucun délai, fin inconnue ou d'une année improbable. */
 function echeanceDepuisFin(finMissionLe: string | null, delai: DefinitionControleArchivage['delai']): string | null {
-  if (finMissionLe === null || delai === null) return null
+  if (finMissionLe === null || delai === null || estAnneeImprobable(finMissionLe)) return null
   return delai.unite === 'jours' ? ajouterJours(finMissionLe, delai.nombre) : ajouterMois(finMissionLe, delai.nombre)
+}
+
+/**
+ * Dates de départ d'un délai d'une année improbable (dates.estAnneeImprobable, faute de frappe) : fin de mission
+ * (échéances des remises) et dépôt du compte rendu de fin de mission (délai d'observations). Aucun délai n'en part.
+ */
+function datesImprobables({ finMissionLe, faits = {} }: EntreeArchivage): ControleAvantArchivage['motifs'] {
+  const motifs: ControleAvantArchivage['motifs'] = []
+  if (finMissionLe !== null && estAnneeImprobable(finMissionLe))
+    motifs.push({
+      code: 'date_improbable',
+      message: `${messagePlausibilite('Fin de mission datée', finMissionLe, 'annee_improbable')} Pas d'échéance : corriger la date, qui reste lisible après l'archivage (L. 1965 art. 29-1, IV).`,
+    })
+  const depot = faits.compte_rendu_fin_mission
+  if (depot !== undefined && estAnneeImprobable(depot))
+    motifs.push({
+      code: 'date_improbable',
+      message: `${messagePlausibilite('Dépôt du compte rendu de fin de mission daté', depot, 'annee_improbable')} Délai d'observations non vérifié : corriger la date.`,
+    })
+  return motifs
 }
 
 function motifsRefusArchivage(entree: EntreeArchivage, points: readonly PointControleArchivage[]): ControleAvantArchivage['motifs'] {
@@ -635,6 +671,7 @@ function motifsRefusArchivage(entree: EntreeArchivage, points: readonly PointCon
       message:
         "Date de fin de mission à saisir : elle reste lisible après l'archivage (L. 1965 art. 29-1, IV : l'administrateur provisoire ne peut être désigné syndic de la copropriété dans les cinq ans de l'issue de sa mission).",
     })
+  motifs.push(...datesImprobables(entree))
   if (entree.regime === null) motifs.push({ code: 'regime_inconnu', message: 'Régime du mandat inconnu : liste de contrôle avant archivage non établie.' })
   const aFaire = points.filter((p) => p.faitLe === null).map((p) => p.libelle)
   if (aFaire.length > 0)

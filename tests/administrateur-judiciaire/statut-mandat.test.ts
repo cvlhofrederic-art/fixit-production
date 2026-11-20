@@ -29,6 +29,7 @@ import {
   listeControleArchivage,
   mandatHorsSuivi,
   mentionArchivesExclus,
+  MOTIFS_REFUS_ARCHIVAGE,
   proposerPassageEnCloture,
   STATUTS_EN_CLOTURE,
   STATUTS_HORS_SUIVI,
@@ -852,5 +853,49 @@ describe('décision du 20/11/2026 (partie C, F31) — « En clôture » proposé
     expect(() => controlerPassageArchive({ ...base, faits: { delai_observations: '2027-05-03' } }, '2027-06-01')).toThrow(
       /62-11, III.*sans compte rendu de fin de mission déposé/,
     )
+  })
+
+  it('fin de mission d’une année improbable (9999, 2525, 0026) : aucune échéance calculée, archivage refusé avec la date fautive', () => {
+    // Avant : depuis le 20/12/9999, les échéances tombaient en l'an 10000 (« 10000-01-04 »), hors du calendrier ISO.
+    const faits = { tresorerie_banque: '2027-04-10', documents_archives: '2027-04-28', etat_comptes: '2027-06-20' }
+    for (const [finMissionLe, citee] of [
+      ['9999-12-20', '20/12/9999'],
+      ['2525-03-31', '31/03/2525'],
+      ['0026-03-31', '31/03/0026'],
+    ] as const) {
+      const resultat = controlerPassageArchive({ statut: 'En clôture', regime: 'sj', finMissionLe, faits }, '2027-08-01')
+      expect(resultat.points.map((p) => p.echeanceLe), finMissionLe).toEqual([null, null, null])
+      expect(resultat).toMatchObject({ archivable: false, finMissionLe })
+      expect(resultat.motifs).toEqual([
+        {
+          code: 'date_improbable',
+          message: `Fin de mission datée du ${citee} : année improbable (faute de frappe ?). Pas d'échéance : corriger la date, qui reste lisible après l'archivage (L. 1965 art. 29-1, IV).`,
+        },
+      ])
+    }
+    expect(MOTIFS_REFUS_ARCHIVAGE).toEqual(['pas_en_cloture', 'fin_mission_inconnue', 'date_improbable', 'regime_inconnu', 'controle_non_fait'])
+    // Bornes : 1900 et 2100 restent plausibles.
+    const borne = controlerPassageArchive({ statut: 'En clôture', regime: 'sj', finMissionLe: '2100-12-31', faits }, '2027-08-01')
+    expect(borne.points.map((p) => p.echeanceLe)).toEqual(['2101-01-15', '2101-01-31', '2101-03-31'])
+  })
+
+  it('art. 29-1 : compte rendu déposé à une année improbable (0026) : aucun délai d’observations calculé, archivage refusé avec la date fautive', () => {
+    const base = { statut: 'En clôture', regime: 'ap291' as const, finMissionLe: '2027-03-31' }
+    const faits = {
+      compte_rendu_fin_mission: '0026-04-02',
+      delai_observations: '2027-04-10',
+      remuneration_arretee: '2027-05-20',
+      fonds_documents_successeur: '2027-04-10',
+    }
+    // Avant : le délai d'un mois partait de 0026 et le passage « délai passé » le 10/04/2027 était accepté.
+    const resultat = controlerPassageArchive({ ...base, faits }, '2027-06-01')
+    expect(resultat).toMatchObject({ archivable: false })
+    expect(resultat.motifs).toEqual([
+      {
+        code: 'date_improbable',
+        message:
+          "Dépôt du compte rendu de fin de mission daté du 02/04/0026 : année improbable (faute de frappe ?). Délai d'observations non vérifié : corriger la date.",
+      },
+    ])
   })
 })
