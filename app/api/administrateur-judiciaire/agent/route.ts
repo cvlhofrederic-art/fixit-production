@@ -59,9 +59,21 @@ export async function POST(req: NextRequest) {
   const dateDuJour = typeof contexte.dateDuJour === 'string' ? contexte.dateDuJour : new Date().toISOString().slice(0, 10)
   const systeme = construirePromptSystemeAJ(agent, JSON.stringify(sanitized.contexte, null, 1), dateDuJour)
 
+  // Trace Langfuse sans aucun texte (question, historique, contexte, réponse) : ils portent des noms de débiteurs et
+  // des montants dus que le masquage ne couvre pas. L'évaluation nocturne (langfuse-eval.yml) ne lit que le nom des
+  // traces et leur statut.
+  const metadata = {
+    succursale: 'administrateur-judiciaire',
+    agent,
+    longueurQuestion: message.length,
+    echangesPrecedents: historique.length,
+    tailleContexte: contexteJson.length,
+    elementsContexte: Object.values(contexte).reduce<number>((n, v) => n + (Array.isArray(v) ? v.length : 0), 0),
+  }
+
   try {
     const reponse = await traceAgent(
-      { agent_id: `aj-${agent}`, user_id: user.id, prompt: message, metadata: { succursale: 'administrateur-judiciaire' } },
+      { agent_id: `aj-${agent}`, user_id: user.id, metadonneesSeules: true, metadata },
       () =>
         callClaudeWithRetry(
           {

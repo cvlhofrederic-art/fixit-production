@@ -157,6 +157,38 @@ export interface TraceAgentParams {
   response?: string
   tools_called?: string[]
   metadata?: Record<string, unknown>
+  /**
+   * Trace sans aucun texte : ni `prompt`, ni `response`, ni message d'erreur (seulement son type et son statut HTTP).
+   * S'y ajoutent les jetons et le modèle lus dans la réponse (forme GroqResponse). Pour les agents dont les textes
+   * portent des données personnelles que le masquage ne couvre pas (noms, montants dus) : `metadata` ne doit alors
+   * contenir que des valeurs sans contenu (type de demande, longueurs, nombres d'éléments).
+   */
+  metadonneesSeules?: boolean
+}
+
+const champ = (objet: unknown, cle: string): unknown =>
+  typeof objet === 'object' && objet !== null ? (objet as Record<string, unknown>)[cle] : undefined
+
+const nombre = (valeur: unknown): number | undefined => (typeof valeur === 'number' ? valeur : undefined)
+
+/** Jetons et modèle d'une réponse au format GroqResponse, sans rien lire de son texte. */
+function jetonsEtModele(resultat: unknown): Record<string, unknown> {
+  const usage = champ(resultat, 'usage')
+  const modele = champ(resultat, 'model')
+  return {
+    modele: typeof modele === 'string' ? modele : undefined,
+    jetons:
+      typeof usage === 'object' && usage !== null
+        ? { entree: nombre(champ(usage, 'prompt_tokens')), sortie: nombre(champ(usage, 'completion_tokens')), total: nombre(champ(usage, 'total_tokens')) }
+        : undefined,
+  }
+}
+
+/** Type d'une erreur et statut HTTP s'il y en a un (ErreurClaude), jamais son message. */
+function typeErreur(error: unknown): string | undefined {
+  if (!(error instanceof Error)) return undefined
+  const statut = nombre(champ(error, 'statut'))
+  return statut === undefined ? error.name : `${error.name} ${statut}`
 }
 
 export async function traceAgent<T>(
@@ -179,17 +211,20 @@ export async function traceAgent<T>(
     try {
       const lf = getLangfuse()
       if (lf) {
+        const seules = params.metadonneesSeules === true
+        const messageErreur = error instanceof Error ? error.message : undefined
         const t = lf.trace({
           name: `agent:${params.agent_id}`,
           userId: pseudonymizeUserId(params.user_id),
           sessionId: params.conversation_id,
-          input: scrubForTrace(params.prompt),
-          output: scrubForTrace(params.response),
+          input: seules ? undefined : scrubForTrace(params.prompt),
+          output: seules ? undefined : scrubForTrace(params.response),
           metadata: {
             ...params.metadata,
+            ...(seules && success ? jetonsEtModele(result) : {}),
             latency_ms,
             success,
-            error: error instanceof Error ? error.message : undefined,
+            error: seules ? typeErreur(error) : messageErreur,
             tools_called: params.tools_called,
           },
         })
