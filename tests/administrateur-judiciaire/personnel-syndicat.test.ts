@@ -665,7 +665,7 @@ describe('règlement du net : rien n’est dû sur un bulletin avant sa constata
 })
 
 describe('Décision du 20/11/2026 (partie C, F39) — écritures de paie confirmées', () => {
-  it('brut au débit du 641 ; net au crédit du 421 ; cotisations au crédit du 431 / 432 ; part patronale au débit du 642 (644 : mutuelle) ; PAS au crédit du 442 ; taxe 643 / 442', () => {
+  it('brut au débit du 641 ; net au crédit du 421 ; cotisations au crédit du 431 / 432 ; part patronale au débit du 642 (644 : mutuelle) ; prélèvement à la source au crédit du 442 ; taxe 643 / 442', () => {
     const avecMutuelle = bulletin({
       cotisations: [
         { organisme: 'securite_sociale', salarialeCentimes: 30_000, patronaleCentimes: 60_000 },
