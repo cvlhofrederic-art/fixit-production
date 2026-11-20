@@ -143,6 +143,29 @@ describe('lecture du fichier', () => {
     expect(decoderTexteReleve(latin1.buffer)).toBe('VIR RÉGUL')
   })
 
+  it('marque d’ordre des octets UTF-16 (export « Texte Unicode ») : lu en UTF-16, comme FileReader.readAsText avant', () => {
+    const texte = 'Date\tLibellé\tMontant\n05/10/2026\tVIR SEPA\t350,00'
+    const utf16 = (petitBoutiste: boolean): ArrayBuffer => {
+      const octets = new Uint8Array(2 + texte.length * 2)
+      octets.set(petitBoutiste ? [0xff, 0xfe] : [0xfe, 0xff])
+      for (let rang = 0; rang < texte.length; rang++) {
+        const code = texte.charCodeAt(rang)
+        octets.set(petitBoutiste ? [code & 0xff, code >> 8] : [code >> 8, code & 0xff], 2 + rang * 2)
+      }
+      return octets.buffer
+    }
+    expect(decoderTexteReleve(utf16(true))).toBe(texte)
+    expect(decoderTexteReleve(utf16(false))).toBe(texte)
+    const analyse = analyserReleve(entree(decoderTexteReleve(utf16(true))))
+    expect(analyse.format).toBe('csv')
+    expect(analyse.retenues).toEqual([{ date: '2026-10-05', libelle: 'VIR SEPA', montant: 350 }])
+  })
+
+  it('marque d’ordre des octets UTF-8 suivie d’octets invalides : reste de l’UTF-8 (caractère de remplacement), comme avant', () => {
+    const octets = Uint8Array.from([0xef, 0xbb, 0xbf, 0x56, 0x49, 0x52, 0x20, 0xc9])
+    expect(decoderTexteReleve(octets.buffer)).toBe('VIR �')
+  })
+
   it('fichier de plus de 10 Mo : refusé avant lecture (seuil provisoire, à fixer)', () => {
     expect(TAILLE_MAX_RELEVE_OCTETS).toBe(10 * 1024 * 1024)
     expect(refusTailleReleve(TAILLE_MAX_RELEVE_OCTETS)).toBeNull()

@@ -119,11 +119,30 @@ export function refusTailleReleve(octets: number): string | null {
 }
 
 /**
- * Texte d'un fichier de relevé : UTF-8 (camt.053 déclaré en UTF-8, CFONB en ASCII), à défaut Windows-1252 (CFONB en
- * Latin-1 avec accents, hors norme mais possible). Un caractère par octet dans le second cas : la longueur de 120
- * caractères des enregistrements CFONB est préservée.
+ * Marques d'ordre des octets (BOM) reconnues, comme le faisait FileReader.readAsText (détection du standard Encoding) :
+ * un fichier « Texte Unicode » (UTF-16 avec sa marque, souvent séparé par des tabulations) reste lisible.
+ */
+const MARQUES_ORDRE_OCTETS: readonly { octets: readonly number[]; encodage: string }[] = [
+  { octets: [0xef, 0xbb, 0xbf], encodage: 'utf-8' },
+  { octets: [0xff, 0xfe], encodage: 'utf-16le' },
+  { octets: [0xfe, 0xff], encodage: 'utf-16be' },
+]
+
+/** Encodage désigné par la marque d'ordre des octets du début du fichier ; null sans marque. */
+function encodageDeLaMarque(octets: ArrayBuffer): string | null {
+  const debut = new Uint8Array(octets, 0, Math.min(3, octets.byteLength))
+  return MARQUES_ORDRE_OCTETS.find((marque) => marque.octets.every((octet, rang) => debut[rang] === octet))?.encodage ?? null
+}
+
+/**
+ * Texte d'un fichier de relevé. Avec une marque d'ordre des octets : l'encodage qu'elle désigne (UTF-8, UTF-16), marque
+ * retirée. Sans marque : UTF-8 (camt.053 déclaré en UTF-8, CFONB en ASCII), à défaut Windows-1252 (CFONB en Latin-1 avec
+ * accents, hors norme mais possible). Un caractère par octet dans ce dernier cas : la longueur de 120 caractères des
+ * enregistrements CFONB est préservée.
  */
 export function decoderTexteReleve(octets: ArrayBuffer): string {
+  const marque = encodageDeLaMarque(octets)
+  if (marque) return new TextDecoder(marque).decode(octets)
   try {
     return new TextDecoder('utf-8', { fatal: true }).decode(octets)
   } catch (erreur) {
