@@ -246,6 +246,24 @@ describe('GET /gestionnaires : bureau de chaque fiche, filtre par bureau', () =>
     expect(filtre.res.status).toBe(503)
     expect(await json(filtre.res)).toEqual({ error: 'base_absente' })
   })
+
+  // Non-régression de la décision du 20/11/2026 : seuls les EXPORTS refusent de partir sans leur bureau (503) ;
+  // l'affichage reste servi comme avant, sans clé de bureau.
+  it.each([
+    ['bureaux illisibles', () => refuserLecturesQr('signalements_qr_bureaux', COLONNES_BUREAU_QR, PANNE_LECTURE)],
+    ['lecture qui lève', () => refuserLecturesQr('signalements_qr_gestionnaires', 'id, bureau_id', EXCEPTION_LECTURE_QR)],
+  ])('lecture du bureau en panne (%s) : la liste reste servie (200), sans clé de bureau, comme avant', async (_cas, panne) => {
+    const restaurer = panne()
+    try {
+      const { res, gestionnaires } = await lireListe()
+      expect(res.status).toBe(200)
+      // G1 (rattachée à Nord) comprise : servie sans son bureau, rien n'est refusé.
+      expect(gestionnaires.map((g) => g.id)).toContain(G1)
+      for (const g of gestionnaires) expect(g).not.toHaveProperty('bureau')
+    } finally {
+      restaurer()
+    }
+  })
 })
 
 describe('POST /gestionnaires : bureau d’une nouvelle fiche (choix 2)', () => {
