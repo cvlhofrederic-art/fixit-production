@@ -20,19 +20,20 @@ export interface EtatTableauDeBordSimule {
   proprietes?: Map<string, Record<string, unknown>>
 }
 
-type Resolveur = (valeur: unknown) => unknown
-
-/** `supabase.from` simulé : fiche société lue dans l'état, autres lectures et mises à jour vides. */
+/**
+ * `supabase.from` simulé : fiche société lue dans l'état, autres lectures et mises à jour vides. Comme le vrai client,
+ * une requête s'attend directement (`await`, `.then()`) : chacune est ici une vraie promesse, augmentée de `single()`
+ * pour la lecture (pas d'objet maison portant `then`).
+ */
 export function fromSimule(etat: EtatTableauDeBordSimule) {
   return vi.fn((table: string) => ({
     select: () => ({
-      eq: () => ({
+      eq: () => Object.assign(Promise.resolve({ data: [], error: null }), {
         single: async () => (table === 'profiles_artisan' ? etat.fiche : { data: null, error: null }),
-        then: (resoudre?: Resolveur) => resoudre?.({ data: [], error: null }),
       }),
     }),
     // La page lance la mise à jour de last_seen_at par un `.then()` sans argument.
-    update: () => ({ eq: () => ({ then: (resoudre?: Resolveur) => resoudre?.({ data: null, error: null }) }) }),
+    update: () => ({ eq: () => Promise.resolve({ data: null, error: null }) }),
   }))
 }
 
