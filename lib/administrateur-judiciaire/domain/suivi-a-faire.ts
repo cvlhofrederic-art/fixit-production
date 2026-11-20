@@ -1079,7 +1079,12 @@ function etapeAlerte291A(alerte: AlerteMandataireAdHoc): { libelle: string; date
  *   connu) : rien ;
  * - la copie de la requête au représentant de l'État, au maire et au président de l'EPCI (art. 29-1 A, dernier alinéa ;
  *   D. 1967 art. 61-5), à la date de la requête, tant qu'elle n'est pas adressée : seulement dans le cadre de
- *   l'obligation du syndic (l'alerte ne la rend pas sinon, J67, R30).
+ *   l'obligation du syndic (l'alerte ne la rend pas sinon, J67, R30) ;
+ * - décision du 20/11/2026 (partie C, F35) : tant qu'aucun vote sur l'approbation des comptes n'est connu, la tâche
+ *   « saisir la date de la dernière assemblée qui s'est prononcée sur les comptes », sans réserve (une saisie, pas un
+ *   repère juridique) ; 🔵 choix de codage, comme une étape sans délai (J76) : datée de la date de référence de
+ *   l'alerte, due le jour même, jamais en retard. Le critère « atteint, à confirmer » depuis le début de la mission
+ *   remonte avec l'alerte, marquée `aConfirmer`.
  * Cadre de l'alerte (J67, R30) : administrateur de l'art. 29-1, constat à porter au prochain compte rendu au juge ;
  * administrateur de l'art. 47, signalement au juge, requête possible après consultation du conseil syndical.
  * `aConfirmer` reprend celui de l'alerte : sous administrateur provisoire (art. 29-1 ou D. 1967 art. 47 ; J67, R30 :
@@ -1100,6 +1105,16 @@ export function depuisAlertesMandataireAdHoc(items: { mandatId: string; alerte: 
           ...champs,
           libelle: `${TITRE_ALERTE_29_1_A} : requête au juge du ${dateIsoVersFr(copieDueLe)}, copie à adresser au représentant de l'État dans le département, au maire de la commune de l'immeuble et au président de l'EPCI compétent en matière d'habitat (art. 29-1 A, dernier alinéa ; D. 1967 art. 61-5)`,
           date: copieDueLe,
+        }),
+      )
+    const tache = alerte.comptes.tacheDernierVote
+    if (tache !== null)
+      elements.push(
+        elementSuivi('exercices', 'alerte_29_1_a', `${cle}:dernier_vote`, {
+          ...champs,
+          libelle: `${TITRE_ALERTE_29_1_A} : ${tache}`,
+          date: alerte.date,
+          aConfirmer: false,
         }),
       )
     return elements

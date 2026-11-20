@@ -122,9 +122,17 @@ import { ETATS_RESOLUTION, type EtatResolution } from '@/lib/administrateur-judi
  *   « obligation_du_syndic ») ;
  * - syndic désigné (D. 1967 art. 46) : inchangé.
  *
- * 🔴 Non établi (à trancher par Frédéric ou Hugo) :
- * - aucun vote connu sur l'approbation des comptes : depuis quand compter les deux ans ? Le critère reste non établi tant
- *   que la date de la dernière assemblée qui s'est prononcée n'est pas saisie.
+ * Décision du 20/11/2026 (partie C, F35) : aucun vote connu sur l'approbation des comptes. Quand on ne sait rien, le
+ * critère reste « non établi », mais une tâche est créée : « saisir la date de la dernière assemblée qui s'est prononcée
+ * sur les comptes » (procès-verbaux à obtenir de l'ancien syndic, qui doit remettre les archives : L. 1965 art. 18-2 ;
+ * D. 1967 art. 62-6) ; elle reste due tant qu'aucun vote n'est saisi (tacheDernierVote, reprise au suivi « à faire »).
+ * Si le cabinet gère le syndicat depuis au moins deux ans sans aucun vote sur les comptes enregistré depuis le début de
+ * sa mission, le critère devient « atteint, à confirmer », avec le début de la mission pour point de départ : une borne
+ * sûre, car on sait au moins qu'aucun vote n'a eu lieu depuis ; l'absence d'une date ne cache plus une alerte que le
+ * cabinet peut constater lui-même. Le début de la mission n'est porté par aucune table : entrée facultative
+ * debutMissionLe, fournie par l'appelant ; absente, la règle « non établi » reste seule. Un vote connu, même antérieur à
+ * la mission, garde la règle du dernier vote. En administration provisoire de l'art. 29-1, J67, R30 règle déjà la suite
+ * (constat au prochain compte rendu au juge) : aucune obligation nouvelle n'en est tirée.
  */
 
 export interface ParametresAlerte291A {
@@ -202,6 +210,12 @@ export interface EntreeAlerteMandataireAdHoc {
   votes?: readonly VoteApprobationComptes[]
   /** Décisions annuelles : une approbation des comptes adoptée par l'assemblée est un vote. */
   decisions?: readonly DecisionAnnuelle[]
+  /**
+   * Décision du 20/11/2026 (partie C, F35) — début de la mission du cabinet sur le syndicat ; absent ou null : non saisi.
+   * Sans aucun vote connu, deux ans après lui, le critère des comptes est « atteint, à confirmer ». Aucune table ne le
+   * porte : à fournir par l'appelant.
+   */
+  debutMissionLe?: string | null
   /** Régime du mandat de justice en cours ; absent ou null : aucun (syndic). */
   regime?: Regime | null
   /**
@@ -238,11 +252,20 @@ export interface CritereImpayes291A {
   traite: boolean
 }
 
+/** Point de départ du délai sans vote : dernier vote connu, ou début de la mission sans vote enregistré (F35). */
+export type PointDeDepartComptes291A = 'dernier_vote' | 'debut_mission'
+
 export interface CritereComptes291A {
   etat: EtatCritere291A
   dernierVoteLe: string | null
-  /** Date à laquelle le délai sans vote est atteint ; null : aucun vote connu. */
+  /** Date à laquelle le délai sans vote est atteint ; null : aucun vote connu, ni début de mission depuis au moins deux ans. */
   atteintLe: string | null
+  /** Point de départ du délai ; null : critère non établi. */
+  pointDeDepart: PointDeDepartComptes291A | null
+  /** Décision du 20/11/2026 (partie C, F35) — « atteint, à confirmer » : délai compté depuis le début de la mission, faute de vote connu. */
+  aConfirmer: boolean
+  /** Décision du 20/11/2026 (partie C, F35) — tâche de saisie tant qu'aucun vote n'est connu ; null : un vote est connu. */
+  tacheDernierVote: string | null
   /** Dernière approbation des comptes par décision de l'administrateur provisoire (pas un vote) ; null : aucune. */
   approuvesParAdministrateurLe: string | null
   message: string
@@ -289,7 +312,8 @@ export interface AlerteMandataireAdHoc {
   conduite: string
   fondement: string
   /**
-   * Administrateur provisoire sans les pouvoirs du syndic (lecture déduite, J67, R30) ; les arriérés ne rendent plus
+   * Administrateur provisoire sans les pouvoirs du syndic (lecture déduite, J67, R30), ou critère des comptes « atteint, à
+   * confirmer » depuis le début de la mission (décision du 20/11/2026, partie C, F35) ; les arriérés ne rendent plus
    * l'alerte à confirmer (J67, R31).
    */
   aConfirmer: boolean
@@ -356,7 +380,13 @@ function verifierEntree(entree: EntreeAlerteMandataireAdHoc): void {
     if (lot.coproprieteId !== entree.coproprieteId) throw new Error(`Lot ${lot.id} d'un autre syndicat que celui de l'alerte.`)
   if (entree.ordonnanceConferePouvoirsDuSyndic && entree.regime !== 'ap47')
     throw new Error("Pouvoirs du syndic conférés par l'ordonnance : sans objet hors administration provisoire de l'art. 47 (D. 1967 art. 47).")
+  verifierDebutMission(entree)
   verifierRequete(entree)
+}
+
+/** F35 : début de la mission, date valide s'il est saisi. */
+function verifierDebutMission({ debutMissionLe }: EntreeAlerteMandataireAdHoc): void {
+  if (!estAbsent(debutMissionLe)) verifierDate(debutMissionLe, 'Date du début de la mission')
 }
 
 /** Requête au juge et copie de la requête (D. 1967 art. 61-5) : dates valides, copie jamais sans requête ni avant elle. */
@@ -510,24 +540,65 @@ const prefixeApprobationAp = (le: string): string =>
 const SUITE_AUCUN_VOTE =
   "vote de l'assemblée sur l'approbation des comptes n'est connu : saisir la date de la dernière assemblée qui s'est prononcée (adoption ou rejet)."
 
+/** Décision du 20/11/2026 (partie C, F35) : tâche de saisie, tant qu'aucun vote sur l'approbation des comptes n'est connu. */
+const TACHE_DERNIER_VOTE =
+  "saisir la date de la dernière assemblée qui s'est prononcée sur les comptes (procès-verbaux à obtenir de l'ancien syndic, qui doit remettre les archives : L. 1965 art. 18-2 ; D. 1967 art. 62-6)."
+
+const A_CONFIRMER_F35 = "à confirmer (date de la dernière assemblée qui s'est prononcée sur les comptes à saisir)"
+
+const sansVoteDepuisLaMission = (debut: string): string =>
+  `vote de l'assemblée sur l'approbation des comptes enregistré depuis le début de la mission le ${fr(debut)}`
+
+/**
+ * Décision du 20/11/2026 (partie C, F35) — aucun vote connu : « atteint, à confirmer » quand le cabinet gère le syndicat
+ * depuis au moins deux ans (point de départ : le début de la mission) ; sinon « non établi », avec la date où il le
+ * deviendra si le début de la mission est saisi. Dans les deux cas, la tâche de saisie du dernier vote.
+ */
+function comptesSansVoteConnu(
+  entree: EntreeAlerteMandataireAdHoc,
+  date: string,
+  parametres: ParametresAlerte291A,
+  approbations: { approuvesParAdministrateurLe: string | null; approbationAffichee: string | null },
+): Constat<CritereComptes291A> {
+  const { approuvesParAdministrateurLe, approbationAffichee } = approbations
+  const commun = { dernierVoteLe: null, approuvesParAdministrateurLe, tacheDernierVote: TACHE_DERNIER_VOTE }
+  const debut = entree.debutMissionLe ?? null
+  const atteintLe = debut === null ? null : ajouterMois(debut, parametres.sansVoteMois)
+  const duree = `${parametres.sansVoteMois} mois sans vote`
+  if (debut !== null && atteintLe !== null && date >= atteintLe)
+    return {
+      ...commun,
+      etat: 'atteint',
+      atteintLe,
+      pointDeDepart: 'debut_mission',
+      aConfirmer: true,
+      message:
+        approbationAffichee !== null && approbationAffichee > debut
+          ? `${prefixeApprobationAp(approbationAffichee)} ; aucun ${sansVoteDepuisLaMission(debut)}, ${A_CONFIRMER_F35}.`
+          : `Aucun ${sansVoteDepuisLaMission(debut)} : ${duree} atteints le ${fr(atteintLe)}, ${A_CONFIRMER_F35}.`,
+    }
+  const aucun = approbationAffichee === null ? `Aucun ${SUITE_AUCUN_VOTE}` : `${prefixeApprobationAp(approbationAffichee)} ; aucun ${SUITE_AUCUN_VOTE}`
+  const echeance =
+    debut === null || atteintLe === null
+      ? ''
+      : ` Faute de vote enregistré depuis le début de la mission le ${fr(debut)}, ${duree} seront atteints, à confirmer, le ${fr(atteintLe)}.`
+  return { ...commun, etat: 'non_etabli', atteintLe: null, pointDeDepart: null, aConfirmer: false, message: `${aucun}${echeance}` }
+}
+
 function critereComptes(entree: EntreeAlerteMandataireAdHoc, date: string, parametres: ParametresAlerte291A): Constat<CritereComptes291A> {
   const dates = datesDeVote(entree, date)
   const approuvesParAdministrateurLe = approbationParAdministrateur(entree, date)
   /** Approbation à dire au message : sous administration provisoire de l'art. 29-1 seulement. */
   const approbationAffichee = entree.regime === 'ap291' ? approuvesParAdministrateurLe : null
-  if (dates.length === 0)
-    return {
-      etat: 'non_etabli',
-      dernierVoteLe: null,
-      atteintLe: null,
-      approuvesParAdministrateurLe,
-      message: approbationAffichee === null ? `Aucun ${SUITE_AUCUN_VOTE}` : `${prefixeApprobationAp(approbationAffichee)} ; aucun ${SUITE_AUCUN_VOTE}`,
-    }
+  if (dates.length === 0) return comptesSansVoteConnu(entree, date, parametres, { approuvesParAdministrateurLe, approbationAffichee })
   const dernier = dates.reduce((a, b) => (b > a ? b : a), dates[0])
   const atteintLe = ajouterMois(dernier, parametres.sansVoteMois)
   const duree = `${parametres.sansVoteMois} mois sans vote`
+  /** Un vote connu, même antérieur à la mission : la règle du dernier vote (F35). */
+  const depuisLeDernierVote = { pointDeDepart: 'dernier_vote', aConfirmer: false, tacheDernierVote: null } as const
   if (date >= atteintLe)
     return {
+      ...depuisLeDernierVote,
       etat: 'atteint',
       dernierVoteLe: dernier,
       atteintLe,
@@ -538,6 +609,7 @@ function critereComptes(entree: EntreeAlerteMandataireAdHoc, date: string, param
           : `Aucun vote de l'assemblée sur l'approbation des comptes depuis le ${fr(dernier)} : ${duree} atteints le ${fr(atteintLe)}.`,
     }
   return {
+    ...depuisLeDernierVote,
     etat: 'non_atteint',
     dernierVoteLe: dernier,
     atteintLe,
@@ -684,7 +756,7 @@ export function alerteMandataireAdHoc(
     message: atteints.map(({ critere }) => critere.message).join(' '),
     conduite: conduite.texte,
     fondement: conduite.fondement,
-    aConfirmer: conduite.aConfirmer,
+    aConfirmer: conduite.aConfirmer || comptes.aConfirmer,
     ...controleNombreLots(entree, parametres),
   }
 }
