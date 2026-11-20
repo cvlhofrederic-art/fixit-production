@@ -5,6 +5,7 @@ import {
   cleRib,
   composerLibelle,
   controlerSoldes,
+  decimalesDevise,
   designationReleve,
   montantMajeur,
   totauxMouvements,
@@ -42,13 +43,16 @@ import {
  *    mandat, CPY compte débiteur ; le qualifiant LIB (libellé libre, plusieurs possibles) est conservé.
  *
  * Choix 🔵 (déduits, à valider) : années JJMMAA lues 20AA ; date de valeur vide ou à zéro → null ; libellé = libellé du 04
- *    puis textes LIB, LCC et LC2 dans l'ordre du fichier, plus le nom de la contrepartie (composerLibelle :
- *    au-delà de 1 000 caractères, textes suivants omis avec un avertissement) ; un relevé dont
- *    un enregistrement est faux est refusé en entier, les autres relevés du fichier restent lus ; lignes de moins de
- *    120 caractères complétées de blancs (blancs de fin rognés par un éditeur) tant que les zones obligatoires sont
- *    entières, sinon « enregistrement tronqué » ; fichier sans séparateur de ligne découpé tous les 120 caractères.
- * 🔴 Non établi : fichiers en EBCDIC (seul l'ASCII est lu) ; valeurs admises du nombre de décimales (tout chiffre accepté,
- *    non comparé à la devise) ; qualifiants propres à une banque (gardés bruts dans `complements`) ; MMO non interprété.
+ *    puis textes LIB, LCC et LC2 dans l'ordre du fichier, plus le nom de la contrepartie (composerLibelle : au-delà de
+ *    1 000 caractères, textes suivants omis avec un avertissement) ; un relevé dont un enregistrement est faux est refusé
+ *    en entier, les autres relevés du fichier restent lus ; lignes de moins de 120 caractères complétées de blancs (blancs
+ *    de fin rognés par un éditeur) tant que les zones obligatoires sont entières, sinon « enregistrement tronqué » ;
+ *    fichier sans séparateur de ligne découpé tous les 120 caractères ; nombre de décimales (zone 1-F) égal à celui de la
+ *    devise selon ISO 4217 (decimalesDevise), sinon relevé refusé — la brochure ne fait que nommer la zone et désigner
+ *    la devise par son code ISO 4217, mais les montants sont rendus en unités mineures de la devise (un relevé EUR à
+ *    3 décimales serait lu en millièmes) ; le guide CFONB camt.053 (§ 1.11) pose la même règle pour le format XML.
+ * 🔴 Non établi : fichiers en EBCDIC (seul l'ASCII est lu) ; qualifiants propres à une banque (gardés bruts dans
+ *    `complements`) ; MMO non interprété.
  */
 
 const LONGUEUR_ENREGISTREMENT = 120
@@ -161,10 +165,20 @@ function ouvrirReleve(lecture: Lecture, numero: number, ligne: string, longueur:
   lecture.enCours = releve
   releve.compte = compteDe(lecture, numero, ligne)
   if (longueur < LONGUEUR_MINIMALE['01']) return signaler(lecture, numero, `enregistrement tronqué (${longueur} caractères).`)
-  if (!/^[A-Z]{3}$/.test(releve.devise)) signaler(lecture, numero, `code devise illisible « ${releve.devise} ».`)
-  if (!/^\d$/.test(zone(ligne, 20, 1))) signaler(lecture, numero, `nombre de décimales illisible « ${zone(ligne, 20, 1)} ».`)
+  controlerDevise(lecture, numero, releve, zone(ligne, 20, 1))
   if (!releve.dateOuverture) signaler(lecture, numero, `date de l’ancien solde invalide « ${zone(ligne, 35, 6)} ».`)
   if (releve.soldeOuverture === null) signaler(lecture, numero, `montant de l’ancien solde illisible « ${zone(ligne, 91, 14)} ».`)
+}
+
+/** Devise et nombre de décimales de l'ancien solde : lisibles, et décimales égales à celles de la devise (ISO 4217). */
+function controlerDevise(lecture: Lecture, numero: number, releve: ReleveEnCours, zoneDecimales: string): void {
+  const deviseLisible = /^[A-Z]{3}$/.test(releve.devise),
+    decimalesLisibles = /^\d$/.test(zoneDecimales),
+    attendues = decimalesDevise(releve.devise)
+  if (!deviseLisible) signaler(lecture, numero, `code devise illisible « ${releve.devise} ».`)
+  if (!decimalesLisibles) signaler(lecture, numero, `nombre de décimales illisible « ${zoneDecimales} ».`)
+  if (deviseLisible && decimalesLisibles && releve.decimales !== attendues)
+    signaler(lecture, numero, `nombre de décimales ${releve.decimales} incompatible avec la devise ${releve.devise} (${attendues} selon ISO 4217).`)
 }
 
 /** Contrôle commun à 04, 05 et 07 : un relevé ouvert et les mêmes zones de compte que l'ancien solde. */
@@ -290,6 +304,26 @@ function fermerReleve(lecture: Lecture, numero: number, ligne: string, longueur:
   else lecture.releves.push(lu)
 }
 
+type LecteurEnregistrement = (lecture: Lecture, numero: number, ligne: string, longueur: number) => void
+
+/** Lecteur de chaque code d'enregistrement. */
+const LECTEURS: ReadonlyMap<string, LecteurEnregistrement> = new Map([
+  ['01', ouvrirReleve],
+  ['04', lireMouvement],
+  ['05', lireComplement],
+  ['07', fermerReleve],
+])
+
+/** Un enregistrement : refusé s'il est trop long ou de code inconnu (un 05 qui le suit n'a plus de mouvement), sinon lu. */
+function lireEnregistrement(lecture: Lecture, numero: number, contenu: string): void {
+  if (contenu.length > LONGUEUR_ENREGISTREMENT) return signaler(lecture, numero, `${contenu.length} caractères au lieu de 120.`)
+  const code = contenu.slice(0, 2),
+    lecteur = LECTEURS.get(code)
+  if (lecteur) return lecteur(lecture, numero, contenu.padEnd(LONGUEUR_ENREGISTREMENT, ' '), contenu.length)
+  signaler(lecture, numero, `code d’enregistrement « ${code} » inconnu (01, 04, 05 ou 07 attendu).`)
+  if (lecture.enCours) lecture.enCours.dernier = null
+}
+
 /** Enregistrements numérotés : lignes non vides, ou tranches de 120 caractères d'un fichier sans séparateur. */
 function decouper(texte: string): { enregistrements: { numero: number; contenu: string }[]; erreur: string | null } {
   const propre = texte.replace(/^﻿/, '')
@@ -325,22 +359,7 @@ export function lireReleveCfonb120(texte: string): ResultatLectureReleves {
   if (erreur) return { releves: [], erreurs: [erreur], avertissements: [] }
   if (enregistrements.length === 0) return { releves: [], erreurs: ['Relevé vide.'], avertissements: [] }
   const lecture: Lecture = { erreurs: [], avertissements: [], releves: [], enCours: null, rang: 0 }
-  for (const { numero, contenu } of enregistrements) {
-    if (contenu.length > LONGUEUR_ENREGISTREMENT) {
-      signaler(lecture, numero, `${contenu.length} caractères au lieu de 120.`)
-      continue
-    }
-    const ligne = contenu.padEnd(LONGUEUR_ENREGISTREMENT, ' '),
-      code = contenu.slice(0, 2)
-    if (code === '01') ouvrirReleve(lecture, numero, ligne, contenu.length)
-    else if (code === '04') lireMouvement(lecture, numero, ligne, contenu.length)
-    else if (code === '05') lireComplement(lecture, numero, ligne, contenu.length)
-    else if (code === '07') fermerReleve(lecture, numero, ligne, contenu.length)
-    else {
-      signaler(lecture, numero, `code d’enregistrement « ${code} » inconnu (01, 04, 05 ou 07 attendu).`)
-      if (lecture.enCours) lecture.enCours.dernier = null
-    }
-  }
+  for (const { numero, contenu } of enregistrements) lireEnregistrement(lecture, numero, contenu)
   if (lecture.enCours) refuser(lecture, lecture.enCours, 'nouveau solde (07) absent, fichier tronqué ?')
   return { releves: lecture.releves, erreurs: lecture.erreurs, avertissements: [...lecture.avertissements, ...avertissementsContinuite(lecture.releves)] }
 }

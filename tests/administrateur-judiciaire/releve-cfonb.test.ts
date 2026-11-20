@@ -172,6 +172,28 @@ describe('relevé CFONB 120 — fichier hostile', () => {
   })
 })
 
+describe('relevé CFONB 120 — décimales de la devise', () => {
+  /** Ancien et nouveau solde de 125,00 dans une devise et un nombre de décimales donnés (positions 17 à 20). */
+  const releveSansMouvement = (devise: string, decimales: string) =>
+    avecLignes([ANCIEN_SOLDE_NUL, nouveauSolde('0000000000000{')].map((ligne) => surcharger(surcharger(ligne, 17, devise), 20, decimales)))
+
+  it('un nombre de décimales autre que celui de la devise (ISO 4217) fait refuser le relevé', () => {
+    expect(lireReleveCfonb120(releveSansMouvement('EUR', '3'))).toEqual({
+      releves: [],
+      erreurs: [
+        'Relevé 1, ligne 1 : nombre de décimales 3 incompatible avec la devise EUR (2 selon ISO 4217).',
+        'Relevé 1 (RIB 12345 00010 00012345678 clé 49, du 30/09/2026 au 01/10/2026) refusé : 1 enregistrement en erreur.',
+      ],
+      avertissements: [],
+    })
+    expect(lireReleveCfonb120(releveSansMouvement('XPF', '2')).erreurs[0]).toBe(
+      'Relevé 1, ligne 1 : nombre de décimales 2 incompatible avec la devise XPF (0 selon ISO 4217).',
+    )
+    expect(lireReleveCfonb120(releveSansMouvement('EUR', '2')).releves).toHaveLength(1)
+    expect(lireReleveCfonb120(releveSansMouvement('TND', '3')).releves).toHaveLength(1)
+  })
+})
+
 describe('relevé CFONB 120 — refus', () => {
   it('ancien solde + mouvements ≠ nouveau solde : relevé refusé, les autres relevés du fichier restent lus', () => {
     const lecture = lireReleveCfonb120(modifierLigne(NOMINAL, 12, (ligne) => surcharger(ligne, 91, '0000000004728D')))
