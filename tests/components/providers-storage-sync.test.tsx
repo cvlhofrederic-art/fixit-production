@@ -106,3 +106,62 @@ describe('Providers — bootstrap storage-sync', () => {
     expect(hydrateStorageFromServer).toHaveBeenCalledTimes(2)
   })
 })
+
+// Audit des fondations du 11/11/2026 : la migration « tout envoyer » (pushAllLocalToServer) partait dès que la
+// restauration rendait 0 — donc aussi quand elle avait ÉCHOUÉ (réseau, 429, 500). L'appareil remplaçait alors la
+// sauvegarde du serveur par son propre contenu, vide ou ancien.
+describe('Providers — migration « tout envoyer » du premier passage', () => {
+  const DRAPEAU = 'fixit_user_storage_migrated_v1'
+
+  async function amorcerAvec(resultat: { count: number; ok: boolean; vide: boolean; autreCompte: boolean }) {
+    window.localStorage.removeItem(DRAPEAU)
+    hydrateStorageFromServer.mockResolvedValue(resultat)
+    const Providers = (await import('@/components/common/Providers')).default
+    render(<Providers locale="fr">{null}</Providers>)
+    await laisserTourner()
+    rappels.forEach((rappel) => rappel('INITIAL_SESSION', SESSION))
+    await laisserTourner()
+    await laisserTourner()
+  }
+
+  it('restauration en échec : rien n’est envoyé, le drapeau n’est pas posé', async () => {
+    await amorcerAvec({ count: 0, ok: false, vide: false, autreCompte: false })
+    expect(pushAllLocalToServer).not.toHaveBeenCalled()
+    expect(window.localStorage.getItem(DRAPEAU)).toBeNull()
+  })
+
+  it('le serveur a répondu qu’il ne détient rien : la migration part une fois, drapeau posé si elle a réussi', async () => {
+    pushAllLocalToServer.mockResolvedValueOnce({ count: 4 })
+    await amorcerAvec({ count: 0, ok: true, vide: true, autreCompte: false })
+    expect(pushAllLocalToServer).toHaveBeenCalledTimes(1)
+    expect(window.localStorage.getItem(DRAPEAU)).not.toBeNull()
+
+    // Passage suivant : le drapeau empêche de recommencer.
+    rappels.forEach((rappel) => rappel('TOKEN_REFRESHED', SESSION))
+    await laisserTourner()
+    await laisserTourner()
+    expect(pushAllLocalToServer).toHaveBeenCalledTimes(1)
+  })
+
+  it('migration sans rien d’envoyé (échec) : pas de drapeau, elle sera retentée', async () => {
+    pushAllLocalToServer.mockResolvedValueOnce({ count: 0 })
+    await amorcerAvec({ count: 0, ok: true, vide: true, autreCompte: false })
+    expect(pushAllLocalToServer).toHaveBeenCalledTimes(1)
+    expect(window.localStorage.getItem(DRAPEAU)).toBeNull()
+  })
+
+  it('navigateur déjà utilisé par un autre compte : ses données ne sont pas envoyées dans l’espace du nouveau', async () => {
+    await amorcerAvec({ count: 0, ok: true, vide: true, autreCompte: true })
+    expect(pushAllLocalToServer).not.toHaveBeenCalled()
+  })
+
+  it('le serveur détient déjà des données : pas de migration', async () => {
+    await amorcerAvec({ count: 3, ok: true, vide: false, autreCompte: false })
+    expect(pushAllLocalToServer).not.toHaveBeenCalled()
+  })
+
+  it('stockage plein, aucune valeur du serveur n’a pu être écrite ici (count 0) : pas de migration non plus', async () => {
+    await amorcerAvec({ count: 0, ok: true, vide: false, autreCompte: false })
+    expect(pushAllLocalToServer).not.toHaveBeenCalled()
+  })
+})

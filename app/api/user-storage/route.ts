@@ -2,8 +2,9 @@
 // `fixit_*` afin de rendre toutes les donnees applicatives portables entre
 // appareils, navigateurs et apres nettoyage des donnees du site.
 //
-//   GET  /api/user-storage          -> { entries: { [key]: value } }
-//   POST /api/user-storage          -> upsert { entries: [{key, value}, ...] }
+//   GET  /api/user-storage          -> { entries: { [key]: value } }, plus `identifiants` (compte, fiche) si l'espace est vide
+//                                      et la fiche lisible
+//   POST /api/user-storage          -> upsert { entries: [{key, value}, ...] } ; 422 si la base refuse une valeur
 //   DELETE /api/user-storage        -> body { keys: string[] }
 //
 // Le client (lib/storage-sync.ts) appelle GET au login pour hydrater le
@@ -42,6 +43,17 @@ const deleteSchema = z.object({
   keys: z.array(z.string().regex(/^fixit_[a-z0-9_-]+$/i).max(120)).min(1).max(MAX_ENTRIES_PER_REQUEST),
 })
 
+/**
+ * Codes d'erreur de la base (SQLSTATE) qui tiennent au contenu d'une valeur, pas à l'état du serveur : classe 22
+ * (donnée que la base ne sait pas enregistrer : texte ou JSON invalide pour elle), 23502 (valeur nulle), 23514
+ * (contrainte sur la valeur), classe 54 (valeur au-delà des limites de la base). La renvoyer telle quelle échouera
+ * toujours.
+ */
+function estUnRefusDeContenu(code: unknown): boolean {
+  if (typeof code !== 'string') return false
+  return code.startsWith('22') || code === '23502' || code === '23514' || code.startsWith('54')
+}
+
 // ─── GET — toutes les entrees de l'utilisateur ───────────────────────────
 export async function GET(request: NextRequest) {
   const ip = getClientIP(request)
@@ -67,7 +79,28 @@ export async function GET(request: NextRequest) {
     entries[row.key as string] = row.value
   }
 
-  return NextResponse.json({ entries, updatedAt: new Date().toISOString() })
+  // Espace vide : le navigateur peut y recopier ce qu'il détient déjà pour ce compte (premier passage). On lui donne
+  // les identifiants sous lesquels ce compte range ses clés — le sien et celui de sa fiche — pour qu'il n'y recopie
+  // que celles-là : sur un poste partagé, ce qu'un autre compte a laissé dans le navigateur n'a pas à le suivre.
+  let identifiants: string[] | undefined
+  if (Object.keys(entries).length === 0) {
+    const { data: fiches, error: erreurFiches } = await supabaseAdmin
+      .from('profiles_artisan')
+      .select('id')
+      .eq('user_id', user.id)
+    if (erreurFiches) {
+      // Sans la fiche, la liste serait incomplète (une société range ses données sous l'identifiant de sa fiche) :
+      // aucune n'est donnée, et le navigateur ne recopie rien. La restauration, elle, répond (relecture du 15/11/2026).
+      logger.warn('[user-storage/GET] fiche du compte illisible :', erreurFiches)
+    } else {
+      identifiants = [user.id]
+      for (const fiche of fiches || []) {
+        if (typeof fiche.id === 'string' && fiche.id) identifiants.push(fiche.id)
+      }
+    }
+  }
+
+  return NextResponse.json({ entries, identifiants, updatedAt: new Date().toISOString() })
 }
 
 // ─── POST — batch upsert ────────────────────────────────────────────────
@@ -101,7 +134,10 @@ export async function POST(request: NextRequest) {
 
   if (error) {
     logger.error('[user-storage/POST] Failed:', error)
-    return NextResponse.json({ error: 'Erreur lors de la sauvegarde' }, { status: 500 })
+    // La base refuse le contenu d'une valeur : 422, pour que le navigateur la mette à part au lieu de renvoyer sans
+    // fin tout l'envoi qui la contient. Toute autre erreur est une panne (500) : l'envoi sera retenté tel quel.
+    const status = estUnRefusDeContenu(error.code) ? 422 : 500
+    return NextResponse.json({ error: 'Erreur lors de la sauvegarde' }, { status })
   }
 
   return NextResponse.json({ success: true, count: rows.length })
