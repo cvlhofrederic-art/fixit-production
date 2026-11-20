@@ -114,6 +114,28 @@ describe('Import des relevés CFONB 120 et camt.053', () => {
     expect(boutonImporter()).toBeDisabled()
   })
 
+  it('IBAN du compte modifié après l’analyse : l’analyse faite pour l’ancien IBAN est abandonnée, jamais importée', async () => {
+    await ajouterCompte(IBAN_FIXTURE)
+    const { push } = await rendre()
+    analyser(CAMT_UN_RELEVE)
+    expect(boutonImporter()).toBeEnabled()
+    const panneauComptes = screen.getByRole('heading', { level: 3, name: 'Comptes bancaires du mandat' }).closest('.panel') as HTMLElement
+    fireEvent.click(within(within(panneauComptes).getAllByRole('row')[1]).getByRole('button', { name: /^Modifier/ }))
+    const boite = within(screen.getByRole('dialog'))
+    fireEvent.change(boite.getByLabelText('IBAN'), { target: { value: 'FR76 3000 6000 0112 3456 7890 189' } })
+    const avant = push.mock.calls.length
+    await act(async () => {
+      fireEvent.click(boite.getByRole('button', { name: 'Enregistrer' }))
+    })
+    await waitFor(() => expect(push.mock.calls.length).toBeGreaterThan(avant))
+    await patienter()
+    expect(push.mock.calls.at(-1)?.[0]).toMatchObject({ kind: 'success', title: 'Compte modifié' })
+    expect(dansImport().queryByRole('button', { name: /^Importer \d+ ligne/ })).toBeNull()
+    fireEvent.click(dansImport().getByRole('button', { name: /Analyser/ }))
+    expect(panneauImport().textContent).toContain('refusé : compte absent des comptes attendus.')
+    expect(boutonImporter()).toBeDisabled()
+  })
+
   it('compte choisi sans IBAN : relevé structuré bloqué, motif affiché', async () => {
     await ajouterCompte(null)
     await rendre()

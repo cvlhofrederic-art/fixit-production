@@ -4,6 +4,7 @@ import { useState, type ChangeEvent } from 'react'
 import { EXEMPLE_RELEVE_BANCAIRE_CSV } from '@/components/administrateur-judiciaire/data/exemples-import'
 import {
   analyserReleve,
+  analyseValablePour,
   decoderTexteReleve,
   refusTailleReleve,
   type AnalyseReleve,
@@ -131,15 +132,15 @@ export function ImportRelevePanel({ copro, comptes, etatComptes, personnes, lign
   const [choixCompte, setChoixCompte] = useState('')
   const actifs = comptesActifs(comptes, etatComptes)
   const compteChoisi = compteDeLImport(actifs, choixCompte)
-  // Changement de copropriété (sélecteur du haut ou select local) ou de compte : l'analyse faite pour l'ancien est
-  // abandonnée. Ajustement pendant le rendu, sans remontage de l'écran.
+  // Changement de copropriété (sélecteur du haut ou select local), de compte ou de l'IBAN du compte : l'analyse faite
+  // pour l'ancien est abandonnée. Ajustement pendant le rendu, sans remontage de l'écran.
   const [codeAnalyse, setCodeAnalyse] = useState(copro?.code)
   if (codeAnalyse !== copro?.code) {
     setCodeAnalyse(copro?.code)
     setChoixCompte('')
     setAnalyse(null)
   }
-  if (analyse && analyse.compteId !== (compteChoisi?.id ?? null)) setAnalyse(null)
+  if (analyse && !analyseValablePour(analyse, compteChoisi)) setAnalyse(null)
   const motifCompte = motifSansCompte(etatComptes, actifs.length, compteChoisi)
 
   const analyser = () => {

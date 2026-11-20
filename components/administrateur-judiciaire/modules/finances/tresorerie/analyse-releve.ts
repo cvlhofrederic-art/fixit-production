@@ -78,6 +78,8 @@ export interface ReleveLu {
 export interface AnalyseReleve {
   /** Compte bancaire choisi au moment de l'analyse ; null : aucun (import impossible). */
   compteId: string | null
+  /** IBAN de ce compte au moment de l'analyse (seul compte attendu d'un relevé structuré) ; null : aucun. */
+  compteIban: string | null
   format: FormatReleve
   retenues: LigneReleve[]
   doublons: LigneReleve[]
@@ -222,9 +224,17 @@ export function analyserReleve(entree: EntreeAnalyseReleve): AnalyseReleve {
   return {
     ...resultat,
     compteId: entree.compte?.id ?? null,
+    compteIban: entree.compte?.iban ?? null,
     format: lecture.format,
     rapprochements: proposerImputations(resultat.retenues, [...entree.personnes]),
     erreurs: lecture.erreurs,
     blocage: blocageDuFichier(lecture, entree.compte),
   }
 }
+
+/**
+ * Vrai si l'analyse vaut pour ce compte tel qu'il est maintenant : même compte et même IBAN. Un IBAN modifié après
+ * l'analyse (« Modifier » de « Comptes bancaires du mandat ») la rend caduque : le relevé a été contrôlé contre l'ancien.
+ */
+export const analyseValablePour = (analyse: AnalyseReleve, compte: EntreeAnalyseReleve['compte']): boolean =>
+  analyse.compteId === (compte?.id ?? null) && analyse.compteIban === (compte?.iban ?? null)
