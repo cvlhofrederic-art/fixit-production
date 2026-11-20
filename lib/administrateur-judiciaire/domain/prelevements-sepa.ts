@@ -1,5 +1,10 @@
 import { validerIban } from '@/lib/administrateur-judiciaire/domain/comptes-bancaires'
 import { estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
+import {
+  commentaireValidationBanque,
+  controlerValidationBanque,
+  type FicheValidationBanque,
+} from '@/lib/administrateur-judiciaire/domain/validation-banque'
 
 /**
  * Prélèvements SEPA des copropriétaires (cartographie Gestéam, tranches 25 et 29). Fonctions pures, montants en
@@ -10,7 +15,12 @@ import { estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
  * Gestéam — « fiches échéancier de prélèvement » : Date · Compte (450) · Nom · Règlement · Ctx · Appel · Solde · Montant
  * · Statut « À prélever » ; le montant prélevé ne dépasse jamais le solde dû ; un compte porte jusqu'à deux R.U.M.
  * Format produit : ISO 20022 pain.008.001.02 (prélèvement SEPA Core), un bloc PmtInf par type de séquence.
- * 🔴 À valider avec la banque du syndicat avant tout dépôt (variantes de format acceptées, délais de présentation).
+ * Décision du 20/11/2026 (partie C, F103) : fichier produit, jamais transmis par VitFix ; chaque compte bancaire du
+ * syndicat reçoit une fiche « validation banque » (date du test, format accepté, ICS vérifié, longueur maximale des
+ * références, délais de remise : validation-banque.ts) ; sans elle, ou si l'ICS du créancier n'est pas celui que la banque
+ * a vérifié, le fichier porte la mention « non validé par la banque » (genererPain008, option validationBanque). Le
+ * règlement (UE) n° 260/2012 ne fixe que des exigences générales (art. 5 et annexe) : variantes de format et délais de
+ * présentation relèvent du guide de la banque, que seul un test réel valide.
  */
 
 export type SequenceSepa = 'FRST' | 'RCUR'
@@ -78,16 +88,32 @@ export interface CreancierSepa {
   bic: string
 }
 
-/** Fichier pain.008.001.02 du lot (chaîne XML). */
+/**
+ * Fichier pain.008.001.02 du lot (chaîne XML). Sans fiche « validation banque » du compte créancier qui accepte ce format
+ * et a vérifié son ICS (validationBanque), le fichier porte la mention « non validé par la banque » (décision du
+ * 20/11/2026, partie C, F103).
+ */
 export function genererPain008(
   lot: LotPrelevements,
   creancier: CreancierSepa,
-  { messageId, dateCreation, dateEcheance }: { messageId: string; dateCreation: string; dateEcheance: string },
+  {
+    messageId,
+    dateCreation,
+    dateEcheance,
+    validationBanque = null,
+  }: { messageId: string; dateCreation: string; dateEcheance: string; validationBanque?: FicheValidationBanque | null },
 ): string {
   if (lot.retenues.length === 0) throw new Error('Lot de prélèvements vide : rien à produire.')
   if (!validerIcs(creancier.ics)) throw new Error(`ICS du créancier invalide : « ${creancier.ics} ».`)
   if (!validerIban(creancier.iban)) throw new Error('IBAN du créancier invalide.')
   if (!estDateIsoValide(dateEcheance)) throw new Error(`Date d'échéance invalide (${dateEcheance}) : AAAA-MM-JJ attendu.`)
+  const mention = commentaireValidationBanque(
+    controlerValidationBanque(validationBanque, {
+      format: 'pain.008.001.02',
+      ics: creancier.ics,
+      references: lot.retenues.flatMap((r) => [r.id, r.rum.trim()]),
+    }),
+  )
 
   const blocs = (['FRST', 'RCUR'] as const)
     .map((sequence) => ({ sequence, lignes: lot.retenues.filter((r) => r.sequence === sequence) }))
@@ -124,7 +150,7 @@ ${transactions}
     .join('\n')
 
   return `<?xml version="1.0" encoding="UTF-8"?>
-<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pain.008.001.02" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+${mention}<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pain.008.001.02" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <CstmrDrctDbtInitn>
     <GrpHdr>
       <MsgId>${echapper(messageId)}</MsgId>

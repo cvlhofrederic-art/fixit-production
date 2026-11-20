@@ -9,7 +9,16 @@ import {
   type CompteFondsDetenus,
   type DonneesFondsDetenus,
 } from '@/lib/administrateur-judiciaire/domain/fonds-detenus'
+import { creerOrdreVirement, genererPain001, type LigneVirement } from '@/lib/administrateur-judiciaire/domain/ordres-banque'
+import { genererPain008, preparerLotPrelevements } from '@/lib/administrateur-judiciaire/domain/prelevements-sepa'
 import { creerTraitement, type Traitement } from '@/lib/administrateur-judiciaire/domain/traitements'
+import {
+  MENTION_NON_VALIDE_PAR_LA_BANQUE,
+  controlerValidationBanque,
+  creerFicheValidationBanque,
+  type FicheValidationBanque,
+  type SaisieFicheValidationBanque,
+} from '@/lib/administrateur-judiciaire/domain/validation-banque'
 import { enTeteDuModule } from './en-tete-module'
 
 /**
@@ -114,5 +123,104 @@ describe('F99 — total sur les seuls soldes positifs, découverts à part et si
     const { texte, item } = enTeteDuModule('fonds-detenus')
     expect(texte.slice(texte.indexOf('🔴 Non établi'))).not.toMatch(/totaux sur les seuls soldes positifs/)
     expect(item('- Décision du 20/11/2026 (partie C, F99)')).toMatch(/soldes positifs.*découverts.*à part.*R\. 814-37/)
+  })
+})
+
+// ─── F103 : fiche « validation banque » par compte bancaire du syndicat ─────────────────────
+
+describe('F103 — fichiers SEPA : fiche « validation banque » par compte ; sans elle, mention « non validé par la banque »', () => {
+  const virement: LigneVirement = {
+    reglementId: 'reg-1',
+    beneficiaire: 'Plomberie (fictive)',
+    iban: 'FR76 3000 6000 0112 3456 7890 189',
+    bic: 'AGRIFRPP',
+    montantCentimes: 52_800,
+    libelle: 'Facture F-2026-118',
+  }
+  const ordre = creerOrdreVirement({
+    id: 'o-1',
+    numero: 'VIR-2026-0011',
+    date: '2026-10-27',
+    coproprieteId: 'copro-tilleuls',
+    banqueId: 'b-courant',
+    traitementId: 't-reg-7',
+    lignes: [virement],
+  })
+  const debiteur = { nom: 'SDC Les Tilleuls (fictif)', iban: 'FR14 2004 1010 0505 0001 3M02 606', bic: 'PSSTFRPP' }
+  const options = { messageId: 'VIR-2026-0011', dateCreation: '2026-10-27T09:00:00', dateExecution: '2026-10-28' }
+  const fiche = (surcharge: Partial<SaisieFicheValidationBanque> = {}) =>
+    creerFicheValidationBanque({
+      banqueId: 'b-courant',
+      dateTest: '2026-11-05',
+      formatsAcceptes: ['pain.001.001.03', 'pain.008.001.02'],
+      icsVerifie: 'FR12ZZZ123456',
+      longueurMaxReferences: 35,
+      delaisRemise: 'J-1 ouvré pour un virement, J-2 ouvrés pour un prélèvement',
+      ...surcharge,
+    })
+
+  it('sans fiche, le fichier de virement porte la mention, en commentaire XML qui ne change pas le message', () => {
+    const xml = genererPain001(ordre, debiteur, options)
+    expect(xml).toMatch(/^<\?xml version="1\.0" encoding="UTF-8"\?>\n<!-- non validé par la banque :/)
+    expect(xml).toContain(MENTION_NON_VALIDE_PAR_LA_BANQUE)
+    expect(xml).toMatch(/aucune fiche « validation banque »/)
+    expect(xml).toContain('<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pain.001.001.03"')
+  })
+
+  it('avec une fiche du compte qui accepte ce format : aucune mention', () => {
+    const xml = genererPain001(ordre, debiteur, { ...options, validationBanque: fiche() })
+    expect(xml).not.toContain(MENTION_NON_VALIDE_PAR_LA_BANQUE)
+  })
+
+  it('fiche d’un autre compte, format non accepté (variante), référence trop longue : mention avec le motif', () => {
+    const controle = (f: FicheValidationBanque, references: string[] = ['reg-1']) =>
+      controlerValidationBanque(f, { banqueId: 'b-courant', format: 'pain.001.001.03', references })
+    expect(controle(fiche({ banqueId: 'b-fonds' }))).toMatchObject({ valide: false, motifs: [expect.stringMatching(/autre compte/)] })
+    expect(controle(fiche({ formatsAcceptes: ['pain.001.001.09'] })).motifs[0]).toMatch(/pain\.001\.001\.09.*pain\.001\.001\.03/)
+    expect(controle(fiche({ longueurMaxReferences: 5 }), ['reg-123456']).motifs[0]).toMatch(/reg-123456.*5 caractères/)
+    expect(controle(fiche())).toEqual({ valide: true, mention: null, motifs: [] })
+  })
+
+  it('prélèvement : l’ICS du créancier doit être celui que la banque a vérifié', () => {
+    const lot = preparerLotPrelevements([
+      {
+        id: 'AV-2027-01-00012',
+        compteCoproprietaire: 'TILL.45000.00012.0',
+        debiteur: 'Copropriétaire A',
+        iban: 'FR76 3000 6000 0112 3456 7890 189',
+        bic: 'AGRIFRPP',
+        rum: 'RUM-TILL-00012',
+        dateSignatureMandat: '2024-03-01',
+        sequence: 'RCUR',
+        montantEcheanceCentimes: 30_000,
+        soldeDuCentimes: 45_000,
+        contentieux: false,
+      },
+    ])
+    const creancier = { nom: 'SDC Les Tilleuls (fictif)', ics: 'FR12ZZZ123456', iban: 'FR14 2004 1010 0505 0001 3M02 606', bic: 'PSSTFRPP' }
+    const opt = { messageId: 'AV-2027-01', dateCreation: '2026-12-15T10:00:00', dateEcheance: '2027-01-02' }
+    expect(genererPain008(lot, creancier, opt)).toContain(MENTION_NON_VALIDE_PAR_LA_BANQUE)
+    expect(genererPain008(lot, creancier, { ...opt, validationBanque: fiche() })).not.toContain(MENTION_NON_VALIDE_PAR_LA_BANQUE)
+    const autreIcs = genererPain008(lot, creancier, { ...opt, validationBanque: fiche({ icsVerifie: 'FR99ZZZ999999' }) })
+    expect(autreIcs).toMatch(/non validé par la banque : ICS FR12ZZZ123456 non vérifié par la banque/)
+    expect(genererPain008(lot, creancier, { ...opt, validationBanque: fiche({ icsVerifie: null }) })).toMatch(/ICS FR12ZZZ123456 non vérifié/)
+  })
+
+  it('la fiche se contrôle : date du test, au moins un format, longueur entière positive, ICS valide', () => {
+    expect(() => fiche({ dateTest: '2026-13-01' })).toThrow(/date du test/i)
+    expect(() => fiche({ formatsAcceptes: [' '] })).toThrow(/format/)
+    expect(() => fiche({ longueurMaxReferences: 0 })).toThrow(/longueur/)
+    expect(() => fiche({ icsVerifie: 'FR1' })).toThrow(/ICS/)
+    expect(() => fiche({ banqueId: ' ' })).toThrow(/compte bancaire/)
+    expect(fiche({ formatsAcceptes: [' PAIN.001.001.03 '], delaisRemise: '  ' })).toMatchObject({ formatsAcceptes: ['pain.001.001.03'], delaisRemise: null })
+  })
+
+  it('en-têtes : la décision F103 remplace les marques 🔴 des fichiers', () => {
+    for (const nom of ['ordres-banque', 'prelevements-sepa']) {
+      const { texte } = enTeteDuModule(nom)
+      expect(texte).not.toContain('🔴 À valider avec la banque du syndicat avant tout dépôt')
+      expect(texte).toMatch(/Décision du 20\/11\/2026 \(partie C, F103\).*validation banque.*non validé par la banque/)
+    }
+    expect(enTeteDuModule('avis-appel').texte).toMatch(/Décision du 20\/11\/2026 \(partie C, F103\)/)
   })
 })

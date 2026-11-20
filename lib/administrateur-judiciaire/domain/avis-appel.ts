@@ -190,11 +190,16 @@ import type { FormeEnvoiCourrier, ModeReglement, TypeAppelLieAuMouvement } from 
  *   vendeur n'a pas présenté de certificat du syndic, par l'avis de mutation du notaire (L. 1965 art. 20, I). Écriture
  *   déjà passée de l'appel : son annulation et un nouvel appel suivent echeancier-appels.annulerAppelees.
  *
+ * Décisions du 20/11/2026 (partie C, recommandations acceptées par le responsable du projet) :
+ * - Décision du 20/11/2026 (partie C, F103) : format pain.008, longueur des références et ICS se valident banque par
+ *   banque, par la fiche « validation banque » du compte (validation-banque.ts) ; sans elle, le fichier de prélèvement
+ *   porte la mention « non validé par la banque » (prelevements-sepa.genererPain008). LONGUEUR_MAX_ID_PRELEVEMENT (35)
+ *   reste la borne appliquée à l'identifiant ; une longueur plus courte donnée par la banque se contrôle sur le fichier.
+ *
  * 🔴 Non établi (questions pour Hugo ou Frédéric) :
  * - pré-notification de 14 jours calendaires, séquence FRST facultative depuis 2016, caducité d'un mandat inutilisé
  *   36 mois : règles du recueil EPC SDD Core 2025 (§ 4.3 et PT-04.02 ; historique des versions, v9.3 de 2016 ; § 4.2),
- *   pas des textes de loi ; v1.1 et v1.2 non lues ; format pain.008 et longueur de 35 caractères de l'EndToEndId
- *   (Implementation Guidelines non lues) : à valider avec la banque du syndicat, comme son ICS ;
+ *   pas des textes de loi ; v1.1 et v1.2 non lues ;
  * - « "À régler avant le" : la date d'exigibilité seule, ou une date de courtoisie postérieure, et de combien de
  *   jours ? » (VitFix : l'exigibilité, plus delaiReglementJours fourni par l'appelant, 0 par défaut) ;
  * - « L'emploi du fonds de travaux figure-t-il sur l'avis pour information, hors du total (VitFix), ou en déduction du

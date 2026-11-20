@@ -1,5 +1,10 @@
 import { validerIban } from '@/lib/administrateur-judiciaire/domain/comptes-bancaires'
 import { estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
+import {
+  commentaireValidationBanque,
+  controlerValidationBanque,
+  type FicheValidationBanque,
+} from '@/lib/administrateur-judiciaire/domain/validation-banque'
 
 /**
  * Ordres de banque d'un syndicat (cartographie Gestéam, tranche 29). Fonctions pures, montants en CENTIMES ENTIERS, sans
@@ -14,7 +19,12 @@ import { estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
  * Gestéam — « Comptabilité Ordre de banques » : Date · Compte (512) · Type (Remise de chèques, Ordre de virement…) ·
  * Tiers · Libellé · No pièce · Or(dres) · Montant · Statut (Enregistré / Émis) ; fiche : Émis le, Nombre de pièces,
  * Information virement, Traitement, Banque, Encaissement, Règlement (+ IBAN).
- * Virements : ISO 20022 pain.001.001.03 (virement SEPA). 🔴 À valider avec la banque du syndicat avant tout dépôt.
+ * Virements : ISO 20022 pain.001.001.03 (virement SEPA). Décision du 20/11/2026 (partie C, F103) : fichiers produits,
+ * jamais transmis par VitFix ; chaque compte bancaire du syndicat reçoit une fiche « validation banque » (date du test,
+ * format accepté, ICS vérifié, longueur maximale des références, délais de remise : validation-banque.ts) ; sans elle,
+ * le fichier porte la mention « non validé par la banque » (genererPain001, option validationBanque). Le règlement (UE)
+ * n° 260/2012 ne fixe que des exigences générales (art. 5 et annexe) ; seul un test réel prouve qu'une banque accepte
+ * le fichier.
  *
  * Point 39 du bilan 2 : les dix types d'ordre de Gestéam, le rang, le tiers et l'état imputé de chaque ordre d'un lot
  * sont dans types-ordres-banque.ts ; le virement de banque à banque entre comptes du syndicat, dans virement-interne.ts.
@@ -140,15 +150,27 @@ const echapper = (texte: string) =>
 const euros = (centimes: number) => (centimes / 100).toFixed(2)
 const ibanBrut = (iban: string) => iban.replace(/\s+/g, '').toUpperCase()
 
-/** Fichier pain.001.001.03 d'un ordre de virement ; le débiteur est le syndicat. */
+/**
+ * Fichier pain.001.001.03 d'un ordre de virement ; le débiteur est le syndicat. Sans fiche « validation banque » du compte
+ * de l'ordre qui accepte ce format (validationBanque), le fichier porte la mention « non validé par la banque » (décision
+ * du 20/11/2026, partie C, F103).
+ */
 export function genererPain001(
   ordre: OrdreVirement,
   debiteur: { nom: string; iban: string; bic: string },
-  { messageId, dateCreation, dateExecution }: { messageId: string; dateCreation: string; dateExecution: string },
+  {
+    messageId,
+    dateCreation,
+    dateExecution,
+    validationBanque = null,
+  }: { messageId: string; dateCreation: string; dateExecution: string; validationBanque?: FicheValidationBanque | null },
 ): string {
   if (ordre.type !== 'Ordre de virement') throw new Error('Fichier de virement : seul un ordre de virement en produit un.')
   if (!validerIban(debiteur.iban)) throw new Error('IBAN du syndicat débiteur invalide.')
   if (!estDateIsoValide(dateExecution)) throw new Error(`Date d'exécution invalide (${dateExecution}) : AAAA-MM-JJ attendu.`)
+  const mention = commentaireValidationBanque(
+    controlerValidationBanque(validationBanque, { banqueId: ordre.banqueId, format: 'pain.001.001.03', references: ordre.lignes.map((l) => l.reglementId) }),
+  )
   const transactions = ordre.lignes
     .map(
       (l) => `      <CdtTrfTxInf>
@@ -162,7 +184,7 @@ export function genererPain001(
     )
     .join('\n')
   return `<?xml version="1.0" encoding="UTF-8"?>
-<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pain.001.001.03" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+${mention}<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pain.001.001.03" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <CstmrCdtTrfInitn>
     <GrpHdr>
       <MsgId>${echapper(messageId)}</MsgId>
