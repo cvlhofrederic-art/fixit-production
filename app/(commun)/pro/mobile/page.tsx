@@ -10,6 +10,7 @@ import { subscribeWithReconnect } from '@/lib/realtime-reconnect'
 import { formatPrice } from '@/lib/utils'
 import { useTranslation } from '@/lib/i18n/context'
 import { estAppMobile } from '@/lib/app-mobile'
+import { localeTva, tauxTvaParDefaut } from '@/lib/tva-calculator'
 import dynamic from 'next/dynamic'
 import type { User } from '@supabase/supabase-js'
 import type { Artisan, Booking, Service, Availability, ChatMessage } from '@/lib/types'
@@ -854,7 +855,8 @@ export default function MobileDashboard() {
   const [enabledModules, setEnabledModules] = useState<Record<string, boolean>>({})
   // ── Devis rapide ──
   const [showDevisModal, setShowDevisModal] = useState(false)
-  const [devisForm, setDevisForm] = useState({ client: '', service: '', description: '', montantHT: '', tva: '20', validite: '30' })
+  // Taux du pays (lib/tva-calculator.ts) : 23 % sur /pt, 20 % en France
+  const [devisForm, setDevisForm] = useState({ client: '', service: '', description: '', montantHT: '', tva: String(tauxTvaParDefaut(localeTva(locale))), validite: '30' })
   const [devisGenere, setDevisGenere] = useState<string | null>(null)
   const [devisCopied, setDevisCopied] = useState(false)
 
@@ -2163,16 +2165,27 @@ export default function MobileDashboard() {
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-semibold text-gray-500 block mb-1">TVA (%)</label>
+                    <label className="text-xs font-semibold text-gray-500 block mb-1">{locale === 'pt' ? 'IVA (%)' : 'TVA (%)'}</label>
                     <select
                       value={devisForm.tva}
                       onChange={e => setDevisForm(p => ({ ...p, tva: e.target.value }))}
                       className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#FFC107] bg-white"
                     >
-                      <option value="0">0% (exonéré)</option>
-                      <option value="5.5">5,5% (réduit)</option>
-                      <option value="10">10% (intermédiaire)</option>
-                      <option value="20">20% (normal)</option>
+                      {locale === 'pt' ? (
+                        <>
+                          <option value="0">0% (isento)</option>
+                          <option value="6">6% (taxa reduzida)</option>
+                          <option value="13">13% (taxa intermédia)</option>
+                          <option value="23">23% (taxa normal)</option>
+                        </>
+                      ) : (
+                        <>
+                          <option value="0">0% (exonéré)</option>
+                          <option value="5.5">5,5% (réduit)</option>
+                          <option value="10">10% (intermédiaire)</option>
+                          <option value="20">20% (normal)</option>
+                        </>
+                      )}
                     </select>
                   </div>
                 </div>
