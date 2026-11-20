@@ -501,7 +501,8 @@ describe('en-tête du module', () => {
   it('montants négatifs de Gestéam : régularisations (tranche 30) ou annulations (tranche 43 § 23) ; la régularisation renvoyée au point 25', () => {
     expect(EN_TETE).toMatch(/tranche 30 § Échéancier des appels.*« REGUL CH\. … », « SOLDE AU … », montants négatifs = régularisations/)
     expect(EN_TETE).toMatch(/tranche 43 § 23 \(cotisations au fonds de travaux\).*montants négatifs = annulations/)
-    expect(EN_TETE).toMatch(/🔴 Non établi.*"REGUL CH\.", "SOLDE AU".*répartition des charges \(point 25\)/)
+    // Décision du 20/11/2026 (partie C, F107) : la question n'est plus en 🔴 ; à la reprise, solde repris du compte.
+    expect(EN_TETE).toMatch(/F107\) : aucune échéance négative.*point 25.*« REGUL CH\. » ou « SOLDE AU » devient un solde repris du compte/)
     expect(EN_TETE).toMatch(/Non repris :.*régularisation.*\(point 25\)/)
   })
 
