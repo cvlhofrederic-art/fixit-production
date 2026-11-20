@@ -252,3 +252,38 @@ En cas de probleme majeur :
 6. Re-appliquer les migrations qui etaient correctes
 
 **Temps de restore estime :** 5-15 minutes selon la taille de la base.
+
+---
+
+## Migration 20261115 — Équipe syndic : rôles et unicité de l'adresse par cabinet
+
+Remet la contrainte `syndic_team_members_role_check` de la production à ses 5 rôles du 14/11/2026 et retire l'unicité
+`(cabinet_id, email)`. À n'employer que si un problème était constaté après la migration : ensuite, les invitations
+« Technicien » et « Juriste » échouent de nouveau (500), `/api/admin/init-team-table` aussi (42P10), et deux invitations
+simultanées de la même adresse peuvent de nouveau créer deux lignes. Un seul bloc, tout ou rien, à lancer en entier dans
+l'éditeur SQL : il s'arrête sans rien changer si une ligne porte déjà `syndic_technicien` ou `syndic_juriste` (lignes à
+examiner avec Frédéric, jamais à modifier pour faire passer le retour arrière). Sur un projet construit depuis le dépôt,
+ajouter `'syndic_juriste'` aux deux listes (les 6 rôles de `20260527_syndic_team_members.sql`). Après le retour arrière,
+relancer `supabase/tests/syndic_equipe_roles_unicite.sql`.
+
+```sql
+-- Rollback (production)
+DO $$
+DECLARE
+  lignes integer;
+BEGIN
+  PERFORM set_config('lock_timeout', '5s', true);
+  LOCK TABLE public.syndic_team_members IN ACCESS EXCLUSIVE MODE;
+  SELECT count(*) INTO lignes
+  FROM public.syndic_team_members
+  WHERE role NOT IN ('syndic_admin', 'syndic_tech', 'syndic_secretaire', 'syndic_gestionnaire', 'syndic_comptable');
+  IF lignes > 0 THEN
+    RAISE EXCEPTION 'Retour arrière impossible : % ligne(s) portent un rôle que l''ancienne contrainte refuse. Rien n''est appliqué.', lignes;
+  END IF;
+  ALTER TABLE public.syndic_team_members DROP CONSTRAINT IF EXISTS syndic_team_members_cabinet_id_email_key;
+  ALTER TABLE public.syndic_team_members DROP CONSTRAINT IF EXISTS syndic_team_members_role_check;
+  ALTER TABLE public.syndic_team_members ADD CONSTRAINT syndic_team_members_role_check
+    CHECK (role IN ('syndic_admin', 'syndic_tech', 'syndic_secretaire', 'syndic_gestionnaire', 'syndic_comptable'));
+END
+$$;
+```
