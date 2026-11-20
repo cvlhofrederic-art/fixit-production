@@ -2,6 +2,7 @@ import { ajouterJours, ajouterMois, dateIsoVersFr, ecartJours, estDateIsoValide,
 import type { SuiviEcheancier } from '@/lib/administrateur-judiciaire/domain/decompte-contentieux'
 import type { CertitudeRegle } from '@/lib/administrateur-judiciaire/domain/delais-legaux'
 import { modeNotificationCourrier, type ModeNotification } from '@/lib/administrateur-judiciaire/domain/courriers'
+import { controlerRegime, type Regime } from '@/lib/administrateur-judiciaire/domain/fondements'
 import { derniereFinDelaiContestation, type ResultatDelaiContestation } from '@/lib/administrateur-judiciaire/domain/statut-assemblee'
 import {
   FAMILLE_MODELE_COURRIER,
@@ -29,9 +30,11 @@ import {
  *   copropriétaire (1°), ou, si l'une l'est, elle n'a pas fait l'objet d'une mise en demeure de payer restée infructueuse
  *   depuis plus de quarante-cinq jours (2°) ; sinon le notaire notifie aux parties l'impossibilité de vendre et, si un
  *   avant-contrat est signé, les personnes notifiées disposent de trente jours pour s'acquitter de leur dette ;
- * - L. 1965 art. 29-5 V : l'administrateur provisoire peut conclure des échéanciers individualisés, sans compromettre le
- *   plan d'apurement ; C. civ. art. 2240 (la reconnaissance de dette interrompt la prescription), 1224 et 1225 (la mise
- *   en demeure ne produit effet que si elle mentionne expressément la clause résolutoire) ;
+ * - L. 1965 art. 29-5 V : l'administrateur provisoire peut conclure avec les copropriétaires des échéanciers
+ *   individualisés de remboursement de leurs dettes envers le syndicat, « dès lors qu'ils ne compromettent pas la
+ *   réalisation du plan d'apurement » (citation relue le 17/11/2026, J67, R42) ; C. civ. art. 2240 (la reconnaissance de
+ *   dette interrompt la prescription), 1224 et 1225 (la mise en demeure ne produit effet que si elle mentionne
+ *   expressément la clause résolutoire) ;
  * - L. 1965 art. 42 al. 2 et D. 1967 art. 18 : délai de deux mois de contestation, par opposant ou défaillant ;
  * - L. 1965 art. 17-1 A, D. 1967 art. 9 (21 jours), 9 bis (formulaire reçu trois jours francs avant), 14-1, 64 à 64-3
  *   (64-3 : convocation valablement remise contre récépissé ou émargement), 64-9 ; arrêté du 2 juillet 2020, art. 1
@@ -51,10 +54,28 @@ import {
  * jours » = plus de 45 jours écoulés depuis le point de départ de la mise en demeure ; échéance de l'opposition =
  * réception + 15 jours, avertissement si elle tombe un jour non ouvrable (report non établi) ; attestation de non-recours
  * délivrable sans opposant ni défaillant.
- * 🔴 Non établi : PV de carence et attestation de non-recours n'ont pas de texte propre (pratiques) ; la variante
- * « débiteur » du certificat 2° de Gestéam n'a pas de base (le texte ne prévoit pas de certificat négatif) ; rubriques du
- * modèle annexé à l'arrêté du 2 juillet 2020 non relevées ; D. 1967 art. 11 (pièces jointes à la convocation) non relu ;
- * portée du protocole d'apurement hors administration provisoire de l'art. 29-1 (simple accord de délais).
+ *
+ * Décisions de Hugo du 17/11/2026 (J67 : recommandations validées en bloc ; textes lus sur Légifrance le 17/11/2026) :
+ * - J67, R108 : la variante « débiteur » du certificat 2° de Gestéam n'est pas reprise : L. 1965 art. 20, II ne prévoit
+ *   aucun certificat négatif. Quand le certificat n'est pas délivrable, le notaire reçoit quand même dans le mois un
+ *   courrier d'information, sans détail de la dette (information_notaire_art20_ii, proposé par controlerCertificatArt20,
+ *   « sans attendre » une fois le mois passé ; pratique : aucun texte ne prévoit ce courrier, le mois est celui du
+ *   certificat, d'où la certitude A_CONFIRMER de son délai) ;
+ *   le « certificat attestant du règlement des charges » de la phase des trente jours a son gabarit
+ *   (certificat_reglement_charges_art20_ii) ;
+ * - J67, R42 : hors administration provisoire de l'art. 29-1 (syndic de l'art. 46, administrateur de l'art. 47), aucun
+ *   texte ne donne au protocole un régime propre (le contrat type, D. 1967 annexe 1, 9.1, le cite seulement comme frais de
+ *   recouvrement) : c'est un accord de délais de paiement, reconnaissance de dette s'il la contient (C. civ. art. 2240),
+ *   résolu selon sa clause (art. 1225). protocoleApurementSelonRegime : sous l'art. 29-1, le gabarit du registre, avec les
+ *   mots de l'art. 29-5, V ; ailleurs, « accord de délais de paiement », sans l'art. 29-5, V ni plan d'apurement ; dans
+ *   tous les cas, avertissements : un délai accordé peut gêner une procédure de l'art. 19-2 (J3, point 4) et une remise de
+ *   dette n'est pas couverte ; art. 47 : pouvoir de signer non établi (D. 1967 art. 47, « notamment ») ;
+ * - J67, R25 : D. 1967 art. 11 (version du 25/12/2025) relu : contrôle des pièces de la convocation (I : validité, II :
+ *   information) et du formulaire de vote par correspondance (art. 9) dans pieces-convocation-ag.ts.
+ *
+ * 🔴 Non établi : PV de carence et attestation de non-recours n'ont pas de texte propre (pratiques) ; rubriques du
+ * modèle annexé à l'arrêté du 2 juillet 2020 non relevées (publié en image au JO du 03/07/2020 ; J67, R25 : Hugo les lit,
+ * puis on les code comme mentions obligatoires).
  * Formes d'envoi : liste Gestéam inchangée ; mode de notification propre à VitFix (J50) ; remise contre émargement :
  * option de l'appelant (remiseContreEmargement), admise pour la convocation seulement (remiseContreEmargementAdmise), le
  * texte la limitant aux convocations et à l'avis de l'art. 59 (D. 1967 art. 64-3). « AR » reste le défaut des
@@ -139,6 +160,7 @@ export const CHAMPS_PAR_CONTEXTE: Readonly<Record<ContexteFusionCourrier, readon
     champ('creance.hypothequeCentimes', "Créances garanties par l'hypothèque légale, non comprises aux 1° et 2° (3°)", 'montant'),
     champ('creance.autresCentimes', 'Autres créances (4°)', 'montant'),
     champ('creance.causes', 'Causes de la créance'),
+    champ('reglementCharges.date', 'Règlement des charges par les personnes notifiées (délai de trente jours)', 'date'),
   ],
   protocole: [
     champ('debiteur.nom', 'Débiteur'),
@@ -197,6 +219,9 @@ export const CHAMPS_PAR_CONTEXTE: Readonly<Record<ContexteFusionCourrier, readon
     champ('mention.fondsTravaux', 'Sommes du fonds de travaux attachées aux lots (L. 1965 art. 14-2-1, III)'),
     champ('mention.prenotification', 'Pré-notification du prélèvement SEPA (montant, date, mandat, reste hors prélèvement)'),
     champ('mention.decisionAdministrateur', "Décision de l'administrateur provisoire jointe à l'appel (D. 1967 art. 62-9)"),
+    champ('mention.provisionArt43', "Provision sur le budget de l'exercice précédent (D. 1967 art. 43, al. 2 ; J67, R98)"),
+    champ('mention.confirmationAdresse', "Invitation à confirmer l'adresse électronique pour les avis (D. 1967 art. 35-2 ; J69)"),
+    champ('mention.payerUneFois', 'Même somme pour tout le lot, à payer une seule fois ; copie au mandataire commun (J67, R100)'),
   ],
 }
 
@@ -263,6 +288,52 @@ export const GABARITS_COURRIER = {
       'Signataire ès qualités',
     ],
   },
+  // J67, R108 : le texte ne prévoit pas de certificat « débiteur » ; le notaire reçoit quand même une réponse dans le mois
+  information_notaire_art20_ii: {
+    famille: 'Mutation',
+    objet: "Information au notaire : le certificat de l'art. 20 II, 2° ne peut pas être délivré",
+    libelleGesteam: null,
+    contexte: 'mutation',
+    champsPropres: ['lot.numero', 'notaire.nom', 'notificationNotaire.dateReception', 'personnesNotifiees.noms'],
+    formeLegale: 'libre',
+    formeEnvoiParDefaut: 'Email',
+    formeObservee: null,
+    fondements: ['L. 1965 art. 20, II'],
+    sansTexte:
+      "Pratique : courrier d'information, pas un certificat ; le texte ne prévoit aucun certificat négatif ; il répond au notaire dans le mois (J67, R108).",
+    // aucun texte ne prévoit ce courrier : le mois est celui du certificat (art. 20, II), repris comme bonne pratique
+    delai: {
+      libelle: 'Dans le mois de la notification du notaire (délai du certificat repris par J67, R108)',
+      fondement: 'L. 1965 art. 20, II',
+      certitude: 'A_CONFIRMER',
+    },
+    mentions: [
+      "Le certificat prévu au 2° de l'art. 20, II de la loi ne peut pas être délivré",
+      'Aucun détail de la dette',
+      'Date du courrier',
+      'Signataire ès qualités',
+    ],
+  },
+  // J67, R108 : phase des trente jours qui suit un avant-contrat signé
+  certificat_reglement_charges_art20_ii: {
+    famille: 'Mutation',
+    objet: "Certificat attestant du règlement des charges (art. 20 II, avant-contrat signé)",
+    libelleGesteam: null,
+    contexte: 'mutation',
+    champsPropres: ['lot.numero', 'notaire.nom', 'personnesNotifiees.noms', 'reglementCharges.date'],
+    formeLegale: 'libre',
+    formeEnvoiParDefaut: 'Email',
+    formeObservee: null,
+    fondements: ['L. 1965 art. 20, II'],
+    sansTexte: null,
+    delai: {
+      libelle:
+        "Avant la fin des trente jours laissés aux personnes notifiées pour s'acquitter de leur dette : sans ce certificat à cette date, l'avant-contrat est réputé nul et non avenu",
+      fondement: 'L. 1965 art. 20, II',
+      certitude: 'TEXTE',
+    },
+    mentions: ['Les sommes dues par les personnes notifiées ont été réglées', 'Date du règlement', 'Date du certificat', 'Signataire ès qualités'],
+  },
   opposition_art20: {
     famille: 'Contentieux',
     objet: "Opposition de l'art. 20 au versement du prix (instructions au commissaire de justice)",
@@ -311,7 +382,7 @@ export const GABARITS_COURRIER = {
       'Échéancier : dates et montants',
       'Paiement des charges courantes en plus des échéances',
       'Clause résolutoire : engagements visés, mise en demeure requise ou non (C. civ. art. 1225)',
-      "S'il existe un plan d'apurement des dettes du syndicat : échéancier compatible avec lui (L. 1965 art. 29-5, V)",
+      "Échéancier individualisé qui ne compromet pas le plan d'apurement des dettes du syndicat (L. 1965 art. 29-5, V : « dès lors qu'ils ne compromettent pas la réalisation du plan d'apurement »)",
     ],
   },
   protocole_apurement_caducite: {
@@ -373,6 +444,7 @@ export const GABARITS_COURRIER = {
     fondements: [
       'L. 1965 art. 17-1 A',
       'D. 1967 art. 9, 9 bis, 14-1',
+      'D. 1967 art. 11 (pièces notifiées avec l’ordre du jour)',
       'D. 1967 art. 64, 64-1, 64-2, 64-3, 64-9',
       'arrêté du 2 juillet 2020, art. 1 (formulaire de vote par correspondance)',
     ],
@@ -382,6 +454,7 @@ export const GABARITS_COURRIER = {
     mentions: [
       'Lieu, date et heure ; ordre du jour précisant chaque question',
       'Lieu, jours et heures de consultation des pièces justificatives des charges (D. 1967 art. 9)',
+      "Pièces de l'art. 11 notifiées au plus tard avec l'ordre du jour : I pour la validité de la décision, II pour l'information (contrôle : pieces-convocation-ag.ts, J67, R25)",
       "Formulaire conforme au modèle de l'arrêté, sans en supprimer aucune mention",
       'Formulaire reçu au plus tard trois jours francs avant la réunion (D. 1967 art. 9 bis)',
       'Possibilité de recevoir notifications et mises en demeure par voie postale (D. 1967 art. 64-2)',
@@ -486,6 +559,9 @@ export const GABARITS_COURRIER = {
       "Rappel des dispositions de l'art. 10 du D. 1967 (questions à inscrire à l'ordre du jour)",
       'Prélèvement : montant et date du débit, qui valent pré-notification (recueil EPC SDD Core, règle du schéma) ; reste à régler hors prélèvement et son mode de règlement',
       "Administrateur provisoire : l'appel consécutif à sa décision est joint à la copie de celle-ci (D. 1967 art. 62-9)",
+      "Provision appelée sur le budget de l'exercice précédent : le dire, régularisée après le vote du budget (D. 1967 art. 43, al. 2 ; J67, R98)",
+      "Premier avis à l'adresse des notifications : inviter à confirmer l'adresse pour les avis ou à demander la lettre simple (J69)",
+      'Indivision ou démembrement : « Même somme pour tout le lot, à payer une seule fois » sur chaque avis (J67, R100)',
     ],
   },
 } as const satisfies Record<string, GabaritCourrier>
@@ -665,7 +741,8 @@ export const JOURS_MISE_EN_DEMEURE_ART20 = 45
 /**
  * Certificat de l'art. 20 II : lequel, s'il peut être délivré, et jusqu'à quand (un mois depuis la réception de la
  * notification du notaire). Si l'une des personnes notifiées est copropriétaire : pas de certificat dès qu'une mise en
- * demeure de payer de l'une d'elles, non réglée à la date, a son point de départ plus de 45 jours avant.
+ * demeure de payer de l'une d'elles, non réglée à la date, a son point de départ plus de 45 jours avant ; le courrier
+ * d'information au notaire est alors proposé (courrierInformation, J67, R108), à envoyer dans le même mois.
  */
 export function controlerCertificatArt20({
   unePersonneNotifieeCoproprietaire,
@@ -681,7 +758,14 @@ export function controlerCertificatArt20({
   misesEnDemeure: { pointDeDepart: string; regleeLe: string | null }[]
   dateNotificationNotaire: string
   aujourdhui: string
-}): { cle: 'certificat_art20_ii_1' | 'certificat_art20_ii_2'; delivrable: boolean; echeance: string; motif: string } {
+}): {
+  cle: 'certificat_art20_ii_1' | 'certificat_art20_ii_2'
+  delivrable: boolean
+  echeance: string
+  motif: string
+  /** Certificat non délivrable : courrier d'information au notaire (J67, R108) ; null sinon. */
+  courrierInformation: 'information_notaire_art20_ii' | null
+} {
   verifierDate(dateNotificationNotaire, 'Date de la notification du notaire')
   verifierDate(aujourdhui, 'Date du jour')
   for (const m of misesEnDemeure) {
@@ -695,18 +779,24 @@ export function controlerCertificatArt20({
   const bloquante = misesEnDemeure.find(
     (m) => (m.regleeLe === null || m.regleeLe > aujourdhui) && ecartJours(m.pointDeDepart, aujourdhui) > JOURS_MISE_EN_DEMEURE_ART20,
   )
-  if (bloquante)
+  const expire = aujourdhui > echeance
+  const expireLe = `Délai d'un mois expiré le ${dateIsoVersFr(echeance)}`
+  if (bloquante) {
+    const reponse = expire
+      ? `${expireLe} : envoyer le courrier d'information sans attendre, sans détail de la dette (J67, R108).`
+      : `Répondre quand même au notaire au plus tard le ${dateIsoVersFr(echeance)} par un courrier d'information, sans détail de la dette (J67, R108).`
     return {
       cle,
       delivrable: false,
       echeance,
-      motif: `Mise en demeure (départ le ${dateIsoVersFr(bloquante.pointDeDepart)}) restée infructueuse depuis plus de ${JOURS_MISE_EN_DEMEURE_ART20} jours : pas de certificat ; le notaire notifie aux parties l'impossibilité de conclure la vente. Si un avant-contrat est signé, les personnes notifiées (acquéreur, mandataires sociaux, associés, conjoints ou partenaires) disposent de trente jours à compter de cette notification pour s'acquitter de leur dette : un certificat de règlement sera alors à remettre (L. 1965 art. 20, II).`,
+      motif: `Mise en demeure (départ le ${dateIsoVersFr(bloquante.pointDeDepart)}) restée infructueuse depuis plus de ${JOURS_MISE_EN_DEMEURE_ART20} jours : pas de certificat ; le notaire notifie aux parties l'impossibilité de conclure la vente. Si un avant-contrat est signé, les personnes notifiées (acquéreur, mandataires sociaux, associés, conjoints ou partenaires) disposent de trente jours à compter de cette notification pour s'acquitter de leur dette : un certificat de règlement sera alors à remettre (L. 1965 art. 20, II). ${reponse}`,
+      courrierInformation: 'information_notaire_art20_ii',
     }
-  const motif =
-    aujourdhui > echeance
-      ? `Délai d'un mois expiré le ${dateIsoVersFr(echeance)} : délivrer le certificat sans attendre (L. 1965 art. 20, II).`
-      : `Certificat à délivrer au notaire au plus tard le ${dateIsoVersFr(echeance)} (L. 1965 art. 20, II).`
-  return { cle, delivrable: true, echeance, motif }
+  }
+  const motif = expire
+    ? `${expireLe} : délivrer le certificat sans attendre (L. 1965 art. 20, II).`
+    : `Certificat à délivrer au notaire au plus tard le ${dateIsoVersFr(echeance)} (L. 1965 art. 20, II).`
+  return { cle, delivrable: true, echeance, motif, courrierInformation: null }
 }
 
 /**
@@ -763,6 +853,45 @@ export function controlerAttestationNonRecours(
   return aujourdhui > derniere
     ? { delivrable: true, motif: `Délai de contestation expiré le ${dateIsoVersFr(derniere)} (L. 1965 art. 42, al. 2).` }
     : { delivrable: false, motif: `Délai de contestation en cours jusqu'au ${dateIsoVersFr(derniere)} inclus (L. 1965 art. 42, al. 2).` }
+}
+
+/** Protocole d'apurement selon le régime du mandat (J67, R42) : gabarit à utiliser et avertissements. */
+export interface ProtocoleSelonRegime {
+  gabarit: GabaritCourrier
+  avertissements: string[]
+}
+
+/** Dans tous les régimes (J67, R42). */
+const AVERTISSEMENTS_PROTOCOLE = [
+  "Un délai accordé peut gêner une procédure de l'art. 19-2 : une mise en demeure suivie d'un accord n'est peut-être plus « infructueuse » (J3, point 4).",
+  "Une remise de dette (abandon d'une partie de la somme) n'est pas un délai de paiement : ce modèle ne la couvre pas.",
+] as const
+
+const AVERTISSEMENT_PROTOCOLE_AP47 =
+  "Administrateur de l'art. 47 : chargé « notamment » de se faire remettre les références des comptes bancaires, les documents et archives, et de convoquer l'assemblée pour désigner un syndic (D. 1967 art. 47) ; son pouvoir de signer un tel accord n'est pas établi : le vérifier dans l'ordonnance."
+
+/** Hors art. 29-1 : accord de délais de paiement, sans l'art. 29-5, V ni plan d'apurement (J67, R42). */
+function accordDeDelais(fondementsDuRegime: readonly string[]): GabaritCourrier {
+  const protocole = GABARITS_COURRIER.protocole_apurement_etablissement
+  return {
+    ...protocole,
+    objet: 'Accord de délais de paiement (établissement)',
+    fondements: [...protocole.fondements.filter((f) => !f.includes('29-5')), ...fondementsDuRegime],
+    mentions: protocole.mentions.filter((m) => !m.includes("plan d'apurement")),
+  }
+}
+
+/**
+ * Gabarit d'établissement du protocole selon le régime (J67, R42) : sous l'art. 29-1, celui du registre (échéancier de
+ * l'art. 29-5, V) ; syndic de l'art. 46, accord de délais de paiement, acte de recouvrement ordinaire (D. 1967 art. 46,
+ * al. 3) ; administrateur de l'art. 47, même accord, avec un avertissement sur son pouvoir de le signer. Refus : régime
+ * inconnu (null), qui n'est pas lu comme celui de l'art. 47, ou hors des trois régimes.
+ */
+export function protocoleApurementSelonRegime(regime: Regime): ProtocoleSelonRegime {
+  if (controlerRegime(regime) === null) throw new Error("Régime du mandat requis (sj, ap47 ou ap291) : le protocole en dépend (J67, R42).")
+  if (regime === 'ap291') return { gabarit: GABARITS_COURRIER.protocole_apurement_etablissement, avertissements: [...AVERTISSEMENTS_PROTOCOLE] }
+  if (regime === 'sj') return { gabarit: accordDeDelais(['D. 1967 art. 46, al. 3']), avertissements: [...AVERTISSEMENTS_PROTOCOLE] }
+  return { gabarit: accordDeDelais([]), avertissements: [...AVERTISSEMENTS_PROTOCOLE, AVERTISSEMENT_PROTOCOLE_AP47] }
 }
 
 /** Caducité du protocole d'apurement : possible seulement si une échéance échue reste impayée. */

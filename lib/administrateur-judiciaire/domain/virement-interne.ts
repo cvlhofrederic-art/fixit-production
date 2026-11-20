@@ -1,4 +1,11 @@
-import { NATURES_COMPTE_BANCAIRE, validerIban, type NatureCompteBancaire } from '@/lib/administrateur-judiciaire/domain/comptes-bancaires'
+import {
+  NATURES_COMPTE_BANCAIRE,
+  estCompteDuFondsTravaux,
+  validerIban,
+  verifierMarquesFondsTravaux,
+  type MarquesFondsTravaux,
+  type NatureCompteBancaire,
+} from '@/lib/administrateur-judiciaire/domain/comptes-bancaires'
 import { estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
 import { refDecret1967, refLoi1965 } from '@/lib/administrateur-judiciaire/domain/delais-legaux'
 import { citerFondement } from '@/lib/administrateur-judiciaire/domain/fondements'
@@ -71,6 +78,42 @@ import {
  *   J30 est confirmée : sa marque de doute est retirée, comportement inchangé (mêmes refus, mêmes motifs :
  *   fonds-travaux.ts).
  *
+ * Décisions de Hugo du 17/11/2026 (registre des décisions juridiques, J67, J68 et J71 ; validées en bloc ; textes lus sur
+ * Légifrance le 17/11/2026) :
+ * - J67, R82 : le syndic ne prend jamais seul sur le fonds pour des travaux urgents. L'art. 14-2-1, I, 3° dit à quoi le
+ *   fonds peut servir ; c'est l'assemblée qui l'affecte (al. 7). En urgence, le syndic n'a qu'un pouvoir propre : une
+ *   provision d'au plus un tiers du devis, après avis du conseil syndical, l'assemblée étant convoquée immédiatement
+ *   (D. 1967 art. 37). Blocage gardé (controlerAffectationFondsTravaux). En administration provisoire, deux voies :
+ *   l'ordonnance de l'art. 29-14, 2°, ou la décision de l'administrateur qui a reçu les pouvoirs de l'assemblée (art.
+ *   29-1, I), sans avis du conseil syndical en cas d'urgence (D. 1967 art. 62-7 ; J16) ; la forme de cette décision reste
+ *   ouverte (ci-dessous).
+ * - J67, R83 : écriture directe de 512 à 512, sans compte d'attente : aucun texte ne l'impose ; le 47 sert aux opérations
+ *   en attente d'imputation et se solde à la clôture ou se justifie ligne à ligne (arrêté du 14 mars 2005, art. 7 et
+ *   10) ; un décalage entre les deux relevés se voit au rapprochement bancaire. Le compte séparé rémunéré du fonds (L.
+ *   1965 art. 18, II, al. 4) est une subdivision du 512 (arrêté du 14 mars 2005, art. 8 : « toute subdivision
+ *   nécessaire »), comme chez Gestéam ; le 50 « Fonds placés » reste pour un vrai placement (D. 1967 art. 35-1), non
+ *   pris en charge ici (ci-dessous).
+ * - J67, R94 : le dépôt à la Caisse des dépôts des fonds de l'administrateur provisoire a pour fondement probable C. com.
+ *   R. 814-41 (mandats « en matière civile » ; compte au nom de l'administrateur) ; « matière civile » : déduit, à
+ *   confirmer ; le dépôt n'est pas présenté comme imposé par la loi de 1965 (art. 29-3, V le présuppose). Détail :
+ *   comptes-bancaires.ts. Aucun changement de comportement.
+ * - J68 (point D13, extension de J9 aux virements internes ; modèle : rejeterVirement de reglements-fournisseurs.ts) : un
+ *   virement d'un lot émis que la banque rejette ne sort pas du lot, qui a été émis et s'écrit entier ;
+ *   rejeterVirementInterne passe l'écriture contraire de sa seule ligne (débit du 512 source, crédit du 512 de
+ *   destination), datée du retour (au plus tôt du jour de l'écriture du lot, qu'elle annule : arrêté du 14 mars 2005, art.
+ *   5), avec le motif donné par la banque. Une sortie du fonds rejetée y revient : l'emploi rattaché n'a pas eu lieu ;
+ *   une alimentation rejetée n'y est jamais entrée. Le virement reste émis, imputé, à son rang, et porte son rejet ; un
+ *   rejet ne s'écrit qu'une fois. Famille : « Annulation de règlements », comme pour les règlements de factures (à
+ *   confirmer au relevé Gestéam, ci-dessous). Enregistrement du rejet : à brancher.
+ * - J71 (point E2 ; L. 1965 art. 18, II, al. 4 ; D. 1967 art. 35, 5°, et 35-1 ; décret n° 2005-240, art. 4) : placement du
+ *   fonds de travaux. Sans décision de placement, refus (comportement antérieur). Avec une décision (assemblée,
+ *   administrateur provisoire qui a reçu ce pouvoir, ou ordonnance), le virement du compte du fonds vers un compte de
+ *   placement au nom du syndicat, réservé au fonds (reserveAuFondsTravaux, comptes-bancaires.ts), est admis. L'argent
+ *   reste au fonds : ce n'est pas un emploi (aucun contrôle d'affectation, compte 105 inchangé). Le placement réservé ne
+ *   revient qu'à un compte du fonds, et n'est alimenté que depuis un compte du fonds (les cotisations sont versées sur le
+ *   compte séparé du fonds : art. 18, II, al. 4). Un placement non réservé au fonds reste refusé. Les intérêts restent
+ *   acquis au syndicat, hors des parts des lots (fonds-travaux-lots.ts, J67, R88).
+ *
  * 🔵 Déduit :
  * - un virement interne relie deux comptes ACTIFS, distincts, du MÊME syndicat (D1), sans tiers ; une avance de fonds du
  *   gestionnaire au syndicat (interdite au syndic par l'art. 18, II, dernier al., sauf au syndic provisoire et à
@@ -93,10 +136,11 @@ import {
  *   se cite comme décision, pour les seules dépenses du I, 1° à 4° (decisionAg) : l'assemblée ne pouvant affecter le
  *   fonds qu'à ces dépenses, le redressement ou le maintien de la gestion courante exigent l'ordonnance de l'art. 29-14,
  *   2° (autorisationJuge) ;
- * - d'un compte du fonds à un autre compte du fonds (changement de banque, dépôt à la Caisse des dépôts) : l'argent reste
- *   au fonds ; admis sans décision ;
+ * - d'un compte du fonds à un autre compte du fonds (changement de banque, dépôt à la Caisse des dépôts, retour d'un
+ *   placement réservé au fonds) : l'argent reste au fonds ; admis sans décision ;
  * - vers un compte de placement : c'est un placement des fonds (D. 1967 art. 35-1), décision de l'assemblée exigée (ou
- *   ordonnance qui en confie le pouvoir) ; depuis le fonds de travaux, refusé (voir 🔴) ;
+ *   ordonnance qui en confie le pouvoir) ; depuis le fonds de travaux, seulement vers un placement réservé au fonds
+ *   (J71, ci-dessus) ;
  * - un compte repris de l'ancien gestionnaire se solde vers le compte du mandat puis se clôture (comptes-bancaires.ts) :
  *   jamais alimenté ; s'il tenait le fonds de travaux (tenaitFondsTravaux), ses sommes restent des cotisations au fonds
  *   (art. 18, II, al. 4 ; art. 14-2-1, I, al. 7) : vers un compte du fonds, c'est un changement de compte ; ailleurs, une
@@ -109,14 +153,9 @@ import {
  * - même IBAN pour deux comptes : un seul compte bancaire ; avec le fonds de travaux, il serait confondu (art. 18, II,
  *   al. 4).
  * 🔴 Non établi (à trancher par Frédéric ou Hugo) :
- * - Frédéric : par quel compte passe le transit d'un virement interne, directement de 512 à 512 (choix de VitFix, comme
- *   Gestéam qui tient « Rgt fonds travaux » en 512xx) ou par le 47 (471, 472) ? Le compte du fonds de travaux, rémunéré,
- *   va-t-il en 50 « Fonds placés » ou dans une subdivision du 512 ?
  * - Frédéric : après une affectation votée, la facture de travaux se règle-t-elle directement depuis le compte du fonds,
  *   ou le cabinet vire-t-il d'abord vers le compte courant ? Le texte n'autorise expressément que le sens courant → fonds ;
  *   VitFix admet la sortie du fonds sous contrôle d'affectation ;
- * - Frédéric : le syndic peut-il prélever sur le fonds, sans assemblée, pour des travaux d'urgence (art. 14-2-1, I, 3°) ?
- *   VitFix : non (J4), D. 1967 art. 37 ne visant qu'une provision limitée au tiers du devis ;
  * - Hugo (reste de J30) : en administration provisoire, l'ordonnance de l'art. 29-1 qui confie les pouvoirs de l'assemblée,
  *   citée comme décision d'affectation (decisionAg), prend-elle la même forme que celle de l'art. 29-14, 2° (juridiction,
  *   date, n°) ? J30 ne vise que l'ordonnance de l'art. 29-14, 2° et la décision de l'AG. Conséquence de la forme exigée
@@ -124,26 +163,27 @@ import {
  *   libre, refusé à la création ; seule une valeur enregistrée avant J30 reste lue et signalée « forme incomplète » ;
  * - Frédéric : un compte repris qui tenait le fonds de travaux se distingue-t-il dans Gestéam (tranche 29 : un seul
  *   libellé « Banque ancien AJ / ancien syndic ») ? VitFix le marque à la saisie du compte (tenaitFondsTravaux) ;
- * - Hugo (reste de J37) : les textes qui fondent le dépôt à la Caisse des dépôts des fonds de l'administrateur provisoire
- *   restent à citer (C. com., livre VIII, non lu). Seul L. 1965 art. 29-3, V, lu sur Légifrance le 30/10/2026, vise les
- *   sommes versées à la Caisse des dépôts et consignations par l'administrateur provisoire (aucune procédure d'exécution
- *   n'y est recevable), sans en faire une obligation ;
- * - Hugo ou Frédéric : un virement du fonds vers un compte de placement est-il un emploi (décision d'affectation), un
- *   placement (art. 35-1) ou interdit, le compte du fonds étant déjà rémunéré ? Refusé ici ;
  * - Frédéric : Gestéam rattache-t-il le virement de banque à banque à un ordre de type « Ordre de virement », le syndicat
  *   pour tiers ? Le bilan a retenu un type VitFix à part, sans tiers ;
  * - Frédéric : Gestéam laisse-t-il « Enregistré » un ordre d'un lot dont les autres sont « Émis » (statut affiché par
- *   ordre) ? Non observé ; VitFix émet le lot entier. Un virement d'un lot émis que la banque n'exécute pas (rejet, ordre
- *   hors fichier abandonné) : aucune annulation après émission ici (comme reglements-fournisseurs.ts) ; le lot s'écrit
- *   entier et la correction attend la contre-passation (ci-dessous) ; faut-il plutôt retirer ce virement du lot avant
- *   l'écriture ?
- * - aucune famille d'annulation observée pour « Règlement de banque à banque » (comme « Annulation de règlements » pour
- *   un règlement de factures) : annulerTraitement (traitements.ts) refuse la contre-passation ; laquelle retenir ?
- * - que recouvre la famille « Ajustement bancaire fonds travaux » du référentiel (non observée) ? Non utilisée ici.
+ *   ordre) ? Non observé ; VitFix émet le lot entier (un virement rejeté se corrige ensuite : J68, ci-dessus) ;
+ * - aucune famille d'annulation observée pour « Règlement de banque à banque » (relevé Gestéam à faire) : l'écriture
+ *   contraire d'un virement rejeté (J68) prend « Annulation de règlements », la famille des règlements de factures ;
+ *   annulerTraitement (traitements.ts) refuse toujours la contre-passation générale de ce traitement ; laquelle retenir ?
+ * - que recouvre la famille « Ajustement bancaire fonds travaux » du référentiel (non observée) ? Non utilisée ici ;
+ * - compte de placement (J71 compris) lu en sous-compte 512 (COMPTE_512), comme les placements de Gestéam (tranche 29) ;
+ *   un placement décidé par l'assemblée relève pourtant du 50 « Fonds placés » (D. 1967 art. 35-1) : classe 50 « Fonds
+ *   placés » (J67, R83) non prise en charge, à trancher (même marque dans fonds-detenus.ts).
  */
 
 /** Famille Gestéam du traitement d'un virement interne (référentiel FAMILLE_TRAITEMENT, bloc Règlements). */
 export const FAMILLE_VIREMENT_INTERNE: FamilleTraitement = 'Règlement de banque à banque'
+
+/**
+ * J68 — famille de l'écriture contraire d'un virement interne rejeté : celle des règlements de factures (J9), seule
+ * annulation du bloc Règlements du référentiel ; 🔴 à confirmer au relevé Gestéam (en-tête).
+ */
+export const FAMILLE_REJET_VIREMENT_INTERNE: FamilleTraitement = 'Annulation de règlements'
 
 const FONDEMENT_FONDS_SEPARE = citerFondement(refLoi1965('18, II, al. 4'))
 const FONDEMENT_AVANCE = citerFondement(refLoi1965('18, II, dernier al.'))
@@ -153,8 +193,13 @@ const FONDEMENT_PLACEMENT = citerFondement(refDecret1967('35-1'))
 const FONDEMENT_POUVOIRS_AP = citerFondement(refLoi1965('29-1, I'))
 const COMPTE_512 = /^([^.]{4})\.512[0-9A-Z]{2}\.[0-9A-Z]{5}\.[0-9A-Z]$/
 
-/** Compte bancaire du syndicat, tel que le virement le lit (D-BANQUE : nature ; plan comptable : son 512). */
-export interface CompteVirementInterne {
+/**
+ * Compte bancaire du syndicat, tel que le virement le lit (D-BANQUE : nature ; plan comptable : son 512). Marques du fonds
+ * de travaux (comptes-bancaires.ts) : tenaitFondsTravaux, réservé à un compte repris de l'ancien gestionnaire qui tenait
+ * le fonds ; reserveAuFondsTravaux, réservé à un compte de placement au nom du syndicat réservé au fonds (J71) ; absentes :
+ * faux.
+ */
+export interface CompteVirementInterne extends MarquesFondsTravaux {
   banqueId: string
   coproprieteId: string
   nature: NatureCompteBancaire
@@ -164,15 +209,10 @@ export interface CompteVirementInterne {
   /** Sous-compte 512 du syndicat : <syndicat>.512xx.<auxiliaire>.<repère>. */
   compte512: string
   actif: boolean
-  /**
-   * Compte repris de l'ancien gestionnaire qui tenait le fonds de travaux : ses sommes restent au fonds (art. 18, II,
-   * al. 4). Réservé à la nature « repris_ancien_gestionnaire » ; absent : faux.
-   */
-  tenaitFondsTravaux?: boolean
 }
 
 /** Ce que le sens au regard du fonds de travaux lit d'un compte. */
-export type CompteFonds = Pick<CompteVirementInterne, 'nature' | 'tenaitFondsTravaux'>
+export type CompteFonds = MarquesFondsTravaux
 
 /** Emploi du fonds de travaux auquel se rattache un virement qui en sort (fonds-travaux.ts, montant = le virement). */
 export type EmploiFondsTravaux = Omit<DecaissementFondsTravaux, 'montantCentimes'>
@@ -226,6 +266,18 @@ export interface VirementInterne {
   statut: StatutOrdre
   dateEmission: string | null
   impute: boolean
+  /** J68 — rejet par la banque après l'émission et l'écriture du lot (rejeterVirementInterne) ; null sinon. */
+  rejet: RejetVirementInterne | null
+}
+
+/** J68 — rejet d'un virement interne d'un lot émis et écrit. */
+export interface RejetVirementInterne {
+  /** Jour où le retour est constaté (AAAA-MM-JJ). */
+  le: string
+  /** Motif donné par la banque. */
+  motif: string
+  /** Traitement « Annulation de règlements » qui porte l'écriture contraire de la seule ligne rejetée. */
+  traitementId: string
 }
 
 const ibanNormalise = (iban: string): string => iban.replaceAll(/\s+/g, '').toUpperCase()
@@ -234,14 +286,13 @@ function texteRequis(valeur: string | null | undefined, message: string): void {
   if (!valeur?.trim()) throw new Error(message)
 }
 
-/** Compte qui tient le fonds de travaux : le compte séparé du fonds, ou le compte repris qui le tenait. */
-const estCompteDuFonds = (c: CompteFonds): boolean =>
-  c.nature === 'fonds_travaux' || (c.nature === 'repris_ancien_gestionnaire' && c.tenaitFondsTravaux === true)
+/** J71 : compte de placement réservé au fonds de travaux. */
+const estPlacementDuFonds = (c: CompteFonds): boolean => c.nature === 'placement' && c.reserveAuFondsTravaux === true
 
 /** Sens du virement au regard du fonds de travaux : y entre, en sort, passe d'un compte du fonds à un autre, ou rien. */
 export function mouvementFondsTravaux(source: CompteFonds, destination: CompteFonds): MouvementFondsTravaux {
-  const depuisFonds = estCompteDuFonds(source)
-  const versFonds = estCompteDuFonds(destination)
+  const depuisFonds = estCompteDuFondsTravaux(source)
+  const versFonds = estCompteDuFondsTravaux(destination)
   if (depuisFonds && versFonds) return 'changement_de_compte'
   if (depuisFonds) return 'sortie'
   if (versFonds) return 'alimentation'
@@ -277,8 +328,7 @@ function verifierCompte(c: CompteVirementInterne, role: 'source' | 'destination'
   texteRequis(c.banqueId, `Compte ${role} sans identifiant.`)
   const nom = `Compte ${role} ${c.banqueId}`
   if (!Object.hasOwn(NATURES_COMPTE_BANCAIRE, c.nature)) throw new Error(`${nom} : nature inconnue « ${c.nature} ».`)
-  if (c.tenaitFondsTravaux && c.nature !== 'repris_ancien_gestionnaire')
-    throw new Error(`${nom} : seul un compte repris de l'ancien gestionnaire porte la mention « tenait le fonds de travaux ».`)
+  verifierMarquesFondsTravaux(c, nom)
   if (c.coproprieteId !== coproprieteId)
     throw new Error(
       `${nom} : compte d'un autre syndicat ; un virement interne relie deux comptes du même syndicat (D1). Une avance de fonds au syndicat n'est pas un virement interne ; le syndic ne peut en faire, sauf le syndic provisoire et l'administrateur provisoire désigné en application des art. 29-1 et 29-11 (${FONDEMENT_AVANCE}).`,
@@ -295,7 +345,7 @@ function verifierPaire(source: CompteVirementInterne, destination: CompteViremen
   if (source.banqueId === destination.banqueId) throw new Error(`Source et destination : même compte (${source.banqueId}).`)
   if (source.compte512 === destination.compte512) throw new Error(`Source et destination : même compte 512 (${source.compte512}).`)
   const memeIban = source.iban !== null && destination.iban !== null && ibanNormalise(source.iban) === ibanNormalise(destination.iban)
-  const avecFonds = estCompteDuFonds(source) || estCompteDuFonds(destination)
+  const avecFonds = estCompteDuFondsTravaux(source) || estCompteDuFondsTravaux(destination)
   if (memeIban && avecFonds)
     throw new Error(
       `Fonds de travaux : même IBAN qu'un autre compte du syndicat ; le fonds est déposé sur un compte séparé, sans fusion ni compensation (${FONDEMENT_FONDS_SEPARE}).`,
@@ -309,8 +359,9 @@ function verifierPaire(source: CompteVirementInterne, destination: CompteViremen
 const copieReference = <R>(reference: R): R => (typeof reference === 'object' && reference !== null ? { ...reference } : reference)
 
 /**
- * Sortie du fonds de travaux : jamais vers un placement (🔴) ; sinon un emploi admis par le contrôle d'affectation, en
- * saisie nouvelle (J30) : forme structurée contrôlée à la date du jour, texte libre refusé.
+ * Sortie du fonds de travaux : jamais vers un placement qui n'est pas réservé au fonds, jamais depuis un placement réservé
+ * au fonds (J71 : il ne revient qu'à un compte du fonds) ; sinon un emploi admis par le contrôle d'affectation, en saisie
+ * nouvelle (J30) : forme structurée contrôlée à la date du jour, texte libre refusé.
  */
 function controlerSortieDuFonds(
   saisie: SaisieVirementInterne,
@@ -318,8 +369,10 @@ function controlerSortieDuFonds(
 ): { affectation: ResultatAffectation; emploi: EmploiFondsTravaux } {
   if (saisie.destination.nature === 'placement')
     throw new Error(
-      `Fonds de travaux vers un compte de placement : refusé ; le fonds est déposé sur son compte séparé rémunéré (${FONDEMENT_FONDS_SEPARE}) et aucun texte lu n'en prévoit le placement ailleurs ; à trancher.`,
+      `Fonds de travaux vers un compte de placement qui n'est pas réservé au fonds : refusé ; le placement du fonds, sur décision, se fait vers un compte de placement au nom du syndicat réservé au fonds (J71 ; ${FONDEMENT_PLACEMENT} ; ${FONDEMENT_FONDS_SEPARE}).`,
     )
+  if (estPlacementDuFonds(saisie.source))
+    throw new Error(`Placement du fonds de travaux : il ne revient qu'à un compte du fonds (J71 ; ${FONDEMENT_FONDS_SEPARE}).`)
   const emploi = saisie.emploiFondsTravaux
   if (!emploi)
     throw new Error(
@@ -339,6 +392,10 @@ function controlerFondsTravaux(
   aujourdhui: string | undefined,
 ): { affectation: ResultatAffectation | null; emploi: EmploiFondsTravaux | null } {
   if (mouvement === 'sortie') return controlerSortieDuFonds(saisie, aujourdhui)
+  if (mouvement === 'alimentation' && estPlacementDuFonds(saisie.destination))
+    throw new Error(
+      `Placement du fonds de travaux : alimenté seulement depuis un compte du fonds ; les cotisations sont versées sur le compte séparé du fonds (J71 ; ${FONDEMENT_FONDS_SEPARE}).`,
+    )
   if (saisie.emploiFondsTravaux)
     throw new Error(`Emploi du fonds de travaux rattaché à un virement qui ne sort pas du fonds (${mouvement}) : vérifier le sens du virement.`)
   return { affectation: null, emploi: null }
@@ -364,10 +421,12 @@ function controlerPlacement(saisie: SaisieVirementInterne): string | null {
  * la taille du lot, montant qui n'est pas un nombre entier de centimes > 0, date non ISO), un compte d'un autre
  * syndicat, inactif, de nature inconnue, d'IBAN invalide ou hors 512 du
  * syndicat, deux fois le même compte (identifiant, 512 ou IBAN), un compte repris en destination, la mention « tenait le
- * fonds de travaux » sur un compte non repris, une sortie du fonds de travaux (compte du fonds ou compte repris qui le
- * tenait) sans emploi admis ou vers un placement, un placement sans décision, un emploi ou une décision de placement sans
- * objet, une décision ou une ordonnance saisie en texte libre (J30 : forme incomplète). `aujourdhui` : la date du jour,
- * exigée pour contrôler une décision ou une ordonnance en forme structurée (J30).
+ * fonds de travaux » sur un compte non repris ou « réservé au fonds de travaux » sur un compte qui n'est pas un placement,
+ * une sortie du fonds de travaux (compte du fonds, compte repris qui le tenait, placement réservé au fonds) sans emploi
+ * admis, vers un placement non réservé au fonds ou depuis un placement réservé au fonds (J71), un placement réservé au
+ * fonds alimenté hors du fonds, un placement sans décision, un emploi ou une décision de placement sans objet, une
+ * décision ou une ordonnance saisie en texte libre (J30 : forme incomplète). `aujourdhui` : la date du jour, exigée pour
+ * contrôler une décision ou une ordonnance en forme structurée (J30).
  */
 export function creerVirementInterne(
   saisie: SaisieVirementInterne,
@@ -402,6 +461,7 @@ export function creerVirementInterne(
     statut: 'Enregistré',
     dateEmission: null,
     impute: false,
+    rejet: null,
   }
 }
 
@@ -557,6 +617,61 @@ export function traitementVirementsInternes(
   verifierLotEntier(virements, id, journal, (v) => verifierAEcrire(v, id))
   const traitement = creerTraitement({ id, famille: FAMILLE_VIREMENT_INTERNE, date, mouvements: virements.flatMap(mouvementsVirementInterne) })
   return { traitement, virements: virements.map((v): VirementInterne => ({ ...v, impute: true })) }
+}
+
+// ─── Virement rejeté par la banque (J68) ────────────────────────────────────────────────────
+
+/** Le virement se rejette : émis, rejet daté au plus tôt de l'émission, jamais rejeté, déjà écrit dans son lot. */
+function verifierARejeter(v: VirementInterne, rejet: { id: string; date: string; motif: string }, ecritureLot: Traitement): void {
+  if (v.statut !== 'Émis')
+    throw new Error(`Virement ${v.numero} pas émis : le retirer du lot avant l'émission (recomposerLotVirementsInternes), sans écriture contraire.`)
+  if (!estDateIsoValide(rejet.date)) throw new Error(`Date du rejet invalide (${rejet.date}) : AAAA-MM-JJ attendu.`)
+  if (v.dateEmission !== null && rejet.date < v.dateEmission)
+    throw new Error(`Rejet du ${rejet.date} antérieur à l'émission du virement ${v.numero} (${v.dateEmission}).`)
+  if (v.rejet)
+    throw new Error(`Virement ${v.numero} déjà rejeté le ${v.rejet.le} (${v.rejet.motif}) : son écriture contraire est le traitement ${v.rejet.traitementId}.`)
+  if (!v.impute)
+    throw new Error(`Virement ${v.numero} : écrire d'abord le lot (traitementVirementsInternes, traitement ${v.traitementId}) ; le rejet en passe ensuite l'écriture contraire.`)
+  if (ecritureLot.id !== v.traitementId)
+    throw new Error(`Rejet du virement ${v.numero} : écriture ${ecritureLot.id} fournie, alors que son lot est écrit dans le traitement ${v.traitementId}.`)
+}
+
+/**
+ * J68 — virement d'un lot émis et écrit, rejeté par la banque : le lot reste entier ; la seule ligne rejetée reçoit une
+ * écriture contraire (débit du 512 source, crédit du 512 de destination), sous son propre identifiant, famille
+ * « Annulation de règlements », qui renvoie (annule) au traitement du lot, datée du retour, ou du jour de l'écriture du
+ * lot si le retour le précède (arrêté du 14 mars 2005, art. 5 : l'écriture contraire annule une écriture passée). Le
+ * virement reste émis, imputé, à son rang, et porte son rejet (date réelle, motif, traitement). Une sortie du fonds
+ * rejetée y revient : son emploi n'a pas eu lieu. Refuse un virement non émis (à retirer du lot avant l'émission), pas
+ * encore écrit ou déjà rejeté, un rejet antérieur à l'émission, sans motif, sous l'identifiant du lot ou à une date non
+ * ISO, une écriture qui n'est pas celle du lot ou ne porte pas la ligne.
+ */
+export function rejeterVirementInterne(
+  virement: VirementInterne,
+  rejet: { id: string; date: string; motif: string },
+  ecritureLot: Traitement,
+): { traitement: Traitement; virement: VirementInterne } {
+  texteRequis(rejet.id, 'Rejet de virement interne : identifiant du traitement de l’écriture contraire attendu.')
+  if (rejet.id === virement.traitementId)
+    throw new Error(`Rejet de virement interne : l'écriture contraire a son propre identifiant, distinct de celui du lot (${rejet.id}).`)
+  texteRequis(rejet.motif, 'Rejet de virement interne : motif du rejet attendu (motif donné par la banque).')
+  verifierARejeter(virement, rejet, ecritureLot)
+  const ligne = mouvementsVirementInterne(virement)
+  const absente = ligne.find(
+    (attendu) => !ecritureLot.mouvements.some((m) => m.compte === attendu.compte && m.sens === attendu.sens && m.montantCentimes === attendu.montantCentimes),
+  )
+  if (absente)
+    throw new Error(
+      `Écriture ${ecritureLot.id} du lot : mouvement ${absente.sens} ${absente.compte} de ${absente.montantCentimes} centimes introuvable ; l'écriture contraire ne contre-passe que ce qui a été écrit.`,
+    )
+  const traitement = creerTraitement({
+    id: rejet.id,
+    famille: FAMILLE_REJET_VIREMENT_INTERNE,
+    date: rejet.date < ecritureLot.date ? ecritureLot.date : rejet.date,
+    annule: ecritureLot.id,
+    mouvements: ligne.map((m): LigneMouvement => ({ ...m, sens: m.sens === 'debit' ? 'credit' : 'debit' })),
+  })
+  return { traitement, virement: { ...virement, rejet: { le: rejet.date, motif: rejet.motif.trim(), traitementId: rejet.id } } }
 }
 
 // ─── Lot et fichier ─────────────────────────────────────────────────────────────────────────

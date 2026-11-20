@@ -79,7 +79,7 @@ Le syndic judiciaire — Cabinet Delaunay`,
     ],
     draft: `Monsieur Petit,
 
-Je vous confirme qu'un plombier (Atlantic Plomberie) intervient ce jour pour localiser et stopper la fuite. En parallèle, je déclare le dégât des eaux à l'assurance multirisque de la copropriété (Generali, police MRI-44120) et vous transmets le numéro de sinistre. Merci de conserver les photos des dommages pour l'expertise.
+Je vous confirme qu'un plombier (Atlantic Plomberie) intervient ce jour pour localiser et stopper la fuite. En parallèle, je déclare le dégât des eaux à l'assurance multirisque de la copropriété (Assureur Exemple, police MRI-44120) et vous transmets le numéro de sinistre. Merci de conserver les photos des dommages pour l'expertise.
 
 Bien à vous,
 Le syndic judiciaire — Cabinet Delaunay`,

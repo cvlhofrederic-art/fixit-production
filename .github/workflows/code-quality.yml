@@ -40,11 +40,17 @@ jobs:
       - name: Installer les dépendances
         run: npm ci
 
+      # Mémoire de Node : ESLint (règles typées) et tsc dépassaient la limite par défaut (environ 4 Go sur le runner)
+      # avec TypeScript 6, comme next build (scripts/ci-build-avec-reprise.sh). Les runners GitHub ont 16 Go.
       - name: Lancer ESLint
         run: npm run lint
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
 
       - name: Vérifier les types TypeScript
         run: npx tsc --noEmit
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
 
       - name: Syndic v54 — type IconName synchronisé avec le registre
         # Gate non-bypassable (vs husky --no-verify) : lib/syndic/icon-names.ts

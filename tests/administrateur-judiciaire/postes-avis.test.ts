@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { creerCompteCoproprietaire, creerPosition } from '@/lib/administrateur-judiciaire/domain/identites-positions'
-import { imputerEncaissement, postesDepuisAvis } from '@/lib/administrateur-judiciaire/domain/imputation-encaissements'
+import { MOTIF_HORS_19_2_ART_43, imputerEncaissement, postesDepuisAvis } from '@/lib/administrateur-judiciaire/domain/imputation-encaissements'
 import { avisDAppel, creerCleRepartition, type EcheanceAppel } from '@/lib/administrateur-judiciaire/domain/repartition-appels'
 
 /**
@@ -86,5 +86,13 @@ describe('postes de terme depuis l’avis d’appel', () => {
     expect(lotSansCompte.anomalies).toMatchObject([{ code: 'lot_sans_compte', lotId: 'lot-1' }])
     expect(() => postesDepuisAvis(lotSansCompte)).toThrow(/anomalie/)
     expect(() => postesDepuisAvis({ ...avis, echeances: [...avis.echeances, avis.echeances[0]] })).toThrow(/en double/)
+  })
+
+  it('J67, R98 : la provision de l’art. 43, al. 2 fait un poste marqué « hors art. 19-2 » ; les autres postes ne portent aucune marque', () => {
+    const art43: EcheanceAppel = { ...echeances[0], id: 'B43-2026-1', provisionArt43: { autorisation: 'AG du 10/06/2025, résolution 7 (fictive)' } }
+    const postes = postesDepuisAvis(avisDAppel({ echeances: [art43, echeances[1]], cles: [cle], positions, comptes }))
+    expect(postes.filter((p) => p.appelId === 'B43-2026-1').map((p) => p.horsArt19_2)).toEqual([MOTIF_HORS_19_2_ART_43, MOTIF_HORS_19_2_ART_43])
+    expect(MOTIF_HORS_19_2_ART_43).toMatch(/« La procédure prévue à l'article 19-2 \[\.\.\.\] ne s'applique pas à cette situation » \(D\. 1967 art\. 43, al\. 2 ; J67, R98\)/)
+    expect(postes.filter((p) => p.appelId === 'FT-2026-1').every((p) => !('horsArt19_2' in p))).toBe(true)
   })
 })

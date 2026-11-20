@@ -216,12 +216,37 @@ export interface Tache extends EntiteEnregistree {
   assigneId: string | null
 }
 
-// ─── Tables déclarées mais jamais alimentées (seuls les champs indexés sont connus) ────────
-
 export interface Cabinet extends EntiteEnregistree {
-  /** Mode de tenue des comptes bancaires par défaut des mandats (D-BANQUE) ; absent = compte séparé au nom du syndicat. */
+  /**
+   * Mode de tenue des comptes bancaires par défaut des mandats (D-BANQUE) ; absent = compte séparé au nom du syndicat.
+   * Écrit par l'écran « Banque et recouvrement » (db/comptes-bancaires.ts), sur la seule ligne de la table.
+   */
   modeComptesBancaires?: ModeTenueComptes
 }
+
+/**
+ * Compte bancaire d'une copropriété : plusieurs par copropriété, chacun avec sa nature (D-BANQUE). Champs non indexés.
+ * Écrit par l'écran « Banque et recouvrement » (db/comptes-bancaires.ts).
+ */
+export interface Banque extends EntiteEnregistree {
+  coproprieteId: string
+  nature?: NatureCompteBancaire
+  libelle?: string
+  iban?: string | null
+  bic?: string | null
+  etablissement?: string | null
+  /** Compte clôturé = false ; absent = actif. */
+  actif?: boolean
+  /**
+   * Marques du fonds de travaux (J71, domain/comptes-bancaires : MarquesFondsTravaux) : compte repris qui tenait le
+   * fonds, placement réservé au fonds. Optionnelles et non indexées : aucun changement de version de la base ; absentes
+   * des comptes écrits avant elles, lues comme false.
+   */
+  tenaitFondsTravaux?: boolean
+  reserveAuFondsTravaux?: boolean
+}
+
+// ─── Tables déclarées mais jamais alimentées (seuls les champs indexés sont connus) ────────
 
 export interface Societe extends EntiteEnregistree {
   cabinetId: string
@@ -295,18 +320,6 @@ export interface AppelDeFonds extends EntiteEnregistree {
 
 export interface FondsTravaux extends EntiteEnregistree {
   coproprieteId: string
-}
-
-/** Compte bancaire d'une copropriété : plusieurs par copropriété, chacun avec sa nature (D-BANQUE). Champs non indexés. */
-export interface Banque extends EntiteEnregistree {
-  coproprieteId: string
-  nature?: NatureCompteBancaire
-  libelle?: string
-  iban?: string | null
-  bic?: string | null
-  etablissement?: string | null
-  /** Compte clôturé = false ; absent = actif. */
-  actif?: boolean
 }
 
 /** Arrêté de rapprochement d'un compte bancaire du syndicat ; champs non indexés : voir domain/rapprochement-bancaire. */
@@ -431,6 +444,51 @@ export interface Intervention extends EntiteEnregistree {
   prestataireId: string
 }
 
+// ─── D1 et D2 (version 3) : identités, positions, comptes, clés, échéances, pièces de traitement ─────────────────────
+// Objets du domaine rangés tels quels, avec les champs de suivi ; dates métier en AAAA-MM-JJ, montants en centimes.
+// D1 : propriétaire = le syndicat (coproprieteId), auteur d'une opération = le mandat (mandatId, sur la pièce).
+
+/**
+ * Identité (D2) : la personne physique ou morale, saisie une fois pour tout le cabinet (aucun syndicat propriétaire).
+ * La case « professionnel » et ses états datés (J78) ne s'écrivent que par enregistrerQualiteProfessionnelle
+ * (db/identites.ts) ; repoIdentites les refuse.
+ */
+export interface IdentiteEnregistree
+  extends EntiteEnregistree,
+    Omit<import('@/lib/administrateur-judiciaire/domain/identites-positions').Identite, 'id'> {
+  /** J78 : états datés de la case, dans l'ordre des saisies (non indexé) ; absent : jamais saisie. */
+  historiqueProfessionnel?: import('@/lib/administrateur-judiciaire/domain/qualite-professionnelle').EtatQualiteProfessionnelle[]
+}
+
+/** Position (D2) : rôle d'une identité sur un lot ; le syndicat se lit par le lot (Lot.coproprieteId), sans copie. */
+export interface PositionEnregistree
+  extends EntiteEnregistree,
+    Omit<import('@/lib/administrateur-judiciaire/domain/identites-positions').Position, 'id'> {
+  /** Position née de la migration d'une ancienne fiche : origine de sa date d'entrée, à vérifier. Absente sinon. */
+  reprise?: import('@/lib/administrateur-judiciaire/domain/migration-d2').ReprisePosition | null
+}
+
+/** Compte copropriétaire (D2) : le débiteur du syndicat, compte 450 à numéro de série (une série par syndicat). */
+export interface CompteCoproprietaireEnregistre
+  extends EntiteEnregistree,
+    Omit<import('@/lib/administrateur-judiciaire/domain/identites-positions').CompteCoproprietaire, 'id'> {
+  /** Compte né de la migration : solde et statut de l'ancienne fiche relevés ce jour-là, sans écriture. Absent sinon. */
+  reprise?: import('@/lib/administrateur-judiciaire/domain/migration-d2').RepriseSoldeCompte | null
+}
+
+/** Clé de répartition du syndicat (un code par syndicat). */
+export type CleRepartitionEnregistree = EntiteEnregistree & import('@/lib/administrateur-judiciaire/domain/repartition-appels').CleRepartition
+
+/**
+ * Échéance d'appel suivie (echeancier-appels.ts). Son identifiant n'est unique qu'au sein du syndicat (D1 ; ex.
+ * « B-2026-001-1 » pour tout syndicat qui a un exercice « 2026 » et une clé « 001 ») : la table la range sous la clé
+ * [coproprieteId+id], sans repository générique (db/echeances-appel.ts).
+ */
+export type EcheanceAppelEnregistree = ChampsSuivi & import('@/lib/administrateur-judiciaire/domain/echeancier-appels').EcheanceAppelSuivie
+
+/** Pièce du journal des traitements (D1) : syndicat propriétaire, mandat auteur, numéro de la séquence du cabinet. */
+export type PieceTraitementEnregistree = EntiteEnregistree & import('@/lib/administrateur-judiciaire/domain/journal-traitements').PieceTraitement
+
 // ─── Journal d'activité ────────────────────────────────────────────────────────────────────
 
 export type ActionJournal = 'create' | 'update' | 'remove'
@@ -495,6 +553,12 @@ export class AdministrateurJudiciaireDb extends Dexie {
   declare planComptable: Table<PlanComptable, string>
   declare modelesCourrier: Table<ModeleCourrier, string>
   declare courriers: Table<Courrier, string>
+  declare identites: Table<IdentiteEnregistree, string>
+  declare positions: Table<PositionEnregistree, string>
+  declare comptesCoproprietaires: Table<CompteCoproprietaireEnregistre, string>
+  declare clesRepartition: Table<CleRepartitionEnregistree, string>
+  declare echeancesAppel: Table<EcheanceAppelEnregistree, [string, string]>
+  declare traitements: Table<PieceTraitementEnregistree, string>
 
   constructor() {
     super(NOM_BASE_LOCALE)
@@ -551,6 +615,20 @@ export class AdministrateurJudiciaireDb extends Dexie {
       modelesCourrier: 'id, famille, libelle, contexte, formeEnvoi',
       courriers:
         'id, coproprieteId, mandatId, personneId, entrepriseId, modeleId, statut, formeEnvoi, dateDepot, dateAccuseReception, referenceDiffusion',
+    })
+    // Version 3 (D1, D2 ; plan des écrans, § 5.5) : AJOUTE six tables. Les blocs version(1) et version(2) ci-dessus ne
+    // sont jamais modifiés ; aucune fonction upgrade : la montée de version crée des tables vides et ne touche à aucune
+    // donnée. Les anciennes fiches `coproprietaires` restent ; leur migration est une fonction à part, relançable.
+    // Index : les lectures de l'écran Appels (positions d'un lot ou d'une identité, lignes d'un syndicat, pièces d'un
+    // mandat pour la reddition des comptes) ; uniques : une série et un code de clé par syndicat, un numéro de pièce par
+    // cabinet. Échéances : clé composée, leur identifiant n'étant unique qu'au sein du syndicat (D1).
+    this.version(3).stores({
+      identites: 'id',
+      positions: 'id, lotId, identiteId',
+      comptesCoproprietaires: 'id, coproprieteId, &[coproprieteId+serie]',
+      clesRepartition: 'id, coproprieteId, &[coproprieteId+code]',
+      echeancesAppel: '[coproprieteId+id], coproprieteId',
+      traitements: 'id, coproprieteId, mandatId, &numero',
     })
   }
 }

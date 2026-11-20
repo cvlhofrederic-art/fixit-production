@@ -162,7 +162,7 @@ export type ExigibiliteAnticipee =
 type ExigibiliteCalculee = Extract<ExigibiliteAnticipee, { etat: 'calculee' }>
 
 const A_CONFIRMER_EXIGIBILITE =
-  "Borne à confirmer par Hugo : exigibilité retenue le lendemain du trentième jour (« passé un délai de trente jours », L. 1965 art. 19-2), le lendemain de la première présentation ou de la transmission de l'avis comptant comme jour 0 (J1, J3)."
+  "Borne à confirmer : exigibilité retenue le lendemain du trentième jour (« passé un délai de trente jours », L. 1965 art. 19-2), le lendemain de la première présentation ou de la transmission de l'avis comptant comme jour 0 (J1, J3)."
 
 const AVERTISSEMENT_VOIE_NON_CONTROLEE =
   'Voie de notification du débiteur non contrôlée : demande de voie postale (J52) et consentement à la lettre recommandée électronique (J53) non vérifiés ; vérifier que la mise en demeure vaut notification avant toute action (L. 1965 art. 42-1 ; D. 1967 art. 64 et 64-1).'

@@ -8,7 +8,11 @@ import {
 } from '@/lib/administrateur-judiciaire/domain/courriers'
 import { dateIsoVersFr, decomposerDateIso, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
 import { normaliserEspaces } from '@/lib/administrateur-judiciaire/domain/texte'
-import type { AnomalieEnvoiElectronique, VoieNotification } from '@/lib/administrateur-judiciaire/domain/voie-notification'
+import {
+  retourPasEncoreEnVigueur,
+  type AnomalieEnvoiElectronique,
+  type VoieNotification,
+} from '@/lib/administrateur-judiciaire/domain/voie-notification'
 
 /**
  * Envois électroniques et signature électronique : cycles de statuts. Point 65 du bilan des écarts Gestéam → VitFix.
@@ -61,8 +65,10 @@ import type { AnomalieEnvoiElectronique, VoieNotification } from '@/lib/administ
  *   se fondent jamais (06_PIEGES § 4), même si « Préparation » figure dans les deux listes ;
  * - contrôle d'appoint à la création d'une notification électronique (LRE ou prestataire qualifié) : refus si la demande
  *   de voie postale du destinataire est en vigueur (voieDeNotification ; L. 1965 art. 42-1, al. 2 ; D. 1967 art. 64-1 et
- *   64-4) ou si une anomalie bloquante d'avant envoi demeure (controlerAvantEnvoiElectronique). Le calcul du délai
- *   (statut-assemblee.ts) reste seul juge, à la date du dépôt (J50).
+ *   64-4) ou si une anomalie bloquante d'avant envoi demeure (controlerAvantEnvoiElectronique). Retour à la voie
+ *   électronique reçu, pas encore en vigueur (J74 : renonciation ou accord après un refus, effet le lendemain du
+ *   huitième jour suivant leur réception) : le refus en donne la date d'effet et sa justification (retourPasEncoreEnVigueur).
+ *   Le calcul du délai (statut-assemblee.ts) reste seul juge, à la date du dépôt (J50).
  *
  * Valeur de notification, telle que 07_DECISIONS_JURIDIQUES.md la fixe (J50, décision de Hugo du 11/11/2026, textes lus
  * sur Légifrance le 11/11/2026) : une notification électronique est acquise à la transmission, par le prestataire, de
@@ -92,6 +98,17 @@ import type { AnomalieEnvoiElectronique, VoieNotification } from '@/lib/administ
  * - J57 et J66 : aucun statut de la console ne fait courir le délai : seule la date d'avis saisie sur le courrier compte
  *   (J50). Le module ne déduit ni date de notification ni délai d'un statut (valeurDuStatut : non_etablie), ni la date
  *   de dépôt.
+ * - J67, R16 (décision de Hugo du 17/11/2026 ; textes lus sur Légifrance et EUR-Lex le 17/11/2026) : la valeur probante
+ *   d'une signature électronique dépend de son niveau, donné par le prestataire (valeurProbanteSignature) : qualifiée,
+ *   présumée fiable ; simple, avancée ou inconnue, recevable mais à prouver. Un écrit électronique vaut un écrit papier si
+ *   son auteur est identifié et son intégrité garantie (C. civ. art. 1366) ; la fiabilité n'est présumée que pour une
+ *   signature qualifiée (C. civ. art. 1367, al. 2 ; décret n° 2017-1416, art. 1 ; eIDAS, art. 25, 2) ; une autre reste
+ *   recevable comme preuve, sans présomption (eIDAS, art. 25, 1 ; Cass. 3e civ., 05/03/2026, n° 24-21.034). Le niveau est
+ *   facultatif sur l'envoi, lu « inconnu » (la console Gestéam ne le montre pas) ; le statut « Signé » ne le dit pas.
+ *   Pour un procès-verbal d'assemblée tenu dans un registre électronique, la signature qualifiée est conseillée (D. 1967
+ *   art. 17). 🔵 Avant la signature obtenue, aucune valeur probante n'est lue (null). La mention « valeur probante
+ *   eIDAS » de la démonstration (SignatureElectroniqueModule.tsx, non modifié) ne doit jamais s'afficher sans ce niveau :
+ *   écran de Frédéric ; enregistrement du niveau : à brancher.
  *
  * Non établi :
  * - 🔴 Sens de chaque statut de la console Notifications : aucun n'est rattaché par 07_DECISIONS_JURIDIQUES.md à un
@@ -99,11 +116,8 @@ import type { AnomalieEnvoiElectronique, VoieNotification } from '@/lib/administ
  *   téléchargement (qui ne compte pas), « Reçu en erreur » un refus ou un rejet. Pour l'établir : la documentation du
  *   prestataire branché (correspondance entre ses statuts et la preuve de dépôt, l'avis, le téléchargement), puis une
  *   décision de Hugo.
- * - 🔴 Signature électronique : sa valeur probante n'est pas vérifiée dans 07_DECISIONS_JURIDIQUES.md (textes sur l'écrit
- *   et la signature électroniques, C. civ. art. 1366 et 1367 et règlement (UE) n° 910/2014 dit eIDAS, non lus pour ce
- *   module) ; rien n'en est affirmé (valeurProbante : non_etablie) et la mention « valeur probante eIDAS » de la
- *   démonstration (SignatureElectroniqueModule.tsx, non modifié) n'est pas reprise. « Signé » ne pose pas le statut d'AG
- *   « PV signé » (J2, statut-assemblee.ts) : lien à décider avec Hugo.
+ * - 🔴 Signature électronique et procès-verbal : « Signé » ne pose pas le statut d'AG « PV signé » (J2,
+ *   statut-assemblee.ts) : lien à décider (relevé du 17/11/2026, partie C, F8).
  * - 🔴 Questions à Hugo : les transitions et les finaux déduits (« Reçu en erreur » final, « Échec » jamais
  *   après « Envoyé OK », « Expiré » sans prolongation, « À relever » avant « Signé » et non l'inverse) sont-ils ceux du
  *   prestataire retenu ? Un envoi abandonné en « Préparation » ne se clôt qu'en passant par « Attente d'envoi » puis
@@ -288,7 +302,7 @@ export const STATUTS_ENVOI_ABOUTI: ReadonlySet<StatutNotificationElectronique> =
 
 /**
  * Statuts où la signature est obtenue (🔵 lecture des libellés, cohérente avec REFERENTIEL_SIGNATURE_ELECTRONIQUE : « À
- * relever » y est une signature faite, qui ne s'annule ni n'expire ; valeur probante non établie, 🔴).
+ * relever » y est une signature faite, qui ne s'annule ni n'expire ; valeur probante selon le niveau, J67, R16).
  */
 export const STATUTS_SIGNATURE_OBTENUE: ReadonlySet<StatutSignatureElectronique> = new Set<StatutSignatureElectronique>([
   'Signé',
@@ -327,10 +341,16 @@ export interface EnvoiNotificationElectronique {
   historique: EvenementEnvoiElectronique<StatutNotificationElectronique>[]
 }
 
+/** Niveau de la signature électronique, donné par le prestataire (J67, R16 ; eIDAS, art. 3, 25 à 29). */
+export const NIVEAUX_SIGNATURE_ELECTRONIQUE = ['simple', 'avancee', 'qualifiee', 'inconnu'] as const
+export type NiveauSignatureElectronique = (typeof NIVEAUX_SIGNATURE_ELECTRONIQUE)[number]
+
 export interface EnvoiSignatureElectronique {
   type: 'signature'
   id: string
   courrierId: string
+  /** Facultatif ; absent : lu « inconnu » (J67, R16). Enregistrement : à brancher. */
+  niveauSignature?: NiveauSignatureElectronique
   statut: StatutSignatureElectronique
   historique: EvenementEnvoiElectronique<StatutSignatureElectronique>[]
 }
@@ -395,11 +415,11 @@ const closLeCourrier = <S extends string>(machine: MachineEnvoi<S>, statut: S): 
 
 /** Refus d'une nouvelle tentative après un « Échec » (décision de Hugo du 17/11/2026, J58). */
 const RAISON_NOUVEAU_COURRIER_APRES_ECHEC =
-  "un envoi en échec n'a rien notifié ; pour un nouvel envoi, créer un nouveau courrier (nouveau dépôt ; D. 1967 art. 64, 64-1 ; décision de Hugo du 17/11/2026, J58)"
+  "un envoi en échec n'a rien notifié ; pour un nouvel envoi, créer un nouveau courrier (nouveau dépôt ; D. 1967 art. 64, 64-1 ; J58)"
 
 /** Refus d'une nouvelle tentative après « Reçu en erreur » (décision de Hugo du 17/11/2026, J66). */
 const RAISON_APRES_RECU_EN_ERREUR =
-  "si le justificatif établit la transmission de l'avis électronique, la notification est acquise et aucun nouvel envoi n'est utile (D. 1967 art. 64, dernier al. ; J57) ; sinon rien n'a été notifié : créer un nouveau courrier (nouveau dépôt ; J58) (décision de Hugo du 17/11/2026, J66)"
+  "si le justificatif établit la transmission de l'avis électronique, la notification est acquise et aucun nouvel envoi n'est utile (D. 1967 art. 64, dernier al. ; J57) ; sinon rien n'a été notifié : créer un nouveau courrier (nouveau dépôt ; J58) (J66)"
 
 // ─── Horodatages ─────────────────────────────────────────────────────────────────────────────
 
@@ -701,15 +721,22 @@ function modeElectroniqueDuCourrier(courrier: { id: string; formeEnvoi: string; 
   return mode
 }
 
-/** Contrôle d'appoint avant une notification électronique (point 60, voie-notification.ts). */
+/** Voie du destinataire passée par l'appelant (voieDeNotification) ; le retour à la voie électronique est facultatif (J74). */
+type VoieDestinataire = Pick<VoieNotification, 'voie' | 'depuis'> & Partial<Pick<VoieNotification, 'retour'>>
+
+/**
+ * Contrôle d'appoint avant une notification électronique (point 60, voie-notification.ts). Voie postale avec un retour à
+ * la voie électronique en attente (J74) : le refus en donne la date d'effet et sa justification.
+ */
 function controlerDestinataire(
-  voie: Pick<VoieNotification, 'voie' | 'depuis'> | null | undefined,
+  voie: VoieDestinataire | null | undefined,
   anomalies: readonly Pick<AnomalieEnvoiElectronique, 'gravite' | 'message'>[] = [],
 ): void {
   if (voie?.voie === 'postale') {
     const depuis = voie.depuis ? ` depuis le ${dateIsoVersFr(voie.depuis)}` : ''
+    const retour = voie.retour ? ` ${retourPasEncoreEnVigueur(voie.retour)}` : ''
     throw new Error(
-      `Notification électronique refusée : demande de voie postale en vigueur${depuis} ; notifier par lettre recommandée avec avis de réception (L. 1965 art. 42-1, al. 2 ; D. 1967 art. 64-1, 64-4).`,
+      `Notification électronique refusée : demande de voie postale en vigueur${depuis} ; notifier par lettre recommandée avec avis de réception (L. 1965 art. 42-1, al. 2 ; D. 1967 art. 64-1, 64-4).${retour}`,
     )
   }
   const bloquantes = anomalies.filter((a) => a.gravite === 'bloquant')
@@ -727,7 +754,7 @@ function controlerDestinataire(
 export function creerEnvoiNotificationElectronique(
   saisie: SaisieCreationEnvoi & {
     courrier: { id: string; formeEnvoi: string; modeNotification?: ModeNotification | null }
-    voieDestinataire?: Pick<VoieNotification, 'voie' | 'depuis'> | null
+    voieDestinataire?: VoieDestinataire | null
     anomaliesAvantEnvoi?: readonly Pick<AnomalieEnvoiElectronique, 'gravite' | 'message'>[]
   },
 ): EnvoiNotificationElectronique {
@@ -739,12 +766,27 @@ export function creerEnvoiNotificationElectronique(
   return { type: 'notification', id, courrierId, modeNotification, ...ouvrir(MACHINE_NOTIFICATION, saisie) }
 }
 
-/** Demande de signature d'un courrier par la console eSignature : statut « Soumis ». */
-export function creerEnvoiSignatureElectronique(saisie: SaisieCreationEnvoi & { courrierId: string }): EnvoiSignatureElectronique {
+/** Niveau contrôlé ; absent ou null : « inconnu » (J67, R16). */
+function niveauDeSignature(niveau: NiveauSignatureElectronique | null | undefined): NiveauSignatureElectronique {
+  if (niveau === undefined || niveau === null) return 'inconnu'
+  if (!(NIVEAUX_SIGNATURE_ELECTRONIQUE as readonly string[]).includes(niveau))
+    throw new Error(`Niveau de signature « ${String(niveau)} » inconnu (simple, avancee, qualifiee ou inconnu attendu).`)
+  return niveau
+}
+
+/**
+ * Demande de signature d'un courrier par la console eSignature : statut « Soumis ». Niveau de signature facultatif,
+ * gardé seulement s'il est donné (J67, R16).
+ */
+export function creerEnvoiSignatureElectronique(
+  saisie: SaisieCreationEnvoi & { courrierId: string; niveauSignature?: NiveauSignatureElectronique | null },
+): EnvoiSignatureElectronique {
   const id = identifiant(saisie.id, "de l'envoi")
   const courrierId = identifiant(saisie.courrierId, 'du courrier')
+  const niveau = saisie.niveauSignature ?? null
+  if (niveau !== null) niveauDeSignature(niveau)
   controlerNouvelleTentative('signature', id, courrierId, saisie.horodatage, saisie.envoisExistants)
-  return { type: 'signature', id, courrierId, ...ouvrir(MACHINE_SIGNATURE, saisie) }
+  return { type: 'signature', id, courrierId, ...(niveau === null ? {} : { niveauSignature: niveau }), ...ouvrir(MACHINE_SIGNATURE, saisie) }
 }
 
 // ─── Lecture ─────────────────────────────────────────────────────────────────────────────────
@@ -805,7 +847,7 @@ function alertesNotification(
       code: 'avis_a_saisir',
       message:
         envoi.statut === 'Reçu en erreur'
-          ? `${enConsole} : vérifier ${SOURCE_AVIS[mode]} si l'avis électronique a été transmis, et ne saisir sa date (controlerAvisElectronique, courriers.ts) sur le courrier ${courrier.id} que si ce justificatif l'établit. Avis transmis, envoi ensuite refusé ou non réclamé : la date de l'avis vaut, le délai court de son lendemain (D. 1967 art. 64, dernier al. ; décision de Hugo du 17/11/2026, J57) ; défaut de transmission de l'avis : aucune date à saisir, le délai ne court pas. Sans cette date, le délai n'est pas calculé (J50).`
+          ? `${enConsole} : vérifier ${SOURCE_AVIS[mode]} si l'avis électronique a été transmis, et ne saisir sa date (controlerAvisElectronique, courriers.ts) sur le courrier ${courrier.id} que si ce justificatif l'établit. Avis transmis, envoi ensuite refusé ou non réclamé : la date de l'avis vaut, le délai court de son lendemain (D. 1967 art. 64, dernier al. ; J57) ; défaut de transmission de l'avis : aucune date à saisir, le délai ne court pas. Sans cette date, le délai n'est pas calculé (J50).`
           : `${enConsole} : saisir sur le courrier ${courrier.id} la date de transmission de l'avis électronique (controlerAvisElectronique, courriers.ts), lue ${SOURCE_AVIS[mode]} ; aucun statut de la console ne la donne (J57) et, sans elle, le délai n'est pas calculé (J50).`,
     })
   if (avis && !abouti)
@@ -816,7 +858,7 @@ function alertesNotification(
   if (avis && envoi.statut === 'Reçu en erreur')
     alertes.push({
       code: 'retour_en_erreur_apres_avis',
-      message: `${enConsole} après l'avis du ${dateIsoVersFr(avis)} saisi sur le courrier ${courrier.id} : le module garde cette date, seule retenue pour le délai (une notification électronique est acquise à la transmission de l'avis, téléchargé ou non : D. 1967 art. 64, dernier al. ; J50) ; un refus ou une non-réclamation après l'avis ne remettent pas en cause sa date (décision de Hugo du 17/11/2026, J57). Vérifier toutefois ${SOURCE_AVIS[mode]} que l'avis a bien été transmis à cette date : un retour en erreur peut aussi signaler un défaut de transmission de l'avis, qui ne fait pas courir le délai ; la date saisie serait alors à retirer.`,
+      message: `${enConsole} après l'avis du ${dateIsoVersFr(avis)} saisi sur le courrier ${courrier.id} : le module garde cette date, seule retenue pour le délai (une notification électronique est acquise à la transmission de l'avis, téléchargé ou non : D. 1967 art. 64, dernier al. ; J50) ; un refus ou une non-réclamation après l'avis ne remettent pas en cause sa date (J57). Vérifier toutefois ${SOURCE_AVIS[mode]} que l'avis a bien été transmis à cette date : un retour en erreur peut aussi signaler un défaut de transmission de l'avis, qui ne fait pas courir le délai ; la date saisie serait alors à retirer.`,
     })
   return alertes
 }
@@ -858,19 +900,62 @@ export interface LectureSignatureElectronique {
   signatureObtenue: boolean
   /** Horodatage du premier passage à un statut de signature obtenue, tel que la console l'a enregistré. */
   signatureConstateeLe: string | null
-  /** 🔴 Valeur probante non vérifiée (en-tête). */
-  valeurProbante: 'non_etablie'
+  /** Niveau donné par le prestataire ; absent sur l'envoi : « inconnu » (J67, R16). */
+  niveauSignature: NiveauSignatureElectronique
+  /** Selon le niveau (valeurProbanteSignature) ; null tant que la signature n'est pas obtenue (🔵, en-tête). */
+  valeurProbante: ValeurProbanteSignature | null
+}
+
+export interface ValeurProbanteSignature {
+  /** Qualifiée : présumée fiable ; autre niveau : recevable, fiabilité à prouver si elle est contestée. */
+  valeur: 'presumee_fiable' | 'recevable_a_prouver'
+  niveau: NiveauSignatureElectronique
+  fondements: readonly string[]
+  message: string
+}
+
+const LIBELLES_NIVEAUX_SIGNATURE: Record<NiveauSignatureElectronique, string> = {
+  simple: 'Signature électronique simple',
+  avancee: 'Signature électronique avancée',
+  qualifiee: 'Signature électronique qualifiée',
+  inconnu: 'Niveau de signature inconnu (le statut « Signé » ne le dit pas)',
+}
+
+/**
+ * Valeur probante d'une signature électronique selon son niveau (J67, R16) : qualifiée, fiabilité présumée (C. civ. art.
+ * 1367, al. 2 ; décret n° 2017-1416, art. 1 ; eIDAS, art. 25, 2) ; simple, avancée ou inconnue (absent ou null),
+ * recevable comme preuve, sans présomption (C. civ. art. 1366 et 1367 ; eIDAS, art. 25, 1 ; Cass. 3e civ., 05/03/2026,
+ * n° 24-21.034). Niveau hors liste : refus.
+ */
+export function valeurProbanteSignature(niveauSaisi?: NiveauSignatureElectronique | null): ValeurProbanteSignature {
+  const niveau = niveauDeSignature(niveauSaisi)
+  if (niveau === 'qualifiee')
+    return {
+      valeur: 'presumee_fiable',
+      niveau,
+      fondements: ['C. civ. art. 1367, al. 2', 'décret n° 2017-1416, art. 1', 'règlement (UE) n° 910/2014 (eIDAS), art. 25, 2'],
+      message: `${LIBELLES_NIVEAUX_SIGNATURE[niveau]} : fiabilité présumée, même effet qu'une signature manuscrite (C. civ. art. 1367, al. 2 ; décret n° 2017-1416, art. 1 ; eIDAS, art. 25, 2).`,
+    }
+  return {
+    valeur: 'recevable_a_prouver',
+    niveau,
+    fondements: ['C. civ. art. 1366 et 1367', 'règlement (UE) n° 910/2014 (eIDAS), art. 25, 1', 'Cass. 3e civ., 05/03/2026, n° 24-21.034'],
+    message: `${LIBELLES_NIVEAUX_SIGNATURE[niveau]} : recevable comme preuve, sans présomption de fiabilité ; contestée, sa fiabilité est à prouver (C. civ. art. 1366 et 1367 ; eIDAS, art. 25, 1 ; Cass. 3e civ., 05/03/2026, n° 24-21.034). Pour un procès-verbal d'assemblée tenu dans un registre électronique, préférer la signature qualifiée, seule présumée fiable (D. 1967 art. 17).`,
+  }
 }
 
 export function lireSignatureElectronique(envoi: EnvoiSignatureElectronique): LectureSignatureElectronique {
   if (envoi.type !== 'signature')
     throw new Error(`Lecture refusée : l'envoi ${String(envoi.id)} est de type « ${String(envoi.type)} », pas une signature électronique.`)
   verifierEnvoi(MACHINE_SIGNATURE, envoi)
+  const signatureObtenue = STATUTS_SIGNATURE_OBTENUE.has(envoi.statut)
+  const niveauSignature = niveauDeSignature(envoi.niveauSignature)
   return {
     statut: envoi.statut,
     final: REFERENTIEL_SIGNATURE_ELECTRONIQUE[envoi.statut].final,
-    signatureObtenue: STATUTS_SIGNATURE_OBTENUE.has(envoi.statut),
+    signatureObtenue,
     signatureConstateeLe: envoi.historique.find((e) => STATUTS_SIGNATURE_OBTENUE.has(e.statut))?.horodatage ?? null,
-    valeurProbante: 'non_etablie',
+    niveauSignature,
+    valeurProbante: signatureObtenue ? valeurProbanteSignature(niveauSignature) : null,
   }
 }

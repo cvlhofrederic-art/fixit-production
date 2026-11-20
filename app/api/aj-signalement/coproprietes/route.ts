@@ -19,6 +19,14 @@
 // cabinet, jamais forçables, la copropriété existante nommée seulement si elle est dans sa portée (doublon.refuse
 // journalisé), probable à confirmer (confirmation journalisée) ; réponse minimisée. Aucune insertion d'origine : toute
 // structure absente répond 503 base_absente.
+//
+// Bureaux (migration 20261119 ; choix 1 : la copropriété est rattachée directement à un bureau ; facultatif, réponse
+// proposée à valider), super admin seul : bureauId contrôlé AVANT la création (sans cabinet → 409 sans_cabinet ; fermé →
+// 409 bureau_ferme ; d'un autre cabinet ou inconnu → 409 a_reverifier ; migration absente → 503 base_absente). La
+// création reste faite par signalements_qr_creer_coproprietes (non redéfinie) ; le bureau est posé JUSTE APRÈS, par la
+// même écriture que la modification, journalisée copropriete.modifiee {bureau}. Si cette seconde étape échoue : 207
+// { copropriete, error: 'bureau_non_pose' } (la copropriété est créée, sans bureau ; l'écran le dit). Un gestionnaire ne
+// pose pas de bureau (son corps strict le refuse : 400).
 
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
@@ -34,10 +42,11 @@ import {
 } from '@/lib/aj-signalement/serveur-gestionnaire'
 import {
   COLONNES_COPROPRIETE_QR, TABLE_COPROPRIETES_QR, contexteGestionVideQr, controlerAccesQr, coproprieteDepuisLigne, fonctionAbsenteQr,
-  genererJetonQr, journaliserRepliGestionQr, lireCabinetQr, lireCoproprieteCompleteQr, lireCoproprietesDoublonsQr, lireDomainesCabinetQr,
+  genererJetonQr, journaliserQr, journaliserRepliGestionQr, lireCabinetQr, lireCoproprieteCompleteQr, lireCoproprietesDoublonsQr, lireDomainesCabinetQr,
   lireFichesDesAdressesQr, porteeDuProfilQr, reponseErreur, reponseErreurBase, reponseErreurSqlQr, reponseInvalide, reponseLectureGestionnaireQr,
   reponsePriveeQr, reponseStructureGestionnaireQr, type LigneCoproprieteQr,
 } from '@/lib/aj-signalement/serveur'
+import { avecBureauxCoproprietesQr, controlerBureauDuCabinetQr } from '@/lib/aj-signalement/serveur-bureaux'
 
 const CONTEXTE = '[AJ SIGNALEMENT]'
 
@@ -61,7 +70,7 @@ export async function POST(request: NextRequest) {
     if (!validation.success) return reponseInvalide(validation.error)
     const s = validation.data
     const cabinetId = s.cabinetId ?? null
-    if (!cabinetId && (s.gestionnaireIds.length > 0 || s.attribueeATous)) return reponseErreur('sans_cabinet', 409)
+    if (!cabinetId && (s.gestionnaireIds.length > 0 || s.attribueeATous || s.bureauId)) return reponseErreur('sans_cabinet', 409)
 
     let domaines: string[] = []
     if (cabinetId) {
@@ -72,6 +81,10 @@ export async function POST(request: NextRequest) {
       // Lecture en échec (autre que la table absente) : 500 avant d'écrire, jamais un contrôle sauté (relecture 4).
       if (!lus.ok) return reponseErreurSqlQr(lus.erreur, 'lecture des domaines', { cabinet: cabinetId })
       domaines = lus.valeur
+      if (s.bureauId) {
+        const bureau = await controlerBureauDuCabinetQr(s.bureauId, cabinetId, 'bureau d’une nouvelle copropriété', { cabinet: cabinetId })
+        if (!bureau.ok) return bureau.reponse
+      }
     }
 
     const emails = canoniques(s.emailsDestinataires)
@@ -127,14 +140,34 @@ export async function POST(request: NextRequest) {
       // La copropriété est créée : la fiche renvoyée dira « à tous » non posé, l'écran le montre.
       if (tous.error) logger.error(`${CONTEXTE} « attribuée à tous » non posé après la création`, { code: tous.error.code, copropriete: id })
     }
+    const bureauPose = s.bureauId && cabinetId && !rejeu ? await poserBureauCree(id, s.bureauId, cabinetId, controle.user.id) : true
     const lecture = await lireCoproprieteCompleteQr(id, { nouvelle: !rejeu })
     if (!lecture.ok) return reponseErreurSqlQr(lecture.erreur, 'relecture de la copropriété créée', { copropriete: id })
     if (!lecture.copropriete) return reponseErreur('a_reverifier', 409)
-    return NextResponse.json({ copropriete: lecture.copropriete }, { status: rejeu ? 200 : 201 })
+    const [copropriete] = await avecBureauxCoproprietesQr([lecture.copropriete])
+    // Bureau non posé : la copropriété est créée (207, l'écran le dit et propose de le reposer par la modification).
+    if (!bureauPose) return NextResponse.json({ copropriete, error: 'bureau_non_pose' }, { status: 207 })
+    return NextResponse.json({ copropriete }, { status: rejeu ? 200 : 201 })
   } catch (e: unknown) {
     logger.error(`${CONTEXTE} création de copropriété`, { message: e instanceof Error ? e.name : 'inconnue' }, e)
     return reponseErreur('serveur', 500)
   }
+}
+
+/**
+ * Bureaux (migration 20261119) : bureau d'une copropriété tout juste créée, posé par la même écriture que la
+ * modification (filtrée par id ET cabinet), journalisé copropriete.modifiee {bureau}. Faux si l'écriture est refusée
+ * (journalisé avec son code seul) : la copropriété reste créée, sans bureau.
+ */
+async function poserBureauCree(id: string, bureauId: string, cabinetId: string, acteur: string): Promise<boolean> {
+  const { data, error } = await supabaseAdmin.from(TABLE_COPROPRIETES_QR).update({ bureau_id: bureauId })
+    .eq('id', id).eq('cabinet_id', cabinetId).select('id').maybeSingle()
+  if (error || !data) {
+    logger.error(`${CONTEXTE} bureau non posé après la création d’une copropriété`, { code: error?.code, copropriete: id })
+    return false
+  }
+  await journaliserQr({ action: 'copropriete.modifiee', cabinetId, acteurId: acteur, coproprieteId: id, champs: ['bureau'] })
+  return true
 }
 
 /**

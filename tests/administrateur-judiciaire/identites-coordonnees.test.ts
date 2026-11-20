@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
+  ORIGINES_ADRESSE,
   adresseDeNotification,
+  adressePourCourrierSimple,
   adressesValablesA,
+  controlerAdresseDeCourrierSimple,
+  controlerAdresseDeNotification,
   controlerAdresses,
   creerAdresseDatee,
   creerCompteCoproprietaire,
@@ -18,6 +22,7 @@ import {
   type SaisieIdentite,
   type SaisiePosition,
 } from '@/lib/administrateur-judiciaire/domain/identites-positions'
+import { enTeteDuModule } from './en-tete-module'
 
 /**
  * Coordonnées et rattachements d'une identité (point 59 du bilan 2 ; Gestéam, tranche 37 § Identités : adresses datées
@@ -114,6 +119,83 @@ describe('point 59 — adresses datées', () => {
 
   it('refuse deux adresses de même identifiant', () => {
     expect(() => identite({ adresses: [adresse(), adresse()] })).toThrow(/adr-1/)
+  })
+})
+
+describe('J67, R19 — origine de l’adresse (D. 1967 art. 65, al. 1 et 2 ; art. 6, al. 2)', () => {
+  const recherchee = adresse({ id: 'adr-2', lignes: ['3 place Castellane'], du: '2026-03-01', origine: 'autre' })
+
+  it('trois origines ; une origine inconnue du référentiel est refusée', () => {
+    expect(ORIGINES_ADRESSE).toEqual(['coproprietaire', 'transfert_art_6', 'autre'])
+    expect(adresse({ origine: 'transfert_art_6' }).origine).toBe('transfert_art_6')
+    expect(() => adresse({ origine: 'annuaire' as never })).toThrow(/origine/i)
+  })
+
+  it('une adresse d’origine « autre » ne sert pas à notifier ; elle reste parmi les adresses valables (courrier simple)', () => {
+    const fiche = identite({ adresses: [adresse({ origine: 'coproprietaire' }), recherchee] })
+    expect(adressesValablesA(fiche, '2026-04-01').map((a) => a.id)).toEqual(['adr-1', 'adr-2'])
+    expect(adresseDeNotification(fiche, '2026-04-01')?.id).toBe('adr-1')
+    expect(controlerAdresseDeNotification(fiche, '2026-04-01')).toEqual([])
+  })
+
+  it('seule une adresse « autre » : aucune adresse de notification, le contrôle le dit', () => {
+    const fiche = identite({ adresses: [recherchee] })
+    expect(adresseDeNotification(fiche, '2026-04-01')).toBeNull()
+    const [anomalie] = controlerAdresses(fiche, '2026-04-01')
+    expect(anomalie.code).toBe('sans_adresse')
+    expect(anomalie.message).toMatch(/« adr-2 » \(origine « autre »\) ne vaut pas pour notifier/)
+    expect(anomalie.message).toMatch(/D\. 1967 art\. 65, al\. 2 ; J67, R19/)
+    // Le message bloque une notification : il ne promet pas un courrier simple que l'adresse ne permettrait pas toujours.
+    expect(anomalie.message).not.toMatch(/courrier simple/)
+  })
+
+  it('courrier simple (avis par lettre simple) : l’adresse « autre » en cours sert à défaut d’adresse de notification, avec un avertissement', () => {
+    const seule = identite({ adresses: [recherchee] })
+    expect(adressePourCourrierSimple(seule, '2026-04-01')?.id).toBe('adr-2')
+    const [avertissement, ...autres] = controlerAdresseDeCourrierSimple(seule, '2026-04-01')
+    expect(autres).toEqual([])
+    expect(avertissement).toEqual({
+      code: 'adresse_autre',
+      message: 'Adresse « adr-2 » (origine « autre ») retenue pour ce courrier simple : elle ne vaudrait pas pour une notification (D. 1967 art. 65, al. 2 ; J67, R19).',
+    })
+    // Une adresse de notification existe : elle prime, même close ; aucun avertissement d'origine.
+    const avecNotification = identite({ adresses: [adresse({ origine: 'coproprietaire', au: '2026-02-28' }), recherchee] })
+    expect(adressePourCourrierSimple(avecNotification, '2026-04-01')?.id).toBe('adr-1')
+    expect(controlerAdresseDeCourrierSimple(avecNotification, '2026-04-01').map((a) => a.code)).toEqual(['adresse_echue'])
+    // Adresse « autre » pas encore en cours, ou close : rien pour le courrier simple, « sans_adresse » reste.
+    expect(adressePourCourrierSimple(seule, '2026-02-01')).toBeNull()
+    expect(controlerAdresseDeCourrierSimple(seule, '2026-02-01').map((a) => a.code)).toEqual(['sans_adresse'])
+    const close = identite({ adresses: [{ ...recherchee, au: '2026-03-31' }] })
+    expect(adressePourCourrierSimple(close, '2026-04-01')).toBeNull()
+    // Deux adresses « autre » qui se valent : aucune n'est choisie.
+    const deux = identite({ adresses: [recherchee, { ...recherchee, id: 'adr-3' }] })
+    expect(adressePourCourrierSimple(deux, '2026-04-01')).toBeNull()
+  })
+
+  it('notification de transfert (art. 6, al. 2) : admise comme l’adresse communiquée par le copropriétaire', () => {
+    const fiche = identite({ adresses: [adresse({ origine: 'transfert_art_6' })] })
+    expect(adresseDeNotification(fiche, '2026-04-01')?.id).toBe('adr-1')
+    expect(controlerAdresseDeNotification(fiche, '2026-04-01')).toEqual([])
+  })
+
+  it('origine inconnue (reprise de Gestéam) : adresse admise, avec l’alerte « origine à vérifier » avant une notification', () => {
+    const fiche = identite({ adresses: [adresse()] })
+    expect(adresseDeNotification(fiche, '2026-04-01')?.id).toBe('adr-1')
+    expect(controlerAdresses(fiche, '2026-04-01')).toEqual([])
+    const [alerte, ...autres] = controlerAdresseDeNotification(fiche, '2026-04-01')
+    expect(autres).toEqual([])
+    expect(alerte.code).toBe('origine_a_verifier')
+    expect(alerte.message).toMatch(/Adresse « adr-1 » : origine à vérifier/)
+    expect(alerte.message).toMatch(/art\. 6, al\. 2 ; J67, R19/)
+    expect(controlerAdresseDeNotification(identite(), '2026-04-01').map((a) => a.code)).toEqual(['sans_adresse'])
+  })
+
+  it('en-tête : la portée de « à cet effet » est tranchée (J67, R19), retirée du 🔴 ; les autres questions restent', () => {
+    const { texte } = enTeteDuModule('identites-positions')
+    const nonEtabli = texte.slice(texte.indexOf('🔴 Non établi'))
+    expect(nonEtabli).not.toMatch(/portée de « à cet effet »/)
+    expect(nonEtabli).toMatch(/jeu de coordonnées par compte ou par syndicat/)
+    expect(texte).toMatch(/J67, R19 \(décision de Hugo du 17\/11\/2026\) : seule vaut pour notifier l'adresse communiquée par le copropriétaire/)
   })
 })
 

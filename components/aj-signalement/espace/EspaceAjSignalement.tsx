@@ -37,6 +37,8 @@
 // large ; jamais sur la barre latérale bleu nuit (un logo sombre y serait illisible), ni sur téléphone (le titre de la
 // vue y serait tronqué : essai à 375 px ; le nom du cabinet reste dans l'en-tête). Sans logo, l'en-tête est celui
 // d'avant ; espace global du super admin : aucun logo.
+// Bureaux des cabinets (migration 20261119, écran E4) : la page profil reçoit les cabinets de l'espace (« Changer de
+// bureau » pour une fiche d'un cabinet qui a des bureaux) ; l'espace d'un gestionnaire ne change pas.
 
 import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react'
 import { toast } from 'sonner'
@@ -322,6 +324,7 @@ function CoquilleEspaceQr({ role, lienAdmin, onDeconnexion, cabinetNom, vueGesti
       return (
         <FicheGestionnaireQr
           key={ancre.gestionnaireId} id={ancre.gestionnaireId} coproprietes={coproprietes} gestionnaires={referentiels.gestionnaires}
+          cabinets={referentiels.cabinets}
           onRetour={() => allerA({ vue: 'gestionnaires', gestionnaireId: null })} onModifie={rafraichirProfil} onInformer={setDiffusionSuivi}
         />
       )

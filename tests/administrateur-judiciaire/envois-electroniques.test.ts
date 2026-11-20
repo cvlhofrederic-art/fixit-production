@@ -18,9 +18,11 @@ import {
   lireNotificationElectronique,
   lireSignatureElectronique,
   transitionsPermises,
+  valeurProbanteSignature,
   type EnvoiNotificationElectronique,
   type EnvoiSignatureElectronique,
 } from '@/lib/administrateur-judiciaire/domain/envois-electroniques'
+import { effetRetourVoieElectronique } from '@/lib/administrateur-judiciaire/domain/voie-notification'
 import { STATUT_COURRIER } from '@/lib/data/referentiels-gesteam-judiciaire'
 import { enTeteDuModule } from './en-tete-module'
 
@@ -184,6 +186,16 @@ describe('création d’un envoi de notification électronique (lien avec le cou
     expect(notification({ voieDestinataire: { voie: null, depuis: null } }).statut).toBe('Préparation')
     // Un courriel simple n'est pas une notification : la demande de voie postale ne l'empêche pas.
     expect(notification({ courrier: { id: 'C3', formeEnvoi: 'Email' }, voieDestinataire }).modeNotification).toBeNull()
+  })
+
+  it('J74 : retour à la voie électronique reçu, pas encore en vigueur : refus, avec la date d’effet et sa justification', () => {
+    const retour = effetRetourVoieElectronique({ nature: 'renonciation', recueLe: '2026-11-12' })
+    const voieDestinataire = { voie: 'postale', depuis: '2026-10-10', retour } as const
+    expect(() => notification({ voieDestinataire })).toThrow(
+      /demande de voie postale en vigueur depuis le 10\/10\/2026.*64-1, 64-4\)\. Retour à la voie électronique pas encore en vigueur : Renonciation à la voie postale reçue le 12\/11\/2026 : effet le 21\/11\/2026.*J74\)\.$/,
+    )
+    // voie électronique rétablie : l'envoi est admis
+    expect(notification({ voieDestinataire: { voie: 'electronique', depuis: null, retour } }).statut).toBe('Préparation')
   })
 
   it('refuse une notification électronique tant qu’une anomalie bloquante d’avant envoi demeure (voie-notification.ts)', () => {
@@ -464,7 +476,7 @@ describe('machine d’états de la console eSignature (🔵 transitions déduite
     expect(() => changerStatutEnvoi(annule, { statut: 'En cours', horodatage: H('10:00') })).toThrow(/final/)
   })
 
-  it('lecture : signature obtenue à « Signé », « Stocké, signé » ou « À relever », date constatée par la console, valeur probante non établie', () => {
+  it('lecture : signature obtenue à « Signé », « Stocké, signé » ou « À relever », date constatée par la console, valeur probante selon le niveau (J67, R16)', () => {
     // « À relever » est lu comme « signature faite, document à relever » (REFERENTIEL_SIGNATURE_ELECTRONIQUE) et ne
     // s'annule ni n'expire : la lecture doit le dire signé, sinon le référentiel et la lecture se contredisent.
     expect([...STATUTS_SIGNATURE_OBTENUE]).toEqual(['Signé', 'Stocké, signé', 'À relever'])
@@ -476,7 +488,8 @@ describe('machine d’états de la console eSignature (🔵 transitions déduite
       final: false,
       signatureObtenue: true,
       signatureConstateeLe: H('09:01'),
-      valeurProbante: 'non_etablie',
+      niveauSignature: 'inconnu',
+      valeurProbante: valeurProbanteSignature('inconnu'),
     })
     // La date constatée reste celle du premier statut de signature obtenue, pas celle du relevé.
     expect(lireSignatureElectronique(enchainerSignature(aRelever, ['Signé'], 10)).signatureConstateeLe).toBe(H('09:01'))
@@ -486,8 +499,44 @@ describe('machine d’états de la console eSignature (🔵 transitions déduite
       final: true,
       signatureObtenue: true,
       signatureConstateeLe: H('11:00'),
-      valeurProbante: 'non_etablie',
+      niveauSignature: 'inconnu',
+      valeurProbante: valeurProbanteSignature('inconnu'),
     })
+  })
+
+  it('J67, R16 : signature qualifiée présumée fiable ; simple, avancée ou niveau inconnu, recevable mais à prouver', () => {
+    expect(valeurProbanteSignature('qualifiee')).toEqual({
+      valeur: 'presumee_fiable',
+      niveau: 'qualifiee',
+      fondements: ['C. civ. art. 1367, al. 2', 'décret n° 2017-1416, art. 1', 'règlement (UE) n° 910/2014 (eIDAS), art. 25, 2'],
+      message:
+        "Signature électronique qualifiée : fiabilité présumée, même effet qu'une signature manuscrite (C. civ. art. 1367, al. 2 ; décret n° 2017-1416, art. 1 ; eIDAS, art. 25, 2).",
+    })
+    for (const niveau of ['simple', 'avancee', 'inconnu'] as const) {
+      const lecture = valeurProbanteSignature(niveau)
+      expect(lecture).toMatchObject({ valeur: 'recevable_a_prouver', niveau })
+      expect(lecture.fondements).toEqual(['C. civ. art. 1366 et 1367', 'règlement (UE) n° 910/2014 (eIDAS), art. 25, 1', 'Cass. 3e civ., 05/03/2026, n° 24-21.034'])
+      // pour un procès-verbal d'AG dans un registre électronique, la signature qualifiée est conseillée (D. 1967 art. 17)
+      expect(lecture.message).toMatch(/sans présomption de fiabilité.*D\. 1967 art\. 17\)\.$/)
+    }
+    expect(valeurProbanteSignature('inconnu').message).toMatch(/^Niveau de signature inconnu/)
+    expect(valeurProbanteSignature(null)).toEqual(valeurProbanteSignature('inconnu'))
+    expect(valeurProbanteSignature(undefined)).toEqual(valeurProbanteSignature('inconnu'))
+    expect(() => valeurProbanteSignature('eidas' as never)).toThrow(/Niveau de signature « eidas » inconnu/)
+  })
+
+  it('J67, R16 : niveau facultatif sur l’envoi, gardé d’un statut à l’autre ; aucune valeur probante avant la signature', () => {
+    const qualifiee = signature({ niveauSignature: 'qualifiee' })
+    expect(qualifiee.niveauSignature).toBe('qualifiee')
+    expect(signature()).not.toHaveProperty('niveauSignature')
+    expect(signature({ niveauSignature: null })).not.toHaveProperty('niveauSignature')
+    expect(lireSignatureElectronique(qualifiee)).toMatchObject({ signatureObtenue: false, niveauSignature: 'qualifiee', valeurProbante: null })
+    const signee = enchainerSignature(qualifiee, ['En cours', 'Signé'])
+    expect(lireSignatureElectronique(signee).valeurProbante?.valeur).toBe('presumee_fiable')
+    // « Signé » ne dit rien du niveau : sans niveau, la signature reste à prouver
+    expect(lireSignatureElectronique(enchainerSignature(signature(), ['En cours', 'Signé'])).valeurProbante?.valeur).toBe('recevable_a_prouver')
+    expect(() => signature({ niveauSignature: 'forte' as never })).toThrow(/Niveau de signature « forte » inconnu/)
+    expect(() => lireSignatureElectronique({ ...signee, niveauSignature: 'forte' as never })).toThrow(/Niveau de signature « forte » inconnu/)
   })
 })
 
@@ -547,7 +596,9 @@ describe('lecture d’une notification électronique : aucun statut ne vaut noti
     expect(lecture.alertes[0].message).toMatch(/D\. 1967 art\. 64, dernier al\./)
     expect(lecture.alertes[0].message).toMatch(/téléchargé ou non/)
     // J57 (décision de Hugo du 17/11/2026) : un refus ou une non-réclamation après l'avis ne remettent pas en cause sa date.
-    expect(lecture.alertes[0].message).toMatch(/refus ou une non-réclamation après l'avis ne remettent pas en cause sa date \(décision de Hugo du 17\/11\/2026, J57\)/)
+    // J75 : la décision est citée par son numéro, sans prénom dans le message affiché.
+    expect(lecture.alertes[0].message).toMatch(/refus ou une non-réclamation après l'avis ne remettent pas en cause sa date \(J57\)/)
+    expect(lecture.alertes[0].message).not.toMatch(/Hugo|Frédéric/)
     // Le défaut de transmission de l'avis reste distinct : à vérifier sur le justificatif.
     expect(lecture.alertes[0].message).toMatch(/défaut de transmission de l'avis, qui ne fait pas courir le délai/)
     expect(lecture.alertes[0].message).not.toMatch(/🔴/)
@@ -624,9 +675,12 @@ describe('en-tête du module', () => {
     expect(item('- J58 (décision de Hugo du 17/11/2026 (J58))')).toMatch(/créer un nouveau courrier/)
   })
 
-  it('garde ouverts la valeur probante de la signature et le lien avec « PV signé »', () => {
-    expect(item('🔴 Signature électronique')).toMatch(/valeur probante/)
-    expect(item('🔴 Signature électronique')).toMatch(/PV signé/)
+  it('valeur probante tranchée par J67, R16 ; seul le lien avec « PV signé » reste ouvert', () => {
+    expect(item('- J67, R16 (décision de Hugo du 17/11/2026')).toMatch(/qualifiée, présumée fiable ; simple, avancée ou inconnue, recevable mais à prouver/)
+    expect(item('- J67, R16 (décision de Hugo du 17/11/2026')).toMatch(/SignatureElectroniqueModule\.tsx, non modifié.*Frédéric/)
+    const ouvert = item('🔴 Signature électronique')
+    expect(ouvert).toMatch(/PV signé/)
+    expect(ouvert).not.toMatch(/valeur probante/)
   })
 
   it('rappelle que le statut de l’envoi ne se fond pas dans celui du courrier (06_PIEGES § 4)', () => {

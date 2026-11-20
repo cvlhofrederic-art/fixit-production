@@ -1,6 +1,6 @@
 import type { FacturationContrat } from '@/lib/administrateur-judiciaire/domain/contrats-facturation'
 import { ajouterJours, ajouterMois, dateIsoVersFr, decomposerDateIso, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
-import { contratMarqueAResilier, type ElementAFaire } from '@/lib/administrateur-judiciaire/domain/suivi-a-faire'
+import { contratMarqueAResilier, sansDateDeResiliation, type ElementAFaire } from '@/lib/administrateur-judiciaire/domain/suivi-a-faire'
 import type { StatutContrat, TypeContrat } from '@/lib/data/referentiels-gesteam-judiciaire'
 
 /**
@@ -37,9 +37,19 @@ import type { StatutContrat, TypeContrat } from '@/lib/data/referentiels-gesteam
  * une résiliation envoyée après la limite vaut pour le premier terme dont la limite n'était pas passée ; contrat
  * poursuivi après son terme : résiliation au terme du préavis du contrat ; anticipation de l'alerte (30 jours par défaut) :
  * règle de gestion.
- * 🔴 Non établi : résiliation de l'assurance dommages-ouvrage (annexe II à l'art. A. 243-1 : garantie précisée aux
- * conditions particulières, prenant fin dix ans après la réception : pas d'échéance annuelle à attendre, à vérifier sur la
- * police) ; contrat d'eau ou d'assainissement (exclu de L. 215-1 par L. 215-2) non identifiable par son type.
+ * J67, R57 (décision de Hugo du 17/11/2026 ; textes lus sur Légifrance le 17/11/2026) : l'assurance dommages-ouvrage
+ * reste « non résiliable, à confirmer », sans date de résiliation proposée. Les clauses types (annexe II à l'art.
+ * A. 243-1, en vigueur depuis le 01/04/2018) renvoient la durée de la garantie aux conditions particulières, avec une fin
+ * dix ans après la réception, et ne disent rien de la résiliation ; L. 242-1 non plus ; L. 113-12 (en vigueur depuis le
+ * 28/05/2026, loi n° 2026-403) laisse la durée et la résiliation à la police, avec dérogation possible pour les risques
+ * autres que ceux des particuliers. Souvent sans échéance annuelle : rien à calculer. Le message le dit et finit, sans
+ * prénom, par « vérifier la police avec le responsable du dossier » (décision de Hugo du 18/11/2026, J75). Une seule règle
+ * pour ce module et pour la limite générique du suivi « à faire » : suivi-a-faire.sansDateDeResiliation (R57, point 1).
+ * À préciser avec Hugo : R57, point 3 (« si la police prévoit une échéance et une faculté de résiliation, la saisir comme
+ * pour une autre assurance ») contredit R57, point 1 (« ne jamais proposer de date de résiliation pour ce type ») pour un
+ * même type de contrat. Le point 1 est appliqué : une échéance saisie sur une police dommages-ouvrage ne donne aucune
+ * date.
+ * 🔴 Non établi : contrat d'eau ou d'assainissement (exclu de L. 215-1 par L. 215-2) non identifiable par son type.
  */
 
 export interface ContratAResilier {
@@ -404,16 +414,18 @@ const echeanceAnnuelleAvantTerme = (cal: Calendrier, date: string): boolean =>
 function alerteContrat(c: ContratAResilier, aujourdhui: string, anticipationJours: number): AlerteAResilier {
   const base: Base = { contratId: c.id, mandatId: c.mandatId, libelle: c.libelle }
   const vide = { dateLimite: null, terme: null, prochaineLimite: null }
-  if (c.type === 'Dommages Ouvrages')
+  if (sansDateDeResiliation(c))
     return {
       ...base,
       ...vide,
       etat: 'non_resiliable',
       aAgirLe: aujourdhui,
       aConfirmer: true,
-      fondement: 'C. assur. annexe II à l’art. A. 243-1 (point de départ et durée de la garantie)',
+      // J67, R57 : jamais de date de résiliation proposée ; la police fixe la durée et la résiliation. Message de R57,
+      // sans prénom (décision de Hugo du 18/11/2026, J75) : « vérifier la police avec le responsable du dossier ».
+      fondement: 'C. assur. annexe II à l’art. A. 243-1 (point de départ et durée de la garantie) ; C. assur. art. L. 113-12',
       message:
-        "Assurance dommages-ouvrage : garantie précisée aux conditions particulières, prenant fin dix ans après la réception, à effet au plus tôt à la fin de la garantie de parfait achèvement (sauf défaillance de l'entrepreneur) ; pas d'échéance annuelle à attendre a priori : vérifier la police avant toute résiliation.",
+        "Assurance dommages-ouvrage : garantie jusqu'à dix ans après la réception (clauses types) ; la police fixe la durée et la résiliation (L. 113-12) ; résilier priverait le syndicat de cette garantie : vérifier la police avec le responsable du dossier.",
     }
   const f = c.facturation
   if (!f)

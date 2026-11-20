@@ -23,6 +23,7 @@ import {
 } from '@/lib/administrateur-judiciaire/domain/facture-demande'
 import { creerRattachement } from '@/lib/administrateur-judiciaire/domain/fiches-liees'
 import { proposerImputation, type FactureLue } from '@/lib/administrateur-judiciaire/domain/imputation-facture'
+import { enTeteDuModule } from './en-tete-module'
 
 /**
  * Facture d'une demande d'intervention (point 43 du bilan 2 ; Gestéam, tranche 43 § 15 : « une demande suit sa facture »,
@@ -464,5 +465,16 @@ describe('cohérence avec le cycle de la demande', () => {
     const r = rapprocherFactureDemande(facture(), contexte([d]))
     if (r.statut !== 'trouve') throw new Error('rapprochement attendu')
     expect(rattacherFacture(d, 'f-118').factureIds).toEqual(['f-118'])
+  })
+})
+
+describe('J67, R78 — règles de facturation du code de commerce (numéro du bon de commande)', () => {
+  it('en-tête : C. com. art. L. 441-9 relu ; le N° d’OS n’est jamais exigé sur la facture, il reste un indice de rapprochement', () => {
+    const { texte } = enTeteDuModule('facture-demande')
+    const questions = texte.slice(texte.indexOf('🔴 Non établi'))
+    expect(questions).not.toContain('L. 441-9')
+    expect(questions).toContain('tolérance de 5 %')
+    for (const attendu of ['J67, R78', '« pour une activité professionnelle »', 'pèse sur le vendeur', 'jamais exigé', 'art. 289'])
+      expect(texte).toContain(attendu)
   })
 })

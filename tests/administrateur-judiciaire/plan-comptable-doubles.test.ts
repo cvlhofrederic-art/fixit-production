@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import type { PlanComptable } from '@/lib/administrateur-judiciaire/domain/plan-comptable'
 import {
   clePlanComptable,
+  controlerAttenteDebiteurALaCloture,
   importerPlanComptable,
   libelleSansSuffixeDouble,
   resoudreEntreePlan,
@@ -390,6 +391,48 @@ describe('Point 29 — garanties de l’import', () => {
   })
 })
 
+describe('J67, R107 : 47150 « Bascule gérance copropriété » et 471 créditeur à la clôture', () => {
+  it('import : numéro de subdivision du 471 distinct de 47150 proposé au type « Bascule », réglable ; signalement toujours non bloquant', () => {
+    const resultat = importerPlanComptable([attenteOrdinaire, attenteBascule])
+    expect(resultat.signalements.map((s) => [s.motif, s.bloquant])).toEqual([['types_distincts', false]])
+    expect(resultat.entrees).toEqual([attenteOrdinaire, attenteBascule])
+    expect(resultat.renumerotations).toEqual([expect.objectContaining({ id: 'pc-47150-b', code: '47150', codePropose: '47151' })])
+    expect(resultat.renumerotations[0].message).toMatch(/arrêté du 14 mars 2005, art\. 8.*C\. com\. R\. 814-37.*J67, R107/)
+    const occupe = { ...attenteOrdinaire, id: 'pc-47151', code: '47151' }
+    expect(importerPlanComptable([attenteOrdinaire, attenteBascule, occupe]).renumerotations[0].codePropose).toBe('47152')
+    expect(importerPlanComptable([attenteBascule], { codeBascule: '47190' }).renumerotations[0].codePropose).toBe('47190')
+    expect(importerPlanComptable([attenteOrdinaire]).renumerotations).toEqual([])
+    expect(() => importerPlanComptable([attenteBascule], { codeBascule: '47150' })).toThrow(/distinct de 47150/)
+    expect(() => importerPlanComptable([attenteBascule], { codeBascule: '47200' })).toThrow(/subdivision du 471/)
+    expect(() => importerPlanComptable([attenteBascule, occupe], { codeBascule: '47151' })).toThrow(/déjà pris/)
+  })
+
+  it('import : une seule proposition par entrée gardée, jamais pour une entrée absorbée par la fusion des doubles « _ » ni en attente', () => {
+    const doubleBascule = { ...attenteBascule, id: 'pc-47150-b2', libelle: `${attenteBascule.libelle}_` }
+    const fusionne = importerPlanComptable([attenteBascule, doubleBascule])
+    expect(fusionne.remplacements).toEqual({ 'pc-47150-b2': 'pc-47150-b' })
+    expect(fusionne.renumerotations.map((r) => [r.id, r.codePropose])).toEqual([['pc-47150-b', '47151']])
+    const autreLibelle = { ...attenteBascule, id: 'pc-47150-b3', libelle: 'AUTRE LIBELLÉ' }
+    const enAttente = importerPlanComptable([attenteBascule, autreLibelle])
+    expect(enAttente.enAttente.map((e) => e.id)).toEqual(['pc-47150-b', 'pc-47150-b3'])
+    expect(enAttente.renumerotations).toEqual([])
+  })
+
+  it('clôture : une subdivision du 471 créditrice est une anomalie, à reclasser en 472 ou à justifier ligne à ligne', () => {
+    const lignes = [
+      { compte: 'TILL.47150.00000.0', soldeCrediteurCentimes: 12_000 },
+      { compte: 'TILL.47151.00000.0', soldeCrediteurCentimes: 0 },
+      { compte: 'TILL.47200.00000.0', soldeCrediteurCentimes: 3_000 },
+    ]
+    const [anomalie, ...autres] = controlerAttenteDebiteurALaCloture(lignes)
+    expect(autres).toEqual([])
+    expect(anomalie).toMatchObject({ code: 'attente_debiteur_crediteur', compte: 'TILL.47150.00000.0', soldeCrediteurCentimes: 12_000 })
+    expect(anomalie.message).toMatch(/120,00.*reclasser en 472 ou le justifier ligne à ligne/)
+    expect(anomalie.fondement).toBe('Arrêté du 14 mars 2005, art. 7, 9 et 10 ; J67, R107')
+    expect(controlerAttenteDebiteurALaCloture(lignes, { justifies: ['TILL.47150.00000.0'] })).toEqual([])
+  })
+})
+
 describe('Point 29 — désigner une entrée de plan sans « premier trouvé »', () => {
   const plan = importerPlanComptable([
     entreePlan({ id: 'pc-45000-a' }),
@@ -538,5 +581,10 @@ describe('Point 29 — en-tête du module : le droit lu et la lecture du logicie
     expect(ouvert).toMatch(/tranche 21 § 4\.2 ne l'établit pas/)
     expect(ouvert).toMatch(/« 00000 »[^?]*\?/)
     expect(ouvert).not.toMatch(/\*\//)
+  })
+
+  it('J67, R107 : numéro de la « Bascule » et 471 créditeur ne sont plus des questions', () => {
+    expect(paragraphe('🔴 Non établi')).not.toMatch(/doit-il recevoir un numéro de subdivision distinct/)
+    expect(source.replaceAll(/\r?\n \*\s+/g, ' ')).toMatch(/J67, R107.*numéro de subdivision du 471 distinct de 47150.*472.*ligne à ligne/)
   })
 })

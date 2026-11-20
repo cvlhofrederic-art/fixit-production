@@ -5,6 +5,7 @@ import {
   DELAI_PREAVIS_SEPA_JOURS,
   contenuAvisAppel,
   echeancesPrelevementDepuisAvis,
+  effetsMutationSurAvis,
   preparerDiffusionAvis,
   type ContenuAvisAppel,
   type ContenuAvisCompte,
@@ -20,12 +21,17 @@ import {
   creerCompteCoproprietaire,
   creerIdentite,
   creerPosition,
+  muterLot,
   type Position,
 } from '@/lib/administrateur-judiciaire/domain/identites-positions'
 import { genererPain008, preparerLotPrelevements } from '@/lib/administrateur-judiciaire/domain/prelevements-sepa'
 import { avisDAppel, creerCleRepartition, type EcheanceAppel } from '@/lib/administrateur-judiciaire/domain/repartition-appels'
 import { creerOperationTravaux, echeancesTravaux, emploisFondsTravauxDesTranches } from '@/lib/administrateur-judiciaire/domain/travaux-operations'
-import { creerCommunicationAdresseElectronique, creerDemandeVoiePostale } from '@/lib/administrateur-judiciaire/domain/voie-notification'
+import {
+  creerCommunicationAdresseElectronique,
+  creerDemandeVoiePostale,
+  creerRenonciationVoiePostale,
+} from '@/lib/administrateur-judiciaire/domain/voie-notification'
 import { enTeteDuModule } from './en-tete-module'
 
 /**
@@ -460,9 +466,42 @@ describe('mentions de l’avis', () => {
     const odj = a.mentions.find((m) => m.cle === 'ordre_du_jour')
     expect(odj?.fondement).toBe('D. 1967 art. 10')
     expect(odj?.texte).toMatch(/inscrites à l'ordre du jour d'une assemblée générale/)
-    const ap = compteDe(contenuAvisAppel(avis, options({ administrateurProvisoire: true })), 'cpt-A').mentions.find((m) => m.cle === 'voie_postale')
+    const ap = compteDe(contenuAvisAppel(avis, options({ administrateurProvisoire: 'ap291' })), 'cpt-A').mentions.find((m) => m.cle === 'voie_postale')
     expect(ap?.fondement).toBe('D. 1967 art. 64-2, 64-4, 64-9')
     expect(ap?.texte).toMatch(/administrateur provisoire/)
+  })
+
+  it('J67, R99 : administrateur de l’art. 47 — mentions des art. 10 et 64-2 gardées par prudence, sans l’art. 64-9 ; pièce de l’art. 62-9 seulement si une décision est fournie', () => {
+    const a = compteDe(contenuAvisAppel(avis, options({ administrateurProvisoire: 'ap47' })), 'cpt-A')
+    const voie = a.mentions.find((m) => m.cle === 'voie_postale')
+    expect(voie?.texte).toMatch(/administrateur provisoire/)
+    expect(voie?.fondement).toBe("D. 1967 art. 64-2, 64-4 (administrateur de l'art. 47 : par prudence, J67, R99)")
+    expect(a.mentions.map((m) => m.cle)).toContain('ordre_du_jour')
+    expect(codes(a)).not.toContain('decision_a_joindre')
+    const decisions = [{ echeanceId: '00042-T1', decision: 'Décision n° 2 du 01/10/2026, prise en vertu de l’ordonnance (fictive)' }]
+    const avecDecision = compteDe(contenuAvisAppel(avis, options({ administrateurProvisoire: 'ap47', decisionsAdministrateur: decisions })), 'cpt-A')
+    expect(codes(avecDecision)).toContain('decision_a_joindre')
+    expect(avecDecision.mentions.map((m) => m.cle)).toContain('decision_administrateur')
+    expect(() => contenuAvisAppel(avis, options({ administrateurProvisoire: null, decisionsAdministrateur: decisions }))).toThrow(/administrateur provisoire/)
+  })
+
+  it('J67, R98 : provision de l’art. 43, al. 2 — mention sur l’avis ; sans autorisation préalable de l’AG, alerte bloquante à confirmer', () => {
+    const art43 = (autorisation: string | null): EcheanceAppel => ({ ...echeances[0], id: 'B43-2027-1', libelle: 'Provision 1/4 du budget 2026', provisionArt43: { autorisation } })
+    const contenu = (autorisation: string | null) =>
+      contenuAvisAppel(avisDAppel({ echeances: [art43(autorisation), echeances[1]], cles: [cle], positions, comptes }), options({ reglements: cheques }))
+    const autorise = contenu('AG du 10/06/2026, résolution 7 (fictive)')
+    const mention = compteDe(autorise, 'cpt-A').mentions.find((m) => m.cle === 'provision_art_43')
+    expect(mention).toEqual({
+      cle: 'provision_art_43',
+      texte: "Provision calculée sur le budget de l'exercice précédent (D. 1967 art. 43, al. 2), régularisée après le vote du budget.",
+      fondement: 'D. 1967 art. 43, al. 2 ; J67, R98',
+    })
+    expect(autorise.anomalies.map((x) => x.code)).not.toContain('autorisation_art_43_manquante')
+    expect(diffuse(autorise)[0].valeursFusion['mention.provisionArt43']).toBe(mention?.texte)
+    const sansAutorisation = contenu(null).anomalies.find((x) => x.code === 'autorisation_art_43_manquante')
+    expect(sansAutorisation).toMatchObject({ gravite: 'bloquant', fondement: 'D. 1967 art. 43, al. 2 ; J67, R98' })
+    expect(sansAutorisation?.message).toMatch(/autorisation de l'art\. 43 manquante.*à confirmer/)
+    expect(compteDe(contenuAvisAppel(avis, options()), 'cpt-A').mentions.map((m) => m.cle)).not.toContain('provision_art_43')
   })
 
   it('souscription au fonds : sommes acquises au syndicat ; prélèvement : mention de pré-notification (montant, date, RUM, ICS)', () => {
@@ -678,7 +717,7 @@ describe('retours de relecture du point 17 — contenu, mentions et diffusion', 
 
   it('administrateur provisoire : l’appel consécutif à sa décision accompagne la copie de celle-ci (D. 1967 art. 62-9)', () => {
     const decisions = [{ echeanceId: '00042-T1', decision: 'Décision n° 3 du 02/10/2026 (fictive)' }]
-    const contenu = contenuAvisAppel(avis, options({ administrateurProvisoire: true, decisionsAdministrateur: decisions }))
+    const contenu = contenuAvisAppel(avis, options({ administrateurProvisoire: 'ap291', decisionsAdministrateur: decisions }))
     const a = compteDe(contenu, 'cpt-A')
     const mention = a.mentions.find((m) => m.cle === 'decision_administrateur')
     expect(mention?.fondement).toBe('D. 1967 art. 62-9')
@@ -688,10 +727,10 @@ describe('retours de relecture du point 17 — contenu, mentions et diffusion', 
     expect(d.valeursFusion['mention.decisionAdministrateur']).toBe(mention?.texte)
     expect(controlerContexteFusion('avis_appel_fonds', d.valeursFusion)).toMatchObject({ complet: true, inconnus: [] })
     expect(gabaritCourrier('avis_appel_fonds').fondements).toContain('D. 1967 art. 62-9')
-    expect(compteDe(contenuAvisAppel(avis, options({ administrateurProvisoire: true })), 'cpt-A').mentions.map((m) => m.cle)).not.toContain('decision_administrateur')
+    expect(compteDe(contenuAvisAppel(avis, options({ administrateurProvisoire: 'ap291' })), 'cpt-A').mentions.map((m) => m.cle)).not.toContain('decision_administrateur')
     expect(() => contenuAvisAppel(avis, options({ decisionsAdministrateur: decisions }))).toThrow(/administrateur provisoire/)
-    expect(() => contenuAvisAppel(avis, options({ administrateurProvisoire: true, decisionsAdministrateur: [{ echeanceId: 'X', decision: 'D' }] }))).toThrow(/absente/)
-    expect(() => contenuAvisAppel(avis, options({ administrateurProvisoire: true, decisionsAdministrateur: [{ echeanceId: '00042-T1', decision: ' ' }] }))).toThrow(/référence/)
+    expect(() => contenuAvisAppel(avis, options({ administrateurProvisoire: 'ap291', decisionsAdministrateur: [{ echeanceId: 'X', decision: 'D' }] }))).toThrow(/absente/)
+    expect(() => contenuAvisAppel(avis, options({ administrateurProvisoire: 'ap291', decisionsAdministrateur: [{ echeanceId: '00042-T1', decision: ' ' }] }))).toThrow(/référence/)
   })
 
   it('adresse communiquée pour les avis (art. 35-2) préférée à celle des notifications (art. 65), qui n’en tient lieu qu’à défaut', () => {
@@ -706,7 +745,112 @@ describe('retours de relecture du point 17 — contenu, mentions et diffusion', 
     expect(diffuse(contenu)[0]).toMatchObject({ canal: 'electronique', adresseElectronique: 'a@exemple.invalid' })
   })
 
-  it('en-tête : art. 62-9, 64-9 et 29-1 lus ; 🔴 réduit à l’administrateur de l’art. 47 ; art. 65 → art. 35-2 déclaré 🔵 ; ISO 20022 à l’annexe, point 1 b)', () => {
+  it('J69 (J67, R20) : adresse donnée pour les avis : courriel même si la voie postale est demandée pour les notifications', () => {
+    const contenu = contenuAvisAppel(avis, options())
+    const demande = creerDemandeVoiePostale({ identiteId: 'i-cpt-A', recueLe: '2026-11-01', origine: 'courrier' })
+    const pourAvis = [creerCommunicationAdresseElectronique({ identiteId: 'i-cpt-A', adresse: 'avis-a@exemple.invalid', communiqueeLe: '2026-02-01' })]
+    const [a] = diffuse(contenu, { demandesVoiePostale: [demande], communicationsAvis: pourAvis })
+    expect(a).toMatchObject({ canal: 'electronique', adresseElectronique: 'avis-a@exemple.invalid', origineAdresse: 'avis' })
+    expect(a.valeursFusion['mention.confirmationAdresse']).toBeNull()
+    expect(a.valeursFusion['mention.voiePostale']).toMatch(/par voie postale/)
+    expect(diffuse(contenu, { demandesVoiePostale: [demande] })[0]).toMatchObject({ canal: 'postal', origineAdresse: null })
+  })
+
+  it('J74, relecture : la renonciation à la voie postale lève la demande à son effet ; son adresse sert alors d’adresse des notifications', () => {
+    const contenu = contenuAvisAppel(avis, options())
+    const demande = creerDemandeVoiePostale({ identiteId: 'i-cpt-A', recueLe: '2026-11-01', origine: 'courrier' })
+    const renonciation = creerRenonciationVoiePostale({
+      identiteId: 'i-cpt-A',
+      dateeLe: '2026-12-08',
+      recueLe: '2026-12-10',
+      justificatif: 'Avis de réception',
+      adresseElectronique: 'renonce-a@exemple.invalid',
+    })
+    const le = (date: string, renonciations = [renonciation]) =>
+      preparerDiffusionAvis(contenu, diffusion({ date, demandesVoiePostale: [demande], renonciations }))[0]
+    // avant l'effet (le 19/12/2026) : la demande demeure, lettre simple
+    for (const date of ['2026-12-15', '2026-12-18']) expect(le(date), date).toMatchObject({ canal: 'postal', origineAdresse: null })
+    // à l'effet : courriel à l'adresse donnée avec la renonciation (D. 1967 art. 65), la plus récente
+    expect(le('2026-12-19')).toMatchObject({ canal: 'electronique', adresseElectronique: 'renonce-a@exemple.invalid', origineAdresse: 'notifications' })
+    // sans renonciation : lettre simple
+    expect(le('2026-12-19', [])).toMatchObject({ canal: 'postal', origineAdresse: null })
+  })
+
+  it('J69 (J67, R20) : adresse des notifications à défaut — premier avis : invitation à confirmer ; après un retour en erreur : lettre simple', () => {
+    const contenu = contenuAvisAppel(avis, options())
+    const [premier] = diffuse(contenu)
+    expect(premier).toMatchObject({ canal: 'electronique', adresseElectronique: 'a@exemple.invalid', origineAdresse: 'notifications' })
+    expect(premier.valeursFusion['mention.confirmationAdresse']).toMatch(/adresse électronique donnée pour les notifications.*confirmez.*lettre simple/)
+    expect(controlerContexteFusion('avis_appel_fonds', premier.valeursFusion)).toMatchObject({ complet: true, inconnus: [] })
+    const envoye = { identiteId: 'i-cpt-A', adresse: 'a@exemple.invalid', envoyeLe: '2026-09-15', retourEnErreurLe: null }
+    expect(diffuse(contenu, { courrielsAvis: [envoye] })[0].valeursFusion['mention.confirmationAdresse']).toBeNull()
+    const enErreur = { ...envoye, retourEnErreurLe: '2026-09-16' }
+    const [postal] = diffuse(contenu, { courrielsAvis: [enErreur] })
+    expect(postal).toMatchObject({ canal: 'postal', origineAdresse: null })
+    expect(postal.courrier?.modeleId).toBe('mod-postal')
+    expect(postal.anomalies).toContainEqual(expect.objectContaining({ code: 'courriel_avis_en_erreur', gravite: 'avertissement' }))
+    const nouvelle = creerCommunicationAdresseElectronique({ identiteId: 'i-cpt-A', adresse: 'a2@exemple.invalid', communiqueeLe: '2026-10-01' })
+    expect(diffuse(contenu, { courrielsAvis: [enErreur], communications: [nouvelle] })[0]).toMatchObject({ canal: 'electronique', adresseElectronique: 'a2@exemple.invalid' })
+  })
+
+  it('J69 (J67, R20) : réponse à l’invitation, lettre simple demandée pour les avis : lettre simple ; une adresse donnée ensuite pour les avis l’emporte', () => {
+    const contenu = contenuAvisAppel(avis, options())
+    const demande = { identiteId: 'i-cpt-A', recueLe: '2026-11-01' }
+    const [postal] = diffuse(contenu, { demandesLettreSimpleAvis: [demande] })
+    expect(postal).toMatchObject({ canal: 'postal', adresseElectronique: null, origineAdresse: null })
+    expect(postal.courrier?.modeleId).toBe('mod-postal')
+    expect(postal.valeursFusion['mention.confirmationAdresse']).toBeNull()
+    // Demande reçue après la diffusion : sans effet ; demande d'une autre identité : sans effet.
+    for (const sansEffet of [{ ...demande, recueLe: '2026-12-16' }, { ...demande, identiteId: 'i-cpt-B' }])
+      expect(diffuse(contenu, { demandesLettreSimpleAvis: [sansEffet] })[0]).toMatchObject({ canal: 'electronique', origineAdresse: 'notifications' })
+    // Adresse donnée pour les avis après la demande : courriel à cette adresse ; donnée avant : la demande l'emporte.
+    const pourAvis = creerCommunicationAdresseElectronique({ identiteId: 'i-cpt-A', adresse: 'avis-a@exemple.invalid', communiqueeLe: '2026-11-20' })
+    expect(diffuse(contenu, { demandesLettreSimpleAvis: [demande], communicationsAvis: [pourAvis] })[0]).toMatchObject({ canal: 'electronique', origineAdresse: 'avis' })
+    const pourAvisAvant = { ...pourAvis, communiqueeLe: '2026-02-01' }
+    expect(diffuse(contenu, { demandesLettreSimpleAvis: [demande], communicationsAvis: [pourAvisAvant] })[0]).toMatchObject({ canal: 'postal', origineAdresse: null })
+  })
+
+  it('J67, R100 : indivision — un avis par personne, « à payer une seule fois » ; avis principal au mandataire commun, copie aux autres', () => {
+    const indivision = [...positions, position('p3', 'lot-2', 'cpt-B', 'i-cpt-B2')]
+    const duCompteB = (sorties: DiffusionAvisCompte[]) => sorties.filter((s) => s.compteId === 'cpt-B').map((s) => [s.identiteId, s.exemplaire, s.valeursFusion['mention.payerUneFois']])
+    const UNE_FOIS = 'Même somme pour tout le lot, à payer une seule fois.'
+    expect(duCompteB(diffuse(contenuAvisAppel(avis, options()), { positions: indivision }))).toEqual([
+      ['i-cpt-B', 'principal', UNE_FOIS],
+      ['i-cpt-B2', 'principal', UNE_FOIS],
+    ])
+    const avecMandataire = (mandataireCommunId: string) => options({ comptes: comptes.map((c) => (c.id === 'cpt-B' ? { ...c, mandataireCommunId } : c)) })
+    const COPIE = `${UNE_FOIS} Copie : l'avis principal est adressé au mandataire commun (L. 1965 art. 23).`
+    expect(duCompteB(diffuse(contenuAvisAppel(avis, avecMandataire('i-cpt-B2')), { positions: indivision }))).toEqual([
+      ['i-cpt-B2', 'principal', UNE_FOIS],
+      ['i-cpt-B', 'copie', COPIE],
+    ])
+    const tiers = creerIdentite({ id: 'i-mandataire', nature: 'physique', civilite: 'Maître', nom: 'Mandataire commun', prenom: 'Fictif', telecoms: [], adresses: [adresse('adr-M')] })
+    expect(duCompteB(diffuse(contenuAvisAppel(avis, avecMandataire('i-mandataire')), { positions: indivision, identites: [...identites, tiers] }))).toEqual([
+      ['i-mandataire', 'principal', UNE_FOIS],
+      ['i-cpt-B', 'copie', COPIE],
+      ['i-cpt-B2', 'copie', COPIE],
+    ])
+    expect(diffuse(contenuAvisAppel(avis, options()))[0]).toMatchObject({ exemplaire: 'principal', valeursFusion: { 'mention.payerUneFois': null } })
+  })
+
+  it('J67 : questions tranchées retirées des 🔴 (R20 / J69, R97, R98, R99, R100, R113)', () => {
+    const { texte } = enTeteDuModule('avis-appel')
+    const ouvert = texte.slice(texte.indexOf('🔴 Non établi'))
+    for (const tranchee of [
+      /a demandé la voie postale pour les notifications, mais a communiqué/,
+      /vaut-elle adresse "communiquée à cet effet"/,
+      /Le prélèvement peut-il précéder l'exigibilité/,
+      /que l'art\. 64-9 ne vise pas, est-il/,
+      /Indivision ou démembrement : un avis à chaque identité/,
+      /Vente du lot entre l'avis et l'exigibilité/,
+      /Budget voté en cours d'exercice/,
+    ])
+      expect(ouvert).not.toMatch(tranchee)
+    for (const n of ['R20', 'R97', 'R98', 'R99', 'R100', 'R113']) expect(texte).toContain(`J67, ${n}`)
+    expect(texte).toMatch(/J69.*J52 reste valable pour les notifications/)
+  })
+
+  it('en-tête : art. 62-9, 64-9 et 29-1 lus ; administrateur de l’art. 47 tranché (J67, R99) ; art. 65 → art. 35-2 ; ISO 20022 à l’annexe, point 1 b)', () => {
     const source = readFileSync(join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'avis-appel.ts'), 'utf8')
     const entete = source.slice(0, source.indexOf('*/'))
     expect(entete).toMatch(/D\. 1967 art\. 62-9/)
@@ -762,6 +906,16 @@ describe('préparation de la diffusion par le circuit Courrier', () => {
     expect(b.map((s) => s.identiteId)).toEqual(['i-cpt-B', 'i-cpt-B2'])
     expect(b[1].courrier).toBeNull()
     expect(b[1].anomalies).toContainEqual(expect.objectContaining({ code: 'sans_adresse', gravite: 'bloquant' }))
+  })
+
+  it('J67, R19 : seule une adresse d’origine « autre » ; l’avis, lettre simple et non notification, part à cette adresse, avec un avertissement', () => {
+    const autre = creerAdresseDatee({ ...adresse('adr-B-autre'), origine: 'autre' })
+    const avecAutre = identites.map((i) => (i.id === 'i-cpt-B' ? creerIdentite({ ...i, adresses: [autre] }) : i))
+    const b = preparerDiffusionAvis(contenuAvisAppel(avis, options()), diffusion({ identites: avecAutre })).find((s) => s.compteId === 'cpt-B')
+    expect(b).toMatchObject({ canal: 'postal', formeEnvoi: 'Normal' })
+    expect(b?.adressePostale?.id).toBe('adr-B-autre')
+    expect(b?.courrier?.modeleId).toBe('mod-postal')
+    expect(b?.anomalies).toEqual([expect.objectContaining({ code: 'adresse_autre', gravite: 'avertissement' })])
   })
 
   it('aucun destinataire en place, ou contenu bloqué : pas de courrier', () => {
@@ -915,5 +1069,71 @@ describe('contrôle du point 17 — l’avis n’annonce que le débit que le lo
 
     for (const contenu of [sansMandat, vide]) expect(lotDe(contenu, diffuse(contenu)).ecartees).toContainEqual({ compteId: 'cpt-A', motif: 'montant_nul', codes: [] })
     expect(bloquantsDe(compteDe(contenuAvisAppel(avis, options({ reglements: reglements(null) })), 'cpt-A'))).toEqual(['mandat_absent'])
+  })
+})
+
+describe('J67, R113 : vente du lot entre l’avis et l’exigibilité (D. 1967 art. 6-2, 1° et 2°)', () => {
+  const comptesVente = [...comptes, creerCompteCoproprietaire({ id: 'cpt-Q', coproprieteId: 'copro-1', serie: '3', libelle: 'Acquéreur Q' })]
+  /** Lot 1 (compte A, prélevé) vendu à Q, ou au compte donné, à la date donnée ; avis du 15/12/2026, exigibilité au 01/01/2027. */
+  const vendu = (date: string, compteId = 'cpt-Q') =>
+    muterLot(positions, {
+      lotId: 'lot-1',
+      date,
+      sortantes: ['p1'],
+      nature: 'onereuse',
+      entrantes: [{ id: 'pQ', identiteId: `i-${compteId}`, compteId, qualite: 'Copropriétaire', part: { numerateur: 1, denominateur: 1 } }],
+    }).positions
+  const soldesAnterieurs = { 'cpt-A': 10_000, 'cpt-B': -5_000 }
+  const contenuApres = (date: string) =>
+    contenuAvisAppel(
+      avisDAppel({ echeances, cles: [cle], positions: vendu(date), comptes: comptesVente, soldesAnterieurs }),
+      options({ comptes: comptesVente, reglements: [...reglements(), { compteId: 'cpt-Q', mode: 'Virement' }] }),
+    )
+  const avant = contenuAvisAppel(avis, options({ comptes: comptesVente }))
+  const diffusionsAvant = diffuse(avant)
+
+  it('les postes exigibles après la vente passent à l’acquéreur, qui reçoit un avis ; le prélèvement annoncé au vendeur n’a pas lieu', () => {
+    const apres = contenuApres('2026-12-20')
+    const effets = effetsMutationSurAvis(avant, apres, diffusionsAvant)
+    expect(effets.postesTransferes.map((p) => [p.echeanceId, p.lotId, p.deCompteId, p.versCompteId, p.quotePartCentimes])).toEqual([
+      ['B-2027-001-1', 'lot-1', 'cpt-A', 'cpt-Q', 40_000],
+      ['FT-2027-1', 'lot-1', 'cpt-A', 'cpt-Q', 2_000],
+      ['00042-T1', 'lot-1', 'cpt-A', 'cpt-Q', 12_000],
+    ])
+    expect(effets.comptesARediffuser).toEqual(['cpt-A', 'cpt-Q'])
+    expect(effets.prelevementsAnnules).toEqual([
+      {
+        compteId: 'cpt-A',
+        identiteId: 'i-cpt-A',
+        montantCentimes: 40_000,
+        date: '2027-01-05',
+        message: expect.stringMatching(
+          /400,00.*05\/01\/2027.*n'aura pas lieu : après la vente du lot, les sommes exigibles après le jour de la vente sont dues par l'acquéreur ; celle exigible le jour même reste à votre charge \(D\. 1967 art\. 6-2\)/,
+        ),
+      },
+    ])
+    expect(effets.prelevementsAnnules[0].message).not.toMatch(/depuis sa date/)
+    expect(compteDe(apres, 'cpt-Q').lignes.map((l) => l.echeanceId)).toEqual(['B-2027-001-1', 'FT-2027-1', '00042-T1'])
+    const lot = echeancesPrelevementDepuisAvis(apres, { prefixeId: 'APP-2027-01', diffusions: diffusionsAvant })
+    expect(lot.echeances).toEqual([])
+    expect(lot.ecartees.map((e) => e.compteId)).not.toContain('cpt-A')
+  })
+
+  it('acquéreur déjà prélevé (compte B) : il reçoit le nouvel avis, jamais le message d’annulation prévu pour le vendeur', () => {
+    const mandatB = mandat({ rum: 'RUM-TILL-00002', debiteur: 'Copropriétaire B', debiteurIdentiteId: 'i-cpt-B' })
+    const prelevesTous = options({ reglements: [...reglements().filter((r) => r.compteId !== 'cpt-B'), { compteId: 'cpt-B', mode: 'Prélèvement', mandat: mandatB }] })
+    const avantB = contenuAvisAppel(avis, prelevesTous)
+    const apresB = contenuAvisAppel(avisDAppel({ echeances, cles: [cle], positions: vendu('2026-12-20', 'cpt-B'), comptes, soldesAnterieurs }), prelevesTous)
+    const debitDeB = (contenu: ContenuAvisAppel) => compteDe(contenu, 'cpt-B').instructions
+    expect(debitDeB(avantB)).toMatchObject({ mode: 'Prélèvement', montantCentimes: 60_000, date: '2027-01-05' })
+    expect(debitDeB(apresB)).toMatchObject({ mode: 'Prélèvement', montantCentimes: 100_000, date: '2027-01-05' })
+    const effets = effetsMutationSurAvis(avantB, apresB, diffuse(avantB))
+    expect(effets.comptesARediffuser).toEqual(['cpt-A', 'cpt-B'])
+    expect(effets.prelevementsAnnules.map((p) => p.compteId)).toEqual(['cpt-A'])
+  })
+
+  it('le poste exigible le jour de la vente reste au vendeur : rien ne change, aucun message', () => {
+    expect(effetsMutationSurAvis(avant, contenuApres('2027-01-01'), diffusionsAvant)).toEqual({ postesTransferes: [], comptesARediffuser: [], prelevementsAnnules: [] })
+    expect(() => effetsMutationSurAvis(avant, { ...contenuApres('2026-12-20'), dateEmission: '2026-12-16' }, diffusionsAvant)).toThrow(/même avis/)
   })
 })

@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import {
   BASES_LIGNES_HONORAIRES_COURRIER,
   DECLENCHEUR_HONORAIRES_MISE_EN_DEMEURE,
+  DESTINATAIRE_SYNDICAT,
   DECLENCHEUR_MISE_EN_DEMEURE,
   ID_REGLE_COPIE_AU_CS_POUR_INFO,
   ID_REGLE_HONORAIRES_MISE_EN_DEMEURE,
@@ -11,12 +12,15 @@ import {
   NAISSANCE_COPIE_AU_CS_PAR_DEFAUT,
   REGLES_ETAPES_COURRIER_PAR_DEFAUT,
   REGLES_HONORAIRES_COURRIER_PAR_DEFAUT,
+  baseLigneHonorairesCourrier,
+  casDesFraisDEnvoi,
   courrierDeclenche,
   courrierOrigineDe,
   creerRegleEtapeCourrier,
   creerRegleHonorairesCourrier,
   declencherEtapesDuCourrier,
   enchainerEtapeDossierSansDoublon,
+  estRecouvrementContreUnCoproprietaire,
   modeRealisationDe,
   modeleSansEtapesNeesDuCourrier,
   proposerHonorairesDuCourrier,
@@ -44,6 +48,7 @@ import {
   type EtapeDossier,
 } from '@/lib/administrateur-judiciaire/domain/etapes-dossier'
 import { creerRattachement } from '@/lib/administrateur-judiciaire/domain/fiches-liees'
+import type { Regime } from '@/lib/administrateur-judiciaire/domain/fondements'
 import { creerElement, totalElement } from '@/lib/administrateur-judiciaire/domain/honoraires-facturation'
 import {
   ETAPE_TYPE_COPIE_AU_CS_POUR_INFO,
@@ -53,6 +58,7 @@ import {
   modeleDuDossier,
   processusDuDossier,
 } from '@/lib/administrateur-judiciaire/domain/modeles-etapes'
+import { TYPE_CONTENTIEUX } from '@/lib/data/referentiels-gesteam-judiciaire'
 import { enTeteDuModule } from './en-tete-module'
 
 /**
@@ -564,14 +570,23 @@ const ligneForfait: LigneHonorairesCourrier = {
   prixUnitaireHtDixMilliemes: 300_000,
   soumisTva: true,
   tauxTvaPct: 20,
-  destinataire: 'Copropriétaire débiteur',
+  // J67, R7 : le cabinet facture le forfait au syndicat, qui le paie
+  destinataire: 'Syndicat des copropriétaires',
 }
 
 const contexteHonoraires = (surcharge: Partial<ContexteHonorairesCourrier> = {}): ContexteHonorairesCourrier => ({
+  mission: 'judiciaire',
   aujourdhui: AUJOURDHUI,
   idElement: ({ regle, rang, dossier }) => `el:${regle.id}:${dossier.id}:${rang}`,
   ...surcharge,
 })
+/** J72 (a) : le dossier visé poursuit un copropriétaire en retard (lu par l'appelant sur la fiche du contentieux). */
+const RECOUVREMENT = { recouvrementContreUnCoproprietaire: true } as const
+const IMPUTATION_ART_10_1_A = {
+  a: 'coproprietaire_en_retard',
+  fondement: 'L. 1965 art. 10-1, a',
+  conditions: ['créance justifiée', 'mise en demeure partie (une relance faite avant elle n’est pas visée)', 'coût nécessaire'],
+}
 
 describe('honoraires du courrier : proposition de lignes, jamais écrites, désactivée par défaut', () => {
   it('par défaut : aucune règle, aucun montant ; la règle de la mise en demeure exige les lignes du cabinet et reste inactive', () => {
@@ -593,7 +608,7 @@ describe('honoraires du courrier : proposition de lignes, jamais écrites, désa
 
   it('activée : frais d’envoi et forfait proposés en saisies d’éléments (dossier et fiche du contentieux, date du dépôt)', () => {
     const regle = regleHonorairesMiseEnDemeure({ lignes: [ligneAr, ligneForfait], active: true })
-    const { propositions, ecartees } = proposerHonorairesDuCourrier(courrier(), [regle], contexteHonoraires())
+    const { propositions, ecartees } = proposerHonorairesDuCourrier(courrier(), [regle], contexteHonoraires(RECOUVREMENT))
     expect(ecartees).toEqual([])
     expect(propositions.map((p) => p.saisie)).toEqual([
       {
@@ -611,6 +626,9 @@ describe('honoraires du courrier : proposition de lignes, jamais écrites, désa
         soumisTva: true,
         tauxTvaPct: 20,
         destinataire: 'Syndicat des copropriétaires',
+        // J72 (a) : en mission judiciaire, l'envoi de la mise en demeure est une dépense du syndicat ; la ligne du
+        // cabinet n'en est que la trace
+        qualification: 'Contrôle coûts',
       },
       {
         id: 'el:honoraires-mise-en-demeure:C-3:2',
@@ -626,24 +644,116 @@ describe('honoraires du courrier : proposition de lignes, jamais écrites, désa
         prixUnitaireHtDixMilliemes: 300_000,
         soumisTva: true,
         tauxTvaPct: 20,
-        destinataire: 'Copropriétaire débiteur',
+        destinataire: 'Syndicat des copropriétaires',
       },
     ])
     // La saisie proposée passe creerElement, que l'appelant appelle s'il retient la proposition.
-    const element = creerElement(propositions[1].saisie)
+    const element = creerElement(propositions[1].saisie, 'judiciaire')
     expect(element.statut).toBe('A facturer')
     expect(totalElement(element)).toEqual({ htCentimes: 3_000, tvaCentimes: 600, ttcCentimes: 3_600 })
   })
 
-  it('🔴 forfait de mise en demeure : à confirmer avec le cabinet (L. 1965 art. 10-1, a) ; frais d’envoi : à confirmer aussi (relecture)', () => {
+  it('J67, R7 : forfait en deux lignes, payé par le syndicat puis imputable au copropriétaire en retard, aConfirmer gardé ; J72 (a) : frais d’envoi, dépense du syndicat', () => {
     const regle = regleHonorairesMiseEnDemeure({ lignes: [ligneAr, ligneForfait], active: true })
-    const [frais, forfait] = proposerHonorairesDuCourrier(courrier(), [regle], contexteHonoraires()).propositions
+    const [frais, forfait] = proposerHonorairesDuCourrier(courrier(), [regle], contexteHonoraires(RECOUVREMENT)).propositions
+    const imputation = IMPUTATION_ART_10_1_A
     expect(forfait).toMatchObject({ objet: 'forfait_mise_en_demeure', aConfirmer: true, fondements: ['L. 1965 art. 10-1, a'] })
-    expect(forfait.observation).toMatch(/^À confirmer avec le cabinet/)
-    expect(forfait.observation).toMatch(/réglage du cabinet/)
-    expect(frais).toMatchObject({ objet: 'frais_envoi', aConfirmer: true })
-    expect(frais.observation).toMatch(/administration provisoire/)
+    expect(forfait.repartition).toEqual({ payeur: 'syndicat', paiement: 'facture_du_cabinet', imputation })
+    expect(forfait.observation).toMatch(/^Deux lignes \(J67, R7\) : le cabinet facture le forfait au syndicat, qui le paie/)
+    expect(forfait.observation).toMatch(/une relance faite avant la mise en demeure n'est pas visée\. Montant et tarif : réglage du cabinet, aucun montant par défaut\.$/)
+    // J72 (a) : dépense du syndicat, payée sur son compte avec la pièce du prestataire postal, imputée au seul
+    // copropriétaire en retard (L. 1965 art. 10-1, a) ; décidée, plus « à confirmer »
+    expect(frais).toMatchObject({ objet: 'frais_envoi', aConfirmer: false, fondements: ['L. 1965 art. 10-1, a'] })
+    expect(frais.repartition).toEqual({ payeur: 'syndicat', paiement: 'piece_du_prestataire_postal', imputation })
+    expect(frais.observation).toMatch(/^Dépense du syndicat \(J72, a\) : /)
+    expect(frais.observation).toContain('pièce du prestataire postal')
+    expect(frais.observation).toContain('« notamment les frais de mise en demeure »')
+    expect(frais.observation).toMatch(/ni remboursée au cabinet ni facturée par lui/)
+    expect(frais.observation).not.toMatch(/Hugo|Frédéric|À trancher|R5 ou R6|à confirmer/)
     expect(BASES_LIGNES_HONORAIRES_COURRIER.forfait_mise_en_demeure.aConfirmer).toBe(true)
+  })
+
+  it('J72 (a) : en mission judiciaire, la ligne d’envoi du recouvrement n’est qu’une trace (Contrôle coûts) ; « Facturable » est refusé', () => {
+    const regle = (qualification?: 'Facturable' | 'Contrôle coûts') =>
+      regleHonorairesMiseEnDemeure({ lignes: [{ ...ligneAr, ...(qualification ? { qualification } : {}) }], active: true })
+    const [trace] = proposerHonorairesDuCourrier(courrier(), [regle()], contexteHonoraires(RECOUVREMENT)).propositions
+    expect(trace.saisie.qualification).toBe('Contrôle coûts')
+    // l'élément, s'il est enregistré, ne se facture pas (point 67 : hors facture, statut inchangé)
+    expect(creerElement(trace.saisie, 'judiciaire').qualification).toBe('Contrôle coûts')
+    expect(proposerHonorairesDuCourrier(courrier(), [regle('Contrôle coûts')], contexteHonoraires(RECOUVREMENT)).propositions[0].saisie.qualification).toBe('Contrôle coûts')
+    expect(() => proposerHonorairesDuCourrier(courrier(), [regle('Facturable')], contexteHonoraires(RECOUVREMENT))).toThrow(
+      /ligne 1 \(frais d’envoi\) : « Facturable » refusé.*dépense du syndicat.*pièce du prestataire postal.*L\. 1965 art\. 10-1, a ; J72, a\)/,
+    )
+    // contrat type de syndic (sans objet pour le cabinet) : remboursés au syndic, la ligne du cabinet reste telle quelle
+    const [syndic] = proposerHonorairesDuCourrier(courrier(), [regle()], contexteHonoraires({ mission: 'contrat_type_syndic', ...RECOUVREMENT })).propositions
+    expect(syndic.saisie).not.toHaveProperty('qualification')
+    expect(syndic.observation).toMatch(/contrat type de syndic.*7\.1\.5 et 7\.2\.1.*9\.1/i)
+  })
+
+  it('J72 (b) : autres envois du cabinet (sinistre, gestion) : frais du cabinet, à présenter au juge, payés seulement en vertu de son ordonnance', () => {
+    const sinistre = creerRattachement('Sinistre', 'S-7')
+    const regle = creerRegleHonorairesCourrier({
+      id: 'frais-sinistre',
+      libelle: 'Frais d’envoi du sinistre',
+      declencheur: { par: 'famille', famille: 'Sinistre' },
+      dossier: 'Sinistre',
+      lignes: [ligneAr],
+      active: true,
+    })
+    const courrierSinistre = courrier({ modele: { famille: 'Sinistre', libelle: 'Déclaration de sinistre' }, rattachements: [sinistre, copro] })
+    const [frais] = proposerHonorairesDuCourrier(courrierSinistre, [regle], contexteHonoraires({ regime: 'ap291' })).propositions
+    // relecture : fondement de J72 (b), l'ordonnance qui arrête les frais et débours (J67, R5), pas D. 1967 art. 61-1-5, II
+    expect(frais).toMatchObject({ objet: 'frais_envoi', aConfirmer: false, fondements: ['C. com. R. 814-27', 'Cass. 3e civ., 21/05/2026, n° 24-20.377'] })
+    expect(frais.repartition).toEqual({ payeur: 'syndicat', paiement: 'ordonnance_du_juge', imputation: null })
+    expect(frais.observation).toMatch(/^À présenter au juge \(J72, b\) : frais du cabinet, à part de sa rémunération/)
+    expect(frais.observation).toContain('annexe « frais et débours »')
+    expect(frais.observation).toContain('payés seulement en vertu de son ordonnance')
+    expect(frais.observation).toContain('frais et débours arrêtés par l’ordonnance du président, Cass. 3e civ., 21/05/2026, n° 24-20.377 (J67, R5)')
+    expect(frais.observation).not.toMatch(/61-1-5, II|Hugo|Frédéric|à confirmer|contrat type/)
+    // la ligne reste un frais du cabinet : qualification du cabinet gardée (la facture exige l'ordonnance, J67, R3)
+    expect(frais.saisie).not.toHaveProperty('qualification')
+    // même base quel que soit le régime ; par défaut : celle des autres envois (BASES_LIGNES_HONORAIRES_COURRIER)
+    for (const regime of [null, 'sj', 'ap47', 'ap291'] as const)
+      expect(baseLigneHonorairesCourrier('frais_envoi', { regime, cas: 'autre_envoi' })).toEqual(BASES_LIGNES_HONORAIRES_COURRIER.frais_envoi)
+    expect(baseLigneHonorairesCourrier('frais_envoi')).toEqual(BASES_LIGNES_HONORAIRES_COURRIER.frais_envoi)
+    expect(BASES_LIGNES_HONORAIRES_COURRIER.frais_envoi.repartition.paiement).toBe('ordonnance_du_juge')
+    expect(() => baseLigneHonorairesCourrier('frais_envoi', { cas: 'contentieux' as 'autre_envoi' })).toThrow(/cas des frais d’envoi inconnu « contentieux »/)
+    expect(() => baseLigneHonorairesCourrier('frais_envoi', { mission: 'conventionnelle' as 'judiciaire' })).toThrow(/mission inconnue « conventionnelle »/)
+  })
+
+  it('J67, R7 : le forfait se facture au syndicat, qui le paie ; un autre destinataire est refusé', () => {
+    const autre = { ...ligneForfait, destinataire: 'Copropriétaire débiteur' }
+    expect(() => regleHonorairesMiseEnDemeure({ lignes: [autre] })).toThrow(
+      /\(forfait de mise en demeure\) : destinataire « Copropriétaire débiteur » refusé.*J67, R7.*« Syndicat des copropriétaires »/,
+    )
+    // la saisie proposée et le payeur disent la même chose, quel que soit le régime
+    const regle = regleHonorairesMiseEnDemeure({ lignes: [ligneForfait], active: true })
+    for (const regime of [null, 'sj', 'ap47', 'ap291'] as const) {
+      const [forfait] = proposerHonorairesDuCourrier(courrier(), [regle], contexteHonoraires({ regime })).propositions
+      expect([forfait.saisie.destinataire, forfait.repartition?.payeur]).toEqual([DESTINATAIRE_SYNDICAT, 'syndicat'])
+    }
+    // frais d'envoi : destinataire laissé au cabinet (J72, a : en mission judiciaire, la ligne n'est qu'une trace)
+    expect(() => regleHonorairesMiseEnDemeure({ lignes: [{ ...ligneAr, destinataire: 'Copropriétaire débiteur' }] })).not.toThrow()
+  })
+
+  it('J67, R7 : selon le régime du mandat ; sous l’art. 29-1, montant à présenter au juge ; sous les art. 46 et 47, aucun texte', () => {
+    const regle = regleHonorairesMiseEnDemeure({ lignes: [ligneAr, ligneForfait], active: true })
+    const propositions = (regime: Regime | null) => proposerHonorairesDuCourrier(courrier(), [regle], contexteHonoraires({ regime, ...RECOUVREMENT })).propositions
+    const [fraisAp, forfaitAp] = propositions('ap291')
+    expect(forfaitAp).toMatchObject({ aConfirmer: true, fondements: ['L. 1965 art. 10-1, a', 'L. 1965 art. 29-1, II', 'D. 1967 art. 61-1-5, II', 'arrêté du 08/10/2015, art. 14'] })
+    expect(forfaitAp.observation).toMatch(/à présenter au juge dans le compte provisoire détaillé \(D\. 1967 art\. 61-1-5, II ; arrêté du 08\/10\/2015, art\. 14\) ; seule la somme admise et payée par le syndicat est imputée au copropriétaire/)
+    expect(forfaitAp.observation).toMatch(/aucun arrêt lu : à confirmer\.$/)
+    for (const regime of ['sj', 'ap47'] as const) {
+      const [, forfait] = propositions(regime)
+      expect(forfait.fondements).toEqual(['L. 1965 art. 10-1, a'])
+      expect(forfait.observation).toMatch(/aucun contrat type voté ; les art\. 46 et 47 du décret ne disent rien de ce forfait : à confirmer\.$/)
+    }
+    // J77 : la base du forfait suit le cas du courrier ; ici, le recouvrement contre un copropriétaire en retard.
+    expect(propositions(null)[1]).toMatchObject(baseLigneHonorairesCourrier('forfait_mise_en_demeure', { cas: 'recouvrement' }))
+    expect(baseLigneHonorairesCourrier('forfait_mise_en_demeure', { regime: 'ap291', cas: 'recouvrement' }).observation).toBe(forfaitAp.observation)
+    // frais d'envoi du recouvrement : même base quel que soit le régime (J72, a)
+    expect(fraisAp).toMatchObject(baseLigneHonorairesCourrier('frais_envoi', { cas: 'recouvrement' }))
+    expect(() => propositions('ap99' as Regime)).toThrow(/Régime du mandat « ap99 » inconnu/)
   })
 
   it('qualification et calcul repris de la ligne du cabinet (point 67)', () => {
@@ -653,6 +763,31 @@ describe('honoraires du courrier : proposition de lignes, jamais écrites, désa
     })
     const [proposition] = proposerHonorairesDuCourrier(courrier(), [regle], contexteHonoraires()).propositions
     expect(proposition.saisie).toMatchObject({ qualification: 'Contrôle coûts', calcul: 'Barème temps', quantite: 30 })
+  })
+
+  it('J67, R9 : une ligne « Offert » est refusée en mission judiciaire, admise au contrat type de syndic', () => {
+    const regle = regleHonorairesMiseEnDemeure({ lignes: [{ ...ligneForfait, qualification: 'Offert' }], active: true })
+    expect(() => proposerHonorairesDuCourrier(courrier(), [regle], contexteHonoraires())).toThrow(
+      /Qualification « Offert » refusée\. Mission judiciaire : tracer en Contrôle coûts/,
+    )
+    const [proposition] = proposerHonorairesDuCourrier(courrier(), [regle], contexteHonoraires({ mission: 'contrat_type_syndic' })).propositions
+    expect(proposition.saisie.qualification).toBe('Offert')
+  })
+
+  it('J67, R7 et R9 : un régime de mandat de justice exige la mission « judiciaire » ; le contexte incohérent est refusé', () => {
+    const regle = regleHonorairesMiseEnDemeure({ lignes: [{ ...ligneForfait, qualification: 'Offert' }], active: true })
+    for (const regime of ['sj', 'ap47', 'ap291'] as const) {
+      // sinon « Offert » passerait, alors que la base dit le forfait soumis au juge (ap291)
+      expect(() => proposerHonorairesDuCourrier(courrier(), [regle], contexteHonoraires({ mission: 'contrat_type_syndic', regime }))).toThrow(
+        new RegExp(`Contexte incohérent : régime « ${regime} » \\(mandat de justice\\) et mission « contrat_type_syndic »`),
+      )
+      // refusé avant toute règle : le contexte seul est en cause
+      expect(() =>
+        proposerHonorairesDuCourrier(courrier(), REGLES_HONORAIRES_COURRIER_PAR_DEFAUT, contexteHonoraires({ mission: 'contrat_type_syndic', regime })),
+      ).toThrow(/Contexte incohérent/)
+    }
+    // régime inconnu : la mission seule décide
+    expect(proposerHonorairesDuCourrier(courrier(), [regle], contexteHonoraires({ mission: 'contrat_type_syndic', regime: null })).propositions).toHaveLength(1)
   })
 
   it('écartées : dossier absent, dossier ambigu (un envoi, une série de frais), copropriété ou mandat manquants ; courrier non visé : rien', () => {
@@ -689,6 +824,115 @@ describe('honoraires du courrier : proposition de lignes, jamais écrites, désa
   })
 })
 
+// ─── J72, relecture : le cas des frais d'envoi suit le courrier, le dossier poursuivi et la mission ──
+
+describe('J72, relecture : cas des frais d’envoi selon la nature du courrier, le dossier poursuivi et la mission', () => {
+  const SANS_RECOUVREMENT = { recouvrementContreUnCoproprietaire: false } as const
+  const regleDuDossier = (dossier: 'Contentieux' | 'Comptabilité' | 'Sinistre', qualification?: 'Facturable') =>
+    creerRegleHonorairesCourrier({
+      id: `frais-${dossier}`,
+      libelle: `Frais d’envoi (${dossier})`,
+      declencheur: { par: 'famille', famille: dossier === 'Comptabilité' ? 'Comptabilité syndic' : dossier },
+      dossier,
+      lignes: [{ ...ligneAr, ...(qualification ? { qualification } : {}) }],
+      active: true,
+    })
+  const fraisDe = (c: CourrierDeclencheur, surcharge: Partial<ContexteHonorairesCourrier>, regle = regleDuDossier('Contentieux')) =>
+    proposerHonorairesDuCourrier(c, [regle], contexteHonoraires(surcharge)).propositions[0]
+  const BASE_B = { aConfirmer: false, repartition: { payeur: 'syndicat', paiement: 'ordonnance_du_juge', imputation: null } }
+  const comptabilite = creerRattachement('Comptabilité', 'CPT-12')
+  const sinistre = creerRattachement('Sinistre', 'S-7')
+
+  it('type du contentieux : seul « Recouvrement de charges/loyer » avec un compte débiteur poursuit un copropriétaire en retard', () => {
+    expect(estRecouvrementContreUnCoproprietaire({ type: 'Recouvrement de charges/loyer', compteId: 'cpt-12' })).toBe(true)
+    // sans compte débiteur, le débiteur n'est pas établi (un locataire, pour un loyer)
+    expect(estRecouvrementContreUnCoproprietaire({ type: 'Recouvrement de charges/loyer', compteId: null })).toBeNull()
+    expect(estRecouvrementContreUnCoproprietaire({ type: 'Recouvrement de charges/loyer', compteId: ' ' })).toBeNull()
+    for (const type of TYPE_CONTENTIEUX.filter((t) => t !== 'Recouvrement de charges/loyer'))
+      expect(estRecouvrementContreUnCoproprietaire({ type, compteId: 'cpt-12' }), type).toBe(false)
+  })
+
+  it('« Litige entreprise » ou « Garantie décennale » : la mise en demeure de l’entreprise relève de J72 (b), rien n’est imputé à un copropriétaire', () => {
+    const entreprise = courrier({ modele: { famille: 'Contentieux', libelle: "Mise en demeure de l'entreprise de reprendre les désordres" } })
+    for (const type of ['Litige entreprise', 'Garantie décennale'] as const) {
+      const frais = fraisDe(entreprise, { recouvrementContreUnCoproprietaire: estRecouvrementContreUnCoproprietaire({ type, compteId: null }) })
+      expect(frais, type).toMatchObject(BASE_B)
+      expect(frais.saisie, type).not.toHaveProperty('qualification')
+    }
+    // « Facturable » n'y est pas refusé : un frais du cabinet, facturé en vertu de l'ordonnance (J67, R3)
+    expect(fraisDe(entreprise, SANS_RECOUVREMENT, regleDuDossier('Contentieux', 'Facturable')).saisie.qualification).toBe('Facturable')
+  })
+
+  it('dossier qui ne dit pas s’il poursuit un copropriétaire : à confirmer, sans imputation ni refus de « Facturable » (jamais d’imputation par défaut)', () => {
+    const frais = fraisDe(courrier(), {})
+    expect(frais).toMatchObject({ aConfirmer: true, repartition: { payeur: 'syndicat', paiement: 'ordonnance_du_juge', imputation: null } })
+    expect(frais.observation).toMatch(/^À confirmer \(J72\) : /)
+    expect(frais.observation).toMatch(/J72, a.*J72, b/)
+    expect(frais.saisie).not.toHaveProperty('qualification')
+    expect(fraisDe(courrier(), { recouvrementContreUnCoproprietaire: null }, regleDuDossier('Contentieux', 'Facturable')).saisie.qualification).toBe('Facturable')
+  })
+
+  it('mise en demeure adressée à un locataire, ou envoi qui n’est ni une mise en demeure ni une relance : J72 (b), même au recouvrement', () => {
+    const locataire = courrier({ modele: { famille: 'Contentieux', libelle: 'Mise en demeure de payer - locataire' } })
+    expect(fraisDe(locataire, RECOUVREMENT)).toMatchObject(BASE_B)
+    const huissier = courrier({ modele: { famille: 'Contentieux', libelle: "Transmission du dossier à l'huissier" } })
+    expect(fraisDe(huissier, RECOUVREMENT)).toMatchObject(BASE_B)
+    expect(fraisDe(huissier, {})).toMatchObject(BASE_B)
+    expect(casDesFraisDEnvoi({ famille: 'Contentieux', libelle: 'Procédure 19-2' }, true)).toBe('recouvrement')
+    expect(casDesFraisDEnvoi({ famille: 'Contentieux', libelle: 'Relance RAR' }, true)).toBe('recouvrement')
+    expect(casDesFraisDEnvoi({ famille: 'Contentieux', libelle: 'Relance RAR' }, false)).toBe('autre_envoi')
+    expect(casDesFraisDEnvoi({ famille: 'Contentieux', libelle: 'Relance RAR' }, null)).toBe('non_etabli')
+    // « remise en demeure » n'est pas « mise en demeure » (mots entiers)
+    expect(casDesFraisDEnvoi({ famille: 'Contentieux', libelle: 'Remise en demeure' }, true)).toBe('autre_envoi')
+  })
+
+  it('mise en demeure ou relance hors du dossier Contentieux (« Comptabilité syndic - RAR mise en demeure », dossier Comptabilité) : J72 (a)', () => {
+    const regle = regleDuDossier('Comptabilité')
+    const rar = courrier({ modele: { famille: 'Comptabilité syndic', libelle: 'RAR mise en demeure' }, rattachements: [comptabilite, copro] })
+    const frais = fraisDe(rar, RECOUVREMENT, regle)
+    expect(frais).toMatchObject({ aConfirmer: false, repartition: { payeur: 'syndicat', paiement: 'piece_du_prestataire_postal', imputation: IMPUTATION_ART_10_1_A } })
+    expect(frais.saisie).toMatchObject({ dossier: 'Comptabilité', fiche: comptabilite, qualification: 'Contrôle coûts' })
+    expect(() => fraisDe(rar, RECOUVREMENT, regleDuDossier('Comptabilité', 'Facturable'))).toThrow(/« Facturable » refusé.*J72, a/)
+    // non établi : à confirmer, et non plus « frais du cabinet à présenter au juge »
+    expect(fraisDe(rar, {}, regle)).toMatchObject({ aConfirmer: true, repartition: { imputation: null } })
+    const relance = courrier({ modele: { famille: 'Comptabilité syndic', libelle: 'Relance appel de fonds impayé' }, rattachements: [comptabilite, copro] })
+    expect(fraisDe(relance, RECOUVREMENT, regle).repartition.paiement).toBe('piece_du_prestataire_postal')
+  })
+
+  it('mission au contrat type de syndic : remboursés au syndic sur sa facture (7.1.5, 7.2.1), jamais « à présenter au juge » ; imputés au recouvrement (9.1)', () => {
+    const SYNDIC = { mission: 'contrat_type_syndic' } as const
+    const recouvrement = fraisDe(courrier(), { ...SYNDIC, ...RECOUVREMENT })
+    expect(recouvrement).toMatchObject({ aConfirmer: false, repartition: { payeur: 'syndicat', paiement: 'facture_du_cabinet', imputation: IMPUTATION_ART_10_1_A } })
+    expect(recouvrement.fondements).toEqual(['D. 1967 annexe 1, 7.1.5 et 7.2.1', 'L. 1965 art. 10-1, a', 'D. 1967 annexe 1, 9.1'])
+    const declaration = courrier({ modele: { famille: 'Sinistre', libelle: 'Déclaration de sinistre' }, rattachements: [sinistre, copro] })
+    const autre = fraisDe(declaration, SYNDIC, regleDuDossier('Sinistre'))
+    expect(autre).toMatchObject({ aConfirmer: false, fondements: ['D. 1967 annexe 1, 7.1.5 et 7.2.1'], repartition: { paiement: 'facture_du_cabinet', imputation: null } })
+    const nonEtabli = fraisDe(courrier(), SYNDIC)
+    expect(nonEtabli).toMatchObject({ aConfirmer: true, repartition: { paiement: 'facture_du_cabinet', imputation: null } })
+    expect(nonEtabli.observation).toMatch(/9\.1/)
+    for (const base of [recouvrement, autre, nonEtabli]) {
+      expect(base.observation).toMatch(/^Contrat type de syndic \(sans objet pour le cabinet, J67, R14\) : /)
+      expect(base.observation).not.toMatch(/présenter au juge|ordonnance|pièce du prestataire postal/)
+    }
+    // en mission judiciaire, les bases ne parlent plus du contrat type
+    expect(fraisDe(courrier(), RECOUVREMENT).observation).not.toMatch(/contrat type/)
+    expect(recouvrement).toMatchObject(baseLigneHonorairesCourrier('frais_envoi', { mission: 'contrat_type_syndic', cas: 'recouvrement' }))
+  })
+
+  it('contrôles : drapeau du recouvrement non booléen refusé ; en-tête : le cas suit la nature du courrier, plus le seul dossier', () => {
+    expect(() => fraisDe(courrier(), { recouvrementContreUnCoproprietaire: 'oui' as unknown as boolean })).toThrow(
+      /recouvrement contre un copropriétaire : oui, non ou non établi attendu \(J72\), reçu « oui »/,
+    )
+    const { item } = enTeteDuModule('etapes-courrier')
+    const j72 = item('- J72 (décision de Hugo du 18/11/2026')
+    expect(j72).not.toMatch(/Le dossier Contentieux est lu comme/)
+    expect(j72).toMatch(/casDesFraisDEnvoi/)
+    expect(j72).toMatch(/estRecouvrementContreUnCoproprietaire/)
+    expect(j72).toMatch(/jamais imputé au copropriétaire par défaut/)
+    expect(j72).not.toMatch(/61-1-5, II/)
+  })
+})
+
 // ─── Relecture contradictoire (constats confirmés, tests vus en échec avant correction) ──
 
 describe('relecture : constats confirmés', () => {
@@ -720,12 +964,14 @@ describe('relecture : constats confirmés', () => {
     )
   })
 
-  it('R4 — 🔴 frais d’envoi de la mise en demeure : base à confirmer aussi (L. 1965 art. 10-1, a vise les frais de mise en demeure ; AP non établie)', () => {
-    const frais = BASES_LIGNES_HONORAIRES_COURRIER.frais_envoi
-    expect(frais.aConfirmer).toBe(true)
-    expect(frais.fondements).toContain('L. 1965 art. 10-1, a')
-    expect(frais.observation).toMatch(/^À confirmer/)
-    expect(frais.observation).toMatch(/administration provisoire/)
+  it('R4 — frais d’envoi : J72 tranche (a, recouvrement : dépense du syndicat ; b, autres envois : frais du cabinet à présenter au juge)', () => {
+    const recouvrement = baseLigneHonorairesCourrier('frais_envoi', { cas: 'recouvrement' })
+    expect(recouvrement.aConfirmer).toBe(false)
+    expect(recouvrement.fondements).toContain('L. 1965 art. 10-1, a')
+    expect(recouvrement.observation).toMatch(/^Dépense du syndicat \(J72, a\)/)
+    const cabinet = BASES_LIGNES_HONORAIRES_COURRIER.frais_envoi
+    expect(cabinet.aConfirmer).toBe(false)
+    expect(cabinet.observation).toMatch(/^À présenter au juge \(J72, b\)/)
   })
 
   it('R5 — réglage par défaut gelé en profondeur : son déclencheur partagé ne se modifie pas', () => {
@@ -827,6 +1073,16 @@ describe('modules existants et en-tête du module', () => {
     expect(texte).toContain('- Naissance de la Copie au CS : du courrier')
     expect(texte).toMatch(/L\. 1965 art\. 10-1, a/)
     expect(texte).toContain('🔴')
+    // J67, R7 ferme la question n° 3 ; J72 ferme la n° 4 (frais d'envoi : R5 et R6 conciliés)
+    expect(item('- J67, R7 (décision de Hugo du 17/11/2026')).toMatch(/deux lignes : le cabinet facture le syndicat, qui paie/)
+    expect(texte).toContain('3. Fermée par J67, R7 (ci-dessus).')
+    expect(texte).not.toContain('3. Cabinet (Frédéric ou Hugo)')
+    expect(texte).toContain('4. Fermée par J72 (ci-dessus).')
+    expect(texte).not.toMatch(/R5 et R6 ne les règlent pas de la même façon|R5 ou R6|à confirmer \(🔴, question n° 4\)|question n° 4 \(🔴\)/)
+    const j72 = item('- J72 (décision de Hugo du 18/11/2026')
+    expect(j72).toMatch(/\(a\) mise en demeure et relances d'un copropriétaire en retard : dépense du syndicat.*pièce du prestataire postal.*L\. 1965 art\. 10-1, a/)
+    expect(j72).toMatch(/\(b\) autres envois du cabinet.*annexe « frais et débours ».*C\. com\. R\. 814-27/)
+    expect(texte).not.toContain('4. Frédéric')
     const source = readFileSync(join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'etapes-courrier.ts'), 'utf8')
     expect(source).not.toMatch(/\d{4}-\d{2}-\d{2}/)
     expect(source).not.toMatch(/\bany\b/)

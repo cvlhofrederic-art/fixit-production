@@ -541,9 +541,10 @@ describe('J50 — relecture du 14/11/2026 (tour 1) : constats corrigés', () => 
       etat: 'refuse',
       cause: 'voie_postale_demandee',
     })
-    // écart (🔵, question à Hugo) : refus d'avant le 25/12/2025, puis accord reçu depuis : l'accord, dernier état, l'emporte
+    // J59 : refus d'avant le 25/12/2025, puis accord reçu depuis : l'accord, dernier état, l'emporte (à son effet, J74 :
+    // le 19/01/2026, avant l'envoi du 05/03/2026)
     expect(lreDu(avis2026, { consentements: [consent('refus', d(2021, 5, 1)), consent('accord', d(2026, 1, 10))] })).toMatchObject({ etat: 'calcule' })
-    // une demande de voie postale enregistrée n'est pas levée par un accord (retour à l'électronique non établi, 🔴)
+    // une demande de voie postale enregistrée n'est pas levée par un accord : seule une renonciation la lève (J74)
     expect(lreDu(avis2026, { demandesVoiePostale: [demandePostale(d(2026, 1, 5))], consentements: [consent('accord', d(2026, 2, 1))] })).toMatchObject({
       etat: 'refuse',
       cause: 'voie_postale_demandee',
@@ -636,7 +637,7 @@ describe('J50 — relecture du 14/11/2026 (tour 1) : constats corrigés', () => 
     // sonde P9 : refus reçu le 20/12/2025, LRE du 27/12/2025 ; effet dès sa réception (avant : calculé « à confirmer »)
     const p9 = lreDu(avis, { consentements: [consent('refus', d(2025, 12, 20))] })
     expect(p9).toMatchObject({ etat: 'refuse', cause: 'voie_postale_demandee' })
-    expect(motifDe(p9)).toContain('décision de Hugo du 17/11/2026, J52')
+    expect(motifDe(p9)).toContain('décision du 17/11/2026, J52')
     // demande de voie postale enregistrée, reçue le même jour : même refus
     expect(lreDu(avis, { demandesVoiePostale: [demandePostale(d(2025, 12, 20))] })).toMatchObject({ etat: 'refuse', cause: 'voie_postale_demandee' })
     // effet atteint à l'envoi : délai non lancé, comme avant

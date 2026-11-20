@@ -67,7 +67,7 @@ import { STATUT_ASSEMBLEE, type StatutAssemblee } from '@/lib/data/referentiels-
  *     25/12/2025 : demande de voie postale à sa date de réception (L. 1965 art. 42-1, al. 2 : « par tout moyen » ;
  *     interprétation prudente, aucune source ; voie-notification.ts), s'il est le dernier état des consentements à l'envoi ;
  *     demande, refus ou retrait reçu avant le 25/12/2025 : effet dès sa réception, même pour un envoi électronique fait
- *     depuis, qui ne fait pas courir le délai (décision de Hugo du 17/11/2026, J52, ci-dessous ; l'avertissement « à
+ *     depuis, qui ne fait pas courir le délai (décision du 17/11/2026, J52, ci-dessous ; l'avertissement « à
  *     confirmer » de la fenêtre du 16 au 24/12/2025 est supprimé) ; LRAR envoyée sans demande de voie postale reçue : délai
  *     calculé, avec un avertissement (lecture du GRECCO, préconisation n° 19, source secondaire) ; notification
  *     électronique antérieure au 25/12/2025 : calculée seulement si l'accord exprès est enregistré, sinon fin inconnue,
@@ -75,7 +75,7 @@ import { STATUT_ASSEMBLEE, type StatutAssemblee } from '@/lib/data/referentiels-
  *     10/04/2024 ; puis D. 1967 art. 64-3 de la rédaction en vigueur du 04/07/2020 au 24/12/2025 seul, l'art. 42-1 de la
  *     loi du 9 avril 2024 ayant une portée débattue) ; LRE
  *     vers un non-professionnel (ou dont la qualité n'est pas saisie) sans consentement enregistré (CPCE art. L. 100) :
- *     ne vaut pas notification, refus consentement_lre_absent (décision de Hugo du 17/11/2026, J53, ci-dessous ; avant :
+ *     ne vaut pas notification, refus consentement_lre_absent (décision du 17/11/2026, J53, ci-dessous ; avant :
  *     délai calculé avec un avertissement « à confirmer ») ; le procédé du prestataire qualifié n'est pas
  *     concerné ; remise contre émargement, courriel simple, SMS, lettre simple, extranet : ne valent pas notification du
  *     PV (art. 64 et 64-3) ;
@@ -112,7 +112,7 @@ import { STATUT_ASSEMBLEE, type StatutAssemblee } from '@/lib/data/referentiels-
  * - suite de J51 (envoi-ordre-service.ts) : ces deux cas étaient calculés « à confirmer » et ne donnaient qu'une alerte à
  *   l'OS ; refusés, la fin du délai est inconnue et l'OS des travaux votés aux art. 25 ou 26 est bloqué, sauf urgence
  *   constatée ;
- * - J57 (décision de Hugo du 17/11/2026 (J57), section « Suite » des notes, numéro de registre proposé) : une LRE, ou un
+ * - J57 (décision du 17/11/2026 (J57), section « Suite » des notes, numéro de registre proposé) : une LRE, ou un
  *   envoi par le procédé d'un prestataire qualifié, refusé ou non réclamé fait quand même courir le délai, du lendemain
  *   de la transmission de l'avis électronique (D. 1967 art. 64, dernier al. ; même logique que la LRAR non retirée,
  *   Cass. 3e civ., 16/04/2026, n° 24-18.842) : le calcul ne lit que la date de l'avis (dateAvisElectronique), jamais
@@ -301,7 +301,7 @@ export const CAUSES_DELAI_NON_CALCULE = [
   'preuve_a_saisir',
   'voie_postale_demandee',
   'accord_electronique_absent',
-  // J53 (décision de Hugo du 17/11/2026) : LRE à un non-professionnel sans consentement enregistré (CPCE art. L. 100)
+  // J53 (décision du 17/11/2026) : LRE à un non-professionnel sans consentement enregistré (CPCE art. L. 100)
   'consentement_lre_absent',
   'opposants_non_saisis',
 ] as const
@@ -355,7 +355,7 @@ const MOTIF_ENVOI_NON_QUALIFIE =
   "Le courrier rattaché n'est ni un envoi en AR ni une notification électronique (LRE ou prestataire qualifié) : il ne vaut pas notification du procès-verbal (D. 1967 art. 64, 64-1 et 64-3)."
 
 const A_CONFIRMER_ELECTRONIQUE: Readonly<Record<Exclude<ModeNotification, 'lrar'>, string>> = {
-  lre: "Variante électronique (J50) à confirmer : aucune jurisprudence sur la notification électronique du procès-verbal ; pour une LRE, l'avis est lu comme l'information du destinataire de CPCE art. R. 53-3, I ; le consentement de CPCE art. L. 100 est exigé du destinataire non professionnel (décision de Hugo du 17/11/2026, J53 : lecture prudente, doute que les textes ne tranchent pas face à L. 1965 art. 42-1).",
+  lre: "Variante électronique (J50) à confirmer : aucune jurisprudence sur la notification électronique du procès-verbal ; pour une LRE, l'avis est lu comme l'information du destinataire de CPCE art. R. 53-3, I ; le consentement de CPCE art. L. 100 est exigé du destinataire non professionnel (décision du 17/11/2026, J53 : lecture prudente, doute que les textes ne tranchent pas face à L. 1965 art. 42-1).",
   prestataire_qualifie: 'Variante électronique (J50) à confirmer : aucune jurisprudence sur la notification électronique du procès-verbal.',
 }
 
@@ -527,6 +527,18 @@ interface ParametresNotification {
   reporterAuJourOuvrable: boolean
   /** Ligne qui précède la notification (borneProcesVerbal) : un courrier antérieur ne notifie pas ce PV. */
   borne: BorneProcesVerbal | null
+}
+
+/**
+ * Date de l'envoi d'un courrier de notification, telle que le moteur de délais la retient (evaluerNotification, J50) :
+ * le dépôt, s'il est saisi et ne suit pas l'événement (première présentation du pli, transmission de l'avis
+ * électronique) ; à défaut, l'événement. null : notification non prouvée (événement non saisi, envoi non qualifié, avis
+ * antérieur au dépôt). La case « professionnel » datée se lit à cette date (J78, décisions du 19/11/2026 :
+ * qualite-professionnelle.ts, qualiteProfessionnelleALEnvoi).
+ */
+export function dateEnvoiCourrierNotification(courrier: CourrierNotification): string | null {
+  const preuve = courrierPreuve(courrier.id, [courrier], null, null)
+  return 'motif' in preuve ? null : dateEnvoiNotification(preuve.courrier.dateDepot, preuve.depart.evenement)
 }
 
 /** Délai d'une notification : refus (motif sans préfixe) ou calcul (J1, J50). */

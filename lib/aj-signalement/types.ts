@@ -9,6 +9,7 @@
 // fiche de copropriétaire.
 
 import { CHEMIN_ESPACE_QR, type VueEspaceQr } from '@/lib/aj-signalement/acces-espace'
+import type { BureauResumeQr } from '@/lib/aj-signalement/bureaux'
 import { urlSignalementCabinetQr } from '@/lib/aj-signalement/chemin-cabinet'
 
 export type StatutSignalementQr = 'en_attente' | 'acceptee' | 'en_cours' | 'terminee' | 'annulee'
@@ -257,6 +258,9 @@ export interface CabinetQr extends CabinetResumeQr {
   nbGestionnaires: number
   /** Logo du cabinet ; ABSENT : aucun logo, ou migration 20261114 non appliquée (réponse identique à avant). */
   logo?: LogoCabinetQr
+  /** Bureaux du cabinet, fermés compris, et ouverts (migration 20261119) ; ABSENTS : aucun bureau, ou migration absente. */
+  nbBureaux?: number
+  nbBureauxOuverts?: number
 }
 
 /** États d'une fiche gestionnaire : les 5 premiers en PR 1 ; les 4 suivants réservés à la PR 2 (accès à sa page). */
@@ -294,6 +298,8 @@ export interface GestionnaireQr extends GestionnaireResumeQr {
   connexionBloquee?: boolean
   effacementDemandeLe?: string | null
   compteRelie?: boolean
+  /** Bureau de la fiche (migration 20261119) ; ABSENT : aucun bureau, ou migration non appliquée (réponse d'avant). */
+  bureau?: BureauResumeQr
 }
 
 /** D'où vient une attribution (CHECK de signalements_qr_attributions.origine). */
@@ -371,6 +377,9 @@ export const ERREURS_METIER_SQL_QR = [
   'diffusion_inactive', 'aucun_destinataire', 'perimetre_change',
   // Migration 20261113, réglages du cabinet (route D-R8) : activation refusée, réglage manquant ou langue non ouverte (H9).
   'cabinet_incomplet', 'langue_non_ouverte',
+  // Migration 20261119 (bureaux des cabinets) : nom déjà porté dans le cabinet, plafond atteint, fermeture d'un bureau
+  // encore utilisé, nouvelle fiche sans bureau (ou retrait), rattachement à un bureau fermé.
+  'nom_pris', 'plafond_bureaux', 'bureau_utilise', 'bureau_requis', 'bureau_ferme',
 ] as const
 export type ErreurMetierSqlQr = (typeof ERREURS_METIER_SQL_QR)[number]
 
@@ -415,6 +424,11 @@ export interface GestionCoproprieteQr {
   modifiable?: boolean
   adressesMasquees?: number
   creeeParVous?: boolean
+  /**
+   * Bureau de la copropriété (migration 20261119), vue du super admin seulement ; ABSENT : aucun bureau, migration
+   * absente, ou vue d'un gestionnaire (visibilité inchangée : aucune clé nouvelle pour lui).
+   */
+  bureau?: BureauResumeQr
 }
 
 /** Valeurs par défaut des champs de gestion : tableaux neufs à chaque appel. */
@@ -691,6 +705,8 @@ export interface SaisieGestionCoproprieteQr {
   forcerDoublon?: boolean
   confirmerDoublonProbable?: boolean
   confirmerHorsDomaine?: boolean
+  /** Bureau (migration 20261119), super admin : facultatif ; envoyé seulement s'il est choisi. */
+  bureauId?: string
 }
 
 /** Saisie d'un cabinet client (POST /cabinets). */
@@ -708,6 +724,11 @@ export interface SaisieGestionnaireQr {
   cabinetId: string
   coproprieteIds: string[]
   forcerDomaine: boolean
+  /**
+   * Bureau (migration 20261119) : exigé par la route dès que le cabinet a un bureau ouvert (409 bureau_requis sinon) ;
+   * envoyé seulement s'il est choisi (sans bureau, le corps reste celui d'avant).
+   */
+  bureauId?: string
 }
 
 /** Succession d'une copropriété au départ d'un gestionnaire : un successeur, ou null (sans gestionnaire, ou retrait seul). */

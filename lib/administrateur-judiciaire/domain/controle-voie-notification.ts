@@ -46,12 +46,12 @@ const AVERTISSEMENT_LRAR_HORS_DEMANDE =
   'LRAR sans demande de voie postale enregistrée : délai calculé, validité à confirmer (L. 1965 art. 42-1 ; D. 1967 art. 64-1 ; lecture du GRECCO, préconisation n° 19, source secondaire).'
 
 /**
- * J53 (décision de Hugo du 17/11/2026, recommandation suivie) : sans consentement enregistré aux envois recommandés
+ * J53 (décision du 17/11/2026, recommandation suivie) : sans consentement enregistré aux envois recommandés
  * électroniques (CPCE art. L. 100), une LRE à un non-professionnel ne vaut pas notification ; l'accord du critère LRE de
  * Gestéam vaut ce consentement ; le prestataire qualifié (D. 1967 art. 64, 2°) n'est pas concerné ; la LRAR reste possible.
  */
 const MOTIF_LRE_SANS_CONSENTEMENT =
-  "LRE à un destinataire non professionnel (ou dont la qualité n'est pas saisie, lue comme non professionnelle) sans consentement enregistré aux envois recommandés électroniques (CPCE art. L. 100 ; l'accord du critère LRE repris de Gestéam vaut ce consentement) : elle ne vaut pas notification et ne fait pas courir le délai pour lui (décision de Hugo du 17/11/2026, J53). Enregistrer son consentement s'il l'a donné avant l'envoi, ou le notifier par lettre recommandée avec avis de réception (D. 1967 art. 64-1) ou par le procédé d'un prestataire qualifié (art. 64, 2°)."
+  "LRE à un destinataire non professionnel (ou dont la qualité n'est pas saisie, lue comme non professionnelle) sans consentement enregistré aux envois recommandés électroniques (CPCE art. L. 100 ; l'accord du critère LRE repris de Gestéam vaut ce consentement) : elle ne vaut pas notification et ne fait pas courir le délai pour lui (décision du 17/11/2026, J53). Enregistrer son consentement s'il l'a donné avant l'envoi, ou le notifier par lettre recommandée avec avis de réception (D. 1967 art. 64-1) ou par le procédé d'un prestataire qualifié (art. 64, 2°)."
 
 /**
  * J53, courrier sans destinataire renseigné (notification unique, finDelaiContestationAg ; relecture contradictoire du
@@ -59,7 +59,7 @@ const MOTIF_LRE_SANS_CONSENTEMENT =
  * consentement, que le copropriétaire a pu donner.
  */
 const MOTIF_LRE_DESTINATAIRE_INCONNU =
-  "Destinataire du courrier rattaché non renseigné : le consentement aux envois recommandés électroniques (CPCE art. L. 100 ; l'accord du critère LRE repris de Gestéam vaut ce consentement), exigé d'un destinataire non professionnel ou dont la qualité n'est pas saisie, ne peut pas lui être rapproché ; la LRE ne vaut donc pas notification (décision de Hugo du 17/11/2026, J53). Renseigner le destinataire du courrier, ou notifier par lettre recommandée avec avis de réception (D. 1967 art. 64-1) ou par le procédé d'un prestataire qualifié (art. 64, 2°)."
+  "Destinataire du courrier rattaché non renseigné : le consentement aux envois recommandés électroniques (CPCE art. L. 100 ; l'accord du critère LRE repris de Gestéam vaut ce consentement), exigé d'un destinataire non professionnel ou dont la qualité n'est pas saisie, ne peut pas lui être rapproché ; la LRE ne vaut donc pas notification (décision du 17/11/2026, J53). Renseigner le destinataire du courrier, ou notifier par lettre recommandée avec avis de réception (D. 1967 art. 64-1) ou par le procédé d'un prestataire qualifié (art. 64, 2°)."
 
 const REDACTION_2020 = `rédaction en vigueur du ${fr(ENTREE_EN_VIGUEUR_DECRET_2020)} au ${fr(ajouterJours(ENTREE_EN_VIGUEUR_VOIE_ELECTRONIQUE, -1))}`
 const REDACTION_ANTERIEURE_2020 = `rédaction antérieure au ${fr(ENTREE_EN_VIGUEUR_DECRET_2020)}`
@@ -92,7 +92,7 @@ function fondementDemandeAncienRegime(recueLe: string): string {
 /**
  * Motif du refus d'un envoi électronique fait depuis le 25/12/2025 à un copropriétaire dont la demande de voie postale
  * est en vigueur (`depuis` : son effet, voieDeNotification). Demande, refus ou retrait reçu avant le 25/12/2025 : effet dès
- * sa réception, ancienne règle (décision de Hugo du 17/11/2026, J52 : effetDemandeVoiePostale, `depuis` est alors la date
+ * sa réception, ancienne règle (décision du 17/11/2026, J52 : effetDemandeVoiePostale, `depuis` est alors la date
  * de réception) ; il remplace l'avertissement « à confirmer » de la fenêtre du 16 au 24/12/2025 (relecture du
  * 14/11/2026, sonde P9). Reçue depuis : effet de l'art. 64-4 actuel.
  */
@@ -103,7 +103,7 @@ function motifVoiePostaleDemandee(depuis: string, dateEnvoi: string, saisies: re
   const recue = enregistree
     ? `demande reçue le ${fr(depuis)}, avant le ${fr(ENTREE_EN_VIGUEUR_VOIE_ELECTRONIQUE)}`
     : `refus de la voie électronique ou retrait de l'accord reçu le ${fr(depuis)}, avant le ${fr(ENTREE_EN_VIGUEUR_VOIE_ELECTRONIQUE)}, valant demande de voie postale`
-  return `Voie postale demandée par ce copropriétaire : ${recue} (${fondementDemandeAncienRegime(depuis)} ; décret du 22/12/2025 sans règle transitoire pour les notifications, C. civ. art. 2 ; décision de Hugo du 17/11/2026, J52) : l'envoi électronique du ${fr(dateEnvoi)} ne vaut pas notification et ne fait pas courir le délai pour lui ; le notifier par lettre recommandée avec avis de réception (D. 1967 art. 64-1).`
+  return `Voie postale demandée par ce copropriétaire : ${recue} (${fondementDemandeAncienRegime(depuis)} ; décret du 22/12/2025 sans règle transitoire pour les notifications, C. civ. art. 2 ; décision du 17/11/2026, J52) : l'envoi électronique du ${fr(dateEnvoi)} ne vaut pas notification et ne fait pas courir le délai pour lui ; le notifier par lettre recommandée avec avis de réception (D. 1967 art. 64-1).`
 }
 
 /**

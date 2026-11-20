@@ -2,18 +2,23 @@ import { describe, expect, it } from 'vitest'
 import {
   DUREE_MAX_DELAIS_GRACE_MOIS,
   POSTES_JUGEMENT,
+  POSTE_FRAIS_COMMISSAIRE_JUSTICE,
   calculerDecompte,
   controlerEcheancier,
   echelonner,
   ecartMontantDemande,
+  fraisCommissaireJusticeAReporter,
   genererEcheancier,
   suivreEcheancier,
   totalPostesCreance,
   type Condamnation,
   type CondamnationCentimes,
+  type DossierRecouvrementDuDebiteur,
   type EcheanceDebiteur,
+  type FactureCommissaireJustice,
   type SaisieDecompte,
 } from '@/lib/administrateur-judiciaire/domain/decompte-contentieux'
+import { creerRattachement } from '@/lib/administrateur-judiciaire/domain/fiches-liees'
 import type { PosteCreance } from '@/lib/administrateur-judiciaire/domain/postes-creance'
 
 /**
@@ -92,6 +97,7 @@ describe('décompte — montant dû et solde', () => {
       montantDuCentimes: 448_390,
       totalReglementsCentimes: 0,
       reglementsAnterieurs: [],
+      fraisRecouvrementCentimes: 0,
       soldeDuCentimes: 448_390,
       chequesADispositionCentimes: 0,
       chequesPromisCentimes: 0,
@@ -326,5 +332,85 @@ describe('échéancier — contrôles', () => {
       'premiere_avant_decision',
     ])
     expect(controlerEcheancier([], { origine: 'amiable', decideLe: '2026-10-15' })).toEqual([])
+  })
+})
+
+describe('J67, R48 — facture du commissaire de justice reportée au décompte du débiteur (L. 1965 art. 10-1, a ; CPCE art. L. 111-8)', () => {
+  const demandeCj = { id: 'dem-cj', executionForcee: true, dossier: creerRattachement('Contentieux', 'cx-1'), factureIds: ['fac-cj'] }
+  const dossier = (surcharge: Partial<DossierRecouvrementDuDebiteur> = {}): DossierRecouvrementDuDebiteur => ({
+    id: 'cx-1',
+    type: 'Recouvrement de charges/loyer',
+    phase: 'Exécution en cours',
+    dateCloture: null,
+    decisionJuge: null,
+    ...surcharge,
+  })
+  const facture = (surcharge: Partial<FactureCommissaireJustice> = {}): FactureCommissaireJustice => ({
+    factureId: 'fac-cj',
+    montantCentimes: 30_000,
+    partCreancierCentimes: 0,
+    dejaRecouvresCentimes: 0,
+    payeeLe: '2026-11-10',
+    ...surcharge,
+  })
+
+  it('facture payée, dossier de recouvrement ouvert : la part du débiteur est reportée sous son poste propre, avec sa justification', () => {
+    const { report, resteAuSyndicatCentimes, alertes } = fraisCommissaireJusticeAReporter(demandeCj, facture(), dossier())
+    expect(alertes).toEqual([])
+    expect(resteAuSyndicatCentimes).toBe(0)
+    expect(report).toMatchObject({
+      factureId: 'fac-cj',
+      demandeId: 'dem-cj',
+      poste: 'Frais de recouvrement (art. 10-1 a) : actes du commissaire de justice',
+      payeeLe: '2026-11-10',
+      montantCentimes: 30_000,
+      fondement: 'L. 1965 art. 10-1, a ; CPCE art. L. 111-8',
+    })
+    expect(POSTE_FRAIS_COMMISSAIRE_JUSTICE).toBe(report?.poste)
+    expect(report?.justification).toMatch(/300,00/)
+    const decompte = calculerDecompte(saisie({ fraisRecouvrement: report ? [report] : [] }))
+    expect(decompte.montantDuCentimes).toBe(448_390)
+    expect(decompte.fraisRecouvrementCentimes).toBe(30_000)
+    expect(decompte.soldeDuCentimes).toBe(478_390)
+  })
+
+  it('garde-fous 2 et 3 : la part du créancier reste au syndicat ; les frais déjà recouvrés par le commissaire de justice ne sont pas comptés deux fois', () => {
+    const ventilee = fraisCommissaireJusticeAReporter(demandeCj, facture({ partCreancierCentimes: 5_000, dejaRecouvresCentimes: 10_000 }), dossier())
+    expect(ventilee.report?.montantCentimes).toBe(15_000)
+    expect(ventilee.resteAuSyndicatCentimes).toBe(5_000)
+    const toutRecouvre = fraisCommissaireJusticeAReporter(demandeCj, facture({ dejaRecouvresCentimes: 30_000 }), dossier())
+    expect(toutRecouvre.report).toBeNull()
+    expect(toutRecouvre.alertes.map((a) => a.code)).toEqual(['frais_deja_recouvres'])
+    expect(() => fraisCommissaireJusticeAReporter(demandeCj, facture({ partCreancierCentimes: 40_000 }), dossier())).toThrow(/créancier/)
+    expect(() => fraisCommissaireJusticeAReporter(demandeCj, facture({ dejaRecouvresCentimes: 31_000 }), dossier())).toThrow(/recouvr/)
+  })
+
+  it('garde-fou 1 : seulement une créance justifiée (dossier de recouvrement ouvert) ; facture non payée : rien', () => {
+    for (const autre of [dossier({ phase: 'Clos', dateCloture: '2026-11-01' }), dossier({ type: 'Litige entreprise' })]) {
+      const { report, alertes } = fraisCommissaireJusticeAReporter(demandeCj, facture(), autre)
+      expect(report).toBeNull()
+      expect(alertes.map((a) => a.code)).toEqual(['creance_non_justifiee'])
+    }
+    const nonPayee = fraisCommissaireJusticeAReporter(demandeCj, facture({ payeeLe: null }), dossier())
+    expect(nonPayee.report).toBeNull()
+    expect(nonPayee.alertes.map((a) => a.code)).toEqual(['facture_non_payee'])
+  })
+
+  it('garde-fou 4 : le juge donne raison au copropriétaire, le report tombe (alerte) ; dispense de sa part des frais de procédure communs', () => {
+    const { report, alertes } = fraisCommissaireJusticeAReporter(demandeCj, facture(), dossier({ decisionJuge: 'coproprietaire' }))
+    expect(report).toBeNull()
+    expect(alertes).toMatchObject([{ code: 'creance_rejetee_par_le_juge' }])
+    expect(alertes[0].message).toMatch(/dispensé/)
+    expect(alertes[0].message).toMatch(/sauf décision contraire du juge/)
+    expect(alertes[0].fondement).toMatch(/10-1/)
+  })
+
+  it('refuse une demande qui n’est pas une exécution forcée de ce dossier, ou une facture qui ne lui est pas rattachée ; décompte : facture comptée deux fois', () => {
+    expect(() => fraisCommissaireJusticeAReporter({ ...demandeCj, executionForcee: false }, facture(), dossier())).toThrow(/exécution forcée/)
+    expect(() => fraisCommissaireJusticeAReporter({ ...demandeCj, dossier: creerRattachement('Contentieux', 'cx-2') }, facture(), dossier())).toThrow(/cx-1/)
+    expect(() => fraisCommissaireJusticeAReporter({ ...demandeCj, factureIds: [] }, facture(), dossier())).toThrow(/rattachée/)
+    const { report } = fraisCommissaireJusticeAReporter(demandeCj, facture(), dossier())
+    if (!report) throw new Error('report attendu')
+    expect(() => calculerDecompte(saisie({ fraisRecouvrement: [report, report] }))).toThrow(/deux fois/)
   })
 })

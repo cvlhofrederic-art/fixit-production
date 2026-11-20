@@ -135,8 +135,10 @@ describe('J52 — demande, refus ou retrait reçu avant le 25/12/2025 : effet d�
   it('voie de notification après le 25/12/2025 : postale depuis la réception d’une demande reçue avant, fondement de J52', () => {
     const voie = voieDeNotification({ identiteId: 'id-1', demandes: [demandePostale(d(2025, 12, 20))], date: d(2025, 12, 27) })
     expect(voie).toMatchObject({ voie: 'postale', depuis: d(2025, 12, 20), aConfirmer: null })
-    expect(voie.fondement).toContain('décision de Hugo du 17/11/2026, J52')
-    expect(voie.fondement).toContain('effet à sa réception')
+    // motif corrigé (correction R17 du registre) : J52 cité, sans prénom dans le texte affiché
+    expect(voie.fondement).toContain('; J52 ;')
+    expect(voie.fondement).toContain('effet retenu à sa réception, choix prudent, plus strict que le texte')
+    expect(voie.fondement).not.toContain('Hugo')
     // demande reçue depuis le 25/12/2025 : fondement inchangé
     expect(voieDeNotification({ identiteId: 'id-1', demandes: [demandePostale(d(2026, 10, 1))], date: d(2026, 10, 29) }).fondement).toBe(
       'L. 1965 art. 42-1 ; D. 1967 art. 64-1, 64-4',
@@ -147,7 +149,7 @@ describe('J52 — demande, refus ou retrait reçu avant le 25/12/2025 : effet d�
     const resultat = lreDu(d(2025, 12, 27), { consentements: [consent('refus', d(2025, 12, 20))] })
     expect(resultat).toMatchObject({ etat: 'refuse', cause: 'voie_postale_demandee' })
     expect(motifDe(resultat)).toBe(
-      "Délai non calculé. Voie postale demandée par ce copropriétaire : refus de la voie électronique ou retrait de l'accord reçu le 20/12/2025, avant le 25/12/2025, valant demande de voie postale (« à tout moment et par tout moyen », L. 1965 art. 42-1, al. 2, version de la loi du 9 avril 2024 ; elle vaut au moins retrait de l'accord exprès, D. 1967 art. 64-4, rédaction en vigueur du 04/07/2020 au 24/12/2025 ; effet retenu à sa réception, le délai de huit jours de l'art. 64-4 actuel n'existait pas ; décret du 22/12/2025 sans règle transitoire pour les notifications, C. civ. art. 2 ; décision de Hugo du 17/11/2026, J52) : l'envoi électronique du 27/12/2025 ne vaut pas notification et ne fait pas courir le délai pour lui ; le notifier par lettre recommandée avec avis de réception (D. 1967 art. 64-1).",
+      "Délai non calculé. Voie postale demandée par ce copropriétaire : refus de la voie électronique ou retrait de l'accord reçu le 20/12/2025, avant le 25/12/2025, valant demande de voie postale (« à tout moment et par tout moyen », L. 1965 art. 42-1, al. 2, version de la loi du 9 avril 2024 ; elle vaut au moins retrait de l'accord exprès, D. 1967 art. 64-4, rédaction en vigueur du 04/07/2020 au 24/12/2025 ; effet retenu à sa réception, le délai de huit jours de l'art. 64-4 actuel n'existait pas ; décret du 22/12/2025 sans règle transitoire pour les notifications, C. civ. art. 2 ; décision du 17/11/2026, J52) : l'envoi électronique du 27/12/2025 ne vaut pas notification et ne fait pas courir le délai pour lui ; le notifier par lettre recommandée avec avis de réception (D. 1967 art. 64-1).",
     )
   })
 
@@ -155,7 +157,7 @@ describe('J52 — demande, refus ou retrait reçu avant le 25/12/2025 : effet d�
     const resultat = lreDu(d(2025, 12, 27), { demandesVoiePostale: [demandePostale(d(2025, 12, 20))] })
     expect(resultat).toMatchObject({ etat: 'refuse', cause: 'voie_postale_demandee' })
     expect(motifDe(resultat)).toContain('Voie postale demandée par ce copropriétaire : demande reçue le 20/12/2025, avant le 25/12/2025 (')
-    expect(motifDe(resultat)).toContain('décision de Hugo du 17/11/2026, J52')
+    expect(motifDe(resultat)).toContain('décision du 17/11/2026, J52')
     expect(motifDe(resultat)).not.toMatch(/à confirmer|question à Hugo/)
   })
 
@@ -176,8 +178,13 @@ describe('J52 — demande, refus ou retrait reçu avant le 25/12/2025 : effet d�
     }
   })
 
-  it('inchangé (J50, lecture du code) : un refus d’avant le 25/12/2025 suivi d’un accord reçu avant l’envoi n’est plus une demande', () => {
-    expect(lreDu(d(2025, 12, 27), { consentements: [consent('refus', d(2025, 12, 20)), consent('accord', d(2025, 12, 26))] })).toMatchObject({ etat: 'calcule' })
+  // décision de Hugo du 18/11/2026 (J74) : l'accord donné après un refus prend effet le lendemain du huitième jour suivant
+  // sa réception (avant : dès sa réception, ce que ce test figeait)
+  it('J74 : un refus d’avant le 25/12/2025 suivi d’un accord n’est plus une demande qu’à l’effet de l’accord (réception + 9 jours)', () => {
+    const consentements = [consent('refus', d(2025, 12, 20)), consent('accord', d(2025, 12, 26))]
+    expect(lreDu(d(2025, 12, 27), { consentements })).toMatchObject({ etat: 'refuse', cause: 'voie_postale_demandee' })
+    expect(lreDu(d(2026, 1, 3), { consentements })).toMatchObject({ etat: 'refuse', cause: 'voie_postale_demandee' })
+    expect(lreDu(d(2026, 1, 4), { consentements })).toMatchObject({ etat: 'calcule' })
   })
 
   it('J51 : la fin du délai est inconnue, l’OS des travaux votés à l’art. 25 est bloqué, le message dit de notifier par LRAR', () => {
@@ -210,7 +217,7 @@ describe('J52 — demande, refus ou retrait reçu avant le 25/12/2025 : effet d�
 
 describe('J53 — LRE à un non-professionnel sans consentement enregistré (CPCE art. L. 100) : ne vaut pas notification', () => {
   const MOTIF_L100 =
-    "Délai non calculé. LRE à un destinataire non professionnel (ou dont la qualité n'est pas saisie, lue comme non professionnelle) sans consentement enregistré aux envois recommandés électroniques (CPCE art. L. 100 ; l'accord du critère LRE repris de Gestéam vaut ce consentement) : elle ne vaut pas notification et ne fait pas courir le délai pour lui (décision de Hugo du 17/11/2026, J53). Enregistrer son consentement s'il l'a donné avant l'envoi, ou le notifier par lettre recommandée avec avis de réception (D. 1967 art. 64-1) ou par le procédé d'un prestataire qualifié (art. 64, 2°)."
+    "Délai non calculé. LRE à un destinataire non professionnel (ou dont la qualité n'est pas saisie, lue comme non professionnelle) sans consentement enregistré aux envois recommandés électroniques (CPCE art. L. 100 ; l'accord du critère LRE repris de Gestéam vaut ce consentement) : elle ne vaut pas notification et ne fait pas courir le délai pour lui (décision du 17/11/2026, J53). Enregistrer son consentement s'il l'a donné avant l'envoi, ou le notifier par lettre recommandée avec avis de réception (D. 1967 art. 64-1) ou par le procédé d'un prestataire qualifié (art. 64, 2°)."
   const LE = d(2026, 3, 5)
 
   it('non professionnel, ou qualité non saisie : refus, cause consentement_lre_absent (avant : calculé « à confirmer »)', () => {
@@ -441,7 +448,7 @@ describe('relecture contradictoire du 17/11/2026 : constats corrigés', () => {
       const motif = motifDe(resultat)
       expect(motif).toContain('Destinataire du courrier rattaché non renseigné')
       expect(motif).toContain('CPCE art. L. 100')
-      expect(motif).toContain('décision de Hugo du 17/11/2026, J53')
+      expect(motif).toContain('décision du 17/11/2026, J53')
       expect(motif).not.toContain('Enregistrer son consentement')
     }
     // destinataire professionnel : pas de consentement à rapprocher, calcul inchangé
@@ -538,7 +545,8 @@ describe('J56 — N° de l’OS attribué au premier envoi : <mandat>.<AAAAMMJJ>
     const [absent] = controlerAvantEnvoiOs(sansNumero, s, CONTEXTE)
     expect([absent.code, absent.gravite]).toEqual(['numero_absent', 'bloquant'])
     expect(absent.message).toBe(
-      "N° d'ordre de service absent : il s'attribue au premier envoi, dans la séquence du mandat (rang suivant du mandat ; segment plan : date de l'envoi, AAAAMMJJ ; décision de Hugo du 17/11/2026, J56).",
+      // J75 : aucun prénom dans un message affiché ; la décision est citée par son numéro
+      "N° d'ordre de service absent : il s'attribue au premier envoi, dans la séquence du mandat (rang suivant du mandat ; segment plan : date de l'envoi, AAAAMMJJ ; J56).",
     )
   })
 

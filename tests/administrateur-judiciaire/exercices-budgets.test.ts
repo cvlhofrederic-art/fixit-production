@@ -70,6 +70,16 @@ describe('exercices — cycle de statut', () => {
     })
   })
 
+  it('J67, R103 : budget jamais voté — « Préparation » ou « Budgété » passe à « Répart. en cours » (répartition seulement), puis « Réparti »', () => {
+    for (const statut of ['Préparation', 'Budgété'] as const) {
+      const enCours = changerStatutExercice(creerExercice(saisie({ statut })), 'Répart. en cours')
+      expect(enCours).toMatchObject({ statut: 'Répart. en cours', agId: null, resolutions: { budget: null } })
+      expect(changerStatutExercice(enCours, 'Réparti').statut).toBe('Réparti')
+      expect(() => changerStatutExercice(creerExercice(saisie({ statut })), 'Réparti')).toThrow(/étape/i)
+    }
+    expect(() => changerStatutExercice(creerExercice(saisie()), 'Voté')).toThrow(/étape/i)
+  })
+
   it('« Non géré » seulement depuis « Préparation » (exercice antérieur au mandat)', () => {
     expect(changerStatutExercice(creerExercice(saisie()), 'Non géré').statut).toBe('Non géré')
     expect(() => changerStatutExercice(creerExercice(saisie({ statut: 'Budgété' })), 'Non géré')).toThrow(/Non géré/)
