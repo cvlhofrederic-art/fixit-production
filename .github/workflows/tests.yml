@@ -73,7 +73,12 @@ jobs:
     # navigateur (« Playwright does not support chromium on ubuntu26.04-x64 »). Revenir à ubuntu-latest quand
     # une version de Playwright prendra en charge Ubuntu 26.04.
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    # 5 à 10 min d'habitude (médianes du 08 au 20/11/2026 : chromium 6,8, firefox 7,5, webkit 8,7). Du 17 au
+    # 20/11/2026, le miroir Ubuntu des runners hébergés chez AWS (us-east-2.ec2.archive.ubuntu.com) servait à
+    # environ 40 à 140 Ko/s les paquets de « playwright install --with-deps » (126 Mo pour webkit, 49 pour
+    # firefox) : 14 à 20 min d'installation, 15 jobs webkit et 4 firefox coupés à 20 min. Au plus lent relevé,
+    # un job aurait duré 41,5 min : d'où 45.
+    timeout-minutes: 45
     # WebKit headless is unstable in CI (known Playwright issue) — don't block pipeline
     continue-on-error: ${{ matrix.browser == 'webkit' }}
     permissions:
@@ -136,7 +141,9 @@ jobs:
     name: "Accessibilité WCAG (Axe-core)"
     # Même raison que le job e2e : Playwright n'installe pas ses navigateurs sur Ubuntu 26.04.
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    # Même installation que le job e2e (32 Mo de paquets pour chromium) : le 18/11/2026, à 54 Ko/s, le job a duré
+    # 14,2 min pour une limite de 15.
+    timeout-minutes: 25
     if: github.event_name == 'pull_request'
     permissions:
       contents: read
