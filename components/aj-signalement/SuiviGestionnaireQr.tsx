@@ -15,6 +15,10 @@
 // changement de vue de l'espace : elle emportait la fenêtre (saisie perdue sans question, envoi abandonné). « Informer »
 // la demande à l'espace (onInformer), qui la porte et la protège au changement de vue (§ 7.1) ; sans onInformer, le
 // bouton n'est pas proposé.
+// Téléphone (captures du 19/11/2026, point h-02 validé le 20/11) : une copropriété était écrasée en colonne
+// de 55 px à côté de « Voir les signalements », et ses signalements dépliés en colonne étroite à côté de « Détail » ;
+// bouton sous le texte sur téléphone, côte à côte à partir de sm (motif flex-col sm:flex-row des lignes des bureaux).
+// À partir de sm, les lignes d'avant (le texte, flex-1 de base nulle, ne passait jamais à la ligne).
 
 import { useCallback, useEffect, useState } from 'react'
 import { remplir } from '@/lib/coproprietaire/textes'
@@ -119,7 +123,7 @@ function CoproprieteSuivieQr({ copropriete: c, onInformer }: Readonly<{ copropri
 
   return (
     <li className="rounded-2xl border border-[#E4DDD0] bg-white px-5 py-4 shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-col items-start gap-3 sm:flex-row sm:justify-between">
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-base font-bold text-[#0D1B2E]">{c.nom}</h3>
@@ -151,7 +155,7 @@ function CoproprieteSuivieQr({ copropriete: c, onInformer }: Readonly<{ copropri
           {liste.statut === 'pret' && (liste.signalements.length === 0 ? <p className="text-sm text-[#4A5E78]">{G.suivi.aucunSignalement}</p> : (
             <ul className="space-y-2">
               {liste.signalements.map((s) => (
-                <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[#F7F4EE] px-4 py-3">
+                <li key={s.id} className="flex flex-col items-start gap-2 rounded-xl bg-[#F7F4EE] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge ton={TON_STATUT_QR[s.statut]}>{LIBELLE_STATUT_QR[s.statut]}</Badge>
