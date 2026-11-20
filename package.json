@@ -60,7 +60,7 @@
     "jspdf-autotable": "^5.0.7",
     "langfuse": "^3.38.20",
     "lucide-react": "^1.66.0",
-    "next": "^16.4.2",
+    "next": "^16.4.6",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "6.4.299",
     "qrcode": "^1.5.4",
@@ -76,7 +76,7 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.16",
-    "@next/bundle-analyzer": "^16.4.2",
+    "@next/bundle-analyzer": "^16.4.6",
     "@opennextjs/cloudflare": "^1.20.12",
     "@opentelemetry/instrumentation-lru-memoizer": "^0.57.0",
     "@playwright/test": "^1.59.1",
