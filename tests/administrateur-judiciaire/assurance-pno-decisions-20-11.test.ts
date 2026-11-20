@@ -15,6 +15,7 @@ import { LIBELLES_OCCUPATIONS_LOT, OCCUPATIONS_LOT, type OccupationLot } from '@
 import {
   depuisAssurancesPno,
   HORIZONS_CABINET_PAR_DEFAUT,
+  horizonsCabinetPno,
   reglageParDefaut,
   selectionnerAFaire,
   type AffectationMandat,
@@ -143,6 +144,14 @@ describe('F57 — relance 30 jours avant l’échéance, réglable par le cabine
       'L1',
       'L2',
     ])
+  })
+
+  it('le réglage du cabinet (relanceJoursAvantEcheance) donne l’horizon du suivi ; valeur mal formée : erreur', () => {
+    expect(horizonsCabinetPno(REGLAGES_PNO_CABINET_PAR_DEFAUT)).toEqual(HORIZONS_CABINET_PAR_DEFAUT)
+    const reglageCabinet = { ...REGLAGES_PNO_CABINET_PAR_DEFAUT, relanceJoursAvantEcheance: 45 }
+    expect(retenus(elements(['2026-12-04', '2026-12-10']), reglageParDefaut('u1'), horizonsCabinetPno(reglageCabinet))).toEqual(['L1', 'L2'])
+    expect(() => horizonsCabinetPno({ relanceJoursAvantEcheance: -1 })).toThrow(/relance/i)
+    expect(() => horizonsCabinetPno({ relanceJoursAvantEcheance: 2.5 })).toThrow(/relance/i)
   })
 
   it('le réglage du collaborateur, s’il existe, reste prioritaire (famille ou nature, même « Maintenant » pour la nature)', () => {

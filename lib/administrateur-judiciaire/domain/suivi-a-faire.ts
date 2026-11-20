@@ -4,6 +4,7 @@ import {
   REGLAGES_PNO_CABINET_PAR_DEFAUT,
   type LotAssurancePno,
   type MotifControlePno,
+  type ReglagesPnoCabinet,
 } from '@/lib/administrateur-judiciaire/domain/assurance-pno-lots'
 import { etapeRecouvrementContentieux, type DossierContentieux } from '@/lib/administrateur-judiciaire/domain/contentieux'
 import { dateLimiteResiliation, factureEnRetard, type FacturationContrat } from '@/lib/administrateur-judiciaire/domain/contrats-facturation'
@@ -395,15 +396,25 @@ const natureCochee = (natures: readonly NatureSuivi[], nature: NatureSuivi): boo
 export type HorizonsCabinet = Readonly<Partial<Record<NatureSuivi, Horizon>>>
 
 /**
- * Décision du 20/11/2026 (partie C, F57) : l'attestation PNO à renouveler remonte 30 jours avant son échéance
- * (assurance-pno-lots.REGLAGES_PNO_CABINET_PAR_DEFAUT, valeur réglable par le cabinet). Cet horizon remplace
- * « Maintenant », horizon par défaut de tout collaborateur (reglageParDefaut), quand le collaborateur n'a choisi d'horizon
- * ni pour la nature ni pour sa famille ; un horizon qu'il a choisi, même « Maintenant » pour la nature, reste prioritaire.
- * « Maintenant » sur la famille ne se distingue pas du défaut : pour le garder, le choisir pour la nature.
+ * Horizon du cabinet tiré de son réglage PNO (F57 : relanceJoursAvantEcheance, 30 jours par défaut, réglable par le
+ * cabinet), à passer à selectionnerAFaire. Lève une erreur si le nombre de jours n'est pas un entier positif ou nul.
  */
-export const HORIZONS_CABINET_PAR_DEFAUT: HorizonsCabinet = Object.freeze({
-  pno_a_renouveler: Object.freeze({ nombre: REGLAGES_PNO_CABINET_PAR_DEFAUT.relanceJoursAvantEcheance, unite: 'jours' as const }),
-})
+export function horizonsCabinetPno({
+  relanceJoursAvantEcheance: nombre,
+}: Pick<ReglagesPnoCabinet, 'relanceJoursAvantEcheance'>): HorizonsCabinet {
+  if (!Number.isInteger(nombre) || nombre < 0)
+    throw new Error(`Relance PNO invalide (${nombre} jours avant l'échéance) : nombre entier positif ou nul attendu.`)
+  return Object.freeze({ pno_a_renouveler: Object.freeze({ nombre, unite: 'jours' as const }) })
+}
+
+/**
+ * Décision du 20/11/2026 (partie C, F57) : l'attestation PNO à renouveler remonte 30 jours avant son échéance
+ * (assurance-pno-lots.REGLAGES_PNO_CABINET_PAR_DEFAUT, valeur réglable par le cabinet : horizonsCabinetPno). Cet horizon
+ * remplace « Maintenant », horizon par défaut de tout collaborateur (reglageParDefaut), quand le collaborateur n'a choisi
+ * d'horizon ni pour la nature ni pour sa famille ; un horizon qu'il a choisi, même « Maintenant » pour la nature, reste
+ * prioritaire. « Maintenant » sur la famille ne se distingue pas du défaut : pour le garder, le choisir pour la nature.
+ */
+export const HORIZONS_CABINET_PAR_DEFAUT: HorizonsCabinet = horizonsCabinetPno(REGLAGES_PNO_CABINET_PAR_DEFAUT)
 
 const horizonDeNature = (regle: ReglageFamille, nature: NatureSuivi, horizonsCabinet: HorizonsCabinet): Horizon => {
   const propre = regle.horizonsParNature?.[nature] ?? (nature === 'a_resilier' ? regle.horizonsParNature?.limite_resiliation : undefined)
