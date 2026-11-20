@@ -654,14 +654,30 @@ interface ParametresNotification {
   borne: BorneProcesVerbal | null
 }
 
+/** Date de l'envoi : le dépôt, s'il est saisi et ne suit pas l'événement ; à défaut, l'événement (relecture du 14/11/2026). */
+function dateDeLEnvoi(dateDepot: string | null | undefined, evenement: string): string {
+  const depot = dateDepot ?? null
+  return depot !== null && depot <= evenement ? depot : evenement
+}
+
+/**
+ * Date de l'envoi d'un courrier de notification, telle que le moteur de délais la retient (evaluerNotification, J50) :
+ * le dépôt, s'il est saisi et ne suit pas l'événement (première présentation du pli, transmission de l'avis
+ * électronique) ; à défaut, l'événement. null : notification non prouvée (événement non saisi, envoi non qualifié, avis
+ * antérieur au dépôt). La case « professionnel » datée se lit à cette date (J78, décisions du 19/11/2026 :
+ * qualite-professionnelle.ts, qualiteProfessionnelleALEnvoi).
+ */
+export function dateEnvoiCourrierNotification(courrier: CourrierNotification): string | null {
+  const preuve = courrierPreuve(courrier.id, [courrier], null, null)
+  return 'motif' in preuve ? null : dateDeLEnvoi(preuve.courrier.dateDepot, preuve.evenement)
+}
+
 /** Délai d'une notification : refus (motif sans préfixe) ou calcul (J1, J50). */
 function evaluerNotification(courrierId: string | null, courriers: readonly CourrierNotification[], p: ParametresNotification): DelaiRefuse | DelaiCalcule {
   const preuve = courrierPreuve(courrierId, courriers, p.identiteId, p.borne)
   if ('motif' in preuve) return { etat: 'refuse', cause: preuve.cause, motif: preuve.motif }
   const identite = p.identiteId ?? preuve.courrier.personneId ?? null
-  // date de l'envoi : le dépôt, s'il est saisi et ne suit pas l'événement ; à défaut, l'événement (relecture du 14/11/2026)
-  const depot = preuve.courrier.dateDepot ?? null
-  const dateEnvoi = depot !== null && depot <= preuve.evenement ? depot : preuve.evenement
+  const dateEnvoi = dateDeLEnvoi(preuve.courrier.dateDepot, preuve.evenement)
   const voie = controlerVoie(preuve.mode, dateEnvoi, identite, p.professionnel, p.voie)
   if ('motif' in voie) return { etat: 'refuse', cause: voie.cause, motif: voie.motif }
   return calculerDelai(preuve.mode, preuve.evenement, voie.avertissements, p.reporterAuJourOuvrable)
