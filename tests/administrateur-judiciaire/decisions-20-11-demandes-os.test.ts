@@ -505,6 +505,35 @@ describe('F90 — avant un paiement : alerte sans blocage ; élément « à fair
     expect(() => verificationVigilanceDue({ ...MARCHE, concluLe: '15/01/2026' })).toThrow(/AAAA-MM-JJ/)
   })
 
+  it('conclusion ou attestation d’une année improbable (faute de frappe) : aucune échéance n’en part, ni erreur interne ni report de plusieurs siècles', () => {
+    // Avant : depuis une conclusion du 15/07/9999, « Date ISO invalide : « 20260-01-15 » » ; depuis 0026, vérification
+    // n° 4001 ; depuis 2525, l'élément était dû en 2525.
+    for (const concluLe of ['9999-07-15', '2525-01-15', '0026-01-15']) {
+      expect(verificationVigilanceDue({ ...MARCHE, concluLe }), concluLe).toBeNull()
+      expect(depuisVigilanceMarches([{ ...MARCHE, concluLe }]), concluLe).toEqual([])
+    }
+    // Avant : une attestation de 2525 reportait l'élément à 2525 (n° 999) ; du 10/03/9999, « Date ISO invalide » après
+    // 180 000 tours. Une attestation ainsi datée ne couvre aucune échéance : l'élément part de la conclusion.
+    for (const [attestationLe, citee] of [
+      ['2525-01-10', '10/01/2525'],
+      ['0026-01-10', '10/01/0026'],
+      ['9999-03-10', '10/03/9999'],
+      ['9999-09-10', '10/09/9999'],
+    ] as const) {
+      const due = verificationVigilanceDue({ ...MARCHE, attestationLe })
+      expect(due, attestationLe).toMatchObject({ date: '2026-07-15', rang: 1 })
+      expect(due?.justification).toContain('vérification n° 1, due le 15/07/2026 (aucune attestation retenue)')
+      expect(due?.justification).toMatch(
+        new RegExp(`F90\\)\\. Dernière attestation datée du ${citee} : année improbable \\(faute de frappe \\?\\)\\. Non retenue : corriger la date\\.$`),
+      )
+    }
+    // Bornes : 1900 et 2100 restent plausibles.
+    expect(verificationVigilanceDue({ ...MARCHE, concluLe: '1900-01-15', attestationLe: null })).toMatchObject({ date: '1900-07-15', rang: 1 })
+    expect(verificationVigilanceDue({ ...MARCHE, concluLe: '2100-01-15', attestationLe: null })).toMatchObject({ date: '2100-07-15', rang: 1 })
+    expect(verificationVigilanceDue({ ...MARCHE, attestationLe: '2100-01-10' })).toMatchObject({ date: '2100-07-15', rang: 149 })
+    expect(verificationVigilanceDue({ ...MARCHE, attestationLe: '2100-01-10' })?.justification).not.toMatch(/improbable/)
+  })
+
   it('suivi « à faire » : famille « demandes », nature « vigilance_semestrielle », assignée au collaborateur du marché', () => {
     expect(NATURES_SUIVI.demandes).toContain('vigilance_semestrielle')
     expect(LIBELLES_NATURES_SUIVI.vigilance_semestrielle).toBeTruthy()
@@ -537,6 +566,16 @@ describe('F90 — avant un paiement : alerte sans blocage ; élément « à fair
     expect(controlerAvantReglement(pieces, { date: '2026-09-01', montantHtCentimes: 600_000 }).map((a) => a.code)).not.toContain(
       'verification_semestrielle_en_retard',
     )
+    // Attestation d'une année improbable : elle ne couvre rien, le rappel part de la conclusion (avant : reporté à 2525).
+    const piecesDe2525: PiecesEntreprise = { ...pieces, attestationUrssafLe: '2525-01-10' }
+    expect(controlerAvantReglement(piecesDe2525, reglement).find((a) => a.code === 'verification_semestrielle_en_retard')?.message).toContain(
+      'élément « à faire » du 15/07/2026',
+    )
+    // Conclusion d'une année improbable : aucune échéance, aucun rappel (avant : « Date ISO invalide » depuis 9999).
+    for (const concluLe of ['9999-07-15', '0026-01-15'])
+      expect(controlerAvantReglement(pieces, { ...reglement, execution: { ...reglement.execution, concluLe } }).map((a) => a.code), concluLe).not.toContain(
+        'verification_semestrielle_en_retard',
+      )
   })
 
   it('en-têtes : l’alerte avant règlement n’est plus une question ; suivi-a-faire.ts cite la décision', () => {

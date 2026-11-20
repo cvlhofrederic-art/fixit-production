@@ -1,4 +1,11 @@
-import { ajouterMois, composerDateIso, dateIsoVersFr, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
+import {
+  ajouterMois,
+  composerDateIso,
+  dateIsoVersFr,
+  estAnneeImprobable,
+  estDateIsoValide,
+  messagePlausibilite,
+} from '@/lib/administrateur-judiciaire/domain/dates'
 import { TYPE_TRAVAUX, type TypeTravaux } from '@/lib/data/referentiels-gesteam-judiciaire'
 
 /**
@@ -79,7 +86,8 @@ import { TYPE_TRAVAUX, type TypeTravaux } from '@/lib/data/referentiels-gesteam-
  *   l'exécution d'un marché d'au moins 5 000 € HT, un élément « à faire » tous les six mois depuis la conclusion pour
  *   demander l'attestation à jour (verificationVigilanceDue ; suivi-a-faire.ts, depuisVigilanceMarches) ; l'alerte au
  *   paiement le rappelle quand il est en retard (verification_semestrielle_en_retard, ReglementAControler.execution).
- *   Marchés en cours d'exécution : enregistrement à brancher (données fournies par l'appelant).
+ *   Conclusion ou attestation d'une année improbable (dates.estAnneeImprobable, faute de frappe) : aucune échéance n'en
+ *   part, date à corriger. Marchés en cours d'exécution : enregistrement à brancher (données fournies par l'appelant).
  *
  * Gestéam — fiche entreprise, onglet Informations : RCS, TVA intracommunautaire, bouton « Contrôle déclaratif » ; R.C.
  * décennale et Responsabilité civile du … au, police, n°, compagnie (tranches 34, 37). Le marqueur « nécessaire » n'est
@@ -701,13 +709,33 @@ export interface VerificationVigilanceDue {
 
 const FONDEMENT_VERIFICATION_PERIODIQUE = 'C. trav. art. L. 8222-1, D. 8222-5'
 
+/** Attestation qui peut couvrir une échéance (F90) : null si absente, ou d'une année improbable (faute de frappe). */
+const attestationRetenue = (attestationLe: string | null): string | null =>
+  attestationLe === null || estAnneeImprobable(attestationLe) ? null : attestationLe
+
+/** Dernière attestation, telle que la justification de l'élément la cite (F90). */
+function derniereAttestation(attestationLe: string | null): string {
+  if (attestationLe === null) return 'aucune attestation remise'
+  return attestationRetenue(attestationLe) === null ? 'aucune attestation retenue' : `dernière attestation du ${dateIsoVersFr(attestationLe)}`
+}
+
+/** Justification de l'élément : attestation non retenue d'une année improbable, date à corriger (F90). */
+const suiteAttestationImprobable = (attestationLe: string | null): string =>
+  attestationLe === null || attestationRetenue(attestationLe) !== null
+    ? ''
+    : ` ${messagePlausibilite('Dernière attestation datée', attestationLe, 'annee_improbable')} Non retenue : corriger la date.`
+
 /**
  * Prochaine échéance semestrielle non couverte (F90) : six mois, douze mois… après la conclusion ; une échéance est
  * couverte par une attestation de moins de six mois à sa date (D. 8222-5), même datée après elle ; au-delà de la fin de
- * l'exécution, plus rien ; null aussi sous le seuil de vigilance (R. 8222-1).
+ * l'exécution, plus rien ; null aussi sous le seuil de vigilance (R. 8222-1). Année improbable (dates.estAnneeImprobable,
+ * faute de frappe) : aucune échéance ne part d'une telle conclusion (null), et une telle attestation ne couvre aucune
+ * échéance (attestationRetenue) ; depuis 9999, la boucle passait l'an 10000, hors du calendrier ISO.
  */
 function echeanceSemestrielle(m: Pick<MarcheEnExecution, 'concluLe' | 'finExecutionLe' | 'attestationLe'>): { date: string; rang: number } | null {
-  const validiteJusquau = m.attestationLe === null ? null : ajouterMois(m.attestationLe, VALIDITE_VIGILANCE_MOIS)
+  if (estAnneeImprobable(m.concluLe)) return null
+  const attestation = attestationRetenue(m.attestationLe)
+  const validiteJusquau = attestation === null ? null : ajouterMois(attestation, VALIDITE_VIGILANCE_MOIS)
   let rang = 1
   let date = ajouterMois(m.concluLe, VALIDITE_VIGILANCE_MOIS)
   while (validiteJusquau !== null && date < validiteJusquau) {
@@ -728,7 +756,9 @@ function verifierMarche(m: Pick<MarcheEnExecution, 'concluLe' | 'finExecutionLe'
  * Décision du 20/11/2026 (partie C, F90) : pendant l'exécution d'un marché d'au moins 5 000 € HT, un élément « à faire »
  * tous les six mois depuis la conclusion, pour demander l'attestation de vigilance à jour (C. trav. art. L. 8222-1 :
  * « périodiquement jusqu'à la fin de l'exécution du contrat » ; D. 8222-5 : tous les six mois) ; null sous le seuil ou
- * après la fin de l'exécution. Branché au suivi par depuisVigilanceMarches (suivi-a-faire.ts).
+ * après la fin de l'exécution. Branché au suivi par depuisVigilanceMarches (suivi-a-faire.ts). Conclusion d'une année
+ * improbable (faute de frappe) : null, aucune échéance n'en part ; attestation d'une année improbable : non retenue, la
+ * justification la cite, date à corriger.
  */
 export function verificationVigilanceDue(m: MarcheEnExecution): VerificationVigilanceDue | null {
   verifierMarche(m)
@@ -737,7 +767,6 @@ export function verificationVigilanceDue(m: MarcheEnExecution): VerificationVigi
   if (m.montantHtCentimes < SEUIL_VIGILANCE_HT_CENTIMES) return null
   const echeance = echeanceSemestrielle(m)
   if (echeance === null) return null
-  const derniere = m.attestationLe === null ? 'aucune attestation remise' : `dernière attestation du ${dateIsoVersFr(m.attestationLe)}`
   return {
     id: `vigilance:semestrielle:${m.id}`,
     marcheId: m.id,
@@ -746,7 +775,7 @@ export function verificationVigilanceDue(m: MarcheEnExecution): VerificationVigi
     date: echeance.date,
     rang: echeance.rang,
     assigneId: m.assigneId ?? null,
-    justification: `Marché conclu le ${dateIsoVersFr(m.concluLe)}, en cours d'exécution : vérification n° ${echeance.rang}, due le ${dateIsoVersFr(echeance.date)} (${derniere}) ; vigilance « périodiquement jusqu'à la fin de l'exécution du contrat », tous les six mois (${FONDEMENT_VERIFICATION_PERIODIQUE}) — Décision du 20/11/2026 (partie C, F90).`,
+    justification: `Marché conclu le ${dateIsoVersFr(m.concluLe)}, en cours d'exécution : vérification n° ${echeance.rang}, due le ${dateIsoVersFr(echeance.date)} (${derniereAttestation(m.attestationLe)}) ; vigilance « périodiquement jusqu'à la fin de l'exécution du contrat », tous les six mois (${FONDEMENT_VERIFICATION_PERIODIQUE}) — Décision du 20/11/2026 (partie C, F90).${suiteAttestationImprobable(m.attestationLe)}`,
   }
 }
 
