@@ -38,6 +38,14 @@ import type { ModeReglement } from '@/lib/data/referentiels-gesteam-judiciaire'
  * « Bon à payer » repartirait au prochain ordre vers les mêmes coordonnées ; faut-il un nouveau bon à payer, ou un
  * contrôle de l'IBAN avant de la reprendre ? Les validations du bon à payer (paiement-fournisseurs.ts), qui portent sur le
  * même montant, restent acquises ici.
+ *
+ * Décisions du 20/11/2026 (partie C des questions ouvertes du code, recommandations acceptées) :
+ * - Décision du 20/11/2026 (partie C, F71) : la facture d'une intervention « Contestée » s'enregistre (demandes.ts,
+ *   alertesRattachementFacture), mais son bon à payer est refusé tant que la contestation n'est pas levée
+ *   (FactureAPayer.interventionContestee, tirée des demandes par contestationDeLaFacture ; delivrerBap de
+ *   paiement-fournisseurs.ts passe par changerStatutReglement) ; une facture déjà « Bon à payer » quand l'intervention
+ *   est contestée n'entre dans aucun ordre (motif « intervention_contestee ») : payer ferait perdre au syndicat son moyen
+ *   de pression.
  */
 
 export const STATUTS_SAISIE_FACTURE = ['Pré-saisie', 'En saisie', 'Enregistrée', 'Rgt. partiel', 'Réglée', 'Non réglée'] as const
@@ -108,6 +116,11 @@ export interface FactureAPayer {
   acompteCentimes?: number
   /** Virements rejetés ou retournés qui la réglaient (J9), du plus ancien au plus récent ; absent : aucun. */
   rejets?: RejetReglementFacture[]
+  /**
+   * Intervention contestée de la demande qui porte la facture (Décision du 20/11/2026, partie C, F71 ;
+   * demandes.contestationDeLaFacture) : ni bon à payer ni nouvel ordre tant qu'elle n'est pas levée ; absent ou null : aucune.
+   */
+  interventionContestee?: { demandeId: string } | null
 }
 
 /** Rejet ou retour, après émission, d'un virement qui réglait la facture (J9). */
@@ -147,9 +160,26 @@ function controlerSortieOrdre(facture: FactureAPayer, nouveau: StatutReglementFa
     throw new Error(`Facture ${facture.id} : son ordre n'est pas émis, elle ne peut pas être réputée payée.`)
 }
 
+/** Statuts qui avancent vers le paiement : bon à payer, acompte à régler, entrée dans un ordre. */
+const VERS_LE_PAIEMENT: ReadonlySet<StatutReglementFacture> = new Set(['Bon à payer', 'Acompte à régler', 'En règlement'])
+
 /**
- * Change le statut de règlement ; le bon à payer (ou l'acompte à régler) exige une facture enregistrée et comptabilisée.
- * Pour une facture « En règlement », le statut de l'ordre qui la porte est requis. Renvoie une copie.
+ * Décision du 20/11/2026 (partie C, F71) : intervention contestée, ni bon à payer ni nouvel ordre tant que la
+ * contestation n'est pas levée ; la sortie d'un ordre non émis reste possible.
+ */
+function verifierSansContestation(facture: FactureAPayer, nouveau: StatutReglementFacture): void {
+  const contestation = facture.interventionContestee ?? null
+  if (contestation === null || !VERS_LE_PAIEMENT.has(nouveau) || facture.statutReglement === 'En règlement') return
+  const quoi = nouveau === 'En règlement' ? 'Ordre de virement refusé' : 'Bon à payer refusé'
+  throw new Error(
+    `${quoi} : l'intervention de la demande ${contestation.demandeId} est contestée (facture ${facture.id}) ; lever la contestation d'abord (stade suivant, avec un motif) — Décision du 20/11/2026 (partie C, F71).`,
+  )
+}
+
+/**
+ * Change le statut de règlement ; le bon à payer (ou l'acompte à régler) exige une facture enregistrée et comptabilisée,
+ * et sans intervention contestée (Décision du 20/11/2026, partie C, F71), comme l'entrée dans un ordre. Pour une facture
+ * « En règlement », le statut de l'ordre qui la porte est requis. Renvoie une copie.
  */
 export function changerStatutReglement<F extends FactureAPayer>(
   facture: F,
@@ -159,6 +189,7 @@ export function changerStatutReglement<F extends FactureAPayer>(
   if (!TRANSITIONS[facture.statutReglement].includes(nouveau))
     throw new Error(`Transition refusée : « ${facture.statutReglement} » → « ${nouveau} ».`)
   controlerSortieOrdre(facture, nouveau, ordre)
+  verifierSansContestation(facture, nouveau)
   if (nouveau === 'Bon à payer' || nouveau === 'Acompte à régler') {
     if (!STATUTS_SAISIE_PAYABLES.has(facture.statutSaisie))
       throw new Error(`Bon à payer refusé : la facture ${facture.id} n'est pas enregistrée (${facture.statutSaisie}).`)
@@ -235,6 +266,8 @@ export type MotifEcart =
   | 'compte_payeur_absent'
   /** Bon à payer sans le nombre de validations requis pour le montant à régler (paiement-fournisseurs.ts). */
   | 'bon_a_payer_incomplet'
+  /** Intervention contestée de la demande qui porte la facture (Décision du 20/11/2026, partie C, F71). */
+  | 'intervention_contestee'
 
 export interface SelectionOrdre<F extends FactureAPayer = FactureAPayer> {
   retenues: F[]
@@ -252,12 +285,23 @@ export const montantARegler = (facture: FactureAPayer): number =>
     ? Math.min(facture.acompteCentimes ?? 0, facture.resteDuCentimes)
     : facture.resteDuCentimes
 
-/** Premier motif qui empêche la facture de partir dans un ordre de virement daté `date`, ou null. */
-function motifEcart(facture: FactureAPayer, date: string): MotifEcart | null {
+/**
+ * Motif tiré du circuit de la facture : mode, bon à payer, intervention contestée (Décision du 20/11/2026, partie C, F71),
+ * comptabilisation et saisie ; null s'il n'y en a pas.
+ */
+function motifCircuit(facture: FactureAPayer): MotifEcart | null {
   if (facture.mode !== 'Virement') return 'mode'
   if (!STATUTS_REGLEMENT_SELECTIONNABLES.has(facture.statutReglement)) return 'pas_de_bon_a_payer'
+  if ((facture.interventionContestee ?? null) !== null) return 'intervention_contestee'
   if (!facture.comptabilisee) return 'non_comptabilisee'
   if (!STATUTS_SAISIE_PAYABLES.has(facture.statutSaisie)) return 'non_enregistree'
+  return null
+}
+
+/** Premier motif qui empêche la facture de partir dans un ordre de virement daté `date`, ou null. */
+function motifEcart(facture: FactureAPayer, date: string): MotifEcart | null {
+  const circuit = motifCircuit(facture)
+  if (circuit !== null) return circuit
   if (!estDateIsoValide(facture.echeance) || !Number.isInteger(facture.resteDuCentimes)) return 'donnee_invalide'
   const priorite = PRIORITES_REGLEMENT.get(facture.priorite)
   if (!priorite) return 'priorite_inconnue'
