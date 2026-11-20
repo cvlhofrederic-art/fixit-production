@@ -33,6 +33,9 @@ const monter = (initialData?: unknown, artisan: ArtisanBasic = SOCIETE_PT) => re
   <DevisFactureFormBTP artisan={artisan} services={[]} bookings={[]} onBack={vi.fn()} initialData={initialData as never} />,
 )
 
+/** Valeur du champ « Couverture géographique » (repéré par son exemple : « Portugal continental » sur /pt). */
+const couvertureAffichee = (exemple: string) => (screen.getByPlaceholderText(exemple) as HTMLInputElement).value
+
 /** Textes visibles et attributs lus par l'utilisateur (placeholder, title, aria-label, alt). */
 function textesAffiches(racine: HTMLElement): string[] {
   const textes: string[] = []
@@ -142,7 +145,7 @@ describe('création de devis en portugais', () => {
     expect((screen.getByRole('option', { name: 'Portugal' }) as HTMLOptionElement).selected).toBe(true)
   })
 
-  it('document déjà enregistré : ses valeurs restent telles quelles, brouillon réenregistré sans changement', async () => {
+  it('document déjà enregistré : ses valeurs restent telles quelles, sauf l\'EI et la couverture française de la société portugaise', async () => {
     const brouillon = {
       id: '6f1c2a34-0000-4000-8000-00000000f001', savedAt: '2026-11-17T10:00:00.000Z', docNumber: '', status: 'brouillon',
       docType: 'devis', companyStatus: 'Entreprise Individuelle (EI)', clientName: 'Cliente Teste',
@@ -153,14 +156,56 @@ describe('création de devis en portugais', () => {
       materialLines: [], fraisLines: [],
     }
     monter(brouillon)
-    expect(screen.getByDisplayValue('Entreprise Individuelle (EI)')).toBeDisabled()
+    expect(screen.getByDisplayValue(LDA)).toBeDisabled()
+    expect(couvertureAffichee('Portugal continental')).toBe('Portugal continental')
     expect(screen.getByDisplayValue("3 × taux d'intérêt légal en vigueur")).toBeInTheDocument()
     expect(screen.getByDisplayValue("Main d'œuvre")).toBeInTheDocument()
     await waitFor(() => expect(JSON.parse(localStorage.getItem(`fixit_drafts_${SOCIETE_PT.id}`) || '[]')).toHaveLength(1), { timeout: 5000 })
     const [enregistre] = JSON.parse(localStorage.getItem(`fixit_drafts_${SOCIETE_PT.id}`) || '[]')
-    for (const cle of ['companyStatus', 'penaltyRate', 'recoveryFee', 'insuranceCoverage', 'linesName', 'clientCountry', 'clientAddress'] as const) {
+    for (const cle of ['penaltyRate', 'recoveryFee', 'linesName', 'clientCountry', 'clientAddress'] as const) {
       expect(enregistre[cle], cle).toBe(brouillon[cle])
     }
+    expect(enregistre.companyStatus).toBe(LDA)
+    expect(enregistre.insuranceCoverage).toBe('Portugal continental')
+  })
+
+  // Demande de Frédéric du 20/11/2026 : « nos antigos orçamentos quando clico em abrir orçamento continua aparecer EI ».
+  // Orçamento émis le 17/11 avant le correctif des formes portugaises, fiche complétée ensuite (assureur portugais).
+  it('ancien orçamento émis en EI : forme portugaise et assurance de la fiche, jamais « France metropolitaine »', () => {
+    const orcamento = {
+      id: '6f1c2a34-0000-4000-8000-00000000f0a1', savedAt: '2026-11-17T19:00:00.000Z', sentAt: '2026-11-17T19:00:00.000Z',
+      docNumber: 'DEV-2026-001', status: 'sent', docType: 'devis', companyStatus: 'Entreprise Individuelle (EI)',
+      insuranceType: 'rc_pro', insuranceName: '', insuranceNumber: '', insuranceCoverage: 'France metropolitaine',
+      clientName: 'Cliente Teste', clientCountry: 'Portugal',
+      lines: [{ id: 1, description: 'Limpeza de telhado', qty: 1, unit: 'f', priceHT: 900, tvaRate: 23, totalHT: 900 }],
+      materialLines: [], fraisLines: [],
+    }
+    const ficheComplete = {
+      ...SOCIETE_PT, insurance_type: 'rc_pro', insurance_name: 'Seguradora Exemplo', insurance_number: 'RC-2026-000123', insurance_coverage: 'Portugal',
+    } as ArtisanBasic
+    const { container } = monter(orcamento, ficheComplete)
+    expect(screen.getByDisplayValue(LDA)).toBeDisabled()
+    expect(couvertureAffichee('Portugal continental')).toBe('Portugal')
+    expect(screen.getByDisplayValue('Seguradora Exemplo')).toBeInTheDocument()
+    const mentions = container.querySelector('.dv-mentions')?.textContent || ''
+    expect(mentions).toContain(`${LDA} com capital social de`)
+    expect(mentions).toContain('Seguradora Exemplo, apólice n° RC-2026-000123, cobertura Portugal.')
+    expect(container.textContent).not.toContain('Entreprise Individuelle')
+    expect(container.textContent).not.toContain('Empresário em Nome Individual')
+    expect(container.textContent).not.toMatch(/France m[ée]tropolitaine/i)
+  })
+
+  it('société française : un ancien devis en EI et « France métropolitaine » reste tel quel', () => {
+    langue.locale = 'fr'
+    const societeFr = { id: 'art-btp-fr', company_name: 'BATI SUD', email: 'contact@exemple.fr', legal_form: 'SAS',
+      insurance_name: 'SMABTP', insurance_number: 'RC-1', insurance_coverage: 'France entière' } as ArtisanBasic
+    monter({
+      id: '6f1c2a34-0000-4000-8000-00000000f0fr', savedAt: '2026-11-08T10:00:00.000Z', docNumber: 'DEV-2026-010', status: 'sent',
+      docType: 'devis', companyStatus: 'Entreprise Individuelle (EI)', insuranceCoverage: 'France métropolitaine', clientName: 'M. Client',
+      lines: [{ id: 1, description: 'Ravalement', qty: 1, unit: 'f', priceHT: 900, tvaRate: 10, totalHT: 900 }], materialLines: [], fraisLines: [],
+    }, societeFr)
+    expect(screen.getByDisplayValue('Entreprise Individuelle (EI)')).toBeDisabled()
+    expect(couvertureAffichee('France métropolitaine')).toBe('France métropolitaine')
   })
 
   // Relecture adverse du 17/11/2026 : l'adresse se recompose à l'ouverture et part dans la sauvegarde automatique ;

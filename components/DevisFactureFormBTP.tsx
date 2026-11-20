@@ -29,7 +29,7 @@ import {
 } from '@/lib/devis-types'
 import { titleCaseAddress, stableDocId, isStableDocId } from '@/lib/devis-utils'
 import { ID_TABLE_ACOMPTES_DEDUITS } from '@/lib/facture-depuis-devis'
-import { codeStatutJuridiqueBtp, mentionIdentificationBtp, statutAvecCapitalSocial, statutJuridiqueInitialBtp, statutPortugais } from '@/lib/statut-juridique-btp'
+import { codeStatutJuridiqueBtp, couvertureAssuranceBtp, mentionIdentificationBtp, statutAvecCapitalSocial, statutJuridiqueInitialBtp, statutPortugais } from '@/lib/statut-juridique-btp'
 import { estClientProfessionnel, formaterImmatriculationRcs, ligneTvaHorsClassique } from '@/lib/devis-btp-affichage'
 import { fmtQty, fmtN, fmtN4 } from '@/lib/devis-format'
 import { svgToImageDataUrl } from '@/lib/signature-canvas'
@@ -282,7 +282,8 @@ export default function DevisFactureFormBTP({
   const [docTitle, setDocTitle] = useState(initialData?.docTitle || '')
 
   // Entreprise
-  // Champ verrouillé, « défini à l'inscription » : forme du profil, sauf document déjà émis (figée avec lui)
+  // Champ verrouillé, « défini à l'inscription » : forme du profil, sauf document déjà enregistré (figée avec lui ;
+  // une société portugaise ne garde jamais l'EI de ses premiers documents : statutJuridiqueDocumentBtp)
   const [statutJuridique, setStatutJuridique] = useState(() =>
     statutJuridiqueInitialBtp(initialData, artisan?.legal_form))
   const [companyName, setCompanyName] = useState(initialData?.companyName || artisan?.company_name || '')
@@ -383,15 +384,18 @@ export default function DevisFactureFormBTP({
     return ''
   })
   const [insuranceCoverage, setInsuranceCoverage] = useState(() => {
-    if (initialData?.insuranceCoverage) return initialData.insuranceCoverage
-    if (_artA?.insurance_coverage) return _artA.insurance_coverage
+    // Société portugaise : « France métropolitaine » (défaut de la fiche, recopié dans ses documents) n'est jamais
+    // sa couverture, la source suivante est lue (couvertureAssuranceBtp) ; société française : comme avant.
+    const couverture = (saisie?: string | null) => couvertureAssuranceBtp(saisie, artisan?.legal_form)
+    if (couverture(initialData?.insuranceCoverage)) return couverture(initialData?.insuranceCoverage)
+    if (couverture(_artA?.insurance_coverage)) return couverture(_artA?.insurance_coverage)
     try {
       const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
       const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
-      const last = [...docs, ...drafts].find((d: { insuranceCoverage?: string }) => d.insuranceCoverage)
+      const last = [...docs, ...drafts].find((d: { insuranceCoverage?: string }) => couverture(d.insuranceCoverage))
       if (last?.insuranceCoverage) return last.insuranceCoverage
     } catch { /* ignore */ }
-    return locale === 'pt' ? 'Portugal continental' : 'France métropolitaine'
+    return locale === 'pt' || statutPortugais(artisan?.legal_form) ? 'Portugal continental' : 'France métropolitaine'
   })
   const [mediatorName, setMediatorName] = useState(() => {
     if (initialData?.mediatorName) return initialData.mediatorName
