@@ -265,10 +265,14 @@ describe('statuts — retour de la facture après un virement rejeté ou retourn
     })
   })
 
-  it('la facture revenue est reprise par la sélection d’un nouvel ordre de virement', () => {
-    const revenue = retourFactureApresRejet(reglee, REJET, TOTAL)
-    const selection = selectionnerFacturesAPayer([revenue], { date: '2026-11-04', soldeDisponibleCentimes: 100_000 })
+  it('la facture revenue est reprise par la sélection d’un nouvel ordre de virement ; après un rejet pour coordonnées, pas avant que l’IBAN soit vérifié (Décision du 20/11/2026, partie C, F92)', () => {
+    const autreMotif = retourFactureApresRejet(reglee, { ...REJET, motif: 'AM04 — provision insuffisante' }, TOTAL)
+    const selection = selectionnerFacturesAPayer([autreMotif], { date: '2026-11-04', soldeDisponibleCentimes: 100_000 })
     expect(selection.montants).toEqual([{ factureId: 'a', montantCentimes: 10_000 }])
+    const compteClos = retourFactureApresRejet(reglee, REJET, TOTAL)
+    expect(selectionnerFacturesAPayer([compteClos], { date: '2026-11-04', soldeDisponibleCentimes: 100_000 }).ecartees).toEqual([
+      { factureId: 'a', motif: 'iban_a_confirmer' },
+    ])
   })
 
   it('double rejet d’un même règlement refusé ; deux règlements successifs rejetés : les deux rejets gardés', () => {

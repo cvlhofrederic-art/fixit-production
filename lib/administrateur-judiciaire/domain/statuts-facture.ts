@@ -1,3 +1,4 @@
+import { validerIban } from '@/lib/administrateur-judiciaire/domain/comptes-bancaires'
 import { estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
 import type { StatutOrdre } from '@/lib/administrateur-judiciaire/domain/ordres-banque'
 import type { ModeReglement } from '@/lib/data/referentiels-gesteam-judiciaire'
@@ -34,10 +35,6 @@ import type { ModeReglement } from '@/lib/data/referentiels-gesteam-judiciaire'
  * - une facture qui a déjà repris un cycle de règlement (bon à payer, acompte à régler, en règlement) est refusée : le
  *   cycle en cours est à défaire d'abord ; le montant rejeté ne dépasse jamais ce qui est réglé ; un même règlement ne se
  *   rejette qu'une fois, deux règlements successifs rejetés laissent deux rejets.
- * 🔴 Non établi pour J9 : après un rejet pour coordonnées bancaires (compte clos, IBAN erroné), la facture revenue
- * « Bon à payer » repartirait au prochain ordre vers les mêmes coordonnées ; faut-il un nouveau bon à payer, ou un
- * contrôle de l'IBAN avant de la reprendre ? Les validations du bon à payer (paiement-fournisseurs.ts), qui portent sur le
- * même montant, restent acquises ici.
  *
  * Décisions du 20/11/2026 (partie C des questions ouvertes du code, recommandations acceptées) :
  * - Décision du 20/11/2026 (partie C, F71) : la facture d'une intervention « Contestée » s'enregistre (demandes.ts,
@@ -45,7 +42,18 @@ import type { ModeReglement } from '@/lib/data/referentiels-gesteam-judiciaire'
  *   (FactureAPayer.interventionContestee, tirée des demandes par contestationDeLaFacture ; delivrerBap de
  *   paiement-fournisseurs.ts passe par changerStatutReglement) ; une facture déjà « Bon à payer » quand l'intervention
  *   est contestée n'entre dans aucun ordre (motif « intervention_contestee ») : payer ferait perdre au syndicat son moyen
- *   de pression.
+ *   de pression ;
+ * - Décision du 20/11/2026 (partie C, F84) : après l'action « Annuler le règlement » (reglements-fournisseurs.ts,
+ *   annulerReglement : motif obligatoire, écriture contraire, règlement « Annulé »), la facture revient à son état d'avant
+ *   le paiement, « Bon à payer » ou « Acompte à régler », avec le motif (retourFactureApresAnnulation, même circuit que
+ *   J9) ; elle se paie ensuite par un nouveau règlement. Le délai de validité d'un chèque n'est pas calculé (non vérifié) ;
+ * - Décision du 20/11/2026 (partie C, F92) : après un rejet pour coordonnées (compte clos, IBAN faux, titulaire inconnu :
+ *   categorieRejet, catégorie saisie ou déduite du motif), la facture revient « Bon à payer » mais n'entre dans aucun
+ *   nouvel ordre tant que l'IBAN n'est pas changé ou confirmé (motif « iban_a_confirmer ») : renvoyer vers un compte clos
+ *   échouerait encore, et un changement d'IBAN est le moment classique des fraudes au faux fournisseur. La confirmation est
+ *   faite par une autre personne que celle qui a saisi l'IBAN, avec sa source (courrier de l'entreprise, RIB), et tracée
+ *   (verifierIbanApresRejet) ; les autres motifs de rejet suivent J9 sans changement ; les validations du bon à payer
+ *   (paiement-fournisseurs.ts), qui portent sur le même montant, restent acquises.
  */
 
 export const STATUTS_SAISIE_FACTURE = ['Pré-saisie', 'En saisie', 'Enregistrée', 'Rgt. partiel', 'Réglée', 'Non réglée'] as const
@@ -121,6 +129,10 @@ export interface FactureAPayer {
    * demandes.contestationDeLaFacture) : ni bon à payer ni nouvel ordre tant qu'elle n'est pas levée ; absent ou null : aucune.
    */
   interventionContestee?: { demandeId: string } | null
+  /** Règlements annulés qui la réglaient (Décision du 20/11/2026, partie C, F84), du plus ancien au plus récent ; absent : aucun. */
+  annulations?: AnnulationReglementFacture[]
+  /** IBAN changés ou confirmés après un rejet pour coordonnées (Décision du 20/11/2026, partie C, F92) ; absent : aucun. */
+  verificationsIban?: VerificationIban[]
 }
 
 /** Rejet ou retour, après émission, d'un virement qui réglait la facture (J9). */
@@ -133,6 +145,8 @@ export interface RejetReglementFacture {
   motif: string
   /** Montant du règlement rejeté, en centimes. */
   montantCentimes: number
+  /** Coordonnées bancaires en cause, ou autre motif (F92) ; absent : déduit du motif (categorieRejet). */
+  categorie?: CategorieRejet
 }
 
 /** Transitions admises du statut de règlement (🔵 déduites). */
@@ -177,6 +191,19 @@ function verifierSansContestation(facture: FactureAPayer, nouveau: StatutRegleme
 }
 
 /**
+ * Décision du 20/11/2026 (partie C, F92) : après un rejet pour coordonnées, la facture revenue « Bon à payer » n'entre
+ * dans aucun nouvel ordre tant que l'IBAN n'est pas changé ou confirmé (verifierIbanApresRejet).
+ */
+function verifierIbanPourOrdre(facture: FactureAPayer, nouveau: StatutReglementFacture): void {
+  if (nouveau !== 'En règlement') return
+  const rejet = ibanAVerifier(facture)
+  if (rejet === null) return
+  throw new Error(
+    `Ordre de virement refusé : facture ${facture.id} revenue après un rejet pour coordonnées du ${rejet.le} (${rejet.motif}) ; IBAN à changer ou confirmer par une autre personne que celle qui l'a saisi, avec sa source — Décision du 20/11/2026 (partie C, F92).`,
+  )
+}
+
+/**
  * Change le statut de règlement ; le bon à payer (ou l'acompte à régler) exige une facture enregistrée et comptabilisée,
  * et sans intervention contestée (Décision du 20/11/2026, partie C, F71), comme l'entrée dans un ordre. Pour une facture
  * « En règlement », le statut de l'ordre qui la porte est requis. Renvoie une copie.
@@ -190,6 +217,7 @@ export function changerStatutReglement<F extends FactureAPayer>(
     throw new Error(`Transition refusée : « ${facture.statutReglement} » → « ${nouveau} ».`)
   controlerSortieOrdre(facture, nouveau, ordre)
   verifierSansContestation(facture, nouveau)
+  verifierIbanPourOrdre(facture, nouveau)
   if (nouveau === 'Bon à payer' || nouveau === 'Acompte à régler') {
     if (!STATUTS_SAISIE_PAYABLES.has(facture.statutSaisie))
       throw new Error(`Bon à payer refusé : la facture ${facture.id} n'est pas enregistrée (${facture.statutSaisie}).`)
@@ -228,24 +256,182 @@ export function retourFactureApresRejet<F extends FactureAPayer>(
   { totalTtcCentimes }: { totalTtcCentimes: number },
 ): F {
   verifierRejet(facture, rejet)
+  return {
+    ...facture,
+    ...etatAvantPaiement(facture, rejet.montantCentimes, totalTtcCentimes, { evenement: 'le rejet', libelle: 'Rejet' }),
+    rejets: [...(facture.rejets ?? []), { ...rejet, reglementId: rejet.reglementId.trim(), motif: rejet.motif.trim() }],
+  }
+}
+
+/**
+ * État d'avant le paiement (J9 ; aussi Décision du 20/11/2026, partie C, F84) : « Réglée » revient « Bon à payer »,
+ * « En attente » revient « Acompte à régler » pour le montant ; le montant redevient dû, le statut de saisie suit.
+ */
+function etatAvantPaiement(
+  facture: FactureAPayer,
+  montantCentimes: number,
+  totalTtcCentimes: number,
+  { evenement, libelle }: { evenement: string; libelle: string },
+): Pick<FactureAPayer, 'statutReglement' | 'statutSaisie' | 'resteDuCentimes' | 'acompteCentimes'> {
   const retour = RETOUR_APRES_REJET[facture.statutReglement]
   if (!retour)
     throw new Error(
-      `Facture ${facture.id} « ${facture.statutReglement} » : un nouveau cycle de règlement est en cours ; le défaire avant d'enregistrer le rejet.`,
+      `Facture ${facture.id} « ${facture.statutReglement} » : un nouveau cycle de règlement est en cours ; le défaire avant d'enregistrer ${evenement}.`,
     )
   if (!Number.isInteger(totalTtcCentimes) || totalTtcCentimes < facture.resteDuCentimes)
     throw new Error(`Total de la facture ${facture.id} invalide (${totalTtcCentimes}) : centimes entiers, au moins le reste dû (${facture.resteDuCentimes}).`)
   const regleCentimes = totalTtcCentimes - facture.resteDuCentimes
-  if (rejet.montantCentimes > regleCentimes)
-    throw new Error(`Rejet de ${rejet.montantCentimes} centimes : plus que le réglé de la facture ${facture.id} (${regleCentimes} centimes).`)
+  if (montantCentimes > regleCentimes)
+    throw new Error(`${libelle} de ${montantCentimes} centimes : plus que le réglé de la facture ${facture.id} (${regleCentimes} centimes).`)
+  return {
+    statutReglement: retour,
+    statutSaisie: statutSaisieApresReglement(totalTtcCentimes, regleCentimes - montantCentimes),
+    resteDuCentimes: facture.resteDuCentimes + montantCentimes,
+    ...(retour === 'Acompte à régler' ? { acompteCentimes: montantCentimes } : {}),
+  }
+}
+
+// ─── Annulation d'un règlement autre qu'un virement rejeté (Décision du 20/11/2026, partie C, F84) ─────
+
+/** Libellé de l'action décidée (F84) : une seule action pour tout règlement payé autre qu'un virement rejeté. */
+export const LIBELLE_ACTION_ANNULER_REGLEMENT = 'Annuler le règlement'
+
+/** Motifs de l'action « Annuler le règlement » (F84) ; le délai de validité d'un chèque n'est pas calculé (non vérifié). */
+export const MOTIFS_ANNULATION_REGLEMENT = ['cheque_perdu', 'opposition', 'cheque_jamais_encaisse', 'prelevement_conteste', 'erreur_ecriture'] as const
+export type MotifAnnulationReglement = (typeof MOTIFS_ANNULATION_REGLEMENT)[number]
+
+/** Libellés des motifs, tels que la décision les nomme (F84). */
+export const LIBELLES_MOTIF_ANNULATION_REGLEMENT: Readonly<Record<MotifAnnulationReglement, string>> = {
+  cheque_perdu: 'Chèque perdu',
+  opposition: 'Opposition',
+  cheque_jamais_encaisse: 'Chèque jamais encaissé',
+  prelevement_conteste: 'Prélèvement contesté',
+  erreur_ecriture: "Erreur d'écriture",
+}
+
+/** Annulation d'un règlement qui réglait la facture (F84 ; reglements-fournisseurs.ts, annulerReglement). */
+export interface AnnulationReglementFacture {
+  reglementId: string
+  /** Date de l'annulation. */
+  le: string
+  motif: MotifAnnulationReglement
+  montantCentimes: number
+}
+
+export function verifierMotifAnnulation(motif: string): void {
+  if (!(MOTIFS_ANNULATION_REGLEMENT as readonly string[]).includes(motif))
+    throw new Error(`Motif d'annulation « ${motif} » : ${MOTIFS_ANNULATION_REGLEMENT.join(', ')} attendu (Décision du 20/11/2026, partie C, F84).`)
+}
+
+function verifierAnnulation(facture: FactureAPayer, annulation: AnnulationReglementFacture): void {
+  if (!annulation.reglementId.trim()) throw new Error(`Facture ${facture.id} : le règlement annulé est attendu.`)
+  if (!estDateIsoValide(annulation.le)) throw new Error(`Date de l'annulation invalide (${annulation.le}) : AAAA-MM-JJ attendu.`)
+  verifierMotifAnnulation(annulation.motif)
+  if (!Number.isInteger(annulation.montantCentimes) || annulation.montantCentimes <= 0)
+    throw new Error(`Montant annulé invalide (${annulation.montantCentimes}) : centimes entiers strictement positifs attendus.`)
+  const id = annulation.reglementId.trim()
+  if (facture.annulations?.some((a) => a.reglementId === id) || facture.rejets?.some((r) => r.reglementId === id))
+    throw new Error(`Facture ${facture.id} : règlement ${id} déjà annulé ou rejeté ; une annulation ne s'enregistre qu'une fois.`)
+}
+
+/**
+ * Décision du 20/11/2026 (partie C, F84) : après « Annuler le règlement » (chèque perdu, opposition, chèque jamais
+ * encaissé, prélèvement contesté, erreur d'écriture), la facture revient à son état d'avant le paiement (« Bon à payer »,
+ * ou « Acompte à régler »), avec le motif (annulations) ; elle se paie ensuite par un nouveau règlement. Mêmes contrôles
+ * que le retour après un rejet (J9). Renvoie une copie.
+ */
+export function retourFactureApresAnnulation<F extends FactureAPayer>(
+  facture: F,
+  annulation: AnnulationReglementFacture,
+  { totalTtcCentimes }: { totalTtcCentimes: number },
+): F {
+  verifierAnnulation(facture, annulation)
   return {
     ...facture,
-    statutReglement: retour,
-    statutSaisie: statutSaisieApresReglement(totalTtcCentimes, regleCentimes - rejet.montantCentimes),
-    resteDuCentimes: facture.resteDuCentimes + rejet.montantCentimes,
-    ...(retour === 'Acompte à régler' ? { acompteCentimes: rejet.montantCentimes } : {}),
-    rejets: [...(facture.rejets ?? []), { ...rejet, reglementId: rejet.reglementId.trim(), motif: rejet.motif.trim() }],
+    ...etatAvantPaiement(facture, annulation.montantCentimes, totalTtcCentimes, { evenement: "l'annulation", libelle: 'Annulation' }),
+    annulations: [...(facture.annulations ?? []), { ...annulation, reglementId: annulation.reglementId.trim() }],
   }
+}
+
+// ─── IBAN après un rejet pour coordonnées (Décision du 20/11/2026, partie C, F92) ────────────
+
+export const CATEGORIES_REJET = ['coordonnees', 'autre'] as const
+export type CategorieRejet = (typeof CATEGORIES_REJET)[number]
+
+/**
+ * Motif qui porte sur les coordonnées bancaires (compte clos, IBAN faux, titulaire inconnu…), lu dans le texte de la
+ * banque, ou code de motif SEPA d'un retour sur les coordonnées (🔵 déduit) : AC01 (n° de compte incorrect), AC04 (compte
+ * clos), AC06 (compte bloqué), BE01 (titulaire différent), RC01 (BIC incorrect).
+ */
+const MOTIF_COORDONNEES = /compte\s+(clos|cl[oô]tur|ferm|inconnu|bloqu)|\biban\b|\bbic\b|titulaire|coordonn|\b(AC01|AC04|AC06|BE01|RC01)\b/i
+
+/** Catégorie du rejet : celle saisie, sinon déduite du motif (F92) ; les autres motifs suivent J9 sans changement. */
+export const categorieRejet = (rejet: Pick<RejetReglementFacture, 'motif' | 'categorie'>): CategorieRejet =>
+  rejet.categorie ?? (MOTIF_COORDONNEES.test(rejet.motif) ? 'coordonnees' : 'autre')
+
+export const SOURCES_VERIFICATION_IBAN = ['courrier_entreprise', 'rib'] as const
+export type SourceVerificationIban = (typeof SOURCES_VERIFICATION_IBAN)[number]
+
+/** Libellés des sources de la confirmation, tels que la décision les nomme (F92). */
+export const LIBELLES_SOURCE_VERIFICATION_IBAN: Readonly<Record<SourceVerificationIban, string>> = {
+  courrier_entreprise: "Courrier de l'entreprise",
+  rib: 'RIB',
+}
+
+/** IBAN changé ou confirmé après un rejet pour coordonnées, à quatre yeux, avec sa source (F92). */
+export interface VerificationIban {
+  nature: 'changement' | 'confirmation'
+  iban: string
+  /** Collaborateur qui a saisi l'IBAN. */
+  saisiPar: string
+  /** Collaborateur qui confirme : une autre personne. */
+  confirmePar: string
+  source: SourceVerificationIban
+  /** Pièce de la source (courrier de l'entreprise, RIB) ; null : non numérisée. */
+  pieceId: string | null
+  le: string
+}
+
+/** Dernier rejet pour coordonnées de la facture (F92) ; null : aucun. */
+const dernierRejetCoordonnees = (facture: Pick<FactureAPayer, 'rejets'>): RejetReglementFacture | null =>
+  (facture.rejets ?? []).filter((r) => categorieRejet(r) === 'coordonnees').at(-1) ?? null
+
+/** Dernier rejet pour coordonnées de la facture qui attend encore son IBAN changé ou confirmé (F92) ; null sinon. */
+export function ibanAVerifier(facture: Pick<FactureAPayer, 'rejets' | 'verificationsIban'>): RejetReglementFacture | null {
+  const dernier = dernierRejetCoordonnees(facture)
+  if (dernier === null) return null
+  return (facture.verificationsIban ?? []).some((v) => v.le >= dernier.le) ? null : dernier
+}
+
+/**
+ * IBAN changé ou confirmé après le dernier rejet pour coordonnées (F92) : la dernière vérification datée de ce rejet ou
+ * après ; null : aucun rejet pour coordonnées, ou IBAN encore à vérifier (ibanAVerifier).
+ */
+export function ibanVerifieApresRejet(facture: Pick<FactureAPayer, 'rejets' | 'verificationsIban'>): VerificationIban | null {
+  const dernier = dernierRejetCoordonnees(facture)
+  if (dernier === null) return null
+  return (facture.verificationsIban ?? []).filter((v) => v.le >= dernier.le).at(-1) ?? null
+}
+
+/**
+ * Décision du 20/11/2026 (partie C, F92) : après un rejet pour coordonnées, l'IBAN se change ou se confirme par une autre
+ * personne que celle qui l'a saisi, avec sa source (courrier de l'entreprise, RIB), au plus tôt le jour du rejet ; la
+ * vérification est tracée (verificationsIban). Renvoie une copie.
+ */
+export function verifierIbanApresRejet<F extends FactureAPayer>(facture: F, verification: VerificationIban): F {
+  const rejet = ibanAVerifier(facture)
+  if (rejet === null) throw new Error(`Facture ${facture.id} : aucun rejet pour coordonnées n'attend de vérification de l'IBAN.`)
+  if (!['changement', 'confirmation'].includes(verification.nature)) throw new Error(`Vérification de l'IBAN « ${verification.nature} » : changement ou confirmation attendu.`)
+  if (!validerIban(verification.iban)) throw new Error(`Vérification de l'IBAN : IBAN invalide (${verification.iban}).`)
+  if (!(SOURCES_VERIFICATION_IBAN as readonly string[]).includes(verification.source))
+    throw new Error(`Vérification de l'IBAN : source « ${verification.source} » inconnue (courrier de l'entreprise ou RIB attendu).`)
+  const saisiPar = verification.saisiPar.trim()
+  const confirmePar = verification.confirmePar.trim()
+  if (!saisiPar || !confirmePar || saisiPar === confirmePar)
+    throw new Error(`Vérification de l'IBAN : confirmée par une autre personne que celle qui l'a saisi (quatre yeux) — Décision du 20/11/2026 (partie C, F92).`)
+  if (!estDateIsoValide(verification.le) || verification.le < rejet.le)
+    throw new Error(`Vérification de l'IBAN du ${verification.le} : date AAAA-MM-JJ attendue, jamais avant le rejet du ${rejet.le}.`)
+  return { ...facture, verificationsIban: [...(facture.verificationsIban ?? []), { ...verification, saisiPar, confirmePar }] }
 }
 
 export type MotifEcart =
@@ -268,6 +454,8 @@ export type MotifEcart =
   | 'bon_a_payer_incomplet'
   /** Intervention contestée de la demande qui porte la facture (Décision du 20/11/2026, partie C, F71). */
   | 'intervention_contestee'
+  /** Revenue après un rejet pour coordonnées, IBAN pas encore changé ou confirmé (Décision du 20/11/2026, partie C, F92). */
+  | 'iban_a_confirmer'
 
 export interface SelectionOrdre<F extends FactureAPayer = FactureAPayer> {
   retenues: F[]
@@ -293,6 +481,7 @@ function motifCircuit(facture: FactureAPayer): MotifEcart | null {
   if (facture.mode !== 'Virement') return 'mode'
   if (!STATUTS_REGLEMENT_SELECTIONNABLES.has(facture.statutReglement)) return 'pas_de_bon_a_payer'
   if ((facture.interventionContestee ?? null) !== null) return 'intervention_contestee'
+  if (ibanAVerifier(facture) !== null) return 'iban_a_confirmer'
   if (!facture.comptabilisee) return 'non_comptabilisee'
   if (!STATUTS_SAISIE_PAYABLES.has(facture.statutSaisie)) return 'non_enregistree'
   return null

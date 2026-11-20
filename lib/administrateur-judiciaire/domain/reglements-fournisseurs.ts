@@ -4,6 +4,7 @@ import {
   MOIS_MAX_SUSPENSION_PROROGEE,
   MOIS_SUSPENSION_EXIGIBILITE,
   finSuspensionExigibilite,
+  refDecret1967,
   refLoi1965,
 } from '@/lib/administrateur-judiciaire/domain/delais-legaux'
 import { citerFondement } from '@/lib/administrateur-judiciaire/domain/fondements'
@@ -28,6 +29,15 @@ import {
   type RapprochementPiece,
 } from '@/lib/administrateur-judiciaire/domain/rapprochement-pieces'
 import {
+  LIBELLES_MOTIF_ANNULATION_REGLEMENT,
+  MOTIFS_ANNULATION_REGLEMENT,
+  ibanAVerifier,
+  ibanVerifieApresRejet,
+  verifierMotifAnnulation,
+  type FactureAPayer,
+  type MotifAnnulationReglement,
+} from '@/lib/administrateur-judiciaire/domain/statuts-facture'
+import {
   annulerTraitement,
   creerTraitement,
   type FamilleTraitement,
@@ -36,7 +46,15 @@ import {
   type Mouvement,
   type Traitement,
 } from '@/lib/administrateur-judiciaire/domain/traitements'
+import {
+  controlerAvantOrdreService,
+  type AnomalieEntreprise,
+  type OperationAControler,
+  type PiecesEntreprise,
+} from '@/lib/administrateur-judiciaire/domain/vigilance-entreprises'
 import { MODE_REGLEMENT, type ModeReglement } from '@/lib/data/referentiels-gesteam-judiciaire'
+
+export { MOTIFS_ANNULATION_REGLEMENT, type MotifAnnulationReglement }
 
 /**
  * Règlements fournisseurs : objet et cycle (point 38 du bilan 2). Fonctions pures, montants en CENTIMES ENTIERS, dates
@@ -81,7 +99,7 @@ import { MODE_REGLEMENT, type ModeReglement } from '@/lib/data/referentiels-gest
  *   non émis ; « Enregistré » = ordre émis, ou chèque, prélèvement ou TIP constaté hors ordre ; « Rapproché » = pointé
  *   dans un arrêté (propagé seulement, par rapprochement-pieces.ts : au pointage, décision J8 de Hugo du 30/10/2026) ;
  *   « Annulé » = abandonné avant tout paiement, ou virement rejeté ou retourné après émission (rejet renseigné, J9
- *   ci-dessous) ;
+ *   ci-dessous), ou règlement payé annulé par « Annuler le règlement » (annulation renseignée, F84 ci-dessous) ;
  * - un virement ne se paie que par un ordre de virement (identifiant de bout en bout = n° de pièce, unique dans
  *   l'ordre) ; un ordre ne se compose que de règlements, exactement ceux de ses lignes, tous d'une même famille (il n'a
  *   qu'un traitement) ; une ligne groupée garde ses règlements (reglementIds), jamais son identifiant synthétique ;
@@ -97,7 +115,8 @@ import { MODE_REGLEMENT, type ModeReglement } from '@/lib/data/referentiels-gest
  * - paiement sur plusieurs mandats, syndicats ou comptes : seulement depuis le compte centralisateur du cabinet
  *   (décision D-BANQUE), jamais avec le compte du fonds de travaux ; un paiement groupé sur ce seul compte, pour un seul
  *   mandat, n'est pas visé ;
- * - type de bénéficiaire fermé (fournisseur, copropriétaire, indivisaire) : Mandant, Propriétaire et Cpte gérance
+ * - type de bénéficiaire fermé (fournisseur, copropriétaire, indivisaire ; administrateur provisoire (rémunération) :
+ *   F87 ci-dessous) : Mandant, Propriétaire et Cpte gérance
  *   relèvent de la gérance, hors champ ; la paie du personnel du syndicat n'y entre pas (point 42 : compte 421).
  * Décision J9 de Hugo du 30/10/2026 — virement rejeté ou retourné après émission : écriture contraire « Annulation de
  * règlements », par le même circuit de traitements que l'écriture du règlement ; retour de la facture à l'état d'avant
@@ -178,27 +197,70 @@ import { MODE_REGLEMENT, type ModeReglement } from '@/lib/data/referentiels-gest
  *   18/11/2026 : payé seul, le mandataire commun passe par les contrôles de J10 quel que soit le type saisi (position
  *   d'indivisaire sortie, aucun indivisaire en place : refusé) ; « tous ensemble » ne paie personne d'autre que les
  *   titulaires en place du compte.
+ * Décisions du 20/11/2026 (partie C des questions ouvertes du code, recommandations acceptées) :
+ * - Décision du 20/11/2026 (partie C, F83) — virement rejeté revenu diminué de frais bancaires : l'écriture contraire
+ *   garde le montant entier du règlement (J9, rejeterVirement) ; les frais s'écrivent à part, datés du retour (le jour du
+ *   rejet) : débit du 662 « Autres charges financières et agios », crédit du 512 du compte qui a reçu le retour
+ *   (fraisRetourVirement, avec le montant revenu saisi sur le rejet) ; la facture redevient due pour son montant entier,
+ *   l'entreprise n'ayant rien reçu (statuts-facture.ts, retourFactureApresRejet, inchangé) ; alerte si les frais
+ *   dépassent un montant fixé par le cabinet (seuilAlerteFraisCentimes : réglage du cabinet passé en paramètre, sans
+ *   valeur par défaut). Raison : chaque opération va au compte de sa nature (arrêté du 14 mars 2005, art. 3) ; des frais
+ *   bancaires sont une charge financière, pas une part de la dette envers le fournisseur. 🔵 Déduit : traitement
+ *   « Saisie de mouvements » (famille Gestéam de ces frais non observée) ; 662 au segment du syndicat, auxiliaire 00000 ;
+ *   montant revenu en centimes entiers strictement positifs, au plus le virement rejeté, saisi une fois ; 512 du retour
+ *   du même syndicat, par défaut la contrepartie du règlement ;
+ * - Décision du 20/11/2026 (partie C, F84) — une seule action « Annuler le règlement » (annulerReglement) pour un
+ *   règlement payé et écrit, autre qu'un virement rejeté : motif obligatoire (chèque perdu, opposition, chèque jamais
+ *   encaissé, prélèvement contesté, erreur d'écriture) et date ; écriture contraire datée de l'annulation (arrêté du
+ *   14 mars 2005, art. 5 : « une écriture erronée est annulée par une écriture contraire »), prise dans l'écriture
+ *   d'origine comme pour J9, dans un traitement « Annulation de règlements » qui y renvoie (annule) ; le règlement passe
+ *   « Annulé », définitif, reste imputé et rattaché à l'écriture d'origine, et porte son annulation (date, motif,
+ *   traitement d'annulation, écriture d'origine) ; la facture revient à son état d'avant le paiement, avec le motif
+ *   (statuts-facture.ts, retourFactureApresAnnulation), et se paie ensuite par un nouveau règlement. Le délai de validité
+ *   d'un chèque n'a pas été relu : VitFix ne le calcule pas. 🔵 Déduit : motif selon le mode — chèque perdu et chèque
+ *   jamais encaissé pour un chèque, prélèvement contesté pour un prélèvement ou un TIP, opposition pour un chèque, un
+ *   prélèvement ou un TIP, erreur d'écriture pour tout mode ; un virement rejeté ou retourné reste à rejeterVirement
+ *   (J9) ; une annulation datée avant l'écriture d'origine est refusée (l'écriture contraire ne la précède pas) ; un
+ *   acompte sur commande déjà imputé sur sa facture ne s'annule pas sans défaire l'imputation (non prise en charge) ;
+ *   rapprocherReglements le lit comme un virement rejeté. Une date du fait dans une période close se date par l'appelant
+ *   (verrou-saisie.ts, dateHorsVerrou : J67, R123) ;
+ * - Décision du 20/11/2026 (partie C, F87) — la rémunération du cabinet se paie par le même circuit que les factures,
+ *   avec un bénéficiaire « administrateur provisoire (rémunération) » (type administrateur_provisoire : 401 du cabinet,
+ *   facture d'honoraires obligatoire, traitement « Règlement de factures ») ; chaque paiement cite sa base : droit fixe,
+ *   ou ordonnance d'acompte ou de taxe (juridiction, date, n°) ; sous un autre régime (syndic désigné par l'AG ou par le
+ *   juge), le contrat ou l'ordonnance. Le cumul payé sur une même base ne dépasse jamais le montant fixé : bloquant
+ *   au-delà (controlerPaiementRemuneration ; montant fixé passé en paramètre, enregistrement des ordonnances à brancher).
+ *   Texte : le droit fixe est perçu dès que la décision de désignation est portée à la connaissance de l'administrateur,
+ *   le président du tribunal fixe les acomptes chaque année et arrête la rémunération finale (D. 1967 art. 61-1-5, I à
+ *   III). La facture du cabinet est déjà plafonnée à sa préparation (honoraires-facturation.ts, J67, R2 et R3) : ce
+ *   contrôle porte le même plafond au paiement. 🔵 Déduit : tout règlement non annulé de la même base compte dans le
+ *   cumul, demandé ou à régler compris (un paiement préparé ne doit pas non plus dépasser le montant fixé) ; sous un
+ *   contrat ou une ordonnance de désignation, aucun texte cité (fondement null) ;
+ * - Décision du 20/11/2026 (partie C, F88) — un règlement « acompte sur commande », sans facture, avec la référence
+ *   obligatoire de l'OS ou du marché qui prévoit l'acompte et son montant (acompteSurCommande) : débit du 409
+ *   « Fournisseurs débiteurs » du fournisseur, qui « enregistre les avances et acomptes versés sur commande » (arrêté du
+ *   14 mars 2005, art. 10) ; à l'arrivée de la facture, l'acompte s'impute dessus : débit du 401, crédit du 409, le 409
+ *   se solde (imputerAcompteSurFacture). Alerte si les acomptes d'une même référence dépassent l'acompte prévu ;
+ *   vigilance contrôlée comme avant l'OS (controlerAcompteSurCommande, par controlerAvantOrdreService de
+ *   vigilance-entreprises.ts). La provision au tiers du devis des travaux urgents (D. 1967 art. 37) reste à part : elle
+ *   n'est pas un acompte sur commande. 🔵 Déduit : fournisseur seulement ; imputation en une fois, sur une facture du
+ *   même fournisseur dont le reste dû couvre l'acompte, dans un traitement « Saisie de mouvements » (famille Gestéam non
+ *   observée) ; l'acompte imputé est payé et écrit, ni annulé ni déjà imputé ;
+ * - Décision du 20/11/2026 (partie C, F92) — après un rejet pour coordonnées (statuts-facture.ts, categorieRejet), la
+ *   facture revenue « Bon à payer » reste bloquée pour tout nouvel ordre tant que l'IBAN n'est pas changé ou confirmé,
+ *   par une autre personne que celle qui l'a saisi, avec sa source, et tracé (verifierIbanApresRejet) ; ici, un nouveau
+ *   règlement par virement de cette facture est refusé tant que l'IBAN est à vérifier, puis s'il ne part pas vers l'IBAN
+ *   changé ou confirmé (controlerIbanApresRejet) ; les autres motifs de rejet suivent J9 sans changement. 🔵 Déduit : un
+ *   règlement qui ne part pas par virement n'a pas d'IBAN à contrôler.
  * 🔴 Non établi (à trancher par Frédéric ou Hugo) :
  * - Gestéam passe-t-il l'écriture du « Règlement de factures » dès le traitement qui produit l'ordre (imputée plus
  *   tard), ou au paiement ? Non observé ; VitFix l'écrit au paiement (ci-dessus) ;
- * - J9, retour amputé de frais par la banque (montant revenu moindre) : non pris en charge ; l'écriture contraire porte
- *   le montant du règlement, l'écart reste à écrire ;
- * - chèque émis puis perdu, frappé d'opposition ou jamais présenté, prélèvement contesté : hors de J9 (virement), aucune
- *   annulation après enregistrement ;
- * - contre-passation du traitement d'un règlement (annulerTraitement de traitements.ts, famille « Annulation de
- *   règlements ») hors rejet de virement (J9) : non prise en charge ici ; le règlement reste « Enregistré », imputé et
- *   rattaché au traitement annulé, et ne peut ni être réécrit ni passer « Annulé ». Question : une fois son traitement
- *   contre-passé, le règlement redevient-il « Non imputé » (à réécrire dans un nouveau traitement), passe-t-il
- *   « Annulé », ou reste-t-il « Enregistré » imputé avec un renvoi vers l'annulation, et la facture qu'il réglait
- *   quitte-t-elle « Réglée » ?
  * - J10, désignation non datée : le mandataire porté sur le compte vaut à la date du contrôle, sans historique des
  *   mandataires successifs ; gravité de ces deux refus (bloquants par prudence) à confirmer par Hugo : bloquer, ou
  *   seulement avertir ;
  * - remboursement de solde (copropriétaire, indivisaire) dans ce même objet, ou dans un objet frère ;
  * - sens de « Tranche » (non observé) : donnée opaque, rattachée à des travaux ; à ne pas confondre avec les tranches
- *   d'appel « <n°>-T<n> » de travaux-operations.ts ;
- * - honoraires du cabinet réglés par le même circuit (tranche 43 § 12) : aucun bénéficiaire « cabinet » ;
- * - acompte versé sur commande sans facture (compte 409) : non pris en charge, un fournisseur exige une facture.
+ *   d'appel « <n°>-T<n> » de travaux-operations.ts.
  */
 
 export const STATUTS_REGLEMENT_FOURNISSEUR = ['Demandé', 'À régler', 'Enregistré', 'Rapproché', 'Annulé'] as const
@@ -215,6 +277,53 @@ export type BeneficiaireReglement =
       identiteIds?: readonly string[]
     }
   | { type: 'indivisaire'; compteCoproprietaireId: string; serie450: string; identiteId: string }
+  /**
+   * « Administrateur provisoire (rémunération) » (Décision du 20/11/2026, partie C, F87) : le cabinet, payé par le circuit
+   * des factures (401 du cabinet, crédité à l'imputation de sa facture : honoraires-facturation.ts), sur une base citée.
+   */
+  | { type: 'administrateur_provisoire'; cabinetId: string; auxiliaire401: string; base: BaseRemuneration }
+
+/** Libellé du bénéficiaire de la rémunération du cabinet (F87). */
+export const LIBELLE_BENEFICIAIRE_REMUNERATION = 'administrateur provisoire (rémunération)'
+
+/**
+ * Base d'un paiement de la rémunération (F87) : le droit fixe, une ordonnance d'acompte ou de taxe (juridiction, date,
+ * n° : D. 1967 art. 61-1-5, I à III), et, sous un autre régime, le contrat (syndic désigné par l'AG) ou l'ordonnance de
+ * désignation (syndic désigné par le juge).
+ */
+export type BaseRemuneration =
+  | { nature: 'droit_fixe' }
+  | { nature: 'ordonnance'; objet: ObjetOrdonnanceRemuneration; juridiction: string; date: string; numero: string }
+  | { nature: 'contrat'; reference: string }
+
+/** Objet de l'ordonnance citée (F87) : acompte, taxe (rémunération finale) ou désignation (syndic désigné par le juge). */
+export const OBJETS_ORDONNANCE_REMUNERATION = ['acompte', 'taxe', 'designation'] as const
+export type ObjetOrdonnanceRemuneration = (typeof OBJETS_ORDONNANCE_REMUNERATION)[number]
+
+/** Libellé du règlement versé à la commande, sans facture (F88). */
+export const LIBELLE_ACOMPTE_SUR_COMMANDE = 'acompte sur commande'
+
+/** Acompte versé sur commande, sans facture (Décision du 20/11/2026, partie C, F88) : compte 409. */
+export interface AcompteSurCommande {
+  /** OS ou marché qui prévoit l'acompte (N° d'OS, référence du marché). */
+  reference: string
+  /** Montant de l'acompte prévu par l'OS ou le marché, en centimes. */
+  montantPrevuCentimes: number
+  /** Imputation sur la facture arrivée (le 409 se solde) ; null : pas encore imputé. */
+  imputation: { factureId: string; le: string; traitementId: string } | null
+}
+
+/** Annulation d'un règlement autre qu'un virement rejeté (Décision du 20/11/2026, partie C, F84). */
+export interface AnnulationReglement {
+  /** Date de l'annulation. */
+  le: string
+  motif: MotifAnnulationReglement
+  precision: string | null
+  /** Traitement « Annulation de règlements » qui porte l'écriture contraire. */
+  traitementId: string
+  /** Traitement de l'écriture d'origine, contre-passée. */
+  ecritureOrigineId: string
+}
 
 /** Modes admis : ni « Pas de règlement », ni « Espèces » (décision J25 : compte 53 non tenu). */
 export type ModePaiementReglement = Exclude<ModeReglement, 'Pas de règlement' | 'Espèces'>
@@ -257,6 +366,10 @@ export interface ReglementFournisseur {
   rapprochement: RapprochementPiece | null
   /** Virement rejeté ou retourné après émission (J9, rejeterVirement) ; null sinon. */
   rejet: RejetReglement | null
+  /** Acompte sur commande, sans facture (F88) ; absent ou null : règlement d'une facture ou d'un solde. */
+  acompteSurCommande?: AcompteSurCommande | null
+  /** Annulation hors virement rejeté (F84, annulerReglement) ; absent ou null : aucune. */
+  annulation?: AnnulationReglement | null
 }
 
 /** Rejet ou retour d'un virement après émission (J9). */
@@ -267,6 +380,10 @@ export interface RejetReglement {
   motif: string
   /** Traitement « Annulation de règlements » qui porte l'écriture contraire. */
   traitementId: string
+  /** Montant revenu sur le compte, diminué de frais (F83, fraisRetourVirement) ; absent : non saisi. */
+  montantRevenuCentimes?: number
+  /** Traitement des frais au 662 (F83) ; null : aucun frais ; absent : non saisi. */
+  fraisTraitementId?: string | null
 }
 
 export interface SaisieReglementFournisseur {
@@ -288,6 +405,8 @@ export interface SaisieReglementFournisseur {
   demandeId?: string | null
   travauxId?: string | null
   tranche?: string | null
+  /** Acompte sur commande, sans facture : référence de l'OS ou du marché, montant prévu (F88). */
+  acompteSurCommande?: Pick<AcompteSurCommande, 'reference' | 'montantPrevuCentimes'> | null
 }
 
 export type CodeAnomalieReglement =
@@ -305,6 +424,11 @@ export type CodeAnomalieReglement =
   | 'demembrement_sans_accord'
   | 'creance_anterieure_suspendue'
   | 'origine_creance_a_verifier'
+  | 'remuneration_au_dela_du_montant_fixe'
+  | 'frais_retour_au_dela_du_seuil'
+  | 'iban_a_confirmer_apres_rejet'
+  | 'iban_different_de_l_iban_verifie'
+  | 'acompte_au_dela_du_prevu'
 
 export interface AnomalieReglement {
   code: CodeAnomalieReglement
@@ -317,6 +441,12 @@ const FONDEMENT_FONDS_TRAVAUX_SEPARE = citerFondement(refLoi1965('18, II, al. 4'
 const FONDEMENT_MANDATAIRE_COMMUN = citerFondement(refLoi1965('23, al. 2'))
 const FONDEMENT_PAIEMENT = 'C. civ. art. 1342-2'
 const FONDEMENT_SUSPENSION = `${citerFondement(refLoi1965('29-3, I et II'))} ; art. 29-5`
+const FONDEMENT_REMUNERATION = citerFondement(refDecret1967('61-1-5'))
+const DECISION_F83 = 'Décision du 20/11/2026 (partie C, F83)'
+const DECISION_F84 = 'Décision du 20/11/2026 (partie C, F84)'
+const DECISION_F87 = 'Décision du 20/11/2026 (partie C, F87)'
+const DECISION_F88 = 'Décision du 20/11/2026 (partie C, F88)'
+const DECISION_F92 = 'Décision du 20/11/2026 (partie C, F92)'
 const CODE_5 = /^[0-9A-Z]{5}$/
 const CONTREPARTIE_512 = /^([^.]{4})\.512[0-9A-Z]{2}\.[0-9A-Z]{5}\.[0-9A-Z]$/
 
@@ -355,12 +485,50 @@ function verifierSolde(b: { compteCoproprietaireId: string; serie450: string }, 
   if (contratId !== null) throw new Error('Remboursement à un copropriétaire : aucun contrat.')
 }
 
-function verifierBeneficiaire(b: BeneficiaireReglement, factureId: string | null, contratId: string | null): void {
+/**
+ * Base citée d'un paiement de la rémunération du cabinet (Décision du 20/11/2026, partie C, F87) : droit fixe, ordonnance
+ * (juridiction, date, n°) ou contrat (référence).
+ */
+function verifierBaseRemuneration(base: BaseRemuneration): void {
+  switch (base.nature) {
+    case 'droit_fixe':
+      return
+    case 'ordonnance': {
+      const complete =
+        OBJETS_ORDONNANCE_REMUNERATION.includes(base.objet) &&
+        optionnel(base.juridiction) !== null &&
+        estDateIsoValide(base.date) &&
+        optionnel(base.numero) !== null
+      if (!complete)
+        throw new Error(`Base de la rémunération : ordonnance d'acompte, de taxe ou de désignation à citer (juridiction, date, n°) — ${DECISION_F87}.`)
+      return
+    }
+    case 'contrat':
+      texteRequis(base.reference, `Base de la rémunération : référence du contrat attendue (syndic désigné par l'AG) — ${DECISION_F87}.`)
+      return
+    default:
+      throw new Error(`Base de la rémunération inconnue : « ${(base as { nature: string }).nature} » (droit fixe, ordonnance ou contrat attendu).`)
+  }
+}
+
+function verifierFournisseur(b: Extract<BeneficiaireReglement, { type: 'fournisseur' }>, factureId: string | null, acompte: boolean): void {
+  texteRequis(b.prestataireId, 'Bénéficiaire fournisseur : identifiant du fournisseur attendu.')
+  verifierCode5(b.auxiliaire401, 'Auxiliaire 401 du fournisseur')
+  if (factureId === null && !acompte)
+    throw new Error('Règlement d’un fournisseur : la facture réglée est obligatoire (le règlement solde la facture enregistrée), sauf acompte sur commande.')
+}
+
+function verifierBeneficiaire(b: BeneficiaireReglement, factureId: string | null, contratId: string | null, acompte: boolean): void {
   switch (b.type) {
     case 'fournisseur':
-      texteRequis(b.prestataireId, 'Bénéficiaire fournisseur : identifiant du fournisseur attendu.')
-      verifierCode5(b.auxiliaire401, 'Auxiliaire 401 du fournisseur')
-      if (factureId === null) throw new Error('Règlement d’un fournisseur : la facture réglée est obligatoire (le règlement solde la facture enregistrée).')
+      verifierFournisseur(b, factureId, acompte)
+      return
+    case 'administrateur_provisoire':
+      texteRequis(b.cabinetId, `Bénéficiaire « ${LIBELLE_BENEFICIAIRE_REMUNERATION} » : identifiant du cabinet attendu.`)
+      verifierCode5(b.auxiliaire401, 'Auxiliaire 401 du cabinet')
+      verifierBaseRemuneration(b.base)
+      if (factureId === null)
+        throw new Error(`Règlement de la rémunération du cabinet : la facture d'honoraires réglée est obligatoire (même circuit que les factures) — ${DECISION_F87}.`)
       return
     case 'indivisaire':
       texteRequis(b.identiteId, 'Bénéficiaire indivisaire : identité de l’indivisaire attendue.')
@@ -372,6 +540,28 @@ function verifierBeneficiaire(b: BeneficiaireReglement, factureId: string | null
     default:
       throw new Error(`Type de bénéficiaire inconnu : « ${(b as { type: string }).type} ».`)
   }
+}
+
+/**
+ * Acompte sur commande (Décision du 20/11/2026, partie C, F88) : à un fournisseur, sans facture, avec la référence de
+ * l'OS ou du marché qui le prévoit et le montant prévu. Absent : null.
+ */
+function verifierAcompteSurCommande(
+  saisie: SaisieReglementFournisseur['acompteSurCommande'],
+  b: BeneficiaireReglement,
+  factureId: string | null,
+): AcompteSurCommande | null {
+  if (saisie === undefined || saisie === null) return null
+  if (b.type !== 'fournisseur')
+    throw new Error(`Acompte sur commande : versé à un fournisseur seulement (409 « Fournisseurs débiteurs ») — ${DECISION_F88}.`)
+  if (factureId !== null)
+    throw new Error(`Acompte sur commande : règlement sans facture ; la facture, à son arrivée, reçoit l'acompte (imputerAcompteSurFacture) — ${DECISION_F88}.`)
+  texteRequis(saisie.reference, `Acompte sur commande : référence de l'OS ou du marché qui prévoit l'acompte obligatoire — ${DECISION_F88}.`)
+  if (!Number.isInteger(saisie.montantPrevuCentimes) || saisie.montantPrevuCentimes <= 0)
+    throw new Error(
+      `Acompte sur commande : montant prévu par l'OS ou le marché invalide (${saisie.montantPrevuCentimes}) : centimes entiers strictement positifs attendus.`,
+    )
+  return { reference: saisie.reference.trim(), montantPrevuCentimes: saisie.montantPrevuCentimes, imputation: null }
 }
 
 function verifierTravaux(travauxId: string | null, tranche: string | null): void {
@@ -400,8 +590,9 @@ function verifierEnTete(saisie: SaisieReglementFournisseur): void {
 /**
  * Crée un règlement « Demandé », non imputé, hors de tout ordre, traitement et arrêté. Refuse un montant qui n'est pas
  * un nombre entier de centimes > 0, une échéance non ISO, un mode inconnu, « Pas de règlement » ou « Espèces » (J25), un
- * virement sans IBAN valide, un fournisseur sans facture, un remboursement avec facture ou contrat, une tranche sans
- * travaux, une contrepartie qui n'est pas un 512 du syndicat.
+ * virement sans IBAN valide, un fournisseur sans facture (hors acompte sur commande, F88), un remboursement avec facture
+ * ou contrat, une tranche sans travaux, une contrepartie qui n'est pas un 512 du syndicat ; la rémunération du cabinet
+ * exige sa facture et sa base citée (F87), l'acompte sur commande sa référence et son montant prévu, sans facture (F88).
  */
 export function creerReglementFournisseur(saisie: SaisieReglementFournisseur, { segmentSyndicat }: { segmentSyndicat: string }): ReglementFournisseur {
   verifierEnTete(saisie)
@@ -409,7 +600,8 @@ export function creerReglementFournisseur(saisie: SaisieReglementFournisseur, { 
   const mode = verifierMode(saisie.mode, iban)
   const factureId = optionnel(saisie.factureId)
   const contratId = optionnel(saisie.contratId)
-  verifierBeneficiaire(saisie.beneficiaire, factureId, contratId)
+  const acompte = verifierAcompteSurCommande(saisie.acompteSurCommande, saisie.beneficiaire, factureId)
+  verifierBeneficiaire(saisie.beneficiaire, factureId, contratId, acompte !== null)
   const travauxId = optionnel(saisie.travauxId)
   const tranche = optionnel(saisie.tranche)
   verifierTravaux(travauxId, tranche)
@@ -439,6 +631,7 @@ export function creerReglementFournisseur(saisie: SaisieReglementFournisseur, { 
     impute: false,
     rapprochement: null,
     rejet: null,
+    ...(acompte === null ? {} : { acompteSurCommande: acompte }),
   }
 }
 
@@ -460,11 +653,14 @@ function cleBeneficiaire({ beneficiaire: b }: ReglementFournisseur): string {
       return `coproprietaire|${b.compteCoproprietaireId}`
     case 'indivisaire':
       return `indivisaire|${b.identiteId}`
+    case 'administrateur_provisoire':
+      return `administrateur_provisoire|${b.cabinetId}`
   }
 }
 
+/** Factures (fournisseur, rémunération du cabinet : F87) ou remboursements de soldes de compte. */
 const familleDe = (r: ReglementFournisseur): FamilleTraitement =>
-  r.beneficiaire.type === 'fournisseur' ? 'Règlement de factures' : 'Règlement de soldes de compte'
+  r.beneficiaire.type === 'fournisseur' || r.beneficiaire.type === 'administrateur_provisoire' ? 'Règlement de factures' : 'Règlement de soldes de compte'
 
 /** Un ordre comme un traitement : une seule famille, jamais factures et remboursements de soldes mêlés. */
 function verifierUneFamille(reglements: ReglementFournisseur[], objet: string): void {
@@ -601,7 +797,7 @@ export function changerStatutReglementFournisseur(
   if (!TRANSITIONS[r.statut].includes(nouveau)) {
     const suite =
       r.statut === 'Enregistré'
-        ? ' ; un règlement enregistré ne s’annule que par une écriture contraire : virement rejeté ou retourné (rejeterVirement, J9), toute autre contre-passation non prise en charge ici'
+        ? ` ; un règlement enregistré ne s’annule que par une écriture contraire : virement rejeté ou retourné (rejeterVirement, J9), sinon « Annuler le règlement » (annulerReglement, ${DECISION_F84})`
         : ''
     throw new Error(`Transition refusée : « ${r.statut} » → « ${nouveau} »${suite}.`)
   }
@@ -612,29 +808,33 @@ export function changerStatutReglementFournisseur(
 
 // ─── Écriture et imputation ─────────────────────────────────────────────────────────────────
 
-/** Compte débité : 401 du fournisseur ou 450 du compte copropriétaire, au segment du syndicat (celui de la contrepartie). */
+/**
+ * Compte débité, au segment du syndicat (celui de la contrepartie) : 401 du fournisseur ou du cabinet (F87), 409 du
+ * fournisseur pour un acompte sur commande (F88), 450 du compte copropriétaire.
+ */
 function debitReglement(r: ReglementFournisseur): { compte: string; liens: LiensMouvement } {
   const mandat = r.contrepartie512.split('.')[0]
   const b = r.beneficiaire
-  if (b.type === 'fournisseur')
+  if (b.type === 'coproprietaire' || b.type === 'indivisaire')
     return {
-      compte: formaterNumeroCompte({ mandat, planCode: '40100', auxiliaire: b.auxiliaire401 }),
-      liens: {
-        fournisseurId: b.prestataireId,
-        ...(r.contratId ? { contratId: r.contratId } : {}),
-        ...(r.travauxId ? { travauxId: r.travauxId } : {}),
-      },
+      compte: formaterNumeroCompte({ mandat, planCode: '45000', auxiliaire: b.serie450 }),
+      liens: { compteCoproprietaireId: b.compteCoproprietaireId },
     }
   return {
-    compte: formaterNumeroCompte({ mandat, planCode: '45000', auxiliaire: b.serie450 }),
-    liens: { compteCoproprietaireId: b.compteCoproprietaireId },
+    compte: formaterNumeroCompte({ mandat, planCode: r.acompteSurCommande ? '40900' : '40100', auxiliaire: b.auxiliaire401 }),
+    liens: {
+      fournisseurId: b.type === 'fournisseur' ? b.prestataireId : b.cabinetId,
+      ...(r.contratId ? { contratId: r.contratId } : {}),
+      ...(r.travauxId ? { travauxId: r.travauxId } : {}),
+    },
   }
 }
 
 /**
- * Lignes d'écriture du règlement : débit du 401 du fournisseur (le compte crédité par la saisie de la facture) ou du 450
- * du copropriétaire, crédit de la contrepartie 512. Jamais le compte de charge (mouvementsDecaissement, R7) : la charge
- * est déjà passée à la saisie de la facture.
+ * Lignes d'écriture du règlement : débit du 401 du fournisseur ou du cabinet (le compte crédité par la saisie de la
+ * facture), du 409 du fournisseur pour un acompte sur commande (F88) ou du 450 du copropriétaire, crédit de la
+ * contrepartie 512. Jamais le compte de charge (mouvementsDecaissement, R7) : la charge est déjà passée à la saisie de la
+ * facture.
  */
 export function mouvementsReglement(r: ReglementFournisseur): LigneMouvement[] {
   const { compte, liens } = debitReglement(r)
@@ -759,17 +959,17 @@ const memeLigne = (m: Mouvement, attendu: LigneMouvement): boolean =>
   m.compte === attendu.compte && m.sens === attendu.sens && m.montantCentimes === attendu.montantCentimes && memesLiens(m.liens, attendu.liens)
 
 /**
- * Mouvements de l'écriture de l'ordre qui portent le virement : chaque ligne de mouvementsReglement y est cherchée
- * (compte, sens, montant, liens) et prise une seule fois. L'écriture contraire inverse ce qui a été écrit, non une
- * reconstruction.
+ * Mouvements de l'écriture d'origine (celle de l'ordre pour un virement) qui portent les règlements : chaque ligne de
+ * mouvementsReglement y est cherchée (compte, sens, montant, liens) et prise une seule fois. L'écriture contraire inverse
+ * ce qui a été écrit, non une reconstruction (J9 ; F84).
  */
-function mouvementsDuVirement(reglements: ReglementFournisseur[], ecriture: Traitement): Mouvement[] {
+function mouvementsEcrits(reglements: ReglementFournisseur[], ecriture: Traitement): Mouvement[] {
   const restants = [...ecriture.mouvements]
   return reglements.flatMap(mouvementsReglement).map((attendu) => {
     const i = restants.findIndex((m) => memeLigne(m, attendu))
     if (i < 0)
       throw new Error(
-        `Écriture ${ecriture.id} de l'ordre : mouvement ${attendu.sens} ${attendu.compte} de ${attendu.montantCentimes} centimes introuvable ; l'écriture contraire ne contre-passe que ce qui a été écrit.`,
+        `Écriture ${ecriture.id} : mouvement ${attendu.sens} ${attendu.compte} de ${attendu.montantCentimes} centimes introuvable ; l'écriture contraire ne contre-passe que ce qui a été écrit.`,
       )
     return restants.splice(i, 1)[0]
   })
@@ -800,10 +1000,192 @@ export function rejeterVirement(
   reglements.forEach((r) => verifierARejeter(r, ordre))
   verifierVirementEntier(reglements, ordre)
   const { id, date } = rejet
-  const partDuVirement: Traitement = { ...ecritureOrdre, mouvements: mouvementsDuVirement(reglements, ecritureOrdre) }
+  const partDuVirement: Traitement = { ...ecritureOrdre, mouvements: mouvementsEcrits(reglements, ecritureOrdre) }
   const traitement = annulerTraitement(partDuVirement, { id, date: date < ecritureOrdre.date ? ecritureOrdre.date : date })
   const trace: RejetReglement = { le: date, motif: rejet.motif.trim(), traitementId: id }
   return { traitement, reglements: reglements.map((r): ReglementFournisseur => ({ ...r, statut: 'Annulé', rejet: { ...trace } })) }
+}
+
+// ─── Retour d'un virement rejeté diminué de frais (Décision du 20/11/2026, partie C, F83) ───────
+
+export interface SaisieFraisRetour {
+  /** Traitement « Saisie de mouvements » des frais, sous son propre identifiant. */
+  traitementId: string
+  /** Montant revenu sur le compte, en centimes : le virement rejeté moins les frais retenus par la banque. */
+  montantRevenuCentimes: number
+  /** 512 du compte qui a reçu le retour ; absent : la contrepartie des règlements. */
+  compte512Retour?: string
+  /** Frais au-delà desquels le cabinet veut une alerte, en centimes (réglage du cabinet) ; absent ou null : aucune alerte. */
+  seuilAlerteFraisCentimes?: number | null
+}
+
+/** Règlements d'un même virement rejeté, dont le montant revenu n'est pas encore saisi ; renvoie leur rejet. */
+function rejetDuRetour(reglements: ReglementFournisseur[]): RejetReglement {
+  if (reglements.length === 0) throw new Error('Frais du retour : aucun règlement.')
+  indexer(reglements)
+  const rejets = reglements.map((r) => {
+    if (!r.rejet) throw new Error(`Règlement ${r.id} : virement non rejeté ; les frais d'un retour s'écrivent après le rejet (rejeterVirement, J9).`)
+    if (r.rejet.montantRevenuCentimes !== undefined)
+      throw new Error(`Règlement ${r.id} : montant revenu déjà saisi (${r.rejet.montantRevenuCentimes} centimes) ; les frais d'un retour ne s'écrivent qu'une fois.`)
+    return r.rejet
+  })
+  if (new Set(rejets.map((rejet) => rejet.traitementId)).size > 1)
+    throw new Error('Frais du retour : règlements de plusieurs rejets ; un retour porte sur un seul virement rejeté.')
+  return rejets[0]
+}
+
+/** Contrôle de la saisie des frais (F83) ; renvoie le 512 qui a reçu le retour. */
+function verifierSaisieFrais(reglements: ReglementFournisseur[], rejet: RejetReglement, saisie: SaisieFraisRetour, rejeteCentimes: number): string {
+  texteRequis(saisie.traitementId, 'Frais du retour : identifiant du traitement des frais attendu.')
+  if (saisie.traitementId === rejet.traitementId || reglements.some((r) => r.traitementId === saisie.traitementId))
+    throw new Error(`Frais du retour : le traitement des frais a son propre identifiant, distinct de l'écriture du virement et de son annulation (${saisie.traitementId}).`)
+  const revenu = saisie.montantRevenuCentimes
+  if (!Number.isInteger(revenu) || revenu <= 0) throw new Error(`Montant revenu invalide (${revenu}) : centimes entiers strictement positifs attendus.`)
+  if (revenu > rejeteCentimes) throw new Error(`Montant revenu de ${revenu} centimes : plus que le virement rejeté (${rejeteCentimes} centimes).`)
+  const seuil = saisie.seuilAlerteFraisCentimes ?? null
+  if (seuil !== null && !(Number.isInteger(seuil) && seuil >= 0))
+    throw new Error(`Seuil d'alerte des frais invalide (${seuil}) : centimes entiers positifs ou nuls attendus.`)
+  if (saisie.compte512Retour === undefined) {
+    if (new Set(reglements.map((r) => r.contrepartie512)).size > 1)
+      throw new Error('Frais du retour : règlements de plusieurs comptes 512 ; préciser le 512 qui a reçu le retour.')
+    return reglements[0].contrepartie512
+  }
+  verifierContrepartie(saisie.compte512Retour, reglements[0].contrepartie512.split('.')[0])
+  return saisie.compte512Retour
+}
+
+/**
+ * Décision du 20/11/2026 (partie C, F83) — virement rejeté revenu diminué de frais bancaires : l'écriture contraire du
+ * rejet garde le montant entier (J9, rejeterVirement) ; la différence entre le virement rejeté et le montant revenu
+ * s'écrit à part, datée du retour (le jour du rejet), dans un traitement « Saisie de mouvements » : débit du 662
+ * « Autres charges financières et agios », crédit du 512 du compte qui a reçu le retour (arrêté du 14 mars 2005, art. 3 :
+ * chaque opération au compte de sa nature). Aucun frais : aucun traitement. Le montant revenu et le traitement des frais
+ * s'inscrivent sur le rejet ; la facture, elle, redevient due pour son montant entier (retourFactureApresRejet). Alerte
+ * si les frais dépassent le seuil fixé par le cabinet. Passer tous les règlements du virement rejeté.
+ */
+export function fraisRetourVirement(
+  reglements: ReglementFournisseur[],
+  saisie: SaisieFraisRetour,
+): { traitement: Traitement | null; reglements: ReglementFournisseur[]; alertes: AnomalieReglement[] } {
+  const rejet = rejetDuRetour(reglements)
+  const rejeteCentimes = reglements.reduce((s, r) => s + r.montantCentimes, 0)
+  const compte512 = verifierSaisieFrais(reglements, rejet, saisie, rejeteCentimes)
+  const fraisCentimes = rejeteCentimes - saisie.montantRevenuCentimes
+  const traitement =
+    fraisCentimes === 0
+      ? null
+      : creerTraitement({
+          id: saisie.traitementId,
+          famille: 'Saisie de mouvements',
+          date: rejet.le,
+          mouvements: [
+            { compte: formaterNumeroCompte({ mandat: compte512.split('.')[0], planCode: '66200', auxiliaire: '00000' }), sens: 'debit', montantCentimes: fraisCentimes },
+            { compte: compte512, sens: 'credit', montantCentimes: fraisCentimes },
+          ],
+        })
+  const trace = { montantRevenuCentimes: saisie.montantRevenuCentimes, fraisTraitementId: traitement === null ? null : saisie.traitementId }
+  const seuil = saisie.seuilAlerteFraisCentimes ?? null
+  const alertes: AnomalieReglement[] =
+    seuil !== null && fraisCentimes > seuil
+      ? [
+          {
+            code: 'frais_retour_au_dela_du_seuil',
+            message: `Frais du retour du virement rejeté le ${dateIsoVersFr(rejet.le)} : ${fraisCentimes} centimes, au-delà du montant fixé par le cabinet (${seuil} centimes) ; vérifier les frais auprès de la banque — ${DECISION_F83}.`,
+            fondement: null,
+          },
+        ]
+      : []
+  return { traitement, reglements: reglements.map((r): ReglementFournisseur => (r.rejet ? { ...r, rejet: { ...r.rejet, ...trace } } : r)), alertes }
+}
+
+// ─── « Annuler le règlement » (Décision du 20/11/2026, partie C, F84) ───────────────────────────
+
+/**
+ * Modes auxquels chaque motif s'applique (🔵 déduit) ; un virement rejeté ou retourné passe par rejeterVirement (J9) :
+ * seule l'erreur d'écriture vise un virement.
+ */
+const MODES_DU_MOTIF: Readonly<Record<MotifAnnulationReglement, { modes: readonly ModePaiementReglement[]; libelle: string }>> = {
+  cheque_perdu: { modes: ['Chèque'], libelle: 'un chèque' },
+  opposition: { modes: ['Chèque', 'Prélèvement', 'TIP'], libelle: 'un chèque, un prélèvement ou un TIP' },
+  cheque_jamais_encaisse: { modes: ['Chèque'], libelle: 'un chèque' },
+  prelevement_conteste: { modes: ['Prélèvement', 'TIP'], libelle: 'un prélèvement ou un TIP' },
+  erreur_ecriture: { modes: ['Chèque', 'Virement', 'Prélèvement', 'TIP'], libelle: 'tout mode' },
+}
+
+export interface SaisieAnnulationReglement {
+  /** Traitement « Annulation de règlements » de l'écriture contraire, sous son propre identifiant. */
+  id: string
+  /** Date de l'annulation : celle de l'écriture contraire (AAAA-MM-JJ). */
+  date: string
+  motif: MotifAnnulationReglement
+  /** Précision libre du motif ; null : aucune. */
+  precision: string | null
+}
+
+/** Règlement à annuler : ni annulé ni rejeté, payé, motif admis pour son mode, acompte non imputé. */
+function verifierAAnnuler(r: ReglementFournisseur, motif: MotifAnnulationReglement): void {
+  if (r.annulation)
+    throw new Error(
+      `Règlement ${r.id} déjà annulé le ${r.annulation.le} (${LIBELLES_MOTIF_ANNULATION_REGLEMENT[r.annulation.motif]}) : son écriture contraire est le traitement ${r.annulation.traitementId} ; « Annulé » est définitif.`,
+    )
+  if (r.rejet) throw new Error(`Règlement ${r.id} : virement rejeté le ${r.rejet.le}, déjà annulé par son rejet (J9).`)
+  if (r.statut !== 'Enregistré' && r.statut !== 'Rapproché')
+    throw new Error(
+      `Règlement ${r.id} « ${r.statut} » : seul un règlement payé (enregistré ou rapproché) s'annule par une écriture contraire ; avant le paiement, aucune écriture n'existe (changerStatutReglementFournisseur).`,
+    )
+  if (r.mode === 'Virement' && motif !== 'erreur_ecriture')
+    throw new Error(`Règlement ${r.id} par virement : un virement rejeté ou retourné s'annule par rejeterVirement (J9) ; ici, seule l'erreur d'écriture vise un virement.`)
+  const { modes, libelle } = MODES_DU_MOTIF[motif]
+  if (!modes.includes(r.mode))
+    throw new Error(`Motif « ${LIBELLES_MOTIF_ANNULATION_REGLEMENT[motif]} » : pour ${libelle} seulement ; règlement ${r.id} par ${r.mode} — ${DECISION_F84}.`)
+  const imputation = r.acompteSurCommande?.imputation ?? null
+  if (imputation !== null)
+    throw new Error(`Acompte ${r.id} imputé sur la facture ${imputation.factureId} le ${imputation.le} : défaire d'abord l'imputation (non prise en charge), puis annuler l'acompte.`)
+}
+
+/** L'écriture d'origine fournie est celle du règlement, déjà passée ; l'annulation a sa date et son propre traitement. */
+function verifierEcritureOrigine(r: ReglementFournisseur, { id, date }: SaisieAnnulationReglement, ecriture: Traitement): void {
+  texteRequis(id, "Annulation du règlement : identifiant du traitement d'annulation attendu.")
+  if (id === ecriture.id)
+    throw new Error(`Annulation du règlement ${r.id} : le traitement d'annulation a son propre identifiant, distinct de l'écriture d'origine (${id}).`)
+  if (!estDateIsoValide(date)) throw new Error(`Date de l'annulation invalide (${date}) : AAAA-MM-JJ attendu.`)
+  if (!r.impute || r.traitementId === null)
+    throw new Error(`Règlement ${r.id} : écrire d'abord le règlement (traitementReglements) ; l'annulation en passe ensuite l'écriture contraire.`)
+  if (r.traitementId !== ecriture.id)
+    throw new Error(`Annulation du règlement ${r.id} : écriture ${ecriture.id} fournie, alors que le règlement est écrit dans le traitement ${r.traitementId}.`)
+  if (date < ecriture.date)
+    throw new Error(
+      `Annulation du ${date} antérieure à l'écriture d'origine du ${ecriture.date} : l'écriture contraire ne précède pas l'écriture qu'elle annule (arrêté du 14 mars 2005, art. 5).`,
+    )
+}
+
+/**
+ * Décision du 20/11/2026 (partie C, F84) — « Annuler le règlement » : un règlement payé et écrit, autre qu'un virement
+ * rejeté, s'annule avec un motif obligatoire (chèque perdu, opposition, chèque jamais encaissé, prélèvement contesté,
+ * erreur d'écriture) et sa date. L'écriture contraire est la part de l'écriture d'origine qui porte le règlement,
+ * contre-passée par annulerTraitement dans un traitement « Annulation de règlements » daté de l'annulation, qui renvoie
+ * à l'écriture d'origine (arrêté du 14 mars 2005, art. 5). Le règlement passe « Annulé », définitif : il reste imputé et
+ * rattaché à l'écriture d'origine, et porte son annulation (date, motif, précision, traitement d'annulation, écriture
+ * d'origine). La facture se rétablit à part (statuts-facture.ts, retourFactureApresAnnulation) et se paie ensuite par un
+ * nouveau règlement. Le délai de validité d'un chèque n'est pas calculé (non vérifié).
+ */
+export function annulerReglement(
+  r: ReglementFournisseur,
+  saisie: SaisieAnnulationReglement,
+  ecriture: Traitement,
+): { traitement: Traitement; reglement: ReglementFournisseur } {
+  verifierMotifAnnulation(saisie.motif)
+  verifierAAnnuler(r, saisie.motif)
+  verifierEcritureOrigine(r, saisie, ecriture)
+  const traitement = annulerTraitement({ ...ecriture, mouvements: mouvementsEcrits([r], ecriture) }, { id: saisie.id, date: saisie.date })
+  const annulation: AnnulationReglement = {
+    le: saisie.date,
+    motif: saisie.motif,
+    precision: optionnel(saisie.precision),
+    traitementId: saisie.id,
+    ecritureOrigineId: ecriture.id,
+  }
+  return { traitement, reglement: { ...r, statut: 'Annulé', annulation } }
 }
 
 // ─── Contrôles ──────────────────────────────────────────────────────────────────────────────
@@ -1060,7 +1442,7 @@ function anomalieDemembrement(p: PaiementDuCompte, demembrement: string[]): Anom
 export function controlerBeneficiaireCompte(r: ReglementFournisseur, positions: Position[], date: string, comptes: CompteDuReglement[]): AnomalieReglement[] {
   if (!estDateIsoValide(date)) throw new Error(`Date invalide (${date}) : AAAA-MM-JJ attendu.`)
   const b = r.beneficiaire
-  if (b.type === 'fournisseur') return []
+  if (b.type === 'fournisseur' || b.type === 'administrateur_provisoire') return []
   if (b.type === 'indivisaire') return controlerBeneficiaireIndivisaire(r, positions, date, comptes)
   const compte = comptes.find((c) => c.id === b.compteCoproprietaireId)
   if (!compte) throw new Error(`Règlement ${r.id} : compte débité ${b.compteCoproprietaireId} non fourni ; il porte le mandataire commun ou l'accord écrit (J67, R80).`)
@@ -1221,17 +1603,230 @@ export function controlerCreanceAnterieure(
   ]
 }
 
-// ─── Rapprochement ──────────────────────────────────────────────────────────────────────────
+// ─── Rémunération du cabinet (Décision du 20/11/2026, partie C, F87) ────────────────────────
 
-/** J9 — rejeté à la date de la vue : sans date, dès qu'il porte son rejet ; à une date, si le rejet date de ce jour ou d'avant. */
-function rejeteA(r: ReglementFournisseur, aLaDate: string | undefined): boolean {
-  if (!r.rejet) return false
-  return aLaDate === undefined || r.rejet.le <= aLaDate
+const LIBELLE_OBJET_ORDONNANCE: Readonly<Record<ObjetOrdonnanceRemuneration, string>> = {
+  acompte: "d'acompte",
+  taxe: 'de taxe',
+  designation: 'de désignation',
 }
 
-/** J9 — un virement rejeté se lit comme payé : sa sortie a pu être pointée au relevé avant son retour. */
+/** Identité d'une base (F87) : deux paiements sur la même base partagent son montant fixé. */
+function cleBase(base: BaseRemuneration): string {
+  switch (base.nature) {
+    case 'droit_fixe':
+      return 'droit_fixe'
+    case 'ordonnance':
+      return `ordonnance|${base.objet}|${base.juridiction.trim()}|${base.date}|${base.numero.trim()}`
+    case 'contrat':
+      return `contrat|${base.reference.trim()}`
+  }
+}
+
+function libelleBase(base: BaseRemuneration): string {
+  switch (base.nature) {
+    case 'droit_fixe':
+      return 'le droit fixe'
+    case 'ordonnance':
+      return `l'ordonnance ${LIBELLE_OBJET_ORDONNANCE[base.objet]} n° ${base.numero.trim()} du ${dateIsoVersFr(base.date)} (${base.juridiction.trim()})`
+    case 'contrat':
+      return `le contrat « ${base.reference.trim()} »`
+  }
+}
+
+/** Texte cité : D. 1967 art. 61-1-5 pour le droit fixe et les ordonnances d'acompte ou de taxe ; null sous un autre régime. */
+const fondementBase = (base: BaseRemuneration): string | null =>
+  base.nature === 'droit_fixe' || (base.nature === 'ordonnance' && base.objet !== 'designation') ? FONDEMENT_REMUNERATION : null
+
+/**
+ * Décision du 20/11/2026 (partie C, F87) — rémunération du cabinet payée par le circuit des factures : le cumul des
+ * règlements non annulés au cabinet, sur le même mandat et la même base (droit fixe, ordonnance, contrat), règlement
+ * contrôlé compris, ne dépasse jamais le montant fixé par cette base (passé en paramètre : droit fixe, ordonnance
+ * d'acompte ou de taxe, contrat) ; au-delà, anomalie bloquante. Sans objet pour un autre bénéficiaire.
+ */
+export function controlerPaiementRemuneration(
+  r: ReglementFournisseur,
+  { montantFixeCentimes, reglements }: { montantFixeCentimes: number; reglements: readonly ReglementFournisseur[] },
+): AnomalieReglement[] {
+  if (!Number.isInteger(montantFixeCentimes) || montantFixeCentimes < 0)
+    throw new Error(`Montant fixé invalide (${montantFixeCentimes}) : centimes entiers positifs ou nuls attendus.`)
+  const b = r.beneficiaire
+  if (b.type !== 'administrateur_provisoire') return []
+  const cle = cleBase(b.base)
+  const memeBase = (autre: ReglementFournisseur): boolean =>
+    autre.id !== r.id &&
+    autre.statut !== 'Annulé' &&
+    autre.mandatId === r.mandatId &&
+    autre.beneficiaire.type === 'administrateur_provisoire' &&
+    autre.beneficiaire.cabinetId === b.cabinetId &&
+    cleBase(autre.beneficiaire.base) === cle
+  const dejaCentimes = reglements.filter(memeBase).reduce((s, autre) => s + autre.montantCentimes, 0)
+  const cumul = dejaCentimes + r.montantCentimes
+  if (cumul <= montantFixeCentimes) return []
+  return [
+    {
+      code: 'remuneration_au_dela_du_montant_fixe',
+      message: `Règlement ${r.id} refusé : la rémunération du cabinet sur ${libelleBase(b.base)} atteindrait ${cumul} centimes (dont ${dejaCentimes} déjà payés ou préparés), au-delà du montant fixé (${montantFixeCentimes} centimes) ; le cumul payé ne dépasse jamais le montant fixé — ${DECISION_F87}.`,
+      fondement: fondementBase(b.base),
+    },
+  ]
+}
+
+// ─── Acompte sur commande (Décision du 20/11/2026, partie C, F88) ───────────────────────────
+
+type BeneficiaireFournisseur = Extract<BeneficiaireReglement, { type: 'fournisseur' }>
+
+/** Alerte du dépassement de l'acompte prévu (gravité : alerte), ou anomalie de vigilance avant l'OS. */
+export type AnomalieAcompteSurCommande = (AnomalieReglement & { gravite: 'alerte' }) | AnomalieEntreprise
+
+function acompteDe(r: ReglementFournisseur): { prevu: AcompteSurCommande; b: BeneficiaireFournisseur } {
+  const prevu = r.acompteSurCommande ?? null
+  const b = r.beneficiaire
+  if (prevu === null || b.type !== 'fournisseur')
+    throw new Error(`Règlement ${r.id} : pas un acompte sur commande (versé à un fournisseur, sans facture, sur un OS ou un marché) — ${DECISION_F88}.`)
+  return { prevu, b }
+}
+
+/**
+ * Décision du 20/11/2026 (partie C, F88) — contrôles d'un acompte sur commande : alerte si les acomptes non annulés de
+ * la même référence (OS ou marché) et du même fournisseur, celui-ci compris (`autres` : les autres règlements connus),
+ * dépassent l'acompte prévu ; vigilance contrôlée comme avant l'OS (controlerAvantOrdreService : bloquante au-delà du
+ * seuil, décennale), sur les pièces de ce fournisseur.
+ */
+export function controlerAcompteSurCommande(
+  r: ReglementFournisseur,
+  { autres, pieces, operation }: { autres: readonly ReglementFournisseur[]; pieces: PiecesEntreprise; operation: OperationAControler },
+): AnomalieAcompteSurCommande[] {
+  const { prevu, b } = acompteDe(r)
+  if (pieces.prestataireId !== b.prestataireId)
+    throw new Error(`Pièces de l'entreprise ${pieces.prestataireId} : autre fournisseur que celui de l'acompte ${r.id} (${b.prestataireId}).`)
+  const verseCentimes = autres
+    .filter((a) => a.id !== r.id && a.statut !== 'Annulé' && a.acompteSurCommande?.reference === prevu.reference && cleBeneficiaire(a) === cleBeneficiaire(r))
+    .reduce((s, a) => s + a.montantCentimes, 0)
+  const cumul = verseCentimes + r.montantCentimes
+  const depassement: AnomalieAcompteSurCommande[] =
+    cumul > prevu.montantPrevuCentimes
+      ? [
+          {
+            code: 'acompte_au_dela_du_prevu',
+            gravite: 'alerte',
+            message: `Acompte ${r.id} : ${cumul} centimes versés ou préparés sur « ${prevu.reference} », au-delà de l'acompte prévu (${prevu.montantPrevuCentimes} centimes) ; vérifier l'OS ou le marché — ${DECISION_F88}.`,
+            fondement: null,
+          },
+        ]
+      : []
+  return [...depassement, ...controlerAvantOrdreService(pieces, operation)]
+}
+
+/** Facture du fournisseur arrivée, sur laquelle l'acompte s'impute (F88). */
+export interface FactureDeLAcompte {
+  id: string
+  prestataireId: string
+  resteDuCentimes: number
+}
+
+/** Acompte à imputer : payé, écrit, ni annulé ni déjà imputé. */
+function verifierAcompteAImputer(acompte: ReglementFournisseur, prevu: AcompteSurCommande): void {
+  const imputation = prevu.imputation
+  if (imputation !== null)
+    throw new Error(`Acompte ${acompte.id} déjà imputé sur la facture ${imputation.factureId} le ${imputation.le} (traitement ${imputation.traitementId}).`)
+  if (acompte.statut === 'Annulé') throw new Error(`Acompte ${acompte.id} annulé ou rejeté : rien à imputer.`)
+  if (!acompte.impute || (acompte.statut !== 'Enregistré' && acompte.statut !== 'Rapproché'))
+    throw new Error(`Acompte ${acompte.id} « ${acompte.statut} » : écrire d'abord l'acompte payé (traitementReglements), puis l'imputer sur la facture.`)
+}
+
+/**
+ * Décision du 20/11/2026 (partie C, F88) — à l'arrivée de la facture, l'acompte sur commande s'impute dessus : débit du
+ * 401, crédit du 409 du fournisseur, dans un traitement « Saisie de mouvements » (le 409 se solde). Imputation en une
+ * fois, sur une facture du même fournisseur dont le reste dû couvre l'acompte ; renvoie le reste dû après imputation et
+ * l'acompte, qui porte son imputation (facture, date, traitement).
+ */
+export function imputerAcompteSurFacture(
+  acompte: ReglementFournisseur,
+  facture: FactureDeLAcompte,
+  { id, date }: { id: string; date: string },
+): { traitement: Traitement; acompte: ReglementFournisseur; resteDuCentimes: number } {
+  const { prevu, b } = acompteDe(acompte)
+  verifierAcompteAImputer(acompte, prevu)
+  if (facture.prestataireId !== b.prestataireId)
+    throw new Error(`Facture ${facture.id} d'un autre fournisseur (${facture.prestataireId}) que l'acompte ${acompte.id} (${b.prestataireId}).`)
+  const montant = acompte.montantCentimes
+  if (!Number.isInteger(facture.resteDuCentimes) || facture.resteDuCentimes < montant)
+    throw new Error(`Acompte ${acompte.id} de ${montant} centimes : plus que le reste dû de la facture ${facture.id} (${facture.resteDuCentimes} centimes) ; l'acompte s'impute en une fois.`)
+  texteRequis(id, "Imputation de l'acompte : identifiant du traitement attendu.")
+  if (id === acompte.traitementId)
+    throw new Error(`Imputation de l'acompte ${acompte.id} : le traitement a son propre identifiant, distinct de l'écriture de l'acompte (${id}).`)
+  const mandat = acompte.contrepartie512.split('.')[0]
+  const liens: LiensMouvement = { fournisseurId: b.prestataireId }
+  const traitement = creerTraitement({
+    id,
+    famille: 'Saisie de mouvements',
+    date,
+    mouvements: [
+      { compte: formaterNumeroCompte({ mandat, planCode: '40100', auxiliaire: b.auxiliaire401 }), sens: 'debit', montantCentimes: montant, liens },
+      { compte: formaterNumeroCompte({ mandat, planCode: '40900', auxiliaire: b.auxiliaire401 }), sens: 'credit', montantCentimes: montant, liens },
+    ],
+  })
+  return {
+    traitement,
+    acompte: { ...acompte, acompteSurCommande: { ...prevu, imputation: { factureId: facture.id, le: date, traitementId: id } } },
+    resteDuCentimes: facture.resteDuCentimes - montant,
+  }
+}
+
+// ─── IBAN après un rejet pour coordonnées (Décision du 20/11/2026, partie C, F92) ──────────────
+
+/**
+ * Décision du 20/11/2026 (partie C, F92) — nouveau règlement par virement d'une facture revenue après un rejet pour
+ * coordonnées (statuts-facture.ts, categorieRejet) : refusé tant que l'IBAN n'est pas changé ou confirmé
+ * (verifierIbanApresRejet : quatre yeux, source, trace), puis s'il ne part pas vers l'IBAN changé ou confirmé. Les autres
+ * motifs de rejet suivent J9 sans changement ; un règlement qui ne part pas par virement n'a pas d'IBAN à contrôler.
+ * Anomalies bloquantes.
+ */
+export function controlerIbanApresRejet(
+  r: ReglementFournisseur,
+  facture: Pick<FactureAPayer, 'id' | 'rejets' | 'verificationsIban'>,
+): AnomalieReglement[] {
+  if (r.factureId !== facture.id) throw new Error(`Règlement ${r.id} : il règle la facture ${r.factureId ?? '(aucune)'}, pas la facture ${facture.id}.`)
+  if (r.mode !== 'Virement') return []
+  const aVerifier = ibanAVerifier(facture)
+  if (aVerifier !== null)
+    return [
+      {
+        code: 'iban_a_confirmer_apres_rejet',
+        message: `Règlement ${r.id} refusé : la facture ${facture.id} est revenue après un rejet pour coordonnées du ${dateIsoVersFr(aVerifier.le)} (${aVerifier.motif}) ; IBAN à changer ou confirmer par une autre personne que celle qui l'a saisi, avec sa source (courrier de l'entreprise, RIB) — ${DECISION_F92}.`,
+        fondement: null,
+      },
+    ]
+  const verifie = ibanVerifieApresRejet(facture)
+  if (verifie === null || ibanNormalise(verifie.iban) === ibanNormalise(r.iban ?? '')) return []
+  return [
+    {
+      code: 'iban_different_de_l_iban_verifie',
+      message: `Règlement ${r.id} refusé : son IBAN n'est pas celui ${verifie.nature === 'changement' ? 'changé' : 'confirmé'} le ${dateIsoVersFr(verifie.le)} après le rejet pour coordonnées de la facture ${facture.id} ; régler vers l'IBAN vérifié, ou vérifier le nouvel IBAN — ${DECISION_F92}.`,
+      fondement: null,
+    },
+  ]
+}
+
+// ─── Rapprochement ──────────────────────────────────────────────────────────────────────────
+
+/** J9 et F84 — date du rejet ou de l'annulation d'un règlement payé ; null : ni l'un ni l'autre. */
+const finDuPaiement = (r: ReglementFournisseur): string | null => r.rejet?.le ?? r.annulation?.le ?? null
+
+/**
+ * J9 (et Décision du 20/11/2026, partie C, F84) — rejeté ou annulé à la date de la vue : sans date, dès qu'il porte son
+ * rejet ou son annulation ; à une date, si l'un ou l'autre date de ce jour ou d'avant.
+ */
+function rejeteA(r: ReglementFournisseur, aLaDate: string | undefined): boolean {
+  const le = finDuPaiement(r)
+  if (le === null) return false
+  return aLaDate === undefined || le <= aLaDate
+}
+
+/** J9 et F84 — un règlement rejeté ou annulé se lit comme payé : sa sortie a pu être pointée au relevé avant. */
 function commePaye(r: ReglementFournisseur): ReglementFournisseur {
-  if (!r.rejet) return r
+  if (finDuPaiement(r) === null) return r
   const statut: StatutReglementFournisseur = r.rapprochement ? 'Rapproché' : 'Enregistré'
   return { ...r, statut }
 }
@@ -1239,8 +1834,9 @@ function commePaye(r: ReglementFournisseur): ReglementFournisseur {
 /**
  * Statut « Rapproché » propagé depuis les arrêtés (rapprochement-pieces.ts, partagé avec les encaissements) : un
  * règlement « Enregistré » pointé passe « Rapproché », un règlement dépointé revient « Enregistré ». Un virement rejeté
- * (J9) prend ou perd le pointage de sa sortie sans anomalie et reste « Annulé » ; à une date (`aLaDate`) antérieure à son
- * rejet, il garde le statut propagé à cette date. Passer tous les règlements des comptes concernés.
+ * (J9), comme un règlement annulé (F84), prend ou perd le pointage de sa sortie sans anomalie et reste « Annulé » ; à une
+ * date (`aLaDate`) antérieure à son rejet ou à son annulation, il garde le statut propagé à cette date. Passer tous les
+ * règlements des comptes concernés.
  */
 export function rapprocherReglements(
   reglements: ReglementFournisseur[],
