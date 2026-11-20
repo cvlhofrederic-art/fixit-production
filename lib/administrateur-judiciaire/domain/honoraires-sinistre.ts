@@ -147,10 +147,19 @@ export { SEUIL_LOTS_REMUNERATION_PAR_LE_JUGE }
  *   concerné (L. 1965 art. 10-1, a ; R6) : hors des sinistres, traitée dans etapes-courrier.ts. Une seule règle pour les
  *   deux modules.
  *
+ * Partie C des questions ouvertes du code (pratique du cabinet ; recommandations acceptées le 20/11/2026) :
+ * - Décision du 20/11/2026 (partie C, F5) : en administration provisoire de l'art. 29-1 (moins de 500 lots), chaque acte
+ *   hors tarif (sinistres, recouvrement, vente de lot, réunions d'information) se chiffre au temps passé, en minutes
+ *   exactes, multiplié par le taux horaire du cabinet, acte par acte, avec la date, la durée, l'objet et la fiche liée.
+ *   Le montant est une demande présentée au juge, jamais une facture au syndicat. Aucun élément « A facturer » : le
+ *   signalement « à soumettre au juge » reste (J67, R2) et dit comment chiffrer l'acte (CHIFFRAGE_ACTE_HORS_TARIF) ;
+ *   l'état des actes hors tarif du compte provisoire est dans actes-hors-tarif.ts (etatDesActesHorsTarif, taux horaire
+ *   du cabinet passé par l'appelant). Fondements : aucun texte ne fixe le mode de calcul (arrêté du 8 octobre 2015,
+ *   art. 14) ; le juge fixe les acomptes sur justification des diligences accomplies et arrête la rémunération (D. 1967
+ *   art. 61-1-5, II et III) ; l'administrateur joint « tout élément justifiant » les bases retenues (règles
+ *   professionnelles 810.2 et 820.3).
+ *
  * Questions ouvertes :
- * - 🔴 (Frédéric) En administration provisoire (art. 29-1), comment le cabinet chiffre-t-il les actes hors tarif de
- *   l'art. 14 de l'arrêté (sinistres, recouvrement, mutation, réunions d'information) : temps passé × un taux horaire du
- *   cabinet, présenté au juge dans le compte provisoire détaillé des émoluments ? Aucun texte ne fixe le mode de calcul.
  * - 🔴 (Frédéric) Le cabinet gère-t-il dans VitFix des mandats de syndic conventionnels (seul cas où l'élément est créé) ?
  *   Question F6 ; pour le cabinet, C. com. L. 811-10 (J67, R14 et R15).
  * - 🔴 (Frédéric ou Hugo) Quel arrondi pour taux horaire × durée ? Choix actuel : durée en minutes exactes, heures au
@@ -458,12 +467,18 @@ export type ResultatOuvertureSinistre =
 
 const AUCUN_ELEMENT = "aucun élément « A facturer » n'est créé"
 
+/** Décision du 20/11/2026 (partie C, F5) : comment chiffrer un acte hors tarif de l'AP (état : actes-hors-tarif.ts). */
+const CHIFFRAGE_ACTE_HORS_TARIF =
+  "Noter le temps passé : l'acte se chiffre au temps passé, en minutes exactes, × taux horaire du cabinet, dans l'état des " +
+  "actes hors tarif ; c'est une demande présentée au juge, jamais une facture au syndicat (décision du 20/11/2026, F5)"
+
 const SANS_ELEMENT: Readonly<Record<CadreSansElement, { motif: MotifSansElement; signalement: string }>> = {
   tarif_administrateur_provisoire: {
     motif: 'a_soumettre_au_juge',
     signalement:
       `Administration provisoire (art. 29-1) : la gestion du sinistre est un acte hors tarif (${SOURCE_TARIF_AP}), à justifier ` +
-      `auprès du juge (acompte annuel ou ordonnance de fin de mission, D. 1967 art. 61-1-5, II et III) ; ${AUCUN_ELEMENT}.`,
+      `auprès du juge (acompte annuel ou ordonnance de fin de mission, D. 1967 art. 61-1-5, II et III) ; ${AUCUN_ELEMENT}. ` +
+      `${CHIFFRAGE_ACTE_HORS_TARIF}.`,
   },
   remuneration_fixee_par_le_juge: {
     motif: 'a_soumettre_au_juge',
@@ -606,7 +621,9 @@ function anomalieDeReprographie(element: ElementAFacturer, cadre: CadreRemunerat
 const ANOMALIE_DU_CADRE: Readonly<Record<CadreSansElement, { nature: NatureAnomalieHonorairesSinistre; message: string }>> = {
   tarif_administrateur_provisoire: {
     nature: 'hors_tarif_ap',
-    message: `Administration provisoire (art. 29-1) : acte hors tarif (${SOURCE_TARIF_AP}), à justifier auprès du juge, pas à facturer au syndicat.`,
+    message:
+      `Administration provisoire (art. 29-1) : acte hors tarif (${SOURCE_TARIF_AP}), à justifier auprès du juge, pas à facturer ` +
+      `au syndicat. ${CHIFFRAGE_ACTE_HORS_TARIF}.`,
   },
   remuneration_fixee_par_le_juge: {
     nature: 'remuneration_fixee_par_le_juge',
