@@ -25,7 +25,7 @@
 //   bureau_ferme ; d'un autre cabinet ou inconnu → 409 a_reverifier ; la base revérifie (trigger, clé composée) ; bureauId
 //   sans la migration → 503 base_absente (jamais ignoré). GET — chaque fiche porte son bureau (clé posée seulement si
 //   elle en a un) ; ?bureau=<id> (les fiches de ce bureau) et ?bureau=aucun (fiches sans bureau d'un cabinet qui a un
-//   bureau ouvert) ; filtre sans la migration → 503 base_absente.
+//   bureau ouvert, hors fiches effacées, qui ne peuvent plus en recevoir) ; filtre sans la migration → 503 base_absente.
 
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'

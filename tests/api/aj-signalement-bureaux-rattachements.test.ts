@@ -207,6 +207,29 @@ describe('GET /gestionnaires : bureau de chaque fiche, filtre par bureau', () =>
     expect((await lireListe(`?bureau=aucun&cabinet=${CAB_AUTRE}`)).gestionnaires).toEqual([])
   })
 
+  it('?bureau=aucun : sans les fiches effacées (elles ne peuvent plus recevoir de bureau) ; ?bureau=<id> et la liste sans filtre : inchangés', async () => {
+    const PARTIE = 'a0000000-0000-4000-8000-0000000000d1'
+    const EFFACEE_NORD = 'a0000000-0000-4000-8000-0000000000d2'
+    const depart = { actif: false, desactive_le: '2026-11-17T09:00:00+00:00', user_id: null, acces_ouvert_le: null }
+    const effacement = { ...depart, nom: null, email: null, pseudonymise_le: '2026-11-18T09:00:00+00:00' }
+    // G2 effacée (départ puis effacement RGPD : nom et e-mail null), sans bureau ; une fiche effacée restée dans Nord ;
+    // une fiche partie NON effacée, sans bureau : toujours à compléter (le changement de bureau lui reste permis).
+    Object.assign(ligne('signalements_qr_gestionnaires', G2), effacement)
+    baseQr.table('signalements_qr_gestionnaires').push(
+      { ...ligne('signalements_qr_gestionnaires', G1), ...depart, id: PARTIE, nom: 'Anne Partie', email: 'anne.partie@exemple.test', bureau_id: null, created_at: '2026-11-06T08:00:00+00:00' },
+      { ...ligne('signalements_qr_gestionnaires', G1), ...effacement, id: EFFACEE_NORD, bureau_id: NORD, created_at: '2026-11-07T08:00:00+00:00' },
+    )
+    const ids = async (query: string) => (await lireListe(query)).gestionnaires.map((g) => g.id)
+
+    expect(await ids('?etat=tous&bureau=aucun')).toEqual([PARTIE])
+    expect(await ids('?etat=desactives&bureau=aucun')).toEqual([PARTIE])
+    expect(await ids('?bureau=aucun')).toEqual([])
+    // Inchangés : le filtre d'un bureau garde ses fiches effacées ; sans filtre, toutes les fiches de l'état demandé.
+    expect((await ids(`?etat=tous&bureau=${NORD}`)).sort()).toEqual([G1, EFFACEE_NORD].sort())
+    expect((await ids('?etat=tous')).sort()).toEqual([G1, G2, G3, PARTIE, EFFACEE_NORD].sort())
+    expect((await lireListe('?etat=desactives')).gestionnaires.find((g) => g.id === G2)).toMatchObject({ id: G2, nom: null, email: null })
+  })
+
   it('?bureau= hors format : 400 ; migration absente : liste sans bureau, et ?bureau= → 503 base_absente', async () => {
     expect((await lireListe('?bureau=nord')).res.status).toBe(400)
     simulerProductionAvantBureauxQr()

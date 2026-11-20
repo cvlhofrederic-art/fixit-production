@@ -212,10 +212,14 @@ export async function nombresBureauxParCabinetQr(cabinetIds: readonly string[] |
 
 /**
  * Filtre ?bureau= de la liste des fiches (super admin) : un bureau (ses fiches), ou « aucun » (fiches sans bureau d'un
- * cabinet qui a un bureau ouvert : le « bureau à compléter » des fiches existantes). Erreur rendue (structure absente
- * comprise : la route répond 503, jamais une liste non filtrée).
+ * cabinet qui a un bureau ouvert : le « bureau à compléter » des fiches existantes). « aucun » écarte les fiches
+ * effacées (pseudonymise_le posé : nom et e-mail null, « Ancien gestionnaire ») : elles ne peuvent plus recevoir de
+ * bureau (PATCH → 409 fiche_effacee) ; un bureau garde les siennes. Erreur rendue (structure absente comprise : la
+ * route répond 503, jamais une liste non filtrée).
  */
-export async function filtrerFichesParBureauQr<T extends { id: string; cabinet_id: string }>(fiches: readonly T[], filtre: string): Promise<LectureQr<T[]>> {
+export async function filtrerFichesParBureauQr<T extends { id: string; cabinet_id: string; pseudonymise_le: string | null }>(
+  fiches: readonly T[], filtre: string,
+): Promise<LectureQr<T[]>> {
   if (fiches.length === 0) {
     // Même sans fiche, la structure est vérifiée : un filtre impossible ne rend pas une liste vide trompeuse.
     const sonde = await lire(supabaseAdmin.from(TABLE_BUREAUX_QR).select('id').limit(1))
@@ -230,5 +234,5 @@ export async function filtrerFichesParBureauQr<T extends { id: string; cabinet_i
     supabaseAdmin.from(TABLE_BUREAUX_QR).select('cabinet_id').in('cabinet_id', lot).is('ferme_le', null).order('cabinet_id', { ascending: true }))
   if (!ouverts.ok) return ouverts
   const avecBureauOuvert = new Set(ouverts.valeur.map((b) => b.cabinet_id))
-  return { ok: true, valeur: fiches.filter((f) => !bureauDe.get(f.id) && avecBureauOuvert.has(f.cabinet_id)) }
+  return { ok: true, valeur: fiches.filter((f) => !f.pseudonymise_le && !bureauDe.get(f.id) && avecBureauOuvert.has(f.cabinet_id)) }
 }
