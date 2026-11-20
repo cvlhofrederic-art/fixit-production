@@ -15,8 +15,12 @@
  * § 1.12 : le client découpe le fichier par messages).
  *
  * Sûreté : toute déclaration « <!… » autre qu'un commentaire ou une section CDATA est refusée, donc toute DTD — aucune
- * entité déclarée, aucune entité externe (XXE), aucune expansion en cascade ; aucun accès réseau ni fichier ; lecture
- * itérative (pile explicite, pas de récursion) et profondeur bornée. Tout écart lève une erreur qui cite la ligne.
+ * entité déclarée, aucune entité externe (XXE), aucune expansion en cascade ; seules les cinq entités prédéfinies sont
+ * reconnues, cherchées dans une table sans prototype (« &constructor; » ou « &__proto__; » sont des entités inconnues) ;
+ * aucun accès réseau ni fichier ; lecture itérative (pile explicite, pas de récursion) et profondeur bornée. Temps de
+ * lecture linéaire en la taille du texte, y compris pour un fichier hostile : attributs répétés repérés par un ensemble,
+ * portée des espaces de noms chaînée (une déclaration n'est jamais recopiée dans les éléments descendants ; la chaîne
+ * est au plus aussi longue que la profondeur). Tout écart lève une erreur qui cite la ligne.
  * 🔴 Non traité : validation par le schéma XSD (le relevé est contrôlé champ par champ dans releve-camt.ts), encodages
  * autres que celui du texte déjà décodé (l'attribut encoding est ignoré), normalisation des valeurs d'attributs.
  */
@@ -25,7 +29,10 @@
 export interface ElementXml {
   nom: string
   espaceDeNoms: string
-  /** Attributs tels qu'écrits (préfixe compris), déclarations xmlns exclues ; valeurs décodées. */
+  /**
+   * Attributs tels qu'écrits (préfixe compris), déclarations xmlns exclues ; valeurs décodées. Objet sans prototype : un
+   * attribut nommé « constructor » ou « __proto__ » est gardé, et un nom absent rend toujours undefined.
+   */
   attributs: Readonly<Record<string, string>>
   enfants: ElementXml[]
   /** Nœuds texte et CDATA placés directement dans l'élément, concaténés. */
@@ -37,7 +44,13 @@ export interface OptionsLectureXml {
   profondeurMax?: number
 }
 
-const ENTITES_PREDEFINIES: Readonly<Record<string, string>> = { lt: '<', gt: '>', amp: '&', quot: '"', apos: "'" }
+const ENTITES_PREDEFINIES: ReadonlyMap<string, string> = new Map([
+  ['lt', '<'],
+  ['gt', '>'],
+  ['amp', '&'],
+  ['quot', '"'],
+  ['apos', "'"],
+])
 const CARACTERE_NOM = String.raw`[\w.\-·À-￯]`
 const DEBUT_NOM = String.raw`[A-Za-z_À-￯]`
 const NOM_XML = new RegExp(`${DEBUT_NOM}${CARACTERE_NOM}*(?::${DEBUT_NOM}${CARACTERE_NOM}*)?`, 'y')
@@ -51,10 +64,24 @@ const estCaractereXml = (code: number): boolean =>
   (code >= 0xe000 && code <= 0xfffd) ||
   (code >= 0x10000 && code <= 0x10ffff)
 
+/** Déclarations d'espace de noms d'un élément (préfixe → espace, '' pour l'espace par défaut), chaînées à celles du parent. */
+interface Portee {
+  propres: ReadonlyMap<string, string>
+  parent: Portee | null
+}
+
+const PORTEE_INITIALE: Portee = {
+  propres: new Map([
+    ['', ''],
+    ['xml', ESPACE_XML],
+  ]),
+  parent: null,
+}
+
 interface Cadre {
   element: ElementXml
   nomEcrit: string
-  prefixes: ReadonlyMap<string, string>
+  portee: Portee
 }
 
 interface EtatLecture {
@@ -80,7 +107,7 @@ function decoderReference(etat: EtatLecture, reference: string, position: number
     if (!estCaractereXml(code)) return echec(etat, `référence « ${reference} » : caractère interdit en XML.`, position)
     return String.fromCodePoint(code)
   }
-  const valeur = ENTITES_PREDEFINIES[nom]
+  const valeur = ENTITES_PREDEFINIES.get(nom)
   if (valeur === undefined)
     return echec(etat, `entité inconnue « ${reference} » (seules &lt; &gt; &amp; &quot; &apos; et les références numériques sont admises).`, position)
   return valeur
@@ -149,8 +176,8 @@ function lireBaliseFermante(etat: EtatLecture): void {
   etat.i = apres + 1
 }
 
-/** Un attribut « nom = "valeur" » à partir de etat.i ; avance etat.i. */
-function lireAttribut(etat: EtatLecture, nomElement: string, dejaLus: [string, string][]): [string, string] {
+/** Un attribut « nom = "valeur" » à partir de etat.i ; avance etat.i et ajoute le nom à `dejaLus`. */
+function lireAttribut(etat: EtatLecture, nomElement: string, dejaLus: Set<string>): [string, string] {
   const { texte } = etat,
     nom = lireNom(etat, etat.i)
   let i = sauterEspaces(texte, etat.i + nom.length)
@@ -161,14 +188,16 @@ function lireAttribut(etat: EtatLecture, nomElement: string, dejaLus: [string, s
   const fin = finDe(etat, guillemet, i + 1, `valeur de l’attribut ${nom}`),
     brut = texte.slice(i + 1, fin)
   if (brut.includes('<')) echec(etat, `« < » interdit dans la valeur de l’attribut ${nom}.`, i)
-  if (dejaLus.some(([lu]) => lu === nom)) echec(etat, `attribut ${nom} répété dans <${nomElement}>.`, i)
+  if (dejaLus.has(nom)) echec(etat, `attribut ${nom} répété dans <${nomElement}>.`, i)
+  dejaLus.add(nom)
   etat.i = fin + 1
   return [nom, decoder(etat, brut, i + 1)]
 }
 
 /** Attributs d'une balise ouvrante jusqu'à « > » ou « /> » ; `vide` : balise auto-fermée. */
 function lireAttributs(etat: EtatLecture, nomElement: string, debut: number): { bruts: [string, string][]; vide: boolean } {
-  const bruts: [string, string][] = []
+  const bruts: [string, string][] = [],
+    noms = new Set<string>()
   for (;;) {
     const apresEspaces = sauterEspaces(etat.texte, etat.i),
       avecEspace = apresEspaces > etat.i
@@ -183,33 +212,48 @@ function lireAttributs(etat: EtatLecture, nomElement: string, debut: number): { 
     }
     if (etat.i >= etat.texte.length) echec(etat, `balise <${nomElement}> tronquée.`, debut)
     if (!avecEspace) echec(etat, `espace attendu avant l’attribut dans <${nomElement}>.`, etat.i)
-    bruts.push(lireAttribut(etat, nomElement, bruts))
+    bruts.push(lireAttribut(etat, nomElement, noms))
   }
 }
 
-/** Élément d'une balise ouvrante : déclarations xmlns appliquées, préfixes résolus. */
-function creerElement(etat: EtatLecture, nomEcrit: string, bruts: [string, string][], debut: number, parent: Cadre | undefined) {
-  const prefixes = new Map(parent?.prefixes ?? [['', ''], ['xml', ESPACE_XML]]),
-    attributs: Record<string, string> = {},
-    estDeclaration = (nom: string) => nom === 'xmlns' || nom.startsWith('xmlns:')
-  for (const [nom, valeur] of bruts) if (estDeclaration(nom)) prefixes.set(nom === 'xmlns' ? '' : nom.slice(6), valeur)
-  for (const [nom, valeur] of bruts.filter(([nom]) => !estDeclaration(nom))) {
-    const prefixe = nom.includes(':') ? nom.slice(0, nom.indexOf(':')) : null
-    if (prefixe !== null && !prefixes.has(prefixe)) echec(etat, `préfixe « ${prefixe} » non déclaré (attribut ${nom}).`, debut)
-    attributs[nom] = valeur
+const estDeclaration = (nom: string): boolean => nom === 'xmlns' || nom.startsWith('xmlns:')
+
+/** Portée d'un élément : celle du parent, prolongée de ses propres déclarations xmlns s'il en a (rien n'est recopié). */
+function appliquerDeclarations(parent: Portee, bruts: readonly [string, string][]): Portee {
+  const propres = new Map<string, string>()
+  for (const [nom, valeur] of bruts) if (estDeclaration(nom)) propres.set(nom === 'xmlns' ? '' : nom.slice(6), valeur)
+  return propres.size === 0 ? parent : { propres, parent }
+}
+
+/** Espace de noms d'un préfixe ('' : espace par défaut), cherché de l'élément vers la racine ; undefined s'il n'est pas déclaré. */
+function espaceDuPrefixe(portee: Portee, prefixe: string): string | undefined {
+  for (let courante: Portee | null = portee; courante; courante = courante.parent) {
+    const espace = courante.propres.get(prefixe)
+    if (espace !== undefined) return espace
   }
+  return undefined
+}
+
+/** Nom écrit « préfixe:local » ou « local » → nom local et espace de noms ; erreur si le préfixe n'est pas déclaré. */
+function resoudreNom(etat: EtatLecture, nomEcrit: string, portee: Portee, debut: number): { nom: string; espaceDeNoms: string } {
   const deuxPoints = nomEcrit.indexOf(':'),
     prefixe = deuxPoints < 0 ? '' : nomEcrit.slice(0, deuxPoints),
-    espaceDeNoms = prefixes.get(prefixe)
-  if (espaceDeNoms === undefined) echec(etat, `préfixe « ${prefixe} » non déclaré (élément <${nomEcrit}>).`, debut)
-  const element: ElementXml = {
-    nom: nomEcrit.slice(deuxPoints + 1),
-    espaceDeNoms: espaceDeNoms ?? '',
-    attributs,
-    enfants: [],
-    texte: '',
+    espaceDeNoms = espaceDuPrefixe(portee, prefixe)
+  if (espaceDeNoms === undefined) return echec(etat, `préfixe « ${prefixe} » non déclaré (élément <${nomEcrit}>).`, debut)
+  return { nom: nomEcrit.slice(deuxPoints + 1), espaceDeNoms }
+}
+
+/** Attributs d'un élément, déclarations xmlns exclues, dans un objet sans prototype ; erreur sur un préfixe non déclaré. */
+function attributsDe(etat: EtatLecture, bruts: readonly [string, string][], portee: Portee, debut: number): Record<string, string> {
+  const attributs = Object.create(null) as Record<string, string>
+  for (const [nom, valeur] of bruts) {
+    if (estDeclaration(nom)) continue
+    const deuxPoints = nom.indexOf(':')
+    if (deuxPoints >= 0 && espaceDuPrefixe(portee, nom.slice(0, deuxPoints)) === undefined)
+      echec(etat, `préfixe « ${nom.slice(0, deuxPoints)} » non déclaré (attribut ${nom}).`, debut)
+    attributs[nom] = valeur
   }
-  return { element, prefixes }
+  return attributs
 }
 
 function lireBaliseOuvrante(etat: EtatLecture): void {
@@ -218,12 +262,13 @@ function lireBaliseOuvrante(etat: EtatLecture): void {
   etat.i = debut + 1 + nomEcrit.length
   const { bruts, vide } = lireAttributs(etat, nomEcrit, debut),
     parent = etat.pile.at(-1),
-    { element, prefixes } = creerElement(etat, nomEcrit, bruts, debut, parent)
+    portee = appliquerDeclarations(parent ? parent.portee : PORTEE_INITIALE, bruts),
+    element: ElementXml = { ...resoudreNom(etat, nomEcrit, portee, debut), attributs: attributsDe(etat, bruts, portee, debut), enfants: [], texte: '' }
   if (parent) parent.element.enfants.push(element)
   else etat.racines.push(element)
   if (vide) return
   if (etat.pile.length >= etat.profondeurMax) echec(etat, `profondeur d’imbrication supérieure à ${etat.profondeurMax}.`, debut)
-  etat.pile.push({ element, nomEcrit, prefixes })
+  etat.pile.push({ element, nomEcrit, portee })
 }
 
 /** Lecture d'un texte XML : rend les éléments racines (un au moins) ; lève une erreur qui cite la ligne en cause. */

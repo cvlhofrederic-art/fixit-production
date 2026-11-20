@@ -57,6 +57,43 @@ describe('lecteur XML minimal', () => {
     expect(() => lireXml('<a>&#xD800;</a>')).toThrow(/caractère/i)
   })
 
+  it('refuse comme entité inconnue un nom de propriété d’objet JavaScript (constructor, __proto__…)', () => {
+    for (const nom of ['constructor', 'toString', '__proto__', 'hasOwnProperty', 'valueOf'])
+      expect(() => lireXml(`<a>x&${nom};y</a>`), nom).toThrow(/entité inconnue/)
+    expect(() => lireXml('<a b="&constructor;"/>')).toThrow(/entité inconnue/)
+  })
+
+  it('garde un attribut nommé comme une propriété d’objet JavaScript', () => {
+    const { attributs } = lireXml('<a __proto__="x" constructor="y"/>')[0]
+    expect(Object.hasOwn(attributs, '__proto__')).toBe(true)
+    expect(attributs.__proto__).toBe('x')
+    expect(attributs.constructor).toBe('y')
+    expect(Object.keys(lireXml('<a b="1"/>')[0].attributs)).toEqual(['b'])
+    expect(lireXml('<a b="1"/>')[0].attributs.constructor).toBeUndefined()
+  })
+
+  it('reste linéaire sur une balise à très nombreux attributs ou déclarations d’espace de noms (fichier hostile)', () => {
+    const n = 20_000,
+      attributs = `<a ${Array.from({ length: n }, (_, i) => `a${i}=""`).join(' ')}/>`,
+      declarations = `<a ${Array.from({ length: n }, (_, i) => `xmlns:p${i}="urn:essai:${i}"`).join(' ')}>${'<c/>'.repeat(n)}</a>`
+    const debut = performance.now()
+    expect(Object.keys(lireXml(attributs)[0].attributs)).toHaveLength(n)
+    expect(lireXml(declarations)[0].enfants).toHaveLength(n)
+    expect(performance.now() - debut).toBeLessThan(1_000)
+    expect(() => lireXml('<a c="0" b="1" d="2" b="3"/>')).toThrow(/attribut b répété/)
+  })
+
+  it('applique les déclarations d’espace de noms par portée : un enfant hérite, une redéclaration masque', () => {
+    const [racine] = lireXml('<a xmlns="urn:a" xmlns:x="urn:x"><b xmlns:x="urn:y"><x:c/></b><x:d/><e xmlns=""><f/></e></a>')
+    expect(suivre(racine, 'b', 'c')?.espaceDeNoms).toBe('urn:y')
+    expect(enfant(racine, 'd')?.espaceDeNoms).toBe('urn:x')
+    expect(enfant(racine, 'b')?.espaceDeNoms).toBe('urn:a')
+    expect(suivre(racine, 'e', 'f')?.espaceDeNoms).toBe('')
+    expect(enfant(racine, 'b')?.attributs).toEqual({})
+    expect(() => lireXml('<a><b xmlns:x="urn:x"/><x:c/></a>')).toThrow(/préfixe « x » non déclaré/)
+    expect(() => lireXml('<a x:b="1"/>')).toThrow(/préfixe « x » non déclaré \(attribut x:b\)/)
+  })
+
   it('refuse un document mal formé ou tronqué, avec la ligne en cause', () => {
     expect(() => lireXml('<a>\n<b></a>')).toThrow(/ligne 2/)
     expect(() => lireXml('<a><b>texte</b>')).toThrow(/tronqué.*<a>/)
