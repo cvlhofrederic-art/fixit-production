@@ -22,6 +22,7 @@ import {
   verifierRang,
   type OrdreDuLot,
 } from '@/lib/administrateur-judiciaire/domain/types-ordres-banque'
+import type { FicheValidationBanque } from '@/lib/administrateur-judiciaire/domain/validation-banque'
 
 /**
  * Virement de banque à banque entre comptes du syndicat (point 39 du bilan 2). Fonctions pures, montants en CENTIMES
@@ -115,6 +116,9 @@ import {
  *   acquis au syndicat, hors des parts des lots (fonds-travaux-lots.ts, J67, R88).
  *
  * Décisions du 20/11/2026 (partie C, recommandations acceptées par le responsable du projet) :
+ * - Décision du 20/11/2026 (partie C, F103) : le fichier pain.001 d'un virement interne reçoit la fiche « validation
+ *   banque » du compte source (fichierVirementInterne, option validationBanque) ; sans elle, il porte la mention « non
+ *   validé par la banque » (validation-banque.ts) ;
  * - Décision du 20/11/2026 (partie C, F112) : une part du fonds de travaux reçue sur le compte courant n'est pas
  *   bloquée ; elle est signalée et reste à virer jusqu'au virement interne qui alimente le fonds depuis ce compte :
  *   alimentationsDuFonds rend ces alimentations, émises et non rejetées, qui soldent la part « à virer »
@@ -722,11 +726,18 @@ export function ordresDuLotVirementsInternes(virements: VirementInterne[]): Ordr
  * Fichier pain.001.001.03 d'un virement interne (genererPain001) : débiteur = le syndicat sur le compte source,
  * créancier = le syndicat sur le compte de destination, identifiant de bout en bout = n° du virement. Refuse un compte
  * source sans IBAN ou sans BIC, une destination sans IBAN (Caisse des dépôts, sous-compte centralisateur : virement à
- * ordonner hors fichier).
+ * ordonner hors fichier). Décision du 20/11/2026 (partie C, F103) : sans fiche « validation banque » du compte source
+ * (validationBanque), le fichier porte la mention « non validé par la banque ».
  */
 export function fichierVirementInterne(
   v: VirementInterne,
-  { nomSyndicat, messageId, dateCreation, dateExecution }: { nomSyndicat: string; messageId: string; dateCreation: string; dateExecution: string },
+  {
+    nomSyndicat,
+    messageId,
+    dateCreation,
+    dateExecution,
+    validationBanque = null,
+  }: { nomSyndicat: string; messageId: string; dateCreation: string; dateExecution: string; validationBanque?: FicheValidationBanque | null },
 ): string {
   texteRequis(nomSyndicat, 'Nom du syndicat attendu (débiteur et créancier du virement).')
   const { source, destination } = v
@@ -744,5 +755,5 @@ export function fichierVirementInterne(
       { reglementId: v.numero, beneficiaire: nomSyndicat, iban: destination.iban, bic: destination.bic, montantCentimes: v.montantCentimes, libelle: v.libelle },
     ],
   })
-  return genererPain001(ordre, { nom: nomSyndicat, iban: source.iban, bic: source.bic }, { messageId, dateCreation, dateExecution })
+  return genererPain001(ordre, { nom: nomSyndicat, iban: source.iban, bic: source.bic }, { messageId, dateCreation, dateExecution, validationBanque })
 }

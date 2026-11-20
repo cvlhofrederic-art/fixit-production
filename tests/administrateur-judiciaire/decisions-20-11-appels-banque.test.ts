@@ -103,6 +103,7 @@ import {
   alimentationsDuFonds,
   creerVirementInterne,
   emettreLotVirementsInternes,
+  fichierVirementInterne,
   type CompteVirementInterne,
   type VirementInterne,
 } from '@/lib/administrateur-judiciaire/domain/virement-interne'
@@ -308,6 +309,14 @@ describe('F103 — fichiers SEPA : fiche « validation banque » par compte ; sa
       valide: false,
       motifs: [expect.stringMatching(/compte bancaire du fichier non précisé/)],
     })
+  })
+
+  it('virement interne : son fichier pain.001 reçoit la fiche du compte source ; sans elle, la mention', () => {
+    const v = versLeFonds('v-fic', 4_000, null)
+    const options = { nomSyndicat: 'SDC Les Tilleuls (fictif)', messageId: 'BAB-v-fic', dateCreation: '2026-01-15T09:00:00', dateExecution: '2026-01-16' }
+    expect(fichierVirementInterne(v, options)).toContain(MENTION_NON_VALIDE_PAR_LA_BANQUE)
+    expect(fichierVirementInterne(v, { ...options, validationBanque: fiche() })).not.toContain(MENTION_NON_VALIDE_PAR_LA_BANQUE)
+    expect(fichierVirementInterne(v, { ...options, validationBanque: fiche({ banqueId: 'b-fonds' }) })).toMatch(/fiche « validation banque » d'un autre compte/)
   })
 
   it('la fiche se contrôle : date du test, au moins un format, longueur entière positive, ICS valide', () => {
