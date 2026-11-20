@@ -7,7 +7,8 @@ import {
 } from '@/lib/administrateur-judiciaire/domain/traitements'
 
 /**
- * Journal des traitements (cartographie Gestéam, tranche 29) et décision D1. Fonctions pures, sans écran.
+ * Journal des traitements (cartographie Gestéam, tranche 29) et décision D1. Fonctions pures, sans écran. Table des
+ * pièces : traitements (version 3 de db/schema.ts), écrite par ces fonctions dans db/traitements.ts seulement.
  *
  * D1 (Hugo Carvalho, 27/10/2026) — trois entités : Immeuble (le bâtiment), Copropriété (le SYNDICAT), Mandat
  * judiciaire. Les comptes appartiennent au syndicat : le premier segment du numéro de compte est celui du syndicat, et
