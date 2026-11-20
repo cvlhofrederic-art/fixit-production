@@ -726,14 +726,11 @@ describe('en-tête : sources et marqueurs', () => {
   const nonEtabli = entete.slice(entete.indexOf('🔴 Non établi'))
   const decisions = entete.slice(entete.indexOf('Décisions de Hugo du 03/11/2026'), entete.indexOf('🔵 Déduit'))
 
-  it('🔴 pose les questions encore ouvertes (sens inverse, famille de l’annulation, lot émis en partie)', () => {
-    for (const attendu of [
-      "vire-t-il d'abord vers le compte courant",
-      'Annulation',
-      'Ajustement bancaire fonds travaux',
-      "un ordre d'un lot dont les autres sont « Émis »",
-    ])
-      expect(nonEtabli).toContain(attendu)
+  it('🔴 pose les questions encore ouvertes (famille de l’annulation, lot émis en partie) ; le sens inverse est décidé (F95)', () => {
+    for (const attendu of ['Annulation', 'Ajustement bancaire fonds travaux', "un ordre d'un lot dont les autres sont « Émis »"]) expect(nonEtabli).toContain(attendu)
+    expect(nonEtabli).not.toContain("vire-t-il d'abord vers le compte courant")
+    expect(entete).toContain('Décision du 20/11/2026 (partie C, F95), même question que G28 (partie B) :')
+    expect(entete).toMatch(/Par défaut, la facture se paie directement depuis le compte du fonds : une seule sortie, traçable, sous contrôle d'affectation/)
   })
 
   it('J67, R82, R83 et R94, J68, J71 : questions fermées, décisions inscrites avec leurs textes', () => {
@@ -789,11 +786,12 @@ describe('en-tête : sources et marqueurs', () => {
     expect(nonEtabli).not.toContain('quels textes fondent le compte centralisateur du cabinet')
   })
 
-  it('🔴 reste ouverte : la forme de l’ordonnance de l’art. 29-1 citée comme décision (les textes du dépôt sont cités : J67, R94)', () => {
+  it('la forme de la décision de l’administrateur provisoire sous l’art. 29-1 : décidée (F96), elle quitte le 🔴 (les textes du dépôt restent cités : J67, R94)', () => {
     expect(nonEtabli).not.toMatch(/textes qui fondent le dépôt à la Caisse des dépôts/)
-    expect(nonEtabli).toMatch(/ordonnance de l'art\. 29-1 qui confie les pouvoirs de l'assemblée/)
-    expect(nonEtabli).toMatch(/ne peut plus la citer en texte libre/)
+    expect(nonEtabli).not.toMatch(/ordonnance de l'art\. 29-1 qui confie les pouvoirs de l'assemblée/)
     expect(nonEtabli).not.toMatch(/elle reste un texte libre, admis et signalé « forme incomplète »/)
+    expect(entete).toMatch(/Décision du 20\/11\/2026 \(partie C, F96\) : .*troisième forme structurée « décision de l'administrateur provisoire »/)
+    expect(entete).toMatch(/la date comparée à la dépense est celle de la décision/)
   })
 
   it('🔵 l’emploi du fonds décrit le contrôle réel : décision d’affectation (1° à 4°) ou ordonnance de l’art. 29-14, 2°', () => {

@@ -8,7 +8,7 @@ import {
   type ResultatAffectation,
 } from '@/lib/administrateur-judiciaire/domain/fonds-travaux'
 import type { EmploiFondsEcheance } from '@/lib/administrateur-judiciaire/domain/avis-appel'
-import type { EcheanceAppelSuivie, StatutEcheanceAppel } from '@/lib/administrateur-judiciaire/domain/echeancier-appels'
+import { annulerAvantAppel, type EcheanceAppelSuivie, type StatutEcheanceAppel } from '@/lib/administrateur-judiciaire/domain/echeancier-appels'
 import { estAuCentieme, retenueAuTaux, TAUX_MAXIMAL_RETENUE_GARANTIE_PCT } from '@/lib/administrateur-judiciaire/domain/facture-ventilee'
 import type { CompteCoproprietaire } from '@/lib/administrateur-judiciaire/domain/identites-positions'
 import type { PosteDette } from '@/lib/administrateur-judiciaire/domain/imputation-encaissements'
@@ -103,17 +103,51 @@ import { STATUT_TRAVAUX, TYPE_TRAVAUX, type StatutTravaux, type TypeTravaux } fr
  *   (pouvoirsDeLAffectationParLAdministrateur) ; l'avis du conseil syndical (D. 1967 art. 62-7) et le registre (art.
  *   62-8) restent les conditions de cette décision.
  *
+ * Décisions du 20/11/2026 (partie C du relevé des questions ouvertes du code, recommandations acceptées par le
+ * responsable du projet) :
+ * - Décision du 20/11/2026 (partie C, F65) : la part du fonds de travaux de chaque clé se compare, dès la décision
+ *   (création ou adoption de l'opération), au fonds disponible des lots de la clé (versé, moins les emplois déjà faits),
+ *   par une alerte, jamais un blocage : « part de la clé supérieure au fonds disponible de ses lots au [date] »
+ *   (fonds-travaux-lots.ts, alertesPartsDesClesAuFondsDisponible, sur l'état des parts à la date de la décision) ; les
+ *   cotisations continuent d'arriver d'ici l'emploi (art. 14-2-1, I, al. 7 : l'affectation tient compte des clés de
+ *   répartition) ; au décaissement, le contrôle actuel reste inchangé ;
+ * - Décision du 20/11/2026 (partie C, F66) : (1) une opération reprise déjà répartie se crée à « Réparti » seulement en
+ *   mode « reprise » (repriseRepartie) : motif obligatoire et référence de la répartition d'origine (exercice, date,
+ *   assemblée qui a approuvé les comptes), sans aucune écriture ; la répartition ne se fait qu'à la clôture définitive de
+ *   l'opération (D. 2005-240 art. 8) et a déjà eu lieu chez l'ancien syndic : la refaire créerait une fausse écriture
+ *   (J2) ; (2) une adoption saisie par erreur s'annule par une annulation tracée (annulerAdoptionOperationTravaux : motif,
+ *   date, auteur), seulement si l'opération n'a ni appel, ni règlement, ni emploi du fonds (actes fournis par
+ *   l'appelant) ; sinon refus, il faut d'abord annuler ces actes (J2 : annuler, c'est créer une ligne, jamais effacer) ;
+ * - Décision du 20/11/2026 (partie C, F67) : une résolution annulée en justice ou rapportée par une nouvelle assemblée
+ *   fait passer l'opération à « Rejeté » par une transition tracée depuis « Adopté », « Commandé » ou « Commencé »
+ *   (rejeterOperationTravauxAdoptee), avec un motif et la référence de l'acte (jugement : juridiction, date, n° ; ou
+ *   assemblée et n° de résolution) : plus aucun appel ni ordre de service (refusAppelOuOrdreDeServiceOperation, appliqué
+ *   par echeancesTravaux), échéances non appelées annulées (annulerEcheancesNonAppeleesDeLOperation), écritures passées
+ *   gardées, dépenses faites à régler et à répartir (la décision reste enregistrée). Depuis « Terminé », « A clôturer » ou
+ *   « Réparti », pas de passage automatique : une alerte à traiter par le gestionnaire du dossier, les travaux étant faits
+ *   (contestation : L. 1965 art. 42, al. 2) ;
+ * - Décision du 20/11/2026 (partie C, F69) : (1) le mandat porte l'étendue des pouvoirs de l'assemblée confiés par
+ *   l'ordonnance (tous, une partie, aucun ; D. 1967 art. 62-5 ; L. 1965 art. 29-1, I) : une décision de l'administrateur
+ *   provisoire « au titre des pouvoirs de l'AG » est bloquée s'il n'en a aucun et donne l'alerte « à vérifier dans
+ *   l'ordonnance » s'il n'en a qu'une partie (controlerPouvoirsDecisionTravaux ; creerOperationTravaux et
+ *   adopterOperationTravaux refusent la première, ContexteMandatTravaux) ; (2) pour la majorité, une aide sans blocage :
+ *   la majorité habituelle du type de travaux, et une alerte si la majorité saisie est plus faible
+ *   (aideMajoriteDesTravaux, NATURES_JURIDIQUES_TRAVAUX ; une erreur de majorité rend la résolution contestable dans le
+ *   délai, elle ne l'annule pas d'office).
+ *
  * Règles :
  * - statut de l'opération typé sur STATUT_TRAVAUX, distinct du statut de chaque tranche (statutsDesTranches, typé sur
  *   les statuts d'échéance d'echeancier-appels.ts) ; type typé sur TYPE_TRAVAUX ;
- * - « Adopté » exige la décision (date, résolution) : tout statut du cycle à partir d'« Adopté » la porte, « Projet » et
- *   « Rejeté » jamais ; l'adoption s'enregistre avec sa décision, à sa date (adopterOperationTravaux, ou la création) ;
+ * - « Adopté » exige la décision (date, résolution) : tout statut du cycle à partir d'« Adopté » la porte, « Projet »
+ *   jamais, « Rejeté » seulement quand une décision adoptée est tombée (F67) ; l'adoption s'enregistre avec sa décision,
+ *   à sa date (adopterOperationTravaux, ou la création), et s'annule à part (annulerAdoptionOperationTravaux, F66) ;
  * - la création trace son statut comme un changement : l'adoption à la date de la décision ; un statut saisi au-delà
  *   d'« Adopté » (reprise d'une opération engagée) ou « Rejeté » porte sa date et son motif (changementStatut), aux
  *   règles des transitions (J2 : un saut d'étape se motive et reste tracé, à la reprise aussi) ;
  * - « Réparti » suit la répartition : posé par le traitement « Répartition de charges » qui mouvemente l'opération au
  *   segment de son syndicat (D1), daté au plus tôt de la décision, depuis « A clôturer » seulement (D. 2005-240 art. 8),
  *   une seule fois par traitement, retiré par son annulation, datée au plus tôt de la répartition qu'elle contre-passe ;
+ *   à la création, seulement en mode « reprise », sans écriture (F66) ;
  * - un statut ne recule pas ; un saut d'étape est admis avec un motif et tracé ; l'erreur se corrige par une annulation
  *   tracée, jamais en effaçant l'historique ; chaque annulation remonte d'un changement en vigueur, l'adoption exclue
  *   (🔵 par analogie avec J2, statuts d'AG) ;
@@ -156,10 +190,12 @@ import { STATUT_TRAVAUX, TYPE_TRAVAUX, type StatutTravaux, type TypeTravaux } fr
  * - « En cours » n'est pas un statut d'opération mais un regroupement de la recherche (la liste « En cours » montre
  *   Adopté, À clôturer, Proj.) : refusé comme statut ; estOperationEnCours le reproduit (cycle sans « Réparti », ni
  *   « Rejeté ») ;
- * - statut par défaut : « Adopté » avec une décision, « Projet » sans ; « Rejeté » depuis « Projet » seulement, avec son
- *   motif ; « Réparti » et « Rejeté » sont définitifs, sans changement en avant : « Réparti » ne se quitte que par
+ * - statut par défaut : « Adopté » avec une décision, « Projet » sans ; « Rejeté » depuis « Projet » avec son motif
+ *   (changerStatutOperationTravaux), ou depuis « Adopté », « Commandé » ou « Commencé » quand la décision tombe (F67) ;
+ *   « Réparti » et « Rejeté » sont définitifs, sans changement en avant : « Réparti » ne se quitte que par
  *   l'annulation de sa répartition (annulerRepartitionOperation), « Rejeté » que par l'annulation tracée du rejet
- *   (annulerDernierChangementStatut) ;
+ *   (annulerDernierChangementStatut) ; une création à « Réparti » en mode « reprise » (F66), sans répartition, par
+ *   l'annulation tracée de la reprise (annulerDernierChangementStatut) ;
  * - ventilation d'un appel entre plusieurs clés : au prorata du montant à appeler de chaque clé (budget de la clé − part
  *   du fonds de travaux de la clé), une seule grille d'appels dans Gestéam ; identifiant « <n°>-T<tranche> » avec une
  *   seule clé (inchangé), « <n°>-T<tranche>-C<rang de la clé> » avec plusieurs ;
@@ -183,23 +219,18 @@ import { STATUT_TRAVAUX, TYPE_TRAVAUX, type StatutTravaux, type TypeTravaux } fr
  *   décidés par l'assemblée générale" ? » (VitFix : 12000) ; « Le 71147 de l'opération s'ouvre-t-il à sa création ou à
  *   la première subvention notifiée ? » (VitFix : à la création) ;
  * - « Un appel d'une opération sur plusieurs clés se ventile-t-il au prorata du montant à appeler de chaque clé (budget
- *   de la clé − part du fonds de travaux de la clé) ? » (VitFix : oui) ; « La part du fonds de travaux par clé doit-elle
- *   être rapprochée des cotisations versées sur cette clé (fonds-travaux-lots.ts) ? » (VitFix : part par clé saisie, non
- *   rapprochée) ;
- * - « Une opération reprise d'un précédent syndic, déjà répartie, se crée-t-elle "Réparti" sans le traitement de
- *   répartition ? » (VitFix : non, création à "Réparti" refusée) ; « Une adoption saisie par erreur s'annule-t-elle ? »
- *   (VitFix : non, ni la décision ni le retour à "Projet") ;
- * - « Une opération adoptée dont la résolution est annulée par jugement ou abandonnée par une nouvelle assemblée
- *   passe-t-elle à "Rejeté", et depuis quels statuts ? » (VitFix : aucune transition, « Rejeté » depuis « Projet »
- *   seulement ; l'opération garde son statut, ses échéances se suspendent ou s'annulent dans echeancier-appels.ts :
- *   mettreEnAttente, annulerAvantAppel, annulerAppelees ; contestation des décisions : L. 1965 art. 42, al. 2) ;
+ *   de la clé − part du fonds de travaux de la clé) ? » (VitFix : oui) ;
  * - « Les travaux urgents (L. 1965 art. 18, I ; D. 1967 art. 37 ; compte 672 "Travaux urgents" ; Gestéam "Appel travaux
  *   urgents" et "Travaux urgents - Provisions") forment-ils une filière distincte de l'opération décidée ? » (VitFix :
  *   oui, hors de ce module, qui n'admet ni statut décidé ni appel sans décision ; provision au tiers du devis non codée,
  *   demandes.ts) ;
- * - « La majorité requise se contrôle-t-elle selon la nature des travaux ? » (VitFix : non ; un même TYPE_TRAVAUX, par
- *   exemple "Ascenseur", relève de l'art. 24, II, a ou de l'art. 25, n selon l'objet) ; « Faut-il vérifier que
- *   l'ordonnance confie à l'administrateur provisoire le pouvoir de décider ces travaux ? » (VitFix : non vérifié) ;
+ * - reste de F69 : « Avec une étendue des pouvoirs non saisie au mandat (null), la décision de travaux de
+ *   l'administrateur provisoire est-elle refusée, comme l'affectation du fonds (J67, R81), ou admise avec une alerte, comme
+ *   l'ordre de service (J67, R68) ? » (VitFix : alerte non bloquante, à confirmer : controlerPouvoirsDecisionTravaux) ;
+ *   reste de F67 : « Une
+ *   opération "Rejeté" dont les dépenses déjà faites restent à répartir passe-t-elle "Réparti" par sa répartition ? »
+ *   (VitFix : non, constaterRepartitionOperation exige "A clôturer" ; l'opération reste "Rejeté", ses écritures restent
+ *   possibles) ;
  * - « Quel statut donner à une tranche dont les clés n'ont pas le même statut d'échéance ? » (VitFix : null) ;
  * - « Que portent le bouton "À voter" et le champ "Approbation" du bloc Décision de la fiche ? » (non repris).
  * Branchements à faire hors de ce module (fichiers non modifiés) : appelant d'ecritureFactureVentilee (facture-ventilee.ts,
@@ -214,7 +245,10 @@ import { STATUT_TRAVAUX, TYPE_TRAVAUX, type StatutTravaux, type TypeTravaux } fr
  * (estOperationEnCours) ; fonds-travaux-lots.ts, emploiDepuisOperation — un emploi par clé (cles[k]) au lieu de
  * operation.cleId, et la référence de la décision par referenceDecisionTravaux (son « (AG du …) » vaut aussi pour une
  * décision de l'administrateur provisoire) ; db/schema.ts (Frédéric) — table Travaux : statut, type, cles, décision
- * (origine, majorité, second vote), serieComptes, historiqueStatuts ; EntiteAStatutHistorise complété de 'travaux'
+ * (origine, majorité, second vote), serieComptes, historiqueStatuts (reprise, auteur et acte des changements : F66,
+ * F67) ; mandat — étendue des pouvoirs de l'assemblée (pouvoirsAgDuMandat, F69), passée à creerOperationTravaux et
+ * adopterOperationTravaux ; envoi-ordre-service.ts — refusAppelOuOrdreDeServiceOperation avant l'envoi d'un ordre de
+ * service (F67) ; EntiteAStatutHistorise complété de 'travaux'
  * (changementsStatutAHistoriser), lignes écrites et relues dans l'ordre de saisie (createdAt), pas par date d'effet
  * comme historiqueTrie des AG (statut-assemblee.ts) : la date vraie d'un changement corrigé peut précéder son annulation.
  */
@@ -275,6 +309,12 @@ export interface SaisieOperationTravaux {
    */
   changementStatut?: { le: string; motif?: string | null } | null
   /**
+   * Mode « reprise » (décision du 20/11/2026, partie C, F66) : création à « Réparti » d'une opération déjà répartie par le
+   * précédent gestionnaire, avec un motif obligatoire et la référence de la répartition d'origine, sans aucune écriture ;
+   * réservé au statut « Réparti ». Absent : création ordinaire.
+   */
+  repriseRepartie?: RepriseRepartitionOrigine | null
+  /**
    * Opération qui n'est qu'une étude (diagnostic, DTG, audit, projet de plan de travaux : D. 1967 art. 44, 4°) : ses
    * charges vont au 673 « Etudes techniques, diagnostic, consultation » de l'opération, au lieu du 671 (arrêté du 14 mars
    * 2005, art. 7 et 8 ; J67, R60) ; absente : non.
@@ -318,7 +358,37 @@ export interface ChangementStatutTravaux {
   annulation: boolean
   /** Traitement « Répartition de charges » (vers « Réparti ») ou son annulation (retour). */
   traitementId: string | null
+  /** F66 : référence de la répartition d'origine d'une opération reprise déjà répartie (création à « Réparti »). */
+  reprise?: RepriseRepartitionOrigine
+  /** F66 : auteur de l'annulation tracée d'une adoption saisie par erreur. */
+  auteur?: string
+  /** F67 : acte qui annule ou rapporte la décision des travaux (passage à « Rejeté » après l'adoption). */
+  acte?: ActeAnnulationDecisionTravaux
 }
+
+/**
+ * Répartition d'origine d'une opération reprise déjà répartie (décision du 20/11/2026, partie C, F66) : la répartition
+ * ne se fait qu'à la clôture définitive de l'opération (D. 2005-240 art. 8) et a déjà eu lieu chez l'ancien syndic ; la
+ * refaire créerait une fausse écriture (J2).
+ */
+export interface RepriseRepartitionOrigine {
+  /** Motif de la reprise à « Réparti », obligatoire. */
+  motif: string
+  /** Exercice de la répartition d'origine (libellé, par exemple « 2025 »). */
+  exercice: string
+  /** Date de la répartition d'origine (AAAA-MM-JJ) : date du changement tracé. */
+  date: string
+  /** Assemblée qui a approuvé les comptes de cet exercice : sa date et, si elle est connue, la résolution. */
+  assembleeApprobation: { date: string; resolution?: string | null }
+}
+
+/**
+ * Acte qui fait tomber la décision des travaux (décision du 20/11/2026, partie C, F67) : jugement qui annule la
+ * résolution (juridiction, date, n°), ou nouvelle assemblée qui la rapporte (date, n° de la résolution).
+ */
+export type ActeAnnulationDecisionTravaux =
+  | { nature: 'jugement'; juridiction: string; date: string; numero: string }
+  | { nature: 'assemblee'; dateAg: string; numeroResolution: string }
 
 export const ROLES_COMPTES_TRAVAUX = [
   'provisionsTravauxDecides',
@@ -537,7 +607,7 @@ function horsSequence(operation: OperationTravaux, vers: StatutTravaux, motif: s
   if (vers === 'Rejeté') {
     if (statut !== 'Projet')
       throw new Error(
-        `Opération ${numero} « ${statut} » : seul un projet est rejeté. Décision annulée en justice (L. 1965 art. 42, al. 2) ou rapportée par une nouvelle assemblée : transition non établie ; suspendre ou annuler ses échéances (echeancier-appels.ts).`,
+        `Opération ${numero} « ${statut} » : seul un projet est rejeté ici. Décision annulée en justice (L. 1965 art. 42, al. 2) ou rapportée par une nouvelle assemblée : rejeterOperationTravauxAdoptee, avec le motif et la référence de l'acte (décision du 20/11/2026, partie C, F67).`,
       )
     if (!motif) throw new Error(`Opération ${numero} : motif du rejet exigé (résolution rejetée, abandon).`)
     return false
@@ -552,8 +622,8 @@ function horsSequence(operation: OperationTravaux, vers: StatutTravaux, motif: s
 /**
  * Change le statut de l'opération : en avant dans le cycle (un saut exige un motif et reste tracé), « Rejeté » depuis
  * « Projet ». « Réparti » passe par constaterRepartitionOperation, l'adoption par adopterOperationTravaux. Une décision
- * annulée en justice ou rapportée par une nouvelle assemblée n'a pas de transition (🔴, en-tête) : l'opération garde son
- * statut, ses échéances se suspendent ou s'annulent dans echeancier-appels.ts.
+ * annulée en justice ou rapportée par une nouvelle assemblée passe par rejeterOperationTravauxAdoptee (décision du
+ * 20/11/2026, partie C, F67).
  */
 export function changerStatutOperationTravaux(
   operation: OperationTravaux,
@@ -572,10 +642,15 @@ export function changerStatutOperationTravaux(
   return ajouterChangement(operation, { vers, le, motif: motifDuChangement, horsSequence: saut, annulation: false, traitementId: null })
 }
 
-/** Adoption d'un projet : enregistre la décision (date, résolution, majorité) et passe « Adopté » à sa date. */
-export function adopterOperationTravaux(operation: OperationTravaux, decision: DecisionTravaux): OperationTravaux {
+/**
+ * Adoption d'un projet : enregistre la décision (date, résolution, majorité) et passe « Adopté » à sa date. `contexte` :
+ * l'étendue des pouvoirs de l'assemblée portée par le mandat ; une décision de l'administrateur provisoire sans aucun de
+ * ces pouvoirs est refusée (décision du 20/11/2026, partie C, F69 : controlerPouvoirsDecisionTravaux).
+ */
+export function adopterOperationTravaux(operation: OperationTravaux, decision: DecisionTravaux, contexte: ContexteMandatTravaux = {}): OperationTravaux {
   if (operation.statut !== 'Projet') throw new Error(`Opération ${operation.numero} « ${operation.statut} » : seul un projet s'adopte.`)
   verifierDecision(decision, operation.numero)
+  verifierPouvoirsDuMandat(decision, contexte)
   const adoptee = { ...operation, decision }
   verifierMajoriteAffectation(adoptee)
   return ajouterChangement(adoptee, changementAdoption(decision.date))
@@ -645,9 +720,10 @@ export function annulerRepartitionOperation(
 /**
  * Correction d'un changement de statut erroné : un NOUVEAU changement, motivé, qui revient au statut d'avant le dernier
  * changement encore en vigueur ; l'historique est conservé. Deux erreurs successives se corrigent par deux annulations
- * (chacune remonte d'un changement en vigueur). Ni la répartition (annulerRepartitionOperation), ni l'adoption (sa
- * décision reste) ; un rejet erroné s'annule ici. L'annulation est datée de la correction, au plus tôt à la date du
- * statut qu'elle rétablit ; ensuite, la date vraie du changement corrigé se saisit, même antérieure à la date erronée.
+ * (chacune remonte d'un changement en vigueur). Ni la répartition (annulerRepartitionOperation), ni l'adoption, qui porte
+ * la décision (annulerAdoptionOperationTravaux, F66) ; un rejet erroné, ou une reprise à « Réparti » erronée (F66), s'annule
+ * ici. L'annulation est datée de la correction, au plus tôt à la date du statut qu'elle rétablit ; ensuite, la date vraie
+ * du changement corrigé se saisit, même antérieure à la date erronée.
  */
 export function annulerDernierChangementStatut(
   operation: OperationTravaux,
@@ -658,10 +734,187 @@ export function annulerDernierChangementStatut(
   if (!enVigueur) throw new Error(`Opération ${numero} : aucun changement de statut en vigueur à annuler.`)
   if (enVigueur.traitementId) throw new Error(`Opération ${numero} : « Réparti » s'annule avec sa répartition (annulerRepartitionOperation).`)
   if (enVigueur.de === 'Projet' && enVigueur.vers === 'Adopté')
-    throw new Error(`Opération ${numero} : l'adoption porte la décision ; elle ne s'annule pas ici.`)
+    throw new Error(
+      `Opération ${numero} : l'adoption porte la décision ; elle s'annule par annulerAdoptionOperationTravaux (motif, date, auteur ; sans appel, règlement ni emploi du fonds : décision du 20/11/2026, partie C, F66).`,
+    )
   const motifDuRetour = motifSaisi(motif)
   if (!motifDuRetour) throw new Error(`Opération ${numero} : motif de l'annulation exigé.`)
   return ajouterChangement(operation, { vers: enVigueur.de, le, motif: motifDuRetour, horsSequence: false, annulation: true, traitementId: null })
+}
+
+/**
+ * Actes déjà faits pour l'opération, fournis par l'appelant (décision du 20/11/2026, partie C, F66) : le domaine ne garde
+ * ni les échéances suivies, ni les règlements, ni les emplois du fonds d'une opération.
+ */
+export interface ActesDeLOperation {
+  /** Échéances suivies du syndicat (echeancier-appels.ts) : celles de l'opération « Appelé » sont des appels. */
+  suivies: readonly EcheanceAppelSuivie[]
+  /** Règlements fournisseurs du syndicat : ceux de l'opération, non annulés. */
+  reglements: readonly Pick<ReglementFournisseur, 'id' | 'coproprieteId' | 'travauxId' | 'statut'>[]
+  /** Emplois du fonds de travaux du syndicat (fonds-travaux-lots.ts) : ceux de l'opération. */
+  emplois: readonly { id: string; operationNumero: string | null }[]
+}
+
+/** Appels, règlements non annulés et emplois du fonds de l'opération (même syndicat, D1), décrits pour le motif ; [] sinon. */
+function actesFaitsDeLOperation(operation: OperationTravaux, { suivies, reglements, emplois }: ActesDeLOperation): string[] {
+  const { coproprieteId, numero } = operation
+  const echeances: ReadonlySet<string> = new Set(lignesAppel(operation).map((l) => l.id))
+  const groupes: [string, string[]][] = [
+    ['appel', suivies.filter((e) => e.coproprieteId === coproprieteId && echeances.has(e.id) && e.statut === 'Appelé').map((e) => e.id)],
+    ['règlement', reglements.filter((r) => r.coproprieteId === coproprieteId && r.travauxId === numero && r.statut !== 'Annulé').map((r) => r.id)],
+    ['emploi du fonds de travaux', emplois.filter((e) => e.operationNumero === numero).map((e) => e.id)],
+  ]
+  return groupes.filter(([, ids]) => ids.length > 0).map(([nature, ids]) => `${nature} (${ids.join(', ')})`)
+}
+
+/**
+ * Annulation tracée d'une adoption saisie par erreur (décision du 20/11/2026, partie C, F66 ; J2 : annuler, c'est créer
+ * une ligne, jamais effacer) : motif, date et auteur obligatoires ; seulement si l'opération n'a encore ni appel, ni
+ * règlement, ni emploi du fonds (`actes`, fournis par l'appelant) ; sinon refus, il faut d'abord annuler ces actes.
+ * L'adoption doit être le dernier changement en vigueur (les changements suivants s'annulent d'abord :
+ * annulerDernierChangementStatut). L'opération revient à « Projet », sans décision ; l'historique garde l'adoption et
+ * son annulation, avec la référence de la décision annulée. Une nouvelle adoption se saisit ensuite, à sa vraie date.
+ */
+export function annulerAdoptionOperationTravaux(
+  operation: OperationTravaux,
+  { le, motif, auteur }: { le: string; motif: string; auteur: string },
+  actes: ActesDeLOperation,
+): OperationTravaux {
+  const { numero, statut, decision } = operation
+  const enVigueur = dernierChangementEnVigueur(operation)
+  if (statut !== 'Adopté' || !decision || enVigueur?.de !== 'Projet')
+    throw new Error(
+      `Opération ${numero} « ${statut} » : seule l'adoption encore en vigueur s'annule ici ; annuler d'abord les changements qui la suivent (annulerDernierChangementStatut).`,
+    )
+  const motifDuRetour = motifSaisi(motif)
+  if (!motifDuRetour) throw new Error(`Opération ${numero} : motif de l'annulation de l'adoption exigé.`)
+  const auteurSaisi = auteur.trim()
+  if (!auteurSaisi) throw new Error(`Opération ${numero} : auteur de l'annulation de l'adoption exigé.`)
+  const faits = actesFaitsDeLOperation(operation, actes)
+  if (faits.length > 0)
+    throw new Error(
+      `Opération ${numero} : adoption non annulée, l'opération a déjà ${faits.join(', ')} ; annuler d'abord ces actes (décision du 20/11/2026, partie C, F66).`,
+    )
+  const annulee = ajouterChangement(operation, {
+    vers: 'Projet',
+    le,
+    motif: `Annulation de l'adoption (${referenceDecisionTravaux(decision)}) — ${motifDuRetour}`,
+    horsSequence: false,
+    annulation: true,
+    traitementId: null,
+    auteur: auteurSaisi,
+  })
+  return { ...annulee, decision: null }
+}
+
+// ─── Décision annulée en justice ou rapportée (décision du 20/11/2026, partie C, F67) ─────────
+
+/** Statuts d'où une décision qui tombe fait passer l'opération à « Rejeté » (F67). */
+const STATUTS_REJETABLES_APRES_ADOPTION: ReadonlySet<StatutTravaux> = new Set<StatutTravaux>(['Adopté', 'Commandé', 'Commencé'])
+
+/** Contestation des décisions d'assemblée (L. 1965 art. 42, al. 2), citée pour le passage à « Rejeté » (F67). */
+const FONDEMENT_CONTESTATION = 'L. 1965 art. 42, al. 2'
+
+/** Alerte d'une décision qui tombe alors que les travaux sont faits (« Terminé », « A clôturer », « Réparti ») : F67. */
+export interface AlerteDecisionTravauxAnnulee {
+  code: 'decision_annulee_travaux_faits'
+  operationNumero: string
+  statut: StatutTravaux
+  message: string
+  fondement: string
+}
+
+function texteDeLActe(valeur: string, libelle: string): string {
+  const texte = valeur.trim()
+  if (!texte) throw new Error(`Acte qui annule ou rapporte la décision des travaux : ${libelle} attendu.`)
+  return texte
+}
+
+/** Acte lu : sa date et sa désignation ; refus d'un champ vide ou d'une date invalide. */
+function lireActeAnnulation(acte: ActeAnnulationDecisionTravaux): { date: string; designation: string } {
+  if (acte.nature === 'jugement') {
+    const juridiction = texteDeLActe(acte.juridiction, 'juridiction du jugement')
+    verifierDate(acte.date, 'Date du jugement')
+    const numero = texteDeLActe(acte.numero, 'n° du jugement')
+    return { date: acte.date, designation: `jugement n° ${numero} du ${dateIsoVersFr(acte.date)}, ${juridiction}` }
+  }
+  if (acte.nature === 'assemblee') {
+    verifierDate(acte.dateAg, "Date de l'assemblée qui rapporte la décision")
+    const resolution = texteDeLActe(acte.numeroResolution, 'n° de la résolution')
+    return { date: acte.dateAg, designation: `résolution n° ${resolution} de l'assemblée du ${dateIsoVersFr(acte.dateAg)}` }
+  }
+  throw new Error('Acte qui annule ou rapporte la décision des travaux : nature inconnue (jugement ou assemblée).')
+}
+
+/** L'acte suit la décision qu'il fait tomber ; le passage à « Rejeté » ne le précède pas. */
+function verifierDatesDuRejet({ numero, decision }: OperationTravaux, le: string, acte: { date: string; designation: string }): void {
+  if (decision && acte.date < decision.date)
+    throw new Error(`Opération ${numero} : ${acte.designation} antérieur à la décision du ${dateIsoVersFr(decision.date)} qu'il ferait tomber.`)
+  if (le < acte.date) throw new Error(`Opération ${numero} : passage à « Rejeté » au ${dateIsoVersFr(le)}, avant l'acte (${acte.designation}).`)
+}
+
+/**
+ * Résolution de travaux annulée en justice ou rapportée par une nouvelle assemblée (décision du 20/11/2026, partie C,
+ * F67 ; L. 1965 art. 42, al. 2 : une résolution annulée ne fonde plus l'opération). Depuis « Adopté », « Commandé » ou
+ * « Commencé » : passage tracé à « Rejeté », avec un motif obligatoire et la référence de l'acte (jugement : juridiction,
+ * date, n° ; ou assemblée et n° de résolution) ; la décision reste enregistrée (les écritures passées restent, les
+ * dépenses faites restent à régler et à répartir), mais l'opération n'admet plus aucun appel ni ordre de service
+ * (refusAppelOuOrdreDeServiceOperation) et ses échéances non appelées s'annulent
+ * (annulerEcheancesNonAppeleesDeLOperation). Depuis « Terminé », « A clôturer » ou « Réparti » : pas de passage
+ * automatique, l'opération est rendue telle quelle avec une alerte à traiter par le gestionnaire (travaux faits). Un
+ * projet se rejette par changerStatutOperationTravaux.
+ */
+export function rejeterOperationTravauxAdoptee(
+  operation: OperationTravaux,
+  { le, motif, acte }: { le: string; motif: string; acte: ActeAnnulationDecisionTravaux },
+): { operation: OperationTravaux; alerte: AlerteDecisionTravauxAnnulee | null } {
+  const { numero, statut } = operation
+  if (statut === 'Projet' || statut === 'Rejeté')
+    throw new Error(`Opération ${numero} « ${statut} » : sans décision en vigueur ; un projet se rejette par changerStatutOperationTravaux.`)
+  const motifDuRejet = motifSaisi(motif)
+  if (!motifDuRejet) throw new Error(`Opération ${numero} : motif du passage à « Rejeté » exigé.`)
+  const lu = lireActeAnnulation(acte)
+  if (!STATUTS_REJETABLES_APRES_ADOPTION.has(statut)) {
+    const message = `Opération ${numero} « ${statut} » : travaux faits ; pas de passage automatique à « Rejeté » après ${lu.designation} (${motifDuRejet}) : alerte à traiter par le gestionnaire du dossier (décision du 20/11/2026, partie C, F67).`
+    return { operation, alerte: { code: 'decision_annulee_travaux_faits', operationNumero: numero, statut, message, fondement: FONDEMENT_CONTESTATION } }
+  }
+  verifierDatesDuRejet(operation, le, lu)
+  const rejete = ajouterChangement(operation, {
+    vers: 'Rejeté',
+    le,
+    motif: `${motifDuRejet} — ${lu.designation} (décision du 20/11/2026, partie C, F67)`,
+    horsSequence: false,
+    annulation: false,
+    traitementId: null,
+    acte: { ...acte },
+  })
+  return { operation: rejete, alerte: null }
+}
+
+/**
+ * Refus d'un nouvel appel ou d'un ordre de service pour une opération « Rejeté » (décision du 20/11/2026, partie C,
+ * F67) : la décision qui la fondait est tombée, ou le projet a été rejeté ; null sinon. echeancesTravaux l'applique ;
+ * branchement à faire : envoi-ordre-service.ts.
+ */
+export function refusAppelOuOrdreDeServiceOperation(operation: Pick<OperationTravaux, 'numero' | 'statut'>): { motif: string; fondement: string } | null {
+  if (operation.statut !== 'Rejeté') return null
+  return {
+    motif: `Opération ${operation.numero} « Rejeté » : plus aucun appel ni ordre de service pour l'opération ; les écritures passées restent, les dépenses déjà faites restent à régler et à répartir (décision du 20/11/2026, partie C, F67).`,
+    fondement: FONDEMENT_CONTESTATION,
+  }
+}
+
+/**
+ * Échéances non appelées (« Prévu », « En attente ») de l'opération « Rejeté » annulées, sans écriture (annulerAvantAppel,
+ * echeancier-appels.ts) ; les échéances appelées restent, leurs écritures aussi ; celles d'une autre opération ou d'un
+ * autre syndicat (D1) sont inchangées (décision du 20/11/2026, partie C, F67).
+ */
+export function annulerEcheancesNonAppeleesDeLOperation<E extends EcheanceAppelSuivie>(operation: OperationTravaux, suivies: readonly E[]): E[] {
+  if (operation.statut !== 'Rejeté')
+    throw new Error(`Opération ${operation.numero} « ${operation.statut} » : seules les échéances d'une opération « Rejeté » s'annulent ici (F67).`)
+  const ids: ReadonlySet<string> = new Set(lignesAppel(operation).map((l) => l.id))
+  const nonAppelee = (e: E): boolean => e.statut === 'Prévu' || e.statut === 'En attente'
+  return suivies.map((e) => (e.coproprieteId === operation.coproprieteId && ids.has(e.id) && nonAppelee(e) ? annulerAvantAppel(e) : e))
 }
 
 const STATUTS_OPERATION_EN_COURS: ReadonlySet<StatutTravaux> = new Set(CYCLE_STATUTS.filter((s) => s !== 'Réparti'))
@@ -685,9 +938,12 @@ export interface ChangementStatutTravauxAHistoriser {
   motif: string | null
 }
 
-/** Motif historisé : l'annulation et le traitement, sans colonne propre dans la table, y sont repris. */
-function motifAHistoriser({ annulation, motif, traitementId }: ChangementStatutTravaux): string | null {
-  const parties = [annulation ? 'Annulation' : null, motif, traitementId ? `traitement ${traitementId}` : null].filter(
+/**
+ * Motif historisé : l'annulation, le traitement et l'auteur d'une annulation d'adoption (F66), sans colonne propre dans
+ * la table, y sont repris ; la référence d'une reprise (F66) ou de l'acte d'un rejet (F67) est déjà dans le motif.
+ */
+function motifAHistoriser({ annulation, motif, traitementId, auteur }: ChangementStatutTravaux): string | null {
+  const parties = [annulation ? 'Annulation' : null, motif, traitementId ? `traitement ${traitementId}` : null, auteur ? `par ${auteur}` : null].filter(
     (partie): partie is string => Boolean(partie),
   )
   return parties.length > 0 ? parties.join(' — ') : null
@@ -780,6 +1036,180 @@ export function pouvoirsDeLAffectationParLAdministrateur(
     ? " ; sa décision ne tient pas lieu d'affectation du fonds : il faut un vote de l'assemblée ou une ordonnance de l'art. 29-14, 2°"
     : ' ; à défaut, il faut un vote de l\'assemblée ou une ordonnance de l\'art. 29-14, 2°'
   return { refuse: pouvoirs.refuse, motif: `Opération ${operation.numero} : ${pouvoirs.constat}${suite} (J67, R81).`, fondement: FONDEMENT_POUVOIRS_AG }
+}
+
+// ─── Pouvoirs du mandat et majorité des travaux (décision du 20/11/2026, partie C, F69) ───────
+
+/** Ce que le mandat dit de l'ordonnance, pour une décision de travaux (F69 ; enregistrement au mandat : à brancher). */
+export interface ContexteMandatTravaux {
+  /**
+   * Étendue des pouvoirs de l'assemblée que l'ordonnance confie à l'administrateur provisoire (L. 1965 art. 29-1, I ;
+   * D. 1967 art. 62-5), portée par le mandat ; null : inconnue ; absent : non contrôlé (même convention que
+   * envoi-ordre-service.ts, CadreMandatOs.pouvoirsAg).
+   */
+  pouvoirsAgDuMandat?: PouvoirsAgConfies | null
+}
+
+export interface ControlePouvoirsDecisionTravaux {
+  /** Vrai : décision refusée (aucun pouvoir de l'assemblée) ; faux : alerte, sans blocage. */
+  bloquant: boolean
+  message: string
+  fondement: string
+  /** Vrai pour l'étendue inconnue au mandat : la décision du 20/11/2026 (F69) ne dit pas quoi en faire. */
+  aConfirmer: boolean
+}
+
+const F69 = 'décision du 20/11/2026, partie C, F69'
+
+/** Règle de chaque étendue des pouvoirs au mandat (F69) ; null : tous les pouvoirs, rien à signaler. */
+const POUVOIRS_DE_LA_DECISION: Readonly<Record<PouvoirsAgConfies | 'inconnue', Omit<ControlePouvoirsDecisionTravaux, 'fondement'> | null>> = {
+  tous: null,
+  partie: {
+    bloquant: false,
+    message: `l'ordonnance ne lui confie qu'une partie des pouvoirs de l'assemblée : à vérifier dans l'ordonnance (${F69})`,
+    aConfirmer: false,
+  },
+  aucun: {
+    bloquant: true,
+    message: `l'ordonnance ne lui confie aucun pouvoir de l'assemblée : décision « au titre des pouvoirs de l'AG » refusée, il faut un vote de l'assemblée (${F69})`,
+    aConfirmer: false,
+  },
+  inconnue: {
+    bloquant: false,
+    message: `étendue des pouvoirs de l'assemblée non saisie au mandat : à vérifier dans l'ordonnance (règle à confirmer : la ${F69} ne dit pas quoi faire d'une étendue non saisie)`,
+    aConfirmer: true,
+  },
+}
+
+/**
+ * Décision de travaux de l'administrateur provisoire « au titre des pouvoirs de l'AG » (décision du 20/11/2026, partie C,
+ * F69 ; L. 1965 art. 29-1, I : « tout ou partie » des pouvoirs de l'assemblée ; D. 1967 art. 62-5 : l'ordonnance fixe
+ * l'étendue de la mission) : le mandat porte l'étendue des pouvoirs ; aucun : bloquant ; une partie : alerte « à vérifier
+ * dans l'ordonnance » ; tous : null. Étendue inconnue au mandat (null) : alerte non bloquante, à confirmer ; absente
+ * (undefined) : non contrôlée. Décision de l'assemblée : null. Une étendue saisie sur la décision (J67, R81) différente de
+ * celle du mandat est refusée.
+ */
+export function controlerPouvoirsDecisionTravaux(
+  decision: DecisionTravaux,
+  pouvoirsAgDuMandat: PouvoirsAgConfies | null | undefined,
+): ControlePouvoirsDecisionTravaux | null {
+  if (decision.origine !== 'administrateur' || pouvoirsAgDuMandat === undefined) return null
+  const reference = `Décision « ${decision.resolution} » de l'administrateur provisoire`
+  const surLaDecision = decision.pouvoirsAgConfies ?? null
+  if (surLaDecision !== null && pouvoirsAgDuMandat !== null && surLaDecision !== pouvoirsAgDuMandat)
+    throw new Error(
+      `${reference} : étendue des pouvoirs de l'assemblée saisie sur la décision (${surLaDecision}) différente de celle du mandat (${pouvoirsAgDuMandat}).`,
+    )
+  const regle = POUVOIRS_DE_LA_DECISION[pouvoirsAgDuMandat ?? 'inconnue']
+  if (regle === null) return null
+  return { ...regle, message: `${reference} : ${regle.message}.`, fondement: FONDEMENT_POUVOIRS_AG }
+}
+
+/** Refus d'une décision de l'administrateur provisoire sans aucun pouvoir de l'assemblée au mandat (F69). */
+function verifierPouvoirsDuMandat(decision: DecisionTravaux, { pouvoirsAgDuMandat }: ContexteMandatTravaux): void {
+  const controle = controlerPouvoirsDecisionTravaux(decision, pouvoirsAgDuMandat)
+  if (controle?.bloquant) throw new Error(controle.message)
+}
+
+/**
+ * Nature des travaux pour la majorité (F69) : la majorité habituelle de chaque nature, d'après les articles cités en
+ * en-tête (L. 1965 art. 24, II, a ; art. 25, f et n ; art. 30 ; art. 35) ; l'entretien suit la majorité de droit commun
+ * (art. 24, I). Le classement d'un travail reste un jugement au cas par cas : une aide, jamais un blocage.
+ */
+export const NATURES_JURIDIQUES_TRAVAUX = {
+  conservation_sante_securite: {
+    libelle: "conservation de l'immeuble, santé et sécurité physique des occupants",
+    majorite: 'art24',
+    fondement: 'L. 1965 art. 24, II, a',
+  },
+  entretien: { libelle: 'entretien', majorite: 'art24', fondement: 'L. 1965 art. 24, I' },
+  economies_energie: { libelle: "économies d'énergie", majorite: 'art25', fondement: 'L. 1965 art. 25, f' },
+  transformation_amelioration: { libelle: 'transformation, addition ou amélioration', majorite: 'art25', fondement: 'L. 1965 art. 25, n ; art. 30' },
+  surelevation: { libelle: 'surélévation', majorite: 'art26', fondement: 'L. 1965 art. 35' },
+} as const satisfies Record<string, { libelle: string; majorite: TypeMajorite; fondement: string }>
+export type NatureJuridiqueTravaux = keyof typeof NATURES_JURIDIQUES_TRAVAUX
+
+const TYPES_D_ENTRETIEN: readonly TypeTravaux[] = [
+  'Anti pigeons',
+  'Ascenseur',
+  'Boites aux lettres',
+  'Chaufferie',
+  "Circuit d'eau / Chauffage",
+  'Couverture',
+  'Dallage',
+  'Eclairage',
+  'Electricité',
+  'Espaces verts',
+  'Etanchéité',
+  'Gaz',
+  'Hygiène / Nettoyage',
+  'Maçonnerie',
+  'Menuiserie',
+  'Peinture',
+  'Plomberie',
+  'Ravalement',
+  "Réfection cage d'escaliers",
+  'Serrurerie',
+  'Travaux Chauffage',
+  'Vide ordures',
+]
+
+/**
+ * Nature habituelle de chaque TYPE_TRAVAUX (🔵 lecture VitFix, F69) : les types de conservation et de sécurité, ceux
+ * d'entretien ; les autres (études, diagnostics, honoraires, procédures, « Travaux », « Réhabilitation »,
+ * « Climatisation »…) n'ont pas de majorité habituelle : la nature se donne à l'aide.
+ */
+const NATURE_HABITUELLE_DU_TYPE: ReadonlyMap<TypeTravaux, NatureJuridiqueTravaux> = new Map<TypeTravaux, NatureJuridiqueTravaux>([
+  ["Conservation de l'immeuble", 'conservation_sante_securite'],
+  ['Entretien et sécurisation', 'conservation_sante_securite'],
+  ['Sécurité', 'conservation_sante_securite'],
+  ...TYPES_D_ENTRETIEN.map((type): [TypeTravaux, NatureJuridiqueTravaux] => [type, 'entretien']),
+])
+
+export interface MajoriteHabituelleTravaux {
+  nature: NatureJuridiqueTravaux
+  libelle: string
+  majorite: TypeMajorite
+  fondement: string
+  /** La nature donnée, ou celle du type de travaux. */
+  source: 'nature' | 'type'
+}
+
+/** Majorité habituelle des travaux (F69) : celle de la nature donnée, à défaut celle du type ; null si aucune. */
+export function majoriteHabituelleDesTravaux(
+  { type }: Pick<SaisieOperationTravaux, 'type'>,
+  nature?: NatureJuridiqueTravaux | null,
+): MajoriteHabituelleTravaux | null {
+  if (nature && !Object.hasOwn(NATURES_JURIDIQUES_TRAVAUX, nature)) throw new Error(`Nature de travaux inconnue « ${nature} » (NATURES_JURIDIQUES_TRAVAUX).`)
+  const retenue = nature ?? (type ? NATURE_HABITUELLE_DU_TYPE.get(type) : undefined)
+  if (!retenue) return null
+  const { libelle, majorite, fondement } = NATURES_JURIDIQUES_TRAVAUX[retenue]
+  return { nature: retenue, libelle, majorite, fondement, source: nature ? 'nature' : 'type' }
+}
+
+/** Force des majorités, de la plus faible à la plus forte. */
+const RANG_MAJORITE: Readonly<Record<TypeMajorite, number>> = { art24: 0, art25: 1, art26: 2, unanimite: 3 }
+const LIBELLE_MAJORITE: Readonly<Record<TypeMajorite, string>> = { art24: 'art. 24', art25: 'art. 25', art26: 'art. 26', unanimite: 'unanimité' }
+
+/**
+ * Aide à la majorité d'une décision d'assemblée (décision du 20/11/2026, partie C, F69) : la majorité habituelle du type
+ * (ou de la nature donnée) des travaux, et une alerte si la majorité saisie est plus faible ; jamais un blocage (une
+ * erreur de majorité rend la résolution contestable dans le délai, L. 1965 art. 42, al. 2, elle ne l'annule pas
+ * d'office). Sans majorité saisie, sans majorité habituelle, ou pour une décision de l'administrateur provisoire : aucune
+ * alerte.
+ */
+export function aideMajoriteDesTravaux(
+  operation: Pick<SaisieOperationTravaux, 'numero' | 'type' | 'decision'>,
+  nature?: NatureJuridiqueTravaux | null,
+): { habituelle: MajoriteHabituelleTravaux | null; alerte: string | null } {
+  const habituelle = majoriteHabituelleDesTravaux(operation, nature)
+  const { decision } = operation
+  const saisie = decision?.origine === 'administrateur' ? null : (decision?.majorite ?? null)
+  if (!habituelle || !saisie || RANG_MAJORITE[saisie] >= RANG_MAJORITE[habituelle.majorite]) return { habituelle, alerte: null }
+  return {
+    habituelle,
+    alerte: `Opération ${operation.numero} : majorité saisie (${LIBELLE_MAJORITE[saisie]}) plus faible que la majorité habituelle (${LIBELLE_MAJORITE[habituelle.majorite]}) des travaux de ${habituelle.libelle} (${habituelle.fondement}) : à vérifier ; aide, sans blocage, le classement des travaux reste un jugement au cas par cas (${F69}).`,
+  }
 }
 
 /**
@@ -906,9 +1336,11 @@ function tracerStatutDeCreation(
   projet: OperationTravaux,
   statut: StatutTravaux,
   changement: SaisieOperationTravaux['changementStatut'],
+  reprise: RepriseRepartitionOrigine | null | undefined,
 ): OperationTravaux {
   const { numero, decision } = projet
   const adoptee = decision ? ajouterChangement(projet, changementAdoption(decision.date)) : projet
+  if (reprise) return ajouterRepriseRepartie(adoptee, reprise)
   if (STATUTS_DATES_PAR_LA_DECISION.has(statut)) {
     if (changement)
       throw new Error(`Opération ${numero} « ${statut} » : date et motif du statut sans objet ; l'adoption est datée de la décision.`)
@@ -921,22 +1353,72 @@ function tracerStatutDeCreation(
   return changerStatutOperationTravaux(adoptee, statut, changement)
 }
 
+/** Référence de la répartition d'origine d'une reprise (F66) : motif, exercice, dates ISO valides. */
+function verifierRepriseRepartie(reprise: RepriseRepartitionOrigine, numero: string): void {
+  const objet = `Opération ${numero}, reprise d'une opération déjà répartie`
+  if (!reprise.motif.trim()) throw new Error(`${objet} : motif obligatoire (décision du 20/11/2026, partie C, F66).`)
+  if (!reprise.exercice.trim()) throw new Error(`${objet} : exercice de la répartition d'origine attendu.`)
+  verifierDate(reprise.date, `${objet}, date de la répartition d'origine`)
+  verifierDate(reprise.assembleeApprobation.date, `${objet}, assemblée qui a approuvé les comptes de l'exercice`)
+}
+
+/**
+ * « Réparti » à la création : seulement en mode « reprise » (repriseRepartie), réservé à ce statut, sans date ni motif du
+ * statut à part (la reprise les porte ; décision du 20/11/2026, partie C, F66).
+ */
+function verifierModeReprise({ numero, repriseRepartie, changementStatut }: SaisieOperationTravaux, statut: StatutTravaux): void {
+  if (!repriseRepartie) {
+    if (statut === 'Réparti')
+      throw new Error(
+        `Opération ${numero} : « Réparti » suit la répartition de l'opération (constaterRepartitionOperation), pas la saisie ; une opération reprise déjà répartie se crée en mode « reprise » (repriseRepartie : motif et référence de la répartition d'origine ; décision du 20/11/2026, partie C, F66).`,
+      )
+    return
+  }
+  if (statut !== 'Réparti') throw new Error(`Opération ${numero} « ${statut} » : mode « reprise » (repriseRepartie) réservé à la création à « Réparti » (F66).`)
+  if (changementStatut)
+    throw new Error(`Opération ${numero} « Réparti » en mode « reprise » : date et motif du statut (changementStatut) sans objet ; la reprise porte la date et le motif.`)
+  verifierRepriseRepartie(repriseRepartie, numero)
+}
+
+/**
+ * Reprise à « Réparti » d'une opération déjà répartie (F66) : un changement tracé depuis l'adoption, daté de la
+ * répartition d'origine (au plus tôt de la décision), motif et référence de la répartition repris, sans aucune écriture.
+ */
+function ajouterRepriseRepartie(adoptee: OperationTravaux, reprise: RepriseRepartitionOrigine): OperationTravaux {
+  verifierApresLaDecision(adoptee, reprise.date, "répartition d'origine reprise")
+  const { assembleeApprobation: ag } = reprise
+  const resolution = ag.resolution?.trim() ? `, ${ag.resolution.trim()}` : ''
+  const motif = `Reprise d'une opération déjà répartie — ${reprise.motif.trim()} — répartition d'origine : exercice ${reprise.exercice.trim()}, du ${dateIsoVersFr(reprise.date)}, comptes approuvés par l'assemblée du ${dateIsoVersFr(ag.date)}${resolution} ; aucune écriture (décision du 20/11/2026, partie C, F66)`
+  return ajouterChangement(adoptee, {
+    vers: 'Réparti',
+    le: reprise.date,
+    motif,
+    horsSequence: true,
+    annulation: false,
+    traitementId: null,
+    reprise: { ...reprise, assembleeApprobation: { ...ag } },
+  })
+}
+
 /**
  * Crée l'opération : n° (5 caractères), type, budget, clés, décision et majorité, statut (« Adopté » exige la décision ;
- * ni « En cours » ni « Réparti » à la création ; tracé dans l'historique), part du fonds de travaux, tranches ; génère la
- * série de comptes.
+ * ni « En cours » à la création, ni « Réparti » hors du mode « reprise » (F66) ; tracé dans l'historique), part du fonds
+ * de travaux, tranches ; génère la série de comptes. `contexte` : l'étendue des pouvoirs de l'assemblée portée par le
+ * mandat ; une décision de l'administrateur provisoire sans aucun de ces pouvoirs est refusée (F69).
  */
-export function creerOperationTravaux(saisie: SaisieOperationTravaux): OperationTravaux {
+export function creerOperationTravaux(saisie: SaisieOperationTravaux, contexte: ContexteMandatTravaux = {}): OperationTravaux {
   verifierEnTete(saisie)
-  if (saisie.decision) verifierDecision(saisie.decision, saisie.numero)
+  if (saisie.decision) {
+    verifierDecision(saisie.decision, saisie.numero)
+    verifierPouvoirsDuMandat(saisie.decision, contexte)
+  }
   const statut = saisie.statut ?? (saisie.decision ? 'Adopté' : 'Projet')
   verifierStatutDuCycle(statut, saisie.numero)
-  if (statut === 'Réparti')
-    throw new Error(`Opération ${saisie.numero} : « Réparti » suit la répartition de l'opération (constaterRepartitionOperation), pas la saisie.`)
+  verifierModeReprise(saisie, statut)
   verifierDecisionDuStatut(statut, saisie.decision, saisie.numero)
   verifierPartFondsSaisie(saisie)
   verifierTranches(saisie.tranches)
-  const { changementStatut, ...sansChangement } = saisie
+  const { changementStatut, repriseRepartie, ...sansChangement } = saisie
   const projet: OperationTravaux = {
     ...sansChangement,
     type: saisie.type ?? null,
@@ -946,7 +1428,7 @@ export function creerOperationTravaux(saisie: SaisieOperationTravaux): Operation
     serieComptes: serieComptesDe(saisie),
     historiqueStatuts: [],
   }
-  return tracerStatutDeCreation(projet, statut, changementStatut)
+  return tracerStatutDeCreation(projet, statut, changementStatut, repriseRepartie)
 }
 
 /** Compte complet d'un compte de la série, au segment du syndicat (D1) : `<syndicat>.<plan>.<n°>.0`. */
@@ -1153,13 +1635,16 @@ export function idsEcheancesDeLaTranche(operation: OperationTravaux, rang: numbe
 
 /**
  * Échéances « travaux » des tranches, une par clé (entrée de repartition-appels.avisDAppel) ; exige la décision
- * (assemblée ou administrateur provisoire) et, quand le fonds de travaux finance une part, une affectation admise. Avec
+ * (assemblée ou administrateur provisoire), jamais pour une opération « Rejeté » (décision du 20/11/2026, partie C,
+ * F67), et, quand le fonds de travaux finance une part, une affectation admise. Avec
  * une seule clé, les échéances sont celles d'avant le point 30 ; le crédit sur l'auxiliaire de l'opération est posé par
  * traitementAppelDeFondsTravaux.
  */
 export function echeancesTravaux(operation: OperationTravaux): EcheanceAppel[] {
   if (!operation.decision)
     throw new Error(`Opération ${operation.numero} : pas d'appel de travaux sans décision (assemblée ou administrateur provisoire).`)
+  const rejetee = refusAppelOuOrdreDeServiceOperation(operation)
+  if (rejetee) throw new Error(rejetee.motif)
   const etatFonds = etatPartFondsTravaux(operation)
   if (etatFonds && !etatFonds.autorise) throw new Error(`Opération ${operation.numero} : ${etatFonds.motif}`)
   return lignesAppel(operation).map((l) => ({

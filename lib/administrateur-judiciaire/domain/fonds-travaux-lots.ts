@@ -6,7 +6,10 @@ import {
   CREATION_FONDS_TRAVAUX,
   ENTREE_EN_VIGUEUR_FONDS_TRAVAUX,
   FONDEMENT_CREATION_FONDS_TRAVAUX,
+  estDecisionAdministrateurProvisoire,
+  lireDecisionAdministrateurProvisoire,
   lireDecisionAffectationAg,
+  lireOrdonnanceJuge,
   type DecaissementFondsTravaux,
   type DecisionAffectationAg,
   type ResultatAffectation,
@@ -58,9 +61,9 @@ import { etatPartFondsTravaux, type OperationTravaux } from '@/lib/administrateu
  *
  * 🔵 Déduit :
  * - la part d'un lot cumule ce qui est ENCAISSÉ et imputé sur les appels du fonds (pas l'appelé), plus la part reprise du
- *   syndic précédent ; un emploi admis se déduit des lots de sa clé au prorata de leur part disponible à sa date (jamais
- *   en dessous de zéro), ou, sur option, au tantième de la clé ; le même jour, les versements passent avant les emplois,
- *   et les emplois entre eux dans l'ordre de leur identifiant (résultat indépendant de l'ordre reçu) ;
+ *   syndic précédent ; un emploi admis se déduit des lots de sa clé selon la décision du 20/11/2026 (F93, ci-dessous) ;
+ *   le même jour, les versements passent avant les emplois, et les emplois entre eux dans l'ordre de leur identifiant
+ *   (résultat indépendant de l'ordre reçu) ;
  * - tout emploi daté au plus tard à la date sort du fonds (solde du fonds), même s'il n'est pas déduit des parts (part
  *   non couverte, emploi refusé ou antérieur à sa décision : signalés) ;
  * - plusieurs emplois d'une même opération sont admis (prélèvements échelonnés, chacun pour une partie de la part du
@@ -103,11 +106,9 @@ import { etatPartFondsTravaux, type OperationTravaux } from '@/lib/administrateu
  *   Les deux sont arrêtées à la clôture de l'exercice approuvé par la dernière AG avant la promesse. Une reprise n'est
  *   jamais une cotisation ; dernière cotisation antérieure à la prise de fonction (connue du seul syndic précédent) : non
  *   reprise ;
- * - méthode de déduction d'un emploi (aucun texte : prorata des parts par défaut, tantièmes sur option ; selon Hugo,
- *   30/10/2026, elle dépend de l'origine de l'emploi — vente ou appel de fonds —, à éclaircir) ; part du fonds de
- *   Gestéam (net ou brut des emplois) ;
- * - date d'une décision d'AG saisie en texte libre (avant J30) et date d'une ordonnance du juge, même structurée : non
- *   contrôlées face à la date de l'emploi (`dateDecision` et la date de l'AG d'une décision structurée le sont : J30).
+ * - part du fonds de Gestéam (net ou brut des emplois) ; « l'origine » de l'emploi évoquée le 30/10/2026 (emploi qui
+ *   finance un appel de travaux, ou part qui suit le lot vendu : rien ne se déduit à la vente, art. 14-2-1, III) reste à
+ *   préciser par le responsable du projet ; la règle de déduction est fixée par F93 (ci-dessous).
  * Décision de Hugo Carvalho du 30/10/2026 (D. 1967 art. 6-2, relu sur Légifrance le 30/10/2026) : un appel exigible le
  * jour de la mutation est dû par le vendeur ; avisDAppel le porte désormais au compte vendeur (règle, citations et 🔴
  * restants : en-tête de repartition-appels.ts). Un appel du fonds émis après l'enregistrement de la mutation et exigible
@@ -164,6 +165,31 @@ import { etatPartFondsTravaux, type OperationTravaux } from '@/lib/administrateu
  *   par prudence, avec l'avertissement que L. 721-2, II, 2°, d ne vise que le lot principal (lotAnnexe) ; plusieurs lots
  *   vendus ensemble : détail lot par lot et total (informationsFondsTravauxAcquereurVente), les annexes vendues avec leur
  *   lot principal sans avertissement. Sans promesse, le d) n'est pas exigé (III) : ne pas appeler.
+ *
+ * Décisions du 20/11/2026 (partie C du relevé des questions ouvertes du code, recommandations acceptées par le
+ * responsable du projet) :
+ * - Décision du 20/11/2026 (partie C, F93) : aucun texte ne fixe la méthode, la loi donne la direction (l'affectation
+ *   « tient compte » des parties communes spéciales et des clés, art. 14-2-1, I, al. 7 ; sommes « attachées aux lots »,
+ *   III). Par défaut (mode « tantiemes »), chaque lot de la clé de la dépense supporte sa quote-part en tantièmes de cette
+ *   clé, dans la limite de sa part disponible ; ce qui dépasse n'est jamais pris sur les autres lots : c'est signalé
+ *   « reste à appeler auprès de ce lot » (anomalie reste_a_appeler_lot, sorti du fonds, non déduit des parts). Le prorata
+ *   des parts reste une option (mode « prorata », emploi_excede_parts_cle pour le non couvert) ; le mode « tantièmes »
+ *   ne rend plus de part négative (il était sans plafond) ;
+ * - Décision du 20/11/2026 (partie C, F94) : la date de l'ordonnance du juge en forme structurée (juridiction, date, n° :
+ *   J30, J42) se compare à celle de la dépense, comme la décision d'AG : l'art. 29-14, 2° permet au juge d'« autoriser »
+ *   l'administrateur provisoire à utiliser le fonds, une autorisation vaut pour la suite. Une dépense datée avant
+ *   l'ordonnance est signalée (emploi_avant_decision), non déduite des parts, mais sortie du fonds ; le même jour est
+ *   admis. Une décision d'AG (ou une ordonnance) en texte libre d'avant J30 n'a pas de date lisible : l'alerte « date non
+ *   contrôlée » est gardée (emploi_forme_incomplete), avec la proposition de la ressaisir en forme structurée ;
+ * - Décision du 20/11/2026 (partie C, F96) : la décision de l'administrateur provisoire qui affecte le fonds sous
+ *   l'art. 29-1 (forme structurée DecisionAdministrateurProvisoire, fonds-travaux.ts) est rapprochée de la dépense par la
+ *   date de la décision au registre des décisions (D. 1967 art. 62-8), avec le même contrôle (emploi_avant_decision) ;
+ *   emploiDepuisOperation transmet encore, pour une opération décidée par l'administrateur provisoire, sa décision sous la
+ *   forme d'une résolution (date, référence au registre) : l'opération ne porte pas l'ordonnance de l'art. 29-1
+ *   (branchement à faire : travaux-operations.ts) ;
+ * - Décision du 20/11/2026 (partie C, F65) : la part du fonds de chaque clé d'une opération se compare, dès la décision,
+ *   au fonds disponible des lots de la clé à cette date (alertesPartsDesClesAuFondsDisponible) : alerte « part de la clé
+ *   supérieure au fonds disponible de ses lots au [date] », sans blocage ; au décaissement, rien ne change.
  */
 
 /** Cotisation (appel du fonds de travaux pour un lot) que règle un versement. */
@@ -208,8 +234,10 @@ export interface AnomalieFondsTravauxLots {
     | 'division_sans_repartition'
     | 'versements_vendeur_lots_origine'
     | 'sommes_avant_fonds_legal'
+    | 'reste_a_appeler_lot'
   refId: string
   message: string
+  /** Part d'un emploi non déduite : au-delà des parts de la clé (prorata), ou reste à appeler auprès d'un lot (F93). */
   nonCouvertCentimes?: number
   /** Part d'un emploi au-delà de la part du fonds de son opération (emplois_operation_excedent) : non déduite des parts. */
   excedentCentimes?: number
@@ -320,9 +348,10 @@ export interface EmploiFondsTravaux {
   partOperationCentimes: number | null
   /**
    * Date de la décision d'AG qui affecte le fonds, quand elle est connue (résolution de l'opération qui en tient lieu) :
-   * un emploi antérieur n'est pas déduit. Une décision structurée (J30) porte aussi la sienne (date de l'AG),
-   * rapprochée de même de l'emploi ; les deux connues, la plus tardive compte. null : la date de l'AG d'une décision
-   * structurée suffit ; décision en texte libre d'avant J30 ou autorisation du juge : 🔴 date non contrôlée.
+   * un emploi antérieur n'est pas déduit. Une décision structurée (J30) porte aussi la sienne (date de l'AG), comme la
+   * décision de l'administrateur provisoire (date au registre, F96) et l'ordonnance du juge (sa date, F94), rapprochées
+   * de même de l'emploi ; les deux connues, la plus tardive compte. null : la date structurée suffit ; décision ou
+   * ordonnance en texte libre d'avant J30 : date non contrôlée, signalée, à ressaisir en forme structurée (F94).
    */
   dateDecision: string | null
 }
@@ -515,7 +544,8 @@ export interface EtatFondsTravauxParLot {
   fondement: string
 }
 
-type ModeEmploi = 'prorata' | 'tantiemes'
+/** Déduction d'un emploi : « tantièmes » plafonnés, par défaut (F93), ou « prorata » des parts, en option. */
+type ModeEmploi = 'tantiemes' | 'prorata'
 
 interface Cumul {
   verse: number
@@ -543,15 +573,26 @@ function ajouterVersement(cumuls: Map<string, Cumul>, v: VersementFondsTravaux):
   else cumul.parCompte.set(v.compteId, (cumul.parCompte.get(v.compteId) ?? 0) + v.montantCentimes)
 }
 
-/** Déduit un emploi admis des lots de sa clé ; renvoie le montant non couvert par leurs parts (mode prorata). */
-function deduireEmploi(cumuls: Map<string, Cumul>, cle: CleRepartition, montant: number, mode: ModeEmploi): number {
+/**
+ * Mode « tantièmes », par défaut (décision du 20/11/2026, partie C, F93) : chaque lot de la clé supporte sa quote-part en
+ * tantièmes de la clé, dans la limite de sa part disponible ; renvoie, lot par lot, ce qui dépasse sa part (reste à
+ * appeler auprès de ce lot, jamais pris sur les autres lots). Aucune part ne devient négative.
+ */
+function deduireAuxTantiemes(cumuls: Map<string, Cumul>, cle: CleRepartition, montant: number): [string, number][] {
+  const restes: [string, number][] = []
+  repartirAuxPlusFortsRestes(montant, cle.lots.map((l) => l.tantiemes)).forEach((quotePart, i) => {
+    const { lotId } = cle.lots[i]
+    const cumul = cumulDe(cumuls, lotId)
+    const deduit = Math.min(quotePart, Math.max(0, partDe(cumul)))
+    cumul.employe += deduit
+    if (quotePart > deduit) restes.push([lotId, quotePart - deduit])
+  })
+  return restes
+}
+
+/** Mode « prorata » (option) : déduit un emploi admis des lots de sa clé au prorata de leur part ; renvoie le non couvert. */
+function deduireAuProrata(cumuls: Map<string, Cumul>, cle: CleRepartition, montant: number): number {
   const lots = cle.lots.map((l) => l.lotId)
-  if (mode === 'tantiemes') {
-    repartirAuxPlusFortsRestes(montant, cle.lots.map((l) => l.tantiemes)).forEach((part, i) => {
-      cumulDe(cumuls, lots[i]).employe += part
-    })
-    return 0
-  }
   const disponibles = lots.map((lotId) => Math.max(0, partDe(cumuls.get(lotId))))
   const total = disponibles.reduce((s, d) => s + d, 0)
   const couvert = Math.min(montant, total)
@@ -727,40 +768,67 @@ function evenementsJusquA(
 const controleDeLEmploi = (emploi: EmploiFondsTravaux): ResultatAffectation =>
   controlerAffectationFondsTravaux(emploi.decaissement, { aujourdhui: null })
 
-/** Décision ou ordonnance admise mais en texte libre d'avant J30 : signalée « forme incomplète », l'emploi reste déduit. */
+/**
+ * Décision ou ordonnance admise mais en texte libre d'avant J30 : signalée « forme incomplète », l'emploi reste déduit ;
+ * sa date n'est pas lisible, donc pas contrôlée face à l'emploi : à ressaisir en forme structurée (F94).
+ */
 function formeIncompleteDeLEmploi(emploi: EmploiFondsTravaux, controle: ResultatAffectation): AnomalieFondsTravauxLots | null {
   if (!controle.formeIncomplete) return null
-  return { code: 'emploi_forme_incomplete', refId: emploi.id, message: `Emploi ${emploi.id} : ${controle.formeIncomplete.message}` }
+  return {
+    code: 'emploi_forme_incomplete',
+    refId: emploi.id,
+    message: `Emploi ${emploi.id} : ${controle.formeIncomplete.message} Sa date n'est pas lisible, date non contrôlée face à l'emploi : la ressaisir en forme structurée (décision du 20/11/2026, partie C, F94).`,
+  }
+}
+
+/** Date d'une décision ou d'une autorisation rapprochée de l'emploi, et ce qu'elle désigne dans le motif. */
+interface DecisionDatee {
+  date: string
+  source: string
+}
+
+const DECISION_D_AFFECTATION = "la décision d'affectation"
+
+/**
+ * Date structurée qui fonde l'emploi : celle de l'ordonnance du juge pour l'usage judiciaire (art. 29-14, 2° ; F94), de
+ * la décision de l'administrateur provisoire au registre (F96), ou de l'AG d'une décision d'affectation (J30) ; null pour
+ * un texte libre d'avant J30. Appelée sur un emploi dont l'objet est admis par le contrôle.
+ */
+function decisionStructureeDeLEmploi({ decaissement }: EmploiFondsTravaux): DecisionDatee | null {
+  if (AFFECTATION_FONDS_TRAVAUX[decaissement.objet].base !== 'affectation_ag') {
+    const ordonnance = lireOrdonnanceJuge(decaissement.autorisationJuge)
+    return ordonnance.forme === 'complete' ? { date: ordonnance.valeur.date, source: "l'ordonnance du juge" } : null
+  }
+  const { decisionAg } = decaissement
+  if (estDecisionAdministrateurProvisoire(decisionAg)) {
+    const lecture = lireDecisionAdministrateurProvisoire(decisionAg)
+    return lecture.forme === 'complete' ? { date: lecture.valeur.decision.date, source: "la décision de l'administrateur provisoire" } : null
+  }
+  const lecture = lireDecisionAffectationAg(decisionAg)
+  return lecture.forme === 'complete' ? { date: lecture.valeur.dateAg, source: DECISION_D_AFFECTATION } : null
 }
 
 /**
- * Date de l'AG d'une décision d'affectation structurée (J30) qui fonde l'emploi ; null si l'emploi repose sur
- * l'ordonnance du juge ou si la décision est un texte libre d'avant J30. Appelée sur un emploi dont l'objet est
- * contrôlé.
+ * Décision rapprochée de l'emploi (I, al. 7 ; art. 29-14, 2°) : `dateDecision` ou la date structurée, la plus tardive.
+ * Le même jour, l'emploi est admis (F94).
  */
-function dateAgDeLEmploi({ decaissement }: EmploiFondsTravaux): string | null {
-  if (AFFECTATION_FONDS_TRAVAUX[decaissement.objet].base !== 'affectation_ag') return null
-  const lecture = lireDecisionAffectationAg(decaissement.decisionAg)
-  return lecture.forme === 'complete' ? lecture.valeur.dateAg : null
-}
-
-/** Date de décision rapprochée de l'emploi (I, al. 7) : `dateDecision` ou date de l'AG structurée, la plus tardive. */
-function dateDeLaDecision(emploi: EmploiFondsTravaux): string | null {
-  const dateAg = dateAgDeLEmploi(emploi)
-  if (dateAg === null) return emploi.dateDecision
-  if (emploi.dateDecision !== null && emploi.dateDecision > dateAg) return emploi.dateDecision
-  return dateAg
+function decisionRapprochee(emploi: EmploiFondsTravaux): DecisionDatee | null {
+  const structuree = decisionStructureeDeLEmploi(emploi)
+  const saisie = emploi.dateDecision === null ? null : { date: emploi.dateDecision, source: DECISION_D_AFFECTATION }
+  if (structuree === null) return saisie
+  if (saisie !== null && saisie.date > structuree.date) return saisie
+  return structuree
 }
 
 /** Anomalie d'un emploi qui ne peut pas être déduit (non autorisé, antérieur à sa décision, clé inconnue) ; null sinon. */
 function emploiNonDeductible(emploi: EmploiFondsTravaux, cle: CleRepartition | undefined, controle: ResultatAffectation): AnomalieFondsTravauxLots | null {
   if (!controle.autorise) return { code: 'emploi_non_autorise', refId: emploi.id, message: `Emploi ${emploi.id} non déduit : ${controle.motif}` }
-  const dateDecision = dateDeLaDecision(emploi)
-  if (dateDecision !== null && emploi.date < dateDecision)
+  const decision = decisionRapprochee(emploi)
+  if (decision !== null && emploi.date < decision.date)
     return {
       code: 'emploi_avant_decision',
       refId: emploi.id,
-      message: `Emploi ${emploi.id} non déduit : daté du ${dateIsoVersFr(emploi.date)}, avant la décision d'affectation du ${dateIsoVersFr(dateDecision)}.`,
+      message: `Emploi ${emploi.id} non déduit : daté du ${dateIsoVersFr(emploi.date)}, avant ${decision.source} du ${dateIsoVersFr(decision.date)}.`,
     }
   if (!cle) return { code: 'cle_emploi_inconnue', refId: emploi.id, message: `Emploi ${emploi.id} non déduit : clé « ${emploi.cleId} » inconnue.` }
   return null
@@ -777,6 +845,17 @@ function excedentOperation(emploi: EmploiFondsTravaux, cumulsOperations: Map<str
   const avant = cumulsOperations.get(operationNumero) ?? 0
   cumulsOperations.set(operationNumero, avant + montantCentimes)
   return Math.min(montantCentimes, Math.max(0, avant + montantCentimes - partOperationCentimes))
+}
+
+/** F93 — ce qui dépasse la part disponible d'un lot, en mode « tantièmes » : reste à appeler auprès de ce lot. */
+function restesAAppeler(emploi: EmploiFondsTravaux, restes: [string, number][]): AnomalieFondsTravauxLots[] {
+  return restes.map(([lotId, reste]) => ({
+    code: 'reste_a_appeler_lot',
+    refId: emploi.id,
+    lotIds: [lotId],
+    nonCouvertCentimes: reste,
+    message: `Emploi ${emploi.id} : ${reste} centimes de la quote-part du lot ${lotId} en tantièmes de la clé « ${emploi.cleId} » au-delà de sa part disponible : reste à appeler auprès de ce lot, jamais pris sur les autres lots (décision du 20/11/2026, partie C, F93).`,
+  }))
 }
 
 /**
@@ -807,7 +886,8 @@ function appliquerEmploi(
   if (refus) return [...anomalies, refus]
   const aDeduire = emploi.montantCentimes - excedent
   if (aDeduire === 0) return anomalies
-  const nonCouvert = deduireEmploi(cumuls, cle as CleRepartition, aDeduire, mode)
+  if (mode === 'tantiemes') return [...anomalies, ...restesAAppeler(emploi, deduireAuxTantiemes(cumuls, cle as CleRepartition, aDeduire))]
+  const nonCouvert = deduireAuProrata(cumuls, cle as CleRepartition, aDeduire)
   if (nonCouvert > 0)
     anomalies.push({
       code: 'emploi_excede_parts_cle',
@@ -879,7 +959,7 @@ export function partsFondsTravauxParLot({
   emplois,
   cles,
   date,
-  mode = 'prorata',
+  mode = 'tantiemes',
   modificationsLots = [],
 }: {
   versements: VersementFondsTravaux[]
@@ -931,12 +1011,66 @@ export function partsFondsTravauxParLot({
   }
 }
 
-/** Anomalies portées par un lot (refId = le lot), et non par un emploi. */
-const ANOMALIES_D_UN_LOT: ReadonlySet<AnomalieFondsTravauxLots['code']> = new Set(['part_negative', 'division_sans_repartition'])
+// ─── Part de chaque clé face au fonds disponible de ses lots (décision du 20/11/2026, partie C, F65) ────────────────
+
+/** Libellé de l'alerte de F65, suivi de la date de l'état des parts. */
+export const LIBELLE_PART_CLE_AU_DELA_DU_FONDS = 'part de la clé supérieure au fonds disponible de ses lots au'
+
+/** F65 — part du fonds d'une clé de l'opération au-delà du fonds disponible des lots de la clé : alerte, jamais un blocage. */
+export interface AlertePartCleFonds {
+  code: 'part_cle_superieure_au_fonds_disponible'
+  bloquant: false
+  operationNumero: string
+  cleId: string
+  partCleCentimes: number
+  /** Parts disponibles (positives) des lots de la clé à la date de l'état : versé, moins les emplois déjà faits. */
+  disponibleCentimes: number
+  date: string
+  message: string
+}
 
 /**
- * Anomalies qui concernent un lot : sa part négative, une division sans répartition dont il est le lot d'origine ou un lot
- * issu, et les emplois sur une clé qui le contient ou sur une clé inconnue.
+ * Part du fonds de travaux de chaque clé de l'opération rapprochée, dès la décision (création ou adoption), du fonds
+ * disponible des lots de la clé (décision du 20/11/2026, partie C, F65 ; L. 1965 art. 14-2-1, I, al. 7 : l'affectation
+ * tient compte des clés de répartition) : une alerte « part de la clé supérieure au fonds disponible de ses lots au
+ * [date] », sans blocage, les cotisations continuant d'arriver d'ici l'emploi ; au décaissement, le contrôle reste celui
+ * de l'emploi. `etat` : l'état des parts à la date de la décision (partsFondsTravauxParLot) ; `cles` : les clés du
+ * syndicat, dont celles de l'opération (refus d'une clé absente).
+ */
+export function alertesPartsDesClesAuFondsDisponible(
+  operation: Pick<OperationTravaux, 'numero' | 'cles'>,
+  etat: Pick<EtatFondsTravauxParLot, 'date' | 'parts'>,
+  cles: readonly CleRepartition[],
+): AlertePartCleFonds[] {
+  const parts = new Map(etat.parts.map((p) => [p.lotId, p.partCentimes]))
+  return operation.cles
+    .filter((c) => c.financementFondsTravauxCentimes > 0)
+    .flatMap((c): AlertePartCleFonds[] => {
+      const cle = cles.find((k) => k.id === c.cleId)
+      if (!cle) throw new Error(`Opération ${operation.numero} : clé « ${c.cleId} » absente des clés fournies ; fonds disponible de ses lots non calculé.`)
+      const disponible = cle.lots.reduce((s, l) => s + Math.max(0, parts.get(l.lotId) ?? 0), 0)
+      if (c.financementFondsTravauxCentimes <= disponible) return []
+      return [
+        {
+          code: 'part_cle_superieure_au_fonds_disponible',
+          bloquant: false,
+          operationNumero: operation.numero,
+          cleId: c.cleId,
+          partCleCentimes: c.financementFondsTravauxCentimes,
+          disponibleCentimes: disponible,
+          date: etat.date,
+          message: `Opération ${operation.numero}, clé « ${c.cleId} » : ${LIBELLE_PART_CLE_AU_DELA_DU_FONDS} ${dateIsoVersFr(etat.date)} (part de la clé ${c.financementFondsTravauxCentimes} centimes ; fonds disponible de ses lots ${disponible} centimes : versé, moins les emplois déjà faits) ; alerte, sans blocage : les cotisations continuent d'arriver d'ici l'emploi (décision du 20/11/2026, partie C, F65).`,
+        },
+      ]
+    })
+}
+
+/** Anomalies portées par un lot (refId = le lot, ou lotIds), et non par un emploi. */
+const ANOMALIES_D_UN_LOT: ReadonlySet<AnomalieFondsTravauxLots['code']> = new Set(['part_negative', 'division_sans_repartition', 'reste_a_appeler_lot'])
+
+/**
+ * Anomalies qui concernent un lot : sa part négative, son reste à appeler (F93), une division sans répartition dont il
+ * est le lot d'origine ou un lot issu, et les emplois sur une clé qui le contient ou sur une clé inconnue.
  */
 function anomaliesDuLot(anomalies: AnomalieFondsTravauxLots[], emplois: EmploiFondsTravaux[], cles: CleRepartition[], lotId: string): AnomalieFondsTravauxLots[] {
   return anomalies.filter((a) => {
@@ -1187,7 +1321,7 @@ export function fondsTravauxALaMutation({
   emplois,
   cles,
   postes,
-  mode = 'prorata',
+  mode = 'tantiemes',
   modificationsLots = [],
 }: {
   positions: Position[]
@@ -1360,7 +1494,7 @@ export function informationsFondsTravauxAcquereur({
   emplois,
   cles,
   exercices,
-  mode = 'prorata',
+  mode = 'tantiemes',
   modificationsLots = [],
   lotAnnexe = false,
 }: ParametresInformationsAcquereur): InformationsFondsTravauxAcquereur {

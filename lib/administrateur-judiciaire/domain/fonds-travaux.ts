@@ -104,9 +104,23 @@ import type { NaturePlanComptable } from '@/lib/data/referentiels-gesteam-judici
  * - seule l'année de construction connue : la réception est supposée faite au plus tard le 31/12 de cette année ;
  * - plan non renseigné (« inconnu ») : seul le plancher de 5 % est contrôlé, et les résultats sont marqués à confirmer.
  *
- * 🔴 Non établi :
- * - affectation par clé : la part du fonds par lot et le signalement d'un emploi qui dépasse les parts des lots de sa clé
- *   sont dans fonds-travaux-lots.ts (point 20 du bilan) ; la méthode de déduction d'un emploi n'est fixée par aucun texte.
+ * Décisions du 20/11/2026 (partie C du relevé des questions ouvertes du code, recommandations acceptées par le
+ * responsable du projet) :
+ * - Décision du 20/11/2026 (partie C, F93) : affectation par clé, la part du fonds par lot et la déduction d'un emploi
+ *   sont dans fonds-travaux-lots.ts (point 20 du bilan). Aucun texte ne fixe la méthode ; la loi donne la direction
+ *   (l'affectation « tient compte » des clés, I, al. 7 ; sommes « attachées aux lots », III) : par défaut, chaque lot de
+ *   la clé de la dépense supporte sa quote-part en tantièmes de cette clé, dans la limite de sa part disponible ; ce qui
+ *   dépasse n'est jamais pris sur les autres lots, il est signalé « reste à appeler auprès de ce lot » ; le prorata des
+ *   parts reste une option, et le mode « tantièmes » ne rend plus de part négative ;
+ * - Décision du 20/11/2026 (partie C, F96) : sous l'art. 29-1, la décision de l'administrateur provisoire qui affecte le
+ *   fonds se saisit dans une troisième forme structurée, « décision de l'administrateur provisoire »
+ *   (DecisionAdministrateurProvisoire, dans decisionAg) : (a) l'ordonnance de l'art. 29-1 (juridiction, date, n°) et la
+ *   case « pouvoirs de l'AG confiés » ; (b) la date et le n° de la décision au registre des décisions, où elle est
+ *   mentionnée « à leur date » (D. 1967 art. 62-8) ; (c) l'avis du conseil syndical ou le constat d'urgence (D. 1967 art.
+ *   62-7 ; J16, J46). La date comparée à la dépense est celle de la décision (b) (fonds-travaux-lots.ts). Case non cochée :
+ *   refus, il faut un vote de l'assemblée ou une ordonnance de l'art. 29-14, 2° (J67, R81 et R82) ; décision antérieure à
+ *   l'ordonnance qui confie les pouvoirs : refus. Les pouvoirs des a et b de l'art. 26 restent exclus (art. 29-1, I),
+ *   l'affectation du fonds n'en fait pas partie.
  *
  * Gestéam — appels de type « Fonds travaux non remb. », compte 10500, sur la clé des provisions (le plus souvent la clé
  * générale), observés à 5 % du budget en quatre trimestres arrondis chacun au centime (tranche 43 § 23) ; aucun contrôle
@@ -245,6 +259,36 @@ export interface DecisionAffectationAg {
   numeroResolution: string
 }
 
+/** Ce qui permet à l'administrateur provisoire de décider sans assemblée (D. 1967 art. 62-7 ; J16, J46). */
+export const AVIS_OU_URGENCE_DECISION_AP = {
+  avis_conseil_syndical: { libelle: 'avis du conseil syndical du' },
+  constat_urgence: { libelle: 'urgence constatée le' },
+} as const satisfies Record<string, { libelle: string }>
+export type AvisOuUrgenceDecisionAp = keyof typeof AVIS_OU_URGENCE_DECISION_AP
+
+/**
+ * Décision de l'administrateur provisoire qui affecte le fonds sous l'art. 29-1 (décision du 20/11/2026, partie C, F96) :
+ * troisième forme structurée, à côté de la décision de l'assemblée et de l'ordonnance de l'art. 29-14, 2°. Sous l'art.
+ * 29-1, ce n'est pas l'ordonnance qui affecte le fonds : c'est l'administrateur qui décide, avec les pouvoirs de
+ * l'assemblée qu'elle lui confie ; la saisir comme une décision d'AG serait faux (pas d'AG, pas de résolution).
+ */
+export interface DecisionAdministrateurProvisoire {
+  forme: 'decision_administrateur_provisoire'
+  /** (a) Ordonnance de l'art. 29-1 qui confie les pouvoirs de l'assemblée : juridiction, date, n° (comme J30). */
+  ordonnance: { juridiction: string; date: string; numero: string }
+  /** (a) Case « pouvoirs de l'AG confiés » : sans elle, la décision ne tient pas lieu d'affectation. */
+  pouvoirsAgConfies: boolean
+  /** (b) La décision : sa date (comparée à la dépense) et son n° au registre des décisions (D. 1967 art. 62-8). */
+  decision: { date: string; numeroRegistre: string }
+  /** (c) Avis du conseil syndical, ou constat d'urgence (D. 1967 art. 62-7 ; J16, J46), daté. */
+  avisOuUrgence: { nature: AvisOuUrgenceDecisionAp; date: string }
+}
+
+/** La décision d'affectation est une décision de l'administrateur provisoire (F96), non une décision de l'assemblée. */
+export function estDecisionAdministrateurProvisoire(valeur: unknown): valeur is DecisionAdministrateurProvisoire {
+  return typeof valeur === 'object' && valeur !== null && (valeur as { forme?: unknown }).forme === 'decision_administrateur_provisoire'
+}
+
 /**
  * Référence saisie avant la décision J30 : texte libre, lu et signalé « forme incomplète », jamais rejeté en silence ;
  * refusé pour une nouvelle saisie (OptionsControleAffectation.nouvelleSaisie).
@@ -254,8 +298,11 @@ export type TexteLibreAncien = string
 export interface DecaissementFondsTravaux {
   objet: ObjetDecaissementFondsTravaux
   montantCentimes: number
-  /** Décision d'assemblée qui affecte le fonds à la dépense (J30 : date de l'AG et n° de la résolution) ; null si absente. */
-  decisionAg: DecisionAffectationAg | TexteLibreAncien | null
+  /**
+   * Décision qui affecte le fonds à la dépense : de l'assemblée (J30 : date de l'AG et n° de la résolution), ou de
+   * l'administrateur provisoire sous l'art. 29-1 (F96) ; null si absente.
+   */
+  decisionAg: DecisionAffectationAg | DecisionAdministrateurProvisoire | TexteLibreAncien | null
   /** Ordonnance du juge (art. 29-14, 2° ; J30 : juridiction, date, n°) ; exigée pour l'usage judiciaire du fonds. */
   autorisationJuge?: OrdonnanceJuge | TexteLibreAncien | null
 }
@@ -341,6 +388,129 @@ export function lireDecisionAffectationAg(
   valeur: DecisionAffectationAg | TexteLibreAncien | null | undefined,
 ): LectureReference<DecisionAffectationAg> {
   return lireReference(valeur, CADRE_DECISION_AG)
+}
+
+// ─── Décision de l'administrateur provisoire (décision du 20/11/2026, partie C, F96) ─────────────────────────────────
+
+const CADRE_ORDONNANCE_29_1: CadreForme<DecisionAdministrateurProvisoire['ordonnance']> = {
+  nom: "Ordonnance de l'art. 29-1",
+  exigence: 'forme attendue',
+  description: "juridiction, date et n° de l'ordonnance de l'art. 29-1",
+  champs: [
+    { cle: 'juridiction', libelle: "juridiction de l'ordonnance de l'art. 29-1", date: false },
+    { cle: 'date', libelle: "date de l'ordonnance de l'art. 29-1", date: true },
+    { cle: 'numero', libelle: "n° de l'ordonnance de l'art. 29-1", date: false },
+  ],
+  designer: (o) => `ordonnance n° ${o.numero} du ${dateIsoVersFr(o.date)}, ${o.juridiction}`,
+}
+
+const CADRE_DECISION_AP: CadreForme<DecisionAdministrateurProvisoire['decision']> = {
+  nom: "Décision de l'administrateur provisoire",
+  exigence: 'forme attendue',
+  description: 'date et n° de la décision au registre des décisions',
+  champs: [
+    { cle: 'date', libelle: 'date de la décision', date: true },
+    { cle: 'numeroRegistre', libelle: 'n° de la décision au registre', date: false },
+  ],
+  designer: (d) => `décision n° ${d.numeroRegistre} du registre de l'administrateur provisoire, du ${dateIsoVersFr(d.date)}`,
+}
+
+const CADRE_AVIS_OU_URGENCE: CadreForme<{ date: string }> = {
+  nom: "Avis du conseil syndical ou constat d'urgence",
+  exigence: 'forme attendue',
+  description: "date de l'avis du conseil syndical ou du constat d'urgence",
+  champs: [{ cle: 'date', libelle: "date de l'avis du conseil syndical ou du constat d'urgence", date: true }],
+  designer: (a) => dateIsoVersFr(a.date),
+}
+
+/** Forme attendue de la décision de l'administrateur provisoire (F96), pour les motifs. */
+const FORME_DECISION_AP =
+  "forme attendue : ordonnance de l'art. 29-1 (juridiction, date, n°) et case « pouvoirs de l'AG confiés », date et n° de la décision au registre des décisions, avis du conseil syndical ou constat d'urgence (date)"
+
+const FONDEMENT_DECISION_AP = `${FONDEMENT_I} ; ${citerFondement(refLoi1965('29-1, I'))}`
+
+/** Nature de l'avis ou du constat, connue ; null sinon. */
+const natureAvisOuUrgence = (nature: unknown): AvisOuUrgenceDecisionAp | null =>
+  typeof nature === 'string' && Object.hasOwn(AVIS_OU_URGENCE_DECISION_AP, nature) ? (nature as AvisOuUrgenceDecisionAp) : null
+
+/** Ce qui manque à une partie de la décision : tous ses champs si elle est absente, ceux qui manquent si elle est incomplète. */
+function manquantsDe<T>(lecture: LectureReference<T>, cadre: CadreForme<T>): string[] {
+  if (lecture.forme === 'absente') return cadre.champs.map((c) => c.libelle)
+  return lecture.forme === 'incomplete' ? lecture.manquants : []
+}
+
+/**
+ * Décision de l'administrateur provisoire enregistrée (F96), lue sans jamais être rejetée : complète quand l'ordonnance
+ * de l'art. 29-1, la case « pouvoirs de l'AG confiés », la décision au registre et l'avis ou le constat d'urgence sont
+ * saisis ; incomplète sinon, avec ce qui manque.
+ */
+export function lireDecisionAdministrateurProvisoire(valeur: DecisionAdministrateurProvisoire): LectureReference<DecisionAdministrateurProvisoire> {
+  const ordonnance = lireReference(valeur.ordonnance, CADRE_ORDONNANCE_29_1)
+  const decision = lireReference(valeur.decision, CADRE_DECISION_AP)
+  const avis = lireReference(valeur.avisOuUrgence, CADRE_AVIS_OU_URGENCE)
+  const nature = natureAvisOuUrgence(valeur.avisOuUrgence?.nature)
+  const manquants = [
+    ...manquantsDe(ordonnance, CADRE_ORDONNANCE_29_1),
+    ...(typeof valeur.pouvoirsAgConfies === 'boolean' ? [] : ["case « pouvoirs de l'AG confiés »"]),
+    ...manquantsDe(decision, CADRE_DECISION_AP),
+    ...(nature === null ? ["nature : avis du conseil syndical ou constat d'urgence"] : []),
+    ...manquantsDe(avis, CADRE_AVIS_OU_URGENCE),
+  ]
+  if (ordonnance.forme !== 'complete' || decision.forme !== 'complete' || avis.forme !== 'complete' || nature === null || manquants.length > 0)
+    return { forme: 'incomplete', texte: null, manquants }
+  return {
+    forme: 'complete',
+    valeur: { forme: valeur.forme, ordonnance: ordonnance.valeur, pouvoirsAgConfies: valeur.pouvoirsAgConfies, decision: decision.valeur, avisOuUrgence: { nature, date: avis.valeur.date } },
+  }
+}
+
+/** Première date d'une décision complète postérieure au jour (ordonnance, décision, avis ou constat) ; null sinon. */
+function datePosterieureDeLaDecisionAp(d: DecisionAdministrateurProvisoire, aujourdhui: string | null | undefined): string | null {
+  return (
+    datePosterieure(d.ordonnance, CADRE_ORDONNANCE_29_1, aujourdhui) ??
+    datePosterieure(d.decision, CADRE_DECISION_AP, aujourdhui) ??
+    datePosterieure(d.avisOuUrgence, CADRE_AVIS_OU_URGENCE, aujourdhui)
+  )
+}
+
+/**
+ * Contrôle de la décision de l'administrateur provisoire qui affecte le fonds (décision du 20/11/2026, partie C, F96) :
+ * forme incomplète, date postérieure au jour (sauf `aujourdhui: null`), ou décision antérieure à l'ordonnance qui lui
+ * confie les pouvoirs de l'assemblée : refus « reference_invalide » ; case « pouvoirs de l'AG confiés » non cochée :
+ * refus « decision_manquante » (il faut un vote de l'assemblée ou une ordonnance de l'art. 29-14, 2° : J67, R81 et R82) ;
+ * admise sinon. Les pouvoirs des a et b de l'art. 26 restent exclus, l'affectation du fonds n'en fait pas partie.
+ */
+function controlerDecisionAdministrateurProvisoire(
+  libelle: string,
+  valeur: DecisionAdministrateurProvisoire,
+  { aujourdhui }: OptionsControleAffectation,
+): ResultatAffectation {
+  const lecture = lireDecisionAdministrateurProvisoire(valeur)
+  if (lecture.forme !== 'complete') {
+    const manquants = lecture.forme === 'incomplete' ? lecture.manquants : []
+    return resultatAffectation('reference_invalide', `${libelle} : ${CADRE_DECISION_AP.nom} incomplète (manque : ${manquants.join(', ')}) ; ${FORME_DECISION_AP}.`, FONDEMENT_DECISION_AP)
+  }
+  const d = lecture.valeur
+  if (!d.pouvoirsAgConfies)
+    return resultatAffectation(
+      'decision_manquante',
+      `${libelle} : ${CADRE_ORDONNANCE_29_1.designer(d.ordonnance)} sans les pouvoirs de l'assemblée (case « pouvoirs de l'AG confiés » non cochée) ; la décision de l'administrateur provisoire ne tient pas lieu d'affectation du fonds : il faut un vote de l'assemblée ou une ordonnance de l'art. 29-14, 2° (décision du 20/11/2026, partie C, F96).`,
+      FONDEMENT_DECISION_AP,
+    )
+  const future = datePosterieureDeLaDecisionAp(d, aujourdhui)
+  if (future) return resultatAffectation('reference_invalide', `${libelle} : ${CADRE_DECISION_AP.nom} : ${future} ; ${FORME_DECISION_AP}.`, FONDEMENT_DECISION_AP)
+  if (d.decision.date < d.ordonnance.date)
+    return resultatAffectation(
+      'reference_invalide',
+      `${libelle} : ${CADRE_DECISION_AP.designer(d.decision)} antérieure à l'ordonnance de l'art. 29-1 (${CADRE_ORDONNANCE_29_1.designer(d.ordonnance)}) qui lui confie les pouvoirs de l'assemblée.`,
+      FONDEMENT_DECISION_AP,
+    )
+  const avis = `${AVIS_OU_URGENCE_DECISION_AP[d.avisOuUrgence.nature].libelle} ${dateIsoVersFr(d.avisOuUrgence.date)}`
+  return resultatAffectation(
+    'admis',
+    `${libelle} : affectation admise (${CADRE_DECISION_AP.designer(d.decision)} ; ${CADRE_ORDONNANCE_29_1.designer(d.ordonnance)} ; ${avis}).`,
+    FONDEMENT_DECISION_AP,
+  )
 }
 
 export type CauseAffectation =
@@ -488,6 +658,7 @@ function controlerDecisionAg(
   valeur: DecaissementFondsTravaux['decisionAg'],
   options: OptionsControleAffectation,
 ): ResultatAffectation {
+  if (estDecisionAdministrateurProvisoire(valeur)) return controlerDecisionAdministrateurProvisoire(libelle, valeur, options)
   const lecture = lireDecisionAffectationAg(valeur)
   if (lecture.forme === 'absente') {
     let motif = `${libelle} : rattacher la décision d'assemblée qui affecte le fonds à cette dépense (à la même majorité que la dépense) avant de décaisser.`
@@ -501,7 +672,8 @@ function controlerDecisionAg(
 
 /**
  * Contrôle d'affectation (le droit) : un décaissement sur le fonds de travaux n'est admis que pour une dépense du I,
- * sur décision d'affectation de l'assemblée, ou pour l'usage judiciaire de l'art. 29-14, 2°, sur ordonnance du juge.
+ * sur décision d'affectation de l'assemblée (ou de l'administrateur provisoire qui en a les pouvoirs, forme structurée
+ * de F96), ou pour l'usage judiciaire de l'art. 29-14, 2°, sur ordonnance du juge.
  * Décision et ordonnance en forme structurée (J30) : un champ manquant, une date invalide ou postérieure à
  * `aujourdhui` (sauf `aujourdhui: null`) est refusé, motif à l'appui. En texte libre : refusées pour une nouvelle
  * saisie (`nouvelleSaisie`) ; valeur enregistrée avant J30 : admises, signalées « forme incomplète ». Ordonnance qui
