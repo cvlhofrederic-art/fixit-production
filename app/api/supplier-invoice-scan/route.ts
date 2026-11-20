@@ -27,7 +27,7 @@ export interface SupplierScanResult {
 }
 
 /** « 20, 10, 5.5 ou 0 » : taux du pays tels que la consigne les cite. */
-const listeTaux = (taux: readonly number[]) => `${taux.slice(0, -1).join(', ')} ou ${taux[taux.length - 1]}`
+const listeTaux = (taux: readonly number[]) => `${taux.slice(0, -1).join(', ')} ou ${taux.at(-1)}`
 
 /**
  * Consigne de lecture, selon le pays de la société (`pays` du corps : 'pt' sur le formulaire portugais). En France,
@@ -35,6 +35,8 @@ const listeTaux = (taux: readonly number[]) => `${taux.slice(0, -1).join(', ')} 
  */
 const consigneFournisseur = (pays: TvaLocale) => {
   const defaut = tauxTvaParDefaut(pays)
+  // Total TTC de l'exemple cohérent avec son taux : 125,50 × 1,23 au Portugal, × 1,20 en France
+  const exempleTotalTTC = pays === 'pt' ? '154.37' : '150.60'
   const tauxApplicable = pays === 'pt'
     ? `taux d'IVA portugais applicable (${listeTaux(TAUX_TVA_PROPOSES.pt)}). Par défaut ${defaut}`
     : `taux TVA applicable (${listeTaux(TAUX_TVA_PROPOSES.fr)}). Par défaut ${defaut}`
@@ -57,7 +59,7 @@ Retourne UNIQUEMENT un objet JSON valide, sans markdown :
     }
   ],
   "totalHT": 125.50,
-  "totalTTC": 150.60,
+  "totalTTC": ${exempleTotalTTC},
   "confidence": "haute"
 }
 
