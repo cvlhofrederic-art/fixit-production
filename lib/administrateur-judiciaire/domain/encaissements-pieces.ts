@@ -1,5 +1,5 @@
 import { estCompteDuFondsTravaux, type MarquesFondsTravaux } from '@/lib/administrateur-judiciaire/domain/comptes-bancaires'
-import { ajouterJours, dateIsoVersFr, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
+import { ajouterJours, dateIsoVersFr, estAnneeImprobable, estDateIsoValide, messagePlausibilite } from '@/lib/administrateur-judiciaire/domain/dates'
 import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
 import { numeroCompteCoproprietaire, type CompteCoproprietaire } from '@/lib/administrateur-judiciaire/domain/identites-positions'
 import {
@@ -128,7 +128,8 @@ import { MODE_REGLEMENT, type ModeReglement } from '@/lib/data/referentiels-gest
  *   « part fonds de travaux reçue sur le compte courant : à virer sans délai au compte du fonds » (L. 1965 art. 18, II,
  *   al. 4), et reste « à virer » jusqu'au virement interne correspondant (virement-interne.alimentationsDuFonds), avec
  *   une alerte s'il n'est pas viré dans le délai réglé par le cabinet (partsFondsTravauxAVirer ; aucun délai par
- *   défaut : sans réglage, aucune alerte).
+ *   défaut : sans réglage, aucune alerte) ; aucun délai ne part d'un encaissement d'une année improbable
+ *   (dates.estAnneeImprobable, faute de frappe), date à corriger.
  * 🔵 Déduit pour F110 et F112 :
  * - écriture contraire : les lignes de l'encaissement (mouvementsEncaissementImpute) prises dans l'écriture de son
  *   traitement, fournie (ce qui a été écrit, non une reconstruction), inversées dans un traitement « Annulation
@@ -901,10 +902,15 @@ function virePour(part: PartRecue, alimentations: AlimentationDisponible[]): num
 function partAVirer(part: PartRecue, vireCentimes: number, { aLaDate, delaiAlerteJours }: OptionsPartsAVirer): PartFondsTravauxAVirer {
   const { encaissement: e, partFondsCentimes } = part
   const resteAVirerCentimes = partFondsCentimes - vireCentimes
-  const aVirerAuPlusTardLe = delaiAlerteJours === null ? null : ajouterJours(e.date, delaiAlerteJours)
+  // Encaissement d'une année improbable (faute de frappe) : aucun délai du cabinet n'en part, la date est à corriger.
+  const dateImprobable = delaiAlerteJours !== null && estAnneeImprobable(e.date)
+  const aVirerAuPlusTardLe = delaiAlerteJours === null || dateImprobable ? null : ajouterJours(e.date, delaiAlerteJours)
   const alerte = resteAVirerCentimes > 0 && aVirerAuPlusTardLe !== null && aLaDate > aVirerAuPlusTardLe
   const etat = `${eurosDe(partFondsCentimes)} reçus, ${eurosDe(vireCentimes)} virés, ${eurosDe(resteAVirerCentimes)} à virer`
   const retard = alerte && aVirerAuPlusTardLe ? ` Alerte : délai du cabinet dépassé, à virer au plus tard le ${dateIsoVersFr(aVirerAuPlusTardLe)}.` : ''
+  const sansDelai = dateImprobable
+    ? ` ${messagePlausibilite('Encaissement daté', e.date, 'annee_improbable')} Délai du cabinet non compté : corriger la date.`
+    : ''
   return {
     encaissementId: e.id,
     compteId: e.compteId,
@@ -915,7 +921,7 @@ function partAVirer(part: PartRecue, vireCentimes: number, { aLaDate, delaiAlert
     resteAVirerCentimes,
     aVirerAuPlusTardLe,
     alerte,
-    message: `Encaissement ${e.id} du ${dateIsoVersFr(e.date)} (compte ${e.journal.banqueId}) : ${SIGNAL_FONDS_TRAVAUX_HORS_COMPTE_DU_FONDS} — ${etat} (${FONDEMENT_COMPTE_DU_FONDS}).${retard}`,
+    message: `Encaissement ${e.id} du ${dateIsoVersFr(e.date)} (compte ${e.journal.banqueId}) : ${SIGNAL_FONDS_TRAVAUX_HORS_COMPTE_DU_FONDS} — ${etat} (${FONDEMENT_COMPTE_DU_FONDS}).${retard}${sansDelai}`,
     fondement: FONDEMENT_COMPTE_DU_FONDS,
   }
 }
@@ -928,7 +934,9 @@ function partAVirer(part: PartRecue, vireCentimes: number, { aLaDate, delaiAlert
  * alimentations du fonds parties de ce compte (virement-interne.alimentationsDuFonds : émises, non rejetées), émises au
  * plus tôt le jour de l'encaissement et au plus tard à la date de la vue, servies aux parts les plus anciennes d'abord.
  * Alerte quand un reste à virer dépasse le délai réglé par le cabinet (`delaiAlerteJours`, compté du jour de
- * l'encaissement ; aucun délai par défaut : null, aucune alerte). Rend les parts dans l'ordre des dates des
+ * l'encaissement ; aucun délai par défaut : null, aucune alerte) ; encaissement d'une année improbable
+ * (dates.estAnneeImprobable, faute de frappe) : toujours « à virer », mais aucun délai compté (aVirerAuPlusTardLe null,
+ * aucune alerte) et le message cite la date à corriger. Rend les parts dans l'ordre des dates des
  * encaissements, puis l'ordre reçu. Refuse une date de la vue non ISO, un délai qui n'est pas un entier positif ou nul,
  * un compte bancaire inconnu, un résultat d'imputation d'un autre encaissement.
  */

@@ -909,6 +909,31 @@ describe('F112 — part du fonds de travaux reçue hors du compte du fonds : sig
     expect(() => a('23/01/2026', 10)).toThrow(/AAAA-MM-JJ/)
   })
 
+  it('encaissement daté d’une année improbable (faute de frappe) : toujours « à virer », sans délai du cabinet compté ni erreur interne', () => {
+    const [premiere] = entrees(lot())
+    const part = (date: string, delaiAlerteJours: number | null) =>
+      partsFondsTravauxAVirer([{ ...premiere, encaissement: { ...premiere.encaissement, date } }], { comptesBancaires, virements: [], aLaDate: '2026-03-01', delaiAlerteJours })[0]
+    // Avant : depuis le 25/12/9999, dix jours tombaient en l'an 10000 (« Date ISO invalide » au message de l'alerte) ;
+    // depuis 2525, l'alerte attendait 2525 ; depuis 0026, une date limite était comptée.
+    for (const [date, citee] of [
+      ['9999-12-25', '25/12/9999'],
+      ['2525-01-12', '12/01/2525'],
+      ['0026-01-12', '12/01/0026'],
+    ] as const) {
+      const p = part(date, 10)
+      expect(p, date).toMatchObject({ encaissementId: 'E1', date, partFondsCentimes: 2_000, resteAVirerCentimes: 2_000, aVirerAuPlusTardLe: null, alerte: false })
+      expect(p.message).toContain(SIGNAL_FONDS_TRAVAUX_HORS_COMPTE_DU_FONDS)
+      expect(p.message).toMatch(
+        new RegExp(`\\(L\\. 1965 art\\. 18, II, al\\. 4\\)\\. Encaissement daté du ${citee} : année improbable \\(faute de frappe \\?\\)\\. Délai du cabinet non compté : corriger la date\\.$`),
+      )
+      // Sans délai réglé, aucun délai n'est compté : message inchangé.
+      expect(part(date, null).message, date).not.toMatch(/improbable/)
+    }
+    // Bornes : 1900 et 2100 restent plausibles.
+    expect(part('1900-01-12', 10)).toMatchObject({ aVirerAuPlusTardLe: '1900-01-22', alerte: true })
+    expect(part('2100-01-12', 10)).toMatchObject({ aVirerAuPlusTardLe: '2100-01-22', alerte: false })
+  })
+
   it('rien à signaler : encaissement reçu sur le compte du fonds, part du fonds nulle, encaissement annulé ; compte bancaire inconnu refusé', () => {
     const journalFonds: JournalEncaissement = { code: 'FT', banqueId: 'b-fonds', compteEncaissement: 'TILL.51210.00000.0' }
     const surLeFonds = ecrireEncaissements([recu('E1', 'cpt-A', 42_000, { journal: journalFonds })])
