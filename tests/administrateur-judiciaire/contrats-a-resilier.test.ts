@@ -254,7 +254,7 @@ describe('autres régimes', () => {
     expect(texte).toMatch(/R57, point 3/)
   })
 
-  it('J75, relecture : aucun prénom dans le code du domaine hors commentaires (messages affichés) ; statut-assemblee.ts : à faire après #741', () => {
+  it('J75, relecture : aucun prénom dans le code du domaine hors commentaires (messages affichés), statut-assemblee.ts compris depuis #741', () => {
     const dossier = join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain')
     const sansCommentaires = (source: string): string =>
       source
@@ -264,7 +264,7 @@ describe('autres régimes', () => {
     const avecPrenom = readdirSync(dossier, { recursive: true })
       .map(String)
       .filter((fichier) => fichier.endsWith('.ts') && /Hugo|Frédéric/.test(sansCommentaires(readFileSync(join(dossier, fichier), 'utf8'))))
-    expect(avecPrenom).toEqual(['statut-assemblee.ts'])
+    expect(avecPrenom).toEqual([])
   })
 
   it('J67, R57 : une seule règle pour les deux modules : le suivi « à faire » ne propose pas de limite de résiliation pour une dommages-ouvrage', () => {
