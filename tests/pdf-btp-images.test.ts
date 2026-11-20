@@ -9,13 +9,8 @@ import { join } from 'node:path'
 import { generateDevisPdfV3, type PdfV3Input } from '@/lib/pdf/devis-pdf-v3'
 import { METHOD_SOLUCOES_PROFIL_ID } from '@/lib/pdf/modeles-societes'
 import { URL_LOGO_METHOD, URL_POLICE_METHOD, URL_POLICE_METHOD_GRAS } from '@/lib/pdf/modele-method-solucoes'
-import fr from '@/locales/fr.json'
 import { PNG_ALPHA_4X2, canvasFactice, imageChargee, imagesDuPdf, type ImageDuPdf } from './helpers/images-pdf'
-
-const t = (cle: string): string => {
-  const valeur = cle.split('.').reduce<unknown>((noeud, part) => (noeud as Record<string, unknown> | undefined)?.[part], fr)
-  return typeof valeur === 'string' ? valeur : cle
-}
+import { entreePdfV3 } from './helpers/entree-pdf-v3'
 
 /** Police et logo du gabarit Method servis depuis public/, comme en production. */
 const RESSOURCES: Record<string, string> = {
@@ -55,26 +50,13 @@ const PHOTO = {
 const METHOD = { artisan: { id: METHOD_SOLUCOES_PROFIL_ID, company_name: 'Empresa Exemplo' }, modele: 'method-solucoes' as const }
 
 function entree(surcharge: Partial<PdfV3Input> = {}): PdfV3Input {
-  return {
-    action: 'fichier', locale: 'fr',
-    localeFormats: { currencyFormat: (n: number) => `${n.toFixed(2)} €`, taxLabel: 'TVA' },
-    t, docType: 'devis', docNumber: 'DEV-2026-050', docTitle: 'Ravalement', docDate: '2026-11-17',
-    docValidity: 30, prestationDate: '', executionDelay: '2 semaines', companyStatus: 'sas', companyName: 'Société Exemple BTP',
-    companySiret: '12345678900011', companyAddress: '1 rue A 13001 Marseille', companyRCS: '', companyCapital: '', companyPhone: '',
-    companyEmail: '', tvaEnabled: true, tvaNumber: '', insuranceName: '', insuranceNumber: '', insuranceCoverage: '',
-    insuranceType: 'rc_pro', decennaleEligibility: 'never', mediatorName: '', mediatorUrl: '', isHorsEtablissement: false,
-    clientName: 'Client Exemple', clientEmail: '', clientAddress: '2 avenue B 13008 Marseille', clientPhone: '',
-    clientSiret: '', clientType: 'particulier', interventionAddress: '2 avenue B 13008 Marseille',
-    interventionBatiment: '', interventionEtage: '', interventionEspacesCommuns: '', interventionExterieur: '',
-    companyAPE: '', paymentMode: 'Virement bancaire', paymentDue: '30 jours', paymentCondition: '', discount: '',
-    penaltyRate: '', recoveryFee: '', iban: '', bic: '',
-    lines: [ligne], laborLines: [ligne], materialLines: [], fraisLines: [], linesName: 'Travaux', customTables: [],
-    subtotalHT: 1000, totalTTC: 1200, tvaBreakdown: [{ rate: 20, base: 1000, amount: 200 }], regimeTva: 'classique',
-    acomptesEnabled: false, acomptes: [], notes: '', sourceDevisRef: null, signatureData: null,
-    attachedRapport: null, selectedPhotos: [], artisan: null, ptFiscalData: null,
-    svgToImageDataUrl: async () => PNG_ALPHA_4X2, fetchFreshLogo: async () => null,
+  return entreePdfV3({
+    docNumber: 'DEV-2026-050', docDate: '2026-11-17', executionDelay: '2 semaines', companyName: 'Société Exemple BTP',
+    companySiret: '12345678900011', clientName: 'Client Exemple', clientAddress: '2 avenue B 13008 Marseille',
+    interventionAddress: '2 avenue B 13008 Marseille', recoveryFee: '', lines: [ligne], laborLines: [ligne],
+    totalTTC: 1200, tvaBreakdown: [{ rate: 20, base: 1000, amount: 200 }], svgToImageDataUrl: async () => PNG_ALPHA_4X2,
     ...surcharge,
-  } as PdfV3Input
+  })
 }
 
 /** Les deux images 4 × 2 du PNG : ses couleurs (qui portent le masque) et son masque de transparence. */
