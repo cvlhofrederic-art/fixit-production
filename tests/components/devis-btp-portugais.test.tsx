@@ -201,29 +201,20 @@ describe('création de devis en portugais', () => {
     expect(container.textContent).not.toMatch(/France m[ée]tropolitaine/i)
   })
 
-  it('société française : un ancien devis en EI et « France métropolitaine » reste tel quel', () => {
+  // Société française : forme et couverture du document, sinon celle de la fiche, exactement comme avant
+  it.each([
+    ['ancien devis en EI et « France métropolitaine » : tel quel', 'Entreprise Individuelle (EI)', 'France métropolitaine', 'France métropolitaine'],
+    ['document sans couverture : celle de la fiche, telle quelle', 'SAS', '', 'France metropolitaine'],
+  ])('société française, %s', (_cas, forme, couvertureDocument, couvertureAttendue) => {
     langue.locale = 'fr'
-    const societeFr = { id: 'art-btp-fr', company_name: 'BATI SUD', email: 'contact@exemple.fr', legal_form: 'SAS',
-      insurance_name: 'SMABTP', insurance_number: 'RC-1', insurance_coverage: 'France entière' } as ArtisanBasic
     monter({
-      id: '6f1c2a34-0000-4000-8000-00000000f0fr', savedAt: '2026-11-08T10:00:00.000Z', docNumber: 'DEV-2026-010', status: 'sent',
-      docType: 'devis', companyStatus: 'Entreprise Individuelle (EI)', insuranceCoverage: 'France métropolitaine', clientName: 'M. Client',
+      id: '6f1c2a34-0000-4000-8000-00000000f0f1', savedAt: '2026-11-08T10:00:00.000Z', docNumber: 'DEV-2026-010', status: 'sent',
+      docType: 'devis', companyStatus: forme, insuranceCoverage: couvertureDocument, clientName: 'M. Client',
       lines: [{ id: 1, description: 'Ravalement', qty: 1, unit: 'f', priceHT: 900, tvaRate: 10, totalHT: 900 }], materialLines: [], fraisLines: [],
-    }, societeFr)
-    expect(screen.getByDisplayValue('Entreprise Individuelle (EI)')).toBeDisabled()
-    expect(couvertureAffichee('France métropolitaine')).toBe('France métropolitaine')
-  })
-
-  it('société française : document sans couverture, celle de la fiche reprise telle quelle', () => {
-    langue.locale = 'fr'
-    const societeFr = { id: 'art-btp-fr', company_name: 'BATI SUD', email: 'contact@exemple.fr', legal_form: 'SAS',
-      insurance_name: 'SMABTP', insurance_number: 'RC-1', insurance_coverage: 'France metropolitaine' } as ArtisanBasic
-    monter({
-      id: '6f1c2a34-0000-4000-8000-00000000f0f2', savedAt: '2026-11-08T10:00:00.000Z', docNumber: 'DEV-2026-011', status: 'sent',
-      docType: 'devis', companyStatus: 'SAS', insuranceCoverage: '', clientName: 'M. Client',
-      lines: [{ id: 1, description: 'Ravalement', qty: 1, unit: 'f', priceHT: 900, tvaRate: 10, totalHT: 900 }], materialLines: [], fraisLines: [],
-    }, societeFr)
-    expect(couvertureAffichee('France métropolitaine')).toBe('France metropolitaine')
+    }, { id: 'art-btp-fr', company_name: 'BATI SUD', email: 'contact@exemple.fr', legal_form: 'SAS',
+      insurance_name: 'SMABTP', insurance_number: 'RC-1', insurance_coverage: 'France metropolitaine' } as ArtisanBasic)
+    expect(screen.getByDisplayValue(forme)).toBeDisabled()
+    expect(couvertureAffichee('France métropolitaine')).toBe(couvertureAttendue)
   })
 
   // Relecture adverse du 17/11/2026 : l'adresse se recompose à l'ouverture et part dans la sauvegarde automatique ;
