@@ -22,6 +22,9 @@
 // Logo du cabinet (demande de Hugo du 13/11/2026) : logoCabinet, les métadonnées du logo du cabinet de la copropriété
 // (données déjà chargées par l'appelant) ; l'image est lue au clic sur « Affiche PDF » et posée sur l'affiche. Sans logo,
 // l'affiche est celle d'avant ; logo illisible, ou que jsPDF ne sait pas poser : affiche sans logo et avertissement.
+// Bureaux des cabinets (E6, migration 20261119 ; BROUILLON soumis avant fusion) : carte du super admin, ligne « Bureau : … »
+// sous celle du cabinet quand la copropriété a un bureau (« Sud (fermé) » pour un bureau fermé) ; rien sinon. La carte
+// d'un gestionnaire ne change pas (ses réponses ne portent jamais de bureau).
 
 import { useState } from 'react'
 import { remplir } from '@/lib/coproprietaire/textes'
@@ -29,7 +32,7 @@ import { Badge, Bouton, BoutonCopier, Carte, Encadre } from '@/components/coprop
 import QrCodeSvg from '@/components/aj-signalement/QrCodeSvg'
 import { urlSignalementQr, type CoproprieteQr } from '@/lib/aj-signalement/types'
 import { TEXTES_TABLEAU_QR as T, dateHeureParis, destinatairesAffichesQr, resumeCompteursQr } from '@/lib/aj-signalement/affichage'
-import { TEXTES_GESTION_QR as G, dateParisQr } from '@/lib/aj-signalement/affichage-gestion'
+import { TEXTES_GESTION_QR as G, dateParisQr, libelleBureauQr } from '@/lib/aj-signalement/affichage-gestion'
 import { TEXTES_ESPACE_CABINET_QR as EC, idCarteCoproprieteQr } from '@/lib/aj-signalement/affichage-gestionnaire'
 import { TEXTES_ECRAN_DIFFUSION_QR as TD } from '@/lib/aj-signalement/affichage-ecran-diffusion'
 import { affichePdfQr, nomFichierQr, pngQr, telechargerFichier, type MatriceQr } from '@/lib/aj-signalement/qr'
@@ -242,6 +245,7 @@ function CarteSuperAdminQr({
           {copropriete.cabinet && (
             <div className="space-y-1 text-sm text-[#4A5E78]">
               <p>{remplir(g.cabinetLigne, { nom: copropriete.cabinet.nom })}</p>
+              {copropriete.bureau && <p>{remplir(G.bureaux.copropriete.ligne, { bureau: libelleBureauQr(copropriete.bureau) })}</p>}
               {copropriete.attribueeATous ? <Badge ton="or">{g.tousGestionnaires}</Badge> : (
                 <p>
                   {copropriete.gestionnaires.length > 0

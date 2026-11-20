@@ -208,7 +208,9 @@ describe('ajout d’un gestionnaire', () => {
   })
 
   it('e-mail non parti : la fiche est créée, l’écran le dit ; adresse déjà saisie sur des copropriétés : rappel', async () => {
-    simulerFetch(() => json({ gestionnaire: fiche('44444444-4444-4444-8444-444444444444', 'Jean Exemple', 'confirmation_expiree'), emailEnvoye: false, coproprietesAvecAdresseSaisie: 2 }, 201))
+    // Forme rendue par POST /gestionnaires : la liste { id, nom } des copropriétés où l'adresse est déjà saisie.
+    const saisies = [{ id: 'c0000000-0000-4000-8000-000000000001', nom: 'Résidence Exemple' }, { id: 'c0000000-0000-4000-8000-000000000002', nom: 'Les Tilleuls Exemple' }]
+    simulerFetch(() => json({ gestionnaire: fiche('44444444-4444-4444-8444-444444444444', 'Jean Exemple', 'confirmation_expiree'), emailEnvoye: false, coproprietesAvecAdresseSaisie: saisies }, 201))
     rendreListe()
     const fenetre = ouvrir()
     remplirFenetre(fenetre, 'jean.exemple@exemple.test')
