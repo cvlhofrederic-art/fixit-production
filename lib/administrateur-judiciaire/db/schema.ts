@@ -474,7 +474,16 @@ export interface CompteCoproprietaireEnregistre
     Omit<import('@/lib/administrateur-judiciaire/domain/identites-positions').CompteCoproprietaire, 'id'> {
   /** Compte né de la migration : solde et statut de l'ancienne fiche relevés ce jour-là, sans écriture. Absent sinon. */
   reprise?: import('@/lib/administrateur-judiciaire/domain/migration-d2').RepriseSoldeCompte | null
+  /**
+   * Règlement du compte (mode, mandat SEPA : avis-appel.ts), lu par l'écran « Appels de fonds » pour l'avis et le lot de
+   * prélèvements. Saisie à brancher (mandats SEPA : plan des écrans, § 5.6). Non indexé : aucun changement de version ;
+   * absent ou null : mode de règlement à renseigner.
+   */
+  reglement?: ReglementCompteEnregistre | null
 }
+
+/** Règlement enregistré sur le compte copropriétaire : ReglementCompte du domaine, sans l'identifiant du compte. */
+export type ReglementCompteEnregistre = Omit<import('@/lib/administrateur-judiciaire/domain/avis-appel').ReglementCompte, 'compteId'>
 
 /** Clé de répartition du syndicat (un code par syndicat). */
 export type CleRepartitionEnregistree = EntiteEnregistree & import('@/lib/administrateur-judiciaire/domain/repartition-appels').CleRepartition

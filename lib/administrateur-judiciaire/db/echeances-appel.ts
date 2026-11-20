@@ -21,10 +21,12 @@ import type { EcheanceAppel } from '@/lib/administrateur-judiciaire/domain/repar
  * Le statut, le traitement d'appel ou d'annulation et la composition de l'appel ne s'écrivent que par les fonctions
  * d'echeancier-appels.ts, dans une transaction qui relit l'échéancier entier du syndicat. Ici, celles qui n'écrivent
  * aucune pièce : suivreEcheances (ajout, « Prévu »), mettreEnAttente, reprendreEcheance, annulerAvantAppel,
- * fixerRegroupement, fixerRelancable, marquerEnvoyees. L'appel (marquerAppelees, « Appelé ») et son annulation
- * (annulerAppelees, écriture contraire) s'écrivent avec leur pièce de traitement, dans la même transaction : PR écran.
+ * fixerRegroupement, fixerRelancable, marquerEnvoyees. L'appel (marquerAppelees, « Appelé ») s'écrit avec sa pièce de
+ * traitement, dans la même transaction : ecrireAppelDeFonds (db/appels-de-fonds.ts, écran « Appels de fonds »), par
+ * ecrireEcheancesModifiees ci-dessous. Son annulation (annulerAppelees, écriture contraire) reste à brancher.
  */
 
+/** Clé du journal d'activité d'une échéance : « <syndicat>:<identifiant> » (identifiant unique au sein du syndicat). */
 const entiteIdEcheance = (e: Pick<EcheanceAppel, 'coproprieteId' | 'id'>): string => `${e.coproprieteId}:${e.id}`
 
 /** Échéancier du syndicat, trié par identifiant (index coproprieteId, puis clé). */
@@ -119,16 +121,28 @@ export function changerSuiviEcheances(
 ): Promise<EcheanceAppelEnregistree[]> {
   return ajDb.transaction('rw', ajDb.echeancesAppel, ajDb.activityLog, async () => {
     const avant = await echeancesAppelDuSyndicat(coproprieteId)
-    const apres = appliquer(avant, op)
-    const maintenant = new Date().toISOString()
-    const modifiees: EcheanceAppelEnregistree[] = []
-    for (const [i, ligne] of apres.entries()) {
-      if (JSON.stringify(ligne) === JSON.stringify(avant[i])) continue
-      const ecrite = { ...ligne, updatedAt: maintenant, updatedBy: actor }
-      await ajDb.echeancesAppel.put(ecrite)
-      await journaliserActivite({ entite: 'echeancesAppel', entiteId: entiteIdEcheance(ecrite), action: 'update', qui: actor, avant: avant[i], apres: ecrite })
-      modifiees.push(ecrite)
-    }
-    return modifiees
+    return ecrireEcheancesModifiees(avant, appliquer(avant, op), actor)
   })
+}
+
+/**
+ * Écrit les échéances que la fonction du domaine a changées (même liste, même ordre, avant et après), avec une entrée
+ * « update » au journal pour chacune ; rend les échéances écrites. À appeler DANS une transaction de l'appelant, sur
+ * echeancesAppel et activityLog.
+ */
+export async function ecrireEcheancesModifiees(
+  avant: readonly EcheanceAppelEnregistree[],
+  apres: readonly EcheanceAppelEnregistree[],
+  actor: string | null,
+): Promise<EcheanceAppelEnregistree[]> {
+  const maintenant = new Date().toISOString()
+  const modifiees: EcheanceAppelEnregistree[] = []
+  for (const [i, ligne] of apres.entries()) {
+    if (JSON.stringify(ligne) === JSON.stringify(avant[i])) continue
+    const ecrite = { ...ligne, updatedAt: maintenant, updatedBy: actor }
+    await ajDb.echeancesAppel.put(ecrite)
+    await journaliserActivite({ entite: 'echeancesAppel', entiteId: entiteIdEcheance(ecrite), action: 'update', qui: actor, avant: avant[i], apres: ecrite })
+    modifiees.push(ecrite)
+  }
+  return modifiees
 }
