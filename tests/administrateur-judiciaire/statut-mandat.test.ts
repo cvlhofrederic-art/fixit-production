@@ -835,4 +835,22 @@ describe('décision du 20/11/2026 (partie C, F31) — « En clôture » proposé
     expect(() => controlerPassageArchive({ ...base, faits: { tresorerie_banque: '01/04/2027' } }, JOUR)).toThrow(/AAAA-MM-JJ/)
     expect(() => controlerPassageArchive({ ...base, finMissionLe: '31/03/2027' }, JOUR)).toThrow(/fin de mission.*AAAA-MM-JJ/)
   })
+
+  it('art. 29-1 : le délai d’observations d’un mois court de la réception du compte rendu (D. 1967 art. 62-11, III) ; il n’est pas passé avant un mois après son dépôt', () => {
+    const base = { statut: 'En clôture', regime: 'ap291' as const, finMissionLe: '2027-03-31' }
+    const faits = {
+      compte_rendu_fin_mission: '2027-04-02',
+      delai_observations: '2027-05-03',
+      remuneration_arretee: '2027-05-20',
+      fonds_documents_successeur: '2027-04-10',
+    }
+    expect(controlerPassageArchive({ ...base, faits }, '2027-06-01')).toMatchObject({ archivable: true, motifs: [] })
+    for (const tropTot of ['2027-05-02', '2027-04-10'])
+      expect(() => controlerPassageArchive({ ...base, faits: { ...faits, delai_observations: tropTot } }, '2027-06-01')).toThrow(
+        /62-11, III.*déposé le 02\/04\/2027.*pas passé avant le 03\/05\/2027/,
+      )
+    expect(() => controlerPassageArchive({ ...base, faits: { delai_observations: '2027-05-03' } }, '2027-06-01')).toThrow(
+      /62-11, III.*sans compte rendu de fin de mission déposé/,
+    )
+  })
 })

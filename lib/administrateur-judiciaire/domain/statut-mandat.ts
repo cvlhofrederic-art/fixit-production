@@ -98,15 +98,16 @@ import { STATUT_MANDAT, type StatutMandat } from '@/lib/data/referentiels-gestea
  *   l'administrateur de l'art. 47). « En clôture » → « Archivé » : seulement à la main, après la remise effective et pas
  *   seulement la fin des délais, avec une liste de contrôle propre au régime (listeControleArchivage,
  *   controlerPassageArchive) : administrateur de l'art. 29-1, compte rendu de fin de mission déposé avec ses annexes
- *   comptables (D. 1967 art. 62-11, I et II), délai d'observations d'un mois passé (art. 62-11, III), ordonnance
- *   arrêtant la rémunération reçue (art. 61-1-5, III), fonds et documents remis au successeur ; syndic désigné par le
- *   juge : remises de l'art. 18-2 faites (trésorerie et banque sous quinze jours, documents et archives sous un mois, avec
- *   bordereau, D. 1967 art. 33-1 ; état des comptes dans les deux mois suivants) ; administrateur de l'art. 47 : fonds et
- *   documents remis au syndic élu. Aucun texte n'impose l'art. 18-2 à la sortie d'un administrateur provisoire : ses
- *   délais servent de simple rappel (echeanceImposee faux). La date de fin de mission doit être saisie avant l'archivage
- *   et reste lisible après (L. 1965 art. 29-1, IV). Données : la fin de mission, l'ordonnance qui y met fin,
- *   l'acceptation du syndic élu et les dates des remises sont des paramètres explicites, qu'aucune table n'enregistre
- *   aujourd'hui (écran : à voir).
+ *   comptables (D. 1967 art. 62-11, I et II), délai d'observations d'un mois passé (art. 62-11, III : il court de la
+ *   réception du compte rendu ; refusé sans compte rendu déposé, ou daté avant le lendemain d'un mois après le dépôt),
+ *   ordonnance arrêtant la rémunération reçue (art. 61-1-5, III), fonds et documents remis au successeur ; syndic
+ *   désigné par le juge : remises de l'art. 18-2 faites (trésorerie et banque sous quinze jours, documents et archives
+ *   sous un mois, avec bordereau, D. 1967 art. 33-1 ; état des comptes dans les deux mois suivants) ; administrateur de
+ *   l'art. 47 : fonds et documents remis au syndic élu. Aucun texte n'impose l'art. 18-2 à la sortie d'un administrateur
+ *   provisoire : ses délais servent de simple rappel (echeanceImposee faux). La date de fin de mission doit être saisie
+ *   avant l'archivage et reste lisible après (L. 1965 art. 29-1, IV). Données : la fin de mission, l'ordonnance qui y met
+ *   fin, l'acceptation du syndic élu et les dates des remises sont des paramètres explicites, qu'aucune table
+ *   n'enregistre aujourd'hui (écran : à voir).
  *
  * Branchements (les écrans et les modules en lecture seule ne sont pas modifiés ici) :
  * - Faits dans le domaine : portefeuille, selectionnerAFaire, balanceAgee et depuisDemandes (suivi-a-faire.ts) ;
@@ -598,6 +599,25 @@ function verifierEntreeArchivage({ regime, finMissionLe, faits = {} }: EntreeArc
     if (faitLe > aujourdhui)
       throw new Error(`Point « ${code} » daté du ${dateIsoVersFr(faitLe)}, après le jour du contrôle : la remise n'est pas encore effective.`)
   }
+  verifierDelaiObservations(faits)
+}
+
+/**
+ * F31 : le délai d'observations d'un mois court de la réception du compte rendu de fin de mission (D. 1967 art. 62-11,
+ * III), qui suit son dépôt : il n'est pas passé sans compte rendu déposé, ni avant le lendemain d'un mois après le dépôt.
+ */
+function verifierDelaiObservations(faits: Partial<Record<ControleArchivage, string>>): void {
+  const passeLe = faits.delai_observations
+  if (passeLe === undefined) return
+  const prefixe = `Délai d'observations (D. 1967 art. 62-11, III) dit passé le ${dateIsoVersFr(passeLe)}`
+  const depot = faits.compte_rendu_fin_mission
+  if (depot === undefined)
+    throw new Error(`${prefixe}, sans compte rendu de fin de mission déposé : il court de la réception de ce compte rendu.`)
+  const auPlusTot = ajouterJours(ajouterMois(depot, 1), 1)
+  if (passeLe < auPlusTot)
+    throw new Error(
+      `${prefixe} : il court d'un mois à compter de la réception du compte rendu de fin de mission, déposé le ${dateIsoVersFr(depot)}, et n'est pas passé avant le ${dateIsoVersFr(auPlusTot)}.`,
+    )
 }
 
 function echeanceDepuisFin(finMissionLe: string | null, delai: DefinitionControleArchivage['delai']): string | null {
