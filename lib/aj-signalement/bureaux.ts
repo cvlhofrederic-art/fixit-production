@@ -12,7 +12,10 @@
 export const NOM_BUREAU_MAX_QR = 80
 /** Bureaux d'un cabinet, fermés compris, au plus (plafond de signalements_qr_enregistrer_bureau : plafond_bureaux). */
 export const BUREAUX_MAX_PAR_CABINET_QR = 100
-/** Valeur du filtre ?bureau= de la liste des gestionnaires : fiches sans bureau d'un cabinet qui a un bureau ouvert. */
+/**
+ * Valeur du filtre ?bureau= de la liste des gestionnaires : fiches sans bureau d'un cabinet qui a un bureau ouvert,
+ * hors fiches effacées, qui ne peuvent plus en recevoir.
+ */
 export const FILTRE_SANS_BUREAU_QR = 'aucun'
 
 /** Bureau tel qu'une fiche ou une copropriété le porte (vue du super admin). */

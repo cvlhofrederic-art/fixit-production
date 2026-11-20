@@ -712,7 +712,8 @@ export const signalementsCoproQrQuerySchema = z.strictObject({
 export const listeGestionnairesQrQuerySchema = z.strictObject({
   etat: z.enum(['actifs', 'desactives', 'tous']).optional().default('actifs'),
   cabinet: z.uuid().optional(),
-  // Bureaux (19/11/2026) : les fiches d'un bureau, ou « aucun » (fiches sans bureau d'un cabinet qui a un bureau ouvert).
+  // Bureaux (19/11/2026) : les fiches d'un bureau, ou « aucun » (fiches sans bureau d'un cabinet qui a un bureau ouvert,
+  // hors fiches effacées).
   bureau: z.union([z.uuid(), z.literal(FILTRE_SANS_BUREAU_QR)]).optional(),
 })
 export const journalQrQuerySchema = z.strictObject({
