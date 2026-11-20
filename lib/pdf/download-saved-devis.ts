@@ -19,7 +19,7 @@ import { getDecennaleEligibility } from '@/lib/decennale-eligibility'
 import { buildV2Input, type BuildV2InputParams } from '@/lib/pdf/build-v2-input'
 import { sumMoney, round2, mulMoney } from '@/lib/money'
 import { resolveTvaEnabledV2 } from '@/lib/devis-utils'
-import { codeStatutJuridiqueBtp } from '@/lib/statut-juridique-btp'
+import { codeStatutJuridiqueBtp, couvertureAssuranceBtp, statutJuridiqueDocumentBtp, statutPortugais } from '@/lib/statut-juridique-btp'
 import { svgToImageDataUrl } from '@/lib/signature-canvas'
 import { computeTva, type TvaRegime } from '@/lib/tva-calculator'
 import { buildDocumentLines } from '@/lib/devis-totals'
@@ -466,9 +466,6 @@ async function genererAvecV3(
     ? { montantHT: tva.remiseHT, libelle: libelleRemiseGlobale((doc as Record<string, unknown>).remiseGlobale, langueLibelle), base: tva.baseRemiseHT }
     : undefined
 
-  // Forme portugaise (« Sociedade por Quotas (Lda.) »…) reconnue ; les libellés français donnent le même code qu'avant
-  const statusCode = codeStatutJuridiqueBtp(doc.companyStatus || '')
-
   // Délai, titre par défaut, type de client et rétractation : mêmes règles que
   // le formulaire BTP (lib/devis-btp-libelles.ts)
   const champs = champsDocumentBtp({
@@ -489,12 +486,12 @@ async function genererAvecV3(
   // Identité légale de la société (Mon profil) : reprise quand le document
   // enregistré a le champ vide, comme le fait le formulaire BTP à l'ouverture.
   let fiche: { siret?: string | null; company_address?: string | null; rcs_number?: string | null
-    share_capital?: string | null; tva_intra?: string | null; ape_code?: string | null } = {}
+    share_capital?: string | null; tva_intra?: string | null; ape_code?: string | null; legal_form?: string | null } = {}
   if (artisan?.id) {
     try {
       const { data } = await supabase
         .from('profiles_artisan')
-        .select('paiement_modes, categories, type_activite, siret, company_address, rcs_number, share_capital, tva_intra, ape_code')
+        .select('paiement_modes, categories, type_activite, siret, company_address, rcs_number, share_capital, tva_intra, ape_code, legal_form')
         .eq('id', artisan.id)
         .single()
       if (data) fiche = data as typeof fiche
@@ -512,6 +509,10 @@ async function genererAvecV3(
       console.warn('[download-saved-devis] Loading profile data failed:', e)
     }
   }
+
+  // Forme portugaise (« Sociedade por Quotas (Lda.) »…) reconnue ; les libellés français donnent le même code qu'avant.
+  // Société portugaise : l'EI de ses premiers documents devient sa forme du profil, comme dans le formulaire.
+  const statusCode = codeStatutJuridiqueBtp(statutJuridiqueDocumentBtp(doc.companyStatus, fiche.legal_form))
 
   return generateDevisPdfV3({
     action,
@@ -567,7 +568,10 @@ async function genererAvecV3(
     companyAPE: doc.companyAPE || fiche.ape_code || '',
     insuranceName: doc.insuranceName || '',
     insuranceNumber: doc.insuranceNumber || '',
-    insuranceCoverage: doc.insuranceCoverage || '',
+    // Société portugaise : « France métropolitaine » (défaut de la fiche recopié) n'est pas sa couverture ; à défaut,
+    // « Portugal continental », comme le formulaire (sinon le modèle V3 sur /fr imprimerait son défaut français)
+    insuranceCoverage: couvertureAssuranceBtp(doc.insuranceCoverage, fiche.legal_form)
+      || (statutPortugais(fiche.legal_form) ? 'Portugal continental' : ''),
     insuranceType: doc.insuranceType || 'rc_pro',
     decennaleEligibility: getDecennaleEligibility(artisanCategories ?? artisanTypeActivite),
     mediatorName: doc.mediatorName || '',
