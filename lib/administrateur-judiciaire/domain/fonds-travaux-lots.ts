@@ -11,7 +11,7 @@ import {
   lireDecisionAffectationAg,
   lireOrdonnanceJuge,
   type DecaissementFondsTravaux,
-  type DecisionAffectationAg,
+  type DecisionAdministrateurProvisoire,
   type ResultatAffectation,
 } from '@/lib/administrateur-judiciaire/domain/fonds-travaux'
 import { estQualiteCopropriete, positionsEnPlace, type Position } from '@/lib/administrateur-judiciaire/domain/identites-positions'
@@ -184,9 +184,11 @@ import { etatPartFondsTravaux, type OperationTravaux } from '@/lib/administrateu
  * - Décision du 20/11/2026 (partie C, F96) : la décision de l'administrateur provisoire qui affecte le fonds sous
  *   l'art. 29-1 (forme structurée DecisionAdministrateurProvisoire, fonds-travaux.ts) est rapprochée de la dépense par la
  *   date de la décision au registre des décisions (D. 1967 art. 62-8), avec le même contrôle (emploi_avant_decision) ;
- *   emploiDepuisOperation transmet encore, pour une opération décidée par l'administrateur provisoire, sa décision sous la
- *   forme d'une résolution (date, référence au registre) : l'opération ne porte pas l'ordonnance de l'art. 29-1
- *   (branchement à faire : travaux-operations.ts) ;
+ *   pour une opération décidée par l'administrateur provisoire, l'opération ne porte ni l'ordonnance de l'art. 29-1 ni
+ *   l'avis du conseil syndical : emploiDepuisOperation reçoit sa décision en forme structurée en paramètre explicite
+ *   (decisionAdministrateurProvisoire, celle de l'opération : même date, même n° au registre) ; absente, la décision passe
+ *   encore sous la forme d'une résolution (date, référence au registre), comme avant (enregistrement sur l'opération : à
+ *   brancher, travaux-operations.ts) ;
  * - Décision du 20/11/2026 (partie C, F65) : la part du fonds de chaque clé d'une opération se compare, dès la décision,
  *   au fonds disponible des lots de la clé à cette date (alertesPartsDesClesAuFondsDisponible) : alerte « part de la clé
  *   supérieure au fonds disponible de ses lots au [date] », sans blocage ; au décaissement, rien ne change.
@@ -366,17 +368,51 @@ function montantDeLEmploi(operation: OperationTravaux, id: string, montantCentim
   return montantCentimes
 }
 
+const F96 = 'décision du 20/11/2026, partie C, F96'
+
+/**
+ * Décision qui fonde l'emploi tiré d'une opération : la décision distincte saisie sur l'opération (son texte) ; la
+ * décision de l'administrateur provisoire en forme structurée quand l'appelant la fournit (F96 : l'opération ne porte ni
+ * l'ordonnance de l'art. 29-1, ni l'avis du conseil syndical ou le constat d'urgence), copiée ; à défaut, la résolution
+ * de l'opération (J30 : date, résolution). La décision de l'administrateur provisoire fournie est celle de l'opération
+ * (même date, même n° au registre) ; refus pour une opération décidée par l'assemblée ou qui porte une décision distincte.
+ */
+function decisionAgDeLEmploi(
+  { numero, decision }: OperationTravaux,
+  decisionDistincte: string | undefined,
+  decisionAp: DecisionAdministrateurProvisoire | null | undefined,
+): DecaissementFondsTravaux['decisionAg'] {
+  if (!decisionAp) return decisionDistincte || (decision ? { dateAg: decision.date, numeroResolution: decision.resolution } : null)
+  if (decision?.origine !== 'administrateur')
+    throw new Error(`Opération ${numero} : sa décision n'est pas une décision de l'administrateur provisoire ; la forme « décision de l'administrateur provisoire » est sans objet (${F96}).`)
+  if (decisionDistincte)
+    throw new Error(`Opération ${numero} : une décision distincte affecte le fonds (« ${decisionDistincte} ») ; elle fait foi, la décision de l'administrateur provisoire de l'opération ne s'y substitue pas (${F96}).`)
+  const { date: dateAp, numeroRegistre } = decisionAp.decision
+  if (dateAp !== decision.date || numeroRegistre.trim() !== decision.resolution.trim())
+    throw new Error(
+      `Opération ${numero} : la décision de l'administrateur provisoire fournie (n° ${numeroRegistre} du ${dateIsoVersFr(dateAp)}) n'est pas celle de l'opération (${decision.resolution} du ${dateIsoVersFr(decision.date)}) (${F96}).`,
+    )
+  return { ...decisionAp, ordonnance: { ...decisionAp.ordonnance }, decision: { ...decisionAp.decision }, avisOuUrgence: { ...decisionAp.avisOuUrgence } }
+}
+
 /**
  * Emploi du fonds pour la part d'une opération de travaux, ou pour une tranche de celle-ci (prélèvements échelonnés :
  * un emploi par tranche, chacun avec son identifiant) ; refusé sans affectation admise, au-delà de la part du fonds de
  * l'opération, ou daté avant la résolution de l'opération quand celle-ci tient lieu de décision d'affectation (art.
  * 14-2-1, I, al. 7). L'emploi porte la part du fonds de l'opération : partsFondsTravauxParLot signale, sans le déduire,
  * ce que la somme des emplois de l'opération dépasse de cette part. La résolution de l'opération passe en forme
- * structurée (J30 : date de l'AG, résolution) ; une décision distincte saisie sur l'opération reste son texte.
+ * structurée (J30 : date de l'AG, résolution) ; une décision distincte saisie sur l'opération reste son texte. Opération
+ * décidée par l'administrateur provisoire : `decisionAdministrateurProvisoire`, fournie par l'appelant, la transmet dans
+ * sa forme structurée (décision du 20/11/2026, partie C, F96 : decisionAgDeLEmploi) ; absente, la résolution comme avant.
  */
 export function emploiDepuisOperation(
   operation: OperationTravaux,
-  { id, date, montantCentimes }: { id: string; date: string; montantCentimes?: number },
+  {
+    id,
+    date,
+    montantCentimes,
+    decisionAdministrateurProvisoire,
+  }: { id: string; date: string; montantCentimes?: number; decisionAdministrateurProvisoire?: DecisionAdministrateurProvisoire | null },
 ): EmploiFondsTravaux {
   verifierDate(date, "Date de l'emploi")
   const etat = etatPartFondsTravaux(operation)
@@ -391,8 +427,7 @@ export function emploiDepuisOperation(
     throw new Error(
       `Opération ${operation.numero} : emploi du ${dateIsoVersFr(date)} antérieur à la résolution du ${dateIsoVersFr(parResolution.date)} qui affecte le fonds ; dater l'emploi au plus tôt de cette décision.`,
     )
-  const resolutionDeLOperation: DecisionAffectationAg | null = decision ? { dateAg: decision.date, numeroResolution: decision.resolution } : null
-  const decisionAg = decisionDistincte || resolutionDeLOperation
+  const decisionAg = decisionAgDeLEmploi(operation, decisionDistincte, decisionAdministrateurProvisoire)
   return {
     id,
     date,

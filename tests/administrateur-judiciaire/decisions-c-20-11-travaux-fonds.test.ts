@@ -7,6 +7,7 @@ import {
 } from '@/lib/administrateur-judiciaire/domain/fonds-travaux'
 import {
   alertesPartsDesClesAuFondsDisponible,
+  emploiDepuisOperation,
   LIBELLE_PART_CLE_AU_DELA_DU_FONDS,
   partsFondsTravauxParLot,
   type EmploiFondsTravaux,
@@ -617,6 +618,37 @@ describe('F96 — troisième forme structurée : « décision de l’administrat
     const memeJour = partsFondsTravauxParLot({ versements: versementsFonds, emplois: [surDecision('2026-01-20')], cles: [cleFonds], date: '2026-02-28' })
     expect(memeJour.anomalies).toEqual([])
     expect(memeJour.totalDeduitDesPartsCentimes).toBe(1_000)
+  })
+
+  it('emploiDepuisOperation : la décision de l’administrateur provisoire passe en forme structurée (paramètre explicite)', () => {
+    const op = creerOperationTravaux(saisie({ decision: { date: '2026-01-20', resolution: 'AP-2026-03', origine: 'administrateur', pouvoirsAgConfies: 'tous' } }))
+    const decision = structuredClone(DECISION_AP)
+    const e = emploiDepuisOperation(op, { id: 'EMP-AP', date: '2026-02-01', decisionAdministrateurProvisoire: decision })
+    expect(e.decaissement.decisionAg).toEqual(DECISION_AP)
+    decision.ordonnance.numero = 'modifié'
+    expect(e.decaissement.decisionAg).toEqual(DECISION_AP)
+    expect(e.dateDecision).toBe('2026-01-20')
+    expect(controlerAffectationFondsTravaux(e.decaissement, { aujourdhui: null })).toMatchObject({ autorise: true, cause: 'admis' })
+    // sans le paramètre : la résolution de l'opération, comme avant (l'opération ne porte pas l'ordonnance de l'art. 29-1)
+    expect(emploiDepuisOperation(op, { id: 'EMP-AP', date: '2026-02-01' }).decaissement.decisionAg).toEqual({ dateAg: '2026-01-20', numeroResolution: 'AP-2026-03' })
+  })
+
+  it('emploiDepuisOperation : décision de l’administrateur provisoire refusée pour une opération décidée par l’assemblée, ou qui n’est pas celle de l’opération', () => {
+    expect(() => emploiDepuisOperation(adoptee(), { id: 'EMP-AG', date: '2026-04-01', decisionAdministrateurProvisoire: DECISION_AP })).toThrow(
+      /pas une décision de l'administrateur provisoire/,
+    )
+    const op = creerOperationTravaux(saisie({ decision: { date: '2026-01-20', resolution: 'AP-2026-03', origine: 'administrateur', pouvoirsAgConfies: 'tous' } }))
+    const autreDate = { ...DECISION_AP, decision: { date: '2026-01-21', numeroRegistre: 'AP-2026-03' } }
+    const autreNumero = { ...DECISION_AP, decision: { date: '2026-01-20', numeroRegistre: 'AP-2026-04' } }
+    for (const d of [autreDate, autreNumero])
+      expect(() => emploiDepuisOperation(op, { id: 'EMP-AP', date: '2026-02-01', decisionAdministrateurProvisoire: d })).toThrow(/n'est pas celle de l'opération/)
+    const distincte = creerOperationTravaux(
+      saisie({
+        decision: { date: '2026-01-20', resolution: 'AP-2026-03', origine: 'administrateur', pouvoirsAgConfies: 'tous' },
+        affectationFonds: { objet: 'travaux_hors_ppt', decisionAg: 'Décision AP-2026-02 du 15/01/2026' },
+      }),
+    )
+    expect(() => emploiDepuisOperation(distincte, { id: 'EMP-AP', date: '2026-02-01', decisionAdministrateurProvisoire: DECISION_AP })).toThrow(/décision distincte/)
   })
 
   it('virement-interne.ts : une sortie du fonds sur une décision de l’administrateur provisoire, copiée et non partagée', () => {
