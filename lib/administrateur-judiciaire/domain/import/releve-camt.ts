@@ -1,6 +1,7 @@
 import { validerIban } from '@/lib/administrateur-judiciaire/domain/comptes-bancaires'
 import { estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
 import {
+  avertissementLibelleTronque,
   avertissementsContinuite,
   composerLibelle,
   controlerSoldes,
@@ -39,7 +40,8 @@ import { enfant, enfantsNommes, lireXml, suivre, texteSuivi, type ElementXml } f
  *    date-heure, jour lu tel qu'écrit) ; une écriture au statut autre que BOOK est écartée avec un avertissement ; libellé =
  *    AddtlTxInf (valeurs « /LIB/ » seules s'il y a des mots-clés), RmtInf/Ustrd, RmtInf/Strd/CdtrRefInf/Ref, AddtlNtryInf
  *    (mêmes règles), puis la contrepartie (payeur d'un crédit, bénéficiaire d'un débit, inversés pour une contre-passation
- *    dont les parties restent celles de l'opération d'origine) ; totaux annoncés (TxsSummry) comparés aux écritures lues
+ *    dont les parties restent celles de l'opération d'origine), au plus 1 000 caractères (composerLibelle, avertissement
+ *    au-delà) ; totaux annoncés (TxsSummry) comparés aux écritures lues
  *    quand ils sont présents ; montant à zéros de fin admis au-delà des décimales de la devise (« 10.500 » en EUR).
  * 🔴 Non établi / non traité : versions 001.03 à 001.07 et après 001.08 non relues une à une (seuls les éléments ci-dessus
  *    sont lus, par leur nom local) ; relevé paginé sur plusieurs messages (refusé) ; écritures globales (lots, TxDtls
@@ -149,15 +151,23 @@ function codeOperation(ntry: ElementXml): string | null {
   return codes.every(Boolean) ? codes.join('/') : texteSuivi(ntry, 'BkTxCd', 'Prtry', 'Cd')
 }
 
+/** Statut d'une écriture : v02 Sts, v08 et suivantes Sts/Cd (ou Sts/Prtry) ; null s'il est absent. */
+const statutEcriture = (ntry: ElementXml): string | null =>
+  texteSuivi(ntry, 'Sts', 'Cd') ?? texteSuivi(ntry, 'Sts') ?? texteSuivi(ntry, 'Sts', 'Prtry')
+
+/** L'écriture est-elle comptabilisée (BOOK) ? Sinon avertissement (statut lu, écriture écartée) ou erreur (statut absent). */
+function estComptabilisee(ntry: ElementXml, prefixe: string, contexte: Contexte, avertissements: string[]): boolean {
+  const statut = statutEcriture(ntry)
+  if (statut === STATUT_COMPTABILISE) return true
+  if (statut) avertissements.push(`${prefixe} : écriture au statut ${statut}, non comptabilisée, écartée.`)
+  else contexte.erreurs.push(`${prefixe} : statut (Sts) absent.`)
+  return false
+}
+
 /** Écriture comptabilisée → mouvement ; null si elle est écartée (statut) ou fausse (erreur consignée). */
 function lireEcriture(ntry: ElementXml, rangEcriture: number, contexte: Contexte, avertissements: string[]): MouvementReleve | null {
-  const prefixe = `Relevé ${contexte.rang}, écriture ${rangEcriture}`,
-    statut = texteSuivi(ntry, 'Sts', 'Cd') ?? texteSuivi(ntry, 'Sts') ?? texteSuivi(ntry, 'Sts', 'Prtry')
-  if (statut !== STATUT_COMPTABILISE) {
-    if (statut) avertissements.push(`${prefixe} : écriture au statut ${statut}, non comptabilisée, écartée.`)
-    else contexte.erreurs.push(`${prefixe} : statut (Sts) absent.`)
-    return null
-  }
+  const prefixe = `Relevé ${contexte.rang}, écriture ${rangEcriture}`
+  if (!estComptabilisee(ntry, prefixe, contexte, avertissements)) return null
   const montantMineur = montantSigne(ntry, contexte),
     bookgDt = enfant(ntry, 'BookgDt'),
     dateValeur = lireJour(enfant(ntry, 'ValDt')),
@@ -177,10 +187,12 @@ function lireEcriture(ntry: ElementXml, rangEcriture: number, contexte: Contexte
         ...enfantsNommes(enfant(tx, 'RmtInf'), 'Strd').map((strd) => texteSuivi(strd, 'CdtrRefInf', 'Ref')),
       ]),
       ...textesUtiles(texteSuivi(ntry, 'AddtlNtryInf')),
-    ]
+    ],
+    { libelle, tronque } = composerLibelle(textes, credit !== contrepassation ? payeur : beneficiaire)
+  if (tronque) avertissements.push(avertissementLibelleTronque(prefixe))
   return {
     date,
-    libelle: composerLibelle(textes, credit !== contrepassation ? payeur : beneficiaire),
+    libelle,
     montant: montantMajeur(montantMineur, contexte.decimales),
     montantMineur,
     dateValeur,

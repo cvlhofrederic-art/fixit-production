@@ -7,6 +7,7 @@ import {
   controlerSoldes,
   decimalesDevise,
   formaterMontantMineur,
+  LONGUEUR_MAX_LIBELLE,
   montantMajeur,
   type CompteReleve,
 } from '@/lib/administrateur-judiciaire/domain/import/releve-compte'
@@ -83,9 +84,34 @@ describe('relevés structurés — compte du relevé', () => {
 
 describe('relevés structurés — libellé', () => {
   it('morceaux sans répétition, contrepartie ajoutée seulement si un de ses mots manque', () => {
-    expect(composerLibelle(['VIR SEPA RECU /DE DURAND CLAIRE', '  APPEL  T4 ', 'appel t4'], 'Durand Claire')).toBe('VIR SEPA RECU /DE DURAND CLAIRE APPEL T4')
-    expect(composerLibelle(['VIR SEPA RECU'], 'DURAND CLAIRE')).toBe('VIR SEPA RECU DURAND CLAIRE')
-    expect(composerLibelle([null, '', undefined], null)).toBe('(sans libellé)')
-    expect(composerLibelle([], 'MARTIN PAUL')).toBe('MARTIN PAUL')
+    expect(composerLibelle(['VIR SEPA RECU /DE DURAND CLAIRE', '  APPEL  T4 ', 'appel t4'], 'Durand Claire')).toEqual({
+      libelle: 'VIR SEPA RECU /DE DURAND CLAIRE APPEL T4',
+      tronque: false,
+    })
+    expect(composerLibelle(['VIR SEPA RECU'], 'DURAND CLAIRE').libelle).toBe('VIR SEPA RECU DURAND CLAIRE')
+    expect(composerLibelle([null, '', undefined], null)).toEqual({ libelle: '(sans libellé)', tronque: false })
+    expect(composerLibelle([], 'MARTIN PAUL').libelle).toBe('MARTIN PAUL')
+  })
+
+  it('libellé borné : au-delà de 1 000 caractères les textes suivants sont omis, la contrepartie reste ajoutée', () => {
+    expect(LONGUEUR_MAX_LIBELLE).toBe(1_000)
+    const long = composerLibelle(['A'.repeat(5_000), 'SUITE'], 'DURAND CLAIRE')
+    expect(long).toEqual({ libelle: `${'A'.repeat(1_000)} DURAND CLAIRE`, tronque: true })
+    const pile = composerLibelle(['X'.repeat(995), 'APPEL T4'], null)
+    expect(pile).toEqual({ libelle: `${'X'.repeat(995)} APPE`, tronque: true })
+    expect(composerLibelle(['X'.repeat(999), 'Y'], null)).toEqual({ libelle: 'X'.repeat(999), tronque: true })
+    expect(composerLibelle(['X'.repeat(998), 'Y'], null)).toEqual({ libelle: `${'X'.repeat(998)} Y`, tronque: false })
+  })
+
+  it('temps linéaire : 20 000 morceaux distincts ou répétés lus en moins d’une seconde (fichier hostile)', () => {
+    const distincts = Array.from({ length: 20_000 }, (_, rang) => `APPEL ${rang}`),
+      debut = performance.now(),
+      compose = composerLibelle(distincts, 'DURAND CLAIRE'),
+      repetes = composerLibelle(Array.from({ length: 20_000 }, (_, rang) => (rang % 2 ? 'appel  t4' : 'APPEL T4')), null)
+    expect(performance.now() - debut).toBeLessThan(1_000)
+    expect(compose.tronque).toBe(true)
+    expect(compose.libelle.length).toBeLessThanOrEqual(LONGUEUR_MAX_LIBELLE + ' DURAND CLAIRE'.length)
+    expect(compose.libelle).toMatch(/^APPEL 0 APPEL 1 APPEL 2 .* DURAND CLAIRE$/)
+    expect(repetes).toEqual({ libelle: 'APPEL T4', tronque: false })
   })
 })

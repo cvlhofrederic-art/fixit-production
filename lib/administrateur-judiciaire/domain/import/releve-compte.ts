@@ -194,24 +194,59 @@ export function compteCorrespond(compte: CompteReleve, iban: string): boolean {
   return cible.slice(4) === `${banque}${guichet}${numero}${cle}`.toUpperCase()
 }
 
-/**
- * Libellé d'un mouvement : morceaux non vides dans l'ordre, sans répétition, espaces réduits ; la contrepartie (payeur
- * d'un crédit, bénéficiaire d'un débit) est ajoutée si l'un de ses mots manque au libellé — 🔵 choix fait pour que
- * proposerImputations, qui ne lit que le libellé, trouve le nom du copropriétaire. Vide → « (sans libellé) ».
- */
-export function composerLibelle(morceaux: readonly (string | null | undefined)[], contrepartie: string | null): string {
-  const retenus: string[] = []
+/** Longueur au-delà de laquelle les textes d'un libellé composé sont omis (🔵 borne de sûreté, aucun texte ne la fixe). */
+export const LONGUEUR_MAX_LIBELLE = 1_000
+
+export interface LibelleCompose {
+  libelle: string
+  /** Des textes ont été omis ou coupés pour tenir dans LONGUEUR_MAX_LIBELLE : l'appelant en avertit. */
+  tronque: boolean
+}
+
+const reduireEspaces = (texte: string | null | undefined): string => (texte ?? '').replaceAll(/\s+/g, ' ').trim()
+
+/** Morceaux non vides, sans répétition (texte normalisé), tant que leur jonction tient dans LONGUEUR_MAX_LIBELLE. */
+function morceauxRetenus(morceaux: readonly (string | null | undefined)[]): { retenus: string[]; tronque: boolean } {
+  const retenus: string[] = [],
+    vus = new Set<string>()
+  let longueur = 0
   for (const morceau of morceaux) {
-    const propre = (morceau ?? '').replaceAll(/\s+/g, ' ').trim()
-    if (propre && !retenus.some((deja) => normaliserTexte(deja) === normaliserTexte(propre))) retenus.push(propre)
+    const propre = reduireEspaces(morceau),
+      cle = normaliserTexte(propre)
+    if (!propre || vus.has(cle)) continue
+    const separateur = retenus.length > 0 ? 1 : 0,
+      place = LONGUEUR_MAX_LIBELLE - longueur - separateur
+    if (propre.length > place) {
+      if (place > 0) retenus.push(propre.slice(0, place).trimEnd())
+      return { retenus, tronque: true }
+    }
+    vus.add(cle)
+    longueur += separateur + propre.length
+    retenus.push(propre)
   }
-  const nom = (contrepartie ?? '').replaceAll(/\s+/g, ' ').trim()
+  return { retenus, tronque: false }
+}
+
+/**
+ * Libellé d'un mouvement : morceaux non vides dans l'ordre, sans répétition, espaces réduits, coupés au-delà de
+ * LONGUEUR_MAX_LIBELLE caractères (`tronque`) ; la contrepartie (payeur d'un crédit, bénéficiaire d'un débit) est ensuite
+ * ajoutée si l'un de ses mots manque au libellé — 🔵 choix fait pour que proposerImputations, qui ne lit que le libellé,
+ * trouve le nom du copropriétaire. Vide → « (sans libellé) ». Temps linéaire en la longueur des morceaux (ensemble des
+ * textes déjà vus, arrêt à la borne), y compris pour un fichier hostile à milliers de compléments.
+ */
+export function composerLibelle(morceaux: readonly (string | null | undefined)[], contrepartie: string | null): LibelleCompose {
+  const { retenus, tronque } = morceauxRetenus(morceaux),
+    nom = reduireEspaces(contrepartie)
   if (nom) {
     const motsLibelle = new Set(normaliserTexte(retenus.join(' ')).split(' '))
     if (normaliserTexte(nom).split(' ').some((mot) => !motsLibelle.has(mot))) retenus.push(nom)
   }
-  return retenus.join(' ') || '(sans libellé)'
+  return { libelle: retenus.join(' ') || '(sans libellé)', tronque }
 }
+
+/** « <désignation> : libellé limité à 1 000 caractères, textes suivants omis. » */
+export const avertissementLibelleTronque = (designation: string): string =>
+  `${designation} : libellé limité à ${String(LONGUEUR_MAX_LIBELLE).replaceAll(/\B(?=(\d{3})+$)/g, ' ')} caractères, textes suivants omis.`
 
 /** Clé de compte pour la continuité : IBAN, sinon RIB, sinon autre identifiant, plus la devise. */
 const cleCompte = (releve: ReleveCompte): string => `${designationCompte(releve.compte)}|${releve.devise}`

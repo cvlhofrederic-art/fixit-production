@@ -1,5 +1,6 @@
 import { estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
 import {
+  avertissementLibelleTronque,
   avertissementsContinuite,
   cleRib,
   composerLibelle,
@@ -41,7 +42,8 @@ import {
  *    mandat, CPY compte débiteur ; le qualifiant LIB (libellé libre, plusieurs possibles) est conservé.
  *
  * Choix 🔵 (déduits, à valider) : années JJMMAA lues 20AA ; date de valeur vide ou à zéro → null ; libellé = libellé du 04
- *    puis textes LIB, LCC et LC2 dans l'ordre du fichier, plus le nom de la contrepartie (composerLibelle) ; un relevé dont
+ *    puis textes LIB, LCC et LC2 dans l'ordre du fichier, plus le nom de la contrepartie (composerLibelle :
+ *    au-delà de 1 000 caractères, textes suivants omis avec un avertissement) ; un relevé dont
  *    un enregistrement est faux est refusé en entier, les autres relevés du fichier restent lus ; lignes de moins de
  *    120 caractères complétées de blancs (blancs de fin rognés par un éditeur) tant que les zones obligatoires sont
  *    entières, sinon « enregistrement tronqué » ; fichier sans séparateur de ligne découpé tous les 120 caractères.
@@ -107,6 +109,7 @@ interface ReleveEnCours {
 }
 
 interface Lecture {
+  avertissements: string[]
   erreurs: string[]
   releves: ReleveCompte[]
   enCours: ReleveEnCours | null
@@ -224,20 +227,22 @@ function lireComplement(lecture: Lecture, numero: number, ligne: string, longueu
   dernier.mouvement?.complements.push({ qualifiant: zone(ligne, 46, 3).trim(), texte: zone(ligne, 49, 70).trimEnd() })
 }
 
-/** Mouvement complet : libellé, payeur, bénéficiaire et référence de client à client tirés des 05. */
-function finaliserMouvement(enCours: MouvementEnCours): MouvementReleve | null {
+/** Mouvement complet : libellé, payeur, bénéficiaire et référence de client à client tirés des 05 ; libellé coupé signalé. */
+function finaliserMouvement(enCours: MouvementEnCours, rang: number, avertissements: string[]): MouvementReleve | null {
   const { mouvement } = enCours
   if (!mouvement) return null
   const premier = (qualifiant: string): ComplementReleve | undefined => mouvement.complements.find((c) => c.qualifiant === qualifiant),
     payeur = texteOuNull(premier('NPY')?.texte ?? ''),
     beneficiaire = texteOuNull(premier('NBE')?.texte ?? ''),
-    referenceClient = texteOuNull(premier('RCN')?.texte.slice(0, 35) ?? '')
-  return {
-    ...mouvement,
-    libelle: composerLibelle(
+    referenceClient = texteOuNull(premier('RCN')?.texte.slice(0, 35) ?? ''),
+    { libelle, tronque } = composerLibelle(
       [enCours.libelle04, ...mouvement.complements.filter((c) => QUALIFIANTS_LIBELLE.has(c.qualifiant)).map((c) => c.texte)],
       mouvement.montantMineur > 0 ? payeur : beneficiaire,
-    ),
+    )
+  if (tronque) avertissements.push(avertissementLibelleTronque(`Relevé ${rang}, ligne ${enCours.ligne}`))
+  return {
+    ...mouvement,
+    libelle,
     payeur,
     beneficiaire,
     referenceClient,
@@ -257,12 +262,13 @@ function fermerReleve(lecture: Lecture, numero: number, ligne: string, longueur:
     if (soldeCloture === null) signaler(lecture, numero, `montant du nouveau solde illisible « ${zone(ligne, 91, 14)} ».`)
   }
   lecture.enCours = null
-  const mouvements = releve.mouvements.map(finaliserMouvement)
   if (releve.erreurs.length > 0 || !releve.dateOuverture || releve.soldeOuverture === null || !dateCloture || soldeCloture === null) {
     const nombre = releve.erreurs.length
     return refuser(lecture, releve, `${nombre} enregistrement${nombre > 1 ? 's' : ''} en erreur.`, dateCloture)
   }
-  const retenus = mouvements.filter((mouvement): mouvement is MouvementReleve => mouvement !== null),
+  const retenus = releve.mouvements
+      .map((enCours) => finaliserMouvement(enCours, releve.rang, lecture.avertissements))
+      .filter((mouvement): mouvement is MouvementReleve => mouvement !== null),
     { credits, debits } = totauxMouvements(retenus),
     lu: ReleveCompte = {
       format: 'cfonb120',
@@ -318,7 +324,7 @@ export function lireReleveCfonb120(texte: string): ResultatLectureReleves {
   const { enregistrements, erreur } = decouper(texte)
   if (erreur) return { releves: [], erreurs: [erreur], avertissements: [] }
   if (enregistrements.length === 0) return { releves: [], erreurs: ['Relevé vide.'], avertissements: [] }
-  const lecture: Lecture = { erreurs: [], releves: [], enCours: null, rang: 0 }
+  const lecture: Lecture = { erreurs: [], avertissements: [], releves: [], enCours: null, rang: 0 }
   for (const { numero, contenu } of enregistrements) {
     if (contenu.length > LONGUEUR_ENREGISTREMENT) {
       signaler(lecture, numero, `${contenu.length} caractères au lieu de 120.`)
@@ -336,5 +342,5 @@ export function lireReleveCfonb120(texte: string): ResultatLectureReleves {
     }
   }
   if (lecture.enCours) refuser(lecture, lecture.enCours, 'nouveau solde (07) absent, fichier tronqué ?')
-  return { releves: lecture.releves, erreurs: lecture.erreurs, avertissements: avertissementsContinuite(lecture.releves) }
+  return { releves: lecture.releves, erreurs: lecture.erreurs, avertissements: [...lecture.avertissements, ...avertissementsContinuite(lecture.releves)] }
 }

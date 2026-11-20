@@ -143,6 +143,35 @@ describe('relevé CFONB 120 — décimales et montants nuls', () => {
   })
 })
 
+/** Enregistrements fictifs du compte 12345 00010 00012345678 (EUR, 2 décimales), écrits zone par zone. */
+const ANCIEN_SOLDE_NUL = `0112345    00010EUR2 00012345678  300926${' '.repeat(50)}0000000000000{${' '.repeat(16)}`
+const mouvement = (libelle: string, montant: string, numero = '0000000') =>
+  `0412345015100010EUR2 0001234567805011026  011026${libelle.padEnd(31)}  ${numero}  ${montant}${' '.repeat(16)}`
+const complement = (qualifiant: string, texte: string) =>
+  `0512345015100010EUR2 0001234567805011026     ${qualifiant}${texte.padEnd(70)}  `
+const nouveauSolde = (montant: string) => `0712345    00010EUR2 00012345678  011026${' '.repeat(50)}${montant}${' '.repeat(16)}`
+
+describe('relevé CFONB 120 — fichier hostile', () => {
+  it('un mouvement suivi de 8 000 compléments LIB : lu en moins d’une seconde, libellé borné avec un avertissement', () => {
+    const lignes = [
+      ANCIEN_SOLDE_NUL,
+      mouvement('VIR SEPA RECU', '0000000000010{'),
+      complement('NPY', 'DURAND CLAIRE'),
+      ...Array.from({ length: 8_000 }, (_, rang) => complement('LIB', `LIGNE ${rang}`)),
+      nouveauSolde('0000000000010{'),
+    ]
+    for (const ligne of lignes) expect(ligne).toHaveLength(120)
+    const debut = performance.now(),
+      lecture = lireReleveCfonb120(avecLignes(lignes))
+    expect(performance.now() - debut).toBeLessThan(1_000)
+    expect(lecture.erreurs).toEqual([])
+    const [virement] = lecture.releves[0].mouvements
+    expect(virement.libelle).toMatch(/^VIR SEPA RECU LIGNE 0 LIGNE 1 .* DURAND CLAIRE$/)
+    expect(virement.libelle.length).toBeLessThanOrEqual(1_000 + ' DURAND CLAIRE'.length)
+    expect(lecture.avertissements).toEqual(['Relevé 1, ligne 2 : libellé limité à 1 000 caractères, textes suivants omis.'])
+  })
+})
+
 describe('relevé CFONB 120 — refus', () => {
   it('ancien solde + mouvements ≠ nouveau solde : relevé refusé, les autres relevés du fichier restent lus', () => {
     const lecture = lireReleveCfonb120(modifierLigne(NOMINAL, 12, (ligne) => surcharger(ligne, 91, '0000000004728D')))

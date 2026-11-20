@@ -174,6 +174,24 @@ describe('relevé camt.053 — décimales, montants nuls, écritures non comptab
   })
 })
 
+describe('relevé camt.053 — fichier hostile', () => {
+  it('une écriture à 20 000 textes libres : lue en moins d’une seconde, libellé borné avec un avertissement', () => {
+    const ustrd = Array.from({ length: 20_000 }, (_, rang) => `<Ustrd>APPEL ${rang}</Ustrd>`).join(''),
+      xml = releveMinimal('EUR', '0', '1.00', [['1.00', 'CRDT']]).replace(
+        '<AddtlNtryInf>ECRITURE 1</AddtlNtryInf>',
+        `<NtryDtls><TxDtls><RltdPties><Dbtr><Nm>DURAND CLAIRE</Nm></Dbtr></RltdPties><RmtInf>${ustrd}</RmtInf></TxDtls></NtryDtls>`,
+      ),
+      debut = performance.now(),
+      lecture = lireReleveCamt053(xml)
+    expect(performance.now() - debut).toBeLessThan(1_000)
+    expect(lecture.erreurs).toEqual([])
+    const [ecriture] = lecture.releves[0].mouvements
+    expect(ecriture.libelle).toMatch(/^APPEL 0 APPEL 1 .* DURAND CLAIRE$/)
+    expect(ecriture.libelle.length).toBeLessThanOrEqual(1_000 + ' DURAND CLAIRE'.length)
+    expect(lecture.avertissements).toEqual(['Relevé 1, écriture 1 : libellé limité à 1 000 caractères, textes suivants omis.'])
+  })
+})
+
 describe('relevé camt.053 — refus', () => {
   const erreurs = (texte: string) => lireReleveCamt053(texte).erreurs
 
