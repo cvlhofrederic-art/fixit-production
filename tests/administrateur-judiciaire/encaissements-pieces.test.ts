@@ -481,7 +481,9 @@ describe('en-tête du module', () => {
     )
     expect(EN_TETE).toMatch(/🔵 Déduit :.*le renvoi de l'arrêté au décret n° 83-1020, abrogé, vaut renvoi à C\. com\. R\. 123-174 \(D\. 2007-431 art\. 2 ;/)
     expect(EN_TETE).not.toMatch(/au plus tôt du jour des encaissements/)
-    expect(EN_TETE).toMatch(/« Date de prise en compte d'un encaissement : remise, valeur ou relevé \? » \(VitFix : le traitement est daté du jour de l'opération/)
+    // Décision du 20/11/2026 (partie C, F111) : la règle est gardée ; la question n'est plus ouverte.
+    expect(EN_TETE).not.toMatch(/« Date de prise en compte d'un encaissement : remise, valeur ou relevé \? »/)
+    expect(EN_TETE).toMatch(/Décision du 20\/11\/2026 \(partie C, F111\) : règle gardée : la date de l'encaissement est la date de l'opération sur le relevé/)
   })
 
   it('J67, R101 : la question des comptes 401, 409, 461, 487 et de la subvention sans notification est tranchée', () => {

@@ -23,9 +23,36 @@ import {
   type CompteFondsDetenus,
   type DonneesFondsDetenus,
 } from '@/lib/administrateur-judiciaire/domain/fonds-detenus'
+import {
+  SIGNAL_FONDS_TRAVAUX_HORS_COMPTE_DU_FONDS,
+  annulerEncaissement,
+  enregistrerEncaissement,
+  enregistrerRecette,
+  partsFondsTravauxAVirer,
+  rapprocherEncaissements,
+  rattacherRemise,
+  traitementEncaissements,
+  type EncaissementEnregistre,
+  type JournalEncaissement,
+} from '@/lib/administrateur-judiciaire/domain/encaissements-pieces'
 import { creerCompteCoproprietaire, creerPosition } from '@/lib/administrateur-judiciaire/domain/identites-positions'
-import { postesDepuisAvis } from '@/lib/administrateur-judiciaire/domain/imputation-encaissements'
-import { creerOrdreVirement, genererPain001, type LigneVirement } from '@/lib/administrateur-judiciaire/domain/ordres-banque'
+import {
+  desimputerEncaissement,
+  imputerEncaissement,
+  imputerEncaissements,
+  postesDepuisAvis,
+  type PosteDette,
+} from '@/lib/administrateur-judiciaire/domain/imputation-encaissements'
+import { creerOrdreVirement, creerRemiseCheques, genererPain001, type LigneVirement } from '@/lib/administrateur-judiciaire/domain/ordres-banque'
+import type { ArreteRapprochement } from '@/lib/administrateur-judiciaire/domain/rapprochement-bancaire'
+import { borneArreteDesComptes } from '@/lib/administrateur-judiciaire/domain/verrou-saisie'
+import {
+  alimentationsDuFonds,
+  creerVirementInterne,
+  emettreLotVirementsInternes,
+  type CompteVirementInterne,
+  type VirementInterne,
+} from '@/lib/administrateur-judiciaire/domain/virement-interne'
 import { genererPain008, preparerLotPrelevements } from '@/lib/administrateur-judiciaire/domain/prelevements-sepa'
 import { avisDAppel, creerCleRepartition, traitementAppelDeFonds, type EcheanceAppel } from '@/lib/administrateur-judiciaire/domain/repartition-appels'
 import { annulerTraitement, creerTraitement, type Traitement } from '@/lib/administrateur-judiciaire/domain/traitements'
@@ -473,5 +500,382 @@ describe('F104 à F108 — en-tête de l’échéancier : les décisions remplac
     expect(item('- Décision du 20/11/2026 (partie C, F106)')).toMatch(/exclu par défaut.*motif/)
     expect(item('- Décision du 20/11/2026 (partie C, F107)')).toMatch(/solde repris.*exercice/)
     expect(item('- Décision du 20/11/2026 (partie C, F108)')).toMatch(/« Appelé » sans écriture.*autorisé/)
+  })
+})
+
+// ─── F110 à F112 : encaissements ─────────────────────────────────────────────────────────────
+
+const JOURNAL_COURANT: JournalEncaissement = { code: 'BA', banqueId: 'b-courant', compteEncaissement: 'TILL.51200.00000.0' }
+const JOUR_ENC = '2026-01-12'
+const posteEnc = (id: string, compteId: string, montantCentimes: number, typeAppel: 'Budget' | 'Fonds travaux' = 'Budget'): PosteDette => ({
+  id,
+  compteId,
+  appelId: id.split(':')[0],
+  typeAppel,
+  libelle: typeAppel === 'Budget' ? 'Appel de provisions' : 'Cotisation au fonds de travaux',
+  exigibilite: '2026-01-01',
+  montantCentimes,
+  regleCentimes: 0,
+  contentieux: false,
+})
+const POSTES_ENC = [
+  posteEnc('B1:lot-1', 'cpt-A', 40_000),
+  posteEnc('FT1:lot-1', 'cpt-A', 2_000, 'Fonds travaux'),
+  posteEnc('B1:lot-2', 'cpt-B', 60_000),
+  posteEnc('FT1:lot-2', 'cpt-B', 3_000, 'Fonds travaux'),
+]
+interface OptionsRecu {
+  mode?: 'Virement' | 'Chèque'
+  numero?: string
+  date?: string
+  journal?: JournalEncaissement
+}
+const recu = (id: string, compteId: string, montantCentimes: number, { mode = 'Virement', numero = `VIR-${id}`, date = JOUR_ENC, journal = JOURNAL_COURANT }: OptionsRecu = {}): EncaissementEnregistre =>
+  enregistrerEncaissement({ id, compteId, date, montantCentimes }, { journal, segmentSyndicat: SEGMENT, piece: { mode, numero } })
+
+/** Écrit des encaissements imputés en un traitement (par défaut un fichier de virements reçus). */
+function ecrireEncaissements(
+  encaissements: EncaissementEnregistre[],
+  { famille = 'Fichier Virement reçus', remises = [] }: { famille?: 'Fichier Virement reçus' | 'Encaissement'; remises?: ReturnType<typeof creerRemiseCheques>[] } = {},
+) {
+  const { resultats, postes } = imputerEncaissements(encaissements, POSTES_ENC)
+  const ecrit = traitementEncaissements(
+    { encaissements: encaissements.map((encaissement, i) => ({ encaissement, resultat: resultats[i] })), remises },
+    { id: 't-enc-1', date: JOUR_ENC, famille, segmentSyndicat: SEGMENT, comptes: comptesCopro },
+  )
+  return { ...ecrit, resultats, postes }
+}
+
+const REJET = { id: 't-ann-1', date: '2026-01-20', motif: 'Virement retourné : compte clos', piece: 'AVIS-BQ-0001' }
+
+describe('F110 — chèque impayé ou virement retourné : l’encaissement passe « Annulé » par une écriture contraire, son imputation est défaite', () => {
+  const lot = () => ecrireEncaissements([recu('E1', 'cpt-A', 42_000), recu('E2', 'cpt-B', 63_000)])
+  const contexteDe = (l: ReturnType<typeof lot>, rang = 0) => ({
+    ecriture: l.traitement,
+    resultat: l.resultats[rang],
+    postes: l.postes,
+    comptes: comptesCopro,
+    segmentSyndicat: SEGMENT,
+  })
+  const annuler = (l: ReturnType<typeof lot>, surcharge: Partial<typeof REJET> = {}, rang = 0) =>
+    annulerEncaissement(l.encaissements[rang], contexteDe(l, rang), { ...REJET, ...surcharge })
+
+  it('un encaissement d’un fichier de virements s’annule seul : ses seules lignes contre-passées (débit du 450, crédit du 512), « Annulation d’encaissement », au jour du débit, avec motif et pièce', () => {
+    const { traitement, encaissement } = annuler(lot())
+    expect(traitement).toMatchObject({ id: 't-ann-1', famille: "Annulation d'encaissement", date: '2026-01-20', annule: 't-enc-1' })
+    expect(traitement.mouvements.map((m) => [m.sens, m.compte, m.montantCentimes, m.origine?.type === 'appel' ? m.origine.appelId : null])).toEqual([
+      ['credit', 'TILL.51200.00000.0', 42_000, null],
+      ['debit', 'TILL.45000.00001.0', 40_000, 'B1'],
+      ['debit', 'TILL.45000.00001.0', 2_000, 'FT1'],
+    ])
+    expect(encaissement).toMatchObject({ id: 'E1', statut: 'Annulé', impute: true, traitementId: 't-enc-1' })
+    expect(encaissement.annulation).toEqual({
+      le: '2026-01-20',
+      motif: 'Virement retourné : compte clos',
+      piece: 'AVIS-BQ-0001',
+      traitementId: 't-ann-1',
+      dateComptable: '2026-01-20',
+      mention: 'pièce « AVIS-BQ-0001 » du 20/01/2026',
+    })
+  })
+
+  it('frais bancaires du rejet : jamais dans l’écriture contraire, qui porte le seul montant de l’encaissement', () => {
+    const { traitement } = annuler(lot())
+    const debits = traitement.mouvements.filter((m) => m.sens === 'debit').reduce((s, m) => s + m.montantCentimes, 0)
+    expect(debits).toBe(42_000)
+    expect(traitement.mouvements.every((m) => /\.(45000|51200)\./.test(m.compte))).toBe(true)
+  })
+
+  it('l’imputation est défaite : les postes payés redeviennent dus, à leur exigibilité d’origine ; ceux de l’autre encaissement ne bougent pas', () => {
+    const l = lot()
+    expect(l.postes.map((p) => [p.id, p.regleCentimes])).toEqual([
+      ['B1:lot-1', 40_000],
+      ['FT1:lot-1', 2_000],
+      ['B1:lot-2', 60_000],
+      ['FT1:lot-2', 3_000],
+    ])
+    const { postes } = annuler(l)
+    expect(postes.map((p) => [p.id, p.regleCentimes, p.exigibilite])).toEqual([
+      ['B1:lot-1', 0, '2026-01-01'],
+      ['FT1:lot-1', 0, '2026-01-01'],
+      ['B1:lot-2', 60_000, '2026-01-01'],
+      ['FT1:lot-2', 3_000, '2026-01-01'],
+    ])
+    expect(desimputerEncaissement(l.resultats[0], l.postes)).toEqual(postes)
+  })
+
+  it('un chèque d’une remise s’annule seul : la remise et l’autre chèque restent écrits', () => {
+    const remise = creerRemiseCheques({
+      id: 'rem-1',
+      numero: 'REM-1',
+      date: JOUR_ENC,
+      coproprieteId: 'copro-1',
+      banqueId: 'b-courant',
+      traitementId: 't-enc-1',
+      lignes: [
+        { encaissementId: 'C1', numeroCheque: '0000001', montantCentimes: 42_000, tireur: 'Tireur fictif' },
+        { encaissementId: 'C2', numeroCheque: '0000002', montantCentimes: 63_000, tireur: 'Tireur fictif' },
+      ],
+    })
+    const cheques = rattacherRemise(
+      [
+        recu('C1', 'cpt-A', 42_000, { mode: 'Chèque', numero: '0000001', date: '2026-01-10' }),
+        recu('C2', 'cpt-B', 63_000, { mode: 'Chèque', numero: '0000002', date: '2026-01-10' }),
+      ],
+      remise,
+    )
+    const l = ecrireEncaissements(cheques, { famille: 'Encaissement', remises: [remise] })
+    const { traitement, encaissement, postes } = annuler(l, { motif: 'Chèque impayé : provision insuffisante' }, 1)
+    expect(traitement.mouvements.map((m) => [m.sens, m.montantCentimes])).toEqual([
+      ['credit', 63_000],
+      ['debit', 60_000],
+      ['debit', 3_000],
+    ])
+    expect(encaissement).toMatchObject({ id: 'C2', statut: 'Annulé', piece: { remiseId: 'rem-1' } })
+    expect(postes.filter((p) => p.compteId === 'cpt-A').map((p) => p.regleCentimes)).toEqual([40_000, 2_000])
+  })
+
+  it('période close : écriture au premier jour ouvert, date d’origine et pièce au libellé (J67, R123)', () => {
+    const l = lot()
+    const verrou = [borneArreteDesComptes({ nom: 'Exercice fictif', cloture: '2026-01-31' })]
+    const { traitement, encaissement } = annulerEncaissement(l.encaissements[0], { ...contexteDe(l), verrou }, REJET)
+    expect(traitement.date).toBe('2026-02-01')
+    expect(encaissement.annulation).toMatchObject({ le: '2026-01-20', dateComptable: '2026-02-01', mention: 'pièce « AVIS-BQ-0001 » du 20/01/2026' })
+  })
+
+  it('refus : déjà annulé, pas encore écrit, sans motif ni pièce, débit antérieur à l’encaissement, écriture ou résultat d’un autre encaissement', () => {
+    const l = lot()
+    const { encaissement } = annuler(l)
+    const contexte = contexteDe(l)
+    expect(() => annulerEncaissement(encaissement, contexte, { ...REJET, id: 't-ann-2' })).toThrow(/déjà annulé le 2026-01-20/)
+    expect(() => annulerEncaissement(recu('E1', 'cpt-A', 42_000), contexte, REJET)).toThrow(/écrire d'abord/)
+    expect(() => annuler(l, { motif: ' ' })).toThrow(/motif/)
+    expect(() => annuler(l, { piece: '' })).toThrow(/pièce/)
+    expect(() => annuler(l, { date: '2026-01-11' })).toThrow(/antérieur/)
+    expect(() => annuler(l, { date: '20/01/2026' })).toThrow(/AAAA-MM-JJ/)
+    expect(() => annuler(l, { id: 't-enc-1' })).toThrow(/propre identifiant/)
+    expect(() => annulerEncaissement(l.encaissements[0], { ...contexte, resultat: l.resultats[1] }, REJET)).toThrow(/ne correspond pas/)
+    const autreEcriture = creerTraitement({
+      id: 't-enc-1',
+      famille: 'Encaissement',
+      date: JOUR_ENC,
+      mouvements: [ligne('TILL.51200.00000.0', 'debit', 1), ligne('TILL.45000.00001.0', 'credit', 1)],
+    })
+    expect(() => annulerEncaissement(l.encaissements[0], { ...contexte, ecriture: autreEcriture }, REJET)).toThrow(/introuvable/)
+    expect(() => annulerEncaissement(l.encaissements[0], { ...contexte, postes: POSTES_ENC }, REJET)).toThrow(/réglé/)
+  })
+
+  it('un encaissement annulé ne se réécrit pas ; au rapprochement, il reste « Annulé » (à une date antérieure à l’annulation : le statut propagé)', () => {
+    const l = lot()
+    const { encaissement } = annuler(l)
+    expect(() =>
+      traitementEncaissements(
+        { encaissements: [{ encaissement, resultat: l.resultats[0] }] },
+        { id: 't-enc-2', date: JOUR_ENC, segmentSyndicat: SEGMENT, comptes: comptesCopro },
+      ),
+    ).toThrow(/déjà écrit/)
+    const arrete: ArreteRapprochement = {
+      id: 'a-1',
+      banqueId: 'b-courant',
+      dateArrete: '2026-01-31',
+      soldeBanqueCentimes: 0,
+      soldeComptaCentimes: 0,
+      statut: 'En cours',
+      elements: [
+        { id: 'rel-1', cote: 'banque', montantCentimes: 42_000, rapproche: 'manuel', date: JOUR_ENC, rapprocheLe: '2026-01-15', pieces: [{ type: 'encaissement', id: 'E1' }] },
+      ],
+    }
+    const { entrees, anomalies } = rapprocherEncaissements([encaissement], [arrete])
+    expect(anomalies).toEqual([])
+    expect(entrees[0]).toMatchObject({ statut: 'Annulé', rapprochement: { elementId: 'rel-1' } })
+    expect(rapprocherEncaissements([encaissement], [arrete], { aLaDate: '2026-01-16' }).entrees[0].statut).toBe('Rapproché')
+    expect(rapprocherEncaissements([encaissement], []).entrees[0].statut).toBe('Annulé')
+  })
+})
+
+describe('F111 — date de l’encaissement : celle de l’opération (de la remise pour un chèque) ; la date de valeur, gardée, ne sert qu’au rapprochement', () => {
+  const avecValeur = (id: string, montantCentimes: number, dateValeur: string) =>
+    enregistrerEncaissement(
+      { id, compteId: 'cpt-A', date: JOUR_ENC, montantCentimes },
+      { journal: JOURNAL_COURANT, segmentSyndicat: SEGMENT, piece: { mode: 'Virement' }, dateValeur },
+    )
+
+  it('la date de valeur est gardée quand le relevé la donne, contrôlée ; absente, rien n’est ajouté', () => {
+    const e = avecValeur('E1', 42_000, '2026-01-13')
+    expect(e.dateValeur).toBe('2026-01-13')
+    expect(e.date).toBe(JOUR_ENC)
+    expect(recu('E2', 'cpt-A', 1_000)).not.toHaveProperty('dateValeur')
+    expect(() => avecValeur('E3', 1_000, '13/01/2026')).toThrow(/date de valeur/i)
+    const recette = enregistrerRecette(
+      {
+        id: 'R1',
+        date: JOUR_ENC,
+        dateValeur: '2026-01-14',
+        montantCentimes: 10_000,
+        planCode: '71300',
+        libelle: 'Indemnité fictive',
+        piece: { mode: 'Virement' },
+        journal: JOURNAL_COURANT,
+      },
+      { segmentSyndicat: SEGMENT },
+    )
+    expect(recette.dateValeur).toBe('2026-01-14')
+  })
+
+  it('jamais pour l’imputation ni pour le jour du traitement : seule la date de l’opération compte', () => {
+    const e = avecValeur('E1', 5_000, '2026-01-13')
+    const aVenir = { ...posteEnc('B2:lot-1', 'cpt-A', 5_000), exigibilite: '2026-01-13' }
+    expect(imputerEncaissement(e, [aVenir]).resteAImputerCentimes).toBe(5_000)
+    const resultat = imputerEncaissement(e, POSTES_ENC)
+    const options = { id: 't-enc-1', segmentSyndicat: SEGMENT, comptes: comptesCopro }
+    expect(traitementEncaissements({ encaissements: [{ encaissement: e, resultat }] }, { ...options, date: JOUR_ENC }).traitement.date).toBe(JOUR_ENC)
+    expect(() => traitementEncaissements({ encaissements: [{ encaissement: e, resultat }] }, { ...options, date: '2026-01-13' })).toThrow(/jour par jour/)
+  })
+})
+
+const COMPTE_COURANT: CompteVirementInterne = {
+  banqueId: 'b-courant',
+  coproprieteId: 'copro-1',
+  nature: 'courant',
+  iban: 'FR76 3000 6000 0112 3456 7890 189',
+  bic: 'AGRIFRPP',
+  compte512: 'TILL.51200.00000.0',
+  actif: true,
+}
+const COMPTE_FONDS: CompteVirementInterne = {
+  ...COMPTE_COURANT,
+  banqueId: 'b-fonds',
+  nature: 'fonds_travaux',
+  iban: 'FR14 2004 1010 0505 0001 3M02 606',
+  bic: 'PSSTFRPP',
+  compte512: 'TILL.51210.00000.0',
+}
+const COMPTE_AVANCE: CompteVirementInterne = { ...COMPTE_COURANT, banqueId: 'b-avance', nature: 'avance_travaux', iban: 'FR37 1027 8060 0000 0204 2010 154', compte512: 'TILL.51230.00000.0' }
+
+/** Virement interne vers le compte du fonds (du compte courant par défaut), émis le jour donné (null : non émis). */
+function versLeFonds(id: string, montantCentimes: number, emisLe: string | null, source = COMPTE_COURANT): VirementInterne {
+  const v = creerVirementInterne(
+    {
+      id,
+      numero: `BAB-${id}`,
+      date: emisLe ?? '2026-01-15',
+      coproprieteId: 'copro-1',
+      mandatId: 'm-1',
+      traitementId: `t-${id}`,
+      rang: 1,
+      nombreOrdresDuLot: 1,
+      source,
+      destination: COMPTE_FONDS,
+      montantCentimes,
+      libelle: 'Cotisations au fonds de travaux',
+    },
+    { segmentSyndicat: SEGMENT },
+  )
+  return emisLe === null ? v : emettreLotVirementsInternes([v], { dateEmission: emisLe, journal: [], virementsConnus: [] })[0]
+}
+
+describe('F112 — part du fonds de travaux reçue hors du compte du fonds : signalée, jamais bloquée, « à virer » jusqu’au virement interne', () => {
+  const lot = () => ecrireEncaissements([recu('E1', 'cpt-A', 42_000), recu('E2', 'cpt-B', 63_000)])
+  const entrees = (l: ReturnType<typeof lot>) => l.encaissements.map((encaissement, i) => ({ encaissement, resultat: l.resultats[i] }))
+  const comptesBancaires = [COMPTE_COURANT, COMPTE_FONDS, COMPTE_AVANCE]
+
+  it('l’encaissement s’écrit (pas de blocage) ; la part imputée sur des postes du fonds est signalée, à virer sans délai', () => {
+    const parts = partsFondsTravauxAVirer(entrees(lot()), { comptesBancaires, virements: [], aLaDate: '2026-01-12', delaiAlerteJours: 10 })
+    expect(SIGNAL_FONDS_TRAVAUX_HORS_COMPTE_DU_FONDS).toBe('part fonds de travaux reçue sur le compte courant : à virer sans délai au compte du fonds')
+    expect(parts).toEqual([
+      expect.objectContaining({
+        encaissementId: 'E1',
+        compteId: 'cpt-A',
+        banqueId: 'b-courant',
+        date: JOUR_ENC,
+        partFondsCentimes: 2_000,
+        vireCentimes: 0,
+        resteAVirerCentimes: 2_000,
+        aVirerAuPlusTardLe: '2026-01-22',
+        alerte: false,
+      }),
+      expect.objectContaining({ encaissementId: 'E2', compteId: 'cpt-B', partFondsCentimes: 3_000, resteAVirerCentimes: 3_000 }),
+    ])
+    expect(parts[0].message).toContain(SIGNAL_FONDS_TRAVAUX_HORS_COMPTE_DU_FONDS)
+    expect(parts[0].fondement).toBe('L. 1965 art. 18, II, al. 4')
+  })
+
+  it('soldée par les virements internes émis du compte qui l’a reçue vers le compte du fonds, la plus ancienne d’abord', () => {
+    const l = lot()
+    const parts = partsFondsTravauxAVirer(entrees(l), { comptesBancaires, virements: [versLeFonds('v1', 4_000, '2026-01-15')], aLaDate: '2026-01-16', delaiAlerteJours: 10 })
+    expect(parts.map((p) => [p.encaissementId, p.vireCentimes, p.resteAVirerCentimes])).toEqual([
+      ['E1', 2_000, 0],
+      ['E2', 2_000, 1_000],
+    ])
+    const toutVire = partsFondsTravauxAVirer(entrees(l), {
+      comptesBancaires,
+      virements: [versLeFonds('v1', 4_000, '2026-01-15'), versLeFonds('v2', 5_000, '2026-01-16')],
+      aLaDate: '2026-01-30',
+      delaiAlerteJours: 10,
+    })
+    expect(toutVire.map((p) => [p.resteAVirerCentimes, p.alerte])).toEqual([
+      [0, false],
+      [0, false],
+    ])
+  })
+
+  it('ne soldent rien : un virement non émis, rejeté, antérieur à l’encaissement ou parti d’un autre compte', () => {
+    const emis = versLeFonds('v1', 5_000, '2026-01-15')
+    const rejete: VirementInterne = { ...emis, rejet: { le: '2026-01-17', motif: 'Rejet fictif', traitementId: 't-rej' } }
+    const virements = [versLeFonds('v0', 5_000, null), rejete, versLeFonds('v2', 5_000, '2026-01-11'), versLeFonds('v3', 5_000, '2026-01-15', COMPTE_AVANCE)]
+    expect(alimentationsDuFonds(virements).map((v) => v.id)).toEqual(['v2', 'v3'])
+    const parts = partsFondsTravauxAVirer(entrees(lot()), { comptesBancaires, virements, aLaDate: '2026-01-20', delaiAlerteJours: 10 })
+    expect(parts.map((p) => p.resteAVirerCentimes)).toEqual([2_000, 3_000])
+  })
+
+  it('alerte passé le délai réglé par le cabinet ; sans délai réglé, aucune alerte ni date limite', () => {
+    const l = lot()
+    const a = (aLaDate: string, delaiAlerteJours: number | null) => partsFondsTravauxAVirer(entrees(l), { comptesBancaires, virements: [], aLaDate, delaiAlerteJours })[0]
+    expect(a('2026-01-22', 10)).toMatchObject({ alerte: false })
+    expect(a('2026-01-23', 10)).toMatchObject({ alerte: true, aVirerAuPlusTardLe: '2026-01-22' })
+    expect(a('2026-01-23', 10).message).toMatch(/délai du cabinet.*22\/01\/2026/)
+    expect(a('2026-03-01', null)).toMatchObject({ alerte: false, aVirerAuPlusTardLe: null })
+    expect(() => a('2026-01-23', -1)).toThrow(/délai/i)
+    expect(() => a('2026-01-23', 1.5)).toThrow(/délai/i)
+    expect(() => a('23/01/2026', 10)).toThrow(/AAAA-MM-JJ/)
+  })
+
+  it('rien à signaler : encaissement reçu sur le compte du fonds, part du fonds nulle, encaissement annulé ; compte bancaire inconnu refusé', () => {
+    const journalFonds: JournalEncaissement = { code: 'FT', banqueId: 'b-fonds', compteEncaissement: 'TILL.51210.00000.0' }
+    const surLeFonds = ecrireEncaissements([recu('E1', 'cpt-A', 42_000, { journal: journalFonds })])
+    expect(partsFondsTravauxAVirer(entrees(surLeFonds), { comptesBancaires, virements: [], aLaDate: '2026-01-12', delaiAlerteJours: 10 })).toEqual([])
+    const budgetDesigne = enregistrerEncaissement(
+      { id: 'E1', compteId: 'cpt-A', date: JOUR_ENC, montantCentimes: 40_000, postesDesignes: ['B1:lot-1'] },
+      { journal: JOURNAL_COURANT, segmentSyndicat: SEGMENT, piece: { mode: 'Virement' } },
+    )
+    const sansFonds = ecrireEncaissements([budgetDesigne])
+    expect(partsFondsTravauxAVirer(entrees(sansFonds), { comptesBancaires, virements: [], aLaDate: '2026-01-12', delaiAlerteJours: 10 })).toEqual([])
+    const l = lot()
+    const contexte = { ecriture: l.traitement, resultat: l.resultats[0], postes: l.postes, comptes: comptesCopro, segmentSyndicat: SEGMENT }
+    const annule = annulerEncaissement(l.encaissements[0], contexte, REJET).encaissement
+    const avecAnnule = [{ encaissement: annule, resultat: l.resultats[0] }, entrees(l)[1]]
+    expect(partsFondsTravauxAVirer(avecAnnule, { comptesBancaires, virements: [], aLaDate: '2026-01-21', delaiAlerteJours: 10 }).map((p) => p.encaissementId)).toEqual(['E2'])
+    expect(() => partsFondsTravauxAVirer(entrees(l), { comptesBancaires: [COMPTE_FONDS], virements: [], aLaDate: '2026-01-12', delaiAlerteJours: 10 })).toThrow(
+      /b-courant.*inconnu/,
+    )
+  })
+})
+
+describe('F110 à F112 — en-têtes : les décisions remplacent les marques 🔴', () => {
+  it('encaissements-pieces : décisions F110, F111, F112 citées ; leurs questions ne sont plus en 🔴', () => {
+    const { texte, item } = enTeteDuModule('encaissements-pieces')
+    const ouvert = texte.slice(texte.indexOf('🔴 Non établi'))
+    for (const question of [/Chèque impayé ou virement reçu retourné/, /Date de prise en compte d'un encaissement/, /contrôle laissé au point 39/]) expect(ouvert).not.toMatch(question)
+    expect(ouvert).toMatch(/Fichier carte bancaire/)
+    expect(item('- Décision du 20/11/2026 (partie C, F110)')).toMatch(
+      /« Annulé ».*écriture contraire.*450.*512.*débit.*motif et pièce.*défaite.*exigibilité d'origine.*seul.*frais bancaires/,
+    )
+    expect(item('- Décision du 20/11/2026 (partie C, F111)')).toMatch(/date de l'opération.*remise.*date de valeur.*rapprochement.*jamais pour l'imputation/)
+    expect(item('- Décision du 20/11/2026 (partie C, F112)')).toMatch(/ne bloque pas.*à virer sans délai au compte du fonds.*virement interne.*délai réglé par le cabinet/)
+  })
+
+  it('virement-interne : la décision F112 est citée (alimentationsDuFonds)', () => {
+    const { item } = enTeteDuModule('virement-interne')
+    expect(item('- Décision du 20/11/2026 (partie C, F112)')).toMatch(/alimentationsDuFonds.*à virer/)
   })
 })

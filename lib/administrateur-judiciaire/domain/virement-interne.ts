@@ -114,6 +114,12 @@ import {
  *   compte séparé du fonds : art. 18, II, al. 4). Un placement non réservé au fonds reste refusé. Les intérêts restent
  *   acquis au syndicat, hors des parts des lots (fonds-travaux-lots.ts, J67, R88).
  *
+ * Décisions du 20/11/2026 (partie C, recommandations acceptées par le responsable du projet) :
+ * - Décision du 20/11/2026 (partie C, F112) : une part du fonds de travaux reçue sur le compte courant n'est pas
+ *   bloquée ; elle est signalée et reste à virer jusqu'au virement interne qui alimente le fonds depuis ce compte :
+ *   alimentationsDuFonds rend ces alimentations, émises et non rejetées, qui soldent la part « à virer »
+ *   (encaissements-pieces.partsFondsTravauxAVirer), avec une alerte passé le délai réglé par le cabinet.
+ *
  * 🔵 Déduit :
  * - un virement interne relie deux comptes ACTIFS, distincts, du MÊME syndicat (D1), sans tiers ; une avance de fonds du
  *   gestionnaire au syndicat (interdite au syndic par l'art. 18, II, dernier al., sauf au syndic provisoire et à
@@ -298,6 +304,15 @@ export function mouvementFondsTravaux(source: CompteFonds, destination: CompteFo
   if (depuisFonds) return 'sortie'
   if (versFonds) return 'alimentation'
   return 'aucun'
+}
+
+/**
+ * Décision du 20/11/2026 (partie C, F112) — virements qui versent au fonds de travaux depuis un compte qui ne le tient pas
+ * (alimentation), émis et non rejetés (J68) : ils soldent la part « à virer » des cotisations reçues sur ce compte
+ * (encaissements-pieces.partsFondsTravauxAVirer). L'ordre reçu est conservé.
+ */
+export function alimentationsDuFonds(virements: readonly VirementInterne[]): VirementInterne[] {
+  return virements.filter((v) => v.mouvementFondsTravaux === 'alimentation' && v.statut === 'Émis' && v.rejet === null)
 }
 
 // ─── Création ───────────────────────────────────────────────────────────────────────────────
