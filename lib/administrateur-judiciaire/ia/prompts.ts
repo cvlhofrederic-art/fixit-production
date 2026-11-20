@@ -1,7 +1,8 @@
 /**
  * Prompts système des agents IA de la succursale Administrateur judiciaire (Claude Sonnet 5.5, via
  * app/api/administrateur-judiciaire/agent). Le contexte (données de la base locale affichées à l'écran)
- * est construit côté navigateur par `construireContexteAgent`, puis masqué (PII) côté serveur.
+ * est construit côté navigateur par `construireContexteAgent`, puis pseudonymisé (noms, cf. `pseudonymiserNoms`) et
+ * masqué (autres données personnelles) côté serveur.
  */
 import type { AgentAJ } from '@/lib/administrateur-judiciaire/ia/contexte-agent'
 
@@ -55,6 +56,7 @@ ${contexteJson}
 - Droit : cite un article seulement si tu es certain de sa référence ; sinon, décris la règle et invite à vérifier le texte. Quand la réponse dépend de l'ordonnance de désignation (durée, pouvoirs, missions), rappelle de s'y reporter.
 - Tu ne peux rien exécuter dans l'application (ni envoi, ni création, ni modification) : propose les étapes et, si utile, un projet de texte à relire.
 - ${miseEnForme}
+- Les noms des personnes et des prestataires sont remplacés par des pseudonymes : « Copropriétaire 1 », « Prestataire 2 », « Personne 3 » (personne citée avec sa civilité). Emploie-les comme des noms propres et recopie-les à l'identique, un pseudonyme complet pour chaque personne (« Copropriétaire 1 et Copropriétaire 2 »). Ne cherche pas à retrouver les vrais noms. « Copropriétaire 1 ou Copropriétaire 2 » désigne un nom porté par plusieurs personnes : demande laquelle si la réponse en dépend.
 - Certaines valeurs sont remplacées par des jetons de la forme <type:xxxxxxxx> (données personnelles masquées) : recopie-les tels quels si tu en as besoin.
 </regles>`
 }
