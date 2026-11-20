@@ -209,6 +209,23 @@ export function estEspaceCabinetQr(pathname: string | null | undefined): boolean
   return page === 'connexion' || page === 'suivi'
 }
 
+/** Ancienne adresse du formulaire (/fr/signalement/<jeton>/, urlSignalementQr), ou sa page interne (/signalement/<jeton>). */
+const MOTIF_ANCIEN_FORMULAIRE_QR = /^(?:\/(?:fr|pt|en|nl|es))?\/signalement\/[^/]+\/?$/
+
+/**
+ * Formulaire public d'un signalement (page ouverte par le QR code), sous l'adresse affichée (/<id>/signalement/<jeton>/,
+ * ancienne /fr/signalement/<jeton>/) ou sous la page interne de la réécriture (/cabinet/<id>/signalement/<jeton>,
+ * /signalement/<jeton>), selon ce que rend usePathname. D24 (décision de Hugo du 17/11/2026) : aucune mesure d'audience
+ * sur cette page (components/common/ConsentAnalytics.tsx). Aucune lecture de base.
+ */
+export function estFormulaireSignalementQr(pathname: string | null | undefined): boolean {
+  if (!pathname) return false
+  if (MOTIF_ANCIEN_FORMULAIRE_QR.test(pathname)) return true
+  const interne = /^\/cabinet(\/.+)$/.exec(pathname)
+  return cheminPublicCabinetQr(pathname)?.page === 'signalement'
+    || (interne !== null && cheminPublicCabinetQr(interne[1])?.page === 'signalement')
+}
+
 /** Espace de suivi d'un cabinet (barre finale : site en trailingSlash), sans langue. */
 export const cheminSuiviCabinetQr = (identifiant: string): string => `/${identifiant}/suivi/`
 
