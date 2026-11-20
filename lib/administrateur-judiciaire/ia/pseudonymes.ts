@@ -10,16 +10,19 @@
  * `JSON.stringify` ne la voit pas, elle ne va ni au journal ni dans une trace.
  *
  * Reconnaissance, dans cet ordre (un passage remplacé n'est plus relu) :
+ * 0. texte qui est, en entier, un nom des listes (champ `nom` d'un débiteur…) : son pseudonyme, quelle que soit sa graphie ;
  * 1. nom complet (et nom inversé), civilité facultative, quelle que soit la casse, avec ou sans accents, espace ou trait
  *    d'union entre les mots. Prestataires (sociétés, mais aussi entrepreneurs individuels, que rien ne distingue dans
- *    la base) : nom complet seulement, pour ne pas remplacer un mot courant de leur raison sociale ;
+ *    la base) : nom complet seulement, avec ou sans sa forme juridique (« Atelier X » pour « Atelier X SARL »), pour ne
+ *    pas remplacer un mot courant de leur raison sociale ;
  * 2. partie du nom d'une personne : plusieurs mots du nom côte à côte, quelle que soit la casse ; un seul mot (nom de
  *    famille, prénom, nom composé), précédé d'une civilité ou écrit avec une majuscule initiale (un mot seul en
  *    minuscules est un nom commun : « un roc », « couvreur »). Une partie portée par plusieurs personnes devient
  *    « Copropriétaire 1 ou Copropriétaire 2 ». Un mot qui figure aussi dans le nom d'une copropriété, un métier ou une
  *    ville n'est remplacé seul qu'avec sa civilité ;
- * 3. civilité suivie d'un nom absent des listes (« Mme X » dans une note ou dans la question), sur la même ligne :
- *    « Personne N ».
+ * 3. civilité suivie d'un nom absent des listes (« Mme X » dans une note ou dans la question), sur la même ligne, avec
+ *    ses particules (« M. de la X », « Mme Van der X », « M. dos X ») : « Personne N » ; « MM. X et Y » : « MM. Personne 1
+ *    et Personne 2 ».
  * Jamais à l'intérieur d'un autre mot : une partie n'est reconnue ni collée à une lettre ni reliée par un trait d'union.
  * Une élision devant un nom remplacé reprend sa forme pleine (« le lot d'Ondine » → « le lot de Copropriétaire 1 ») ;
  * le rétablissement la refait selon l'initiale du vrai nom.
@@ -54,21 +57,35 @@ const CIVILITES: ReadonlyMap<string, string> = new Map([
   ['m', 'm'], ['m.', 'm'], ['mm.', 'm'], ['mr', 'm'], ['mr.', 'm'], ['monsieur', 'm'],
   ['mme', 'mme'], ['mmes', 'mme'], ['madame', 'mme'], ['mlle', 'mlle'], ['mademoiselle', 'mlle'],
   ['me', 'me'], ['maitre', 'me'], ['dr', 'dr'], ['dr.', 'dr'], ['docteur', 'dr'],
+  ['melle', 'mlle'], ['vve', 'vve'], ['veuve', 'vve'],
+])
+
+/** Formes juridiques : un prestataire se cite aussi sans elle (« Atelier X » pour « Atelier X SARL »). */
+const FORMES_JURIDIQUES: ReadonlySet<string> = new Set([
+  'sci', 'sarl', 'sas', 'sasu', 'sa', 'eurl', 'snc', 'ei', 'eirl', 'scp', 'sel', 'selarl',
 ])
 
 /** Mots qui ne désignent personne à eux seuls : particules, formes juridiques, civilités, « née », « & Fils ». */
 const MOTS_NEUTRES: ReadonlySet<string> = new Set([
   'de', 'du', 'des', 'd', 'la', 'le', 'les', 'l', 'van', 'von', 'der', 'den', 'da', 'di', 'do', 'dos', 'das', 'del', 'e', 'y', 'et',
-  'epouse', 'epoux', 'ep', 'veuve', 'vve', 'nee', 'sci', 'sarl', 'sas', 'sasu', 'sa', 'eurl', 'snc', 'ei', 'eirl', 'scp', 'sel',
-  'selarl', 'indivision', 'consorts', 'cts', 'succession', 'heritiers', 'famille', 'societe', 'ste', 'cie', 'fils', 'freres',
-  'associes',
+  'epouse', 'epoux', 'ep', 'nee', 'indivision', 'consorts', 'cts', 'succession', 'heritiers', 'famille', 'societe', 'ste', 'cie',
+  'fils', 'freres', 'associes',
+  ...FORMES_JURIDIQUES,
   ...CIVILITES.keys(),
 ])
 
-/** Civilité, sans tenir compte de la casse (étapes 1 et 2). */
-const CIVILITE = String.raw`(?:mm?\.|mmes?|mlle|monsieur|madame|mademoiselle|ma[iî]tre|me|mr\.?|dr\.?|docteur|m)`
-/** Civilité telle qu'on l'écrit (étape 3 : sensible à la casse, pour ne pas lire « me » ou « m » dans une phrase). */
-const CIVILITE_ECRITE = String.raw`(?:MM?\.|Mmes?|MMES?|Mlle|MLLE|Monsieur|MONSIEUR|Madame|MADAME|Mademoiselle|MADEMOISELLE|Ma[iî]tre|MA[IÎ]TRE|Me|Mr\.?|Dr\.?|Docteur)`
+/**
+ * Civilité, sans tenir compte de la casse (étapes 1 et 2). Pas de civilité au pluriel : « MM. » et « Mmes » restent
+ * devant le nom pour que l'étape 3 lise toute la liste (« MM. X et Y »).
+ */
+const CIVILITE = String.raw`(?:m\.|mme|mlle|melle|monsieur|madame|mademoiselle|ma[iî]tre|me|mr\.?|dr\.?|docteur|vve|veuve|m)`
+/**
+ * Civilité telle qu'on l'écrit (étape 3 : sensible à la casse, pour ne pas lire « me » ou « m » dans une phrase) ;
+ * « M » sans point seulement devant une espace (« M Dupont »).
+ */
+const CIVILITE_ECRITE = String.raw`(?:MM?\.|Mmes?|MMES?|Mlle|MLLE|Melle|MELLE|Monsieur|MONSIEUR|Madame|MADAME|Mademoiselle|MADEMOISELLE|Ma[iî]tre|MA[IÎ]TRE|Me|Mr\.?|Dr\.?|Docteur|Vve|VVE|Veuve|VEUVE|M(?=[^\S\r\n]))`
+/** Civilité d'une liste de personnes (« MM. X et Y »). */
+const CIVILITE_PLURIEL = String.raw`(?:MM\.|Mmes|MMES)`
 /** Civilité en tête d'un nom de la base (forme repliée). */
 const CIVILITE_DE_TETE = new RegExp(String.raw`^(?:(?:${[...CIVILITES.keys()].map((c) => c.replaceAll('.', String.raw`\.`)).join('|')})\s+)+`)
 /** Pas de lettre, de chiffre ni de trait d'union collé au nom. */
@@ -79,9 +96,26 @@ const APOSTROPHE = String.raw`['\u2019\u02BC]`
 const MOT_NOM = String.raw`\p{Lu}[\p{L}'\u2019\-]*`
 /** Espaces d'une même ligne : le mot qui ouvre la ligne suivante (« Client : … ») n'appartient pas au nom. */
 const ESPACE_LIGNE = String.raw`[^\S\r\n]+`
-/** Étape 3 : civilité suivie d'un à trois mots à majuscule (« M. le Président » n'en est pas un), sur la même ligne. */
-const PERSONNE_CITEE = new RegExp(
-  String.raw`(?<![\p{L}\p{N}])(${CIVILITE_ECRITE})${ESPACE_LIGNE}((?:(?:de|du|des)${ESPACE_LIGNE}|d${APOSTROPHE})?${MOT_NOM}(?:${ESPACE_LIGNE}${MOT_NOM}){0,2})`,
+/**
+ * Particules en tête d'un nom cité, en minuscules : « de », « de la », « de l’ », « d’ », « du », « des », « van der »,
+ * « da », « dos »… Jamais « le » ou « la » seuls : « M. le Président », « Mme la juge » ne sont pas des noms.
+ */
+const PARTICULE_TETE = String.raw`(?:(?:de|du|des|van|von|da|das|do|dos|di|del|della|ten|ter)${ESPACE_LIGNE}(?:(?:la|der|den)${ESPACE_LIGNE}|l${APOSTROPHE})?|d${APOSTROPHE})`
+/** Particules entre deux mots d'un nom cité, qui ne sont pas des mots français (« Van der X ») : « de » n'en est pas. */
+const PARTICULE_INTERNE = String.raw`(?:(?:van|von|der|den|da|das|do|dos|di|del|della|ten|ter)${ESPACE_LIGNE})*`
+/** Nom cité après une civilité : un à trois mots à majuscule, avec leurs particules, sur la même ligne. */
+const NOM_CITE = String.raw`${PARTICULE_TETE}?${MOT_NOM}(?:${ESPACE_LIGNE}${PARTICULE_INTERNE}${MOT_NOM}){0,2}`
+/** Étape 3 : civilité suivie d'un nom (« M. le Président » n'en est pas un). */
+const PERSONNE_CITEE = new RegExp(String.raw`(?<![\p{L}\p{N}])(${CIVILITE_ECRITE})${ESPACE_LIGNE}(${NOM_CITE})`, 'gu')
+/** Liaison entre les noms d'une liste (« MM. X, Y et Z »). */
+const LIAISON_NOMS = String.raw`(?:[^\S\r\n]*,[^\S\r\n]*|${ESPACE_LIGNE}et${ESPACE_LIGNE})`
+const LIAISON = new RegExp(`(${LIAISON_NOMS})`, 'u')
+/** Nom d'une liste : nom cité, ou jeton d'un nom des listes déjà remplacé par les étapes 1 et 2. */
+const ELEMENT_LISTE = String.raw`(?:${NOM_CITE}|\d+)`
+const JETON_SEUL = /^\d+$/u
+/** Étape 3, avant la précédente : civilité au pluriel suivie de plusieurs noms, remplacés un à un. */
+const PERSONNES_CITEES = new RegExp(
+  String.raw`(?<![\p{L}\p{N}])(${CIVILITE_PLURIEL})(${ESPACE_LIGNE})(${ELEMENT_LISTE}(?:${LIAISON_NOMS}${ELEMENT_LISTE})+)`,
   'gu',
 )
 
@@ -109,12 +143,17 @@ const NUMERO = String.raw`\s+(?:(?:n[°º]|num[ée]ro|#)\s*)?`
 const LISTE_NUMEROS = String.raw`\d{1,4}(?:(?:\s*,\s*|\s+(?:et|ou)\s+)\d{1,4})`
 const DETERMINANT = String.raw`(le|la|les|du|des|au|aux|un|une|ce|cet|cette|ces|chaque|ledit|ladite|dudit|audit)\s+`
 const ELIDABLE = String.raw`(d|qu|jusqu|lorsqu|puisqu|quoiqu)(?:e\s+|${APOSTROPHE}\s*)`
+/** Unités qui font d'un nombre une quantité (« relancer le copropriétaire 8 jours après », « 1 fois par an », « 4 % »). */
+const UNITE = String.raw`(?:fois|jours?|semaines?|mois|ans?|ann[ée]es?|heures?|minutes?|euros?|€|%)`
+/** Fin d'un numéro de pseudonyme : ni chiffre, ni lettre collée (« 2e »), ni décimale (« 1,5 »), ni unité. */
+const FIN_NUMERO = String.raw`(?![\p{L}\p{N}]|[.,]\d|\s*${UNITE}(?!\p{L}))`
 const PSEUDONYME = new RegExp(
-  String.raw`(?<![\p{L}\p{N}])(?:${DETERMINANT}|${ELIDABLE})?${ROLE}${NUMERO}(\d{1,4})(?!\d)`,
+  String.raw`(?<![\p{L}\p{N}])(?:${DETERMINANT}|${ELIDABLE})?${ROLE}${NUMERO}(\d{1,4})${FIN_NUMERO}`,
   'giu',
 )
+/** Liste entière ou rien : pas de retour en arrière vers une liste plus courte (« 1, 2 et 3 semaines »). */
 const PSEUDONYMES_PLURIEL = new RegExp(
-  String.raw`(?<![\p{L}\p{N}])(?:${DETERMINANT})?${ROLE}s\s+(${LISTE_NUMEROS}+)(?!\s?\d)`,
+  String.raw`(?<![\p{L}\p{N}])(?:${DETERMINANT})?${ROLE}s\s+(${LISTE_NUMEROS}+)(?!\s?\d|\s*,\s*\d|\s+(?:et|ou)\s+\d)${FIN_NUMERO}`,
   'giu',
 )
 /** Pseudonymes déjà écrits dans les données (singulier ou liste) : leurs numéros ne sont pas attribués. */
@@ -159,6 +198,8 @@ interface Etat {
 }
 
 interface Reconnaissance {
+  /** Étape 0 : clé d'un nom des listes, tel qu'il est écrit dans son champ → jeton. */
+  jetonDeLaValeur: ReadonlyMap<string, string>
   /** Étape 1 : noms complets et parties de plusieurs mots, civilité facultative, casse indifférente. */
   complets: RegExp | null
   jetonDuNom: ReadonlyMap<string, string>
@@ -278,10 +319,16 @@ function partiesDuNom(mots: readonly string[]): string[] {
   return [...parties, ...apresElision]
 }
 
-/** Nom exact, nom sans ponctuation et nom inversé (« Nom Prénom ») ; un prestataire se reconnaît même à un seul mot. */
+/**
+ * Nom exact, nom sans ponctuation et nom inversé (« Nom Prénom ») ; un prestataire se reconnaît même à un seul mot, et
+ * sans sa forme juridique s'il lui reste au moins deux mots (« Plomberie » seul est un mot courant).
+ */
 function variantesCompletes(exact: string, mots: readonly string[], role: Role): string[] {
   const sansPonctuation = mots.join(' ')
-  if (role === 'Prestataire') return [exact, sansPonctuation]
+  if (role === 'Prestataire') {
+    const sansForme = mots.filter((mot) => !FORMES_JURIDIQUES.has(mot))
+    return [exact, sansPonctuation, ...(sansForme.length >= 2 ? [sansForme.join(' ')] : [])]
+  }
   if (mots.length < 2) return []
   return [exact, sansPonctuation, [...mots.slice(-1), ...mots.slice(0, -1)].join(' ')]
 }
@@ -324,13 +371,18 @@ interface Repertoire {
   complets: Map<string, string>
   /** Partie du nom → personnes qui la portent. */
   parties: Map<string, Entite[]>
+  /** Clé du nom tel qu'il est écrit dans son champ → jeton (le champ entier est remplacé, quelle que soit sa graphie). */
+  valeurs: Map<string, string>
 }
 
 function enregistrerNom(repertoire: Repertoire, etat: Etat, nom: string, role: Role): void {
   const { exact, mots } = analyserNom(nom)
   const cleNom = mots.join(' ')
-  if (!exact || repertoire.entites.has(cleNom)) return
-  const entite = nouvelleEntite(etat, role, nom.trim())
+  if (!exact) return
+  const connue = repertoire.entites.get(cleNom)
+  const entite = connue ?? nouvelleEntite(etat, role, nom.trim())
+  if (!repertoire.valeurs.has(cle(nom))) repertoire.valeurs.set(cle(nom), entite.jeton)
+  if (connue) return
   repertoire.entites.set(cleNom, entite)
   for (const variante of variantesCompletes(exact, mots, role)) {
     if (!repertoire.complets.has(variante)) repertoire.complets.set(variante, entite.jeton)
@@ -341,7 +393,7 @@ function enregistrerNom(repertoire: Repertoire, etat: Etat, nom: string, role: R
 
 /** Noms des listes du contexte → entités numérotées dans l'ordre du contexte, expressions des étapes 1 et 2. */
 function construireReconnaissance(contexte: Record<string, unknown>, etat: Etat): Reconnaissance {
-  const repertoire: Repertoire = { entites: new Map(), complets: new Map(), parties: new Map() }
+  const repertoire: Repertoire = { entites: new Map(), complets: new Map(), parties: new Map(), valeurs: new Map() }
   for (const source of CHAMPS_NOMS) {
     for (const nom of valeurs(contexte, source)) enregistrerNom(repertoire, etat, nom, source.role)
   }
@@ -359,6 +411,7 @@ function construireReconnaissance(contexte: Record<string, unknown>, etat: Etat)
   const motsSeuls = [...jetonDeLaPartie.keys()].filter((partie) => !partie.includes(' '))
   const valeursProtegees = CHAMPS_PROTEGES.flatMap((champ) => valeurs(contexte, champ))
   return {
+    jetonDeLaValeur: repertoire.valeurs,
     complets: expressionAvecCivilite([...complets.keys(), ...plusieursMots], false),
     jetonDuNom: complets,
     partiesAvecCivilite: expressionAvecCivilite(motsSeuls, true),
@@ -393,11 +446,26 @@ function remplacerParties(texte: string, reco: Reconnaissance, etat: Etat): stri
 const remplacerPersonnesCitees = (texte: string, etat: Etat): string =>
   texte.replaceAll(PERSONNE_CITEE, (brut: string, civilite: string, nom: string) => personneCitee(etat, brut, civilite, nom))
 
-/** Remplacement d'un texte : étapes 1 à 3, puis élisions et jetons provisoires → pseudonymes. */
+/**
+ * Étape 3 : « MM. X et Y » → « MM. Personne 1 et Personne 2 ». La civilité reste en clair ; chaque nom, rétabli seul,
+ * est la même personne que « M. X » ailleurs.
+ */
+const remplacerListesCitees = (texte: string, etat: Etat): string =>
+  texte.replaceAll(PERSONNES_CITEES, (_brut: string, civilite: string, espace: string, liste: string) => {
+    const morceaux = liste
+      .split(LIAISON)
+      .map((morceau, i) => (i % 2 === 1 || JETON_SEUL.test(morceau) ? morceau : personneCitee(etat, morceau, civilite, morceau)))
+    return `${civilite}${espace}${morceaux.join('')}`
+  })
+
+const remplacerEtapes = (texte: string, reco: Reconnaissance, etat: Etat): string =>
+  remplacerPersonnesCitees(remplacerListesCitees(remplacerParties(remplacerNomsComplets(texte, reco, etat), reco, etat), etat), etat)
+
+/** Remplacement d'un texte : étape 0 (texte entier) ou étapes 1 à 3, puis élisions et jetons provisoires → pseudonymes. */
 function remplaceur(reco: Reconnaissance, etat: Etat): (texte: string) => string {
   return (texte) => {
     const sansReserves = texte.normalize('NFC').replaceAll(RESERVES, '')
-    const avecJetons = remplacerPersonnesCitees(remplacerParties(remplacerNomsComplets(sansReserves, reco, etat), reco, etat), etat)
+    const avecJetons = reco.jetonDeLaValeur.get(cle(sansReserves)) ?? remplacerEtapes(sansReserves, reco, etat)
     return avecJetons
       .replaceAll(JETONS_REPETES, '$1')
       .replaceAll(ELISION_DEVANT_JETON, '$1e ')

@@ -97,6 +97,38 @@ describe('pseudonymiserNoms — rien ne part au modèle', () => {
     expect(question('Gérant : M. Ystarion Velasque\nClient : la copropriété')).toBe('Gérant : Personne 2\nClient : la copropriété')
   })
 
+  it('personne citée avec une particule, « Melle », « M » sans point, « Vve » ou « MM. X et Y » : rien ne part', () => {
+    // « Personne 1 » est la personne de la note du contexte (Mme Pelagnier).
+    for (const [texte, attendu] of [
+      ['Appeler M. de la Morvenne demain', 'Appeler Personne 2 demain'],
+      ['Courrier de Mme de l’Estravel reçu', 'Courrier de Personne 2 reçu'],
+      ['Rappeler M. da Corvelha puis M. dos Varelhos', 'Rappeler Personne 2 puis Personne 3'],
+      ['Lot de Mme Van der Lorst', 'Lot de Personne 2'],
+      ['Melle Ondrevac a appelé', 'Personne 2 a appelé'],
+      ['M Ondrevac a appelé', 'Personne 2 a appelé'],
+      ['Vve Ondrevac, lot 8', 'Personne 2, lot 8'],
+      ['Élection de MM. Ondrevac et Ystarion Velasque, scrutateurs', 'Élection de MM. Personne 2 et Personne 3, scrutateurs'],
+      // Liste qui mêle un nom des listes et une personne inconnue : aucun des deux ne part.
+      ['Élection de MM. Kervaliec et Ondrevac', 'Élection de MM. Copropriétaire 1 ou Copropriétaire 2 et Personne 2'],
+    ]) {
+      expect(question(texte), texte).toBe(attendu)
+    }
+    const { donnees, retablir } = envoyer('Élection de MM. Ondrevac et Ystarion Velasque ; M. de la Morvenne absent')
+    expect(retablir(donnees.message)).toBe('Élection de MM. Ondrevac et Ystarion Velasque ; M. de la Morvenne absent')
+  })
+
+  it('champ de nom du contexte : remplacé en entier, même quand sa graphie échappe à la lecture du texte', () => {
+    // Nom d'un seul mot saisi en minuscules, nom réduit à une particule élidée et un mot.
+    const contexte = {
+      coproprietairesDebiteurs: [{ nom: 'quillevar', lot: '2' }, { nom: 'd’Arvenoc', lot: '5' }],
+      dossiersImpayes: [{ debiteur: 'quillevar', montant: 300 }],
+    }
+    expect(pseudonymiserNoms(contexte, contexte).donnees).toEqual({
+      coproprietairesDebiteurs: [{ nom: 'Copropriétaire 1', lot: '2' }, { nom: 'Copropriétaire 2', lot: '5' }],
+      dossiersImpayes: [{ debiteur: 'Copropriétaire 1', montant: 300 }],
+    })
+  })
+
   it('formules de politesse et fonctions sans nom : rien n’est remplacé', () => {
     const texte = 'Madame, Monsieur, M. le Président et Mme la juge ont reçu le courrier.'
     expect(question(texte)).toBe(texte)
@@ -178,6 +210,18 @@ describe('pseudonymiserNoms — réponse affichée', () => {
     )
   })
 
+  it('nombre qui compte autre chose (durée, fois, montant, ordinal, décimal) : jamais pris pour un pseudonyme', () => {
+    const { retablir } = envoyer('Point des impayés')
+    const texte =
+      'Relancer le copropriétaire 2 jours après la mise en demeure, chaque prestataire 1 fois par an ; ' +
+      'le copropriétaire 3 mois plus tard ; Copropriétaire 2e relance ; prestataire 1,5 jour ; Copropriétaire 4 % ; ' +
+      'les copropriétaires 1 et 2 semaines.'
+    expect(retablir(texte)).toBe(texte)
+    expect(retablir('Copropriétaire 3 : 2 relances. Copropriétaire 1 annonce un virement ; le copropriétaire 2 joue le jeu.')).toBe(
+      'Éloïse Darnetal-Quérec : 2 relances. Ondine Kervaliec annonce un virement ; le copropriétaire Noé Kervaliec joue le jeu.',
+    )
+  })
+
   it('liste au pluriel : chaque numéro est rétabli', () => {
     const { retablir } = envoyer('Point des impayés')
     expect(retablir('Copropriétaires 1 et 3 sont en retard.')).toBe('Ondine Kervaliec et Éloïse Darnetal-Quérec sont en retard.')
@@ -233,6 +277,14 @@ describe('pseudonymiserNoms — cas limites', () => {
   it('prestataire qui porte le nom d’une personne : nom complet du prestataire, pas un mélange', () => {
     expect(question('Appeler Plomberie Kervaliec')).toBe('Appeler Prestataire 1')
     expect(question('Appeler plomberie kervaliec')).toBe('Appeler Prestataire 1')
+  })
+
+  it('prestataire cité sans sa forme juridique : même pseudonyme (le modèle relie la question au contexte)', () => {
+    expect(question('Le devis d’Atelier Brumaire est-il signé ?')).toBe('Le devis de Prestataire 2 est-il signé ?')
+    expect(question('Atelier Brumaire SARL et atelier brumaire')).toBe('Prestataire 2 et Prestataire 2')
+    // Un seul mot sans la forme juridique : trop courant pour être lu comme le prestataire.
+    const contexte = { prestataires: [{ nom: 'Plomberie SARL' }] }
+    expect(pseudonymiserNoms('Plomberie SARL ; plomberie du hall', contexte).donnees).toBe('Prestataire 1 ; plomberie du hall')
   })
 
   it('noms composés et accents : toutes les graphies de la même personne', () => {
