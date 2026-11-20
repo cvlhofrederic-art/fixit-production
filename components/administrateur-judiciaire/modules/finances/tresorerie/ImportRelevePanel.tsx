@@ -4,6 +4,8 @@ import { useState, type ChangeEvent } from 'react'
 import { EXEMPLE_RELEVE_BANCAIRE_CSV } from '@/components/administrateur-judiciaire/data/exemples-import'
 import {
   analyserReleve,
+  decoderTexteReleve,
+  refusTailleReleve,
   type AnalyseReleve,
   type SelectionsImputation,
 } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/analyse-releve'
@@ -27,10 +29,15 @@ import type { PersonneCopropriete } from '@/lib/administrateur-judiciaire/domain
  * sous-compte 512 de ce compte (db/releves-bancaires.ts), d'où le solde par compte. Seuls les comptes actifs de la
  * copropriété sont proposés ; un seul : choisi d'office ; plusieurs : à choisir. L'analyse reste possible sans compte
  * (lecture du fichier), l'import non. Changer de copropriété ou de compte abandonne l'analyse, faite pour l'ancien.
+ * Formats : CSV, CFONB 120 et camt.053 (analyse-releve.ts) ; fichier lu en UTF-8, à défaut en Windows-1252, refusé
+ * avant lecture au-delà de 10 Mo ; un fichier structuré qui contient une erreur n'est pas importé.
  */
 
 /** Lecture des comptes bancaires par l'écran. */
 export type EtatComptes = 'chargement' | 'erreur' | 'lu'
+
+/** Fichiers proposés : CSV, CFONB 120 (.txt, .cfonb) et camt.053 (.xml, .053). */
+const FICHIERS_ACCEPTES = '.csv,.txt,.xml,.053,.cfonb,text/csv,application/xml,text/xml'
 
 const AUCUN_COMPTE_ACTIF = 'Aucun compte bancaire actif : enregistrer d’abord le compte dans « Comptes bancaires du mandat ».'
 const COMPTE_A_CHOISIR = 'Choisir le compte bancaire du relevé.'
@@ -125,12 +132,21 @@ export function ImportRelevePanel({ copro, comptes, etatComptes, personnes, lign
   const choisirFichier = (evenement: ChangeEvent<HTMLInputElement>) => {
     const fichier = evenement.target.files && evenement.target.files[0]
     if (!fichier) return
+    // Tout le fichier est lu en mémoire : un fichier trop gros est refusé avant sa lecture.
+    const refus = refusTailleReleve(fichier.size)
+    if (refus) {
+      push({ kind: 'warn', title: 'Fichier non lu', desc: refus })
+      return
+    }
     const lecteur = new FileReader()
     lecteur.onload = () => {
-      setTexteReleve(String(lecteur.result || ''))
+      setTexteReleve(lecteur.result instanceof ArrayBuffer ? decoderTexteReleve(lecteur.result) : '')
       setAnalyse(null)
     }
-    lecteur.readAsText(fichier, 'utf-8')
+    lecteur.onerror = () => {
+      push({ kind: 'warn', title: 'Fichier non lu', desc: lecteur.error?.message ?? 'Lecture du fichier impossible.' })
+    }
+    lecteur.readAsArrayBuffer(fichier)
   }
 
   const importer = async () => {
@@ -172,7 +188,7 @@ export function ImportRelevePanel({ copro, comptes, etatComptes, personnes, lign
   return (
     <Panel
       title="Importer un relevé"
-      sub="CSV exporté de la banque : date, libellé, montant (ou débit et crédit). Coller le texte ou choisir un fichier."
+      sub="Relevé de la banque : CSV (date, libellé, montant, ou débit et crédit), CFONB 120 ou camt.053. Coller le texte ou choisir un fichier."
       icon="upload"
     >
       <ChoixCompte etat={etatComptes} actifs={actifs} choisi={compteChoisi} choisir={setChoixCompte} />
@@ -185,7 +201,7 @@ export function ImportRelevePanel({ copro, comptes, etatComptes, personnes, lign
           marginBottom: 10,
         }}
       >
-        <input type="file" accept=".csv,.txt,text/csv" aria-label="Fichier de relevé" onChange={choisirFichier} />
+        <input type="file" accept={FICHIERS_ACCEPTES} aria-label="Fichier de relevé" onChange={choisirFichier} />
         <button
           className="btn"
           onClick={() => {
@@ -235,7 +251,11 @@ export function ImportRelevePanel({ copro, comptes, etatComptes, personnes, lign
               alignItems: 'center',
             }}
           >
-            <button className="btn gold" onClick={importer} disabled={importEnCours || analyse.retenues.length === 0 || motifCompte !== null}>
+            <button
+              className="btn gold"
+              onClick={importer}
+              disabled={importEnCours || analyse.retenues.length === 0 || motifCompte !== null || analyse.blocage !== null}
+            >
               <Icon name="check" />
               {'Importer '}
               {analyse.retenues.length}
