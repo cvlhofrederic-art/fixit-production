@@ -813,22 +813,30 @@ export interface FinDelaiEtablieHorsOutil extends SaisieFinDelaiHorsOutil {
 }
 
 /**
- * Décision du 20/11/2026 (partie C, F82) : la fin du délai de contestation établie hors de l'outil (AG ancienne, dont les
- * notifications ne sont pas saisies) se saisit avec un motif et une pièce (certificat de non-recours, par exemple), et la
- * saisie est tracée (collaborateur, date) ; le contrôle de l'OS la lit comme une fin connue (envoi-ordre-service.ts).
+ * Décision du 20/11/2026 (partie C, F82) : une fin du délai établie hors de l'outil n'existe qu'avec ses dates, son motif,
+ * sa pièce et son auteur ; vérifiée à la saisie et de nouveau quand le contrôle de l'OS la lit (reprise d'ailleurs).
  */
-export function etablirFinDelaiHorsOutil(saisie: SaisieFinDelaiHorsOutil): FinDelaiEtablieHorsOutil {
+export function verifierFinDelaiHorsOutil(saisie: SaisieFinDelaiHorsOutil): void {
   for (const [libelle, date] of [
     ['Fin du délai', saisie.fin],
     ['Date de la saisie', saisie.saisieLe],
   ] as const)
     if (!estDateIsoValide(date)) throw new Error(`${libelle} invalide (${date}) : AAAA-MM-JJ attendu.`)
+  if (!saisie.motif.trim()) throw new Error("Fin du délai établie hors de l'outil : motif obligatoire (Décision du 20/11/2026, partie C, F82).")
+  if (!saisie.pieceId.trim()) throw new Error("Fin du délai établie hors de l'outil : pièce obligatoire (certificat de non-recours, par exemple).")
+  if (!saisie.collaborateurId.trim()) throw new Error("Fin du délai établie hors de l'outil : collaborateur qui la saisit attendu (saisie tracée).")
+}
+
+/**
+ * Décision du 20/11/2026 (partie C, F82) : la fin du délai de contestation établie hors de l'outil (AG ancienne, dont les
+ * notifications ne sont pas saisies) se saisit avec un motif et une pièce (certificat de non-recours, par exemple), et la
+ * saisie est tracée (collaborateur, date) ; le contrôle de l'OS la lit comme une fin connue (envoi-ordre-service.ts).
+ */
+export function etablirFinDelaiHorsOutil(saisie: SaisieFinDelaiHorsOutil): FinDelaiEtablieHorsOutil {
+  verifierFinDelaiHorsOutil(saisie)
   const motif = saisie.motif.trim()
   const pieceId = saisie.pieceId.trim()
   const collaborateurId = saisie.collaborateurId.trim()
-  if (!motif) throw new Error("Fin du délai établie hors de l'outil : motif obligatoire (Décision du 20/11/2026, partie C, F82).")
-  if (!pieceId) throw new Error("Fin du délai établie hors de l'outil : pièce obligatoire (certificat de non-recours, par exemple).")
-  if (!collaborateurId) throw new Error("Fin du délai établie hors de l'outil : collaborateur qui la saisit attendu (saisie tracée).")
   return {
     etat: 'etablie_hors_outil',
     fin: saisie.fin,

@@ -547,3 +547,36 @@ describe('F90 — avant un paiement : alerte sans blocage ; élément « à fair
     expect(enTeteDuModule('suivi-a-faire').texte).toContain('Décision du 20/11/2026 (partie C, F90)')
   })
 })
+
+describe('Décisions du 20/11/2026 (partie C) — relecture indépendante : F77 et F82', () => {
+  it('F77 — un constat hors des signataires habilités ne vaut pas constat : il ne tient pas non plus lieu de l’avis (pas d’alerte « constat postérieur »)', () => {
+    const d = demandeOs()
+    const cadre: SaisieSortieOs = {
+      fondement: 'decision_aj_pouvoirs_ag',
+      fondementReference: 'registre n° 7',
+      decisionLe: '2026-10-02',
+      delai: 'urgence',
+      justificatifs: { modeFinancement: 'appel de fonds' },
+    }
+    const codesDuConstat = (constat: ConstatUrgence): string[] =>
+      controlerAvantEnvoiOs(d, sortie(d, { ...cadre, constatUrgence: { ...constat, constateLe: '2026-10-03' } }), HABILITES).map((a) => a.code)
+    // constat d'un signataire habilité, daté après la décision au registre : l'alerte de J46 reste
+    expect(codesDuConstat(CONSTAT)).toContain('constat_urgence_posterieur')
+    // hors des habilités : le constat ne vaut rien, l'avis du conseil syndical reste dû
+    const horsListe = codesDuConstat(parStagiaire)
+    expect(horsListe).not.toContain('constat_urgence_posterieur')
+    expect(horsListe).toContain('constat_urgence_auteur_non_habilite')
+    expect(horsListe).toContain('avis_conseil_syndical_aj_absent')
+  })
+
+  it('F82 (5) — une fin du délai « établie hors de l’outil » reprise d’ailleurs sans motif, sans pièce ou sans auteur n’est pas lue', () => {
+    const d = demandeOs()
+    const etablie = etablirFinDelaiHorsOutil({ fin: '2025-06-30', motif: 'AG ancienne', pieceId: 'doc-1', collaborateurId: 'col-direction', saisieLe: '2026-10-01' })
+    const controler = (delaiContestationAg: ResultatDelaiContestationAg) => controlerAvantEnvoiOs(d, resolution(d), { ...CONTEXTE, delaiContestationAg })
+    expect(controler(etablie)).toEqual([])
+    expect(() => controler({ ...etablie, motif: ' ' })).toThrow(/motif obligatoire/)
+    expect(() => controler({ ...etablie, pieceId: '' })).toThrow(/pièce obligatoire/)
+    expect(() => controler({ ...etablie, collaborateurId: '' })).toThrow(/collaborateur/)
+    expect(() => controler({ ...etablie, fin: '30/06/2025' })).toThrow(/AAAA-MM-JJ/)
+  })
+})

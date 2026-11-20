@@ -233,7 +233,9 @@ export { MOTIFS_ANNULATION_REGLEMENT, type MotifAnnulationReglement }
  *   Texte : le droit fixe est perçu dès que la décision de désignation est portée à la connaissance de l'administrateur,
  *   le président du tribunal fixe les acomptes chaque année et arrête la rémunération finale (D. 1967 art. 61-1-5, I à
  *   III). La facture du cabinet est déjà plafonnée à sa préparation (honoraires-facturation.ts, J67, R2 et R3) : ce
- *   contrôle porte le même plafond au paiement. 🔵 Déduit : tout règlement non annulé de la même base compte dans le
+ *   contrôle porte le même plafond au paiement : l'ordonnance de taxe arrêtant toute la rémunération (J67, R3), son
+ *   cumul compte aussi le droit fixe et les acomptes payés sur le mandat. 🔵 Déduit : montant fixé TVA comprise, comme
+ *   les règlements qu'il plafonne ; tout règlement non annulé de la même base compte dans le
  *   cumul, demandé ou à régler compris (un paiement préparé ne doit pas non plus dépasser le montant fixé) ; sous un
  *   contrat ou une ordonnance de désignation, aucun texte cité (fondement null) ;
  * - Décision du 20/11/2026 (partie C, F88) — un règlement « acompte sur commande », sans facture, avec la référence
@@ -1639,10 +1641,18 @@ const fondementBase = (base: BaseRemuneration): string | null =>
   base.nature === 'droit_fixe' || (base.nature === 'ordonnance' && base.objet !== 'designation') ? FONDEMENT_REMUNERATION : null
 
 /**
+ * L'ordonnance de taxe arrête la rémunération de toute la mission : le droit fixe et les acomptes déjà payés s'imputent
+ * sur elle (J67, R3 ; ordonnances-remuneration.ts) et comptent donc dans son cumul (F87, relecture).
+ */
+const arreteTouteLaRemuneration = (base: BaseRemuneration): boolean => base.nature === 'ordonnance' && base.objet === 'taxe'
+
+/**
  * Décision du 20/11/2026 (partie C, F87) — rémunération du cabinet payée par le circuit des factures : le cumul des
  * règlements non annulés au cabinet, sur le même mandat et la même base (droit fixe, ordonnance, contrat), règlement
  * contrôlé compris, ne dépasse jamais le montant fixé par cette base (passé en paramètre : droit fixe, ordonnance
- * d'acompte ou de taxe, contrat) ; au-delà, anomalie bloquante. Sans objet pour un autre bénéficiaire.
+ * d'acompte ou de taxe, contrat ; TVA comprise, comme les règlements) ; au-delà, anomalie bloquante. Sous une ordonnance
+ * de taxe, le cumul compte tous les règlements de la rémunération du mandat, droit fixe et acomptes compris (J67, R3).
+ * Sans objet pour un autre bénéficiaire.
  */
 export function controlerPaiementRemuneration(
   r: ReglementFournisseur,
@@ -1653,20 +1663,22 @@ export function controlerPaiementRemuneration(
   const b = r.beneficiaire
   if (b.type !== 'administrateur_provisoire') return []
   const cle = cleBase(b.base)
+  const toute = arreteTouteLaRemuneration(b.base)
   const memeBase = (autre: ReglementFournisseur): boolean =>
     autre.id !== r.id &&
     autre.statut !== 'Annulé' &&
     autre.mandatId === r.mandatId &&
     autre.beneficiaire.type === 'administrateur_provisoire' &&
     autre.beneficiaire.cabinetId === b.cabinetId &&
-    cleBase(autre.beneficiaire.base) === cle
+    (toute || cleBase(autre.beneficiaire.base) === cle)
   const dejaCentimes = reglements.filter(memeBase).reduce((s, autre) => s + autre.montantCentimes, 0)
   const cumul = dejaCentimes + r.montantCentimes
   if (cumul <= montantFixeCentimes) return []
+  const portee = toute ? ', qui arrête toute la rémunération de la mission (droit fixe et acomptes compris, J67, R3),' : ''
   return [
     {
       code: 'remuneration_au_dela_du_montant_fixe',
-      message: `Règlement ${r.id} refusé : la rémunération du cabinet sur ${libelleBase(b.base)} atteindrait ${cumul} centimes (dont ${dejaCentimes} déjà payés ou préparés), au-delà du montant fixé (${montantFixeCentimes} centimes) ; le cumul payé ne dépasse jamais le montant fixé — ${DECISION_F87}.`,
+      message: `Règlement ${r.id} refusé : la rémunération du cabinet sur ${libelleBase(b.base)}${portee} atteindrait ${cumul} centimes (dont ${dejaCentimes} déjà payés ou préparés), au-delà du montant fixé (${montantFixeCentimes} centimes) ; le cumul payé ne dépasse jamais le montant fixé — ${DECISION_F87}.`,
       fondement: fondementBase(b.base),
     },
   ]

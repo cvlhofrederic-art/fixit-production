@@ -390,27 +390,36 @@ export interface VerificationIban {
   /** Pièce de la source (courrier de l'entreprise, RIB) ; null : non numérisée. */
   pieceId: string | null
   le: string
+  /**
+   * Rejet que la vérification suit (règlement rejeté), posé par verifierIbanApresRejet : un nouveau rejet pour
+   * coordonnées, même le jour de la vérification, en demande une autre ; absent (reprise d'ailleurs) : la date décide.
+   */
+  rejetReglementId?: string
 }
 
 /** Dernier rejet pour coordonnées de la facture (F92) ; null : aucun. */
 const dernierRejetCoordonnees = (facture: Pick<FactureAPayer, 'rejets'>): RejetReglementFacture | null =>
   (facture.rejets ?? []).filter((r) => categorieRejet(r) === 'coordonnees').at(-1) ?? null
 
+/** La vérification répond à ce rejet (F92) : rattachée à lui ; sans rattachement, datée de ce rejet ou après. */
+const repondA = (v: VerificationIban, rejet: RejetReglementFacture): boolean =>
+  v.rejetReglementId === undefined ? v.le >= rejet.le : v.rejetReglementId === rejet.reglementId
+
 /** Dernier rejet pour coordonnées de la facture qui attend encore son IBAN changé ou confirmé (F92) ; null sinon. */
 export function ibanAVerifier(facture: Pick<FactureAPayer, 'rejets' | 'verificationsIban'>): RejetReglementFacture | null {
   const dernier = dernierRejetCoordonnees(facture)
   if (dernier === null) return null
-  return (facture.verificationsIban ?? []).some((v) => v.le >= dernier.le) ? null : dernier
+  return (facture.verificationsIban ?? []).some((v) => repondA(v, dernier)) ? null : dernier
 }
 
 /**
- * IBAN changé ou confirmé après le dernier rejet pour coordonnées (F92) : la dernière vérification datée de ce rejet ou
- * après ; null : aucun rejet pour coordonnées, ou IBAN encore à vérifier (ibanAVerifier).
+ * IBAN changé ou confirmé après le dernier rejet pour coordonnées (F92) : la dernière vérification qui répond à ce rejet ;
+ * null : aucun rejet pour coordonnées, ou IBAN encore à vérifier (ibanAVerifier).
  */
 export function ibanVerifieApresRejet(facture: Pick<FactureAPayer, 'rejets' | 'verificationsIban'>): VerificationIban | null {
   const dernier = dernierRejetCoordonnees(facture)
   if (dernier === null) return null
-  return (facture.verificationsIban ?? []).filter((v) => v.le >= dernier.le).at(-1) ?? null
+  return (facture.verificationsIban ?? []).filter((v) => repondA(v, dernier)).at(-1) ?? null
 }
 
 /**
@@ -431,7 +440,10 @@ export function verifierIbanApresRejet<F extends FactureAPayer>(facture: F, veri
     throw new Error(`Vérification de l'IBAN : confirmée par une autre personne que celle qui l'a saisi (quatre yeux) — Décision du 20/11/2026 (partie C, F92).`)
   if (!estDateIsoValide(verification.le) || verification.le < rejet.le)
     throw new Error(`Vérification de l'IBAN du ${verification.le} : date AAAA-MM-JJ attendue, jamais avant le rejet du ${rejet.le}.`)
-  return { ...facture, verificationsIban: [...(facture.verificationsIban ?? []), { ...verification, saisiPar, confirmePar }] }
+  return {
+    ...facture,
+    verificationsIban: [...(facture.verificationsIban ?? []), { ...verification, saisiPar, confirmePar, rejetReglementId: rejet.reglementId }],
+  }
 }
 
 export type MotifEcart =

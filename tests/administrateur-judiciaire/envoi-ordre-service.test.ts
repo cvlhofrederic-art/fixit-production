@@ -2898,7 +2898,7 @@ describe('en-tête du module', () => {
     expect(enTete).not.toContain('majorité ou fin du délai inconnues (alertes)')
     // les deux contournements sont fermés par la décision du 20/11/2026 (partie C, F82) : plus de question ouverte
     const questions = enTete.slice(enTete.indexOf('🔴 Non établi'), enTete.indexOf('Branchements à faire plus tard'))
-    expect(questions).not.toContain('Hugo (suite de J51)')
+    expect(questions).not.toContain('(suite de J51) : deux contournements')
     expect(questions).not.toContain('majorité de la résolution non saisie')
     expect(questions).not.toContain('fondement non saisi')
     expect(enTete).toContain('Décision du 20/11/2026 (partie C, F82)')
@@ -3322,7 +3322,7 @@ describe('J67 — en-tête du module (R67 à R75)', () => {
     expect(questions).toContain("avis d'un juriste")
     expect(questions).toContain('Frédéric : quand un visa de gestion')
     // fermées depuis par les décisions du 20/11/2026 (partie C, F77 et F82)
-    for (const fermee of ["l'auteur du constat d'urgence doit-il être un signataire habilité", 'Hugo (suite de J51)']) expect(questions).not.toContain(fermee)
+    for (const fermee of ["l'auteur du constat d'urgence doit-il être un signataire habilité", '(suite de J51) : deux contournements']) expect(questions).not.toContain(fermee)
     // 🔵 : le critère de l'avis n'est plus une proposition ; préposés, délégation, réception et vigilance renvoient à J67
     expect(deduit).not.toContain('critère proposé, non contredit par Hugo')
     expect(deduit).not.toContain('la première présentation n\'en tient pas lieu : question ouverte')

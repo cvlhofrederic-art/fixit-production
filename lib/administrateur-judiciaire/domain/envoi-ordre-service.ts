@@ -28,7 +28,11 @@ import { MAJORITES_AG, type TypeMajorite } from '@/lib/administrateur-judiciaire
 import type { ModeExerciceAdministrateurs } from '@/lib/administrateur-judiciaire/domain/mandat-judiciaire'
 import { ROLES_CABINET, type RoleCabinet } from '@/lib/administrateur-judiciaire/domain/roles-cabinet'
 import type { ElementAFaire } from '@/lib/administrateur-judiciaire/domain/suivi-a-faire'
-import type { CauseDelaiNonCalcule, ResultatDelaiContestationAg } from '@/lib/administrateur-judiciaire/domain/statut-assemblee'
+import {
+  verifierFinDelaiHorsOutil,
+  type CauseDelaiNonCalcule,
+  type ResultatDelaiContestationAg,
+} from '@/lib/administrateur-judiciaire/domain/statut-assemblee'
 import { normaliserEspaces, normaliserTexte } from '@/lib/administrateur-judiciaire/domain/texte'
 import {
   controlerDepassementBudgetAvantOs,
@@ -2138,9 +2142,11 @@ function constatTardif(d: Demande, s: SortieOrdreService, constat: ConstatUrgenc
 
 /**
  * Urgence (décision de Hugo du 03/11/2026) : retenue avec le délai « urgence » (ou le fondement « urgence de sauvegarde »)
- * ET le constat complet de l'administrateur provisoire ; un constat sans délai « urgence » ne lève rien.
+ * ET le constat complet de l'administrateur provisoire ; un constat sans délai « urgence » ne lève rien. Un constat fait
+ * hors des signataires habilités ne vaut pas constat (Décision du 20/11/2026, partie C, F77) : il ne tient pas lieu de
+ * l'avis, d'où aucune alerte « constat postérieur » (anomaliesAuteurConstat le signale).
  */
-function anomaliesUrgence(d: Demande, s: SortieOrdreService, date: string): AnomalieEnvoiOs[] {
+function anomaliesUrgence(d: Demande, s: SortieOrdreService, contexte: ContexteEnvoiOs): AnomalieEnvoiOs[] {
   const demandee = urgenceDemandee(s)
   const constat = s.constatUrgence
   if (demandee && !constatComplet(constat))
@@ -2162,7 +2168,7 @@ function anomaliesUrgence(d: Demande, s: SortieOrdreService, date: string): Anom
         true,
       ),
     ]
-  return constat === null ? [] : constatTardif(d, s, constat, date)
+  return constat === null || auteurConstatNonHabilite(s, contexte) !== null ? [] : constatTardif(d, s, constat, contexte.date)
 }
 
 /**
@@ -2289,7 +2295,7 @@ function anomaliesSortie(d: Demande, s: SortieOrdreService, contexte: ContexteEn
     ...anomalies,
     ...anomaliesAccordAdministrateurs(s, contexte),
     ...anomaliesChronologie(d, s, contexte.date),
-    ...anomaliesUrgence(d, s, contexte.date),
+    ...anomaliesUrgence(d, s, contexte),
     ...anomaliesAuteurConstat(d, s, contexte),
     ...anomaliesCanal(s.canal, contexte),
   ]
@@ -3158,7 +3164,8 @@ export function controlerAvantEnvoiOs(d: Demande, s: SortieOrdreService, context
     )
   if (contexte.delaiContestationAg?.etat === 'calcule')
     verifierDate('Fin du délai de contestation (la plus tardive)', contexte.delaiContestationAg.echeanceLaPlusTardive)
-  if (contexte.delaiContestationAg?.etat === 'etablie_hors_outil') verifierDate("Fin du délai établie hors de l'outil", contexte.delaiContestationAg.fin)
+  // Décision du 20/11/2026 (partie C, F82) : lue seulement avec ses dates, son motif, sa pièce et son auteur
+  if (contexte.delaiContestationAg?.etat === 'etablie_hors_outil') verifierFinDelaiHorsOutil(contexte.delaiContestationAg)
   for (const assignation of contexte.assignationsContestationAg ?? []) verifierDate("Réception de l'assignation", assignation.recueLe)
   verifierDelegationCs(contexte.delegationCs)
   const motifs = motifsVisa(d, s, contexte)

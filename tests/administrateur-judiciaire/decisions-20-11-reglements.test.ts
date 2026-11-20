@@ -29,6 +29,7 @@ import {
   categorieRejet,
   changerStatutReglement,
   ibanAVerifier,
+  ibanVerifieApresRejet,
   retourFactureApresAnnulation,
   retourFactureApresRejet,
   selectionnerFacturesAPayer,
@@ -381,7 +382,8 @@ describe('F92 — rejet pour coordonnées : facture « Bon à payer » bloquée 
 
   it('confirmation à quatre yeux, avec sa source, tracée ; ensuite la facture repart', () => {
     const confirmee = verifierIbanApresRejet(revenue, CONFIRMATION)
-    expect(confirmee.verificationsIban).toEqual([CONFIRMATION])
+    // la vérification est rattachée au rejet qu'elle suit (relecture : un nouveau rejet le même jour bloque de nouveau)
+    expect(confirmee.verificationsIban).toEqual([{ ...CONFIRMATION, rejetReglementId: 'r-1' }])
     expect(ibanAVerifier(confirmee)).toBeNull()
     expect(selectionnerFacturesAPayer([confirmee], { date: '2026-11-05', soldeDisponibleCentimes: 1_000_000 }).retenues).toHaveLength(1)
     expect(() => verifierIbanApresRejet(revenue, { ...CONFIRMATION, confirmePar: 'col-gestion' })).toThrow(/autre personne/)
@@ -462,5 +464,80 @@ describe('Décisions du 20/11/2026 (partie C) — libellés, compléments et en-
     expect(texte.slice(texte.indexOf('🔴 Non établi'))).not.toContain('retour amputé de frais')
     expect(texte).toContain('Décision du 20/11/2026 (partie C, F83)')
     expect(texte).toContain('662 « Autres charges financières et agios »')
+  })
+})
+
+describe('Décisions du 20/11/2026 (partie C) — relecture indépendante : F87 et F92', () => {
+  const AP = (base: Extract<BeneficiaireReglement, { type: 'administrateur_provisoire' }>['base']): BeneficiaireReglement => ({
+    type: 'administrateur_provisoire',
+    cabinetId: 'cab-1',
+    auxiliaire401: 'C0001',
+    base,
+  })
+  const JURIDICTION = 'Tribunal judiciaire (fictif)'
+
+  it('F87 — l’ordonnance de taxe arrête toute la rémunération : droit fixe et acomptes payés comptent dans son cumul (J67, R3)', () => {
+    const droitFixe = creer({ id: 'h-df', beneficiaire: AP({ nature: 'droit_fixe' }), factureId: 'fh-df', montantCentimes: 180_000 })
+    const acompte = creer({
+      id: 'h-ac',
+      beneficiaire: AP({ nature: 'ordonnance', objet: 'acompte', juridiction: JURIDICTION, date: '2026-09-15', numero: 'RG 26/00042' }),
+      factureId: 'fh-ac',
+      montantCentimes: 600_000,
+    })
+    const taxe = creer({
+      id: 'h-tx',
+      beneficiaire: AP({ nature: 'ordonnance', objet: 'taxe', juridiction: JURIDICTION, date: '2027-03-01', numero: 'RG 27/00007' }),
+      factureId: 'fh-tx',
+      montantCentimes: 1_500_000,
+    })
+    // rémunération arrêtée à 2 000 000 centimes TTC : 180 000 + 600 000 déjà payés + 1 500 000 la dépassent
+    const [refus, ...autres] = controlerPaiementRemuneration(taxe, { montantFixeCentimes: 2_000_000, reglements: [droitFixe, acompte] })
+    expect(autres).toEqual([])
+    expect(refus).toMatchObject({ code: 'remuneration_au_dela_du_montant_fixe', fondement: 'D. 1967 art. 61-1-5' })
+    expect(refus.message).toContain('2280000 centimes (dont 780000 déjà payés ou préparés)')
+    expect(refus.message).toContain('droit fixe et acomptes compris')
+    expect(controlerPaiementRemuneration(taxe, { montantFixeCentimes: 2_280_000, reglements: [droitFixe, acompte] })).toEqual([])
+    // un acompte annulé, ou payé sur un autre mandat, ne compte pas
+    expect(controlerPaiementRemuneration(taxe, { montantFixeCentimes: 2_000_000, reglements: [droitFixe, { ...acompte, statut: 'Annulé' }] })).toEqual([])
+    expect(controlerPaiementRemuneration(taxe, { montantFixeCentimes: 2_000_000, reglements: [droitFixe, { ...acompte, mandatId: 'm-2' }] })).toEqual([])
+    // l'acompte, lui, reste plafonné par sa seule ordonnance
+    expect(controlerPaiementRemuneration(acompte, { montantFixeCentimes: 600_000, reglements: [droitFixe] })).toEqual([])
+  })
+
+  it('F92 — la vérification vaut pour le rejet qu’elle suit : un nouveau rejet pour coordonnées, même le jour de la vérification, bloque de nouveau', () => {
+    const revenue = retourFactureApresRejet(
+      facture(),
+      { reglementId: 'r-1', le: '2026-11-03', motif: 'AC04 — compte clos', montantCentimes: 120_000 },
+      { totalTtcCentimes: 120_000 },
+    )
+    const confirmation = {
+      nature: 'confirmation' as const,
+      iban: IBAN_FOURNISSEUR,
+      saisiPar: 'col-gestion',
+      confirmePar: 'col-direction',
+      source: 'rib' as const,
+      pieceId: 'doc-rib-1',
+      le: '2026-11-04',
+    }
+    const confirmee = verifierIbanApresRejet(revenue, confirmation)
+    // nouveau virement r-2, émis puis rejeté pour coordonnées le jour même de la confirmation
+    const repayee: FactureAPayer = { ...confirmee, statutReglement: 'Réglée', statutSaisie: 'Réglée', resteDuCentimes: 0 }
+    const rejeteeEncore = retourFactureApresRejet(
+      repayee,
+      { reglementId: 'r-2', le: '2026-11-04', motif: 'AC01 — numéro de compte incorrect', montantCentimes: 120_000 },
+      { totalTtcCentimes: 120_000 },
+    )
+    expect(ibanAVerifier(rejeteeEncore)).toMatchObject({ reglementId: 'r-2' })
+    expect(ibanVerifieApresRejet(rejeteeEncore)).toBeNull()
+    expect(selectionnerFacturesAPayer([rejeteeEncore], { date: '2026-11-05', soldeDisponibleCentimes: 1_000_000 }).ecartees).toEqual([
+      { factureId: 'f-1', motif: 'iban_a_confirmer' },
+    ])
+    expect(controlerIbanApresRejet(creer({ id: 'r-3' }), rejeteeEncore).map((a) => a.code)).toEqual(['iban_a_confirmer_apres_rejet'])
+    // la nouvelle vérification se rattache au second rejet et libère la facture
+    const changee = verifierIbanApresRejet(rejeteeEncore, { ...confirmation, nature: 'changement', iban: IBAN_AUTRE, le: '2026-11-05' })
+    expect(ibanAVerifier(changee)).toBeNull()
+    expect(ibanVerifieApresRejet(changee)).toMatchObject({ iban: IBAN_AUTRE, rejetReglementId: 'r-2' })
+    // vérification reprise d'ailleurs, sans rejet rattaché : la date décide, comme avant
+    expect(ibanAVerifier({ ...revenue, verificationsIban: [confirmation] })).toBeNull()
   })
 })

@@ -206,7 +206,7 @@ export interface ReglementAControler {
   execution?: Pick<MarcheEnExecution, 'concluLe' | 'finExecutionLe'> & { marcheId: string }
 }
 
-const verifierDate =(quoi: string, valeur: string | null | undefined): void => {
+const verifierDate = (quoi: string, valeur: string | null | undefined): void => {
   if (valeur != null && !estDateIsoValide(valeur)) throw new Error(`Date invalide pour ${quoi} (${valeur}) : AAAA-MM-JJ attendu.`)
 }
 
