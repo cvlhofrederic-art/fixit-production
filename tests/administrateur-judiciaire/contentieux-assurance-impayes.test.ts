@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   AVERTISSEMENT_REPERE_POLICE_IMPAYES,
+  COMPTE_ATTENTE_ASSUREUR,
   FAITS_GENERATEURS_IMPAYES,
   LIBELLE_COMPTE_ATTENTE_ASSUREUR,
   LIBELLES_FAITS_GENERATEURS_IMPAYES,
@@ -414,6 +415,14 @@ describe('F52 — indemnité de l’assureur impayés : à part par défaut, ven
     expect(vue.message).toMatch(/à reverser à l'assureur/)
     expect(vue.message).toMatch(/jusqu'à décision/)
     expect(LIBELLE_COMPTE_ATTENTE_ASSUREUR).toBe("À reverser à l'assureur")
+  })
+
+  it('le compte d’attente est le 472 créditeur (somme due par le syndicat), jamais le 471 débiteur', () => {
+    expect(COMPTE_ATTENTE_ASSUREUR).toEqual({
+      compte: '472',
+      intitule: "Compte en attente d'imputation créditeur",
+      subdivision: "À reverser à l'assureur",
+    })
   })
 
   it('la part de l’assureur ne dépasse ni son paiement ni la créance (C. civ. art. 1346-4)', () => {

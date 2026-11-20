@@ -487,6 +487,17 @@ export function repereDeclarationImpayes(police: PoliceAssuranceImpayes, dates: 
 /** Compte d'attente des sommes récupérées au-delà de la part du syndicat (F52), jusqu'à décision. */
 export const LIBELLE_COMPTE_ATTENTE_ASSUREUR = "À reverser à l'assureur"
 
+/**
+ * 🔵 Déduit : la somme à reverser est due par le syndicat, d'où le compte d'attente créditeur 472, jamais le 471 débiteur
+ * (arrêté du 14 mars 2005, art. 7 ; J67, R107 : un solde créditeur sur le 471 est une anomalie) ; subdivision « À reverser
+ * à l'assureur » (art. 8), son numéro et l'écriture restent à brancher (aucune écriture passée ici).
+ */
+export const COMPTE_ATTENTE_ASSUREUR = {
+  compte: '472',
+  intitule: "Compte en attente d'imputation créditeur",
+  subdivision: LIBELLE_COMPTE_ATTENTE_ASSUREUR,
+} as const
+
 const FONDEMENT_VENTILATION_IMPAYES = 'C. civ. art. 1346-3 et 1346-4'
 
 export interface SaisieVentilationImpayes {
@@ -507,7 +518,7 @@ export interface VentilationSoldeImpayes {
   dontPartSyndicatCentimes: number | null
   /** « dont part de l'assureur » ; null tant que la police n'est pas lue. */
   dontPartAssureurCentimes: number | null
-  /** Compte d'attente LIBELLE_COMPTE_ATTENTE_ASSUREUR, jusqu'à décision ; 0 tant que la police n'est pas lue. */
+  /** Compte d'attente COMPTE_ATTENTE_ASSUREUR (472), jusqu'à décision ; 0 tant que la police n'est pas lue. */
   aReverserAssureurCentimes: number
   /** Indemnité réglée, affichée à part. */
   indemniteRegleeCentimes: number
