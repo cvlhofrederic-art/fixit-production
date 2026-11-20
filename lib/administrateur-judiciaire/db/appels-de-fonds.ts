@@ -42,12 +42,14 @@ import {
  * de la base locale), comme db/sinistres.ts :
  * - « Nouvel appel de fonds » (enregistrerNouvelAppel) : une échéance « Prévu » (ajouterEcheancesAppel), sur une clé du
  *   syndicat, ou sur la clé générale « 001 » tirée des tantièmes des lots, créée dans la même transaction (saisie
- *   minimale validée le 20/11/2026 : question 3 du plan) ;
+ *   minimale validée le 20/11/2026 : question 3 du plan), refusée si les tantièmes des lots sont incomplets
+ *   (lotsDeLaCleGenerale) ;
  * - « Écrire l'appel » (ecrireAppelDeFonds) : la pièce « Appel de fonds » (enregistrerPieceTraitement : numéro de la
  *   séquence du cabinet, mandat du syndicat, D1) et le passage « Appelé » des échéances (marquerAppelees : date
  *   comptable contrôlée sur les exercices du syndicat, J67, R96), ensemble ;
- * - « Ouvrir l'exercice » (ouvrirExercice) : un exercice du syndicat « Préparation », sans chevauchement, pour que la
- *   date comptable de l'appel se contrôle (aucun autre écran n'écrit encore d'exercice).
+ * - « Ouvrir l'exercice » (ouvrirExercice) : un exercice du syndicat « Préparation », sans chevauchement, qui comprend
+ *   l'exigibilité à couvrir, pour que la date comptable de l'appel se contrôle (aucun autre écran n'écrit encore
+ *   d'exercice, ni n'en supprime).
  * Identifiant d'une échéance saisie : « A-<exigibilité AAAAMMJJ>-<code de la clé>-<n° d'ordre> » (sur le modèle des
  * échéances du budget, « B-<exercice>-<clé>-<n°> », appels-budget.ts), unique au sein du syndicat.
  * À brancher (hors de ce fichier) : annulation d'un appel (annulerAppelees), mandats SEPA et règlement des comptes, clés
@@ -145,15 +147,34 @@ function verifierSaisie(s: SaisieNouvelAppel): void {
     throw new Error(`Montant invalide (${s.montantCentimes} centimes) : un montant positif, au centime près, est attendu.`)
 }
 
-/** Clé générale « 001 » : lots du syndicat à tantièmes positifs, par n° de lot. */
+const A_SAISIR = 'à saisir ou corriger dans « Lots & copropriétaires »'
+
+/**
+ * Lots de la clé générale, par n° de lot : TOUS les lots du syndicat, chacun avec des tantièmes positifs, sur une même
+ * base, dont la somme est cette base. La clé répartit le montant entier sur ses lots : un lot sans tantièmes ou absent de
+ * la base ferait payer sa part aux lots saisis. Refus sinon (rien n'est écrit).
+ */
+function lotsDeLaCleGenerale(lots: readonly Lot[]): Lot[] {
+  if (lots.length === 0) throw new Error(`Clé générale impossible : aucun lot du syndicat avec des tantièmes (${A_SAISIR}).`)
+  const tries = [...lots].sort((a, b) => a.numero.localeCompare(b.numero, 'fr', { numeric: true }))
+  const sansTantiemes = tries.filter((l) => !(Number.isInteger(l.tantiemes?.numerateur) && l.tantiemes.numerateur > 0)).map((l) => `lot ${l.numero}`)
+  if (sansTantiemes.length > 0)
+    throw new Error(`Clé générale impossible : ${sansTantiemes.join(', ')} sans tantièmes (${A_SAISIR}) ; leur part serait appelée aux autres lots.`)
+  const bases = [...new Set(tries.map((l) => l.tantiemes.denominateur))]
+  if (bases.length > 1) throw new Error(`Clé générale impossible : tantièmes des lots sur des bases différentes (${bases.join(', ')}) (${A_SAISIR}).`)
+  const total = tries.reduce((s, l) => s + l.tantiemes.numerateur, 0)
+  if (total !== bases[0])
+    throw new Error(
+      `Clé générale impossible : les lots enregistrés totalisent ${total}/${bases[0]} tantièmes (lot manquant ou tantièmes ${A_SAISIR}) ; la part manquante serait appelée aux lots saisis.`,
+    )
+  return tries
+}
+
+/** Clé générale « 001 » : tous les lots du syndicat et leurs tantièmes (lotsDeLaCleGenerale), par n° de lot. */
 async function creerCleGenerale(coproprieteId: string, actor: string | null): Promise<CleRepartitionEnregistree> {
   const existante = await ajDb.clesRepartition.where('[coproprieteId+code]').equals([coproprieteId, CODE_CLE_GENERALE]).first()
   if (existante) throw new Error(`La clé générale « ${CODE_CLE_GENERALE} » existe déjà dans ce syndicat : la choisir.`)
-  const lots = (await ajDb.lots.where('coproprieteId').equals(coproprieteId).toArray())
-    .filter((l) => Number.isInteger(l.tantiemes?.numerateur) && l.tantiemes.numerateur > 0)
-    .sort((a, b) => a.numero.localeCompare(b.numero, 'fr', { numeric: true }))
-  if (lots.length === 0)
-    throw new Error('Clé générale impossible : aucun lot du syndicat avec des tantièmes (à saisir dans « Lots & copropriétaires »).')
+  const lots = lotsDeLaCleGenerale(await ajDb.lots.where('coproprieteId').equals(coproprieteId).toArray())
   const { id, ...cle } = creerCleRepartition({
     id: genererId(),
     coproprieteId,
@@ -211,10 +232,24 @@ export async function enregistrerNouvelAppel(
 
 const annee = (date: string): string => date.slice(0, 4)
 
-/** Exercice « Préparation » du syndicat ; nom : l'année, ou « AAAA-AAAA » à cheval sur deux années. Refuse un chevauchement. */
+export interface BornesNouvelExercice {
+  ouverture: string
+  cloture: string
+  /**
+   * Exigibilité que l'exercice doit comprendre (écran « Appels de fonds » : exercice ouvert pour une échéance hors des
+   * exercices) ; absente : non contrôlée. Aucun écran ne supprime un exercice : un exercice qui ne la comprend pas resterait
+   * en base sans débloquer l'appel, et pourrait chevaucher le bon.
+   */
+  exigibilite?: string | null
+}
+
+/**
+ * Exercice « Préparation » du syndicat ; nom : l'année, ou « AAAA-AAAA » à cheval sur deux années. Refuse un chevauchement
+ * et, si elle est donnée, une exigibilité hors de ses bornes.
+ */
 export function ouvrirExercice(
   coproprieteId: string,
-  { ouverture, cloture }: { ouverture: string; cloture: string },
+  { ouverture, cloture, exigibilite = null }: BornesNouvelExercice,
   { actor = null }: OptionsEcriture = {},
 ): Promise<ExerciceEnregistre> {
   return ajDb.transaction('rw', ajDb.exercices, ajDb.activityLog, async () => {
@@ -228,6 +263,10 @@ export function ouvrirExercice(
       agId: null,
       resolutions: { budget: null, complement: null, honoraires: null, travaux: null },
     })
+    if (exigibilite !== null && !(ouverture <= exigibilite && exigibilite <= cloture))
+      throw new Error(
+        `L'exercice du ${dateIsoVersFr(ouverture)} au ${dateIsoVersFr(cloture)} ne comprend pas l'exigibilité du ${dateIsoVersFr(exigibilite)} : l'appel resterait bloqué.`,
+      )
     const existants = bornesDe(await ajDb.exercices.where('coproprieteId').equals(coproprieteId).toArray())
     const chevauche = existants.find((x) => ouverture <= x.cloture && x.ouverture <= cloture)
     if (chevauche)

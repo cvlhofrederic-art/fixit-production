@@ -8,6 +8,7 @@ import {
   vueAvisAppel,
   vueDroitsLots,
   type DroitsLot,
+  type PersonneEnPlace,
   type VueAvisAppel,
 } from '@/components/administrateur-judiciaire/modules/finances/appels/appels-vue'
 import { Alert } from '@/components/administrateur-judiciaire/ui/Alert'
@@ -42,7 +43,8 @@ const pluriel = (n: number, mot: string): string => `${n} ${mot}${n > 1 ? 's' : 
 
 export interface EcrituresAvis {
   reprendreFiches: () => Promise<void>
-  ouvrirExercice: (bornes: { ouverture: string; cloture: string }) => Promise<boolean>
+  /** `exigibilite` : celle que l'exercice doit comprendre (refus sinon, db/appels-de-fonds.ts). */
+  ouvrirExercice: (bornes: { ouverture: string; cloture: string; exigibilite: string }) => Promise<boolean>
   ecrireAppel: (jusquAu: string) => Promise<boolean>
 }
 
@@ -77,6 +79,10 @@ function RepriseFiches({ nombre, onReprendre }: Readonly<{ nombre: number; onRep
   )
 }
 
+/** « Nom — qualité part · compte série » (part et compte omis s'ils manquent). */
+const libellePersonne = (p: PersonneEnPlace): string =>
+  [`${p.nom} — ${p.qualite}`, p.part, p.serie && `· compte ${p.serie}`].filter(Boolean).join(' ')
+
 function DroitsLots({ droits, date }: Readonly<{ droits: readonly DroitsLot[]; date: string }>) {
   return (
     <>
@@ -97,7 +103,7 @@ function DroitsLots({ droits, date }: Readonly<{ droits: readonly DroitsLot[]; d
             )}
             {lot.enPlace.map((p) => (
               <div key={p.positionId} style={{ fontSize: 12.5 }}>
-                {`${p.nom} — ${p.qualite}${p.part ? ` ${p.part}` : ''}${p.serie ? ` · compte ${p.serie}` : ''}`}
+                {libellePersonne(p)}
               </div>
             ))}
           </div>
@@ -330,7 +336,7 @@ function ModalesAvis({ edition, vue, jusquAu, ecritures, fermer }: Readonly<Moda
       <OuvrirExerciceModal
         exigibilite={edition.exigibilite}
         onClose={fermer}
-        onEnregistrer={async (bornes) => puisFermer(await ecritures.ouvrirExercice(bornes))}
+        onEnregistrer={async (bornes) => puisFermer(await ecritures.ouvrirExercice({ ...bornes, exigibilite: edition.exigibilite }))}
       />
     )
   if (edition?.type !== 'appel' || !vue?.dateComptable || !jusquAu) return null

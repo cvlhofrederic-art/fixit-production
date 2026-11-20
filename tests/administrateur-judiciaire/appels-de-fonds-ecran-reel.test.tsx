@@ -245,6 +245,13 @@ describe('Appels de fonds en mode réel — écran', () => {
     expect((avis().getByRole('button', { name: 'Écrire l’appel' }) as HTMLButtonElement).disabled).toBe(true)
     expect(texteDe(panneau('Avis d’appel par copropriétaire'))).toContain('Exercice à ouvrir')
     fireEvent.click(avis().getByRole('button', { name: 'Ouvrir l’exercice' }))
+    // Exercice qui ne comprend pas l'exigibilité (année erronée) : refusé, rien n'est écrit, la modale reste ouverte.
+    fireEvent.change(dialogue().getByLabelText('Ouverture'), { target: { value: '2026-01-01' } })
+    fireEvent.change(dialogue().getByLabelText('Clôture'), { target: { value: '2026-12-31' } })
+    await cliquerEtAttendre(dialogue().getByRole('button', { name: 'Enregistrer' }))
+    expect(dernierToast()).toMatchObject({ kind: 'warn', title: 'Exercice non ouvert' })
+    expect(String(dernierToast()?.desc)).toMatch(/ne comprend pas l'exigibilité du 01\/01\/2027/)
+    expect(await ajDb.exercices.count()).toBe(0)
     fireEvent.change(dialogue().getByLabelText('Ouverture'), { target: { value: '2027-01-01' } })
     fireEvent.change(dialogue().getByLabelText('Clôture'), { target: { value: '2027-12-31' } })
     await cliquerEtAttendre(dialogue().getByRole('button', { name: 'Enregistrer' }))

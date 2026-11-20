@@ -168,9 +168,13 @@ export function datePrelevementProposee(exigibilites: readonly string[], dateEmi
   return derniere > auPlusTot ? derniere : auPlusTot
 }
 
-/** IBAN du compte du syndicat qui reçoit les virements : compte courant actif, à défaut compte à la Caisse des dépôts. */
+/**
+ * IBAN du compte du syndicat qui reçoit les virements, parmi les comptes qu'un mode de tenue du cabinet fait ouvrir
+ * (D-BANQUE, MODES_TENUE_COMPTES) : compte courant actif, à défaut compte à la Caisse des dépôts, à défaut sous-compte du
+ * centralisateur du cabinet. Jamais le compte du fonds de travaux, ni un compte clôturé.
+ */
 export function ibanDuSyndicat(banques: readonly BanqueAppel[]): string | null {
-  for (const nature of ['courant', 'caisse_depots'] as const) {
+  for (const nature of ['courant', 'caisse_depots', 'sous_compte_centralisateur'] as const) {
     const compte = banques.find((b) => b.nature === nature && b.actif !== false && b.iban && validerIban(b.iban))
     if (compte?.iban) return compte.iban
   }

@@ -17,7 +17,13 @@ import { PageHead } from '@/components/administrateur-judiciaire/ui/PageHead'
 import { Panel } from '@/components/administrateur-judiciaire/ui/Panel'
 import { Pill } from '@/components/administrateur-judiciaire/ui/Pill'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
-import { ecrireAppelDeFonds, enregistrerNouvelAppel, ouvrirExercice, type DonneesAppelsLues } from '@/lib/administrateur-judiciaire/db/appels-de-fonds'
+import {
+  ecrireAppelDeFonds,
+  enregistrerNouvelAppel,
+  ouvrirExercice,
+  type BornesNouvelExercice,
+  type DonneesAppelsLues,
+} from '@/lib/administrateur-judiciaire/db/appels-de-fonds'
 import { useDonneesLocales } from '@/lib/administrateur-judiciaire/db/hooks'
 import { migrerFichesCoproprietaires } from '@/lib/administrateur-judiciaire/db/migration-d2'
 import type { EcheanceAppelEnregistree } from '@/lib/administrateur-judiciaire/db/schema'
@@ -73,7 +79,7 @@ async function reprendreFiches(): Promise<Succes> {
   }
 }
 
-async function ouvrirExerciceDuSyndicat(copro: CoproprieteVue, bornes: { ouverture: string; cloture: string }): Promise<Succes> {
+async function ouvrirExerciceDuSyndicat(copro: CoproprieteVue, bornes: BornesNouvelExercice): Promise<Succes> {
   const exercice = await ouvrirExercice(copro.id, bornes)
   return { title: 'Exercice ouvert', desc: `Exercice ${exercice.nom ?? ''} (${dateIsoVersFr(bornes.ouverture)} – ${dateIsoVersFr(bornes.cloture)}), en préparation.` }
 }

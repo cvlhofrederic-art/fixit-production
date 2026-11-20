@@ -120,7 +120,8 @@ describe('« Nouvel appel de fonds » : une échéance « Prévu »', () => {
       relancable: true,
       createdBy: 'test',
     })
-    const journal = (await ajDb.activityLog.toArray()).map((e) => [e.entite, e.action])
+    // Clé primaire du journal tirée au hasard (genererId) : l'ordre de lecture n'est pas celui de l'écriture.
+    const journal = (await ajDb.activityLog.toArray()).map((e) => [e.entite, e.action]).sort(([a], [b]) => a.localeCompare(b))
     expect(journal).toEqual([
       ['clesRepartition', 'create'],
       ['echeancesAppel', 'create'],
@@ -150,9 +151,33 @@ describe('« Nouvel appel de fonds » : une échéance « Prévu »', () => {
     expect(await ajDb.clesRepartition.where('coproprieteId').equals('C1').count()).toBe(0)
     expect(await ajDb.activityLog.count()).toBe(0)
   })
+
+  it('clé générale refusée sur des tantièmes incomplets (la part des autres lots serait appelée aux lots saisis) : rien n’est écrit', async () => {
+    // Lot 3 sans tantièmes : il serait hors de la clé, les lots 1 et 2 paieraient sa part.
+    await ajDb.lots.update('L3', { tantiemes: { numerateur: 0, denominateur: 1000 } })
+    await expect(enregistrerNouvelAppel('C1', SAISIE)).rejects.toThrow(/lot 3 sans tantièmes/i)
+    // Lot 3 absent : 800/1000 enregistrés.
+    await ajDb.lots.delete('L3')
+    await expect(enregistrerNouvelAppel('C1', SAISIE)).rejects.toThrow(/800\/1000/)
+    // Bases différentes : tantièmes non comparables.
+    await ajDb.lots.add(lot('L3', 'C1', '3', 2000))
+    await ajDb.lots.update('L3', { tantiemes: { numerateur: 2000, denominateur: 10000 } })
+    await expect(enregistrerNouvelAppel('C1', SAISIE)).rejects.toThrow(/bases différentes \(1000, 10000\)/)
+    expect(await echeancesAppelDuSyndicat('C1')).toEqual([])
+    expect(await ajDb.clesRepartition.count()).toBe(0)
+    expect(await ajDb.activityLog.count()).toBe(0)
+  })
 })
 
 describe('« Ouvrir l’exercice »', () => {
+  it('depuis l’écran Appels : l’exercice doit comprendre l’exigibilité à couvrir, sinon rien n’est écrit', async () => {
+    await expect(ouvrirExercice('C1', { ouverture: '2026-01-01', cloture: '2026-12-31', exigibilite: '2027-01-01' })).rejects.toThrow(
+      /ne comprend pas l'exigibilité du 01\/01\/2027/,
+    )
+    expect(await ajDb.exercices.count()).toBe(0)
+    expect(await ouvrirExercice('C1', { ouverture: '2027-01-01', cloture: '2027-12-31', exigibilite: '2027-01-01' })).toMatchObject({ nom: '2027' })
+  })
+
   it('exercice du syndicat en préparation ; chevauchement refusé', async () => {
     const exercice = await ouvrirExercice('C1', { ouverture: '2027-01-01', cloture: '2027-12-31' })
     expect(exercice).toMatchObject({ coproprieteId: 'C1', nom: '2027', annee: 2027, ouverture: '2027-01-01', cloture: '2027-12-31', statut: 'Préparation' })

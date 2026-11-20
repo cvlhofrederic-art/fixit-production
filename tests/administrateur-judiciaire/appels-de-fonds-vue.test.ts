@@ -3,6 +3,7 @@ import {
   centimesDepuisSaisie,
   datePrelevementProposee,
   exigibilitesAAppeler,
+  ibanDuSyndicat,
   indicateursAppels,
   vueAvisAppel,
   vueDroitsLots,
@@ -274,6 +275,16 @@ describe('prélèvements SEPA : lot affiché, fichier jamais transmis', () => {
     expect(vue.prelevements?.lignes).toEqual([])
     expect(datePrelevementProposee(['2027-01-01'], '2026-12-01')).toBe('2027-01-01')
     expect(datePrelevementProposee(['2027-01-01'], '2026-12-25')).toBe('2027-01-08')
+  })
+})
+
+describe('IBAN du syndicat porté par l’avis (virement)', () => {
+  it('compte courant actif, à défaut Caisse des dépôts, à défaut sous-compte du centralisateur du cabinet (D-BANQUE) ; jamais un compte clôturé ni le fonds de travaux', () => {
+    const iban = IBAN_SYNDICAT
+    expect(ibanDuSyndicat([{ nature: 'caisse_depots', iban, actif: true }, { nature: 'courant', iban: IBAN_DEBITEUR, actif: true }])).toBe(IBAN_DEBITEUR)
+    expect(ibanDuSyndicat([{ nature: 'courant', iban: IBAN_DEBITEUR, actif: false }, { nature: 'caisse_depots', iban, actif: true }])).toBe(iban)
+    expect(ibanDuSyndicat([{ nature: 'fonds_travaux', iban: IBAN_DEBITEUR, actif: true }, { nature: 'sous_compte_centralisateur', iban, actif: true }])).toBe(iban)
+    expect(ibanDuSyndicat([{ nature: 'fonds_travaux', iban, actif: true }])).toBeNull()
   })
 })
 
