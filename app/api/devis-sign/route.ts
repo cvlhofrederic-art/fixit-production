@@ -72,12 +72,14 @@ export async function POST(request: NextRequest) {
       || (devisMsg.metadata?.executionDelayDays ? String(devisMsg.metadata.executionDelayDays) : '')
     let prestation = devisMsg.metadata?.prestationDate || ''
     if (!exec || !prestation) {
-      // Fallback : on regarde le devis en DB via docNumber
+      // Fallback : on regarde le devis en DB via docNumber, chez l'entreprise de la réservation
+      // (chaque entreprise a sa propre série de numéros : le même numéro existe chez plusieurs).
       try {
         const { data: dbDevis } = await supabaseAdmin
           .from('devis')
           .select('raw_data')
           .eq('numero', docNumber)
+          .eq('artisan_id', booking.artisan_id)
           .limit(1)
           .maybeSingle()
         const raw = (dbDevis?.raw_data ?? {}) as Record<string, unknown>
@@ -100,6 +102,10 @@ export async function POST(request: NextRequest) {
       }, { status: 422 })
     }
 
+    // Signature dessinée : nettoyée une seule fois, la même version est enregistrée dans le message
+    // du devis et dans le message de confirmation (repris par la notification du professionnel).
+    const signatureNettoyee = signature_svg ? { signature_svg: sanitizeSvg(signature_svg) } : {}
+
     // 1. Mettre à jour le message original (marquer comme signé)
     // ATOMIC : la condition .not('metadata->signed', 'is', null) empêche le double-clic
     // Si un 2e appel arrive entre temps, le WHERE ne matchera pas → 0 rows updated
@@ -111,7 +117,7 @@ export async function POST(request: NextRequest) {
           signed: true,
           signed_at: signedAt,
           signer_name: signer_name.trim(),
-          ...(signature_svg ? { signature_svg: sanitizeSvg(signature_svg) } : {}),
+          ...signatureNettoyee,
           ...(signature_hash ? { signature_hash } : {}),
         },
       })
@@ -140,7 +146,7 @@ export async function POST(request: NextRequest) {
           signed: true,
           signed_at: signedAt,
           signer_name: signer_name.trim(),
-          ...(signature_svg ? { signature_svg } : {}),
+          ...signatureNettoyee,
           ...(signature_hash ? { signature_hash } : {}),
         },
       })

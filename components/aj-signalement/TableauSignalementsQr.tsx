@@ -41,6 +41,10 @@
 // (useTableauDuBureauQr) ; il est relu à chaque changement du tableau complet. Tableau de bord, autres vues de l'espace et
 // vue d'un gestionnaire : inchangés. Tant qu'aucune copropriété n'a de bureau : aucun filtre, aucune requête nouvelle.
 // Copropriété créée sans son bureau (207) : message d'avertissement dans la vue.
+// Téléphone (captures du 19/11/2026, point h-02 validé le 20/11) : la liste « Afficher » élargissait la page
+// à 483 px (étiquette bornée à la barre, liste qui rétrécit dans son étiquette, comme « Filtrer par copropriété ») ; le
+// texte d'un signalement était écrasé en colonne étroite à côté de « Voir le détail » (bouton sous le texte sur
+// téléphone, côte à côte à partir de sm). Ordinateur inchangé.
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
@@ -562,10 +566,14 @@ function FiltresCoproprietesQr({ visible, filtre, onFiltre, gestionnaires, burea
 }>) {
   if (!visible) return <span />
   const filtres = G.copropriete.filtres
+  // Étiquette bornée à la barre (min-w-0 max-w-full) et liste qui y rétrécit (min-w-0) : sur téléphone, l'option la
+  // plus longue (« Adresses de gestionnaires dans les destinataires ») n'élargit plus la page (483 px avant). Pas de
+  // max-w-full sur la liste : elle deviendrait « compressible » (largeur minimale nulle) et, avec le filtre « Bureau »,
+  // le groupe des filtres serait écrasé à côté des boutons sur un ordinateur étroit au lieu de passer à la ligne.
   const liste = (
-    <label className="flex items-center gap-2 text-sm text-[#4A5E78]">
+    <label className="flex min-w-0 max-w-full items-center gap-2 text-sm text-[#4A5E78]">
       <span>{G.copropriete.filtre}</span>
-      <select value={filtre} onChange={(e) => onFiltre(e.target.value)} className="min-h-[44px] rounded-xl border-2 border-[#E4DDD0] bg-white px-3 text-base text-[#0D1B2E]">
+      <select value={filtre} onChange={(e) => onFiltre(e.target.value)} className="min-h-[44px] min-w-0 rounded-xl border-2 border-[#E4DDD0] bg-white px-3 text-base text-[#0D1B2E]">
         {(Object.keys(filtres) as Array<keyof typeof filtres>).map((cle) => <option key={cle} value={cle}>{filtres[cle]}</option>)}
         {gestionnaires.map(([id, nom]) => <option key={id} value={`gestionnaire:${id}`}>{remplir(G.copropriete.filtreGestionnaire, { nom })}</option>)}
       </select>
@@ -688,10 +696,15 @@ function SignalementsVisiblesQr({ visibles, filtre, bureau, onOuvrir }: Readonly
   )
 }
 
+/**
+ * Ligne d'un signalement. « Voir le détail » sous le texte sur téléphone (côte à côte, le texte n'y avait que 155 px sur
+ * 343 : motif flex-col sm:flex-row des lignes des bureaux) ; à partir de sm, la ligne d'avant (le texte, flex-1 de base
+ * nulle, ne passait jamais à la ligne : flex-wrap n'y changeait rien).
+ */
 function LigneSignalement({ signalement: s, onOuvrir }: Readonly<{ signalement: SignalementQr; onOuvrir: () => void }>) {
   return (
     <li className="rounded-2xl border border-[#E4DDD0] bg-white px-5 py-4 shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-col items-start gap-3 sm:flex-row sm:justify-between">
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
             <Badge ton={TON_STATUT_QR[s.statut]}>{LIBELLE_STATUT_QR[s.statut]}</Badge>

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { logger } from '@/lib/logger'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { escapeHTML } from '@/lib/sanitize'
 
 const kycEmailSchema = z.object({
   to: z.string().email(),
@@ -22,13 +23,18 @@ interface SendKycEmailBody {
 }
 
 function buildHtml(body: SendKycEmailBody): { subject: string; html: string } {
-  const { name, company, action, rejection_reason, market } = body
+  const { action, market } = body
+  // Valeurs de la fiche (modifiables par son titulaire) et motif saisi : échappées dans le HTML. L'objet, en texte
+  // brut, garde la raison sociale telle quelle.
+  const name = escapeHTML(body.name)
+  const company = escapeHTML(body.company)
+  const rejection_reason = escapeHTML(body.rejection_reason ?? '')
   const isPt = market === 'pt_artisan'
 
   if (isPt) {
     if (action === 'approve') {
       return {
-        subject: `Conta verificada — ${company}`,
+        subject: `Conta verificada — ${body.company}`,
         html: `
 <h2>Parabéns ${name}!</h2>
 <p>A sua conta <strong>${company}</strong> foi verificada e ativada no Vitfix.</p>
@@ -38,11 +44,11 @@ function buildHtml(body: SendKycEmailBody): { subject: string; html: string } {
       }
     }
     return {
-      subject: `Registo não validado — ${company}`,
+      subject: `Registo não validado — ${body.company}`,
       html: `
 <h2>Olá ${name},</h2>
 <p>O registo para <strong>${company}</strong> não pôde ser validado.</p>
-<p><strong>Motivo:</strong> ${rejection_reason ?? ''}</p>
+<p><strong>Motivo:</strong> ${rejection_reason}</p>
 <p>Contacte-nos em <a href="mailto:support@vitfix.io">support@vitfix.io</a> ou submeta novamente os seus documentos.</p>
 `,
     }
@@ -51,7 +57,7 @@ function buildHtml(body: SendKycEmailBody): { subject: string; html: string } {
   // French (default)
   if (action === 'approve') {
     return {
-      subject: `Votre compte ${company} est activé sur Vitfix`,
+      subject: `Votre compte ${body.company} est activé sur Vitfix`,
       html: `
 <h2>Félicitations ${name} !</h2>
 <p>Votre compte <strong>${company}</strong> a été vérifié et activé sur Vitfix.</p>
@@ -61,11 +67,11 @@ function buildHtml(body: SendKycEmailBody): { subject: string; html: string } {
     }
   }
   return {
-    subject: `Inscription non validée — ${company}`,
+    subject: `Inscription non validée — ${body.company}`,
     html: `
 <h2>Bonjour ${name},</h2>
 <p>Votre inscription pour <strong>${company}</strong> n'a pas pu être validée.</p>
-<p><strong>Motif :</strong> ${rejection_reason ?? ''}</p>
+<p><strong>Motif :</strong> ${rejection_reason}</p>
 <p>Contactez-nous à <a href="mailto:support@vitfix.io">support@vitfix.io</a> ou soumettez à nouveau vos documents.</p>
 `,
   }

@@ -33,7 +33,9 @@ import { codeStatutJuridiqueBtp, couvertureAssuranceBtp, mentionIdentificationBt
 import { estClientProfessionnel, formaterImmatriculationRcs, ligneTvaHorsClassique } from '@/lib/devis-btp-affichage'
 import { fmtQty, fmtN, fmtN4 } from '@/lib/devis-format'
 import { svgToImageDataUrl } from '@/lib/signature-canvas'
-import { localFallbackDocNumber } from '@/lib/doc-number'
+import {
+  messageEmissionArretee, NumerotationIndisponibleError, placePourEmettre, StockageNavigateurPleinError,
+} from '@/lib/emission-hors-serveur'
 import { DecimalInput } from '@/components/common/DecimalInput'
 import { ChampRemiseGlobale, ChampRemiseLigne } from '@/components/devis/RemiseCommerciale'
 import {
@@ -57,6 +59,9 @@ import {
   computeTva,
   validateRegime,
   REGIME_ERROR_MESSAGES,
+  localeTva,
+  tauxTvaParDefaut,
+  tauxTvaSelecteur,
   type TvaRegime,
 } from '@/lib/tva-calculator'
 import * as Sentry from '@sentry/nextjs'
@@ -65,6 +70,7 @@ import { phrasePhotosAnnexePt, traducteurDevisBtp } from '@/lib/devis-btp-traduc
 import { supabase } from '@/lib/supabase'
 import { fetchAuthentifie } from '@/lib/fetch-authentifie'
 import { syncDocumentSafe } from '@/lib/document-sync'
+import { lireCatalogueBTPNavigateur } from '@/lib/btp/catalogue-prestations'
 import RentabiliteDevisModal from '@/components/dashboard/btp/RentabiliteDevisModal'
 
 /* ─────────────────────────────────────────────────────────────────
@@ -112,8 +118,6 @@ const UNITES_TABLEAU = [
   { value: 'f',        label: 'f — Forfait' },
 ] as const
 
-const TVA_RATES = [20, 10, 5.5, 0] as const
-
 // Mapping catalogue BTP → devis (identifiants courts). Partagé entre
 // l'aliment allServices et selectMotif (étapes).
 const UNIT_CATALOGUE_TO_DEVIS: Record<string, string> = {
@@ -129,8 +133,8 @@ function mapCatalogueUnit(u?: string): string {
   return UNIT_CATALOGUE_TO_DEVIS[u] || 'u'
 }
 
-/** Élément du catalogue du module Prestations, tel que le formulaire le lit. */
-interface ElementCatalogueBTP {
+/** Élément du catalogue du module Prestations, tel que le formulaire le lit (lib/btp/catalogue-prestations.ts). */
+interface ElementCatalogueFormulaire {
   id: number
   name: string
   type: string
@@ -138,26 +142,6 @@ interface ElementCatalogueBTP {
   price?: { min?: number; max?: number }
   unit?: string
   etapes?: Array<string | { label: string; price?: number; unit?: string }>
-}
-
-/**
- * Catalogue du module Prestations enregistré dans le navigateur : clé du module (v5), à défaut l'ancienne copie (v4)
- * que plus rien n'écrit. Lecture seule. Rien d'enregistré, ou valeur illisible : aucun catalogue ; un élément sans
- * nom est écarté.
- */
-function lireCatalogueBTP(artisanId: string | undefined): ElementCatalogueBTP[] {
-  if (typeof window === 'undefined') return []
-  const fiche = artisanId || 'guest'
-  try {
-    const brut = localStorage.getItem(`fixit_prestations_btp_v5_${fiche}`) ?? localStorage.getItem(`fixit_prestations_btp_v4_${fiche}`)
-    const valeur: unknown = brut ? JSON.parse(brut) : []
-    if (!Array.isArray(valeur)) return []
-    return valeur.filter((e): e is ElementCatalogueBTP =>
-      typeof e === 'object' && e !== null && typeof (e as { name?: unknown }).name === 'string')
-  } catch (erreur) {
-    console.warn('[devis BTP] catalogue Prestations illisible :', erreur)
-    return []
-  }
 }
 
 const DECLENCHEURS_ACOMPTE = [
@@ -236,10 +220,10 @@ const scaleLinesBy = (arr: ProductLine[], r: number): ProductLine[] => lignesALE
 // le formulaire artisan, audit 2026-06-10). Gagne au passage le select() au
 // focus (saisie par-dessus sans effacer) — harmonisation UX autorisée par Frédéric.
 
-// localFallbackDocNumber (numéro local-only, DERNIER recours, conforme art.
-// 242 nonies A I 2° CGI) : importé de lib/doc-number.ts (canonique, partagé
-// avec fetchNextDocNumber). La copie locale identique a été supprimée — audit
-// 2026-06-10.
+// Numéro légal : du serveur seulement (route /api/doc-number, puis fonction next_doc_number). Le compteur du
+// navigateur (localFallbackDocNumber), que le serveur ignore, n'est plus utilisé ici : il pouvait donner le même
+// numéro à deux factures (audit du 11/11/2026, constat documents-cycle-1). Sans numéro du serveur, le document reste
+// un brouillon (lib/emission-hors-serveur.ts).
 
 // Identité document : UUID stable via stableDocId() (lib/devis-utils). Un
 // brouillon n'a PAS de numéro (numéro légal tiré à la validation seulement) ;
@@ -265,6 +249,12 @@ export default function DevisFactureFormBTP({
   // Les valeurs enregistrées (mode et délai de paiement, escompte, déclencheur d'acompte…) restent en français :
   // les PDF et le calcul de l'échéance les lisent ainsi.
   const tx = useMemo(() => traducteurDevisBtp(locale), [locale])
+  // Taux de TVA du pays (lib/tva-calculator.ts) : une ligne neuve part à 23 % sur /pt et propose 23, 13, 6 et 0 % ;
+  // en France, 20 % et 20, 10, 5,5 et 0 % comme avant. Une ligne enregistrée garde son taux.
+  const paysTva = localeTva(locale)
+  const tauxTvaDefaut = tauxTvaParDefaut(paysTva)
+  // Première ligne d'une table ajoutée : 10 % en France (comportement antérieur), le taux normal au Portugal.
+  const tauxTvaTableAjoutee = paysTva === 'pt' ? tauxTvaDefaut : 10
 
   /* ──────── State ──────── */
   const [docType, setDocType] = useState<'devis' | 'facture'>(
@@ -600,7 +590,7 @@ export default function DevisFactureFormBTP({
   const [lines, setLines] = useState<ProductLine[]>(
     initialData?.lines && initialData.lines.length > 0
       ? initialData.lines
-      : [{ id: 1, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: 20, totalHT: 0 }]
+      : [{ id: 1, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: tauxTvaDefaut, totalHT: 0 }]
   )
   // Lignes matériaux (section séparée)
   //
@@ -617,13 +607,13 @@ export default function DevisFactureFormBTP({
   const [materialLines, setMaterialLines] = useState<ProductLine[]>(
     Array.isArray(_initialMaterial) && _initialMaterial.length > 0
       ? _initialMaterial
-      : [{ id: 1, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: 20, totalHT: 0 }]
+      : [{ id: 1, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: tauxTvaDefaut, totalHT: 0 }]
   )
   // Lignes frais annexes (déplacements, etc.)
   const [fraisLines, setFraisLines] = useState<ProductLine[]>(
     Array.isArray(_initialFrais) && _initialFrais.length > 0
       ? _initialFrais
-      : [{ id: 1, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: 20, totalHT: 0 }]
+      : [{ id: 1, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: tauxTvaDefaut, totalHT: 0 }]
   )
 
   // Tables BTP : noms personnalisables, désactivation douce et tables custom additionnelles.
@@ -772,9 +762,10 @@ export default function DevisFactureFormBTP({
 
   // Catalogue du module Prestations, lu une fois : la liste des prestations, celle des matériaux et les étapes reprises
   // viennent de la même lecture (sinon une ligne pourrait recevoir le nom d'une prestation et les étapes d'une autre).
-  // Lecture seule : le formulaire n'écrit plus de catalogue d'exemple quand rien n'est enregistré (catalogue vierge à
-  // la création du compte, demande de Frédéric du 17/11/2026).
-  const catalogueBTP = useMemo(() => lireCatalogueBTP(artisan?.id), [artisan?.id])
+  // Clé du module, à défaut l'ancienne copie ; rien d'enregistré : aucun catalogue, jamais d'exemple (catalogue vierge
+  // à la création du compte, demande de Frédéric du 17/11/2026). Lecture seule, rien n'est écrit (constat
+  // stockage-local-miroir-10, lib/btp/catalogue-prestations.ts).
+  const catalogueBTP = useMemo(() => lireCatalogueBTPNavigateur<ElementCatalogueFormulaire>(artisan?.id), [artisan?.id])
 
   const allServices = useMemo(() => {
     const supaServices: ServiceBasic[] = (services as ServiceBasic[]) || []
@@ -833,10 +824,11 @@ export default function DevisFactureFormBTP({
    * Récupère le prochain numéro de document via la séquence atomique serveur
    * (art. 242 nonies A I 2° CGI : numérotation continue, sans rupture).
    *
-   * 3 niveaux de fallback (mirror DevisFactureForm artisan) :
+   * Deux sources, toutes deux sur le serveur :
    * 1. API HTTP /api/doc-number (avec rate limit + auth Bearer)
    * 2. RPC Supabase `next_doc_number` (SECURITY DEFINER)
-   * 3. Compteur localStorage (DERNIER recours, peut diverger entre devices)
+   * Sans numéro de l'une ou de l'autre : NumerotationIndisponibleError. Plus de compteur du navigateur (il pouvait
+   * diverger entre appareils et donner le même numéro à deux factures) : le document reste un brouillon.
    *
    * Préfixes selon docType : DEV-/FACT-/AV-. La séquence est PAR docType,
    * pas partagée — devis et factures ont leur compteur indépendant.
@@ -868,11 +860,16 @@ export default function DevisFactureFormBTP({
       })
       if (res.ok) {
         const { number } = await res.json()
-        docNumberRef.current = number
-        setDocNumber(number)
-        return number
+        if (number) {
+          docNumberRef.current = String(number)
+          setDocNumber(String(number))
+          return String(number)
+        }
       }
-    } catch { /* fallthrough */ }
+      console.warn('[DevisBTP] /api/doc-number sans numéro, appel direct de next_doc_number', res.status)
+    } catch (err) {
+      console.warn('[DevisBTP] /api/doc-number injoignable, appel direct de next_doc_number', err)
+    }
 
     // 2) RPC Supabase direct
     // ⚠️ next_doc_number exige auth.uid() = p_artisan_user_id → UID D'AUTH
@@ -892,15 +889,15 @@ export default function DevisFactureFormBTP({
           setDocNumber(number)
           return number
         }
+        console.warn('[DevisBTP] next_doc_number sans numéro', error?.message)
       }
-    } catch { /* fallthrough */ }
+    } catch (err) {
+      console.warn('[DevisBTP] next_doc_number injoignable', err)
+    }
 
-    // 3) Fallback localStorage (compatible préfixes DEV/FACT/AV)
-    const fallback = localFallbackDocNumber(artisan?.id, rpcDocType)
-    docNumberRef.current = fallback
-    setDocNumber(fallback)
-    return fallback
-  }, [artisan?.id, artisan?.user_id, docType, factureSubType])
+    // 3) Aucun numéro du serveur : pas de numéro tiré du navigateur, le document reste un brouillon (saveAndSend).
+    throw new NumerotationIndisponibleError()
+  }, [artisan?.user_id, docType, factureSubType])
 
   // Méthode pro (modèle Stripe) : un brouillon n'a PAS de numéro. docNumber reste
   // vide tant que le document n'est pas validé ; le numéro légal (DEV-/FACT-/AV-/
@@ -924,6 +921,12 @@ export default function DevisFactureFormBTP({
     const montantLigne = (l: ProductLine) => montantNetLigne(l.qty || 0, l.priceHT || 0, l.remise)
     // Sous-total via centimes entiers (sumMoney), avant la remise commerciale globale.
     const subTotalBrut = sumMoney(allLines.map(montantLigne))
+    // Portugal : une ligne vide (sans désignation ni montant, au taux par défaut 23 %) ne fait pas apparaître
+    // « IVA 23 % 0,00 € » à côté des vrais taux (6 % d'une rénovation, 20 % d'un document d'avant), comme le PDF
+    // téléchargé depuis la liste (lib/pdf/download-saved-devis.ts) ; un document encore vide garde sa ligne à 23 %.
+    // France : calcul inchangé.
+    const ligneVide = (l: ProductLine) => !(l.description || '').trim() && montantLigne(l) === 0
+    const lignesTva = paysTva === 'pt' && allLines.some(l => !ligneVide(l)) ? allLines.filter(l => !ligneVide(l)) : allLines
 
     // Source unique de vérité : lib/tva-calculator.ts
     // En franchise/autoliquidation, la TVA est forcée à 0 (override silencieux
@@ -934,7 +937,7 @@ export default function DevisFactureFormBTP({
     // (horsRemise) restent hors de sa base.
     const tva = computeTva({
       regime: regimeTva,
-      lines: allLines.map(l => ({
+      lines: lignesTva.map(l => ({
         totalHT: montantLigne(l),
         tvaRate: l.tvaRate || 0,
         horsRemise: l.horsRemise === true,
@@ -974,7 +977,7 @@ export default function DevisFactureFormBTP({
     // Base de la remise globale : les travaux, sans les déductions d'acompte d'une facture de solde.
     const baseRemise = tva.baseRemiseHT
     return { subTotalBrut, remise, totalHT, tvaEntries, tvaBreakdown, totalTva, totalTTC, totalLabel: tva.totalLabel, lignesRemise, baseRemise }
-  }, [lines, materialLines, fraisLines, materialLinesEnabled, fraisLinesEnabled, customTables, regimeTva, remiseGlobale])
+  }, [lines, materialLines, fraisLines, materialLinesEnabled, fraisLinesEnabled, customTables, regimeTva, remiseGlobale, paysTva])
   // Autoliquidation ou franchise : pas de taux à afficher dans le résumé (il montrait « TVA 20 % » à 0,00 €)
   const ligneTvaResume = ligneTvaHorsClassique(regimeTva)
 
@@ -1003,7 +1006,7 @@ export default function DevisFactureFormBTP({
 
   const addLine = () => {
     const nextId = Math.max(0, ...lines.map((l) => l.id)) + 1
-    setLines([...lines, { id: nextId, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: 20, totalHT: 0 }])
+    setLines([...lines, { id: nextId, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: tauxTvaDefaut, totalHT: 0 }])
   }
 
   const removeLine = (id: number) => {
@@ -1028,7 +1031,7 @@ export default function DevisFactureFormBTP({
 
   const addMaterialLine = () => {
     const nextId = Math.max(0, ...materialLines.map((l) => l.id)) + 1
-    setMaterialLines([...materialLines, { id: nextId, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: 20, totalHT: 0 }])
+    setMaterialLines([...materialLines, { id: nextId, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: tauxTvaDefaut, totalHT: 0 }])
   }
 
   const removeMaterialLine = (id: number) => {
@@ -1056,7 +1059,7 @@ export default function DevisFactureFormBTP({
 
   const addFraisLine = () => {
     const nextId = Math.max(0, ...fraisLines.map((l) => l.id)) + 1
-    setFraisLines([...fraisLines, { id: nextId, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: 20, totalHT: 0 }])
+    setFraisLines([...fraisLines, { id: nextId, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: tauxTvaDefaut, totalHT: 0 }])
   }
 
   const removeFraisLine = (id: number) => {
@@ -1092,7 +1095,7 @@ export default function DevisFactureFormBTP({
     setCustomTables(prev => prev.map(t => {
       if (t.id !== tableId) return t
       const nextId = (t.lines?.reduce((m, l) => Math.max(m, l.id), 0) || 0) + 1
-      return { ...t, lines: [...(t.lines || []), { id: nextId, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: 20, totalHT: 0 }] }
+      return { ...t, lines: [...(t.lines || []), { id: nextId, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: tauxTvaDefaut, totalHT: 0 }] }
     }))
   }
 
@@ -1168,7 +1171,8 @@ export default function DevisFactureFormBTP({
       const res = await fetch('/api/supplier-invoice-scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...scanAuthHeader },
-        body: JSON.stringify({ image_base64: imageBase64, mime_type: mimeType }),
+        // Pays des taux : une facture portugaise est lue aux taux d'IVA portugais (23 % par défaut)
+        body: JSON.stringify({ image_base64: imageBase64, mime_type: mimeType, pays: paysTva }),
       })
 
       if (!res.ok) {
@@ -1214,7 +1218,7 @@ export default function DevisFactureFormBTP({
     } finally {
       setSupplierScanning(false)
     }
-  }, [materialLines, tx])
+  }, [materialLines, tx, paysTva])
 
   /* ──────── Handlers acomptes ──────── */
 
@@ -1351,7 +1355,7 @@ export default function DevisFactureFormBTP({
           qty: 1,
           unit: 'f',
           priceHT: b.price_ht || 0,
-          tvaRate: 20,
+          tvaRate: tauxTvaDefaut,
           totalHT: b.price_ht || 0,
         }
         return [...filtered, newLine]
@@ -1696,14 +1700,35 @@ export default function DevisFactureFormBTP({
       // ── Attribution du numéro DÉFINITIF (méthode pro) ──
       // Jusqu'ici le document portait un numéro provisoire BR-AAAA-NNN (non
       // comptable). C'est SEULEMENT ici, à la validation, qu'on consomme le vrai
-      // numéro de séquence (next_doc_number serveur ; fallback local sinon) —
+      // numéro de séquence (next_doc_number serveur, jamais un compteur du navigateur) —
       // d'où une numérotation comptable continue, sans trou (242 nonies A I 2°).
       // Un brouillon ouvert puis abandonné ne consomme donc aucun numéro légal.
       const provisional = docNumberRef.current || docNumber
       let finalNumber = provisional
       if (!provisional || provisional.toUpperCase().startsWith('BR-')) {
+        const sujet = docType === 'facture' ? 'facture' : 'devis'
+        // Les messages détaillés (lib/emission-hors-serveur.ts) sont en français seulement : en portugais, le message
+        // traduit « Impossible de valider… » du formulaire, comme dans DevisSection.
+        const enPortugais = locale === 'pt'
+        // Place dans le navigateur vérifiée AVANT de consommer un numéro du serveur : un stockage plein faisait
+        // échouer l'enregistrement après coup, et le numéro tiré était perdu (trou dans la série).
+        if (!placePourEmettre(`fixit_documents_${artisan.id}`, buildPayload())) {
+          toast.error(enPortugais
+            ? (docType === 'facture' ? tx('Impossible de valider la facture') : tx('Impossible de valider le devis'))
+            : messageEmissionArretee(new StockageNavigateurPleinError(), sujet, 'validation'))
+          return
+        }
         docNumberRef.current = '' // purge le provisoire pour forcer le vrai numéro
-        finalNumber = await fetchDocNumber()
+        try {
+          finalNumber = await fetchDocNumber()
+        } catch (err) {
+          // Serveur muet : aucun numéro attribué, le document reste un brouillon (enregistré par la sauvegarde
+          // automatique) et l'utilisateur le lit.
+          const message = enPortugais ? null : messageEmissionArretee(err, sujet, 'validation')
+          if (!message) throw err
+          toast.error(message)
+          return
+        }
       }
       const payload = { ...buildPayload(), docNumber: finalNumber, status: 'envoye', savedAt: new Date().toISOString(), sentAt: new Date().toISOString() }
       // Identité = id stable : le doc passe de brouillon (sans numéro) à émis
@@ -1865,10 +1890,10 @@ export default function DevisFactureFormBTP({
                // Total = quantité déjà saisie × prix (et non 1 × prix), remise de la ligne déduite :
                // sinon le total stocké diverge du total affiché et part tel quel dans la liste, la
                // base et le PDF téléchargé.
-               tvaRate: 20, totalHT: montantNetLigne(line.qty || 0, price, line.remise),
+               tvaRate: tauxTvaDefaut, totalHT: montantNetLigne(line.qty || 0, price, line.remise),
                etapes: copiedEtapes.length > 0 ? copiedEtapes : undefined }
     }))
-  }, [allServices, catalogueBTP, tvaEnabled])
+  }, [allServices, catalogueBTP, tvaEnabled, tauxTvaDefaut])
 
   // svgToImageDataUrl : extrait dans lib/signature-canvas.ts (partagé avec le
   // formulaire artisan, audit 2026-06-10).
@@ -2938,7 +2963,7 @@ export default function DevisFactureFormBTP({
                       {remiseDisponible && <td><ChampRemiseLigne remise={l.remise} base={montantNetLigne(l.qty || 0, l.priceHT || 0)} onChange={(r) => updateLine(l.id, { remise: r })} /></td>}
                       <td>
                         <select value={autoliquidationBTP ? 0 : l.tvaRate} onChange={(e) => updateLine(l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled || autoliquidationBTP} title={autoliquidationBTP ? tx('TVA verrouillée à 0 % en autoliquidation BTP (art. 283, 2 nonies CGI)') : undefined}>
-                          {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
+                          {tauxTvaSelecteur(paysTva, autoliquidationBTP ? 0 : l.tvaRate).map((r) => <option key={r} value={r}>{r}%</option>)}
                         </select>
                       </td>
                       {lireRemise(l.remise) ? cellulesTotauxRemises(lineHT, lineTTC) : (<>
@@ -3046,7 +3071,7 @@ export default function DevisFactureFormBTP({
                       {remiseDisponible && <td><ChampRemiseLigne remise={l.remise} base={montantNetLigne(l.qty || 0, l.priceHT || 0)} onChange={(r) => updateMaterialLine(l.id, { remise: r })} /></td>}
                       <td>
                         <select value={autoliquidationBTP ? 0 : l.tvaRate} onChange={(e) => updateMaterialLine(l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled || autoliquidationBTP} title={autoliquidationBTP ? tx('TVA verrouillée à 0 % en autoliquidation BTP (art. 283, 2 nonies CGI)') : undefined}>
-                          {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
+                          {tauxTvaSelecteur(paysTva, autoliquidationBTP ? 0 : l.tvaRate).map((r) => <option key={r} value={r}>{r}%</option>)}
                         </select>
                       </td>
                       {lireRemise(l.remise) ? cellulesTotauxRemises(lineHT, lineTTC) : (<>
@@ -3146,7 +3171,7 @@ export default function DevisFactureFormBTP({
                       {remiseDisponible && <td><ChampRemiseLigne remise={l.remise} base={montantNetLigne(l.qty || 0, l.priceHT || 0)} onChange={(r) => updateFraisLine(l.id, { remise: r })} /></td>}
                       <td>
                         <select value={autoliquidationBTP ? 0 : l.tvaRate} onChange={(e) => updateFraisLine(l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled || autoliquidationBTP} title={autoliquidationBTP ? tx('TVA verrouillée à 0 % en autoliquidation BTP (art. 283, 2 nonies CGI)') : undefined}>
-                          {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
+                          {tauxTvaSelecteur(paysTva, autoliquidationBTP ? 0 : l.tvaRate).map((r) => <option key={r} value={r}>{r}%</option>)}
                         </select>
                       </td>
                       {lireRemise(l.remise) ? cellulesTotauxRemises(lineHT, lineTTC) : (<>
@@ -3276,7 +3301,7 @@ export default function DevisFactureFormBTP({
                         {remiseDisponible && <td>{tbl.id === ID_TABLE_ACOMPTES_DEDUITS ? null : <ChampRemiseLigne remise={l.remise} base={montantNetLigne(l.qty || 0, l.priceHT || 0)} onChange={(r) => updateCustomLine(tbl.id, l.id, { remise: r })} />}</td>}
                         <td>
                           <select value={autoliquidationBTP ? 0 : l.tvaRate} onChange={(e) => updateCustomLine(tbl.id, l.id, { tvaRate: parseFloat(e.target.value) })} disabled={!tvaEnabled || autoliquidationBTP} title={autoliquidationBTP ? tx('TVA verrouillée à 0 % en autoliquidation BTP (art. 283, 2 nonies CGI)') : undefined}>
-                            {TVA_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
+                            {tauxTvaSelecteur(paysTva, autoliquidationBTP ? 0 : l.tvaRate).map((r) => <option key={r} value={r}>{r}%</option>)}
                           </select>
                         </td>
                         <td style={{ textAlign: 'right' }}>{lineHT ? lineHT.toFixed(2) : '0,00'} €</td>
@@ -3875,7 +3900,8 @@ export default function DevisFactureFormBTP({
               ligneTvaResume ? (
                 <div className="dv-resume-row tva"><span>{tx(ligneTvaResume.libelle)}</span><span>{tx(ligneTvaResume.valeur)}</span></div>
               ) : totaux.tvaEntries.length === 0 ? (
-                <div className="dv-resume-row tva"><span>{tx('TVA 20 %')}</span><span>{fmt(0)}</span></div>
+                // Aucune ligne taxée (toutes à 0 %) : « IVA 0 % » au Portugal ; France inchangée
+                <div className="dv-resume-row tva"><span>{paysTva === 'pt' ? <>{tx('TVA')}{' '}0 %</> : tx('TVA 20 %')}</span><span>{fmt(0)}</span></div>
               ) : (
                 <>
                   {totaux.tvaEntries.map(([taux, montant]) => (
@@ -4020,7 +4046,7 @@ export default function DevisFactureFormBTP({
                     id: `ct_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,
                     name: newTableModal.name.trim().toUpperCase(),
                     category: cat,
-                    lines: [{ id: 1, description: '', qty: 1, unit: cat === 'labor' ? 'f' : 'u', priceHT: 0, tvaRate: 10, totalHT: 0 }],
+                    lines: [{ id: 1, description: '', qty: 1, unit: cat === 'labor' ? 'f' : 'u', priceHT: 0, tvaRate: tauxTvaTableAjoutee, totalHT: 0 }],
                   }])
                   setNewTableModal(m => ({ ...m, open: false, name: '' }))
                 } else if (e.key === 'Escape') {
@@ -4045,7 +4071,7 @@ export default function DevisFactureFormBTP({
                     id: `ct_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,
                     name: newTableModal.name.trim().toUpperCase(),
                     category: cat,
-                    lines: [{ id: 1, description: '', qty: 1, unit: cat === 'labor' ? 'f' : 'u', priceHT: 0, tvaRate: 10, totalHT: 0 }],
+                    lines: [{ id: 1, description: '', qty: 1, unit: cat === 'labor' ? 'f' : 'u', priceHT: 0, tvaRate: tauxTvaTableAjoutee, totalHT: 0 }],
                   }])
                   setNewTableModal(m => ({ ...m, open: false, name: '' }))
                 }}

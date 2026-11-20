@@ -15,25 +15,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 type Ligne = Record<string, unknown>
 type Resultat = { data: Ligne[] | null; error: { code: string; message: string } | null }
 
-const supabase = vi.hoisted(() => {
+const supabase = await vi.hoisted(async () => {
   // Les 90 colonnes de public.profiles_artisan en production, relevées le 31/10/2026 (ni org_role, ni country, ni
-  // is_verified, ni nif). Une colonne hors liste est traitée comme absente.
-  const colonnesProduction = new Set([
-    'acre_actif', 'acre_date_fin', 'active', 'ape_code', 'auto_accept', 'auto_block_duration_minutes', 'auto_reply_message',
-    'bio', 'categories', 'certidao_extracted', 'company_address', 'company_city', 'company_name', 'company_postal_code',
-    'created_at', 'credit_mois_gratuits', 'decennale_valid', 'declaration_configuree', 'email', 'hourly_rate', 'id',
-    'id_document_verso_url', 'insurance_coverage', 'insurance_expiry', 'insurance_name', 'insurance_number',
-    'insurance_scan_data', 'insurance_type', 'insurance_url', 'insurance_verified', 'intervention_zones', 'kbis_extracted',
-    'kbis_extracted_encrypted', 'kbis_url', 'kyc_checks', 'kyc_market', 'kyc_rejection_reason', 'kyc_reviewed_at',
-    'kyc_reviewed_by', 'kyc_score', 'kyc_status', 'kyc_verified_at', 'language', 'last_seen_at', 'latitude', 'legal_form',
-    'logo_url', 'longitude', 'marches_categories', 'marches_description', 'marches_opt_in', 'marches_tarif_horaire',
-    'marches_tarif_journalier', 'marches_work_mode', 'mediator_name', 'mediator_url', 'naf_code', 'naf_label',
-    'nif_encrypted', 'paiement_mention_devis', 'paiement_mention_facture', 'paiement_modes', 'periodicite_declaration',
-    'phone', 'pii_encryption_version', 'profile_photo_url', 'qualibat_valid', 'rating_avg', 'rating_count', 'rc_pro_valid',
-    'rcs_number', 'referral_code', 'referral_flagged', 'referral_parrain_id', 'rge_valid', 'share_capital', 'siren', 'siret',
-    'siret_encrypted', 'slug', 'subscription_tier', 'total_parrainages_reussis', 'tva_auto_activate', 'tva_intra',
-    'tva_notified_level', 'type_activite', 'updated_at', 'user_id', 'verified', 'zone_radius_km',
-  ])
+  // is_verified, ni nif), tenues dans une seule liste partagée avec les autres tests. Une colonne hors liste est
+  // traitée comme absente.
+  const { COLONNES_PROFILES_ARTISAN_PRODUCTION } = await import('../helpers/colonnes-profiles-artisan')
+  const colonnesProduction = new Set(COLONNES_PROFILES_ARTISAN_PRODUCTION)
   const etat = {
     lignes: [] as Ligne[],
     panne: null as { code: string; message: string } | null,

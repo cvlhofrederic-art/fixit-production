@@ -200,11 +200,31 @@ describe('fiche sinistre — contrôles de cohérence', () => {
     expect(bloquants(improbable)).toEqual(['dateSurvenance'])
   })
 
+  it('survenance en 9998 (faute de frappe) : bloquant, comme 1026 ; jamais une simple alerte « après aujourd’hui »', () => {
+    const anomalies = controlerFicheSinistre(fiche({ dateSurvenance: '9998-03-01', dateOuverture: null }), { aujourdhui: AUJOURDHUI })
+    expect(bloquants(anomalies)).toEqual(['dateSurvenance'])
+    expect(alertes(anomalies)).toEqual([])
+    expect(anomalies[0].message).toBe('Survenance datée du 01/03/9998 : année improbable (faute de frappe ?).')
+  })
+
+  it('survenance d’une année improbable : la forclusion n’est pas comparée à « survenance + 10 ans » (calcul hors calendrier)', () => {
+    const anomalies = controlerFicheSinistre(fiche({ dateSurvenance: '9995-03-01', dateOuverture: null, dateForclusion: '2027-01-01' }), {
+      aujourdhui: AUJOURDHUI,
+    })
+    expect(bloquants(anomalies)).toEqual(['dateSurvenance', 'dateForclusion'])
+    expect(anomalies.map((a) => a.message).join(' ')).not.toMatch(/plus de 10 ans/)
+  })
+
   it('forclusion très lointaine (faute de frappe sur l’année) : alerte ; cinq ans (sécheresse, cat. nat.) : rien', () => {
-    for (const improbable of ['3026-01-01', '2208-10-27']) {
-      const anomalies = controlerFicheSinistre(fiche({ dateForclusion: improbable }), { aujourdhui: AUJOURDHUI })
-      expect(alertes(anomalies)).toEqual(['dateForclusion'])
-      expect(anomalies[0].message).toMatch(/plus de 10 ans après la survenance/)
+    // Plus de 10 ans après la survenance, année plausible.
+    const anomalies = controlerFicheSinistre(fiche({ dateForclusion: '2040-10-27' }), { aujourdhui: AUJOURDHUI })
+    expect(alertes(anomalies)).toEqual(['dateForclusion'])
+    expect(anomalies[0].message).toMatch(/plus de 10 ans après la survenance/)
+    // Année postérieure à 2100 : année improbable.
+    for (const improbable of ['3026-01-01', '2208-10-27', '9999-12-31']) {
+      const lointaines = controlerFicheSinistre(fiche({ dateForclusion: improbable }), { aujourdhui: AUJOURDHUI })
+      expect(alertes(lointaines), improbable).toEqual(['dateForclusion'])
+      expect(lointaines[0].message, improbable).toMatch(/année improbable \(faute de frappe \?\)/)
     }
     expect(controlerFicheSinistre(fiche({ dateForclusion: '2031-10-27' }), { aujourdhui: AUJOURDHUI })).toEqual([])
     expect(controlerFicheSinistre(fiche({ dateForclusion: '2036-10-27' }), { aujourdhui: AUJOURDHUI })).toEqual([])
@@ -271,17 +291,17 @@ describe('fiche sinistre — forclusion : suggestion 🔵, jamais inventée', ()
       aConfirmer: true,
       fondement: 'C. assur. art. L. 114-1',
     })
-    expect(suggestion.avertissements.join(' ')).toMatch(/L\. 114-2/)
+    expect(suggestion?.avertissements.join(' ')).toMatch(/L\. 114-2/)
   })
 
   it('une seule durée de prescription (C. assur. art. L. 114-1) : celle de sinistres.ts, aussi lue par le repère du suivi « à faire »', () => {
     const suggestion = suggestionForclusion(fiche())
-    expect(suggestion.dureeMois).toBe(PRESCRIPTION_MOIS)
-    expect(suggestion.date).toBe(reperesDelaisSinistre(fiche()).prescription)
+    expect(suggestion?.dureeMois).toBe(PRESCRIPTION_MOIS)
+    expect(suggestion?.date).toBe(reperesDelaisSinistre(fiche())?.prescription)
   })
 
   it('29 février → 28 février deux ans plus tard', () => {
-    expect(suggestionForclusion(fiche({ dateSurvenance: '2024-02-29', dateOuverture: null })).date).toBe('2026-02-28')
+    expect(suggestionForclusion(fiche({ dateSurvenance: '2024-02-29', dateOuverture: null }))?.date).toBe('2026-02-28')
   })
 
   it('n’écrit jamais dans la fiche : la date de forclusion reste celle saisie (vide ici)', () => {
@@ -292,24 +312,24 @@ describe('fiche sinistre — forclusion : suggestion 🔵, jamais inventée', ()
 
   it('connaissance postérieure : point de départ reporté si l’ignorance est prouvée (L. 114-1, 2°)', () => {
     const suggestion = suggestionForclusion(fiche({ dateConnaissance: '2026-12-15', dateOuverture: null }))
-    expect(suggestion.date).toBe('2028-10-27')
-    expect(suggestion.dateSiConnaissanceTardive).toBe('2028-12-15')
-    expect(suggestion.avertissements.join(' ')).toMatch(/ignor/)
-    expect(suggestionForclusion(fiche()).dateSiConnaissanceTardive).toBeNull()
+    expect(suggestion?.date).toBe('2028-10-27')
+    expect(suggestion?.dateSiConnaissanceTardive).toBe('2028-12-15')
+    expect(suggestion?.avertissements.join(' ')).toMatch(/ignor/)
+    expect(suggestionForclusion(fiche())?.dateSiConnaissanceTardive).toBeNull()
   })
 
   it('responsabilité civile, défense-recours : le recours d’un tiers reporte le point de départ', () => {
-    expect(suggestionForclusion(fiche({ type: 'Responsabilités civiles' })).avertissements.join(' ')).toMatch(/tiers/)
-    expect(suggestionForclusion(fiche({ type: 'Défense - Recours' })).avertissements.join(' ')).toMatch(/tiers/)
-    expect(suggestionForclusion(fiche()).avertissements.join(' ')).not.toMatch(/tiers/)
+    expect(suggestionForclusion(fiche({ type: 'Responsabilités civiles' }))?.avertissements.join(' ')).toMatch(/tiers/)
+    expect(suggestionForclusion(fiche({ type: 'Défense - Recours' }))?.avertissements.join(' ')).toMatch(/tiers/)
+    expect(suggestionForclusion(fiche())?.avertissements.join(' ')).not.toMatch(/tiers/)
   })
 
   it('J67, R56 : catastrophe naturelle : cinq ans pour la seule sécheresse-réhydratation, selon la date du contrat ; date suggérée inchangée, sans 🔴', () => {
     const avertissement = (dateContrat?: string | null) => {
       const suggestion = suggestionForclusion({ ...fiche({ type: 'Catastrophes naturelles' }), dateContrat })
-      expect(suggestion.date).toBe('2028-10-27')
-      expect(suggestion.avertissements.join(' ')).not.toMatch(/🔴/)
-      return suggestion.avertissements.at(-1)
+      expect(suggestion?.date).toBe('2028-10-27')
+      expect(suggestion?.avertissements.join(' ')).not.toMatch(/🔴/)
+      return suggestion?.avertissements.at(-1)
     }
     const secheresse =
       'Sécheresse-réhydratation seulement (mouvements de terrain consécutifs, reconnus catastrophe naturelle, C. assur. art. L. 114-1)'
@@ -322,7 +342,19 @@ describe('fiche sinistre — forclusion : suggestion 🔵, jamais inventée', ()
       `${secheresse} : contrat conclu le 29/12/2021, en cours à la publication de la loi n° 2021-1837 (art. 10 : elle ne s'applique pas aux contrats en cours) : deux ans ; reconduit depuis : à vérifier, deux ans par prudence.`,
     )
     // Autre type : aucune mention des cinq ans, même avec la date du contrat.
-    expect(suggestionForclusion({ ...fiche(), dateContrat: '2023-01-01' }).avertissements.join(' ')).not.toMatch(/cinq ans/)
+    expect(suggestionForclusion({ ...fiche(), dateContrat: '2023-01-01' })?.avertissements.join(' ')).not.toMatch(/cinq ans/)
+  })
+
+  it('survenance d’une année improbable (9998, 1026) : aucune suggestion, au lieu d’une date en l’an 10000', () => {
+    for (const dateSurvenance of ['9998-03-01', '9999-12-31', '1026-10-27'])
+      expect(suggestionForclusion({ dateSurvenance }), dateSurvenance).toBeNull()
+  })
+
+  it('connaissance d’une année improbable (9999) : suggestion depuis la survenance, sans point de départ reporté', () => {
+    const suggestion = suggestionForclusion({ dateSurvenance: '2026-10-27', dateConnaissance: '9999-12-30' })
+    expect(suggestion?.date).toBe('2028-10-27')
+    expect(suggestion?.dateSiConnaissanceTardive).toBeNull()
+    expect(suggestion?.avertissements.join(' ')).not.toMatch(/ignor/)
   })
 })
 

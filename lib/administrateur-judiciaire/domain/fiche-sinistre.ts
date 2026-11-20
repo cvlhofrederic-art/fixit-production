@@ -2,6 +2,7 @@ import {
   ajouterMois,
   composerDateIso,
   dateIsoVersFr,
+  estAnneeImprobable,
   estDateIsoValide,
   messagePlausibilite,
   plausibiliteDate,
@@ -125,14 +126,15 @@ function anomaliesDatesGesteam(fiche: FicheSinistre, aujourdhui: string): Anomal
 
 /**
  * Forclusion saisie : année improbable, ou plus de FORCLUSION_ANNEES_MAX ans après la survenance (faute de frappe sur
- * l'année, « 2208 » pour « 2028 ») : alerte, la date reste celle saisie.
+ * l'année, « 2038 » pour « 2028 ») : alerte, la date reste celle saisie. Survenance d'une année improbable (déjà
+ * bloquante) : pas de comparaison, « survenance + 10 ans » pouvant sortir du calendrier ISO.
  */
 function plausibiliteForclusion(fiche: FicheSinistre, aujourdhui: string): AnomalieFiche[] {
   const { dateForclusion, dateSurvenance } = fiche
   if (!dateForclusion) return []
   if (plausibiliteDate(dateForclusion, aujourdhui, { futurAdmis: true }) === 'annee_improbable')
     return [alerte('dateForclusion', messagePlausibilite('Forclusion datée', dateForclusion, 'annee_improbable'))]
-  if (dateForclusion <= ajouterMois(dateSurvenance, 12 * FORCLUSION_ANNEES_MAX)) return []
+  if (estAnneeImprobable(dateSurvenance) || dateForclusion <= ajouterMois(dateSurvenance, 12 * FORCLUSION_ANNEES_MAX)) return []
   return [
     alerte(
       'dateForclusion',
@@ -327,11 +329,14 @@ function avertissementSecheresse(dateContrat: string | null | undefined): string
 /**
  * Suggestion de date de forclusion, à confirmer : jamais recopiée dans la fiche (dateForclusion reste celle saisie).
  * Hypothèse 🔴 à confirmer avec Hugo : la « Forclusion » de Gestéam vise la prescription biennale de l'art. L. 114-1.
+ * Aucune date ne part d'une année improbable (dates.estAnneeImprobable, faute de frappe déjà signalée par la fiche) :
+ * survenance ainsi datée, pas de suggestion (null) ; connaissance ainsi datée, pas de point de départ reporté.
  */
-export function suggestionForclusion(fiche: BaseSuggestionForclusion): SuggestionForclusion {
+export function suggestionForclusion(fiche: BaseSuggestionForclusion): SuggestionForclusion | null {
+  if (estAnneeImprobable(fiche.dateSurvenance)) return null
   const connaissance = fiche.dateConnaissance ?? fiche.dateSurvenance
   const dateSiConnaissanceTardive =
-    connaissance > fiche.dateSurvenance ? ajouterMois(connaissance, PRESCRIPTION_MOIS) : null
+    connaissance > fiche.dateSurvenance && !estAnneeImprobable(connaissance) ? ajouterMois(connaissance, PRESCRIPTION_MOIS) : null
   const avertissements = [
     "Suggestion à confirmer : prescription biennale des actions dérivant du contrat d'assurance (C. assur. art. L. 114-1), interrompue notamment par la désignation d'un expert ou une lettre recommandée (art. L. 114-2). Vérifier le contrat et le dossier.",
   ]

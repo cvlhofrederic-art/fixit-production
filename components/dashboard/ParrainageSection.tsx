@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useLocale } from '@/lib/i18n/context'
 import { safeOpen } from '@/lib/security/safe-url'
+import { fetchAuthentifie } from '@/lib/fetch-authentifie'
 import { useThemeVars } from './useThemeVars'
 import type { Artisan } from '@/lib/types'
 
@@ -45,12 +46,16 @@ export default function ParrainageSection({ artisan, orgRole }: ParrainageSectio
   const [history, setHistory] = useState<HistoryItem[]>([])
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(false)
+  // Les routes du parrainage exigent le jeton de la session : la société BTP l'envoie. Côté artisan, l'appel d'origine
+  // est conservé (règle artisan / BTP) ; le même défaut y reste, signalé.
+  const envoyerSession = orgRole === 'pro_societe'
 
   const fetchData = useCallback(async () => {
+    const appel = (url: string, options?: RequestInit) => (envoyerSession ? fetchAuthentifie(url, options) : fetch(url, options))
     try {
       const [statsRes, historyRes] = await Promise.all([
-        fetch('/api/referral/stats'),
-        fetch('/api/referral/history'),
+        appel('/api/referral/stats'),
+        appel('/api/referral/history'),
       ])
       let statsData: ReferralStats | null = null
       if (statsRes.ok) {
@@ -65,10 +70,10 @@ export default function ParrainageSection({ artisan, orgRole }: ParrainageSectio
       // Auto-generate referral code if none exists
       if (statsData && !statsData.referral_code) {
         try {
-          const genRes = await fetch('/api/referral/generate-code', { method: 'POST' })
+          const genRes = await appel('/api/referral/generate-code', { method: 'POST' })
           if (genRes.ok) {
             // Re-fetch stats to get the new code & link
-            const refreshRes = await fetch('/api/referral/stats')
+            const refreshRes = await appel('/api/referral/stats')
             if (refreshRes.ok) setStats(await refreshRes.json())
           }
         } catch {
@@ -80,7 +85,7 @@ export default function ParrainageSection({ artisan, orgRole }: ParrainageSectio
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [envoyerSession])
 
   useEffect(() => {
     fetchData()

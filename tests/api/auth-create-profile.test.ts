@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 const USER_ID = '550e8400-e29b-41d4-a716-446655440000'
 
@@ -256,5 +256,25 @@ describe('POST /api/auth/create-profile — champs fixés par le serveur', () =>
     await POST(requete({ user_id: USER_ID, company_name: 'X', kyc_market: 'marche_sans_controle' }) as never)
 
     expect(mocks.profileInsert).toHaveBeenCalledWith({ user_id: USER_ID, company_name: 'X', verified: false, kyc_status: 'pending' })
+  })
+})
+
+describe('POST /api/auth/create-profile — compte créé il y a plus de 10 minutes', () => {
+  // Horloge figée : la limite de 10 minutes de la route se compare à une date fixe, jamais à l'heure de la machine.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-11-17T12:00:00Z'))
+  })
+  afterEach(() => { vi.useRealTimers() })
+
+  it('refus 403 avec le message que reconnaît l’inscription d’une société (app/(commun)/pro/register)', async () => {
+    mocks.authUser = { created_at: '2026-11-17T11:49:00Z' }
+    mocks.existingProfile = { id: 'profil-existant' }
+    const { POST } = await import('@/app/api/auth/create-profile/route')
+    const res = await POST(requete({ user_id: USER_ID, company_name: 'X' }) as never)
+
+    expect(res.status).toBe(403)
+    expect(await res.json()).toEqual({ error: 'Profile creation window expired' })
+    expect(mocks.profileInsert).not.toHaveBeenCalled()
   })
 })

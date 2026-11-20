@@ -7,6 +7,7 @@ import { logger } from '@/lib/logger'
 import { validateBody, syndicTeamInviteSchema } from '@/lib/validation'
 import { nouvelleInvitation, sansJetonInvitation } from '@/lib/equipe/lien-invitation'
 import { envoyerEmailInvitation } from '@/lib/equipe/invitation-serveur'
+import { estRoleEquipeSyndic, UNICITE_EMAIL_PAR_CABINET, type RoleEquipeSyndic } from '@/lib/syndic/equipe-contraintes'
 
 /**
  * Rôles qui administrent l'équipe du cabinet (invitation, modification, suppression).
@@ -23,6 +24,14 @@ const COLONNES_EQUIPE = 'id, email, full_name, role, invite_sent_at, accepted_at
 function colonneAbsente(error: { code?: string; message?: string } | null): boolean {
   if (!error) return false
   return error.code === '42703' || error.code === 'PGRST204' || /column .* does not exist/i.test(error.message ?? '')
+}
+
+/**
+ * Adresse déjà présente dans le cabinet (Postgres 23505 sur l'unicité (cabinet_id, email), migration 20261115) :
+ * deux invitations simultanées de la même adresse passent ensemble la vérification qui précède l'insertion.
+ */
+function doublonEmailDuCabinet(error: { code?: string; message?: string } | null): boolean {
+  return error?.code === '23505' && (error.message ?? '').includes(UNICITE_EMAIL_PAR_CABINET)
 }
 
 // ── GET /api/syndic/team ──────────────────────────────────────────────────────
@@ -86,8 +95,7 @@ export async function POST(request: NextRequest) {
   }
   const { email, full_name, memberRole, customModules } = validation.data
 
-  const validRoles = ['syndic_admin', 'syndic_tech', 'syndic_technicien', 'syndic_secretaire', 'syndic_gestionnaire', 'syndic_comptable', 'syndic_juriste']
-  if (!validRoles.includes(memberRole)) {
+  if (!estRoleEquipeSyndic(memberRole)) {
     return NextResponse.json({ error: 'Rôle invalide' }, { status: 400 })
   }
 
@@ -138,6 +146,9 @@ export async function POST(request: NextRequest) {
     .single()
 
   if (error) {
+    if (doublonEmailDuCabinet(error)) {
+      return NextResponse.json({ error: 'Cet email est déjà membre de votre équipe' }, { status: 409 })
+    }
     logger.error('[TEAM] POST error:', error)
     return NextResponse.json({ error: 'Erreur lors de la création du membre' }, { status: 500 })
   }
@@ -148,7 +159,7 @@ export async function POST(request: NextRequest) {
 
   // ── Envoyer l'email d'invitation automatiquement ──────────────────
   const cabinetName = user.user_metadata?.cabinet_name || user.user_metadata?.full_name || 'Cabinet'
-  const roleLabels: Record<string, string> = {
+  const roleLabels: Record<RoleEquipeSyndic, string> = {
     syndic_admin: 'Administrateur',
     syndic_tech: 'Gestionnaire Technique',
     syndic_technicien: 'Technicien',
@@ -240,8 +251,7 @@ export async function PATCH(request: NextRequest) {
 
   const updates: Record<string, unknown> = {}
   if (role !== undefined) {
-    const validRoles = ['syndic_admin', 'syndic_tech', 'syndic_technicien', 'syndic_secretaire', 'syndic_gestionnaire', 'syndic_comptable', 'syndic_juriste']
-    if (!validRoles.includes(role)) return NextResponse.json({ error: 'Rôle invalide' }, { status: 400 })
+    if (!estRoleEquipeSyndic(role)) return NextResponse.json({ error: 'Rôle invalide' }, { status: 400 })
     updates.role = role
   }
   if (is_active !== undefined) updates.is_active = Boolean(is_active)

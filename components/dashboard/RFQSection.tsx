@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
+import { fetchAuthentifie } from '@/lib/fetch-authentifie'
 import { useLocale } from '@/lib/i18n/context'
 import type { RFQ, RFQItem, Offer, CreateRFQPayload } from '@/lib/rfq-types'
 
@@ -192,27 +193,18 @@ export default function RFQSection({ artisan, orgRole }: Props) {
     }
   }
 
+  // Accepter ou refuser une offre passe par le serveur (PATCH /api/rfq) : la table des offres n'accorde que la lecture
+  // au compte, une écriture depuis le navigateur ne changeait rien. Le serveur refuse les autres offres et clôt la
+  // demande quand une offre est acceptée.
+  const deciderOffre = async (offerId: string, status: 'accepted' | 'rejected') => {
+    const res = await fetchAuthentifie('/api/rfq', { method: 'PATCH', body: JSON.stringify({ offer_id: offerId, status }) })
+    if (!res.ok) throw new Error(`Décision refusée (${res.status})`)
+  }
+
   const handleAcceptOffer = async (offerId: string) => {
     setActionLoading(offerId)
     try {
-      const token = await getToken()
-      if (!token) return
-      const { error } = await supabase
-        .from('offers')
-        .update({ status: 'accepted' })
-        .eq('id', offerId)
-      if (error) throw error
-      if (selectedRFQ) {
-        await supabase
-          .from('offers')
-          .update({ status: 'rejected' })
-          .eq('rfq_id', selectedRFQ.id)
-          .neq('id', offerId)
-        await supabase
-          .from('rfqs')
-          .update({ status: 'closed', updated_at: new Date().toISOString() })
-          .eq('id', selectedRFQ.id)
-      }
+      await deciderOffre(offerId, 'accepted')
       showToast(isPt ? 'Proposta aceite!' : 'Offre acceptée !')
       await loadRFQs()
       setSelectedRFQ(null)
@@ -226,11 +218,7 @@ export default function RFQSection({ artisan, orgRole }: Props) {
   const handleRejectOffer = async (offerId: string) => {
     setActionLoading(offerId)
     try {
-      const { error } = await supabase
-        .from('offers')
-        .update({ status: 'rejected' })
-        .eq('id', offerId)
-      if (error) throw error
+      await deciderOffre(offerId, 'rejected')
       showToast(isPt ? 'Proposta recusada' : 'Offre refusée')
       await loadRFQs()
       setSelectedRFQ(null)

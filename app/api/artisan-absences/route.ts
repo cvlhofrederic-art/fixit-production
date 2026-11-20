@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
-import { getAuthUser } from '@/lib/auth-helpers'
+import { getAuthUser, verifyArtisanOwnership } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { artisanAbsenceSchema, validateBody } from '@/lib/validation'
 import { logger } from '@/lib/logger'
 
+// Lecture publique : les dates suffisent à la prise de rendez-vous.
+const COLONNES_PUBLIQUES = 'id, artisan_id, start_date, end_date'
+// Le motif et le libellé (qui peut porter le nom d'un client) restent ceux du propriétaire de la fiche.
+const COLONNES_PROPRIETAIRE = 'id, artisan_id, start_date, end_date, reason, label, created_at'
+
 // GET: Fetch absences for an artisan (public — needed for client booking availability check)
+// Sans session, ou pour la fiche d'un autre : dates seules. Avec la session du propriétaire : détail complet.
 export async function GET(request: NextRequest) {
   const ip = getClientIP(request)
   if (!(await checkRateLimit(`absences_get_${ip}`, 30, 60_000))) return rateLimitResponse()
@@ -17,9 +23,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'artisan_id is required' }, { status: 400 })
   }
 
+  const user = await getAuthUser(request)
+  const estProprietaire = !!user && !!(await verifyArtisanOwnership(user.id, artisanId, supabaseAdmin))
+
   const { data, error } = await supabaseAdmin
     .from('artisan_absences')
-    .select('id, artisan_id, start_date, end_date, reason, label, created_at')
+    .select(estProprietaire ? COLONNES_PROPRIETAIRE : COLONNES_PUBLIQUES)
     .eq('artisan_id', artisanId)
     .order('start_date')
     .limit(100)
@@ -30,7 +39,12 @@ export async function GET(request: NextRequest) {
   }
 
   const response = NextResponse.json({ data })
-  response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600')
+  // Une réponse à une requête qui présente un jeton (propriétaire reconnu ou non) n'est jamais gardée par un cache :
+  // une réponse « dates seules » ne doit pas être resservie au propriétaire une fois sa session reconnue.
+  // Sans jeton, la réponse publique reste mise en cache comme avant.
+  const avecJeton = request.headers.has('Authorization')
+  response.headers.set('Cache-Control', avecJeton ? 'private, no-store' : 'public, s-maxage=300, stale-while-revalidate=600')
+  response.headers.set('Vary', 'Authorization')
   return response
 }
 

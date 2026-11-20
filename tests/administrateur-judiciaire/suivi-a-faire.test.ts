@@ -521,7 +521,7 @@ describe('sources — sinistres, équipements, diagnostics', () => {
         famille: 'sinistres',
         nature: 'a_declarer',
         libelle: 'Dégât des eaux — à déclarer au plus tard le 27/10/2026 (minimum légal, C. assur. L. 113-2, 4° ; le contrat peut accorder plus)',
-        date: reperes.declarationAuPlusTard,
+        date: reperes?.declarationAuPlusTard,
         mandatId: 'M1',
         objetId: 'S1',
         assigneId: null,
@@ -532,7 +532,7 @@ describe('sources — sinistres, équipements, diagnostics', () => {
         famille: 'sinistres',
         nature: 'prescription',
         libelle: 'Dégât des eaux — prescription au plus tôt le 20/10/2028 (C. assur. L. 114-1 ; peut être repoussée par une interruption, L. 114-2)',
-        date: reperes.prescription,
+        date: reperes?.prescription,
         mandatId: 'M1',
         objetId: 'S1',
         assigneId: null,
@@ -551,7 +551,7 @@ describe('sources — sinistres, équipements, diagnostics', () => {
       id: 'sinistres:S4:a_declarer',
       libelle:
         "Dégât des eaux — à déclarer au plus tard le 27/10/2026 (minimum légal, C. assur. L. 113-2, 4° ; le contrat peut accorder plus) — déclaration non datée (phase « Mission d'expertise ») : à vérifier",
-      date: reperesDelaisSinistre(fiche).declarationAuPlusTard,
+      date: reperesDelaisSinistre(fiche)?.declarationAuPlusTard,
       aConfirmer: false,
     })
     const generale = creerSinistre(saisieSinistre({ phase: 'Général' }))
@@ -568,7 +568,7 @@ describe('sources — sinistres, équipements, diagnostics', () => {
       ['a_declarer', '2026-10-22', 'DO — à déclarer dès la connaissance (L. 113-2, 4°) ; aucun délai dans les clauses types', false],
       [
         'prescription',
-        reperesDelaisSinistre(fiche).prescription,
+        reperesDelaisSinistre(fiche)?.prescription,
         'DO — prescription au plus tôt le 20/10/2028 (C. assur. L. 114-1 ; peut être repoussée par une interruption, L. 114-2)',
         false,
       ],
@@ -577,7 +577,7 @@ describe('sources — sinistres, équipements, diagnostics', () => {
     const [avecDelai] = depuisSinistres([{ id: 'S7', mandatId: 'M1', libelle: 'DO', fiche, delaiContratJoursOuvres: 5 }])
     expect(avecDelai).toMatchObject({
       libelle: 'DO — à déclarer au plus tard le 29/10/2026 (délai du contrat ; C. assur. L. 113-2, 4°)',
-      date: reperesDelaisSinistre(fiche, { delaiContratJoursOuvres: 5 }).declarationAuPlusTard,
+      date: reperesDelaisSinistre(fiche, { delaiContratJoursOuvres: 5 })?.declarationAuPlusTard,
       aConfirmer: false,
     })
     // Phase qui suit la déclaration, sans date : « à vérifier » s'ajoute au libellé (R49).
@@ -585,6 +585,11 @@ describe('sources — sinistres, équipements, diagnostics', () => {
     expect(enExpertise.libelle).toBe(
       "DO — à déclarer dès la connaissance (L. 113-2, 4°) ; aucun délai dans les clauses types — déclaration non datée (phase « Mission d'expertise ») : à vérifier",
     )
+  })
+
+  it('survenance d’une année improbable (9998) : la liste ne lève pas ; ni déclaration ni prescription datées, l’indemnité différée reste', () => {
+    const fiche = creerSinistre(saisieSinistre({ dateSurvenance: '9998-03-01', indemniteDiffereeCentimes: 50_000 }))
+    expect(ids(depuisSinistres([{ id: 'S9', mandatId: 'M1', libelle: 'x', fiche }]))).toEqual(['sinistres:S9:indemnite_differee'])
   })
 
   describe('déclaration d’un sinistre (J67, R49 ; C. assur. L. 113-2, 4°)', () => {
