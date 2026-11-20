@@ -119,6 +119,51 @@ describe('Synthèse — frise des étapes', () => {
     expect(etapeCourante(close)).toBe('Clos')
     expect(close.textContent).toContain('Statut : Terminé')
   })
+
+  it('phase et statut sur la ligne de la frise, comme la maquette (décision du 19/11, #759, écart 24)', () => {
+    const synthese = rendreSynthese(fiche())
+    const frise = within(synthese).getByRole('list', { name: 'Étapes du suivi' })
+    const phase = within(synthese).getByText(/^Phase Gestéam/)
+    expect(phase.parentElement).toBe(frise.parentElement)
+    // jsdom ne calcule pas la mise en page : on vérifie les propriétés qui la donnent. Dans la fiche (720 px), la frise
+    // et la phase ne tiennent pas côte à côte à leur largeur naturelle : la phase prend la place qui reste à droite de
+    // la frise, son texte passe à la ligne dans cette place, aligné à droite. Base de 165 px : s'il reste moins de
+    // place (fiche plus étroite), la phase passe sous la frise, sur la largeur de la ligne, au lieu de se tasser dans
+    // une colonne étroite (jusqu'à six lignes avec une base nulle).
+    expect(phase).toHaveStyle({
+      flexGrow: '1',
+      flexShrink: '1',
+      flexBasis: '165px',
+      textAlign: 'right',
+      marginLeft: 'auto',
+    })
+  })
+})
+
+describe('Synthèse — bouton « Replier » des blocs de la fiche (décision du 19/11, #759, point 12)', () => {
+  it('ouverte par défaut ; « Replier » ne laisse que son titre ; repliée, le bouton dit « Déplier » et la rouvre', () => {
+    const synthese = rendreSynthese(fiche())
+    const bouton = within(synthese).getByRole('button', { name: 'Replier le bloc Synthèse' })
+    expect(bouton).toHaveAttribute('aria-expanded', 'true')
+    expect(bouton.textContent).toBe('Replier')
+    const contenu = document.getElementById(bouton.getAttribute('aria-controls') as string)
+    expect(contenu).toContainElement(within(synthese).getByRole('list', { name: 'Étapes du suivi' }))
+    expect(contenu).toContainElement(bandeau(synthese))
+
+    fireEvent.click(bouton)
+    expect(bouton).toHaveAttribute('aria-expanded', 'false')
+    expect(bouton).toHaveAccessibleName('Déplier le bloc Synthèse')
+    // WCAG 2.5.3 : le nom accessible contient le texte visible du bouton.
+    expect(bouton.textContent).toBe('Déplier')
+    expect(screen.getByRole('region', { name: 'Synthèse' })).toBe(synthese)
+    expect(within(synthese).queryByRole('list', { name: 'Étapes du suivi' })).toBeNull()
+    expect(synthese.querySelector('.alert')).toBeNull()
+    expect(synthese.textContent).not.toContain('Phase Gestéam')
+
+    fireEvent.click(bouton)
+    expect(bouton).toHaveAccessibleName('Replier le bloc Synthèse')
+    expect(etapes(synthese)).toEqual(ETAPES)
+  })
 })
 
 describe('Synthèse — indemnités', () => {
@@ -209,6 +254,31 @@ describe('Synthèse — repères de délai, présentés comme des signaux', () =
     const f = fiche()
     expect(reperesDelaisSinistre(f).delaiDuContrat).toBe(false)
     expect(bandeau(rendreSynthese(f)).textContent).toContain('(minimum légal, C. assur. L. 113-2, 4°)')
+  })
+
+  it('droit commun : un fondement déjà cité sous la même forme par le rappel n’est pas redit entre parenthèses (décision du 19/11, #759, point 20)', () => {
+    for (const type of ['Dégât des eaux', 'Vol', 'Tempête, Grêles, Neiges'] as const) {
+      const f = fiche({ type })
+      const { avertissement, fondements } = controle(f)
+      expect(fondements.length).toBeGreaterThan(0)
+      expect(fondements.every((fondement) => avertissement.includes(fondement))).toBe(true)
+      const texte = bandeau(rendreSynthese(f)).textContent ?? ''
+      expect(texte).toContain(avertissement)
+      expect(texte).not.toContain(`${avertissement} (`)
+      // Une seule fois sous cette forme, dans le rappel ; l'autre forme (« C. assur. L. … ») relève du domaine.
+      for (const fondement of fondements) expect(texte.split(fondement)).toHaveLength(2)
+      cleanup()
+    }
+  })
+
+  it('dommages-ouvrage et catastrophe naturelle : fondements absents du texte, toujours ajoutés entre parenthèses', () => {
+    for (const type of ['Dommages Ouvrage', 'Catastrophes naturelles'] as const) {
+      const f = fiche({ type, dateDeclaration: null, dateExpertise: null, phase: 'Général' })
+      const { avertissement, fondements } = controle(f)
+      expect(fondements.some((fondement) => avertissement.includes(fondement))).toBe(false)
+      expect(bandeau(rendreSynthese(f)).textContent).toContain(`${avertissement} (${fondements.join(' · ')})`)
+      cleanup()
+    }
   })
 
   it('prescription au plus tôt, présentée comme un repère ; garantie impayés : à confirmer', () => {
@@ -355,6 +425,26 @@ describe('Synthèse — dans la fiche sinistre (démonstration)', () => {
     expect(regions[0]).toBe('Synthèse')
     expect(regions).toHaveLength(10)
     expect(etapeCourante(within(dialogue()).getByRole('region', { name: 'Synthèse' }))).toBe('Expertise')
+  })
+
+  it('« Détails » : la synthèse a le bouton « Replier » des neuf autres blocs ; repliée, elle dit « Déplier », eux « Compléter »', () => {
+    rendreEcran()
+    ouvrirDetails('TL.00009')
+    const boite = within(dialogue())
+    const regions = boite.getAllByRole('region')
+    expect(regions).toHaveLength(10)
+    for (const region of regions)
+      expect(within(region).getByRole('button', { name: `Replier le bloc ${region.getAttribute('aria-label')}` })).toHaveAttribute(
+        'aria-expanded',
+        'true',
+      )
+    fireEvent.click(boite.getByRole('button', { name: 'Replier le bloc Synthèse' }))
+    fireEvent.click(boite.getByRole('button', { name: 'Replier le bloc Indemnités' }))
+    expect(boite.getByRole('button', { name: 'Déplier le bloc Synthèse' })).toHaveAttribute('aria-expanded', 'false')
+    expect(boite.getByRole('button', { name: 'Compléter le bloc Indemnités' })).toHaveAttribute('aria-expanded', 'false')
+    // Repliée, la synthèse le reste pendant la saisie : seul le bouton la rouvre.
+    fireEvent.change(boite.getByLabelText('Déclaration'), { target: { value: '2026-05-04' } })
+    expect(within(boite.getByRole('region', { name: 'Synthèse' })).queryByRole('list', { name: 'Étapes du suivi' })).toBeNull()
   })
 
   it('déclaration : aucune synthèse tant que le type et la survenance manquent, puis elle apparaît', () => {
