@@ -6,8 +6,10 @@ import type { SensMouvement, Traitement } from '@/lib/administrateur-judiciaire/
 
 /**
  * Échéancier des appels : statut, traitement d'appel et d'annulation, date d'envoi, relançable, regroupement (point 16
- * du bilan 2). Fonctions pures, montants en CENTIMES ENTIERS, dates ISO, sans écran ni table : les tables des appels, des
- * échéances et des postes restent à faire (Frédéric).
+ * du bilan 2). Fonctions pures, montants en CENTIMES ENTIERS, dates ISO, sans écran. Tables de la version 3 de la base
+ * locale (db/schema.ts) : les échéances (echeancesAppel, clé [coproprieteId+id] ; écritures par ces fonctions dans
+ * db/echeances-appel.ts) et les pièces d'appel (traitements, db/traitements.ts) ; l'écriture de l'appel et de son
+ * annulation avec leur pièce, et la table des postes, restent à faire (Frédéric).
  *
  * Gestéam — 🟢 tranche 30 § Échéancier des appels : liste Date (exigibilité) · Mandat · Clé · Libellé · Montant · Statut ;
  * libellés vus « APPEL DE FONDS … », « REGUL CH. … », « SOLDE AU … », montants négatifs = régularisations ; fiche :

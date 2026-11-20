@@ -12,7 +12,7 @@ import { creerTraitement, type Traitement } from '@/lib/administrateur-judiciair
 
 /**
  * Répartition des charges et avis d'appel (cartographie Gestéam, tranches 21, 25 et 30). Fonctions pures, montants en
- * CENTIMES ENTIERS, sans écran.
+ * CENTIMES ENTIERS, sans écran. Clés de répartition : table clesRepartition (version 3 de db/schema.ts).
  *
  * D1 — clés, échéances et comptes appartiennent au SYNDICAT. D2 — l'avis d'appel s'adresse au COMPTE copropriétaire qui
  * détient les droits de propriété du lot à la date d'exigibilité (positions en place), sauf mutation du lot ce jour-là
