@@ -222,6 +222,7 @@ export const CHAMPS_PAR_CONTEXTE: Readonly<Record<ContexteFusionCourrier, readon
     champ('mention.prenotification', 'Pré-notification du prélèvement SEPA (montant, date, mandat, reste hors prélèvement)'),
     champ('mention.decisionAdministrateur', "Décision de l'administrateur provisoire jointe à l'appel (D. 1967 art. 62-9)"),
     champ('mention.provisionArt43', "Provision sur le budget de l'exercice précédent (D. 1967 art. 43, al. 2 ; J67, R98)"),
+    champ('mention.echeancesSansEcriture', 'Échéance à 0 € financée par le fonds de travaux, appelée sans écriture : pour information (décision du 20/11/2026, partie C, F108)'),
     champ('mention.confirmationAdresse', "Invitation à confirmer l'adresse électronique pour les avis (D. 1967 art. 35-2 ; J69)"),
     champ('mention.payerUneFois', 'Même somme pour tout le lot, à payer une seule fois ; copie au mandataire commun (J67, R100)'),
   ],

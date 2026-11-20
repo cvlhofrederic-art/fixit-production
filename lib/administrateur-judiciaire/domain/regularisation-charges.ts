@@ -211,7 +211,7 @@ import { planDuCompte } from '@/lib/administrateur-judiciaire/domain/verrou-sais
  *   propositionExigibiliteSolde). Si l'assemblée, ou l'administrateur provisoire qui en a les pouvoirs, a fixé une date,
  *   c'est elle qui vaut : elle est proposée seule, et parametresRepartition refuse toute autre exigibilité
  *   (exigibiliteDecidee) ; la justification la cite. Le plancher de l'approbation (J67, R102) reste contrôlé à
- *   l'imputation. Mention à l'écran : Frédéric.
+ *   l'imputation. Mention à l'écran : à brancher.
  *
  * 🔴 Non établi (questions pour Hugo ou Frédéric) :
  * - « Dans Gestéam, quelle est la contrepartie des écritures 450 de la répartition : le 471 soldé par le 701 (choix

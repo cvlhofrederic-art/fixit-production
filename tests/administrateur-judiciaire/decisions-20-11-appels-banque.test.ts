@@ -269,8 +269,8 @@ describe('F103 — fichiers SEPA : fiche « validation banque » par compte ; sa
     expect(controle(fiche())).toEqual({ valide: true, mention: null, motifs: [] })
   })
 
-  it('prélèvement : l’ICS du créancier doit être celui que la banque a vérifié', () => {
-    const lot = preparerLotPrelevements([
+  const lotPrelevement = () =>
+    preparerLotPrelevements([
       {
         id: 'AV-2027-01-00012',
         compteCoproprietaire: 'TILL.45000.00012.0',
@@ -285,13 +285,29 @@ describe('F103 — fichiers SEPA : fiche « validation banque » par compte ; sa
         contentieux: false,
       },
     ])
-    const creancier = { nom: 'SDC Les Tilleuls (fictif)', ics: 'FR12ZZZ123456', iban: 'FR14 2004 1010 0505 0001 3M02 606', bic: 'PSSTFRPP' }
-    const opt = { messageId: 'AV-2027-01', dateCreation: '2026-12-15T10:00:00', dateEcheance: '2027-01-02' }
+  const creancier = { nom: 'SDC Les Tilleuls (fictif)', ics: 'FR12ZZZ123456', iban: 'FR14 2004 1010 0505 0001 3M02 606', bic: 'PSSTFRPP' }
+  const optSansCompte = { messageId: 'AV-2027-01', dateCreation: '2026-12-15T10:00:00', dateEcheance: '2027-01-02' }
+  const opt = { ...optSansCompte, banqueId: 'b-courant' }
+
+  it('prélèvement : l’ICS du créancier doit être celui que la banque a vérifié', () => {
+    const lot = lotPrelevement()
     expect(genererPain008(lot, creancier, opt)).toContain(MENTION_NON_VALIDE_PAR_LA_BANQUE)
     expect(genererPain008(lot, creancier, { ...opt, validationBanque: fiche() })).not.toContain(MENTION_NON_VALIDE_PAR_LA_BANQUE)
     const autreIcs = genererPain008(lot, creancier, { ...opt, validationBanque: fiche({ icsVerifie: 'FR99ZZZ999999' }) })
     expect(autreIcs).toMatch(/non validé par la banque : ICS FR12ZZZ123456 non vérifié par la banque/)
     expect(genererPain008(lot, creancier, { ...opt, validationBanque: fiche({ icsVerifie: null }) })).toMatch(/ICS FR12ZZZ123456 non vérifié/)
+  })
+
+  it('prélèvement : la fiche est celle du compte créancier du fichier ; compte non précisé ou autre compte, pas de validation', () => {
+    const lot = lotPrelevement()
+    expect(genererPain008(lot, creancier, { ...optSansCompte, validationBanque: fiche() })).toMatch(
+      /non validé par la banque : compte bancaire du fichier non précisé/,
+    )
+    expect(genererPain008(lot, creancier, { ...opt, banqueId: 'b-fonds', validationBanque: fiche() })).toMatch(/fiche « validation banque » d'un autre compte/)
+    expect(controlerValidationBanque(fiche(), { format: 'pain.008.001.02', ics: 'FR12ZZZ123456', references: ['AV-2027-01-00012'] })).toMatchObject({
+      valide: false,
+      motifs: [expect.stringMatching(/compte bancaire du fichier non précisé/)],
+    })
   })
 
   it('la fiche se contrôle : date du test, au moins un format, longueur entière positive, ICS valide', () => {
@@ -1053,6 +1069,12 @@ describe('F116 — contentieux ouvert après l’avis : le prélèvement annonc�
     const { contenu, diffusions, lot } = scenario(new Set(['cpt-A']))
     expect(() => prelevementsAnnulesParContentieux(contenu, { echeances: [], lot, diffusions })).toThrow(/AV-2027-01-00001.*absente/)
   })
+
+  it('aucun courrier quand le détenteur n’a pas reçu la pré-notification : aucun débit ne lui a été annoncé', () => {
+    const { contenu, diffusions, echeances, lot } = scenario(new Set(['cpt-A']))
+    const sansPrenotification = diffusions.map((d) => ({ ...d, prenotification: false }))
+    expect(prelevementsAnnulesParContentieux(contenu, { echeances, lot, diffusions: sansPrenotification })).toEqual([])
+  })
 })
 
 describe('F118 — TIP : sans TIP reçu récemment, refusé pour un nouveau compte et remplacé par le virement ; sinon gabarit de la banque', () => {
@@ -1114,6 +1136,48 @@ describe('F118 — TIP : sans TIP reçu récemment, refusé pour un nouveau comp
   it('réglage du cabinet absent : la question reste ouverte, le TIP reste signalé sans instructions', () => {
     expect(avecTip(null).anomalies.find((x) => x.code === 'mode_non_pris_en_charge')?.message).toMatch(/réglage TIP du cabinet à renseigner.*F118/)
     expect(() => controlerModeReglementNouveauCompte('TIP', null)).not.toThrow()
+  })
+})
+
+describe('F108 — l’avis suivant mentionne, pour information, l’échéance à 0 € appelée sans écriture', () => {
+  const appeleeSeule = (le = '2026-12-02') =>
+    marquerAppeleeSansEcriture(suivreEcheances([T0]), { ids: ['00043-T2'], le, emploisFondsAutorises: new Set(['00043-T2']) })[0]
+  const TEXTE_T0 =
+    'Pour information : échéance « Toiture — appel n° 2 (financé par le fonds) », exigible le 01/01/2026, appelée le 02/12/2026 sans écriture : échéance à 0 €, financée par le fonds de travaux ; aucune somme à payer.'
+
+  it('chaque compte de l’avis suivant porte la mention, hors du total à payer', () => {
+    const sans = contenuAvisAppel(avisBudget(), optionsAvis())
+    const avec = contenuAvisAppel(avisBudget(), optionsAvis({ echeancesAppeleesSansEcriture: [appeleeSeule()] }))
+    for (const compteId of ['cpt-A', 'cpt-B']) {
+      const mention = compteAvis(avec, compteId).mentions.find((m) => m.cle === 'echeance_financee_par_le_fonds')
+      expect(mention).toEqual({ cle: 'echeance_financee_par_le_fonds', texte: TEXTE_T0, fondement: 'D. 2005-240 art. 3 et 4 ; décision du 20/11/2026 (partie C, F108)' })
+      expect(compteAvis(avec, compteId).totalAPayerCentimes).toBe(compteAvis(sans, compteId).totalAPayerCentimes)
+      expect(compteAvis(sans, compteId).mentions.map((m) => m.cle)).not.toContain('echeance_financee_par_le_fonds')
+    }
+  })
+
+  it('la mention passe dans le courrier (champ de fusion « mention.echeancesSansEcriture » du gabarit)', () => {
+    const contenu = contenuAvisAppel(avisBudget(), optionsAvis({ echeancesAppeleesSansEcriture: [appeleeSeule()] }))
+    const [a] = preparerDiffusionAvis(contenu, diffusionAvis())
+    expect(a.valeursFusion['mention.echeancesSansEcriture']).toBe(TEXTE_T0)
+    expect(controlerContexteFusion('avis_appel_fonds', a.valeursFusion)).toMatchObject({ complet: true, inconnus: [] })
+  })
+
+  it('refuse une échéance qui n’a pas été appelée sans écriture, ou appelée après l’émission de cet avis', () => {
+    const [prevue] = suivreEcheances([T0])
+    expect(() => contenuAvisAppel(avisBudget(), optionsAvis({ echeancesAppeleesSansEcriture: [prevue] }))).toThrow(/00043-T2.*pas appelée sans écriture/)
+    expect(() => contenuAvisAppel(avisBudget(), optionsAvis({ echeancesAppeleesSansEcriture: [appeleeSeule('2026-12-16')] }))).toThrow(
+      /00043-T2.*appelée le 16\/12\/2026, après l'émission de l'avis du 15\/12\/2026/,
+    )
+  })
+
+  it('en-têtes : l’échéancier renvoie à l’option de l’avis ; l’avis cite la décision', () => {
+    const echeancier = enTeteDuModule('echeancier-appels')
+    expect(echeancier.item('- Décision du 20/11/2026 (partie C, F108)')).toMatch(/avis suivant la mentionne pour information.*echeancesAppeleesSansEcriture/)
+    expect(echeancier.texte).not.toContain('echeancesFinanceesParLeFonds')
+    expect(enTeteDuModule('avis-appel').item('- Décision du 20/11/2026 (partie C, F108)')).toMatch(
+      /0 €.*sans écriture.*avis suivant.*pour information.*hors du total.*echeancesAppeleesSansEcriture/,
+    )
   })
 })
 
@@ -1187,6 +1251,8 @@ describe('F119 — solde de régularisation : 15 jours seulement proposés (« u
     expect(item('- Décision du 20/11/2026 (partie C, F119)')).toMatch(
       /pas une règle.*reste à remplir.*15 jours.*« usage observé chez Gestéam, aucun texte ».*assemblée.*administrateur provisoire.*c'est elle qui vaut/,
     )
+    // Dépôt public : l'écran à brancher n'est attribué à personne.
+    expect(item('- Décision du 20/11/2026 (partie C, F119)')).toMatch(/Mention à l'écran : à brancher\.$/)
   })
 })
 

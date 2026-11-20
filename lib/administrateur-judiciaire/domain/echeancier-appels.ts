@@ -119,8 +119,8 @@ import {
  *   est exactement 0 et si l'emploi du fonds qui la finance est autorisé (R82 : aucun emploi sans autorisation) :
  *   emploisFondsAutorises, que l'appelant établit par fonds-travaux.controlerAffectationFondsTravaux. La trace « échéance
  *   à 0 €, financée par le fonds de travaux » est portée par l'échéance (appelSansEcriture) : un traitement comptable
- *   exige au moins un débit et un crédit. L'avis suivant la mentionne pour information (avis-appel.ts,
- *   echeancesFinanceesParLeFonds).
+ *   exige au moins un débit et un crédit. L'avis suivant la mentionne pour information (avis-appel.contenuAvisAppel,
+ *   option echeancesAppeleesSansEcriture : mention « echeance_financee_par_le_fonds », hors du total).
  *
  * 🔴 Non établi (questions pour Frédéric ou Hugo) :
  * - « Une échéance "En attente" est-elle une échéance suspendue avant son appel (par exemple des travaux pendant le

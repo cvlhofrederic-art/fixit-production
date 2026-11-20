@@ -15,8 +15,8 @@ import { dateIsoVersFr, estDateIsoValide } from '@/lib/administrateur-judiciaire
  * 🔵 Déduit :
  * - la mention s'écrit en commentaire XML juste après la déclaration : elle se lit dans le fichier sans changer le
  *   message ISO 20022 (un commentaire n'est pas un élément du schéma) ;
- * - le fichier est validé quand la fiche est celle du compte du fichier (comparée quand l'appelant connaît le compte),
- *   que la banque accepte son format exact (une variante acceptée seule ne valide pas le format produit), que l'ICS du
+ * - le fichier est validé quand la fiche est celle du compte du fichier (un fichier dont le compte n'est pas précisé
+ *   n'est jamais validé : la fiche est tenue par compte), que la banque accepte son format exact (une variante acceptée seule ne valide pas le format produit), que l'ICS du
  *   créancier est celui que la banque a vérifié (prélèvement), et qu'aucune référence ne dépasse la longueur maximale
  *   donnée par la banque (sans longueur donnée, rien n'est comparé) ;
  * - les délais de remise sont gardés tels que la banque les donne (texte) : ils ne sont pas calculés ici.
@@ -93,7 +93,7 @@ export function creerFicheValidationBanque(saisie: SaisieFicheValidationBanque):
 
 /** Ce que le fichier produit expose à la comparaison avec la fiche. */
 export interface FichierAValider {
-  /** Compte bancaire du fichier ; absent : non comparé (l'appelant passe la fiche de ce compte). */
+  /** Compte bancaire du fichier ; absent : aucune fiche ne peut lui être rattachée, le fichier n'est pas validé. */
   banqueId?: string
   format: FormatFichierBanque
   /** ICS du créancier (prélèvement) ; absent pour un virement. */
@@ -112,7 +112,8 @@ export interface ControleValidationBanque {
 function motifsDeLaFiche(fiche: FicheValidationBanque, fichier: FichierAValider): string[] {
   const motifs: string[] = []
   const test = `test du ${dateIsoVersFr(fiche.dateTest)}`
-  if (fichier.banqueId !== undefined && fichier.banqueId !== fiche.banqueId)
+  if (fichier.banqueId === undefined) motifs.push(`compte bancaire du fichier non précisé : la fiche du compte ${fiche.banqueId} ne peut lui être rattachée`)
+  else if (fichier.banqueId !== fiche.banqueId)
     motifs.push(`fiche « validation banque » d'un autre compte (${fiche.banqueId}, fichier du compte ${fichier.banqueId})`)
   if (!fiche.formatsAcceptes.includes(fichier.format))
     motifs.push(`format accepté par la banque (${test}) : ${fiche.formatsAcceptes.join(', ')} ; fichier produit : ${fichier.format}`)

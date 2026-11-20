@@ -89,9 +89,9 @@ export interface CreancierSepa {
 }
 
 /**
- * Fichier pain.008.001.02 du lot (chaîne XML). Sans fiche « validation banque » du compte créancier qui accepte ce format
- * et a vérifié son ICS (validationBanque), le fichier porte la mention « non validé par la banque » (décision du
- * 20/11/2026, partie C, F103).
+ * Fichier pain.008.001.02 du lot (chaîne XML). Sans fiche « validation banque » du compte créancier (banqueId) qui accepte
+ * ce format et a vérifié son ICS (validationBanque), le fichier porte la mention « non validé par la banque » (décision du
+ * 20/11/2026, partie C, F103) ; sans compte créancier précisé, aucune fiche ne le valide.
  */
 export function genererPain008(
   lot: LotPrelevements,
@@ -100,8 +100,9 @@ export function genererPain008(
     messageId,
     dateCreation,
     dateEcheance,
+    banqueId,
     validationBanque = null,
-  }: { messageId: string; dateCreation: string; dateEcheance: string; validationBanque?: FicheValidationBanque | null },
+  }: { messageId: string; dateCreation: string; dateEcheance: string; banqueId?: string; validationBanque?: FicheValidationBanque | null },
 ): string {
   if (lot.retenues.length === 0) throw new Error('Lot de prélèvements vide : rien à produire.')
   if (!validerIcs(creancier.ics)) throw new Error(`ICS du créancier invalide : « ${creancier.ics} ».`)
@@ -109,6 +110,7 @@ export function genererPain008(
   if (!estDateIsoValide(dateEcheance)) throw new Error(`Date d'échéance invalide (${dateEcheance}) : AAAA-MM-JJ attendu.`)
   const mention = commentaireValidationBanque(
     controlerValidationBanque(validationBanque, {
+      banqueId,
       format: 'pain.008.001.02',
       ics: creancier.ics,
       references: lot.retenues.flatMap((r) => [r.id, r.rum.trim()]),

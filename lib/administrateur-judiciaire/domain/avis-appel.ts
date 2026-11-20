@@ -195,6 +195,12 @@ import type { FormeEnvoiCourrier, ModeReglement, TypeAppelLieAuMouvement } from 
  *   banque, par la fiche « validation banque » du compte (validation-banque.ts) ; sans elle, le fichier de prélèvement
  *   porte la mention « non validé par la banque » (prelevements-sepa.genererPain008). LONGUEUR_MAX_ID_PRELEVEMENT (35)
  *   reste la borne appliquée à l'identifiant ; une longueur plus courte donnée par la banque se contrôle sur le fichier.
+ * - Décision du 20/11/2026 (partie C, F108) : une échéance à 0 € appelée seule passe « Appelé » sans écriture
+ *   (echeancier-appels.marquerAppeleeSansEcriture) ; l'avis suivant la mentionne pour information, hors du total
+ *   (option echeancesAppeleesSansEcriture, mention « echeance_financee_par_le_fonds », champ de fusion
+ *   « mention.echeancesSansEcriture »). 🔵 Déduit : la mention figure sur l'avis de chaque compte (le fonds de travaux
+ *   appartient au syndicat) ; l'appelant passe les échéances appelées sans écriture depuis l'avis précédent, au plus tard
+ *   le jour de l'émission ;
  * - Décision du 20/11/2026 (partie C, F114) : « À régler avant le » = la date d'exigibilité par défaut (délai 0). Un
  *   délai de courtoisie (delaiReglementJours) reste un réglage du cabinet, affiché comme tel (mentionDelaiCourtoisie), qui
  *   ne change jamais l'exigibilité (relances et procédure de l'art. 19-2 partent de l'exigibilité ; L. 1965 art. 14-1) ;
@@ -378,7 +384,26 @@ export type InstructionsReglement =
  */
 export type ReglageTip = { tipRecuRecemment: false } | { tipRecuRecemment: true; gabaritInstructions: string }
 
-export type CleMentionAvis = 'voie_postale' | 'ordre_du_jour' | 'fonds_travaux' | 'prenotification' | 'decision_administrateur' | 'provision_art_43'
+/** « echeance_financee_par_le_fonds » : décision du 20/11/2026 (partie C, F108). */
+export type CleMentionAvis =
+  | 'voie_postale'
+  | 'ordre_du_jour'
+  | 'fonds_travaux'
+  | 'prenotification'
+  | 'decision_administrateur'
+  | 'provision_art_43'
+  | 'echeance_financee_par_le_fonds'
+
+/**
+ * Décision du 20/11/2026 (partie C, F108) : échéance à 0 € appelée sans écriture (echeancier-appels.EcheanceAppelSuivie
+ * passée par marquerAppeleeSansEcriture), mentionnée pour information sur l'avis suivant.
+ */
+export interface EcheanceAppeleeSansEcriture {
+  id: string
+  libelle: string
+  exigibilite: string
+  appelSansEcriture?: { le: string; trace: string } | null
+}
 
 export interface MentionAvis {
   cle: CleMentionAvis
@@ -521,6 +546,11 @@ export interface OptionsContenuAvis {
    * réglage à renseigner, le TIP reste signalé sans instructions.
    */
   reglageTip?: ReglageTip | null
+  /**
+   * Décision du 20/11/2026 (partie C, F108) : échéances à 0 € appelées sans écriture depuis l'avis précédent, au plus tard
+   * le jour de l'émission ; mentionnées pour information sur l'avis de chaque compte, hors du total.
+   */
+  echeancesAppeleesSansEcriture?: readonly EcheanceAppeleeSansEcriture[]
 }
 
 // ─── Outils ──────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -664,6 +694,34 @@ function mentionVoiePostale(regime: RegimeAdministrateurProvisoire | null): Ment
   return { cle: 'voie_postale', texte: mention.texte, fondement }
 }
 
+/** Une échéance appelée sans écriture, telle que l'avis suivant la mentionne (F108). */
+function texteEcheanceSansEcriture(e: EcheanceAppeleeSansEcriture, dateEmission: string): string {
+  const appel = e.appelSansEcriture
+  if (!appel)
+    throw new Error(`Échéance « ${e.id} » pas appelée sans écriture (echeancier-appels.marquerAppeleeSansEcriture) : rien à mentionner sur l'avis (décision du 20/11/2026, partie C, F108).`)
+  verifierDate(`Échéance « ${e.id} » : jour de l'appel sans écriture`, appel.le)
+  if (appel.le > dateEmission)
+    throw new Error(
+      `Échéance « ${e.id} » appelée le ${dateIsoVersFr(appel.le)}, après l'émission de l'avis du ${dateIsoVersFr(dateEmission)} : elle se mentionne sur l'avis suivant (décision du 20/11/2026, partie C, F108).`,
+    )
+  return `échéance « ${e.libelle} », exigible le ${dateIsoVersFr(e.exigibilite)}, appelée le ${dateIsoVersFr(appel.le)} sans écriture : ${appel.trace}`
+}
+
+/**
+ * Décision du 20/11/2026 (partie C, F108) — mention, pour information, des échéances à 0 € appelées sans écriture depuis
+ * l'avis précédent ; null s'il n'y en a aucune. Refuse une échéance qui n'est pas appelée sans écriture, ou appelée après
+ * l'émission de l'avis.
+ */
+function mentionEcheancesSansEcriture(options: OptionsContenuAvis): MentionAvis | null {
+  const echeances = options.echeancesAppeleesSansEcriture ?? []
+  if (echeances.length === 0) return null
+  return {
+    cle: 'echeance_financee_par_le_fonds',
+    texte: `Pour information : ${echeances.map((e) => texteEcheanceSansEcriture(e, options.dateEmission)).join(' ; ')} ; aucune somme à payer.`,
+    fondement: 'D. 2005-240 art. 3 et 4 ; décision du 20/11/2026 (partie C, F108)',
+  }
+}
+
 function mentionsDuCompte(lignes: LigneContenuAvis[], instructions: InstructionsReglement | null, decisions: string[], ctx: ContexteAvis): MentionAvis[] {
   const mentions: MentionAvis[] = [mentionVoiePostale(ctx.options.administrateurProvisoire ?? null), MENTION_ORDRE_DU_JOUR]
   if (totalNature(lignes, 'fonds_travaux') > 0) mentions.push(MENTION_FONDS_TRAVAUX)
@@ -671,6 +729,7 @@ function mentionsDuCompte(lignes: LigneContenuAvis[], instructions: Instructions
   if (debit) mentions.push(mentionPrenotification(debit))
   if (decisions.length > 0) mentions.push(mentionDecision(decisions))
   if (lignes.some((l) => ctx.echeances.get(l.echeanceId)?.provisionArt43)) mentions.push(MENTION_PROVISION_ART_43)
+  if (ctx.mentionSansEcriture) mentions.push(ctx.mentionSansEcriture)
   return mentions
 }
 
@@ -1092,6 +1151,8 @@ interface ContexteAvis {
   emplois: Map<string, EmploiFondsCompte[]>
   /** Référence de la décision de l'administrateur provisoire par échéance (D. 1967 art. 62-9). */
   decisions: Map<string, string>
+  /** Décision du 20/11/2026 (partie C, F108) : échéances à 0 € appelées sans écriture, pour information ; null : aucune. */
+  mentionSansEcriture: MentionAvis | null
 }
 
 function ligneDuPoste(poste: PosteDette, echeances: Map<string, EcheanceAppel>): LigneContenuAvis {
@@ -1219,6 +1280,7 @@ export function contenuAvisAppel(avis: AvisAppels, options: OptionsContenuAvis):
     postes: postesDepuisAvis(avis, options.cles),
     emplois: emplois.parCompte,
     decisions: decisionsParEcheance(options, echeances),
+    mentionSansEcriture: mentionEcheancesSansEcriture(options),
   }
   const parCompte = avis.parCompte.map((a) => contenuDuCompte(a, contexte))
   return {
@@ -1509,6 +1571,7 @@ function valeursFusionAvis(compte: ContenuAvisCompte, destinataire: { nom: strin
     'mention.prenotification': texteMention(compte, 'prenotification'),
     'mention.decisionAdministrateur': texteMention(compte, 'decision_administrateur'),
     'mention.provisionArt43': texteMention(compte, 'provision_art_43'),
+    'mention.echeancesSansEcriture': texteMention(compte, 'echeance_financee_par_le_fonds'),
   }
   const debit = debitAnnonce(compte.instructions)
   if (debit) Object.assign(valeurs, champsDuDebit(compte, debit), { 'prelevement.resteCentimes': debit.resteHorsPrelevementCentimes })
