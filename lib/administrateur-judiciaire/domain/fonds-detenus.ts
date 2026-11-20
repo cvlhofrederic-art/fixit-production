@@ -91,6 +91,19 @@ import type { CompteVirementInterne } from '@/lib/administrateur-judiciaire/doma
  * - J71 : un compte de placement au nom du syndicat réservé au fonds de travaux est rangé dans la rubrique « fonds de
  *   travaux » (comptes-bancaires.estCompteDuFondsTravaux).
  *
+ * Décisions du 20/11/2026 (partie C, recommandations acceptées par le responsable du projet) :
+ * - Décision du 20/11/2026 (partie C, F98) : les comptes de placement de classe 50 (501 « Compte à terme », 502 « Autre
+ *   compte » : arrêté du 14/03/2005, art. 7) sont comptés dans les fonds détenus, sur une ligne à part « fonds placés »
+ *   (rubrique fonds_places), inclus par défaut, par prudence : R. 814-30 vise les « fonds, effets, titres et autres
+ *   valeurs détenus », et un placement reste un fonds appartenant à autrui (R. 814-37). Le cabinet peut les exclure
+ *   (creerPerimetreFondsDetenus, fonds_places: false). Un tel compte se déclare comme les autres (CompteFondsDetenus, son
+ *   numéro de classe 50 à la place du 512), de nature « placement » ; le placement du fonds de travaux admis par J71,
+ *   sous-compte 512, reste dans la rubrique « fonds de travaux » ;
+ * - Décision du 20/11/2026 (partie C, F99) : total sur les seuls soldes positifs, découverts totalisés à part et
+ *   signalés : un découvert est une dette envers la banque, pas un fonds détenu ; les fonds d'un mandat ne servent jamais
+ *   un autre mandat (R. 814-37) ; aucune compensation entre comptes du syndicat (L. 1965 art. 18, II, al. 3 et 4 ; arrêté
+ *   du 14/03/2005, art. 9). Aucun changement de calcul.
+ *
  * 🔵 Déduit (par la note, ou choix de ce module) :
  * - (note) un stock à une date, jamais un maximum : 31/12 (cotisation), 30/06 et 31/12 (commissaire aux comptes), fins
  *   de trimestre (états par mandat) ; la note rattache l'attestation du 15/03 à l'arrêté du 31/12 et celle du 15/09 à
@@ -104,10 +117,11 @@ import type { CompteVirementInterne } from '@/lib/administrateur-judiciaire/doma
  * - date limite = dernier jour pour agir, sans report au jour ouvrable : état trimestriel, fin du trimestre + 15 jours
  *   (« dans les quinze jours suivant ») ; attestation du commissaire aux comptes, le 14 mars et le 14 septembre (« avant
  *   le 15 » : décision J63 ci-dessus) ; un jour non ouvré porte une alerte (J67, R93) ;
- * - rubrique de chaque compte (rubriqueDuCompte) : fonds de travaux d'abord (compte séparé, compte repris qui le tenait,
- *   ou placement réservé au fonds, comme virement-interne.ts), puis Caisse des dépôts, compte courant (seule nature dont
- *   le libellé dit « au nom du syndicat »), autres natures (avance travaux, placement, sous-compte du centralisateur,
- *   compte repris : le domaine ne porte pas leur titulaire) ;
+ * - rubrique de chaque compte (rubriqueDuCompte) : compte de classe 50 d'abord, « fonds placés » (F98), puis fonds de
+ *   travaux (compte séparé, compte repris qui le tenait, ou placement réservé au fonds, comme virement-interne.ts),
+ *   Caisse des dépôts, compte courant (seule nature dont le libellé dit « au nom du syndicat »), autres natures (avance
+ *   travaux, placement en sous-compte 512, sous-compte du centralisateur, compte repris : le domaine ne porte pas leur
+ *   titulaire) ; un compte de classe 50 n'est admis qu'avec la nature « placement » ;
  * - ventilation : par mandat, par compte, par nature (D-BANQUE), par établissement (Banque.etablissement ; un compte de
  *   nature « Caisse des dépôts » sans établissement saisi y est rangé ; casse, accents et espaces ne séparent pas deux
  *   établissements), par catégorie de mission (réglage du cabinet, J67, R91 ; par défaut le régime du mandat,
@@ -132,8 +146,6 @@ import type { CompteVirementInterne } from '@/lib/administrateur-judiciaire/doma
  * - rééditer un état « dans son état de la fin du trimestre » (1033.5) : le calcul relit les écritures datées au plus
  *   tard ce jour ; une écriture passée après coup à une date antérieure le changerait. La garantie relève du verrou de
  *   saisie (verrou-saisie.ts : édition figée, arrêté des comptes), que ce module ne pose pas ;
- * - comptes de placement tenus en classe 50 : non lus (sous-comptes 512 seulement, comme virement-interne.ts) ;
- * - totaux sur les seuls soldes positifs : choix de prudence à confirmer ;
  * - mandats successifs d'un même syndicat (Frédéric, données de l'appelant) : ses comptes sont au syndicat (D1), et ce
  *   module ne connaît pas les dates des mandats ; deux mandats qui déclarent le même compte ne sont pas départagés par
  *   date (compte non ventilé) : l'appelant ne passe que les mandats qui détiennent les fonds à la date ;
@@ -150,8 +162,13 @@ import type { CompteVirementInterne } from '@/lib/administrateur-judiciaire/doma
 const FONDEMENT_COUVERTURE = 'C. com. R. 814-37'
 const FONDEMENT_ATTESTATION = 'C. com. R. 814-30'
 const ETABLISSEMENT_CAISSE_DEPOTS = 'Caisse des dépôts et consignations'
-const COMPTE_512 = /^([^.]{4})\.512[0-9A-Z]{2}\.[0-9A-Z]{5}\.[0-9A-Z]$/
+/** Compte financier lu : sous-compte 512, ou compte de placement de classe 50, 501 ou 502 (F98). */
+const COMPTE_FINANCIER = /^([^.]{4})\.(?:512[0-9A-Z]{2}|50[12][0-9A-Z]{2})\.[0-9A-Z]{5}\.[0-9A-Z]$/
+const COMPTE_50 = /^[^.]{4}\.50[12]/
 const SEGMENT_SYNDICAT = /^[^.]{4}$/
+
+/** Décision du 20/11/2026 (partie C, F98) : compte de placement de classe 50 (arrêté du 14/03/2005, art. 7). */
+const estCompteDeClasse50 = (compte: string | undefined): boolean => compte !== undefined && COMPTE_50.test(compte)
 
 const euros = (centimes: number): string => formatEurosCentimes(centimes / 100)
 const positif = (centimes: number): number => Math.max(centimes, 0)
@@ -169,6 +186,8 @@ export const RUBRIQUES_FONDS_DETENUS = {
   au_nom_du_syndicat: { libelle: 'Comptes au nom du syndicat (L. 1965 art. 18, II)' },
   fonds_travaux: { libelle: 'Fonds de travaux' },
   autres_comptes: { libelle: 'Autres comptes (avance travaux, placement, sous-compte du cabinet, compte repris)' },
+  /** Décision du 20/11/2026 (partie C, F98) : ligne à part, incluse par défaut. */
+  fonds_places: { libelle: 'Fonds placés (classe 50 : 501 « Compte à terme », 502 « Autre compte »)' },
 } as const satisfies Record<string, { libelle: string }>
 export type RubriqueFondsDetenus = keyof typeof RUBRIQUES_FONDS_DETENUS
 
@@ -179,13 +198,14 @@ export type PerimetreFondsDetenus = Readonly<Record<RubriqueFondsDetenus, boolea
 
 /**
  * Valeur par défaut prudente : tout inclure (J67, R90), qu'aucun texte lu ne fixe ; à ajuster après la réponse de la caisse
- * de garantie (J65).
+ * de garantie (J65). Fonds placés inclus par défaut (décision du 20/11/2026, partie C, F98).
  */
 export const PERIMETRE_FONDS_DETENUS_PAR_DEFAUT: PerimetreFondsDetenus = Object.freeze({
   caisse_depots: true,
   au_nom_du_syndicat: true,
   fonds_travaux: true,
   autres_comptes: true,
+  fonds_places: true,
 })
 
 export const AVERTISSEMENT_FONDS_DETENUS =
@@ -203,11 +223,14 @@ export function creerPerimetreFondsDetenus(saisie: Partial<Record<RubriqueFondsD
 }
 
 /**
- * Rubrique d'un compte : le fonds de travaux d'abord (compte séparé, compte repris qui le tenait, placement réservé au
- * fonds : J71), puis la Caisse des dépôts, le compte courant au nom du syndicat, les autres natures (le domaine ne porte
- * pas leur titulaire).
+ * Rubrique d'un compte : un compte de classe 50 d'abord, « fonds placés » (décision du 20/11/2026, partie C, F98), puis le
+ * fonds de travaux (compte séparé, compte repris qui le tenait, placement réservé au fonds : J71), la Caisse des dépôts,
+ * le compte courant au nom du syndicat, les autres natures (le domaine ne porte pas leur titulaire).
  */
-export function rubriqueDuCompte(compte: Pick<CompteFondsDetenus, 'nature' | 'tenaitFondsTravaux' | 'reserveAuFondsTravaux'>): RubriqueFondsDetenus {
+export function rubriqueDuCompte(
+  compte: Pick<CompteFondsDetenus, 'nature' | 'tenaitFondsTravaux' | 'reserveAuFondsTravaux'> & { compte512?: string },
+): RubriqueFondsDetenus {
+  if (estCompteDeClasse50(compte.compte512)) return 'fonds_places'
   if (estCompteDuFondsTravaux(compte)) return 'fonds_travaux'
   if (compte.nature === 'caisse_depots') return 'caisse_depots'
   if (compte.nature === 'courant') return 'au_nom_du_syndicat'
@@ -291,7 +314,10 @@ function categorieDuMandat(fondement: string, categories: CategoriesMission): Ca
 const LIBELLE_NON_VENTILE = 'Comptes partagés entre mandats, non ventilés'
 const LIBELLE_ETABLISSEMENT_NON_RENSEIGNE = 'Établissement non renseigné'
 
-/** Compte bancaire d'un mandat, tel que le calcul le lit (D-BANQUE : nature ; plan comptable : son 512). */
+/**
+ * Compte bancaire d'un mandat, tel que le calcul le lit (D-BANQUE : nature ; plan comptable : son 512, ou son compte de
+ * classe 50, 501 ou 502, pour un placement : décision du 20/11/2026, partie C, F98).
+ */
 export interface CompteFondsDetenus
   extends Pick<CompteVirementInterne, 'banqueId' | 'nature' | 'iban' | 'compte512' | 'tenaitFondsTravaux' | 'reserveAuFondsTravaux'> {
   /** Établissement de crédit (Banque.etablissement) ; null ou vide : non renseigné. */
@@ -485,10 +511,15 @@ function verifierCompte(c: CompteFondsDetenus, m: MandatFondsDetenus): void {
   if (texteVide(c.banqueId)) throw new Error(`Mandat ${m.mandatId} : compte sans identifiant.`)
   if (!Object.hasOwn(NATURES_COMPTE_BANCAIRE, c.nature)) throw new Error(`${nom} : nature inconnue « ${c.nature} ».`)
   verifierMarquesFondsTravaux(c, nom)
-  const lu = COMPTE_512.exec(c.compte512)
-  if (!lu) throw new Error(`${nom} : compte « ${c.compte512} », 512 au format <syndicat>.512xx.<auxiliaire>.<repère> attendu.`)
+  const lu = COMPTE_FINANCIER.exec(c.compte512)
+  if (!lu)
+    throw new Error(
+      `${nom} : compte « ${c.compte512} », 512 au format <syndicat>.512xx.<auxiliaire>.<repère>, ou placement de classe 50 (501xx, 502xx), attendu.`,
+    )
   if (lu[1] !== m.segmentSyndicat)
     throw new Error(`${nom} : compte « ${c.compte512} » d'un autre syndicat (segment « ${m.segmentSyndicat} » attendu, D1).`)
+  if (estCompteDeClasse50(c.compte512) && c.nature !== 'placement')
+    throw new Error(`${nom} : compte « ${c.compte512} » de classe 50 (fonds placés) : nature « placement » attendue (décision du 20/11/2026, partie C, F98).`)
 }
 
 function verifierMandat(m: MandatFondsDetenus, segments: Map<string, string>): void {

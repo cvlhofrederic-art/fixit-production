@@ -363,7 +363,7 @@ describe('point 58 — contrôle du délai de déclaration', () => {
     expect(resultat.message).toMatch(/repère/i)
   })
 
-  it('à vérifier : déposé dans le délai, présenté après le repère (🔴 envoi ou réception ?)', () => {
+  it('à vérifier : déposé dans le délai, présenté après le repère (décision du 20/11/2026, F53 : choix par défaut gardé)', () => {
     const resultat = controlerDelaiDeclaration(sinistre(), [courrier({ dateDepot: '2026-11-03', datePremierePresentation: '2026-11-04' })], { aujourdhui })
     expect(resultat).toMatchObject({ etat: 'a_verifier', dateRetenue: '2026-11-03', retardJours: 0 })
     expect(resultat.message).toMatch(/envoi.*réception/i)
@@ -675,6 +675,80 @@ describe('J67, R51 — déclaration adressée au courtier', () => {
   })
 })
 
+/**
+ * Décision du 20/11/2026 (partie C, F53) : le dépôt reste la date proposée et « à vérifier » reste l'état quand la
+ * réception connue suit le repère. Police « reçue » ou « parvenue » (réglage par contrat) : la réception (première
+ * présentation, à défaut accusé de réception) se compare au repère (repère du droit commun ici : 03/11/2026).
+ */
+describe('F53 — date comparée au repère : dépôt par défaut, réception si la police le dit', () => {
+  const aujourdhui = '2026-11-20'
+  const recue = { aujourdhui, receptionSelonPolice: true }
+  const pli = (dateDepot: string, datePremierePresentation: string | null, dateAccuseReception: string | null = null) => [
+    courrier({ dateDepot, datePremierePresentation, dateAccuseReception }),
+  ]
+
+  it('par défaut, ou réglage à faux : rien ne change (dépôt proposé, « à vérifier » si la réception suit le repère)', () => {
+    for (const options of [{ aujourdhui }, { aujourdhui, receptionSelonPolice: false }])
+      expect(controlerDelaiDeclaration(sinistre(), pli('2026-11-03', '2026-11-04'), options)).toMatchObject({
+        etat: 'a_verifier',
+        dateRetenue: '2026-11-03',
+        source: 'courrier',
+        retardJours: 0,
+      })
+  })
+
+  it('police « reçue » : présenté après le repère → postérieure au repère, comptée de la réception ; le dépôt reste la date proposée', () => {
+    const resultat = controlerDelaiDeclaration(sinistre(), pli('2026-11-03', '2026-11-04'), recue)
+    expect(resultat).toMatchObject({ etat: 'tardive', dateRetenue: '2026-11-03', source: 'courrier', courrierId: 'c-1', retardJours: 1 })
+    expect(resultat.message).toBe(
+      'Déclaration déposée le 03/11/2026, reçue le 04/11/2026, postérieure au repère indicatif du 03/11/2026 : la police compte la réception (« reçue » ou « parvenue »).',
+    )
+    expect(resultat.avertissement).toContain(AVERTISSEMENT_DELAI_DECLARATION)
+  })
+
+  it('police « reçue » : reçue dans le repère → dans le délai', () => {
+    const resultat = controlerDelaiDeclaration(sinistre(), pli('2026-11-02', '2026-11-03'), recue)
+    expect(resultat).toMatchObject({ etat: 'dans_le_delai', dateRetenue: '2026-11-02', retardJours: 0 })
+    expect(resultat.message).toBe('Déclaration déposée le 02/11/2026, reçue le 03/11/2026, dans le repère indicatif du 03/11/2026 (la police compte la réception).')
+  })
+
+  it('police « reçue » : à défaut de première présentation, l’accusé de réception', () => {
+    expect(controlerDelaiDeclaration(sinistre(), pli('2026-11-02', null, '2026-11-05'), recue)).toMatchObject({ etat: 'tardive', retardJours: 2 })
+    expect(controlerDelaiDeclaration(sinistre(), pli('2026-11-02', '2026-11-03', '2026-11-05'), recue).etat).toBe('dans_le_delai')
+  })
+
+  it('police « reçue », réception non saisie : à vérifier ; dépôt déjà après le repère : postérieure au repère', () => {
+    const inconnue = controlerDelaiDeclaration(sinistre(), pli('2026-11-02', null), recue)
+    expect(inconnue).toMatchObject({ etat: 'a_verifier', dateRetenue: '2026-11-02', retardJours: 0 })
+    expect(inconnue.message).toMatch(/réception non saisie/)
+    expect(inconnue.message).toMatch(/première présentation, à défaut l'accusé de réception/)
+    expect(controlerDelaiDeclaration(sinistre(), pli('2026-11-05', null), recue)).toMatchObject({ etat: 'tardive', retardJours: 2 })
+  })
+
+  it('le réglage ne joue ni pour une date saisie sans courrier, ni pour une transmission du courtier, ni pour un courrier au courtier à vérifier', () => {
+    expect(controlerDelaiDeclaration(sinistre({ dateDeclaration: '2026-11-02' }), [], recue)).toMatchObject({ etat: 'dans_le_delai', source: 'saisie' })
+    const auCourtier = [courrier({ typeDestinataire: 'Courtier', dateDepot: '2026-11-02', datePremierePresentation: '2026-11-04' })]
+    expect(controlerDelaiDeclaration(sinistre(), auCourtier, { ...recue, transmisCompagnieLe: '2026-11-03' })).toMatchObject({
+      etat: 'dans_le_delai',
+      source: 'transmission',
+    })
+    expect(controlerDelaiDeclaration(sinistre(), auCourtier, recue).message).toMatch(/mandat du courtier et date de transmission/)
+  })
+
+  it('date saisie égale au dépôt du courrier : la réception de ce courrier compte', () => {
+    expect(controlerDelaiDeclaration(sinistre({ dateDeclaration: '2026-11-03' }), pli('2026-11-03', '2026-11-04'), recue)).toMatchObject({
+      etat: 'tardive',
+      source: 'saisie',
+      courrierId: 'c-1',
+      retardJours: 1,
+    })
+  })
+
+  it('réglage mal formé : erreur', () => {
+    expect(() => controlerDelaiDeclaration(sinistre(), [], { aujourdhui, receptionSelonPolice: 'oui' as never })).toThrow(/réception/i)
+  })
+})
+
 describe('J67 — en-tête de declaration-sinistre.ts : questions des R50 à R55 fermées', () => {
   const { texte } = enTeteDuModule('declaration-sinistre')
   const questions = texte.slice(texte.indexOf('🔴 Questions'))
@@ -686,7 +760,8 @@ describe('J67 — en-tête de declaration-sinistre.ts : questions des R50 à R55
     expect(questions).not.toMatch(/Le cabinet le reporte-t-il au premier jour ouvré suivant/)
     expect(questions).not.toMatch(/Le délai de quatre jours de l'art\. L\. 123-1/)
     expect(questions).not.toMatch(/Décompte de L\. 113-2, 4°/)
-    expect(questions).toMatch(/quelle date le cabinet retient-il comme date de déclaration/)
+    // Question tranchée par la décision du 20/11/2026 (partie C, F53).
+    expect(questions).not.toMatch(/quelle date le cabinet retient-il comme date de déclaration/)
     expect(questions).toMatch(/la date de publication de l'arrêté doit-elle devenir un champ de la fiche sinistre/)
     // Depuis la relecture de J67, R49 (suivi-a-faire.ts), la date de cinq jours ouvrés est marquée « à confirmer ».
     expect(questions).toMatch(
@@ -701,6 +776,17 @@ describe('J67 — en-tête de declaration-sinistre.ts : questions des R50 à R55
     expect(texte).toMatch(/R\. 125-6-1 \(décret n° 2024-82 du 05\/02\/2024, en vigueur depuis le 07\/02\/2024\)/)
     expect(texte).not.toMatch(/un décret en Conseil d'État en précise les modalités, les dérogations et les conséquences de sa méconnaissance par l'assuré\. Art\. D\. 125-6/)
     expect(texte).toMatch(/C\. assur\. art\. L\. 123-1/)
+  })
+
+  it('décision du 20/11/2026 (partie C, F53) citée avant les questions, avec ses textes et le réglage par contrat', () => {
+    const decision = texte.slice(texte.indexOf('Décision du 20/11/2026 (partie C, F53)'), texte.indexOf('🔴 Questions'))
+    expect(decision).toMatch(/^Décision du 20\/11\/2026 \(partie C, F53\) : garder le dépôt comme date proposée/)
+    expect(decision).toMatch(/« reçue » ou « parvenue »/)
+    expect(decision).toMatch(/receptionSelonPolice/)
+    expect(decision).toMatch(/première présentation, à défaut accusé de réception/)
+    expect(decision).toMatch(/L\. 123-1/)
+    expect(decision).toMatch(/L\. 113-12/)
+    expect(decision).toMatch(/enregistrement à brancher/)
   })
 })
 

@@ -180,6 +180,17 @@ describe('honoraires de sinistre — en-tête : décisions J67 (R1, R2, R8, R14)
     expect(j72).toMatch(/frais_a_presenter_au_juge/)
     expect(j72).toMatch(/\(a\).*dépense du syndicat.*etapes-courrier\.ts/)
   })
+
+  it('décision du 20/11/2026 (partie C, F5) : actes hors tarif chiffrés au temps passé × taux horaire ; la question 🔴 est retirée', () => {
+    expect(texte).not.toMatch(/comment le cabinet chiffre-t-il les actes hors tarif/)
+    const f5 = item('- Décision du 20/11/2026 (partie C, F5)')
+    expect(f5).toMatch(/temps passé, en minutes exactes, multiplié par le taux horaire du cabinet, acte par acte/)
+    expect(f5).toMatch(/date, la durée, l'objet et la fiche liée/)
+    expect(f5).toMatch(/demande présentée au juge, jamais une facture au syndicat/)
+    expect(f5).toMatch(/arrêté du 8 octobre 2015, art\. 14.*D\. 1967 art\. 61-1-5, II et III.*810\.2 et 820\.3/)
+    expect(f5).toMatch(/actes-hors-tarif\.ts/)
+    expect(f5).toMatch(/Aucun élément « A facturer »/)
+  })
 })
 
 describe('honoraires de sinistre — rémunération et frais', () => {
@@ -332,6 +343,9 @@ describe('honoraires de sinistre — pas d’élément hors du contrat type', ()
     expect(resultat.motif).toBe('a_soumettre_au_juge')
     expect(resultat.signalement).toMatch(/hors tarif/i)
     expect(resultat.signalement).toMatch(/juge/i)
+    // Décision du 20/11/2026 (partie C, F5) : noter le temps, chiffré au taux horaire du cabinet, demande au juge.
+    expect(resultat.signalement).toMatch(/temps passé, en minutes exactes, × taux horaire du cabinet/)
+    expect(resultat.signalement).toMatch(/demande présentée au juge, jamais une facture au syndicat/)
     expect(resultat.fondements).toEqual(FONDEMENTS_HONORAIRES_SINISTRE.tarif_administrateur_provisoire)
     expect(resultat.fiche).toEqual({ type: 'Sinistre', id: 'sin-42' })
     expect(resultat.diligence).toBe('suivi_assureur')
@@ -531,6 +545,17 @@ describe('honoraires de sinistre — contrôle des éléments', () => {
       ['el-rcp', 'hors_tarif_ap'],
     ])
     expect(messageDe('tarif_administrateur_provisoire', 'el-decl')).toMatch(/exclue des actes hors tarif.*art\. 14/)
+  })
+
+  it('AP art. 29-1 : l’acte hors tarif se chiffre au temps passé × taux horaire du cabinet, demande au juge (décision du 20/11/2026, F5)', () => {
+    const message = messageDe('tarif_administrateur_provisoire', 'el-s1')
+    expect(message).toMatch(/temps passé, en minutes exactes, × taux horaire du cabinet/)
+    expect(message).toMatch(/dans l'état des actes hors tarif/)
+    expect(message).toMatch(/demande présentée au juge, jamais une facture au syndicat/)
+    expect(message).toMatch(/décision du 20\/11\/2026, F5/)
+    // La déclaration, exclue des actes hors tarif, n'est pas chiffrée ; à 500 lots et plus, pas d'acte hors tarif.
+    expect(messageDe('tarif_administrateur_provisoire', 'el-decl')).not.toMatch(/taux horaire/)
+    expect(messageDe('remuneration_fixee_par_le_juge', 'el-s1')).not.toMatch(/taux horaire|F5/)
   })
 
   it('AP art. 29-1 de 500 lots et plus : chaque élément est soumis au juge (arrêté, art. 3) ; ni exclusion de la déclaration ni art. 14', () => {

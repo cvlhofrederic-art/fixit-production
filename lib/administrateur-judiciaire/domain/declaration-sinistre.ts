@@ -94,7 +94,8 @@ import type {
  * 🔵 Aucun des textes relus ne dit si l'avis est daté de l'envoi ou de la réception. La date proposée est le DÉPÔT
  *    (ligne 58 du bilan). Si la réception connue (première présentation, à défaut l'accusé de réception) tombe après le
  *    repère alors que le dépôt est dans le délai, l'état est « à vérifier », sans conclure au retard ; le message cite le
- *    texte du délai appliqué.
+ *    texte du délai appliqué. Choix gardé par la décision du 20/11/2026 (partie C, F53, ci-dessous), sauf police
+ *    « reçue » ou « parvenue ».
  *
  * Décisions de Hugo du 17/11/2026 (registre des décisions juridiques, J67 ; textes lus sur Légifrance le 17/11/2026) :
  * - J67, R50 : le décompte de L. 113-2, 4° est confirmé (« jours ouvrés » : lundi à vendredi hors jours fériés ; jour de
@@ -126,10 +127,21 @@ import type {
  *   jour férié, le premier jour ouvrable suivant est donné à titre d'information (declarationAuPlusTardReportee), avec la
  *   mention « report non prévu par le texte ».
  *
+ * Décision du 20/11/2026 (partie C, F53) : garder le dépôt comme date proposée, et l'état « à vérifier » quand la
+ * réception connue tombe après le repère. Si la police dit « reçue » ou « parvenue », un réglage par contrat
+ * (OptionsDelaiDeclaration.receptionSelonPolice) compare au repère la date de réception : première présentation, à
+ * défaut accusé de réception ; réception non saisie : « à vérifier », sauf dépôt déjà postérieur au repère (la
+ * réception ne peut que le suivre). Le dépôt reste la date proposée (dateRetenue). Le réglage ne joue ni pour une date
+ * saisie sans courrier de même date, ni pour une transmission datée par le courtier, ni pour un courrier au courtier à
+ * vérifier (J67, R51). Textes lus le 17/11/2026 : L. 113-2, 4° (« donner avis à l'assureur ») ne dit pas si l'avis
+ * compte à l'envoi ou à la réception ; L. 123-1 (grêle : « l'envoi de la déclaration de sinistre doit être effectué »)
+ * et L. 113-12 (délai de résiliation compté du cachet de la poste ou de l'expédition) s'attachent à l'envoi : un indice,
+ * pas une règle pour L. 113-2 ; la police tranche. Paramètre explicite : aucun champ du contrat d'assurance ne porte ce
+ * réglage, enregistrement à brancher. À rapprocher de J67, R74 (ordre de service : la première présentation ne vaut pas
+ * réception) : la décision F53 retient ici la première présentation, pour la seule déclaration de sinistre sous une
+ * police « reçue » ou « parvenue ».
+ *
  * 🔴 Questions pour Frédéric ou Hugo :
- * - Pour un avis de sinistre de droit commun (L. 113-2, 4°), quelle date le cabinet retient-il comme date de
- *   déclaration : le dépôt (Courrier.dateDepot), la première présentation ou l'accusé de réception ? Le contrat
- *   d'assurance du syndicat le précise-t-il ?
  * - Catastrophe naturelle : la date de publication de l'arrêté doit-elle devenir un champ de la fiche sinistre ?
  *   suivi-a-faire.ts applique encore à ce type cinq jours ouvrés depuis la connaissance, date marquée « à confirmer » avec
  *   sa raison (sinistres.REGIMES_A_CONFIRMER : délai compté de la publication de l'arrêté, relecture de J67, R49).
@@ -488,6 +500,12 @@ export interface OptionsDelaiDeclaration {
    * absent : celui de la fiche (assurance.courtierMandateParAssureur).
    */
   courtierMandateParAssureur?: boolean
+  /**
+   * Réglage du contrat d'assurance (décision du 20/11/2026, partie C, F53) : la police dit « reçue » ou « parvenue » ; la
+   * réception du courrier retenu (première présentation, à défaut accusé de réception) se compare alors au repère.
+   * Absent ou faux : le dépôt (choix par défaut). Aucun champ du contrat ne le porte : enregistrement à brancher.
+   */
+  receptionSelonPolice?: boolean
 }
 
 export interface ControleDelaiDeclaration {
@@ -625,6 +643,9 @@ function verifierOptionsDelai(options: OptionsDelaiDeclaration): void {
   verifierDateOption('Date de transmission à la compagnie', options.transmisCompagnieLe)
   const mandat = erreurMandatCourtier(courtierMandateParAssureur)
   if (mandat) throw new Error(mandat)
+  const { receptionSelonPolice } = options
+  if (receptionSelonPolice !== undefined && typeof receptionSelonPolice !== 'boolean')
+    throw new Error(`Réglage « réception selon la police » invalide (${String(receptionSelonPolice)}) : oui ou non attendu.`)
 }
 
 interface DateRetenue {
@@ -690,6 +711,8 @@ interface ContexteEtat {
   fondements: readonly string[]
   /** Premier courrier de déclaration déposé après aujourd'hui, écarté. */
   futur: CourrierDeclarationDepose | undefined
+  /** Police « reçue » ou « parvenue » (F53) : la réception du courrier se compare au repère. */
+  receptionSelonPolice: boolean
 }
 
 function etatNonDeclare(aujourdhui: string, repere: string): EtatCalcule {
@@ -741,7 +764,41 @@ const designation = (date: string, { source, courrier }: DateRetenue): string =>
     ? `Transmission à la compagnie du ${dateIsoVersFr(date)} (courrier au courtier du ${dateIsoVersFr(courrier.dateDepot)})`
     : `Déclaration du ${dateIsoVersFr(date)}`
 
-function etatDeclare(date: string, retenue: DateRetenue, { repere, fondements }: ContexteEtat): EtatCalcule {
+/**
+ * Décision du 20/11/2026 (partie C, F53) : police « reçue » ou « parvenue » ; la réception du courrier qui fait la date
+ * (première présentation, à défaut accusé de réception) se compare au repère. Réception non saisie : « à vérifier », sauf
+ * dépôt déjà postérieur au repère (la réception ne peut que le suivre). Le dépôt reste la date proposée.
+ */
+function etatSelonReception(date: string, courrier: CourrierDeclarationDepose, repere: string): EtatCalcule {
+  const reception = receptionConnue(courrier)
+  const depose = `Déclaration déposée le ${dateIsoVersFr(date)}`
+  const auRepere = `repère indicatif du ${dateIsoVersFr(repere)}`
+  if (reception === null && date > repere)
+    return {
+      etat: 'tardive',
+      retardJours: ecartJours(repere, date),
+      message: `${depose}, postérieure au ${auRepere} ; réception non saisie, la police compte la réception (« reçue » ou « parvenue »).`,
+    }
+  if (reception === null)
+    return {
+      etat: 'a_verifier',
+      retardJours: 0,
+      message: `${depose}, dans le ${auRepere}, mais réception non saisie : la police compte la réception (« reçue » ou « parvenue ») ; saisir la première présentation, à défaut l'accusé de réception.`,
+    }
+  if (reception > repere)
+    return {
+      etat: 'tardive',
+      retardJours: ecartJours(repere, reception),
+      message: `${depose}, reçue le ${dateIsoVersFr(reception)}, postérieure au ${auRepere} : la police compte la réception (« reçue » ou « parvenue »).`,
+    }
+  return {
+    etat: 'dans_le_delai',
+    retardJours: 0,
+    message: `${depose}, reçue le ${dateIsoVersFr(reception)}, dans le ${auRepere} (la police compte la réception).`,
+  }
+}
+
+function etatDeclare(date: string, retenue: DateRetenue, { repere, fondements, receptionSelonPolice }: ContexteEtat): EtatCalcule {
   const { source, courrier, courtierAVerifier, transmissionAnterieure } = retenue
   if (transmissionAnterieure !== undefined)
     return {
@@ -749,6 +806,9 @@ function etatDeclare(date: string, retenue: DateRetenue, { repere, fondements }:
       retardJours: 0,
       message: `Transmission à la compagnie saisie au ${dateIsoVersFr(transmissionAnterieure)}, avant le courrier au courtier du ${dateIsoVersFr(date)} : date de transmission à vérifier ; délai non contrôlé (repère indicatif du ${dateIsoVersFr(repere)}).`,
     }
+  // F53 : ni transmission datée par le courtier, ni courrier au courtier à vérifier (J67, R51).
+  if (receptionSelonPolice && courrier && source !== 'transmission' && courtierAVerifier !== true)
+    return etatSelonReception(date, courrier, repere)
   if (date > repere)
     return {
       etat: 'tardive',
@@ -828,6 +888,7 @@ export function controlerDelaiDeclaration(
     repere: repere.date,
     fondements: repere.fondements,
     futur: futurs[0],
+    receptionSelonPolice: options.receptionSelonPolice === true,
   }
   const etat = etatDuDelai(retenue, contexte)
   return { ...commun, ...etat, message: `${etat.message}${mentionReport(repere)}` }

@@ -121,6 +121,17 @@ import { STATUT_ASSEMBLEE, type StatutAssemblee } from '@/lib/data/referentiels-
  * Depuis le 17/11/2026 (relecture des marques périmées), le contrôle de la voie décrit ci-dessus (J50, J52, J53 :
  * controlerVoieNotification, motifVoiePostaleDemandee, dateEnvoiNotification) est dans controle-voie-notification.ts,
  * sans changement de règle ni de message : il sert aussi aux trente jours de L. 1965 art. 19-2 (recouvrement.ts).
+ *
+ * Décision du 20/11/2026 (partie C, F82), recommandation acceptée, suite de J51 :
+ * - une demande d'aide juridictionnelle connue (NotificationDestinataire.demandeAideJuridictionnelleLe), déposée avant la
+ *   fin du délai d'un copropriétaire, rend son action réputée faite dans le délai s'il agit dans un « nouveau délai de même
+ *   durée » après la décision sur l'aide (décret du 28/12/2020 relatif à l'aide juridictionnelle, art. 43, version du
+ *   13/06/2026 ; son numéro est cité par envoi-ordre-service.ts, ce module n'écrivant aucune date littérale) : la fin du
+ *   délai est inconnue pour lui (refus aide_juridictionnelle_demandee), et l'OS des travaux votés aux art. 25 ou 26 est
+ *   bloqué (J51) ; le nouveau délai n'est pas calculé ici ;
+ * - une fin du délai établie hors de l'outil (AG ancienne) se saisit avec un motif et une pièce, par exemple un
+ *   certificat de non-recours, et la saisie est tracée (etablirFinDelaiHorsOutil : collaborateur, date) ; le contrôle de
+ *   l'OS la lit comme une fin connue.
  */
 
 /** Ligne d'historique telle que la lisent ces fonctions (sous-ensemble de ChangementStatut). */
@@ -304,6 +315,8 @@ export const CAUSES_DELAI_NON_CALCULE = [
   // J53 (décision du 17/11/2026) : LRE à un non-professionnel sans consentement enregistré (CPCE art. L. 100)
   'consentement_lre_absent',
   'opposants_non_saisis',
+  // Décision du 20/11/2026 (partie C, F82) : demande d'aide juridictionnelle connue avant la fin du délai
+  'aide_juridictionnelle_demandee',
 ] as const
 export type CauseDelaiNonCalcule = (typeof CAUSES_DELAI_NON_CALCULE)[number]
 
@@ -637,6 +650,11 @@ export interface NotificationDestinataire {
   courrierId: string | null
   /** Destinataire professionnel (CPCE art. L. 100) ; absent ou null : non saisi, lu comme non professionnel. */
   professionnel?: boolean | null
+  /**
+   * Dépôt, connu du cabinet, d'une demande d'aide juridictionnelle par ce copropriétaire (Décision du 20/11/2026, partie C,
+   * F82 ; enregistrement : à brancher) ; absent ou null : aucune connue.
+   */
+  demandeAideJuridictionnelleLe?: string | null
 }
 
 export type ResultatDestinataire = (DelaiRefuse | DelaiCalcule) & { identiteId: string }
@@ -659,6 +677,62 @@ export type ResultatDelaiContestationAg =
       avertissements: string[]
       aConfirmer: string | null
     }
+  /** Fin du délai établie hors de l'outil, avec un motif et une pièce, tracée (Décision du 20/11/2026, partie C, F82). */
+  | FinDelaiEtablieHorsOutil
+
+/** Saisie motivée d'une fin du délai établie hors de l'outil (AG ancienne ; Décision du 20/11/2026, partie C, F82). */
+export interface SaisieFinDelaiHorsOutil {
+  /** Fin du délai de contestation, incluse. */
+  fin: string
+  motif: string
+  /** Pièce qui l'établit (certificat de non-recours, par exemple) : identifiant du document. */
+  pieceId: string
+  /** Collaborateur qui saisit la fin. */
+  collaborateurId: string
+  /** Jour de la saisie. */
+  saisieLe: string
+}
+
+export interface FinDelaiEtablieHorsOutil extends SaisieFinDelaiHorsOutil {
+  etat: 'etablie_hors_outil'
+  justification: string
+}
+
+/**
+ * Décision du 20/11/2026 (partie C, F82) : une fin du délai établie hors de l'outil n'existe qu'avec ses dates, son motif,
+ * sa pièce et son auteur ; vérifiée à la saisie et de nouveau quand le contrôle de l'OS la lit (reprise d'ailleurs).
+ */
+export function verifierFinDelaiHorsOutil(saisie: SaisieFinDelaiHorsOutil): void {
+  for (const [libelle, date] of [
+    ['Fin du délai', saisie.fin],
+    ['Date de la saisie', saisie.saisieLe],
+  ] as const)
+    if (!estDateIsoValide(date)) throw new Error(`${libelle} invalide (${date}) : AAAA-MM-JJ attendu.`)
+  if (!saisie.motif.trim()) throw new Error("Fin du délai établie hors de l'outil : motif obligatoire (Décision du 20/11/2026, partie C, F82).")
+  if (!saisie.pieceId.trim()) throw new Error("Fin du délai établie hors de l'outil : pièce obligatoire (certificat de non-recours, par exemple).")
+  if (!saisie.collaborateurId.trim()) throw new Error("Fin du délai établie hors de l'outil : collaborateur qui la saisit attendu (saisie tracée).")
+}
+
+/**
+ * Décision du 20/11/2026 (partie C, F82) : la fin du délai de contestation établie hors de l'outil (AG ancienne, dont les
+ * notifications ne sont pas saisies) se saisit avec un motif et une pièce (certificat de non-recours, par exemple), et la
+ * saisie est tracée (collaborateur, date) ; le contrôle de l'OS la lit comme une fin connue (envoi-ordre-service.ts).
+ */
+export function etablirFinDelaiHorsOutil(saisie: SaisieFinDelaiHorsOutil): FinDelaiEtablieHorsOutil {
+  verifierFinDelaiHorsOutil(saisie)
+  const motif = saisie.motif.trim()
+  const pieceId = saisie.pieceId.trim()
+  const collaborateurId = saisie.collaborateurId.trim()
+  return {
+    etat: 'etablie_hors_outil',
+    fin: saisie.fin,
+    motif,
+    pieceId,
+    collaborateurId,
+    saisieLe: saisie.saisieLe,
+    justification: `Fin du délai de contestation établie hors de l'outil : le ${fr(saisie.fin)} inclus (${motif} ; pièce ${pieceId}), saisie le ${fr(saisie.saisieLe)} par ${collaborateurId} — Décision du 20/11/2026 (partie C, F82).`,
+  }
+}
 
 /** La plus tardive des deux échéances d'un délai calculé (report au jour ouvrable compris). */
 export const echeanceLaPlusTardiveDe = (r: Pick<DelaiCalcule, 'echeanceSansReport' | 'echeanceAvecReport'>): string =>
@@ -688,15 +762,40 @@ function verifierNotifications(notifications: readonly NotificationDestinataire[
 
 const estCalcule = (r: ResultatDestinataire): r is DelaiCalcule & { identiteId: string } => r.etat === 'calcule'
 
+function verifierAideJuridictionnelle(n: NotificationDestinataire): void {
+  const le = n.demandeAideJuridictionnelleLe ?? null
+  if (le !== null && !estDateIsoValide(le))
+    throw new Error(`Demande d'aide juridictionnelle de l'identité ${n.identiteId} : date invalide (${le}), AAAA-MM-JJ attendu.`)
+}
+
+/**
+ * Décision du 20/11/2026 (partie C, F82) : la demande d'aide juridictionnelle déposée avant la fin du délai d'un
+ * copropriétaire rend son action réputée faite dans le délai s'il agit dans un « nouveau délai de même durée » après la
+ * décision sur l'aide (décret du 28/12/2020 relatif à l'aide juridictionnelle, art. 43) : la fin du délai est inconnue pour lui (refus) ; déposée
+ * après la fin, elle ne change rien.
+ */
+function avecAideJuridictionnelle(r: DelaiRefuse | DelaiCalcule, n: NotificationDestinataire): DelaiRefuse | DelaiCalcule {
+  const le = n.demandeAideJuridictionnelleLe ?? null
+  if (le === null || r.etat !== 'calcule') return r
+  const fin = echeanceLaPlusTardiveDe(r)
+  if (le > fin) return r
+  return {
+    etat: 'refuse',
+    cause: 'aide_juridictionnelle_demandee',
+    motif: `Demande d'aide juridictionnelle déposée le ${fr(le)}, avant la fin de son délai (${fr(fin)} inclus) : son action est réputée faite dans le délai s'il agit dans un nouveau délai de même durée après la décision sur l'aide (décret du 28/12/2020 relatif à l'aide juridictionnelle, art. 43) ; la fin du délai est inconnue pour lui — Décision du 20/11/2026 (partie C, F82).`,
+  }
+}
+
 const opposants = (n: number): string => (n > 1 ? `${n} opposants ou défaillants` : `${n} opposant ou défaillant`)
 
 /**
  * Fin du délai de contestation de l'AG, calculée pour chaque opposant ou défaillant (J50 ; D. 1967 art. 18) : la plus
  * tardive ; inconnue (refus, avec sa cause) si le nombre d'opposants et de défaillants n'est pas saisi, si l'un d'eux n'a
  * pas de notification rattachée, ou si le délai d'une notification n'est pas calculé (dont un courrier antérieur à la
- * ligne qui précède « Notifiée » : courrier_anterieur_au_pv, relecture du 14/11/2026, tour 2). Sans opposant ni
- * défaillant (0), aucune contestation n'est ouverte, même sans notification. Plus de notifications que d'opposants, ou
- * une identité en double : erreur (données incohérentes).
+ * ligne qui précède « Notifiée » : courrier_anterieur_au_pv, relecture du 14/11/2026, tour 2), ou si l'un d'eux a déposé
+ * une demande d'aide juridictionnelle connue avant la fin de son délai (aide_juridictionnelle_demandee : Décision du
+ * 20/11/2026, partie C, F82). Sans opposant ni défaillant (0), aucune contestation n'est ouverte, même sans notification.
+ * Plus de notifications que d'opposants, ou une identité en double : erreur (données incohérentes).
  */
 export function finDelaiContestationAgParDestinataire(
   historique: LigneHistoriqueComplete[],
@@ -716,11 +815,15 @@ export function finDelaiContestationAgParDestinataire(
 ): ResultatDelaiContestationAg {
   verifierNombreOpposants(opposantsOuDefaillants)
   verifierNotifications(notifications, opposantsOuDefaillants)
+  notifications.forEach(verifierAideJuridictionnelle)
   if (opposantsOuDefaillants === 0) return { etat: 'sans_contestation', motif: MOTIF_SANS_CONTESTATION }
   // un courrier antérieur à la ligne qui précède « Notifiée » ne notifie pas ce PV (sondes N1, N1b)
   const borne = borneProcesVerbal(historique, agId)
   const destinataires: ResultatDestinataire[] = notifications.map((n) => ({
-    ...evaluerNotification(n.courrierId, courriers, { identiteId: n.identiteId, professionnel: n.professionnel ?? null, voie, reporterAuJourOuvrable, borne }),
+    ...avecAideJuridictionnelle(
+      evaluerNotification(n.courrierId, courriers, { identiteId: n.identiteId, professionnel: n.professionnel ?? null, voie, reporterAuJourOuvrable, borne }),
+      n,
+    ),
     identiteId: n.identiteId,
   }))
   if (!derniereNotification(historique, agId)) {

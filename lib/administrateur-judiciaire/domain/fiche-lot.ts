@@ -97,3 +97,18 @@ export function nouvelleFicheLot(propre: Partial<FicheLot> = {}): FicheLot {
     ...propre,
   }
 }
+
+/**
+ * Occupation du lot : propriétaire occupant, loué ou vacant (Décision du 20/11/2026 (partie C, F55) : « Pas de PNO »
+ * n'est signalé que pour un lot connu comme loué ou vacant, assurance-pno-lots.alertesPnoLotsNonOccupes). FicheLot n'a
+ * que « occupeDepuis » : ce champ n'est pas enregistré et n'est pas ajouté à FicheLot ; les règles le reçoivent en
+ * paramètre (LotAssurancePno.occupation). Enregistrement et saisie : à brancher.
+ */
+export const OCCUPATIONS_LOT = ['proprietaire_occupant', 'loue', 'vacant'] as const
+export type OccupationLot = (typeof OCCUPATIONS_LOT)[number]
+
+export const LIBELLES_OCCUPATIONS_LOT: Readonly<Record<OccupationLot, string>> = {
+  proprietaire_occupant: 'Occupé par son propriétaire',
+  loue: 'Loué',
+  vacant: 'Vacant',
+}

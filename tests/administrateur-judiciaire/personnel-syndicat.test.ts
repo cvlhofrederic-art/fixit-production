@@ -6,12 +6,16 @@ import {
   COMPTES_NOMENCLATURE_PAIE,
   ELEMENTS_NON_RECUPERABLES,
   IDENTIFIANTS_EMPLOYEUR,
+  MESSAGE_BULLETIN_APRES_SORTIE,
+  METHODES_AVANTAGES_EN_NATURE,
+  NATURES_LIGNE_BULLETIN,
   NATURES_REGLEMENT_PAIE,
   OBLIGATIONS_EMPLOYEUR,
   PARTS_RECUPERABLES_DECRET_87_713,
   PLAN_PAIE_PAR_DEFAUT,
   QUALITES_PERSONNEL,
   TYPES_DOCUMENT_EMPLOYEUR,
+  anomaliesBloquantesPaie,
   categorieRecuperable,
   compteDebiteReglementPaie,
   controlerBulletin,
@@ -34,6 +38,7 @@ import {
   type BulletinPaie,
   type BulletinPaieConstate,
   type ContextePaie,
+  type LigneBulletin,
   type ReglementPaie,
   type SalarieSyndicat,
 } from '@/lib/administrateur-judiciaire/domain/personnel-syndicat'
@@ -176,11 +181,10 @@ describe('constatation de la paie (le bulletin vient du prestataire de paie)', (
     expect(codes(controlerBulletin(bulletin({ annee: 99_999 })))).toEqual(['periode_invalide'])
   })
 
-  it('bulletin d’un mois fini avant l’entrée du salarié : refusé ; mois de l’entrée et mois postérieur à la sortie admis (🔴)', () => {
+  it('bulletin d’un mois fini avant l’entrée du salarié : refusé ; mois de l’entrée admis', () => {
     expect(codes(controlerBulletinSalarie(bulletin({ annee: 2020, mois: 1 }), gardien))).toEqual(['bulletin_avant_entree'])
     expect(() => ecrituresConstatationPaie(bulletin({ annee: 2020, mois: 1 }), gardien, CTX)).toThrow(/entrée/)
     expect(controlerBulletinSalarie(bulletin({ annee: 2024, mois: 3 }), gardien)).toEqual([])
-    expect(controlerBulletinSalarie(bulletin(), creerSalarieSyndicat({ ...gardien, sortieLe: '2026-06-30' }))).toEqual([])
     expect(codes(controlerBulletinSalarie(bulletin({ salarieId: 'sal-2' }), gardien))).toEqual(['salarie_incoherent'])
   })
 
@@ -251,11 +255,13 @@ describe('constatation de la paie (le bulletin vient du prestataire de paie)', (
     expect(lignes.some((l) => l.compte.startsWith('M001.442'))).toBe(false)
   })
 
-  it('avantage en nature (logement du gardien) : compte fourni par le cabinet, exigé (🔴), jamais inventé', () => {
+  it('avantage en nature, méthode du compte du cabinet (F41) : compte fourni par le cabinet, exigé, jamais inventé', () => {
     const avecLogement = bulletin({ avantagesEnNatureCentimes: 30_000, netAPayerCentimes: 120_000 })
     expect(controlerBulletin(avecLogement)).toEqual([])
-    expect(() => ecrituresConstatationPaie(avecLogement, gardien, CTX)).toThrow(/avantage en nature/)
-    const lignes = ecrituresConstatationPaie(avecLogement, gardien, { ...CTX, compteAvantagesEnNature: 'A0001' })
+    const methodeCabinet = { ...CTX, methodeAvantagesEnNature: 'compte_cabinet' } as const
+    expect(() => ecrituresConstatationPaie(avecLogement, gardien, methodeCabinet)).toThrow(/compte de contrepartie des avantages en nature à fournir par le cabinet/)
+    const lignes = ecrituresConstatationPaie(avecLogement, gardien, { ...methodeCabinet, compteAvantagesEnNature: 'A0001' })
+    expect(lignes).toContainEqual({ compte: 'M001.64100.00000.0', sens: 'debit', montantCentimes: 200_000 })
     expect(lignes).toContainEqual({ compte: 'M001.A0001.00000.0', sens: 'credit', montantCentimes: 30_000 })
     expect(total(lignes, 'debit')).toBe(total(lignes, 'credit'))
   })
@@ -363,7 +369,7 @@ describe('J67, R38 — part récupérable sur le locataire (décret n° 87-713, 
     const attributs = { analytique: '010', rubrique: '010', recupLocatairePct: 75 }
     const b = bulletin({ brutCentimes: 260_000, avantagesEnNatureCentimes: 30_000, elementsNonRecuperablesCentimes: { indemnite_licenciement: 30_000 }, netAPayerCentimes: 180_000 })
     expect(controlerBulletin(b)).toEqual([])
-    const ctx = { ...CTX, compteAvantagesEnNature: 'A0001' }
+    const ctx = { ...CTX, methodeAvantagesEnNature: 'compte_cabinet', compteAvantagesEnNature: 'A0001' } as const
     const lignes = ecrituresConstatationPaie(b, gardien, { ...ctx, attributs: { salaires: attributs } })
     expect(lignes.filter((l) => l.compte === 'M001.64100.00000.0')).toEqual([
       { compte: 'M001.64100.00000.0', sens: 'debit', montantCentimes: 200_000, attributs },
@@ -387,13 +393,15 @@ describe('J67, R38 — part récupérable sur le locataire (décret n° 87-713, 
 describe('règlement de la paie : catégorie distincte du règlement fournisseur', () => {
   const contexte = { salarie: gardien, bulletin: constatation.bulletin, contexte: CTX, traitements: [constatation.traitement], reglements: [] }
 
-  it('natures fermées : salaire net, cotisations, prélèvement à la source, taxe sur les salaires', () => {
+  it('natures fermées : salaire net, cotisations, prélèvement à la source, taxe sur les salaires, acompte et saisie (F42)', () => {
     expect(NATURES_REGLEMENT_PAIE).toEqual([
       'salaire_net',
       'cotisations_securite_sociale',
       'cotisations_autres_organismes',
       'prelevement_source',
       'taxe_salaires',
+      'acompte_salaire',
+      'saisie_salaire',
     ])
   })
 
@@ -656,6 +664,251 @@ describe('règlement du net : rien n’est dû sur un bulletin avant sa constata
   })
 })
 
+describe('Décision du 20/11/2026 (partie C, F39) — écritures de paie confirmées', () => {
+  it('brut au débit du 641 ; net au crédit du 421 ; cotisations au crédit du 431 / 432 ; part patronale au débit du 642 (644 : mutuelle) ; prélèvement à la source au crédit du 442 ; taxe 643 / 442', () => {
+    const avecMutuelle = bulletin({
+      cotisations: [
+        { organisme: 'securite_sociale', salarialeCentimes: 30_000, patronaleCentimes: 60_000 },
+        { organisme: 'autre_organisme', salarialeCentimes: 11_000, patronaleCentimes: 16_000 },
+        { organisme: 'autre_organisme', auxiliaire: '00009', comptePatronal: 'autresFrais', salarialeCentimes: 3_000, patronaleCentimes: 4_000 },
+      ],
+    })
+    const lignes = ecrituresConstatationPaie(avecMutuelle, gardien, CTX)
+    const sur = (prefixe: string) => lignes.filter((l) => l.compte.startsWith(`M001.${prefixe}`)).map((l) => [l.sens, l.montantCentimes])
+    expect(sur('641')).toEqual([['debit', 200_000]])
+    expect(sur('421')).toEqual([['credit', 150_000]])
+    expect(sur('431')).toEqual([['credit', 90_000]])
+    expect(sur('432')).toEqual([
+      ['credit', 27_000],
+      ['credit', 7_000],
+    ])
+    expect(sur('642')).toEqual([['debit', 76_000]])
+    expect(sur('644')).toEqual([['debit', 4_000]])
+    expect(sur('442')).toEqual([['credit', 6_000]])
+    expect(ecrituresTaxeSalaires(10_000, CTX).map((l) => [l.compte, l.sens])).toEqual([
+      ['M001.64300.00000.0', 'debit'],
+      ['M001.44200.00000.0', 'credit'],
+    ])
+  })
+})
+
+describe('Décision du 20/11/2026 (partie C, F41) — avantage en nature neutralisé par défaut', () => {
+  /** Logement du gardien : avantage de 300 € compris dans le brut de 2 000 € ; net 1 200 €. */
+  const avecLogement = bulletin({ avantagesEnNatureCentimes: 30_000, netAPayerCentimes: 120_000 })
+  const attributs = { analytique: '010', rubrique: '010', recupLocatairePct: 75 }
+
+  it('deux méthodes : neutralisée (par défaut) ou compte fourni par le cabinet', () => {
+    expect(METHODES_AVANTAGES_EN_NATURE).toEqual(['neutralise', 'compte_cabinet'])
+  })
+
+  it('par défaut : 641 au brut diminué de l’avantage, aucun compte crédité, cotisations du brut entier inchangées ; plus de blocage', () => {
+    const lignes = ecrituresConstatationPaie(avecLogement, gardien, CTX)
+    expect(lignes).toEqual([
+      { compte: 'M001.64100.00000.0', sens: 'debit', montantCentimes: 170_000 },
+      { compte: 'M001.64200.00000.0', sens: 'debit', montantCentimes: 80_000 },
+      { compte: 'M001.42100.00001.0', sens: 'credit', montantCentimes: 120_000 },
+      { compte: 'M001.43100.00000.0', sens: 'credit', montantCentimes: 90_000 },
+      { compte: 'M001.43200.00000.0', sens: 'credit', montantCentimes: 34_000 },
+      { compte: 'M001.44200.00000.0', sens: 'credit', montantCentimes: 6_000 },
+    ])
+    expect(total(lignes, 'debit')).toBe(250_000)
+    expect(total(lignes, 'credit')).toBe(250_000)
+    expect(ecrituresConstatationPaie(avecLogement, gardien, { ...CTX, methodeAvantagesEnNature: 'neutralise' })).toEqual(lignes)
+    // Le montant reste sur le bulletin, pour information.
+    expect(traitementConstatationPaie({ id: 'tr-logement', date: '2026-09-30' }, avecLogement, gardien, CTX).bulletin.avantagesEnNatureCentimes).toBe(30_000)
+  })
+
+  it('neutralisé, avec une analytique : l’avantage reste hors du 641 ; seuls les éléments exclus passent sur la seconde ligne à 0 % (J67, R38)', () => {
+    expect(ecrituresConstatationPaie(avecLogement, gardien, { ...CTX, attributs: { salaires: attributs } }).filter((l) => l.compte === 'M001.64100.00000.0')).toEqual([
+      { compte: 'M001.64100.00000.0', sens: 'debit', montantCentimes: 170_000, attributs },
+    ])
+    const b = bulletin({ brutCentimes: 260_000, avantagesEnNatureCentimes: 30_000, elementsNonRecuperablesCentimes: { indemnite_licenciement: 30_000 }, netAPayerCentimes: 180_000 })
+    const lignes = ecrituresConstatationPaie(b, gardien, { ...CTX, attributs: { salaires: attributs } })
+    expect(lignes.filter((l) => l.compte === 'M001.64100.00000.0')).toEqual([
+      { compte: 'M001.64100.00000.0', sens: 'debit', montantCentimes: 200_000, attributs },
+      { compte: 'M001.64100.00000.0', sens: 'debit', montantCentimes: 30_000, attributs: { ...attributs, recupLocatairePct: 0 } },
+    ])
+    expect(total(lignes, 'debit')).toBe(total(lignes, 'credit'))
+  })
+
+  it('méthode incohérente (compte fourni, avantage neutralisé) ou inconnue : refusée', () => {
+    expect(() => ecrituresConstatationPaie(avecLogement, gardien, { ...CTX, compteAvantagesEnNature: 'A0001' })).toThrow(
+      /neutralisés .*aucun compte crédité/,
+    )
+    expect(() => ecrituresConstatationPaie(avecLogement, gardien, { ...CTX, methodeAvantagesEnNature: 'produit' as never })).toThrow(
+      /Méthode des avantages en nature « produit »/,
+    )
+  })
+})
+
+describe('Décision du 20/11/2026 (partie C, F42) — autres lignes du bulletin', () => {
+  const CTX_F42: ContextePaie = { ...CTX, compteAcomptes: '42110', compteSaisiesSalaire: '46200' }
+  /** Brut 2 000 €, salariales 440 €, PAS 60 € ; acompte 300 €, avance 200 €, saisie 100 € (bénéficiaire 00007), frais 30 €, indemnité non soumise 200 € : net 1 130 €. */
+  const complet = bulletin({
+    lignesComplementaires: [
+      { nature: 'acompte', montantCentimes: 30_000 },
+      { nature: 'avance', montantCentimes: 20_000 },
+      { nature: 'saisie_salaire', montantCentimes: 10_000, beneficiaire: '00007' },
+      { nature: 'frais_rembourses', montantCentimes: 3_000 },
+      { nature: 'indemnite_non_soumise', montantCentimes: 20_000 },
+    ],
+    netAPayerCentimes: 113_000,
+  })
+  const seule = (ligneBulletin: LigneBulletin) => bulletin({ lignesComplementaires: [ligneBulletin] })
+
+  it('natures fermées : acompte, avance, saisie sur salaire, frais remboursés, indemnité non soumise', () => {
+    expect(NATURES_LIGNE_BULLETIN).toEqual(['acompte', 'avance', 'saisie_salaire', 'frais_rembourses', 'indemnite_non_soumise'])
+  })
+
+  it('contrôle du net : brut − cotisations salariales − avantages en nature − PAS − acomptes − autres retenues + versements non soumis', () => {
+    expect(controlerBulletin(complet)).toEqual([])
+    const [incoherent, ...autres] = controlerBulletin({ ...complet, netAPayerCentimes: 150_000 })
+    expect(autres).toEqual([])
+    expect(incoherent.code).toBe('net_incoherent')
+    expect(incoherent.message).toBe(
+      'Bulletin bul-2026-09 : net à payer de 150000 centimes pour 113000 centimes attendus (net = brut − cotisations salariales − avantages en nature − prélèvement à la source − acomptes − autres retenues + versements non soumis).',
+    )
+  })
+
+  it('lignes contrôlées : nature connue, centimes entiers, bénéficiaire exigé pour une saisie et pour elle seule', () => {
+    expect(codes(controlerBulletin(seule({ nature: 'prime' as never, montantCentimes: 0 })))).toEqual(['nature_inconnue'])
+    expect(codes(controlerBulletin(seule({ nature: 'acompte', montantCentimes: -1 })))).toContain('montant_invalide')
+    expect(codes(controlerBulletin(seule({ nature: 'acompte', montantCentimes: 0.5 })))).toContain('montant_invalide')
+    expect(codes(controlerBulletin(seule({ nature: 'saisie_salaire', montantCentimes: 0 })))).toEqual(['auxiliaire_invalide'])
+    expect(codes(controlerBulletin(seule({ nature: 'saisie_salaire', montantCentimes: 0, beneficiaire: '7' })))).toEqual(['auxiliaire_invalide'])
+    expect(codes(controlerBulletin(seule({ nature: 'frais_rembourses', montantCentimes: 0, beneficiaire: '00007' })))).toEqual(['auxiliaire_invalide'])
+  })
+
+  it('écriture : acompte et avance repris au crédit du sous-compte « acomptes » du 421 du salarié, saisie au crédit du 462 du bénéficiaire, frais au débit du 644, indemnité au débit du 641 ; équilibrée', () => {
+    const lignes = ecrituresConstatationPaie(complet, gardien, CTX_F42)
+    expect(lignes).toEqual([
+      { compte: 'M001.64100.00000.0', sens: 'debit', montantCentimes: 220_000 },
+      { compte: 'M001.64200.00000.0', sens: 'debit', montantCentimes: 80_000 },
+      { compte: 'M001.64400.00000.0', sens: 'debit', montantCentimes: 3_000 },
+      { compte: 'M001.42100.00001.0', sens: 'credit', montantCentimes: 113_000 },
+      { compte: 'M001.42110.00001.0', sens: 'credit', montantCentimes: 50_000 },
+      { compte: 'M001.46200.00007.0', sens: 'credit', montantCentimes: 10_000 },
+      { compte: 'M001.43100.00000.0', sens: 'credit', montantCentimes: 90_000 },
+      { compte: 'M001.43200.00000.0', sens: 'credit', montantCentimes: 34_000 },
+      { compte: 'M001.44200.00000.0', sens: 'credit', montantCentimes: 6_000 },
+    ])
+    expect(total(lignes, 'debit')).toBe(303_000)
+    expect(total(lignes, 'credit')).toBe(303_000)
+  })
+
+  it('indemnité non soumise marquée non récupérable ; frais remboursés au 644, compte jamais récupérable (J67, R39)', () => {
+    const avecAnalytiques = { salaires: { analytique: '010', recupLocatairePct: 75 }, autresFrais: { analytique: '012', recupLocatairePct: 75 } }
+    const lignes = ecrituresConstatationPaie(complet, gardien, { ...CTX_F42, attributs: avecAnalytiques })
+    expect(lignes.filter((l) => l.compte === 'M001.64100.00000.0')).toEqual([
+      { compte: 'M001.64100.00000.0', sens: 'debit', montantCentimes: 200_000, attributs: { analytique: '010', recupLocatairePct: 75 } },
+      { compte: 'M001.64100.00000.0', sens: 'debit', montantCentimes: 20_000, attributs: { analytique: '010', recupLocatairePct: 0 } },
+    ])
+    expect(lignes.find((l) => l.compte === 'M001.64400.00000.0')).toEqual({
+      compte: 'M001.64400.00000.0',
+      sens: 'debit',
+      montantCentimes: 3_000,
+      attributs: { analytique: '012', recupLocatairePct: 0 },
+    })
+  })
+
+  it('codes du sous-compte « acomptes » du 421 et du 462 : fournis par le cabinet, sans défaut, subdivisions de leur compte', () => {
+    expect(() => ecrituresConstatationPaie(complet, gardien, { ...CTX_F42, compteAcomptes: null })).toThrow(/Sous-compte « acomptes » du 421 : .*à fournir par le cabinet/)
+    expect(() => ecrituresConstatationPaie(complet, gardien, { ...CTX_F42, compteAcomptes: '40100' })).toThrow(/subdivision du 421/)
+    expect(() => ecrituresConstatationPaie(complet, gardien, { ...CTX_F42, compteSaisiesSalaire: undefined })).toThrow(/462 « Créditeurs divers »/)
+    expect(() => ecrituresConstatationPaie(complet, gardien, { ...CTX_F42, compteSaisiesSalaire: '46100' })).toThrow(/subdivision du 462/)
+    // Sans acompte ni saisie, aucun de ces codes n'est exigé.
+    const fraisSeuls = bulletin({ lignesComplementaires: [{ nature: 'frais_rembourses', montantCentimes: 3_000 }], netAPayerCentimes: 153_000 })
+    expect(ecrituresConstatationPaie(fraisSeuls, gardien, CTX)).toContainEqual({
+      compte: 'M001.64400.00000.0',
+      sens: 'debit',
+      montantCentimes: 3_000,
+    })
+  })
+
+  it('acompte ou avance versé avant la paie : débit du sous-compte « acomptes » du 421 du salarié / crédit de la banque, sans borne de solde ; repris à la paie, le sous-compte est soldé', () => {
+    const acompte = reglement({ id: 'reg-acompte', nature: 'acompte_salaire', bulletinId: null, montantCentimes: 50_000, le: '2026-09-15', reference: 'VIR-0915' })
+    const contexte = { salarie: gardien, bulletin: null, contexte: CTX_F42, traitements: [], reglements: [] }
+    expect(controlerReglementPaie(acompte, contexte)).toEqual([])
+    expect(ecrituresReglementPaie(acompte, gardien, CTX_F42)).toEqual([
+      { compte: 'M001.42110.00001.0', sens: 'debit', montantCentimes: 50_000 },
+      { compte: 'M001.51200.00000.0', sens: 'credit', montantCentimes: 50_000 },
+    ])
+    const ecrit = traitementReglementPaie('tr-acompte', acompte, contexte)
+    expect(ecrit.libelle).toBe('Acompte ou avance sur salaire : règlement réf. VIR-0915 du 15/09/2026')
+    const paie = traitementConstatationPaie({ id: 'tr-paie-f42', date: '2026-09-30' }, complet, gardien, CTX_F42)
+    expect(balance([ecrit.traitement, paie.traitement], { compteDu: 'M001.42110.00001.0', compteAu: 'M001.42110.00001.0' }).lignes).toMatchObject([
+      { soldeCrediteurCentimes: 0, soldeDebiteurCentimes: 0 },
+    ])
+    expect(codes(controlerReglementPaie({ ...acompte, salarieId: null }, { ...contexte, salarie: null }))).toEqual(['salarie_requis'])
+    expect(codes(controlerReglementPaie({ ...acompte, mode: 'Espèces' }, contexte))).toEqual(['especes'])
+    expect(() => controlerReglementPaie(acompte, { ...contexte, contexte: CTX })).toThrow(/Sous-compte « acomptes » du 421/)
+  })
+
+  it('saisie sur salaire réglée au bénéficiaire : débit de son sous-compte du 462 / crédit de la banque, borné au solde créditeur après la paie', () => {
+    const paie = traitementConstatationPaie({ id: 'tr-paie-f42', date: '2026-09-30' }, complet, gardien, CTX_F42)
+    const sansBeneficiaire = reglement({
+      id: 'reg-saisie',
+      nature: 'saisie_salaire',
+      salarieId: null,
+      bulletinId: null,
+      montantCentimes: 10_000,
+      le: '2026-10-05',
+      reference: 'VIR-1005',
+    })
+    const saisie = { ...sansBeneficiaire, auxiliaire: '00007' }
+    const contexte = { salarie: null, bulletin: null, contexte: CTX_F42, traitements: [paie.traitement], reglements: [] }
+    expect(controlerReglementPaie(saisie, contexte)).toEqual([])
+    expect(ecrituresReglementPaie(saisie, null, CTX_F42)).toEqual([
+      { compte: 'M001.46200.00007.0', sens: 'debit', montantCentimes: 10_000 },
+      { compte: 'M001.51200.00000.0', sens: 'credit', montantCentimes: 10_000 },
+    ])
+    expect(codes(controlerReglementPaie({ ...saisie, montantCentimes: 10_001 }, contexte))).toEqual(['reglement_superieur_au_du'])
+    expect(codes(controlerReglementPaie({ ...saisie, le: '2026-09-29' }, contexte))).toEqual(['reglement_superieur_au_du'])
+    expect(codes(controlerReglementPaie(sansBeneficiaire, contexte))).toEqual(['auxiliaire_invalide'])
+    expect(() => ecrituresReglementPaie(sansBeneficiaire, null, CTX_F42)).toThrow(/bénéficiaire/)
+    expect(codes(controlerReglementPaie({ ...saisie, salarieId: 'sal-1' }, contexte))).toEqual(['salarie_inattendu'])
+  })
+})
+
+describe('Décision du 20/11/2026 (partie C, F43) — bulletin d’un mois postérieur à la sortie', () => {
+  const sorti = creerSalarieSyndicat({ ...gardien, sortieLe: '2026-06-30' })
+
+  it('accepté, avec une alerte non bloquante au libellé décidé ; pas limité au mois du paiement', () => {
+    const alertes = controlerBulletinSalarie(bulletin(), sorti)
+    expect(alertes).toEqual([
+      {
+        code: 'bulletin_apres_sortie',
+        message:
+          "Bulletin d'un mois postérieur à la sortie : rappel de salaire ou régularisation ? Vérifier la DSN et le signalement de fin de contrat (bulletin bul-2026-09 de 09/2026, sortie du salarié sal-1 le 30/06/2026).",
+        fondement: null,
+      },
+    ])
+    expect(MESSAGE_BULLETIN_APRES_SORTIE).toBe(
+      "Bulletin d'un mois postérieur à la sortie : rappel de salaire ou régularisation ? Vérifier la DSN et le signalement de fin de contrat",
+    )
+    expect(anomaliesBloquantesPaie(alertes)).toEqual([])
+    expect(ecrituresConstatationPaie(bulletin(), sorti, CTX)).toEqual(ecrituresConstatationPaie(bulletin(), gardien, CTX))
+    // Un an après la sortie (rappel après un litige) : toujours admis, toujours signalé.
+    expect(codes(controlerBulletinSalarie(bulletin({ annee: 2027, mois: 9 }), sorti))).toEqual(['bulletin_apres_sortie'])
+  })
+
+  it('mois de la sortie : aucune alerte ; mois commencé au plus tôt le jour de la sortie : alerte', () => {
+    expect(controlerBulletinSalarie(bulletin({ mois: 6 }), sorti)).toEqual([])
+    const sortiLe0107 = creerSalarieSyndicat({ ...gardien, sortieLe: '2026-07-01' })
+    expect(controlerBulletinSalarie(bulletin({ mois: 6 }), sortiLe0107)).toEqual([])
+    expect(codes(controlerBulletinSalarie(bulletin({ mois: 7 }), sortiLe0107))).toEqual(['bulletin_apres_sortie'])
+  })
+
+  it('le net se règle malgré l’alerte ; le refus d’un mois fini avant l’entrée est gardé, et bloquant', () => {
+    const constate = traitementConstatationPaie({ id: 'tr-paie-sorti', date: '2026-09-30' }, bulletin(), sorti, CTX)
+    const contexte = { salarie: sorti, bulletin: constate.bulletin, contexte: CTX, traitements: [constate.traitement], reglements: [] }
+    expect(controlerReglementPaie(reglement(), contexte)).toEqual([])
+    const avantEntree = controlerBulletinSalarie(bulletin({ annee: 2020, mois: 1 }), sorti)
+    expect(codes(avantEntree)).toEqual(['bulletin_avant_entree'])
+    expect(anomaliesBloquantesPaie(avantEntree)).toEqual(avantEntree)
+  })
+})
+
 describe('garde contre le circuit Gestéam (salaire réglé comme une facture, tranche 43 § 10)', () => {
   it('641, 642, 643 en facture : anomalie ; 644 (médecine du travail, mutuelle) : facture admise', () => {
     expect(codes(controlerFactureHorsPaie([{ comptePlan: '64100' }, { comptePlan: '61500' }], 'Fournisseur'))).toEqual(['salaire_en_facture'])
@@ -771,10 +1024,33 @@ describe('en-tête du module (marqueurs 🟢 / 🔵 / 🔴)', () => {
     for (const marqueur of ['🟢', '🔵', '🔴']) expect(entete).toContain(marqueur)
   })
 
-  it('🔴 questions exactes : reclassement des 401 « salarié », famille « Paie », avantage en nature', () => {
+  it('🔴 questions exactes : reclassement des 401 « salarié », famille « Paie »', () => {
     expect(nonEtabli).toMatch(/reclasser les soldes 401 « salarié » en 421/)
     expect(nonEtabli).toMatch(/famille « Paie »/)
-    expect(nonEtabli).toMatch(/avantage en nature/i)
+  })
+
+  it('décisions du 20/11/2026 (partie C, F39, F41, F42, F43) : citées, les questions 🔴 n° 1 (seconde partie), 4, 5 et 9 retirées', () => {
+    const bloc = entete.slice(entete.indexOf('Décisions du responsable du projet du 20/11/2026'), entete.indexOf('🔵 Déduit'))
+    for (const point of ['F39', 'F41', 'F42', 'F43']) expect(bloc).toContain(`Décision du 20/11/2026 (partie C, ${point})`)
+    expect(bloc).toMatch(/F39\) : écritures de paie confirmées : brut au débit du 641 ; net à payer au crédit du 421/)
+    expect(bloc).toMatch(/F41\) : .*aucun compte crédité pour l'avantage/)
+    expect(bloc).toMatch(/714 « Produits divers »/)
+    expect(bloc).toMatch(/F42\) : .*sous-compte « acomptes » du 421 du salarié/)
+    expect(bloc).toMatch(/462 « Créditeurs divers »/)
+    expect(bloc).toMatch(/net = brut − cotisations salariales − avantages en nature − prélèvement à la source − acomptes − autres retenues \+ versements non soumis/)
+    expect(bloc).toMatch(/F43\) : .*alerte non bloquante/)
+    expect(nonEtabli).not.toMatch(/les confirmez-vous/)
+    expect(nonEtabli).not.toMatch(/Avantage en nature compris dans le brut/)
+    expect(nonEtabli).not.toMatch(/Autres éléments du bulletin/)
+    expect(nonEtabli).not.toMatch(/admis sans alerte/)
+    expect(nonEtabli).toMatch(/les n° 4, 5 et 9, et la seconde question du n° 1 : décisions du 20\/11\/2026/)
+    expect(nonEtabli).toMatch(/sous-compte « acomptes » du 421/)
+    for (const marque of ['🔴 4', '🔴 9']) expect(source).not.toContain(marque)
+  })
+
+  it('F39 : la marque 🔵 des écritures de paie reste jusqu’à la validation du comptable du cabinet', () => {
+    expect(deduit).toMatch(/confirmé par la décision du 20\/11\/2026 \(partie C, F39\), marque à retirer après la validation du comptable du cabinet/)
+    expect(source).not.toMatch(/🔵 contreparties déduites\)/)
   })
 
   it('aucune date ISO dans la source', () => {

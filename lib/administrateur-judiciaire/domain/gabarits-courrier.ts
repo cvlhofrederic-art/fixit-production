@@ -73,6 +73,11 @@ import {
  * - J67, R25 : D. 1967 art. 11 (version du 25/12/2025) relu : contrôle des pièces de la convocation (I : validité, II :
  *   information) et du formulaire de vote par correspondance (art. 9) dans pieces-convocation-ag.ts.
  *
+ * Décision du 20/11/2026 (partie C, F21 ; carence-assemblee.ts, MOTIFS_CARENCE_DEFINIS) : le PV de carence porte son
+ * motif (champ ag.motifCarence, requis) : aucun copropriétaire présent, représenté ni ayant voté par correspondance, ou
+ * réunion non tenue et son motif libre (lieu fermé, incident…) ; il ne sert pas à une assemblée qui s'est tenue et a voté
+ * sans désigner de syndic, dont le procès-verbal ordinaire se notifie (D. 1967 art. 18).
+ *
  * 🔴 Non établi : PV de carence et attestation de non-recours n'ont pas de texte propre (pratiques) ; rubriques du
  * modèle annexé à l'arrêté du 2 juillet 2020 non relevées (publié en image au JO du 03/07/2020 ; J67, R25 : Hugo les lit,
  * puis on les code comme mentions obligatoires).
@@ -182,6 +187,7 @@ export const CHAMPS_PAR_CONTEXTE: Readonly<Record<ContexteFusionCourrier, readon
     champ('ag.convocation', 'Références de la convocation (date, mode, envois)'),
     champ('ag.resolutions', 'Résolutions visées'),
     champ('ag.notifications', 'Opposants et défaillants, dates de notification et d’expiration'),
+    champ('ag.motifCarence', 'Motif de la carence : aucun participant, ou réunion non tenue et son motif (décision du 20/11/2026, F21)'),
   ],
   sinistre: [
     champ('sinistre.nature', 'Nature du sinistre'),
@@ -201,6 +207,8 @@ export const CHAMPS_PAR_CONTEXTE: Readonly<Record<ContexteFusionCourrier, readon
     champ('compte.numero', 'Compte copropriétaire (450)'),
     champ('appel.dateEmission', "Date d'émission de l'avis", 'date'),
     champ('appel.aReglerAvantLe', 'À régler avant le', 'date'),
+    champ('appel.dateLimite', "« À régler avant le … », ou « exigible le … ; à régler au plus tard le … » avec un délai de courtoisie (décision du 20/11/2026, partie C, F114)"),
+    champ('mention.delaiCourtoisie', "Délai de courtoisie, réglage du cabinet qui ne change pas l'exigibilité (décision du 20/11/2026, partie C, F114)"),
     champ('appel.lignes', 'Fonds appelés : type, libellé (objet de la dépense), base, clé, quote-part'),
     champ('appel.totalAppeleCentimes', 'Total des appels', 'montant'),
     champ('appel.soldeAnterieurCentimes', 'Solde antérieur (négatif : crédit)', 'montant_signe'),
@@ -220,6 +228,7 @@ export const CHAMPS_PAR_CONTEXTE: Readonly<Record<ContexteFusionCourrier, readon
     champ('mention.prenotification', 'Pré-notification du prélèvement SEPA (montant, date, mandat, reste hors prélèvement)'),
     champ('mention.decisionAdministrateur', "Décision de l'administrateur provisoire jointe à l'appel (D. 1967 art. 62-9)"),
     champ('mention.provisionArt43', "Provision sur le budget de l'exercice précédent (D. 1967 art. 43, al. 2 ; J67, R98)"),
+    champ('mention.echeancesSansEcriture', 'Échéance à 0 € financée par le fonds de travaux, appelée sans écriture : pour information (décision du 20/11/2026, partie C, F108)'),
     champ('mention.confirmationAdresse', "Invitation à confirmer l'adresse électronique pour les avis (D. 1967 art. 35-2 ; J69)"),
     champ('mention.payerUneFois', 'Même somme pour tout le lot, à payer une seule fois ; copie au mandataire commun (J67, R100)'),
   ],
@@ -404,17 +413,19 @@ export const GABARITS_COURRIER = {
     objet: "Procès-verbal de carence de l'assemblée générale",
     libelleGesteam: 'PV de carence (AR)',
     contexte: 'assemblee',
-    champsPropres: ['ag.date', 'ag.heure', 'ag.lieu', 'ag.ordreDuJour', 'ag.convocation'],
+    champsPropres: ['ag.date', 'ag.heure', 'ag.lieu', 'ag.ordreDuJour', 'ag.convocation', 'ag.motifCarence'],
     formeLegale: 'libre',
     formeEnvoiParDefaut: 'AR',
     formeObservee: 'AR',
     fondements: ['D. 1967 art. 14 (feuille de présence)', 'D. 1967 art. 17 (registre des procès-verbaux)'],
-    sansTexte: 'Pratique : aucun texte ne prévoit un procès-verbal de carence.',
+    // Décision du 20/11/2026 (partie C, F21) : deux motifs seulement ; l'assemblée qui a voté a un procès-verbal ordinaire
+    sansTexte:
+      "Pratique : aucun texte ne prévoit un procès-verbal de carence ; pas pour une assemblée qui s'est tenue et a voté (motif « syndic non désigné ») : procès-verbal ordinaire, à notifier.",
     delai: null,
     mentions: [
       'Références de la convocation',
       'Lieu, date et heure',
-      "Constat qu'aucun copropriétaire n'est présent, représenté ni n'a voté par correspondance",
+      'Motif : aucun copropriétaire présent, représenté ni ayant voté par correspondance, ou réunion non tenue et son motif (lieu fermé, incident…)',
       'Ordre du jour non délibéré',
     ],
   },

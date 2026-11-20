@@ -864,7 +864,9 @@ describe('en-tête et commentaires du module : citations et marqueurs', () => {
       /Mutation à titre gratuit/,
     ])
       expect(ouvert).not.toMatch(tranchee)
-    expect(ouvert).toMatch(/Faut-il proposer quinze jours après la date de passage/)
+    // Décision du 20/11/2026 (partie C, F119) : les quinze jours ne sont plus une question ouverte.
+    expect(ouvert).not.toMatch(/Faut-il proposer quinze jours après la date de passage/)
+    expect(EN_TETE).toContain('Décision du 20/11/2026 (partie C, F119)')
     for (const n of ['R102', 'R103', 'R104', 'R105', 'R106', 'R111', 'R112']) expect(EN_TETE).toContain(`J67, ${n}`)
     // R103 : le cycle de l'exercice aboutit désormais (exercices-budgets.changerStatutExercice) ; plus rien « à revoir ».
     expect(EN_TETE).not.toMatch(/à revoir dans exercices-budgets\.ts/)

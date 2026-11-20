@@ -1,8 +1,10 @@
 import type { AlerteMandataireAdHoc, CadreAlerte291A } from '@/lib/administrateur-judiciaire/domain/alerte-mandataire-ad-hoc'
 import {
   controlesAssurancesPno,
+  REGLAGES_PNO_CABINET_PAR_DEFAUT,
   type LotAssurancePno,
   type MotifControlePno,
+  type ReglagesPnoCabinet,
 } from '@/lib/administrateur-judiciaire/domain/assurance-pno-lots'
 import { etapeRecouvrementContentieux, type DossierContentieux } from '@/lib/administrateur-judiciaire/domain/contentieux'
 import { dateLimiteResiliation, factureEnRetard, type FacturationContrat } from '@/lib/administrateur-judiciaire/domain/contrats-facturation'
@@ -59,15 +61,18 @@ import {
   bilanStatutsMandats,
   demandesDesMandatsSuivis,
   mandatHorsSuivi,
+  mentionArchivesExclus,
   type PorteeStatuts,
   type StatutDeMandat,
 } from '@/lib/administrateur-judiciaire/domain/statut-mandat'
 import {
   echeancesTravaux,
   etatPartFondsTravaux,
+  refusAppelOuOrdreDeServiceOperation,
   type OperationTravaux,
 } from '@/lib/administrateur-judiciaire/domain/travaux-operations'
 import { echeancesLiberationGarantie, type SuiviRetenueMarche } from '@/lib/administrateur-judiciaire/domain/travaux-retenue-garantie'
+import { verificationVigilanceDue, type MarcheEnExecution } from '@/lib/administrateur-judiciaire/domain/vigilance-entreprises'
 import type { StatutAssemblee, StatutContrat, TypeContrat } from '@/lib/data/referentiels-gesteam-judiciaire'
 
 /**
@@ -121,6 +126,10 @@ import type { StatutAssemblee, StatutContrat, TypeContrat } from '@/lib/data/ref
  * demandes en cours au-delà du seuil d'alerte ou au maximum de l'entreprise. Délais et seuils : réglages de GESTION,
  * aucun texte de la loi de 1965 ni du décret de 1967 (relevé du 03/11/2026). Critère « En cours » des deux blocs : non
  * codé (🔴 date et demandes visées à préciser par Hugo).
+ * Décision du 20/11/2026 (partie C, F90) : pendant l'exécution d'un marché d'au moins 5 000 € HT, un élément « à faire »
+ * tous les six mois depuis la conclusion pour demander l'attestation de vigilance à jour (famille « demandes », nature
+ * « vigilance_semestrielle », depuisVigilanceMarches, qui rend vigilance-entreprises.verificationVigilanceDue sans la
+ * recalculer ; C. trav. art. L. 8222-1, D. 8222-5 : échéance légale certaine, aConfirmer faux).
  * Sans source dans VitFix à ce jour, donc sans adaptateur : courriers à relancer, mouvement crédit d'un contentieux,
  * mémos, tickets d'appel, agenda.
  * 🔵 Travaux (point 32, travaux-retenue-garantie.ts) : libération de la garantie (retenue ou caution) à l'expiration du
@@ -131,14 +140,20 @@ import type { StatutAssemblee, StatutContrat, TypeContrat } from '@/lib/data/ref
  * 🔵 Statut du mandat (point 55, statut-mandat.ts ; Gestéam tranche 41) : un mandat Prospect ou Archivé sort du
  * portefeuille, du suivi « à faire » (même désigné ou suivi sur tout le cabinet), des demandes en cours d'une entreprise
  * (depuisDemandes) et de la balance âgée ; « En clôture » et « En gestion, en clôture » restent suivis ; une valeur
- * inconnue garde le mandat, l'anomalie se lit par bilanStatutsMandats(affectations). Le statut COURANT s'applique, même à
- * une balance âgée datée du passé (aucun historique du statut). Aucun texte ne règle ce statut (relevé du 03/11/2026) :
- * règle de GESTION.
+ * inconnue garde le mandat, l'anomalie se lit par bilanStatutsMandats(affectations) ; un « Prospect » dont l'ordonnance
+ * est datée (ordonnanceLe) reste suivi, avec une anomalie (décision du 20/11/2026, partie C, F32). Le statut COURANT
+ * s'applique au suivi du jour ; une balance âgée datée du passé compte un mandat archivé après sa date de référence
+ * quand la date d'archivage est donnée (archiveLe), et sinon l'écarte avec la mention « mandats archivés depuis :
+ * exclus » (décision du 20/11/2026, partie C, F33). Aucun texte ne règle ce statut (relevé du 03/11/2026) : règle de
+ * GESTION.
  * 🔵 Lots (point 71, assurance-pno-lots.ts ; Gestéam tranche 43 § 17, statut PNO des lots avec échéance) : famille
  * AJOUTÉE par VitFix — aucun bloc PNO dans le réglage Gestéam du syndic (tranche 38 ; seul le bloc « Baux », en
  * gérance, suit des « Attestations Assurance »). Attestation PNO à renouveler à son échéance, même dépassée ; à obtenir
  * (échéance absente, illisible, ou PNO « Extérieure + sans contrat ») à la date du jour ; « Pas de PNO » ne produit
- * rien. L. 1965 art. 9-1 oblige le copropriétaire et le syndicat à s'assurer, sans charger le syndic ni l'administrateur
+ * rien. Relance 30 jours avant l'échéance, puis rappel à l'échéance (décision du 20/11/2026, partie C, F57) : l'horizon
+ * du cabinet (HORIZONS_CABINET_PAR_DEFAUT, réglable, paramètre de selectionnerAFaire) remplace « Maintenant », horizon
+ * par défaut de tout collaborateur ; un horizon choisi par le collaborateur reste prioritaire.
+ * L. 1965 art. 9-1 oblige le copropriétaire et le syndicat à s'assurer, sans charger le syndic ni l'administrateur
  * provisoire d'un contrôle (relevé du 04/11/2026) : règle de GESTION, échéances de contrats. PNO : `aConfirmer` reste
  * faux (aucun repère juridique) ; une lecture non confirmée du statut (« Sans échéance », « Extérieure + sans contrat »)
  * est dite dans le libellé. L'équipe de l'immeuble (equipe-immeuble.ts) n'entre pas dans le portefeuille : il reste
@@ -169,7 +184,7 @@ export const NATURES_SUIVI = {
   assemblees: ['convocation_a_presenter', 'pv_a_signer'],
   etapes: ['a_faire', 'a_valider', 'automatique_non_realisee'],
   taches: ['tache'],
-  demandes: ['devis_a_relancer', 'intervention_a_relancer', 'relance_os', 'plafond_demandes'],
+  demandes: ['devis_a_relancer', 'intervention_a_relancer', 'relance_os', 'plafond_demandes', 'vigilance_semestrielle'],
   travaux: ['fonds_a_appeler', 'liberation_garantie'],
   contrats: ['limite_resiliation', 'a_resilier', 'mise_en_concurrence', 'facture_attendue'],
   factures: ['reglement'],
@@ -211,6 +226,7 @@ export const LIBELLES_NATURES_SUIVI: Record<NatureSuivi, string> = {
   intervention_a_relancer: "Demande d'intervention à relancer",
   relance_os: "Relance datée de l'ordre de service",
   plafond_demandes: "Demandes en cours au-delà du seuil de l'entreprise",
+  vigilance_semestrielle: 'Attestation de vigilance à jour à demander (marché en cours)',
   fonds_a_appeler: 'Fonds à appeler',
   liberation_garantie: 'Libération de la garantie',
   limite_resiliation: 'Limite de résiliation',
@@ -273,6 +289,10 @@ export interface AffectationMandat extends RolesMandat {
    * mandat du portefeuille, du suivi et de la balance âgée ; absente ou inconnue, le mandat reste suivi.
    */
   statut?: string | null
+  /** Date ISO de l'ordonnance qui a désigné le cabinet : un « Prospect » qui la porte reste suivi (statut-mandat.ts, F32). */
+  ordonnanceLe?: string | null
+  /** Date ISO d'archivage : une balance âgée datée d'avant elle compte encore le mandat (statut-mandat.ts, F33). */
+  archiveLe?: string | null
 }
 
 const CHAMP_ROLE: Record<RoleMandat, keyof RolesMandat> = {
@@ -387,8 +407,35 @@ const jourDeTraitement = (date: string): string => {
 const natureCochee = (natures: readonly NatureSuivi[], nature: NatureSuivi): boolean =>
   natures.includes(nature) || (nature === 'a_resilier' && natures.includes('limite_resiliation'))
 
-const horizonDeNature = (regle: ReglageFamille, nature: NatureSuivi): Horizon =>
-  regle.horizonsParNature?.[nature] ?? (nature === 'a_resilier' ? regle.horizonsParNature?.limite_resiliation : undefined) ?? regle.horizon
+/** Horizon du cabinet, par nature (réglage du cabinet). */
+export type HorizonsCabinet = Readonly<Partial<Record<NatureSuivi, Horizon>>>
+
+/**
+ * Horizon du cabinet tiré de son réglage PNO (F57 : relanceJoursAvantEcheance, 30 jours par défaut, réglable par le
+ * cabinet), à passer à selectionnerAFaire. Lève une erreur si le nombre de jours n'est pas un entier positif ou nul.
+ */
+export function horizonsCabinetPno({
+  relanceJoursAvantEcheance: nombre,
+}: Pick<ReglagesPnoCabinet, 'relanceJoursAvantEcheance'>): HorizonsCabinet {
+  if (!Number.isInteger(nombre) || nombre < 0)
+    throw new Error(`Relance PNO invalide (${nombre} jours avant l'échéance) : nombre entier positif ou nul attendu.`)
+  return Object.freeze({ pno_a_renouveler: Object.freeze({ nombre, unite: 'jours' as const }) })
+}
+
+/**
+ * Décision du 20/11/2026 (partie C, F57) : l'attestation PNO à renouveler remonte 30 jours avant son échéance
+ * (assurance-pno-lots.REGLAGES_PNO_CABINET_PAR_DEFAUT, valeur réglable par le cabinet : horizonsCabinetPno). Cet horizon
+ * remplace « Maintenant », horizon par défaut de tout collaborateur (reglageParDefaut), quand le collaborateur n'a choisi
+ * d'horizon ni pour la nature ni pour sa famille ; un horizon qu'il a choisi, même « Maintenant » pour la nature, reste
+ * prioritaire. « Maintenant » sur la famille ne se distingue pas du défaut : pour le garder, le choisir pour la nature.
+ */
+export const HORIZONS_CABINET_PAR_DEFAUT: HorizonsCabinet = horizonsCabinetPno(REGLAGES_PNO_CABINET_PAR_DEFAUT)
+
+const horizonDeNature = (regle: ReglageFamille, nature: NatureSuivi, horizonsCabinet: HorizonsCabinet): Horizon => {
+  const propre = regle.horizonsParNature?.[nature] ?? (nature === 'a_resilier' ? regle.horizonsParNature?.limite_resiliation : undefined)
+  if (propre) return propre
+  return regle.horizon.unite === 'maintenant' ? (horizonsCabinet[nature] ?? regle.horizon) : regle.horizon
+}
 
 /** Tout le cabinet, ou le portefeuille du collaborateur et ce qui lui est désigné. */
 const dansPerimetre = (
@@ -405,13 +452,15 @@ const dansPerimetre = (
  * Éléments que le réglage retient au jour donné : famille suivie, nature cochée, à traiter au plus tard à la fin de
  * l'horizon (un élément du week-end compte pour le vendredi), et dans le périmètre (tout le cabinet, ou le portefeuille du
  * collaborateur et ce qui lui est désigné). Tri par date. Un élément d'un mandat Prospect ou Archivé (point 55) n'est
- * jamais retenu, quels que soient le périmètre et la désignation.
+ * jamais retenu, quels que soient le périmètre et la désignation. `horizonsCabinet` : horizon du cabinet par nature, sous
+ * celui du collaborateur (F57 ; HORIZONS_CABINET_PAR_DEFAUT par défaut).
  */
 export function selectionnerAFaire(
   elements: ElementAFaire[],
   reglage: ReglageSuivi,
   affectations: AffectationMandat[],
   aujourdhui: string,
+  horizonsCabinet: HorizonsCabinet = HORIZONS_CABINET_PAR_DEFAUT,
 ): ElementAFaire[] {
   verifierDate(aujourdhui)
   const { horsSuivi } = bilanStatutsMandats(affectations)
@@ -423,7 +472,7 @@ export function selectionnerAFaire(
     const regle = reglage.familles[element.famille]
     if (!regle?.actif || retenus.has(element.id) || mandatHorsSuivi(element.mandatId, horsSuivi)) continue
     if (regle.natures && !natureCochee(regle.natures, element.nature)) continue
-    const limite = limiteHorizon(aujourdhui, horizonDeNature(regle, element.nature))
+    const limite = limiteHorizon(aujourdhui, horizonDeNature(regle, element.nature, horizonsCabinet))
     if (jourDeTraitement(element.date) > limite) continue
     if (dansPerimetre(element, regle, reglage.collaborateurId, mesMandats)) retenus.set(element.id, element)
   }
@@ -697,9 +746,31 @@ export function depuisDemandes(
 }
 
 /**
- * Travaux votés : chaque appel de tranche pas encore lancé, à son exigibilité (travaux-operations) ; non votés : rien.
- * Part du fonds de travaux pas encore autorisée (décision d'affectation ou ordonnance du juge attendue) : un seul
- * élément, à la date du premier appel à lancer, qui dit ce qui bloque, sans interrompre la liste des autres opérations.
+ * Décision du 20/11/2026 (partie C, F90) : vérification semestrielle de la vigilance pendant l'exécution d'un marché
+ * (vigilance-entreprises.verificationVigilanceDue, rendue sans être recalculée) ; aucun élément sous le seuil de
+ * vigilance ou après la fin de l'exécution. Assignée au collaborateur qui suit le marché.
+ */
+export const depuisVigilanceMarches = (marches: readonly MarcheEnExecution[]): ElementAFaire[] =>
+  marches.flatMap((m) => {
+    const due = verificationVigilanceDue(m)
+    if (due === null) return []
+    return [
+      elementSuivi('demandes', 'vigilance_semestrielle', `vigilance_semestrielle:${m.id}`, {
+        libelle: `Demander à l'entreprise son attestation de vigilance à jour (marché ${m.id} en cours d'exécution, vérification n° ${due.rang})`,
+        date: due.date,
+        mandatId: due.mandatId,
+        objetId: m.id,
+        assigneId: due.assigneId,
+      }),
+    ]
+  })
+
+/**
+ * Travaux votés : chaque appel de tranche pas encore lancé, à son exigibilité (travaux-operations) ; non votés : rien ;
+ * « Rejeté » (décision tombée, la décision restant enregistrée) : rien, plus aucun appel (décision du 20/11/2026, partie
+ * C, F67 : refusAppelOuOrdreDeServiceOperation). Part du fonds de travaux pas encore autorisée (décision d'affectation
+ * ou ordonnance du juge attendue) : un seul élément, à la date du premier appel à lancer, qui dit ce qui bloque, sans
+ * interrompre la liste des autres opérations.
  * `appelees` : ids d'appel (« 00042-T1 ») déjà lancés. Le n° d'opération n'est unique qu'au sein du syndicat (D1) : la clé
  * et la fiche d'origine portent la copropriété.
  */
@@ -707,7 +778,7 @@ export function depuisOperationsTravaux(
   items: { mandatId: string; operation: OperationTravaux; appelees: string[] }[],
 ): ElementAFaire[] {
   return items.flatMap(({ mandatId, operation, appelees }) => {
-    if (!operation.decision) return []
+    if (!operation.decision || refusAppelOuOrdreDeServiceOperation(operation)) return []
     const objetId = `${operation.coproprieteId}:${operation.numero}`
     const etatFonds = etatPartFondsTravaux(operation)
     if (etatFonds && !etatFonds.autorise) {
@@ -1052,16 +1123,23 @@ const SUITE_SELON_CADRE: Readonly<Record<CadreAlerte291A, string>> = {
 /**
  * Critères atteints que la requête ne couvre pas, à la date du plus tôt et avec leurs seuls constats, suivis de ce que le
  * cadre propose (à cette date : celle du constat, pas une échéance, hors obligation du syndic) ; à défaut, repère du délai
- * sans vote sur l'approbation des comptes qui court encore ; null : ni l'un ni l'autre.
+ * sans vote sur l'approbation des comptes qui court encore ; null : ni l'un ni l'autre. Réserve : celle de l'alerte, ou
+ * celle du critère des comptes « atteint, à confirmer » quand il reste seul à traiter (impayés couverts, F35).
  */
-function etapeAlerte291A(alerte: AlerteMandataireAdHoc): { libelle: string; date: string } | null {
+function etapeAlerte291A(alerte: AlerteMandataireAdHoc): { libelle: string; date: string; aConfirmer: boolean } | null {
   if (alerte.aTraiterLe !== null) {
-    const constats = [alerte.impayes, alerte.comptes].filter((c) => c.etat === 'atteint' && !c.traite).map((c) => c.message)
-    return { libelle: `${TITRE_ALERTE_29_1_A} : ${constats.join(' ')}${SUITE_SELON_CADRE[alerte.cadre]}`, date: alerte.aTraiterLe }
+    const restants = [alerte.impayes, alerte.comptes].filter((c) => c.etat === 'atteint' && !c.traite)
+    const constats = restants.map((c) => c.message)
+    const seulsComptesAConfirmer = !restants.includes(alerte.impayes) && alerte.comptes.aConfirmer
+    return {
+      libelle: `${TITRE_ALERTE_29_1_A} : ${constats.join(' ')}${SUITE_SELON_CADRE[alerte.cadre]}`,
+      date: alerte.aTraiterLe,
+      aConfirmer: alerte.aConfirmer || seulsComptesAConfirmer,
+    }
   }
   const { etat, atteintLe, message } = alerte.comptes
   if (etat !== 'non_atteint' || atteintLe === null) return null
-  return { libelle: `${TITRE_ALERTE_29_1_A} à venir : ${message}`, date: atteintLe }
+  return { libelle: `${TITRE_ALERTE_29_1_A} à venir : ${message}`, date: atteintLe, aConfirmer: alerte.aConfirmer }
 }
 
 /**
@@ -1073,7 +1151,13 @@ function etapeAlerte291A(alerte: AlerteMandataireAdHoc): { libelle: string; date
  *   connu) : rien ;
  * - la copie de la requête au représentant de l'État, au maire et au président de l'EPCI (art. 29-1 A, dernier alinéa ;
  *   D. 1967 art. 61-5), à la date de la requête, tant qu'elle n'est pas adressée : seulement dans le cadre de
- *   l'obligation du syndic (l'alerte ne la rend pas sinon, J67, R30).
+ *   l'obligation du syndic (l'alerte ne la rend pas sinon, J67, R30) ;
+ * - décision du 20/11/2026 (partie C, F35) : tant qu'aucun vote sur l'approbation des comptes n'est connu, la tâche
+ *   « saisir la date de la dernière assemblée qui s'est prononcée sur les comptes », sans réserve (une saisie, pas un
+ *   repère juridique) ; 🔵 choix de codage, comme une étape sans délai (J76) : datée de la date de référence de
+ *   l'alerte, due le jour même, jamais en retard. Le critère « atteint, à confirmer » depuis le début de la mission
+ *   garde sa réserve sur l'élément de l'alerte quand il reste seul à traiter ; des impayés atteints et non couverts la
+ *   rendent ferme, et la copie d'une requête déposée reste due sans réserve (D. 1967 art. 61-5).
  * Cadre de l'alerte (J67, R30) : administrateur de l'art. 29-1, constat à porter au prochain compte rendu au juge ;
  * administrateur de l'art. 47, signalement au juge, requête possible après consultation du conseil syndical.
  * `aConfirmer` reprend celui de l'alerte : sous administrateur provisoire (art. 29-1 ou D. 1967 art. 47 ; J67, R30 :
@@ -1094,6 +1178,19 @@ export function depuisAlertesMandataireAdHoc(items: { mandatId: string; alerte: 
           ...champs,
           libelle: `${TITRE_ALERTE_29_1_A} : requête au juge du ${dateIsoVersFr(copieDueLe)}, copie à adresser au représentant de l'État dans le département, au maire de la commune de l'immeuble et au président de l'EPCI compétent en matière d'habitat (art. 29-1 A, dernier alinéa ; D. 1967 art. 61-5)`,
           date: copieDueLe,
+          // Due dès la requête, dans le seul cadre de l'obligation du syndic (jamais à confirmer) ; la réserve du critère
+          // des comptes (F35) ne la touche pas.
+          aConfirmer: false,
+        }),
+      )
+    const tache = alerte.comptes.tacheDernierVote
+    if (tache !== null)
+      elements.push(
+        elementSuivi('exercices', 'alerte_29_1_a', `${cle}:dernier_vote`, {
+          ...champs,
+          libelle: `${TITRE_ALERTE_29_1_A} : ${tache}`,
+          date: alerte.date,
+          aConfirmer: false,
         }),
       )
     return elements
@@ -1158,7 +1255,9 @@ const NATURE_CONTROLE_PNO: Readonly<Record<MotifControlePno, NatureSuivi>> = {
  * échéance, même dépassée ; attestation ou échéance à obtenir à la date du jour. Chaque lot vient avec le mandat de
  * sa copropriété ; la fiche d'origine est le lot. Un lot passé deux fois donne deux fois la même clé : selectionnerAFaire
  * n'en retient qu'un. Règle de GESTION (échéance d'un contrat) : `aConfirmer` reste faux ; la lecture non confirmée
- * du statut est dite dans le libellé (controle.message).
+ * du statut est dite dans le libellé (controle.message). Contrôles faits au jour du calcul (décisions du 20/11/2026,
+ * partie C) : rappel à l'échéance atteinte (F57), libellé du statut « Cabinet » (F58), « à obtenir depuis le … » (F59) ;
+ * dates des éléments inchangées.
  */
 export function depuisAssurancesPno(
   items: readonly { mandatId: string; lot: LotAssurancePno }[],
@@ -1166,7 +1265,7 @@ export function depuisAssurancesPno(
 ): ElementAFaire[] {
   verifierDate(aujourdhui)
   return items.flatMap(({ mandatId, lot }) =>
-    controlesAssurancesPno([lot]).map((controle) => {
+    controlesAssurancesPno([lot], { aujourdhui }).map((controle) => {
       const nature = NATURE_CONTROLE_PNO[controle.motif]
       return elementSuivi('lots', nature, `${controle.lotId}:${nature}`, {
         libelle: controle.message,
@@ -1226,6 +1325,11 @@ export interface BalanceAgee {
   lignes: LigneBalanceAgee[]
   sousTotaux: (CompteurDossiers & { cabinetId: string | null })[]
   total: CompteurDossiers
+  /**
+   * Mention à écrire sous la balance quand un dossier d'un mandat archivé sans date d'archivage en est écarté
+   * (statut-mandat.mentionArchivesExclus, décision du 20/11/2026, partie C, F33) ; absente : aucune.
+   */
+  mention?: string
 }
 
 const MOIS_PAR_PERIODE: Record<Exclude<PeriodiciteAnalyse, 'trente_jours'>, number> = { mensuelle: 1, trimestre: 3, annee: 12 }
@@ -1289,9 +1393,25 @@ function totaliser(lignes: LigneBalanceAgee[]): Pick<BalanceAgee, 'sousTotaux' |
 }
 
 /**
+ * Décision du 20/11/2026 (partie C, F33) : mention sous la balance quand un dossier ouvert à la date de référence, dans
+ * les cabinets retenus, est écarté parce que son mandat est « Archivé » sans date d'archivage.
+ */
+function mentionDeLaBalance(
+  dossiers: readonly DossierOuvert[],
+  archivesSansDate: ReadonlySet<string>,
+  parMandat: ReadonlyMap<string, AffectationMandat>,
+  { dateReference, cabinets }: { dateReference: string; cabinets?: (string | null)[] },
+): Pick<BalanceAgee, 'mention'> {
+  const retenu = (mandatId: string): boolean => cabinets === undefined || cabinets.includes(parMandat.get(mandatId)?.cabinetId ?? null)
+  const ecarte = dossiers.some((d) => d.mandatId !== null && d.ouvertLe <= dateReference && archivesSansDate.has(d.mandatId) && retenu(d.mandatId))
+  return ecarte ? { mention: mentionArchivesExclus(dateReference) } : {}
+}
+
+/**
  * « Suivi des éléments en cours » : par cabinet et collaborateur, les dossiers ouverts à la date de référence, puis
  * ceux en cours par ancienneté ; sous-total par cabinet, total général. Un dossier ouvert après la date est ignoré, comme
- * celui d'un mandat Prospect ou Archivé (point 55) ; un mandat en clôture reste compté.
+ * celui d'un mandat Prospect ou Archivé (point 55) ; un mandat en clôture reste compté. F33 : un mandat archivé après la
+ * date de référence (archiveLe) y est encore compté ; archivé sans date, il est écarté avec une mention.
  */
 export function balanceAgee(
   dossiers: DossierOuvert[],
@@ -1305,7 +1425,7 @@ export function balanceAgee(
 ): BalanceAgee {
   verifierDate(dateReference)
   const parMandat = new Map(affectations.map((a) => [a.mandatId, a]))
-  const { horsSuivi } = bilanStatutsMandats(affectations)
+  const { horsSuivi, archivesSansDate } = bilanStatutsMandats(affectations, { dateReference })
   const cabinetsRetenus = cabinets ? new Set(cabinets) : null
   const lignes = new Map<string, LigneBalanceAgee>()
   for (const dossier of dossiers) {
@@ -1327,5 +1447,10 @@ export function balanceAgee(
     (a, b) => nullEnDernier(a.cabinetId, b.cabinetId) || nullEnDernier(a.collaborateurId, b.collaborateurId),
   )
   const [t1, t2, t3, t4] = LIBELLES_TRANCHES[periodicite]
-  return { libellesTranches: [t1, t2, t3, t4], lignes: triees, ...totaliser(triees) }
+  return {
+    libellesTranches: [t1, t2, t3, t4],
+    lignes: triees,
+    ...totaliser(triees),
+    ...mentionDeLaBalance(dossiers, archivesSansDate, parMandat, { dateReference, cabinets }),
+  }
 }

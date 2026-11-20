@@ -92,7 +92,7 @@ import {
   type ResultatDelaiContestationAg,
 } from '@/lib/administrateur-judiciaire/domain/statut-assemblee'
 import { creerBudgetOperationTravaux } from '@/lib/administrateur-judiciaire/domain/travaux-budget'
-import { creerOperationTravaux } from '@/lib/administrateur-judiciaire/domain/travaux-operations'
+import { creerOperationTravaux, rejeterOperationTravauxAdoptee } from '@/lib/administrateur-judiciaire/domain/travaux-operations'
 import { creerDemandeVoiePostale } from '@/lib/administrateur-judiciaire/domain/voie-notification'
 import type { PiecesEntreprise } from '@/lib/administrateur-judiciaire/domain/vigilance-entreprises'
 import { FORME_ENVOI_COURRIER } from '@/lib/data/referentiels-gesteam-judiciaire'
@@ -494,6 +494,32 @@ describe('J67, R59 — OS qui fait dépasser le budget adopté de l’opération
     expect(codes(anomalies)).toContain('depassement_budget_os_urgence')
     expect(anomalies.find((a) => a.code === 'depassement_budget_os_urgence')?.gravite).toBe('alerte')
     expect(controlerAvantEnvoiOs(demande(), sortie(), { ...CONTEXTE, budgetTravaux: null })).toEqual([])
+  })
+})
+
+describe('décision du 20/11/2026 (partie C, F67) — opération de travaux « Rejeté » : plus aucun ordre de service', () => {
+  const operation = creerOperationTravaux({
+    numero: '00042',
+    coproprieteId: 'copro-1',
+    libelle: 'Ravalement',
+    cleId: 'cle-001',
+    decision: { date: '2026-03-12', resolution: 'Résolution 8' },
+    budgetTtcCentimes: 1_000_000,
+    financementFondsTravauxCentimes: 0,
+    affectationFonds: null,
+    tranches: [],
+  })
+  const jugement = { nature: 'jugement' as const, juridiction: 'Tribunal judiciaire de Lyon', date: '2026-06-10', numero: 'RG 26/04567' }
+  const { operation: rejetee } = rejeterOperationTravauxAdoptee(operation, { le: '2026-06-12', motif: 'Résolution 8 annulée', acte: jugement })
+  const budgetDe = (op: typeof operation) => ({ operation: op, budget: creerBudgetOperationTravaux(op, { lignes: [{ poste: 'travaux', budgetTtcCentimes: 100_000 }] }) })
+
+  it('OS d’une opération « Rejeté » : bloquant, motif et fondement de la décision ; opération adoptée : l’OS part', () => {
+    const anomalies = controlerAvantEnvoiOs(demande(), sortie(), { ...CONTEXTE, budgetTravaux: budgetDe(rejetee) })
+    expect(bloquants(anomalies)).toEqual(['operation_travaux_rejetee'])
+    const rejet = anomalies.find((a) => a.code === 'operation_travaux_rejetee')
+    expect(rejet?.message).toMatch(/plus aucun appel ni ordre de service.*partie C, F67/)
+    expect(rejet?.fondement).toBe('L. 1965 art. 42, al. 2')
+    expect(controlerAvantEnvoiOs(demande(), sortie(), { ...CONTEXTE, budgetTravaux: budgetDe(operation) })).toEqual([])
   })
 })
 
@@ -1078,7 +1104,8 @@ describe('retours de relecture du point 44 (tour 2)', () => {
     expect(envoyerOs(d, duJour, ENVOI, CONTEXTE).journal).toHaveLength(1)
     // OS sans fondement renseigné : la date saisie est contrôlée aussi
     const sansFondement = controlerAvantEnvoiOs(d, sortie(d, { fondement: null, decisionLe: '2026-10-04' }), CONTEXTE)
-    expect(bloquants(sansFondement)).toEqual(['decision_posterieure_envoi'])
+    // le fondement non choisi bloque aussi depuis la décision du 20/11/2026 (partie C, F82)
+    expect(bloquants(sansFondement)).toEqual(['decision_posterieure_envoi', 'fondement_non_renseigne'])
   })
 
   it('objet : requis et de 200 caractères au plus pour la messagerie VitFix, comme dans le corps de la route (ajOrdrePrestataireSchema)', () => {
@@ -1683,7 +1710,7 @@ describe('décisions de Hugo du 03/11/2026 (suite : questions 7 à 9, J17 à J19
     expect(bloquants(controlerAvantEnvoiOs(d, sortie(d, { signataireId: '  ' }), contexte))).toEqual(['signataire_absent'])
   })
 
-  it('8 (J18), interprétation à confirmer : l’auteur du constat d’urgence hors des signataires habilités → alerte à confirmer, sans blocage ni effet sur l’urgence', () => {
+  it('8 (J18), tranché par la décision du 20/11/2026 (partie C, F77) : l’auteur du constat d’urgence hors des signataires habilités → l’urgence n’est pas retenue', () => {
     const d = demande()
     const cadre: SaisieSortieOs = {
       fondement: 'decision_aj_pouvoirs_ag',
@@ -1695,14 +1722,12 @@ describe('décisions de Hugo du 03/11/2026 (suite : questions 7 à 9, J17 à J19
     const contexte: ContexteEnvoiOs = { ...CONTEXTE, signatairesHabilites: new Set(['col-direction']) }
     const parStagiaire = sortie(d, { ...cadre, constatUrgence: { ...CONSTAT, collaborateurId: 'col-stagiaire' } })
     const anomalies = controlerAvantEnvoiOs(d, parStagiaire, contexte)
-    expect(anomalies.map((a) => [a.code, a.gravite, a.aConfirmer])).toEqual([['constat_urgence_auteur_non_habilite', 'alerte', true]])
-    expect(anomalies[0]).toMatchObject({ fondement: null })
-    expect(anomalies[0].message).toBe(
-      "Urgence constatée par col-stagiaire, hors des collaborateurs habilités par le cabinet à signer un OS : à confirmer (interprétation des décisions 6 et 8) : l'auteur du constat, qui agit au nom de l'administrateur provisoire comme le signataire, doit-il être un signataire habilité ? Ce signalement ne change pas l'urgence retenue.",
-    )
-    // l'urgence reste retenue : l'avis du conseil syndical n'est pas exigé, l'envoi part
-    expect(parStagiaire.visa).toBe('Sortie libre')
-    expect(envoyerOs(d, parStagiaire, ENVOI, contexte).journal).toHaveLength(1)
+    const auteur = anomalies.find((a) => a.code === 'constat_urgence_auteur_non_habilite')
+    expect(auteur).toMatchObject({ gravite: 'alerte', aConfirmer: false, fondement: null })
+    expect(auteur?.message).toMatch(/ce constat ne vaut pas constat, l'urgence n'est pas retenue : l'avis préalable du conseil syndical reste exigé/)
+    // l'urgence n'est plus retenue : l'avis du conseil syndical est exigé, l'envoi ne part pas
+    expect(bloquants(anomalies)).toContain('avis_conseil_syndical_aj_absent')
+    expect(() => envoyerOs(d, parStagiaire, ENVOI, contexte)).toThrow(/non envoyé/)
     // auteur habilité, liste non fournie, ou aucun constat : rien
     expect(controlerAvantEnvoiOs(d, sortie(d, { ...cadre, constatUrgence: CONSTAT }), contexte)).toEqual([])
     expect(controlerAvantEnvoiOs(d, parStagiaire, CONTEXTE)).toEqual([])
@@ -1875,9 +1900,10 @@ describe('retours de relecture des décisions 7 à 9 (J17 à J19)', () => {
       signataireId: 'col-gestion',
     }
     expect(controlerAvantEnvoiOs(d, sortie(d, { ...cadre, constatUrgence: { ...CONSTAT, collaborateurId: 'col-aj' } }), sansLui)).toEqual([])
-    expect(codes(controlerAvantEnvoiOs(d, sortie(d, { ...cadre, constatUrgence: { ...CONSTAT, collaborateurId: 'col-stagiaire' } }), sansLui))).toEqual([
-      'constat_urgence_auteur_non_habilite',
-    ])
+    // hors de la liste et pas désigné : le constat ne vaut pas constat (décision du 20/11/2026, partie C, F77)
+    const horsListe = controlerAvantEnvoiOs(d, sortie(d, { ...cadre, constatUrgence: { ...CONSTAT, collaborateurId: 'col-stagiaire' } }), sansLui)
+    expect(codes(horsListe)).toContain('constat_urgence_auteur_non_habilite')
+    expect(bloquants(horsListe)).toContain('avis_conseil_syndical_aj_absent')
   })
 
   it('7 (J17), (a), précisée par J48 : un envoi pendant le délai de contestation pour une intervention prévue après le délai est bloqué', () => {
@@ -1977,17 +2003,15 @@ describe('décision J48 de Hugo du 10/11/2026 : l’envoi de l’OS pendant le d
     expect(suspendu.message).toMatch(/sauf urgence constatée par l'administrateur provisoire ; intervention prévue le 15\/11\/2026, pendant le délai\.$/)
   })
 
-  it('majorité inconnue : alerte qui dit que l’envoi de l’OS lui-même ne part pas pendant le délai ; fin du délai inconnue : bloquant depuis J51 (11/11/2026, ci-dessous)', () => {
+  it('majorité inconnue : bloquant depuis la décision du 20/11/2026 (partie C, F82) ; fin du délai inconnue : bloquant depuis J51 (11/11/2026, ci-dessous)', () => {
     // J51 remplace l'alerte « fin du délai non calculée » de J48 par un blocage (décision de Hugo du 11/11/2026, « Oui, bloquer »)
     const [inconnu, ...autres] = controlerAvantEnvoiOs(apres, resolution(apres), CONTEXTE)
     expect(autres).toEqual([])
     expect([inconnu.code, inconnu.gravite, inconnu.fondement, inconnu.aConfirmer]).toEqual(['delai_contestation_inconnu', 'bloquant', 'L. 1965 art. 42, al. 3', true])
     expect(inconnu.message).toMatch(/^Résolution votée à la majorité de l'art\. 25 : fin du délai de contestation inconnue, l'OS ne part pas\./)
     const [majorite] = controlerAvantEnvoiOs(apres, resolution(apres, { majoriteResolution: null }), avecFin)
-    expect([majorite.code, majorite.gravite]).toEqual(['majorite_resolution_non_renseignee', 'alerte'])
-    expect(majorite.message).toBe(
-      "Majorité de la résolution exécutée non renseignée : sauf urgence constatée par l'administrateur provisoire, les travaux votés aux art. 25 et 26 ne s'exécutent pas avant la fin du délai de contestation, et leur OS ne part qu'à partir du lendemain de cette fin, même pour une intervention prévue après le délai.",
-    )
+    expect([majorite.code, majorite.gravite]).toEqual(['majorite_resolution_non_renseignee', 'bloquant'])
+    expect(majorite.message).toMatch(/^Majorité de la résolution exécutée non saisie : l'OS ne part pas, comme quand la fin du délai de contestation est inconnue \(J51\)/)
   })
 
   it('l’urgence retenue (décision 6, J46) lève toujours la suspension ; un délai « urgence » sans constat ne la lève pas', () => {
@@ -1996,7 +2020,7 @@ describe('décision J48 de Hugo du 10/11/2026 : l’envoi de l’OS pendant le d
     expect(bloquants(controlerAvantEnvoiOs(apres, resolution(apres, { delai: 'urgence' }), avecFin))).toContain('execution_suspendue_art42')
   })
 
-  it('inchangés : unanimité et art. 24 non suspendus, demande de devis non contrôlée, majorité inconnue en alerte ; fin du délai inconnue : même code, bloquant depuis J51', () => {
+  it('inchangés : unanimité et art. 24 non suspendus, demande de devis non contrôlée ; majorité inconnue (bloquante depuis F82) ; fin du délai inconnue : même code, bloquant depuis J51', () => {
     expect(controlerAvantEnvoiOs(apres, resolution(apres, { majoriteResolution: 'unanimite' }), avecFin)).toEqual([])
     expect(controlerAvantEnvoiOs(apres, resolution(apres, { majoriteResolution: 'art24' }), avecFin)).toEqual([])
     const devis = demande({ numero: '12.3.9', prevuLe: APRES_FIN }, DEVIS)
@@ -2209,15 +2233,15 @@ describe('décision J51 de Hugo du 11/11/2026 : fin du délai de contestation in
     expect(bloquants(controlerAvantEnvoiOs(apres, resolution(apres, { delai: 'urgence' }), CONTEXTE))).toContain('delai_contestation_inconnu')
   })
 
-  it('inchangés : unanimité, art. 24 et demande de devis non contrôlés ; contournements laissés en alerte (majorité vide, fondement vide : question ouverte à Hugo)', () => {
+  it('inchangés : unanimité, art. 24 et demande de devis non contrôlés ; contournements fermés (majorité vide, fondement vide : bloquants, décision du 20/11/2026, partie C, F82)', () => {
     expect(controlerAvantEnvoiOs(apres, resolution(apres, { majoriteResolution: 'unanimite' }), CONTEXTE)).toEqual([])
     expect(controlerAvantEnvoiOs(apres, resolution(apres, { majoriteResolution: 'art24' }), CONTEXTE)).toEqual([])
     const devis = demande({ numero: '12.3.9', prevuLe: APRES_FIN }, DEVIS)
     expect(controlerAvantEnvoiOs(devis, resolution(devis), { date: CONTEXTE.date, prestataireAvecCompteVitfix: true })).toEqual([])
     const majoriteVide = controlerAvantEnvoiOs(apres, resolution(apres, { majoriteResolution: null }), CONTEXTE)
-    expect(majoriteVide.map((a) => [a.code, a.gravite])).toEqual([['majorite_resolution_non_renseignee', 'alerte']])
+    expect(majoriteVide.map((a) => [a.code, a.gravite])).toEqual([['majorite_resolution_non_renseignee', 'bloquant']])
     const fondementVide = controlerAvantEnvoiOs(apres, sortie(apres, { fondement: null, majoriteResolution: 'art25' }), CONTEXTE)
-    expect(fondementVide.map((a) => [a.code, a.gravite])).toEqual([['fondement_non_renseigne', 'alerte']])
+    expect(fondementVide.map((a) => [a.code, a.gravite])).toEqual([['fondement_non_renseigne', 'bloquant']])
   })
 
   it('la fin du délai s’entre d’une seule façon : le résultat du calcul ; la date seule, même avec lui, est refusée ; résultat illisible refusé', () => {
@@ -2706,8 +2730,11 @@ describe('en-tête du module', () => {
       "c'est le devis qui devient caduc un an après sa date",
     ])
       expect(decisions).toContain(attendu)
-    // l'auteur du constat face aux signataires : interprétation (🔵), pas une décision de Hugo
-    expect(decisions).not.toContain('constat_urgence_auteur_non_habilite')
+    // l'auteur du constat face aux signataires : ni une décision du 03/11/2026 ni une déduction, mais la décision du
+    // 20/11/2026 (partie C, F77), dans sa propre rubrique
+    const avant2011 = decisions.slice(0, decisions.indexOf('Décisions du 20/11/2026'))
+    expect(avant2011).not.toContain('constat_urgence_auteur_non_habilite')
+    expect(decisions.slice(decisions.indexOf('Décisions du 20/11/2026'))).toContain('constat_urgence_auteur_non_habilite')
     // décision 5 : le contenu de l'alinéa reste écrit ; décision 3 : la règle telle que le code l'applique
     expect(decisions).toContain('L. 1965 art. 21, al. 6 (pas de conseil syndical : mise en concurrence non obligatoire) : le motif « mise en concurrence » est gardé')
     expect(decisions).toContain('date de relance fixée ou non')
@@ -2718,7 +2745,7 @@ describe('en-tête du module', () => {
     // J67, R67 : le critère n'est plus une proposition déduite, il est validé (rubrique J67)
     expect(deduit).not.toContain('critère proposé, non contredit par Hugo')
     expect(deduit).not.toContain('règle proposée, non demandée par Hugo')
-    expect(deduit).toContain('constat_urgence_auteur_non_habilite')
+    expect(deduit).not.toContain('constat_urgence_auteur_non_habilite')
     expect(deduit).toContain('« sans preuve »')
     expect(deduit).not.toContain("l'auteur du constat n'est pas comparé aux signataires habilités")
     expect(deduit).not.toContain('question 7 ouverte')
@@ -2768,8 +2795,9 @@ describe('en-tête du module', () => {
       "délai d'acheminement",
     ])
       expect(questions).not.toContain(fermee)
-    // reste de la décision 8, hors J67 (partie C du relevé du 17/11/2026)
-    expect(questions).toContain("l'auteur du constat d'urgence doit-il être un signataire habilité")
+    // reste de la décision 8, hors J67 (partie C du relevé du 17/11/2026) : tranché par la décision du 20/11/2026 (F77)
+    expect(questions).not.toContain("l'auteur du constat d'urgence doit-il être un signataire habilité")
+    expect(enTete).toContain('Décision du 20/11/2026 (partie C, F77)')
   })
 
   it('rubrique « Décisions de Hugo du 06/11/2026 » : J17 confirmée, J46 et J47 inscrites ; leurs 🔵 et 🔴 tranchés retirés', () => {
@@ -2894,11 +2922,12 @@ describe('en-tête du module', () => {
     // l'alerte « fin du délai inconnue » de la décision 7 et de J48 est remplacée par J51
     expect(enTete).not.toContain('alerte quand la majorité ou la fin du délai manquent')
     expect(enTete).not.toContain('majorité ou fin du délai inconnues (alertes)')
-    // les deux contournements restent : question ouverte à Hugo
+    // les deux contournements sont fermés par la décision du 20/11/2026 (partie C, F82) : plus de question ouverte
     const questions = enTete.slice(enTete.indexOf('🔴 Non établi'), enTete.indexOf('Branchements à faire plus tard'))
-    expect(questions).toContain('Hugo (suite de J51)')
-    expect(questions).toContain('majorité de la résolution non saisie')
-    expect(questions).toContain('fondement non saisi')
+    expect(questions).not.toContain('(suite de J51) : deux contournements')
+    expect(questions).not.toContain('majorité de la résolution non saisie')
+    expect(questions).not.toContain('fondement non saisi')
+    expect(enTete).toContain('Décision du 20/11/2026 (partie C, F82)')
     const branchements = enTete.slice(enTete.indexOf('Branchements à faire plus tard'))
     expect(branchements).toContain('delaiContestationAg, résultat de finDelaiContestationAgParDestinataire')
   })
@@ -3317,8 +3346,9 @@ describe('J67 — en-tête du module (R67 à R75)', () => {
       expect(questions).not.toContain(fermee)
     expect(questions).toContain('J67, R72')
     expect(questions).toContain("avis d'un juriste")
-    for (const ouverte of ["l'auteur du constat d'urgence doit-il être un signataire habilité", 'Frédéric : quand un visa de gestion', 'Hugo (suite de J51)'])
-      expect(questions).toContain(ouverte)
+    expect(questions).toContain('Frédéric : quand un visa de gestion')
+    // fermées depuis par les décisions du 20/11/2026 (partie C, F77 et F82)
+    for (const fermee of ["l'auteur du constat d'urgence doit-il être un signataire habilité", '(suite de J51) : deux contournements']) expect(questions).not.toContain(fermee)
     // 🔵 : le critère de l'avis n'est plus une proposition ; préposés, délégation, réception et vigilance renvoient à J67
     expect(deduit).not.toContain('critère proposé, non contredit par Hugo')
     expect(deduit).not.toContain('la première présentation n\'en tient pas lieu : question ouverte')
