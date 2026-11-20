@@ -444,6 +444,13 @@ describe('paiement du salaire (CCN IDCC 1043, art. 22, 3)', () => {
     expect(() => echeances({ bulletins: [{ ...bulletin, annee: 2020, mois: 1 }] })).toThrow(/entrée/)
   })
 
+  it('décision du 20/11/2026 (partie C, F43) : bulletin d’un mois postérieur à la sortie, alerte non bloquante, accepté par le suivi', () => {
+    const sorti = creerSalarieSyndicat({ ...gardien, sortieLe: '2026-06-30' })
+    expect(de(echeances({ salaries: [sorti], suivisMedicaux: [], bulletins: [bulletin] }), 'salaire')).toMatchObject([
+      { cle: 'salaire:bul-2026-09', salarieId: 'sal-1' },
+    ])
+  })
+
   it('règlements contrôlés à l’entrée : syndicat, salarié, montant, bulletin du même salarié', () => {
     const employe = creerSalarieSyndicat({ ...gardien, id: 'sal-2', qualite: "Employé d'immeuble", auxiliaire421: '00002' })
     const base = { salaries: [gardien, employe], bulletins: [bulletin], traitements: [{ id: 'tr-reg-200000' }, { id: 'tr-reg--5' }] }
