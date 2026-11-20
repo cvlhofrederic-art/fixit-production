@@ -173,6 +173,9 @@ const VARIANTES: Readonly<Record<string, string>> = {
 
 const PROFONDEUR_MAX = 50
 
+/** Mots d'une partie de nom reconnue seule : couvre un nom de cinq mots (« Marie Claire de La Tour »). */
+const MOTS_MAX_PARTIE = 4
+
 /**
  * Casse d'un morceau d'expression : « insensible » (expression compilée avec le drapeau i), « majuscule » (première
  * lettre d'un nom propre), « indifférente » (lettres suivantes d'un nom propre, expression sans le drapeau i).
@@ -197,16 +200,30 @@ interface Etat {
   citees: Map<string, string>
 }
 
+/**
+ * Clés d'une étape et leurs expressions. Chaque texte n'est lu qu'avec les clés dont tous les mots y figurent : une
+ * seule expression pour tous les noms coûtait jusqu'à une minute de calcul sur un gros contexte. Une expression par
+ * ensemble de clés, compilée une fois pour toute la requête.
+ */
+interface Famille {
+  /** Premier mot d'une clé → clés qui commencent par lui. */
+  parPremierMot: ReadonlyMap<string, readonly string[]>
+  /** Mots de chaque clé. */
+  mots: ReadonlyMap<string, readonly string[]>
+  compiler: (cles: readonly string[]) => RegExp | null
+  expressions: Map<string, RegExp | null>
+}
+
 interface Reconnaissance {
   /** Étape 0 : clé d'un nom des listes, tel qu'il est écrit dans son champ → jeton. */
   jetonDeLaValeur: ReadonlyMap<string, string>
   /** Étape 1 : noms complets et parties de plusieurs mots, civilité facultative, casse indifférente. */
-  complets: RegExp | null
+  complets: Famille
   jetonDuNom: ReadonlyMap<string, string>
   /** Étape 2 : parties d'un seul mot précédées d'une civilité (casse indifférente). */
-  partiesAvecCivilite: RegExp | null
+  partiesAvecCivilite: Famille
   /** Étape 2 : parties d'un seul mot écrites comme un nom propre (majuscule initiale exigée par l'expression). */
-  partiesNomPropre: RegExp | null
+  partiesNomPropre: Famille
   jetonDeLaPartie: ReadonlyMap<string, string>
   /** Texte replié des champs protégés, chaque mot entre espaces. */
   protege: string
@@ -288,6 +305,38 @@ function expressionNomPropre(cles: Iterable<string>): RegExp | null {
   return new RegExp(`${AVANT}(${alternative(triees, true)})${APRES}`, 'gu')
 }
 
+/**
+ * Mots repliés d'un texte ou d'une clé, coupés à tout ce qui n'est ni lettre ni chiffre. Une clé ne peut être reconnue
+ * dans un texte que si chacun de ses mots figure parmi ceux du texte : l'expression ne relie les mots que par des
+ * espaces, traits d'union ou apostrophes, et n'admet que les accents, la casse et les ligatures que `cle` replie.
+ */
+const motsDe = (texte: string): string[] => cle(texte).split(/[^\p{L}\p{N}]+/u).filter(Boolean)
+
+function famille(cles: Iterable<string>, compilerCles: (cles: readonly string[]) => RegExp | null): Famille {
+  const parPremierMot = new Map<string, string[]>()
+  const mots = new Map<string, string[]>()
+  for (const cleNom of cles) {
+    const motsCle = motsDe(cleNom)
+    if (motsCle.length === 0 || mots.has(cleNom)) continue
+    mots.set(cleNom, motsCle)
+    const memePremierMot = parPremierMot.get(motsCle[0])
+    if (memePremierMot) memePremierMot.push(cleNom)
+    else parPremierMot.set(motsCle[0], [cleNom])
+  }
+  return { parPremierMot, mots, compiler: compilerCles, expressions: new Map() }
+}
+
+/** Expression des seules clés dont tous les mots figurent dans le texte ; null si aucune ne peut y être reconnue. */
+function expressionPour(f: Famille, motsDuTexte: ReadonlySet<string>): RegExp | null {
+  const candidates = [...motsDuTexte]
+    .flatMap((mot) => f.parPremierMot.get(mot) ?? [])
+    .filter((cleNom) => (f.mots.get(cleNom) ?? []).every((mot) => motsDuTexte.has(mot)))
+  if (candidates.length === 0) return null
+  const ensemble = candidates.sort((a, b) => (a < b ? -1 : 1)).join('\n')
+  if (!f.expressions.has(ensemble)) f.expressions.set(ensemble, f.compiler(candidates))
+  return f.expressions.get(ensemble) ?? null
+}
+
 const estObjet = (valeur: unknown): valeur is Record<string, unknown> =>
   typeof valeur === 'object' && valeur !== null && !Array.isArray(valeur)
 
@@ -306,9 +355,13 @@ function analyserNom(nom: string): { exact: string; mots: string[] } {
   return { exact: mots.length ? exact : '', mots }
 }
 
-/** Parties reconnues seules : suites de mots qui commencent et finissent par un mot distinctif, mot après « d' ». */
+/**
+ * Parties reconnues seules : suites de mots qui commencent et finissent par un mot distinctif, mot après « d' ». Une
+ * partie a au plus `MOTS_MAX_PARTIE` mots : leur nombre reste proportionnel à celui des mots du nom (une indivision de
+ * soixante mots en donnait des milliers, et une minute de calcul).
+ */
 function partiesDuNom(mots: readonly string[]): string[] {
-  const longueurMax = Math.max(1, mots.length - 1)
+  const longueurMax = Math.min(MOTS_MAX_PARTIE, Math.max(1, mots.length - 1))
   const parties: string[] = []
   for (let debut = 0; debut < mots.length; debut++) {
     for (let fin = debut + 1; fin <= Math.min(mots.length, debut + longueurMax); fin++) {
@@ -412,32 +465,35 @@ function construireReconnaissance(contexte: Record<string, unknown>, etat: Etat)
   const valeursProtegees = CHAMPS_PROTEGES.flatMap((champ) => valeurs(contexte, champ))
   return {
     jetonDeLaValeur: repertoire.valeurs,
-    complets: expressionAvecCivilite([...complets.keys(), ...plusieursMots], false),
+    complets: famille([...complets.keys(), ...plusieursMots], (cles) => expressionAvecCivilite(cles, false)),
     jetonDuNom: complets,
-    partiesAvecCivilite: expressionAvecCivilite(motsSeuls, true),
-    partiesNomPropre: expressionNomPropre(motsSeuls),
+    partiesAvecCivilite: famille(motsSeuls, (cles) => expressionAvecCivilite(cles, true)),
+    partiesNomPropre: famille(motsSeuls, expressionNomPropre),
     jetonDeLaPartie,
     protege: ` ${valeursProtegees.map((valeur) => replier(valeur).replaceAll(/'/g, ' ')).join(' | ')} `,
   }
 }
 
 /** Étape 1 : noms complets (prioritaires sur une partie identique du nom d'une autre personne), parties de plusieurs mots. */
-function remplacerNomsComplets(texte: string, reco: Reconnaissance, etat: Etat): string {
-  if (!reco.complets) return texte
-  return texte.replaceAll(reco.complets, (brut: string, _civilite: string | undefined, nom: string) => {
+function remplacerNomsComplets(texte: string, mots: ReadonlySet<string>, reco: Reconnaissance, etat: Etat): string {
+  const expression = expressionPour(reco.complets, mots)
+  if (!expression) return texte
+  return texte.replaceAll(expression, (brut: string, _civilite: string | undefined, nom: string) => {
     const cleNom = cle(nom)
     return reco.jetonDuNom.get(cleNom) ?? reco.jetonDeLaPartie.get(cleNom) ?? personneCitee(etat, brut)
   })
 }
 
 /** Étape 2 : mot seul d'un nom précédé d'une civilité, puis écrit comme un nom propre hors des mots protégés. */
-function remplacerParties(texte: string, reco: Reconnaissance, etat: Etat): string {
+function remplacerParties(texte: string, mots: ReadonlySet<string>, reco: Reconnaissance, etat: Etat): string {
   const jetonDe = (brut: string, partie: string) => reco.jetonDeLaPartie.get(cle(partie)) ?? personneCitee(etat, brut)
-  const avecCivilite = reco.partiesAvecCivilite
-    ? texte.replaceAll(reco.partiesAvecCivilite, (brut: string, _civilite: string, partie: string) => jetonDe(brut, partie))
+  const avecCivilite = expressionPour(reco.partiesAvecCivilite, mots)
+  const etape1 = avecCivilite
+    ? texte.replaceAll(avecCivilite, (brut: string, _civilite: string, partie: string) => jetonDe(brut, partie))
     : texte
-  if (!reco.partiesNomPropre) return avecCivilite
-  return avecCivilite.replaceAll(reco.partiesNomPropre, (brut: string, partie: string) =>
+  const nomPropre = expressionPour(reco.partiesNomPropre, mots)
+  if (!nomPropre) return etape1
+  return etape1.replaceAll(nomPropre, (brut: string, partie: string) =>
     reco.protege.includes(` ${cle(partie)} `) ? brut : jetonDe(brut, partie),
   )
 }
@@ -458,8 +514,12 @@ const remplacerListesCitees = (texte: string, etat: Etat): string =>
     return `${civilite}${espace}${morceaux.join('')}`
   })
 
-const remplacerEtapes = (texte: string, reco: Reconnaissance, etat: Etat): string =>
-  remplacerPersonnesCitees(remplacerListesCitees(remplacerParties(remplacerNomsComplets(texte, reco, etat), reco, etat), etat), etat)
+/** Étapes 1 à 3. Les mots du texte d'origine bornent les clés lues aux étapes 1 et 2 (cf. `Famille`). */
+function remplacerEtapes(texte: string, reco: Reconnaissance, etat: Etat): string {
+  const mots = new Set(motsDe(texte))
+  const etapes12 = remplacerParties(remplacerNomsComplets(texte, mots, reco, etat), mots, reco, etat)
+  return remplacerPersonnesCitees(remplacerListesCitees(etapes12, etat), etat)
+}
 
 /** Remplacement d'un texte : étape 0 (texte entier) ou étapes 1 à 3, puis élisions et jetons provisoires → pseudonymes. */
 function remplaceur(reco: Reconnaissance, etat: Etat): (texte: string) => string {
@@ -548,8 +608,20 @@ function retablirNoms(texte: string, noms: Noms): string {
  * Remplace, dans `donnees` (contexte, historique, question…), les noms des personnes et des prestataires trouvés dans
  * `contexte` (forme de `construireContexteAgent`), ainsi que les personnes citées avec leur civilité. Fonction pure :
  * la table ne vit que dans la fermeture `retablir`.
+ *
+ * Une erreur (expression trop grande pour le moteur, sur un nom démesuré) est remplacée par une erreur sans détail :
+ * le message du moteur recopie l'expression, donc les noms épelés lettre à lettre, et l'erreur peut atteindre le
+ * journal ou Sentry. La requête échoue alors sans rien envoyer au modèle.
  */
 export function pseudonymiserNoms<T>(donnees: T, contexte: Record<string, unknown>): Pseudonymisation<T> {
+  try {
+    return pseudonymiser(donnees, contexte)
+  } catch (err) {
+    throw new Error(`Pseudonymisation des noms impossible (${err instanceof Error ? err.name : typeof err})`)
+  }
+}
+
+function pseudonymiser<T>(donnees: T, contexte: Record<string, unknown>): Pseudonymisation<T> {
   const etat: Etat = {
     compteurs: { Copropriétaire: 0, Prestataire: 0, Personne: 0 },
     reserves: numerosReserves([donnees, contexte]),

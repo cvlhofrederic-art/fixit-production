@@ -354,6 +354,52 @@ describe('pseudonymiserNoms — cas limites', () => {
     expect(question('Vallombreuse a payé')).toBe('Copropriétaire 5 a payé')
   })
 
+  it('nom très long (indivision de nombreuses personnes) : traité sans explosion du temps de calcul', () => {
+    // 60 mots : les parties du nom croissaient comme le cube du nombre de mots (une minute de calcul).
+    const lettres = 'abcdefghijklmnopqrstuvwxyz'
+    const mots = Array.from({ length: 60 }, (_, i) => `Kerv${lettres[i % 26]}${lettres[Math.floor(i / 26)]}`)
+    const nom = `Indivision ${mots.join(' ')}`
+    const contexte = { coproprietairesDebiteurs: [{ nom }, { nom: 'Ondine Kervaliec' }] }
+    const debut = performance.now()
+    const { donnees } = pseudonymiserNoms({ contexte, message: `Où en sont Kervcb et ${mots[3]} ${mots[4]} ? Et Ondine Kervaliec ?` }, contexte)
+    expect(performance.now() - debut).toBeLessThan(5000)
+    expect(donnees.contexte.coproprietairesDebiteurs.map((d) => d.nom)).toEqual(['Copropriétaire 1', 'Copropriétaire 2'])
+    expect(donnees.message).toBe('Où en sont Copropriétaire 1 et Copropriétaire 1 ? Et Copropriétaire 2 ?')
+  }, 30_000)
+
+  it('contexte au plus volumineux accepté (50 noms de 100 mots) : traité en un temps borné', () => {
+    // 40 000 caractères, sous la limite de la route : 49 secondes de calcul avec une seule expression pour tous les noms.
+    const lettres = 'abcdefghijklmnopqrstuvwxyz'
+    const mot = (i: number) => `Kerv${lettres[i % 26]}${lettres[Math.floor(i / 26) % 26]}${lettres[Math.floor(i / 676) % 26]}`
+    const nom = (k: number) => Array.from({ length: 100 }, (_, i) => mot(k * 100 + i)).join(' ')
+    const contexte = {
+      coproprietairesDebiteurs: Array.from({ length: 25 }, (_, k) => ({ nom: nom(k) })),
+      dossiersImpayes: Array.from({ length: 25 }, (_, k) => ({ debiteur: nom(25 + k) })),
+    }
+    const debut = performance.now()
+    const { donnees } = pseudonymiserNoms({ contexte, message: `Où en est ${mot(4210)} ?` }, contexte)
+    expect(performance.now() - debut).toBeLessThan(10_000)
+    expect(donnees.message).toBe('Où en est Copropriétaire 43 ?')
+  }, 30_000)
+
+  it('nom démesuré : l’erreur du moteur d’expressions ne recopie aucun nom (elle peut atteindre le journal ou Sentry)', () => {
+    const nom = Array.from({ length: 8000 }, (_, i) => `Kerv${i.toString(36)}`).join(' ')
+    const contexte = { coproprietairesDebiteurs: [{ nom }] }
+    // Un mot du nom dans la question : seules ses parties sont lues, rien n'échoue.
+    expect(pseudonymiserNoms({ contexte, message: 'Où en est Kerv1z ?' }, contexte).donnees.message).toBe('Où en est Copropriétaire 1 ?')
+    // Le nom entier dans la question : expression trop grande pour le moteur, dont le message la recopie.
+    let erreur: unknown = null
+    try {
+      pseudonymiserNoms({ contexte, message: `Où en est ${nom} ?` }, contexte)
+    } catch (err) {
+      erreur = err
+    }
+    expect(erreur).toBeInstanceOf(Error)
+    const texte = erreur instanceof Error ? `${erreur.message} ${erreur.stack ?? ''} ${String(erreur.cause ?? '')}` : ''
+    // Ni le nom en clair, ni l'expression qui l'épelle lettre à lettre (« [k][eéèêë][r][v] »).
+    expect(texte).not.toMatch(/kerv|\[k\]/i)
+  }, 30_000)
+
   it('caractères réservés aux jetons provisoires dans la question : retirés, sans effet', () => {
     expect(question('Bonjour \uE0000\uE001 Roc')).toBe('Bonjour 0 Copropriétaire 4')
   })
