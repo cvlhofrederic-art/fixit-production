@@ -312,9 +312,9 @@ export interface AlerteMandataireAdHoc {
   conduite: string
   fondement: string
   /**
-   * Administrateur provisoire sans les pouvoirs du syndic (lecture déduite, J67, R30), ou critère des comptes « atteint, à
-   * confirmer » depuis le début de la mission (décision du 20/11/2026, partie C, F35) ; les arriérés ne rendent plus
-   * l'alerte à confirmer (J67, R31).
+   * Administrateur provisoire sans les pouvoirs du syndic (lecture déduite, J67, R30), ou alerte déclenchée par le seul
+   * critère des comptes « atteint, à confirmer » depuis le début de la mission (décision du 20/11/2026, partie C, F35 ;
+   * des impayés atteints la rendent ferme) ; les arriérés ne rendent plus l'alerte à confirmer (J67, R31).
    */
   aConfirmer: boolean
   /** J67, R32 — nombre de lots de la liste du syndicat, quand elle est fournie ; null : liste non fournie. */
@@ -756,7 +756,8 @@ export function alerteMandataireAdHoc(
     message: atteints.map(({ critere }) => critere.message).join(' '),
     conduite: conduite.texte,
     fondement: conduite.fondement,
-    aConfirmer: conduite.aConfirmer || comptes.aConfirmer,
+    // F35 : la réserve du critère des comptes ne vaut pour l'alerte que si elle repose sur lui seul (impayés non atteints)
+    aConfirmer: conduite.aConfirmer || (comptes.aConfirmer && impayes.etat !== 'atteint'),
     ...controleNombreLots(entree, parametres),
   }
 }

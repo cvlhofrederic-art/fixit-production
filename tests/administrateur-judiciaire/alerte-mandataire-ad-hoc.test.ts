@@ -302,6 +302,16 @@ describe('décision du 20/11/2026 (partie C, F35) : aucun vote connu sur l’app
     )
   })
 
+  it('impayés atteints aussi : l’alerte reste ferme, seul le critère des comptes est « atteint, à confirmer »', () => {
+    const e = entree({ votes: [], exercices: [ex('ex-2025', E2025, provisions2025(1_000_000))], debutMissionLe: '2024-01-15' })
+    const alerte = alerteMandataireAdHoc(e, DATE)
+    expect(alerte.impayes.etat).toBe('atteint')
+    expect(alerte.comptes).toMatchObject({ etat: 'atteint', pointDeDepart: 'debut_mission', aConfirmer: true })
+    expect(alerte).toMatchObject({ declenchee: true, aConfirmer: false })
+    // La réserve du cadre de l'administrateur provisoire (J67, R30) reste.
+    expect(alerteMandataireAdHoc({ ...e, regime: 'ap47' }, DATE).aConfirmer).toBe(true)
+  })
+
   it('refuse une date de début de mission invalide', () => {
     expect(() => alerteMandataireAdHoc(entree({ debutMissionLe: '2024-02-30' }), DATE)).toThrow(/début de la mission.*AAAA-MM-JJ/)
   })

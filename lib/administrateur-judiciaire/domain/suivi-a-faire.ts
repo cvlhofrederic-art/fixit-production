@@ -1058,16 +1058,23 @@ const SUITE_SELON_CADRE: Readonly<Record<CadreAlerte291A, string>> = {
 /**
  * Critères atteints que la requête ne couvre pas, à la date du plus tôt et avec leurs seuls constats, suivis de ce que le
  * cadre propose (à cette date : celle du constat, pas une échéance, hors obligation du syndic) ; à défaut, repère du délai
- * sans vote sur l'approbation des comptes qui court encore ; null : ni l'un ni l'autre.
+ * sans vote sur l'approbation des comptes qui court encore ; null : ni l'un ni l'autre. Réserve : celle de l'alerte, ou
+ * celle du critère des comptes « atteint, à confirmer » quand il reste seul à traiter (impayés couverts, F35).
  */
-function etapeAlerte291A(alerte: AlerteMandataireAdHoc): { libelle: string; date: string } | null {
+function etapeAlerte291A(alerte: AlerteMandataireAdHoc): { libelle: string; date: string; aConfirmer: boolean } | null {
   if (alerte.aTraiterLe !== null) {
-    const constats = [alerte.impayes, alerte.comptes].filter((c) => c.etat === 'atteint' && !c.traite).map((c) => c.message)
-    return { libelle: `${TITRE_ALERTE_29_1_A} : ${constats.join(' ')}${SUITE_SELON_CADRE[alerte.cadre]}`, date: alerte.aTraiterLe }
+    const restants = [alerte.impayes, alerte.comptes].filter((c) => c.etat === 'atteint' && !c.traite)
+    const constats = restants.map((c) => c.message)
+    const seulsComptesAConfirmer = !restants.includes(alerte.impayes) && alerte.comptes.aConfirmer
+    return {
+      libelle: `${TITRE_ALERTE_29_1_A} : ${constats.join(' ')}${SUITE_SELON_CADRE[alerte.cadre]}`,
+      date: alerte.aTraiterLe,
+      aConfirmer: alerte.aConfirmer || seulsComptesAConfirmer,
+    }
   }
   const { etat, atteintLe, message } = alerte.comptes
   if (etat !== 'non_atteint' || atteintLe === null) return null
-  return { libelle: `${TITRE_ALERTE_29_1_A} à venir : ${message}`, date: atteintLe }
+  return { libelle: `${TITRE_ALERTE_29_1_A} à venir : ${message}`, date: atteintLe, aConfirmer: alerte.aConfirmer }
 }
 
 /**
@@ -1084,7 +1091,8 @@ function etapeAlerte291A(alerte: AlerteMandataireAdHoc): { libelle: string; date
  *   « saisir la date de la dernière assemblée qui s'est prononcée sur les comptes », sans réserve (une saisie, pas un
  *   repère juridique) ; 🔵 choix de codage, comme une étape sans délai (J76) : datée de la date de référence de
  *   l'alerte, due le jour même, jamais en retard. Le critère « atteint, à confirmer » depuis le début de la mission
- *   remonte avec l'alerte, marquée `aConfirmer`.
+ *   garde sa réserve sur l'élément de l'alerte quand il reste seul à traiter ; des impayés atteints et non couverts la
+ *   rendent ferme, et la copie d'une requête déposée reste due sans réserve (D. 1967 art. 61-5).
  * Cadre de l'alerte (J67, R30) : administrateur de l'art. 29-1, constat à porter au prochain compte rendu au juge ;
  * administrateur de l'art. 47, signalement au juge, requête possible après consultation du conseil syndical.
  * `aConfirmer` reprend celui de l'alerte : sous administrateur provisoire (art. 29-1 ou D. 1967 art. 47 ; J67, R30 :
@@ -1105,6 +1113,9 @@ export function depuisAlertesMandataireAdHoc(items: { mandatId: string; alerte: 
           ...champs,
           libelle: `${TITRE_ALERTE_29_1_A} : requête au juge du ${dateIsoVersFr(copieDueLe)}, copie à adresser au représentant de l'État dans le département, au maire de la commune de l'immeuble et au président de l'EPCI compétent en matière d'habitat (art. 29-1 A, dernier alinéa ; D. 1967 art. 61-5)`,
           date: copieDueLe,
+          // Due dès la requête, dans le seul cadre de l'obligation du syndic (jamais à confirmer) ; la réserve du critère
+          // des comptes (F35) ne la touche pas.
+          aConfirmer: false,
         }),
       )
     const tache = alerte.comptes.tacheDernierVote

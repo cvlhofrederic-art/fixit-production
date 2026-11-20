@@ -522,6 +522,25 @@ describe('source — alerte de l’art. 29-1 A (mandataire ad hoc)', () => {
     expect(elements[0]).toMatchObject({ libelle: `Alerte de l'art. 29-1 A (mandataire ad hoc) : ${a.comptes.message}`, date: '2026-03-01', aConfirmer: true })
     expect(elements[1]).toMatchObject({ date: AUJOURDHUI, aConfirmer: false })
   })
+
+  it('décision du 20/11/2026 (partie C, F35) — la réserve du critère des comptes ne s’étend ni aux impayés atteints, ni à la copie d’une requête déposée', () => {
+    const deux = alerte({ votes: [], debutMissionLe: '2024-03-01' })
+    expect(deux.comptes).toMatchObject({ etat: 'atteint', aConfirmer: true })
+    expect(depuisAlertesMandataireAdHoc([{ mandatId: 'M1', alerte: deux }]).find((e) => e.id === 'exercices:copro-1:alerte_29_1_a')).toMatchObject({
+      date: '2025-12-31',
+      aConfirmer: false,
+    })
+    // Requête du 15/01/2026 : elle couvre les impayés, pas les comptes (atteints, à confirmer, le 01/03/2026) ; copie non adressée.
+    const requete = alerte({ votes: [], debutMissionLe: '2024-03-01', saisineLe: '2026-01-15' })
+    const elements = depuisAlertesMandataireAdHoc([{ mandatId: 'M1', alerte: requete }])
+    expect(elements.find((e) => e.id === 'exercices:copro-1:alerte_29_1_a')).toMatchObject({
+      libelle: `Alerte de l'art. 29-1 A (mandataire ad hoc) : ${requete.comptes.message}`,
+      date: '2026-03-01',
+      aConfirmer: true,
+    })
+    // La copie est due dès la requête (D. 1967 art. 61-5), sans réserve.
+    expect(elements.find((e) => e.id === 'exercices:copro-1:alerte_29_1_a:copie_requete')).toMatchObject({ date: '2026-01-15', aConfirmer: false })
+  })
 })
 
 describe('sélection', () => {
