@@ -1,5 +1,12 @@
 import type { LotEnregistre } from '@/lib/administrateur-judiciaire/domain/coproprietes'
-import { ajouterJours, ajouterMois, dateIsoVersFr, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
+import {
+  ajouterJours,
+  ajouterMois,
+  dateIsoVersFr,
+  estAnneeImprobable,
+  estDateIsoValide,
+  messagePlausibilite,
+} from '@/lib/administrateur-judiciaire/domain/dates'
 import type { DecisionAnnuelle } from '@/lib/administrateur-judiciaire/domain/decisions-annuelles-ag'
 import type { Exercice } from '@/lib/administrateur-judiciaire/domain/exercices-budgets'
 import type { Regime } from '@/lib/administrateur-judiciaire/domain/fondements'
@@ -213,7 +220,8 @@ export interface EntreeAlerteMandataireAdHoc {
   /**
    * Décision du 20/11/2026 (partie C, F35) — début de la mission du cabinet sur le syndicat ; absent ou null : non saisi.
    * Sans aucun vote connu, deux ans après lui, le critère des comptes est « atteint, à confirmer ». Aucune table ne le
-   * porte : à fournir par l'appelant.
+   * porte : à fournir par l'appelant. D'une année improbable (dates.estAnneeImprobable) : aucun repère, « non établi »,
+   * date à corriger.
    */
   debutMissionLe?: string | null
   /** Régime du mandat de justice en cours ; absent ou null : aucun (syndic). */
@@ -563,7 +571,8 @@ function comptesSansVoteConnu(
   const { approuvesParAdministrateurLe, approbationAffichee } = approbations
   const commun = { dernierVoteLe: null, approuvesParAdministrateurLe, tacheDernierVote: TACHE_DERNIER_VOTE }
   const debut = entree.debutMissionLe ?? null
-  const atteintLe = debut === null ? null : ajouterMois(debut, parametres.sansVoteMois)
+  // Début de la mission d'une année improbable (faute de frappe) : aucun repère n'en part (suiteNonEtabli le dit).
+  const atteintLe = debut === null || estAnneeImprobable(debut) ? null : ajouterMois(debut, parametres.sansVoteMois)
   const duree = `${parametres.sansVoteMois} mois sans vote`
   if (debut !== null && atteintLe !== null && date >= atteintLe)
     return {
@@ -578,11 +587,27 @@ function comptesSansVoteConnu(
           : `Aucun ${sansVoteDepuisLaMission(debut)} : ${duree} atteints le ${fr(atteintLe)}, ${A_CONFIRMER_F35}.`,
     }
   const aucun = approbationAffichee === null ? `Aucun ${SUITE_AUCUN_VOTE}` : `${prefixeApprobationAp(approbationAffichee)} ; aucun ${SUITE_AUCUN_VOTE}`
-  const echeance =
-    debut === null || atteintLe === null
-      ? ''
-      : ` Faute de vote enregistré depuis le début de la mission le ${fr(debut)}, ${duree} seront atteints, à confirmer, le ${fr(atteintLe)}.`
-  return { ...commun, etat: 'non_etabli', atteintLe: null, pointDeDepart: null, aConfirmer: false, message: `${aucun}${echeance}` }
+  return {
+    ...commun,
+    etat: 'non_etabli',
+    atteintLe: null,
+    pointDeDepart: null,
+    aConfirmer: false,
+    message: `${aucun}${suiteNonEtabli(debut, atteintLe, duree)}`,
+  }
+}
+
+/**
+ * Suite du message « non établi » sans vote connu (F35) : date où le critère sera atteint, à confirmer ; début de la
+ * mission d'une année improbable (dates.estAnneeImprobable, faute de frappe) : aucun repère, la date est à corriger
+ * (depuis 9999, deux ans tombaient en l'an 10001, hors du calendrier ISO).
+ */
+function suiteNonEtabli(debut: string | null, atteintLe: string | null, duree: string): string {
+  if (debut === null) return ''
+  if (estAnneeImprobable(debut))
+    return ` ${messagePlausibilite('Début de la mission daté', debut, 'annee_improbable')} Pas de repère : corriger la date.`
+  if (atteintLe === null) return ''
+  return ` Faute de vote enregistré depuis le début de la mission le ${fr(debut)}, ${duree} seront atteints, à confirmer, le ${fr(atteintLe)}.`
 }
 
 function critereComptes(entree: EntreeAlerteMandataireAdHoc, date: string, parametres: ParametresAlerte291A): Constat<CritereComptes291A> {

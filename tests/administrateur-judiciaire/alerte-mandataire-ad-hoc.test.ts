@@ -315,6 +315,41 @@ describe('décision du 20/11/2026 (partie C, F35) : aucun vote connu sur l’app
   it('refuse une date de début de mission invalide', () => {
     expect(() => alerteMandataireAdHoc(entree({ debutMissionLe: '2024-02-30' }), DATE)).toThrow(/début de la mission.*AAAA-MM-JJ/)
   })
+
+  it('début de la mission d’une année improbable (9999, 2525, 0026) : « non établi », la date fautive est citée, ni alerte ni erreur interne', () => {
+    // Depuis 9999, deux ans tombaient en l'an 10001 (« Date ISO invalide ») ; depuis 0026, l'alerte se déclenchait.
+    for (const [debutMissionLe, citee] of [
+      ['9999-06-15', '15/06/9999'],
+      ['2525-06-15', '15/06/2525'],
+      ['0026-06-15', '15/06/0026'],
+    ] as const) {
+      const { comptes, declenchee, aConfirmer } = alerteMandataireAdHoc(entree({ votes: [], debutMissionLe }), DATE)
+      expect(comptes, debutMissionLe).toMatchObject({
+        etat: 'non_etabli',
+        dernierVoteLe: null,
+        atteintLe: null,
+        pointDeDepart: null,
+        aConfirmer: false,
+        tacheDernierVote: TACHE,
+      })
+      expect(comptes.message).toBe(
+        `Aucun vote de l'assemblée sur l'approbation des comptes n'est connu : saisir la date de la dernière assemblée qui s'est prononcée (adoption ou rejet). Début de la mission daté du ${citee} : année improbable (faute de frappe ?). Pas de repère : corriger la date.`,
+      )
+      expect({ declenchee, aConfirmer }).toEqual({ declenchee: false, aConfirmer: false })
+    }
+    // Un vote connu garde la règle du dernier vote, quel que soit le début de la mission.
+    const avecVote = alerteMandataireAdHoc(entree({ votes: [{ date: '2023-06-10', etat: 'adoptee' }], debutMissionLe: '0026-06-15' }), DATE)
+    expect(avecVote.comptes).toMatchObject({ etat: 'atteint', dernierVoteLe: '2023-06-10', pointDeDepart: 'dernier_vote' })
+    // Bornes : 1900 et 2100 restent plausibles.
+    expect(alerteMandataireAdHoc(entree({ votes: [], debutMissionLe: '1900-01-01' }), DATE).comptes).toMatchObject({
+      etat: 'atteint',
+      atteintLe: '1902-01-01',
+      pointDeDepart: 'debut_mission',
+    })
+    expect(alerteMandataireAdHoc(entree({ votes: [], debutMissionLe: '2100-01-01' }), DATE).comptes.message).toMatch(
+      /seront atteints, à confirmer, le 01\/01\/2102\.$/,
+    )
+  })
 })
 
 describe('alerte', () => {
