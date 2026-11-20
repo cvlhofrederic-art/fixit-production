@@ -145,13 +145,15 @@ export async function GET(request: NextRequest) {
 
     if (table === 'settings') return NextResponse.json({ settings: await lireReglages(user.id) })
 
-    if (!Object.prototype.hasOwnProperty.call(LECTURES, table)) {
+    // Nom de la liste pris dans la liste blanche elle-même : la valeur reçue ne sert jamais de nom de propriété.
+    const cle = Object.keys(LECTURES).find((nom) => nom === table)
+    if (!cle) {
       return NextResponse.json({ error: 'Table invalide' }, { status: 400 })
     }
-    const liste = await lireListe(table, user.id, chantierId)
+    const liste = await lireListe(cle, user.id, chantierId)
     return NextResponse.json({
-      [table]: table === 'equipes' ? avecMembreIds(liste.lignes) : liste.lignes,
-      ...plafondsAtteints({ [table]: liste }),
+      [cle]: cle === 'equipes' ? avecMembreIds(liste.lignes) : liste.lignes,
+      ...plafondsAtteints({ [cle]: liste }),
     })
   } catch (err) {
     // Panne, délai dépassé, table ou colonne absente : jamais une liste vide inventée (constat api-coeur-6).
