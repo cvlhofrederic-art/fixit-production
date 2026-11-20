@@ -58,13 +58,13 @@ describe('art. 19-2 : départ le lendemain de la première présentation (J3, m�
     })
   })
 
-  it('la justification se lit en toutes lettres ; la borne reste à confirmer par Hugo, le report est tranché (J67, R41)', () => {
+  it('la justification se lit en toutes lettres ; la borne reste à confirmer, le report est tranché (J67, R41)', () => {
     const resultat = exigibiliteAnticipee(lrar())
     if (resultat.etat !== 'calculee') throw new Error('calcul attendu')
     expect(resultat.justification).toBe(
       'Trente jours à compter du lendemain de la première présentation du 12/05/2026 (départ le 13/05/2026) : trentième jour le 12/06/2026, exigibilité anticipée à partir du 13/06/2026 — L. 1965 art. 19-2 ; D. 1967 art. 64-1, al. 2.',
     )
-    expect(resultat.aConfirmer).toMatch(/à confirmer par Hugo/)
+    expect(resultat.aConfirmer).toMatch(/Borne à confirmer :/)
     expect(resultat.aConfirmer).toMatch(/passé un délai de trente jours/)
     expect(resultat.aConfirmer).not.toMatch(/CPC art\. 642/)
     expect(resultat.aConfirmer).not.toMatch(/non appliqué/)
