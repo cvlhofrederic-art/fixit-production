@@ -4,7 +4,9 @@
  * débiteurs et échéances que l'interface.
  *
  * Données personnelles : ni téléphone ni e-mail ne sortent du navigateur ; seuls le nom et le solde des
- * copropriétaires débiteurs sont transmis (le serveur masque en plus e-mails, téléphones, IBAN et adresses).
+ * copropriétaires débiteurs sont transmis. Le serveur remplace les noms par des pseudonymes avant le modèle
+ * (ia/pseudonymes.ts : tout nouveau champ de nom ajouté ici se déclare dans CHAMPS_NOMS) et masque en plus e-mails,
+ * téléphones, IBAN et adresses.
  * Fonction pure : la date de référence et le mode sont passés en paramètre.
  */
 import type { CoproprieteVue } from '@/lib/administrateur-judiciaire/domain/coproprietes'
