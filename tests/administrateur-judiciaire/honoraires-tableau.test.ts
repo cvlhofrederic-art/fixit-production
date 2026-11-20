@@ -191,6 +191,10 @@ describe('compte provisoire détaillé des émoluments — période par défaut 
     expect(decision).toMatch(/D\. 1967 art\. 61-1-5, II.*art\. 62-11, I/)
     expect(decision).toMatch(/periodeAnneeDeMission/)
     expect(decision).toMatch(/periodeMoisPrecedent/)
+    // La date de désignation est enregistrée sur le mandat (son ordonnance) : la nommer, et écarter le repli de la vue.
+    expect(decision).toMatch(/date de l'ordonnance enregistrée sur le mandat \(MandatEnregistre\.ordonnance/)
+    expect(decision).toMatch(/jamais la date de création de la copropriété.*fusionnerCoproMandat/)
+    expect(decision).not.toMatch(/Donnée hors du domaine/)
   })
 })
 

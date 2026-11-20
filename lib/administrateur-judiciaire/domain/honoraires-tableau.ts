@@ -123,8 +123,10 @@ import { portefeuille, ROLES_MANDAT, type AffectationMandat } from '@/lib/admini
  *   (arrêté du 8 octobre 2015, art. 5, al. 2) ; aucun texte n'impose un état mensuel (la seule assiette mensuelle du
  *   tarif est le droit fixe de gestion courante, art. 5). Anniversaires comptés depuis la désignation (dates.ajouterMois) :
  *   une désignation du 29 février a son anniversaire le 28 février des années non bissextiles, comme le devis de la
- *   décision du 17/11/2026 (Q3). Donnée hors du domaine : la date de désignation (ordonnance du mandat) est passée par
- *   l'appelant. Le compte provisoire lui-même n'existe pas encore dans le code.
+ *   décision du 17/11/2026 (Q3). La date de désignation est la date de l'ordonnance enregistrée sur le mandat
+ *   (MandatEnregistre.ordonnance ; dateOrdonnance du moteur de délais, construireContexteMandat), passée par l'appelant
+ *   en ISO : jamais la date de création de la copropriété, que la vue prend à défaut de mandat (fusionnerCoproMandat).
+ *   Le compte provisoire lui-même n'existe pas encore dans le code.
  *
  * Questions ouvertes :
  * - 🔴 (Frédéric) Sur quoi porte le tableau : la date de l'élément (choix actuel), celle de la facture ou celle de
