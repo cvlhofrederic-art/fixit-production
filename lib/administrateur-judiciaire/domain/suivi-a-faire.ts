@@ -59,6 +59,7 @@ import {
   bilanStatutsMandats,
   demandesDesMandatsSuivis,
   mandatHorsSuivi,
+  mentionArchivesExclus,
   type PorteeStatuts,
   type StatutDeMandat,
 } from '@/lib/administrateur-judiciaire/domain/statut-mandat'
@@ -133,8 +134,10 @@ import type { StatutAssemblee, StatutContrat, TypeContrat } from '@/lib/data/ref
  * (depuisDemandes) et de la balance âgée ; « En clôture » et « En gestion, en clôture » restent suivis ; une valeur
  * inconnue garde le mandat, l'anomalie se lit par bilanStatutsMandats(affectations) ; un « Prospect » dont l'ordonnance
  * est datée (ordonnanceLe) reste suivi, avec une anomalie (décision du 20/11/2026, partie C, F32). Le statut COURANT
- * s'applique, même à une balance âgée datée du passé (aucun historique du statut). Aucun texte ne règle ce statut (relevé
- * du 03/11/2026) : règle de GESTION.
+ * s'applique au suivi du jour ; une balance âgée datée du passé compte un mandat archivé après sa date de référence
+ * quand la date d'archivage est donnée (archiveLe), et sinon l'écarte avec la mention « mandats archivés depuis :
+ * exclus » (décision du 20/11/2026, partie C, F33). Aucun texte ne règle ce statut (relevé du 03/11/2026) : règle de
+ * GESTION.
  * 🔵 Lots (point 71, assurance-pno-lots.ts ; Gestéam tranche 43 § 17, statut PNO des lots avec échéance) : famille
  * AJOUTÉE par VitFix — aucun bloc PNO dans le réglage Gestéam du syndic (tranche 38 ; seul le bloc « Baux », en
  * gérance, suit des « Attestations Assurance »). Attestation PNO à renouveler à son échéance, même dépassée ; à obtenir
@@ -276,6 +279,8 @@ export interface AffectationMandat extends RolesMandat {
   statut?: string | null
   /** Date ISO de l'ordonnance qui a désigné le cabinet : un « Prospect » qui la porte reste suivi (statut-mandat.ts, F32). */
   ordonnanceLe?: string | null
+  /** Date ISO d'archivage : une balance âgée datée d'avant elle compte encore le mandat (statut-mandat.ts, F33). */
+  archiveLe?: string | null
 }
 
 const CHAMP_ROLE: Record<RoleMandat, keyof RolesMandat> = {
@@ -1227,6 +1232,11 @@ export interface BalanceAgee {
   lignes: LigneBalanceAgee[]
   sousTotaux: (CompteurDossiers & { cabinetId: string | null })[]
   total: CompteurDossiers
+  /**
+   * Mention à écrire sous la balance quand un dossier d'un mandat archivé sans date d'archivage en est écarté
+   * (statut-mandat.mentionArchivesExclus, décision du 20/11/2026, partie C, F33) ; absente : aucune.
+   */
+  mention?: string
 }
 
 const MOIS_PAR_PERIODE: Record<Exclude<PeriodiciteAnalyse, 'trente_jours'>, number> = { mensuelle: 1, trimestre: 3, annee: 12 }
@@ -1290,9 +1300,25 @@ function totaliser(lignes: LigneBalanceAgee[]): Pick<BalanceAgee, 'sousTotaux' |
 }
 
 /**
+ * Décision du 20/11/2026 (partie C, F33) : mention sous la balance quand un dossier ouvert à la date de référence, dans
+ * les cabinets retenus, est écarté parce que son mandat est « Archivé » sans date d'archivage.
+ */
+function mentionDeLaBalance(
+  dossiers: readonly DossierOuvert[],
+  archivesSansDate: ReadonlySet<string>,
+  parMandat: ReadonlyMap<string, AffectationMandat>,
+  { dateReference, cabinets }: { dateReference: string; cabinets?: (string | null)[] },
+): Pick<BalanceAgee, 'mention'> {
+  const retenu = (mandatId: string): boolean => cabinets === undefined || cabinets.includes(parMandat.get(mandatId)?.cabinetId ?? null)
+  const ecarte = dossiers.some((d) => d.mandatId !== null && d.ouvertLe <= dateReference && archivesSansDate.has(d.mandatId) && retenu(d.mandatId))
+  return ecarte ? { mention: mentionArchivesExclus(dateReference) } : {}
+}
+
+/**
  * « Suivi des éléments en cours » : par cabinet et collaborateur, les dossiers ouverts à la date de référence, puis
  * ceux en cours par ancienneté ; sous-total par cabinet, total général. Un dossier ouvert après la date est ignoré, comme
- * celui d'un mandat Prospect ou Archivé (point 55) ; un mandat en clôture reste compté.
+ * celui d'un mandat Prospect ou Archivé (point 55) ; un mandat en clôture reste compté. F33 : un mandat archivé après la
+ * date de référence (archiveLe) y est encore compté ; archivé sans date, il est écarté avec une mention.
  */
 export function balanceAgee(
   dossiers: DossierOuvert[],
@@ -1306,7 +1332,7 @@ export function balanceAgee(
 ): BalanceAgee {
   verifierDate(dateReference)
   const parMandat = new Map(affectations.map((a) => [a.mandatId, a]))
-  const { horsSuivi } = bilanStatutsMandats(affectations)
+  const { horsSuivi, archivesSansDate } = bilanStatutsMandats(affectations, { dateReference })
   const cabinetsRetenus = cabinets ? new Set(cabinets) : null
   const lignes = new Map<string, LigneBalanceAgee>()
   for (const dossier of dossiers) {
@@ -1328,5 +1354,10 @@ export function balanceAgee(
     (a, b) => nullEnDernier(a.cabinetId, b.cabinetId) || nullEnDernier(a.collaborateurId, b.collaborateurId),
   )
   const [t1, t2, t3, t4] = LIBELLES_TRANCHES[periodicite]
-  return { libellesTranches: [t1, t2, t3, t4], lignes: triees, ...totaliser(triees) }
+  return {
+    libellesTranches: [t1, t2, t3, t4],
+    lignes: triees,
+    ...totaliser(triees),
+    ...mentionDeLaBalance(dossiers, archivesSansDate, parMandat, { dateReference, cabinets }),
+  }
 }

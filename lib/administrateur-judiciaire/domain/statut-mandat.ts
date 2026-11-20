@@ -49,6 +49,15 @@ import { STATUT_MANDAT, type StatutMandat } from '@/lib/data/referentiels-gestea
  *   espaces superflus et la forme Unicode sont normalisés ; aucune correspondance n'est devinée.
  * - Statut non transmis (null ou absent, appelants antérieurs au point 55) : mandat suivi, sans anomalie.
  * - Un même mandat transmis avec deux statuts différents : anomalie, et le mandat reste suivi.
+ * - Décision du 20/11/2026 (partie C, F33) : une balance âgée datée du passé compte les mandats qui n'étaient pas encore
+ *   archivés à cette date, ce qui demande la date d'archivage (au minimum « archivé le », mieux l'historique daté des
+ *   statuts). Aucun champ ne la porte aujourd'hui : paramètre explicite archiveLe (StatutDeMandat, AffectationMandat),
+ *   lu par bilanStatutsMandats(mandats, { dateReference }) ; un mandat « Archivé » le lendemain de la date de référence
+ *   ou plus tard y est encore compté, archivé ce jour-là ou avant, il ne l'est pas. Sans date d'archivage, le calcul
+ *   actuel reste (mandat exclu) et balanceAgee écrit sous la balance « mandats archivés depuis : exclus »
+ *   (mentionArchivesExclus, quand un dossier ouvert à la date est écarté ainsi). Le suivi du jour (portefeuille,
+ *   « à faire », demandes, échéances, Fixy) lit le statut courant, sans date de référence. La date de fin de mission sert
+ *   aussi à la règle des cinq ans (L. 1965 art. 29-1, IV).
  *
  * Droit (relevé Légifrance du 03/11/2026, loi n° 65-557 et décret n° 67-223 en vigueur à cette date) :
  * - AUCUN TEXTE ne définit un statut du mandat ni ne règle sa borne du suivi : recherches « statut du mandat »,
@@ -115,8 +124,6 @@ import { STATUT_MANDAT, type StatutMandat } from '@/lib/data/referentiels-gestea
  *   l'art. 18-2 (quinze jours, un mois, puis deux mois suivants, à compter de la cessation des fonctions) ; faut-il
  *   attendre leur expiration, ou la remise effective, avant d'archiver, et s'en servir aussi pour un administrateur
  *   provisoire, qu'aucun texte n'y soumet à sa sortie ?
- * - Hugo : une balance âgée datée du passé doit-elle encore compter un mandat archivé depuis ? Le statut n'a pas
- *   d'historique (seul le statut courant est lu) : il n'est plus compté.
  * - Hugo : faut-il refuser d'archiver un mandat qui a encore des dossiers ouverts (contentieux, sinistre) ou des demandes
  *   en cours, puisqu'ils sortent du suivi ? Aucun contrôle n'est codé.
  */
@@ -182,6 +189,8 @@ export interface StatutDeMandat {
   statut?: string | null
   /** Date ISO de l'ordonnance qui a désigné le cabinet ; absente ou null : aucune (F32 : « Prospect » hors suivi). */
   ordonnanceLe?: string | null
+  /** Date ISO d'archivage (« archivé le ») ; absente ou null : non enregistrée (F33 : exclu à toute date). */
+  archiveLe?: string | null
 }
 
 export const MOTIFS_ANOMALIE_STATUT = ['valeur_inconnue', 'statuts_contradictoires', 'prospect_ordonnance_datee'] as const
@@ -202,7 +211,22 @@ export interface BilanStatutsMandats {
   enCloture: Set<string>
   /** Valeurs inconnues, statuts contradictoires, « Prospect » dont l'ordonnance est datée : mandats gardés au suivi, à faire qualifier. */
   anomalies: AnomalieStatutMandat[]
+  /** Mandats « Archivé » sans date d'archivage : exclus à toute date de référence (F33, mention sous la balance âgée). */
+  archivesSansDate: Set<string>
 }
+
+/** Bilan à une date passée (balance âgée) : un mandat archivé après cette date y est encore compté (F33). */
+export interface OptionsBilanStatuts {
+  /** Date ISO de référence ; absente : statut courant (suivi du jour). */
+  dateReference?: string
+}
+
+/**
+ * Mention sous une balance âgée quand un mandat archivé sans date d'archivage en est écarté (décision du 20/11/2026,
+ * partie C, F33 : « mandats archivés depuis : exclus »).
+ */
+export const mentionArchivesExclus = (dateReference: string): string =>
+  `Mandats archivés depuis le ${dateIsoVersFr(dateReference)} : exclus (date d'archivage non enregistrée).`
 
 const LISTE_STATUTS = STATUT_MANDAT.map((statut) => `« ${statut} »`).join(', ')
 
@@ -235,16 +259,30 @@ const valeurLue = (lecture: LectureTransmise): string => (lecture.etat === 'conn
 /** Dates données pour un mandat : la première non nulle de ses lignes. */
 interface ReperesMandat {
   ordonnanceLe: string | null
+  archiveLe: string | null
 }
 
 function reperesParMandat(mandats: readonly StatutDeMandat[]): Map<string, ReperesMandat> {
   const reperes = new Map<string, ReperesMandat>()
-  for (const { mandatId, ordonnanceLe } of mandats) {
-    const repere = reperes.get(mandatId) ?? { ordonnanceLe: null }
+  for (const { mandatId, ordonnanceLe, archiveLe } of mandats) {
+    if (archiveLe !== null && archiveLe !== undefined && !estDateIsoValide(archiveLe))
+      throw new Error(`Date d'archivage du mandat ${mandatId} invalide (${archiveLe}) : AAAA-MM-JJ attendu.`)
+    const repere = reperes.get(mandatId) ?? { ordonnanceLe: null, archiveLe: null }
     repere.ordonnanceLe ??= ordonnanceLe ?? null
+    repere.archiveLe ??= archiveLe ?? null
     reperes.set(mandatId, repere)
   }
   return reperes
+}
+
+/**
+ * F33 : un mandat hors suivi l'est à la date de référence, sauf un « Archivé » dont l'archivage est postérieur à cette
+ * date ; un « Archivé » sans date d'archivage est exclu et noté (archivesSansDate).
+ */
+function rangerHorsSuivi(bilan: BilanStatutsMandats, mandatId: string, statut: StatutMandat, archiveLe: string | null, dateReference: string | null): void {
+  if (statut === 'Archivé' && archiveLe === null) bilan.archivesSansDate.add(mandatId)
+  const pasEncoreArchive = statut === 'Archivé' && archiveLe !== null && dateReference !== null && archiveLe > dateReference
+  if (!pasEncoreArchive) bilan.horsSuivi.add(mandatId)
 }
 
 /** Lectures par mandat, une par valeur (normalisée), dans l'ordre d'arrivée ; les statuts absents n'y sont pas. */
@@ -263,18 +301,21 @@ function lecturesParMandat(mandats: readonly StatutDeMandat[], reperes: Readonly
 /**
  * Lit le statut de chaque mandat transmis : mandats hors suivi (Prospect sans ordonnance datée, Archivé), mandats en
  * clôture, anomalies (valeur inconnue, deux statuts différents pour le même mandat, « Prospect » dont l'ordonnance est
- * datée : F32). Un mandat en anomalie reste suivi.
+ * datée : F32). Un mandat en anomalie reste suivi. Avec une date de référence (F33), un mandat archivé après elle
+ * (archiveLe) n'est pas hors suivi à cette date.
  */
-export function bilanStatutsMandats(mandats: readonly StatutDeMandat[]): BilanStatutsMandats {
-  const bilan: BilanStatutsMandats = { horsSuivi: new Set(), enCloture: new Set(), anomalies: [] }
+export function bilanStatutsMandats(mandats: readonly StatutDeMandat[], { dateReference }: OptionsBilanStatuts = {}): BilanStatutsMandats {
+  if (dateReference !== undefined && !estDateIsoValide(dateReference))
+    throw new Error(`Date de référence invalide (${dateReference}) : AAAA-MM-JJ attendu.`)
+  const bilan: BilanStatutsMandats = { horsSuivi: new Set(), enCloture: new Set(), anomalies: [], archivesSansDate: new Set() }
   const reperes = reperesParMandat(mandats)
   for (const [mandatId, parValeur] of lecturesParMandat(mandats, reperes)) {
     const [lecture, ...autres] = parValeur.values()
-    const ordonnanceLe = reperes.get(mandatId)?.ordonnanceLe ?? null
+    const { ordonnanceLe, archiveLe } = reperes.get(mandatId) ?? { ordonnanceLe: null, archiveLe: null }
     if (autres.length > 0) bilan.anomalies.push(anomalie(mandatId, 'statuts_contradictoires', [...parValeur.keys()]))
     else if (lecture.etat === 'inconnu') bilan.anomalies.push(anomalie(mandatId, 'valeur_inconnue', [lecture.valeur]))
     else if (lecture.statut === 'Prospect' && ordonnanceLe !== null) bilan.anomalies.push(anomalieProspect(mandatId, ordonnanceLe))
-    else if (!lecture.suivi) bilan.horsSuivi.add(mandatId)
+    else if (!lecture.suivi) rangerHorsSuivi(bilan, mandatId, lecture.statut, archiveLe, dateReference ?? null)
     else if (lecture.enCloture) bilan.enCloture.add(mandatId)
   }
   return bilan

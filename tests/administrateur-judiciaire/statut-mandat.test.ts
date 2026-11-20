@@ -26,6 +26,7 @@ import {
   filtrerMandatsSuivis,
   lireStatutMandat,
   mandatHorsSuivi,
+  mentionArchivesExclus,
   STATUTS_EN_CLOTURE,
   STATUTS_HORS_SUIVI,
 } from '@/lib/administrateur-judiciaire/domain/statut-mandat'
@@ -271,6 +272,57 @@ describe('balanceAgee — borne du statut', () => {
   })
 })
 
+describe('décision du 20/11/2026 (partie C, F33) — balance âgée à une date passée et date d’archivage', () => {
+  const dossier = (id: string, mandatId: string | null): DossierOuvert => ({ id, mandatId, ouvertLe: '2026-09-01', closLe: null, responsableFicheId: null })
+  const options = (dateReference: string) => ({ rattachement: 'responsable' as const, periodicite: 'mensuelle' as const, dateReference })
+
+  it('bilanStatutsMandats à une date : un mandat archivé après cette date était encore suivi ; archivé ce jour-là ou avant : hors suivi', () => {
+    const mandats = [
+      { mandatId: 'M-tard', statut: 'Archivé', archiveLe: '2026-10-25' },
+      { mandatId: 'M-tot', statut: 'Archivé', archiveLe: '2026-09-15' },
+      { mandatId: 'M-sans', statut: 'Archivé' },
+    ]
+    const auPasse = bilanStatutsMandats(mandats, { dateReference: '2026-10-01' })
+    expect([...auPasse.horsSuivi].sort()).toEqual(['M-sans', 'M-tot'])
+    expect([...auPasse.archivesSansDate]).toEqual(['M-sans'])
+    expect([...bilanStatutsMandats(mandats, { dateReference: '2026-10-25' }).horsSuivi].sort()).toEqual(['M-sans', 'M-tard', 'M-tot'])
+    // Sans date de référence (suivi du jour) : le statut courant s'applique, archivé est hors suivi.
+    expect([...bilanStatutsMandats(mandats).horsSuivi].sort()).toEqual(['M-sans', 'M-tard', 'M-tot'])
+  })
+
+  it('refuse une date d’archivage ou une date de référence mal formées', () => {
+    expect(() => bilanStatutsMandats([{ mandatId: 'M', statut: 'Archivé', archiveLe: '25/10/2026' }])).toThrow(/archivage.*AAAA-MM-JJ/)
+    expect(() => bilanStatutsMandats([{ mandatId: 'M', statut: 'Archivé' }], { dateReference: '2026-02-30' })).toThrow(/référence.*AAAA-MM-JJ/)
+  })
+
+  it('balanceAgee datée du passé : compte le mandat archivé depuis, quand la date d’archivage est donnée', () => {
+    const avecDate = [affectation('M-a', 'Archivé', { archiveLe: '2026-10-25' })]
+    const passe = balanceAgee([dossier('d1', 'M-a')], avecDate, options('2026-10-01'))
+    expect(passe.total).toMatchObject({ tous: 1, enCours: 1 })
+    expect(passe.mention).toBeUndefined()
+    expect(balanceAgee([dossier('d1', 'M-a')], avecDate, options(AUJOURDHUI)).total.tous).toBe(0)
+  })
+
+  it('sans date d’archivage : calcul actuel (exclu) et mention « mandats archivés depuis : exclus » sous la balance', () => {
+    const sansDate = [affectation('M-a', 'Archivé'), affectation('M-g', 'En gestion')]
+    const balance = balanceAgee([dossier('d1', 'M-a'), dossier('d2', 'M-g')], sansDate, options('2026-10-01'))
+    expect(balance.total.tous).toBe(1)
+    expect(balance.mention).toBe("Mandats archivés depuis le 01/10/2026 : exclus (date d'archivage non enregistrée).")
+    expect(mentionArchivesExclus('2026-10-01')).toBe(balance.mention)
+    // Aucun dossier d'un mandat archivé sans date à cette date : pas de mention.
+    expect(balanceAgee([dossier('d2', 'M-g')], sansDate, options('2026-10-01')).mention).toBeUndefined()
+    expect(balanceAgee([dossier('d1', 'M-a')], sansDate, options('2026-08-01')).mention).toBeUndefined()
+  })
+
+  it('en-tête : la question de la balance âgée datée du passé est remplacée par la décision', () => {
+    const { texte } = enTeteDuModule('statut-mandat')
+    expect(texte).not.toMatch(/une balance âgée datée du passé doit-elle encore compter/)
+    expect(texte).toMatch(
+      /Décision du 20\/11\/2026 \(partie C, F33\) : une balance âgée datée du passé compte les mandats qui n'étaient pas encore archivés à cette date.*archiveLe.*« mandats archivés depuis : exclus »/,
+    )
+  })
+})
+
 describe('depuisDemandes — la demande d’un mandat Prospect ou Archivé ne relance plus et ne compte plus au plafond', () => {
   /** Devis : relance à 8 jours, maximum 3 demandes en cours, alerte au-delà de 1. */
   const ENTREPRISES = entreprisesDevis(1)
@@ -390,7 +442,6 @@ describe('en-tête du module', () => {
     expect(item('Hugo : « En gestion, en clôture »')).toMatch(/\?/)
     expect(item('Frédéric et Hugo : `Mandat.statut`')).toMatch(/\?/)
     expect(item('Hugo : quand un mandat passe-t-il')).toMatch(/\?/)
-    expect(item('Hugo : une balance âgée datée du passé')).toMatch(/\?/)
     expect(item("Hugo : faut-il refuser d'archiver")).toMatch(/\?/)
     expect(texte).toMatch(/L\. 1965 art\. 29-1, IV/)
   })
