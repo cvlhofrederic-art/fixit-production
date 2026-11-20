@@ -700,7 +700,13 @@ export const TEXTES_GESTION_QR = {
       changer: 'Changer de bureau',
       nouveauBureau: 'Nouveau bureau',
       changerAide: 'Le bureau se change, il ne se retire pas.',
+      // E4, sous le nom : ligne « Bureau : … » sous « Cabinet : … », forme de la carte d'une copropriété (copropriete.ligne,
+      // E6) ; point e-11 validé le 20/11/2026.
+      ligne: 'Bureau : {bureau}',
+      // Panneau « Changer de bureau » sans bureau à proposer (point e-12, 20/11/2026) : « autre » pour une fiche qui a un
+      // bureau, sans « autre » pour une fiche qui n'en a pas encore.
       aucunAutre: 'Aucun autre bureau ouvert dans ce cabinet : ouvrez-en un depuis la vue Cabinets.',
+      aucunOuvert: 'Aucun bureau ouvert dans ce cabinet : ouvrez-en un depuis la vue Cabinets.',
       change: 'Bureau enregistré : {bureau}.',
       reactivationBureauFerme: 'Réactivation impossible : la fiche est rattachée à un bureau fermé. Changez-la d’abord de bureau, ou rouvrez ce bureau depuis la vue Cabinets.',
     },
