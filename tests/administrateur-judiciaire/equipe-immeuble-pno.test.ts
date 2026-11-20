@@ -278,17 +278,26 @@ describe('statuts PNO (tranche 43 § 17)', () => {
 
 describe('controlesAssurancesPno', () => {
   it('échéance saisie : attestation à renouveler à cette date, même dépassée', () => {
-    const [controle] = controlesAssurancesPno([lot('L1', pno('Cabinet', '2026-03-31'), '14')])
+    const [controle] = controlesAssurancesPno([lot('L1', pno('Extérieure', '2026-03-31'), '14')])
     expect(controle).toEqual({
       lotId: 'L1',
       numero: '14',
-      statut: 'Cabinet',
+      statut: 'Extérieure',
       echeance: '2026-03-31',
       motif: 'a_renouveler',
       date: '2026-03-31',
       lectureStatutAConfirmer: false,
+      // Sans date de calcul : ni rappel (F57) ni « à obtenir depuis » (F59) ; décisions du 20/11/2026, partie C.
+      rappel: false,
+      aObtenirDepuis: null,
       message: "Lot 14 : attestation PNO à renouveler à l'échéance du 31/03/2026.",
     })
+  })
+
+  it('statut « Cabinet » : libellé propre, renouveler le contrat souscrit par le cabinet (décision du 20/11/2026, F58)', () => {
+    const [controle] = controlesAssurancesPno([lot('L1', pno('Cabinet', '2026-03-31'), '14')])
+    expect(controle).toMatchObject({ motif: 'a_renouveler', date: '2026-03-31' })
+    expect(controle.message).toBe('Lot 14 : renouveler le contrat PNO souscrit par le cabinet, échéance du 31/03/2026.')
   })
 
   it('« Cabinet » ou « Extérieure » sans échéance : échéance à obtenir, sans réserve', () => {
@@ -442,7 +451,13 @@ describe('suivi « à faire » : famille « lots » (assurance PNO)', () => {
       ['lots:L3:pno_a_obtenir', 'pno_a_obtenir', '2026-11-04', 'M1', 'L3', false],
       ['lots:L5:pno_a_obtenir', 'pno_a_obtenir', '2026-11-04', 'M2', 'L5', false],
     ])
-    expect(elements[0]).toMatchObject({ famille: 'lots', assigneId: null, libelle: "Lot 1 : attestation PNO à renouveler à l'échéance du 31/10/2026." })
+    // Échéance du 31/10 atteinte au 04/11 : rappel (F57), libellé du statut « Cabinet » (F58).
+    expect(elements[0]).toMatchObject({
+      famille: 'lots',
+      assigneId: null,
+      libelle: 'Lot 1 : rappel : renouveler le contrat PNO souscrit par le cabinet, échéance du 31/10/2026 atteinte sans nouvelle échéance saisie.',
+    })
+    expect(elements[1].libelle).toBe("Lot 2 : attestation PNO à renouveler à l'échéance du 30/11/2026.")
     expect(elements[2].libelle).toBe('Lot 3 : PNO « Sans échéance » sans échéance saisie ; attestation à obtenir (lecture du statut à confirmer).')
   })
 
@@ -450,10 +465,14 @@ describe('suivi « à faire » : famille « lots » (assurance PNO)', () => {
     expect(() => depuisAssurancesPno(items, '2026-11-31')).toThrow(/invalide/)
   })
 
-  it('selectionnerAFaire : horizon « Maintenant » sans l’échéance à venir ; mandat archivé écarté ; un mois l’ajoute', () => {
+  it('selectionnerAFaire : par défaut, relance 30 jours avant l’échéance (F57) ; mandat archivé écarté ; horizon du collaborateur prioritaire', () => {
     const elements = depuisAssurancesPno(items, '2026-11-04')
-    const maintenant = selectionnerAFaire(elements, reglageParDefaut('u1'), affectations, '2026-11-04')
-    expect(maintenant.map((e) => e.objetId)).toEqual(['L1', 'L3'])
+    // Échéance du 30/11 à moins de 30 jours : retenue dès le 04/11, sous l'horizon « Maintenant » par défaut.
+    const parDefaut = selectionnerAFaire(elements, reglageParDefaut('u1'), affectations, '2026-11-04')
+    expect(parDefaut.map((e) => e.objetId)).toEqual(['L1', 'L3', 'L2'])
+    const uneSemaine: ReglageSuivi = reglageParDefaut('u1')
+    uneSemaine.familles.lots = { actif: true, perimetre: 'portefeuille', horizon: { nombre: 1, unite: 'semaines' }, natures: null }
+    expect(selectionnerAFaire(elements, uneSemaine, affectations, '2026-11-04').map((e) => e.objetId)).toEqual(['L1', 'L3'])
     const unMois: ReglageSuivi = reglageParDefaut('u1')
     unMois.familles.lots = { actif: true, perimetre: 'portefeuille', horizon: { nombre: 1, unite: 'mois' }, natures: null }
     expect(selectionnerAFaire(elements, unMois, affectations, '2026-11-04').map((e) => e.objetId)).toEqual(['L1', 'L3', 'L2'])
@@ -483,9 +502,10 @@ describe('en-tête du module assurance-pno-lots.ts', () => {
     expect(EN_TETE).toMatch(/RÈGLE DE GESTION/)
   })
 
-  it('🔴 questions : échéance d’un contrat « Cabinet », date d’une attestation à obtenir', () => {
-    expect(EN_TETE).toMatch(/sous le statut « Cabinet », l'échéance d'un contrat souscrit par le cabinet doit-elle remonter au suivi/)
-    expect(EN_TETE).toMatch(/à quelle date une attestation « à obtenir » doit-elle remonter/)
+  it('questions tranchées le 20/11/2026 (partie C, F55 à F59) : échéance d’un contrat « Cabinet », date d’une attestation à obtenir', () => {
+    expect(EN_TETE).not.toMatch(/sous le statut « Cabinet », l'échéance d'un contrat souscrit par le cabinet doit-elle remonter au suivi/)
+    expect(EN_TETE).not.toMatch(/à quelle date une attestation « à obtenir » doit-elle remonter/)
+    for (const point of ['F55', 'F56', 'F57', 'F58', 'F59']) expect(EN_TETE).toContain(`Décision du 20/11/2026 (partie C, ${point})`)
   })
 })
 

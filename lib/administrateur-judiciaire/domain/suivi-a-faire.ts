@@ -1,6 +1,7 @@
 import type { AlerteMandataireAdHoc, CadreAlerte291A } from '@/lib/administrateur-judiciaire/domain/alerte-mandataire-ad-hoc'
 import {
   controlesAssurancesPno,
+  REGLAGES_PNO_CABINET_PAR_DEFAUT,
   type LotAssurancePno,
   type MotifControlePno,
 } from '@/lib/administrateur-judiciaire/domain/assurance-pno-lots'
@@ -138,7 +139,10 @@ import type { StatutAssemblee, StatutContrat, TypeContrat } from '@/lib/data/ref
  * AJOUTÉE par VitFix — aucun bloc PNO dans le réglage Gestéam du syndic (tranche 38 ; seul le bloc « Baux », en
  * gérance, suit des « Attestations Assurance »). Attestation PNO à renouveler à son échéance, même dépassée ; à obtenir
  * (échéance absente, illisible, ou PNO « Extérieure + sans contrat ») à la date du jour ; « Pas de PNO » ne produit
- * rien. L. 1965 art. 9-1 oblige le copropriétaire et le syndicat à s'assurer, sans charger le syndic ni l'administrateur
+ * rien. Relance 30 jours avant l'échéance, puis rappel à l'échéance (décision du 20/11/2026, partie C, F57) : l'horizon
+ * du cabinet (HORIZONS_CABINET_PAR_DEFAUT, réglable, paramètre de selectionnerAFaire) remplace « Maintenant », horizon
+ * par défaut de tout collaborateur ; un horizon choisi par le collaborateur reste prioritaire.
+ * L. 1965 art. 9-1 oblige le copropriétaire et le syndicat à s'assurer, sans charger le syndic ni l'administrateur
  * provisoire d'un contrôle (relevé du 04/11/2026) : règle de GESTION, échéances de contrats. PNO : `aConfirmer` reste
  * faux (aucun repère juridique) ; une lecture non confirmée du statut (« Sans échéance », « Extérieure + sans contrat »)
  * est dite dans le libellé. L'équipe de l'immeuble (equipe-immeuble.ts) n'entre pas dans le portefeuille : il reste
@@ -387,8 +391,24 @@ const jourDeTraitement = (date: string): string => {
 const natureCochee = (natures: readonly NatureSuivi[], nature: NatureSuivi): boolean =>
   natures.includes(nature) || (nature === 'a_resilier' && natures.includes('limite_resiliation'))
 
-const horizonDeNature = (regle: ReglageFamille, nature: NatureSuivi): Horizon =>
-  regle.horizonsParNature?.[nature] ?? (nature === 'a_resilier' ? regle.horizonsParNature?.limite_resiliation : undefined) ?? regle.horizon
+/** Horizon du cabinet, par nature (réglage du cabinet). */
+export type HorizonsCabinet = Readonly<Partial<Record<NatureSuivi, Horizon>>>
+
+/**
+ * Décision du 20/11/2026 (partie C, F57) : l'attestation PNO à renouveler remonte 30 jours avant son échéance
+ * (assurance-pno-lots.REGLAGES_PNO_CABINET_PAR_DEFAUT, valeur réglable par le cabinet). Cet horizon remplace
+ * « Maintenant », horizon par défaut de tout collaborateur (reglageParDefaut), quand le collaborateur n'a choisi d'horizon
+ * ni pour la nature ni pour sa famille ; un horizon qu'il a choisi, même « Maintenant » pour la nature, reste prioritaire.
+ */
+export const HORIZONS_CABINET_PAR_DEFAUT: HorizonsCabinet = Object.freeze({
+  pno_a_renouveler: Object.freeze({ nombre: REGLAGES_PNO_CABINET_PAR_DEFAUT.relanceJoursAvantEcheance, unite: 'jours' as const }),
+})
+
+const horizonDeNature = (regle: ReglageFamille, nature: NatureSuivi, horizonsCabinet: HorizonsCabinet): Horizon => {
+  const propre = regle.horizonsParNature?.[nature] ?? (nature === 'a_resilier' ? regle.horizonsParNature?.limite_resiliation : undefined)
+  if (propre) return propre
+  return regle.horizon.unite === 'maintenant' ? (horizonsCabinet[nature] ?? regle.horizon) : regle.horizon
+}
 
 /** Tout le cabinet, ou le portefeuille du collaborateur et ce qui lui est désigné. */
 const dansPerimetre = (
@@ -405,13 +425,15 @@ const dansPerimetre = (
  * Éléments que le réglage retient au jour donné : famille suivie, nature cochée, à traiter au plus tard à la fin de
  * l'horizon (un élément du week-end compte pour le vendredi), et dans le périmètre (tout le cabinet, ou le portefeuille du
  * collaborateur et ce qui lui est désigné). Tri par date. Un élément d'un mandat Prospect ou Archivé (point 55) n'est
- * jamais retenu, quels que soient le périmètre et la désignation.
+ * jamais retenu, quels que soient le périmètre et la désignation. `horizonsCabinet` : horizon du cabinet par nature, sous
+ * celui du collaborateur (F57 ; HORIZONS_CABINET_PAR_DEFAUT par défaut).
  */
 export function selectionnerAFaire(
   elements: ElementAFaire[],
   reglage: ReglageSuivi,
   affectations: AffectationMandat[],
   aujourdhui: string,
+  horizonsCabinet: HorizonsCabinet = HORIZONS_CABINET_PAR_DEFAUT,
 ): ElementAFaire[] {
   verifierDate(aujourdhui)
   const { horsSuivi } = bilanStatutsMandats(affectations)
@@ -423,7 +445,7 @@ export function selectionnerAFaire(
     const regle = reglage.familles[element.famille]
     if (!regle?.actif || retenus.has(element.id) || mandatHorsSuivi(element.mandatId, horsSuivi)) continue
     if (regle.natures && !natureCochee(regle.natures, element.nature)) continue
-    const limite = limiteHorizon(aujourdhui, horizonDeNature(regle, element.nature))
+    const limite = limiteHorizon(aujourdhui, horizonDeNature(regle, element.nature, horizonsCabinet))
     if (jourDeTraitement(element.date) > limite) continue
     if (dansPerimetre(element, regle, reglage.collaborateurId, mesMandats)) retenus.set(element.id, element)
   }
@@ -1156,7 +1178,9 @@ const NATURE_CONTROLE_PNO: Readonly<Record<MotifControlePno, NatureSuivi>> = {
  * échéance, même dépassée ; attestation ou échéance à obtenir à la date du jour. Chaque lot vient avec le mandat de
  * sa copropriété ; la fiche d'origine est le lot. Un lot passé deux fois donne deux fois la même clé : selectionnerAFaire
  * n'en retient qu'un. Règle de GESTION (échéance d'un contrat) : `aConfirmer` reste faux ; la lecture non confirmée
- * du statut est dite dans le libellé (controle.message).
+ * du statut est dite dans le libellé (controle.message). Contrôles faits au jour du calcul (décisions du 20/11/2026,
+ * partie C) : rappel à l'échéance atteinte (F57), libellé du statut « Cabinet » (F58), « à obtenir depuis le … » (F59) ;
+ * dates des éléments inchangées.
  */
 export function depuisAssurancesPno(
   items: readonly { mandatId: string; lot: LotAssurancePno }[],
@@ -1164,7 +1188,7 @@ export function depuisAssurancesPno(
 ): ElementAFaire[] {
   verifierDate(aujourdhui)
   return items.flatMap(({ mandatId, lot }) =>
-    controlesAssurancesPno([lot]).map((controle) => {
+    controlesAssurancesPno([lot], { aujourdhui }).map((controle) => {
       const nature = NATURE_CONTROLE_PNO[controle.motif]
       return elementSuivi('lots', nature, `${controle.lotId}:${nature}`, {
         libelle: controle.message,
