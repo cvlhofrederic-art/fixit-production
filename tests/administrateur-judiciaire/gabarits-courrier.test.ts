@@ -85,6 +85,18 @@ describe('registre des gabarits', () => {
     expect(gabaritCourrier('certificat_art20_ii_1').sansTexte).toBeNull()
   })
 
+  it('PV de carence, décision du 20/11/2026 (partie C, F21) : motif de la carence requis, pas pour une assemblée qui a voté', () => {
+    const g = gabaritCourrier('pv_carence')
+    expect(g.champsPropres).toContain('ag.motifCarence')
+    expect(champsDuContexte('assemblee').map((c) => c.cle)).toContain('ag.motifCarence')
+    expect(g.mentions).toContain(
+      "Motif : aucun copropriétaire présent, représenté ni ayant voté par correspondance, ou réunion non tenue et son motif (lieu fermé, incident…)",
+    )
+    expect(g.sansTexte).toMatch(/assemblée qui s'est tenue et a voté \(motif « syndic non désigné »\) : procès-verbal ordinaire, à notifier/)
+    expect(controlerContexteFusion('pv_carence', {}).manquants.map((c) => c.cle)).toContain('ag.motifCarence')
+    expect(verifierRegistreGabarits()).toEqual([])
+  })
+
   it('convocation avec vote par correspondance : 21 jours, mention de la voie postale (art. 64-2), remise contre émargement (art. 64-3)', () => {
     const g = gabaritCourrier('convocation_ag_vpc')
     expect(g.formeLegale).toBe('notification_coproprietaire')

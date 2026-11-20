@@ -3,8 +3,10 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   JOURS_PRESENTATION_AVANT_REUNION,
+  MOTIFS_CARENCE_DEFINIS,
   constaterCarence,
   controlerSuitesCarence,
+  modeleProcesVerbalCarence,
   suitesProposees,
   type SaisieCarence,
 } from '@/lib/administrateur-judiciaire/domain/carence-assemblee'
@@ -112,14 +114,14 @@ describe('suites proposées selon le régime', () => {
     const notification = {
       code: 'notification_proces_verbal',
       libelle:
-        "Notifier le procès-verbal aux copropriétaires opposants ou défaillants : l'assemblée s'est tenue et a voté ; leur délai de deux mois pour contester court de cette notification",
+        "Notifier le procès-verbal ordinaire de l'assemblée (pas un PV de carence) aux copropriétaires opposants ou défaillants : l'assemblée s'est tenue et a voté ; leur délai de deux mois pour contester court de cette notification",
       fondement: 'L. 1965 art. 42, al. 2 ; D. 1967 art. 18',
       aConfirmer: false,
     }
     expect(carence('sj').suites).toContainEqual(notification)
     expect(codes(carence(null).suites)).toEqual(['nouvelle_convocation', 'notification_proces_verbal'])
-    for (const motif of ['aucun_participant', 'reunion_non_tenue'] as const)
-      expect(codes(carence('sj', { motif }).suites)).not.toContain('notification_proces_verbal')
+    expect(codes(carence('sj', { motif: 'aucun_participant' }).suites)).not.toContain('notification_proces_verbal')
+    expect(codes(carence('sj', { motif: 'reunion_non_tenue', motifLibre: 'Salle fermée' }).suites)).not.toContain('notification_proces_verbal')
     // Sans motif, suitesProposees ne la propose pas : elle naît du constat.
     expect(codes(suitesProposees({ regime: 'sj', objetDesignationSyndic: true }))).not.toContain('notification_proces_verbal')
   })
@@ -193,19 +195,55 @@ describe('contrôle des suites', () => {
     expect(() => controlerSuitesCarence(carence('sj', { date: '2026-12-01' }), { dateFinMission: null }, aujourdhui)).toThrow(/après le jour du contrôle/)
   })
 
-  it('l’en-tête distingue la carence d’AG de l’ordonnance de carence du mandat et garde ses points ouverts', () => {
+  it('l’en-tête distingue la carence d’AG de l’ordonnance de carence du mandat ; plus aucun point ouvert (F21)', () => {
     const source = readFileSync(join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'carence-assemblee.ts'), 'utf8')
     expect(source).toMatch(/Légifrance le 29\/10\/2026/)
     expect(source).toMatch(/mandat-judiciaire\.ts/)
-    expect(source).toMatch(/🔴/)
+    expect(source).not.toMatch(/🔴/)
   })
 
-  it('en-tête : prorogation de l’art. 47, information du juge et PV de carence tranchés (J67, R26 à R28) ; seule la définition reste ouverte', () => {
-    const { texte } = enTeteDuModule('carence-assemblee')
-    const ouvert = texte.slice(texte.indexOf('🔴 Non établi'))
-    expect(ouvert).toMatch(/n'est définie par aucun texte/)
-    for (const tranche of ["n'est pas proposée tant que", "dépend de l'ordonnance", 'Question laissée à Hugo'])
-      expect(ouvert).not.toContain(tranche)
+  it('en-tête : prorogation de l’art. 47, information du juge et PV de carence tranchés (J67, R26 à R28), motifs tranchés (F21)', () => {
+    const { texte, item } = enTeteDuModule('carence-assemblee')
     for (const r of ['J67, R26', 'J67, R27', 'J67, R28']) expect(texte).toContain(r)
+    const f21 = item('Décision du 20/11/2026 (partie C, F21)')
+    expect(f21).toMatch(/n'est définie par aucun texte/)
+    expect(f21).toMatch(/aucun copropriétaire présent, représenté ni ayant voté par correspondance/)
+    expect(f21).toMatch(/motif libre obligatoire/)
+    expect(f21).toMatch(/procès-verbal ordinaire/)
+    expect(f21).toMatch(/L\. 1965 art\. 17, al\. 3 ; D\. 1967 art\. 46/)
+  })
+})
+
+describe('décision du 20/11/2026 (partie C, F21) — les trois motifs de carence', () => {
+  it('définitions des trois motifs ; le modèle de PV de carence ne sert pas à une assemblée qui a voté', () => {
+    expect(Object.keys(MOTIFS_CARENCE_DEFINIS)).toEqual(['aucun_participant', 'syndic_non_designe', 'reunion_non_tenue'])
+    expect(MOTIFS_CARENCE_DEFINIS.aucun_participant).toEqual({
+      libelle: 'Aucun participant',
+      definition: 'Aucun copropriétaire présent, représenté ni ayant voté par correspondance',
+      motifLibreObligatoire: false,
+      modeleProcesVerbal: 'pv_carence',
+    })
+    expect(MOTIFS_CARENCE_DEFINIS.reunion_non_tenue).toMatchObject({ libelle: 'Réunion non tenue', motifLibreObligatoire: true, modeleProcesVerbal: 'pv_carence' })
+    expect(MOTIFS_CARENCE_DEFINIS.reunion_non_tenue.definition).toMatch(/motif libre obligatoire \(lieu fermé, incident…\)/)
+    expect(MOTIFS_CARENCE_DEFINIS.syndic_non_designe).toMatchObject({ libelle: 'Syndic non désigné', motifLibreObligatoire: false, modeleProcesVerbal: 'proces_verbal_ordinaire' })
+    expect(MOTIFS_CARENCE_DEFINIS.syndic_non_designe.definition).toMatch(/s'est tenue et a voté : ce n'est pas une carence au sens du modèle/)
+  })
+
+  it('réunion non tenue : motif libre obligatoire, espaces superflus retirés', () => {
+    expect(() => carence('sj', { motif: 'reunion_non_tenue' })).toThrow(/motif libre obligatoire/)
+    expect(() => carence('sj', { motif: 'reunion_non_tenue', motifLibre: '   ' })).toThrow(/motif libre obligatoire/)
+    expect(() => carence('sj', { motif: 'reunion_non_tenue', motifLibre: null })).toThrow(/lieu fermé, incident/)
+    const tenue = carence('sj', { motif: 'reunion_non_tenue', motifLibre: '  Salle  municipale fermée ' })
+    expect(tenue).toMatchObject({ motif: 'reunion_non_tenue', motifLibre: 'Salle municipale fermée', modeleProcesVerbal: 'pv_carence' })
+  })
+
+  it('les deux autres motifs : motif libre facultatif ; « syndic non désigné » renvoie au procès-verbal ordinaire et à la requête au juge', () => {
+    expect(carence('sj', { motif: 'aucun_participant' })).toMatchObject({ motifLibre: null, modeleProcesVerbal: 'pv_carence' })
+    expect(carence('sj', { motif: 'aucun_participant', motifLibre: ' Personne ' }).motifLibre).toBe('Personne')
+    const nonDesigne = carence('ap47')
+    expect(nonDesigne).toMatchObject({ motifLibre: null, modeleProcesVerbal: 'proces_verbal_ordinaire' })
+    expect(codes(nonDesigne.suites)).toEqual(['nouvelle_convocation', 'notification_proces_verbal', 'requete_designation_syndic', 'prorogation_mission', 'information_juge'])
+    expect(modeleProcesVerbalCarence('syndic_non_designe')).toBe('proces_verbal_ordinaire')
+    expect(modeleProcesVerbalCarence('aucun_participant')).toBe('pv_carence')
   })
 })
