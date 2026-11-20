@@ -110,8 +110,8 @@ const PERSONNE_CITEE = new RegExp(String.raw`(?<![\p{L}\p{N}])(${CIVILITE_ECRITE
 const LIAISON_NOMS = String.raw`(?:[^\S\r\n]*,[^\S\r\n]*|${ESPACE_LIGNE}et${ESPACE_LIGNE})`
 const LIAISON = new RegExp(`(${LIAISON_NOMS})`, 'u')
 /** Nom d'une liste : nom cité, ou jeton d'un nom des listes déjà remplacé par les étapes 1 et 2. */
-const ELEMENT_LISTE = String.raw`(?:${NOM_CITE}|\d+)`
-const JETON_SEUL = /^\d+$/u
+const ELEMENT_LISTE = String.raw`(?:${NOM_CITE}|\uE000\d+\uE001)`
+const JETON_SEUL = /^\uE000\d+\uE001$/u
 /** Étape 3, avant la précédente : civilité au pluriel suivie de plusieurs noms, remplacés un à un. */
 const PERSONNES_CITEES = new RegExp(
   String.raw`(?<![\p{L}\p{N}])(${CIVILITE_PLURIEL})(${ESPACE_LIGNE})(${ELEMENT_LISTE}(?:${LIAISON_NOMS}${ELEMENT_LISTE})+)`,
