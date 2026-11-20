@@ -162,6 +162,23 @@ import {
  * par l'assemblée reste signalé, avec le motif de l'art. 47 (MOTIF_VOTE_SOUS_LE_JUGE) et non celui de l'art. 29-1. Le
  * cadre « non établi » ne sert plus qu'au régime inconnu (CADRE_REGIME_INCONNU).
  *
+ * Décisions du 20/11/2026 (partie C du relevé des questions ouvertes du code, recommandations acceptées par le
+ * responsable du projet) :
+ * - Décision du 20/11/2026 (partie C, F62) : une opération fournie deux fois au calcul de plusieurs opérations
+ *   (droitsProportionnelsTravauxParOperation, même numéro) reste refusée, avec un message plus clair : « additionnez les
+ *   montants de l'opération avant le calcul » (CONSIGNE_OPERATION_EN_DOUBLE). Le barème s'applique au « montant total
+ *   hors taxes des travaux » de l'opération (arrêté du 8 octobre 2015, art. 11 ; J39) : un seul calcul, sur son total,
+ *   après l'addition de ses dépenses (assietteDroitProportionnelTravaux) ; additionner en silence cacherait un doublon de
+ *   saisie, deux calculs feraient repartir le barème de sa première tranche. Des travaux supplémentaires qui complètent
+ *   le même objet restent la même opération, par prudence : le droit reste plus bas pour le syndicat ;
+ * - Décision du 20/11/2026 (partie C, F95), même question que G28 (partie B) : par défaut, la facture se paie
+ *   directement depuis le compte du fonds : une seule sortie, traçable, sous contrôle d'affectation. Le règlement payé
+ *   depuis le compte du fonds est alors l'emploi : controlerReglementDepuisLeFondsOperation le contrôle au paiement
+ *   (controlerEmploiFondsOperation, au montant du règlement), et l'emploi du suivi se tire de ce règlement, sous son
+ *   identifiant (emploiDepuisOperation), au lieu d'une dépense saisie à part. Le virement du compte du fonds vers le
+ *   compte courant reste admis, pour le seul montant affecté et avec la référence de la décision, marqué « emploi », la
+ *   facture payée ensuite s'y rattachant (virement-interne.ts).
+ *
  * Règles :
  * - budget de l'opération en quatre postes (Travaux, Dommages-ouvrage, Honoraires cabinet, Honoraires presta.) : montant
  *   engagé TTC et suppléments, réglé et reste à régler par poste ; total engagé ; budget adopté (celui de la décision)
@@ -220,8 +237,8 @@ import {
  *   au réglé de l'opération, pas à celui d'un poste ;
  * - un emploi du fonds compte dans la trésorerie de l'opération même signalé : la somme a quitté le fonds ; la
  *   ventilation et le contrôle restent ceux du syndicat de l'opération (emplois fournis : ceux de son fonds, D1) ;
- * - un règlement payé depuis un compte du fonds n'est pas compté comme un emploi : seul l'emploi saisi
- *   (emploiDepuisOperation) entre à la trésorerie, pour ne pas compter deux fois la même sortie ;
+ * - un règlement payé depuis un compte du fonds n'est pas compté comme un emploi : seul l'emploi (emploiDepuisOperation,
+ *   tiré de ce règlement par défaut : F95) entre à la trésorerie, pour ne pas compter deux fois la même sortie ;
  * - « Ne pas utiliser les fonds travaux » est une règle de gestion VitFix (L. 1965 art. 14-2-1 lu en entier : rien sur ce
  *   cas) : ses refus et signalements ne citent aucun fondement ; le refus d'un emploi et l'emploi signalé sont à
  *   confirmer (ils suivent la lecture large de la question 🔴 sur le bouton) ; le règlement depuis le compte du fonds,
@@ -247,10 +264,7 @@ import {
  *   la part du fonds de travaux de l'opération, et un financement « fonds de prévoyance » distinct, jamais fusionnés) ;
  * - « Le bouton "Ne pas utiliser les fonds travaux" exclut-il tout emploi du fonds pour l'opération (part, emploi,
  *   règlement depuis le compte du fonds), ou seulement le règlement de ses factures depuis ce compte ? » (VitFix : tout
- *   emploi exclu) ; « Quand l'opération a une part du fonds, ses factures se règlent-elles directement depuis le compte
- *   du fonds (le règlement vaut emploi), ou après un virement du compte du fonds vers le compte courant (l'emploi est le
- *   virement) ? » (VitFix : l'emploi se saisit à part ; un règlement depuis le compte du fonds n'est contrôlé que sans
- *   part ou case cochée) ;
+ *   emploi exclu) ;
  * - « Que signifie la ligne "Règlements / budget" : le total des règlements, ou leur rapport au budget ? » (VitFix : le
  *   réglé) ; « Le "Solde de trésorerie" de Gestéam compte-t-il l'emploi du fonds de travaux et les financements reçus ? »
  *   (VitFix : oui) ;
@@ -258,10 +272,6 @@ import {
  *   opération) ;
  * - « La nature des dépenses (NATURES_DEPENSE_TRAVAUX) sera-t-elle portée par les lignes de marché ou les factures de
  *   l'opération (Frédéric : table Travaux) ? » (VitFix : fournie par l'appelant) ;
- * - « (Hugo) Une même opération fournie deux fois au calcul de plusieurs opérations
- *   (droitsProportionnelsTravauxParOperation, même numéro) est-elle refusée, ou ses montants s'additionnent-ils avant un
- *   seul calcul par tranches ? » (VitFix : refusée, choix de VitFix à confirmer : J39 ne le dit pas ; deux calculs pour
- *   une même opération feraient repartir le barème de sa première tranche).
  * Ajouts hors de ce module : travaux-operations.ts (ajout du point 31) — champ facultatif nePasUtiliserFondsTravaux de
  * SaisieOperationTravaux, refus d'une part du fonds quand il est coché (verifierPartFondsSaisie), export
  * affectationFondsDeLOperation, extrait de controlerPartFonds et d'emploisFondsTravauxDesTranches (comportement
@@ -802,7 +812,8 @@ function refusCleSansPart(operation: OperationTravaux, { cleId, partCle }: Conte
 
 /**
  * Refus qui ne dépendent pas de la réponse à la question ouverte sur le bouton « Ne pas utiliser les fonds travaux »
- * (🔴 en-tête), dans l'ordre : opération sans décision (Projet ou Rejeté : aucune dépense décidée à financer), part nulle
+ * (🔴 en-tête), dans l'ordre : opération sans décision (projet, rejeté ou non : aucune dépense décidée à financer ; une
+ * opération rejetée après son adoption garde sa décision, F67), part nulle
  * (aucune décision n'affecte le fonds à ses dépenses, al. 7, refus certain ; usage judiciaire : part nulle, art. 29-14,
  * 2°, à confirmer). La case exige une part nulle : cochée, elle est rappelée au motif sans masquer ces refus ; null si
  * aucun.
@@ -889,6 +900,23 @@ export function controlerEmploiFondsOperation(operation: OperationTravaux, entre
     }
   const { autorise, cause, motif } = controlerAffectationFondsTravaux({ ...affectation, montantCentimes: contexte.montantCentimes })
   return { autorise, cause, motif, fondement: fondementDeLaPart(operation), aConfirmer: false, ...restes }
+}
+
+/**
+ * Paiement direct d'une facture de l'opération depuis le compte du fonds, voie par défaut (décision du 20/11/2026,
+ * partie C, F95) : le règlement est l'emploi du fonds, contrôlé au paiement comme tout emploi (controlerEmploiFondsOperation,
+ * au montant du règlement, clé et déjà employé fournis par l'appelant). Refus : règlement d'une autre opération ou d'un
+ * autre syndicat (D1). Ce que la banque paie depuis le compte du fonds n'est pas lu ici : l'appelant n'appelle ce contrôle
+ * que pour un règlement payé depuis un compte du fonds.
+ */
+export function controlerReglementDepuisLeFondsOperation(
+  operation: OperationTravaux,
+  reglement: Pick<ReglementFournisseur, 'id' | 'coproprieteId' | 'travauxId' | 'montantCentimes'>,
+  entree: Omit<EmploiFondsOperationAControler, 'montantCentimes'> = {},
+): ControleEmploiFondsOperation {
+  if (reglement.coproprieteId !== operation.coproprieteId || reglement.travauxId !== operation.numero)
+    throw new Error(`Règlement ${reglement.id} : ce n'est pas un règlement de l'opération ${operation.numero} de son syndicat (D1).`)
+  return controlerEmploiFondsOperation(operation, { ...entree, montantCentimes: reglement.montantCentimes })
 }
 
 /**
@@ -1541,11 +1569,15 @@ export interface DroitsProportionnelsDesOperations {
   aConfirmer: true
 }
 
+/** Consigne du refus d'une opération fournie deux fois (décision du 20/11/2026, partie C, F62). */
+export const CONSIGNE_OPERATION_EN_DOUBLE = "additionnez les montants de l'opération avant le calcul"
+
 /**
  * Droit proportionnel de plusieurs opérations (décision J39) : le barème s'applique à chacune
  * (droitProportionnelTravauxAdministrateurProvisoire), le total est la somme de leurs droits. Refus : numéro vide, et
- * les refus du calcul d'une opération. Opération fournie deux fois : refusée, choix de VitFix à confirmer (🔴 en-tête),
- * que J39 ne dit pas : deux calculs pour une même opération feraient repartir le barème de sa première tranche.
+ * les refus du calcul d'une opération. Opération fournie deux fois : refusée (décision du 20/11/2026, partie C, F62) ;
+ * l'appelant additionne d'abord ses dépenses (assietteDroitProportionnelTravaux), puis fait un seul calcul : deux calculs
+ * pour une même opération feraient repartir le barème de sa première tranche.
  */
 export function droitsProportionnelsTravauxParOperation(operations: readonly MontantTravauxOperation[]): DroitsProportionnelsDesOperations {
   const numeros = new Set<string>()
@@ -1554,7 +1586,7 @@ export function droitsProportionnelsTravauxParOperation(operations: readonly Mon
     if (retenu === '') throw new Error("Numéro d'opération attendu : le droit proportionnel se calcule opération par opération (décision J39).")
     if (numeros.has(retenu))
       throw new Error(
-        `Opération ${retenu} fournie deux fois : refusée (choix de VitFix, à confirmer) ; deux calculs pour une même opération feraient repartir le barème de sa première tranche.`,
+        `Opération ${retenu} fournie deux fois : refusée ; ${CONSIGNE_OPERATION_EN_DOUBLE} (assietteDroitProportionnelTravaux), deux calculs pour une même opération feraient repartir le barème de sa première tranche ; des travaux supplémentaires qui complètent le même objet restent la même opération, par prudence : le droit reste plus bas pour le syndicat (décision du 20/11/2026, partie C, F62).`,
       )
     numeros.add(retenu)
     return { numero: retenu, montantTravauxHtCentimes, droit: droitProportionnelTravauxAdministrateurProvisoire(montantTravauxHtCentimes) }

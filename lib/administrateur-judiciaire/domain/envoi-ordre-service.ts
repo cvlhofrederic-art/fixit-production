@@ -39,6 +39,7 @@ import {
   type BudgetTravauxDeLOs,
   type CodeDepassementBudgetOs,
 } from '@/lib/administrateur-judiciaire/domain/travaux-budget'
+import { refusAppelOuOrdreDeServiceOperation } from '@/lib/administrateur-judiciaire/domain/travaux-operations'
 import {
   CODES_PIECES_VIGILANCE,
   SEUIL_VIGILANCE_HT_CENTIMES,
@@ -545,6 +546,11 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   syndical) n'est en vigueur à la date de la décision du conseil (J67, R69) ;
  * - majorité de la résolution exécutée : « art25 » aussi pour une décision de l'art. 25 adoptée au second vote de l'art.
  *   25-1.
+ *
+ * Décision du 20/11/2026 (partie C, F67), recommandation acceptée par le responsable du projet : une opération de travaux
+ * « Rejeté » (résolution annulée en justice ou rapportée par une nouvelle assemblée, ou projet rejeté) n'admet plus aucun
+ * ordre de service : l'OS dont l'opération est fournie (budgetTravaux) est bloqué (operation_travaux_rejetee ;
+ * refusAppelOuOrdreDeServiceOperation, travaux-operations.ts ; L. 1965 art. 42, al. 2).
  *
  * 🔴 Non établi — questions :
  * - Hugo, avec un juriste (J67, R72 appliquée ; marque gardée, comme R72 le demande) : aucun texte ni arrêt lu ne dit
@@ -1781,6 +1787,7 @@ export type CodeAnomalieEnvoiOs =
   | 'aucune_contestation_ouverte'
   | 'delai_contestation_a_confirmer'
   | 'execution_suspendue_art42'
+  | 'operation_travaux_rejetee'
   | 'devis_caduc'
   | 'devis_trop_ancien'
   | 'devis_revalorisation_a_demander'
@@ -1922,8 +1929,8 @@ export interface ContexteEnvoiOs extends OptionsVisa {
   /**
    * Opération de travaux de l'OS, son budget, les décisions qui couvrent un supplément, la marge du cabinet et la part de
    * l'OS déjà portée aux postes du budget (marché ou devis retenu, pas compté deux fois) : le total engagé, OS compris,
-   * est contrôlé face au budget adopté (J67, R59 ; controlerDepassementBudgetAvantOs) ; absent ou null : OS hors
-   * opération de travaux, non contrôlé.
+   * est contrôlé face au budget adopté (J67, R59 ; controlerDepassementBudgetAvantOs) ; opération « Rejeté » : OS bloqué
+   * (décision du 20/11/2026, partie C, F67) ; absent ou null : OS hors opération de travaux, non contrôlé.
    */
   budgetTravaux?: BudgetTravauxDeLOs | null
   /**
@@ -3136,11 +3143,15 @@ function anomaliesControleDeclaratif(d: Demande, s: SortieOrdreService, contexte
 /**
  * Budget adopté de l'opération de travaux (intervention ; J67, R59) : le total engagé, OS compris, au-delà du budget
  * adopté bloque l'envoi sans décision nouvelle ; l'urgence retenue, constatée au plus tard le jour de l'envoi (J16, J46),
- * le laisse partir avec une alerte.
+ * le laisse partir avec une alerte. Opération « Rejeté » : plus aucun ordre de service, bloquant (décision du 20/11/2026,
+ * partie C, F67 : refusAppelOuOrdreDeServiceOperation).
  */
 function anomaliesBudgetTravaux(d: Demande, s: SortieOrdreService, contexte: ContexteEnvoiOs): AnomalieEnvoiOs[] {
   const budgetTravaux = contexte.budgetTravaux ?? null
-  if (d.type !== 'intervention' || budgetTravaux === null) return []
+  if (budgetTravaux === null) return []
+  const rejet = refusAppelOuOrdreDeServiceOperation(budgetTravaux.operation)
+  if (rejet) return [anomalie('operation_travaux_rejetee', 'bloquant', rejet.motif, rejet.fondement)]
+  if (d.type !== 'intervention') return []
   const { operation, budget, ...couverture } = budgetTravaux
   const urgence = urgenceRetenue(s, contexte) && !constatApresEnvoi(s.constatUrgence, contexte.date)
   return controlerDepassementBudgetAvantOs(operation, budget, { ...couverture, montantOsTtcCentimes: prevuDemande(d), date: contexte.date, urgenceConstatee: urgence }).map(
