@@ -86,8 +86,10 @@ export async function GET(req: NextRequest) {
 
     const { data, error } = await query
     if (error) throw error
+    // « Mes annonces » (user_id) est propre à un compte, annonces en pause ou vendues comprises : aucun cache ne la
+    // garde. La liste publique garde son cache partagé.
     return NextResponse.json({ listings: data ?? [] }, {
-      headers: { 'Cache-Control': 's-maxage=300, stale-while-revalidate=600' },
+      headers: { 'Cache-Control': user_id ? 'private, no-store' : 's-maxage=300, stale-while-revalidate=600' },
     })
   } catch (e) {
     console.error('[MPL GET]', e)

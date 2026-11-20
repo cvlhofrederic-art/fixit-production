@@ -370,11 +370,19 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
     computeAlerts()
   }, [computeAlerts])
 
+  // Candidater, les messages et les évaluations passent par des routes qui exigent le jeton de la session
+  // (getAuthUser ne lit que l'en-tête Authorization) : la société BTP l'envoie. Côté artisan, l'appel d'origine est
+  // conservé (règle artisan / BTP) ; le même défaut y reste, signalé.
+  const appelDuCompte = useCallback(
+    (url: string, options?: RequestInit) => (isSociete ? fetchAuthentifie(url, options) : fetch(url, options)),
+    [isSociete],
+  )
+
   // Load messages for a candidature
   const loadMessages = useCallback(async (marcheId: string, candidatureId: string) => {
     setMsgLoading(true)
     try {
-      const res = await fetch(`/api/marches/${marcheId}/messages?candidature_id=${candidatureId}&artisan_id=${artisan?.id}`)
+      const res = await appelDuCompte(`/api/marches/${marcheId}/messages?candidature_id=${candidatureId}&artisan_id=${artisan?.id}`)
       if (res.ok) {
         const data = await res.json()
         setMessages(data.messages || [])
@@ -385,14 +393,14 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
     } finally {
       setMsgLoading(false)
     }
-  }, [artisan?.id])
+  }, [artisan?.id, appelDuCompte])
 
   // Send a message
   const sendMessage = async (marcheId: string, candidatureId: string) => {
     if (!msgInput.trim() || msgSending) return
     setMsgSending(true)
     try {
-      const res = await fetch(`/api/marches/${marcheId}/messages`, {
+      const res = await appelDuCompte(`/api/marches/${marcheId}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -416,7 +424,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
 
   // Submit evaluation (delegated to WonContractsTabView)
   const submitEvaluation = async (marcheId: string, candidatureId: string, rating: number, comment: string) => {
-    const res = await fetch(`/api/marches/${marcheId}/evaluation`, {
+    const res = await appelDuCompte(`/api/marches/${marcheId}/evaluation`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -432,17 +440,24 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
   // Load evaluation received from publisher
   const loadReceivedEvaluation = useCallback(async (marcheId: string) => {
     try {
-      const res = await fetch(`/api/marches/${marcheId}/evaluation?artisan_id=${artisan?.id}&type=from_publisher`)
+      const res = await appelDuCompte(`/api/marches/${marcheId}/evaluation?artisan_id=${artisan?.id}&type=from_publisher`)
       if (res.ok) {
         const data = await res.json()
-        if (data.evaluation) {
+        // Société BTP : la route rend la liste des évaluations des candidatures du compte (evaluations) ; celle du
+        // donneur d'ordre y est prise, et son commentaire (commentaire) passé sous le nom que lit la vue (comment).
+        const recue = isSociete
+          ? (data.evaluations as Array<Record<string, unknown>> | undefined)?.find(e => e.evaluator_type === 'publisher')
+          : null
+        if (recue) {
+          setReceivedEval(prev => ({ ...prev, [marcheId]: { ...recue, comment: recue.commentaire } }))
+        } else if (!isSociete && data.evaluation) {
           setReceivedEval(prev => ({ ...prev, [marcheId]: data.evaluation }))
         }
       }
     } catch {
       // silent
     }
-  }, [artisan?.id])
+  }, [artisan?.id, appelDuCompte, isSociete])
 
   // Save marches preferences
   const saveMarchesPrefs = async () => {
@@ -526,7 +541,7 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
     setBidSuccess(false)
 
     try {
-      const res = await fetch(`/api/marches/${selectedMarche.id}/candidature`, {
+      const res = await appelDuCompte(`/api/marches/${selectedMarche.id}/candidature`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

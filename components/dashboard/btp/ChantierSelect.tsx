@@ -11,16 +11,18 @@ interface Chantier {
 
 interface ChantierSelectProps {
   userId: string
+  /** Identifiant du compte : clé de cache des chantiers, la même que l'écran Chantiers (constat donnees-btp-15). */
+  authUserId?: string
   orgRole?: string
   value: string
   onChange: (chantierId: string, titre: string, client: string) => void
   className?: string
 }
 
-export function ChantierSelect({ userId, orgRole, value, onChange, className }: ChantierSelectProps) {
+export function ChantierSelect({ userId, authUserId, orgRole, value, onChange, className }: ChantierSelectProps) {
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
   const isPt = useLocale() === 'pt'
-  const { items: chantiers } = useBTPData<Chantier>({ table: 'chantiers', artisanId: userId, userId })
+  const { items: chantiers } = useBTPData<Chantier>({ table: 'chantiers', artisanId: userId, userId: authUserId || userId })
 
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selected = chantiers.find(c => c.id === e.target.value)

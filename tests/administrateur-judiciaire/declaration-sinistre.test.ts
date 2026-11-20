@@ -789,3 +789,30 @@ describe('J67 — en-tête de declaration-sinistre.ts : questions des R50 à R55
     expect(decision).toMatch(/enregistrement à brancher/)
   })
 })
+
+describe('contrôle du délai de déclaration : aucun repère depuis une année improbable (faute de frappe)', () => {
+  const aujourdhui = '2026-11-20'
+
+  it('survenance en 9998 : « sans repère », au lieu de lever « Date ISO invalide » (repère en l’an 10000)', () => {
+    const resultat = controlerDelaiDeclaration(sinistre({ dateSurvenance: '9998-03-01' }), [], { aujourdhui })
+    expect(resultat).toMatchObject({ etat: 'sans_repere', declarationAuPlusTard: null, delai: null, retardJours: 0, aConfirmer: true })
+    expect(resultat.message).toBe('Survenance datée du 01/03/9998 : année improbable (faute de frappe ?). Pas de repère : corriger la date.')
+  })
+
+  it('connaissance en 9999 : « sans repère », la date fautive est citée', () => {
+    const resultat = controlerDelaiDeclaration(sinistre({ dateConnaissance: '9999-12-30' }), [], { aujourdhui })
+    expect(resultat).toMatchObject({ etat: 'sans_repere', declarationAuPlusTard: null })
+    expect(resultat.message).toBe('Connaissance datée du 30/12/9999 : année improbable (faute de frappe ?). Pas de repère : corriger la date.')
+  })
+
+  it('catastrophe naturelle, arrêté publié en 9999 : « sans repère », au lieu de lever (publication + 30 jours en l’an 10000)', () => {
+    const resultat = controlerDelaiDeclaration(sinistre({ type: 'Catastrophes naturelles' }), [], {
+      aujourdhui,
+      datePublicationArrete: '9999-12-15',
+    })
+    expect(resultat).toMatchObject({ etat: 'sans_repere', declarationAuPlusTard: null, declarationAuPlusTardReportee: null, delai: null })
+    expect(resultat.message).toBe(
+      "Publication de l'arrêté datée du 15/12/9999 : année improbable (faute de frappe ?). Pas de repère : corriger la date.",
+    )
+  })
+})

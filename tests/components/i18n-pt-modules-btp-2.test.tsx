@@ -26,7 +26,10 @@ const etat = vi.hoisted(() => ({
   routeur: (async () => new Response('{}')) as (url: string, init?: RequestInit) => Promise<Response>,
 }))
 
-vi.mock('@/lib/hooks/use-btp-data', () => ({
+vi.mock('@/lib/hooks/use-btp-data', async (importOriginal) => ({
+  // Les aides d'affichage du module (refus, plafonds atteints, chargement impossible), dont se servent la Compta BTP
+  // et la Rentabilité, restent les vraies ; seuls les hooks sont simulés.
+  ...(await importOriginal<typeof import('@/lib/hooks/use-btp-data')>()),
   // Même tableau d'un rendu à l'autre, comme l'état React du vrai hook.
   useBTPData: ({ table }: { table: string }) => ({
     items: etat.tables[table] ?? (etat.tables[table] = []),

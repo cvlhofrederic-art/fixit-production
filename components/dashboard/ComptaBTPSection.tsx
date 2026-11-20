@@ -4,7 +4,8 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Loader, Brain, BarChart3, User, HardHat, Building2, Coins, Lightbulb, CircleAlert, AlertTriangle, Landmark, PlusCircle, Calendar, SlidersHorizontal, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useLocale } from '@/lib/i18n/context'
-import { useBTPSettings, type BTPSettings, type FraiFixe } from '@/lib/hooks/use-btp-data'
+import { toast } from 'sonner'
+import { signalerChargementImpossible, signalerEcritureRefusee, signalerPlafondsAtteints, useBTPSettings, type BTPSettings, type FraiFixe } from '@/lib/hooks/use-btp-data'
 import { formatPrice } from '@/lib/utils'
 import { calculateBossCost, calculateEmployeeCost } from '@/lib/payroll/engine'
 import { getCompanyTypesByCountry, resolveCompanyType } from '@/lib/config/companyTypes'
@@ -47,6 +48,9 @@ const TVA_LABELS: Record<string, { fr: string; pt: string }> = {
   franchise: { fr: 'Franchise de TVA', pt: 'Franquia de IVA (França)' },
   mini_reel: { fr: 'Mini-réel', pt: 'Mini-real (França)' },
 }
+
+const ECHEC_FRAIS_FIXE = 'Le frais fixe n\'a pas été enregistré. Réessayez dans un instant.'
+const SUPPRESSION_FRAIS_FIXE_IMPOSSIBLE = 'Le frais fixe n\'a pas été supprimé. Réessayez dans un instant.'
 
 // Valeurs enregistrées affichées brutes en français, traduites à l'affichage en portugais.
 const TYPE_COMPTE_PT: Record<string, string> = {
@@ -101,16 +105,23 @@ export function ComptaBTPSection({ artisan, orgRole }: { artisan: import('@/lib/
         if (rentaRes.ok) {
           const j = await rentaRes.json()
           setData(j.rentabilite || [])
+          signalerPlafondsAtteints(j) // au-delà de 100 chantiers, la rentabilité affichée est incomplète : on le dit
         }
         if (membresRes.ok) {
           const j = await membresRes.json()
           setMembres(j.membres || [])
+          signalerPlafondsAtteints(j)
         }
         if (chargesRes.ok) {
           const j = await chargesRes.json()
           setChargesFixes(j.charges_fixes || [])
         }
-      } catch { /* silent */ }
+        // Une liste non chargée s'afficherait vide comme si elle l'était : on le dit.
+        if (!rentaRes.ok || !membresRes.ok || !chargesRes.ok) signalerChargementImpossible()
+      } catch (err) {
+        console.warn('[btp] compta BTP non chargée :', err)
+        signalerChargementImpossible()
+      }
       setLoading(false)
     }
     load()
@@ -261,23 +272,36 @@ export function ComptaBTPSection({ artisan, orgRole }: { artisan: import('@/lib/
       if (res.ok) {
         const j = await res.json()
         setChargesFixes(j.charges_fixes || [])
+      } else {
+        signalerChargementImpossible()
       }
-    } catch { /* silent */ }
+    } catch (err) {
+      console.warn('[btp] frais fixes non rechargés :', err)
+      signalerChargementImpossible()
+    }
   }, [])
 
-  const addChargeFix = async (label: string, montant: number, frequence: string, categorie: string) => {
-    if (!label || !montant) return
+  /** Ajoute un frais fixe : true s'il est enregistré. Sinon (refus du serveur, coupure réseau) le formulaire garde la saisie. */
+  const addChargeFix = async (label: string, montant: number, frequence: string, categorie: string): Promise<boolean> => {
+    if (!label || !montant) return false
     try {
       const { data: sess } = await supabase.auth.getSession()
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
       if (sess?.session?.access_token) headers.Authorization = `Bearer ${sess.session.access_token}`
-      await fetch('/api/btp', {
+      const res = await fetch('/api/btp', {
         method: 'POST',
         headers,
         body: JSON.stringify({ table: 'charges_fixes', action: 'insert', data: { label, montant, frequence, categorie } }),
       })
+      // Frais refusé par le serveur (montant négatif…) : la raison s'affiche au lieu d'un échec silencieux.
+      if (!res.ok) await signalerEcritureRefusee(res, ECHEC_FRAIS_FIXE, 'btp-ecriture-charges_fixes')
       await fetchChargesFixes()
-    } catch { /* silent */ }
+      return res.ok
+    } catch (err) {
+      console.error('[btp] frais fixe non enregistré :', err)
+      toast.error(ECHEC_FRAIS_FIXE, { id: 'btp-ecriture-charges_fixes' })
+      return false
+    }
   }
 
   const removeChargeFix = async (id: string) => {
@@ -285,13 +309,21 @@ export function ComptaBTPSection({ artisan, orgRole }: { artisan: import('@/lib/
       const { data: sess } = await supabase.auth.getSession()
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
       if (sess?.session?.access_token) headers.Authorization = `Bearer ${sess.session.access_token}`
-      await fetch('/api/btp', {
+      const res = await fetch('/api/btp', {
         method: 'POST',
         headers,
         body: JSON.stringify({ table: 'charges_fixes', action: 'delete', id }),
       })
+      // Suppression refusée : le frais reste affiché (il est toujours en base) et la raison s'affiche.
+      if (!res.ok) {
+        await signalerEcritureRefusee(res, SUPPRESSION_FRAIS_FIXE_IMPOSSIBLE, 'btp-ecriture-charges_fixes')
+        return
+      }
       setChargesFixes(prev => prev.filter(c => c.id !== id))
-    } catch { /* silent */ }
+    } catch (err) {
+      console.error('[btp] frais fixe non supprimé :', err)
+      toast.error(SUPPRESSION_FRAIS_FIXE_IMPOSSIBLE, { id: 'btp-ecriture-charges_fixes' })
+    }
   }
 
   if (loading || loadingS) return (
@@ -584,7 +616,8 @@ export function ComptaBTPSection({ artisan, orgRole }: { artisan: import('@/lib/
             </div>
             <button className={isV5 ? "v5-btn v5-btn-p" : "v22-btn v22-btn-primary"}
               onClick={async () => {
-                await addChargeFix(newChargeLabel, newChargeMontant, newChargeFrequence, newChargeCategorie)
+                // Frais non enregistré : la saisie reste, pour être corrigée ou renvoyée.
+                if (!(await addChargeFix(newChargeLabel, newChargeMontant, newChargeFrequence, newChargeCategorie))) return
                 setNewChargeLabel('')
                 setNewChargeMontant(0)
                 setNewChargeFrequence('mensuel')

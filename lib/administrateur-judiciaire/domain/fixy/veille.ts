@@ -3,7 +3,12 @@ import { calculerEtatEcheance } from '@/lib/administrateur-judiciaire/domain/del
 import type { Fiche360Copropriete } from '@/lib/administrateur-judiciaire/domain/fiche-360'
 import type { ActionFixy, AgentFixy } from '@/lib/administrateur-judiciaire/domain/fixy/agents'
 import { formatEurosCourrielFixy } from '@/lib/administrateur-judiciaire/domain/format'
-import { analyserRecouvrement } from '@/lib/administrateur-judiciaire/domain/recouvrement'
+import {
+  analyserRecouvrement,
+  evenementMiseEnDemeure,
+  type CourrierMiseEnDemeure,
+  type VoieDebiteur,
+} from '@/lib/administrateur-judiciaire/domain/recouvrement'
 import { estMandatSuiviAvecOrdonnance } from '@/lib/administrateur-judiciaire/domain/statut-mandat'
 
 /**
@@ -29,6 +34,12 @@ export interface RappelVeille {
 export interface DossierImpayeFixy {
   coproprietaireId: string
   statut: string
+  /**
+   * Courrier de la mise en demeure, d'où partent les trente jours de l'art. 19-2 (J3, J50), et voie du débiteur (J52,
+   * J53) ; absents tant que l'impayé ne les porte pas (rattachement : Frédéric).
+   */
+  miseEnDemeure?: CourrierMiseEnDemeure | null
+  voieDebiteur?: VoieDebiteur | null
 }
 
 /** Pièce de reprise enregistrée pour une copropriété. */
@@ -140,19 +151,17 @@ export function calculerVeilleFixy(entree: EntreeVeilleFixy): RappelVeille[] {
         })
         continue
       }
-      const analyse = analyserRecouvrement(dossier.statut, entree.reference)
-      // exigibiliteLe n'existe que si la date de mise en demeure (depuis) est lisible.
-      if (
-        analyse.etape === 'mise_en_demeure' &&
-        analyse.depuis &&
-        analyse.exigibiliteLe &&
-        analyse.exigibiliteLe <= entree.reference
-      )
+      const analyse = analyserRecouvrement(dossier.statut, entree.reference, null, dossier.miseEnDemeure, dossier.voieDebiteur)
+      // L'exigibilité n'existe que si le courrier de mise en demeure donne sa première présentation ou l'avis électronique
+      // (J3, J50 ; report : J67, R41), jamais depuis la date de l'étape, ni dans le texte du rappel : tant que l'écran ne
+      // remplit pas dossier.miseEnDemeure (Frédéric), ce rappel ne part pas.
+      const exigibilite = analyse.exigibilite
+      if (analyse.etape === 'mise_en_demeure' && exigibilite?.etat === 'calculee' && exigibilite.exigibleLe <= entree.reference)
         rappels.push({
           id: `exig:${debiteur.id}`,
           agent: 'Léa',
           gravite: 'rust',
-          texte: `${fiche.vue.nom} · ${debiteur.nom} : trente jours écoulés depuis la mise en demeure du ${dateIsoVersFr(analyse.depuis)}, sans paiement enregistré. Constater l'exigibilité anticipée ?`,
+          texte: `${fiche.vue.nom} · ${debiteur.nom} : trente jours écoulés depuis la mise en demeure (${evenementMiseEnDemeure(exigibilite.mode)} le ${dateIsoVersFr(exigibilite.dateEvenement)}), sans paiement enregistré ; exigibilité anticipée à partir du ${dateIsoVersFr(exigibilite.exigibleLe)}. Constater l'exigibilité anticipée ?`,
           action: {
             id: `rec:${debiteur.id}:exigibilite`,
             label: "Constater l'exigibilité",

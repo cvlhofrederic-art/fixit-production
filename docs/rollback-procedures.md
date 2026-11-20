@@ -152,6 +152,37 @@ GRANT INSERT, UPDATE, DELETE, TRUNCATE ON public.pro_team_members TO anon, authe
 
 ---
 
+## Migration 20261115 — BTP : rattachements au même compte (`20261115_btp_rattachements_meme_compte.sql`)
+
+À ne pas confondre avec la migration 20261115 de l'équipe BTP, juste au-dessus. Retire les dix déclencheurs posés par
+la migration (`btp_rattachements_meme_compte` sur `chantiers_btp`, `pointages_btp`, `depenses_btp`, `equipes_btp`,
+`membres_btp`, `situations_btp`, `retenues_btp`, `dc4_btp` et `rapports_btp` ; `btp_membre_equipe_meme_compte` sur
+`equipe_membres_btp`), puis leurs deux fonctions. Aucune ligne n'est lue, modifiée ni supprimée ; rejouable. Après le
+retour arrière, la base ne vérifie plus qu'une fiche désigne un chantier, un membre ou une équipe du même compte ; la
+route `/api/btp` continue de le refuser avec un message clair. À n'employer que si un enregistrement légitime était
+refusé à tort (« la fiche liée (chantier, membre ou équipe) est introuvable »). Comme pour la migration,
+`lock_timeout` évite d'attendre derrière une transaction longue : en cas d'expiration, rien n'est retiré, relancer.
+Joué sur PGlite par `tests/securite/btp-rattachements-meme-compte.test.ts`.
+
+```sql
+-- Rollback
+set local lock_timeout = '5s';
+DROP TRIGGER IF EXISTS btp_rattachements_meme_compte ON public.chantiers_btp;
+DROP TRIGGER IF EXISTS btp_rattachements_meme_compte ON public.pointages_btp;
+DROP TRIGGER IF EXISTS btp_rattachements_meme_compte ON public.depenses_btp;
+DROP TRIGGER IF EXISTS btp_rattachements_meme_compte ON public.equipes_btp;
+DROP TRIGGER IF EXISTS btp_rattachements_meme_compte ON public.membres_btp;
+DROP TRIGGER IF EXISTS btp_rattachements_meme_compte ON public.situations_btp;
+DROP TRIGGER IF EXISTS btp_rattachements_meme_compte ON public.retenues_btp;
+DROP TRIGGER IF EXISTS btp_rattachements_meme_compte ON public.dc4_btp;
+DROP TRIGGER IF EXISTS btp_rattachements_meme_compte ON public.rapports_btp;
+DROP TRIGGER IF EXISTS btp_membre_equipe_meme_compte ON public.equipe_membres_btp;
+DROP FUNCTION IF EXISTS public.btp_rattachements_meme_compte();
+DROP FUNCTION IF EXISTS public.btp_membre_equipe_meme_compte();
+```
+
+---
+
 ## Migration 20261116 — Pointage BTP : employés affectés aux chantiers
 
 Retire l'index « un pointage en cours par employé », la table `pointage_reglages_btp` puis la colonne
@@ -221,3 +252,38 @@ En cas de probleme majeur :
 6. Re-appliquer les migrations qui etaient correctes
 
 **Temps de restore estime :** 5-15 minutes selon la taille de la base.
+
+---
+
+## Migration 20261115 — Équipe syndic : rôles et unicité de l'adresse par cabinet
+
+Remet la contrainte `syndic_team_members_role_check` de la production à ses 5 rôles du 14/11/2026 et retire l'unicité
+`(cabinet_id, email)`. À n'employer que si un problème était constaté après la migration : ensuite, les invitations
+« Technicien » et « Juriste » échouent de nouveau (500), `/api/admin/init-team-table` aussi (42P10), et deux invitations
+simultanées de la même adresse peuvent de nouveau créer deux lignes. Un seul bloc, tout ou rien, à lancer en entier dans
+l'éditeur SQL : il s'arrête sans rien changer si une ligne porte déjà `syndic_technicien` ou `syndic_juriste` (lignes à
+examiner avec Frédéric, jamais à modifier pour faire passer le retour arrière). Sur un projet construit depuis le dépôt,
+ajouter `'syndic_juriste'` aux deux listes (les 6 rôles de `20260527_syndic_team_members.sql`). Après le retour arrière,
+relancer `supabase/tests/syndic_equipe_roles_unicite.sql`.
+
+```sql
+-- Rollback (production)
+DO $$
+DECLARE
+  lignes integer;
+BEGIN
+  PERFORM set_config('lock_timeout', '5s', true);
+  LOCK TABLE public.syndic_team_members IN ACCESS EXCLUSIVE MODE;
+  SELECT count(*) INTO lignes
+  FROM public.syndic_team_members
+  WHERE role NOT IN ('syndic_admin', 'syndic_tech', 'syndic_secretaire', 'syndic_gestionnaire', 'syndic_comptable');
+  IF lignes > 0 THEN
+    RAISE EXCEPTION 'Retour arrière impossible : % ligne(s) portent un rôle que l''ancienne contrainte refuse. Rien n''est appliqué.', lignes;
+  END IF;
+  ALTER TABLE public.syndic_team_members DROP CONSTRAINT IF EXISTS syndic_team_members_cabinet_id_email_key;
+  ALTER TABLE public.syndic_team_members DROP CONSTRAINT IF EXISTS syndic_team_members_role_check;
+  ALTER TABLE public.syndic_team_members ADD CONSTRAINT syndic_team_members_role_check
+    CHECK (role IN ('syndic_admin', 'syndic_tech', 'syndic_secretaire', 'syndic_gestionnaire', 'syndic_comptable'));
+END
+$$;
+```

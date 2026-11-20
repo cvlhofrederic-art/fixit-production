@@ -44,10 +44,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: 'Nombre maximum de candidatures atteint' }, { status: 409 })
   }
 
-  // Vérifier que l'utilisateur est un artisan pro
+  // Vérifier que l'utilisateur est un artisan pro. Colonnes réelles de profiles_artisan (relevé de production du
+  // 31/10/2026) : une colonne absente (city, par exemple : la ville est company_city) fait échouer toute la lecture.
   const { data: artisan, error: artisanError } = await supabaseAdmin
     .from('profiles_artisan')
-    .select('id, subscription_tier, company_name, city, rc_pro_valid, decennale_valid, rge_valid, qualibat_valid, latitude, longitude, marches_work_mode, marches_tarif_journalier, marches_tarif_horaire')
+    .select('id, subscription_tier, company_name, rc_pro_valid, decennale_valid, rge_valid, qualibat_valid, latitude, longitude, marches_work_mode, marches_tarif_journalier, marches_tarif_horaire')
     .eq('user_id', user.id)
     .single()
 
@@ -111,15 +112,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
   const v = validation.data
 
-  // Insérer la candidature
+  // Insérer la candidature. Colonnes réelles de marches_candidatures : le nom de l'entreprise va dans
+  // artisan_company_name (la table n'a ni artisan_name ni artisan_city, et PostgREST refuse une colonne absente).
   const { data: candidature, error: insertError } = await supabaseAdmin
     .from('marches_candidatures')
     .insert({
       marche_id: marcheId,
       artisan_id: artisan.id,
       artisan_user_id: user.id,
-      artisan_name: artisan.company_name || 'Artisan',
-      artisan_city: artisan.city || null,
+      artisan_company_name: artisan.company_name || null,
       price: v.price,
       timeline: v.timeline,
       description: v.description,
@@ -135,18 +136,24 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
   }
 
-  // Incrémenter le compteur de candidatures sur le marché
-  await supabaseAdmin.rpc('increment_counter', {
+  // Incrémenter le compteur de candidatures sur le marché (il borne max_candidatures, plus haut).
+  // Supabase rend l'échec d'un appel dans { error } sans rejeter la promesse : c'est lui qu'on lit pour passer à la
+  // mise à jour directe (la fonction increment_counter n'est définie par aucune migration du dépôt).
+  const { error: compteurError } = await supabaseAdmin.rpc('increment_counter', {
     table_name: 'marches',
     column_name: 'candidatures_count',
     row_id: marcheId,
-  }).then(null, () => {
-    // Fallback : mise à jour directe si la fonction RPC n'existe pas
-    return supabaseAdmin
-      .from('marches')
-      .update({ candidatures_count: (marche as Record<string, unknown>).candidatures_count as number + 1 || 1 })
-      .eq('id', marcheId)
   })
+  if (compteurError) {
+    const { error: miseAJourError } = await supabaseAdmin
+      .from('marches')
+      .update({ candidatures_count: (((marche as Record<string, unknown>).candidatures_count as number) || 0) + 1 })
+      .eq('id', marcheId)
+    // La candidature reste enregistrée : l'échec du compteur est seulement journalisé.
+    if (miseAJourError) {
+      logger.error('[marches/candidature] compteur de candidatures non mis à jour', { marcheId, error: miseAJourError.message })
+    }
+  }
 
   return NextResponse.json({ candidature }, { status: 201 })
 }

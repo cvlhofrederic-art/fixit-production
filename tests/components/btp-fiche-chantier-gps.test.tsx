@@ -1,8 +1,9 @@
 // tests/components/btp-fiche-chantier-gps.test.tsx — bouton GPS de la fiche chantier (components/dashboard/ChantiersBTPV2.tsx,
 // 16/11/2026). Le bouton géocodait « ville || adresse » : la ville seule donnait le centre de la commune, et le pointage
 // automatique se déclenchait au mauvais endroit. Il géocode maintenant l'adresse (rue, code postal, ville), refuse une
-// position seulement approximative et ne garde jamais la position d'une ancienne adresse. Réseau, géocodage et données
-// BTP simulés ; adresse fictive.
+// position seulement approximative et ne garde jamais la position d'une ancienne adresse. Une modification n'envoie que
+// les champs changés depuis l'ouverture de la fiche, et un enregistrement en échec garde la fiche et la saisie. Réseau,
+// géocodage et données BTP simulés ; adresse fictive.
 
 import React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -17,6 +18,9 @@ const etat = vi.hoisted(() => ({
   chantiers: [] as unknown[],
   modifications: [] as Array<{ id: string; changes: Record<string, unknown> }>,
   ajouts: [] as Array<Record<string, unknown>>,
+  /** Ce que rendent update (true : enregistré) et add (la ligne créée, ou null : création en échec), comme le hook. */
+  resultatUpdate: true,
+  resultatAdd: { id: 'c-neuf' } as unknown,
 }))
 
 // Comme les vrais hooks (état React), les simulations rendent les mêmes objets d'un rendu à l'autre : des objets neufs
@@ -25,8 +29,8 @@ vi.mock('@/lib/hooks/use-btp-data', () => {
   const donnees = {
     items: [] as unknown[],
     loading: false,
-    add: async (item: Record<string, unknown>) => { etat.ajouts.push(item); return null },
-    update: async (id: string, changes: Record<string, unknown>) => { etat.modifications.push({ id, changes }); return true },
+    add: async (item: Record<string, unknown>) => { etat.ajouts.push(item); return etat.resultatAdd },
+    update: async (id: string, changes: Record<string, unknown>) => { etat.modifications.push({ id, changes }); return etat.resultatUpdate },
     remove: async () => true,
   }
   const reglages = { settings: { country: 'FR', company_type: 'sarl', cout_horaire_ouvrier: 22, charges_patronales_pct: 45, objectif_marge_pct: 20 } }
@@ -64,6 +68,8 @@ beforeEach(() => {
   etat.chantiers = []
   etat.modifications = []
   etat.ajouts = []
+  etat.resultatUpdate = true
+  etat.resultatAdd = { id: 'c-neuf' }
   vi.mocked(toast.warning).mockClear()
   vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response(JSON.stringify({ membres: [] })))
 })
@@ -76,6 +82,9 @@ const ouvrirFiche = async () => {
   fireEvent.change(screen.getByPlaceholderText('13001'), { target: { value: '13008' } })
   fireEvent.change(screen.getByPlaceholderText('Marseille, Lyon...'), { target: { value: 'Marseille' } })
 }
+
+/** La fenêtre de la fiche est ouverte (son champ titre est affiché). */
+const ficheOuverte = () => screen.queryByPlaceholderText('ex: Immeuble R+3 — Gros oeuvre') !== null
 
 // Le bouton GPS, à côté de la ville : une fois la position trouvée, il n'affiche plus que des icônes.
 const boutonGps = () => within(screen.getByPlaceholderText('Marseille, Lyon...').parentElement as HTMLElement).getByRole('button')
@@ -146,6 +155,7 @@ describe('fiche chantier — bouton GPS', () => {
     const repondre = geocodageLent()
     await cliquerGps()
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Créer le chantier/ })) })
+    expect(ficheOuverte()).toBe(false)
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Nouveau chantier/ })) })
     await repondre({ latitude: 43.25, longitude: 5.38, precise: true })
     expect(screen.queryByText(/GPS : /)).toBeNull()
@@ -176,10 +186,11 @@ describe('fiche chantier — modification d’un chantier existant', () => {
     expect(etat.modifications).toEqual([{ id: 'c-villa', changes: { titre: 'Villa rénovée' } }])
   })
 
-  it('rien de modifié : rien n’est envoyé', async () => {
+  it('rien de modifié : rien n’est envoyé, et la fiche se ferme', async () => {
     await modifier()
     await enregistrer()
     expect(etat.modifications).toEqual([])
+    expect(ficheOuverte()).toBe(false)
   })
 
   it('adresse corrigée : la position enregistrée reste affichée ; « OK » la garde, seule l’adresse part', async () => {
@@ -287,5 +298,58 @@ describe('fiche chantier — modification d’un chantier existant', () => {
     await enregistrer()
     expect(confirmer).not.toHaveBeenCalled()
     expect(etat.modifications).toEqual([{ id: 'c-villa', changes: { adresse: '3 rue des Lilas' } }])
+  })
+})
+
+// Enregistrement en échec (le hook en affiche la raison) : la fenêtre et la saisie restent pour réessayer, et seuls les
+// champs modifiés depuis l'ouverture partent, à chaque essai.
+describe('fiche chantier — enregistrement en échec', () => {
+  it('modification en échec : fiche et saisie gardées ; le nouvel essai renvoie les mêmes champs, et sa réussite ferme la fiche', async () => {
+    etat.resultatUpdate = false
+    await modifier()
+    fireEvent.change(screen.getByPlaceholderText('ex: Immeuble R+3 — Gros oeuvre'), { target: { value: 'Villa rénovée' } })
+    await enregistrer()
+    expect(etat.modifications).toEqual([{ id: 'c-villa', changes: { titre: 'Villa rénovée' } }])
+    expect(ficheOuverte()).toBe(true)
+    expect(screen.getByPlaceholderText('ex: Immeuble R+3 — Gros oeuvre')).toHaveValue('Villa rénovée')
+
+    etat.resultatUpdate = true
+    await enregistrer()
+    expect(etat.modifications).toEqual([
+      { id: 'c-villa', changes: { titre: 'Villa rénovée' } },
+      { id: 'c-villa', changes: { titre: 'Villa rénovée' } },
+    ])
+    expect(ficheOuverte()).toBe(false)
+  })
+
+  it('retrait de la position puis échec : fiche gardée, position affichée intacte, questions reposées au nouvel essai', async () => {
+    const confirmer = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true).mockReturnValueOnce(true)
+    etat.resultatUpdate = false
+    await modifier()
+    fireEvent.change(screen.getByPlaceholderText('Marseille, Lyon...'), { target: { value: 'Aubagne' } })
+    await enregistrer()
+    expect(etat.modifications).toEqual([{ id: 'c-villa', changes: { ville: 'Aubagne', latitude: null, longitude: null } }])
+    expect(ficheOuverte()).toBe(true)
+    expect(screen.getByText(/GPS : 43\.25040, 5\.38010/)).toBeTruthy()
+
+    etat.resultatUpdate = true
+    await enregistrer()
+    expect(confirmer).toHaveBeenCalledTimes(3)
+    expect(etat.modifications[1]).toEqual({ id: 'c-villa', changes: { ville: 'Aubagne' } })
+    expect(ficheOuverte()).toBe(false)
+  })
+
+  it('création en échec : fiche et saisie gardées ; le nouvel essai réussi ferme la fiche', async () => {
+    etat.resultatAdd = null
+    await ouvrirFiche()
+    fireEvent.change(screen.getByPlaceholderText('ex: Immeuble R+3 — Gros oeuvre'), { target: { value: 'Garage' } })
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Créer le chantier/ })) })
+    expect(ficheOuverte()).toBe(true)
+    expect(screen.getByPlaceholderText('ex: Immeuble R+3 — Gros oeuvre')).toHaveValue('Garage')
+
+    etat.resultatAdd = { id: 'c-neuf' }
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Créer le chantier/ })) })
+    expect(etat.ajouts).toHaveLength(2)
+    expect(ficheOuverte()).toBe(false)
   })
 })
