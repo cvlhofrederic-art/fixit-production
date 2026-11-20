@@ -1,8 +1,7 @@
 import * as Sentry from '@sentry/nextjs'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
-import { fetchNextDocNumber, type DocSeriesType } from '@/lib/doc-number'
-import { dedupeDocsByIdentity } from '@/lib/devis-utils'
+import { dedupeDocsByIdentity, type OptionsFusionDocuments } from '@/lib/devis-utils'
 
 // Sync a saved document (devis or facture) to Supabase via server-side API.
 // Pattern Pro SaaS 2026 : POST vers /api/devis/sync (Cloudflare Worker)
@@ -213,10 +212,10 @@ function toastForKind(kind: SyncErrorKind, status: number, body: string): void {
       })
       return
     case 'numero-collision':
-      // Ne devrait s'afficher que si la renumérotation + le resync ont AUSSI
-      // échoué (cas rare). Le doc reste sauvé localement, jamais perdu.
-      toast.error('Numéro déjà utilisé — renumérotation en attente', {
-        description: 'Le document est sauvé localement, il sera resynchronisé.',
+      // Un AUTRE document du compte porte déjà ce numéro (réponse réservée aux sociétés BTP) : le document refusé
+      // reste tel quel dans ce navigateur, jamais renuméroté ; celui qui porte le numéro n'est pas modifié.
+      toast.error('Numéro déjà utilisé par un autre document de votre compte', {
+        description: 'Ce document n\'a pas été enregistré sur le serveur : il reste dans ce navigateur, avec son numéro. Le document qui porte déjà ce numéro n\'a pas été modifié.',
       })
       return
     case 'forbidden':
@@ -243,84 +242,14 @@ function toastForKind(kind: SyncErrorKind, status: number, body: string): void {
   }
 }
 
-// Réécrit le numéro légal d'un document DANS le cache localStorage émis
-// (`fixit_documents_<artisanId>`). Match par id stable puis, à défaut, par
-// ancien numéro. No-op silencieux si le doc n'y figure pas (ex. brouillon
-// encore en `fixit_drafts_*`) — l'objet en mémoire reste de toute façon
-// renuméroté par l'appelant. Pas de throw : private browsing toléré.
-function rewriteDocNumberInCache(
-  artisanId: string,
-  matchId: string,
-  oldNumber: string,
-  newNumber: string,
-): void {
-  if (typeof localStorage === 'undefined') return
-  const key = `fixit_documents_${artisanId}`
-  try {
-    const raw = localStorage.getItem(key)
-    if (!raw) return
-    const docs = JSON.parse(raw) as Array<Record<string, unknown>>
-    if (!Array.isArray(docs)) return
-    let changed = false
-    for (const d of docs) {
-      const sameId = matchId && d.id === matchId
-      const sameNumber = oldNumber && d.docNumber === oldNumber
-      if (sameId || sameNumber) {
-        d.docNumber = newNumber
-        d.numero = newNumber
-        changed = true
-      }
-    }
-    if (changed) localStorage.setItem(key, JSON.stringify(docs))
-  } catch {
-    /* private browsing / cache corrompu : on ne bloque pas la renumérotation mémoire */
-  }
-}
-
-// Mappe un document vers SA série de numérotation. Chaque série a son propre
-// compteur (DEV-/FACT-/AC-/AV-) : on dérive du préfixe du numéro existant pour
-// qu'un acompte (AC-) ou un avoir (AV-) soit renuméroté sur SA série, et pas sur
-// celle du type de base 'facture'. Repli sur docType si le numéro est absent.
-function seriesForDoc(doc: Record<string, unknown>): DocSeriesType {
-  const num = (doc.docNumber as string) || ''
-  if (num.startsWith('AC-')) return 'acompte'
-  if (num.startsWith('AV-')) return 'avoir'
-  if (num.startsWith('DEV-')) return 'devis'
-  if (num.startsWith('FACT-')) return 'facture'
-  return doc.docType === 'facture' ? 'facture' : 'devis'
-}
-
 export async function syncDocumentSafe(doc: Record<string, unknown>, artisanId: string): Promise<void> {
   try {
-    let result = await syncDocumentToSupabase(doc, artisanId)
-
-    // Filet anti-perte : collision de numéro entre DEUX documents distincts.
-    // Cause racine du bug « doc qui disparaît » sur device neuf (fallback de
-    // numérotation localStorage → numéro déjà pris en base). On NE perd JAMAIS
-    // le doc : on tire un nouveau numéro serveur, on le réécrit (mémoire +
-    // cache localStorage) et on resynchronise UNE fois. Symétrique artisan/BTP.
-    if (!result.ok && result.kind === 'numero-collision') {
-      const oldNumber = (doc.docNumber as string) || ''
-      const matchId = (doc.id as string) || ''
-      let newNumber = ''
-      try {
-        newNumber = await fetchNextDocNumber(seriesForDoc(doc), artisanId)
-      } catch {
-        /* fetchNextDocNumber ne throw pas en principe — garde-fou */
-      }
-      if (newNumber && newNumber !== oldNumber) {
-        doc.docNumber = newNumber
-        doc.numero = newNumber
-        rewriteDocNumberInCache(artisanId, matchId, oldNumber, newNumber)
-        Sentry.captureMessage('devis-sync numero_collision résolu par renumérotation', {
-          level: 'warning',
-          tags: { feature: 'devis-sync', stage: 'numero-collision-renumber', doc_type: (doc.docType as string) || 'devis' },
-          extra: { old_number: oldNumber, new_number: newNumber, artisan_id: artisanId, doc_id: matchId },
-        })
-        // Retry UNIQUE avec le nouveau numéro. S'il réussit, le doc est sauvé.
-        result = await syncDocumentToSupabase(doc, artisanId)
-      }
-    }
+    // Collision de numéro (numero-collision, réponse réservée aux sociétés BTP) : un AUTRE document du compte porte
+    // déjà ce numéro. Le document refusé n'est JAMAIS renuméroté (il a pu être remis au client avec ce numéro) : il
+    // reste tel quel en mémoire et dans le navigateur, et le message ci-dessous le dit (audit du 11/11/2026, constat
+    // api-coeur-11). L'ancienne renumérotation automatique ne s'est jamais déclenchée : le serveur ne répondait jamais
+    // numero_collision.
+    const result = await syncDocumentToSupabase(doc, artisanId)
 
     if (result.ok) return
 
@@ -450,21 +379,41 @@ function isEmittedDoc(doc: Record<string, unknown>): boolean {
 //   - `artisanId` DOIT être la même clé que celle lue par la branche dashboard
 //     appelante (profil `artisanData.id` en chemin normal ; `user.id` en chemin
 //     admin/sans-profil).
+//   - `options` : celles de la fusion qui a produit la liste (sociétés BTP : deux
+//     documents distincts au même numéro restent tous les deux dans le cache).
 export function persistEmittedDocsToCache(
   artisanId: string,
   mergedDocs: Array<Record<string, unknown>>,
+  options?: OptionsFusionDocuments,
 ): void {
   if (typeof localStorage === 'undefined' || !artisanId) return
   try {
     // Dédup défensive (la liste est déjà censée l'être côté dashboard, mais on
     // réapplique l'invariant pour ne jamais persister de doublon).
-    const deduped = dedupeDocsByIdentity<Record<string, unknown>>([], mergedDocs)
+    const deduped = dedupeDocsByIdentity<Record<string, unknown>>([], mergedDocs, options)
     const emitted = deduped.filter(isEmittedDoc)
     if (emitted.length === 0) return // ne pas clobberer le cache émis avec []
     localStorage.setItem(`fixit_documents_${artisanId}`, JSON.stringify(emitted))
   } catch {
     /* private browsing / quota : best-effort, ne bloque jamais le rendu */
   }
+}
+
+/**
+ * Fusion des documents de la base dans la liste du tableau de bord (la base prime à identité égale), puis
+ * réécriture du cache des documents émis du navigateur avec la même fusion. Options : optionsFusionPourRole (sociétés
+ * BTP : deux documents distincts au même numéro restent tous les deux, dans la liste et dans le cache, au lieu que
+ * l'un efface l'autre — audit des fondations BTP du 11/11/2026, constat documents-cycle-1). Sans option : inchangé.
+ */
+export function fusionnerDocumentsDeLaBase<T>(
+  artisanId: string,
+  liste: T[],
+  documentsBase: T[],
+  options?: OptionsFusionDocuments,
+): T[] {
+  const fusion = dedupeDocsByIdentity(liste, documentsBase, options)
+  persistEmittedDocsToCache(artisanId, fusion as Array<Record<string, unknown>>, options)
+  return fusion
 }
 
 // One-time import of all localStorage documents for an artisan into Supabase.

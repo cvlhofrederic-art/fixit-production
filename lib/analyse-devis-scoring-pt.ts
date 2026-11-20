@@ -72,7 +72,7 @@ const PRIX_MARCHE_PT: Record<string, [number, number]> = {
   'videoporteiro': [150, 700],
   'intercomunicador': [150, 700],
   'iluminacao areas comuns': [600, 1800],
-  // Motorizações / portões (PDF Lobão)
+  // Motorizações / portões (PDF Exemplo)
   'motorizacao portao batente': [500, 1200],
   'motorizacao portao': [500, 1200],
   'motorline lince': [500, 1200],

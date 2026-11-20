@@ -12,6 +12,7 @@ import {
   borneApplicable,
   borneArreteDesComptes,
   bornesDuPlan,
+  dateHorsVerrou,
   messageVerrou,
   type BorneVerrou,
   type VerrouSaisie,
@@ -269,8 +270,60 @@ describe('verrou de saisie — en-tête (sources et marqueurs)', () => {
     expect(paragraphe('Spécification d’intégration VitFix')).toMatch(/T24[\s\S]*journal[\s\S]*dateLimiteSaisie/)
   })
 
-  it('la borne de l’arrêté ne se lève pas : la réouverture d’un exercice clos est une question ouverte', () => {
+  it('J67, R121 : un exercice clos ne se rouvre pas ; la question quitte les points non établis', () => {
     expect(entete).not.toMatch(/réouverture lève le verrou/)
-    expect(paragraphe('🔴 Non établi')).toMatch(/peut-il être rouvert, et par quel acte tracé/)
+    expect(paragraphe('🔴 Non établi')).not.toMatch(/peut-il être rouvert/)
+    expect(paragraphe('Décisions de Hugo du 17/11/2026')).toMatch(/J67, R121[\s\S]*ne se rouvre pas[\s\S]*écriture contraire[\s\S]*Rouvrir/)
+  })
+
+  it('J67, R122 : l’annulation par une écriture contraire datée après la borne est une règle, plus une question', () => {
+    expect(paragraphe('🔴 Non établi')).not.toMatch(/lecture stricte du bilan/)
+    expect(paragraphe('🔵 Déduit')).not.toMatch(/ANNULATION/)
+    expect(paragraphe('Décisions de Hugo du 17/11/2026')).toMatch(/J67, R122[\s\S]*contre-passation est contrôlée sur SA date/)
+    const journal = readFileSync(join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'journal-traitements.ts'), 'utf8')
+    expect(journal.replaceAll(/\s*\n\s*\*\s*/g, ' ')).toMatch(/J67, R122 : une fois l'exercice clos, l'annulation d'une répartition est impossible/)
+  })
+
+  it('J67, R123 : la date d’une opération d’une période close est une règle ; le PCG n’est pas appliqué comme texte', () => {
+    expect(paragraphe('🔴 Non établi')).not.toMatch(/À quelle date enregistrer/)
+    expect(paragraphe('Décisions de Hugo du 17/11/2026')).toMatch(/J67, R123[\s\S]*dateHorsVerrou/)
+    expect(paragraphe('🔵 Déduit')).toMatch(/921-4[\s\S]*non repris comme texte/)
+  })
+})
+
+describe('verrou de saisie — date d’une opération d’une période close (J67, R123)', () => {
+  const rejet = { famille: 'Encaissement', comptes: [banque, copro], reference: 'relevé 12, rejet n° 4' } as const
+  const arrete = borneArreteDesComptes({ nom: '2025', cloture: '2025-12-31' })
+
+  it('date du fait ouverte : l’opération garde sa date ; le libellé porte la pièce et sa date', () => {
+    expect(dateHorsVerrou([arrete], { ...rejet, dateDuFait: '2026-01-15' })).toEqual({
+      date: '2026-01-15',
+      borne: null,
+      mention: 'pièce « relevé 12, rejet n° 4 » du 15/01/2026',
+      justification: 'Date du fait 15/01/2026 ouverte : opération enregistrée à cette date (J67, R123 ; arrêté du 14/03/2005, art. 4).',
+    })
+  })
+
+  it('date du fait verrouillée : premier jour ouvert, lendemain de la borne ; date d’origine au libellé', () => {
+    const resultat = dateHorsVerrou([arrete], { ...rejet, dateDuFait: '2025-12-20' })
+    expect(resultat).toMatchObject({ date: '2026-01-01', borne: arrete, mention: 'pièce « relevé 12, rejet n° 4 » du 20/12/2025' })
+    expect(resultat.justification).toBe(
+      "Date du fait 20/12/2025 verrouillée jusqu'au 31/12/2025 inclus par l'arrêté des comptes de l'exercice « 2025 » : opération enregistrée au premier jour ouvert, le 01/01/2026, avec sa date d'origine au libellé (J67, R123 ; arrêté du 14/03/2005, art. 4 et 5).",
+    )
+    expect(encaissement('t1', resultat.date, [arrete]).date).toBe('2026-01-01')
+  })
+
+  it('plusieurs bornes : lendemain de la plus tardive de celles qui visent l’opération ; une borne d’un autre périmètre ne compte pas', () => {
+    const verrou: VerrouSaisie = [arrete, { ...edition, jusquAu: '2026-02-28' }, { jusquAu: '2026-06-30', origine: 'edition', reference: 'ed-9', familles: ['Saisie de factures'] }]
+    expect(dateHorsVerrou(verrou, { ...rejet, dateDuFait: '2025-11-02' })).toMatchObject({ date: '2026-03-01', borne: { reference: 'ed-7' } })
+  })
+
+  it('refuse une pièce sans référence ou une date du fait invalide', () => {
+    expect(() => dateHorsVerrou([arrete], { ...rejet, reference: ' ', dateDuFait: '2026-01-15' })).toThrow(/référence de la pièce/)
+    expect(() => dateHorsVerrou([arrete], { ...rejet, dateDuFait: '15/01/2026' })).toThrow(/date comptable invalide/i)
+  })
+
+  it('relecture : refuse une opération sans compte (aucune borne ne la viserait : date d’un exercice clos proposée à tort)', () => {
+    expect(() => dateHorsVerrou([arrete], { ...rejet, comptes: [], dateDuFait: '2025-06-01' })).toThrow(/Opération sans compte/)
   })
 })

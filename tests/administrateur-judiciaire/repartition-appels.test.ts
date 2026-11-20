@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { creerCompteCoproprietaire, creerPosition, muterLot, type Position } from '@/lib/administrateur-judiciaire/domain/identites-positions'
+import {
+  creerCompteCoproprietaire,
+  creerPosition,
+  muterLot,
+  type NatureMutation,
+  type Position,
+} from '@/lib/administrateur-judiciaire/domain/identites-positions'
+import { imputerEncaissement, mouvementsEncaissementImpute, postesDepuisAvis } from '@/lib/administrateur-judiciaire/domain/imputation-encaissements'
 import {
   avisDAppel,
   creerCleRepartition,
@@ -8,6 +15,7 @@ import {
   type EcheanceAppel,
   type NatureEcheance,
 } from '@/lib/administrateur-judiciaire/domain/repartition-appels'
+import { enTeteDuModule } from './en-tete-module'
 
 /**
  * Répartition des charges et avis d'appel (cartographie Gestéam, tranches 21, 25 et 30 ; D1 et D2).
@@ -124,6 +132,43 @@ describe('avis d’appel par compte (D2)', () => {
     expect(traitement.mouvements.at(-1)).toMatchObject({ compte: 'TILL.10500.00000.0', sens: 'credit', montantCentimes: 100_000 })
   })
 
+  it('appel de travaux sans compte propre : crédit du 102 « Provisions pour travaux décidés » (arrêté du 14 mars 2005, art. 10 ; J67, R61)', () => {
+    const avis = avisDAppel({ echeances: [{ ...echeances[1], nature: 'travaux', id: 'e-TX' }], cles: [cle], positions, comptes })
+    const traitement = traitementAppelDeFonds(avis, { id: 't-tx', date: '2026-03-20', segmentSyndicat: 'TILL', comptes })
+    expect(traitement.mouvements.at(-1)).toMatchObject({ compte: 'TILL.10200.00000.0', sens: 'credit', montantCentimes: 100_000 })
+  })
+
+  it('J67, R104 : sous-comptes du 450 créés par l’AG : l’appel du budget au 450-1, les autres natures au 450', () => {
+    const sousComptes450 = { decision: 'AG du 12/05/2025, résolution 9 (fictive)', planBudget: '45010' }
+    const travaux: EcheanceAppel = { ...echeances[1], id: 'e-TX', nature: 'travaux', montantCentimes: 10_000 }
+    const avis = avisDAppel({ echeances: [echeances[1], travaux], cles: [cle], positions, comptes })
+    const ecrire = (reglage: typeof sousComptes450 | null) =>
+      traitementAppelDeFonds(avis, { id: 't-450-1', date: '2026-04-01', segmentSyndicat: 'TILL', comptes, sousComptes450: reglage })
+    expect(ecrire(sousComptes450).mouvements.filter((m) => m.sens === 'debit').map((m) => [m.compte, m.montantCentimes])).toEqual([
+      ['TILL.45010.00001.0', 66_600],
+      ['TILL.45000.00001.0', 6_660],
+      ['TILL.45010.00002.0', 33_400],
+      ['TILL.45000.00002.0', 3_340],
+    ])
+    expect(ecrire(null).mouvements.filter((m) => m.sens === 'debit').map((m) => m.compte)).toEqual(['TILL.45000.00001.0', 'TILL.45000.00002.0'])
+    expect(() => ecrire({ ...sousComptes450, planBudget: '45000' })).toThrow(/450-1/)
+    expect(() => ecrire({ ...sousComptes450, planBudget: '47100' })).toThrow(/450-1/)
+    expect(() => ecrire({ ...sousComptes450, decision: ' ' })).toThrow(/décision/)
+    // Encaissement de tout l'appel du compte 1, plus 10 € : le 450-1 et le 450 sont soldés, le reliquat reste au crédit du 450.
+    const encaissement = { id: 'E1', compteId: 'cpt-A', date: '2026-04-01', montantCentimes: 74_260 }
+    const resultat = imputerEncaissement(encaissement, postesDepuisAvis(avis))
+    const credits = mouvementsEncaissementImpute({
+      encaissement,
+      resultat,
+      compteBanque: 'TILL.51200.00000.0',
+      compteCoproprietaire: 'TILL.45000.00001.0',
+      compteBudget: 'TILL.45010.00001.0',
+    })
+    const solde = (compte: string) =>
+      [...ecrire(sousComptes450).mouvements, ...credits].filter((m) => m.compte === compte).reduce((s, m) => s + (m.sens === 'debit' ? m.montantCentimes : -m.montantCentimes), 0)
+    expect([solde('TILL.45010.00001.0'), solde('TILL.45000.00001.0')]).toEqual([0, -1_000])
+  })
+
   it('refuse d’écrire un appel qui comporte des anomalies', () => {
     const avis = avisDAppel({ echeances: [echeances[0]], cles: [cle], positions: [], comptes })
     expect(() => traitementAppelDeFonds(avis, { id: 't', date: '2026-01-01', segmentSyndicat: 'TILL', comptes })).toThrow(/anomalie/i)
@@ -236,5 +281,57 @@ describe('mutation du lot le jour de l’exigibilité : appel au compte du vende
 
   it('refuse une échéance dont l’exigibilité n’est pas une date ISO', () => {
     expect(() => avis([enPlace('pV', 'cpt-V')], 'budget', '01/04/2026')).toThrow(/exigibilit/i)
+  })
+
+  it('J67, R111 : donation ou succession le jour de l’exigibilité → vendeur, avertissement « par analogie, à confirmer »', () => {
+    const muter = (nature: NatureMutation) =>
+      muterLot([enPlace('pV', 'cpt-V')], {
+        lotId: 'lot-9',
+        date: MUTATION,
+        sortantes: ['pV'],
+        nature,
+        entrantes: [{ id: 'pQ', identiteId: 'i-Q', compteId: 'cpt-Q', qualite: 'Copropriétaire', part: UN }],
+      }).positions
+    expect(muter('donation').find((p) => p.id === 'pQ')?.natureMutation).toBe('donation')
+    for (const nature of ['donation', 'succession'] as const) {
+      const resultat = avis(muter(nature), 'budget', MUTATION)
+      expect(resultat.parCompte.map((a) => a.compteId)).toEqual(['cpt-V'])
+      expect(resultat.anomalies).toEqual([])
+      expect(resultat.avertissements).toEqual([expect.objectContaining({ code: 'mutation_a_titre_gratuit', echeanceId: `budget:${MUTATION}`, lotId: 'lot-9' })])
+      expect(resultat.avertissements[0].message).toMatch(/par analogie, à confirmer/)
+    }
+    expect(avis(muter('onereuse'), 'budget', MUTATION).avertissements).toEqual([])
+    expect(avis(vente([enPlace('pV', 'cpt-V')]), 'budget', MUTATION).avertissements).toEqual([])
+    expect(avis(muter('donation'), 'budget', LENDEMAIN).avertissements).toEqual([])
+    expect(() => creerPosition({ ...enPlace('pX', 'cpt-Q'), natureMutation: 'vente' as NatureMutation })).toThrow(/nature de mutation/i)
+  })
+
+  it.each(NATURES)('J67, R87 — %s : mutation le jour d’une exigibilité antérieure au 01/09/2004 (avant l’art. 6-2) : hors champ, non portée', (nature) => {
+    const venteDu = (date: string) =>
+      muterLot([enPlace('pV', 'cpt-V', { dateEntree: '2000-01-01' })], {
+        lotId: 'lot-9',
+        date,
+        sortantes: ['pV'],
+        entrantes: [{ id: 'pQ', identiteId: 'i-Q', compteId: 'cpt-Q', qualite: 'Copropriétaire', part: UN }],
+      }).positions
+    const avant = venteDu('2004-08-31')
+    expect(appeles(avant, nature, '2004-08-31')).toEqual({ comptes: [], anomalies: ['mutation_avant_art_6_2'] })
+    // Sans mutation ce jour-là, rien ne change : la veille au vendeur, le lendemain à l'acquéreur.
+    expect(appeles(avant, nature, '2004-08-30')).toEqual(au('cpt-V'))
+    expect(appeles(avant, nature, '2004-09-01')).toEqual(au('cpt-Q'))
+    // Dès le 01/09/2004 (D. 1967 art. 6-2, créé par le décret n° 2004-479) : au vendeur.
+    expect(appeles(venteDu('2004-09-01'), nature, '2004-09-01')).toEqual(au('cpt-V'))
+  })
+})
+
+describe('J67, R87 — en-tête : cotisations de 2017 à 2018 tranchées, mutation antérieure au 01/09/2004 hors champ', () => {
+  const { texte } = enTeteDuModule('repartition-appels')
+
+  it('la question ne reste plus en 🔴 ; la décision est inscrite avec ses textes', () => {
+    // R87 et R111 tranchent chacune la question que l'autre laissait ouverte : l'en-tête n'a plus aucun 🔴.
+    expect(texte).not.toContain('🔴')
+    expect(texte).not.toMatch(/mutation antérieure au 01\/09\/2004 \(création|cotisation au fonds exigible avant le 25\/11\/2018/)
+    expect(texte).not.toMatch(/Question : qui doit la provision exigible le jour d'une mutation à titre gratuit/)
+    expect(texte).toMatch(/J67, R87 : .*01\/01\/2017 au 25\/11\/2018.*même règle.*avant le 01\/01\/2017, aucun fonds de travaux légal.*01\/09\/2004.*mutation_avant_art_6_2/)
   })
 })

@@ -2,6 +2,7 @@
 
 import { useState, type ChangeEvent } from 'react'
 import { EXEMPLE_RELEVE_BANCAIRE_CSV } from '@/components/administrateur-judiciaire/data/exemples-import'
+import { ComptesBancairesPanel } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/ComptesBancairesPanel'
 import { naviguerVers } from '@/components/administrateur-judiciaire/shell/navigation'
 import { Alert } from '@/components/administrateur-judiciaire/ui/Alert'
 import { DataTable } from '@/components/administrateur-judiciaire/ui/DataTable'
@@ -337,6 +338,7 @@ export function TresorerieModule() {
           },
         ]}
       />
+      <ComptesBancairesPanel copro={copro} />
       <Panel
         title="Importer un relevé"
         sub="CSV exporté de la banque : date, libellé, montant (ou débit et crédit). Coller le texte ou choisir un fichier."

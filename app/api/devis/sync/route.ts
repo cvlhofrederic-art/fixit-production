@@ -10,6 +10,8 @@ import { toCents } from '@/lib/money'
 import { logger } from '@/lib/logger'
 import { buildHashChainFields, type CanonicalDocPayload } from '@/lib/document-integrity'
 import { isStableDocId } from '@/lib/devis-utils'
+import { renduComplet } from '@/lib/version-rendu'
+import { lignesTvaCompletes, regimeTvaDocument } from '@/lib/totaux-artisan'
 
 export const maxDuration = 30
 
@@ -42,6 +44,15 @@ function mapStatus(rawStatus: string, table: 'factures' | 'devis'): string {
   // Défaut conservateur : 'pending' (et non 'draft') pour ne pas rétrograder un
   // doc legacy au statut inconnu/vide. Seul 'brouillon' explicite → 'draft'.
   return 'pending'
+}
+
+// Refus d'un document dont le numéro est déjà porté par un autre document du compte (sociétés BTP). Le client garde
+// le document tel quel (jamais renuméroté) et affiche un message (lib/document-sync.ts, kind numero-collision).
+function reponseNumeroEnDouble(): NextResponse {
+  return NextResponse.json({
+    error: 'numero_collision',
+    message: 'Ce numéro est déjà porté par un autre document de votre compte : ce document n\'a pas été enregistré sur le serveur. Le document qui porte déjà ce numéro n\'a pas été modifié.',
+  }, { status: 409 })
 }
 
 // POST /api/devis/sync
@@ -167,9 +178,14 @@ export async function POST(request: NextRequest) {
   // 4bis. Régime TVA + calcul officiel (corrige bug antérieur total_tax_cents=0).
   // computeTva() force totalTVA=0 et totalTTC=totalHT en régime franchise/autoliq.
   // En classique, agrège la TVA par taux à partir des lignes (BOFiP §50).
-  const regimeTva: TvaRegime =
-    (docRec.regimeTva as TvaRegime) ?? 'classique'
-  const tvaLines: TvaLineInput[] = items
+  // Document artisan au rendu complet (lib/version-rendu.ts) : régime d'après `tvaEnabled` et taux des
+  // frais annexes (`tva_applicable`) comptés, comme le formulaire, le PDF et la liste. Document d'avant
+  // la correction : calcul d'origine, montants en base inchangés.
+  const complet = renduComplet(docRec)
+  const regimeTva: TvaRegime = complet
+    ? regimeTvaDocument(docRec)
+    : (docRec.regimeTva as TvaRegime) ?? 'classique'
+  const tvaLines: TvaLineInput[] = complet ? lignesTvaCompletes(docRec) : items
     .filter((l): l is Record<string, unknown> => l != null && typeof l === 'object')
     .map(l => ({
       totalHT: Number(l.totalHT ?? l.total_ht ?? l.total ?? 0),
@@ -253,6 +269,34 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
+  // Numéro déjà porté par un AUTRE document du compte (sociétés BTP, audit du 11/11/2026, constat api-coeur-11).
+  // Le document entrant est cherché par son identifiant : l'autre ligne au même numéro n'était jamais vue, et
+  // l'enregistrement échouait sur la contrainte UNIQUE (numero, artisan_user_id) (erreur 500). Désormais le document
+  // entrant est refusé avec un message clair ; celui qui porte déjà le numéro n'est ni écrasé ni renuméroté, et rien
+  // n'est écrit. Artisan : comportement inchangé.
+  const estSocieteBtp = user.app_metadata?.role === 'pro_societe'
+  if (estSocieteBtp && docId && numeroIn) {
+    const { data: autres, error: autresErr } = await supabaseAdmin
+      .from(table)
+      .select('id')
+      .eq('numero', numeroIn)
+      .eq('artisan_user_id', user.id)
+      .neq('id', docId)
+      .limit(1)
+    if (autresErr) {
+      logger.error(`[devis-sync] numero lookup failed ${table}:`, autresErr.message)
+      Sentry.captureException(autresErr, {
+        tags: { agent_type: 'devis-sync', stage: 'numero-lookup', table },
+        extra: { artisan_id: artisanId },
+      })
+      return NextResponse.json({ error: 'Status lookup failed' }, { status: 500 })
+    }
+    if ((autres ?? []).length > 0) {
+      logger.warn(`[devis-sync] numero_collision refusée table=${table} docId=${docId}`)
+      return reponseNumeroEnDouble()
+    }
+  }
+
   const docTypeForGuard: 'devis' | 'facture' = docType
   if (currentStatus && !canTransition(currentStatus, incomingStatus, docTypeForGuard)) {
     // Discriminateur COLLISION DE NUMÉRO vs vraie transition.
@@ -261,8 +305,8 @@ export async function POST(request: NextRequest) {
     // même document : ce sont DEUX documents distincts qui se disputent le même
     // numéro légal (typiquement après un fallback de numérotation localStorage
     // sur un device neuf — cause racine du bug « doc qui disparaît »). On le
-    // signale par un corps distinct `numero_collision` pour que le client
-    // renumérote le doc entrant et resynchronise, AU LIEU de le perdre.
+    // signale par un corps distinct `numero_collision` : le client garde le doc
+    // entrant tel quel (jamais renuméroté) et affiche un message.
     // Le cas même-id (existingId === docId, ou pas d'id stable des deux côtés)
     // reste un vrai conflit de transition → réponse inchangée.
     // NB : on exige docId NON-NULL (id canonique entrant). Un doc LEGACY (docId
@@ -407,6 +451,13 @@ export async function POST(request: NextRequest) {
     delete legacy.tva_intra_preneur
     delete legacy.avoir_de_facture_id
     result = await tryUpsert(legacy)
+  }
+
+  // Société BTP : deux envois au même numéro presque en même temps (le contrôle ci-dessus ne voyait pas encore
+  // l'autre) ; la contrainte d'unicité refuse le second, qui reçoit la même réponse que le contrôle. Rien n'est écrit.
+  if (result.error && estSocieteBtp && numeroIn && result.error.code === '23505' && /numero/i.test(result.error.message || '')) {
+    logger.warn(`[devis-sync] numero_collision refusée par la contrainte table=${table} docId=${docId}`)
+    return reponseNumeroEnDouble()
   }
 
   if (result.error) {

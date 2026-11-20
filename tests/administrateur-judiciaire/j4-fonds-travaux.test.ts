@@ -7,9 +7,11 @@ import {
   controlerAffectationFondsTravaux,
   controlerCotisationFondsTravaux,
   controlerSeuilFondsTravaux,
+  cotisationAnnuelleDue,
   cotisationMinimaleFondsTravaux,
   creerReglagesFondsTravaux,
   echeancesCotisationFondsTravaux,
+  etatSuspensionCotisationsFondsTravaux,
   lireDecisionAffectationAg,
   lireOrdonnanceJuge,
   obligationFondsTravaux,
@@ -20,6 +22,7 @@ import {
   type OrdonnanceJuge,
   type SaisieObligationFondsTravaux,
 } from '@/lib/administrateur-judiciaire/domain/fonds-travaux'
+import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
 import { NATURE_PLAN_COMPTABLE } from '@/lib/data/referentiels-gesteam-judiciaire'
 import { enTeteDuModule } from './en-tete-module'
 
@@ -55,6 +58,10 @@ const immeuble = (surcharge: Partial<SaisieObligationFondsTravaux> = {}): Saisie
 
 /** Budget prévisionnel d'exemple : 9 070,00 €. */
 const BUDGET = 907_000
+
+/** J67, R86 : fondements des régimes antérieurs à l'art. 14-2-1. */
+const FONDEMENT_CREATION = 'L. 1965 art. 14-2, rédaction issue de la loi n° 2014-366, art. 58 (fonds de travaux créé le 01/01/2017)'
+const ANCIEN_14_2 = 'L. 1965 art. 14-2 (rédactions en vigueur du 01/01/2017 au 01/01/2023)'
 
 describe('J4 — cinq natures de fonds, jamais fusionnées', () => {
   it('les cinq natures de fonds sont distinctes et toutes présentes au référentiel du plan', () => {
@@ -323,6 +330,37 @@ describe('J30 — forme de l’ordonnance de l’art. 29-14, 2° et de la décis
   })
 })
 
+/**
+ * J67, R58 (décision de Hugo du 17/11/2026) : l'art. 29-14, 2° ne fixe aucun montant ; l'ordonnance porte un montant
+ * facultatif et son objet ; si un montant est écrit, aucun emploi ne le dépasse (bloquant).
+ */
+describe('J67, R58 — montant et objet de l’ordonnance de l’art. 29-14, 2°', () => {
+  const ORDONNANCE: OrdonnanceJuge = { juridiction: 'TJ', date: '2026-09-02', numero: 'RG 26/01234', montantMaximumCentimes: 1_000_000 }
+  const parLeJuge = (autorisationJuge: DecaissementFondsTravaux['autorisationJuge'], options: OptionsControleAffectation = {}, montantCentimes = 1_000_000) =>
+    controlerAffectationFondsTravaux(decaissement({ objet: 'redressement_29_14', decisionAg: null, autorisationJuge, montantCentimes }), { aujourdhui: AUJOURDHUI, ...options })
+
+  it('emploi dans le montant de l’ordonnance : admis ; au-delà : refusé, motif et montant à l’appui', () => {
+    expect(parLeJuge(ORDONNANCE)).toMatchObject({ autorise: true, cause: 'admis' })
+    const auDela = parLeJuge(ORDONNANCE, {}, 1_000_001)
+    expect(auDela).toMatchObject({ autorise: false, cause: 'au_dela_de_l_ordonnance', fondement: 'L. 1965 art. 29-14' })
+    expect(auDela.motif).toContain(`usage autorisé jusqu'à ${formatEurosCentimes(10_000)}`)
+    expect(auDela.motif).toContain('J67, R58')
+  })
+
+  it('les emplois déjà faits sous la même ordonnance comptent ; sans montant écrit, rien ne change', () => {
+    expect(parLeJuge(ORDONNANCE, { dejaEmployeSousOrdonnanceCentimes: 1 })).toMatchObject({ autorise: false, cause: 'au_dela_de_l_ordonnance' })
+    expect(parLeJuge(ORDONNANCE, { dejaEmployeSousOrdonnanceCentimes: 0 }, 999_999)).toMatchObject({ autorise: true })
+    expect(parLeJuge({ ...ORDONNANCE, montantMaximumCentimes: null }, { dejaEmployeSousOrdonnanceCentimes: 50_000_000 })).toMatchObject({ autorise: true })
+    expect(() => parLeJuge(ORDONNANCE, { dejaEmployeSousOrdonnanceCentimes: -1 })).toThrow(/Montant invalide/)
+  })
+
+  it('objet de l’ordonnance connu (redressement, gestion courante, opérations nommées) ; montant ou objet mal saisi : refus', () => {
+    for (const objet of ['redressement', 'gestion_courante', 'operations_nommees'] as const) expect(parLeJuge({ ...ORDONNANCE, objet })).toMatchObject({ autorise: true })
+    expect(parLeJuge({ ...ORDONNANCE, objet: 'travaux' as never })).toMatchObject({ autorise: false, cause: 'reference_invalide' })
+    for (const montantMaximumCentimes of [0, -5, 1.5]) expect(parLeJuge({ ...ORDONNANCE, montantMaximumCentimes })).toMatchObject({ autorise: false, cause: 'reference_invalide' })
+  })
+})
+
 describe('J4 — obligation de constituer le fonds (art. 14-2-1, I ; loi n° 2021-1104, art. 171, VI)', () => {
   it('immeuble sans habitation : pas de fonds obligatoire', () => {
     expect(obligationFondsTravaux(immeuble({ destinationHabitation: false }), AUJOURDHUI)).toMatchObject({
@@ -360,16 +398,55 @@ describe('J4 — obligation de constituer le fonds (art. 14-2-1, I ; loi n° 202
     expect(obligation.motif).toMatch(/01\/03\/2030/)
   })
 
-  it('avant l’entrée en vigueur applicable : l’ancien art. 14-2 s’appliquait, réponse à établir', () => {
-    const obligation = obligationFondsTravaux(immeuble({ nbLotsPrincipaux: 50, dateReception: '2000-01-01' }), '2023-06-01')
-    expect(obligation).toMatchObject({ obligatoire: null, depuis: null, aConfirmer: true })
-    expect(obligation.motif).toMatch(/ancien art. 14-2/)
+  it('J67, R86 — avant le 01/01/2017 : aucun fonds de travaux légal', () => {
+    const obligation = obligationFondsTravaux(immeuble({ nbLotsPrincipaux: 50, dateReception: '2000-01-01' }), '2016-12-31')
+    expect(obligation).toMatchObject({ obligatoire: false, depuis: null, aConfirmer: false, regime: 'aucun_fonds', alertes: [] })
+    expect(obligation.motif).toMatch(/aucun fonds de travaux légal/i)
+    expect(obligation.fondements).toEqual([FONDEMENT_CREATION])
+    // Avant le 01/01/2017, la réponse ne dépend d'aucune donnée : destination ou réception manquante comprise.
+    for (const surcharge of [{ destinationHabitation: null }, { dateReception: null }, { destinationHabitation: null, dateReception: null, nbLotsPrincipaux: null }])
+      expect(obligationFondsTravaux(immeuble(surcharge), '2015-06-01')).toMatchObject({ obligatoire: false, aConfirmer: false, regime: 'aucun_fonds' })
   })
 
-  it('fonds déjà dû sous l’ancien régime (cinq ans) mais pas encore sous le nouveau (dix ans) : transition à confirmer', () => {
+  it('J67, R86 — avant l’entrée en vigueur applicable : l’ancien art. 14-2 (fonds cinq ans après la réception, sauf dispense)', () => {
+    const ancien = obligationFondsTravaux(immeuble({ nbLotsPrincipaux: 50, dateReception: '2000-01-01', dispenseAncien14_2: 'aucune' }), '2023-06-01')
+    expect(ancien).toMatchObject({ obligatoire: true, depuis: '2017-01-01', aConfirmer: false, regime: 'ancien_14_2' })
+    expect(ancien.fondements).toEqual([ANCIEN_14_2, 'Loi n° 2021-1104 du 22 août 2021, art. 171, VI'])
+    expect(ancien.motif).toMatch(/ancien art\. 14-2 \(fonds constitué 5 ans après la réception, cotisation d'au moins 5 % du budget prévisionnel\)/)
+    // Dispense non renseignée : obligatoire sauf dispense, à confirmer.
+    const sansDispenseConnue = obligationFondsTravaux(immeuble({ nbLotsPrincipaux: 50, dateReception: '2000-01-01' }), '2023-06-01')
+    expect(sansDispenseConnue).toMatchObject({ obligatoire: true, depuis: '2017-01-01', aConfirmer: true })
+    expect(sansDispenseConnue.motif).toMatch(/sauf dispense.*moins de dix lots.*diagnostic technique global/)
+    // Cinq ans après la réception, le jour même ; la veille, pas encore.
+    const recent = (date: string) => obligationFondsTravaux(immeuble({ nbLotsPrincipaux: 50, dateReception: '2019-03-01', dispenseAncien14_2: 'aucune' }), date)
+    expect(recent('2024-03-01')).toMatchObject({ obligatoire: true, depuis: '2024-03-01', regime: 'ancien_14_2' })
+    expect(recent('2024-02-29')).toMatchObject({ obligatoire: false, depuis: '2024-03-01', regime: 'ancien_14_2' })
+    // Cinq ans atteints après l'entrée en vigueur : le nouveau régime (dix ans) donne la date.
+    expect(obligationFondsTravaux(immeuble({ nbLotsPrincipaux: 50, dateReception: '2021-06-01', dispenseAncien14_2: 'aucune' }), '2024-06-01')).toMatchObject({
+      obligatoire: false,
+      depuis: '2031-06-01',
+    })
+  })
+
+  it('J67, R86 — dispense de l’ancien art. 14-2 : aucun fonds avant l’entrée en vigueur, obligation ensuite (J4 : plus de dispense)', () => {
+    for (const dispense of ['moins_de_dix_lots_unanimite', 'dtg_sans_besoin_de_travaux'] as const) {
+      const petite = (date: string) => obligationFondsTravaux(immeuble({ nbLotsPrincipaux: 8, dateReception: '2000-01-01', dispenseAncien14_2: dispense }), date)
+      expect(petite('2024-06-01')).toMatchObject({ obligatoire: false, depuis: '2025-01-01', regime: 'ancien_14_2', alertes: [] })
+      expect(petite('2024-06-01').motif).toMatch(/dispense de l'ancien art\. 14-2/)
+      expect(petite('2025-01-01')).toMatchObject({ obligatoire: true, depuis: '2025-01-01', regime: 'art_14_2_1' })
+    }
+  })
+
+  it('J67, R86 — immeuble de cinq à dix ans à l’entrée en vigueur : le fonds existant reste ; cotisation obligatoire à dix ans ; alerte', () => {
     const obligation = obligationFondsTravaux(immeuble({ dateReception: '2017-03-01' }), AUJOURDHUI)
-    expect(obligation).toMatchObject({ obligatoire: false, depuis: '2027-03-01', aConfirmer: true })
-    expect(obligation.motif).toMatch(/sort transitoire/)
+    expect(obligation).toMatchObject({ obligatoire: false, depuis: '2027-03-01', aConfirmer: false, regime: 'art_14_2_1' })
+    expect(obligation.motif).not.toMatch(/sort transitoire/)
+    expect(obligation.alertes).toMatchObject([{ code: 'immeuble_moins_de_dix_ans', fondement: 'L. 1965 art. 14-2-1, I et III' }])
+    expect(obligation.alertes[0].message).toMatch(/reste au syndicat, tel quel.*ne sert qu'aux dépenses de l'art\. 14-2-1, I.*01\/03\/2027/)
+    // Immeuble dispensé sous l'ancien régime : aucun fonds constitué, pas d'alerte.
+    expect(obligationFondsTravaux(immeuble({ dateReception: '2017-03-01', dispenseAncien14_2: 'dtg_sans_besoin_de_travaux' }), AUJOURDHUI).alertes).toEqual([])
+    // Plus de dix ans à l'entrée en vigueur : le fonds de l'ancien régime continue tel quel.
+    expect(obligationFondsTravaux(immeuble(), AUJOURDHUI).motif).toMatch(/fonds constitué sous l'ancien art\. 14-2 continue tel quel/)
   })
 
   it('le jour même où l’obligation naît, elle joue', () => {
@@ -379,18 +456,58 @@ describe('J4 — obligation de constituer le fonds (art. 14-2-1, I ; loi n° 202
     })
   })
 
-  it('nombre de lots inconnu : obligatoire au plus tard le 01/01/2025 ; avant, à établir (régime antérieur possible)', () => {
+  it('nombre de lots inconnu : obligatoire au plus tard le 01/01/2025 ; avant 2023, l’ancien art. 14-2 ; entre 2023 et 2025, à établir', () => {
     const certain = obligationFondsTravaux(immeuble({ nbLotsPrincipaux: null, dateReception: '2000-01-01' }), AUJOURDHUI)
     expect(certain).toMatchObject({ obligatoire: true, depuis: '2025-01-01', aConfirmer: true })
     expect(certain.motif).toMatch(/au plus tard/)
+    // J67, R86 : avant le 01/01/2023, l'ancien art. 14-2 s'applique quel que soit le nombre de lots.
     expect(obligationFondsTravaux(immeuble({ nbLotsPrincipaux: null, dateReception: '2000-01-01' }), '2022-12-31')).toMatchObject({
-      obligatoire: null,
+      obligatoire: true,
+      depuis: '2017-01-01',
       aConfirmer: true,
+      regime: 'ancien_14_2',
     })
-    expect(obligationFondsTravaux(immeuble({ nbLotsPrincipaux: null, dateReception: '2000-01-01' }), '2024-06-01')).toMatchObject({
-      obligatoire: null,
-      aConfirmer: true,
-    })
+    const selonLesLots = obligationFondsTravaux(immeuble({ nbLotsPrincipaux: null, dateReception: '2000-01-01' }), '2024-06-01')
+    expect(selonLesLots).toMatchObject({ obligatoire: null, aConfirmer: true, regime: null })
+    expect(selonLesLots.motif).toMatch(/renseigner le nombre de lots/)
+  })
+
+  it('J67, R86 (a) — nombre de lots inconnu avant le 01/01/2023 : l’ancien art. 14-2 répond, quel que soit ce nombre', () => {
+    const avecLots = (nbLotsPrincipaux: number | null, surcharge: Partial<SaisieObligationFondsTravaux>, date: string) =>
+      obligationFondsTravaux(immeuble({ nbLotsPrincipaux, ...surcharge }), date)
+    // Cinq ans atteints avant le 01/01/2023 : même réponse que pour 5, 100 ou 300 lots.
+    const avant2023 = { dateReception: '2016-06-01', dispenseAncien14_2: 'aucune' as const }
+    const inconnu = avecLots(null, avant2023, '2020-01-01')
+    for (const nbLots of [5, 100, 300]) expect(inconnu).toEqual(avecLots(nbLots, avant2023, '2020-01-01'))
+    expect(inconnu).toMatchObject({ obligatoire: false, depuis: '2021-06-01', aConfirmer: false, regime: 'ancien_14_2' })
+    expect(inconnu.motif).not.toMatch(/Entre le 01\/01\/2023/)
+    // Dispense : pas obligatoire à la date ; seule la date à laquelle il le deviendra dépend du nombre de lots.
+    const dispense = avecLots(null, { dateReception: '2010-01-01', dispenseAncien14_2: 'moins_de_dix_lots_unanimite' }, '2020-01-01')
+    expect(dispense).toMatchObject({ obligatoire: false, depuis: null, aConfirmer: true, regime: 'ancien_14_2', alertes: [] })
+    expect(dispense.motif).toMatch(
+      /^Fonds de travaux pas obligatoire au 01\/01\/2020 : dispense de l'ancien art\. 14-2 \(moins de dix lots.*selon le nombre de lots.*renseigner le nombre de lots/,
+    )
+    // Cinq ans atteints le 01/01/2023 ou après : pas obligatoire à la date ; l'échéance dépend du nombre de lots.
+    const recent = avecLots(null, { dateReception: '2019-03-01' }, '2022-06-01')
+    expect(recent).toMatchObject({ obligatoire: false, depuis: null, aConfirmer: true, regime: 'ancien_14_2' })
+    expect(recent.motif).toMatch(/les cinq ans de l'ancien art\. 14-2 ne sont atteints que le 01\/03\/2024/)
+    expect([50, 300].map((nbLots) => avecLots(nbLots, { dateReception: '2019-03-01' }, '2022-06-01').depuis)).toEqual(['2024-03-01', '2029-03-01'])
+  })
+
+  it('J67, R86 — nombre de lots inconnu : alerte « immeuble de moins de dix ans » et continuité du fonds, quand l’ancien régime a pu le constituer', () => {
+    const inconnu = (surcharge: Partial<SaisieObligationFondsTravaux>, date = '2026-01-01') => obligationFondsTravaux(immeuble({ nbLotsPrincipaux: null, ...surcharge }), date)
+    const recent = inconnu({ dateReception: '2017-06-01' })
+    expect(recent).toMatchObject({ obligatoire: false, depuis: '2027-06-01', regime: 'art_14_2_1' })
+    expect(recent.alertes).toMatchObject([{ code: 'immeuble_moins_de_dix_ans', fondement: 'L. 1965 art. 14-2-1, I et III' }])
+    expect(recent.alertes[0].message).toMatch(
+      /entrée en vigueur de l'art\. 14-2-1 \(entre le 01\/01\/2023 et le 01\/01\/2025, selon le nombre de lots\).*reste au syndicat, tel quel.*01\/06\/2027/,
+    )
+    // Dispense de l'ancien régime : aucun fonds constitué, pas d'alerte ; cinq ans atteints après le 01/01/2023 : alerte incertaine, non émise.
+    expect(inconnu({ dateReception: '2017-06-01', dispenseAncien14_2: 'dtg_sans_besoin_de_travaux' }).alertes).toEqual([])
+    expect(inconnu({ dateReception: '2018-06-01' }).alertes).toEqual([])
+    // Obligatoire : le fonds constitué sous l'ancien régime continue tel quel.
+    expect(inconnu({ dateReception: '2000-01-01' }, AUJOURDHUI).motif).toMatch(/fonds constitué sous l'ancien art\. 14-2 continue tel quel/)
+    expect(inconnu({ dateReception: '2000-01-01', dispenseAncien14_2: 'dtg_sans_besoin_de_travaux' }, AUJOURDHUI).motif).not.toMatch(/continue tel quel/)
   })
 
   it('seule l’année de construction est connue : réponse marquée à confirmer', () => {
@@ -421,12 +538,18 @@ describe('J4 — obligation de constituer le fonds (art. 14-2-1, I ; loi n° 202
     expect(() => obligationFondsTravaux(immeuble({ nbLotsPrincipaux: 2.5 }), AUJOURDHUI)).toThrow(/lots/i)
     expect(() => obligationFondsTravaux(immeuble({ dateReception: null, anneeConstruction: 1975.5 }), AUJOURDHUI)).toThrow(/année/i)
     expect(() => obligationFondsTravaux(immeuble({ dateReception: null, anneeConstruction: 2027 }), AUJOURDHUI)).toThrow(/année/i)
+    // J67, R86 : la dispense « moins de dix lots » est impossible à partir de dix lots principaux (ils comptent dans les lots).
+    for (const nbLotsPrincipaux of [10, 50])
+      expect(() => obligationFondsTravaux(immeuble({ nbLotsPrincipaux, dispenseAncien14_2: 'moins_de_dix_lots_unanimite' }), '2020-06-01')).toThrow(
+        new RegExp(`moins de dix lots.*${nbLotsPrincipaux} lots principaux`),
+      )
+    expect(obligationFondsTravaux(immeuble({ nbLotsPrincipaux: 9, dispenseAncien14_2: 'moins_de_dix_lots_unanimite' }), '2020-06-01').obligatoire).toBe(false)
   })
 })
 
 describe('J4 — cotisation minimale (art. 14-2-1, I, al. 8)', () => {
   it('sans plan adopté : 5 % du budget prévisionnel', () => {
-    expect(cotisationMinimaleFondsTravaux({ budgetPrevisionnelCentimes: BUDGET, travauxPptAdopteCentimes: null })).toEqual({
+    expect(cotisationMinimaleFondsTravaux({ budgetPrevisionnelCentimes: BUDGET, totalTravauxPlanAdopteCentimes: null })).toEqual({
       minimumCentimes: 45_350,
       cinqPourcentBudgetCentimes: 45_350,
       deuxEtDemiPourcentPptCentimes: null,
@@ -437,7 +560,7 @@ describe('J4 — cotisation minimale (art. 14-2-1, I, al. 8)', () => {
   })
 
   it('plan pluriannuel non renseigné : seul le plancher de 5 % est calculé, à confirmer', () => {
-    expect(cotisationMinimaleFondsTravaux({ budgetPrevisionnelCentimes: BUDGET, travauxPptAdopteCentimes: PPT_INCONNU })).toMatchObject({
+    expect(cotisationMinimaleFondsTravaux({ budgetPrevisionnelCentimes: BUDGET, totalTravauxPlanAdopteCentimes: PPT_INCONNU })).toMatchObject({
       minimumCentimes: 45_350,
       deuxEtDemiPourcentPptCentimes: null,
       aConfirmer: true,
@@ -445,7 +568,7 @@ describe('J4 — cotisation minimale (art. 14-2-1, I, al. 8)', () => {
   })
 
   it('« ne peut être inférieur » : arrondi au centime supérieur', () => {
-    expect(cotisationMinimaleFondsTravaux({ budgetPrevisionnelCentimes: 1_001, travauxPptAdopteCentimes: 1_001 })).toMatchObject({
+    expect(cotisationMinimaleFondsTravaux({ budgetPrevisionnelCentimes: 1_001, totalTravauxPlanAdopteCentimes: 1_001 })).toMatchObject({
       cinqPourcentBudgetCentimes: 51,
       deuxEtDemiPourcentPptCentimes: 26,
       minimumCentimes: 51,
@@ -453,11 +576,11 @@ describe('J4 — cotisation minimale (art. 14-2-1, I, al. 8)', () => {
   })
 
   it('avec un plan adopté : les deux planchers jouent, le plus élevé s’impose', () => {
-    expect(cotisationMinimaleFondsTravaux({ budgetPrevisionnelCentimes: BUDGET, travauxPptAdopteCentimes: 3_000_000 })).toMatchObject({
+    expect(cotisationMinimaleFondsTravaux({ budgetPrevisionnelCentimes: BUDGET, totalTravauxPlanAdopteCentimes: 3_000_000 })).toMatchObject({
       minimumCentimes: 75_000,
       retenu: 'ppt',
     })
-    expect(cotisationMinimaleFondsTravaux({ budgetPrevisionnelCentimes: BUDGET, travauxPptAdopteCentimes: 1_000_000 })).toMatchObject({
+    expect(cotisationMinimaleFondsTravaux({ budgetPrevisionnelCentimes: BUDGET, totalTravauxPlanAdopteCentimes: 1_000_000 })).toMatchObject({
       minimumCentimes: 45_350,
       deuxEtDemiPourcentPptCentimes: 25_000,
       retenu: 'budget',
@@ -465,27 +588,27 @@ describe('J4 — cotisation minimale (art. 14-2-1, I, al. 8)', () => {
   })
 
   it('refuse un budget ou un montant de plan invalide', () => {
-    expect(() => cotisationMinimaleFondsTravaux({ budgetPrevisionnelCentimes: -1, travauxPptAdopteCentimes: null })).toThrow(/centimes/)
-    expect(() => cotisationMinimaleFondsTravaux({ budgetPrevisionnelCentimes: 10.5, travauxPptAdopteCentimes: null })).toThrow(/centimes/)
-    expect(() => cotisationMinimaleFondsTravaux({ budgetPrevisionnelCentimes: BUDGET, travauxPptAdopteCentimes: -5 })).toThrow(/centimes/)
+    expect(() => cotisationMinimaleFondsTravaux({ budgetPrevisionnelCentimes: -1, totalTravauxPlanAdopteCentimes: null })).toThrow(/centimes/)
+    expect(() => cotisationMinimaleFondsTravaux({ budgetPrevisionnelCentimes: 10.5, totalTravauxPlanAdopteCentimes: null })).toThrow(/centimes/)
+    expect(() => cotisationMinimaleFondsTravaux({ budgetPrevisionnelCentimes: BUDGET, totalTravauxPlanAdopteCentimes: -5 })).toThrow(/centimes/)
   })
 })
 
 describe('J4 — contrôle de la cotisation votée', () => {
-  const assiette = { budgetPrevisionnelCentimes: BUDGET, travauxPptAdopteCentimes: null }
+  const assiette = { budgetPrevisionnelCentimes: BUDGET, totalTravauxPlanAdopteCentimes: null }
 
   it('au minimum : rien à signaler', () => {
     expect(controlerCotisationFondsTravaux({ cotisationAnnuelleCentimes: 45_350 }, assiette)).toEqual([])
   })
 
   it('plan non renseigné : le plancher de 2,5 % et les seuils de suspension restent à vérifier', () => {
-    const inconnu = { budgetPrevisionnelCentimes: BUDGET, travauxPptAdopteCentimes: PPT_INCONNU }
+    const inconnu = { budgetPrevisionnelCentimes: BUDGET, totalTravauxPlanAdopteCentimes: PPT_INCONNU }
     expect(controlerCotisationFondsTravaux({ cotisationAnnuelleCentimes: 45_350 }, inconnu)).toMatchObject([
       { code: 'plancher_ppt_a_verifier', aConfirmer: true },
     ])
     expect(
       controlerCotisationFondsTravaux(
-        { cotisationAnnuelleCentimes: 0, suspension: { origine: 'ag', reference: 'AG du 12/03/2026, résolution 9' }, soldeFondsCentimes: 1_000_000 },
+        { cotisationAnnuelleCentimes: 0, suspension: { origine: 'ag', reference: 'AG du 12/03/2026, résolution 9', debut: '2026-03-12' }, soldeFondsCentimes: 1_000_000 },
         inconnu,
       ),
     ).toMatchObject([{ code: 'suspension_seuils_a_verifier', aConfirmer: true }])
@@ -513,14 +636,14 @@ describe('J4 — contrôle de la cotisation votée', () => {
   it('suspension votée par l’assemblée quand le fonds excède le budget : régulière', () => {
     expect(
       controlerCotisationFondsTravaux(
-        { cotisationAnnuelleCentimes: 0, suspension: { origine: 'ag', reference: 'AG du 12/03/2026, résolution 9' }, soldeFondsCentimes: 1_000_000 },
+        { cotisationAnnuelleCentimes: 0, suspension: { origine: 'ag', reference: 'AG du 12/03/2026, résolution 9', debut: '2026-03-12' }, soldeFondsCentimes: 1_000_000 },
         assiette,
       ),
     ).toEqual([])
   })
 
   it('suspension votée sous les seuils : la cotisation reste due (déduit, à confirmer)', () => {
-    const suspension = { origine: 'ag' as const, reference: 'AG du 12/03/2026, résolution 9' }
+    const suspension = { origine: 'ag' as const, reference: 'AG du 12/03/2026, résolution 9', debut: '2026-03-12' }
     expect(controlerCotisationFondsTravaux({ cotisationAnnuelleCentimes: 0, suspension, soldeFondsCentimes: BUDGET }, assiette)).toMatchObject([
       { code: 'suspension_hors_seuils', fondement: 'L. 1965 art. 14-2-1, II', aConfirmer: true },
     ])
@@ -528,14 +651,14 @@ describe('J4 — contrôle de la cotisation votée', () => {
     expect(
       controlerCotisationFondsTravaux(
         { cotisationAnnuelleCentimes: 0, suspension, soldeFondsCentimes: 1_000_000 },
-        { budgetPrevisionnelCentimes: BUDGET, travauxPptAdopteCentimes: 3_000_000 },
+        { budgetPrevisionnelCentimes: BUDGET, totalTravauxPlanAdopteCentimes: 3_000_000 },
       ),
     ).toMatchObject([{ code: 'suspension_hors_seuils' }])
     // Le fonds dépasse la moitié du plan mais pas le budget : les conditions sont cumulatives.
     expect(
       controlerCotisationFondsTravaux(
         { cotisationAnnuelleCentimes: 0, suspension, soldeFondsCentimes: 600_000 },
-        { budgetPrevisionnelCentimes: BUDGET, travauxPptAdopteCentimes: 1_000_000 },
+        { budgetPrevisionnelCentimes: BUDGET, totalTravauxPlanAdopteCentimes: 1_000_000 },
       ),
     ).toMatchObject([{ code: 'suspension_hors_seuils' }])
     expect(controlerCotisationFondsTravaux({ cotisationAnnuelleCentimes: 0, suspension }, assiette)).toMatchObject([
@@ -546,7 +669,7 @@ describe('J4 — contrôle de la cotisation votée', () => {
   it('suspension par le juge (plan de sauvegarde, art. 29-14, 1°) : pas de condition de seuil', () => {
     expect(
       controlerCotisationFondsTravaux(
-        { cotisationAnnuelleCentimes: 0, suspension: { origine: 'juge_29_14', reference: 'Ordonnance du 02/09/2026' }, soldeFondsCentimes: 0 },
+        { cotisationAnnuelleCentimes: 0, suspension: { origine: 'juge_29_14', reference: 'Ordonnance du 02/09/2026', debut: '2026-09-02' }, soldeFondsCentimes: 0 },
         assiette,
       ),
     ).toEqual([])
@@ -555,34 +678,130 @@ describe('J4 — contrôle de la cotisation votée', () => {
   it('refuse une saisie invalide', () => {
     expect(() => controlerCotisationFondsTravaux({ cotisationAnnuelleCentimes: -1 }, assiette)).toThrow(/centimes/)
     expect(() =>
-      controlerCotisationFondsTravaux({ cotisationAnnuelleCentimes: 0, suspension: { origine: 'ag', reference: ' ' } }, assiette),
+      controlerCotisationFondsTravaux({ cotisationAnnuelleCentimes: 0, suspension: { origine: 'ag', reference: ' ', debut: '2026-03-12' } }, assiette),
     ).toThrow(/suspension/i)
+  })
+})
+
+describe('J67, R85 — cotisation minimale due sans vote (art. 14-2-1, I, al. 8 et 9)', () => {
+  const assiette = { budgetPrevisionnelCentimes: BUDGET, totalTravauxPlanAdopteCentimes: null }
+
+  it('sans montant voté : le minimum s’applique de plein droit ; avec un plan adopté, les deux planchers à la fois', () => {
+    const due = cotisationAnnuelleDue(assiette, null)
+    expect(due).toMatchObject({ cotisationCentimes: 45_350, origine: 'minimum_de_plein_droit', fondement: 'L. 1965 art. 14-2-1, I' })
+    expect(due.motif).toMatch(/de plein droit, sans vote/)
+    expect(cotisationAnnuelleDue({ budgetPrevisionnelCentimes: BUDGET, totalTravauxPlanAdopteCentimes: 3_000_000 }, null)).toMatchObject({
+      cotisationCentimes: 75_000,
+      minimum: { retenu: 'ppt' },
+    })
+  })
+
+  it('montant voté au moins égal au minimum : le montant voté ; inférieur : le minimum reste dû', () => {
+    expect(cotisationAnnuelleDue(assiette, 60_000)).toMatchObject({ cotisationCentimes: 60_000, origine: 'vote' })
+    expect(cotisationAnnuelleDue(assiette, 45_350)).toMatchObject({ cotisationCentimes: 45_350, origine: 'vote' })
+    const sous = cotisationAnnuelleDue(assiette, 40_000)
+    expect(sous).toMatchObject({ cotisationCentimes: 45_350, origine: 'minimum_de_plein_droit' })
+    expect(sous.motif).toMatch(/inférieur au minimum/)
+    expect(() => cotisationAnnuelleDue(assiette, -1)).toThrow(/centimes/)
+  })
+
+  it('plan pluriannuel non renseigné : le minimum annoncé est à confirmer, et le motif le dit', () => {
+    const inconnu = { budgetPrevisionnelCentimes: 1_000_000, totalTravauxPlanAdopteCentimes: PPT_INCONNU }
+    const due = cotisationAnnuelleDue(inconnu, null)
+    expect(due).toMatchObject({ cotisationCentimes: 50_000, origine: 'minimum_de_plein_droit', aConfirmer: true })
+    expect(due.motif).toMatch(/sans vote\. Plan pluriannuel de travaux non renseigné : s'il est adopté, la cotisation annuelle doit aussi atteindre 2,5 % de ses travaux\.$/)
+    expect(cotisationAnnuelleDue(inconnu, 60_000)).toMatchObject({ origine: 'vote', aConfirmer: true })
+    expect(cotisationAnnuelleDue(assiette, null).aConfirmer).toBe(false)
+    expect(cotisationAnnuelleDue(assiette, null).motif).not.toMatch(/non renseigné/)
+  })
+})
+
+describe('J67, R85 — suspension des cotisations : période, reprise, seuils du II à chaque exercice', () => {
+  const assiette = { budgetPrevisionnelCentimes: BUDGET, totalTravauxPlanAdopteCentimes: null }
+  const VOTEE = { origine: 'ag' as const, reference: 'AG du 12/03/2026, résolution 9', debut: '2026-03-12' }
+  const ORDONNEE = { origine: 'juge_29_14' as const, reference: 'Ordonnance du 02/09/2026', debut: '2026-09-02' }
+  const etat = (surcharge: Partial<Parameters<typeof etatSuspensionCotisationsFondsTravaux>[0]> = {}) =>
+    etatSuspensionCotisationsFondsTravaux({ suspension: VOTEE, date: '2026-07-01', soldeFondsCentimes: 1_000_000, assiette, ...surcharge })
+
+  it('votée pour une période : suspendue jusqu’à sa fin incluse ; ensuite, reprise des cotisations avec alerte', () => {
+    const periode = { ...VOTEE, fin: '2026-12-31' }
+    expect(etat({ suspension: periode })).toMatchObject({ suspendue: true, jusquAu: '2026-12-31', alerte: null, aConfirmer: false, fondement: 'L. 1965 art. 14-2-1, II' })
+    expect(etat({ suspension: periode, date: '2026-12-31' }).suspendue).toBe(true)
+    const apres = etat({ suspension: periode, date: '2027-01-01' })
+    expect(apres).toMatchObject({ suspendue: false, alerte: { code: 'reprise_des_cotisations', fondement: 'L. 1965 art. 14-2-1, II' } })
+    expect(apres.alerte?.message).toMatch(/période votée.*31\/12\/2026/)
+  })
+
+  it('votée sans période : jusqu’à l’AG annuelle suivante, exclue ; date de cette AG inconnue : suspendue, à confirmer', () => {
+    expect(etat({ dateAgAnnuelleSuivante: '2027-03-15' })).toMatchObject({ suspendue: true, jusquAu: '2027-03-14', aConfirmer: false })
+    const ag = etat({ dateAgAnnuelleSuivante: '2027-03-15', date: '2027-03-15' })
+    expect(ag).toMatchObject({ suspendue: false, alerte: { code: 'reprise_des_cotisations' } })
+    expect(ag.alerte?.message).toMatch(/assemblée générale annuelle du 15\/03\/2027/)
+    const inconnue = etat()
+    expect(inconnue).toMatchObject({ suspendue: true, jusquAu: null, aConfirmer: true })
+    expect(inconnue.motif).toMatch(/date de l'assemblée générale annuelle suivante à renseigner/)
+  })
+
+  it('seuils du II contrôlés à chaque exercice : une condition n’est plus remplie, les cotisations reprennent (alerte)', () => {
+    const sousLeBudget = etat({ soldeFondsCentimes: BUDGET })
+    expect(sousLeBudget).toMatchObject({ suspendue: false, alerte: { code: 'reprise_des_cotisations', fondement: 'L. 1965 art. 14-2-1, II' } })
+    expect(sousLeBudget.alerte?.message).toMatch(/n'excède plus/)
+    // Avec un plan adopté : il faut en outre dépasser la moitié de ses travaux.
+    expect(etat({ assiette: { budgetPrevisionnelCentimes: BUDGET, totalTravauxPlanAdopteCentimes: 3_000_000 } }).suspendue).toBe(false)
+    expect(etat({ assiette: { budgetPrevisionnelCentimes: BUDGET, totalTravauxPlanAdopteCentimes: 1_000_000 } }).suspendue).toBe(true)
+    // Solde ou plan inconnus : suspension gardée, seuils à vérifier.
+    expect(etat({ soldeFondsCentimes: null })).toMatchObject({ suspendue: true, aConfirmer: true })
+    expect(etat({ assiette: { budgetPrevisionnelCentimes: BUDGET, totalTravauxPlanAdopteCentimes: PPT_INCONNU } })).toMatchObject({ suspendue: true, aConfirmer: true })
+  })
+
+  it('ordonnée par le juge (plan de sauvegarde, art. 29-14, 1°) : sans condition de seuil ; sa période, sinon son terme à vérifier', () => {
+    expect(etat({ suspension: ORDONNEE, date: '2026-10-01', soldeFondsCentimes: 0 })).toMatchObject({
+      suspendue: true,
+      jusquAu: null,
+      aConfirmer: true,
+      fondement: 'L. 1965 art. 29-14, 1°',
+    })
+    expect(etat({ suspension: { ...ORDONNEE, fin: '2027-09-01' }, date: '2027-09-01', soldeFondsCentimes: 0 })).toMatchObject({ suspendue: true, aConfirmer: false })
+    expect(etat({ suspension: { ...ORDONNEE, fin: '2027-09-01' }, date: '2027-09-02', soldeFondsCentimes: 0 })).toMatchObject({
+      suspendue: false,
+      alerte: { code: 'reprise_des_cotisations', fondement: 'L. 1965 art. 29-14, 1°' },
+    })
+  })
+
+  it('avant son début : pas encore suspendue, sans alerte ; saisie invalide refusée', () => {
+    expect(etat({ date: '2026-03-11' })).toMatchObject({ suspendue: false, alerte: null })
+    expect(() => etat({ suspension: { ...VOTEE, debut: '12/03/2026' } })).toThrow(/début.*AAAA-MM-JJ/)
+    expect(() => etat({ suspension: { ...VOTEE, fin: '2026-01-01' } })).toThrow(/fin.*antérieure au début/)
+    expect(() => etat({ suspension: { ...VOTEE, reference: ' ' } })).toThrow(/référence/)
+    expect(() => etat({ dateAgAnnuelleSuivante: '2026-03-01' })).toThrow(/assemblée générale annuelle suivante/)
+    expect(() => etat({ date: '01/07/2026' })).toThrow(/AAAA-MM-JJ/)
+    expect(() => controlerCotisationFondsTravaux({ cotisationAnnuelleCentimes: 0, suspension: { ...VOTEE, debut: '' } }, assiette)).toThrow(/début/)
   })
 })
 
 describe('J4 — l’assemblée doit se prononcer sur la suspension (art. 14-2-1, II)', () => {
   it('sans plan : dès que le fonds excède le budget prévisionnel (strictement)', () => {
-    const alerte = questionSuspensionFondsTravaux({ soldeFondsCentimes: BUDGET + 1, budgetPrevisionnelCentimes: BUDGET, travauxPptAdopteCentimes: null })
+    const alerte = questionSuspensionFondsTravaux({ soldeFondsCentimes: BUDGET + 1, budgetPrevisionnelCentimes: BUDGET, totalTravauxPlanAdopteCentimes: null })
     expect(alerte).toMatchObject({ code: 'ag_doit_se_prononcer_suspension', fondement: 'L. 1965 art. 14-2-1, II' })
     expect(alerte?.message).toMatch(/se prononcer/)
     expect(alerte?.message).toMatch(/pas automatique/)
-    expect(questionSuspensionFondsTravaux({ soldeFondsCentimes: BUDGET, budgetPrevisionnelCentimes: BUDGET, travauxPptAdopteCentimes: null })).toBeNull()
+    expect(questionSuspensionFondsTravaux({ soldeFondsCentimes: BUDGET, budgetPrevisionnelCentimes: BUDGET, totalTravauxPlanAdopteCentimes: null })).toBeNull()
   })
 
   it('avec un plan adopté : il faut en outre dépasser la moitié de ses travaux', () => {
-    const assiette = { budgetPrevisionnelCentimes: BUDGET, travauxPptAdopteCentimes: 3_000_000 }
+    const assiette = { budgetPrevisionnelCentimes: BUDGET, totalTravauxPlanAdopteCentimes: 3_000_000 }
     expect(questionSuspensionFondsTravaux({ ...assiette, soldeFondsCentimes: 1_500_000 })).toBeNull()
     expect(questionSuspensionFondsTravaux({ ...assiette, soldeFondsCentimes: 1_500_001 })?.code).toBe('ag_doit_se_prononcer_suspension')
     // Conditions cumulatives : plus de la moitié du plan ne suffit pas sans dépasser le budget.
     expect(
-      questionSuspensionFondsTravaux({ budgetPrevisionnelCentimes: BUDGET, travauxPptAdopteCentimes: 1_000_000, soldeFondsCentimes: 600_000 }),
+      questionSuspensionFondsTravaux({ budgetPrevisionnelCentimes: BUDGET, totalTravauxPlanAdopteCentimes: 1_000_000, soldeFondsCentimes: 600_000 }),
     ).toBeNull()
   })
 
   it('plan non renseigné : alerte dès le budget dépassé, marquée à confirmer', () => {
     const alerte = questionSuspensionFondsTravaux({
       budgetPrevisionnelCentimes: BUDGET,
-      travauxPptAdopteCentimes: PPT_INCONNU,
+      totalTravauxPlanAdopteCentimes: PPT_INCONNU,
       soldeFondsCentimes: BUDGET + 1,
     })
     expect(alerte).toMatchObject({ code: 'ag_doit_se_prononcer_suspension', aConfirmer: true })
@@ -590,7 +809,7 @@ describe('J4 — l’assemblée doit se prononcer sur la suspension (art. 14-2-1
   })
 
   it('refuse un solde invalide', () => {
-    expect(() => questionSuspensionFondsTravaux({ soldeFondsCentimes: 1.5, budgetPrevisionnelCentimes: BUDGET, travauxPptAdopteCentimes: null })).toThrow(/centimes/)
+    expect(() => questionSuspensionFondsTravaux({ soldeFondsCentimes: 1.5, budgetPrevisionnelCentimes: BUDGET, totalTravauxPlanAdopteCentimes: null })).toThrow(/centimes/)
   })
 })
 
@@ -662,5 +881,26 @@ describe('J4 — « Montant bloqué » : un garde-fou de gestion, pas une règle
     expect(source).toMatch(/🔴/)
     expect(source).toMatch(/Légifrance le 29\/10\/2026/)
     expect(source).not.toMatch(/Non établi : la rédaction exactement en vigueur/)
+  })
+})
+
+describe('J67, R84 à R86 — en-tête : décisions inscrites, questions fermées', () => {
+  const { texte: entete } = enTeteDuModule('fonds-travaux')
+  const decisions = entete.slice(entete.indexOf('Décisions de Hugo du 17/11/2026'), entete.indexOf('🔵 Déduit du texte'))
+  const nonEtabli = entete.slice(entete.indexOf('🔴 Non établi'))
+
+  it('R84 : assiette des 2,5 % = montant total des travaux de la partie du plan adoptée, toutes années ; entrée renommée', () => {
+    expect(decisions).toMatch(/J67, R84 : .*montant total des travaux de la partie du plan adoptée.*toutes années confondues.*totalTravauxPlanAdopteCentimes/)
+    expect(nonEtabli).not.toMatch(/assiette des 2,5 %/)
+  })
+
+  it('R85 : minimum sans vote ; suspension votée (art. 24) ou ordonnée (art. 29-14, 1°), période, reprise', () => {
+    expect(decisions).toMatch(/J67, R85 : .*de plein droit.*art\. 24.*29-14, 1°.*reprise des cotisations/)
+    expect(nonEtabli).not.toMatch(/durée et reprise d'une suspension/)
+  })
+
+  it('R86 : ancien art. 14-2 modélisé avant l’entrée en vigueur ; fonds continu ; alerte immeuble de moins de dix ans', () => {
+    expect(decisions).toMatch(/J67, R86 : .*ancien art\. 14-2.*continue tel quel.*immeuble_moins_de_dix_ans/)
+    expect(nonEtabli).not.toMatch(/régime antérieur/)
   })
 })

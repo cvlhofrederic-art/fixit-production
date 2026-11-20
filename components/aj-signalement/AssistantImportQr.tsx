@@ -18,13 +18,20 @@
 // Le lecteur .xlsx et le modèle (fflate) sont chargés au clic : jamais dans le premier chargement de l'espace.
 // Logo du cabinet (demande de Hugo du 13/11/2026) : les affiches du lot portent le logo du cabinet choisi s'il en a un
 // (métadonnées de la liste des cabinets, image lue une fois au clic) ; logo illisible : affiches sans logo, avertissement.
+// Bureaux des cabinets (migration 20261119 ; ajout de la PR 1, section Risques ; BROUILLON soumis avant fusion) : dès que
+// le cabinet a un bureau ouvert, chaque nouvelle fiche doit en avoir un (sinon 409 bureau_requis). L'étape des
+// gestionnaires sans fiche fait alors choisir UN bureau, donné à toutes les fiches qu'elle crée (comme « Ajouter un
+// gestionnaire » : useChoixBureauFicheQr ; il se change ensuite sur leur page profil). Cabinet sans bureau ouvert : rien
+// ne change, aucune requête. Refus bureau_ferme, bureau_requis ou a_reverifier : expliqués par adresse, bureaux relus.
 
 import { useId, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { remplir } from '@/lib/coproprietaire/textes'
 import { Badge, Bouton, Carte, Champ, CLASSES_SAISIE, Encadre, type TonBadge } from '@/components/coproprietaire-dashboard/ui'
-import { messageEchecQr } from '@/components/aj-signalement/messageEchecQr'
-import { creerGestionnaireQr, creerImportQr, verifierImportQr } from '@/lib/aj-signalement/api'
+import ChoixBureauQr from '@/components/aj-signalement/ChoixBureauQr'
+import { messageEchecAvecBureauQr, messageEchecQr } from '@/components/aj-signalement/messageEchecQr'
+import { useChoixBureauFicheQr } from '@/components/aj-signalement/useChoixBureauFicheQr'
+import { creerGestionnaireQr, creerImportQr, verifierImportQr, type CodeErreurQr } from '@/lib/aj-signalement/api'
 import { lireCsvQr } from '@/lib/aj-signalement/import/csv'
 import { exportCoproprietesCsvQr } from '@/lib/aj-signalement/import/export-csv'
 import {
@@ -38,8 +45,8 @@ import { TEXTES_GESTION_QR as G } from '@/lib/aj-signalement/affichage-gestion'
 import {
   urlSignalementQr,
   type ActionImportQr, type CabinetQr, type ChampImportQr, type ChoixLigneImportQr, type CorrespondanceImportQr, type DiagnosticLigneImportQr,
-  type EtatLigneImportQr, type LectureTableurQr, type LigneExportCoproprieteQr, type LigneImportQr, type MessageImportQr,
-  type NormalisationImportQr, type ResultatImportQr, type VerificationImportQr,
+  type EtatLigneImportQr, type GestionnaireInconnuImportQr, type LectureTableurQr, type LigneExportCoproprieteQr, type LigneImportQr,
+  type MessageImportQr, type NormalisationImportQr, type ResultatImportQr, type VerificationImportQr,
 } from '@/lib/aj-signalement/types'
 
 export interface PropsAssistantImportQr {
@@ -114,6 +121,29 @@ function lettreColonne(index: number): string {
 const adresseAffiche = (l: Pick<LigneExportCoproprieteQr, 'adresse' | 'codePostal' | 'ville'>): string =>
   [l.adresse, `${l.codePostal} ${l.ville}`.trim()].filter(Boolean).join(', ')
 
+/** Échec de la création d'une fiche : son adresse et le code de la route. */
+type EchecFicheQr = { email: string; code: CodeErreurQr }
+
+/**
+ * Fiches des gestionnaires inconnus, créées une par une, hors de la transaction d'import (chaque e-mail de confirmation
+ * nomme le cabinet et la personne). bureauId seulement s'il est choisi : sans bureau, le corps reste celui d'avant.
+ */
+async function creerFichesInconnuesQr(
+  aCreer: readonly GestionnaireInconnuImportQr[], noms: Readonly<Record<string, string>>, cabinetId: string, bureauId: string,
+): Promise<{ creees: number; echecs: EchecFicheQr[] }> {
+  let creees = 0
+  const echecs: EchecFicheQr[] = []
+  for (const g of aCreer) {
+    const r = await creerGestionnaireQr({
+      nom: (noms[g.email] ?? g.nomPropose).trim() || g.nomPropose, email: g.email, cabinetId, coproprieteIds: [],
+      forcerDomaine: !g.dansDomaines, ...(bureauId ? { bureauId } : {}),
+    })
+    if (r.ok) creees += 1
+    else echecs.push({ email: g.email, code: r.code })
+  }
+  return { creees, echecs }
+}
+
 /** Ligne de l'aperçu : diagnostic du serveur (ou erreur de format restée ici) et décision selon le choix courant. */
 interface LigneApercu {
   numeroLigne: number
@@ -148,6 +178,9 @@ export default function AssistantImportQr({ cabinets, origine, onFermer, onImpor
 
   const cabinetId = cabinetChoisi || (cabinets?.length === 1 ? cabinets[0].id : '')
   const cabinet = cabinets?.find((c) => c.id === cabinetId) ?? null
+  // Bureau des fiches à créer : lu seulement quand l'étape des gestionnaires sans fiche est là et que le cabinet a un
+  // bureau ouvert.
+  const bureau = useChoixBureauFicheQr(cabinet, (verifie?.verification.gestionnairesInconnus.length ?? 0) > 0)
   const entetes = useMemo(() => lecture?.lignes[indexEntetes] ?? [], [lecture, indexEntetes])
   const nbColonnes = useMemo(() => Math.min(COLONNES_LUES_MAX_QR, Math.max(0, ...(lecture?.lignes ?? []).map((l) => l.length))), [lecture])
 
@@ -178,6 +211,7 @@ export default function AssistantImportQr({ cabinets, origine, onFermer, onImpor
     setVerifie(null)
     setResultat(null)
     setMessage(null)
+    bureau.oublier()
   }
 
   const proposerCorrespondance = (lignesEntetes: readonly string[]) => {
@@ -357,22 +391,17 @@ export default function AssistantImportQr({ cabinets, origine, onFermer, onImpor
     if (!verifie || !cabinet) return
     const aCreer = verifie.verification.gestionnairesInconnus.filter((g) => g.dansDomaines || forcerInconnus[g.email])
     if (aCreer.length === 0) return
+    // Cabinet avec un bureau ouvert : le bureau des fiches à créer est exigé (la route le redit : bureau_requis).
+    if (bureau.manquant) return setMessage({ ton: 'erreur', texte: G.bureaux.import.requis })
     setOccupe('fiches')
     setMessage(null)
-    let creees = 0
-    const echecs: string[] = []
-    // Une par une, hors de la transaction d'import : chaque e-mail de confirmation nomme le cabinet et la personne.
-    for (const g of aCreer) {
-      const r = await creerGestionnaireQr({
-        nom: (nomsInconnus[g.email] ?? g.nomPropose).trim() || g.nomPropose, email: g.email, cabinetId: cabinet.id, coproprieteIds: [],
-        forcerDomaine: !g.dansDomaines,
-      })
-      if (r.ok) creees += 1
-      else echecs.push(remplir(I.fichesEchec, { email: g.email, raison: messageEchecQr(r.code) }))
-    }
+    const envoye = bureau.bureauId !== ''
+    const { creees, echecs } = await creerFichesInconnuesQr(aCreer, nomsInconnus, cabinet.id, bureau.bureauId)
+    bureau.apresRefus(echecs.map((e) => e.code))
+    const raisons = echecs.map((e) => remplir(I.fichesEchec, { email: e.email, raison: messageEchecAvecBureauQr(e.code, envoye) }))
     setOccupe(null)
     const ok = await verifier()
-    const textes = [...(creees > 0 && ok ? [remplir(I.fichesCreees, { n: creees })] : []), ...echecs]
+    const textes = [...(creees > 0 && ok ? [remplir(I.fichesCreees, { n: creees })] : []), ...raisons]
     if (textes.length > 0) setMessage({ ton: echecs.length > 0 ? 'erreur' : 'succes', texte: textes.join(' ') })
   }
 
@@ -579,8 +608,16 @@ export default function AssistantImportQr({ cabinets, origine, onFermer, onImpor
                   </label>
                 </div>
               ))}
+              {bureau.avecBureaux && (
+                <ChoixBureauQr
+                  id={`${idBase}-bureau-fiches`} etiquette={G.bureaux.import.champ} aide={G.bureaux.import.aide} lecture={bureau.lecture}
+                  bureaux={bureau.ouverts} valeur={bureau.bureauId} requis disabled={occupe !== null} onChange={bureau.choisir}
+                  onReessayer={bureau.recharger}
+                />
+              )}
               <Bouton
-                variante="secondaire" icone="utilisateur" disabled={occupe !== null || !inconnus.some((g) => g.dansDomaines || forcerInconnus[g.email])}
+                variante="secondaire" icone="utilisateur"
+                disabled={occupe !== null || bureau.enAttente || !inconnus.some((g) => g.dansDomaines || forcerInconnus[g.email])}
                 onClick={() => { void creerFiches() }}
               >
                 {occupe === 'fiches' ? I.creationFiches : I.creerFiches}

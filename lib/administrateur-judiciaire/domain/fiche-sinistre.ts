@@ -1,5 +1,6 @@
 import {
   ajouterMois,
+  composerDateIso,
   dateIsoVersFr,
   estDateIsoValide,
   messagePlausibilite,
@@ -11,6 +12,7 @@ import {
   controlerPlausibiliteDatesSinistre,
   creerSinistre,
   erreursSaisieSinistre,
+  PRESCRIPTION_MOIS,
   statutSinistre,
   type AssuranceSinistre,
   type FicheSinistre,
@@ -36,6 +38,11 @@ import type { PhaseSinistre, StatutSinistre, TypeSinistre } from '@/lib/data/ref
  *   du jour où le tiers a agi en justice contre l'assuré ou a été indemnisé par lui ; cinq ans pour les dommages des
  *   mouvements de terrain consécutifs à la sécheresse-réhydratation des sols reconnus catastrophe naturelle (L. 125-1).
  *   Interruption : art. L. 114-2 (causes ordinaires, désignation d'experts, lettre recommandée).
+ *   J67, R56 (décision de Hugo du 17/11/2026 ; L. 114-1 et loi n° 2021-1837, art. 4 et 10, lus sur Légifrance le
+ *   17/11/2026) : les cinq ans de la sécheresse-réhydratation ne valent que pour un contrat conclu après le 29/12/2021,
+ *   date de publication de la loi, qui ne s'applique pas aux contrats en cours ; contrat reconduit depuis : non établi,
+ *   deux ans par prudence. La date suggérée reste à deux ans ; l'avertissement (catastrophe naturelle seulement, sans 🔴)
+ *   le dit et lit la date du contrat choisi si l'appelant la donne.
  *   🔴 À confirmer avec Hugo : « Forclusion », au cabinet, désigne-t-il cette prescription biennale (hypothèse retenue)
  *   ou la limite de déclaration de l'art. L. 113-2 ?
  */
@@ -265,8 +272,7 @@ export const centimesVersSaisieEuros = (centimes: number): string =>
 
 export const FONDEMENT_FORCLUSION = 'C. assur. art. L. 114-1'
 
-/** Prescription biennale (L. 114-1, al. 1). */
-const DUREE_PRESCRIPTION_MOIS = 24
+// Prescription biennale (L. 114-1, al. 1) : PRESCRIPTION_MOIS de sinistres.ts, une seule durée pour tout le domaine.
 
 /** Types dont l'action peut avoir pour cause le recours d'un tiers (point de départ reporté, L. 114-1). */
 const TYPES_RECOURS_TIERS: readonly TypeSinistre[] = ['Responsabilités civiles', 'Défense - Recours']
@@ -289,6 +295,33 @@ export interface BaseSuggestionForclusion {
   dateSurvenance: string
   dateConnaissance?: string | null
   type?: TypeSinistre | null
+  /**
+   * Date de conclusion du contrat d'assurance choisi (assurance.contratId), si elle est connue (J67, R56) ; lue pour la
+   * seule catastrophe naturelle. Aucun appelant ne la passe encore : branchement à faire (écran : Frédéric).
+   */
+  dateContrat?: string | null
+}
+
+/**
+ * Loi n° 2021-1837 du 28/12/2021, publiée au JORF n° 302 du 29/12/2021 : elle ne s'applique pas aux contrats en cours à
+ * cette date (art. 10, al. 1), ni donc ses cinq ans de la sécheresse-réhydratation (art. 4, exception de L. 114-1).
+ */
+const PUBLICATION_LOI_2021_1837 = composerDateIso(2021, 12, 29)
+
+/** Seul cas des cinq ans (C. assur. art. L. 114-1) : la mention le précise (J67, R56). */
+const SECHERESSE =
+  'Sécheresse-réhydratation seulement (mouvements de terrain consécutifs, reconnus catastrophe naturelle, C. assur. art. L. 114-1)'
+
+/**
+ * J67, R56 : les cinq ans ne valent que pour un contrat conclu après le 29/12/2021 ; contrat en cours à cette date : deux
+ * ans ; contrat reconduit depuis : non établi, deux ans par prudence. La date suggérée reste à deux ans.
+ */
+function avertissementSecheresse(dateContrat: string | null | undefined): string {
+  if (!estDateIsoValide(dateContrat))
+    return `${SECHERESSE} : cinq ans seulement si le contrat a été conclu après le ${dateIsoVersFr(PUBLICATION_LOI_2021_1837)} (loi n° 2021-1837, art. 10) ; contrat reconduit : à vérifier ; à défaut, deux ans.`
+  if (dateContrat > PUBLICATION_LOI_2021_1837)
+    return `${SECHERESSE} : contrat conclu le ${dateIsoVersFr(dateContrat)}, après le ${dateIsoVersFr(PUBLICATION_LOI_2021_1837)} : cinq ans (loi n° 2021-1837, art. 10).`
+  return `${SECHERESSE} : contrat conclu le ${dateIsoVersFr(dateContrat)}, en cours à la publication de la loi n° 2021-1837 (art. 10 : elle ne s'applique pas aux contrats en cours) : deux ans ; reconduit depuis : à vérifier, deux ans par prudence.`
 }
 
 /**
@@ -298,7 +331,7 @@ export interface BaseSuggestionForclusion {
 export function suggestionForclusion(fiche: BaseSuggestionForclusion): SuggestionForclusion {
   const connaissance = fiche.dateConnaissance ?? fiche.dateSurvenance
   const dateSiConnaissanceTardive =
-    connaissance > fiche.dateSurvenance ? ajouterMois(connaissance, DUREE_PRESCRIPTION_MOIS) : null
+    connaissance > fiche.dateSurvenance ? ajouterMois(connaissance, PRESCRIPTION_MOIS) : null
   const avertissements = [
     "Suggestion à confirmer : prescription biennale des actions dérivant du contrat d'assurance (C. assur. art. L. 114-1), interrompue notamment par la désignation d'un expert ou une lettre recommandée (art. L. 114-2). Vérifier le contrat et le dossier.",
   ]
@@ -310,13 +343,10 @@ export function suggestionForclusion(fiche: BaseSuggestionForclusion): Suggestio
     avertissements.push(
       "Recours d'un tiers : le délai ne court que du jour où le tiers a agi en justice contre l'assuré ou a été indemnisé par lui (L. 114-1).",
     )
-  if (fiche.type === 'Catastrophes naturelles')
-    avertissements.push(
-      'Mouvements de terrain consécutifs à la sécheresse-réhydratation des sols reconnus catastrophe naturelle : prescription de cinq ans (L. 114-1, loi n° 2021-1837) 🔴 à vérifier selon la date du contrat.',
-    )
+  if (fiche.type === 'Catastrophes naturelles') avertissements.push(avertissementSecheresse(fiche.dateContrat))
   return {
-    date: ajouterMois(fiche.dateSurvenance, DUREE_PRESCRIPTION_MOIS),
-    dureeMois: DUREE_PRESCRIPTION_MOIS,
+    date: ajouterMois(fiche.dateSurvenance, PRESCRIPTION_MOIS),
+    dureeMois: PRESCRIPTION_MOIS,
     base: 'survenance',
     dateSiConnaissanceTardive,
     marqueur: '🔵',
@@ -439,6 +469,7 @@ const CHAMPS_FICHE_RELUS = [
   'assistant',
 ] as const satisfies readonly (keyof SaisieSinistre)[]
 
+/** Champs texte (date comprise) ou null de l'assurance. */
 const CHAMPS_ASSURANCE = [
   'compagnie',
   'courtier',
@@ -448,7 +479,11 @@ const CHAMPS_ASSURANCE = [
   'courtierId',
   'numeroCourtier',
   'contratId',
+  'transmisCompagnieLe',
 ] as const satisfies readonly (keyof AssuranceSinistre)[]
+
+/** Champs oui ou non de l'assurance : le mandat du courtier (J67, R51). */
+const CHAMPS_ASSURANCE_BOOLEENS = ['courtierMandateParAssureur'] as const satisfies readonly (keyof AssuranceSinistre)[]
 
 /** Valeur par défaut des champs absents d'une ligne (ceux d'une saisie vide). */
 const SAISIE_PAR_DEFAUT: Pick<SaisieSinistre, (typeof CHAMPS_FICHE_RELUS)[number]> = {
@@ -493,6 +528,8 @@ const ASSURANCE_VIDE: Required<AssuranceSinistre> = {
   courtierId: null,
   numeroCourtier: null,
   contratId: null,
+  transmisCompagnieLe: null,
+  courtierMandateParAssureur: false,
 }
 
 /**
@@ -519,7 +556,7 @@ function saisieRelue(ligne: EnregistrementSinistre, type: TypeSinistre, dateSurv
     coproprieteId: ligne.coproprieteId,
     type,
     dateSurvenance,
-    assurance: { ...ASSURANCE_VIDE, ...valeursDefinies(ligne.assurance ?? {}, CHAMPS_ASSURANCE) },
+    assurance: { ...ASSURANCE_VIDE, ...valeursDefinies(ligne.assurance ?? {}, [...CHAMPS_ASSURANCE, ...CHAMPS_ASSURANCE_BOOLEENS]) },
   })
 }
 
@@ -529,6 +566,7 @@ function saisieRelue(ligne: EnregistrementSinistre, type: TypeSinistre, dateSurv
 const estTexte = (valeur: unknown): boolean => typeof valeur === 'string'
 const estTexteOuNull = (valeur: unknown): boolean => valeur === null || typeof valeur === 'string'
 const estObjet = (valeur: unknown): valeur is Record<string, unknown> => typeof valeur === 'object' && valeur !== null
+const estBooleen = (valeur: unknown): boolean => typeof valeur === 'boolean'
 
 /** Champs texte de la fiche, jamais null. */
 const CHAMPS_TEXTE = ['origine', 'lieu', 'dommages', 'notes'] as const
@@ -575,7 +613,10 @@ const intervenantLisible = (intervenant: unknown): boolean =>
   (estObjet(intervenant) && estTexte(intervenant.nom) && (intervenant.id === undefined || estTexteOuNull(intervenant.id)))
 
 const assuranceLisible = (assurance: unknown): boolean =>
-  assurance === undefined || (estObjet(assurance) && champsPresentsValides(assurance, CHAMPS_ASSURANCE, estTexteOuNull))
+  assurance === undefined ||
+  (estObjet(assurance) &&
+    champsPresentsValides(assurance, CHAMPS_ASSURANCE, estTexteOuNull) &&
+    champsPresentsValides(assurance, CHAMPS_ASSURANCE_BOOLEENS, estBooleen))
 
 /** Vrai si chaque champ présent de la ligne a le type de la fiche (sinon la relecture lèverait : ligne illisible). */
 function formatLigneLisible(ligne: EnregistrementSinistre): boolean {
@@ -585,7 +626,7 @@ function formatLigneLisible(ligne: EnregistrementSinistre): boolean {
     estTexte(champs.coproprieteId) &&
     champsPresentsValides(champs, CHAMPS_TEXTE, estTexte) &&
     champsPresentsValides(champs, CHAMPS_TEXTE_OU_NULL, estTexteOuNull) &&
-    champsPresentsValides(champs, CHAMPS_BOOLEENS, (valeur) => typeof valeur === 'boolean') &&
+    champsPresentsValides(champs, CHAMPS_BOOLEENS, estBooleen) &&
     champsPresentsValides(champs, ['responsable', 'assistant'], intervenantLisible) &&
     assuranceLisible(champs.assurance) &&
     (parties === undefined || (Array.isArray(parties) && parties.every(partieLisible)))

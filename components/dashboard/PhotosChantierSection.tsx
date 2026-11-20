@@ -15,8 +15,44 @@ interface PhotoItem {
 }
 interface RapportItem { id: string; titre?: string; rapportNumber?: string; clientName?: string; interventionDate?: string; linkedPhotoIds?: string[] }
 
+// Rapport présent en base : son identifiant est celui de la base (les identifiants locaux ne sont pas des UUID).
+const FORMAT_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const MESSAGE_PHOTOS_NON_ENREGISTREES = 'Modification gardée sur cet appareil : la copie en ligne du rapport n\'a pas pu être mise à jour.'
+
+/** BTP pro : photos liées d'un rapport en base, enregistrées par /api/btp (le serveur vérifie le propriétaire). */
+async function enregistrerPhotosDuRapport(id: string, photos: string[]): Promise<boolean> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    const res = await fetch('/api/btp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}) },
+      body: JSON.stringify({ table: 'rapports_btp', action: 'update', id, data: { photos } }),
+    })
+    if (res.ok) return true
+    console.error(`[btp] photos du rapport refusées (${res.status})`)
+  } catch (err) {
+    console.error('[btp] photos du rapport : écriture en ligne impossible :', err)
+  }
+  return false
+}
+
+/**
+ * BTP pro : chaque rapport en base dont la liste de photos change (le rapport choisi, et celui que la photo quitte) est
+ * enregistré, et un échec est annoncé (constat donnees-btp-13, relecture adverse du 16/11/2026). Avant, seul le rapport
+ * choisi était écrit, directement et sans lire la réponse : cet écran, qui relit la base, pouvait montrer la photo encore
+ * liée à l'ancien rapport. Un rapport encore seulement sur l'appareil (identifiant local) n'est pas envoyé.
+ */
+async function enregistrerPhotosLiees(avant: RapportItem[], apres: RapportItem[]): Promise<void> {
+  const photosAvant = new Map(avant.map(r => [r.id, JSON.stringify(r.linkedPhotoIds || [])]))
+  const modifies = apres.filter(r => FORMAT_UUID.test(r.id) && photosAvant.get(r.id) !== JSON.stringify(r.linkedPhotoIds || []))
+  const resultats = await Promise.all(modifies.map(r => enregistrerPhotosDuRapport(r.id, r.linkedPhotoIds || [])))
+  if (resultats.includes(false)) toast.error(MESSAGE_PHOTOS_NON_ENREGISTREES, { id: 'btp-ecriture-rapports' })
+}
+
 export default function PhotosChantierSection({ artisan, bookings, orgRole }: { artisan: import('@/lib/types').Artisan; bookings: import('@/lib/types').Booking[]; orgRole?: string }) {
-  void orgRole
+  // BTP pro : la liaison d'une photo à un rapport s'enregistre par /api/btp (enregistrerPhotosLiees). L'artisan garde
+  // l'écriture d'avant.
+  const enregistrementBTP = orgRole === 'pro_societe'
   const tv = useThemeVars(true)
   const { t } = useTranslation()
   const locale = useLocale()
@@ -93,7 +129,11 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
       localStorage.setItem(storageKey, JSON.stringify(updated))
       setRapports(updated)
       setAssigningRapport(null)
-      // Fire-and-forget Supabase update for the affected rapport
+      if (enregistrementBTP) {
+        void enregistrerPhotosLiees(allRapports, updated)
+        return
+      }
+      // Fire-and-forget Supabase update for the affected rapport (artisan)
       if (rapportId && !rapportId.startsWith('rap_')) {
         const target = updated.find((r: RapportItem) => r.id === rapportId)
         if (target) {
@@ -393,7 +433,11 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
                           >
                             <option value="">{t('proDash.photos.aucunDissocier')}</option>
                             {rapports.map((r: RapportItem) => (
-                              <option key={r.id} value={r.id}>{r.rapportNumber} — {r.clientName || 'Client'} — {r.interventionDate || 'N/D'}</option>
+                              <option key={r.id} value={r.id}>
+                                {locale === 'pt'
+                                  ? `${r.rapportNumber} · ${r.clientName || 'Cliente'} · ${r.interventionDate || 's/ data'}`
+                                  : `${r.rapportNumber} — ${r.clientName || 'Client'} — ${r.interventionDate || 'N/D'}`}
+                              </option>
                             ))}
                           </select>
                           {rapports.length === 0 && (

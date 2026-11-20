@@ -49,11 +49,11 @@ describe('opération de travaux — création', () => {
 })
 
 describe('appels de travaux en tranches', () => {
-  it('une échéance « travaux » par tranche, sur le montant à appeler, au centime près', () => {
+  it('une échéance « travaux » par tranche, sur le montant à appeler, au centime près ; crédit du 102 de l’opération (J67, R61)', () => {
     expect(echeancesTravaux(creerOperationTravaux(saisie()))).toEqual([
-      { id: '00042-T1', coproprieteId: 'copro-tilleuls', cleId: 'cle-001', exigibilite: '2026-05-01', libelle: 'Ravalement façade rue — appel n° 1 (30 %)', montantCentimes: 3_000_000, nature: 'travaux', compteContrepartie: '70200' },
-      { id: '00042-T2', coproprieteId: 'copro-tilleuls', cleId: 'cle-001', exigibilite: '2026-08-01', libelle: 'Ravalement façade rue — appel n° 2 (40 %)', montantCentimes: 4_000_000, nature: 'travaux', compteContrepartie: '70200' },
-      { id: '00042-T3', coproprieteId: 'copro-tilleuls', cleId: 'cle-001', exigibilite: '2026-11-01', libelle: 'Ravalement façade rue — appel n° 3 (30 %)', montantCentimes: 3_000_000, nature: 'travaux', compteContrepartie: '70200' },
+      { id: '00042-T1', coproprieteId: 'copro-tilleuls', cleId: 'cle-001', exigibilite: '2026-05-01', libelle: 'Ravalement façade rue — appel n° 1 (30 %)', montantCentimes: 3_000_000, nature: 'travaux', compteContrepartie: '10200' },
+      { id: '00042-T2', coproprieteId: 'copro-tilleuls', cleId: 'cle-001', exigibilite: '2026-08-01', libelle: 'Ravalement façade rue — appel n° 2 (40 %)', montantCentimes: 4_000_000, nature: 'travaux', compteContrepartie: '10200' },
+      { id: '00042-T3', coproprieteId: 'copro-tilleuls', cleId: 'cle-001', exigibilite: '2026-11-01', libelle: 'Ravalement façade rue — appel n° 3 (30 %)', montantCentimes: 3_000_000, nature: 'travaux', compteContrepartie: '10200' },
     ])
   })
 

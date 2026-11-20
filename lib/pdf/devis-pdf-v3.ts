@@ -15,8 +15,9 @@ import { computeAcomptesAmounts, mulMoney } from '@/lib/money'
 import { aUneRemiseDeLigne, texteRemiseLigne } from '@/lib/remise-commerciale'
 import { formatPaymentDueDate as sharedFormatPaymentDueDate } from '@/lib/pdf/payment-due'
 import { DELAI_REVOCATION_TELECHARGEMENT_MS, ouvrirApercuOuTelecharger, telechargerParLien } from '@/lib/pdf/apercu-pdf'
+import { COMPRESSION_PNG, fondBlancAvantJpeg } from '@/lib/pdf/images-pdf'
+import type { ModeleDocument } from '@/lib/pdf/modeles-societes'
 import {
-  type ModeleDocument,
   COULEUR_ACCENT_PROVENCE_PRO,
   DECALAGE_EN_TETE_PROVENCE_PRO_MM,
   dessinerLogoProvencePro,
@@ -226,7 +227,7 @@ export interface PdfV3Input {
   // (téléchargement groupé des listes Devis et Factures, cf. lib/pdf/telechargement-groupe.ts)
   action?: 'download' | 'preview' | 'fichier'
 
-  /** Modèle propre à une société (lib/pdf/modele-provence-pro.ts). Absent : modèle BTP par défaut. */
+  /** Modèle propre à une société (lib/pdf/modeles-societes.ts). Absent : modèle BTP par défaut. */
   modele?: ModeleDocument
 }
 
@@ -244,8 +245,10 @@ export interface PdfV3Input {
  * - Zero-width spaces → supprimés
  * - Emojis (Unicode blocs 1F300-1FAFF, 2600-27BF) → supprimés
  *   (sinon helvetica rend des glyphes vides ou des caractères fantômes)
+ * Exportée pour le gabarit Method Soluções (lib/pdf/modele-method-solucoes.ts), qui retombe sur helvetica
+ * quand sa police ne se charge pas.
  */
-function sanitizeForHelvetica(s: string | null | undefined): string {
+export function sanitizeForHelvetica(s: string | null | undefined): string {
   if (!s) return ''
   return s
     .replace(/[ᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖʳˢᵗᵘᵛʷˣʸᶻ]/g, ch => ({ ᵃ:'a',ᵇ:'b',ᶜ:'c',ᵈ:'d',ᵉ:'e',ᶠ:'f',ᵍ:'g',ʰ:'h',ⁱ:'i',ʲ:'j',ᵏ:'k',ˡ:'l',ᵐ:'m',ⁿ:'n',ᵒ:'o',ᵖ:'p',ʳ:'r',ˢ:'s',ᵗ:'t',ᵘ:'u',ᵛ:'v',ʷ:'w',ˣ:'x',ʸ:'y',ᶻ:'z' } as Record<string,string>)[ch] || ch)
@@ -428,8 +431,14 @@ export async function generateDevisPdfV3(
 
   // Dynamic imports (browser-only)
   let jsPDFMod: typeof import('jspdf'), autoTableModule: typeof import('jspdf-autotable')
+  // Gabarit Method Soluções : son module se charge avec jsPDF (même reprise en cas d'échec de chargement).
+  let moduleMethod: typeof import('@/lib/pdf/modele-method-solucoes') | null = null
   try {
-    [jsPDFMod, autoTableModule] = await Promise.all([import('jspdf'), import('jspdf-autotable')])
+    [jsPDFMod, autoTableModule, moduleMethod] = await Promise.all([
+      import('jspdf'),
+      import('jspdf-autotable'),
+      input.modele === 'method-solucoes' ? import('@/lib/pdf/modele-method-solucoes') : Promise.resolve(null),
+    ])
   } catch (chunkErr) {
     const retryKey = 'pdf_chunk_retry'
     if (!sessionStorage.getItem(retryKey)) {
@@ -443,6 +452,14 @@ export async function generateDevisPdfV3(
   }
   const { jsPDF } = jsPDFMod
   const autoTable = autoTableModule.default
+
+  // ─── Gabarit Method Soluções (lib/pdf/modele-method-solucoes.ts) ───
+  // Seule sa fiche reçoit `modele: 'method-solucoes'` : le document entier est dessiné par ce module,
+  // avec les mêmes données. Toutes les autres sociétés continuent ci-dessous, sans changement.
+  if (moduleMethod) {
+    const pdfMethod = await moduleMethod.rendreDocumentMethodSolucoes(jsPDF, sanitizedInput)
+    return livrerPdf(pdfMethod, moduleMethod.nomFichierMethodSolucoes(sanitizedInput), null, input.action)
+  }
 
   // ════════════════════════════════════════════════════════════════
   // DESIGN PDF V3
@@ -564,7 +581,7 @@ export async function generateDevisPdfV3(
         // Aligné à droite : bord droit du logo = pageW - mR (même axe que la ligne orange et les blocs)
         const logoX = pageW - mR - lw
         const logoY = 2.8
-        pdf.addImage(logoData, 'PNG', logoX, logoY, lw, lh)
+        pdf.addImage(logoData, 'PNG', logoX, logoY, lw, lh, undefined, COMPRESSION_PNG)
       }
     } catch {
       // pas de logo = on saute
@@ -1546,7 +1563,7 @@ export async function generateDevisPdfV3(
         const sigImgDataUrl = await svgToImageDataUrl(signatureData.svg_data, 400, 140)
         const sigImgW = sigW - boxPadX * 2 - 10
         const sigImgH = sigImgW * (140 / 400)
-        pdf.addImage(sigImgDataUrl, 'PNG', sigX + boxPadX, sy, sigImgW, sigImgH)
+        pdf.addImage(sigImgDataUrl, 'PNG', sigX + boxPadX, sy, sigImgW, sigImgH, undefined, COMPRESSION_PNG)
         sy += sigImgH + 2
         pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
         pdf.text(signatureData.signataire, sigX + boxPadX, sy)
@@ -2152,6 +2169,7 @@ export async function generateDevisPdfV3(
         if (ctx) {
           ctx.imageSmoothingEnabled = true
           ctx.imageSmoothingQuality = 'high'
+          fondBlancAvantJpeg(ctx, canvas.width, canvas.height)
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
           const imgData = canvas.toDataURL('image/jpeg', 0.92)
           pdf.addImage(imgData, 'JPEG', imgX, imgY, drawW, drawH)
@@ -2307,9 +2325,23 @@ export async function generateDevisPdfV3(
     }
   }
 
-  if (input.action === 'fichier') {
+  return livrerPdf(pdf, filename, outputBytes, input.action)
+}
+
+/**
+ * Sortie du PDF selon l'action : aperçu dans un onglet, téléchargement, ou rien ('fichier' : téléchargement
+ * groupé des listes Devis et Factures, l'appelant reçoit le fichier). `outputBytes` : PDF/A-3 Factur-X s'il a
+ * été produit, sinon null.
+ */
+function livrerPdf(
+  pdf: import('jspdf').jsPDF,
+  filename: string,
+  outputBytes: Uint8Array | null,
+  action: PdfV3Input['action'],
+): { filename: string; pdfArrayBuffer: ArrayBuffer; fichier: Uint8Array } {
+  if (action === 'fichier') {
     // Téléchargement groupé : rien n'est ouvert ni téléchargé ici, l'appelant reçoit le fichier final (retour).
-  } else if (input.action === 'preview') {
+  } else if (action === 'preview') {
     // Use a named blob so the browser's PDF viewer shows the real filename
     // (not a UUID) when the user downloads from preview
     const blob = outputBytes

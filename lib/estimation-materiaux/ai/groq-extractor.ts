@@ -1,14 +1,158 @@
 import { z } from 'zod'
-import { callGroqWithRetry } from '@/lib/groq'
+import { callGroqWithRetry, type GroqCallOptions, type GroqResponse } from '@/lib/groq'
+import { callClaudeWithRetry, hasAnthropicKey } from '@/lib/claude'
+import { logger } from '@/lib/logger'
 import { allRecipes } from '../recipes'
 import type { EstimationInput, ChantierProfile, Recipe } from '../types'
 import { EstimationInputSchema } from '../types'
 
 /**
- * Extracteur IA (Groq / Llama 3.3 70B) pour le module Estimation matériaux.
+ * Extracteur IA du module Estimation matériaux.
  * Interprète une description en langage naturel et produit un EstimationInput
  * structuré, validé par Zod, prêt à être passé à estimateProject().
  */
+
+/**
+ * Modèle Groq de l'extraction. « llama-3.3-70b-versatile » a été retiré des offres gratuite et développeur de Groq
+ * le 16/08/2026 (console.groq.com/docs/deprecations) : depuis, l'extraction échouait en production (« Cerebras 404:
+ * Model does not exist », constaté le 14/11/2026). Remplaçant recommandé par Groq, même contexte de 131 k.
+ */
+export const MODELE_EXTRACTION_GROQ = 'openai/gpt-oss-120b'
+
+/**
+ * Budget de réponse. Un chantier d'une quinzaine d'ouvrages tient en 4 000 jetons de JSON ; le modèle raisonne
+ * avant de répondre et ce raisonnement compte dans le budget, d'où la marge.
+ */
+const MAX_TOKENS_EXTRACTION = 8000
+
+/**
+ * Nouveaux essais de Groq sur 429 ; lib/groq attend jusqu'à 10 s avant chacun. Avec Claude en relais, un seul :
+ * mieux vaut basculer que faire attendre l'artisan. Sans relais, Groq garde ses quatre tentatives.
+ */
+const NOUVEAUX_ESSAIS_GROQ = { avecRelais: 1, sansRelais: 3 } as const
+
+/** Étiquette `module` des journaux (Sentry). */
+const MODULE_JOURNAL = 'estimation-materiaux'
+
+/** Réponse 200 de Groq qui ne peut pas servir : budget de jetons épuisé, contenu vide, JSON illisible. */
+class ReponseGroqInutilisable extends Error {
+  constructor(motif: string) {
+    super(`Groq : réponse inutilisable (${motif})`)
+    this.name = 'ReponseGroqInutilisable'
+  }
+}
+
+/** Statut HTTP d'une erreur levée par lib/groq (« Groq 404: … ») ; undefined si l'erreur n'en porte pas. */
+function statutGroq(err: unknown): number | undefined {
+  const statut = err instanceof Error ? /^Groq (\d{3}):/.exec(err.message)?.[1] : undefined
+  return statut === undefined ? undefined : Number(statut)
+}
+
+/**
+ * Surcharge passagère de Groq : 429 répétés (lib/groq lève alors « All Groq API attempts failed », sans statut),
+ * erreur 5xx, délai de 25 s dépassé, réseau (fetch lève un TypeError). Tout le reste est durable : requête refusée
+ * (401, 403, 404 modèle retiré, 413 requête trop grosse…), clé absente, réponse inutilisable.
+ */
+function echecPassager(err: unknown): boolean {
+  const statut = statutGroq(err)
+  if (statut !== undefined) return statut === 429 || statut >= 500
+  if (!(err instanceof Error)) return false
+  return err instanceof TypeError || err.name === 'TimeoutError' || err.name === 'AbortError'
+    || err.message === 'All Groq API attempts failed'
+}
+
+/** La journalisation (Sentry) ne doit jamais faire échouer l'extraction. */
+function journaliser(ecrire: () => void): void {
+  try {
+    ecrire()
+  } catch (e) {
+    console.warn('[estimation-materiaux] journalisation impossible', e)
+  }
+}
+
+/**
+ * Trace du relais par Claude, sur le modèle de `signalerBascule` (lib/claude.ts). Un échec durable part dans Sentry
+ * (logger.error avec l'objet d'erreur) : sinon une panne de configuration passerait inaperçue, comme le retrait du
+ * modèle Llama par Groq (16/08/2026, découvert le 14/11/2026), et chaque extraction serait payée au prix de Claude.
+ * Surcharge passagère : simple avertissement.
+ */
+function signalerRelais(erreurGroq: unknown): void {
+  journaliser(() => {
+    if (echecPassager(erreurGroq)) {
+      logger.warn('[estimation-materiaux] extraction : Groq surchargé, relais par Claude', {
+        erreur: (erreurGroq instanceof Error ? erreurGroq.message : String(erreurGroq)).slice(0, 200),
+      })
+      return
+    }
+    const statut = statutGroq(erreurGroq)
+    logger.error(
+      '[estimation-materiaux] extraction : échec durable de Groq, relais par Claude',
+      { module: MODULE_JOURNAL, ...(statut === undefined ? {} : { statut }) },
+      erreurGroq,
+    )
+  })
+}
+
+/** Réponse débarrassée des blocs Markdown que le modèle pourrait ajouter malgré le mode JSON. */
+function nettoyerReponse(texte: string): string {
+  return texte.replace(/```json|```/g, '').trim()
+}
+
+/**
+ * Motif pour lequel une réponse 200 de Groq ne peut pas servir, ou null si elle peut servir. gpt-oss raisonne avant
+ * de répondre et ce raisonnement compte dans max_tokens : quand il épuise le budget, la réponse arrive vide ou coupée
+ * (`finish_reason: 'length'`).
+ */
+function motifInutilisable(reponse: GroqResponse): string | null {
+  const choix = reponse.choices?.[0]
+  if (choix?.finish_reason === 'length') return 'budget de jetons épuisé'
+  const contenu = choix?.message?.content
+  if (typeof contenu !== 'string' || !contenu.trim()) return 'contenu vide'
+  try {
+    const valeur: unknown = JSON.parse(nettoyerReponse(contenu))
+    return valeur !== null && typeof valeur === 'object' && !Array.isArray(valeur) ? null : 'JSON sans objet'
+  } catch {
+    return 'JSON illisible'
+  }
+}
+
+/** Relais : la même demande à Claude, sans retour vers Groq (il vient d'échouer). */
+function demanderAClaude(opts: GroqCallOptions): Promise<GroqResponse> {
+  // Le catalogue des recettes est identique d'un appel à l'autre pour un même périmètre : mis en cache.
+  return callClaudeWithRetry(opts, { effort: 'low', cacheSysteme: true, disableGroqFallback: true })
+}
+
+/**
+ * Appel du modèle : Groq d'abord ; s'il échoue, ou rend une réponse inutilisable, et que Claude est configuré,
+ * Claude prend le relais avec la même demande. L'extraction ne dépend plus d'un seul fournisseur : le retrait d'un
+ * modèle ne coupe plus le module. Sans Claude, la réponse ou l'erreur de Groq remonte telle quelle.
+ * Le secours Cerebras de lib/groq est coupé : son modèle (`llama-3.3-70b`) n'existe plus, c'est lui qui répondait
+ * « Cerebras 404 » en production.
+ */
+async function appelerModele(opts: GroqCallOptions, apiKey?: string): Promise<GroqResponse> {
+  const relais = await hasAnthropicKey()
+  let reponse: GroqResponse
+  try {
+    reponse = await callGroqWithRetry(
+      { ...opts, model: MODELE_EXTRACTION_GROQ },
+      // Pas de repli sur un petit modèle : son contexte ne contient pas le catalogue des recettes.
+      {
+        apiKey,
+        fallbackModel: MODELE_EXTRACTION_GROQ,
+        maxRetries: relais ? NOUVEAUX_ESSAIS_GROQ.avecRelais : NOUVEAUX_ESSAIS_GROQ.sansRelais,
+        disableCerebrasFallback: true,
+      },
+    )
+  } catch (erreurGroq) {
+    if (!relais) throw erreurGroq
+    signalerRelais(erreurGroq)
+    return demanderAClaude(opts)
+  }
+  const motif = relais ? motifInutilisable(reponse) : null
+  if (motif === null) return reponse
+  signalerRelais(new ReponseGroqInutilisable(motif))
+  return demanderAClaude(opts)
+}
 
 const ExtractionResultSchema = z.object({
   items: z.array(z.object({
@@ -627,27 +771,18 @@ export async function extractEstimationWithGroq(
 ): Promise<ExtractionResult> {
   const systemPrompt = buildSystemPrompt(scope)
 
-  const response = await callGroqWithRetry(
+  const response = await appelerModele(
     {
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userDescription },
       ],
       temperature: 0.1,
-      // 4000 tokens couvre sans troncation un chantier jusqu'à ~15 ouvrages
-      // (chaque ouvrage ~200 tokens JSON + assumptions/questions). Au-delà,
-      // la détection `finish_reason === 'length'` ci-dessous alerte l'artisan.
-      max_tokens: 4000,
+      // Au-delà du budget, la détection `finish_reason === 'length'` ci-dessous alerte l'artisan.
+      max_tokens: MAX_TOKENS_EXTRACTION,
       response_format: { type: 'json_object' },
     },
-    {
-      apiKey,
-      // Désactive le fallback Llama 3.1 8B : son context effective (~7k) ne
-      // suffit pas pour le catalogue 162 recettes + règles calibrées (→ 413).
-      // On garde le 70B uniquement, avec retries sur 429.
-      fallbackModel: 'llama-3.3-70b-versatile',
-      maxRetries: 3,
-    }
+    apiKey,
   )
 
   const isPt = scope?.country === 'PT'
@@ -659,8 +794,8 @@ export async function extractEstimationWithGroq(
   const wasTruncated = finishReason === 'length'
 
   const raw = typeof content === 'string' ? content : String(content)
-  // Nettoie d'éventuels blocs markdown que Llama pourrait retourner malgré json mode
-  const clean = raw.replace(/```json|```/g, '').trim()
+  // Même nettoyage que le contrôle de la réponse de Groq (motifInutilisable) : les deux lectures s'accordent.
+  const clean = nettoyerReponse(raw)
 
   let parsed: unknown
   try {
@@ -736,18 +871,22 @@ export async function extractEstimationWithGroq(
   try {
     result = ExtractionResultSchema.parse(parsed)
   } catch (zodErr) {
-    // En cas d'échec de validation (cas rare après normalisation), on renvoie
-    // une extraction vide avec message d'erreur explicite — pas un crash.
-    const msg = zodErr instanceof Error ? zodErr.message.slice(0, 300) : String(zodErr).slice(0, 300)
+    // En cas d'échec de validation (cas rare après normalisation), on renvoie une extraction vide avec un message
+    // lisible — pas un crash. Le détail de Zod part dans les journaux (Sentry), jamais à l'écran de l'artisan.
+    journaliser(() => logger.error(
+      '[estimation-materiaux] extraction : réponse de l’IA refusée par le schéma',
+      { module: MODULE_JOURNAL, modele: response.model },
+      zodErr,
+    ))
     return {
       items: [],
       assumptions: isPt
         ? [
-            `A IA devolveu uma resposta malformada (detalhe: ${msg}).`,
+            'A IA devolveu uma resposta malformada.',
             'Tente novamente com uma descrição mais precisa (superfície, espessura, material).',
           ]
         : [
-            `L'IA a retourné une réponse malformée (détail : ${msg}).`,
+            "L'IA a retourné une réponse malformée.",
             'Réessayez avec une description plus précise (surface, épaisseur, matériau).',
           ],
       questions: isPt

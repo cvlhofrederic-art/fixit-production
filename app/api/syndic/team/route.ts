@@ -7,6 +7,7 @@ import { logger } from '@/lib/logger'
 import { validateBody, syndicTeamInviteSchema } from '@/lib/validation'
 import { nouvelleInvitation, sansJetonInvitation } from '@/lib/equipe/lien-invitation'
 import { envoyerEmailInvitation } from '@/lib/equipe/invitation-serveur'
+import { estRoleEquipeSyndic, UNICITE_EMAIL_PAR_CABINET, type RoleEquipeSyndic } from '@/lib/syndic/equipe-contraintes'
 
 /**
  * Rôles qui administrent l'équipe du cabinet (invitation, modification, suppression).
@@ -23,6 +24,14 @@ const COLONNES_EQUIPE = 'id, email, full_name, role, invite_sent_at, accepted_at
 function colonneAbsente(error: { code?: string; message?: string } | null): boolean {
   if (!error) return false
   return error.code === '42703' || error.code === 'PGRST204' || /column .* does not exist/i.test(error.message ?? '')
+}
+
+/**
+ * Adresse déjà présente dans le cabinet (Postgres 23505 sur l'unicité (cabinet_id, email), migration 20261115) :
+ * deux invitations simultanées de la même adresse passent ensemble la vérification qui précède l'insertion.
+ */
+function doublonEmailDuCabinet(error: { code?: string; message?: string } | null): boolean {
+  return error?.code === '23505' && (error.message ?? '').includes(UNICITE_EMAIL_PAR_CABINET)
 }
 
 // ── GET /api/syndic/team ──────────────────────────────────────────────────────
@@ -86,8 +95,7 @@ export async function POST(request: NextRequest) {
   }
   const { email, full_name, memberRole, customModules } = validation.data
 
-  const validRoles = ['syndic_admin', 'syndic_tech', 'syndic_technicien', 'syndic_secretaire', 'syndic_gestionnaire', 'syndic_comptable', 'syndic_juriste']
-  if (!validRoles.includes(memberRole)) {
+  if (!estRoleEquipeSyndic(memberRole)) {
     return NextResponse.json({ error: 'Rôle invalide' }, { status: 400 })
   }
 
@@ -110,7 +118,7 @@ export async function POST(request: NextRequest) {
   // (lib/equipe/lien-invitation.ts). Signé avant l'insertion : sans clé de signature, rien n'est écrit.
   let invitation: Awaited<ReturnType<typeof nouvelleInvitation>>
   try {
-    invitation = await nouvelleInvitation('syndic', emailInvite, cabinetId)
+    invitation = await nouvelleInvitation('syndic', emailInvite, cabinetId, memberRole)
   } catch (err) {
     logger.error('[TEAM] POST signature error:', err)
     return NextResponse.json({ error: 'Erreur lors de la création du membre' }, { status: 500 })
@@ -138,6 +146,9 @@ export async function POST(request: NextRequest) {
     .single()
 
   if (error) {
+    if (doublonEmailDuCabinet(error)) {
+      return NextResponse.json({ error: 'Cet email est déjà membre de votre équipe' }, { status: 409 })
+    }
     logger.error('[TEAM] POST error:', error)
     return NextResponse.json({ error: 'Erreur lors de la création du membre' }, { status: 500 })
   }
@@ -148,7 +159,7 @@ export async function POST(request: NextRequest) {
 
   // ── Envoyer l'email d'invitation automatiquement ──────────────────
   const cabinetName = user.user_metadata?.cabinet_name || user.user_metadata?.full_name || 'Cabinet'
-  const roleLabels: Record<string, string> = {
+  const roleLabels: Record<RoleEquipeSyndic, string> = {
     syndic_admin: 'Administrateur',
     syndic_tech: 'Gestionnaire Technique',
     syndic_technicien: 'Technicien',
@@ -183,6 +194,25 @@ export async function POST(request: NextRequest) {
   })
 }
 
+/**
+ * Le compte visé est-il membre de CE cabinet ? Lu dans son app_metadata, que seul le serveur écrit : désormais à
+ * l'acceptation d'une invitation seulement (lib/equipe/invitation-serveur.ts ; avant ce correctif, ce PATCH l'écrivait
+ * aussi) : rôle syndic_* et cabinet_id égal à ce cabinet. Le titulaire (rôle 'syndic'), un super_admin, un membre d'un
+ * autre cabinet et les comptes des autres espaces ne le sont pas. Une ligne de syndic_team_members ne le prouve pas :
+ * elle a pu être posée hors de l'application (R36).
+ */
+function compteMembreDuCabinet(appMetadata: Record<string, unknown>, cabinetId: string | null): boolean {
+  const role = appMetadata.role
+  return !!cabinetId && typeof role === 'string' && role.startsWith('syndic_') && appMetadata.cabinet_id === cabinetId
+}
+
+const MESSAGE_ROLE_INVITATION_EN_ATTENTE =
+  "Invitation en attente : son rôle ne peut plus être modifié. Supprimez l'invitation puis invitez à nouveau avec le bon rôle."
+const MESSAGE_COMPTE_HORS_CABINET =
+  "Ce compte n'est pas rattaché à votre cabinet : son rôle ne peut pas être modifié ici."
+const MESSAGE_ROLE_NON_APPLIQUE =
+  "Le rôle n'a pas pu être appliqué au compte du membre. Réessayez."
+
 // ── PATCH /api/syndic/team ────────────────────────────────────────────────────
 // Modifier un membre (rôle, statut actif, modules personnalisés)
 export async function PATCH(request: NextRequest) {
@@ -210,7 +240,7 @@ export async function PATCH(request: NextRequest) {
   // Vérifier que ce membre appartient bien à ce cabinet
   const { data: existing } = await supabaseAdmin
     .from('syndic_team_members')
-    .select('id, user_id')
+    .select('id, user_id, invite_token')
     .eq('id', member_id)
     .eq('cabinet_id', cabinetId)
     .maybeSingle()
@@ -221,14 +251,38 @@ export async function PATCH(request: NextRequest) {
 
   const updates: Record<string, unknown> = {}
   if (role !== undefined) {
-    const validRoles = ['syndic_admin', 'syndic_tech', 'syndic_technicien', 'syndic_secretaire', 'syndic_gestionnaire', 'syndic_comptable', 'syndic_juriste']
-    if (!validRoles.includes(role)) return NextResponse.json({ error: 'Rôle invalide' }, { status: 400 })
+    if (!estRoleEquipeSyndic(role)) return NextResponse.json({ error: 'Rôle invalide' }, { status: 400 })
     updates.role = role
   }
   if (is_active !== undefined) updates.is_active = Boolean(is_active)
   // custom_modules : tableau de pages ou null pour réinitialiser aux défauts du rôle
   if (customModules !== undefined) {
     updates.custom_modules = customModules === null ? null : (Array.isArray(customModules) ? customModules : null)
+  }
+
+  // Rôle : il fixe aussi les droits du compte (app_metadata). Tout est vérifié AVANT la moindre écriture (R36).
+  let cible: { id: string; appMetadata: Record<string, unknown> } | null = null
+  // Invitation en cours (lien envoyé, jeton encore en base) : son rôle est signé dans ce lien
+  // (lib/equipe/lien-invitation.ts), le changer le rendrait inutilisable. Une ligne sans compte ni invitation
+  // (ajout direct) ne porte aucun lien : son rôle se change sur la ligne seule, comme avant.
+  if (updates.role !== undefined && existing.invite_token) {
+    return NextResponse.json({ error: MESSAGE_ROLE_INVITATION_EN_ATTENTE }, { status: 409 })
+  }
+  if (updates.role !== undefined && existing.user_id) {
+    const { data: compte, error: lectureCompte } = await supabaseAdmin.auth.admin.getUserById(existing.user_id)
+    // Compte supprimé (ligne restée orpheline) : il n'est membre de rien, comme un compte hors du cabinet.
+    const compteSupprime = !compte?.user
+      && (!lectureCompte || lectureCompte.status === 404 || lectureCompte.code === 'user_not_found')
+    if (!compte?.user && !compteSupprime) {
+      logger.error('[TEAM] PATCH : lecture du compte visé impossible', { member_id }, lectureCompte)
+      return NextResponse.json({ error: 'Erreur mise à jour' }, { status: 500 })
+    }
+    const appMetadata: Record<string, unknown> = compte?.user?.app_metadata ?? {}
+    if (compteSupprime || !compteMembreDuCabinet(appMetadata, cabinetId)) {
+      logger.warn('[TEAM] PATCH : compte visé hors de ce cabinet, rôle non modifié', { member_id })
+      return NextResponse.json({ error: MESSAGE_COMPTE_HORS_CABINET }, { status: 403 })
+    }
+    cible = { id: existing.user_id, appMetadata }
   }
 
   const { data, error } = await supabaseAdmin
@@ -242,15 +296,23 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'Erreur mise à jour' }, { status: 500 })
   }
 
-  // Si rôle modifié et membre a un compte, écrire dans app_metadata (server-only)
-  if (role && existing.user_id) {
+  // Rôle modifié d'un membre vérifié ci-dessus : app_metadata (server-only) reçoit le seul rôle ; cabinet_id reste
+  // le sien, ce cabinet. Le PATCH ne rattache jamais un compte à un cabinet.
+  if (cible) {
+    let compteAJour = false
     try {
-      const { data: target } = await supabaseAdmin.auth.admin.getUserById(existing.user_id)
-      await supabaseAdmin.auth.admin.updateUserById(existing.user_id, {
-        app_metadata: { ...(target?.user?.app_metadata || {}), role, cabinet_id: cabinetId },
+      const { error: ecriture } = await supabaseAdmin.auth.admin.updateUserById(cible.id, {
+        app_metadata: { ...cible.appMetadata, role: updates.role },
       })
+      if (ecriture) logger.error('[TEAM] Failed to update app_metadata:', { member_id }, ecriture)
+      else compteAJour = true
     } catch (e) {
-      logger.error('[TEAM] Failed to update app_metadata:', e)
+      logger.error('[TEAM] Failed to update app_metadata:', { member_id }, e)
+    }
+    // La ligne porte déjà le nouveau rôle, pas le compte, dont app_metadata fixe les droits : le dire, plutôt que
+    // répondre 200 (un retrait de droits resterait sans effet). La même demande, relancée, aboutit.
+    if (!compteAJour) {
+      return NextResponse.json({ error: MESSAGE_ROLE_NON_APPLIQUE }, { status: 500 })
     }
   }
 

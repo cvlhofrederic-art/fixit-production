@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<doc:Document xmlns:doc="urn:iso:std:iso:20022:tech:xsd:camt.053.001.08">
+  <!-- Relevé fictif écrit à la main (camt.053.001.08, éléments préfixés) : aucune donnée réelle. -->
+  <doc:BkToCstmrStmt>
+    <doc:GrpHdr>
+      <doc:MsgId>MSG-FICTIF-20261006</doc:MsgId>
+      <doc:CreDtTm>2026-10-06T22:00:00+02:00</doc:CreDtTm>
+      <doc:MsgPgntn>
+        <doc:PgNb>1</doc:PgNb>
+        <doc:LastPgInd>true</doc:LastPgInd>
+      </doc:MsgPgntn>
+    </doc:GrpHdr>
+    <doc:Stmt>
+      <doc:Id>RELEVE-2026-10-06-A</doc:Id>
+      <doc:CreDtTm>2026-10-06T22:00:00+02:00</doc:CreDtTm>
+      <doc:Acct>
+        <doc:Id>
+          <doc:IBAN>FR76 1234 5000 1000 0123 4567 849</doc:IBAN>
+        </doc:Id>
+        <doc:Ccy>EUR</doc:Ccy>
+        <doc:Ownr>
+          <doc:Nm>SDC LES TILLEULS</doc:Nm>
+        </doc:Ownr>
+      </doc:Acct>
+      <doc:Bal>
+        <doc:Tp>
+          <doc:CdOrPrtry>
+            <doc:Cd>OPBD</doc:Cd>
+          </doc:CdOrPrtry>
+        </doc:Tp>
+        <doc:Amt Ccy='EUR'>472.94</doc:Amt>
+        <doc:CdtDbtInd>CRDT</doc:CdtDbtInd>
+        <doc:Dt>
+          <doc:DtTm>2026-10-05T23:59:59+02:00</doc:DtTm>
+        </doc:Dt>
+      </doc:Bal>
+      <doc:Bal>
+        <doc:Tp>
+          <doc:CdOrPrtry>
+            <doc:Cd>CLBD</doc:Cd>
+          </doc:CdOrPrtry>
+        </doc:Tp>
+        <doc:Amt Ccy="EUR">47.06</doc:Amt>
+        <doc:CdtDbtInd>DBIT</doc:CdtDbtInd>
+        <doc:Dt>
+          <doc:Dt>2026-10-06</doc:Dt>
+        </doc:Dt>
+      </doc:Bal>
+      <doc:Ntry>
+        <doc:Amt Ccy="EUR">600.00</doc:Amt>
+        <doc:CdtDbtInd>DBIT</doc:CdtDbtInd>
+        <doc:Sts>
+          <doc:Cd>BOOK</doc:Cd>
+        </doc:Sts>
+        <doc:BookgDt>
+          <doc:DtTm>2026-10-06T10:15:00+02:00</doc:DtTm>
+        </doc:BookgDt>
+        <doc:ValDt>
+          <doc:Dt>2026-10-06</doc:Dt>
+        </doc:ValDt>
+        <doc:AcctSvcrRef>REF-BQ-000005</doc:AcctSvcrRef>
+        <doc:BkTxCd>
+          <doc:Domn>
+            <doc:Cd>PMNT</doc:Cd>
+            <doc:Fmly>
+              <doc:Cd>ICHQ</doc:Cd>
+              <doc:SubFmlyCd>CCHQ</doc:SubFmlyCd>
+            </doc:Fmly>
+          </doc:Domn>
+        </doc:BkTxCd>
+        <doc:NtryDtls>
+          <doc:TxDtls>
+            <doc:Refs>
+              <doc:ChqNb>1234567</doc:ChqNb>
+            </doc:Refs>
+            <doc:RltdPties>
+              <doc:Cdtr>
+                <doc:Pty>
+                  <doc:Nm>DUPONT &amp; FILS</doc:Nm>
+                </doc:Pty>
+              </doc:Cdtr>
+            </doc:RltdPties>
+            <doc:AddtlTxInf>/LIB/CHEQUE 1234567</doc:AddtlTxInf>
+          </doc:TxDtls>
+        </doc:NtryDtls>
+      </doc:Ntry>
+      <doc:Ntry>
+        <doc:Amt Ccy="EUR">80</doc:Amt>
+        <doc:CdtDbtInd>CRDT</doc:CdtDbtInd>
+        <doc:RvslInd>true</doc:RvslInd>
+        <doc:Sts>
+          <doc:Cd>BOOK</doc:Cd>
+        </doc:Sts>
+        <doc:BookgDt>
+          <doc:Dt>2026-10-06</doc:Dt>
+        </doc:BookgDt>
+        <doc:ValDt>
+          <doc:Dt>2026-10-06</doc:Dt>
+        </doc:ValDt>
+        <doc:AcctSvcrRef>REF-BQ-000006</doc:AcctSvcrRef>
+        <doc:BkTxCd>
+          <doc:Domn>
+            <doc:Cd>PMNT</doc:Cd>
+            <doc:Fmly>
+              <doc:Cd>RDDT</doc:Cd>
+              <doc:SubFmlyCd>PRDD</doc:SubFmlyCd>
+            </doc:Fmly>
+          </doc:Domn>
+        </doc:BkTxCd>
+        <doc:NtryDtls>
+          <doc:TxDtls>
+            <doc:RltdPties>
+              <doc:Dbtr>
+                <doc:Pty>
+                  <doc:Nm>SDC LES TILLEULS</doc:Nm>
+                </doc:Pty>
+              </doc:Dbtr>
+              <doc:Cdtr>
+                <doc:Pty>
+                  <doc:Nm>ASSURANCE FICTIVE</doc:Nm>
+                </doc:Pty>
+              </doc:Cdtr>
+            </doc:RltdPties>
+            <doc:RmtInf>
+              <doc:Ustrd><![CDATA[REMBOURSEMENT <PRIME> TROP PERCUE]]></doc:Ustrd>
+              <doc:Ustrd>CONTRAT N&#xB0; 77 &#233;CH&#233;ANCE</doc:Ustrd>
+            </doc:RmtInf>
+          </doc:TxDtls>
+        </doc:NtryDtls>
+      </doc:Ntry>
+    </doc:Stmt>
+  </doc:BkToCstmrStmt>
+</doc:Document>

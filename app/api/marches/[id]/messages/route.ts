@@ -4,6 +4,7 @@ import { getAuthUser } from '@/lib/auth-helpers'
 import { validateBody, VALID_UUID } from '@/lib/validation'
 import { logger } from '@/lib/logger'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { CACHE_PERSONNEL } from '@/lib/marches-public'
 import { z } from 'zod'
 
 // ── Validation schema ────────────────────────────────────────────────────────
@@ -16,6 +17,7 @@ const sendMessageSchema = z.object({
 })
 
 // GET /api/marches/[id]/messages — lister les messages d'un marche
+// Chaque réponse est propre à un compte (échanges entre publieur et entreprise) : aucune n'est gardée par un cache.
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const ip = getClientIP(request)
   if (!(await checkRateLimit(`marches_messages_get_${ip}`, 30, 60_000))) return rateLimitResponse()
@@ -55,7 +57,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
     }
 
-    return NextResponse.json({ messages: messages || [] })
+    return NextResponse.json({ messages: messages || [] }, { headers: { 'Cache-Control': CACHE_PERSONNEL } })
   }
 
   // ── Artisan access via auth ───────────────────────────────────────────────
@@ -82,7 +84,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     .eq('artisan_id', artisan.id)
 
   if (!candidatures || candidatures.length === 0) {
-    return NextResponse.json({ messages: [] })
+    return NextResponse.json({ messages: [] }, { headers: { 'Cache-Control': CACHE_PERSONNEL } })
   }
 
   const candidatureIds = candidatures.map(c => c.id)
@@ -110,7 +112,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
   }
 
-  return NextResponse.json({ messages: messages || [] })
+  return NextResponse.json({ messages: messages || [] }, { headers: { 'Cache-Control': CACHE_PERSONNEL } })
 }
 
 // POST /api/marches/[id]/messages — envoyer un message
@@ -196,20 +198,20 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   // ── Notifications ─────────────────────────────────────────────────────────
   if (v.sender_type === 'publisher') {
-    // Notify the artisan
-    await supabaseAdmin
+    // Notify the artisan — sous l'identifiant de son compte (celui que lit sa cloche), avec les colonnes de la table
+    // (data_json ; il n'y a ni user_id ni metadata). Supabase rend un échec dans { error } : il est lu et journalisé.
+    const { error: notificationError } = await supabaseAdmin
       .from('artisan_notifications')
       .insert({
-        artisan_id: candidature.artisan_id,
-        user_id: candidature.artisan_user_id,
+        artisan_id: candidature.artisan_user_id,
         type: 'marche_message',
         title: 'Nouveau message sur votre candidature',
         body: v.content.substring(0, 200),
-        metadata: { marche_id: marcheId, candidature_id: v.candidature_id },
+        data_json: { marche_id: marcheId, candidature_id: v.candidature_id },
       })
-      .then(null, (err: unknown) => {
-        logger.warn('[marches/messages] Failed to create artisan notification', { error: String(err) })
-      })
+    if (notificationError) {
+      logger.error('[marches/messages] notification du candidat non enregistrée', { marcheId, error: notificationError.message })
+    }
   } else {
     // Artisan sends → increment unread count on marche
     await supabaseAdmin.rpc('increment_counter', {

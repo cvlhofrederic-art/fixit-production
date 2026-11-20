@@ -1,14 +1,58 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { jetonAcces } from '@/lib/auth/jeton-acces'
 import { lireSessionSure } from '@/lib/auth/session-navigateur'
 import { resolveCompanyType } from '@/lib/config/companyTypes'
+import { messagePlafondAtteint } from '@/lib/btp/plafonds-lecture'
+import { RAYON_PAR_DEFAUT_M } from '@/lib/btp/pointage-geo'
 
 function safeJsonParse(val: unknown, fallback: any = []) {
   if (typeof val !== 'string') return val || fallback
   try { return JSON.parse(val) } catch { return fallback }
+}
+
+/**
+ * Rayon du pointage GPS saisi : entier positif, sinon la valeur par défaut de la colonne geo_rayon_m. Seule règle du
+ * rayon envoyé par les écrans (fiche chantier, onglet Affectations) : jamais un rayon illisible, que /api/btp refuserait
+ * (au moins 1 m). Arrondi d'abord : 0,4 m donnerait 0, refusé par la route.
+ */
+function rayonSaisi(valeur: unknown): number {
+  const nombre = typeof valeur === 'string' ? Number(valeur) : valeur
+  const arrondi = typeof nombre === 'number' && Number.isFinite(nombre) ? Math.round(nombre) : 0
+  return arrondi >= 1 ? arrondi : RAYON_PAR_DEFAUT_M
+}
+
+/** Identifiants d'une liste (chaînes non vides, sans doublon) ; liste vide pour toute autre valeur. */
+function identifiants(valeur: unknown): string[] {
+  if (!Array.isArray(valeur)) return []
+  return [...new Set(valeur.filter((id): id is string => typeof id === 'string' && id.length > 0))]
+}
+
+const FORME_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** Colonnes de clé que mapToSupabase écrit depuis le pointage géolocalisé (16/11/2026), par table. */
+const CLES_DU_POINTAGE: Partial<Record<ShortName, readonly string[]>> = {
+  chantiers: ['membres_ids'],
+  equipes: ['chantier_id'],
+  pointages: ['membre_id', 'chantier_id'],
+}
+
+/**
+ * Ligne importée depuis le localStorage : un ancien identifiant local (« demo-ch-001 », horodatage) dans une de ces
+ * colonnes ferait échouer tout le lot sur le type uuid ; il est retiré (null, ou sorti de la liste), la ligne passe.
+ * Les autres colonnes et les autres tables sont importées comme avant.
+ */
+export function ligneImportable(table: ShortName, ligne: Record<string, unknown>): Record<string, unknown> {
+  const propre: Record<string, unknown> = { ...ligne }
+  for (const colonne of CLES_DU_POINTAGE[table] ?? []) {
+    const valeur = propre[colonne]
+    if (Array.isArray(valeur)) propre[colonne] = valeur.filter(id => typeof id === 'string' && FORME_UUID.test(id))
+    else if (typeof valeur === 'string' && !FORME_UUID.test(valeur)) propre[colonne] = null
+  }
+  return propre
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -61,6 +105,11 @@ const LS_KEYS: Record<ShortName, (id: string) => string> = {
 // Map localStorage fields → Supabase columns
 // Sert aux CRÉATIONS : tout champ absent reçoit une valeur par défaut. Pour une modification, passer par
 // colonnesModifiees() plus bas, qui n'envoie que les champs réellement fournis.
+// Colonnes vérifiées dans le relevé de production du 11/11/2026 : geo_rayon_m (chantier), equipe_id (membre),
+// chantier_id (équipe, dépense), membre_id et chantier_id (pointage) existent ; les formulaires les remplissaient sans
+// qu'elles soient envoyées (constats donnees-btp-6 et donnees-btp-7). membres_ids (employés d'un chantier) vient de la
+// migration 20261116 du pointage géolocalisé. Toute colonne écrite ici doit être connue de la liste blanche de /api/btp
+// (lib/btp/schema-tables-btp.ts, tests/lib/btp-schema-tables.test.ts).
 export function mapToSupabase(table: ShortName, item: any): any {
   switch (table) {
     case 'chantiers': {
@@ -82,6 +131,12 @@ export function mapToSupabase(table: ShortName, item: any): any {
       // sous_taches is a partial-update field — only include when explicitly provided
       if ('sous_taches' in item) mapped.sous_taches = item.sous_taches
       else if ('sousTaches' in item) mapped.sous_taches = item.sousTaches
+      // Rayon du pointage GPS et employés affectés : seulement quand le formulaire les fournit (fiche chantier,
+      // écran Pointage). Rayon : toujours un entier lisible d'au moins 1 m (rayonSaisi), jamais une valeur que la route
+      // refuserait. Sans la colonne membres_ids (migration 20261116), /api/btp enregistre le reste du chantier.
+      if ('geoRayonM' in item) mapped.geo_rayon_m = rayonSaisi(item.geoRayonM)
+      else if ('geo_rayon_m' in item) mapped.geo_rayon_m = rayonSaisi(item.geo_rayon_m)
+      if ('membres_ids' in item) mapped.membres_ids = identifiants(item.membres_ids)
       return mapped
     }
     case 'membres':
@@ -92,6 +147,7 @@ export function mapToSupabase(table: ShortName, item: any): any {
         email: item.email || null,
         type_compte: item.typeCompte || 'ouvrier',
         role_perso: item.rolePerso || null,
+        equipe_id: item.equipeId || null,
         cout_horaire: item.coutHoraire ?? null,
         charges_pct: item.chargesPct ?? null,
         salaire_brut_mensuel: item.salaire_brut_mensuel ?? null,
@@ -109,23 +165,34 @@ export function mapToSupabase(table: ShortName, item: any): any {
       return {
         nom: item.nom || '',
         metier: item.metier || null,
+        chantier_id: item.chantierId || item.chantier_id || null,
         membreIds: item.membreIds || [], // handled separately in API
       }
     case 'pointages':
+      // Pointage saisi à la main (écran Pointage, onglet Historique) ou repris du navigateur. Départ vide : 17:00, comme
+      // en production. Un départ vide (null) en ferait un pointage « en cours », et l'index unique de la migration
+      // 20261116 (un seul pointage en cours par employé) refuserait le suivant du même employé (choix de produit en
+      // attente). Le pointage automatique passe par /api/btp/pointage et garde son départ vide jusqu'à la sortie du
+      // chantier. Heures non fournies : vides (null) plutôt que 0 heure jamais saisie.
+      // Mode toujours « manuel », jamais de coordonnées ni de distance, même si la fiche en porte : le pointage
+      // géolocalisé (PR #703) ne conserve ni position ni distance d'un employé (CNIL, CNPD), et ce chemin non plus.
       return {
         employe: item.employe || '',
         poste: item.poste || null,
+        membre_id: item.membreId || null,
+        chantier_id: item.chantierId || null,
         chantier_nom: item.chantier || null,
         date: item.date || new Date().toISOString().split('T')[0],
         heure_arrivee: item.heureArrivee || '08:00',
         heure_depart: item.heureDepart || '17:00',
         pause_minutes: item.pauseMinutes ?? 60,
-        heures_travaillees: item.heuresTravaillees ?? 0,
+        heures_travaillees: item.heuresTravaillees ?? null,
         notes: item.notes || null,
         mode: 'manuel',
       }
     case 'depenses':
       return {
+        chantier_id: item.chantierId || null,
         label: item.label || '',
         amount: typeof item.amount === 'string' ? parseFloat(item.amount) || 0 : item.amount || 0,
         category: item.category || 'autre',
@@ -210,28 +277,30 @@ export function mapToSupabase(table: ShortName, item: any): any {
 
 // Champs du formulaire qui alimentent chaque colonne — mêmes correspondances que mapToSupabase ci-dessus
 // (tests/lib/use-btp-data-modification-partielle.test.tsx vérifie que les deux restent alignés).
-// Une colonne absente de cette table (pointages.mode, posé d'office à la création) n'est jamais réécrite par
-// une modification. `rapports` n'y figure pas : son contenu regroupe tous les champs restants.
+// Une colonne absente de cette table (pointages.mode, posé d'office à la création) n'est jamais réécrite par une
+// modification. `rapports` n'y figure pas : son contenu regroupe tous les champs restants.
 export const SOURCES_DES_COLONNES: Partial<Record<ShortName, Record<string, readonly string[]>>> = {
   chantiers: {
     titre: ['titre'], client: ['client'], adresse: ['adresse'], ville: ['ville'], code_postal: ['codePostal', 'code_postal'],
     latitude: ['latitude'], longitude: ['longitude'], date_debut: ['dateDebut'], date_fin: ['dateFin'], budget: ['budget'],
     statut: ['statut'], description: ['description'], equipe: ['equipe'], sous_taches: ['sous_taches', 'sousTaches'],
+    geo_rayon_m: ['geoRayonM', 'geo_rayon_m'], membres_ids: ['membres_ids'],
   },
   membres: {
     prenom: ['prenom'], nom: ['nom'], telephone: ['telephone'], email: ['email'], type_compte: ['typeCompte'],
-    role_perso: ['rolePerso'], cout_horaire: ['coutHoraire'], charges_pct: ['chargesPct'],
+    role_perso: ['rolePerso'], equipe_id: ['equipeId'], cout_horaire: ['coutHoraire'], charges_pct: ['chargesPct'],
     salaire_brut_mensuel: ['salaire_brut_mensuel'], salaire_net_mensuel: ['salaire_net_mensuel'],
     charges_salariales_pct: ['charges_salariales_pct'], charges_patronales_pct: ['charges_patronales_pct'],
     type_contrat: ['type_contrat'], heures_hebdo: ['heures_hebdo'], panier_repas_jour: ['panier_repas_jour'],
     indemnite_trajet_jour: ['indemnite_trajet_jour'], prime_mensuelle: ['prime_mensuelle'], actif: ['actif'],
   },
-  equipes: { nom: ['nom'], metier: ['metier'], membreIds: ['membreIds'] },
+  equipes: { nom: ['nom'], metier: ['metier'], chantier_id: ['chantierId', 'chantier_id'], membreIds: ['membreIds'] },
   pointages: {
-    employe: ['employe'], poste: ['poste'], chantier_nom: ['chantier'], date: ['date'], heure_arrivee: ['heureArrivee'],
+    employe: ['employe'], poste: ['poste'], membre_id: ['membreId'], chantier_id: ['chantierId'],
+    chantier_nom: ['chantier'], date: ['date'], heure_arrivee: ['heureArrivee'],
     heure_depart: ['heureDepart'], pause_minutes: ['pauseMinutes'], heures_travaillees: ['heuresTravaillees'], notes: ['notes'],
   },
-  depenses: { label: ['label'], amount: ['amount'], category: ['category'], date: ['date'], notes: ['notes'] },
+  depenses: { chantier_id: ['chantierId'], label: ['label'], amount: ['amount'], category: ['category'], date: ['date'], notes: ['notes'] },
   situations: {
     chantier_id: ['chantier_id'], chantier: ['chantier'], client: ['client'], numero: ['numero'], date: ['date'],
     montant_marche: ['montantMarche', 'montant_marche'], travaux: ['travaux'], statut: ['statut'],
@@ -258,6 +327,30 @@ export const SOURCES_DES_COLONNES: Partial<Record<ShortName, Record<string, read
 }
 
 /**
+ * Rattachements que la reprise des anciennes données du navigateur n'envoie pas, comme avant le 15/11/2026 : dans ces
+ * fiches locales, l'équipe d'un membre, le chantier d'une équipe, d'une dépense ou d'un pointage, le salarié d'un
+ * pointage et les employés d'un chantier portent des identifiants propres au navigateur, qui ne désignent aucune fiche
+ * en base (une fiche reprise reçoit un nouvel identifiant) ; la route refuserait alors toute la reprise.
+ */
+const RATTACHEMENTS_NON_REPRIS: Partial<Record<ShortName, readonly string[]>> = {
+  chantiers: ['membres_ids'],
+  membres: ['equipe_id'],
+  equipes: ['chantier_id'],
+  pointages: ['membre_id', 'chantier_id'],
+  depenses: ['chantier_id'],
+}
+
+/**
+ * Ligne d'une reprise des anciennes données du navigateur : rattachements locaux retirés (RATTACHEMENTS_NON_REPRIS),
+ * puis ligneImportable, qui écarte tout ancien identifiant local resté dans une colonne de clé du pointage.
+ */
+function ligneDeReprise(table: ShortName, item: unknown): Record<string, unknown> {
+  const ligne = { ...(mapToSupabase(table, item) as Record<string, unknown>) }
+  for (const colonne of RATTACHEMENTS_NON_REPRIS[table] ?? []) delete ligne[colonne]
+  return ligneImportable(table, ligne)
+}
+
+/**
  * Colonnes à écrire pour une MODIFICATION : seulement celles dont le formulaire a fourni un champ.
  *
  * mapToSupabase donne une valeur par défaut à tout champ absent (titre '', client null, statut « En attente »…),
@@ -277,7 +370,7 @@ export function colonnesModifiees(table: ShortName, changes: Record<string, unkn
 }
 
 // Map Supabase columns → component-friendly format (keeps both formats for compat)
-function mapFromSupabase(table: ShortName, item: any): any {
+export function mapFromSupabase(table: ShortName, item: any): any {
   switch (table) {
     case 'chantiers':
       return {
@@ -337,6 +430,8 @@ function mapFromSupabase(table: ShortName, item: any): any {
         ...item,
         employe: item.employe,
         poste: item.poste || '',
+        membreId: item.membre_id || '',
+        chantierId: item.chantier_id || '',
         chantier: item.chantier_nom || '',
         date: item.date,
         heureArrivee: item.heure_arrivee,
@@ -347,6 +442,8 @@ function mapFromSupabase(table: ShortName, item: any): any {
         mode: item.mode || 'manuel',
         arriveeLat: item.arrivee_lat,
         arriveeLng: item.arrivee_lng,
+        departLat: item.depart_lat,
+        departLng: item.depart_lng,
         distanceM: item.distance_m,
       }
     case 'depenses':
@@ -458,16 +555,105 @@ function generationActuelle(cacheKey: string): number {
   return _generations[cacheKey] ?? 0
 }
 
-function marquerEcriture(cacheKey: string): void {
+/**
+ * Écriture confirmée. Avec `oublierCopie` (écrans du BTP pro), la copie en mémoire de la liste, qui date d'avant
+ * l'écriture, n'est plus servie aux écrans qui s'ouvrent ensuite, jusqu'à la relecture qui suit l'écriture. Si cette
+ * relecture échoue, ou n'a pas lieu (page quittée pendant une reprise), l'écran suivant relit la table au lieu
+ * d'afficher l'état d'avant : un retour sur le Gantt réaffichait l'ancien avancement, puis le réécrivait à la
+ * modification suivante (relecture adverse du 15/11/2026). La reprise de l'accueil de l'artisan garde la copie, comme
+ * avant.
+ */
+function marquerEcriture(cacheKey: string, oublierCopie = true): void {
   _generations[cacheKey] = generationActuelle(cacheKey) + 1
+  if (oublierCopie) delete _dataCache[cacheKey]
 }
 
-/** GET d'une table : lignes brutes, null si la réponse n'est pas ok. */
-async function lireTable(table: ShortName): Promise<unknown[] | null> {
+/** Options d'une modification : `keepalive` laisse la requête aboutir même si la page se ferme (onglet fermé, rechargement). */
+export interface OptionsModification {
+  keepalive?: boolean
+}
+
+// ── Listes coupées par la route (constat donnees-btp-10) : GET /api/btp ne renvoie que les N premières lignes d'une
+// liste trop longue et le dit dans `plafondsAtteints`. Plafond atteint par la dernière lecture de chaque clé de cache,
+// et listes déjà signalées pendant cette session (un seul avertissement par liste).
+const _plafonds: Record<string, number | undefined> = {}
+const _plafondsSignales = new Set<string>()
+
+/** Prévient une fois par session que la liste `liste` est coupée à `plafond` lignes (rien si elle est complète). */
+export function signalerPlafondAtteint(liste: string, plafond: number | null | undefined): void {
+  if (!plafond || _plafondsSignales.has(liste)) return
+  _plafondsSignales.add(liste)
+  toast.warning(messagePlafondAtteint(liste, plafond), { id: `btp-plafond-${liste}`, duration: 10_000 })
+}
+
+/** Pour un écran qui lit GET /api/btp sans ce hook : prévient pour chaque liste coupée de la réponse. */
+export function signalerPlafondsAtteints(reponse: unknown): void {
+  const plafonds = (reponse as { plafondsAtteints?: unknown } | null)?.plafondsAtteints
+  if (!plafonds || typeof plafonds !== 'object') return
+  for (const [liste, plafond] of Object.entries(plafonds as Record<string, unknown>)) {
+    if (typeof plafond === 'number') signalerPlafondAtteint(liste, plafond)
+  }
+}
+
+// ── Écriture refusée par le serveur (relecture adverse du 15/11/2026) : la raison donnée par POST /api/btp s'affiche
+// (valeur hors bornes, champ refusé, suppression retenue par une fiche rattachée, fiche disparue…) au lieu d'un échec
+// silencieux. Les fonctions d'écriture renvoient toujours null ou false : les écrans gardent leur comportement.
+const ECHEC_ECRITURE = {
+  creation: 'L\'enregistrement n\'a pas abouti. Réessayez dans un instant.',
+  modification: 'La modification n\'a pas été enregistrée. Réessayez dans un instant.',
+  suppression: 'La suppression n\'a pas abouti. Réessayez dans un instant.',
+} as const
+
+// La limite de débit répond en anglais (lib/rate-limit.ts) : l'écran affiche ce message à la place.
+const MESSAGE_TROP_D_ECRITURES = 'Trop d\'enregistrements en peu de temps : patientez une minute, puis réessayez.'
+
+/** Raison d'une écriture refusée : le message du serveur s'il en donne un, sinon `parDefaut`. */
+async function raisonDuRefus(res: Response, parDefaut: string): Promise<string> {
+  if (res.status === 429) return MESSAGE_TROP_D_ECRITURES
+  try {
+    const corps: unknown = await res.json()
+    const message = typeof corps === 'object' && corps !== null ? (corps as { error?: unknown }).error : undefined
+    return typeof message === 'string' && message.trim() !== '' ? message : parDefaut
+  } catch (err) {
+    console.warn(`[btp] réponse ${res.status} illisible :`, err)
+    return parDefaut
+  }
+}
+
+/**
+ * Prévient que le serveur a refusé une écriture, avec la raison qu'il donne (sinon `parDefaut`). Sert aussi aux écrans
+ * BTP qui écrivent sans ce hook. `id` regroupe des refus identiques en un seul message.
+ */
+export async function signalerEcritureRefusee(res: Response, parDefaut: string, id?: string): Promise<void> {
+  const message = await raisonDuRefus(res, parDefaut)
+  toast.error(message, id ? { id } : undefined)
+}
+
+/** Refus du serveur déjà annoncé à l'utilisateur : le catch des écritures n'en ajoute pas un second message. */
+class EcritureRefusee extends Error {}
+
+// ── Échecs annoncés (constat donnees-btp-2) : une coupure réseau pendant un enregistrement, un chargement en échec ou un
+// réglage refusé ne restaient que dans la console ; un chargement raté laissait une liste vide (« Aucun chantier,
+// créez votre premier chantier »), comme si les données avaient disparu.
+const MESSAGE_CHARGEMENT_IMPOSSIBLE = 'Les données n\'ont pas pu être chargées : la liste affichée peut être vide ou incomplète. Réessayez dans un instant.'
+const MESSAGE_REGLAGES_NON_CHARGES = 'Vos réglages n\'ont pas pu être chargés : les valeurs affichées sont celles par défaut. Réessayez dans un instant.'
+const MESSAGE_REGLAGES_NON_ENREGISTRES = 'Vos réglages n\'ont pas été enregistrés. Réessayez dans un instant.'
+
+/**
+ * Prévient qu'une liste n'a pas pu être chargée (un seul message à la fois, quelle que soit la liste). Sert aussi aux
+ * écrans BTP qui lisent /api/btp sans ce hook.
+ */
+export function signalerChargementImpossible(): void {
+  toast.error(MESSAGE_CHARGEMENT_IMPOSSIBLE, { id: 'btp-chargement' })
+}
+
+/** GET d'une table : lignes brutes et plafond atteint (null : liste complète) ; null si la réponse n'est pas ok. */
+async function lireTable(table: ShortName): Promise<{ lignes: unknown[]; plafond: number | null } | null> {
   const res = await fetch(`/api/btp?table=${table}`, { headers: await authHeaders() })
   if (!res.ok) return null
   const json = await res.json()
-  return json[table] || []
+  const plafond = json.plafondsAtteints?.[table]
+  return { lignes: json[table] || [], plafond: typeof plafond === 'number' ? plafond : null }
 }
 
 /**
@@ -481,9 +667,9 @@ function chargerTable(table: ShortName, cacheKey: string): Promise<any[] | null>
   const enCours = _enVol[cacheKey]
   if (enCours?.generation === generation) return enCours.promesse
   const promesse = (async (): Promise<any[] | null> => {
-    let raw: any[] | null = null
+    let lu: { lignes: any[]; plafond: number | null } | null = null
     try {
-      raw = await lireTable(table)
+      lu = await lireTable(table)
     } catch (err) {
       if (generationActuelle(cacheKey) !== generation) return chargerTable(table, cacheKey)
       throw err
@@ -492,11 +678,29 @@ function chargerTable(table: ShortName, cacheKey: string): Promise<any[] | null>
       if (_enVol[cacheKey]?.generation === generation) delete _enVol[cacheKey]
     }
     if (generationActuelle(cacheKey) !== generation) return chargerTable(table, cacheKey)
-    if (raw !== null) _dataCache[cacheKey] = { data: raw.map((r: any) => mapFromSupabase(table, r)), at: Date.now() }
-    return raw
+    if (lu === null) return null
+    _dataCache[cacheKey] = { data: lu.lignes.map((r: any) => mapFromSupabase(table, r)), at: Date.now() }
+    _plafonds[cacheKey] = lu.plafond ?? undefined
+    return lu.lignes
   })()
   _enVol[cacheKey] = { generation, promesse }
   return promesse
+}
+
+// ── Reprise des anciennes données du navigateur, une seule fois (constat donnees-btp-14) ──
+// Elle partait dès que la table était vide en base, même déjà faite : le drapeau `<clé>_migrated` qu'elle écrit n'était
+// lu nulle part, et des pointages supprimés revenaient à la visite suivante. Une reprise refusée recommençait à chaque
+// ouverture de la page ; deux sections montées ensemble l'envoyaient chacune. Rien n'est jamais retiré du navigateur.
+const _reprisesTentees = new Set<string>()
+
+/** Le drapeau posé après une reprise réussie dans ce navigateur. */
+function repriseDejaFaite(cleLocale: string): boolean {
+  try {
+    return localStorage.getItem(`${cleLocale}_migrated`) === 'true'
+  } catch (err) {
+    console.warn('[btp] stockage du navigateur illisible, reprise non tentée :', err)
+    return true
+  }
 }
 
 // ── Prefetch multiple tables in parallel to fill cache before components mount ──
@@ -517,13 +721,22 @@ interface UseBTPDataOptions {
   artisanId: string  // for localStorage import key
   userId: string     // Supabase auth user id
   autoImport?: boolean // import localStorage data on first load (default: true)
+  /**
+   * Rôle du compte, pour l'accueil partagé avec l'artisan, qui le passe : le message d'un chargement en échec et la
+   * reprise unique des anciennes données ne valent que pour le BTP pro (orgRole === 'pro_societe'). Les écrans réservés
+   * au BTP pro l'omettent.
+   */
+  orgRole?: string
 }
 
-export function useBTPData<T = any>({ table, artisanId, userId, autoImport = true }: UseBTPDataOptions) {
+export function useBTPData<T = any>({ table, artisanId, userId, autoImport = true, orgRole }: UseBTPDataOptions) {
   const cacheKey = `${table}_${userId}`
   const cached = _dataCache[cacheKey]
   const hasFreshCache = cached && (Date.now() - cached.at < DATA_CACHE_TTL)
   const hasAnyCache = !!cached?.data
+  // Écran du BTP pro (ou réservé à lui) : les échecs de chargement y sont annoncés et la reprise des anciennes données
+  // n'y part qu'une fois. L'artisan garde l'accueil d'avant.
+  const ecranBTP = orgRole === undefined || orgRole === 'pro_societe'
 
   // Use stale cache as initial data — user sees content instantly, refresh runs in background
   const [items, setItems] = useState<T[]>(hasAnyCache ? cached.data : [])
@@ -546,40 +759,51 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
     } catch (err) {
       console.warn(`[btp] refresh ${table} failed:`, err)
       setError('Erreur de chargement')
+      if (ecranBTP) signalerChargementImpossible()
       return null // null = erreur réseau (distinct de [] = table vide)
     } finally {
       setLoading(false)
     }
-  }, [table, cacheKey])
+  }, [table, cacheKey, ecranBTP])
 
   // ── Auto-import from localStorage on first load ─────────────────────────
   useEffect(() => {
     let cancelled = false
 
     async function init() {
-      // Skip fetch if cache is fresh — data was already set in useState
+      let data: unknown[] | null
       if (hasFreshCache) {
+        // Skip fetch if cache is fresh — data was already set in useState
         setLoading(false)
-        return
-      }
+        // BTP pro : une liste fraîche et vide (préchargée par le tableau de bord sous la même clé) n'est pas relue, mais
+        // la reprise des anciennes données du navigateur reste tentée. Sinon elle n'avait plus lieu dans les 5 minutes
+        // suivant le chargement du tableau de bord, et une fiche créée entre-temps l'empêchait pour toujours (relecture
+        // adverse du 15/11/2026). L'accueil de l'artisan garde le comportement d'avant.
+        if (!ecranBTP) return
+        data = cached.data
+      } else {
+        // Stale cache: show cached data immediately, refresh in background (no loading spinner)
+        if (hasAnyCache) {
+          setLoading(false)
+        }
 
-      // Stale cache: show cached data immediately, refresh in background (no loading spinner)
-      if (hasAnyCache) {
-        setLoading(false)
+        data = await refresh()
       }
-
-      const data = await refresh()
 
       // If Supabase is empty and localStorage has data → import (skip if refresh failed)
       if (autoImport && !imported.current && data !== null && data.length === 0 && artisanId) {
         const lsKey = LS_KEYS[table](artisanId)
+        // BTP pro : une reprise déjà faite dans ce navigateur, ou déjà tentée pendant cette session, ne repart pas.
+        if (ecranBTP && (_reprisesTentees.has(lsKey) || repriseDejaFaite(lsKey))) return
         try {
           const raw = localStorage.getItem(lsKey)
           if (raw) {
             const parsed = JSON.parse(raw)
             if (Array.isArray(parsed) && parsed.length > 0) {
               imported.current = true
-              const mapped = parsed.map((item: any) => mapToSupabase(table, item))
+              if (ecranBTP) _reprisesTentees.add(lsKey)
+              // Les deux protections : rattachements locaux retirés et anciens identifiants écartés (ligneDeReprise).
+              const mapped = parsed.map((item: unknown) => ligneDeReprise(table, item))
 
               const res = await fetch('/api/btp', {
                 method: 'POST',
@@ -590,12 +814,18 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
               if (res.ok) {
                 // Mark as imported in localStorage
                 localStorage.setItem(`${lsKey}_migrated`, 'true')
-                marquerEcriture(cacheKey)
+                marquerEcriture(cacheKey, ecranBTP)
                 if (!cancelled) await refresh()
+              } else {
+                // Reprise refusée (le compte a déjà des données, anciennes fiches illisibles…) : rien n'est ajouté ni
+                // retiré ; l'opération est automatique, seule la console la garde.
+                console.warn(`[btp] reprise des anciennes données de ${table} refusée (${res.status})`)
               }
             }
           }
-        } catch { /* silent */ }
+        } catch (err) {
+          console.warn(`[btp] reprise des anciennes données de ${table} impossible :`, err)
+        }
       }
     }
 
@@ -603,6 +833,12 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
     return () => { cancelled = true }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [table, artisanId, autoImport, tableName])
+
+  // Liste coupée par la route : prévenir quand la section qui l'affiche est à l'écran, y compris si la liste a été
+  // chargée d'avance par le tableau de bord (une seule fois par liste et par session).
+  useEffect(() => {
+    signalerPlafondAtteint(table, _plafonds[cacheKey])
+  }, [items, table, cacheKey])
 
   // ── CRUD operations ─────────────────────────────────────────────────────
 
@@ -614,7 +850,10 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
         headers: { 'Content-Type': 'application/json', ...await authHeaders() },
         body: JSON.stringify({ table: tableName, action: 'insert', data: mapped }),
       })
-      if (!res.ok) throw new Error(`Insert ${tableName} failed: ${res.status}`)
+      if (!res.ok) {
+        await signalerEcritureRefusee(res, ECHEC_ECRITURE.creation, `btp-ecriture-${tableName}`)
+        throw new EcritureRefusee(`Insert ${tableName} failed: ${res.status}`)
+      }
       // Écriture confirmée : refresh ne réutilise pas un GET parti avant elle.
       marquerEcriture(cacheKey)
       const json = await res.json()
@@ -623,11 +862,13 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
     } catch (err) {
       console.error(`[btp] add ${tableName}:`, err)
       setError('Erreur lors de la création')
+      // Coupure réseau, réponse illisible : annoncée aussi (un refus du serveur l'est déjà, avec sa raison).
+      if (!(err instanceof EcritureRefusee)) toast.error(ECHEC_ECRITURE.creation, { id: `btp-ecriture-${tableName}` })
       return null
     }
   }, [table, tableName, cacheKey, refresh])
 
-  const update = useCallback(async (id: string, changes: Partial<T>): Promise<boolean> => {
+  const update = useCallback(async (id: string, changes: Partial<T>, options?: OptionsModification): Promise<boolean> => {
     try {
       // Seuls les champs fournis partent : une modification partielle ne réécrit pas le reste de la fiche.
       const mapped = colonnesModifiees(table, changes as Record<string, unknown>)
@@ -639,16 +880,21 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
       }
       const res = await fetch('/api/btp', {
         method: 'POST',
+        ...(options?.keepalive ? { keepalive: true } : {}),
         headers: { 'Content-Type': 'application/json', ...await authHeaders() },
         body: JSON.stringify({ table: tableName, action: 'update', id, data: mapped }),
       })
-      if (!res.ok) throw new Error(`Update ${tableName} failed: ${res.status}`)
+      if (!res.ok) {
+        await signalerEcritureRefusee(res, ECHEC_ECRITURE.modification, `btp-ecriture-${tableName}`)
+        throw new EcritureRefusee(`Update ${tableName} failed: ${res.status}`)
+      }
       marquerEcriture(cacheKey)
       await refresh()
       return true
     } catch (err) {
       console.error(`[btp] update ${tableName}:`, err)
       setError('Erreur lors de la mise à jour')
+      if (!(err instanceof EcritureRefusee)) toast.error(ECHEC_ECRITURE.modification, { id: `btp-ecriture-${tableName}` })
       return false
     }
   }, [table, tableName, cacheKey, refresh])
@@ -660,13 +906,17 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
         headers: { 'Content-Type': 'application/json', ...await authHeaders() },
         body: JSON.stringify({ table: tableName, action: 'delete', id }),
       })
-      if (!res.ok) throw new Error(`Delete ${tableName} failed: ${res.status}`)
+      if (!res.ok) {
+        await signalerEcritureRefusee(res, ECHEC_ECRITURE.suppression, `btp-ecriture-${tableName}`)
+        throw new EcritureRefusee(`Delete ${tableName} failed: ${res.status}`)
+      }
       marquerEcriture(cacheKey)
       await refresh()
       return true
     } catch (err) {
       console.error(`[btp] remove ${tableName}:`, err)
       setError('Erreur lors de la suppression')
+      if (!(err instanceof EcritureRefusee)) toast.error(ECHEC_ECRITURE.suppression, { id: `btp-ecriture-${tableName}` })
       return false
     }
   }, [tableName, cacheKey, refresh])
@@ -814,9 +1064,16 @@ export function useBTPSettings() {
               taux_is: Math.round(config.default_taux_is * 100),
             }))
           }
-        } catch { /* fallback to defaults */ }
+        } catch (err) {
+          // Session illisible : les valeurs par défaut restent, comme pour un compte sans forme juridique connue.
+          console.warn('[btp] forme juridique du compte non lue, réglages par défaut :', err)
+        }
       }
-    } catch { /* use defaults */ }
+    } catch (err) {
+      // Les valeurs par défaut restent affichées : l'utilisateur doit savoir que ce ne sont pas les siennes.
+      console.warn('[btp] réglages non chargés :', err)
+      toast.error(MESSAGE_REGLAGES_NON_CHARGES, { id: 'btp-reglages-chargement' })
+    }
     finally { setLoading(false) }
   }, [])
 
@@ -839,9 +1096,14 @@ export function useBTPSettings() {
         headers: { 'Content-Type': 'application/json', ...await authHeaders() },
         body: JSON.stringify({ table: 'settings_btp', action: 'upsert_settings', data: changes }),
       })
-      if (!res.ok) throw new Error(`Settings save failed: ${res.status}`)
+      if (!res.ok) {
+        // Réglage refusé (taux hors bornes…) : la raison du serveur s'affiche, puis la valeur d'avant revient.
+        await signalerEcritureRefusee(res, MESSAGE_REGLAGES_NON_ENREGISTRES, 'btp-reglages')
+        throw new EcritureRefusee(`Settings save failed: ${res.status}`)
+      }
     } catch (err) {
       console.error('[btp] settings save failed, rolling back:', err)
+      if (!(err instanceof EcritureRefusee)) toast.error(MESSAGE_REGLAGES_NON_ENREGISTRES, { id: 'btp-reglages' })
       setSettings(prev)
       _settingsCache = { data: prev, at: Date.now() }
     }
@@ -859,48 +1121,4 @@ export function useChargesFixes({ artisanId, userId }: { artisanId: string; user
     userId,
     autoImport: false,
   })
-}
-
-// ── Geo-pointage helper ───────────────────────────────────────────────────────
-
-export function useGeoPointage() {
-  const [position, setPosition] = useState<{ lat: number; lng: number } | null>(null)
-  const [watching, setWatching] = useState(false)
-  const [geoError, setGeoError] = useState<string | null>(null)
-  const watchId = useRef<number | null>(null)
-
-  const start = useCallback(() => {
-    if (!navigator.geolocation) return
-    setWatching(true)
-    setGeoError(null)
-    watchId.current = navigator.geolocation.watchPosition(
-      (pos) => { setPosition({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setGeoError(null) },
-      (err) => { setGeoError(err.code === 1 ? 'Permission GPS refusée' : err.code === 2 ? 'GPS indisponible' : 'GPS timeout'); console.warn('[geo] watchPosition error:', err.message) },
-      { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 }
-    )
-  }, [])
-
-  const stop = useCallback(() => {
-    if (watchId.current !== null) {
-      navigator.geolocation.clearWatch(watchId.current)
-      watchId.current = null
-    }
-    setWatching(false)
-  }, [])
-
-  // Distance en mètres entre deux points GPS
-  const distanceTo = useCallback((lat2: number, lng2: number): number | null => {
-    if (!position) return null
-    const R = 6371000
-    const dLat = (lat2 - position.lat) * Math.PI / 180
-    const dLng = (lng2 - position.lng) * Math.PI / 180
-    const a = Math.sin(dLat / 2) ** 2 +
-      Math.cos(position.lat * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-      Math.sin(dLng / 2) ** 2
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-  }, [position])
-
-  useEffect(() => { return () => stop() }, [stop])
-
-  return { position, watching, geoError, start, stop, distanceTo }
 }

@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
+import { fetchAuthentifie } from '@/lib/fetch-authentifie'
+import { useLocale } from '@/lib/i18n/context'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -64,28 +66,33 @@ interface Candidature {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const METIERS = [
-  { id: 'maconnerie', label: 'Maçonnerie', emoji: '🧱' },
-  { id: 'construcao', label: 'Construction / Gros-œuvre', emoji: '🏗️' },
-  { id: 'eletricidade', label: 'Électricité', emoji: '⚡' },
-  { id: 'canalizacao', label: 'Plomberie', emoji: '🔧' },
-  { id: 'pintura', label: 'Peinture', emoji: '🎨' },
-  { id: 'carrelage', label: 'Carrelage / Revêtements', emoji: '🪵' },
-  { id: 'carpintaria', label: 'Menuiserie / Charpente', emoji: '🪚' },
-  { id: 'telhados', label: 'Couverture / Toiture', emoji: '🏠' },
-  { id: 'isolamento', label: 'Isolation', emoji: '🧱' },
-  { id: 'renovacao', label: 'Rénovation générale', emoji: '🔨' },
-  { id: 'serralharia', label: 'Serrurerie / Métallerie', emoji: '🔩' },
-  { id: 'climatizacao', label: 'CVC / Climatisation', emoji: '❄️' },
-  { id: 'impermeabilizacao', label: 'Étanchéité', emoji: '💧' },
-  { id: 'demolition', label: 'Démolition / Terrassement', emoji: '⛏️' },
-  { id: 'vrd', label: 'VRD / Réseaux', emoji: '🛤️' },
-  { id: 'echafaudage', label: 'Échafaudage', emoji: '🏗️' },
-  { id: 'autre', label: 'Autre', emoji: '📋' },
+  { id: 'maconnerie', label: 'Maçonnerie', labelPt: 'Alvenaria', emoji: '🧱' },
+  { id: 'construcao', label: 'Construction / Gros-œuvre', labelPt: 'Construção / Estrutura', emoji: '🏗️' },
+  { id: 'eletricidade', label: 'Électricité', labelPt: 'Eletricidade', emoji: '⚡' },
+  { id: 'canalizacao', label: 'Plomberie', labelPt: 'Canalização', emoji: '🔧' },
+  { id: 'pintura', label: 'Peinture', labelPt: 'Pintura', emoji: '🎨' },
+  { id: 'carrelage', label: 'Carrelage / Revêtements', labelPt: 'Cerâmica / Revestimentos', emoji: '🪵' },
+  { id: 'carpintaria', label: 'Menuiserie / Charpente', labelPt: 'Carpintaria / Estrutura de cobertura', emoji: '🪚' },
+  { id: 'telhados', label: 'Couverture / Toiture', labelPt: 'Coberturas / Telhados', emoji: '🏠' },
+  { id: 'isolamento', label: 'Isolation', labelPt: 'Isolamento', emoji: '🧱' },
+  { id: 'renovacao', label: 'Rénovation générale', labelPt: 'Remodelação geral', emoji: '🔨' },
+  { id: 'serralharia', label: 'Serrurerie / Métallerie', labelPt: 'Serralharia', emoji: '🔩' },
+  { id: 'climatizacao', label: 'CVC / Climatisation', labelPt: 'AVAC / Climatização', emoji: '❄️' },
+  { id: 'impermeabilizacao', label: 'Étanchéité', labelPt: 'Impermeabilização', emoji: '💧' },
+  { id: 'demolition', label: 'Démolition / Terrassement', labelPt: 'Demolição / Terraplanagem', emoji: '⛏️' },
+  { id: 'vrd', label: 'VRD / Réseaux', labelPt: 'Arruamentos e redes', emoji: '🛤️' },
+  { id: 'echafaudage', label: 'Échafaudage', labelPt: 'Andaimes', emoji: '🏗️' },
+  { id: 'autre', label: 'Autre', labelPt: 'Outro', emoji: '📋' },
 ]
 
-const MISSION_LABELS: Record<string, string> = {
-  sous_traitance_complete: 'Sous-traitance complète',
-  renfort_equipe: 'Renfort équipe',
+const MISSION_LABELS: Record<string, { fr: string; pt: string }> = {
+  sous_traitance_complete: { fr: 'Sous-traitance complète', pt: 'Subempreitada completa' },
+  renfort_equipe: { fr: 'Renfort équipe', pt: 'Reforço de equipa' },
+}
+
+/** Statut enregistré d'une offre, affiché en portugais (le français n'a de libellé que pour « open » et « awarded »). */
+const STATUT_OFFRE_PT: Record<string, string> = {
+  open: 'Aberta', in_review: 'Em análise', awarded: 'Adjudicada', closed: 'Encerrada', cancelled: 'Anulada',
 }
 
 const URGENCY_BADGE_V5: Record<string, string> = {
@@ -135,7 +142,8 @@ const EMPTY_FORM = {
 
 export default function SousTraitanceOffresSection({ artisan, orgRole }: { artisan: import('@/lib/types').Artisan; orgRole?: string }) {
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
-  const isPt = typeof document !== 'undefined' && document.cookie.includes('locale=pt')
+  // Langue de l'interface (/pt/pro/dashboard), et non plus le cookie de langue : rien ne change en français.
+  const isPt = useLocale() === 'pt'
 
   const [tab, setTab] = useState<'annonces' | 'publier' | 'candidats'>('annonces')
   const [offers, setOffers] = useState<Offer[]>([])
@@ -151,26 +159,31 @@ export default function SousTraitanceOffresSection({ artisan, orgRole }: { artis
   const [publishing, setPublishing] = useState(false)
   const [publishError, setPublishError] = useState('')
 
-  const showToast = (msg: string, type: 'ok' | 'err' = 'ok') => {
+  // Stable d'un rendu à l'autre : le chargement des offres peut l'appeler sans se recréer.
+  const showToast = useCallback((msg: string, type: 'ok' | 'err' = 'ok') => {
     setToast({ msg, type })
     setTimeout(() => setToast(null), 3500)
-  }
+  }, [])
 
   // ── Load offers ───────────────────────────────────────────────────────────
   const loadOffers = useCallback(async () => {
     if (!artisan?.id) return
     setLoading(true)
     try {
-      const res = await fetch(`/api/marches/sous-traitance?btp_company_id=${artisan.id}`)
+      // Route réservée au compte lui-même (ses offres, tous statuts confondus) : jeton requis.
+      const res = await fetchAuthentifie(`/api/marches/sous-traitance?btp_company_id=${artisan.id}`)
       if (!res.ok) throw new Error()
       const data = await res.json()
       setOffers(data.offers || [])
     } catch {
       setOffers([])
+      // Société BTP : un refus du serveur (session expirée, limite de débit, panne) est dit, sinon rien ne le
+      // distingue de « Aucune annonce publiée ».
+      if (orgRole === 'pro_societe') showToast(isPt ? 'Não foi possível carregar os seus anúncios' : 'Impossible de charger vos annonces', 'err')
     } finally {
       setLoading(false)
     }
-  }, [artisan?.id])
+  }, [artisan?.id, orgRole, showToast, isPt])
 
   useEffect(() => {
     loadOffers()
@@ -216,10 +229,11 @@ export default function SousTraitanceOffresSection({ artisan, orgRole }: { artis
       setCandidatures(prev =>
         prev.map(c => (c.id === candId ? { ...c, status } : c))
       )
-      showToast(status === 'accepted' ? 'Candidature acceptée' : 'Candidature refusée')
+      if (isPt) showToast(status === 'accepted' ? 'Candidatura aceite' : 'Candidatura recusada')
+      else showToast(status === 'accepted' ? 'Candidature acceptée' : 'Candidature refusée')
       loadOffers()
     } catch {
-      showToast('Erreur lors de la mise à jour', 'err')
+      showToast(isPt ? 'Erro ao atualizar' : 'Erreur lors de la mise à jour', 'err')
     } finally {
       setActionLoading(null)
     }
@@ -229,14 +243,14 @@ export default function SousTraitanceOffresSection({ artisan, orgRole }: { artis
   const handlePublish = async () => {
     setPublishError('')
     if (!form.title || !form.description || !form.location_city || !form.deadline) {
-      setPublishError('Renseignez les champs obligatoires : titre, description, ville, date limite.')
+      setPublishError(isPt ? 'Preencha os campos obrigatórios: título, descrição, cidade, data limite.' : 'Renseignez les champs obligatoires : titre, description, ville, date limite.')
       return
     }
 
     setPublishing(true)
     try {
       const session = (await supabase.auth.getSession()).data.session
-      if (!session) throw new Error('Non connecté')
+      if (!session) throw new Error(isPt ? 'Sessão não iniciada' : 'Non connecté')
 
       const { data: profile } = await supabase
         .from('profiles_artisan')
@@ -279,15 +293,15 @@ export default function SousTraitanceOffresSection({ artisan, orgRole }: { artis
 
       if (!res.ok) {
         const err = await res.json()
-        throw new Error(err.error || 'Erreur serveur')
+        throw new Error(err.error || (isPt ? 'Erro do servidor' : 'Erreur serveur'))
       }
 
       setForm(EMPTY_FORM)
       setTab('annonces')
       await loadOffers()
-      showToast('Annonce publiée — les artisans correspondants ont été notifiés')
+      showToast(isPt ? 'Anúncio publicado: os profissionais correspondentes foram notificados' : 'Annonce publiée — les artisans correspondants ont été notifiés')
     } catch (e: unknown) {
-      setPublishError(e instanceof Error ? e.message : 'Erreur lors de la publication')
+      setPublishError(e instanceof Error ? e.message : (isPt ? 'Erro ao publicar' : 'Erreur lors de la publication'))
     } finally {
       setPublishing(false)
     }
@@ -299,7 +313,7 @@ export default function SousTraitanceOffresSection({ artisan, orgRole }: { artis
 
   const metierLabel = (id: string) => {
     const m = METIERS.find(m => m.id === id)
-    return m ? `${m.emoji} ${m.label}` : id
+    return m ? `${m.emoji} ${isPt ? m.labelPt : m.label}` : id
   }
 
   const daysLeft = (deadline: string) => {
@@ -308,10 +322,10 @@ export default function SousTraitanceOffresSection({ artisan, orgRole }: { artis
   }
 
   const formatBudget = (min?: number, max?: number) => {
-    if (!min && !max) return isPt ? 'Budget à définir' : 'Budget à définir'
-    if (min && max) return `${min.toLocaleString('fr-FR')} – ${max.toLocaleString('fr-FR')} €`
-    if (min) return `À partir de ${min.toLocaleString('fr-FR')} €`
-    return `Jusqu'à ${max!.toLocaleString('fr-FR')} €`
+    if (!min && !max) return isPt ? 'Valor a definir' : 'Budget à définir'
+    if (min && max) return isPt ? `${min.toLocaleString('fr-FR')} a ${max.toLocaleString('fr-FR')} €` : `${min.toLocaleString('fr-FR')} – ${max.toLocaleString('fr-FR')} €`
+    if (min) return isPt ? `A partir de ${min.toLocaleString('fr-FR')} €` : `À partir de ${min.toLocaleString('fr-FR')} €`
+    return isPt ? `Até ${max!.toLocaleString('fr-FR')} €` : `Jusqu'à ${max!.toLocaleString('fr-FR')} €`
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -346,9 +360,9 @@ export default function SousTraitanceOffresSection({ artisan, orgRole }: { artis
       {/* Tabs */}
       <div className={isV5 ? 'v5-tabs' : 'v22-tabs'}>
         {[
-          { key: 'annonces', label: isPt ? 'Minhas Ofertas' : 'Mes annonces', count: offers.length },
-          { key: 'publier', label: isPt ? 'Publicar Oferta' : 'Publier une offre' },
-          { key: 'candidats', label: isPt ? 'Candidatos' : 'Candidatures', disabled: !selectedOffer },
+          { key: 'annonces', label: isPt ? 'Os meus anúncios' : 'Mes annonces', count: offers.length },
+          { key: 'publier', label: isPt ? 'Publicar uma oferta' : 'Publier une offre' },
+          { key: 'candidats', label: isPt ? 'Candidaturas' : 'Candidatures', disabled: !selectedOffer },
         ].map(t => (
           <button
             key={t.key}
@@ -369,15 +383,15 @@ export default function SousTraitanceOffresSection({ artisan, orgRole }: { artis
       {tab === 'annonces' && (
         <div>
           {loading ? (
-            <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ textAlign: 'center', padding: 48, color: '#999', fontSize: 12 }}>Chargement...</div>
+            <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ textAlign: 'center', padding: 48, color: '#999', fontSize: 12 }}>{isPt ? 'A carregar...' : 'Chargement...'}</div>
           ) : offers.length === 0 ? (
             <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ textAlign: 'center', padding: 48 }}>
               <div style={{ fontSize: 32, marginBottom: 12, color: '#BBB' }}>📭</div>
               <p style={{ color: '#999', fontSize: 12 }}>
-                {isPt ? 'Nenhuma oferta publicada.' : 'Aucune annonce publiée.'}
+                {isPt ? 'Nenhum anúncio publicado.' : 'Aucune annonce publiée.'}
               </p>
               <button onClick={() => setTab('publier')} className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'} style={{ marginTop: 12 }}>
-                {isPt ? 'Publicar primeira oferta' : 'Publier ma première offre'}
+                {isPt ? 'Publicar a minha primeira oferta' : 'Publier ma première offre'}
               </button>
             </div>
           ) : (
@@ -388,39 +402,43 @@ export default function SousTraitanceOffresSection({ artisan, orgRole }: { artis
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
                         <span className={(isV5 ? STATUS_BADGE_V5 : STATUS_BADGE_V22)[offer.status] || 'v5-badge v5-badge-gray'}>
-                          {offer.status === 'open' ? 'Ouverte' : offer.status === 'awarded' ? 'Attribuée' : offer.status}
+                          {isPt
+                            ? STATUT_OFFRE_PT[offer.status] ?? offer.status
+                            : offer.status === 'open' ? 'Ouverte' : offer.status === 'awarded' ? 'Attribuée' : offer.status}
                         </span>
                         <span className={(isV5 ? URGENCY_BADGE_V5 : URGENCY_BADGE_V22)[offer.urgency]}>
-                          {offer.urgency === 'emergency' ? 'Urgence' : offer.urgency === 'urgent' ? 'Urgent' : 'Normal'}
+                          {isPt
+                            ? offer.urgency === 'emergency' ? 'Emergência' : offer.urgency === 'urgent' ? 'Urgente' : 'Normal'
+                            : offer.urgency === 'emergency' ? 'Urgence' : offer.urgency === 'urgent' ? 'Urgent' : 'Normal'}
                         </span>
-                        <span className={isV5 ? 'v5-badge v5-badge-blue' : 'v22-tag v22-tag-blue'}>{MISSION_LABELS[offer.mission_type]}</span>
+                        <span className={isV5 ? 'v5-badge v5-badge-blue' : 'v22-tag v22-tag-blue'}>{MISSION_LABELS[offer.mission_type]?.[isPt ? 'pt' : 'fr']}</span>
                         <span className={isV5 ? 'v5-badge v5-badge-gray' : 'v22-tag v22-tag-gray'}>{metierLabel(offer.category)}</span>
                       </div>
                       <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>{offer.title}</div>
                       <div style={{ color: '#999', fontSize: 11 }}>
                         {offer.location_city}{offer.location_postal && ` (${offer.location_postal})`}
-                        {offer.start_date && ` · Début ${new Date(offer.start_date).toLocaleDateString('fr-FR')}`}
+                        {offer.start_date && ` · ${isPt ? 'Início' : 'Début'} ${new Date(offer.start_date).toLocaleDateString('fr-FR')}`}
                         {offer.duration_text && ` · ${offer.duration_text}`}
                       </div>
                       <div style={{ color: '#666', fontSize: 11, marginTop: 4 }}>
                         {formatBudget(offer.budget_min, offer.budget_max)}
-                        {offer.nb_intervenants_souhaite && ` · ${offer.nb_intervenants_souhaite} intervenant(s)`}
+                        {offer.nb_intervenants_souhaite && ` · ${offer.nb_intervenants_souhaite} ${isPt ? 'profissional(is)' : 'intervenant(s)'}`}
                       </div>
                       <div style={{ marginTop: 6 }}>
-                        <span className={isV5 ? 'v5-badge v5-badge-blue' : 'v22-tag v22-tag-blue'}>{offer.candidatures_count} candidature(s)</span>
-                        <span style={{ fontSize: 10, color: '#999', marginLeft: 8 }}>{daysLeft(offer.deadline)} jours restants</span>
+                        <span className={isV5 ? 'v5-badge v5-badge-blue' : 'v22-tag v22-tag-blue'}>{offer.candidatures_count} {isPt ? 'candidatura(s)' : 'candidature(s)'}</span>
+                        <span style={{ fontSize: 10, color: '#999', marginLeft: 8 }}>{daysLeft(offer.deadline)} {isPt ? 'dias restantes' : 'jours restants'}</span>
                       </div>
                     </div>
                     <button onClick={() => loadCandidatures(offer)} className={isV5 ? 'v5-btn v5-btn-p v5-btn-sm' : 'v22-btn v22-btn-primary v22-btn-sm'}>
-                      Voir candidats ({offer.candidatures_count})
+                      {isPt ? 'Ver candidaturas' : 'Voir candidats'} ({offer.candidatures_count})
                     </button>
                   </div>
 
                   {(offer.require_rc_pro || offer.require_decennale || offer.require_qualibat) && (
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
-                      {offer.require_rc_pro && <span className={isV5 ? 'v5-badge v5-badge-orange' : 'v22-tag v22-tag-orange'}>RC Pro exigée</span>}
-                      {offer.require_decennale && <span className={isV5 ? 'v5-badge v5-badge-orange' : 'v22-tag v22-tag-orange'}>Décennale exigée</span>}
-                      {offer.require_qualibat && <span className={isV5 ? 'v5-badge v5-badge-orange' : 'v22-tag v22-tag-orange'}>Qualibat exigé</span>}
+                      {offer.require_rc_pro && <span className={isV5 ? 'v5-badge v5-badge-orange' : 'v22-tag v22-tag-orange'}>{isPt ? 'Seguro de RC profissional exigido' : 'RC Pro exigée'}</span>}
+                      {offer.require_decennale && <span className={isV5 ? 'v5-badge v5-badge-orange' : 'v22-tag v22-tag-orange'}>{isPt ? 'Seguro decenal exigido' : 'Décennale exigée'}</span>}
+                      {offer.require_qualibat && <span className={isV5 ? 'v5-badge v5-badge-orange' : 'v22-tag v22-tag-orange'}>{isPt ? 'Certificação Qualibat exigida' : 'Qualibat exigé'}</span>}
                     </div>
                   )}
                 </div>
@@ -440,79 +458,79 @@ export default function SousTraitanceOffresSection({ artisan, orgRole }: { artis
           <div className={isV5 ? 'v5-fr' : 'v22-form-row'}>
             {/* Titre */}
             <div className={isV5 ? 'v5-fg' : 'v22-form-group'} style={{ gridColumn: '1 / -1' }}>
-              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Titre de la mission *</label>
-              <input className={isV5 ? 'v5-fi' : 'v22-input'} placeholder="ex : Pose carrelage 120m²" value={form.title}
+              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Título da missão *' : 'Titre de la mission *'}</label>
+              <input className={isV5 ? 'v5-fi' : 'v22-input'} placeholder={isPt ? 'ex.: Assentamento de cerâmica 120 m²' : 'ex : Pose carrelage 120m²'} value={form.title}
                 onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
             </div>
 
             {/* Description */}
             <div className={isV5 ? 'v5-fg' : 'v22-form-group'} style={{ gridColumn: '1 / -1' }}>
-              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Description détaillée *</label>
+              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Descrição detalhada *' : 'Description détaillée *'}</label>
               <textarea className={isV5 ? 'v5-fi' : 'v22-input'} style={{ minHeight: 80, resize: 'vertical' }}
-                placeholder="Décrivez les travaux, les conditions..."
+                placeholder={isPt ? 'Descreva os trabalhos, as condições...' : 'Décrivez les travaux, les conditions...'}
                 value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
             </div>
 
             {/* Métier */}
             <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
-              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Métier recherché *</label>
+              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Especialidade pretendida *' : 'Métier recherché *'}</label>
               <select className={isV5 ? 'v5-fi' : 'v22-input'} value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
-                {METIERS.map(m => <option key={m.id} value={m.id}>{m.emoji} {m.label}</option>)}
+                {METIERS.map(m => <option key={m.id} value={m.id}>{m.emoji} {isPt ? m.labelPt : m.label}</option>)}
               </select>
             </div>
 
             {/* Type de mission */}
             <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
-              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Type de mission *</label>
+              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Tipo de missão *' : 'Type de mission *'}</label>
               <select className={isV5 ? 'v5-fi' : 'v22-input'} value={form.mission_type} onChange={e => setForm(f => ({ ...f, mission_type: e.target.value as any }))}>
-                <option value="sous_traitance_complete">Sous-traitance complète</option>
-                <option value="renfort_equipe">Renfort équipe</option>
+                <option value="sous_traitance_complete">{MISSION_LABELS.sous_traitance_complete[isPt ? 'pt' : 'fr']}</option>
+                <option value="renfort_equipe">{MISSION_LABELS.renfort_equipe[isPt ? 'pt' : 'fr']}</option>
               </select>
             </div>
 
             {/* Ville */}
             <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
-              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Ville du chantier *</label>
-              <input className={isV5 ? 'v5-fi' : 'v22-input'} placeholder="ex : Marseille" value={form.location_city}
+              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Cidade da obra *' : 'Ville du chantier *'}</label>
+              <input className={isV5 ? 'v5-fi' : 'v22-input'} placeholder={isPt ? 'ex.: Porto' : 'ex : Marseille'} value={form.location_city}
                 onChange={e => setForm(f => ({ ...f, location_city: e.target.value }))} />
             </div>
 
             {/* Code postal */}
             <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
-              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Code postal</label>
-              <input className={isV5 ? 'v5-fi' : 'v22-input'} placeholder="13001" value={form.location_postal}
+              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Código postal' : 'Code postal'}</label>
+              <input className={isV5 ? 'v5-fi' : 'v22-input'} placeholder={isPt ? '4000-123' : '13001'} value={form.location_postal}
                 onChange={e => setForm(f => ({ ...f, location_postal: e.target.value }))} />
             </div>
 
             {/* Adresse */}
             <div className={isV5 ? 'v5-fg' : 'v22-form-group'} style={{ gridColumn: '1 / -1' }}>
-              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Adresse du chantier</label>
-              <input className={isV5 ? 'v5-fi' : 'v22-input'} placeholder="15 rue de la Paix, Bât. A" value={form.location_address}
+              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Morada da obra' : 'Adresse du chantier'}</label>
+              <input className={isV5 ? 'v5-fi' : 'v22-input'} placeholder={isPt ? 'Rua de Santa Catarina 15, Bloco A' : '15 rue de la Paix, Bât. A'} value={form.location_address}
                 onChange={e => setForm(f => ({ ...f, location_address: e.target.value }))} />
             </div>
 
             {/* Dates */}
             <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
-              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Date de début souhaitée</label>
+              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Data de início pretendida' : 'Date de début souhaitée'}</label>
               <input type="date" className={isV5 ? 'v5-fi' : 'v22-input'} value={form.start_date}
                 onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))} />
             </div>
             <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
-              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Date limite de candidature *</label>
+              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Data limite de candidatura *' : 'Date limite de candidature *'}</label>
               <input type="date" className={isV5 ? 'v5-fi' : 'v22-input'} value={form.deadline}
                 onChange={e => setForm(f => ({ ...f, deadline: e.target.value }))} />
             </div>
 
             {/* Durée */}
             <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
-              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Durée estimée</label>
-              <input className={isV5 ? 'v5-fi' : 'v22-input'} placeholder="ex : 3 semaines, 1 mois..."
+              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Duração estimada' : 'Durée estimée'}</label>
+              <input className={isV5 ? 'v5-fi' : 'v22-input'} placeholder={isPt ? 'ex.: 3 semanas, 1 mês...' : 'ex : 3 semaines, 1 mois...'}
                 value={form.duration_text} onChange={e => setForm(f => ({ ...f, duration_text: e.target.value }))} />
             </div>
 
             {/* Nb intervenants */}
             <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
-              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Nombre d'intervenants</label>
+              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Número de profissionais' : 'Nombre d\'intervenants'}</label>
               <input type="number" min={1} className={isV5 ? 'v5-fi' : 'v22-input'} placeholder="1"
                 value={form.nb_intervenants_souhaite}
                 onChange={e => setForm(f => ({ ...f, nb_intervenants_souhaite: e.target.value }))} />
@@ -520,34 +538,34 @@ export default function SousTraitanceOffresSection({ artisan, orgRole }: { artis
 
             {/* Budget */}
             <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
-              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Budget minimum (&euro;)</label>
+              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Valor mínimo (€)' : 'Budget minimum (€)'}</label>
               <input type="number" min={0} className={isV5 ? 'v5-fi' : 'v22-input'} placeholder="5000"
                 value={form.budget_min} onChange={e => setForm(f => ({ ...f, budget_min: e.target.value }))} />
             </div>
             <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
-              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Budget maximum (&euro;)</label>
+              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Valor máximo (€)' : 'Budget maximum (€)'}</label>
               <input type="number" min={0} className={isV5 ? 'v5-fi' : 'v22-input'} placeholder="15000"
                 value={form.budget_max} onChange={e => setForm(f => ({ ...f, budget_max: e.target.value }))} />
             </div>
 
             {/* Urgence */}
             <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>
-              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Urgence</label>
+              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Urgência' : 'Urgence'}</label>
               <select className={isV5 ? 'v5-fi' : 'v22-input'} value={form.urgency} onChange={e => setForm(f => ({ ...f, urgency: e.target.value as any }))}>
                 <option value="normal">Normal</option>
-                <option value="urgent">Urgent</option>
-                <option value="emergency">Urgence</option>
+                <option value="urgent">{isPt ? 'Urgente' : 'Urgent'}</option>
+                <option value="emergency">{isPt ? 'Emergência' : 'Urgence'}</option>
               </select>
             </div>
 
             {/* Exigences */}
             <div className={isV5 ? 'v5-fg' : 'v22-form-group'} style={{ gridColumn: '1 / -1' }}>
-              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Certifications exigées</label>
+              <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Certificações exigidas' : 'Certifications exigées'}</label>
               <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 4 }}>
                 {[
-                  { key: 'require_rc_pro', label: 'RC Professionnelle' },
-                  { key: 'require_decennale', label: 'Assurance Décennale' },
-                  { key: 'require_qualibat', label: 'Certification Qualibat' },
+                  { key: 'require_rc_pro', label: isPt ? 'Seguro de responsabilidade civil profissional' : 'RC Professionnelle' },
+                  { key: 'require_decennale', label: isPt ? 'Seguro decenal' : 'Assurance Décennale' },
+                  { key: 'require_qualibat', label: isPt ? 'Certificação Qualibat' : 'Certification Qualibat' },
                 ].map(({ key, label }) => (
                   <label key={key} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 12 }}>
                     <input type="checkbox" checked={(form as any)[key]}
@@ -564,9 +582,9 @@ export default function SousTraitanceOffresSection({ artisan, orgRole }: { artis
           )}
 
           <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-            <button onClick={() => setTab('annonces')} className={isV5 ? 'v5-btn' : 'v22-btn'}>Annuler</button>
+            <button onClick={() => setTab('annonces')} className={isV5 ? 'v5-btn' : 'v22-btn'}>{isPt ? 'Cancelar' : 'Annuler'}</button>
             <button onClick={handlePublish} disabled={publishing} className={isV5 ? 'v5-btn v5-btn-p' : 'v22-btn v22-btn-primary'}>
-              {publishing ? 'Publication...' : 'Publier l\'offre'}
+              {publishing ? (isPt ? 'A publicar...' : 'Publication...') : (isPt ? 'Publicar a oferta' : 'Publier l\'offre')}
             </button>
           </div>
         </div>
@@ -585,19 +603,19 @@ export default function SousTraitanceOffresSection({ artisan, orgRole }: { artis
                 </div>
               </div>
               <button onClick={() => setTab('annonces')} className="v5-btn v5-btn-sm">
-                &larr; Retour aux annonces
+                &larr; {isPt ? 'Voltar aos anúncios' : 'Retour aux annonces'}
               </button>
             </div>
           </div>
 
           {candLoading ? (
-            <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ textAlign: 'center', padding: 40, color: '#999', fontSize: 12 }}>Chargement des candidatures...</div>
+            <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ textAlign: 'center', padding: 40, color: '#999', fontSize: 12 }}>{isPt ? 'A carregar as candidaturas...' : 'Chargement des candidatures...'}</div>
           ) : candidatures.length === 0 ? (
             <div className={isV5 ? 'v5-card' : 'v22-card'} style={{ textAlign: 'center', padding: 40 }}>
               <div style={{ fontSize: 32, marginBottom: 10, color: '#BBB' }}>📭</div>
-              <p style={{ color: '#999', fontSize: 12 }}>Aucune candidature pour le moment.</p>
+              <p style={{ color: '#999', fontSize: 12 }}>{isPt ? 'Ainda não há candidaturas.' : 'Aucune candidature pour le moment.'}</p>
               <p style={{ color: '#BBB', fontSize: 11 }}>
-                Les artisans correspondant à votre annonce ont été notifiés.
+                {isPt ? 'Os profissionais correspondentes ao seu anúncio foram notificados.' : 'Les artisans correspondant à votre annonce ont été notifiés.'}
               </p>
             </div>
           ) : (
@@ -619,11 +637,11 @@ export default function SousTraitanceOffresSection({ artisan, orgRole }: { artis
                     </div>
                     <div>
                       <div style={{ fontWeight: 600, fontSize: 12 }}>
-                        {cand.artisan_company_name || cand.profile?.company_name || 'Artisan'}
+                        {cand.artisan_company_name || cand.profile?.company_name || (isPt ? 'Profissional' : 'Artisan')}
                       </div>
                       <div style={{ fontSize: 10, color: '#999' }}>
                         {cand.profile?.city && cand.profile.city}
-                        {cand.experience_years !== undefined && ` · ${cand.experience_years} ans`}
+                        {cand.experience_years !== undefined && ` · ${cand.experience_years} ${isPt ? 'anos' : 'ans'}`}
                         {(cand.artisan_rating || cand.profile?.rating_avg) && ` · ⭐ ${(cand.artisan_rating || cand.profile?.rating_avg || 0).toFixed(1)}`}
                       </div>
                     </div>
@@ -632,17 +650,17 @@ export default function SousTraitanceOffresSection({ artisan, orgRole }: { artis
                   {/* Certifs */}
                   {(cand.profile?.rc_pro_valid || cand.profile?.decennale_valid || cand.profile?.qualibat_valid) && (
                     <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 8 }}>
-                      {cand.profile?.rc_pro_valid && <span className="v5-badge v5-badge-green">RC Pro</span>}
-                      {cand.profile?.decennale_valid && <span className="v5-badge v5-badge-green">Décennale</span>}
+                      {cand.profile?.rc_pro_valid && <span className="v5-badge v5-badge-green">{isPt ? 'Seguro RC' : 'RC Pro'}</span>}
+                      {cand.profile?.decennale_valid && <span className="v5-badge v5-badge-green">{isPt ? 'Seguro decenal' : 'Décennale'}</span>}
                       {cand.profile?.qualibat_valid && <span className="v5-badge v5-badge-green">Qualibat</span>}
                     </div>
                   )}
 
                   {/* Proposition */}
                   <div style={{ fontSize: 11, color: '#666', marginBottom: 8 }}>
-                    Tarif : {cand.price.toLocaleString('fr-FR')} &euro;{cand.materials_included ? ' (matériaux inclus)' : ''}
+                    {isPt ? 'Preço:' : 'Tarif :'} {cand.price.toLocaleString('fr-FR')} &euro;{cand.materials_included ? (isPt ? ' (materiais incluídos)' : ' (matériaux inclus)') : ''}
                     {` · ${cand.timeline}`}
-                    {cand.disponibilites && ` · Dispo: ${cand.disponibilites}`}
+                    {cand.disponibilites && ` · ${isPt ? 'Disponibilidade' : 'Dispo'}: ${cand.disponibilites}`}
                   </div>
 
                   {cand.description && (
@@ -652,7 +670,9 @@ export default function SousTraitanceOffresSection({ artisan, orgRole }: { artis
                   {/* Status + actions */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, paddingTop: 8, borderTop: '1px solid #E8E8E8' }}>
                     <span className={(isV5 ? CAND_STATUS_BADGE_V5 : CAND_STATUS_BADGE_V22)[cand.status]}>
-                      {cand.status === 'accepted' ? 'Accepté' : cand.status === 'rejected' ? 'Refusé' : 'En attente'}
+                      {isPt
+                        ? cand.status === 'accepted' ? 'Aceite' : cand.status === 'rejected' ? 'Recusada' : 'Pendente'
+                        : cand.status === 'accepted' ? 'Accepté' : cand.status === 'rejected' ? 'Refusé' : 'En attente'}
                     </span>
 
                     {cand.status === 'pending' && (
@@ -662,14 +682,14 @@ export default function SousTraitanceOffresSection({ artisan, orgRole }: { artis
                           disabled={actionLoading === cand.id}
                           className="v5-btn v5-btn-s v5-btn-sm"
                         >
-                          {actionLoading === cand.id ? '...' : 'Accepter'}
+                          {actionLoading === cand.id ? '...' : (isPt ? 'Aceitar' : 'Accepter')}
                         </button>
                         <button
                           onClick={() => updateCandidatureStatus(selectedOffer.id, cand.id, 'rejected')}
                           disabled={actionLoading === cand.id}
                           className="v5-btn v5-btn-sm"
                         >
-                          {actionLoading === cand.id ? '...' : 'Refuser'}
+                          {actionLoading === cand.id ? '...' : (isPt ? 'Recusar' : 'Refuser')}
                         </button>
                       </div>
                     )}
@@ -678,7 +698,7 @@ export default function SousTraitanceOffresSection({ artisan, orgRole }: { artis
                   {cand.artisan_phone && (
                     <div style={{ marginTop: 8 }}>
                       <button className={isV5 ? 'v5-btn v5-btn-p v5-btn-sm' : 'v22-btn v22-btn-primary v22-btn-sm'} onClick={() => window.open(`tel:${cand.artisan_phone}`)}>
-                        Contacter
+                        {isPt ? 'Contactar' : 'Contacter'}
                       </button>
                     </div>
                   )}

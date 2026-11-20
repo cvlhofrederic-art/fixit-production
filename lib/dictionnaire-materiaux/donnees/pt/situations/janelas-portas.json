@@ -1,0 +1,1109 @@
+{
+  "domaine": {
+    "id": "janelas-portas",
+    "nom": "Janelas, portas e caixilharia",
+    "icone": "🪟"
+  },
+  "situations": [
+    {
+      "id": "vedar-janela-exterior-junta-caixilho-parede",
+      "domaine": "janelas-portas",
+      "titre": "Vedar janela pelo exterior",
+      "motsCles": [
+        "água entra à volta da janela",
+        "silicone da janela rachado",
+        "junta entre caixilho e parede aberta",
+        "fenda entre a janela e o reboco",
+        "refazer silicone exterior da janela",
+        "janela mete água pelos lados",
+        "vedar caixilharia de alumínio",
+        "cordão de vedação da janela descolado",
+        "isolar janela por fora"
+      ],
+      "description": "A junta entre o caixilho e a parede (reboco, pedra ou capoto) está aberta, rachada ou com o silicone descolado e deixa passar água e ar. Tira-se o cordão antigo e refaz-se a vedação a toda a volta.",
+      "aVerifier": [
+        "Material do caixilho (alumínio lacado, PVC ou madeira) e da parede (reboco pintado, pedra, capoto): define o vedante.",
+        "Largura e profundidade da junta: as largas ou fundas pedem fundo de junta antes do vedante.",
+        "Se a junta vai ser pintada com a fachada: o silicone não aceita tinta, usa-se cola e veda pintável.",
+        "Se a água entra mesmo por esta junta ou vem do peitoril, da caixa de estore ou de uma fissura por cima do vão."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "x-ato",
+              "note": "Cortar o cordão antigo dos dois lados, sem riscar o lacado nem o vidro."
+            },
+            {
+              "id": "espatula-remover-silicone",
+              "note": "Tirar toda a película antiga: o vedante novo não adere sobre restos."
+            },
+            {
+              "id": "removedor-silicone",
+              "note": "Só se ficarem resíduos agarrados; testar antes em lacados e PVC.",
+              "optionnel": true
+            },
+            {
+              "id": "alcool-isopropilico",
+              "note": "Desengordurar o perfil e limpar o pó da junta; deixar secar."
+            },
+            {
+              "id": "pano-microfibra"
+            },
+            {
+              "id": "fita-pintor-exterior",
+              "note": "Dos dois lados da junta, para um cordão direito; retirar logo depois de alisar."
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "espuma-poliuretano-portas-janelas",
+              "note": "Se por trás do cordão houver vazios ou espuma desfeita: encher, deixar curar e cortar.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Vedação",
+          "materiaux": [
+            {
+              "id": "fundo-de-junta-polietileno",
+              "note": "Em juntas largas ou fundas, para o vedante colar só aos dois lados.",
+              "optionnel": true
+            },
+            {
+              "id": "silicone-neutro-caixilharia",
+              "note": "Neutro e na cor do caixilho: não ataca o lacado e adere a alumínio, PVC e reboco."
+            },
+            {
+              "id": "silicone-neutro-pedra-natural",
+              "note": "Em vez do anterior, se a janela encostar a cantaria ou a peitoril de pedra.",
+              "optionnel": true
+            },
+            {
+              "id": "cola-veda-ms-polimero",
+              "note": "Em vez do silicone, se a junta for pintada com a fachada; testar a tinta primeiro.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "pistola-silicone-manual"
+            },
+            {
+              "id": "espatula-alisar-silicone",
+              "note": "Alisar antes de o vedante formar pele, com água e sabão."
+            },
+            {
+              "id": "escadote-aluminio",
+              "note": "Só para rés-do-chão e em piso firme; mais alto, andaime ou plataforma.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-descartaveis"
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Trabalho em altura: acima do rés-do-chão usar andaime ou plataforma; nunca trabalhar debruçado no peitoril.",
+        "Não tapar os furos de drenagem do caixilho nem a pingadeira: a água que entra no perfil tem de poder sair.",
+        "Aplicar com tempo seco e suporte seco; temperatura de aplicação e tempo de cura: ver a embalagem.",
+        "Se a fissura continua pela parede ou o reboco soa a oco à volta do vão, a vedação sozinha não resolve: reparar primeiro a fachada."
+      ]
+    },
+    {
+      "id": "entrada-agua-peitoril-soleira",
+      "domaine": "janelas-portas",
+      "titre": "Entrada de água pelo peitoril ou pela soleira",
+      "motsCles": [
+        "água entra por baixo da janela",
+        "mancha de humidade debaixo da janela",
+        "água entra por baixo da porta",
+        "peitoril a meter água",
+        "soleira da porta deixa passar água",
+        "parapeito da janela rachado",
+        "peitoril de pedra fissurado",
+        "chuva entra pela porta da varanda",
+        "vedar soleira"
+      ],
+      "description": "A água da chuva passa por baixo ou pelos lados da janela ou da porta: junta entre o caixilho e o peitoril aberta, topos do peitoril mal rematados, pedra fissurada ou soleira sem vedação. Vê-se pela mancha por baixo da janela ou pela água no pavimento junto à porta.",
+      "aVerifier": [
+        "Por onde entra: junta entre caixilho e peitoril, topos do peitoril contra as ombreiras, fissura na pedra ou por baixo da soleira.",
+        "Material do peitoril ou da soleira (pedra natural, betão, cerâmico, alumínio): a pedra pede silicone próprio.",
+        "Se o peitoril tem pendente para fora e pingadeira: plano ou inclinado para dentro, vedar não chega.",
+        "Se os furos de drenagem do caixilho estão desentupidos."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "x-ato",
+              "note": "Cortar o silicone antigo entre o caixilho e o peitoril ou a soleira."
+            },
+            {
+              "id": "espatula-remover-silicone",
+              "note": "Tirar todos os restos: o vedante novo não adere sobre o antigo."
+            },
+            {
+              "id": "escova-arame-manual",
+              "note": "Limpar argamassa solta e sujidade nos topos do peitoril; não passar no lacado."
+            },
+            {
+              "id": "alcool-isopropilico",
+              "note": "Desengordurar o perfil e limpar o pó; deixar secar bem."
+            },
+            {
+              "id": "fita-pintor-exterior",
+              "note": "Delimitar a junta, sobretudo em pedra, para não a sujar de vedante."
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "massa-reparacao-pedra",
+              "note": "Peitoril ou soleira de pedra lascado ou com fissura fina e estabilizada.",
+              "optionnel": true
+            },
+            {
+              "id": "espatula-pintor-estreita-20-40mm",
+              "note": "Aplicar e alisar a massa de reparação da pedra.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Vedação",
+          "materiaux": [
+            {
+              "id": "fundo-de-junta-polietileno",
+              "note": "Em juntas largas ou fundas, antes do vedante.",
+              "optionnel": true
+            },
+            {
+              "id": "silicone-neutro-pedra-natural",
+              "note": "Junta do caixilho com peitoril ou soleira de pedra: os outros silicones mancham a pedra."
+            },
+            {
+              "id": "silicone-neutro-caixilharia",
+              "note": "Em vez do anterior, se o peitoril for de alumínio, cerâmico ou betão.",
+              "optionnel": true
+            },
+            {
+              "id": "cola-veda-ms-polimero",
+              "note": "Topos do peitoril contra reboco que vai ser pintado; em pedra, confirmar na embalagem.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Impermeabilização",
+          "materiaux": [
+            {
+              "id": "hidrofugante-incolor-fachadas",
+              "note": "Pedra ou betão porosos que bebem água; não tapa fissuras nem substitui a pendente.",
+              "optionnel": true
+            },
+            {
+              "id": "trincha-plana-sintetica",
+              "note": "Aplicar o hidrofugante até a pedra deixar de absorver.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "pistola-silicone-manual"
+            },
+            {
+              "id": "espatula-alisar-silicone",
+              "note": "Alisar logo, antes de o vedante formar pele."
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-obra-nitrilo"
+            },
+            {
+              "id": "oculos-protecao",
+              "note": "Ao escovar e raspar juntas e ao aplicar o hidrofugante."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Nunca tapar os furos de drenagem do caixilho: é por aí que sai a água que entra na calha inferior.",
+        "Peitoril sem pendente, sem pingadeira ou que não entra nas ombreiras: a vedação é um remendo, a solução é corrigir ou substituir o peitoril.",
+        "Reboco partido nos topos do peitoril: refazer como reparação de fachada antes de vedar.",
+        "Soleira ao nível ou abaixo do pavimento exterior: a água acumula contra a porta e é preciso drenagem ou ressalto, não só vedante.",
+        "A água pode vir de cima (caixa de estore, padieira, fissura na fachada) e só aparecer no peitoril: confirmar a origem antes de vedar.",
+        "Janelas de pisos superiores: trabalho em altura."
+      ]
+    },
+    {
+      "id": "fixar-isolar-aro-janela-porta-espuma",
+      "domaine": "janelas-portas",
+      "titre": "Fixar e isolar aro de janela ou de porta",
+      "motsCles": [
+        "espuma à volta da janela",
+        "montar aro de porta",
+        "aro solto",
+        "aro da porta abana",
+        "encher folga entre aro e parede",
+        "aplicar espuma de poliuretano no aro",
+        "assentar caixilho no vão",
+        "pré-aro com folga",
+        "isolar aro da janela"
+      ],
+      "description": "Montagem ou reaperto de um aro no vão: calça-se e fixa-se mecanicamente à parede, a prumo e de nível, e enche-se a folga entre o aro e a alvenaria com espuma de poliuretano, que isola do ar e do ruído.",
+      "aVerifier": [
+        "Material da parede no vão (betão, tijolo furado, pedra): define a bucha e a forma de furar.",
+        "Folga entre o aro e o vão a toda a volta: folgas muito grandes pedem enchimento antes da espuma.",
+        "Aro exterior (janela, porta de entrada) ou interior: no exterior a espuma tem de ficar tapada por vedante ou reboco.",
+        "Número de vãos: para um ou dois chega a lata manual; para vários compensa a lata de pistola."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "fita-metrica",
+              "note": "Conferir as diagonais do aro e a folga a toda a volta."
+            },
+            {
+              "id": "nivel-de-bolha",
+              "note": "Aro a prumo, de nível e em esquadria antes de furar."
+            },
+            {
+              "id": "plastico-protecao-com-fita",
+              "note": "Proteger caixilho, vidro e pavimento: a espuma curada só sai a raspar."
+            }
+          ]
+        },
+        {
+          "titre": "Assentamento",
+          "materiaux": [
+            {
+              "id": "broca-betao-pedra",
+              "note": "Do diâmetro da bucha; em tijolo furado, furar sem percussão."
+            },
+            {
+              "id": "bucha-longa-com-parafuso",
+              "note": "Fixação mecânica através do aro, junto às dobradiças e aos fechos."
+            }
+          ]
+        },
+        {
+          "titre": "Vedação",
+          "materiaux": [
+            {
+              "id": "espuma-poliuretano-portas-janelas",
+              "note": "Encher só parte da folga, de baixo para cima; aro calçado e escorado até curar."
+            },
+            {
+              "id": "pistola-espuma-poliuretano",
+              "note": "Só se a lata for de pistola: doseia melhor nas folgas estreitas.",
+              "optionnel": true
+            },
+            {
+              "id": "limpador-espuma-poliuretano",
+              "note": "Para salpicos ainda frescos e para lavar a pistola; testar em lacados e PVC."
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "x-ato",
+              "note": "Cortar o excesso de espuma à face depois de curada."
+            },
+            {
+              "id": "silicone-neutro-caixilharia",
+              "note": "Pelo exterior, por cima da espuma cortada: não pode ficar ao sol nem à chuva."
+            },
+            {
+              "id": "massa-acrilica-pintavel",
+              "note": "Pelo interior, remate entre o aro e a parede antes de pintar."
+            },
+            {
+              "id": "pistola-silicone-manual"
+            },
+            {
+              "id": "espatula-alisar-silicone"
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-descartaveis",
+              "note": "A espuma fresca cola à pele e não sai com água."
+            },
+            {
+              "id": "oculos-protecao",
+              "note": "Ao furar e ao aplicar espuma acima da cabeça."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "A espuma isola mas não segura: nunca dispensa a fixação mecânica do aro.",
+        "Espuma a mais empena o aro e a folha deixa de fechar: em aros de porta, travar com escoras à largura até a espuma curar.",
+        "Lata inflamável: não fumar, afastar de chamas e ventilar durante a aplicação.",
+        "Portas corta-fogo e de segurança têm montagem própria (espuma e fixações indicadas pelo fabricante): seguir a ficha técnica.",
+        "Tempo de cura antes de cortar e temperatura mínima de aplicação: ver a embalagem."
+      ]
+    },
+    {
+      "id": "correntes-de-ar-janelas-portas-vedantes",
+      "domaine": "janelas-portas",
+      "titre": "Correntes de ar em janelas e portas",
+      "motsCles": [
+        "entra frio pela janela",
+        "janela não veda",
+        "vento passa pela porta",
+        "frio por baixo da porta",
+        "borrachas da janela gastas",
+        "trocar vedantes da janela",
+        "janela assobia com o vento",
+        "calafetar janelas e portas",
+        "porta de entrada deixa passar ar"
+      ],
+      "description": "Sente-se ar frio a entrar com a janela ou a porta fechada: vedantes gastos entre a folha e o aro, frestas entre o aro e a parede ou folga por baixo da porta.",
+      "aVerifier": [
+        "Por onde passa o ar: entre a folha e o aro, entre o aro e a parede, por baixo da porta ou pela caixa de estore.",
+        "Tipo de caixilharia: em alumínio e PVC o vedante é de encaixe e próprio do perfil (levar uma amostra); em madeira usa-se vedante autoadesivo.",
+        "Folga a vedar com a folha fechada: define a espessura do vedante.",
+        "Se há esquentador, caldeira ou fogão a gás, ou lareira, no compartimento: a entrada de ar não pode ser eliminada."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "fita-metrica",
+              "note": "Medir o perímetro das folhas, a largura da porta e a folga a vedar."
+            },
+            {
+              "id": "removedor-colas-adesivos",
+              "note": "Para tirar a cola dos vedantes autoadesivos antigos; testar em lacados e vernizes.",
+              "optionnel": true
+            },
+            {
+              "id": "alcool-isopropilico",
+              "note": "Desengordurar o batente: o vedante novo só cola em superfície limpa e seca."
+            },
+            {
+              "id": "pano-microfibra"
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "chaves-de-fendas",
+              "note": "Reapertar dobradiças e afinar fechos, para a folha apertar por igual contra o vedante."
+            }
+          ]
+        },
+        {
+          "titre": "Vedação",
+          "materiaux": [
+            {
+              "id": "vedante-autoadesivo-janelas-portas",
+              "note": "No batente de caixilhos de madeira; perfil escolhido pela folga medida."
+            },
+            {
+              "id": "veda-portas",
+              "note": "Folga por baixo da porta; não pode arrastar no pavimento ao abrir.",
+              "optionnel": true
+            },
+            {
+              "id": "serra-de-arco",
+              "note": "Cortar a barra do veda-portas à largura da folha.",
+              "optionnel": true
+            },
+            {
+              "id": "massa-acrilica-pintavel",
+              "note": "Frestas interiores entre o aro ou a guarnição e a parede; pinta-se por cima.",
+              "optionnel": true
+            },
+            {
+              "id": "silicone-neutro-caixilharia",
+              "note": "Frestas entre o aro e a parede pelo exterior.",
+              "optionnel": true
+            },
+            {
+              "id": "espuma-poliuretano-portas-janelas",
+              "note": "Vazios atrás das guarnições ou entre o aro e a parede, onde se sente passar ar.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "pistola-silicone-manual",
+              "note": "Para a massa acrílica e o silicone.",
+              "optionnel": true
+            },
+            {
+              "id": "espatula-alisar-silicone",
+              "optionnel": true
+            },
+            {
+              "id": "x-ato",
+              "note": "Cortar o vedante à medida e a espuma em excesso."
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-descartaveis"
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Em compartimentos com esquentador, caldeira ou fogão a gás, ou com lareira, não tapar grelhas nem vedar tudo: risco de monóxido de carbono.",
+        "Casa demasiado estanque e sem ventilação ganha condensação e bolor: manter as grelhas e arejar.",
+        "Vedante grosso demais impede o fecho e força dobradiças e fechos: escolher pela folga medida.",
+        "Em alumínio e PVC não colar vedante autoadesivo por cima das borrachas: trocam-se pelo perfil de encaixe do mesmo desenho.",
+        "Vidro simples ou caixilho antigo sem corte térmico continuam frios ao toque: os vedantes só resolvem a entrada de ar."
+      ]
+    },
+    {
+      "id": "vidro-solto-massa-vidraceiro-degradada",
+      "domaine": "janelas-portas",
+      "titre": "Vidro solto ou massa de vidraceiro degradada",
+      "motsCles": [
+        "vidro da janela abana",
+        "massa do vidro a cair",
+        "betume do vidro rachado",
+        "vidro a bater com o vento",
+        "remassar vidros",
+        "janela de madeira antiga com vidro solto",
+        "água entra pelo vidro",
+        "massa de vidraceiro seca"
+      ],
+      "description": "Em caixilhos antigos de madeira, a massa que segura o vidro seca, racha e cai aos bocados: o vidro abana, vibra com o vento e deixa entrar água para o rebaixo.",
+      "aVerifier": [
+        "Como o vidro está preso: massa de vidraceiro, bites (réguas) de madeira ou vedante de borracha (alumínio e PVC não levam massa).",
+        "Estado da madeira do rebaixo: sã, com tinta a descascar ou já podre.",
+        "Se o vidro está rachado ou é vidro duplo embaciado por dentro: aí substitui-se, não se remassa.",
+        "Se dá para tirar a folha das dobradiças e trabalhar na bancada."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "espatula-multiusos-pintor",
+              "note": "Tirar a massa velha solta com cuidado, sem fazer alavanca contra o vidro."
+            },
+            {
+              "id": "lixa-madeira-folha",
+              "note": "Limpar o rebaixo até à madeira sã e tirar o pó."
+            }
+          ]
+        },
+        {
+          "titre": "Tratamento",
+          "materiaux": [
+            {
+              "id": "oleo-linhaca",
+              "note": "Uma demão no rebaixo de madeira nua, para a madeira não chupar o óleo da massa nova."
+            },
+            {
+              "id": "massa-reparacao-madeira-bicomponente",
+              "note": "Se o rebaixo tiver pequenas zonas podres: sanear, reconstruir e lixar.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "prego-cabeca-atarracada",
+              "note": "Pregos finos para prender o vidro ao rebaixo antes da massa; bater a rasar o vidro."
+            },
+            {
+              "id": "martelo-de-orelhas",
+              "note": "Deslizar o martelo sobre o vidro, sem pancadas secas."
+            },
+            {
+              "id": "massa-vidraceiro",
+              "note": "Amassar na mão, calcar bem no rebaixo e chanfrar; cama fina também por trás do vidro."
+            },
+            {
+              "id": "espatula-pintor-estreita-20-40mm",
+              "note": "Alisar a massa em chanfro, de canto a canto, num só gesto."
+            },
+            {
+              "id": "silicone-neutro-caixilharia",
+              "note": "Vidro preso por bites: cordão fino em vez de massa.",
+              "optionnel": true
+            },
+            {
+              "id": "pistola-silicone-manual",
+              "note": "Só se a vedação for feita a silicone.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "esmalte-sintetico",
+              "note": "Pintar a massa depois de ganhar pele (ver a embalagem), passando um fio para o vidro."
+            },
+            {
+              "id": "pincel-recorte"
+            },
+            {
+              "id": "raspador-vidro-vitroceramica",
+              "note": "Tirar restos de massa e de tinta do vidro, com a superfície molhada."
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-anticorte",
+              "note": "O vidro antigo é fino e parte com facilidade ao tirar a massa."
+            },
+            {
+              "id": "oculos-protecao"
+            },
+            {
+              "id": "mascara-ffp2",
+              "note": "Ao raspar e lixar massa e tinta velhas."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Vidro rachado substitui-se; em portas e zonas baixas o vidro novo deve ser de segurança (temperado ou laminado).",
+        "Tintas antigas podem conter chumbo: não lixar a seco sem máscara, não queimar e recolher o pó.",
+        "Panos com óleo de linhaça podem inflamar-se sozinhos: estender a secar ou molhar antes de deitar fora.",
+        "Vidro duplo embaciado por dentro perdeu a estanquidade: não se resolve com massa nem com silicone.",
+        "A massa de vidraceiro seca devagar: não pintar nem lavar antes do tempo indicado na embalagem.",
+        "Janelas de pisos superiores: tirar a folha e trabalhar na bancada em vez de trabalhar debruçado."
+      ]
+    },
+    {
+      "id": "caixa-estore-entrada-ar-agua",
+      "domaine": "janelas-portas",
+      "titre": "Caixa de estore com entrada de ar ou de água",
+      "motsCles": [
+        "frio pela caixa do estore",
+        "caixa de estore mete água",
+        "vento entra pelo estore",
+        "isolar caixa de estore",
+        "ar pela fita do estore",
+        "mancha de humidade por cima da janela",
+        "caixa de persiana com frio",
+        "barulho da rua pela caixa de estore",
+        "tampa da caixa de estore com frestas"
+      ],
+      "description": "A caixa de estore por cima da janela é um ponto fraco: sem isolamento e com frestas, deixa entrar frio, ruído e por vezes água da chuva, que mancha a parede por cima da janela ou escorre pela padieira.",
+      "aVerifier": [
+        "Se entra ar, água ou as duas coisas: a água obriga a procurar a origem pelo exterior (junta da caixa com a fachada, fissura por cima).",
+        "Tipo de caixa: embutida na parede com tampa interior (madeira, PVC, alumínio) ou compacta, montada com o caixilho.",
+        "Espaço livre entre o estore todo enrolado e as paredes da caixa: define a espessura de isolamento que cabe.",
+        "Estore manual (fita ou manivela) ou elétrico: havendo motor, há cabos elétricos dentro da caixa."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "chaves-de-fendas",
+              "note": "Abrir a tampa da caixa; com o estore todo em cima vê-se a folga real."
+            },
+            {
+              "id": "x-ato",
+              "note": "Cortar o isolamento à medida e tirar vedantes e espuma velhos."
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "isolamento-refletor-bolha",
+              "note": "Forrar o interior da caixa e a tampa onde a folga é pequena."
+            },
+            {
+              "id": "fita-aluminio",
+              "note": "Fechar as juntas entre as tiras do isolamento refletor."
+            },
+            {
+              "id": "cola-montagem-universal",
+              "note": "Colar o isolamento às paredes e à tampa da caixa, em superfície limpa e sem pó."
+            },
+            {
+              "id": "placa-xps",
+              "note": "Onde houver folga suficiente: isola mais do que o refletor fino.",
+              "optionnel": true
+            },
+            {
+              "id": "cola-poliestireno-esferovite",
+              "note": "Para colar o XPS: as colas com solvente derretem a placa.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Vedação",
+          "materiaux": [
+            {
+              "id": "silicone-neutro-caixilharia",
+              "note": "Pelo exterior, junta da caixa e das guias com a parede; não fechar a ranhura do estore."
+            },
+            {
+              "id": "massa-acrilica-pintavel",
+              "note": "Pelo interior, frestas entre a caixa ou a tampa fixa e a parede; pinta-se por cima."
+            },
+            {
+              "id": "espuma-poliuretano-portas-janelas",
+              "note": "Buracos nos topos da caixa, sem tocar no eixo nem nas peças móveis.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "pistola-silicone-manual"
+            },
+            {
+              "id": "espatula-alisar-silicone"
+            },
+            {
+              "id": "escadote-aluminio",
+              "note": "Para trabalhar pelo interior, em piso firme e nivelado."
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-obra-nitrilo"
+            },
+            {
+              "id": "oculos-protecao",
+              "note": "A caixa larga pó e detritos ao abrir, por cima da cabeça."
+            },
+            {
+              "id": "mascara-ffp2",
+              "note": "Pó acumulado dentro da caixa."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Estore elétrico: desligar o circuito no quadro antes de abrir a caixa; motor e ligações são trabalho para técnico habilitado.",
+        "O isolamento não pode roçar no estore enrolado nem prender a fita: confirmar com o estore todo em cima antes de fechar a tampa.",
+        "Água dentro da caixa vem quase sempre do exterior (junta com a fachada, fissura na padieira): vedar por dentro só a esconde.",
+        "Vedação pelo exterior em pisos superiores: trabalho em altura, com andaime ou plataforma.",
+        "A ranhura por onde passa o estore nunca fica totalmente estanque: só se reduz com escova vedante própria."
+      ]
+    },
+    {
+      "id": "porta-interior-raspa-nao-fecha",
+      "domaine": "janelas-portas",
+      "titre": "Porta interior que raspa ou não fecha",
+      "motsCles": [
+        "porta a arrastar no chão",
+        "porta presa no aro",
+        "porta inchada",
+        "porta não tranca",
+        "porta descaída",
+        "dobradiças com folga",
+        "dobradiças da porta a ranger",
+        "trinco não entra",
+        "porta roça em cima",
+        "porta raspa no pavimento novo"
+      ],
+      "description": "A porta arrasta no chão ou no aro, tem de ser forçada para fechar ou a lingueta não entra na chapa-testa. Quase sempre são dobradiças com folga, madeira inchada com a humidade ou um pavimento novo mais alto.",
+      "aVerifier": [
+        "Onde raspa (em baixo, do lado do fecho, em cima): ver as marcas de atrito na folha e no aro.",
+        "Dobradiças: parafusos soltos, furos moídos, pinos gastos, folha descaída.",
+        "Se o problema é sazonal (inverno, casa de banho) ou apareceu depois de um pavimento novo ou de uma pintura.",
+        "Tipo de porta: maciça ou oca (favo), pintada, envernizada ou folheada: limita o que se pode desbastar."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "chaves-de-fendas",
+              "note": "Reapertar primeiro todas as dobradiças: muitas vezes resolve sem desbastar."
+            },
+            {
+              "id": "lubrificante-spray-multiusos",
+              "note": "Dobradiças presas ou a ranger e trinco que não volta: lubrificar antes de desbastar.",
+              "optionnel": true
+            },
+            {
+              "id": "lapis-de-carpinteiro",
+              "note": "Marcar na folha a zona que raspa, com a porta fechada."
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "parafuso-madeira-aglomerado",
+              "note": "Mais compridos do que os originais, para agarrarem madeira sã do aro."
+            },
+            {
+              "id": "cola-branca-madeira-interior",
+              "note": "Encher os furos moídos com lascas de madeira e cola antes de voltar a aparafusar."
+            },
+            {
+              "id": "massa-reparacao-madeira-bicomponente",
+              "note": "Furos de dobradiça muito rebentados: reconstruir, deixar endurecer e refurar.",
+              "optionnel": true
+            },
+            {
+              "id": "anilha-plana",
+              "note": "No pino da dobradiça, para levantar ligeiramente a folha que raspa no chão.",
+              "optionnel": true
+            },
+            {
+              "id": "plaina-carpinteiro",
+              "note": "Desbastar o topo ou o canto marcado, pouco de cada vez e do canto para o centro."
+            },
+            {
+              "id": "formao-carpinteiro",
+              "note": "Mudar a chapa-testa de posição ou aprofundar o encaixe da dobradiça.",
+              "optionnel": true
+            },
+            {
+              "id": "serrote-de-madeira",
+              "note": "Cortar a folha por baixo quando o pavimento novo ficou mais alto.",
+              "optionnel": true
+            },
+            {
+              "id": "lixa-madeira-folha",
+              "note": "Acabar a zona desbastada e quebrar as arestas."
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "esmalte-aquoso",
+              "note": "Porta pintada: fechar a madeira nua do topo desbastado, senão volta a inchar.",
+              "optionnel": true
+            },
+            {
+              "id": "verniz-interior-aquoso",
+              "note": "Porta envernizada: selar o topo desbastado.",
+              "optionnel": true
+            },
+            {
+              "id": "trincha-plana-sintetica"
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "oculos-protecao"
+            },
+            {
+              "id": "mascara-ffp2",
+              "note": "Ao plainar, lixar e serrar."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Porta que deixou de fechar de repente, com fissuras novas nas paredes ou aro fora de esquadria: pode ser movimento da estrutura; diagnosticar antes de desbastar.",
+        "Madeira inchada pela humidade: tratar a causa (ventilação, fuga de água) e desbastar pouco, porque no tempo seco a porta volta a encolher.",
+        "Portas ocas têm só uma travessa estreita em baixo: cortar demais deixa a folha aberta e sem resistência.",
+        "Portas corta-fogo e de segurança não se cortam nem se desbastam.",
+        "Tirar das dobradiças uma porta maciça é trabalho para duas pessoas."
+      ]
+    },
+    {
+      "id": "janela-porta-madeira-exterior-degradada",
+      "domaine": "janelas-portas",
+      "titre": "Janela ou porta de madeira degradada",
+      "motsCles": [
+        "janela de madeira podre",
+        "verniz da porta a descascar",
+        "tinta da janela a estalar",
+        "madeira da janela cinzenta",
+        "restaurar janelas de madeira",
+        "porta de entrada queimada do sol",
+        "caixilho de madeira com bicho",
+        "aro de madeira mole em baixo",
+        "envernizar portadas"
+      ],
+      "description": "Caixilharia de madeira exposta ao sol e à chuva, com a tinta ou o verniz a estalar, madeira acinzentada, juntas abertas e zonas moles, sobretudo no fundo das folhas e junto ao peitoril.",
+      "aVerifier": [
+        "Extensão do dano: só o acabamento, zonas moles pontuais (testar com a ponta de uma chave de fendas) ou peças inteiras podres.",
+        "Acabamento existente (tinta, verniz ou velatura): define se é preciso decapar tudo.",
+        "Sinais de caruncho (furos pequenos e pó fino) ou de fungos.",
+        "Estado da massa dos vidros e da junta entre o aro e a parede."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "raspador-tinta",
+              "note": "Tirar tudo o que está solto, puxando no sentido do veio."
+            },
+            {
+              "id": "decapante-tintas-vernizes",
+              "note": "Quando o verniz ou a tinta antigos têm de sair por completo.",
+              "optionnel": true
+            },
+            {
+              "id": "lixa-madeira-folha",
+              "note": "Grão médio para alisar, grão fino antes da última demão."
+            },
+            {
+              "id": "fita-pintor-exterior",
+              "note": "Proteger vidros, ferragens e parede."
+            }
+          ]
+        },
+        {
+          "titre": "Tratamento",
+          "materiaux": [
+            {
+              "id": "tratamento-anticaruncho",
+              "note": "Só com sinais de caruncho, em madeira nua.",
+              "optionnel": true
+            },
+            {
+              "id": "imunizador-madeira",
+              "note": "Na madeira nua e seca, antes do acabamento; ver no rótulo se é versão de exterior."
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "massa-reparacao-madeira-bicomponente",
+              "note": "Zonas podres pontuais, depois de sanear até à madeira sã; lixar depois de dura.",
+              "optionnel": true
+            },
+            {
+              "id": "betume-madeira-pasta",
+              "note": "Pequenos furos e fendas em madeira que fica à vista: escolher o tom já acabado.",
+              "optionnel": true
+            },
+            {
+              "id": "espatula-pintor-estreita-20-40mm",
+              "note": "Aplicar e apertar as massas nas zonas reparadas.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "velatura-madeira",
+              "note": "Madeira à vista: não descasca e renova-se sem decapar.",
+              "optionnel": true
+            },
+            {
+              "id": "verniz-exterior-madeira",
+              "note": "Madeira à vista com película: dar todas as demãos indicadas na embalagem.",
+              "optionnel": true
+            },
+            {
+              "id": "esmalte-sintetico",
+              "note": "Caixilharia pintada: confirmar na lata que serve para madeira no exterior.",
+              "optionnel": true
+            },
+            {
+              "id": "trincha-madeira-velaturas-vernizes",
+              "note": "Passar sempre no sentido do veio."
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-nitrilo-quimicas",
+              "note": "Para o decapante e os tratamentos de madeira."
+            },
+            {
+              "id": "oculos-protecao"
+            },
+            {
+              "id": "mascara-ffp2",
+              "note": "Ao raspar e lixar; não protege dos vapores do decapante: ventilar."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Peças inteiras podres (travessa inferior, couceiras, peitoril de madeira): a massa não devolve resistência, é trabalho de carpintaria ou de substituição.",
+        "Tintas antigas podem conter chumbo: não lixar a seco sem máscara, não queimar e recolher o pó.",
+        "Decapante e tratamentos de madeira: ventilar bem, luvas e óculos, seguir o rótulo.",
+        "A madeira tem de estar seca antes de tratar e de pintar; trabalhar com tempo seco e sem sol forte direto.",
+        "Janelas de pisos superiores: tirar as folhas e trabalhar na bancada; o aro pelo exterior pede andaime ou plataforma.",
+        "Não tapar com tinta os furos de drenagem nem colar as folhas ao aro: abrir e fechar entre demãos."
+      ]
+    },
+    {
+      "id": "fissura-entre-aro-e-parede-interior",
+      "domaine": "janelas-portas",
+      "titre": "Fissura entre o aro e a parede",
+      "motsCles": [
+        "racha à volta da porta",
+        "fenda entre o aro e o estuque",
+        "fissura no canto da janela por dentro",
+        "tinta a abrir junto ao aro",
+        "guarnição descolada da parede",
+        "risco à volta da janela",
+        "racha junto ao aro que volta depois de pintar",
+        "fresta entre aduela e parede"
+      ],
+      "description": "Fenda fina que abre a toda a volta do aro da janela ou da porta, pelo interior, na ligação com o reboco ou o estuque. Volta a aparecer a cada pintura porque os dois materiais não mexem da mesma maneira.",
+      "aVerifier": [
+        "Se a fenda é fina e estável ou larga, com reboco oco ou solto à volta.",
+        "Se o aro abana ao fechar a porta ou a janela: nesse caso fixa-se primeiro.",
+        "Se há manchas de humidade junto à fissura (água a entrar pelo exterior).",
+        "Acabamento do aro (pintado, envernizado, lacado) e da parede."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "espatula-multiusos-pintor",
+              "note": "Abrir ligeiramente a fenda e tirar tinta e massa soltas."
+            },
+            {
+              "id": "pano-microfibra",
+              "note": "Limpar o pó: a massa não agarra sobre pó."
+            },
+            {
+              "id": "fita-pintor-superficies-delicadas",
+              "note": "Proteger o aro envernizado ou lacado."
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "broca-betao-pedra",
+              "note": "Só para fixar o aro que abana; em tijolo furado, sem percussão.",
+              "optionnel": true
+            },
+            {
+              "id": "bucha-longa-com-parafuso",
+              "note": "Aro que abana: fixar à parede antes de fechar a fenda.",
+              "optionnel": true
+            },
+            {
+              "id": "espuma-poliuretano-portas-janelas",
+              "note": "Se a fenda for funda e se sentir vazio por trás do aro.",
+              "optionnel": true
+            },
+            {
+              "id": "massa-enchimento-pronta-pasta",
+              "note": "Reboco ou estuque partido junto ao aro: refazer antes do cordão elástico.",
+              "optionnel": true
+            },
+            {
+              "id": "massa-acrilica-pintavel",
+              "note": "Elástica e pintável: acompanha o movimento entre aro e parede. Silicone não aceita tinta."
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "pistola-silicone-manual"
+            },
+            {
+              "id": "espatula-alisar-silicone",
+              "note": "Alisar logo a seguir, antes de a massa ganhar pele."
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "primario-aquoso-paredes-interiores",
+              "note": "Sobre massa de enchimento nova, antes da tinta.",
+              "optionnel": true
+            },
+            {
+              "id": "tinta-plastica-interior-mate",
+              "note": "Retocar depois de a massa secar (ver a embalagem), na cor e no acabamento da parede."
+            },
+            {
+              "id": "pincel-recorte"
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-descartaveis"
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Fissura larga, em escada ou que continua pela parede acima do vão pode ser estrutural (padieira, assentamento): pedir diagnóstico antes de tapar.",
+        "Com manchas de humidade, tratar primeiro a entrada de água pelo exterior.",
+        "A massa acrílica encolhe um pouco ao secar: em fendas fundas pode ser precisa uma segunda passagem.",
+        "Antes de furar junto ao aro, localizar cabos de interruptores e tubos."
+      ]
+    }
+  ]
+}

@@ -303,5 +303,12 @@ export const TEXTES_TABLEAU_QR = {
     langue_non_ouverte: 'La diffusion n’est pas encore ouverte dans la langue de ce cabinet.',
     texte_refuse: 'Le message n’est pas accepté : corrigez-le selon l’indication sous le champ.',
     configuration_incomplete: 'Fonction pas encore activée.',
+    // Bureaux des cabinets (migration 20261119) : le message seul, jamais le texte du serveur ; aucun ne nomme un profil
+    // ni une migration (repli commun de l'espace d'un gestionnaire, qui ne reçoit jamais ces codes).
+    nom_pris: 'Ce nom est déjà celui d’un bureau du cabinet (bureaux fermés compris) : choisissez-en un autre.',
+    plafond_bureaux: 'Ce cabinet a atteint le nombre de bureaux le plus élevé possible (100, bureaux fermés compris).',
+    bureau_utilise: 'Ce bureau ne peut pas être fermé : des gestionnaires actifs ou des copropriétés actives y sont encore rattachés. Changez-les de bureau d’abord.',
+    bureau_requis: 'Choisissez le bureau : chaque nouveau gestionnaire de ce cabinet doit en avoir un.',
+    bureau_ferme: 'Ce bureau est fermé : choisissez un bureau ouvert, ou rouvrez-le depuis la vue Cabinets.',
   } satisfies Record<CodeErreurQr, string>,
 } as const

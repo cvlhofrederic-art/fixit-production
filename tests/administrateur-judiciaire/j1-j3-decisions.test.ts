@@ -319,4 +319,22 @@ describe('J3 — postes de créance et mise en demeure 19-2', () => {
     expect(avertissementsProcedure([poste({})])).toEqual(AVERTISSEMENTS_PROCEDURE_19_2)
     expect(avertissementsProcedure([poste({ fondement: 'droit_commun' })])).toEqual([])
   })
+
+  it('J67, R40 : sommes d’une demande 19-2 sous échéancier amiable en cours : avertissement non bloquant, postes nommés', () => {
+    const sousAccord = poste({ id: 'p2', echeancierAmiableEnCours: true })
+    expect(creerPosteCreance(sousAccord).echeancierAmiableEnCours).toBe(true)
+    const avertissements = avertissementsProcedure([poste({}), sousAccord])
+    expect(avertissements.map((a) => a.code)).toEqual(['autorite_chose_jugee', 'pas_de_demande_reconventionnelle', 'sommes_sous_echeancier_amiable'])
+    const [, , terme] = avertissements
+    expect(terme.postesIds).toEqual(['p2'])
+    expect(terme.texte).toContain("ces sommes ont un terme convenu : vérifier la clause de déchéance de l'accord avant de les réclamer")
+    expect(terme.texte).toMatch(/« Provision budget prévisionnel — 1er trimestre » \(exercice 2025\)/)
+    expect(terme.texte).toMatch(/C\. civ\. art\. 1305-2/)
+    expect(terme.texte).toMatch(/pendant les trente jours de la mise en demeure.*caractère « infructueux ».*J3 : point non tranché/)
+    // Hors de la demande 19-2 (droit commun), ou sans échéancier : rien de plus.
+    expect(avertissementsProcedure([poste({ fondement: 'droit_commun', echeancierAmiableEnCours: true })])).toEqual([])
+    expect(avertissementsProcedure([poste({ echeancierAmiableEnCours: false })])).toEqual(AVERTISSEMENTS_PROCEDURE_19_2)
+    // @ts-expect-error — oui ou non attendu
+    expect(() => creerPosteCreance(poste({ echeancierAmiableEnCours: 'oui' }))).toThrow(/échéancier amiable en cours invalide/i)
+  })
 })

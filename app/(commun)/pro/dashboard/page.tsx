@@ -8,6 +8,7 @@ import Image from 'next/image'
 import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
 import { lireSessionSure } from '@/lib/auth/session-navigateur'
+import { absencesDetaillees, lireAbsencesArtisan } from '@/lib/absences-artisan'
 import { fetchAllBookings } from '@/lib/bookings-fetch'
 import { useTranslation } from '@/lib/i18n/context'
 import { SectionErrorBoundary } from '@/components/common/SectionErrorBoundary'
@@ -16,8 +17,8 @@ import { useModulesConfig } from '@/hooks/useModulesConfig'
 import { useModuleCategories } from '@/hooks/useModuleCategories'
 import { prefetchBTPTables } from '@/lib/hooks/use-btp-data'
 import { OrgRoleProvider } from '@/lib/hooks/useOrgRoleContext'
-import { fetchDocumentsFromSupabase, persistEmittedDocsToCache } from '@/lib/document-sync'
-import { dedupeDocsByIdentity } from '@/lib/devis-utils'
+import { fetchDocumentsFromSupabase, fusionnerDocumentsDeLaBase } from '@/lib/document-sync'
+import { optionsFusionPourRole } from '@/lib/devis-utils'
 import { seedDemoLocalStorage } from '@/lib/seed-demo-localStorage'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useNotifications } from '@/hooks/useNotifications'
@@ -27,6 +28,9 @@ import type { Artisan, Service, Booking, Notification, ChatMessage } from '@/lib
 import type { User } from '@supabase/supabase-js'
 import { toast } from 'sonner'
 import { notificationOuvreMessagerie } from '@/lib/messagerie-pro'
+import { FicheSocieteIndisponible, messageFicheSocieteAbsente, prevenirFicheSocieteAbsente } from '@/components/dashboard/btp/FicheSocieteIndisponible'
+import { SECTIONS_SOCIETE_BTP } from '@/lib/btp/sections-tableau-de-bord'
+import { FiletSocieteBtp } from '@/components/dashboard/btp/FiletSocieteBtp'
 
 // Section loading spinner — shown while JS chunks load
 const SectionLoader = () => (
@@ -50,6 +54,7 @@ const SettingsSection = dynamic(() => import('@/components/dashboard/SettingsSec
 const ComptabiliteSection = dynamic(() => import('@/components/dashboard/ComptabiliteSection'), { loading: SectionLoader })
 const MateriauxSection = dynamic(() => import('@/components/dashboard/MateriauxSection'), { loading: SectionLoader })
 const EstimationMateriauxSection = dynamic(() => import('@/components/dashboard/EstimationMateriauxSection'), { loading: SectionLoader })
+const DictionnaireMateriauxSection = dynamic(() => import('@/components/dashboard/DictionnaireMateriauxSection'), { loading: SectionLoader })
 const ClientsSection = dynamic(() => import(/* webpackPrefetch: true */ '@/components/dashboard/ClientsSection'), { loading: SectionLoader })
 const RapportsSection = dynamic(() => import('@/components/dashboard/RapportsSection'), { loading: SectionLoader })
 const RFQSection = dynamic(() => import('@/components/dashboard/RFQSection'), { loading: SectionLoader })
@@ -152,6 +157,8 @@ function DashboardPage() {
   // Always start as 'artisan' to match SSR — loadDashboardData sets the real role
   const [orgRole, setOrgRole] = useState<OrgRole>('artisan')
   const [loading, setLoading] = useState(true)
+  // Société BTP dont la fiche n'a pas pu être lue au chargement : écran « réessayer » au lieu d'une société de secours
+  const [ficheSocieteIllisible, setFicheSocieteIllisible] = useState(false)
   const [showAdminBtn, setShowAdminBtn] = useState(false)
   const [adminLoading, setAdminLoading] = useState(false)
   const [notifLoading, setNotifLoading] = useState(false)
@@ -226,7 +233,8 @@ function DashboardPage() {
   // ── Modules config ──
   const { ALL_MODULES, modulesConfig, setModulesConfig: saveModulesConfig, isModuleEnabled, moveModule, categoriesOrder, saveCategoriesOrder, moveCategory, reorderModuleTo, reorderCategoryTo, CATEGORIES_DEFAULT } = useModulesConfig(artisan?.id, t, isPt)
   // Shared sidebar/modules categories (single source of truth for V5Sidebar + ModulesSection)
-  const { categories: moduleCategories, setCategories: setModuleCategories } = useModuleCategories(ALL_MODULES)
+  // Société BTP : organisation du menu propre au compte (clé commune inchangée pour les autres rôles)
+  const { categories: moduleCategories, setCategories: setModuleCategories } = useModuleCategories(ALL_MODULES, orgRole === 'pro_societe' ? artisan?.id : undefined)
 
   // ── Pro team permissions (RBAC for pro_societe sub-accounts) ──
   const { permissions: proPermissions, isGerant: isProGerant, canAccess: proCanAccess } = usePermissions(orgRole, artisan)
@@ -337,13 +345,23 @@ function DashboardPage() {
       } catch { /* private browsing */ }
     }
 
-    const { data: artisanData } = await supabase.from('profiles_artisan').select('*').eq('user_id', user.id).single()
+    const { data: artisanData, error: erreurFiche } = await supabase.from('profiles_artisan').select('*').eq('user_id', user.id).single()
+    // Société BTP : une lecture en échec (réseau, serveur) n'ouvre plus le tableau de bord sur une société de secours.
+    // « Aucune ligne » (PGRST116) reste le cas de la fiche absente, traité plus bas ; la démonstration du super_admin
+    // (vue BTP) garde son repli.
+    if (role === 'pro_societe' && user.app_metadata?._original_role !== 'super_admin' && erreurFiche && erreurFiche.code !== 'PGRST116') {
+      console.warn('[pro/dashboard] fiche société illisible :', erreurFiche.message)
+      setFicheSocieteIllisible(true)
+      return
+    }
     if (user.app_metadata?.role === 'super_admin') setShowAdminBtn(true)
     const isProOrgRole = ['pro_societe', 'pro_conciergerie', 'pro_gestionnaire'].includes(role)
     const isSuperAdmin = user.app_metadata?.role === 'super_admin'
     if (!artisanData && !isSuperAdmin && !isProOrgRole) { router.push(`/${locale}/auth/login`); return }
     if (!artisanData) {
       // Admin override / pro org sans profil artisan → SARL par défaut (compte démo BTP super admin)
+      // Compte de la société BTP (ni démonstration ni compte invité dans une équipe) : la fiche de secours n'est plus ouverte en silence.
+      if (role === 'pro_societe' && prevenirFicheSocieteAbsente(user.app_metadata, user.id)) toast.error(messageFicheSocieteAbsente(isPt), { duration: Infinity })
       setArtisan({ id: user.id, company_name: user.user_metadata?.company_name || user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Mon entreprise', email: user.email, phone: user.user_metadata?.phone || '', bio: '', user_id: user.id, legal_form: 'SARL' } as Artisan)
       seedDemoLocalStorage(user.id, isSuperAdmin)
       // Charger les devis/factures du seed démo dans le state (bugfix : sans ça, UI affiche "Aucun devis")
@@ -354,15 +372,11 @@ function DashboardPage() {
         // Merge Supabase docs non-blocking (additive, Supabase wins on docNumber conflict)
         fetchDocumentsFromSupabase().then(sbDocs => {
           if (sbDocs.length === 0) return
-          // Cloud prime sur le local à identité stable égale (cf. dedupeDocsByIdentity).
-          setSavedDocuments(prev => {
-            const merged = dedupeDocsByIdentity(prev, sbDocs as typeof prev)
-            // Hydrate le cache localStorage des docs émis (même clé que la lecture
-            // ci-dessus : user.id sur ce chemin admin/sans-profil) → le fallback de
-            // numérotation voit les docs DB-only (anti-collision). Brouillons exclus.
-            persistEmittedDocsToCache(user.id, merged as Array<Record<string, unknown>>)
-            return merged
-          })
+          // Cloud prime sur le local à identité stable égale (cf. dedupeDocsByIdentity), puis le cache
+          // localStorage des docs émis est hydraté (même clé que la lecture ci-dessus : user.id sur ce chemin
+          // admin/sans-profil) → le fallback de numérotation voit les docs DB-only. Brouillons exclus. Société
+          // BTP : deux documents distincts au même numéro restent tous les deux (optionsFusionPourRole).
+          setSavedDocuments(prev => fusionnerDocumentsDeLaBase(user.id, prev, sbDocs as typeof prev, optionsFusionPourRole(role)))
         }).catch(() => {})
         setAbsences(JSON.parse(localStorage.getItem(`fixit_absences_${user.id}`) || '[]'))
         const svc = localStorage.getItem(`fixit_availability_services_${user.id}`); if (svc) setDayServices(JSON.parse(svc))
@@ -379,7 +393,7 @@ function DashboardPage() {
     }
     setArtisan(artisanData)
     supabase.from('profiles_artisan').update({ last_seen_at: new Date().toISOString() }).eq('id', artisanData.id).then()
-    initSettingsForm(artisanData, user.email || '')
+    initSettingsForm(artisanData, user.email || '', role)
     if (artisanData.auto_accept !== undefined) setAutoAccept(!!artisanData.auto_accept)
 
     const aid = artisanData.id
@@ -398,14 +412,11 @@ function DashboardPage() {
     // Merge Supabase docs non-blocking (additive, Supabase wins on docNumber conflict)
     fetchDocumentsFromSupabase().then(sbDocs => {
       if (sbDocs.length === 0) return
-      setSavedDocuments(prev => {
-        const merged = dedupeDocsByIdentity(prev, sbDocs as typeof prev)
-        // Hydrate le cache localStorage des docs émis (même clé que la lecture
-        // ci-dessus : aid = artisanData.id) → le fallback de numérotation voit les
-        // docs DB-only (anti-collision cross-device). Brouillons exclus (drafts_*).
-        persistEmittedDocsToCache(aid, merged as Array<Record<string, unknown>>)
-        return merged
-      })
+      // Fusion puis hydratation du cache localStorage des docs émis (même clé que la lecture ci-dessus :
+      // aid = artisanData.id) → le fallback de numérotation voit les docs DB-only (anti-collision cross-device).
+      // Brouillons exclus (drafts_*). Société BTP : deux documents distincts au même numéro restent tous les
+      // deux, dans la liste et dans le cache (optionsFusionPourRole) ; artisan inchangé.
+      setSavedDocuments(prev => fusionnerDocumentsDeLaBase(aid, prev, sbDocs as typeof prev, optionsFusionPourRole(role)))
     }).catch(() => {})
 
     setLoading(false)
@@ -455,7 +466,8 @@ function DashboardPage() {
   }, [activePage, artisan?.id, loadCalendarData, setAbsences])
 
   // ── Navigation — syncs state + URL (bookmarkable, back/forward works) ──
-  const navigateTo = useCallback((page: string) => {
+  // `remplacer` : l'adresse courante est remplacée au lieu d'ajouter une entrée d'historique.
+  const navigateTo = useCallback((page: string, options?: { remplacer?: boolean }) => {
     window.scrollTo(0, 0)
     setActivePage(page)
     setSidebarOpen(false)
@@ -466,12 +478,13 @@ function DashboardPage() {
     const currentPath = typeof window !== 'undefined' ? window.location.pathname : ''
     const basePath = currentPath.includes('/artisan/dashboard') ? `/${locale}/artisan/dashboard` : `/${locale}/pro/dashboard`
     const url = page === 'home' ? basePath : `${basePath}?p=${page}`
-    window.history.pushState({}, '', url)
+    if (options?.remplacer) window.history.replaceState({}, '', url)
+    else window.history.pushState({}, '', url)
     // Update tab title with current section name
     const PAGE_TITLES_FR: Record<string, string> = {
       home: 'Accueil', revenus: 'Revenus', stats: 'Statistiques', prestations: 'Prestations',
       chantiers: 'Chantiers', gantt: 'Planning Gantt', equipes: 'Équipes', pointage: 'Pointage',
-      estimation_materiaux: 'Estimation matériaux', calendar: 'Agenda', meteo: 'Météo',
+      estimation_materiaux: 'Estimation matériaux', dictionnaire_materiaux: 'Dictionnaire matériaux', calendar: 'Agenda', meteo: 'Météo',
       photos_chantier: 'Photos chantier', rapports: 'Rapports', pipeline: 'Pipeline',
       devis: 'Devis', dpgf: 'Appels d\'offres', marches: 'Marchés', factures: 'Factures',
       situations: 'Situations', garanties: 'Retenues de garantie', sous_traitance: 'Sous-traitance',
@@ -484,18 +497,18 @@ function DashboardPage() {
       bibliotheque: 'Bibliothèque',
     }
     const PAGE_TITLES_PT: Record<string, string> = {
-      home: 'Painel', revenus: 'Receitas', stats: 'Estatísticas', prestations: 'Prestações',
-      chantiers: 'Obras', gantt: 'Planeamento Gantt', equipes: 'Equipas', pointage: 'Marcação de horas',
-      estimation_materiaux: 'Estimativa de materiais', calendar: 'Agenda', meteo: 'Meteorologia',
+      home: 'Painel', revenus: 'Receitas', stats: 'Estatísticas', prestations: 'Serviços', motifs: 'Serviços',
+      chantiers: 'Obras', chantiers_v22: 'Obras', gantt: 'Planeamento Gantt', equipes: 'Equipas', pointage: 'Registo de horas',
+      estimation_materiaux: 'Estimativa de materiais', dictionnaire_materiaux: 'Dicionário de materiais', calendar: 'Agenda', meteo: 'Meteorologia',
       photos_chantier: 'Fotos de obra', rapports: 'Relatórios', pipeline: 'Pipeline',
-      devis: 'Orçamentos', dpgf: 'Concursos', marches: 'Bolsa de Mercados', factures: 'Faturas',
-      situations: 'Situações de obra', garanties: 'Retenções de garantia', sous_traitance: 'Subempreitada',
-      sous_traitance_offres: 'Recrutar subempreiteiros', rfq_btp: 'Orçamentos fornecedores',
+      devis: 'Orçamentos', dpgf: 'Concursos', marches: 'Bolsa de oportunidades', factures: 'Faturas',
+      situations: 'Autos de medição', garanties: 'Retenções para garantia', sous_traitance: 'Subempreitadas',
+      sous_traitance_offres: 'Recrutar subempreiteiros', rfq_btp: 'Orçamentos de fornecedores', materiaux: 'Materiais',
       marketplace_btp: 'Marketplace', compta_btp: 'Contabilidade IA', rentabilite: 'Rentabilidade',
-      comptabilite: 'Contabilidade', messages: 'Mensagens', clients: 'Clientes',
+      comptabilite: 'Contabilidade', messages: 'Mensagens', comm_pro: 'Mensagens', clients: 'Clientes',
       portail_client: 'Portal cliente', wallet: 'Conformidade', contrats: 'Contratos',
-      horaires: 'Horários', portfolio: 'Referências', parrainage: 'Apadrinhamento',
-      settings: 'Meu perfil', modules: 'Módulos', help: 'Ajuda', gestion_comptes: 'Contas de utilizadores',
+      horaires: 'Horários', portfolio: 'Referências', parrainage: 'Programa de recomendação', canal: 'Canal Pro',
+      settings: 'O meu perfil', modules: 'Módulos', help: 'Ajuda', gestion_comptes: 'Contas de utilizadores',
       bibliotheque: 'Biblioteca',
     }
     const titles = locale === 'pt' ? PAGE_TITLES_PT : PAGE_TITLES_FR
@@ -505,6 +518,12 @@ function DashboardPage() {
 
   // Keep ref in sync for notification callbacks
   navigateRef.current = navigateTo
+
+  // Société BTP : une section inconnue ou d'un autre métier (?p=…, lien interne) ramène à l'accueil, l'adresse
+  // remplacée, au lieu d'une zone centrale vide ou d'un écran étranger au BTP.
+  useEffect(() => {
+    if (orgRole === 'pro_societe' && !SECTIONS_SOCIETE_BTP.has(activePage)) navigateTo('home', { remplacer: true })
+  }, [orgRole, activePage, navigateTo])
 
   // ── Wrap transformBookingToDevis to also navigate ──
   const handleTransformBookingToDevis = useCallback((booking: Booking) => {
@@ -643,6 +662,8 @@ function DashboardPage() {
 
   // V5 layout applies to pro_societe AND artisan
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
+
+  if (ficheSocieteIllisible) return <FicheSocieteIndisponible isPt={isPt} onReessayer={() => window.location.reload()} />
 
   if (loading) {
     // Neutral loading screen — no V22 or V5 styling to prevent flash
@@ -909,7 +930,7 @@ function DashboardPage() {
 
           {/* ────── HOME ────── */}
           {activePage === 'home' && (
-            <SectionErrorBoundary fallbackTitle={isPt ? 'Erro no painel' : 'Erreur dans le tableau de bord'}>
+            <SectionErrorBoundary locale={isPt ? 'pt' : 'fr'} fallbackTitle={isPt ? 'Erro no painel' : 'Erreur dans le tableau de bord'}>
             <HomeSection
               artisan={artisan!} orgRole={orgRole} bookings={bookings} services={services}
               pendingBookings={pendingBookings} completedBookings={completedBookings}
@@ -919,13 +940,14 @@ function DashboardPage() {
               openDevisForm={openDevisForm} openFactureForm={openFactureForm}
               setActivePage={navigateTo} setSidebarOpen={setSidebarOpen}
               openNewMotif={openNewMotif}
+              documentsEnregistres={savedDocuments}
             />
             </SectionErrorBoundary>
           )}
 
           {/* ────── AGENDA ────── */}
           {activePage === 'calendar' && (
-            <SectionErrorBoundary fallbackTitle={isPt ? 'Erro na agenda' : "Erreur dans l'agenda"}>
+            <SectionErrorBoundary locale={isPt ? 'pt' : 'fr'} fallbackTitle={isPt ? 'Erro na agenda' : "Erreur dans l'agenda"}>
             <CalendarSection
               artisan={artisan!} bookings={bookings} services={services}
               pendingBookings={pendingBookings} completedBookings={completedBookings} totalRevenue={totalRevenue}
@@ -953,7 +975,7 @@ function DashboardPage() {
 
           {/* ────── HORAIRES D'OUVERTURE ────── */}
           {activePage === 'horaires' && (
-            <SectionErrorBoundary fallbackTitle={isPt ? 'Erro nos horários' : "Erreur dans les horaires"}>
+            <SectionErrorBoundary locale={isPt ? 'pt' : 'fr'} fallbackTitle={isPt ? 'Erro nos horários' : "Erreur dans les horaires"}>
             <HorairesSection
               artisan={artisan!} services={services} availability={availability}
               dayServices={dayServices} autoAccept={autoAccept} savingAvail={savingAvail}
@@ -967,7 +989,7 @@ function DashboardPage() {
 
           {/* ────── MOTIFS / PRESTATIONS - FULL CRUD ────── */}
           {(activePage === 'motifs' || activePage === 'prestations') && (
-            <SectionErrorBoundary fallbackTitle={isPt ? 'Erro nos serviços' : 'Erreur dans les services'}>
+            <SectionErrorBoundary locale={isPt ? 'pt' : 'fr'} fallbackTitle={isPt ? 'Erro nos serviços' : 'Erreur dans les services'}>
             {orgRole === 'pro_societe' ? (
               <PrestationsBTPSection artisan={artisan!} orgRole={orgRole} navigateTo={navigateTo} />
             ) : (
@@ -986,6 +1008,7 @@ function DashboardPage() {
 
           {/* ────── MESSAGERIE V2 ────── */}
           {(activePage === 'messages' || activePage === 'comm_pro') && artisan && (
+            <FiletSocieteBtp actif={orgRole === 'pro_societe'} titre={isPt ? 'Erro nas mensagens' : 'Erreur dans la messagerie'} locale={isPt ? 'pt' : 'fr'}>
             <div className="animate-fadeIn" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px)' }}>
               {!isV5 && (
               <div className="v22-page-header" style={{ flexShrink: 0 }}>
@@ -1052,12 +1075,13 @@ function DashboardPage() {
             />
               </div>
             </div>
+            </FiletSocieteBtp>
           )}
 
 
           {/* ────── DEVIS ────── */}
           {activePage === 'devis' && (
-            <SectionErrorBoundary fallbackTitle={isPt ? 'Erro nos orçamentos' : 'Erreur dans les devis'}>
+            <SectionErrorBoundary locale={isPt ? 'pt' : 'fr'} fallbackTitle={isPt ? 'Erro nos orçamentos' : 'Erreur dans les devis'}>
             <DevisSection
               artisan={artisan!} services={services} bookings={bookings}
               /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -1073,7 +1097,7 @@ function DashboardPage() {
 
           {/* ────── FACTURES ────── */}
           {activePage === 'factures' && (
-            <SectionErrorBoundary fallbackTitle={isPt ? 'Erro nas faturas' : 'Erreur dans les factures'}>
+            <SectionErrorBoundary locale={isPt ? 'pt' : 'fr'} fallbackTitle={isPt ? 'Erro nas faturas' : 'Erreur dans les factures'}>
             <FacturesSection
               artisan={artisan!} services={services} bookings={bookings}
               /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -1088,21 +1112,21 @@ function DashboardPage() {
 
           {/* ────── STATISTIQUES ────── */}
           {activePage === 'stats' && (
-            <SectionErrorBoundary fallbackTitle={isPt ? 'Erro nas estatísticas' : 'Erreur dans les statistiques'}>
+            <SectionErrorBoundary locale={isPt ? 'pt' : 'fr'} fallbackTitle={isPt ? 'Erro nas estatísticas' : 'Erreur dans les statistiques'}>
             <StatsRevenusSection artisan={artisan!} bookings={bookings} services={services} pendingBookings={pendingBookings} completedBookings={completedBookings} totalRevenue={totalRevenue} activePage="stats" orgRole={orgRole} />
             </SectionErrorBoundary>
           )}
 
           {/* ────── REVENUS ────── */}
           {activePage === 'revenus' && (
-            <SectionErrorBoundary fallbackTitle={isPt ? 'Erro nas receitas' : 'Erreur dans les revenus'}>
+            <SectionErrorBoundary locale={isPt ? 'pt' : 'fr'} fallbackTitle={isPt ? 'Erro nas receitas' : 'Erreur dans les revenus'}>
             <StatsRevenusSection artisan={artisan!} bookings={bookings} services={services} pendingBookings={pendingBookings} completedBookings={completedBookings} totalRevenue={totalRevenue} activePage="revenus" orgRole={orgRole} />
             </SectionErrorBoundary>
           )}
 
           {/* ────── PARAMETRES ────── */}
           {activePage === 'settings' && (
-            <SectionErrorBoundary fallbackTitle={isPt ? 'Erro nas definições' : 'Erreur dans les paramètres'}>
+            <SectionErrorBoundary locale={isPt ? 'pt' : 'fr'} fallbackTitle={isPt ? 'Erro nas definições' : 'Erreur dans les paramètres'}>
             <SettingsSection
               artisan={artisan!}
               orgRole={orgRole}
@@ -1128,7 +1152,7 @@ function DashboardPage() {
 
           {/* ────── MODULES ────── */}
           {activePage === 'modules' && (
-            <SectionErrorBoundary fallbackTitle={isPt ? 'Erro nos módulos' : 'Erreur dans les modules'}>
+            <SectionErrorBoundary locale={isPt ? 'pt' : 'fr'} fallbackTitle={isPt ? 'Erro nos módulos' : 'Erreur dans les modules'}>
             <ModulesSection
               orgRole={orgRole}
               ALL_MODULES={ALL_MODULES}
@@ -1149,7 +1173,7 @@ function DashboardPage() {
 
           {/* ────── COMPTABILITÉ ────── */}
           {activePage === 'comptabilite' && (
-            <SectionErrorBoundary fallbackTitle={isPt ? 'Erro na contabilidade' : 'Erreur dans la comptabilité'}>
+            <SectionErrorBoundary locale={isPt ? 'pt' : 'fr'} fallbackTitle={isPt ? 'Erro na contabilidade' : 'Erreur dans la comptabilité'}>
               <ComptabiliteSection
                 bookings={bookings}
                 artisan={artisan!}
@@ -1162,7 +1186,7 @@ function DashboardPage() {
 
           {/* ────── MATÉRIAUX & PRIX ────── */}
           {activePage === 'materiaux' && (
-            <SectionErrorBoundary fallbackTitle={isPt ? 'Erro nos materiais' : 'Erreur dans les matériaux'}>
+            <SectionErrorBoundary locale={isPt ? 'pt' : 'fr'} fallbackTitle={isPt ? 'Erro nos materiais' : 'Erreur dans les matériaux'}>
               <MateriauxSection
                 artisan={artisan!}
                 orgRole={orgRole}
@@ -1177,7 +1201,7 @@ function DashboardPage() {
 
           {/* ────── ESTIMATION MATÉRIAUX (quantitatifs DTU) ────── */}
           {activePage === 'estimation_materiaux' && (
-            <SectionErrorBoundary fallbackTitle={isPt ? 'Erro na estimativa' : 'Erreur dans l\'estimation'}>
+            <SectionErrorBoundary locale={isPt ? 'pt' : 'fr'} fallbackTitle={isPt ? 'Erro na estimativa' : 'Erreur dans l\'estimation'}>
               <EstimationMateriauxSection
                 artisan={artisan}
                 isAdminOverride={showAdminBtn}
@@ -1185,46 +1209,57 @@ function DashboardPage() {
             </SectionErrorBoundary>
           )}
 
+          {/* ────── DICTIONNAIRE MATÉRIAUX (matériaux à utiliser selon la situation) ────── */}
+          {activePage === 'dictionnaire_materiaux' && (
+            <SectionErrorBoundary locale={isPt ? 'pt' : 'fr'} fallbackTitle={isPt ? 'Erro no dicionário de materiais' : 'Erreur dans le dictionnaire matériaux'}>
+              <DictionnaireMateriauxSection />
+            </SectionErrorBoundary>
+          )}
+
 
 
           {/* ────── BOURSE AUX MARCHÉS ────── */}
           {activePage === 'marches' && (
-            <SectionErrorBoundary fallbackTitle={isPt ? 'Erro na bolsa de mercados' : 'Erreur dans la bourse aux marchés'}>
+            <SectionErrorBoundary locale={isPt ? 'pt' : 'fr'} fallbackTitle={isPt ? 'Erro na bolsa de oportunidades' : 'Erreur dans la bourse aux marchés'}>
               <BourseAuxMarchesSection artisan={artisan!} orgRole={orgRole} navigateTo={navigateTo} />
             </SectionErrorBoundary>
           )}
 
           {/* ────── MARKETPLACE PRO BTP ────── */}
           {activePage === 'marketplace_btp' && artisan && (
-            <SectionErrorBoundary fallbackTitle={isPt ? 'Erro no Marketplace BTP' : 'Erreur dans le Marketplace BTP'}>
+            <SectionErrorBoundary locale={isPt ? 'pt' : 'fr'} fallbackTitle={isPt ? 'Erro no Marketplace da construção' : 'Erreur dans le Marketplace BTP'}>
               <MarketplaceProBTPSection artisan={artisan!} orgRole={orgRole} />
             </SectionErrorBoundary>
           )}
 
           {/* ────── DEVIS PRO BTP ────── */}
           {activePage === 'rfq_btp' && orgRole === 'pro_societe' && artisan && (
-            <SectionErrorBoundary fallbackTitle={isPt ? 'Erro nos orçamentos' : 'Erreur dans les devis pro'}>
+            <SectionErrorBoundary locale={isPt ? 'pt' : 'fr'} fallbackTitle={isPt ? 'Erro nos orçamentos de fornecedores' : 'Erreur dans les devis pro'}>
               <RFQSection artisan={artisan!} orgRole={orgRole} />
             </SectionErrorBoundary>
           )}
 
           {/* ────── WALLET CONFORMITÉ ────── */}
           {activePage === 'wallet' && (
+            <FiletSocieteBtp actif={orgRole === 'pro_societe'} titre={isPt ? 'Erro na conformidade' : 'Erreur dans la conformité'} locale={isPt ? 'pt' : 'fr'}>
             <div className="animate-fadeIn">
               <WalletConformiteSection artisan={artisan!} orgRole={orgRole} />
             </div>
+            </FiletSocieteBtp>
           )}
 
           {/* ────── CARNET DE VISITE / PORTFOLIO ────── */}
           {activePage === 'portfolio' && (
+            <FiletSocieteBtp actif={orgRole === 'pro_societe'} titre={isPt ? 'Erro nas referências' : 'Erreur dans les références'} locale={isPt ? 'pt' : 'fr'}>
             <div className="animate-fadeIn">
               <CarnetDeVisiteSection artisan={artisan!} orgRole={orgRole} />
             </div>
+            </FiletSocieteBtp>
           )}
 
           {/* ────── BASE CLIENTS ────── */}
           {activePage === 'clients' && (
-            <SectionErrorBoundary fallbackTitle={isPt ? 'Erro na secção de clientes' : 'Erreur dans la section clients'}>
+            <SectionErrorBoundary locale={isPt ? 'pt' : 'fr'} fallbackTitle={isPt ? 'Erro na secção de clientes' : 'Erreur dans la section clients'}>
               <ClientsSection
                 artisan={artisan!}
                 bookings={bookings}
@@ -1246,94 +1281,116 @@ function DashboardPage() {
 
           {/* ────── ÉQUIPES (Société BTP) ────── */}
           {activePage === 'equipes' && (
+            <FiletSocieteBtp actif={orgRole === 'pro_societe'} titre={isPt ? 'Erro nas equipas' : 'Erreur dans les équipes'} locale={isPt ? 'pt' : 'fr'}>
             <EquipesBTPV2 artisan={artisan!} orgRole={orgRole} />
+            </FiletSocieteBtp>
           )}
 
           {/* ────── CHANTIERS V2 (Société BTP) — Supabase + GPS ────── */}
           {activePage === 'chantiers' && (
+            <FiletSocieteBtp actif={orgRole === 'pro_societe'} titre={isPt ? 'Erro nas obras' : 'Erreur dans les chantiers'} locale={isPt ? 'pt' : 'fr'}>
             <ChantiersBTPV2 artisan={artisan!} orgRole={orgRole} />
+            </FiletSocieteBtp>
           )}
 
           {/* ────── GANTT (Société BTP) ────── */}
           {activePage === 'gantt' && (
+            <FiletSocieteBtp actif={orgRole === 'pro_societe'} titre={isPt ? 'Erro no planeamento Gantt' : 'Erreur dans le planning Gantt'} locale={isPt ? 'pt' : 'fr'}>
             <div className="p-4 lg:p-5 animate-fadeIn">
-              <GanttSection userId={artisan?.id || ''} orgRole={orgRole} />
+              <GanttSection userId={artisan?.id || ''} authUserId={artisan?.user_id || ''} orgRole={orgRole} />
             </div>
+            </FiletSocieteBtp>
           )}
 
           {/* ────── SITUATIONS DE TRAVAUX (Société BTP) ────── */}
           {activePage === 'situations' && (
+            <FiletSocieteBtp actif={orgRole === 'pro_societe'} titre={isPt ? 'Erro nos autos de medição' : 'Erreur dans les situations de travaux'} locale={isPt ? 'pt' : 'fr'}>
             <div className="p-4 lg:p-5 animate-fadeIn">
-              <SituationsTravaux userId={artisan?.id || ''} orgRole={orgRole} />
+              <SituationsTravaux userId={artisan?.id || ''} authUserId={artisan?.user_id || ''} orgRole={orgRole} />
             </div>
+            </FiletSocieteBtp>
           )}
 
           {/* ────── RETENUES DE GARANTIE (Société BTP) ────── */}
           {activePage === 'garanties' && (
+            <FiletSocieteBtp actif={orgRole === 'pro_societe'} titre={isPt ? 'Erro nas retenções para garantia' : 'Erreur dans les retenues de garantie'} locale={isPt ? 'pt' : 'fr'}>
             <div className="p-4 lg:p-5 animate-fadeIn">
-              <RetenuesGarantieSection userId={artisan?.id || ''} orgRole={orgRole} />
+              <RetenuesGarantieSection userId={artisan?.id || ''} authUserId={artisan?.user_id || ''} orgRole={orgRole} />
             </div>
+            </FiletSocieteBtp>
           )}
 
           {/* ────── POINTAGE GÉO V2 (Société BTP) — GPS + Manuel ────── */}
           {activePage === 'pointage' && (
+            <FiletSocieteBtp actif={orgRole === 'pro_societe'} titre={isPt ? 'Erro no registo de horas' : 'Erreur dans le pointage'} locale={isPt ? 'pt' : 'fr'}>
             <div className="p-4 lg:p-5 animate-fadeIn">
               <PointageGeoSection artisan={artisan!} orgRole={orgRole} />
             </div>
+            </FiletSocieteBtp>
           )}
 
           {/* ────── SOUS-TRAITANCE DC4 (Société BTP) ────── */}
           {activePage === 'sous_traitance' && (
+            <FiletSocieteBtp actif={orgRole === 'pro_societe'} titre={isPt ? 'Erro na subempreitada' : 'Erreur dans la sous-traitance'} locale={isPt ? 'pt' : 'fr'}>
             <div className="p-4 lg:p-5 animate-fadeIn">
-              <SousTraitanceDC4Section userId={artisan?.id || ''} orgRole={orgRole} />
+              <SousTraitanceDC4Section userId={artisan?.id || ''} authUserId={artisan?.user_id || ''} orgRole={orgRole} />
             </div>
+            </FiletSocieteBtp>
           )}
 
           {/* ────── RENTABILITÉ CHANTIER (Société BTP) ────── */}
           {activePage === 'rentabilite' && (
+            <FiletSocieteBtp actif={orgRole === 'pro_societe'} titre={isPt ? 'Erro na rentabilidade' : 'Erreur dans la rentabilité'} locale={isPt ? 'pt' : 'fr'}>
             <div className="p-4 lg:p-5 animate-fadeIn">
               <RentabiliteChantierSection artisan={artisan!} orgRole={orgRole} />
             </div>
+            </FiletSocieteBtp>
           )}
 
           {/* ────── COMPTA INTELLIGENTE BTP ────── */}
           {activePage === 'compta_btp' && (
+            <FiletSocieteBtp actif={orgRole === 'pro_societe'} titre={isPt ? 'Erro na contabilidade IA' : 'Erreur dans la comptabilité IA'} locale={isPt ? 'pt' : 'fr'}>
             <div className="p-4 lg:p-5 animate-fadeIn">
               <ComptaBTPSection artisan={artisan!} orgRole={orgRole} />
             </div>
+            </FiletSocieteBtp>
           )}
 
           {/* ────── RECRUTEMENT SOUS-TRAITANTS (Société BTP) ────── */}
           {activePage === 'sous_traitance_offres' && (
+            <FiletSocieteBtp actif={orgRole === 'pro_societe'} titre={isPt ? 'Erro no recrutamento de subempreiteiros' : 'Erreur dans le recrutement de sous-traitants'} locale={isPt ? 'pt' : 'fr'}>
             <div className="p-4 lg:p-5 animate-fadeIn">
               <SousTraitanceOffresSection artisan={artisan!} orgRole={orgRole} />
             </div>
+            </FiletSocieteBtp>
           )}
 
           {/* ────── DPGF APPELS D'OFFRES (Société BTP) ────── */}
           {activePage === 'dpgf' && (
+            <FiletSocieteBtp actif={orgRole === 'pro_societe'} titre={isPt ? 'Erro nos concursos' : 'Erreur dans les appels d’offres'} locale={isPt ? 'pt' : 'fr'}>
             <div className="p-4 lg:p-5 animate-fadeIn">
-              <DPGFSection userId={artisan?.id || ''} orgRole={orgRole} />
+              <DPGFSection userId={artisan?.id || ''} authUserId={artisan?.user_id || ''} orgRole={orgRole} />
             </div>
+            </FiletSocieteBtp>
           )}
 
           {/* ────── PROPRIÉTÉS (Conciergerie) ────── */}
           {activePage === 'proprietes' && (
-            <SectionErrorBoundary fallbackTitle="Erreur dans les propriétés">
+            <SectionErrorBoundary locale={isPt ? 'pt' : 'fr'} fallbackTitle="Erreur dans les propriétés">
             <ProprietesConciergerieSection artisan={artisan!} />
             </SectionErrorBoundary>
           )}
 
           {/* ────── ACCÈS & CLÉS (Conciergerie) ────── */}
           {activePage === 'acces' && (
-            <SectionErrorBoundary fallbackTitle="Erreur dans les accès">
+            <SectionErrorBoundary locale={isPt ? 'pt' : 'fr'} fallbackTitle="Erreur dans les accès">
             <AccesConciergerieSection artisan={artisan!} />
             </SectionErrorBoundary>
           )}
 
           {/* ────── CHANNEL MANAGER (Conciergerie) ────── */}
           {activePage === 'channel_manager' && (
-            <SectionErrorBoundary fallbackTitle="Erreur dans le channel manager">
+            <SectionErrorBoundary locale={isPt ? 'pt' : 'fr'} fallbackTitle="Erreur dans le channel manager">
             <div className="p-4 lg:p-5 animate-fadeIn">
               <ChannelManagerSection userId={artisan?.id || ''} />
             </div>
@@ -1342,7 +1399,7 @@ function DashboardPage() {
 
           {/* ────── TARIFICATION (Conciergerie) ────── */}
           {activePage === 'tarification' && (
-            <SectionErrorBoundary fallbackTitle="Erreur dans la tarification">
+            <SectionErrorBoundary locale={isPt ? 'pt' : 'fr'} fallbackTitle="Erreur dans la tarification">
             <div className="p-4 lg:p-5 animate-fadeIn">
               <TarificationSection userId={artisan?.id || ''} />
             </div>
@@ -1351,7 +1408,7 @@ function DashboardPage() {
 
           {/* ────── CHECK-IN / CHECK-OUT (Conciergerie) ────── */}
           {activePage === 'checkinout' && (
-            <SectionErrorBoundary fallbackTitle="Erreur dans le check-in/out">
+            <SectionErrorBoundary locale={isPt ? 'pt' : 'fr'} fallbackTitle="Erreur dans le check-in/out">
             <div className="p-4 lg:p-5 animate-fadeIn">
               <CheckinOutSection userId={artisan?.id || ''} />
             </div>
@@ -1360,7 +1417,7 @@ function DashboardPage() {
 
           {/* ────── LIVRET D'ACCUEIL (Conciergerie) ────── */}
           {activePage === 'livret' && (
-            <SectionErrorBoundary fallbackTitle="Erreur dans le livret d'accueil">
+            <SectionErrorBoundary locale={isPt ? 'pt' : 'fr'} fallbackTitle="Erreur dans le livret d'accueil">
             <div className="p-4 lg:p-5 animate-fadeIn">
               <LivretAccueilSection userId={artisan?.id || ''} />
             </div>
@@ -1369,7 +1426,7 @@ function DashboardPage() {
 
           {/* ────── PLANNING MÉNAGE (Conciergerie) ────── */}
           {activePage === 'menage' && (
-            <SectionErrorBoundary fallbackTitle="Erreur dans le planning ménage">
+            <SectionErrorBoundary locale={isPt ? 'pt' : 'fr'} fallbackTitle="Erreur dans le planning ménage">
             <div className="p-4 lg:p-5 animate-fadeIn">
               <PlanningMenageSection userId={artisan?.id || ''} />
             </div>
@@ -1378,7 +1435,7 @@ function DashboardPage() {
 
           {/* ────── REVPAR (Conciergerie) ────── */}
           {activePage === 'revpar' && (
-            <SectionErrorBoundary fallbackTitle="Erreur dans le RevPAR">
+            <SectionErrorBoundary locale={isPt ? 'pt' : 'fr'} fallbackTitle="Erreur dans le RevPAR">
             <div className="p-4 lg:p-5 animate-fadeIn">
               <RevPARSection userId={artisan?.id || ''} />
             </div>
@@ -1387,47 +1444,49 @@ function DashboardPage() {
 
           {/* ────── IMMEUBLES (Gestionnaire) ────── */}
           {activePage === 'immeubles' && (
-            <SectionErrorBoundary fallbackTitle="Erreur dans les immeubles">
+            <SectionErrorBoundary locale={isPt ? 'pt' : 'fr'} fallbackTitle="Erreur dans les immeubles">
             <ImmeublesGestionnaireSection artisan={artisan!} />
             </SectionErrorBoundary>
           )}
 
           {/* ────── ORDRES DE MISSION (Gestionnaire) ────── */}
           {activePage === 'missions' && (
-            <SectionErrorBoundary fallbackTitle="Erreur dans les missions">
+            <SectionErrorBoundary locale={isPt ? 'pt' : 'fr'} fallbackTitle="Erreur dans les missions">
             <MissionsGestionnaireSection artisan={artisan!} bookings={bookings} />
             </SectionErrorBoundary>
           )}
 
           {/* ────── CONTRATS ────── */}
           {activePage === 'contrats' && (
-            <SectionErrorBoundary fallbackTitle="Erreur dans les contrats">
+            <SectionErrorBoundary locale={isPt ? 'pt' : 'fr'} fallbackTitle={isPt ? 'Erro nos contratos' : 'Erreur dans les contrats'}>
             <ContratsSection artisan={artisan!} />
             </SectionErrorBoundary>
           )}
 
           {/* ────── RAPPORTS D'INTERVENTION ────── */}
           {activePage === 'rapports' && (
-            <SectionErrorBoundary fallbackTitle={isPt ? 'Erro nos relatórios' : 'Erreur dans les rapports'}>
+            <SectionErrorBoundary locale={isPt ? 'pt' : 'fr'} fallbackTitle={isPt ? 'Erro nos relatórios' : 'Erreur dans les rapports'}>
               <RapportsSection artisan={artisan!} bookings={bookings} services={services} onNavigate={navigateTo} orgRole={orgRole} />
             </SectionErrorBoundary>
           )}
 
           {/* ────── PHOTOS CHANTIER ────── */}
           {activePage === 'photos_chantier' && (
+            <FiletSocieteBtp actif={orgRole === 'pro_societe'} titre={isPt ? 'Erro nas fotos de obra' : 'Erreur dans les photos de chantier'} locale={isPt ? 'pt' : 'fr'}>
             <PhotosChantierSection artisan={artisan!} bookings={bookings} orgRole={orgRole} />
+            </FiletSocieteBtp>
           )}
 
           {/* ────── CHANTIERS V22 (Artisan) ────── */}
           {activePage === 'chantiers_v22' && (
-            <SectionErrorBoundary fallbackTitle="Erreur dans les chantiers">
+            <SectionErrorBoundary locale={isPt ? 'pt' : 'fr'} fallbackTitle={isPt ? 'Erro nas obras' : 'Erreur dans les chantiers'}>
               <ChantiersV22Section artisan={artisan!} navigateTo={navigateTo} orgRole={orgRole} />
             </SectionErrorBoundary>
           )}
 
           {/* ────── PIPELINE KANBAN ────── */}
           {activePage === 'pipeline' && (
-            <SectionErrorBoundary fallbackTitle="Erreur dans le pipeline">
+            <SectionErrorBoundary locale={isPt ? 'pt' : 'fr'} fallbackTitle={isPt ? 'Erro no pipeline' : 'Erreur dans le pipeline'}>
               <PipelineSection artisan={artisan!} orgRole={orgRole} navigateTo={navigateTo} savedDocuments={savedDocuments as any} />
             </SectionErrorBoundary>
           )}
@@ -1435,7 +1494,7 @@ function DashboardPage() {
           {/* ────── BIBLIOTHÈQUE D'OUVRAGES ────── */}
           {/* pro_societe : la bibliothèque est fusionnée dans Prestations (PrestationsBTPSection) */}
           {activePage === 'bibliotheque' && (
-            <SectionErrorBoundary fallbackTitle="Erreur dans la bibliothèque">
+            <SectionErrorBoundary locale={isPt ? 'pt' : 'fr'} fallbackTitle={isPt ? 'Erro na biblioteca' : 'Erreur dans la bibliothèque'}>
               {orgRole === 'pro_societe' ? (
                 <PrestationsBTPSection artisan={artisan!} orgRole={orgRole} navigateTo={navigateTo} />
               ) : (
@@ -1446,40 +1505,44 @@ function DashboardPage() {
 
           {/* ────── PARRAINAGE ────── */}
           {activePage === 'parrainage' && (
-            <SectionErrorBoundary fallbackTitle="Erreur dans le module parrainage">
+            <SectionErrorBoundary locale={isPt ? 'pt' : 'fr'} fallbackTitle={isPt ? 'Erro no programa de recomendação' : 'Erreur dans le module parrainage'}>
               <ParrainageSection artisan={artisan!} orgRole={orgRole} />
             </SectionErrorBoundary>
           )}
 
           {/* ────── CANAL PRO ────── */}
           {activePage === 'canal' && (
+            <FiletSocieteBtp actif={orgRole === 'pro_societe'} titre={isPt ? 'Erro no Canal Pro' : 'Erreur dans le Canal Pro'} locale={isPt ? 'pt' : 'fr'}>
             <CanalProSection artisan={artisan!} orgRole={orgRole} />
+            </FiletSocieteBtp>
           )}
 
           {/* ────── GESTION COMPTES (Société BTP — gérant ou permission accordée) ────── */}
           {activePage === 'gestion_comptes' && orgRole === 'pro_societe' && (isProGerant || proCanAccess('gestion_comptes')) && (
-            <SectionErrorBoundary fallbackTitle={isPt ? 'Erro na gestão de contas' : 'Erreur dans la gestion des comptes'}>
+            <SectionErrorBoundary locale={isPt ? 'pt' : 'fr'} fallbackTitle={isPt ? 'Erro na gestão de contas' : 'Erreur dans la gestion des comptes'}>
               <CompteUtilisateursSection artisan={artisan!} isGerant={isProGerant} />
             </SectionErrorBoundary>
           )}
 
           {/* ────── METEO CHANTIERS (pro_societe v5) ────── */}
           {activePage === 'meteo' && isV5 && (
-            <SectionErrorBoundary fallbackTitle={isPt ? 'Erro na meteorologia' : 'Erreur météo'}>
+            <SectionErrorBoundary locale={isPt ? 'pt' : 'fr'} fallbackTitle={isPt ? 'Erro na meteorologia' : 'Erreur météo'}>
               <MeteoChantierSection userId={artisan?.id || ''} authUserId={artisan?.user_id || ''} isPt={isPt} />
             </SectionErrorBoundary>
           )}
 
           {/* ────── PORTAIL CLIENT (pro_societe v5) ────── */}
           {activePage === 'portail_client' && isV5 && (
-            <SectionErrorBoundary fallbackTitle="Erreur dans le portail client">
+            <SectionErrorBoundary locale={isPt ? 'pt' : 'fr'} fallbackTitle={isPt ? 'Erro no portal do cliente' : 'Erreur dans le portail client'}>
               <PortailClientSection userId={artisan?.user_id || artisan?.id || ''} artisanId={artisan?.id || ''} orgRole={orgRole} />
             </SectionErrorBoundary>
           )}
 
           {/* ────── AIDE ────── */}
           {activePage === 'help' && (
+            <FiletSocieteBtp actif={orgRole === 'pro_societe'} titre={isPt ? 'Erro na ajuda' : 'Erreur dans l’aide'} locale={isPt ? 'pt' : 'fr'}>
             <AideSection navigateTo={navigateTo} orgRole={orgRole} />
+            </FiletSocieteBtp>
           )}
 
       </main>
@@ -1546,7 +1609,8 @@ function DashboardPage() {
               // initial, sinon le refresh Fixy re-tronquerait CA/compteurs.
               fetchAllBookings(supabase, artisan.id),
               fetch(`/api/availability-services?artisan_id=${artisan.id}`),
-              fetch(`/api/artisan-absences?artisan_id=${artisan.id}`),
+              // Avec la session : le motif et le libellé des absences ne sont rendus qu'au propriétaire de la fiche.
+              lireAbsencesArtisan(artisan.id),
             ])
             const availJson = await availRes.json()
             setAvailability(availJson.data || [])
@@ -1558,7 +1622,9 @@ function DashboardPage() {
             } catch { toast.error('Erreur lors du chargement des disponibilités') }
             try {
               const absJson = await absRes.json()
-              if (absJson.data) setAbsences(absJson.data)
+              // Une réponse « dates seules » (session illisible ou non reconnue) ne remplace pas les absences affichées.
+              const absencesLues = absencesDetaillees(absJson.data)
+              if (absencesLues) setAbsences(absencesLues)
             } catch { toast.error('Erreur lors du chargement des absences') }
           }}
         />

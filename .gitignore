@@ -82,3 +82,7 @@ reports/seo/*.json
 # Sorties de build OpenNext / wrangler (lot 7 : entrée worker/index.ts, build local possible)
 .open-next/
 .wrangler/
+
+# Annuaires d'artisans récupérés (données personnelles de tiers) : hors du dépôt public, gardés dans un
+# dossier privé (~/.claude/donnees-privees/artisans-pt ou ANNUAIRES_ARTISANS_DIR), lus par scripts/*artisans-PT*.mjs
+data/artisans-PT-*.json

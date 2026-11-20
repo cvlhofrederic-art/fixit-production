@@ -164,17 +164,17 @@ export function useNotifications(
             planning_change: `📅 ${_t('proDash.notifs.planningChange')}`,
             message: `💬 ${_t('proDash.notifs.message')}`,
             new_booking: `📅 ${_t('proDash.notifs.newBooking')}`,
-            marche_new: _isPt ? '🏛️ Novo mercado disponível' : '🏛️ Nouveau marché disponible',
-            marche_message: _isPt ? '💬 Mensagem no mercado' : '💬 Message sur un marché',
+            marche_new: _isPt ? '🏛️ Nova oportunidade disponível' : '🏛️ Nouveau marché disponible',
+            marche_message: _isPt ? '💬 Mensagem sobre uma oportunidade' : '💬 Message sur un marché',
             marche_won: _isPt ? '🎉 Candidatura aceite!' : '🎉 Candidature acceptée !',
             marche_rejected: _isPt ? '❌ Candidatura recusada' : '❌ Candidature refusée',
             tva_threshold: _isPt ? '🧾 Alerta de IVA' : '🧾 Alerte TVA',
-            marketplace_demande: _isPt ? '🏗️ Nova solicitação — Marketplace BTP' : '🏗️ Nouvelle demande — Marketplace BTP',
-            marketplace_accepte: _isPt ? '✅ Solicitação aceite — Marketplace BTP' : '✅ Demande acceptée — Marketplace BTP',
-            marketplace_refuse: _isPt ? '❌ Solicitação recusada — Marketplace BTP' : '❌ Demande refusée — Marketplace BTP',
+            marketplace_demande: _isPt ? '🏗️ Novo pedido no Marketplace da construção' : '🏗️ Nouvelle demande — Marketplace BTP',
+            marketplace_accepte: _isPt ? '✅ Pedido aceite no Marketplace da construção' : '✅ Demande acceptée — Marketplace BTP',
+            marketplace_refuse: _isPt ? '❌ Pedido recusado no Marketplace da construção' : '❌ Demande refusée — Marketplace BTP',
           }
           sendBrowserNotif(
-            typeLabels[n.type] || '🔔 Notification Vitfix',
+            typeLabels[n.type] || (_isPt ? '🔔 Notificação Vitfix' : '🔔 Notification Vitfix'),
             n.message || n.title || _t('proDash.notifs.newNotif'),
             () => {
               if (n.type === 'new_mission') _onNav('missions')
@@ -192,11 +192,11 @@ export function useNotifications(
         table: 'conversation_messages',
       }, (payload) => {
         const msg = payload.new as any
-        const { t: _t, onNavigate: _onNav } = callbacksRef.current
+        const { t: _t, isPt: _isPt, onNavigate: _onNav } = callbacksRef.current
         if (msg.sender_id !== userId) {
           setUnreadMsgCount(prev => prev + 1)
           sendBrowserNotif(
-            '💬 Nouveau message',
+            _isPt ? '💬 Nova mensagem' : '💬 Nouveau message',
             msg.content ? (msg.content.length > 80 ? msg.content.substring(0, 80) + '…' : msg.content) : _t('proDash.notifs.newMsgReceived'),
             () => _onNav('messages')
           )
@@ -214,7 +214,9 @@ export function useNotifications(
           _onNew(b)
           sendBrowserNotif(
             _isPt ? '📅 Nova marcação' : '📅 Nouveau rendez-vous',
-            `${b.booking_date || (_isPt ? 'Data a confirmar' : 'Date à confirmer')} — ${b.client_name || (_isPt ? 'Novo cliente' : 'Nouveau client')}`,
+            _isPt
+              ? `${b.booking_date || 'Data a confirmar'} · ${b.client_name || 'Novo cliente'}`
+              : `${b.booking_date || 'Date à confirmer'} — ${b.client_name || 'Nouveau client'}`,
             () => _onNav('calendar')
           )
         }
@@ -226,9 +228,10 @@ export function useNotifications(
       }, (payload) => {
         const msg = payload.new as any
         if (msg.sender_role === 'client') {
+          const { isPt: _isPt } = callbacksRef.current
           sendBrowserNotif(
-            '💬 ' + (msg.sender_name || 'Client'),
-            msg.content ? (msg.content.length > 80 ? msg.content.substring(0, 80) + '…' : msg.content) : 'Nouveau message',
+            '💬 ' + (msg.sender_name || (_isPt ? 'Cliente' : 'Client')),
+            msg.content ? (msg.content.length > 80 ? msg.content.substring(0, 80) + '…' : msg.content) : (_isPt ? 'Nova mensagem' : 'Nouveau message'),
             () => onNavigate('calendar')
           )
         }

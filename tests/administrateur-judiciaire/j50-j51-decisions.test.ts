@@ -43,7 +43,10 @@ import {
  *   25/12/2025 = demande de voie postale à sa date (L. 1965 art. 42-1, al. 2 : « par tout moyen ») ; LRAR sans demande
  *   acceptée avec avertissement ; LRE vers un non-professionnel sans consentement enregistré (CPCE art. L. 100) : calcul
  *   avec avertissement « à confirmer » ; fin tirée d'une seule notification marquée minimale.
- * La partie J51 (blocage de l'OS) est dans envoi-ordre-service.test.ts.
+ * La partie J51 (blocage de l'OS) est dans envoi-ordre-service.test.ts. Décisions de Hugo du 17/11/2026 (J52 et J53,
+ * decisions-hugo-17-11.test.ts) : la demande, le refus ou le retrait reçu avant le 25/12/2025 prend effet dès sa
+ * réception, et la LRE sans consentement ne vaut pas notification ; les tests qui figeaient l'ancien comportement
+ * (avertissement « à confirmer ») sont adaptés ci-dessous.
  */
 
 const ligne = (surcharge: Partial<ChangementStatut>): ChangementStatut => ({
@@ -315,11 +318,14 @@ describe('J50 — cas limites de la voie de notification', () => {
     })
   })
 
-  it('LRE vers un non-professionnel sans consentement enregistré (CPCE art. L. 100) : calcul avec avertissement « à confirmer » ; pas pour le prestataire qualifié', () => {
-    const avertissementL100 =
-      "LRE à un destinataire non professionnel (ou dont la qualité n'est pas saisie) sans consentement enregistré aux envois recommandés électroniques (CPCE art. L. 100) : délai calculé, à confirmer (D. 1967 art. 64, 1° ne renvoie qu'aux art. R. 53 à R. 53-4 du CPCE)."
-    expect(calcule(finDelaiContestationAg(chaine(), [courrier()], 'ag-1', { opposantsOuDefaillants: 1 })).avertissements).toEqual([avertissementL100])
-    expect(calcule(finDelaiContestationAg(chaine(), [courrier()], 'ag-1', { opposantsOuDefaillants: 1, professionnel: false })).avertissements).toEqual([avertissementL100])
+  // décision de Hugo du 17/11/2026 (J53) : sans consentement enregistré, la LRE ne vaut plus notification (avant : calcul
+  // avec un avertissement « à confirmer »)
+  it('LRE vers un non-professionnel sans consentement enregistré (CPCE art. L. 100) : refus (J53) ; pas pour le prestataire qualifié', () => {
+    expect(finDelaiContestationAg(chaine(), [courrier()], 'ag-1', { opposantsOuDefaillants: 1 })).toMatchObject({ etat: 'refuse', cause: 'consentement_lre_absent' })
+    expect(finDelaiContestationAg(chaine(), [courrier()], 'ag-1', { opposantsOuDefaillants: 1, professionnel: false })).toMatchObject({
+      etat: 'refuse',
+      cause: 'consentement_lre_absent',
+    })
     expect(calcule(finDelaiContestationAg(chaine(), [courrier()], 'ag-1', { opposantsOuDefaillants: 1, professionnel: true })).avertissements).toEqual([])
     const accord = creerConsentementVoieElectronique({ identiteId: 'id-1', sens: 'accord', recuLe: d(2026, 1, 10) })
     expect(calcule(finDelaiContestationAg(chaine(), [courrier()], 'ag-1', { opposantsOuDefaillants: 1, voie: { consentements: [accord] } })).avertissements).toEqual([])
@@ -524,7 +530,8 @@ describe('J50 — relecture du 14/11/2026 (tour 1) : constats corrigés', () => 
     // sonde S3 : refus 2021, accord 2023, retrait 2024 : la demande court depuis le retrait
     const s3 = lreDu(d(2026, 1, 10), { consentements: [consent('refus', d(2021, 3, 1)), consent('accord', d(2023, 5, 2)), consent('retrait', d(2024, 2, 1))] })
     expect(s3).toMatchObject({ etat: 'refuse', cause: 'voie_postale_demandee' })
-    expect(motifDe(s3)).toContain('(effet le 10/02/2024)')
+    // décision de Hugo du 17/11/2026 (J52) : reçu avant le 25/12/2025, le retrait prend effet dès sa réception (avant : le 10/02/2024)
+    expect(motifDe(s3)).toContain("retrait de l'accord reçu le 01/02/2024, avant le 25/12/2025, valant demande de voie postale")
     // refus puis accord reçus depuis le 25/12/2025 : le dernier reçu au plus tard à l'envoi compte
     const recents = [consent('refus', d(2026, 1, 10)), consent('accord', d(2026, 2, 1))]
     expect(lreDu(avis2026, { consentements: recents })).toMatchObject({ etat: 'calcule' })
@@ -534,9 +541,10 @@ describe('J50 — relecture du 14/11/2026 (tour 1) : constats corrigés', () => 
       etat: 'refuse',
       cause: 'voie_postale_demandee',
     })
-    // écart (🔵, question à Hugo) : refus d'avant le 25/12/2025, puis accord reçu depuis : l'accord, dernier état, l'emporte
+    // J59 : refus d'avant le 25/12/2025, puis accord reçu depuis : l'accord, dernier état, l'emporte (à son effet, J74 :
+    // le 19/01/2026, avant l'envoi du 05/03/2026)
     expect(lreDu(avis2026, { consentements: [consent('refus', d(2021, 5, 1)), consent('accord', d(2026, 1, 10))] })).toMatchObject({ etat: 'calcule' })
-    // une demande de voie postale enregistrée n'est pas levée par un accord (retour à l'électronique non établi, 🔴)
+    // une demande de voie postale enregistrée n'est pas levée par un accord : seule une renonciation la lève (J74)
     expect(lreDu(avis2026, { demandesVoiePostale: [demandePostale(d(2026, 1, 5))], consentements: [consent('accord', d(2026, 2, 1))] })).toMatchObject({
       etat: 'refuse',
       cause: 'voie_postale_demandee',
@@ -622,16 +630,16 @@ describe('J50 — relecture du 14/11/2026 (tour 1) : constats corrigés', () => 
     )
   })
 
-  it('refus ou demande reçus avant le 25/12/2025, effet après l’envoi électronique : délai calculé, avertissement « à confirmer »', () => {
+  // décision de Hugo du 17/11/2026 (J52) : reçu avant le 25/12/2025, effet dès la réception ; l'avertissement « à
+  // confirmer » de la sonde P9 est remplacé par un refus (detail : decisions-hugo-17-11.test.ts)
+  it('refus ou demande reçus avant le 25/12/2025, effet selon l’ancienne règle (J52) : l’envoi électronique postérieur ne fait pas courir le délai', () => {
     const avis = d(2025, 12, 27)
-    // sonde P9 : refus reçu le 20/12/2025, LRE du 27/12/2025 ; effet selon la règle actuelle : le 29/12/2025
-    const p9 = calcule(lreDu(avis, { consentements: [consent('refus', d(2025, 12, 20))] }))
-    expect(p9.echeanceSansReport).toBe(d(2026, 2, 28))
-    expect(p9.avertissements).toEqual([
-      "Refus de la voie électronique, retrait de l'accord ou demande de voie postale reçu le 20/12/2025, avant le 25/12/2025 : selon la règle actuelle, effet le 29/12/2025, après l'envoi électronique du 27/12/2025 ; sous l'ancienne règle, il excluait déjà la voie électronique. Délai calculé, à confirmer (D. 1967 art. 64-4 ; décret du 22/12/2025 sans règle transitoire ; point ouvert, question à Hugo).",
-    ])
-    // demande de voie postale enregistrée, reçue le même jour : même avertissement
-    expect(calcule(lreDu(avis, { demandesVoiePostale: [demandePostale(d(2025, 12, 20))] })).avertissements).toHaveLength(1)
+    // sonde P9 : refus reçu le 20/12/2025, LRE du 27/12/2025 ; effet dès sa réception (avant : calculé « à confirmer »)
+    const p9 = lreDu(avis, { consentements: [consent('refus', d(2025, 12, 20))] })
+    expect(p9).toMatchObject({ etat: 'refuse', cause: 'voie_postale_demandee' })
+    expect(motifDe(p9)).toContain('décision de Hugo du 17/11/2026, J52')
+    // demande de voie postale enregistrée, reçue le même jour : même refus
+    expect(lreDu(avis, { demandesVoiePostale: [demandePostale(d(2025, 12, 20))] })).toMatchObject({ etat: 'refuse', cause: 'voie_postale_demandee' })
     // effet atteint à l'envoi : délai non lancé, comme avant
     expect(lreDu(d(2025, 12, 29), { consentements: [consent('refus', d(2025, 12, 20))] })).toMatchObject({ etat: 'refuse', cause: 'voie_postale_demandee' })
     // demande reçue depuis le 25/12/2025 et pas encore effective : règle actuelle, sans avertissement
@@ -854,15 +862,18 @@ describe('J50 — documentation : rubrique « Décisions de Hugo du 11/11/2026 �
     expect(voieNotification).toContain('art. 64-3 de la rédaction')
   })
 
-  it('relecture du 14/11/2026 : en-têtes corrigés (fondements datés, L. 100 en question ouverte, mode incohérent, avis selon le mode)', () => {
+  it('relecture du 14/11/2026 : en-têtes corrigés (fondements datés, L. 100 tranché le 17/11/2026, mode incohérent, avis selon le mode)', () => {
     const voieNotification = lire('voie-notification.ts')
-    const decisions = voieNotification.slice(voieNotification.indexOf('Décisions de Hugo du 11/11/2026'), voieNotification.indexOf('🔵 Déduit'))
+    const decisions = voieNotification.slice(voieNotification.indexOf('Décisions de Hugo du 11/11/2026'), voieNotification.indexOf('Décisions de Hugo du 17/11/2026'))
     expect(decisions.length).toBeGreaterThan(0)
-    // le consentement de CPCE art. L. 100 n'est pas une décision de Hugo : question ouverte
+    // le consentement de CPCE art. L. 100 n'est pas une décision du 11/11/2026 : il est tranché le 17/11/2026 (J53)
     expect(decisions).not.toContain('L. 100')
+    const decisions1711 = voieNotification.slice(voieNotification.indexOf('Décisions de Hugo du 17/11/2026'), voieNotification.indexOf('🔵 Déduit'))
+    expect(decisions1711).toContain('J53')
+    expect(decisions1711).toContain('CPCE art. L. 100')
     const nonEtabli = voieNotification.slice(voieNotification.indexOf('🔴 Non établi'))
-    expect(nonEtabli).toContain('CPCE art. L. 100')
-    expect(nonEtabli).toContain('question ouverte à Hugo')
+    expect(nonEtabli).not.toContain('CPCE art. L. 100')
+    expect(nonEtabli).not.toContain('question ouverte à Hugo')
     // l'accord exprès ne venait de la loi que jusqu'au 10/04/2024
     expect(voieNotification).not.toContain("l'accord exprès exigé pour une notification électronique faite du 04/07/2020 au 24/12/2025 venait de la loi")
     expect(decisions).toContain('dernier état')

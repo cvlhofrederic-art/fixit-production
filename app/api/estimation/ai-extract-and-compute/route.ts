@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
-import { getAuthUser, unauthorizedResponse } from '@/lib/auth-helpers'
+import { getAuthUser, isArtisanRole, isProSocieteRole, unauthorizedResponse } from '@/lib/auth-helpers'
 import { logger } from '@/lib/logger'
 import {
   estimateProject,
@@ -10,10 +10,30 @@ import {
   getRecipesByCountry,
 } from '@/lib/estimation-materiaux'
 import { extractEstimationWithGroq, extractionToEstimationInput } from '@/lib/estimation-materiaux/ai/groq-extractor'
+import { hasAnthropicKey } from '@/lib/claude'
 import type { ChantierProfile } from '@/lib/estimation-materiaux'
 
 export const runtime = 'nodejs'
 export const maxDuration = 30
+
+// Messages rendus à l'écran, qui les affiche tels quels. Aucun détail interne (fournisseur, modèle, erreur
+// brute) : il est dans les journaux.
+const MESSAGE_INDISPONIBLE = {
+  FR: 'L’analyse par IA est indisponible pour le moment. Utilisez le mode Formulaire ou réessayez plus tard.',
+  PT: 'A análise por IA está indisponível de momento. Use o modo Formulário ou tente mais tarde.',
+}
+const MESSAGE_ECHEC = {
+  FR: 'L’IA n’a pas pu analyser cette description. Réessayez dans un instant ou utilisez le mode Formulaire.',
+  PT: 'A IA não conseguiu analisar esta descrição. Tente novamente dentro de instantes ou use o modo Formulário.',
+}
+const MESSAGE_QUOTA = {
+  FR: 'Trop d’analyses par IA en une heure. Réessayez plus tard ou utilisez le mode Formulaire.',
+  PT: 'Demasiadas análises por IA numa hora. Tente mais tarde ou use o modo Formulário.',
+}
+
+// Plafond par compte, en plus de celui par adresse IP : chaque analyse coûte un appel de modèle (Claude en relais).
+// 30 par heure laisse large pour affiner un chantier en deux ou trois échanges.
+const LIMITE_PAR_COMPTE = { requetes: 30, fenetreMs: 60 * 60_000 }
 
 const ProfileSchema = z.object({
   difficulty: z.enum(['facile', 'standard', 'difficile']).optional(),
@@ -54,14 +74,15 @@ export async function POST(request: NextRequest) {
   // Auth check: user must be authenticated
   const user = await getAuthUser(request)
   if (!user) return unauthorizedResponse()
+  // Réservée aux comptes pro (artisan, BTP ; super admin compris par isProSocieteRole) : l'écran d'Estimation
+  // n'existe que dans leur tableau de bord, et chaque appel coûte un appel de modèle.
+  if (!isArtisanRole(user) && !isProSocieteRole(user)) {
+    return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
+  }
 
   const ip = getClientIP(request)
   // Plus strict que /compute car un appel déclenche un appel LLM
   if (!(await checkRateLimit(`estim_ai_${ip}`, 10, 60_000))) return rateLimitResponse()
-
-  if (!process.env.GROQ_API_KEY) {
-    return NextResponse.json({ error: 'GROQ_API_KEY non configurée' }, { status: 503 })
-  }
 
   let body: unknown
   try {
@@ -76,6 +97,17 @@ export async function POST(request: NextRequest) {
   }
 
   const { description, projectName, profileFallback, country, trades } = parsed.data
+  const langue = country === 'PT' ? 'PT' : 'FR'
+
+  // L'extraction passe par Groq, puis par Claude si Groq échoue (groq-extractor) : il faut au moins l'un des deux.
+  if (!process.env.GROQ_API_KEY && !(await hasAnthropicKey())) {
+    return NextResponse.json({ error: MESSAGE_INDISPONIBLE[langue] }, { status: 503 })
+  }
+
+  // Compté juste avant l'appel du modèle : une requête refusée plus haut ne consomme rien du plafond.
+  if (!(await checkRateLimit(`estim_ai_user_${user.id}`, LIMITE_PAR_COMPTE.requetes, LIMITE_PAR_COMPTE.fenetreMs))) {
+    return NextResponse.json({ error: MESSAGE_QUOTA[langue] }, { status: 429 })
+  }
 
   try {
     const extraction = await extractEstimationWithGroq(
@@ -119,8 +151,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ extraction, result })
   } catch (e) {
-    logger.error('ai-extract-and-compute failed', e)
-    const msg = e instanceof Error ? e.message : 'Erreur interne'
-    return NextResponse.json({ error: msg }, { status: 500 })
+    // L'objet d'erreur en troisième argument : c'est lui qui part dans Sentry (lib/logger), pas le contexte.
+    logger.error('ai-extract-and-compute failed', { module: 'estimation-materiaux' }, e)
+    return NextResponse.json({ error: MESSAGE_ECHEC[langue] }, { status: 500 })
   }
 }

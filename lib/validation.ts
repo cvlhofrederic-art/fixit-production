@@ -2,6 +2,7 @@
 // Centralized input validation — replaces manual regex checks
 import { z } from 'zod'
 import { TRACKING_TOKEN_PATTERN } from './security/tracking-token'
+import { FILTRE_SANS_BUREAU_QR, NOM_BUREAU_MAX_QR, contientControleQr } from './aj-signalement/bureaux'
 import {
   FORMAT_IDENTIFIANT_CABINET_QR, LONGUEUR_MAX_IDENTIFIANT_CABINET_QR, LONGUEUR_MIN_IDENTIFIANT_CABINET_QR, validerIdentifiantCabinetQr,
 } from './aj-signalement/chemin-cabinet'
@@ -492,11 +493,13 @@ export const domaineQrSchema = z.string().trim().toLowerCase().superRefine((vale
 })
 
 // P1-R3. Compatible avec l'appel actuel { nom, adresse, emailsDestinataires } (sans operationId : la route en tire un,
-// sans idempotence, tant que l'écran ne le fournit pas). cabinetId absent : copropriété sans cabinet.
+// sans idempotence, tant que l'écran ne le fournit pas). cabinetId absent : copropriété sans cabinet. bureauId
+// (bureaux, 19/11/2026) : facultatif, un bureau du cabinet, posé juste après la création.
 export const coproprieteQrSchema = z.strictObject({
   operationId: z.uuid().optional(),
   ...ficheCoproQr,
   cabinetId: z.uuid().optional(),
+  bureauId: z.uuid().optional(),
   gestionnaireIds: z.array(z.uuid()).max(100).optional().default([]),
   attribueeATous: z.boolean().optional().default(false),
   forcerDoublon: z.boolean().optional().default(false),            // « Ce n'est pas un doublon » (super admin)
@@ -523,6 +526,8 @@ export const modificationCoproprieteQrSchema = z.strictObject({
   // Décision H7 de Hugo (PR 3) : fin de mission prévue (AAAA-MM-JJ, heure de Paris) ; à partir de ce jour, plus aucune
   // diffusion ; null l'efface. Super admin seulement (comme l'activation, elle coupe la diffusion).
   diffusionFinGestionLe: z.iso.date().nullable().optional(),
+  // Bureaux (19/11/2026) : bureau de la copropriété, dans son cabinet ; null le retire (bureau facultatif).
+  bureauId: z.uuid().nullable().optional(),
   forcerDoublon: z.boolean().optional(),
   confirmerDoublonProbable: z.boolean().optional(),
   confirmerHorsDomaine: z.boolean().optional(),
@@ -582,13 +587,16 @@ export const gestionnaireQrSchema = z.strictObject({
   cabinetId: z.uuid(),
   coproprieteIds: z.array(z.uuid()).max(500).optional().default([]),
   forcerDomaine: z.boolean().optional().default(false),   // adresse hors des domaines du cabinet (RG-02), journalisé
+  bureauId: z.uuid().optional(),   // bureaux (19/11/2026) : exigé par la route dès que le cabinet a un bureau ouvert
 })
 
-// P1-R11 : une seule action (la désactivation passe par le départ).
+// P1-R11 : une seule action (la désactivation passe par le départ). Bureaux (19/11/2026) : { bureauId } change le bureau
+// de la fiche ; jamais null (le bureau se change, il ne se retire pas : réponse proposée, à valider).
 export const modificationGestionnaireQrSchema = z.union([
   z.strictObject({ nom: z.string().trim().min(1).max(120) }),
   z.strictObject({ actif: z.literal(true) }),
   z.strictObject({ pseudonymiser: z.literal(true) }),
+  z.strictObject({ bureauId: z.uuid() }),
 ])
 
 // P1-R13, P1-R14 : ensemble complet des attributions d'une fiche, et une succession par attribution. Même borne que la
@@ -638,6 +646,16 @@ export const modificationCabinetQrSchema = z.strictObject({
   domaines: z.array(domaineQrSchema).max(20).optional(),
 }).refine((m) => Object.keys(m).length > 0, 'Rien à modifier')
 
+// Bureaux d'un cabinet (19/11/2026), super admin seul : nom rogné, 1 à 80 caractères, sans caractère de contrôle (même
+// règle que la base). Aucune adresse de contact en V1 (clé inconnue → 400). Modification : une seule action par appel.
+const nomBureauQr = z.string().trim().min(1, 'Nom requis').max(NOM_BUREAU_MAX_QR)
+  .refine((v) => !contientControleQr(v), 'Caractère non admis')
+export const bureauQrSchema = z.strictObject({ nom: nomBureauQr })
+export const modificationBureauQrSchema = z.union([
+  z.strictObject({ nom: nomBureauQr }),
+  z.strictObject({ fermer: z.boolean() }),
+])
+
 // Logo d'un cabinet (demande de Hugo du 13/11/2026), super admin : le PNG produit par le navigateur (canvas), en base64
 // strict ; la route revérifie l'image elle-même (signature, morceaux, en-tête, poids : lib/aj-signalement/logo.ts).
 export const logoCabinetQrSchema = z.strictObject({
@@ -682,7 +700,8 @@ export const importCoproprietesQrSchema = z.strictObject({
 // Curseur : PostgREST renvoie les timestamptz en « 2026-11-10T12:00:00.123456+00:00 ». Sans { offset: true }, Zod 4
 // n'accepte que le suffixe « Z » : la deuxième page répondrait 400. Le curseur est passé TEL QUEL à la base.
 const curseurDateQr = z.iso.datetime({ offset: true })
-export const tableauQrQuerySchema = z.strictObject({ gestionnaire: z.uuid().optional(), cabinet: z.uuid().optional() })
+// bureau (19/11/2026) : filtre du super admin seulement (refusé à un gestionnaire, 403).
+export const tableauQrQuerySchema = z.strictObject({ gestionnaire: z.uuid().optional(), cabinet: z.uuid().optional(), bureau: z.uuid().optional() })
 export const signalementsCoproQrQuerySchema = z.strictObject({
   statut: z.enum(['ouverts', 'tous', 'clos']).optional().default('ouverts'),
   priorite: z.enum(['urgente', 'normale', 'planifiee']).optional(),
@@ -693,6 +712,9 @@ export const signalementsCoproQrQuerySchema = z.strictObject({
 export const listeGestionnairesQrQuerySchema = z.strictObject({
   etat: z.enum(['actifs', 'desactives', 'tous']).optional().default('actifs'),
   cabinet: z.uuid().optional(),
+  // Bureaux (19/11/2026) : les fiches d'un bureau, ou « aucun » (fiches sans bureau d'un cabinet qui a un bureau ouvert,
+  // hors fiches effacées).
+  bureau: z.union([z.uuid(), z.literal(FILTRE_SANS_BUREAU_QR)]).optional(),
 })
 export const journalQrQuerySchema = z.strictObject({
   action: z.enum(ACTIONS_JOURNAL_QR).optional(),
@@ -1377,7 +1399,8 @@ export const createCandidatureSchema = z.object({
   timeline: z.string().min(1).max(200),
   description: z.string().min(10, 'Description trop courte (min 10)').max(3000),
   materials_included: z.boolean().default(false),
-  guarantee: z.string().max(500).optional(),
+  // Garantie facultative : l'écran de candidature envoie null quand le champ est laissé vide.
+  guarantee: z.string().max(500).optional().nullable(),
 })
 
 export const updateCandidatureStatusSchema = z.object({
@@ -1711,10 +1734,16 @@ export const syndicImportGecondSchema = z.object({
 })
 
 // ── Pro Channel schema ─────────────────────────────────────────────────────
+// Types de message que l'écran « Canal Pro » envoie ou sait afficher
+// (components/dashboard/CanalProSection.tsx, MSG_TYPE_ICONS) : aucun autre n'est accepté.
+export const TYPES_MESSAGE_CANAL_PRO = [
+  'text', 'voice', 'voice_location', 'voice_status', 'voice_alert', 'voice_devis', 'file', 'photo', 'rapport', 'devis',
+] as const
+
 export const proChannelPostSchema = z.object({
   content: z.string().max(5000).optional(),
   contact_id: z.string().uuid().optional(),
-  type: z.string().max(50).optional(),
+  type: z.enum(TYPES_MESSAGE_CANAL_PRO).optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
 })
 
@@ -2130,6 +2159,27 @@ export const devisStatusUpdateSchema = z.object({
   numero: z.string().min(1, 'numero requis').max(100),
   newStatus: z.enum(['accepted', 'rejected', 'expired']),
   reason: z.string().max(500).optional(),
+})
+
+// ── Devis / facture envoyé par e-mail (POST /api/devis/send-email) ──────────
+// Le message part de l'adresse d'envoi de la plateforme vers l'adresse saisie par le professionnel : une seule
+// adresse valide, un type de document connu, des champs de longueur bornée. Les bornes laissent passer tout document
+// ordinaire (numéro et nom du client : celles de la synchronisation des documents, devisSyncSchema). Les champs
+// facultatifs acceptent '' et null (le formulaire les envoie tels quels quand ils sont vides). La pièce jointe est
+// contrôlée par la route (PDF, taille).
+/** Taille maximale du PDF joint à l'e-mail, en octets : 10 Mo, la limite des dépôts de fichiers du site. */
+export const TAILLE_MAX_PDF_EMAIL_OCTETS = 10 * 1024 * 1024
+const texteFacultatifEmail = (longueurMax: number) => z.union([z.string().max(longueurMax), z.null()]).optional()
+export const devisEnvoiEmailSchema = z.object({
+  to: z.string().trim().max(254).pipe(strictEmail),
+  docType: z.enum(['devis', 'facture']),
+  docNumber: z.string().min(1).max(100),
+  docTitle: texteFacultatifEmail(500),
+  totalStr: texteFacultatifEmail(60),
+  clientName: texteFacultatifEmail(500),
+  companyName: texteFacultatifEmail(300),
+  companyPhone: texteFacultatifEmail(60),
+  pdfBase64: z.string().min(1),
 })
 
 // ── Syndic v54 — lot features net-new (Reservas, Infrações, Enquetes, Checklists) ──

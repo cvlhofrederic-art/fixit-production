@@ -1,0 +1,981 @@
+{
+  "famille": {
+    "id": "eletricidade",
+    "nom": "Eletricidade",
+    "description": "Fios e cabos, tubos e calhas, caixas, tomadas e interruptores, ligadores, proteções de quadro e pequenos acessórios para instalações elétricas domésticas.",
+    "icone": "⚡",
+    "sousFamilles": [
+      {
+        "id": "fios-cabos",
+        "nom": "Fios e cabos",
+        "description": "Condutores para instalação fixa, cabos flexíveis para aparelhos e cabos de TV e rede."
+      },
+      {
+        "id": "tubos-calhas",
+        "nom": "Tubos e calhas",
+        "description": "Tubo anelado para embutir, tubo VD e calha técnica para instalação à vista, com os respetivos acessórios."
+      },
+      {
+        "id": "caixas",
+        "nom": "Caixas",
+        "description": "Caixas de aparelhagem, de derivação e estanques."
+      },
+      {
+        "id": "aparelhagem",
+        "nom": "Tomadas e interruptores",
+        "description": "Tomadas, interruptores, comutadores, espelhos e aparelhagem saliente ou estanque."
+      },
+      {
+        "id": "ligadores-isolamento",
+        "nom": "Ligadores, isolamento e fixação de cabos",
+        "description": "Ligadores rápidos, barras de junção, fita isoladora, manga termorretrátil, terminais e abraçadeiras de cabo."
+      },
+      {
+        "id": "quadro-protecao",
+        "nom": "Quadro e proteção",
+        "description": "Quadros elétricos, disjuntores, interruptores diferenciais e ligação à terra."
+      },
+      {
+        "id": "fichas-interruptores-cabo",
+        "nom": "Fichas e interruptores de cabo",
+        "description": "Fichas para montar em cabo e interruptores de passagem para candeeiros."
+      },
+      {
+        "id": "casquilhos",
+        "nom": "Casquilhos e suportes de lâmpada",
+        "description": "Suportes E27 e E14 e casquilhos para focos."
+      }
+    ]
+  },
+  "materiaux": [
+    {
+      "id": "fio-rigido-h07v-u",
+      "famille": "eletricidade",
+      "sousFamille": "fios-cabos",
+      "nom": "Fio rígido H07V-U (1,5 e 2,5 mm²)",
+      "aussiAppele": [
+        "fio V",
+        "fio de cobre rígido",
+        "fio unifilar",
+        "fio de instalação",
+        "H07V-U"
+      ],
+      "usage": "Condutor de um só fio para instalações fixas dentro de tubo ou calha: circuitos de iluminação e de tomadas.",
+      "aSavoir": "Uso habitual: 1,5 mm² para iluminação e 2,5 mm² para tomadas. Cores: azul para neutro, verde/amarelo para terra, castanho, preto ou cinzento para fase. Passa sempre dentro de tubo ou calha.",
+      "conditionnement": "Ao metro ou em rolos (por exemplo 25 m)",
+      "recherche": "fio H07V-U",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cabo-flexivel-h05vv-f",
+      "famille": "eletricidade",
+      "sousFamille": "fios-cabos",
+      "nom": "Cabo flexível H05VV-F (2 ou 3 condutores)",
+      "aussiAppele": [
+        "cabo FVV",
+        "cabo redondo flexível",
+        "cabo 3G1,5",
+        "cabo 3G2,5",
+        "cabo de extensão"
+      ],
+      "usage": "Cabo flexível redondo com bainha, para ligar aparelhos, candeeiros, extensões e pequenas ligações à vista.",
+      "aSavoir": "3G significa que inclui o condutor de terra (verde/amarelo). Em bornes de aperto, rematar as pontas com ponteiras.",
+      "conditionnement": "Ao metro ou em rolos de 10, 25 e 100 m; 2x1, 2x1,5, 3G0,75, 3G1, 3G1,5 e 3G2,5 mm²",
+      "recherche": "cabo H05VV-F",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cabo-paralelo-h03vvh2-f",
+      "famille": "eletricidade",
+      "sousFamille": "fios-cabos",
+      "nom": "Cabo paralelo plano H03VVH2-F 2x0,75 mm²",
+      "aussiAppele": [
+        "fio paralelo",
+        "cabo plano",
+        "fio de candeeiro",
+        "cabo bifilar"
+      ],
+      "usage": "Cabo plano de dois condutores para candeeiros de mesa e pequenos aparelhos sem ligação à terra.",
+      "aSavoir": "Não tem condutor de terra: só para aparelhos de duplo isolamento e pouca potência.",
+      "conditionnement": "Ao metro ou em rolos; branco ou preto",
+      "recherche": "cabo H03VVH2-F",
+      "rechercheEnseigne": {
+        "maxmat": "cabo VVH2-F"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cabo-borracha-h05rr-f",
+      "famille": "eletricidade",
+      "sousFamille": "fios-cabos",
+      "nom": "Cabo de borracha H05RR-F",
+      "aussiAppele": [
+        "cabo de borracha",
+        "cabo preto de obra",
+        "cabo para ferramentas"
+      ],
+      "usage": "Cabo flexível com bainha de borracha, mais resistente ao manuseamento, para ferramentas elétricas e extensões de trabalho.",
+      "aSavoir": "Para estaleiro e uso pesado no exterior, o cabo de borracha indicado é o H07RN-F, mais robusto.",
+      "conditionnement": "Ao metro; 3G1 e 3G1,5 mm²",
+      "recherche": "cabo H05RR-F",
+      "rechercheEnseigne": {
+        "maxmat": "cabo RR-F"
+      },
+      "enseignes": [
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cabo-rigido-exterior-r2v",
+      "famille": "eletricidade",
+      "sousFamille": "fios-cabos",
+      "nom": "Cabo rígido de dupla bainha (tipo XV / R2V)",
+      "aussiAppele": [
+        "cabo XV",
+        "cabo R2V",
+        "U-1000 R2V",
+        "cabo preto rígido",
+        "cabo de exterior"
+      ],
+      "usage": "Cabo rígido com isolamento e bainha exterior para instalações fixas, incluindo troços exteriores, anexos e garagens.",
+      "aSavoir": "Na loja pode aparecer com a designação U-1000 R2V; em Portugal o tipo equivalente pede-se normalmente como XV.",
+      "conditionnement": "Ao metro ou em rolos; 3G1,5 e 3G2,5 mm²",
+      "recherche": "cabo R2V",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cabo-coaxial",
+      "famille": "eletricidade",
+      "sousFamille": "fios-cabos",
+      "nom": "Cabo coaxial de TV",
+      "aussiAppele": [
+        "cabo de antena",
+        "cabo de televisão",
+        "cabo de satélite",
+        "coaxial"
+      ],
+      "usage": "Cabo para sinal de televisão, antena e satélite entre a entrada, as tomadas de TV e os aparelhos.",
+      "aSavoir": "Não dobrar em ângulo apertado nem esmagar com abraçadeiras: degrada o sinal.",
+      "conditionnement": "Ao metro ou em rolos de 10, 25 e 100 m",
+      "recherche": "cabo coaxial",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cabo-rede-utp",
+      "famille": "eletricidade",
+      "sousFamille": "fios-cabos",
+      "nom": "Cabo de rede UTP (Cat 5e / Cat 6)",
+      "aussiAppele": [
+        "cabo de internet",
+        "cabo ethernet",
+        "cabo RJ45",
+        "cabo de dados"
+      ],
+      "usage": "Cabo de pares entrançados para rede de dados e internet, entre o router e as tomadas RJ45.",
+      "aSavoir": "Passar em tubo separado dos cabos de energia.",
+      "conditionnement": "Ao metro ou em rolos",
+      "recherche": "cabo UTP",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "tubo-anelado",
+      "famille": "eletricidade",
+      "sousFamille": "tubos-calhas",
+      "nom": "Tubo anelado (corrugado) com guia",
+      "aussiAppele": [
+        "tubo corrugado",
+        "tubo flexível",
+        "tubo anelado 20",
+        "tubo de embutir",
+        "manga anelada"
+      ],
+      "usage": "Tubo flexível para embutir em roços, paredes de gesso cartonado e tetos falsos, onde depois se enfiam os fios.",
+      "aSavoir": "O modelo com guia já traz o arame para puxar os fios; nos tubos sem guia usa-se uma guia de nylon passa-cabos. Evitar curvas apertadas e troços muito compridos sem caixa, senão os fios não passam.",
+      "conditionnement": "Rolos de 10, 25, 50 e 100 m; diâmetros 16, 20 e 25 mm",
+      "recherche": "tubo anelado",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "tubo-vd",
+      "famille": "eletricidade",
+      "sousFamille": "tubos-calhas",
+      "nom": "Tubo VD rígido",
+      "aussiAppele": [
+        "tubo VD 20",
+        "tubo rígido",
+        "tubo de PVC elétrico",
+        "vara VD"
+      ],
+      "usage": "Tubo rígido para instalações elétricas à vista em garagens, arrecadações, caves e exteriores abrigados.",
+      "aSavoir": "Curva-se a frio com a mola própria do mesmo diâmetro, ou usam-se curvas feitas.",
+      "conditionnement": "Vara de 3 m; diâmetros correntes 16 e 20 mm; creme ou cinza",
+      "recherche": "tubo VD",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "acessorios-tubo-vd",
+      "famille": "eletricidade",
+      "sousFamille": "tubos-calhas",
+      "nom": "Curvas, uniões, boquilhas e abraçadeiras para tubo VD",
+      "aussiAppele": [
+        "curva VD",
+        "união VD",
+        "boquilha",
+        "clip VD",
+        "abraçadeira de pressão",
+        "grampo para tubo"
+      ],
+      "usage": "Peças para mudar de direção, emendar varas de tubo VD, rematar a entrada do tubo nas caixas e fixar o tubo à parede e ao teto com abraçadeiras de encaixe.",
+      "aSavoir": "Comprar no mesmo diâmetro do tubo (16, 20 ou 25).",
+      "conditionnement": "À unidade ou em sacos de 5 e 10 unidades",
+      "recherche": "curva VD",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "calha-tecnica",
+      "famille": "eletricidade",
+      "sousFamille": "tubos-calhas",
+      "nom": "Calha técnica e acessórios (ângulos, topos, derivações)",
+      "aussiAppele": [
+        "calha de PVC",
+        "calha elétrica",
+        "calha adesiva",
+        "calha para cabos",
+        "ângulo de calha",
+        "canto de calha",
+        "topo de calha",
+        "derivação de calha"
+      ],
+      "usage": "Calha de PVC com tampa para passar cabos à vista sem abrir roços, em paredes, rodapés e tetos, com as peças de remate: ângulos planos, interiores e exteriores, juntas, derivações e topos.",
+      "aSavoir": "Em paredes irregulares ou com tinta fraca o adesivo acaba por descolar: fixar também com parafusos ou cola de montagem. Os ângulos e topos têm de ser da mesma medida e do mesmo fabricante da calha, senão não encaixam.",
+      "conditionnement": "Varas de 2 ou 2,10 m; de 12x7 até 110x50 mm; acessórios à unidade ou em sacos",
+      "recherche": "calha técnica",
+      "rechercheEnseigne": {
+        "maxmat": "ângulo de calha"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "caixa-aparelhagem",
+      "famille": "eletricidade",
+      "sousFamille": "caixas",
+      "nom": "Caixa de aparelhagem de embutir",
+      "aussiAppele": [
+        "caixa de tomada",
+        "caixa de interruptor",
+        "caixa de encastrar",
+        "caixa funda",
+        "caixa redonda"
+      ],
+      "usage": "Caixa que se chumba na parede de alvenaria para receber a tomada ou o interruptor.",
+      "aSavoir": "Usar a caixa funda quando há ligações ou derivações atrás do aparelho. Chumbar à face do reboco acabado e bem nivelada.",
+      "conditionnement": "À unidade; simples, funda e de aplique",
+      "recherche": "caixa aparelhagem",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "caixa-aparelhagem-placa-gesso",
+      "famille": "eletricidade",
+      "sousFamille": "caixas",
+      "nom": "Caixa de aparelhagem para placa de gesso",
+      "aussiAppele": [
+        "caixa para pladur",
+        "caixa de gesso cartonado",
+        "caixa com garras",
+        "caixa de parede oca"
+      ],
+      "usage": "Caixa com garras que se prende em paredes de placa de gesso cartonado para montar tomadas e interruptores.",
+      "aSavoir": "O furo faz-se com serra craniana; a caixa prende-se à placa apertando os parafusos das garras, sem gesso.",
+      "conditionnement": "À unidade; profundidade 40 ou 50 mm, simples ou dupla",
+      "recherche": "caixa placa de gesso",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "caixa-derivacao-encastrar",
+      "famille": "eletricidade",
+      "sousFamille": "caixas",
+      "nom": "Caixa de derivação de embutir com tampa",
+      "aussiAppele": [
+        "caixa de ligações",
+        "caixa de passagem",
+        "caixa de derivação 100x100",
+        "caixa de encastrar com tampa"
+      ],
+      "usage": "Caixa embutida na parede onde se fazem as ligações e derivações entre circuitos.",
+      "aSavoir": "A tampa tem de ficar acessível: não tapar com massa, azulejo ou móveis fixos.",
+      "conditionnement": "À unidade; 100x100 e 100x180 mm",
+      "recherche": "caixa derivação",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "caixa-estanque",
+      "famille": "eletricidade",
+      "sousFamille": "caixas",
+      "nom": "Caixa estanque saliente",
+      "aussiAppele": [
+        "caixa estanque com boquilhas",
+        "caixa de exterior",
+        "caixa IP",
+        "caixa com bucins"
+      ],
+      "usage": "Caixa de derivação saliente para exteriores, garagens, caves e zonas húmidas, com entradas por boquilhas ou bucins.",
+      "aSavoir": "Abrir só as entradas necessárias e, sempre que possível, entrar com os cabos por baixo para a água não escorrer para dentro.",
+      "conditionnement": "À unidade; de 65x65 a 150x115 mm, redonda ou quadrada",
+      "recherche": "caixa estanque",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "caixa-derivacao-saliente-bornes",
+      "famille": "eletricidade",
+      "sousFamille": "caixas",
+      "nom": "Caixa de derivação saliente com bornes",
+      "aussiAppele": [
+        "caixa de derivação pequena",
+        "caixa de ligação com bornes",
+        "caixa de superfície"
+      ],
+      "usage": "Pequena caixa saliente, já com bornes, para derivar ou emendar um circuito em instalações à vista com calha.",
+      "aSavoir": "Só para interior seco.",
+      "conditionnement": "À unidade; 45x45 a 70x70 mm",
+      "recherche": "caixa derivação bornes",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "tomada-schuko-encastrar",
+      "famille": "eletricidade",
+      "sousFamille": "aparelhagem",
+      "nom": "Tomada schuko de embutir (2P+T)",
+      "aussiAppele": [
+        "tomada com terra",
+        "tomada de parede",
+        "tomada 16 A",
+        "tomada schuco",
+        "tomada dupla"
+      ],
+      "usage": "Tomada de corrente com terra para embutir na caixa de aparelhagem, simples ou dupla.",
+      "aSavoir": "Em várias séries o mecanismo (centro) e o espelho vendem-se em separado e têm de ser da mesma série. Ligar sempre o condutor de terra.",
+      "conditionnement": "À unidade ou em packs",
+      "recherche": "tomada schuko",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "interruptor-unipolar",
+      "famille": "eletricidade",
+      "sousFamille": "aparelhagem",
+      "nom": "Interruptor simples (unipolar)",
+      "aussiAppele": [
+        "interruptor de luz",
+        "interruptor de parede",
+        "interruptor de embutir"
+      ],
+      "usage": "Liga e desliga um ponto de luz a partir de um só local.",
+      "aSavoir": "O interruptor corta a fase, nunca o neutro.",
+      "conditionnement": "À unidade ou em packs",
+      "recherche": "interruptor simples",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "comutador-escada",
+      "famille": "eletricidade",
+      "sousFamille": "aparelhagem",
+      "nom": "Comutador de escada",
+      "aussiAppele": [
+        "comutador",
+        "interruptor de escada",
+        "vaivém",
+        "comutador de escada duplo"
+      ],
+      "usage": "Comanda a mesma luz a partir de dois locais (corredores, escadas, quartos com duas entradas). Usam-se dois comutadores.",
+      "aSavoir": "Para comandar de três ou mais locais é preciso intercalar um inversor de grupo entre os dois comutadores.",
+      "conditionnement": "À unidade ou em packs",
+      "recherche": "comutador de escada",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "comutador-lustre",
+      "famille": "eletricidade",
+      "sousFamille": "aparelhagem",
+      "nom": "Comutador de lustre",
+      "aussiAppele": [
+        "interruptor duplo",
+        "interruptor de duas teclas",
+        "comutador duplo"
+      ],
+      "usage": "Aparelho de duas teclas que comanda dois circuitos de luz a partir do mesmo local (por exemplo, duas séries de lâmpadas do mesmo candeeiro).",
+      "conditionnement": "À unidade",
+      "recherche": "comutador de lustre",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "botao-pressao",
+      "famille": "eletricidade",
+      "sousFamille": "aparelhagem",
+      "nom": "Botão de pressão",
+      "aussiAppele": [
+        "botão de campainha",
+        "pulsador",
+        "botão de escada",
+        "botão luminoso"
+      ],
+      "usage": "Botão de contacto momentâneo para campainhas, automáticos de escada e telerruptores.",
+      "aSavoir": "Não é um interruptor: só fecha o contacto enquanto se carrega.",
+      "conditionnement": "À unidade",
+      "recherche": "botão de pressão",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "comutador-estores",
+      "famille": "eletricidade",
+      "sousFamille": "aparelhagem",
+      "nom": "Comutador de estores",
+      "aussiAppele": [
+        "comutador de persiana",
+        "interruptor de estore",
+        "botão de estores elétricos",
+        "interruptor sobe e desce"
+      ],
+      "usage": "Comando de parede de sobe e desce para estores e persianas elétricos.",
+      "conditionnement": "À unidade",
+      "recherche": "comutador persiana",
+      "rechercheEnseigne": {
+        "leroy-merlin": "interruptor de estore"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "espelho-aparelhagem",
+      "famille": "eletricidade",
+      "sousFamille": "aparelhagem",
+      "nom": "Espelho (quadro) de aparelhagem",
+      "aussiAppele": [
+        "espelho de tomada",
+        "espelho de interruptor",
+        "quadro simples",
+        "quadro duplo",
+        "moldura",
+        "aro"
+      ],
+      "usage": "Moldura de acabamento das tomadas e interruptores de embutir: simples, dupla ou tripla, horizontal ou vertical.",
+      "aSavoir": "Tem de ser da mesma marca e série do mecanismo, senão não encaixa.",
+      "conditionnement": "À unidade",
+      "recherche": "espelho aparelhagem",
+      "rechercheEnseigne": {
+        "maxmat": "espelho simples"
+      },
+      "enseignes": [
+        "maxmat"
+      ]
+    },
+    {
+      "id": "aparelhagem-saliente",
+      "famille": "eletricidade",
+      "sousFamille": "aparelhagem",
+      "nom": "Tomadas e interruptores salientes",
+      "aussiAppele": [
+        "tomada de superfície",
+        "interruptor saliente",
+        "tomada exterior à parede",
+        "aparelhagem de sobrepor"
+      ],
+      "usage": "Tomadas e interruptores que se aparafusam por cima da parede, sem caixa embutida, para instalações com calha ou tubo à vista.",
+      "conditionnement": "À unidade ou em packs",
+      "recherche": "tomada saliente",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "aparelhagem-estanque",
+      "famille": "eletricidade",
+      "sousFamille": "aparelhagem",
+      "nom": "Tomadas e interruptores estanques (IP44 a IP65)",
+      "aussiAppele": [
+        "tomada estanque",
+        "tomada de exterior",
+        "interruptor estanque",
+        "tomada com tampa",
+        "tomada IP54"
+      ],
+      "usage": "Tomadas e interruptores com tampa e vedação para exteriores, garagens, lavandarias e outras zonas húmidas.",
+      "aSavoir": "A estanquidade só se mantém se os cabos entrarem pelos bucins ou boquilhas próprios e a tampa ficar fechada.",
+      "conditionnement": "À unidade",
+      "recherche": "tomada estanque",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "tomada-tv",
+      "famille": "eletricidade",
+      "sousFamille": "aparelhagem",
+      "nom": "Tomada de TV / rádio / satélite",
+      "aussiAppele": [
+        "tomada de antena",
+        "tomada coaxial",
+        "tomada TV-R-SAT",
+        "tomada de televisão"
+      ],
+      "usage": "Tomada de parede para ligar o televisor ou o recetor ao cabo coaxial da instalação.",
+      "aSavoir": "Há tomadas de passagem e tomadas finais (terminais): escolher conforme a forma como o cabo coaxial foi distribuído.",
+      "conditionnement": "À unidade",
+      "recherche": "tomada TV",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "tomada-rj45",
+      "famille": "eletricidade",
+      "sousFamille": "aparelhagem",
+      "nom": "Tomada de rede RJ45",
+      "aussiAppele": [
+        "tomada de internet",
+        "tomada de dados",
+        "tomada ethernet",
+        "tomada Cat6"
+      ],
+      "usage": "Tomada de parede onde termina o cabo de rede UTP, para ligar computadores, televisores e routers.",
+      "aSavoir": "Usar tomada da mesma categoria do cabo (Cat 5e ou Cat 6).",
+      "conditionnement": "À unidade",
+      "recherche": "tomada RJ45",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "sensor-movimento",
+      "famille": "eletricidade",
+      "sousFamille": "aparelhagem",
+      "nom": "Sensor de movimento",
+      "aussiAppele": [
+        "detetor de movimento",
+        "detetor de presença",
+        "sensor de presença",
+        "sensor 360"
+      ],
+      "usage": "Acende a luz automaticamente quando deteta movimento, em corredores, escadas, garagens e entradas.",
+      "aSavoir": "Modelos de 180° para parede e de 360° para teto, salientes ou de encastrar. Confirmar a carga máxima admitida com lâmpadas LED.",
+      "conditionnement": "À unidade",
+      "recherche": "sensor movimento",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "ligador-rapido",
+      "famille": "eletricidade",
+      "sousFamille": "ligadores-isolamento",
+      "nom": "Ligadores rápidos",
+      "aussiAppele": [
+        "wago",
+        "ligador de mola",
+        "ligador de patilha",
+        "conector rápido",
+        "bornes rápidos"
+      ],
+      "usage": "Ligam dois a cinco condutores sem parafusos, dentro de caixas de derivação e de aparelhagem.",
+      "aSavoir": "Os de encaixe direto são só para fio rígido; para fio flexível usar os de patilha. Descarnar o fio ao comprimento marcado no ligador.",
+      "conditionnement": "Caixas de 5 a 20 unidades; 2, 3, 4 ou 5 entradas",
+      "recherche": "ligador rápido",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "barra-juncao",
+      "famille": "eletricidade",
+      "sousFamille": "ligadores-isolamento",
+      "nom": "Barra de junção",
+      "aussiAppele": [
+        "ligador de barra",
+        "régua de junção",
+        "bornes de parafuso",
+        "barra de ligadores"
+      ],
+      "usage": "Régua de bornes de parafuso que se corta ao número de ligações necessário, para emendar fios e ligar candeeiros.",
+      "aSavoir": "Escolher a barra pela secção do fio (4, 6 ou 10 mm²) e reapertar bem os parafusos. A ligação fica sempre dentro de uma caixa ou do corpo do candeeiro.",
+      "conditionnement": "Barra de 12 bornes; branca ou preta",
+      "recherche": "barra de junção",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "fita-isoladora",
+      "famille": "eletricidade",
+      "sousFamille": "ligadores-isolamento",
+      "nom": "Fita isoladora",
+      "aussiAppele": [
+        "fita de eletricista",
+        "fita preta",
+        "fita de PVC",
+        "fita isolante"
+      ],
+      "usage": "Fita de PVC para isolar e identificar condutores e proteger pequenas ligações.",
+      "aSavoir": "Não substitui um ligador: fios torcidos e enrolados em fita não são uma ligação segura.",
+      "conditionnement": "Rolo de cerca de 15-19 mm x 10 m; várias cores",
+      "recherche": "fita isoladora",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "manga-termorretratil",
+      "famille": "eletricidade",
+      "sousFamille": "ligadores-isolamento",
+      "nom": "Manga termorretrátil",
+      "aussiAppele": [
+        "tubo termorretrátil",
+        "manga termo retrátil",
+        "manga de calor"
+      ],
+      "usage": "Manga que encolhe com calor e isola e protege emendas e terminais de cabos.",
+      "aSavoir": "Enfiar a manga no cabo antes de fazer a ligação. Encolhe para cerca de metade do diâmetro, por isso escolher uma medida pouco acima da do cabo.",
+      "conditionnement": "Troço de 2 m ou saqueta de várias unidades; 3,2 a 9,5 mm",
+      "recherche": "manga termorretrátil",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "terminais-cravar",
+      "famille": "eletricidade",
+      "sousFamille": "ligadores-isolamento",
+      "nom": "Terminais de cravar",
+      "aussiAppele": [
+        "terminais isolados",
+        "terminais de olhal",
+        "terminais faston",
+        "ponteiras",
+        "terminais de forquilha"
+      ],
+      "usage": "Terminais que se cravam na ponta dos fios flexíveis para os ligar a bornes, parafusos e aparelhos.",
+      "aSavoir": "Cravar com alicate próprio, não com alicate universal. A cor do isolamento indica a secção do fio (vermelho, azul, amarelo).",
+      "conditionnement": "Caixa de terminais sortidos",
+      "recherche": "terminais elétricos",
+      "rechercheEnseigne": {
+        "maxmat": "terminais"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "abracadeira-prego-cabo",
+      "famille": "eletricidade",
+      "sousFamille": "ligadores-isolamento",
+      "nom": "Abraçadeiras com prego para cabo",
+      "aussiAppele": [
+        "grampos de cabo",
+        "pregos de cabo",
+        "abraçadeira de prego",
+        "grampos com prego"
+      ],
+      "usage": "Fixam cabos à vista ao longo de paredes, rodapés e aros de porta, pregando diretamente.",
+      "aSavoir": "Escolher pela medida do cabo (5, 6 ou 8 mm). Não esmagar o cabo ao pregar.",
+      "conditionnement": "Caixa de 100 unidades",
+      "recherche": "abraçadeira com prego",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "quadro-eletrico",
+      "famille": "eletricidade",
+      "sousFamille": "quadro-protecao",
+      "nom": "Quadro elétrico (saliente ou de encastrar)",
+      "aussiAppele": [
+        "quadro de disjuntores",
+        "caixa de disjuntores",
+        "quadro de distribuição",
+        "quadro modular",
+        "quadro estanque"
+      ],
+      "usage": "Caixa com calha DIN onde se montam os disjuntores e os diferenciais da habitação ou de um anexo.",
+      "aSavoir": "Escolher pelo número de módulos e deixar lugares de reserva para circuitos futuros. Para exterior ou zonas húmidas, usar quadro estanque.",
+      "conditionnement": "À unidade; de 2 a 12 módulos ou mais",
+      "recherche": "quadro elétrico",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "disjuntor",
+      "famille": "eletricidade",
+      "sousFamille": "quadro-protecao",
+      "nom": "Disjuntor modular",
+      "aussiAppele": [
+        "disjuntor 16 A",
+        "disjuntor magnetotérmico",
+        "disjuntor unipolar",
+        "disjuntor tripolar"
+      ],
+      "usage": "Protege cada circuito contra sobrecargas e curtos-circuitos; monta-se no quadro, em calha DIN.",
+      "aSavoir": "O calibre escolhe-se pela secção do fio do circuito: habitualmente 10 A para 1,5 mm² (iluminação) e 16 A para 2,5 mm² (tomadas). Nunca subir o calibre para o disjuntor deixar de disparar.",
+      "conditionnement": "À unidade; 6, 10, 16, 20, 25 e 32 A; 1 ou 3 polos",
+      "recherche": "disjuntor",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "interruptor-diferencial",
+      "famille": "eletricidade",
+      "sousFamille": "quadro-protecao",
+      "nom": "Interruptor diferencial",
+      "aussiAppele": [
+        "diferencial",
+        "disjuntor diferencial",
+        "diferencial 30 mA",
+        "interrutor diferencial"
+      ],
+      "usage": "Corta a corrente quando deteta uma fuga à terra; protege as pessoas contra choques elétricos.",
+      "aSavoir": "Para proteção de pessoas usa-se o de 30 mA; o de 300 mA não protege contra choque direto. Testar periodicamente no botão de teste.",
+      "conditionnement": "À unidade; 2 polos, 25 ou 40 A, 30 ou 300 mA",
+      "recherche": "interruptor diferencial",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "pente-ligacao-disjuntores",
+      "famille": "eletricidade",
+      "sousFamille": "quadro-protecao",
+      "nom": "Pente de ligação para disjuntores",
+      "aussiAppele": [
+        "pente de disjuntores",
+        "barramento",
+        "pente unipolar",
+        "barra de ligação do quadro"
+      ],
+      "usage": "Barra que alimenta de uma só vez vários disjuntores alinhados no quadro, em vez de pontes de fio.",
+      "aSavoir": "Corta-se à medida do número de disjuntores; as pontas cortadas têm de ficar protegidas.",
+      "conditionnement": "À unidade; unipolar, para 13 módulos",
+      "recherche": "pente disjuntores",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "eletrodo-terra",
+      "famille": "eletricidade",
+      "sousFamille": "quadro-protecao",
+      "nom": "Elétrodo de terra (vareta)",
+      "aussiAppele": [
+        "vareta de terra",
+        "piquet de terra",
+        "estaca de terra",
+        "haste de terra"
+      ],
+      "usage": "Vareta que se crava no solo para fazer a ligação à terra da instalação.",
+      "aSavoir": "O condutor de terra liga-se à vareta com a abraçadeira própria, vendida à parte.",
+      "conditionnement": "À unidade; 1,5 m",
+      "recherche": "elétrodo terra",
+      "enseignes": [
+        "maxmat"
+      ]
+    },
+    {
+      "id": "ficha-schuko",
+      "famille": "eletricidade",
+      "sousFamille": "fichas-interruptores-cabo",
+      "nom": "Ficha schuko para montar em cabo (macho ou fêmea)",
+      "aussiAppele": [
+        "ficha macho",
+        "ficha fêmea",
+        "ficha de 16 A",
+        "ficha com terra",
+        "ficha de borracha",
+        "tomada móvel"
+      ],
+      "usage": "Substitui a ficha estragada de um aparelho ou serve para fazer e reparar extensões.",
+      "aSavoir": "Ligar sempre o condutor de terra (verde/amarelo) ao borne marcado com o símbolo de terra e apertar o cerra-cabos sobre a bainha. Para obra e exterior, usar as de borracha.",
+      "conditionnement": "À unidade; branca ou preta",
+      "recherche": "ficha schuko",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "pera-passagem",
+      "famille": "eletricidade",
+      "sousFamille": "fichas-interruptores-cabo",
+      "nom": "Interruptor de passagem (pera)",
+      "aussiAppele": [
+        "pêra de passagem",
+        "interruptor de fio",
+        "interruptor de candeeiro",
+        "interruptor de cabo"
+      ],
+      "usage": "Interruptor que se intercala no cabo de candeeiros de mesa e de pé.",
+      "conditionnement": "À unidade; branco ou preto",
+      "recherche": "pêra de passagem",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "suporte-lampada-e27-e14",
+      "famille": "eletricidade",
+      "sousFamille": "casquilhos",
+      "nom": "Suporte de lâmpada E27 / E14",
+      "aussiAppele": [
+        "casquilho E27",
+        "casquilho E14",
+        "bocal de lâmpada",
+        "suporte com aro",
+        "casquilho de porcelana",
+        "suspensão simples"
+      ],
+      "usage": "Suporte roscado para lâmpadas de rosca grossa (E27) ou fina (E14), para reparar candeeiros ou fazer pontos de luz provisórios.",
+      "aSavoir": "A fase liga-se ao contacto central do suporte e o neutro à rosca. Em luminárias que aquecem muito, preferir porcelana.",
+      "conditionnement": "À unidade; plástico ou porcelana",
+      "recherche": "suporte lâmpada E27",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "casquilho-gu10",
+      "famille": "eletricidade",
+      "sousFamille": "casquilhos",
+      "nom": "Casquilho GU10",
+      "aussiAppele": [
+        "suporte GU10",
+        "casquilho de foco",
+        "ligador GU10",
+        "casquilho com fios"
+      ],
+      "usage": "Casquilho com fios para lâmpadas GU10 de 230 V em focos de encastrar.",
+      "aSavoir": "Não confundir com o casquilho G5.3 das lâmpadas de 12 V, que precisam de transformador.",
+      "conditionnement": "À unidade",
+      "recherche": "casquilho GU10",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "extrator-casa-de-banho",
+      "famille": "eletricidade",
+      "sousFamille": "aparelhagem",
+      "nom": "Extrator de ar para casa de banho",
+      "aussiAppele": [
+        "ventilador de extração",
+        "exaustor de casa de banho",
+        "extrator de parede ou de teto"
+      ],
+      "usage": "Tira o vapor da casa de banho ou da cozinha para o exterior ou para a conduta, travando a condensação que alimenta o bolor.",
+      "aSavoir": "Escolher pelo diâmetro da saída da conduta e com proteção adequada à zona da casa de banho onde fica. Há modelos com temporizador ou sensor de humidade. A ligação elétrica é trabalho de técnico habilitado.",
+      "conditionnement": "Unidade",
+      "recherche": "extrator casa de banho",
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    },
+    {
+      "id": "guia-passa-cabos",
+      "famille": "eletricidade",
+      "sousFamille": "tubos-calhas",
+      "nom": "Guia passa-cabos (sonda)",
+      "aussiAppele": [
+        "sonda passa-fios",
+        "fita guia para tubos",
+        "puxa-fios",
+        "guia de nylon"
+      ],
+      "usage": "Enfiar fios em tubo VD ou em tubo anelado sem guia já montados.",
+      "aSavoir": "Prender os fios à ponta escalonados e envolvidos em fita isoladora, para não engatarem nas curvas; um tubo demasiado cheio não deixa passar mais fios.",
+      "conditionnement": "Rolo, em vários comprimentos",
+      "recherche": "guia passa cabos",
+      "rechercheEnseigne": {
+        "maxmat": "guia de nylon"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    }
+  ]
+}

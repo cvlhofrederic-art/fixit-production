@@ -1,0 +1,623 @@
+{
+  "famille": {
+    "id": "ceramica-colas-juntas",
+    "nom": "Assentamento de cerâmica: colas, betumes e acessórios",
+    "description": "Tudo o que o ladrilhador precisa para assentar azulejo, mosaico e grés: cimentos-cola, betumes de juntas, cruzetas e niveladores, perfis de remate e as ferramentas de corte, furação e betumação.",
+    "icone": "🟦",
+    "sousFamilles": [
+      {
+        "id": "cimentos-cola",
+        "nom": "Cimentos-cola e colas em pasta",
+        "description": "Colas para assentar cerâmica e pedra, escolhidas pelo tipo de peça, pelo suporte e pelo local (interior, exterior, piscina)."
+      },
+      {
+        "id": "betumes-juntas",
+        "nom": "Betumes e argamassas de juntas",
+        "description": "Produtos para preencher as juntas entre peças: cimentícios de junta fina ou larga e epóxi."
+      },
+      {
+        "id": "cruzetas-nivelamento",
+        "nom": "Cruzetas, cunhas, nivelamento e apoios",
+        "description": "Acessórios que garantem juntas regulares e peças ao mesmo nível durante o assentamento, e apoios para lajetas assentes em seco."
+      },
+      {
+        "id": "perfis-remate-ceramica",
+        "nom": "Perfis de remate e cantos",
+        "description": "Perfis em PVC, alumínio e inox para rematar arestas, cantos, degraus e juntas de pavimento cerâmico."
+      },
+      {
+        "id": "corte-furacao-ceramica",
+        "nom": "Corte e furação de cerâmica",
+        "description": "Cortadores manuais e elétricos, discos diamantados e brocas para azulejo."
+      },
+      {
+        "id": "ferramentas-ladrilhador",
+        "nom": "Ferramentas de aplicação e betumação",
+        "description": "Talochas dentadas, espátulas, esponjas e restantes ferramentas de mão do ladrilhador."
+      }
+    ]
+  },
+  "materiaux": [
+    {
+      "id": "cimento-cola-normal-interior",
+      "famille": "ceramica-colas-juntas",
+      "sousFamille": "cimentos-cola",
+      "nom": "Cimento-cola normal (interior)",
+      "aussiAppele": [
+        "cimento cola clássico",
+        "cimento cola cinzento",
+        "cimento cola branco",
+        "cola de azulejo",
+        "cimento cola de interiores"
+      ],
+      "usage": "Colagem de azulejo e mosaico cerâmico de pequeno e médio formato, de média e alta absorção, em paredes e pavimentos interiores sobre reboco ou betonilha.",
+      "aSavoir": "Só para interior e peças porosas. Não usar em grés porcelânico, grandes formatos, exterior nem sobre azulejo antigo: nesses casos usar cimento-cola flexível.",
+      "conditionnement": "Saco de 5 kg ou 25 kg, cinzento ou branco",
+      "recherche": "cimento cola",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cimento-cola-flexivel",
+      "famille": "ceramica-colas-juntas",
+      "sousFamille": "cimentos-cola",
+      "nom": "Cimento-cola flexível (interior e exterior)",
+      "aussiAppele": [
+        "cimento cola flex",
+        "cimento cola para exterior",
+        "cimento cola para porcelânico",
+        "cola flexível para cerâmica",
+        "cimento cola branco flexível"
+      ],
+      "usage": "Colagem de cerâmica de baixa absorção (grés, porcelânico) e pedra, no interior e no exterior, e sobreposição de cerâmica nova sobre cerâmica antiga.",
+      "aSavoir": "Em peças grandes e no exterior, fazer colagem dupla (cola no suporte e no tardoz da peça) e respeitar as juntas de dilatação.",
+      "conditionnement": "Saco de 5 kg, 20 kg ou 25 kg, cinzento ou branco",
+      "recherche": "cimento cola flexível",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cimento-cola-grandes-formatos",
+      "famille": "ceramica-colas-juntas",
+      "sousFamille": "cimentos-cola",
+      "nom": "Cimento-cola flexível para grandes formatos",
+      "aussiAppele": [
+        "cimento cola grande formato",
+        "cimento cola deformável",
+        "cimento cola para fachada",
+        "cimento cola para piso radiante"
+      ],
+      "usage": "Colagem de cerâmica, pedra natural e mosaico hidráulico de grande formato em pavimentos, paredes e fachadas, incluindo pavimento radiante e sobre impermeabilizações.",
+      "aSavoir": "Usar talocha de dente largo e colagem dupla. Confirmar na ficha do produto o formato máximo da peça e as condições para fachada.",
+      "conditionnement": "Saco de 25 kg",
+      "recherche": "cimento cola grandes formatos",
+      "enseignes": [
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cimento-cola-aligeirado",
+      "famille": "ceramica-colas-juntas",
+      "sousFamille": "cimentos-cola",
+      "nom": "Cimento-cola flexível aligeirado (leve)",
+      "aussiAppele": [
+        "cimento cola leve",
+        "cimento cola aligeirado",
+        "cimento cola flexível leve"
+      ],
+      "usage": "Cimento-cola flexível com cargas leves para cerâmica e pedra, em interior e exterior. O saco é mais leve de transportar, o que ajuda em remodelações e andares sem elevador.",
+      "conditionnement": "Saco de 12,5 kg",
+      "recherche": "cimento cola leve",
+      "rechercheEnseigne": {
+        "maxmat": "cimento cola"
+      },
+      "enseignes": [
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cimento-cola-secagem-rapida",
+      "famille": "ceramica-colas-juntas",
+      "sousFamille": "cimentos-cola",
+      "nom": "Cimento-cola de secagem rápida",
+      "aussiAppele": [
+        "cimento cola rápido",
+        "cimento cola de presa rápida",
+        "cola rápida para azulejo"
+      ],
+      "usage": "Reparações e pequenas áreas, em interior e exterior, quando é preciso betumar e voltar a usar a zona rapidamente (peças soltas, degraus, zonas de passagem).",
+      "aSavoir": "Tempo de trabalho curto: amassar só a quantidade que se aplica de seguida.",
+      "conditionnement": "Saco de 5 kg",
+      "recherche": "cimento cola secagem rápida",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cimento-cola-piscinas",
+      "famille": "ceramica-colas-juntas",
+      "sousFamille": "cimentos-cola",
+      "nom": "Cimento-cola para piscinas",
+      "aussiAppele": [
+        "cimento cola piscina",
+        "cola para pastilha de piscina",
+        "cimento cola para mosaico de vidro",
+        "cimento cola para imersão"
+      ],
+      "usage": "Colagem de pastilha, mosaico de vidro e cerâmica em piscinas, tanques e zonas em imersão permanente.",
+      "aSavoir": "Respeitar o tempo de cura indicado no saco antes de betumar e antes de encher a piscina.",
+      "conditionnement": "Saco de 5 kg ou 25 kg, branco",
+      "recherche": "cimento cola piscina",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cola-pasta-ceramica",
+      "famille": "ceramica-colas-juntas",
+      "sousFamille": "cimentos-cola",
+      "nom": "Cola em pasta para cerâmica (pronta a usar)",
+      "aussiAppele": [
+        "pasta adesiva",
+        "cola pronta para azulejo",
+        "cola de azulejo em balde",
+        "adesivo em dispersão"
+      ],
+      "usage": "Colagem de azulejo em paredes interiores, pronta a aplicar sem amassar. Prática em pequenas reparações e sobre gesso cartonado ou estuque.",
+      "aSavoir": "Só paredes interiores: não usar em pavimentos, no exterior nem em zonas em imersão. Seca por evaporação, por isso não é indicada para peças grandes e pouco absorventes sobre suporte não absorvente.",
+      "conditionnement": "Balde de 8 kg ou 25 kg",
+      "recherche": "pasta adesiva cerâmica",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "betume-juntas-tapa-juntas",
+      "famille": "ceramica-colas-juntas",
+      "sousFamille": "betumes-juntas",
+      "nom": "Betume para juntas (tapa-juntas) de acabamento fino",
+      "aussiAppele": [
+        "tapa-juntas",
+        "argamassa de juntas",
+        "betume de azulejo",
+        "massa de juntas",
+        "betume de cor"
+      ],
+      "usage": "Preenchimento das juntas entre azulejos e mosaicos em paredes e pavimentos, no interior e no exterior, depois de a cola ter secado.",
+      "aSavoir": "Confirmar no saco a largura de junta admitida. Limpar o excesso com esponja húmida antes de endurecer. As cores escuras podem manchar peças porosas: testar primeiro numa peça.",
+      "conditionnement": "Saco de 1 kg ou 5 kg; branco, cinza, bege, antracite e outras cores",
+      "recherche": "tapa juntas",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "betume-juntas-largas",
+      "famille": "ceramica-colas-juntas",
+      "sousFamille": "betumes-juntas",
+      "nom": "Betume para juntas largas (5 a 20 mm)",
+      "aussiAppele": [
+        "tapa-juntas flex",
+        "betume flexível",
+        "argamassa de juntas largas",
+        "junta larga"
+      ],
+      "usage": "Betumação de juntas de 5 a 20 mm em paredes e pavimentos, no interior e no exterior, em cerâmica e pedra natural (grés rústico, tijoleira, pavimentos exteriores).",
+      "aSavoir": "Não serve para juntas finas abaixo de 5 mm. As juntas de dilatação e os encontros com paredes e loiças fecham-se com mástique elástico, não com betume.",
+      "conditionnement": "Saco de 5 kg",
+      "recherche": "tapa juntas flex",
+      "enseignes": [
+        "maxmat"
+      ]
+    },
+    {
+      "id": "betume-juntas-epoxi",
+      "famille": "ceramica-colas-juntas",
+      "sousFamille": "betumes-juntas",
+      "nom": "Betume epóxi para juntas (bicomponente)",
+      "aussiAppele": [
+        "junta epóxi",
+        "betume epoxídico",
+        "argamassa epóxi",
+        "junta epoxi para piscina"
+      ],
+      "usage": "Betumação e colagem em locais de elevada exigência: piscinas, zonas sujeitas a ataque químico ou tráfego intenso, em pavimentos e paredes, interior e exterior.",
+      "aSavoir": "Misturar os dois componentes por inteiro e limpar logo a seguir à aplicação: depois de endurecido já não sai. Aguardar cerca de 7 dias antes de imersão em água (confirmar na embalagem).",
+      "conditionnement": "Embalagem de 5 kg (resina e endurecedor)",
+      "recherche": "junta epóxi",
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    },
+    {
+      "id": "cruzetas-azulejo",
+      "famille": "ceramica-colas-juntas",
+      "sousFamille": "cruzetas-nivelamento",
+      "nom": "Cruzetas para azulejo (2 a 8 mm)",
+      "aussiAppele": [
+        "cruzetas",
+        "espaçadores de azulejo",
+        "cruzetas de ladrilhador",
+        "separadores de juntas"
+      ],
+      "usage": "Mantêm a largura de junta constante entre peças durante o assentamento de azulejo e mosaico.",
+      "aSavoir": "Retirar antes de betumar: não deixar as cruzetas afogadas na junta.",
+      "conditionnement": "Saco, até 500 unidades; 2 / 2,5 / 3 / 4 / 5 / 8 mm",
+      "recherche": "cruzetas azulejo",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cunhas-ladrilhador",
+      "famille": "ceramica-colas-juntas",
+      "sousFamille": "cruzetas-nivelamento",
+      "nom": "Cunhas de ladrilhador",
+      "aussiAppele": [
+        "cunhas para azulejo",
+        "cunhas plásticas",
+        "calços de ladrilhador"
+      ],
+      "usage": "Calçar e acertar a primeira fiada de azulejo na parede e ajustar juntas irregulares.",
+      "conditionnement": "Saco de 500 unidades",
+      "recherche": "cunhas ladrilhador",
+      "enseignes": [
+        "maxmat"
+      ]
+    },
+    {
+      "id": "sistema-nivelamento-ceramica",
+      "famille": "ceramica-colas-juntas",
+      "sousFamille": "cruzetas-nivelamento",
+      "nom": "Sistema de nivelamento para cerâmica (distanciadores e cunhas)",
+      "aussiAppele": [
+        "niveladores de azulejo",
+        "clipes niveladores",
+        "distanciador nivelador",
+        "cunhas de nivelamento",
+        "sistema nivelador"
+      ],
+      "usage": "Evita ressaltos entre peças em pavimentos e revestimentos de médio e grande formato: o distanciador fica sob as peças e a cunha aperta-as ao mesmo nível até a cola endurecer.",
+      "aSavoir": "Os distanciadores são descartáveis (partem-se pelo pé depois de a cola secar); as cunhas reutilizam-se. Escolher o distanciador pela largura de junta (1, 2 ou 3 mm).",
+      "conditionnement": "Distanciadores (1, 2 ou 3 mm) e cunhas vendidos em separado",
+      "recherche": "distanciador nivelador",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "apoio-fixo-lajetas-pavimento",
+      "famille": "ceramica-colas-juntas",
+      "sousFamille": "cruzetas-nivelamento",
+      "nom": "Apoio fixo para lajetas de pavimento exterior",
+      "aussiAppele": [
+        "plots para pavimento",
+        "suportes para lajetas",
+        "apoios para placas de pavimento",
+        "pavimento sobrelevado"
+      ],
+      "usage": "Assentar lajetas e placas cerâmicas de exterior em seco, sobre terraços e coberturas planas, com junta aberta e ventilação por baixo.",
+      "aSavoir": "Altura fixa (cerca de 1,4 cm): não corrige desníveis do suporte.",
+      "conditionnement": "À unidade, em PVC",
+      "recherche": "apoio placas pavimento",
+      "rechercheEnseigne": {
+        "leroy-merlin": "suportes para lajetas"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "perfil-remate-pvc-azulejo",
+      "famille": "ceramica-colas-juntas",
+      "sousFamille": "perfis-remate-ceramica",
+      "nom": "Perfil de remate em PVC para azulejo (6 a 12,5 mm)",
+      "aussiAppele": [
+        "perfil de canto PVC",
+        "remate de azulejo",
+        "perfil de esquina",
+        "cantoneira de azulejo",
+        "perfil PVC para cerâmica"
+      ],
+      "usage": "Remata e protege as arestas e os cantos exteriores do azulejo em paredes (esquinas, nichos, topos de lambrim).",
+      "aSavoir": "Escolher a altura do perfil igual ou ligeiramente superior à espessura do azulejo. Assenta-se na cola juntamente com a peça.",
+      "conditionnement": "Vara de 2,6 m; branco, marfim, bege, cinza ou preto",
+      "recherche": "perfil PVC azulejo",
+      "rechercheEnseigne": {
+        "maxmat": "perfil PVC"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "perfil-remate-aluminio-azulejo",
+      "famille": "ceramica-colas-juntas",
+      "sousFamille": "perfis-remate-ceramica",
+      "nom": "Perfil de remate em alumínio para azulejo (8 a 12,5 mm)",
+      "aussiAppele": [
+        "perfil de alumínio para cerâmica",
+        "perfil quadrado",
+        "perfil em L",
+        "perfil arredondado",
+        "remate de alumínio"
+      ],
+      "usage": "Remate e proteção de arestas de cerâmica em paredes e pavimentos, com acabamento mate ou brilhante.",
+      "aSavoir": "Altura do perfil de acordo com a espessura da peça. Proteger a face visível ao betumar para não a riscar.",
+      "conditionnement": "Vara de 2,5 m; mate ou brilho",
+      "recherche": "perfil alumínio cerâmica",
+      "rechercheEnseigne": {
+        "maxmat": "perfil alumínio"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "perfil-remate-inox-azulejo",
+      "famille": "ceramica-colas-juntas",
+      "sousFamille": "perfis-remate-ceramica",
+      "nom": "Perfil de remate em inox para azulejo (10 e 12,5 mm)",
+      "aussiAppele": [
+        "perfil inox",
+        "perfil de aço inoxidável",
+        "remate inox polido",
+        "remate inox escovado"
+      ],
+      "usage": "Remate de arestas de cerâmica onde se quer maior resistência ao choque e à humidade (casas de banho, cozinhas, zonas de passagem).",
+      "aSavoir": "Altura do perfil de acordo com a espessura da peça.",
+      "conditionnement": "Vara de 2,6 m; polido ou escovado",
+      "recherche": "perfil inox",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cantoneira-aluminio-cantos",
+      "famille": "ceramica-colas-juntas",
+      "sousFamille": "perfis-remate-ceramica",
+      "nom": "Cantoneira de alumínio para cantos (15x15 e 25x25 mm)",
+      "aussiAppele": [
+        "cantoneira",
+        "canto de alumínio",
+        "protetor de esquinas",
+        "ângulo de alumínio"
+      ],
+      "usage": "Cobre e protege esquinas de paredes revestidas a cerâmica; normalmente aplica-se por cima do revestimento já feito.",
+      "conditionnement": "Vara de 2,6 m; mate ou brilho",
+      "recherche": "cantoneira alumínio",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "perfil-degrau-aluminio",
+      "famille": "ceramica-colas-juntas",
+      "sousFamille": "perfis-remate-ceramica",
+      "nom": "Perfil de degrau em alumínio",
+      "aussiAppele": [
+        "perfil de escada",
+        "focinho de degrau",
+        "remate de degrau",
+        "cantoneira de degrau"
+      ],
+      "usage": "Protege e remata a aresta dos degraus revestidos a cerâmica.",
+      "conditionnement": "Vara de 2,5 m (aba de 40 mm)",
+      "recherche": "perfil degrau",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "perfil-junta-pavimento-ceramico",
+      "famille": "ceramica-colas-juntas",
+      "sousFamille": "perfis-remate-ceramica",
+      "nom": "Perfil de alumínio para junta de pavimento cerâmico (15 e 25 mm)",
+      "aussiAppele": [
+        "perfil em T",
+        "tapa-juntas de pavimento",
+        "perfil de transição de cerâmica",
+        "perfil de separação"
+      ],
+      "usage": "Perfil de alumínio para pavimento cerâmico, com face visível de 15 ou 25 mm, para tapar a junta entre dois pavimentos ao mesmo nível (soleira de porta, mudança de material).",
+      "aSavoir": "Confirmar na loja a secção do perfil e a altura da haste face à espessura da peça antes de comprar.",
+      "conditionnement": "Vara de 2,5 m",
+      "recherche": "perfil alumínio pavimento",
+      "rechercheEnseigne": {
+        "maxmat": "perfil alumínio"
+      },
+      "enseignes": [
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cortador-manual-azulejo",
+      "famille": "ceramica-colas-juntas",
+      "sousFamille": "corte-furacao-ceramica",
+      "nom": "Cortador manual de azulejo (300 a 600 mm e superiores)",
+      "aussiAppele": [
+        "máquina de cortar azulejo",
+        "corta-azulejos",
+        "cortadora de cerâmica",
+        "máquina de cortar mosaico"
+      ],
+      "usage": "Corte reto de azulejo e mosaico por risco e quebra, sem água nem pó.",
+      "aSavoir": "O comprimento de corte tem de ser superior ao lado da peça (e à diagonal, se houver cortes em diagonal). Porcelânico espesso pede uma máquina mais robusta.",
+      "conditionnement": "À unidade; comprimento de corte de 300 mm, 600 mm ou superior",
+      "recherche": "máquina cortar azulejo",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "rodel-corte-cortador-azulejo",
+      "famille": "ceramica-colas-juntas",
+      "sousFamille": "corte-furacao-ceramica",
+      "nom": "Rodel de corte para cortador de azulejo",
+      "aussiAppele": [
+        "roldana de corte",
+        "rodel",
+        "cortante",
+        "diamante de corte",
+        "roda de corte de azulejo"
+      ],
+      "usage": "Peça de substituição do cortador manual: a roda que risca o vidrado da peça.",
+      "aSavoir": "Confirmar o diâmetro e o modelo do cortador antes de comprar. Um rodel gasto faz o corte fugir.",
+      "conditionnement": "À unidade",
+      "recherche": "cortante cerâmica",
+      "rechercheEnseigne": {
+        "maxmat": "diamante de corte"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "maquina-eletrica-cortar-azulejo",
+      "famille": "ceramica-colas-juntas",
+      "sousFamille": "corte-furacao-ceramica",
+      "nom": "Máquina elétrica de cortar azulejo (de bancada)",
+      "aussiAppele": [
+        "cortadora elétrica de cerâmica",
+        "máquina de corte a água",
+        "serra de azulejo",
+        "mesa de corte de cerâmica"
+      ],
+      "usage": "Cortes retos, em esquadria e recortes em porcelânico, grés e pedra que o cortador manual não consegue fazer.",
+      "aSavoir": "Trabalhar com água no tabuleiro para arrefecer o disco e reduzir o pó.",
+      "conditionnement": "À unidade",
+      "recherche": "máquina cortar azulejos elétrica",
+      "rechercheEnseigne": {
+        "maxmat": "máquina cortar azulejos",
+        "leroy-merlin": "máquina cortar azulejos"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "disco-diamantado-ceramica",
+      "famille": "ceramica-colas-juntas",
+      "sousFamille": "corte-furacao-ceramica",
+      "nom": "Disco diamantado para cerâmica (115 mm)",
+      "aussiAppele": [
+        "disco de diamante para azulejo",
+        "disco para porcelânico",
+        "disco diamantado liso",
+        "disco de coroa contínua",
+        "disco de rebarbadora para cerâmica"
+      ],
+      "usage": "Corte de azulejo, grés e porcelânico com rebarbadora.",
+      "aSavoir": "Não forçar o disco: cortar em passagens leves. Usar óculos e máscara, porque o corte a seco faz muito pó.",
+      "conditionnement": "À unidade, 115 mm",
+      "recherche": "disco diamante cerâmica",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "broca-vidro-ceramica",
+      "famille": "ceramica-colas-juntas",
+      "sousFamille": "corte-furacao-ceramica",
+      "nom": "Broca para vidro e cerâmica",
+      "aussiAppele": [
+        "broca de azulejo",
+        "broca de vidro",
+        "broca ponta de lança",
+        "broca para furar azulejo"
+      ],
+      "usage": "Furar azulejo vidrado e vidro sem estalar, para fixar acessórios de casa de banho e de cozinha.",
+      "aSavoir": "Furar sem percussão e a baixa rotação. Em porcelânico duro é preciso broca ou coroa diamantada.",
+      "conditionnement": "À unidade (por exemplo 6 mm)",
+      "recherche": "broca vidro cerâmica",
+      "rechercheEnseigne": {
+        "maxmat": "broca de vidro"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "esponja-ladrilhador",
+      "famille": "ceramica-colas-juntas",
+      "sousFamille": "ferramentas-ladrilhador",
+      "nom": "Esponja de ladrilhador",
+      "aussiAppele": [
+        "esponja de juntas",
+        "esponja para ladrilhos",
+        "esponja de pedreiro",
+        "esponja de betumar",
+        "esponja de obra",
+        "esponja para juntas",
+        "esponja de ladrilhos"
+      ],
+      "usage": "Limpar o excesso de betume e alisar as juntas depois de betumar; há esponjas de desbaste e de acabamento fino.",
+      "aSavoir": "Usar a esponja bem espremida e água limpa: esponja encharcada lava o betume e deixa a junta fraca e manchada.",
+      "conditionnement": "À unidade",
+      "recherche": "esponja ladrilhador",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "ventosa-ceramica",
+      "famille": "ceramica-colas-juntas",
+      "sousFamille": "ferramentas-ladrilhador",
+      "nom": "Ventosa para cerâmica e vidro",
+      "aussiAppele": [
+        "ventosa de ladrilhador",
+        "ventosa dupla",
+        "pega de ventosa"
+      ],
+      "usage": "Pegar, posicionar e levantar peças lisas de grande formato; ajuda também a levantar uma peça acabada de assentar.",
+      "aSavoir": "Só agarra em superfícies lisas, limpas e não porosas. Respeitar a carga máxima indicada.",
+      "conditionnement": "À unidade",
+      "recherche": "ventosa",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "escopro-juntas",
+      "famille": "ceramica-colas-juntas",
+      "sousFamille": "ferramentas-ladrilhador",
+      "nom": "Escopro largo para juntas (55 mm)",
+      "aussiAppele": [
+        "escopro de ladrilhador",
+        "escopro largo",
+        "escopro de juntas",
+        "cinzel largo"
+      ],
+      "usage": "Escopro de lâmina larga, para bater com maceta: levanta azulejos e peças soltas, tira restos de cola e de argamassa do suporte e abre juntas de argamassa em alvenaria.",
+      "aSavoir": "Não é a ferramenta para as juntas finas entre azulejos: aí lasca as arestas. Para tirar betume velho usa-se um raspador de juntas ou uma multiferramenta com lâmina própria. Usar óculos de proteção.",
+      "conditionnement": "À unidade",
+      "recherche": "escopro juntas",
+      "enseignes": [
+        "maxmat"
+      ]
+    }
+  ]
+}

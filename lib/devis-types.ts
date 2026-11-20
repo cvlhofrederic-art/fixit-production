@@ -139,7 +139,7 @@ export const FRAIS_ANNEXES_UNITES = [
 
 // CustomTable — sections de prestations additionnelles renommables/masquables.
 // Parité avec le système BTP V3 : permet à un artisan EI de créer plusieurs
-// blocs de prestations (ex. "DEPENSES PARC COROT (0F25-602G)") groupés par
+// blocs de prestations (ex. "TRAVAUX RÉSIDENCE EXEMPLE (LOT 2)") groupés par
 // catégorie sémantique (labor / material / frais) ou neutres.
 //
 // Le rendu PDF V2 utilise mode_affichage='sections' pour grouper les lignes
@@ -242,6 +242,12 @@ export interface DevisFactureData {
    * imprime alors l'escompte saisi. Absent (documents antérieurs) : PDF inchangé.
    */
   escompteSurPdf?: boolean
+  /**
+   * Version du rendu et des totaux d'un document artisan (lib/version-rendu.ts) : 2 pour un document
+   * créé depuis la correction du 13/11/2026 (matériaux et frais annexes imprimés et comptés partout).
+   * Absente (documents antérieurs) : PDF et totaux inchangés.
+   */
+  versionRendu?: number
   /** Remise commerciale sur le total, en % ou en € HT (lib/remise-commerciale.ts). */
   remiseGlobale?: Remise
   iban: string

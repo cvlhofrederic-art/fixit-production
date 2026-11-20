@@ -1,0 +1,456 @@
+{
+  "famille": {
+    "id": "pavimentos-acessorios",
+    "nom": "Pavimentos: colas, subcamadas e remates",
+    "description": "O que acompanha a montagem de pavimento flutuante, vinílico, parquet e alcatifa: subcamadas e barreiras de vapor, colas, rodapés, perfis de transição e ferramentas de montagem.",
+    "icone": "🟫",
+    "sousFamilles": [
+      {
+        "id": "subcamadas-pavimento",
+        "nom": "Subcamadas e barreiras de vapor",
+        "description": "Bases que se colocam por baixo do pavimento flutuante ou vinílico: espumas, placas, cortiça, filmes anti-humidade e a fita para as unir."
+      },
+      {
+        "id": "colas-pavimento",
+        "nom": "Colas e fitas para pavimentos",
+        "description": "Colas para parquet, vinílico e cortiça, cola para rodapés e fita dupla face."
+      },
+      {
+        "id": "rodapes",
+        "nom": "Rodapés",
+        "description": "Rodapés em MDF, PVC e madeira, e tapa-rodapés de renovação."
+      },
+      {
+        "id": "perfis-transicao-remate",
+        "nom": "Perfis de transição, desnível e remate",
+        "description": "Perfis que cobrem as juntas entre pavimentos, vencem diferenças de altura e rematam os topos."
+      },
+      {
+        "id": "ferramentas-montagem-pavimento",
+        "nom": "Ferramentas de montagem",
+        "description": "Acessórios de mão para montar pavimento flutuante e marcar recortes."
+      }
+    ]
+  },
+  "materiaux": [
+    {
+      "id": "subcamada-espuma-polietileno",
+      "famille": "pavimentos-acessorios",
+      "sousFamille": "subcamadas-pavimento",
+      "nom": "Subcamada de espuma de polietileno (2 ou 3 mm)",
+      "aussiAppele": [
+        "manta para flutuante",
+        "folha de isolamento",
+        "espuma para flutuante",
+        "base para flutuante",
+        "subpavimento"
+      ],
+      "usage": "Base económica para pavimento flutuante laminado: absorve pequenas irregularidades do suporte e reduz o ruído de passos.",
+      "aSavoir": "Não faz de barreira de vapor: sobre betonilha ou piso térreo, colocar primeiro um filme de polietileno ou usar uma subcamada com película.",
+      "conditionnement": "Rolo (por exemplo 20 m²)",
+      "recherche": "subcamada flutuante",
+      "rechercheEnseigne": {
+        "maxmat": "folha de isolamento"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "subcamada-espuma-metalizada",
+      "famille": "pavimentos-acessorios",
+      "sousFamille": "subcamadas-pavimento",
+      "nom": "Subcamada de espuma com película de alumínio (2 ou 3 mm)",
+      "aussiAppele": [
+        "manta metalizada",
+        "folha de isolamento metalizada",
+        "subcamada com barreira de vapor",
+        "espuma aluminizada",
+        "subpavimento EVA",
+        "subpavimento IXPE"
+      ],
+      "usage": "Base para pavimento flutuante sobre betonilha ou piso térreo: a película metalizada faz de barreira à humidade do suporte.",
+      "aSavoir": "Fechar as juntas entre faixas com fita de alumínio para a película ficar contínua. Orientar a face metalizada como indica a embalagem.",
+      "conditionnement": "Rolo ou caixa de 10 a 24 m²",
+      "recherche": "subpavimento alumínio",
+      "enseignes": [
+        "maxmat"
+      ]
+    },
+    {
+      "id": "subcamada-base-flutuante-caixa",
+      "famille": "pavimentos-acessorios",
+      "sousFamille": "subcamadas-pavimento",
+      "nom": "Base para pavimento flutuante em caixa (2,2 a 5 mm)",
+      "aussiAppele": [
+        "base flutuante",
+        "subcamada em placas",
+        "subcamada XPS",
+        "subpavimento rígido"
+      ],
+      "usage": "Base mais firme para pavimento flutuante, que disfarça melhor as irregularidades do suporte; existe versão com proteção contra a humidade.",
+      "aSavoir": "Quanto mais espessa, mais corrige, mas confirmar a espessura máxima admitida pelo fabricante do pavimento (encaixes click).",
+      "conditionnement": "Caixa de 5 a 15 m²",
+      "recherche": "base flutuante",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "subcamada-cortica",
+      "famille": "pavimentos-acessorios",
+      "sousFamille": "subcamadas-pavimento",
+      "nom": "Subcamada de cortiça (rolo de 2 ou 4 mm)",
+      "aussiAppele": [
+        "rolo de cortiça",
+        "manta de cortiça",
+        "subpavimento de cortiça",
+        "cortiça para flutuante"
+      ],
+      "usage": "Base natural para pavimento flutuante e soalho, usada pelo isolamento acústico e térmico.",
+      "aSavoir": "Sobre betonilha ou piso térreo, aplicar por baixo um filme barreira de vapor.",
+      "conditionnement": "Rolo",
+      "recherche": "rolo cortiça",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "subcamada-pavimento-vinilico",
+      "famille": "pavimentos-acessorios",
+      "sousFamille": "subcamadas-pavimento",
+      "nom": "Subcamada para pavimento vinílico de encaixe",
+      "aussiAppele": [
+        "subpavimento para vinílico",
+        "base para vinílico",
+        "manta para SPC",
+        "subcamada LVT"
+      ],
+      "usage": "Base fina e firme própria para pavimentos vinílicos de encaixe (click, SPC).",
+      "aSavoir": "Não usar as mantas moles de laminado sob vinílico: os encaixes podem partir. Se o vinílico já traz base colada, confirmar com o fabricante se admite subcamada adicional.",
+      "conditionnement": "Embalagem de cerca de 10 m²",
+      "recherche": "subpavimento vinílico",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "barreira-vapor-pavimento",
+      "famille": "pavimentos-acessorios",
+      "sousFamille": "subcamadas-pavimento",
+      "nom": "Barreira de vapor para pavimento",
+      "aussiAppele": [
+        "filme barreira de vapor",
+        "plástico para flutuante",
+        "película anti-humidade",
+        "filme de polietileno",
+        "manga plástica"
+      ],
+      "usage": "Coloca-se sobre a betonilha, por baixo da subcamada, para proteger o pavimento flutuante ou vinílico de encaixe da humidade que sobe do suporte.",
+      "aSavoir": "Sobrepor as faixas, subir alguns centímetros nas paredes e fechar as sobreposições com fita.",
+      "conditionnement": "Rolo de 15 m²",
+      "recherche": "barreira de vapor",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cola-tacos-parquet",
+      "famille": "pavimentos-acessorios",
+      "sousFamille": "colas-pavimento",
+      "nom": "Cola para tacos e parquet",
+      "aussiAppele": [
+        "cola de parquet",
+        "cola para tacos",
+        "cola de soalho",
+        "cola para madeira de pavimento",
+        "cola para pavimento de madeira",
+        "cola de tacos"
+      ],
+      "usage": "Colagem de tacos e parquet de madeira ao suporte, e recolagem de tacos soltos.",
+      "aSavoir": "Suporte seco, limpo e desempenado; madeira aclimatada em obra. Em pavimento radiante ou réguas largas, confirmar na embalagem se a cola é adequada.",
+      "conditionnement": "Embalagem de 1 kg ou 6 kg",
+      "recherche": "cola parquet",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cola-pvc-vinilico-cortica",
+      "famille": "pavimentos-acessorios",
+      "sousFamille": "colas-pavimento",
+      "nom": "Cola para PVC / vinílico e cortiça",
+      "aussiAppele": [
+        "cola de vinílico",
+        "cola para PVC e cortiça",
+        "cola para ladrilho vinílico",
+        "cola para cortiça",
+        "cola de pavimentos vinílicos",
+        "cola para pavimento vinílico e cortiça",
+        "cola de PVC para pavimentos",
+        "cola de cortiça",
+        "cola para vinílico"
+      ],
+      "usage": "Colagem de revestimentos de PVC / vinílico e de cortiça.",
+      "aSavoir": "O suporte tem de estar liso, seco e regularizado (massa autonivelante se for preciso): qualquer defeito marca no vinílico. Respeitar o tempo de espera indicado antes de assentar.",
+      "conditionnement": "Embalagem de 1 kg ou 6 kg",
+      "recherche": "cola PVC cortiça",
+      "rechercheEnseigne": {
+        "leroy-merlin": "cola de vinílico"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "rodape-mdf",
+      "famille": "pavimentos-acessorios",
+      "sousFamille": "rodapes",
+      "nom": "Rodapé em MDF (branco pré-pintado ou decorativo)",
+      "aussiAppele": [
+        "rodapé branco",
+        "rodapé de flutuante",
+        "rodapé folheado",
+        "roda-pé"
+      ],
+      "usage": "Remata o encontro do pavimento com a parede e tapa a junta de dilatação do pavimento flutuante.",
+      "aSavoir": "O MDF incha com a água: em casas de banho e zonas húmidas usar rodapé de PVC.",
+      "conditionnement": "Vara de 2250 x 70 x 14 mm; à unidade ou em pack de 5",
+      "recherche": "rodapé MDF",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "rodape-pvc-alveolar",
+      "famille": "pavimentos-acessorios",
+      "sousFamille": "rodapes",
+      "nom": "Rodapé em PVC alveolar",
+      "aussiAppele": [
+        "rodapé de PVC",
+        "rodapé plástico",
+        "rodapé para casa de banho",
+        "rodapé resistente à água",
+        "rodapé oco"
+      ],
+      "usage": "Rodapé leve e resistente à água, para zonas húmidas, cozinhas e pavimentos vinílicos.",
+      "aSavoir": "É oco por dentro: fixa-se com cola de montagem e amolga com pancadas. Em zonas de muito uso, preferir o PVC expandido.",
+      "conditionnement": "Vara de 2500 x 70 x 15 mm; à unidade ou em pack de 5",
+      "recherche": "rodapé PVC",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "rodape-pvc-expandido",
+      "famille": "pavimentos-acessorios",
+      "sousFamille": "rodapes",
+      "nom": "Rodapé em PVC expandido (70 ou 100 mm de altura)",
+      "aussiAppele": [
+        "rodapé de PVC espumado",
+        "rodapé PVC maciço",
+        "rodapé alto de PVC"
+      ],
+      "usage": "Rodapé em PVC de massa cheia, resistente à água, para qualquer divisão; mais firme do que o alveolar.",
+      "conditionnement": "Vara de 2500 x 70 x 14 mm ou 2500 x 100 x 14 mm; à unidade ou em pack de 5",
+      "recherche": "rodapé PVC expandido",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "rodape-madeira-macica",
+      "famille": "pavimentos-acessorios",
+      "sousFamille": "rodapes",
+      "nom": "Rodapé em madeira maciça (abeto natural)",
+      "aussiAppele": [
+        "rodapé de madeira",
+        "rodapé de pinho",
+        "rodapé para envernizar",
+        "rodapé em cru"
+      ],
+      "usage": "Rodapé em madeira natural para pintar, envernizar ou velar à cor do soalho.",
+      "aSavoir": "Vendido em cru: precisa de acabamento (verniz, velatura ou esmalte).",
+      "conditionnement": "Vara de 3000 x 70 x 10 mm",
+      "recherche": "rodapé abeto",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "tapa-rodapes-pvc",
+      "famille": "pavimentos-acessorios",
+      "sousFamille": "rodapes",
+      "nom": "Tapa-rodapés em PVC",
+      "aussiAppele": [
+        "cobre-rodapé",
+        "sobre-rodapé",
+        "capa de rodapé",
+        "rodapé de renovação"
+      ],
+      "usage": "Cola-se por cima do rodapé existente para o renovar sem o arrancar; compatível com casas de banho e zonas húmidas.",
+      "aSavoir": "Medir a altura e a espessura do rodapé antigo: tem de caber dentro do tapa-rodapés (cerca de 110 x 25 mm).",
+      "conditionnement": "Vara de 2500 x 110 x 25 mm",
+      "recherche": "tapa rodapés",
+      "rechercheEnseigne": {
+        "leroy-merlin": "rodapé de renovação"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "perfil-transicao-pavimento",
+      "famille": "pavimentos-acessorios",
+      "sousFamille": "perfis-transicao-remate",
+      "nom": "Perfil de transição para pavimentos (adesivo ou com base)",
+      "aussiAppele": [
+        "perfil de junção",
+        "tapa-juntas de pavimento",
+        "barra de transição",
+        "perfil de porta",
+        "perfil de dilatação"
+      ],
+      "usage": "Cobre a junta entre dois pavimentos ao mesmo nível, tipicamente na soleira das portas, e esconde a junta de dilatação do flutuante.",
+      "aSavoir": "O modelo adesivo é só para suportes lisos e limpos. Não prender o pavimento flutuante com o perfil: o pavimento tem de poder dilatar.",
+      "conditionnement": "Barra de 90, 165 ou 250 cm (em PVC também 186 cm); alumínio ou PVC, em cores de madeira",
+      "recherche": "perfil transição",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "perfil-desnivel-pavimento",
+      "famille": "pavimentos-acessorios",
+      "sousFamille": "perfis-transicao-remate",
+      "nom": "Perfil de desnível para pavimentos (adesivo ou com base)",
+      "aussiAppele": [
+        "perfil redutor",
+        "perfil de rampa",
+        "perfil de diferença de nível",
+        "barra de desnível"
+      ],
+      "usage": "Faz a ligação entre dois pavimentos de alturas diferentes (flutuante com cerâmica, vinílico com soalho) sem deixar degrau vivo.",
+      "aSavoir": "Confirmar a diferença de altura que o perfil vence antes de comprar.",
+      "conditionnement": "Barra de 90, 165 ou 250 cm (em PVC também 186 cm); alumínio ou PVC",
+      "recherche": "perfil desnível",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "perfil-remate-pavimento",
+      "famille": "pavimentos-acessorios",
+      "sousFamille": "perfis-transicao-remate",
+      "nom": "Perfil de remate para pavimentos (com base)",
+      "aussiAppele": [
+        "perfil de terminação",
+        "perfil de fim de pavimento",
+        "remate de flutuante",
+        "perfil de topo"
+      ],
+      "usage": "Remata o topo do pavimento onde não há rodapé: junto a portas de correr, caixilharias, lareiras ou degraus.",
+      "aSavoir": "Deixar a folga de dilatação do flutuante por baixo do perfil.",
+      "conditionnement": "Barra de 90 ou 250 cm",
+      "recherche": "perfil remate pavimento",
+      "rechercheEnseigne": {
+        "maxmat": "perfil remate"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cunhas-pavimento-flutuante",
+      "famille": "pavimentos-acessorios",
+      "sousFamille": "ferramentas-montagem-pavimento",
+      "nom": "Cunhas para pavimento flutuante (folga de dilatação)",
+      "aussiAppele": [
+        "cunhas universais",
+        "espaçadores de flutuante",
+        "calços de dilatação",
+        "cunhas de montagem"
+      ],
+      "usage": "Mantêm a folga de dilatação entre o pavimento flutuante e as paredes durante a montagem; servem também para calçar e nivelar.",
+      "aSavoir": "Retirar todas as cunhas no fim, antes de colocar o rodapé.",
+      "conditionnement": "Embalagem com várias cunhas",
+      "recherche": "cunhas universais",
+      "enseignes": [
+        "maxmat"
+      ]
+    },
+    {
+      "id": "calibre-contornos",
+      "famille": "pavimentos-acessorios",
+      "sousFamille": "ferramentas-montagem-pavimento",
+      "nom": "Calibre de contornos (copiador de perfis)",
+      "aussiAppele": [
+        "copiador de perfis",
+        "pente de contornos",
+        "medidor de contornos",
+        "gabarito de recortes"
+      ],
+      "usage": "Copiar o contorno de aduelas, tubos e ombreiras para o marcar na régua de pavimento ou no azulejo antes de recortar.",
+      "conditionnement": "À unidade",
+      "recherche": "calibre de contornos",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "kit-montagem-pavimento-flutuante",
+      "famille": "pavimentos-acessorios",
+      "sousFamille": "ferramentas-montagem-pavimento",
+      "nom": "Kit de montagem de pavimento flutuante (taco de bater e alavanca)",
+      "aussiAppele": [
+        "taco de bater",
+        "ferro de puxar réguas",
+        "kit de instalação de flutuante"
+      ],
+      "usage": "Fechar os encaixes das réguas de flutuante ou vinílico sem os estragar e apertar a última fiada contra a parede.",
+      "aSavoir": "Bater sempre no taco, nunca diretamente na régua: o encaixe parte. Muitos kits trazem também cunhas de dilatação.",
+      "conditionnement": "Kit com taco de bater, alavanca e, por vezes, cunhas",
+      "recherche": "kit montagem pavimento flutuante",
+      "rechercheEnseigne": {
+        "leroy-merlin": "kit instalação pavimento"
+      },
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    },
+    {
+      "id": "banda-perimetral-espuma",
+      "famille": "pavimentos-acessorios",
+      "sousFamille": "subcamadas-pavimento",
+      "nom": "Banda perimetral de espuma (junta de dessolidarização)",
+      "aussiAppele": [
+        "banda periférica",
+        "fita perimetral",
+        "banda perimetral para betonilha"
+      ],
+      "usage": "Colocada contra paredes, pilares e tubos antes de verter betonilha ou autonivelante, separa o pavimento das paredes e deixa-o dilatar.",
+      "aSavoir": "Tem de ficar acima da cota final e só se corta à face depois de o pavimento secar, antes do revestimento. Indispensável sobre piso radiante.",
+      "conditionnement": "Rolo de espuma de polietileno, muitas vezes com aba plástica e faixa adesiva",
+      "recherche": "banda perimetral",
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    }
+  ]
+}

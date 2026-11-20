@@ -1,0 +1,886 @@
+{
+  "domaine": {
+    "id": "humidade-interior",
+    "nom": "Humidade e bolor no interior",
+    "icone": "💧"
+  },
+  "situations": [
+    {
+      "id": "bolor-paredes-tetos-condensacao",
+      "domaine": "humidade-interior",
+      "titre": "Bolor em paredes e tetos por condensação",
+      "motsCles": [
+        "parede a suar",
+        "pintas pretas no teto",
+        "bolor no quarto",
+        "mofo no inverno",
+        "fungos nas paredes do quarto",
+        "manchas pretas nos cantos do teto",
+        "humidade de condensação",
+        "paredes frias com bolor",
+        "bolor por cima da janela",
+        "manchas negras atrás do roupeiro"
+      ],
+      "description": "Pintas e manchas pretas ou esverdeadas em paredes e tetos frios, sobretudo no inverno, em quartos, cozinhas e divisões pouco ventiladas. A água vem do ar da casa (vapor), não de fora.",
+      "aVerifier": [
+        "Confirmar que é condensação e não infiltração: bolor espalhado em cantos, tetos e paredes viradas a norte, sem auréola nem relação com a chuva",
+        "Ventilação da divisão: janelas sempre fechadas, roupa a secar dentro de casa, falta de extração na cozinha ou na casa de banho",
+        "Estado da tinta: só suja de bolor ou já a descascar e a empolar",
+        "Extensão: uma zona pequena ou a parede e o teto inteiros (pintar o pano completo)"
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "plastico-protecao-grosso",
+              "note": "Tapar chão e móveis: a lavagem do bolor escorre e mancha"
+            },
+            {
+              "id": "fita-pintor-interior"
+            }
+          ]
+        },
+        {
+          "titre": "Tratamento",
+          "materiaux": [
+            {
+              "id": "solucao-limpeza-antifungos-paredes",
+              "note": "Aplicar antes de raspar ou lixar; deixar atuar e secar bem (ver a embalagem)"
+            },
+            {
+              "id": "pano-microfibra",
+              "note": "Limpar a húmido; não escovar a seco para não espalhar esporos"
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "raspador-tinta",
+              "note": "Só se a tinta estiver a descascar ou empolada",
+              "optionnel": true
+            },
+            {
+              "id": "massa-acabamento-pronta-pasta",
+              "note": "Só para regularizar as zonas raspadas, em camada fina",
+              "optionnel": true
+            },
+            {
+              "id": "esponja-abrasiva",
+              "note": "Só para lixar a massa depois de seca",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "primario-antifungos",
+              "note": "Só com a parede desinfetada e bem seca"
+            },
+            {
+              "id": "tinta-anticondensacao",
+              "note": "Em paredes e tetos frios; não dispensa ventilar a divisão"
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "rolo-anti-gota"
+            },
+            {
+              "id": "trincha-plana-sintetica",
+              "note": "Recortes de cantos e junto ao teto"
+            },
+            {
+              "id": "tabuleiro-pintura"
+            },
+            {
+              "id": "cabo-extensivel-rolo",
+              "note": "Para tetos e paredes altas",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-nitrilo-quimicas",
+              "note": "O produto antifungos é irritante para a pele"
+            },
+            {
+              "id": "oculos-panoramicos",
+              "note": "Salpicos ao lavar tetos e zonas acima da cabeça"
+            },
+            {
+              "id": "mascara-ffp2",
+              "note": "Esporos de bolor e pó da lixagem; ventilar bem por causa dos vapores do produto"
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Se a divisão continuar sem ventilação nem extração, o bolor volta, mesmo com tinta anticondensação",
+        "Nunca misturar o produto antifungos ou lixívia com outros produtos de limpeza (ácidos, amoníaco): liberta gases tóxicos",
+        "Não pintar por cima de bolor vivo nem de parede húmida: a tinta nova mancha e descasca",
+        "Mancha com auréola, que aumenta com a chuva ou sob uma casa de banho, é infiltração: tratar primeiro a origem"
+      ]
+    },
+    {
+      "id": "humidade-ascensional-salitre-rodape",
+      "domaine": "humidade-interior",
+      "titre": "Humidade ascensional e salitre junto ao rodapé",
+      "motsCles": [
+        "salitre na parede",
+        "humidade que sobe do chão",
+        "parede a esfarelar em baixo",
+        "pó branco na base da parede",
+        "rodapé inchado com humidade",
+        "tinta a saltar junto ao chão",
+        "humidade por capilaridade",
+        "reboco a cair junto ao chão",
+        "barreira contra humidade ascensional"
+      ],
+      "description": "Faixa húmida na base das paredes do rés do chão, com sais brancos (salitre), tinta a saltar e reboco a esfarelar junto ao rodapé. A água sobe do terreno pela parede por capilaridade.",
+      "aVerifier": [
+        "Altura e forma da mancha: faixa contínua a partir do chão, em piso térreo, sem relação direta com a chuva",
+        "Tipo de parede: pedra, taipa ou adobe antigos (reboco de cal, injeção pouco eficaz) ou tijolo e bloco",
+        "Estado do reboco: bater para ouvir se soa a oco e ver se esfarela à mão",
+        "Excluir fuga de canalização ou terreno exterior acima do nível do pavimento interior"
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "escova-arame-manual",
+              "note": "Escovar os sais a seco e apanhar o pó; não lavar a parede com água"
+            },
+            {
+              "id": "maceta",
+              "note": "Só se o reboco estiver solto ou cheio de sais e for preciso picá-lo",
+              "optionnel": true
+            },
+            {
+              "id": "escopro",
+              "note": "Só para picar o reboco degradado, até bem acima da zona manchada",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Tratamento",
+          "materiaux": [
+            {
+              "id": "creme-injecao-humidade-ascensional",
+              "note": "Tijolo ou bloco: injetar em furos na base para cortar a subida; furos e espaçamento: ver a embalagem",
+              "optionnel": true
+            },
+            {
+              "id": "broca-betao-pedra",
+              "note": "Só para os furos da injeção, no diâmetro indicado na embalagem do produto",
+              "optionnel": true
+            },
+            {
+              "id": "pistola-silicone-reforcada",
+              "note": "Só para aplicar o creme de injeção, conforme o formato do cartucho ou da bolsa",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "argamassa-reboco-desumidificante",
+              "note": "Refazer a base picada em tijolo ou bloco: deixa a parede secar e retém os sais",
+              "optionnel": true
+            },
+            {
+              "id": "argamassa-cal-reabilitacao",
+              "note": "Paredes antigas de pedra, taipa ou adobe: refazer com cal, nunca com reboco de cimento",
+              "optionnel": true
+            },
+            {
+              "id": "colher-pedreiro",
+              "note": "Só se houver reboco a refazer",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "primario-anti-salitre",
+              "note": "Só onde não se refez o reboco: parede escovada e seca; atrasa o salitre, não corta a água",
+              "optionnel": true
+            },
+            {
+              "id": "tinta-plastica-interior-mate",
+              "note": "Mate, mais permeável ao vapor; evitar esmaltes, acetinadas e tintas impermeáveis"
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "rolo-anti-gota",
+              "note": "Primário e tinta"
+            },
+            {
+              "id": "tabuleiro-pintura"
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-borracha-compridas",
+              "note": "Cal, argamassas e produto de injeção atacam a pele"
+            },
+            {
+              "id": "oculos-protecao",
+              "note": "Lascas ao picar e ao furar, pó dos sais"
+            },
+            {
+              "id": "mascara-ffp2",
+              "note": "Pó dos sais, do reboco picado e da furação"
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Primário e tinta só disfarçam: enquanto a água subir pela parede, o salitre volta. A solução de fundo é cortar a subida (injeção) ou drenar pelo exterior",
+        "Não revestir a base da parede com azulejo, lambrim estanque ou tinta impermeável: a humidade sobe mais alto",
+        "Depois da injeção ou do reboco novo, a parede tem de secar e os sais de sair antes de pintar: respeitar os prazos da embalagem",
+        "Em paredes antigas de pedra, taipa ou adobe, o reboco de cimento retém a água e acaba por descolar",
+        "Antes de furar a base da parede, localizar tubos e cabos embutidos"
+      ]
+    },
+    {
+      "id": "mancha-humidade-teto-apos-infiltracao",
+      "domaine": "humidade-interior",
+      "titre": "Mancha no teto depois de reparada a infiltração",
+      "motsCles": [
+        "mancha amarela no teto",
+        "auréola no teto",
+        "nódoa castanha no teto",
+        "teto manchado da infiltração",
+        "mancha volta depois de pintar",
+        "isolar mancha de água no teto",
+        "teto com marca de água",
+        "pintar teto manchado"
+      ],
+      "description": "Auréola amarelada ou acastanhada que ficou no teto depois de uma infiltração já resolvida (telhado, terraço, casa de banho de cima). Pintada só com tinta normal, a mancha volta a aparecer.",
+      "aVerifier": [
+        "A causa está mesmo resolvida e o teto está seco: a mancha não aumenta nem escurece depois de chover ou de usar a casa de banho de cima",
+        "Tipo de teto: estuque, reboco ou gesso cartonado (placa inchada ou deformada tem de ser substituída)",
+        "Tinta empolada, estuque solto ou fissuras na zona da mancha",
+        "Presença de bolor por cima da mancha"
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "plastico-protecao-grosso",
+              "note": "Chão e móveis por baixo da zona de trabalho"
+            },
+            {
+              "id": "fita-pintor-interior"
+            },
+            {
+              "id": "espatula-pintor-media-50-63mm",
+              "note": "Raspar a tinta empolada e, depois, aplicar a massa"
+            },
+            {
+              "id": "medidor-humidade-paredes",
+              "note": "Em caso de dúvida: confirmar que o teto secou de vez antes de isolar",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Tratamento",
+          "materiaux": [
+            {
+              "id": "solucao-limpeza-antifungos-paredes",
+              "note": "Só se houver bolor sobre a mancha: lavar e deixar secar antes de isolar",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "massa-acabamento-pronta-pasta",
+              "note": "Só se a tinta saltou ou ficaram rebaixos: barrar fino; a tinta isolante cobre também a massa",
+              "optionnel": true
+            },
+            {
+              "id": "esponja-abrasiva",
+              "note": "Só para lixar a massa depois de seca",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "tinta-isolante-anti-manchas",
+              "note": "Sobre a mancha seca, a passar um pouco dos bordos; demãos e secagem: ver a embalagem"
+            },
+            {
+              "id": "tinta-tetos",
+              "note": "Pintar o teto inteiro, para não ficar o remendo à vista"
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "mini-rolo-esmalte",
+              "note": "Para a tinta isolante; se for de solvente, confirmar que o rolo resiste"
+            },
+            {
+              "id": "rolo-anti-gota",
+              "note": "Para a tinta de teto"
+            },
+            {
+              "id": "cabo-extensivel-rolo"
+            },
+            {
+              "id": "tabuleiro-pintura"
+            },
+            {
+              "id": "escadote-aluminio",
+              "note": "Para raspar, barrar e isolar a mancha de perto"
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "oculos-protecao",
+              "note": "Pó e salpicos caem para a cara ao trabalhar no teto"
+            },
+            {
+              "id": "mascara-ffp2",
+              "note": "Pó da raspagem e da lixagem; com isolante de solvente, ventilar bem a divisão"
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Se a mancha ainda estiver húmida ou a causa não estiver resolvida, a tinta isolante empola e a mancha volta",
+        "Teto de gesso cartonado inchado ou estuque a soar a oco não se resolve com pintura: substituir ou refazer a zona",
+        "Tinta isolante de solvente tem cheiro forte e é inflamável: ventilar e afastar chamas",
+        "Trabalho acima da cabeça em escadote: apoiar os quatro pés em piso firme e não se esticar para os lados"
+      ]
+    },
+    {
+      "id": "parede-interior-encostada-terreno-cave-humida",
+      "domaine": "humidade-interior",
+      "titre": "Cave húmida ou parede encostada a terreno",
+      "motsCles": [
+        "parede enterrada com humidade",
+        "água entra pela parede da cave",
+        "parede da garagem a chorar",
+        "muro de suporte húmido por dentro",
+        "arrecadação enterrada com humidade",
+        "parede encostada à terra",
+        "salitre na cave",
+        "cheiro a mofo na cave",
+        "impermeabilizar cave por dentro"
+      ],
+      "description": "Parede de cave, garagem ou divisão semienterrada com manchas húmidas, salitre e tinta a saltar, por vezes com água a escorrer depois de chover. A água vem do terreno encostado ao outro lado da parede.",
+      "aVerifier": [
+        "Há água líquida a escorrer ou a pingar em pontos e fissuras, ou só humidade e salitre",
+        "Suporte: betão, bloco, pedra ou reboco; as argamassas impermeabilizantes só agarram em suporte mineral nu, sem tinta",
+        "É possível intervir pelo exterior (drenagem e impermeabilização do muro), que é a solução de fundo",
+        "Ventilação da cave: sem renovação de ar junta-se também condensação"
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "escova-arame-manual",
+              "note": "Tirar sais, tinta e partes soltas até ao suporte mineral são"
+            },
+            {
+              "id": "maceta",
+              "note": "Picar reboco solto e abrir os pontos por onde a água entra"
+            },
+            {
+              "id": "escopro",
+              "note": "Abrir em cunha as fissuras e os pontos de entrada de água antes de tamponar"
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "acelerador-presa-estancar-fugas",
+              "note": "Só onde a água escorre ou pinga: tamponar esses pontos antes da camada contínua",
+              "optionnel": true
+            },
+            {
+              "id": "reboco-impermeabilizante",
+              "note": "Só onde o reboco foi picado, para refazer a espessura",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Impermeabilização",
+          "materiaux": [
+            {
+              "id": "argamassa-impermeabilizante-rigida-barramento",
+              "note": "Demãos cruzadas em suporte humedecido; confirmar na embalagem que admite água vinda do tardoz"
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "tinta-anti-humidade-interior",
+              "note": "Só depois de a argamassa curar (ver a embalagem); não substitui a impermeabilização"
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "misturador-para-berbequim",
+              "note": "Amassar sem grumos, em rotação baixa"
+            },
+            {
+              "id": "balde-de-pedreiro"
+            },
+            {
+              "id": "trincha-larga-retangular",
+              "note": "Aplicar a argamassa impermeabilizante, a carregar bem nos poros e cantos"
+            },
+            {
+              "id": "colher-pedreiro",
+              "note": "Tamponamentos e reboco das zonas picadas"
+            },
+            {
+              "id": "rolo-pelo-medio-paredes-irregulares",
+              "note": "Para a tinta de acabamento"
+            },
+            {
+              "id": "tabuleiro-pintura"
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-borracha-compridas",
+              "note": "As argamassas de cimento queimam a pele"
+            },
+            {
+              "id": "oculos-protecao",
+              "note": "Lascas ao picar e salpicos de argamassa"
+            },
+            {
+              "id": "mascara-ffp2",
+              "note": "Pó ao escovar, picar e amassar"
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Impermeabilizar por dentro trava a água à superfície, mas a parede continua molhada: a solução de fundo é pelo exterior (impermeabilização do muro e drenagem)",
+        "Fissuras abertas, parede abaulada ou muro de suporte deformado pedem avaliação de um técnico antes de tapar",
+        "A argamassa rígida não acompanha fissuras com movimento nem adere sobre tinta, gesso ou estuque",
+        "Não forrar a parede húmida com gesso cartonado ou madeira encostados: apodrecem e escondem o problema",
+        "Caves fechadas: ventilar durante o trabalho e a secagem"
+      ]
+    },
+    {
+      "id": "tinta-empolar-descascar-humidade",
+      "domaine": "humidade-interior",
+      "titre": "Tinta a empolar ou a descascar por humidade",
+      "motsCles": [
+        "tinta a saltar da parede",
+        "bolhas na tinta",
+        "tinta a levantar",
+        "parede a descascar",
+        "tinta a cair aos bocados",
+        "empolamento da pintura",
+        "pintura estragada pela humidade",
+        "reboco farinhento por baixo da tinta"
+      ],
+      "description": "A tinta faz bolhas, levanta e solta-se em placas, deixando o reboco à vista, por vezes farinhento ou com sais brancos. A película perdeu aderência por causa da humidade que vem de trás ou do ar.",
+      "aVerifier": [
+        "Origem da humidade (infiltração, fuga de canalização, capilaridade, condensação) e se já está resolvida",
+        "A parede está seca: se ainda está húmida ao toque ou escura, não se pinta",
+        "O que está por baixo: reboco são, farinhento, com sais brancos, ou várias camadas de tinta velha",
+        "Extensão: reparação localizada ou pano de parede inteiro"
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "plastico-protecao-grosso"
+            },
+            {
+              "id": "fita-pintor-interior"
+            },
+            {
+              "id": "raspador-tinta",
+              "note": "Raspar tudo o que não está agarrado, até encontrar tinta firme"
+            },
+            {
+              "id": "escova-arame-manual",
+              "note": "Só se houver sais brancos: escovar a seco e apanhar o pó",
+              "optionnel": true
+            },
+            {
+              "id": "medidor-humidade-paredes",
+              "note": "Em caso de dúvida: confirmar que a parede secou antes do primário e da tinta",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Tratamento",
+          "materiaux": [
+            {
+              "id": "primario-anti-salitre",
+              "note": "Só nas zonas com sais brancos, em vez do fixador",
+              "optionnel": true
+            },
+            {
+              "id": "primario-fixador-anti-alcalino",
+              "note": "No reboco raspado e farinhento e, de novo, sobre a massa lixada antes da tinta"
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "massa-acabamento-pronta-pasta",
+              "note": "Disfarçar o degrau entre a zona raspada e a tinta que ficou"
+            },
+            {
+              "id": "esponja-abrasiva",
+              "note": "Lixar a massa seca e matar o rebordo da tinta velha"
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "tinta-plastica-interior-mate",
+              "note": "Pintar o pano inteiro para não se notar o remendo"
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "betumadeira-120-200mm",
+              "note": "Barrar o degrau em passagens largas e finas"
+            },
+            {
+              "id": "rolo-anti-gota"
+            },
+            {
+              "id": "trincha-plana-sintetica",
+              "note": "Primário e recortes"
+            },
+            {
+              "id": "tabuleiro-pintura"
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "mascara-ffp2",
+              "note": "Pó da raspagem e da lixagem"
+            },
+            {
+              "id": "oculos-protecao",
+              "note": "Lascas de tinta ao raspar"
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Sem resolver a origem da humidade e sem deixar secar a parede, a tinta nova volta a empolar",
+        "O primário fixador não segura tinta solta: o que não está agarrado tem de sair todo",
+        "Em casas antigas, as tintas velhas podem conter chumbo: não lixar a seco em grande extensão, humedecer e usar máscara",
+        "Reboco a soar a oco, a desfazer-se ou com faltas fundas tem de ser picado e refeito com argamassa antes de barrar"
+      ]
+    },
+    {
+      "id": "bolor-atras-moveis-cantos-frios",
+      "domaine": "humidade-interior",
+      "titre": "Bolor atrás de móveis e em cantos frios",
+      "motsCles": [
+        "bolor atrás do roupeiro",
+        "mofo atrás da cama",
+        "manchas pretas no canto do quarto",
+        "bolor atrás do sofá",
+        "canto da parede preto",
+        "roupa com cheiro a mofo",
+        "bolor na parede virada a norte",
+        "costas do armário com bolor",
+        "ponte térmica com bolor"
+      ],
+      "description": "Manchas de bolor escondidas atrás de roupeiros, camas e sofás encostados a paredes exteriores, e nos cantos entre paredes e teto. São zonas frias onde o ar não circula e o vapor condensa.",
+      "aVerifier": [
+        "A parede é exterior ou virada a norte, ou o canto coincide com pilar ou viga (ponte térmica)",
+        "O móvel está encostado à parede sem folga para o ar passar; ver se as costas do móvel e a roupa também têm bolor",
+        "Excluir infiltração: mancha com auréola, que piora com a chuva, ou tinta empolada",
+        "Estado da tinta por baixo do bolor"
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "plastico-protecao-fino",
+              "note": "Tapar móveis, colchões e roupa antes de pulverizar"
+            },
+            {
+              "id": "fita-pintor-interior"
+            }
+          ]
+        },
+        {
+          "titre": "Tratamento",
+          "materiaux": [
+            {
+              "id": "spray-anti-bolor",
+              "note": "Na parede e nas costas do móvel; pode descolorar: testar primeiro numa zona escondida"
+            },
+            {
+              "id": "pano-microfibra",
+              "note": "Limpar a húmido depois de o produto atuar; não escovar a seco"
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "raspador-tinta",
+              "note": "Só se a tinta por baixo do bolor estiver a descascar",
+              "optionnel": true
+            },
+            {
+              "id": "esponja-abrasiva",
+              "note": "Só para matar o rebordo da tinta raspada",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "primario-antifungos",
+              "note": "Com a parede limpa e bem seca"
+            },
+            {
+              "id": "tinta-anticondensacao",
+              "note": "Na parede fria atrás do móvel e nos cantos"
+            },
+            {
+              "id": "absorvente-humidade-recarga",
+              "note": "Só dentro de roupeiros e divisões fechadas; ajuda no ar, não trata a parede",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "mini-rolo-anti-gota"
+            },
+            {
+              "id": "trincha-plana-sintetica",
+              "note": "Cantos e encontro com o teto"
+            },
+            {
+              "id": "tabuleiro-pintura"
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-nitrilo-quimicas"
+            },
+            {
+              "id": "oculos-protecao",
+              "note": "Névoa do spray, sobretudo nos cantos altos"
+            },
+            {
+              "id": "mascara-ffp2",
+              "note": "Esporos de bolor; ventilar bem por causa dos vapores do spray"
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Voltar a encostar o móvel à parede fria traz o bolor de volta: deixar folga para o ar circular e arejar a divisão",
+        "A solução de fundo para paredes e cantos frios é o isolamento térmico da parede, não a pintura",
+        "Não misturar o spray anti-bolor com outros produtos de limpeza e arejar durante a aplicação",
+        "Bolor extenso em quarto de crianças, idosos ou pessoas com asma: tratar depressa e manter a divisão arejada"
+      ]
+    },
+    {
+      "id": "condensacao-janelas-bolor-aros",
+      "domaine": "humidade-interior",
+      "titre": "Condensação nas janelas e bolor nos aros",
+      "motsCles": [
+        "vidros a escorrer água",
+        "janelas embaciadas por dentro",
+        "bolor no silicone da janela",
+        "peitoril molhado de manhã",
+        "bolor à volta da janela",
+        "água no parapeito da janela",
+        "ombreira da janela preta",
+        "janelas a suar"
+      ],
+      "description": "Vidros embaciados e a escorrer de manhã, água acumulada no peitoril e bolor no silicone, nos aros e nas ombreiras. Aparece com vidro simples ou caixilharia fria e pouca ventilação.",
+      "aVerifier": [
+        "Vidro simples ou duplo e tipo de caixilharia (alumínio antigo sem corte térmico é o mais frio)",
+        "Furos de drenagem do caixilho entupidos, com água parada na calha",
+        "Estado do cordão de vedação entre o aro e a parede ou o peitoril: enegrecido, rachado ou descolado",
+        "Material do peitoril (pedra natural ou outro) e bolor nas ombreiras e na padieira"
+      ],
+      "etapes": [
+        {
+          "titre": "Tratamento",
+          "materiaux": [
+            {
+              "id": "spray-anti-bolor",
+              "note": "Aros, vedantes e ombreiras; testar primeiro em lacados e vedantes de cor"
+            },
+            {
+              "id": "pano-microfibra",
+              "note": "Limpar e secar aros, calhas e furos de drenagem"
+            }
+          ]
+        },
+        {
+          "titre": "Vedação",
+          "materiaux": [
+            {
+              "id": "espatula-remover-silicone",
+              "note": "Só se o cordão antigo estiver enegrecido por dentro ou descolado: cortar e tirar tudo",
+              "optionnel": true
+            },
+            {
+              "id": "silicone-neutro-caixilharia",
+              "note": "Só para refazer o cordão entre aro e parede ou peitoril, em junta limpa e seca; cor certa",
+              "optionnel": true
+            },
+            {
+              "id": "silicone-neutro-pedra-natural",
+              "note": "Só se o peitoril for de mármore ou outra pedra natural, para não manchar",
+              "optionnel": true
+            },
+            {
+              "id": "massa-acrilica-pintavel",
+              "note": "Só na fenda entre o aro e o reboco interior, onde se pinta por cima",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "primario-antifungos",
+              "note": "Ombreiras e padieira, depois de limpas e secas"
+            },
+            {
+              "id": "tinta-anticondensacao",
+              "note": "Nas ombreiras, padieira e parede à volta da janela"
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "pistola-silicone-manual",
+              "note": "Só se houver cordões a refazer",
+              "optionnel": true
+            },
+            {
+              "id": "espatula-alisar-silicone",
+              "note": "Só se houver cordões a refazer: alisar antes de formar pele",
+              "optionnel": true
+            },
+            {
+              "id": "fita-pintor-interior",
+              "note": "Proteger aro e vidro ao vedar e ao pintar"
+            },
+            {
+              "id": "pincel-recorte",
+              "note": "Recorte junto ao aro"
+            },
+            {
+              "id": "mini-rolo-anti-gota"
+            },
+            {
+              "id": "tabuleiro-pintura"
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-nitrilo-quimicas"
+            },
+            {
+              "id": "oculos-protecao",
+              "note": "Névoa do spray anti-bolor"
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Com vidro simples ou caixilharia sem corte térmico a condensação continua: limpar e pintar só controla o bolor; a solução é ventilar e, a prazo, melhorar a janela",
+        "Não tapar os furos de drenagem do caixilho com silicone: a água da calha deixa de sair",
+        "Silicone novo não agarra sobre restos do antigo nem sobre superfície húmida",
+        "Janelas em andares altos: trabalhar sempre pelo interior, sem se debruçar para fora"
+      ]
+    }
+  ]
+}

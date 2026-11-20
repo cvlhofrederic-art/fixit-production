@@ -1,0 +1,1331 @@
+{
+  "domaine": {
+    "id": "paredes-tetos",
+    "nom": "Paredes e tetos interiores",
+    "icone": "🪜"
+  },
+  "situations": [
+    {
+      "id": "fissuras-parede-interior",
+      "domaine": "paredes-tetos",
+      "titre": "Fissuras em parede interior",
+      "motsCles": [
+        "racha na parede",
+        "parede rachada",
+        "fenda na parede",
+        "fissura que volta a abrir",
+        "microfissuras no estuque",
+        "racha por cima da porta",
+        "fissura no estuque da sala",
+        "parede estalada",
+        "tapar rachas antes de pintar"
+      ],
+      "description": "Fissuras finas ou abertas em paredes de reboco ou estuque, muitas vezes junto a vãos, cantos e emendas. Reparam-se abrindo, enchendo e reforçando antes de voltar a pintar.",
+      "aVerifier": [
+        "Se a fissura é fina e superficial (só na tinta ou no estuque) ou aberta e funda, e se há desnível entre os dois lados.",
+        "Se está estabilizada ou continua a abrir (já foi reparada e voltou, alarga com as estações).",
+        "Se a parede é de reboco ou estuque sobre alvenaria ou de gesso cartonado (nesse caso, ver a ficha da junta fissurada).",
+        "Se há manchas de humidade ou salitre ao longo da fissura."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "espatula-multiusos-pintor",
+              "note": "Abrir a fissura em V e tirar o estuque solto: fissura só tapada por cima volta a aparecer."
+            },
+            {
+              "id": "trincha-plana-sintetica",
+              "note": "Escovar o pó da fissura aberta: a massa não agarra sobre pó."
+            },
+            {
+              "id": "primario-fixador-anti-alcalino",
+              "note": "Só se as bordas abertas esfarelarem: fixa o fundo antes da massa.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "massa-fibrada-fissuras",
+              "note": "Fissuras estabilizadas: encher bem até ao fundo e deixar à face."
+            },
+            {
+              "id": "massa-elastica-fissuras",
+              "note": "Fissuras com ligeiro movimento; alisar bem em fresco, porque depois lixa-se mal.",
+              "optionnel": true
+            },
+            {
+              "id": "banda-rede-adesiva",
+              "note": "Fissuras abertas ou compridas: colar sobre a fissura já cheia e cobrir com massa.",
+              "optionnel": true
+            },
+            {
+              "id": "massa-acabamento-pronta-pasta",
+              "note": "Barrar largo por cima da reparação para a emenda não se notar na tinta."
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "lixa-madeira-folha",
+              "note": "Grão fino, só com a massa bem seca (ver a embalagem)."
+            },
+            {
+              "id": "primario-aquoso-paredes-interiores",
+              "note": "Sobre a massa nova, para a tinta não ficar baça nem manchada nessa zona."
+            },
+            {
+              "id": "tinta-plastica-interior-mate",
+              "note": "Pintar o pano inteiro: o retoque isolado nota-se quase sempre."
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "espatula-pintor-media-50-63mm",
+              "note": "Lâmina flexível, para encher a fissura."
+            },
+            {
+              "id": "betumadeira-120-200mm",
+              "note": "Para o barramento largo por cima."
+            },
+            {
+              "id": "rolo-anti-gota"
+            },
+            {
+              "id": "tabuleiro-pintura"
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "oculos-protecao",
+              "note": "Ao abrir a fissura saltam lascas de estuque."
+            },
+            {
+              "id": "mascara-ffp2",
+              "note": "Para o pó da lixagem."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Fissuras largas, com desnível, em escada, inclinadas a partir dos cantos dos vãos ou que voltam a abrir podem ser estruturais: pedir diagnóstico a um técnico antes de tapar.",
+        "Se houver humidade ao longo da fissura, resolver primeiro a origem da água; a massa só disfarça.",
+        "Tempos de secagem entre camadas e antes de pintar: ver a embalagem."
+      ]
+    },
+    {
+      "id": "buracos-buchas-pequenos-danos",
+      "domaine": "paredes-tetos",
+      "titre": "Buracos de buchas e pequenos danos",
+      "motsCles": [
+        "tapar furos na parede",
+        "buracos de quadros",
+        "furos de buchas",
+        "mossas na parede",
+        "parede esburacada",
+        "tapar buracos antes de pintar",
+        "lasca no estuque",
+        "furos de pregos",
+        "tapar furos de parafusos"
+      ],
+      "description": "Furos de buchas e pregos, mossas e pequenas lascas em paredes interiores, a tapar antes de pintar ou ao entregar uma casa.",
+      "aVerifier": [
+        "Tamanho e profundidade dos furos: pequenos e rasos ou fundos e largos (massa em camadas ou de secagem rápida).",
+        "Se a parede é maciça (reboco, estuque) ou oca (gesso cartonado, tijolo furado), onde a massa pode cair para dentro.",
+        "Se a parede vai ser pintada por inteiro ou só retocada: no retoque é preciso a mesma tinta e a mesma cor."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "alicate-universal",
+              "note": "Arrancar buchas e pregos velhos; não betumar por cima da bucha."
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "massa-enchimento-pronta-pasta",
+              "note": "Furos e mossas correntes; em furos fundos, encher em camadas finas porque retrai."
+            },
+            {
+              "id": "massa-secagem-rapida-po",
+              "note": "Buracos fundos ou quando é preciso pintar pouco depois; amassar pouco de cada vez.",
+              "optionnel": true
+            },
+            {
+              "id": "massa-leve-interior",
+              "note": "Furos largos e fundos, sobretudo em tetos, porque não abate; evitar em esquinas.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "esponja-abrasiva",
+              "note": "Lixar à face depois de a massa secar."
+            },
+            {
+              "id": "pano-microfibra",
+              "note": "Limpar o pó da lixagem antes do primário."
+            },
+            {
+              "id": "primario-aquoso-paredes-interiores",
+              "note": "Sobre cada remendo: sem primário a massa chupa a tinta e fica uma mancha baça."
+            },
+            {
+              "id": "tinta-plastica-interior-mate",
+              "note": "Para retoque, usar a mesma tinta e cor da parede; em dúvida, pintar o pano inteiro."
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "espatula-pintor-estreita-20-40mm",
+              "note": "Para os furos de buchas e pregos."
+            },
+            {
+              "id": "espatula-pintor-media-50-63mm",
+              "note": "Para mossas e lascas maiores."
+            },
+            {
+              "id": "kit-mini-rolo-tabuleiro",
+              "note": "Para os retoques de primário e tinta."
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "mascara-ffp2",
+              "note": "Para o pó da lixagem."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Num retoque, a diferença de cor e de brilho nota-se quase sempre, sobretudo em tintas antigas: avisar o cliente e prever pintar a parede inteira.",
+        "Buraco grande em gesso cartonado não se resolve só com massa: ver a ficha do buraco em placa de gesso cartonado."
+      ]
+    },
+    {
+      "id": "junta-gesso-cartonado-fissurada",
+      "domaine": "paredes-tetos",
+      "titre": "Junta de gesso cartonado fissurada",
+      "motsCles": [
+        "risco direito no teto falso",
+        "fissura no pladur",
+        "junta do teto a abrir",
+        "banda da junta a descolar",
+        "linha a aparecer no teto falso",
+        "fita da junta levantada",
+        "racha direita na parede de pladur",
+        "bolha na junta do pladur"
+      ],
+      "description": "Fissura em linha reta ao longo da junta entre placas, ou banda de junta descolada e com bolhas, em paredes e tetos de gesso cartonado.",
+      "aVerifier": [
+        "Se a fissura segue a junta entre placas ou o encontro da placa com parede ou teto de alvenaria.",
+        "Se a banda está solta, com bolhas, ou se a junta foi feita sem banda.",
+        "Se a placa mexe quando se carrega ao lado da junta (parafusos soltos ou estrutura fraca).",
+        "Se é zona húmida (placa verde) e se há sinais de água."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "x-ato",
+              "note": "Cortar e retirar a banda solta e a massa descolada, até à zona bem agarrada."
+            },
+            {
+              "id": "parafuso-gesso-cartonado",
+              "note": "Se a placa mexer: reforçar a fixação aos perfis dos dois lados da junta.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "massa-juntas-po",
+              "note": "Para encher a junta e assentar a banda; não reamassar massa que já começou a prender."
+            },
+            {
+              "id": "banda-papel-juntas",
+              "note": "Resiste melhor à fissuração do que a rede; assentar em massa fresca, sem bolhas."
+            },
+            {
+              "id": "massa-juntas-pronta",
+              "note": "Demãos de acabamento finas, cada uma mais larga, deixando secar entre elas."
+            },
+            {
+              "id": "massa-juntas-hidrofuga",
+              "note": "Em vez das outras massas, em casas de banho e cozinhas com placa verde.",
+              "optionnel": true
+            },
+            {
+              "id": "massa-acrilica-pintavel",
+              "note": "Encontro da placa com parede ou teto de alvenaria: junta elástica em vez de massa rígida.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "esponja-abrasiva",
+              "note": "Lixar leve, sem levantar o cartão da placa."
+            },
+            {
+              "id": "primario-gesso-cartonado-estuque",
+              "note": "Com as massas bem secas e sem pó."
+            },
+            {
+              "id": "tinta-plastica-interior-mate",
+              "note": "Pintar o pano inteiro com a mesma tinta do resto (a de teto, se for teto falso)."
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "espatula-americana-placas-gesso"
+            },
+            {
+              "id": "espatula-cantos-placas-gesso",
+              "note": "Só se a junta fissurada for num canto (modelo interior ou exterior, conforme o caso).",
+              "optionnel": true
+            },
+            {
+              "id": "pistola-silicone-manual",
+              "note": "Só se usar a massa acrílica em cartucho.",
+              "optionnel": true
+            },
+            {
+              "id": "kit-mini-rolo-tabuleiro"
+            },
+            {
+              "id": "escadote-aluminio",
+              "note": "Para juntas de teto.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "oculos-protecao",
+              "note": "Em tetos, o pó e as lascas caem para os olhos."
+            },
+            {
+              "id": "mascara-ffp2",
+              "note": "Pó de gesso da lixagem."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Junta refeita só com massa, sem banda, volta sempre a fissurar.",
+        "Se a fissura reaparece, o problema está na estrutura (perfis, suspensões, placas mal fixas): rever a fixação antes de refazer a junta.",
+        "Manchas ou placa inchada junto à junta indicam água: resolver a origem primeiro."
+      ]
+    },
+    {
+      "id": "estuque-reboco-interior-degradado",
+      "domaine": "paredes-tetos",
+      "titre": "Estuque ou reboco interior degradado",
+      "motsCles": [
+        "estuque a cair",
+        "reboco a esfarelar",
+        "parede oca ao bater",
+        "estuque solto",
+        "reboco podre",
+        "refazer estuque",
+        "parede a desfazer-se",
+        "estuque empolado",
+        "reboco a largar areia"
+      ],
+      "description": "Zonas de reboco ou estuque ocas, soltas, empoladas ou a esfarelar, que já não se resolvem com massa: é preciso picar até ao firme e refazer.",
+      "aVerifier": [
+        "Extensão da zona oca: bater com o cabo da ferramenta e marcar até onde soa a oco.",
+        "Causa da degradação (humidade, salitre, infiltração antiga) e se a parede já está seca.",
+        "Tipo de parede e de reboco existente: alvenaria de tijolo com reboco de cimento, ou parede antiga de pedra, taipa ou tabique com cal.",
+        "Espessura a repor e acabamento à volta (areado ou estuque liso)."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "maceta",
+              "note": "Com o escopro, picar tudo o que soa a oco, até ao suporte firme e com bordas sãs."
+            },
+            {
+              "id": "escopro"
+            },
+            {
+              "id": "sacos-de-entulho",
+              "note": "Não encher demasiado: o reboco picado pesa muito."
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "balde-de-pedreiro",
+              "note": "Amassar pouca argamassa de cada vez e humedecer o suporte antes de rebocar."
+            },
+            {
+              "id": "argamassa-reboco-manual",
+              "note": "Paredes de alvenaria corrente: respeitar a espessura por camada indicada no saco."
+            },
+            {
+              "id": "argamassa-cal-reabilitacao",
+              "note": "Em vez do reboco de cimento, em paredes antigas de pedra, taipa ou tabique.",
+              "optionnel": true
+            },
+            {
+              "id": "rede-fibra-vidro-reboco",
+              "note": "Remendos grandes e transições entre reboco velho e novo ou entre materiais diferentes.",
+              "optionnel": true
+            },
+            {
+              "id": "massa-estuque-antifissuras",
+              "note": "Remendos em paredes e tetos estucados a gesso, só em interiores secos.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "massa-acabamento-po",
+              "note": "Se à volta for estuque liso: barramento fino depois de o reboco curar.",
+              "optionnel": true
+            },
+            {
+              "id": "primario-fixador-anti-alcalino",
+              "note": "Antes de pintar: o reboco novo é alcalino e absorve de forma desigual."
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "colher-pedreiro"
+            },
+            {
+              "id": "regua-pedreiro-aluminio",
+              "note": "Apoiada no reboco são dos dois lados, para deixar o remendo à face."
+            },
+            {
+              "id": "talocha-esponja",
+              "note": "Fechar o reboco em areado fino; esponja húmida e bem espremida."
+            },
+            {
+              "id": "talocha-aco-lisa-licosa",
+              "note": "Para o barramento de estuque liso; lâmina inox para não manchar massas brancas.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "oculos-protecao",
+              "note": "Ao picar saltam lascas."
+            },
+            {
+              "id": "mascara-ffp2",
+              "note": "Pó de reboco e de gesso ao picar e lixar."
+            },
+            {
+              "id": "luvas-borracha-compridas",
+              "note": "O cimento e a cal frescos queimam a pele."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Tratar primeiro a causa (infiltração, capilaridade, fuga): reboco novo sobre parede húmida volta a degradar-se.",
+        "Em paredes antigas de pedra, taipa ou tabique, o reboco de cimento retém a humidade e acaba por descolar: usar argamassa de cal.",
+        "Tetos antigos de estuque sobre fasquiado a soltar-se podem cair em placas: isolar a zona e avaliar antes de picar.",
+        "Antes de picar, localizar cabos e tubos embutidos; junto a instalações elétricas, desligar o circuito.",
+        "Deixar o reboco curar antes de barrar e pintar: tempos na embalagem."
+      ]
+    },
+    {
+      "id": "preparar-pintar-parede-interior",
+      "domaine": "paredes-tetos",
+      "titre": "Preparar e pintar parede interior",
+      "motsCles": [
+        "pintar a sala",
+        "pintar o quarto",
+        "repintar paredes",
+        "pintura de interiores",
+        "mudar a cor da parede",
+        "dar uma demão nas paredes",
+        "pintar por cima de tinta velha",
+        "pintar apartamento",
+        "refrescar a pintura"
+      ],
+      "description": "Repintura corrente de paredes interiores em bom estado: proteger, limpar, reparar pequenos defeitos, dar primário onde é preciso e pintar.",
+      "aVerifier": [
+        "Estado da tinta existente: firme, a largar pó ao passar a mão, a descascar ou brilhante (acetinada ou esmalte).",
+        "Cor atual e cor nova: uma mudança forte pede primário ou mais demãos.",
+        "Se há manchas, bolor ou humidade a tratar antes de pintar.",
+        "Tipo de divisão: cozinhas e casas de banho pedem tinta própria anti-fungos."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "plastico-protecao-fino",
+              "note": "Cobrir móveis e o que não sai da divisão; não serve para o chão."
+            },
+            {
+              "id": "manta-absorvente-antiderrapante",
+              "note": "No pavimento: não escorrega e segura os salpicos."
+            },
+            {
+              "id": "fita-pintor-interior",
+              "note": "Rodapés, aros, tomadas e remate com o teto; tirar antes de a tinta secar por completo."
+            },
+            {
+              "id": "desengordurante",
+              "note": "Paredes de cozinha ou com gordura e marcas de mãos; enxaguar e deixar secar.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "massa-enchimento-pronta-pasta",
+              "note": "Furos de buchas, mossas e pequenas lascas."
+            },
+            {
+              "id": "massa-acrilica-pintavel",
+              "note": "Fendas entre a parede e rodapés, aros de portas e janelas.",
+              "optionnel": true
+            },
+            {
+              "id": "lixa-madeira-folha",
+              "note": "Grão fino: lixar as reparações e tirar o brilho a tintas acetinadas."
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "primario-aquoso-paredes-interiores",
+              "note": "Parede nova, zonas reparadas, fundo muito absorvente ou mudança forte de cor."
+            },
+            {
+              "id": "primario-fixador-anti-alcalino",
+              "note": "Em vez do aquoso, se a tinta velha largar pó na mão ou o reboco estiver farinhento.",
+              "optionnel": true
+            },
+            {
+              "id": "tinta-plastica-interior-mate",
+              "note": "O mate disfarça melhor os defeitos da parede; número de demãos na embalagem."
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "espatula-pintor-media-50-63mm"
+            },
+            {
+              "id": "pistola-silicone-manual",
+              "note": "Só para a massa acrílica em cartucho.",
+              "optionnel": true
+            },
+            {
+              "id": "pincel-recorte",
+              "note": "Cantos e remates com teto, rodapés e aros."
+            },
+            {
+              "id": "rolo-anti-gota",
+              "note": "Em paredes com textura, trocar por rolo de pelo mais comprido."
+            },
+            {
+              "id": "tabuleiro-pintura"
+            },
+            {
+              "id": "escadote-aluminio",
+              "note": "Para recortar junto ao teto; quatro pés em piso firme.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "mascara-ffp2",
+              "note": "Ao lixar as reparações."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "A tinta nova não segura tinta velha a descascar: raspar e lixar primeiro tudo o que não está agarrado.",
+        "Manchas de humidade, fumo ou nicotina têm de ser isoladas antes, senão atravessam a tinta nova.",
+        "Bolor: lavar, desinfetar e deixar secar antes de pintar; a tinta por cima não o resolve.",
+        "Não pintar com a parede húmida; diluição, número de demãos e tempo entre demãos estão na embalagem."
+      ]
+    },
+    {
+      "id": "teto-tinta-a-descascar",
+      "domaine": "paredes-tetos",
+      "titre": "Teto com tinta a descascar",
+      "motsCles": [
+        "tinta do teto a cair",
+        "teto a escamar",
+        "teto a pelar",
+        "tinta a levantar no teto da casa de banho",
+        "lascas de tinta no teto",
+        "teto empolado",
+        "bolhas na tinta do teto",
+        "teto a largar a tinta"
+      ],
+      "description": "Tinta de teto a levantar em lascas, bolhas ou escamas, frequente em casas de banho e cozinhas, sobre cal antiga ou depois de uma infiltração.",
+      "aVerifier": [
+        "Causa: condensação (casa de banho, cozinha), infiltração do piso de cima ou da cobertura, tinta aplicada sobre cal ou sobre pó.",
+        "Se o teto está seco e a origem da água resolvida.",
+        "Suporte por baixo da tinta: estuque, betão ou gesso cartonado, e se o fundo larga pó.",
+        "Se há bolor ou manchas amareladas a tratar."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "plastico-protecao-grosso",
+              "note": "Cobrir chão e móveis: cai muita lasca e pó. Fixar as bordas com fita."
+            },
+            {
+              "id": "raspador-tinta",
+              "note": "Raspar tudo o que não está bem agarrado, até à tinta firme."
+            },
+            {
+              "id": "trincha-plana-sintetica",
+              "note": "Escovar o pó e a cal solta depois de raspar, antes do fixador."
+            },
+            {
+              "id": "solucao-limpeza-antifungos-paredes",
+              "note": "Se houver bolor: aplicar, deixar atuar e secar antes de continuar.",
+              "optionnel": true
+            },
+            {
+              "id": "primario-fixador-anti-alcalino",
+              "note": "Fixa a cal antiga ou o fundo farinhento antes da massa e da tinta."
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "massa-acabamento-pronta-pasta",
+              "note": "Barrar os degraus entre a tinta velha e as zonas raspadas, em camada fina."
+            },
+            {
+              "id": "lixa-madeira-folha",
+              "note": "Grão fino, para esbater as emendas do barramento."
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "tinta-isolante-anti-manchas",
+              "note": "Só sobre manchas de infiltração já secas e com a causa resolvida.",
+              "optionnel": true
+            },
+            {
+              "id": "tinta-tetos",
+              "note": "Divisões secas; em casa de banho ou cozinha, usar a tinta seguinte."
+            },
+            {
+              "id": "tinta-cozinha-casa-de-banho",
+              "note": "Em vez da tinta de tetos, em casas de banho e cozinhas com condensação.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "betumadeira-120-200mm"
+            },
+            {
+              "id": "rolo-anti-gota",
+              "note": "Salpica menos a pintar por cima da cabeça."
+            },
+            {
+              "id": "cabo-extensivel-rolo",
+              "note": "Confirmar que o encaixe serve na armação do rolo."
+            },
+            {
+              "id": "tabuleiro-pintura"
+            },
+            {
+              "id": "escadote-aluminio",
+              "note": "Para raspar, barrar e recortar; quatro pés em piso firme."
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "oculos-panoramicos",
+              "note": "Fechados: as lascas e o pó caem diretamente para os olhos."
+            },
+            {
+              "id": "mascara-ffp2",
+              "note": "Pó da raspagem e da lixagem."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Se a causa for infiltração ou fuga do piso de cima, resolver primeiro e deixar o teto secar; pintar por cima não dura.",
+        "Em casas de banho sem extração ou ventilação, a tinta volta a descascar: prever ventilação.",
+        "Tintas muito antigas podem conter chumbo: evitar lixar a seco em grande escala, humedecer e recolher bem os resíduos.",
+        "Trabalho por cima da cabeça em escadote: não se esticar para os lados, mudar o escadote de sítio."
+      ]
+    },
+    {
+      "id": "manchas-fumo-nicotina-humidade-antes-pintar",
+      "domaine": "paredes-tetos",
+      "titre": "Manchas de fumo, nicotina ou humidade seca",
+      "motsCles": [
+        "mancha amarela no teto",
+        "mancha volta a aparecer na tinta",
+        "parede amarelada do tabaco",
+        "fuligem da lareira",
+        "mancha de infiltração antiga",
+        "teto manchado de fumo",
+        "auréola de água no teto",
+        "parede negra por cima do fogão",
+        "mancha que atravessa a tinta"
+      ],
+      "description": "Manchas amareladas ou escuras de tabaco, fuligem, gordura ou de uma infiltração já seca, que atravessam a tinta nova se não forem isoladas antes.",
+      "aVerifier": [
+        "Origem da mancha e, se for de água, que a causa está resolvida e a zona bem seca.",
+        "Se há gordura ou fuligem à superfície, que tem de ser lavada antes de isolar.",
+        "Extensão: manchas localizadas (isolar só a zona) ou divisão inteira (tabaco, incêndio).",
+        "Se são mesmo manchas ou bolor vivo (pontos pretos), que pede tratamento antifungos."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "plastico-protecao-grosso",
+              "note": "A lavagem escorre: proteger o chão e fixar as bordas."
+            },
+            {
+              "id": "fita-pintor-interior"
+            },
+            {
+              "id": "desengordurante",
+              "note": "Lavar nicotina, fuligem e gordura; enxaguar bem e deixar secar antes de isolar."
+            },
+            {
+              "id": "balde-de-pedreiro",
+              "note": "Água para lavar e enxaguar, mudada com frequência."
+            },
+            {
+              "id": "esponja-ladrilhador",
+              "note": "Esponja grande para lavar e enxaguar a parede."
+            }
+          ]
+        },
+        {
+          "titre": "Tratamento",
+          "materiaux": [
+            {
+              "id": "tinta-isolante-anti-manchas",
+              "note": "Sobre a mancha limpa e seca, passando um pouco para fora dela; demãos na embalagem."
+            },
+            {
+              "id": "diluente-sintetico",
+              "note": "Só se o isolante for de base solvente: para limpar as ferramentas (ver a lata).",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "tinta-plastica-interior-mate",
+              "note": "Depois de o isolante secar; pintar o pano inteiro para uniformizar."
+            },
+            {
+              "id": "tinta-tetos",
+              "note": "Se a mancha for no teto.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "trincha-plana-sintetica",
+              "note": "Para isolar manchas localizadas."
+            },
+            {
+              "id": "rolo-anti-gota"
+            },
+            {
+              "id": "tabuleiro-pintura"
+            },
+            {
+              "id": "escadote-aluminio",
+              "note": "Para manchas em teto ou no alto da parede.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-nitrilo-quimicas",
+              "note": "Na lavagem com desengordurante e ao aplicar isolante de solvente."
+            },
+            {
+              "id": "oculos-protecao",
+              "note": "Salpicos ao lavar e pintar por cima da cabeça."
+            },
+            {
+              "id": "semi-mascara-filtros",
+              "note": "Isolante de base solvente em divisão fechada: filtro para vapores orgânicos (A).",
+              "optionnel": true
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Mancha de humidade ainda ativa volta sempre: confirmar que a infiltração ou fuga está resolvida e a parede seca.",
+        "A tinta corrente não tapa estas manchas, mesmo com várias demãos: é o isolante que as bloqueia.",
+        "Isolantes de base solvente são inflamáveis e de cheiro forte: ventilar e afastar chamas e faíscas.",
+        "Nunca misturar produtos de limpeza entre si (lixívia com amoníaco ou com ácidos liberta gases tóxicos)."
+      ]
+    },
+    {
+      "id": "remover-papel-parede",
+      "domaine": "paredes-tetos",
+      "titre": "Remover papel de parede",
+      "motsCles": [
+        "tirar papel de parede",
+        "arrancar papel de parede velho",
+        "descolar papel de parede",
+        "papel vinílico antigo",
+        "restos de cola do papel na parede",
+        "parede forrada a papel",
+        "tirar o forro da parede",
+        "papel de parede pintado por cima"
+      ],
+      "description": "Retirar papel de parede antigo, simples, vinílico ou pintado por cima, e deixar a parede limpa de cola e pronta para pintar ou voltar a forrar.",
+      "aVerifier": [
+        "Tipo de papel: simples, vinílico ou lavável (sai a película e fica a base de papel) ou pintado por cima.",
+        "Suporte por baixo: estuque, reboco ou gesso cartonado, que não pode ser encharcado.",
+        "Número de camadas sobrepostas e estado da parede, com um ensaio num canto.",
+        "Tomadas, interruptores e apliques na parede a molhar."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "plastico-protecao-grosso",
+              "note": "No chão, com as bordas presas: escorre água com cola."
+            },
+            {
+              "id": "fita-pintor-interior",
+              "note": "Prender o plástico ao rodapé e tapar tomadas e interruptores."
+            },
+            {
+              "id": "x-ato",
+              "note": "Em vez do perfurador: riscar de leve o papel, sem cortar o estuque.",
+              "optionnel": true
+            },
+            {
+              "id": "balde-de-pedreiro",
+              "note": "Água quente com o descolante, na dose da embalagem."
+            },
+            {
+              "id": "descolante-papel-parede",
+              "note": "Amolece a cola antiga; deixar atuar o tempo indicado antes de raspar."
+            },
+            {
+              "id": "esponja-ladrilhador",
+              "note": "Molhar o papel por zonas e, no fim, lavar a cola até a parede deixar de pegar."
+            },
+            {
+              "id": "raspador-lamina-larga-100mm",
+              "note": "Levantar o papel amolecido com ângulo baixo, para não ferir o estuque."
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "massa-enchimento-pronta-pasta",
+              "note": "Arrancados e mossas deixados pela raspagem."
+            },
+            {
+              "id": "massa-acabamento-pronta-pasta",
+              "note": "Se a parede ficar marcada ou irregular: barramento fino geral.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "lixa-madeira-folha",
+              "note": "Grão fino, com a parede bem seca."
+            },
+            {
+              "id": "primario-fixador-anti-alcalino",
+              "note": "Fixa o fundo e os resíduos finos de cola antes de pintar ou forrar de novo."
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "espatula-pintor-larga-75-125mm",
+              "note": "Para os cantos e para betumar depois."
+            },
+            {
+              "id": "escadote-aluminio"
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "oculos-protecao",
+              "note": "A água com cola escorre ao raspar a parte alta."
+            },
+            {
+              "id": "luvas-descartaveis"
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Desligar no quadro os circuitos das tomadas e interruptores da parede antes de a molhar.",
+        "Em gesso cartonado, molhar o mínimo: o cartão da placa encharca e vem agarrado ao papel.",
+        "Restos de cola por baixo da tinta fazem-na estalar e descascar: lavar até a parede deixar de estar pegajosa.",
+        "Em estuques antigos e fracos, parte do estuque pode sair com o papel: prever reparação e barramento."
+      ]
+    },
+    {
+      "id": "alisar-parede-textura-areado",
+      "domaine": "paredes-tetos",
+      "titre": "Alisar parede com textura ou areado",
+      "motsCles": [
+        "tirar o areado da parede",
+        "parede rugosa",
+        "tapar tinta texturada",
+        "barrar parede rugosa",
+        "deixar a parede lisa",
+        "tirar casca de laranja",
+        "parede de tinta de areia",
+        "alisar teto texturado",
+        "parede crespa"
+      ],
+      "description": "Parede ou teto interior com tinta texturada, areado ou relevo que o cliente quer liso: cortam-se os picos e barra-se com massa em várias passagens antes de pintar.",
+      "aVerifier": [
+        "Tipo e altura do relevo: tinta texturada fina, areado de reboco ou crespo grosso de cimento.",
+        "Se a tinta ou a textura existente está bem agarrada (raspar e puxar com fita num canto).",
+        "Se o acabamento atual é lavável ou brilhante (pede primário de aderência) ou poroso e a largar grão.",
+        "Sinais de humidade ou salitre, e a área total, que decide se compensa lixadeira de paredes."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "plastico-protecao-grosso",
+              "note": "Chão e vãos: o barramento e a lixagem sujam muito."
+            },
+            {
+              "id": "raspador-lamina-larga-100mm",
+              "note": "Cortar os picos mais altos do relevo, para gastar menos massa."
+            },
+            {
+              "id": "primario-fixador-anti-alcalino",
+              "note": "Se o areado largar grão ou o fundo estiver farinhento.",
+              "optionnel": true
+            },
+            {
+              "id": "primario-aderencia-multissuperficies",
+              "note": "Se a textura estiver pintada com tinta lavável ou acetinada, lisa e fechada.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "betume-renovacao-interior",
+              "note": "Primeiras passagens, para encher o relevo; deixar secar entre elas."
+            },
+            {
+              "id": "massa-acabamento-pronta-pasta",
+              "note": "Última passagem fina, para fechar e alisar."
+            },
+            {
+              "id": "massa-acabamento-po",
+              "note": "Alternativa em pó à massa em pasta, para grandes áreas.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "lixa-madeira-folha",
+              "note": "Grão fino, com luz rasante para ver as ondas e os riscos."
+            },
+            {
+              "id": "disco-lixa-parede-225",
+              "note": "Só se houver lixadeira de paredes; confirmar diâmetro e furos da máquina.",
+              "optionnel": true
+            },
+            {
+              "id": "primario-aquoso-paredes-interiores",
+              "note": "A massa nova absorve muito: sem primário a tinta fica manchada."
+            },
+            {
+              "id": "tinta-plastica-interior-mate",
+              "note": "O mate perdoa pequenas ondulações; o acetinado realça-as."
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "betumadeira-extra-larga-250-500mm",
+              "note": "Lâmina larga apoia nos altos e deixa a parede plana; aresta sem mossas."
+            },
+            {
+              "id": "espatula-pintor-larga-75-125mm",
+              "note": "Para carregar a betumadeira."
+            },
+            {
+              "id": "bloco-de-lixar"
+            },
+            {
+              "id": "kit-pintura-rolo-tabuleiro",
+              "note": "Para o primário e a tinta."
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "mascara-ffp2",
+              "note": "A lixagem de uma parede inteira faz muito pó fino."
+            },
+            {
+              "id": "oculos-protecao",
+              "note": "Ao raspar os picos e ao lixar tetos."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Massa aplicada sobre tinta mal agarrada descola com ela: raspar primeiro tudo o que estiver solto.",
+        "Com humidade ou salitre na parede, tratar a causa antes; as massas de interior não aguentam água.",
+        "Crespo grosso de cimento não se resolve com massa de acabamento: precisa de regularização com argamassa ou de ser picado.",
+        "Fechar a divisão e proteger o resto da casa: o pó da lixagem espalha-se por todo o lado."
+      ]
+    },
+    {
+      "id": "esquina-parede-partida",
+      "domaine": "paredes-tetos",
+      "titre": "Esquina de parede partida",
+      "motsCles": [
+        "canto da parede lascado",
+        "aresta partida",
+        "esquina esmurrada",
+        "quina da parede partida",
+        "canto do corredor batido",
+        "cantoneira à vista",
+        "refazer a aresta da parede",
+        "esquina a esfarelar"
+      ],
+      "description": "Aresta saliente de parede interior lascada ou esmagada por pancadas, comum em corredores, vãos de portas e escadas.",
+      "aVerifier": [
+        "Suporte: reboco ou estuque sobre alvenaria, ou gesso cartonado.",
+        "Comprimento do dano: lasca pontual ou aresta estragada a toda a altura.",
+        "Se já existe cantoneira metálica por baixo e se está solta ou enferrujada.",
+        "Se é zona de passagem com pancadas frequentes, que justifica reforçar com cantoneira."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "espatula-multiusos-pintor",
+              "note": "Tirar todo o material solto até às bordas firmes."
+            },
+            {
+              "id": "primario-fixador-anti-alcalino",
+              "note": "Se o fundo ficar farinhento depois de limpo.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "cantoneira-perfurada-aluminio",
+              "note": "Aresta muito estragada ou zona de pancadas: embebida em massa, a prumo e à face.",
+              "optionnel": true
+            },
+            {
+              "id": "massa-enchimento-po-interior",
+              "note": "Reconstituir a aresta em camadas; não usar massa leve, que amolga nas esquinas."
+            },
+            {
+              "id": "massa-acabamento-pronta-pasta",
+              "note": "Camada fina final nas duas faces, para a emenda desaparecer."
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "esponja-abrasiva",
+              "note": "Acerta bem a aresta sem a arredondar demasiado."
+            },
+            {
+              "id": "primario-aquoso-paredes-interiores",
+              "note": "Sobre a massa nova, antes da tinta."
+            },
+            {
+              "id": "tinta-plastica-interior-mate",
+              "note": "Pintar as duas faces da esquina até a um canto ou remate."
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "espatula-pintor-larga-75-125mm"
+            },
+            {
+              "id": "espatula-cantos-placas-gesso",
+              "note": "Esquina de gesso cartonado ou para afinar a aresta: modelo de canto exterior.",
+              "optionnel": true
+            },
+            {
+              "id": "regua-pedreiro-aluminio",
+              "note": "Encostada a uma face, serve de molde para refazer a aresta direita."
+            },
+            {
+              "id": "nivel-de-bolha",
+              "note": "Para aprumar a cantoneira.",
+              "optionnel": true
+            },
+            {
+              "id": "tesoura-de-chapa",
+              "note": "Para cortar a cantoneira à medida.",
+              "optionnel": true
+            },
+            {
+              "id": "kit-mini-rolo-tabuleiro"
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "mascara-ffp2",
+              "note": "Pó da lixagem."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Cantoneira antiga enferrujada volta a manchar a tinta: retirar ou tratar a ferrugem antes de cobrir.",
+        "Se a esquina tiver uma fissura vertical que continua pela parede, pode ser a junta entre dois materiais ou um movimento a avaliar."
+      ]
+    },
+    {
+      "id": "fissura-encontro-parede-teto",
+      "domaine": "paredes-tetos",
+      "titre": "Fissura no encontro entre parede e teto",
+      "motsCles": [
+        "racha no canto do teto",
+        "fissura junto ao teto",
+        "risco entre a parede e o teto",
+        "sanca descolada",
+        "fenda entre a parede e o teto",
+        "fissura a toda a volta do teto",
+        "canto do teto a abrir",
+        "racha entre o pladur e a parede"
+      ],
+      "description": "Fissura reta no canto entre parede e teto, ou entre dois materiais diferentes, causada por pequenos movimentos. A massa rígida volta a abrir: quer-se um material elástico que se possa pintar.",
+      "aVerifier": [
+        "Que materiais se encontram: teto falso de gesso cartonado contra alvenaria, laje contra parede, parede nova contra antiga.",
+        "Largura da fissura e se varia ao longo do ano.",
+        "Se existe sanca e se está solta.",
+        "Se há manchas de humidade vindas de cima."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "espatula-multiusos-pintor",
+              "note": "Abrir ligeiramente e tirar a tinta e a massa soltas do canto."
+            },
+            {
+              "id": "trincha-plana-sintetica",
+              "note": "Escovar o pó da fissura: a massa acrílica não agarra sobre pó."
+            },
+            {
+              "id": "fita-pintor-interior",
+              "note": "Dos dois lados do canto, para um cordão direito; tirar com a massa ainda fresca."
+            }
+          ]
+        },
+        {
+          "titre": "Vedação",
+          "materiaux": [
+            {
+              "id": "fundo-de-junta-polietileno",
+              "note": "Só em fendas largas e fundas: meter antes da massa, para não a gastar a encher.",
+              "optionnel": true
+            },
+            {
+              "id": "massa-acrilica-pintavel",
+              "note": "Elástica e pintável. Nunca silicone: a tinta não agarra. Fendas fundas em duas passagens."
+            },
+            {
+              "id": "massa-elastica-fissuras",
+              "note": "Fissura mais larga ou irregular, acabada à espátula; alisar bem em fresco.",
+              "optionnel": true
+            },
+            {
+              "id": "cola-montagem-sancas-rodapes",
+              "note": "Se a sanca estiver solta: recolar antes de fechar a junta.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "tinta-plastica-interior-mate",
+              "note": "Só depois de a massa acrílica secar (ver a embalagem), senão a tinta estala."
+            },
+            {
+              "id": "tinta-tetos",
+              "note": "Para retocar o lado do teto.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "pistola-silicone-manual"
+            },
+            {
+              "id": "espatula-alisar-silicone",
+              "note": "Alisar o cordão logo a seguir à aplicação."
+            },
+            {
+              "id": "pano-microfibra",
+              "note": "Húmido, para limpar o excesso antes de secar."
+            },
+            {
+              "id": "pincel-recorte"
+            },
+            {
+              "id": "escadote-aluminio"
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "oculos-protecao",
+              "note": "Ao raspar o canto por cima da cabeça."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Fissura que alarga, com desnível ou acompanhada de outras nas paredes: pedir diagnóstico antes de tapar.",
+        "A massa acrílica é de base aquosa e encolhe ao secar: não serve para zonas sempre húmidas.",
+        "Manchas de humidade no canto indicam infiltração ou condensação a resolver primeiro."
+      ]
+    }
+  ]
+}

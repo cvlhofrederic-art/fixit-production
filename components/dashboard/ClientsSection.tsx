@@ -49,20 +49,21 @@ interface ClientRecord {
   [key: string]: any // eslint-disable-line @typescript-eslint/no-explicit-any
 }
 
+// Types de client : `value` est enregistré avec le client, seuls les libellés dépendent de la langue.
 const CLIENT_TYPES = [
-  { value: 'particulier', label: 'Particulier', group: 'b2c' },
-  { value: 'particulier_bailleur', label: 'Propriétaire bailleur', group: 'b2c' },
-  { value: 'particulier_secondaire', label: 'Résidence secondaire', group: 'b2c' },
-  { value: 'professionnel', label: 'Professionnel', group: 'b2b' },
-  { value: 'societe', label: 'Société / Entreprise', group: 'b2b' },
-  { value: 'artisan_sous_traitant', label: 'Artisan / Sous-traitant', group: 'b2b' },
-  { value: 'syndic', label: 'Syndic de copropriété', group: 'b2b' },
-  { value: 'conciergerie', label: 'Conciergerie / Gestion locative', group: 'b2b' },
-  { value: 'agence_immobiliere', label: 'Agence immobilière', group: 'b2b' },
-  { value: 'promoteur', label: 'Promoteur immobilier', group: 'b2b' },
-  { value: 'architecte', label: "Architecte / Maître d'œuvre", group: 'b2b' },
-  { value: 'collectivite', label: 'Collectivité / Mairie', group: 'b2b' },
-  { value: 'association', label: 'Association', group: 'b2b' },
+  { value: 'particulier', label: 'Particulier', labelPt: 'Particular', group: 'b2c' },
+  { value: 'particulier_bailleur', label: 'Propriétaire bailleur', labelPt: 'Proprietário (senhorio)', group: 'b2c' },
+  { value: 'particulier_secondaire', label: 'Résidence secondaire', labelPt: 'Residência secundária', group: 'b2c' },
+  { value: 'professionnel', label: 'Professionnel', labelPt: 'Profissional', group: 'b2b' },
+  { value: 'societe', label: 'Société / Entreprise', labelPt: 'Sociedade / Empresa', group: 'b2b' },
+  { value: 'artisan_sous_traitant', label: 'Artisan / Sous-traitant', labelPt: 'Profissional / Subempreiteiro', group: 'b2b' },
+  { value: 'syndic', label: 'Syndic de copropriété', labelPt: 'Administração de condomínio', group: 'b2b' },
+  { value: 'conciergerie', label: 'Conciergerie / Gestion locative', labelPt: 'Gestão de alojamento / arrendamento', group: 'b2b' },
+  { value: 'agence_immobiliere', label: 'Agence immobilière', labelPt: 'Agência imobiliária', group: 'b2b' },
+  { value: 'promoteur', label: 'Promoteur immobilier', labelPt: 'Promotor imobiliário', group: 'b2b' },
+  { value: 'architecte', label: "Architecte / Maître d'œuvre", labelPt: 'Arquiteto / Projetista', group: 'b2b' },
+  { value: 'collectivite', label: 'Collectivité / Mairie', labelPt: 'Autarquia / Câmara Municipal', group: 'b2b' },
+  { value: 'association', label: 'Association', labelPt: 'Associação', group: 'b2b' },
 ] as const
 
 const EMPTY_CLIENT_FORM = {
@@ -101,7 +102,8 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
   const tv = useThemeVars(isV5)
   const { t } = useTranslation()
   const locale = useLocale()
-  const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
+  const isPt = locale === 'pt'
+  const dateLocale = isPt ? 'pt-PT' : 'fr-FR'
   const manualStorageKey = `fixit_manual_clients_${artisan?.id}`
 
   const [authClients, setAuthClients] = useState<ClientRecord[]>([])
@@ -217,7 +219,7 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
       phone: c.phone || '',
       siret: c.siret || '',
       mainAddress: c.mainAddress || c.address || '',
-      mainAddressLabel: c.mainAddressLabel || (c.type === 'professionnel' ? 'Siège social' : 'Domicile'),
+      mainAddressLabel: c.mainAddressLabel || (c.type === 'professionnel' ? t('proDash.clients.siegeSocial') : t('proDash.clients.domicile')),
       interventionAddresses: c.interventionAddresses || [],
       notes: c.notes || '',
       // BTP — pré-remplir les champs détaillés s'ils existent (sinon vides, l'utilisateur recopie depuis mainAddress)
@@ -320,7 +322,7 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
 
   const typeLabel = (c: ClientRecord) => {
     const ct = CLIENT_TYPES.find(ct => ct.value === c.type)
-    if (ct) return ct.label
+    if (ct) return isPt ? ct.labelPt : ct.label
     return isEntreprise(c) ? t('proDash.clients.b2bFallback') : t('proDash.clients.particulierFallback')
   }
 
@@ -358,12 +360,12 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
                   >
                     <optgroup label={t('proDash.clients.particuliersB2C')}>
                       {CLIENT_TYPES.filter(ct => ct.group === 'b2c').map(ct => (
-                        <option key={ct.value} value={ct.value}>{ct.label}</option>
+                        <option key={ct.value} value={ct.value}>{isPt ? ct.labelPt : ct.label}</option>
                       ))}
                     </optgroup>
                     <optgroup label={t('proDash.clients.professionnelsB2B')}>
                       {CLIENT_TYPES.filter(ct => ct.group === 'b2b').map(ct => (
-                        <option key={ct.value} value={ct.value}>{ct.label}</option>
+                        <option key={ct.value} value={ct.value}>{isPt ? ct.labelPt : ct.label}</option>
                       ))}
                     </optgroup>
                   </select>
@@ -398,7 +400,7 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
                     <input
                       type="text" value={clientForm.name}
                       onChange={e => setClientForm(prev => ({ ...prev, name: e.target.value }))}
-                      placeholder={(orgRole === 'pro_societe' || clientForm.type === 'professionnel') ? 'AJA Associés, Groupe Martin...' : 'Jean Dupont'}
+                      placeholder={(orgRole === 'pro_societe' || clientForm.type === 'professionnel') ? (isPt ? 'Construções Silva, Lda...' : 'AJA Associés, Groupe Martin...') : (isPt ? 'João Silva' : 'Jean Dupont')}
                       className="v5-fi"
                     />
                   </div>
@@ -729,12 +731,12 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
                 >
                   <optgroup label={t('proDash.clients.particuliersB2C')}>
                     {CLIENT_TYPES.filter(ct => ct.group === 'b2c').map(ct => (
-                      <option key={ct.value} value={ct.value}>{ct.label}</option>
+                      <option key={ct.value} value={ct.value}>{isPt ? ct.labelPt : ct.label}</option>
                     ))}
                   </optgroup>
                   <optgroup label={t('proDash.clients.professionnelsB2B')}>
                     {CLIENT_TYPES.filter(ct => ct.group === 'b2b').map(ct => (
-                      <option key={ct.value} value={ct.value}>{ct.label}</option>
+                      <option key={ct.value} value={ct.value}>{isPt ? ct.labelPt : ct.label}</option>
                     ))}
                   </optgroup>
                 </select>
@@ -749,7 +751,7 @@ export default function ClientsSection({ artisan, bookings, services, onNewRdv, 
                   type="text"
                   value={clientForm.name}
                   onChange={e => setClientForm(prev => ({ ...prev, name: e.target.value }))}
-                  placeholder={clientForm.type === 'professionnel' ? 'AJA Associés, Groupe Martin...' : 'Jean Dupont'}
+                  placeholder={clientForm.type === 'professionnel' ? (isPt ? 'Construções Silva, Lda...' : 'AJA Associés, Groupe Martin...') : (isPt ? 'João Silva' : 'Jean Dupont')}
                   className="v22-form-input"
                   style={{ width: '100%' }}
                 />

@@ -114,6 +114,130 @@ DROP TABLE IF EXISTS data_requests;
 SELECT cron.unschedule('cleanup-idempotency');
 ```
 
+## Migration 20261114 — Équipe syndic : écritures réservées au serveur (T20)
+
+Recrée les trois policies d'écriture de la production telles que constatées le 14/11/2026 et rend aux rôles
+`anon` et `authenticated` les droits retirés. À n'employer que si une écriture légitime depuis le navigateur était
+découverte (aucune au 14/11/2026 : le code passe par les routes serveur en service role). Sur un projet de test
+construit depuis le dépôt, les policies portaient les noms du dépôt (`syndic_team_members_cabinet_full_access`,
+`syndic_team_cabinet_write`) : les recréer d'après `20260527_syndic_team_members.sql` et `041_rls_complete_audit.sql`.
+Après le retour arrière, relancer la partie 1 de `supabase/tests/syndic_equipe_ecritures_serveur.sql`.
+
+```sql
+-- Rollback (production)
+CREATE POLICY "syndic_team_insert" ON public.syndic_team_members FOR INSERT WITH CHECK (cabinet_id = auth.uid());
+CREATE POLICY "syndic_team_update" ON public.syndic_team_members FOR UPDATE USING (cabinet_id = auth.uid());
+CREATE POLICY "syndic_team_delete" ON public.syndic_team_members FOR DELETE USING (cabinet_id = auth.uid());
+GRANT INSERT, UPDATE, DELETE, TRUNCATE ON public.syndic_team_members TO anon, authenticated;
+```
+
+---
+
+## Migration 20261115 — Équipe BTP : écritures réservées au serveur (suite de R36)
+
+Recrée les trois policies d'écriture de `pro_team_members` (mêmes noms en production, constatés le 14/11/2026, et dans
+`048_pro_team_rbac.sql` ; forme de `20260610_rls_initplan_wrap.sql`, où `(select auth.uid())` équivaut à `auth.uid()`)
+et rend aux rôles `anon` et `authenticated` les droits retirés. ATTENTION : ceci ROUVRE la faille R36 (lignes d'équipe
+posées pour le compte d'un autre, rôle d'une invitation réécrit hors de l'application). À n'employer que si une
+écriture légitime depuis le navigateur était découverte (aucune au 14/11/2026 : le code passe par les routes serveur en
+service role). Après le retour arrière, relancer la partie 1 de `supabase/tests/pro_equipe_ecritures_serveur.sql`.
+
+```sql
+-- Rollback (production et projet construit depuis le dépôt)
+CREATE POLICY "pro_team_insert" ON public.pro_team_members FOR INSERT WITH CHECK (company_id = (select auth.uid()));
+CREATE POLICY "pro_team_update" ON public.pro_team_members FOR UPDATE USING (company_id = (select auth.uid()));
+CREATE POLICY "pro_team_delete" ON public.pro_team_members FOR DELETE USING (company_id = (select auth.uid()));
+GRANT INSERT, UPDATE, DELETE, TRUNCATE ON public.pro_team_members TO anon, authenticated;
+```
+
+---
+
+## Migration 20261115 — BTP : rattachements au même compte (`20261115_btp_rattachements_meme_compte.sql`)
+
+À ne pas confondre avec la migration 20261115 de l'équipe BTP, juste au-dessus. Retire les dix déclencheurs posés par
+la migration (`btp_rattachements_meme_compte` sur `chantiers_btp`, `pointages_btp`, `depenses_btp`, `equipes_btp`,
+`membres_btp`, `situations_btp`, `retenues_btp`, `dc4_btp` et `rapports_btp` ; `btp_membre_equipe_meme_compte` sur
+`equipe_membres_btp`), puis leurs deux fonctions. Aucune ligne n'est lue, modifiée ni supprimée ; rejouable. Après le
+retour arrière, la base ne vérifie plus qu'une fiche désigne un chantier, un membre ou une équipe du même compte ; la
+route `/api/btp` continue de le refuser avec un message clair. À n'employer que si un enregistrement légitime était
+refusé à tort (« la fiche liée (chantier, membre ou équipe) est introuvable »). Comme pour la migration,
+`lock_timeout` évite d'attendre derrière une transaction longue : en cas d'expiration, rien n'est retiré, relancer.
+Joué sur PGlite par `tests/securite/btp-rattachements-meme-compte.test.ts`.
+
+```sql
+-- Rollback
+set local lock_timeout = '5s';
+DROP TRIGGER IF EXISTS btp_rattachements_meme_compte ON public.chantiers_btp;
+DROP TRIGGER IF EXISTS btp_rattachements_meme_compte ON public.pointages_btp;
+DROP TRIGGER IF EXISTS btp_rattachements_meme_compte ON public.depenses_btp;
+DROP TRIGGER IF EXISTS btp_rattachements_meme_compte ON public.equipes_btp;
+DROP TRIGGER IF EXISTS btp_rattachements_meme_compte ON public.membres_btp;
+DROP TRIGGER IF EXISTS btp_rattachements_meme_compte ON public.situations_btp;
+DROP TRIGGER IF EXISTS btp_rattachements_meme_compte ON public.retenues_btp;
+DROP TRIGGER IF EXISTS btp_rattachements_meme_compte ON public.dc4_btp;
+DROP TRIGGER IF EXISTS btp_rattachements_meme_compte ON public.rapports_btp;
+DROP TRIGGER IF EXISTS btp_membre_equipe_meme_compte ON public.equipe_membres_btp;
+DROP FUNCTION IF EXISTS public.btp_rattachements_meme_compte();
+DROP FUNCTION IF EXISTS public.btp_membre_equipe_meme_compte();
+```
+
+---
+
+## Migration 20261116 — Pointage BTP : employés affectés aux chantiers
+
+Retire l'index « un pointage en cours par employé », la table `pointage_reglages_btp` puis la colonne
+`chantiers_btp.membres_ids`. ATTENTION : retirer la colonne EFFACE les affectations individuelles enregistrées depuis
+(les équipes, `equipes_btp.chantier_id`, restent) ; retirer la table efface l'activation du pointage automatique et la
+trace de la confirmation des gérants (date, auteur), et coupe le mode automatique partout. Le code continue de marcher
+sans elles : l'écran Pointage n'affecte plus que des équipes, le pointage se fait à la main, et il le signale ;
+`/api/btp` enregistre les chantiers sans leurs employés. Aucun pointage n'est touché.
+
+```sql
+-- Rollback
+DROP INDEX IF EXISTS public.pointages_btp_un_ouvert_par_membre;
+DROP TABLE IF EXISTS public.pointage_reglages_btp;
+ALTER TABLE public.chantiers_btp DROP COLUMN IF EXISTS membres_ids;
+```
+
+---
+
+## Migration 20261117 — Pointage BTP en arrière-plan
+
+Retire les tables `pointage_lignes_appareil_btp` (pointages écrits par un téléphone), `pointage_evenements_btp`
+(journal des envois) et `pointage_appareils_btp` (téléphones qui pointent en arrière-plan, appli Vitfix Pro).
+ATTENTION : cela coupe le pointage téléphone en poche de tous les employés. Leurs téléphones continuent d'envoyer leurs
+arrivées et départs, que `/api/btp/pointage/evenement` ignore (réponse 200, file du téléphone vidée) ; l'onglet Pointer
+de l'appli indique que la base de données doit être mise à jour, et chaque téléphone y retire ses zones à l'ouverture.
+Le pointage page ouverte et le pointage à la main continuent. Les pointages déjà écrits par les téléphones restent
+dans `pointages_btp` (mode automatique), comme les autres : aucun pointage n'est touché.
+
+```sql
+-- Rollback
+DROP TABLE IF EXISTS public.pointage_lignes_appareil_btp;
+DROP TABLE IF EXISTS public.pointage_evenements_btp;
+DROP TABLE IF EXISTS public.pointage_appareils_btp;
+```
+
+---
+
+## Migration 20261119 — AJ Signalement : bureaux des cabinets
+
+Script complet, relu et exécuté dans les tests (PGlite) : `supabase/retours-arriere/20261119_signalements_qr_bureaux.retour.sql`
+(hors de `supabase/migrations` : jamais appliqué par la chaîne). Il retire les triggers et les deux fonctions des bureaux,
+remet `signalements_qr_inviter_gestionnaire` dans son texte de la 20261112 (même signature, mêmes droits), retire les
+clés étrangères, le contrôle et les colonnes `bureau_id` (fiche gestionnaire, copropriété), puis la table
+`signalements_qr_bureaux`. ATTENTION : les bureaux et les rattachements sont perdus ; les lignes du journal restent
+(actions existantes). Relever avant, en nombres seulement : bureaux, fiches rattachées, copropriétés rattachées (relevé
+décrit en tête du script), par cette requête :
+
+```sql
+SELECT (SELECT count(*) FROM signalements_qr_bureaux) AS bureaux,
+       (SELECT count(*) FROM signalements_qr_gestionnaires WHERE bureau_id IS NOT NULL) AS fiches_rattachees,
+       (SELECT count(*) FROM signalements_qr_coproprietes WHERE bureau_id IS NOT NULL) AS coproprietes_rattachees;
+```
+
+Le code de la PR se replie sans ces objets (listes sans bureau, actions sur les bureaux 503).
+
 ---
 
 ## Procedure de restore complete (PITR)
@@ -128,3 +252,38 @@ En cas de probleme majeur :
 6. Re-appliquer les migrations qui etaient correctes
 
 **Temps de restore estime :** 5-15 minutes selon la taille de la base.
+
+---
+
+## Migration 20261115 — Équipe syndic : rôles et unicité de l'adresse par cabinet
+
+Remet la contrainte `syndic_team_members_role_check` de la production à ses 5 rôles du 14/11/2026 et retire l'unicité
+`(cabinet_id, email)`. À n'employer que si un problème était constaté après la migration : ensuite, les invitations
+« Technicien » et « Juriste » échouent de nouveau (500), `/api/admin/init-team-table` aussi (42P10), et deux invitations
+simultanées de la même adresse peuvent de nouveau créer deux lignes. Un seul bloc, tout ou rien, à lancer en entier dans
+l'éditeur SQL : il s'arrête sans rien changer si une ligne porte déjà `syndic_technicien` ou `syndic_juriste` (lignes à
+examiner avec Frédéric, jamais à modifier pour faire passer le retour arrière). Sur un projet construit depuis le dépôt,
+ajouter `'syndic_juriste'` aux deux listes (les 6 rôles de `20260527_syndic_team_members.sql`). Après le retour arrière,
+relancer `supabase/tests/syndic_equipe_roles_unicite.sql`.
+
+```sql
+-- Rollback (production)
+DO $$
+DECLARE
+  lignes integer;
+BEGIN
+  PERFORM set_config('lock_timeout', '5s', true);
+  LOCK TABLE public.syndic_team_members IN ACCESS EXCLUSIVE MODE;
+  SELECT count(*) INTO lignes
+  FROM public.syndic_team_members
+  WHERE role NOT IN ('syndic_admin', 'syndic_tech', 'syndic_secretaire', 'syndic_gestionnaire', 'syndic_comptable');
+  IF lignes > 0 THEN
+    RAISE EXCEPTION 'Retour arrière impossible : % ligne(s) portent un rôle que l''ancienne contrainte refuse. Rien n''est appliqué.', lignes;
+  END IF;
+  ALTER TABLE public.syndic_team_members DROP CONSTRAINT IF EXISTS syndic_team_members_cabinet_id_email_key;
+  ALTER TABLE public.syndic_team_members DROP CONSTRAINT IF EXISTS syndic_team_members_role_check;
+  ALTER TABLE public.syndic_team_members ADD CONSTRAINT syndic_team_members_role_check
+    CHECK (role IN ('syndic_admin', 'syndic_tech', 'syndic_secretaire', 'syndic_gestionnaire', 'syndic_comptable'));
+END
+$$;
+```

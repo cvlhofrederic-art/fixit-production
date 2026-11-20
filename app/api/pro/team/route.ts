@@ -9,6 +9,15 @@ import { ROLE_LABELS, isValidProTeamRole } from '@/lib/permissions'
 import type { ProTeamRole } from '@/lib/permissions'
 import { nouvelleInvitation, sansJetonInvitation } from '@/lib/equipe/lien-invitation'
 import { envoyerEmailInvitation } from '@/lib/equipe/invitation-serveur'
+import { texteSurUneLigne } from '@/lib/sanitize'
+
+// Chaque invitation fait partir un e-mail depuis l'adresse d'envoi de la plateforme : plafond par compte et par
+// 24 heures, en plus de la limite par minute (par adresse Internet). L'écran « Comptes utilisateurs » annonce
+// 20 comptes par société : 40 laisse inviter toute une équipe, puis inviter de nouveau chacun, dans la même journée.
+const INVITATIONS_MAX_PAR_JOUR = 40
+const JOUR_MS = 24 * 60 * 60 * 1000
+/** Longueur maximale du nom de société repris dans l'e-mail (celle du champ de la fiche, lib/validation.ts). */
+const LONGUEUR_MAX_NOM_SOCIETE = 200
 
 // ── GET /api/pro/team ────────────────────────────────────────────────────────
 // List team members for the authenticated company
@@ -135,11 +144,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Cet email est déjà membre de votre équipe' }, { status: 409 })
   }
 
+  // Compté après les refus ci-dessus (une demande refusée ne consomme rien) et avant toute écriture.
+  if (!(await checkRateLimit(`pro_team_invite_jour_${user.id}`, INVITATIONS_MAX_PAR_JOUR, JOUR_MS))) {
+    logger.warn('[PRO_TEAM] plafond d\'invitations des 24 heures atteint', { compte: user.id })
+    return NextResponse.json(
+      { error: `Limite de ${INVITATIONS_MAX_PAR_JOUR} invitations par 24 heures atteinte. Réessayez demain.` },
+      { status: 429 },
+    )
+  }
+
   // Invitation et lien signé, envoyé seulement par e-mail et jamais renvoyé à l'invitant
   // (lib/equipe/lien-invitation.ts). Signé avant l'insertion : sans clé de signature, rien n'est écrit.
   let invitation: Awaited<ReturnType<typeof nouvelleInvitation>>
   try {
-    invitation = await nouvelleInvitation('pro', emailInvite, companyId)
+    invitation = await nouvelleInvitation('pro', emailInvite, companyId, memberRole)
   } catch (err) {
     logger.error('[PRO_TEAM] POST signature error:', err)
     return NextResponse.json({ error: 'Erreur lors de la création du membre' }, { status: 500 })
@@ -193,7 +211,12 @@ export async function POST(request: NextRequest) {
   const inviteUrl = `${appUrl}/pro/invite?token=${invitation.jetonLien}`
 
   // Send invitation email
-  const companyName = user.user_metadata?.company_name || user.user_metadata?.full_name || 'Entreprise'
+  // Le nom de la société est renseigné par le compte lui-même : il est ramené à une ligne de longueur bornée avant
+  // d'entrer dans l'objet et le corps du message (le gabarit échappe ensuite chaque valeur dans le HTML).
+  const companyName = texteSurUneLigne(
+    user.user_metadata?.company_name || user.user_metadata?.full_name,
+    LONGUEUR_MAX_NOM_SOCIETE,
+  ) || 'Entreprise'
   const locale = user.user_metadata?.locale || 'fr'
   const isPt = locale === 'pt'
   const roleName = isPt ? ROLE_LABELS[memberRole as ProTeamRole].pt : ROLE_LABELS[memberRole as ProTeamRole].fr
@@ -221,6 +244,25 @@ export async function POST(request: NextRequest) {
   })
 }
 
+/**
+ * Le compte visé a-t-il été rattaché à CETTE société par une invitation, et à aucune autre depuis ? Lu dans son
+ * app_metadata, que seul le serveur écrit : désormais à l'acceptation d'une invitation seulement
+ * (lib/equipe/invitation-serveur.ts, POST /api/pro/invite ; avant ce correctif, ce PATCH l'écrivait aussi) : rôle
+ * pro_societe, company_id égal à cette société, rôle d'équipe autre que GERANT. Un gérant (d'ici ou d'ailleurs), un
+ * sous-compte d'une autre société et les comptes des autres espaces ne le sont pas. Un ancien membre retiré de l'équipe
+ * (DELETE ne touche pas son compte) le reste, mais après la fermeture des écritures directes une nouvelle ligne pour
+ * lui ne naît que d'une invitation qu'il accepte. Une ligne de pro_team_members ne prouve rien : elle a pu être posée
+ * hors de l'application pour le compte d'un autre (R36).
+ */
+function compteMembreDeLaSociete(appMetadata: Record<string, unknown>, companyId: string | null): boolean {
+  const roleEquipe = appMetadata.pro_team_role
+  return !!companyId && appMetadata.role === 'pro_societe' && appMetadata.company_id === companyId
+    && typeof roleEquipe === 'string' && roleEquipe !== '' && roleEquipe !== 'GERANT'
+}
+
+const MESSAGE_COMPTE_HORS_SOCIETE =
+  "Ce compte n'est pas rattaché à votre société : son rôle ne peut pas être modifié ici."
+
 // ── PATCH /api/pro/team ──────────────────────────────────────────────────────
 // Update member role, status, chantiers, or permissions (gérant only)
 export async function PATCH(request: NextRequest) {
@@ -247,13 +289,23 @@ export async function PATCH(request: NextRequest) {
   // Verify member belongs to this company
   const { data: existing } = await supabaseAdmin
     .from('pro_team_members')
-    .select('id, user_id, role')
+    .select('id, user_id, role, invite_token')
     .eq('id', member_id)
     .eq('company_id', companyId)
     .maybeSingle()
 
   if (!existing) {
     return NextResponse.json({ error: 'Membre introuvable' }, { status: 404 })
+  }
+
+  // Invitation en cours (lien envoyé, jeton encore en base) : son rôle est signé dans ce lien
+  // (lib/equipe/lien-invitation.ts), le changer le rendrait inutilisable. Pour un autre rôle : supprimer
+  // l'invitation puis inviter à nouveau. Les lignes sans invitation (gérant, ajout direct) ne sont pas concernées ; un
+  // rôle invalide reçoit plus bas son 400 habituel.
+  if (role !== undefined && isValidProTeamRole(role) && existing.invite_token) {
+    return NextResponse.json({
+      error: "Invitation en attente : son rôle ne peut plus être modifié. Supprimez l'invitation puis invitez à nouveau avec le bon rôle.",
+    }, { status: 409 })
   }
 
   // Cannot demote GERANT
@@ -269,6 +321,28 @@ export async function PATCH(request: NextRequest) {
   if (is_active !== undefined) updates.is_active = Boolean(is_active)
   if (assigned_chantiers !== undefined) updates.assigned_chantiers = assigned_chantiers
 
+  // Rôle d'un compte déjà lié : il fixe aussi ses droits (app_metadata.pro_team_role, lu par isProGerant). Le compte
+  // visé est vérifié AVANT la moindre écriture (R36). La ligne du gérant lui-même (user_id = la société) ne garde que
+  // GERANT (contrôle ci-dessus) : rien n'est à écrire dans son compte.
+  let cible: { id: string; appMetadata: Record<string, unknown> } | null = null
+  if (updates.role !== undefined && existing.user_id && existing.user_id !== companyId) {
+    const { data: compte, error: lectureCompte } = await supabaseAdmin.auth.admin.getUserById(existing.user_id)
+    // Compte supprimé (la suppression de compte ne retire pas les lignes d'équipe BTP) : il n'est membre de rien,
+    // comme un compte hors de la société.
+    const compteSupprime = !compte?.user
+      && (!lectureCompte || lectureCompte.status === 404 || lectureCompte.code === 'user_not_found')
+    if (!compte?.user && !compteSupprime) {
+      logger.error('[PRO_TEAM] PATCH : lecture du compte visé impossible', { member_id }, lectureCompte)
+      return NextResponse.json({ error: 'Erreur mise à jour' }, { status: 500 })
+    }
+    const appMetadata: Record<string, unknown> = compte?.user?.app_metadata ?? {}
+    if (compteSupprime || !compteMembreDeLaSociete(appMetadata, companyId)) {
+      logger.warn('[PRO_TEAM] PATCH : compte visé hors de cette société, rôle non modifié', { member_id })
+      return NextResponse.json({ error: MESSAGE_COMPTE_HORS_SOCIETE }, { status: 403 })
+    }
+    cible = { id: existing.user_id, appMetadata }
+  }
+
   if (Object.keys(updates).length > 0) {
     const { data, error } = await supabaseAdmin
       .from('pro_team_members')
@@ -281,23 +355,26 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Erreur mise à jour' }, { status: 500 })
     }
 
-    // Sync app_metadata si le membre a accepté.
+    // Rôle modifié d'un sous-compte vérifié ci-dessus : app_metadata (server-only) reçoit le seul pro_team_role ;
+    // company_id reste le sien, cette société : le PATCH ne rattache jamais un compte à une société. Le statut
+    // (is_active) n'écrit plus app_metadata : pour un membre de la société, y reposer company_id ne changeait rien ;
+    // pour le compte d'un autre, c'était la faille (R36).
     // ⚠️ SÉCURITÉ : pro_team_role DOIT vivre dans app_metadata (non forgeable côté
     // client) car isProGerant() s'appuie dessus pour l'authz. Ne JAMAIS l'écrire dans
     // user_metadata (modifiable via supabase.auth.updateUser).
-    if ((role || is_active !== undefined) && existing.user_id) {
+    let roleNonApplique = false
+    if (cible) {
       try {
-        const { data: existingFull } = await supabaseAdmin.auth.admin.getUserById(existing.user_id)
-        const metaUpdates: Record<string, unknown> = {
-          ...(existingFull?.user?.app_metadata || {}),
-          company_id: companyId,
-        }
-        if (role) metaUpdates.pro_team_role = role
-        await supabaseAdmin.auth.admin.updateUserById(existing.user_id, {
-          app_metadata: metaUpdates,
+        const { error: ecriture } = await supabaseAdmin.auth.admin.updateUserById(cible.id, {
+          app_metadata: { ...cible.appMetadata, pro_team_role: updates.role },
         })
+        if (ecriture) {
+          roleNonApplique = true
+          logger.error('[PRO_TEAM] Failed to update app_metadata:', { member_id }, ecriture)
+        }
       } catch (e) {
-        logger.error('[PRO_TEAM] Failed to update app_metadata:', e)
+        roleNonApplique = true
+        logger.error('[PRO_TEAM] Failed to update app_metadata:', { member_id }, e)
       }
     }
 
@@ -331,6 +408,12 @@ export async function PATCH(request: NextRequest) {
         target_member_id: member_id,
         details: { permissions },
       })
+    }
+
+    // La ligne porte déjà le nouveau rôle (journalisé), pas le compte, dont app_metadata fixe les droits : le dire,
+    // plutôt que répondre 200 (un retrait de droits resterait sans effet). La même demande, relancée, aboutit.
+    if (roleNonApplique) {
+      return NextResponse.json({ error: "Le rôle n'a pas pu être appliqué au compte du membre. Réessayez." }, { status: 500 })
     }
 
     return NextResponse.json({ member: data })

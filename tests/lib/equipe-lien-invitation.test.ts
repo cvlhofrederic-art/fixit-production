@@ -3,7 +3,7 @@
 //
 // Lien d'invitation d'équipe (pro BTP et syndic) : le jeton du lien est `<jeton de la ligne>.<signature>`.
 // La signature, calculée côté serveur, couvre la ligne d'invitation : un jeton lu ou posé dans la base
-// ne suffit pas pour accepter.
+// ne suffit pas pour accepter. Depuis le format v2 (15/11/2026, R36), elle couvre aussi le rôle.
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import {
@@ -13,8 +13,10 @@ import {
   signatureValide,
   compteRattachable,
   sansJetonInvitation,
+  FIN_FORMAT_V1,
   type InvitationSignee,
 } from '@/lib/equipe/lien-invitation'
+import { signatureV1 } from '../helpers/lien-invitation-v1'
 
 const CLE_TEST = 'cle-de-service-de-test'
 const invitation: InvitationSignee = {
@@ -106,6 +108,68 @@ describe('signatureValide', () => {
 
   it('fausse pour une signature quelconque', async () => {
     expect(await signatureValide('pro', 'c'.repeat(64), invitation)).toBe(false)
+  })
+})
+
+// R36 (décision VF-A-02, 15/11/2026) : le rôle n'était pas signé. Une invitation dont la ligne changeait de rôle
+// après l'envoi gardait un lien valable : le compte recevait à l'acceptation un rôle que l'e-mail n'annonçait pas.
+describe('rôle signé (format v2)', () => {
+  it.each([
+    ['pro', 'OUVRIER', 'GERANT'],
+    ['syndic', 'syndic_comptable', 'syndic_admin'],
+  ] as const)('%s : le rôle de la ligne modifié après l’envoi rend le lien invalide', async (espace, role, autre) => {
+    const signature = await signatureDe(await jetonDuLien(espace, { ...invitation, role }))
+    expect(await signatureValide(espace, signature, { ...invitation, role })).toBe(true)
+    expect(await signatureValide(espace, signature, { ...invitation, role: autre })).toBe(false)
+    expect(await signatureValide(espace, signature, { ...invitation, role: null })).toBe(false)
+  })
+
+  it('nouvelleInvitation signe le rôle reçu : seule la ligne insérée avec ce rôle correspond', async () => {
+    const n = await nouvelleInvitation('pro', invitation.email, invitation.equipe_id, 'CHEF_CHANTIER')
+    const ligne = { id: n.id, email: invitation.email, invite_token: n.invite_token, equipe_id: invitation.equipe_id }
+    const signature = await signatureDe(n.jetonLien)
+    expect(await signatureValide('pro', signature, { ...ligne, role: 'CHEF_CHANTIER' })).toBe(true)
+    expect(await signatureValide('pro', signature, { ...ligne, role: 'GERANT' })).toBe(false)
+    expect(await signatureValide('pro', signature, ligne)).toBe(false)
+  })
+
+  it('AJ Signalement : le rôle unique de sa table est signé, quel que soit le rôle lu dans la ligne', async () => {
+    const n = await nouvelleInvitation('aj_signalement', invitation.email, invitation.equipe_id)
+    const ligne = { id: n.id, email: invitation.email, invite_token: n.invite_token, equipe_id: invitation.equipe_id }
+    const signature = await signatureDe(n.jetonLien)
+    expect(await signatureValide('aj_signalement', signature, { ...ligne, role: 'gestionnaire_signalement' })).toBe(true)
+    expect(await signatureValide('aj_signalement', signature, ligne)).toBe(true)
+  })
+})
+
+// Liens envoyés avant le format v2 : acceptés le temps que leurs invitations expirent (7 jours après leur création,
+// lireInvitationValide), et jamais à partir de FIN_FORMAT_V1.
+describe('liens au format v1 (envoyés avant le rôle signé)', () => {
+  const ligne: InvitationSignee = { ...invitation, role: 'syndic_comptable' }
+  const avant = FIN_FORMAT_V1 - 1
+
+  it('acceptés avant FIN_FORMAT_V1, pour la seule ligne et le seul espace qu’ils désignent', async () => {
+    const v1 = await signatureV1('syndic', ligne)
+    expect(await signatureValide('syndic', v1, ligne, avant)).toBe(true)
+    expect(await signatureValide('syndic', v1, { ...ligne, email: 'autre@exemple.fr' }, avant)).toBe(false)
+    expect(await signatureValide('syndic', v1, { ...ligne, equipe_id: '99999999-8888-4777-8666-555555555555' }, avant)).toBe(false)
+    expect(await signatureValide('pro', v1, ligne, avant)).toBe(false)
+  })
+
+  it('refusés à partir de FIN_FORMAT_V1 (1er janvier 2027, UTC)', async () => {
+    expect(new Date(FIN_FORMAT_V1).toISOString()).toBe('2027-01-01T00:00:00.000Z')
+    const v1 = await signatureV1('syndic', ligne)
+    expect(await signatureValide('syndic', v1, ligne, FIN_FORMAT_V1)).toBe(false)
+  })
+
+  it('le rôle n’y est pas signé : un rôle changé passe encore, jusqu’à FIN_FORMAT_V1 (seulement pour ces anciens liens)', async () => {
+    const v1 = await signatureV1('syndic', ligne)
+    expect(await signatureValide('syndic', v1, { ...ligne, role: 'syndic_admin' }, avant)).toBe(true)
+  })
+
+  it('un lien v2 ne se vérifie jamais comme un v1 : rôle changé, refusé même avant FIN_FORMAT_V1', async () => {
+    const v2 = await signatureDe(await jetonDuLien('syndic', ligne))
+    expect(await signatureValide('syndic', v2, { ...ligne, role: 'syndic_admin' }, avant)).toBe(false)
   })
 })
 

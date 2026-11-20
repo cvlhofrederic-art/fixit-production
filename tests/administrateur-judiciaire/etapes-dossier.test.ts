@@ -649,7 +649,11 @@ describe('suivi « à faire » — étapes', () => {
     expect(elements.map((e) => [e.id, e.date])).toEqual([
       ['etapes:e-1:a_faire', '2026-10-27'],
       ['etapes:e-2:a_faire', '2026-10-25'],
+      // Sans aucune date : à la date de référence, marquée « sans délai » (J76, question n° 6 de modeles-etapes.ts ;
+      // proposition de Hugo du 19/11/2026, à valider par Frédéric).
+      ['etapes:e-3:a_faire', '2026-10-29'],
     ])
+    expect(elements[2].libelle).toBe('Lettre de mise en demeure — sans délai')
   })
 })
 

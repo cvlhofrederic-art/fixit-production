@@ -20,7 +20,6 @@ import {
   ENTREE_EN_VIGUEUR_VOIE_ELECTRONIQUE,
   accordElectroniqueEnVigueur,
   demandesDepuisConsentements,
-  effetDemandeVoiePostale,
   voieDeNotification,
   type ConsentementVoieElectronique,
   type DemandeVoiePostale,
@@ -77,16 +76,17 @@ import { STATUT_ASSEMBLEE, type StatutAssemblee } from '@/lib/data/referentiels-
  *     11/04/2024 ; retrait de l'accord exprès avant ; sonde P6) ; refus ou retrait d'accord enregistré avant le
  *     25/12/2025 : demande de voie postale à sa date de réception (L. 1965 art. 42-1, al. 2 : « par tout moyen » ;
  *     interprétation prudente, aucune source ; voie-notification.ts), s'il est le dernier état des consentements à l'envoi ;
- *     demande, refus ou retrait reçu du 16 au 24/12/2025 dont l'effet actuel (réception + 9 jours) suit l'envoi : délai
- *     calculé, avertissement « à confirmer » (point ouvert) ; LRAR envoyée sans demande de voie postale reçue : délai
+ *     demande, refus ou retrait reçu avant le 25/12/2025 : effet dès sa réception, même pour un envoi électronique fait
+ *     depuis, qui ne fait pas courir le délai (décision de Hugo du 17/11/2026, J52, ci-dessous ; l'avertissement « à
+ *     confirmer » de la fenêtre du 16 au 24/12/2025 est supprimé) ; LRAR envoyée sans demande de voie postale reçue : délai
  *     calculé, avec un avertissement (lecture du GRECCO, préconisation n° 19, source secondaire) ; notification
  *     électronique antérieure au 25/12/2025 : calculée seulement si l'accord exprès est enregistré, sinon fin inconnue,
  *     le fondement cité suivant la date de l'envoi (L. 1965 art. 42-1, version de la loi n° 2014-366, jusqu'au
  *     10/04/2024 ; puis D. 1967 art. 64-3 de la rédaction en vigueur du 04/07/2020 au 24/12/2025 seul, l'art. 42-1 de la
  *     loi du 9 avril 2024 ayant une portée débattue) ; LRE
  *     vers un non-professionnel (ou dont la qualité n'est pas saisie) sans consentement enregistré (CPCE art. L. 100) :
- *     délai calculé, avec un avertissement « à confirmer » (interprétation : l'art. 64, 1° ne renvoie qu'aux art. R. 53
- *     à R. 53-4, et l'art. 42-1 est une loi spéciale plus récente) ; le procédé du prestataire qualifié n'est pas
+ *     ne vaut pas notification, refus consentement_lre_absent (décision de Hugo du 17/11/2026, J53, ci-dessous ; avant :
+ *     délai calculé avec un avertissement « à confirmer ») ; le procédé du prestataire qualifié n'est pas
  *     concerné ; remise contre émargement, courriel simple, SMS, lettre simple, extranet : ne valent pas notification du
  *     PV (art. 64 et 64-3) ;
  *   - fin tirée d'une seule notification (finDelaiContestationAg, la notification rattachée à la ligne « Notifiée ») :
@@ -94,13 +94,39 @@ import { STATUT_ASSEMBLEE, type StatutAssemblee } from '@/lib/data/referentiels-
  *     nombre n'est pas saisi ; le contrôle de l'OS ne lit que le délai par copropriétaire (J51, envoi-ordre-service.ts :
  *     la date seule y est refusée depuis la relecture du 14/11/2026) ;
  *   - reste à confirmer (la variante électronique garde la marque « à confirmer », aConfirmer) : aucune jurisprudence sur
- *     la notification électronique du PV ; consentement de CPCE art. L. 100 face à l'art. 42-1 non tranché ; pour la LRE,
- *     l'« avis » est lu comme l'information de CPCE art. R. 53-3, I ; période du 11/04/2024 au 24/12/2025 (deux lectures,
- *     ici la prudente) ; le point à confirmer de J1 (règle 5) est éclairci pour la numérotation : départ électronique à
- *     l'art. 64-2, al. 2 du 04/07/2020 au 24/12/2025, à l'art. 64, dernier al. depuis le 25/12/2025 ;
+ *     la notification électronique du PV ; pour la LRE, l'« avis » est lu comme l'information de CPCE art. R. 53-3, I ;
+ *     période du 11/04/2024 au 24/12/2025 (deux lectures, ici la prudente) ; le point à confirmer de J1 (règle 5) est
+ *     éclairci pour la numérotation : départ électronique à l'art. 64-2, al. 2 du 04/07/2020 au 24/12/2025, à l'art. 64,
+ *     dernier al. depuis le 25/12/2025 ;
  * - J51 (« Oui, bloquer ») : le refus porte sa CAUSE (CauseDelaiNonCalcule) pour que le contrôle de l'OS dise comment
  *   lever le blocage (envoi-ordre-service.ts) ;
  * - ce n'est pas un avis juridique ; France seulement (le Código Civil portugais n'a pas d'équivalent).
+ *
+ * Décisions de Hugo du 17/11/2026 (numéros de registre proposés : J52 et J53, suites de J50 ; notes
+ * du 17/11/2026 sur les questions juridiques ouvertes, recommandations suivies) :
+ * - J52 : demande de voie postale, refus ou retrait de la voie électronique reçu AVANT le 25/12/2025 : effet dès sa
+ *   réception (ancienne règle ; effetDemandeVoiePostale, voie-notification.ts), même quand l'envoi électronique est fait
+ *   depuis le 25/12/2025 : cet envoi ne vaut pas notification, le délai de contestation ne court pas pour ce
+ *   copropriétaire (refus voie_postale_demandee, motif qui cite la date de réception et J52 : motifVoiePostaleDemandee).
+ *   Fondement cité : décret du 22/12/2025 sans règle transitoire pour les notifications ; C. civ. art. 2 ; L. 1965
+ *   art. 42-1, al. 2 (« à tout moment et par tout moyen »). Remplace l'avertissement « à confirmer » de la fenêtre du 16
+ *   au 24/12/2025 (sonde P9, relecture du 14/11/2026). Bornes testées : reçue le 24/12/2025, LRE du 25/12/2025 refusée ;
+ *   reçue le 25/12/2025, règle actuelle (effet le lendemain du huitième jour) ;
+ * - J53 : LRE à un destinataire non professionnel, ou dont la qualité n'est pas saisie (lue comme non professionnelle),
+ *   sans consentement enregistré aux envois recommandés électroniques (CPCE art. L. 100, loi n° 2016-1321, art. 93) : ne
+ *   vaut pas notification, le délai ne court pas pour lui (refus consentement_lre_absent). L'accord du critère LRE repris
+ *   de Gestéam, en vigueur à la date de l'envoi (accordElectroniqueEnVigueur), vaut ce consentement. Le procédé du
+ *   prestataire qualifié (D. 1967 art. 64, 2°) n'est pas concerné ; la LRAR reste possible. Fondement : lecture prudente,
+ *   doute non tranché par les textes (question écrite AN n° 16031 du 16/06/2026, sans réponse) ; une notification
+ *   irrégulière ne fait pas courir le délai (Cass. 3e civ., 28/01/2015, n° 13-23.552) ;
+ * - suite de J51 (envoi-ordre-service.ts) : ces deux cas étaient calculés « à confirmer » et ne donnaient qu'une alerte à
+ *   l'OS ; refusés, la fin du délai est inconnue et l'OS des travaux votés aux art. 25 ou 26 est bloqué, sauf urgence
+ *   constatée ;
+ * - J57 (décision de Hugo du 17/11/2026 (J57), section « Suite » des notes, numéro de registre proposé) : une LRE, ou un
+ *   envoi par le procédé d'un prestataire qualifié, refusé ou non réclamé fait quand même courir le délai, du lendemain
+ *   de la transmission de l'avis électronique (D. 1967 art. 64, dernier al. ; même logique que la LRAR non retirée,
+ *   Cass. 3e civ., 16/04/2026, n° 24-18.842) : le calcul ne lit que la date de l'avis (dateAvisElectronique), jamais
+ *   l'acceptation, le refus ou la non-réclamation ; comportement inchangé (envois-electroniques.ts, courriers.ts).
  */
 
 /** Ligne d'historique telle que la lisent ces fonctions (sous-ensemble de ChangementStatut). */
@@ -281,6 +307,8 @@ export const CAUSES_DELAI_NON_CALCULE = [
   'preuve_a_saisir',
   'voie_postale_demandee',
   'accord_electronique_absent',
+  // J53 (décision de Hugo du 17/11/2026) : LRE à un non-professionnel sans consentement enregistré (CPCE art. L. 100)
+  'consentement_lre_absent',
   'opposants_non_saisis',
 ] as const
 export type CauseDelaiNonCalcule = (typeof CAUSES_DELAI_NON_CALCULE)[number]
@@ -338,11 +366,24 @@ const MOTIF_ENVOI_NON_QUALIFIE =
 const AVERTISSEMENT_LRAR_HORS_DEMANDE =
   'LRAR sans demande de voie postale enregistrée : délai calculé, validité à confirmer (L. 1965 art. 42-1 ; D. 1967 art. 64-1 ; lecture du GRECCO, préconisation n° 19, source secondaire).'
 
-const AVERTISSEMENT_LRE_SANS_CONSENTEMENT =
-  "LRE à un destinataire non professionnel (ou dont la qualité n'est pas saisie) sans consentement enregistré aux envois recommandés électroniques (CPCE art. L. 100) : délai calculé, à confirmer (D. 1967 art. 64, 1° ne renvoie qu'aux art. R. 53 à R. 53-4 du CPCE)."
+/**
+ * J53 (décision de Hugo du 17/11/2026, recommandation suivie) : sans consentement enregistré aux envois recommandés
+ * électroniques (CPCE art. L. 100), une LRE à un non-professionnel ne vaut pas notification ; l'accord du critère LRE de
+ * Gestéam vaut ce consentement ; le prestataire qualifié (D. 1967 art. 64, 2°) n'est pas concerné ; la LRAR reste possible.
+ */
+const MOTIF_LRE_SANS_CONSENTEMENT =
+  "LRE à un destinataire non professionnel (ou dont la qualité n'est pas saisie, lue comme non professionnelle) sans consentement enregistré aux envois recommandés électroniques (CPCE art. L. 100 ; l'accord du critère LRE repris de Gestéam vaut ce consentement) : elle ne vaut pas notification et ne fait pas courir le délai pour lui (décision de Hugo du 17/11/2026, J53). Enregistrer son consentement s'il l'a donné avant l'envoi, ou le notifier par lettre recommandée avec avis de réception (D. 1967 art. 64-1) ou par le procédé d'un prestataire qualifié (art. 64, 2°)."
+
+/**
+ * J53, courrier sans destinataire renseigné (notification unique, finDelaiContestationAg ; relecture contradictoire du
+ * 17/11/2026) : le consentement ne peut pas lui être rapproché ; la cause est le destinataire manquant, pas le
+ * consentement, que le copropriétaire a pu donner.
+ */
+const MOTIF_LRE_DESTINATAIRE_INCONNU =
+  "Destinataire du courrier rattaché non renseigné : le consentement aux envois recommandés électroniques (CPCE art. L. 100 ; l'accord du critère LRE repris de Gestéam vaut ce consentement), exigé d'un destinataire non professionnel ou dont la qualité n'est pas saisie, ne peut pas lui être rapproché ; la LRE ne vaut donc pas notification (décision de Hugo du 17/11/2026, J53). Renseigner le destinataire du courrier, ou notifier par lettre recommandée avec avis de réception (D. 1967 art. 64-1) ou par le procédé d'un prestataire qualifié (art. 64, 2°)."
 
 const A_CONFIRMER_ELECTRONIQUE: Readonly<Record<Exclude<ModeNotification, 'lrar'>, string>> = {
-  lre: "Variante électronique (J50) à confirmer : aucune jurisprudence sur la notification électronique du procès-verbal ; pour une LRE, l'avis est lu comme l'information du destinataire de CPCE art. R. 53-3, I, et le consentement de CPCE art. L. 100 n'est pas tranché face à L. 1965 art. 42-1.",
+  lre: "Variante électronique (J50) à confirmer : aucune jurisprudence sur la notification électronique du procès-verbal ; pour une LRE, l'avis est lu comme l'information du destinataire de CPCE art. R. 53-3, I ; le consentement de CPCE art. L. 100 est exigé du destinataire non professionnel (décision de Hugo du 17/11/2026, J53 : lecture prudente, doute que les textes ne tranchent pas face à L. 1965 art. 42-1).",
   prestataire_qualifie: 'Variante électronique (J50) à confirmer : aucune jurisprudence sur la notification électronique du procès-verbal.',
 }
 
@@ -495,23 +536,27 @@ function fondementDemandeAncienRegime(recueLe: string): string {
 }
 
 /**
- * Demande (ou refus, ou retrait, converti en demande) reçue avant le 25/12/2025 dont l'effet, selon la règle actuelle
- * (réception + 9 jours, D. 1967 art. 64-4), tombe après l'envoi électronique (relecture du 14/11/2026, sonde P9 : reçue du
- * 16 au 24/12/2025) : délai calculé, avertissement « à confirmer » ; sous l'ancienne règle, elle excluait déjà la voie
- * électronique. Point ouvert (question à Hugo ; variante plus prudente : refus, effet à la réception).
+ * Motif du refus d'un envoi électronique fait depuis le 25/12/2025 à un copropriétaire dont la demande de voie postale
+ * est en vigueur (`depuis` : son effet, voieDeNotification). Demande, refus ou retrait reçu avant le 25/12/2025 : effet dès
+ * sa réception, ancienne règle (décision de Hugo du 17/11/2026, J52 : effetDemandeVoiePostale, `depuis` est alors la date
+ * de réception) ; il remplace l'avertissement « à confirmer » de la fenêtre du 16 au 24/12/2025 (relecture du
+ * 14/11/2026, sonde P9). Reçue depuis : effet de l'art. 64-4 actuel.
  */
-function avertissementsTransitoires(demandes: readonly DemandeVoiePostale[], identite: string, dateEnvoi: string): string[] {
-  return demandes
-    .filter((d) => d.identiteId === identite && d.recueLe < ENTREE_EN_VIGUEUR_VOIE_ELECTRONIQUE && effetDemandeVoiePostale(d) > dateEnvoi)
-    .map(
-      (d) =>
-        `Refus de la voie électronique, retrait de l'accord ou demande de voie postale reçu le ${fr(d.recueLe)}, avant le ${fr(ENTREE_EN_VIGUEUR_VOIE_ELECTRONIQUE)} : selon la règle actuelle, effet le ${fr(effetDemandeVoiePostale(d))}, après l'envoi électronique du ${fr(dateEnvoi)} ; sous l'ancienne règle, il excluait déjà la voie électronique. Délai calculé, à confirmer (D. 1967 art. 64-4 ; décret du 22/12/2025 sans règle transitoire ; point ouvert, question à Hugo).`,
-    )
+function motifVoiePostaleDemandee(depuis: string, dateEnvoi: string, saisies: readonly DemandeVoiePostale[], identite: string): string {
+  if (depuis >= ENTREE_EN_VIGUEUR_VOIE_ELECTRONIQUE)
+    return `Voie postale demandée par ce copropriétaire (effet le ${fr(depuis)}) : l'envoi électronique du ${fr(dateEnvoi)} ne fait pas courir le délai pour lui ; le notifier par lettre recommandée avec avis de réception (D. 1967 art. 64-1, 64-4).`
+  const enregistree = saisies.some((d) => d.identiteId === identite && d.recueLe === depuis)
+  const recue = enregistree
+    ? `demande reçue le ${fr(depuis)}, avant le ${fr(ENTREE_EN_VIGUEUR_VOIE_ELECTRONIQUE)}`
+    : `refus de la voie électronique ou retrait de l'accord reçu le ${fr(depuis)}, avant le ${fr(ENTREE_EN_VIGUEUR_VOIE_ELECTRONIQUE)}, valant demande de voie postale`
+  return `Voie postale demandée par ce copropriétaire : ${recue} (${fondementDemandeAncienRegime(depuis)} ; décret du 22/12/2025 sans règle transitoire pour les notifications, C. civ. art. 2 ; décision de Hugo du 17/11/2026, J52) : l'envoi électronique du ${fr(dateEnvoi)} ne vaut pas notification et ne fait pas courir le délai pour lui ; le notifier par lettre recommandée avec avis de réception (D. 1967 art. 64-1).`
 }
 
 /**
  * Voie de notification face au mode (J50) : refus quand le délai ne court pas pour ce copropriétaire (voie postale
- * demandée, accord exprès absent avant le 25/12/2025), avertissements sinon. Le régime (avant ou depuis le 25/12/2025),
+ * demandée, dont la demande reçue avant le 25/12/2025, effective dès sa réception : J52 ; accord exprès absent avant le
+ * 25/12/2025 ; LRE à un non-professionnel sans consentement enregistré, CPCE art. L. 100 : J53), avertissements sinon.
+ * Le régime (avant ou depuis le 25/12/2025),
  * l'accord, le consentement et la demande de voie postale sont jugés à la date de l'ENVOI (`dateEnvoi` : dépôt, à défaut
  * l'événement ; relecture du 14/11/2026, 🔵 interprétation) ; le point de départ reste le lendemain de l'événement.
  */
@@ -552,15 +597,16 @@ function controlerVoie(
   const demandes = [...demandesSaisies, ...demandesDepuisConsentements(consentements, dateEnvoi)]
   const { voie: voieApplicable, depuis } = voieDeNotification({ identiteId: identite, demandes, date: dateEnvoi })
   if (electronique && voieApplicable === 'postale')
-    return {
-      cause: 'voie_postale_demandee',
-      motif: `Voie postale demandée par ce copropriétaire (effet le ${fr(depuis ?? dateEnvoi)}) : l'envoi électronique du ${fr(dateEnvoi)} ne fait pas courir le délai pour lui ; le notifier par lettre recommandée avec avis de réception (D. 1967 art. 64-1, 64-4).`,
-    }
-  if (electronique) avertissements.push(...avertissementsTransitoires(demandes, identite, dateEnvoi))
+    return { cause: 'voie_postale_demandee', motif: motifVoiePostaleDemandee(depuis ?? dateEnvoi, dateEnvoi, demandesSaisies, identite) }
   // LRAR : avertissement seulement si aucune demande n'est reçue à l'envoi (une demande reçue, même pas encore effective,
   // justifie la voie postale ; relecture du 14/11/2026)
   if (!electronique && !demandes.some((d) => d.identiteId === identite && d.recueLe <= dateEnvoi)) avertissements.push(AVERTISSEMENT_LRAR_HORS_DEMANDE)
-  if (mode === 'lre' && professionnel !== true && accord() === null) avertissements.push(AVERTISSEMENT_LRE_SANS_CONSENTEMENT)
+  // J53 : la LRE vers un non-professionnel (ou de qualité non saisie) exige son consentement (CPCE art. L. 100), lu dans
+  // l'accord du critère LRE en vigueur à la date de l'envoi ; sans destinataire renseigné, rien à lui rapprocher
+  if (mode === 'lre' && professionnel !== true && accord() === null)
+    return identiteId === null
+      ? { cause: 'destinataire_non_renseigne', motif: MOTIF_LRE_DESTINATAIRE_INCONNU }
+      : { cause: 'consentement_lre_absent', motif: MOTIF_LRE_SANS_CONSENTEMENT }
   return { avertissements }
 }
 
@@ -608,14 +654,30 @@ interface ParametresNotification {
   borne: BorneProcesVerbal | null
 }
 
+/** Date de l'envoi : le dépôt, s'il est saisi et ne suit pas l'événement ; à défaut, l'événement (relecture du 14/11/2026). */
+function dateDeLEnvoi(dateDepot: string | null | undefined, evenement: string): string {
+  const depot = dateDepot ?? null
+  return depot !== null && depot <= evenement ? depot : evenement
+}
+
+/**
+ * Date de l'envoi d'un courrier de notification, telle que le moteur de délais la retient (evaluerNotification, J50) :
+ * le dépôt, s'il est saisi et ne suit pas l'événement (première présentation du pli, transmission de l'avis
+ * électronique) ; à défaut, l'événement. null : notification non prouvée (événement non saisi, envoi non qualifié, avis
+ * antérieur au dépôt). La case « professionnel » datée se lit à cette date (J78, décisions du 19/11/2026 :
+ * qualite-professionnelle.ts, qualiteProfessionnelleALEnvoi).
+ */
+export function dateEnvoiCourrierNotification(courrier: CourrierNotification): string | null {
+  const preuve = courrierPreuve(courrier.id, [courrier], null, null)
+  return 'motif' in preuve ? null : dateDeLEnvoi(preuve.courrier.dateDepot, preuve.evenement)
+}
+
 /** Délai d'une notification : refus (motif sans préfixe) ou calcul (J1, J50). */
 function evaluerNotification(courrierId: string | null, courriers: readonly CourrierNotification[], p: ParametresNotification): DelaiRefuse | DelaiCalcule {
   const preuve = courrierPreuve(courrierId, courriers, p.identiteId, p.borne)
   if ('motif' in preuve) return { etat: 'refuse', cause: preuve.cause, motif: preuve.motif }
   const identite = p.identiteId ?? preuve.courrier.personneId ?? null
-  // date de l'envoi : le dépôt, s'il est saisi et ne suit pas l'événement ; à défaut, l'événement (relecture du 14/11/2026)
-  const depot = preuve.courrier.dateDepot ?? null
-  const dateEnvoi = depot !== null && depot <= preuve.evenement ? depot : preuve.evenement
+  const dateEnvoi = dateDeLEnvoi(preuve.courrier.dateDepot, preuve.evenement)
   const voie = controlerVoie(preuve.mode, dateEnvoi, identite, p.professionnel, p.voie)
   if ('motif' in voie) return { etat: 'refuse', cause: voie.cause, motif: voie.motif }
   return calculerDelai(preuve.mode, preuve.evenement, voie.avertissements, p.reporterAuJourOuvrable)
@@ -649,7 +711,8 @@ export interface OptionsDelaiContestation {
  * Fin du délai de contestation de l'art. 42 d'après la notification rattachée à la ligne « Notifiée » (J1, J2, J50).
  * Refuse de calculer, avec sa cause et un motif explicite, sur une chaîne de statuts incomplète, sans courrier qui
  * prouve la notification (LRAR présentée ou avis électronique transmis), ou quand le délai ne court pas pour ce
- * destinataire (voie postale demandée, accord exprès absent avant le 25/12/2025), ou quand le courrier précède la ligne
+ * destinataire (voie postale demandée, dont la demande reçue avant le 25/12/2025 : J52 ; accord exprès absent avant le
+ * 25/12/2025 ; LRE sans consentement d'un non-professionnel, ou dont le destinataire n'est pas renseigné : J53), ou quand le courrier précède la ligne
  * qui précède « Notifiée » (courrier_anterieur_au_pv). Le point de départ est l'événement du mode, jamais la date d'effet
  * saisie, de dépôt ou de retrait. Fin marquée minimale sauf pour un seul opposant ou défaillant :
  * finDelaiContestationAgParDestinataire donne la fin de l'AG.

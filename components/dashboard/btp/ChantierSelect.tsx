@@ -1,5 +1,6 @@
 'use client'
 
+import { useLocale } from '@/lib/i18n/context'
 import { useBTPData } from '@/lib/hooks/use-btp-data'
 
 interface Chantier {
@@ -10,15 +11,18 @@ interface Chantier {
 
 interface ChantierSelectProps {
   userId: string
+  /** Identifiant du compte : clé de cache des chantiers, la même que l'écran Chantiers (constat donnees-btp-15). */
+  authUserId?: string
   orgRole?: string
   value: string
   onChange: (chantierId: string, titre: string, client: string) => void
   className?: string
 }
 
-export function ChantierSelect({ userId, orgRole, value, onChange, className }: ChantierSelectProps) {
+export function ChantierSelect({ userId, authUserId, orgRole, value, onChange, className }: ChantierSelectProps) {
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
-  const { items: chantiers } = useBTPData<Chantier>({ table: 'chantiers', artisanId: userId, userId })
+  const isPt = useLocale() === 'pt'
+  const { items: chantiers } = useBTPData<Chantier>({ table: 'chantiers', artisanId: userId, userId: authUserId || userId })
 
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selected = chantiers.find(c => c.id === e.target.value)
@@ -37,10 +41,10 @@ export function ChantierSelect({ userId, orgRole, value, onChange, className }: 
       value={value}
       onChange={handleChange}
     >
-      <option value="">Sélectionner un chantier...</option>
+      <option value="">{isPt ? 'Selecionar uma obra...' : 'Sélectionner un chantier...'}</option>
       {chantiers.map(c => (
         <option key={c.id} value={c.id}>
-          {c.titre}{c.client ? ` — ${c.client}` : ''}
+          {c.titre}{c.client ? `${isPt ? ' · ' : ' — '}${c.client}` : ''}
         </option>
       ))}
     </select>

@@ -8,6 +8,11 @@ import { ajouterJours, estDateIsoValide } from '@/lib/administrateur-judiciaire/
  * le, accusé au demandeur) ; Validation (collaborateur, prévue le, validée le, sans objet le, alerte de sécurité) ; Compte
  * rendu ; bouton Enchaînement.
  * 🔵 Enchaînement modélisé comme une suite ordonnée d'étapes types avec un délai après la réalisation de la précédente.
+ * Délai non saisi (null) : l'étape enchaînée n'a pas de limite (J76, réponse de Frédéric du 17/11/2026 : aucun délai par
+ * défaut entre les étapes ; un délai d'étape est un délai de gestion du cabinet, jamais un délai légal). Sans « à faire
+ * le » ni alerte, elle remonte au suivi « à faire », marquée « sans délai », jamais en retard (proposition de Hugo du
+ * 19/11/2026, à valider par Frédéric) ; 🔵 choix de codage, à valider aussi : chaque jour, à la date de référence, jamais
+ * avant sa création (suivi-a-faire.depuisEtapes ; modeles-etapes.ts, question n° 6).
  */
 
 export interface Etape {
@@ -56,8 +61,11 @@ export function validerEtape(etape: Etape, date: string): Etape {
 export interface EtapeTypeProcessus {
   etapeType: string
   titre: string
-  /** Délai, en jours, après la réalisation de l'étape précédente. */
-  delaiJours: number
+  /**
+   * Délai de gestion, en jours, après la réalisation de l'étape précédente ; null : aucun délai saisi, l'étape enchaînée
+   * n'a pas de limite (J76). Un délai saisi, 0 compris, fixe la limite.
+   */
+  delaiJours: number | null
 }
 
 /** Étape suivante du processus après une étape réalisée ; null en fin de processus ou pour une étape hors processus. */
@@ -71,7 +79,7 @@ export function enchainer(etape: Etape, processus: EtapeTypeProcessus[], { id }:
     id,
     titre: suivante.titre,
     etapeType: suivante.etapeType,
-    limite: ajouterJours(etape.faitLe, suivante.delaiJours),
+    limite: suivante.delaiJours === null ? null : ajouterJours(etape.faitLe, suivante.delaiJours),
     alerteSecurite: null,
     faitLe: null,
     valideeLe: null,

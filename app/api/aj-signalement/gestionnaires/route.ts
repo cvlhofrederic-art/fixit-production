@@ -19,6 +19,13 @@
 //   domaine de l'un des deux cabinets : la règle « adresse d'une fiche ») → 409 existe_deja { id }, l'identifiant de
 //   cette fiche lu dans le DETAIL de l'erreur (rendu seulement s'il a la forme d'un uuid). Avant la 20261112 : l'adresse
 //   exacte seule, comme en PR 1.
+// Bureaux (migration 20261119 ; choix 2 : bureau obligatoire pour une NOUVELLE fiche dès que son cabinet a un bureau
+//   ouvert) : POST — bureauId facultatif dans le corps, transmis à la fonction SQL ; contrôlé AVANT la signature du lien
+//   et toute écriture : aucun choisi alors que le cabinet a un bureau ouvert → 409 bureau_requis ; bureau fermé → 409
+//   bureau_ferme ; d'un autre cabinet ou inconnu → 409 a_reverifier ; la base revérifie (trigger, clé composée) ; bureauId
+//   sans la migration → 503 base_absente (jamais ignoré). GET — chaque fiche porte son bureau (clé posée seulement si
+//   elle en a un) ; ?bureau=<id> (les fiches de ce bureau) et ?bureau=aucun (fiches sans bureau d'un cabinet qui a un
+//   bureau ouvert, hors fiches effacées, qui ne peuvent plus en recevoir) ; filtre sans la migration → 503 base_absente.
 
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
@@ -32,6 +39,9 @@ import {
   reponseErreurSqlQr, reponseInvalide, reponsePriveeQr,
 } from '@/lib/aj-signalement/serveur'
 import { envoyerLienConfirmationQr, gestionnairesDepuisFichesQr, lireFicheQr, lireFichesQr } from '@/lib/aj-signalement/serveur-gestion'
+import {
+  bureauRequisPourCabinetQr, controlerBureauDuCabinetQr, filtrerFichesParBureauQr, reponseErreurBureauxQr,
+} from '@/lib/aj-signalement/serveur-bureaux'
 
 const CONTEXTE = '[AJ SIGNALEMENT]'
 /** Identifiant d'une fiche (uuid) : seule forme rendue depuis le DETAIL d'une erreur existe_deja. */
@@ -47,9 +57,16 @@ export async function GET(request: NextRequest) {
 
     const validation = validateBody(listeGestionnairesQrQuerySchema, parametresQr(request))
     if (!validation.success) return reponseInvalide(validation.error)
-    const fiches = await lireFichesQr(validation.data)
+    const { etat, cabinet, bureau } = validation.data
+    const fiches = await lireFichesQr({ etat, ...(cabinet ? { cabinet } : {}) })
     if (!fiches.ok) return reponseErreurSqlQr(fiches.erreur, 'lecture des gestionnaires')
-    const liste = await gestionnairesDepuisFichesQr(fiches.valeur)
+    let retenues = fiches.valeur
+    if (bureau) {
+      const filtrees = await filtrerFichesParBureauQr(retenues, bureau)
+      if (!filtrees.ok) return reponseErreurBureauxQr(filtrees.erreur, 'filtre des gestionnaires par bureau')
+      retenues = filtrees.valeur
+    }
+    const liste = await gestionnairesDepuisFichesQr(retenues)
     if (!liste.ok) return reponseErreurSqlQr(liste.erreur, 'lecture des gestionnaires')
     return reponsePriveeQr({ gestionnaires: liste.valeur })
   } catch (e: unknown) {
@@ -81,6 +98,15 @@ export async function POST(request: NextRequest) {
     const domaines = await lireDomainesCabinetQr(s.cabinetId)
     if (!domaines.ok) return reponseErreurSqlQr(domaines.erreur, 'lecture des domaines', { cabinet: s.cabinetId })
     if (domaines.valeur.length === 0) return reponseErreur('domaines_a_renseigner', 409)
+    // Bureau de la fiche (choix 2), contrôlé avant la signature du lien et toute écriture.
+    if (s.bureauId) {
+      const bureau = await controlerBureauDuCabinetQr(s.bureauId, s.cabinetId, 'bureau d’une nouvelle fiche', { cabinet: s.cabinetId })
+      if (!bureau.ok) return bureau.reponse
+    } else {
+      const requis = await bureauRequisPourCabinetQr(s.cabinetId, 'bureau d’une nouvelle fiche')
+      if (!requis.ok) return requis.reponse
+      if (requis.requis) return reponseErreur('bureau_requis', 409)
+    }
 
     const existante = await supabaseAdmin.from(TABLE_GESTIONNAIRES_QR).select('id').eq('email', s.email).maybeSingle()
     if (existante.error) return reponseErreurSqlQr(existante.error, 'lecture des gestionnaires')
@@ -100,7 +126,11 @@ export async function POST(request: NextRequest) {
     const gestionnaireId = globalThis.crypto.randomUUID()
     const invitation = await nouvelleInvitation('aj_signalement', s.email, gestionnaireId)
     const { error } = await supabaseAdmin.rpc('signalements_qr_inviter_gestionnaire', {
-      p_gestionnaire: { id: gestionnaireId, cabinetId: s.cabinetId, nom: s.nom, email: s.email, domaineForce: !dansDomaines },
+      // bureauId seulement s'il est choisi : sans bureau, l'appel reste celui d'avant la migration 20261119.
+      p_gestionnaire: {
+        id: gestionnaireId, cabinetId: s.cabinetId, nom: s.nom, email: s.email, domaineForce: !dansDomaines,
+        ...(s.bureauId ? { bureauId: s.bureauId } : {}),
+      },
       p_invitation: { id: invitation.id, invite_token: invitation.invite_token, email: s.email },
       p_coproprietes: s.coproprieteIds,
       p_acteur: controle.user.id,

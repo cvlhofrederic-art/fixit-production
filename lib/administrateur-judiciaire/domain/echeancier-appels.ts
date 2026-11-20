@@ -1,12 +1,15 @@
-import { estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
+import { dateIsoVersFr, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
+import type { Exercice } from '@/lib/administrateur-judiciaire/domain/exercices-budgets'
 import { soldePoste, type PosteDette } from '@/lib/administrateur-judiciaire/domain/imputation-encaissements'
 import { codeContrepartie, type AvisAppels, type EcheanceAppel } from '@/lib/administrateur-judiciaire/domain/repartition-appels'
 import type { SensMouvement, Traitement } from '@/lib/administrateur-judiciaire/domain/traitements'
 
 /**
  * Échéancier des appels : statut, traitement d'appel et d'annulation, date d'envoi, relançable, regroupement (point 16
- * du bilan 2). Fonctions pures, montants en CENTIMES ENTIERS, dates ISO, sans écran ni table : les tables des appels, des
- * échéances et des postes restent à faire (Frédéric).
+ * du bilan 2). Fonctions pures, montants en CENTIMES ENTIERS, dates ISO, sans écran. Tables de la version 3 de la base
+ * locale (db/schema.ts) : les échéances (echeancesAppel, clé [coproprieteId+id] ; écritures par ces fonctions dans
+ * db/echeances-appel.ts) et les pièces d'appel (traitements, db/traitements.ts) ; l'écriture de l'appel et de son
+ * annulation avec leur pièce, et la table des postes, restent à faire (Frédéric).
  *
  * Gestéam — 🟢 tranche 30 § Échéancier des appels : liste Date (exigibilité) · Mandat · Clé · Libellé · Montant · Statut ;
  * libellés vus « APPEL DE FONDS … », « REGUL CH. … », « SOLDE AU … », montants négatifs = régularisations ; fiche :
@@ -63,6 +66,15 @@ import type { SensMouvement, Traitement } from '@/lib/administrateur-judiciaire/
  *   temps, art. 19-2), non soldé, d'un appel émis et relançable, hors contentieux (le contentieux suit sa propre
  *   procédure) ; une dette sans appel (reprise de solde) reste relançable ; tout écart est signalé avec son motif ;
  * - postes imputables : jamais ceux d'un appel annulé (son écriture contraire a soldé le 450).
+ *
+ * Décision de Hugo du 17/11/2026 (registre des décisions juridiques, J67, R96 ; décret n° 2005-240, art. 3, al. 2, et
+ * art. 4, relus le 17/11/2026) : date comptable = date d'exigibilité de l'échéance (dateComptableAppel la propose) ; la
+ * date d'émission reste une information (date de l'avis). controlerDateComptableAppel : une date comptable dans un autre
+ * exercice que celui de l'exigibilité est un refus (bloquant ; marquerAppelees exige les exercices du syndicat et le
+ * lève toujours) ; une date autre que l'exigibilité dans le même exercice, un avertissement. Gestéam date le traitement
+ * de l'émission (tranche 43 § 8) : à la reprise, le même contrôle signale l'écart, sans effet sur les montants
+ * (branchement de la reprise des appels : à faire).
+ *
  * 🔴 Non établi (questions pour Frédéric ou Hugo) :
  * - « Une échéance "En attente" est-elle une échéance suspendue avant son appel (par exemple des travaux pendant le
  *   délai de contestation de l'art. 42, al. 3, qui suspend l'exécution des travaux et non l'appel), et peut-on l'appeler
@@ -74,8 +86,6 @@ import type { SensMouvement, Traitement } from '@/lib/administrateur-judiciaire/
  *   rejet de virement J9), ou annuler tout l'appel puis rappeler les autres ? » (VitFix : tout l'appel) ;
  * - « Appel déjà réglé en partie : à son annulation, le règlement imputé devient-il un crédit "à imputer" du compte ? »
  *   (VitFix : annulation refusée, aucune désimputation dans le domaine) ;
- * - « Date comptable du traitement "Appel de fonds" : l'exigibilité (D. 2005-240 art. 3) ou la date d'émission
- *   (Gestéam, tranche 43 § 8) ? » (VitFix : non contrôlée) ;
  * - « Un poste en contentieux reste-t-il dans la campagne de relance (tranche 27) ? » (VitFix : non) ;
  * - « Les lignes négatives de régularisation de l'échéancier Gestéam ("REGUL CH.", "SOLDE AU") se reprennent-elles en
  *   VitFix par la répartition des charges (point 25), ou faut-il admettre une échéance négative ? » (VitFix : point 25,
@@ -283,7 +293,13 @@ function verifierAvisDuTraitement(avis: AvisAppels, traitement: Traitement): voi
       throw new Error(
         `Appel ${traitement.id} : contrepartie ${code} : ${ecrits.get(code) ?? 0} centimes crédités, l'avis en appelle ${appeles.get(code) ?? 0} ; passer l'avis qui a produit ce traitement.`,
       )
-  const debits = traitement.mouvements.filter((m) => m.sens === 'debit').map((m) => m.montantCentimes)
+  // Par compte copropriétaire (série, 3e segment) : le budget peut être au 450-1 et le reste au 450 (J67, R104).
+  const debitsParSerie = cumulerParCle(
+    traitement.mouvements.filter((m) => m.sens === 'debit'),
+    (m) => m.compte.split('.')[2] ?? m.compte,
+    (m) => m.montantCentimes,
+  )
+  const debits = [...debitsParSerie.values()]
   const attendus = avis.parCompte.map((c) => c.totalAppeleCentimes).filter((m) => m > 0)
   if (listeMontants(debits) !== listeMontants(attendus))
     throw new Error(
@@ -291,15 +307,92 @@ function verifierAvisDuTraitement(avis: AvisAppels, traitement: Traitement): voi
     )
 }
 
+// ─── Date comptable de l'appel (J67, R96) ─────────────────────────────────────────────────────
+
+/** Bornes d'un exercice du syndicat (exercices-budgets.ts). */
+export type BornesExercice = Pick<Exercice, 'nom' | 'ouverture' | 'cloture'>
+
+export interface AnomalieDateComptableAppel {
+  code: 'date_hors_exercice' | 'date_autre_que_exigibilite' | 'exigibilite_hors_exercice'
+  gravite: 'bloquant' | 'avertissement'
+  echeanceId: string
+  message: string
+  fondement: string
+}
+
+const FONDEMENT_DATE_COMPTABLE_APPEL = "décret n° 2005-240, art. 3, al. 2 ; art. 4 ; J67, R96"
+
+/** Échéances écrites par l'appel (une échéance à 0 centime n'écrit aucune ligne). */
+const echeancesEcrites = (avis: Pick<AvisAppels, 'echeances'>): EcheanceAppel[] => avis.echeances.filter((e) => e.montantCentimes > 0)
+
+/**
+ * Date comptable proposée pour l'écriture de l'appel : l'exigibilité de ses échéances (décret n° 2005-240, art. 3, al. 2 :
+ * produits « enregistrées à la date d'exigibilité »). Plusieurs exigibilités : la plus ancienne, les autres sont
+ * signalées par controlerDateComptableAppel.
+ */
+export function dateComptableAppel(avis: Pick<AvisAppels, 'echeances'>): string {
+  const dates = echeancesEcrites(avis).map((e) => e.exigibilite).sort((a, b) => a.localeCompare(b))
+  if (dates.length === 0) throw new Error("Appel sans échéance à écrire : aucune date comptable à proposer.")
+  return dates[0]
+}
+
+const exerciceDe = (exercices: readonly BornesExercice[], date: string): BornesExercice | null =>
+  exercices.find((x) => x.ouverture <= date && date <= x.cloture) ?? null
+
+function anomalieDateEcheance(date: string, e: EcheanceAppel, exercices: readonly BornesExercice[]): AnomalieDateComptableAppel | null {
+  const base = { echeanceId: e.id, fondement: FONDEMENT_DATE_COMPTABLE_APPEL }
+  const exercice = exerciceDe(exercices, e.exigibilite)
+  if (!exercice)
+    return { ...base, code: 'exigibilite_hors_exercice', gravite: 'bloquant', message: `Échéance « ${e.id} » exigible le ${dateIsoVersFr(e.exigibilite)}, hors des exercices fournis : son exercice est à ouvrir avant d'écrire l'appel.` }
+  if (date === e.exigibilite) return null
+  if (exerciceDe([exercice], date) === null)
+    return {
+      ...base,
+      code: 'date_hors_exercice',
+      gravite: 'bloquant',
+      message: `Appel daté du ${dateIsoVersFr(date)} (exercice ${exerciceDe(exercices, date)?.nom ?? 'inconnu'}) alors que « ${e.id} » est exigible le ${dateIsoVersFr(e.exigibilite)} (exercice ${exercice.nom}) : un produit se constate dans l'exercice de son exigibilité ; dater l'écriture de l'exigibilité, un appel par exercice.`,
+    }
+  return {
+    ...base,
+    code: 'date_autre_que_exigibilite',
+    gravite: 'avertissement',
+    message: `Appel daté du ${dateIsoVersFr(date)}, « ${e.id} » est exigible le ${dateIsoVersFr(e.exigibilite)} : la date comptable est l'exigibilité, la date d'émission n'est qu'une information.`,
+  }
+}
+
+/**
+ * Contrôle de la date comptable de l'écriture de l'appel (J67, R96) : pour chaque échéance écrite, refus (bloquant) d'une
+ * date dans un autre exercice que celui de son exigibilité, ou d'une exigibilité hors des exercices fournis ;
+ * avertissement d'une date autre que l'exigibilité dans le même exercice. Le même contrôle sert à la reprise des appels
+ * Gestéam, datés de l'émission (tranche 43 § 8).
+ */
+export function controlerDateComptableAppel(
+  traitement: Pick<Traitement, 'date'>,
+  avis: Pick<AvisAppels, 'echeances'>,
+  exercices: readonly BornesExercice[],
+): AnomalieDateComptableAppel[] {
+  verifierDate(traitement.date, "Date de l'appel")
+  return echeancesEcrites(avis).flatMap((e) => anomalieDateEcheance(traitement.date, e, exercices) ?? [])
+}
+
 /**
  * Appel par un traitement « Appel de fonds » (repartition-appels.traitementAppelDeFonds), avec l'avis qui l'a produit
  * (repartition-appels.avisDAppel), sur la LISTE COMPLÈTE des échéances suivies : celles de l'avis (mêmes identifiants,
  * mêmes montants), du même syndicat (D1), toutes « Prévu », passent « Appelé » avec l'identifiant du traitement et la
  * composition de l'appel ; les autres sont inchangées. Refuse un traitement qui porte déjà sur une échéance de la liste
- * (il n'appelle qu'un lot, une fois) et un avis qui ne concorde pas avec lui (crédits par contrepartie, débits des
- * comptes 450).
+ * (il n'appelle qu'un lot, une fois), un avis qui ne concorde pas avec lui (crédits par contrepartie, débits des comptes
+ * 450) et une date comptable refusée par controlerDateComptableAppel (J67, R96) : les exercices du syndicat sont
+ * obligatoires, le refus n'est jamais facultatif.
  */
-export function marquerAppelees<E extends EcheanceAppelSuivie>(echeances: E[], traitement: Traitement, avis: AvisAppels): E[] {
+export function marquerAppelees<E extends EcheanceAppelSuivie>(
+  echeances: E[],
+  traitement: Traitement,
+  avis: AvisAppels,
+  { exercices }: { exercices: readonly BornesExercice[] },
+): E[] {
+  // Appelant non typé (donnée reprise, JavaScript) : sans les exercices, le contrôle de la date comptable serait sauté.
+  if (!Array.isArray(exercices))
+    throw new Error(`Appel ${traitement.id} : exercices du syndicat attendus, pour contrôler la date comptable de l'appel (J67, R96).`)
   if (traitement.famille !== 'Appel de fonds')
     throw new Error(`Traitement ${traitement.id} de la famille « ${traitement.famille} » : seul un « Appel de fonds » appelle des échéances.`)
   const index = indexerSuivies(echeances)
@@ -316,6 +409,8 @@ export function marquerAppelees<E extends EcheanceAppelSuivie>(echeances: E[], t
     verifierTransition(e, 'Appelé')
   }
   verifierAvisDuTraitement(avis, traitement)
+  const refus = controlerDateComptableAppel(traitement, avis, exercices).filter((a) => a.gravite === 'bloquant')
+  if (refus.length > 0) throw new Error(`Appel ${traitement.id} refusé : ${refus.map((a) => a.message).join(' ; ')}`)
   const lot = appelees.map((e) => e.id)
   const ids = new Set(lot)
   return echeances.map((e): E => (ids.has(e.id) ? { ...e, statut: 'Appelé', traitementId: traitement.id, echeancesDeLAppel: [...lot] } : e))

@@ -10,23 +10,9 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { KeyboardEvent } from 'react'
-import type { ModCategory } from '@/hooks/useModuleCategories'
+import { nomDeRubrique, type ModCategory } from '@/hooks/useModuleCategories'
 import LienPanneauAdmin from '@/components/common/LienPanneauAdmin'
 import { rechercherModules, type ModuleCherchable } from '@/lib/btp/recherche-modules'
-
-// Category section header translations (dynamic path)
-const CAT_NAME_PT: Record<string, string> = {
-  'cat-pilotage': 'Pilotagem',
-  'cat-chantiers': 'Obras',
-  'cat-commercial': 'Comercial',
-  'cat-facturation': 'Faturação',
-  'cat-achats': 'Subempreitada & Compras',
-  'cat-finances': 'Finanças',
-  'cat-communication': 'Comunicação',
-  'cat-admin': 'Administração',
-  'cat-vitrine': 'Montra',
-  'cat-compte': 'Conta',
-}
 
 interface V5SidebarProps {
   activePage: string
@@ -45,14 +31,22 @@ interface V5SidebarProps {
 
 // Bloc « Compte » (toujours en bas du menu) : mêmes entrées que le rendu fixe plus bas, pour la recherche.
 const MODULES_COMPTE: ReadonlyArray<{ id: string; icon: string; fr: string; pt: string; descriptionFr: string; descriptionPt: string }> = [
-  { id: 'settings', icon: '⚙️', fr: 'Mon profil', pt: 'Meu perfil', descriptionFr: 'Paramètres du compte', descriptionPt: 'Definições da conta' },
-  { id: 'modules', icon: '🧩', fr: 'Modules', pt: 'Modules', descriptionFr: 'Activer, désactiver et réorganiser le menu', descriptionPt: 'Módulos: ativar, desativar e reorganizar o menu' },
+  { id: 'settings', icon: '⚙️', fr: 'Mon profil', pt: 'O meu perfil', descriptionFr: 'Paramètres du compte', descriptionPt: 'Definições da conta' },
+  { id: 'modules', icon: '🧩', fr: 'Modules', pt: 'Módulos', descriptionFr: 'Activer, désactiver et réorganiser le menu', descriptionPt: 'Ativar, desativar e reorganizar o menu' },
   { id: 'help', icon: '❓', fr: 'Aide', pt: 'Ajuda', descriptionFr: 'Questions fréquentes (FAQ) et support', descriptionPt: 'Perguntas frequentes (FAQ) e suporte' },
 ]
 
 // Mots que l'on tape pour un module dont ni le nom ni la description ne les contiennent (lus avec la description).
 const MOTS_CLES: Record<string, { fr: string; pt: string }> = {
   home: { fr: 'accueil', pt: 'início' },
+  dictionnaire_materiaux: { fr: 'silicone mastic spatule produits fournitures quoi utiliser', pt: 'silicone mástique espátula produtos que usar lista de compras' },
+  // Anciens noms portugais des modules renommés le 17/11/2026 : ceux qui les ont appris les retrouvent encore.
+  motifs: { fr: '', pt: 'prestações' },
+  pointage: { fr: '', pt: 'marcação de horas ponto' },
+  situations: { fr: '', pt: 'situações de obra' },
+  garanties: { fr: '', pt: 'retenções de garantia' },
+  marches: { fr: '', pt: 'bolsa de mercados' },
+  parrainage: { fr: '', pt: 'apadrinhamento indicar um amigo' },
 }
 
 // ─── Routing alias: motifs → prestations (URL key) ───
@@ -73,6 +67,7 @@ const PREFETCH_MAP: Record<string, () => void> = {
   comptabilite: () => import('@/components/dashboard/ComptabiliteSection'),
   materiaux: () => import('@/components/dashboard/MateriauxSection'),
   estimation_materiaux: () => import('@/components/dashboard/EstimationMateriauxSection'),
+  dictionnaire_materiaux: () => import('@/components/dashboard/DictionnaireMateriauxSection'),
   rapports: () => import('@/components/dashboard/RapportsSection'),
   stats: () => import('@/components/dashboard/StatsRevenusSection'),
   settings: () => import('@/components/dashboard/SettingsSection'),
@@ -132,7 +127,7 @@ export default function V5Sidebar({
       .filter(cat => cat.id !== 'cat-compte')
       .map(cat => ({
         id: cat.id,
-        nom: isPt ? (CAT_NAME_PT[cat.id] ?? cat.name) : cat.name,
+        nom: nomDeRubrique(cat, isPt),
         modules: cat.modules.filter(m => m.on && isModuleEnabled(m.id)),
       }))
       .filter(rubrique => rubrique.modules.length > 0)
@@ -390,7 +385,7 @@ export default function V5Sidebar({
 
         {/* ═══ PILOTAGE ═══ */}
         <div className="v5-sb-sec">
-          <div className="v5-sb-sec-t">{isPt ? 'Pilotagem' : 'Pilotage'}</div>
+          <div className="v5-sb-sec-t">{isPt ? 'Gestão' : 'Pilotage'}</div>
           <V5SidebarItem icon="📊" label={isPt ? 'Painel' : 'Tableau de bord'} active={activePage === 'home'} onClick={() => navigateTo('home')} page="home" />
           {(isProGerant || proCanAccess('gestion_comptes')) && (
             <V5SidebarItem icon="👥" label={isPt ? 'Contas de utilizadores' : 'Comptes utilisateurs'} active={activePage === 'gestion_comptes'} onClick={() => navigateTo('gestion_comptes')} page="gestion_comptes" />
@@ -401,7 +396,7 @@ export default function V5Sidebar({
           {isModuleEnabled('revenus') && (
             <V5SidebarItem icon="💰" label={isPt ? 'Receitas' : 'Revenus'} active={activePage === 'revenus'} onClick={() => navigateTo('revenus')} />
           )}
-          <V5SidebarItem icon="🗂️" label={isPt ? 'Prestações' : 'Prestations'} active={activePage === 'prestations' || activePage === 'motifs' || activePage === 'bibliotheque'} onClick={() => navigateTo('prestations')} />
+          <V5SidebarItem icon="🗂️" label={isPt ? 'Serviços' : 'Prestations'} active={activePage === 'prestations' || activePage === 'motifs' || activePage === 'bibliotheque'} onClick={() => navigateTo('prestations')} />
         </div>
 
         {/* ═══ CHANTIERS ═══ */}
@@ -411,13 +406,13 @@ export default function V5Sidebar({
             <V5SidebarItem icon="🏗️" label={isPt ? 'Obras' : 'Chantiers'} active={activePage === 'chantiers'} onClick={() => navigateTo('chantiers')} page="chantiers" />
           )}
           {proCanAccess('gantt') && (
-            <V5SidebarItem icon="📊" label={isPt ? 'Planificação Gantt' : 'Planification Gantt'} active={activePage === 'gantt'} onClick={() => navigateTo('gantt')} page="gantt" />
+            <V5SidebarItem icon="📊" label={isPt ? 'Planeamento Gantt' : 'Planification Gantt'} active={activePage === 'gantt'} onClick={() => navigateTo('gantt')} page="gantt" />
           )}
           {proCanAccess('equipes') && (
             <V5SidebarItem icon="👷" label={isPt ? 'Equipas' : 'Équipes'} active={activePage === 'equipes'} onClick={() => navigateTo('equipes')} page="equipes" />
           )}
           {proCanAccess('pointage') && (
-            <V5SidebarItem icon="⏱️" label={isPt ? 'Marcação de horas' : 'Pointage équipes'} active={activePage === 'pointage'} onClick={() => navigateTo('pointage')} page="pointage" />
+            <V5SidebarItem icon="⏱️" label={isPt ? 'Registo de horas' : 'Pointage équipes'} active={activePage === 'pointage'} onClick={() => navigateTo('pointage')} page="pointage" />
           )}
           {proCanAccess('calendar') && (
             <V5SidebarItem icon="📅" label={isPt ? 'Agenda' : 'Agenda / Planning'} active={activePage === 'calendar'} badge={pendingBookings.length || undefined} onClick={() => navigateTo('calendar')} page="calendar" />
@@ -439,10 +434,10 @@ export default function V5Sidebar({
             <V5SidebarItem icon="📄" label={isPt ? 'Orçamentos' : 'Devis'} active={activePage === 'devis'} onClick={() => navigateTo('devis')} page="devis" />
           )}
           {proCanAccess('dpgf') && (
-            <V5SidebarItem icon="📁" label={isPt ? 'Concursos / DPGF' : "Appels d'offres / DPGF"} active={activePage === 'dpgf'} onClick={() => navigateTo('dpgf')} />
+            <V5SidebarItem icon="📁" label={isPt ? 'Concursos / Mapas de quantidades' : "Appels d'offres / DPGF"} active={activePage === 'dpgf'} onClick={() => navigateTo('dpgf')} />
           )}
           {isModuleEnabled('marches') && (
-            <V5SidebarItem icon="📢" label={isPt ? 'Bolsa de Mercados' : 'Bourse aux Marchés'} active={activePage === 'marches'} onClick={() => navigateTo('marches')} />
+            <V5SidebarItem icon="📢" label={isPt ? 'Bolsa de oportunidades' : 'Bourse aux Marchés'} active={activePage === 'marches'} onClick={() => navigateTo('marches')} />
           )}
         </div>
 
@@ -453,10 +448,10 @@ export default function V5Sidebar({
             <V5SidebarItem icon="💳" label={isPt ? 'Faturas' : 'Factures'} active={activePage === 'factures'} onClick={() => navigateTo('factures')} page="factures" />
           )}
           {proCanAccess('situations') && (
-            <V5SidebarItem icon="📈" label={isPt ? 'Situações de obra' : 'Situations de travaux'} active={activePage === 'situations'} onClick={() => navigateTo('situations')} />
+            <V5SidebarItem icon="📈" label={isPt ? 'Autos de medição' : 'Situations de travaux'} active={activePage === 'situations'} onClick={() => navigateTo('situations')} />
           )}
           {proCanAccess('garanties') && (
-            <V5SidebarItem icon="🔒" label={isPt ? 'Retenções de garantia' : 'Retenues de garantie'} active={activePage === 'garanties'} onClick={() => navigateTo('garanties')} />
+            <V5SidebarItem icon="🔒" label={isPt ? 'Retenções para garantia' : 'Retenues de garantie'} active={activePage === 'garanties'} onClick={() => navigateTo('garanties')} />
           )}
         </div>
 
@@ -464,16 +459,16 @@ export default function V5Sidebar({
         <div className="v5-sb-sec">
           <div className="v5-sb-sec-t">{isPt ? 'Subempreitada & Compras' : 'Sous-traitance & Achats'}</div>
           {proCanAccess('sous_traitance') && (
-            <V5SidebarItem icon="🤝" label={isPt ? 'Subempreitada DC4' : 'Sous-traitance DC4'} active={activePage === 'sous_traitance'} onClick={() => navigateTo('sous_traitance')} />
+            <V5SidebarItem icon="🤝" label={isPt ? 'Subempreitadas' : 'Sous-traitance DC4'} active={activePage === 'sous_traitance'} onClick={() => navigateTo('sous_traitance')} />
           )}
           {proCanAccess('sous_traitance_offres') && (
             <V5SidebarItem icon="🔍" label={isPt ? 'Recrutar subempreiteiros' : 'Recruter sous-traitants'} active={activePage === 'sous_traitance_offres'} onClick={() => navigateTo('sous_traitance_offres')} />
           )}
           {proCanAccess('rfq_btp') && (
-            <V5SidebarItem icon="📋" label={isPt ? 'Orçamentos Fornecedores' : 'Devis Fournisseurs'} active={activePage === 'rfq_btp'} onClick={() => navigateTo('rfq_btp')} />
+            <V5SidebarItem icon="📋" label={isPt ? 'Orçamentos de fornecedores' : 'Devis Fournisseurs'} active={activePage === 'rfq_btp'} onClick={() => navigateTo('rfq_btp')} />
           )}
           {isModuleEnabled('marketplace_btp') && (
-            <V5SidebarItem icon="🏪" label="Marketplace BTP" active={activePage === 'marketplace_btp'} onClick={() => navigateTo('marketplace_btp')} page="marketplace_btp" />
+            <V5SidebarItem icon="🏪" label={isPt ? 'Marketplace da construção' : 'Marketplace BTP'} active={activePage === 'marketplace_btp'} onClick={() => navigateTo('marketplace_btp')} page="marketplace_btp" />
           )}
         </div>
 
@@ -522,7 +517,7 @@ export default function V5Sidebar({
             <V5SidebarItem icon="🖼️" label={isPt ? 'Referências de obra' : 'Références chantiers'} active={activePage === 'portfolio'} onClick={() => navigateTo('portfolio')} />
           )}
           {isModuleEnabled('parrainage') && (
-            <V5SidebarItem icon="🎁" label={isPt ? 'Apadrinhamento' : 'Parrainage'} active={activePage === 'parrainage'} onClick={() => navigateTo('parrainage')} />
+            <V5SidebarItem icon="🎁" label={isPt ? 'Programa de recomendação' : 'Parrainage'} active={activePage === 'parrainage'} onClick={() => navigateTo('parrainage')} />
           )}
         </div>
 
@@ -547,7 +542,7 @@ export default function V5Sidebar({
             {/* Super_admin (ou « vue en tant que ») seulement — même lien côté artisan (V5SidebarArtisan), voulu pour la démo. */}
             <LienPanneauAdmin className="v5-sb-i" style={{ textDecoration: 'none' }}>
               <span className="v5-sb-icon">🛡️</span>
-              <span className="v5-sb-label">Panneau admin</span>
+              <span className="v5-sb-label">{isPt ? 'Painel de administração' : 'Panneau admin'}</span>
             </LienPanneauAdmin>
             <div className="v5-sb-i logout" onClick={handleLogout}>
               <span className="v5-sb-icon">🚪</span>

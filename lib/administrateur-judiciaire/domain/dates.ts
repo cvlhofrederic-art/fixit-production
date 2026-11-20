@@ -61,10 +61,15 @@ export function composerDateIso(annee: number, mois: number, jour: number): stri
   return `${String(annee).padStart(4, '0')}-${String(mois).padStart(2, '0')}-${String(jour).padStart(2, '0')}`
 }
 
-/** Tous les calculs de délais se font en UTC. */
+/**
+ * Tous les calculs de délais se font en UTC. Pas de Date.UTC : il ramène les années 0 à 99 au XXe siècle
+ * (Date.UTC(26, 2, 15) donne le 15/03/1926) ; setUTCFullYear prend l'année telle quelle.
+ */
 export function dateIsoVersUtcMs(valeur: string): number {
   const { a, m, j } = decomposerDateIso(valeur)
-  return Date.UTC(a, m - 1, j)
+  const date = new Date(0)
+  date.setUTCFullYear(a, m - 1, j)
+  return date.getTime()
 }
 
 export function utcMsVersDateIso(ms: number): string {
@@ -206,6 +211,26 @@ export function estJourOuvrable(dateIso: string, options: OptionsJoursFeries = {
 export function reporterAuJourOuvrable(dateIso: string, options: OptionsJoursFeries = {}): string {
   let date = dateIso
   while (!estJourOuvrable(date, options)) date = ajouterJours(date, 1)
+  return date
+}
+
+/** Dernier jour ouvrable au plus tard le `dateIso` (la date elle-même si elle est ouvrable) : sens inverse du report. */
+export function avancerAuJourOuvrable(dateIso: string, options: OptionsJoursFeries = {}): string {
+  let date = dateIso
+  while (!estJourOuvrable(date, options)) date = ajouterJours(date, -1)
+  return date
+}
+
+/**
+ * Ajoute des jours ouvrés, comptés un par un à partir du lendemain (ni samedi, ni dimanche, ni jour férié). Ce n'est pas
+ * un report : un mercredi + 5 jours ouvrés donne le mercredi suivant, et non le lundi.
+ */
+export function ajouterJoursOuvres(dateIso: string, jours: number, options: OptionsJoursFeries = {}): string {
+  let date = dateIso
+  for (let compte = 0; compte < jours; ) {
+    date = ajouterJours(date, 1)
+    if (estJourOuvrable(date, options)) compte++
+  }
   return date
 }
 

@@ -718,8 +718,11 @@ export async function envoyerConfirmationQr(p: ParametresConfirmationQr): Promis
 // ── Diffusion aux déclarants (PR 3, lot 4) ───────────────────────────────────
 //
 // Cahier PR 3 § 5.1 (enveloppe), § 5.2 (gabarit), § 5.6 (copie au cabinet), § 3.8 et décision H1 (message d'annonce
-// unique, même gabarit). Le message est écrit AU NOM DU CABINET : bandeau, signature, pied, nom d'affichage et Reply-To
-// sont ceux du cabinet. VitFix et « AJ Signalement » n'y sont nommés nulle part (droit § 4.1 : ni auteur apparent, ni
+// unique, même gabarit). Le message est écrit AU NOM DU CABINET : bandeau, signature, pied et nom d'affichage sont ceux
+// du cabinet. AUCUNE adresse de réponse (décision de Hugo du 16/11/2026 : « je ne veux pas que mes copropriétaires
+// puissent répondre ») : le pied dit que le message est automatique et qu'il ne faut pas y répondre ; il garde
+// l'identité du cabinet, sa politique de confidentialité et son adresse de contact, qui reçoit toujours la copie de
+// chaque envoi (§ 5.6). VitFix et « AJ Signalement » n'y sont nommés nulle part (droit § 4.1 : ni auteur apparent, ni
 // promotion d'un prestataire ; VitFix est nommé dans la politique du cabinet, comme sous-traitant). Le domaine
 // technique vitfix.io n'apparaît que dans l'adresse du lien de désinscription et, tant que le cabinet ne donne pas ses
 // DNS, dans l'adresse d'expédition (F6).
@@ -747,7 +750,7 @@ export interface DiffusionFigeeQr {
   /** fige_cabinet_identifiant : chemin de la page de désinscription. */
   cabinetIdentifiant: string
   coproprieteNom: string
-  /** fige_contact_email : Reply-To et contact affiché. */
+  /** fige_contact_email : contact affiché dans le pied et destinataire de la copie au cabinet (plus de Reply-To, 16/11/2026). */
   contactEmail: string
   /** fige_politique_url : politique de confidentialité du cabinet (https). */
   politiqueUrl: string
@@ -839,7 +842,8 @@ export interface TextesDiffusionQr {
   traitesPar: string
   politique: string
   contact: string
-  repondre: string
+  /** Dernière phrase du pied : message automatique, ne pas y répondre (décision de Hugo du 16/11/2026). */
+  pasDeReponse: string
   /** Séparateur avant une adresse dans la version texte (« : » précédé d'une espace en français). */
   deuxPoints: string
 }
@@ -862,7 +866,10 @@ export const TEXTES_DIFFUSION_QR: Record<LangueSignalementQr, TextesDiffusionQr>
   traitesPar: { fr: 'Vos coordonnées sont traitées par {cabinet} :', pt: 'Os seus dados são tratados por {cabinet}:' },
   politique: { fr: 'Politique de confidentialité', pt: 'Política de privacidade' },
   contact: { fr: 'Contact : {contact}.', pt: 'Contacto: {contact}.' },
-  repondre: { fr: 'Pour écrire au cabinet, répondez à ce message.', pt: 'Para escrever ao administrador, responda a esta mensagem.' },
+  pasDeReponse: {
+    fr: 'Ce message a été envoyé automatiquement : merci de ne pas y répondre.',
+    pt: 'Esta mensagem foi enviada automaticamente: por favor, não responda.',
+  },
   deuxPoints: { fr: ' : ', pt: ': ' },
 })
 
@@ -1001,7 +1008,7 @@ export function templateDiffusionQr(diffusion: DiffusionFigeeQr, jetonPage: stri
               <a href="${e(urlPage)}" style="${STYLE_BOUTON_QR}">${e(t.bouton)}</a>
             </td></tr>
           </table>`
-  const piedHtml = `${e(envoyePar)} ${e(traitesPar)} <a href="${e(diffusion.politiqueUrl)}" style="color:#4A5E78;">${e(t.politique)}</a> · ${e(contact)} ${e(t.repondre)}`
+  const piedHtml = `${e(envoyePar)} ${e(traitesPar)} <a href="${e(diffusion.politiqueUrl)}" style="color:#4A5E78;">${e(t.politique)}</a> · ${e(contact)} ${e(t.pasDeReponse)}`
   const html = cadreEmailQr({ langue: diffusion.langue, bandeauHtml: e(cabinet), titreHtml: e(t.titre), corpsHtml: corps, piedHtml })
 
   const text = [
@@ -1020,7 +1027,7 @@ export function templateDiffusionQr(diffusion: DiffusionFigeeQr, jetonPage: stri
     t.encadre,
     `${t.bouton}${t.deuxPoints}${urlPage}`,
     '',
-    `${envoyePar} ${traitesPar} ${t.politique} (${diffusion.politiqueUrl}) · ${contact} ${t.repondre}`,
+    `${envoyePar} ${traitesPar} ${t.politique} (${diffusion.politiqueUrl}) · ${contact} ${t.pasDeReponse}`,
     '',
   ].join('\n')
   return { subject: sujetDiffusionQr(diffusion.coproprieteNom, diffusion.objet), html, text }
@@ -1028,7 +1035,8 @@ export function templateDiffusionQr(diffusion: DiffusionFigeeQr, jetonPage: stri
 
 /**
  * Message d'un destinataire (ligne rendue par signalements_qr_diffusion_lot) : un seul `to`, ni cc ni bcc ; expéditeur
- * figé ; Reply-To = contact du cabinet ; en-têtes List-Unsubscribe et List-Unsubscribe-Post (RFC 8058) avec le jeton UN
+ * figé ; AUCUNE adresse de réponse (décision de Hugo du 16/11/2026 ; le contact du cabinet n'est écrit que dans le
+ * pied et reçoit la copie) ; en-têtes List-Unsubscribe et List-Unsubscribe-Post (RFC 8058) avec le jeton UN
  * CLIC ; bouton du corps avec le jeton de PAGE ; étiquettes lues par le webhook (type, diffusion, destinataire).
  * Jetons : signerLiensDiffusionQr(destinataire.id). Lève DiffusionInvalideQr si une valeur sort de sa forme (filtrer
  * d'abord l'adresse avec adresseDestinataireDiffusionValideQr) ; ne lit rien d'autre que ses paramètres.
@@ -1049,7 +1057,6 @@ export function messageDiffusionQr(
   return {
     from: diffusion.expediteur,
     to: destinataire.email,
-    replyTo: diffusion.contactEmail,
     subject,
     html,
     text,

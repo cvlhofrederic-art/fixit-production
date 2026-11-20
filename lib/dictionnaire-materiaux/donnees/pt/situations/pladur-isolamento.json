@@ -1,0 +1,1004 @@
+{
+  "domaine": {
+    "id": "pladur-isolamento",
+    "nom": "Gesso cartonado e isolamento",
+    "icone": "🧶"
+  },
+  "situations": [
+    {
+      "id": "montar-divisoria-gesso-cartonado",
+      "domaine": "pladur-isolamento",
+      "titre": "Montar divisória em gesso cartonado",
+      "motsCles": [
+        "parede de pladur",
+        "divisória em pladur",
+        "dividir quarto com placas",
+        "tabique em gesso cartonado",
+        "parede leve",
+        "parede divisória sem tijolo",
+        "fazer mais um quarto",
+        "parede com perfis e placas",
+        "tabique"
+      ],
+      "description": "Parede interior leve, feita com uma estrutura de perfis metálicos (raias e montantes) e placas de gesso cartonado aparafusadas dos dois lados, com lã mineral no meio para isolar o som.",
+      "aVerifier": [
+        "Se a divisória fica numa zona seca ou junto a casa de banho ou cozinha: aí a face virada para a zona húmida leva placa hidrófuga.",
+        "Se é preciso isolamento acústico reforçado ou resistência ao fogo: placa dupla, placa corta-fogo, perfil de 70 mm, segundo o sistema do fabricante.",
+        "O que vai ficar pendurado na parede (móveis, televisão, lavatório): os reforços na estrutura têm de ficar previstos antes de fechar.",
+        "De que material são o chão e o teto onde se fixam as raias, e se há cabos ou tubos a passar dentro da parede."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "cordel-de-marcar",
+              "note": "Marcar no chão a linha das raias e passá-la ao teto a prumo."
+            },
+            {
+              "id": "nivel-de-bolha",
+              "note": "Aprumar cada montante antes de aparafusar as placas."
+            },
+            {
+              "id": "broca-betao-pedra",
+              "note": "Furar chão, teto e paredes para as buchas de bater."
+            }
+          ]
+        },
+        {
+          "titre": "Estrutura",
+          "materiaux": [
+            {
+              "id": "banda-acustica",
+              "note": "Colar na face das raias e dos montantes que encostam ao chão, ao teto e às paredes."
+            },
+            {
+              "id": "perfil-raia",
+              "note": "Raia no chão e no teto, com a largura do montante (48 ou 70 mm)."
+            },
+            {
+              "id": "perfil-montante",
+              "note": "Encaixar nas raias com o afastamento que o sistema indica; reforçar os que ladeiam as portas."
+            },
+            {
+              "id": "bucha-de-bater",
+              "note": "Fixar as raias ao chão e ao teto e os montantes de topo às paredes."
+            },
+            {
+              "id": "parafuso-metal-metal",
+              "note": "Os montantes ficam soltos nas raias; aparafusar só nos aros de porta e nos reforços."
+            }
+          ]
+        },
+        {
+          "titre": "Isolamento",
+          "materiaux": [
+            {
+              "id": "la-mineral-painel",
+              "note": "Encher toda a caixa entre montantes, sem comprimir nem deixar frestas."
+            }
+          ]
+        },
+        {
+          "titre": "Placas",
+          "materiaux": [
+            {
+              "id": "placa-gesso-cartonado-standard",
+              "note": "Placas ao alto, juntas desencontradas de uma face para a outra e pequena folga ao chão."
+            },
+            {
+              "id": "placa-gesso-cartonado-hidrofuga",
+              "note": "Só na face virada para casa de banho, cozinha ou lavandaria.",
+              "optionnel": true
+            },
+            {
+              "id": "parafuso-gesso-cartonado",
+              "note": "Comprimento conforme a placa é simples ou dupla."
+            },
+            {
+              "id": "ponta-aparafusar-gesso-cartonado",
+              "note": "Na aparafusadora: a cabeça para à face sem rasgar o cartão."
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "x-ato",
+              "note": "Riscar o cartão de um lado, partir a placa e cortar o cartão do outro lado."
+            },
+            {
+              "id": "tesoura-de-chapa",
+              "note": "Cortar raias e montantes à medida."
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-obra-nitrilo",
+              "note": "As arestas dos perfis cortados ferem as mãos."
+            },
+            {
+              "id": "oculos-protecao",
+              "note": "Ao furar o teto e ao manusear a lã mineral."
+            },
+            {
+              "id": "mascara-ffp2",
+              "note": "Fibras da lã mineral e pó dos furos."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Antes de demolir uma parede antiga para a substituir por gesso cartonado, confirmar que não é estrutural.",
+        "Cargas pesadas (móveis suspensos, lavatório, televisão grande) precisam de reforço na estrutura previsto antes de fechar a parede.",
+        "Cabos e tubos passam pelos furos dos montantes; as ligações elétricas são trabalho de técnico habilitado.",
+        "As juntas tratam-se a seguir, com banda e massa de juntas (ver a ficha «Tratar juntas de gesso cartonado»)."
+      ]
+    },
+    {
+      "id": "teto-falso-gesso-cartonado",
+      "domaine": "pladur-isolamento",
+      "titre": "Teto falso em gesso cartonado",
+      "motsCles": [
+        "teto em pladur",
+        "rebaixar o teto",
+        "rebaixamento de teto",
+        "teto rebaixado",
+        "esconder tubos no teto",
+        "teto com focos embutidos",
+        "teto falso na casa de banho",
+        "tapar teto antigo"
+      ],
+      "description": "Teto rebaixado com perfis F47 suspensos da laje e placas de gesso cartonado aparafusadas por baixo. Serve para baixar o pé-direito, esconder tubagens ou embutir iluminação.",
+      "aVerifier": [
+        "De que é feito o teto existente (laje de betão, abobadilha, madeira): muda a forma de fixar as suspensões.",
+        "Quanto se quer rebaixar: suspensão longa para pouca altura, varão roscado para rebaixamentos maiores.",
+        "Se é casa de banho ou cozinha (placa hidrófuga) e se há válvulas, caixas ou máquinas que precisam de ficar acessíveis.",
+        "Peso e posição dos candeeiros e focos a embutir."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "nivel-laser",
+              "note": "Marcar a cota do teto falso em todas as paredes, à mesma altura."
+            },
+            {
+              "id": "broca-betao-pedra",
+              "note": "Furar a laje para as suspensões e a parede para a cantoneira."
+            }
+          ]
+        },
+        {
+          "titre": "Estrutura",
+          "materiaux": [
+            {
+              "id": "cantoneira-perimetral",
+              "note": "Fixar à parede pela linha marcada; apoia as pontas dos perfis e as bordas das placas."
+            },
+            {
+              "id": "bucha-teto-falso",
+              "note": "Fixar à laje maciça as suspensões ou o varão (modelo com rosca) e a cantoneira à parede."
+            },
+            {
+              "id": "perfil-teto-f47",
+              "note": "Perfis paralelos, com o afastamento que o sistema indica, nivelados pela cantoneira."
+            },
+            {
+              "id": "uniao-perfil-f47",
+              "note": "Para emendar perfis em divisões mais compridas do que a barra; desencontrar as emendas.",
+              "optionnel": true
+            },
+            {
+              "id": "suspensao-longa-perfil-teto",
+              "note": "Para rebaixamentos pequenos, dentro do comprimento da suspensão.",
+              "optionnel": true
+            },
+            {
+              "id": "varao-roscado",
+              "note": "Para rebaixamentos maiores do que a suspensão longa permite.",
+              "optionnel": true
+            },
+            {
+              "id": "pivot-suspensao-f47",
+              "note": "Liga o perfil F47 ao varão roscado: só com a suspensão por varão.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Placas",
+          "materiaux": [
+            {
+              "id": "placa-gesso-cartonado-standard",
+              "note": "Aparafusar atravessada aos perfis, com as juntas de topo desencontradas."
+            },
+            {
+              "id": "placa-gesso-cartonado-hidrofuga",
+              "note": "Em casas de banho, cozinhas e lavandarias, no lugar da placa standard.",
+              "optionnel": true
+            },
+            {
+              "id": "parafuso-gesso-cartonado",
+              "note": "Aparafusar em todos os perfis que a placa atravessa."
+            },
+            {
+              "id": "ponta-aparafusar-gesso-cartonado",
+              "note": "A cabeça para à face sem rasgar o cartão, mesmo a aparafusar por cima da cabeça."
+            },
+            {
+              "id": "alcapao-visita-metalico",
+              "note": "Onde for preciso chegar a válvulas, caixas de derivação ou máquinas de ar condicionado.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "tesoura-de-chapa",
+              "note": "Cortar perfis e cantoneiras."
+            },
+            {
+              "id": "x-ato"
+            },
+            {
+              "id": "escadote-aluminio",
+              "note": "Bem aberto e apoiado em piso firme; levantar as placas a duas pessoas."
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "oculos-protecao",
+              "note": "Indispensáveis ao furar a laje por cima da cabeça."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Em tetos de abobadilha ou de madeira, fixar as suspensões nas vigotas ou nas vigas, nunca no tijolo da abobadilha nem nas ripas.",
+        "Trabalho em altura com placas pesadas por cima da cabeça: levantar a duas pessoas ou com escoramento, nunca sozinho em cima do escadote.",
+        "A instalação elétrica dos focos é trabalho de técnico habilitado; candeeiros pesados fixam-se à laje, não à placa.",
+        "Se o teto existente tiver manchas de humidade, encontrar e resolver a infiltração antes de o tapar."
+      ]
+    },
+    {
+      "id": "forrar-parede-zona-humida-placa-hidrofuga",
+      "domaine": "pladur-isolamento",
+      "titre": "Forrar parede de zona húmida com placa hidrófuga",
+      "motsCles": [
+        "pladur verde",
+        "pladur na casa de banho",
+        "forrar parede da casa de banho",
+        "placa hidrófuga para azulejo",
+        "pladur na cozinha",
+        "revestir parede do duche",
+        "endireitar parede da casa de banho",
+        "esconder tubos na casa de banho"
+      ],
+      "description": "Forra de uma parede de casa de banho, cozinha ou lavandaria com placa de gesso cartonado hidrófuga sobre estrutura metálica, em geral para endireitar a parede, esconder tubagens e depois assentar azulejo ou pintar.",
+      "aVerifier": [
+        "Se a parede fica dentro da zona de duche ou de salpicos (impermeabilizar antes do azulejo) ou se só apanha humidade ambiente.",
+        "Se a parede existente tem humidade de infiltração ou de capilaridade: resolver a causa antes de a tapar.",
+        "O acabamento final (azulejo ou tinta) e o peso do azulejo: confirmar no sistema o afastamento dos montantes.",
+        "Que tubos, caixas e suportes de louça suspensa ficam por trás da placa."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "nivel-de-bolha",
+              "note": "Aprumar raias e montantes: a forra serve muitas vezes para endireitar a parede."
+            },
+            {
+              "id": "broca-betao-pedra",
+              "note": "Furar chão, teto e paredes laterais para as buchas."
+            }
+          ]
+        },
+        {
+          "titre": "Estrutura",
+          "materiaux": [
+            {
+              "id": "perfil-raia",
+              "note": "Raia no chão e no teto, afastada da parede o suficiente para passar os tubos."
+            },
+            {
+              "id": "perfil-montante",
+              "note": "Afastamento do sistema para placa com azulejo, mais apertado do que para placa pintada."
+            },
+            {
+              "id": "bucha-de-bater",
+              "note": "Fixar as raias ao chão, ao teto e às paredes laterais."
+            }
+          ]
+        },
+        {
+          "titre": "Placas",
+          "materiaux": [
+            {
+              "id": "placa-gesso-cartonado-hidrofuga",
+              "note": "Em toda a parede; deixar uma pequena folga ao chão para a placa não puxar água."
+            },
+            {
+              "id": "parafuso-gesso-cartonado"
+            },
+            {
+              "id": "ponta-aparafusar-gesso-cartonado",
+              "note": "Cabeça à face sem rasgar o cartão: cartão rasgado deixa entrar humidade."
+            }
+          ]
+        },
+        {
+          "titre": "Juntas",
+          "materiaux": [
+            {
+              "id": "massa-juntas-hidrofuga",
+              "note": "Encher juntas e cabeças de parafusos com massa hidrófuga, não com massa comum."
+            },
+            {
+              "id": "banda-papel-juntas",
+              "note": "Embeber na massa ao longo das juntas entre placas."
+            },
+            {
+              "id": "espatula-americana-placas-gesso"
+            }
+          ]
+        },
+        {
+          "titre": "Impermeabilização",
+          "materiaux": [
+            {
+              "id": "membrana-liquida-zonas-humidas",
+              "note": "Na zona de duche e de salpicos, em duas demãos, com o primário que a embalagem indicar.",
+              "optionnel": true
+            },
+            {
+              "id": "banda-impermeabilizante-cantos-juntas",
+              "note": "Com a membrana: cantos, encontro com a base de duche ou banheira e saídas de água.",
+              "optionnel": true
+            },
+            {
+              "id": "trincha-plana-sintetica",
+              "note": "Aplicar a membrana e embeber a banda nos cantos.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "x-ato"
+            },
+            {
+              "id": "tesoura-de-chapa",
+              "note": "Cortar raias e montantes à medida."
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-obra-nitrilo"
+            },
+            {
+              "id": "oculos-protecao",
+              "note": "Ao furar paredes e teto e ao cortar os perfis."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "A placa hidrófuga resiste à humidade, não à água: na zona de duche, sem impermeabilização por cima, acaba por se desfazer.",
+        "Não forrar uma parede com infiltração ou humidade a subir do chão: o bolor cresce escondido atrás da placa.",
+        "Lavatório suspenso, sanita suspensa e termoacumulador precisam de reforço ou de estrutura própria dentro da forra.",
+        "Azulejo sobre a placa assenta-se com cimento-cola flexível, não com cimento-cola normal.",
+        "Os encontros com a base de duche e a banheira vedam-se no fim com silicone sanitário."
+      ]
+    },
+    {
+      "id": "tratar-juntas-gesso-cartonado",
+      "domaine": "pladur-isolamento",
+      "titre": "Tratar juntas de gesso cartonado",
+      "motsCles": [
+        "barrar juntas do pladur",
+        "emassar juntas das placas",
+        "fitar juntas",
+        "juntas do pladur a rachar",
+        "fendas nas juntas das placas",
+        "acabar parede de pladur",
+        "cabeças dos parafusos à vista",
+        "esquinas de pladur",
+        "fita de juntas"
+      ],
+      "description": "Encher, armar com banda e alisar as juntas entre placas, as cabeças dos parafusos e as esquinas, para deixar a superfície contínua e pronta a pintar.",
+      "aVerifier": [
+        "Se são placas novas ou juntas antigas fissuradas que é preciso abrir e refazer.",
+        "Se é zona húmida (casa de banho, cozinha): aí usa-se massa de juntas hidrófuga.",
+        "O acabamento final: tinta acetinada ou luz rasante pedem um barramento geral da superfície e não só das juntas.",
+        "Se há esquinas salientes sujeitas a pancadas, que levam cantoneira."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "x-ato",
+              "note": "Cortar o cartão levantado e abrir em V as juntas fissuradas antes de encher."
+            }
+          ]
+        },
+        {
+          "titre": "Juntas",
+          "materiaux": [
+            {
+              "id": "massa-juntas-po",
+              "note": "Primeira demão para encher a junta e colar a banda; amassar só o que se gasta no tempo de presa."
+            },
+            {
+              "id": "massa-juntas-pronta",
+              "note": "Para pequenas áreas e para as demãos finas de acabamento.",
+              "optionnel": true
+            },
+            {
+              "id": "massa-juntas-hidrofuga",
+              "note": "Em casas de banho e cozinhas, no lugar da massa comum.",
+              "optionnel": true
+            },
+            {
+              "id": "banda-papel-juntas",
+              "note": "Apertar sobre a massa fresca com a espátula, sem bolhas; dobrada ao meio nos cantos interiores."
+            },
+            {
+              "id": "cantoneira-perfurada-aluminio",
+              "note": "Nas esquinas salientes, embebida em massa, para não lascarem com as pancadas.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "massa-acabamento-pronta-pasta",
+              "note": "Barramento geral fino quando a tinta é acetinada ou há luz rasante.",
+              "optionnel": true
+            },
+            {
+              "id": "esponja-abrasiva",
+              "note": "Lixar levemente entre demãos e no fim, sem chegar ao cartão."
+            },
+            {
+              "id": "primario-gesso-cartonado-estuque",
+              "note": "Antes de pintar, para as juntas não ficarem com outro tom debaixo da tinta."
+            },
+            {
+              "id": "rolo-pelo-curto-superficies-lisas",
+              "note": "Aplicar o primário em toda a superfície, placa e juntas."
+            },
+            {
+              "id": "tabuleiro-pintura"
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "espatula-americana-placas-gesso",
+              "note": "Cada demão mais larga do que a anterior, para a emenda desaparecer."
+            },
+            {
+              "id": "espatula-cantos-placas-gesso",
+              "note": "Para acabar os cantos interiores; o modelo de canto exterior é outro.",
+              "optionnel": true
+            },
+            {
+              "id": "balde-de-pedreiro",
+              "note": "Amassar a massa em pó em balde limpo: restos secos de massa fazem grumos."
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "mascara-ffp2",
+              "note": "O pó da lixagem das massas é muito fino."
+            },
+            {
+              "id": "oculos-protecao",
+              "note": "Ao lixar as juntas do teto."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Juntas que fissuram sempre no mesmo sítio podem indicar estrutura mal fixada ou movimento: verificar parafusos e perfis antes de refazer.",
+        "Não reamassar massa em pó que já começou a prender: perde aderência e fissura.",
+        "Ver na embalagem o tempo de secagem entre demãos; demãos grossas retraem e fissuram."
+      ]
+    },
+    {
+      "id": "isolar-sotao-desvao-la-mineral",
+      "domaine": "pladur-isolamento",
+      "titre": "Isolar sótão ou desvão com lã mineral",
+      "motsCles": [
+        "isolar o sótão",
+        "isolar o desvão",
+        "lã de rocha no sótão",
+        "lã de vidro no desvão",
+        "último andar frio no inverno",
+        "calor no último andar",
+        "isolamento debaixo do telhado",
+        "pôr lã no forro do telhado"
+      ],
+      "description": "Estender lã mineral sobre a laje ou o teto do último piso, quando o desvão não é habitado, ou entre as vigas do telhado num sótão habitável, para perder menos calor no inverno e ganhar menos no verão.",
+      "aVerifier": [
+        "Se o desvão não é habitado (isola-se o chão do desvão) ou se o sótão é habitável (isolam-se as vertentes do telhado).",
+        "Se o telhado tem infiltrações ou telhas partidas: resolver antes, porque a lã molhada deixa de isolar.",
+        "Tipo de cobertura: chapas onduladas antigas de fibrocimento podem conter amianto.",
+        "Cabos elétricos, focos embutidos, chaminés e tubos de exaustão que atravessam o espaço."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "fita-metrica",
+              "note": "Medir a área e o afastamento entre vigas para escolher a largura do rolo ou do painel."
+            }
+          ]
+        },
+        {
+          "titre": "Vedação",
+          "materiaux": [
+            {
+              "id": "espuma-poliuretano-manual",
+              "note": "Tapar frestas e passagens de tubos e cabos no teto antes de isolar; nunca junto à chaminé.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Isolamento",
+          "materiaux": [
+            {
+              "id": "la-mineral-rolo",
+              "note": "Desvão: desenrolar sobre a laje ou entre as vigas, papel kraft para baixo, do lado aquecido."
+            },
+            {
+              "id": "la-mineral-painel",
+              "note": "Sótão habitável: entre caibros, sem tapar a ventilação sob a telha. Desvão: 2.ª camada cruzada.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "x-ato",
+              "note": "Cortar a lã com lâmina comprida, apoiada numa tábua."
+            },
+            {
+              "id": "escadote-aluminio",
+              "note": "Subir pelo alçapão com o escadote bem aberto e apoiado em piso firme."
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "fato-macaco-descartavel",
+              "note": "As fibras da lã irritam a pele: mangas e pernas fechadas."
+            },
+            {
+              "id": "luvas-obra-nitrilo"
+            },
+            {
+              "id": "oculos-panoramicos",
+              "note": "Fechados, por causa das fibras e do pó que cai do telhado."
+            },
+            {
+              "id": "mascara-ffp2",
+              "note": "Mínimo para fibras de lã mineral; em desvão com muito pó, FFP3."
+            },
+            {
+              "id": "capacete-obra",
+              "note": "Em desvão baixo, com pregos e vigas à altura da cabeça.",
+              "optionnel": true
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Pisar só nas vigas ou em tábuas apoiadas nelas: o teto de estuque ou de placa por baixo não aguenta o peso de uma pessoa.",
+        "Chapas antigas de fibrocimento podem conter amianto: não partir, furar nem varrer; a remoção é só para empresa habilitada.",
+        "Não tapar focos embutidos, transformadores nem caixas de derivação, e manter da chaminé o afastamento que o fabricante indica.",
+        "Não fechar a ventilação do desvão (beirados, telhas de ventilação): sem ar, a humidade condensa por baixo do telhado.",
+        "Num sótão habitável, o isolamento fecha-se por baixo com barreira pára-vapor e gesso cartonado do lado de dentro.",
+        "Em sótão habitável, a lã com papel kraft leva o papel virado para o lado de dentro da casa: é ele que trava o vapor."
+      ]
+    },
+    {
+      "id": "isolar-parede-interior-gesso-cartonado",
+      "domaine": "pladur-isolamento",
+      "titre": "Isolar parede pelo interior",
+      "motsCles": [
+        "parede fria",
+        "isolar parede por dentro",
+        "forrar parede com isolamento",
+        "pladur com lã de rocha",
+        "isolamento pelo interior",
+        "condensação na parede",
+        "bolor na parede exterior",
+        "parede gelada no inverno"
+      ],
+      "description": "Forra pelo interior de uma parede exterior fria: estrutura metálica afastada da parede, lã mineral na caixa, barreira pára-vapor e placa de gesso cartonado por cima, pronta a acabar.",
+      "aVerifier": [
+        "Origem da humidade na parede: condensação de parede fria (o isolamento ajuda) ou infiltração e capilaridade (resolver antes).",
+        "Espaço que se pode perder na divisão: a estrutura com lã ocupa vários centímetros de cada parede.",
+        "Tomadas, interruptores, radiadores e peitoris de janela que vão ter de avançar.",
+        "Se a parede é de casa de banho ou cozinha: aí leva placa hidrófuga."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "solucao-limpeza-antifungos-paredes",
+              "note": "Se a parede tem bolor: lavar, deixar atuar e secar bem antes de fechar.",
+              "optionnel": true
+            },
+            {
+              "id": "nivel-de-bolha",
+              "note": "Aprumar raias e montantes."
+            },
+            {
+              "id": "broca-betao-pedra",
+              "note": "Furar chão e teto para as buchas das raias."
+            }
+          ]
+        },
+        {
+          "titre": "Vedação",
+          "materiaux": [
+            {
+              "id": "espuma-poliuretano-manual",
+              "note": "Tapar frestas à volta dos caixilhos e nas passagens de tubos antes de fechar.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Estrutura",
+          "materiaux": [
+            {
+              "id": "perfil-raia",
+              "note": "No chão e no teto, afastada da parede o suficiente para a espessura do isolamento."
+            },
+            {
+              "id": "perfil-montante",
+              "note": "Afastamento indicado pelo sistema, sem encostar à parede, para não fazer ponte térmica."
+            },
+            {
+              "id": "bucha-de-bater",
+              "note": "Fixar as raias ao chão e ao teto."
+            }
+          ]
+        },
+        {
+          "titre": "Isolamento",
+          "materiaux": [
+            {
+              "id": "la-mineral-painel",
+              "note": "Encher a caixa atrás das placas, encostada à parede, sem frestas nem compressão."
+            }
+          ]
+        },
+        {
+          "titre": "Placas",
+          "materiaux": [
+            {
+              "id": "placa-gesso-cartonado-standard",
+              "note": "Aparafusar aos montantes, com pequena folga ao chão."
+            },
+            {
+              "id": "placa-gesso-cartonado-hidrofuga",
+              "note": "Em casa de banho ou cozinha, no lugar da placa standard.",
+              "optionnel": true
+            },
+            {
+              "id": "parafuso-gesso-cartonado"
+            },
+            {
+              "id": "ponta-aparafusar-gesso-cartonado"
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "x-ato",
+              "note": "Corta a placa e também a lã mineral, com lâmina comprida."
+            },
+            {
+              "id": "tesoura-de-chapa",
+              "note": "Cortar raias e montantes à medida."
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-obra-nitrilo"
+            },
+            {
+              "id": "oculos-protecao",
+              "note": "Ao furar e ao manusear a lã mineral."
+            },
+            {
+              "id": "mascara-ffp2",
+              "note": "Fibras da lã mineral e pó dos furos."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Isolar pelo interior não resolve infiltrações nem humidade que sobe do chão: tratar a causa antes, senão o bolor fica escondido.",
+        "Sem barreira pára-vapor contínua do lado de dentro, a humidade da casa condensa atrás do isolamento.",
+        "Deslocar tomadas e interruptores é trabalho de técnico habilitado.",
+        "Levar o isolamento até aos caixilhos das janelas: um vão sem isolamento fica como ponto frio e ganha bolor.",
+        "Numa parede exterior fria, o isolamento pede uma barreira pára-vapor do lado de dentro, antes da placa: confirmar com o fabricante da lã."
+      ]
+    },
+    {
+      "id": "fixar-cargas-gesso-cartonado",
+      "domaine": "pladur-isolamento",
+      "titre": "Fixar cargas em gesso cartonado",
+      "motsCles": [
+        "pendurar televisão no pladur",
+        "prateleira em pladur",
+        "bucha para pladur",
+        "móveis de cozinha em pladur",
+        "pendurar quadro em parede oca",
+        "bucha a rodar no pladur",
+        "fixar armário em parede de placa"
+      ],
+      "description": "Fixar objetos numa parede ou num teto de gesso cartonado escolhendo a bucha pelo peso; as cargas pesadas têm de ser fixadas à estrutura ou a um reforço.",
+      "aVerifier": [
+        "Peso do objeto e se puxa para a frente (prateleira, armário) ou se só fica pendurado (quadro).",
+        "Se a placa é simples ou dupla: define o comprimento da bucha.",
+        "Onde passam os montantes e se a placa é uma forra encostada a uma parede de alvenaria.",
+        "Se passam cabos ou tubos no sítio do furo."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "detetor-materiais-parede",
+              "note": "Encontrar os montantes e evitar cabos e tubos antes de furar."
+            },
+            {
+              "id": "nivel-de-bolha",
+              "note": "Marcar os furos alinhados."
+            },
+            {
+              "id": "broca-metal-hss",
+              "note": "Furar a placa sem percussão, no diâmetro indicado na bucha; atravessa também os montantes."
+            },
+            {
+              "id": "broca-betao-pedra",
+              "note": "Só para a bucha longa, na alvenaria por trás da forra.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Fixação",
+          "materiaux": [
+            {
+              "id": "bucha-nylon-gesso-cartonado",
+              "note": "Só cargas leves: quadros, espelhos pequenos, candeeiros de parede.",
+              "optionnel": true
+            },
+            {
+              "id": "bucha-autoperfurante-gesso-cartonado",
+              "note": "Cargas leves, enroscada direto na placa; não reaproveitar o mesmo furo.",
+              "optionnel": true
+            },
+            {
+              "id": "bucha-metalica-expansao-gesso-cartonado",
+              "note": "Cargas médias (prateleiras, móveis de parede): comprimento pela espessura da placa.",
+              "optionnel": true
+            },
+            {
+              "id": "bucha-basculante",
+              "note": "Alternativa para cargas médias; precisa de furo largo para a báscula passar.",
+              "optionnel": true
+            },
+            {
+              "id": "bucha-longa-com-parafuso",
+              "note": "Forra encostada a alvenaria: atravessar a placa e fixar na parede de trás.",
+              "optionnel": true
+            },
+            {
+              "id": "parafuso-autoperfurante",
+              "note": "Quando o furo cai num montante metálico: aparafusar diretamente ao perfil.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "chaves-de-fendas",
+              "note": "Apertar sem forçar: aperto a mais esmaga a placa à volta da bucha."
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "oculos-protecao",
+              "note": "Ao furar, sobretudo no teto."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Televisões grandes, armários de cozinha cheios, lavatórios, sanitas suspensas e termoacumuladores não se seguram só com buchas: fixar à estrutura ou a um reforço.",
+        "Respeitar a carga máxima indicada na embalagem de cada bucha.",
+        "Antes de furar, confirmar que não passam cabos elétricos nem tubos no sítio."
+      ]
+    },
+    {
+      "id": "buraco-placa-gesso-cartonado",
+      "domaine": "pladur-isolamento",
+      "titre": "Buraco em placa de gesso cartonado",
+      "motsCles": [
+        "buraco no pladur",
+        "parede de pladur partida",
+        "puxador da porta furou a parede",
+        "remendo em gesso cartonado",
+        "teto falso com buraco",
+        "placa de gesso partida",
+        "pladur amolgado",
+        "pladur furado",
+        "murro na parede de pladur",
+        "bucha arrancada do pladur"
+      ],
+      "description": "Placa de gesso cartonado furada ou partida por uma pancada, por um puxador de porta ou por uma abertura que deixou de servir. Repara-se com rede e massa ou com um remendo de placa.",
+      "aVerifier": [
+        "Tamanho do buraco: pequeno (rede e massa) ou grande (recortar e aparafusar um remendo de placa).",
+        "Tipo e espessura da placa: standard, hidrófuga (verde, zonas húmidas) ou corta-fogo (rosa).",
+        "O que passa por trás (cabos, tubos, perfis) antes de cortar.",
+        "Se a placa está mole, inchada ou manchada, sinal de água a resolver primeiro."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "serrote-gesso-cartonado",
+              "note": "Recortar o buraco em retângulo direito, com a placa montada."
+            },
+            {
+              "id": "x-ato",
+              "note": "Chanfrar as bordas do recorte e cortar o remendo na placa nova."
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "placa-gesso-cartonado-standard",
+              "note": "Buraco grande: remendo à medida, da mesma espessura da placa existente.",
+              "optionnel": true
+            },
+            {
+              "id": "placa-gesso-cartonado-hidrofuga",
+              "note": "Em vez da standard, se a parede ou o teto forem de placa verde (casa de banho, cozinha).",
+              "optionnel": true
+            },
+            {
+              "id": "perfil-montante",
+              "note": "Buraco grande: troço atravessado por trás do recorte, para aparafusar o remendo.",
+              "optionnel": true
+            },
+            {
+              "id": "parafuso-gesso-cartonado",
+              "note": "Fixar o reforço e o remendo; cabeça à face, sem rasgar o cartão.",
+              "optionnel": true
+            },
+            {
+              "id": "banda-rede-adesiva",
+              "note": "Buraco pequeno: cobre-o diretamente. Remendo: sobre as quatro emendas."
+            },
+            {
+              "id": "massa-juntas-po",
+              "note": "Primeira demão: enche e agarra a banda. Amassar só o que se gasta no tempo de presa."
+            },
+            {
+              "id": "massa-acabamento-pronta-pasta",
+              "note": "Demãos finais finas e cada vez mais largas, para o remendo desaparecer."
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "esponja-abrasiva",
+              "note": "Lixar leve, sem ferir o cartão à volta."
+            },
+            {
+              "id": "primario-gesso-cartonado-estuque",
+              "note": "Com a massa bem seca e sem pó, antes da tinta."
+            },
+            {
+              "id": "tinta-plastica-interior-mate",
+              "note": "Pintar o pano inteiro para o remendo não se notar."
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "tesoura-de-chapa",
+              "note": "Só com remendo grande: cortar o troço de perfil à medida.",
+              "optionnel": true
+            },
+            {
+              "id": "espatula-americana-placas-gesso",
+              "note": "Cada demão com lâmina mais larga do que a anterior."
+            },
+            {
+              "id": "kit-mini-rolo-tabuleiro"
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "oculos-protecao",
+              "note": "No corte e na lixagem, sobretudo em tetos."
+            },
+            {
+              "id": "mascara-ffp2",
+              "note": "Pó de gesso ao cortar e lixar."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Antes de cortar a placa, confirmar que não há cabos nem tubos atrás; junto a tomadas e interruptores, desligar o circuito no quadro.",
+        "Placa mole ou manchada indica fuga ou infiltração: resolver a origem da água e substituir a zona afetada.",
+        "Em paredes e tetos corta-fogo, o remendo tem de respeitar o sistema do fabricante (placa do mesmo tipo e número de camadas).",
+        "Não pendurar cargas no remendo: fixar aos perfis ou usar buchas próprias na placa sã."
+      ]
+    }
+  ]
+}

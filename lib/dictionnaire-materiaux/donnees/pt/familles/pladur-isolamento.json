@@ -1,0 +1,887 @@
+{
+  "famille": {
+    "id": "pladur-isolamento",
+    "nom": "Gesso cartonado e isolamento",
+    "description": "Placas de gesso cartonado, perfis, acessórios de teto falso, parafusos, bandas e massas de juntas, alçapões, e isolamentos térmicos e acústicos.",
+    "icone": "🧶",
+    "sousFamilles": [
+      {
+        "id": "placas-gesso-cartonado",
+        "nom": "Placas de gesso cartonado",
+        "description": "Placas standard, hidrófugas e corta-fogo."
+      },
+      {
+        "id": "perfis-metalicos",
+        "nom": "Perfis metálicos",
+        "description": "Montantes, raias, perfis de teto, ómegas e cantoneiras para paredes, forras e tetos."
+      },
+      {
+        "id": "acessorios-teto-falso",
+        "nom": "Suspensão de teto falso",
+        "description": "Peças para suspender e unir os perfis de teto."
+      },
+      {
+        "id": "alcapoes-visita",
+        "nom": "Alçapões de visita",
+        "description": "Alçapões para aceder a tubagens e instalações em tetos e paredes."
+      },
+      {
+        "id": "parafusos-bandas-cantoneiras",
+        "nom": "Parafusos, bandas e cantoneiras",
+        "description": "Parafusos de placa, bandas de juntas, banda acústica e proteção de esquinas."
+      },
+      {
+        "id": "massas-colas-placas",
+        "nom": "Massas de juntas e cola de placas",
+        "description": "Massas em pó e prontas para tratar juntas, e cola de gesso para colar placas."
+      },
+      {
+        "id": "las-minerais",
+        "nom": "Lã mineral",
+        "description": "Isolamento térmico e acústico em rolo e em painel."
+      },
+      {
+        "id": "poliestireno",
+        "nom": "Poliestireno (XPS e EPS)",
+        "description": "Placas rígidas de poliestireno extrudido e expandido, e granulado."
+      },
+      {
+        "id": "refletores-cortica-acusticos",
+        "nom": "Refletores, cortiça e acústicos",
+        "description": "Isolamentos finos refletores, cortiça e produtos de isolamento e correção acústica."
+      },
+      {
+        "id": "fixacao-isolamento",
+        "nom": "Fixação de isolamento",
+        "description": "Buchas, colas e fitas para fixar e selar o isolamento."
+      }
+    ]
+  },
+  "materiaux": [
+    {
+      "id": "placa-gesso-cartonado-standard",
+      "famille": "pladur-isolamento",
+      "sousFamille": "placas-gesso-cartonado",
+      "nom": "Placa de gesso cartonado standard 12,5 mm (BA13)",
+      "aussiAppele": [
+        "pladur",
+        "placa de gesso laminado",
+        "placa de gesso",
+        "placa branca",
+        "placa normal",
+        "placa de 13"
+      ],
+      "usage": "Paredes divisórias, forras e tetos falsos em zonas interiores secas.",
+      "aSavoir": "Não usar em zonas húmidas: aí aplica-se a placa hidrófuga.",
+      "conditionnement": "Placa de 2,0x1,2 m ou 2,5x1,2 m",
+      "recherche": "placa gesso BA13",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "placa-gesso-cartonado-hidrofuga",
+      "famille": "pladur-isolamento",
+      "sousFamille": "placas-gesso-cartonado",
+      "nom": "Placa de gesso cartonado hidrófuga (verde)",
+      "aussiAppele": [
+        "pladur hidrófugo",
+        "placa verde",
+        "placa WA",
+        "placa de casa de banho",
+        "placa H2"
+      ],
+      "usage": "Paredes e tetos de casas de banho, cozinhas e outras zonas interiores húmidas.",
+      "aSavoir": "Resiste à humidade ambiente mas não é impermeável: na zona de duche impermeabilizar antes de assentar o azulejo.",
+      "conditionnement": "Placa de 2,0x1,2 m ou 2,5x1,2 m",
+      "recherche": "placa gesso hidrófuga",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "placa-gesso-cartonado-corta-fogo",
+      "famille": "pladur-isolamento",
+      "sousFamille": "placas-gesso-cartonado",
+      "nom": "Placa de gesso cartonado corta-fogo (rosa)",
+      "aussiAppele": [
+        "placa ignífuga",
+        "placa anti-fogo",
+        "placa rosa",
+        "placa tipo F",
+        "pladur corta-fogo"
+      ],
+      "usage": "Divisórias, tetos e forras onde se exige melhor comportamento ao fogo: garagens, caixas de escada, envolvimento de condutas.",
+      "aSavoir": "A resistência ao fogo depende do sistema completo (número de placas, perfis, isolamento), não só da placa.",
+      "conditionnement": "Placa de 2,5x1,2 m",
+      "recherche": "placa gesso ignífuga",
+      "rechercheEnseigne": {
+        "leroy-merlin": "placa de gesso cartonado corta-fogo"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "perfil-montante",
+      "famille": "pladur-isolamento",
+      "sousFamille": "perfis-metalicos",
+      "nom": "Perfil montante (48 ou 70 mm)",
+      "aussiAppele": [
+        "montante",
+        "perfil C",
+        "prumo de pladur",
+        "montante 48",
+        "montante 70"
+      ],
+      "usage": "Perfil vertical de aço galvanizado das paredes e forras de gesso cartonado; encaixa na raia de chão e de teto.",
+      "conditionnement": "Vara de 2,6 m ou 3 m",
+      "recherche": "perfil montante",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "perfil-raia",
+      "famille": "pladur-isolamento",
+      "sousFamille": "perfis-metalicos",
+      "nom": "Perfil raia / canal (48 ou 70 mm)",
+      "aussiAppele": [
+        "raia",
+        "canal",
+        "perfil U",
+        "guia de pladur",
+        "calha"
+      ],
+      "usage": "Perfil em U fixado ao chão e ao teto, onde encaixam os montantes.",
+      "aSavoir": "Colar banda acústica na face de apoio antes de fixar.",
+      "conditionnement": "Vara de 3 m",
+      "recherche": "perfil raia",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "perfil-teto-f47",
+      "famille": "pladur-isolamento",
+      "sousFamille": "perfis-metalicos",
+      "nom": "Perfil de teto F47",
+      "aussiAppele": [
+        "perfil de tecto",
+        "perfil F47",
+        "perfil 18/47",
+        "perfil TC",
+        "mestra de teto"
+      ],
+      "usage": "Perfil onde se aparafusam as placas nos tetos falsos contínuos.",
+      "conditionnement": "Vara de 3 m",
+      "recherche": "perfil teto F47",
+      "rechercheEnseigne": {
+        "leroy-merlin": "perfil teto"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "perfil-omega",
+      "famille": "pladur-isolamento",
+      "sousFamille": "perfis-metalicos",
+      "nom": "Perfil ómega",
+      "aussiAppele": [
+        "ómega",
+        "mestra",
+        "perfil chapéu"
+      ],
+      "usage": "Forras diretas de paredes e tetos: fixa-se ao suporte e recebe as placas, quando há pouco espaço.",
+      "conditionnement": "Vara de 3 m",
+      "recherche": "perfil omega",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cantoneira-perimetral",
+      "famille": "pladur-isolamento",
+      "sousFamille": "perfis-metalicos",
+      "nom": "Cantoneira L perimetral",
+      "aussiAppele": [
+        "perfil perimetral",
+        "perfil angular",
+        "cantoneira de teto",
+        "perfil L",
+        "perfil periférico"
+      ],
+      "usage": "Perfil em L fixado às paredes a toda a volta, onde apoia a estrutura do teto falso contínuo.",
+      "conditionnement": "Vara de 3 m",
+      "recherche": "cantoneira L zincada",
+      "rechercheEnseigne": {
+        "leroy-merlin": "cantoneira de teto"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "perfil-suspensao-dentado",
+      "famille": "pladur-isolamento",
+      "sousFamille": "perfis-metalicos",
+      "nom": "Perfil de suspensão dentado",
+      "aussiAppele": [
+        "perfil primário",
+        "perfil dentado",
+        "perfil de encaixe F47"
+      ],
+      "usage": "Perfil primário onde encaixam os perfis de teto F47, para suspender tetos contínuos.",
+      "conditionnement": "Vara de 3 m",
+      "recherche": "perfil suspensão dentado",
+      "rechercheEnseigne": {
+        "leroy-merlin": "perfil dentado"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cantoneira-alheta",
+      "famille": "pladur-isolamento",
+      "sousFamille": "perfis-metalicos",
+      "nom": "Cantoneira de alheta",
+      "aussiAppele": [
+        "perfil de alheta",
+        "junta de sombra",
+        "perfil de sombra"
+      ],
+      "usage": "Remate perimetral do teto falso que deixa uma junta de sombra entre o teto e a parede. Existe lacada e perfurada zincada.",
+      "conditionnement": "Vara de 3 m",
+      "recherche": "cantoneira alheta",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "pivot-suspensao-f47",
+      "famille": "pladur-isolamento",
+      "sousFamille": "acessorios-teto-falso",
+      "nom": "Pivot de suspensão para perfil F47",
+      "aussiAppele": [
+        "pendural",
+        "cavalete",
+        "suspensão F47",
+        "forquilha"
+      ],
+      "usage": "Peça que encaixa no perfil de teto F47 e o suspende do varão roscado M6.",
+      "conditionnement": "Caixa de 100 un.",
+      "recherche": "pivot F47",
+      "enseignes": [
+        "maxmat"
+      ]
+    },
+    {
+      "id": "suspensao-longa-perfil-teto",
+      "famille": "pladur-isolamento",
+      "sousFamille": "acessorios-teto-falso",
+      "nom": "Suspensão longa para perfil de teto (30 ou 40 cm)",
+      "aussiAppele": [
+        "pendural",
+        "suspensão de teto falso",
+        "suspensão de perfil 47",
+        "pendural de chapa"
+      ],
+      "usage": "Pendural em chapa que liga o perfil de teto de 47 mm ao suporte; usa-se sobretudo aparafusado à face de vigas e barrotes de madeira.",
+      "conditionnement": "Caixa de 50 un.",
+      "recherche": "suspensão longa",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "uniao-perfil-f47",
+      "famille": "pladur-isolamento",
+      "sousFamille": "acessorios-teto-falso",
+      "nom": "União de perfil F47",
+      "aussiAppele": [
+        "empalme",
+        "peça de emenda",
+        "união de perfis de teto"
+      ],
+      "usage": "Emenda dois perfis de teto F47 topo a topo.",
+      "conditionnement": "Caixa de 100 un.",
+      "recherche": "união perfil F47",
+      "rechercheEnseigne": {
+        "leroy-merlin": "união de perfis de teto"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "atache-omega",
+      "famille": "pladur-isolamento",
+      "sousFamille": "acessorios-teto-falso",
+      "nom": "Atache ómega para varão roscado M6",
+      "aussiAppele": [
+        "atache",
+        "suspensão de varão",
+        "acessório de varão roscado"
+      ],
+      "usage": "Acessório de suspensão para a execução de tetos falsos com varão roscado M6.",
+      "conditionnement": "Caixa de 100 un.",
+      "recherche": "atache omega",
+      "enseignes": [
+        "maxmat"
+      ]
+    },
+    {
+      "id": "bucha-teto-falso",
+      "famille": "pladur-isolamento",
+      "sousFamille": "acessorios-teto-falso",
+      "nom": "Bucha de bater para teto falso",
+      "aussiAppele": [
+        "bucha de teto",
+        "bucha tapit de teto",
+        "fixação de pendural"
+      ],
+      "usage": "Fixação rápida ao teto dos elementos de suspensão do teto falso.",
+      "conditionnement": "Saco de 30 un. (6x25 a 6x50 mm)",
+      "recherche": "bucha teto falso",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "alcapao-visita-metalico",
+      "famille": "pladur-isolamento",
+      "sousFamille": "alcapoes-visita",
+      "nom": "Alçapão de visita metálico lacado",
+      "aussiAppele": [
+        "tampa de visita",
+        "porta de visita",
+        "alçapão de teto",
+        "alçapão branco"
+      ],
+      "usage": "Acesso a tubagens, válvulas e caixas em paredes e tetos de gesso cartonado.",
+      "conditionnement": "Unidade (200x200 a 600x600 mm)",
+      "recherche": "alçapão",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "alcapao-visita-placa-gesso",
+      "famille": "pladur-isolamento",
+      "sousFamille": "alcapoes-visita",
+      "nom": "Alçapão de visita com placa de gesso hidrófuga",
+      "aussiAppele": [
+        "alçapão de alumínio",
+        "alçapão invisível",
+        "alçapão para pintar",
+        "alçapão de pladur"
+      ],
+      "usage": "Alçapão com aro de alumínio e tampa em gesso cartonado, que fica à face e se pinta como o resto do teto ou da parede.",
+      "conditionnement": "Unidade (200x200 a 600x600 mm, placa de 12,5 mm)",
+      "recherche": "alçapão gesso",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "parafuso-gesso-cartonado",
+      "famille": "pladur-isolamento",
+      "sousFamille": "parafusos-bandas-cantoneiras",
+      "nom": "Parafuso fosfatado para gesso cartonado (placa-metal)",
+      "aussiAppele": [
+        "parafuso de pladur",
+        "parafuso preto",
+        "parafuso de placa",
+        "parafuso cabeça trombeta"
+      ],
+      "usage": "Aparafusa as placas de gesso cartonado aos perfis metálicos.",
+      "aSavoir": "25 mm para uma placa, 35 mm ou mais para placa dupla. A cabeça fica à face, sem rasgar o cartão.",
+      "conditionnement": "Caixa de 500 ou 1000 un. (3,5x25, 3,5x35, 3,5x45 mm)",
+      "recherche": "parafuso fosfatado",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "parafuso-metal-metal",
+      "famille": "pladur-isolamento",
+      "sousFamille": "parafusos-bandas-cantoneiras",
+      "nom": "Parafuso autoperfurante metal-metal (para perfis)",
+      "aussiAppele": [
+        "parafuso de perfis",
+        "parafuso ponta broca pequeno",
+        "parafuso MM"
+      ],
+      "usage": "Une perfis metálicos entre si (montante à raia, perfis de teto) sem furo prévio.",
+      "conditionnement": "Blister de cerca de 25 un.",
+      "recherche": "parafuso autoperfurante cabeça queijo",
+      "rechercheEnseigne": {
+        "leroy-merlin": "parafuso autoperfurante metal-metal"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "banda-papel-juntas",
+      "famille": "pladur-isolamento",
+      "sousFamille": "parafusos-bandas-cantoneiras",
+      "nom": "Banda de papel microperfurado para juntas",
+      "aussiAppele": [
+        "fita de papel",
+        "fita de juntas",
+        "banda de juntas",
+        "papel de juntas",
+        "fita de papel microperfurado para juntas",
+        "banda de papel",
+        "fita de juntas de papel",
+        "fita de pladur"
+      ],
+      "usage": "Arma as juntas entre placas de gesso cartonado, embebida na massa de juntas.",
+      "aSavoir": "Assentar sobre massa fresca e apertar com a espátula para não ficarem bolhas.",
+      "conditionnement": "Rolo de 23 m",
+      "recherche": "banda papel juntas",
+      "rechercheEnseigne": {
+        "maxmat": "banda de papel",
+        "leroy-merlin": "fita de juntas de papel"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "banda-rede-adesiva",
+      "famille": "pladur-isolamento",
+      "sousFamille": "parafusos-bandas-cantoneiras",
+      "nom": "Banda de rede adesiva em fibra de vidro",
+      "aussiAppele": [
+        "fita de rede",
+        "rede de juntas",
+        "fita de fibra de vidro",
+        "rede adesiva",
+        "fita de rede adesiva para juntas",
+        "banda de rede",
+        "fita de juntas autocolante",
+        "fita de malha de fibra de vidro autoadesiva",
+        "fita de juntas",
+        "fita para pladur",
+        "rede de fibra autoadesiva"
+      ],
+      "usage": "Reforço autoadesivo de juntas de placas e de fissuras antes de barrar.",
+      "aSavoir": "Em juntas entre placas a banda de papel resiste melhor à fissuração; a rede é prática em reparações.",
+      "conditionnement": "Rolo de 20 m ou 153 m x 50 mm",
+      "recherche": "banda rede adesiva",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "banda-acustica",
+      "famille": "pladur-isolamento",
+      "sousFamille": "parafusos-bandas-cantoneiras",
+      "nom": "Banda acústica adesiva (50 ou 70 mm)",
+      "aussiAppele": [
+        "banda resiliente",
+        "fita acústica",
+        "banda de espuma para perfis",
+        "banda estanque"
+      ],
+      "usage": "Espuma adesiva colada nas raias e montantes de arranque para cortar a transmissão de ruído entre a estrutura e a parede, o chão e o teto.",
+      "aSavoir": "Escolher a largura igual à do perfil.",
+      "conditionnement": "Rolo",
+      "recherche": "banda acústica",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "massa-juntas-po",
+      "famille": "pladur-isolamento",
+      "sousFamille": "massas-colas-placas",
+      "nom": "Massa de juntas em pó (presa de 1 h, 2 h ou 4 h)",
+      "aussiAppele": [
+        "massa de juntas",
+        "massa de pladur",
+        "enduído de juntas",
+        "massa de presa",
+        "massa de juntas em pó para gesso cartonado",
+        "massa para placas de gesso",
+        "massa de juntas de presa"
+      ],
+      "usage": "Tratamento das juntas de placas de gesso cartonado com banda, enchimento sobre parafusos e pequenas reparações.",
+      "aSavoir": "Amassar só o que se gasta dentro do tempo de utilização indicado; não reamassar massa que já começou a prender.",
+      "conditionnement": "Saco de 5 kg ou 20 kg",
+      "recherche": "massa juntas",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "massa-juntas-pronta",
+      "famille": "pladur-isolamento",
+      "sousFamille": "massas-colas-placas",
+      "nom": "Massa de juntas pronta a usar (pasta)",
+      "aussiAppele": [
+        "pasta de juntas",
+        "massa pronta",
+        "massa de juntas em balde",
+        "massa de juntas pronta em pasta para gesso cartonado",
+        "massa de juntas pronta",
+        "massa de pladur pronta",
+        "massa 2 em 1"
+      ],
+      "usage": "Tratamento e acabamento das juntas de placas de gesso cartonado sem amassar.",
+      "aSavoir": "Seca ao ar: dar camadas finas e deixar secar entre demãos.",
+      "conditionnement": "Balde",
+      "recherche": "massa juntas pronta",
+      "rechercheEnseigne": {
+        "maxmat": "massa 2 em 1"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "massa-juntas-hidrofuga",
+      "famille": "pladur-isolamento",
+      "sousFamille": "massas-colas-placas",
+      "nom": "Massa de juntas hidrófuga",
+      "aussiAppele": [
+        "massa de juntas anti-humidade",
+        "massa para placa verde",
+        "massa hidro",
+        "massa de juntas hidrófuga para gesso cartonado",
+        "massa de juntas para placa verde",
+        "massa de juntas hidro",
+        "massa para placas hidrófugas"
+      ],
+      "usage": "Juntas de placas hidrófugas em casas de banho e cozinhas, com banda de papel.",
+      "conditionnement": "Saco",
+      "recherche": "massa juntas hidrófuga",
+      "rechercheEnseigne": {
+        "maxmat": "massa juntas",
+        "leroy-merlin": "massa juntas"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cola-gesso-placas",
+      "famille": "pladur-isolamento",
+      "sousFamille": "massas-colas-placas",
+      "nom": "Cola de gesso para placas (argamassa adesiva)",
+      "aussiAppele": [
+        "gesso cola",
+        "cola de pladur",
+        "argamassa adesiva de gesso",
+        "cola para placas",
+        "cola para placas de gesso cartonado",
+        "cola adesiva para gesso",
+        "massa adesiva para placas",
+        "cola para placas de gesso"
+      ],
+      "usage": "Cola placas de gesso cartonado, com ou sem isolamento, diretamente à parede interior, sem estrutura metálica.",
+      "aSavoir": "Só em interiores e sobre paredes secas e limpas.",
+      "conditionnement": "Saco",
+      "recherche": "cola gesso placas",
+      "rechercheEnseigne": {
+        "maxmat": "cola adesiva para gesso"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "la-mineral-rolo",
+      "famille": "pladur-isolamento",
+      "sousFamille": "las-minerais",
+      "nom": "Lã mineral em rolo (com papel kraft)",
+      "aussiAppele": [
+        "lã de vidro",
+        "manta de lã mineral",
+        "lã mineral",
+        "manta isolante"
+      ],
+      "usage": "Isolamento térmico e acústico de tetos falsos, sótãos e forras interiores.",
+      "aSavoir": "Papel kraft virado para o lado aquecido da casa. Usar luvas, máscara e óculos.",
+      "conditionnement": "Rolo de 1,2x10 m (12 m²), 60 mm",
+      "recherche": "lã mineral rolo",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "la-mineral-painel",
+      "famille": "pladur-isolamento",
+      "sousFamille": "las-minerais",
+      "nom": "Lã mineral em painel",
+      "aussiAppele": [
+        "painel de lã mineral",
+        "placa de lã mineral",
+        "lã de vidro em painel",
+        "painel de lã de rocha"
+      ],
+      "usage": "Isolamento térmico e acústico entre montantes de paredes de gesso cartonado e forras.",
+      "aSavoir": "Preencher toda a caixa sem comprimir nem deixar frestas. Usar luvas, máscara e óculos.",
+      "conditionnement": "Embalagem de painéis 60x135 cm, 50 mm",
+      "recherche": "lã mineral painel",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "placa-xps",
+      "famille": "pladur-isolamento",
+      "sousFamille": "poliestireno",
+      "nom": "Placa de poliestireno extrudido (XPS)",
+      "aussiAppele": [
+        "poliestireno extrudido",
+        "placa XPS",
+        "placa de isolamento rígida"
+      ],
+      "aussiCherche": [
+        "roofmate",
+        "wallmate"
+      ],
+      "usage": "Isolamento térmico de coberturas, pavimentos e paredes; aguenta compressão e humidade. Existe lisa, ranhurada e em formato de parede.",
+      "aSavoir": "Não aguenta solventes: colar com cola própria. Não deixar exposta ao sol.",
+      "conditionnement": "Placa de 1250x600 mm (20 a 40 mm) ou 2600x600 mm",
+      "recherche": "placa XPS",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "placa-eps",
+      "famille": "pladur-isolamento",
+      "sousFamille": "poliestireno",
+      "nom": "Placa de poliestireno expandido (EPS)",
+      "aussiAppele": [
+        "esferovite",
+        "placa de esferovite",
+        "EPS",
+        "poliestireno expandido"
+      ],
+      "usage": "Isolamento térmico de paredes, incluindo sistemas de isolamento pelo exterior, e enchimentos leves.",
+      "aSavoir": "Não aguenta solventes: colar com cola ou argamassa própria.",
+      "conditionnement": "Placa de 1000x500 mm (10 a 60 mm)",
+      "recherche": "placa EPS",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "eps-granulado",
+      "famille": "pladur-isolamento",
+      "sousFamille": "poliestireno",
+      "nom": "Granulado de EPS (esferovite em grão)",
+      "aussiAppele": [
+        "esferovite granulado",
+        "bolinhas de esferovite",
+        "granulado de poliestireno"
+      ],
+      "usage": "Enchimentos leves e aligeiramento de betão e betonilhas.",
+      "conditionnement": "Saco de 45 L",
+      "recherche": "EPS granulado",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "isolamento-refletor-bolha",
+      "famille": "pladur-isolamento",
+      "sousFamille": "refletores-cortica-acusticos",
+      "nom": "Isolamento térmico refletor (alumínio com bolha de ar)",
+      "aussiAppele": [
+        "manta refletora",
+        "isolamento de alumínio",
+        "isolamento de bolha",
+        "isolamento fino refletor"
+      ],
+      "usage": "Rolo fino com alumínio nas duas faces para coberturas, paredes e condutas, quando há pouca espessura disponível.",
+      "aSavoir": "Deixar caixa de ar junto à face refletora e fechar as juntas com fita de alumínio.",
+      "conditionnement": "Rolo de 10 m² (4 ou 8 mm)",
+      "recherche": "isolamento térmico alumínio",
+      "rechercheEnseigne": {
+        "maxmat": "isolamento térmico"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cortica-isolamento",
+      "famille": "pladur-isolamento",
+      "sousFamille": "refletores-cortica-acusticos",
+      "nom": "Cortiça para isolamento (rolo e revestimento de parede)",
+      "aussiAppele": [
+        "rolo de cortiça",
+        "cortiça em rolo",
+        "placa de cortiça",
+        "revestimento de cortiça"
+      ],
+      "usage": "Reforço do conforto térmico e acústico de paredes interiores; o rolo fino serve também de base e proteção.",
+      "aSavoir": "Com 2 a 4 mm melhora o conforto mas não substitui um isolamento térmico.",
+      "conditionnement": "Rolo (2 ou 4 mm) ou caixa de 1 m²",
+      "recherche": "cortiça isolamento",
+      "rechercheEnseigne": {
+        "maxmat": "rolo de cortiça"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "placa-isolamento-acustico",
+      "famille": "pladur-isolamento",
+      "sousFamille": "refletores-cortica-acusticos",
+      "nom": "Placa de isolamento acústico",
+      "aussiAppele": [
+        "placa acústica",
+        "aglomerado acústico",
+        "isolamento de ruído aéreo"
+      ],
+      "usage": "Isolamento a ruídos aéreos em paredes, tetos e forras.",
+      "conditionnement": "Placa de 1x1 m ou 2x1 m (20 a 60 mm)",
+      "recherche": "placa isolamento acústico",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "manta-isolamento-acustico",
+      "famille": "pladur-isolamento",
+      "sousFamille": "refletores-cortica-acusticos",
+      "nom": "Manta de isolamento acústico em rolo",
+      "aussiAppele": [
+        "manta acústica",
+        "tela acústica",
+        "isolamento de ruído de impacto"
+      ],
+      "usage": "Reduz ruído aéreo e de impacto em pisos, tetos e paredes interiores.",
+      "conditionnement": "Rolo de 12,5x1,2 m (15 m²), 10 mm",
+      "recherche": "isolamento acústico rolo",
+      "rechercheEnseigne": {
+        "maxmat": "isolamento acústico"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "painel-correcao-acustica",
+      "famille": "pladur-isolamento",
+      "sousFamille": "refletores-cortica-acusticos",
+      "nom": "Painel de correção acústica em espuma",
+      "aussiAppele": [
+        "espuma acústica",
+        "painel acústico piramidal",
+        "painel anti-eco"
+      ],
+      "usage": "Reduz o eco e a reverberação dentro de uma sala: estúdios, salas de reunião, garagens de ensaio.",
+      "aSavoir": "Corrige o eco da sala; não isola o som para o vizinho.",
+      "conditionnement": "Painel de 0,6x0,6 m",
+      "recherche": "painel acústico",
+      "enseignes": [
+        "maxmat"
+      ]
+    },
+    {
+      "id": "bucha-isolamento",
+      "famille": "pladur-isolamento",
+      "sousFamille": "fixacao-isolamento",
+      "nom": "Bucha de isolamento com prego (capoto)",
+      "aussiAppele": [
+        "bucha de capoto",
+        "bucha de expansão para isolamento",
+        "cavilha de isolamento",
+        "bucha de prato"
+      ],
+      "usage": "Fixação mecânica de placas de isolamento (EPS, XPS) à parede, em complemento da colagem, nos sistemas de isolamento pelo exterior.",
+      "aSavoir": "Comprimento igual à espessura do isolamento mais a cola e a profundidade de ancoragem na parede.",
+      "conditionnement": "Caixa de 50 a 200 un. (70 a 90 mm)",
+      "recherche": "bucha expansão isolamento",
+      "rechercheEnseigne": {
+        "maxmat": "bucha expansão",
+        "leroy-merlin": "bucha de capoto"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "massa-multifuncoes-po",
+      "famille": "pladur-isolamento",
+      "sousFamille": "massas-colas-placas",
+      "nom": "Massa multifunções em pó (colar, juntas e alisar)",
+      "aussiAppele": [
+        "massa multiusos",
+        "massa para colar sancas",
+        "massa para alisar paredes texturadas"
+      ],
+      "usage": "Massa em pó de interior para colar placas de gesso, tratar juntas, fixar sancas e decorações em poliestireno, encher e alisar paredes texturadas ou rugosas, mesmo pintadas.",
+      "aSavoir": "Só para interior.",
+      "conditionnement": "Saco 5 kg",
+      "recherche": "massa multifunções",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "ponta-aparafusar-gesso-cartonado",
+      "famille": "pladur-isolamento",
+      "sousFamille": "parafusos-bandas-cantoneiras",
+      "nom": "Ponta de aparafusar com batente para gesso cartonado",
+      "aussiAppele": [
+        "ponta com limitador de profundidade",
+        "bit com batente para placas",
+        "ponta PH2 com batente"
+      ],
+      "usage": "Montada na aparafusadora ou no berbequim, faz parar a cabeça do parafuso à face da placa sem rasgar o cartão.",
+      "aSavoir": "Confirmar o tipo de cabeça do parafuso (em geral PH2). Quando a cabeça começa a enterrar demais ou a ponta escorrega, trocá-la.",
+      "conditionnement": "À unidade ou em embalagem de várias",
+      "recherche": "ponta pladur batente",
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    }
+  ]
+}

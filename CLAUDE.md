@@ -109,6 +109,11 @@ Lire le fichier concerné AVANT toute modification de son domaine. Non optionnel
   d’écran de signalements.
 - `app/(commun)/coproprietaire/portail` (portail léger sans compte) et `app/(commun)/syndic/` (hors v54) → code conservé, ne pas y toucher
 - `components/dashboard/` → composants `*Section.tsx`
+- `lib/dictionnaire-materiaux/` + `components/dashboard/DictionnaireMateriauxSection.tsx` → Dictionnaire matériaux
+  (14/11/2026) : les matériaux à utiliser par situation de chantier, par mot-clé ou en décrivant la situation à l'IA
+  avec photos. Un dictionnaire par pays (`donnees/<pays>/` ; Portugal seul, module affiché seulement en portugais, barres
+  latérales BTP et artisan). Contenu : types de produits génériques trouvés chez les enseignes du pays (`preuves.json`), jamais de
+  marque, de prix ni de quantité ; gardes dans `tests/dictionnaire-materiaux/donnees.test.ts`.
 - `lib/` → logger, validation, types, claude, groq, circuit-breaker, rate-limit, pdf/, seo/, i18n/
 - `supabase/` → migrations + RLS policies
 

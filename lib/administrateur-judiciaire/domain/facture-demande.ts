@@ -34,12 +34,16 @@ import type { DocumentPrestataire } from '@/lib/syndic/messagerie-pro'
  *
  * Le droit — relevé du 29/10/2026 : les opérations sont enregistrées TTC et tout enregistrement porte un libellé
  * identifiant la pièce (arrêté du 14/03/2005, art. 3 et 4) ; la charge est enregistrée dès l'engagement juridique
- * (L. 1965 art. 14-3 ; D. 2005-240 art. 2). La facture porte le numéro du bon de commande quand l'acheteur en a établi un
- * (C. com. art. L. 441-9) : 🔵 le N° d'OS en tient lieu. Aucun texte ne fixe de tolérance entre le prévu et le facturé.
+ * (L. 1965 art. 14-3 ; D. 2005-240 art. 2). Aucun texte ne fixe de tolérance entre le prévu et le facturé.
+ *
+ * Décision de Hugo du 17/11/2026 (J67, R78 ; C. com. art. L. 441-9 relu sur Légifrance le 17/11/2026 ; code confirmé) :
+ * le texte vise « Tout achat de produits ou toute prestation de service » « pour une activité professionnelle » ; la
+ * facture mentionne le numéro du bon de commande quand l'acheteur en a établi un (art. L. 441-9, I). Le syndicat n'exerce
+ * pas d'activité professionnelle, et cette mention pèse sur le vendeur, pas sur l'acheteur : le N° d'OS n'est jamais exigé
+ * sur la facture, il reste un indice de rapprochement (comportement gardé). Règles fiscales de facturation (CGI, art. 289) :
+ * non relues, non vérifiées.
  *
  * 🔴 Non établi — questions :
- * - Frédéric : C. com. art. L. 441-9 (mentions de la facture, dont le n° du bon de commande) s'applique-t-il au syndicat
- *   acheteur ? Le N° d'OS cité n'est ici qu'un indice de rapprochement, jamais exigé.
  * - Hugo : la tolérance de 5 % entre le prévu et le facturé (reprise des contrats) convient-elle aux demandes, ou faut-il
  *   un réglage propre ?
  *

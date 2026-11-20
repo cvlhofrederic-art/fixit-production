@@ -1,5 +1,6 @@
 import './fuseau-paris'
 import { describe, expect, it } from 'vitest'
+import { enTeteDuModule } from './en-tete-module'
 import { factureEnRetard, type FacturationContrat } from '@/lib/administrateur-judiciaire/domain/contrats-facturation'
 import type { EcheanceCalculee } from '@/lib/administrateur-judiciaire/domain/delais-legaux'
 import type { Etape } from '@/lib/administrateur-judiciaire/domain/etapes'
@@ -293,7 +294,7 @@ const saisieTravaux = (surcharge: Partial<SaisieOperationTravaux> = {}): SaisieO
 })
 
 describe('sources — étapes, tâches, travaux', () => {
-  it('étape à faire : à sa date la plus proche (alerte ou limite), pour son réalisateur ; à valider : pour son validateur', () => {
+  it('étape à faire : à sa date la plus proche (alerte ou limite), pour son réalisateur ; sans aucune date : à la date de référence, « sans délai » (J76) ; à valider : pour son validateur', () => {
     const elements = depuisEtapes(
       [
         { mandatId: 'M1', etape: etape() },
@@ -318,6 +319,9 @@ describe('sources — étapes, tâches, travaux', () => {
       },
       expect.objectContaining({ id: 'etapes:E2:a_valider', nature: 'a_valider', date: '2026-10-20', assigneId: 'u1' }),
       expect.objectContaining({ id: 'etapes:E3:a_faire', date: '2026-10-29', assigneId: 'u2' }),
+      // Ni limite, ni alerte, ni « à faire le » : due le jour même, jamais en retard (J76, question n° 6 de modeles-etapes.ts ;
+      // proposition de Hugo du 19/11/2026, à valider par Frédéric).
+      expect.objectContaining({ id: 'etapes:E4:a_faire', nature: 'a_faire', date: AUJOURDHUI, libelle: 'Relancer l’ancien syndic — sans délai', assigneId: 'u2' }),
     ])
   })
 
@@ -508,7 +512,7 @@ const equipement = (surcharge: Partial<FicheEquipement> = {}): FicheEquipement =
 })
 
 describe('sources — sinistres, équipements, diagnostics', () => {
-  it('sinistre non déclaré : repère de déclaration ; en cours : prescription — deux repères à confirmer', () => {
+  it('sinistre non déclaré : déclaration « au plus tard » ; en cours : prescription « au plus tôt » — deux échéances (J67, R49)', () => {
     const fiche = creerSinistre(saisieSinistre())
     const reperes = reperesDelaisSinistre(fiche)
     expect(depuisSinistres([{ id: 'S1', mandatId: 'M1', libelle: 'Dégât des eaux', fiche }])).toEqual([
@@ -516,14 +520,24 @@ describe('sources — sinistres, équipements, diagnostics', () => {
         id: 'sinistres:S1:a_declarer',
         famille: 'sinistres',
         nature: 'a_declarer',
-        libelle: 'Dégât des eaux',
+        libelle: 'Dégât des eaux — à déclarer au plus tard le 27/10/2026 (minimum légal, C. assur. L. 113-2, 4° ; le contrat peut accorder plus)',
         date: reperes.declarationAuPlusTard,
         mandatId: 'M1',
         objetId: 'S1',
         assigneId: null,
-        aConfirmer: true,
+        aConfirmer: false,
       },
-      expect.objectContaining({ id: 'sinistres:S1:prescription', nature: 'prescription', date: reperes.prescription, aConfirmer: true }),
+      {
+        id: 'sinistres:S1:prescription',
+        famille: 'sinistres',
+        nature: 'prescription',
+        libelle: 'Dégât des eaux — prescription au plus tôt le 20/10/2028 (C. assur. L. 114-1 ; peut être repoussée par une interruption, L. 114-2)',
+        date: reperes.prescription,
+        mandatId: 'M1',
+        objetId: 'S1',
+        assigneId: null,
+        aConfirmer: false,
+      },
     ])
     const declare = creerSinistre(saisieSinistre({ dateDeclaration: '2026-10-21' }))
     expect(ids(depuisSinistres([{ id: 'S2', mandatId: 'M1', libelle: 'x', fiche: declare }]))).toEqual(['sinistres:S2:prescription'])
@@ -535,14 +549,134 @@ describe('sources — sinistres, équipements, diagnostics', () => {
     const fiche = creerSinistre(saisieSinistre({ phase: "Mission d'expertise" }))
     expect(depuisSinistres([{ id: 'S4', mandatId: 'M1', libelle: 'Dégât des eaux', fiche }]).find((e) => e.nature === 'a_declarer')).toMatchObject({
       id: 'sinistres:S4:a_declarer',
-      libelle: "Dégât des eaux — déclaration non datée (phase « Mission d'expertise ») : à vérifier",
+      libelle:
+        "Dégât des eaux — à déclarer au plus tard le 27/10/2026 (minimum légal, C. assur. L. 113-2, 4° ; le contrat peut accorder plus) — déclaration non datée (phase « Mission d'expertise ») : à vérifier",
       date: reperesDelaisSinistre(fiche).declarationAuPlusTard,
-      aConfirmer: true,
+      aConfirmer: false,
     })
     const generale = creerSinistre(saisieSinistre({ phase: 'Général' }))
     expect(depuisSinistres([{ id: 'S5', mandatId: 'M1', libelle: 'Dégât des eaux', fiche: generale }]).find((e) => e.nature === 'a_declarer')?.libelle).toBe(
-      'Dégât des eaux',
+      'Dégât des eaux — à déclarer au plus tard le 27/10/2026 (minimum légal, C. assur. L. 113-2, 4° ; le contrat peut accorder plus)',
     )
+  })
+
+  it('J67, R52 : dommages-ouvrage non déclaré : « à déclarer » daté de la connaissance, sans repère de cinq jours ; prescription gardée', () => {
+    const fiche = creerSinistre(saisieSinistre({ type: 'Dommages Ouvrage', dateConnaissance: '2026-10-22' }))
+    const elements = depuisSinistres([{ id: 'S6', mandatId: 'M1', libelle: 'DO', fiche }])
+    // Empilement : libellés de J67, R49 (documents-suivi, plus récent dans la pile) ; le cas sans délai garde celui de R52.
+    expect(elements.map((e) => [e.nature, e.date, e.libelle, e.aConfirmer])).toEqual([
+      ['a_declarer', '2026-10-22', 'DO — à déclarer dès la connaissance (L. 113-2, 4°) ; aucun délai dans les clauses types', false],
+      [
+        'prescription',
+        reperesDelaisSinistre(fiche).prescription,
+        'DO — prescription au plus tôt le 20/10/2028 (C. assur. L. 114-1 ; peut être repoussée par une interruption, L. 114-2)',
+        false,
+      ],
+    ])
+    // La police fixe un délai : il s'applique, libellé ordinaire.
+    const [avecDelai] = depuisSinistres([{ id: 'S7', mandatId: 'M1', libelle: 'DO', fiche, delaiContratJoursOuvres: 5 }])
+    expect(avecDelai).toMatchObject({
+      libelle: 'DO — à déclarer au plus tard le 29/10/2026 (délai du contrat ; C. assur. L. 113-2, 4°)',
+      date: reperesDelaisSinistre(fiche, { delaiContratJoursOuvres: 5 }).declarationAuPlusTard,
+      aConfirmer: false,
+    })
+    // Phase qui suit la déclaration, sans date : « à vérifier » s'ajoute au libellé (R49).
+    const [enExpertise] = depuisSinistres([{ id: 'S8', mandatId: 'M1', libelle: 'DO', fiche: { ...fiche, phase: "Mission d'expertise" } }])
+    expect(enExpertise.libelle).toBe(
+      "DO — à déclarer dès la connaissance (L. 113-2, 4°) ; aucun délai dans les clauses types — déclaration non datée (phase « Mission d'expertise ») : à vérifier",
+    )
+  })
+
+  describe('déclaration d’un sinistre (J67, R49 ; C. assur. L. 113-2, 4°)', () => {
+    const aDeclarer = (surcharge: Partial<SaisieSinistre>, delaiContratJoursOuvres?: number) =>
+      depuisSinistres([{ id: 'S', mandatId: 'M1', libelle: 'Sinistre', fiche: creerSinistre(saisieSinistre(surcharge)), delaiContratJoursOuvres }]).find(
+        (e) => e.nature === 'a_declarer',
+      )
+
+    it('« Vandalisme » et « Bris de glace » : un vol a pu y être rangé, la marque reste avec « 2 jours ouvrés s’il y a eu vol »', () => {
+      for (const type of ['Vandalisme', 'Bris de glace'] as const)
+        expect(aDeclarer({ type })).toMatchObject({
+          date: '2026-10-27',
+          aConfirmer: true,
+          libelle:
+            "Sinistre — à déclarer au plus tard le 27/10/2026 (minimum légal, C. assur. L. 113-2, 4° ; le contrat peut accorder plus) — 2 jours ouvrés s'il y a eu vol",
+        })
+    })
+
+    it('« Vol » : deux jours ouvrés, sans marque', () => {
+      expect(aDeclarer({ type: 'Vol' })).toMatchObject({ date: '2026-10-22', aConfirmer: false, libelle: expect.stringContaining('au plus tard le 22/10/2026 (minimum légal') })
+    })
+
+    it('délai du contrat saisi, plus long que le minimum légal : « délai du contrat » ; plus court : le minimum légal reste', () => {
+      expect(aDeclarer({}, 10)).toMatchObject({
+        date: '2026-11-03',
+        libelle: 'Sinistre — à déclarer au plus tard le 03/11/2026 (délai du contrat ; C. assur. L. 113-2, 4°)',
+        aConfirmer: false,
+      })
+      expect(aDeclarer({}, 3)?.libelle).toContain('(minimum légal, C. assur. L. 113-2, 4°')
+    })
+
+    it('relecture : délai du contrat saisi égal au minimum légal : « délai du contrat »', () => {
+      expect(aDeclarer({}, 5)?.libelle).toBe('Sinistre — à déclarer au plus tard le 27/10/2026 (délai du contrat ; C. assur. L. 113-2, 4°)')
+      expect(aDeclarer({ type: 'Vol' }, 2)?.libelle).toBe('Sinistre — à déclarer au plus tard le 22/10/2026 (délai du contrat ; C. assur. L. 113-2, 4°)')
+    })
+
+    const prescription = (surcharge: Partial<SaisieSinistre>) =>
+      depuisSinistres([{ id: 'S', mandatId: 'M1', libelle: 'Sinistre', fiche: creerSinistre(saisieSinistre(surcharge)) }]).find((e) => e.nature === 'prescription')
+
+    it('relecture : « Charges Impayées » et « Loyers Impayés » — assurance-crédit possible (L. 111-1) : déclaration et prescription à confirmer', () => {
+      for (const type of ['Charges Impayées', 'Loyers Impayés'] as const) {
+        expect(aDeclarer({ type }, 3)).toMatchObject({
+          date: '2026-10-27',
+          aConfirmer: true,
+          libelle: 'Sinistre — repère de déclaration du 27/10/2026 à confirmer, assurance-crédit possible : seule la police fixe alors le délai (C. assur. L. 111-1)',
+        })
+        expect(prescription({ type })).toMatchObject({
+          aConfirmer: true,
+          libelle:
+            "Sinistre — prescription au plus tôt le 20/10/2028 (C. assur. L. 114-1 ; peut être repoussée par une interruption, L. 114-2) — à confirmer, assurance-crédit possible : L. 114-1 ne s'applique alors pas, voir la police (C. assur. L. 111-1)",
+        })
+      }
+    })
+
+    it('relecture : « Dommages Ouvrage » — pas de minimum légal annoncé ; règle propre du type appliquée (J67, R52), sans marque ; prescription sans marque', () => {
+      // Empilement sur contentieux-sinistres : R52 est la règle propre attendue ; à déclarer dès la connaissance.
+      expect(aDeclarer({ type: 'Dommages Ouvrage' })).toMatchObject({
+        date: '2026-10-20',
+        aConfirmer: false,
+        libelle: 'Sinistre — à déclarer dès la connaissance (L. 113-2, 4°) ; aucun délai dans les clauses types',
+      })
+      expect(prescription({ type: 'Dommages Ouvrage' })?.aConfirmer).toBe(false)
+    })
+
+    it('relecture : « Catastrophes naturelles » — délai propre (L. 125-2), à confirmer ; prescription sans marque', () => {
+      expect(aDeclarer({ type: 'Catastrophes naturelles', phase: "Mission d'expertise" })).toMatchObject({
+        aConfirmer: true,
+        libelle:
+          "Sinistre — repère de déclaration du 27/10/2026 à confirmer, catastrophe naturelle : délai compté de la publication de l'arrêté (C. assur. L. 125-2) — déclaration non datée (phase « Mission d'expertise ») : à vérifier",
+      })
+      expect(prescription({ type: 'Catastrophes naturelles' })?.aConfirmer).toBe(false)
+    })
+
+    it('relecture : « Tempête, Grêles, Neiges » suit le droit commun, sans marque (J67, R53 : repère inchangé)', () => {
+      expect(aDeclarer({ type: 'Tempête, Grêles, Neiges' })).toMatchObject({ aConfirmer: false, libelle: expect.stringContaining('(minimum légal, C. assur. L. 113-2, 4°') })
+    })
+
+    it('en-tête : les sinistres ne sont plus des repères 🔴 ; le contrat n’allonge que la déclaration (L. 114-3)', () => {
+      const { texte } = enTeteDuModule('suivi-a-faire')
+      expect(texte).not.toMatch(/🔴 Signalés `aConfirmer` : repères de déclaration et de prescription des sinistres/)
+      expect(texte).toMatch(/Sinistres \(J67, R49\) : déclaration « au plus tard », prescription « au plus tôt »[^🔵🔴]*L\. 114-3/)
+    })
+
+    it('en-tête : « Dommages Ouvrage » quitte la liste 🔴 des signalés ; règle propre, sans marque (J67, R52)', () => {
+      const { texte } = enTeteDuModule('suivi-a-faire')
+      const debut = texte.indexOf('🔴 Signalés `aConfirmer`')
+      expect(debut).toBeGreaterThanOrEqual(0)
+      const signales = texte.slice(debut, texte.indexOf('Sinistres (J67, R49)', debut))
+      expect(signales).not.toContain('Dommages Ouvrage')
+      expect(signales).toContain('« Catastrophes naturelles » (délai propre)')
+      expect(signales).toMatch(/les dommages-ouvrage n'y sont plus : règle propre, sans marque \(J67, R52\)/)
+    })
   })
 
   it('équipement : remplacement et révision, même dépassés ; fin de garantie seulement si elle est à venir', () => {

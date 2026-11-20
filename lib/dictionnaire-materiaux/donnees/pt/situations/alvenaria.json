@@ -1,0 +1,1324 @@
+{
+  "domaine": {
+    "id": "alvenaria",
+    "nom": "Alvenaria e betão",
+    "icone": "🏗️"
+  },
+  "situations": [
+    {
+      "id": "tapar-roco-eletrico-canalizacao",
+      "domaine": "alvenaria",
+      "titre": "Tapar roço (elétrico ou de canalização)",
+      "motsCles": [
+        "fechar roço",
+        "tapar rasgo na parede",
+        "encher roço do tubo",
+        "roço da instalação elétrica",
+        "roço de canalização",
+        "tapar tubo anelado na parede",
+        "encher rasgos dos tubos",
+        "fechar rasgo dos cabos",
+        "massa para roços"
+      ],
+      "description": "Rasgo aberto na parede para embutir tubo elétrico ou de canalização, que é preciso encher e deixar à face do reboco, pronto a pintar ou a revestir.",
+      "aVerifier": [
+        "Tipo de parede e de acabamento: reboco de cimento, estuque de gesso ou zona que vai levar azulejo.",
+        "Largura e profundidade do roço: os largos ou fundos enchem-se por camadas e levam rede na emenda.",
+        "O que fica embutido: tubo anelado elétrico, tubo de água fria ou quente, ou esgoto.",
+        "Se a canalização já foi ensaiada à pressão e a instalação elétrica testada, antes de tapar."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "trincha-larga-retangular",
+              "note": "Tirar o pó e humedecer o roço, para a argamassa não secar depressa de mais."
+            },
+            {
+              "id": "primario-aderencia-argamassas",
+              "note": "Só em betão liso ou suporte pouco absorvente.",
+              "optionnel": true
+            },
+            {
+              "id": "tubo-isolamento-polietileno",
+              "note": "Roço de canalização: envolver os tubos, sobretudo os de água quente, antes de os cobrir.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "argamassa-fixacao-rapida",
+              "note": "Prender tubos e caixas em alguns pontos antes de encher o resto."
+            },
+            {
+              "id": "argamassa-reboco-manual",
+              "note": "Encher por camadas até à face do reboco existente."
+            },
+            {
+              "id": "gesso-estuque",
+              "note": "Só em parede estucada de interior seco; não encostar gesso a tubos nem a peças de ferro.",
+              "optionnel": true
+            },
+            {
+              "id": "rede-fibra-vidro-reboco",
+              "note": "Roços largos: embeber na última camada, a cobrir as duas emendas, para não fissurar.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "massa-acabamento-pronta-pasta",
+              "note": "Parede a pintar: barrar em camada fina para disfarçar a emenda; dispensa-se onde leva azulejo.",
+              "optionnel": true
+            },
+            {
+              "id": "esponja-abrasiva",
+              "note": "Lixar a massa de acabamento depois de seca.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "colher-pedreiro"
+            },
+            {
+              "id": "talocha-esponja",
+              "note": "Afagar o enchimento à face do reboco, com a esponja húmida e bem espremida."
+            },
+            {
+              "id": "betumadeira-120-200mm",
+              "note": "Para a massa de acabamento.",
+              "optionnel": true
+            },
+            {
+              "id": "balde-de-pedreiro"
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-borracha-compridas",
+              "note": "O cimento fresco queima a pele."
+            },
+            {
+              "id": "oculos-protecao"
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Eletricidade: desligar o circuito no quadro antes de mexer; a instalação elétrica é trabalho de técnico habilitado.",
+        "Canalização: não tapar sem ensaiar a estanquidade com a rede em pressão; uma fuga embutida só aparece mais tarde.",
+        "Não tapar caixas de derivação nem acessórios que tenham de ficar acessíveis.",
+        "Um roço fundo ou horizontal comprido enfraquece uma parede fina: na dúvida, pedir opinião antes de abrir mais.",
+        "Pintar só depois de a argamassa e a massa secarem (ver a embalagem)."
+      ]
+    },
+    {
+      "id": "reparar-betao-ferro-a-vista",
+      "domaine": "alvenaria",
+      "titre": "Betão com ferro à vista",
+      "motsCles": [
+        "betão a desfazer-se",
+        "ferro enferrujado no betão",
+        "armadura à vista",
+        "betão rebentado",
+        "varanda a cair aos bocados",
+        "viga com ferro à mostra",
+        "pilar com ferro à vista",
+        "betão a lascar",
+        "ferrugem a escorrer do betão",
+        "ferro a inchar no betão"
+      ],
+      "description": "O ferro da armadura enferrujou, inchou e fez saltar o betão que o cobria. Vê-se betão lascado ou oco, ferro castanho à vista e, por vezes, escorridos de ferrugem.",
+      "aVerifier": [
+        "Que elemento é: viga, pilar, laje ou varanda, ou então um muro ou remate sem função de suporte.",
+        "Estado do ferro: ferrugem superficial, ou varões já mais finos, cortados ou soltos.",
+        "Extensão: bater com o martelo à volta para encontrar o betão oco, que também tem de sair.",
+        "De onde vem a água: infiltração, ferro com pouco recobrimento, proximidade do mar."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "escopro",
+              "note": "Picar o betão solto e oco até ao betão são, deixando o ferro descoberto a toda a volta."
+            },
+            {
+              "id": "maceta"
+            },
+            {
+              "id": "escova-arame-manual",
+              "note": "Escovar o ferro a toda a volta até sair toda a ferrugem solta."
+            },
+            {
+              "id": "trincha-larga-retangular",
+              "note": "Tirar o pó; humedecer o betão, sem encharcar, antes da argamassa."
+            }
+          ]
+        },
+        {
+          "titre": "Tratamento",
+          "materiaux": [
+            {
+              "id": "trincha-plana-sintetica",
+              "note": "Aplicar o passivador e, se pedida, a ponte de aderência."
+            },
+            {
+              "id": "primario-aderencia-argamassas",
+              "note": "Só se a ficha da argamassa de reparação pedir ponte de aderência.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "argamassa-reparacao-betao",
+              "note": "Escolher uma que também passive o ferro (ver a embalagem) e aplicá-la logo sobre o ferro limpo."
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "talocha-esponja",
+              "note": "Afagar à face do betão existente."
+            },
+            {
+              "id": "tinta-membrana-elastica-fachadas",
+              "note": "No exterior, depois da cura: protege o betão da água e atrasa nova corrosão.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "colher-pedreiro"
+            },
+            {
+              "id": "balde-de-pedreiro",
+              "note": "Amassar pouco de cada vez, só com a água indicada na embalagem."
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "oculos-protecao",
+              "note": "Saltam lascas ao picar."
+            },
+            {
+              "id": "mascara-ffp3",
+              "note": "Picar e escovar betão levanta pó fino."
+            },
+            {
+              "id": "luvas-borracha-compridas"
+            },
+            {
+              "id": "fita-balizagem",
+              "note": "Varandas, palas e tetos: vedar a zona por baixo enquanto se pica.",
+              "optionnel": true
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Em vigas, pilares, lajes e varandas, ou com ferro já mais fino ou cortado, parar e pedir a avaliação de um engenheiro: pode ser preciso escorar e reforçar.",
+        "Tapar sem tratar o ferro e a origem da água faz o betão voltar a saltar.",
+        "Não usar conversor de ferrugem no ferro do betão: a película que deixa prejudica a aderência da argamassa.",
+        "Não reparar com cimento e areia nem com massas de enchimento: usar argamassa própria para reparação de betão.",
+        "Varandas, palas e tetos: trabalho em altura e risco de queda de bocados; vedar a zona por baixo.",
+        "Espessuras, tempos de espera e cura: ver a embalagem."
+      ]
+    },
+    {
+      "id": "assentar-tijolo-bloco",
+      "domaine": "alvenaria",
+      "titre": "Assentar tijolo ou bloco",
+      "motsCles": [
+        "fazer pequeno muro",
+        "fechar vão de porta",
+        "tapar janela com tijolo",
+        "levantar parede de tijolo",
+        "muro de blocos",
+        "assentar blocos de cimento",
+        "parede divisória em tijolo",
+        "murete de jardim",
+        "emparedar vão"
+      ],
+      "description": "Levantar um pequeno muro ou fechar um vão de porta ou janela com tijolo cerâmico ou bloco de betão, assente com argamassa, fiada a fiada, a prumo e de nível.",
+      "aVerifier": [
+        "Base de apoio: fundação ou pavimento firme e de nível; um muro novo no terreno precisa de sapata.",
+        "Interior ou exterior, e se a alvenaria fica à vista ou vai ser rebocada.",
+        "Espessura da parede existente, para escolher tijolo ou bloco da mesma largura ao fechar um vão.",
+        "Como vai ligar ao que já existe: ombreiras do vão, pilares ou muro vizinho."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "fio-de-pedreiro",
+              "note": "Esticado de ponta a ponta, guia o alinhamento e o nível de cada fiada."
+            },
+            {
+              "id": "nivel-de-bolha",
+              "note": "Conferir o nível e o prumo a cada fiada."
+            },
+            {
+              "id": "betao-seco-ensacado",
+              "note": "Muro novo no terreno: fazer primeiro a sapata e deixá-la ganhar resistência.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Assentamento",
+          "materiaux": [
+            {
+              "id": "tijolo-ceramico-bloco-betao",
+              "note": "Mesma espessura da parede existente; com calor, molhar o tijolo cerâmico antes de assentar."
+            },
+            {
+              "id": "argamassa-assentamento-alvenaria",
+              "note": "Juntas cheias e fiadas desencontradas; a última fiada aperta-se bem contra a padieira."
+            },
+            {
+              "id": "disco-diamantado",
+              "note": "Segmentado ou turbo, para cortar tijolo e bloco à medida."
+            },
+            {
+              "id": "bucha-quimica-poliester",
+              "note": "Ligação à parede existente: chumbar os ferros a cada poucas fiadas; em tijolo furado, com casquilho de rede.",
+              "optionnel": true
+            },
+            {
+              "id": "varao-aco-nervurado",
+              "note": "Ferros de ligação: chumbados na parede existente e embebidos na junta da fiada.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "colher-juntas",
+              "note": "Alvenaria à vista: refechar e alisar as juntas.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "colher-pedreiro"
+            },
+            {
+              "id": "martelo-de-pedreiro",
+              "note": "Acertar e partir tijolo."
+            },
+            {
+              "id": "regua-pedreiro-aluminio",
+              "note": "Conferir o plano da parede fiada a fiada."
+            },
+            {
+              "id": "balde-de-pedreiro"
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-borracha-compridas",
+              "note": "A argamassa fresca queima a pele."
+            },
+            {
+              "id": "oculos-protecao"
+            },
+            {
+              "id": "mascara-ffp3",
+              "note": "Para o corte de tijolo e bloco, que faz muito pó."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Muros de suporte de terras, muros altos e paredes que recebem carga precisam de projeto: não são trabalho para esta ficha.",
+        "Fechar um vão não dispensa a padieira ou a viga que já lá está; abrir ou alargar vãos é outro trabalho, com escoramento.",
+        "Não levantar muita altura de uma vez: a argamassa fresca cede e a parede sai do prumo.",
+        "Não assentar com chuva forte nem com risco de geada.",
+        "Rebocar só depois de a alvenaria secar e assentar (ver a ficha de reboco).",
+        "Muros na extrema do terreno ou junto à via pública: confirmar na câmara municipal se é preciso licença ou comunicação prévia."
+      ]
+    },
+    {
+      "id": "fixar-carga-pesada-ancoragem-quimica",
+      "domaine": "alvenaria",
+      "titre": "Fixar carga pesada em parede (ancoragem química)",
+      "motsCles": [
+        "bucha química em betão",
+        "fixar termoacumulador",
+        "pendurar móvel pesado",
+        "fixar toldo na parede",
+        "chumbar varão roscado",
+        "fixar pérgola à parede",
+        "ancoragem em betão",
+        "suporte de ar condicionado",
+        "fixação para muito peso"
+      ],
+      "description": "Fixação de peças pesadas (termoacumulador, toldo, pérgola, suporte metálico) com varão roscado chumbado em resina, quando a bucha de expansão corrente não chega ou o suporte é fraco.",
+      "aVerifier": [
+        "De que é feita a parede: betão, pedra ou tijolo maciço, ou então tijolo furado ou bloco oco, que levam casquilho de rede.",
+        "Peso da peça, tipo de esforço (a puxar para fora, em consola, com vento) e número de fixações.",
+        "Interior ou exterior e zona húmida: aí, varão, porcas e anilhas em inox.",
+        "Espessura da parede e o que passa lá dentro: tubos de água, cabos elétricos, chaminés."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "lapis-de-carpinteiro",
+              "note": "Marcar os furos pela própria peça ou pelo suporte."
+            },
+            {
+              "id": "nivel-de-bolha"
+            },
+            {
+              "id": "broca-sds-plus",
+              "note": "Betão e pedra, com martelo; diâmetro e profundidade do furo conforme a embalagem da resina."
+            },
+            {
+              "id": "broca-betao-pedra",
+              "note": "Tijolo furado ou bloco oco: furar sem percussão, com o diâmetro do casquilho de rede.",
+              "optionnel": true
+            },
+            {
+              "id": "escovilhao-bomba-limpeza-furos",
+              "note": "Alternar sopro e escova até o furo ficar sem pó: furo sujo não agarra."
+            }
+          ]
+        },
+        {
+          "titre": "Fixação",
+          "materiaux": [
+            {
+              "id": "bucha-quimica-vinilester",
+              "note": "Deitar fora o início até a mistura sair de cor uniforme; encher do fundo do furo para fora."
+            },
+            {
+              "id": "casquilho-rede-bucha-quimica",
+              "note": "Tijolo furado ou bloco oco: sem ele a resina perde-se nos alvéolos.",
+              "optionnel": true
+            },
+            {
+              "id": "varao-roscado",
+              "note": "Meter a rodar até ao fundo do furo; inox no exterior e em zonas húmidas."
+            },
+            {
+              "id": "anilha-plana",
+              "note": "De aba larga em furos largos ou chapa fina."
+            },
+            {
+              "id": "porca-sextavada",
+              "note": "Apertar só depois da cura completa da resina (ver a embalagem)."
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "pistola-silicone-reforcada",
+              "note": "A resina é espessa; confirmar na embalagem o tipo de pistola que o cartucho pede."
+            },
+            {
+              "id": "chaves-bocas-luneta",
+              "note": "Medida exata da porca; não passar o binário de aperto da ficha técnica."
+            },
+            {
+              "id": "serra-de-arco",
+              "note": "Para cortar o varão roscado à medida.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "oculos-protecao"
+            },
+            {
+              "id": "mascara-ffp2",
+              "note": "Pó da furação."
+            },
+            {
+              "id": "luvas-descartaveis",
+              "note": "A resina irrita a pele."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Antes de furar, confirmar que não passam tubos nem cabos na zona; na dúvida, usar um detetor.",
+        "Furo com pó não agarra: escovar e soprar o furo antes de injetar a resina.",
+        "A resina não compensa uma parede fraca: em tijolo furado a carga admitida é muito menor do que em betão (ver a ficha técnica).",
+        "Não apertar nem carregar antes do tempo de cura, que varia com a temperatura (ver a embalagem).",
+        "Respeitar as distâncias às arestas e entre furos indicadas pelo fabricante.",
+        "Guardas, toldos grandes, pérgolas e tudo o que ponha pessoas em risco se cair: o número e o diâmetro das ancoragens têm de ser calculados."
+      ]
+    },
+    {
+      "id": "fixar-tijolo-furado-gesso-cartonado",
+      "domaine": "alvenaria",
+      "titre": "Fixar em tijolo furado ou em gesso cartonado",
+      "motsCles": [
+        "bucha roda em falso",
+        "bucha não agarra",
+        "bucha para parede oca",
+        "parede de placas de gesso",
+        "fixar prateleira em tijolo furado",
+        "parafuso roda sem apertar",
+        "pendurar televisão em gesso cartonado",
+        "furo da bucha alargou",
+        "bucha para placa de gesso"
+      ],
+      "description": "Paredes ocas onde a bucha de nylon corrente roda em falso ou arranca: o tijolo cerâmico furado e as placas de gesso cartonado pedem buchas próprias, escolhidas pelo peso a pendurar.",
+      "aVerifier": [
+        "Que parede é: o tijolo furado dá pó vermelho e a broca cai nos vazios; o gesso cartonado soa a oco e dá pó branco.",
+        "Peso do que se vai pendurar e se puxa para fora (prateleira, suporte de televisão) ou só para baixo.",
+        "No gesso cartonado: placa simples ou dupla, e onde passam os perfis metálicos.",
+        "Parede ou teto: em teto falso a carga admitida é muito menor."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "lapis-de-carpinteiro"
+            },
+            {
+              "id": "nivel-de-bolha"
+            },
+            {
+              "id": "broca-betao-pedra",
+              "note": "Furar sem percussão, com o diâmetro da bucha; a bucha autoperfurante dispensa furo."
+            }
+          ]
+        },
+        {
+          "titre": "Fixação",
+          "materiaux": [
+            {
+              "id": "bucha-tijolo-furado",
+              "note": "Tijolo furado, cargas leves e médias.",
+              "optionnel": true
+            },
+            {
+              "id": "bucha-quimica-poliester",
+              "note": "Tijolo furado, cargas maiores: resina com casquilho de rede e varão roscado, em furo sem pó.",
+              "optionnel": true
+            },
+            {
+              "id": "casquilho-rede-bucha-quimica",
+              "note": "Sempre que se usa bucha química em tijolo furado.",
+              "optionnel": true
+            },
+            {
+              "id": "varao-roscado",
+              "note": "Com a bucha química, cortado à medida.",
+              "optionnel": true
+            },
+            {
+              "id": "porca-sextavada",
+              "note": "Com o varão roscado; apertar só depois da cura da resina (ver a embalagem).",
+              "optionnel": true
+            },
+            {
+              "id": "anilha-plana",
+              "note": "Com o varão roscado, entre a porca e a peça.",
+              "optionnel": true
+            },
+            {
+              "id": "bucha-autoperfurante-gesso-cartonado",
+              "note": "Gesso cartonado, cargas leves (quadros, pequenos acessórios); não reaproveitar o furo.",
+              "optionnel": true
+            },
+            {
+              "id": "bucha-metalica-expansao-gesso-cartonado",
+              "note": "Gesso cartonado, cargas médias; comprimento conforme a placa é simples ou dupla.",
+              "optionnel": true
+            },
+            {
+              "id": "bucha-basculante",
+              "note": "Gesso cartonado ou teto falso, com espaço livre atrás da placa para a báscula abrir.",
+              "optionnel": true
+            },
+            {
+              "id": "parafuso-madeira-aglomerado",
+              "note": "Diâmetro e comprimento conforme a bucha (ver a embalagem); muitas já trazem parafuso."
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "chaves-de-fendas",
+              "note": "Dar o aperto final à mão, para não moer a bucha nem a placa."
+            },
+            {
+              "id": "pistola-silicone-reforcada",
+              "note": "Só para o cartucho de bucha química; confirmar na embalagem a pistola que pede.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "oculos-protecao"
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "No gesso cartonado, móveis suspensos, louça sanitária suspensa, termoacumuladores e televisões grandes fixam-se à estrutura metálica, a um reforço ou à parede de trás, não só à placa.",
+        "A carga indicada na embalagem da bucha é por ponto e em boas condições: usar várias fixações e deixar margem.",
+        "Antes de furar, confirmar que não há cabos nem tubos: no gesso cartonado passam por dentro da parede, em qualquer sítio.",
+        "Um furo que alargou não se reaproveita com a mesma bucha: mudar de sítio ou passar à bucha química."
+      ]
+    },
+    {
+      "id": "chumbar-aro-grade-poste",
+      "domaine": "alvenaria",
+      "titre": "Chumbar aro, grade ou poste",
+      "motsCles": [
+        "fixar aro de porta",
+        "chumbar grade na janela",
+        "poste de vedação solto",
+        "prender portão ao muro",
+        "chumbar ferro na parede",
+        "aro a abanar",
+        "chumbar patas do aro",
+        "chumbar poste de vedação",
+        "poste a abanar"
+      ],
+      "description": "Prender à alvenaria ou ao betão, com argamassa de presa rápida ou com resina, as patas de um aro, os chumbadouros de uma grade ou a base de um poste, a prumo e sem folga.",
+      "aVerifier": [
+        "O que se chumba e onde: aro em ombreira de tijolo, grade em parede, poste em muro, em betão ou no terreno.",
+        "Material do suporte: maciço (betão, pedra) ou oco (tijolo furado, bloco), que pede caixa maior ou resina com casquilho de rede.",
+        "Interior ou exterior, e se a peça é de ferro, que tem de ir protegido contra a ferrugem.",
+        "Esforço que vai sofrer: porta pesada, portão, vento na vedação, pessoas a apoiarem-se."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "escopro",
+              "note": "Abrir as caixas para as patas ou chumbadouros, mais largas no fundo do que à boca."
+            },
+            {
+              "id": "maceta"
+            },
+            {
+              "id": "trincha-larga-retangular",
+              "note": "Tirar o pó e humedecer as caixas antes de chumbar."
+            },
+            {
+              "id": "nivel-de-bolha",
+              "note": "Pôr a peça a prumo e de nível, calçada ou escorada, antes de chumbar."
+            },
+            {
+              "id": "spray-zinco-galvanizacao-frio",
+              "note": "Peça de ferro: cortes e soldaduras, limpos e secos; a parte a embeber basta estar sem ferrugem solta.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Fixação",
+          "materiaux": [
+            {
+              "id": "argamassa-fixacao-rapida",
+              "note": "Encher bem as caixas à volta das patas; amassar pouco de cada vez."
+            },
+            {
+              "id": "betao-seco-ensacado",
+              "note": "Poste no terreno: maciço de betão à volta da base, com o topo em pendente para escoar a água.",
+              "optionnel": true
+            },
+            {
+              "id": "bucha-quimica-vinilester",
+              "note": "Suporte de betão ou peça com chapa de base: varão chumbado com resina, em furo sem pó.",
+              "optionnel": true
+            },
+            {
+              "id": "varao-roscado",
+              "note": "Com a bucha química; inox no exterior.",
+              "optionnel": true
+            },
+            {
+              "id": "bucha-longa-com-parafuso",
+              "note": "Aros fixados através do perfil, em vez de patas chumbadas.",
+              "optionnel": true
+            },
+            {
+              "id": "espuma-poliuretano-portas-janelas",
+              "note": "Aros: encher a folga entre o aro e a parede, com o aro calçado e escorado.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "argamassa-reboco-manual",
+              "note": "Refazer o reboco à volta, à face do existente."
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "colher-pedreiro"
+            },
+            {
+              "id": "balde-de-pedreiro"
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-borracha-compridas"
+            },
+            {
+              "id": "oculos-protecao",
+              "note": "Saltam lascas ao abrir as caixas."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Não chumbar com gesso: ataca o ferro e não aguenta a humidade.",
+        "Não mexer na peça nem pendurar a porta ou o portão antes de a argamassa ganhar resistência (ver a embalagem).",
+        "Guardas de varanda, corrimãos e portões pesados são elementos de segurança: a fixação tem de ser dimensionada, não improvisada.",
+        "Postes de vedação: a profundidade e o tamanho do maciço dependem da altura e do vento; com pouco fundo, o poste tomba.",
+        "Ao abrir caixas na parede, atenção a cabos e tubos embutidos, frequentes junto a portas e janelas."
+      ]
+    },
+    {
+      "id": "capeamento-muro-degradado",
+      "domaine": "alvenaria",
+      "titre": "Capeamento de muro degradado",
+      "motsCles": [
+        "topo do muro a desfazer-se",
+        "muro a absorver água por cima",
+        "capa do muro partida",
+        "reboco do muro a cair",
+        "coroamento do muro rachado",
+        "musgo no cimo do muro",
+        "água a entrar pelo cimo do muro",
+        "refazer o capeamento",
+        "pingadeira do muro"
+      ],
+      "description": "O remate do topo do muro está fissurado, solto ou sem pendente e a água entra por cima: o reboco das faces empola, mancha e descasca a partir do cimo.",
+      "aVerifier": [
+        "Tipo de capeamento: argamassa, ou capas de pedra, de betão ou cerâmicas, e se estão soltas ou só com as juntas abertas.",
+        "Estado do muro por baixo: alvenaria firme ou a desfazer-se, fissuras a toda a altura, inclinação.",
+        "Se o topo tem pendente e pingadeira, ou se a água fica parada e escorre pelas faces.",
+        "Comprimento do muro e onde estão as juntas de dilatação."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "escopro",
+              "note": "Tirar o capeamento solto e a argamassa podre até à alvenaria firme."
+            },
+            {
+              "id": "maceta"
+            },
+            {
+              "id": "escova-arame-manual",
+              "note": "Limpar restos de argamassa, musgo seco e pó."
+            },
+            {
+              "id": "removedor-musgo-algas-liquenes",
+              "note": "Topo com musgo ou verdete: aplicar com tempo seco e deixar atuar antes de reparar.",
+              "optionnel": true
+            },
+            {
+              "id": "primario-aderencia-argamassas",
+              "note": "Sobre o topo limpo, para a argamassa nova agarrar ao muro antigo."
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "argamassa-multiusos-hidrofugada",
+              "note": "Refazer o capeamento com pendente, a sobressair das faces, com pingadeira marcada por baixo."
+            },
+            {
+              "id": "rede-fibra-vidro-reboco",
+              "note": "Embebida a meio da espessura, ajuda a evitar fissuras no capeamento."
+            },
+            {
+              "id": "cimento-cola-flexivel",
+              "note": "Capas de pedra, betão ou cerâmica soltas: voltar a assentá-las com colagem dupla.",
+              "optionnel": true
+            },
+            {
+              "id": "mastique-juntas-fachada",
+              "note": "Juntas de dilatação do muro e juntas entre capas: fechar com mástique, não com argamassa.",
+              "optionnel": true
+            },
+            {
+              "id": "fundo-de-junta-polietileno",
+              "note": "Por baixo do mástique, nas juntas largas ou fundas.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Impermeabilização",
+          "materiaux": [
+            {
+              "id": "membrana-liquida-acrilica-elastica",
+              "note": "Sobre o capeamento curado e seco, em demãos cruzadas, a descer um pouco pelas duas faces."
+            },
+            {
+              "id": "trincha-plana-sintetica",
+              "note": "Para aplicar o primário e a membrana."
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "colher-pedreiro"
+            },
+            {
+              "id": "talocha-plastico",
+              "note": "Apertar e desempenar a argamassa, respeitando a pendente."
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-borracha-compridas"
+            },
+            {
+              "id": "oculos-protecao"
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Muro com fissuras a toda a altura, barriga ou inclinação, sobretudo se segura terras, precisa de avaliação antes de qualquer remate.",
+        "Reparar o reboco e pintar as faces só depois de o capeamento estar feito e o muro ter secado, senão volta a empolar.",
+        "A membrana não aguenta água parada: o capeamento tem de ficar com pendente.",
+        "Trabalhar com tempo seco, sem chuva prevista nem risco de geada; tempos de secagem na embalagem.",
+        "Muro alto ou junto a um desnível: é trabalho em altura, usar andaime ou plataforma estável.",
+        "Muro de meação com o vizinho: combinar a obra antes de mexer."
+      ]
+    },
+    {
+      "id": "reboco-novo-pequena-area-interior",
+      "domaine": "alvenaria",
+      "titre": "Remendo de reboco interior",
+      "motsCles": [
+        "reboco a cair",
+        "reboco oco",
+        "refazer reboco",
+        "parede picada para rebocar",
+        "reboco a esfarelar",
+        "reboco solto dentro de casa",
+        "rebocar bocado de parede",
+        "tijolo à vista na parede",
+        "reboco estalado e oco"
+      ],
+      "description": "Zona de parede interior onde o reboco caiu, soa a oco ou foi picado (obra, humidade antiga, roços) e é preciso rebocar de novo à face do existente.",
+      "aVerifier": [
+        "Suporte por baixo: tijolo, bloco, betão liso, ou parede antiga de pedra ou taipa, que pede argamassa de cal.",
+        "Porque caiu: se houve humidade ou salitre, a causa tem de estar resolvida e a parede seca.",
+        "Até onde o reboco à volta está oco: bater com o cabo da colher e marcar a zona a picar.",
+        "Acabamento do resto da parede: areado, liso estucado ou para levar azulejo."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "escopro",
+              "note": "Picar o reboco solto e oco até à zona firme, com os bordos cortados a direito."
+            },
+            {
+              "id": "maceta"
+            },
+            {
+              "id": "trincha-larga-retangular",
+              "note": "Tirar o pó e humedecer o suporte antes de rebocar."
+            },
+            {
+              "id": "primario-aderencia-argamassas",
+              "note": "Betão liso ou suporte pouco absorvente.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "argamassa-reboco-manual",
+              "note": "Tijolo, bloco ou betão: apertar bem contra o suporte e encher por camadas (espessura na embalagem)."
+            },
+            {
+              "id": "argamassa-cal-reabilitacao",
+              "note": "Paredes antigas de pedra, taipa ou tabique: usar em vez do reboco de cimento.",
+              "optionnel": true
+            },
+            {
+              "id": "rede-fibra-vidro-reboco",
+              "note": "Na mudança de material (tijolo e betão) e em remendos grandes, embebida na argamassa.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "talocha-esponja",
+              "note": "Acabamento areado: esponja húmida e bem espremida, quando a argamassa começa a prender."
+            },
+            {
+              "id": "massa-acabamento-po",
+              "note": "Paredes lisas: barrar em camada fina depois de o reboco secar.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "colher-pedreiro"
+            },
+            {
+              "id": "talocha-plastico",
+              "note": "Apertar e desempenar o reboco."
+            },
+            {
+              "id": "regua-pedreiro-aluminio",
+              "note": "Sarrafar à face do reboco existente."
+            },
+            {
+              "id": "balde-de-pedreiro"
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-borracha-compridas"
+            },
+            {
+              "id": "oculos-protecao"
+            },
+            {
+              "id": "mascara-ffp2",
+              "note": "Pó ao picar e ao despejar a argamassa."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Reboco que caiu por humidade ou salitre volta a cair se a origem da água não for tratada primeiro.",
+        "Em paredes antigas de pedra ou taipa, o reboco de cimento retém a humidade e acaba por descolar: usar argamassa de cal.",
+        "Se o reboco estiver oco em grande parte da parede, um remendo não resolve: é para refazer o pano inteiro.",
+        "Não barrar nem pintar antes de o reboco secar e curar (ver a embalagem).",
+        "Fissuras que atravessam o reboco e continuam no tijolo ou no betão pedem diagnóstico antes de tapar."
+      ]
+    },
+    {
+      "id": "esquina-reboco-partida",
+      "domaine": "alvenaria",
+      "titre": "Aresta de reboco partida",
+      "motsCles": [
+        "aresta do reboco lascada",
+        "ombreira da porta lascada",
+        "esquina exterior partida",
+        "aresta de pilar partida",
+        "canto do reboco partido",
+        "quina do muro partida",
+        "esquina do prédio esmurrada",
+        "refazer aresta em argamassa",
+        "cantoneira para esquina de reboco"
+      ],
+      "description": "Aresta de reboco de uma parede, ombreira, pilar ou muro, interior ou exterior, lascada ou partida por pancadas, que é preciso reconstituir em argamassa, direita e reforçada.",
+      "aVerifier": [
+        "Interior ou exterior, e se a parede é rebocada a cimento ou estucada.",
+        "Profundidade do estrago: só o reboco, ou também o tijolo ou o betão por baixo.",
+        "Comprimento da aresta estragada: uma lasca isolada ou a esquina toda.",
+        "Se é zona de passagem com pancadas frequentes, onde compensa meter cantoneira."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "escopro",
+              "note": "Picar o reboco solto da aresta até ao firme."
+            },
+            {
+              "id": "maceta"
+            },
+            {
+              "id": "trincha-larga-retangular",
+              "note": "Tirar o pó e humedecer antes de reparar."
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "cantoneira-com-rede",
+              "note": "Aresta partida em comprimento ou zona de pancadas: assentar a prumo, embebida na argamassa.",
+              "optionnel": true
+            },
+            {
+              "id": "argamassa-reboco-manual",
+              "note": "Reconstituir a aresta por camadas, com a régua presa a uma das faces a servir de guia."
+            },
+            {
+              "id": "massa-exterior-po",
+              "note": "Lascas pequenas no exterior, em vez da argamassa.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "talocha-esponja",
+              "note": "Afagar o reboco para igualar o areado da parede."
+            },
+            {
+              "id": "massa-acabamento-pronta-pasta",
+              "note": "Interior liso: barrar em camada fina para igualar com a parede e lixar depois de seca.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "colher-pedreiro"
+            },
+            {
+              "id": "colher-cantos",
+              "note": "Modelo de canto exterior, para acabar a esquina."
+            },
+            {
+              "id": "regua-pedreiro-aluminio",
+              "note": "Guia para a aresta ficar direita."
+            },
+            {
+              "id": "nivel-de-bolha",
+              "note": "Conferir o prumo da esquina."
+            },
+            {
+              "id": "balde-de-pedreiro"
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-borracha-compridas"
+            },
+            {
+              "id": "oculos-protecao"
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Se por baixo aparecer ferro enferrujado ou betão a desfazer-se (pilar, viga), já não é só reboco: é uma reparação de betão com ferro à vista.",
+        "Fissura vertical ao longo da esquina, de alto a baixo, pode indicar movimento da parede: diagnosticar antes de tapar.",
+        "No exterior, não reparar com gesso nem com massas de interior.",
+        "Esquinas altas de fachada: trabalho em altura, com andaime ou plataforma estável."
+      ]
+    },
+    {
+      "id": "degrau-betao-partido",
+      "domaine": "alvenaria",
+      "titre": "Degrau de betão partido",
+      "motsCles": [
+        "focinho do degrau partido",
+        "escada de betão lascada",
+        "aresta do degrau a desfazer-se",
+        "degrau exterior rachado",
+        "reparar escada de cimento",
+        "canto do degrau partido",
+        "degrau perigoso",
+        "escada a esboroar-se"
+      ],
+      "description": "Degrau de betão ou de cimento com a aresta (focinho) lascada ou um canto partido, com risco de tropeçar; reconstitui-se com argamassa de reparação moldada contra uma tábua.",
+      "aVerifier": [
+        "Interior ou exterior, e se o degrau fica à vista ou vai levar revestimento.",
+        "Se há ferro à vista ou enferrujado na zona partida.",
+        "Se o betão à volta está são, ou se soa a oco e se desfaz com o escopro.",
+        "Se a escada pode ficar fechada à passagem enquanto a reparação ganha resistência."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "escopro",
+              "note": "Picar o betão solto e deixar bordos vivos, sem acabar em bisel fino."
+            },
+            {
+              "id": "maceta",
+              "note": "Também para pregar a tábua de molde."
+            },
+            {
+              "id": "escova-arame-manual",
+              "note": "Limpar o pó agarrado e a ferrugem de algum ferro à vista."
+            },
+            {
+              "id": "trincha-larga-retangular",
+              "note": "Tirar o pó e humedecer o betão."
+            },
+            {
+              "id": "primario-aderencia-argamassas",
+              "note": "Só se a ficha da argamassa de reparação pedir ponte de aderência.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "tabua-pinho-cofragem",
+              "note": "Tábua direita encostada ao espelho, à altura dos outros focinhos; untar ou forrar com plástico."
+            },
+            {
+              "id": "prego-aco",
+              "note": "Segurar a tábua ao degrau; usar óculos, o prego de aço salta se for batido torto."
+            },
+            {
+              "id": "argamassa-reparacao-betao",
+              "note": "Com ferro à vista, escolher uma que também passive o ferro (ver a embalagem)."
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "talocha-esponja",
+              "note": "Afagar deixando a superfície ligeiramente áspera, para o degrau não escorregar."
+            },
+            {
+              "id": "fita-antiderrapante",
+              "note": "Degraus lisos ou exteriores, com a reparação curada, limpa e seca.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "colher-pedreiro"
+            },
+            {
+              "id": "balde-de-pedreiro"
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-borracha-compridas"
+            },
+            {
+              "id": "oculos-protecao",
+              "note": "Saltam lascas ao picar."
+            },
+            {
+              "id": "fita-balizagem",
+              "note": "Vedar a escada enquanto a reparação ganha resistência."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Não pisar antes de a argamassa ganhar resistência (ver a embalagem); se a escada for o único acesso, prever uma passagem ou reparar por metades.",
+        "Vários degraus fissurados de lado a lado, escada a ceder ou muito ferro enferrujado: é um problema da estrutura, pedir avaliação.",
+        "Cimento e areia em camada fina não agarram ao betão velho e voltam a saltar: usar argamassa de reparação.",
+        "Manter a altura igual à dos outros degraus: um degrau diferente faz tropeçar."
+      ]
+    },
+    {
+      "id": "pequena-betonagem-macico-soleira",
+      "domaine": "alvenaria",
+      "titre": "Pequena betonagem (maciço, base ou soleira)",
+      "motsCles": [
+        "fazer base em betão",
+        "maciço para poste",
+        "sapata pequena",
+        "encher soleira",
+        "base para barracão",
+        "betão para pequeno passeio",
+        "placa de cimento no quintal",
+        "betonar base de máquina",
+        "fazer massame"
+      ],
+      "description": "Betonar um pequeno volume sem função estrutural: maciço de um poste ou de um muro baixo, base para um equipamento, soleira ou troço de passeio.",
+      "aVerifier": [
+        "Terreno de apoio: firme e compactado, ou aterro mole que é preciso retirar ou calcar.",
+        "Medidas a betonar (comprimento, largura e espessura), para calcular os sacos pela indicação da embalagem.",
+        "Se fica no exterior, em contacto com a terra ou com água.",
+        "Que carga vai receber e se precisa de armadura."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "fita-metrica"
+            },
+            {
+              "id": "nivel-de-bolha",
+              "note": "Nivelar a cofragem ou dar-lhe a pendente para a água escoar."
+            },
+            {
+              "id": "tabua-pinho-cofragem",
+              "note": "Cofragem bem travada por fora; untar ou forrar a face que toca no betão."
+            },
+            {
+              "id": "prego-construcao",
+              "note": "Pregar a cofragem com as cabeças por fora, para descofrar sem estragar."
+            },
+            {
+              "id": "martelo-de-orelhas"
+            },
+            {
+              "id": "brita-n1-ensacada",
+              "note": "Base sobre terra: camada de brita calcada por baixo do betão.",
+              "optionnel": true
+            },
+            {
+              "id": "manga-plastica-polietileno",
+              "note": "Sobre o terreno, para o betão não perder a água; serve depois para o cobrir durante a cura."
+            }
+          ]
+        },
+        {
+          "titre": "Betonagem",
+          "materiaux": [
+            {
+              "id": "betao-seco-ensacado",
+              "note": "Só a água indicada no saco: água a mais enfraquece o betão."
+            },
+            {
+              "id": "varao-aco-nervurado",
+              "note": "Base que leva carga ou passeio comprido: armar a meio da espessura, sem tocar no terreno.",
+              "optionnel": true
+            },
+            {
+              "id": "gamela-masseira",
+              "note": "Amassar por partes; em quantidade, compensa um misturador elétrico ou uma betoneira."
+            },
+            {
+              "id": "balde-de-pedreiro",
+              "note": "Medir a água sempre da mesma forma."
+            },
+            {
+              "id": "colher-pedreiro",
+              "note": "Picar o betão junto à cofragem e nos cantos, para sair o ar."
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "regua-pedreiro-aluminio",
+              "note": "Sarrafar o betão pelo topo da cofragem."
+            },
+            {
+              "id": "talocha-alisar-betao",
+              "note": "Afagar só depois de a água desaparecer da superfície."
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-borracha-compridas",
+              "note": "O betão fresco queima a pele."
+            },
+            {
+              "id": "oculos-protecao"
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Lajes, vigas, pilares, sapatas de edifícios e muros de suporte são betão estrutural: precisam de projeto e de armadura calculada.",
+        "Não betonar com chuva forte, geada ou calor intenso sem proteger; manter o betão húmido e coberto nos primeiros dias.",
+        "Não descofrar nem carregar cedo de mais (ver a embalagem).",
+        "Antes de escavar, confirmar que não passam tubos, cabos ou esgotos enterrados."
+      ]
+    }
+  ]
+}

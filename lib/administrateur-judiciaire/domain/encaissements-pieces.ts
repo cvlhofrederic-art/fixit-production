@@ -8,6 +8,7 @@ import {
 import type { LigneCheque, RemiseCheques } from '@/lib/administrateur-judiciaire/domain/ordres-banque'
 import { formaterNumeroCompte } from '@/lib/administrateur-judiciaire/domain/plan-comptable'
 import type { ArreteRapprochement } from '@/lib/administrateur-judiciaire/domain/rapprochement-bancaire'
+import { planDuCompteBudget, type SousComptes450 } from '@/lib/administrateur-judiciaire/domain/repartition-appels'
 import {
   propagerStatutRapproche,
   type AnomalieLienRapprochement,
@@ -89,18 +90,25 @@ import { MODE_REGLEMENT, type ModeReglement } from '@/lib/data/referentiels-gest
  *   (identites-positions.numeroCompteCoproprietaire), jamais saisi ;
  * - recettes hors copropriétaires (crédit d'un autre compte que le 450) : comptes admis 471 et 472 (attente), 712
  *   (emprunt, art. 10), 713, 714, 716, 718 (produits encaissés), 441 et 443 (subvention notifiée : la créance constatée
- *   à la notification se solde) ; refusés : 45 (encaissement d'un copropriétaire), 70 (appels), 10 (provisions et fonds de
- *   travaux, appelés au 450), 711 (subvention : produit constaté au rythme de la charge, art. 10), 78 (reprise sans
- *   trésorerie) et tout autre compte.
+ *   à la notification se solde), 401, 409 et 461 (J67, R101, ci-dessous) ; refusés : 45 (encaissement d'un
+ *   copropriétaire), 70 (appels), 10 (provisions et fonds de travaux, appelés au 450), 711 (subvention : produit constaté
+ *   au rythme de la charge, art. 10), 487 (J67, R101), 78 (reprise sans trésorerie) et tout autre compte.
+ * Décisions J25 et J29 de Hugo (03/11/2026) : espèces refusées ; elles entreraient au compte 53 « Caisse », que VitFix
+ * ne tient pas (J25 : aucun paiement en espèces ; J29 : remise d'espèces reçues refusée).
+ * Décision de Hugo du 17/11/2026 (J67, R101 ; arrêté du 14/03/2005, art. 7 et 10, et décret n° 2005-240, art. 4, relus
+ * le 17/11/2026) : 401 « Factures parvenues » et 409 « Fournisseurs débiteurs » admis en recette (remboursement ou avoir
+ * d'un fournisseur, qui solde sa dette), 461 « Débiteurs divers » aussi, avec la pièce (libellé exigé, art. 4) ;
+ * 487 « Produits encaissés d'avance » refusé à l'encaissement : c'est une écriture de régularisation de fin d'exercice ;
+ * 711 toujours refusé, même pour une subvention reçue sans notification préalable : le refus dit de passer d'abord la
+ * notification (débit du 441 ou du 443, crédit du 131), datée de la décision ou, à défaut, du versement, puis
+ * d'encaisser au 441 ou au 443 ; une subvention versée sur plusieurs exercices est mentionnée à l'état des travaux
+ * (annexe 5) dès sa notification, puis inscrite selon la décision qui l'accorde (décret n° 2005-240, art. 4). L'écriture
+ * de notification n'a pas de fonction ici (à écrire avec le suivi des subventions de travaux).
  * 🔴 Non établi (questions pour Frédéric ou Hugo) :
- * - espèces : refusées ; elles entreraient au compte 53 « Caisse », que VitFix ne tient pas (même question qu'au point
- *   38) ;
  * - « Chèque impayé ou virement reçu retourné : l'encaissement passe-t-il "Annulé" sous une écriture "Annulation
  *   d'encaissement", et son imputation sur les postes est-elle défaite ? Un encaissement isolé d'un lot (fichier de
  *   virements, remise) peut-il être annulé seul ? » (VitFix : aucun statut d'annulation, rien n'est pris en charge) ;
  * - « Famille "Fichier carte bancaire" : quel mode de règlement ? » (le référentiel des modes n'a pas de carte ; refusée) ;
- * - « Faut-il admettre aussi en recette 401 ou 409 (remboursement d'un fournisseur), 461 (débiteurs divers), 487
- *   (produits encaissés d'avance) ? Une subvention versée sans notification préalable se crédite-t-elle en 711 ? » ;
  * - « Date de prise en compte d'un encaissement : remise, valeur ou relevé ? » (VitFix : le traitement est daté du jour de
  *   l'opération, qui est la date de l'encaissement — celle de la ligne du relevé à l'import — ou, pour un chèque remis, la
  *   date de la remise ; l'imputation sur les postes lit la date de l'encaissement ; le choix entre ces dates bancaires
@@ -112,7 +120,7 @@ import { MODE_REGLEMENT, type ModeReglement } from '@/lib/data/referentiels-gest
 export const STATUTS_ENCAISSEMENT = ['Enregistré', 'Rapproché'] as const
 export type StatutEncaissement = (typeof STATUTS_ENCAISSEMENT)[number]
 
-/** Modes admis : ni « Pas de règlement », ni « Espèces » (compte 53 non tenu, 🔴). */
+/** Modes admis : ni « Pas de règlement », ni « Espèces » (compte 53 non tenu, décision J29 du 03/11/2026). */
 export type ModeEncaissement = Exclude<ModeReglement, 'Pas de règlement' | 'Espèces'>
 
 /** Pièce de l'encaissement (Gestéam, tranche 43 § 2 : mode · N° · Banque · Libellé). */
@@ -213,7 +221,7 @@ function verifierPiece(saisie: SaisiePieceEncaissement): PieceEncaissement {
   if (mode === 'Pas de règlement') throw new Error('Mode « Pas de règlement » : aucun encaissement à enregistrer.')
   if (mode === 'Espèces')
     throw new Error(
-      'Espèces : encaissement refusé ; il entrerait au compte 53 « Caisse », que VitFix ne tient pas, et non à un compte 512 (arrêté du 14 mars 2005, art. 7) ; à trancher.',
+      'Espèces : encaissement refusé (décision J29 du 03/11/2026) ; il entrerait au compte 53 « Caisse », que VitFix ne tient pas, et non à un compte 512 (arrêté du 14 mars 2005, art. 7).',
     )
   const numero = texteOuNull(saisie.numero)
   if (mode === 'Chèque' && numero === null)
@@ -238,7 +246,7 @@ const SUIVI_INITIAL = { statut: 'Enregistré', impute: false, traitementId: null
  * Enregistre un encaissement de copropriétaire (imputation-encaissements.Encaissement, par exemple issu de
  * encaissementDepuisReleve) avec sa pièce et son journal : statut « Enregistré », non imputé, sans traitement ni
  * rapprochement ; l'encaissement reçu n'est pas modifié. Refuse un encaissement sans compte ou déjà enregistré, une date
- * ou un montant invalides, un mode inconnu, « Pas de règlement » ou « Espèces » (🔴), un chèque sans numéro, un journal
+ * ou un montant invalides, un mode inconnu, « Pas de règlement » ou « Espèces » (J29), un chèque sans numéro, un journal
  * sans compte bancaire ou sans code, un compte d'encaissement qui n'est pas un 512 du syndicat (D1).
  */
 export function enregistrerEncaissement(
@@ -256,8 +264,11 @@ export function enregistrerEncaissement(
 
 /** Comptes admis au crédit d'une recette hors copropriétaires : préfixe du code de plan → objet (🔵, voir l'en-tête). */
 export const COMPTES_RECETTE_HORS_COPROPRIETAIRES: ReadonlyMap<string, string> = new Map([
+  ['401', 'Fournisseur : remboursement ou avoir, qui solde sa dette (J67, R101)'],
+  ['409', 'Fournisseur débiteur : avance ou acompte remboursé (J67, R101)'],
   ['441', 'Subvention notifiée de l’État ou d’un organisme, à recevoir'],
   ['443', 'Aide notifiée d’une collectivité territoriale, à recevoir'],
+  ['461', 'Débiteur divers (J67, R101)'],
   ['471', 'Compte en attente d’imputation débiteur'],
   ['472', 'Compte en attente d’imputation créditeur'],
   ['712', 'Emprunt'],
@@ -272,7 +283,11 @@ const COMPTES_REFUSES: readonly (readonly [string, string])[] = [
   ['45', 'compte copropriétaire : enregistrer un encaissement (enregistrerEncaissement), imputé sur ses postes'],
   ['70', "appel de fonds : produit constaté au débit des comptes 450 par l'appel (traitementAppelDeFonds), jamais à l'encaissement"],
   ['10', 'provisions, avances et fonds de travaux : appelés au débit du compte 450 de chaque copropriétaire'],
-  ['711', 'subvention : créditer la créance 441 ou 443 constatée à la notification ; le produit 711 suit la charge (arrêté du 14 mars 2005, art. 10)'],
+  [
+    '711',
+    "subvention : créditer la créance 441 ou 443 constatée à la notification ; le produit 711 suit la charge (arrêté du 14 mars 2005, art. 10) ; reçue sans notification préalable : passer d'abord la notification (débit du 441 ou du 443, crédit du 131), datée de la décision ou, à défaut, du versement, puis créditer le 441 ou le 443 ; versée sur plusieurs exercices : mentionnée à l'état des travaux (annexe 5) dès sa notification, inscrite en comptabilité selon la décision qui l'accorde (décret n° 2005-240, art. 4) ; J67, R101",
+  ],
+  ['487', "produits encaissés d'avance : écriture de régularisation de fin d'exercice, jamais un encaissement (arrêté du 14 mars 2005, art. 10 ; J67, R101)"],
   ['78', 'reprise de dépréciation : écriture sans trésorerie'],
 ]
 
@@ -496,10 +511,19 @@ function verifierImputationsEnchainees(resultats: ResultatImputation[]): void {
   }
 }
 
-function compte450(e: EncaissementEnregistre, comptes: CompteCoproprietaire[], segmentSyndicat: string): string {
+/** Comptes crédités : le 450 du compte, et son 450-1 pour les postes du budget si l'AG l'a créé (J67, R104). */
+function comptes450(
+  e: EncaissementEnregistre,
+  comptes: CompteCoproprietaire[],
+  segmentSyndicat: string,
+  sousComptes450: SousComptes450 | null,
+): { compteCoproprietaire: string; compteBudget: string | null } {
   const compte = comptes.find((c) => c.id === e.compteId)
   if (!compte) throw new Error(`Encaissement ${e.id} : compte copropriétaire « ${e.compteId} » introuvable.`)
-  return numeroCompteCoproprietaire(compte, segmentSyndicat)
+  return {
+    compteCoproprietaire: numeroCompteCoproprietaire(compte, segmentSyndicat),
+    compteBudget: sousComptes450 ? numeroCompteCoproprietaire(compte, segmentSyndicat, planDuCompteBudget(sousComptes450)) : null,
+  }
 }
 
 /**
@@ -511,7 +535,9 @@ function compte450(e: EncaissementEnregistre, comptes: CompteCoproprietaire[], s
  * un mode étranger à la famille, une entrée déjà écrite, en double, rattachée à un autre traitement, d'un autre syndicat,
  * d'un autre jour que le traitement (pour un chèque remis : le jour de sa remise ; C. com. R. 123-174), un compte
  * copropriétaire introuvable, une remise incomplète ou non fournie, des imputations qui ne s'enchaînent pas sur un même
- * poste (les résultats d'imputerEncaissements s'enchaînent ; ils doivent partir de l'état courant des postes).
+ * poste (les résultats d'imputerEncaissements s'enchaînent ; ils doivent partir de l'état courant des postes). J67,
+ * R104 : avec les sous-comptes du 450 créés par l'AG (`sousComptes450`, réglage du syndicat, comme à l'appel), les postes
+ * du budget sont crédités au 450-1, le reste et le reliquat au 450.
  */
 export function traitementEncaissements(
   {
@@ -529,10 +555,20 @@ export function traitementEncaissements(
     famille = 'Encaissement',
     segmentSyndicat,
     comptes,
-  }: { id: string; date: string; famille?: FamilleTraitement; segmentSyndicat: string; comptes: CompteCoproprietaire[] },
+    sousComptes450 = null,
+  }: {
+    id: string
+    date: string
+    famille?: FamilleTraitement
+    segmentSyndicat: string
+    comptes: CompteCoproprietaire[]
+    /** J67, R104 : sous-comptes du 450 créés par l'AG ; absent : tout au 45000. */
+    sousComptes450?: SousComptes450 | null
+  },
 ): { traitement: Traitement; encaissements: EncaissementEnregistre[]; recettes: RecetteHorsCoproprietaires[] } {
   if (!id.trim()) throw new Error("Traitement d'encaissements sans identifiant.")
   if (!estDateIsoValide(date)) throw new Error(`Date du traitement invalide (${date}) : AAAA-MM-JJ attendu.`)
+  planDuCompteBudget(sousComptes450)
   const familleEcrite = verifierFamille(famille)
   const entrees: EntreeBanque[] = [...encaissements.map((l) => l.encaissement), ...recettes]
   if (entrees.length === 0) throw new Error("Traitement d'encaissements : aucun encaissement.")
@@ -547,7 +583,7 @@ export function traitementEncaissements(
         encaissement,
         resultat,
         compteBanque: encaissement.journal.compteEncaissement,
-        compteCoproprietaire: compte450(encaissement, comptes, segmentSyndicat),
+        ...comptes450(encaissement, comptes, segmentSyndicat, sousComptes450),
       }),
     ),
     ...recettes.flatMap(mouvementsRecette),

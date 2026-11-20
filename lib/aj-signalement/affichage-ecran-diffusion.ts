@@ -232,7 +232,9 @@ export const TEXTES_ECRAN_DIFFUSION_QR = {
     intro: 'Messages d’exploitation de l’immeuble (fuite, coupure, intervention) envoyés par e-mail aux déclarants, au nom du cabinet. Rien ne part tant que la diffusion n’est pas activée.',
     activeeLe: 'Diffusion activée le {date}',
     inactive: 'Diffusion non activée',
-    contact: 'Adresse de contact (réponses des résidents)',
+    // Décision de Hugo du 16/11/2026 : les déclarants ne répondent plus aux messages. L'adresse est écrite dans le pied
+    // de chaque message (et sur la page de désinscription) et reçoit la copie de chaque envoi.
+    contact: 'Adresse de contact du cabinet (affichée aux déclarants, copie de chaque message)',
     politique: 'Adresse de la politique de confidentialité du cabinet',
     politiqueAide: 'Adresse https de la page du cabinet ; elle est donnée dans chaque message.',
     declaration: 'Cette politique décrit la diffusion (finalité, base légale, durée, droit d’opposition)',
