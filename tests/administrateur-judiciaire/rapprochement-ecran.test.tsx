@@ -154,15 +154,40 @@ describe('Rapprochement : panneau et « Nouvel arrêté »', () => {
     expect(dansPanneau().getByText('Aucun compte bancaire actif : enregistrer d’abord le compte dans « Comptes bancaires du mandat ».')).toBeInTheDocument()
     expect(dansPanneau().getByRole('button', { name: /Nouvel arrêté/ })).toBeDisabled()
   })
+
+  it('arrêté illisible écrit hors de l’écran : bandeau, et ni « Nouvel arrêté » ni « Clôturer » (refusés tant qu’il reste)', async () => {
+    const illisible = {
+      createdAt: '2026-11-01T08:00:00.000Z',
+      updatedAt: '2026-11-01T08:00:00.000Z',
+      createdBy: null,
+      updatedBy: null,
+      bancaireId: banqueId,
+      statut: 'En cours' as const,
+    }
+    await ajDb.rapprochements.add({ id: 'arrete-externe', ...illisible })
+    await rendre()
+    expect(panneau().textContent).toContain('1 arrêté de la base non affiché')
+    expect(dansPanneau().getByRole('button', { name: /Nouvel arrêté/ })).toBeDisabled()
+    cleanup()
+    await ajDb.rapprochements.clear()
+    await ouvrirArreteCompte(banqueId, { dateArrete: '2026-05-31', soldeBanqueCentimes: 32_950 })
+    await ajDb.rapprochements.add({ id: 'arrete-externe', ...illisible })
+    await rendre()
+    expect(dansPanneau().getByRole('button', { name: 'Clôturer' })).toBeDisabled()
+  })
 })
 
 describe('Rapprochement : clôture et déclôture', () => {
-  it('« Clôturer » hors équilibre : refus du domaine par toast, l’arrêté reste en cours', async () => {
+  it('« Clôturer » hors équilibre : refusé par toast, écart en euros (règle du domaine), l’arrêté reste en cours', async () => {
     await ouvrirArreteCompte(banqueId, { dateArrete: '2026-05-31', soldeBanqueCentimes: 40_000 })
     await rendre()
     expect(panneau().textContent).toContain(`Écart ${formatEurosCentimes(70.5)}`)
     await cliquerEtAttendre(dansPanneau().getByRole('button', { name: 'Clôturer' }))
-    expect(dernierToast()).toEqual({ kind: 'warn', title: 'Clôture refusée', desc: 'Clôture refusée : arrêté non équilibré (écart 7050 centimes).' })
+    expect(dernierToast()).toEqual({
+      kind: 'warn',
+      title: 'Clôture refusée',
+      desc: `Arrêté non équilibré : écart de ${formatEurosCentimes(70.5)}. Clôture possible seulement à l’équilibre.`,
+    })
     expect((await ajDb.rapprochements.toArray())[0].statut).toBe('En cours')
     expect(dansPanneau().getByText('En cours')).toBeInTheDocument()
   })

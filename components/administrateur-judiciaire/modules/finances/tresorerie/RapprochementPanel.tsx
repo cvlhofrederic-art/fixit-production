@@ -70,6 +70,16 @@ function useEcrituresArretes(relire: () => void, fermer: () => void) {
       }
     },
     cloturer: async (arrete: ArreteRapprochement) => {
+      // Règle du domaine (etatArrete), dite en euros comme le panneau ; l'écriture la contrôle encore (cloturerArrete).
+      const { equilibre, ecartCentimes } = etatArrete(arrete)
+      if (!equilibre) {
+        push({
+          kind: 'warn',
+          title: 'Clôture refusée',
+          desc: `Arrêté non équilibré : écart de ${euros(ecartCentimes)}. Clôture possible seulement à l’équilibre.`,
+        })
+        return
+      }
       try {
         await cloturerArreteCompte(arrete.id)
         push({ kind: 'success', title: 'Arrêté clôturé', desc: `Arrêté au ${dateIsoVersFr(arrete.dateArrete)} : clôturé à l’équilibre.` })
@@ -196,7 +206,7 @@ function ContenuArretes({
     <>
       {lus.illisibles > 0 && (
         <Alert kind="rust" title={`${lus.illisibles} arrêté${s} de la base non affiché${s}`}>
-          Sans la forme d’un arrêté : à reprendre dans la base locale. Aucun nouvel arrêté tant qu’il en reste.
+          Sans la forme d’un arrêté : à reprendre dans la base locale. Ni ouverture, ni clôture, ni déclôture tant qu’il en reste.
         </Alert>
       )}
       {courant ? (
@@ -229,7 +239,8 @@ export function RapprochementPanel({ comptes, etatComptes, ecrituresBanque }: Re
   const lus = useArretesRapprochement(compte?.id ?? null, (message) => push({ kind: 'warn', title: 'Arrêtés illisibles', desc: message }))
   const ecritures = useEcrituresArretes(lus.relire, () => setFormulaire(false))
   const courant = arreteCourant(lus.arretes)
-  const pret = compte !== null && !lus.chargement && !lus.erreur
+  // Arrêté illisible sur le compte : ouverture, clôture et déclôture refusées par l'écriture (db/rapprochements.ts).
+  const pret = compte !== null && !lus.chargement && !lus.erreur && lus.illisibles === 0
   // Une écriture à la fois (double clic) ; les écritures signalent elles-mêmes leur échec (toast).
   const lancer = async (action: () => Promise<void>) => {
     if (occupe) return
@@ -261,7 +272,7 @@ export function RapprochementPanel({ comptes, etatComptes, ecrituresBanque }: Re
       }
     >
       <ChoixCompteBancaire label="Compte rapproché" name="rapprochement-compte" etat={etatComptes} actifs={actifs} choisi={compte} choisir={setChoix} />
-      {compte && <ContenuArretes lus={lus} courant={courant} decloturer={(arrete) => void lancer(() => ecritures.decloturer(arrete))} occupe={occupe} />}
+      {compte && <ContenuArretes lus={lus} courant={courant} decloturer={(arrete) => void lancer(() => ecritures.decloturer(arrete))} occupe={occupe || !pret} />}
       {formulaire && compte && (
         <NouvelArreteModal
           key={compte.id}
