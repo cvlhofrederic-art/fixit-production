@@ -79,11 +79,13 @@ describe('Conformité — société BTP', () => {
 
   it('« Voir » ouvre un lien frais créé à partir du chemin enregistré', async () => {
     render(<WalletConformiteSection artisan={artisan} orgRole="pro_societe" />)
+    // Lien frais demandé, puis réponse appliquée à l'écran ; un seul clic ensuite (pas d'action répétée dans waitFor).
+    await waitFor(() => expect(appelsLiens()).toHaveLength(1))
+    await laisserAboutirLesDemandes()
 
-    await waitFor(() => {
-      fireEvent.click(screen.getByTitle('Voir'))
-      expect(window.open).toHaveBeenLastCalledWith(lienFrais(RC_PRO), '_blank', 'noopener,noreferrer')
-    })
+    fireEvent.click(screen.getByTitle('Voir'))
+    expect(window.open).toHaveBeenLastCalledWith(lienFrais(RC_PRO), '_blank', 'noopener,noreferrer')
+    expect(window.open).toHaveBeenCalledTimes(1)
     expect(appelsLiens()).toHaveLength(1)
     expect(JSON.parse(String(appelsLiens()[0][1]?.body))).toEqual({ valeurs: [ancienLien(RC_PRO)] })
   })
@@ -91,13 +93,12 @@ describe('Conformité — société BTP', () => {
   it('« Envoyer le dossier » transmet le lien frais, pas l’ancien', async () => {
     render(<WalletConformiteSection artisan={artisan} orgRole="pro_societe" />)
     await waitFor(() => expect(appelsLiens()).toHaveLength(1))
+    await laisserAboutirLesDemandes()
 
-    await waitFor(() => {
-      fireEvent.click(screen.getByText('📧 proDash.wallet.envoyerLeDossier'))
-      const mailto = decodeURIComponent(String((window.open as unknown as ReturnType<typeof vi.fn>).mock.lastCall?.[0]))
-      expect(mailto).toContain(lienFrais(RC_PRO))
-      expect(mailto).not.toContain(ancienLien(RC_PRO))
-    })
+    fireEvent.click(screen.getByText('📧 proDash.wallet.envoyerLeDossier'))
+    const mailto = decodeURIComponent(String((window.open as unknown as ReturnType<typeof vi.fn>).mock.lastCall?.[0]))
+    expect(mailto).toContain(lienFrais(RC_PRO))
+    expect(mailto).not.toContain(ancienLien(RC_PRO))
   })
 
   it('le stockage du navigateur garde la valeur enregistrée (rien n’est réécrit)', async () => {
