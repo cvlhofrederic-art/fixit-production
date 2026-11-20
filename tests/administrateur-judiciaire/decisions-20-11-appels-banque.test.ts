@@ -13,6 +13,18 @@ import {
   type OptionsDiffusionAvis,
 } from '@/lib/administrateur-judiciaire/domain/avis-appel'
 import { creerReglagesComptesCabinet } from '@/lib/administrateur-judiciaire/domain/comptes-bancaires'
+import * as moduleConservation from '@/lib/administrateur-judiciaire/domain/conservation-documents-ged'
+import {
+  CONSERVATION_PIECES_JUSTIFICATIVES,
+  LIBELLE_ARCHIVE_PERMANENTE,
+  LIBELLE_DUREE_NON_FIXEE,
+  LIBELLE_REMISE_AU_SUCCESSEUR,
+  POINTS_DEPART_CONSERVATION,
+  REGLE_CONSERVATION_PAR_DEFAUT,
+  creerRegleConservation,
+  echeanceConservation,
+  type PointDepartConservation,
+} from '@/lib/administrateur-judiciaire/domain/conservation-documents-ged'
 import {
   TRACE_APPEL_SANS_ECRITURE,
   annulerAppelees,
@@ -64,6 +76,7 @@ import {
   type PosteDette,
 } from '@/lib/administrateur-judiciaire/domain/imputation-encaissements'
 import { creerOrdreVirement, creerRemiseCheques, genererPain001, type LigneVirement } from '@/lib/administrateur-judiciaire/domain/ordres-banque'
+import type { DocumentGed } from '@/lib/administrateur-judiciaire/domain/pieces-obligatoires-ged'
 import { genererPain008, preparerLotPrelevements } from '@/lib/administrateur-judiciaire/domain/prelevements-sepa'
 import type { ArreteRapprochement } from '@/lib/administrateur-judiciaire/domain/rapprochement-bancaire'
 import {
@@ -77,6 +90,7 @@ import {
 } from '@/lib/administrateur-judiciaire/domain/regularisation-charges'
 import { avisDAppel, creerCleRepartition, traitementAppelDeFonds, type EcheanceAppel } from '@/lib/administrateur-judiciaire/domain/repartition-appels'
 import { annulerTraitement, creerTraitement, type Traitement } from '@/lib/administrateur-judiciaire/domain/traitements'
+import { codeTypeDocument, creerReferenceTypeDocument } from '@/lib/administrateur-judiciaire/domain/typologie-documents'
 import {
   MENTION_NON_VALIDE_PAR_LA_BANQUE,
   controlerValidationBanque,
@@ -1172,6 +1186,126 @@ describe('F119 — solde de régularisation : 15 jours seulement proposés (« u
     expect(ouvert).not.toMatch(/Faut-il proposer quinze jours après la date de passage/)
     expect(item('- Décision du 20/11/2026 (partie C, F119)')).toMatch(
       /pas une règle.*reste à remplir.*15 jours.*« usage observé chez Gestéam, aucun texte ».*assemblée.*administrateur provisoire.*c'est elle qui vaut/,
+    )
+  })
+})
+
+// ─── F126, F127 : conservation des documents de la GED ───────────────────────────────────────
+
+const docGed = (categorie: string, type: string, date = '2026-03-31'): DocumentGed => ({
+  id: 'd1',
+  entiteType: 'copropriete',
+  entiteId: 'c1',
+  type: codeTypeDocument(creerReferenceTypeDocument(categorie, type), 'copropriete'),
+  date,
+})
+const FACTURE_GED = docGed('Fournisseur', 'Facture/avoir fournisseur')
+const PV_GED = docGed('Base', "Procès-verbal d'assemblée")
+const CARNET_GED = docGed('Base', "Carnet d'entretien")
+
+describe('F126 — pièces justificatives : 10 ans à compter de la clôture de l’exercice, par défaut ; rien ne joue pendant la mission ; remise au successeur', () => {
+  it('règle par défaut : 120 mois, à compter de la clôture de l’exercice, sans option « approbation des comptes »', () => {
+    expect(REGLE_CONSERVATION_PAR_DEFAUT).toEqual({
+      cible: { categorie: null, type: null },
+      dureeMois: 120,
+      pointDepart: 'cloture_exercice',
+      fondement: 'D. 2005-240 art. 6, al. 1 ; règle par défaut, décision du 20/11/2026 (partie C, F126)',
+    })
+    const points: PointDepartConservation[] = ['date_document', 'cloture_exercice', 'fin_mandat']
+    expect(POINTS_DEPART_CONSERVATION).toEqual(points)
+  })
+
+  it('sans règle du cabinet, une pièce justificative suit la règle par défaut : fin = clôture + 10 ans ; clôture inconnue, point de départ absent', () => {
+    expect(echeanceConservation(FACTURE_GED, [], { clotureExercice: '2026-12-31' })).toEqual({
+      statut: 'reglee',
+      dateFin: '2036-12-31',
+      regle: REGLE_CONSERVATION_PAR_DEFAUT,
+      texte: CONSERVATION_PIECES_JUSTIFICATIVES,
+      inferieureAuTexte: false,
+      parDefaut: true,
+    })
+    expect(echeanceConservation(FACTURE_GED, [])).toEqual({
+      statut: 'point_depart_absent',
+      regle: REGLE_CONSERVATION_PAR_DEFAUT,
+      texte: CONSERVATION_PIECES_JUSTIFICATIVES,
+      parDefaut: true,
+    })
+    expect(echeanceConservation(PV_GED, [], { rattacheAUnTraitement: true, clotureExercice: '2026-12-31' })).toMatchObject({
+      statut: 'reglee',
+      dateFin: '2036-12-31',
+      parDefaut: true,
+    })
+  })
+
+  it('une règle du cabinet l’emporte sur la règle par défaut', () => {
+    const regle = creerRegleConservation({ type: 'Facture/avoir fournisseur', dureeMois: 120, pointDepart: 'date_document' })
+    const echeance = echeanceConservation(FACTURE_GED, [regle], { clotureExercice: '2026-12-31' })
+    expect(echeance).toMatchObject({ statut: 'reglee', dateFin: '2036-03-31', regle })
+    expect(echeance).not.toHaveProperty('parDefaut')
+  })
+
+  it('aucune échéance ne joue pendant la mission ; à la fin, « remise au successeur en fin de mission » ; aucune purge', () => {
+    expect(LIBELLE_REMISE_AU_SUCCESSEUR).toBe('remise au successeur en fin de mission')
+    expect(CONSERVATION_PIECES_JUSTIFICATIVES).toMatchObject({
+      dureeMois: 120,
+      pointDepart: null,
+      pendantLaMission: 'aucune échéance ne joue pendant la mission',
+      finDeMission: 'remise au successeur en fin de mission',
+    })
+    expect(CONSERVATION_PIECES_JUSTIFICATIVES.fondementFinDeMission).toMatch(/D\. 2005-240 art\. 6, al\. 2.*L\. 1965 art\. 18-2/)
+    expect(Object.keys(moduleConservation).filter((nom) => /purg|supprim|detrui/i.test(nom))).toEqual([])
+  })
+})
+
+describe('F127 — autres archives : « durée non fixée par le texte », à conserver pendant la mission puis à remettre au successeur ; archives permanentes', () => {
+  it('sans règle du cabinet : libellé complété ; durée des copies gardées après la mission à fixer par le cabinet', () => {
+    expect(LIBELLE_DUREE_NON_FIXEE).toBe(
+      'durée non fixée par le texte : à conserver pendant la mission, puis à remettre au successeur dans le mois (L. 1965 art. 18-2)',
+    )
+    expect(echeanceConservation(CARNET_GED, [])).toEqual({
+      statut: 'non_reglee',
+      texte: null,
+      libelle: LIBELLE_DUREE_NON_FIXEE,
+      archivePermanente: false,
+      copiesApresMission: 'copies gardées après la mission : durée à fixer par le cabinet',
+    })
+  })
+
+  it('règlement de copropriété, registre des procès-verbaux et décisions de justice : ne se purgent pas, se transmettent', () => {
+    expect(LIBELLE_ARCHIVE_PERMANENTE).toBe('archive permanente du syndicat : ne se purge pas, se transmet au successeur')
+    for (const [categorie, type] of [
+      ['Base', "Procès-verbal d'assemblée"],
+      ['Base', "Procès-verbal d'assemblée signé"],
+      ['Étude notariale', 'Règlement de copropriété (règlement, modificatifs)'],
+      ['Tribunal', 'Jugement'],
+      ["Cabinet d'avocat", 'Jugement'],
+      ['Tribunal', 'Ordonnance de désignation'],
+    ] as const) {
+      const echeance = echeanceConservation(docGed(categorie, type), [])
+      expect(echeance, type).toMatchObject({ statut: 'non_reglee', archivePermanente: true, libelle: LIBELLE_DUREE_NON_FIXEE })
+    }
+    expect(echeanceConservation(docGed('Fournisseur', 'Devis fournisseur'), [])).toMatchObject({ statut: 'non_reglee', archivePermanente: false })
+  })
+
+  it('aucune durée inventée : une règle du cabinet reste seule à fixer une échéance pour ces archives', () => {
+    const regle = creerRegleConservation({ categorie: 'Base', type: "Procès-verbal d'assemblée", dureeMois: 360, pointDepart: 'date_document' })
+    expect(echeanceConservation(PV_GED, [regle])).toMatchObject({ statut: 'reglee', dateFin: '2056-03-31' })
+  })
+})
+
+describe('F126, F127 — en-tête de la conservation : les décisions remplacent les marques 🔴', () => {
+  it('décisions citées ; les deux questions ne sont plus en 🔴 ; reste la durée des copies du cabinet', () => {
+    const { texte, item } = enTeteDuModule('conservation-documents-ged')
+    const ouvert = texte.slice(texte.indexOf('🔴 Non établi'))
+    expect(ouvert).not.toMatch(/court-il, pour le cabinet/)
+    expect(ouvert).not.toMatch(/durée interne pour les autres archives \(RC\/EDD/)
+    expect(ouvert).toMatch(/copies gardées par le cabinet après la mission/)
+    expect(texte).not.toMatch(/AUCUNE durée par défaut/)
+    expect(item('- Décision du 20/11/2026 (partie C, F126)')).toMatch(
+      /10 ans courent de la clôture de l'exercice.*sans option « approbation des comptes ».*Aucune échéance ne joue pendant la mission.*« remise au successeur en fin de mission ».*aucune purge/,
+    )
+    expect(item('- Décision du 20/11/2026 (partie C, F127)')).toMatch(
+      /« durée non fixée par le texte ».*« à conserver pendant la mission, puis à remettre au successeur dans le mois \(L\. 1965 art\. 18-2\) ».*ne se purgent pas mais se transmettent.*copies.*à fixer par le cabinet/,
     )
   })
 })

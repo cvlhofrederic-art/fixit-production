@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
   CONSERVATION_PIECES_JUSTIFICATIVES,
+  LIBELLE_COPIES_APRES_MISSION,
+  LIBELLE_DUREE_NON_FIXEE,
   MODELES_PIECES_JUSTIFICATIVES,
+  REGLE_CONSERVATION_PAR_DEFAUT,
   creerRegleConservation,
   dureeConservationDuTexte,
   echeanceConservation,
@@ -14,8 +17,9 @@ import { enTeteDuModule } from './en-tete-module'
 
 /**
  * Durées de conservation de la GED (point 64 du bilan 2). Seule durée trouvée dans les textes relus : 10 ans pour les
- * pièces justificatives comptables (D. 2005-240 art. 6), point de départ non fixé. Aucune durée par défaut : réglage du
- * cabinet (comme D-BANQUE).
+ * pièces justificatives comptables (D. 2005-240 art. 6), point de départ non fixé par le texte. Décisions du 20/11/2026
+ * (partie C, F126, F127) : règle par défaut des pièces justificatives, 10 ans à compter de la clôture de l'exercice ;
+ * pour les autres archives, « durée non fixée par le texte », aucune durée inventée.
  */
 
 const doc = (categorie: string, type: string, date = '2026-03-31'): DocumentGed => ({
@@ -31,12 +35,15 @@ const PV = doc('Base', "Procès-verbal d'assemblée")
 const CARNET = doc('Base', "Carnet d'entretien")
 
 describe('durée fixée par le texte', () => {
-  it('pièces justificatives comptables : 10 ans, point de départ non fixé, sous réserve', () => {
+  it('pièces justificatives comptables : 10 ans, point de départ non fixé par le texte, sous réserve ; fin de mission (F126)', () => {
     expect(CONSERVATION_PIECES_JUSTIFICATIVES).toEqual({
       dureeMois: 120,
       fondement: 'D. 2005-240 art. 6, al. 1',
       reserve: 'sauf dispositions expresses contraires',
       pointDepart: null,
+      pendantLaMission: 'aucune échéance ne joue pendant la mission',
+      finDeMission: 'remise au successeur en fin de mission',
+      fondementFinDeMission: 'D. 2005-240 art. 6, al. 2 ; L. 1965 art. 18-2 (décision du 20/11/2026, partie C, F126)',
     })
   })
 
@@ -82,7 +89,13 @@ describe('durée fixée par le texte', () => {
 
   it('J67, R118 : tout document rattaché à un traitement comme sa pièce est une pièce justificative, quel que soit son type', () => {
     expect(dureeConservationDuTexte({ categorie: 'Base', type: "Procès-verbal d'assemblée" }, { rattacheAUnTraitement: true })).toBe(CONSERVATION_PIECES_JUSTIFICATIVES)
-    expect(echeanceConservation(PV, [], { rattacheAUnTraitement: true })).toEqual({ statut: 'non_reglee', texte: CONSERVATION_PIECES_JUSTIFICATIVES })
+    // Décision du 20/11/2026 (partie C, F126) : sans règle du cabinet, la règle par défaut (clôture de l'exercice + 10 ans).
+    expect(echeanceConservation(PV, [], { rattacheAUnTraitement: true })).toEqual({
+      statut: 'point_depart_absent',
+      regle: REGLE_CONSERVATION_PAR_DEFAUT,
+      texte: CONSERVATION_PIECES_JUSTIFICATIVES,
+      parDefaut: true,
+    })
     expect(echeanceConservation({ ...PV, type: 'Pièce libre' }, [], { rattacheAUnTraitement: true })).toEqual({
       statut: 'non_classe',
       texte: CONSERVATION_PIECES_JUSTIFICATIVES,
@@ -94,11 +107,12 @@ describe('durée fixée par le texte', () => {
     })
   })
 
-  it('en-tête : la question « quels types sont des pièces justificatives » est tranchée (J67, R118) ; les autres restent ouvertes', () => {
+  it('en-tête : la question « quels types sont des pièces justificatives » est tranchée (J67, R118), les deux autres aussi (F126, F127)', () => {
     const { texte } = enTeteDuModule('conservation-documents-ged')
     expect(texte).not.toContain('« Quels types GED sont des pièces justificatives comptables au sens du D. 2005-240 art. 6 ? »')
     expect(texte).toMatch(/Décision J67, R118 de Hugo .* : tout document lié à une écriture comptable \(un traitement\) comme sa pièce/)
-    expect(texte).toMatch(/🔴 Non établi.*court-il, pour le cabinet.*durée interne pour les autres archives/)
+    expect(texte).not.toMatch(/court-il, pour le cabinet/)
+    expect(texte).toMatch(/Décision du 20\/11\/2026 \(partie C, F126\).*Décision du 20\/11\/2026 \(partie C, F127\)/)
   })
 })
 
@@ -156,9 +170,20 @@ describe('échéance de conservation', () => {
   const base = creerRegleConservation({ categorie: 'Base', dureeMois: 60, pointDepart: 'date_document' })
   const pv = creerRegleConservation({ categorie: 'Base', type: "Procès-verbal d'assemblée", dureeMois: 360, pointDepart: 'date_document' })
 
-  it('sans règle du cabinet : non réglée, même quand le texte fixe une durée (point de départ 🔴)', () => {
-    expect(echeanceConservation(FACTURE, [])).toEqual({ statut: 'non_reglee', texte: CONSERVATION_PIECES_JUSTIFICATIVES })
-    expect(echeanceConservation(PV, [parType])).toEqual({ statut: 'non_reglee', texte: null })
+  it('sans règle du cabinet : règle par défaut pour une pièce justificative (F126), « durée non fixée par le texte » sinon (F127)', () => {
+    expect(echeanceConservation(FACTURE, [])).toEqual({
+      statut: 'point_depart_absent',
+      regle: REGLE_CONSERVATION_PAR_DEFAUT,
+      texte: CONSERVATION_PIECES_JUSTIFICATIVES,
+      parDefaut: true,
+    })
+    expect(echeanceConservation(PV, [parType])).toEqual({
+      statut: 'non_reglee',
+      texte: null,
+      libelle: LIBELLE_DUREE_NON_FIXEE,
+      archivePermanente: true,
+      copiesApresMission: LIBELLE_COPIES_APRES_MISSION,
+    })
   })
 
   it('réglée par type, à partir de la date du document', () => {
