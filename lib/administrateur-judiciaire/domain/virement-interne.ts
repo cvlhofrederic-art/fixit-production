@@ -117,7 +117,24 @@ import type { FicheValidationBanque } from '@/lib/administrateur-judiciaire/doma
  *   compte séparé du fonds : art. 18, II, al. 4). Un placement non réservé au fonds reste refusé. Les intérêts restent
  *   acquis au syndicat, hors des parts des lots (fonds-travaux-lots.ts, J67, R88).
  *
- * Décisions du 20/11/2026 (partie C, recommandations acceptées par le responsable du projet) :
+ * Décisions du 20/11/2026 (partie C du relevé des questions ouvertes du code, recommandations acceptées par le
+ * responsable du projet) :
+ * - Décision du 20/11/2026 (partie C, F95), même question que G28 (partie B) : la loi autorise les virements du compte
+ *   courant vers le compte du fonds et ne dit rien des sorties (L. 1965 art. 18, II, al. 4) ; une sortie est un emploi,
+ *   qui exige une affectation (art. 14-2-1, I, al. 7). Par défaut, la facture se paie directement depuis le compte du
+ *   fonds : une seule sortie, traçable, sous contrôle d'affectation (travaux-budget.ts,
+ *   controlerReglementDepuisLeFondsOperation). Le virement vers le compte courant reste admis, pour le seul montant
+ *   affecté (plafondAffectation, fourni par l'appelant : la décision d'affectation ne porte pas de montant ; absent, non
+ *   contrôlé et signalé dans alertes) et avec la référence de la décision (emploiFondsTravaux) ; il est alors marqué
+ *   « emploi » (marque), et la facture payée ensuite s'y rattache (rattacherReglementAuVirementEmploi) ;
+ * - Décision du 20/11/2026 (partie C, F96) : en administration provisoire, la décision de l'administrateur qui affecte
+ *   le fonds sous l'art. 29-1 se saisit dans la troisième forme structurée « décision de l'administrateur provisoire »
+ *   (fonds-travaux.ts, DecisionAdministrateurProvisoire, dans decisionAg) : l'ordonnance de l'art. 29-1 (juridiction,
+ *   date, n°) et la case « pouvoirs de l'AG confiés », la date et le n° de la décision au registre des décisions (D. 1967
+ *   art. 62-8), l'avis du conseil syndical ou le constat d'urgence (art. 62-7 ; J16, J46) ; contrôlée à la saisie comme
+ *   les autres formes (J30 : date jamais postérieure au jour), copiée en profondeur avec l'emploi ; la date comparée à la
+ *   dépense est celle de la décision (fonds-travaux-lots.ts). Sous l'art. 29-1, ce n'est pas l'ordonnance qui affecte le
+ *   fonds : c'est l'administrateur qui décide, avec les pouvoirs qu'elle lui confie ;
  * - Décision du 20/11/2026 (partie C, F103) : le fichier pain.001 d'un virement interne reçoit la fiche « validation
  *   banque » du compte source (fichierVirementInterne, option validationBanque) ; sans elle, il porte la mention « non
  *   validé par la banque » (validation-banque.ts) ;
@@ -145,7 +162,7 @@ import type { FicheValidationBanque } from '@/lib/administrateur-judiciaire/doma
  * - sortie du fonds vers un autre compte : elle se rattache à un emploi du fonds, contrôlé par
  *   controlerAffectationFondsTravaux (fonds-travaux.ts, J4) : décision d'affectation de l'assemblée, ou ordonnance du
  *   juge (art. 29-14, 2°) ; en administration provisoire, la décision de l'administrateur qui a reçu les pouvoirs de
- *   l'assemblée (art. 29-1) se cite dans sa forme structurée (F96, ci-dessous), pour les seules dépenses du I, 1° à 4°
+ *   l'assemblée (art. 29-1) se cite dans sa forme structurée (F96, ci-dessus), pour les seules dépenses du I, 1° à 4°
  *   (decisionAg) : l'assemblée ne pouvant affecter le
  *   fonds qu'à ces dépenses, le redressement ou le maintien de la gestion courante exigent l'ordonnance de l'art. 29-14,
  *   2° (autorisationJuge) ;
@@ -165,24 +182,6 @@ import type { FicheValidationBanque } from '@/lib/administrateur-judiciaire/doma
  *   passée ici ;
  * - même IBAN pour deux comptes : un seul compte bancaire ; avec le fonds de travaux, il serait confondu (art. 18, II,
  *   al. 4).
- * Décisions du 20/11/2026 (partie C du relevé des questions ouvertes du code, recommandations acceptées par le
- * responsable du projet) :
- * - Décision du 20/11/2026 (partie C, F95), même question que G28 (partie B) : la loi autorise les virements du compte
- *   courant vers le compte du fonds et ne dit rien des sorties (L. 1965 art. 18, II, al. 4) ; une sortie est un emploi,
- *   qui exige une affectation (art. 14-2-1, I, al. 7). Par défaut, la facture se paie directement depuis le compte du
- *   fonds : une seule sortie, traçable, sous contrôle d'affectation (travaux-budget.ts,
- *   controlerReglementDepuisLeFondsOperation). Le virement vers le compte courant reste admis, pour le seul montant
- *   affecté (plafondAffectation, fourni par l'appelant : la décision d'affectation ne porte pas de montant ; absent, non
- *   contrôlé et signalé dans alertes) et avec la référence de la décision (emploiFondsTravaux) ; il est alors marqué
- *   « emploi » (marque), et la facture payée ensuite s'y rattache (rattacherReglementAuVirementEmploi) ;
- * - Décision du 20/11/2026 (partie C, F96) : en administration provisoire, la décision de l'administrateur qui affecte
- *   le fonds sous l'art. 29-1 se saisit dans la troisième forme structurée « décision de l'administrateur provisoire »
- *   (fonds-travaux.ts, DecisionAdministrateurProvisoire, dans decisionAg) : l'ordonnance de l'art. 29-1 (juridiction,
- *   date, n°) et la case « pouvoirs de l'AG confiés », la date et le n° de la décision au registre des décisions (D. 1967
- *   art. 62-8), l'avis du conseil syndical ou le constat d'urgence (art. 62-7 ; J16, J46) ; contrôlée à la saisie comme
- *   les autres formes (J30 : date jamais postérieure au jour), copiée en profondeur avec l'emploi ; la date comparée à la
- *   dépense est celle de la décision (fonds-travaux-lots.ts). Sous l'art. 29-1, ce n'est pas l'ordonnance qui affecte le
- *   fonds : c'est l'administrateur qui décide, avec les pouvoirs qu'elle lui confie.
  *
  * 🔴 Non établi (à trancher par Frédéric ou Hugo) :
  * - Frédéric : un compte repris qui tenait le fonds de travaux se distingue-t-il dans Gestéam (tranche 29 : un seul

@@ -408,6 +408,10 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   blocage reste ; la décennale obligatoire reste bloquante.
  *
  * Décisions du 20/11/2026 (partie C des questions ouvertes du code, recommandations acceptées) :
+ * - Décision du 20/11/2026 (partie C, F67) : une opération de travaux « Rejeté » (résolution annulée en justice ou
+ *   rapportée par une nouvelle assemblée, ou projet rejeté) n'admet plus aucun ordre de service : l'OS dont l'opération
+ *   est fournie (budgetTravaux) est bloqué (operation_travaux_rejetee ; refusAppelOuOrdreDeServiceOperation,
+ *   travaux-operations.ts ; L. 1965 art. 42, al. 2) ;
  * - Décision du 20/11/2026 (partie C, F77) : quand la liste des signataires habilités du cabinet est fournie
  *   (signatairesHabilites, J18 ; aussi dans les options du visa), un constat d'urgence fait par une personne qui n'y
  *   figure pas, et qui n'est pas l'administrateur désigné, ne vaut pas constat : l'urgence n'est pas retenue
@@ -546,11 +550,6 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   syndical) n'est en vigueur à la date de la décision du conseil (J67, R69) ;
  * - majorité de la résolution exécutée : « art25 » aussi pour une décision de l'art. 25 adoptée au second vote de l'art.
  *   25-1.
- *
- * Décision du 20/11/2026 (partie C, F67), recommandation acceptée par le responsable du projet : une opération de travaux
- * « Rejeté » (résolution annulée en justice ou rapportée par une nouvelle assemblée, ou projet rejeté) n'admet plus aucun
- * ordre de service : l'OS dont l'opération est fournie (budgetTravaux) est bloqué (operation_travaux_rejetee ;
- * refusAppelOuOrdreDeServiceOperation, travaux-operations.ts ; L. 1965 art. 42, al. 2).
  *
  * 🔴 Non établi — questions :
  * - Hugo, avec un juriste (J67, R72 appliquée ; marque gardée, comme R72 le demande) : aucun texte ni arrêt lu ne dit
