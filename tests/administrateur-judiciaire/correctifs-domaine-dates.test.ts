@@ -3,7 +3,17 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { genererActeJuge, type ActeJugeRedige } from '@/lib/administrateur-judiciaire/domain/actes/actes-juge'
-import { estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
+import {
+  ajouterJours,
+  composerDateIso,
+  dateIsoVersUtcMs,
+  decomposerDateIso,
+  ecartJours,
+  estDateIsoValide,
+  joursDansMois,
+  jourSemaine,
+  utcMsVersDateIso,
+} from '@/lib/administrateur-judiciaire/domain/dates'
 import {
   calculerEcheancesCopropriete,
   construireContexteMandat,
@@ -220,5 +230,87 @@ describe('constat 13 — Fixy interrogé sur une copropriété sans mandat', () 
     expect(repondreDemandeFixy(intention('LM', lm.vue.nom), donnees(lm)).lignes[1]).toMatch(
       /^Ordonnance du 11\/03\/2026 · 12 mois · /,
     )
+  })
+})
+
+/**
+ * Date.UTC ramène les années 0 à 99 au XXe siècle (Date.UTC(26, 2, 15) donne le 15/03/1926) : avant le correctif,
+ * ajouterJours, ecartJours et jourSemaine calculaient sur 1900 à 1999 pour toute date saisie en 0000 à 0099.
+ * Deux oracles indépendants du code : Date.parse, qui lit une date ISO « AAAA-MM-JJ » en UTC sans toucher à l'année,
+ * et le cycle grégorien (2000 ans = cinq cycles de 400 ans = 730 485 jours, multiple de 7 : même jour de la semaine).
+ */
+describe('années 0000 à 0099 : les calculs restent dans l’année saisie', () => {
+  /** Toutes les dates des années `de` à `jusqua`, dans l'ordre du calendrier. */
+  const datesDesAnnees = (de: number, jusqua: number): string[] => {
+    const dates: string[] = []
+    for (let annee = de; annee <= jusqua; annee++)
+      for (let mois = 1; mois <= 12; mois++)
+        for (let jour = 1; jour <= joursDansMois(annee, mois); jour++) dates.push(composerDateIso(annee, mois, jour))
+    return dates
+  }
+  const deplacerAnnee = (dateIso: string, ecart: number): string => {
+    const { a, m, j } = decomposerDateIso(dateIso)
+    return composerDateIso(a + ecart, m, j)
+  }
+
+  it('ajouterJours : 15/03/0026 + 15 jours donne le 30/03/0026, pas le 30/03/1926', () => {
+    expect(ajouterJours('0026-03-15', 15)).toBe('0026-03-30')
+    expect(ajouterJours('0026-03-30', -15)).toBe('0026-03-15')
+    expect(ajouterJours('0000-01-01', 0)).toBe('0000-01-01')
+    expect(ajouterJours('0000-02-28', 1)).toBe('0000-02-29')
+    expect(ajouterJours('0099-12-31', 1)).toBe('0100-01-01')
+    expect(ajouterJours('0100-01-01', -1)).toBe('0099-12-31')
+  })
+
+  it('ecartJours : jours réels, y compris d’une année 0000 à 0099 vers une année ordinaire', () => {
+    expect(ecartJours('0026-03-15', '0026-03-30')).toBe(15)
+    expect(ecartJours('0099-12-31', '0100-01-01')).toBe(1)
+    expect(ecartJours('0000-01-01', '0099-12-31')).toBe(36_524)
+    expect(ecartJours('0026-03-15', '2026-03-15')).toBe(730_485)
+    expect(ecartJours('2026-03-15', '0026-03-15')).toBe(-730_485)
+  })
+
+  it('jourSemaine : 01/01/0000 samedi, 01/01/0001 lundi, 15/03/0026 dimanche, 31/12/0099 jeudi', () => {
+    expect(jourSemaine('0000-01-01')).toBe(6)
+    expect(jourSemaine('0001-01-01')).toBe(1)
+    expect(jourSemaine('0026-03-15')).toBe(0)
+    expect(jourSemaine('0099-12-31')).toBe(4)
+  })
+
+  it('chaque jour du 01/01/0000 au 31/12/0099 : instant de Date.parse, aller-retour, et mêmes résultats que 2000 ans plus tard', () => {
+    const ecarts = datesDesAnnees(0, 99).filter((date) => {
+      const ms = dateIsoVersUtcMs(date)
+      const plus2000 = deplacerAnnee(date, 2000)
+      return (
+        ms !== Date.parse(date) ||
+        utcMsVersDateIso(ms) !== date ||
+        jourSemaine(date) !== jourSemaine(plus2000) ||
+        ajouterJours(date, 15) !== deplacerAnnee(ajouterJours(plus2000, 15), -2000) ||
+        ecartJours(date, plus2000) !== 730_485
+      )
+    })
+    expect(ecarts.slice(0, 3)).toEqual([])
+  })
+
+  it('sortie du calendrier par le bas : la veille du 01/01/0000 n’est plus une date valide (comme le lendemain du 31/12/9999)', () => {
+    expect(estDateIsoValide(ajouterJours('0000-01-01', -1))).toBe(false)
+    expect(ajouterJours('9999-12-31', 1)).toBe('10000-01-01')
+  })
+
+  it('années 0100 à 9999 : même instant qu’avant le correctif (Date.UTC), chaque jour de 1900 à 2100 et trois jours par an ailleurs', () => {
+    const instantAvant = (dateIso: string): number => {
+      const { a, m, j } = decomposerDateIso(dateIso)
+      return Date.UTC(a, m - 1, j)
+    }
+    const dates = [
+      ...datesDesAnnees(1900, 2100),
+      ...Array.from({ length: 9900 }, (_, i) => 100 + i).flatMap((annee) =>
+        [composerDateIso(annee, 1, 1), composerDateIso(annee, 2, joursDansMois(annee, 2)), composerDateIso(annee, 12, 31)],
+      ),
+    ]
+    expect(dates.filter((date) => dateIsoVersUtcMs(date) !== instantAvant(date)).slice(0, 3)).toEqual([])
+    expect(ajouterJours('2026-03-15', 15)).toBe('2026-03-30')
+    expect(ecartJours('1900-01-01', '9999-12-31')).toBe(2_958_463)
+    expect(jourSemaine('2026-11-19')).toBe(4)
   })
 })
