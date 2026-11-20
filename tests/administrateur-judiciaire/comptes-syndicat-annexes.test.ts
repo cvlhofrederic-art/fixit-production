@@ -19,6 +19,7 @@ import {
   repriseSoldeTravauxALOuverture,
   virementProvisionsTravauxALaRealisation,
 } from '@/lib/administrateur-judiciaire/domain/travaux-operations'
+import { enTeteDuModule } from './en-tete-module'
 
 /**
  * Annexes 1 à 5 des comptes du syndicat (décret n° 2005-240 du 14 mars 2005, art. 8 à 10 et annexes, modèles du JO
@@ -780,5 +781,137 @@ describe('cas limites', () => {
   it('opération ou catégorie fournie deux fois : refusée', () => {
     expect(() => annexesComptesSyndicat({ ...entree2026, operations: [op42Termine, op42Termine] })).toThrow(/00042/)
     expect(() => annexesComptesSyndicat({ ...entree2026, categoriesCharges: [...CATEGORIES, { cle: 'GEN', libelle: 'Doublon' }] })).toThrow(/GEN/)
+  })
+})
+
+// ─── Relecture du 20/11/2026 ──────────────────────────────────────────────────────────────────
+
+describe('relecture — opération sur deux clés : le virement 102 → 702 du domaine porte la clé de la charge', () => {
+  const op50 = creerOperationTravaux({
+    numero: '00050',
+    coproprieteId: 'copro-tilleuls-fictive',
+    libelle: 'Toiture et ascenseur',
+    cleId: 'GEN',
+    cles: [
+      { cleId: 'GEN', budgetTtcCentimes: 600_000 },
+      { cleId: 'ASC', budgetTtcCentimes: 400_000 },
+    ],
+    decision: { date: '2026-02-01', resolution: 'Résolution 3' },
+    budgetTtcCentimes: 1_000_000,
+    financementFondsTravauxCentimes: 0,
+    affectationFonds: null,
+    tranches: [{ date: '2026-03-01', tauxPct: 100 }],
+  })
+  const OP50 = { op: '00050' }
+  const appelEtFacture = [
+    t('50-appel', 'Appel de fonds', '2026-03-01', [[A, 'debit', 500_000], [B, 'debit', 300_000], [C, 'debit', 200_000], [cpt('10200', '00050'), 'credit', 1_000_000, OP50]]),
+    t('50-fact', 'Saisie de factures', '2026-06-30', [
+      [cpt('67100', '00050'), 'debit', 600_000, { cle: 'GEN', op: '00050' }],
+      [cpt('67100', '00050'), 'debit', 400_000, { cle: 'ASC', op: '00050' }],
+      [F('TOITX'), 'credit', 1_000_000, OP50],
+    ]),
+  ]
+  const entree50 = (virements: Traitement[]): EntreeAnnexes => ({
+    exercice: EX2026,
+    exercicePrecedent: null,
+    traitements: [...appelEtFacture, ...virements],
+    budgets: { voteN: null, voteNPlus1: null, aVoterNPlus2: null },
+    operations: [op50],
+    categoriesCharges: CATEGORIES,
+  })
+
+  it('annexe 4 (note 3) et annexe 5 (note 1) : provisions virées détaillées par clé, aucune ligne « sans clé »', () => {
+    // Une charge par ligne de la facture ventilée : un virement par ligne, avec sa clé ; le 102 de l'opération fait 10 000 €.
+    const contexte = { date: '2026-06-30', segmentSyndicat: 'TILL' }
+    const virGen = virementProvisionsTravauxALaRealisation(op50, { ...contexte, id: '50-vir-gen', chargeCentimes: 600_000, solde102Centimes: 1_000_000, cleId: 'GEN' })
+    const virAsc = virementProvisionsTravauxALaRealisation(op50, { ...contexte, id: '50-vir-asc', chargeCentimes: 400_000, solde102Centimes: 400_000, cleId: 'ASC' })
+    if (!virGen.traitement || !virAsc.traitement) throw new Error('virements attendus')
+    expect([...virGen.traitement.mouvements, ...virAsc.traitement.mouvements].map((m) => m.attributs?.cle)).toEqual(['GEN', 'GEN', 'ASC', 'ASC'])
+    const r = annexesComptesSyndicat(entree50([virGen.traitement, virAsc.traitement]))
+    // GEN : 6 000 votés, 6 000 dépensés, 6 000 virés du 102 → solde nul ; ASC : 4 000, 4 000, 4 000.
+    expect(r.annexe4.travaux[0].cles.map((g) => [g.cle, ...m4(g.montants)])).toEqual([
+      ['GEN', 600_000, 600_000, 600_000, 0],
+      ['ASC', 400_000, 400_000, 400_000, 0],
+    ])
+    expect(r.annexe5.lignes[0].parCle.map((k) => [k.cle, k.votesCentimes, k.realisesCentimes, k.provisionsEtFinancementsCentimes, k.soldeEnAttenteCentimes])).toEqual([
+      ['GEN', 600_000, 600_000, 600_000, 0],
+      ['ASC', 400_000, 400_000, 400_000, 0],
+    ])
+    expect(r.anomalies.map((a) => a.code)).not.toContain('mouvement_sans_cle')
+  })
+
+  it('un 702 sans clé sur une opération à plusieurs clés (reprise d’un autre logiciel) : « sans clé » et anomalie, sans ventilation inventée', () => {
+    const repris = t('50-vir-repris', 'Saisie de mouvements', '2026-06-30', [[cpt('10200', '00050'), 'debit', 1_000_000, OP50], [cpt('70200', '00050'), 'credit', 1_000_000, OP50]])
+    const r = annexesComptesSyndicat(entree50([repris]))
+    expect(r.annexe4.travaux[0].cles.map((g) => [g.cle, ...m4(g.montants)])).toEqual([
+      ['GEN', 600_000, 600_000, 0, -600_000],
+      ['ASC', 400_000, 400_000, 0, -400_000],
+      [null, null, 0, 1_000_000, 1_000_000],
+    ])
+    expect(r.anomalies.map((a) => a.code)).toContain('mouvement_sans_cle')
+  })
+})
+
+describe('relecture — 706-1 et 703, qui peuvent financer du courant (arrêté du 14 mars 2005, art. 7 et 10)', () => {
+  const avec = (lignes: Ligne[]) =>
+    annexesComptesSyndicat({
+      exercice: EX2026,
+      exercicePrecedent: null,
+      traitements: [t('x', 'Saisie de mouvements', '2026-05-01', lignes)],
+      budgets: { voteN: null, voteNPlus1: null, aVoterNPlus2: null },
+      operations: [],
+      categoriesCharges: CATEGORIES,
+    })
+
+  it('un 7061 présenté en produits pour travaux (modèle du décret) est signalé : présentation à confirmer', () => {
+    const r = avec([[A, 'debit', 50_000], [cpt('70610'), 'credit', 50_000, GEN]])
+    expect(r.annexe2.travauxEtOperationsExceptionnelles.produits.lignes.find((l) => l.code === '706')?.valeurs.realise).toBe(50_000)
+    const anomalie = r.anomalies.find((a) => a.code === 'section_a_confirmer')
+    expect(anomalie?.message).toMatch(/70610/)
+    expect(anomalie?.message).toMatch(/706-1/)
+    expect(anomalie?.message).toMatch(/art\. 7/)
+  })
+
+  it('un 703 présenté en produits pour travaux est signalé : l’arrêté le crédite aussi pour des dépenses courantes', () => {
+    const r = avec([[cpt('10310'), 'debit', 20_000], [cpt('70300'), 'credit', 20_000, GEN]])
+    const anomalie = r.anomalies.find((a) => a.code === 'section_a_confirmer')
+    expect(anomalie?.message).toMatch(/70300/)
+    expect(anomalie?.message).toMatch(/dépenses courantes ou imprévues/)
+    expect(anomalie?.message).toMatch(/art\. 10/)
+  })
+
+  it('un 702 ou un 7062 n’est pas signalé', () => {
+    const r = avec([[A, 'debit', 30_000], [cpt('70620'), 'credit', 10_000, GEN], [cpt('70200'), 'credit', 20_000, GEN]])
+    expect(r.anomalies.map((a) => a.code)).not.toContain('section_a_confirmer')
+  })
+})
+
+describe('relecture — intitulés repris des modèles', () => {
+  it('annexe 3 : « et budget prévisionnel de l’exercice (N+2) du … au … », comme l’annexe 2', () => {
+    expect(r2026.annexe3.intitule).toBe(
+      "Compte de gestion pour opérations courantes de l'exercice clos réalisé du 01/01/2026 au 31/12/2026 et budget prévisionnel de l'exercice du 01/01/2028 au 31/12/2028",
+    )
+  })
+
+  it('annexe 2, ligne 65 : libellé complet du décret n° 2020-1229, art. 5, 2° a', () => {
+    expect(r2026.annexe2.operationsCourantes.charges.lignes.find((l) => l.code === '65')?.libelle).toBe(
+      "Montant alloué au conseil syndical pour l'exercice de sa délégation de pouvoirs (préciser la nature de chaque opération concernée)",
+    )
+  })
+})
+
+describe('relecture — en-tête : portée des contrôles et questions ouvertes', () => {
+  const enTete = enTeteDuModule('comptes-syndicat-annexes')
+
+  it('les contrôles de l’art. 10 sont dits vrais par construction (garde-fous de non-régression)', () => {
+    expect(enTete.texte).toContain('par construction')
+    expect(enTete.texte).toContain('non-régression')
+    expect(enTete.texte).not.toContain("concordance de l'art. 10 vérifiée")
+  })
+
+  it('questions 🔴 : 706-1 et 703, produits affectés de l’annexe 4, détail de la ligne 65, clé du virement 102 → 702', () => {
+    const rouge = enTete.texte.slice(enTete.texte.indexOf('🔴 Non établi'))
+    for (const attendu of ['706-1', '703', 'Produits affectés', 'préciser la nature de chaque opération concernée', 'virementProvisionsTravauxALaRealisation'])
+      expect(rouge).toContain(attendu)
   })
 })

@@ -69,7 +69,8 @@ import { FAMILLE_TRAITEMENT, type StatutTravaux } from '@/lib/data/referentiels-
  * - section : charges 661, 67 et 68 → travaux et opérations exceptionnelles, autres charges → opérations courantes (dont
  *   662, absent du modèle : ligne hors modèle) ; produits 701 → courants ; 711, 713, 714 et 716 → travaux s'ils sont
  *   rattachés à une opération (lien travaux ou compte de sa série), courants sinon (décret art. 3 et 4 : affectation
- *   décidée par l'assemblée) ; autres produits → travaux ;
+ *   décidée par l'assemblée) ; autres produits → travaux, comme au modèle du décret, y compris le 7061 et le 703, qui
+ *   peuvent financer du courant (anomalie section_a_confirmer, 🔴 g) ;
  * - budget (exercices-budgets.ts) : opérations courantes seulement (L. 1965 art. 14-1, II ; D. 1967 art. 44) ; une
  *   ligne de travaux ou une ligne 701 au budget est écartée et signalée ; provisions budgétées (701) = charges prévues −
  *   produits prévus ; budgets N+1 et N+2 : les deux exercices de douze mois qui suivent la clôture ;
@@ -78,21 +79,29 @@ import { FAMILLE_TRAITEMENT, type StatutTravaux } from '@/lib/data/referentiels-
  * - annexe 3 : catégorie = clé de répartition du mouvement (attributs.cle), libellé fourni par l'appelant (règlement de
  *   copropriété) ; toutes les catégories déclarées sont présentées, puis les autres clés, puis « sans clé » (anomalie :
  *   les deux balances de l'art. 2 ne concorderaient plus) ; « produits affectés » = produits courants autres que le 701
- *   (note 2 du modèle) ; postes = codes de plan ; concordance de l'art. 10 vérifiée sur les charges BRUTES de chaque
- *   colonne, et le solde de l'annexe 3 rapproché de celui de l'annexe 2 ;
+ *   (note 2 du modèle) ; postes = codes de plan ; titre complété de l'exercice N+2, comme l'annexe 2 ;
  * - annexe 4 : par opération (lien travaux, ou compte de sa série), puis par clé (celle du mouvement, à défaut la clé
- *   unique de l'opération) ; « dépenses votées » = budget TTC voté de l'opération et de chaque clé ; colonne « provisions
- *   appelées, emprunts et subventions reçus, affectation du fonds de travaux » = produits de l'exercice rattachés (702,
- *   705, 711, 712…) ; solde = produits − dépenses (positif : excédent) ; opérations présentées : celles qui ont des
- *   mouvements dans l'exercice ou qui y ont été votées ; mouvements de travaux sans opération → opérations
- *   exceptionnelles, par clé ;
+ *   unique de l'opération ; un produit sans clé d'une opération sur plusieurs clés reste « sans clé », sans ventilation
+ *   inventée, et le virement du domaine porte la clé : 🔴 f) ; « dépenses votées » = budget TTC voté de l'opération et
+ *   de chaque clé ; colonne « provisions appelées, emprunts et subventions reçus, affectation du fonds de travaux » =
+ *   produits de l'exercice rattachés (702, 705, 711, 712…) ; lignes « Produits affectés » de chaque clé = ces mêmes
+ *   produits, appels compris, d'où « Net » (charges − produits affectés) = −solde (🔴 h) ; solde = produits − dépenses
+ *   (positif : excédent) ; opérations présentées : celles qui ont des mouvements dans l'exercice ou qui y ont été votées ;
+ *   mouvements de travaux sans opération → opérations exceptionnelles, par clé ;
  * - annexe 5 : opérations votées au plus tard à la clôture dont le statut à cette date (dernier changement de
  *   l'historique daté au plus tard ce jour-là) n'est ni « Réparti » (clôture définitive, décret art. 8), ni « Rejeté »,
  *   ni « Projet » ; A = budget voté et date de la décision ; B = règlements (débits − crédits des comptes 40 rattachés à
  *   l'opération, traitements de la famille « Règlements ») ; C et D = charges et produits rattachés, CUMULÉS depuis
  *   l'origine (mêmes exclusions qu'en gestion) ; E = D − C ; F = solde débiteur des 441 et 443 rattachés, plus les
  *   sommes à recevoir hors comptabilité que fournit l'appelant (emprunt accordé non versé, subvention pluriannuelle) ;
- *   dates = la plus récente des écritures retenues ; le total de E est rapproché du compte 12 de l'annexe 1 (note 2).
+ *   dates = la plus récente des écritures retenues ; le total de E est rapproché du compte 12 de l'annexe 1 (note 2) ;
+ * - contrôles : l'équilibre de l'annexe 1, le résultat réparti et le compte 47 portent sur les soldes des comptes à la
+ *   clôture ; le compte 12 de l'annexe 1 (soldes) est rapproché du total E de l'annexe 5 (charges et produits rattachés,
+ *   hors passage au 12), deux calculs distincts ; les contrôles de l'art. 10 (annexe3_charges_*,
+ *   annexe3_solde_*, annexe4_depenses, annexe4_produits) sont vrais par construction : les annexes 3 et 4 se calculent
+ *   sur les mêmes flux et budgets que l'annexe 2, chaque flux tombant dans un groupe (clés, puis « sans clé ») ; ce sont
+ *   des garde-fous de non-régression du calcul. Ils ne disent rien de la concordance des deux balances, par comptes et
+ *   par clés (arrêté, art. 2) : un mouvement sans clé la rompt, et seule l'anomalie mouvement_sans_cle le révèle.
  *
  * 🔴 Non établi — questions pour Hugo (ce que montre Gestéam) et Frédéric :
  * (a) Colonne « budget voté » de la partie travaux de l'annexe 2 : montant voté des opérations, part prévue sur
@@ -106,11 +115,27 @@ import { FAMILLE_TRAITEMENT, type StatutTravaux } from '@/lib/data/referentiels-
  *     toujours au modèle) ? (VitFix : lignes hors modèle ou ligne du modèle à zéro.)
  * (e) « Exercice précédent approuvé » : l'approbation par l'assemblée n'est pas vérifiée ici (la colonne est calculée sur
  *     les écritures de l'exercice précédent) ; le comparatif d'une reprise d'un autre logiciel suppose ses écritures.
- * (f) Branchements à faire hors de ce module (non modifiés) : soldeTravauxEnFinDExercice (travaux-operations.ts) ne
- *     passe au 12 que le 702 et le 71147 : un 705 (affectation du fonds de travaux) ou un 712 resterait en classe 7, et le
+ * (f) Branchements à faire hors de ce module : soldeTravauxEnFinDExercice (travaux-operations.ts, non modifié) ne passe
+ *     au 12 que le 702 et le 71147 : un 705 (affectation du fonds de travaux) ou un 712 resterait en classe 7, et le
  *     contrôle « résultat réparti » le signalerait ; aucune écriture d'affectation du fonds (105 → 705) n'existe encore
- *     dans le domaine ; le montant restant dû des emprunts et les sommes à recevoir hors comptabilité sont des paramètres
- *     (aucune table) ; écran et édition des annexes : Frédéric.
+ *     dans le domaine ; virementProvisionsTravauxALaRealisation (travaux-operations.ts) porte désormais la clé de la
+ *     charge, exigée pour une opération sur plusieurs clés : son appelant (écriture des factures, non branché) doit faire
+ *     un virement par ligne de facture, avec sa clé ; un 702 repris sans clé d'une opération sur plusieurs clés reste
+ *     « sans clé » aux annexes 4 (note 3) et 5 (note 1), avec l'anomalie mouvement_sans_cle ; le montant restant dû des
+ *     emprunts et les sommes à recevoir hors comptabilité sont des paramètres (aucune table) ; écran et édition des
+ *     annexes : Frédéric.
+ * (g) Le 7061 et le 703 qui financent du courant : l'arrêté (art. 7, version du 31/12/2020) subdivise le 706 en « 706-1
+ *     Provisions sur opérations courantes » et « 706-2 Provisions sur travaux et opérations exceptionnelles », et crédite
+ *     le 703 (art. 10) quand les avances 1031 ou 1033 servent au « règlement de dépenses courantes ou imprévues » ; le
+ *     modèle du décret ne place le 703 et le 706 qu'en produits pour travaux. Les présenter selon le modèle (VitFix, avec
+ *     l'anomalie section_a_confirmer), ou selon leur nature en opérations courantes ? Selon le modèle, une charge courante
+ *     financée par un 7061 laisse une insuffisance courante et un excédent travaux de même montant.
+ * (h) Annexe 4 : les lignes « Produits affectés » comprennent-elles les appels (702, 705, 712) ? Le modèle de l'annexe 4
+ *     n'a pas la note (2) de l'annexe 3 (« Autres que les appels de provisions »). VitFix : oui, d'où « Net » = −solde ;
+ *     à défaut, « Net » = charges − autres produits (711, 713, 714…), les appels restant dans la seule colonne.
+ * (i) Annexe 2, ligne 65 : le modèle demande de « préciser la nature de chaque opération concernée » (décret n°
+ *     2020-1229, art. 5, 2° a) ; VitFix reprend le libellé sans ce détail (aucune donnée de l'opération du conseil
+ *     syndical n'est fixée : libellé de l'écriture, compte complet, analytique ?).
  */
 
 // ─── Entrées ─────────────────────────────────────────────────────────────────────────────────
@@ -375,6 +400,7 @@ export type CodeAnomalieAnnexes =
   | 'budget_ligne_provisions'
   | 'duree_exercice'
   | 'operation_inconnue'
+  | 'section_a_confirmer'
 
 export interface AnomalieAnnexes {
   code: CodeAnomalieAnnexes
@@ -491,7 +517,7 @@ const A2_CHARGES_COURANTES: readonly ModeleLigne[] = [
   { code: '64', libelle: 'Frais de personnel', prefixes: ['64'] },
   {
     code: '65',
-    libelle: "Montant alloué au conseil syndical pour l'exercice de sa délégation de pouvoirs",
+    libelle: "Montant alloué au conseil syndical pour l'exercice de sa délégation de pouvoirs (préciser la nature de chaque opération concernée)",
     prefixes: ['65'],
     source: D_2020,
   },
@@ -724,28 +750,53 @@ function cleDuFlux(m: Mouvement, operation: string | null, ctx: Contexte): strin
   return op?.cles.length === 1 ? op.cles[0].cleId : null
 }
 
+/** Flux de gestion d'un mouvement des classes 6 et 7 (null pour une autre classe) ; l'opération n'est gardée qu'en travaux. */
+function fluxDuMouvement(ctx: Contexte, m: Mouvement, date: string): Flux | null {
+  const plan = planDuCompte(m.compte)
+  const classe = plan[0]
+  if (classe !== '6' && classe !== '7') return null
+  const rattachement = operationDuMouvement(m, ctx.series)
+  const section = sectionDuPlan(plan, rattachement !== null)
+  const operation = section === 'travaux' ? rattachement : null
+  const montant = classe === '6' ? signe(m) : -signe(m)
+  return { plan, montant, date, cle: cleDuFlux(m, operation, ctx), operation, classe, section }
+}
+
+/** Traitement de gestion daté de la période (du = null : depuis l'origine), hors répartition et hors passage au 12. */
+const estDeGestionDansLaPeriode = (t: Traitement, du: string | null, au: string) => t.date <= au && (du === null || t.date >= du) && estDeGestion(t)
+
 /** Mouvements des classes 6 et 7, hors répartition et hors passage au 12, datés de la période (du = null : depuis l'origine). */
 function fluxDeGestion(ctx: Contexte, du: string | null, au: string): Flux[] {
-  const flux: Flux[] = []
-  for (const t of ctx.entree.traitements) {
-    if (t.date > au || (du !== null && t.date < du) || !estDeGestion(t)) continue
-    for (const m of t.mouvements) {
-      const plan = planDuCompte(m.compte)
-      const classe = plan[0]
-      if (classe !== '6' && classe !== '7') continue
-      const operation = operationDuMouvement(m, ctx.series)
-      const section = sectionDuPlan(plan, operation !== null)
-      const montant = classe === '6' ? signe(m) : -signe(m)
-      flux.push({ plan, montant, date: t.date, cle: cleDuFlux(m, section === 'travaux' ? operation : null, ctx), operation: section === 'travaux' ? operation : null, classe, section })
-    }
-  }
-  return flux
+  return ctx.entree.traitements
+    .filter((t) => estDeGestionDansLaPeriode(t, du, au))
+    .flatMap((t) => t.mouvements.map((m) => fluxDuMouvement(ctx, m, t.date)).filter((f): f is Flux => f !== null))
 }
 
 function signalerSansCle(ctx: Contexte, flux: readonly Flux[], au: string): void {
   for (const f of flux)
     if (f.cle === null && !f.plan.startsWith('701'))
       signaler(ctx, 'mouvement_sans_cle', `Compte ${f.plan} sans clé de répartition dans l'exercice clos au ${dateIsoVersFr(au)} : catégorie « ${SANS_CLE} » (arrêté du 14 mars 2005, art. 2).`)
+}
+
+/** Produits que le modèle du décret range en travaux, mais que l'arrêté rattache aussi au courant (🔴 g). */
+const SECTIONS_A_CONFIRMER: readonly { prefixe: string; nature: string }[] = [
+  { prefixe: '7061', nature: '706-1 « Provisions sur opérations courantes », arrêté du 14 mars 2005, art. 7' },
+  {
+    prefixe: '703',
+    nature: "703 « Avances », que l'arrêté du 14 mars 2005, art. 10, crédite aussi quand les avances 1031 ou 1033 servent au règlement de dépenses courantes ou imprévues",
+  },
+]
+
+function signalerSectionsAConfirmer(ctx: Contexte, flux: readonly Flux[], au: string): void {
+  for (const f of flux) {
+    const regle = SECTIONS_A_CONFIRMER.find((r) => f.plan.startsWith(r.prefixe))
+    if (regle)
+      signaler(
+        ctx,
+        'section_a_confirmer',
+        `Compte ${f.plan} (${regle.nature}) présenté en produits pour travaux et opérations exceptionnelles, comme au modèle du décret n° 2005-240 (annexe 2), dans l'exercice clos au ${dateIsoVersFr(au)} : présentation à confirmer.`,
+      )
+  }
 }
 
 // ─── Colonnes ─────────────────────────────────────────────────────────────────────────────────
@@ -799,6 +850,35 @@ function soldesAuxComptes(traitements: readonly Traitement[], date: string): Map
   return soldes
 }
 
+type RubriqueEtat = keyof EtatALaDate['rubriques']
+
+/** Montant porté sur la ligne du modèle qui reçoit le code de plan, ou sur une ligne hors modèle de la rubrique. */
+function rangerDansRubrique(etat: EtatALaDate, rubrique: RubriqueEtat, modele: readonly ModeleLigne[], plan: string, montant: number): void {
+  const code = ligneDuPlan(plan, modele)
+  if (code === null) ajouterA(etat.horsModele[rubrique], plan, montant)
+  else ajouterA(etat.rubriques[rubrique], code, montant)
+}
+
+/** Classe 4, sans compensation (arrêté, art. 9) : solde débiteur aux créances, créditeur aux dettes ; listes de la note 2. */
+function rangerClasse4(etat: EtatALaDate, compte: string, plan: string, solde: number): void {
+  if (solde > 0) rangerDansRubrique(etat, 'creances', A1_CREANCES, plan, solde)
+  else rangerDansRubrique(etat, 'dettes', A1_DETTES, plan, -solde)
+  if (plan.startsWith('47')) etat.attente47 += Math.abs(solde)
+  ranger4(etat.listes, compte, plan, solde)
+}
+
+/** Solde d'un compte (débit − crédit) porté dans l'état : résultat (classes 6 et 7), rubrique, ou hors nomenclature. */
+function rangerSolde(etat: EtatALaDate, compte: string, solde: number): void {
+  const plan = planDuCompte(compte)
+  const classe = plan[0]
+  if (classe === '6' || classe === '7') etat.resultat += solde
+  else if (solde === 0) return
+  else if (classe === '5') rangerDansRubrique(etat, 'tresorerie', A1_TRESORERIE, plan, solde)
+  else if (classe === '1') rangerDansRubrique(etat, 'provisions', A1_PROVISIONS, plan, -solde)
+  else if (classe === '4') rangerClasse4(etat, compte, plan, solde)
+  else ajouterA(etat.horsNomenclature, plan, solde)
+}
+
 function etatALaDate(traitements: readonly Traitement[], date: string): EtatALaDate {
   const vide = () => ({ tresorerie: new Map<string, number>(), provisions: new Map<string, number>(), creances: new Map<string, number>(), dettes: new Map<string, number>() })
   const etat: EtatALaDate = {
@@ -809,26 +889,8 @@ function etatALaDate(traitements: readonly Traitement[], date: string): EtatALaD
     listes: { coproprietairesDebiteurs: [], coproprietairesCrediteurs: [], creancesDouteuses: [], depreciations: [] },
     attente47: 0,
   }
-  const ranger = (rubrique: keyof EtatALaDate['rubriques'], modele: readonly ModeleLigne[], plan: string, montant: number) => {
-    const code = ligneDuPlan(plan, modele)
-    if (code === null) ajouterA(etat.horsModele[rubrique], plan, montant)
-    else ajouterA(etat.rubriques[rubrique], code, montant)
-  }
   const soldes = [...soldesAuxComptes(traitements, date)].sort(([a], [b]) => a.localeCompare(b))
-  for (const [compte, solde] of soldes) {
-    const plan = planDuCompte(compte)
-    const classe = plan[0]
-    if (classe === '6' || classe === '7') etat.resultat += solde
-    else if (solde === 0) continue
-    else if (classe === '5') ranger('tresorerie', A1_TRESORERIE, plan, solde)
-    else if (classe === '1') ranger('provisions', A1_PROVISIONS, plan, -solde)
-    else if (classe === '4') {
-      if (solde > 0) ranger('creances', A1_CREANCES, plan, solde)
-      else ranger('dettes', A1_DETTES, plan, -solde)
-      if (plan.startsWith('47')) etat.attente47 += Math.abs(solde)
-      ranger4(etat.listes, compte, plan, solde)
-    } else ajouterA(etat.horsNomenclature, plan, solde)
-  }
+  for (const [compte, solde] of soldes) rangerSolde(etat, compte, solde)
   return etat
 }
 
@@ -884,6 +946,13 @@ function rubriqueEtat(
   return { lignes, total: sommeMontants(lignes.map((l) => l.montants), precedent !== null) }
 }
 
+/** Emprunts restant dus (paramètre, arrêté art. 10) ; colonne de l'exercice précédent sans objet au premier exercice. */
+function empruntsAnnexe1(emprunts: EntreeAnnexes['empruntsRestantDus'], avecPrecedent: boolean): Montants2 | null {
+  if (!emprunts) return null
+  const exercicePrecedent = avecPrecedent ? emprunts.exercicePrecedentCentimes : null
+  return { exercicePrecedent, exerciceClos: emprunts.exerciceClosCentimes }
+}
+
 function annexe1(ctx: Contexte): { annexe: Annexe1; attente47: number } {
   const { exercice, exercicePrecedent, traitements, empruntsRestantDus } = ctx.entree
   const clos = etatALaDate(traitements, exercice.cloture)
@@ -905,9 +974,7 @@ function annexe1(ctx: Contexte): { annexe: Annexe1; attente47: number } {
     dettes,
     totalGeneralGauche: sommeMontants([tresorerie.total, creances.total], avecPrecedent),
     totalGeneralDroite: sommeMontants([provisionsEtAvances.total, dettes.total], avecPrecedent),
-    empruntsRestantDus: empruntsRestantDus
-      ? { exercicePrecedent: avecPrecedent ? empruntsRestantDus.exercicePrecedentCentimes : null, exerciceClos: empruntsRestantDus.exerciceClosCentimes }
-      : null,
+    empruntsRestantDus: empruntsAnnexe1(empruntsRestantDus, avecPrecedent),
     listesIndividualisees: clos.listes,
     resultatNonReparti: { exercicePrecedent: precedent ? precedent.resultat : null, exerciceClos: clos.resultat },
   }
@@ -1028,8 +1095,11 @@ function donneesGestion(ctx: Contexte): DonneesGestion {
   const { exercice, exercicePrecedent, budgets } = ctx.entree
   const fluxRealise = fluxDeGestion(ctx, exercice.ouverture, exercice.cloture)
   const fluxPrecedent = exercicePrecedent ? fluxDeGestion(ctx, exercicePrecedent.ouverture, exercicePrecedent.cloture) : null
-  signalerSansCle(ctx, fluxRealise, exercice.cloture)
-  if (exercicePrecedent && fluxPrecedent) signalerSansCle(ctx, fluxPrecedent, exercicePrecedent.cloture)
+  for (const [flux, au] of [[fluxRealise, exercice.cloture], [fluxPrecedent, exercicePrecedent?.cloture]] as const) {
+    if (!flux || !au) continue
+    signalerSansCle(ctx, flux, au)
+    signalerSectionsAConfirmer(ctx, flux, au)
+  }
   const lus: DonneesGestion['budgets'] = {}
   if (budgets.voteN) lus.budgetVote = lireBudget(ctx, budgets.voteN, 'voté de l’exercice clos')
   if (budgets.voteNPlus1) lus.budgetEnCours = lireBudget(ctx, budgets.voteNPlus1, 'en cours')
@@ -1168,8 +1238,9 @@ function annexe3(ctx: Contexte, d: DonneesGestion): Annexe3 {
   const dispoProvisions: Disponibles = { ...d.dispo, budgetEnCours: false, budgetAVoter: false }
   const provisionsCoproprietaires = colonnesA(dispoProvisions, provisions701)
   const dispoSolde: Disponibles = { ...dispoProvisions, budgetVote: false }
+  const aVoter = periodeSuivante(periodeSuivante(exercice))
   return {
-    intitule: `Compte de gestion pour opérations courantes de l'exercice clos réalisé du ${dateIsoVersFr(exercice.ouverture)} au ${dateIsoVersFr(exercice.cloture)}`,
+    intitule: `Compte de gestion pour opérations courantes de l'exercice clos réalisé du ${dateIsoVersFr(exercice.ouverture)} au ${dateIsoVersFr(exercice.cloture)} et budget prévisionnel de l'exercice du ${dateIsoVersFr(aVoter.ouverture)} au ${dateIsoVersFr(aVoter.cloture)}`,
     categories,
     totalChargesNettes,
     provisionsCoproprietaires,
@@ -1211,26 +1282,38 @@ function sommeAnnexe4(liste: readonly MontantsAnnexe4[]): MontantsAnnexe4 {
   }
 }
 
+/** Clés présentées pour une opération : celles de l'opération, puis les autres clés de ses flux (« sans clé » en dernier). */
+function clesPresentees(ctx: Contexte, clesOperation: readonly string[], siens: readonly Flux[]): (string | null)[] {
+  const vues = ordreDesCles(ctx, siens.map((f) => f.cle)).filter((k) => siens.some((f) => f.cle === k))
+  return [...new Set<string | null>([...clesOperation, ...vues])]
+}
+
+/** Annexe 4, une opération (notes 2 et 3 du modèle) : ses flux de travaux de l'exercice, par clé. */
+function operationAnnexe4(ctx: Contexte, numero: string, travaux: readonly Flux[]): OperationAnnexe4 {
+  const op = ctx.operations.get(numero)
+  if (!op) signaler(ctx, 'operation_inconnue', `Mouvements rattachés à l'opération ${numero}, absente des opérations fournies : dépenses votées inconnues.`)
+  const siens = travaux.filter((f) => f.operation === numero)
+  const votee = op?.decision ? op : null
+  const votesDeLaCle = (cle: string | null) => votee?.cles.find((k) => k.cleId === cle)?.budgetTtcCentimes ?? null
+  const groupes = clesPresentees(ctx, op?.cles.map((k) => k.cleId) ?? [], siens).map((cle) => groupe4(ctx, cle, siens, votesDeLaCle(cle)))
+  return {
+    numero,
+    libelle: op?.libelle ?? `Opération ${numero}`,
+    decision: votee?.decision ? { date: votee.decision.date, resolution: votee.decision.resolution } : null,
+    cles: groupes,
+    total: { ...sommeAnnexe4(groupes.map((g) => g.montants)), depensesVotees: votee ? votee.budgetTtcCentimes : null },
+  }
+}
+
+const voteeDansLExercice = (op: OperationAnnexes, { ouverture, cloture }: PeriodeExercice) =>
+  op.decision !== null && op.decision.date >= ouverture && op.decision.date <= cloture
+
 function annexe4(ctx: Contexte, d: DonneesGestion): Annexe4 {
   const { exercice } = ctx.entree
   const travaux = d.fluxRealise.filter((f) => f.section === 'travaux')
   const numeros = new Set(travaux.flatMap((f) => (f.operation === null ? [] : [f.operation])))
-  for (const op of ctx.operations.values()) if (op.decision && op.decision.date >= exercice.ouverture && op.decision.date <= exercice.cloture) numeros.add(op.numero)
-  const operations = [...numeros].sort((a, b) => a.localeCompare(b)).map((numero): OperationAnnexe4 => {
-    const op = ctx.operations.get(numero)
-    if (!op) signaler(ctx, 'operation_inconnue', `Mouvements rattachés à l'opération ${numero}, absente des opérations fournies : dépenses votées inconnues.`)
-    const siens = travaux.filter((f) => f.operation === numero)
-    const clesOp = op?.cles.map((k) => k.cleId) ?? []
-    const cles = [...new Set<string | null>([...clesOp, ...ordreDesCles(ctx, siens.map((f) => f.cle)).filter((k) => siens.some((f) => f.cle === k))])]
-    const groupes = cles.map((cle) => groupe4(ctx, cle, siens, op?.decision ? (op.cles.find((k) => k.cleId === cle)?.budgetTtcCentimes ?? null) : null))
-    return {
-      numero,
-      libelle: op?.libelle ?? `Opération ${numero}`,
-      decision: op?.decision ? { date: op.decision.date, resolution: op.decision.resolution } : null,
-      cles: groupes,
-      total: { ...sommeAnnexe4(groupes.map((g) => g.montants)), depensesVotees: op?.decision ? op.budgetTtcCentimes : null },
-    }
-  })
+  for (const op of ctx.operations.values()) if (voteeDansLExercice(op, exercice)) numeros.add(op.numero)
+  const operations = [...numeros].sort((a, b) => a.localeCompare(b)).map((numero) => operationAnnexe4(ctx, numero, travaux))
   const exceptionnels = travaux.filter((f) => f.operation === null)
   const operationsExceptionnelles = ordreDesCles(ctx, exceptionnels.map((f) => f.cle))
     .filter((cle) => exceptionnels.some((f) => f.cle === cle))
@@ -1398,40 +1481,59 @@ function controles(a1: Annexe1, a2: Annexe2, a3: Annexe3, a4: Annexe4, a5: Annex
 
 // ─── Validation et point d'entrée ─────────────────────────────────────────────────────────────
 
-function verifierEntree(entree: EntreeAnnexes, anomalies: AnomalieAnnexes[]): void {
-  const { exercice, exercicePrecedent } = entree
+/** Exercice clos et exercice précédent : dates, contiguïté, durée (décret n° 2005-240, art. 5). */
+function verifierExercices({ exercice, exercicePrecedent }: EntreeAnnexes, anomalies: AnomalieAnnexes[]): void {
   verifierPeriode(exercice, 'Exercice clos')
-  if (exercicePrecedent) {
-    verifierPeriode(exercicePrecedent, 'Exercice précédent')
-    if (ajouterJours(exercicePrecedent.cloture, 1) !== exercice.ouverture)
-      throw new Error(`Exercice précédent non contigu : clôture le ${dateIsoVersFr(exercicePrecedent.cloture)}, exercice clos ouvert le ${dateIsoVersFr(exercice.ouverture)}.`)
-    if (exercice.cloture !== finApres(exercice.ouverture, 12))
-      anomalies.push({
-        code: 'duree_exercice',
-        message: `Exercice du ${dateIsoVersFr(exercice.ouverture)} au ${dateIsoVersFr(exercice.cloture)} : douze mois attendus (décret n° 2005-240, art. 5), sauf changement de date de clôture décidé par l'assemblée, à justifier.`,
-      })
-  } else if (exercice.cloture > finApres(exercice.ouverture, 18))
-    throw new Error(`Premier exercice du ${dateIsoVersFr(exercice.ouverture)} au ${dateIsoVersFr(exercice.cloture)} : dix-huit mois au plus (décret n° 2005-240, art. 5).`)
-  const numeros = new Set<string>()
-  for (const op of entree.operations) {
-    if (numeros.has(op.numero)) throw new Error(`Opération ${op.numero} fournie deux fois.`)
-    numeros.add(op.numero)
+  if (!exercicePrecedent) {
+    if (exercice.cloture > finApres(exercice.ouverture, 18))
+      throw new Error(`Premier exercice du ${dateIsoVersFr(exercice.ouverture)} au ${dateIsoVersFr(exercice.cloture)} : dix-huit mois au plus (décret n° 2005-240, art. 5).`)
+    return
   }
-  const cles = new Set<string>()
-  for (const { cle } of entree.categoriesCharges ?? []) {
-    if (cles.has(cle)) throw new Error(`Catégorie de charges « ${cle} » déclarée deux fois.`)
-    cles.add(cle)
+  verifierPeriode(exercicePrecedent, 'Exercice précédent')
+  if (ajouterJours(exercicePrecedent.cloture, 1) !== exercice.ouverture)
+    throw new Error(`Exercice précédent non contigu : clôture le ${dateIsoVersFr(exercicePrecedent.cloture)}, exercice clos ouvert le ${dateIsoVersFr(exercice.ouverture)}.`)
+  if (exercice.cloture !== finApres(exercice.ouverture, 12))
+    anomalies.push({
+      code: 'duree_exercice',
+      message: `Exercice du ${dateIsoVersFr(exercice.ouverture)} au ${dateIsoVersFr(exercice.cloture)} : douze mois attendus (décret n° 2005-240, art. 5), sauf changement de date de clôture décidé par l'assemblée, à justifier.`,
+    })
+}
+
+/** Ensemble des valeurs, refusé au premier doublon. */
+function sansDoublon(valeurs: readonly string[], doublon: (valeur: string) => string): Set<string> {
+  const vues = new Set<string>()
+  for (const valeur of valeurs) {
+    if (vues.has(valeur)) throw new Error(doublon(valeur))
+    vues.add(valeur)
   }
+  return vues
+}
+
+/** Montants fournis hors comptabilité : emprunts restant dus, sommes à recevoir (opération fournie exigée). */
+function verifierMontantsHorsCompta(entree: EntreeAnnexes, numeros: ReadonlySet<string>): void {
   if (entree.empruntsRestantDus) {
     const { exercicePrecedentCentimes, exerciceClosCentimes } = entree.empruntsRestantDus
     verifierCentimes(exerciceClosCentimes, 'Emprunts restant dus à la clôture', { strict: false })
-    if (exercicePrecedentCentimes !== null) verifierCentimes(exercicePrecedentCentimes, "Emprunts restant dus à la clôture précédente", { strict: false })
+    if (exercicePrecedentCentimes !== null) verifierCentimes(exercicePrecedentCentimes, 'Emprunts restant dus à la clôture précédente', { strict: false })
   }
   for (const x of entree.aRecevoirHorsComptabilite ?? []) {
     if (!numeros.has(x.operation)) throw new Error(`Somme à recevoir pour l'opération ${x.operation}, absente des opérations fournies.`)
     verifierCentimes(x.montantCentimes, `Somme à recevoir (${x.nature}) de l'opération ${x.operation}`, { strict: true })
     if (!estDateIsoValide(x.date)) throw new Error(`Somme à recevoir de l'opération ${x.operation} : date invalide (${x.date}), AAAA-MM-JJ attendu.`)
   }
+}
+
+function verifierEntree(entree: EntreeAnnexes, anomalies: AnomalieAnnexes[]): void {
+  verifierExercices(entree, anomalies)
+  const numeros = sansDoublon(
+    entree.operations.map((op) => op.numero),
+    (numero) => `Opération ${numero} fournie deux fois.`,
+  )
+  sansDoublon(
+    (entree.categoriesCharges ?? []).map((k) => k.cle),
+    (cle) => `Catégorie de charges « ${cle} » déclarée deux fois.`,
+  )
+  verifierMontantsHorsCompta(entree, numeros)
 }
 
 /**
