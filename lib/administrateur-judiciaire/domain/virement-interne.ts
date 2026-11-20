@@ -24,6 +24,7 @@ import {
   verifierRang,
   type OrdreDuLot,
 } from '@/lib/administrateur-judiciaire/domain/types-ordres-banque'
+import type { FicheValidationBanque } from '@/lib/administrateur-judiciaire/domain/validation-banque'
 
 /**
  * Virement de banque à banque entre comptes du syndicat (point 39 du bilan 2). Fonctions pures, montants en CENTIMES
@@ -116,6 +117,15 @@ import {
  *   compte séparé du fonds : art. 18, II, al. 4). Un placement non réservé au fonds reste refusé. Les intérêts restent
  *   acquis au syndicat, hors des parts des lots (fonds-travaux-lots.ts, J67, R88).
  *
+ * Décisions du 20/11/2026 (partie C, recommandations acceptées par le responsable du projet) :
+ * - Décision du 20/11/2026 (partie C, F103) : le fichier pain.001 d'un virement interne reçoit la fiche « validation
+ *   banque » du compte source (fichierVirementInterne, option validationBanque) ; sans elle, il porte la mention « non
+ *   validé par la banque » (validation-banque.ts) ;
+ * - Décision du 20/11/2026 (partie C, F112) : une part du fonds de travaux reçue sur le compte courant n'est pas
+ *   bloquée ; elle est signalée et reste à virer jusqu'au virement interne qui alimente le fonds depuis ce compte :
+ *   alimentationsDuFonds rend ces alimentations, émises et non rejetées, qui soldent la part « à virer »
+ *   (encaissements-pieces.partsFondsTravauxAVirer), avec une alerte passé le délai réglé par le cabinet.
+ *
  * 🔵 Déduit :
  * - un virement interne relie deux comptes ACTIFS, distincts, du MÊME syndicat (D1), sans tiers ; une avance de fonds du
  *   gestionnaire au syndicat (interdite au syndic par l'art. 18, II, dernier al., sauf au syndic provisoire et à
@@ -187,7 +197,8 @@ import {
  * - que recouvre la famille « Ajustement bancaire fonds travaux » du référentiel (non observée) ? Non utilisée ici ;
  * - compte de placement (J71 compris) lu en sous-compte 512 (COMPTE_512), comme les placements de Gestéam (tranche 29) ;
  *   un placement décidé par l'assemblée relève pourtant du 50 « Fonds placés » (D. 1967 art. 35-1) : classe 50 « Fonds
- *   placés » (J67, R83) non prise en charge, à trancher (même marque dans fonds-detenus.ts).
+ *   placés » (J67, R83) non prise en charge, à trancher (fonds-detenus.ts compte les placements de classe 50 depuis la
+ *   décision du 20/11/2026, partie C, F98).
  */
 
 /** Famille Gestéam du traitement d'un virement interne (référentiel FAMILLE_TRAITEMENT, bloc Règlements). */
@@ -324,6 +335,15 @@ export function mouvementFondsTravaux(source: CompteFonds, destination: CompteFo
   if (depuisFonds) return 'sortie'
   if (versFonds) return 'alimentation'
   return 'aucun'
+}
+
+/**
+ * Décision du 20/11/2026 (partie C, F112) — virements qui versent au fonds de travaux depuis un compte qui ne le tient pas
+ * (alimentation), émis et non rejetés (J68) : ils soldent la part « à virer » des cotisations reçues sur ce compte
+ * (encaissements-pieces.partsFondsTravauxAVirer). L'ordre reçu est conservé.
+ */
+export function alimentationsDuFonds(virements: readonly VirementInterne[]): VirementInterne[] {
+  return virements.filter((v) => v.mouvementFondsTravaux === 'alimentation' && v.statut === 'Émis' && v.rejet === null)
 }
 
 // ─── Création ───────────────────────────────────────────────────────────────────────────────
@@ -803,11 +823,18 @@ export function ordresDuLotVirementsInternes(virements: VirementInterne[]): Ordr
  * Fichier pain.001.001.03 d'un virement interne (genererPain001) : débiteur = le syndicat sur le compte source,
  * créancier = le syndicat sur le compte de destination, identifiant de bout en bout = n° du virement. Refuse un compte
  * source sans IBAN ou sans BIC, une destination sans IBAN (Caisse des dépôts, sous-compte centralisateur : virement à
- * ordonner hors fichier).
+ * ordonner hors fichier). Décision du 20/11/2026 (partie C, F103) : sans fiche « validation banque » du compte source
+ * (validationBanque), le fichier porte la mention « non validé par la banque ».
  */
 export function fichierVirementInterne(
   v: VirementInterne,
-  { nomSyndicat, messageId, dateCreation, dateExecution }: { nomSyndicat: string; messageId: string; dateCreation: string; dateExecution: string },
+  {
+    nomSyndicat,
+    messageId,
+    dateCreation,
+    dateExecution,
+    validationBanque = null,
+  }: { nomSyndicat: string; messageId: string; dateCreation: string; dateExecution: string; validationBanque?: FicheValidationBanque | null },
 ): string {
   texteRequis(nomSyndicat, 'Nom du syndicat attendu (débiteur et créancier du virement).')
   const { source, destination } = v
@@ -825,5 +852,5 @@ export function fichierVirementInterne(
       { reglementId: v.numero, beneficiaire: nomSyndicat, iban: destination.iban, bic: destination.bic, montantCentimes: v.montantCentimes, libelle: v.libelle },
     ],
   })
-  return genererPain001(ordre, { nom: nomSyndicat, iban: source.iban, bic: source.bic }, { messageId, dateCreation, dateExecution })
+  return genererPain001(ordre, { nom: nomSyndicat, iban: source.iban, bic: source.bic }, { messageId, dateCreation, dateExecution, validationBanque })
 }

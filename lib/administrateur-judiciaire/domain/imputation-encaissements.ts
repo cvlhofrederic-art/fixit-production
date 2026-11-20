@@ -36,6 +36,9 @@ import { TYPE_APPEL_LIE_AU_MOUVEMENT, type TypeAppelLieAuMouvement } from '@/lib
  * du 17/11/2026 (J67, R104 ; arrêté du 14/03/2005, art. 10) : si l'AG a créé le sous-compte 450-1, les postes du budget
  * (appel du budget, régularisation des charges) y sont crédités, comme ils y ont été débités ; le reste et le reliquat
  * au 450, sans compensation entre les deux (art. 9).
+ * Décision du 20/11/2026 (partie C, F110) : l'imputation d'un encaissement annulé (chèque impayé, virement reçu
+ * retourné) est défaite, les postes payés redevenant dus à leur exigibilité d'origine (desimputerEncaissement ;
+ * l'écriture contraire : encaissements-pieces.annulerEncaissement).
  */
 
 export interface PosteDette {
@@ -401,6 +404,28 @@ export function mouvementsEncaissementImpute({
   if (resultat.resteAImputerCentimes > 0)
     credits.push({ compte: compteCoproprietaire, sens: 'credit', montantCentimes: resultat.resteAImputerCentimes })
   return [{ compte: compteBanque, sens: 'debit', montantCentimes: encaissement.montantCentimes }, ...credits]
+}
+
+/**
+ * Décision du 20/11/2026 (partie C, F110) — désimputation d'un encaissement annulé : chaque poste qu'il a réglé redevient
+ * dû de la part imputée et garde son exigibilité d'origine ; rien d'autre ne change, les postes reçus ne sont pas
+ * modifiés. `postes` est l'état courant des postes, celui d'après l'imputation (et des imputations suivantes). Refuse un
+ * poste imputé absent, ou dont le réglé est inférieur à la part à défaire. Elle servira aussi, plus tard, à l'annulation
+ * d'un appel réglé en partie (F105).
+ */
+export function desimputerEncaissement(resultat: ResultatImputation, postes: PosteDette[]): PosteDette[] {
+  verifierPostes(postes)
+  const aDefaire = new Map<string, number>()
+  for (const ligne of resultat.lignes) aDefaire.set(ligne.posteId, (aDefaire.get(ligne.posteId) ?? 0) + ligne.montantCentimes)
+  for (const [posteId, montant] of aDefaire) {
+    const poste = postes.find((p) => p.id === posteId)
+    if (!poste) throw new Error(`Désimputation de l'encaissement ${resultat.encaissementId} : poste imputé ${posteId} introuvable.`)
+    if (poste.regleCentimes < montant)
+      throw new Error(
+        `Désimputation de l'encaissement ${resultat.encaissementId} : réglé du poste ${posteId} (${poste.regleCentimes} centimes) inférieur à la part imputée (${montant} centimes) ; passer l'état des postes après l'imputation.`,
+      )
+  }
+  return postes.map((p) => ({ ...p, regleCentimes: p.regleCentimes - (aDefaire.get(p.id) ?? 0) }))
 }
 
 /**

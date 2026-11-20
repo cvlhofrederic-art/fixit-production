@@ -204,6 +204,15 @@ import { planDuCompte } from '@/lib/administrateur-judiciaire/domain/verrou-sais
  *   de passage d'un projet, les copropriétaires sont ceux en place ce jour-là, l'acquéreur s'il y a vente, comme avant.
  *   Enregistrement de ces réglages : à brancher.
  *
+ * Décisions du 20/11/2026 (partie C, recommandations acceptées par le responsable du projet) :
+ * - Décision du 20/11/2026 (partie C, F119) : quinze jours ne sont pas une règle : le délai d'exigibilité du solde reste
+ *   à remplir (aucune exigibilité par défaut) ; l'écran peut proposer 15 jours (DELAI_EXIGIBILITE_OBSERVE_GESTEAM_JOURS)
+ *   avec la mention « usage observé chez Gestéam, aucun texte » (MENTION_DELAI_EXIGIBILITE_PROPOSE,
+ *   propositionExigibiliteSolde). Si l'assemblée, ou l'administrateur provisoire qui en a les pouvoirs, a fixé une date,
+ *   c'est elle qui vaut : elle est proposée seule, et parametresRepartition refuse toute autre exigibilité
+ *   (exigibiliteDecidee) ; la justification la cite. Le plancher de l'approbation (J67, R102) reste contrôlé à
+ *   l'imputation. Mention à l'écran : à brancher.
+ *
  * 🔴 Non établi (questions pour Hugo ou Frédéric) :
  * - « Dans Gestéam, quelle est la contrepartie des écritures 450 de la répartition : le 471 soldé par le 701 (choix
  *   VitFix, arrêté art. 10), les comptes de charges, ou le 471 laissé ouvert jusqu'à l'imputation ? » (seuls les 450 ont
@@ -216,7 +225,6 @@ import { planDuCompte } from '@/lib/administrateur-judiciaire/domain/verrou-sais
  *   « Effet » des mouvements, suivi) ? » (VitFix : date d'effet en ligne 1 des paramètres) ;
  * - « Sens de l'option « Solde » (paramètre 1) et de l'entier 1 (paramètre 3) » (l'entier est repris tel quel, « Solde »
  *   n'est pas stocké, sans effet sur le calcul) ;
- * - « Faut-il proposer quinze jours après la date de passage comme exigibilité, sans texte ? » ;
  * - « Quel acte fait passer la répartition à « Imputé » chez Gestéam : la diffusion, l'approbation, une action du
  *   gestionnaire ? » (VitFix : après l'approbation seulement).
  *
@@ -255,9 +263,52 @@ const FAMILLES_REPARTITION: ReadonlySet<FamilleTraitement> = new Set<FamilleTrai
 
 /**
  * 🟢 Observé chez Gestéam (tranche 43 § 6, paramètre 4 : « une date quinze jours plus tard ») ; 🔵 son sens (exigibilité
- * du solde) ; aucun texte. Valeur PROPOSÉE à l'appelant, jamais appliquée d'office (aucune durée en dur, règle J).
+ * du solde) ; aucun texte. Valeur PROPOSÉE à l'appelant, jamais appliquée d'office (aucune durée en dur, règle J), avec
+ * la mention MENTION_DELAI_EXIGIBILITE_PROPOSE (décision du 20/11/2026, partie C, F119).
  */
 export const DELAI_EXIGIBILITE_OBSERVE_GESTEAM_JOURS = 15
+
+/** Décision du 20/11/2026 (partie C, F119) : mention qui accompagne les 15 jours proposés à l'écran. */
+export const MENTION_DELAI_EXIGIBILITE_PROPOSE = 'usage observé chez Gestéam, aucun texte'
+
+/** Décision du 20/11/2026 (partie C, F119) : exigibilité du solde fixée par l'assemblée, ou par l'administrateur provisoire. */
+export interface ExigibiliteDecidee {
+  date: string
+  source: SourceDecisionAnnuelle
+}
+
+/** Ce que l'écran propose pour l'exigibilité du solde (F119) : la date décidée, sinon 15 jours à confirmer. */
+export type PropositionExigibiliteSolde =
+  | { origine: 'decision'; aRemplir: false; exigibilite: { date: string }; mention: string }
+  | { origine: 'usage_gesteam'; aRemplir: true; exigibilite: { delaiJours: number }; mention: typeof MENTION_DELAI_EXIGIBILITE_PROPOSE }
+
+const auteurExigibilite = (source: SourceDecisionAnnuelle): string =>
+  source.origine === 'assemblee'
+    ? `l'assemblée générale (assemblée ${source.agId}, résolution ${source.resolutionId})`
+    : `l'administrateur provisoire qui en a les pouvoirs (${source.reference})`
+
+function verifierExigibiliteDecidee(decidee: ExigibiliteDecidee): void {
+  if (!estDateIsoValide(decidee.date))
+    throw new Error(`Exigibilité du solde fixée par ${auteurExigibilite(decidee.source)} : date invalide (« ${decidee.date} »), AAAA-MM-JJ attendu.`)
+}
+
+/**
+ * Décision du 20/11/2026 (partie C, F119) — proposition d'exigibilité du solde pour l'écran : la date fixée par
+ * l'assemblée, ou par l'administrateur provisoire qui en a les pouvoirs, quand il y en a une (« c'est elle qui vaut ») ;
+ * sinon 15 jours après la date de passage, à confirmer (aRemplir), avec la mention « usage observé chez Gestéam, aucun
+ * texte ». Jamais appliquée d'office : l'appelant passe l'exigibilité retenue à parametresRepartition.
+ */
+export function propositionExigibiliteSolde(decidee: ExigibiliteDecidee | null): PropositionExigibiliteSolde {
+  if (decidee === null)
+    return { origine: 'usage_gesteam', aRemplir: true, exigibilite: { delaiJours: DELAI_EXIGIBILITE_OBSERVE_GESTEAM_JOURS }, mention: MENTION_DELAI_EXIGIBILITE_PROPOSE }
+  verifierExigibiliteDecidee(decidee)
+  return {
+    origine: 'decision',
+    aRemplir: false,
+    exigibilite: { date: decidee.date },
+    mention: `date fixée par ${auteurExigibilite(decidee.source)} : c'est elle qui vaut`,
+  }
+}
 
 const SANS_TEXTE_EXIGIBILITE =
   "aucun texte ne fixe l'exigibilité du solde de régularisation (L. 1965 art. 14-1 ; D. 1967 art. 6-2, 35 et 45-1 ; décret n° 2005-240)"
@@ -304,6 +355,11 @@ export interface ParametresRepartition {
   delaiExigibiliteJours: number | null
   /** Code du mandat (paramètre 1, alpha). */
   mandatCode: string
+  /**
+   * Décision du 20/11/2026 (partie C, F119) : auteur de la date fixée par une décision (assemblée, administrateur
+   * provisoire), qui vaut ; absent : délai ou date retenus par le gestionnaire. Hors des quatre lignes de la pièce.
+   */
+  exigibiliteDecidee?: string
 }
 
 /** Exigibilité du solde : un délai en jours après la date de passage, ou une date ; toujours fournie (aucune par défaut). */
@@ -352,22 +408,38 @@ function exigibiliteTypee(
   return { exigibilite: ajouterJours(dateEffet, exigibilite.delaiJours), delaiExigibiliteJours: exigibilite.delaiJours }
 }
 
+/** F119 : la date fixée par l'assemblée ou l'administrateur provisoire vaut ; toute autre exigibilité est refusée. */
+function auteurDeLaDateDecidee(exigibilite: ExigibiliteSolde, decidee: ExigibiliteDecidee | null): { exigibiliteDecidee?: string } {
+  if (decidee === null) return {}
+  verifierExigibiliteDecidee(decidee)
+  const auteur = auteurExigibilite(decidee.source)
+  if (!('date' in exigibilite) || exigibilite.date !== decidee.date)
+    throw new Error(
+      `Répartition : exigibilité du solde fixée au ${fr(decidee.date)} par ${auteur} : c'est elle qui vaut (décision du 20/11/2026, partie C, F119).`,
+    )
+  return { exigibiliteDecidee: auteur }
+}
+
 /**
  * Paramètres de la répartition d'un exercice : bornes de l'exercice, date de passage, exigibilité (délai après la date de
  * passage ou date, toujours fournie), code du mandat. Refuse un exercice « Réparti » ou « Non géré » (J67, R103 : budget
  * voté ou non, les autres se répartissent), une date de passage qui n'est pas postérieure à la clôture, une exigibilité
- * antérieure à la date de passage.
+ * antérieure à la date de passage. Décision du 20/11/2026 (partie C, F119) : avec une date fixée par l'assemblée ou par
+ * l'administrateur provisoire qui en a les pouvoirs (`exigibiliteDecidee`), c'est elle qui vaut : toute autre exigibilité
+ * est refusée.
  */
 export function parametresRepartition({
   exercice,
   dateEffet,
   mandatCode,
   exigibilite,
+  exigibiliteDecidee = null,
 }: {
   exercice: Exercice
   dateEffet: string
   mandatCode: string
   exigibilite: ExigibiliteSolde
+  exigibiliteDecidee?: ExigibiliteDecidee | null
 }): ParametresRepartition {
   if (!STATUTS_REPARTISSABLES.has(exercice.statut))
     throw new Error(
@@ -380,15 +452,16 @@ export function parametresRepartition({
     dateEffet,
     ...exigibiliteTypee(dateEffet, exigibilite),
     mandatCode: mandatCode.trim(),
+    ...auteurDeLaDateDecidee(exigibilite, exigibiliteDecidee),
   }
   verifierParametres(parametres)
   return parametres
 }
 
-/** Origine de l'exigibilité, en clair : délai retenu (valeur Gestéam ou non) ou date fixée. */
-function origineExigibilite({ dateEffet, exigibilite, delaiExigibiliteJours: delai }: ParametresRepartition): string {
+/** Origine de l'exigibilité, en clair : délai retenu (valeur Gestéam ou non), date fixée par le gestionnaire ou par une décision (F119). */
+function origineExigibilite({ dateEffet, exigibilite, delaiExigibiliteJours: delai, exigibiliteDecidee }: ParametresRepartition): string {
   const depart = `après la date de passage du ${fr(dateEffet)}`
-  if (delai === null) return `date fixée par le gestionnaire, ${ecartJours(dateEffet, exigibilite)} jour(s) ${depart}`
+  if (delai === null) return `date fixée par ${exigibiliteDecidee ?? 'le gestionnaire'}, ${ecartJours(dateEffet, exigibilite)} jour(s) ${depart}`
   const gesteam = delai === DELAI_EXIGIBILITE_OBSERVE_GESTEAM_JOURS ? ' (valeur observée chez Gestéam)' : ''
   return `délai de ${delai} jour(s) ${depart}, retenu par le gestionnaire${gesteam}`
 }

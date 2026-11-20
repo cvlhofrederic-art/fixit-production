@@ -443,10 +443,11 @@ describe('règlement — prélèvement, virement, chèque', () => {
     expect(sansIban.modeReglement).toBe('Chèque')
     expect(sansIban.instructions).toMatchObject({ mode: 'Chèque', ordre: 'SDC Les Tilleuls (fictif)' })
     expect(bloquantsDe(sansIban)).toEqual([])
-    // en-tête : les espèces ne sont plus une question ouverte ; le TIP le reste
+    // en-tête : les espèces ne sont plus une question ouverte ; le TIP non plus (décision du 20/11/2026, partie C, F118)
     const { texte, item } = enTeteDuModule('avis-appel')
     expect(texte).not.toContain('TIP et espèces')
-    expect(texte).toMatch(/- TIP : signalé, sans instructions/)
+    expect(texte).not.toMatch(/- TIP : signalé, sans instructions/)
+    expect(texte).toMatch(/Décision du 20\/11\/2026 \(partie C, F118\)/)
     expect(item('- J25 et J29')).toMatch(/instructionsHorsPrelevement.*especes_refusees/)
   })
 
