@@ -201,6 +201,8 @@ export const CHAMPS_PAR_CONTEXTE: Readonly<Record<ContexteFusionCourrier, readon
     champ('compte.numero', 'Compte copropriétaire (450)'),
     champ('appel.dateEmission', "Date d'émission de l'avis", 'date'),
     champ('appel.aReglerAvantLe', 'À régler avant le', 'date'),
+    champ('appel.dateLimite', "« À régler avant le … », ou « exigible le … ; à régler au plus tard le … » avec un délai de courtoisie (décision du 20/11/2026, partie C, F114)"),
+    champ('mention.delaiCourtoisie', "Délai de courtoisie, réglage du cabinet qui ne change pas l'exigibilité (décision du 20/11/2026, partie C, F114)"),
     champ('appel.lignes', 'Fonds appelés : type, libellé (objet de la dépense), base, clé, quote-part'),
     champ('appel.totalAppeleCentimes', 'Total des appels', 'montant'),
     champ('appel.soldeAnterieurCentimes', 'Solde antérieur (négatif : crédit)', 'montant_signe'),

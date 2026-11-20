@@ -1,4 +1,17 @@
 import { describe, expect, it } from 'vitest'
+import {
+  NATURE_COURRIER_PRELEVEMENT_ANNULE,
+  contenuAvisAppel,
+  controlerModeReglementNouveauCompte,
+  creerReglageTip,
+  echeancesPrelevementDepuisAvis,
+  prelevementsAnnulesParContentieux,
+  preparerDiffusionAvis,
+  type ContenuAvisCompte,
+  type MandatPrelevement,
+  type OptionsContenuAvis,
+  type OptionsDiffusionAvis,
+} from '@/lib/administrateur-judiciaire/domain/avis-appel'
 import { creerReglagesComptesCabinet } from '@/lib/administrateur-judiciaire/domain/comptes-bancaires'
 import {
   TRACE_APPEL_SANS_ECRITURE,
@@ -35,7 +48,13 @@ import {
   type EncaissementEnregistre,
   type JournalEncaissement,
 } from '@/lib/administrateur-judiciaire/domain/encaissements-pieces'
-import { creerCompteCoproprietaire, creerPosition } from '@/lib/administrateur-judiciaire/domain/identites-positions'
+import { controlerContexteFusion } from '@/lib/administrateur-judiciaire/domain/gabarits-courrier'
+import {
+  creerAdresseDatee,
+  creerCompteCoproprietaire,
+  creerIdentite,
+  creerPosition,
+} from '@/lib/administrateur-judiciaire/domain/identites-positions'
 import {
   desimputerEncaissement,
   imputerEncaissement,
@@ -63,6 +82,7 @@ import {
   type FicheValidationBanque,
   type SaisieFicheValidationBanque,
 } from '@/lib/administrateur-judiciaire/domain/validation-banque'
+import { creerCommunicationAdresseElectronique } from '@/lib/administrateur-judiciaire/domain/voie-notification'
 import { enTeteDuModule } from './en-tete-module'
 
 /**
@@ -877,5 +897,210 @@ describe('F110 à F112 — en-têtes : les décisions remplacent les marques �
   it('virement-interne : la décision F112 est citée (alimentationsDuFonds)', () => {
     const { item } = enTeteDuModule('virement-interne')
     expect(item('- Décision du 20/11/2026 (partie C, F112)')).toMatch(/alimentationsDuFonds.*à virer/)
+  })
+})
+
+// ─── F114, F116, F118 : avis d'appel ─────────────────────────────────────────────────────────
+
+/** Échéance du budget exigible après l'entrée en vigueur de la voie électronique (D. 1967 art. 35-2, 25/12/2025). */
+const B_AVIS: EcheanceAppel = { ...B1, id: 'B-2027-1', exigibilite: '2027-01-01', libelle: 'Budget 2027 — provision 1/4' }
+const IBAN_SYNDICAT_AVIS = 'FR14 2004 1010 0505 0001 3M02 606'
+const ICS_AVIS = 'FR12ZZZ123456'
+const mandatAvis: MandatPrelevement = {
+  rum: 'RUM-TILL-00001',
+  dateSignature: '2024-03-01',
+  debiteur: 'Copropriétaire A',
+  debiteurIdentiteId: 'i-p1',
+  iban: 'FR76 3000 6000 0112 3456 7890 189',
+  bic: 'AGRIFRPP',
+  dernierPrelevementLe: '2026-10-05',
+  natures: { budget: true, autres: false },
+  maxiCentimes: null,
+}
+const avisBudget = () => avisDAppel({ echeances: [B_AVIS], cles: [cleGenerale], positions: positionsCopro, comptes: comptesCopro })
+const optionsAvis = (surcharge: Partial<OptionsContenuAvis> = {}): OptionsContenuAvis => ({
+  cles: [cleGenerale],
+  comptes: comptesCopro,
+  segmentSyndicat: SEGMENT,
+  syndicat: { nom: 'SDC fictif', adresse: '1 rue Fictive, 13001 Marseille' },
+  ibanSyndicat: IBAN_SYNDICAT_AVIS,
+  ics: ICS_AVIS,
+  dateEmission: '2026-12-15',
+  reglements: [
+    { compteId: 'cpt-A', mode: 'Prélèvement', mandat: mandatAvis },
+    { compteId: 'cpt-B', mode: 'Virement' },
+  ],
+  datePrelevement: '2027-01-05',
+  ...surcharge,
+})
+const adresseFictive = (id: string) =>
+  creerAdresseDatee({ id, lignes: ['1 rue Fictive'], codePostal: '13001', ville: 'Marseille', pays: 'France', usage: null, du: '2020-01-01', au: null, communiqueeLe: null })
+const diffusionAvis = (surcharge: Partial<OptionsDiffusionAvis> = {}): OptionsDiffusionAvis => ({
+  date: '2026-12-15',
+  coproprieteId: 'copro-1',
+  mandatId: 'm-1',
+  socle: {
+    'copropriete.nom': 'SDC fictif',
+    'copropriete.adresse': '1 rue Fictive, 13001 Marseille',
+    'mandat.fondement': 'L. 1965 art. 29-1',
+    'mandat.tribunal': 'TJ fictif',
+    'mandat.ordonnance': '2025-03-02',
+    'mandat.rg': '25/00001',
+  },
+  modeles: { electronique: { id: 'mod-email', formeEnvoi: 'Email direct' }, postal: { id: 'mod-postal', formeEnvoi: 'Normal' } },
+  identites: [
+    creerIdentite({ id: 'i-p1', nature: 'physique', civilite: 'Madame', nom: 'Copropriétaire A', prenom: 'Fictive', telecoms: [], adresses: [adresseFictive('adr-1')] }),
+    creerIdentite({ id: 'i-p2', nature: 'physique', civilite: 'Monsieur', nom: 'Copropriétaire B', prenom: 'Fictif', telecoms: [], adresses: [adresseFictive('adr-2')] }),
+  ],
+  positions: positionsCopro,
+  demandesVoiePostale: [],
+  communications: [creerCommunicationAdresseElectronique({ identiteId: 'i-p1', adresse: 'a@exemple.invalid', communiqueeLe: '2026-01-10' })],
+  ...surcharge,
+})
+const compteAvis = (contenu: { parCompte: ContenuAvisCompte[] }, compteId: string): ContenuAvisCompte => {
+  const trouve = contenu.parCompte.find((c) => c.compteId === compteId)
+  if (!trouve) throw new Error(`compte ${compteId} absent`)
+  return trouve
+}
+
+describe('F114 — « À régler avant le » = l’exigibilité ; un délai de courtoisie du cabinet ne la change jamais', () => {
+  it('sans délai (0 par défaut) : « à régler avant le » la date d’exigibilité', () => {
+    const a = compteAvis(contenuAvisAppel(avisBudget(), optionsAvis()), 'cpt-A')
+    expect(a).toMatchObject({ aReglerAvantLe: '2027-01-01', delaiCourtoisieJours: 0, libelleDateLimite: 'à régler avant le 01/01/2027', mentionDelaiCourtoisie: null })
+  })
+
+  it('avec un délai : « exigible le … ; à régler au plus tard le … », le délai affiché comme un réglage du cabinet ; l’exigibilité ne bouge pas', () => {
+    const a = compteAvis(contenuAvisAppel(avisBudget(), optionsAvis({ delaiReglementJours: 10 })), 'cpt-A')
+    expect(a.libelleDateLimite).toBe('exigible le 01/01/2027 ; à régler au plus tard le 11/01/2027')
+    expect(a).toMatchObject({ aReglerAvantLe: '2027-01-11', delaiCourtoisieJours: 10, parExigibilite: [{ exigibilite: '2027-01-01', montantCentimes: 40_000 }] })
+    expect(a.lignes.map((l) => l.exigibilite)).toEqual(['2027-01-01'])
+    expect(a.mentionDelaiCourtoisie).toMatch(/^Délai de courtoisie de 10 jours, réglage du cabinet : il ne change pas l'exigibilité/)
+  })
+
+  it('le libellé passe dans le courrier (objet, champ de fusion « appel.dateLimite » du gabarit)', () => {
+    const contenu = contenuAvisAppel(avisBudget(), optionsAvis({ delaiReglementJours: 10 }))
+    const [a] = preparerDiffusionAvis(contenu, diffusionAvis())
+    expect(a.courrier?.objet).toBe("Avis d'appel de fonds — compte TILL.45000.00001.0 — exigible le 01/01/2027 ; à régler au plus tard le 11/01/2027")
+    expect(a.valeursFusion['appel.dateLimite']).toBe('exigible le 01/01/2027 ; à régler au plus tard le 11/01/2027')
+    expect(controlerContexteFusion('avis_appel_fonds', a.valeursFusion)).toMatchObject({ complet: true, inconnus: [] })
+    const [sansDelai] = preparerDiffusionAvis(contenuAvisAppel(avisBudget(), optionsAvis()), diffusionAvis())
+    expect(sansDelai.courrier?.objet).toBe("Avis d'appel de fonds — compte TILL.45000.00001.0 — à régler avant le 01/01/2027")
+  })
+})
+
+describe('F116 — contentieux ouvert après l’avis : le prélèvement annoncé n’aura pas lieu, un courrier simple le dit', () => {
+  const scenario = (comptesEnContentieux: ReadonlySet<string>, optionsContenu: Partial<OptionsContenuAvis> = {}) => {
+    const contenu = contenuAvisAppel(avisBudget(), optionsAvis(optionsContenu))
+    const diffusions = preparerDiffusionAvis(contenu, diffusionAvis())
+    const { echeances } = echeancesPrelevementDepuisAvis(contenu, { prefixeId: 'AV-2027-01', diffusions, comptesEnContentieux })
+    const lot = preparerLotPrelevements(echeances)
+    return { contenu, diffusions, echeances, lot }
+  }
+
+  it('le lot écarte le compte passé en contentieux après l’avis : courrier simple (ou courriel à l’adresse des avis) « n’aura pas lieu ; merci de régler par virement »', () => {
+    const { contenu, diffusions, echeances, lot } = scenario(new Set(['cpt-A']))
+    expect(lot.exclues).toEqual([{ id: 'AV-2027-01-00001', motif: 'contentieux' }])
+    const courriers = prelevementsAnnulesParContentieux(contenu, { echeances, lot, diffusions })
+    expect(courriers).toHaveLength(1)
+    expect(courriers[0]).toMatchObject({
+      compteId: 'cpt-A',
+      identiteId: 'i-p1',
+      montantCentimes: 40_000,
+      date: '2027-01-05',
+      canal: 'electronique',
+      adresseElectronique: 'a@exemple.invalid',
+      nature: NATURE_COURRIER_PRELEVEMENT_ANNULE,
+    })
+    expect(courriers[0].message).toMatch(
+      /^Le prélèvement SEPA de 400,00.*annoncé pour le 05\/01\/2027 \(mandat RUM-TILL-00001\) par l'avis du 15\/12\/2026 n'aura pas lieu ; merci de régler 400,00.* par virement à SDC fictif, IBAN FR1420041010050500013M02606, en indiquant la référence TILL\.45000\.00001\.0\.$/,
+    )
+    expect(NATURE_COURRIER_PRELEVEMENT_ANNULE).toMatch(/pas un acte du contentieux, qui garde ses propres pièces/)
+  })
+
+  it('aucun courrier : compte prélevé, ou déjà en contentieux à l’émission (l’avis n’a annoncé aucun débit)', () => {
+    const normal = scenario(new Set())
+    expect(prelevementsAnnulesParContentieux(normal.contenu, normal)).toEqual([])
+    const des = scenario(new Set(['cpt-A']), { comptesEnContentieux: new Set(['cpt-A']) })
+    expect(des.lot.exclues).toEqual([])
+    expect(prelevementsAnnulesParContentieux(des.contenu, des)).toEqual([])
+  })
+
+  it('refuse un lot qui écarte une échéance absente des échéances passées', () => {
+    const { contenu, diffusions, lot } = scenario(new Set(['cpt-A']))
+    expect(() => prelevementsAnnulesParContentieux(contenu, { echeances: [], lot, diffusions })).toThrow(/AV-2027-01-00001.*absente/)
+  })
+})
+
+describe('F118 — TIP : sans TIP reçu récemment, refusé pour un nouveau compte et remplacé par le virement ; sinon gabarit de la banque', () => {
+  const avecTip = (reglageTip: OptionsContenuAvis['reglageTip']) =>
+    compteAvis(
+      contenuAvisAppel(
+        avisBudget(),
+        optionsAvis({
+          reglageTip,
+          reglements: [
+            { compteId: 'cpt-A', mode: 'TIP' },
+            { compteId: 'cpt-B', mode: 'Virement' },
+          ],
+        }),
+      ),
+      'cpt-A',
+    )
+
+  it('aucun TIP reçu récemment : l’ancien compte passe au virement sur l’avis, avec un avertissement', () => {
+    const a = avecTip(creerReglageTip({ tipRecuRecemment: false }))
+    expect(a.modeReglement).toBe('Virement')
+    expect(a.instructions).toEqual({ mode: 'Virement', beneficiaire: 'SDC fictif', iban: 'FR1420041010050500013M02606', reference: 'TILL.45000.00001.0' })
+    const avertissement = a.anomalies.filter((x) => x.code === 'tip_abandonne')
+    expect(avertissement).toEqual([expect.objectContaining({ gravite: 'avertissement' })])
+    expect(avertissement[0].message).toMatch(/aucun TIP reçu récemment.*partie C, F118.*passer le compte au virement/)
+    expect(a.anomalies.map((x) => x.code)).not.toContain('mode_non_pris_en_charge')
+  })
+
+  it('aucun TIP reçu récemment : le mode « TIP » est refusé pour un nouveau compte ; les autres modes passent', () => {
+    const sansTip = creerReglageTip({ tipRecuRecemment: false })
+    expect(() => controlerModeReglementNouveauCompte('TIP', sansTip)).toThrow(/« TIP » refusé pour un nouveau compte.*F118/)
+    expect(() => controlerModeReglementNouveauCompte('Virement', sansTip)).not.toThrow()
+    const avecGabarit = creerReglageTip({ tipRecuRecemment: true, gabaritInstructions: 'Instructions TIP fictives de la banque.' })
+    expect(() => controlerModeReglementNouveauCompte('TIP', avecGabarit)).not.toThrow()
+  })
+
+  it('TIP encore reçus : l’avis porte le gabarit d’instructions fourni par la banque, avec la référence du compte', () => {
+    const reglage = creerReglageTip({ tipRecuRecemment: true, gabaritInstructions: ' Signez le TIP joint et renvoyez-le à la banque (texte fictif). ' })
+    const a = avecTip(reglage)
+    expect(a.instructions).toEqual({ mode: 'TIP', texte: 'Signez le TIP joint et renvoyez-le à la banque (texte fictif).', reference: 'TILL.45000.00001.0' })
+    expect(a.anomalies.map((x) => x.code)).not.toContain('mode_non_pris_en_charge')
+    const contenu = contenuAvisAppel(
+      avisBudget(),
+      optionsAvis({
+        reglageTip: reglage,
+        reglements: [
+          { compteId: 'cpt-A', mode: 'TIP' },
+          { compteId: 'cpt-B', mode: 'Virement' },
+        ],
+      }),
+    )
+    const [diffusion] = preparerDiffusionAvis(contenu, diffusionAvis())
+    expect(diffusion.valeursFusion['reglement.instructions']).toBe('Par TIP : Signez le TIP joint et renvoyez-le à la banque (texte fictif). Référence : TILL.45000.00001.0.')
+    expect(() => creerReglageTip({ tipRecuRecemment: true })).toThrow(/gabarit.*banque/)
+    expect(() => creerReglageTip({ tipRecuRecemment: true, gabaritInstructions: '  ' })).toThrow(/gabarit.*banque/)
+    expect(() => creerReglageTip({ tipRecuRecemment: false, gabaritInstructions: 'Texte' })).toThrow(/aucun TIP/)
+  })
+
+  it('réglage du cabinet absent : la question reste ouverte, le TIP reste signalé sans instructions', () => {
+    expect(avecTip(null).anomalies.find((x) => x.code === 'mode_non_pris_en_charge')?.message).toMatch(/réglage TIP du cabinet à renseigner.*F118/)
+    expect(() => controlerModeReglementNouveauCompte('TIP', null)).not.toThrow()
+  })
+})
+
+describe('F114, F116, F118 — en-tête de l’avis : les décisions remplacent les marques 🔴', () => {
+  it('chaque décision est citée ; ses questions ne sont plus en 🔴', () => {
+    const { texte, item } = enTeteDuModule('avis-appel')
+    const ouvert = texte.slice(texte.indexOf('🔴 Non établi'))
+    for (const question of [/"À régler avant le" : la date d'exigibilité seule/, /Contentieux ouvert entre l'avis et le débit/, /TIP : signalé, sans instructions/])
+      expect(ouvert).not.toMatch(question)
+    expect(item('- Décision du 20/11/2026 (partie C, F114)')).toMatch(/exigibilité.*délai 0.*réglage du cabinet.*ne change jamais l'exigibilité.*« exigible le … ; à régler au plus tard le … »/)
+    expect(item('- Décision du 20/11/2026 (partie C, F116)')).toMatch(/contentieux après l'avis.*courrier simple.*n'aura pas lieu ; merci de régler par virement.*pas un acte du contentieux/)
+    expect(item('- Décision du 20/11/2026 (partie C, F118)')).toMatch(/aucun TIP.*refusé pour les nouveaux comptes.*virement.*avertissement.*gabarit d'instructions TIP fourni par la banque/)
   })
 })
