@@ -1,4 +1,5 @@
 import {
+  ajouterJours,
   ajouterMois,
   composerDateIso,
   decomposerDateIso,
@@ -110,6 +111,21 @@ import { portefeuille, ROLES_MANDAT, type AffectationMandat } from '@/lib/admini
  *   payés en vertu de l'ordonnance (C. com. R. 814-27 ; R5), signalés « à présenter au juge » dans honoraires-sinistre.ts.
  *   Le tableau ne change pas.
  *
+ * Partie C des questions ouvertes du code (pratique du cabinet ; recommandations acceptées le 20/11/2026) :
+ * - Décision du 20/11/2026 (partie C, F3) : le compte provisoire détaillé des émoluments présenté au juge couvre, par
+ *   défaut, l'année de mission, comptée depuis la date de désignation enregistrée sur le mandat, avec une période
+ *   modifiable : periodeAnneeDeMission (année n, du / au) et anneeDeMissionAu (rang de l'année qui contient une date) ;
+ *   toute autre période reste possible (du / au libres). Le tableau mensuel reste un contrôle interne
+ *   (MENTION_TABLEAU_HONORAIRES) : periodeMoisPrecedent reste son défaut. Si le tribunal pratique l'année civile, on
+ *   change le défaut. Fondements : aucun texte ne fixe la période ; le président fixe les acomptes « chaque année »
+ *   (D. 1967 art. 61-1-5, II) ; l'administrateur rend compte « au moins une fois par an », le décret comptant « la
+ *   première année de la mission » (art. 62-11, I) ; le tarif ne parle d'« année de gestion » que pour 2 à 15 lots
+ *   (arrêté du 8 octobre 2015, art. 5, al. 2) ; aucun texte n'impose un état mensuel (la seule assiette mensuelle du
+ *   tarif est le droit fixe de gestion courante, art. 5). Anniversaires comptés depuis la désignation (dates.ajouterMois) :
+ *   une désignation du 29 février a son anniversaire le 28 février des années non bissextiles, comme le devis de la
+ *   décision du 17/11/2026 (Q3). Donnée hors du domaine : la date de désignation (ordonnance du mandat) est passée par
+ *   l'appelant. Le compte provisoire lui-même n'existe pas encore dans le code.
+ *
  * Questions ouvertes :
  * - 🔴 (Frédéric) Sur quoi porte le tableau : la date de l'élément (choix actuel), celle de la facture ou celle de
  *   l'imputation ? Et sa source : les éléments (choix actuel), les factures, ou les comptes (critère « Compte du / au ») ?
@@ -125,10 +141,6 @@ import { portefeuille, ROLES_MANDAT, type AffectationMandat } from '@/lib/admini
  * - 🔴 (Frédéric) Le contrôle des coûts doit-il être valorisé au prix de l'élément ? Choix actuel : oui.
  * - 🔴 (Frédéric) Les échéances du scénario de gestion courante (echeancesScenario) entrent-elles dans le tableau ?
  *   Choix actuel : non, seuls les éléments.
- * - 🔴 (Frédéric ou Hugo) Quelle période le cabinet présente-t-il au juge dans le compte provisoire détaillé des
- *   émoluments (annuel, D. 1967 art. 61-1-5, II) : année civile, ou année de mission ? Le tableau mensuel est-il un
- *   contrôle interne seulement (la seule assiette mensuelle du tarif est le droit fixe de gestion courante, arrêté du
- *   8 octobre 2015, art. 5) ?
  * - 🔴 (Frédéric ou Hugo) Les déductions (réduction de 25 % après un mandat ad hoc, arrêté du 8 octobre 2015, art. 2 ;
  *   sommes de l'assureur et pénalités du contrat type, 6.1, 6.2, 7.2.4) doivent-elles figurer au tableau ? Non modélisé.
  *
@@ -202,6 +214,38 @@ export function periodeMoisPrecedent(aujourdhui: string): { du: string; au: stri
     du: composerDateIso(precedent.a, precedent.m, 1),
     au: composerDateIso(precedent.a, precedent.m, joursDansMois(precedent.a, precedent.m)),
   }
+}
+
+/**
+ * Décision du 20/11/2026 (partie C, F3) : le tableau mensuel reste un contrôle interne ; le compte provisoire présenté
+ * au juge couvre par défaut l'année de mission. Mention à afficher avec l'écran du tableau.
+ */
+export const MENTION_TABLEAU_HONORAIRES =
+  "Tableau de contrôle interne du cabinet : ce n'est pas le compte provisoire détaillé des émoluments présenté au juge " +
+  "(D. 1967 art. 61-1-5, II), qui couvre par défaut l'année de mission, comptée depuis la date de désignation."
+
+function verifierDateDesignation(dateDesignation: string): void {
+  if (!estDateIsoValide(dateDesignation)) throw new Error(`Date de désignation invalide (${dateDesignation}) : AAAA-MM-JJ attendu.`)
+}
+
+/**
+ * Année de mission n (décision du 20/11/2026, partie C, F3), période par défaut du compte provisoire : du (n − 1)-ième
+ * anniversaire de la désignation (la désignation elle-même pour n = 1) à la veille du n-ième. Chaque anniversaire est
+ * compté depuis la désignation (dates.ajouterMois) : les années se suivent sans trou ni chevauchement.
+ */
+export function periodeAnneeDeMission(dateDesignation: string, n: number): { du: string; au: string } {
+  verifierDateDesignation(dateDesignation)
+  if (!Number.isInteger(n) || n < 1) throw new Error(`Année de mission invalide (${n}) : entier à partir de 1 attendu.`)
+  return { du: ajouterMois(dateDesignation, 12 * (n - 1)), au: ajouterJours(ajouterMois(dateDesignation, 12 * n), -1) }
+}
+
+/** Rang de l'année de mission qui contient `date` (décision du 20/11/2026, partie C, F3) ; avant la désignation : refus. */
+export function anneeDeMissionAu(dateDesignation: string, date: string): number {
+  verifierDateDesignation(dateDesignation)
+  if (!estDateIsoValide(date)) throw new Error(`Date invalide (${date}) : AAAA-MM-JJ attendu.`)
+  if (date < dateDesignation) throw new Error(`Date ${date} antérieure à la désignation (${dateDesignation}) : hors de la mission.`)
+  const ecartAnnees = decomposerDateIso(date).a - decomposerDateIso(dateDesignation).a
+  return date >= ajouterMois(dateDesignation, 12 * ecartAnnees) ? ecartAnnees + 1 : ecartAnnees
 }
 
 /** Éléments des factures imputées. */
