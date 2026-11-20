@@ -11,7 +11,9 @@
 //   - le formulaire propose le catalogue saisi dans le module (à défaut l'ancienne copie), étapes comprises, lu une
 //     seule fois : la prestation choisie garde ses étapes même si le catalogue change après l'ouverture ;
 //   - compte existant : le catalogue enregistré (ancien catalogue d'exemple compris) s'affiche et reste tel quel ;
-//   - la première prestation saisie dans un catalogue parti vide est enregistrée et publiée une seule fois.
+//   - la première prestation saisie dans un catalogue parti vide est enregistrée et publiée une seule fois ;
+//   - bouton « Retirer l'exemple » (20/11/2026) : la société retire d'un clic, après confirmation, les éléments de l'ancien
+//     exemple jamais modifiés, du module ou, sans catalogue du module, de ce que ses devis proposent.
 // La sauvegarde en ligne du compte (GET /api/user-storage) est simulée sans catalogue : un module qui la consulte
 // avant de remplir un catalogue absent ne doit rien y ajouter non plus.
 
@@ -27,6 +29,13 @@ const h = vi.hoisted(() => ({
   // 17/11/2026 (durée obligatoire, le module l'envoie vide), ou acceptée.
   publication: 'refusee' as 'refusee' | 'acceptee',
   insertions: [] as Array<Record<string, unknown>>,
+  // Suppressions demandées à la table `services` : filtres de chacune ; refusées par la base si demandé.
+  suppressions: [] as Array<Array<[string, unknown]>>,
+  suppressionRefusee: false,
+  // Délai de réponse de la base à une publication (ms) : 0, réponse immédiate.
+  latencePublication: 0,
+  /** Réponse rendue après `ms` millisecondes. */
+  differer: <T,>(valeur: T, ms: number) => new Promise<T>((r) => setTimeout(() => r(valeur), ms)),
 }))
 
 vi.mock('@/lib/i18n/context', () => ({
@@ -36,17 +45,23 @@ vi.mock('@/lib/i18n/context', () => ({
 vi.mock('@/lib/supabase', () => {
   const requete = () => {
     let operation: 'select' | 'insert' | 'update' | 'delete' = 'select'
+    const filtres: Array<[string, unknown]> = []
     const executer = () => {
       if (operation === 'insert') {
-        return h.publication === 'acceptee'
+        const reponse = h.publication === 'acceptee'
           ? { data: { id: `svc-${h.insertions.length}` }, error: null }
           : { data: null, error: { code: '23502', message: 'null value in column "duration_minutes"' } }
+        return h.latencePublication > 0 ? h.differer(reponse, h.latencePublication) : reponse
+      }
+      if (operation === 'delete') {
+        h.suppressions.push([...filtres])
+        if (h.suppressionRefusee) return { data: null, error: { code: '42501', message: 'refus simulé' } }
       }
       return { data: operation === 'select' ? [] : null, error: null }
     }
     const api: Record<string, unknown> = {
       select: () => api,
-      eq: () => api,
+      eq: (colonne: string, valeur: unknown) => { filtres.push([colonne, valeur]); return api },
       in: () => api,
       order: () => api,
       limit: () => api,
@@ -82,6 +97,7 @@ vi.mock('@/components/dashboard/btp/RentabiliteDevisModal', () => ({ default: ()
 import PrestationsBTPSection from '@/components/dashboard/PrestationsBTPSection'
 import DevisFactureFormBTP from '@/components/DevisFactureFormBTP'
 import { toast } from 'sonner'
+import { exempleAncienTelQuEnregistre } from '@/lib/btp/catalogue-exemple-ancien'
 
 const FICHE = { id: 'fiche-btp-vierge', user_id: 'compte-btp-vierge', company_name: 'BATIR TEST SAS' } as unknown as Artisan
 const FICHE_DEVIS: ArtisanBasic = { id: 'fiche-btp-vierge', company_name: 'BATIR TEST SAS', email: 'contact@batir.test' }
@@ -152,7 +168,12 @@ beforeEach(() => {
   h.locale = 'fr'
   h.publication = 'refusee'
   h.insertions = []
+  h.suppressions = []
+  h.suppressionRefusee = false
+  h.latencePublication = 0
+  vi.mocked(toast).mockClear()
   vi.mocked(toast.error).mockClear()
+  vi.mocked(toast.success).mockClear()
   // Sauvegarde en ligne du compte : aucun catalogue (compte neuf).
   vi.stubGlobal('fetch', vi.fn(async (url: unknown) => (String(url).startsWith('/api/user-storage')
     ? new Response(JSON.stringify({ entries: {} }), { status: 200, headers: { 'Content-Type': 'application/json' } })
@@ -225,6 +246,249 @@ describe('module Prestations BTP — compte existant', () => {
     await attendre(30)
     expect(localStorage.getItem(CLE_MODULE)).toBe(CATALOGUE_EXISTANT)
     expect(clesCatalogue()).toEqual([CLE_MODULE])
+  })
+})
+
+// Bouton « Retirer l'exemple » (accord de Frédéric du 20/11/2026) : l'ancien catalogue d'exemple d'un compte créé avant le
+// 17/11/2026 n'est jamais retiré d'office ; la société le retire d'un clic, après confirmation, et seuls partent les
+// éléments jamais modifiés (lib/btp/catalogue-exemple-ancien.ts).
+describe('module Prestations BTP — retrait de l\'ancien exemple', () => {
+  const PRESTATION_A_ELLE = { id: 41, name: 'Chape liquide maison', type: 'prest', lot: 'gros_oeuvre', unit: 'm²', price: { min: 30, max: 30 } }
+  const stocke = (cle: string) => JSON.parse(localStorage.getItem(cle) || 'null') as unknown
+  /** Ouvre la confirmation du bandeau puis confirme (FR, ou PT). */
+  function retirer(pt = false) {
+    fireEvent.click(screen.getByRole('button', { name: pt ? 'Remover o exemplo' : 'Retirer l\'exemple' }))
+    fireEvent.click(screen.getByRole('button', { name: pt ? 'Confirmar' : 'Confirmer' }))
+  }
+
+  it('exemple complet et une prestation à elle : 40 éléments annoncés, seule sa prestation reste après confirmation', async () => {
+    localStorage.setItem(CLE_MODULE, JSON.stringify([...exempleAncienTelQuEnregistre('module'), PRESTATION_A_ELLE]))
+    monterModule()
+    expect(await screen.findByText(/Votre catalogue contient encore 40 éléments d'exemple/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Retirer l\'exemple' }))
+    expect(screen.getByText('Retirer ces 40 éléments d\'exemple ? Cette action est définitive.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmer' }))
+    await waitFor(() => expect(stocke(CLE_MODULE)).toEqual([PRESTATION_A_ELLE]))
+    expect(screen.queryByText(/éléments d'exemple/)).toBeNull()
+    for (const nom of ANCIENS_EXEMPLES) expect(screen.queryByText(nom)).toBeNull()
+    expect(screen.getByText('Chape liquide maison')).toBeInTheDocument()
+    expect(toast.success).toHaveBeenCalledWith('Exemple retiré : 40 éléments.')
+  })
+
+  it('Portugal, 9 matériaux d\'exemple restés seuls : bandeau en portugais, catalogue vide après confirmation', async () => {
+    h.locale = 'pt'
+    localStorage.setItem(CLE_MODULE, JSON.stringify(exempleAncienTelQuEnregistre('module').filter((e) => e.type === 'mat')))
+    monterModule()
+    expect(await screen.findByText(/O seu catálogo ainda contém 9 elementos de exemplo/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Remover o exemplo' }))
+    expect(screen.getByText('Remover estes 9 elementos de exemplo? Esta ação é definitiva.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }))
+    await waitFor(() => expect(stocke(CLE_MODULE)).toEqual([]))
+    expect(toast.success).toHaveBeenCalledWith('Exemplo removido: 9 elementos.')
+  })
+
+  it('un élément d\'exemple modifié n\'est ni compté ni retiré', async () => {
+    const exemple = exempleAncienTelQuEnregistre('module')
+    const modifie = { ...exemple[0], price: { min: 2600, max: 4000 } }
+    localStorage.setItem(CLE_MODULE, JSON.stringify([modifie, ...exemple.slice(1)]))
+    monterModule()
+    expect(await screen.findByText(/Votre catalogue contient encore 39 éléments d'exemple/)).toBeInTheDocument()
+    retirer()
+    await waitFor(() => expect(stocke(CLE_MODULE)).toEqual([modifie]))
+    expect(screen.getByText(modifie.name)).toBeInTheDocument()
+  })
+
+  it('annuler ne change rien', async () => {
+    const valeur = JSON.stringify(exempleAncienTelQuEnregistre('module'))
+    localStorage.setItem(CLE_MODULE, valeur)
+    monterModule()
+    await screen.findByText(/40 éléments d'exemple/)
+    fireEvent.click(screen.getByRole('button', { name: 'Retirer l\'exemple' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Annuler' }))
+    expect(screen.getByText(/Votre catalogue contient encore 40 éléments d'exemple/)).toBeInTheDocument()
+    await attendre(30)
+    expect(localStorage.getItem(CLE_MODULE)).toBe(valeur)
+    expect(toast.success).not.toHaveBeenCalled()
+  })
+
+  it('sans élément d\'exemple, ou compte neuf : aucun bandeau', async () => {
+    localStorage.setItem(CLE_MODULE, CATALOGUE_EXISTANT)
+    monterModule()
+    await attendreChargement()
+    expect(screen.queryByRole('button', { name: 'Retirer l\'exemple' })).toBeNull()
+    cleanup()
+    localStorage.clear()
+    monterModule()
+    await attendreChargement()
+    expect(screen.queryByRole('button', { name: 'Retirer l\'exemple' })).toBeNull()
+    expect(clesCatalogue()).toEqual([])
+  })
+
+  it('exemple seulement dans l\'ancienne copie du formulaire : le module est créé vide, l\'ancienne copie reste, les devis ne proposent plus rien', async () => {
+    const ancienne = JSON.stringify(exempleAncienTelQuEnregistre('formulaire'))
+    localStorage.setItem(CLE_ANCIENNE, ancienne)
+    monterModule()
+    await attendreChargement()
+    expect(screen.getByText(/Vos devis proposent encore 40 éléments d'exemple/)).toBeInTheDocument()
+    retirer()
+    await waitFor(() => expect(stocke(CLE_MODULE)).toEqual([]))
+    expect(localStorage.getItem(CLE_ANCIENNE)).toBe(ancienne)
+    cleanup()
+    monterFormulaire()
+    expect(ouvrirListe(CHAMP_PRESTATION)).toEqual([])
+    expect(ouvrirListe(CHAMP_MATERIAU)).toEqual(['Aucun matériau dans le catalogue'])
+  })
+
+  it('ancienne copie avec l\'exemple et une prestation à elle : la prestation devient le catalogue du module', async () => {
+    localStorage.setItem(CLE_ANCIENNE, JSON.stringify([...exempleAncienTelQuEnregistre('formulaire'), PRESTATION_A_ELLE]))
+    monterModule()
+    await attendreChargement()
+    retirer()
+    await waitFor(() => expect(stocke(CLE_MODULE)).toEqual([PRESTATION_A_ELLE]))
+    expect(screen.getByText('Chape liquide maison')).toBeInTheDocument()
+  })
+
+  it('un élément d\'exemple publié sur la fiche publique en est retiré', async () => {
+    const exemple = exempleAncienTelQuEnregistre('module').map((e, i) => (i === 0 ? { ...e, supabase_id: 'svc-exemple-1' } : e))
+    localStorage.setItem(CLE_MODULE, JSON.stringify(exemple))
+    monterModule()
+    await screen.findByText(/40 éléments d'exemple/)
+    retirer()
+    await waitFor(() => expect(h.suppressions).toContainEqual([['id', 'svc-exemple-1']]))
+  })
+
+  it('sauvegarde en ligne illisible : catalogue non chargé, aucun bandeau, rien d\'écrit', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{"error":"panne"}', { status: 500 })))
+    localStorage.setItem(CLE_ANCIENNE, JSON.stringify(exempleAncienTelQuEnregistre('formulaire')))
+    monterModule()
+    await attendreChargement()
+    expect(screen.queryByRole('button', { name: 'Retirer l\'exemple' })).toBeNull()
+    expect(localStorage.getItem(CLE_MODULE)).toBeNull()
+  })
+
+  it('exemple dans l\'ancienne copie, puis une prestation créée : le bandeau disparaît et la création n\'est jamais retirée', async () => {
+    localStorage.setItem(CLE_ANCIENNE, JSON.stringify(exempleAncienTelQuEnregistre('formulaire')))
+    monterModule()
+    await attendreChargement()
+    expect(screen.getByText(/Vos devis proposent encore 40 éléments d'exemple/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '+ Ajouter' }))
+    fireEvent.change(screen.getByPlaceholderText('Ex: Dalle béton'), { target: { value: 'Chape liquide' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Créer' }))
+    expect(await screen.findByText('Chape liquide')).toBeInTheDocument()
+    // Le formulaire de devis lit désormais le catalogue du module : l'ancienne copie n'est plus proposée.
+    expect(screen.queryByText(/éléments d'exemple/)).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Retirer l\'exemple' })).toBeNull()
+    expect(stocke(CLE_MODULE)).toEqual([expect.objectContaining({ name: 'Chape liquide' })])
+  })
+
+  it('catalogue du module créé ailleurs (autre onglet) pendant que le bandeau est affiché : le clic ne retire rien de lui', async () => {
+    localStorage.setItem(CLE_ANCIENNE, JSON.stringify(exempleAncienTelQuEnregistre('formulaire')))
+    monterModule()
+    await attendreChargement()
+    expect(screen.getByText(/Vos devis proposent encore 40 éléments d'exemple/)).toBeInTheDocument()
+    const ailleurs = JSON.stringify([PRESTATION_A_ELLE])
+    localStorage.setItem(CLE_MODULE, ailleurs)
+    retirer()
+    await attendre(30)
+    expect(localStorage.getItem(CLE_MODULE)).toBe(ailleurs)
+    expect(toast.success).not.toHaveBeenCalled()
+  })
+
+  it('un élément gardé publié garde son service : seuls les services des éléments d\'exemple sont retirés', async () => {
+    const garde = { ...PRESTATION_A_ELLE, supabase_id: 'svc-a-elle' }
+    const exemple = exempleAncienTelQuEnregistre('module').map((e, i) => (i === 1 ? { ...e, supabase_id: 'svc-exemple-2' } : e))
+    localStorage.setItem(CLE_MODULE, JSON.stringify([garde, ...exemple]))
+    monterModule()
+    await screen.findByText(/40 éléments d'exemple/)
+    retirer()
+    await waitFor(() => expect(stocke(CLE_MODULE)).toEqual([garde]))
+    await waitFor(() => expect(h.suppressions).toContainEqual([['id', 'svc-exemple-2']]))
+    expect(h.suppressions).not.toContainEqual([['id', 'svc-a-elle']])
+  })
+
+  it('catalogue venu du serveur, absent de ce navigateur : l\'exemple est retiré de ce catalogue, rien d\'autre', async () => {
+    const duServeur = [...exempleAncienTelQuEnregistre('module'), PRESTATION_A_ELLE]
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ entries: { [CLE_MODULE]: duServeur } }), { status: 200, headers: { 'Content-Type': 'application/json' } })))
+    monterModule()
+    await attendreChargement()
+    expect(screen.getByText(/Votre catalogue contient encore 40 éléments d'exemple/)).toBeInTheDocument()
+    retirer()
+    await waitFor(() => expect(stocke(CLE_MODULE)).toEqual([PRESTATION_A_ELLE]))
+  })
+
+  it('retrait au milieu de la publication automatique : les services déjà publiés et celui en cours sont tous retirés', async () => {
+    h.publication = 'acceptee'
+    h.latencePublication = 40
+    localStorage.setItem(CLE_MODULE, JSON.stringify(exempleAncienTelQuEnregistre('module')))
+    monterModule()
+    await screen.findByText(/40 éléments d'exemple/)
+    // Au moins trois publications terminées (et reliées) avant le clic, une quatrième en cours.
+    await waitFor(() => expect(h.insertions.length).toBeGreaterThanOrEqual(4), { timeout: 3000 })
+    retirer()
+    await waitFor(() => expect(stocke(CLE_MODULE)).toEqual([]))
+    const publies = h.insertions.map((_, i) => `svc-${i + 1}`)
+    await waitFor(() => { for (const id of publies) expect(h.suppressions).toContainEqual([['id', id]]) }, { timeout: 3000 })
+    await attendre(120)
+    // Plus rien n'est publié après le retrait.
+    expect(h.insertions.map((_, i) => `svc-${i + 1}`)).toEqual(publies)
+    expect(publies.length).toBeLessThan(31)
+  })
+
+  it('après la confirmation, le focus passe à « + Ajouter » (le bandeau disparaît)', async () => {
+    localStorage.setItem(CLE_MODULE, JSON.stringify(exempleAncienTelQuEnregistre('module')))
+    monterModule()
+    await screen.findByText(/40 éléments d'exemple/)
+    retirer()
+    await waitFor(() => expect(stocke(CLE_MODULE)).toEqual([]))
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: '+ Ajouter' }))
+  })
+
+  it('exemple déjà retiré dans un autre onglet : la société en est informée et l\'écran reprend le catalogue enregistré', async () => {
+    localStorage.setItem(CLE_MODULE, JSON.stringify([...exempleAncienTelQuEnregistre('module'), PRESTATION_A_ELLE]))
+    monterModule()
+    await screen.findByText(/40 éléments d'exemple/)
+    const ailleurs = JSON.stringify([PRESTATION_A_ELLE])
+    localStorage.setItem(CLE_MODULE, ailleurs)
+    retirer()
+    expect(toast).toHaveBeenCalledWith('Le catalogue ne contient plus d\'élément d\'exemple.')
+    expect(screen.queryByText(/éléments d'exemple/)).toBeNull()
+    expect(screen.getByText('Chape liquide maison')).toBeInTheDocument()
+    await attendre(30)
+    expect(localStorage.getItem(CLE_MODULE)).toBe(ailleurs)
+    expect(toast.success).not.toHaveBeenCalled()
+  })
+
+  it('catalogue enregistré illisible dans ce navigateur (celui du serveur affiché) : rien n\'est retiré ni écrasé, la société est prévenue', async () => {
+    localStorage.setItem(CLE_MODULE, 'pas du json')
+    const duServeur = exempleAncienTelQuEnregistre('module')
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ entries: { [CLE_MODULE]: duServeur } }), { status: 200, headers: { 'Content-Type': 'application/json' } })))
+    monterModule()
+    await attendreChargement()
+    expect(screen.getByText(/Votre catalogue contient encore 40 éléments d'exemple/)).toBeInTheDocument()
+    retirer()
+    expect(toast.error).toHaveBeenCalledWith('Le catalogue enregistré dans ce navigateur est illisible : rien n\'a été retiré.')
+    expect(localStorage.getItem(CLE_MODULE)).toBe('pas du json')
+  })
+
+  it('la question de confirmation prend le focus ; annuler le rend au bouton', async () => {
+    localStorage.setItem(CLE_MODULE, JSON.stringify(exempleAncienTelQuEnregistre('module')))
+    monterModule()
+    await screen.findByText(/40 éléments d'exemple/)
+    fireEvent.click(screen.getByRole('button', { name: 'Retirer l\'exemple' }))
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Annuler' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Annuler' }))
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Retirer l\'exemple' }))
+  })
+
+  it('service d\'exemple que la base refuse de retirer : le catalogue est nettoyé et la société est prévenue', async () => {
+    h.suppressionRefusee = true
+    const exemple = exempleAncienTelQuEnregistre('module').map((e, i) => (i === 0 ? { ...e, supabase_id: 'svc-exemple-1' } : e))
+    localStorage.setItem(CLE_MODULE, JSON.stringify(exemple))
+    monterModule()
+    await screen.findByText(/40 éléments d'exemple/)
+    retirer()
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('contact@vitfix.io')))
+    expect(stocke(CLE_MODULE)).toEqual([])
   })
 })
 
