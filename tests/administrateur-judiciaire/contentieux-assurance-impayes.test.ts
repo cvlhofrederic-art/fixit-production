@@ -181,13 +181,15 @@ describe('assurance impayés — contrôles (signale, ne refuse pas)', () => {
     expect(inverse[0].message).toContain('le 10/03/0026 sur le sinistre lié')
   })
 
-  it('déclaration datée après aujourd’hui (2525) ou d’une année improbable (0026)', () => {
-    const future = controlerAssuranceImpayes(recouvrement, assurance({ declareLe: '2525-03-10', sinistreId: null }), null, AUJOURDHUI)
+  it('déclaration datée après aujourd’hui (2027) ou d’une année improbable (0026, 2525)', () => {
+    const future = controlerAssuranceImpayes(recouvrement, assurance({ declareLe: '2027-03-10', sinistreId: null }), null, AUJOURDHUI)
     expect(future).toEqual([
-      { code: 'declaration_non_plausible', nature: 'future', message: 'Déclaration datée du 10/03/2525, après aujourd\'hui.' },
+      { code: 'declaration_non_plausible', nature: 'future', message: 'Déclaration datée du 10/03/2027, après aujourd\'hui.' },
     ])
-    const improbable = controlerAssuranceImpayes(recouvrement, assurance({ declareLe: '0026-03-10', sinistreId: null }), null, AUJOURDHUI)
-    expect(improbable.map((a) => a.nature)).toEqual(['annee_improbable'])
+    for (const declareLe of ['0026-03-10', '2525-03-10']) {
+      const improbable = controlerAssuranceImpayes(recouvrement, assurance({ declareLe, sinistreId: null }), null, AUJOURDHUI)
+      expect(improbable.map((a) => a.nature), declareLe).toEqual(['annee_improbable'])
+    }
   })
 
   it('refuse une fiche sinistre qui n’est pas celle du lien, et une date du jour invalide', () => {

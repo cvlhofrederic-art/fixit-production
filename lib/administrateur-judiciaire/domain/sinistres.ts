@@ -2,6 +2,7 @@ import {
   ajouterJoursOuvres,
   ajouterMois,
   dateIsoVersFr,
+  estAnneeImprobable,
   estDateIsoValide,
   messagePlausibilite,
   plausibiliteDate,
@@ -60,6 +61,10 @@ import {
  *   l'assureur. Repère = jour de la connaissance (déclarer dès la connaissance, L. 113-2, 4°), sauf délai fixé par la
  *   police (delaiContratJoursOuvres) ; prescription de deux ans inchangée (L. 114-1). Sans délai, rien à dépasser : la
  *   déclaration n'est jamais « tardive » au regard du repère. suivi-a-faire.depuisSinistres suit.
+ * - Année improbable (dates.estAnneeImprobable : avant 1900 ou après 2100, faute de frappe) : aucun repère ne se calcule
+ *   depuis une survenance ou une connaissance ainsi datée (reperesDelaisSinistre rend null ; anneeImprobableDesReperes
+ *   en donne le message). Depuis 9998, deux ans de prescription tombaient en l'an 10000, hors du calendrier ISO, et le
+ *   formatage de la date levait pendant le rendu de la fiche.
  */
 
 export interface AssuranceSinistre {
@@ -342,6 +347,16 @@ type ChampDateSinistre = (typeof DATES_PLAUSIBILITE)[number]['champ']
 /** Libellé accordé de chaque date, pour les messages (« Rapport daté », « Clôture datée »). */
 const DATEE = Object.fromEntries(DATES_PLAUSIBILITE.map((d) => [d.champ, d.datee])) as Record<ChampDateSinistre, string>
 
+/**
+ * Message de la première date de départ des repères (survenance, puis connaissance) d'une année improbable
+ * (dates.estAnneeImprobable), ou null : les repères ne se calculent pas depuis une faute de frappe.
+ */
+export function anneeImprobableDesReperes(sinistre: Pick<FicheSinistre, 'dateSurvenance' | 'dateConnaissance'>): string | null {
+  for (const champ of ['dateSurvenance', 'dateConnaissance'] as const)
+    if (estAnneeImprobable(sinistre[champ])) return messagePlausibilite(DATEE[champ], sinistre[champ], 'annee_improbable')
+  return null
+}
+
 export interface AnomalieChronologie {
   champ: Exclude<ChampDateSinistre, 'dateSurvenance'>
   message: string
@@ -524,11 +539,15 @@ function texteDelaiDeclaration(delaiDuContrat: boolean, delaiContratJoursOuvres:
   return `minimum légal, C. assur. L. 113-2, 4°, retenu au lieu des ${delaiContratJoursOuvres} jours ouvrés du contrat`
 }
 
-/** Déclaration « au plus tard » et prescription « au plus tôt » (voir l'en-tête du module ; J67, R49). */
+/**
+ * Déclaration « au plus tard » et prescription « au plus tôt » (voir l'en-tête du module ; J67, R49). Null quand la
+ * survenance ou la connaissance est d'une année improbable (anneeImprobableDesReperes) : aucun repère n'en part.
+ */
 export function reperesDelaisSinistre(
   sinistre: FicheSinistre,
   { delaiContratJoursOuvres }: { delaiContratJoursOuvres?: number } = {},
-): ReperesDelaisSinistre {
+): ReperesDelaisSinistre | null {
+  if (anneeImprobableDesReperes(sinistre) !== null) return null
   const dommagesOuvrage = sinistre.type === DOMMAGES_OUVRAGE
   const minimumLegalJoursOuvres = delaiMinimumJoursOuvres(sinistre.type)
   const delaiDeclarationJoursOuvres = Math.max(minimumLegalJoursOuvres, delaiContratJoursOuvres ?? 0)
