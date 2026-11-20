@@ -472,4 +472,14 @@ describe('en-tête : décisions du 20/11/2026 (partie C, F51 et F52)', () => {
     expect(decompte).toContain('Décision du 20/11/2026 (partie C, F52)')
     expect(decompte).toMatch(/ventilerSoldeImpayes ; le solde dû reste inchangé/)
   })
+
+  it('sinistres.ts ne renvoie plus à la question 1 fermée : il cite la décision F51', () => {
+    const sinistres = readFileSync(
+      join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'sinistres.ts'),
+      'utf8',
+    ).replaceAll(/\r?\n\s*\*\s*/g, ' ')
+    expect(sinistres).not.toMatch(/🔴 1, non tranché/)
+    expect(sinistres).toContain('Décision du 20/11/2026 (partie C, F51)')
+    expect(sinistres).toMatch(/repereDeclarationImpayes/)
+  })
 })

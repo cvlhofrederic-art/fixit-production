@@ -399,6 +399,7 @@ export type HorizonsCabinet = Readonly<Partial<Record<NatureSuivi, Horizon>>>
  * (assurance-pno-lots.REGLAGES_PNO_CABINET_PAR_DEFAUT, valeur réglable par le cabinet). Cet horizon remplace
  * « Maintenant », horizon par défaut de tout collaborateur (reglageParDefaut), quand le collaborateur n'a choisi d'horizon
  * ni pour la nature ni pour sa famille ; un horizon qu'il a choisi, même « Maintenant » pour la nature, reste prioritaire.
+ * « Maintenant » sur la famille ne se distingue pas du défaut : pour le garder, le choisir pour la nature.
  */
 export const HORIZONS_CABINET_PAR_DEFAUT: HorizonsCabinet = Object.freeze({
   pno_a_renouveler: Object.freeze({ nombre: REGLAGES_PNO_CABINET_PAR_DEFAUT.relanceJoursAvantEcheance, unite: 'jours' as const }),
