@@ -173,7 +173,8 @@ import {
  * - que recouvre la famille « Ajustement bancaire fonds travaux » du référentiel (non observée) ? Non utilisée ici ;
  * - compte de placement (J71 compris) lu en sous-compte 512 (COMPTE_512), comme les placements de Gestéam (tranche 29) ;
  *   un placement décidé par l'assemblée relève pourtant du 50 « Fonds placés » (D. 1967 art. 35-1) : classe 50 « Fonds
- *   placés » (J67, R83) non prise en charge, à trancher (même marque dans fonds-detenus.ts).
+ *   placés » (J67, R83) non prise en charge, à trancher (fonds-detenus.ts compte les placements de classe 50 depuis la
+ *   décision du 20/11/2026, partie C, F98).
  */
 
 /** Famille Gestéam du traitement d'un virement interne (référentiel FAMILLE_TRAITEMENT, bloc Règlements). */
