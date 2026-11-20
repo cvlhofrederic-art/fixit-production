@@ -14,7 +14,8 @@
  *
  * Catalogue vierge à la création du compte, en France comme au Portugal (demande de Frédéric du 17/11/2026) :
  * aucune prestation ni aucun matériau d'exemple n'est proposé ni enregistré, la société saisit les siens. Un
- * catalogue déjà enregistré (y compris l'ancien catalogue d'exemple d'un compte créé avant) s'affiche tel quel.
+ * catalogue déjà enregistré (y compris l'ancien catalogue d'exemple d'un compte créé avant) s'affiche tel quel ; la
+ * société peut en retirer d'un clic les éléments d'exemple jamais modifiés (bouton « Retirer l'exemple », 20/11/2026).
  *
  * Prix fixe OU fourchette (ex : 35 € – 45 € /m²) — les prix BTP sont rarement figés.
  */
@@ -27,8 +28,9 @@ import { supabase } from '@/lib/supabase'
 import type { Artisan } from '@/lib/types'
 import {
   lireCatalogueAuServeur, lireCatalogueLocal, prendreServicePublie, rangerServicesParNom, reporterLiensServices,
-  appliquerLiensServices, type LienService, type LigneServicePublie, type ServicesParNom,
+  appliquerLiensServices, cleCatalogueBTPAncienne, type LienService, type LigneServicePublie, type ServicesParNom,
 } from '@/lib/btp/catalogue-prestations'
+import { separerExempleAncien } from '@/lib/btp/catalogue-exemple-ancien'
 
 type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
 
@@ -164,12 +166,15 @@ async function publierSansDoublon(p: Prestation, artisanId: string, publies: Ser
   return prendreServicePublie(publies, p.name, pris) ?? upsertPrestationToSupabase(p, artisanId)
 }
 
-async function deletePrestationFromSupabase(supabaseId: string): Promise<void> {
+/** Retire un service publié ; vrai si la base l'a accepté. */
+async function deletePrestationFromSupabase(supabaseId: string): Promise<boolean> {
   try {
     const { error } = await supabase.from('services').delete().eq('id', supabaseId)
-    if (error) console.warn('[prestations] supabase delete failed', error)
+    if (error) { console.warn('[prestations] supabase delete failed', error); return false }
+    return true
   } catch (e) {
     console.warn('[prestations] supabase delete threw', e)
+    return false
   }
 }
 
@@ -250,10 +255,14 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
   // Nombre de relectures demandées après un échec : chacune relance le chargement ci-dessous.
   const [relectures, setRelectures] = useState(0)
   const catalogueCharge = etatCatalogue === 'charge'
+  // Vrai quand la liste affichée vient de la clé du module (navigateur ou serveur, lisible ou non) ; faux quand le module
+  // n'a de catalogue nulle part : le formulaire de devis propose alors l'ancienne copie (lireCatalogueBTPNavigateur).
+  const [catalogueDuModule, setCatalogueDuModule] = useState(true)
   useEffect(() => {
     if (!artisan?.id) return
     let annule = false
     setEtatCatalogue('chargement')
+    setCatalogueDuModule(true)
     const local = lireCatalogueLocal<Prestation>(storageKey)
     if (local.etat === 'present') {
       setItems(local.catalogue)
@@ -275,6 +284,7 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
         // n'est écrit (une valeur illisible déjà enregistrée reste telle quelle).
         const relu = lireCatalogueLocal<Prestation>(storageKey)
         setItems(relu.etat === 'present' ? relu.catalogue : [])
+        setCatalogueDuModule(relu.etat !== 'absent')
         setEtatCatalogue('charge')
         return
       }
@@ -296,6 +306,9 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
   // pas encore de supabase_id. Assure la visibilité publique des prestations
   // pour les comptes sociétés/BTP (bug : catalogue en localStorage jamais exposé).
   const backfilledRef = useRef(false)
+  // Liste affichée à jour, lue par la publication en cours ci-dessous entre deux envois.
+  const catalogueCourant = useRef<Prestation[]>([])
+  useEffect(() => { catalogueCourant.current = items }, [items])
   useEffect(() => {
     if (!artisan?.id || !catalogueCharge) return
     if (backfilledRef.current) return
@@ -304,20 +317,28 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
     if (toBackfill.length === 0) { backfilledRef.current = true; return }
     backfilledRef.current = true
     const affiche = items
+    // Un élément retiré pendant la publication (retrait de l'exemple, suppression) n'est plus publié ; s'il l'a été
+    // pendant son retrait, son service est retiré aussitôt. Chaque service est relié à son élément dès qu'il est publié
+    // (écran et catalogue enregistré, relu au moment d'écrire : la restauration depuis le serveur a pu le remplacer) :
+    // un retrait ou une modification faits pendant la suite de la publication le voient, et le suppriment ou le mettent
+    // à jour au lieu d'en laisser un orphelin sur la fiche publique.
+    const encoreAffiche = (p: Prestation) => catalogueCourant.current.some((i) => i.id === p.id && i.name === p.name && i.type === p.type)
     ;(async () => {
       const publies = await lireServicesPublies(artisan.id)
       if (!publies) return
       const pris = new Set(affiche.map((p) => p.supabase_id).filter((id): id is string => !!id))
-      const liens: LienService[] = []
       for (const p of toBackfill) {
+        if (!encoreAffiche(p)) continue
         const newId = await publierSansDoublon(p, artisan.id, publies, pris)
-        if (newId) liens.push({ id: p.id, name: p.name, type: p.type, supabase_id: newId })
+        if (!newId) continue
+        if (!encoreAffiche(p)) {
+          await deletePrestationFromSupabase(newId)
+          continue
+        }
+        const lien: LienService[] = [{ id: p.id, name: p.name, type: p.type, supabase_id: newId }]
+        setItems((prev) => appliquerLiensServices(prev, lien))
+        reporterLiensServices(storageKey, lien, () => affiche)
       }
-      if (liens.length === 0) return
-      // Le catalogue enregistré est relu au moment d'écrire (lib/btp/catalogue-prestations.ts) : la restauration
-      // depuis le serveur a pu le remplacer pendant la publication.
-      setItems((prev) => appliquerLiensServices(prev, liens))
-      reporterLiensServices(storageKey, liens, () => affiche)
     })()
   }, [artisan?.id, items, storageKey, catalogueCharge])
 
@@ -349,7 +370,12 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
     backfilledRef.current = true
     setItems(next)
     if (artisan?.id) {
-      try { localStorage.setItem(storageKey, JSON.stringify(next)) } catch (e) { console.warn('[prestations] persist', e) }
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(next))
+        // La clé du module existe dès sa première écriture réussie : le formulaire de devis la lit désormais, plus
+        // l'ancienne copie.
+        setCatalogueDuModule(true)
+      } catch (e) { console.warn('[prestations] persist', e) }
     }
   }
 
@@ -476,6 +502,108 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
     }
   }
 
+  /* ──────── Ancien catalogue d'exemple : retrait à la demande de la société ────────
+     Les comptes créés avant le 17/11/2026 ont reçu un catalogue d'exemple (lib/btp/catalogue-exemple-ancien.ts). Il
+     n'est jamais retiré d'office : la société le retire d'un clic, et seuls partent les éléments jamais modifiés ; ce
+     qu'elle a créé ou modifié reste. Sans catalogue du module, c'est l'ancienne copie du formulaire de devis (clé v4)
+     que ses devis proposent : son contenu gardé devient alors le catalogue du module, et l'ancienne copie n'est jamais
+     écrite (le formulaire lit la clé du module en premier). */
+  const ficheId = artisan?.id
+  const ancienneCopie = useMemo<Prestation[]>(() => {
+    if (!ficheId || !catalogueCharge || catalogueDuModule) return []
+    const lecture = lireCatalogueLocal<Prestation>(cleCatalogueBTPAncienne(ficheId))
+    return lecture.etat === 'present' ? lecture.catalogue : []
+  }, [ficheId, catalogueCharge, catalogueDuModule])
+  const nbExemple = useMemo(() => {
+    if (!catalogueCharge) return 0
+    return separerExempleAncien(catalogueDuModule ? items : ancienneCopie).exemples.length
+  }, [catalogueCharge, catalogueDuModule, items, ancienneCopie])
+  // Confirmation demandée pour cette fiche seulement : une autre fiche affichée ensuite repart sans question ouverte.
+  const [confirmationPour, setConfirmationPour] = useState<string | null>(null)
+  const confirmationExemple = !!ficheId && confirmationPour === ficheId
+  // Le focus suit la question : sur « Annuler » quand elle s'ouvre, de retour sur « Retirer l'exemple » si on annule.
+  const boutonRetirerExemple = useRef<HTMLButtonElement>(null)
+  const boutonAnnulerExemple = useRef<HTMLButtonElement>(null)
+  const boutonAjouter = useRef<HTMLButtonElement>(null)
+  const focusRetourExemple = useRef(false)
+  useEffect(() => {
+    if (confirmationExemple) boutonAnnulerExemple.current?.focus()
+    else if (focusRetourExemple.current) boutonRetirerExemple.current?.focus()
+    focusRetourExemple.current = false
+  }, [confirmationExemple])
+
+  /**
+   * Catalogue d'où retirer l'exemple, relu au moment du clic : celui enregistré par le module (une saisie ou un autre
+   * onglet a pu l'écrire depuis l'affichage ; `relu` vaut alors vrai), à défaut celui affiché (venu du serveur, pas encore
+   * recopié ici), à défaut l'ancienne copie du formulaire quand le module n'a de catalogue nulle part. Valeur enregistrée
+   * illisible : null, rien n'est retiré ni écrit par-dessus.
+   */
+  function sourceDuRetrait(fiche: string): { catalogue: Prestation[]; relu: boolean } | null {
+    const duModule = lireCatalogueLocal<Prestation>(storageKey)
+    if (duModule.etat === 'present') return { catalogue: duModule.catalogue, relu: true }
+    if (duModule.etat === 'illisible') return null
+    if (catalogueDuModule) return { catalogue: items, relu: false }
+    const ancienne = lireCatalogueLocal<Prestation>(cleCatalogueBTPAncienne(fiche))
+    return { catalogue: ancienne.etat === 'present' ? ancienne.catalogue : [], relu: false }
+  }
+
+  async function retirerExemple() {
+    // Rien de retiré : le focus revient à « Retirer l'exemple » ; retrait fait : il passe à « + Ajouter », le bandeau
+    // disparaissant.
+    focusRetourExemple.current = true
+    setConfirmationPour(null)
+    if (!ficheId || !catalogueModifiable()) return
+    const source = sourceDuRetrait(ficheId)
+    if (!source) {
+      toast.error(isPt
+        ? 'O catálogo guardado neste navegador está ilegível: nada foi removido.'
+        : 'Le catalogue enregistré dans ce navigateur est illisible : rien n\'a été retiré.')
+      return
+    }
+    const { gardes, exemples } = separerExempleAncien(source.catalogue)
+    if (exemples.length === 0) {
+      // Déjà retiré ailleurs (autre onglet) : l'écran reprend le catalogue enregistré, sans rien écrire.
+      if (source.relu) {
+        setItems(source.catalogue)
+        setCatalogueDuModule(true)
+      }
+      toast(isPt ? 'O catálogo já não contém elementos de exemplo.' : 'Le catalogue ne contient plus d\'élément d\'exemple.')
+      return
+    }
+    persist(gardes)
+    boutonAjouter.current?.focus()
+    // Un élément d'exemple publié sur la fiche publique (table services) en est retiré, comme une suppression à l'unité.
+    let echecs = 0
+    for (const e of exemples) {
+      if (e.supabase_id && !(await deletePrestationFromSupabase(e.supabase_id))) echecs++
+    }
+    const s = exemples.length > 1 ? 's' : ''
+    toast.success(isPt ? `Exemplo removido: ${exemples.length} elemento${s}.` : `Exemple retiré : ${exemples.length} élément${s}.`)
+    if (echecs > 0) {
+      toast.error(isPt
+        ? 'Exemplo removido do catálogo, mas alguns serviços continuam visíveis no seu perfil público: escreva para contact@vitfix.io para os remover.'
+        : 'Exemple retiré du catalogue, mais certaines prestations restent visibles sur votre fiche publique : écrivez à contact@vitfix.io pour les retirer.')
+    }
+  }
+
+  /** Texte du bandeau de l'ancien exemple : ce qu'il reste à retirer, ou la question de confirmation. */
+  function texteBandeauExemple(): string {
+    const n = nbExemple
+    const s = n > 1 ? 's' : ''
+    if (isPt) {
+      if (confirmationExemple) {
+        return n > 1 ? `Remover estes ${n} elementos de exemplo? Esta ação é definitiva.` : 'Remover este elemento de exemplo? Esta ação é definitiva.'
+      }
+      const debut = catalogueDuModule ? 'O seu catálogo ainda contém' : 'Os seus orçamentos ainda propõem'
+      return `${debut} ${n} elemento${s} de exemplo adicionado${s} automaticamente na criação da conta e nunca alterado${s}. O que criou ou alterou não é afetado.`
+    }
+    if (confirmationExemple) {
+      return n > 1 ? `Retirer ces ${n} éléments d'exemple ? Cette action est définitive.` : 'Retirer cet élément d\'exemple ? Cette action est définitive.'
+    }
+    const debut = catalogueDuModule ? 'Votre catalogue contient encore' : 'Vos devis proposent encore'
+    return `${debut} ${n} élément${s} d'exemple ajouté${s} automatiquement à la création du compte, jamais modifié${s}. Ce que vous avez créé ou modifié n'est pas concerné.`
+  }
+
   const lotActif = availableLots.find((l) => l.key === activeLot)
   const currentLotLabel = lotActif ? libelleLot(lotActif, isPt) : ''
 
@@ -531,6 +659,22 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
         <p>{isPt ? 'Catálogo de serviços e materiais: é o que os seus clientes veem' : 'Catalogue de prestations et matériaux — c\'est ce que vos clients voient'}</p>
       </div>
 
+      {/* Ancien catalogue d'exemple encore présent : retrait au clic, après confirmation (retirerExemple). */}
+      {nbExemple > 0 && (
+        <div className="v5-alert" style={{ marginBottom: 12, fontSize: 12, background: '#f1f5f9', border: '1px solid #cbd5e1', color: '#334155', display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 6, flexWrap: 'wrap' }}>
+          <span aria-hidden="true" style={{ fontSize: 14 }}>🧹</span>
+          <span aria-live="polite" style={{ flex: 1, minWidth: 220 }}>{texteBandeauExemple()}</span>
+          {confirmationExemple ? (
+            <>
+              <button type="button" className="v5-btn v5-btn-sm v5-btn-d" onClick={retirerExemple}>{isPt ? 'Confirmar' : 'Confirmer'}</button>
+              <button type="button" ref={boutonAnnulerExemple} className="v5-btn v5-btn-sm" onClick={() => { focusRetourExemple.current = true; setConfirmationPour(null) }}>{isPt ? 'Cancelar' : 'Annuler'}</button>
+            </>
+          ) : (
+            <button type="button" ref={boutonRetirerExemple} className="v5-btn v5-btn-sm" onClick={() => setConfirmationPour(ficheId ?? null)}>{isPt ? 'Remover o exemplo' : 'Retirer l\'exemple'}</button>
+          )}
+        </div>
+      )}
+
       {/* Barre haute : recherche + switch catégorie + bouton ajout */}
       <div className="prest-top">
         <div className="v5-search" style={{ margin: 0, flex: 1, minWidth: 220 }}>
@@ -548,7 +692,7 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
             <button className={`prest-cat-btn${cat === 'mat' ? ' active' : ''}`} onClick={() => setCat('mat')}>🧱 {isPt ? 'Materiais' : 'Matériaux'}</button>
             <button className={`prest-cat-btn${cat === 'frais' ? ' active' : ''}`} onClick={() => setCat('frais')}>💰 {isPt ? 'Despesas diversas' : 'Frais divers'}</button>
           </div>
-          <button className="v5-btn v5-btn-p" onClick={openCreate}>+ {isPt ? 'Adicionar' : 'Ajouter'}</button>
+          <button ref={boutonAjouter} className="v5-btn v5-btn-p" onClick={openCreate}>+ {isPt ? 'Adicionar' : 'Ajouter'}</button>
         </div>
       </div>
 
