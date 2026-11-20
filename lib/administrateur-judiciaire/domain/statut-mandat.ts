@@ -1,4 +1,5 @@
-import { dateIsoVersFr, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
+import { ajouterJours, ajouterMois, dateIsoVersFr, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
+import type { Regime } from '@/lib/administrateur-judiciaire/domain/fondements'
 import { normaliserEspaces } from '@/lib/administrateur-judiciaire/domain/texte'
 import { STATUT_MANDAT, type StatutMandat } from '@/lib/data/referentiels-gesteam-judiciaire'
 
@@ -90,6 +91,22 @@ import { STATUT_MANDAT, type StatutMandat } from '@/lib/data/referentiels-gestea
  * - Archivé ne retire le mandat que du suivi, rien n'est effacé : l'administrateur provisoire ne peut être désigné syndic
  *   de la copropriété dans les cinq ans de l'issue de sa mission (L. 1965 art. 29-1, IV), la date de fin de mission d'un
  *   mandat archivé doit donc rester lisible (fiche du mandat, hors de ce module).
+ * - Décision du 20/11/2026 (partie C, F31) : aucune transition automatique ; VitFix propose, le responsable du mandat
+ *   décide. « En gestion » → « En clôture » : proposé à la fin de la mission (proposerPassageEnCloture) : terme fixé par
+ *   l'ordonnance atteint sans prorogation, ordonnance qui y met fin (L. 1965 art. 29-1, I, al. 3), ou acceptation de son
+ *   mandat par le syndic élu (D. 1967 art. 46, al. 4 pour le syndic désigné par le juge ; art. 47, al. 2 pour
+ *   l'administrateur de l'art. 47). « En clôture » → « Archivé » : seulement à la main, après la remise effective et pas
+ *   seulement la fin des délais, avec une liste de contrôle propre au régime (listeControleArchivage,
+ *   controlerPassageArchive) : administrateur de l'art. 29-1, compte rendu de fin de mission déposé avec ses annexes
+ *   comptables (D. 1967 art. 62-11, I et II), délai d'observations d'un mois passé (art. 62-11, III), ordonnance
+ *   arrêtant la rémunération reçue (art. 61-1-5, III), fonds et documents remis au successeur ; syndic désigné par le
+ *   juge : remises de l'art. 18-2 faites (trésorerie et banque sous quinze jours, documents et archives sous un mois, avec
+ *   bordereau, D. 1967 art. 33-1 ; état des comptes dans les deux mois suivants) ; administrateur de l'art. 47 : fonds et
+ *   documents remis au syndic élu. Aucun texte n'impose l'art. 18-2 à la sortie d'un administrateur provisoire : ses
+ *   délais servent de simple rappel (echeanceImposee faux). La date de fin de mission doit être saisie avant l'archivage
+ *   et reste lisible après (L. 1965 art. 29-1, IV). Données : la fin de mission, l'ordonnance qui y met fin,
+ *   l'acceptation du syndic élu et les dates des remises sont des paramètres explicites, qu'aucune table n'enregistre
+ *   aujourd'hui (écran : à voir).
  *
  * Branchements (les écrans et les modules en lecture seule ne sont pas modifiés ici) :
  * - Faits dans le domaine : portefeuille, selectionnerAFaire, balanceAgee et depuisDemandes (suivi-a-faire.ts) ;
@@ -118,12 +135,6 @@ import { STATUT_MANDAT, type StatutMandat } from '@/lib/data/referentiels-gestea
  *   db/donnees-store.ts ; démonstration, components/administrateur-judiciaire/data/coproprietes.ts), tous signalés
  *   inconnus ici. Faut-il un champ distinct pour le statut Gestéam, ou convertir ces états en « En gestion » ? (schéma et
  *   écrans : hors de ce module.)
- * - Hugo : quand un mandat passe-t-il « En clôture » puis « Archivé » (fin de la mission, dépôt du compte rendu de fin
- *   de mission, ordonnance arrêtant la rémunération, remise des archives) ? Aucun texte ne date l'archivage ; aucune
- *   transition n'est codée. Seul repère légal daté, pour le syndic désigné par le juge : les délais de remise de
- *   l'art. 18-2 (quinze jours, un mois, puis deux mois suivants, à compter de la cessation des fonctions) ; faut-il
- *   attendre leur expiration, ou la remise effective, avant d'archiver, et s'en servir aussi pour un administrateur
- *   provisoire, qu'aucun texte n'y soumet à sa sortie ?
  * - Hugo : faut-il refuser d'archiver un mandat qui a encore des dossiers ouverts (contentieux, sinistre) ou des demandes
  *   en cours, puisqu'ils sortent du suivi ? Aucun contrôle n'est codé.
  */
@@ -352,4 +363,287 @@ export function filtrerMandatsSuivis<T extends { id: string; statut?: string | n
     horsSuivi: mandats.filter((m) => horsSuivi.has(m.id)),
     anomalies,
   }
+}
+
+// ─── Passages « En clôture » et « Archivé » (décision du 20/11/2026, partie C, F31) ─────────────
+
+function verifierDateIso(valeur: string, quoi: string): void {
+  if (!estDateIsoValide(valeur)) throw new Error(`${quoi} invalide (${valeur}) : AAAA-MM-JJ attendu.`)
+}
+
+const verifierDateFacultative = (valeur: string | null | undefined, quoi: string): void => {
+  if (valeur !== null && valeur !== undefined) verifierDateIso(valeur, quoi)
+}
+
+/** Faits qui mettent fin à la mission : terme de l'ordonnance, ordonnance qui y met fin, acceptation du syndic élu. */
+export const MOTIFS_FIN_MISSION = ['terme_atteint', 'ordonnance_fin_mission', 'acceptation_syndic_elu'] as const
+export type MotifFinMission = (typeof MOTIFS_FIN_MISSION)[number]
+
+const LIBELLES_FIN_MISSION: Readonly<Record<MotifFinMission, string>> = {
+  terme_atteint: "terme fixé par l'ordonnance atteint, sans prorogation",
+  ordonnance_fin_mission: 'ordonnance qui met fin à la mission',
+  acceptation_syndic_elu: 'acceptation de son mandat par le syndic élu',
+}
+
+/** Texte qui fixe la durée de la mission selon le régime. */
+const FONDEMENT_DUREE_MISSION: Readonly<Record<Regime, string>> = {
+  sj: 'D. 1967 art. 46',
+  ap47: 'D. 1967 art. 47',
+  ap291: 'L. 1965 art. 29-1, I, al. 3',
+}
+
+/** Fin de plein droit à l'acceptation du syndic élu : syndic désigné par le juge et administrateur de l'art. 47 seulement. */
+const FONDEMENT_ACCEPTATION_SYNDIC_ELU: Readonly<Partial<Record<Regime, string>>> = {
+  sj: 'D. 1967 art. 46, al. 4',
+  ap47: 'D. 1967 art. 47, al. 2',
+}
+
+const FONDEMENT_ORDONNANCE_INCONNU = 'ordonnance de désignation (régime du mandat inconnu)'
+
+/** Terme atteint ou ordonnance qui met fin : texte de la mission du régime ; acceptation du syndic élu : art. 46 ou 47. */
+function fondementFinMission(motif: MotifFinMission, regime: Regime | null): string {
+  if (regime === null) return FONDEMENT_ORDONNANCE_INCONNU
+  if (motif === 'acceptation_syndic_elu') return FONDEMENT_ACCEPTATION_SYNDIC_ELU[regime] ?? FONDEMENT_DUREE_MISSION[regime]
+  return FONDEMENT_DUREE_MISSION[regime]
+}
+
+export interface EntreeFinMission {
+  /** Valeur libre de `Mandat.statut`. */
+  statut: string | null | undefined
+  /** Régime du mandat de justice ; null : inconnu. */
+  regime: Regime | null
+  /** Terme de la mission fixé par l'ordonnance, prorogations comprises ; null : non saisi. */
+  termeMissionLe: string | null
+  /** Ordonnance qui met fin à la mission (L. 1965 art. 29-1, I, al. 3) ; absente ou null : aucune. */
+  ordonnanceFinMissionLe?: string | null
+  /** Acceptation de son mandat par le syndic élu (D. 1967 art. 46, al. 4 ; art. 47, al. 2) ; absente ou null : aucune. */
+  acceptationSyndicEluLe?: string | null
+}
+
+export interface PropositionEnCloture {
+  statutPropose: 'En clôture'
+  motif: MotifFinMission
+  /** Date de fin de la mission : à garder lisible, y compris après l'archivage (L. 1965 art. 29-1, IV). */
+  finMissionLe: string
+  fondement: string
+  message: string
+}
+
+function verifierEntreeFinMission(entree: EntreeFinMission, aujourdhui: string): void {
+  verifierDateIso(aujourdhui, 'Date du jour')
+  verifierDateFacultative(entree.termeMissionLe, 'Date du terme de la mission')
+  verifierDateFacultative(entree.ordonnanceFinMissionLe, "Date de l'ordonnance qui met fin à la mission")
+  verifierDateFacultative(entree.acceptationSyndicEluLe, "Date d'acceptation du syndic élu")
+  const acceptation = entree.acceptationSyndicEluLe ?? null
+  if (acceptation !== null && (entree.regime === null || FONDEMENT_ACCEPTATION_SYNDIC_ELU[entree.regime] === undefined))
+    throw new Error(
+      "Acceptation du syndic élu : elle met fin de plein droit à la mission du syndic désigné par le juge (D. 1967 art. 46, al. 4) ou de l'administrateur de l'art. 47 (art. 47, al. 2) seulement.",
+    )
+}
+
+/** « En clôture » se propose depuis « En gestion », ou un statut inconnu ou absent ; jamais depuis Prospect, En clôture ou Archivé. */
+function peutPasserEnCloture(statut: string | null | undefined): boolean {
+  const lecture = lireStatutMandat(statut)
+  return lecture.etat !== 'connu' || lecture.statut === 'En gestion'
+}
+
+/**
+ * Décision du 20/11/2026 (partie C, F31) : propose « En clôture » quand la mission a pris fin au jour du contrôle (le
+ * plus tôt des faits datés au plus tard ce jour) ; null : rien à proposer. Aucun passage n'est appliqué : le responsable
+ * du mandat décide.
+ */
+export function proposerPassageEnCloture(entree: EntreeFinMission, aujourdhui: string): PropositionEnCloture | null {
+  verifierEntreeFinMission(entree, aujourdhui)
+  if (!peutPasserEnCloture(entree.statut)) return null
+  const faits: [MotifFinMission, string | null][] = [
+    ['terme_atteint', entree.termeMissionLe],
+    ['ordonnance_fin_mission', entree.ordonnanceFinMissionLe ?? null],
+    ['acceptation_syndic_elu', entree.acceptationSyndicEluLe ?? null],
+  ]
+  const echus = faits.filter((fait): fait is [MotifFinMission, string] => fait[1] !== null && fait[1] <= aujourdhui)
+  if (echus.length === 0) return null
+  const [motif, finMissionLe] = echus.reduce((a, b) => (b[1] < a[1] ? b : a))
+  return {
+    statutPropose: 'En clôture',
+    motif,
+    finMissionLe,
+    fondement: fondementFinMission(motif, entree.regime),
+    message: `Fin de la mission le ${dateIsoVersFr(finMissionLe)} (${LIBELLES_FIN_MISSION[motif]}) : passage à « En clôture » proposé ; le responsable du mandat décide, aucun passage n'est automatique.`,
+  }
+}
+
+/** Points de la liste de contrôle avant « Archivé », par régime. */
+export const CONTROLES_ARCHIVAGE = [
+  'compte_rendu_fin_mission',
+  'delai_observations',
+  'remuneration_arretee',
+  'fonds_documents_successeur',
+  'tresorerie_banque',
+  'documents_archives',
+  'etat_comptes',
+  'fonds_documents_syndic_elu',
+] as const
+export type ControleArchivage = (typeof CONTROLES_ARCHIVAGE)[number]
+
+interface DefinitionControleArchivage {
+  libelle: string
+  fondement: string
+  /** Délai compté depuis la fin de mission ; imposé (syndic désigné par le juge) ou simple rappel ; null : aucun. */
+  delai: { nombre: number; unite: 'jours' | 'mois'; impose: boolean } | null
+}
+
+const RAPPEL_18_2 = "aucun texte n'impose l'art. 18-2 à sa sortie : délais de L. 1965 art. 18-2, al. 1 en simple rappel"
+
+const DEFINITIONS_CONTROLES_ARCHIVAGE: Readonly<Record<ControleArchivage, DefinitionControleArchivage>> = {
+  compte_rendu_fin_mission: {
+    libelle: 'Compte rendu de fin de mission déposé, avec ses annexes comptables',
+    fondement: 'D. 1967 art. 62-11, I et II',
+    delai: null,
+  },
+  delai_observations: {
+    libelle: "Délai d'observations d'un mois sur le compte rendu de fin de mission passé",
+    fondement: 'D. 1967 art. 62-11, III',
+    delai: null,
+  },
+  remuneration_arretee: {
+    libelle: "Ordonnance arrêtant la rémunération de l'administrateur provisoire reçue",
+    fondement: 'D. 1967 art. 61-1-5, III',
+    delai: null,
+  },
+  fonds_documents_successeur: {
+    libelle: 'Fonds et documents remis au successeur',
+    fondement: `Administrateur provisoire de l'art. 29-1 : ${RAPPEL_18_2}`,
+    delai: { nombre: 15, unite: 'jours', impose: false },
+  },
+  tresorerie_banque: {
+    libelle: 'Situation de trésorerie, références des comptes bancaires et coordonnées de la banque remises (quinze jours)',
+    fondement: 'L. 1965 art. 18-2, al. 1',
+    delai: { nombre: 15, unite: 'jours', impose: true },
+  },
+  documents_archives: {
+    libelle: 'Documents et archives du syndicat remis (un mois), avec un bordereau récapitulatif dont copie au conseil syndical',
+    fondement: 'L. 1965 art. 18-2, al. 1 ; D. 1967 art. 33-1',
+    delai: { nombre: 1, unite: 'mois', impose: true },
+  },
+  etat_comptes: {
+    // Deux mois suivant le délai d'un mois, comme delais-legaux.ts : fin de mission + 3 mois
+    libelle: 'État des comptes des copropriétaires et du syndicat, après apurement et clôture, remis (deux mois suivants)',
+    fondement: 'L. 1965 art. 18-2, al. 2',
+    delai: { nombre: 3, unite: 'mois', impose: true },
+  },
+  fonds_documents_syndic_elu: {
+    libelle: 'Fonds et documents remis au syndic élu',
+    fondement: `D. 1967 art. 47, al. 2 ; ${RAPPEL_18_2}`,
+    delai: { nombre: 15, unite: 'jours', impose: false },
+  },
+}
+
+const CONTROLES_PAR_REGIME: Readonly<Record<Regime, readonly ControleArchivage[]>> = {
+  ap291: ['compte_rendu_fin_mission', 'delai_observations', 'remuneration_arretee', 'fonds_documents_successeur'],
+  sj: ['tresorerie_banque', 'documents_archives', 'etat_comptes'],
+  ap47: ['fonds_documents_syndic_elu'],
+}
+
+export interface PointControleArchivage {
+  code: ControleArchivage
+  libelle: string
+  fondement: string
+  /** Date de la remise, du dépôt ou de la réception effective ; null : pas encore faite. */
+  faitLe: string | null
+  /** Échéance comptée depuis la fin de mission ; null : aucun délai, ou fin de mission inconnue. */
+  echeanceLe: string | null
+  /** Échéance imposée par le texte (syndic désigné par le juge) ; faux : aucune, ou simple rappel. */
+  echeanceImposee: boolean
+}
+
+/** Liste de contrôle du régime, sans dates (F31). */
+export const listeControleArchivage = (regime: Regime): Omit<PointControleArchivage, 'faitLe' | 'echeanceLe'>[] =>
+  CONTROLES_PAR_REGIME[regime].map((code) => {
+    const { libelle, fondement, delai } = DEFINITIONS_CONTROLES_ARCHIVAGE[code]
+    return { code, libelle, fondement, echeanceImposee: delai?.impose ?? false }
+  })
+
+export const MOTIFS_REFUS_ARCHIVAGE = ['pas_en_cloture', 'fin_mission_inconnue', 'regime_inconnu', 'controle_non_fait'] as const
+export type MotifRefusArchivage = (typeof MOTIFS_REFUS_ARCHIVAGE)[number]
+
+export interface EntreeArchivage {
+  /** Valeur libre de `Mandat.statut`. */
+  statut: string | null | undefined
+  /** Régime du mandat de justice ; null : inconnu. */
+  regime: Regime | null
+  /** Date de fin de la mission ; null : non saisie. */
+  finMissionLe: string | null
+  /** Points faits, avec la date de la remise, du dépôt ou de la réception effective ; absent : non fait. */
+  faits?: Partial<Record<ControleArchivage, string>>
+}
+
+export interface ControleAvantArchivage {
+  /** Rien ne s'oppose à l'archivage, qui reste une décision prise à la main par le responsable du mandat. */
+  archivable: boolean
+  regime: Regime | null
+  /** Date de fin de mission, lisible après l'archivage (L. 1965 art. 29-1, IV). */
+  finMissionLe: string | null
+  points: PointControleArchivage[]
+  /** Ce qui empêche d'archiver ; vide : archivable. */
+  motifs: { code: MotifRefusArchivage; message: string }[]
+}
+
+function verifierEntreeArchivage({ regime, finMissionLe, faits = {} }: EntreeArchivage, aujourdhui: string): void {
+  verifierDateIso(aujourdhui, 'Date du jour')
+  verifierDateFacultative(finMissionLe, 'Date de fin de mission')
+  const prevus: readonly ControleArchivage[] = regime === null ? [] : CONTROLES_PAR_REGIME[regime]
+  for (const [code, faitLe] of Object.entries(faits) as [ControleArchivage, string][]) {
+    if (!prevus.includes(code)) throw new Error(`Point de contrôle « ${code} » sans objet pour le régime ${regime ?? 'inconnu'}.`)
+    verifierDateIso(faitLe, `Date du point « ${code} »`)
+    if (faitLe > aujourdhui)
+      throw new Error(`Point « ${code} » daté du ${dateIsoVersFr(faitLe)}, après le jour du contrôle : la remise n'est pas encore effective.`)
+  }
+}
+
+function echeanceDepuisFin(finMissionLe: string | null, delai: DefinitionControleArchivage['delai']): string | null {
+  if (finMissionLe === null || delai === null) return null
+  return delai.unite === 'jours' ? ajouterJours(finMissionLe, delai.nombre) : ajouterMois(finMissionLe, delai.nombre)
+}
+
+function motifsRefusArchivage(entree: EntreeArchivage, points: readonly PointControleArchivage[]): ControleAvantArchivage['motifs'] {
+  const motifs: ControleAvantArchivage['motifs'] = []
+  if (!lireStatutMandat(entree.statut).enCloture)
+    motifs.push({ code: 'pas_en_cloture', message: `Statut « ${entree.statut ?? 'non transmis'} » : « Archivé » ne se décide qu'après « En clôture ».` })
+  if (entree.finMissionLe === null)
+    motifs.push({
+      code: 'fin_mission_inconnue',
+      message:
+        "Date de fin de mission à saisir : elle reste lisible après l'archivage (L. 1965 art. 29-1, IV : l'administrateur provisoire ne peut être désigné syndic de la copropriété dans les cinq ans de l'issue de sa mission).",
+    })
+  if (entree.regime === null) motifs.push({ code: 'regime_inconnu', message: 'Régime du mandat inconnu : liste de contrôle avant archivage non établie.' })
+  const aFaire = points.filter((p) => p.faitLe === null).map((p) => p.libelle)
+  if (aFaire.length > 0)
+    motifs.push({
+      code: 'controle_non_fait',
+      message: `Points à faire avant « Archivé » (remise effective, pas seulement la fin des délais) : ${aFaire.join(' ; ')}.`,
+    })
+  return motifs
+}
+
+/**
+ * Décision du 20/11/2026 (partie C, F31) : liste de contrôle avant « Archivé », propre au régime, chaque point fait à la
+ * date de sa remise effective (l'expiration d'un délai ne suffit pas). Archivable : mandat en clôture, date de fin de
+ * mission saisie, régime connu, chaque point fait. Rien n'est appliqué : l'archivage reste une décision à la main.
+ */
+export function controlerPassageArchive(entree: EntreeArchivage, aujourdhui: string): ControleAvantArchivage {
+  verifierEntreeArchivage(entree, aujourdhui)
+  const codes = entree.regime === null ? [] : CONTROLES_PAR_REGIME[entree.regime]
+  const points = codes.map((code): PointControleArchivage => {
+    const { libelle, fondement, delai } = DEFINITIONS_CONTROLES_ARCHIVAGE[code]
+    return {
+      code,
+      libelle,
+      fondement,
+      faitLe: entree.faits?.[code] ?? null,
+      echeanceLe: echeanceDepuisFin(entree.finMissionLe, delai),
+      echeanceImposee: delai?.impose ?? false,
+    }
+  })
+  const motifs = motifsRefusArchivage(entree, points)
+  return { archivable: motifs.length === 0, regime: entree.regime, finMissionLe: entree.finMissionLe, points, motifs }
 }

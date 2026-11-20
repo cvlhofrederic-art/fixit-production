@@ -20,13 +20,16 @@ import {
 } from '@/lib/administrateur-judiciaire/domain/relance-demandes'
 import {
   bilanStatutsMandats,
+  controlerPassageArchive,
   demandesDesMandatsSuivis,
   estMandatSuivi,
   estMandatSuiviAvecOrdonnance,
   filtrerMandatsSuivis,
   lireStatutMandat,
+  listeControleArchivage,
   mandatHorsSuivi,
   mentionArchivesExclus,
+  proposerPassageEnCloture,
   STATUTS_EN_CLOTURE,
   STATUTS_HORS_SUIVI,
 } from '@/lib/administrateur-judiciaire/domain/statut-mandat'
@@ -415,8 +418,9 @@ describe('en-tête du module', () => {
     expect(ap47).toMatch(/D\. 1967 art\. 47, al\. 2/)
     expect(ap47).toMatch(/aucun texte lu ne lui impose de diligence de sortie/)
     expect(ap47).toMatch(/l'art\. 62-6, .* joue à l'ENTRÉE de sa mission/)
-    expect(item('Hugo : quand un mandat passe-t-il')).toMatch(
-      /Seul repère légal daté, pour le syndic désigné par le juge : les délais de remise de l'art\. 18-2 \(quinze jours, un mois, puis deux mois suivants/,
+    expect(texte).not.toMatch(/quand un mandat passe-t-il « En clôture » puis « Archivé »/)
+    expect(item('Décision du 20/11/2026 (partie C, F31)')).toMatch(
+      /syndic désigné par le juge : remises de l'art\. 18-2 faites \(trésorerie et banque sous quinze jours, documents et archives sous un mois, avec bordereau, D\. 1967 art\. 33-1 ; état des comptes dans les deux mois suivants\)/,
     )
   })
 
@@ -441,7 +445,6 @@ describe('en-tête du module', () => {
   it('pose les questions ouvertes à Hugo et Frédéric', () => {
     expect(item('Hugo : « En gestion, en clôture »')).toMatch(/\?/)
     expect(item('Frédéric et Hugo : `Mandat.statut`')).toMatch(/\?/)
-    expect(item('Hugo : quand un mandat passe-t-il')).toMatch(/\?/)
     expect(item("Hugo : faut-il refuser d'archiver")).toMatch(/\?/)
     expect(texte).toMatch(/L\. 1965 art\. 29-1, IV/)
   })
@@ -710,5 +713,126 @@ describe('tableau des honoraires — question 🔴 du statut du mandat dans l’
     const commentaire = source.slice(source.lastIndexOf('/**', fin), fin).replaceAll(/\n \*\s+/g, ' ')
     expect(commentaire).toMatch(/🔴 à confirmer par Frédéric, question « Statut du mandat » de l'en-tête/)
     expect(commentaire).not.toMatch(/Hugo/)
+  })
+})
+
+describe('décision du 20/11/2026 (partie C, F31) — « En clôture » proposé à la fin de la mission, « Archivé » à la main après contrôle', () => {
+  const JOUR = '2027-04-10'
+
+  it('« En clôture » proposé, jamais appliqué : terme de l’ordonnance atteint sans prorogation', () => {
+    expect(proposerPassageEnCloture({ statut: 'En gestion', regime: 'ap291', termeMissionLe: '2027-03-31' }, JOUR)).toEqual({
+      statutPropose: 'En clôture',
+      motif: 'terme_atteint',
+      finMissionLe: '2027-03-31',
+      fondement: 'L. 1965 art. 29-1, I, al. 3',
+      message:
+        "Fin de la mission le 31/03/2027 (terme fixé par l'ordonnance atteint, sans prorogation) : passage à « En clôture » proposé ; le responsable du mandat décide, aucun passage n'est automatique.",
+    })
+    expect(proposerPassageEnCloture({ statut: 'En gestion', regime: 'ap291', termeMissionLe: JOUR }, JOUR)).toMatchObject({ finMissionLe: JOUR })
+    // Terme prorogé, pas encore atteint : rien à proposer.
+    expect(proposerPassageEnCloture({ statut: 'En gestion', regime: 'ap291', termeMissionLe: '2027-04-11' }, JOUR)).toBeNull()
+    expect(proposerPassageEnCloture({ statut: 'En gestion', regime: 'sj', termeMissionLe: null }, JOUR)).toBeNull()
+  })
+
+  it('ordonnance qui met fin à la mission, acceptation de son mandat par le syndic élu ; plusieurs faits : le plus tôt', () => {
+    const parOrdonnance = proposerPassageEnCloture({ statut: 'En gestion', regime: 'ap291', termeMissionLe: '2027-12-31', ordonnanceFinMissionLe: '2027-02-15' }, JOUR)
+    expect(parOrdonnance).toMatchObject({ motif: 'ordonnance_fin_mission', finMissionLe: '2027-02-15', fondement: 'L. 1965 art. 29-1, I, al. 3' })
+    expect(parOrdonnance?.message).toMatch(/\(ordonnance qui met fin à la mission\)/)
+    const sj = proposerPassageEnCloture({ statut: 'En gestion', regime: 'sj', termeMissionLe: '2027-12-31', acceptationSyndicEluLe: '2027-04-01' }, JOUR)
+    expect(sj).toMatchObject({ motif: 'acceptation_syndic_elu', finMissionLe: '2027-04-01', fondement: 'D. 1967 art. 46, al. 4' })
+    expect(sj?.message).toMatch(/\(acceptation de son mandat par le syndic élu\)/)
+    const ap47 = proposerPassageEnCloture({ statut: 'En gestion', regime: 'ap47', termeMissionLe: '2027-03-01', acceptationSyndicEluLe: '2027-04-01' }, JOUR)
+    expect(ap47).toMatchObject({ motif: 'terme_atteint', finMissionLe: '2027-03-01', fondement: 'D. 1967 art. 47' })
+    expect(
+      proposerPassageEnCloture({ statut: 'En gestion', regime: 'ap47', termeMissionLe: null, acceptationSyndicEluLe: '2027-04-01' }, JOUR),
+    ).toMatchObject({ fondement: 'D. 1967 art. 47, al. 2' })
+    // Un fait daté après le jour du contrôle ne fait pas finir la mission.
+    expect(proposerPassageEnCloture({ statut: 'En gestion', regime: 'sj', termeMissionLe: null, acceptationSyndicEluLe: '2027-05-01' }, JOUR)).toBeNull()
+  })
+
+  it('proposé depuis « En gestion », ou un statut inconnu ou absent ; jamais pour un mandat déjà en clôture, archivé ou prospect', () => {
+    const entree = { regime: 'sj' as const, termeMissionLe: '2027-03-31' }
+    for (const statut of ['En gestion', 'En cours', null])
+      expect(proposerPassageEnCloture({ ...entree, statut }, JOUR)?.statutPropose).toBe('En clôture')
+    for (const statut of ['En clôture', 'En gestion, en clôture', 'Archivé', 'Prospect'])
+      expect(proposerPassageEnCloture({ ...entree, statut }, JOUR)).toBeNull()
+  })
+
+  it('refuse des dates mal formées, et l’acceptation du syndic élu hors syndic de l’art. 46 et administrateur de l’art. 47', () => {
+    expect(() => proposerPassageEnCloture({ statut: 'En gestion', regime: 'sj', termeMissionLe: '31/03/2027' }, JOUR)).toThrow(/terme.*AAAA-MM-JJ/)
+    expect(() => proposerPassageEnCloture({ statut: 'En gestion', regime: 'sj', termeMissionLe: null }, '10/04/2027')).toThrow(/AAAA-MM-JJ/)
+    for (const regime of ['ap291', null] as const)
+      expect(() =>
+        proposerPassageEnCloture({ statut: 'En gestion', regime, termeMissionLe: null, acceptationSyndicEluLe: '2027-04-01' }, JOUR),
+      ).toThrow(/D\. 1967 art\. 46, al\. 4.*art\. 47, al\. 2/)
+  })
+
+  it('liste de contrôle propre au régime avant « Archivé »', () => {
+    const codesDe = (regime: 'sj' | 'ap47' | 'ap291') => listeControleArchivage(regime).map((p) => p.code)
+    expect(codesDe('ap291')).toEqual(['compte_rendu_fin_mission', 'delai_observations', 'remuneration_arretee', 'fonds_documents_successeur'])
+    expect(codesDe('sj')).toEqual(['tresorerie_banque', 'documents_archives', 'etat_comptes'])
+    expect(codesDe('ap47')).toEqual(['fonds_documents_syndic_elu'])
+    const fondements = Object.fromEntries((['ap291', 'sj', 'ap47'] as const).flatMap((r) => listeControleArchivage(r)).map((p) => [p.code, p.fondement]))
+    expect(fondements).toMatchObject({
+      compte_rendu_fin_mission: 'D. 1967 art. 62-11, I et II',
+      delai_observations: 'D. 1967 art. 62-11, III',
+      remuneration_arretee: 'D. 1967 art. 61-1-5, III',
+      tresorerie_banque: 'L. 1965 art. 18-2, al. 1',
+      documents_archives: 'L. 1965 art. 18-2, al. 1 ; D. 1967 art. 33-1',
+      etat_comptes: 'L. 1965 art. 18-2, al. 2',
+    })
+    expect(fondements.fonds_documents_successeur).toMatch(/aucun texte n'impose l'art\. 18-2 à sa sortie/i)
+    expect(fondements.fonds_documents_syndic_elu).toMatch(/^D\. 1967 art\. 47, al\. 2 ; aucun texte n'impose l'art\. 18-2 à sa sortie/)
+  })
+
+  it('syndic désigné par le juge : délais de l’art. 18-2 depuis la fin de mission ; archivable seulement après les remises effectives', () => {
+    const base = { statut: 'En clôture', regime: 'sj' as const, finMissionLe: '2027-03-31' }
+    const avant = controlerPassageArchive(base, '2027-08-01')
+    expect(avant.points.map((p) => [p.code, p.echeanceLe, p.echeanceImposee, p.faitLe])).toEqual([
+      ['tresorerie_banque', '2027-04-15', true, null],
+      ['documents_archives', '2027-04-30', true, null],
+      ['etat_comptes', '2027-06-30', true, null],
+    ])
+    // Délais tous passés, remises non enregistrées : pas archivable.
+    expect(avant.archivable).toBe(false)
+    expect(avant.motifs.map((m) => m.code)).toEqual(['controle_non_fait'])
+    expect(avant.motifs[0].message).toMatch(/remise effective, pas seulement la fin des délais/)
+    const faits = { tresorerie_banque: '2027-04-10', documents_archives: '2027-04-28', etat_comptes: '2027-06-20' }
+    expect(controlerPassageArchive({ ...base, faits }, '2027-08-01')).toMatchObject({ archivable: true, motifs: [], finMissionLe: '2027-03-31' })
+  })
+
+  it('administrateur provisoire : délais de l’art. 18-2 en simple rappel ; art. 29-1 : compte rendu, observations, rémunération, remise', () => {
+    const ap291 = controlerPassageArchive({ statut: 'En clôture', regime: 'ap291', finMissionLe: '2027-03-31' }, JOUR)
+    expect(ap291.points.map((p) => [p.code, p.echeanceLe, p.echeanceImposee])).toEqual([
+      ['compte_rendu_fin_mission', null, false],
+      ['delai_observations', null, false],
+      ['remuneration_arretee', null, false],
+      ['fonds_documents_successeur', '2027-04-15', false],
+    ])
+    const ap47 = controlerPassageArchive({ statut: 'En gestion, en clôture', regime: 'ap47', finMissionLe: '2027-03-31', faits: { fonds_documents_syndic_elu: '2027-04-02' } }, JOUR)
+    expect(ap47).toMatchObject({ archivable: true, motifs: [] })
+  })
+
+  it('refus d’archiver : pas encore « En clôture », date de fin de mission absente (lisible après l’archivage), régime inconnu', () => {
+    const faits = { fonds_documents_syndic_elu: '2027-04-02' }
+    const enGestion = controlerPassageArchive({ statut: 'En gestion', regime: 'ap47', finMissionLe: '2027-03-31', faits }, JOUR)
+    expect(enGestion.motifs.map((m) => m.code)).toEqual(['pas_en_cloture'])
+    expect(enGestion.motifs[0].message).toMatch(/« Archivé » ne se décide qu'après « En clôture »/)
+    const sansFin = controlerPassageArchive({ statut: 'En clôture', regime: 'ap47', finMissionLe: null, faits }, JOUR)
+    expect(sansFin).toMatchObject({ archivable: false })
+    expect(sansFin.motifs.map((m) => m.code)).toEqual(['fin_mission_inconnue'])
+    expect(sansFin.motifs[0].message).toMatch(/reste lisible après l'archivage.*L\. 1965 art\. 29-1, IV/)
+    expect(sansFin.points[0].echeanceLe).toBeNull()
+    const inconnu = controlerPassageArchive({ statut: 'En clôture', regime: null, finMissionLe: '2027-03-31' }, JOUR)
+    expect(inconnu).toMatchObject({ archivable: false, points: [] })
+    expect(inconnu.motifs.map((m) => m.code)).toEqual(['regime_inconnu'])
+  })
+
+  it('refuse un point daté après le jour du contrôle (remise non effective), sans objet pour le régime, ou mal daté', () => {
+    const base = { statut: 'En clôture', regime: 'sj' as const, finMissionLe: '2027-03-31' }
+    expect(() => controlerPassageArchive({ ...base, faits: { tresorerie_banque: '2027-04-20' } }, JOUR)).toThrow(/après le jour du contrôle/)
+    expect(() => controlerPassageArchive({ ...base, faits: { remuneration_arretee: '2027-04-01' } }, JOUR)).toThrow(/sans objet/)
+    expect(() => controlerPassageArchive({ ...base, faits: { tresorerie_banque: '01/04/2027' } }, JOUR)).toThrow(/AAAA-MM-JJ/)
+    expect(() => controlerPassageArchive({ ...base, finMissionLe: '31/03/2027' }, JOUR)).toThrow(/fin de mission.*AAAA-MM-JJ/)
   })
 })
