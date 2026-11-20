@@ -91,6 +91,11 @@ describe('Import du relevé : choix du compte bancaire', () => {
     expect(panneau('Importer un relevé').textContent).toContain(
       'Aucun compte bancaire actif : enregistrer d’abord le compte dans « Comptes bancaires du mandat ».',
     )
+    // Motif annoncé avec le résultat de l'analyse (zone aria-live du panneau).
+    expect(panneau('Importer un relevé').querySelector('.sr-only[aria-live="polite"]')?.textContent).toBe(
+      'Relevé analysé (CSV) : 2 lignes retenues. Import impossible : Aucun compte bancaire actif : enregistrer d’abord le ' +
+        'compte dans « Comptes bancaires du mandat ».',
+    )
   })
 
   it('compte clôturé : jamais proposé', async () => {

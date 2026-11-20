@@ -114,6 +114,21 @@ describe('Import des relevés CFONB 120 et camt.053', () => {
     expect(boutonImporter()).toBeDisabled()
   })
 
+  it('résultat de l’analyse annoncé (zone aria-live présente avant l’analyse) : lignes retenues, blocage', async () => {
+    await ajouterCompte(IBAN_FIXTURE)
+    await rendre()
+    const annonce = () => panneauImport().querySelector('.sr-only[aria-live="polite"]')
+    expect(annonce()).not.toBeNull()
+    expect(annonce()?.textContent).toBe('')
+    analyser('Date;Libellé;Montant\n05/10/2026;VIR SEPA;350,00')
+    expect(annonce()?.textContent).toBe('Relevé analysé (CSV) : 1 ligne retenue.')
+    analyser(CFONB)
+    expect(annonce()?.textContent).toBe(
+      'Relevé analysé (CFONB 120) : 5 lignes retenues. Import bloqué : le fichier contient une erreur. Un relevé manquant ' +
+        'fausserait le solde du compte et le rapprochement : corriger le fichier, puis l’analyser à nouveau.',
+    )
+  })
+
   it('IBAN du compte modifié après l’analyse : l’analyse faite pour l’ancien IBAN est abandonnée, jamais importée', async () => {
     await ajouterCompte(IBAN_FIXTURE)
     const { push } = await rendre()

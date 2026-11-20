@@ -6,6 +6,7 @@ import {
   analyserReleve,
   analyseValablePour,
   decoderTexteReleve,
+  LIBELLES_FORMAT_RELEVE,
   refusTailleReleve,
   type AnalyseReleve,
   type SelectionsImputation,
@@ -112,6 +113,17 @@ function lireFichierReleve(fichier: File, lu: (texte: string) => void, refuse: (
 
 /** « Importer 1 ligne », « Importer 2 lignes ». */
 const libelleImporter = (nombre: number): string => `Importer ${nombre} ligne${nombre > 1 ? 's' : ''}`
+
+/**
+ * Résultat de l'analyse annoncé aux lecteurs d'écran (zone aria-live du panneau, présente avant l'analyse, comme
+ * l'annonce de la fiche sinistre) : lignes retenues et ce qui empêche l'import ; vide sans analyse.
+ */
+function annonceAnalyse(analyse: AnalyseReleve | null, motifCompte: string | null): string {
+  if (!analyse) return ''
+  const lignes = `Relevé analysé (${LIBELLES_FORMAT_RELEVE[analyse.format]}) : ${accord(analyse.retenues.length, 'ligne retenue', 'lignes retenues')}.`
+  const motif = motifCompte ? `Import impossible : ${motifCompte}` : null
+  return [lignes, analyse.blocage, motif].filter((texte): texte is string => texte !== null).join(' ')
+}
 
 export interface ImportRelevePanelProps {
   copro: CoproprieteVue | undefined
@@ -237,6 +249,9 @@ export function ImportRelevePanel({ copro, comptes, etatComptes, personnes, lign
         }}
         placeholder={EXEMPLE_RELEVE_BANCAIRE_CSV}
       />
+      <p className="sr-only" aria-live="polite">
+        {annonceAnalyse(analyse, motifCompte)}
+      </p>
       {analyse && (
         <div
           style={{
