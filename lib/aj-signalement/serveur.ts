@@ -601,16 +601,30 @@ export type LectureCoproprieteQr =
   | { ok: true; copropriete: LigneCoproprieteQr | null }
   | { ok: false; code: 'base_absente' | 'serveur' }
 
+/** Ce qu'une route publique lit en plus des colonnes d'origine. */
+export interface OptionsLectureParJetonQr {
+  /**
+   * Bâtiments saisis par le cabinet (colonne batiments, migration du 11/11/2026), lus dans la même requête : contrôle du
+   * bâtiment d'un dépôt (demande de Hugo du 17/11/2026). Colonne absente : copropriété relue sans elle (repli journalisé
+   * une fois), aucun bâtiment, comme avant.
+   */
+  batiments?: boolean
+}
+
 /** Copropriété active portant ce jeton ; null si le jeton est inconnu, mal formé ou désactivé. */
-export async function lireCoproprieteParJeton(jeton: string): Promise<LectureCoproprieteQr> {
+export async function lireCoproprieteParJeton(jeton: string, options: OptionsLectureParJetonQr = {}): Promise<LectureCoproprieteQr> {
   if (!JETON_QR.test(jeton)) return { ok: true, copropriete: null }
   const { data, error } = await supabaseAdmin
     .from(TABLE_COPROPRIETES_QR)
-    .select(COLONNES_COPROPRIETE_QR)
+    .select(options.batiments ? `${COLONNES_COPROPRIETE_QR}, batiments` : COLONNES_COPROPRIETE_QR)
     .eq('jeton', jeton)
     .eq('actif', true)
     .maybeSingle()
   if (error) {
+    if (options.batiments && colonneInconnue(error)) {
+      journaliserRepliGestionQr('bâtiments du dépôt public', error)
+      return lireCoproprieteParJeton(jeton)
+    }
     logger.error(`${CONTEXTE} lecture de la copropriété par jeton`, { code: error.code, message: error.message })
     return { ok: false, code: baseAbsente(error) ? 'base_absente' : 'serveur' }
   }
@@ -626,12 +640,14 @@ export type LecturePagePubliqueQr =
  * (id, nom, identifiant du chemin, langue) ; null et null si le jeton est inconnu, mal formé ou désactivé. Deux lectures
  * simples plutôt qu'un embarqué PostgREST. Colonne cabinet_id absente (migration du 11/11/2026 non appliquée) : relue
  * comme avant, cabinet null — la page du chemin client répond alors 404 et l'ancienne adresse sert comme aujourd'hui.
+ * Les bâtiments saisis par le cabinet (colonne batiments, même migration) sont lus avec cabinet_id : liste à choix du
+ * formulaire (demande de Hugo du 17/11/2026) ; relue sans eux dans le même repli (aucun bâtiment, texte libre).
  */
 export async function lireCoproprieteEtCabinetParJetonQr(jeton: string): Promise<LecturePagePubliqueQr> {
   if (!JETON_QR.test(jeton)) return { ok: true, copropriete: null, cabinet: null }
   const { data, error } = await supabaseAdmin
     .from(TABLE_COPROPRIETES_QR)
-    .select(`${COLONNES_COPROPRIETE_QR}, cabinet_id`)
+    .select(`${COLONNES_COPROPRIETE_QR}, cabinet_id, batiments`)
     .eq('jeton', jeton)
     .eq('actif', true)
     .maybeSingle()
@@ -658,10 +674,11 @@ export type CoproprieteActiveQr = { ok: true; copropriete: LigneCoproprieteQr } 
 
 /**
  * Routes publiques (dépôt, adresse proposée, signalements semblables) : la copropriété active du jeton, sinon la
- * réponse à rendre (404 jeton inconnu, mal formé ou QR code désactivé ; 503 base_absente ; 500).
+ * réponse à rendre (404 jeton inconnu, mal formé ou QR code désactivé ; 503 base_absente ; 500). Le dépôt demande en
+ * plus les bâtiments saisis par le cabinet (options.batiments).
  */
-export async function coproprieteActiveQr(jeton: string): Promise<CoproprieteActiveQr> {
-  const lecture = await lireCoproprieteParJeton(jeton)
+export async function coproprieteActiveQr(jeton: string, options: OptionsLectureParJetonQr = {}): Promise<CoproprieteActiveQr> {
+  const lecture = await lireCoproprieteParJeton(jeton, options)
   if (!lecture.ok) return { ok: false, reponse: reponseErreur(lecture.code, lecture.code === 'base_absente' ? 503 : 500) }
   if (!lecture.copropriete) return { ok: false, reponse: reponseErreur('introuvable', 404) }
   return { ok: true, copropriete: lecture.copropriete }

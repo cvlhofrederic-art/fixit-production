@@ -72,6 +72,11 @@ export interface CoproprieteQr extends GestionCoproprieteQr {
 export interface CoproprieteQrPublique {
   nom: string
   adresse: string
+  /**
+   * Bâtiments saisis par le cabinet, nettoyés (batimentsProposesQr), dans l'ordre saisi : liste à choix du champ
+   * « Bâtiment » (demande de Hugo du 17/11/2026). Absente ou vide : texte libre, comme avant.
+   */
+  batiments?: readonly string[]
 }
 
 /** Signalement reçu (tableau de bord : toutes les coordonnées du déclarant). */
