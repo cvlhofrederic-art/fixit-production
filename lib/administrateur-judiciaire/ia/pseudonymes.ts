@@ -74,11 +74,10 @@ const MOTS_NEUTRES: ReadonlySet<string> = new Set([
   ...CIVILITES.keys(),
 ])
 
-/**
- * Civilité, sans tenir compte de la casse (étapes 1 et 2). Pas de civilité au pluriel : « MM. » et « Mmes » restent
- * devant le nom pour que l'étape 3 lise toute la liste (« MM. X et Y »).
- */
-const CIVILITE = String.raw`(?:m\.|mme|mlle|melle|monsieur|madame|mademoiselle|ma[iî]tre|me|mr\.?|dr\.?|docteur|vve|veuve|m)`
+/** Civilité, sans tenir compte de la casse (étapes 1 et 2). */
+const CIVILITE = String.raw`(?:mm?\.|mmes?|mlle|melle|monsieur|madame|mademoiselle|ma[iî]tre|me|mr\.?|dr\.?|docteur|vve|veuve|m)`
+/** Civilités au pluriel (forme repliée). */
+const PLURIEL: ReadonlySet<string> = new Set(['mm.', 'mmes'])
 /**
  * Civilité telle qu'on l'écrit (étape 3 : sensible à la casse, pour ne pas lire « me » ou « m » dans une phrase) ;
  * « M » sans point seulement devant une espace (« M Dupont »).
@@ -147,8 +146,9 @@ const ELIDABLE = String.raw`(d|qu|jusqu|lorsqu|puisqu|quoiqu)(?:e\s+|${APOSTROPH
 const UNITE = String.raw`(?:fois|jours?|semaines?|mois|ans?|ann[ée]es?|heures?|minutes?|euros?|€|%)`
 /** Fin d'un numéro de pseudonyme : ni chiffre, ni lettre collée (« 2e »), ni décimale (« 1,5 »), ni unité. */
 const FIN_NUMERO = String.raw`(?![\p{L}\p{N}]|[.,]\d|\s*${UNITE}(?!\p{L}))`
+/** Civilité écrite par le modèle devant le pseudonyme (« Madame Personne 1 ») : capturée pour ne pas la doubler. */
 const PSEUDONYME = new RegExp(
-  String.raw`(?<![\p{L}\p{N}])(?:${DETERMINANT}|${ELIDABLE})?${ROLE}${NUMERO}(\d{1,4})${FIN_NUMERO}`,
+  String.raw`(?<![\p{L}\p{N}])(?:${DETERMINANT}|${ELIDABLE}|(${CIVILITE})\s+)?${ROLE}${NUMERO}(\d{1,4})${FIN_NUMERO}`,
   'giu',
 )
 /** Liste entière ou rien : pas de retour en arrière vers une liste plus courte (« 1, 2 et 3 semaines »). */
@@ -474,13 +474,21 @@ function construireReconnaissance(contexte: Record<string, unknown>, etat: Etat)
   }
 }
 
+/**
+ * Civilité au pluriel (« MM. », « Mmes ») gardée devant le jeton : l'étape 3 lit alors toute la liste (« MM. X et Y »),
+ * dont les autres noms ne suivent aucune civilité.
+ */
+const avecPluriel = (civilite: string | undefined, jeton: string) =>
+  civilite && PLURIEL.has(replier(civilite)) ? `${civilite} ${jeton}` : jeton
+
 /** Étape 1 : noms complets (prioritaires sur une partie identique du nom d'une autre personne), parties de plusieurs mots. */
 function remplacerNomsComplets(texte: string, mots: ReadonlySet<string>, reco: Reconnaissance, etat: Etat): string {
   const expression = expressionPour(reco.complets, mots)
   if (!expression) return texte
-  return texte.replaceAll(expression, (brut: string, _civilite: string | undefined, nom: string) => {
+  return texte.replaceAll(expression, (brut: string, civilite: string | undefined, nom: string) => {
     const cleNom = cle(nom)
-    return reco.jetonDuNom.get(cleNom) ?? reco.jetonDeLaPartie.get(cleNom) ?? personneCitee(etat, brut)
+    const jeton = reco.jetonDuNom.get(cleNom) ?? reco.jetonDeLaPartie.get(cleNom)
+    return jeton ? avecPluriel(civilite, jeton) : personneCitee(etat, brut)
   })
 }
 
@@ -489,7 +497,7 @@ function remplacerParties(texte: string, mots: ReadonlySet<string>, reco: Reconn
   const jetonDe = (brut: string, partie: string) => reco.jetonDeLaPartie.get(cle(partie)) ?? personneCitee(etat, brut)
   const avecCivilite = expressionPour(reco.partiesAvecCivilite, mots)
   const etape1 = avecCivilite
-    ? texte.replaceAll(avecCivilite, (brut: string, _civilite: string, partie: string) => jetonDe(brut, partie))
+    ? texte.replaceAll(avecCivilite, (brut: string, civilite: string, partie: string) => avecPluriel(civilite, jetonDe(brut, partie)))
     : texte
   const nomPropre = expressionPour(reco.partiesNomPropre, mots)
   if (!nomPropre) return etape1
@@ -577,10 +585,20 @@ const apresElidable = (base: string, nom: string) => (/^[aeiouy]/.test(replier(n
 const apresDeterminant = (determinant: string, role: string, nom: string, pluriel = '') =>
   `${determinant} ${ROLES.get(cle(role))?.nomCommun ?? role}${pluriel} ${nom}`
 
-function retablirUn(noms: Noms, brut: string, prefixe: { determinant?: string; elidable?: string }, role: string, numero: string) {
+/** Civilité du modèle devant un vrai nom : gardée si le nom n'en a pas, sinon celle du nom seule (« Mme X », pas « Madame Mme X »). */
+const apresCivilite = (civilite: string, nom: string) => (CIVILITE_DE_TETE.test(cle(nom)) ? nom : `${civilite} ${nom}`)
+
+interface Prefixe {
+  determinant?: string
+  elidable?: string
+  civilite?: string
+}
+
+function retablirUn(noms: Noms, brut: string, prefixe: Prefixe, role: string, numero: string) {
   const nom = nomCommunEcrit(role) ? undefined : nomDe(noms, role, numero)
   if (!nom) return brut
   if (prefixe.determinant) return apresDeterminant(prefixe.determinant, role, nom)
+  if (prefixe.civilite) return apresCivilite(prefixe.civilite, nom)
   return prefixe.elidable ? apresElidable(prefixe.elidable, nom) : nom
 }
 
@@ -599,8 +617,14 @@ function retablirNoms(texte: string, noms: Noms): string {
     )
     .replaceAll(
       PSEUDONYME,
-      (brut: string, determinant: string | undefined, elidable: string | undefined, role: string, numero: string) =>
-        retablirUn(noms, brut, { determinant, elidable }, role, numero),
+      (
+        brut: string,
+        determinant: string | undefined,
+        elidable: string | undefined,
+        civilite: string | undefined,
+        role: string,
+        numero: string,
+      ) => retablirUn(noms, brut, { determinant, elidable, civilite }, role, numero),
     )
 }
 

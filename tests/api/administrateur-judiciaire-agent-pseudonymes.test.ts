@@ -11,15 +11,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 
 import {
+  erreurFournisseur,
   installerFetchIA,
   poserCles,
   reponseClaude,
   reponseOpenAI,
+  versCerebras,
   versClaude,
   versGroq,
   type AppelIA,
 } from '../helpers/faux-fournisseurs-ia'
-import { ANTHROPIC_API_URL, GROQ_API_URL } from '@/lib/constants'
+import { ANTHROPIC_API_URL, CEREBRAS_API_URL, GROQ_API_URL } from '@/lib/constants'
 
 const h = vi.hoisted(() => ({
   traces: [] as Array<Record<string, unknown>>,
@@ -142,6 +144,28 @@ describe('/api/administrateur-judiciaire/agent — pseudonymes des personnes', (
     const [envoi] = versGroq(appels)
     expect(envoi).toBeDefined()
     expect(nomsQuiFuient(envoi.corps)).toEqual([])
+  })
+
+  it('secours Cerebras (Groq en échec) : la même requête pseudonymisée, rien de nominatif dans la console', async () => {
+    remettreCles = poserCles({ claude: false, cerebras: true })
+    appels = installerFetchIA((url) => {
+      if (url === GROQ_API_URL) return erreurFournisseur(500, 'Erreur interne du fournisseur')
+      if (url === CEREBRAS_API_URL) return reponseOpenAI(REPONSE_MODELE)
+      throw new Error(`fetch inattendu : ${url}`)
+    })
+    const console_ = [vi.spyOn(console, 'error').mockImplementation(() => undefined), vi.spyOn(console, 'warn').mockImplementation(() => undefined)]
+    try {
+      const res = await POST(requete(CORPS))
+      expect(res.status).toBe(200)
+      expect((await res.json()).text).toBe(REPONSE_AFFICHEE)
+      expect(versGroq(appels).length).toBeGreaterThan(0)
+      const [envoi] = versCerebras(appels)
+      expect(envoi).toBeDefined()
+      expect(nomsQuiFuient(appels.map((appel) => appel.corps))).toEqual([])
+      expect(nomsQuiFuient(console_.flatMap((espion) => espion.mock.calls))).toEqual([])
+    } finally {
+      for (const espion of console_) espion.mockRestore()
+    }
   })
 
   it('ni la trace Langfuse ni le journal ne reçoivent un nom ou la table de correspondance', async () => {

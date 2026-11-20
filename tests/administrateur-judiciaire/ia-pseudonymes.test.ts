@@ -110,6 +110,9 @@ describe('pseudonymiserNoms — rien ne part au modèle', () => {
       ['Élection de MM. Ondrevac et Ystarion Velasque, scrutateurs', 'Élection de MM. Personne 2 et Personne 3, scrutateurs'],
       // Liste qui mêle un nom des listes et une personne inconnue : aucun des deux ne part.
       ['Élection de MM. Kervaliec et Ondrevac', 'Élection de MM. Copropriétaire 1 ou Copropriétaire 2 et Personne 2'],
+      // Civilité au pluriel devant un nom des listes écrit en minuscules : reconnu grâce à elle, comme au singulier.
+      ['Et MM. kervaliec ?', 'Et MM. Copropriétaire 1 ou Copropriétaire 2 ?'],
+      ['Et Mmes ondine kervaliec et Ondrevac ?', 'Et Mmes Copropriétaire 1 et Personne 2 ?'],
     ]) {
       expect(question(texte), texte).toBe(attendu)
     }
@@ -201,6 +204,13 @@ describe('pseudonymiserNoms — réponse affichée', () => {
     )
     // « de » à la fin d'un autre mot n'est pas une préposition.
     expect(retablir('Commande Copropriétaire 3')).toBe('Commande Éloïse Darnetal-Quérec')
+  })
+
+  it('civilité écrite par le modèle devant le pseudonyme : jamais en double avec celle du vrai nom', () => {
+    const { retablir } = envoyer('Point des appels')
+    expect(
+      retablir('Bonjour Madame Personne 1, M. Copropriétaire 4 et Mme Copropriétaire 3 sont prévenus ; MM. Copropriétaire 1 et Copropriétaire 2 aussi.'),
+    ).toBe('Bonjour Mme Pelagnier, M. Basile Roc et Mme Éloïse Darnetal-Quérec sont prévenus ; MM. Ondine Kervaliec et Noé Kervaliec aussi.')
   })
 
   it('« personne » en minuscules est un nom commun : jamais rétabli', () => {
