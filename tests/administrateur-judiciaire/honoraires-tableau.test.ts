@@ -123,6 +123,13 @@ describe('tableau des honoraires — période par défaut : le mois précédent 
 })
 
 describe('compte provisoire détaillé des émoluments — période par défaut : l’année de mission (décision du 20/11/2026, partie C, F3)', () => {
+  /** Année de mission d'une désignation plausible (null seulement pour une année improbable). */
+  const anneeDeMission = (designation: string, n: number): { du: string; au: string } => {
+    const periode = periodeAnneeDeMission(designation, n)
+    if (periode === null) throw new Error(`Désignation ${designation} : année de mission attendue.`)
+    return periode
+  }
+
   it('année de mission n : du quantième de la désignation au jour qui précède le n-ième anniversaire', () => {
     expect(periodeAnneeDeMission('2026-03-15', 1)).toEqual({ du: '2026-03-15', au: '2027-03-14' })
     expect(periodeAnneeDeMission('2026-03-15', 2)).toEqual({ du: '2027-03-15', au: '2028-03-14' })
@@ -141,8 +148,8 @@ describe('compte provisoire détaillé des émoluments — période par défaut 
   it('les années de mission se suivent sans trou ni chevauchement', () => {
     for (const designation of ['2026-03-15', '2028-02-29', '2026-08-31', '2026-12-31'])
       for (let n = 1; n <= 8; n++) {
-        const { au } = periodeAnneeDeMission(designation, n)
-        const suivante = periodeAnneeDeMission(designation, n + 1)
+        const { au } = anneeDeMission(designation, n)
+        const suivante = anneeDeMission(designation, n + 1)
         expect(anneeDeMissionAu(designation, au)).toBe(n)
         expect(anneeDeMissionAu(designation, suivante.du)).toBe(n + 1)
         expect(suivante.du > au).toBe(true)
@@ -160,6 +167,23 @@ describe('compte provisoire détaillé des émoluments — période par défaut 
     expect(() => anneeDeMissionAu('2026-03-15', '2026-03-14')).toThrow(/antérieure à la désignation/)
   })
 
+  it('désignation ou date d’une année improbable (faute de frappe) : aucune année de mission, au lieu de lever en l’an 10000', () => {
+    // Depuis le 01/06/9999, le premier anniversaire tombait en l'an 10000 : « Date ISO invalide » levée.
+    for (const designation of ['9999-06-01', '2525-03-15', '0026-03-15']) {
+      expect(periodeAnneeDeMission(designation, 1), designation).toBeNull()
+      expect(periodeAnneeDeMission(designation, 3), designation).toBeNull()
+    }
+    expect(anneeDeMissionAu('0026-03-15', '2026-11-20')).toBeNull()
+    expect(anneeDeMissionAu('9999-06-01', '9999-07-01')).toBeNull()
+    expect(anneeDeMissionAu('2026-03-15', '2525-03-15')).toBeNull()
+    // Une date antérieure à la désignation et d'une année improbable : aucun rang, pas de refus.
+    expect(anneeDeMissionAu('2026-03-15', '0026-03-15')).toBeNull()
+    // Bornes : 1900 et 2100 restent plausibles.
+    expect(periodeAnneeDeMission('1900-01-01', 1)).toEqual({ du: '1900-01-01', au: '1900-12-31' })
+    expect(periodeAnneeDeMission('2100-01-01', 1)).toEqual({ du: '2100-01-01', au: '2100-12-31' })
+    expect(anneeDeMissionAu('2026-03-15', '2100-12-31')).toBe(75)
+  })
+
   it('refuse une date de désignation invalide et un rang qui n’est pas un entier à partir de 1', () => {
     expect(() => periodeAnneeDeMission('15/03/2026', 1)).toThrow(/date de désignation invalide/i)
     expect(() => periodeAnneeDeMission('2026-02-30', 1)).toThrow(/date de désignation invalide/i)
@@ -168,7 +192,7 @@ describe('compte provisoire détaillé des émoluments — période par défaut 
   })
 
   it('période modifiable : le tableau accepte l’année de mission comme n’importe quelle période du / au', () => {
-    const annee = periodeAnneeDeMission('2026-03-15', 1)
+    const annee = anneeDeMission('2026-03-15', 1)
     const tableau = tableauDesHonoraires(elements, affectations, { ...annee, regroupement: 'Mandat' }, factures)
     expect(tableau).toMatchObject({ du: '2026-03-15', au: '2027-03-14' })
     expect(tableau.total.parQualification.Facturable.nombre).toBe(6)

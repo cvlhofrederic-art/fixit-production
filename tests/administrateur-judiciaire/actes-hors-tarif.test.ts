@@ -33,10 +33,17 @@ const acte = (surcharge: Partial<ActeHorsTarif> = {}): ActeHorsTarif => ({
   ...surcharge,
 })
 
+/** Année de mission 1 d'une désignation du 15/03/2026 (F3) ; null seulement pour une désignation d'une année improbable. */
+function premiereAnneeDeMission(): { du: string; au: string } {
+  const periode = periodeAnneeDeMission('2026-03-15', 1)
+  if (periode === null) throw new Error('Désignation du 15/03/2026 : année de mission attendue.')
+  return periode
+}
+
 const parametres = (surcharge: Partial<ParametresEtatActesHorsTarif> = {}): ParametresEtatActesHorsTarif => ({
   mandatId: 'mandat-2026',
   mandat: AP_120_LOTS,
-  ...periodeAnneeDeMission('2026-03-15', 1),
+  ...premiereAnneeDeMission(),
   tauxHoraireHtDixMilliemes: TAUX_90_EUROS,
   ...surcharge,
 })

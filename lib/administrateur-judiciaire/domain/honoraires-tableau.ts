@@ -3,6 +3,7 @@ import {
   ajouterMois,
   composerDateIso,
   decomposerDateIso,
+  estAnneeImprobable,
   estDateIsoValide,
   joursDansMois,
   verifierAujourdhui,
@@ -126,7 +127,8 @@ import { portefeuille, ROLES_MANDAT, type AffectationMandat } from '@/lib/admini
  *   décision du 17/11/2026 (Q3). La date de désignation est la date de l'ordonnance enregistrée sur le mandat
  *   (MandatEnregistre.ordonnance ; dateOrdonnance du moteur de délais, construireContexteMandat), passée par l'appelant
  *   en ISO : jamais la date de création de la copropriété, que la vue prend à défaut de mandat (fusionnerCoproMandat).
- *   Le compte provisoire lui-même n'existe pas encore dans le code.
+ *   Désignation d'une année improbable (dates.estAnneeImprobable, faute de frappe) : aucune année de mission (null),
+ *   comme les repères des sinistres. Le compte provisoire lui-même n'existe pas encore dans le code.
  *
  * Questions ouvertes :
  * - 🔴 (Frédéric) Sur quoi porte le tableau : la date de l'élément (choix actuel), celle de la facture ou celle de
@@ -233,18 +235,25 @@ function verifierDateDesignation(dateDesignation: string): void {
 /**
  * Année de mission n (décision du 20/11/2026, partie C, F3), période par défaut du compte provisoire : du (n − 1)-ième
  * anniversaire de la désignation (la désignation elle-même pour n = 1) à la veille du n-ième. Chaque anniversaire est
- * compté depuis la désignation (dates.ajouterMois) : les années se suivent sans trou ni chevauchement.
+ * compté depuis la désignation (dates.ajouterMois) : les années se suivent sans trou ni chevauchement. Null : désignation
+ * d'une année improbable (dates.estAnneeImprobable, faute de frappe), aucune période n'en part (depuis le 01/06/9999, le
+ * premier anniversaire tombait en l'an 10000, hors du calendrier ISO) ; la date est à corriger.
  */
-export function periodeAnneeDeMission(dateDesignation: string, n: number): { du: string; au: string } {
+export function periodeAnneeDeMission(dateDesignation: string, n: number): { du: string; au: string } | null {
   verifierDateDesignation(dateDesignation)
   if (!Number.isInteger(n) || n < 1) throw new Error(`Année de mission invalide (${n}) : entier à partir de 1 attendu.`)
+  if (estAnneeImprobable(dateDesignation)) return null
   return { du: ajouterMois(dateDesignation, 12 * (n - 1)), au: ajouterJours(ajouterMois(dateDesignation, 12 * n), -1) }
 }
 
-/** Rang de l'année de mission qui contient `date` (décision du 20/11/2026, partie C, F3) ; avant la désignation : refus. */
-export function anneeDeMissionAu(dateDesignation: string, date: string): number {
+/**
+ * Rang de l'année de mission qui contient `date` (décision du 20/11/2026, partie C, F3) ; avant la désignation : refus.
+ * Null : désignation ou date d'une année improbable (dates.estAnneeImprobable, faute de frappe), aucun rang n'en part.
+ */
+export function anneeDeMissionAu(dateDesignation: string, date: string): number | null {
   verifierDateDesignation(dateDesignation)
   if (!estDateIsoValide(date)) throw new Error(`Date invalide (${date}) : AAAA-MM-JJ attendu.`)
+  if (estAnneeImprobable(dateDesignation) || estAnneeImprobable(date)) return null
   if (date < dateDesignation) throw new Error(`Date ${date} antérieure à la désignation (${dateDesignation}) : hors de la mission.`)
   const ecartAnnees = decomposerDateIso(date).a - decomposerDateIso(dateDesignation).a
   return date >= ajouterMois(dateDesignation, 12 * ecartAnnees) ? ecartAnnees + 1 : ecartAnnees
