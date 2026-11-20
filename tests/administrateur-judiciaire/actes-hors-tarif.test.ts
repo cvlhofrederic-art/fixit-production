@@ -150,6 +150,27 @@ describe('actes hors tarif — état pour le compte provisoire : une demande pr�
     expect(etatDesActesHorsTarif([], parametres())).toMatchObject({ lignes: [], totalMinutes: 0, totalDemandeHtCentimes: 0 })
   })
 
+  it('actes liés à un sinistre : rappel de l’art. 14 et de J67, R8 (hors déclaration, sommes de l’assureur déduites), une alerte qui ne retire rien', () => {
+    expect(etat.signalements).toHaveLength(1)
+    const [rappel] = etat.signalements
+    expect(rappel).toMatch(/^Fiches Sinistre \(sin-42\) : /)
+    expect(rappel).toMatch(/hors déclaration du sinistre et déduction faite des sommes versées par l'assureur à l'administrateur/)
+    expect(rappel).toMatch(/arrêté du 8 octobre 2015, art\. 14.*J67, R8.*soldeHonorairesSinistre/)
+    expect(rappel).toMatch(/montants de l'état sont bruts/)
+    // Rien n'est retiré ni déduit : les actes ne disent ni quelle diligence est la déclaration, ni ce que l'assureur a versé.
+    expect(etat.lignes).toHaveLength(4)
+    expect(etat.totalDemandeHtCentimes).toBe(36_300)
+    // Chaque sinistre une fois, dans l'ordre ; seuls les actes retenus dans l'état comptent (act-hors-periode est hors période).
+    const deux = etatDesActesHorsTarif(
+      [...actes, acte({ id: 'act-9', date: '2026-07-01', fiche: { type: 'Sinistre', id: 'sin-7' } }), acte({ id: 'act-10', date: '2026-08-03' })],
+      parametres(),
+    )
+    expect(deux.signalements).toHaveLength(1)
+    expect(deux.signalements[0]).toMatch(/^Fiches Sinistre \(sin-42, sin-7\) : /)
+    expect(etatDesActesHorsTarif(actes.filter((a) => a.fiche.type !== 'Sinistre'), parametres()).signalements).toEqual([])
+    expect(etatDesActesHorsTarif(actes, parametres({ du: '2027-01-01', au: '2027-12-31' })).signalements[0]).toMatch(/\(sin-42\)/)
+  })
+
   it('les actes d’un autre mandat sont ignorés ; un acte du mandat fourni deux fois est refusé', () => {
     expect(etat.lignes.some((l) => l.mandatId !== 'mandat-2026')).toBe(false)
     expect(() => etatDesActesHorsTarif([acte(), acte()], parametres())).toThrow(/act-1 : fourni deux fois/)
@@ -199,5 +220,12 @@ describe('actes hors tarif — en-tête du module', () => {
     expect(montant).toMatch(/🔵 Un seul arrondi, au centime le plus proche \(demi au-dessus\)/)
     expect(montant).toMatch(/la décision ne fixe pas l'arrondi/)
     expect(montant).toMatch(/heures au centième.*question ouverte de honoraires-sinistre\.ts/)
+  })
+
+  it('sinistres : les conditions de l’art. 14 et de J67, R8 sont rappelées, ni retirées ni déduites', () => {
+    const sinistres = enTeteDuModule('actes-hors-tarif').item('- Sinistres')
+    expect(sinistres).toMatch(/hors déclaration du sinistre et déduction faite des sommes versées par l'assureur/)
+    expect(sinistres).toMatch(/art\. 14 ; décision du 17\/11\/2026, J67, R8/)
+    expect(sinistres).toMatch(/une alerte\), sans rien retirer ni déduire/)
   })
 })

@@ -38,6 +38,12 @@ import { SEUIL_LOTS_REMUNERATION_PAR_LE_JUGE, type MandatRemunere } from '@/lib/
  * - 🔵 L'état ne vaut que pour l'administration provisoire de l'art. 29-1 de moins de 500 lots (cadre
  *   « tarif_administrateur_provisoire » de cadreRemunerationDuRegime) : ailleurs, il n'y a pas d'acte hors tarif de
  *   l'arrêté, et l'état est refusé avec le motif du cadre.
+ * - Sinistres : la gestion d'un sinistre n'est un acte hors tarif que hors déclaration du sinistre et déduction faite
+ *   des sommes versées par l'assureur à l'administrateur (arrêté du 8 octobre 2015, art. 14 ; décision du 17/11/2026,
+ *   J67, R8 : déduction par sinistre, règle de soldeHonorairesSinistre pour les éléments). La décision F5 fixe le
+ *   chiffrage, pas ces conditions : l'état les rappelle pour les actes liés à une fiche Sinistre (signalements, une
+ *   alerte), sans rien retirer ni déduire, car un acte ne dit ni quelle diligence est la déclaration, ni ce que
+ *   l'assureur a versé ; ses montants restent bruts.
  */
 
 export interface ActeHorsTarif {
@@ -79,6 +85,8 @@ export interface EtatActesHorsTarif {
   totalMinutes: number
   /** Somme des montants demandés des lignes. */
   totalDemandeHtCentimes: number
+  /** Alertes, qui ne retirent ni ne déduisent rien : rappel de l'art. 14 pour les actes liés à une fiche Sinistre. */
+  signalements: string[]
   mention: string
   fondements: readonly string[]
 }
@@ -178,6 +186,21 @@ function actesDuMandat(actes: readonly ActeHorsTarif[], mandatId: string): ActeH
 const parDateEtIdentifiant = (a: ActeHorsTarif, b: ActeHorsTarif): number => a.date.localeCompare(b.date) || a.id.localeCompare(b.id)
 
 /**
+ * Rappel de l'art. 14 pour les actes de l'état liés à une fiche Sinistre (décision du 17/11/2026, J67, R8) : une alerte,
+ * chaque sinistre une fois, dans l'ordre de ses identifiants ; aucun acte lié à un sinistre : aucun rappel.
+ */
+function signalementsDesSinistres(lignes: readonly LigneActeHorsTarif[]): string[] {
+  const sinistres = [...new Set(lignes.filter((l) => l.fiche.type === 'Sinistre').map((l) => l.fiche.id))].sort((a, b) => a.localeCompare(b))
+  if (sinistres.length === 0) return []
+  return [
+    `Fiches Sinistre (${sinistres.join(', ')}) : la gestion d'un sinistre n'est un acte hors tarif que hors déclaration du ` +
+      "sinistre et déduction faite des sommes versées par l'assureur à l'administrateur (arrêté du 8 octobre 2015, art. 14 ; " +
+      'décision du 17/11/2026, J67, R8 : déduction par sinistre, règle de soldeHonorairesSinistre pour les éléments) ; ' +
+      "les montants de l'état sont bruts : n'y porter aucune déclaration, et présenter la déduction avec la demande.",
+  ]
+}
+
+/**
  * État des actes hors tarif d'un mandat pour le compte provisoire (décision du 20/11/2026, partie C, F5) : les actes du
  * mandat datés du `du` au `au` inclus, acte par acte, chacun chiffré au temps passé × taux horaire du cabinet. Une
  * demande présentée au juge, jamais une facture au syndicat. Refusé hors de l'AP de l'art. 29-1 de moins de 500 lots.
@@ -198,6 +221,7 @@ export function etatDesActesHorsTarif(actes: readonly ActeHorsTarif[], parametre
     lignes,
     totalMinutes: lignes.reduce((s, l) => s + l.minutes, 0),
     totalDemandeHtCentimes: lignes.reduce((s, l) => s + l.montantDemandeHtCentimes, 0),
+    signalements: signalementsDesSinistres(lignes),
     mention: MENTION_ACTES_HORS_TARIF,
     fondements: FONDEMENTS_ACTES_HORS_TARIF,
   }
