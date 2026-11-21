@@ -7,7 +7,9 @@ import { GROUPE_IDENTITE, QUALITE_IDENTITE, type GroupeIdentite } from '@/lib/da
 
 /**
  * Décision D2 (Hugo Carvalho, 27/10/2026) — Identité / Position / Compte copropriétaire. Fonctions pures, dates ISO
- * (AAAA-MM-JJ), sans écran ni table (les tables viendront avec l'écran et la migration des données).
+ * (AAAA-MM-JJ), sans écran. Tables : version 3 de la base locale (db/schema.ts : identites, positions,
+ * comptesCoproprietaires), écrites par ces fonctions ; migration des anciennes fiches : migration-d2.ts (plan pur, par
+ * migrerCoproprietaire) et db/migration-d2.ts (écriture), sans appel au démarrage.
  *
  * Gestéam — fiche client (tranche 30) : la position (« client » : compte, statut En place / Futur…) porte une grille
  * Identité · Relation · Part ; les relations sont les qualités de QUALITE_IDENTITE (tranche 20). Le compte 450 porte un
@@ -47,6 +49,53 @@ import { GROUPE_IDENTITE, QUALITE_IDENTITE, type GroupeIdentite } from '@/lib/da
  * télécoms (Telecom) restent sans date, voulu : l'adresse de notification n'est pas un simple télécom ; contrôle avant
  * envoi : controlerAvantEnvoiElectronique (voie-notification.ts), écrit et testé, à brancher par l'appelant de
  * creerEnvoiNotificationElectronique (anomaliesAvantEnvoi).
+ * J78 (réponse de Frédéric du 17/11/2026, sj-qualite-pro.json) : case « professionnel » sur la fiche identité, décochée
+ * par défaut (Identite.professionnel, facultative). Décochée ou absente : destinataire non professionnel ; une LRE exige
+ * alors son consentement, qui reste l'accord du critère LRE repris de Gestéam (CPCE art. L. 100 ; J53 ; accord sans
+ * date valable écarté : J59, étendu par J66 (validé par Hugo le 17/11/2026) à tout usage, consentement de J53 compris ;
+ * code : accordElectroniqueEnVigueur, voie-notification.ts, PR #728 ; les commentaires de voie-notification.ts
+ * (accordElectroniqueEnVigueur, estAccordSansDateValable, en-tête) disent encore l'extension « à confirmer » : à mettre
+ * à jour à part). Cochée : ce consentement n'est pas exigé ; les autres règles restent (voie postale : J52, J74 ; accord
+ * exprès avant le 25/12/2025 : J50). Lecture sans date (état saisi, pour l'affichage) : qualiteProfessionnelleDe ; à
+ * la date de l'envoi : qualite-professionnelle.ts (qualiteProfessionnelleA).
+ * Qualité de chaque destinataire pour le contrôle J53, lue à la date de son envoi : avecQualiteProfessionnelleALEnvoi
+ * (qualite-professionnelle.ts), écrit et testé, à brancher par l'appelant de finDelaiContestationAgParDestinataire
+ * (aucun aujourd'hui) ; la case y est la seule source : identité introuvable, null ; identité en double dans les
+ * fiches : erreur (données incohérentes). avecQualiteProfessionnelle, qui lit la case sans date, ne sert plus au
+ * contrôle J53 (J78 : décocher la case plus tard ne change pas les envois déjà faits). finDelaiContestationAg
+ * (notification unique) : la qualité reste une option de l'appelant, qui passe qualiteProfessionnelleALEnvoi(fiche de
+ * courrier.personneId, courrier) ; le domaine ne la relie pas à la fiche (statut-assemblee.ts : seule la date de
+ * l'envoi, dateEnvoiCourrierNotification, est extraite d'evaluerNotification, sans changer le calcul). Table : identites
+ * (version 3 de db/schema.ts) ; écriture de la case : enregistrerQualiteProfessionnelle (db/identites.ts) ; écran : à
+ * brancher.
+ * J78, décisions de Hugo du 19/11/2026 (« VALIDE TOUT », puis « ok » pour la date de lecture, sur les recommandations de
+ * Claude) : à coder avec la table des identités, pas ici ; à valider par Frédéric avant toute fusion. Elles remplacent
+ * les deux questions laissées à Hugo.
+ * - Case datée : la qualité se lit à la date de l'envoi. Date retenue (« ok » de Hugo du 19/11/2026) : date du dépôt de
+ *   l'envoi quand elle est saisie, sinon celle de l'événement. Elle reprend la lecture de J50 (statut-assemblee.ts,
+ *   controlerVoie : régime, accord exprès, consentement et demande de voie postale jugés à cette date), qui reste
+ *   ouverte en J50 (🔵) : cette décision ne tranche pas J50 ; si J50 est tranchée autrement, les deux dates se relisent
+ *   ensemble. Précision (choix de rédaction de Claude, relecture du 19/11/2026) : le code de J50 (statut-assemblee.ts,
+ *   evaluerNotification) ne garde le dépôt que s'il ne suit pas l'événement ; sinon, il retient l'événement. L'en-tête
+ *   de statut-assemblee.ts et le registre (J50) ne le disent pas. Dans ce calcul, la case ne compte que pour une LRE
+ *   (J53), et une LRE dont l'avis précède le dépôt est refusée avant (preuve_a_saisir) : aucun écart aujourd'hui. Codé
+ *   avec la table des identités : la date est celle que ce code calcule (dateEnvoiCourrierNotification, extraite
+ *   d'evaluerNotification sans recopie ; qualite-professionnelle.ts). Décocher la case plus tard ne change pas le
+ *   calcul des envois déjà faits. Aujourd'hui, qualiteProfessionnelleDe lit l'état actuel de la case, sans date. Ce
+ *   lecteur ne change pas ici. Lien entre cette case sans date et la case datée (proposé, à valider par Frédéric ;
+ *   qualite-professionnelle.ts) : la case sans date est le dernier état saisi ; la lecture à la date de l'envoi ne lit
+ *   que les états datés, qui prennent effet le lendemain de leur saisie.
+ * - Case cochée seulement sur une justification écrite (par exemple une société qui reçoit l'envoi pour son activité,
+ *   avec son SIREN), jamais du seul fait d'être une personne morale. Le SIREN n'est qu'un exemple : aucun texte lu ne
+ *   l'exige. Cochée à tort, la notification est irrégulière et le délai ne court pas. Repère : code de la consommation,
+ *   article liminaire (version en vigueur depuis le 24/04/2024, loi n° 2024-364 du 22/04/2024, art. 2 ; lu sur
+ *   Légifrance le 19/11/2026) : « Non-professionnel : toute personne morale qui n'agit pas à des fins
+ *   professionnelles » (2°) ; « Professionnel : toute personne physique ou morale, publique ou privée, qui agit à des
+ *   fins entrant dans le cadre de son activité commerciale, industrielle, artisanale, libérale ou agricole […] » (3°).
+ *   Une personne morale peut donc être non professionnelle. 🔵 Ces définitions valent « pour l'application du présent
+ *   code » ; CPCE art. L. 100 ne définit pas « professionnel » et n'y renvoie pas : les reprendre ici est une lecture
+ *   par analogie, à vérifier.
+ *
  * 🔴 Non établi : l'usage de l'adresse reste libre, valeurs Gestéam du champ « Usage » non relevées ; choix du jeu de
  * coordonnées par compte ou par syndicat (dans Gestéam, la fiche client désigne son jeu de coordonnées ; ici, l'adresse
  * vaut pour l'identité entière) ; parts sociales d'un associé de SCI qui n'est pas lui-même titulaire d'une position
@@ -118,10 +167,21 @@ export interface Identite {
   groupes: GroupeIdentite[]
   /** Vide pour une personne physique. */
   representants: RepresentantLegal[]
+  /**
+   * J78 — case « professionnel » (CPCE art. L. 100 ; contrôle J53), décochée par défaut. Absente : non saisie, lue comme
+   * non professionnelle (qualiteProfessionnelleDe). Non indexée ; enregistrement : enregistrerQualiteProfessionnelle
+   * (db/identites.ts) ; écran : à brancher. Sans date ici : c'est le dernier état saisi ; la date et la justification
+   * écrite (J78, en-tête) sont dans les états datés de la table des identités (IdentiteEnregistree.historiqueProfessionnel,
+   * qualite-professionnelle.ts), seuls lus par le contrôle J53.
+   */
+  professionnel?: boolean
 }
 
-export type SaisieIdentite = Omit<Identite, 'adresses' | 'groupes' | 'representants'> &
-  Partial<Pick<Identite, 'adresses' | 'groupes' | 'representants'>>
+export type SaisieIdentite = Omit<Identite, 'adresses' | 'groupes' | 'representants' | 'professionnel'> &
+  Partial<Pick<Identite, 'adresses' | 'groupes' | 'representants'>> & {
+    /** J78 : absente ou null (reprise) : non saisie, la case reste décochée. */
+    professionnel?: boolean | null
+  }
 
 const nettoyer = (texte: string): string => texte.replace(/\s+/g, ' ').trim()
 
@@ -174,6 +234,29 @@ function verifierRepresentants(identite: Pick<Identite, 'id' | 'nature' | 'nom'>
   }
 }
 
+/**
+ * Valeur reçue, lisible dans un message : un objet ou un tableau en JSON, le reste tel quel. Ne lève jamais (le refus du
+ * domaine reste le message) : un objet que JSON ne rend pas (cycle, comme un évènement React et son nœud DOM ; BigInt ;
+ * toJSON sans valeur) est donné par son type (« [object Object] »), avec la cause si JSON a levé.
+ */
+function valeurRecue(valeur: unknown): string {
+  if (typeof valeur !== 'object' || valeur === null) return String(valeur)
+  const type = Object.prototype.toString.call(valeur)
+  try {
+    const json: string | undefined = JSON.stringify(valeur)
+    return json ?? type
+  } catch (erreur) {
+    return `${type} non sérialisable (${erreur instanceof Error ? erreur.name : typeof erreur})`
+  }
+}
+
+/** J78 : case cochée ou décochée gardée ; absente ou null, rien (non saisie) ; toute autre valeur refusée. */
+function caseProfessionnel(valeur: unknown, nom: string): Pick<Identite, 'professionnel'> {
+  if (valeur === undefined || valeur === null) return {}
+  if (typeof valeur !== 'boolean') throw new Error(`Case « professionnel » de ${nom} : cochée ou décochée attendue (reçu « ${valeurRecue(valeur)} »).`)
+  return { professionnel: valeur }
+}
+
 export function creerIdentite(saisie: SaisieIdentite): Identite {
   const nom = nettoyer(saisie.nom)
   if (!nom) throw new Error("Nom de l'identité manquant.")
@@ -185,14 +268,52 @@ export function creerIdentite(saisie: SaisieIdentite): Identite {
   verifierGroupes(groupes)
   const representants = saisie.representants ?? []
   verifierRepresentants({ id: saisie.id, nature: saisie.nature, nom }, representants)
+  const { professionnel, ...reste } = saisie
   return {
-    ...saisie,
+    ...reste,
     nom,
     prenom: saisie.prenom?.trim() || null,
     adresses,
     groupes: [...groupes],
     representants: representants.map((r) => ({ ...r, identiteId: r.identiteId.trim(), fonction: r.fonction?.trim() || null })),
+    ...caseProfessionnel(professionnel, nom),
   }
+}
+
+/**
+ * J78 — qualité professionnelle du destinataire (CPCE art. L. 100), état actuel de la case, pour l'affichage de la fiche :
+ * null si l'identité est absente (non saisie) ; sinon la case de la fiche, décochée par défaut (true seulement si elle
+ * est cochée ; toute autre valeur enregistrée : non professionnelle, lecture prudente de J53). Lit l'état actuel de la
+ * case, sans date ; la lecture à la date de l'envoi (dépôt saisi, sinon événement : J78, en-tête), seule à passer au
+ * contrôle J53, est qualiteProfessionnelleALEnvoi (qualite-professionnelle.ts). Notification unique
+ * (finDelaiContestationAg) : l'appelant passe qualiteProfessionnelleALEnvoi(fiche de courrier.personneId, courrier) ;
+ * le domaine ne fait pas ce lien.
+ */
+export function qualiteProfessionnelleDe(identite: Pick<Identite, 'professionnel'> | null | undefined): boolean | null {
+  if (identite === null || identite === undefined) return null
+  return identite.professionnel === true
+}
+
+/**
+ * J78 — qualité de chaque destinataire (NotificationDestinataire de statut-assemblee.ts, ou tout objet rattaché à une
+ * identité), lue sur sa fiche SANS DATE (qualiteProfessionnelleDe). Ne sert plus au contrôle J53 : la case s'y lit à la
+ * date de chaque envoi (avecQualiteProfessionnelleALEnvoi, qualite-professionnelle.ts ; décocher la case plus tard ne
+ * change pas les envois déjà faits). La case est la seule source : une valeur donnée par
+ * l'appelant est remplacée ; identité introuvable : null (non saisie, lue comme non professionnelle), même si l'appelant
+ * avait donné true. Identité en double dans les fiches : erreur (données incohérentes, comme une identité en double dans
+ * les notifications du procès-verbal) ; aucune des deux fiches ne l'emporte. L'entrée n'est pas modifiée.
+ */
+export function avecQualiteProfessionnelle<T extends { identiteId: string }>(
+  destinataires: readonly T[],
+  identites: readonly Pick<Identite, 'id' | 'professionnel'>[],
+): (T & { professionnel: boolean | null })[] {
+  const parId = new Map<string, Pick<Identite, 'id' | 'professionnel'>>()
+  for (const identite of identites) {
+    if (parId.has(identite.id))
+      throw new Error(`Identité ${identite.id} en double dans les fiches identité (case « professionnel ») : données incohérentes.`)
+    parId.set(identite.id, identite)
+  }
+  return destinataires.map((d) => ({ ...d, professionnel: qualiteProfessionnelleDe(parId.get(d.identiteId)) }))
 }
 
 const dansPeriode = (date: string, du: string, au: string | null): boolean => du <= date && (au === null || date <= au)
@@ -620,7 +741,10 @@ export interface CoproprietaireHistorique {
   statut: string
 }
 
-/** Migration D2 : une identité, un compte et une position de pleine propriété (1/1) par ancienne fiche. */
+/**
+ * Migration D2 : une identité, un compte et une position de pleine propriété (1/1) par ancienne fiche. Appelée sur toutes
+ * les fiches de la base par migration-d2.ts (planifierMigrationD2 : séries, date d'entrée, fiches déjà migrées).
+ */
 export function migrerCoproprietaire(
   ancien: CoproprietaireHistorique,
   { coproprieteId, serie, dateEntree }: { coproprieteId: string; serie: string; dateEntree: string },

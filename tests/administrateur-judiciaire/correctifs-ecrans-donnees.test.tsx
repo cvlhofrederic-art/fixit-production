@@ -194,7 +194,7 @@ describe('Fiche 360 personne — avis de mutation hors calendrier (constat 21)',
     expect((await saisirAvis('17/12/9999')).textContent).toBe(INVITE)
   })
 
-  it('avis en 0000-0099 : message d’invite au lieu d’une date limite ramenée au XXe siècle', async () => {
+  it('avis en 0000-0099 : message d’invite au lieu d’une date limite à l’année sans zéros (« 30/03/26 », lu 2026)', async () => {
     rendre(<Fiche360PersonneModule />)
     expect((await saisirAvis('15/03/0026')).textContent).toBe(INVITE)
     expect((await saisirAvis('31/12/0099')).textContent).toBe(INVITE)

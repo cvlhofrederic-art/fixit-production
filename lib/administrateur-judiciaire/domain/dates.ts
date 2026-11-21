@@ -61,10 +61,15 @@ export function composerDateIso(annee: number, mois: number, jour: number): stri
   return `${String(annee).padStart(4, '0')}-${String(mois).padStart(2, '0')}-${String(jour).padStart(2, '0')}`
 }
 
-/** Tous les calculs de délais se font en UTC. */
+/**
+ * Tous les calculs de délais se font en UTC. Pas de Date.UTC : il ramène les années 0 à 99 au XXe siècle
+ * (Date.UTC(26, 2, 15) donne le 15/03/1926) ; setUTCFullYear prend l'année telle quelle.
+ */
 export function dateIsoVersUtcMs(valeur: string): number {
   const { a, m, j } = decomposerDateIso(valeur)
-  return Date.UTC(a, m - 1, j)
+  const date = new Date(0)
+  date.setUTCFullYear(a, m - 1, j)
+  return date.getTime()
 }
 
 export function utcMsVersDateIso(ms: number): string {
@@ -101,6 +106,22 @@ export function ecartJours(depuis: string, jusqua: string): number {
 /** En deçà, une année est une faute de frappe (Gestéam accepte « 1026 » comme « 2525 »). */
 export const ANNEE_PLANCHER = 1900
 
+/**
+ * Au-delà, une année est une faute de frappe (« 2525 », « 9998 »), comme en deçà de ANNEE_PLANCHER. Un délai compté
+ * depuis une année plausible reste dans le calendrier ISO à quatre chiffres : depuis 9998, deux ans tombent en
+ * l'an 10000, que decomposerDateIso refuse.
+ */
+export const ANNEE_PLAFOND = 2100
+
+/**
+ * Année antérieure à ANNEE_PLANCHER ou postérieure à ANNEE_PLAFOND : faute de frappe probable. Aucun repère ne se
+ * calcule depuis une telle date. Lève une erreur si la date n'est pas une date ISO valide.
+ */
+export function estAnneeImprobable(dateIso: string): boolean {
+  const { a } = decomposerDateIso(dateIso)
+  return a < ANNEE_PLANCHER || a > ANNEE_PLAFOND
+}
+
 /** Une date fixée à l'avance (audience, rendez-vous d'expertise) au-delà de ce nombre d'années est improbable. */
 export const ANNEES_A_VENIR_MAX = 3
 
@@ -112,8 +133,9 @@ export function verifierAujourdhui(aujourdhui: string): void {
 }
 
 /**
- * Anomalie d'une date par rapport à `aujourdhui`, ou null : année antérieure à ANNEE_PLANCHER ; fait accompli
- * (`futurAdmis: false`) daté après aujourd'hui ; date fixée à l'avance au-delà de ANNEES_A_VENIR_MAX ans.
+ * Anomalie d'une date par rapport à `aujourdhui`, ou null : année antérieure à ANNEE_PLANCHER ou postérieure à
+ * ANNEE_PLAFOND ; fait accompli (`futurAdmis: false`) daté après aujourd'hui ; date fixée à l'avance au-delà de
+ * ANNEES_A_VENIR_MAX ans.
  */
 export function plausibiliteDate(
   dateIso: string,
@@ -122,7 +144,7 @@ export function plausibiliteDate(
 ): PlausibiliteDate | null {
   verifierAujourdhui(aujourdhui)
   if (!estDateIsoValide(dateIso)) throw new Error(`Date invalide (${dateIso}) : AAAA-MM-JJ attendu.`)
-  if (decomposerDateIso(dateIso).a < ANNEE_PLANCHER) return 'annee_improbable'
+  if (estAnneeImprobable(dateIso)) return 'annee_improbable'
   if (dateIso <= aujourdhui) return null
   if (!options.futurAdmis) return 'future'
   return dateIso > ajouterMois(aujourdhui, 12 * ANNEES_A_VENIR_MAX) ? 'trop_lointaine' : null

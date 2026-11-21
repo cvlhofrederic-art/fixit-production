@@ -48,18 +48,17 @@ export interface ExportDonneesPersonnelles {
  * Date limite d'opposition sur mutation (avis du notaire + quinze jours, L. 1965 art. 20), ISO, ou null.
  * Correctif d'un défaut hérité de la maquette : une date limite hors du calendrier affichable est traitée comme une
  * saisie invalide (message d'invite) au lieu d'être formatée. Deux cas : l'an 10000 (avis du 17/12/9999 ou après),
- * dont le formatage levait pendant le rendu et remplaçait toute l'application par l'écran d'erreur ; les années 0000 à
- * 0099, que Date.UTC ramène au XXe siècle (avis du 15/03/0026 → « 30/03/1926 »). Toute autre saisie est inchangée.
+ * dont le formatage levait pendant le rendu et remplaçait toute l'application par l'écran d'erreur ; un avis daté de
+ * 0000 à 0099, faute de frappe que l'affichage masquerait : dateIsoVersFr écrit l'année sans zéros en tête, et
+ * « 30/03/26 » se lirait 2026. Le calcul lui-même est juste sur ces années. Toute autre saisie est inchangée.
  */
 function dateLimiteOppositionMutation(dateAvisIso: string | null): string | null {
-  if (!dateAvisIso) return null
+  if (!dateAvisIso || decomposerDateIso(dateAvisIso).a < 100) return null
   const dateLimite = appliquerDelai(dateAvisIso, {
     valeur: 15,
     unite: 'jours',
   })
-  return estDateIsoValide(dateLimite) && decomposerDateIso(dateLimite).a - decomposerDateIso(dateAvisIso).a <= 1
-    ? dateLimite
-    : null
+  return estDateIsoValide(dateLimite) ? dateLimite : null
 }
 
 /** Lots et copropriétaires lus pour rattacher une personne à la copropriété choisie. */

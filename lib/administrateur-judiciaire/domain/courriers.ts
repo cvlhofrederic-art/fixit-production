@@ -1,4 +1,4 @@
-import { dateIsoVersFr as dateFr, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
+import { ajouterJours, dateIsoVersFr as dateFr, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
 import type {
   FormeEnvoiCourrier,
   StatutCourrier,
@@ -12,6 +12,9 @@ import type {
  * Décision J1 (08/10/2026) : la notification par lettre recommandée est acquise à la PREMIÈRE PRÉSENTATION du pli par
  * La Poste, qu'il ait été retiré ou non. La date de retrait (signature de l'avis de réception) reste une information de
  * suivi.
+ * Décision J3 (08/10/2026) : les trente jours de L. 1965 art. 19-2 partent aussi du lendemain de la première présentation
+ * de la mise en demeure, « même règle que J1, et la même fonction de domaine » : departDelaiNotification, lue par
+ * statut-assemblee.ts (délai de l'art. 42) et par recouvrement.ts (exigibilité anticipée).
  *
  * Décisions de Hugo du 11/11/2026 (registre des décisions juridiques : J50, « Oui, calcul électronique » ; notes
  * decisions-1111/questions-hugo.md et j50-textes.md, textes lus sur Légifrance le 11/11/2026) :
@@ -76,6 +79,12 @@ export function modeNotificationCourrier(courrier: { formeEnvoi: string; modeNot
   return (mode === 'lrar') === enAr ? mode : null
 }
 
+type DatesNotification = Pick<CourrierSuivi, 'datePremierePresentation' | 'dateAvisElectronique'>
+
+/** Événement qui notifie, selon le mode : première présentation (LRAR, J1) ou transmission de l'avis (J50) ; null : non saisi. */
+const evenementDuMode = (courrier: DatesNotification, mode: ModeNotification): string | null =>
+  (mode === 'lrar' ? courrier.datePremierePresentation : courrier.dateAvisElectronique) || null
+
 /**
  * État d'un courrier au regard de la notification :
  * - `non_envoye` : pas encore déposé ;
@@ -89,8 +98,37 @@ export function etatNotificationCourrier(courrier: CourrierSuivi): EtatNotificat
   if (!courrier.dateDepot) return 'non_envoye'
   const mode = modeNotificationCourrier(courrier)
   if (mode === null) return 'sans_valeur_de_notification'
-  const evenement = mode === 'lrar' ? courrier.datePremierePresentation : courrier.dateAvisElectronique
-  return evenement ? 'notifie' : 'envoye_non_notifie'
+  return evenementDuMode(courrier, mode) ? 'notifie' : 'envoye_non_notifie'
+}
+
+/** Courrier lu pour un point de départ : ses dates de suivi, son mode et sa forme d'envoi (CourrierSuivi, ou le courrier enregistré). */
+export type CourrierDepartDelai = DatesNotification & Pick<CourrierSuivi, 'dateDepot' | 'modeNotification'> & { formeEnvoi: string }
+
+/**
+ * Point de départ d'un délai que fait courir une notification ou une mise en demeure (J1, J3, J50) :
+ * - `calculable` : le lendemain de l'événement (`pointDeDepart`, jour 0 du délai, J1), soit la première présentation du pli,
+ *   retiré ou non (LRAR, D. 1967 art. 64-1, al. 2), soit la transmission de l'avis électronique, téléchargé ou non (LRE ou
+ *   prestataire qualifié, art. 64, dernier al.) ; jamais le dépôt, le retrait, le téléchargement, ni le jour où une étape
+ *   est enregistrée ;
+ * - `non_calculable` : courrier sans valeur de notification (ni LRAR ni envoi électronique, J50), date de l'événement non
+ *   saisie, ou avis électronique saisi avant le dépôt (pas une preuve, comme à la saisie : controlerAvisElectronique).
+ * Une seule fonction pour le délai de contestation de l'AG (statut-assemblee.ts, J1 et J50) et pour les trente jours de
+ * L. 1965 art. 19-2 (recouvrement.ts) : J3 le demande (« même règle que J1, et la même fonction de domaine »).
+ */
+export type DepartDelaiNotification =
+  | { etat: 'calculable'; mode: ModeNotification; evenement: string; pointDeDepart: string }
+  | { etat: 'non_calculable'; cause: 'sans_valeur_de_notification'; mode: null }
+  | { etat: 'non_calculable'; cause: 'evenement_a_saisir'; mode: ModeNotification }
+  | { etat: 'non_calculable'; cause: 'avis_avant_depot'; mode: Exclude<ModeNotification, 'lrar'>; evenement: string; depot: string }
+
+export function departDelaiNotification(courrier: CourrierDepartDelai): DepartDelaiNotification {
+  const mode = modeNotificationCourrier(courrier)
+  if (mode === null) return { etat: 'non_calculable', cause: 'sans_valeur_de_notification', mode }
+  const evenement = evenementDuMode(courrier, mode)
+  if (evenement === null) return { etat: 'non_calculable', cause: 'evenement_a_saisir', mode }
+  const depot = courrier.dateDepot
+  if (mode !== 'lrar' && depot && evenement < depot) return { etat: 'non_calculable', cause: 'avis_avant_depot', mode, evenement, depot }
+  return { etat: 'calculable', mode, evenement, pointDeDepart: ajouterJours(evenement, 1) }
 }
 
 const verifierDateIso = (libelle: string, valeur: string) => {

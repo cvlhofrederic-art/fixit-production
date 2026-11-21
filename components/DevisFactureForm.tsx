@@ -52,6 +52,7 @@ import { ChampRemiseGlobale, ChampRemiseLigne } from '@/components/devis/RemiseC
 import { escompteImprimeAuDepart } from '@/lib/escompte-pdf'
 import { champVersionRendu, versionRenduAuDepart, VERSION_RENDU_COMPLET, VERSION_RENDU_ORIGINE } from '@/lib/version-rendu'
 import { lignesRemisablesArtisan, ventilationTvaArtisan } from '@/lib/totaux-artisan'
+import { localeTva, tauxTvaSelecteur } from '@/lib/tva-calculator'
 import {
   appliquerRemiseGlobale, libelleRemiseGlobale, lignesApresRemiseGlobale, lireRemise, montantNetLigne, aUneRemiseDeLigne,
   type LigneRemisable, type Remise,
@@ -745,6 +746,10 @@ export default function DevisFactureForm({
 
   // ─── Product Lines ───
   const defaultTvaRate = tvaEnabled ? (locale === 'pt' ? 23 : 20) : 0
+  // Sélecteurs de taux (lib/tva-calculator.ts) : ceux du pays, plus le taux déjà porté par la ligne (ligne enregistrée
+  // ou importée à 20 % sur /pt), sinon le sélecteur affichait 23 % pendant que les totaux comptaient 20 %.
+  const paysTva = localeTva(locale)
+  const libelleTauxTva = (r: number) => `${String(r).replace('.', ',')}%`
 
   const addLine = () => {
     setLines(prev => [...prev, {
@@ -3146,21 +3151,7 @@ export default function DevisFactureForm({
                               className="v22-form-input"
                               style={{ opacity: !tvaEnabled ? 0.5 : 1 }}
                             >
-                              {locale === 'pt' ? (
-                                <>
-                                  <option value={23}>23%</option>
-                                  <option value={13}>13%</option>
-                                  <option value={6}>6%</option>
-                                  <option value={0}>0%</option>
-                                </>
-                              ) : (
-                                <>
-                                  <option value={20}>20%</option>
-                                  <option value={10}>10%</option>
-                                  <option value={5.5}>5,5%</option>
-                                  <option value={0}>0%</option>
-                                </>
-                              )}
+                              {tauxTvaSelecteur(paysTva, line.tvaRate).map(r => <option key={r} value={r}>{libelleTauxTva(r)}</option>)}
                             </select>
                           </td>
                           <td style={{ verticalAlign: 'top' }}>
@@ -3368,21 +3359,7 @@ export default function DevisFactureForm({
                                   onChange={(e) => updateFraisAnnexe(item.id, 'tva_applicable', parseFloat(e.target.value))}
                                   className="v22-form-input"
                                 >
-                                  {locale === 'pt' ? (
-                                    <>
-                                      <option value={23}>23%</option>
-                                      <option value={13}>13%</option>
-                                      <option value={6}>6%</option>
-                                      <option value={0}>0%</option>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <option value={20}>20%</option>
-                                      <option value={10}>10%</option>
-                                      <option value={5.5}>5,5%</option>
-                                      <option value={0}>0%</option>
-                                    </>
-                                  )}
+                                  {tauxTvaSelecteur(paysTva, item.tva_applicable).map(r => <option key={r} value={r}>{libelleTauxTva(r)}</option>)}
                                 </select>
                               </td>
                             )}
@@ -3537,7 +3514,8 @@ export default function DevisFactureForm({
                                   className="v22-form-input"
                                   style={{ fontSize: 12 }}
                                 >
-                                  {[0, 5.5, 10, 20].map(r => <option key={r} value={r}>{r}%</option>)}
+                                  {/* Portugal : taux portugais (la ligne neuve y part à 23 %) ; France : liste inchangée */}
+                                  {(paysTva === 'pt' ? tauxTvaSelecteur('pt', line.tvaRate) : [0, 5.5, 10, 20]).map(r => <option key={r} value={r}>{r}%</option>)}
                                 </select>
                               </td>
                             )}

@@ -15,6 +15,7 @@ import {
 } from '@/lib/chat-parsers'
 import DocumentPreviewCard from './DocumentPreviewCard'
 import type { Artisan } from '@/lib/types'
+import { htDepuisTtcTauxNormal, localeTva, tauxTvaParDefaut } from '@/lib/tva-calculator'
 
 // Réponses tapées à une demande de confirmation, selon la langue de l'interface (le français reste celui d'origine).
 const REPONSES_OUI: Record<LangueMessage, readonly string[]> = {
@@ -590,14 +591,17 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
 
         if (amount || service) {
           const desc = service?.name || 'Prestation'
-          const priceHT = amount ? (amount / 1.2) : (service?.price_ht || 0)
+          // Taux du pays (lib/tva-calculator.ts) : 23 % sur /pt, 20 % en France ; le montant dicté est TTC
+          const pays = localeTva(locale)
+          const tauxTva = tauxTvaParDefaut(pays)
+          const priceHT = amount ? htDepuisTtcTauxNormal(amount, pays) : (service?.price_ht || 0)
           devisData.lines = [{
             id: Date.now(),
             description: desc,
             qty: 1,
             unit: 'u',
             priceHT: Math.round(priceHT * 100) / 100,
-            tvaRate: 20,
+            tvaRate: tauxTva,
             totalHT: Math.round(priceHT * 100) / 100,
           }]
         }

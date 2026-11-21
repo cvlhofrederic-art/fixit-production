@@ -89,9 +89,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Contenu requis' }, { status: 400 })
     }
 
+    // Aucune écriture vers un autre compte : l'écran « Canal Pro » tient sa liste de contacts dans le navigateur,
+    // le serveur n'a donc aucune preuve d'un lien entre l'expéditeur et le destinataire. Seule l'écriture pour soi
+    // (sans destinataire, ou destinataire = l'expéditeur) reste possible, tant que le sort de cet écran n'est pas décidé.
+    if (contact_id && contact_id.toLowerCase() !== user.id.toLowerCase()) {
+      return NextResponse.json({ error: 'L’envoi d’un message à un autre compte n’est pas disponible par ce canal.' }, { status: 403 })
+    }
+
     const msgData = {
       cabinet_id: user.id,
-      artisan_user_id: contact_id || user.id,
+      artisan_user_id: user.id,
       sender_id: user.id,
       sender_role: role,
       sender_name: user.user_metadata?.company_name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Pro',

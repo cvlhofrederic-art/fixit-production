@@ -6,6 +6,7 @@ import { FILTRE_SANS_BUREAU_QR, NOM_BUREAU_MAX_QR, contientControleQr } from './
 import {
   FORMAT_IDENTIFIANT_CABINET_QR, LONGUEUR_MAX_IDENTIFIANT_CABINET_QR, LONGUEUR_MIN_IDENTIFIANT_CABINET_QR, validerIdentifiantCabinetQr,
 } from './aj-signalement/chemin-cabinet'
+import { batimentDeLaListeQr } from './aj-signalement/batiments'
 import { validerDomaineCabinetQr } from './aj-signalement/gestionnaires'
 import { LOGO_BASE64_MAX_QR, LOGO_OCTETS_MIN_QR } from './aj-signalement/logo'
 import { ACTIONS_JOURNAL_QR, ATTRIBUTIONS_MAX_PAR_GESTIONNAIRE_QR } from './aj-signalement/types'
@@ -416,6 +417,19 @@ export const signalementQrSchema = z.object({
   // Numéro du signalement désigné comme « le même problème » ; le serveur le cherche parmi les semblables de la copropriété.
   signalementLieNumero: z.union([z.literal(''), z.string().regex(/^[0-9A-F]{8}$/, 'Numéro de signalement invalide')]).optional().default(''),
 }).refine((d) => !d.estPartieCommune || d.zoneSignalee !== '', { path: ['zoneSignalee'], message: 'Zone requise pour les parties communes' })
+
+// Bâtiment d'un dépôt public quand le cabinet a saisi les bâtiments de la copropriété (demande de Hugo du 17/11/2026) :
+// appliqué par la route APRÈS signalementQrSchema, avec la liste lue en base (batimentsProposesQr) quand elle n'est pas
+// vide. Accepté sans tenir compte de la casse ni des espaces en trop, rendu sous le nom saisi par le cabinet ; absent de
+// la liste : refusé (message sans la liste). Copropriété sans bâtiment : ce contrôle n'est pas appliqué.
+export const batimentListeQrSchema = (batiments: readonly string[]) => z.string().transform((saisie, ctx) => {
+  const nom = batimentDeLaListeQr(saisie, batiments)
+  if (nom === null) {
+    ctx.addIssue({ code: 'custom', message: 'Bâtiment absent de la liste de la copropriété' })
+    return z.NEVER
+  }
+  return nom
+})
 
 // Adresse proposée d'après la position du navigateur (copropriété sans adresse). Zod 4 refuse NaN et l'infini.
 export const adresseQrSchema = z.object({
@@ -1399,7 +1413,8 @@ export const createCandidatureSchema = z.object({
   timeline: z.string().min(1).max(200),
   description: z.string().min(10, 'Description trop courte (min 10)').max(3000),
   materials_included: z.boolean().default(false),
-  guarantee: z.string().max(500).optional(),
+  // Garantie facultative : l'écran de candidature envoie null quand le champ est laissé vide.
+  guarantee: z.string().max(500).optional().nullable(),
 })
 
 export const updateCandidatureStatusSchema = z.object({
@@ -1733,10 +1748,16 @@ export const syndicImportGecondSchema = z.object({
 })
 
 // ── Pro Channel schema ─────────────────────────────────────────────────────
+// Types de message que l'écran « Canal Pro » envoie ou sait afficher
+// (components/dashboard/CanalProSection.tsx, MSG_TYPE_ICONS) : aucun autre n'est accepté.
+export const TYPES_MESSAGE_CANAL_PRO = [
+  'text', 'voice', 'voice_location', 'voice_status', 'voice_alert', 'voice_devis', 'file', 'photo', 'rapport', 'devis',
+] as const
+
 export const proChannelPostSchema = z.object({
   content: z.string().max(5000).optional(),
   contact_id: z.string().uuid().optional(),
-  type: z.string().max(50).optional(),
+  type: z.enum(TYPES_MESSAGE_CANAL_PRO).optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
 })
 
@@ -2152,6 +2173,27 @@ export const devisStatusUpdateSchema = z.object({
   numero: z.string().min(1, 'numero requis').max(100),
   newStatus: z.enum(['accepted', 'rejected', 'expired']),
   reason: z.string().max(500).optional(),
+})
+
+// ── Devis / facture envoyé par e-mail (POST /api/devis/send-email) ──────────
+// Le message part de l'adresse d'envoi de la plateforme vers l'adresse saisie par le professionnel : une seule
+// adresse valide, un type de document connu, des champs de longueur bornée. Les bornes laissent passer tout document
+// ordinaire (numéro et nom du client : celles de la synchronisation des documents, devisSyncSchema). Les champs
+// facultatifs acceptent '' et null (le formulaire les envoie tels quels quand ils sont vides). La pièce jointe est
+// contrôlée par la route (PDF, taille).
+/** Taille maximale du PDF joint à l'e-mail, en octets : 10 Mo, la limite des dépôts de fichiers du site. */
+export const TAILLE_MAX_PDF_EMAIL_OCTETS = 10 * 1024 * 1024
+const texteFacultatifEmail = (longueurMax: number) => z.union([z.string().max(longueurMax), z.null()]).optional()
+export const devisEnvoiEmailSchema = z.object({
+  to: z.string().trim().max(254).pipe(strictEmail),
+  docType: z.enum(['devis', 'facture']),
+  docNumber: z.string().min(1).max(100),
+  docTitle: texteFacultatifEmail(500),
+  totalStr: texteFacultatifEmail(60),
+  clientName: texteFacultatifEmail(500),
+  companyName: texteFacultatifEmail(300),
+  companyPhone: texteFacultatifEmail(60),
+  pdfBase64: z.string().min(1),
 })
 
 // ── Syndic v54 — lot features net-new (Reservas, Infrações, Enquetes, Checklists) ──

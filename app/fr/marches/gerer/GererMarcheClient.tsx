@@ -58,7 +58,8 @@ interface Candidature {
   id: string
   marche_id: string
   artisan_id: string
-  artisan_name: string
+  // Nom de l'entreprise candidate : colonne artisan_company_name de marches_candidatures (il n'y a pas d'artisan_name).
+  artisan_company_name: string | null
   artisan_city: string | null
   price: number
   timeline: string
@@ -257,6 +258,8 @@ function GererMarcheContent({ isPt }: { isPt: boolean }) {
         body: JSON.stringify({
           candidature_id: candidatureId,
           sender_type: 'publisher',
+          // Exigé par la route (sans lui, réponse 400 : le message n'était jamais enregistré).
+          sender_name: marche?.publisher_name,
           access_token: token,
           content: msgInput.trim(),
         }),
@@ -285,7 +288,8 @@ function GererMarcheContent({ isPt }: { isPt: boolean }) {
           access_token: token,
           evaluator_type: 'publisher',
           note_globale: evalRating,
-          comment: evalComment.trim() || null,
+          // Nom lu par la route ; texte facultatif, omis s'il est vide (la route refuse null).
+          commentaire: evalComment.trim() || undefined,
         }),
       })
       if (res.ok) {
@@ -603,7 +607,7 @@ function GererMarcheContent({ isPt }: { isPt: boolean }) {
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
-                            <p className="font-bold text-gray-900">{c.artisan_name}</p>
+                            <p className="font-bold text-gray-900">{c.artisan_company_name}</p>
                             <a
                               href={isPt ? `/pt/profissional/${c.artisan_id}/` : `/fr/artisan/${c.artisan_id}/`}
                               target="_blank"

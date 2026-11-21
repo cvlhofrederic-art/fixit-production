@@ -3,9 +3,13 @@
 // Importé par les routes du SUPER ADMIN seulement (choix 3 : bureaux tenus par lui) : app/api/aj-signalement/cabinets/
 // [id]/bureaux, bureaux/[id], et les routes des cabinets, des fiches, des copropriétés et du tableau qui portent le
 // bureau. Jamais par une route d'un gestionnaire : la visibilité ne change pas (choix 5), ses réponses n'ont aucune clé
-// nouvelle. Clé service (supabaseAdmin), RLS sans politique : le contrôle d'accès est fait par la route.
+// nouvelle — sauf son export RGPD en libre-service (serveur-compte, GET /api/user/export-data), qui porte le bureau de SA
+// fiche comme l'export du super admin (décision du 20/11/2026). Clé service (supabaseAdmin), RLS sans politique : le
+// contrôle d'accès est fait par la route.
 //   - lectures d'AFFICHAGE (avecBureaux…, nombresBureauxParCabinetQr) : ne lèvent jamais ; migration absente → réponse
 //     d'avant (aucune clé de bureau), repli journalisé une fois ; autre erreur → journalisée avec son code seul ;
+//   - lecture d'EXPORT RGPD (champBureauExportQr) : migration absente → export d'avant (repli journalisé une fois) ;
+//     autre erreur → rendue, la route répond 503 (message générique) : un export ne part jamais sans son bureau ;
 //   - lectures de CONTRÔLE (avant une écriture, filtres) : l'erreur est rendue, la route répond avant d'écrire
 //     (structure absente → 503 base_absente ; autre → 500) — jamais un contrôle sauté en silence ;
 //   - clé posée seulement quand il y a un bureau : tant qu'aucun bureau n'existe, rien ne change pour personne.
@@ -135,21 +139,26 @@ export async function lireBureauIdQr(table: TableRattacheeQr, id: string): Promi
 }
 
 /**
- * Bureaux portés par ces lignes, pour l'AFFICHAGE : id de la ligne → résumé de son bureau. null : structure absente
- * (repli journalisé une fois) ou erreur (journalisée, code seul) — l'appelant rend alors les lignes telles quelles.
+ * Bureaux portés par des lignes : « lus » (id de la ligne → résumé de son bureau), « base_absente » (structure absente,
+ * repli journalisé une fois) ou « erreur » (journalisée, code seul). Ne lève jamais.
  */
-async function resumesDesLignesQr(table: TableRattacheeQr, ids: readonly string[], operation: string): Promise<Map<string, BureauResumeQr> | null> {
-  const echec = (erreur: ErreurBase): null => {
-    if (structureAbsenteQr(erreur)) journaliserRepliBureauxQr(operation, erreur)
-    else logger.error(`${CONTEXTE} ${operation} : lecture impossible`, { code: erreur.code })
-    return null
+type ResumesBureauxQr = { etat: 'lus'; bureaux: Map<string, BureauResumeQr> } | { etat: 'base_absente' | 'erreur' }
+
+async function resumesDesLignesQr(table: TableRattacheeQr, ids: readonly string[], operation: string): Promise<ResumesBureauxQr> {
+  const echec = (erreur: ErreurBase): ResumesBureauxQr => {
+    if (structureAbsenteQr(erreur)) {
+      journaliserRepliBureauxQr(operation, erreur)
+      return { etat: 'base_absente' }
+    }
+    logger.error(`${CONTEXTE} ${operation} : lecture impossible`, { code: erreur.code })
+    return { etat: 'erreur' }
   }
   try {
     const lignes = await lireRattachementsQr(table, 'id', ids)
     if (!lignes.ok) return echec(lignes.erreur)
     const bureauIds = [...new Set(lignes.valeur.map((l) => l.bureau_id).filter((v): v is string => typeof v === 'string'))]
     const resultat = new Map<string, BureauResumeQr>()
-    if (bureauIds.length === 0) return resultat
+    if (bureauIds.length === 0) return { etat: 'lus', bureaux: resultat }
     const bureaux = await lireParValeursQr<LigneBureauQr>(bureauIds, (lot) =>
       supabaseAdmin.from(TABLE_BUREAUX_QR).select(COLONNES_BUREAU_QR).in('id', lot).order('id', { ascending: true }))
     if (!bureaux.ok) return echec(bureaux.erreur)
@@ -158,20 +167,39 @@ async function resumesDesLignesQr(table: TableRattacheeQr, ids: readonly string[
       const bureau = l.bureau_id ? parId.get(l.bureau_id) : undefined
       if (bureau) resultat.set(l.id, bureau)
     }
-    return resultat
+    return { etat: 'lus', bureaux: resultat }
   } catch (e: unknown) {
     logger.warn(`${CONTEXTE} ${operation} : lecture impossible (exception)`, { exception: e instanceof Error ? e.name : 'inconnue' })
-    return null
+    return { etat: 'erreur' }
   }
 }
 
-/** Pose `bureau` sur chaque ligne qui en a un ; les autres restent telles quelles (aucune clé nouvelle). */
-function poserBureaux<T extends { id: string }>(lignes: readonly T[], bureaux: ReadonlyMap<string, BureauResumeQr> | null): T[] {
-  if (!bureaux || bureaux.size === 0) return [...lignes]
+/**
+ * AFFICHAGE : pose `bureau` sur chaque ligne qui en a un ; les autres restent telles quelles (aucune clé nouvelle), et
+ * toutes si les bureaux n'ont pas été lus (structure absente ou erreur, déjà journalisées).
+ */
+function poserBureaux<T extends { id: string }>(lignes: readonly T[], lus: ResumesBureauxQr): T[] {
+  if (lus.etat !== 'lus' || lus.bureaux.size === 0) return [...lignes]
   return lignes.map((l) => {
-    const bureau = bureaux.get(l.id)
+    const bureau = lus.bureaux.get(l.id)
     return bureau ? { ...l, bureau } : l
   })
+}
+
+/** Bureau d'une fiche dans un export RGPD : identifiant et nom ; clé ABSENTE quand la fiche n'en a pas. */
+export type ChampBureauExportQr = { bureau?: { id: string; nom: string } }
+
+/**
+ * Bureau d'une fiche pour un EXPORT RGPD (export du super admin, et export en libre-service du gestionnaire : décision
+ * du 20/11/2026). { bureau: { id, nom } } quand la fiche en a un ; {} sans bureau, et tant que la migration manque
+ * (export d'avant, repli journalisé une fois). Toute autre erreur est rendue (ok: false, journalisée avec son code
+ * seul) : la route répond 503 avec un message générique, jamais un export sans son bureau. Ne lève jamais.
+ */
+export async function champBureauExportQr(ficheId: string, operation: string): Promise<{ ok: true; champ: ChampBureauExportQr } | { ok: false }> {
+  const lus = await resumesDesLignesQr(TABLE_GESTIONNAIRES_QR, [ficheId], operation)
+  if (lus.etat === 'erreur') return { ok: false }
+  const bureau = lus.etat === 'lus' ? lus.bureaux.get(ficheId) : undefined
+  return { ok: true, champ: bureau ? { bureau: { id: bureau.id, nom: bureau.nom } } : {} }
 }
 
 /** Fiches gestionnaires (vue du super admin) avec leur bureau. Ne lève jamais. */

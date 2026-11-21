@@ -10,7 +10,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { toast } from 'sonner'
-import { docIdentityKey } from '@/lib/devis-utils'
+import { docIdentityKey, isStableDocId } from '@/lib/devis-utils'
 import { dateDuJourLocale } from '@/lib/acompte-par-taux'
 import {
   filtrerDocuments,
@@ -136,16 +136,26 @@ export function cleDocument(doc: object): string {
   return cleObjet
 }
 
+/**
+ * Clé de sélection des sociétés BTP : l'identifiant stable (UUID) d'abord, car deux documents distincts peuvent porter
+ * le même numéro (fusion BTP, lib/devis-utils.ts) ; sinon la clé commune (cleDocument).
+ */
+export function cleDocumentBtp(doc: object): string {
+  const id = (doc as { id?: unknown }).id
+  return isStableDocId(id) ? `id:${id}` : cleDocument(doc)
+}
+
 export type EtatSelectionEntete = 'aucun' | 'partiel' | 'tous'
 
 /**
  * Sélection par cases à cocher. Elle survit à la recherche et aux filtres (on peut cocher des documents de
  * plusieurs recherches) ; Maj + clic coche ou décoche toute la plage depuis la case précédente.
+ * `cleDe` (fonction du module, identité stable) : cleDocumentBtp pour les sociétés BTP ; par défaut cleDocument.
  */
-export function useSelectionDocuments<T extends object>(visibles: readonly T[]) {
+export function useSelectionDocuments<T extends object>(visibles: readonly T[], cleDe: (doc: T) => string = cleDocument) {
   const [cles, setCles] = useState<ReadonlySet<string>>(() => new Set())
   const derniereCle = useRef<string | null>(null)
-  const clesVisibles = useMemo(() => visibles.map(cleDocument), [visibles])
+  const clesVisibles = useMemo(() => visibles.map(d => cleDe(d)), [visibles, cleDe])
   const nbVisiblesCoches = clesVisibles.filter(c => cles.has(c)).length
   let etatEntete: EtatSelectionEntete = 'partiel'
   if (nbVisiblesCoches === 0) etatEntete = 'aucun'
@@ -163,7 +173,7 @@ export function useSelectionDocuments<T extends object>(visibles: readonly T[]) 
   }
 
   const basculer = (doc: T, plage: boolean): void => {
-    const cle = cleDocument(doc)
+    const cle = cleDe(doc)
     let concernees: readonly string[] = [cle]
     const depuis = derniereCle.current ? clesVisibles.indexOf(derniereCle.current) : -1
     const jusqua = clesVisibles.indexOf(cle)
@@ -176,12 +186,12 @@ export function useSelectionDocuments<T extends object>(visibles: readonly T[]) 
 
   return {
     etatEntete,
-    estSelectionne: (doc: T): boolean => cles.has(cleDocument(doc)),
+    estSelectionne: (doc: T): boolean => cles.has(cleDe(doc)),
     basculer,
     /** Case d'en-tête : coche tous les documents affichés, ou les décoche s'ils l'étaient tous. */
     basculerTout: (): void => appliquer(clesVisibles, etatEntete !== 'tous'),
     /** Documents cochés parmi `tous` (un document supprimé entre-temps n'y est plus). */
-    selectionnes: (tous: readonly T[]): T[] => tous.filter(d => cles.has(cleDocument(d))),
+    selectionnes: (tous: readonly T[]): T[] => tous.filter(d => cles.has(cleDe(d))),
     vider: (): void => {
       derniereCle.current = null
       setCles(new Set())

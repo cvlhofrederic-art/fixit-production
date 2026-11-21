@@ -26,6 +26,7 @@ import type { DevisAcompte, ProductLine } from '@/lib/devis-types'
 import { titleCaseAddress } from '@/lib/devis-utils'
 import { computeAcomptesAmounts, mulMoney, round2, sumMoney } from '@/lib/money'
 import { sanitizeForHelvetica, type PdfV3Input } from '@/lib/pdf/devis-pdf-v3'
+import { COMPRESSION_PNG, fondBlancAvantJpeg } from '@/lib/pdf/images-pdf'
 import { computeEcheanceDate, parsePaymentDelayDays } from '@/lib/pdf/payment-due'
 import { texteRemiseLigne } from '@/lib/remise-commerciale'
 import { getMentionLegale } from '@/lib/tva-calculator'
@@ -1553,7 +1554,8 @@ class DocumentMethod {
 
   /**
    * « acrescido de IVA à taxa legal de 23 % » : « legal » seulement pour les taux du continent portugais
-   * (23, 13, 6 %). Le formulaire BTP ne propose que les taux français : 20 % n'y est pas un taux légal.
+   * (23, 13, 6 %). Le formulaire BTP les propose sur /pt depuis le 20/11/2026 ; un document d'avant peut porter
+   * 20 %, qui n'est pas un taux légal portugais.
    */
   private texteIvaPrix(): string {
     if (this.regime === 'autoliquidation_btp') return 'com IVA em regime de autoliquidação'
@@ -1779,7 +1781,7 @@ class DocumentMethod {
       const hImage = Math.min(hauteur - hauteurLegende - 8, ((largeur - 20) * 140) / 400)
       const lImage = (hImage * 400) / 140
       try {
-        this.pdf.addImage(image, 'PNG', x + (largeur - lImage) / 2, haut + 4, lImage, hImage)
+        this.pdf.addImage(image, 'PNG', x + (largeur - lImage) / 2, haut + 4, lImage, hImage, undefined, COMPRESSION_PNG)
       } catch (erreur) {
         avertir('signature non dessinée', erreur)
       }
@@ -2146,6 +2148,7 @@ async function chargerImageJpeg(url: string): Promise<{ donnees: string; largeur
     canvas.height = Math.max(1, Math.round(image.height * echelle))
     const contexte = canvas.getContext('2d')
     if (!contexte) return null
+    fondBlancAvantJpeg(contexte, canvas.width, canvas.height)
     contexte.drawImage(image, 0, 0, canvas.width, canvas.height)
     return { donnees: canvas.toDataURL('image/jpeg', 0.9), largeur: canvas.width, hauteur: canvas.height }
   } catch (erreur) {

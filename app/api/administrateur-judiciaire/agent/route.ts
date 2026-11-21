@@ -31,6 +31,22 @@ const BodySchema = z.object({
   contexte: z.record(z.string(), z.unknown()).default({}),
 })
 
+/**
+ * Métadonnées de la trace Langfuse : des nombres, aucun texte (question, historique, contexte, réponse) ; ces textes
+ * portent des noms de débiteurs et des montants dus que le masquage ne couvre pas. L'évaluation nocturne
+ * (langfuse-eval.yml) ne lit que le nom des traces et leur statut.
+ */
+function metadonneesTrace({ agent, message, historique, contexte }: z.infer<typeof BodySchema>, tailleContexte: number) {
+  return {
+    succursale: 'administrateur-judiciaire',
+    agent,
+    longueurQuestion: message.length,
+    echangesPrecedents: historique.length,
+    tailleContexte,
+    elementsContexte: Object.values(contexte).reduce<number>((n, v) => n + (Array.isArray(v) ? v.length : 0), 0),
+  }
+}
+
 export async function POST(req: NextRequest) {
   const ip = getClientIP(req)
   if (!(await checkRateLimit(`aj-agent:${ip}`, 30, 60_000))) return rateLimitResponse()
@@ -60,14 +76,19 @@ export async function POST(req: NextRequest) {
   const { sanitized, tokenMap } = sanitizeContextForLLM({ contexte, historique, message })
   // Noms des personnes et des prestataires → pseudonymes (« Copropriétaire 1 »…), dans le contexte, l'historique et la
   // question (décision du 20/11/2026). La correspondance ne vit que dans `retablirNoms`, le temps de la requête : elle
-  // ne va ni au journal ni à Langfuse, qui reçoit la question pseudonymisée.
+  // ne va ni au journal ni à Langfuse, qui ne reçoit que des nombres (metadonneesTrace).
   const { donnees: envoi, retablir: retablirNoms } = pseudonymiserNoms(sanitized, sanitized.contexte)
   const dateDuJour = typeof contexte.dateDuJour === 'string' ? contexte.dateDuJour : new Date().toISOString().slice(0, 10)
   const systeme = construirePromptSystemeAJ(agent, JSON.stringify(envoi.contexte, null, 1), dateDuJour)
 
   try {
     const reponse = await traceAgent(
-      { agent_id: `aj-${agent}`, user_id: user.id, prompt: envoi.message, metadata: { succursale: 'administrateur-judiciaire' } },
+      {
+        agent_id: `aj-${agent}`,
+        user_id: user.id,
+        metadonneesSeules: true,
+        metadata: metadonneesTrace(parsed.data, contexteJson.length),
+      },
       () =>
         callClaudeWithRetry(
           {

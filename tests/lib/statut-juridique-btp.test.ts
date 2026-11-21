@@ -1,13 +1,13 @@
 // Statut juridique du formulaire de devis et facture BTP (lib/statut-juridique-btp.ts). Le champ est
 // verrouillé, « défini à l'inscription ». Un document déjà enregistré (brouillon ou émis) garde exactement le
 // sien, car le formulaire réenregistre un brouillon dès son ouverture ; un nouveau document, même tiré d'un
-// ancien, prend la forme du profil.
+// ancien, prend la forme du profil. Exception : une société portugaise ne garde jamais une forme française.
 
 import { describe, it, expect } from 'vitest'
 import { getStatusLabel, mapLegalFormToCode } from '@/lib/devis-utils'
 import {
-  appliquerFormeProfil, codeStatutJuridiqueBtp, documentEmis, documentExistant, mentionIdentificationBtp, statutAvecCapitalSocial,
-  statutJuridiqueInitialBtp, statutPortugais,
+  appliquerFormeProfil, codeStatutJuridiqueBtp, couvertureAssuranceBtp, documentEmis, documentExistant, mentionIdentificationBtp,
+  statutAvecCapitalSocial, statutJuridiqueDocumentBtp, statutJuridiqueInitialBtp, statutPortugais,
 } from '@/lib/statut-juridique-btp'
 
 const EI = 'Entreprise Individuelle (EI)'
@@ -187,12 +187,81 @@ describe('formes juridiques portugaises', () => {
     })
   })
 
-  it('un brouillon déjà enregistré en EI le reste, même pour une société par quotas', () => {
-    expect(statutJuridiqueInitialBtp({ companyStatus: EI, savedAt: '2026-11-17T18:00:00.000Z' }, LDA)).toBe(EI)
+  // Demande de Frédéric du 20/11/2026 : les orçamentos d'une société portugaise émis le 17/11 avant le correctif des
+  // formes portugaises portent encore « Entreprise Individuelle (EI) » à l'ouverture.
+  it('société portugaise : un document déjà enregistré en EI (brouillon ou émis) prend sa forme du profil', () => {
+    expect(statutJuridiqueInitialBtp({ companyStatus: EI, savedAt: '2026-11-17T18:00:00.000Z' }, LDA)).toBe(LDA)
+    expect(statutJuridiqueInitialBtp({ companyStatus: EI, id: 'devis-1', docNumber: 'DEV-2026-001' }, LDA)).toBe(LDA)
+    expect(statutJuridiqueInitialBtp({ companyStatus: EI, docNumber: 'DEV-2026-003' }, 'sociedade por quotas')).toBe(LDA)
+    expect(statutJuridiqueInitialBtp({ companyStatus: EI, docNumber: 'DEV-2026-003' }, 'Empresário em Nome Individual')).toBe(ENI)
+    expect(statutJuridiqueInitialBtp({ companyStatus: 'SA', docNumber: 'DEV-2026-003' }, 'SA (Portugal)')).toBe(SA_PT)
+  })
+
+  it('société portugaise : un document déjà enregistré avec une forme portugaise garde la sienne', () => {
+    expect(statutJuridiqueInitialBtp({ companyStatus: SA_PT, docNumber: 'DEV-2026-004' }, LDA)).toBe(SA_PT)
+    expect(statutJuridiqueInitialBtp({ companyStatus: UNIPESSOAL, savedAt: '2026-11-20T08:00:00.000Z' }, LDA)).toBe(UNIPESSOAL)
+  })
+
+  describe('statutJuridiqueDocumentBtp (formulaire et téléchargement d\'un document enregistré)', () => {
+    it('société française ou forme inconnue : la forme du document, exactement', () => {
+      for (const forme of ['SAS', 'SARL', 'Société anonyme', 'Entrepreneur individuel', '', null, undefined]) {
+        for (const statut of [EI, 'SARL', 'SAS', 'Auto-entrepreneur', '']) expect(statutJuridiqueDocumentBtp(statut, forme)).toBe(statut)
+        expect(statutJuridiqueDocumentBtp(undefined, forme)).toBe('')
+      }
+    })
+
+    it('société portugaise : forme française (ou absente) du document remplacée par celle du profil', () => {
+      for (const statut of [EI, 'SARL', 'SAS', 'SA', 'Auto-entrepreneur', '', undefined, null]) {
+        expect(statutJuridiqueDocumentBtp(statut, LDA)).toBe(LDA)
+      }
+      expect(codeStatutJuridiqueBtp(statutJuridiqueDocumentBtp(EI, LDA))).toBe('lda')
+    })
+
+    it('société portugaise : forme portugaise du document gardée', () => {
+      expect(statutJuridiqueDocumentBtp(SA_PT, LDA)).toBe(SA_PT)
+      expect(statutJuridiqueDocumentBtp(ENI, UNIPESSOAL)).toBe(ENI)
+    })
+  })
+
+  describe('couvertureAssuranceBtp', () => {
+    it('société portugaise : « France métropolitaine », défaut de la fiche, n\'est jamais sa couverture', () => {
+      for (const couverture of ['France métropolitaine', 'France metropolitaine', 'FRANCE MÉTROPOLITAINE', ' France  métropolitaine ']) {
+        expect(couvertureAssuranceBtp(couverture, LDA)).toBe('')
+      }
+    })
+
+    it('société portugaise : toute autre couverture est gardée telle quelle', () => {
+      for (const couverture of ['Portugal', 'Portugal continental', 'Portugal e França', 'France métropolitaine et Portugal']) {
+        expect(couvertureAssuranceBtp(couverture, LDA)).toBe(couverture)
+      }
+      expect(couvertureAssuranceBtp(undefined, LDA)).toBe('')
+      expect(couvertureAssuranceBtp(null, LDA)).toBe('')
+    })
+
+    it('société française ou sans forme : la valeur enregistrée, exactement', () => {
+      for (const forme of ['SAS', 'Entrepreneur individuel', '', undefined]) {
+        for (const couverture of ['France métropolitaine', 'France metropolitaine', ' France ', '']) {
+          expect(couvertureAssuranceBtp(couverture, forme)).toBe(couverture)
+        }
+        expect(couvertureAssuranceBtp(undefined, forme)).toBe('')
+      }
+    })
   })
 
   it('facture ou acompte émis en un clic : forme portugaise du profil', () => {
     expect(appliquerFormeProfil({ companyStatus: EI, docType: 'facture' }, 'Sociedade por Quotas (Lda.)'))
       .toEqual({ companyStatus: LDA, docType: 'facture' })
+  })
+
+  it('facture ou acompte en un clic d\'une société portugaise : « France métropolitaine » du devis retirée, autre couverture gardée', () => {
+    expect(appliquerFormeProfil({ companyStatus: EI, insuranceCoverage: 'France metropolitaine', docType: 'facture' }, LDA))
+      .toEqual({ companyStatus: LDA, insuranceCoverage: '', docType: 'facture' })
+    expect(appliquerFormeProfil({ companyStatus: EI, insuranceCoverage: 'Portugal', docType: 'facture' }, LDA))
+      .toEqual({ companyStatus: LDA, insuranceCoverage: 'Portugal', docType: 'facture' })
+  })
+
+  it('facture en un clic d\'une société française : couverture du devis gardée', () => {
+    expect(appliquerFormeProfil({ companyStatus: EI, insuranceCoverage: 'France métropolitaine', docType: 'facture' }, 'SAS'))
+      .toEqual({ companyStatus: 'SAS', insuranceCoverage: 'France métropolitaine', docType: 'facture' })
   })
 })

@@ -53,7 +53,12 @@ function useStorageSync() {
         //    a des entrees (1re connexion apres deploy), on push tout. On
         //    ne pose le flag QUE si le push a effectivement reussi (count > 0)
         //    sinon retry au prochain mount/login.
-        if (hydrated.count === 0) {
+        //    Seulement si le serveur a REPONDU qu'il ne détient rien : une restauration en échec (réseau, 429, 500)
+        //    renvoyait aussi 0, et l'appareil remplaçait alors la sauvegarde du serveur par son propre contenu.
+        //    Et jamais sur un navigateur qui a servi à un autre compte : ce qu'il contient n'est peut-être pas à
+        //    celui-ci (audit des fondations du 11/11/2026). pushAllLocalToServer revérifie lui-même que le serveur
+        //    a répondu « rien » et ne recopie que les clés du compte (relecture du 14/11/2026).
+        if (hydrated.ok && hydrated.vide && !hydrated.autreCompte) {
           const flagKey = 'fixit_user_storage_migrated_v1'
           try {
             if (!localStorage.getItem(flagKey)) {

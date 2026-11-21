@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
+import { SELECT_CONFIRMATION_PUBLIQUE } from '@/lib/fiche-publique'
 import { subscribeWithReconnect } from '@/lib/realtime-reconnect'
 import { Star, Check, Home, Send, MessageSquare } from 'lucide-react'
 import { useTranslation } from '@/lib/i18n/context'
@@ -98,11 +99,11 @@ function ConfirmationContent() {
       const bookingData = json.data
       setBooking(bookingData)
 
-      // Fetch artisan (public read works with anon key)
+      // Fetch artisan (public read works with anon key) : seulement ce que la page affiche (lib/fiche-publique.ts)
       if (bookingData.artisan_id) {
         const { data: artisanData } = await supabase
           .from('profiles_artisan')
-          .select('*')
+          .select(SELECT_CONFIRMATION_PUBLIQUE)
           .eq('id', bookingData.artisan_id)
           .single()
 

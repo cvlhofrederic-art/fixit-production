@@ -8,6 +8,7 @@ import {
   FORMAT_IDENTIFIANT_CABINET_QR, LONGUEUR_MAX_IDENTIFIANT_CABINET_QR, LONGUEUR_MIN_IDENTIFIANT_CABINET_QR,
 } from '@/lib/aj-signalement/chemin-cabinet'
 import { estJetonQr } from '@/lib/aj-signalement/types'
+import { batimentsProposesQr } from '@/lib/aj-signalement/batiments'
 
 // ── AJ Signalement : page ouverte par le QR code, sous le chemin du cabinet client ────────────────────────────
 //
@@ -22,6 +23,9 @@ import { estJetonQr } from '@/lib/aj-signalement/types'
 // Logo du cabinet (demande de Hugo du 13/11/2026) : lu par l'id du cabinet de la copropriété, en même temps que
 // l'information et comme elle APRÈS les contrôles du chemin ; aucun logo (cabinet sans logo, migration 20261114 absente,
 // erreur) : page inchangée.
+// Bâtiments saisis par le cabinet (demande de Hugo du 17/11/2026) : lus avec la copropriété, nettoyés (batimentsProposesQr)
+// et passés au formulaire, seuls (minimisation : de la copropriété, la page cliente ne reçoit que nom, adresse et ces
+// noms) ; aucun bâtiment (liste vide, migration 20261111 absente) : texte libre, formulaire inchangé.
 
 export const dynamic = 'force-dynamic'
 
@@ -48,7 +52,9 @@ export default async function PageSignalementCabinetQr({ params }: { params: Pro
     <div lang={langue}>
       <AppSignalementQr
         jeton={jeton}
-        copropriete={{ nom: lecture.copropriete.nom ?? '', adresse: lecture.copropriete.adresse ?? '' }}
+        copropriete={{
+          nom: lecture.copropriete.nom ?? '', adresse: lecture.copropriete.adresse ?? '', batiments: batimentsProposesQr(lecture.copropriete.batiments),
+        }}
         langue={langue}
         information={information}
         {...(logo ? { logo } : {})}

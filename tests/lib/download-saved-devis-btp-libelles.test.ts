@@ -10,12 +10,14 @@ const recu = vi.hoisted(() => ({
 
 vi.mock('@/lib/supabase', () => {
   const chaine: Record<string, unknown> = {}
-  chaine.select = () => chaine
+  let colonnes: string[] = []
+  // Comme PostgREST : seules les colonnes demandées par le select reviennent
+  chaine.select = (liste: string) => { colonnes = liste.split(',').map((c) => c.trim()); return chaine }
   chaine.eq = () => chaine
-  chaine.single = async () => ({
-    data: { paiement_modes: [], categories: null, type_activite: null, logo_url: null, ...recu.fiche },
-    error: null,
-  })
+  chaine.single = async () => {
+    const fiche: Record<string, unknown> = { paiement_modes: [], categories: null, type_activite: null, logo_url: null, ...recu.fiche }
+    return { data: Object.fromEntries(Object.entries(fiche).filter(([cle]) => colonnes.includes(cle))), error: null }
+  }
   return { supabase: { from: () => chaine } }
 })
 
@@ -117,5 +119,33 @@ describe('downloadSavedDevis (BTP) — libellés alignés sur le formulaire', ()
     recu.fiche = { rcs_number: 'RCS Marseille 999 999 999', share_capital: '5000' }
     const e = await telecharger(document({ companyRCS: 'RCS Aix-en-Provence 131 197 253', companyCapital: '600' }))
     expect(e).toMatchObject({ companyRCS: 'RCS Aix-en-Provence 131 197 253', companyCapital: '600' })
+  })
+})
+
+// Demande de Frédéric du 20/11/2026 : orçamentos d'une société portugaise émis le 17/11 avant le correctif des formes
+// portugaises, enregistrés en « Entreprise Individuelle (EI) » avec la couverture française par défaut de la fiche.
+describe('downloadSavedDevis (BTP) — anciens documents d\'une société portugaise', () => {
+  const ANCIEN = { companyStatus: 'Entreprise Individuelle (EI)', insuranceName: 'Seguradora Exemplo', insuranceNumber: 'RC-2026-000123' }
+
+  it('forme portugaise de la fiche à la place de l\'EI, couverture française remplacée par le défaut portugais', async () => {
+    recu.fiche = { legal_form: 'Sociedade por Quotas (Lda.)' }
+    const e = await telecharger(document({ ...ANCIEN, insuranceCoverage: 'France metropolitaine' }), 'pt')
+    expect(e).toMatchObject({ companyStatus: 'lda', insuranceCoverage: 'Portugal continental' })
+    // Sur /fr aussi : le modèle V3 n'imprime pas son défaut « France métropolitaine »
+    expect(await telecharger(document({ ...ANCIEN, insuranceCoverage: '' }))).toMatchObject({ companyStatus: 'lda', insuranceCoverage: 'Portugal continental' })
+  })
+
+  it('forme portugaise déjà enregistrée et couverture portugaise : gardées', async () => {
+    recu.fiche = { legal_form: 'Sociedade por Quotas (Lda.)' }
+    const e = await telecharger(document({ ...ANCIEN, companyStatus: 'Sociedade Anónima (SA)', insuranceCoverage: 'Portugal' }), 'pt')
+    expect(e).toMatchObject({ companyStatus: 'sa', insuranceCoverage: 'Portugal' })
+  })
+
+  it('société française : EI et « France métropolitaine » du document gardés, comme avant', async () => {
+    recu.fiche = { legal_form: 'SAS' }
+    const e = await telecharger(document({ ...ANCIEN, insuranceCoverage: 'France métropolitaine' }))
+    expect(e).toMatchObject({ companyStatus: 'ei', insuranceCoverage: 'France métropolitaine' })
+    recu.fiche = {}
+    expect(await telecharger(document({ ...ANCIEN, companyStatus: '', insuranceCoverage: undefined }))).toMatchObject({ companyStatus: 'ei', insuranceCoverage: '' })
   })
 })

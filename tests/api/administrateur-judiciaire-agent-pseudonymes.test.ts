@@ -172,7 +172,9 @@ describe('/api/administrateur-judiciaire/agent — pseudonymes des personnes', (
     remettreCles = poserCles()
     await POST(requete(CORPS))
     expect(h.traces).toHaveLength(1)
-    expect(h.traces[0].prompt).toBe('Où en est le recouvrement de Copropriétaire 3 ? Et celui de Copropriétaire 1 ou Copropriétaire 2 ?')
+    // La trace ne porte aucun texte, même pseudonymisé : des métadonnées seulement.
+    expect(h.traces[0].prompt).toBeUndefined()
+    expect(h.traces[0].metadonneesSeules).toBe(true)
     expect(nomsQuiFuient(h.traces)).toEqual([])
     const journal = [logger.error, logger.warn, logger.info].flatMap((espion) => vi.mocked(espion).mock.calls)
     expect(nomsQuiFuient(journal)).toEqual([])
