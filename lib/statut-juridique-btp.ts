@@ -179,6 +179,46 @@ export function couvertureAssuranceBtp(couverture: string | null | undefined, fo
   return statutPortugais(formeProfil) && normaliserForme(saisie) === 'france metropolitaine' ? '' : saisie
 }
 
+/** Type d'assurance d'un document BTP (champ insuranceType). */
+export type TypeAssuranceBtp = 'rc_pro' | 'decennale' | 'both'
+
+function typeAssuranceBtp(type: string | null | undefined): TypeAssuranceBtp | undefined {
+  return type === 'rc_pro' || type === 'decennale' || type === 'both' ? type : undefined
+}
+
+/**
+ * Assurance d'un document BTP enregistré, au téléchargement depuis la liste et dans le ZIP. Une société française
+ * lit exactement celle du document, comme avant. Une société portugaise lit celle que le formulaire affiche à
+ * l'ouverture (demande de Frédéric du 21/11/2026). Un document enregistré sans assureur (ni nom ni numéro de police),
+ * comme ses orçamentos émis avant que la fiche ne soit complétée, reprend l'assureur de la fiche. Un document qui a
+ * un nom ou un numéro garde le sien, sans mélange avec la fiche. La couverture est celle du document, sinon celle de
+ * la fiche, sinon « Portugal continental » ; « France métropolitaine », défaut de la colonne, n'est jamais la sienne.
+ */
+export function assuranceDocumentBtp(
+  document: { insuranceName?: string | null; insuranceNumber?: string | null; insuranceType?: TypeAssuranceBtp | null; insuranceCoverage?: string | null },
+  fiche: { legal_form?: string | null; insurance_name?: string | null; insurance_number?: string | null; insurance_type?: string | null; insurance_coverage?: string | null },
+): { insuranceName: string; insuranceNumber: string; insuranceType: TypeAssuranceBtp; insuranceCoverage: string } {
+  const duDocument = {
+    insuranceName: document.insuranceName || '',
+    insuranceNumber: document.insuranceNumber || '',
+    insuranceType: document.insuranceType || 'rc_pro',
+    insuranceCoverage: couvertureAssuranceBtp(document.insuranceCoverage, fiche.legal_form),
+  }
+  if (!statutPortugais(fiche.legal_form)) return duDocument
+  const insuranceCoverage = duDocument.insuranceCoverage
+    || couvertureAssuranceBtp(fiche.insurance_coverage, fiche.legal_form) || 'Portugal continental'
+  const nomFiche = String(fiche.insurance_name || '').trim()
+  const numeroFiche = String(fiche.insurance_number || '').trim()
+  const avecAssureur = String(duDocument.insuranceName).trim() !== '' || String(duDocument.insuranceNumber).trim() !== ''
+  if (avecAssureur || (!nomFiche && !numeroFiche)) return { ...duDocument, insuranceCoverage }
+  return {
+    insuranceName: nomFiche,
+    insuranceNumber: numeroFiche,
+    insuranceType: document.insuranceType || typeAssuranceBtp(fiche.insurance_type) || 'rc_pro',
+    insuranceCoverage,
+  }
+}
+
 /**
  * Document BTP émis en un clic, sans repasser par le formulaire (facture totale, acompte par taux) : forme juridique
  * du profil au jour de l'émission, comme le RIB (`appliquerRibCourant`), au lieu de celle recopiée du devis. Le
