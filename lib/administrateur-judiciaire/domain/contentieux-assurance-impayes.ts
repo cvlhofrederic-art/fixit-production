@@ -1,11 +1,17 @@
 import {
+  ajouterJours,
+  ajouterJoursOuvres,
+  ajouterMois,
   decomposerDateIso,
+  ecartJours,
+  estAnneeImprobable,
   estDateIsoValide,
   messagePlausibilite,
   plausibiliteDate,
   verifierAujourdhui,
   type PlausibiliteDate,
 } from '@/lib/administrateur-judiciaire/domain/dates'
+import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
 import {
   controlerDecisionSouscriptionAssurance,
   type CauseAutorisationVente,
@@ -39,7 +45,9 @@ import type { TypeContentieux, TypeSinistre } from '@/lib/data/referentiels-gest
  * - C. assur. art. L. 111-1 (lu sur Légifrance le 30/10/2026, version en vigueur au 29/10/2026) : les titres Ier, II et
  *   III du livre Ier ne s'appliquent ni aux contrats du titre VII ni aux « opérations d'assurance crédit », hormis les
  *   articles L. 111-6, L. 112-2, L. 112-4, L. 112-7 et L. 113-4-1. L. 113-2 et L. 121-12 n'en font pas partie : leur
- *   application à une garantie des impayés de charges dépend de sa qualification (🔴 1 et 2) ;
+ *   application à une garantie des impayés de charges dépend de sa qualification ; la qualification de la garantie
+ *   (opération d'assurance crédit ou non) se fait à la lecture de la police (décisions du 20/11/2026, partie C, F51 et
+ *   F52, ci-dessous) ;
  * - C. civ. art. 1346-1 (subrogation conventionnelle), 1346-3 (pas de préjudice au créancier payé en partie, préférence
  *   pour le reste), 1346-4 (transmission de la créance dans la limite du paiement), 1346-5 (opposable au débiteur après
  *   notification ou s'il en a pris acte ; invocable par lui dès qu'il en a connaissance ; opposable aux tiers dès le
@@ -73,19 +81,34 @@ import type { TypeContentieux, TypeSinistre } from '@/lib/data/referentiels-gest
  * - la couverture ne vise que le type « Recouvrement de charges/loyer » ; la date « Déclaré le » du contentieux est celle
  *   de la fiche sinistre liée. Les contrôles signalent, ils ne refusent pas.
  *
- * 🔴 Non établi :
- * 1. (Frédéric ou Hugo) La police impayés du cabinet est-elle une opération d'assurance crédit ? Si oui, L. 113-2 (délai
- *    minimal de cinq jours ouvrés, déchéance subordonnée à un préjudice) ne s'applique pas (C. assur. art. L. 111-1) et
- *    seule la police fixe la déclaration. Dans tous les cas, quel est le fait générateur du « sinistre » impayés (première
- *    échéance impayée, mise en demeure restée sans effet, jugement, dette au-delà d'un seuil) et quel délai de déclaration
- *    est prévu ? D'ici là, aucun délai de déclaration n'est calculé (sinistres.reperesDelaisSinistre part de la
- *    connaissance d'un sinistre de dommages).
- * 2. (Frédéric) Après une indemnité, la police prévoit-elle une subrogation de l'assureur (C. civ. art. 1346-1, ou C. assur.
- *    art. L. 121-12, écarté par L. 111-1 si la police est une opération d'assurance crédit, et dont l'application à une
- *    assurance des impayés n'est pas établie) et le syndicat poursuit-il toute la dette pour le compte de l'assureur ? La
- *    réponse dira si l'indemnité vient en déduction du solde dû ou passe en compte d'attente. Une subrogation reste
- *    non opposable au débiteur tant qu'elle n'est ni notifiée ni prise en acte par lui, mais il peut l'invoquer dès qu'il
- *    la connaît (art. 1346-5, al. 1) et elle est opposable aux tiers dès le paiement (al. 2).
+ * Décision du 20/11/2026 (partie C, F51) : garder le choix actuel, aucun délai de déclaration calculé par défaut. Deux
+ *   champs facultatifs sur le contrat d'assurance impayés : « délai de déclaration prévu par la police » (nombre et
+ *   unité) et « fait qui déclenche le sinistre » (première échéance impayée, mise en demeure restée sans effet, décision
+ *   de justice, seuil de dette, autre) ; une fois remplis, VitFix calcule un repère « selon la police », jamais une
+ *   déchéance (repereDeclarationImpayes). Aucun texte ne régit cette assurance (recherche du 29/10/2026) ; C. assur. art.
+ *   L. 111-1 écarte L. 113-2 pour une opération d'assurance crédit. Ce que le cabinet lit dans la police : la branche ou
+ *   l'objet de la garantie (la branche d'agrément, R. 321-1 : 14 « Crédit », 16 « Pertes pécuniaires diverses », n'est
+ *   qu'un indice), la définition du sinistre, le délai et la forme de la déclaration, la sanction d'un retard. Unités
+ *   retenues : jours calendaires, jours ouvrés (comptés du lendemain, samedi, dimanche et jours fériés exclus), mois
+ *   (même quantième, borné à la fin du mois) ; aucun report. Paramètres explicites : la date du fait qui déclenche le
+ *   sinistre est fournie par l'appelant (le contentieux n'est pas persisté, le domaine ne date pas ces faits) ; les deux
+ *   champs sont un type du domaine (PoliceAssuranceImpayes), aucun contrat enregistré ne les porte : enregistrement à
+ *   brancher.
+ * Décision du 20/11/2026 (partie C, F52) : par défaut, garder le choix actuel : l'indemnité s'affiche à part, ni déduite
+ *   du solde dû, ni imputée comme un règlement du débiteur. Une fois la police lue (PoliceAssuranceImpayes.lue),
+ *   ventilerSoldeImpayes affiche « solde dû par le débiteur » (inchangé : decompte-contentieux.calculerDecompte), « dont
+ *   part du syndicat » et « dont part de l'assureur », et met en compte d'attente « à reverser à l'assureur » ce qui est
+ *   récupéré au-delà de la part du syndicat, jusqu'à décision. Textes lus le 17/11/2026 : l'assureur subrogé (C. civ. art.
+ *   1346-1, ou C. assur. art. L. 121-12 s'il s'applique) reçoit la créance dans la limite de ce qu'il a payé (art.
+ *   1346-4) ; le syndicat payé en partie garde la préférence pour le reste (art. 1346-3), d'où l'imputation du récupéré
+ *   d'abord sur la part du syndicat. Une subrogation reste non opposable au débiteur tant qu'elle n'est ni notifiée ni
+ *   prise en acte par lui, mais il peut l'invoquer dès qu'il la connaît (art. 1346-5, al. 1) et elle est opposable aux
+ *   tiers dès le paiement (al. 2). Sans subrogation, la police peut prévoir de reverser à l'assureur les sommes
+ *   récupérées. Limite : L. 121-12 vise les tiers « qui, par leur fait, ont causé le dommage » ; son application à un
+ *   copropriétaire débiteur n'est pas établie, et elle est écartée si la police est une opération d'assurance crédit
+ *   (L. 111-1). Paramètre explicite : les sommes récupérées depuis le paiement de l'indemnité, fournies par l'appelant.
+ *
+ * 🔴 Non établi (question restante) :
  * 3. (Frédéric ou Hugo) La case « Couverture impayés » découle-t-elle d'un contrat d'assurance du mandat (TYPE_CONTRAT
  *    « Assurance loyer impayé », garantie de la multirisque) à relier, ou est-elle saisie librement ? (Qui décide de la
  *    souscription : tranché par J67, R47, ci-dessus.)
@@ -239,7 +262,10 @@ export function controlerAssuranceImpayes(
 }
 
 export interface VueAssuranceImpayes extends AssuranceImpayesContentieux {
-  /** Indemnités lues sur le sinistre lié (indemnitesSinistre) ; null sans fiche. Jamais déduites du solde dû (🔴 2). */
+  /**
+   * Indemnités lues sur le sinistre lié (indemnitesSinistre) ; null sans fiche. Jamais déduites du solde dû (décision du
+   * 20/11/2026, partie C, F52 : à part par défaut ; ventilation une fois la police lue, ventilerSoldeImpayes).
+   */
   indemnites: IndemnitesSinistre | null
 }
 
@@ -285,5 +311,285 @@ export function vueAssuranceImpayes(assurance: AssuranceImpayesContentieux, sini
     declareLe: assurance.declareLe,
     sinistreId: assurance.sinistreId,
     indemnites: sinistre === null ? null : indemnitesSinistre(sinistre.fiche),
+  }
+}
+
+// ─── Police impayés (décisions du 20/11/2026, partie C, F51 et F52) ─────────────────────────
+
+/** « Fait qui déclenche le sinistre » selon la police (F51), dans l'ordre de la décision. */
+export const FAITS_GENERATEURS_IMPAYES = [
+  'premiere_echeance_impayee',
+  'mise_en_demeure_sans_effet',
+  'decision_de_justice',
+  'seuil_de_dette',
+  'autre',
+] as const
+export type FaitGenerateurImpayes = (typeof FAITS_GENERATEURS_IMPAYES)[number]
+
+export const LIBELLES_FAITS_GENERATEURS_IMPAYES: Readonly<Record<FaitGenerateurImpayes, string>> = {
+  premiere_echeance_impayee: 'Première échéance impayée',
+  mise_en_demeure_sans_effet: 'Mise en demeure restée sans effet',
+  decision_de_justice: 'Décision de justice',
+  seuil_de_dette: 'Seuil de dette',
+  autre: 'Autre',
+}
+
+/** Unités du « délai de déclaration prévu par la police » (F51 : nombre et unité). */
+export const UNITES_DELAI_POLICE_IMPAYES = ['jours', 'jours_ouvres', 'mois'] as const
+export type UniteDelaiPoliceImpayes = (typeof UNITES_DELAI_POLICE_IMPAYES)[number]
+
+const LIBELLES_UNITES_DELAI: Readonly<Record<UniteDelaiPoliceImpayes, string>> = {
+  jours: 'jours',
+  jours_ouvres: 'jours ouvrés',
+  mois: 'mois',
+}
+
+export interface DelaiPoliceImpayes {
+  nombre: number
+  unite: UniteDelaiPoliceImpayes
+}
+
+/**
+ * Champs facultatifs du contrat d'assurance impayés (F51, F52). Type du domaine : aucun contrat enregistré ne les porte,
+ * enregistrement à brancher.
+ */
+export interface PoliceAssuranceImpayes {
+  /** « Délai de déclaration prévu par la police » ; null : non renseigné. */
+  delaiDeclaration: DelaiPoliceImpayes | null
+  /** « Fait qui déclenche le sinistre » ; null : non renseigné. */
+  faitGenerateur: FaitGenerateurImpayes | null
+  /** Police lue (F52) : l'indemnité se ventile entre part du syndicat et part de l'assureur ; faux par défaut. */
+  lue: boolean
+}
+
+export interface SaisiePoliceAssuranceImpayes {
+  delaiDeclaration?: DelaiPoliceImpayes | null
+  faitGenerateur?: FaitGenerateurImpayes | null
+  lue?: boolean
+}
+
+/** Police non lue, champs vides : le choix par défaut (aucun délai calculé, indemnité à part). */
+export const POLICE_IMPAYES_NON_RENSEIGNEE: Readonly<PoliceAssuranceImpayes> = Object.freeze({
+  delaiDeclaration: null,
+  faitGenerateur: null,
+  lue: false,
+})
+
+function verifierDelaiPolice({ nombre, unite }: DelaiPoliceImpayes): void {
+  if (!(UNITES_DELAI_POLICE_IMPAYES as readonly string[]).includes(unite))
+    throw new Error(`Unité du délai de la police inconnue (« ${String(unite)} ») : ${UNITES_DELAI_POLICE_IMPAYES.join(', ')} attendu.`)
+  if (!Number.isInteger(nombre) || nombre < 1)
+    throw new Error(`Délai de déclaration de la police invalide (${nombre}) : nombre entier ≥ 1 attendu.`)
+}
+
+/** Normalise la saisie : champ absent → null, police non lue par défaut. Refuse un délai, un fait ou une lecture mal formés. */
+export function creerPoliceAssuranceImpayes(saisie: SaisiePoliceAssuranceImpayes): PoliceAssuranceImpayes {
+  const delai = saisie.delaiDeclaration ?? null
+  if (delai !== null) verifierDelaiPolice(delai)
+  const faitGenerateur = saisie.faitGenerateur ?? null
+  if (faitGenerateur !== null && !(FAITS_GENERATEURS_IMPAYES as readonly string[]).includes(faitGenerateur))
+    throw new Error(`Fait qui déclenche le sinistre inconnu (« ${String(faitGenerateur)} ») : ${FAITS_GENERATEURS_IMPAYES.join(', ')} attendu.`)
+  const lue = saisie.lue ?? false
+  if (typeof lue !== 'boolean') throw new Error(`Police lue invalide (${String(lue)}) : oui ou non attendu.`)
+  return { delaiDeclaration: delai === null ? null : { nombre: delai.nombre, unite: delai.unite }, faitGenerateur, lue }
+}
+
+export type EtatRepereImpayes = 'sans_repere' | 'a_declarer' | 'repere_depasse' | 'dans_le_repere' | 'apres_le_repere'
+
+export interface RepereDeclarationImpayes {
+  etat: EtatRepereImpayes
+  /** Repère « selon la police » ; null : aucun délai calculé. */
+  date: string | null
+  /** Le repère vient de la police, jamais d'un texte (F51). */
+  selonLaPolice: true
+  faitGenerateur: FaitGenerateurImpayes | null
+  delai: DelaiPoliceImpayes | null
+  /** Jours calendaires au-delà du repère (déclaration après lui, ou repère dépassé sans déclaration) ; 0 sinon. */
+  retardJours: number
+  message: string
+  avertissement: string
+}
+
+export const AVERTISSEMENT_REPERE_POLICE_IMPAYES =
+  "Repère selon la police, jamais une déchéance : aucun texte ne fixe ce délai ; la forme de la déclaration et la sanction d'un retard se lisent dans la police (C. assur. art. L. 113-2 ne s'applique pas à une opération d'assurance crédit, art. L. 111-1)."
+
+export interface DatesRepereImpayes {
+  /** Date du fait qui déclenche le sinistre, fournie par l'appelant (le domaine ne la porte pas) ; null : inconnue. */
+  dateFaitGenerateur: string | null
+  /** « Déclaré le » du contentieux ; null : non déclaré. */
+  declareLe: string | null
+  aujourdhui: string
+}
+
+function verifierDatesRepere({ dateFaitGenerateur, declareLe, aujourdhui }: DatesRepereImpayes): void {
+  verifierAujourdhui(aujourdhui)
+  if (dateFaitGenerateur !== null && !estDateIsoValide(dateFaitGenerateur))
+    throw new Error(`Date du fait qui déclenche le sinistre invalide (${dateFaitGenerateur}) : AAAA-MM-JJ attendu.`)
+  if (declareLe !== null && !estDateIsoValide(declareLe))
+    throw new Error(`Date de déclaration à l'assureur invalide (${declareLe}) : AAAA-MM-JJ attendu.`)
+}
+
+/** Fait + délai de la police : jours calendaires ou jours ouvrés comptés du lendemain, mois au même quantième ; sans report. */
+function dateRepereImpayes(fait: string, { nombre, unite }: DelaiPoliceImpayes): string {
+  if (unite === 'mois') return ajouterMois(fait, nombre)
+  return unite === 'jours_ouvres' ? ajouterJoursOuvres(fait, nombre) : ajouterJours(fait, nombre)
+}
+
+type EtatRepereCalcule = Pick<RepereDeclarationImpayes, 'etat' | 'retardJours' | 'message'>
+
+function etatRepereImpayes(repere: string, declareLe: string | null, aujourdhui: string): EtatRepereCalcule {
+  const le = dateFrAnneeComplete(repere)
+  if (declareLe === null && aujourdhui > repere)
+    return {
+      etat: 'repere_depasse',
+      retardJours: ecartJours(repere, aujourdhui),
+      message: `Impayé non déclaré, repère selon la police du ${le} dépassé : déclarer sans attendre et vérifier la police.`,
+    }
+  if (declareLe === null) return { etat: 'a_declarer', retardJours: 0, message: `Impayé à déclarer, repère selon la police au ${le}.` }
+  if (declareLe > repere)
+    return {
+      etat: 'apres_le_repere',
+      retardJours: ecartJours(repere, declareLe),
+      message: `Déclaration du ${dateFrAnneeComplete(declareLe)}, après le repère selon la police du ${le} : vérifier la police.`,
+    }
+  return { etat: 'dans_le_repere', retardJours: 0, message: `Déclaration du ${dateFrAnneeComplete(declareLe)}, dans le repère selon la police du ${le}.` }
+}
+
+/**
+ * Repère de déclaration « selon la police » d'un impayé (F51) : date du fait qui déclenche le sinistre, plus le délai
+ * prévu par la police. Sans l'un des deux champs, ou sans la date du fait, aucun délai n'est calculé (choix gardé).
+ * Fait daté d'une année improbable (dates.estAnneeImprobable, faute de frappe) : « sans repère », la date est à corriger,
+ * comme pour les sinistres (depuis 9999-12-20, trente jours tombaient en l'an 10000, hors du calendrier ISO).
+ * Signal, jamais une déchéance. Lève une erreur si une date fournie n'est pas AAAA-MM-JJ.
+ */
+export function repereDeclarationImpayes(police: PoliceAssuranceImpayes, dates: DatesRepereImpayes): RepereDeclarationImpayes {
+  verifierDatesRepere(dates)
+  const { delaiDeclaration: delai, faitGenerateur } = police
+  const commun = { selonLaPolice: true as const, faitGenerateur, delai, avertissement: AVERTISSEMENT_REPERE_POLICE_IMPAYES }
+  const sansRepere = (message: string): RepereDeclarationImpayes => ({
+    ...commun,
+    etat: 'sans_repere',
+    date: null,
+    retardJours: 0,
+    message,
+  })
+  if (delai === null || faitGenerateur === null)
+    return sansRepere(
+      'Aucun délai de déclaration calculé : « délai de déclaration prévu par la police » et « fait qui déclenche le sinistre » à renseigner sur le contrat, après lecture de la police.',
+    )
+  const fait = LIBELLES_FAITS_GENERATEURS_IMPAYES[faitGenerateur]
+  if (dates.dateFaitGenerateur === null)
+    return sansRepere(`Aucun délai de déclaration calculé : date du fait « ${fait} » non renseignée.`)
+  if (estAnneeImprobable(dates.dateFaitGenerateur))
+    return sansRepere(
+      `${messagePlausibilite(`Fait « ${fait} » daté`, dates.dateFaitGenerateur, 'annee_improbable')} Pas de repère : corriger la date.`,
+    )
+  const date = dateRepereImpayes(dates.dateFaitGenerateur, delai)
+  const etat = etatRepereImpayes(date, dates.declareLe, dates.aujourdhui)
+  const duFait = dateFrAnneeComplete(dates.dateFaitGenerateur)
+  const base = `${delai.nombre} ${LIBELLES_UNITES_DELAI[delai.unite]} après « ${fait} » du ${duFait}`
+  return { ...commun, date, ...etat, message: `${etat.message} Repère : ${base}.` }
+}
+
+/** Compte d'attente des sommes récupérées au-delà de la part du syndicat (F52), jusqu'à décision. */
+export const LIBELLE_COMPTE_ATTENTE_ASSUREUR = "À reverser à l'assureur"
+
+/**
+ * 🔵 Déduit : la somme à reverser est due par le syndicat, d'où le compte d'attente créditeur 472, jamais le 471 débiteur
+ * (arrêté du 14 mars 2005, art. 7 ; J67, R107 : un solde créditeur sur le 471 est une anomalie) ; subdivision « À reverser
+ * à l'assureur » (art. 8), son numéro et l'écriture restent à brancher (aucune écriture passée ici).
+ */
+export const COMPTE_ATTENTE_ASSUREUR = {
+  compte: '472',
+  intitule: "Compte en attente d'imputation créditeur",
+  subdivision: LIBELLE_COMPTE_ATTENTE_ASSUREUR,
+} as const
+
+const FONDEMENT_VENTILATION_IMPAYES = 'C. civ. art. 1346-3 et 1346-4'
+
+export interface SaisieVentilationImpayes {
+  /** « Solde dû par le débiteur » (decompte-contentieux.calculerDecompte, soldeDuCentimes), inchangé. */
+  soldeDuCentimes: number
+  /** Indemnité réglée par l'assureur (sinistres.indemnitesSinistre, regleCentimes). */
+  indemniteRegleeCentimes: number
+  /** Sommes récupérées auprès du débiteur depuis le paiement de l'indemnité, fournies par l'appelant. */
+  recupereDepuisIndemniteCentimes: number
+}
+
+export interface VentilationSoldeImpayes {
+  /** Police lue : ventilation faite ; faux : indemnité à part (choix par défaut). */
+  ventilee: boolean
+  /** Toujours le solde du décompte, jamais diminué de l'indemnité. */
+  soldeDuParLeDebiteurCentimes: number
+  /** « dont part du syndicat » ; null tant que la police n'est pas lue. */
+  dontPartSyndicatCentimes: number | null
+  /** « dont part de l'assureur » ; null tant que la police n'est pas lue. */
+  dontPartAssureurCentimes: number | null
+  /** Compte d'attente COMPTE_ATTENTE_ASSUREUR (472), jusqu'à décision ; 0 tant que la police n'est pas lue. */
+  aReverserAssureurCentimes: number
+  /** Indemnité réglée, affichée à part. */
+  indemniteRegleeCentimes: number
+  message: string
+  fondement: string
+}
+
+const eurosImpayes = (centimes: number): string => formatEurosCentimes(centimes / 100)
+
+function verifierVentilation(saisie: SaisieVentilationImpayes): void {
+  const { soldeDuCentimes } = saisie
+  if (!Number.isInteger(soldeDuCentimes)) throw new Error(`Solde dû invalide (${soldeDuCentimes}) : centimes entiers attendus.`)
+  const montants: [string, number][] = [
+    ["Indemnité réglée par l'assureur", saisie.indemniteRegleeCentimes],
+    ['Sommes récupérées depuis l’indemnité', saisie.recupereDepuisIndemniteCentimes],
+  ]
+  for (const [libelle, montant] of montants)
+    if (!Number.isInteger(montant) || montant < 0) throw new Error(`${libelle} invalide (${montant}) : centimes entiers positifs attendus.`)
+}
+
+/**
+ * Indemnité de l'assureur impayés et solde du débiteur (F52). Par défaut (police non lue), l'indemnité reste à part : le
+ * solde est celui du décompte, rien n'est ventilé. Police lue : la créance au paiement de l'indemnité (solde d'aujourd'hui
+ * plus ce qui a été récupéré depuis) se partage entre l'assureur, dans la limite de son paiement (C. civ. art. 1346-4), et
+ * le syndicat pour le reste ; le récupéré s'impute d'abord sur la part du syndicat (art. 1346-3), l'excédent va au compte
+ * d'attente « à reverser à l'assureur », jusqu'à décision. Un excédent du débiteur (solde négatif) n'est pas à l'assureur.
+ */
+export function ventilerSoldeImpayes(
+  police: Pick<PoliceAssuranceImpayes, 'lue'>,
+  saisie: SaisieVentilationImpayes,
+): VentilationSoldeImpayes {
+  verifierVentilation(saisie)
+  const { soldeDuCentimes, indemniteRegleeCentimes: indemnite, recupereDepuisIndemniteCentimes: recupere } = saisie
+  const commun = {
+    soldeDuParLeDebiteurCentimes: soldeDuCentimes,
+    indemniteRegleeCentimes: indemnite,
+    fondement: FONDEMENT_VENTILATION_IMPAYES,
+  }
+  if (!police.lue)
+    return {
+      ...commun,
+      ventilee: false,
+      dontPartSyndicatCentimes: null,
+      dontPartAssureurCentimes: null,
+      aReverserAssureurCentimes: 0,
+      message: `Indemnité de l'assureur (${eurosImpayes(indemnite)} réglés) affichée à part : ni déduite du solde dû, ni imputée comme un règlement du débiteur ; ventilation une fois la police lue.`,
+    }
+  const creance = Math.max(soldeDuCentimes + recupere, 0)
+  const partAssureur = Math.min(indemnite, creance)
+  const partSyndicat = creance - partAssureur
+  const auSyndicat = Math.min(recupere, partSyndicat)
+  const aReverser = Math.min(recupere - auSyndicat, partAssureur)
+  const dontSyndicat = partSyndicat - auSyndicat
+  const dontAssureur = partAssureur - aReverser
+  const attente =
+    aReverser > 0
+      ? ` ${eurosImpayes(aReverser)} récupérés au-delà de la part du syndicat : compte d'attente « à reverser à l'assureur », jusqu'à décision.`
+      : ''
+  return {
+    ...commun,
+    ventilee: true,
+    dontPartSyndicatCentimes: dontSyndicat,
+    dontPartAssureurCentimes: dontAssureur,
+    aReverserAssureurCentimes: aReverser,
+    message: `Solde dû par le débiteur : ${eurosImpayes(soldeDuCentimes)}, dont part du syndicat ${eurosImpayes(dontSyndicat)} et dont part de l'assureur ${eurosImpayes(dontAssureur)}.${attente}`,
   }
 }

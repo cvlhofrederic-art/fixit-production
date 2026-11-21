@@ -1,8 +1,12 @@
-import { estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
+import { estCompteDuFondsTravaux, type MarquesFondsTravaux } from '@/lib/administrateur-judiciaire/domain/comptes-bancaires'
+import { ajouterJours, dateIsoVersFr, estAnneeImprobable, estDateIsoValide, messagePlausibilite } from '@/lib/administrateur-judiciaire/domain/dates'
+import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
 import { numeroCompteCoproprietaire, type CompteCoproprietaire } from '@/lib/administrateur-judiciaire/domain/identites-positions'
 import {
+  desimputerEncaissement,
   mouvementsEncaissementImpute,
   type Encaissement,
+  type PosteDette,
   type ResultatImputation,
 } from '@/lib/administrateur-judiciaire/domain/imputation-encaissements'
 import type { LigneCheque, RemiseCheques } from '@/lib/administrateur-judiciaire/domain/ordres-banque'
@@ -19,8 +23,11 @@ import {
   type FamilleTraitement,
   type LigneMouvement,
   type LiensMouvement,
+  type OrigineMouvement,
   type Traitement,
 } from '@/lib/administrateur-judiciaire/domain/traitements'
+import { dateHorsVerrou, type VerrouSaisie } from '@/lib/administrateur-judiciaire/domain/verrou-saisie'
+import { alimentationsDuFonds, type VirementInterne } from '@/lib/administrateur-judiciaire/domain/virement-interne'
 import { MODE_REGLEMENT, type ModeReglement } from '@/lib/data/referentiels-gesteam-judiciaire'
 
 /**
@@ -104,20 +111,49 @@ import { MODE_REGLEMENT, type ModeReglement } from '@/lib/data/referentiels-gest
  * d'encaisser au 441 ou au 443 ; une subvention versée sur plusieurs exercices est mentionnée à l'état des travaux
  * (annexe 5) dès sa notification, puis inscrite selon la décision qui l'accorde (décret n° 2005-240, art. 4). L'écriture
  * de notification n'a pas de fonction ici (à écrire avec le suivi des subventions de travaux).
+ *
+ * Décisions du 20/11/2026 (partie C, recommandations acceptées par le responsable du projet) :
+ * - Décision du 20/11/2026 (partie C, F110) : sur le modèle de J9, un chèque impayé ou un virement reçu retourné fait
+ *   passer l'encaissement « Annulé » par une écriture contraire (débit du 450 du copropriétaire, crédit du 512),
+ *   « Annulation d'encaissement », datée du jour du débit par la banque, avec motif et pièce (avis de la banque) ; son
+ *   imputation est défaite : les postes payés redeviennent dus à leur exigibilité d'origine
+ *   (imputation-encaissements.desimputerEncaissement). Un encaissement d'un lot (fichier de virements, remise de
+ *   chèques) s'annule seul ; les frais bancaires du rejet restent à part, non imputés au copropriétaire sans règle
+ *   propre : l'écriture contraire ne porte que le montant de l'encaissement (annulerEncaissement) ;
+ * - Décision du 20/11/2026 (partie C, F111) : règle gardée : la date de l'encaissement est la date de l'opération sur le
+ *   relevé (virement, prélèvement), celle de la remise pour un chèque ; la date de valeur, quand le relevé la donne, est
+ *   gardée (dateValeur) pour le rapprochement seulement, jamais pour l'imputation ni pour le jour du traitement ;
+ * - Décision du 20/11/2026 (partie C, F112) : une cotisation au fonds de travaux reçue sur un autre compte que celui du
+ *   fonds (le copropriétaire paie souvent tout d'un seul virement) ne bloque pas l'encaissement : elle est signalée,
+ *   « part fonds de travaux reçue sur le compte courant : à virer sans délai au compte du fonds » (L. 1965 art. 18, II,
+ *   al. 4), et reste « à virer » jusqu'au virement interne correspondant (virement-interne.alimentationsDuFonds), avec
+ *   une alerte s'il n'est pas viré dans le délai réglé par le cabinet (partsFondsTravauxAVirer ; aucun délai par
+ *   défaut : sans réglage, aucune alerte) ; aucun délai ne part d'un encaissement d'une année improbable
+ *   (dates.estAnneeImprobable, faute de frappe), date à corriger.
+ * 🔵 Déduit pour F110 et F112 :
+ * - écriture contraire : les lignes de l'encaissement (mouvementsEncaissementImpute) prises dans l'écriture de son
+ *   traitement, fournie (ce qui a été écrit, non une reconstruction), inversées dans un traitement « Annulation
+ *   d'encaissement » qui renvoie (annule) au traitement d'origine : contre-passation partielle quand il porte d'autres
+ *   encaissements, quelle que soit sa famille d'encaissement (la contre-passation générale d'un « Fichier Virement
+ *   reçus » reste refusée par traitements.annulerTraitement) ; sous son propre identifiant ; un débit de la banque
+ *   antérieur à l'écriture de l'encaissement est refusé ; tombé dans une période close, l'écriture prend le premier
+ *   jour ouvert, la date d'origine et la pièce au libellé (J67, R123 : verrou-saisie.dateHorsVerrou) ;
+ * - l'encaissement annulé reste imputé et rattaché à son traitement (il ne se réécrit pas), garde sa pièce, sa remise et
+ *   son pointage, et porte son annulation (date du débit, motif, pièce, traitement, date comptable, mention) ; « Annulé »
+ *   est définitif : une seconde annulation est refusée ; au rapprochement, il se lit comme reçu (son crédit a pu être
+ *   pointé avant le débit) et reste « Annulé », sauf à une date antérieure au débit ;
+ * - part « à virer » : la part de l'encaissement imputée sur des postes « Fonds travaux », reçue sur un compte qui ne
+ *   tient pas le fonds (comptes-bancaires.estCompteDuFondsTravaux) ; un encaissement annulé n'en a plus ; elle est
+ *   soldée par les alimentations du fonds parties de ce compte, émises au plus tôt le jour de l'encaissement et au plus
+ *   tard à la date de la vue, servies aux parts les plus anciennes d'abord ; délai d'alerte compté du jour de
+ *   l'encaissement.
  * 🔴 Non établi (questions pour Frédéric ou Hugo) :
- * - « Chèque impayé ou virement reçu retourné : l'encaissement passe-t-il "Annulé" sous une écriture "Annulation
- *   d'encaissement", et son imputation sur les postes est-elle défaite ? Un encaissement isolé d'un lot (fichier de
- *   virements, remise) peut-il être annulé seul ? » (VitFix : aucun statut d'annulation, rien n'est pris en charge) ;
  * - « Famille "Fichier carte bancaire" : quel mode de règlement ? » (le référentiel des modes n'a pas de carte ; refusée) ;
- * - « Date de prise en compte d'un encaissement : remise, valeur ou relevé ? » (VitFix : le traitement est daté du jour de
- *   l'opération, qui est la date de l'encaissement — celle de la ligne du relevé à l'import — ou, pour un chèque remis, la
- *   date de la remise ; l'imputation sur les postes lit la date de l'encaissement ; le choix entre ces dates bancaires
- *   n'est fixé par aucun texte) ;
- * - cotisation au fonds de travaux encaissée sur un autre compte que le compte séparé (L. 1965 art. 18, II) : contrôle
- *   laissé au point 39 ; petites copropriétés sans partie double (L. 1965 art. 41-10) : non traitées.
+ * - petites copropriétés sans partie double (L. 1965 art. 41-10) : non traitées.
  */
 
-export const STATUTS_ENCAISSEMENT = ['Enregistré', 'Rapproché'] as const
+/** « Annulé » : chèque impayé ou virement reçu retourné (annulerEncaissement ; décision du 20/11/2026, partie C, F110). */
+export const STATUTS_ENCAISSEMENT = ['Enregistré', 'Rapproché', 'Annulé'] as const
 export type StatutEncaissement = (typeof STATUTS_ENCAISSEMENT)[number]
 
 /** Modes admis : ni « Pas de règlement », ni « Espèces » (compte 53 non tenu, décision J29 du 03/11/2026). */
@@ -163,6 +199,29 @@ export interface SuiviEncaissement {
   traitementId: string | null
   /** Posé par la propagation depuis les arrêtés seulement (rapprocherEncaissements). */
   rapprochement: RapprochementPiece | null
+  /**
+   * Décision du 20/11/2026 (partie C, F111) : date de valeur, quand le relevé la donne ; pour le rapprochement seulement,
+   * jamais pour l'imputation ni pour le jour du traitement (date de l'opération). Absente : non donnée.
+   */
+  dateValeur?: string
+  /** Décision du 20/11/2026 (partie C, F110) : chèque impayé ou virement reçu retourné (annulerEncaissement) ; absente sinon. */
+  annulation?: AnnulationEncaissement
+}
+
+/** Décision du 20/11/2026 (partie C, F110) : annulation d'un encaissement par la banque, et son écriture contraire. */
+export interface AnnulationEncaissement {
+  /** Jour où la banque débite le compte (chèque impayé, virement retourné), AAAA-MM-JJ : la date du fait. */
+  le: string
+  /** Motif donné par la banque. */
+  motif: string
+  /** Pièce : référence de l'avis de la banque (arrêté du 14 mars 2005, art. 4). */
+  piece: string
+  /** Traitement « Annulation d'encaissement » qui porte l'écriture contraire. */
+  traitementId: string
+  /** Date de l'écriture contraire : le jour du débit, ou le premier jour ouvert s'il tombe en période close (J67, R123). */
+  dateComptable: string
+  /** Mention au libellé : référence et date d'origine de la pièce (J67, R123 ; arrêté du 14 mars 2005, art. 4). */
+  mention: string
 }
 
 /** Encaissement d'un copropriétaire (crédit de son 450), avec sa pièce, son journal et son suivi. */
@@ -198,6 +257,8 @@ export interface SaisieRecette {
   piece: SaisiePieceEncaissement
   journal: JournalEncaissement
   liens?: LiensMouvement | null
+  /** Décision du 20/11/2026 (partie C, F111) : date de valeur lue sur le relevé, pour le rapprochement seulement. */
+  dateValeur?: string | null
 }
 
 const COMPTE_512 = /^([^.]{4})\.512[0-9A-Z]{2}\.[0-9A-Z]{5}\.[0-9A-Z]$/
@@ -242,22 +303,43 @@ function verifierJournal(journal: JournalEncaissement, segmentSyndicat: string):
 
 const SUIVI_INITIAL = { statut: 'Enregistré', impute: false, traitementId: null, rapprochement: null } as const
 
+/** Décision du 20/11/2026 (partie C, F111) : date de valeur gardée quand le relevé la donne ; absente, rien n'est ajouté. */
+function dateValeurLue(objet: string, dateValeur: string | null | undefined): { dateValeur?: string } {
+  if (dateValeur === null || dateValeur === undefined) return {}
+  if (!estDateIsoValide(dateValeur))
+    throw new Error(`${objet} : date de valeur invalide (${dateValeur}), AAAA-MM-JJ attendu (pour le rapprochement seulement ; décision du 20/11/2026, partie C, F111).`)
+  return { dateValeur }
+}
+
 /**
  * Enregistre un encaissement de copropriétaire (imputation-encaissements.Encaissement, par exemple issu de
  * encaissementDepuisReleve) avec sa pièce et son journal : statut « Enregistré », non imputé, sans traitement ni
  * rapprochement ; l'encaissement reçu n'est pas modifié. Refuse un encaissement sans compte ou déjà enregistré, une date
  * ou un montant invalides, un mode inconnu, « Pas de règlement » ou « Espèces » (J29), un chèque sans numéro, un journal
- * sans compte bancaire ou sans code, un compte d'encaissement qui n'est pas un 512 du syndicat (D1).
+ * sans compte bancaire ou sans code, un compte d'encaissement qui n'est pas un 512 du syndicat (D1). Décision du
+ * 20/11/2026 (partie C, F111) : la date de valeur du relevé (`dateValeur`), contrôlée, est gardée pour le rapprochement
+ * seulement ; la date de l'encaissement reste celle de l'opération.
  */
 export function enregistrerEncaissement(
   encaissement: Encaissement,
-  { piece, journal, segmentSyndicat }: { piece: SaisiePieceEncaissement; journal: JournalEncaissement; segmentSyndicat: string },
+  {
+    piece,
+    journal,
+    segmentSyndicat,
+    dateValeur,
+  }: { piece: SaisiePieceEncaissement; journal: JournalEncaissement; segmentSyndicat: string; dateValeur?: string | null },
 ): EncaissementEnregistre {
   if (!encaissement.id.trim()) throw new Error('Encaissement sans identifiant.')
   if ('piece' in encaissement) throw new Error(`Encaissement ${encaissement.id} déjà enregistré (pièce et journal posés).`)
   if (!encaissement.compteId.trim()) throw new Error(`Encaissement ${encaissement.id} sans compte copropriétaire crédité.`)
   verifierMontantEtDate(`Encaissement ${encaissement.id}`, encaissement.date, encaissement.montantCentimes)
-  return { ...encaissement, piece: verifierPiece(piece), journal: verifierJournal(journal, segmentSyndicat), ...SUIVI_INITIAL }
+  return {
+    ...encaissement,
+    piece: verifierPiece(piece),
+    journal: verifierJournal(journal, segmentSyndicat),
+    ...SUIVI_INITIAL,
+    ...dateValeurLue(`Encaissement ${encaissement.id}`, dateValeur),
+  }
 }
 
 // ─── Recettes hors copropriétaires ──────────────────────────────────────────────────────────
@@ -325,6 +407,7 @@ export function enregistrerRecette(saisie: SaisieRecette, { segmentSyndicat }: {
     piece: verifierPiece(saisie.piece),
     journal: verifierJournal(saisie.journal, segmentSyndicat),
     ...SUIVI_INITIAL,
+    ...dateValeurLue(`Recette ${saisie.id}`, saisie.dateValeur),
   }
 }
 
@@ -596,6 +679,283 @@ export function traitementEncaissements(
   }
 }
 
+// ─── Annulation d'un encaissement (décision du 20/11/2026, partie C, F110) ─────────────────
+
+/** Famille de l'écriture contraire d'un encaissement annulé (référentiel FAMILLE_TRAITEMENT, bloc Encaissement). */
+export const FAMILLE_ANNULATION_ENCAISSEMENT: FamilleTraitement = "Annulation d'encaissement"
+
+/** Débit de la banque qui annule un encaissement : chèque impayé, virement reçu retourné. */
+export interface SaisieAnnulationEncaissement {
+  /** Identifiant du traitement « Annulation d'encaissement » à créer. */
+  id: string
+  /** Jour où la banque débite le compte (AAAA-MM-JJ). */
+  date: string
+  motif: string
+  /** Référence de l'avis de la banque. */
+  piece: string
+}
+
+/** Ce que l'annulation lit : l'écriture du traitement de l'encaissement, son imputation et l'état courant des postes. */
+export interface ContexteAnnulationEncaissement {
+  /** Traitement qui a écrit l'encaissement (traitementEncaissements). */
+  ecriture: Traitement
+  /** Imputation de l'encaissement, écrite dans ce traitement. */
+  resultat: ResultatImputation
+  /** État courant des postes du syndicat (après cette imputation et les suivantes). */
+  postes: PosteDette[]
+  comptes: CompteCoproprietaire[]
+  segmentSyndicat: string
+  /** J67, R104 : sous-comptes du 450 créés par l'AG, comme à l'écriture de l'encaissement. */
+  sousComptes450?: SousComptes450 | null
+  /** Verrou de saisie du syndicat (verrou-saisie.ts) ; absent : rien n'est verrouillé. */
+  verrou?: VerrouSaisie
+}
+
+function verifierSaisieAnnulation({ id, date, motif, piece }: SaisieAnnulationEncaissement, ecriture: Traitement): void {
+  if (!id.trim()) throw new Error("Annulation d'encaissement : identifiant du traitement de l'écriture contraire attendu.")
+  if (id === ecriture.id)
+    throw new Error(`Annulation d'encaissement : l'écriture contraire a son propre identifiant, distinct de celui du traitement annulé (${id}).`)
+  if (!motif.trim()) throw new Error("Annulation d'encaissement : motif attendu (motif donné par la banque).")
+  if (!piece.trim()) throw new Error("Annulation d'encaissement : pièce attendue, la référence de l'avis de la banque (arrêté du 14 mars 2005, art. 4).")
+  if (!estDateIsoValide(date)) throw new Error(`Date du débit par la banque invalide (${date}) : AAAA-MM-JJ attendu.`)
+}
+
+/** Encaissement à annuler : jamais annulé, déjà écrit dans le traitement fourni, débité au plus tôt le jour de cette écriture. */
+function verifierAAnnuler(e: EncaissementEnregistre, ecriture: Traitement, date: string): void {
+  if (e.annulation)
+    throw new Error(
+      `Encaissement ${e.id} déjà annulé le ${e.annulation.le} (${e.annulation.motif}) : son écriture contraire est le traitement ${e.annulation.traitementId} ; une annulation ne s'écrit qu'une fois.`,
+    )
+  if (!e.impute || e.traitementId !== ecriture.id)
+    throw new Error(
+      `Encaissement ${e.id} : écrire d'abord l'encaissement dans le traitement ${ecriture.id} (traitementEncaissements) ; l'annulation en passe ensuite l'écriture contraire.`,
+    )
+  if (date < ecriture.date)
+    throw new Error(`Débit de la banque du ${date} antérieur à l'écriture de l'encaissement ${e.id} (${ecriture.date}) : la banque ne reprend que ce qu'elle a crédité.`)
+}
+
+function memeOrigine(a: OrigineMouvement | undefined, b: OrigineMouvement | undefined): boolean {
+  if (!a || !b) return a === b
+  if (a.type === 'appel' && b.type === 'appel') return a.appelId === b.appelId && a.typeAppel === b.typeAppel
+  return a.type === 'repartition' && b.type === 'repartition' && a.repartitionId === b.repartitionId
+}
+
+/**
+ * Lignes de l'encaissement dans l'écriture de son traitement : chaque ligne de mouvementsEncaissementImpute y est cherchée
+ * (compte, sens, montant, origine) et prise une seule fois. L'écriture contraire inverse ce qui a été écrit.
+ */
+function lignesEcrites(attendues: LigneMouvement[], ecriture: Traitement, encaissementId: string): LigneMouvement[] {
+  const restants = [...ecriture.mouvements]
+  return attendues.map((attendu) => {
+    const i = restants.findIndex(
+      (m) => m.compte === attendu.compte && m.sens === attendu.sens && m.montantCentimes === attendu.montantCentimes && memeOrigine(m.origine, attendu.origine),
+    )
+    if (i < 0)
+      throw new Error(
+        `Écriture ${ecriture.id} : mouvement ${attendu.sens} ${attendu.compte} de ${attendu.montantCentimes} centimes de l'encaissement ${encaissementId} introuvable ; l'écriture contraire ne contre-passe que ce qui a été écrit.`,
+      )
+    return restants.splice(i, 1)[0]
+  })
+}
+
+const contrePassee = ({ compte, sens, montantCentimes, origine, liens }: LigneMouvement): LigneMouvement => ({
+  compte,
+  sens: sens === 'debit' ? 'credit' : 'debit',
+  montantCentimes,
+  ...(origine ? { origine } : {}),
+  ...(liens ? { liens: { ...liens } } : {}),
+})
+
+/**
+ * Décision du 20/11/2026 (partie C, F110) — chèque impayé ou virement reçu retourné, sur le modèle de J9 : l'encaissement,
+ * déjà écrit, reçoit une écriture contraire de ses seules lignes (débit du 450 du copropriétaire, ou du 450-1 pour les
+ * postes du budget, crédit du 512), prises dans l'écriture de son traitement (`ecriture`), dans un traitement
+ * « Annulation d'encaissement » qui renvoie (annule) à ce traitement, daté du jour du débit par la banque, ou du premier
+ * jour ouvert si ce jour est en période close (J67, R123 : la mention porte la date d'origine et la pièce) ; il passe
+ * « Annulé » avec son annulation (date du débit, motif, pièce, traitement, date comptable, mention) et reste imputé et
+ * rattaché à son traitement ; son imputation est défaite (desimputerEncaissement) : les postes payés redeviennent dus,
+ * à leur exigibilité d'origine. Un encaissement d'un fichier de virements ou d'une remise de chèques s'annule seul ; les
+ * frais bancaires du rejet n'entrent pas dans l'écriture contraire (non imputés au copropriétaire sans règle propre).
+ * Refuse un encaissement déjà annulé ou pas encore écrit dans ce traitement, un débit antérieur à cette écriture, sans
+ * motif ou sans pièce, sous l'identifiant du traitement annulé, à une date non ISO, un résultat d'imputation d'un autre
+ * encaissement, une écriture qui ne porte pas ses lignes, un état des postes qui ne porte pas son imputation.
+ */
+export function annulerEncaissement(
+  encaissement: EncaissementEnregistre,
+  contexte: ContexteAnnulationEncaissement,
+  saisie: SaisieAnnulationEncaissement,
+): { traitement: Traitement; encaissement: EncaissementEnregistre; postes: PosteDette[] } {
+  const { ecriture, resultat, comptes, segmentSyndicat, sousComptes450 = null, verrou = [] } = contexte
+  verifierSaisieAnnulation(saisie, ecriture)
+  verifierAAnnuler(encaissement, ecriture, saisie.date)
+  const attendues = mouvementsEncaissementImpute({
+    encaissement,
+    resultat,
+    compteBanque: encaissement.journal.compteEncaissement,
+    ...comptes450(encaissement, comptes, segmentSyndicat, sousComptes450),
+  })
+  const lignes = lignesEcrites(attendues, ecriture, encaissement.id)
+  const postes = desimputerEncaissement(resultat, contexte.postes)
+  const piece = saisie.piece.trim()
+  const { date: dateComptable, mention } = dateHorsVerrou(verrou, {
+    dateDuFait: saisie.date,
+    reference: piece,
+    famille: FAMILLE_ANNULATION_ENCAISSEMENT,
+    comptes: lignes.map((l) => l.compte),
+  })
+  const traitement = creerTraitement(
+    { id: saisie.id, famille: FAMILLE_ANNULATION_ENCAISSEMENT, date: dateComptable, annule: ecriture.id, mouvements: lignes.map(contrePassee) },
+    { verrou },
+  )
+  const annulation: AnnulationEncaissement = { le: saisie.date, motif: saisie.motif.trim(), piece, traitementId: saisie.id, dateComptable, mention }
+  return { traitement, encaissement: { ...encaissement, statut: 'Annulé', annulation }, postes }
+}
+
+// ─── Part du fonds de travaux à virer (décision du 20/11/2026, partie C, F112) ─────────────
+
+/** Signal de la décision F112 (L. 1965 art. 18, II, al. 4 : cotisations versées « sans délai » sur le compte du fonds). */
+export const SIGNAL_FONDS_TRAVAUX_HORS_COMPTE_DU_FONDS = 'part fonds de travaux reçue sur le compte courant : à virer sans délai au compte du fonds'
+const FONDEMENT_COMPTE_DU_FONDS = 'L. 1965 art. 18, II, al. 4'
+
+/** Compte bancaire du syndicat, tel que le suivi le lit : son identifiant et les marques du fonds de travaux. */
+export type CompteBancaireEncaissement = MarquesFondsTravaux & { banqueId: string }
+
+export interface PartFondsTravauxAVirer {
+  encaissementId: string
+  /** Compte copropriétaire qui a payé. */
+  compteId: string
+  /** Compte bancaire qui a reçu la cotisation, et d'où elle se vire. */
+  banqueId: string
+  /** Jour de l'encaissement. */
+  date: string
+  /** Part de l'encaissement imputée sur des postes du fonds de travaux. */
+  partFondsCentimes: number
+  vireCentimes: number
+  resteAVirerCentimes: number
+  /** Jour de l'encaissement plus le délai réglé par le cabinet ; null : aucun délai réglé. */
+  aVirerAuPlusTardLe: string | null
+  /** Reste à virer passé le délai du cabinet. */
+  alerte: boolean
+  message: string
+  fondement: string
+}
+
+interface OptionsPartsAVirer {
+  /** Comptes bancaires du syndicat (D-BANQUE), ceux des journaux des encaissements compris. */
+  comptesBancaires: readonly CompteBancaireEncaissement[]
+  /** Virements internes du syndicat (virement-interne.ts). */
+  virements: readonly VirementInterne[]
+  /** Date de la vue. */
+  aLaDate: string
+  /** Délai d'alerte réglé par le cabinet, en jours après l'encaissement ; null : aucun délai réglé, aucune alerte. */
+  delaiAlerteJours: number | null
+}
+
+interface PartRecue {
+  encaissement: EncaissementEnregistre
+  partFondsCentimes: number
+}
+
+interface AlimentationDisponible {
+  banqueId: string
+  le: string
+  resteCentimes: number
+}
+
+const eurosDe = (centimes: number): string => formatEurosCentimes(centimes / 100)
+
+/** Part imputée sur des postes du fonds, reçue sur un compte qui ne tient pas le fonds ; null : rien à virer. */
+function partRecueHorsDuFonds(
+  { encaissement, resultat }: { encaissement: EncaissementEnregistre; resultat: ResultatImputation },
+  comptesBancaires: readonly CompteBancaireEncaissement[],
+): PartRecue | null {
+  if (resultat.encaissementId !== encaissement.id) throw new Error(`Le résultat d'imputation ${resultat.encaissementId} ne correspond pas à l'encaissement ${encaissement.id}.`)
+  const compte = comptesBancaires.find((c) => c.banqueId === encaissement.journal.banqueId)
+  if (!compte) throw new Error(`Compte bancaire « ${encaissement.journal.banqueId} » de l'encaissement ${encaissement.id} inconnu : passer les comptes bancaires du syndicat.`)
+  if (encaissement.annulation || estCompteDuFondsTravaux(compte)) return null
+  const fonds = new Set(resultat.postes.filter((p) => p.typeAppel === 'Fonds travaux').map((p) => p.id))
+  const partFondsCentimes = resultat.lignes.filter((l) => fonds.has(l.posteId)).reduce((s, l) => s + l.montantCentimes, 0)
+  return partFondsCentimes > 0 ? { encaissement, partFondsCentimes } : null
+}
+
+/** Alimentations du fonds émises au plus tard à la date de la vue, des plus anciennes aux plus récentes. */
+function alimentationsDisponibles(virements: readonly VirementInterne[], aLaDate: string): AlimentationDisponible[] {
+  return alimentationsDuFonds(virements)
+    .map((v) => ({ banqueId: v.source.banqueId, le: v.dateEmission ?? v.date, resteCentimes: v.montantCentimes }))
+    .filter((a) => a.le <= aLaDate)
+    .sort((a, b) => a.le.localeCompare(b.le))
+}
+
+/** Viré pour une part : les alimentations parties de son compte, émises au plus tôt le jour de l'encaissement. */
+function virePour(part: PartRecue, alimentations: AlimentationDisponible[]): number {
+  let vire = 0
+  for (const a of alimentations) {
+    if (vire === part.partFondsCentimes) break
+    if (a.banqueId !== part.encaissement.journal.banqueId || a.le < part.encaissement.date) continue
+    const montant = Math.min(a.resteCentimes, part.partFondsCentimes - vire)
+    a.resteCentimes -= montant
+    vire += montant
+  }
+  return vire
+}
+
+function partAVirer(part: PartRecue, vireCentimes: number, { aLaDate, delaiAlerteJours }: OptionsPartsAVirer): PartFondsTravauxAVirer {
+  const { encaissement: e, partFondsCentimes } = part
+  const resteAVirerCentimes = partFondsCentimes - vireCentimes
+  // Encaissement d'une année improbable (faute de frappe) : aucun délai du cabinet n'en part, la date est à corriger.
+  const dateImprobable = delaiAlerteJours !== null && estAnneeImprobable(e.date)
+  const aVirerAuPlusTardLe = delaiAlerteJours === null || dateImprobable ? null : ajouterJours(e.date, delaiAlerteJours)
+  const alerte = resteAVirerCentimes > 0 && aVirerAuPlusTardLe !== null && aLaDate > aVirerAuPlusTardLe
+  const etat = `${eurosDe(partFondsCentimes)} reçus, ${eurosDe(vireCentimes)} virés, ${eurosDe(resteAVirerCentimes)} à virer`
+  const retard = alerte && aVirerAuPlusTardLe ? ` Alerte : délai du cabinet dépassé, à virer au plus tard le ${dateIsoVersFr(aVirerAuPlusTardLe)}.` : ''
+  const sansDelai = dateImprobable
+    ? ` ${messagePlausibilite('Encaissement daté', e.date, 'annee_improbable')} Délai du cabinet non compté : corriger la date.`
+    : ''
+  return {
+    encaissementId: e.id,
+    compteId: e.compteId,
+    banqueId: e.journal.banqueId,
+    date: e.date,
+    partFondsCentimes,
+    vireCentimes,
+    resteAVirerCentimes,
+    aVirerAuPlusTardLe,
+    alerte,
+    message: `Encaissement ${e.id} du ${dateIsoVersFr(e.date)} (compte ${e.journal.banqueId}) : ${SIGNAL_FONDS_TRAVAUX_HORS_COMPTE_DU_FONDS} — ${etat} (${FONDEMENT_COMPTE_DU_FONDS}).${retard}${sansDelai}`,
+    fondement: FONDEMENT_COMPTE_DU_FONDS,
+  }
+}
+
+/**
+ * Décision du 20/11/2026 (partie C, F112) — part du fonds de travaux reçue sur un autre compte que celui du fonds : jamais
+ * bloquée à l'encaissement, signalée (SIGNAL_FONDS_TRAVAUX_HORS_COMPTE_DU_FONDS) et « à virer » jusqu'au virement interne
+ * correspondant. Pour chaque encaissement non annulé reçu sur un compte qui ne tient pas le fonds
+ * (comptes-bancaires.estCompteDuFondsTravaux), la part imputée sur des postes « Fonds travaux » ; elle est soldée par les
+ * alimentations du fonds parties de ce compte (virement-interne.alimentationsDuFonds : émises, non rejetées), émises au
+ * plus tôt le jour de l'encaissement et au plus tard à la date de la vue, servies aux parts les plus anciennes d'abord.
+ * Alerte quand un reste à virer dépasse le délai réglé par le cabinet (`delaiAlerteJours`, compté du jour de
+ * l'encaissement ; aucun délai par défaut : null, aucune alerte) ; encaissement d'une année improbable
+ * (dates.estAnneeImprobable, faute de frappe) : toujours « à virer », mais aucun délai compté (aVirerAuPlusTardLe null,
+ * aucune alerte) et le message cite la date à corriger. Rend les parts dans l'ordre des dates des
+ * encaissements, puis l'ordre reçu. Refuse une date de la vue non ISO, un délai qui n'est pas un entier positif ou nul,
+ * un compte bancaire inconnu, un résultat d'imputation d'un autre encaissement.
+ */
+export function partsFondsTravauxAVirer(
+  encaissements: readonly { encaissement: EncaissementEnregistre; resultat: ResultatImputation }[],
+  options: OptionsPartsAVirer,
+): PartFondsTravauxAVirer[] {
+  const { aLaDate, delaiAlerteJours } = options
+  if (!estDateIsoValide(aLaDate)) throw new Error(`Date de la vue invalide (${aLaDate}) : AAAA-MM-JJ attendu.`)
+  if (delaiAlerteJours !== null && (!Number.isInteger(delaiAlerteJours) || delaiAlerteJours < 0))
+    throw new Error(`Délai d'alerte du cabinet invalide (${delaiAlerteJours}) : jours entiers positifs ou nuls attendus, ou aucun délai réglé (null).`)
+  const parts = encaissements
+    .map((l) => partRecueHorsDuFonds(l, options.comptesBancaires))
+    .filter((p): p is PartRecue => p !== null)
+    .sort((a, b) => a.encaissement.date.localeCompare(b.encaissement.date))
+  const alimentations = alimentationsDisponibles(options.virements, aLaDate)
+  return parts.map((part) => partAVirer(part, virePour(part, alimentations), options))
+}
+
 // ─── Rapprochement ──────────────────────────────────────────────────────────────────────────
 
 /**
@@ -603,7 +963,9 @@ export function traitementEncaissements(
  * une entrée « Enregistré » pointée passe « Rapproché » avec la trace de son rapprochement, une entrée dépointée revient
  * « Enregistré » ; le compte bancaire de l'entrée est celui de son journal. Encaissements et recettes se rapprochent
  * ensemble (identifiants uniques) ; une ligne de relevé d'une remise porte tous ses chèques. Passer toutes les entrées
- * des comptes concernés. L'ordre reçu est conservé.
+ * des comptes concernés. L'ordre reçu est conservé. Un encaissement annulé (F110) prend ou perd le pointage de son crédit
+ * sans anomalie et reste « Annulé » ; à une date (`aLaDate`) antérieure au débit de la banque, il garde le statut propagé
+ * à cette date.
  */
 export function rapprocherEncaissements<P extends EntreeBanque>(
   entrees: P[],
@@ -611,9 +973,22 @@ export function rapprocherEncaissements<P extends EntreeBanque>(
   { aLaDate }: { aLaDate?: string } = {},
 ): { entrees: P[]; anomalies: AnomalieLienRapprochement[] } {
   const { pieces, anomalies } = propagerStatutRapproche(
-    entrees.map((e) => ({ id: e.id, statut: e.statut, montantCentimes: e.montantCentimes, banqueId: e.journal.banqueId, rapprochement: e.rapprochement })),
+    entrees.map((e) => ({ id: e.id, statut: statutCommeRecu(e), montantCentimes: e.montantCentimes, banqueId: e.journal.banqueId, rapprochement: e.rapprochement })),
     arretes,
     { type: 'encaissement', rapproche: 'Rapproché', avant: 'Enregistré', aLaDate },
   )
-  return { entrees: entrees.map((e, i): P => ({ ...e, statut: pieces[i].statut, rapprochement: pieces[i].rapprochement })), anomalies }
+  return {
+    entrees: entrees.map((e, i): P => ({ ...e, statut: annuleA(e, aLaDate) ? 'Annulé' : pieces[i].statut, rapprochement: pieces[i].rapprochement })),
+    anomalies,
+  }
 }
+
+/** F110 — un encaissement annulé se lit comme reçu : son crédit a pu être pointé au relevé avant le débit de la banque. */
+function statutCommeRecu(e: SuiviEncaissement): StatutEncaissement {
+  if (e.statut !== 'Annulé') return e.statut
+  return e.rapprochement ? 'Rapproché' : 'Enregistré'
+}
+
+/** F110 — annulé à la date de la vue : sans date, dès qu'il porte son annulation ; à une date, si le débit date de ce jour ou d'avant. */
+const annuleA = (e: SuiviEncaissement, aLaDate: string | undefined): boolean =>
+  e.annulation !== undefined && (aLaDate === undefined || e.annulation.le <= aLaDate)

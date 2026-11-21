@@ -50,19 +50,41 @@ import {
  * dont le type n'est pas confirmé (code « à confirmer », suggestion d'après le texte, classement-pieces-ged.ts) est
  * « a_confirmer », distinct de « non_classe » (sans aucun type candidat) : aucune règle du cabinet ne lui est appliquée,
  * la durée du texte de chaque candidat est seulement rappelée.
- * 🔴 Non établi — AUCUNE durée par défaut : réglage du cabinet, comme D-BANQUE. Questions pour Frédéric ou Hugo :
- * - « Le délai de conservation de 10 ans des pièces justificatives court-il, pour le cabinet, à partir de la date de la
- *   pièce, de la clôture de l'exercice ou de l'approbation des comptes ? » ;
- * - « Le cabinet applique-t-il une durée interne pour les autres archives (RC/EDD, registre des PV, contrats,
- *   correspondances, pièces de la mission judiciaire), ou VitFix doit-il afficher "durée non fixée par le texte" ? ».
+ *
+ * Décisions du 20/11/2026 (partie C, recommandations acceptées par le responsable du projet) :
+ * - Décision du 20/11/2026 (partie C, F126) : les 10 ans courent de la clôture de l'exercice auquel la pièce se rattache,
+ *   sans option « approbation des comptes » (POINTS_DEPART_CONSERVATION) : c'est la règle par défaut
+ *   (REGLE_CONSERVATION_PAR_DEFAUT) de toute pièce justificative tant que le cabinet n'a rien réglé ; une règle du
+ *   cabinet l'emporte (plus courte que 10 ans : toujours signalée). Aucune échéance ne joue pendant la mission ; à la
+ *   fin, documents comptables et originaux des pièces passent au successeur (D. 2005-240 art. 6, al. 2 ; L. 1965 art.
+ *   18-2), libellé « remise au successeur en fin de mission » (LIBELLE_REMISE_AU_SUCCESSEUR) ; toujours aucune purge ;
+ * - Décision du 20/11/2026 (partie C, F127) : sans règle du cabinet, une archive qui n'est pas une pièce justificative
+ *   garde « durée non fixée par le texte », complété : « à conserver pendant la mission, puis à remettre au successeur
+ *   dans le mois (L. 1965 art. 18-2) » (LIBELLE_DUREE_NON_FIXEE) ; aucune durée inventée. Règlement de copropriété,
+ *   registre des PV et décisions de justice ne se purgent pas mais se transmettent (LIBELLE_ARCHIVE_PERMANENTE) ; pour
+ *   les copies gardées après la mission, la durée est à fixer par le cabinet.
+ * 🔵 Déduit pour F126 et F127 : la clôture est celle de l'exercice de la pièce, fournie par l'appelant (sans elle :
+ * « point_depart_absent ») ; archives permanentes (MODELES_ARCHIVES_PERMANENTES) : règlement de copropriété et
+ * modificatifs, procès-verbaux d'assemblée (registre), jugements et ordonnances du tribunal (désignation, prolongation,
+ * fin de mission, expropriation, autres) ; l'ordonnance de taxe, pièce justificative, suit la règle des 10 ans.
+ * 🔴 Non établi : durée interne des copies gardées par le cabinet après la mission (dossier de mission de
+ * l'administrateur judiciaire) : à fixer par le cabinet ; aucun texte du Code de commerce lu sur ce point.
  */
+
+/** Décision du 20/11/2026 (partie C, F126) : libellé de la fin de mission des documents comptables et des originaux. */
+export const LIBELLE_REMISE_AU_SUCCESSEUR = 'remise au successeur en fin de mission'
 
 export interface DureeConservationTexte {
   dureeMois: number
   fondement: string
   reserve: string
-  /** 🔴 Non fixé par le texte. */
+  /** Non fixé par le texte ; règle par défaut : la clôture de l'exercice (REGLE_CONSERVATION_PAR_DEFAUT, F126). */
   pointDepart: null
+  /** Décision du 20/11/2026 (partie C, F126) : aucune échéance ne joue pendant la mission. */
+  pendantLaMission: string
+  /** Décision du 20/11/2026 (partie C, F126) : LIBELLE_REMISE_AU_SUCCESSEUR. */
+  finDeMission: string
+  fondementFinDeMission: string
 }
 
 export const CONSERVATION_PIECES_JUSTIFICATIVES: DureeConservationTexte = {
@@ -70,6 +92,9 @@ export const CONSERVATION_PIECES_JUSTIFICATIVES: DureeConservationTexte = {
   fondement: 'D. 2005-240 art. 6, al. 1',
   reserve: 'sauf dispositions expresses contraires',
   pointDepart: null,
+  pendantLaMission: 'aucune échéance ne joue pendant la mission',
+  finDeMission: LIBELLE_REMISE_AU_SUCCESSEUR,
+  fondementFinDeMission: 'D. 2005-240 art. 6, al. 2 ; L. 1965 art. 18-2 (décision du 20/11/2026, partie C, F126)',
 }
 
 /** Types GED qui fondent une écriture par nature : pièces justificatives comptables (J67, R118). */
@@ -96,6 +121,34 @@ export const MODELES_PIECES_JUSTIFICATIVES: readonly ModeleTypeDocument[] = [
   ...modelesDe('Tribunal', ['Ordonnance de taxe']),
 ]
 
+/**
+ * Décision du 20/11/2026 (partie C, F127) : archives permanentes du syndicat, qui ne se purgent pas mais se transmettent
+ * (🔵 types GED retenus : voir l'en-tête).
+ */
+export const MODELES_ARCHIVES_PERMANENTES: readonly ModeleTypeDocument[] = [
+  ...modelesDe(null, [
+    'Règlement de copropriété (règlement, modificatifs)',
+    "Procès-verbal d'assemblée",
+    "Procès-verbal d'assemblée signé",
+    'Jugement',
+  ]),
+  ...modelesDe('Tribunal', [
+    'Ordonnance de désignation',
+    'Ordonnance de prolongation de mission',
+    'Ordonnance de fin de mission',
+    "Ordonnance d'expropriation",
+  ]),
+  ...modelesDe('Base', ['Ordonnance (autres)']),
+]
+
+/** Décision du 20/11/2026 (partie C, F127) : libellé d'une archive sans durée fixée par le texte ni par le cabinet. */
+export const LIBELLE_DUREE_NON_FIXEE =
+  'durée non fixée par le texte : à conserver pendant la mission, puis à remettre au successeur dans le mois (L. 1965 art. 18-2)'
+/** Décision du 20/11/2026 (partie C, F127) : règlement de copropriété, registre des PV, décisions de justice. */
+export const LIBELLE_ARCHIVE_PERMANENTE = 'archive permanente du syndicat : ne se purge pas, se transmet au successeur'
+/** Décision du 20/11/2026 (partie C, F127) : aucune durée inventée pour les copies que le cabinet garde. */
+export const LIBELLE_COPIES_APRES_MISSION = 'copies gardées après la mission : durée à fixer par le cabinet'
+
 /** Ce que l'appelant sait du document, au-delà de son type. */
 export interface ContexteDocumentConservation {
   /** Document lié à une écriture comptable (un traitement) comme sa pièce (J67, R118) ; absent : non. */
@@ -113,7 +166,9 @@ export function dureeConservationDuTexte(
   return rattacheAUnTraitement || MODELES_PIECES_JUSTIFICATIVES.some((m) => correspondAuModele(ref, m)) ? CONSERVATION_PIECES_JUSTIFICATIVES : null
 }
 
-export type PointDepartConservation = 'date_document' | 'cloture_exercice' | 'fin_mandat'
+/** Points de départ admis ; aucune option « approbation des comptes » (décision du 20/11/2026, partie C, F126). */
+export const POINTS_DEPART_CONSERVATION = ['date_document', 'cloture_exercice', 'fin_mandat'] as const
+export type PointDepartConservation = (typeof POINTS_DEPART_CONSERVATION)[number]
 
 /** Cible d'une règle : un type (catégorie null = toute catégorie), ou toute une catégorie (type null). */
 export interface CibleConservation {
@@ -126,6 +181,17 @@ export interface RegleConservation {
   dureeMois: number
   pointDepart: PointDepartConservation
   fondement: string | null
+}
+
+/**
+ * Décision du 20/11/2026 (partie C, F126) — règle par défaut de toute pièce justificative (cible sans catégorie ni type :
+ * elle ne se saisit pas, elle s'applique quand le cabinet n'a rien réglé) : 10 ans à compter de la clôture de l'exercice.
+ */
+export const REGLE_CONSERVATION_PAR_DEFAUT: RegleConservation = {
+  cible: { categorie: null, type: null },
+  dureeMois: CONSERVATION_PIECES_JUSTIFICATIVES.dureeMois,
+  pointDepart: 'cloture_exercice',
+  fondement: 'D. 2005-240 art. 6, al. 1 ; règle par défaut, décision du 20/11/2026 (partie C, F126)',
 }
 
 export interface SaisieRegleConservation {
@@ -215,13 +281,24 @@ export interface CandidatConservation {
   texte: DureeConservationTexte | null
 }
 
+/**
+ * « parDefaut » : la règle appliquée est REGLE_CONSERVATION_PAR_DEFAUT (F126), absente sinon. « non_reglee » : archive
+ * sans durée du texte ni du cabinet, avec ses libellés (F127).
+ */
 export type EcheanceConservation =
   | { statut: 'non_classe'; texte: DureeConservationTexte | null }
   | { statut: 'a_confirmer'; candidats: CandidatConservation[] }
-  | { statut: 'non_reglee'; texte: DureeConservationTexte | null }
+  | { statut: 'non_reglee'; texte: DureeConservationTexte | null; libelle: string; archivePermanente: boolean; copiesApresMission: string }
   | { statut: 'regles_en_conflit'; regles: RegleConservation[]; texte: DureeConservationTexte | null }
-  | { statut: 'point_depart_absent'; regle: RegleConservation; texte: DureeConservationTexte | null }
-  | { statut: 'reglee'; dateFin: string; regle: RegleConservation; texte: DureeConservationTexte | null; inferieureAuTexte: boolean }
+  | { statut: 'point_depart_absent'; regle: RegleConservation; texte: DureeConservationTexte | null; parDefaut?: true }
+  | {
+      statut: 'reglee'
+      dateFin: string
+      regle: RegleConservation
+      texte: DureeConservationTexte | null
+      inferieureAuTexte: boolean
+      parDefaut?: true
+    }
 
 const DEPART: Readonly<Record<PointDepartConservation, (document: DocumentGed, contexte: ContexteConservation) => string | null>> = {
   date_document: (document) => document.date,
@@ -240,7 +317,39 @@ function sansReference(document: DocumentGed, contexte: ContexteDocumentConserva
   return { statut: 'a_confirmer', candidats: candidats.map((ref) => ({ ref, texte: dureeConservationDuTexte(ref, contexte) })) }
 }
 
-/** Fin de conservation d'un document selon les règles du cabinet ; la durée du texte est rappelée, jamais appliquée seule. */
+/** Décision du 20/11/2026 (partie C, F127) : archive sans durée du texte ni du cabinet ; aucune durée inventée. */
+const nonReglee = (ref: ReferenceTypeDocument, texte: DureeConservationTexte | null): EcheanceConservation => ({
+  statut: 'non_reglee',
+  texte,
+  libelle: LIBELLE_DUREE_NON_FIXEE,
+  archivePermanente: MODELES_ARCHIVES_PERMANENTES.some((m) => correspondAuModele(ref, m)),
+  copiesApresMission: LIBELLE_COPIES_APRES_MISSION,
+})
+
+/** Échéance selon une règle (du cabinet, ou par défaut : F126) dont le point de départ est connu ou non. */
+function selonLaRegle(
+  regle: RegleConservation,
+  { document, contexte, texte, parDefaut }: { document: DocumentGed; contexte: ContexteConservation; texte: DureeConservationTexte | null; parDefaut: boolean },
+): EcheanceConservation {
+  const marque = parDefaut ? { parDefaut: true as const } : {}
+  const depart = DEPART[regle.pointDepart](document, contexte)
+  if (!depart) return { statut: 'point_depart_absent', regle, texte, ...marque }
+  return {
+    statut: 'reglee',
+    dateFin: ajouterMois(depart, regle.dureeMois),
+    regle,
+    texte,
+    inferieureAuTexte: texte !== null && regle.dureeMois < texte.dureeMois,
+    ...marque,
+  }
+}
+
+/**
+ * Fin de conservation d'un document selon les règles du cabinet ; la durée du texte est rappelée, jamais appliquée seule.
+ * Décision du 20/11/2026 (partie C, F126) : sans règle du cabinet, une pièce justificative suit la règle par défaut
+ * (REGLE_CONSERVATION_PAR_DEFAUT : 10 ans à compter de la clôture de l'exercice, `parDefaut`) ; F127 : une autre archive
+ * reste « non_reglee », avec ses libellés.
+ */
 export function echeanceConservation(
   document: DocumentGed,
   regles: readonly RegleConservation[],
@@ -253,16 +362,9 @@ export function echeanceConservation(
   if (!ref) return sansReference(document, contexte)
   const texte = dureeConservationDuTexte(ref, contexte)
   const retenues = reglesLesPlusPrecises(ref, regles)
-  if (retenues.length === 0) return { statut: 'non_reglee', texte }
+  if (retenues.length === 0)
+    return texte === null ? nonReglee(ref, texte) : selonLaRegle(REGLE_CONSERVATION_PAR_DEFAUT, { document, contexte, texte, parDefaut: true })
   const regle = retenues[0]
   if (retenues.some((autre) => !memeEffet(autre, regle))) return { statut: 'regles_en_conflit', regles: retenues, texte }
-  const depart = DEPART[regle.pointDepart](document, contexte)
-  if (!depart) return { statut: 'point_depart_absent', regle, texte }
-  return {
-    statut: 'reglee',
-    dateFin: ajouterMois(depart, regle.dureeMois),
-    regle,
-    texte,
-    inferieureAuTexte: texte !== null && regle.dureeMois < texte.dureeMois,
-  }
+  return selonLaRegle(regle, { document, contexte, texte, parDefaut: false })
 }

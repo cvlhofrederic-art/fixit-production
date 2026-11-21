@@ -145,6 +145,8 @@ describe('fonds détenus à une date — soldes', () => {
       ['au_nom_du_syndicat', true, 380_000],
       ['fonds_travaux', true, 400_000],
       ['autres_comptes', true, 0],
+      // Décision du 20/11/2026 (partie C, F98) : la ligne « fonds placés », vide ici.
+      ['fonds_places', true, 0],
     ])
     const somme = (valeurs: number[]) => valeurs.reduce((s, v) => s + v, 0)
     for (const ventilation of [fonds.parNature, fonds.parEtablissement, fonds.parCategorie])
@@ -210,7 +212,13 @@ describe('fonds détenus — périmètre (réglage du cabinet ; J67, R90 : tout 
   })
 
   it('par défaut, tout est inclus (valeur prudente), et le résultat dit que ce n’est qu’un réglage, pas une règle légale', () => {
-    expect(PERIMETRE_FONDS_DETENUS_PAR_DEFAUT).toEqual({ caisse_depots: true, au_nom_du_syndicat: true, fonds_travaux: true, autres_comptes: true })
+    expect(PERIMETRE_FONDS_DETENUS_PAR_DEFAUT).toEqual({
+      caisse_depots: true,
+      au_nom_du_syndicat: true,
+      fonds_travaux: true,
+      autres_comptes: true,
+      fonds_places: true,
+    })
     const fonds = fondsDetenusA('2026-12-31', donnees())
     expect(fonds.perimetre).toEqual(PERIMETRE_FONDS_DETENUS_PAR_DEFAUT)
     expect(fonds.perimetreParDefaut).toBe(true)

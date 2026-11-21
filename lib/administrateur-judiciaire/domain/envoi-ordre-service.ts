@@ -28,13 +28,18 @@ import { MAJORITES_AG, type TypeMajorite } from '@/lib/administrateur-judiciaire
 import type { ModeExerciceAdministrateurs } from '@/lib/administrateur-judiciaire/domain/mandat-judiciaire'
 import { ROLES_CABINET, type RoleCabinet } from '@/lib/administrateur-judiciaire/domain/roles-cabinet'
 import type { ElementAFaire } from '@/lib/administrateur-judiciaire/domain/suivi-a-faire'
-import type { CauseDelaiNonCalcule, ResultatDelaiContestationAg } from '@/lib/administrateur-judiciaire/domain/statut-assemblee'
+import {
+  verifierFinDelaiHorsOutil,
+  type CauseDelaiNonCalcule,
+  type ResultatDelaiContestationAg,
+} from '@/lib/administrateur-judiciaire/domain/statut-assemblee'
 import { normaliserEspaces, normaliserTexte } from '@/lib/administrateur-judiciaire/domain/texte'
 import {
   controlerDepassementBudgetAvantOs,
   type BudgetTravauxDeLOs,
   type CodeDepassementBudgetOs,
 } from '@/lib/administrateur-judiciaire/domain/travaux-budget'
+import { refusAppelOuOrdreDeServiceOperation } from '@/lib/administrateur-judiciaire/domain/travaux-operations'
 import {
   CODES_PIECES_VIGILANCE,
   SEUIL_VIGILANCE_HT_CENTIMES,
@@ -279,9 +284,9 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   syndic qui n'exécute pas des travaux votés commet une faute envers les copropriétaires (Cass. 3e civ., 02/07/2026,
  *   n° 24-20.650), d'où un blocage qui se lève par un acte que l'administrateur maîtrise. 🔵 Interprétation protectrice,
  *   confiance moyenne : aucun arrêt ni aucune recommandation professionnelle (FNAIM, UNIS, ANGC, CNAJMJ) ne traite ce cas.
- *   Inchangés : unanimité et art. 24 non suspendus, demande de devis non contrôlée, majorité de la résolution non saisie
- *   (alerte) et fondement non saisi (alerte, art. 42 non contrôlé) : ces deux contournements restent ouverts (question à
- *   Hugo, ci-dessous) ; assignation reçue et aide juridictionnelle, proposées dans les notes, ne sont pas codées.
+ *   Inchangés : unanimité et art. 24 non suspendus, demande de devis non contrôlée ; la majorité de la résolution non
+ *   saisie et le fondement non saisi, alors en alerte, l'assignation reçue et l'aide juridictionnelle sont tranchés par la
+ *   décision du 20/11/2026 (partie C, F82), ci-dessous.
  *
  * Décisions de Hugo du 17/11/2026 (DECISIONS-HUGO-2026-11-17.md ; numéros de registre proposés : J52 à J54, J56 et J61) :
  * - J52 et J53 (suites de J50, statut-assemblee.ts) : la demande de voie postale, le refus ou le retrait reçu avant le
@@ -402,6 +407,38 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   cabinet (piecesVigilanceApresUrgence ; réglage non fixé : dû le jour de l'envoi) ; sans urgence constatée, le
  *   blocage reste ; la décennale obligatoire reste bloquante.
  *
+ * Décisions du 20/11/2026 (partie C des questions ouvertes du code, recommandations acceptées) :
+ * - Décision du 20/11/2026 (partie C, F67) : une opération de travaux « Rejeté » (résolution annulée en justice ou
+ *   rapportée par une nouvelle assemblée, ou projet rejeté) n'admet plus aucun ordre de service : l'OS dont l'opération
+ *   est fournie (budgetTravaux) est bloqué (operation_travaux_rejetee ; refusAppelOuOrdreDeServiceOperation,
+ *   travaux-operations.ts ; L. 1965 art. 42, al. 2) ;
+ * - Décision du 20/11/2026 (partie C, F77) : quand la liste des signataires habilités du cabinet est fournie
+ *   (signatairesHabilites, J18 ; aussi dans les options du visa), un constat d'urgence fait par une personne qui n'y
+ *   figure pas, et qui n'est pas l'administrateur désigné, ne vaut pas constat : l'urgence n'est pas retenue
+ *   (urgenceRetenue), l'OS reste soumis à l'avis du conseil syndical (D. 1967 art. 62-7), à la suspension de L. 1965
+ *   art. 42, al. 3 et au blocage de la vigilance ; le constat lève deux protections légales, il doit venir de quelqu'un qui
+ *   peut agir au nom de l'administrateur provisoire, comme la signature. L'alerte constat_urgence_auteur_non_habilite dit
+ *   ce qui reste dû et de faire constater l'urgence par un signataire habilité ; elle n'est plus « à confirmer » ;
+ * - Décision du 20/11/2026 (partie C, F81) : blocage gardé avant l'OS (opération dès 5 000 € HT, montant inconnu, ou
+ *   décennale obligatoire), que les pièces manquent ou n'aient pas été saisies : la vérification se fait « lors de la
+ *   conclusion » du contrat (C. trav. art. L. 8222-1), l'OS conclut le marché (C. civ. art. 1121), et le donneur d'ordre
+ *   n'est réputé avoir vérifié que s'il s'est fait remettre les documents de l'art. D. 8222-5 (Cass. 2e civ.,
+ *   05/12/2024, n° 22-21.152, Bull.) : une pièce non saisie est une pièce non remise (solidarité financière, L. 8222-2).
+ *   Seule exception, déjà codée : sous urgence constatée, l'absence des pièces de vigilance donne une alerte forte (J67,
+ *   R75), la décennale obligatoire restant bloquante. Le message dit quelles pièces manquent et comment les saisir
+ *   (controle_declaratif_non_fait, plus « à confirmer » ; vigilance-entreprises.ts pour les pièces saisies) ;
+ * - Décision du 20/11/2026 (partie C, F82), suite de J51, J52 et J53 : (1) majorité de la résolution exécutée non saisie :
+ *   BLOQUANT (majorite_resolution_non_renseignee), comme une fin de délai inconnue, sauf urgence retenue : sans majorité,
+ *   on ne sait pas si la suspension de L. 1965 art. 42, al. 3 s'applique ; (2) fondement non choisi dans la liste :
+ *   BLOQUANT (fondement_non_renseigne ; « entretien » est un choix de la liste, qui ne déclenche pas l'art. 42) ; (3) AG
+ *   contestée par une assignation reçue au plus tard le jour de l'envoi (assignationsContestationAg) : alerte
+ *   ag_contestee_par_assignation sur tout OS qui exécute une de ses résolutions, l'exécution n'empêchant pas l'annulation
+ *   (Cass. 3e civ., 24/11/2021, n° 20-22.487, cité par le registre, non relu ici) ; (4) demande d'aide juridictionnelle
+ *   connue, déposée avant la fin du délai d'un copropriétaire : la fin du délai est inconnue pour lui, blocage (cause
+ *   aide_juridictionnelle_demandee, statut-assemblee.ts ; D. n° 2020-1717 du 28/12/2020, art. 43) ; (5) fin du délai
+ *   établie hors de l'outil : saisie avec un motif et une pièce, tracée (etablirFinDelaiHorsOutil, statut-assemblee.ts),
+ *   lue comme une fin connue.
+ *
  * 🔵 Déduit (règles de ce module) :
  * - N° (séquence par mandat : décision 1) : attribué au premier envoi (J56), une fois, puis figé ; un N° hors du format,
  *   ou d'un autre segment mandat que celui de la séquence (segmentMandat), est signalé hors séquence, un N° déjà porté par une autre demande du
@@ -489,18 +526,14 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   la vigilance donne une alerte forte au lieu d'un blocage (J67, R75), pièces fournies ou non, montant HT connu ou non
  *   (relecture du 18/11/2026 : avec des pièces, un montant HT inconnu ne rend plus le contrôle impossible) ;
  * - urgence RETENUE (décision 6) : délai « urgence » ou fondement « urgence de sauvegarde », AVEC le constat complet de
- *   l'administrateur provisoire (date valide, motif non vide, collaborateur identifié ; refusé incomplet à la saisie ; un
+ *   l'administrateur provisoire (date valide, motif non vide, collaborateur identifié, signataire habilité ou
+ *   administrateur désigné quand la liste du cabinet est fournie : F77 ; refusé incomplet à la saisie ; un
  *   constat incomplet repris d'ailleurs ne vaut pas constat, alerte ; daté après l'envoi, il bloque celui-ci : J46) ;
  *   elle seule lève l'avis préalable de D. 1967 art. 62-7 et la suspension de L. 1965 art. 42, al. 3 (même constat pour
  *   les deux) ; un constat saisi sans délai « urgence » est signalé (alerte) et ne lève rien ; un délai « prioritaire » ne
  *   vaut pas urgence, même constatée (décision J16 du 03/11/2026) ; urgence non retenue : le message ne nomme ce
  *   qui reste dû que lorsque cela s'applique (l'avis pour une intervention au titre des pouvoirs de l'assemblée, la
  *   suspension pour l'exécution d'une résolution votée aux art. 25 ou 26) ;
- * - auteur du constat d'urgence face aux signataires habilités (décisions 6 et 8), interprétation à confirmer par Hugo :
- *   le constat est fait au nom de l'administrateur provisoire, comme la signature de l'OS ; quand l'appelant fournit la
- *   liste du cabinet (signatairesHabilites), un constat dont l'auteur n'y figure pas, et n'est pas l'administrateur
- *   désigné (administrateurDesigneId), est signalé, alerte à confirmer (constat_urgence_auteur_non_habilite), sans
- *   blocage : il ne change pas l'urgence retenue ou non ;
  * - convention liée sous administration provisoire : le « syndic » de D. 1967 art. 39 est l'administrateur provisoire,
  *   ses « préposés » les collaborateurs du cabinet (J67, R71) ; la réponse sur le lien (entrepriseLiee) vaut pour
  *   l'entreprise de la demande au moment où elle est saisie (entrepriseLieeDeclareePour) : l'entreprise changée, la
@@ -519,8 +552,6 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   25-1.
  *
  * 🔴 Non établi — questions :
- * - Hugo (suite de la décision 8) : l'auteur du constat d'urgence doit-il être un signataire habilité (ici :
- *   interprétation, alerte à confirmer constat_urgence_auteur_non_habilite, sans blocage) ?
  * - Hugo, avec un juriste (J67, R72 appliquée ; marque gardée, comme R72 le demande) : aucun texte ni arrêt lu ne dit
  *   qu'un salarié qui n'est pas administrateur judiciaire engage le syndicat en signant l'OS « pour ordre » ; avis d'un
  *   juriste à demander avant de retirer cette marque.
@@ -534,22 +565,6 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  * - Frédéric : la fiche entreprise portera-t-elle le lien avec le cabinet ou le syndic ? Sinon entrepriseLiee se déclare à
  *   la main, pour l'entreprise de la demande (alerte tant qu'il est inconnu, bloquant quand l'entreprise a changé depuis
  *   la réponse).
- * - vigilance du code du travail (relevée au point 43 ; L. 8221-2 et L. 8222-1 relus le 17/11/2026 pour J67, R75 : sous
- *   urgence constatée, alerte forte) : bloquante avant l'envoi sans urgence constatée, y compris quand les pièces ne
- *   sont pas fournies, à confirmer.
- * - Hugo (suite de J51) : deux contournements du blocage restent ouverts, laissés tels quels : une majorité de la
- *   résolution non saisie ne donne qu'une alerte (majorite_resolution_non_renseignee) et la fin du délai n'est alors pas
- *   regardée ; un fondement non saisi ne donne qu'une alerte (fondement_non_renseigne) et l'art. 42 n'est pas contrôlé.
- *   Faut-il bloquer aussi l'OS qui exécute une résolution d'AG sans majorité saisie (proposé par les notes) ? Et l'OS
- *   sans fondement (proposé : garder l'alerte, car bloquer irait au-delà de l'art. 42 : entretien courant) ? Faut-il
- *   une alerte quand une assignation en contestation est reçue, et une information sur l'aide juridictionnelle (D.
- *   n° 2020-1717 art. 43), proposées par les notes et non codées ? Une saisie motivée de la fin du délai établie hors de
- *   l'outil (AG ancienne) est-elle voulue ? (Un troisième contournement, la date seule finDelaiContestationAg, qui
- *   pouvait être une fin minimale ou sans report, est fermé depuis la relecture du 14/11/2026 : seule une AG dont les
- *   notifications sont saisies laisse partir l'OS, ce qui rend la saisie motivée plus utile pour les AG anciennes.) La
- *   fin calculée mais à confirmer ne donne qu'une alerte (delai_contestation_a_confirmer) : pour la LRE sans consentement
- *   et la demande reçue juste avant le 25/12/2025, la question est fermée par J52 et J53 (17/11/2026 : refus, donc
- *   blocage).
  *
  * Branché au point 46 : suivi-a-faire.ts, famille « demandes » et nature « relance_os » (relancesOsDues, lu par
  * depuisDemandes ; attendus et relanceAFixer en plus des champs d'ElementAFaire, dont aConfirmer, toujours faux, garde
@@ -581,7 +596,9 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  * (preparerCourrier, controlerDepot), gabarits-courrier.ts et les écrans des courriers porteront un CircuitVisa, décriront
  * le courrier en PieceVisee (sortie : « le dépôt »), appliqueront appliquerActionVisa et revoirCircuitVisa, et refuseront
  * le dépôt tant qu'anomaliesCircuitVisa n'est pas vide ; VISAS_SORTIE, CANAUX_ENVOI_OS et FORME_ENVOI_PAR_CANAL vers
- * referentiels-gesteam-judiciaire.ts ; table de SortieOrdreService et écran (Frédéric).
+ * referentiels-gesteam-judiciaire.ts ; table de SortieOrdreService et écran (Frédéric) ; décision du 20/11/2026 (partie
+ * C, F82) : assignations reçues (assignationsContestationAg), demandes d'aide juridictionnelle connues et fins de délai
+ * établies hors de l'outil, avec leur pièce, à enregistrer (aucune table : données fournies par l'appelant).
  */
 
 // ─── Référentiels ─────────────────────────────────────────────────────────────────────────────
@@ -1291,9 +1308,18 @@ export interface OptionsVisa {
    * sans pouvoir de l'assemblée (J67, R68).
    */
   decisionsAgEnVigueur?: readonly DecisionAnnuelle[]
-  /** Pouvoirs de l'assemblée confiés par l'ordonnance (J67, R68 : seuils fixés par l'administrateur provisoire) ; absent : non contrôlé. */
-  mandat?: Pick<CadreMandatOs, 'pouvoirsAg'>
+  /**
+   * Pouvoirs de l'assemblée confiés par l'ordonnance (J67, R68 : seuils fixés par l'administrateur provisoire) ; absent :
+   * non contrôlé. Administrateurs désignés : auteurs du constat d'urgence toujours admis (Décision du 20/11/2026, partie C, F77).
+   */
+  mandat?: Pick<CadreMandatOs, 'pouvoirsAg' | 'administrateursIds'>
 }
+
+/**
+ * Options du visa, avec ce qui dit qui constate l'urgence (Décision du 20/11/2026, partie C, F77) : la liste des
+ * signataires habilités du cabinet et l'administrateur désigné (champs de ContexteEnvoiOs) ; absents : non contrôlé.
+ */
+export type OptionsMotifsVisa = OptionsVisa & Partial<Pick<ContexteEnvoiOs, 'signatairesHabilites' | 'administrateurDesigneId'>>
 
 /** Ce que la sortie dit du cadre de l'OS. */
 export type CadreVisa = Pick<SortieOrdreService, 'fondement' | 'constatUrgence' | 'entrepriseLiee' | 'entrepriseLieeDeclareePour' | 'delai'>
@@ -1304,6 +1330,25 @@ const urgenceDemandee = (c: Pick<SortieOrdreService, 'delai' | 'fondement'>): bo
 /** Urgence retenue : demandée, et constatée par l'administrateur provisoire (constat complet ; décision de Hugo du 03/11/2026). */
 const urgenceConstatee = (c: Pick<SortieOrdreService, 'delai' | 'fondement' | 'constatUrgence'>): boolean =>
   urgenceDemandee(c) && constatComplet(c.constatUrgence)
+
+/** Ce qui dit qui peut constater l'urgence : signataires habilités et administrateurs désignés (F77). */
+type ContexteConstat = Pick<OptionsMotifsVisa, 'signatairesHabilites' | 'administrateurDesigneId' | 'mandat'>
+
+/**
+ * Auteur du constat d'urgence qui n'est ni dans la liste des signataires habilités du cabinet, quand elle est fournie, ni
+ * l'administrateur désigné (Décision du 20/11/2026, partie C, F77) ; null : auteur admis, liste absente ou aucun constat.
+ */
+function auteurConstatNonHabilite(s: Pick<SortieOrdreService, 'constatUrgence'>, contexte: ContexteConstat): string | null {
+  const auteur = texteOuNull(s.constatUrgence?.collaborateurId)
+  return auteur !== null && horsDesHabilites(auteur, contexte) ? auteur : null
+}
+
+/**
+ * Urgence RETENUE : constatée (urgenceConstatee) par un signataire habilité ou l'administrateur désigné quand la liste du
+ * cabinet est fournie ; sinon le constat ne vaut pas constat (Décision du 20/11/2026, partie C, F77).
+ */
+const urgenceRetenue = (s: Pick<SortieOrdreService, 'delai' | 'fondement' | 'constatUrgence'>, contexte: ContexteConstat): boolean =>
+  urgenceConstatee(s) && auteurConstatNonHabilite(s, contexte) === null
 
 const motif = (code: CodeMotifVisa, message: string, fondement: string | null = null, aConfirmer = false): MotifVisa => ({
   code,
@@ -1369,7 +1414,7 @@ function motifsSeuilsArt21(prevu: number | null, decisions: readonly DecisionAnn
   return motifs
 }
 
-function motifsLegaux(d: Demande, cadre: CadreVisa, decisions: readonly DecisionAnnuelle[] | undefined): MotifVisa[] {
+function motifsLegaux(d: Demande, cadre: CadreVisa, decisions: readonly DecisionAnnuelle[] | undefined, urgence: boolean): MotifVisa[] {
   if (d.type !== 'intervention') return []
   const motifs = motifsSeuilsArt21(prevuDemande(d), decisions)
   if (lienEntreprise(d, cadre) === true)
@@ -1380,7 +1425,7 @@ function motifsLegaux(d: Demande, cadre: CadreVisa, decisions: readonly Decision
         FONDEMENT_CONVENTION_LIEE,
       ),
     )
-  if (cadre.fondement === 'decision_aj_pouvoirs_ag' && !urgenceConstatee(cadre))
+  if (cadre.fondement === 'decision_aj_pouvoirs_ag' && !urgence)
     motifs.push(
       motif(
         'avis_conseil_syndical_aj',
@@ -1399,9 +1444,13 @@ function motifsLegaux(d: Demande, cadre: CadreVisa, decisions: readonly Decision
 const decisionsDesSeuils = (options: OptionsVisa): readonly DecisionAnnuelle[] | undefined =>
   options.decisionsAgEnVigueur && decisionsSelonPouvoirsAg(options.decisionsAgEnVigueur, options.mandat?.pouvoirsAg)
 
-/** Motifs du visa : règles de gestion du cabinet et déclencheurs légaux (intervention seulement), sans doublon. */
-export function motifsVisa(d: Demande, cadre: CadreVisa, options: OptionsVisa = {}): MotifVisa[] {
-  const tous = [...motifsDeGestion(d, options.regles ?? REGLES_VISA_PAR_DEFAUT), ...motifsLegaux(d, cadre, decisionsDesSeuils(options))]
+/**
+ * Motifs du visa : règles de gestion du cabinet et déclencheurs légaux (intervention seulement), sans doublon ; l'avis du
+ * conseil syndical tombe sous urgence retenue (F77 : constat d'un signataire habilité quand la liste est fournie).
+ */
+export function motifsVisa(d: Demande, cadre: CadreVisa, options: OptionsMotifsVisa = {}): MotifVisa[] {
+  const legaux = motifsLegaux(d, cadre, decisionsDesSeuils(options), urgenceRetenue(cadre, options))
+  const tous = [...motifsDeGestion(d, options.regles ?? REGLES_VISA_PAR_DEFAUT), ...legaux]
   return [...new Map(tous.map((m) => [m.code, m])).values()]
 }
 
@@ -1409,7 +1458,7 @@ export function motifsVisa(d: Demande, cadre: CadreVisa, options: OptionsVisa = 
  * Sortie de l'OS d'une demande ouverte : visa initial « Visa nécessaire » s'il y a un motif, sinon « Sortie libre ». Une
  * date de relance antérieure à la demande est refusée.
  */
-export function creerSortieOs(d: Demande, saisie: SaisieSortieOs = {}, options: OptionsVisa = {}): SortieOrdreService {
+export function creerSortieOs(d: Demande, saisie: SaisieSortieOs = {}, options: OptionsMotifsVisa = {}): SortieOrdreService {
   if (d.statut === 'Terminé' || estRefusee(d)) throw new Error(`Demande ${d.id} terminée ou refusée : aucun ordre de service à préparer.`)
   const vierge: SortieOrdreService = {
     demandeId: d.id,
@@ -1681,7 +1730,7 @@ export const refuserVisa = (s: SortieOrdreService, d: Demande, saisie: SaisieEve
  * Revue du visa de l'OS avant l'envoi (copie), sur les motifs relevés à ce moment (revoirCircuitVisa). Après le premier
  * envoi : refusé (offre nouvelle, nouvel OS).
  */
-export function revoirVisa(s: SortieOrdreService, d: Demande, saisie: SaisieEvenementVisa, options: OptionsVisa = {}): SortieOrdreService {
+export function revoirVisa(s: SortieOrdreService, d: Demande, saisie: SaisieEvenementVisa, options: OptionsMotifsVisa = {}): SortieOrdreService {
   verifierLien(d, s)
   verifierNonEnvoye(s, 'revoir le visa')
   return revoirCircuitVisa(
@@ -1737,6 +1786,7 @@ export type CodeAnomalieEnvoiOs =
   | 'aucune_contestation_ouverte'
   | 'delai_contestation_a_confirmer'
   | 'execution_suspendue_art42'
+  | 'operation_travaux_rejetee'
   | 'devis_caduc'
   | 'devis_trop_ancien'
   | 'devis_revalorisation_a_demander'
@@ -1756,6 +1806,7 @@ export type CodeAnomalieEnvoiOs =
   | 'date_remise_ar_non_saisie'
   | 'seuil_administrateur_sans_pouvoir'
   | 'seuil_administrateur_a_verifier'
+  | 'ag_contestee_par_assignation'
 
 export interface AnomalieEnvoiOs {
   /**
@@ -1831,6 +1882,8 @@ export interface ContexteEnvoiOs extends OptionsVisa {
    * la liste vaut pour tout signataire autre que l'administrateur désigné (administrateurDesigneId) : vide, elle ne laisse
    * signer que lui, et bloque tout envoi quand il n'est pas fourni. Avec leur qualité (J67, R72) : AJ salarié, qui signe
    * sur délégation, ou collaborateur qui signe « pour ordre » ; sans qualité (ensemble d'identifiants) : « pour ordre ».
+   * Fournie, elle dit aussi qui constate l'urgence : un constat fait hors de la liste, et pas par l'administrateur
+   * désigné, ne vaut pas constat (Décision du 20/11/2026, partie C, F77).
    */
   signatairesHabilites?: ReadonlySet<string> | ReadonlyMap<string, QualiteSignataireOs>
   /**
@@ -1875,10 +1928,22 @@ export interface ContexteEnvoiOs extends OptionsVisa {
   /**
    * Opération de travaux de l'OS, son budget, les décisions qui couvrent un supplément, la marge du cabinet et la part de
    * l'OS déjà portée aux postes du budget (marché ou devis retenu, pas compté deux fois) : le total engagé, OS compris,
-   * est contrôlé face au budget adopté (J67, R59 ; controlerDepassementBudgetAvantOs) ; absent ou null : OS hors
-   * opération de travaux, non contrôlé.
+   * est contrôlé face au budget adopté (J67, R59 ; controlerDepassementBudgetAvantOs) ; opération « Rejeté » : OS bloqué
+   * (décision du 20/11/2026, partie C, F67) ; absent ou null : OS hors opération de travaux, non contrôlé.
    */
   budgetTravaux?: BudgetTravauxDeLOs | null
+  /**
+   * Assignations en contestation de l'assemblée dont l'OS exécute une résolution (Décision du 20/11/2026, partie C, F82 :
+   * alerte sur tout OS qui exécute une de ses résolutions) ; enregistrement : à brancher ; absent : aucune connue.
+   */
+  assignationsContestationAg?: readonly AssignationContestationAg[]
+}
+
+/** Assignation reçue en contestation d'une assemblée (L. 1965 art. 42, al. 2 ; F82). */
+export interface AssignationContestationAg {
+  recueLe: string
+  /** Référence (numéro de rôle, acte du commissaire de justice) ; null : non saisie. */
+  reference: string | null
 }
 
 type Gravite = AnomalieEnvoiOs['gravite']
@@ -2083,9 +2148,11 @@ function constatTardif(d: Demande, s: SortieOrdreService, constat: ConstatUrgenc
 
 /**
  * Urgence (décision de Hugo du 03/11/2026) : retenue avec le délai « urgence » (ou le fondement « urgence de sauvegarde »)
- * ET le constat complet de l'administrateur provisoire ; un constat sans délai « urgence » ne lève rien.
+ * ET le constat complet de l'administrateur provisoire ; un constat sans délai « urgence » ne lève rien. Un constat fait
+ * hors des signataires habilités ne vaut pas constat (Décision du 20/11/2026, partie C, F77) : il ne tient pas lieu de
+ * l'avis, d'où aucune alerte « constat postérieur » (anomaliesAuteurConstat le signale).
  */
-function anomaliesUrgence(d: Demande, s: SortieOrdreService, date: string): AnomalieEnvoiOs[] {
+function anomaliesUrgence(d: Demande, s: SortieOrdreService, contexte: ContexteEnvoiOs): AnomalieEnvoiOs[] {
   const demandee = urgenceDemandee(s)
   const constat = s.constatUrgence
   if (demandee && !constatComplet(constat))
@@ -2107,14 +2174,14 @@ function anomaliesUrgence(d: Demande, s: SortieOrdreService, date: string): Anom
         true,
       ),
     ]
-  return constat === null ? [] : constatTardif(d, s, constat, date)
+  return constat === null || auteurConstatNonHabilite(s, contexte) !== null ? [] : constatTardif(d, s, constat, contexte.date)
 }
 
 /**
  * Collaborateur hors des signataires habilités (décision 8) : ni l'administrateur désigné (administrateurDesigneId), qui
  * signe toujours, ni un collaborateur de la liste du cabinet (signatairesHabilites) ; liste non fournie : non contrôlé.
  */
-function horsDesHabilites(collaborateurId: string, contexte: ContexteEnvoiOs): boolean {
+function horsDesHabilites(collaborateurId: string, contexte: ContexteConstat): boolean {
   const habilites = contexte.signatairesHabilites
   if (habilites === undefined || administrateursDesignes(contexte).includes(collaborateurId)) return false
   return !habilites.has(collaborateurId)
@@ -2210,19 +2277,18 @@ function anomaliesSignataire(s: SortieOrdreService, contexte: ContexteEnvoiOs): 
 }
 
 /**
- * Auteur du constat d'urgence hors des signataires habilités (interprétation des décisions 6 et 8, à confirmer : il agit
- * au nom de l'administrateur provisoire, comme le signataire) : alerte à confirmer, sans blocage ni effet sur l'urgence.
+ * Décision du 20/11/2026 (partie C, F77) : un constat d'urgence fait par une personne hors des signataires habilités du
+ * cabinet (liste fournie), et qui n'est pas l'administrateur désigné, ne vaut pas constat : l'urgence n'est pas retenue
+ * (urgenceRetenue), le message dit ce qui reste dû et de faire constater l'urgence par un signataire habilité.
  */
-function anomaliesAuteurConstat(s: SortieOrdreService, contexte: ContexteEnvoiOs): AnomalieEnvoiOs[] {
-  const auteur = texteOuNull(s.constatUrgence?.collaborateurId)
-  if (auteur === null || !horsDesHabilites(auteur, contexte)) return []
+function anomaliesAuteurConstat(d: Demande, s: SortieOrdreService, contexte: ContexteEnvoiOs): AnomalieEnvoiOs[] {
+  const auteur = auteurConstatNonHabilite(s, contexte)
+  if (auteur === null) return []
   return [
     anomalie(
       'constat_urgence_auteur_non_habilite',
       'alerte',
-      `Urgence constatée par ${auteur}, hors des collaborateurs habilités par le cabinet à signer un OS : à confirmer (interprétation des décisions 6 et 8) : l'auteur du constat, qui agit au nom de l'administrateur provisoire comme le signataire, doit-il être un signataire habilité ? Ce signalement ne change pas l'urgence retenue.`,
-      null,
-      true,
+      `Urgence constatée par ${auteur}, qui n'est ni un signataire habilité du cabinet ni l'administrateur désigné : ce constat ne vaut pas constat, ${urgenceNonRetenue(d, s)} ; faire constater l'urgence par un signataire habilité — Décision du 20/11/2026 (partie C, F77).`,
     ),
   ]
 }
@@ -2235,8 +2301,8 @@ function anomaliesSortie(d: Demande, s: SortieOrdreService, contexte: ContexteEn
     ...anomalies,
     ...anomaliesAccordAdministrateurs(s, contexte),
     ...anomaliesChronologie(d, s, contexte.date),
-    ...anomaliesUrgence(d, s, contexte.date),
-    ...anomaliesAuteurConstat(s, contexte),
+    ...anomaliesUrgence(d, s, contexte),
+    ...anomaliesAuteurConstat(d, s, contexte),
     ...anomaliesCanal(s.canal, contexte),
   ]
 }
@@ -2721,6 +2787,9 @@ const ACTION_FIN_DELAI_INCONNUE: Readonly<Record<CauseDelaiNonCalcule | 'pv_non_
   consentement_lre_absent:
     "enregistrer le consentement du copropriétaire aux envois recommandés électroniques (CPCE art. L. 100 ; accord du critère LRE de Gestéam) s'il l'a donné avant l'envoi, sinon le notifier de nouveau par lettre recommandée avec avis de réception (D. 1967 art. 64-1) ou par le procédé d'un prestataire qualifié (art. 64, 2°)",
   opposants_non_saisis: "saisir le nombre d'opposants et de défaillants de la résolution (D. 1967 art. 18)",
+  // Décision du 20/11/2026 (partie C, F82) : demande d'aide juridictionnelle connue avant la fin du délai
+  aide_juridictionnelle_demandee:
+    "attendre la décision sur l'aide juridictionnelle et la fin du nouveau délai de même durée qui court ensuite (D. n° 2020-1717 du 28/12/2020, art. 43), puis saisir la fin du délai ainsi établie, avec un motif et sa pièce (certificat de non-recours, par exemple)",
 }
 
 type FinDelaiLue =
@@ -2740,6 +2809,8 @@ function lireFinDelaiContestation(contexte: ContexteEnvoiOs): FinDelaiLue {
   if (calcul.etat === 'calcule')
     return { etat: 'connue', fin: calcul.echeanceLaPlusTardive, aConfirmer: calcul.aConfirmer, avertissements: calcul.avertissements }
   if (calcul.etat === 'sans_contestation') return { etat: 'sans_contestation' }
+  // Décision du 20/11/2026 (partie C, F82) : fin établie hors de l'outil, avec un motif et une pièce, tracée
+  if (calcul.etat === 'etablie_hors_outil') return { etat: 'connue', fin: calcul.fin, aConfirmer: null, avertissements: [] }
   if (calcul.etat === 'non_notifiee')
     return {
       etat: 'inconnue',
@@ -2755,23 +2826,28 @@ const phrase = (texte: string): string => (/[.!?]$/.test(texte.trim()) ? texte.t
 const FONDEMENT_FIN_A_CONFIRMER = 'L. 1965 art. 42, al. 2 ; D. 1967 art. 64, dernier al., 64-1'
 
 /**
- * Suspension de l'exécution des travaux votés aux art. 25 et 26 pendant le délai de contestation, sauf urgence (J17) :
- * l'envoi de l'OS pendant le délai est bloqué, même pour une intervention prévue après lui (J48, 🔵 interprétation
- * protectrice, à confirmer : aConfirmer) ; fin du délai inconnue : bloqué aussi (J51), sauf sans opposant ni défaillant.
+ * Décision du 20/11/2026 (partie C, F82) : majorité de la résolution exécutée non saisie, l'OS est BLOQUÉ comme quand la
+ * fin du délai est inconnue (J51) : sans elle, on ne sait pas si la suspension de L. 1965 art. 42, al. 3 s'applique.
+ */
+const majoriteNonSaisie = (): AnomalieEnvoiOs =>
+  anomalie(
+    'majorite_resolution_non_renseignee',
+    'bloquant',
+    "Majorité de la résolution exécutée non saisie : l'OS ne part pas, comme quand la fin du délai de contestation est inconnue (J51) ; sans elle, rien ne dit si l'exécution des travaux votés aux art. 25 et 26, suspendue jusqu'à la fin du délai de contestation, est en cause. Pour lever le blocage : saisir la majorité de la résolution (art. 24, 25, 26 ou unanimité), ou faire constater l'urgence par l'administrateur provisoire — Décision du 20/11/2026 (partie C, F82).",
+    FONDEMENT_SUSPENSION,
+  )
+
+/**
+ * Suspension de l'exécution des travaux votés aux art. 25 et 26 pendant le délai de contestation, sauf urgence retenue
+ * (J17 ; F77 : constat d'un signataire habilité) : l'envoi de l'OS pendant le délai est bloqué, même pour une intervention
+ * prévue après lui (J48, 🔵 interprétation protectrice, à confirmer : aConfirmer) ; fin du délai inconnue : bloqué aussi
+ * (J51), sauf sans opposant ni défaillant ; majorité non saisie : bloqué (F82).
  */
 function anomaliesSuspensionArt42(d: Demande, s: SortieOrdreService, contexte: ContexteEnvoiOs): AnomalieEnvoiOs[] {
-  if (s.majoriteResolution === null)
-    return [
-      anomalie(
-        'majorite_resolution_non_renseignee',
-        'alerte',
-        "Majorité de la résolution exécutée non renseignée : sauf urgence constatée par l'administrateur provisoire, les travaux votés aux art. 25 et 26 ne s'exécutent pas avant la fin du délai de contestation, et leur OS ne part qu'à partir du lendemain de cette fin, même pour une intervention prévue après le délai.",
-        FONDEMENT_SUSPENSION,
-        true,
-      ),
-    ]
+  if (urgenceRetenue(s, contexte)) return []
+  if (s.majoriteResolution === null) return [majoriteNonSaisie()]
   const article = MAJORITES_SUSPENSIVES.get(s.majoriteResolution)
-  if (article === undefined || urgenceConstatee(s)) return []
+  if (article === undefined) return []
   const lue = lireFinDelaiContestation(contexte)
   if (lue.etat === 'sans_contestation')
     return [
@@ -2820,9 +2896,41 @@ function anomaliesSuspensionArt42(d: Demande, s: SortieOrdreService, contexte: C
   ]
 }
 
+/**
+ * Décision du 20/11/2026 (partie C, F82) : fondement non choisi dans la liste, l'OS est BLOQUÉ ; le choix prend une
+ * seconde, et sans lui aucun contrôle légal ne joue (« entretien » est un choix de la liste, qui ne déclenche pas l'art. 42).
+ */
+const fondementNonChoisi = (): AnomalieEnvoiOs =>
+  anomalie(
+    'fondement_non_renseigne',
+    'bloquant',
+    `Fondement de l'OS non choisi : l'OS ne part pas ; le choisir dans la liste (${FONDEMENTS_OS.map((f) => CADRE_PAR_FONDEMENT[f].libelle).join(', ')}) : sans lui, aucun contrôle légal ne joue — Décision du 20/11/2026 (partie C, F82).`,
+  )
+
+/**
+ * Décision du 20/11/2026 (partie C, F82) : AG contestée par une assignation reçue au plus tard le jour de l'envoi, alerte
+ * sur tout OS qui exécute une de ses résolutions, quelle que soit la majorité : l'exécution n'empêche pas l'annulation.
+ */
+function anomaliesAssignation(contexte: ContexteEnvoiOs): AnomalieEnvoiOs[] {
+  const recues = (contexte.assignationsContestationAg ?? []).filter((a) => a.recueLe <= contexte.date)
+  if (recues.length === 0) return []
+  const lue = (a: AssignationContestationAg): string => {
+    const reference = texteOuNull(a.reference)
+    return `assignation reçue le ${fr(a.recueLe)}${reference === null ? '' : ` (${reference})`}`
+  }
+  const lues = recues.map(lue)
+  return [
+    anomalie(
+      'ag_contestee_par_assignation',
+      'alerte',
+      `Assemblée contestée en justice (${lues.join(', ')}) : l'OS exécute une de ses résolutions ; l'exécution n'empêche pas l'annulation (Cass. 3e civ., 24/11/2021, n° 20-22.487, cité par le registre des décisions, non relu ici) : apprécier le risque avant l'envoi — Décision du 20/11/2026 (partie C, F82).`,
+      'L. 1965 art. 42, al. 2',
+    ),
+  ]
+}
+
 function anomaliesFondement(d: Demande, s: SortieOrdreService, contexte: ContexteEnvoiOs): AnomalieEnvoiOs[] {
-  if (s.fondement === null)
-    return [anomalie('fondement_non_renseigne', 'alerte', "Fondement de l'OS non renseigné (résolution, conseil syndical, entretien, urgence…).", null, true)]
+  if (s.fondement === null) return [fondementNonChoisi()]
   const cadre = CADRE_PAR_FONDEMENT[s.fondement]
   const anomalies: AnomalieEnvoiOs[] = []
   if (cadre.referenceAttendue && s.fondementReference === null)
@@ -2837,7 +2945,7 @@ function anomaliesFondement(d: Demande, s: SortieOrdreService, contexte: Context
       ),
     )
   if (s.fondement === 'decision_conseil_syndical') anomalies.push(...anomaliesDelegationCs(d, s, contexte))
-  if (s.fondement === 'execution_resolution_ag') anomalies.push(...anomaliesSuspensionArt42(d, s, contexte))
+  if (s.fondement === 'execution_resolution_ag') anomalies.push(...anomaliesAssignation(contexte), ...anomaliesSuspensionArt42(d, s, contexte))
   return anomalies
 }
 
@@ -2960,6 +3068,13 @@ function anomaliesAncienneteDevis(d: Demande, contexte: ContexteEnvoiOs): Anomal
 
 const depuisAnomalieEntreprise = (a: AnomalieEntreprise): AnomalieEnvoiOs => anomalie(a.code, a.gravite, a.message, a.fondement, a.aConfirmer)
 
+/** Pièces à se faire remettre puis à saisir, selon ce qui bloque (Décision du 20/11/2026, partie C, F81). */
+const PIECES_A_SAISIR: Readonly<Record<string, string>> = {
+  [FONDEMENT_VIGILANCE]:
+    "attestation de vigilance (URSSAF, CGSS ou MSA) de moins de six mois et pièce d'immatriculation (extrait K ou K bis, extrait RNE…), ou pièces de l'art. D. 8222-7 pour une entreprise établie à l'étranger",
+  [FONDEMENT_DECENNALE]: "attestation d'assurance décennale (période de validité, activités couvertes)",
+}
+
 /** Pourquoi l'absence des pièces de l'entreprise bloque l'envoi (point 37 : vigilance, décennale) ; null : simple alerte. */
 function blocageSansPieces(d: Demande, contexte: ContexteEnvoiOs): { raison: string; fondement: string } | null {
   if (contexte.controle?.decennaleObligatoire === true) return { raison: "les travaux sont soumis à l'assurance décennale obligatoire", fondement: FONDEMENT_DECENNALE }
@@ -2978,7 +3093,8 @@ function blocageSansPieces(d: Demande, contexte: ContexteEnvoiOs): { raison: str
 /**
  * Pièces de l'entreprise non fournies : bloquant quand l'opération atteint le seuil de vigilance, que son montant est
  * inconnu ou que la décennale est obligatoire, sinon alerte ; sous urgence constatée, la vigilance seule donne une alerte
- * forte au lieu du blocage (J67, R75), la décennale obligatoire reste bloquante.
+ * forte au lieu du blocage (J67, R75), la décennale obligatoire reste bloquante. Une pièce non saisie est une pièce non
+ * remise ; le message dit quelles pièces manquent et comment les saisir (Décision du 20/11/2026, partie C, F81).
  */
 function controleSansPieces(d: Demande, contexte: ContexteEnvoiOs, urgence: boolean): AnomalieEnvoiOs[] {
   const blocage = blocageSansPieces(d, contexte)
@@ -2998,9 +3114,8 @@ function controleSansPieces(d: Demande, contexte: ContexteEnvoiOs, urgence: bool
     anomalie(
       'controle_declaratif_non_fait',
       'bloquant',
-      `Contrôle déclaratif de l'entreprise non fait alors que ${blocage.raison} : fournir ses pièces (vigilance, décennale) avant l'envoi.`,
+      `Contrôle déclaratif de l'entreprise non fait alors que ${blocage.raison} : pièces manquantes ou non saisies (${PIECES_A_SAISIR[blocage.fondement]}) ; se les faire remettre et les saisir avec leur date de remise dans les pièces de l'entreprise avant l'envoi — Décision du 20/11/2026 (partie C, F81).`,
       blocage.fondement,
-      true,
     ),
   ]
 }
@@ -3008,7 +3123,7 @@ function controleSansPieces(d: Demande, contexte: ContexteEnvoiOs, urgence: bool
 /** Contrôle déclaratif de l'entreprise avant l'OS (point 37, via demandes.ts) ; une saisie impossible bloque l'envoi. */
 function anomaliesControleDeclaratif(d: Demande, s: SortieOrdreService, contexte: ContexteEnvoiOs): AnomalieEnvoiOs[] {
   if (d.type !== 'intervention' || d.prestataireId === null) return []
-  const urgence = urgenceConstatee(s)
+  const urgence = urgenceRetenue(s, contexte)
   if (!contexte.pieces) return controleSansPieces(d, contexte, urgence)
   const options: OptionsControleDeclaratif = {
     ...contexte.controle,
@@ -3027,13 +3142,17 @@ function anomaliesControleDeclaratif(d: Demande, s: SortieOrdreService, contexte
 /**
  * Budget adopté de l'opération de travaux (intervention ; J67, R59) : le total engagé, OS compris, au-delà du budget
  * adopté bloque l'envoi sans décision nouvelle ; l'urgence retenue, constatée au plus tard le jour de l'envoi (J16, J46),
- * le laisse partir avec une alerte.
+ * le laisse partir avec une alerte. Opération « Rejeté » : plus aucun ordre de service, bloquant (décision du 20/11/2026,
+ * partie C, F67 : refusAppelOuOrdreDeServiceOperation).
  */
 function anomaliesBudgetTravaux(d: Demande, s: SortieOrdreService, contexte: ContexteEnvoiOs): AnomalieEnvoiOs[] {
   const budgetTravaux = contexte.budgetTravaux ?? null
-  if (d.type !== 'intervention' || budgetTravaux === null) return []
+  if (budgetTravaux === null) return []
+  const rejet = refusAppelOuOrdreDeServiceOperation(budgetTravaux.operation)
+  if (rejet) return [anomalie('operation_travaux_rejetee', 'bloquant', rejet.motif, rejet.fondement)]
+  if (d.type !== 'intervention') return []
   const { operation, budget, ...couverture } = budgetTravaux
-  const urgence = urgenceConstatee(s) && !constatApresEnvoi(s.constatUrgence, contexte.date)
+  const urgence = urgenceRetenue(s, contexte) && !constatApresEnvoi(s.constatUrgence, contexte.date)
   return controlerDepassementBudgetAvantOs(operation, budget, { ...couverture, montantOsTtcCentimes: prevuDemande(d), date: contexte.date, urgenceConstatee: urgence }).map(
     (a) => anomalie(a.code, a.gravite === 'bloquant' ? 'bloquant' : 'alerte', a.message, a.fondement, a.aConfirmer),
   )
@@ -3055,6 +3174,9 @@ export function controlerAvantEnvoiOs(d: Demande, s: SortieOrdreService, context
     )
   if (contexte.delaiContestationAg?.etat === 'calcule')
     verifierDate('Fin du délai de contestation (la plus tardive)', contexte.delaiContestationAg.echeanceLaPlusTardive)
+  // Décision du 20/11/2026 (partie C, F82) : lue seulement avec ses dates, son motif, sa pièce et son auteur
+  if (contexte.delaiContestationAg?.etat === 'etablie_hors_outil') verifierFinDelaiHorsOutil(contexte.delaiContestationAg)
+  for (const assignation of contexte.assignationsContestationAg ?? []) verifierDate("Réception de l'assignation", assignation.recueLe)
   verifierDelegationCs(contexte.delegationCs)
   const motifs = motifsVisa(d, s, contexte)
   return [

@@ -104,8 +104,43 @@ import { MODE_REGLEMENT, QUALITE_IDENTITE, type ModeReglement, type TypeEntrepri
  *   contrat réunit mutuelle et prévoyance dans une seule cotisation, la scinder : la mutuelle va au 644. Aucun texte ne
  *   tranche mot pour mot : c'est une interprétation, à vérifier dans Gestéam (question 3 ci-dessous).
  *
+ * Décisions du responsable du projet du 20/11/2026 (partie C des questions ouvertes du code, pratique du cabinet ;
+ * anciennes questions 🔴 n° 1, seconde question, 4, 5 et 9) :
+ * - Décision du 20/11/2026 (partie C, F39) : écritures de paie confirmées : brut au débit du 641 ; net à payer au crédit
+ *   du 421 ; cotisations salariales et patronales au crédit du 431 ou du 432 ; part patronale au débit du 642 (644 pour
+ *   une mutuelle) ; prélèvement à la source au crédit du 442 ; taxe sur les salaires au débit du 643 et au crédit du 442.
+ *   Aucun changement de calcul ; le brut au 641 s'entend hors avantage en nature neutralisé (F41, ci-dessous). « Après la
+ *   validation du comptable, la marque « déduit » est retirée » : cette validation n'est pas enregistrée, la marque 🔵 de
+ *   ces écritures (ci-dessous) reste donc jusqu'à elle.
+ * - Décision du 20/11/2026 (partie C, F41) : l'avantage en nature (logement du gardien) n'est pas passé comme une
+ *   dépense : débit du 641 pour le brut diminué de l'avantage, aucun compte crédité pour l'avantage, cotisations calculées
+ *   sur le brut entier gardées au 642 et au 431 / 432 ; le montant reste sur le bulletin, pour information. C'est la
+ *   méthode par défaut (methodeAvantagesEnNature « neutralise »), sans blocage. Si le cabinet préfère l'autre méthode (641
+ *   en charge et 714 « Produits divers » en produit), VitFix garde la saisie d'un compte fourni par le cabinet, comme
+ *   avant (« compte_cabinet » : compteAvantagesEnNature exigé, sans défaut). Dans les deux cas, le salaire en nature reste
+ *   hors de la part récupérable (J67, R38) : hors du 641 s'il est neutralisé, sur la seconde ligne du 641 à 0 % sinon.
+ *   Fondements cités par la partie C : arrêté du 14 mars 2005, art. 7 (714) et art. 8 ; décret n° 87-713, art. 2, c et d
+ *   (salaire en nature exclu) ; CCN IDCC 1043, art. 22, 1, non rouvert.
+ * - Décision du 20/11/2026 (partie C, F42) : les autres lignes du bulletin sont traitées, chacune avec sa nature, son
+ *   montant et son compte (lignesComplementaires) : acompte ou avance au débit d'un sous-compte « acomptes » du 421 du
+ *   salarié (règlement « acompte_salaire »), repris à la paie (crédit du même sous-compte) ; saisie sur salaire au crédit
+ *   d'un sous-compte du 462 « Créditeurs divers » au nom du bénéficiaire, puis réglée (règlement « saisie_salaire ») ;
+ *   frais remboursés au débit du 644 ; indemnité non soumise au débit du 641, marquée non récupérable. Contrôle du net :
+ *   net = brut − cotisations salariales − avantages en nature − prélèvement à la source − acomptes − autres retenues +
+ *   versements non soumis. Chaque ligne est enregistrée telle que le prestataire de paie l'a calculée : VitFix ne la
+ *   recalcule pas (C. trav. L3242-1 et R3243-1, 8°, b, cités par la partie C ; L3252-1 et suivants, saisie des
+ *   rémunérations, non lus). Les codes du plan du sous-compte « acomptes » du 421 et du 462 ne sont pas connus (🔴 3) :
+ *   paramètres explicites du contexte (compteAcomptes, compteSaisiesSalaire), sans défaut, exigés dès qu'une ligne en a
+ *   besoin. L'acompte se paie avant la paie : rien n'est dû au grand livre, son règlement n'est borné par aucun solde.
+ * - Décision du 20/11/2026 (partie C, F43) : un bulletin d'un mois postérieur à la sortie du salarié est accepté, avec une
+ *   alerte non bloquante (« bulletin_apres_sortie », MESSAGE_BULLETIN_APRES_SORTIE) ; il n'est pas limité au mois du
+ *   paiement ; le refus d'un bulletin d'un mois fini avant l'entrée est gardé. L'alerte ne bloque ni la constatation, ni
+ *   le règlement, ni le suivi employeur (anomaliesBloquantesPaie). Lien : J67, R35 (signalement en DSN de la fin du
+ *   contrat, echeances-employeur.ts).
+ *
  * 🔵 Déduit :
- * - un salaire n'est ni une facture ni un achat (art. 3 et 10) : le net à payer est crédité au 421 du salarié (sous-compte
+ * - confirmé par la décision du 20/11/2026 (partie C, F39), marque à retirer après la validation du comptable du cabinet :
+ *   un salaire n'est ni une facture ni un achat (art. 3 et 10) : le net à payer est crédité au 421 du salarié (sous-compte
  *   par salarié, art. 8), jamais au 401 ; débit 641 du brut ; débit 642 des cotisations patronales, sauf la part
  *   patronale d'une mutuelle, débitée au 644 (art. 7 : « 644 Autres (médecine du travail, mutuelles, etc.) » ; art. 3 :
  *   compte de même nature) : compte choisi cotisation par cotisation (comptePatronal, 642 par défaut, jamais 644 pour la
@@ -116,8 +151,8 @@ import { MODE_REGLEMENT, QUALITE_IDENTITE, type ModeReglement, type TypeEntrepri
  *   1er) et propriétaire des comptes ; le règlement garde mandatId, la mission qui règle ; un nouveau mandat reprend donc
  *   la paie du même syndicat ;
  * - VitFix NE CALCULE PAS la paie (salaire conventionnel, unités de valeur, 13e mois, avantage en nature) : il enregistre
- *   le bulletin établi par le prestataire de paie et contrôle sa cohérence (net = brut − cotisations salariales −
- *   avantages en nature − prélèvement à la source) ; un bulletin d'un mois fini avant l'entrée du salarié est refusé ;
+ *   le bulletin établi par le prestataire de paie et contrôle sa cohérence (net : formule de la décision F42, ci-dessus) ;
+ *   un bulletin d'un mois fini avant l'entrée du salarié est refusé, un mois postérieur à sa sortie signalé (F43) ;
  * - règlement de la paie : catégorie distincte du règlement fournisseur (reglements-fournisseurs.ts) : aucun 401, aucune
  *   facture, aucun cycle de statuts repris ; plan de paie vérifié comme à la constatation ; débit du compte de paie soldé
  *   (421 du salarié, 431, 432, 442) / crédit d'un compte de banque du syndicat, au format complet
@@ -142,27 +177,25 @@ import { MODE_REGLEMENT, QUALITE_IDENTITE, type ModeReglement, type TypeEntrepri
  * - tout le 644 est tenu pour jamais récupérable, par son compte, faute de nature saisie sur la cotisation (J67, R39 : « le
  *   644 reste entièrement non récupérable ») : une prévoyance que le cabinet y passerait (comptePatronal) perdrait sa part
  *   récupérable ; c'est la lecture prudente pour le locataire, et Hugo choisira si Gestéam la met au 644 (question 3) ;
+ *   les frais remboursés, débités au 644 (décision du 20/11/2026, partie C, F42), sont donc à 0 % eux aussi ;
  * - SIRET attendu dès qu'un salarié est en poste (la DSN porte le numéro d'identité de l'employeur : CSS art. R133-14, V,
  *   1°, a) ; les autres identifiants employeur : alerte de gestion, jamais bloquante.
  *
  * 🔴 Non établi (questions exactes pour Frédéric ou Hugo ; les n° 7 et 10 sont tranchés : J25 et J40, et les n° 6 et 8 :
- *   J67, R38 et R39, ci-dessus) :
+ *   J67, R38 et R39, ci-dessus ; les n° 4, 5 et 9, et la seconde question du n° 1 : décisions du 20/11/2026, partie C,
+ *   F41, F42, F43 et F39, ci-dessus) :
  * 1. Frédéric : la pratique Gestéam (salaire réglé comme une facture, 401 au nom du salarié, contrat « Prestation »)
  *    contredit l'arrêté. À la reprise d'un dossier, faut-il reclasser les soldes 401 « salarié » en 421, ou seulement les
- *    signaler ? Les contreparties 641/421, 642/431-432 et 643/442 sont déduites, pas lues : les confirmez-vous ?
+ *    signaler ?
  * 2. Constatation de la paie passée en « Saisie de mouvements » : FAMILLE_TRAITEMENT n'a pas de famille « Paie », et
  *    annulerTraitement refuse « Saisie de mouvements » (correction par écriture contraire). Faut-il une famille « Paie »
  *    dédiée ?
  * 3. Quels sont, dans Gestéam, les codes à 5 caractères des comptes 421, 431, 432, 442, 642, 643 et 644 ? Et sous quel
  *    code est l'entrée « prévoyance » des 64xxx (642xx ou 644xx ; relevé L3-12) ? Un 644xx voudrait dire que le cabinet
  *    suit l'autre lecture que J67, R39 : Hugo choisira.
- * 4. Avantage en nature compris dans le brut (logement du gardien, catégorie B) : quel compte crédite-t-on ? L'arrêté n'en
- *    dit rien et son art. 8 exclut les comptes du plan comptable général ; VitFix exige un compte fourni par le cabinet,
- *    sans valeur par défaut.
- * 5. Autres éléments du bulletin (acompte, saisie sur salaire, frais remboursés, indemnité non soumise) : non pris en
- *    charge (net incohérent) ; C. trav. L3242-1 et R3243-1 et suivants non lus. Faut-il les traiter, et sur quels comptes ?
- * 9. Bulletin d'un mois postérieur à la sortie du salarié (rappel de salaire, régularisation) : admis sans alerte. Faut-il
- *    une alerte, ou le limiter au mois du paiement ?
+ *    Décision du 20/11/2026 (partie C, F42) : quels sont aussi les codes du sous-compte « acomptes » du 421 (plage 42000 à
+ *    42150 : Acomptes, Avances sur salaires) et du sous-compte du 462 « Créditeurs divers » des saisies sur salaire
+ *    (compteAcomptes, compteSaisiesSalaire) ?
  * 11. Hugo (J67, R38, points restés ouverts) : la participation au comité d'entreprise et à l'effort de construction,
  *    jamais récupérable (décret n° 87-713, art. 2, c), n'est pas modélisée ; passée en cotisation au 642, elle garde le
  *    taux de l'analytique. Pour la mettre à 0 %, il faudrait la nature de chaque cotisation sur le bulletin (donnée du
@@ -177,7 +210,9 @@ import { MODE_REGLEMENT, QUALITE_IDENTITE, type ModeReglement, type TypeEntrepri
  * Tables (Frédéric) : conserver chaque bulletin constaté avec le traitementId de sa constatation (BulletinPaieConstate),
  * relu avec le grand livre par controlerReglementPaie, et chaque règlement écrit avec son traitementId
  * (ReglementPaieEcrit), relu avec le grand livre par controlerReglementPaie et par le suivi employeur. Enregistrement à
- * brancher (J67, R38) : tâches du contrat du salarié (tachesContrat) et éléments non récupérables du bulletin.
+ * brancher (J67, R38) : tâches du contrat du salarié (tachesContrat) et éléments non récupérables du bulletin ; et
+ * (décisions du 20/11/2026, partie C) : méthode des avantages en nature choisie par le cabinet (F41), lignes
+ * complémentaires du bulletin et codes de leurs comptes (F42).
  */
 
 // ─── Référentiels ───────────────────────────────────────────────────────────────────────────
@@ -349,6 +384,7 @@ export type CodeAnomaliePaie =
   | 'auxiliaire_invalide'
   | 'net_incoherent'
   | 'bulletin_avant_entree'
+  | 'bulletin_apres_sortie'
   | 'nature_inconnue'
   | 'date_invalide'
   | 'mode_invalide'
@@ -383,6 +419,19 @@ export interface AnomaliePaie {
 
 const anomalie = (code: CodeAnomaliePaie, message: string, fondement: string | null = null): AnomaliePaie => ({ code, message, fondement })
 const texteRenseigne = (valeur: unknown): boolean => typeof valeur === 'string' && valeur.trim() !== ''
+
+/**
+ * Décision du 20/11/2026 (partie C, F43) — alertes de controlerBulletinSalarie qui ne bloquent ni la constatation, ni le
+ * règlement, ni le suivi employeur.
+ */
+const CODES_ALERTE_PAIE: ReadonlySet<CodeAnomaliePaie> = new Set<CodeAnomaliePaie>(['bulletin_apres_sortie'])
+
+/** Anomalies bloquantes seulement : les alertes non bloquantes (F43) sont écartées. */
+export const anomaliesBloquantesPaie = (anomalies: readonly AnomaliePaie[]): AnomaliePaie[] => anomalies.filter((a) => !CODES_ALERTE_PAIE.has(a.code))
+
+/** Décision du 20/11/2026 (partie C, F43) : libellé décidé de l'alerte d'un bulletin d'un mois postérieur à la sortie. */
+export const MESSAGE_BULLETIN_APRES_SORTIE =
+  "Bulletin d'un mois postérieur à la sortie : rappel de salaire ou régularisation ? Vérifier la DSN et le signalement de fin de contrat"
 
 // ─── Salarié ────────────────────────────────────────────────────────────────────────────────
 
@@ -445,6 +494,40 @@ export interface CotisationBulletin {
   patronaleCentimes: number
 }
 
+/**
+ * Décision du 20/11/2026 (partie C, F42) — autres lignes du bulletin, chacune avec sa nature, son montant et son compte :
+ * acompte et avance (repris à la paie : crédit du sous-compte « acomptes » du 421 du salarié), saisie sur salaire (crédit
+ * du sous-compte du 462 « Créditeurs divers » du bénéficiaire), frais remboursés (débit 644), indemnité non soumise (débit
+ * 641, non récupérable).
+ */
+export const NATURES_LIGNE_BULLETIN = ['acompte', 'avance', 'saisie_salaire', 'frais_rembourses', 'indemnite_non_soumise'] as const
+export type NatureLigneBulletin = (typeof NATURES_LIGNE_BULLETIN)[number]
+const NATURES_LIGNE_ADMISES: ReadonlySet<string> = new Set(NATURES_LIGNE_BULLETIN)
+
+/** F42 — effet sur le net : retenue (acomptes, autres retenues) déduite, versement non soumis ajouté. */
+export const EFFET_LIGNE_BULLETIN: Readonly<Record<NatureLigneBulletin, 'retenue' | 'versement'>> = {
+  acompte: 'retenue',
+  avance: 'retenue',
+  saisie_salaire: 'retenue',
+  frais_rembourses: 'versement',
+  indemnite_non_soumise: 'versement',
+}
+
+/** F42 — formule du contrôle du net, dite dans l'anomalie « net_incoherent ». */
+export const FORMULE_NET_A_PAYER =
+  'net = brut − cotisations salariales − avantages en nature − prélèvement à la source − acomptes − autres retenues + versements non soumis'
+
+/** Arrêté du 14 mars 2005, art. 7 : compte crédité des saisies sur salaire (décision du 20/11/2026, partie C, F42). */
+export const COMPTE_CREDITEURS_DIVERS = { compte: '462', libelle: 'Créditeurs divers' } as const
+
+/** F42 — ligne du bulletin autre que les cotisations, telle que le prestataire de paie l'a calculée (jamais recalculée). */
+export interface LigneBulletin {
+  nature: NatureLigneBulletin
+  montantCentimes: number
+  /** Saisie sur salaire : sous-compte du 462 au nom du bénéficiaire du versement, 5 caractères ; exigé pour elle seule. */
+  beneficiaire?: string
+}
+
 /** Bulletin établi par le prestataire de paie : VitFix l'enregistre, il ne le calcule pas. */
 export interface BulletinPaie {
   id: string
@@ -452,21 +535,41 @@ export interface BulletinPaie {
   annee: number
   mois: number
   brutCentimes: number
-  /** Avantages en nature compris dans le brut et non versés (logement du gardien, catégorie B : CCN art. 22, 1). */
+  /**
+   * Avantages en nature compris dans le brut et non versés (logement du gardien, catégorie B : CCN art. 22, 1) ; neutralisés
+   * par défaut, le montant restant sur le bulletin pour information (décision du 20/11/2026, partie C, F41).
+   */
   avantagesEnNatureCentimes?: number
   /** J67, R38 — éléments compris dans le brut et jamais récupérables (décret n° 87-713, art. 2, c), par nature. */
   elementsNonRecuperablesCentimes?: Partial<Record<ElementNonRecuperable, number>>
   cotisations: CotisationBulletin[]
   prelevementSourceCentimes: number
+  /** Décision du 20/11/2026 (partie C, F42) : acomptes, avances, saisies, frais remboursés, indemnités non soumises. */
+  lignesComplementaires?: LigneBulletin[]
   netAPayerCentimes: number
 }
+
+/**
+ * Décision du 20/11/2026 (partie C, F41) — méthode des avantages en nature : « neutralise » (par défaut : 641 au brut
+ * diminué de l'avantage, aucun compte crédité) ou « compte_cabinet » (641 au brut entier, crédit du compte fourni par le
+ * cabinet, par exemple un 714 « Produits divers »).
+ */
+export const METHODES_AVANTAGES_EN_NATURE = ['neutralise', 'compte_cabinet'] as const
+export type MethodeAvantagesEnNature = (typeof METHODES_AVANTAGES_EN_NATURE)[number]
+const METHODES_AVANTAGES_ADMISES: ReadonlySet<string> = new Set(METHODES_AVANTAGES_EN_NATURE)
 
 export interface ContextePaie {
   /** Segment du syndicat dans le numéro de compte (4 caractères, D1). */
   segmentSyndicat: string
   plan: Readonly<PlanPaie>
-  /** Code du plan (5 caractères) crédité des avantages en nature : choisi par le cabinet (🔴 4), sans défaut. */
+  /** Décision du 20/11/2026 (partie C, F41) : « neutralise » par défaut. */
+  methodeAvantagesEnNature?: MethodeAvantagesEnNature
+  /** Méthode « compte_cabinet » seulement : code du plan (5 caractères) crédité des avantages en nature, fourni par le cabinet, sans défaut. */
   compteAvantagesEnNature?: string | null
+  /** F42 : code du plan (5 caractères, subdivision du 421) du sous-compte « acomptes », relevé Gestéam attendu (🔴 3), sans défaut. */
+  compteAcomptes?: string | null
+  /** F42 : code du plan (5 caractères, subdivision du 462 « Créditeurs divers ») des saisies sur salaire, sans défaut. */
+  compteSaisiesSalaire?: string | null
   /** Sous-comptes du 442 ; « 00000 » par défaut. */
   auxiliairePrelevementSource?: string
   auxiliaireTaxeSalaires?: string
@@ -508,6 +611,8 @@ function anomaliesCotisation(cotisation: CotisationBulletin): AnomaliePaie[] {
   return anomalies
 }
 
+const lignesComplementaires = (b: BulletinPaie): LigneBulletin[] => b.lignesComplementaires ?? []
+
 const montantsBulletin = (b: BulletinPaie): number[] => [
   b.brutCentimes,
   b.avantagesEnNatureCentimes ?? 0,
@@ -515,14 +620,51 @@ const montantsBulletin = (b: BulletinPaie): number[] => [
   b.prelevementSourceCentimes,
   b.netAPayerCentimes,
   ...b.cotisations.flatMap((c) => [c.salarialeCentimes, c.patronaleCentimes]),
+  ...lignesComplementaires(b).map((l) => l.montantCentimes),
 ]
 
 /** J67, R38 — part du brut jamais récupérable : salaire en nature et éléments exclus (décret n° 87-713, art. 2, c). */
 const brutNonRecuperable = (b: BulletinPaie): number => (b.avantagesEnNatureCentimes ?? 0) + somme(Object.values(b.elementsNonRecuperablesCentimes ?? {}))
 
+/** F42 — total des lignes complémentaires des natures données. */
+const totalNatures = (b: BulletinPaie, natures: readonly NatureLigneBulletin[]): number =>
+  somme(lignesComplementaires(b).filter((l) => natures.includes(l.nature)).map((l) => l.montantCentimes))
+
+/** F42 — total des lignes complémentaires d'un effet sur le net (retenues, ou versements non soumis). */
+const totalEffet = (b: BulletinPaie, effet: 'retenue' | 'versement'): number =>
+  totalNatures(
+    b,
+    NATURES_LIGNE_BULLETIN.filter((nature) => EFFET_LIGNE_BULLETIN[nature] === effet),
+  )
+
+/** F42 — nature connue ; bénéficiaire (sous-compte du 462, 5 caractères) exigé pour la saisie sur salaire, et pour elle seule. */
+function anomaliesLigneBulletin(l: LigneBulletin): AnomaliePaie[] {
+  if (!NATURES_LIGNE_ADMISES.has(l.nature))
+    return [anomalie('nature_inconnue', `Ligne du bulletin « ${String(l.nature)} » : ${NATURES_LIGNE_BULLETIN.join(', ')} attendu.`)]
+  if (l.nature !== 'saisie_salaire') {
+    if (l.beneficiaire === undefined) return []
+    return [anomalie('auxiliaire_invalide', `Ligne « ${l.nature} » : aucun bénéficiaire attendu (seule la saisie sur salaire est créditée au 462 d'un bénéficiaire).`)]
+  }
+  if (l.beneficiaire !== undefined && CODE_CINQ_CARACTERES.test(l.beneficiaire)) return []
+  return [
+    anomalie('auxiliaire_invalide', `Saisie sur salaire : sous-compte du 462 au nom du bénéficiaire, 5 caractères, attendu (« ${l.beneficiaire ?? ''} »).`),
+  ]
+}
+
+/** F42 — net = brut − cotisations salariales − avantages en nature − prélèvement à la source − acomptes − autres retenues + versements non soumis. */
+const netAttendu = (b: BulletinPaie): number =>
+  b.brutCentimes -
+  somme(b.cotisations.map((c) => c.salarialeCentimes)) -
+  (b.avantagesEnNatureCentimes ?? 0) -
+  b.prelevementSourceCentimes -
+  totalEffet(b, 'retenue') +
+  totalEffet(b, 'versement')
+
 /**
  * Contrôle de forme et de cohérence : net = brut − cotisations salariales − avantages en nature − prélèvement à la
- * source ; éléments non récupérables de nature connue, jamais plus que le brut avec le salaire en nature (J67, R38).
+ * source − acomptes − autres retenues + versements non soumis (décision du 20/11/2026, partie C, F42) ; lignes
+ * complémentaires de nature connue ; éléments non récupérables de nature connue, jamais plus que le brut avec le salaire
+ * en nature (J67, R38).
  */
 export function controlerBulletin(b: BulletinPaie): AnomaliePaie[] {
   const anomalies: AnomaliePaie[] = []
@@ -534,6 +676,7 @@ export function controlerBulletin(b: BulletinPaie): AnomaliePaie[] {
   if (inconnu !== undefined)
     anomalies.push(anomalie('nature_inconnue', `Élément non récupérable « ${inconnu} » : ${ELEMENTS_NON_RECUPERABLES.join(', ')} attendu.`))
   anomalies.push(...b.cotisations.flatMap(anomaliesCotisation))
+  anomalies.push(...lignesComplementaires(b).flatMap(anomaliesLigneBulletin))
   if (anomalies.length > 0) return anomalies
   if (brutNonRecuperable(b) > b.brutCentimes)
     return [
@@ -542,28 +685,41 @@ export function controlerBulletin(b: BulletinPaie): AnomaliePaie[] {
         `Bulletin ${b.id} : salaire en nature et éléments non récupérables (${brutNonRecuperable(b)} centimes) pour plus que le brut (${b.brutCentimes} centimes).`,
       ),
     ]
-  const attendu = b.brutCentimes - somme(b.cotisations.map((c) => c.salarialeCentimes)) - (b.avantagesEnNatureCentimes ?? 0) - b.prelevementSourceCentimes
+  const attendu = netAttendu(b)
   if (attendu !== b.netAPayerCentimes)
     anomalies.push(
-      anomalie('net_incoherent', `Bulletin ${b.id} : net à payer de ${b.netAPayerCentimes} centimes pour ${attendu} centimes attendus.`),
+      anomalie(
+        'net_incoherent',
+        `Bulletin ${b.id} : net à payer de ${b.netAPayerCentimes} centimes pour ${attendu} centimes attendus (${FORMULE_NET_A_PAYER}).`,
+      ),
     )
   return anomalies
 }
 
 /**
- * Bulletin rapporté au salarié : le sien, cohérent (controlerBulletin), d'un mois qui ne finit pas avant son entrée. Un
- * mois postérieur à la sortie reste admis (rappel de salaire, régularisation : 🔴 9).
+ * Bulletin rapporté au salarié : le sien, cohérent (controlerBulletin), d'un mois qui ne finit pas avant son entrée
+ * (refus gardé). Un mois postérieur à la sortie (commencé au plus tôt le jour de la sortie) est accepté avec une alerte
+ * non bloquante, « bulletin_apres_sortie », sans limite au mois du paiement (décision du 20/11/2026, partie C, F43) :
+ * anomaliesBloquantesPaie l'écarte.
  */
 export function controlerBulletinSalarie(b: BulletinPaie, salarie: SalarieSyndicat): AnomaliePaie[] {
   if (b.salarieId !== salarie.id)
     return [anomalie('salarie_incoherent', `Bulletin ${b.id} du salarié ${b.salarieId}, fiche fournie : ${salarie.id}.`)]
   const anomalies = controlerBulletin(b)
   if (anomalies.length > 0) return anomalies
-  if (composerDateIso(b.annee, b.mois, joursDansMois(b.annee, b.mois)) >= salarie.entreeLe) return []
+  const periode = libellePeriode(b.annee, b.mois)
+  if (composerDateIso(b.annee, b.mois, joursDansMois(b.annee, b.mois)) < salarie.entreeLe)
+    return [
+      anomalie(
+        'bulletin_avant_entree',
+        `Bulletin ${b.id} de ${periode} : mois fini avant l'entrée du salarié ${salarie.id} (${dateIsoVersFr(salarie.entreeLe)}).`,
+      ),
+    ]
+  if (salarie.sortieLe === null || composerDateIso(b.annee, b.mois, 1) < salarie.sortieLe) return []
   return [
     anomalie(
-      'bulletin_avant_entree',
-      `Bulletin ${b.id} de ${libellePeriode(b.annee, b.mois)} : mois fini avant l'entrée du salarié ${salarie.id} (${dateIsoVersFr(salarie.entreeLe)}).`,
+      'bulletin_apres_sortie',
+      `${MESSAGE_BULLETIN_APRES_SORTIE} (bulletin ${b.id} de ${periode}, sortie du salarié ${salarie.id} le ${dateIsoVersFr(salarie.sortieLe)}).`,
     ),
   ]
 }
@@ -591,11 +747,31 @@ function lignesOrganismes(cotisations: CotisationBulletin[], ctx: ContextePaie):
 const partsPatronales = (cotisations: CotisationBulletin[], cle: CompteChargePatronale): number =>
   somme(cotisations.filter((c) => (c.comptePatronal ?? 'chargesSociales') === cle).map((c) => c.patronaleCentimes))
 
-function lignesAvantagesEnNature(montantCentimes: number, ctx: ContextePaie): LigneMouvement[] {
-  if (montantCentimes === 0) return []
+/**
+ * Décision du 20/11/2026 (partie C, F41) — méthode des avantages en nature du contexte : « neutralise » par défaut ;
+ * connue, et sans compte crédité si l'avantage est neutralisé (un compte fourni demande « compte_cabinet »).
+ */
+function methodeAvantages(ctx: ContextePaie): MethodeAvantagesEnNature {
+  const methode = ctx.methodeAvantagesEnNature ?? 'neutralise'
+  if (!METHODES_AVANTAGES_ADMISES.has(methode))
+    throw new Error(
+      `Méthode des avantages en nature « ${String(methode)} » : ${METHODES_AVANTAGES_EN_NATURE.join(' ou ')} attendu (décision du 20/11/2026, partie C, F41).`,
+    )
+  if (methode === 'neutralise' && texteRenseigne(ctx.compteAvantagesEnNature))
+    throw new Error(
+      `Avantages en nature neutralisés (décision du 20/11/2026, partie C, F41) : aucun compte crédité ; compte « ${String(ctx.compteAvantagesEnNature)} » fourni : méthode « compte_cabinet » attendue.`,
+    )
+  return methode
+}
+
+/** F41 — méthode « compte_cabinet » seulement : crédit du compte fourni par le cabinet (714 « Produits divers », par exemple). */
+function lignesAvantagesEnNature(montantCentimes: number, ctx: ContextePaie, methode: MethodeAvantagesEnNature): LigneMouvement[] {
+  if (montantCentimes === 0 || methode === 'neutralise') return []
   const code = ctx.compteAvantagesEnNature
   if (!code)
-    throw new Error("Bulletin avec avantage en nature : compte de contrepartie non établi (🔴 4), à fournir par le cabinet.")
+    throw new Error(
+      'Méthode « compte_cabinet » (décision du 20/11/2026, partie C, F41) : compte de contrepartie des avantages en nature à fournir par le cabinet, sans défaut.',
+    )
   if (!CODE_CINQ_CARACTERES.test(code)) throw new Error(`Compte des avantages en nature « ${code} » : 5 caractères attendus.`)
   return [ligne(formaterNumeroCompte({ mandat: ctx.segmentSyndicat, planCode: code, auxiliaire: AUXILIAIRE_ZERO }), 'credit', montantCentimes)]
 }
@@ -605,36 +781,93 @@ const nonRecuperable = (attributs: AttributsMouvement | undefined): AttributsMou
   attributs === undefined ? undefined : { ...attributs, recupLocatairePct: 0 }
 
 /**
- * Débit du 641 : le brut ; avec une analytique, la part faite du salaire en nature et des éléments exclus passe sur une
- * seconde ligne, à 0 % récupérable, selon sa nature et quel que soit le taux de l'analytique (J67, R38).
+ * Débit du 641 : le brut, diminué des avantages en nature neutralisés (F41), augmenté des indemnités non soumises (F42) ;
+ * avec une analytique, la part faite du salaire en nature passé au 641, des éléments exclus et des indemnités non soumises
+ * va sur une seconde ligne, à 0 % récupérable, selon sa nature et quel que soit le taux de l'analytique (J67, R38 ;
+ * décisions du 20/11/2026, partie C, F41 et F42).
  */
-function lignesSalaires(b: BulletinPaie, ctx: ContextePaie): LigneMouvement[] {
+function lignesSalaires(b: BulletinPaie, ctx: ContextePaie, methode: MethodeAvantagesEnNature): LigneMouvement[] {
   const numero = compte(ctx, 'salaires')
   const attributs = ctx.attributs?.salaires
-  const exclu = brutNonRecuperable(b)
-  if (attributs === undefined || exclu === 0) return [ligne(numero, 'debit', b.brutCentimes, attributs)]
-  return [ligne(numero, 'debit', b.brutCentimes - exclu, attributs), ligne(numero, 'debit', exclu, nonRecuperable(attributs))]
+  const avantages = b.avantagesEnNatureCentimes ?? 0
+  const avantagesAu641 = methode === 'compte_cabinet' ? avantages : 0
+  const indemnites = totalNatures(b, ['indemnite_non_soumise'])
+  const debit = b.brutCentimes - avantages + avantagesAu641 + indemnites
+  const exclu = brutNonRecuperable(b) - avantages + avantagesAu641 + indemnites
+  if (attributs === undefined || exclu === 0) return [ligne(numero, 'debit', debit, attributs)]
+  return [ligne(numero, 'debit', debit - exclu, attributs), ligne(numero, 'debit', exclu, nonRecuperable(attributs))]
+}
+
+/** F42 — code du plan fourni par le cabinet pour une ligne qui en a besoin : 5 caractères, subdivision de son compte (art. 8). */
+function codeSubdivision(code: string | null | undefined, compteArrete: string, objet: string): string {
+  if (typeof code !== 'string' || code.trim() === '')
+    throw new Error(
+      `${objet} : code du plan de 5 caractères, subdivision du ${compteArrete}, à fournir par le cabinet, sans défaut (décision du 20/11/2026, partie C, F42).`,
+    )
+  if (!CODE_CINQ_CARACTERES.test(code) || !code.startsWith(compteArrete))
+    throw new Error(`${objet} « ${code} » : code de 5 caractères, subdivision du ${compteArrete}, attendu (arrêté du 14 mars 2005, art. 8).`)
+  return code
+}
+
+const codeAcomptes = (ctx: Pick<ContextePaie, 'compteAcomptes'>): string =>
+  codeSubdivision(ctx.compteAcomptes, COMPTES_NOMENCLATURE_PAIE.remunerations.compte, `Sous-compte « acomptes » du ${COMPTES_NOMENCLATURE_PAIE.remunerations.compte}`)
+
+const codeSaisies = (ctx: Pick<ContextePaie, 'compteSaisiesSalaire'>): string =>
+  codeSubdivision(
+    ctx.compteSaisiesSalaire,
+    COMPTE_CREDITEURS_DIVERS.compte,
+    `Sous-compte du ${COMPTE_CREDITEURS_DIVERS.compte} « ${COMPTE_CREDITEURS_DIVERS.libelle} » des saisies sur salaire`,
+  )
+
+const numeroCompte = (ctx: ContextePaie, planCode: string, auxiliaire: string): string =>
+  formaterNumeroCompte({ mandat: ctx.segmentSyndicat, planCode, auxiliaire })
+
+/** F42 — acomptes et avances repris à la paie : crédit du sous-compte « acomptes » du 421 du salarié. */
+function lignesAcomptes(b: BulletinPaie, salarie: SalarieSyndicat, ctx: ContextePaie): LigneMouvement[] {
+  const montant = totalNatures(b, ['acompte', 'avance'])
+  if (montant === 0) return []
+  return [ligne(numeroCompte(ctx, codeAcomptes(ctx), salarie.auxiliaire421), 'credit', montant)]
+}
+
+/** F42 — saisies sur salaire : crédit du sous-compte du 462 « Créditeurs divers » de chaque bénéficiaire. */
+function lignesSaisies(b: BulletinPaie, ctx: ContextePaie): LigneMouvement[] {
+  const parBeneficiaire = new Map<string, number>()
+  for (const l of lignesComplementaires(b))
+    if (l.nature === 'saisie_salaire' && l.beneficiaire !== undefined && l.montantCentimes > 0)
+      parBeneficiaire.set(l.beneficiaire, (parBeneficiaire.get(l.beneficiaire) ?? 0) + l.montantCentimes)
+  if (parBeneficiaire.size === 0) return []
+  const code = codeSaisies(ctx)
+  return [...parBeneficiaire].map(([beneficiaire, montant]) => ligne(numeroCompte(ctx, code, beneficiaire), 'credit', montant))
 }
 
 /**
- * Écriture de la paie d'un bulletin (🔵 contreparties déduites) : débit 641 (brut), 642 et 644 (cotisations patronales,
- * selon le compte de charge de chaque cotisation) ; crédit 421 du salarié (net), 431 / 432 par organisme (cotisations
- * salariales et patronales), 442 (prélèvement à la source) et, s'il y en a, compte des avantages en nature. Lignes à zéro
- * omises. Part récupérable à 0 % sur la ligne 644 (mutuelle, médecine du travail : le compte entier) et sur la part non
- * récupérable du brut (J67, R38 et R39). Lève une erreur sur un bulletin incohérent, d'un autre salarié ou d'avant son entrée.
+ * Écriture de la paie d'un bulletin (contreparties confirmées par la décision du 20/11/2026, partie C, F39 ; 🔵 jusqu'à la
+ * validation du comptable du cabinet) : débit 641 (brut, diminué des avantages en nature neutralisés, augmenté des
+ * indemnités non soumises), 642 et 644 (cotisations patronales, selon le compte de charge de chaque cotisation ; frais
+ * remboursés au 644) ; crédit 421 du salarié (net), sous-compte « acomptes » du 421 (acomptes et avances repris), 462 du
+ * bénéficiaire (saisies sur salaire), 431 / 432 par organisme (cotisations salariales et patronales), 442 (prélèvement à
+ * la source) et, avec la méthode « compte_cabinet », compte des avantages en nature. Lignes à zéro omises. Part
+ * récupérable à 0 % sur les lignes 644 (mutuelle, médecine du travail, frais remboursés : le compte entier) et sur la part
+ * non récupérable du 641 (J67, R38 et R39 ; F41 et F42). Lève une erreur sur un bulletin incohérent, d'un autre salarié ou
+ * d'avant son entrée ; un bulletin postérieur à la sortie est écrit (alerte non bloquante, F43).
  */
 export function ecrituresConstatationPaie(b: BulletinPaie, salarie: SalarieSyndicat, ctx: ContextePaie): LigneMouvement[] {
   verifierPlanPaie(ctx.plan)
-  const anomalies = controlerBulletinSalarie(b, salarie)
+  const methode = methodeAvantages(ctx)
+  const anomalies = anomaliesBloquantesPaie(controlerBulletinSalarie(b, salarie))
   if (anomalies.length > 0) throw new Error(anomalies.map((a) => a.message).join(' '))
+  const autresFrais = nonRecuperable(ctx.attributs?.autresFrais)
   const lignes = [
-    ...lignesSalaires(b, ctx),
+    ...lignesSalaires(b, ctx, methode),
     ligne(compte(ctx, 'chargesSociales'), 'debit', partsPatronales(b.cotisations, 'chargesSociales'), ctx.attributs?.chargesSociales),
-    ligne(compte(ctx, 'autresFrais'), 'debit', partsPatronales(b.cotisations, 'autresFrais'), nonRecuperable(ctx.attributs?.autresFrais)),
+    ligne(compte(ctx, 'autresFrais'), 'debit', partsPatronales(b.cotisations, 'autresFrais'), autresFrais),
+    ligne(compte(ctx, 'autresFrais'), 'debit', totalNatures(b, ['frais_rembourses']), autresFrais),
     ligne(compte(ctx, 'remunerations', salarie.auxiliaire421), 'credit', b.netAPayerCentimes),
+    ...lignesAcomptes(b, salarie, ctx),
+    ...lignesSaisies(b, ctx),
     ...lignesOrganismes(b.cotisations, ctx),
     ligne(compte(ctx, 'etatImpots', ctx.auxiliairePrelevementSource ?? AUXILIAIRE_ZERO), 'credit', b.prelevementSourceCentimes),
-    ...lignesAvantagesEnNature(b.avantagesEnNatureCentimes ?? 0, ctx),
+    ...lignesAvantagesEnNature(b.avantagesEnNatureCentimes ?? 0, ctx, methode),
   ]
   return lignes.filter((l) => l.montantCentimes > 0)
 }
@@ -730,6 +963,10 @@ export const NATURES_REGLEMENT_PAIE = [
   'cotisations_autres_organismes',
   'prelevement_source',
   'taxe_salaires',
+  /** Décision du 20/11/2026 (partie C, F42) : acompte ou avance versé, au débit du sous-compte « acomptes » du 421 du salarié. */
+  'acompte_salaire',
+  /** Décision du 20/11/2026 (partie C, F42) : saisie sur salaire réglée au bénéficiaire, au débit de son sous-compte du 462. */
+  'saisie_salaire',
 ] as const
 export type NatureReglementPaie = (typeof NATURES_REGLEMENT_PAIE)[number]
 const NATURES_ADMISES: ReadonlySet<string> = new Set(NATURES_REGLEMENT_PAIE)
@@ -740,9 +977,17 @@ export const LIBELLES_NATURE_REGLEMENT_PAIE: Record<NatureReglementPaie, string>
   cotisations_autres_organismes: 'Cotisations des autres organismes sociaux',
   prelevement_source: 'Prélèvement à la source',
   taxe_salaires: 'Taxe sur les salaires',
+  acompte_salaire: 'Acompte ou avance sur salaire',
+  saisie_salaire: 'Saisie sur salaire',
 }
 
-const COMPTE_NATURE: Record<NatureReglementPaie, CleComptePaie> = {
+/** F42 — natures réglées à un salarié désigné : le net (avec son bulletin) et l'acompte (versé avant la paie, sans bulletin). */
+const NATURES_DU_SALARIE: ReadonlySet<NatureReglementPaie> = new Set<NatureReglementPaie>(['salaire_net', 'acompte_salaire'])
+
+/** Natures dont le compte débité est un compte du plan de paie (les deux de F42 ont leur code dans le contexte). */
+type NatureReglementPlan = Exclude<NatureReglementPaie, 'acompte_salaire' | 'saisie_salaire'>
+
+const COMPTE_NATURE: Record<NatureReglementPlan, CleComptePaie> = {
   salaire_net: 'remunerations',
   cotisations_securite_sociale: 'securiteSociale',
   cotisations_autres_organismes: 'autresOrganismes',
@@ -764,11 +1009,14 @@ export interface ReglementPaie {
   /** D1 : la mission qui règle (auteur de l'opération). */
   mandatId: string
   nature: NatureReglementPaie
-  /** Salarié payé : exigé pour le salaire net, absent sinon. */
+  /** Salarié payé : exigé pour le salaire net et l'acompte (F42), absent sinon. */
   salarieId: string | null
-  /** Bulletin réglé : exigé pour le salaire net ; null : règlement sans bulletin (organismes, État). */
+  /** Bulletin réglé : exigé pour le salaire net ; null : règlement sans bulletin (organismes, État, acompte, saisie). */
   bulletinId: string | null
-  /** Sous-compte de l'organisme (431, 432), 5 caractères ; « 00000 » par défaut. */
+  /**
+   * Sous-compte de l'organisme (431, 432), 5 caractères ; « 00000 » par défaut. Saisie sur salaire (F42) : sous-compte du
+   * 462 au nom du bénéficiaire, exigé.
+   */
   auxiliaire?: string
   montantCentimes: number
   mode: ModeReglement
@@ -817,9 +1065,22 @@ function anomaliesFormeReglement(r: ReglementPaie, segmentSyndicat: string): Ano
   if (!texteRenseigne(r.reference))
     anomalies.push(anomalie('reference_absente', 'Référence du paiement absente (n° de chèque, identifiant du virement).', 'Arrêté du 14 mars 2005, art. 4'))
   anomalies.push(...anomaliesBanque(r.compteBanque, segmentSyndicat))
-  if (r.auxiliaire !== undefined && !CODE_CINQ_CARACTERES.test(r.auxiliaire))
-    anomalies.push(anomalie('auxiliaire_invalide', `Sous-compte « ${r.auxiliaire} » : 5 caractères attendus.`))
+  anomalies.push(...anomaliesAuxiliaireReglement(r))
   return anomalies
+}
+
+/** Sous-compte de 5 caractères ; F42 : exigé pour une saisie sur salaire (sous-compte du 462 du bénéficiaire). */
+function anomaliesAuxiliaireReglement(r: ReglementPaie): AnomaliePaie[] {
+  if (r.auxiliaire !== undefined && !CODE_CINQ_CARACTERES.test(r.auxiliaire))
+    return [anomalie('auxiliaire_invalide', `Sous-compte « ${r.auxiliaire} » : 5 caractères attendus.`)]
+  if (r.nature === 'saisie_salaire' && r.auxiliaire === undefined)
+    return [
+      anomalie(
+        'auxiliaire_invalide',
+        'Saisie sur salaire : sous-compte du 462 au nom du bénéficiaire attendu (décision du 20/11/2026, partie C, F42).',
+      ),
+    ]
+  return []
 }
 
 /**
@@ -867,34 +1128,49 @@ function anomaliesBulletinRegle(
     return [
       anomalie('bulletin_autre_salarie', `Règlement du salarié ${salarie.id} imputé au bulletin ${bulletin.id} du salarié ${bulletin.salarieId}.`),
     ]
-  const anomalies = controlerBulletinSalarie(bulletin, salarie)
+  // Décision du 20/11/2026 (partie C, F43) : l'alerte d'un bulletin postérieur à la sortie ne bloque pas le règlement.
+  const anomalies = anomaliesBloquantesPaie(controlerBulletinSalarie(bulletin, salarie))
   return anomalies.length > 0 ? anomalies : anomaliesConstatation(r, bulletin, traitements)
 }
 
 function anomaliesSalarieReglement(r: ReglementPaie, { salarie, ...autres }: ContexteReglementPaie): AnomaliePaie[] {
-  if (r.nature !== 'salaire_net')
+  if (!NATURES_DU_SALARIE.has(r.nature))
     return r.salarieId === null ? [] : [anomalie('salarie_inattendu', `${LIBELLES_NATURE_REGLEMENT_PAIE[r.nature]} : aucun salarié attendu.`)]
-  if (!r.salarieId || !salarie) return [anomalie('salarie_requis', 'Salaire net : salarié payé attendu.')]
+  if (!r.salarieId || !salarie) return [anomalie('salarie_requis', `${LIBELLES_NATURE_REGLEMENT_PAIE[r.nature]} : salarié payé attendu.`)]
   if (salarie.id !== r.salarieId) return [anomalie('salarie_incoherent', `Règlement du salarié ${r.salarieId}, fiche fournie : ${salarie.id}.`)]
   if (salarie.coproprieteId !== r.coproprieteId)
     return [anomalie('salarie_autre_syndicat', `Salarié ${salarie.id} du syndicat ${salarie.coproprieteId}, règlement pour le syndicat ${r.coproprieteId} (D1).`)]
-  return anomaliesBulletinRegle(r, salarie, autres)
+  // F42 : l'acompte se verse avant la paie, sans bulletin.
+  return r.nature === 'salaire_net' ? anomaliesBulletinRegle(r, salarie, autres) : []
 }
 
 function auxiliaireReglement(r: ReglementPaie, salarie: SalarieSyndicat | null, ctx: ContextePaie): string {
-  if (r.nature === 'salaire_net') {
-    if (!salarie) throw new Error(`Règlement ${r.id} : salarié attendu pour un salaire net.`)
+  if (NATURES_DU_SALARIE.has(r.nature)) {
+    if (!salarie) throw new Error(`Règlement ${r.id} : salarié attendu (${LIBELLES_NATURE_REGLEMENT_PAIE[r.nature]}).`)
     return salarie.auxiliaire421
   }
   if (r.nature === 'prelevement_source') return ctx.auxiliairePrelevementSource ?? AUXILIAIRE_ZERO
   if (r.nature === 'taxe_salaires') return ctx.auxiliaireTaxeSalaires ?? AUXILIAIRE_ZERO
+  if (r.nature === 'saisie_salaire' && r.auxiliaire === undefined)
+    throw new Error(`Règlement ${r.id} : saisie sur salaire sans sous-compte du 462 au nom du bénéficiaire (décision du 20/11/2026, partie C, F42).`)
   return r.auxiliaire ?? AUXILIAIRE_ZERO
 }
 
-/** Compte de paie débité : 421 du salarié, 431, 432 (sous-compte de l'organisme) ou 442 ; plan vérifié (art. 7 et 8). */
+/** Code du plan débité : celui de la paie (art. 7 et 8) ; F42 : sous-compte « acomptes » du 421, ou 462 des saisies (contexte). */
+function planCodeReglement(nature: NatureReglementPaie, ctx: ContextePaie): string {
+  if (nature === 'acompte_salaire') return codeAcomptes(ctx)
+  if (nature === 'saisie_salaire') return codeSaisies(ctx)
+  return ctx.plan[COMPTE_NATURE[nature]]
+}
+
+/**
+ * Compte de paie débité : 421 du salarié, 431, 432 (sous-compte de l'organisme) ou 442 ; décision du 20/11/2026 (partie
+ * C, F42) : sous-compte « acomptes » du 421 du salarié (acompte, avance) ou 462 du bénéficiaire (saisie) ; plan vérifié
+ * (art. 7 et 8).
+ */
 export function compteDebiteReglementPaie(r: ReglementPaie, salarie: SalarieSyndicat | null, ctx: ContextePaie): string {
   verifierPlanPaie(ctx.plan)
-  return compte(ctx, COMPTE_NATURE[r.nature], auxiliaireReglement(r, salarie, ctx))
+  return numeroCompte(ctx, planCodeReglement(r.nature, ctx), auxiliaireReglement(r, salarie, ctx))
 }
 
 /** Solde créditeur d'un compte, à une date ou (sans date) tous mouvements confondus. */
@@ -969,15 +1245,19 @@ function bornesReglement(r: ReglementPaie, numero: string, { bulletin, traitemen
  * date du règlement (aucun paiement avant la constatation) et tous mouvements confondus (un règlement antidaté ne paie
  * pas une seconde fois) ; le net, en outre, au restant dû du bulletin réglé (un virement de deux mois imputé à un seul
  * bulletin laisserait l'autre « à payer », 421 soldé), bulletin constaté au plus tard le jour du règlement (sinon le
- * solde du 421 laissé par un autre bulletin paierait celui-ci). Lève une erreur sur un plan de paie invalide, ou sur un
- * règlement déjà écrit dont le traitement manque aux traitements fournis.
+ * solde du 421 laissé par un autre bulletin paierait celui-ci). Décision du 20/11/2026 (partie C, F42) : l'acompte ou
+ * l'avance, versé avant la paie qui le reprend, n'est borné par aucun solde (rien n'est dû au grand livre) ; la saisie sur
+ * salaire l'est par le solde créditeur du 462 du bénéficiaire. Lève une erreur sur un plan de paie invalide, sur un code
+ * de sous-compte (F42) absent du contexte, ou sur un règlement déjà écrit dont le traitement manque aux traitements fournis.
  */
 export function controlerReglementPaie(r: ReglementPaie, contexteReglement: ContexteReglementPaie): AnomaliePaie[] {
   const { salarie, contexte } = contexteReglement
   verifierPlanPaie(contexte.plan)
   const anomalies = [...anomaliesFormeReglement(r, contexte.segmentSyndicat), ...anomaliesSalarieReglement(r, contexteReglement)]
   if (anomalies.length > 0) return anomalies
-  const bornes = bornesReglement(r, compteDebiteReglementPaie(r, salarie, contexte), contexteReglement)
+  const numero = compteDebiteReglementPaie(r, salarie, contexte)
+  if (r.nature === 'acompte_salaire') return []
+  const bornes = bornesReglement(r, numero, contexteReglement)
   const du = Math.min(...bornes.map((b) => b.centimes))
   if (r.montantCentimes <= du) return []
   return [

@@ -229,6 +229,129 @@ describe('critère des comptes : absence de vote sur leur approbation depuis au 
   })
 })
 
+describe('décision du 20/11/2026 (partie C, F35) : aucun vote connu sur l’approbation des comptes', () => {
+  const TACHE =
+    "saisir la date de la dernière assemblée qui s'est prononcée sur les comptes (procès-verbaux à obtenir de l'ancien syndic, qui doit remettre les archives : L. 1965 art. 18-2 ; D. 1967 art. 62-6)."
+
+  it('on ne sait rien : « non établi » gardé, avec la tâche de saisie', () => {
+    const { comptes, declenchee, aConfirmer } = alerteMandataireAdHoc(entree({ votes: [] }), DATE)
+    expect(comptes).toMatchObject({ etat: 'non_etabli', dernierVoteLe: null, atteintLe: null, pointDeDepart: null, aConfirmer: false, tacheDernierVote: TACHE })
+    expect(comptes.message).toBe(
+      "Aucun vote de l'assemblée sur l'approbation des comptes n'est connu : saisir la date de la dernière assemblée qui s'est prononcée (adoption ou rejet).",
+    )
+    expect({ declenchee, aConfirmer }).toEqual({ declenchee: false, aConfirmer: false })
+  })
+
+  it('mission commencée depuis moins de deux ans : « non établi », tâche de saisie, date où le critère sera atteint, à confirmer', () => {
+    const { comptes, declenchee } = alerteMandataireAdHoc(entree({ votes: [], debutMissionLe: '2024-06-15' }), '2026-06-14')
+    expect(comptes).toMatchObject({ etat: 'non_etabli', atteintLe: null, pointDeDepart: null, aConfirmer: false, tacheDernierVote: TACHE })
+    expect(comptes.message).toBe(
+      "Aucun vote de l'assemblée sur l'approbation des comptes n'est connu : saisir la date de la dernière assemblée qui s'est prononcée (adoption ou rejet). Faute de vote enregistré depuis le début de la mission le 15/06/2024, 24 mois sans vote seront atteints, à confirmer, le 15/06/2026.",
+    )
+    expect(declenchee).toBe(false)
+  })
+
+  it('cabinet en mission depuis au moins deux ans sans vote enregistré : « atteint, à confirmer », depuis le début de la mission', () => {
+    const e = entree({ votes: [], exercices: [ex('ex-2025', E2025, provisions2025(0))], debutMissionLe: '2024-06-15' })
+    const alerte = alerteMandataireAdHoc(e, '2026-06-15')
+    expect(alerte.comptes).toMatchObject({
+      etat: 'atteint',
+      dernierVoteLe: null,
+      atteintLe: '2026-06-15',
+      pointDeDepart: 'debut_mission',
+      aConfirmer: true,
+      tacheDernierVote: TACHE,
+      traite: false,
+    })
+    expect(alerte.comptes.message).toBe(
+      "Aucun vote de l'assemblée sur l'approbation des comptes enregistré depuis le début de la mission le 15/06/2024 : 24 mois sans vote atteints le 15/06/2026, à confirmer (date de la dernière assemblée qui s'est prononcée sur les comptes à saisir).",
+    )
+    expect(alerte).toMatchObject({
+      declenchee: true,
+      declencheeLe: '2026-06-15',
+      aTraiterLe: '2026-06-15',
+      saisineParDautresLe: '2026-06-15',
+      aConfirmer: true,
+      message: alerte.comptes.message,
+    })
+    const couverte = alerteMandataireAdHoc({ ...e, saisineLe: '2026-06-20' }, '2026-07-01')
+    expect(couverte).toMatchObject({ saisineFaite: true, aTraiterLe: null, comptes: expect.objectContaining({ traite: true }) })
+  })
+
+  it('un vote connu, même antérieur à la mission : la règle du dernier vote s’applique, sans tâche ni réserve', () => {
+    const { comptes, aConfirmer } = alerteMandataireAdHoc(entree({ votes: [{ date: '2023-06-10', etat: 'adoptee' }], debutMissionLe: '2025-01-01' }), DATE)
+    expect(comptes).toMatchObject({ etat: 'atteint', dernierVoteLe: '2023-06-10', atteintLe: '2025-06-10', pointDeDepart: 'dernier_vote', aConfirmer: false, tacheDernierVote: null })
+    expect(aConfirmer).toBe(false)
+    const recent = alerteMandataireAdHoc(entree({ debutMissionLe: '2020-01-01' }), DATE).comptes
+    expect(recent).toMatchObject({ etat: 'non_atteint', pointDeDepart: 'dernier_vote', aConfirmer: false, tacheDernierVote: null })
+  })
+
+  it('administrateur provisoire de l’art. 29-1 : l’approbation par l’administrateur est dite, le critère reste sur les votes de l’assemblée (J67, R30)', () => {
+    const decisionAp = creerDecisionAnnuelle({
+      id: 'd-ap',
+      coproprieteId: 'copro-1',
+      type: 'approbation_comptes',
+      exerciceId: 'ex-2024',
+      date: '2025-09-01',
+      source: { origine: 'administrateur', reference: 'reg-12' },
+    })
+    const { comptes } = alerteMandataireAdHoc(entree({ regime: 'ap291', votes: [], decisions: [decisionAp], debutMissionLe: '2024-01-10' }), DATE)
+    expect(comptes).toMatchObject({ etat: 'atteint', atteintLe: '2026-01-10', pointDeDepart: 'debut_mission', aConfirmer: true, approuvesParAdministrateurLe: '2025-09-01' })
+    expect(comptes.message).toBe(
+      "Comptes approuvés par l'administrateur provisoire le 01/09/2025 (décision de l'administrateur, pas un vote de l'assemblée) ; aucun vote de l'assemblée sur l'approbation des comptes enregistré depuis le début de la mission le 10/01/2024, à confirmer (date de la dernière assemblée qui s'est prononcée sur les comptes à saisir).",
+    )
+  })
+
+  it('impayés atteints aussi : l’alerte reste ferme, seul le critère des comptes est « atteint, à confirmer »', () => {
+    const e = entree({ votes: [], exercices: [ex('ex-2025', E2025, provisions2025(1_000_000))], debutMissionLe: '2024-01-15' })
+    const alerte = alerteMandataireAdHoc(e, DATE)
+    expect(alerte.impayes.etat).toBe('atteint')
+    expect(alerte.comptes).toMatchObject({ etat: 'atteint', pointDeDepart: 'debut_mission', aConfirmer: true })
+    expect(alerte).toMatchObject({ declenchee: true, aConfirmer: false })
+    // La réserve du cadre de l'administrateur provisoire (J67, R30) reste.
+    expect(alerteMandataireAdHoc({ ...e, regime: 'ap47' }, DATE).aConfirmer).toBe(true)
+  })
+
+  it('refuse une date de début de mission invalide', () => {
+    expect(() => alerteMandataireAdHoc(entree({ debutMissionLe: '2024-02-30' }), DATE)).toThrow(/début de la mission.*AAAA-MM-JJ/)
+  })
+
+  it('début de la mission d’une année improbable (9999, 2525, 0026) : « non établi », la date fautive est citée, ni alerte ni erreur interne', () => {
+    // Depuis 9999, deux ans tombaient en l'an 10001 (« Date ISO invalide ») ; depuis 0026, l'alerte se déclenchait.
+    for (const [debutMissionLe, citee] of [
+      ['9999-06-15', '15/06/9999'],
+      ['2525-06-15', '15/06/2525'],
+      ['0026-06-15', '15/06/0026'],
+    ] as const) {
+      const { comptes, declenchee, aConfirmer } = alerteMandataireAdHoc(entree({ votes: [], debutMissionLe }), DATE)
+      expect(comptes, debutMissionLe).toMatchObject({
+        etat: 'non_etabli',
+        dernierVoteLe: null,
+        atteintLe: null,
+        pointDeDepart: null,
+        aConfirmer: false,
+        tacheDernierVote: TACHE,
+      })
+      expect(comptes.message).toBe(
+        `Aucun vote de l'assemblée sur l'approbation des comptes n'est connu : saisir la date de la dernière assemblée qui s'est prononcée (adoption ou rejet). Début de la mission daté du ${citee} : année improbable (faute de frappe ?). Pas de repère : corriger la date.`,
+      )
+      expect({ declenchee, aConfirmer }).toEqual({ declenchee: false, aConfirmer: false })
+    }
+    // Un vote connu garde la règle du dernier vote, quel que soit le début de la mission.
+    const avecVote = alerteMandataireAdHoc(entree({ votes: [{ date: '2023-06-10', etat: 'adoptee' }], debutMissionLe: '0026-06-15' }), DATE)
+    expect(avecVote.comptes).toMatchObject({ etat: 'atteint', dernierVoteLe: '2023-06-10', pointDeDepart: 'dernier_vote' })
+    // Bornes : 1900 et 2100 restent plausibles.
+    expect(alerteMandataireAdHoc(entree({ votes: [], debutMissionLe: '1900-01-01' }), DATE).comptes).toMatchObject({
+      etat: 'atteint',
+      atteintLe: '1902-01-01',
+      pointDeDepart: 'debut_mission',
+    })
+    expect(alerteMandataireAdHoc(entree({ votes: [], debutMissionLe: '2100-01-01' }), DATE).comptes.message).toMatch(
+      /seront atteints, à confirmer, le 01\/01\/2102\.$/,
+    )
+  })
+})
+
 describe('alerte', () => {
   it('déclenchée par les impayés : à la clôture ; saisine par d’autres au lendemain du délai d’un mois laissé au syndic', () => {
     const a = alerteMandataireAdHoc(entree({ exercices: [ex('ex-2025', E2025, provisions2025(1_000_000))] }), DATE)
@@ -540,8 +663,13 @@ describe('en-tête du module', () => {
   const SOURCE = readFileSync(join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'alerte-mandataire-ad-hoc.ts'), 'utf8')
   const EN_TETE = SOURCE.slice(0, SOURCE.indexOf('*/')).replaceAll(/\s*\n\s*\*\s*/g, ' ')
 
-  it('textes relus, déduits et points non établis marqués', () => {
-    for (const marqueur of ['🟢', '🔵', '🔴']) expect(EN_TETE).toContain(marqueur)
+  it('textes relus et déduits marqués ; le dernier point non établi est tranché (décision du 20/11/2026, partie C, F35)', () => {
+    for (const marqueur of ['🟢', '🔵']) expect(EN_TETE).toContain(marqueur)
+    expect(EN_TETE).not.toContain('🔴')
+    expect(EN_TETE).not.toMatch(/depuis quand compter les deux ans \?/)
+    expect(EN_TETE).toMatch(
+      /Décision du 20\/11\/2026 \(partie C, F35\) : .*« non établi ».*« saisir la date de la dernière assemblée qui s'est prononcée sur les comptes ».*au moins deux ans.*« atteint, à confirmer ».*début de la mission/,
+    )
     expect(EN_TETE).toContain(
       "« Lorsqu'à la clôture des comptes les impayés atteignent 25 % des sommes exigibles en vertu des articles 14-1 et 14-2-1 ou en l'absence de vote de l'assemblée générale sur l'approbation des comptes depuis au moins deux ans »",
     )

@@ -1,4 +1,4 @@
-import { dateIsoVersFr, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
+import { dateIsoVersFr, dateVersIso, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
 import { REGLES_DELAIS_LEGAUX, type EcheanceCalculee } from '@/lib/administrateur-judiciaire/domain/delais-legaux'
 import type { Fiche360Copropriete, Fiche360Personne } from '@/lib/administrateur-judiciaire/domain/fiche-360'
 import type {
@@ -17,7 +17,7 @@ import {
   PARCOURS_RECOUVREMENT_DEBITEUR,
   type DefinitionEtapeRecouvrement,
 } from '@/lib/administrateur-judiciaire/domain/recouvrement'
-import { estMandatSuivi } from '@/lib/administrateur-judiciaire/domain/statut-mandat'
+import { estMandatSuiviAvecOrdonnance } from '@/lib/administrateur-judiciaire/domain/statut-mandat'
 import { normaliserTexteLibre } from '@/lib/administrateur-judiciaire/domain/texte'
 
 /**
@@ -454,8 +454,9 @@ const noteHorsSuivi = (nombre: number): string =>
  * Débiteurs ou échéances. Sur la copropriété citée : quel que soit le statut de son mandat, comme la fiche 360. Sur tout
  * le portefeuille (aucune copropriété citée, « Qu'est-ce que j'ai à faire ? ») : sans les mandats Prospect ni Archivé
  * (point 55, statut-mandat.ts ; Gestéam tranche 41, un mandat archivé ne produit plus d'« à faire »), comme la veille,
- * les échéances du portefeuille et la balance âgée ; En clôture, une valeur absente ou inconnue restent. Les copropriétés
- * écartées sont comptées dans une dernière ligne, jamais en silence.
+ * les échéances du portefeuille et la balance âgée ; En clôture, une valeur absente ou inconnue restent, ainsi qu'un
+ * Prospect dont l'ordonnance est datée (décision du 20/11/2026, partie C, F32). Les copropriétés écartées sont comptées
+ * dans une dernière ligne, jamais en silence.
  */
 function repondreListeFiches(
   type: 'debiteurs' | 'echeances',
@@ -463,7 +464,8 @@ function repondreListeFiches(
   coproCitee: boolean,
   donnees: DonneesFixy,
 ): ReponseFixy {
-  const retenues = coproCitee ? fiches : fiches.filter((fiche) => estMandatSuivi(fiche.vue.statut)),
+  const suivie = (fiche: Fiche360Copropriete): boolean => estMandatSuiviAvecOrdonnance(fiche.vue.statut, dateVersIso(fiche.vue.ordonnance))
+  const retenues = coproCitee ? fiches : fiches.filter(suivie),
     reponse = type === 'debiteurs' ? repondreDebiteurs(retenues, donnees) : repondreEcheances(retenues, donnees.reference),
     ecartees = fiches.length - retenues.length
   return ecartees > 0 ? { ...reponse, lignes: [...reponse.lignes, noteHorsSuivi(ecartees)] } : reponse

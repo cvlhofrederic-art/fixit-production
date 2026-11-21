@@ -1,4 +1,12 @@
-import { ajouterMois, composerDateIso, dateIsoVersFr, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
+import {
+  ajouterMois,
+  composerDateIso,
+  dateIsoVersFr,
+  estAnneeImprobable,
+  estDateIsoValide,
+  messagePlausibilite,
+} from '@/lib/administrateur-judiciaire/domain/dates'
+import { TYPE_TRAVAUX, type TypeTravaux } from '@/lib/data/referentiels-gesteam-judiciaire'
 
 /**
  * Contrôle des entreprises avant un ordre de service et avant un règlement (point 37 du bilan 2). Fonctions pures,
@@ -59,10 +67,27 @@ import { ajouterMois, composerDateIso, dateIsoVersFr, estDateIsoValide } from '@
  *   paraît (ReglageSousTraitantsAcceptes ; décret non trouvé publié : non vérifié). Avant, une information « nouvelle
  *   obligation au plus tard le 26/12/2026 ». Enregistrement des sous-traitants acceptés : à brancher.
  *
- * 🔴 Non établi :
- * - qualification des travaux soumis à l'assurance décennale (ouvrage au sens de l'art. 1792, hors exclusions de l'art.
- *   L. 243-1-1) : laissée à l'utilisateur (`decennaleObligatoire: null` → alerte à qualifier) ;
- * - avant un règlement, aucun texte n'impose de vérifier : VitFix ALERTE, ne bloque jamais un paiement.
+ * Décisions du 20/11/2026 (partie C des questions ouvertes du code, recommandations acceptées) :
+ * - Décision du 20/11/2026 (partie C, F81) : avant l'OS, le blocage reste (dès 5 000 € HT, montant inconnu, ou décennale
+ *   obligatoire), que les pièces manquent ou n'aient pas été saisies : une pièce non saisie est, pour l'outil, une pièce
+ *   non remise (C. trav. art. L. 8222-1 : vérification « lors de la conclusion » ; D. 8222-5). Seule exception, sous
+ *   urgence constatée, l'alerte forte de J67, R75, la décennale obligatoire restant bloquante. Le message dit quelle pièce
+ *   manque et comment la saisir (QUAND_PAR_MOMENT ; envoi-ordre-service.ts quand aucune pièce n'est fournie) ;
+ * - Décision du 20/11/2026 (partie C, F89) : l'utilisateur décide, VitFix propose. L'obligation vise toute personne dont
+ *   la responsabilité décennale peut être engagée (C. ass. art. L. 241-1 ; C. civ. art. 1792, non relu : non vérifié),
+ *   avec des exclusions (C. ass. art. L. 243-1-1) : un jugement au cas par cas, mais la plupart des types se classent
+ *   d'avance. Pour chaque type de travaux (TYPE_TRAVAUX), une valeur proposée « oui », « non » ou « à qualifier »
+ *   (TABLE_DECENNALE_PROPOSEE, à valider une fois par le responsable du projet : valideeLe) ; la demande la reprend
+ *   (qualifierDecennale), l'utilisateur peut la changer, son choix l'emporte et il est tracé ; sans qualification, et tant
+ *   que la table n'est pas validée, l'alerte « à qualifier » reste (decennaleObligatoire null) ;
+ * - Décision du 20/11/2026 (partie C, F90) : avant un règlement, alerter sans jamais bloquer (comportement gardé) : la loi
+ *   exige la vérification à la conclusion puis « périodiquement jusqu'à la fin de l'exécution du contrat » (C. trav. art.
+ *   L. 8222-1), tous les six mois (D. 8222-5), sans donner au syndicat le droit de retenir un paiement dû. Ajout : pendant
+ *   l'exécution d'un marché d'au moins 5 000 € HT, un élément « à faire » tous les six mois depuis la conclusion pour
+ *   demander l'attestation à jour (verificationVigilanceDue ; suivi-a-faire.ts, depuisVigilanceMarches) ; l'alerte au
+ *   paiement le rappelle quand il est en retard (verification_semestrielle_en_retard, ReglementAControler.execution).
+ *   Conclusion ou attestation d'une année improbable (dates.estAnneeImprobable, faute de frappe) : aucune échéance n'en
+ *   part, date à corriger. Marchés en cours d'exécution : enregistrement à brancher (données fournies par l'appelant).
  *
  * Gestéam — fiche entreprise, onglet Informations : RCS, TVA intracommunautaire, bouton « Contrôle déclaratif » ; R.C.
  * décennale et Responsabilité civile du … au, police, n°, compagnie (tranches 34, 37). Le marqueur « nécessaire » n'est
@@ -138,6 +163,7 @@ export type CodeAnomalieEntreprise =
   | 'sous_traitants_valeurs_decret_a_saisir'
   | 'sous_traitant_piece_a_obtenir'
   | 'seuil_vigilance_non_apprecie'
+  | 'verification_semestrielle_en_retard'
 
 export interface AnomalieEntreprise {
   code: CodeAnomalieEntreprise
@@ -158,7 +184,7 @@ export interface OperationAControler {
   montantHtCentimes: number | null
   /**
    * Travaux soumis à l'assurance décennale obligatoire (ouvrage au sens de l'art. 1792, hors exclusions de l'art.
-   * L. 243-1-1) ? null : à qualifier.
+   * L. 243-1-1) ? null : à qualifier. Valeur proposée par type de travaux, choix tracé : qualifierDecennale (F89).
    */
   decennaleObligatoire: boolean | null
   /** Ouverture du chantier : premier ordre de service, ou déclaration d'ouverture avec permis ; à défaut, `date`. */
@@ -181,6 +207,11 @@ export interface ReglementAControler {
   decennaleObligatoire?: boolean | null
   /** Ouverture du chantier : premier ordre de service, ou déclaration d'ouverture avec permis. */
   dateOuvertureChantier?: string | null
+  /**
+   * Marché en cours d'exécution que le règlement paie (Décision du 20/11/2026, partie C, F90) : l'alerte rappelle
+   * l'élément « à faire » semestriel quand il est en retard ; absent : pas de rappel.
+   */
+  execution?: Pick<MarcheEnExecution, 'concluLe' | 'finExecutionLe'> & { marcheId: string }
 }
 
 const verifierDate = (quoi: string, valeur: string | null | undefined): void => {
@@ -296,7 +327,8 @@ type MomentVigilance = 'ordre' | 'urgence' | 'reglement'
 
 /** Ce qu'il faut faire de la pièce, selon le moment du contrôle. */
 const QUAND_PAR_MOMENT: Readonly<Record<MomentVigilance, string>> = {
-  ordre: 'avant de commander',
+  // Décision du 20/11/2026 (partie C, F81) : le message dit comment saisir la pièce ; non saisie, elle compte comme non remise
+  ordre: "avant de commander, puis à saisir avec sa date de remise dans les pièces de l'entreprise (une pièce non saisie compte comme non remise)",
   urgence:
     "dès que possible : urgence constatée, l'ordre de service part sans elle, alerte forte au lieu d'un blocage (J67, R75 ; C. trav. art. L. 8221-2 : l'exclusion des travaux d'urgence ne vise pas la vigilance), élément « à faire » pour l'obtenir",
   reglement: 'pendant l’exécution',
@@ -498,7 +530,274 @@ export function controlerAvantReglement(pieces: PiecesEntreprise, reglement: Reg
         ),
       )
   } else if (decennaleObligatoire === null) anomalies.push(decennaleAQualifier())
-  return anomalies
+  return [...anomalies, ...rappelVerificationEnRetard(pieces, reglement)]
+}
+
+// ─── Décennale proposée par type de travaux (Décision du 20/11/2026, partie C, F89) ─────────
+
+export const QUALIFICATIONS_DECENNALE = ['oui', 'non', 'a_qualifier'] as const
+export type QualificationDecennale = (typeof QUALIFICATIONS_DECENNALE)[number]
+
+/** Valeurs proposées par type de travaux, validées une fois par le responsable du projet (F89). */
+export interface TableDecennaleParType {
+  valeurs: Readonly<Record<TypeTravaux, QualificationDecennale>>
+  /** Date de la validation de la table ; null : proposition de VitFix pas encore validée, sans effet sur la demande. */
+  valideeLe: string | null
+}
+
+/**
+ * Proposition de VitFix (F89 ; à valider une fois par le responsable du projet, C. civ. art. 1792 non relu : non
+ * vérifié) : « non » pour ce qui n'est pas un ouvrage (diagnostic, expertise, procédure, assurance, personnel, nettoyage),
+ * « oui » pour le clos et le couvert et le gros œuvre, « à qualifier » pour le reste (équipements, entretien, second
+ * œuvre : jugement au cas par cas, C. ass. art. L. 243-1-1 pour les exclusions).
+ */
+export const TABLE_DECENNALE_PROPOSEE: TableDecennaleParType = Object.freeze({
+  valideeLe: null,
+  valeurs: Object.freeze({
+    'Anti pigeons': 'a_qualifier',
+    'Architecte Etude': 'a_qualifier',
+    Ascenseur: 'a_qualifier',
+    'Assurance DO': 'non',
+    'Audit Toiture': 'non',
+    'Boites aux lettres': 'a_qualifier',
+    Chaufferie: 'a_qualifier',
+    "Circuit d'eau / Chauffage": 'a_qualifier',
+    Climatisation: 'a_qualifier',
+    "Conservation de l'immeuble": 'a_qualifier',
+    Couverture: 'oui',
+    'Créances douteuses': 'non',
+    Dallage: 'a_qualifier',
+    Diagnostic: 'non',
+    Eclairage: 'a_qualifier',
+    Electricité: 'a_qualifier',
+    'Entretien et sécurisation': 'a_qualifier',
+    'Espaces verts': 'a_qualifier',
+    "Etablissement d'un Règlement de Copropriété": 'non',
+    Etanchéité: 'oui',
+    Etudes: 'a_qualifier',
+    Expertise: 'non',
+    "Gardiens / Employés d'immeuble": 'non',
+    Gaz: 'a_qualifier',
+    'Hygiène / Nettoyage': 'non',
+    Loge: 'a_qualifier',
+    Maçonnerie: 'oui',
+    "Maîtrise d'oeuvre": 'a_qualifier',
+    Menuiserie: 'a_qualifier',
+    Peinture: 'a_qualifier',
+    'Plan de Sauvegarde': 'non',
+    Plomberie: 'a_qualifier',
+    'Pose de compteurs': 'a_qualifier',
+    Procédures: 'non',
+    Ravalement: 'a_qualifier',
+    "Réfection cage d'escaliers": 'a_qualifier',
+    Réhabilitation: 'oui',
+    Sécurité: 'a_qualifier',
+    Serrurerie: 'a_qualifier',
+    Travaux: 'a_qualifier',
+    'Travaux Chauffage': 'a_qualifier',
+    'Vide ordures': 'a_qualifier',
+  }),
+})
+
+/** Choix de l'utilisateur sur la demande : il l'emporte sur la table, et il est tracé (F89). */
+export interface ChoixDecennale {
+  valeur: QualificationDecennale
+  collaborateurId: string
+  le: string
+  motif: string | null
+}
+
+/** Qualification de la décennale d'une demande, à passer au contrôle (decennaleObligatoire). */
+export interface DecennaleDeLaDemande {
+  /** true, false, ou null : à qualifier (alerte decennale_a_qualifier). */
+  decennaleObligatoire: boolean | null
+  /** Valeur de la table pour le type de travaux ; « à qualifier » sans type. */
+  proposee: QualificationDecennale
+  origine: 'table' | 'choix'
+  tableValidee: boolean
+  choix: ChoixDecennale | null
+  justification: string
+}
+
+const VALEUR_DECENNALE: Readonly<Record<QualificationDecennale, boolean | null>> = { oui: true, non: false, a_qualifier: null }
+const LIBELLE_QUALIFICATION: Readonly<Record<QualificationDecennale, string>> = { oui: '« oui »', non: '« non »', a_qualifier: '« à qualifier »' }
+
+function verifierQualification(valeur: string, quoi: string): void {
+  if (!(QUALIFICATIONS_DECENNALE as readonly string[]).includes(valeur)) throw new Error(`${quoi} « ${valeur} » : oui, non ou a_qualifier attendu.`)
+}
+
+function verifierTableDecennale(table: TableDecennaleParType): void {
+  verifierDate('la validation de la table de la décennale', table.valideeLe)
+  for (const type of TYPE_TRAVAUX) verifierQualification(table.valeurs[type], `Décennale proposée pour « ${type} »`)
+}
+
+function choixTrace(choix: ChoixDecennale): ChoixDecennale {
+  verifierQualification(choix.valeur, 'Choix de la décennale')
+  if (!choix.collaborateurId.trim()) throw new Error('Choix de la décennale : collaborateur qui le fait attendu (choix tracé).')
+  if (!estDateIsoValide(choix.le)) throw new Error(`Date du choix de la décennale invalide (${choix.le}) : AAAA-MM-JJ attendu.`)
+  return { ...choix, collaborateurId: choix.collaborateurId.trim(), motif: choix.motif?.trim() || null }
+}
+
+/**
+ * Décision du 20/11/2026 (partie C, F89) : l'utilisateur décide, VitFix propose. La demande reprend la valeur de la table
+ * pour son type de travaux (validée une fois par le responsable du projet ; non validée, elle reste une proposition et la
+ * décennale reste « à qualifier ») ; l'utilisateur peut la changer, son choix l'emporte et il est tracé (collaborateur,
+ * date, motif) ; sans qualification, l'alerte « à qualifier » reste (decennaleObligatoire null).
+ */
+export function qualifierDecennale(
+  typeTravaux: TypeTravaux | null,
+  table: TableDecennaleParType,
+  choix: ChoixDecennale | null = null,
+): DecennaleDeLaDemande {
+  verifierTableDecennale(table)
+  const proposee: QualificationDecennale = typeTravaux === null ? 'a_qualifier' : table.valeurs[typeTravaux]
+  const tableValidee = table.valideeLe !== null
+  const type = typeTravaux === null ? 'sans type de travaux' : `type « ${typeTravaux} »`
+  const lue = `${type} : valeur proposée ${LIBELLE_QUALIFICATION[proposee]}${tableValidee ? '' : ' (table de VitFix à valider, sans effet)'}`
+  if (choix !== null) {
+    const trace = choixTrace(choix)
+    return {
+      decennaleObligatoire: VALEUR_DECENNALE[trace.valeur],
+      proposee,
+      origine: 'choix',
+      tableValidee,
+      choix: trace,
+      justification: `Décennale ${LIBELLE_QUALIFICATION[trace.valeur]}, choisie par ${trace.collaborateurId} le ${dateIsoVersFr(trace.le)} (${lue}) — Décision du 20/11/2026 (partie C, F89).`,
+    }
+  }
+  return {
+    decennaleObligatoire: tableValidee ? VALEUR_DECENNALE[proposee] : null,
+    proposee,
+    origine: 'table',
+    tableValidee,
+    choix: null,
+    justification: `Décennale reprise de la table (${lue}) — Décision du 20/11/2026 (partie C, F89).`,
+  }
+}
+
+// ─── Vérification semestrielle pendant l'exécution (Décision du 20/11/2026, partie C, F90) ───
+
+/** Marché en cours d'exécution (demande ou OS de l'entreprise) suivi pour la vigilance ; enregistrement : à brancher. */
+export interface MarcheEnExecution {
+  id: string
+  prestataireId: string
+  mandatId: string | null
+  /** Conclusion du marché (réception de l'OS par l'entreprise : C. civ. art. 1121). */
+  concluLe: string
+  /** Fin de l'exécution ; null : en cours. */
+  finExecutionLe: string | null
+  /** Montant HT de l'opération entière (commandes de même objet additionnées). */
+  montantHtCentimes: number
+  /** Date de la dernière attestation de vigilance remise ; null : aucune. */
+  attestationLe: string | null
+  /** Collaborateur qui suit le marché. */
+  assigneId?: string | null
+}
+
+/** Élément « à faire » : demander l'attestation à jour (F90). */
+export interface VerificationVigilanceDue {
+  id: string
+  marcheId: string
+  prestataireId: string
+  mandatId: string | null
+  date: string
+  /** Rang de la vérification depuis la conclusion (1 : six mois après). */
+  rang: number
+  assigneId: string | null
+  justification: string
+}
+
+const FONDEMENT_VERIFICATION_PERIODIQUE = 'C. trav. art. L. 8222-1, D. 8222-5'
+
+/** Attestation qui peut couvrir une échéance (F90) : null si absente, ou d'une année improbable (faute de frappe). */
+const attestationRetenue = (attestationLe: string | null): string | null =>
+  attestationLe === null || estAnneeImprobable(attestationLe) ? null : attestationLe
+
+/** Dernière attestation, telle que la justification de l'élément la cite (F90). */
+function derniereAttestation(attestationLe: string | null): string {
+  if (attestationLe === null) return 'aucune attestation remise'
+  return attestationRetenue(attestationLe) === null ? 'aucune attestation retenue' : `dernière attestation du ${dateIsoVersFr(attestationLe)}`
+}
+
+/** Justification de l'élément : attestation non retenue d'une année improbable, date à corriger (F90). */
+const suiteAttestationImprobable = (attestationLe: string | null): string =>
+  attestationLe === null || attestationRetenue(attestationLe) !== null
+    ? ''
+    : ` ${messagePlausibilite('Dernière attestation datée', attestationLe, 'annee_improbable')} Non retenue : corriger la date.`
+
+/**
+ * Prochaine échéance semestrielle non couverte (F90) : six mois, douze mois… après la conclusion ; une échéance est
+ * couverte par une attestation de moins de six mois à sa date (D. 8222-5), même datée après elle ; au-delà de la fin de
+ * l'exécution, plus rien ; null aussi sous le seuil de vigilance (R. 8222-1). Année improbable (dates.estAnneeImprobable,
+ * faute de frappe) : aucune échéance ne part d'une telle conclusion (null), et une telle attestation ne couvre aucune
+ * échéance (attestationRetenue) ; depuis 9999, la boucle passait l'an 10000, hors du calendrier ISO.
+ */
+function echeanceSemestrielle(m: Pick<MarcheEnExecution, 'concluLe' | 'finExecutionLe' | 'attestationLe'>): { date: string; rang: number } | null {
+  if (estAnneeImprobable(m.concluLe)) return null
+  const attestation = attestationRetenue(m.attestationLe)
+  const validiteJusquau = attestation === null ? null : ajouterMois(attestation, VALIDITE_VIGILANCE_MOIS)
+  let rang = 1
+  let date = ajouterMois(m.concluLe, VALIDITE_VIGILANCE_MOIS)
+  while (validiteJusquau !== null && date < validiteJusquau) {
+    rang += 1
+    date = ajouterMois(m.concluLe, VALIDITE_VIGILANCE_MOIS * rang)
+  }
+  if (m.finExecutionLe !== null && date > m.finExecutionLe) return null
+  return { date, rang }
+}
+
+function verifierMarche(m: Pick<MarcheEnExecution, 'concluLe' | 'finExecutionLe' | 'attestationLe'>): void {
+  verifierDate('la conclusion du marché', m.concluLe)
+  verifierDate("la fin de l'exécution du marché", m.finExecutionLe)
+  verifierDate("l'attestation de vigilance du marché", m.attestationLe)
+}
+
+/**
+ * Décision du 20/11/2026 (partie C, F90) : pendant l'exécution d'un marché d'au moins 5 000 € HT, un élément « à faire »
+ * tous les six mois depuis la conclusion, pour demander l'attestation de vigilance à jour (C. trav. art. L. 8222-1 :
+ * « périodiquement jusqu'à la fin de l'exécution du contrat » ; D. 8222-5 : tous les six mois) ; null sous le seuil ou
+ * après la fin de l'exécution. Branché au suivi par depuisVigilanceMarches (suivi-a-faire.ts). Conclusion d'une année
+ * improbable (faute de frappe) : null, aucune échéance n'en part ; attestation d'une année improbable : non retenue, la
+ * justification la cite, date à corriger.
+ */
+export function verificationVigilanceDue(m: MarcheEnExecution): VerificationVigilanceDue | null {
+  verifierMarche(m)
+  if (!Number.isInteger(m.montantHtCentimes) || m.montantHtCentimes < 0)
+    throw new Error(`Marché ${m.id} : montant HT invalide (${m.montantHtCentimes}), centimes entiers positifs attendus.`)
+  if (m.montantHtCentimes < SEUIL_VIGILANCE_HT_CENTIMES) return null
+  const echeance = echeanceSemestrielle(m)
+  if (echeance === null) return null
+  return {
+    id: `vigilance:semestrielle:${m.id}`,
+    marcheId: m.id,
+    prestataireId: m.prestataireId,
+    mandatId: m.mandatId,
+    date: echeance.date,
+    rang: echeance.rang,
+    assigneId: m.assigneId ?? null,
+    justification: `Marché conclu le ${dateIsoVersFr(m.concluLe)}, en cours d'exécution : vérification n° ${echeance.rang}, due le ${dateIsoVersFr(echeance.date)} (${derniereAttestation(m.attestationLe)}) ; vigilance « périodiquement jusqu'à la fin de l'exécution du contrat », tous les six mois (${FONDEMENT_VERIFICATION_PERIODIQUE}) — Décision du 20/11/2026 (partie C, F90).${suiteAttestationImprobable(m.attestationLe)}`,
+  }
+}
+
+/** Pièce de vigilance suivie pour le marché : l'attestation (entreprise en France) ou les pièces de l'étranger. */
+const attestationSuivie = (pieces: PiecesEntreprise): string | null => (pieces.etablieEnFrance ? pieces.attestationUrssafLe : (pieces.piecesEtrangerLe ?? null))
+
+/** F90 : l'alerte au paiement rappelle l'élément « à faire » quand il est en retard (dû avant le jour du règlement). */
+function rappelVerificationEnRetard(pieces: PiecesEntreprise, reglement: ReglementAControler): AnomalieEntreprise[] {
+  const execution = reglement.execution
+  if (execution === undefined || reglement.montantHtCentimes < SEUIL_VIGILANCE_HT_CENTIMES) return []
+  const marche = { concluLe: execution.concluLe, finExecutionLe: execution.finExecutionLe, attestationLe: attestationSuivie(pieces) }
+  verifierMarche(marche)
+  const echeance = echeanceSemestrielle(marche)
+  if (echeance === null || echeance.date >= reglement.date) return []
+  return [
+    anomalie(
+      'verification_semestrielle_en_retard',
+      'alerte',
+      `Marché ${execution.marcheId} : élément « à faire » du ${dateIsoVersFr(echeance.date)} en retard (vérification n° ${echeance.rang} depuis la conclusion du ${dateIsoVersFr(execution.concluLe)}) : demander à l'entreprise son attestation de vigilance à jour. Alerte seulement : aucun texte n'impose de suspendre le paiement — Décision du 20/11/2026 (partie C, F90).`,
+      FONDEMENT_VERIFICATION_PERIODIQUE,
+    ),
+  ]
 }
 
 // ─── Sous-traitants acceptés (C. trav. art. L. 8222-1-1 ; J67, R77) ──────────────────────────

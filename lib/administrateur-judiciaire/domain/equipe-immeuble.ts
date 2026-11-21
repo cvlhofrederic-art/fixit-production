@@ -36,8 +36,13 @@ import { normaliserEspaces } from '@/lib/administrateur-judiciaire/domain/texte'
  *   fonctions) et trois lignes sur cinq portaient le repère ; on ne sait donc ni si une fonction peut compter deux
  *   membres, ni si deux membres d'une même fonction peuvent tous deux porter le repère. VitFix n'impose rien :
  *   plusieurs membres et plusieurs repères par fonction sont acceptés, une fonction sans repère aussi.
- * - 🔵 L'équipe n'entre PAS dans le portefeuille du suivi « à faire » ni dans la balance âgée (suivi-a-faire.ts) : ils
+ * - L'équipe n'entre PAS dans le portefeuille du suivi « à faire » ni dans la balance âgée (suivi-a-faire.ts) : ils
  *   restent fondés sur les trois rôles du mandat (tranche 38). L'équipe n'est pas déduite des rôles (tranche 43 § 17).
+ *   Décision du 20/11/2026 (partie C, F29) : non par défaut ; « de mon portefeuille » reste fondé sur les trois rôles du
+ *   mandat (responsable, comptable, assistant), comme Gestéam (réglage relevé en tranche 38), pour que le suivi et la
+ *   balance âgée d'un collaborateur ne grossissent pas à son insu et que les deux logiciels donnent les mêmes chiffres
+ *   pendant la reprise. Plus tard, une option du cabinet pourra ajouter « mandats où je suis membre de l'équipe de
+ *   l'immeuble », désactivée par défaut (non codée : aucun réglage du cabinet ne la porte aujourd'hui).
  * - 🔵 « Gestion manuelle » est conservée telle quelle et n'a aucun effet : la déduction de la tranche 41 (équipe calculée
  *   depuis les rôles) est démentie par la tranche 43, et ce qui serait calculé quand la case est décochée n'est pas connu.
  * - 🔵 D1 : l'équipe est rattachée au MANDAT (mandatId), comme ses rôles : la fiche Gestéam qui la porte est la fiche
@@ -72,9 +77,6 @@ import { normaliserEspaces } from '@/lib/administrateur-judiciaire/domain/texte'
  *   une reprise portant une autre forme est refusée (fonction inconnue) tant que la forme n'est pas relevée.
  * - Hugo ou Frédéric : que fait « Gestion manuelle » quand elle est décochée (équipe proposée depuis le portefeuille, le
  *   cabinet, autre) ? VitFix la garde sans effet.
- * - Hugo : dans le suivi « à faire », « de mon portefeuille » comprend-il les mandats où le collaborateur n'est que
- *   membre de l'équipe de l'immeuble ? Le réglage Gestéam (tranche 38) ne nomme que les trois rôles du mandat ; VitFix
- *   s'en tient à eux.
  * - Hugo : un mandat qui couvre plusieurs immeubles a-t-il une équipe par immeuble, ou une seule ? VitFix : une par
  *   mandat (la grille n'a été vue que sur la fiche mandat).
  */

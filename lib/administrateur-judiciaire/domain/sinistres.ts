@@ -477,7 +477,9 @@ interface RegimeAConfirmer {
 /**
  * Garantie impayés (« Charges Impayées », « Loyers Impayés » : contentieux-assurance-impayes.TYPES_SINISTRE_IMPAYES) : une
  * opération d'assurance crédit échappe aux titres I à III du livre I (L. 111-1), donc à L. 113-2 et à L. 114-1 ; seule
- * la police fixe alors la déclaration et la prescription (contentieux-assurance-impayes.ts, 🔴 1, non tranché).
+ * la police fixe alors la déclaration et la prescription. Décision du 20/11/2026 (partie C, F51) : la police se lit ;
+ * une fois remplis le délai qu'elle prévoit et le fait qui déclenche le sinistre, son repère, jamais une déchéance, est
+ * contentieux-assurance-impayes.repereDeclarationImpayes. Le repère `aConfirmer` ci-dessous est gardé (choix actuel).
  */
 const ASSURANCE_CREDIT_POSSIBLE: RegimeAConfirmer = {
   declaration: 'assurance-crédit possible : seule la police fixe alors le délai (C. assur. L. 111-1)',

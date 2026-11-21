@@ -223,11 +223,11 @@ describe('saisie invalide et marqueurs', () => {
     expect(() => controlerAvantOrdreService(pieces(), { ...operation, dateOuvertureChantier: '2026-13-01' })).toThrow(/chantier/)
   })
 
-  it('l’en-tête date la relecture du texte et garde ses points ouverts', () => {
+  it('l’en-tête date la relecture du texte ; ses derniers points ouverts sont tranchés (décisions du 20/11/2026, partie C, F89 et F90)', () => {
     const source = readFileSync(join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'vigilance-entreprises.ts'), 'utf8')
     expect(source).toMatch(/Légifrance, décisions lues sur Judilibre, le 29\/10\/2026/)
     expect(source).toMatch(/🔵/)
-    expect(source).toMatch(/🔴/)
+    expect(source).not.toMatch(/🔴/)
   })
 })
 
@@ -303,15 +303,16 @@ describe('J67 — recommandations validées par Hugo le 17/11/2026 (R75 à R77)'
     expect(verificationsSousTraitantsDues([st], REGLAGE_SOUS_TRAITANTS_PAR_DEFAUT)).toEqual([])
   })
 
-  it('en-tête : R75, R76 et R77 tranchées (J67) ; restent ouvertes la qualification décennale et l’alerte avant règlement', () => {
+  it('en-tête : R75, R76 et R77 tranchées (J67) ; la qualification décennale et l’alerte avant règlement tranchées le 20/11/2026 (F89, F90)', () => {
     const source = readFileSync(join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'vigilance-entreprises.ts'), 'utf8')
     const enTete = source.slice(0, source.indexOf('*/')).replaceAll(/\r?\n \* */g, ' ')
-    const questions = enTete.slice(enTete.indexOf('🔴 Non établi'), enTete.indexOf('Gestéam — fiche entreprise'))
-    expect(questions).not.toContain("travaux d'urgence")
-    expect(questions).not.toContain('RC professionnelle')
-    expect(questions).not.toContain('L. 8222-1-1')
-    expect(questions).toContain('qualification des travaux soumis à l\'assurance décennale')
-    expect(questions).toContain('avant un règlement')
+    // plus aucune question ouverte : la rubrique 🔴 a disparu (décisions du 20/11/2026, partie C, F89 et F90)
+    expect(enTete).not.toContain('🔴 Non établi')
+    const decisions = enTete.slice(enTete.indexOf('Décisions du 20/11/2026'), enTete.indexOf('Gestéam — fiche entreprise'))
+    expect(decisions).not.toContain('RC professionnelle')
+    expect(decisions).not.toContain('L. 8222-1-1')
+    expect(decisions).toContain('Décision du 20/11/2026 (partie C, F89)')
+    expect(decisions).toContain('Décision du 20/11/2026 (partie C, F90)')
     for (const attendu of ['J67, R75', 'J67, R76', 'J67, R77', 'L. 8221-2', 'chapitre II', 'loi n° 2026-534', '26/12/2026'])
       expect(enTete).toContain(attendu)
   })

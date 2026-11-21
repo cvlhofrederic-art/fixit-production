@@ -19,6 +19,7 @@ import type { ArreteRapprochement } from '@/lib/administrateur-judiciaire/domain
 import {
   MOTIFS_LEVEE_SUSPENSION,
   STATUTS_REGLEMENT_FOURNISSEUR,
+  annulerReglement,
   changerStatutReglementFournisseur,
   controlerBeneficiaireCompte,
   controlerBeneficiaireIndivisaire,
@@ -506,18 +507,26 @@ describe('écriture du règlement et imputation', () => {
     expect(reglements[0]).toMatchObject({ impute: true, traitementId: 't-cheques' })
   })
 
-  it('🔴 contre-passation du traitement d’un règlement : non prise en charge, le règlement reste imputé sur le traitement annulé ; la question est posée dans l’en-tête', () => {
+  it('contre-passation du traitement d’un règlement : par « Annuler le règlement » (Décision du 20/11/2026, partie C, F84), le règlement passe « Annulé », relié à l’écriture d’origine et à l’annulation', () => {
     const cheque = changerStatutReglementFournisseur(creer({ mode: 'Chèque', iban: null }), 'Enregistré', { numeroPiece: '0001234' })
     const { traitement, reglements } = traitementReglements([cheque], { id: 't-cheques', ...AU_29 })
+    // la contre-passation générique (traitements.ts) ne touche pas au règlement : la décision passe par annulerReglement
     expect(annulerTraitement(traitement, { id: 't-annul', date: '2026-10-30' })).toMatchObject({ famille: 'Annulation de règlements', annule: 't-cheques' })
     const [ecrit] = reglements
     expect(ecrit).toMatchObject({ statut: 'Enregistré', impute: true, traitementId: 't-cheques' })
     expect(() => traitementReglements([ecrit], { id: 't-reprise', ...AU_29 })).toThrow(/déjà imputé/)
-    expect(() => changerStatutReglementFournisseur(ecrit, 'Annulé')).toThrow(/Transition refusée/)
+    expect(() => changerStatutReglementFournisseur(ecrit, 'Annulé')).toThrow(/Transition refusée.*annulerReglement/)
+    const annule = annulerReglement(ecrit, { id: 't-annul', date: '2026-10-30', motif: 'erreur_ecriture', precision: null }, traitement)
+    expect(annule.traitement).toMatchObject({ famille: 'Annulation de règlements', annule: 't-cheques', date: '2026-10-30' })
+    expect(annule.reglement).toMatchObject({
+      statut: 'Annulé',
+      impute: true,
+      traitementId: 't-cheques',
+      annulation: { le: '2026-10-30', motif: 'erreur_ecriture', traitementId: 't-annul', ecritureOrigineId: 't-cheques' },
+    })
     const source = readFileSync(join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'reglements-fournisseurs.ts'), 'utf8')
     const nonEtabli = source.slice(source.indexOf('🔴 Non établi'), source.indexOf('*/')).replace(/\s*\n\s*\*\s*/g, ' ')
-    expect(nonEtabli).toMatch(/contre-passation du traitement d'un règlement \(annulerTraitement[^;]*non prise en charge/)
-    expect(nonEtabli).toMatch(/Question : [^;]*« Non imputé »[^;]*« Annulé »[^;]*facture/)
+    expect(nonEtabli).not.toMatch(/contre-passation du traitement d'un règlement/)
   })
 })
 
