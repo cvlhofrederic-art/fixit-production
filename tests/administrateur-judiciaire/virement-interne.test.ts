@@ -724,7 +724,7 @@ describe('en-tête : sources et marqueurs', () => {
   })
 
   const nonEtabli = entete.slice(entete.indexOf('🔴 Non établi'))
-  const decisions = entete.slice(entete.indexOf('Décisions de Hugo du 03/11/2026'), entete.indexOf('🔵 Déduit'))
+  const decisions = entete.slice(entete.indexOf('Décisions du 03/11/2026'), entete.indexOf('🔵 Déduit'))
 
   it('🔴 pose les questions encore ouvertes (famille de l’annulation, lot émis en partie) ; le sens inverse est décidé (F95)', () => {
     for (const attendu of ['Annulation', 'Ajustement bancaire fonds travaux', "un ordre d'un lot dont les autres sont « Émis »"]) expect(nonEtabli).toContain(attendu)
@@ -734,7 +734,7 @@ describe('en-tête : sources et marqueurs', () => {
   })
 
   it('J67, R82, R83 et R94, J68, J71 : questions fermées, décisions inscrites avec leurs textes', () => {
-    const j67 = entete.slice(entete.indexOf('Décisions de Hugo du 17/11/2026'), entete.indexOf('🔵 Déduit'))
+    const j67 = entete.slice(entete.indexOf('Décisions du 17/11/2026'), entete.indexOf('🔵 Déduit'))
     // R83 : écriture directe de 512 à 512 ; compte du fonds en subdivision du 512.
     expect(nonEtabli).not.toContain('471, 472')
     expect(j67).toMatch(/J67, R83 : écriture directe de 512 à 512, sans compte d'attente/)
@@ -763,7 +763,7 @@ describe('en-tête : sources et marqueurs', () => {
     expect(entete).not.toContain('seuls le syndic provisoire')
   })
 
-  it('rubrique « Décisions de Hugo du 03/11/2026 » : J30, J31 et J37 inscrites, leurs questions fermées', () => {
+  it('rubrique « Décisions du 03/11/2026 » : J30, J31 et J37 inscrites, leurs questions fermées', () => {
     expect(decisions).toMatch(/J30/)
     expect(decisions).toMatch(/juridiction, date et n° de l'ordonnance/)
     expect(decisions).not.toMatch(/🔵 à confirmer/)

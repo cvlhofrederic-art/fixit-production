@@ -1,7 +1,7 @@
 // tests/api/aj-signalement-desinscription.test.ts
 //
 // AJ Signalement, PR 3, lot 6 — routes PUBLIQUES de désinscription des messages de diffusion (cahier § 4.1 D-P1 à D-P5b,
-// § 8.1, § 8.2, § 9 ; décision H5 de Hugo : lien d'un an, « Recevoir à nouveau » avec le seul lien qui a servi, dans les
+// § 8.1, § 8.2, § 9 ; décision H5 : lien d'un an, « Recevoir à nouveau » avec le seul lien qui a servi, dans les
 // 24 h, un clic honoré après un an) :
 //   D-P1  POST /api/aj-signalement/desinscription/lecture        lecture du lien, AUCUN effet
 //   D-P2  POST /api/aj-signalement/desinscription                « Ne plus recevoir » (origine page)

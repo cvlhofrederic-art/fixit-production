@@ -95,7 +95,7 @@ import { etatPartFondsTravaux, type OperationTravaux } from '@/lib/administrateu
  * - annulation d'un encaissement : on réimpute sans lui (imputerEncaissements), ce n'est pas le traitement symétrique
  *   de R6 (traitements.ts), qui ne refait pas les imputations suivantes.
  * 🔴 Non établi :
- * - « dernière cotisation versée » (L. 721-2, II, 2°, d) — laissée ouverte (Hugo, 30/10/2026 : le notaire choisit la
+ * - « dernière cotisation versée » (L. 721-2, II, 2°, d) — laissée ouverte (30/10/2026 : le notaire choisit la
  *   lecture ; J67, R109 : conforme au texte, marque gardée) : le texte ne connaît que la
  *   cotisation ANNUELLE (art. 14-2-1, I, al. 6), alors que le fonds est appelé par échéances. Deux lectures, toutes deux
  *   rendues, aucune choisie, la plus proche du mot de la loi en premier (J67, R109) :
@@ -109,13 +109,13 @@ import { etatPartFondsTravaux, type OperationTravaux } from '@/lib/administrateu
  * - part du fonds de Gestéam (net ou brut des emplois) ; « l'origine » de l'emploi évoquée le 30/10/2026 (emploi qui
  *   finance un appel de travaux, ou part qui suit le lot vendu : rien ne se déduit à la vente, art. 14-2-1, III) reste à
  *   préciser par le responsable du projet ; la règle de déduction est fixée par F93 (ci-dessous).
- * Décision de Hugo Carvalho du 30/10/2026 (D. 1967 art. 6-2, relu sur Légifrance le 30/10/2026) : un appel exigible le
+ * Décision du 30/10/2026 (D. 1967 art. 6-2, relu sur Légifrance le 30/10/2026) : un appel exigible le
  * jour de la mutation est dû par le vendeur ; avisDAppel le porte désormais au compte vendeur (règle, citations et 🔴
  * restants : en-tête de repartition-appels.ts). Un appel du fonds émis après l'enregistrement de la mutation et exigible
  * ce jour-là figure donc, ici, parmi les postes du vendeur échus au plus tard le jour de la mutation, et non parmi les
  * postes à réattribuer.
  *
- * Décisions de Hugo du 03/11/2026 (registre des décisions juridiques, J30 ; question 21 de la liste) :
+ * Décisions du 03/11/2026 (registre des décisions juridiques, J30 ; question 21 de la liste) :
  * - J30 : la décision d'affectation (date de l'AG et n° de la résolution, confirmée par J42) et l'ordonnance de l'art.
  *   29-14, 2° (juridiction, date, n°) d'un emploi se lisent en forme structurée (fonds-travaux.ts). Le calcul porte sur
  *   des emplois enregistrés : le contrôle d'affectation reçoit `aujourdhui: null` (forme contrôlée, date non comparée
@@ -128,13 +128,13 @@ import { etatPartFondsTravaux, type OperationTravaux } from '@/lib/administrateu
  *   ordonnance saisie sur l'opération en texte libre (travaux-operations.ts, hors de ce lot) reste un texte, donc
  *   signalée.
  *
- * Décisions de Hugo du 06/11/2026 (registre des décisions juridiques, J42 ; PR #643, suite de J30) :
+ * Décisions du 06/11/2026 (registre des décisions juridiques, J42 ; PR #643, suite de J30) :
  * - J42 : la décision d'affectation de l'AG prend la forme date de l'AG + n° de la résolution, obligatoires ; un texte
  *   libre est refusé pour toute nouvelle saisie. L'interprétation de J30 est confirmée : sa marque de doute est retirée,
  *   comportement inchangé (le calcul lit des emplois enregistrés : un texte libre d'avant J30 reste admis, déduit et
  *   signalé).
  *
- * Décisions de Hugo du 17/11/2026 (registre des décisions juridiques, J67 ; recommandations validées en bloc ; textes
+ * Décisions du 17/11/2026 (registre des décisions juridiques, J67 ; recommandations validées en bloc ; textes
  * relus sur Légifrance le 17/11/2026) :
  * - J67, R87 : le fonds de travaux légal n'existe que depuis le 01/01/2017 (L. 1965 art. 14-2, rédaction issue de la loi
  *   n° 2014-366, art. 58 ; la rédaction du 01/01/2002 au 01/01/2017 ne parle d'aucun fonds) : une mutation ou une

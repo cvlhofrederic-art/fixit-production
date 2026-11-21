@@ -407,7 +407,7 @@ describe('page et mise en page racine (sans coquille)', () => {
 
 // ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
 // Lot 8 — écrans de l'espace (BROUILLON pour Frédéric) : « Diffuser un message », message d'annonce, historique, point
-// d'entrée, activation du cabinet, fin de mission. Cahier § 7.1 à 7.4, § 7.6, § 10.1 ; droit § 5.6 ; décisions de Hugo
+// d'entrée, activation du cabinet, fin de mission. Cahier § 7.1 à 7.4, § 7.6, § 10.1 ; droit § 5.6 ; décisions
 // du 11/11/2026 (aucun plafond et rappel du mois ; H1 = C ; H7 ; H11). Routes simulées par fetch ; aucune base.
 // ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
 
@@ -1311,7 +1311,7 @@ describe('lot 8 — activation de la diffusion d’un cabinet (§ 7.4, D-R8)', (
     expect(screen.getByRole('button', { name: TD.reglages.suspendre })).toBeInTheDocument()
   })
 
-  // Décision de Hugo du 16/11/2026 : les déclarants ne répondent plus aux messages. L'adresse reste affichée aux
+  // Décision du 16/11/2026 : les déclarants ne répondent plus aux messages. L'adresse reste affichée aux
   // déclarants et reçoit la copie de chaque message ; elle reste exigée pour activer.
   it('champ de l’adresse du cabinet : libellé sans « réponses des résidents » ; toujours exigé pour activer', async () => {
     expect(TD.reglages.contact).toBe('Adresse de contact du cabinet (affichée aux déclarants, copie de chaque message)')

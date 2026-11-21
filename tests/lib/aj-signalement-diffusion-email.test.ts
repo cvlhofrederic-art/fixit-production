@@ -3,7 +3,7 @@
 //
 // E-mail de diffusion aux déclarants (cahier PR 3 § 5.1, § 5.2, § 5.6, § 3.8 ; décisions H1 et H4) :
 //   - enveloppe : un seul `to` (ni cc ni bcc), expéditeur « "Nom du cabinet nettoyé" <adresse> » figé, AUCUNE adresse
-//     de réponse (décision de Hugo du 16/11/2026 : les copropriétaires ne répondent pas aux messages), objet
+//     de réponse (décision du 16/11/2026 : les copropriétaires ne répondent pas aux messages), objet
 //     « copropriété — objet » sur une ligne, en-têtes RFC 8058 avec le jeton UN CLIC seulement, étiquettes type /
 //     diffusion / destinataire, version texte ;
 //   - gabarit FR et PT : bandeau au nom du cabinet, périmètre, salutation, texte échappé (retours → <br/>), signature,
@@ -93,7 +93,7 @@ afterEach(() => {
 })
 
 describe('enveloppe (§ 5.1)', () => {
-  it('un seul destinataire, ni cc ni bcc ; expéditeur figé ; aucune adresse de réponse (décision de Hugo du 16/11/2026)', () => {
+  it('un seul destinataire, ni cc ni bcc ; expéditeur figé ; aucune adresse de réponse (décision du 16/11/2026)', () => {
     const m = message()
     expect(m.to).toBe('declarant@exemple.test')
     expect(Object.keys(m).sort()).toEqual(['from', 'headers', 'html', 'subject', 'tags', 'text', 'to'])
@@ -342,14 +342,14 @@ describe('message d’annonce (H1, option C)', () => {
   })
 })
 
-// Décision de Hugo du 16/11/2026 : « je ne veux pas que mes copropriétaires puissent répondre ». Le pied ne propose plus
+// Décision du 16/11/2026 : « je ne veux pas que mes copropriétaires puissent répondre ». Le pied ne propose plus
 // de répondre ; il dit que le message est automatique et qu'il ne faut pas y répondre. L'adresse de contact du cabinet
 // reste écrite (choix prudent : moyen direct de joindre le responsable du traitement, indépendant du contenu de sa
-// politique ; question notée pour Hugo) et reçoit toujours la copie de chaque envoi.
-describe('pied sans invitation à répondre (décision de Hugo du 16/11/2026)', () => {
+// politique ; question notée pour le référent métier) et reçoit toujours la copie de chaque envoi.
+describe('pied sans invitation à répondre (décision du 16/11/2026)', () => {
   const ANCIENNES_PHRASES = ['Pour écrire au cabinet, répondez à ce message.', 'Para escrever ao administrador, responda a esta mensagem.']
 
-  it('phrases exactes du message automatique (FR, et PT proposé à relire par Hugo, H4)', () => {
+  it('phrases exactes du message automatique (FR, et PT proposé à relire par le référent métier, H4)', () => {
     expect(TEXTES_DIFFUSION_QR.fr.pasDeReponse).toBe('Ce message a été envoyé automatiquement : merci de ne pas y répondre.')
     expect(TEXTES_DIFFUSION_QR.pt.pasDeReponse).toBe('Esta mensagem foi enviada automaticamente: por favor, não responda.')
     for (const langue of ['fr', 'pt'] as const) expect(TEXTES_DIFFUSION_QR[langue]).not.toHaveProperty('repondre')
@@ -531,7 +531,7 @@ describe('copie au cabinet (§ 5.6)', () => {
   it('message : au seul contact du cabinet, expéditeur du service, sans Reply-To ni en-tête de désinscription', () => {
     const m = messageCopieCabinetDiffusionQr(diffusion())
     expect(m.to).toBe('contact@cabinet-exemple.test')
-    // Décision de Hugo du 16/11/2026 (plus de réponse des déclarants) : la copie au contact du cabinet reste telle quelle.
+    // Décision du 16/11/2026 (plus de réponse des déclarants) : la copie au contact du cabinet reste telle quelle.
     expect(Object.keys(m).sort()).toEqual(['html', 'subject', 'tags', 'text', 'to'])
     expect(m).not.toHaveProperty('from')
     expect(m).not.toHaveProperty('replyTo')

@@ -213,9 +213,9 @@ describe('création d’un envoi de notification électronique (lien avec le cou
     const recu = enchainerNotification(enCours, ['Envoyé OK', 'Reçu'], 10)
     expect(() => notification({ id: 'E2', envoisExistants: [recu] })).toThrow(/déjà « Reçu »/)
     const echec = enchainerNotification(notification(), ["Attente d'envoi", 'Échec'])
-    // J58 (décision de Hugo du 17/11/2026) : un envoi en échec n'a rien notifié ; nouveau courrier.
+    // J58 (décision du 17/11/2026) : un envoi en échec n'a rien notifié ; nouveau courrier.
     expect(() => notification({ id: 'E2', horodatage: H('11:00'), envoisExistants: [echec] })).toThrow(/est en « Échec » .*créer un nouveau courrier .*J58/)
-    // J66 (décision de Hugo du 17/11/2026) : après « Reçu en erreur », le même courrier ne repart pas non plus
+    // J66 (décision du 17/11/2026) : après « Reçu en erreur », le même courrier ne repart pas non plus
     // (avis transmis : notification acquise, J57 ; sinon nouveau courrier, J58).
     const erreur = enchainerNotification(enCours, ['Envoyé OK', 'Reçu en erreur'], 10)
     expect(() => notification({ id: 'E2', horodatage: H('11:00'), envoisExistants: [erreur] })).toThrow(
@@ -595,10 +595,10 @@ describe('lecture d’une notification électronique : aucun statut ne vaut noti
     expect(lecture.alertes.map((a) => a.code)).toEqual(['retour_en_erreur_apres_avis'])
     expect(lecture.alertes[0].message).toMatch(/D\. 1967 art\. 64, dernier al\./)
     expect(lecture.alertes[0].message).toMatch(/téléchargé ou non/)
-    // J57 (décision de Hugo du 17/11/2026) : un refus ou une non-réclamation après l'avis ne remettent pas en cause sa date.
+    // J57 (décision du 17/11/2026) : un refus ou une non-réclamation après l'avis ne remettent pas en cause sa date.
     // J75 : la décision est citée par son numéro, sans prénom dans le message affiché.
     expect(lecture.alertes[0].message).toMatch(/refus ou une non-réclamation après l'avis ne remettent pas en cause sa date \(J57\)/)
-    expect(lecture.alertes[0].message).not.toMatch(/Hugo|Frédéric/)
+    expect(lecture.alertes[0].message).not.toMatch(/[Rr]éférent métier|Frédéric/)
     // Le défaut de transmission de l'avis reste distinct : à vérifier sur le justificatif.
     expect(lecture.alertes[0].message).toMatch(/défaut de transmission de l'avis, qui ne fait pas courir le délai/)
     expect(lecture.alertes[0].message).not.toMatch(/🔴/)
@@ -668,16 +668,16 @@ describe('en-tête du module', () => {
   it('attribue à J57 (et non à J50) l’effet d’une LRE refusée ou non réclamée ; J58 pour l’échec', () => {
     expect(texte).not.toMatch(/interprétation retenue par J50/)
     expect(texte).not.toContain('🔴 Refus, non-réclamation ou rejet')
-    const j57 = item('- J57 (décision de Hugo du 17/11/2026 (J57))')
+    const j57 = item('- J57 (décision du 17/11/2026 (J57))')
     expect(j57).toMatch(/refusé ou non réclamé fait quand même courir le délai, du lendemain de la transmission de l'avis électronique/)
     expect(j57).toMatch(/D\. 1967 art\. 64, dernier al\./)
     expect(j57).toMatch(/défaut de transmission de l'avis/)
-    expect(item('- J58 (décision de Hugo du 17/11/2026 (J58))')).toMatch(/créer un nouveau courrier/)
+    expect(item('- J58 (décision du 17/11/2026 (J58))')).toMatch(/créer un nouveau courrier/)
   })
 
   it('valeur probante tranchée par J67, R16 ; seul le lien avec « PV signé » reste ouvert', () => {
-    expect(item('- J67, R16 (décision de Hugo du 17/11/2026')).toMatch(/qualifiée, présumée fiable ; simple, avancée ou inconnue, recevable mais à prouver/)
-    expect(item('- J67, R16 (décision de Hugo du 17/11/2026')).toMatch(/SignatureElectroniqueModule\.tsx, non modifié.*Frédéric/)
+    expect(item('- J67, R16 (décision du 17/11/2026')).toMatch(/qualifiée, présumée fiable ; simple, avancée ou inconnue, recevable mais à prouver/)
+    expect(item('- J67, R16 (décision du 17/11/2026')).toMatch(/SignatureElectroniqueModule\.tsx, non modifié.*Frédéric/)
     const ouvert = item('🔴 Signature électronique')
     expect(ouvert).toMatch(/PV signé/)
     expect(ouvert).not.toMatch(/valeur probante/)

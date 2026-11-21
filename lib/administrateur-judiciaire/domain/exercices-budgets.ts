@@ -13,7 +13,7 @@ import { estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
  * lignes (clé, compte, rubrique) → prévu TTC ; réalisé lu sur les mouvements imputés.
  * 🔵 Le cycle (ordre des cinq premiers statuts) et « Non géré » pour un exercice hors mission sont DÉDUITS.
  *
- * Décision de Hugo du 17/11/2026 (registre des décisions juridiques, J67, R103 ; décret n° 2005-240, art. 8, relu le
+ * Décision du 17/11/2026 (registre des décisions juridiques, J67, R103 ; décret n° 2005-240, art. 8, relu le
  * 17/11/2026) : un exercice dont le budget n'a jamais été voté se répartit (regularisation-charges.ts). « Préparation »
  * ou « Budgété » passe donc directement à « Répart. en cours », pour la répartition seulement ; il suit ensuite le
  * cycle jusqu'à « Réparti ». Le passage à « Voté » exige toujours l'assemblée et la résolution du budget.

@@ -1,6 +1,6 @@
 // app/api/aj-signalement/cabinets/[id]/logo/route.ts
 //
-// Logo d'un cabinet client (demande de Hugo du 13/11/2026 : « pouvoir ajouter le logo au cabinet et aux PDF »), super
+// Logo d'un cabinet client (demande du 13/11/2026 : « pouvoir ajouter le logo au cabinet et aux PDF »), super
 // admin seul (rôle ET liste d'e-mails, jamais la « vue en tant que ») :
 // PUT — envoi : { png } (base64 strict, logoCabinetQrSchema). L'image vient du navigateur, déjà convertie en PNG par un
 //   canvas (SVG, PNG, JPEG, WebP acceptés à l'écran) ; elle est REVÉRIFIÉE ici (analyserPngQr : PNG tel qu'un canvas le

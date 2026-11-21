@@ -1,6 +1,6 @@
 // tests/components/aj-signalement/logo-cabinet.test.tsx
 //
-// Logo d'un cabinet client dans la vue « Cabinets » de l'espace AJ Signalement (super admin ; demande de Hugo du
+// Logo d'un cabinet client dans la vue « Cabinets » de l'espace AJ Signalement (super admin ; demande du
 // 13/11/2026, BROUILLON pour Frédéric) : bouton « Logo » sur chaque cabinet, fenêtre avec le logo actuel (lu par sa
 // route publique versionnée) ou « Aucun logo », choix d'un fichier converti en PNG sur l'appareil (convertirLogoQr,
 // simulée ici), aperçu, enregistrement (PUT …/logo, PNG en base64), retrait après confirmation (DELETE …/logo), messages
@@ -77,7 +77,7 @@ describe('cartes des cabinets', () => {
 
 // Relecture de conformité du 13/11/2026 : la fenêtre promettait le logo « dans les e-mails de signalement », qui partent
 // en lot (Resend n'y accepte aucune pièce jointe) et n'en portent jamais (tests/api/aj-signalement-signalements.test.ts).
-// Le texte ne promet le logo que là où il paraît. BROUILLON pour Frédéric ; à revoir si Hugo retient l'envoi unitaire.
+// Le texte ne promet le logo que là où il paraît. BROUILLON pour Frédéric ; à revoir si le référent métier retient l'envoi unitaire.
 describe('textes de la fenêtre : le logo promis seulement là où il paraît', () => {
   it('accusé de réception au déclarant : oui ; e-mails de signalement aux gestionnaires et messages diffusés : non', () => {
     rendre()

@@ -195,7 +195,7 @@ describe('J67, R19 — origine de l’adresse (D. 1967 art. 65, al. 1 et 2 ; art
     const nonEtabli = texte.slice(texte.indexOf('🔴 Non établi'))
     expect(nonEtabli).not.toMatch(/portée de « à cet effet »/)
     expect(nonEtabli).toMatch(/jeu de coordonnées par compte ou par syndicat/)
-    expect(texte).toMatch(/J67, R19 \(décision de Hugo du 17\/11\/2026\) : seule vaut pour notifier l'adresse communiquée par le copropriétaire/)
+    expect(texte).toMatch(/J67, R19 \(décision du 17\/11\/2026\) : seule vaut pour notifier l'adresse communiquée par le copropriétaire/)
   })
 })
 

@@ -120,7 +120,7 @@ describe('profil, lots, immeuble, syndic', () => {
   it('immeuble présent : règlement construit si une information existe', () => {
     const i = construireImmeuble({
       id: 'i1', nom: 'Résidence Le Prado', adresse: '182 avenue du Prado', ville: 'Marseille', code_postal: '13008',
-      nb_lots: 48, annee_construction: 1972, type_immeuble: 'Copropriété', gestionnaire: 'Hugo Carvalho',
+      nb_lots: 48, annee_construction: 1972, type_immeuble: 'Copropriété', gestionnaire: 'Camille Martin',
       budget_annuel: '45000', depenses_annee: '31200.5', reglement_texte: null, reglement_pdf_nom: 'reglement.pdf',
       reglement_date_maj: '2020-03-10', reglement_charges_repartition: 'tantièmes généraux', reglement_majorite_ag: null,
       reglement_fonds_travaux: true, reglement_fonds_roulement_pct: '5',

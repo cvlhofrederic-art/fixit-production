@@ -2,7 +2,7 @@
 // tests/api/aj-signalement-adresse.test.ts
 //
 // POST /api/aj-signalement/adresse — adresse proposée d'après la position de la personne qui a scanné le QR code
-// d'une copropriété dont l'adresse n'est pas renseignée (demande de Hugo du 06/11/2026) :
+// d'une copropriété dont l'adresse n'est pas renseignée (demande du 06/11/2026) :
 //   - corps validé (jeton, latitude −90..90, longitude −180..180) ; jeton inconnu ou QR code désactivé → 404 ;
 //   - adresse déjà renseignée → 409, sans appeler le service de géocodage ;
 //   - géocodage inverse auprès de data.geopf.fr ; seule l'adresse revient, null si le service échoue ;

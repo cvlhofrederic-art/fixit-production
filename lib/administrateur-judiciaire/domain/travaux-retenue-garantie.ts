@@ -67,7 +67,7 @@ import { reglementsDeLOperation, type OperationTravaux } from '@/lib/administrat
  *   Non trouvé dans l'art. 31 : la retenue de garantie ; qui établit la part déductible ; une obligation du syndic de la
  *   communiquer aux bailleurs.
  *
- * Décisions de Hugo du 17/11/2026 (registre des décisions juridiques, J67 et J70 : recommandations validées en bloc ;
+ * Décisions du 17/11/2026 (registre des décisions juridiques, J67 et J70 : recommandations validées en bloc ;
  * textes relus sur Légifrance le 17/11/2026 : loi n° 71-584, art. 1er, 2 et 3 ; arrêté du 14 mars 2005, art. 3 ; CPC
  * art. 640 à 642 et 668 ; CGI art. 31, I, 1° ; Cass. 3e civ., 22/09/2004, n° 03-12.639, 13/04/2010, n° 09-11.173, et
  * 09/02/2000, n° 98-15.139) :
@@ -216,10 +216,10 @@ import { reglementsDeLOperation, type OperationTravaux } from '@/lib/administrat
  *   restitution anticipée, malgré l'opposition ou sans confirmation) le sont aussi, comme l'opposition antérieure à la
  *   réception (J67, R64).
  *
- * 🔴 Non établi (questions pour Frédéric ou Hugo) :
+ * 🔴 Non établi (questions pour Frédéric ou le référent métier) :
  * - « Comment Gestéam enregistre-t-il la mainlevée d'une opposition à la retenue : date, origine (levée amiable du maître
  *   de l'ouvrage, décision de justice), pièce ? » (VitFix : date et origine) ;
- * - (relevé Gestéam, Hugo ; J67, R65) « Gestéam garde-t-il plusieurs cautions successives sur une ligne de marché (zone
+ * - (relevé Gestéam, le référent métier ; J67, R65) « Gestéam garde-t-il plusieurs cautions successives sur une ligne de marché (zone
  *   Garantie), ou une seule ? » (VitFix : historique daté des cautions) ;
  * - « Le cabinet consigne-t-il les retenues (art. 1er, al. 2), auprès de quel consignataire, et comment Gestéam
  *   l'enregistre-t-il (compte 461 "Débiteurs divers" ?, compte bancaire distinct ?) ; à la libération, le consignataire

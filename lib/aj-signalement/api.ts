@@ -19,7 +19,7 @@
 //     (D-R4), chargerDiffusionsQr (D-R5), chargerDiffusionQr (D-R6), opposerDeclarantDiffusionQr (D-R7),
 //     chargerReglagesDiffusionCabinetQr et reglerDiffusionCabinetQr (D-R8) ; super admin, et gestionnaire sur une
 //     copropriété qui lui est attribuée nommément (D-R1 à D-R7, H11). Aucune adresse de déclarant ne passe par ces appels ;
-//   - logo d'un cabinet (demande de Hugo du 13/11/2026) : envoyerLogoCabinetQr, retirerLogoCabinetQr (super admin ; le
+//   - logo d'un cabinet (demande du 13/11/2026) : envoyerLogoCabinetQr, retirerLogoCabinetQr (super admin ; le
 //     PNG part déjà converti par le navigateur, jamais le fichier choisi) ; chargerLogoAfficheQr (image lue par la route
 //     publique pour une affiche PDF, super admin et gestionnaire) ;
 //   - bureaux d'un cabinet (migration 20261119, super admin seul) : chargerBureauxCabinetQr, creerBureauQr,
@@ -773,7 +773,7 @@ export async function rattacherCoproprietesQr(
   return { ok: true, rattachees: estObjet(r.corps) ? entier(r.corps.rattachees) : 0 }
 }
 
-// ── Logo d'un cabinet (demande de Hugo du 13/11/2026, migration 20261114) ───
+// ── Logo d'un cabinet (demande du 13/11/2026, migration 20261114) ───
 
 /**
  * Résultat de l'envoi ou du retrait du logo : ses métadonnées (null après un retrait) ; modifie false : même image que

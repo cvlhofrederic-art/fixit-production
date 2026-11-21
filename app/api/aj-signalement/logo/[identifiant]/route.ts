@@ -1,6 +1,6 @@
 // app/api/aj-signalement/logo/[identifiant]/route.ts
 //
-// GET — lecture PUBLIQUE du logo d'un cabinet client (demande de Hugo du 13/11/2026), sans session : pages publiques
+// GET — lecture PUBLIQUE du logo d'un cabinet client (demande du 13/11/2026), sans session : pages publiques
 // du cabinet (signalement par QR code, connexion, confirmation d'adresse, invitation), espace du cabinet et affiches PDF
 // préparées dans le navigateur. Choix d'une route plutôt qu'une data: URL rendue dans chaque page : l'image (jusqu'à
 // 200 Kio) n'alourdit ni le HTML ni les réponses JSON, elle est mise en cache par le navigateur une fois pour toutes

@@ -19,7 +19,7 @@
  * 🔵 Déduit : libellés dépliés quand la cartographie les abrège (« Diagnostic amiante partie commune / partie
  *   privative » → deux types ; les 4 états des lieux ; les 5 bulletins de vote ; les 3 DPE ; les 4 relevés de dépenses ;
  *   les 5 mandats SEPA) ; intitulés des groupes Association (Gestéam ne les nomme pas).
- * 🔴 Non établi (questions pour Hugo, relevé en lecture seule) :
+ * 🔴 Non établi (questions pour le référent métier, relevé en lecture seule) :
  *   - « ICPE (déclaration, autorisation, enregistrement) » : un type ou trois ? (Base compte 146 types s'il n'y en a
  *     qu'un, 148 sinon : c'est le « ± 1 » du décompte de 147) ; « Notes internes (modification comptable, créance
  *     irrécouvrable, jugement, remboursement copropriétaire) » : un type ou un par variante ? Codés ici comme UN type.
@@ -196,7 +196,7 @@ const TYPES_BASE = [
   'Fichier des écritures comptables',
   'Formulaire PDF',
   "Fourniture de produit d'entretien",
-  // 🔴 un type ou trois (déclaration, autorisation, enregistrement) : question pour Hugo.
+  // 🔴 un type ou trois (déclaration, autorisation, enregistrement) : question pour le référent métier.
   'ICPE (déclaration, autorisation, enregistrement)',
   'Image 2D repérée',
   'Image 360 repérée',

@@ -20,7 +20,7 @@ import { CLE_STOCKAGE_MODE } from '@/lib/administrateur-judiciaire/mode'
 import { useSelectionDossier } from '@/lib/administrateur-judiciaire/selection'
 
 /**
- * Patrimoine affiché selon la copropriété choisie dans le sélecteur du haut de page (demande de Hugo du 29/10/2026).
+ * Patrimoine affiché selon la copropriété choisie dans le sélecteur du haut de page (demande du 29/10/2026).
  * Sans copropriété choisie (écran rendu seul), chaque écran garde son comportement d'avant.
  */
 

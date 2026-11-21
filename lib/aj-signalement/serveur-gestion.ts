@@ -1,6 +1,6 @@
 // ── AJ Signalement, côté serveur : cabinets clients, fiches gestionnaires, journal ─────────────────────────────
 //
-// Demandes de Hugo du 10/11/2026 : chaque cabinet client (nom, chemin vitfix.io/<identifiant>/…, langue, domaines
+// Demandes du 10/11/2026 : chaque cabinet client (nom, chemin vitfix.io/<identifiant>/…, langue, domaines
 // e-mail) et ses gestionnaires sont tenus par le super admin dans l'espace ; chaque gestionnaire reçoit les signalements
 // de ses copropriétés une fois son adresse confirmée. Ce module assemble les formes publiques de ces lignes pour les
 // routes app/api/aj-signalement/{cabinets,gestionnaires,journal}/* (clé service, RLS sans politique : le contrôle

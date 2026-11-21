@@ -6,16 +6,16 @@
 // formulaire (coordonnées obligatoires puis le parcours du portail copropriétaire), et la confirmation
 // avec le numéro du signalement. Pas de compte, pas de suivi : l'administrateur recontacte le déclarant
 // au téléphone ou à l'e-mail laissés. Pensée pour un téléphone (une colonne, cibles de 44 px).
-// Copropriété sans adresse (demande de Hugo du 06/11/2026) : une carte « Copropriété » explique en une phrase à
+// Copropriété sans adresse (demande du 06/11/2026) : une carte « Copropriété » explique en une phrase à
 // quoi sert la position, puis montre l'adresse proposée d'après elle (copropriété « à moitié identifiée ») ; refus
 // ou échec n'empêchent rien. Adresse connue : elle est affichée et aucune position n'est demandée.
 // PR 3, lot 7 : l'information à la collecte (politique du cabinet), lue par la page serveur, est passée au formulaire.
-// Logo du cabinet (demande de Hugo du 13/11/2026, brouillon soumis à Frédéric) : lu par la page serveur, posé dans un
+// Logo du cabinet (demande du 13/11/2026, brouillon soumis à Frédéric) : lu par la page serveur, posé dans un
 // bandeau BLANC au-dessus de l'en-tête bleu nuit (un logo sombre y reste lisible), aligné sur la colonne de la page ;
 // sans logo, la page est celle d'avant.
-// R70 du dossier téléphonie (14/11/2026, brouillon : textes Hugo, présentation Frédéric, portugais H4) : la confirmation
+// R70 du dossier téléphonie (14/11/2026, brouillon : textes du référent métier, présentation Frédéric, portugais H4) : la confirmation
 // d'un signalement envoyé comme urgent répète la consigne renforcée d'appel aux secours (ConsigneSecoursQr.tsx).
-// Bâtiments saisis par le cabinet (demande de Hugo du 17/11/2026) : lus par la page serveur avec la copropriété, passés
+// Bâtiments saisis par le cabinet (demande du 17/11/2026) : lus par la page serveur avec la copropriété, passés
 // au formulaire (liste à choix du champ « Bâtiment ») ; sans bâtiment, le formulaire est celui d'avant.
 
 import { useState } from 'react'

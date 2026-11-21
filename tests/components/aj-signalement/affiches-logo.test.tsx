@@ -1,6 +1,6 @@
 // tests/components/aj-signalement/affiches-logo.test.tsx
 //
-// Logo du cabinet sur les affiches PDF préparées dans l'espace (demande de Hugo du 13/11/2026) : les écrans qui
+// Logo du cabinet sur les affiches PDF préparées dans l'espace (demande du 13/11/2026) : les écrans qui
 // téléchargent l'affiche passent le logo du cabinet de la copropriété, SANS requête par copropriété pour le trouver :
 //   - carte d'une copropriété (super admin) : métadonnées du logo prises dans la liste des cabinets déjà chargée
 //     (gestion.cabinets) ; gestionnaire connecté : celles de SON cabinet (GET /moi, déjà chargé) ;

@@ -30,7 +30,7 @@ import type { StatutOrdreMission } from '@/lib/syndic/messagerie-pro'
  *   Nature, qui est un modèle de document de sortie. Nature (22 entrées) : familles Interventions et Devis, puis 3
  *   « Demande devis », 10 « OS » (dont 4 variantes par gestionnaire ou agence, non relevées), 2 « Accord devis » et
  *   « Huissier - exécution forcée ». Le modèle d'OS peut exiger une pièce en retour (attestation, PV de réception).
- *   L'OS est souvent saisi après l'intervention (pratique de Hugo, tranche 14) : aucun ordre strict n'est imposé.
+ *   L'OS est souvent saisi après l'intervention (pratique du référent métier, tranche 14) : aucun ordre strict n'est imposé.
  * - tranche 34 : en-tête (Nature, statut, Demandé le, N° <mandat>.<plan>.<n°>, Entreprise, Dossier, Objet) ; onglet
  *   Suivi : Prix € TTC (montant, dont remise, TVA taux et base, « Associer un devis »), Ventilation (clé, analytique),
  *   Règlement (bouton « Contrôle déclaratif », Acompte €, Acompte échéance, bouton « Non facturé »), Intervention (Prévu
@@ -61,7 +61,7 @@ import type { StatutOrdreMission } from '@/lib/syndic/messagerie-pro'
  *   18-1 A III), carnet d'entretien (L. 1965 art. 18 I ; décret 2001-477). Les seuils de l'art. 21 et l'avis de D. 1967
  *   art. 62-7 déclenchent le visa de l'ordre de service dans envoi-ordre-service.ts (point 44).
  *
- * Recommandations validées par Hugo le 17/11/2026 (J67 ; textes lus sur Légifrance le 17/11/2026) :
+ * Recommandations validées le 17/11/2026 (J67 ; textes lus sur Légifrance le 17/11/2026) :
  * - J67, R48 : la facture du commissaire de justice d'une exécution forcée se reporte au décompte du débiteur, pour la
  *   seule part « à la charge du débiteur » (L. 1965 art. 10-1, a ; CPCE art. L. 111-8), sous le poste « Frais de
  *   recouvrement (art. 10-1 a) : actes du commissaire de justice », avec quatre garde-fous (créance justifiée, pas de
@@ -123,7 +123,7 @@ import type { StatutOrdreMission } from '@/lib/syndic/messagerie-pro'
  * - comptes de l'arrêté du 14/03/2005 (art. 10, classe 4) : le 408 « Factures non parvenues » (travaux réalisés dont la
  *   facture n'est pas reçue) correspond aux interventions réalisées dont une facture est ATTENDUE (demandesNonFacturees,
  *   à la clôture de l'exercice) ; une demande marquée « Non facturé » (sansFacture : aucune facture attendue) ne donne
- *   aucune écriture au 408 — sauf si le bouton signifie « en attente de facture » (question 🔴 à Hugo ci-dessous) ;
+ *   aucune écriture au 408 — sauf si le bouton signifie « en attente de facture » (question 🔴 au référent métier ci-dessous) ;
  *   l'acompte versé correspond au 409 « Fournisseurs débiteurs » (avances et acomptes versés sur commande). Rien de
  *   comptable n'est écrit ici : à reprendre au point 29 ;
  * - contrôle déclaratif, MOMENT : le bouton est rangé au bloc Règlement (tranche 34, sens 🔵 « avant paiement ») ; les
@@ -137,20 +137,20 @@ import type { StatutOrdreMission } from '@/lib/syndic/messagerie-pro'
  *   l'entreprise de la demande seulement.
  *
  * 🔴 Non établi — questions :
- * - Hugo : « Proposition en cours » et « Proposition résident » relèvent-elles de l'étape Demandée (avant l'acceptation) ?
- * - Hugo : le bouton « Non facturé » de l'onglet Suivi marque-t-il la demande comme ne devant pas être facturée, ou
+ * - Référent métier : « Proposition en cours » et « Proposition résident » relèvent-elles de l'étape Demandée (avant l'acceptation) ?
+ * - Référent métier : le bouton « Non facturé » de l'onglet Suivi marque-t-il la demande comme ne devant pas être facturée, ou
  *   liste-t-il les demandes en attente de facture ?
- * - Hugo : le bouton « Contrôle déclaratif » du bloc Règlement de l'onglet Suivi contrôle-t-il l'entreprise avant l'envoi
+ * - Référent métier : le bouton « Contrôle déclaratif » du bloc Règlement de l'onglet Suivi contrôle-t-il l'entreprise avant l'envoi
  *   de l'ordre de service, ou avant le paiement ? (les deux moments sont offerts ici, au choix de l'appelant)
- * - Hugo : « Associer un devis » recopie-t-il le montant du devis dans le Prix € TTC (et sa base HT) ? (non supposé ici :
+ * - Référent métier : « Associer un devis » recopie-t-il le montant du devis dans le Prix € TTC (et sa base HT) ? (non supposé ici :
  *   le devis associé garde son propre montant)
- * - Hugo : « À traiter » (Codification/facture) désigne-t-il une facture enregistrée non comptabilisée, ou une pièce de la
+ * - Référent métier : « À traiter » (Codification/facture) désigne-t-il une facture enregistrée non comptabilisée, ou une pièce de la
  *   corbeille de numérisation non encore associée ?
- * - Hugo : les natures « Accord devis » et « Huissier - exécution forcée » sont-elles de la famille Interventions
+ * - Référent métier : les natures « Accord devis » et « Huissier - exécution forcée » sont-elles de la famille Interventions
  *   (classées ainsi ici) ?
- * - Hugo : les statuts « Accepté » / « Refusé » suivent-ils la réponse au devis, et les stades « Acceptée » / « Refusée »
+ * - Référent métier : les statuts « Accepté » / « Refusé » suivent-ils la réponse au devis, et les stades « Acceptée » / « Refusée »
  *   la réponse à l'OS ?
- * - Hugo : une demande peut-elle porter plusieurs factures (acompte puis solde) ? (admis ici)
+ * - Référent métier : une demande peut-elle porter plusieurs factures (acompte puis solde) ? (admis ici)
  * - Frédéric : la pièce exigée en retour doit-elle bloquer la clôture de la demande ?
  * - Frédéric : faut-il une table Dexie `demandes` unique (un seul objet, distingué par la Nature) à la place des tables
  *   Devis et Intervention, jamais alimentées ?
@@ -266,7 +266,7 @@ export interface Demande {
   demandeLe: string
   /**
    * N° d'ordre de service : libre à la saisie (repris d'ailleurs), ou attribué dans la séquence du mandat au premier
-   * envoi de l'OS par numeroterAuPremierEnvoi (envoi-ordre-service.ts, point 44 ; décision de Hugo du 17/11/2026, J56).
+   * envoi de l'OS par numeroterAuPremierEnvoi (envoi-ordre-service.ts, point 44 ; décision du 17/11/2026, J56).
    */
   numero: string | null
   objet: string
@@ -800,7 +800,7 @@ export function ficheLieeDepuisDemande(d: Demande): FicheLiee {
   return { id: d.id, date: d.demandeLe, statut: d.statut, rattachements }
 }
 
-/** Moment du contrôle déclaratif : avant l'envoi de l'ordre de service, ou avant le règlement (🔵, 🔴 à Hugo). */
+/** Moment du contrôle déclaratif : avant l'envoi de l'ordre de service, ou avant le règlement (🔵, 🔴 au référent métier). */
 export const MOMENTS_CONTROLE_DECLARATIF = ['ordre_de_service', 'reglement'] as const
 export type MomentControleDeclaratif = (typeof MOMENTS_CONTROLE_DECLARATIF)[number]
 

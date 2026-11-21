@@ -11,7 +11,7 @@ import { regimeDepuisFondement } from '@/lib/administrateur-judiciaire/domain/fo
  * D1 (27/10/2026) — trois entités : la fiche « mandat » de Gestéam mêle le SYNDICAT (identifiants, conseil syndical,
  * exercices, clés…) et la MISSION judiciaire ; VitFix range chaque champ d'un seul côté.
  *
- * Recommandations validées par Hugo le 17/11/2026 (J67 ; L. 1965 art. 29-1, I et C. com. art. L. 811-1 lus sur Légifrance
+ * Recommandations validées le 17/11/2026 (J67 ; L. 1965 art. 29-1, I et C. com. art. L. 811-1 lus sur Légifrance
  * le 17/11/2026), champs tirés de l'ordonnance (enregistrement : à brancher ; écran : Frédéric) :
  * - J67, R73 : quand l'ordonnance nomme deux administrateurs judiciaires, les textes lus ne disent pas s'ils agissent
  *   ensemble ou chacun seul : c'est l'ordonnance qui décide (modeExercice). Deux administrateurs sans mode saisi : un

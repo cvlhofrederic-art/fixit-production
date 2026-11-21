@@ -1,6 +1,6 @@
 // tests/lib/aj-signalement-chemin-cabinet.test.ts
 //
-// Chemin public par cabinet client (choix de Hugo du 10/11/2026) : vitfix.io/<identifiant>/signalement/<jeton>/ pour la
+// Chemin public par cabinet client (choix du 10/11/2026) : vitfix.io/<identifiant>/signalement/<jeton>/ pour la
 // page ouverte par le QR code, vitfix.io/<identifiant>/confirmation-adresse/#<jeton> pour la confirmation d'adresse d'un
 // gestionnaire, vitfix.io/<identifiant>/invitation/#<jeton> pour l'ouverture de son accès (PR 2, lot 3). Module pur
 // lib/aj-signalement/chemin-cabinet.ts, lu par le middleware (edge) avant la détection de langue : son motif est FIGÉ

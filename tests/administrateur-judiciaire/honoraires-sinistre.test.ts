@@ -170,10 +170,10 @@ describe('honoraires de sinistre — en-tête : décisions J67 (R1, R2, R8, R14)
   })
 
   it('J72 (b) : frais d’envoi hors contrat type tranchés ; la question 🔴 « R5 et R6 » est retirée', () => {
-    expect(texte).not.toMatch(/🔴 \(Hugo\) En administration provisoire de moins de 500 lots/)
+    expect(texte).not.toMatch(/🔴 \(le référent métier\) En administration provisoire de moins de 500 lots/)
     expect(texte).not.toMatch(/Choix actuel : seule l'absence de fiche est signalée/)
     expect(texte).not.toMatch(/R5 et R6 à concilier|Une seule règle est à\s+choisir/)
-    const j72 = item('- J72 (décision de Hugo du 18/11/2026')
+    const j72 = item('- J72 (décision du 18/11/2026')
     expect(j72).toMatch(/frais du cabinet, à part de sa rémunération/)
     expect(j72).toMatch(/annexe « frais et débours »/)
     expect(j72).toMatch(/C\. com\. R\. 814-27/)
@@ -322,7 +322,7 @@ describe('honoraires de sinistre — élément créé à l’ouverture (contrat 
     expect(element.quantite).toBe(HEURES_A_L_OUVERTURE_SINISTRE)
     expect(corrigerHeures(element, 1.75).quantite).toBe(1.75)
     const { texte } = enTeteDuModule('honoraires-sinistre')
-    const decisions = texte.slice(texte.indexOf('Décisions de Hugo du 03/11/2026'), texte.indexOf('Questions ouvertes'))
+    const decisions = texte.slice(texte.indexOf('Décisions du 03/11/2026'), texte.indexOf('Questions ouvertes'))
     expect(decisions).toMatch(/J38/)
     expect(decisions).toMatch(/1 heure/)
     expect(texte).not.toMatch(/Garder 1 heure par défaut \(choix actuel\), ou créer l'élément à 0 heure/)
@@ -397,7 +397,7 @@ describe('honoraires de sinistre — pas d’élément hors du contrat type', ()
     for (const cadre of ['tarif_administrateur_provisoire', 'remuneration_fixee_par_le_juge', 'remuneration_fixee_par_le_president', 'regime_inconnu'] as const) {
       const resultat = elementAOuvertureSinistre(ouverture(), cadre)
       if (resultat.genere) throw new Error('Signalement attendu.')
-      expect(resultat.signalement).not.toMatch(/Frédéric|Hugo|question pour/i)
+      expect(resultat.signalement).not.toMatch(/Frédéric|référent métier|question pour/i)
     }
   })
 
@@ -579,7 +579,7 @@ describe('honoraires de sinistre — contrôle des éléments', () => {
     expect(signales.map((a) => a.elementId)).toEqual(['el-s1', 'el-sf', 'el-decl', 'el-regl', 'el-inc', 'el-rcp'])
     expect(signales[0].message).toMatch(/C\. com\. R\. 814-27 ; provision possible, R\. 814-28\)\. Mandataire ad hoc/)
     expect(signales[0].message).toMatch(/\. À soumettre au président, pas à facturer au syndicat\.$/)
-    expect(signales[0].message).not.toMatch(/Frédéric|Hugo|à confirmer/)
+    expect(signales[0].message).not.toMatch(/Frédéric|[Rr]éférent métier|à confirmer/)
   })
 
   it('régime inconnu : chaque élément de sinistre est signalé « regime_inconnu », à vérifier sur le fondement du mandat', () => {
@@ -613,7 +613,7 @@ describe('honoraires de sinistre — contrôle des éléments', () => {
       expect(message(cadre), cadre).toMatch(
         /^Tarif « Sinistre - Affranchissement » \(Timbre\) : frais du cabinet, à part de sa rémunération ; à présenter au juge en annexe « frais et débours », payés seulement en vertu de son ordonnance \(.*J72, b\) ; pas à facturer au syndicat\.$/,
       )
-      expect(message(cadre)).not.toMatch(/Hugo|Frédéric/)
+      expect(message(cadre)).not.toMatch(/[Rr]éférent métier|Frédéric/)
     }
     // relecture : le fondement de J72 (b) est l'ordonnance qui arrête les frais et débours (J67, R5), pas l'art. 61-1-5, II
     // (émoluments seuls) ni son III, al. 2 (droits proportionnels au-delà du seuil de l'arrêté)

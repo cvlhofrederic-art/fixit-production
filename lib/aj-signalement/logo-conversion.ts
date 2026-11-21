@@ -1,6 +1,6 @@
 // ── Logo d'un cabinet : règles pures de la conversion faite dans le navigateur ───────────────────────────────────────
 //
-// Demande de Hugo du 13/11/2026. Le super admin choisit une image (SVG, PNG, JPEG ou WebP, 5 Mo au plus) ; le navigateur
+// Demande du 13/11/2026. Le super admin choisit une image (SVG, PNG, JPEG ou WebP, 5 Mo au plus) ; le navigateur
 // la dessine sur un canvas et en tire un PNG borné (lib/aj-signalement/logo-navigateur.ts). Ce module, sans navigateur,
 // fixe : le type d'après les OCTETS (jamais d'après le nom ni le type annoncé du fichier), la taille d'un SVG (attributs
 // width, height, viewBox), la taille du dessin (800 × 400 px au plus, proportions gardées ; une image matricielle n'est

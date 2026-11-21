@@ -118,7 +118,7 @@ describe('EcranInformations — votre syndic', () => {
     render(<EcranInformations {...props()} />)
     const syndic = carte(t.informations.votreSyndic)
     expect(within(syndic).getByText('Cabinet Dupont')).toBeInTheDocument()
-    expect(within(syndic).getByText('Gestionnaire de l’immeuble : Hugo Carvalho')).toBeInTheDocument()
+    expect(within(syndic).getByText('Gestionnaire de l’immeuble : Camille Martin')).toBeInTheDocument()
     expect(within(syndic).getByRole('link', { name: '04 91 00 00 00' })).toHaveAttribute('href', 'tel:0491000000')
     expect(within(syndic).getByRole('link', { name: 'contact@cabinet-dupont.fr' })).toHaveAttribute('href', 'mailto:contact@cabinet-dupont.fr')
     expect(within(syndic).getByText('45 avenue du Prado, 13008 Marseille')).toBeInTheDocument()

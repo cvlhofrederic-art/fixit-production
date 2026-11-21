@@ -2,7 +2,7 @@
 
 // ── Signalements déjà faits au même endroit : liste et choix « même problème / autre problème » ──
 //
-// Demande de Hugo du 06/11/2026. Montré sous la zone des parties communes quand le serveur en a trouvé (au plus 5,
+// Demande du 06/11/2026. Montré sous la zone des parties communes quand le serveur en a trouvé (au plus 5,
 // du plus récent au plus ancien) : numéro, type, zone, date, statut, rien d'autre. Sur chaque ligne, « C'est le
 // même problème » (bouton à bascule, aria-pressed) ; sous la liste, « C'est un autre problème ». Le choix est résumé
 // dans une région annoncée aux lecteurs d'écran et n'empêche jamais l'envoi. Composants du socle UI seulement.

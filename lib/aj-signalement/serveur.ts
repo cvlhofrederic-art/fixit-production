@@ -605,7 +605,7 @@ export type LectureCoproprieteQr =
 export interface OptionsLectureParJetonQr {
   /**
    * Bâtiments saisis par le cabinet (colonne batiments, migration du 11/11/2026), lus dans la même requête : contrôle du
-   * bâtiment d'un dépôt (demande de Hugo du 17/11/2026). Colonne absente : copropriété relue sans elle (repli journalisé
+   * bâtiment d'un dépôt (demande du 17/11/2026). Colonne absente : copropriété relue sans elle (repli journalisé
    * une fois), aucun bâtiment, comme avant.
    */
   batiments?: boolean
@@ -641,7 +641,7 @@ export type LecturePagePubliqueQr =
  * simples plutôt qu'un embarqué PostgREST. Colonne cabinet_id absente (migration du 11/11/2026 non appliquée) : relue
  * comme avant, cabinet null — la page du chemin client répond alors 404 et l'ancienne adresse sert comme aujourd'hui.
  * Les bâtiments saisis par le cabinet (colonne batiments, même migration) sont lus avec cabinet_id : liste à choix du
- * formulaire (demande de Hugo du 17/11/2026) ; relue sans eux dans le même repli (aucun bâtiment, texte libre).
+ * formulaire (demande du 17/11/2026) ; relue sans eux dans le même repli (aucun bâtiment, texte libre).
  */
 export async function lireCoproprieteEtCabinetParJetonQr(jeton: string): Promise<LecturePagePubliqueQr> {
   if (!JETON_QR.test(jeton)) return { ok: true, copropriete: null, cabinet: null }
@@ -1151,7 +1151,7 @@ async function assemblerTableauQr(
 export type LectureTableauGestionnaireQr = { ok: true; tableau: TableauQr } | { ok: false; erreur: ErreurBase }
 
 /**
- * Tableau de bord d'un gestionnaire connecté (SPEC § 2.4 et § 2.5 ; Hugo, 11/11/2026 : même présentation que l'espace
+ * Tableau de bord d'un gestionnaire connecté (SPEC § 2.4 et § 2.5 ; 11/11/2026 : même présentation que l'espace
  * global, limitée à sa portée) : copropriétés visibles de SON cabinet (attributions ∪ « à tous »), les 500 signalements
  * les plus récents de ces copropriétés, puis minimisation (tableauVuGestionnaireQr). Aucune lecture « globale » de
  * signalements. Colonnes de la trace du statut absentes : relecture par select('*'), journalisée une fois.
@@ -1555,7 +1555,7 @@ export async function compterSignalementsQr(coproprieteId: string): Promise<Comp
 
 /**
  * Adresses saisies de la copropriété, canoniques. Calcul de destinatairesSignalementQr sans gestionnaire ni cabinet, gardé
- * pour ses tests ; depuis D9 (décision de Hugo du 17/11/2026), plus jamais ADMIN_EMAIL quand il n'y en a aucune.
+ * pour ses tests ; depuis D9 (décision du 17/11/2026), plus jamais ADMIN_EMAIL quand il n'y en a aucune.
  */
 export function destinatairesSignalement(copropriete: { emails_destinataires?: string[] | null }): string[] {
   return destinatairesSignalementQr(copropriete, []).destinataires.map((d) => d.email)
@@ -1586,7 +1586,7 @@ export async function lireGestionnairesDestinatairesQr(coproprieteId: string): P
 }
 
 /**
- * D9 (décision de Hugo du 17/11/2026, au nom de VitFix, point 7) : lu par la route du dépôt SEULEMENT quand la
+ * D9 (décision du 17/11/2026, au nom de VitFix, point 7) : lu par la route du dépôt SEULEMENT quand la
  * copropriété n'a aucun destinataire direct. Copropriété d'un cabinet client → { etat: 'cabinet', contact } (adresse de
  * contact du cabinet, diffusion_contact_email, ou null ; null aussi si cette colonne manque, migration du 13/11/2026) ;
  * copropriété rattachée à aucun cabinet, ou colonne cabinet_id absente (migration du 11/11/2026 non appliquée) →

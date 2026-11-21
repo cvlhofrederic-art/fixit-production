@@ -1,6 +1,6 @@
 // tests/components/aj-signalement/gestionnaires.test.tsx
 //
-// Vues « Gestionnaires » de l'espace AJ Signalement (super admin ; demandes de Hugo du 10/11/2026 : « chaque gestionnaire
+// Vues « Gestionnaires » de l'espace AJ Signalement (super admin ; demandes du 10/11/2026 : « chaque gestionnaire
 // doit avoir sa page de suivi des signalements par copropriété ») :
 // - liste : état de chaque fiche, adresse contestée en tête, domaine forcé, compteurs ; « Ajouter un gestionnaire »
 //   (adresse hors des domaines du cabinet : avertissement puis « Créer quand même » ; cabinet sans domaine : renvoi vers

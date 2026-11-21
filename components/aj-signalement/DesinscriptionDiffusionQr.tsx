@@ -2,7 +2,7 @@
 
 // ── Désinscription des messages de diffusion (vitfix.io/<identifiant>/desinscription/#<jeton>) ───────────────────
 //
-// Cahier PR 3 § 7.5, § 7.6, § 8.1 ; note juridique § 5.1 à § 5.5 ; décision H5 de Hugo. Écran NOUVEAU, brouillon soumis
+// Cahier PR 3 § 7.5, § 7.6, § 8.1 ; note juridique § 5.1 à § 5.5 ; décision H5. Écran NOUVEAU, brouillon soumis
 // à Frédéric (F1). Page publique, sans session, servie SANS la coquille de VitFix (app/(sans-coquille)/, F3).
 //
 // Le jeton est lu dans le fragment UNE fois, gardé en mémoire, et le fragment est effacé de l'adresse AVANT tout appel

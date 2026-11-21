@@ -49,12 +49,12 @@ import { DOSSIER, type Dossier } from '@/lib/data/referentiels-gesteam-judiciair
  * dossiers Bail, Communication, Comptabilité, Mandat de gérance et Location Transaction, absents de la tranche 42
  * (DOSSIERS_NON_RELEVES : typesEtapesDuDossier rend null).
  *
- * Décisions de Hugo (registre des décisions juridiques) :
+ * Décisions du référent métier (registre des décisions juridiques) :
  * - J20 : instancier une liste est un geste du collaborateur : chaque étape est d'origine « manuelle », « Créée par » ce
  *   collaborateur (obligatoire), jamais « Automatique » (🔵 par analogie avec l'étape enchaînée de J20) ; la règle « étape
  *   automatique non réalisée après N jours » ne la vise donc pas : elle remonte au suivi « à faire » par sa limite, quand
  *   elle en a une ; sans délai saisi, elle y remonte chaque jour, marquée « sans délai », jamais en retard (proposition
- *   de Hugo du 19/11/2026, à valider par Frédéric ; question n° 6 ci-dessous).
+ *   du 19/11/2026, à valider par Frédéric ; question n° 6 ci-dessous).
  * - J21 : les durées d'étape sont en minutes ; 🔵 les délais d'un modèle, eux, sont en jours entiers (écart entre deux
  *   limites), comme EtapeTypeProcessus.delaiJours : deux grandeurs distinctes.
  * - J24 et J41 : « Copie au CS pour info » reste un usage du cabinet, inactif par défaut (etapeCopieAuCsPourInfo,
@@ -63,7 +63,7 @@ import { DOSSIER, type Dossier } from '@/lib/data/referentiels-gesteam-judiciair
  *   processusDuDossier et modeleDuDossier la retirent tant que le réglage du cabinet (UsagesEtapesCabinet) ne l'active
  *   pas : sans ce réglage, ni l'enchaînement après la mise en demeure ni l'instanciation ne la créent.
  * - J44 : pas de case « Fixe » : l'instanciation ne saisit ni « À faire le » ni « Prévue le » (programmerEtape ensuite).
- * - J64 (décision de Hugo du 17/11/2026 (J64) ; DECISIONS-HUGO-2026-11-17.md, section « Suite » : recommandations
+ * - J64 (décision du 17/11/2026 (J64) ; notes de décision du 17/11/2026, section « Suite » : recommandations
  *   validées en bloc, numéro de registre proposé) : usage « Copie au CS » activé, l'étape naît « Automatique » du courrier
  *   de mise en demeure du contentieux (procédure 19-2 comprise, pas les simples relances ; etapes-courrier.ts,
  *   regleCopieAuCsPourInfo), et l'enchaînement ne la recrée pas (enchainerEtapeDossierSansDoublon) ; réglage désactivé par
@@ -78,7 +78,7 @@ import { DOSSIER, type Dossier } from '@/lib/data/referentiels-gesteam-judiciair
  *   un délai saisi par le cabinet, 0 compris, fixe la limite. Ferme la question n° 1 et, en partie, la n° 2.
  *   Conséquence : enchaînée sans délai, l'étape n'a ni limite, ni « à faire le », ni alerte, et la règle des N jours ne
  *   vise pas une étape « manuelle » (J20). Sur main, le délai de 0 jour lui donnait une limite. Elle remonte maintenant
- *   au suivi « à faire », marquée « sans délai », jamais en retard (suivi-a-faire.depuisEtapes ; proposition de Hugo du
+ *   au suivi « à faire », marquée « sans délai », jamais en retard (suivi-a-faire.depuisEtapes ; proposition du
  *   19/11/2026, à valider par Frédéric) : voir la question n° 6 ci-dessous.
  *
  * 🔵 Choix VitFix :
@@ -110,25 +110,25 @@ import { DOSSIER, type Dossier } from '@/lib/data/referentiels-gesteam-judiciair
  *
  * 🔴 Non établi — questions :
  * 1. Fermée par J76 (ci-dessus) : aucun délai de gestion par défaut ; le cabinet saisit les siens.
- * 2. En partie fermée par J76 : d'une étape à la suivante, jamais tous depuis le départ. Reste ouvert (Frédéric ou Hugo,
+ * 2. En partie fermée par J76 : d'une étape à la suivante, jamais tous depuis le départ. Reste ouvert (Frédéric ou le référent métier,
  *    registre J76) : le délai part-il de la limite de l'étape précédente (liste instanciée, choix actuel) ou de sa
  *    réalisation (enchaînement, choix actuel) ? À la réalisation d'une étape, faut-il replanifier les suivantes ?
- * 3. Hugo : contenu des listes de contrôle Gestéam (dont « Nouveau mandat de syndic ») et types d'étapes des dossiers non
+ * 3. Référent métier : contenu des listes de contrôle Gestéam (dont « Nouveau mandat de syndic ») et types d'étapes des dossiers non
  *    relevés : à relever en lecture seule si le cabinet en a besoin ; rien n'est inventé ici.
- * 4. Hugo : les fondements et délais légaux cités par prise-de-fonction.ts (« 1 mois après le prononcé », « sous 15
+ * 4. Référent métier : les fondements et délais légaux cités par prise-de-fonction.ts (« 1 mois après le prononcé », « sous 15
  *    jours », « 3 mois … (à confirmer) ») et par reprise.ts (« 15 jours », « 1 mois », « apurement ») sont recopiés tels
  *    quels en instructions, sans revérification ; aucun n'est tranché par le registre des décisions juridiques (le moteur
  *    de délais les date avec sa propre certitude) : à confirmer.
- * 5. Frédéric ou Hugo : un modèle s'instancie d'un coup (liste de contrôle) ou se suit étape par étape (enchaînement).
+ * 5. Frédéric ou le référent métier : un modèle s'instancie d'un coup (liste de contrôle) ou se suit étape par étape (enchaînement).
  *    Les deux sur une même liste font double emploi : enchaîner depuis une étape d'une liste instanciée recrée l'étape
  *    suivante, déjà présente. Et l'instanciation d'un coup crée toutes les étapes le jour du départ, si bien que
  *    « En cours depuis » (J23 : depuis la création) court pour toutes dès ce jour. Faut-il un seul des deux usages par
  *    modèle, ou créer chaque étape à la réalisation de la précédente ?
- * 6. Proposition de Hugo du 19/11/2026, codée, à valider par Frédéric avant fusion (registre J76 : « décision de Hugo du
+ * 6. Proposition du 19/11/2026, codée, à valider par Frédéric avant fusion (registre J76 : « décision du
  *    19/11/2026 » ; point de contact avec J20) : une étape sans délai saisi, enchaînée ou instanciée d'une liste, n'a ni
- *    limite, ni « à faire le », ni alerte ; d'origine « manuelle », elle échappe à la règle des N jours. Ce que Hugo a
+ *    limite, ni « à faire le », ni alerte ; d'origine « manuelle », elle échappe à la règle des N jours. Ce que le référent métier a
  *    tranché : elle remonte au suivi « à faire » (suivi-a-faire.depuisEtapes), marquée « sans délai », jamais en retard,
- *    pour ne pas être oubliée. 🔵 Choix de codage, à valider aussi (Hugo ne dit pas à quelle date) : l'élément est daté
+ *    pour ne pas être oubliée. 🔵 Choix de codage, à valider aussi (le référent métier ne dit pas à quelle date) : l'élément est daté
  *    de la date de référence, dû le jour même, chaque jour, et non de la date de création de l'étape ; jamais avant cette
  *    création (étape instanciée ou enchaînée à une date future) ; une étape automatique sans date reste suivie par sa
  *    seule relance à N jours (depuisEtapesAutomatiques), sans doublon. Une étape datée et une étape à valider sont

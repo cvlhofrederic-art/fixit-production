@@ -1,7 +1,7 @@
 // tests/lib/aj-signalement-acces-espace.test.ts
 //
-// Espace indépendant « AJ Signalement » (demande de Hugo du 10/11/2026) : adresse, contrôle d'accès, menu, page de
-// connexion professionnelle de l'espace (demande de Hugo du 11/11/2026) et arrivée après connexion, dans un module pur
+// Espace indépendant « AJ Signalement » (demande du 10/11/2026) : adresse, contrôle d'accès, menu, page de
+// connexion professionnelle de l'espace (demande du 11/11/2026) et arrivée après connexion, dans un module pur
 // (lib/aj-signalement/acces-espace.ts) partagé par le middleware, la page de connexion de l'espace, l'espace lui-même et
 // les liens du portail copropriétaire et de l'AJ. Aujourd'hui seul le super admin entre ; la décision ne lit que
 // app_metadata, jamais user_metadata. Depuis le 11/11/2026 (alignement des routes sur isSuperAdmin, #650), la « vue en
@@ -269,7 +269,7 @@ describe('destinationConnexionEspaceQr : arrivée après la connexion profession
 
 // ── PR 2, lot 4 : espace de chaque cabinet (vitfix.io/<identifiant>/connexion/ et /suivi/) ───────────────────────────
 //
-// Décisions de Hugo du 11/11/2026 (SPEC § 6) et plan § 1.5 : chaque cabinet a SA page de connexion professionnelle et SON
+// Décisions du 11/11/2026 (SPEC § 6) et plan § 1.5 : chaque cabinet a SA page de connexion professionnelle et SON
 // espace de suivi ; le gestionnaire y est reconnu par son rôle serveur (gestionnaire_signalement) ET par le repère de
 // routage app_metadata.aj_signalement_cabinet (identifiant de SON cabinet), posé par le serveur à l'acceptation. Le
 // repère ne donne aucun droit (les routes relisent la fiche) : il aiguille seulement. Seul app_metadata compte.

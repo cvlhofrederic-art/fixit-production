@@ -7,7 +7,7 @@ import { coproParDefaut } from '@/lib/administrateur-judiciaire/domain/selection
 import { useSelectionDossier } from '@/lib/administrateur-judiciaire/selection'
 
 /**
- * Copropriété du sélecteur du haut de page : copropriété par défaut et mémoire du choix (demande de Hugo du
+ * Copropriété du sélecteur du haut de page : copropriété par défaut et mémoire du choix (demande du
  * 29/10/2026). Hors du Shell pour que celui-ci n'ait qu'un appel de hook à porter.
  */
 

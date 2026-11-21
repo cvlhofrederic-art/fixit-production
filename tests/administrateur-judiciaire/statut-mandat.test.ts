@@ -443,10 +443,10 @@ describe('en-tête du module', () => {
     expect(item('Restent sur tous les mandats')).toMatch(/la réponse de Fixy sur une copropriété citée/)
   })
 
-  it('pose les questions ouvertes à Hugo et Frédéric', () => {
-    expect(item('Hugo : « En gestion, en clôture »')).toMatch(/\?/)
-    expect(item('Frédéric et Hugo : `Mandat.statut`')).toMatch(/\?/)
-    expect(item("Hugo : faut-il refuser d'archiver")).toMatch(/\?/)
+  it('pose les questions ouvertes au référent métier et Frédéric', () => {
+    expect(item('Référent métier : « En gestion, en clôture »')).toMatch(/\?/)
+    expect(item('Frédéric et le référent métier : `Mandat.statut`')).toMatch(/\?/)
+    expect(item("Référent métier : faut-il refuser d'archiver")).toMatch(/\?/)
     expect(texte).toMatch(/L\. 1965 art\. 29-1, IV/)
   })
 })
@@ -713,7 +713,7 @@ describe('tableau des honoraires — question 🔴 du statut du mandat dans l’
     const fin = source.indexOf('function filtreDesMandats')
     const commentaire = source.slice(source.lastIndexOf('/**', fin), fin).replaceAll(/\n \*\s+/g, ' ')
     expect(commentaire).toMatch(/🔴 à confirmer par Frédéric, question « Statut du mandat » de l'en-tête/)
-    expect(commentaire).not.toMatch(/Hugo/)
+    expect(commentaire).not.toMatch(/le référent métier/)
   })
 })
 

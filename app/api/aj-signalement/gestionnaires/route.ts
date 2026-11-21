@@ -4,7 +4,7 @@
 // GET (P1-R8) — liste : état calculé (confirmation envoyée / expirée, adresse confirmée / contestée, désactivée),
 //   « domaine forcé », copropriétés attribuées, signalements ouverts et urgents de sa portée ; filtres etat et cabinet ;
 //   jamais de jeton d'envoi ; jamais en cache.
-// POST (P1-R9) — création, puis envoi du lien de confirmation d'adresse (demandes de Hugo du 10/11/2026 : le gestionnaire
+// POST (P1-R9) — création, puis envoi du lien de confirmation d'adresse (demandes du 10/11/2026 : le gestionnaire
 //   reçoit les signalements de ses copropriétés une fois son adresse confirmée, et seulement sur un domaine e-mail de
 //   SON cabinet). Dans cet ordre : adresse de l'administrateur → 409 adresse_reservee ; cabinet inconnu → 409
 //   a_reverifier ; aucun domaine → 409 domaines_a_renseigner ; adresse déjà en table → 409 existe_deja { id } ;

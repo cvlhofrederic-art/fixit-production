@@ -97,7 +97,7 @@ export { MOTIFS_ANNULATION_REGLEMENT, type MotifAnnulationReglement }
  * 🔵 Déduit :
  * - sens des statuts : « Demandé » = règlement préparé, hors de tout ordre ; « À régler » = dans un ordre de virement
  *   non émis ; « Enregistré » = ordre émis, ou chèque, prélèvement ou TIP constaté hors ordre ; « Rapproché » = pointé
- *   dans un arrêté (propagé seulement, par rapprochement-pieces.ts : au pointage, décision J8 de Hugo du 30/10/2026) ;
+ *   dans un arrêté (propagé seulement, par rapprochement-pieces.ts : au pointage, décision J8 du 30/10/2026) ;
  *   « Annulé » = abandonné avant tout paiement, ou virement rejeté ou retourné après émission (rejet renseigné, J9
  *   ci-dessous), ou règlement payé annulé par « Annuler le règlement » (annulation renseignée, F84 ci-dessous) ;
  * - un virement ne se paie que par un ordre de virement (identifiant de bout en bout = n° de pièce, unique dans
@@ -118,7 +118,7 @@ export { MOTIFS_ANNULATION_REGLEMENT, type MotifAnnulationReglement }
  * - type de bénéficiaire fermé (fournisseur, copropriétaire, indivisaire ; administrateur provisoire (rémunération) :
  *   F87 ci-dessous) : Mandant, Propriétaire et Cpte gérance
  *   relèvent de la gérance, hors champ ; la paie du personnel du syndicat n'y entre pas (point 42 : compte 421).
- * Décision J9 de Hugo du 30/10/2026 — virement rejeté ou retourné après émission : écriture contraire « Annulation de
+ * Décision J9 du 30/10/2026 — virement rejeté ou retourné après émission : écriture contraire « Annulation de
  * règlements », par le même circuit de traitements que l'écriture du règlement ; retour de la facture à l'état d'avant
  * (statuts-facture.ts, retourFactureApresRejet), avec le motif et la date du rejet ; le règlement passe « Annulé »
  * (rejeterVirement).
@@ -141,7 +141,7 @@ export { MOTIFS_ANNULATION_REGLEMENT, type MotifAnnulationReglement }
  *   ligne au crédit du relevé, se pointe avec l'écriture contraire, sans pièce (une pièce « règlement » est une sortie).
  *   rapprocherReglements lit un virement rejeté comme payé, pour ne pas signaler le pointage de sa sortie, puis lui rend
  *   « Annulé », sauf à une date (aLaDate) antérieure au rejet : il garde alors le statut propagé à cette date.
- * Décision J10 de Hugo du 30/10/2026 — bénéficiaire indivisaire : le règlement va au mandataire commun des indivisaires
+ * Décision J10 du 30/10/2026 — bénéficiaire indivisaire : le règlement va au mandataire commun des indivisaires
  * (L. 1965 art. 23, al. 2) ; un règlement à l'indivision n'est admis qu'au mandataire commun désigné, indivisaire ou non
  * (tiers désigné par le président du tribunal judiciaire, L. 1965 art. 23, al. 2 : ni J10 ni le texte n'exigent qu'il
  * soit indivisaire) ; sans mandataire désigné, il est refusé (controlerBeneficiaireIndivisaire).
@@ -151,23 +151,23 @@ export { MOTIFS_ANNULATION_REGLEMENT, type MotifAnnulationReglement }
  * - le mandataire est porté par le compte copropriétaire débité (identites-positions.ts, mandataireCommunId : un compte,
  *   une indivision, un mandataire), donnée facultative et non indexée ; le bénéficiaire doit être ce mandataire ; le
  *   tiers désigné, qui n'a aucune position « Indivisaire » sur ce compte, n'a pas de position à tenir (J10 appliquée le
- *   17/11/2026 ; lecture de Claude, à confirmer par Hugo) ; un autre bénéficiaire est refusé et sa position
+ *   17/11/2026 ; lecture de Claude, à confirmer par le référent métier) ; un autre bénéficiaire est refusé et sa position
  *   « Indivisaire » en place sur ce compte reste contrôlée (D2) : les deux défauts se cumulent, chacun bloquant ;
  * - la désignation n'étant pas datée, la position reste le seul signal d'un mandataire périmé (relecture du 17/11/2026) :
  *   le mandataire désigné qui a tenu une position « Indivisaire » sur ce compte et n'en tient plus aucune en place à la
  *   date (part cédée) est refusé (mandataire_commun_position_sortie) ; sans aucun indivisaire en place sur le compte à
  *   la date, l'indivision a pu prendre fin : refus (indivision_sans_indivisaire_en_place) ; dans les deux cas, vérifier
  *   que la désignation vaut encore.
- * Décision J25 de Hugo du 03/11/2026 — aucun paiement en espèces, ni des salaires ni des fournisseurs ; le compte 53
+ * Décision J25 du 03/11/2026 — aucun paiement en espèces, ni des salaires ni des fournisseurs ; le compte 53
  * « Caisse » n'est pas tenu. Le refus du mode « Espèces » devient une décision du cabinet, et non plus un choix
  * provisoire de VitFix : un tel paiement sortirait du compte 53 et non d'un 512 (arrêté du 14 mars 2005, art. 3 et 7),
  * avec le contrôle des espèces propre à l'administrateur judiciaire (carnet de reçus, arrêté du 16 août 1999). La
  * réserve de C. trav. L3241-1 (salaire payé en espèces au salarié qui le demande, sous un seuil) ne vise que les
  * salaires (personnel-syndicat.ts), pas un fournisseur.
- * Décisions de Hugo du 06/11/2026 (J40) — cette réserve est tranchée : aucun salaire n'est payé en espèces, même sous le
+ * Décisions du 06/11/2026 (J40) — cette réserve est tranchée : aucun salaire n'est payé en espèces, même sous le
  * seuil et à la demande du salarié (personnel-syndicat.ts, choix du cabinet plus strict que la loi). Rien ne change ici :
  * le mode « Espèces » reste refusé pour un fournisseur (J25).
- * Recommandations validées par Hugo le 17/11/2026 (J67 ; textes lus sur Légifrance le 17/11/2026) :
+ * Recommandations validées le 17/11/2026 (J67 ; textes lus sur Légifrance le 17/11/2026) :
  * - J67, R79 (dettes nées avant la désignation) : la décision qui désigne l'administrateur provisoire « emporte
  *   suspension de l'exigibilité des créances, autres que les créances publiques et sociales, ayant leur origine
  *   antérieurement à cette décision, pour une période de douze mois » (L. 1965 art. 29-3, I) ; le juge peut proroger
@@ -254,11 +254,11 @@ export { MOTIFS_ANNULATION_REGLEMENT, type MotifAnnulationReglement }
  *   règlement par virement de cette facture est refusé tant que l'IBAN est à vérifier, puis s'il ne part pas vers l'IBAN
  *   changé ou confirmé (controlerIbanApresRejet) ; les autres motifs de rejet suivent J9 sans changement. 🔵 Déduit : un
  *   règlement qui ne part pas par virement n'a pas d'IBAN à contrôler.
- * 🔴 Non établi (à trancher par Frédéric ou Hugo) :
+ * 🔴 Non établi (à trancher par Frédéric ou le référent métier) :
  * - Gestéam passe-t-il l'écriture du « Règlement de factures » dès le traitement qui produit l'ordre (imputée plus
  *   tard), ou au paiement ? Non observé ; VitFix l'écrit au paiement (ci-dessus) ;
  * - J10, désignation non datée : le mandataire porté sur le compte vaut à la date du contrôle, sans historique des
- *   mandataires successifs ; gravité de ces deux refus (bloquants par prudence) à confirmer par Hugo : bloquer, ou
+ *   mandataires successifs ; gravité de ces deux refus (bloquants par prudence) à confirmer par le référent métier : bloquer, ou
  *   seulement avertir ;
  * - remboursement de solde (copropriétaire, indivisaire) dans ce même objet, ou dans un objet frère ;
  * - sens de « Tranche » (non observé) : donnée opaque, rattachée à des travaux ; à ne pas confondre avec les tranches
@@ -1298,7 +1298,7 @@ function anomalieMandataireCommun(
  * Mandataire commun désigné (J10) : dispensé de position s'il n'a jamais tenu de position « Indivisaire » sur le compte
  * débité (tiers désigné, L. 1965 art. 23, al. 2). La désignation n'étant pas datée, la position reste le seul signal d'un
  * mandataire périmé (relecture du 17/11/2026) : sa position d'indivisaire sur ce compte n'est pas en place à la date, ou
- * aucun indivisaire n'y est en place : refus, désignation à vérifier (gravité à confirmer par Hugo).
+ * aucun indivisaire n'y est en place : refus, désignation à vérifier (gravité à confirmer par le référent métier).
  */
 function anomalieMandataireDesigne(r: ReglementFournisseur, b: BeneficiaireIndivisaire, positions: Position[], date: string): AnomalieReglement[] {
   const duCompte = positions.filter((p) => p.compteId === b.compteCoproprietaireId && p.qualite === 'Indivisaire')

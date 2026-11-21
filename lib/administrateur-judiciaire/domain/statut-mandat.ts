@@ -50,7 +50,7 @@ import { STATUT_MANDAT, type StatutMandat } from '@/lib/data/referentiels-gestea
  *   Mandat.ordonnance est obligatoire au schéma (à voir avec l'écran de création).
  * - 🔵 En clôture reste SUIVI et visible (enCloture) : la mission prend fin, des diligences de sortie peuvent rester dues
  *   selon le régime (voir le droit ci-dessous). La 5e valeur, « En gestion, en clôture », reste une valeur CONNUE :
- *   suivie, lue comme une clôture en cours (enCloture), sans être convertie ; 🔴 à confirmer par Hugo (ci-dessous).
+ *   suivie, lue comme une clôture en cours (enCloture), sans être convertie ; 🔴 à confirmer par le référent métier (ci-dessous).
  * - Valeur inconnue (vide, casse ou libellé hors référentiel, états hérités de la maquette « En cours », « Échéance
  *   proche », « Prorogation demandée », « Notification en cours ») : jamais rejetée en silence. Le mandat reste SUIVI
  *   (on ne cache pas un mandat dont on ignore le statut) et une anomalie le signale (bilanStatutsMandats). Seuls les
@@ -139,13 +139,13 @@ import { STATUT_MANDAT, type StatutMandat } from '@/lib/data/referentiels-gestea
  *   les demandes en cours comme depuisDemandes (sans quoi le suivi et l'attribution donnent deux comptes différents).
  *
  * 🔴 Non établi (questions) :
- * - Hugo : « En gestion, en clôture » est-elle encore employée au cabinet (non vue en tranche 41) ? VitFix la garde telle
+ * - Référent métier : « En gestion, en clôture » est-elle encore employée au cabinet (non vue en tranche 41) ? VitFix la garde telle
  *   quelle, suivie et lue comme une clôture en cours ; faut-il plutôt la convertir en « En clôture » à l'import ?
- * - Frédéric et Hugo : `Mandat.statut` porte aujourd'hui des états d'affichage de la maquette (« En cours » à la création,
+ * - Frédéric et le référent métier : `Mandat.statut` porte aujourd'hui des états d'affichage de la maquette (« En cours » à la création,
  *   db/donnees-store.ts ; démonstration, components/administrateur-judiciaire/data/coproprietes.ts), tous signalés
  *   inconnus ici. Faut-il un champ distinct pour le statut Gestéam, ou convertir ces états en « En gestion » ? (schéma et
  *   écrans : hors de ce module.)
- * - Hugo : faut-il refuser d'archiver un mandat qui a encore des dossiers ouverts (contentieux, sinistre) ou des demandes
+ * - Référent métier : faut-il refuser d'archiver un mandat qui a encore des dossiers ouverts (contentieux, sinistre) ou des demandes
  *   en cours, puisqu'ils sortent du suivi ? Aucun contrôle n'est codé.
  */
 

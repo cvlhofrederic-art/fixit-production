@@ -68,7 +68,7 @@ import { modelesDe, type ModeleTypeDocument } from '@/lib/administrateur-judicia
  * - l'exception du 2° (2° b et c non exigés) est rédigée dans le 2° lui-même : les trois cadres de vente la reprennent
  *   (son champ : J67, R114, ci-dessous) ;
  * - informations financières (2°) et notice d'information (4°) : pas des types de document, pièces non contrôlables.
- * Décisions de Hugo du 17/11/2026 (J67, recommandations validées en bloc) :
+ * Décisions du 17/11/2026 (J67, recommandations validées en bloc) :
  * - J67, R114 (code gardé) : CCH L. 721-2 II 2° écarte les b et c « lorsque le syndicat de copropriétaires relève du
  *   deuxième alinéa de l'article 14-3 » ; cet alinéa ne désigne plus aucune catégorie de syndicat depuis l'ord.
  *   2019-1101 (dispense de partie double passée à l'art. 41-10, champ fixé par l'art. 41-8 : au plus cinq lots OU budget

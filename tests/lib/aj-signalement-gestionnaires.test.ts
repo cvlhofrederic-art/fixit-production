@@ -3,7 +3,7 @@
 // Fiches gestionnaires, règles pures de lib/aj-signalement/gestionnaires.ts :
 //   - nomCourtQr : « Marie M. », nom donné par l'e-mail et la page de confirmation d'adresse (RG-02 : un mauvais
 //     destinataire doit pouvoir se reconnaître) ; texte brut, échappé par le gabarit ;
-//   - domaines du cabinet (Hugo, 10/11/2026 : une fiche n'est acceptée que sur un domaine de SON cabinet) : égalité
+//   - domaines du cabinet (10/11/2026 : une fiche n'est acceptée que sur un domaine de SON cabinet) : égalité
 //     EXACTE après le « @ », sous-domaines refusés, comme la fonction SQL signalements_qr_inviter_gestionnaire ;
 //     messageries publiques refusées comme domaine de cabinet ; format identique au CHECK de la migration ;
 //   - etatGestionnaireQr : les 5 états de la PR 1 (confirmation envoyée, expirée à 7 jours, adresse confirmée,

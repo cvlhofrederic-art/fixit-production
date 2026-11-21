@@ -183,7 +183,7 @@ describe('demandes en cours, en attente de l’entreprise (🔵)', () => {
     ])
   })
 
-  it('stades « Proposition en cours » et « Proposition résident » : en attente de l’entreprise (choix retenu, 🔴 question à Hugo)', () => {
+  it('stades « Proposition en cours » et « Proposition résident » : en attente de l’entreprise (choix retenu, 🔴 question au référent métier)', () => {
     for (const stade of ['Proposition en cours', 'Proposition résident'] as const)
       expect(attendEntreprise(changerStade(intervention(), stade, { date: '2026-10-02' }))).toBe(true)
   })
@@ -531,8 +531,8 @@ describe('en-tête du module', () => {
     expect(texte).toContain('intervention : ni date de réalisation, ni stade Réalisée, Contestée ou Validée, ni facture rattachée')
   })
 
-  it('stades « Proposition en cours » et « Proposition résident » : nommés dans la règle et question à Hugo', () => {
+  it('stades « Proposition en cours » et « Proposition résident » : nommés dans la règle et question au référent métier', () => {
     expect(texte).toContain('les stades « Proposition en cours » et « Proposition résident » comptent donc comme en attente')
-    expect(texte).toContain('Hugo : pendant les stades « Proposition en cours » et « Proposition résident »')
+    expect(texte).toContain('Référent métier : pendant les stades « Proposition en cours » et « Proposition résident »')
   })
 })

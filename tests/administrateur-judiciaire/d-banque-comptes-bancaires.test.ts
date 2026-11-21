@@ -15,7 +15,7 @@ import {
 import { enTeteDuModule } from './en-tete-module'
 
 /**
- * Décision D-BANQUE (Hugo Carvalho, 27/10/2026) — la tenue des comptes bancaires est un CHOIX DU CABINET,
+ * Décision D-BANQUE (27/10/2026) — la tenue des comptes bancaires est un CHOIX DU CABINET,
  * modifiable MANDAT PAR MANDAT, pour s'adapter au régime des administrateurs judiciaires.
  * - Quatre modes : compte séparé au nom du syndicat, Caisse des dépôts, les deux, compte centralisateur du cabinet.
  * - Le réglage du cabinet donne le mode par défaut ; un mandat peut le remplacer.
@@ -93,7 +93,7 @@ describe('D-BANQUE — choix du cabinet, remplaçable par mandat', () => {
 })
 
 /**
- * Décision J37 de Hugo (03/11/2026) : dans la pratique du cabinet, le compte de l'administrateur provisoire est un compte
+ * Décision J37 (03/11/2026) : dans la pratique du cabinet, le compte de l'administrateur provisoire est un compte
  * à la Caisse des dépôts, pas un compte centralisateur du cabinet ; le fonds de travaux reste sur un compte distinct.
  * D-BANQUE n'est pas remise en cause : la pratique est consignée, aucun mode n'est imposé.
  */
@@ -125,12 +125,12 @@ describe('J37 — compte de l’administrateur provisoire : la pratique du cabin
 
   it('en-tête : J37 ; J67, R94 cite C. com. R. 814-41 (« matière civile » à confirmer) ; seule l’articulation avec l’art. 18, II, al. 3 reste ouverte (R95)', () => {
     const { texte: entete } = enTeteDuModule('comptes-bancaires')
-    const decisions = entete.slice(entete.indexOf('Décisions de Hugo du 03/11/2026'), entete.indexOf('🔴'))
+    const decisions = entete.slice(entete.indexOf('Décisions du 03/11/2026'), entete.indexOf('🔴'))
     expect(decisions).toMatch(/J37/)
     expect(decisions).toMatch(/compte à la Caisse des dépôts, pas un compte centralisateur du cabinet/)
     expect(decisions).toMatch(/D-BANQUE/)
     expect(decisions).toContain('art. 18, II, al. 4')
-    const j67 = entete.slice(entete.indexOf('Décisions de Hugo du 17/11/2026'), entete.indexOf('🔴'))
+    const j67 = entete.slice(entete.indexOf('Décisions du 17/11/2026'), entete.indexOf('🔴'))
     expect(j67).toMatch(/J67, R94 : .*C\. com\. R\. 814-41 \(lu sur Légifrance le 17\/11\/2026/)
     expect(j67).toMatch(/« en matière civile » est déduit, à confirmer/)
     // R. 811-28-2 parle du stage de la spécialité commerciale, pas de la nature de la mission.

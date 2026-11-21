@@ -8,7 +8,7 @@
 // fait qu'une lecture sans effet (un antivirus qui ouvre le lien ne confirme rien) ; « C'est moi » confirme ;
 // « Ce n'est pas moi » demande une confirmation, puis conteste (la fiche est figée, le cabinet prévenu). Page publique,
 // en français, au socle visuel de l'espace ; aucune ressource tierce.
-// Logo du cabinet (demande de Hugo du 13/11/2026, brouillon soumis à Frédéric) : lu par la page serveur, posé en haut de
+// Logo du cabinet (demande du 13/11/2026, brouillon soumis à Frédéric) : lu par la page serveur, posé en haut de
 // la carte, au-dessus du titre, dès l'ouverture ; sans logo, la carte est celle d'avant.
 
 import { useEffect, useRef, useState } from 'react'

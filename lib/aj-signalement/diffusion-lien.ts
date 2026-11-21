@@ -1,6 +1,6 @@
 // ── AJ Signalement — diffusion : liens de désinscription signés, non stockés (PR 3, lot 4) ─────────────────────────
 //
-// Cahier PR 3 § 8.1 ; décision H5 de Hugo (recommandation du § 11 appliquée le 11/11/2026) : lien valable un an ;
+// Cahier PR 3 § 8.1 ; décision H5 (recommandation du § 11 appliquée le 11/11/2026) : lien valable un an ;
 // « Recevoir à nouveau » seulement avec le lien qui a servi à l'opposition, dans les 24 h (contrôlé en SQL,
 // signalements_qr_diffusion_lever) ; l'en-tête un clic honoré même après un an (route D-P5).
 //

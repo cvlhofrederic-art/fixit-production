@@ -256,7 +256,7 @@ describe('assurance impayés — en-tête : lecture des textes', () => {
   })
 
   it('J67, R47 : la souscription sous administration provisoire suit la mission de l’ordonnance ; la question 3 ne garde que le lien avec le contrat', () => {
-    const decision = source.slice(source.indexOf('Décision de Hugo du 17/11/2026'), source.indexOf('🔵 Déduit'))
+    const decision = source.slice(source.indexOf('Décision du 17/11/2026'), source.indexOf('🔵 Déduit'))
     expect(decision).toMatch(/J67, R47/)
     expect(decision).toMatch(/controlerSouscriptionAssuranceImpayes/)
     expect(decision).toMatch(/D\. 1967 art\. 62-7/)
@@ -266,7 +266,7 @@ describe('assurance impayés — en-tête : lecture des textes', () => {
   })
 
   it('J32 : le bouton « Historique » trace l’historique du dossier de contentieux ; aucun historique dans le domaine, dit sans écran', () => {
-    const decisions = source.slice(source.indexOf('Décisions de Hugo du 03/11/2026'), source.indexOf('🔵 Déduit'))
+    const decisions = source.slice(source.indexOf('Décisions du 03/11/2026'), source.indexOf('🔵 Déduit'))
     expect(decisions).toMatch(/J32/)
     expect(decisions).toMatch(/historique du dossier de contentieux/)
     expect(decisions).toMatch(/aucun historique du dossier de contentieux/)

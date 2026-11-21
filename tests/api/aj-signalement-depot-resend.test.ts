@@ -7,7 +7,7 @@
 //     (replyTo, que le SDK transmet en reply_to), étiquette « aj-signalement » ; le récapitulatif au déclarant part
 //     par emails.send ;
 //   - lot refusé par Resend (une adresse refusée suffit) : renvoi un par un, email_erreur résumé sans adresse ;
-//   - copropriété sans adresse saisie : plus de signalement complet à ADMIN_EMAIL (D9, décision de Hugo du 17/11/2026) ;
+//   - copropriété sans adresse saisie : plus de signalement complet à ADMIN_EMAIL (D9, décision du 17/11/2026) ;
 //     une alerte sans données, avec le bouton de l'espace.
 // Base : la production d'avant la migration du 11/11/2026 (simulerProductionAvant1111Qr : tables absentes en PGRST205
 // comme PostgREST 13, colonnes et fonctions du 11/11 absentes ; colonnes du 06/11 présentes, migrations appliquées le

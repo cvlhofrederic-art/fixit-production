@@ -1,7 +1,7 @@
 // tests/api/aj-signalement-depot-gestionnaires.test.ts
 //
 // POST /api/aj-signalement/signalements (P1-R20, public) : destinataires automatiques et budget d'e-mails.
-// Demande de Hugo du 10/11/2026 : le gestionnaire reçoit AUTOMATIQUEMENT les signalements de ses copropriétés.
+// Demande du 10/11/2026 : le gestionnaire reçoit AUTOMATIQUEMENT les signalements de ses copropriétés.
 //   - destinataires = (adresses saisies MOINS fiches inactives ou contestées) ∪ gestionnaires confirmés de la
 //     copropriété (fonction signalements_qr_emails_gestionnaires, simulée) ; ADMIN_EMAIL seulement si l'union est vide ;
 //   - UN e-mail par destinataire (sendBatchEmails) : personne ne voit les autres adresses ; repli un par un si le lot
@@ -97,7 +97,7 @@ describe('destinataires automatiques', () => {
     expect(etatFinal()).toMatchObject({ email_envoye_le: expect.any(String), email_erreur: null })
   })
 
-  // D9 (décision de Hugo du 17/11/2026, relecture du même jour) : plus de repli du signalement complet vers ADMIN_EMAIL ;
+  // D9 (décision du 17/11/2026, relecture du même jour) : plus de repli du signalement complet vers ADMIN_EMAIL ;
   // VitFix ne reçoit qu'une alerte sans données, avec le bouton de l'espace (tests/api/aj-signalement-depot-repli-cabinet).
   it('seule saisie = l’adresse d’une fiche partie : aucun signalement à l’administrateur, une alerte sans données', async () => {
     baseQr.etat.tables.signalements_qr_coproprietes[0].emails_destinataires = ['luc.parti@exemple.test']

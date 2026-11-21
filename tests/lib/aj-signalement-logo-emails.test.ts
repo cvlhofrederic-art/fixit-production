@@ -1,6 +1,6 @@
 // tests/lib/aj-signalement-logo-emails.test.ts
 //
-// Logo d'un cabinet client dans les e-mails (demande de Hugo du 13/11/2026 ; brouillon soumis à Frédéric).
+// Logo d'un cabinet client dans les e-mails (demande du 13/11/2026 ; brouillon soumis à Frédéric).
 // Documentation officielle de Resend relue le 13/11/2026 (resend.com/docs/dashboard/emails/embed-inline-images et
 // …/api-reference/emails/send-batch-emails) : image en ligne = pièce jointe à `contentId`, appelée par « cid: » ; AUCUNE
 // pièce jointe dans l'envoi par lot. Donc :

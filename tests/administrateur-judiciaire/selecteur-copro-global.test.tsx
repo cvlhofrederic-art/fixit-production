@@ -11,7 +11,7 @@ import { CLE_STOCKAGE_MODE } from '@/lib/administrateur-judiciaire/mode'
 import { useSelectionDossier } from '@/lib/administrateur-judiciaire/selection'
 
 /**
- * Sélecteur de copropriété du haut de page (demande de Hugo du 29/10/2026) : combobox ARIA, recherche par nom ou code
+ * Sélecteur de copropriété du haut de page (demande du 29/10/2026) : combobox ARIA, recherche par nom ou code
  * sans accents, clavier ↑ ↓ Entrée Échap (option active ramenée dans la zone visible), clic extérieur, cadre cliquable,
  * vue « Tous les mandats » sur les pages générales (dossier choisi affiché et annoncé).
  * Jeu de démonstration inséré dans la base locale (4 copropriétés : LM, CV, TL, VM).
@@ -144,7 +144,7 @@ describe('sélecteur de copropriété du haut de page — clavier et souris', ()
 
 describe('sélecteur de copropriété du haut de page — pages générales', () => {
   // Sur une page générale, choisir une copropriété ne change rien à l'écran : le champ affiche le dossier choisi et
-  // une région « status » l'annonce (option (b) du constat ; l'option (a), ouvrir sa page, reste à trancher par Hugo).
+  // une région « status » l'annonce (option (b) du constat ; l'option (a), ouvrir sa page, reste à trancher par le référent métier).
   it('« Tableau de bord », page d’accueil : tous les mandats et le dossier choisi ; le choix est affiché, annoncé, et se réapplique ailleurs', () => {
     const { container, rerender } = render(<SelecteurCoproGlobal route="dashboard" />)
     expect(champ().value).toBe('Tous les mandats (4) · dossier : Le Clos des Vignes')

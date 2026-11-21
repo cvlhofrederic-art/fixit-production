@@ -69,15 +69,15 @@ import { normaliserEspaces } from '@/lib/administrateur-judiciaire/domain/texte'
  * - Notifications : un envoi « aux destinataires de l'équipe » lit destinatairesNotifications ; aucun envoi n'est codé.
  *
  * 🔴 Non établi (questions) :
- * - Hugo : le repère « => » désigne-t-il les destinataires des notifications, les membres actifs, ou autre chose ? Une
+ * - Référent métier : le repère « => » désigne-t-il les destinataires des notifications, les membres actifs, ou autre chose ? Une
  *   fonction peut-elle compter deux membres, et deux repères ? (VitFix accepte les deux.)
- * - Hugo : liste complète des fonctions de la grille (tranche 41 : « Assistante… », liste déroulante non ouverte) :
+ * - Référent métier : liste complète des fonctions de la grille (tranche 41 : « Assistante… », liste déroulante non ouverte) :
  *   d'autres que les cinq relevées ?
- * - Hugo : libellé exact de la fonction associé dans la grille : Associé, Associé(e) ? VitFix lit « Associé » seul ;
+ * - Référent métier : libellé exact de la fonction associé dans la grille : Associé, Associé(e) ? VitFix lit « Associé » seul ;
  *   une reprise portant une autre forme est refusée (fonction inconnue) tant que la forme n'est pas relevée.
- * - Hugo ou Frédéric : que fait « Gestion manuelle » quand elle est décochée (équipe proposée depuis le portefeuille, le
+ * - Référent métier ou Frédéric : que fait « Gestion manuelle » quand elle est décochée (équipe proposée depuis le portefeuille, le
  *   cabinet, autre) ? VitFix la garde sans effet.
- * - Hugo : un mandat qui couvre plusieurs immeubles a-t-il une équipe par immeuble, ou une seule ? VitFix : une par
+ * - Référent métier : un mandat qui couvre plusieurs immeubles a-t-il une équipe par immeuble, ou une seule ? VitFix : une par
  *   mandat (la grille n'a été vue que sur la fiche mandat).
  */
 

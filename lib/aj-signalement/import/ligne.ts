@@ -1,6 +1,6 @@
 // ── AJ Signalement : import des copropriétés, règles pures (navigateur ET serveur) ──────────────────────────────
 //
-// Demande de Hugo du 10/11/2026 : « créer les copropriétés à partir d'un tableau Excel fourni par le client » (SPEC § 1.9).
+// Demande du 10/11/2026 : « créer les copropriétés à partir d'un tableau Excel fourni par le client » (SPEC § 1.9).
 // Ce module ne lit aucun fichier (lecteur-xlsx.ts et csv.ts le font dans le navigateur) et n'importe aucune bibliothèque
 // lourde (fflate, jsPDF, qrcode : jamais dans le bundle du Worker) :
 //   - modèle (colonnes, synonymes), en-têtes, correspondance des colonnes ;

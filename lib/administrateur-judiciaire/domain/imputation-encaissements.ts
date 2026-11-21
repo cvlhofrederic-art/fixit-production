@@ -32,7 +32,7 @@ import { TYPE_APPEL_LIE_AU_MOUVEMENT, type TypeAppelLieAuMouvement } from '@/lib
  * imputation sur des appels non échus (`imputerSurAVenir`) suppose sa volonté ; même alors, un appel de FONDS DE
  * TRAVAUX non échu n'est jamais servi d'office, ces sommes étant définitivement acquises au syndicat dès leur versement
  * (L. 1965 art. 14-2-1, III).
- * L'écriture reste celle de R7 (débit banque / crédit 450) ; chaque crédit porte l'appel d'origine (R8). Décision de Hugo
+ * L'écriture reste celle de R7 (débit banque / crédit 450) ; chaque crédit porte l'appel d'origine (R8). Décision
  * du 17/11/2026 (J67, R104 ; arrêté du 14/03/2005, art. 10) : si l'AG a créé le sous-compte 450-1, les postes du budget
  * (appel du budget, régularisation des charges) y sont crédités, comme ils y ont été débités ; le reste et le reliquat
  * au 450, sans compensation entre les deux (art. 9).

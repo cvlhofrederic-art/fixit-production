@@ -1,6 +1,6 @@
 // tests/lib/aj-signalement-logo-conversion.test.ts
 //
-// Conversion du logo d'un cabinet DANS LE NAVIGATEUR (demande de Hugo du 13/11/2026) : l'image choisie par le super admin
+// Conversion du logo d'un cabinet DANS LE NAVIGATEUR (demande du 13/11/2026) : l'image choisie par le super admin
 // (SVG, PNG, JPEG ou WebP, 5 Mo au plus) est dessinée sur un canvas et rendue en PNG borné (800 × 400 px au plus,
 // proportions gardées, fond transparent conservé, 200 Kio au plus : dimensions réduites tant qu'il le faut). Un SVG
 // chargé comme image n'exécute aucun script ; seul le PNG part au serveur. Le PNG du canvas est nettoyé de ses morceaux

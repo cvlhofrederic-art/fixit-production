@@ -7,7 +7,7 @@ import type { ReferenceJurisprudence } from '@/lib/administrateur-judiciaire/dom
  * restée infructueuse) et action de droit commun. Le fondement n'est donc pas porté par le dossier mais par CHAQUE
  * poste de créance, pour un exercice donné. Le registre recouvrement.ts (figé par les tests oracle) n'est pas touché.
  *
- * J67, R40 (décision de Hugo du 17/11/2026) : un échéancier amiable en cours ne bloque pas l'exigibilité des provisions
+ * J67, R40 (décision du 17/11/2026) : un échéancier amiable en cours ne bloque pas l'exigibilité des provisions
  * qui échoient ensuite (L. 1965 art. 14-1 et 19-2, lus sur Légifrance le 17/11/2026 ; voir contentieux.ts). Il ne couvre
  * que les sommes qu'il vise : elles ont un terme convenu et ne peuvent être exigées avant (C. civ. art. 1305-2), sauf
  * clause de déchéance de l'accord. Un poste qu'il couvre le dit (`echeancierAmiableEnCours`) ; dans une demande 19-2,

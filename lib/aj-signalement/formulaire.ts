@@ -1,6 +1,6 @@
 // ── Formulaire public « AJ Signalement » : règles du parcours, sans React ─────
 //
-// Tous les champs sont obligatoires (demande de Hugo du 06/11/2026) : coordonnées (prénom, nom, téléphone,
+// Tous les champs sont obligatoires (demande du 06/11/2026) : coordonnées (prénom, nom, téléphone,
 // e-mail, bâtiment, étage, numéro de lot) et qualité (propriétaire / locataire). Le reste du parcours est celui
 // du portail copropriétaire : où (logement / parties communes + zone), quel type, description de 10 caractères
 // au moins, urgence. Le bouton d'envoi reste désactivé tant que tout n'est pas rempli ; les erreurs de saisie

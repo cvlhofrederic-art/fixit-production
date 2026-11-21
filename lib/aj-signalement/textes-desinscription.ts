@@ -3,7 +3,7 @@
 // Cahier PR 3 § 7.5 ; note juridique § 5.4 (phrases exactes à mettre sur la page, avant le clic : ce qu'on quitte, ce
 // qu'on garde) et § 5.5 (informer, ne pas retenir : ni « êtes-vous sûr ? », ni question ; retour en arrière proposé).
 // La page s'affiche dans la langue DE LA DIFFUSION (celle du message reçu). Versions portugaises proposées, à relire par
-// Hugo (H4) : sans relecture, aucun cabinet PT n'est activé (H9). Écran nouveau, brouillon soumis à Frédéric (F1).
+// le référent métier (H4) : sans relecture, aucun cabinet PT n'est activé (H9). Écran nouveau, brouillon soumis à Frédéric (F1).
 // Aucune date, aucune mention de VitFix (droit § 4.1 : VitFix n'est pas l'auteur des messages).
 
 import { parLangue, type TableBilingue } from '@/lib/aj-signalement/bilingue'

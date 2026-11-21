@@ -1,6 +1,6 @@
 // tests/lib/rate-limit-empreinte.test.ts
 //
-// D13 (décision de Hugo du 17/11/2026, point 4) : lib/rate-limit.ts n'envoie plus à Upstash l'identifiant en clair
+// D13 (décision du 17/11/2026, point 4) : lib/rate-limit.ts n'envoie plus à Upstash l'identifiant en clair
 // (adresse IP, identifiant de compte) mais son empreinte ; l'option « analytics » d'Upstash est coupée.
 //   - empreinte : HMAC-SHA-256 de l'identifiant, clé dérivée par HKDF-SHA-256 (sel « vitfix », info
 //     « rate-limit-empreinte-v1 ») de SUPABASE_SERVICE_ROLE_KEY ;

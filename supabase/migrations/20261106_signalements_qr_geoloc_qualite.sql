@@ -1,7 +1,7 @@
 -- ══════════════════════════════════════════════════════════════════════════════
 -- AJ Signalement (06/11/2026) — qualité du déclarant, adresse proposée d'après sa position, signalement lié.
 --
--- Demandes de Hugo du 06/11/2026, enregistrées avec chaque dépôt par QR code :
+-- Demandes du 06/11/2026, enregistrées avec chaque dépôt par QR code :
 --   qualite_declarant  : « Vous êtes : Propriétaire / Locataire » (champ obligatoire du formulaire) ;
 --   adresse_proposee   : adresse de la copropriété proposée d'après la position de la personne (géocodage inverse
 --                        par le serveur, service de l'État), seulement quand la copropriété n'a pas d'adresse ;

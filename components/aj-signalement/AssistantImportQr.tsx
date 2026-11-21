@@ -2,7 +2,7 @@
 
 // ── Assistant d'import des copropriétés (espace AJ Signalement, vue Copropriétés, super admin) ───────────────────
 //
-// Demande de Hugo du 10/11/2026 : « créer les copropriétés à partir d'un tableau Excel fourni par le client » (SPEC
+// Demande du 10/11/2026 : « créer les copropriétés à partir d'un tableau Excel fourni par le client » (SPEC
 // § 1.9). PR brouillon pour Frédéric : composants et couleurs de l'espace (Bouton, Champ, Encadre, Badge), aucun
 // nouveau système visuel. Une seule fenêtre, des sections qui s'ajoutent :
 //   1. cabinet client (obligatoire : chaque copropriété importée lui est rattachée), modèle Excel ou CSV à télécharger,
@@ -16,7 +16,7 @@
 //      confirmation avant l'import ;
 //   4. import (tout ou rien) ; puis toutes les affiches en un PDF et l'export CSV (générés sur l'appareil).
 // Le lecteur .xlsx et le modèle (fflate) sont chargés au clic : jamais dans le premier chargement de l'espace.
-// Logo du cabinet (demande de Hugo du 13/11/2026) : les affiches du lot portent le logo du cabinet choisi s'il en a un
+// Logo du cabinet (demande du 13/11/2026) : les affiches du lot portent le logo du cabinet choisi s'il en a un
 // (métadonnées de la liste des cabinets, image lue une fois au clic) ; logo illisible : affiches sans logo, avertissement.
 // Bureaux des cabinets (migration 20261119 ; ajout de la PR 1, section Risques ; BROUILLON soumis avant fusion) : dès que
 // le cabinet a un bureau ouvert, chaque nouvelle fiche doit en avoir un (sinon 409 bureau_requis). L'étape des

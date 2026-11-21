@@ -418,7 +418,7 @@ export const signalementQrSchema = z.object({
   signalementLieNumero: z.union([z.literal(''), z.string().regex(/^[0-9A-F]{8}$/, 'Numéro de signalement invalide')]).optional().default(''),
 }).refine((d) => !d.estPartieCommune || d.zoneSignalee !== '', { path: ['zoneSignalee'], message: 'Zone requise pour les parties communes' })
 
-// Bâtiment d'un dépôt public quand le cabinet a saisi les bâtiments de la copropriété (demande de Hugo du 17/11/2026) :
+// Bâtiment d'un dépôt public quand le cabinet a saisi les bâtiments de la copropriété (demande du 17/11/2026) :
 // appliqué par la route APRÈS signalementQrSchema, avec la liste lue en base (batimentsProposesQr) quand elle n'est pas
 // vide. Accepté sans tenir compte de la casse ni des espaces en trop, rendu sous le nom saisi par le cabinet ; absent de
 // la liste : refusé (message sans la liste). Copropriété sans bâtiment : ce contrôle n'est pas appliqué.
@@ -447,7 +447,7 @@ export const semblablesQrQuerySchema = z.object({
 })
 
 // ── AJ Signalement : administration (super admin ; gestionnaires en PR 2) ─────
-// Demandes de Hugo du 10/11/2026 (cabinets clients, gestionnaires, chemin vitfix.io/<identifiant>/…). Tous les corps
+// Demandes du 10/11/2026 (cabinets clients, gestionnaires, chemin vitfix.io/<identifiant>/…). Tous les corps
 // écrits sont STRICTS (z.strictObject : une clé inconnue est refusée, l'auteur vient toujours de la session). Les corps
 // actuels des écrans restent acceptés (creerCoproprieteQr, modifierCoproprieteQr, changerStatutSignalementQr) : on
 // n'ajoute que des clés facultatives. Les schémas publics ci-dessus (dépôt, adresse, semblables) ne changent pas.
@@ -537,7 +537,7 @@ export const modificationCoproprieteQrSchema = z.strictObject({
   // Tire un nouveau jeton : l'ancien QR code ne répond plus.
   regenererJeton: z.literal(true).optional(),
   attribueeATous: z.boolean().optional(),
-  // Décision H7 de Hugo (PR 3) : fin de mission prévue (AAAA-MM-JJ, heure de Paris) ; à partir de ce jour, plus aucune
+  // Décision H7 (PR 3) : fin de mission prévue (AAAA-MM-JJ, heure de Paris) ; à partir de ce jour, plus aucune
   // diffusion ; null l'efface. Super admin seulement (comme l'activation, elle coupe la diffusion).
   diffusionFinGestionLe: z.iso.date().nullable().optional(),
   // Bureaux (19/11/2026) : bureau de la copropriété, dans son cabinet ; null le retire (bureau facultatif).
@@ -670,7 +670,7 @@ export const modificationBureauQrSchema = z.union([
   z.strictObject({ fermer: z.boolean() }),
 ])
 
-// Logo d'un cabinet (demande de Hugo du 13/11/2026), super admin : le PNG produit par le navigateur (canvas), en base64
+// Logo d'un cabinet (demande du 13/11/2026), super admin : le PNG produit par le navigateur (canvas), en base64
 // strict ; la route revérifie l'image elle-même (signature, morceaux, en-tête, poids : lib/aj-signalement/logo.ts).
 export const logoCabinetQrSchema = z.strictObject({
   png: z.string()
@@ -798,7 +798,7 @@ export const diffusionQrSchema = z.strictObject({
   // libellé recalculé (différent → 409 perimetre_change ; relecture 2 de la PR 3, cahier § 3.6, § 7.2 point 9).
   libellePerimetre: z.string().min(1).max(200),
   perimetreJusquAu: z.iso.datetime({ offset: true }),       // `instant` rendu par l'aperçu, passé tel quel à la base
-  nbDestinatairesAttendu: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),   // aucun plafond (décision de Hugo)
+  nbDestinatairesAttendu: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),   // aucun plafond (décision du référent métier)
   instruction: z.strictObject({
     reference: ligneDiffusionQr(5, 200).refine((t) => !t.includes('@'), 'Référence sans adresse e-mail'),
     recueLe: z.iso.date(),

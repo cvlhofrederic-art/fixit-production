@@ -12,7 +12,7 @@ import { batimentsProposesQr } from '@/lib/aj-signalement/batiments'
 
 // ── AJ Signalement : page ouverte par le QR code, sous le chemin du cabinet client ────────────────────────────
 //
-// vitfix.io/<identifiant>/signalement/<jeton>/ (choix de Hugo du 10/11/2026), servie par réécriture (next.config.ts)
+// vitfix.io/<identifiant>/signalement/<jeton>/ (choix du 10/11/2026), servie par réécriture (next.config.ts)
 // après le middleware, qui la laisse passer sans langue ni session. Le jeton suffit, mais il doit appartenir au cabinet
 // du chemin : identifiant ou jeton mal formé → 404 sans lecture ; copropriété inconnue, désactivée, sans cabinet ou
 // d'un AUTRE cabinet → le même 404, sans indice. La page est dans la langue du cabinet (colonne langue, FR par défaut) ;
@@ -20,10 +20,10 @@ import { batimentsProposesQr } from '@/lib/aj-signalement/batiments'
 // PR 3, lot 7 (cahier § 6, HF3) : information à la collecte sous le bouton d'envoi (politique du cabinet, partie
 // « diffusion » si la copropriété peut diffuser), lue après les contrôles du chemin, jamais pour une page refusée ;
 // aucune information (cabinet sans politique, migration 20261113 absente, erreur) : formulaire inchangé.
-// Logo du cabinet (demande de Hugo du 13/11/2026) : lu par l'id du cabinet de la copropriété, en même temps que
+// Logo du cabinet (demande du 13/11/2026) : lu par l'id du cabinet de la copropriété, en même temps que
 // l'information et comme elle APRÈS les contrôles du chemin ; aucun logo (cabinet sans logo, migration 20261114 absente,
 // erreur) : page inchangée.
-// Bâtiments saisis par le cabinet (demande de Hugo du 17/11/2026) : lus avec la copropriété, nettoyés (batimentsProposesQr)
+// Bâtiments saisis par le cabinet (demande du 17/11/2026) : lus avec la copropriété, nettoyés (batimentsProposesQr)
 // et passés au formulaire, seuls (minimisation : de la copropriété, la page cliente ne reçoit que nom, adresse et ces
 // noms) ; aucun bâtiment (liste vide, migration 20261111 absente) : texte libre, formulaire inchangé.
 

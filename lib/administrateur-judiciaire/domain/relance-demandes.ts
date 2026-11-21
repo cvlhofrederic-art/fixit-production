@@ -76,7 +76,7 @@ import {
  * - avant d'attribuer une demande à une entreprise (controlerPlafondAvantAttribution) : alerte, jamais bloquante, quand
  *   elle porterait ses demandes en cours au-delà du seuil d'alerte ou du maximum.
  *
- * Décision J13 de Hugo (03/11/2026) : la relance vise aussi l'« Accusé demandé » et le « Rapport demandé » tant qu'ils ne
+ * Décision J13 (03/11/2026) : la relance vise aussi l'« Accusé demandé » et le « Rapport demandé » tant qu'ils ne
  * sont pas reçus (STATUTS_ATTENTE_ENTREPRISE ; même règle pour l'ordre de service, envoi-ordre-service.ts).
  *
  * 🔴 Non établi — questions :
@@ -84,16 +84,16 @@ import {
  *   non relevées dans Gestéam (tranche 39) : les garder comme réglages du cabinet ? Elles déclenchent ici les relances de
  *   toute entreprise qui a une fiche.
  * - Frédéric : le maximum de demandes en cours doit-il BLOQUER l'attribution d'une nouvelle demande (alerte ici) ?
- * - Hugo : le « Service » de l'onglet Demandes est-il le service du cabinet (Copropriété, Gérance… : retenu ici) ou celui
+ * - Référent métier : le « Service » de l'onglet Demandes est-il le service du cabinet (Copropriété, Gérance… : retenu ici) ou celui
  *   de l'entreprise (contacts « service, agence », tranche 37) ? Le service d'une demande se lit-il sur sa Nature
  *   (« … Copro », « … Gérance ») ?
- * - Hugo : délai en jours calendaires (ici) ou ouvrés ? Point de départ : demande, envoi, dernière relance, réception,
+ * - Référent métier : délai en jours calendaires (ici) ou ouvrés ? Point de départ : demande, envoi, dernière relance, réception,
  *   intervention prévue, réalisation (tous retenus ici, le plus tardif) ?
- * - Hugo : demandes « en cours » du plafond : statut « En cours » seulement, ou toutes celles ni terminées ni refusées
+ * - Référent métier : demandes « en cours » du plafond : statut « En cours » seulement, ou toutes celles ni terminées ni refusées
  *   (ici) ? Une intervention réalisée en attente de sa facture, ou facturée mais non terminée, compte-t-elle (oui ici) ?
- * - Hugo : critère « En cours » des blocs « Dem. interv. » et « Demandes devis » du Suivi : quelles demandes, à quelle
+ * - Référent métier : critère « En cours » des blocs « Dem. interv. » et « Demandes devis » du Suivi : quelles demandes, à quelle
  *   date (prévu le ?) — non codé.
- * - Hugo : pendant les stades « Proposition en cours » et « Proposition résident », la relance de l'entreprise court-elle
+ * - Référent métier : pendant les stades « Proposition en cours » et « Proposition résident », la relance de l'entreprise court-elle
  *   (oui ici), ou la réponse attendue est-elle celle du résident ou du cabinet ? (le référentiel STADE_INTERVENTION note
  *   que « Proposition résident » intègre le résident au circuit ; demandes.ts demande déjà à quelle étape ces stades
  *   appartiennent)

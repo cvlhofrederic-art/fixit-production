@@ -2,7 +2,7 @@
 
 // ── Adresse proposée d'après la position (copropriété sans adresse) ──────────
 //
-// Demande de Hugo du 06/11/2026 : quand l'adresse de la copropriété n'est pas renseignée, la page demande la position
+// Demande du 06/11/2026 : quand l'adresse de la copropriété n'est pas renseignée, la page demande la position
 // au navigateur, une seule fois par visite, et la fait traduire en adresse par le serveur (POST
 // /api/aj-signalement/adresse). Refus, absence de géolocalisation ou échec : rien n'est bloqué, le signalement part
 // sans adresse proposée. Quand l'adresse est connue, aucune position n'est demandée.

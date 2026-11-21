@@ -1,6 +1,6 @@
 // app/api/aj-signalement/similaires/route.ts
 //
-// GET ?jeton=&batiment=&zone=&langue= — signalements déjà faits au même endroit (demande de Hugo du 06/11/2026),
+// GET ?jeton=&batiment=&zone=&langue= — signalements déjà faits au même endroit (demande du 06/11/2026),
 // montrés pendant la rédaction pour que la personne voie si c'est le même problème. Sans session : la copropriété est
 // celle du jeton (QR code actif). Parties communes seulement, même bâtiment (normalisé), même zone (FR ou PT), encore
 // ouverts (reçu, pris en charge, en cours) et de moins de 60 jours ; au plus 5, du plus récent au plus ancien

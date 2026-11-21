@@ -1,6 +1,6 @@
 // ── AJ Signalement : chemin public de chaque cabinet client (vitfix.io/<identifiant>/…) ─────────────────────────
 //
-// Choix de Hugo du 10/11/2026 : chaque client a son chemin sur vitfix.io (pas de sous-domaine) :
+// Choix du 10/11/2026 : chaque client a son chemin sur vitfix.io (pas de sous-domaine) :
 //   - /<identifiant>/signalement/<jeton>/            page publique ouverte par le QR code ;
 //   - /<identifiant>/confirmation-adresse/#<jeton>   confirmation d'adresse d'un gestionnaire (jeton après le « # ») ;
 //   - /<identifiant>/invitation/#<jeton>             ouverture de l'accès d'un gestionnaire à l'espace de son cabinet
@@ -9,7 +9,7 @@
 //     lot 6 ; bouton de l'e-mail, publique SANS session même si l'espace du cabinet est sous session, jeton après le
 //     « # » ; page interne rangée à part, sans la coquille de VitFix : app/(sans-coquille)/cabinet/[identifiant]/…) ;
 //   - /<identifiant>/ (redirigé vers /suivi/), /<identifiant>/connexion/, /<identifiant>/suivi/   espace du cabinet
-//     (PR 2, lot 4 ; Hugo, 11/11/2026, SPEC § 6) : connexion professionnelle DU cabinet et espace de suivi de ses
+//     (PR 2, lot 4 ; 11/11/2026, SPEC § 6) : connexion professionnelle DU cabinet et espace de suivi de ses
 //     gestionnaires, avec session.
 // L'identifiant (« cabinet-exemple ») est saisi par le super admin dans l'espace, jamais écrit dans le code.
 //
@@ -215,7 +215,7 @@ const MOTIF_ANCIEN_FORMULAIRE_QR = /^(?:\/(?:fr|pt|en|nl|es))?\/signalement\/[^/
 /**
  * Formulaire public d'un signalement (page ouverte par le QR code), sous l'adresse affichée (/<id>/signalement/<jeton>/,
  * ancienne /fr/signalement/<jeton>/) ou sous la page interne de la réécriture (/cabinet/<id>/signalement/<jeton>,
- * /signalement/<jeton>), selon ce que rend usePathname. D24 (décision de Hugo du 17/11/2026) : aucune mesure d'audience
+ * /signalement/<jeton>), selon ce que rend usePathname. D24 (décision du 17/11/2026) : aucune mesure d'audience
  * sur cette page (components/common/ConsentAnalytics.tsx). Aucune lecture de base.
  */
 export function estFormulaireSignalementQr(pathname: string | null | undefined): boolean {

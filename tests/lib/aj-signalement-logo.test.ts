@@ -1,6 +1,6 @@
 // tests/lib/aj-signalement-logo.test.ts
 //
-// Logo d'un cabinet client (demande de Hugo du 13/11/2026) : règles de l'image communes au navigateur et au serveur
+// Logo d'un cabinet client (demande du 13/11/2026) : règles de l'image communes au navigateur et au serveur
 // (lib/aj-signalement/logo.ts). Le serveur ne stocke qu'un PNG, revérifié ici avant la base : signature, morceaux
 // (longueur, CRC, ordre, IHDR d'abord, IEND en dernier et rien après), aucun morceau de texte ou de métadonnées,
 // dimensions lues dans l'en-tête IHDR (800 × 400 px au plus), poids (200 Kio au plus). Mêmes bornes que la contrainte de

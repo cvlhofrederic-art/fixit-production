@@ -16,8 +16,8 @@ import type {
  * de la mise en demeure, « même règle que J1, et la même fonction de domaine » : departDelaiNotification, lue par
  * statut-assemblee.ts (délai de l'art. 42) et par recouvrement.ts (exigibilité anticipée).
  *
- * Décisions de Hugo du 11/11/2026 (registre des décisions juridiques : J50, « Oui, calcul électronique » ; notes
- * decisions-1111/questions-hugo.md et j50-textes.md, textes lus sur Légifrance le 11/11/2026) :
+ * Décisions du 11/11/2026 (registre des décisions juridiques : J50, « Oui, calcul électronique » ; notes
+ * decisions-1111 (questions du 11/11/2026) et j50-textes.md, textes lus sur Légifrance le 11/11/2026) :
  * - depuis le 25/12/2025 (décret du 22/12/2025, JORF du 24/12/2025, texte n° 119), la notification se fait par voie
  *   électronique de principe, par lettre recommandée électronique (LRE, CPCE art. R. 53 à R. 53-4) ou par le procédé
  *   d'un prestataire de services de confiance qualifié (D. 1967 art. 64, 1° et 2° ; art. 64-5 à 64-9) ; la lettre
@@ -38,7 +38,7 @@ import type {
  * - la remise contre émargement, le courriel simple, le SMS, la lettre simple et l'extranet ne valent pas notification
  *   du procès-verbal (art. 64 et 64-3) : refus inchangé.
  * 🔵 Pour une LRE, « l'avis » est lu comme l'information du destinataire de CPCE art. R. 53-3, I (interprétation).
- * Suite, décision de Hugo du 17/11/2026 (J57) (notes du 17/11/2026, section « Suite », numéro de registre proposé) :
+ * Suite, décision du 17/11/2026 (J57) (notes du 17/11/2026, section « Suite », numéro de registre proposé) :
  * une LRE, ou un envoi par le procédé d'un prestataire qualifié, refusé ou non réclamé fait quand même courir le délai,
  * du lendemain de la transmission de l'avis électronique ; l'acceptation, le refus ou la non-réclamation sont sans effet
  * (D. 1967 art. 64, dernier al., relu sur Légifrance le 17/11/2026 ; même logique que la LRAR non retirée, Cass. 3e civ.,

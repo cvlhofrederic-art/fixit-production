@@ -231,7 +231,7 @@ describe('saisie invalide et marqueurs', () => {
   })
 })
 
-describe('J67 — recommandations validées par Hugo le 17/11/2026 (R75 à R77)', () => {
+describe('J67 — recommandations validées le 17/11/2026 (R75 à R77)', () => {
   it('R75 : sous urgence constatée, la vigilance reste contrôlée mais donne une alerte forte au lieu d’un blocage ; la décennale reste bloquante', () => {
     const urgence = { ...operation, urgenceConstatee: true }
     const sansPieces = controlerAvantOrdreService(pieces({ attestationUrssafLe: null, immatriculation: null }), urgence)

@@ -119,7 +119,7 @@ import { LIBELLES_ETATS_RESOLUTION, type Resolution } from '@/lib/administrateur
  * au moins deux ans, un vote de rejet comptant comme un vote) est modélisée à part (alerte-mandataire-ad-hoc.ts) : une
  * approbation des comptes adoptée par l'assemblée et enregistrée ici y compte comme un vote.
  *
- * Décisions de Hugo du 17/11/2026 (J67 : recommandations validées en bloc ; textes lus sur Légifrance le 17/11/2026) :
+ * Décisions du 17/11/2026 (J67 : recommandations validées en bloc ; textes lus sur Légifrance le 17/11/2026) :
  * - J67, R11 : la majorité qui vote des honoraires dépend de leur objet : rémunération du syndic fixée par son contrat,
  *   approuvé avec sa désignation à la majorité de l'art. 25 (D. 1967 art. 29 ; L. 1965 art. 25, c) ; honoraires
  *   spécifiques de travaux votés à la même assemblée que les travaux, « aux mêmes règles de majorité » (L. 1965 art.
@@ -147,7 +147,7 @@ import { LIBELLES_ETATS_RESOLUTION, type Resolution } from '@/lib/administrateur
  * aConfirmer levée. Pour être alerté plus tôt, le cabinet choisit une valeur de pratique, par exemple 15 jours avant la
  * limite d'envoi de la convocation.
  *
- * 🔴 Non établi (à trancher par Frédéric ou Hugo) :
+ * 🔴 Non établi (à trancher par Frédéric ou le référent métier) :
  * - sens de « Rendu des comptes N » : notification des comptes avec la convocation, ou date de l'assemblée qui les
  *   approuve ? VitFix ne s'en sert que pour tenir la convocation de l'assemblée des comptes pour faite ;
  * - « Délégations Syndic € / CS € » : plafond d'une délégation de l'art. 25 a, montant alloué au conseil syndical dans le
@@ -155,11 +155,11 @@ import { LIBELLES_ETATS_RESOLUTION, type Resolution } from '@/lib/administrateur
  * - conseil syndical élu ou renouvelé par une assemblée tenue hors du délai de six mois après la clôture, ou par une
  *   assemblée extraordinaire : la fenêtre de six mois avant le terme suffit-elle à reconnaître son renouvellement, ou
  *   faut-il le saisir expressément ? VitFix s'en tient à la fenêtre.
- * Tranché par Hugo le 30/10/2026 : le décompte des 21 jours francs de la convocation (présentation au plus tard 22 jours
+ * Tranché le 30/10/2026 : le décompte des 21 jours francs de la convocation (présentation au plus tard 22 jours
  * avant la réunion) est confirmé (décision J5) ; les seuils de l'art. 21 (consultation du conseil syndical, mise en
  * concurrence) s'entendent TTC, le texte ne le précisant pas (décision J6). L'alerte du mandataire ad hoc est modélisée
  * à part, dans alerte-mandataire-ad-hoc.ts (décision J7, voir plus haut).
- * Tranché par Hugo le 17/11/2026 (J67, R1 ; C. com. R. 814-27 et R. 814-28 lus sur Légifrance le 17/11/2026) : la
+ * Tranché le 17/11/2026 (J67, R1 ; C. com. R. 814-27 et R. 814-28 lus sur Légifrance le 17/11/2026) : la
  * rémunération du syndic désigné par le juge (D. 1967 art. 46) et de l'administrateur provisoire de l'art. 47 est fixée,
  * sur justification des diligences, par le président du tribunal judiciaire qui les a désignés (R. 814-27), qui peut
  * fixer une provision (R. 814-28) ; celle de l'administrateur provisoire de l'art. 29-1 est arrêtée par lui selon le

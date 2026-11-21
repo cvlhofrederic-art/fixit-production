@@ -14,7 +14,7 @@ import type { VoteAssemblee } from '@/lib/administrateur-judiciaire/domain/major
  *   n'excèdent pas 10 % des voix du syndicat ;
  * - D. 1967 art. 9 : convocation notifiée au moins 21 jours avant la réunion, sauf urgence ; délai compté à partir du
  *   lendemain de la première présentation de la lettre recommandée (art. 64), jour de la réunion exclu : décompte
- *   confirmé par Hugo le 30/10/2026 (décision J5 : présentation au plus tard 22 jours avant la réunion).
+ *   confirmé le 30/10/2026 (décision J5 : présentation au plus tard 22 jours avant la réunion).
  * Le calcul de la majorité reste dans majorites-ag.ts : ce module en prépare les entrées.
  */
 

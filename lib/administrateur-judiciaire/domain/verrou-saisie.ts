@@ -67,7 +67,7 @@ import { FAMILLE_TRAITEMENT } from '@/lib/data/referentiels-gesteam-judiciaire'
  *   refusées (elles donneraient une borne qui ne verrouille rien sans le dire) ;
  * - le verrou passé est celui du syndicat du traitement (l'appelant le compose).
  *
- * Décisions de Hugo du 17/11/2026 (J67, recommandations validées en bloc ; textes relus le 17/11/2026, ci-dessus) :
+ * Décisions du 17/11/2026 (J67, recommandations validées en bloc ; textes relus le 17/11/2026, ci-dessus) :
  * - J67, R121 : un exercice dont la procédure de clôture est exécutée ne se rouvre pas (arrêté, art. 5 : clôture
  *   « destinée à figer la chronologie et à garantir l'intangibilité des enregistrements » ; aucun texte du syndicat ne
  *   prévoit de réouverture). Une erreur trouvée après la clôture se corrige par une écriture contraire datée dans la
@@ -82,7 +82,7 @@ import { FAMILLE_TRAITEMENT } from '@/lib/data/referentiels-gesteam-judiciaire'
  *   la couvre ; dans les deux cas, le libellé porte la date d'origine et la référence de la pièce (arrêté, art. 4) :
  *   dateHorsVerrou. Aucun texte propre au syndicat ne fixe cette date ; défaut prudent.
  *
- * 🔴 Non établi (question pour Hugo ou Frédéric ; « non trouvé » = cherché sans résultat dans les textes lus ci-dessus,
+ * 🔴 Non établi (question pour le référent métier ou Frédéric ; « non trouvé » = cherché sans résultat dans les textes lus ci-dessus,
  * les annexes 1 à 5 du décret n° 2005-240 et le PCG consolidé n'ayant pas été lus) :
  * - non trouvé : aucun texte propre au syndicat ne rattache un verrou à une édition ; le marquage « inclus dans une
  *   édition » est une pratique du logiciel (tranche 37) ;

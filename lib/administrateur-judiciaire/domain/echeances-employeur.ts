@@ -107,7 +107,7 @@ import type { Traitement } from '@/lib/administrateur-judiciaire/domain/traiteme
  *   autres produits, y compris ceux qui n'entrent pas dans le champ d'application de la TVA » ; § 220 : l'exonération des
  *   particuliers employeurs ne vaut pas pour les concierges des syndicats.
  *
- * Décisions de Hugo du 03/11/2026 (registre des décisions juridiques, J26 à J28 ; questions 17 à 19 de la liste) :
+ * Décisions du 03/11/2026 (registre des décisions juridiques, J26 à J28 ; questions 17 à 19 de la liste) :
  * - J26 : médecine du travail du personnel du syndicat : la règle du Code du travail par défaut, et non la CCN IDCC 1043,
  *   art. 13 : renouvellement de la visite au plus tard cinq ans après la dernière, plafond du seul suivi individuel simple
  *   (R4624-16), le suivi adapté étant de trois ans au plus (R4624-17) et le suivi individuel renforcé de quatre ans
@@ -126,7 +126,7 @@ import type { Traitement } from '@/lib/administrateur-judiciaire/domain/traiteme
  *   une décision du cabinet, qui suit la pratique de l'Urssaf (non lue) ; le fondement de l'échéance le dit dès que la
  *   date est reportée. DSN et versement tombant désormais le même jour, une seule échéance « DSN et versement » est émise.
  *
- * Décisions de Hugo du 17/11/2026 (J67 du registre des décisions juridiques ; textes relus sur Légifrance le 17/11/2026) :
+ * Décisions du 17/11/2026 (J67 du registre des décisions juridiques ; textes relus sur Légifrance le 17/11/2026) :
  * - J67, R33 : le syndicat n'est pas assujetti à la TVA, il est donc en principe redevable de la taxe (CGI art. 231, 1,
  *   al. 1) ; il en est exonéré si son chiffre d'affaires de l'année civile précédente ne dépasse pas les plafonds de
  *   l'art. 293 B, I et I bis (85 000 € en tout, 37 500 € pour les prestations de services ; art. 231, 1, al. 2). Ce
@@ -216,17 +216,17 @@ import type { Traitement } from '@/lib/administrateur-judiciaire/domain/traiteme
  *   (art. 369, 1 : la taxe de l'année précédente fixe celle de l'année en cours) ; à défaut de ce montant, la période
  *   versée n'est pas préjugée.
  *
- * 🔴 Non établi (questions exactes pour Frédéric ou Hugo ; les n° 1, 3 et 8 sont tranchés : J26, J27 et J28 ; les n° 4,
+ * 🔴 Non établi (questions exactes pour Frédéric ou le référent métier ; les n° 1, 3 et 8 sont tranchés : J26, J27 et J28 ; les n° 4,
  *   5 et 6 par J67 (R34 à R36) ; le n° 2 par J67 (R33), sauf la pratique du cabinet ; ci-dessus ; le n° 9 suit J26) :
- * 2. Hugo, avec le comptable du cabinet (R33) : quelle est la pratique du cabinet ? La taxe sur les salaires est-elle
+ * 2. Référent métier, avec le comptable du cabinet (R33) : quelle est la pratique du cabinet ? La taxe sur les salaires est-elle
  *    déclarée pour les syndicats employeurs, et sur quel total ? D'ici là, l'avis à trois paliers reste « à confirmer ».
- * 7. Hugo (R37) : le portail de dépôt du DUERP est-il ouvert ? Non vérifié sur une source officielle ; selon la réponse,
+ * 7. Référent métier (R37) : le portail de dépôt du DUERP est-il ouvert ? Non vérifié sur une source officielle ; selon la réponse,
  *    le rappel de dépôt devient ferme ou disparaît. Non suivis faute de texte lu (CCN non lue sur Légifrance le
  *    17/11/2026) : contribution conventionnelle à la formation et date de collecte de la contribution au paritarisme
  *    (CCN art. 7, 6 : 0,02 %) ; piste : demander au prestataire de paie si elles sont payées avec la paie. Hors champ :
  *    logement du gardien licencié (L7212-1, R7212-1 : trois mois) et remplaçant pendant les congés (L7213-2, R7213-8 :
  *    huit jours), qui demandent de distinguer gardien logé (catégorie B) et employé non logé (A).
- * 9. Frédéric ou Hugo : la catégorie de suivi du salarié (suivi individuel simple, R4624-16 : cinq ans au plus ; suivi
+ * 9. Frédéric ou le référent métier : la catégorie de suivi du salarié (suivi individuel simple, R4624-16 : cinq ans au plus ; suivi
  *    adapté, R4624-17 : trois ans au plus, notamment pour un travailleur handicapé, titulaire d'une pension d'invalidité
  *    ou travailleur de nuit ; suivi individuel renforcé, R4624-28 : quatre ans, visite intermédiaire à deux ans) n'est
  *    pas modélisée. Faut-il la saisir, et d'après quelle pièce ? D'ici là, sans prochaine visite saisie, la date à cinq

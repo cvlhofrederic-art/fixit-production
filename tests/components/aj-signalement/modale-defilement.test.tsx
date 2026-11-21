@@ -1,5 +1,5 @@
 // Fenêtre commune (Modale de components/coproprietaire-dashboard/ui.tsx, employée par AJ Signalement) : une fenêtre plus
-// haute que l'écran doit défiler DANS la fenêtre. Signalé par Hugo le 13/11/2026 sur « Modifier la copropriété » : la
+// haute que l'écran doit défiler DANS la fenêtre. Signalé le 13/11/2026 sur « Modifier la copropriété » : la
 // fenêtre (1 428 px pour un écran de 740 px) était centrée dans un fond fixe sans défilement, le corps de la page était
 // figé (overflow hidden) : ni le titre ni le bouton « Enregistrer » n'étaient joignables.
 // jsdom ne calcule pas la mise en page : on vérifie les classes qui bornent la hauteur et ouvrent le défilement, et que

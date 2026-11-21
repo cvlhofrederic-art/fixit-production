@@ -1,6 +1,6 @@
 // app/api/aj-signalement/cabinets/route.ts
 //
-// Cabinets clients d'AJ Signalement (demandes de Hugo du 10/11/2026 : le premier client n'est qu'un cabinet parmi
+// Cabinets clients d'AJ Signalement (demandes du 10/11/2026 : le premier client n'est qu'un cabinet parmi
 // d'autres ; chacun a son nom, son chemin public vitfix.io/<identifiant>/…, sa langue et les domaines e-mail de ses
 // gestionnaires, saisis par le super admin dans l'espace, JAMAIS dans le code ni une migration).
 // GET (P1-R21) — liste triée par nom : domaines, compteurs, identifiant figé (dès une copropriété ou un gestionnaire :

@@ -1,6 +1,6 @@
 // ── Page de connexion professionnelle de l'espace « AJ Signalement » (partie pure) ──────────────
 //
-// Demande de Hugo du 11/11/2026 : « il faut taper professionnel avec le mail et mot de passe pour se connecter ». La page
+// Demande du 11/11/2026 : « il faut taper professionnel avec le mail et mot de passe pour se connecter ». La page
 // /fr/aj-signalement/connexion/ ne montre qu'un e-mail et un mot de passe (ni Particulier / Artisan / Pro, ni Google) ;
 // la page de connexion générale de VitFix ne change pas.
 // - Contexte de la page : nom affiché et adresse de l'espace par langue. Sérialisable (une page serveur le passe au
@@ -29,7 +29,7 @@ export interface ContexteConnexionQr {
   /** Cabinet de la page (PR 2, lot 4) : sa présence change la décision d'accès (gestionnaire de CE cabinet seul). */
   cabinet?: Readonly<{ identifiant: string }>
   /**
-   * Logo du cabinet (demande de Hugo du 13/11/2026), affiché à la place de l'icône ; ABSENT : cabinet sans logo,
+   * Logo du cabinet (demande du 13/11/2026), affiché à la place de l'icône ; ABSENT : cabinet sans logo,
    * migration 20261114 non appliquée, erreur de lecture (page identique à avant).
    */
   logo?: LogoPageQr

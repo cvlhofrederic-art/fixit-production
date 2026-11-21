@@ -2,7 +2,7 @@
 //
 // Un dépôt public produit un message par destinataire. Une copropriété « attribuée à tous » (copropriété de test) et
 // ses gestionnaires confirmés multiplieraient les messages d'un même QR code : au plus 60 messages par heure et par
-// copropriété, 300 par heure et par cabinet (Q6, retenue par Hugo le 10/11/2026). Au-delà, le signalement est
+// copropriété, 300 par heure et par cabinet (Q6, retenue le 10/11/2026). Au-delà, le signalement est
 // ENREGISTRÉ (jamais perdu) et seul l'e-mail est retenu ; le super admin est alerté une fois, et le prochain e-mail de
 // la copropriété mentionne les signalements retenus.
 // La décision est prise en base, et seulement là (signalements_qr_reserver_emails, sous verrou du cabinet : identique

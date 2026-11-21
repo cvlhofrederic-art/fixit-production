@@ -19,7 +19,7 @@ import { estFormulaireSignalementQr } from '@/lib/aj-signalement/chemin-cabinet'
  * de ces scripts ne charge. Cookies _ga / _gid / _gat sont auto-purgés par
  * CookieConsent.tsx (ANALYTICS_PATTERNS) si l'user décline.
  *
- * D24 (décision de Hugo du 17/11/2026, au nom de VitFix, point 4 : « mesure d'audience retirée du formulaire ») : aucune
+ * D24 (décision du 17/11/2026, au nom de VitFix, point 4 : « mesure d'audience retirée du formulaire ») : aucune
  * de ces mesures sur le formulaire public d'AJ Signalement (page du QR code, estFormulaireSignalementQr), même avec le
  * consentement. VitFix y est sous-traitant du cabinet client : il ne mesure pas, pour son propre compte, les visiteurs
  * d'une page de signalement. Le bandeau de cookies reste affiché sur cette page (D10 : écran, décision de Frédéric).

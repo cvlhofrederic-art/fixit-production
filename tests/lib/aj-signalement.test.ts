@@ -266,7 +266,7 @@ describe('API cliente : codes d’erreur', () => {
   })
 })
 
-describe('corps du POST : adresse proposée et signalement lié (demandes de Hugo du 06/11/2026)', () => {
+describe('corps du POST : adresse proposée et signalement lié (demandes du 06/11/2026)', () => {
   it('adresse proposée nettoyée et bornée ; numéro lié seulement pour les parties communes et bien formé', () => {
     const communes = { ...complet, lieu: 'communes' as const, zone: 'Escalier' }
     expect(construireSaisieQr(communes, JETON, 'fr', { adresseProposee: '  1 Quai du Port 13002 Marseille ', signalementLieNumero: '1A2B3C4D' }))

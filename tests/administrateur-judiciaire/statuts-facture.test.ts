@@ -232,7 +232,7 @@ describe('sélection des factures pour un ordre de virement', () => {
   })
 })
 
-describe('statuts — retour de la facture après un virement rejeté ou retourné (décision J9 de Hugo du 30/10/2026)', () => {
+describe('statuts — retour de la facture après un virement rejeté ou retourné (décision J9 du 30/10/2026)', () => {
   const REJET: RejetReglementFacture = { reglementId: 'r-1', le: '2026-11-03', motif: 'AC04 — compte clos', montantCentimes: 10_000 }
   const TOTAL = { totalTtcCentimes: 10_000 }
   const reglee = facture('a', { statutSaisie: 'Réglée', statutReglement: 'Réglée', resteDuCentimes: 0 })

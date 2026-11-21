@@ -1,12 +1,12 @@
 // ── AJ Signalement : destinataires d'un signalement (SPEC § 1.7.1, RG-06 et RG-06 bis) ──────────────────────────
 //
-// Demande de Hugo du 10/11/2026 : le gestionnaire reçoit AUTOMATIQUEMENT les signalements de ses copropriétés. Les
+// Demande du 10/11/2026 : le gestionnaire reçoit AUTOMATIQUEMENT les signalements de ses copropriétés. Les
 // fiches qui reçoivent (actives, adresse confirmée et non contestée, attribuées à la copropriété ou « à tous » du même
 // cabinet) sont choisies en base par signalements_qr_emails_gestionnaires ; ce module pur assemble l'envoi :
 //   (adresses saisies MOINS les saisies reconnues comme celles de fiches inactives ou contestées) ∪ gestionnaires,
 //   dédoublonnés sur l'adresse canonique ; une adresse des deux côtés garde le type « gestionnaire » ; plafond de 100
 //   (un lot Resend), le reste compté sans adresse.
-// D9 (décision de Hugo du 17/11/2026, au nom de VitFix, point 7) : le repli vers les boîtes de VitFix (ADMIN_EMAIL /
+// D9 (décision du 17/11/2026, au nom de VitFix, point 7) : le repli vers les boîtes de VitFix (ADMIN_EMAIL /
 // ADMIN_EMAIL_2) est COUPÉ. Union vide : l'adresse de contact du cabinet de la copropriété (type « cabinet ») reçoit le
 // signalement, pour qu'il ne reste jamais sans lecteur ; le calcul le marque « en attente » (enAttente), et la route
 // envoie à VitFix une alerte SANS AUCUNE DONNÉE du signalement. Sans adresse de contact, ou pour une copropriété

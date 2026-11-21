@@ -7,7 +7,7 @@ import { formatEuros } from '@/lib/administrateur-judiciaire/domain/format'
 /**
  * Lots & copropriétaires : fiche d'un lot sur le modèle de la fiche lot de Gestéam (identification, situation,
  * propriété, occupation, tantièmes et quote-part par clé, caractéristiques, charges, équipements, documents), ouverte
- * depuis la colonne « Lot » du registre ou depuis la fiche du copropriétaire. Demande de Hugo du 29/10/2026.
+ * depuis la colonne « Lot » du registre ou depuis la fiche du copropriétaire. Demande du 29/10/2026.
  */
 
 async function monter() {

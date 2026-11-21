@@ -1,7 +1,7 @@
 // tests/components/aj-signalement/espace-cabinet.test.tsx
 //
 // PR 2, lot 5 : écrans de l'espace d'un cabinet (vitfix.io/<identifiant>/suivi/), vus par un gestionnaire connecté (SPEC
-// § 2.8, décisions de Hugo du 11/11/2026). Remplace la partie connectée de l'E2E (la base n'existe pas en CI) : toutes
+// § 2.8, décisions du 11/11/2026). Remplace la partie connectée de l'E2E (la base n'existe pas en CI) : toutes
 // les réponses des routes sont simulées, sous la forme que le serveur leur donne pour un gestionnaire (minimisées).
 //   - chargement : GET /moi (profil et cabinet de la session) puis GET /tableau ; aucune route du super admin ;
 //     403 acces_retire → « Votre accès a été retiré par le cabinet. » et « Se déconnecter » ; 503 → « Fonction pas

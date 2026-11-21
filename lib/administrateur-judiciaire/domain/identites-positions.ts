@@ -6,7 +6,7 @@ import { normaliserTexte } from '@/lib/administrateur-judiciaire/domain/texte'
 import { GROUPE_IDENTITE, QUALITE_IDENTITE, type GroupeIdentite } from '@/lib/data/referentiels-gesteam-judiciaire'
 
 /**
- * Décision D2 (Hugo Carvalho, 27/10/2026) — Identité / Position / Compte copropriétaire. Fonctions pures, dates ISO
+ * Décision D2 (27/10/2026) — Identité / Position / Compte copropriétaire. Fonctions pures, dates ISO
  * (AAAA-MM-JJ), sans écran. Tables : version 3 de la base locale (db/schema.ts : identites, positions,
  * comptesCoproprietaires), écrites par ces fonctions ; migration des anciennes fiches : migration-d2.ts (plan pur, par
  * migrerCoproprietaire) et db/migration-d2.ts (écriture), sans appel au démarrage.
@@ -31,7 +31,7 @@ import { GROUPE_IDENTITE, QUALITE_IDENTITE, type GroupeIdentite } from '@/lib/da
  *   bornée l'emporte ; sinon aucune n'est retenue et le contrôle le signale. Si aucune adresse n'est en cours (ancienne
  *   adresse close, nouvelle pas encore reçue), la dernière communiquée reste l'adresse de notification, et le contrôle
  *   signale qu'elle est échue.
- * - J67, R19 (décision de Hugo du 17/11/2026) : seule vaut pour notifier l'adresse communiquée par le copropriétaire
+ * - J67, R19 (décision du 17/11/2026) : seule vaut pour notifier l'adresse communiquée par le copropriétaire
  *   lui-même (D. 1967 art. 65, al. 1 : il « notifie au syndic son domicile réel ou élu » ; al. 2 : notification valable
  *   « au dernier domicile communiqué par le copropriétaire à cet effet ») ou par la notification du transfert de
  *   propriété, qui porte le « domicile réel ou élu » de l'acquéreur (art. 6, al. 2). Chaque adresse porte donc son
@@ -52,7 +52,7 @@ import { GROUPE_IDENTITE, QUALITE_IDENTITE, type GroupeIdentite } from '@/lib/da
  * J78 (réponse de Frédéric du 17/11/2026, sj-qualite-pro.json) : case « professionnel » sur la fiche identité, décochée
  * par défaut (Identite.professionnel, facultative). Décochée ou absente : destinataire non professionnel ; une LRE exige
  * alors son consentement, qui reste l'accord du critère LRE repris de Gestéam (CPCE art. L. 100 ; J53 ; accord sans
- * date valable écarté : J59, étendu par J66 (validé par Hugo le 17/11/2026) à tout usage, consentement de J53 compris ;
+ * date valable écarté : J59, étendu par J66 (validé le 17/11/2026) à tout usage, consentement de J53 compris ;
  * code : accordElectroniqueEnVigueur, voie-notification.ts, PR #728 ; les commentaires de voie-notification.ts
  * (accordElectroniqueEnVigueur, estAccordSansDateValable, en-tête) disent encore l'extension « à confirmer » : à mettre
  * à jour à part). Cochée : ce consentement n'est pas exigé ; les autres règles restent (voie postale : J52, J74 ; accord
@@ -68,10 +68,10 @@ import { GROUPE_IDENTITE, QUALITE_IDENTITE, type GroupeIdentite } from '@/lib/da
  * l'envoi, dateEnvoiCourrierNotification, est extraite d'evaluerNotification, sans changer le calcul). Table : identites
  * (version 3 de db/schema.ts) ; écriture de la case : enregistrerQualiteProfessionnelle (db/identites.ts) ; écran : à
  * brancher.
- * J78, décisions de Hugo du 19/11/2026 (« VALIDE TOUT », puis « ok » pour la date de lecture, sur les recommandations de
+ * J78, décisions du 19/11/2026 (« VALIDE TOUT », puis « ok » pour la date de lecture, sur les recommandations de
  * Claude) : à coder avec la table des identités, pas ici ; à valider par Frédéric avant toute fusion. Elles remplacent
- * les deux questions laissées à Hugo.
- * - Case datée : la qualité se lit à la date de l'envoi. Date retenue (« ok » de Hugo du 19/11/2026) : date du dépôt de
+ * les deux questions laissées au référent métier.
+ * - Case datée : la qualité se lit à la date de l'envoi. Date retenue (« ok » du 19/11/2026) : date du dépôt de
  *   l'envoi quand elle est saisie, sinon celle de l'événement. Elle reprend la lecture de J50 (statut-assemblee.ts,
  *   controlerVoie : régime, accord exprès, consentement et demande de voie postale jugés à cette date), qui reste
  *   ouverte en J50 (🔵) : cette décision ne tranche pas J50 ; si J50 est tranchée autrement, les deux dates se relisent
@@ -459,7 +459,7 @@ export interface CompteCoproprietaire {
   serie: string
   libelle: string
   /**
-   * Décision J10 (Hugo, 30/10/2026) — identité du mandataire commun des indivisaires du compte (L. 1965 art. 23, al. 2 :
+   * Décision J10 (30/10/2026) — identité du mandataire commun des indivisaires du compte (L. 1965 art. 23, al. 2 :
    * désigné d'accord entre eux ou, à défaut, par le président du tribunal judiciaire). Facultatif et non indexé ; absent,
    * null ou vide : aucun désigné. Seul ce mandataire reçoit un règlement destiné à un indivisaire
    * (reglements-fournisseurs.ts, controlerBeneficiaireIndivisaire) ; un remboursement du compte va à lui, ou à tous les

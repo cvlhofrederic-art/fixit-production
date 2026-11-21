@@ -41,7 +41,7 @@ import { TYPE_TRAVAUX, type TypeTravaux } from '@/lib/data/referentiels-gesteam-
  * - « moins de six mois » s'apprécie à la date du contrôle (ordre de service ou règlement) ; une pièce datée APRÈS le
  *   contrôle ne prouve pas la remise à cette date : elle compte comme absente, avec une alerte de saisie.
  *
- * Recommandations validées par Hugo le 17/11/2026 (J67 ; textes lus sur Légifrance le 17/11/2026) :
+ * Recommandations validées le 17/11/2026 (J67 ; textes lus sur Légifrance le 17/11/2026) :
  * - J67, R75 (travaux d'urgence) : la vigilance s'applique quand même. L'art. L. 8221-2 exclut les travaux d'urgence
  *   « des interdictions prévues au présent chapitre », le chapitre Ier (travail dissimulé) ; la vigilance est au
  *   chapitre II (L. 8222-1), que l'exclusion ne vise pas ; le donneur d'ordre qui ne vérifie pas reste exposé à la

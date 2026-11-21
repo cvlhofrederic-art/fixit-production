@@ -1,6 +1,6 @@
 // tests/components/aj-signalement/listes-rafraichies.test.tsx
 //
-// Correctif du 13/11/2026 (Hugo : « les listes ne se rafraîchissent pas »). En production, chaque appel
+// Correctif du 13/11/2026 (Référent métier : « les listes ne se rafraîchissent pas »). En production, chaque appel
 // /api/aj-signalement/* répond en ≈ 2,4 s : après une création ou une modification, le message de succès s'affichait
 // tout de suite et la liste n'arrivait que 2 à 5 s plus tard. Désormais l'espace rend une PROMESSE de rechargement
 // (cabinets, fiches, tableau), la page profil relit aussi sa fiche, et chaque action attend la liste à jour avant de

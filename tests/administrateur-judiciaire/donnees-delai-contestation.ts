@@ -1,4 +1,4 @@
-// Données d'exemple partagées par les tests du délai de contestation d'AG (décisions de Hugo du 17/11/2026, J52 à J66).
+// Données d'exemple partagées par les tests du délai de contestation d'AG (décisions du 17/11/2026, J52 à J66).
 import type { ChangementStatut, Courrier } from '@/lib/administrateur-judiciaire/db/schema'
 import { composerDateIso as d } from '@/lib/administrateur-judiciaire/domain/dates'
 

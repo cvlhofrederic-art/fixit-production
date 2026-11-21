@@ -10,7 +10,7 @@ import {
  * Journal des traitements (cartographie Gestéam, tranche 29) et décision D1. Fonctions pures, sans écran. Table des
  * pièces : traitements (version 3 de db/schema.ts), écrite par ces fonctions dans db/traitements.ts seulement.
  *
- * D1 (Hugo Carvalho, 27/10/2026) — trois entités : Immeuble (le bâtiment), Copropriété (le SYNDICAT), Mandat
+ * D1 (27/10/2026) — trois entités : Immeuble (le bâtiment), Copropriété (le SYNDICAT), Mandat
  * judiciaire. Les comptes appartiennent au syndicat : le premier segment du numéro de compte est celui du syndicat, et
  * les comptes survivent au changement de mandataire. Chaque pièce garde le mandat qui l'a produite, pour la reddition
  * des comptes de chaque mission.
@@ -51,7 +51,7 @@ import {
  * la répartition annulée (on n'annule pas un traitement avant de l'avoir passé) ; (3) les autres pièces sont datées du
  * jour du traitement : leur annulation ne porte ni date d'effet distincte (refusée) ni paramètre. dateEffetPiece relit la
  * date d'effet de toute pièce.
- * 🔴 Non établi (Hugo ou Frédéric) : « Dans Gestéam, une pièce imputée d'une autre famille que la répartition de charges
+ * 🔴 Non établi (Référent métier ou Frédéric) : « Dans Gestéam, une pièce imputée d'une autre famille que la répartition de charges
  * (encaissement, saisie de factures) s'annule-t-elle encore ? » (seule la répartition a été vue au statut « Annulé ») ;
  * « Une répartition « Enregistré » a-t-elle déjà passé ses écritures au grand livre, ou ses mouvements attendent-ils
  * l'imputation (l'annulation serait alors un simple abandon) ? » VitFix contre-passe dans tous les cas (arrêté art. 5) ;

@@ -23,7 +23,7 @@ import {
 } from '@/lib/administrateur-judiciaire/domain/typologie-documents'
 
 /**
- * Classement d'une pièce importée (point 64 du bilan 2), sous la décision de Hugo du 03/11/2026 : « le classement
+ * Classement d'une pièce importée (point 64 du bilan 2), sous la décision du 03/11/2026 : « le classement
  * d'après le texte est une suggestion seulement ». Le texte rend une SUGGESTION (types candidats ordonnés, avec leurs
  * indices), jamais un type sûr ; seuls le gestionnaire (confirmerClassement) et l'import (classementDeLImport)
  * confirment un type ; un document dont le type n'est pas confirmé n'est jamais une pièce présente : « à vérifier ».
@@ -1936,8 +1936,8 @@ describe('en-tête de classement-pieces-ged.ts', () => {
     ' ',
   )
 
-  it('la décision de Hugo du 03/11/2026 est citée telle quelle, avec ses trois conséquences', () => {
-    expect(SOURCE).toContain("décision de Hugo du 03/11/2026 : « le classement d'après le texte est une suggestion seulement »")
+  it('la décision du 03/11/2026 est citée telle quelle, avec ses trois conséquences', () => {
+    expect(SOURCE).toContain("décision du 03/11/2026 : « le classement d'après le texte est une suggestion seulement »")
     expect(SOURCE).toMatch(/1\. le classement d'après le texte \(suggererClassement\) ne rend JAMAIS un type sûr/)
     expect(SOURCE).toMatch(/2\. un type n'est confirmé que par une source explicite/)
     expect(SOURCE).toMatch(/3\. un document dont le type n'est pas confirmé ne compte JAMAIS comme pièce présente/)
@@ -1967,7 +1967,7 @@ describe('en-tête de classement-pieces-ged.ts', () => {
     expect(SOURCE).toMatch(/🔵[^🟢🔴]*Limites de l'ordre[^🟢🔴]*un magistrat hors de la liste \(« Ordonnance du juge de la mise en état/u)
   })
 
-  it('🔴 le format de l’export des documents Gestéam n’est pas relevé : question pour Hugo', () => {
+  it('🔴 le format de l’export des documents Gestéam n’est pas relevé : question pour le référent métier', () => {
     expect(SOURCE).toMatch(/🔴[^🟢🔵]*« L'export des documents Gestéam porte-t-il la catégorie et le type de chaque pièce/u)
   })
 })

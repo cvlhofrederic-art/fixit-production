@@ -19,7 +19,7 @@ import { formatEuros } from '@/lib/administrateur-judiciaire/domain/format'
 import { useSelectionDossier } from '@/lib/administrateur-judiciaire/selection'
 
 /**
- * Conformité affichée selon la copropriété choisie dans le sélecteur du haut de page (demande de Hugo du 29/10/2026) :
+ * Conformité affichée selon la copropriété choisie dans le sélecteur du haut de page (demande du 29/10/2026) :
  * registres filtrés, indicateurs recalculés, documents générés au nom de la copropriété choisie. Sans copropriété
  * choisie (écran rendu seul), chaque écran garde son comportement d'avant.
  */

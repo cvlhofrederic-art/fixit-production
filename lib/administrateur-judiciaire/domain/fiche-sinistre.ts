@@ -39,12 +39,12 @@ import type { PhaseSinistre, StatutSinistre, TypeSinistre } from '@/lib/data/ref
  *   du jour où le tiers a agi en justice contre l'assuré ou a été indemnisé par lui ; cinq ans pour les dommages des
  *   mouvements de terrain consécutifs à la sécheresse-réhydratation des sols reconnus catastrophe naturelle (L. 125-1).
  *   Interruption : art. L. 114-2 (causes ordinaires, désignation d'experts, lettre recommandée).
- *   J67, R56 (décision de Hugo du 17/11/2026 ; L. 114-1 et loi n° 2021-1837, art. 4 et 10, lus sur Légifrance le
+ *   J67, R56 (décision du 17/11/2026 ; L. 114-1 et loi n° 2021-1837, art. 4 et 10, lus sur Légifrance le
  *   17/11/2026) : les cinq ans de la sécheresse-réhydratation ne valent que pour un contrat conclu après le 29/12/2021,
  *   date de publication de la loi, qui ne s'applique pas aux contrats en cours ; contrat reconduit depuis : non établi,
  *   deux ans par prudence. La date suggérée reste à deux ans ; l'avertissement (catastrophe naturelle seulement, sans 🔴)
  *   le dit et lit la date du contrat choisi si l'appelant la donne.
- *   🔴 À confirmer avec Hugo : « Forclusion », au cabinet, désigne-t-il cette prescription biennale (hypothèse retenue)
+ *   🔴 À confirmer avec le référent métier : « Forclusion », au cabinet, désigne-t-il cette prescription biennale (hypothèse retenue)
  *   ou la limite de déclaration de l'art. L. 113-2 ?
  */
 
@@ -328,7 +328,7 @@ function avertissementSecheresse(dateContrat: string | null | undefined): string
 
 /**
  * Suggestion de date de forclusion, à confirmer : jamais recopiée dans la fiche (dateForclusion reste celle saisie).
- * Hypothèse 🔴 à confirmer avec Hugo : la « Forclusion » de Gestéam vise la prescription biennale de l'art. L. 114-1.
+ * Hypothèse 🔴 à confirmer avec le référent métier : la « Forclusion » de Gestéam vise la prescription biennale de l'art. L. 114-1.
  * Aucune date ne part d'une année improbable (dates.estAnneeImprobable, faute de frappe déjà signalée par la fiche) :
  * survenance ainsi datée, pas de suggestion (null) ; connaissance ainsi datée, pas de point de départ reporté.
  */

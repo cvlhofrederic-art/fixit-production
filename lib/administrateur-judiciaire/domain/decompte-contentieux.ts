@@ -21,7 +21,7 @@ import type { PhaseContentieux, TypeContentieux } from '@/lib/data/referentiels-
  * d'exécution) : ce n'est ni une assiette d'intérêts ni un décompte d'exécution. Seuls les frais du commissaire de justice
  * payés par le syndicat s'ajoutent au solde, sous leur poste propre (ci-dessous).
  *
- * Décision de Hugo du 17/11/2026 (J67, R48 ; L. 1965 art. 10-1 et CPCE art. L. 111-8 lus sur Légifrance le 17/11/2026) :
+ * Décision du 17/11/2026 (J67, R48 ; L. 1965 art. 10-1 et CPCE art. L. 111-8 lus sur Légifrance le 17/11/2026) :
  * sont imputables au seul copropriétaire concerné « les frais nécessaires exposés par le syndicat [...] pour le
  * recouvrement d'une créance justifiée à l'encontre d'un copropriétaire ainsi que les droits et émoluments des actes des
  * huissiers de justice et le droit de recouvrement ou d'encaissement à la charge du débiteur » (L. 1965 art. 10-1, a ;

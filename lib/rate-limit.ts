@@ -3,7 +3,7 @@
 // Fallback automatique vers un rate limiter en mémoire si les env vars ne sont
 // pas configurées (dev local sans Redis).
 //
-// D13 (décision de Hugo du 17/11/2026, au nom de VitFix, point 4) : Upstash ne reçoit plus l'identifiant en clair
+// D13 (décision du 17/11/2026, au nom de VitFix, point 4) : Upstash ne reçoit plus l'identifiant en clair
 // (adresse IP, identifiant de compte…), seulement son EMPREINTE (empreinteIdentifiant ci-dessous), et l'option
 // « analytics » d'Upstash est coupée (elle gardait chaque identifiant dans des ensembles `<préfixe>:events:<heure>`).
 // Pour toutes les routes, une seule chose change : le format de la clé chez Upstash. Même identifiant → même empreinte :

@@ -1,6 +1,6 @@
 // ── Libellés et calculs d'affichage des écrans du super admin (cabinets, gestionnaires, journal) ──────────────
 //
-// Demandes de Hugo du 10/11/2026 : cabinets clients (adresse vitfix.io/<identifiant>/, domaines e-mail), fiches des
+// Demandes du 10/11/2026 : cabinets clients (adresse vitfix.io/<identifiant>/, domaines e-mail), fiches des
 // gestionnaires et leur page de suivi, journal. Fonctions pures, sans React ; textes en français (outil de
 // l'administrateur), apostrophe typographique comme le reste de l'espace. La page publique de confirmation d'adresse
 // (vitfix.io/<identifiant>/confirmation-adresse/) a ses textes ici aussi (FR seulement, SPEC § 1.7.4).
@@ -405,12 +405,12 @@ export const TEXTES_GESTION_QR = {
     choisirAuMoinsUne: 'Choisissez au moins une copropriété et le cabinet.',
     rattachees: '{n} copropriété(s) rattachée(s).',
     voirJournal: 'Voir le journal',
-    // Logo du cabinet (demande de Hugo du 13/11/2026, BROUILLON pour Frédéric) : fenêtre LogoCabinetQr.
+    // Logo du cabinet (demande du 13/11/2026, BROUILLON pour Frédéric) : fenêtre LogoCabinetQr.
     logo: {
       bouton: 'Logo',
       titre: 'Logo du cabinet {cabinet}',
       // Relecture de conformité du 13/11/2026 : les e-mails de signalement aux gestionnaires partent en lot (aucune pièce
-      // jointe possible) et ne portent pas le logo ; à revoir si Hugo retient l'envoi unitaire pour eux.
+      // jointe possible) et ne portent pas le logo ; à revoir si le référent métier retient l'envoi unitaire pour eux.
       intro: 'Le logo paraît sur les affiches à imprimer, sur les pages publiques et l’espace du cabinet, et dans l’accusé de réception envoyé au déclarant ; ni dans les e-mails de signalement envoyés aux gestionnaires, ni dans les messages diffusés aux déclarants.',
       actuel: 'Logo actuel',
       altActuel: 'Logo actuel du cabinet {cabinet}',

@@ -92,7 +92,7 @@ import { estPourcentage, type FamilleTraitement, type Traitement } from '@/lib/a
  *   « Répartition de charges » et leur annulation sont écartés du réalisé (ils répartissent la dépense, ils ne
  *   l'engagent pas).
  *
- * J67, R38 (décision de Hugo du 17/11/2026) : part récupérable laissée libre, de 0 à 100 % ; pour une analytique de
+ * J67, R38 (décision du 17/11/2026) : part récupérable laissée libre, de 0 à 100 % ; pour une analytique de
  * personnel, les taux du décret n° 87-713, art. 2 (version du 01/01/2009) sont proposés par défaut
  * (PARTS_RECUPERABLES_DECRET_87_713 de personnel-syndicat.ts : 75 % ou 40 % pour le gardien selon ses tâches, 100 % pour
  * l'employé d'immeuble, 10 % pour l'encadrement technique en régie) et une alerte non bloquante signale un taux au-delà
@@ -103,7 +103,7 @@ import { estPourcentage, type FamilleTraitement, type Traitement } from '@/lib/a
  * R38 et R39) ; la ligne de facture est mise à 0 % quel que soit le taux de la fiche, et alerteRecuperableCompte644 le
  * signale sans bloquer.
  *
- * 🔴 Non établi — questions pour Hugo (ce que montre Gestéam) :
+ * 🔴 Non établi — questions pour le référent métier (ce que montre Gestéam) :
  * (a) Gestéam impose-t-il un total de 100 % aux douze pondérations du budget progressif ? (VitFix l'exige.)
  * (b) Le budget progressif compte-t-il le mois en cours entier, ou au prorata des jours écoulés ? (VitFix : entier.)
  * (c) Pour un exercice décalé (juillet → juin), la case « J » vaut-elle janvier, mois civil ? (VitFix : oui.)

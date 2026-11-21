@@ -1,6 +1,6 @@
 // tests/api/aj-signalement-diffusions-gestionnaire.test.ts
 //
-// AJ Signalement, PR 3, partie GESTIONNAIRE (décision H11 de Hugo du 11/11/2026 ; cahier § 4.3, § 10.2 ; modèle des
+// AJ Signalement, PR 3, partie GESTIONNAIRE (décision H11 du 11/11/2026 ; cahier § 4.3, § 10.2 ; modèle des
 // droits et des routes isolées de la PR 2, SPEC PR 2 § 2.4) — isolation et élévation sur les routes de diffusion :
 //   D-R1 valeurs · D-R2 aperçu · D-R3 envoi · D-R4 reprise · D-R5 historique · D-R6 détail · D-R7 opposition écrite ;
 //   D-R8 (réglages et activation d'un cabinet) et D-C1 (filet de reprise) restent fermés au gestionnaire.

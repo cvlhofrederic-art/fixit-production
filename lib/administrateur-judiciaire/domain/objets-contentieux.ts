@@ -16,7 +16,7 @@ import { normaliserNomPersonne } from '@/lib/administrateur-judiciaire/domain/te
  * lues sont l'action en recouvrement de créance et les voies d'exécution (décret n° 67-223, art. 55, al. 3) et la phase
  * qui précède la mise en demeure, d'où partent les frais imputables au seul débiteur (loi n° 65-557, art. 10-1, a).
  *
- * Décisions de Hugo du 03/11/2026 (registre des décisions juridiques, J34 ; question 27 de la liste) :
+ * Décisions du 03/11/2026 (registre des décisions juridiques, J34 ; question 27 de la liste) :
  * - J34 : relevé fait le 03/11/2026 dans Gestéam 5.4.23, en lecture seule (Contentieux → Recherche de contentieux) : le
  *   critère « Objet » est un champ de saisie libre, sans liste de valeurs ni flèche de choix (contrairement à Type et
  *   Phase). Gestéam n'a donc pas de référentiel des objets : l'objet reste un texte libre dans VitFix

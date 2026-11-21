@@ -20,7 +20,7 @@
 --      et de l'AG convoquée sont relatives à CURRENT_DATE / now().
 --
 -- CE QUE ÇA CRÉE (cabinet du compte, immeuble « Résidence Le Prado ») :
---   - mise à jour de l'immeuble (48 lots, gestionnaire Hugo Carvalho, budget, règlement) ;
+--   - mise à jour de l'immeuble (48 lots, gestionnaire Camille Martin, budget, règlement) ;
 --   - la fiche de Géraldine Xavier (bât. D, 4e étage, lot 12, 450 tantièmes, solde -855 €) ;
 --   - 6 appels de charges (T1 à T4 2026, fonds de travaux, 1er appel ravalement) ;
 --   - 2 factures copropriétaire réglées, aucun impayé ;
@@ -135,7 +135,7 @@ BEGIN
   -- ── 3. Immeuble « Résidence Le Prado » : taille réelle et règlement de copropriété ──
   UPDATE syndic_immeubles SET
     nb_lots                       = 48,
-    gestionnaire                  = 'Hugo Carvalho',
+    gestionnaire                  = 'Camille Martin',
     budget_annuel                 = 45000,
     depenses_annee                = 31200,
     reglement_pdf_nom             = 'Règlement de copropriété — Résidence Le Prado.pdf',

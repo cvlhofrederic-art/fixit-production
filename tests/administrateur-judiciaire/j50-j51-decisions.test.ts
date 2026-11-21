@@ -34,7 +34,7 @@ import {
 } from '@/lib/administrateur-judiciaire/domain/voie-notification'
 
 /**
- * Décisions J50 et J51 de Hugo du 11/11/2026 (registre des décisions juridiques ; notes decisions-1111) — partie J50 :
+ * Décisions J50 et J51 du 11/11/2026 (registre des décisions juridiques ; notes decisions-1111) — partie J50 :
  * - J50 (« Oui, calcul électronique ») : depuis le 25/12/2025 (décret du 22/12/2025, D. 1967 art. 64 à 64-4), le délai
  *   de contestation de 2 mois (L. 1965 art. 42, al. 2) part du lendemain de la transmission de l'avis électronique par
  *   le prestataire (D. 1967 art. 64, dernier al.), et du lendemain de la première présentation pour la LRAR (art. 64-1,
@@ -43,8 +43,8 @@ import {
  *   25/12/2025 = demande de voie postale à sa date (L. 1965 art. 42-1, al. 2 : « par tout moyen ») ; LRAR sans demande
  *   acceptée avec avertissement ; LRE vers un non-professionnel sans consentement enregistré (CPCE art. L. 100) : calcul
  *   avec avertissement « à confirmer » ; fin tirée d'une seule notification marquée minimale.
- * La partie J51 (blocage de l'OS) est dans envoi-ordre-service.test.ts. Décisions de Hugo du 17/11/2026 (J52 et J53,
- * decisions-hugo-17-11.test.ts) : la demande, le refus ou le retrait reçu avant le 25/12/2025 prend effet dès sa
+ * La partie J51 (blocage de l'OS) est dans envoi-ordre-service.test.ts. Décisions du 17/11/2026 (J52 et J53,
+ * decisions-17-11.test.ts) : la demande, le refus ou le retrait reçu avant le 25/12/2025 prend effet dès sa
  * réception, et la LRE sans consentement ne vaut pas notification ; les tests qui figeaient l'ancien comportement
  * (avertissement « à confirmer ») sont adaptés ci-dessous.
  */
@@ -318,7 +318,7 @@ describe('J50 — cas limites de la voie de notification', () => {
     })
   })
 
-  // décision de Hugo du 17/11/2026 (J53) : sans consentement enregistré, la LRE ne vaut plus notification (avant : calcul
+  // décision du 17/11/2026 (J53) : sans consentement enregistré, la LRE ne vaut plus notification (avant : calcul
   // avec un avertissement « à confirmer »)
   it('LRE vers un non-professionnel sans consentement enregistré (CPCE art. L. 100) : refus (J53) ; pas pour le prestataire qualifié', () => {
     expect(finDelaiContestationAg(chaine(), [courrier()], 'ag-1', { opposantsOuDefaillants: 1 })).toMatchObject({ etat: 'refuse', cause: 'consentement_lre_absent' })
@@ -530,7 +530,7 @@ describe('J50 — relecture du 14/11/2026 (tour 1) : constats corrigés', () => 
     // sonde S3 : refus 2021, accord 2023, retrait 2024 : la demande court depuis le retrait
     const s3 = lreDu(d(2026, 1, 10), { consentements: [consent('refus', d(2021, 3, 1)), consent('accord', d(2023, 5, 2)), consent('retrait', d(2024, 2, 1))] })
     expect(s3).toMatchObject({ etat: 'refuse', cause: 'voie_postale_demandee' })
-    // décision de Hugo du 17/11/2026 (J52) : reçu avant le 25/12/2025, le retrait prend effet dès sa réception (avant : le 10/02/2024)
+    // décision du 17/11/2026 (J52) : reçu avant le 25/12/2025, le retrait prend effet dès sa réception (avant : le 10/02/2024)
     expect(motifDe(s3)).toContain("retrait de l'accord reçu le 01/02/2024, avant le 25/12/2025, valant demande de voie postale")
     // refus puis accord reçus depuis le 25/12/2025 : le dernier reçu au plus tard à l'envoi compte
     const recents = [consent('refus', d(2026, 1, 10)), consent('accord', d(2026, 2, 1))]
@@ -630,8 +630,8 @@ describe('J50 — relecture du 14/11/2026 (tour 1) : constats corrigés', () => 
     )
   })
 
-  // décision de Hugo du 17/11/2026 (J52) : reçu avant le 25/12/2025, effet dès la réception ; l'avertissement « à
-  // confirmer » de la sonde P9 est remplacé par un refus (detail : decisions-hugo-17-11.test.ts)
+  // décision du 17/11/2026 (J52) : reçu avant le 25/12/2025, effet dès la réception ; l'avertissement « à
+  // confirmer » de la sonde P9 est remplacé par un refus (detail : decisions-17-11.test.ts)
   it('refus ou demande reçus avant le 25/12/2025, effet selon l’ancienne règle (J52) : l’envoi électronique postérieur ne fait pas courir le délai', () => {
     const avis = d(2025, 12, 27)
     // sonde P9 : refus reçu le 20/12/2025, LRE du 27/12/2025 ; effet dès sa réception (avant : calculé « à confirmer »)
@@ -786,7 +786,7 @@ describe('J50 — relecture du 14/11/2026 (tour 2) : un courrier antérieur au p
       /\r?\n\s*\* */g,
       ' ',
     )
-    const rubrique = source.slice(source.indexOf('Décisions de Hugo du 11/11/2026'))
+    const rubrique = source.slice(source.indexOf('Décisions du 11/11/2026'))
     expect(rubrique).toContain('courrier_anterieur_au_pv')
     expect(rubrique).toContain('D. 1967 art. 17, al. 1')
   })
@@ -821,13 +821,13 @@ describe('J50 — forme d’envoi d’une notification selon le mode VitFix (gab
   })
 })
 
-describe('J50 — documentation : rubrique « Décisions de Hugo du 11/11/2026 » et sources', () => {
+describe('J50 — documentation : rubrique « Décisions du 11/11/2026 » et sources', () => {
   const lire = (fichier: string) =>
     readFileSync(join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', fichier), 'utf8').replaceAll(/\r?\n\s*\* */g, ' ')
 
   it('statut-assemblee.ts : J50 inscrite avec ses textes, ses cas limites et ses marques d’incertitude', () => {
     const source = lire('statut-assemblee.ts')
-    const rubrique = source.slice(source.indexOf('Décisions de Hugo du 11/11/2026'))
+    const rubrique = source.slice(source.indexOf('Décisions du 11/11/2026'))
     for (const attendu of [
       'J50',
       '« Oui, calcul électronique »',
@@ -852,11 +852,11 @@ describe('J50 — documentation : rubrique « Décisions de Hugo du 11/11/2026 �
 
   it('courriers.ts et voie-notification.ts : le mode de notification et la reprise des refus d’avant le 25/12/2025 sont décrits', () => {
     const courriers = lire('courriers.ts')
-    expect(courriers).toContain('Décisions de Hugo du 11/11/2026')
+    expect(courriers).toContain('Décisions du 11/11/2026')
     expect(courriers).toContain('modeNotification')
     expect(courriers).toContain('FORME_ENVOI_COURRIER ne change pas')
     const voieNotification = lire('voie-notification.ts')
-    expect(voieNotification).toContain('Décisions de Hugo du 11/11/2026')
+    expect(voieNotification).toContain('Décisions du 11/11/2026')
     expect(voieNotification).not.toContain("à l'import, ils ne deviennent pas des demandes de voie postale")
     expect(voieNotification).not.toContain("accord exprès de l'ancien art. 64-2")
     expect(voieNotification).toContain('art. 64-3 de la rédaction')
@@ -864,16 +864,16 @@ describe('J50 — documentation : rubrique « Décisions de Hugo du 11/11/2026 �
 
   it('relecture du 14/11/2026 : en-têtes corrigés (fondements datés, L. 100 tranché le 17/11/2026, mode incohérent, avis selon le mode)', () => {
     const voieNotification = lire('voie-notification.ts')
-    const decisions = voieNotification.slice(voieNotification.indexOf('Décisions de Hugo du 11/11/2026'), voieNotification.indexOf('Décisions de Hugo du 17/11/2026'))
+    const decisions = voieNotification.slice(voieNotification.indexOf('Décisions du 11/11/2026'), voieNotification.indexOf('Décisions du 17/11/2026'))
     expect(decisions.length).toBeGreaterThan(0)
     // le consentement de CPCE art. L. 100 n'est pas une décision du 11/11/2026 : il est tranché le 17/11/2026 (J53)
     expect(decisions).not.toContain('L. 100')
-    const decisions1711 = voieNotification.slice(voieNotification.indexOf('Décisions de Hugo du 17/11/2026'), voieNotification.indexOf('🔵 Déduit'))
+    const decisions1711 = voieNotification.slice(voieNotification.indexOf('Décisions du 17/11/2026'), voieNotification.indexOf('🔵 Déduit'))
     expect(decisions1711).toContain('J53')
     expect(decisions1711).toContain('CPCE art. L. 100')
     const nonEtabli = voieNotification.slice(voieNotification.indexOf('🔴 Non établi'))
     expect(nonEtabli).not.toContain('CPCE art. L. 100')
-    expect(nonEtabli).not.toContain('question ouverte à Hugo')
+    expect(nonEtabli).not.toContain('question ouverte au référent métier')
     // l'accord exprès ne venait de la loi que jusqu'au 10/04/2024
     expect(voieNotification).not.toContain("l'accord exprès exigé pour une notification électronique faite du 04/07/2020 au 24/12/2025 venait de la loi")
     expect(decisions).toContain('dernier état')

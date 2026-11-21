@@ -1,6 +1,6 @@
 // tests/components/coproprietaire/shell-signalements-qr.test.tsx
 //
-// « AJ Signalement » sort du portail copropriétaire (demande de Hugo du 10/11/2026) : l'écran des signalements reçus
+// « AJ Signalement » sort du portail copropriétaire (demande du 10/11/2026) : l'écran des signalements reçus
 // par QR code vit désormais dans son espace indépendant (/fr/aj-signalement/). Le portail n'en garde qu'un lien,
 // pour le seul super admin (pas sa « vue en tant que », refusée par l'espace depuis le 11/11/2026), dans la barre
 // latérale et le menu « Plus » du téléphone.

@@ -896,7 +896,7 @@ describe('J70 — caution inférieure à la retenue stipulée : retenue entière
   })
 })
 
-describe('J67 (décisions de Hugo du 17/11/2026) — en-tête de travaux-retenue-garantie.ts', () => {
+describe('J67 (décisions du 17/11/2026) — en-tête de travaux-retenue-garantie.ts', () => {
   const { texte } = enTeteDuModule('travaux-retenue-garantie')
   const nonEtabli = texte.slice(texte.indexOf('🔴 Non établi'))
 
@@ -908,7 +908,7 @@ describe('J67 (décisions de Hugo du 17/11/2026) — en-tête de travaux-retenue
     expect(nonEtabli).not.toContain('ouvre-t-elle la restitution des retenues déjà pratiquées')
     expect(nonEtabli).not.toContain("Un texte l'impose-t-il au syndic ? »")
     expect(nonEtabli).toContain('Gestéam garde-t-il plusieurs cautions successives sur une ligne de marché')
-    const j67 = texte.slice(texte.indexOf('Décisions de Hugo du 17/11/2026'), texte.indexOf('Règles :'))
+    const j67 = texte.slice(texte.indexOf('Décisions du 17/11/2026'), texte.indexOf('Règles :'))
     for (const attendu of ['J67, R62', 'J67, R63', 'J67, R64', 'J67, R65', 'J67, R66', 'J70']) expect(j67).toContain(attendu)
   })
 })

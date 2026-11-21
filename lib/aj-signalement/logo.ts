@@ -1,6 +1,6 @@
 // ── Logo d'un cabinet client (AJ Signalement) : règles de l'image, communes au navigateur et au serveur ──────────────
 //
-// Demande de Hugo du 13/11/2026 : « pouvoir ajouter le logo au cabinet et aux PDF ». Le logo est une DONNÉE du cabinet
+// Demande du 13/11/2026 : « pouvoir ajouter le logo au cabinet et aux PDF ». Le logo est une DONNÉE du cabinet
 // (migration 20261114_signalements_qr_logo_cabinet.sql), jamais un fichier du dépôt. Le navigateur convertit l'image
 // choisie (SVG, PNG, JPEG, WebP) en PNG par un canvas (lib/aj-signalement/logo-conversion.ts) ; le serveur ne stocke
 // qu'un PNG TEL QU'UN CANVAS LE PRODUIT, revérifié ici (analyserPngQr). Jamais de SVG stocké ni servi.

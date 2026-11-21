@@ -39,7 +39,7 @@ import { chaineLe, lreLe } from './donnees-delai-contestation'
 import { enTeteDuModule } from './en-tete-module'
 
 /**
- * Suite des décisions de Hugo du 17/11/2026 (DECISIONS-HUGO-2026-11-17.md, section « Suite » : recommandations « selon la
+ * Suite des décisions du 17/11/2026 (notes de décision du 17/11/2026, section « Suite » : recommandations « selon la
  * loi » validées en bloc ; numéros de registre proposés J57 à J64) :
  * - J57 : LRE (ou procédé du prestataire qualifié) refusée ou non réclamée : le délai court quand même, du lendemain de la
  *   transmission de l'avis électronique (D. 1967 art. 64, dernier al.) ;
@@ -85,7 +85,7 @@ const suivi = (surcharge: Partial<CourrierSuivi & { id: string }> = {}): Courrie
 
 const recuEnErreur = () => enchainer(notification(), ["Attente d'envoi", 'En cours', 'Envoyé OK', 'Reçu en erreur'])
 
-// ─── Délai de contestation (comme decisions-hugo-17-11.test.ts) ─────────────────────────────────────
+// ─── Délai de contestation (comme decisions-17-11.test.ts) ─────────────────────────────────────
 
 // ligne, chaineLe et lreLe : ./donnees-delai-contestation (partagés avec l'autre fichier des décisions du 17/11).
 
@@ -108,7 +108,7 @@ describe('J57 — LRE refusée ou non réclamée : le délai court du lendemain 
     const message = lecture.alertes[0].message
     // J75 : aucun prénom dans un message affiché ; la décision est citée par son numéro
     expect(message).toContain('J57')
-    expect(message).not.toMatch(/Hugo|Frédéric/)
+    expect(message).not.toMatch(/[Rr]éférent métier|Frédéric/)
     expect(message).toMatch(/refus ou une non-réclamation après l'avis ne remettent pas en cause sa date/)
     expect(message).toContain('D. 1967 art. 64, dernier al.')
     // « Reçu en erreur » reste distinct d'un défaut de transmission de l'avis : à vérifier sur le justificatif.
@@ -146,11 +146,11 @@ describe('J57 — LRE refusée ou non réclamée : le délai court du lendemain 
 
   it('en-têtes : le refus et la non-réclamation ne sont plus une question ouverte ; J57 citée', () => {
     const envois = enTeteDuModule('envois-electroniques')
-    expect(envois.texte).toContain('décision de Hugo du 17/11/2026 (J57)')
+    expect(envois.texte).toContain('décision du 17/11/2026 (J57)')
     expect(envois.texte).not.toContain('🔴 Refus, non-réclamation ou rejet')
     expect(envois.texte).not.toMatch(/effet sur la notification\s+n'est pas vérifié/)
     const courriers = enTeteDuModule('courriers')
-    expect(courriers.texte).toContain('décision de Hugo du 17/11/2026 (J57)')
+    expect(courriers.texte).toContain('décision du 17/11/2026 (J57)')
     expect(courriers.texte).not.toMatch(/non réclamée fait quand même courir le délai, comme une LRAR non retirée \(interprétation, aucun arrêt\)/)
     expect(enTeteDuModule('statut-assemblee').texte).toContain('J57')
   })
@@ -191,10 +191,10 @@ describe('J58 — après un échec d’envoi électronique : créer un nouveau c
 
   it('en-tête : la question de la nouvelle tentative après « Échec » est fermée ; J58 citée', () => {
     const { texte, item } = enTeteDuModule('envois-electroniques')
-    expect(texte).toContain('décision de Hugo du 17/11/2026 (J58)')
+    expect(texte).toContain('décision du 17/11/2026 (J58)')
     expect(texte).not.toMatch(/nouvelle tentative après « Échec » ou « Reçu en erreur » reste rattachée au même courrier/)
     // Relecture : l'envoi abandonné en « Préparation » ne se clôt que par « Échec », qui impose désormais un nouveau courrier.
-    expect(item('- 🔴 Questions à Hugo')).toMatch(/abandonné en « Préparation ».*depuis J58, cet « Échec » impose un nouveau courrier/)
+    expect(item('- 🔴 Questions au référent métier')).toMatch(/abandonné en « Préparation ».*depuis J58, cet « Échec » impose un nouveau courrier/)
   })
 })
 
@@ -206,7 +206,7 @@ describe('J66 — après « Reçu en erreur » : pas de nouvel envoi sur le mêm
       /est « Reçu en erreur » : si le justificatif établit la transmission de l'avis électronique, la notification est acquise .*J57.*créer un nouveau courrier.*\(J66\)\.$/,
     )
     // J75 : aucun prénom dans le message affiché
-    expect(() => notification({ id: 'E2', horodatage: H('11:00'), envoisExistants: [recuEnErreur()] })).not.toThrow(/Hugo|Frédéric/)
+    expect(() => notification({ id: 'E2', horodatage: H('11:00'), envoisExistants: [recuEnErreur()] })).not.toThrow(/[Rr]éférent métier|Frédéric/)
   })
 
   it('un autre courrier peut partir', () => {
@@ -215,7 +215,7 @@ describe('J66 — après « Reçu en erreur » : pas de nouvel envoi sur le mêm
 
   it('en-tête : la question « Reçu en erreur » est fermée par J66', () => {
     const { texte } = enTeteDuModule('envois-electroniques')
-    expect(texte).toContain('J66 (décision de Hugo du 17/11/2026')
+    expect(texte).toContain('J66 (décision du 17/11/2026')
     expect(texte).not.toContain('faut-il là')
   })
 })
@@ -281,11 +281,11 @@ describe('J59 — refus reçu avant le 25/12/2025 puis accord reçu depuis : l�
     expect(lreDu(d(2026, 3, 5), { consentements })).toMatchObject({ etat: 'refuse', cause: 'voie_postale_demandee' })
   })
 
-  it('en-tête : plus de « question à Hugo » ; J59 citée ; l’écrit hors du module et l’extension à l’accord en vigueur dites (relecture)', () => {
+  it('en-tête : plus de « question au référent métier » ; J59 citée ; l’écrit hors du module et l’extension à l’accord en vigueur dites (relecture)', () => {
     const { texte, item } = enTeteDuModule('voie-notification')
-    expect(texte).toContain('décision de Hugo du 17/11/2026 (J59)')
-    expect(texte).not.toContain('question à Hugo')
-    const j59 = item('Suite, décision de Hugo du 17/11/2026 (J59)')
+    expect(texte).toContain('décision du 17/11/2026 (J59)')
+    expect(texte).not.toContain('question au référent métier')
+    const j59 = item('Suite, décision du 17/11/2026 (J59)')
     expect(j59).toMatch(/l'accord daté et écrit l'emporte/)
     expect(j59).toMatch(/L'écrit n'est pas un champ du module/)
     // Le refus seul est nommé par J59 ; le retrait suit la lecture de J50.
@@ -293,7 +293,7 @@ describe('J59 — refus reçu avant le 25/12/2025 puis accord reçu depuis : l�
     expect(j59).toMatch(/retrait d'accord, assimilé au refus par J50/)
     // Accord en vigueur (J53, accord exprès d'avant le 25/12/2025) : extension prudente, non dite par J59, à confirmer.
     expect(j59).toMatch(/🔵 Par cohérence, un tel accord sans date valable ne vaut pas non plus accord en vigueur/)
-    expect(j59).toMatch(/ce que J59 ne dit pas : lecture prudente, à confirmer par Hugo/)
+    expect(j59).toMatch(/ce que J59 ne dit pas : lecture prudente, à confirmer par le référent métier/)
   })
 })
 
@@ -314,14 +314,14 @@ describe('J60 — contrôle technique et coordonnateur sécurité exclus de l’
     expect(controle.raison).toContain('contrôle technique')
     expect(controle.raison).toContain('coordonnateur sécurité')
     expect(controle.raison).toContain('J60')
-    expect(controle.raison).not.toMatch(/Hugo|Frédéric/)
+    expect(controle.raison).not.toMatch(/[Rr]éférent métier|Frédéric/)
     expect(controle.raison).toContain('arrêté du 8 octobre 2015, art. 11')
     expect(controle.raison).not.toContain('🔵')
   })
 
   it('en-tête : la question des autres honoraires est fermée ; J60 citée', () => {
     const { texte } = enTeteDuModule('travaux-budget')
-    expect(texte).toContain('décision de Hugo du 17/11/2026 (J60)')
+    expect(texte).toContain('décision du 17/11/2026 (J60)')
     expect(apres(texte, '🔴 Non établi')).not.toContain('Les autres honoraires (bureau de contrôle, coordonnateur de sécurité), que J55 ne nomme pas')
   })
 })
@@ -335,9 +335,9 @@ describe('J61 — segment « plan » du N° d’OS : la date du premier envoi (r
 
   it('en-tête : la question du segment plan est fermée ; J61 citée', () => {
     const { texte } = enTeteDuModule('envoi-ordre-service')
-    expect(texte).toContain('décision de Hugo du 17/11/2026 (J61)')
+    expect(texte).toContain('décision du 17/11/2026 (J61)')
     expect(apres(texte, '🔴 Non établi')).not.toContain('le segment <plan> est la date du PREMIER ENVOI')
-    expect(texte).not.toMatch(/lecture à confirmer par Hugo, question ci-dessous/)
+    expect(texte).not.toMatch(/lecture à confirmer par le référent métier, question ci-dessous/)
   })
 })
 
@@ -397,14 +397,14 @@ describe('J62 — compte sans IBAN : traité comme le compte global de l’admin
     const { message } = fonds.anomalies[0]
     expect(message).toContain("traité comme le compte global de l'administrateur tant que son IBAN n'est pas saisi")
     expect(message).toContain('(J62 ;')
-    expect(message).not.toMatch(/Hugo|Frédéric/)
+    expect(message).not.toMatch(/[Rr]éférent métier|Frédéric/)
     expect(message).toContain("saisir l'IBAN de chaque compte du mandat")
     expect(message).not.toMatch(/les données ne disent pas s'il est propre au mandat/)
   })
 
   it('en-tête : la question des comptes sans IBAN est fermée ; J62 citée', () => {
     const { texte } = enTeteDuModule('fonds-detenus')
-    expect(texte).toContain('décision de Hugo du 17/11/2026 (J62)')
+    expect(texte).toContain('décision du 17/11/2026 (J62)')
     expect(apres(texte, '🔴 Non établi')).not.toContain('compte ouvert pour le mandat ou compte global')
   })
 })
@@ -420,7 +420,7 @@ describe('J63 — « avant le 15 mars / 15 septembre » : le 14 au plus tard (C.
 
   it('en-tête : la lecture stricte n’est plus « à confirmer » ; J63 citée', () => {
     const { texte } = enTeteDuModule('fonds-detenus')
-    expect(texte).toContain('décision de Hugo du 17/11/2026 (J63)')
+    expect(texte).toContain('décision du 17/11/2026 (J63)')
     expect(apres(texte, '🔴 Non établi')).not.toMatch(/« avant le 15 mars » : la lecture stricte/)
   })
 })
@@ -507,12 +507,12 @@ describe('J64 — Copie au CS : née du courrier, sur les seules mises en demeur
 
   it('en-têtes : les questions de naissance et de déclencheur sont fermées ; J64 citée', () => {
     const etapes = enTeteDuModule('etapes-courrier')
-    expect(etapes.texte).toContain('décision de Hugo du 17/11/2026 (J64)')
+    expect(etapes.texte).toContain('décision du 17/11/2026 (J64)')
     const questions = apres(etapes.texte, '🔴 Non établi')
     expect(questions).not.toContain("l'étape naît-elle du courrier ou de l'enchaînement")
     expect(questions).not.toContain('quels modèles de courrier font naître la Copie au CS')
     const modeles = enTeteDuModule('modeles-etapes')
-    expect(modeles.texte).toContain('décision de Hugo du 17/11/2026 (J64)')
+    expect(modeles.texte).toContain('décision du 17/11/2026 (J64)')
     expect(apres(modeles.texte, '🔴 Non établi')).not.toContain('laquelle retenir, pour ne pas la créer deux fois')
   })
 })

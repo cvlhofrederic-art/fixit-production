@@ -119,7 +119,7 @@ const STYLE_SURTITRE_TOTAL = {
 
 /**
  * Tableau de bord, page d'accueil et vue de tous les mandats : accueil du cabinet ; en tête, l'état général repris de
- * l'ancienne page « Aujourd'hui » (décision de Hugo du 29/10/2026) : alerte d'échéance dépassée, radar des mandats et
+ * l'ancienne page « Aujourd'hui » (décision du 29/10/2026) : alerte d'échéance dépassée, radar des mandats et
  * échéances légales du portefeuille (moteur de délais légaux) ; puis actions rapides, génération express d'actes (cible
  * des actes pré-rédigés de la palette, du bouton « Actes » de la fiche 360 et des actes ouverts par Fixy), indicateurs,
  * suivi budgétaire cumulé, échéances prioritaires et état des mandats. Sert aussi d'écran de repli du shell pour toute

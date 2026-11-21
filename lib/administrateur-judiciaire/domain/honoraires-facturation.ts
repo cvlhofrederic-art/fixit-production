@@ -55,7 +55,7 @@ import { DOSSIER, type Dossier } from '@/lib/data/referentiels-gesteam-judiciair
  *   et la gestion des règlements aux bénéficiaires ne donnent lieu à aucune rémunération supplémentaire ; une telle
  *   diligence se trace, sans être facturable (contrôle : honoraires-sinistre.ts).
  *
- * Décisions de Hugo du 17/11/2026 (registre des décisions juridiques, J67 : recommandations validées en bloc ; textes
+ * Décisions du 17/11/2026 (registre des décisions juridiques, J67 : recommandations validées en bloc ; textes
  * relus sur Légifrance le 17/11/2026 ; lecture des textes, pas un avis d'avocat) :
  * - J67, R3 (et R2) : en mission judiciaire, l'administrateur n'est payé qu'en vertu des ordonnances du juge (acomptes
  *   annuels, ordonnance de fin de mission : D. 1967 art. 61-1-5, II et III ; art. 46, 47 et 49 : C. com. R. 814-27 et

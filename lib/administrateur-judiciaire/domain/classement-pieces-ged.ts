@@ -13,7 +13,7 @@ import {
  * pures. Indépendant de classerDocument (import-documents-mandat.ts, inchangé) : son gagnant unique écartait des
  * candidats (une ordonnance d'expropriation qui désigne ses parcelles n'y était qu'un cadastre).
  *
- * La décision — décision de Hugo du 03/11/2026 : « le classement d'après le texte est une suggestion seulement ». Sept
+ * La décision — décision du 03/11/2026 : « le classement d'après le texte est une suggestion seulement ». Sept
  * tours de règles qui décidaient d'un type « sûr » d'après le texte n'avaient pas convergé : chaque tour trouvait de
  * nouveaux « sûrs » faux. D'où le contrat :
  * 1. le classement d'après le texte (suggererClassement) ne rend JAMAIS un type sûr : il rend une SUGGESTION, la liste
@@ -87,11 +87,11 @@ import {
  *   ultérieure part des candidats du document rangé (candidatsDuDocument).
  * 🔴 Non établi :
  * - « L'export des documents Gestéam porte-t-il la catégorie et le type de chaque pièce, sous les libellés du
- *   référentiel relevé ? » — format de l'export non relevé, question pour Hugo ; en attendant, classementDeLImport
+ *   référentiel relevé ? » — format de l'export non relevé, question pour le référent métier ; en attendant, classementDeLImport
  *   refuse tout libellé hors du relevé, type libre compris (la pièce reste à suggérer, puis à confirmer) ;
- * - voir typologie-documents.ts (classement de l'ordonnance d'un mandat, à confirmer par Hugo) ;
+ * - voir typologie-documents.ts (classement de l'ordonnance d'un mandat, à confirmer par le référent métier) ;
  * - « Dans quel type Gestéam est rangé le pré-état daté lui-même (document du syndic remis avant la promesse) ? » —
- *   question pour Hugo : une pièce titrée « Pré-état daté » n'est proposée ni comme état daté ni comme demande.
+ *   question pour le référent métier : une pièce titrée « Pré-état daté » n'est proposée ni comme état daté ni comme demande.
  */
 
 // ── Résultat ─────────────────────────────────────────────────────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 // ── Logo d'un cabinet : conversion en PNG DANS LE NAVIGATEUR (adaptateur) ───────────────────────────────────────────
 //
-// Demande de Hugo du 13/11/2026. L'image choisie par le super admin (SVG, PNG, JPEG ou WebP, 5 Mo au plus) est chargée
+// Demande du 13/11/2026. L'image choisie par le super admin (SVG, PNG, JPEG ou WebP, 5 Mo au plus) est chargée
 // comme IMAGE (un SVG chargé ainsi n'exécute aucun script et ne charge aucune ressource externe), dessinée sur un canvas
 // à fond transparent, et rendue en PNG : 800 × 400 px au plus, proportions gardées, 200 Kio au plus (redessinée plus
 // petite tant qu'il le faut). Le PNG est nettoyé de ses morceaux accessoires non admis (nettoyerPngQr) et revérifié

@@ -3,7 +3,7 @@
 // PATCH — modification d'une copropriété QR (espace AJ Signalement, super admin), P1-R4 : nom, adresse, code postal,
 // ville, immatriculation, référence, bâtiments, e-mails destinataires, activation (un QR code désactivé répond 404 à qui
 // le scanne, l'historique reste), nouveau jeton (regenererJeton : l'ancien QR code imprimé ne répond plus),
-// « attribuée à tous » (par la fonction d'attribution), fin de mission prévue (diffusionFinGestionLe, décision H7 de Hugo,
+// « attribuée à tous » (par la fonction d'attribution), fin de mission prévue (diffusionFinGestionLe, décision H7,
 // PR 3 : à partir de ce jour, plus aucune diffusion ; null l'efface ; colonne de la migration 20261113, absente → 503
 // base_absente avant toute écriture). Corps actuels de l'écran acceptés tels quels. Le cabinet ne se change pas ici
 // (rattachement par POST /cabinets/[id]/rattachement, définitif). Bureaux (migration 20261119 ; choix 1, facultatif) :

@@ -13,7 +13,7 @@ import { CLE_STOCKAGE_MODE } from '@/lib/administrateur-judiciaire/mode'
 
 /**
  * Prestataires : fiche détaillée sur le modèle de la fiche Entreprise de Gestéam (identité, contacts, télécoms,
- * assurances et vigilance, compétences, règlement, relances, demandes, notes et extranet), demande de Hugo du
+ * assurances et vigilance, compétences, règlement, relances, demandes, notes et extranet), demande du
  * 29/10/2026. Données de démonstration fictives ; date de démonstration : 04/06/2026.
  */
 

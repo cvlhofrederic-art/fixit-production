@@ -12,7 +12,7 @@ import { CLE_STOCKAGE_MODE } from '@/lib/administrateur-judiciaire/mode'
 import { useSelectionDossier } from '@/lib/administrateur-judiciaire/selection'
 
 /**
- * Sélecteur de copropriété du haut de page (demande de Hugo du 29/10/2026) : la veille de Fixy (onglet Tableau et
+ * Sélecteur de copropriété du haut de page (demande du 29/10/2026) : la veille de Fixy (onglet Tableau et
  * lanceur flottant) ne montre que les rappels de la copropriété choisie ; le lanceur montre tout le portefeuille sur
  * « Aujourd'hui » et « Tableau de bord ». Sans copropriété choisie (écran rendu seul), toute la veille, comme avant.
  *

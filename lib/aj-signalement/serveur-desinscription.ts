@@ -1,6 +1,6 @@
 // ── AJ Signalement — diffusion : désinscription publique, côté serveur (PR 3, lot 6) ───────────────────────────────
 //
-// Cahier PR 3 § 4.1 (D-P1 à D-P5b), § 7.5, § 8.1, § 8.2, § 9 ; décision H5 de Hugo (lien d'un an ; « Recevoir à
+// Cahier PR 3 § 4.1 (D-P1 à D-P5b), § 7.5, § 8.1, § 8.2, § 9 ; décision H5 (lien d'un an ; « Recevoir à
 // nouveau » avec le seul lien qui a servi, dans les 24 h, contrôlé en SQL ; un clic honoré même après un an).
 //
 // Lecture d'un lien, dans cet ordre (§ 8.1) : signature d'abord, SANS la base (clé courante puis précédente, usages

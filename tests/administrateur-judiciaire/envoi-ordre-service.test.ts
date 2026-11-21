@@ -103,7 +103,7 @@ import { ajOrdrePrestataireSchema } from '@/lib/validation'
  * 34 : N° <mandat>.<plan>.<n°>, Signature, Délai, Envoi, Relance, Diffuser, journal de diffusion ; tranche 40 : référentiel
  * Visa de sortie). Droit relu le 30/10/2026 : L. 1965 art. 18, 18-1 A, 21, 21-1 à 21-3, 25, 29-1, 42 ; D. 1967 art. 19-2,
  * 37, 39, 62-7, 62-8 ; C. civ. art. 1117, 1118, 1121, 1126, 1127, 1127-4 ; loi n° 2004-575 art. 1er, IV ; L. 1965
- * art. 18, IV, 29-1, I et 42, al. 2 et 3 relus le 04/11/2026 (versions en vigueur au 03/11/2026). Décisions de Hugo du
+ * art. 18, IV, 29-1, I et 42, al. 2 et 3 relus le 04/11/2026 (versions en vigueur au 03/11/2026). Décisions du
  * 03/11/2026 : J11 à J19 ; du 06/11/2026 : J17 confirmée, J46 et J47 ; du 10/11/2026 : J48 (précision de J17, L. 1965
  * art. 42, al. 3 relu le 10/11/2026) et J49 (suite de J47).
  */
@@ -245,7 +245,7 @@ function controleConcurrence(justificatifs: SaisieSortieOs['justificatifs'], dec
   return controlerAvantEnvoiOs(gros, viser(sortie(gros, { justificatifs: { avisConseilSyndicalLe: '2026-10-02', ...justificatifs } }, options), gros), contexte)
 }
 
-/** Constat de l'urgence par l'administrateur provisoire (décision de Hugo du 03/11/2026) : daté, motivé, attribué. */
+/** Constat de l'urgence par l'administrateur provisoire (décision du 03/11/2026) : daté, motivé, attribué. */
 const CONSTAT: ConstatUrgence = { constateLe: '2026-10-02', motif: 'Fuite active sur colonne', collaborateurId: 'col-direction' }
 
 describe('référentiels du point 44', () => {
@@ -287,7 +287,7 @@ describe('numérotation <mandat>.<plan>.<rang> (tranche 34)', () => {
     expect(rangOsSuivant([], '12')).toBe(1)
   })
 
-  // décision de Hugo du 17/11/2026 (J56) : N° attribué au premier envoi, segment plan = date de cet envoi (AAAAMMJJ)
+  // décision du 17/11/2026 (J56) : N° attribué au premier envoi, segment plan = date de cet envoi (AAAAMMJJ)
   it('numérote une demande dans la séquence de son mandat, au premier envoi, une seule fois', () => {
     const sansNumero = demande({ id: 'dem-2', numero: null })
     const numerotee = numeroterAuPremierEnvoi(sansNumero, sortie(sansNumero), [demande(), sansNumero], { mandat: '12', premierEnvoiLe: '2026-10-03' })
@@ -1207,7 +1207,7 @@ describe('retours de relecture du point 44 (tour 3)', () => {
   })
 })
 
-describe('décisions de Hugo du 03/11/2026', () => {
+describe('décisions du 03/11/2026', () => {
   /** OS envoyé le 03/10/2026, relance fixée au 10/10/2026. */
   const aRelancer = () => fixerRelance(envoyee(), '2026-10-10')
   const avec = (changement: Partial<Demande>): Demande => ({ ...demande(), ...changement })
@@ -1390,7 +1390,7 @@ describe('décisions de Hugo du 03/11/2026', () => {
   })
 })
 
-describe('retours de relecture des décisions de Hugo du 03/11/2026 (tour 1)', () => {
+describe('retours de relecture des décisions du 03/11/2026 (tour 1)', () => {
   /** Intervention décidée par l'administrateur provisoire au titre des pouvoirs de l'assemblée, inscrite au registre le 02/10/2026. */
   const cadreAj = (constatUrgence: ConstatUrgence | null, saisie: SaisieSortieOs = {}): SaisieSortieOs => ({
     fondement: 'decision_aj_pouvoirs_ag',
@@ -1421,7 +1421,7 @@ describe('retours de relecture des décisions de Hugo du 03/11/2026 (tour 1)', (
     expect(envoyerOs(devis, sortie(devis, cadreAj(le('2026-10-03'))), ENVOI, contexte).journal).toHaveLength(1)
   })
 
-  it('constat qui tient lieu de l’avis, daté après la décision au registre : alerte à confirmer (décision J46 de Hugo du 06/11/2026), plus de bloquant', () => {
+  it('constat qui tient lieu de l’avis, daté après la décision au registre : alerte à confirmer (décision J46 du 06/11/2026), plus de bloquant', () => {
     const d = demande()
     // bornes : constat du jour de la décision, rien ; du lendemain, alerte à confirmer
     expect(controlerAvantEnvoiOs(d, sortie(d, cadreAj(le('2026-10-02'))), CONTEXTE)).toEqual([])
@@ -1552,7 +1552,7 @@ describe('retours de relecture des décisions de Hugo du 03/11/2026 (tour 1)', (
   })
 })
 
-describe('retours de relecture des décisions de Hugo du 03/11/2026 (tour 2)', () => {
+describe('retours de relecture des décisions du 03/11/2026 (tour 2)', () => {
   const le = (constateLe: string): ConstatUrgence => ({ ...CONSTAT, constateLe })
   const resume = (liste: readonly { code: string; gravite: string }[]) => liste.map((a) => [a.code, a.gravite])
   const dues = (d: Demande, s: SortieOrdreService) => relancesOsDues([{ demande: d, sortie: s }])
@@ -1662,7 +1662,7 @@ describe('retours de relecture des décisions de Hugo du 03/11/2026 (tour 2)', (
   })
 })
 
-describe('décisions de Hugo du 03/11/2026 (suite : questions 7 à 9, J17 à J19)', () => {
+describe('décisions du 03/11/2026 (suite : questions 7 à 9, J17 à J19)', () => {
   const pendant: ContexteEnvoiOs = { ...CONTEXTE, delaiContestationAg: finConnue(composerDateIso(2026, 11, 20)) }
 
   it('7 (J17). L. 1965 art. 42, al. 3, « oui » compris comme la confirmation des trois choix : envoi bloqué pendant le délai, intervention = travaux, unanimité non suspendue (précisé par J48 : l’envoi pendant le délai suffit à bloquer)', () => {
@@ -1921,12 +1921,12 @@ describe('retours de relecture des décisions 7 à 9 (J17 à J19)', () => {
 })
 
 /**
- * Décision J48 de Hugo du 10/11/2026 (précision de J17, réponse « voir la législation ») : L. 1965 art. 42, al. 3 suspend
+ * Décision J48 du 10/11/2026 (précision de J17, réponse « voir la législation ») : L. 1965 art. 42, al. 3 suspend
  * « l'exécution par le syndic des travaux » votés aux art. 25 et 26 ; l'OS, qui accepte le devis, conclut le marché dès qu'il
  * parvient à l'entreprise (C. civ. art. 1121) : il ne part pas pendant le délai de contestation, même pour une intervention
  * prévue après la fin du délai, sauf urgence retenue (décision 6, J46). Interprétation protectrice, à confirmer (🔵).
  */
-describe('décision J48 de Hugo du 10/11/2026 : l’envoi de l’OS pendant le délai de contestation est bloqué, même pour une intervention prévue après le délai', () => {
+describe('décision J48 du 10/11/2026 : l’envoi de l’OS pendant le délai de contestation est bloqué, même pour une intervention prévue après le délai', () => {
   /** Fin du délai de contestation : le 20/11/2026 ; intervention prévue après lui, le 25/11/2026. */
   const FIN = composerDateIso(2026, 11, 20)
   const APRES_FIN = composerDateIso(2026, 11, 25)
@@ -2004,7 +2004,7 @@ describe('décision J48 de Hugo du 10/11/2026 : l’envoi de l’OS pendant le d
   })
 
   it('majorité inconnue : bloquant depuis la décision du 20/11/2026 (partie C, F82) ; fin du délai inconnue : bloquant depuis J51 (11/11/2026, ci-dessous)', () => {
-    // J51 remplace l'alerte « fin du délai non calculée » de J48 par un blocage (décision de Hugo du 11/11/2026, « Oui, bloquer »)
+    // J51 remplace l'alerte « fin du délai non calculée » de J48 par un blocage (décision du 11/11/2026, « Oui, bloquer »)
     const [inconnu, ...autres] = controlerAvantEnvoiOs(apres, resolution(apres), CONTEXTE)
     expect(autres).toEqual([])
     expect([inconnu.code, inconnu.gravite, inconnu.fondement, inconnu.aConfirmer]).toEqual(['delai_contestation_inconnu', 'bloquant', 'L. 1965 art. 42, al. 3', true])
@@ -2031,13 +2031,13 @@ describe('décision J48 de Hugo du 10/11/2026 : l’envoi de l’OS pendant le d
 })
 
 /**
- * Décision J51 de Hugo du 11/11/2026 (« Oui, bloquer », suite de J48) : fin du délai de contestation inconnue → OS BLOQUÉ
+ * Décision J51 du 11/11/2026 (« Oui, bloquer », suite de J48) : fin du délai de contestation inconnue → OS BLOQUÉ
  * (delai_contestation_inconnu, bloquant, à confirmer) au lieu d'une alerte, sauf urgence constatée (décision 6, J46) ; pas
  * de blocage sans opposant ni défaillant ; le message dit pourquoi la fin manque et comment lever le blocage. La date
  * comparée est la fin la plus tardive, report au jour ouvrable compris (finDelaiContestationAgParDestinataire, J50). Les
- * deux contournements relevés (majorité vide, fondement vide) restent en alerte : question ouverte à Hugo.
+ * deux contournements relevés (majorité vide, fondement vide) restent en alerte : question ouverte au référent métier.
  */
-describe('décision J51 de Hugo du 11/11/2026 : fin du délai de contestation inconnue, OS bloqué sauf urgence constatée', () => {
+describe('décision J51 du 11/11/2026 : fin du délai de contestation inconnue, OS bloqué sauf urgence constatée', () => {
   const APRES_FIN = composerDateIso(2026, 11, 25)
   const resolution = (dm: Demande, saisie: SaisieSortieOs = {}) =>
     sortie(dm, { fondement: 'execution_resolution_ag', fondementReference: 'AG du 12/09/2026, résolution 7', majoriteResolution: 'art25', ...saisie })
@@ -2427,12 +2427,12 @@ describe('contrôle final des décisions 7 à 9 (J19) : toute réception par cou
 })
 
 /**
- * Décision J47 de Hugo du 06/11/2026 (registre J19, « AR caduc après 1 an ») : c'est le DEVIS qui devient caduc un an
+ * Décision J47 du 06/11/2026 (registre J19, « AR caduc après 1 an ») : c'est le DEVIS qui devient caduc un an
  * après sa date ; un OS qui accepte un devis daté de plus d'un an à la date de l'envoi est refusé (un nouveau devis est
  * nécessaire). Durée : MOIS_CADUCITE_DEVIS_OS, 12 mois, règle du cabinet (aucun texte). Date du devis inconnue : l'OS
  * n'est pas bloqué, une alerte est rendue.
  */
-describe('décision J47 de Hugo du 06/11/2026 : le devis accepté par l’OS est caduc un an après sa date', () => {
+describe('décision J47 du 06/11/2026 : le devis accepté par l’OS est caduc un an après sa date', () => {
   const DEVIS_ASSOCIE = { devisId: 'devis-1', montantTtcCentimes: 120_000, montantHtCentimes: 109_091 }
   const CODES_J47: ReadonlySet<string> = new Set(['devis_trop_ancien', 'date_devis_inconnue'])
   const avecDevis = demande({ devisAssocie: DEVIS_ASSOCIE })
@@ -2464,7 +2464,7 @@ describe('décision J47 de Hugo du 06/11/2026 : le devis accepté par l’OS est
     expect(() => envoyerOs(avecDevis, sortie(avecDevis), ENVOI, { ...CONTEXTE, dateDevis: composerDateIso(2025, 10, 3) })).not.toThrow()
   })
 
-  it('années bissextiles (J54, décision de Hugo du 17/11/2026) : un devis du 29 février a un an le 28 février suivant (dernier jour du mois)', () => {
+  it('années bissextiles (J54, décision du 17/11/2026) : un devis du 29 février a un an le 28 février suivant (dernier jour du mois)', () => {
     const devis29 = composerDateIso(2024, 2, 29)
     expect(refuse(composerDateIso(2025, 2, 27), devis29)).toEqual([])
     expect(refuse(composerDateIso(2025, 2, 28), devis29)).toEqual([])
@@ -2526,11 +2526,11 @@ describe('décision J47 de Hugo du 06/11/2026 : le devis accepté par l’OS est
 })
 
 /**
- * Décision J49 de Hugo du 10/11/2026 (suite de J47, « oui mais peut-être une revalorisation est à demander à l'entreprise ») :
+ * Décision J49 du 10/11/2026 (suite de J47, « oui mais peut-être une revalorisation est à demander à l'entreprise ») :
  * le devis daté d'un an pile reste accepté le jour anniversaire ; ce jour-là, une alerte non bloquante recommande de demander
  * à l'entreprise si son prix est maintenu ou révisé. Seuil : MOIS_ALERTE_REVALORISATION_DEVIS, 12 mois, règle du cabinet.
  */
-describe('décision J49 de Hugo du 10/11/2026 : devis d’un an pile accepté, revalorisation à demander à l’entreprise', () => {
+describe('décision J49 du 10/11/2026 : devis d’un an pile accepté, revalorisation à demander à l’entreprise', () => {
   const DEVIS_ASSOCIE = { devisId: 'devis-1', montantTtcCentimes: 120_000, montantHtCentimes: 109_091 }
   const CODES_ANCIENNETE: ReadonlySet<string> = new Set(['devis_trop_ancien', 'date_devis_inconnue', 'devis_revalorisation_a_demander'])
   /** Anomalies d'ancienneté du devis (J47, J49) pour un OS qui accepte le devis daté de `dateDevis`, envoyé le `envoiLe`. */
@@ -2566,7 +2566,7 @@ describe('décision J49 de Hugo du 10/11/2026 : devis d’un an pile accepté, r
     expect(graves(ENVOI_LE, composerDateIso(2026, 1, 15))).toEqual([])
   })
 
-  it('29 février (J54, décision de Hugo du 17/11/2026) : le devis du 29/02/2024 a un an le 28/02/2025, alerte ce jour-là, refusé dès le 1er mars', () => {
+  it('29 février (J54, décision du 17/11/2026) : le devis du 29/02/2024 a un an le 28/02/2025, alerte ce jour-là, refusé dès le 1er mars', () => {
     const devis29 = composerDateIso(2024, 2, 29)
     expect(graves(composerDateIso(2025, 2, 27), devis29)).toEqual([])
     expect(graves(composerDateIso(2025, 2, 28), devis29)).toEqual([['devis_revalorisation_a_demander', 'alerte']])
@@ -2611,8 +2611,8 @@ describe('en-tête du module', () => {
   it('tour 2 : branchement du suivi « à faire » par relanceAFixer (aConfirmer laissé aux repères juridiques) ; constat postérieur à l’envoi bloquant', () => {
     expect(enTete).not.toContain('aConfirmer pour une date de relance à fixer')
     expect(enTete).toContain('relanceAFixer')
-    // J46 (06/11/2026) : la règle de date du constat est une décision de Hugo ; la question du moment du constat est fermée
-    const decisions0611 = enTete.slice(enTete.indexOf('Décisions de Hugo du 06/11/2026'), enTete.indexOf('🔵 Déduit'))
+    // J46 (06/11/2026) : la règle de date du constat est une décision du référent métier ; la question du moment du constat est fermée
+    const decisions0611 = enTete.slice(enTete.indexOf('Décisions du 06/11/2026'), enTete.indexOf('🔵 Déduit'))
     expect(decisions0611).toContain('constat_urgence_posterieur_envoi')
     expect(enTete.slice(enTete.indexOf('🔴 Non établi'))).not.toContain("constat doit-il précéder la décision au registre, ou l'envoi")
   })
@@ -2622,7 +2622,7 @@ describe('en-tête du module', () => {
   })
 
   it('retours de relecture J17 à J19 : textes du signataire gardés, art. 42 décrit selon le comportement, unanimité justifiée, réception distincte déduite, preuve de la réception', () => {
-    const decisions = enTete.slice(enTete.indexOf('Décisions de Hugo du 03/11/2026'), enTete.indexOf('🔵 Déduit'))
+    const decisions = enTete.slice(enTete.indexOf('Décisions du 03/11/2026'), enTete.indexOf('🔵 Déduit'))
     const deduit = enTete.slice(enTete.indexOf('🔵 Déduit'), enTete.indexOf('🔴 Non établi'))
     const questions = enTete.slice(enTete.indexOf('🔴 Non établi'))
     // J18 : les textes de la question 8 restent cités, la lecture est marquée 🔵 ; « sans texte » ne vaut que pour la liste du cabinet
@@ -2658,7 +2658,7 @@ describe('en-tête du module', () => {
   })
 
   it('retours de relecture J17 à J19 (tour 2) : art. 18, IV et 29-1, I cités jusqu’aux phrases qui suivent ; administrateurDesigneId tiré du mandat, jamais du réglage du cabinet ; AR du pli qui a porté l’OS', () => {
-    const decisions = enTete.slice(enTete.indexOf('Décisions de Hugo du 03/11/2026'), enTete.indexOf('🔵 Déduit'))
+    const decisions = enTete.slice(enTete.indexOf('Décisions du 03/11/2026'), enTete.indexOf('🔵 Déduit'))
     const deduit = enTete.slice(enTete.indexOf('🔵 Déduit'), enTete.indexOf('🔴 Non établi'))
     const questions = enTete.slice(enTete.indexOf('🔴 Non établi'), enTete.indexOf('Branchements à faire plus tard'))
     const branchements = enTete.slice(enTete.indexOf('Branchements à faire plus tard'))
@@ -2670,7 +2670,7 @@ describe('en-tête du module', () => {
     expect(decisions).toContain('le seul concours que cet alinéa prévoit')
     expect(decisions).toContain("le collaborateur n'est pas le tiers qui assiste l'administrateur provisoire")
     // J67, R72 : le collaborateur n'est pas le tiers (D. 1967 art. 62-10) ; l'art. 18, IV vise le syndic qui confie ses pouvoirs
-    const j67 = enTete.slice(enTete.indexOf('Recommandations validées par Hugo le 17/11/2026 (J67'), enTete.indexOf('🔵 Déduit'))
+    const j67 = enTete.slice(enTete.indexOf('Recommandations validées le 17/11/2026 (J67'), enTete.indexOf('🔵 Déduit'))
     expect(questions).not.toContain('collaborateurs du cabinet sont-ils des « tiers » au sens de L. 1965 art. 29-1, I')
     expect(questions).not.toContain('« délégation de pouvoir » de L. 1965 art. 18, IV')
     expect(j67).toContain('D. 1967 art. 62-10')
@@ -2712,14 +2712,14 @@ describe('en-tête du module', () => {
     expect(enTete).not.toContain('suspendue jusqu\'à l\'expiration du délai de contestation de deux mois (L. 1965 art. 42, al. 3)')
   })
 
-  it('rubrique « Décisions de Hugo du 03/11/2026 » : réponses 1 à 9 (J11 à J19) inscrites, leurs questions fermées, les autres restent ouvertes', () => {
-    const decisions = enTete.slice(enTete.indexOf('Décisions de Hugo du 03/11/2026'), enTete.indexOf('🔵 Déduit'))
+  it('rubrique « Décisions du 03/11/2026 » : réponses 1 à 9 (J11 à J19) inscrites, leurs questions fermées, les autres restent ouvertes', () => {
+    const decisions = enTete.slice(enTete.indexOf('Décisions du 03/11/2026'), enTete.indexOf('🔵 Déduit'))
     for (const attendu of ['PAR MANDAT', 'UrgenceOrdreAJ', 'CANAUX_ENVOI_OS', '« Accusé demandé »', '« Rapport demandé »', 'MÊME circuit', 'mise en concurrence', "nous constatons l'urgence"])
       expect(decisions).toContain(attendu)
     // décisions 7 à 9 (J17 à J19)
     for (const attendu of [
       '7 (J17)',
-      'compréhension confirmée par Hugo le 06/11/2026',
+      'compréhension confirmée le 06/11/2026',
       'unanimité',
       '8 (J18)',
       'COLLABORATEUR',
@@ -2739,12 +2739,12 @@ describe('en-tête du module', () => {
     expect(decisions).toContain('L. 1965 art. 21, al. 6 (pas de conseil syndical : mise en concurrence non obligatoire) : le motif « mise en concurrence » est gardé')
     expect(decisions).toContain('date de relance fixée ou non')
     // la date du constat n'est pas une décision du 03/11/2026 : c'est J46, du 06/11/2026
-    const decisions0311 = enTete.slice(enTete.indexOf('Décisions de Hugo du 03/11/2026'), enTete.indexOf('Décisions de Hugo du 06/11/2026'))
+    const decisions0311 = enTete.slice(enTete.indexOf('Décisions du 03/11/2026'), enTete.indexOf('Décisions du 06/11/2026'))
     expect(decisions0311).not.toMatch(/borneAvisAj|constat_urgence_posterieur/)
     const deduit = enTete.slice(enTete.indexOf('🔵 Déduit'), enTete.indexOf('🔴 Non établi'))
     // J67, R67 : le critère n'est plus une proposition déduite, il est validé (rubrique J67)
-    expect(deduit).not.toContain('critère proposé, non contredit par Hugo')
-    expect(deduit).not.toContain('règle proposée, non demandée par Hugo')
+    expect(deduit).not.toContain('critère proposé, non contredit par le référent métier')
+    expect(deduit).not.toContain('règle proposée, non demandée par le référent métier')
     expect(deduit).not.toContain('constat_urgence_auteur_non_habilite')
     expect(deduit).toContain('« sans preuve »')
     expect(deduit).not.toContain("l'auteur du constat n'est pas comparé aux signataires habilités")
@@ -2777,19 +2777,19 @@ describe('en-tête du module', () => {
       'complété de zéros',
       'valeurs de la liste Signature',
       // J61 (17/11/2026, suite) : la date du segment plan est celle du premier envoi
-      'Hugo (suite de J56)',
+      'le référent métier (suite de J56)',
       // J16 (03/11/2026) : un délai « prioritaire » ne vaut pas urgence
       'un délai « prioritaire » peut-il valoir urgence',
     ])
       expect(questions).not.toContain(tranchee)
     expect(deduit).toContain('un délai « prioritaire » ne vaut pas urgence, même constatée (décision J16 du 03/11/2026)')
-    expect(deduit).not.toContain('choix gardé, non contredit par Hugo')
+    expect(deduit).not.toContain('choix gardé, non contredit par le référent métier')
     // J67 (17/11/2026) : R67 (critère de l'avis), R70 (conditions de mise en concurrence), R74 (preuve de la réception)
     for (const fermee of [
       'devisExigesParAssemblee',
-      'Hugo (suite de la décision 6)',
+      'le référent métier (suite de la décision 6)',
       'critère proposé (entretien courant',
-      'Hugo, preuve (suite de la décision 9)',
+      'Référent métier, preuve (suite de la décision 9)',
       "la réception distincte de l'envoi convient-elle",
       "vaut-elle réception de l'OS au sens de C. civ. art. 1121",
       "délai d'acheminement",
@@ -2800,8 +2800,8 @@ describe('en-tête du module', () => {
     expect(enTete).toContain('Décision du 20/11/2026 (partie C, F77)')
   })
 
-  it('rubrique « Décisions de Hugo du 06/11/2026 » : J17 confirmée, J46 et J47 inscrites ; leurs 🔵 et 🔴 tranchés retirés', () => {
-    const decisions0611 = enTete.slice(enTete.indexOf('Décisions de Hugo du 06/11/2026'), enTete.indexOf('Décisions de Hugo du 10/11/2026'))
+  it('rubrique « Décisions du 06/11/2026 » : J17 confirmée, J46 et J47 inscrites ; leurs 🔵 et 🔴 tranchés retirés', () => {
+    const decisions0611 = enTete.slice(enTete.indexOf('Décisions du 06/11/2026'), enTete.indexOf('Décisions du 10/11/2026'))
     const deduit = enTete.slice(enTete.indexOf('🔵 Déduit'), enTete.indexOf('🔴 Non établi'))
     const joint = source.replaceAll(/\r?\n\s*\* */g, ' ')
     // J17 : confirmée, sans « interprétation à confirmer »
@@ -2811,14 +2811,14 @@ describe('en-tête du module', () => {
     expect(enTete).not.toContain('interprétation de la réponse « oui », à confirmer')
     expect(enTete).not.toContain('raison, interprétation à confirmer')
     expect(joint).not.toContain('interprétation 🔵 : ni opposant')
-    expect(joint).toContain('décision 7 (c), confirmée par Hugo le 06/11/2026')
+    expect(joint).toContain('décision 7 (c), confirmée le 06/11/2026')
     // J46 : la règle de date du constat devient une décision
     expect(decisions0611).toContain("J46 (date du constat d'urgence, suite de J16) : la règle est VALIDÉE, comportement inchangé")
     expect(decisions0611).toContain('le constat bloque celui-ci (constat_urgence_posterieur_envoi)')
     expect(decisions0611).toContain('il donne une alerte à confirmer (constat_urgence_posterieur), sans bloquer l\'envoi')
     expect(deduit).not.toContain("date du constat d'urgence face")
-    expect(joint).not.toContain('non demandée par Hugo')
-    expect(joint).toContain('alerte à confirmer (décision J46 de Hugo du 06/11/2026)')
+    expect(joint).not.toContain('non demandée par le référent métier')
+    expect(joint).toContain('alerte à confirmer (décision J46 du 06/11/2026)')
     // J47 : le devis caduc un an après sa date ; le 🔴 « caducité d'un an » disparaît
     expect(decisions0611).toContain("J47 (« AR caduc après 1 an », suite de J19) : c'est le DEVIS qui devient caduc UN AN APRÈS SA DATE")
     expect(decisions0611).toContain('MOIS_CADUCITE_DEVIS_OS, 12 mois : règle du cabinet, aucun texte, fondement null')
@@ -2833,15 +2833,15 @@ describe('en-tête du module', () => {
   })
 
   it('J47 et J49 : le jour anniversaire est la décision J49 ; le 29 février → 28 février, lecture du code, est confirmé par J54 (17/11/2026)', () => {
-    const decisions0611 = enTete.slice(enTete.indexOf('Décisions de Hugo du 06/11/2026'), enTete.indexOf('Décisions de Hugo du 10/11/2026'))
+    const decisions0611 = enTete.slice(enTete.indexOf('Décisions du 06/11/2026'), enTete.indexOf('Décisions du 10/11/2026'))
     const j47 = decisions0611.slice(decisions0611.indexOf('- J47'))
     const questions = enTete.slice(enTete.indexOf('🔴 Non établi'))
     const joint = source.replaceAll(/\r?\n\s*\* */g, ' ')
     const doc = joint.slice(joint.indexOf("Ancienneté du devis accepté par l'OS"), joint.indexOf('function anomaliesAncienneteDevis'))
-    const lecture = 'lecture de dates.ajouterMois, confirmée par la décision de Hugo du 17/11/2026, J54'
+    const lecture = 'lecture de dates.ajouterMois, confirmée par la décision du 17/11/2026, J54'
     for (const [lieu, texte] of [['en-tête J47', j47], ['doc de anomaliesAncienneteDevis', doc]] as const) {
       expect(texte, lieu).toContain(lecture)
-      expect(texte, lieu).not.toContain('à confirmer par Hugo')
+      expect(texte, lieu).not.toContain('à confirmer par le référent métier')
       expect(texte, lieu).toContain('le devis du 29 février a un an le 28 février suivant')
       expect(texte, lieu).toContain("un devis daté d'un an pile (même quantième) est encore accepté le jour anniversaire (décision J49")
       // le jour anniversaire n'est plus une lecture à confirmer
@@ -2849,13 +2849,13 @@ describe('en-tête du module', () => {
       expect(texte, lieu).not.toMatch(/(suivant|ajouterMois)\) n'est pas « plus d'un an »/)
     }
     // J54 (17/11/2026) : la question du 29 février est fermée
-    expect(questions).not.toContain('Hugo, caducité du devis (suite de J47 et J49')
+    expect(questions).not.toContain('Référent métier, caducité du devis (suite de J47 et J49')
     expect(questions).not.toContain("un devis daté d'un an pile est-il encore accepté")
     expect(questions).not.toContain('le devis du 29 février a-t-il un an le 28 février suivant')
   })
 
-  it('rubrique « Décisions de Hugo du 10/11/2026 » : J48 (précision de J17, d’après la législation, 🔵) et J49 (revalorisation) inscrites, avec leurs sources', () => {
-    const decisions1011 = enTete.slice(enTete.indexOf('Décisions de Hugo du 10/11/2026'), enTete.indexOf('🔵 Déduit'))
+  it('rubrique « Décisions du 10/11/2026 » : J48 (précision de J17, d’après la législation, 🔵) et J49 (revalorisation) inscrites, avec leurs sources', () => {
+    const decisions1011 = enTete.slice(enTete.indexOf('Décisions du 10/11/2026'), enTete.indexOf('🔵 Déduit'))
     const j48 = decisions1011.slice(decisions1011.indexOf('- J48'), decisions1011.indexOf('- J49'))
     const j49 = decisions1011.slice(decisions1011.indexOf('- J49'))
     expect(decisions1011).toContain('J48 et J49')
@@ -2884,7 +2884,7 @@ describe('en-tête du module', () => {
       'devis_revalorisation_a_demander',
       'MOIS_ALERTE_REVALORISATION_DEVIS, 12 mois, règle du cabinet, aucun texte',
       'MOIS_CADUCITE_MANDAT_SEPA',
-      'Le cas du 29 février, lecture du code, est confirmé par la décision de Hugo du 17/11/2026 (J54',
+      'Le cas du 29 février, lecture du code, est confirmé par la décision du 17/11/2026 (J54',
     ])
       expect(j49).toContain(attendu)
     // la description du droit et de la décision 7 suit J48
@@ -2893,8 +2893,8 @@ describe('en-tête du module', () => {
     expect(enTete).not.toContain("le cas d'une intervention prévue après la fin du délai reste une question")
   })
 
-  it('rubrique « Décisions de Hugo du 11/11/2026 » : J51 (blocage) inscrite avec ses sources ; l’alerte de J48 remplacée ; contournements posés en question', () => {
-    const decisions1111 = enTete.slice(enTete.indexOf('Décisions de Hugo du 11/11/2026'), enTete.indexOf('🔵 Déduit'))
+  it('rubrique « Décisions du 11/11/2026 » : J51 (blocage) inscrite avec ses sources ; l’alerte de J48 remplacée ; contournements posés en question', () => {
+    const decisions1111 = enTete.slice(enTete.indexOf('Décisions du 11/11/2026'), enTete.indexOf('🔵 Déduit'))
     expect(decisions1111.length).toBeGreaterThan(0)
     for (const attendu of [
       'J50 et J51',
@@ -2933,7 +2933,7 @@ describe('en-tête du module', () => {
   })
 })
 
-describe('J67 — recommandations validées par Hugo le 17/11/2026 (R67 à R75)', () => {
+describe('J67 — recommandations validées le 17/11/2026 (R67 à R75)', () => {
   const parAp = (type: TypeDecisionAnnuelle, montantCentimes: number | null): DecisionAnnuelle => ({
     ...decisionSeuil(type, montantCentimes),
     source: { origine: 'administrateur', reference: 'Registre des décisions, n° 3' },
@@ -3315,7 +3315,7 @@ describe('J67 — recommandations validées par Hugo le 17/11/2026 (R67 à R75)'
 describe('J67 — en-tête du module (R67 à R75)', () => {
   const source = readFileSync(join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'envoi-ordre-service.ts'), 'utf8')
   const enTete = source.slice(0, source.indexOf('*/')).replaceAll(/\r?\n \* */g, ' ')
-  const j67 = enTete.slice(enTete.indexOf('Recommandations validées par Hugo le 17/11/2026 (J67'), enTete.indexOf('🔵 Déduit'))
+  const j67 = enTete.slice(enTete.indexOf('Recommandations validées le 17/11/2026 (J67'), enTete.indexOf('🔵 Déduit'))
   const deduit = enTete.slice(enTete.indexOf('🔵 Déduit'), enTete.indexOf('🔴 Non établi'))
   const questions = enTete.slice(enTete.indexOf('🔴 Non établi'), enTete.indexOf('Branchements à faire plus tard'))
 
@@ -3340,8 +3340,8 @@ describe('J67 — en-tête du module (R67 à R75)', () => {
       'critère proposé (entretien courant',
       'devisExigesParAssemblee',
       "l'administrateur provisoire investi des pouvoirs de l'assemblée peut-il autoriser lui-même une convention liée",
-      'Hugo ou Frédéric : délégation du conseil syndical',
-      'Hugo, preuve (suite de la décision 9)',
+      'Référent métier ou Frédéric : délégation du conseil syndical',
+      'Référent métier, preuve (suite de la décision 9)',
     ])
       expect(questions).not.toContain(fermee)
     expect(questions).toContain('J67, R72')
@@ -3350,7 +3350,7 @@ describe('J67 — en-tête du module (R67 à R75)', () => {
     // fermées depuis par les décisions du 20/11/2026 (partie C, F77 et F82)
     for (const fermee of ["l'auteur du constat d'urgence doit-il être un signataire habilité", '(suite de J51) : deux contournements']) expect(questions).not.toContain(fermee)
     // 🔵 : le critère de l'avis n'est plus une proposition ; préposés, délégation, réception et vigilance renvoient à J67
-    expect(deduit).not.toContain('critère proposé, non contredit par Hugo')
+    expect(deduit).not.toContain('critère proposé, non contredit par le référent métier')
     expect(deduit).not.toContain('la première présentation n\'en tient pas lieu : question ouverte')
     for (const renvoi of ['J67, R71', 'J67, R69', 'J67, R74', 'J67, R75']) expect(deduit).toContain(renvoi)
   })

@@ -83,7 +83,7 @@ import {
  *   relançable ; tout écart est signalé avec son motif ;
  * - postes imputables : jamais ceux d'un appel annulé (son écriture contraire a soldé le 450).
  *
- * Décision de Hugo du 17/11/2026 (registre des décisions juridiques, J67, R96 ; décret n° 2005-240, art. 3, al. 2, et
+ * Décision du 17/11/2026 (registre des décisions juridiques, J67, R96 ; décret n° 2005-240, art. 3, al. 2, et
  * art. 4, relus le 17/11/2026) : date comptable = date d'exigibilité de l'échéance (dateComptableAppel la propose) ; la
  * date d'émission reste une information (date de l'avis). controlerDateComptableAppel : une date comptable dans un autre
  * exercice que celui de l'exigibilité est un refus (bloquant ; marquerAppelees exige les exercices du syndicat et le
@@ -124,7 +124,7 @@ import {
  *   exige au moins un débit et un crédit. L'avis suivant la mentionne pour information (avis-appel.contenuAvisAppel,
  *   option echeancesAppeleesSansEcriture : mention « echeance_financee_par_le_fonds », hors du total).
  *
- * 🔴 Non établi (questions pour Frédéric ou Hugo) :
+ * 🔴 Non établi (questions pour Frédéric ou le référent métier) :
  * - « Une échéance "En attente" est-elle une échéance suspendue avant son appel (par exemple des travaux pendant le
  *   délai de contestation de l'art. 42, al. 3, qui suspend l'exécution des travaux et non l'appel), et peut-on l'appeler
  *   sans la repasser "Prévu" ? » (VitFix : non, la reprendre d'abord) ;

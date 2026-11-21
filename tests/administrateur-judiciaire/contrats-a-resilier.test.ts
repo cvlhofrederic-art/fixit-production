@@ -242,12 +242,12 @@ describe('autres régimes', () => {
       expect(alerte.message).toBe(
         "Assurance dommages-ouvrage : garantie jusqu'à dix ans après la réception (clauses types) ; la police fixe la durée et la résiliation (L. 113-12) ; résilier priverait le syndicat de cette garantie : vérifier la police avec le responsable du dossier.",
       )
-      expect(alerte.message).not.toMatch(/Hugo|Frédéric/)
+      expect(alerte.message).not.toMatch(/[Rr]éférent métier|Frédéric/)
       expect(alerte.fondement).toBe('C. assur. annexe II à l’art. A. 243-1 (point de départ et durée de la garantie) ; C. assur. art. L. 113-12')
     }
     const { texte } = enTeteDuModule('contrats-a-resilier')
     expect(texte).not.toMatch(/🔴 Non établi : résiliation de l'assurance dommages-ouvrage/)
-    expect(texte).toMatch(/J67, R57 \(décision de Hugo du 17\/11\/2026/)
+    expect(texte).toMatch(/J67, R57 \(décision du 17\/11\/2026/)
     expect(texte).toMatch(/🔴 Non établi : contrat d'eau ou d'assainissement/)
     // Aucune consigne de changer le type de la police ; les points 1 et 3 de R57 restent à préciser.
     expect(texte).not.toMatch(/type « Assurance »/)
@@ -263,7 +263,7 @@ describe('autres régimes', () => {
         .replace(/\s\/\/\s.*$/gm, '')
     const avecPrenom = readdirSync(dossier, { recursive: true })
       .map(String)
-      .filter((fichier) => fichier.endsWith('.ts') && /Hugo|Frédéric/.test(sansCommentaires(readFileSync(join(dossier, fichier), 'utf8'))))
+      .filter((fichier) => fichier.endsWith('.ts') && /[Rr]éférent métier|Frédéric/.test(sansCommentaires(readFileSync(join(dossier, fichier), 'utf8'))))
     expect(avecPrenom).toEqual([])
   })
 

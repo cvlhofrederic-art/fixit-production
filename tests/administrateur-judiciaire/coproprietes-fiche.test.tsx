@@ -13,7 +13,7 @@ import { CLE_STOCKAGE_MODE } from '@/lib/administrateur-judiciaire/mode'
 
 /**
  * Copropriétés : fiche détaillée sur le modèle de la fiche Mandat de Gestéam (mandat et ordonnance, syndicat, lots,
- * équipe, entreprises de l'immeuble, clés, exercices, conseil syndical, finances, notes), demande de Hugo du
+ * équipe, entreprises de l'immeuble, clés, exercices, conseil syndical, finances, notes), demande du
  * 29/10/2026. Données de démonstration fictives.
  */
 

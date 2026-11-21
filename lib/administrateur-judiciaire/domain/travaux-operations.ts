@@ -80,7 +80,7 @@ import { STATUT_TRAVAUX, TYPE_TRAVAUX, type StatutTravaux, type TypeTravaux } fr
  *   exigibilité » ; art. 8 : pour les travaux, la répartition « ne peut intervenir qu'à la clôture définitive de chacune
  *   des opérations concernées ».
  *
- * Décisions de Hugo du 17/11/2026 (registre des décisions juridiques, J67 : recommandations validées en bloc ; textes
+ * Décisions du 17/11/2026 (registre des décisions juridiques, J67 : recommandations validées en bloc ; textes
  * relus sur Légifrance le 17/11/2026 : arrêté du 14 mars 2005, art. 3, 7, 8 et 10 ; D. 1967 art. 44, 62-7 et 62-8 ; L.
  * 1965 art. 29-1, I et 14-2-1, I, al. 7) :
  * - J67, R60 : une opération qui n'est qu'une étude (diagnostic, DTG, audit, projet de plan de travaux : D. 1967 art.
@@ -95,7 +95,7 @@ import { STATUT_TRAVAUX, TYPE_TRAVAUX, type StatutTravaux, type TypeTravaux } fr
  *   clôturée, chaque compte de produits de la série (702, 71147) débité de son propre solde, et
  *   repriseSoldeTravauxALOuverture le reprend à l'ouverture (écriture contraire, famille « Report de soldes
  *   comptables ») ; relevé Gestéam à faire : le compte crédité par un appel de travaux (s'il crédite le 702, écart de
- *   reprise à signaler à Hugo) ;
+ *   reprise à signaler au référent métier) ;
  * - J67, R81 : la décision de l'administrateur provisoire tient lieu d'affectation du fonds de travaux à l'opération
  *   (art. 14-2-1, I, al. 7) s'il a reçu de l'ordonnance les pouvoirs de l'assemblée (art. 29-1, I, al. 2) : étendue
  *   saisie sur la décision (pouvoirsAgConfies) ; aucun pouvoir, ou étendue non saisie : refus, il faut un vote de
@@ -215,7 +215,7 @@ import { STATUT_TRAVAUX, TYPE_TRAVAUX, type StatutTravaux, type TypeTravaux } fr
  *   étrangère à l'opération est refusée. Les deux balances, par comptes et par clés, sont « en concordance » (arrêté du 14
  *   mars 2005, art. 2) : un 702 sans clé n'aurait pas de place dans la balance par clés, et les annexes 4 et 5
  *   (comptes-syndicat-annexes.ts) le présenteraient « sans clé de répartition » (relecture des annexes du 20/11/2026).
- * 🔴 Non établi (questions pour Frédéric ou Hugo) :
+ * 🔴 Non établi (questions pour Frédéric ou le référent métier) :
  * - « Le solde en attente d'une opération va-t-il au 12000 (série "120xx" de Gestéam) ou à la subdivision 12-1 "Travaux
  *   décidés par l'assemblée générale" ? » (VitFix : 12000) ; « Le 71147 de l'opération s'ouvre-t-il à sa création ou à
  *   la première subvention notifiée ? » (VitFix : à la création) ;

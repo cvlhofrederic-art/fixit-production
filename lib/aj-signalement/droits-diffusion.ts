@@ -1,6 +1,6 @@
 // ── AJ Signalement — diffusion : droit « diffuser » d'un profil sur une copropriété (PR 3, décision H11) ─────────────
 //
-// Décision de Hugo du 11/11/2026 (cahier PR 3 § 4.3 et § 14, H11) : un gestionnaire ne diffuse que sur les copropriétés
+// Décision du 11/11/2026 (cahier PR 3 § 4.3 et § 14, H11) : un gestionnaire ne diffuse que sur les copropriétés
 // qui lui sont attribuées NOMMÉMENT ; jamais sur une copropriété « attribuée à tous », même si elle lui est AUSSI
 // attribuée nommément (la copropriété de test ne diffuse que par le super admin). Le super admin diffuse partout, sur
 // instruction écrite du cabinet (HF4, exigée par la route d'envoi).

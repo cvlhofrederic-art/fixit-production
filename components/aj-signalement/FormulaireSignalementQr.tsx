@@ -12,17 +12,17 @@
 // zone ; la personne peut dire « c'est le même problème » ou « c'est un autre problème », sans que cela bloque l'envoi.
 // L'adresse proposée d'après la position (copropriété sans adresse) est lue au moment de l'envoi : rien n'attend la
 // géolocalisation.
-// PR 3, lot 7 (cahier § 6, HF3 ; brouillon, texte à valider par Frédéric et Hugo) : sous le bouton d'envoi, une mention
+// PR 3, lot 7 (cahier § 6, HF3 ; brouillon, texte à valider par Frédéric et le référent métier) : sous le bouton d'envoi, une mention
 // courte (qui traite les coordonnées, pourquoi) et le lien vers la politique de confidentialité du cabinet, quand le
 // serveur en donne une ; sans information, le formulaire est inchangé. Lien ouvert dans un nouvel onglet (la saisie
 // reste) et sans Referer : le chemin de la page porte le jeton du QR code.
-// R70 du dossier téléphonie (14/11/2026, brouillon : textes Hugo, présentation Frédéric, portugais H4) : consigne d'appel
+// R70 du dossier téléphonie (14/11/2026, brouillon : textes du référent métier, présentation Frédéric, portugais H4) : consigne d'appel
 // au 112 en tête du formulaire, avant les coordonnées ; consigne renforcée sous le choix d'urgence tant que « urgent » est
 // choisi (ConsigneSecoursQr.tsx), qui décrit alors aussi le bouton d'envoi (aria-describedby). La priorité envoyée est
 // rendue avec la confirmation : l'écran de confirmation d'un signalement urgent répète la consigne renforcée. Ni la route
 // ni le schéma ne changent ; l'accusé de réception d'un signalement urgent, lui, porte la consigne
 // (lib/aj-signalement/email.ts).
-// Bâtiments saisis par le cabinet (demande de Hugo du 17/11/2026, brouillon soumis à Frédéric) : quand la copropriété en a
+// Bâtiments saisis par le cabinet (demande du 17/11/2026, brouillon soumis à Frédéric) : quand la copropriété en a
 // au moins un, le champ « Bâtiment » devient une liste à choix native (select), dans l'ordre saisi, précédée d'une option
 // vide « Choisir… » ; même libellé, aide sous le champ (adaptée au choix), toujours obligatoire. Sans bâtiment saisi, le
 // texte libre est inchangé. La route refuse un bâtiment absent de la liste (batiment_inconnu : message dédié, formulaire

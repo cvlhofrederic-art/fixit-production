@@ -1,7 +1,7 @@
 -- ══════════════════════════════════════════════════════════════════════════════
 -- AJ Signalement (14/11/2026) — logo d'un cabinet client.
 --
--- Demande de Hugo du 13/11/2026 : « pouvoir ajouter le logo au cabinet et aux PDF ». Le logo est une DONNÉE du cabinet,
+-- Demande du 13/11/2026 : « pouvoir ajouter le logo au cabinet et aux PDF ». Le logo est une DONNÉE du cabinet,
 -- envoyée et retirée par le super admin dans l'espace (fiche du cabinet), JAMAIS un fichier du dépôt (dépôt public :
 -- aucun logo ni nom de client ici). Il paraît sur les affiches PDF, dans l'espace du cabinet, sur la page publique de
 -- signalement et dans l'accusé de réception envoyé au déclarant ; ni dans les e-mails de signalement envoyés aux

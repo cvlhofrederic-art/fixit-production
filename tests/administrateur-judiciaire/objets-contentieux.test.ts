@@ -6,7 +6,7 @@ import {
 import { enTeteDuModule } from './en-tete-module'
 
 /**
- * Point 57 du bilan Gestéam — Objet d'un contentieux. Décision J34 de Hugo (03/11/2026), sur le relevé fait le même jour
+ * Point 57 du bilan Gestéam — Objet d'un contentieux. Décision J34 (03/11/2026), sur le relevé fait le même jour
  * dans Gestéam 5.4.23 (Contentieux → Recherche de contentieux) : le critère « Objet » est un champ de saisie libre, sans
  * liste de valeurs. L'objet reste un texte libre dans VitFix ; seuls les deux libellés lus sur des fiches (tranche 42 ;
  * tranche 43, § 5) sont reconnus, pour un futur import Gestéam.
@@ -32,8 +32,8 @@ describe('objets de contentieux observés dans Gestéam', () => {
 describe('objets de contentieux — en-tête : décision J34', () => {
   const { texte: entete } = enTeteDuModule('objets-contentieux')
 
-  it('rubrique « Décisions de Hugo du 03/11/2026 » : J34, champ de saisie libre relevé dans Gestéam 5.4.23', () => {
-    const decisions = entete.slice(entete.indexOf('Décisions de Hugo du 03/11/2026'))
+  it('rubrique « Décisions du 03/11/2026 » : J34, champ de saisie libre relevé dans Gestéam 5.4.23', () => {
+    const decisions = entete.slice(entete.indexOf('Décisions du 03/11/2026'))
     expect(decisions).toMatch(/J34/)
     expect(decisions).toMatch(/Gestéam 5\.4\.23/)
     expect(decisions).toMatch(/Contentieux → Recherche de contentieux/)

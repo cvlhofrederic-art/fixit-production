@@ -315,7 +315,7 @@ describe('reponseDemo — réponses locales à partir de l’espace', () => {
   it('syndic : nom, gestionnaire, téléphone, e-mail, adresse', () => {
     const r = reponseDemo(QUESTIONS[3], espace, t, 'fr')
     expect(r).toContain('Cabinet Dupont')
-    expect(r).toContain('Hugo Carvalho')
+    expect(r).toContain('Camille Martin')
     expect(r).toContain('04 91 00 00 00')
     expect(r).toContain('contact@cabinet-dupont.fr')
     expect(r).toContain('45 avenue du Prado, 13008 Marseille')

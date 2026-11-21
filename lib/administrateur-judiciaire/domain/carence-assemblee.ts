@@ -31,7 +31,7 @@ import { normaliserEspaces } from '@/lib/administrateur-judiciaire/domain/texte'
  * de votes-ag.ts et suivi-a-faire.ts, confirmé par la décision J5 du 30/10/2026) ; la réunion la plus proche possible se compte depuis le jour du
  * contrôle ; une réunion tenue après la fin de la mission l'a été sans pouvoirs.
  *
- * Décisions de Hugo du 17/11/2026 (J67 : recommandations validées en bloc ; textes lus sur Légifrance le 17/11/2026) :
+ * Décisions du 17/11/2026 (J67 : recommandations validées en bloc ; textes lus sur Légifrance le 17/11/2026) :
  * - J67, R26 : l'administrateur de l'art. 47 peut demander au juge de prolonger sa mission. Le président du tribunal
  *   judiciaire peut la modifier ou la prolonger à la demande de l'administrateur provisoire, « même si celui-ci n'a été
  *   désigné que pour convoquer l'assemblée générale en vue de désigner un syndic » (L. 1965 art. 29-1, I, al. 3) ; la

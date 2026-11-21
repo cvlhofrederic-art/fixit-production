@@ -100,9 +100,9 @@ import { MODE_REGLEMENT, type ModeReglement } from '@/lib/data/referentiels-gest
  *   à la notification se solde), 401, 409 et 461 (J67, R101, ci-dessous) ; refusés : 45 (encaissement d'un
  *   copropriétaire), 70 (appels), 10 (provisions et fonds de travaux, appelés au 450), 711 (subvention : produit constaté
  *   au rythme de la charge, art. 10), 487 (J67, R101), 78 (reprise sans trésorerie) et tout autre compte.
- * Décisions J25 et J29 de Hugo (03/11/2026) : espèces refusées ; elles entreraient au compte 53 « Caisse », que VitFix
+ * Décisions J25 et J29 (03/11/2026) : espèces refusées ; elles entreraient au compte 53 « Caisse », que VitFix
  * ne tient pas (J25 : aucun paiement en espèces ; J29 : remise d'espèces reçues refusée).
- * Décision de Hugo du 17/11/2026 (J67, R101 ; arrêté du 14/03/2005, art. 7 et 10, et décret n° 2005-240, art. 4, relus
+ * Décision du 17/11/2026 (J67, R101 ; arrêté du 14/03/2005, art. 7 et 10, et décret n° 2005-240, art. 4, relus
  * le 17/11/2026) : 401 « Factures parvenues » et 409 « Fournisseurs débiteurs » admis en recette (remboursement ou avoir
  * d'un fournisseur, qui solde sa dette), 461 « Débiteurs divers » aussi, avec la pièce (libellé exigé, art. 4) ;
  * 487 « Produits encaissés d'avance » refusé à l'encaissement : c'est une écriture de régularisation de fin d'exercice ;
@@ -147,7 +147,7 @@ import { MODE_REGLEMENT, type ModeReglement } from '@/lib/data/referentiels-gest
  *   soldée par les alimentations du fonds parties de ce compte, émises au plus tôt le jour de l'encaissement et au plus
  *   tard à la date de la vue, servies aux parts les plus anciennes d'abord ; délai d'alerte compté du jour de
  *   l'encaissement.
- * 🔴 Non établi (questions pour Frédéric ou Hugo) :
+ * 🔴 Non établi (questions pour Frédéric ou le référent métier) :
  * - « Famille "Fichier carte bancaire" : quel mode de règlement ? » (le référentiel des modes n'a pas de carte ; refusée) ;
  * - petites copropriétés sans partie double (L. 1965 art. 41-10) : non traitées.
  */

@@ -1,6 +1,6 @@
 // tests/migrations/signalements_qr_logo_cabinet.test.ts
 //
-// Migration 20261114_signalements_qr_logo_cabinet.sql (AJ Signalement, demande de Hugo du 13/11/2026 : « pouvoir ajouter
+// Migration 20261114_signalements_qr_logo_cabinet.sql (AJ Signalement, demande du 13/11/2026 : « pouvoir ajouter
 // le logo au cabinet et aux PDF »). Le TEXTE SQL est contrôlé ici : additive, rejouable, sans politique RLS, droits à
 // service_role seul, indépendante de la 20261113 (fusionnée, pas encore appliquée : la liste fermée du journal n'est pas
 // touchée). Les règles elles-mêmes (contrainte de l'image, envoi, retrait, journal, droits) sont exécutées sur un vrai

@@ -1,6 +1,6 @@
 // tests/components/aj-signalement/pages-espace-cabinet.test.tsx
 //
-// Espace de chaque cabinet client (PR 2, lot 4 ; Hugo, 11/11/2026 : « vitfix.io/<client>/ » est l'espace personnel du
+// Espace de chaque cabinet client (PR 2, lot 4 ; 11/11/2026 : « vitfix.io/<client>/ » est l'espace personnel du
 // cabinet), côté pages internes servies par réécriture (next.config.ts) :
 // - app/(commun)/cabinet/[identifiant]/connexion : connexion professionnelle DU cabinet (composant de la #669, contexte
 //   du cabinet : nom, espace /<id>/suivi/, identifiant pour la décision d'accès) ;

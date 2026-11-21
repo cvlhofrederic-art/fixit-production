@@ -4,7 +4,7 @@ import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 
 /**
- * Barre de recherche du haut de page (demande de Hugo du 29/10/2026) : lanceur de la palette de commandes, présenté
+ * Barre de recherche du haut de page (demande du 29/10/2026) : lanceur de la palette de commandes, présenté
  * comme un champ. C'est un bouton (comme le lanceur « Rechercher… » du menu) qui ouvre la fenêtre de la palette : il
  * ne garde aucun texte, et un lecteur d'écran l'annonce comme ouvrant une fenêtre, avec son raccourci clavier.
  */

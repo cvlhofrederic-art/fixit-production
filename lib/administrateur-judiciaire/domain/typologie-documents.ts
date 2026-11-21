@@ -22,7 +22,7 @@ import type { Dossier, TypeDocumentJudiciaire, TypeEntreprise } from '@/lib/data
  * - comparaison des libellés sans casse, accents, ponctuation ni élision (« Caisse allocations familiales » =
  *   « Caisse d'allocations familiales ») ; le libellé canonique du référentiel est toujours rendu ;
  * - valeurs héritées de DocumentLocal.type : « ordonnance » sous un mandat se lit Tribunal › Ordonnance de désignation
- *   (🔴 à confirmer par Hugo : « Une ordonnance importée à la création d'un mandat se classe-t-elle toujours
+ *   (🔴 à confirmer par le référent métier : « Une ordonnance importée à la création d'un mandat se classe-t-elle toujours
  *   "Tribunal › Ordonnance de désignation" ? ») ; sous « reprise », le type reste une clé du journal de reprise et
  *   AUCUN code GED n'y est écrit (piecesRepriseRecues compte chaque document de cette entité) ;
  * - code « à confirmer » (« ged-a-confirmer:<Catégorie>|<Type>;… ») : types candidats d'une pièce dont le type n'est
@@ -33,7 +33,7 @@ import type { Dossier, TypeDocumentJudiciaire, TypeEntreprise } from '@/lib/data
  * - familles de diagnostic : seules les correspondances évidentes de la catégorie Base.
  * 🔴 Non établi :
  * - « Procès-Verbal de prise de décisions par l'AJ » (tranche 18) : absent des tranches 22 et 43. Question pour
- *   Hugo : « Dans quelle catégorie Gestéam est rangé le type "Procès-Verbal de prise de décisions par l'AJ" ? » ;
+ *   le référent métier : « Dans quelle catégorie Gestéam est rangé le type "Procès-Verbal de prise de décisions par l'AJ" ? » ;
  * - DPE, ascenseur, surface habitable, DTG : aucune des huit familles de la fiche immeuble ne leur correspond
  *   évidemment (« Technique, professionnel » ? « Juridique » ?) : null.
  */

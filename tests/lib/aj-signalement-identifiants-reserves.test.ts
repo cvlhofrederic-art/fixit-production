@@ -1,6 +1,6 @@
 // tests/lib/aj-signalement-identifiants-reserves.test.ts
 //
-// Gardes du chemin par cabinet client (vitfix.io/<identifiant>/…, choix de Hugo du 10/11/2026).
+// Gardes du chemin par cabinet client (vitfix.io/<identifiant>/…, choix du 10/11/2026).
 //
 // 1. Collision : un cabinet ne peut pas prendre le nom d'une route du site. Les premiers segments sont calculés ici
 //    depuis le DISQUE (app/, groupes de routes traversés, app/{fr,pt,en,es,nl}/, public/) et depuis le TEXTE de

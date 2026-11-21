@@ -1,6 +1,6 @@
 // tests/lib/aj-signalement-acces.test.ts
 //
-// Portée d'un gestionnaire et droits sur une copropriété (SPEC § 1.5, RG-05, Q1 et Q2 tranchées par Hugo le
+// Portée d'un gestionnaire et droits sur une copropriété (SPEC § 1.5, RG-05, Q1 et Q2 tranchées le
 // 10/11/2026) : fonctions pures ajoutées à lib/aj-signalement/acces-espace.ts (aucune fonction d'accès concurrente).
 //   - portée = attributions explicites ∪ copropriétés « attribuées à tous » de SON cabinet ; fiche inactive : rien ;
 //   - modifiables = attributions explicites seulement (origine « creation » comprise) ; « à tous » ne donne jamais la

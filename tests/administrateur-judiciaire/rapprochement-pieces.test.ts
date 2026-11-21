@@ -13,7 +13,7 @@ import {
  * Statut « Rapproché » propagé depuis l'arrêté de rapprochement (point 38 du bilan 2, réutilisé par le point 16 pour
  * les encaissements). Gestéam, tranche 36 § Règlements : le statut du règlement suit le rapprochement ; tranche 43 § 2 :
  * les encaissements d'un jour ouvré, non daté par rapport aux arrêtés, sont « Rapproché » ; tranche 29 : un arrêté environ
- * tous les dix jours. Statut posé au pointage, et non à la clôture : décision J8 de Hugo (30/10/2026).
+ * tous les dix jours. Statut posé au pointage, et non à la clôture : décision J8 (30/10/2026).
  */
 
 type Statut = 'Demandé' | 'À régler' | 'Enregistré' | 'Rapproché' | 'Annulé'
@@ -286,13 +286,13 @@ describe('propagation du statut « Rapproché » depuis les arrêtés', () => {
     expect(etatArrete(avec)).toEqual(etatArrete(sans))
   })
 
-  it('en-tête : sources citées telles quelles ; le choix « au pointage » est la décision J8 de Hugo', () => {
+  it('en-tête : sources citées telles quelles ; le choix « au pointage » est la décision J8', () => {
     const source = readFileSync(join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'rapprochement-pieces.ts'), 'utf8')
     const entete = source.slice(0, source.indexOf('export interface'))
     expect(entete).not.toMatch(/récent|du jour/)
     expect(entete).toMatch(/tranche 29[^;]*dix jours/)
-    expect(entete.slice(entete.indexOf('🔵'), entete.indexOf('Tranché par Hugo'))).not.toMatch(/suit le pointage/i)
-    expect(entete).toMatch(/Tranché par Hugo le 30\/10\/2026 \(décision J8\) : statut « Rapproché » au POINTAGE/)
+    expect(entete.slice(entete.indexOf('🔵'), entete.indexOf('Tranché le 30/10/2026'))).not.toMatch(/suit le pointage/i)
+    expect(entete).toMatch(/Tranché le 30\/10\/2026 \(décision J8\) : statut « Rapproché » au POINTAGE/)
     expect(entete).not.toMatch(/hypothèse de travail/)
   })
 

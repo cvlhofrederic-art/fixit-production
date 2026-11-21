@@ -1,7 +1,7 @@
 // tests/lib/aj-signalement-export-csv.test.ts
 //
 // « Exporter la liste (CSV) » après un import (SPEC § 1.9.7) : nom, adresse, CP, ville, gestionnaires, lien public du QR
-// code (chemin du cabinet client, choix de Hugo du 10/11/2026). Généré dans le navigateur, conservé nulle part. Toute
+// code (chemin du cabinet client, choix du 10/11/2026). Généré dans le navigateur, conservé nulle part. Toute
 // cellule qui commence par =, +, -, @, une tabulation ou un retour chariot est préfixée d'une apostrophe : les noms
 // viennent du fichier d'un tiers et la liste s'ouvre dans Excel (injection de formule). Données fictives seulement.
 

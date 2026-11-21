@@ -44,7 +44,7 @@ import type { NaturePlanComptable } from '@/lib/data/referentiels-gesteam-judici
  *   plan de sauvegarde (1°), et autoriser l'administrateur provisoire à utiliser le fonds pour le redressement ou la
  *   gestion courante (2°).
  *
- * Décisions de Hugo du 03/11/2026 (registre des décisions juridiques, J30 ; question 21 de la liste) :
+ * Décisions du 03/11/2026 (registre des décisions juridiques, J30 ; question 21 de la liste) :
  * - J30 : l'ordonnance de l'art. 29-14, 2° (autorisationJuge) n'est plus un texte libre. Forme exigée : juridiction, date
  *   et n° de l'ordonnance (OrdonnanceJuge), chacun obligatoire ; date ISO valide, jamais postérieure à aujourd'hui. Il en
  *   manque un, ou la date est invalide ou future : refus motivé (cause « reference_invalide »), qui nomme ce qui manque.
@@ -57,14 +57,14 @@ import type { NaturePlanComptable } from '@/lib/data/referentiels-gesteam-judici
  *   du jour est exigée dès qu'une forme structurée est contrôlée ; un calcul sur des valeurs enregistrées passe
  *   `aujourdhui: null` (forme contrôlée, date non comparée au jour).
  *
- * Décisions de Hugo du 06/11/2026 (registre des décisions juridiques, J42 ; PR #643, suite de J30) :
+ * Décisions du 06/11/2026 (registre des décisions juridiques, J42 ; PR #643, suite de J30) :
  * - J42 : la décision d'affectation de l'AG prend la forme date de l'AG + n° de la résolution, obligatoires ; un texte
  *   libre est refusé pour toute nouvelle saisie. L'interprétation de J30 est confirmée : la marque de doute de cette
  *   déclinaison est retirée ici et dans virement-interne.ts, avis-appel.ts et fonds-travaux-lots.ts, comportement
  *   inchangé (mêmes refus, mêmes causes, mêmes motifs, même lecture des valeurs enregistrées avant J30) : le motif d'un
  *   refus garde « forme attendue » pour la décision de l'AG et « forme exigée » pour l'ordonnance (CadreForme.exigence).
  *
- * Décisions de Hugo du 17/11/2026 (registre des décisions juridiques, J67 ; recommandations validées en bloc ; textes
+ * Décisions du 17/11/2026 (registre des décisions juridiques, J67 ; recommandations validées en bloc ; textes
  * relus sur Légifrance le 17/11/2026) :
  * - J67, R84 : l'assiette des 2,5 % est le montant total des travaux de la partie du plan adoptée par l'assemblée, toutes
  *   années confondues (« montant des travaux prévus dans le plan adopté », I, al. 8 ; le plan porte sur dix ans et

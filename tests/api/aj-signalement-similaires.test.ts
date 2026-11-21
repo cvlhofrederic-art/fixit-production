@@ -1,7 +1,7 @@
 // @vitest-environment node
 // tests/api/aj-signalement-similaires.test.ts
 //
-// GET /api/aj-signalement/similaires — signalements déjà faits au même endroit (demande de Hugo du 06/11/2026) :
+// GET /api/aj-signalement/similaires — signalements déjà faits au même endroit (demande du 06/11/2026) :
 // même copropriété (celle du jeton, QR code actif), parties communes, même bâtiment (normalisé) et même zone (FR ou
 // PT), encore ouverts et de moins de 60 jours ; au plus 5, du plus récent au plus ancien.
 // La réponse ne porte que le numéro, le type, la zone, la date (jour de Paris, sans l'heure) et le statut : ni

@@ -148,43 +148,43 @@ describe('J76 — aucun délai par défaut entre les étapes (réponse de Fréd�
     expect(processusDuModele(modeleReprise()).map((p) => p.delaiJours)).toEqual(modeleReprise().etapes.map(() => null))
   })
 
-  it('en-têtes : le suivi des étapes sans délai est la proposition de Hugo du 19/11/2026, codée, à valider par Frédéric (question n° 6)', () => {
+  it('en-têtes : le suivi des étapes sans délai est la proposition du 19/11/2026, codée, à valider par Frédéric (question n° 6)', () => {
     const { texte, item } = enTeteDuModule('modeles-etapes')
-    // J20 et J76 : la règle est attribuée à Hugo, à valider par Frédéric ; elle ne fait pas partie de la réponse de Frédéric.
+    // J20 et J76 : la règle est attribuée au référent métier, à valider par Frédéric ; elle ne fait pas partie de la réponse de Frédéric.
     expect(item('- J20 : instancier une liste')).toMatch(
-      /par sa limite, quand elle en a une ; sans délai saisi, elle y remonte chaque jour, marquée « sans délai », jamais en retard \(proposition de Hugo du 19\/11\/2026, à valider par Frédéric ; question n° 6 ci-dessous\)/,
+      /par sa limite, quand elle en a une ; sans délai saisi, elle y remonte chaque jour, marquée « sans délai », jamais en retard \(proposition du 19\/11\/2026, à valider par Frédéric ; question n° 6 ci-dessous\)/,
     )
     const j76 = item('- J76 (réponse de Frédéric du 17/11/2026')
-    expect(j76).toMatch(/suivi « à faire ».*« sans délai ».*jamais en retard \(suivi-a-faire\.depuisEtapes ; proposition de Hugo du 19\/11\/2026, à valider par Frédéric\).*question n° 6/)
+    expect(j76).toMatch(/suivi « à faire ».*« sans délai ».*jamais en retard \(suivi-a-faire\.depuisEtapes ; proposition du 19\/11\/2026, à valider par Frédéric\).*question n° 6/)
     expect(j76).not.toMatch(/ne remonte donc jamais/)
-    // Question n° 6 : ce que Hugo a tranché, puis les choix de codage, à valider aussi.
-    const q6 = texte.slice(texte.indexOf('6. Proposition de Hugo'), texte.indexOf('Délais : un délai de modèle'))
+    // Question n° 6 : ce que le référent métier a tranché, puis les choix de codage, à valider aussi.
+    const q6 = texte.slice(texte.indexOf('6. Proposition du 19/11/2026'), texte.indexOf('Délais : un délai de modèle'))
     expect(q6).toMatch(
-      /^6\. Proposition de Hugo du 19\/11\/2026, codée, à valider par Frédéric avant fusion \(registre J76 : « décision de Hugo du 19\/11\/2026 » ; point de contact avec J20\)/,
+      /^6\. Proposition du 19\/11\/2026, codée, à valider par Frédéric avant fusion \(registre J76 : « décision du 19\/11\/2026 » ; point de contact avec J20\)/,
     )
-    expect(q6).toMatch(/Ce que Hugo a tranché : elle remonte au suivi « à faire » \(suivi-a-faire\.depuisEtapes\), marquée « sans délai », jamais en retard, pour ne pas être oubliée\./)
+    expect(q6).toMatch(/Ce que le référent métier a tranché : elle remonte au suivi « à faire » \(suivi-a-faire\.depuisEtapes\), marquée « sans délai », jamais en retard, pour ne pas être oubliée\./)
     expect(q6).toMatch(
-      /🔵 Choix de codage, à valider aussi \(Hugo ne dit pas à quelle date\) : l'élément est daté de la date de référence, dû le jour même, chaque jour, et non de la date de création de l'étape ; jamais avant cette création/,
+      /🔵 Choix de codage, à valider aussi \(le référent métier ne dit pas à quelle date\) : l'élément est daté de la date de référence, dû le jour même, chaque jour, et non de la date de création de l'étape ; jamais avant cette création/,
     )
     expect(q6).toMatch(/une étape automatique sans date reste suivie par sa seule relance à N jours \(depuisEtapesAutomatiques\), sans doublon/)
     expect(q6).toMatch(/Conséquence à valider : une liste instanciée sans délai remonte entière, chaque jour, dès l'instanciation \(Prise de fonction : 8 éléments ; Reprise : 12\).*question n° 5/)
     expect(q6).toMatch(/« sans délai » se lit aussi « immédiatement » ; un autre libellé, par exemple « aucun délai saisi », reste possible/)
     expect(q6).toMatch(/Reste à obtenir : l'accord écrit de Frédéric, date comprise \(date du jour ou date de création\)/)
-    // La date de référence n'est plus présentée comme venant de Hugo.
+    // La date de référence n'est plus présentée comme venant du référent métier.
     expect(q6).not.toMatch(/Elle remonte au suivi « à faire » \(suivi-a-faire\.depuisEtapes\) à la date de référence/)
-    expect(texte).not.toContain('6. Hugo ou Frédéric (registre J76')
+    expect(texte).not.toContain('6. Référent métier ou Frédéric (registre J76')
     expect(texte).not.toContain("Rien n'est tranché ici")
     const etapes = enTeteDuModule('etapes').texte
     expect(etapes).toMatch(
-      /remonte au suivi « à faire », marquée « sans délai », jamais en retard \(proposition de Hugo du 19\/11\/2026, à valider par Frédéric\) ; 🔵 choix de codage, à valider aussi : chaque jour, à la date de référence, jamais avant sa création.*question n° 6/,
+      /remonte au suivi « à faire », marquée « sans délai », jamais en retard \(proposition du 19\/11\/2026, à valider par Frédéric\) ; 🔵 choix de codage, à valider aussi : chaque jour, à la date de référence, jamais avant sa création.*question n° 6/,
     )
     expect(etapes).not.toContain('ne remonte alors pas au suivi « à faire »')
     const suivi = enTeteDuModule('suivi-a-faire').texte
     expect(suivi).toMatch(
-      /Étapes \(point 48.*sans aucune date.*remonte au suivi, marquée « sans délai », jamais en retard \(proposition de Hugo du 19\/11\/2026, à valider par Frédéric\) ; 🔵 choix de codage, à valider aussi : chaque jour à la date de référence, jamais avant sa création ; une étape automatique sans date n'y remonte que par sa relance/,
+      /Étapes \(point 48.*sans aucune date.*remonte au suivi, marquée « sans délai », jamais en retard \(proposition du 19\/11\/2026, à valider par Frédéric\) ; 🔵 choix de codage, à valider aussi : chaque jour à la date de référence, jamais avant sa création ; une étape automatique sans date n'y remonte que par sa relance/,
     )
     // etapes-courrier.ts, J64 : la question n° 6 fermée est l'ancienne (courrier ou enchaînement), pas celle de J76.
-    expect(enTeteDuModule('etapes-courrier').item('- J64 (décision de Hugo du 17/11/2026')).toMatch(
+    expect(enTeteDuModule('etapes-courrier').item('- J64 (décision du 17/11/2026')).toMatch(
       /Ferme les questions n° 1 et 2 ci-dessous et l'ancienne question n° 6 de modeles-etapes\.ts \(courrier ou enchaînement\)\./,
     )
   })
@@ -207,7 +207,7 @@ describe('J76 — aucun délai par défaut entre les étapes (réponse de Fréd�
   })
 })
 
-describe('J76, question n° 6 — étape sans délai au suivi « à faire » (proposition de Hugo du 19/11/2026, à valider par Frédéric)', () => {
+describe('J76, question n° 6 — étape sans délai au suivi « à faire » (proposition du 19/11/2026, à valider par Frédéric)', () => {
   it('étape enchaînée sans délai saisi : émise à la date de référence, nature « à faire », pour son réalisateur, id stable', () => {
     // Point de contact avec J20 : l'étape enchaînée est d'origine « manuelle », donc hors de la règle des N jours.
     const information = informationSansDelai()

@@ -1,6 +1,6 @@
 // tests/lib/aj-signalement-consigne-secours-email.test.ts
 //
-// R70 du dossier téléphonie (14/11/2026, brouillon : textes à valider par Hugo, présentation par Frédéric, portugais H4) :
+// R70 du dossier téléphonie (14/11/2026, brouillon : textes à valider par le référent métier, présentation par Frédéric, portugais H4) :
 // l'accusé de réception d'un signalement URGENT porte la consigne renforcée d'appel aux secours, dans la langue du
 // signalement (mêmes textes que la page publique, lib/aj-signalement/textes.ts), une seule fois, en tête du message ;
 // ni lien ni bouton ajoutés ; tout le contenu saisi reste échappé. Priorités « normale » et « à planifier » : rien.

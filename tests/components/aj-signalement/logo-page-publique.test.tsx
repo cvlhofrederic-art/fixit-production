@@ -1,7 +1,7 @@
 // tests/components/aj-signalement/logo-page-publique.test.tsx
 //
 // Logo d'un cabinet client sur la page publique ouverte par le QR code (vitfix.io/<identifiant>/signalement/<jeton>/ ;
-// demande de Hugo du 13/11/2026, brouillon soumis à Frédéric) :
+// demande du 13/11/2026, brouillon soumis à Frédéric) :
 //   - le logo dans un bandeau BLANC au-dessus de l'en-tête bleu nuit (un logo sombre y reste lisible), aligné sur la
 //     colonne de la page ; l'en-tête bleu nuit, le formulaire et le pied sont ceux d'avant ; texte alternatif = nom du
 //     cabinet ; aucune adresse d'origine transmise (le chemin de la page porte le jeton du QR code) ;

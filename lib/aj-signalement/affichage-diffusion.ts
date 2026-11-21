@@ -1,10 +1,10 @@
 // ── AJ Signalement — diffusion : modèles de message, message d'annonce figé, messages de refus (PR 3, lot 2) ──────
 //
-// Cahier PR 3 § 5.4 (modèles), § 3.8 et décision H1 de Hugo du 11/11/2026 (option C : un message d'annonce unique, à
+// Cahier PR 3 § 5.4 (modèles), § 3.8 et décision H1 du 11/11/2026 (option C : un message d'annonce unique, à
 // texte figé, sans aucune information d'immeuble, avec le bouton de refus à effet immédiat ; la personne n'entre dans
 // la diffusion que 15 jours après l'annonce si elle n'a pas refusé), décision H3 (les cinq modèles, plus « ascenseur à
 // l'arrêt »). Champs entre crochets à remplacer avant l'envoi (sinon refus a_completer). Aucun nom d'entreprise, aucune
-// mention de VitFix. Versions portugaises à relire par Hugo (H4) : sans relecture, aucun cabinet PT n'est activé (H9).
+// mention de VitFix. Versions portugaises à relire par le référent métier (H4) : sans relecture, aucun cabinet PT n'est activé (H9).
 // Textes d'écran (noms des modèles, messages de refus) en français, comme tout l'espace ; PR en brouillon, à valider
 // par Frédéric (F1).
 
@@ -101,7 +101,7 @@ export const TEXTES_MODELES_DIFFUSION_QR: Readonly<Record<ModeleRedigeDiffusionQ
       texte: 'O incidente [objeto] terminou. [Informação adicional.] Obrigado pela sua paciência.',
     },
   },
-  // Décision H3 (Hugo, 11/11/2026) : modèle ajouté aux cinq du cahier.
+  // Décision H3 (11/11/2026) : modèle ajouté aux cinq du cahier.
   ascenseur_arret: {
     fr: {
       objet: 'Ascenseur à l’arrêt — [bâtiment]',
@@ -118,13 +118,13 @@ export const TEXTES_MODELES_DIFFUSION_QR: Readonly<Record<ModeleRedigeDiffusionQ
 
 // ── Message d'annonce (H1, option C) ──
 
-/** Délai entre le message d'annonce et l'entrée dans la diffusion, fixé par Hugo le 11/11/2026 (droit, H1). */
+/** Délai entre le message d'annonce et l'entrée dans la diffusion, fixé le 11/11/2026 (droit, H1). */
 export const DELAI_ANNONCE_DIFFUSION_JOURS = 15
 
 // Texte figé : qui écrit (le cabinet), pourquoi la personne le reçoit, ce qu'elle recevra, quand, comment refuser
 // (conditions 1 à 5 de la note juridique, « Complément du 11/11 ») ; aucune information d'exploitation. Le bouton
 // de refus, la raison de l'envoi et le pied (copropriété, politique, contact, message automatique auquel ne pas
-// répondre) viennent du gabarit de diffusion. Le texte figé ne parle pas de répondre : la décision de Hugo du
+// répondre) viennent du gabarit de diffusion. Le texte figé ne parle pas de répondre : la décision du
 // 16/11/2026 (plus de réponse aux messages) ne le change pas, ni le contrôle à l'identique de la route.
 const ANNONCE: Bilingue<TexteDiffusionQr> = {
   fr: {
@@ -168,7 +168,7 @@ export function estAnnonceFigeeQr(langue: LangueSignalementQr, cabinet: string, 
 
 export const MESSAGES_REFUS_TEXTE_DIFFUSION_QR: Readonly<Record<MotifRefusTexteDiffusionQr, string>> & { readonly conseilEspaceApresPoint: string } = {
   lien: 'Le message ne peut contenir aucun lien ni adresse de site (http, www, nom de domaine).',
-  // Décision de Hugo du 16/11/2026 : plus de réponse aux messages ; le pied de chaque message donne le contact du cabinet.
+  // Décision du 16/11/2026 : plus de réponse aux messages ; le pied de chaque message donne le contact du cabinet.
   adresse_email: 'Le message ne peut contenir aucune adresse e-mail : l’adresse de contact du cabinet figure déjà au bas de chaque message.',
   caractere: 'Le message contient un caractère non autorisé (caractère invisible ou de contrôle, ou symbole dans un nom de bâtiment ou d’étage).',
   a_completer: 'Complétez ou retirez les champs du modèle écrits entre crochets.',

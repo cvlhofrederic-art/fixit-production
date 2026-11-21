@@ -2,7 +2,7 @@
 
 // ── Connexion professionnelle de l'espace « AJ Signalement » (/fr/aj-signalement/connexion/) ─────
 //
-// Demande de Hugo du 11/11/2026 : « je ne veux pas que l'on puisse taper Particulier […] il faut taper professionnel
+// Demande du 11/11/2026 : « je ne veux pas que l'on puisse taper Particulier […] il faut taper professionnel
 // avec le mail et mot de passe pour se connecter ». Un seul formulaire : e-mail et mot de passe, « Mot de passe
 // oublié ? ». Ni choix Particulier / Artisan / Pro, ni Google, ni « Créer un compte ». La page de connexion générale de
 // VitFix (/fr/auth/login/) ne change pas, et cette page n'y mène jamais (aucun lien vers les pages communes /auth/…).
@@ -24,7 +24,7 @@
 //   décision d'accès : seul un gestionnaire de CE cabinet y entre, le super admin va dans son espace global, tout autre
 //   compte reçoit le même message neutre. Sur la page globale, un gestionnaire est envoyé vers l'espace de SON cabinet.
 // Styles de l'espace (PagePleineQr, Champ, CLASSES_SAISIE, Bouton, Encadre) : aucun nouveau système visuel.
-// Logo du cabinet (demande de Hugo du 13/11/2026, brouillon soumis à Frédéric) : quand le contexte en porte un, il prend
+// Logo du cabinet (demande du 13/11/2026, brouillon soumis à Frédéric) : quand le contexte en porte un, il prend
 // la place de l'icône dorée en haut de la carte blanche ; sans logo, la carte est celle d'avant.
 
 import { useEffect, useRef, useState, type FormEvent } from 'react'

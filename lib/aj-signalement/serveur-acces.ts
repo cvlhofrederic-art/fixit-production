@@ -1,6 +1,6 @@
 // ── AJ Signalement, côté serveur : accès de chaque gestionnaire à l'espace de SON cabinet (PR 2, lot 3) ──────────
 //
-// Demandes de Hugo du 10 et du 11/11/2026 (SPEC § 2.3.2, § 6 ; plan PR 2 § 2.2-2.3) : chaque gestionnaire a un compte
+// Demandes du 10 et du 11/11/2026 (SPEC § 2.3.2, § 6 ; plan PR 2 § 2.2-2.3) : chaque gestionnaire a un compte
 // VitFix professionnel, ouvert par une invitation signée envoyée par e-mail (lien vitfix.io/<identifiant>/invitation/
 // #<jeton>, jeton après le « # »). Le rôle serveur gestionnaire_signalement et le repère de routage
 // (app_metadata.aj_signalement_cabinet, aucun droit) sont fixés ICI, jamais lus dans la ligne d'envoi ni dans le corps.

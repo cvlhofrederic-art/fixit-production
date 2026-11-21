@@ -23,7 +23,7 @@ import { enTeteDuModule } from './en-tete-module'
  * - Répartition au tantième, au centime près, sans perte ni création (méthode des plus forts restes).
  * - Avis d'appel par COMPTE copropriétaire (D2) : quotes-parts des lots dont le compte détient les droits à
  *   l'exigibilité ; solde antérieur repris.
- * - Mutation du lot le jour de l'exigibilité (décision de Hugo du 30/10/2026 ; D. 1967 art. 6-2, relu sur Légifrance le
+ * - Mutation du lot le jour de l'exigibilité (décision du 30/10/2026 ; D. 1967 art. 6-2, relu sur Légifrance le
  *   30/10/2026) : l'appel va au compte du VENDEUR, pour le budget, les travaux et le fonds de travaux.
  * - Écriture de l'appel : traitement « Appel de fonds », débit des comptes 450, crédit du compte de l'échéance.
  */

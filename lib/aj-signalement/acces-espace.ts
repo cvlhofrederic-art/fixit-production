@@ -1,12 +1,12 @@
 // ── Espace « AJ Signalement » : adresse, droits d'accès, menu, page de connexion de l'espace ──────
 //
-// Espace indépendant du portail copropriétaire et de l'Administrateur judiciaire (demande de Hugo du 10/11/2026) :
+// Espace indépendant du portail copropriétaire et de l'Administrateur judiciaire (demande du 10/11/2026) :
 // une adresse à lui (/fr/aj-signalement/), son menu, sa page de connexion professionnelle (/fr/aj-signalement/connexion/,
-// demande de Hugo du 11/11/2026 : e-mail et mot de passe, sans choix Particulier / Artisan / Pro). Seul le super admin
+// demande du 11/11/2026 : e-mail et mot de passe, sans choix Particulier / Artisan / Pro). Seul le super admin
 // entre dans l'espace global, PAS en « vue en tant que » (_original_role) depuis le 11/11/2026 : même règle que les
 // routes (isSuperAdmin, #650). Le super admin a, depuis le 11/11/2026, les vues Gestionnaires (page profil à l'ancre
 // #gestionnaire/<uuid>), Cabinets et Journal.
-// PR 2, lot 4 (Hugo, 11/11/2026, SPEC § 6) : chaque cabinet client a SON espace sous vitfix.io/<identifiant>/ (connexion
+// PR 2, lot 4 (11/11/2026, SPEC § 6) : chaque cabinet client a SON espace sous vitfix.io/<identifiant>/ (connexion
 // /<identifiant>/connexion/, suivi /<identifiant>/suivi/). Le gestionnaire y entre par son rôle serveur
 // (gestionnaire_signalement) ET le repère de routage app_metadata.aj_signalement_cabinet, égal à l'identifiant du
 // cabinet de la page : les décisions reçoivent donc ce cabinet. Il n'entre jamais dans l'espace global, ni dans celui
@@ -139,7 +139,7 @@ export function lienEspaceQr(appMetadata: MetadonneesApp): string | null {
 // ── Menu ─────────────────────────────────────────────────────────────────────
 
 /**
- * Vues de l'espace, chacune à son ancre (#signalements…). Depuis le 11/11/2026 (demandes de Hugo du 10/11) : les fiches
+ * Vues de l'espace, chacune à son ancre (#signalements…). Depuis le 11/11/2026 (demandes du 10/11) : les fiches
  * des gestionnaires (page profil à l'ancre #gestionnaire/<uuid>), les cabinets clients et le journal (super admin).
  */
 export type VueEspaceQr = 'tableau-de-bord' | 'coproprietes' | 'signalements' | 'gestionnaires' | 'cabinets' | 'journal'
@@ -283,7 +283,7 @@ export function destinationConnexionEspaceQr(
  * - /<id>/connexion/ : servie sans session et à tout compte sans accès ici (message neutre, aucune boucle ; un
  *   gestionnaire d'un autre cabinet compris : rien ne lui dit qu'il n'est pas de ce cabinet). La page porte le nom du
  *   cabinet de l'adresse, pour tout visiteur : l'existence et le nom d'un cabinet client se lisent sous son adresse
- *   (identifiant inconnu : 404), choix à valider par Hugo et Frédéric (relecture du lot 6, cabinet-du-chemin.ts) ; le
+ *   (identifiant inconnu : 404), choix à valider par le référent métier et Frédéric (relecture du lot 6, cabinet-du-chemin.ts) ; le
  *   gestionnaire de CE cabinet → le suivi ; le super admin → son espace global ;
  * - /<id>/suivi/ : le gestionnaire de CE cabinet → servi ; le super admin → son espace global ; tout autre cas → la
  *   connexion du cabinet.
@@ -353,7 +353,7 @@ export function aiguillageGestionnaireQr(cheminSansLangue: string, appMetadata: 
 /**
  * Connexion où renvoyer un compte gestionnaire qui vient de choisir son nouveau mot de passe (page commune
  * /auth/update-password/, qui renvoie sinon vers la connexion générale, avec le choix Particulier / Artisan / Pro que
- * Hugo refuse pour un professionnel) : la connexion de SON cabinet si le repère est valable, sinon la connexion de
+ * le référent métier refuse pour un professionnel) : la connexion de SON cabinet si le repère est valable, sinon la connexion de
  * l'espace (message neutre). Tout autre compte (super admin compris : il est aussi l'administrateur de tout VitFix) :
  * null, la page garde son comportement. app_metadata seul.
  */
@@ -396,7 +396,7 @@ export const TEXTES_ESPACE_QR = {
 
 // ── Portée d'un gestionnaire et droits sur une copropriété (SPEC § 1.5, RG-05) ──────────────────────────────────
 //
-// Q1 (Hugo, 10/11/2026) : les droits suivent l'attribution, même pour le créateur d'une copropriété. Q2 : « attribuée à
+// Q1 (10/11/2026) : les droits suivent l'attribution, même pour le créateur d'une copropriété. Q2 : « attribuée à
 // tous » (copropriété de test) donne la lecture, le statut et les e-mails à tous les gestionnaires actifs de SON
 // cabinet, jamais la modification de la fiche. En PR 1, seul le super admin se connecte : la page de suivi qu'il voit
 // pour un gestionnaire est calculée par porteeGestionnaireQr ; les droits d'un gestionnaire connecté viennent en PR 2.

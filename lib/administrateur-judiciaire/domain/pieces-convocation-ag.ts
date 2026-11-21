@@ -1,6 +1,6 @@
 /**
  * Pièces à notifier avec la convocation d'une assemblée générale et formulaire de vote par correspondance : référentiel
- * et contrôle (décision de Hugo du 17/11/2026, J67, R25). Fonctions pures, sans écran ni table : écran : Frédéric ;
+ * et contrôle (décision du 17/11/2026, J67, R25). Fonctions pures, sans écran ni table : écran : Frédéric ;
  * enregistrement des pièces jointes : à brancher. Le gabarit de convocation (gabarits-courrier.ts, convocation_ag_vpc)
  * renvoie à ce module.
  *
@@ -22,7 +22,7 @@
  * ne fixant pas sa gravité.
  *
  * 🔴 Rubriques du formulaire (modèle annexé à l'arrêté du 2 juillet 2020, publié en image au JO du 03/07/2020) : non
- * lues ; à coder comme mentions obligatoires après leur lecture par Hugo (J67, R25).
+ * lues ; à coder comme mentions obligatoires après leur lecture par le référent métier (J67, R25).
  */
 
 export const PARTIES_ART_11 = ['validite', 'information'] as const

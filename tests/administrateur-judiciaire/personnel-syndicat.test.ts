@@ -944,7 +944,7 @@ describe('en-tête du module (marqueurs 🟢 / 🔵 / 🔴)', () => {
   const entete = source.slice(0, source.indexOf('*/')).replaceAll(/\s*\n\s*\*\s*/g, ' ')
   const nonEtabli = entete.slice(entete.indexOf('🔴 Non établi'))
   const deduit = entete.slice(entete.indexOf('🔵 Déduit'), entete.indexOf('🔴 Non établi'))
-  const decisions = entete.slice(entete.indexOf('Décisions de Hugo du 03/11/2026'), entete.indexOf('🔵 Déduit'))
+  const decisions = entete.slice(entete.indexOf('Décisions du 03/11/2026'), entete.indexOf('🔵 Déduit'))
 
   it('🟢 art. 10 : aucune règle de fonctionnement pour les 42, 43, 442 et 64 (il en donne une pour les 441 et 443)', () => {
     expect(entete).toMatch(/comptes 42, 43, 442 et 64/)
@@ -956,7 +956,7 @@ describe('en-tête du module (marqueurs 🟢 / 🔵 / 🔴)', () => {
     expect(entete).not.toMatch(/« Employeur » \(7 types\)/)
   })
 
-  it('J25 : espèces tranchées (décision de Hugo), l’ancienne question 7 retirée du 🔴 ; prévoyance : seul le relevé Gestéam reste en 🔴', () => {
+  it('J25 : espèces tranchées (décision du référent métier), l’ancienne question 7 retirée du 🔴 ; prévoyance : seul le relevé Gestéam reste en 🔴', () => {
     expect(decisions).toMatch(/J25/)
     expect(decisions).toMatch(/espèces/)
     expect(decisions).toMatch(/compte 53/)
@@ -967,7 +967,7 @@ describe('en-tête du module (marqueurs 🟢 / 🔵 / 🔴)', () => {
   })
 
   it('J67, R38 et R39 : part récupérable et compte de la prévoyance tranchés, les questions 6 et 8 retirées du 🔴', () => {
-    const j67 = entete.slice(entete.indexOf('Décisions de Hugo du 17/11/2026'), entete.indexOf('🔵 Déduit'))
+    const j67 = entete.slice(entete.indexOf('Décisions du 17/11/2026'), entete.indexOf('🔵 Déduit'))
     expect(j67).toMatch(/J67, R38 : .*décret n° 87-713, art\. 2/)
     expect(j67).toMatch(/J67, R39 : .*642 par défaut, réglable cotisation par cotisation/)
     expect(j67).toMatch(/la mutuelle va au 644/)
@@ -977,9 +977,9 @@ describe('en-tête du module (marqueurs 🟢 / 🔵 / 🔴)', () => {
   })
 
   it('J67, R38 : liste complète des éléments jamais récupérables ; points restés ouverts marqués en 🔴 ; tout le 644 à 0 % en 🔵', () => {
-    const j67 = entete.slice(entete.indexOf('Décisions de Hugo du 17/11/2026'), entete.indexOf('🔵 Déduit'))
+    const j67 = entete.slice(entete.indexOf('Décisions du 17/11/2026'), entete.indexOf('🔵 Déduit'))
     expect(j67).toMatch(/la participation au comité d'entreprise et à l'effort de construction, la cotisation à la médecine du travail/)
-    expect(nonEtabli).toMatch(/11\. Hugo \(J67, R38, points restés ouverts\) : la participation au comité d'entreprise et à l'effort de construction/)
+    expect(nonEtabli).toMatch(/11\. Référent métier \(J67, R38, points restés ouverts\) : la participation au comité d'entreprise et à l'effort de construction/)
     expect(nonEtabli).toMatch(/logements sociaux n'a pas été lu/)
     expect(deduit).toMatch(/tout le 644 est tenu pour jamais récupérable, par son compte/)
   })
@@ -996,8 +996,8 @@ describe('en-tête du module (marqueurs 🟢 / 🔵 / 🔴)', () => {
     )
   })
 
-  it('J40 (décision de Hugo du 06/11/2026) : aucun salaire en espèces, même sous le seuil ; le 🔴 10 devient une décision, le risque est dit', () => {
-    const decisions0611 = entete.slice(entete.indexOf('Décisions de Hugo du 06/11/2026'), entete.indexOf('🔵 Déduit'))
+  it('J40 (décision du 06/11/2026) : aucun salaire en espèces, même sous le seuil ; le 🔴 10 devient une décision, le risque est dit', () => {
+    const decisions0611 = entete.slice(entete.indexOf('Décisions du 06/11/2026'), entete.indexOf('🔵 Déduit'))
     expect(decisions0611).toMatch(/J40 : aucun paiement en espèces, même pour un salarié payé sous le seuil de C\. trav\. L3241-1 qui le demande/)
     expect(decisions0611).toMatch(/choix du cabinet, plus strict que la loi/)
     expect(decisions0611).toMatch(/Risque : C\. trav\. L3241-1 donne ce droit au salarié qui le demande, sous le montant mensuel fixé par décret/)

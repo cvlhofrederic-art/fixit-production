@@ -128,7 +128,7 @@ describe('contrôle des pièces de la convocation', () => {
     expect(() => controlerPiecesConvocation({ questions: [comptes, comptes], formulaireVoteJoint: true })).toThrow(/« q-1 » en double/)
   })
 
-  it('en-tête : art. 11 et 9 cités, J67, R25 ; rubriques du formulaire 🔴 (à lire par Hugo) ; écran et enregistrement hors du module', () => {
+  it('en-tête : art. 11 et 9 cités, J67, R25 ; rubriques du formulaire 🔴 (à lire par le référent métier) ; écran et enregistrement hors du module', () => {
     const { texte } = enTeteDuModule('pieces-convocation-ag')
     expect(texte).toContain('J67, R25')
     expect(texte).toMatch(/D\. 1967 art\. 11, version du 25\/12\/2025/)

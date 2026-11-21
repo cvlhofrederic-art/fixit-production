@@ -1,6 +1,6 @@
 // tests/lib/aj-signalement-connexion-espace.test.ts
 //
-// Page de connexion professionnelle de l'espace « AJ Signalement » (demande de Hugo du 11/11/2026 : « il faut taper
+// Page de connexion professionnelle de l'espace « AJ Signalement » (demande du 11/11/2026 : « il faut taper
 // professionnel avec le mail et mot de passe ») : partie pure (lib/aj-signalement/connexion-espace.ts).
 // - contexte de la page (nom affiché, adresse de l'espace par langue) : sérialisable ; l'espace d'un cabinet (PR 2)
 //   passera le sien (la décision d'accès par cabinet viendra avec la PR 2) ;

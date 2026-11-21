@@ -1,5 +1,5 @@
 /**
- * Espace « AJ Signalement » (/fr/aj-signalement/, demandes de Hugo du 10 et du 11/11/2026) : contrôle d'accès du
+ * Espace « AJ Signalement » (/fr/aj-signalement/, demandes du 10 et du 11/11/2026) : contrôle d'accès du
  * middleware, avec la page de connexion professionnelle de l'espace (/fr/aj-signalement/connexion/).
  *
  * - sans session : 307 vers la page de connexion de l'espace dans la langue (la requête d'origine n'est pas reprise) ;
@@ -275,7 +275,7 @@ describe('chemins voisins inchangés', () => {
   })
 })
 
-// ── Chemin public d'un cabinet client (vitfix.io/<identifiant>/…, choix de Hugo du 10/11/2026) ──
+// ── Chemin public d'un cabinet client (vitfix.io/<identifiant>/…, choix du 10/11/2026) ──
 // Reconnu AVANT la détection de langue (sinon 302 vers /fr/<identifiant>/… puis 404), par un motif figé
 // (lib/aj-signalement/chemin-cabinet.ts) : ni base, ni Supabase, ni cookie ; noindex et réponse privée.
 describe('chemin public d’un cabinet client', () => {

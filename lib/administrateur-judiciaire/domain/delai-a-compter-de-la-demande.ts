@@ -2,7 +2,7 @@ import { ajouterMois, dateIsoVersFr, estDateIsoValide } from '@/lib/administrate
 
 /**
  * Délai d'un mois « à compter de la demande » : fiche synthétique (L. 1965 art. 8-2) et pièces demandées par le conseil
- * syndical (art. 21, al. 7). Décision de Hugo du 17/11/2026 (J67, R24 ; textes lus sur Légifrance le 17/11/2026, version
+ * syndical (art. 21, al. 7). Décision du 17/11/2026 (J67, R24 ; textes lus sur Légifrance le 17/11/2026, version
  * du 01/06/2020) : un mois, compté comme une règle de GESTION depuis la date connue la plus tôt : la date de la demande
  * (date d'envoi, ou date écrite sur la demande) et, seulement à défaut, sa réception ; jamais la date de création d'une
  * étape. Le texte ne dit ni envoi ni réception, et aucun arrêt n'a été lu.

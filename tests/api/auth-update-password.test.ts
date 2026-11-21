@@ -228,7 +228,7 @@ describe('POST /api/auth/update-password — réponses de Supabase', () => {
 
 // PR 2 AJ Signalement, lot 6 (plan § 2.5, point 7.9) : un gestionnaire d'un cabinet client qui a choisi son nouveau mot
 // de passe est renvoyé vers la connexion professionnelle de SON cabinet (vitfix.io/<identifiant>/connexion/), jamais vers
-// la connexion générale (choix Particulier / Artisan / Pro, que Hugo refuse pour un professionnel). La destination se lit
+// la connexion générale (choix Particulier / Artisan / Pro, que le référent métier refuse pour un professionnel). La destination se lit
 // dans app_metadata du compte vérifié (posé par le serveur) ; tout autre compte : réponse inchangée ({ ok: true }).
 describe('POST /api/auth/update-password — retour d’un gestionnaire AJ Signalement', () => {
   const sessionAvec = (appMetadata: Record<string, unknown>) => () => json({

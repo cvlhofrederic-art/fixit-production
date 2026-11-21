@@ -19,7 +19,7 @@
 // PR 3, lot 8 (cahier § 7.1, BROUILLON pour Frédéric) : « Diffuser un message » et « Messages envoyés », seulement quand
 // l'appelant les donne (super admin ; gestionnaire sur une copropriété qui lui est attribuée nommément, jamais « à
 // tous », décision H11). Le nombre de messages n'est pas sur la carte : il est dans la fenêtre (rappel du mois).
-// Logo du cabinet (demande de Hugo du 13/11/2026) : logoCabinet, les métadonnées du logo du cabinet de la copropriété
+// Logo du cabinet (demande du 13/11/2026) : logoCabinet, les métadonnées du logo du cabinet de la copropriété
 // (données déjà chargées par l'appelant) ; l'image est lue au clic sur « Affiche PDF » et posée sur l'affiche. Sans logo,
 // l'affiche est celle d'avant ; logo illisible, ou que jsPDF ne sait pas poser : affiche sans logo et avertissement.
 // Bureaux des cabinets (E6, migration 20261119 ; BROUILLON soumis avant fusion) : carte du super admin, ligne « Bureau : … »

@@ -22,7 +22,7 @@ import { ROLES_CABINET, type RoleCabinet } from '@/lib/administrateur-judiciaire
 import { useSelectionDossier } from '@/lib/administrateur-judiciaire/selection'
 
 /**
- * Décision de Hugo du 29/10/2026 : « Aujourd'hui » quitte le menu et le Tableau de bord, devenu la page d'accueil,
+ * Décision du 29/10/2026 : « Aujourd'hui » quitte le menu et le Tableau de bord, devenu la page d'accueil,
  * reprend son contenu pour ne rien perdre. En tête (sous le bandeau d'accueil) : l'alerte d'échéance dépassée, le radar
  * des mandats (un clic choisit la copropriété puis ouvre les mandats) et les échéances légales de tous les mandats ;
  * la génération express d'actes suit, car les actes pré-rédigés de la palette, le bouton « Actes » de la fiche 360 et

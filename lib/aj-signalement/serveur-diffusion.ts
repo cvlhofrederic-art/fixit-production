@@ -6,8 +6,8 @@
 // Migration 20261113 absente : chaque lecture nomme au moins une colonne ou une fonction qu'elle crée — l'erreur de
 // structure est rendue à la route, qui répond 503 base_absente (reponseErreurDiffusionQr, journalisé une fois).
 //
-// Profils (cahier § 4.3) : le super admin, sur instruction écrite du cabinet (HF4) ; le gestionnaire (décision H11 de
-// Hugo du 11/11/2026), sur les seules copropriétés de SON cabinet qui lui sont attribuées NOMMÉMENT, jamais sur une
+// Profils (cahier § 4.3) : le super admin, sur instruction écrite du cabinet (HF4) ; le gestionnaire (décision H11
+// du 11/11/2026), sur les seules copropriétés de SON cabinet qui lui sont attribuées NOMMÉMENT, jamais sur une
 // copropriété « attribuée à tous » (la copropriété de test ne diffuse que par le super admin), sans instruction écrite
 // (c'est le cabinet qui diffuse). Chaque route D-R1 à D-R7 applique controlerDroitDiffuserQr AVANT toute autre lecture
 // (hors portée → 404, « à tous » → 403 lecture_seule ; reprise et détail : par la copropriété de LA diffusion,

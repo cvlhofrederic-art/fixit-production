@@ -53,13 +53,13 @@ import type { TypeContentieux, TypeSinistre } from '@/lib/data/referentiels-gest
  *   notification ou s'il en a pris acte ; invocable par lui dès qu'il en a connaissance ; opposable aux tiers dès le
  *   paiement).
  *
- * Décisions de Hugo du 03/11/2026 (registre des décisions juridiques, J32 ; question 24 de la liste) :
+ * Décisions du 03/11/2026 (registre des décisions juridiques, J32 ; question 24 de la liste) :
  * - J32 : le bouton « Historique » du bloc Assurance (tranche 42, non ouvert) trace l'historique du dossier de
  *   contentieux. Le domaine n'expose aucun historique du dossier de contentieux : le contentieux n'est pas persisté, et
  *   fiches-liees.ts ne donne que le Flux des fiches rattachées (point 47), pas les changements du dossier. Rien n'est
  *   relié ici et aucun écran n'est créé : branchement à faire avec la table des contentieux.
  *
- * Décision de Hugo du 17/11/2026 (registre des décisions juridiques, J67, R47 ; question 3, en partie) :
+ * Décision du 17/11/2026 (registre des décisions juridiques, J67, R47 ; question 3, en partie) :
  * - sous administration provisoire, la souscription d'une police impayés au nom du syndicat suit la mission de
  *   l'ordonnance (L. 1965 art. 29-1, I, al. 2, lu sur Légifrance le 17/11/2026, en vigueur depuis le 11/04/2024).
  *   L'administrateur provisoire qui a reçu ce pouvoir de l'AG décide, après avis du conseil syndical sauf urgence
@@ -109,7 +109,7 @@ import type { TypeContentieux, TypeSinistre } from '@/lib/data/referentiels-gest
  *   (L. 111-1). Paramètre explicite : les sommes récupérées depuis le paiement de l'indemnité, fournies par l'appelant.
  *
  * 🔴 Non établi (question restante) :
- * 3. (Frédéric ou Hugo) La case « Couverture impayés » découle-t-elle d'un contrat d'assurance du mandat (TYPE_CONTRAT
+ * 3. (Frédéric ou le référent métier) La case « Couverture impayés » découle-t-elle d'un contrat d'assurance du mandat (TYPE_CONTRAT
  *    « Assurance loyer impayé », garantie de la multirisque) à relier, ou est-elle saisie librement ? (Qui décide de la
  *    souscription : tranché par J67, R47, ci-dessus.)
  */

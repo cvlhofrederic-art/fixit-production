@@ -291,7 +291,7 @@ describe('emploi du fonds de travaux — information ventilée par compte', () =
     expect(juge[0].message).toMatch(/manque : n° de l'ordonnance/)
   })
 
-  it('en-tête : rubrique « Décisions de Hugo du 03/11/2026 » (J30, forme structurée reçue, signalement non bloquant, branchement de travaux-operations à faire)', () => {
+  it('en-tête : rubrique « Décisions du 03/11/2026 » (J30, forme structurée reçue, signalement non bloquant, branchement de travaux-operations à faire)', () => {
     const decisions = enTeteDuModule('avis-appel').item('J30 :')
     expect(decisions).toMatch(/emploi_fonds_forme_incomplete/)
     expect(decisions).toMatch(/avertissement/)
@@ -302,7 +302,7 @@ describe('emploi du fonds de travaux — information ventilée par compte', () =
     expect(decisions).not.toMatch(/à confirmer/)
   })
 
-  it('en-tête : rubrique « Décisions de Hugo du 06/11/2026 » (J42 : forme de la décision d’affectation confirmée, comportement inchangé)', () => {
+  it('en-tête : rubrique « Décisions du 06/11/2026 » (J42 : forme de la décision d’affectation confirmée, comportement inchangé)', () => {
     const j42 = enTeteDuModule('avis-appel').item('J42 :')
     expect(j42).toMatch(/date de l'AG \+ n° de la résolution, obligatoires/)
     expect(j42).toMatch(/comportement inchangé/)

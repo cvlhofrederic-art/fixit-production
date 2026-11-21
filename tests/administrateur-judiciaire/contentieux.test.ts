@@ -27,7 +27,7 @@ import {
  * Contentieux (cartographie Gestéam, tranches 20, 27 et 28) : dossier, intervenants (huissier, avocat, expert),
  * jalons de procédure datés, phase, lien avec le recouvrement et les stades / groupes de relance.
  * - Type et phase : référentiels Gestéam existants (TYPE_CONTENTIEUX, PHASE_CONTENTIEUX). La Particularité de Gestéam
- *   n'est pas reprise (décision J44 de Hugo du 06/11/2026).
+ *   n'est pas reprise (décision J44 du 06/11/2026).
  * - La phase est SAISIE ; VitFix en SUGGÈRE une d'après les faits datés et signale l'écart, sans l'écraser.
  */
 
@@ -276,7 +276,7 @@ describe('contentieux — échéancier actif et relance', () => {
   })
 
   /**
-   * Décision J33 de Hugo (03/11/2026) : la case « Échéancier » du bloc Voie d'exécution désigne l'échéancier fixé par
+   * Décision J33 (03/11/2026) : la case « Échéancier » du bloc Voie d'exécution désigne l'échéancier fixé par
    * décision du juge (délais de grâce, C. civ. art. 1343-5). Cochée, elle rend l'échéancier actif, source « décision du
    * juge » ; la grille du bloc Échéancier reste lue comme avant.
    */
@@ -349,15 +349,15 @@ describe('contentieux — en-tête du point 57 : sources et points ouverts', () 
   it('J67, R40 : la marque « À valider » de l’exigibilité sous échéancier amiable est remplacée par la justification', () => {
     expect(source).not.toMatch(/le groupe 6 ne bloque donc pas l'étape « exigibilite »\. À valider\./)
     const r40 = source.slice(source.indexOf('J67, R40'))
-    expect(r40).toMatch(/^J67, R40 \(décision de Hugo du 17\/11\/2026\) : un échéancier amiable en cours ne bloque pas l'exigibilité/)
+    expect(r40).toMatch(/^J67, R40 \(décision du 17\/11\/2026\) : un échéancier amiable en cours ne bloque pas l'exigibilité/)
     expect(r40).toMatch(/L\. 1965 art\. 14-1/)
     expect(r40).toMatch(/C\. civ\. art\. 1305-2/)
     expect(r40).toMatch(/postes-creance\.avertissementsProcedure/)
     expect(r40).toMatch(/J3.*« restée infructueuse ».*point non tranché/)
   })
 
-  it('rubrique « Décisions de Hugo du 03/11/2026 » : J33 inscrite, art. 1343-5 relu', () => {
-    const decisions = source.slice(source.indexOf('Décisions de Hugo du 03/11/2026'), source.indexOf('Point 56 du bilan Gestéam'))
+  it('rubrique « Décisions du 03/11/2026 » : J33 inscrite, art. 1343-5 relu', () => {
+    const decisions = source.slice(source.indexOf('Décisions du 03/11/2026'), source.indexOf('Point 56 du bilan Gestéam'))
     expect(decisions).toMatch(/J33/)
     expect(decisions).toMatch(/C\. civ\. art\. 1343-5/)
     expect(decisions).toMatch(/relu sur Légifrance le 03\/11\/2026/)
@@ -365,8 +365,8 @@ describe('contentieux — en-tête du point 57 : sources et points ouverts', () 
     expect(source).not.toMatch(/désigne-t-elle les délais de grâce accordés par/)
   })
 
-  it('rubrique « Décisions de Hugo du 06/11/2026 » : J43 (exécution engagée sous échéancier du juge signalée) et J44 (Particularité supprimée)', () => {
-    const decisions0611 = source.slice(source.indexOf('Décisions de Hugo du 06/11/2026'), source.indexOf('Point 56 du bilan Gestéam'))
+  it('rubrique « Décisions du 06/11/2026 » : J43 (exécution engagée sous échéancier du juge signalée) et J44 (Particularité supprimée)', () => {
+    const decisions0611 = source.slice(source.indexOf('Décisions du 06/11/2026'), source.indexOf('Point 56 du bilan Gestéam'))
     expect(decisions0611).toMatch(/J43 : /)
     expect(decisions0611).toMatch(/controlerExecutionSousEcheancierDuJuge/)
     expect(decisions0611).toMatch(/C\. civ\. art\. 1343-5, al\. 4/)

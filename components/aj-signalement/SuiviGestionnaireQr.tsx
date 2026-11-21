@@ -2,7 +2,7 @@
 
 // ── « Sa page de suivi » : les copropriétés d'un gestionnaire et leurs signalements ──────────────────────────────────
 //
-// Demande de Hugo du 10/11/2026 : « chaque gestionnaire doit avoir sa page de suivi des signalements par copropriété ».
+// Demande du 10/11/2026 : « chaque gestionnaire doit avoir sa page de suivi des signalements par copropriété ».
 // En PR 1, le super admin la voit sur la page profil : ses copropriétés (attributions et « à tous » de son cabinet,
 // GET tableau?gestionnaire=<id>) avec leurs compteurs, puis, au clic, leurs signalements (GET
 // coproprietes/[id]/signalements, par pages, curseur du serveur passé tel quel) et le changement de statut (statut changé

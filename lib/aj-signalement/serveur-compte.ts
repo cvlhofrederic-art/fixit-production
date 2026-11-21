@@ -1,6 +1,6 @@
 // ── AJ Signalement, côté serveur : le compte VitFix d'un gestionnaire suit sa fiche (PR 2, lot 6) ─────────────────
 //
-// SPEC § 2.6 et § 2.10, plan § 2.6 (décisions de Hugo du 10 et du 11/11/2026) :
+// SPEC § 2.6 et § 2.10, plan § 2.6 (décisions du 10 et du 11/11/2026) :
 //   - départ (P1-R14) : après la désactivation de la fiche (PR 1, effet immédiat : 403 acces_retire à la requête
 //     suivante), le compte relié est banni (ban_duration 876000h), la date de blocage posée et journalisée
 //     (gestionnaire.connexion_bloquee) ; le rôle est GARDÉ (jamais « sans rôle ») ; « Bloquer la connexion » (P2-R6)

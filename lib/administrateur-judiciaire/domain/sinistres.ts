@@ -39,7 +39,7 @@ import {
  * 01/04/2018, ordonnance n° 2017-1433 ; L. 114-1 depuis le 30/12/2021, loi n° 2021-1837 ; voir suggestionForclusion).
  * 🟢 L. 114-3 relu sur Légifrance le 17/11/2026 (en vigueur depuis le 19/06/2008, loi n° 2008-561) : les parties ne
  * peuvent, même d'un commun accord, modifier la durée de la prescription.
- * Décision J67, R49 de Hugo (17/11/2026) : ces dates deviennent des échéances du suivi « à faire ». Déclaration « au
+ * Décision J67, R49 (17/11/2026) : ces dates deviennent des échéances du suivi « à faire ». Déclaration « au
  * plus tard » : connaissance + minimum légal ou délai du contrat s'il est plus long (déclarer avant est toujours dans les
  * temps) ; « Vandalisme » et « Bris de glace » restent à confirmer, un vol ayant pu y être rangé (volPossible : 2 jours
  * ouvrés s'il y a eu vol). Prescription « au plus tôt » : survenance + deux ans (son départ ne peut qu'être plus tard et
@@ -49,7 +49,7 @@ import {
  * L. 111-1) et « Catastrophes naturelles » (délai propre) gardent un repère à confirmer, avec sa raison
  * (REGIMES_A_CONFIRMER) ; « Dommages Ouvrage » suit sa règle propre (J67, R52, ci-dessous) ; chaque date rend sa
  * justification (départ, durée, texte, date retenue).
- * Décisions de Hugo du 17/11/2026 (registre des décisions juridiques, J67) :
+ * Décisions du 17/11/2026 (registre des décisions juridiques, J67) :
  * - J67, R50 : le décompte est confirmé : jours ouvrés comptés du lendemain de la connaissance, sans samedi, dimanche ni
  *   jour férié (L. 113-2, 4° dit « jours ouvrés » ; jour de départ exclu, CPC art. 641, al. 1, par analogie). Le
  *   rappel de R50 : RAPPEL_DECLARATION_DES_CONNAISSANCE (lu par declaration-sinistre.ts) : déclarer dès la connaissance,

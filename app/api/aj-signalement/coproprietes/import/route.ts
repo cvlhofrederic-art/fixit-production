@@ -1,7 +1,7 @@
 // app/api/aj-signalement/coproprietes/import/route.ts
 //
 // POST (P1-R19, SPEC § 1.9.6) — import des copropriétés d'UN cabinet client (super admin) depuis le fichier Excel ou CSV
-// lu dans le navigateur : seules les lignes normalisées arrivent ici, jamais le fichier. Demande de Hugo du 10/11/2026.
+// lu dans le navigateur : seules les lignes normalisées arrivent ici, jamais le fichier. Demande du 10/11/2026.
 //   - « verifier » (30/h par compte) : toute la vérification refaite sur la base, par la même fonction pure que l'aperçu
 //     (lib/aj-signalement/import/ligne.ts) : fiches du cabinet (adresse ou nom), adresses des fiches des autres cabinets,
 //     domaines, doublons dans le fichier et avec les copropriétés DU cabinet. Rien n'est écrit ;

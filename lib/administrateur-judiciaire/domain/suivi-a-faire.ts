@@ -117,7 +117,7 @@ import type { StatutAssemblee, StatutContrat, TypeContrat } from '@/lib/data/ref
  * la règle du week-end comme les autres natures ; N (JOURS_SUIVI_ETAPE_AUTOMATIQUE) est un réglage de GESTION du
  * cabinet, jamais un délai légal ; le critère Gestéam « Relance d'étape » en est rapproché sans certitude. Une étape à
  * faire sans aucune date (ni « à faire le », ni alerte, ni limite ; J76) remonte au suivi, marquée « sans délai », jamais
- * en retard (proposition de Hugo du 19/11/2026, à valider par Frédéric) ; 🔵 choix de codage, à valider aussi : chaque
+ * en retard (proposition du 19/11/2026, à valider par Frédéric) ; 🔵 choix de codage, à valider aussi : chaque
  * jour à la date de référence, jamais avant sa création ; une étape automatique sans date n'y remonte que par sa relance
  * (pas de doublon) (modeles-etapes.ts, question n° 6).
  * 🔵 Demandes (point 46, relance-demandes.ts ; Gestéam tranche 38, blocs « Dem. interv. » et « Demandes devis », critère
@@ -125,7 +125,7 @@ import type { StatutAssemblee, StatutContrat, TypeContrat } from '@/lib/data/ref
  * d'intervention au délai de relance de l'entreprise ; date de relance saisie sur l'OS (relancesOsDues, point 44) ;
  * demandes en cours au-delà du seuil d'alerte ou au maximum de l'entreprise. Délais et seuils : réglages de GESTION,
  * aucun texte de la loi de 1965 ni du décret de 1967 (relevé du 03/11/2026). Critère « En cours » des deux blocs : non
- * codé (🔴 date et demandes visées à préciser par Hugo).
+ * codé (🔴 date et demandes visées à préciser par le référent métier).
  * Décision du 20/11/2026 (partie C, F90) : pendant l'exécution d'un marché d'au moins 5 000 € HT, un élément « à faire »
  * tous les six mois depuis la conclusion pour demander l'attestation de vigilance à jour (famille « demandes », nature
  * « vigilance_semestrielle », depuisVigilanceMarches, qui rend vigilance-entreprises.verificationVigilanceDue sans la
@@ -552,7 +552,7 @@ export function depuisEcheancesLegales(items: { mandatId: string; echeance: Eche
 
 /**
  * 21 jours francs entre la première présentation de la convocation et la réunion, au décompte de controlerConvocation
- * (votes-ag.ts) : présentation 22 jours avant la réunion au plus tard. Décompte confirmé par Hugo le 30/10/2026 (J5).
+ * (votes-ag.ts) : présentation 22 jours avant la réunion au plus tard. Décompte confirmé le 30/10/2026 (J5).
  */
 const JOURS_PRESENTATION_AVANT_AG = 22
 
@@ -607,8 +607,8 @@ function dateEtapeSansDelai(etape: { id: string; creeeLe?: string }, aujourdhui:
 /**
  * Étape à faire : à la plus proche de « à faire le », de son alerte et de sa limite, pour son réalisateur. Sans aucune
  * de ces dates (J76 : aucun délai par défaut ; étape enchaînée ou instanciée sans délai saisi) : émise, libellé marqué
- * « sans délai », même nature « à faire » (les réglages qui la suivent l'affichent), jamais en retard (proposition de
- * Hugo du 19/11/2026, à valider par Frédéric). 🔵 Choix de codage, à valider aussi : datée de la date de référence, due
+ * « sans délai », même nature « à faire » (les réglages qui la suivent l'affichent), jamais en retard (proposition
+ * du 19/11/2026, à valider par Frédéric). 🔵 Choix de codage, à valider aussi : datée de la date de référence, due
  * le jour même, chaque jour, jamais avant sa création (dateEtapeSansDelai) ; l'élément se recalcule à chaque date de
  * référence. Une étape automatique sans date n'est pas émise ici : sa relance à N jours la suit déjà
  * (depuisEtapesAutomatiques ; J20, tranche 43), sans doublon. À valider : pour son validateur.

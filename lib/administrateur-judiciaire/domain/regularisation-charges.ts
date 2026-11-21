@@ -167,7 +167,7 @@ import { planDuCompte } from '@/lib/administrateur-judiciaire/domain/verrou-sais
  * - le solde dû devient un poste de dette sans appel d'origine (appelId null, imputable par echeancier-appels) ;
  *   l'excédent reste au crédit du 450.
  *
- * Décisions de Hugo du 17/11/2026 (registre des décisions juridiques, J67 : recommandations validées en bloc ; textes
+ * Décisions du 17/11/2026 (registre des décisions juridiques, J67 : recommandations validées en bloc ; textes
  * relus sur Légifrance le 17/11/2026) :
  * - J67, R102 : le solde de régularisation n'est jamais exigible avant l'approbation des comptes : le trop ou moins
  *   perçu est « révélé par l'approbation des comptes » (D. 1967 art. 6-2, 3°) et les provisions attendent le « solde
@@ -213,7 +213,7 @@ import { planDuCompte } from '@/lib/administrateur-judiciaire/domain/verrou-sais
  *   (exigibiliteDecidee) ; la justification la cite. Le plancher de l'approbation (J67, R102) reste contrôlé à
  *   l'imputation. Mention à l'écran : à brancher.
  *
- * 🔴 Non établi (questions pour Hugo ou Frédéric) :
+ * 🔴 Non établi (questions pour le référent métier ou Frédéric) :
  * - « Dans Gestéam, quelle est la contrepartie des écritures 450 de la répartition : le 471 soldé par le 701 (choix
  *   VitFix, arrêté art. 10), les comptes de charges, ou le 471 laissé ouvert jusqu'à l'imputation ? » (seuls les 450 ont
  *   été vus, § 7) ;

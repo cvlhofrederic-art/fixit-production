@@ -25,8 +25,8 @@ import { STATUT_ASSEMBLEE, type StatutAssemblee } from '@/lib/data/referentiels-
  * Décision J2 (08/10/2026) : un saut d'étape EN AVANT est permis, mais marqué « hors séquence » avec un motif
  * obligatoire ; un retour arrière est impossible. Le moteur de délais refuse de calculer sur une chaîne incomplète.
  *
- * Décisions de Hugo du 11/11/2026 (registre des décisions juridiques : J50 et J51 ; notes decisions-1111 :
- * questions-hugo.md, recommandations et contre-vérification, j50-textes.md, j50-j51-jurisprudence.md, code-actuel.md) :
+ * Décisions du 11/11/2026 (registre des décisions juridiques : J50 et J51 ; notes decisions-1111 :
+ * questions du 11/11/2026, recommandations et contre-vérification, j50-textes.md, j50-j51-jurisprudence.md, code-actuel.md) :
  * - J50 (« Oui, calcul électronique », suite de J1 et de J48) — point de départ du délai de l'art. 42, al. 2 selon le
  *   mode de notification du courrier (modeNotification, courriers.ts : champ propre à VitFix, la liste Gestéam des formes
  *   d'envoi ne change pas) :
@@ -92,7 +92,7 @@ import { STATUT_ASSEMBLEE, type StatutAssemblee } from '@/lib/data/referentiels-
  *   lever le blocage (envoi-ordre-service.ts) ;
  * - ce n'est pas un avis juridique ; France seulement (le Código Civil portugais n'a pas d'équivalent).
  *
- * Décisions de Hugo du 17/11/2026 (numéros de registre proposés : J52 et J53, suites de J50 ; notes
+ * Décisions du 17/11/2026 (numéros de registre proposés : J52 et J53, suites de J50 ; notes
  * du 17/11/2026 sur les questions juridiques ouvertes, recommandations suivies) :
  * - J52 : demande de voie postale, refus ou retrait de la voie électronique reçu AVANT le 25/12/2025 : effet dès sa
  *   réception (ancienne règle ; effetDemandeVoiePostale, voie-notification.ts), même quand l'envoi électronique est fait

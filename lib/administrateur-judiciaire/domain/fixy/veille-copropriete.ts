@@ -6,7 +6,7 @@ import {
 } from '@/lib/administrateur-judiciaire/domain/selection-copropriete'
 
 /**
- * Veille de Fixy selon la copropriété choisie dans le sélecteur du haut de page (demande de Hugo du 29/10/2026) : la
+ * Veille de Fixy selon la copropriété choisie dans le sélecteur du haut de page (demande du 29/10/2026) : la
  * veille reste calculée sur tout le portefeuille (useFixy), elle n'est filtrée qu'à l'affichage.
  */
 

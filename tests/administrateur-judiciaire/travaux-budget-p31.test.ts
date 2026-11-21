@@ -353,7 +353,7 @@ describe('honoraires sur travaux : cadre selon le régime du mandat', () => {
     expect(ap47.motif).toMatch(
       /^Administrateur provisoire désigné faute de syndic \(D\. 1967 art\. 47\) : rémunération fixée par le président de la juridiction qui l'a désigné, sur justification de l'accomplissement de la mission \(C\. com\. R\. 814-27 ; recours : CPC art\. 714 à 718 ; J73\)/,
     )
-    expect(ap47.motif).not.toMatch(/non établi|à confirmer|R12|Hugo|Frédéric/)
+    expect(ap47.motif).not.toMatch(/non établi|à confirmer|R12|[Rr]éférent métier|Frédéric/)
     const op = operation()
     // poste « Honoraires cabinet » : une prévision à soumettre au président, jamais un élément à facturer
     const [information] = controlerHonorairesTravaux(op, budget(op), { cadre: ap47 })
@@ -442,7 +442,7 @@ describe('droit proportionnel de l’administrateur provisoire sur travaux (arr�
 })
 
 /**
- * Décision J39 de Hugo (06/11/2026, question de la PR #651, point 31) : le barème de l'art. 11 de l'arrêté du 8 octobre
+ * Décision J39 (06/11/2026, question de la PR #651, point 31) : le barème de l'art. 11 de l'arrêté du 8 octobre
  * 2015 s'applique OPÉRATION PAR OPÉRATION. Chaque opération a son propre calcul par tranches ; le droit de plusieurs
  * opérations est la somme de leurs droits, jamais le barème appliqué au cumul de leurs montants.
  */
@@ -897,7 +897,7 @@ describe('en-tête : sources, marqueurs et questions', () => {
 
   it('pose les questions ouvertes avec le choix actuel de VitFix', () => {
     expect(texte).toContain('« La ligne "Fonds de prévoyance" de l\'onglet Budget porte-t-elle la part financée par le fonds de travaux')
-    // l'assiette du droit proportionnel n'est plus une question : décision de Hugo du 17/11/2026 (J55)
+    // l'assiette du droit proportionnel n'est plus une question : décision du 17/11/2026 (J55)
     expect(texte).not.toContain('(VitFix : le montant hors taxes fourni pour chaque opération, à confirmer)')
     expect(texte).toContain(
       '« Le bouton "Ne pas utiliser les fonds travaux" exclut-il tout emploi du fonds pour l\'opération (part, emploi, règlement depuis le compte du fonds), ou seulement le règlement de ses factures depuis ce compte ? »',
@@ -914,8 +914,8 @@ describe('en-tête : sources, marqueurs et questions', () => {
     expect(texte).toContain('virement-interne.ts')
   })
 
-  it('J39 (décision de Hugo du 06/11/2026) : barème opération par opération ; l’assiette et la présentation au juge, tranchées par J55 (17/11/2026), quittent le 🔴', () => {
-    expect(texte).toContain('Décisions de Hugo du 06/11/2026')
+  it('J39 (décision du 06/11/2026) : barème opération par opération ; l’assiette et la présentation au juge, tranchées par J55 (17/11/2026), quittent le 🔴', () => {
+    expect(texte).toContain('Décisions du 06/11/2026')
     const j39 = item('J39 :')
     expect(j39).toMatch(/opération par opération/)
     expect(j39).toMatch(/arrêté du 8 octobre 2015, art\. 11/)
@@ -927,7 +927,7 @@ describe('en-tête : sources, marqueurs et questions', () => {
     expect(nonEtabli).not.toMatch(/une seule fois au "montant total"/)
     expect(nonEtabli).not.toMatch(/Sur quelle assiette/)
     expect(nonEtabli).not.toMatch(/compte provisoire détaillé des émoluments/)
-    const j55 = texte.slice(texte.indexOf('Décisions de Hugo du 17/11/2026'), texte.indexOf('Règles :'))
+    const j55 = texte.slice(texte.indexOf('Décisions du 17/11/2026'), texte.indexOf('Règles :'))
     expect(j55).toMatch(/compte provisoire détaillé des émoluments/)
     expect(j55).toMatch(/assietteDroitProportionnelTravaux/)
   })
@@ -1352,7 +1352,7 @@ describe('J67, R81 — part du fonds affectée par la décision de l’administr
   })
 })
 
-describe('J67 (décisions de Hugo du 17/11/2026) — en-tête de travaux-budget.ts', () => {
+describe('J67 (décisions du 17/11/2026) — en-tête de travaux-budget.ts', () => {
   const { texte } = enTeteDuModule('travaux-budget')
   const nonEtabli = texte.slice(texte.indexOf('🔴 Non établi'))
 
@@ -1367,12 +1367,12 @@ describe('J67 (décisions de Hugo du 17/11/2026) — en-tête de travaux-budget.
     expect(nonEtabli).not.toContain("« Quelle rémunération pour l'administrateur provisoire de l'art. 47 ? »")
     // J73 : R1 l'emporte sur R12 ; la question « fixé par le juge » est retirée
     expect(nonEtabli).not.toContain("Faut-il ranger l'administrateur provisoire de l'art. 47")
-    expect(nonEtabli).not.toMatch(/en attendant Hugo/)
-    const j67 = texte.slice(texte.indexOf('Décisions de Hugo du 17/11/2026 (registre des décisions juridiques, J67'), texte.indexOf('Règles :'))
+    expect(nonEtabli).not.toMatch(/en attendant le référent métier/)
+    const j67 = texte.slice(texte.indexOf('Décisions du 17/11/2026 (registre des décisions juridiques, J67'), texte.indexOf('Règles :'))
     for (const r of ['R12', 'R13', 'R58', 'R59', 'R60', 'R81']) expect(j67).toContain(`J67, ${r}`)
     expect(j67).toMatch(/J67, R1 \(lot des honoraires.*\) : .*fixée par le président du tribunal judiciaire qui l'a désigné.*C\. com\. R\. 814-27/)
     expect(j67).not.toMatch(/garde le cadre « non établi »|il reste « à confirmer », arreteParLeJuge faux/)
-    const j73 = texte.slice(texte.indexOf('Décision de Hugo du 18/11/2026 (registre des décisions juridiques, J73'), texte.indexOf('Règles :'))
+    const j73 = texte.slice(texte.indexOf('Décision du 18/11/2026 (registre des décisions juridiques, J73'), texte.indexOf('Règles :'))
     expect(j73).toMatch(/R1 l'emporte sur R12/)
     expect(j73).toMatch(/CADRE_AP47.*fixe_par_le_president.*arreteParLeJuge vrai/)
     expect(j73).toMatch(/C\. com\. R\. 814-27.*CPC art\. 714 à 718/)

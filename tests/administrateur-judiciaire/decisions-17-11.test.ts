@@ -42,7 +42,7 @@ import { chaineLe, lreLe } from './donnees-delai-contestation'
 import { enTeteDuModule } from './en-tete-module'
 
 /**
- * Décisions de Hugo du 17/11/2026 (DECISIONS-HUGO-2026-11-17.md ; numéros de registre proposés) :
+ * Décisions du 17/11/2026 (notes de décision du 17/11/2026 ; numéros de registre proposés) :
  * - J52 (Q1, suite de J50) : demande de voie postale, refus ou retrait de la voie électronique reçu AVANT le 25/12/2025 :
  *   effet dès sa réception (ancienne règle), même pour un envoi électronique postérieur au 25/12/2025, qui ne vaut pas
  *   notification ; le délai de contestation ne court pas pour ce copropriétaire ;
@@ -138,7 +138,7 @@ describe('J52 — demande, refus ou retrait reçu avant le 25/12/2025 : effet d�
     // motif corrigé (correction R17 du registre) : J52 cité, sans prénom dans le texte affiché
     expect(voie.fondement).toContain('; J52 ;')
     expect(voie.fondement).toContain('effet retenu à sa réception, choix prudent, plus strict que le texte')
-    expect(voie.fondement).not.toContain('Hugo')
+    expect(voie.fondement).not.toMatch(/[Rr]éférent métier/)
     // demande reçue depuis le 25/12/2025 : fondement inchangé
     expect(voieDeNotification({ identiteId: 'id-1', demandes: [demandePostale(d(2026, 10, 1))], date: d(2026, 10, 29) }).fondement).toBe(
       'L. 1965 art. 42-1 ; D. 1967 art. 64-1, 64-4',
@@ -158,7 +158,7 @@ describe('J52 — demande, refus ou retrait reçu avant le 25/12/2025 : effet d�
     expect(resultat).toMatchObject({ etat: 'refuse', cause: 'voie_postale_demandee' })
     expect(motifDe(resultat)).toContain('Voie postale demandée par ce copropriétaire : demande reçue le 20/12/2025, avant le 25/12/2025 (')
     expect(motifDe(resultat)).toContain('décision du 17/11/2026, J52')
-    expect(motifDe(resultat)).not.toMatch(/à confirmer|question à Hugo/)
+    expect(motifDe(resultat)).not.toMatch(/à confirmer|question au référent métier/)
   })
 
   it('bornes : reçue le 24/12/2025, LRE du 25/12/2025 refusée ; reçue le 25/12/2025, LRE du 27/12/2025 calculée sans avertissement (règle actuelle)', () => {
@@ -178,7 +178,7 @@ describe('J52 — demande, refus ou retrait reçu avant le 25/12/2025 : effet d�
     }
   })
 
-  // décision de Hugo du 18/11/2026 (J74) : l'accord donné après un refus prend effet le lendemain du huitième jour suivant
+  // décision du 18/11/2026 (J74) : l'accord donné après un refus prend effet le lendemain du huitième jour suivant
   // sa réception (avant : dès sa réception, ce que ce test figeait)
   it('J74 : un refus d’avant le 25/12/2025 suivi d’un accord n’est plus une demande qu’à l’effet de l’accord (réception + 9 jours)', () => {
     const consentements = [consent('refus', d(2025, 12, 20)), consent('accord', d(2025, 12, 26))]
@@ -205,7 +205,7 @@ describe('J52 — demande, refus ou retrait reçu avant le 25/12/2025 : effet d�
   it('en-têtes : la fenêtre du 16 au 24/12/2025 n’est plus une question ; J52 citée', () => {
     for (const fichier of ['voie-notification', 'statut-assemblee']) {
       const { texte } = enTeteDuModule(fichier)
-      expect(texte, fichier).toContain('Décisions de Hugo du 17/11/2026')
+      expect(texte, fichier).toContain('Décisions du 17/11/2026')
       expect(texte, fichier).toContain('J52')
       expect(texte, fichier).not.toMatch(/reçu du 16 au 24\/12\/2025[^.;]*avertissement « à confirmer »/)
       expect(texte, fichier).not.toContain('variante plus prudente')
@@ -426,7 +426,7 @@ describe('J55 — droit proportionnel de l’administrateur provisoire : assiett
 
   it('en-tête : J55 citée ; l’assiette et la présentation au juge ne sont plus des questions ouvertes', () => {
     const { texte } = enTeteDuModule('travaux-budget')
-    expect(texte).toContain('Décisions de Hugo du 17/11/2026')
+    expect(texte).toContain('Décisions du 17/11/2026')
     expect(texte).toContain('J55')
     const nonEtabli = texte.slice(texte.indexOf('🔴 Non établi'))
     expect(nonEtabli).not.toMatch(/Sur quelle assiette/)
@@ -552,7 +552,7 @@ describe('J56 — N° de l’OS attribué au premier envoi : <mandat>.<AAAAMMJJ>
 
   it('en-tête : J56 citée ; segment plan, moment d’attribution, zéros et liste Signature ne sont plus des questions ouvertes', () => {
     const { texte } = enTeteDuModule('envoi-ordre-service')
-    expect(texte).toContain('Décisions de Hugo du 17/11/2026')
+    expect(texte).toContain('Décisions du 17/11/2026')
     expect(texte).toContain('J56')
     expect(texte).toContain('signatairesHabilites')
     const questions = texte.slice(texte.indexOf('🔴 Non établi'))

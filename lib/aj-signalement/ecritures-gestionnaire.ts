@@ -2,7 +2,7 @@
 //
 // Module pur, sans dépendance serveur : appliqué par POST /coproprietes et PATCH /coproprietes/[id] quand l'auteur est un
 // gestionnaire (fiche active relue par le serveur, portée calculée par porteeGestionnaireQr).
-//   - RG-22 et Q4 (Hugo, 10/11/2026) : une adresse qu'il AJOUTE aux destinataires appartient à un domaine e-mail de SON
+//   - RG-22 et Q4 (10/11/2026) : une adresse qu'il AJOUTE aux destinataires appartient à un domaine e-mail de SON
 //     cabinet (liste vide : aucun ajout possible) et n'est jamais l'adresse d'une fiche, la sienne comprise (RG-06 bis-1 :
 //     un gestionnaire reçoit par son attribution, qui s'arrête quand il la perd, jamais par une saisie qui survivrait à
 //     son départ ; une sous-adresse « + » de la boîte d'une fiche est l'adresse de la fiche, relecture 2 du lot 6, comme

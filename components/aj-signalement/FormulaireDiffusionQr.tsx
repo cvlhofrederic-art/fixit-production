@@ -3,7 +3,7 @@
 // ── AJ Signalement — formulaire « Diffuser un message » et message d'annonce (PR 3, lot 8, BROUILLON) ───────────────
 //
 // Cahier PR 3 § 7.2 (dans l'ordre : rappel du mois, modèle, objet, texte, à qui, nombre exact, instruction écrite,
-// phrase du droit § 5.6, « Vérifier et envoyer », confirmation, envoi) et § 7.6 (accessibilité) ; décisions de Hugo du
+// phrase du droit § 5.6, « Vérifier et envoyer », confirmation, envoi) et § 7.6 (accessibilité) ; décisions du
 // 11/11/2026 : messages d'exploitation seulement, aucun plafond (rappel du mois), H1 = C (message d'annonce au texte
 // figé), H3 (modèles, dont « Ascenseur à l'arrêt »), H7 (fin de mission rappelée), H11 (le gestionnaire diffuse sans
 // instruction écrite : c'est le cabinet). Écran en BROUILLON, soumis à Frédéric (F1).

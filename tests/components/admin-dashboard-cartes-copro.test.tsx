@@ -6,7 +6,7 @@
 // Idem pour le sous-rôle Locataire et l'accès complet de la carte « Syndic / Cabinet », qui ouvre le
 // Syndic v54 français (/fr/syndic/v54 ; /syndic/dashboard redirigeait vers la version PT).
 // Les cartes Artisan / BTP gardent la « vue en tant que » (ces dashboards ont besoin du rôle).
-// La carte « AJ Signalement » (11/11/2026, demande de Hugo : « je ne vois pas aj signalements sur mon dashboard
+// La carte « AJ Signalement » (11/11/2026, demande du référent métier : « je ne vois pas aj signalements sur mon dashboard
 // admin ») ouvre l'espace indépendant /fr/aj-signalement/ de la même façon, juste après la carte Administrateur
 // judiciaire.
 
