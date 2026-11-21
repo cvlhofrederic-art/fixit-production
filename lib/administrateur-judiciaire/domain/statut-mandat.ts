@@ -472,7 +472,7 @@ export function proposerPassageEnCloture(entree: EntreeFinMission, aujourdhui: s
   ]
   const echus = faits.filter((fait): fait is [MotifFinMission, string] => fait[1] !== null && fait[1] <= aujourdhui)
   if (echus.length === 0) return null
-  const [motif, finMissionLe] = echus.reduce((a, b) => (b[1] < a[1] ? b : a))
+  const [motif, finMissionLe] = echus.slice(1).reduce((a, b) => (b[1] < a[1] ? b : a), echus[0])
   return {
     statutPropose: 'En clôture',
     motif,
