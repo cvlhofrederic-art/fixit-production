@@ -1,9 +1,10 @@
 // ── Bâtiments d'une copropriété proposés au déclarant : règles pures ─────────
 //
-// Demande de Hugo du 17/11/2026 : « dans le formulaire de signalement du copropriétaire, fais un champ de remplissage par
-// choix avec les bâtiments qui sont prédéfinis par nous ». Constat : Parc Bel Ombre a ses bâtiments saisis dans sa fiche
-// (colonne signalements_qr_coproprietes.batiments : Titan, Planier, Cicies, Faraman, commerces), mais le champ
-// « Bâtiment » du formulaire public était un texte libre et un déclarant a pu saisir « A ».
+// Demande du 17/11/2026 : « dans le formulaire de signalement du copropriétaire, fais un champ de remplissage par
+// choix avec les bâtiments qui sont prédéfinis par nous ». Constat : une copropriété avait ses bâtiments saisis dans sa
+// fiche (colonne signalements_qr_coproprietes.batiments ; par exemple, pour « Résidence Exemple » : Bâtiment A,
+// Bâtiment B, Les Pins, commerces), mais le champ « Bâtiment » du formulaire public était un texte libre et un
+// déclarant a pu saisir « A ».
 // Quand le cabinet a saisi au moins un bâtiment, le formulaire propose une liste à choix dans l'ordre saisi et la route
 // du dépôt refuse un bâtiment absent de la liste ; sans bâtiment saisi, rien ne change (texte libre).
 // Module sans dépendance, partagé par les pages publiques (serveur), le formulaire (navigateur), le schéma Zod du dépôt
@@ -16,8 +17,8 @@
 //     espaces en trop ; null s'il n'y en a pas.
 // Volontairement plus strict que normaliserBatimentQr (semblables.ts), qui assimile « Bât. B » à « B » pour retrouver
 // des signalements saisis librement : ici la personne CHOISIT dans la liste ; seul un écart de casse ou d'espaces
-// (POST direct, liste modifiée par le cabinet pendant la saisie) est toléré. Les accents comptent (« Ciciès » n'est pas
-// « Cicies ») ; une même lettre accentuée écrite en un ou deux caractères (NFC / NFD) est la même.
+// (POST direct, liste modifiée par le cabinet pendant la saisie) est toléré. Les accents comptent (« Batiment A » n'est
+// pas « Bâtiment A ») ; une même lettre accentuée écrite en un ou deux caractères (NFC / NFD) est la même.
 
 /** Longueur maximale d'un bâtiment : celle du champ du formulaire et de signalementQrSchema. */
 export const BATIMENT_MAX_QR = 50

@@ -49,7 +49,7 @@
 // Logo du cabinet (demande de Hugo du 13/11/2026) : l'accusé (envoi unitaire) le porte en pièce jointe EN LIGNE ; les
 // e-mails aux destinataires (un lot, que Resend ne laisse porter aucune pièce jointe) restent sans logo, jamais avec une
 // image distante. Copropriété sans cabinet, cabinet sans logo, migration 20261114 absente ou erreur : accusé d'avant.
-// Bâtiments saisis par le cabinet (demande de Hugo du 17/11/2026 ; un déclarant de Parc Bel Ombre avait saisi « A ») : lus
+// Bâtiments saisis par le cabinet (demande du 17/11/2026 ; un déclarant avait saisi « A » dans le texte libre) : lus
 // avec la copropriété du jeton (même requête) ; quand la liste n'est pas vide, un bâtiment absent de la liste est refusé
 // (400 batiment_inconnu, message de la page dans sa langue, ni la liste ni la saisie, rien d'écrit ni d'envoyé), la
 // comparaison ignore la casse et les espaces en trop, et le nom enregistré (puis envoyé) est celui saisi par le cabinet
