@@ -256,25 +256,27 @@ describe('formes juridiques portugaises', () => {
       insurance_type: 'rc_pro', insurance_coverage: 'Portugal',
     }
     const SANS_ASSURANCE = { insuranceName: '', insuranceNumber: '', insuranceType: 'rc_pro' }
+    const DE_LA_FICHE = { insuranceName: 'Seguradora Exemplo', insuranceNumber: 'RC-2026-000123', insuranceType: 'rc_pro', insuranceCoverage: 'Portugal' }
 
-    it('société portugaise, document sans assureur : celui de la fiche, avec sa couverture', () => {
-      const deLaFiche = { insuranceName: 'Seguradora Exemplo', insuranceNumber: 'RC-2026-000123', insuranceType: 'rc_pro', insuranceCoverage: 'Portugal' }
-      for (const sansAssureur of [{}, { insuranceName: '', insuranceNumber: '' }, { insuranceName: ' ', insuranceNumber: null, insuranceCoverage: 'France metropolitaine' }]) {
-        expect(assuranceDocumentBtp(sansAssureur, FICHE)).toEqual(deLaFiche)
-      }
+    it('société portugaise, document sans nom d\'assureur : nom et numéro de la fiche, avec sa couverture', () => {
+      // Un numéro de police seul n'est jamais imprimé : il cède la place à l'assureur de la fiche
+      const sansNom = [{}, { insuranceName: '', insuranceNumber: '' }, { insuranceName: ' ', insuranceNumber: null, insuranceCoverage: 'France metropolitaine' }, { insuranceNumber: 'AP-0000-0001' }]
+      for (const sansAssureur of sansNom) expect(assuranceDocumentBtp(sansAssureur, FICHE)).toEqual(DE_LA_FICHE)
+      expect(assuranceDocumentBtp({}, { ...FICHE, insurance_name: '  Seguradora Exemplo ', insurance_number: ' RC-2026-000123 ' })).toEqual(DE_LA_FICHE)
+      expect(assuranceDocumentBtp({}, { ...FICHE, insurance_number: null })).toEqual({ ...DE_LA_FICHE, insuranceNumber: '' })
     })
 
-    it('société portugaise, document sans assureur : type du document d\'abord, puis celui de la fiche', () => {
-      expect(assuranceDocumentBtp({ insuranceType: 'both' }, FICHE).insuranceType).toBe('both')
-      expect(assuranceDocumentBtp({}, { ...FICHE, insurance_type: 'decennale' }).insuranceType).toBe('decennale')
+    it('société portugaise, document sans nom d\'assureur : type du document d\'abord, puis celui de la fiche', () => {
+      expect(assuranceDocumentBtp({ insuranceType: 'decennale' }, { ...FICHE, insurance_type: 'both' }).insuranceType).toBe('decennale')
+      for (const type of ['decennale', 'both']) expect(assuranceDocumentBtp({}, { ...FICHE, insurance_type: type }).insuranceType).toBe(type)
       expect(assuranceDocumentBtp({}, { ...FICHE, insurance_type: 'inconnu' }).insuranceType).toBe('rc_pro')
     })
 
-    it('société portugaise, document avec un nom ou un numéro : le sien, sans mélange avec la fiche', () => {
+    it('société portugaise, document avec un nom d\'assureur : le sien, numéro compris, jamais celui de la fiche', () => {
       expect(assuranceDocumentBtp({ insuranceName: 'Outra Seguradora', insuranceCoverage: 'Portugal e Espanha' }, FICHE))
         .toEqual({ ...SANS_ASSURANCE, insuranceName: 'Outra Seguradora', insuranceCoverage: 'Portugal e Espanha' })
-      expect(assuranceDocumentBtp({ insuranceNumber: 'AP-0000-0001' }, FICHE))
-        .toEqual({ ...SANS_ASSURANCE, insuranceNumber: 'AP-0000-0001', insuranceCoverage: 'Portugal' })
+      expect(assuranceDocumentBtp({ insuranceName: 'Outra Seguradora', insuranceNumber: 'AP-0000-0001' }, FICHE))
+        .toEqual({ ...SANS_ASSURANCE, insuranceName: 'Outra Seguradora', insuranceNumber: 'AP-0000-0001', insuranceCoverage: 'Portugal' })
     })
 
     it('société portugaise : couverture du document, sinon de la fiche, sinon « Portugal continental »', () => {
@@ -283,8 +285,8 @@ describe('formes juridiques portugaises', () => {
       expect(assuranceDocumentBtp({}, { legal_form: LDA, insurance_coverage: 'Portugal' }).insuranceCoverage).toBe('Portugal')
     })
 
-    it('société portugaise sans assureur en fiche : document sans assurance, comme avant', () => {
-      expect(assuranceDocumentBtp({}, { legal_form: LDA, insurance_name: ' ', insurance_number: '' }))
+    it('société portugaise sans nom d\'assureur en fiche : document tel quel, couverture portugaise', () => {
+      expect(assuranceDocumentBtp({}, { legal_form: LDA, insurance_name: ' ', insurance_number: 'RC-2026-000123' }))
         .toEqual({ ...SANS_ASSURANCE, insuranceCoverage: 'Portugal continental' })
     })
 

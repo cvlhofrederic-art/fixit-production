@@ -8,13 +8,18 @@ const recu = vi.hoisted(() => ({
   fiche: {} as Record<string, unknown>,
 }))
 
-vi.mock('@/lib/supabase', () => {
+vi.mock('@/lib/supabase', async () => {
+  const { COLONNES_PROFILES_ARTISAN_PRODUCTION } = await import('../helpers/colonnes-profiles-artisan')
+  const colonnesProduction = new Set(COLONNES_PROFILES_ARTISAN_PRODUCTION)
   const chaine: Record<string, unknown> = {}
   let colonnes: string[] = []
-  // Comme PostgREST : seules les colonnes demandées par le select reviennent
+  // Comme PostgREST : seules les colonnes demandées par le select reviennent, et une colonne absente de la production
+  // fait échouer tout le select (42703) : la fiche reste vide (IBAN, identité légale et assurance perdus)
   chaine.select = (liste: string) => { colonnes = liste.split(',').map((c) => c.trim()); return chaine }
   chaine.eq = () => chaine
   chaine.single = async () => {
+    const absente = colonnes.find((c) => !colonnesProduction.has(c))
+    if (absente) return { data: null, error: { code: '42703', message: `column profiles_artisan.${absente} does not exist` } }
     const fiche: Record<string, unknown> = { paiement_modes: [], categories: null, type_activite: null, logo_url: null, ...recu.fiche }
     return { data: Object.fromEntries(Object.entries(fiche).filter(([cle]) => colonnes.includes(cle))), error: null }
   }
@@ -152,13 +157,13 @@ describe('downloadSavedDevis (BTP) — anciens documents d\'une société portug
   // Demande de Frédéric du 21/11/2026 : l'assureur de la fiche, comme le formulaire à l'ouverture du document
   const FICHE_ASSUREE = {
     legal_form: 'Sociedade por Quotas (Lda.)', insurance_name: 'Seguradora Exemplo', insurance_number: 'RC-2026-000123',
-    insurance_type: 'rc_pro', insurance_coverage: 'Portugal',
+    insurance_type: 'both', insurance_coverage: 'Portugal',
   }
 
-  it('document sans assureur : celui de la fiche et sa couverture, depuis la liste comme dans le ZIP', async () => {
+  it('document sans assureur : celui de la fiche, son type et sa couverture, depuis la liste comme dans le ZIP', async () => {
     recu.fiche = FICHE_ASSUREE
     const sansAssureur = document({ companyStatus: 'Entreprise Individuelle (EI)', insuranceName: '', insuranceNumber: '', insuranceCoverage: 'France metropolitaine' })
-    const attendu = { companyStatus: 'lda', insuranceName: 'Seguradora Exemplo', insuranceNumber: 'RC-2026-000123', insuranceType: 'rc_pro', insuranceCoverage: 'Portugal' }
+    const attendu = { companyStatus: 'lda', insuranceName: 'Seguradora Exemplo', insuranceNumber: 'RC-2026-000123', insuranceType: 'both', insuranceCoverage: 'Portugal' }
     expect(await telecharger(sansAssureur, 'pt')).toMatchObject(attendu)
     expect(await telecharger(document({ companyStatus: 'Entreprise Individuelle (EI)' }))).toMatchObject(attendu)
     const { produireFichierDocument } = await import('@/lib/pdf/download-saved-devis')
@@ -166,7 +171,7 @@ describe('downloadSavedDevis (BTP) — anciens documents d\'une société portug
     expect(recu.entrees.at(-1)).toMatchObject(attendu)
   })
 
-  it('document avec son assureur : le sien, jamais mélangé avec celui de la fiche', async () => {
+  it('document avec son assureur : nom et numéro du document, couverture de la fiche à défaut', async () => {
     recu.fiche = { ...FICHE_ASSUREE, insurance_name: 'Outra Seguradora', insurance_number: 'AP-0000-0001' }
     const e = await telecharger(document({ ...ANCIEN, insuranceCoverage: 'France metropolitaine' }), 'pt')
     expect(e).toMatchObject({ insuranceName: 'Seguradora Exemplo', insuranceNumber: 'RC-2026-000123', insuranceCoverage: 'Portugal' })

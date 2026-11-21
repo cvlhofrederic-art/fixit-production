@@ -189,10 +189,12 @@ function typeAssuranceBtp(type: string | null | undefined): TypeAssuranceBtp | u
 /**
  * Assurance d'un document BTP enregistré, au téléchargement depuis la liste et dans le ZIP. Une société française
  * lit exactement celle du document, comme avant. Une société portugaise lit celle que le formulaire affiche à
- * l'ouverture (demande de Frédéric du 21/11/2026). Un document enregistré sans assureur (ni nom ni numéro de police),
- * comme ses orçamentos émis avant que la fiche ne soit complétée, reprend l'assureur de la fiche. Un document qui a
- * un nom ou un numéro garde le sien, sans mélange avec la fiche. La couverture est celle du document, sinon celle de
- * la fiche, sinon « Portugal continental » ; « France métropolitaine », défaut de la colonne, n'est jamais la sienne.
+ * l'ouverture (demande de Frédéric du 21/11/2026). Un document enregistré sans nom d'assureur, comme ses orçamentos
+ * émis avant que la fiche ne soit complétée, reprend l'assureur de la fiche, nom et numéro de police (sans nom, les
+ * modèles n'impriment aucune mention). Un document qui a un nom d'assureur garde le sien, numéro compris. Écart
+ * voulu avec le formulaire, qui complète chaque champ séparément : le nom d'un assureur n'est jamais imprimé avec le
+ * numéro de police d'un autre. La couverture est celle du document, sinon celle de la fiche, sinon « Portugal
+ * continental » ; « France métropolitaine », défaut de la colonne, n'est jamais la sienne.
  */
 export function assuranceDocumentBtp(
   document: { insuranceName?: string | null; insuranceNumber?: string | null; insuranceType?: TypeAssuranceBtp | null; insuranceCoverage?: string | null },
@@ -208,12 +210,10 @@ export function assuranceDocumentBtp(
   const insuranceCoverage = duDocument.insuranceCoverage
     || couvertureAssuranceBtp(fiche.insurance_coverage, fiche.legal_form) || 'Portugal continental'
   const nomFiche = String(fiche.insurance_name || '').trim()
-  const numeroFiche = String(fiche.insurance_number || '').trim()
-  const avecAssureur = String(duDocument.insuranceName).trim() !== '' || String(duDocument.insuranceNumber).trim() !== ''
-  if (avecAssureur || (!nomFiche && !numeroFiche)) return { ...duDocument, insuranceCoverage }
+  if (String(duDocument.insuranceName).trim() !== '' || !nomFiche) return { ...duDocument, insuranceCoverage }
   return {
     insuranceName: nomFiche,
-    insuranceNumber: numeroFiche,
+    insuranceNumber: String(fiche.insurance_number || '').trim(),
     insuranceType: document.insuranceType || typeAssuranceBtp(fiche.insurance_type) || 'rc_pro',
     insuranceCoverage,
   }
