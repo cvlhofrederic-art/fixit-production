@@ -5,7 +5,8 @@
 // Le nom et la raison sociale viennent de la fiche, que son titulaire modifie dans « Mon profil » ; le motif de rejet
 // est saisi par l'administrateur. Ces valeurs étaient insérées telles quelles dans le HTML de l'e-mail : une balise
 // qu'elles contenaient y était interprétée. Contrat vérifié ici, pour tous les dossiers (français et portugais) : dans
-// le corps HTML, ces valeurs sont échappées ; l'objet de l'e-mail, en texte brut, les garde telles quelles.
+// le corps HTML, ces valeurs sont échappées ; l'objet de l'e-mail, en texte brut, les garde telles quelles. En fin de
+// fichier : la langue de l'e-mail selon le marché KYC du dossier.
 
 import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest'
 import { NextRequest } from 'next/server'
@@ -81,5 +82,35 @@ describe('E-mail de décision KYC : valeurs échappées dans le HTML', () => {
 
     expect(message.html).toContain('<h2>Félicitations Paul Exemple !</h2>')
     expect(message.html).toContain('<strong>Bâtiment Exemple</strong>')
+  })
+})
+
+// Langue selon le marché KYC du dossier : pt_btp (société BTP inscrite en portugais, 22/11/2026) reçoit le modèle
+// portugais de l'artisan portugais ; les sociétés françaises et les artisans gardent le leur.
+describe('E-mail de décision KYC : langue selon le marché', () => {
+  const SOCIETE_PT = 'Construções Exemplo, Lda'
+
+  it.each([
+    ['pt_btp', 'approve', `Conta verificada — ${SOCIETE_PT}`],
+    ['pt_btp', 'reject', `Registo não validado — ${SOCIETE_PT}`],
+    ['pt_artisan', 'approve', `Conta verificada — ${SOCIETE_PT}`],
+    ['fr_btp', 'approve', `Votre compte ${SOCIETE_PT} est activé sur Vitfix`],
+    ['fr_artisan', 'reject', `Inscription non validée — ${SOCIETE_PT}`],
+  ])('marché %s, décision %s : objet « %s »', async (market, action, objet) => {
+    const message = await envoyer({
+      to: 'geral@exemplo.pt', name: SOCIETE_PT, company: SOCIETE_PT, action, rejection_reason: 'Certidão caducada', market,
+    })
+
+    expect(message.subject).toBe(objet)
+  })
+
+  it('société BTP portugaise : corps de l’e-mail en portugais, motif compris', async () => {
+    const message = await envoyer({
+      to: 'geral@exemplo.pt', name: SOCIETE_PT, company: SOCIETE_PT, action: 'reject', rejection_reason: 'Certidão caducada', market: 'pt_btp',
+    })
+
+    expect(message.html).toContain('<h2>Olá Construções Exemplo, Lda,</h2>')
+    expect(message.html).toContain('<strong>Motivo:</strong> Certidão caducada')
+    expect(message.html).not.toMatch(/Bonjour|Motif/)
   })
 })

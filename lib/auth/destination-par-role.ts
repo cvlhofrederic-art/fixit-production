@@ -9,6 +9,7 @@
 //   pro_societe | pro_conciergerie | pro_gestionnaire → /{locale}/pro/dashboard
 //   tout rôle commençant par « syndic »               → /{locale}/syndic/dashboard
 //   gestionnaire_signalement                          → /fr/aj-signalement/ (toute langue)
+//   secretariat                                       → /admin/crm/ (CRM du secrétariat, route interne sans langue)
 //   tout autre rôle, absent ou inconnu                → /{locale}/client/dashboard
 //     (y compris super_admin, coproprio, locataire, client, particulier)
 //
@@ -27,6 +28,11 @@ const ROLES_PRO: readonly string[] = ['pro_societe', 'pro_conciergerie', 'pro_ge
 const ROLE_GESTIONNAIRE_SIGNALEMENT = 'gestionnaire_signalement'
 const ESPACE_AJ_SIGNALEMENT = '/fr/aj-signalement/'
 
+// CRM du secrétariat (22/11/2026) : valeurs de lib/crm/types.ts (ROLE_SECRETARIAT, CHEMIN_CRM), recopiées pour garder le
+// module sans dépendance ; tests/auth/destination-par-role.test.ts vérifie qu'elles sont identiques.
+const ROLE_SECRETARIAT = 'secretariat'
+const ECRAN_CRM = '/admin/crm/'
+
 export interface OptionsDestination {
   /** Connexion faite dans l'appli Vitfix Pro (et non dans un navigateur). */
   appMobile?: boolean
@@ -39,5 +45,6 @@ export function destinationApresConnexion(role: unknown, locale: string, options
   if (roleTexte !== undefined && ROLES_PRO.includes(roleTexte)) return `/${locale}/pro/dashboard`
   if (roleTexte !== undefined && roleTexte.startsWith('syndic')) return `/${locale}/syndic/dashboard`
   if (roleTexte === ROLE_GESTIONNAIRE_SIGNALEMENT) return ESPACE_AJ_SIGNALEMENT
+  if (roleTexte === ROLE_SECRETARIAT) return ECRAN_CRM
   return `/${locale}/client/dashboard`
 }

@@ -946,7 +946,10 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
           const localeCookie = document.cookie.match(/(?:^|;\s*)locale=(\w+)/)?.[1]
           const btpCountry = localeCookie === 'pt' ? 'PT' : 'FR'
           const btpLanguage = btpCountry === 'PT' ? 'pt' : 'fr'
-          const btpMarket = orgType === 'societe_btp' ? 'fr_btp' : 'fr_artisan'
+          // Marché KYC de la société : il suit isPt, comme la vérification NIF / SIRET de l'étape 1. Avec fr_btp, le
+          // NIPC d'une société inscrite en portugais était contrôlé comme un SIRET et rejeté d'office (score 0).
+          const marcheSociete = isPt ? 'pt_btp' : 'fr_btp'
+          const btpMarket = orgType === 'societe_btp' ? marcheSociete : 'fr_artisan'
           const profileRes = await fetch('/api/auth/create-profile', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

@@ -1,6 +1,7 @@
 // KYC anti-fraud scoring engine — purely functional, no I/O, no network calls
 
-export type KycMarket = 'fr_artisan' | 'fr_btp' | 'pt_artisan'
+// pt_btp : société BTP inscrite en portugais (NIPC, VIES, certidão permanente), depuis le 22/11/2026.
+export type KycMarket = 'fr_artisan' | 'fr_btp' | 'pt_artisan' | 'pt_btp'
 
 export interface KycChecks {
   // Identifiant fiscal
@@ -87,6 +88,8 @@ interface MarketWeights {
   docOcrSuccess: number
   identifiantMatchDocVsApi: number
   nameMatchDocVsApiMax: number
+  /** Correspondance de la dénomination comptée à partir de ce taux seulement (0 si absent : dès le premier point). */
+  nameMatchDocVsApiMin?: number
   nameMatchDocVsIdMax: number
 }
 
@@ -115,6 +118,19 @@ const WEIGHTS: Record<KycMarket, MarketWeights> = {
     nameMatchDocVsApiMax: 20,
     nameMatchDocVsIdMax: 15,
   },
+  // Société BTP portugaise. Aucune comparaison automatique avec la pièce d'identité : la fiche d'une société n'a pas
+  // le nom de son gérant (ni first_name ni last_name en production). Une approbation automatique (80) exige, comme
+  // pour une société française, le registre (VIES), la certidão lue, son NIPC (celui de la matrícula) et une firma
+  // ressemblant au nom du registre à 64 % au moins : sans l'un d'eux, le score reste à 75 au plus.
+  pt_btp: {
+    identifiantFormatValid: 10,
+    identifiantActiveInRegistry: 30,
+    docOcrSuccess: 10,
+    identifiantMatchDocVsApi: 25,
+    nameMatchDocVsApiMax: 25,
+    nameMatchDocVsApiMin: 64,
+    nameMatchDocVsIdMax: 0,
+  },
 }
 
 export function computeKycScore(checks: KycChecks, market: KycMarket): number {
@@ -128,7 +144,8 @@ export function computeKycScore(checks: KycChecks, market: KycMarket): number {
   if (checks.identifiantActiveInRegistry) score += w.identifiantActiveInRegistry
   if (checks.docOcrSuccess) score += w.docOcrSuccess
   if (checks.identifiantMatchDocVsApi) score += w.identifiantMatchDocVsApi
-  score += Math.round((checks.nameMatchDocVsApi / 100) * w.nameMatchDocVsApiMax)
+  const denomination = checks.nameMatchDocVsApi >= (w.nameMatchDocVsApiMin ?? 0) ? checks.nameMatchDocVsApi : 0
+  score += Math.round((denomination / 100) * w.nameMatchDocVsApiMax)
   score += Math.round((checks.nameMatchDocVsId / 100) * w.nameMatchDocVsIdMax)
 
   return Math.min(100, Math.max(0, score))
@@ -138,8 +155,12 @@ export function computeKycScore(checks: KycChecks, market: KycMarket): number {
 // Decision
 // ---------------------------------------------------------------------------
 
-export function decideKycStatus(score: number): KycResult['decision'] {
+export function decideKycStatus(score: number, market?: KycMarket): KycResult['decision'] {
   if (score >= 80) return 'approved'
+  // Société BTP portugaise : seul un NIPC invalide (score 0, contrôle bloquant) est rejeté d'office. VIES ignore une
+  // société exonérée de TVA et peut être indisponible, et une certidão en PDF n'est pas lue : le reste va en revue
+  // manuelle, au lieu de sortir la société de la liste « En attente » du panneau d'administration.
+  if (market === 'pt_btp' && score > 0) return 'manual_review'
   if (score < 40) return 'rejected'
   return 'manual_review'
 }
@@ -148,11 +169,38 @@ export function decideKycStatus(score: number): KycResult['decision'] {
 // Human-readable details
 // ---------------------------------------------------------------------------
 
+const LIBELLES_DECISION_PT: Record<KycResult['decision'], string> = {
+  approved: 'aprovado',
+  manual_review: 'revisão manual',
+  rejected: 'rejeitado',
+}
+
+/** Messages du KYC d'une société BTP portugaise (marché pt_btp), en portugais comme ceux de l'artisan portugais. */
+function detailsSocieteBtpPortugaise(checks: KycChecks, score: number): string[] {
+  return [
+    checks.identifiantFormatValid ? 'NIPC válido' : 'NIPC inválido (formato ou dígito de controlo)',
+    checks.identifiantActiveInRegistry
+      ? 'Empresa ativa no VIES (registo de IVA)'
+      : 'Empresa não confirmada no VIES (sem registo de IVA, ou serviço indisponível)',
+    checks.docOcrSuccess
+      ? 'Certidão Permanente lida por OCR'
+      : 'Certidão Permanente não lida (PDF ou imagem ilegível) — revisão manual',
+    checks.identifiantMatchDocVsApi
+      ? 'NIPC da matrícula idêntico ao declarado'
+      : 'NIPC da matrícula diferente do declarado, ou não lido',
+    `Correspondência firma Certidão/registo : ${checks.nameMatchDocVsApi}% (contada a partir de ${WEIGHTS.pt_btp.nameMatchDocVsApiMin}%)`,
+    'Cartão de Cidadão do gerente : verificação manual',
+    `Score KYC : ${score}/100 — ${LIBELLES_DECISION_PT[decideKycStatus(score, 'pt_btp')]}`,
+  ]
+}
+
 export function buildKycDetails(
   checks: KycChecks,
   score: number,
   market: KycMarket,
 ): string[] {
+  if (market === 'pt_btp') return detailsSocieteBtpPortugaise(checks, score)
+
   const details: string[] = []
   const isPt = market === 'pt_artisan'
 
