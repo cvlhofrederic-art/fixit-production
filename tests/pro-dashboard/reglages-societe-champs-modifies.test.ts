@@ -7,11 +7,11 @@
  *   celui de la fiche ;
  * - l'assureur, le numéro de contrat et la couverture enregistrés entre-temps (dépôt d'une attestation dans
  *   Conformité), par les valeurs vides du chargement.
- * Contrat vérifié ici : pour une société française, le champ e-mail montre celui de la fiche, et seuls les champs que
- * la société a changés depuis le chargement (ou depuis son dernier enregistrement) partent vers POST
- * /api/artisan-settings. L'artisan et la société inscrite au Portugal (fiche en portugais, hors de ce correctif)
- * gardent exactement l'envoi d'avant (les 18 champs). Pour tous les comptes, le champ e-mail part de celui de la fiche
- * depuis #713 (celui de connexion seulement si la fiche n'en a pas : tests/pro-dashboard/reglages-email-profil.test.ts).
+ * Contrat vérifié ici : pour une société BTP, française ou inscrite au Portugal (fiche en portugais, mêmes règles depuis
+ * le 22/11/2026), le champ e-mail montre celui de la fiche, et seuls les champs que la société a changés depuis le
+ * chargement (ou depuis son dernier enregistrement) partent vers POST /api/artisan-settings. L'artisan garde exactement
+ * l'envoi d'avant (les 18 champs). Pour tous les comptes, le champ e-mail part de celui de la fiche depuis #713 (celui
+ * de connexion seulement si la fiche n'en a pas : tests/pro-dashboard/reglages-email-profil.test.ts).
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
@@ -161,15 +161,27 @@ describe('Mon profil d’un artisan : envoi inchangé', () => {
   })
 })
 
-describe('Mon profil d’une société inscrite au Portugal : envoi inchangé (Portugal hors de ce correctif)', () => {
-  it('fiche en portugais : e-mail de la fiche affiché, et les 18 champs partent comme avant', async () => {
-    const rendu = monter({ ...FICHE_SOCIETE, language: 'pt', email: 'contacto@exemplo.pt' }, 'pro_societe')
-    expect(rendu.result.current.settingsForm.email).toBe('contacto@exemplo.pt')
-    modifier(rendu, { tva_intra: 'PT000000000' })
+describe('Mon profil d’une société inscrite au Portugal (fiche en portugais) : mêmes règles que la société française', () => {
+  const FICHE_PT: Profil = { ...FICHE_SOCIETE, language: 'pt', company_name: 'Construções Exemplo, Lda', email: 'geral@exemplo.pt' }
+
+  it('le champ e-mail montre celui de la fiche, pas celui de connexion', () => {
+    expect(monter(FICHE_PT, 'pro_societe').result.current.settingsForm.email).toBe('geral@exemplo.pt')
+  })
+
+  // Deux clics sur « Enregistrer ». Avant : les 18 champs partaient à chaque clic, l'e-mail et l'assurance du
+  // chargement compris.
+  it.each<[string, Profil, Profil, Profil]>([
+    ['un champ changé part seul, et une seule fois', FICHE_PT, { tva_intra: 'PT000000000' }, { tva_intra: 'PT000000000' }],
+    ['fiche sans e-mail : celui de connexion part avec le champ changé, au premier clic seulement',
+      { ...FICHE_PT, email: null }, { ape_code: '00000' }, { email: 'connexion@exemple.fr', ape_code: '00000' }],
+  ])('%s', async (_cas, fiche, changement, envoi) => {
+    const rendu = monter(fiche, 'pro_societe')
+    modifier(rendu, changement)
+    await enregistrer(rendu)
     await enregistrer(rendu)
 
-    const [corps] = corpsEnvoyes()
-    expect(Object.keys(corps)).toEqual(CHAMPS_DU_FORMULAIRE)
-    expect(corps).toMatchObject({ email: 'contacto@exemplo.pt', tva_intra: 'PT000000000' })
+    expect(corpsEnvoyes()).toEqual([envoi])
+    expect(rendu.setArtisan).toHaveBeenCalledWith({ ...fiche, ...envoi })
+    expect(mocks.toastSuccess).toHaveBeenCalledTimes(2)
   })
 })
