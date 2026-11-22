@@ -33,6 +33,7 @@ import {
   FRAIS_ANNEXES_CATEGORIES,
   FRAIS_ANNEXES_UNITES,
 } from '@/lib/devis-types'
+import { codeFormeJuridique } from '@/lib/formes-juridiques-portugaises'
 import {
   resolveLineUnit,
   getSelectValue,
@@ -135,8 +136,12 @@ export default function DevisFactureForm({
 
   // ─── State ───
   const [docType, setDocType] = useState<'devis' | 'facture'>(initialData?.docType || initialDocType)
+  // Forme portugaise (« Sociedade por Quotas (Lda.) », « Empresário em Nome Individual »…) reconnue sur /pt
+  // (codeFormeJuridique) : mapLegalFormToCode la rendait en 'ei', sans mention d'identification ni contrôle du
+  // capital. Sur /fr, lecture d'avant. Un document existant garde sa forme.
+  const codeFormeProfil = (forme: string) => (locale === 'pt' ? codeFormeJuridique(forme) : mapLegalFormToCode(forme))
   const [companyStatus, setCompanyStatus] = useState(
-    initialData?.companyStatus || tpl('companyStatus') || (artisan?.legal_form ? mapLegalFormToCode(artisan.legal_form) : 'ei')
+    initialData?.companyStatus || tpl('companyStatus') || (artisan?.legal_form ? codeFormeProfil(artisan.legal_form) : 'ei')
   )
   const [companyName, setCompanyName] = useState(initialData?.companyName || artisan?.company_name || '')
   const [companySiret, setCompanySiret] = useState(initialData?.companySiret || artisan?.siret || '')
@@ -709,13 +714,16 @@ export default function DevisFactureForm({
         // Map and lock legal form
         if (c.legalForm) {
           setOfficialLegalForm(c.legalForm)
-          const code = mapLegalFormToCode(c.legalForm)
-          setCompanyStatus(code)
+          const code = codeFormeProfil(c.legalForm)
+          // Document déjà émis, rouvert : il garde sa forme, comme son téléphone et son e-mail.
+          if (!documentEmisRouvert) setCompanyStatus(code)
 
           // Auto-entrepreneurs et EI : TVA désactivée par défaut
           // (franchise en base, art. 293 B du CGI)
           // Sauf si initialData force explicitement tvaEnabled=true (seuil dépassé)
-          if (isSmallBusinessStatus(code, locale) && !initialData?.tvaEnabled) {
+          // Décision prise sur la forme lue comme avant (mapLegalFormToCode) : la reconnaissance des formes
+          // portugaises ne change pas le régime d'IVA par défaut (un ENI portugais n'est pas exonéré d'office).
+          if (isSmallBusinessStatus(mapLegalFormToCode(c.legalForm), locale) && !initialData?.tvaEnabled) {
             setTvaEnabled(false)
             // Mettre les taux TVA des lignes existantes à 0%
             setLines(prev => prev.map(l => ({ ...l, tvaRate: 0 })))

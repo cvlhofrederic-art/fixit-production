@@ -435,7 +435,7 @@ export function getStatusLabel(code: string, t?: (key: string, fallback?: string
     'unipessoal': 'Unipessoal Lda.',
     'lda': 'Sociedade por Quotas (Lda.)',
     'sa': 'Sociedade Anónima (SA)',
-    // Formes portugaises que seul le BTP produit (codeStatutJuridiqueBtp, lib/statut-juridique-btp.ts)
+    // Autres formes portugaises reconnues (codeFormeJuridique, lib/formes-juridiques-portugaises.ts) : BTP, artisan sur /pt
     'eirl_pt': 'Estabelecimento Individual de Responsabilidade Limitada (EIRL)',
     'snc_pt': 'Sociedade em Nome Coletivo',
     'comandita': 'Sociedade em Comandita',
@@ -466,7 +466,9 @@ export function getCompanyStatuses(locale: Locale): Array<{ value: string; label
 
 /** Check if status is a société-type (needing capital, RCS etc.) */
 export function isSocieteStatus(status: string, locale: Locale): boolean {
-  if (locale === 'pt') return ['lda', 'sa'].includes(status)
+  // Unipessoal Lda. : société par quotas à associé unique, capital social exigé (art. 171.º du Código das Sociedades
+  // Comerciais), comme la mention d'identification qui l'imprime déjà.
+  if (locale === 'pt') return ['lda', 'unipessoal', 'sa'].includes(status)
   return ['sarl', 'eurl', 'sas', 'sa'].includes(status)
 }
 
