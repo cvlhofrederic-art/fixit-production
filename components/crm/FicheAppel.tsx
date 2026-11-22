@@ -134,8 +134,10 @@ export function FicheAppel({
 
   return (
     <form onSubmit={creer} className="space-y-4" noValidate>
-      <h2 className="flex items-center gap-2 text-base font-semibold text-gray-900">
-        <PhoneIncoming className="h-4 w-4" aria-hidden="true" />
+      <h2 className="flex items-center gap-2 font-display text-base font-bold text-dark">
+        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-yellow text-dark" aria-hidden="true">
+          <PhoneIncoming className="h-4 w-4" />
+        </span>
         {t.titre}
       </h2>
 

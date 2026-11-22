@@ -74,7 +74,7 @@ function FicheClient({ contact, textes, onModifie }: Readonly<{ contact: Contact
   const appel = lienAppel(contact.telephone)
 
   return (
-    <section aria-label={t.client} className="rounded-lg border border-gray-200 p-3">
+    <section aria-label={t.client} className="rounded-lg border border-v22-border bg-warm-gray/40 p-3">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="truncate font-medium text-gray-900">{contact.nom || textes.sansNom}</p>
@@ -238,7 +238,7 @@ export function DetailDemande({
           <p className="text-xs text-gray-500">
             {textes.numero} {demande.numero} · {textes.canaux[demande.canal]} · {textes.motifs[demande.motif]} · {formaterDateHeure(demande.created_at, langue)}
           </p>
-          <h2 className="break-words text-base font-semibold text-gray-900">{demande.titre}</h2>
+          <h2 className="break-words font-display text-base font-bold text-dark">{demande.titre}</h2>
         </div>
         <button type="button" onClick={onFermer} className="rounded-md p-1 text-gray-500 hover:bg-gray-100" aria-label={t.fermer} title={t.fermer}>
           <X className="h-5 w-5" aria-hidden="true" />
@@ -293,10 +293,10 @@ export function DetailDemande({
       </div>
 
       <section aria-label={t.historique}>
-        <h3 className="mb-2 text-sm font-semibold text-gray-900">{t.historique}</h3>
+        <h3 className="mb-2 font-display text-sm font-bold text-dark">{t.historique}</h3>
         <ol className="space-y-2">
           {evenements.map((e) => (
-            <li key={e.id} className="border-l-2 border-gray-200 pl-3 text-sm">
+            <li key={e.id} className="border-l-2 border-yellow pl-3 text-sm">
               <p className="whitespace-pre-wrap text-gray-800">{texteEvenement(e, textes)}</p>
               <p className="text-xs text-gray-500">
                 {formaterDateHeure(e.created_at, langue)}

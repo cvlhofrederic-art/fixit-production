@@ -4,8 +4,8 @@
 // - consulter une demande démontait la fiche « Appel en cours » : la saisie de l'appel en cours était perdue.
 // Données fictives ; Supabase et l'API du CRM sont simulés.
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { DemandeCrm } from '@/lib/crm/types'
 
 const h = vi.hoisted(() => ({
@@ -127,6 +127,28 @@ describe('EcranCrm', () => {
     render(<EcranCrm />)
     expect(await screen.findByRole('heading', { name: 'Accès réservé' })).toBeInTheDocument()
     expect(screen.queryByText('Demande A')).not.toBeInTheDocument()
+  })
+
+  it('propose « Installer l’application » dans l’en-tête quand le navigateur sait installer (ordinateur)', async () => {
+    const origine = window.matchMedia
+    window.matchMedia = vi.fn((requete: string) => ({ matches: requete === '(pointer: fine)', media: requete })) as unknown as typeof window.matchMedia
+    onTestFinished(() => {
+      window.matchMedia = origine
+    })
+    await ouvrirEcran()
+    expect(screen.queryByRole('button', { name: 'Installer l’application' })).not.toBeInTheDocument()
+    const evenement = Object.assign(new Event('beforeinstallprompt', { cancelable: true }), {
+      prompt: vi.fn(async () => {}),
+      userChoice: Promise.resolve({ outcome: 'dismissed' as const }),
+    })
+    act(() => {
+      window.dispatchEvent(evenement)
+    })
+    expect(within(screen.getByRole('banner')).getByRole('button', { name: 'Installer l’application' })).toBeInTheDocument()
+    act(() => {
+      window.dispatchEvent(new Event('appinstalled'))
+    })
+    expect(screen.queryByRole('button', { name: 'Installer l’application' })).not.toBeInTheDocument()
   })
 
   it('session expirée (401) : vers la page de connexion dans la langue de l’écran', async () => {

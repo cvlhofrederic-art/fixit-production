@@ -46,15 +46,15 @@ export function ListeDemandes({
   onChoisir: (id: string) => void
 }>) {
   return (
-    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
-      <div role="group" aria-label={textes.detail.statut} className="flex gap-1 overflow-x-auto border-b border-gray-200 px-2 py-2">
+    <div className="overflow-hidden rounded-xl border border-v22-border bg-white">
+      <div role="group" aria-label={textes.detail.statut} className="flex gap-1 overflow-x-auto border-b border-v22-border px-2 py-2">
         {ONGLETS_CRM.map((o) => (
           <button
             key={o}
             type="button"
             aria-pressed={onglet === o}
             onClick={() => onOnglet(o)}
-            className={`whitespace-nowrap rounded-md px-2.5 py-1 text-sm ${onglet === o ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+            className={`whitespace-nowrap rounded-md px-2.5 py-1 text-sm ${onglet === o ? 'bg-yellow font-semibold text-dark' : 'text-gray-600 hover:bg-warm-gray'}`}
           >
             {textes.onglets[o]} <span className="opacity-70">{nombres[o]}</span>
           </button>
@@ -72,10 +72,10 @@ export function ListeDemandes({
                   type="button"
                   onClick={() => onChoisir(d.id)}
                   aria-current={selection === d.id ? 'true' : undefined}
-                  className={`block w-full px-4 py-3 text-left hover:bg-gray-50 ${selection === d.id ? 'bg-gray-50' : ''}`}
+                  className={`block w-full px-4 py-3 text-left ${selection === d.id ? 'bg-v22-yellow-light shadow-[inset_4px_0_0_var(--v22-yellow)]' : 'hover:bg-warm-gray'}`}
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <span className="min-w-0 break-words font-medium text-gray-900">{d.titre}</span>
+                    <span className="min-w-0 break-words font-medium text-dark">{d.titre}</span>
                     <EtiquetteDemande demande={d} textes={textes} />
                   </div>
                   <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-600">
