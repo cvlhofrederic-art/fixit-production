@@ -6,37 +6,30 @@
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { pathToFileURL } from 'node:url'
 import { generateDevisPdfV3, type PdfV3Input } from '@/lib/pdf/devis-pdf-v3'
 import { URL_POLICE_GABARIT, URL_POLICE_GABARIT_GRAS } from '@/lib/pdf/mise-en-page-gabarit'
 import { VITFIX_SOCIETE_PROFIL_ID, modeleDocumentSociete } from '@/lib/pdf/modeles-societes'
 import {
   bancoDoBic,
   ibanLegivel,
+  limparTracos,
   modoPagina1,
   momentoPrestacao,
   nifLegivel,
   nomeFicheiroVitfix,
+  obraDeTelhado,
   prestacoesVitfix,
   quantidadeVitfix,
 } from '@/lib/pdf/modele-vitfix-orcamento'
-import type { ProductLine } from '@/lib/devis-types'
-import pt from '@/locales/pt.json'
+import type { DevisAcompte, ProductLine } from '@/lib/devis-types'
+import { entreePdfV3 } from './helpers/entree-pdf-v3'
+import { lirePdf, lu, ordreDeLecture, type Texte } from './helpers/lecture-pdf'
 
 const DOSSIER_SORTIE = process.env.PDF_SORTIE
 const RACINE = process.cwd()
 const RESSOURCES: Record<string, string> = {
   [URL_POLICE_GABARIT]: join(RACINE, 'public/fonts/LiberationSans-Regular.ttf'),
   [URL_POLICE_GABARIT_GRAS]: join(RACINE, 'public/fonts/LiberationSans-Bold.ttf'),
-}
-
-const NB = String.fromCharCode(0xa0)
-/** Texte tel qu'il se lit dans le PDF (espaces insécables ramenés à des espaces). */
-const lu = (s: string) => s.split(NB).join(' ')
-
-const t = (cle: string): string => {
-  const valeur = cle.split('.').reduce<unknown>((noeud, part) => (noeud as Record<string, unknown> | undefined)?.[part], pt)
-  return typeof valeur === 'string' ? valeur : cle
 }
 
 /** fetch du navigateur simulé : police lue dans public/, tout le reste en 404. */
@@ -75,89 +68,32 @@ const jeuControle: ProductLine[] = [
   ligne('Pintura da fachada', 1, 'f', 650, 23),
 ]
 
+const acompte = (ordre: number, pourcentage: number, declencheur: string): DevisAcompte =>
+  ({ id: `a${ordre}`, ordre, label: 'Acompte', pourcentage, declencheur })
+
+/** Devis d'une société portugaise au gabarit Vitfix (base commune des tests V3, champs portugais par-dessus). */
 function entree(surcharge: Partial<PdfV3Input> = {}): PdfV3Input {
   const lignes = surcharge.laborLines ?? jeuControle
   const totalHT = Math.round(lignes.reduce((s, l) => s + l.totalHT, 0) * 100) / 100
   const iva = Math.round(totalHT * 23) / 100
-  return {
-    action: 'fichier',
-    locale: 'pt',
-    localeFormats: { currencyFormat: (n: number) => `${n} €`, taxLabel: 'IVA' },
-    t,
-    docType: 'devis',
-    docNumber: 'DEV-2026-001',
-    docTitle: 'Reparação e pintura de fachada · Rua do Exemplo 10',
-    docDate: '2026-11-22',
-    docValidity: 30,
-    prestationDate: '',
-    executionDelay: '5 jours ouvrés',
-    companyStatus: 'lda',
-    companyName: 'Empresa Exemplo, Lda',
-    companySiret: '500000000',
-    companyAddress: 'Rua dos Exemplos 1, 4000-000 Porto',
-    companyRCS: 'CRC do Porto, matrícula n.º 500000000',
-    companyCapital: '5.000,00',
-    companyPhone: '+351 900 000 000',
-    companyEmail: 'geral@example.pt',
-    tvaEnabled: true,
-    tvaNumber: '',
-    insuranceName: '',
-    insuranceNumber: '',
-    insuranceCoverage: 'Portugal',
-    insuranceType: 'rc_pro',
-    decennaleEligibility: 'always',
-    mediatorName: '',
-    mediatorUrl: '',
-    isHorsEtablissement: false,
-    clientName: 'Cliente Exemplo',
-    clientEmail: '',
-    clientAddress: 'Rua do Cliente 20, 4400-000 Vila Nova de Gaia',
-    clientPhone: '+351 910 000 000',
-    clientSiret: '200000000',
-    clientType: 'particulier',
-    interventionAddress: 'Rua do Exemplo 10, Canidelo, Vila Nova de Gaia',
-    interventionBatiment: '',
-    interventionEtage: '',
-    interventionEspacesCommuns: '',
-    interventionExterieur: '',
-    companyAPE: '41000-R4',
-    paymentMode: 'Virement bancaire',
-    paymentDue: '30 jours',
-    paymentCondition: 'Aucun escompte accordé pour paiement anticipé',
-    discount: '',
-    penaltyRate: '',
-    recoveryFee: '',
-    iban: 'PT50000000000000000000000',
-    bic: 'TRWIBEB1XXX',
-    lines: lignes,
-    laborLines: lignes,
-    materialLines: [],
-    fraisLines: [],
-    linesName: "Main d'oeuvre",
-    subtotalHT: totalHT,
-    totalTTC: Math.round((totalHT + iva) * 100) / 100,
-    tvaBreakdown: [{ rate: 23, base: totalHT, amount: iva }],
-    regimeTva: 'classique',
-    acomptesEnabled: true,
-    acomptes: [
-      { id: 'a1', ordre: 1, label: 'Acompte', pourcentage: 50, declencheur: 'À la signature' },
-      { id: 'a2', ordre: 2, label: 'Situation', pourcentage: 30, declencheur: 'À mi-chantier' },
-    ],
-    notes: '',
-    sourceDevisRef: null,
-    signatureData: null,
-    attachedRapport: null,
-    selectedPhotos: [],
-    artisan: { id: VITFIX_SOCIETE_PROFIL_ID, company_name: 'Empresa Exemplo, Lda' },
-    modele: 'vitfix-orcamento',
-    ptFiscalData: null,
-    svgToImageDataUrl: async () => '',
-    fetchFreshLogo: async () => null,
+  return entreePdfV3({
+    locale: 'pt', localeFormats: { currencyFormat: (n: number) => `${n} €`, taxLabel: 'IVA' },
+    docNumber: 'DEV-2026-001', docTitle: 'Reparação e pintura de fachada · Rua do Exemplo 10', docDate: '2026-11-22',
+    executionDelay: '5 jours ouvrés', companyStatus: 'lda', companyName: 'Empresa Exemplo, Lda', companySiret: '500000000',
+    companyAddress: 'Rua dos Exemplos 1, 4000-000 Porto', companyRCS: 'CRC do Porto, matrícula n.º 500000000',
+    companyCapital: '5.000,00', companyPhone: '+351 900 000 000', companyEmail: 'geral@example.pt', insuranceCoverage: 'Portugal',
+    clientName: 'Cliente Exemplo', clientAddress: 'Rua do Cliente 20, 4400-000 Vila Nova de Gaia', clientPhone: '+351 910 000 000',
+    clientSiret: '200000000', interventionAddress: 'Rua do Exemplo 10, Canidelo, Vila Nova de Gaia', companyAPE: '41000-R4',
+    paymentCondition: 'Aucun escompte accordé pour paiement anticipé', recoveryFee: '',
+    iban: 'PT50000000000000000000000', bic: 'TRWIBEB1XXX',
+    lines: lignes, laborLines: lignes, linesName: "Main d'oeuvre",
+    subtotalHT: totalHT, totalTTC: Math.round((totalHT + iva) * 100) / 100, tvaBreakdown: [{ rate: 23, base: totalHT, amount: iva }],
+    acomptesEnabled: true, acomptes: [acompte(1, 50, 'À la signature'), acompte(2, 30, 'À mi-chantier')],
+    artisan: { id: VITFIX_SOCIETE_PROFIL_ID, company_name: 'Empresa Exemplo, Lda' }, modele: 'vitfix-orcamento',
     ...surcharge,
-  }
+  })
 }
 
-interface Texte { str: string; x: number; y: number; largeur: number }
 interface PdfLu {
   pages: Texte[][]
   texte: string[]
@@ -165,43 +101,11 @@ interface PdfLu {
   nom: string
 }
 
-let pdfjs: typeof import('pdfjs-dist/legacy/build/pdf.mjs') | null = null
-
-async function lire(octets: Uint8Array): Promise<Texte[][]> {
-  if (!pdfjs) {
-    pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
-    pdfjs.GlobalWorkerOptions.workerSrc = pathToFileURL(join(RACINE, 'node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs')).href
-  }
-  const standardFontDataUrl = `${join(RACINE, 'node_modules/pdfjs-dist/standard_fonts').split('\\').join('/')}/`
-  const chargement = pdfjs.getDocument({ data: new Uint8Array(octets), useSystemFonts: false, standardFontDataUrl })
-  const doc = await chargement.promise
-  const pages: Texte[][] = []
-  for (let n = 1; n <= doc.numPages; n++) {
-    const contenu = await (await doc.getPage(n)).getTextContent()
-    pages.push(contenu.items.flatMap((item) => ('str' in item && item.str.trim()
-      ? [{ str: item.str, x: item.transform[4], y: item.transform[5], largeur: item.width }]
-      : [])))
-  }
-  await chargement.destroy()
-  return pages
-}
-
-/** Ordre de lecture : morceaux regroupés par ligne de base (à 1 pt près), de haut en bas, puis de gauche à droite. */
-function ordreDeLecture(page: Texte[]): string {
-  const lignes: Texte[][] = []
-  for (const m of [...page].sort((a, b) => b.y - a.y)) {
-    const ligneTrouvee = lignes.find((l) => Math.abs(l[0].y - m.y) <= 1)
-    if (ligneTrouvee) ligneTrouvee.push(m)
-    else lignes.push([m])
-  }
-  return lu(lignes.map((l) => l.sort((a, b) => a.x - b.x).map((m) => m.str).join(' ')).join(' ')).replace(/ +/g, ' ')
-}
-
 async function generer(nom: string, input: PdfV3Input): Promise<PdfLu> {
   const resultat = await generateDevisPdfV3(input)
   const octets = Buffer.from(resultat.fichier)
   if (DOSSIER_SORTIE) writeFileSync(join(DOSSIER_SORTIE, `${nom}.pdf`), octets)
-  const pages = await lire(octets)
+  const pages = await lirePdf(octets)
   const texte = pages.map(ordreDeLecture)
   return { pages, texte, compact: texte.map((p) => p.replace(/\s+/g, '')), nom: resultat.filename }
 }
@@ -253,13 +157,31 @@ describe('Valeurs de Vitfix Pro dans les mots du gabarit', () => {
     expect(quantidadeVitfix(85.5)).toBe('85,50')
   })
 
-  it('échéancier : le reste devient la dernière prestação « na conclusão » ; sans acompte, un seul paiement', () => {
+  it('échéancier toujours à 100 % : reste en dernière prestação, plan coupé à 100 %, reste de moins de 1 % absorbé', () => {
     expect(prestacoesVitfix(entree())).toEqual([
       { pct: 50, momento: 'na adjudicação' },
       { pct: 30, momento: 'a meio da execução' },
       { pct: 20, momento: 'na conclusão' },
     ])
-    expect(prestacoesVitfix(entree({ acomptesEnabled: false }))).toEqual([{ pct: 100, momento: '' }])
+    expect(prestacoesVitfix(entree({ acomptesEnabled: false }))).toEqual([])
+    expect(prestacoesVitfix(entree({ acomptes: [acompte(1, 60, 'À la signature'), acompte(2, 60, 'À mi-chantier')] })).map((p) => p.pct)).toEqual([60, 40])
+    expect(prestacoesVitfix(entree({ acomptes: [1, 2, 3].map((n) => acompte(n, 33.33, 'À la signature')) })).map((p) => p.pct)).toEqual([33.33, 33.33, 33.34])
+    expect(prestacoesVitfix(entree({ acomptes: [acompte(1, 100, 'À la signature')] }))).toEqual([{ pct: 100, momento: 'na adjudicação' }])
+  })
+
+  it('garantie de 5 anos (règle 13) : une toiture dans un titre, jamais « poder de cobertura » ni la protection des sols', () => {
+    expect(obraDeTelhado(['Impermeabilização da cobertura em fibrocimento'])).toBe(true)
+    expect(obraDeTelhado(['Substituição de telhas partidas'])).toBe(true)
+    expect(obraDeTelhado(['Pintura com tinta de elevado poder de cobertura'])).toBe(false)
+    expect(obraDeTelhado(['Cobertura de proteção dos pavimentos e móveis'])).toBe(false)
+    expect(obraDeTelhado(['Telha cor telha no muro'])).toBe(false)
+  })
+
+  it('règle 4 : tirets longs remplacés partout, sauf images et signature', () => {
+    const tiret = String.fromCharCode(0x2013)
+    const signe = String.fromCharCode(0x2212)
+    expect(limparTracos({ a: `Fachada ${tiret} Rua 10`, b: [`2${signe}3`], url: `data:${tiret}`, n: 4 }))
+      .toEqual({ a: 'Fachada · Rua 10', b: ['2-3'], url: `data:${tiret}`, n: 4 })
   })
 
   it('nom du fichier (règle 8) : numéro et lieu du chantier', () => {
@@ -268,12 +190,14 @@ describe('Valeurs de Vitfix Pro dans les mots du gabarit', () => {
     expect(nomeFicheiroVitfix({ docNumber: 'DEV-2026-001', interventionAddress: '' })).toBe('Orcamento_DEV-2026-001.pdf')
   })
 
-  it('mise en page de la page 1 comme la fonction ajustar du gabarit', () => {
+  it('mise en page de la page 1 comme la fonction ajustar du gabarit, dernière page lue en vrai A4', () => {
     const utile = 841.89 - 42.52 - 48
-    expect(modoPagina1(700, () => 0)).toBe('normal')
-    expect(modoPagina1(utile + 20, () => utile - 10)).toBe('compacto')
-    expect(modoPagina1(utile + 20, () => utile + 1)).toBe('continua')
-    expect(modoPagina1(utile + 500, () => 0)).toBe('quebra')
+    const mesures = (compacta: number, derniereA4: number) => ({ compacta: () => compacta, derniereA4: () => derniereA4 })
+    expect(modoPagina1(700, mesures(0, 0))).toBe('normal')
+    expect(modoPagina1(utile + 20, mesures(utile - 10, 0))).toBe('compacto')
+    expect(modoPagina1(utile + 20, mesures(utile + 1, 120))).toBe('continua')
+    expect(modoPagina1(utile + 500, mesures(0, 120))).toBe('continua')
+    expect(modoPagina1(utile + 500, mesures(0, 600))).toBe('quebra')
   })
 })
 
@@ -423,6 +347,73 @@ describe('Orçamento au gabarit Vitfix', () => {
     expect(pdf.compact[1]).toContain(compact('ART. DESIGNAÇÃO UN. QT. P. UNIT. TOTAL'))
     expect(toutCompact(pdf)).toContain('A.28m²2812,50€350,00€Artigodetesten.º28')
     sansDebordement(pdf)
+  })
+
+  it('un seul acompte de 100 % : « Pagamento 100 % », clause « após a receção do pagamento » (gabarit)', async () => {
+    const pdf = await generer('vitfix-100', entree({ acomptes: [acompte(1, 100, 'À la signature')] }))
+    expect(pdf.texte[0]).toContain('22/11/2026 30 dias 5 dias úteis 100 %')
+    expect(pdf.texte[0]).toContain('Pagamento 100 %: 2 214,00 €.')
+    expect(tout(pdf)).toContain('Pagamento de 100 % na adjudicação, por transferência bancária')
+    expect(tout(pdf)).toContain('Os trabalhos só são agendados após a receção do pagamento.')
+    expect(tout(pdf)).not.toContain('1.ª prestação')
+  })
+
+  it('peinture « de elevado poder de cobertura » : garantie légale, pas de 5 anos', async () => {
+    const pintura = [ligne('Pintura de paredes interiores\nTinta acrílica mate com elevado poder de cobertura.', 120, 'm2', 9, 23)]
+    const pdf = await generer('vitfix-pintura', entree({ laborLines: pintura, docTitle: 'Pintura interior' }))
+    expect(tout(pdf)).not.toContain('5 anos')
+    expect(tout(pdf)).toContain('A execução está coberta pela garantia legal aplicável')
+  })
+
+  /** Artigo de `n` étapes, assez haut pour être coupé entre deux pages. */
+  const artigoLongo = (titre: string, n: number) => ligne(titre, 1, 'f', 500, 23, {
+    etapes: Array.from({ length: n }, (_, i) => ({ id: `${titre}-${i}`, ordre: i + 1, designation: `Etapa ${i + 1} do trabalho, executada conforme a ficha técnica do fabricante` })),
+  })
+
+  it('artigo coupé suivi du sous-total de sa section : rien dans la marge basse, titre de section jamais seul', async () => {
+    for (const n of [40, 67, 135]) {
+      const a = [ligne('Preparação', 1, 'f', 100, 23), artigoLongo('Reabilitação da fachada', n)]
+      const b = [ligne('Limpeza final', 1, 'f', 80, 23)]
+      const pdf = await generer(`vitfix-coupe-${n}`, entree({ laborLines: a, lines: [...a, ...b], linesName: 'Fachada', customTables: [{ id: 'b', name: 'Limpeza', lines: b }] }))
+      expect(toutCompact(pdf)).toContain('SubtotalA')
+      sansDebordement(pdf)
+      pdf.compact.forEach((page) => {
+        if (page.endsWith('A·FACHADA') || /B·LIMPEZA(?:DEV-2026-001·Página\d+de\d+)?$/.test(page)) throw new Error('titre de section seul en bas de page')
+      })
+    }
+  })
+
+  it('dernière page du devis presque vide : l\'annexe enchaîne sur cette page (pas de page presque blanche)', async () => {
+    const seccoes = [1, 2, 3, 4].map((s) => Array.from({ length: 5 }, (_, i) => ligne(`Trabalho ${s}.${i + 1}`, 1, 'f', 100, 23, {
+      etapes: [1, 2, 3].map((k) => ({ id: `${s}-${i}-${k}`, ordre: k, designation: `Etapa ${k}` })),
+    })))
+    const [a, ...outras] = seccoes
+    const pdf = await generer('vitfix-continua', entree({
+      laborLines: a, lines: seccoes.flat(), linesName: 'Secção 1',
+      customTables: outras.map((lignes, i) => ({ id: `s${i}`, name: `Secção ${i + 2}`, lines: lignes })),
+    }))
+    const pageAceitacao = pdf.compact.findIndex((p) => p.includes('Aceitooorçamentoeascondiçõesgerais.'))
+    const pageCondicoes = pdf.compact.findIndex((p) => p.includes('CONDIÇÕESGERAIS'))
+    const remplissage = Math.max(...pdf.pages[pageAceitacao].filter((m) => m.y > 48).map((m) => 841.89 - m.y))
+    if (remplissage < (841.89 - 42.52 - 48) / 2) expect(pageCondicoes).toBe(pageAceitacao)
+    sansDebordement(pdf)
+  })
+
+  it('titre « Registo fotográfico » jamais seul en bas de page, quelle que soit la longueur des notes', async () => {
+    vi.stubGlobal('Image', undefined)
+    try {
+      const fotos = [{ id: 'f1', url: 'https://example.test/1.jpg', label: 'Cobertura' }, { id: 'f2', url: 'https://example.test/2.jpg', label: 'Claraboia' }]
+      for (let n = 1; n <= 46; n += 3) {
+        const notes = Array.from({ length: n }, (_, i) => `Nota ${i + 1} sobre a obra.`).join('\n')
+        const pdf = await generer(`vitfix-fotos-${n}`, entree({ selectedPhotos: fotos, notes }))
+        const page = pdf.compact.findIndex((p) => p.includes('REGISTOFOTOGRÁFICO'))
+        expect(pdf.compact[page], `${n} notes`).toContain('FOTO1')
+      }
+    } finally {
+      vi.unstubAllGlobals()
+      vi.stubGlobal('fetch', fetchRessources)
+      vi.stubGlobal('open', vi.fn())
+    }
   })
 })
 

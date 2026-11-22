@@ -449,6 +449,17 @@ function moradaPt(adresse: string | null | undefined): string {
   return titleCaseAddress(t).replace(/(?<=\S\s)(De|Da|Do|Das|Dos|E)(?=\s)/g, (p) => p.toLowerCase())
 }
 
+/** Lieu du chantier : adresse d'intervention, bâtiment, étage, parties communes, extérieur (« Edif. », « Andar »…). */
+export function localObraPt(e: Pick<PdfV3Input, 'interventionAddress' | 'interventionBatiment' | 'interventionEtage' | 'interventionEspacesCommuns' | 'interventionExterieur'>): string {
+  return [
+    textePdf(e.interventionAddress).trim(),
+    e.interventionBatiment ? `Edif. ${textePdf(e.interventionBatiment)}` : '',
+    e.interventionEtage ? `Andar ${textePdf(e.interventionEtage)}` : '',
+    e.interventionEspacesCommuns ? `Áreas comuns: ${textePdf(e.interventionEspacesCommuns)}` : '',
+    e.interventionExterieur ? `Exterior: ${textePdf(e.interventionExterieur)}` : '',
+  ].filter(Boolean).join(' · ')
+}
+
 // ─── Données du document ──────────────────────────────────────────────────────
 
 export interface Article {
@@ -838,14 +849,7 @@ class DocumentMethod extends MiseEnPageGabarit {
   }
 
   private localObra(): string {
-    const e = this.e
-    return [
-      textePdf(e.interventionAddress).trim(),
-      e.interventionBatiment ? `Edif. ${textePdf(e.interventionBatiment)}` : '',
-      e.interventionEtage ? `Andar ${textePdf(e.interventionEtage)}` : '',
-      e.interventionEspacesCommuns ? `Áreas comuns: ${textePdf(e.interventionEspacesCommuns)}` : '',
-      e.interventionExterieur ? `Exterior: ${textePdf(e.interventionExterieur)}` : '',
-    ].filter(Boolean).join(' · ')
+    return localObraPt(this.e)
   }
 
   /** Orçamento : Nome, NIF et Morada toujours présents (pointillés à remplir à la signature) ; fatura : seulement ce qui est saisi. */

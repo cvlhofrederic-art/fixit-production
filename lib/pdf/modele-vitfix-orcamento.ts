@@ -7,14 +7,15 @@
  * n'ajoute aucun champ au formulaire.
  *  - secções = sections du devis (une seule section non renommée : pas de ligne de section, comme les
  *    orçamentos émis) ; artigos A.1, A.2… = lignes (titre, description, étapes numérotées) ;
- *  - Data de emissão, Validade, Prazo de execução, Pagamento : échéancier des acomptes (« 50 / 30 / 20 »,
- *    le reste devenant la dernière prestação « na conclusão ») ; sans acompte, paiement du total selon le
- *    délai du devis ; IBAN et BIC des réglages, banque déduite du BIC, titulaire = la société (règle 16) ;
+ *  - Data de emissão, Validade, Prazo de execução, Pagamento : échéancier des acomptes ramené à 100 % (« 50 / 30 /
+ *    20 », reste en dernière prestação « na conclusão », plan coupé à 100 %) ; sans acompte, paiement du total
+ *    selon le délai du devis ; IBAN et BIC des réglages, banque déduite du BIC, titulaire = la société (règle 16) ;
  *  - IVA : taux des lignes (une ligne par taux), autoliquidação ou isenção comme le devis ;
- *  - garantie de 5 anos dès que le chantier touche un telhado ou une cobertura (règle 13), sinon la
- *    garantie légale ;
- *  - mise en page de la page 1 comme la fonction ajustar du gabarit : espacements resserrés quand elle
- *    déborde de peu, annexe à la suite quand la dernière page reste à moitié vide.
+ *  - garantie de 5 anos quand un titre du devis, d'une section ou d'un artigo parle d'un telhado ou d'une
+ *    cobertura (règle 13), sinon la garantie légale ;
+ *  - mise en page de la page 1 comme la fonction ajustar du gabarit : espacements resserrés quand elle déborde de
+ *    peu ; annexe à la suite quand la dernière page du devis, lue en vrai A4, reste à moitié vide ;
+ *  - tirets longs remplacés à l'entrée, comme limparTudo (règle 4).
  * Ce que Vitfix Pro n'a pas n'apparaît pas : medição, modo de execução, âmbito, condições específicas,
  * révision, nom court de l'entreprise. Ce que le gabarit n'avait pas reçoit une place dans son style :
  * remises (sous l'artigo et dans les totaux), plusieurs taux d'IVA, notes et relatório joint (section
@@ -50,6 +51,7 @@ import {
   eurosPt,
   insecables,
   jurosDeMora,
+  localObraPt,
   modoPagamento,
   pourcentPt,
   prazoExecucao,
@@ -114,6 +116,8 @@ const PH_VALOR = pontos(12)
 const PH_NUM = pontos(14)
 const PH_PROJETO = pontos(80)
 const LINHAS_VAZIAS = 6
+/** .foto-img { height: 170pt } */
+const HAUTEUR_PHOTO = 170
 
 /** Espacements de la page 1 ; `.compacto` les resserre quand elle déborde de peu. */
 interface Espacements {
@@ -125,6 +129,8 @@ interface Espacements {
   metaPad: number
   metaBas: number
   cellulePad: number
+  /** tr.section td { padding: 4pt } ; .compacto table.items td, plus précis, la ramène à 3,6 pt. */
+  seccaoPad: number
   totauxHaut: number
   totalLignePad: number
   conditionsHaut: number
@@ -134,11 +140,11 @@ interface Espacements {
 }
 
 const ESPACEMENTS: Espacements = {
-  filetHaut: 6, filetBas: 10, badgeHaut: 8, badgeBas: 12, partiesBas: 9, metaPad: 7, metaBas: 11, cellulePad: 4.6,
+  filetHaut: 6, filetBas: 10, badgeHaut: 8, badgeBas: 12, partiesBas: 9, metaPad: 7, metaBas: 11, cellulePad: 4.6, seccaoPad: 4,
   totauxHaut: 9, totalLignePad: 3.5, conditionsHaut: 10, conditionsPad: 9, piedHaut: 8, piedPad: 8,
 }
 const ESPACEMENTS_COMPACTOS: Espacements = {
-  filetHaut: 5, filetBas: 8, badgeHaut: 6, badgeBas: 9, partiesBas: 7, metaPad: 6, metaBas: 8, cellulePad: 3.6,
+  filetHaut: 5, filetBas: 8, badgeHaut: 6, badgeBas: 9, partiesBas: 7, metaPad: 6, metaBas: 8, cellulePad: 3.6, seccaoPad: 3.6,
   totauxHaut: 6, totalLignePad: 2.5, conditionsHaut: 7, conditionsPad: 7, piedHaut: 6, piedPad: 6,
 }
 
@@ -214,10 +220,20 @@ export function nifLegivel(nif: string | null | undefined): string {
 
 /** Chantier de telhado ou de cobertura (« telha » au singulier exclu : c'est presque toujours la couleur). */
 const RE_TELHADO = /telhad|cobertur|\btelhas\b|cumeeir|beira[ld]/i
+/** « Cobertura » qui n'est pas une toiture : pouvoir couvrant d'une peinture, protection des sols et des meubles. */
+const RE_COBERTURA_NAO_TELHADO = /poder\s+de\s+cobertura|cobertura\s+(?:d[aeo]s?|com)\s+(?:prote[cç][aã]o|pl[aá]stico|pavimentos?|m[oó]veis|ch[aã]o)/gi
+
+/**
+ * Règle 13 (garantie de 5 anos) : un titre du devis, d'une section ou d'un artigo parle d'une toiture. Les
+ * descriptifs et les étapes ne comptent pas (« tinta com elevado poder de cobertura » n'est pas une toiture).
+ */
+export function obraDeTelhado(titulos: string[]): boolean {
+  return titulos.some((t) => RE_TELHADO.test(t.replace(RE_COBERTURA_NAO_TELHADO, ' ')))
+}
 
 /** Nom du fichier (règle 8) : « Orcamento_DEV-2026-001_Rua_do_Exemplo_10.pdf ». */
 export function nomeFicheiroVitfix(e: Pick<PdfV3Input, 'docNumber' | 'interventionAddress'>): string {
-  const slug = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[ºª]/g, '')
+  const slug = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').replace(/[ºª]/g, '')
     .replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
   const numero = textePdf(e.docNumber).trim().replace(/[^A-Za-z0-9-]+/g, '_')
   const local = slug(textePdf(e.interventionAddress).split(',').slice(0, 2).join(' '))
@@ -258,15 +274,25 @@ function seccoesDoDevis(e: PdfV3Input): Seccao[] {
 }
 
 /**
- * Échéancier : acomptes du devis, le reste devenant la dernière prestação « na conclusão » (le gabarit veut un
- * plan qui fait 100 %) ; sans acompte, une seule prestação du total.
+ * Échéancier qui fait toujours 100 % (le gabarit refuse un autre plan ; le formulaire accepte une autre somme avec un
+ * simple avertissement) : acomptes du devis dans l'ordre, coupés à 100 % ; reste de moins de 1 % (33,33 × 3) ajouté à
+ * la dernière prestação, reste plus grand en dernière prestação « na conclusão ». Sans acompte, liste vide : un seul
+ * paiement du total selon le délai du devis.
  */
 export function prestacoesVitfix(e: Pick<PdfV3Input, 'acomptesEnabled' | 'acomptes'>): Prestacao[] {
   const acomptes = (e.acomptesEnabled ? e.acomptes || [] : []).filter((a) => a && Number.isFinite(a.pourcentage) && a.pourcentage > 0)
-  if (acomptes.length === 0) return [{ pct: 100, momento: '' }]
-  const prestacoes = acomptes.map((a) => ({ pct: a.pourcentage, momento: momentoPrestacao(a.declencheur) }))
-  const reste = round2(100 - sumMoney(acomptes.map((a) => a.pourcentage)))
-  if (reste > 0) prestacoes.push({ pct: reste, momento: 'na conclusão' })
+  const prestacoes: Prestacao[] = []
+  let cumul = 0
+  for (const a of acomptes) {
+    const pct = round2(Math.min(a.pourcentage, 100 - cumul))
+    if (pct <= 0) break
+    prestacoes.push({ pct, momento: momentoPrestacao(a.declencheur) })
+    cumul = round2(cumul + pct)
+  }
+  const reste = round2(100 - cumul)
+  const derniere = prestacoes[prestacoes.length - 1]
+  if (derniere && reste > 0 && reste < 1) derniere.pct = round2(derniere.pct + reste)
+  else if (derniere && reste > 0) prestacoes.push({ pct: reste, momento: 'na conclusão' })
   return prestacoes
 }
 
@@ -292,6 +318,10 @@ interface Rangee {
   hauteur: number
   /** À garder sur la même page que la rangée suivante (titre de secção, dernier artigo et sous-total). */
   liee: boolean
+  /** Artigo d'un groupe plus haut qu'une page : coupé sur place plutôt que renvoyé à la page suivante. */
+  coupable?: boolean
+  /** Hauteur de la rangée liée qui suit (sous-total), à garder avec les dernières lignes de l'artigo. */
+  reserveApres?: number
   dessiner: () => void
 }
 
@@ -315,8 +345,10 @@ class DocumentVitfix extends MiseEnPageGabarit {
   private readonly vazio: boolean
   /** Taux des artigos, distincts, du plus fort au plus faible */
   private readonly taux: number[]
+  /** Échéancier des acomptes (100 % en tout) ; vide quand le devis n'a pas d'acompte. */
   private readonly prestacoes: Prestacao[]
-  private readonly unica: boolean
+  /** Pas d'acompte : un seul paiement du total selon le délai du devis. */
+  private readonly semPlano: boolean
   private readonly garantia: string
 
   constructor(
@@ -336,14 +368,19 @@ class DocumentVitfix extends MiseEnPageGabarit {
     this.vazio = this.seccoes.every((s) => s.artigos.length === 0)
     this.taux = [...new Set(this.seccoes.flatMap((s) => s.artigos.map((a) => a.taux)))].sort((a, b) => b - a)
     this.prestacoes = prestacoesVitfix(e)
-    this.unica = this.prestacoes.length === 1 && this.prestacoes[0].momento === ''
-    this.garantia = RE_TELHADO.test(this.textoObra()) ? '5 anos' : ''
+    this.semPlano = this.prestacoes.length === 0
+    this.garantia = obraDeTelhado(this.titulosObra()) ? '5 anos' : ''
   }
 
   /** Hauteur occupée depuis le haut de la première page (document de mesure d'une seule page). */
   hauteurUtilisee(): number {
     const pages = this.pdf.getNumberOfPages()
     return (pages - 1) * (this.geo.basPage - this.geo.margeHaut) + (this.y - this.geo.margeHaut)
+  }
+
+  /** Hauteur occupée sur la dernière page. */
+  remplissageDernierePage(): number {
+    return this.y - this.geo.margeHaut
   }
 
   /** Page 1 du gabarit (.folha-1). */
@@ -371,7 +408,7 @@ class DocumentVitfix extends MiseEnPageGabarit {
       this.lista(notas, 'puces')
     }
     if ((this.e.selectedPhotos || []).length > 0) {
-      this.tituloSeccao('Registo fotográfico')
+      this.tituloSeccao('Registo fotográfico', HAUTEUR_PHOTO + 3 + 2 * 9.6)
       this.registoFotografico(fotos)
     }
     this.tituloSeccao('Condições gerais')
@@ -416,32 +453,20 @@ class DocumentVitfix extends MiseEnPageGabarit {
     return textePdf(this.e.companyEmail).trim()
   }
 
-  private textoObra(): string {
-    return [
-      tituloPersonalizado(this.e.docTitle),
-      ...this.seccoes.flatMap((s) => [s.titulo, ...s.artigos.flatMap((a) => [a.titre, a.bloc, ...a.etapes])]),
-    ].join(' \n ')
+  /** Titres du devis, des sections et des artigos (règle 13). */
+  private titulosObra(): string[] {
+    return [tituloPersonalizado(this.e.docTitle), ...this.seccoes.flatMap((s) => [s.titulo, ...s.artigos.map((a) => a.titre)])]
   }
 
+  /** Délai d'exécution en PT-PT (règle 10) : « dias corridos », brésilien, devient « dias de calendário ». */
   private prazo(): string {
-    return prazoExecucao(this.e.executionDelay)
+    return prazoExecucao(this.e.executionDelay).replace(/\bdias corridos\b/g, 'dias de calendário').replace(/\bdia corrido\b/g, 'dia de calendário')
   }
 
   private validade(): string {
     const v = this.e.docValidity
     if (!v) return ''
     return `${v} ${v > 1 ? 'dias' : 'dia'}`
-  }
-
-  private localObra(): string {
-    const e = this.e
-    return [
-      textePdf(e.interventionAddress).trim(),
-      e.interventionBatiment ? `Edif. ${textePdf(e.interventionBatiment)}` : '',
-      e.interventionEtage ? `Andar ${textePdf(e.interventionEtage)}` : '',
-      e.interventionEspacesCommuns ? `Áreas comuns: ${textePdf(e.interventionEspacesCommuns)}` : '',
-      e.interventionExterieur ? `Exterior: ${textePdf(e.interventionExterieur)}` : '',
-    ].filter(Boolean).join(' · ')
   }
 
   // ── Paiement ──
@@ -478,9 +503,13 @@ class DocumentVitfix extends MiseEnPageGabarit {
     return computeAcomptesAmounts(this.totalAPagar(), this.prestacoes.map((p) => ({ pourcentage: p.pct })))
   }
 
-  /** « 50 / 30 / 20 », ou le délai de paiement du devis quand il n'y a qu'un paiement (« A pronto », « 30 dias »). */
+  /**
+   * « 50 / 30 / 20 » ; « 100 % » pour une seule prestação (plano du gabarit) ; sans acompte, le délai de paiement du
+   * devis (« A pronto », « 30 dias »).
+   */
   private plano(): string {
-    if (this.unica) return prazoPagamento(this.e.paymentDue).curto
+    if (this.semPlano) return prazoPagamento(this.e.paymentDue).curto
+    if (this.prestacoes.length === 1) return `${pourcentPt(this.prestacoes[0].pct)}${ESP}%`
     return this.prestacoes.map((p) => pourcentPt(p.pct)).join(' / ')
   }
 
@@ -571,7 +600,7 @@ class DocumentVitfix extends MiseEnPageGabarit {
       { rotulo: 'Cliente', valeur: textePdf(e.clientName).trim(), gras: true, pointilles: PH_LONGO },
       { rotulo: 'NIF', valeur: nifLegivel(e.clientSiret), pointilles: PH_CURTO },
       { rotulo: 'Morada', valeur: textePdf(e.clientAddress).trim(), pointilles: PH_LONGO },
-      { rotulo: 'Local', valeur: this.localObra(), pointilles: PH_LONGO },
+      { rotulo: 'Local', valeur: localObraPt(e), pointilles: PH_LONGO },
       { rotulo: 'Contacto', valeur: contacto, pointilles: PH_CURTO },
     ]
   }
@@ -703,18 +732,20 @@ class DocumentVitfix extends MiseEnPageGabarit {
     this.ecrire(texte, c.x + 6, base, { taille, gras: o.gras, couleur: o.couleur ?? COR.texte, align: c.align, largeurZone: c.largeur - 12 })
   }
 
-  private rangeeSeccao(s: Seccao): Rangee {
+  private rangeeSeccao(s: Seccao, cols: Colonnes): Rangee {
     const hLigne = 8.4 * NORMAL
+    const pad = this.esp.seccaoPad
     const lignes = this.couperEspace(`${s.codigo} · ${s.titulo}`.toUpperCase(), LARGEUR - 12, 8.4, true, 1.05)
-    const hauteur = 4 + lignes.length * hLigne + 4 + 0.5
+    const hauteur = pad + lignes.length * hLigne + pad + 0.5
     return {
       hauteur,
       liee: true,
       dessiner: () => {
+        if (this.y + hauteur > this.geo.basPage + TOLERANCE) this.sautTableau(cols)
         this.pdf.setFillColor(COR.fond)
         this.pdf.rect(MARGE_GAUCHE, this.y, LARGEUR, hauteur - 0.5, 'F')
         lignes.forEach((l, i) => {
-          this.ecrire(l, MARGE_GAUCHE + 6, this.y + 4 + i * hLigne + ligneDeBase(hLigne, 8.4), { taille: 8.4, gras: true, couleur: COR.texte, espacement: 1.05 })
+          this.ecrire(l, MARGE_GAUCHE + 6, this.y + pad + i * hLigne + ligneDeBase(hLigne, 8.4), { taille: 8.4, gras: true, couleur: COR.texte, espacement: 1.05 })
         })
         this.y += hauteur
         this.filet(MARGE_GAUCHE, this.y - 0.25, MARGE_GAUCHE + LARGEUR, COR.filetTableau, 0.5)
@@ -780,14 +811,16 @@ class DocumentVitfix extends MiseEnPageGabarit {
     const pad = this.esp.cellulePad
     const elements = this.elementsArtigo(a, cols)
     const hauteur = pad + somme(elements.map((el) => el.hauteur)) + pad + 0.5
-    return {
+    const rangee: Rangee = {
       hauteur,
       liee,
       dessiner: () => {
         const capacite = this.geo.basPage - this.geo.margeHaut - this.hauteurEntete()
-        if (this.y + hauteur > this.geo.basPage + TOLERANCE) {
-          if (hauteur > capacite) {
-            this.artigoCortado(a, elements, cols)
+        // Coupé sur place, l'artigo garde aussi la place de son sous-total sur la page de ses dernières lignes.
+        const reserve = rangee.coupable ? (rangee.reserveApres ?? 0) : 0
+        if (this.y + hauteur + reserve > this.geo.basPage + TOLERANCE) {
+          if (hauteur > capacite || rangee.coupable) {
+            this.artigoCortado(a, elements, cols, rangee.reserveApres ?? 0)
             return
           }
           this.sautTableau(cols)
@@ -802,10 +835,15 @@ class DocumentVitfix extends MiseEnPageGabarit {
         this.filet(MARGE_GAUCHE, this.y - 0.25, MARGE_GAUCHE + LARGEUR, COR.filetTableau, 0.5)
       },
     }
+    return rangee
   }
 
-  /** Artigo plus haut qu'une page : coupé entre deux lignes, au moins deux lignes avant la coupure. */
-  private artigoCortado(a: Artigo, elements: Element[], cols: Colonnes) {
+  /**
+   * Artigo coupé entre deux lignes (plus haut qu'une page, ou dans un groupe qui en dépasse une), chiffres sur sa
+   * première partie : au moins deux lignes avant la coupure, et la rangée liée qui suit (sous-total) garde sa place
+   * sous les dernières lignes.
+   */
+  private artigoCortado(a: Artigo, elements: Element[], cols: Colonnes, reserveApres: number) {
     const pad = this.esp.cellulePad
     const tiennent = (depuis: number) => {
       let n = 0
@@ -822,6 +860,9 @@ class DocumentVitfix extends MiseEnPageGabarit {
     while (i < elements.length) {
       let n = Math.max(1, tiennent(i))
       if (elements.length - i - n === 1 && n > 2) n -= 1
+      const bas = this.y + pad + somme(elements.slice(i, i + n).map((el) => el.hauteur)) + pad + 0.5
+      // Dernières lignes : si le sous-total n'a plus la place, une ou deux lignes descendent avec lui.
+      if (i + n === elements.length && bas + reserveApres > this.geo.basPage + TOLERANCE && n > 2) n -= Math.min(2, n - 2)
       let haut = this.y + pad
       for (const el of elements.slice(i, i + n)) {
         el.dessiner(haut)
@@ -841,6 +882,7 @@ class DocumentVitfix extends MiseEnPageGabarit {
       hauteur,
       liee: false,
       dessiner: () => {
+        if (this.y + hauteur > this.geo.basPage + TOLERANCE) this.sautTableau(cols)
         this.pdf.setFillColor(COR.sousTotal)
         this.pdf.rect(MARGE_GAUCHE, this.y, LARGEUR, hauteur - 0.5, 'F')
         const base = this.y + pad + ligneDeBase(8.2 * NORMAL, 8.2)
@@ -869,7 +911,7 @@ class DocumentVitfix extends MiseEnPageGabarit {
     const cols = this.colonnes()
     const rangees: Rangee[] = []
     for (const s of this.seccoes) {
-      if (s.titulo) rangees.push(this.rangeeSeccao(s))
+      if (s.titulo) rangees.push(this.rangeeSeccao(s, cols))
       s.artigos.forEach((a, i) => rangees.push(this.rangeeArtigo(a, cols, this.varias && i === s.artigos.length - 1)))
       if (this.varias && s.artigos.length > 0) rangees.push(this.rangeeSubtotal(s, cols))
     }
@@ -886,7 +928,23 @@ class DocumentVitfix extends MiseEnPageGabarit {
     }
     if (groupe.length > 0) groupes.push(groupe)
     const capacite = this.geo.basPage - this.geo.margeHaut - this.hauteurEntete()
-    const debut = (g: Rangee[]) => Math.min(somme(g.map((r) => r.hauteur)), capacite)
+    // Groupe plus haut qu'une page : ses artigos sont coupés sur place, le titre de secção reste avec leurs premières
+    // lignes et le sous-total avec leurs dernières.
+    for (const g of groupes) {
+      if (somme(g.map((r) => r.hauteur)) > capacite) for (const r of g) r.coupable = true
+    }
+    rangees.forEach((r, i) => {
+      if (r.liee && rangees[i + 1]) r.reserveApres = rangees[i + 1].hauteur
+    })
+    // Ce qui doit tenir sur la page pour commencer un groupe : le groupe entier ; plus haut qu'une page, son premier
+    // élément (titre de secção) et les trois premières lignes de l'artigo.
+    const debutCoupe = this.esp.cellulePad + 3 * 11.43
+    const debut = (g: Rangee[]) => {
+      const h = somme(g.map((r) => r.hauteur))
+      if (h <= capacite) return h
+      const premiere = g[0]?.hauteur ?? 0
+      return premiere <= capacite ? premiere + debutCoupe : debutCoupe
+    }
     this.placer(0, this.hauteurEntete() + debut(groupes[0] ?? []))
     this.enteteTableau(cols)
     for (const g of groupes) {
@@ -923,11 +981,16 @@ class DocumentVitfix extends MiseEnPageGabarit {
     } else if (this.avecIva) {
       const ventilacao = this.ventilacao()
       if (ventilacao.length === 0) linhas.push([`IVA ${pourcentPt(this.taux[0] ?? 23)} %`, eurosPt(0)])
+      // La base de chaque taux est écrite dès qu'elle n'est pas le total sans IVA (plusieurs taux, lignes à 0 %).
+      const avecBase = ventilacao.length > 1 || ventilacao.some((t) => Math.abs(t.base - e.subtotalHT) > 0.005)
       for (const t of ventilacao) {
-        linhas.push([ventilacao.length > 1 ? `IVA ${pourcentPt(t.rate)} % s/ ${eurosPt(t.base)}` : `IVA ${pourcentPt(t.rate)} %`, eurosPt(t.amount)])
+        linhas.push([`IVA ${pourcentPt(t.rate)} %${avecBase ? ` s/ ${eurosPt(t.base)}` : ''}`, eurosPt(t.amount)])
       }
     }
-    if (this.ancienneRemise() > 0) linhas.push(['Desconto', `-${textePdf(e.discount)}`])
+    if (this.ancienneRemise() > 0) {
+      const discount = textePdf(this.e.discount).trim()
+      linhas.push(['Desconto', `-${/€|eur|%/i.test(discount) ? discount : `${discount}${ESP}€`}`])
+    }
     return linhas
   }
 
@@ -962,8 +1025,10 @@ class DocumentVitfix extends MiseEnPageGabarit {
     this.pdf.roundedRect(x, haut, largeurBoite, hTotal, 6, 6, 'F')
     const libelle = this.avecIva ? 'Total com IVA' : 'Total'
     this.ecrire(libelle.toUpperCase(), x + 9, haut + hTotal / 2 + 0.3465 * 8.4, { taille: 8.4, couleur: COR.blanc, espacement: 1 })
-    const total = this.vazio ? PH_VALOR : eurosPt(this.totalAPagar())
-    this.ecrire(total, x + 9, haut + hTotal / 2 + 0.3465 * 13, { taille: 13, gras: true, couleur: this.vazio ? COR.pointilles : COR.jaune, align: 'droite', largeurZone: largeurBoite - 18 })
+    const baseTotal = haut + hTotal / 2 + 0.3465 * 13
+    const zoneTotal = { align: 'droite' as const, largeurZone: largeurBoite - 18 }
+    if (this.vazio) this.ecrire(PH_VALOR, x + 9, baseTotal, { taille: 13, gras: true, couleur: COR.pointilles, espacement: 0.5, ...zoneTotal })
+    else this.ecrire(eurosPt(this.totalAPagar()), x + 9, baseTotal, { taille: 13, gras: true, couleur: COR.jaune, ...zoneTotal })
     if (lignesNote.length > 0) this.dessinerLignes(lignesNote, x + 9, haut + hTotal + 3, 9.4, 7, 'droite', largeurBoite - 18)
     this.y += hauteur
     this.finBloc(0)
@@ -976,7 +1041,7 @@ class DocumentVitfix extends MiseEnPageGabarit {
       [{ texte: 'Preço global e fixo.', gras: true }, { texte: ' Prazo de execução: ' }, this.ouPointilles(this.prazo()), { texte: '.' }],
     ]
     if (this.garantia) paragraphes.push([{ texte: 'Garantia:', gras: true }, { texte: ` ${insecables(this.garantia)} sobre a execução dos trabalhos.` }])
-    if (this.unica) {
+    if (this.semPlano) {
       paragraphes.push([{ texte: 'Pagamento:', gras: true }, { texte: ' ' }, this.fragmentTotal(), { texte: insecables(`, ${prazoPagamento(this.e.paymentDue).faturas}.`) }])
     } else {
       paragraphes.push([{ texte: insecables(`Pagamento ${this.plano()}:`), gras: true }, { texte: ' ' }, ...this.textoPrestacoes(), { texte: '.' }])
@@ -1030,7 +1095,7 @@ class DocumentVitfix extends MiseEnPageGabarit {
     } else {
       paragraphes.push([{ texte: modoPagamento(this.e.paymentMode).curto }])
     }
-    if (this.unica) paragraphes.push([{ texte: `${this.plano()}: ` }, this.fragmentTotal()])
+    if (this.semPlano) paragraphes.push([{ texte: `${this.plano()}: ` }, this.fragmentTotal()])
     else paragraphes.push([{ texte: insecables(`${this.plano()}: `) }, ...this.textoPrestacoes()])
     return paragraphes
   }
@@ -1043,12 +1108,13 @@ class DocumentVitfix extends MiseEnPageGabarit {
     const pad = this.esp.piedPad
     const hTitre = 7.4 * NORMAL
     const pagamento = this.paragraphesPagamento().map((p) => this.composer(p, largeurTexte, 8, COR.texte))
-    const hPagamento = hTitre + 5 + somme(pagamento.map((l) => l.length * 11 + 3)) - 3
+    // .footer-box p { margin: 0 0 3pt 0 } : la marge du dernier paragraphe reste dans la boîte.
+    const hPagamento = hTitre + 5 + somme(pagamento.map((l) => l.length * 11 + 3))
     const aceitacao = this.composer([{ texte: 'Aceito o orçamento e as condições gerais.' }], largeurTexte, 8, COR.texte)
     const assinatura = this.e.signatureData
     const hImagem = this.assinatura ? 34 : 0
     const hCampo = 5 + 7 * NORMAL + 12
-    const hAceitacao = hTitre + 5 + aceitacao.length * 11 + 2 * hCampo + hImagem + (assinatura ? 8 : 0)
+    const hAceitacao = hTitre + 5 + aceitacao.length * 11 + 3 + 2 * hCampo + hImagem + (assinatura ? 8 : 0)
     const hauteur = 0.75 + pad + Math.max(hPagamento, hAceitacao) + pad + 0.75
     this.placer(this.esp.piedHaut, hauteur)
     const xs = [MARGE_GAUCHE, MARGE_GAUCHE + largeurBoite + ecart]
@@ -1066,7 +1132,7 @@ class DocumentVitfix extends MiseEnPageGabarit {
     const xi = xs[1] + xInterieur
     haut = this.y + 0.75 + pad + hTitre + 5
     this.dessinerLignes(aceitacao, xi, haut, 11, 8)
-    haut += aceitacao.length * 11
+    haut += aceitacao.length * 11 + 3
     const valeurs = assinatura ? [datePt(textePdf(assinatura.timestamp)), textePdf(assinatura.signataire)] : ['', '']
     const campos = ['Data', 'Nome e assinatura do cliente']
     campos.forEach((campo, i) => {
@@ -1095,13 +1161,16 @@ class DocumentVitfix extends MiseEnPageGabarit {
 
   // ── Annexe ──
 
-  /** h2.sec : 9,6 pt en capitales, filet jaune de 1,5 pt sur toute la largeur ; jamais seul en bas de page. */
-  private tituloSeccao(texte: string) {
+  /**
+   * h2.sec : 9,6 pt en capitales, filet jaune de 1,5 pt sur toute la largeur ; jamais seul en bas de page
+   * (break-after: avoid) : il garde avec lui `suite`, deux lignes de texte par défaut, la première rangée de photos.
+   */
+  private tituloSeccao(texte: string, suite = 2 * 12.6) {
     const taille = 9.6
     const hLigne = taille * NORMAL
     const lignes = this.couperEspace(texte.toUpperCase(), LARGEUR, taille, true, 1.2)
     const hauteur = lignes.length * hLigne + 3 + 1.5
-    this.placer(0, hauteur + 6 + 2 * 12.6)
+    this.placer(0, hauteur + 6 + suite)
     lignes.forEach((l, i) => {
       this.ecrire(l, MARGE_GAUCHE, this.y + i * hLigne + ligneDeBase(hLigne, taille), { taille, gras: true, couleur: COR.texte, espacement: 1.2 })
     })
@@ -1170,7 +1239,7 @@ class DocumentVitfix extends MiseEnPageGabarit {
     const photos = this.e.selectedPhotos || []
     const ecart = 10
     const largeurPhoto = (LARGEUR - ecart) / 2
-    const hauteurPhoto = 170
+    const hauteurPhoto = HAUTEUR_PHOTO
     for (let i = 0; i < photos.length; i += 2) {
       const legendes = [0, 1].filter((c) => i + c < photos.length).map((c) => {
         const p = photos[i + c]
@@ -1212,10 +1281,21 @@ class DocumentVitfix extends MiseEnPageGabarit {
       : [{ texte: modoPagamento(e.paymentMode).frase }]
     const juros = jurosDeMora(e.penaltyRate) || 'Os atrasos de pagamento vencem juros de mora à taxa legal em vigor.'
     const fim = [descontoPagamento(e.paymentCondition), juros].filter(Boolean).join(' ')
-    if (this.unica) {
+    if (this.semPlano) {
       return [{ texte: insecables(`Pagamento de 100 % contra fatura, ${prazoPagamento(e.paymentDue).faturas}, `) }, ...meio, { texte: ': ' }, this.fragmentTotal(), { texte: insecables(`. ${fim}`) }]
     }
     const P = this.prestacoes
+    if (P.length === 1) {
+      // Une seule prestação : « Pagamento de 100 % na adjudicação… após a receção do pagamento » (gabarit).
+      const momento = P[0].momento ? ` ${P[0].momento}` : ''
+      return [
+        { texte: insecables(`Pagamento de ${pourcentPt(P[0].pct)} %${momento}, `) },
+        ...meio,
+        { texte: ': ' },
+        ...this.textoPrestacoes(),
+        { texte: insecables(`. Os trabalhos só são agendados após a receção do pagamento. ${fim}`) },
+      ]
+    }
     let partes = ''
     P.forEach((p, i) => {
       const s = `${i + 1}.ª prestação de ${pourcentPt(p.pct)} %${p.momento ? ` ${p.momento}` : ''}`
@@ -1245,9 +1325,6 @@ class DocumentVitfix extends MiseEnPageGabarit {
     const garantia = this.garantia
       ? `Garantia de ${this.garantia} sobre a execução dos trabalhos, a contar da data de receção, sem prejuízo das garantias legais imperativas e da garantia do fabricante para os produtos.`
       : 'A execução está coberta pela garantia legal aplicável, a contar da receção dos trabalhos, sem prejuízo da garantia do fabricante para os produtos.'
-    const mediador = textePdf(this.e.mediatorName).trim()
-    const urlMediador = textePdf(this.e.mediatorUrl).trim()
-    const entidade = mediador ? `, nomeadamente ${mediador}${urlMediador ? ` (${urlMediador})` : ''}` : ''
     const clausulas: Array<[string, Fragment[]]> = [
       ['Preço', [{ texte: 'Preço global e fixo para os trabalhos identificados com o cliente, para o âmbito descrito, firme durante a validade do orçamento (' }, this.ouPointilles(this.validade()), { texte: ').' }]],
       ['IVA', this.clausulaIva()],
@@ -1257,18 +1334,27 @@ class DocumentVitfix extends MiseEnPageGabarit {
       ['Garantia', [{ texte: insecables(`${garantia} Excluem-se o desgaste normal, os danos causados por terceiros ou por uso indevido e a falta de manutenção.`) }]],
       ['Danos preexistentes', [{ texte: 'O estado das zonas de intervenção é registado em fotografia antes do início dos trabalhos. Os danos preexistentes não são imputáveis à ' }, this.ouPointilles(this.nome()), { texte: '.' }]],
       ['Acesso e autorizações', [{ texte: 'O cliente garante o acesso à zona de trabalho, um ponto de água e um ponto de eletricidade durante todo o prazo e obtém, se necessário, a autorização do condomínio quando os trabalhos incidirem sobre partes comuns.' }]],
-      ['Litígios', [{ texte: insecables(`Lei portuguesa. Em caso de litígio de consumo, o cliente pode recorrer ao CNIACC (www.cniacc.pt) ou à entidade de resolução alternativa de litígios territorialmente competente (Lei n.º 144/2015)${entidade}. Livro de reclamações eletrónico em www.livroreclamacoes.pt.`) }]],
+      ['Litígios', [{ texte: insecables(`Lei portuguesa. Em caso de litígio de consumo, o cliente pode recorrer ao CNIACC (www.cniacc.pt) ou à entidade de resolução alternativa de litígios territorialmente competente (Lei n.º 144/2015)${this.entidadeRal()}. Livro de reclamações eletrónico em www.livroreclamacoes.pt.`) }]],
       ['Aceitação', [{ texte: 'A assinatura do presente orçamento vale adjudicação e aceitação integral destas condições gerais.' }]],
     ]
     return clausulas.map(([titre, fragments]) => [{ texte: `${titre}.`, gras: true, couleur: COR.texte }, { texte: ' ' }, ...fragments])
   }
 
+  /** « , nomeadamente <médiateur> (<adresse>) » : entité de résolution des litiges indiquée par la société. */
+  private entidadeRal(): string {
+    const mediador = textePdf(this.e.mediatorName).trim()
+    if (!mediador) return ''
+    const url = textePdf(this.e.mediatorUrl).trim()
+    return `, nomeadamente ${mediador}${url ? ` (${url})` : ''}`
+  }
+
   /** Livre resolução d'un particulier, contrat hors établissement (Decreto-Lei n.º 24/2014). */
   private livreResolucao() {
     const contacto = [this.email(), textePdf(this.e.companyAddress).trim()].filter(Boolean).join(' ou ')
-    this.paragrapheSection([{ texte: insecables(`O cliente dispõe de um prazo de 14 dias de calendário, a contar da assinatura do presente orçamento, para exercer o direito de livre resolução, sem necessidade de justificação nem de pagamento de penalidades (artigo 10.º do Decreto-Lei n.º 24/2014), por qualquer declaração inequívoca ou pelo formulário abaixo${contacto ? `, enviado para ${contacto}` : ''}. Caso solicite expressamente o início dos trabalhos antes do termo desse prazo, perde esse direito assim que o serviço for integralmente prestado (artigo 17.º, n.º 1, alínea a), do mesmo diploma).`) }])
+    const envoi = contacto ? `, enviado para ${contacto}` : ''
+    this.paragrapheSection([{ texte: insecables(`O cliente dispõe de um prazo de 14 dias de calendário, a contar da assinatura do presente orçamento, para exercer o direito de livre resolução, sem necessidade de justificação nem de pagamento de penalidades (artigo 10.º do Decreto-Lei n.º 24/2014), por qualquer declaração inequívoca ou pelo formulário abaixo${envoi}. Caso solicite expressamente o início dos trabalhos antes do termo desse prazo e depois exerça esse direito, paga o montante proporcional aos trabalhos já executados até à comunicação da resolução; perde o direito assim que o serviço for integralmente prestado (artigo 17.º, n.º 1, alínea a), do mesmo diploma).`) }])
     this.paragrapheSection([{ texte: insecables(`Formulário: pela presente notifico a resolução do contrato relativo ao orçamento n.º ${this.numero() || PH_NUM}.`) }])
-    const campos = ['Nome do cliente', 'Morada', 'Data', 'Assinatura']
+    const campos = ['Encomendado em / recebido em', 'Nome do cliente', 'Morada', 'Data', 'Assinatura']
     const hCampo = 5 + 7 * NORMAL + 12
     this.placer(0, campos.length * hCampo)
     for (const campo of campos) {
@@ -1338,33 +1424,61 @@ async function imageAssinatura(e: PdfV3Input): Promise<string | null> {
   }
 }
 
-/** Hauteur de la page 1 dessinée d'un seul tenant, normale ou resserrée (mesure à l'écran du gabarit). */
-function medirFolha1(JsPdf: ConstructeurPdf, octets: OctetsPolice | null, e: PdfV3Input, compacto: boolean, assinatura: string | null): number {
-  const pdf = new JsPdf({ orientation: 'portrait', unit: 'pt', format: [PAGE_L, HAUTEUR_MESURE] })
-  const documento = new DocumentVitfix(pdf, enregistrerPolice(pdf, octets, sansAvertir), e, GEOMETRIE_MESURE, compacto, assinatura)
+/**
+ * Page 1 dessinée à blanc : d'un seul tenant sur une page de mesure très haute (la mesure à l'écran du gabarit), ou en
+ * vrai A4 (en-tête de tableau répété, blocs insécables repoussés). Rend la hauteur continue, ou le remplissage de la
+ * dernière page A4.
+ */
+function essaiFolha1(JsPdf: ConstructeurPdf, octets: OctetsPolice | null, e: PdfV3Input, assinatura: string | null, o: { compacto: boolean; a4: boolean }): number {
+  const pdf = o.a4
+    ? new JsPdf({ orientation: 'portrait', unit: 'pt', format: 'a4' })
+    : new JsPdf({ orientation: 'portrait', unit: 'pt', format: [PAGE_L, HAUTEUR_MESURE] })
+  const documento = new DocumentVitfix(pdf, enregistrerPolice(pdf, octets, sansAvertir), e, o.a4 ? GEOMETRIE : GEOMETRIE_MESURE, o.compacto, assinatura)
   documento.folha1()
-  return documento.hauteurUtilisee()
+  return o.a4 ? documento.remplissageDernierePage() : documento.hauteurUtilisee()
 }
 
 /**
- * Mise en page de la page 1 (fonction ajustar du gabarit) : débord léger → espacements resserrés ; débord franc
- * et dernière page du devis à moitié vide → l'annexe enchaîne sur cette page au lieu d'une page presque blanche.
+ * Mise en page de la page 1 (fonction ajustar du gabarit) : débord léger → espacements resserrés ; débord franc et
+ * dernière page du devis à moitié vide → l'annexe enchaîne sur cette page au lieu d'une page presque blanche. Le
+ * gabarit estimait ce remplissage sur la hauteur continue ; ici, la vraie pagination A4 le donne.
  */
-export function modoPagina1(hauteur: number, hauteurCompacta: () => number): 'normal' | 'compacto' | 'continua' | 'quebra' {
+export function modoPagina1(hauteur: number, mesures: { compacta: () => number; derniereA4: () => number }): 'normal' | 'compacto' | 'continua' | 'quebra' {
   const limite = ALTURA_UTIL - 3
   if (hauteur <= limite) return 'normal'
-  if (hauteur - limite <= 60 && hauteurCompacta() <= limite) return 'compacto'
-  return hauteur % ALTURA_UTIL < ALTURA_UTIL * 0.5 ? 'continua' : 'quebra'
+  if (hauteur - limite <= 60 && mesures.compacta() <= limite) return 'compacto'
+  return mesures.derniereA4() < ALTURA_UTIL * 0.5 ? 'continua' : 'quebra'
 }
 
-/** Dessine l'orçamento au gabarit Vitfix ; `e` est l'entrée déjà nettoyée du générateur V3. */
-export async function rendreOrcamentoVitfix(JsPdf: ConstructeurPdf, e: PdfV3Input): Promise<Pdf> {
+const TRACO_ESPACADO = new RegExp(`\\s+[${String.fromCharCode(0x2012)}-${String.fromCharCode(0x2015)}]\\s+`, 'g')
+const TRACO = new RegExp(`[${String.fromCharCode(0x2010)}-${String.fromCharCode(0x2015)}${String.fromCharCode(0x2212)}]`, 'g')
+/** Champs à ne jamais réécrire : adresses d'images, signature, empreinte. */
+const CHAMPS_INTACTOS: ReadonlySet<string> = new Set(['url', 'svg_data', 'hash_sha256'])
+
+/** Règle 4 : aucun tiret long ni demi-cadratin, nulle part ; « – » entouré d'espaces devient « · », les autres « - ». */
+export function limparTracos<T>(valeur: T, cle = ''): T {
+  if (typeof valeur === 'string') {
+    return (CHAMPS_INTACTOS.has(cle) ? valeur : valeur.replace(TRACO_ESPACADO, ' · ').replace(TRACO, '-')) as T
+  }
+  if (Array.isArray(valeur)) return valeur.map((v) => limparTracos(v, cle)) as T
+  if (valeur && typeof valeur === 'object') {
+    return Object.fromEntries(Object.entries(valeur).map(([k, v]) => [k, limparTracos(v, k)])) as T
+  }
+  return valeur
+}
+
+/** Dessine l'orçamento au gabarit Vitfix ; `entree` est l'entrée déjà nettoyée du générateur V3. */
+export async function rendreOrcamentoVitfix(JsPdf: ConstructeurPdf, entree: PdfV3Input): Promise<Pdf> {
+  const e = limparTracos(entree)
   const [octets, assinatura, fotos] = await Promise.all([
     chargerOctetsPolice(avertir),
     imageAssinatura(e),
     Promise.all((e.selectedPhotos || []).map((p) => chargerImageJpeg(p.url, avertir))),
   ])
-  const modo = modoPagina1(medirFolha1(JsPdf, octets, e, false, assinatura), () => medirFolha1(JsPdf, octets, e, true, assinatura))
+  const modo = modoPagina1(essaiFolha1(JsPdf, octets, e, assinatura, { compacto: false, a4: false }), {
+    compacta: () => essaiFolha1(JsPdf, octets, e, assinatura, { compacto: true, a4: false }),
+    derniereA4: () => essaiFolha1(JsPdf, octets, e, assinatura, { compacto: false, a4: true }),
+  })
   const pdf = new JsPdf({ orientation: 'portrait', unit: 'pt', format: 'a4' })
   const documento = new DocumentVitfix(pdf, enregistrerPolice(pdf, octets, avertir), e, GEOMETRIE, modo === 'compacto', assinatura)
   documento.folha1()
