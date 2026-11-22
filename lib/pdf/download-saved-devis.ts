@@ -19,7 +19,7 @@ import { getDecennaleEligibility } from '@/lib/decennale-eligibility'
 import { buildV2Input, type BuildV2InputParams } from '@/lib/pdf/build-v2-input'
 import { sumMoney, round2, mulMoney } from '@/lib/money'
 import { resolveTvaEnabledV2 } from '@/lib/devis-utils'
-import { assuranceDocumentBtp, codeStatutJuridiqueBtp, statutJuridiqueDocumentBtp } from '@/lib/statut-juridique-btp'
+import { assuranceDocumentBtp, codeStatutJuridiqueBtp, mediateurDocumentBtp, statutJuridiqueDocumentBtp } from '@/lib/statut-juridique-btp'
 import { svgToImageDataUrl } from '@/lib/signature-canvas'
 import { computeTva, type TvaRegime } from '@/lib/tva-calculator'
 import { buildDocumentLines } from '@/lib/devis-totals'
@@ -485,16 +485,16 @@ async function genererAvecV3(
   let artisanTypeActivite: string | null = null
   // Identité légale de la société (Mon profil) : reprise quand le document
   // enregistré a le champ vide, comme le fait le formulaire BTP à l'ouverture.
-  // Assurance de la fiche : société portugaise seulement (assuranceDocumentBtp).
+  // Assurance et médiateur de la fiche : société portugaise seulement (assuranceDocumentBtp, mediateurDocumentBtp).
   let fiche: { siret?: string | null; company_address?: string | null; rcs_number?: string | null
     share_capital?: string | null; tva_intra?: string | null; ape_code?: string | null; legal_form?: string | null
     insurance_name?: string | null; insurance_number?: string | null; insurance_type?: string | null
-    insurance_coverage?: string | null } = {}
+    insurance_coverage?: string | null; mediator_name?: string | null; mediator_url?: string | null } = {}
   if (artisan?.id) {
     try {
       const { data } = await supabase
         .from('profiles_artisan')
-        .select('paiement_modes, categories, type_activite, siret, company_address, rcs_number, share_capital, tva_intra, ape_code, legal_form, insurance_name, insurance_number, insurance_type, insurance_coverage')
+        .select('paiement_modes, categories, type_activite, siret, company_address, rcs_number, share_capital, tva_intra, ape_code, legal_form, insurance_name, insurance_number, insurance_type, insurance_coverage, mediator_name, mediator_url')
         .eq('id', artisan.id)
         .single()
       if (data) fiche = data as typeof fiche
@@ -519,6 +519,7 @@ async function genererAvecV3(
   // Société française : l'assurance du document, comme avant. Société portugaise : celle que le formulaire affiche à
   // l'ouverture (assureur de la fiche pour un document enregistré sans assureur, couverture portugaise).
   const assurance = assuranceDocumentBtp(doc, fiche)
+  const mediateur = mediateurDocumentBtp(doc, fiche)
 
   return generateDevisPdfV3({
     action,
@@ -579,8 +580,8 @@ async function genererAvecV3(
     insuranceCoverage: assurance.insuranceCoverage,
     insuranceType: assurance.insuranceType,
     decennaleEligibility: getDecennaleEligibility(artisanCategories ?? artisanTypeActivite),
-    mediatorName: doc.mediatorName || '',
-    mediatorUrl: doc.mediatorUrl || '',
+    mediatorName: mediateur.mediatorName,
+    mediatorUrl: mediateur.mediatorUrl,
     isHorsEtablissement: champs.isHorsEtablissement,
     clientName: doc.clientName || '',
     clientEmail: doc.clientEmail || '',
