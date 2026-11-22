@@ -181,6 +181,10 @@ describe('downloadSavedDevis (BTP) — anciens documents d\'une société portug
     const e = await telecharger(document({ ...ANCIEN, insuranceCoverage: 'France metropolitaine' }), 'pt')
     expect(e).toMatchObject({ insuranceName: 'Seguradora Exemplo', insuranceNumber: 'RC-2026-000123', insuranceCoverage: 'Portugal' })
     expect(await telecharger(document({ ...ANCIEN, mediatorName: 'Outro Centro' }), 'pt')).toMatchObject({ mediatorName: 'Outro Centro', mediatorUrl: '' })
+    // Médiateur de la fiche sans adresse : jamais l'adresse restée seule dans le document
+    recu.fiche = { ...FICHE_ASSUREE, mediator_url: null }
+    expect(await telecharger(document({ ...ANCIEN, mediatorName: '', mediatorUrl: 'https://doc.exemplo.test' }), 'pt'))
+      .toMatchObject({ mediatorName: 'Centro de Arbitragem Exemplo', mediatorUrl: '' })
   })
 
   it('société française : jamais l\'assureur ni le médiateur de la fiche, le document tel qu\'enregistré', async () => {

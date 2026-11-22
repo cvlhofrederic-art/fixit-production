@@ -311,6 +311,9 @@ describe('formes juridiques portugaises', () => {
       expect(mediateurDocumentBtp({}, { ...FICHE_RAL, mediator_name: '  Centro de Arbitragem Exemplo ', mediator_url: null }))
         .toEqual({ ...DE_LA_FICHE_RAL, mediatorUrl: '' })
       expect(mediateurDocumentBtp({}, { ...FICHE_RAL, mediator_url: ' https://arbitragem.exemplo.pt ' })).toEqual(DE_LA_FICHE_RAL)
+      // Nom de la fiche, jamais avec l'adresse restée seule dans le document
+      expect(mediateurDocumentBtp({ mediatorName: '', mediatorUrl: 'https://doc.exemplo.test' }, { ...FICHE_RAL, mediator_url: null }))
+        .toEqual({ ...DE_LA_FICHE_RAL, mediatorUrl: '' })
     })
 
     it('société portugaise, document qui nomme un médiateur : le sien, adresse comprise', () => {
@@ -324,6 +327,7 @@ describe('formes juridiques portugaises', () => {
         expect(mediateurDocumentBtp({}, { ...FICHE_RAL, legal_form })).toEqual({ mediatorName: '', mediatorUrl: '' })
         expect(mediateurDocumentBtp({ mediatorName: 'Médiateur', mediatorUrl: 'https://m.test' }, { ...FICHE_RAL, legal_form }))
           .toEqual({ mediatorName: 'Médiateur', mediatorUrl: 'https://m.test' })
+        expect(mediateurDocumentBtp({ mediatorName: ' ' }, { ...FICHE_RAL, legal_form })).toEqual({ mediatorName: ' ', mediatorUrl: '' })
       }
     })
   })

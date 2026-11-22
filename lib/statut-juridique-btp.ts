@@ -184,9 +184,10 @@ export function assuranceDocumentBtp(
 /**
  * Médiateur de la consommation d'un document BTP enregistré, au téléchargement depuis la liste et dans le ZIP, sur le
  * modèle d'assuranceDocumentBtp. Une société française lit exactement celui du document, comme avant. Une société
- * portugaise lit celui que le formulaire affiche à l'ouverture (demande de Frédéric du 22/11/2026) : un document
- * enregistré sans nom de médiateur reprend celui de la fiche, nom et adresse (sans nom, aucune mention n'est
- * imprimée) ; un document qui en nomme un garde le sien, adresse comprise.
+ * portugaise (demande de Frédéric du 22/11/2026) : un document enregistré sans nom de médiateur reprend celui de la
+ * fiche, nom et adresse (sans nom, aucune mention n'est imprimée) ; un document qui en nomme un garde le sien, adresse
+ * comprise. Écart voulu avec le formulaire, qui complète le nom et l'adresse séparément (puis d'après le dernier
+ * document) : le nom d'un médiateur n'est jamais imprimé avec l'adresse d'un autre.
  */
 export function mediateurDocumentBtp(
   document: { mediatorName?: string | null; mediatorUrl?: string | null },
