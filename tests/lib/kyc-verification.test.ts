@@ -360,3 +360,102 @@ describe('buildKycDetails (fr_artisan)', () => {
     expect(details.some(d => d.includes('approuvé'))).toBe(true)
   })
 })
+
+// ---------------------------------------------------------------------------
+// pt_btp — société BTP inscrite en portugais (22/11/2026) : NIPC, VIES, certidão permanente. Les marchés existants
+// sont gardés par tests/lib/kyc-marches-existants-invariance.test.ts.
+// ---------------------------------------------------------------------------
+
+/** Contrôles d'une société portugaise au NIPC valide ; le reste à faux sauf précision. */
+const controlesSociete = (overrides: Partial<KycChecks> = {}): KycChecks => ({
+  identifiantFormatValid: true,
+  identifiantActiveInRegistry: false,
+  docOcrSuccess: false,
+  identifiantMatchDocVsApi: false,
+  nameMatchDocVsApi: 0,
+  nameMatchDocVsId: 0,
+  addressMatchDocVsApi: false,
+  ...overrides,
+})
+
+describe('computeKycScore et decideKycStatus (pt_btp)', () => {
+  // VIES actif, certidão lue, NIPC de la matrícula identique : il ne manque que la firma.
+  const presqueTout = (nameMatchDocVsApi: number) =>
+    controlesSociete({ identifiantActiveInRegistry: true, docOcrSuccess: true, identifiantMatchDocVsApi: true, nameMatchDocVsApi })
+
+  it.each([
+    ['NIPC invalide : 0, rejet d’office', controlesSociete({ identifiantFormatValid: false, identifiantActiveInRegistry: true }), 0, 'rejected'],
+    ['NIPC valide seul (VIES muet, certidão non lue) : 10, revue manuelle et non rejet', controlesSociete(), 10, 'manual_review'],
+    ['actif au VIES, certidão en PDF non lue : 40, revue manuelle', controlesSociete({ identifiantActiveInRegistry: true }), 40, 'manual_review'],
+    [
+      'certidão lue, NIPC et firma concordants, sans VIES : 70, revue manuelle',
+      controlesSociete({ docOcrSuccess: true, identifiantMatchDocVsApi: true, nameMatchDocVsApi: 100 }),
+      70,
+      'manual_review',
+    ],
+    [
+      'VIES et certidão lue, firma identique, NIPC de la matrícula différent ou non lu : 75, revue manuelle',
+      controlesSociete({ identifiantActiveInRegistry: true, docOcrSuccess: true, nameMatchDocVsApi: 100 }),
+      75,
+      'manual_review',
+    ],
+    ['VIES, certidão et NIPC, firma non lue : 75, revue manuelle', presqueTout(0), 75, 'manual_review'],
+    ['VIES, certidão et NIPC, firma à 63 % du registre, sous le seuil : 75, revue manuelle', presqueTout(63), 75, 'manual_review'],
+    ['VIES, certidão et NIPC, firma à 64 % du registre : 91, approuvé', presqueTout(64), 91, 'approved'],
+    ['tout concorde : 100, approuvé', presqueTout(100), 100, 'approved'],
+  ])('%s', (_cas, checks, score, decision) => {
+    expect(computeKycScore(checks, 'pt_btp')).toBe(score)
+    expect(decideKycStatus(score, 'pt_btp')).toBe(decision)
+  })
+
+  it('la pièce d’identité ne compte pas : la fiche d’une société n’a pas le nom de son gérant', () => {
+    const avecPiece = controlesSociete({ identifiantActiveInRegistry: true, nameMatchDocVsId: 100 })
+    expect(computeKycScore(avecPiece, 'pt_btp')).toBe(computeKycScore(controlesSociete({ identifiantActiveInRegistry: true }), 'pt_btp'))
+  })
+
+  it('décision : rejet seulement à 0 (NIPC invalide), revue manuelle de 1 à 79, approbation dès 80', () => {
+    const attendue = (score: number) => {
+      if (score === 0) return 'rejected'
+      return score >= 80 ? 'approved' : 'manual_review'
+    }
+    const ecarts: number[] = []
+    for (let score = 0; score <= 100; score++) {
+      if (decideKycStatus(score, 'pt_btp') !== attendue(score)) ecarts.push(score)
+    }
+    expect(ecarts).toEqual([])
+  })
+})
+
+describe('buildKycDetails (pt_btp)', () => {
+  it('messages en portugais : NIPC, VIES, certidão permanente, Cartão de Cidadão à vérifier à la main', () => {
+    const checks = controlesSociete({ identifiantActiveInRegistry: true, docOcrSuccess: true, identifiantMatchDocVsApi: true, nameMatchDocVsApi: 100 })
+    expect(buildKycDetails(checks, computeKycScore(checks, 'pt_btp'), 'pt_btp')).toEqual([
+      'NIPC válido',
+      'Empresa ativa no VIES (registo de IVA)',
+      'Certidão Permanente lida por OCR',
+      'NIPC da matrícula idêntico ao declarado',
+      'Correspondência firma Certidão/registo : 100% (contada a partir de 64%)',
+      'Cartão de Cidadão do gerente : verificação manual',
+      'Score KYC : 100/100 — aprovado',
+    ])
+  })
+
+  it('certidão non lue et VIES muet : score bas annoncé en revue manuelle, pas en rejet', () => {
+    expect(buildKycDetails(controlesSociete(), 10, 'pt_btp')).toEqual([
+      'NIPC válido',
+      'Empresa não confirmada no VIES (sem registo de IVA, ou serviço indisponível)',
+      'Certidão Permanente não lida (PDF ou imagem ilegível) — revisão manual',
+      'NIPC da matrícula diferente do declarado, ou não lido',
+      'Correspondência firma Certidão/registo : 0% (contada a partir de 64%)',
+      'Cartão de Cidadão do gerente : verificação manual',
+      'Score KYC : 10/100 — revisão manual',
+    ])
+  })
+
+  it('NIPC invalide : rejet annoncé, aucun mot français', () => {
+    const details = buildKycDetails(controlesSociete({ identifiantFormatValid: false }), 0, 'pt_btp')
+    expect(details[0]).toBe('NIPC inválido (formato ou dígito de controlo)')
+    expect(details.at(-1)).toBe('Score KYC : 0/100 — rejeitado')
+    expect(details.join(' ')).not.toMatch(/SIRET|KBIS|registre|rejeté/)
+  })
+})

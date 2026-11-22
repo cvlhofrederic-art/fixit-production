@@ -383,3 +383,27 @@ describe('Inscription société BTP : échec de la fiche ou des pièces', () => 
     expect(screen.queryByText(MESSAGE_FICHE)).toBeNull()
   })
 })
+
+// Marché KYC de la société (22/11/2026) : le formulaire envoyait toujours fr_btp, et le KYC contrôlait le NIPC d'une
+// société inscrite en portugais comme un SIRET (rejet d'office, score 0, pour une société inscrite le 17/11/2026).
+describe('Inscription société BTP : marché KYC selon la langue de la page', () => {
+  beforeEach(() => {
+    h.societe = SOCIETE_SAS
+  })
+
+  it('société inscrite en portugais (NIF vérifié à l’étape 1) : marché pt_btp', async () => {
+    h.locale = 'pt'
+
+    const corps = await sInscrireCommeSocieteBtp('lda', { numero: '512345678', secteur: SECTEURS_BTP_PT[0].label })
+
+    expect(urls()).toContain('/api/verify-nif?nif=512345678')
+    expect(corps.kyc_market).toBe('pt_btp')
+  })
+
+  it('société française (SIRET vérifié à l’étape 1) : marché fr_btp, comme avant', async () => {
+    const corps = await sInscrireCommeSocieteBtp()
+
+    expect(urls()).toContain('/api/verify-siret?siret=12345678900012')
+    expect(corps.kyc_market).toBe('fr_btp')
+  })
+})

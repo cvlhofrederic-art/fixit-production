@@ -257,17 +257,18 @@ describe('Dossier d’une société BTP (marché fr_btp) : hors de ce correctif 
     for (let n = 0; n < fetchEmail.mock.calls.length; n++) expect(corpsEmail(n).name).not.toBe('Pierre Dirigeant')
   })
 
-  it('société BTP inscrite en portugais : chemin d’avant, inchangé (Portugal BTP exclu)', async () => {
+  // Depuis le 22/11/2026, une société inscrite en portugais suit le chemin des sociétés (tests/api/admin-kyc-decision-societe.test.ts).
+  it('société BTP inscrite en portugais : pas traitée comme un dossier d’artisan (compte non lu, e-mail au nom de la société)', async () => {
     const { status } = await decider({ artisan_id: ID_SOCIETE_BTP_PT, action: 'approve' })
 
-    expect(status).toBe(500)
-    expect(fiche(ID_SOCIETE_BTP_PT).kyc_status).toBe('pending')
-    expect(fetchEmail).not.toHaveBeenCalled()
+    expect(status).toBe(200)
+    expect(fiche(ID_SOCIETE_BTP_PT).kyc_status).toBe('approved')
     expect(h.getUserById).not.toHaveBeenCalled()
+    expect(corpsEmail()).toMatchObject({ name: 'CONSTRUÇÕES EXEMPLO', market: 'pt_btp' })
   })
 
-  it('marché KYC inconnu (par exemple un futur marché BTP) : chemin d’avant, pas celui de l’artisan', async () => {
-    fiche(ID_ARTISAN_FR).kyc_market = 'pt_btp'
+  it('marché KYC inconnu (par exemple un futur marché) : chemin d’avant, pas celui de l’artisan', async () => {
+    fiche(ID_ARTISAN_FR).kyc_market = 'es_btp'
 
     const { status } = await decider({ artisan_id: ID_ARTISAN_FR, action: 'approve' })
 

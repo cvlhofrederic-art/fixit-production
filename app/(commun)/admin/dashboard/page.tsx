@@ -69,7 +69,17 @@ interface KycRow {
   kbis_extracted: Record<string, unknown> | null
   certidao_extracted: Record<string, unknown> | null
   kyc_market: string | null
+  language?: string | null
   created_at: string
+}
+
+/**
+ * Dossier aux pièces portugaises (Certidão, Cartão de Cidadão, NIF) : artisan (pt_artisan), société BTP (pt_btp), ou
+ * société inscrite en portugais avant le marché pt_btp (marché fr_btp sur une fiche en portugais).
+ */
+function piecesPortugaises(row: KycRow): boolean {
+  if (row.kyc_market === 'pt_artisan' || row.kyc_market === 'pt_btp') return true
+  return row.kyc_market === 'fr_btp' && row.language === 'pt'
 }
 
 // ── Role Switcher data (preserved from original) ────────────────────────────
@@ -850,13 +860,17 @@ export default function AdminDashboardPage() {
                 {/* Données extraites du document entreprise */}
                 {(row.kbis_extracted || row.certidao_extracted) && (() => {
                   const extracted = (row.kbis_extracted || row.certidao_extracted) as Record<string, string | null>
-                  const label = row.kyc_market === 'pt_artisan' ? 'Certidão extraite' : 'KBIS extrait'
+                  const portugais = piecesPortugaises(row)
+                  const label = portugais ? 'Certidão extraite' : 'KBIS extrait'
                   return (
                     <div className="bg-gray-900/60 rounded-lg p-3 text-xs space-y-1 text-gray-300">
                       <p className="font-medium text-gray-200 mb-2">{label} :</p>
                       {extracted.denomination && <p><span className="text-gray-500">Dénomination :</span> {extracted.denomination}</p>}
-                      {extracted.representant && <p><span className="text-gray-500">{row.kyc_market === 'pt_artisan' ? 'Gerente' : 'Gérant'} :</span> {extracted.representant}</p>}
-                      {extracted.identifiant && <p><span className="text-gray-500">{row.kyc_market === 'pt_artisan' ? 'NIF' : 'SIRET'} extrait :</span> {extracted.identifiant}</p>}
+                      {extracted.representant && <p><span className="text-gray-500">{portugais ? 'Gerente' : 'Gérant'} :</span> {extracted.representant}</p>}
+                      {extracted.identifiant && <p><span className="text-gray-500">{portugais ? 'NIF' : 'SIRET'} extrait :</span> {extracted.identifiant}</p>}
+                      {/* Certidão permanente d'une société portugaise : code de consultation en ligne et fin de validité */}
+                      {extracted.codigo_acesso && <p><span className="text-gray-500">Código de acesso :</span> {extracted.codigo_acesso}</p>}
+                      {extracted.valida_ate && <p><span className="text-gray-500">Válida até :</span> {extracted.valida_ate}</p>}
                     </div>
                   )
                 })()}
@@ -864,10 +878,10 @@ export default function AdminDashboardPage() {
                 {/* Liens documents */}
                 <div className="flex flex-wrap gap-2">
                   <LienDocumentKyc url={row.kbis_url} className="px-3 py-1.5 bg-blue-900/60 hover:bg-blue-800 text-blue-300 rounded-lg text-xs transition-colors">
-                    📄 {row.kyc_market === 'pt_artisan' ? 'Certidão' : 'KBIS'}
+                    📄 {piecesPortugaises(row) ? 'Certidão' : 'KBIS'}
                   </LienDocumentKyc>
                   <LienDocumentKyc url={row.id_document_url} className="px-3 py-1.5 bg-purple-900/60 hover:bg-purple-800 text-purple-300 rounded-lg text-xs transition-colors">
-                    🪪 {row.kyc_market === 'pt_artisan' ? 'Cartão de Cidadão' : 'CNI'}
+                    🪪 {piecesPortugaises(row) ? 'Cartão de Cidadão' : 'CNI'}
                   </LienDocumentKyc>
                 </div>
 

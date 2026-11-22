@@ -60,11 +60,18 @@ interface KycRow {
 
 /**
  * Dossier d'une société BTP française : marché KYC fr_btp (inscription société) et fiche qui n'est pas en portugais
- * (critère commun aux correctifs du BTP pro, lib/btp/fiche-societe-francaise.ts). Une société inscrite en portugais
- * reçoit aussi fr_btp : elle garde le chemin d'avant (Portugal hors de ce correctif).
+ * (critère commun aux correctifs du BTP pro, lib/btp/fiche-societe-francaise.ts).
  */
 function estSocieteBtpFrancaise(fiche: Record<string, unknown>): boolean {
   return fiche.kyc_market === 'fr_btp' && ficheSocieteFrancaise(fiche)
+}
+
+/**
+ * Dossier d'une société BTP portugaise : marché KYC pt_btp (inscription en portugais depuis le 22/11/2026), ou fr_btp
+ * sur une fiche en portugais (inscription antérieure : le formulaire posait alors fr_btp pour toute société).
+ */
+function estSocieteBtpPortugaise(fiche: Record<string, unknown>): boolean {
+  return fiche.kyc_market === 'pt_btp' || (fiche.kyc_market === 'fr_btp' && !ficheSocieteFrancaise(fiche))
 }
 
 /** E-mail de décision envoyé et attendu (un envoi lancé sans attente pouvait être coupé à la fin de la requête). */
@@ -176,10 +183,11 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'Database error' }, { status: 500 })
   }
 
-  // Société BTP française : la décision est écrite sans relire first_name ni last_name, colonnes absentes de la
-  // production (la requête entière échouait, le statut ne changeait pas) ; l'e-mail part au nom de la société, qui
-  // n'a pas de nom de dirigeant dans sa fiche, et son envoi est attendu.
-  if (fiche && estSocieteBtpFrancaise(fiche)) {
+  // Société BTP, française ou portugaise : la décision est écrite sans relire first_name ni last_name, colonnes absentes
+  // de la production (la requête entière échouait, le statut ne changeait pas) ; l'e-mail part au nom de la société,
+  // qui n'a pas de nom de dirigeant dans sa fiche, en portugais pour une société portugaise, et son envoi est attendu.
+  const societePortugaise = fiche ? estSocieteBtpPortugaise(fiche) : false
+  if (fiche && (societePortugaise || estSocieteBtpFrancaise(fiche))) {
     // Auteur de la décision : l'identifiant du compte de l'administrateur, pas son e-mail. La fiche, cette colonne
     // comprise, est lisible par la société (tableau de bord, export de ses données).
     const { data: ecrite, error: ecritureError } = await supabaseAdmin
@@ -199,14 +207,15 @@ export async function PATCH(request: NextRequest) {
       company: societe,
       action,
       rejection_reason,
-      market: fiche.kyc_market,
+      // pt_btp : modèle portugais de /api/send-kyc-email, aussi pour une fiche portugaise restée au marché fr_btp.
+      market: societePortugaise ? 'pt_btp' : fiche.kyc_market,
     })
     return NextResponse.json({ success: true, status: newStatus, email_envoye: emailEnvoye })
   }
 
   // Dossier d'artisan (marché KYC fr_artisan, pt_artisan ou non renseigné, que le pipeline KYC traite en fr_artisan) :
-  // même défaut (first_name, last_name). L'e-mail de décision est attendu et la réponse dit s'il est parti. Autres
-  // dossiers (société BTP inscrite en portugais, marché inconnu) : chemin d'avant (Portugal BTP exclu).
+  // même défaut (first_name, last_name). L'e-mail de décision est attendu et la réponse dit s'il est parti. Autre
+  // marché (inconnu) : chemin d'avant.
   if (fiche && estDossierArtisan(fiche)) {
     // Auteur de la décision : l'identifiant du compte de l'administrateur, pas son e-mail. La fiche, cette colonne
     // comprise, est lisible par l'artisan (tableau de bord, export de ses données).
@@ -266,7 +275,8 @@ export async function PATCH(request: NextRequest) {
 
 /**
  * Dossier d'artisan : marché KYC fr_artisan ou pt_artisan, ou non renseigné (inscription antérieure au marché, que le
- * pipeline KYC traite en fr_artisan). fr_btp, celui des sociétés BTP, et tout autre marché gardent le chemin d'avant.
+ * pipeline KYC traite en fr_artisan). fr_btp et pt_btp, ceux des sociétés BTP, ont leur chemin ; tout autre marché
+ * garde le chemin d'avant.
  */
 function estDossierArtisan(fiche: Record<string, unknown>): boolean {
   const marche = fiche.kyc_market
