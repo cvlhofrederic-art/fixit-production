@@ -15,6 +15,7 @@ vi.mock('@/lib/supabase', () => ({
 }))
 
 import { fetchNextDocNumber, localFallbackDocNumber } from '../../lib/doc-number'
+import { fichePortugaise, prefixeSerie } from '../../lib/numerotation-prefixes'
 import { supabase } from '@/lib/supabase'
 
 const ART = 'art-1'
@@ -38,6 +39,27 @@ describe('localFallbackDocNumber', () => {
   it('série dédiée par type (AC- ≠ FACT-)', () => {
     localStorage.setItem(`fixit_documents_${ART}`, JSON.stringify([{ docNumber: `FACT-${YEAR}-010` }]))
     expect(localFallbackDocNumber(ART, 'acompte')).toBe(`AC-${YEAR}-001`)
+  })
+  it('artisan à l’écran en portugais : ORC-, FT-, FA-, NC- comme le serveur (migration 20261122b)', () => {
+    expect(localFallbackDocNumber(ART, 'devis', true)).toBe(`ORC-${YEAR}-001`)
+    expect(localFallbackDocNumber(ART, 'facture', true)).toBe(`FT-${YEAR}-001`)
+    expect(localFallbackDocNumber(ART, 'avoir', true)).toBe(`NC-${YEAR}-001`)
+    localStorage.setItem(`fixit_documents_${ART}`, JSON.stringify([{ docNumber: `FA-${YEAR}-003` }, { docNumber: `AC-${YEAR}-009` }]))
+    expect(localFallbackDocNumber(ART, 'acompte', true)).toBe(`FA-${YEAR}-004`)
+    expect(localFallbackDocNumber(ART, 'acompte')).toBe(`AC-${YEAR}-010`)
+  })
+})
+
+describe('préfixes des séries (lib/numerotation-prefixes)', () => {
+  it('les mêmes que next_doc_number : ORC/FT/FA/NC pour le Portugal, DEV/FACT/AC/AV sinon', () => {
+    expect((['devis', 'facture', 'acompte', 'avoir'] as const).map((t) => prefixeSerie(t, true))).toEqual(['ORC', 'FT', 'FA', 'NC'])
+    expect((['devis', 'facture', 'acompte', 'avoir'] as const).map((t) => prefixeSerie(t, false))).toEqual(['DEV', 'FACT', 'AC', 'AV'])
+  })
+  it('fiche portugaise : langue pt seulement ; fiche absente, sans langue ou en français → false', () => {
+    expect(fichePortugaise({ language: 'pt' })).toBe(true)
+    for (const f of [null, undefined, {}, { language: null }, { language: 'fr' }, { language: 'PT-pt' }]) {
+      expect(fichePortugaise(f)).toBe(false)
+    }
   })
 })
 
@@ -76,6 +98,7 @@ describe('fetchNextDocNumber', () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network')))
     ;(supabase.rpc as ReturnType<typeof vi.fn>).mockResolvedValue({ data: null, error: { message: 'down' } })
     await expect(fetchNextDocNumber('acompte', ART)).resolves.toBe(`AC-${YEAR}-001`)
+    await expect(fetchNextDocNumber('acompte', ART, { portugais: true })).resolves.toBe(`FA-${YEAR}-001`)
     vi.unstubAllGlobals()
   })
 })

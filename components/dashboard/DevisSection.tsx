@@ -23,6 +23,7 @@ import { appliquerRibCourant, chargerRibProfil } from '@/lib/rib-profil'
 import { appliquerFormeProfil } from '@/lib/statut-juridique-btp'
 import { emitDocument } from '@/lib/emit-document'
 import { fetchNextDocNumber } from '@/lib/doc-number'
+import { fichePortugaise } from '@/lib/numerotation-prefixes'
 import { messageEmissionArretee } from '@/lib/emission-hors-serveur'
 import { syncDocumentSafe } from '@/lib/document-sync'
 import type { ChampRecherche } from '@/lib/documents/recherche-documents'
@@ -968,10 +969,10 @@ function DevisSectionV5({
                 payload: prefilled,
                 artisanId: artisan.id,
                 // BTP : numéro du serveur seulement, place du navigateur vérifiée avant de le tirer
-                // (lib/emission-hors-serveur.ts). Artisan : inchangé.
+                // (lib/emission-hors-serveur.ts). Artisan : repli local d'origine, préfixes selon la langue de sa fiche.
                 getNumber: estBtp
                   ? () => fetchNextDocNumber('acompte', artisan.id, { repliLocal: false })
-                  : () => fetchNextDocNumber('acompte', artisan.id),
+                  : () => fetchNextDocNumber('acompte', artisan.id, { portugais: fichePortugaise(artisan) }),
                 sync: syncDocumentSafe,
                 ...(estBtp ? { verifierPlaceAvantNumero: true } : {}),
               })

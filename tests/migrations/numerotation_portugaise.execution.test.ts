@@ -1,14 +1,15 @@
 // @vitest-environment node
 // tests/migrations/numerotation_portugaise.execution.test.ts
 //
-// Numérotation portugaise (migration 20261122_numerotation_portugaise.sql, demande de Frédéric du 22/11/2026 :
-// « Numérotation ORC pour PT, DEV pour FR, faut que ça ait du sens ! Pareil les factures ») : une société BTP dont la
-// fiche est en portugais reçoit ORC, FT, NC et FA ; tout autre compte (artisans compris) garde DEV, FACT, AV et AC.
+// Numérotation portugaise (migrations 20261122_numerotation_portugaise.sql puis 20261122b_numerotation_portugaise_artisans.sql,
+// demandes de Frédéric du 22/11/2026 : « Numérotation ORC pour PT, DEV pour FR, faut que ça ait du sens ! Pareil les
+// factures », puis « Fais au mieux, sois logique ») : un compte dont une fiche est en portugais, société BTP ou artisan,
+// reçoit ORC, FT, NC et FA ; tout autre compte garde DEV, FACT, AV et AC.
 //
 // EXÉCUTION RÉELLE sur un vrai PostgreSQL (PGlite, en mémoire ; aucune base distante), sous le rôle authenticated et le
 // jeton d'une session (request.jwt.claims, comme PostgREST). État de départ : fonction et table de 20260602 et droits
 // d'exécution de 20260522 (le texte de la fonction a été relevé identique en production le 22/11/2026, aux espaces
-// près), puis la migration jouée deux fois (elle doit se rejouer). Comptes fictifs (UUID aléatoires).
+// près), puis les deux migrations jouées dans l'ordre, deux fois (elles doivent se rejouer). Comptes fictifs (UUID aléatoires).
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
@@ -16,7 +17,8 @@ import { randomUUID } from 'crypto'
 import { ECHAFAUDAGE_SUPABASE_SQL, lireMigrationQr } from '../helpers/pglite-signalements'
 import { dansPointDeSauvegarde, sousRole } from '../helpers/equipe-ecritures-serveur'
 
-const MIGRATION = '20261122_numerotation_portugaise.sql'
+const MIGRATIONS = ['20261122_numerotation_portugaise.sql', '20261122b_numerotation_portugaise_artisans.sql']
+const DERNIERE_MIGRATION = MIGRATIONS[MIGRATIONS.length - 1]
 
 // auth.uid() de Supabase : le « sub » du jeton de la requête ; tables lues par la fonction, réduites à leurs colonnes utiles.
 const ECHAFAUDAGE_NUMEROTATION = `
@@ -63,8 +65,10 @@ describe('numérotation portugaise (next_doc_number)', () => {
   const comptes = {
     societePt: randomUUID(), societeFr: randomUUID(), societeSansFiche: randomUUID(), societeBascule: randomUUID(),
     societeDeuxFiches: randomUUID(), societeLangueVide: randomUUID(), societeEn: randomUUID(),
-    artisanPt: randomUUID(), membre: randomUUID(), membrePt: randomUUID(), autre: randomUUID(),
+    artisanPt: randomUUID(), artisanFr: randomUUID(), membre: randomUUID(), membrePt: randomUUID(), autre: randomUUID(),
   }
+  /** Compte sans rôle dans app_metadata (ancien compte), fiche en portugais. */
+  const sansRolePt = randomUUID()
 
   beforeAll(async () => {
     db = await PGlite.create()
@@ -74,12 +78,14 @@ describe('numérotation portugaise (next_doc_number)', () => {
       const role = societes.includes(c) || c === comptes.membre || c === comptes.membrePt ? 'pro_societe' : 'artisan'
       await db.query(`INSERT INTO auth.users (id, raw_app_meta_data) VALUES ($1, jsonb_build_object('role', $2::text))`, [c, role])
     }
+    await db.query(`INSERT INTO auth.users (id, raw_app_meta_data) VALUES ($1, NULL)`, [sansRolePt])
     await db.exec(etatDeDepart())
     await db.query(
       `INSERT INTO public.profiles_artisan (user_id, language) VALUES
-         ($1, 'pt'), ($2, 'fr'), ($3, 'fr'), ($4, 'pt'), ($4, 'fr'), ($5, NULL), ($6, 'en'), ($7, 'pt'), ($8, 'pt')`,
+         ($1, 'pt'), ($2, 'fr'), ($3, 'fr'), ($4, 'pt'), ($4, 'fr'), ($5, NULL), ($6, 'en'), ($7, 'pt'), ($8, 'pt'),
+         ($9, 'fr'), ($10, 'pt')`,
       [comptes.societePt, comptes.societeFr, comptes.societeBascule, comptes.societeDeuxFiches, comptes.societeLangueVide,
-        comptes.societeEn, comptes.artisanPt, comptes.membrePt],
+        comptes.societeEn, comptes.artisanPt, comptes.membrePt, comptes.artisanFr, sansRolePt],
     )
     await db.query(
       `INSERT INTO public.pro_team_members (user_id, company_id, is_active) VALUES ($1, $2, true), ($3, $4, true)`,
@@ -88,7 +94,7 @@ describe('numérotation portugaise (next_doc_number)', () => {
     // Une société déjà numérotée en français avant la migration : son compteur continue après le passage au portugais.
     await db.query(`INSERT INTO public.doc_sequences (artisan_user_id, doc_type, year, last_seq) VALUES ($1, 'devis', 2026, 5)`, [comptes.societeBascule])
     traitsAvant = await traits()
-    for (let i = 0; i < 2; i++) await db.exec(lireMigrationQr(MIGRATION))
+    for (let i = 0; i < 2; i++) for (const m of MIGRATIONS) await db.exec(lireMigrationQr(m))
   })
   afterAll(async () => { await db?.close() })
   beforeEach(async () => { await db.exec('BEGIN') })
@@ -117,10 +123,24 @@ describe('numérotation portugaise (next_doc_number)', () => {
     }
   })
 
-  it('artisan à fiche portugaise : non touché (règle n° 1), DEV et FACT', async () => {
+  it('artisan à fiche portugaise : ORC, FT, NC, FA, comme une société', async () => {
     const c = comptes.artisanPt
+    expect(await numero(c, c, 'devis')).toBe('ORC-2026-001')
+    expect(await numero(c, c, 'facture')).toBe('FT-2026-001')
+    expect(await numero(c, c, 'avoir')).toBe('NC-2026-001')
+    expect(await numero(c, c, 'acompte')).toBe('FA-2026-001')
+  })
+
+  it('artisan à fiche française : DEV, FACT, AV, AC inchangés', async () => {
+    const c = comptes.artisanFr
     expect(await numero(c, c, 'devis')).toBe('DEV-2026-001')
     expect(await numero(c, c, 'facture')).toBe('FACT-2026-001')
+    expect(await numero(c, c, 'avoir')).toBe('AV-2026-001')
+    expect(await numero(c, c, 'acompte')).toBe('AC-2026-001')
+  })
+
+  it('compte sans rôle dans app_metadata, fiche en portugais : ORC (le rôle ne compte plus)', async () => {
+    expect(await numero(sansRolePt, sansRolePt, 'devis')).toBe('ORC-2026-001')
   })
 
   it('société passée au portugais : le compteur continue, sans doublon ni trou (DEV-2026-005 puis ORC-2026-006)', async () => {
@@ -161,7 +181,7 @@ describe('numérotation portugaise (next_doc_number)', () => {
       GRANT SELECT ON public.profiles_artisan, auth.users TO proprietaire_soumis_rls;
       ALTER TABLE public.profiles_artisan ENABLE ROW LEVEL SECURITY;
       ALTER FUNCTION public.next_doc_number(uuid, text, integer) OWNER TO proprietaire_soumis_rls`)
-    const { erreur } = await dansPointDeSauvegarde(db, () => db.exec(lireMigrationQr(MIGRATION)), false)
+    const { erreur } = await dansPointDeSauvegarde(db, () => db.exec(lireMigrationQr(DERNIERE_MIGRATION)), false)
     expect(erreur?.message).toMatch(/filtrée par la RLS/)
     expect(await corpsFonction()).toBe(corps)
   })

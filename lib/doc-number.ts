@@ -5,6 +5,7 @@
 
 import { supabase } from '@/lib/supabase'
 import { NumerotationIndisponibleError } from '@/lib/emission-hors-serveur'
+import { prefixeSerie } from '@/lib/numerotation-prefixes'
 
 export type DocSeriesType = 'devis' | 'facture' | 'avoir' | 'acompte'
 
@@ -12,19 +13,25 @@ export interface OptionsNumerotation {
   /**
    * false (émissions des sociétés BTP) : sans réponse du serveur, aucun numéro n'est tiré du compteur du navigateur,
    * que le serveur ignore ; l'appel échoue avec NumerotationIndisponibleError et rien n'est émis. Par défaut (true) :
-   * repli local d'origine, inchangé pour les artisans.
+   * repli local d'origine des artisans.
    */
   repliLocal?: boolean
+  /**
+   * Repli local d'un artisan dont la fiche est en portugais (fichePortugaise) : mêmes préfixes que le serveur (ORC-,
+   * FT-, FA-, NC-, migration 20261122b), au lieu de DEV-, FACT-, AC-, AV-.
+   */
+  portugais?: boolean
 }
 
 /**
  * Compteur localStorage — DERNIER recours (peut diverger entre devices).
  * Séries dédiées par type : DEV- (devis), FACT- (facture), AC- (acompte), AV- (avoir). Le serveur (next_doc_number) donne
- * ORC-, FT-, FA- et NC- à une société BTP dont la fiche est en portugais ; ce repli ne sert qu'aux artisans, qui gardent DEV-… .
+ * ORC-, FT-, FA- et NC- à un compte dont une fiche est en portugais (migration 20261122b) ; ce repli, qui ne sert qu'aux
+ * artisans, fait de même quand portugais est vrai (lib/numerotation-prefixes).
  */
-export function localFallbackDocNumber(artisanId: string | undefined, docType: DocSeriesType): string {
+export function localFallbackDocNumber(artisanId: string | undefined, docType: DocSeriesType, portugais = false): string {
   const year = new Date().getFullYear()
-  const prefix = docType === 'devis' ? 'DEV' : docType === 'facture' ? 'FACT' : docType === 'acompte' ? 'AC' : 'AV'
+  const prefix = prefixeSerie(docType, portugais)
   try {
     const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisanId}`) || '[]')
     const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisanId}`) || '[]')
@@ -99,5 +106,5 @@ export async function fetchNextDocNumber(
 
   // 3) Fallback localStorage (clé = id profil `artisanId`). Société BTP : pas de numéro du navigateur.
   if (options.repliLocal === false) throw new NumerotationIndisponibleError()
-  return localFallbackDocNumber(artisanId, docType)
+  return localFallbackDocNumber(artisanId, docType, options.portugais === true)
 }
