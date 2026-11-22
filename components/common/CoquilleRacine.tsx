@@ -77,7 +77,8 @@ export default function CoquilleRacine({
         <link rel="icon" type="image/png" sizes="16x16" href="/icon-16.png" />
         <link rel="icon" type="image/png" sizes="32x32" href="/icon-32.png" />
         <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#FFD600" />
-        <link rel="manifest" href="/manifest.json" />
+        {/* Manifeste : par l'API metadata seulement (METADONNEES_PARTAGEES, lib/seo/metadonnees-racine.ts), pour qu'une
+            section (PT, CRM) remplace celui de Vitfix au lieu de s'y ajouter. */}
         {/* Yandex Webmaster Tools verification — méthode meta tag, alternative
             non-DNS pour valider la propriété du site sur webmaster.yandex.com.
             Pertinent pour audience investisseurs étrangers ciblant Portugal

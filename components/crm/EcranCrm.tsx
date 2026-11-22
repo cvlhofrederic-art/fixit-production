@@ -4,6 +4,7 @@
 // Compteurs du jour, liste des demandes par statut, fiche « Appel en cours » ou détail d'une demande. Français ou
 // portugais au choix (mémorisé sur ce navigateur). Sans session : page de connexion générale, qui ramène ici le compte
 // « secretariat » (lib/auth/destination-par-role.ts). Les droits sont vérifiés par les routes app/api/crm/*.
+// Installable sur l'ordinateur comme application « Vitfix CRM » (lib/crm/manifeste.ts, components/crm/BoutonInstaller.tsx).
 
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { toast } from 'sonner'
@@ -17,7 +18,8 @@ import { ErreurApiCrm, apiCrm } from './api-crm'
 import { DetailDemande } from './DetailDemande'
 import { FicheAppel } from './FicheAppel'
 import { ListeDemandes, type OngletCrm } from './ListeDemandes'
-import { CLASSE_BOUTON_PRINCIPAL, CLASSE_CHAMP } from './elements'
+import { BoutonInstaller } from './BoutonInstaller'
+import { CLASSE_BOUTON_PRINCIPAL, CLASSE_BOUTON_SUR_SOMBRE, CLASSE_CHAMP } from './elements'
 
 const CLE_LANGUE = 'vitfix_crm_langue'
 const RAFRAICHISSEMENT_MS = 60_000
@@ -72,11 +74,26 @@ function versConnexion(langue: LangueCrm): void {
 }
 
 function Compteur({ libelle, valeur, alerte = false }: Readonly<{ libelle: string; valeur: number; alerte?: boolean }>) {
+  const enAlerte = alerte && valeur > 0
   return (
-    <div className="rounded-xl bg-gray-100 px-3 py-2 sm:px-4 sm:py-3">
+    <div className={`rounded-xl border border-v22-border border-l-4 bg-white px-3 py-2 sm:px-4 sm:py-3 ${enAlerte ? 'border-l-red-600' : 'border-l-yellow'}`}>
       <p className="text-xs text-gray-600 sm:text-sm">{libelle}</p>
-      <p className={`text-xl font-semibold sm:text-2xl ${alerte && valeur > 0 ? 'text-red-700' : 'text-gray-900'}`}>{valeur}</p>
+      <p className={`font-display text-xl font-bold sm:text-2xl ${enAlerte ? 'text-red-700' : 'text-dark'}`}>{valeur}</p>
     </div>
+  )
+}
+
+/** Logotype Vitfix (« VIT » en jaune, comme l'en-tête du site) suivi de « CRM ». */
+function Logotype({ titre }: Readonly<{ titre: string }>) {
+  return (
+    <h1 aria-label={titre} className="flex items-center gap-2 font-display text-xl font-black uppercase tracking-[-0.03em] text-white">
+      <span aria-hidden="true">
+        <span className="text-yellow">Vit</span>fix
+      </span>
+      <span aria-hidden="true" className="rounded bg-yellow px-1.5 py-0.5 text-xs font-bold tracking-normal text-dark">
+        CRM
+      </span>
+    </h1>
   )
 }
 
@@ -154,9 +171,9 @@ export default function EcranCrm() {
 
   if (etat === 'refuse') {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-gray-50 p-4">
-        <div className="max-w-sm rounded-xl border border-gray-200 bg-white p-6 text-center">
-          <h1 className="text-lg font-semibold text-gray-900">{textes.accesRefuse}</h1>
+      <main className="flex min-h-screen items-center justify-center bg-v22-bg p-4">
+        <div className="max-w-sm rounded-xl border border-v22-border border-t-4 border-t-yellow bg-white p-6 text-center">
+          <h1 className="font-display text-lg font-bold text-dark">{textes.accesRefuse}</h1>
           <p className="mt-2 text-sm text-gray-600">{textes.accesRefuseDetail}</p>
           <button type="button" onClick={() => void deconnecter()} className={`${CLASSE_BOUTON_PRINCIPAL} mt-4`}>
             {textes.deconnexion}
@@ -167,10 +184,10 @@ export default function EcranCrm() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 text-gray-900">
-      <header className="border-b border-gray-200 bg-white">
+    <main className="min-h-screen bg-v22-bg text-dark">
+      <header className="border-b-4 border-yellow bg-dark">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-3 px-4 py-3">
-          <h1 className="text-lg font-semibold">{textes.titre}</h1>
+          <Logotype titre={textes.titre} />
           <div className="relative min-w-[12rem] flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
             <input
@@ -182,19 +199,20 @@ export default function EcranCrm() {
               className={`${CLASSE_CHAMP} pl-9`}
             />
           </div>
-          <div role="group" aria-label="Langue / Língua" className="flex overflow-hidden rounded-lg border border-gray-300">
+          <div role="group" aria-label="Langue / Língua" className="flex overflow-hidden rounded-lg border border-white/25">
             {(['fr', 'pt'] as const).map((l) => (
               <button
                 key={l}
                 type="button"
                 aria-pressed={langue === l}
                 onClick={() => choisirLangue(l)}
-                className={`px-2.5 py-1.5 text-sm uppercase ${langue === l ? 'bg-gray-900 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
+                className={`px-2.5 py-1.5 text-sm uppercase ${langue === l ? 'bg-yellow font-semibold text-dark' : 'text-white/80 hover:bg-white/10'}`}
               >
                 {l}
               </button>
             ))}
           </div>
+          <BoutonInstaller textes={textes} classe={CLASSE_BOUTON_SUR_SOMBRE} />
           <button
             type="button"
             onClick={() => {
@@ -206,7 +224,7 @@ export default function EcranCrm() {
             <PhoneIncoming className="h-4 w-4" aria-hidden="true" />
             {textes.nouvelAppel}
           </button>
-          <button type="button" onClick={() => void deconnecter()} className="rounded-md p-2 text-gray-500 hover:bg-gray-100" aria-label={textes.deconnexion} title={textes.deconnexion}>
+          <button type="button" onClick={() => void deconnecter()} className="rounded-md p-2 text-white/70 hover:bg-white/10 hover:text-white" aria-label={textes.deconnexion} title={textes.deconnexion}>
             <LogOut className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
@@ -244,7 +262,7 @@ export default function EcranCrm() {
               onChoisir={setSelection}
             />
           </div>
-          <aside className="order-1 rounded-xl border border-gray-200 bg-white p-4 lg:order-2 lg:sticky lg:top-4 lg:self-start">
+          <aside className="order-1 rounded-xl border border-v22-border bg-white p-4 lg:order-2 lg:sticky lg:top-4 lg:self-start">
             {selection && (
               <DetailDemande key={selection} id={selection} textes={textes} langue={langue} onFermer={() => setSelection(null)} onModifiee={remplacer} />
             )}
