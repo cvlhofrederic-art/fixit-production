@@ -48,7 +48,8 @@ export async function POST(request: NextRequest) {
       'legal_form', 'naf_code', 'naf_label', 'company_address', 'company_city',
       'company_postal_code',
     ]
-    const MARCHES_KYC: readonly unknown[] = ['fr_artisan', 'fr_btp', 'pt_artisan']
+    // pt_btp : société BTP inscrite en portugais (NIPC et certidão contrôlés par lib/kyc-orchestrate.ts).
+    const MARCHES_KYC: readonly unknown[] = ['fr_artisan', 'fr_btp', 'pt_artisan', 'pt_btp']
     const sanitized: Record<string, unknown> = { user_id, verified: false, kyc_status: 'pending' }
     for (const key of ALLOWED_FIELDS) {
       if (key in profileData) sanitized[key] = profileData[key]

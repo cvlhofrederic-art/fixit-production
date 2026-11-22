@@ -257,6 +257,17 @@ describe('POST /api/auth/create-profile — champs fixés par le serveur', () =>
 
     expect(mocks.profileInsert).toHaveBeenCalledWith({ user_id: USER_ID, company_name: 'X', verified: false, kyc_status: 'pending' })
   })
+
+  // pt_btp : société BTP inscrite en portugais (22/11/2026) ; sans lui, la fiche partait sans marché et le KYC la
+  // contrôlait en fr_artisan (NIPC lu comme un SIRET).
+  it.each(['fr_artisan', 'fr_btp', 'pt_artisan', 'pt_btp'])('garde le marché KYC %s', async (marche) => {
+    const { POST } = await import('@/app/api/auth/create-profile/route')
+    await POST(requete({ user_id: USER_ID, company_name: 'X', kyc_market: marche }) as never)
+
+    expect(mocks.profileInsert).toHaveBeenCalledWith({
+      user_id: USER_ID, company_name: 'X', verified: false, kyc_status: 'pending', kyc_market: marche,
+    })
+  })
 })
 
 describe('POST /api/auth/create-profile — compte créé il y a plus de 10 minutes', () => {

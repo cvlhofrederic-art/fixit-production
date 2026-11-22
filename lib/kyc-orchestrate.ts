@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { logger } from '@/lib/logger'
 import { SEAU_DOCUMENTS, signerValeurs } from '@/lib/storage/liens-stockage'
+import { lireCertidaoPermanente } from '@/lib/kyc-certidao-permanente'
 import {
   computeKycScore,
   decideKycStatus,
@@ -163,6 +164,38 @@ function extractRepresentantFromOcr(text: string, market: KycMarket): string | n
   return m ? m[1].split('\n')[0].trim() : null
 }
 
+interface DocumentSocieteLu {
+  identifiant: string | null
+  denomination: string | null
+  representant: string | null
+  /** Champs propres à la certidão permanente d'une société portugaise : código de acesso et fin de validité. */
+  complements: Record<string, string | null>
+}
+
+/**
+ * Champs lus sur le document de l'entreprise : Kbis (marchés français), Certidão de l'artisan portugais, certidão
+ * permanente de la société BTP portugaise (lib/kyc-certidao-permanente.ts, qui cherche le NIPC déclaré, groupé par
+ * trois ou non).
+ */
+function lireDocumentSociete(texte: string, market: KycMarket, identifiantDeclare: string): DocumentSocieteLu {
+  if (market === 'pt_btp') {
+    const certidao = lireCertidaoPermanente(texte, identifiantDeclare)
+    return {
+      identifiant: certidao.nipc,
+      denomination: certidao.firma,
+      representant: certidao.gerente,
+      complements: { codigo_acesso: certidao.codigoAcesso, valida_ate: certidao.validaAte },
+    }
+  }
+  const isFr = market === 'fr_artisan' || market === 'fr_btp'
+  return {
+    identifiant: isFr ? extractSiretFromOcr(texte) : extractNifFromOcr(texte),
+    denomination: extractDenominationFromOcr(texte, market),
+    representant: extractRepresentantFromOcr(texte, market),
+    complements: {},
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Registry checks
 // ---------------------------------------------------------------------------
@@ -231,6 +264,39 @@ async function checkPtRegistry(
   }
 }
 
+const URL_VIES = 'https://ec.europa.eu/taxation_customs/vies/rest-api/check-vat-number'
+
+/**
+ * Registre d'une société BTP portugaise (marché pt_btp) : VIES, le service de la Commission européenne que l'étape 1
+ * de l'inscription interroge déjà (/api/verify-nif). nif.pt, lu pour l'artisan portugais, répond « Key not valid » à
+ * la clé « demo » (constaté le 22/11/2026) et ne confirme donc jamais une entreprise. NIPC valide au VIES : société
+ * assujettie à la TVA, en activité, avec la firma enregistrée. Absence (société exonérée ou cessée) ou panne du
+ * service : contrôle non réussi, sans rejet d'office (decideKycStatus).
+ */
+async function checkViesRegistry(
+  nipc: string,
+): Promise<{ found: boolean; isActive: boolean; denomination: string | null }> {
+  try {
+    const res = await fetch(URL_VIES, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ countryCode: 'PT', vatNumber: nipc }),
+      signal: AbortSignal.timeout(8000),
+    })
+    if (!res.ok) {
+      logger.warn('[kyc-orchestrate] VIES indisponible', { status: res.status })
+      return { found: false, isActive: false, denomination: null }
+    }
+    const data = await res.json() as { valid?: unknown; name?: unknown }
+    if (data.valid !== true) return { found: false, isActive: false, denomination: null }
+    const nom = typeof data.name === 'string' ? data.name.trim() : ''
+    return { found: true, isActive: true, denomination: nom && nom !== '---' ? nom : null }
+  } catch (err) {
+    logger.warn('[kyc-orchestrate] VIES indisponible', { erreur: err instanceof Error ? err.name : 'inconnue' })
+    return { found: false, isActive: false, denomination: null }
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Market determination
 // ---------------------------------------------------------------------------
@@ -242,6 +308,9 @@ function determineMarket(artisan: {
   if (artisan.kyc_market === 'fr_artisan') return 'fr_artisan'
   if (artisan.kyc_market === 'fr_btp') return 'fr_btp'
   if (artisan.kyc_market === 'pt_artisan') return 'pt_artisan'
+  // Société BTP inscrite en portugais (formulaire société, depuis le 22/11/2026). Une société inscrite avant garde le
+  // marché fr_btp que le formulaire posait alors : son KYC ne repasse pas ici sans nouvelle demande.
+  if (artisan.kyc_market === 'pt_btp') return 'pt_btp'
   if (
     artisan.country === 'PT' ||
     artisan.country === 'pt'
@@ -323,8 +392,8 @@ export async function runKycPipeline(
   }
 
   const isFr = market === 'fr_artisan' || market === 'fr_btp'
-  const isPt = market === 'pt_artisan'
-  const ocrLang = isPt ? 'por' : 'fra'
+  // Marchés portugais (artisan, société BTP) : NIF ou NIPC, lecture en portugais, Certidão rangée dans certidao_extracted.
+  const ocrLang = isFr ? 'fra' : 'por'
 
   // Normalize declared identifiant
   const declaredIdentifiant = (artisan.siret ?? '').replace(/\s/g, '')
@@ -380,7 +449,9 @@ export async function runKycPipeline(
       checks.identifiantActiveInRegistry = reg.isActive
       registryDenomination = reg.denomination
     } else {
-      const reg = await checkPtRegistry(declaredIdentifiant)
+      // Société BTP portugaise : VIES ; artisan portugais : nif.pt, comme avant.
+      const verifierRegistre = market === 'pt_btp' ? checkViesRegistry : checkPtRegistry
+      const reg = await verifierRegistre(declaredIdentifiant)
       checks.identifiantActiveInRegistry = reg.isActive
       registryDenomination = reg.denomination
     }
@@ -402,18 +473,17 @@ export async function runKycPipeline(
         if (ocr.confidence > 30 || ocr.text.length > 50) {
           checks.docOcrSuccess = true
 
-          ocrIdentifiant = isFr
-            ? extractSiretFromOcr(ocr.text)
-            : extractNifFromOcr(ocr.text)
-
-          ocrDenomination = extractDenominationFromOcr(ocr.text, market)
-          ocrRepresentant = extractRepresentantFromOcr(ocr.text, market)
+          const lu = lireDocumentSociete(ocr.text, market, declaredIdentifiant)
+          ocrIdentifiant = lu.identifiant
+          ocrDenomination = lu.denomination
+          ocrRepresentant = lu.representant
 
           kbisExtracted = {
             identifiant: ocrIdentifiant,
             denomination: ocrDenomination,
             representant: ocrRepresentant,
             confidence: String(ocr.confidence),
+            ...lu.complements,
           }
 
           // Step 4 — cross-check identifiant doc vs declared
@@ -477,7 +547,7 @@ export async function runKycPipeline(
 
   // Step 7 — compute score and decision
   const score = computeKycScore(checks, market)
-  const decision = decideKycStatus(score)
+  const decision = decideKycStatus(score, market)
   const details = buildKycDetails(checks, score, market)
 
   // Map decision to DB status
@@ -498,10 +568,10 @@ export async function runKycPipeline(
   }
 
   if (kbisExtracted) {
-    if (isPt) {
-      updatePayload.certidao_extracted = kbisExtracted
-    } else {
+    if (isFr) {
       updatePayload.kbis_extracted = kbisExtracted
+    } else {
+      updatePayload.certidao_extracted = kbisExtracted
     }
   }
 

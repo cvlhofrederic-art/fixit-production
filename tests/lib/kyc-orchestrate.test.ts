@@ -223,3 +223,313 @@ describe('runKycPipeline — lecture du Kbis et de la pièce d’identité', () 
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('format de document non pris en charge'))
   })
 })
+
+// ---------------------------------------------------------------------------
+// Marchés et registres (22/11/2026) : réseau simulé commun aux deux blocs suivants.
+// ---------------------------------------------------------------------------
+
+// NIF / NIPC fictif, de chiffre de contrôle valide (modulo 11).
+const NIF = '512345678'
+const URL_PIECE = 'https://stockage.test/piece'
+const IMAGE = Uint8Array.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46])
+
+type Simulation = { piece?: Uint8Array<ArrayBuffer>; vies?: () => Response | Promise<Response> }
+
+/**
+ * Pièce stockée et registres : français (actif), nif.pt (réponse réelle à la clé « demo » le 22/11/2026), VIES (seulement
+ * quand le test le simule).
+ */
+const reseau = ({ piece = IMAGE, vies }: Simulation) => (url: string) => {
+  if (url === URL_PIECE) return new Response(piece)
+  const origine = new URL(url).origin
+  if (origine === 'https://recherche-entreprises.api.gouv.fr') {
+    return Response.json({ results: [{ etat_administratif: 'A', nom_complet: 'MACONNERIE TEST' }] })
+  }
+  if (origine === 'https://www.nif.pt') return Response.json({ result: 'error', message: 'Key not valid' })
+  if (origine === 'https://ec.europa.eu' && vies) return vies()
+  throw new Error('appel inattendu : ' + url)
+}
+
+/** Lance le KYC de la fiche (pièce lue par le faux Workers AI, qui rend `texteDocument`) et rend ce qu'il a écrit et appelé. */
+async function lancerAvec(fiche: Record<string, unknown>, texteDocument: string, simulation: Simulation = {}) {
+  mocks.artisan = { id: 'profil-1', user_id: USER_ID, kbis_url: URL_PIECE, id_document_url: null, ...fiche }
+  const lectures = installerWorkersAI(() => sortieWorkersAI(texteDocument))
+  const appels = installerFetchIA(reseau(simulation))
+  const { runKycPipeline } = await import('@/lib/kyc-orchestrate')
+  const issue = await runKycPipeline('profil-1', USER_ID)
+  return { issue, ecrit: mocks.update.mock.calls[0]?.[0], appels, lectures, origines: appels.map((a) => new URL(a.url).origin) }
+}
+
+/** Clés factices posées avant chaque test du bloc, fournisseurs simulés retirés après. */
+function preparerFournisseurs() {
+  let remettreCles: () => void = () => undefined
+  beforeEach(() => {
+    remettreCles = poserCles()
+  })
+  afterEach(() => {
+    remettreCles()
+    retirerWorkersAI()
+    vi.unstubAllGlobals()
+  })
+}
+
+// Garde d'invariance (marché pt_btp ajouté le 22/11/2026) : ce que le KYC des marchés existants écrit dans la fiche et
+// rend, relevé en instantané sur le code d'avant (main 09bf286a). Registres et lecture du document simulés.
+describe('runKycPipeline — marchés existants inchangés par le marché pt_btp', () => {
+  preparerFournisseurs()
+
+  it('société française (fr_btp) : Kbis lu, registre français, écriture et résultat d’avant', async () => {
+    const { issue, ecrit } = await lancerAvec(
+      { siret: '12345678900015', company_name: 'MACONNERIE TEST', kyc_market: 'fr_btp' },
+      ['Extrait Kbis', 'Dénomination : MACONNERIE TEST', 'SIRET : 123 456 789 00015', 'Gérant : Jean Test'].join('\n'),
+    )
+
+    expect({ issue, ecrit }).toMatchInlineSnapshot({ ecrit: { kyc_verified_at: expect.any(String) } }, `
+      {
+        "ecrit": {
+          "kbis_extracted": {
+            "confidence": "50",
+            "denomination": "MACONNERIE TEST",
+            "identifiant": "12345678900015",
+            "representant": "Jean Test",
+          },
+          "kyc_checks": {
+            "addressMatchDocVsApi": false,
+            "docOcrSuccess": true,
+            "identifiantActiveInRegistry": true,
+            "identifiantFormatValid": true,
+            "identifiantMatchDocVsApi": true,
+            "nameMatchDocVsApi": 100,
+            "nameMatchDocVsId": 0,
+          },
+          "kyc_market": "fr_btp",
+          "kyc_score": 85,
+          "kyc_status": "approved",
+          "kyc_verified_at": Any<String>,
+        },
+        "issue": {
+          "ok": true,
+          "result": {
+            "checks": {
+              "addressMatchDocVsApi": false,
+              "docOcrSuccess": true,
+              "identifiantActiveInRegistry": true,
+              "identifiantFormatValid": true,
+              "identifiantMatchDocVsApi": true,
+              "nameMatchDocVsApi": 100,
+              "nameMatchDocVsId": 0,
+            },
+            "decision": "approved",
+            "details": [
+              "SIRET valide (format et clé de Luhn)",
+              "Entreprise active dans le registre INSEE/Sirene",
+              "KBIS analysé avec succès par OCR",
+              "SIRET identique entre KBIS et registre",
+              "Correspondance dénomination KBIS/registre : 100%",
+              "Correspondance représentant KBIS/CNI : 0%",
+              "Score KYC : 85/100 — approuvé",
+            ],
+            "market": "fr_btp",
+            "score": 85,
+          },
+        },
+      }
+    `)
+  })
+
+  it('société inscrite en fr_btp avec un NIPC (cas du 17/11/2026) : toujours rejetée d’office sur ce marché', async () => {
+    const { issue, ecrit, origines } = await lancerAvec(
+      { siret: NIF, company_name: 'CONSTRUÇÕES EXEMPLO, LDA', kyc_market: 'fr_btp' },
+      'ne doit pas servir',
+    )
+
+    expect(origines).toEqual([])
+    expect({ issue, ecrit }).toMatchInlineSnapshot({ ecrit: { kyc_verified_at: expect.any(String) } }, `
+      {
+        "ecrit": {
+          "kyc_checks": {
+            "addressMatchDocVsApi": false,
+            "docOcrSuccess": false,
+            "identifiantActiveInRegistry": false,
+            "identifiantFormatValid": false,
+            "identifiantMatchDocVsApi": false,
+            "nameMatchDocVsApi": 0,
+            "nameMatchDocVsId": 0,
+          },
+          "kyc_market": "fr_btp",
+          "kyc_score": 0,
+          "kyc_status": "rejected",
+          "kyc_verified_at": Any<String>,
+        },
+        "issue": {
+          "ok": true,
+          "result": {
+            "checks": {
+              "addressMatchDocVsApi": false,
+              "docOcrSuccess": false,
+              "identifiantActiveInRegistry": false,
+              "identifiantFormatValid": false,
+              "identifiantMatchDocVsApi": false,
+              "nameMatchDocVsApi": 0,
+              "nameMatchDocVsId": 0,
+            },
+            "decision": "rejected",
+            "details": [
+              "SIRET invalide (format ou clé de contrôle)",
+              "Entreprise non trouvée ou radiée dans le registre INSEE/Sirene",
+              "OCR du KBIS partiel ou échoué — révision manuelle recommandée",
+              "SIRET extrait du KBIS ne correspond pas au registre",
+              "Correspondance dénomination KBIS/registre : 0%",
+              "Correspondance représentant KBIS/CNI : 0%",
+              "Score KYC : 0/100 — rejeté",
+            ],
+            "market": "fr_btp",
+            "score": 0,
+          },
+        },
+      }
+    `)
+  })
+
+  it('artisan portugais (pt_artisan) : nif.pt consulté, Certidão lue, écriture et résultat d’avant', async () => {
+    const { issue, ecrit, origines } = await lancerAvec(
+      { siret: NIF, company_name: 'Canalizações Exemplo', kyc_market: 'pt_artisan' },
+      ['Certidão Permanente', `NIPC: ${NIF}`, 'Firma: Canalizações Exemplo', 'Gerente: Rui Exemplo'].join('\n'),
+    )
+
+    expect(origines).toContain('https://www.nif.pt')
+    expect(origines).not.toContain('https://ec.europa.eu')
+    expect({ issue, ecrit }).toMatchInlineSnapshot({ ecrit: { kyc_verified_at: expect.any(String) } }, `
+      {
+        "ecrit": {
+          "certidao_extracted": {
+            "confidence": "50",
+            "denomination": "Canalizações Exemplo",
+            "identifiant": "512345678",
+            "representant": "Rui Exemplo",
+          },
+          "kyc_checks": {
+            "addressMatchDocVsApi": false,
+            "docOcrSuccess": true,
+            "identifiantActiveInRegistry": false,
+            "identifiantFormatValid": true,
+            "identifiantMatchDocVsApi": true,
+            "nameMatchDocVsApi": 100,
+            "nameMatchDocVsId": 0,
+          },
+          "kyc_market": "pt_artisan",
+          "kyc_score": 65,
+          "kyc_status": "pending",
+          "kyc_verified_at": Any<String>,
+        },
+        "issue": {
+          "ok": true,
+          "result": {
+            "checks": {
+              "addressMatchDocVsApi": false,
+              "docOcrSuccess": true,
+              "identifiantActiveInRegistry": false,
+              "identifiantFormatValid": true,
+              "identifiantMatchDocVsApi": true,
+              "nameMatchDocVsApi": 100,
+              "nameMatchDocVsId": 0,
+            },
+            "decision": "manual_review",
+            "details": [
+              "NIF válido",
+              "Empresa não encontrada ou cessada no registo",
+              "Certidão Permanente analisada com sucesso por OCR",
+              "NIF idêntico entre Certidão e registo",
+              "Correspondência denominação Certidão/registo : 100%",
+              "Correspondência gerente Certidão/CC : 0%",
+              "Score KYC : 65/100 — revisão manual",
+            ],
+            "market": "pt_artisan",
+            "score": 65,
+          },
+        },
+      }
+    `)
+  })
+})
+
+// Société BTP inscrite en portugais (marché pt_btp, 22/11/2026). Avant : marché fr_btp, NIPC de 9 chiffres contrôlé
+// comme un SIRET, rejet d'office à 0 sans motif (Method Soluções, 17/11/2026). Désormais : NIPC contrôlé comme un NIF,
+// VIES pour registre, certidão permanente lue (image) et rapprochée du NIPC et de la firma.
+describe('runKycPipeline — société BTP portugaise (pt_btp)', () => {
+  preparerFournisseurs()
+
+  const CERTIDAO = [
+    'CERTIDÃO PERMANENTE',
+    'Código de acesso: 1234-5678-9012',
+    'Válida até: 2027-05-08',
+    'NIPC: 512 345 678',
+    'Firma: CONSTRUÇÕES EXEMPLO, LDA',
+    'Gerente: Rui Exemplo',
+  ].join('\n')
+  const SOCIETE = { siret: NIF, company_name: 'CONSTRUÇÕES EXEMPLO, LDA', kyc_market: 'pt_btp' }
+  const viesActif = () => Response.json({ valid: true, name: 'CONSTRUCOES EXEMPLO LDA', address: 'RUA DO EXEMPLO 1' })
+  const certidaoPdf = () => pdfSynthetique(1, 1, ['Certidão Permanente', 'NIPC: 512 345 678'])
+
+  it('NIPC invalide : rejet d’office, score 0, aucun appel réseau, marché pt_btp écrit', async () => {
+    const { issue, ecrit, origines } = await lancerAvec({ ...SOCIETE, siret: '512345679' }, CERTIDAO, { vies: viesActif })
+
+    expect(origines).toEqual([])
+    expect(issue.ok && issue.result).toMatchObject({ decision: 'rejected', score: 0, market: 'pt_btp' })
+    expect(ecrit).toMatchObject({ kyc_status: 'rejected', kyc_score: 0, kyc_market: 'pt_btp' })
+  })
+
+  it('certidão photographiée, VIES actif : approuvée ; VIES interrogé (pas nif.pt), certidão rangée à part', async () => {
+    const { issue, ecrit, appels, lectures } = await lancerAvec(SOCIETE, CERTIDAO, { vies: viesActif })
+
+    expect(appels.filter((a) => a.url.startsWith('https://ec.europa.eu/')).map((a) => a.corps)).toEqual([
+      { countryCode: 'PT', vatNumber: NIF },
+    ])
+    expect(appels.some((a) => a.url.includes('nif.pt'))).toBe(false)
+    // Lecture demandée en portugais
+    expect(JSON.stringify(lectures[0].entrees)).toContain('Extrai todo o texto')
+    expect(issue.ok && issue.result).toMatchObject({ decision: 'approved', score: 100, market: 'pt_btp' })
+    expect(ecrit).toMatchObject({
+      kyc_status: 'approved',
+      kyc_score: 100,
+      kyc_market: 'pt_btp',
+      certidao_extracted: {
+        identifiant: NIF,
+        denomination: 'CONSTRUÇÕES EXEMPLO, LDA',
+        representant: 'Rui Exemplo',
+        codigo_acesso: '1234-5678-9012',
+        valida_ate: '2027-05-08',
+      },
+    })
+    expect(ecrit).not.toHaveProperty('kbis_extracted')
+  })
+
+  it('certidão en PDF (non lue), VIES actif : revue manuelle à 45, aucun modèle appelé', async () => {
+    const { issue, ecrit, lectures } = await lancerAvec(SOCIETE, 'ne doit pas servir', { vies: viesActif, piece: certidaoPdf() })
+
+    expect(lectures).toHaveLength(0)
+    expect(issue.ok && issue.result).toMatchObject({ decision: 'manual_review', score: 45 })
+    expect(ecrit).toMatchObject({ kyc_status: 'pending', kyc_score: 45, kyc_market: 'pt_btp' })
+    expect(ecrit).not.toHaveProperty('certidao_extracted')
+  })
+
+  it.each([
+    ['VIES indisponible (503)', () => new Response('Service Unavailable', { status: 503 })],
+    ['VIES injoignable (réseau)', (): Response => { throw new TypeError('fetch failed') }],
+    ['NIPC inconnu du VIES (société exonérée de TVA)', () => Response.json({ valid: false, name: '', address: '' })],
+  ])('%s, certidão en PDF : revue manuelle à 15, jamais un rejet d’office', async (_cas, vies) => {
+    const { issue, ecrit } = await lancerAvec(SOCIETE, 'ne doit pas servir', { vies, piece: certidaoPdf() })
+
+    expect(issue.ok && issue.result).toMatchObject({ decision: 'manual_review', score: 15 })
+    expect(ecrit).toMatchObject({ kyc_status: 'pending', kyc_score: 15 })
+  })
+
+  it('certidão d’une autre société (autre NIPC, autre firma) : revue manuelle, jamais approuvée', async () => {
+    const autre = ['Certidão Permanente', 'NIPC: 509 999 997', 'Firma: OUTRA EMPRESA, S.A.'].join('\n')
+    const { issue, ecrit } = await lancerAvec(SOCIETE, autre, { vies: viesActif })
+
+    expect(issue.ok && issue.result).toMatchObject({ decision: 'manual_review', score: 55 })
+    expect(issue.ok && issue.result.checks).toMatchObject({ identifiantMatchDocVsApi: false, nameMatchDocVsApi: 0 })
+    expect(ecrit).toMatchObject({ kyc_status: 'pending', certidao_extracted: { identifiant: '509999997' } })
+  })
+})
