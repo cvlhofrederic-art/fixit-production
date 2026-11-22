@@ -63,6 +63,7 @@ import { computeEcheanceDate, dateIsoLocale, parsePaymentDelayDays } from '@/lib
 import { generateDevisPdfV3 } from '@/lib/pdf/devis-pdf-v3'
 import type { PdfV3PtFiscalData } from '@/lib/pdf/devis-pdf-v3'
 import { getDecennaleEligibility } from '@/lib/decennale-eligibility'
+import { fichePortugaise, prefixeSerie } from '@/lib/numerotation-prefixes'
 
 // ═══════════════════════════════════════════════
 // HELPERS — saisie décimale FR + input buffered (parité BTP)
@@ -584,7 +585,8 @@ export default function DevisFactureForm({
     try {
       const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
       const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
-      const prefix = docType === 'devis' ? 'DEV' : 'FACT'
+      // Mêmes préfixes que next_doc_number (migration 20261122b) : ORC/FT pour une fiche en portugais, DEV/FACT sinon.
+      const prefix = prefixeSerie(docType, fichePortugaise(artisan))
       const pattern = new RegExp(`^${prefix}-${year}-(\\d+)$`)
       const maxSeq = [...docs, ...drafts]
         .map((d: { docNumber?: string }) => d.docNumber?.match(pattern)?.[1])
@@ -597,7 +599,7 @@ export default function DevisFactureForm({
       return number
     } catch (err) {
       console.error('[DevisFactureForm] All doc-number fallbacks failed:', err)
-      const fallback = `${docType === 'devis' ? 'DEV' : 'FACT'}-${year}-DRAFT`
+      const fallback = `${prefixeSerie(docType, fichePortugaise(artisan))}-${year}-DRAFT`
       setDocNumber(fallback)
       return fallback
     }
