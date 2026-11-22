@@ -86,3 +86,13 @@ reports/seo/*.json
 # Annuaires d'artisans récupérés (données personnelles de tiers) : hors du dépôt public, gardés dans un
 # dossier privé (~/.claude/donnees-privees/artisans-pt ou ANNUAIRES_ARTISANS_DIR), lus par scripts/*artisans-PT*.mjs
 data/artisans-PT-*.json
+
+# Matériel de signature des applis mobiles : clé d'envoi Android, clé d'API App Store Connect, et leurs
+# formes encodées. Il n'a rien à faire dans un dépôt public — il vit dans les secrets GitHub et dans un
+# dossier privé hors du dépôt (MOBILE_GUIDE.md, « Publication sur les stores »).
+*.p12
+*.jks
+*.keystore
+*.p8
+*.key
+*.base64
