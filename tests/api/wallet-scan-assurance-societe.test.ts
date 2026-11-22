@@ -5,10 +5,10 @@
 // Défaut corrigé pour une société (pro_societe) : la lecture automatique du PDF réécrivait sans prévenir l'assureur,
 // le numéro de contrat, la couverture et le type d'assurance de la fiche, repris sur les devis et factures. L'assureur
 // retenu était le premier nom de la liste contenu dans le texte : « MMA » est contenu dans « DOMMAGES ».
-// Contrat vérifié ici : pour une société française, la lecture ne remplit que les champs vides de la fiche, n'écrit le
-// type d'assurance que pour une fiche sans assurance (ni type, ni assureur, ni contrat), et ne reconnaît un assureur
-// que sur un mot entier. L'artisan et la société inscrite au Portugal (fiche en portugais, hors de ce correctif)
-// gardent l'écriture d'avant (témoins).
+// Contrat vérifié ici : pour une société BTP, française ou inscrite au Portugal (fiche en portugais, mêmes règles depuis
+// le 22/11/2026), la lecture ne remplit que les champs vides de la fiche, n'écrit le type d'assurance que pour une fiche
+// sans assurance (ni type, ni assureur, ni contrat), et ne reconnaît un assureur que sur un mot entier. L'artisan garde
+// l'écriture d'avant (témoin).
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
@@ -167,12 +167,16 @@ describe('Artisan : écriture d’avant, inchangée (témoin)', () => {
   })
 })
 
-describe('Société inscrite au Portugal : écriture d’avant, inchangée (Portugal hors de ce correctif, témoin)', () => {
-  it('fiche en portugais : la lecture réécrit l’assurance comme avant', async () => {
-    preparer('pro_societe', { ...ASSURANCE_SAISIE, language: 'pt' })
+describe('Société inscrite au Portugal (fiche en portugais) : mêmes règles que la société française', () => {
+  it('même attestation : assurance saisie gardée, champs vides remplis, assureur reconnu sur un mot entier', async () => {
+    preparer('pro_societe', { ...ASSURANCE_SAISIE, language: 'pt', legal_form: 'Sociedade por Quotas (Lda.)' })
 
-    await deposer()
+    const { json } = await deposer()
 
-    expect(h.etat.majs[0]).toMatchObject({ insurance_name: 'MMA', insurance_number: '0012345678', insurance_type: 'decennale' })
+    // Avant : « MMA », contenu dans « DOMMAGES », remplaçait l'assureur saisi, avec le contrat et le type
+    expect(json.scan?.extractedData.insurerName).toBe('SMABTP')
+    expect(h.etat.fiche).toMatchObject({
+      insurance_name: 'Assureur Saisi', insurance_number: 'CONTRAT-SAISI', insurance_type: 'both', insurance_expiry: '2099-12-31',
+    })
   })
 })

@@ -4,7 +4,6 @@ import { useState, useCallback, useRef } from 'react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { authFetch } from '@/lib/api-client'
-import { ficheSocieteFrancaise } from '@/lib/btp/fiche-societe-francaise'
 
 interface SettingsForm {
   company_name: string
@@ -59,11 +58,11 @@ export function useSettings(
   const [profilePhotoPreview, setProfilePhotoPreview] = useState<string>('')
   const [profilePhotoUploading, setProfilePhotoUploading] = useState(false)
   const [uploadMsg, setUploadMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
-  // Société BTP française (pro_societe, fiche qui n'est pas en portugais) : valeurs de la fiche au chargement, puis
+  // Société BTP (pro_societe), que sa fiche soit en français ou en portugais : valeurs de la fiche au chargement, puis
   // après chaque enregistrement. Seuls les champs changés depuis partent : un formulaire chargé une fois ne réécrit plus
   // ce qui a été enregistré entre-temps (assurance d'une attestation déposée dans Conformité), ni l'e-mail des devis par
   // celui de connexion.
-  // null (artisan, société inscrite au Portugal) : les 18 champs partent à chaque enregistrement, comme avant.
+  // null (artisan) : les 18 champs partent à chaque enregistrement, comme avant.
   const valeursEnregistrees = useRef<SettingsForm | null>(null)
 
   const saveSettings = useCallback(async () => {
@@ -204,10 +203,10 @@ export function useSettings(
       mediator_name: artisanData.mediator_name || '',
       mediator_url: artisanData.mediator_url || '',
     }
-    if (orgRole === 'pro_societe' && ficheSocieteFrancaise(artisanData)) {
-      // Société BTP française : la référence garde l'e-mail de la fiche, celui des devis et factures. Une fiche sans
-      // e-mail affiche celui de connexion, qui est alors enregistré au premier clic, comme avant (la référence garde
-      // l'e-mail vide de la fiche). Société inscrite au Portugal : hors de ce correctif, envoi d'avant.
+    if (orgRole === 'pro_societe') {
+      // Société BTP, quelle que soit la langue de sa fiche : la référence garde l'e-mail de la fiche, celui des devis et
+      // factures. Une fiche sans e-mail affiche celui de connexion, qui est alors enregistré au premier clic, comme avant
+      // (la référence garde l'e-mail vide de la fiche).
       valeursEnregistrees.current = { ...formulaire, email: artisanData.email || '' }
     } else {
       valeursEnregistrees.current = null
