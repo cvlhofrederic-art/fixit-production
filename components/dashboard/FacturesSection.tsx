@@ -1038,7 +1038,7 @@ function FacturesSectionV5({
             setAvoirParent(null)
             openFactureForm(prefilled)
             toast.success(
-              `Avoir préparé sur ${avoirParent.docNumber}. Numéro AV- généré à l'enregistrement.`,
+              `Avoir préparé sur ${avoirParent.docNumber}. Numéro attribué à l'enregistrement.`,
             )
           }}
         />

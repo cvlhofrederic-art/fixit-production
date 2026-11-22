@@ -5,7 +5,10 @@
  * pour toute autre fiche :
  *  - 'provence-pro'    : modèle par défaut + logo vectoriel centré et filet rouge (lib/pdf/modele-provence-pro.ts) ;
  *  - 'method-solucoes' : gabarit « Method Soluções » fourni par la société, document en portugais
- *                        (lib/pdf/modele-method-solucoes.ts).
+ *                        (lib/pdf/modele-method-solucoes.ts) ;
+ *  - 'vitfix-orcamento' : gabarit d'orçamento Vitfix (template_orcamento_vitfix.html v1.1), orçamentos
+ *                        seulement, en portugais (lib/pdf/modele-vitfix-orcamento.ts) ; ses factures gardent
+ *                        le modèle BTP par défaut.
  */
 
 import { PROVENCE_PRO_PROFIL_ID } from '@/lib/pdf/modele-provence-pro'
@@ -13,11 +16,15 @@ import { PROVENCE_PRO_PROFIL_ID } from '@/lib/pdf/modele-provence-pro'
 /** Fiche profiles_artisan de la société de la marque Method Soluções. */
 export const METHOD_SOLUCOES_PROFIL_ID = 'e33dc268-e257-44b0-a0e6-4efe7597512e'
 
-export type ModeleDocument = 'provence-pro' | 'method-solucoes'
+/** Fiche profiles_artisan de la société de la marque Vitfix. */
+export const VITFIX_SOCIETE_PROFIL_ID = '7cfb1e10-efd7-468b-8493-0a7ad37e0fe6'
+
+export type ModeleDocument = 'provence-pro' | 'method-solucoes' | 'vitfix-orcamento'
 
 const MODELES: Readonly<Record<string, ModeleDocument>> = {
   [PROVENCE_PRO_PROFIL_ID]: 'provence-pro',
   [METHOD_SOLUCOES_PROFIL_ID]: 'method-solucoes',
+  [VITFIX_SOCIETE_PROFIL_ID]: 'vitfix-orcamento',
 }
 
 /** Modèle de document propre à une société, ou undefined pour le modèle BTP par défaut. */
