@@ -154,16 +154,21 @@ describe('downloadSavedDevis (BTP) — anciens documents d\'une société portug
     expect(await telecharger(document({ ...ANCIEN, companyStatus: '', insuranceCoverage: undefined }))).toMatchObject({ companyStatus: 'ei', insuranceCoverage: '' })
   })
 
-  // Demande de Frédéric du 21/11/2026 : l'assureur de la fiche, comme le formulaire à l'ouverture du document
+  // Demandes de Frédéric des 21 et 22/11/2026 : l'assureur et le médiateur de la fiche, comme le formulaire à
+  // l'ouverture du document
   const FICHE_ASSUREE = {
     legal_form: 'Sociedade por Quotas (Lda.)', insurance_name: 'Seguradora Exemplo', insurance_number: 'RC-2026-000123',
     insurance_type: 'both', insurance_coverage: 'Portugal',
+    mediator_name: 'Centro de Arbitragem Exemplo', mediator_url: 'https://arbitragem.exemplo.pt',
   }
 
-  it('document sans assureur : celui de la fiche, son type et sa couverture, depuis la liste comme dans le ZIP', async () => {
+  it('document sans assureur ni médiateur : ceux de la fiche, depuis la liste comme dans le ZIP', async () => {
     recu.fiche = FICHE_ASSUREE
     const sansAssureur = document({ companyStatus: 'Entreprise Individuelle (EI)', insuranceName: '', insuranceNumber: '', insuranceCoverage: 'France metropolitaine' })
-    const attendu = { companyStatus: 'lda', insuranceName: 'Seguradora Exemplo', insuranceNumber: 'RC-2026-000123', insuranceType: 'both', insuranceCoverage: 'Portugal' }
+    const attendu = {
+      companyStatus: 'lda', insuranceName: 'Seguradora Exemplo', insuranceNumber: 'RC-2026-000123', insuranceType: 'both', insuranceCoverage: 'Portugal',
+      mediatorName: 'Centro de Arbitragem Exemplo', mediatorUrl: 'https://arbitragem.exemplo.pt',
+    }
     expect(await telecharger(sansAssureur, 'pt')).toMatchObject(attendu)
     expect(await telecharger(document({ companyStatus: 'Entreprise Individuelle (EI)' }))).toMatchObject(attendu)
     const { produireFichierDocument } = await import('@/lib/pdf/download-saved-devis')
@@ -175,10 +180,13 @@ describe('downloadSavedDevis (BTP) — anciens documents d\'une société portug
     recu.fiche = { ...FICHE_ASSUREE, insurance_name: 'Outra Seguradora', insurance_number: 'AP-0000-0001' }
     const e = await telecharger(document({ ...ANCIEN, insuranceCoverage: 'France metropolitaine' }), 'pt')
     expect(e).toMatchObject({ insuranceName: 'Seguradora Exemplo', insuranceNumber: 'RC-2026-000123', insuranceCoverage: 'Portugal' })
+    expect(await telecharger(document({ ...ANCIEN, mediatorName: 'Outro Centro' }), 'pt')).toMatchObject({ mediatorName: 'Outro Centro', mediatorUrl: '' })
   })
 
-  it('société française : jamais l\'assureur de la fiche, le document tel qu\'enregistré', async () => {
+  it('société française : jamais l\'assureur ni le médiateur de la fiche, le document tel qu\'enregistré', async () => {
     recu.fiche = { ...FICHE_ASSUREE, legal_form: 'SAS', insurance_type: 'decennale', insurance_coverage: 'France métropolitaine' }
-    expect(await telecharger(document({ companyStatus: 'SAS' }))).toMatchObject({ insuranceName: '', insuranceNumber: '', insuranceType: 'rc_pro', insuranceCoverage: '' })
+    expect(await telecharger(document({ companyStatus: 'SAS' }))).toMatchObject({
+      insuranceName: '', insuranceNumber: '', insuranceType: 'rc_pro', insuranceCoverage: '', mediatorName: '', mediatorUrl: '',
+    })
   })
 })

@@ -7,7 +7,7 @@ import { describe, it, expect } from 'vitest'
 import { getStatusLabel, mapLegalFormToCode } from '@/lib/devis-utils'
 import {
   appliquerFormeProfil, assuranceDocumentBtp, codeStatutJuridiqueBtp, couvertureAssuranceBtp, documentEmis, documentExistant, mentionIdentificationBtp,
-  statutAvecCapitalSocial, statutJuridiqueDocumentBtp, statutJuridiqueInitialBtp, statutPortugais,
+  mediateurDocumentBtp, statutAvecCapitalSocial, statutJuridiqueDocumentBtp, statutJuridiqueInitialBtp, statutPortugais,
 } from '@/lib/statut-juridique-btp'
 
 const EI = 'Entreprise Individuelle (EI)'
@@ -295,6 +295,35 @@ describe('formes juridiques portugaises', () => {
       for (const legal_form of ['SAS', 'Entrepreneur individuel', '', null, undefined]) {
         expect(assuranceDocumentBtp({}, { ...FICHE, legal_form })).toEqual({ ...SANS_ASSURANCE, insuranceCoverage: '' })
         expect(assuranceDocumentBtp(duDocument, { ...FICHE, legal_form })).toEqual(duDocument)
+      }
+    })
+  })
+
+  // Demande de Frédéric du 22/11/2026 : le médiateur de la consommation de la fiche, comme l'assureur
+  describe('mediateurDocumentBtp (téléchargement depuis la liste)', () => {
+    const FICHE_RAL = { legal_form: LDA, mediator_name: 'Centro de Arbitragem Exemplo', mediator_url: 'https://arbitragem.exemplo.pt' }
+    const DE_LA_FICHE_RAL = { mediatorName: 'Centro de Arbitragem Exemplo', mediatorUrl: 'https://arbitragem.exemplo.pt' }
+
+    it('société portugaise, document sans nom de médiateur : nom et adresse de la fiche', () => {
+      for (const sansMediateur of [{}, { mediatorName: '', mediatorUrl: '' }, { mediatorName: ' ', mediatorUrl: 'https://autre.exemplo.pt' }]) {
+        expect(mediateurDocumentBtp(sansMediateur, FICHE_RAL)).toEqual(DE_LA_FICHE_RAL)
+      }
+      expect(mediateurDocumentBtp({}, { ...FICHE_RAL, mediator_name: '  Centro de Arbitragem Exemplo ', mediator_url: null }))
+        .toEqual({ ...DE_LA_FICHE_RAL, mediatorUrl: '' })
+      expect(mediateurDocumentBtp({}, { ...FICHE_RAL, mediator_url: ' https://arbitragem.exemplo.pt ' })).toEqual(DE_LA_FICHE_RAL)
+    })
+
+    it('société portugaise, document qui nomme un médiateur : le sien, adresse comprise', () => {
+      expect(mediateurDocumentBtp({ mediatorName: 'Outro Centro' }, FICHE_RAL)).toEqual({ mediatorName: 'Outro Centro', mediatorUrl: '' })
+    })
+
+    it('société portugaise sans médiateur en fiche, société française ou sans forme : le document exactement', () => {
+      expect(mediateurDocumentBtp({}, { legal_form: LDA, mediator_name: ' ', mediator_url: 'https://arbitragem.exemplo.pt' }))
+        .toEqual({ mediatorName: '', mediatorUrl: '' })
+      for (const legal_form of ['SAS', 'Entrepreneur individuel', '', null, undefined]) {
+        expect(mediateurDocumentBtp({}, { ...FICHE_RAL, legal_form })).toEqual({ mediatorName: '', mediatorUrl: '' })
+        expect(mediateurDocumentBtp({ mediatorName: 'Médiateur', mediatorUrl: 'https://m.test' }, { ...FICHE_RAL, legal_form }))
+          .toEqual({ mediatorName: 'Médiateur', mediatorUrl: 'https://m.test' })
       }
     })
   })
