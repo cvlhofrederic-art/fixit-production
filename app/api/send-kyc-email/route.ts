@@ -29,7 +29,8 @@ function buildHtml(body: SendKycEmailBody): { subject: string; html: string } {
   const name = escapeHTML(body.name)
   const company = escapeHTML(body.company)
   const rejection_reason = escapeHTML(body.rejection_reason ?? '')
-  const isPt = market === 'pt_artisan'
+  // Portugais : artisan (pt_artisan) ou société BTP (pt_btp) inscrits au Portugal.
+  const isPt = market === 'pt_artisan' || market === 'pt_btp'
 
   if (isPt) {
     if (action === 'approve') {

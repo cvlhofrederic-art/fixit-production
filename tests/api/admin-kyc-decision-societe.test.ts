@@ -7,8 +7,9 @@
 // alors la requête entière : le statut ne changeait pas. L'e-mail de décision partait sans être attendu, avec un nom
 // vide que /api/send-kyc-email refuse : la société n'était jamais prévenue.
 // Faux client : colonnes de production ; une colonne inconnue, lue ou relue, donne l'erreur 42703 sans rien écrire.
-// Société inscrite en portugais : chemin d'avant (témoin, Portugal hors de ce lot). Dossier d'artisan : corrigé par son
-// propre lot, testé dans tests/api/admin-kyc-decision-artisan.test.ts.
+// Société inscrite en portugais (marché pt_btp, ou fr_btp sur une fiche en portugais) : même chemin depuis le
+// 22/11/2026, e-mail en portugais ; avant, 500 et statut inchangé. Dossier d'artisan : corrigé par son propre lot,
+// testé dans tests/api/admin-kyc-decision-artisan.test.ts.
 
 import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest'
 import { NextRequest } from 'next/server'
@@ -158,13 +159,49 @@ describe('Décision KYC sur le dossier d’une société BTP française', () => 
   })
 })
 
-describe('Société inscrite en portugais : chemin d’avant, inchangé (témoin)', () => {
-  it('société inscrite en portugais : chemin d’avant (Portugal hors de ce lot)', async () => {
+describe('Décision KYC sur le dossier d’une société BTP portugaise', () => {
+  const ID_SOCIETE_PT = '5e6f7081-92a3-4cb4-9dc5-d6e7f8091a2b'
+
+  beforeEach(() => {
+    h.etat.fiches.push({
+      id: ID_SOCIETE_PT, user_id: 'compte-societe-pt', email: 'geral@exemplo.pt', company_name: 'CONSTRUÇÕES EXEMPLO, LDA',
+      language: 'pt', kyc_market: 'pt_btp', kyc_status: 'pending',
+    })
+  })
+
+  it('marché pt_btp : « Approuver » enregistre la décision et prévient la société en portugais, à son nom', async () => {
+    const { status, json } = await decider({ artisan_id: ID_SOCIETE_PT, action: 'approve' })
+
+    expect(status).toBe(200)
+    expect(json).toEqual({ success: true, status: 'approved', email_envoye: true })
+    expect(fiche(ID_SOCIETE_PT)).toMatchObject({ kyc_status: 'approved', kyc_reviewed_by: superAdminAutorise().id })
+    expect(corpsEmail()).toEqual({
+      to: 'geral@exemplo.pt',
+      name: 'CONSTRUÇÕES EXEMPLO, LDA',
+      company: 'CONSTRUÇÕES EXEMPLO, LDA',
+      action: 'approve',
+      market: 'pt_btp',
+    })
+  })
+
+  it('« Rejeter » enregistre le statut et le motif, l’e-mail en portugais porte le motif', async () => {
+    const { status } = await decider({ artisan_id: ID_SOCIETE_PT, action: 'reject', rejection_reason: 'Certidão caducada' })
+
+    expect(status).toBe(200)
+    expect(fiche(ID_SOCIETE_PT)).toMatchObject({ kyc_status: 'rejected', kyc_rejection_reason: 'Certidão caducada' })
+    expect(corpsEmail()).toMatchObject({ action: 'reject', rejection_reason: 'Certidão caducada', market: 'pt_btp' })
+  })
+
+  // Le formulaire posait fr_btp pour toute société avant le 22/11/2026 : une société inscrite en portugais avant cette
+  // date (fiche en portugais) répondait 500 sans rien écrire.
+  it('inscrite avant le marché pt_btp (fr_btp, fiche en portugais) : décision enregistrée, e-mail en portugais', async () => {
     fiche(ID_SOCIETE).language = 'pt'
 
-    const { status } = await decider({ artisan_id: ID_SOCIETE, action: 'approve' })
+    const { status, json } = await decider({ artisan_id: ID_SOCIETE, action: 'approve' })
 
-    expect(status).toBe(500)
-    expect(fiche(ID_SOCIETE).kyc_status).toBe('pending')
+    expect(status).toBe(200)
+    expect(json).toEqual({ success: true, status: 'approved', email_envoye: true })
+    expect(fiche(ID_SOCIETE).kyc_status).toBe('approved')
+    expect(corpsEmail()).toMatchObject({ name: 'BÂTIMENT EXEMPLE', market: 'pt_btp' })
   })
 })
