@@ -136,12 +136,12 @@ export default function DevisFactureForm({
 
   // ─── State ───
   const [docType, setDocType] = useState<'devis' | 'facture'>(initialData?.docType || initialDocType)
-  // Forme portugaise du profil (« Sociedade por Quotas (Lda.) », « Empresário em Nome Individual »…) reconnue
-  // (codeFormeJuridique) : mapLegalFormToCode la rendait en 'ei', sans mention d'identification ni capital sur /pt.
-  // Sans forme au profil, l'entrepreneur individuel du pays : 'eni' sur /pt, où « EI » n'est pas une option. Un
-  // document existant garde la sienne.
+  // Forme portugaise (« Sociedade por Quotas (Lda.) », « Empresário em Nome Individual »…) reconnue sur /pt
+  // (codeFormeJuridique) : mapLegalFormToCode la rendait en 'ei', sans mention d'identification ni contrôle du
+  // capital. Sur /fr, lecture d'avant. Un document existant garde sa forme.
+  const codeFormeProfil = (forme: string) => (locale === 'pt' ? codeFormeJuridique(forme) : mapLegalFormToCode(forme))
   const [companyStatus, setCompanyStatus] = useState(
-    initialData?.companyStatus || tpl('companyStatus') || (artisan?.legal_form ? codeFormeJuridique(artisan.legal_form) : (locale === 'pt' ? 'eni' : 'ei'))
+    initialData?.companyStatus || tpl('companyStatus') || (artisan?.legal_form ? codeFormeProfil(artisan.legal_form) : 'ei')
   )
   const [companyName, setCompanyName] = useState(initialData?.companyName || artisan?.company_name || '')
   const [companySiret, setCompanySiret] = useState(initialData?.companySiret || artisan?.siret || '')
@@ -714,8 +714,9 @@ export default function DevisFactureForm({
         // Map and lock legal form
         if (c.legalForm) {
           setOfficialLegalForm(c.legalForm)
-          const code = codeFormeJuridique(c.legalForm)
-          setCompanyStatus(code)
+          const code = codeFormeProfil(c.legalForm)
+          // Document déjà émis, rouvert : il garde sa forme, comme son téléphone et son e-mail.
+          if (!documentEmisRouvert) setCompanyStatus(code)
 
           // Auto-entrepreneurs et EI : TVA désactivée par défaut
           // (franchise en base, art. 293 B du CGI)

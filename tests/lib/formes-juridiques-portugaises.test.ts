@@ -6,19 +6,19 @@ import { mapLegalFormToCode } from '@/lib/devis-utils'
 import { codeFormeJuridique, formePortugaise } from '@/lib/formes-juridiques-portugaises'
 
 describe('codeFormeJuridique', () => {
-  it.each([
-    ['Sociedade por Quotas (Lda.)', 'lda'],
-    ['sociedade por quotas', 'lda'],
-    ['Unipessoal Lda.', 'unipessoal'],
-    ['Sociedade Unipessoal por Quotas', 'unipessoal'],
-    ['Sociedade Anónima (SA)', 'sa'],
-    ['Empresário em Nome Individual (ENI)', 'eni'],
-    ['ENI', 'eni'],
-    ['Estabelecimento Individual de Responsabilidade Limitada', 'eirl_pt'],
-    ['Sociedade em Nome Coletivo', 'snc_pt'],
-    ['Cooperativa', 'cooperativa'],
-  ])('forme portugaise « %s » : %s', (forme, code) => {
-    expect(codeFormeJuridique(forme)).toBe(code)
+  // Formes portugaises reconnues, par code interne (abréviations à points comprises)
+  const FORMES_PAR_CODE: Record<string, string[]> = {
+    lda: ['Sociedade por Quotas (Lda.)', 'sociedade por quotas', 'L.da'],
+    unipessoal: ['Unipessoal Lda.', 'Sociedade Unipessoal por Quotas'],
+    sa: ['Sociedade Anónima (SA)'],
+    eni: ['Empresário em Nome Individual (ENI)', 'ENI', 'E.N.I.'],
+    eirl_pt: ['Estabelecimento Individual de Responsabilidade Limitada'],
+    snc_pt: ['Sociedade em Nome Coletivo'],
+    cooperativa: ['Cooperativa'],
+  }
+
+  it.each(Object.entries(FORMES_PAR_CODE))('code %s : formes portugaises %j', (code, formes) => {
+    for (const forme of formes) expect(codeFormeJuridique(forme)).toBe(code)
   })
 
   it('formes françaises, vides ou inconnues : le code de mapLegalFormToCode, exactement', () => {
