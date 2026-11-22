@@ -480,7 +480,7 @@ const renseigne = (v: number | null | undefined): v is number => v !== null && v
 function detalheFatura(e: PdfV3Input): string[] {
   if (e.docType !== 'facture') return []
   const parent = textePdf(e.parentInvoiceNumber).trim()
-  const typeParent = /^DEV-/i.test(parent) ? 'orçamento' : 'fatura'
+  const typeParent = /^(?:DEV|ORC)-/i.test(parent) ? 'orçamento' : 'fatura'
   const surParent = parent ? `sobre ${typeParent} n.º ${parent}` : ''
   switch (e.factureSubType) {
     case 'acompte':

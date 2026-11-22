@@ -936,7 +936,7 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
                     })()}
                   </select>
                   <input type="text" value={fv(form.refDevisFact)} onChange={e => setForm(p => ({ ...p, refDevisFact: e.target.value }))}
-                    placeholder={isPt ? 'Ou introduza manualmente: DEV-2026-001' : 'Ou saisir manuellement : DEV-2026-001'}
+                    placeholder={isPt ? 'Ou introduza manualmente: ORC-2026-001' : 'Ou saisir manuellement : DEV-2026-001'}
                     className={isV5 ? 'v5-fi' : 'v22-form-input'} style={{ marginTop: '6px' }} />
                 </div>
                 <div className={isV5 ? 'v5-fg' : 'v22-form-group'}>

@@ -39,6 +39,7 @@ $$;
 GRANT USAGE ON SCHEMA auth TO anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION auth.uid() TO anon, authenticated, service_role;
 CREATE TABLE public.pro_team_members (user_id uuid, company_id uuid, is_active boolean NOT NULL DEFAULT true);
+CREATE TABLE public.profiles_artisan (user_id uuid, language text);
 `
 
 /** Extrait d'une migration du dépôt, introuvable = banc à relire (la migration a changé). */

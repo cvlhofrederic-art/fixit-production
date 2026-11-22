@@ -653,8 +653,8 @@ export async function generateDevisPdfV3(
       const pctSuffix = acomptePourcentage != null ? ` — ${String(acomptePourcentage).replace('.', ',')}%` : ''
       // Mention du document source (méthode pro : un acompte référence toujours
       // la facture/le devis auquel il se rattache). Idem avoir → parentInvoiceNumber.
-      // Le parent d'un acompte est un devis (série DEV-) ou une facture : le libellé le dit.
-      const parentEstDevis = /^DEV-/i.test(String(parentInvoiceNumber || ''))
+      // Le parent d'un acompte est un devis (série DEV-, ORC- au Portugal) ou une facture : le libellé le dit.
+      const parentEstDevis = /^(?:DEV|ORC)-/i.test(String(parentInvoiceNumber || ''))
       const refLabel = locale === 'pt'
         ? (parentEstDevis ? 'sobre orçamento' : 'sobre fatura')
         : (parentEstDevis ? 'sur devis' : 'sur facture')

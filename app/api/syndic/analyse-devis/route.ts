@@ -665,7 +665,7 @@ export async function POST(req: NextRequest) {
       ? `Eis o conteúdo do documento para analisar :\n\n${content}`
       : `Voici le contenu du document à analyser :\n\n${content}`)
 
-  const vitfix = content.includes('[VITFIX-DEVIS-METADATA]') || /DEV-\d{4}-\d{3,}/.test(content)
+  const vitfix = content.includes('[VITFIX-DEVIS-METADATA]') || /(?:DEV|ORC)-\d{4}-\d{3,}/.test(content)
   const systemPrompt = isSeguro
     ? (isPt ? SEGURO_PROMPT_PT : SEGURO_PROMPT_FR)
     : (isPt ? SYSTEM_PROMPT_PT : SYSTEM_PROMPT_FR)

@@ -432,4 +432,13 @@ describe('Factures de la société Vitfix', () => {
     expect(tout(pdf)).not.toContain('Documento emitido por processamento informático (Vitfix Pro)')
     expect(pdf.nom).not.toMatch(/^Orcamento_/)
   })
+
+  it('numérotation portugaise : une fatura de adiantamento FA- rattachée à un orçamento ORC- le dit « sobre orçamento »', async () => {
+    const pdf = await generer('vitfix-fatura-adiantamento', entree({
+      docType: 'facture', factureSubType: 'acompte', docNumber: 'FA-2026-001', parentInvoiceNumber: 'ORC-2026-007',
+      acompteOrdre: 1, acompteTotal: 2, acomptePourcentage: 50, acomptesEnabled: false,
+    }))
+    expect(compact(tout(pdf))).toContain(compact('(sobre orçamento ORC-2026-007)'))
+    expect(tout(pdf)).toContain('FA-2026-001')
+  })
 })

@@ -2807,7 +2807,7 @@ export default function DevisFactureFormBTP({
                     </div>
                     <div style={{ marginTop: 8, padding: '8px 10px', background: 'rgba(211, 47, 47, 0.05)', borderRadius: 4, fontSize: 11, color: '#7A1F1F', lineHeight: 1.4 }}>
                       {locale === 'pt' ? (
-                        <><strong>Modo NOTA DE CRÉDITO:</strong> os preços unitários negativos são permitidos. O total final será negativo (crédito a favor do cliente). O documento indica a fatura de origem: {parentInvoiceNumber || 'FACT-...'}.</>
+                        <><strong>Modo NOTA DE CRÉDITO:</strong> os preços unitários negativos são permitidos. O total final será negativo (crédito a favor do cliente). O documento indica a fatura de origem: {parentInvoiceNumber || 'FT-...'}.</>
                       ) : (
                         <><strong>Mode AVOIR :</strong> les prix unitaires négatifs sont autorisés. Le total final sera négatif (créance en faveur du client). Référence légale : art. 272 CGI + BOI-TVA-DECLA-30-20-20-30 §70 (rectification TVA collectée par l&apos;émetteur / déductible par le preneur). Le PDF affichera la mention « AVOIR sur facture {parentInvoiceNumber || 'FACT-...'} ».</>
                       )}
