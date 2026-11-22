@@ -379,10 +379,14 @@ const controlesSociete = (overrides: Partial<KycChecks> = {}): KycChecks => ({
 })
 
 describe('computeKycScore et decideKycStatus (pt_btp)', () => {
+  // VIES actif, certidão lue, NIPC de la matrícula identique : il ne manque que la firma.
+  const presqueTout = (nameMatchDocVsApi: number) =>
+    controlesSociete({ identifiantActiveInRegistry: true, docOcrSuccess: true, identifiantMatchDocVsApi: true, nameMatchDocVsApi })
+
   it.each([
     ['NIPC invalide : 0, rejet d’office', controlesSociete({ identifiantFormatValid: false, identifiantActiveInRegistry: true }), 0, 'rejected'],
-    ['NIPC valide seul (VIES muet, certidão non lue) : 15, revue manuelle et non rejet', controlesSociete(), 15, 'manual_review'],
-    ['actif au VIES, certidão en PDF non lue : 45, revue manuelle', controlesSociete({ identifiantActiveInRegistry: true }), 45, 'manual_review'],
+    ['NIPC valide seul (VIES muet, certidão non lue) : 10, revue manuelle et non rejet', controlesSociete(), 10, 'manual_review'],
+    ['actif au VIES, certidão en PDF non lue : 40, revue manuelle', controlesSociete({ identifiantActiveInRegistry: true }), 40, 'manual_review'],
     [
       'certidão lue, NIPC et firma concordants, sans VIES : 70, revue manuelle',
       controlesSociete({ docOcrSuccess: true, identifiantMatchDocVsApi: true, nameMatchDocVsApi: 100 }),
@@ -390,23 +394,15 @@ describe('computeKycScore et decideKycStatus (pt_btp)', () => {
       'manual_review',
     ],
     [
-      'VIES et certidão lue avec le NIPC, firma non lue : 75, revue manuelle',
-      controlesSociete({ identifiantActiveInRegistry: true, docOcrSuccess: true, identifiantMatchDocVsApi: true }),
+      'VIES et certidão lue, firma identique, NIPC de la matrícula différent ou non lu : 75, revue manuelle',
+      controlesSociete({ identifiantActiveInRegistry: true, docOcrSuccess: true, nameMatchDocVsApi: 100 }),
       75,
       'manual_review',
     ],
-    [
-      'VIES et certidão lue, firma identique au registre, NIPC non lu : 80, approuvé',
-      controlesSociete({ identifiantActiveInRegistry: true, docOcrSuccess: true, nameMatchDocVsApi: 100 }),
-      80,
-      'approved',
-    ],
-    [
-      'tout concorde : 100, approuvé',
-      controlesSociete({ identifiantActiveInRegistry: true, docOcrSuccess: true, identifiantMatchDocVsApi: true, nameMatchDocVsApi: 100 }),
-      100,
-      'approved',
-    ],
+    ['VIES, certidão et NIPC, firma non lue : 75, revue manuelle', presqueTout(0), 75, 'manual_review'],
+    ['VIES, certidão et NIPC, firma à 63 % du registre, sous le seuil : 75, revue manuelle', presqueTout(63), 75, 'manual_review'],
+    ['VIES, certidão et NIPC, firma à 64 % du registre : 91, approuvé', presqueTout(64), 91, 'approved'],
+    ['tout concorde : 100, approuvé', presqueTout(100), 100, 'approved'],
   ])('%s', (_cas, checks, score, decision) => {
     expect(computeKycScore(checks, 'pt_btp')).toBe(score)
     expect(decideKycStatus(score, 'pt_btp')).toBe(decision)
@@ -437,22 +433,22 @@ describe('buildKycDetails (pt_btp)', () => {
       'NIPC válido',
       'Empresa ativa no VIES (registo de IVA)',
       'Certidão Permanente lida por OCR',
-      'NIPC declarado presente na Certidão',
-      'Correspondência firma Certidão/registo : 100%',
+      'NIPC da matrícula idêntico ao declarado',
+      'Correspondência firma Certidão/registo : 100% (contada a partir de 64%)',
       'Cartão de Cidadão do gerente : verificação manual',
       'Score KYC : 100/100 — aprovado',
     ])
   })
 
   it('certidão non lue et VIES muet : score bas annoncé en revue manuelle, pas en rejet', () => {
-    expect(buildKycDetails(controlesSociete(), 15, 'pt_btp')).toEqual([
+    expect(buildKycDetails(controlesSociete(), 10, 'pt_btp')).toEqual([
       'NIPC válido',
       'Empresa não confirmada no VIES (sem registo de IVA, ou serviço indisponível)',
       'Certidão Permanente não lida (PDF ou imagem ilegível) — revisão manual',
-      'NIPC declarado não encontrado na Certidão',
-      'Correspondência firma Certidão/registo : 0%',
+      'NIPC da matrícula diferente do declarado, ou não lido',
+      'Correspondência firma Certidão/registo : 0% (contada a partir de 64%)',
       'Cartão de Cidadão do gerente : verificação manual',
-      'Score KYC : 15/100 — revisão manual',
+      'Score KYC : 10/100 — revisão manual',
     ])
   })
 

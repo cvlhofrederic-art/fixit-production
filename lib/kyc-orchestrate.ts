@@ -174,8 +174,8 @@ interface DocumentSocieteLu {
 
 /**
  * Champs lus sur le document de l'entreprise : Kbis (marchés français), Certidão de l'artisan portugais, certidão
- * permanente de la société BTP portugaise (lib/kyc-certidao-permanente.ts, qui cherche le NIPC déclaré, groupé par
- * trois ou non).
+ * permanente de la société BTP portugaise (lib/kyc-certidao-permanente.ts : NIPC de la matrícula, firma, gérance,
+ * código de acesso, validité).
  */
 function lireDocumentSociete(texte: string, market: KycMarket, identifiantDeclare: string): DocumentSocieteLu {
   if (market === 'pt_btp') {
@@ -497,8 +497,9 @@ export async function runKycPipeline(
               ocrDenomination,
               registryDenomination,
             )
-          } else if (ocrDenomination && artisan.company_name) {
-            // Fallback: compare with declared company name
+          } else if (ocrDenomination && artisan.company_name && market !== 'pt_btp') {
+            // Fallback: compare with declared company name. Société portugaise : la firma ne se compare qu'au nom du
+            // registre (VIES) ; la raison sociale vient de l'inscrit, comme le texte de la certidão qu'il dépose.
             checks.nameMatchDocVsApi = nameMatchScore(
               ocrDenomination,
               artisan.company_name,

@@ -88,6 +88,8 @@ interface MarketWeights {
   docOcrSuccess: number
   identifiantMatchDocVsApi: number
   nameMatchDocVsApiMax: number
+  /** Correspondance de la dénomination comptée à partir de ce taux seulement (0 si absent : dès le premier point). */
+  nameMatchDocVsApiMin?: number
   nameMatchDocVsIdMax: number
 }
 
@@ -117,14 +119,16 @@ const WEIGHTS: Record<KycMarket, MarketWeights> = {
     nameMatchDocVsIdMax: 15,
   },
   // Société BTP portugaise. Aucune comparaison automatique avec la pièce d'identité : la fiche d'une société n'a pas
-  // le nom de son gérant (ni first_name ni last_name en production). Ce poids va à la firma : une approbation
-  // automatique exige le registre (VIES), la certidão lue et sa firma (ou son NIPC et une firma proche).
+  // le nom de son gérant (ni first_name ni last_name en production). Une approbation automatique (80) exige, comme
+  // pour une société française, le registre (VIES), la certidão lue, son NIPC (celui de la matrícula) et une firma
+  // ressemblant au nom du registre à 64 % au moins : sans l'un d'eux, le score reste à 75 au plus.
   pt_btp: {
-    identifiantFormatValid: 15,
+    identifiantFormatValid: 10,
     identifiantActiveInRegistry: 30,
     docOcrSuccess: 10,
-    identifiantMatchDocVsApi: 20,
+    identifiantMatchDocVsApi: 25,
     nameMatchDocVsApiMax: 25,
+    nameMatchDocVsApiMin: 64,
     nameMatchDocVsIdMax: 0,
   },
 }
@@ -140,7 +144,8 @@ export function computeKycScore(checks: KycChecks, market: KycMarket): number {
   if (checks.identifiantActiveInRegistry) score += w.identifiantActiveInRegistry
   if (checks.docOcrSuccess) score += w.docOcrSuccess
   if (checks.identifiantMatchDocVsApi) score += w.identifiantMatchDocVsApi
-  score += Math.round((checks.nameMatchDocVsApi / 100) * w.nameMatchDocVsApiMax)
+  const denomination = checks.nameMatchDocVsApi >= (w.nameMatchDocVsApiMin ?? 0) ? checks.nameMatchDocVsApi : 0
+  score += Math.round((denomination / 100) * w.nameMatchDocVsApiMax)
   score += Math.round((checks.nameMatchDocVsId / 100) * w.nameMatchDocVsIdMax)
 
   return Math.min(100, Math.max(0, score))
@@ -180,8 +185,10 @@ function detailsSocieteBtpPortugaise(checks: KycChecks, score: number): string[]
     checks.docOcrSuccess
       ? 'Certidão Permanente lida por OCR'
       : 'Certidão Permanente não lida (PDF ou imagem ilegível) — revisão manual',
-    checks.identifiantMatchDocVsApi ? 'NIPC declarado presente na Certidão' : 'NIPC declarado não encontrado na Certidão',
-    `Correspondência firma Certidão/registo : ${checks.nameMatchDocVsApi}%`,
+    checks.identifiantMatchDocVsApi
+      ? 'NIPC da matrícula idêntico ao declarado'
+      : 'NIPC da matrícula diferente do declarado, ou não lido',
+    `Correspondência firma Certidão/registo : ${checks.nameMatchDocVsApi}% (contada a partir de ${WEIGHTS.pt_btp.nameMatchDocVsApiMin}%)`,
     'Cartão de Cidadão do gerente : verificação manual',
     `Score KYC : ${score}/100 — ${LIBELLES_DECISION_PT[decideKycStatus(score, 'pt_btp')]}`,
   ]

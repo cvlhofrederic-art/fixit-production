@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import type { User } from '@supabase/supabase-js'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { logger } from '@/lib/logger'
+import { getUserRole } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 
 export async function POST(request: NextRequest) {
@@ -55,6 +56,9 @@ export async function POST(request: NextRequest) {
       if (key in profileData) sanitized[key] = profileData[key]
     }
     if ('kyc_market' in sanitized && !MARCHES_KYC.includes(sanitized.kyc_market)) delete sanitized.kyc_market
+    // pt_btp réservé à un compte société (rôle d'app_metadata, posé par trg_sync_user_role, non forgeable), comme
+    // /api/pro/register/finalize : un autre compte qui l'enverrait passerait par le registre et le score des sociétés.
+    if (sanitized.kyc_market === 'pt_btp' && getUserRole(user.user) !== 'pro_societe') delete sanitized.kyc_market
 
     const { data, error } = await supabaseAdmin
       .from('profiles_artisan')

@@ -454,8 +454,8 @@ describe('runKycPipeline — marchés existants inchangés par le marché pt_btp
 })
 
 // Société BTP inscrite en portugais (marché pt_btp, 22/11/2026). Avant : marché fr_btp, NIPC de 9 chiffres contrôlé
-// comme un SIRET, rejet d'office à 0 sans motif (Method Soluções, 17/11/2026). Désormais : NIPC contrôlé comme un NIF,
-// VIES pour registre, certidão permanente lue (image) et rapprochée du NIPC et de la firma.
+// comme un SIRET, rejet d'office à 0 sans motif (une société inscrite le 17/11/2026). Désormais : NIPC contrôlé comme
+// un NIF, VIES pour registre, certidão permanente lue (image) et rapprochée du NIPC de la matrícula et de la firma.
 describe('runKycPipeline — société BTP portugaise (pt_btp)', () => {
   preparerFournisseurs()
 
@@ -504,12 +504,12 @@ describe('runKycPipeline — société BTP portugaise (pt_btp)', () => {
     expect(ecrit).not.toHaveProperty('kbis_extracted')
   })
 
-  it('certidão en PDF (non lue), VIES actif : revue manuelle à 45, aucun modèle appelé', async () => {
+  it('certidão en PDF (non lue), VIES actif : revue manuelle à 40, aucun modèle appelé', async () => {
     const { issue, ecrit, lectures } = await lancerAvec(SOCIETE, 'ne doit pas servir', { vies: viesActif, piece: certidaoPdf() })
 
     expect(lectures).toHaveLength(0)
-    expect(issue.ok && issue.result).toMatchObject({ decision: 'manual_review', score: 45 })
-    expect(ecrit).toMatchObject({ kyc_status: 'pending', kyc_score: 45, kyc_market: 'pt_btp' })
+    expect(issue.ok && issue.result).toMatchObject({ decision: 'manual_review', score: 40 })
+    expect(ecrit).toMatchObject({ kyc_status: 'pending', kyc_score: 40, kyc_market: 'pt_btp' })
     expect(ecrit).not.toHaveProperty('certidao_extracted')
   })
 
@@ -517,19 +517,40 @@ describe('runKycPipeline — société BTP portugaise (pt_btp)', () => {
     ['VIES indisponible (503)', () => new Response('Service Unavailable', { status: 503 })],
     ['VIES injoignable (réseau)', (): Response => { throw new TypeError('fetch failed') }],
     ['NIPC inconnu du VIES (société exonérée de TVA)', () => Response.json({ valid: false, name: '', address: '' })],
-  ])('%s, certidão en PDF : revue manuelle à 15, jamais un rejet d’office', async (_cas, vies) => {
+  ])('%s, certidão en PDF : revue manuelle à 10, jamais un rejet d’office', async (_cas, vies) => {
     const { issue, ecrit } = await lancerAvec(SOCIETE, 'ne doit pas servir', { vies, piece: certidaoPdf() })
 
-    expect(issue.ok && issue.result).toMatchObject({ decision: 'manual_review', score: 15 })
-    expect(ecrit).toMatchObject({ kyc_status: 'pending', kyc_score: 15 })
+    expect(issue.ok && issue.result).toMatchObject({ decision: 'manual_review', score: 10 })
+    expect(ecrit).toMatchObject({ kyc_status: 'pending', kyc_score: 10 })
   })
 
-  it('certidão d’une autre société (autre NIPC, autre firma) : revue manuelle, jamais approuvée', async () => {
-    const autre = ['Certidão Permanente', 'NIPC: 509 999 997', 'Firma: OUTRA EMPRESA, S.A.'].join('\n')
-    const { issue, ecrit } = await lancerAvec(SOCIETE, autre, { vies: viesActif })
+  it.each([
+    ['d’une autre société (autre NIPC, autre firma)', ['NIPC: 509 999 997', 'Firma: OUTRA EMPRESA, S.A.'], false],
+    // Le NIPC déclaré n'y figure que comme associé, et la firma ressemble au nom du registre (plus de 64 %).
+    [
+      'd’une autre société dont la société déclarée est associée',
+      ['NIPC: 509 999 997', 'Firma: BETA CONSTRUÇÕES EXEMPLO, LDA', 'Sócio: CONSTRUÇÕES EXEMPLO, LDA - NIPC 512 345 678'],
+      false,
+    ],
+    // Bon NIPC, mais firma générique : seul « LDA » en commun avec le nom du registre.
+    ['de la société, firma générique', ['NIPC: 512 345 678', 'Firma: XPTO, LDA'], true],
+  ])('certidão %s, VIES actif : revue manuelle, jamais approuvée', async (_cas, lignes, nipcRetrouve) => {
+    const { issue, ecrit } = await lancerAvec(SOCIETE, ['Certidão Permanente', ...lignes].join('\n'), { vies: viesActif })
 
-    expect(issue.ok && issue.result).toMatchObject({ decision: 'manual_review', score: 55 })
-    expect(issue.ok && issue.result.checks).toMatchObject({ identifiantMatchDocVsApi: false, nameMatchDocVsApi: 0 })
-    expect(ecrit).toMatchObject({ kyc_status: 'pending', certidao_extracted: { identifiant: '509999997' } })
+    expect(issue.ok && issue.result).toMatchObject({ decision: 'manual_review' })
+    expect(issue.ok && issue.result.checks.identifiantMatchDocVsApi).toBe(nipcRetrouve)
+    expect(ecrit).toMatchObject({ kyc_status: 'pending', kyc_market: 'pt_btp' })
+    expect(Number(ecrit.kyc_score)).toBeLessThan(80)
+  })
+
+  // VIES confirme le NIPC sans donner de nom : la firma n'est pas comparée à la raison sociale, saisie par l'inscrit
+  // comme le texte de la certidão qu'il dépose.
+  it('VIES actif sans nom (« --- ») : firma non comparée à la raison sociale déclarée, revue manuelle à 75', async () => {
+    const viesSansNom = () => Response.json({ valid: true, name: '---', address: '---' })
+    const { issue, ecrit } = await lancerAvec(SOCIETE, CERTIDAO, { vies: viesSansNom })
+
+    expect(issue.ok && issue.result.checks).toMatchObject({ identifiantActiveInRegistry: true, identifiantMatchDocVsApi: true, nameMatchDocVsApi: 0 })
+    expect(issue.ok && issue.result).toMatchObject({ decision: 'manual_review', score: 75 })
+    expect(ecrit).toMatchObject({ kyc_status: 'pending', kyc_score: 75 })
   })
 })

@@ -385,7 +385,7 @@ describe('Inscription société BTP : échec de la fiche ou des pièces', () => 
 })
 
 // Marché KYC de la société (22/11/2026) : le formulaire envoyait toujours fr_btp, et le KYC contrôlait le NIPC d'une
-// société inscrite en portugais comme un SIRET (rejet d'office, score 0, Method Soluções le 17/11/2026).
+// société inscrite en portugais comme un SIRET (rejet d'office, score 0, pour une société inscrite le 17/11/2026).
 describe('Inscription société BTP : marché KYC selon la langue de la page', () => {
   beforeEach(() => {
     h.societe = SOCIETE_SAS

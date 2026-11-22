@@ -258,15 +258,36 @@ describe('POST /api/auth/create-profile — champs fixés par le serveur', () =>
     expect(mocks.profileInsert).toHaveBeenCalledWith({ user_id: USER_ID, company_name: 'X', verified: false, kyc_status: 'pending' })
   })
 
-  // pt_btp : société BTP inscrite en portugais (22/11/2026) ; sans lui, la fiche partait sans marché et le KYC la
-  // contrôlait en fr_artisan (NIPC lu comme un SIRET).
-  it.each(['fr_artisan', 'fr_btp', 'pt_artisan', 'pt_btp'])('garde le marché KYC %s', async (marche) => {
+  it.each(['fr_artisan', 'fr_btp', 'pt_artisan'])('garde le marché KYC %s, quel que soit le compte (comme avant)', async (marche) => {
     const { POST } = await import('@/app/api/auth/create-profile/route')
     await POST(requete({ user_id: USER_ID, company_name: 'X', kyc_market: marche }) as never)
 
     expect(mocks.profileInsert).toHaveBeenCalledWith({
       user_id: USER_ID, company_name: 'X', verified: false, kyc_status: 'pending', kyc_market: marche,
     })
+  })
+
+  // pt_btp : société BTP inscrite en portugais (22/11/2026). Sans lui, la fiche partait sans marché et le KYC la
+  // contrôlait en fr_artisan (NIPC lu comme un SIRET). Réservé à un compte société : rôle lu dans app_metadata.
+  it('garde le marché pt_btp d’un compte société (rôle pro_societe d’app_metadata)', async () => {
+    mocks.authUser = { email: 'geral@exemplo.pt', app_metadata: { role: 'pro_societe' }, user_metadata: {} }
+    const { POST } = await import('@/app/api/auth/create-profile/route')
+    await POST(requete({ user_id: USER_ID, company_name: 'X', kyc_market: 'pt_btp' }) as never)
+
+    expect(mocks.profileInsert).toHaveBeenCalledWith({
+      user_id: USER_ID, company_name: 'X', verified: false, kyc_status: 'pending', kyc_market: 'pt_btp',
+    })
+  })
+
+  it.each([
+    ['un compte artisan', { app_metadata: { role: 'artisan' }, user_metadata: {} }],
+    ['un compte sans rôle, société seulement déclarée dans user_metadata', { app_metadata: {}, user_metadata: { role: 'pro_societe' } }],
+  ])('retire le marché pt_btp envoyé pour %s', async (_cas, compte) => {
+    mocks.authUser = { email: 'x@exemplo.pt', ...compte }
+    const { POST } = await import('@/app/api/auth/create-profile/route')
+    await POST(requete({ user_id: USER_ID, company_name: 'X', kyc_market: 'pt_btp' }) as never)
+
+    expect(mocks.profileInsert).toHaveBeenCalledWith({ user_id: USER_ID, company_name: 'X', verified: false, kyc_status: 'pending' })
   })
 })
 

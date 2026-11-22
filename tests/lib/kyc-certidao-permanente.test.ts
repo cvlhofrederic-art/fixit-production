@@ -79,6 +79,45 @@ describe('lireCertidaoPermanente — autres mises en page', () => {
 
     expect(lue.firma).toBe('CONSTRUÇÕES EXEMPLO, LDA')
   })
+
+  it('rubriques enchaînées sur une seule ligne : NIPC et firma lus', () => {
+    const lue = lireCertidaoPermanente('NIPC: 512 345 678 Firma: CONSTRUÇÕES EXEMPLO, LDA Sede: Rua do Exemplo, 1', NIPC)
+
+    expect(lue.nipcDeclarePresent).toBe(true)
+    expect(lue.firma).toBe('CONSTRUÇÕES EXEMPLO, LDA')
+  })
+
+  it('lignes à puces ou numérotées, libellés en gras', () => {
+    const texte = ['- **NIPC:** 512 345 678', '• **Firma:** CONSTRUÇÕES EXEMPLO, LDA', '1. Gerente: Rui Exemplo'].join('\n')
+
+    expect(lireCertidaoPermanente(texte, NIPC)).toMatchObject({
+      nipcDeclarePresent: true,
+      firma: 'CONSTRUÇÕES EXEMPLO, LDA',
+      gerente: 'Rui Exemplo',
+    })
+  })
+
+  it('puce suivie du libellé seul, valeur à la ligne suivante', () => {
+    expect(lireCertidaoPermanente('- **Firma**\nCONSTRUÇÕES EXEMPLO, LDA', NIPC).firma).toBe('CONSTRUÇÕES EXEMPLO, LDA')
+  })
+
+  it.each([
+    ['tiret cadratin après le libellé', 'Firma — CONSTRUÇÕES EXEMPLO, LDA'],
+    ['libellé « Firma/Denominação »', 'Firma/Denominação: CONSTRUÇÕES EXEMPLO, LDA'],
+    ['firma suivie du NIF sur la même ligne', 'Firma: CONSTRUÇÕES EXEMPLO, LDA NIF: 512 345 678'],
+  ])('libellé reformulé par le modèle (%s) : firma lue', (_cas, texte) => {
+    expect(lireCertidaoPermanente(texte, NIPC).firma).toBe('CONSTRUÇÕES EXEMPLO, LDA')
+  })
+
+  it('« Capital » dans la firma, sans deux-points : la firma reste entière', () => {
+    expect(lireCertidaoPermanente('Firma: OBRAS CAPITAL - CONSTRUÇÕES, LDA', NIPC).firma).toBe('OBRAS CAPITAL - CONSTRUÇÕES, LDA')
+  })
+
+  it('forme officielle « Órgão(s) designado(s): GERÊNCIA: … » : gérant lu, NIF retiré', () => {
+    const lue = lireCertidaoPermanente('Órgão(s) designado(s): GERÊNCIA: JOÃO EXEMPLO, NIF 123 456 789', NIPC)
+
+    expect(lue.gerente).toBe('JOÃO EXEMPLO')
+  })
 })
 
 describe('lireCertidaoPermanente — certidão d’une autre société, texte incomplet', () => {
@@ -87,6 +126,20 @@ describe('lireCertidaoPermanente — certidão d’une autre société, texte in
 
     expect(lue.nipc).toBe('509999997')
     expect(lue.nipcDeclarePresent).toBe(false)
+  })
+
+  it('certidão d’une autre société dont la société déclarée est associée : son NIPC, écrit hors matrícula, ne compte pas', () => {
+    const texte = ['NIPC: 509 999 997', 'Firma: BETA CONSTRUÇÕES, LDA', 'Sócio: CONSTRUÇÕES EXEMPLO, LDA - NIPC 512 345 678'].join('\n')
+    const lue = lireCertidaoPermanente(texte, NIPC)
+
+    expect(lue.nipc).toBe('509999997')
+    expect(lue.nipcDeclarePresent).toBe(false)
+  })
+
+  it('une rue « da Administração » suivie d’un nom n’est pas lue comme la gérance', () => {
+    const lue = lireCertidaoPermanente('Sede: Rua da Administração Pública, 1\nNome: Maria Exemplo (sócia)', NIPC)
+
+    expect(lue.gerente).toBeNull()
   })
 
   it('le NIPC déclaré noyé dans un nombre plus long ne compte pas', () => {

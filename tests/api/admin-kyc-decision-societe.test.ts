@@ -60,11 +60,14 @@ vi.mock('@/lib/auth-helpers', async (importOriginal) => ({
   getAuthUser: vi.fn(async () => h.etat.user),
 }))
 vi.mock('@/lib/supabase-server', () => ({ supabaseAdmin: { from: (t: string) => h.from(t) } }))
+vi.mock('@/lib/rate-limit', async () => (await import('../helpers/mocks-routes-api')).rateLimitPermissif())
 
 definirListeSuperAdmin()
 vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://vitfix.test')
 vi.stubEnv('INTERNAL_API_SECRET', 'secret-de-test')
+vi.stubEnv('RESEND_API_KEY', 'cle-de-test')
 const { PATCH } = await import('@/app/api/admin/kyc/route')
+const { POST: routeEmailKyc } = await import('@/app/api/send-kyc-email/route')
 
 afterAll(() => {
   vi.unstubAllEnvs()
@@ -87,6 +90,22 @@ async function decider(corps: Record<string, unknown>) {
 
 const fiche = (id: string) => h.etat.fiches.find((f) => f.id === id) as Ligne
 const corpsEmail = () => JSON.parse(String((fetchEmail.mock.calls[0]?.[1] as RequestInit | undefined)?.body))
+
+/**
+ * De bout en bout : l'appel interne de la décision aboutit à la vraie route /api/send-kyc-email, qui remet le message
+ * au service d'envoi (Resend, simulé) ; rend les messages remis (destinataire, objet, HTML).
+ */
+function messagesRemisAuServiceDEnvoi(): Array<{ to: string; subject: string; html: string }> {
+  const remis: Array<{ to: string; subject: string; html: string }> = []
+  fetchEmail.mockImplementation(async (url: string, init: RequestInit) => {
+    if (url === 'https://api.resend.com/emails') {
+      remis.push(JSON.parse(String(init.body)))
+      return new Response(JSON.stringify({ id: 'courriel-de-test' }), { status: 200 })
+    }
+    return routeEmailKyc(new NextRequest(url, { method: init.method, headers: init.headers, body: init.body }))
+  })
+  return remis
+}
 
 beforeEach(() => {
   h.etat.user = superAdminAutorise()
@@ -121,6 +140,17 @@ describe('Décision KYC sur le dossier d’une société BTP française', () => 
     expect(status).toBe(200)
     expect(fiche(ID_SOCIETE)).toMatchObject({ kyc_status: 'rejected', kyc_rejection_reason: 'Kbis illisible' })
     expect(corpsEmail()).toMatchObject({ action: 'reject', rejection_reason: 'Kbis illisible', name: 'BÂTIMENT EXEMPLE' })
+  })
+
+  it('de bout en bout : e-mail en français remis au service d’envoi, comme avant', async () => {
+    const remis = messagesRemisAuServiceDEnvoi()
+
+    const { json } = await decider({ artisan_id: ID_SOCIETE, action: 'approve' })
+
+    expect(json.email_envoye).toBe(true)
+    expect(remis).toHaveLength(1)
+    expect(remis[0]).toMatchObject({ to: 'contact@exemple.fr', subject: 'Votre compte BÂTIMENT EXEMPLE est activé sur Vitfix' })
+    expect(remis[0].html).toContain('Félicitations BÂTIMENT EXEMPLE')
   })
 
   it('e-mail refusé : la décision reste enregistrée et la réponse le signale', async () => {
@@ -190,6 +220,18 @@ describe('Décision KYC sur le dossier d’une société BTP portugaise', () => 
     expect(status).toBe(200)
     expect(fiche(ID_SOCIETE_PT)).toMatchObject({ kyc_status: 'rejected', kyc_rejection_reason: 'Certidão caducada' })
     expect(corpsEmail()).toMatchObject({ action: 'reject', rejection_reason: 'Certidão caducada', market: 'pt_btp' })
+  })
+
+  it('de bout en bout : e-mail en portugais remis au service d’envoi (objet et corps)', async () => {
+    const remis = messagesRemisAuServiceDEnvoi()
+
+    const { json } = await decider({ artisan_id: ID_SOCIETE_PT, action: 'reject', rejection_reason: 'Certidão caducada' })
+
+    expect(json.email_envoye).toBe(true)
+    expect(remis).toHaveLength(1)
+    expect(remis[0]).toMatchObject({ to: 'geral@exemplo.pt', subject: 'Registo não validado — CONSTRUÇÕES EXEMPLO, LDA' })
+    expect(remis[0].html).toContain('<strong>Motivo:</strong> Certidão caducada')
+    expect(remis[0].html).not.toMatch(/Bonjour|Motif/)
   })
 
   // Le formulaire posait fr_btp pour toute société avant le 22/11/2026 : une société inscrite en portugais avant cette
