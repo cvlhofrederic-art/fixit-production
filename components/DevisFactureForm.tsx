@@ -584,7 +584,8 @@ export default function DevisFactureForm({
     try {
       const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
       const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
-      const prefix = docType === 'devis' ? 'DEV' : 'FACT'
+      // Mêmes préfixes que next_doc_number (migration 20261122b) : ORC/FT pour le Portugal, DEV/FACT sinon.
+      const prefix = docType === 'devis' ? (locale === 'pt' ? 'ORC' : 'DEV') : (locale === 'pt' ? 'FT' : 'FACT')
       const pattern = new RegExp(`^${prefix}-${year}-(\\d+)$`)
       const maxSeq = [...docs, ...drafts]
         .map((d: { docNumber?: string }) => d.docNumber?.match(pattern)?.[1])
@@ -597,7 +598,7 @@ export default function DevisFactureForm({
       return number
     } catch (err) {
       console.error('[DevisFactureForm] All doc-number fallbacks failed:', err)
-      const fallback = `${docType === 'devis' ? 'DEV' : 'FACT'}-${year}-DRAFT`
+      const fallback = `${docType === 'devis' ? (locale === 'pt' ? 'ORC' : 'DEV') : (locale === 'pt' ? 'FT' : 'FACT')}-${year}-DRAFT`
       setDocNumber(fallback)
       return fallback
     }

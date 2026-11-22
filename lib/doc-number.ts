@@ -15,16 +15,24 @@ export interface OptionsNumerotation {
    * repli local d'origine, inchangé pour les artisans.
    */
   repliLocal?: boolean
+  /**
+   * Repli local d'un artisan à l'écran en portugais : mêmes préfixes que le serveur (ORC-, FT-, FA-, NC-, migration
+   * 20261122b), au lieu de DEV-, FACT-, AC-, AV-.
+   */
+  portugais?: boolean
 }
 
 /**
  * Compteur localStorage — DERNIER recours (peut diverger entre devices).
  * Séries dédiées par type : DEV- (devis), FACT- (facture), AC- (acompte), AV- (avoir). Le serveur (next_doc_number) donne
- * ORC-, FT-, FA- et NC- à une société BTP dont la fiche est en portugais ; ce repli ne sert qu'aux artisans, qui gardent DEV-… .
+ * ORC-, FT-, FA- et NC- à un compte dont une fiche est en portugais (migration 20261122b) ; ce repli, qui ne sert qu'aux
+ * artisans, fait de même quand portugais est vrai.
  */
-export function localFallbackDocNumber(artisanId: string | undefined, docType: DocSeriesType): string {
+export function localFallbackDocNumber(artisanId: string | undefined, docType: DocSeriesType, portugais = false): string {
   const year = new Date().getFullYear()
-  const prefix = docType === 'devis' ? 'DEV' : docType === 'facture' ? 'FACT' : docType === 'acompte' ? 'AC' : 'AV'
+  const prefix = portugais
+    ? (docType === 'devis' ? 'ORC' : docType === 'facture' ? 'FT' : docType === 'acompte' ? 'FA' : 'NC')
+    : (docType === 'devis' ? 'DEV' : docType === 'facture' ? 'FACT' : docType === 'acompte' ? 'AC' : 'AV')
   try {
     const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisanId}`) || '[]')
     const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisanId}`) || '[]')
@@ -99,5 +107,5 @@ export async function fetchNextDocNumber(
 
   // 3) Fallback localStorage (clé = id profil `artisanId`). Société BTP : pas de numéro du navigateur.
   if (options.repliLocal === false) throw new NumerotationIndisponibleError()
-  return localFallbackDocNumber(artisanId, docType)
+  return localFallbackDocNumber(artisanId, docType, options.portugais === true)
 }

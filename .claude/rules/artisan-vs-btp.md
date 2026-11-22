@@ -25,7 +25,7 @@
 - **Layout V5 est partagé** : `isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'`. Toucher V5 sans condition impacte les deux. Exemple : bouton Télécharger ajouté dans `FacturesSectionV5` conditionné par `orgRole === 'artisan'`.
 - **`useBtpDesign` flag** : `downloadSavedDevis` route vers V2 (artisan) ou V3 (BTP) selon ce flag. Par défaut `false` → V2.
 - **Franchise 293B** : Artisan EI/auto/micro. Adapter les mentions PDF V2 en conséquence (`PRIX U.` au lieu de `PRIX U. TTC`, pas de TVA calculée dans la liste factures, etc.). Le V3 BTP gère sa propre logique.
-- **Numérotation** : séquence partagée via RPC `next_doc_number`, par `docType` et `artisan_id`. Pas de différenciation artisan/BTP à ce niveau.
+- **Numérotation** : séquence partagée via RPC `next_doc_number`, par `docType` et `artisan_id`. Pas de différenciation artisan/BTP à ce niveau. Préfixes selon le marché du titulaire de la série (migrations 20261122 et 20261122b) : une fiche en portugais → ORC/FT/NC/FA, sinon DEV/FACT/AV/AC ; le repli local des artisans suit la langue de l'écran.
 
 ## Check-list avant commit
 

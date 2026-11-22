@@ -971,7 +971,7 @@ function DevisSectionV5({
                 // (lib/emission-hors-serveur.ts). Artisan : inchangé.
                 getNumber: estBtp
                   ? () => fetchNextDocNumber('acompte', artisan.id, { repliLocal: false })
-                  : () => fetchNextDocNumber('acompte', artisan.id),
+                  : () => fetchNextDocNumber('acompte', artisan.id, { portugais: locale === 'pt' }),
                 sync: syncDocumentSafe,
                 ...(estBtp ? { verifierPlaceAvantNumero: true } : {}),
               })

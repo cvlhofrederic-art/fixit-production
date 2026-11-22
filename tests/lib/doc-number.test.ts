@@ -39,6 +39,14 @@ describe('localFallbackDocNumber', () => {
     localStorage.setItem(`fixit_documents_${ART}`, JSON.stringify([{ docNumber: `FACT-${YEAR}-010` }]))
     expect(localFallbackDocNumber(ART, 'acompte')).toBe(`AC-${YEAR}-001`)
   })
+  it('artisan à l’écran en portugais : ORC-, FT-, FA-, NC- comme le serveur (migration 20261122b)', () => {
+    expect(localFallbackDocNumber(ART, 'devis', true)).toBe(`ORC-${YEAR}-001`)
+    expect(localFallbackDocNumber(ART, 'facture', true)).toBe(`FT-${YEAR}-001`)
+    expect(localFallbackDocNumber(ART, 'avoir', true)).toBe(`NC-${YEAR}-001`)
+    localStorage.setItem(`fixit_documents_${ART}`, JSON.stringify([{ docNumber: `FA-${YEAR}-003` }, { docNumber: `AC-${YEAR}-009` }]))
+    expect(localFallbackDocNumber(ART, 'acompte', true)).toBe(`FA-${YEAR}-004`)
+    expect(localFallbackDocNumber(ART, 'acompte')).toBe(`AC-${YEAR}-010`)
+  })
 })
 
 describe('fetchNextDocNumber', () => {
@@ -76,6 +84,7 @@ describe('fetchNextDocNumber', () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network')))
     ;(supabase.rpc as ReturnType<typeof vi.fn>).mockResolvedValue({ data: null, error: { message: 'down' } })
     await expect(fetchNextDocNumber('acompte', ART)).resolves.toBe(`AC-${YEAR}-001`)
+    await expect(fetchNextDocNumber('acompte', ART, { portugais: true })).resolves.toBe(`FA-${YEAR}-001`)
     vi.unstubAllGlobals()
   })
 })
