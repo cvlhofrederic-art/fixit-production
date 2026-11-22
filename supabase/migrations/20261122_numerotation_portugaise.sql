@@ -1,20 +1,48 @@
--- ── Numérotation portugaise des devis et factures (22/11/2026) ──
+-- ── Numérotation portugaise des devis et factures des sociétés BTP (22/11/2026) ──
 -- Demande de Frédéric : « Numérotation ORC pour PT, DEV pour FR, faut que ça ait du sens ! Pareil les factures. »
 --
--- Une fiche en portugais (profiles_artisan.language = 'pt', même critère que lib/btp/fiche-societe-francaise.ts)
--- reçoit des préfixes portugais : ORC (orçamento), FT (fatura), NC (nota de crédito), FA (fatura de adiantamento).
--- Toute autre fiche garde DEV, FACT, AV et AC. Artisans et sociétés BTP : même fonction, même règle.
+-- Une société BTP (app_metadata.role = 'pro_societe') dont la fiche est en portugais (profiles_artisan.language = 'pt',
+-- même critère que lib/btp/fiche-societe-francaise.ts) reçoit des préfixes portugais : ORC (orçamento), FT (fatura),
+-- NC (nota de crédito), FA (fatura de adiantamento). Tout autre compte garde DEV, FACT, AV et AC ; les artisans ne
+-- sont pas touchés (règle n° 1 : un seul côté sans demande explicite).
+-- Ces préfixes servent à la lecture : aucune série n'est communiquée à l'AT, Vitfix n'est pas un programme certifié
+-- (Decreto-Lei n.º 28/2019), les documents n'ont ni ATCUD ni hash.
 --
 -- Ce qui ne change pas :
---   - les compteurs (doc_sequences, par compte, type et année) : une fiche qui passe au portugais continue sa
---     numérotation (DEV-2026-005, puis ORC-2026-006), sans doublon ni trou ;
+--   - les compteurs (doc_sequences, par compte, type et année) : une société qui passe au portugais continue sa
+--     numérotation (DEV-2026-005, puis ORC-2026-006) ; une société qui numérotait déjà ses orçamentos hors de Vitfix
+--     doit voir son compteur amorcé AVANT sa première émission (sinon ORC-2026-001 refait un numéro déjà envoyé) ;
 --   - les numéros déjà émis : aucune ligne n'est lue ni réécrite ;
---   - le reste du corps de la fonction, repris de 20260602 (relevé identique en production le 22/11/2026, aux espaces
---     près) : autorisation (service_role, titulaire de la série, membre actif de son équipe), SECURITY DEFINER,
+--   - le reste du corps de la fonction, repris de 20260602 (texte relevé identique en production le 22/11/2026, aux
+--     espaces près) : autorisation (service_role, titulaire de la série, membre actif de son équipe), SECURITY DEFINER,
 --     search_path, format PRÉFIXE-AAAA-NNN ;
---   - les droits d'exécution (REVOKE PUBLIC et GRANT authenticated de 20260522) et le propriétaire : CREATE OR REPLACE
---     les garde.
--- Rejouable.
+--   - les droits d'exécution et le propriétaire : CREATE OR REPLACE les garde.
+-- Garde : la fonction doit pouvoir lire profiles_artisan et auth.users sans être filtrée par la RLS, sinon tout
+-- retomberait en silence sur DEV- ; la migration s'arrête alors sans rien appliquer. Rejouable.
+
+DO $$
+DECLARE
+  v_proprietaire oid;
+BEGIN
+  SELECT p.proowner INTO v_proprietaire
+  FROM pg_proc p WHERE p.oid = to_regprocedure('public.next_doc_number(uuid,text,integer)');
+  IF v_proprietaire IS NULL THEN
+    RETURN;
+  END IF;
+  IF NOT has_table_privilege(v_proprietaire, 'public.profiles_artisan', 'SELECT')
+     OR NOT has_table_privilege(v_proprietaire, 'auth.users', 'SELECT') THEN
+    RAISE EXCEPTION 'Numérotation portugaise : le propriétaire de next_doc_number ne peut pas lire profiles_artisan ou auth.users ; rien n''est appliqué';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles r WHERE r.oid = v_proprietaire AND (r.rolsuper OR r.rolbypassrls))
+     AND EXISTS (
+       SELECT 1 FROM pg_class c
+       WHERE c.oid IN ('public.profiles_artisan'::regclass, 'auth.users'::regclass)
+         AND c.relrowsecurity
+         AND (c.relowner <> v_proprietaire OR c.relforcerowsecurity)
+     ) THEN
+    RAISE EXCEPTION 'Numérotation portugaise : next_doc_number serait filtrée par la RLS de profiles_artisan ou auth.users ; rien n''est appliqué';
+  END IF;
+END $$;
 
 CREATE OR REPLACE FUNCTION public.next_doc_number(
   p_artisan_user_id uuid,
@@ -60,8 +88,12 @@ BEGIN
   DO UPDATE SET last_seq = doc_sequences.last_seq + 1
   RETURNING last_seq INTO v_seq;
 
-  -- Fiche du titulaire de la série en portugais : préfixes portugais.
+  -- Titulaire de la série : société BTP dont la fiche est en portugais → préfixes portugais.
   v_portugal := EXISTS (
+    SELECT 1 FROM auth.users u
+    WHERE u.id = p_artisan_user_id
+      AND u.raw_app_meta_data ->> 'role' = 'pro_societe'
+  ) AND EXISTS (
     SELECT 1 FROM profiles_artisan
     WHERE user_id  = p_artisan_user_id
       AND language = 'pt'

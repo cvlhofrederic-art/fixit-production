@@ -68,8 +68,8 @@ function parseVitfixDevis(text: string): VitfixParsedData | null {
       mentions: [],
     }
 
-    // Numéro de devis : DEV-YYYY-NNN (ORC-YYYY-NNN pour un orçamento portugais)
-    const devMatch = text.match(/(?:DEV|ORC)-(\d{4})-(\d{3,})/i)
+    // Numéro de devis : DEV-YYYY-NNN
+    const devMatch = text.match(/DEV-(\d{4})-(\d{3,})/i)
     if (devMatch) result.document.numero = devMatch[0]
 
     // SIRET
@@ -211,7 +211,7 @@ function parseVitfixDevis(text: string): VitfixParsedData | null {
 // ── Détection Vitfix ────────────────────────────────────────────────────────
 function isVitfixDocument(text: string): boolean {
   if (text.includes('[VITFIX-DEVIS-METADATA]')) return true
-  if (/(?:DEV|ORC)-\d{4}-\d{3,}/.test(text)) return true
+  if (/DEV-\d{4}-\d{3,}/.test(text)) return true
   // Signature structurelle : ÉMETTEUR + DESTINATAIRE + bandeau + TOTAL NET
   const hasStructure = /[ÉE]METTEUR/i.test(text) && /DESTINATAIRE/i.test(text) && /TOTAL\s*NET/i.test(text)
   const hasVitfixSignature = /Document g[ée]n[ée]r[ée] par Vitfix/i.test(text)

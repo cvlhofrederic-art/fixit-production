@@ -20,7 +20,7 @@ export interface OptionsNumerotation {
 /**
  * Compteur localStorage — DERNIER recours (peut diverger entre devices).
  * Séries dédiées par type : DEV- (devis), FACT- (facture), AC- (acompte), AV- (avoir). Le serveur (next_doc_number) donne
- * ORC-, FT-, FA- et NC- à une fiche en portugais ; ce repli local, réservé aux artisans hors connexion, garde DEV-… .
+ * ORC-, FT-, FA- et NC- à une société BTP dont la fiche est en portugais ; ce repli ne sert qu'aux artisans, qui gardent DEV-… .
  */
 export function localFallbackDocNumber(artisanId: string | undefined, docType: DocSeriesType): string {
   const year = new Date().getFullYear()

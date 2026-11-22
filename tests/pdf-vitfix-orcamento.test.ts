@@ -432,4 +432,12 @@ describe('Factures de la société Vitfix', () => {
     expect(compact(tout(pdf))).toContain(compact('(sobre orçamento ORC-2026-007)'))
     expect(tout(pdf)).toContain('FA-2026-001')
   })
+
+  it('gabarit Method : une fatura de adiantamento sur un orçamento ORC- le dit « sobre orçamento »', async () => {
+    const pdf = await generer('method-fatura-adiantamento-orc', entree({
+      modele: 'method-solucoes', docType: 'facture', factureSubType: 'acompte', docNumber: 'FA-2026-001',
+      parentInvoiceNumber: 'ORC-2026-007', acompteOrdre: 1, acompteTotal: 2, acomptePourcentage: 50, acomptesEnabled: false,
+    }))
+    expect(tout(pdf)).toContain('sobre orçamento n.º ORC-2026-007')
+  })
 })

@@ -312,7 +312,7 @@ function sanitiseDocFilename(raw: unknown): string | undefined {
 
 // ── Détection PDF Vitfix (calque texte structuré) ──────────────────────────
 function isVitfixPdf(text: string): boolean {
-  return text.includes('[VITFIX-DEVIS-METADATA]') || /(?:DEV|ORC)-\d{4}-\d{3,}/.test(text)
+  return text.includes('[VITFIX-DEVIS-METADATA]') || /DEV-\d{4}-\d{3,}/.test(text)
 }
 
 // ── Heuristique : le texte PDF a-t-il besoin de préprocessing ? ─────────────
