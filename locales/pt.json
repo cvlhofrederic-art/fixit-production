@@ -4580,7 +4580,7 @@
     "taxDisabled": "Empresa isenta de IVA",
     "taxEnabledDesc": "IVA aplicável às prestações",
     "taxDisabledDesc": "Trabalhador independente ou regime de isenção (art. 53.º do CIVA)",
-    "taxThresholdWarning": "Enquanto trabalhador independente, só fatura IVA se tiver ultrapassado o limiar de isenção (14 500 € anuais). Verifique a sua situação junto da AT.",
+    "taxThresholdWarning": "Enquanto trabalhador independente, só fatura IVA se tiver ultrapassado o limiar de isenção (15 000 € anuais). Verifique a sua situação junto da AT.",
     "taxExemptInfo": "IVA não aplicável — menção «IVA isento ao abrigo do art. 53.º do CIVA» adicionada automaticamente nos seus documentos.",
     "taxNumberLabel": "Número de IVA intracomunitário",
     "taxNumberPlaceholder": "Ex.: PT123456789",
