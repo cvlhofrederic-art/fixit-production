@@ -37,7 +37,17 @@ describe('destinationApresConnexion', () => {
     expect(destinationApresConnexion(ROLE_GESTIONNAIRE_QR, locale)).toBe(CHEMIN_ESPACE_QR)
   })
 
+  // CRM du secrétariat (22/11/2026) : le compte de la secrétaire n'a que l'écran du CRM, route interne sans langue.
+  it.each(['fr', 'pt', 'en', 'nl', 'es'])('secretariat (%s) → /admin/crm/', async (locale) => {
+    expect(destinationApresConnexion('secretariat', locale)).toBe('/admin/crm/')
+    const { CHEMIN_CRM, ROLE_SECRETARIAT } = await import('@/lib/crm/types')
+    expect(destinationApresConnexion(ROLE_SECRETARIAT, locale)).toBe(CHEMIN_CRM)
+    expect(destinationApresConnexion(ROLE_SECRETARIAT, locale, { appMobile: true })).toBe(CHEMIN_CRM)
+  })
+
   it('un rôle voisin n’en profite pas (égalité stricte)', () => {
+    expect(destinationApresConnexion('secretariat_x', 'fr')).toBe('/fr/client/dashboard')
+    expect(destinationApresConnexion('Secretariat', 'fr')).toBe('/fr/client/dashboard')
     expect(destinationApresConnexion('gestionnaire', 'fr')).toBe('/fr/client/dashboard')
     expect(destinationApresConnexion('gestionnaire_signalement_x', 'fr')).toBe('/fr/client/dashboard')
     expect(destinationApresConnexion('Gestionnaire_Signalement', 'fr')).toBe('/fr/client/dashboard')

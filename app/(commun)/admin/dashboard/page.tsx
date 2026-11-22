@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { originesSupabase, safeNavigate, toSafeUrl } from '@/lib/security/safe-url'
 import { SectionErrorBoundary } from '@/components/common/SectionErrorBoundary'
 import { CHEMIN_ESPACE_QR } from '@/lib/aj-signalement/acces-espace'
+import { CHEMIN_CRM } from '@/lib/crm/types'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -113,6 +114,9 @@ const DASHBOARDS: Dashboard[] = [
   // Espace indépendant AJ Signalement (super admin seul, lib/aj-signalement/acces-espace.ts) : sans « vue en tant que »
   // (role = retour au rôle réel, comme la carte AJ).
   { id: 'aj_signalement', label: 'AJ Signalement', emoji: '📱', desc: 'Signalements par QR code — copropriétés, QR codes et signalements reçus', color: 'from-rose-600 to-red-800', border: 'border-rose-400', bg: 'bg-rose-950/20', url: CHEMIN_ESPACE_QR, role: 'super_admin', roles: ['super_admin'] },
+  // CRM du secrétariat (lib/crm/) : écran de la secrétaire (compte « secretariat ») ; le super admin y entre sans « vue en
+  // tant que » (role = retour au rôle réel).
+  { id: 'crm_secretariat', label: 'CRM secrétariat', emoji: '📞', desc: 'Appels et messages du WhatsApp pro — demandes, rappels, fiches clients (écran de la secrétaire)', color: 'from-emerald-600 to-teal-700', border: 'border-emerald-400', bg: 'bg-emerald-950/20', url: CHEMIN_CRM, role: 'super_admin', roles: ['super_admin'] },
   { id: 'artisan', label: 'Artisan / Auto-entrepreneur', emoji: '⚡', desc: 'Dashboard artisan — agenda, devis, factures, comptabilité, ordres de mission', color: 'from-yellow-500 to-amber-600', border: 'border-yellow-400', bg: 'bg-yellow-950/20', url: '/pro/dashboard', role: 'artisan', roles: ['artisan'] },
   { id: 'pro_societe', label: 'Société BTP', emoji: '🏗️', desc: 'Dashboard entreprise BTP — équipes, chantiers, Gantt, situations travaux, DC4, DPGF', color: 'from-orange-600 to-red-700', border: 'border-orange-500', bg: 'bg-orange-950/20', url: '/pro/dashboard', role: 'pro_societe', roles: ['pro_societe'] },
   { id: 'pro_conciergerie', label: 'Conciergerie', emoji: '🏠', desc: 'Dashboard conciergerie — logements, channel manager, check-in/out, planning ménage, RevPAR', color: 'from-teal-600 to-cyan-700', border: 'border-teal-400', bg: 'bg-teal-950/20', url: '/pro/dashboard', role: 'pro_conciergerie', roles: ['pro_conciergerie'] },

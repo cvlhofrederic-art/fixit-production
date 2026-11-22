@@ -229,6 +229,42 @@ describe('/admin/dashboard', () => {
   })
 })
 
+// CRM du secrétariat (22/11/2026) : le compte « secretariat » n'a que l'écran /admin/crm (route interne sans langue).
+describe('compte secretariat : aiguillé vers le CRM', () => {
+  it.each(['/fr/', '/pt/', '/en/', '/fr/auth/login', '/pt/auth/login'])('%s → /admin/crm, sans préfixe de langue', async (chemin) => {
+    connecte('secretariat')
+    const r = await visiter(chemin)
+    expect(r).toMatchObject({ statut: 307, vers: '/admin/crm', cookieLocale: null })
+    expect(r.csp).toContain("default-src 'self'")
+  })
+
+  it.each([
+    '/fr/client/dashboard/',
+    '/pt/pro/dashboard/',
+    '/fr/pro/mobile/',
+    '/pt/artisan/dashboard/',
+    '/fr/syndic/dashboard/',
+    '/fr/coproprietaire/dashboard/',
+  ])('tableau de bord d’un autre compte (%s) → /admin/crm', async (chemin) => {
+    connecte('secretariat')
+    expect(await visiter(chemin)).toMatchObject({ statut: 307, vers: '/admin/crm' })
+  })
+
+  it('l’écran du CRM est servi (la page et les routes /api/crm décident de l’accès)', async () => {
+    connecte('secretariat')
+    expect(await visiter('/admin/crm/')).toMatchObject({ statut: 200, vers: null, cookieLocale: null })
+    utilisateurCourant = null
+    expect(await visiter('/admin/crm/')).toMatchObject({ statut: 200, vers: null })
+  })
+
+  it('un rôle voisin ou le super admin gardent leurs destinations', async () => {
+    connecte('secretariat_x')
+    expect(await visiter('/fr/')).toMatchObject({ statut: 307, vers: '/fr/client/dashboard' })
+    connecte('super_admin')
+    expect(await visiter('/fr/admin/crm/')).toMatchObject({ statut: 307, vers: '/admin/crm' })
+  })
+})
+
 describe('routes non concernées', () => {
   it('n’interroge pas Supabase pour les routes /api/', async () => {
     connecte('artisan')

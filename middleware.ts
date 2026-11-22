@@ -11,6 +11,7 @@ import {
 } from '@/lib/aj-signalement/acces-espace'
 import { cheminEspaceCabinetQr, cheminPublicCabinetQr, cheminSuiviCabinetQr } from '@/lib/aj-signalement/chemin-cabinet'
 import { estPostUnClicDesinscriptionQr } from '@/lib/aj-signalement/chemin-desinscription'
+import { CHEMIN_CRM, ROLE_SECRETARIAT } from '@/lib/crm/types'
 import { POLITIQUE_CSP } from '@/lib/securite/csp'
 import { destinoConsolidado } from '@/lib/seo/pt-consolidacao'
 import { isSeoPublicRoute } from '@/lib/seo/routes-publiques'
@@ -192,6 +193,9 @@ async function compteDeLaSessionQr(supabase: ReturnType<typeof clientSupabaseMid
  * gestionnaire) : requête d'origine vidée, cookies de session rafraîchis recopiés avec leurs options, en-têtes d'un
  * espace privé (OpenNext n'ajoute pas les headers() de next.config.ts aux 3xx du middleware).
  */
+/** Tableaux de bord des comptes (chemins sans langue) : un compte « secretariat » y est renvoyé vers le CRM. */
+const TABLEAUX_DE_BORD = ['/client/dashboard', '/pro/dashboard', '/pro/mobile', '/artisan/dashboard', '/syndic/dashboard', '/coproprietaire/dashboard']
+
 function redirectionSansLangue(request: NextRequest, chemin: string, reponseSupabase: NextResponse | null): NextResponse {
   const reponse = NextResponse.redirect(new URL(chemin, request.url), 307)
   reponseSupabase?.cookies.getAll().forEach((cookie) => {
@@ -469,6 +473,8 @@ export async function middleware(request: NextRequest) {
   // Authenticated user on landing/login pages → redirect to their dashboard
   const isLandingOrLogin = strippedPathname === '' || strippedPathname === '/' || strippedPathname === '/auth/login'
   if (user && isLandingOrLogin) {
+    // CRM du secrétariat : route interne sans langue (lib/crm/types.ts), comme destinationApresConnexion.
+    if (role === ROLE_SECRETARIAT) return redirectionSansLangue(request, CHEMIN_CRM, supabaseResponse)
     if (role === 'artisan') return localeRedirect('/artisan/dashboard')
     if (['pro_societe', 'pro_conciergerie', 'pro_gestionnaire'].includes(role || '')) return localeRedirect('/pro/dashboard')
     if (isSyndicRole(role)) return localeRedirect('/syndic/dashboard')
@@ -508,6 +514,11 @@ export async function middleware(request: NextRequest) {
 
   // Role-based access control
   if (user) {
+    // CRM du secrétariat : le compte « secretariat » n'a aucun autre espace ; tout tableau de bord le ramène au CRM.
+    if (role === ROLE_SECRETARIAT && TABLEAUX_DE_BORD.some((prefixe) => strippedPathname.startsWith(prefixe))) {
+      return redirectionSansLangue(request, CHEMIN_CRM, supabaseResponse)
+    }
+
     // Syndic users: redirect away from non-syndic dashboards
     if (isSyndicRole(role)) {
       if (
