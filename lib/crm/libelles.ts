@@ -8,6 +8,8 @@ export interface TextesCrm {
   recherche: string
   nouvelAppel: string
   deconnexion: string
+  /** Bouton qui installe l'écran comme application sur l'ordinateur (components/crm/BoutonInstaller.tsx). */
+  installation: { bouton: string; aide: string; reussie: string; impossible: string }
   chargement: string
   erreurChargement: string
   reessayer: string
@@ -94,6 +96,12 @@ export const TEXTES_CRM: Record<LangueCrm, TextesCrm> = {
     recherche: 'Nom, numéro ou sujet',
     nouvelAppel: 'Nouvel appel',
     deconnexion: 'Se déconnecter',
+    installation: {
+      bouton: 'Installer l’application',
+      aide: 'Installe Vitfix CRM sur cet ordinateur : une icône sur le bureau, une fenêtre à part.',
+      reussie: 'Vitfix CRM est installé sur cet ordinateur.',
+      impossible: 'L’installation n’a pas pu démarrer. Réessayez depuis le menu du navigateur.',
+    },
     chargement: 'Chargement…',
     erreurChargement: 'Impossible de charger les demandes.',
     reessayer: 'Réessayer',
@@ -170,6 +178,12 @@ export const TEXTES_CRM: Record<LangueCrm, TextesCrm> = {
     recherche: 'Nome, número ou assunto',
     nouvelAppel: 'Nova chamada',
     deconnexion: 'Terminar sessão',
+    installation: {
+      bouton: 'Instalar a aplicação',
+      aide: 'Instala o Vitfix CRM neste computador: um ícone no ambiente de trabalho, uma janela própria.',
+      reussie: 'O Vitfix CRM está instalado neste computador.',
+      impossible: 'Não foi possível iniciar a instalação. Tente de novo a partir do menu do navegador.',
+    },
     chargement: 'A carregar…',
     erreurChargement: 'Não foi possível carregar os pedidos.',
     reessayer: 'Tentar de novo',

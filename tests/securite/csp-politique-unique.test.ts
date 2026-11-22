@@ -102,6 +102,8 @@ describe('Content-Security-Policy', () => {
     ['/robots.txt', false],
     ['/sitemap/0.xml', false],
     ['/manifest.json', false],
+    // Manifeste de l'application « Vitfix CRM » (lib/crm/manifeste.ts), servi par une route.
+    ['/admin/crm/manifest.webmanifest', false],
     ['/.well-known/security.txt', false],
   ])('%s : exactement une politique après la fusion OpenNext, la politique partagée', async (chemin, traite) => {
     expect(middlewareTraite(chemin)).toBe(traite)
