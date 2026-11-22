@@ -5,8 +5,11 @@
 -- portugais : « Fais au mieux, sois logique ». Le critère devient le marché du titulaire de la série, quel que soit son
 -- rôle : un compte dont une fiche (profiles_artisan.language) est en portugais reçoit ORC (orçamento), FT (fatura),
 -- NC (nota de crédito), FA (fatura de adiantamento) ; tout autre compte garde DEV, FACT, AV et AC.
--- Relevé en production le 22/11/2026 : 5 comptes ont une fiche en portugais (2 sociétés BTP, 2 artisans, 1 syndic) ;
--- aucun des artisans n'a de compteur : aucune série d'artisan déjà commencée ne change de préfixe.
+-- Relevé en production le 22/11/2026 : 5 comptes ont une fiche en portugais (2 sociétés BTP, 2 artisans, 1 syndic), aucun
+-- n'a de seconde fiche dans une autre langue ; ni les artisans ni le syndic n'ont de compteur : aucune série déjà
+-- commencée ne change de préfixe (les sociétés BTP l'ont déjà depuis 20261122). Un titulaire qui numérotait déjà ses
+-- orçamentos hors de Vitfix doit voir son compteur amorcé AVANT sa première émission (sinon ORC-2026-001 refait un
+-- numéro déjà envoyé).
 -- Ces préfixes servent à la lecture : aucune série n'est communiquée à l'AT, Vitfix n'est pas un programme certifié
 -- (Decreto-Lei n.º 28/2019), les documents n'ont ni ATCUD ni hash.
 --

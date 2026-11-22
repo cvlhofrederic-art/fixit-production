@@ -18,6 +18,7 @@ import {
 import { supabase } from '@/lib/supabase'
 import { emitDocument } from '@/lib/emit-document'
 import { fetchNextDocNumber } from '@/lib/doc-number'
+import { fichePortugaise } from '@/lib/numerotation-prefixes'
 import { messageEmissionArretee } from '@/lib/emission-hors-serveur'
 import { syncDocumentSafe } from '@/lib/document-sync'
 import { buildAcomptePrefill } from '@/lib/acompte-prefill'
@@ -1009,10 +1010,10 @@ function FacturesSectionV5({
                   : prefilled,
                 artisanId: artisan.id,
                 // BTP : numéro du serveur seulement, place du navigateur vérifiée avant de le tirer
-                // (lib/emission-hors-serveur.ts). Artisan : inchangé.
+                // (lib/emission-hors-serveur.ts). Artisan : repli local d'origine, préfixes selon la langue de sa fiche.
                 getNumber: estBtp
                   ? () => fetchNextDocNumber('acompte', artisan.id, { repliLocal: false })
-                  : () => fetchNextDocNumber('acompte', artisan.id, { portugais: locale === 'pt' }),
+                  : () => fetchNextDocNumber('acompte', artisan.id, { portugais: fichePortugaise(artisan) }),
                 sync: syncDocumentSafe,
                 ...(estBtp ? { verifierPlaceAvantNumero: true } : {}),
               })

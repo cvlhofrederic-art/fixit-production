@@ -15,6 +15,7 @@ vi.mock('@/lib/supabase', () => ({
 }))
 
 import { fetchNextDocNumber, localFallbackDocNumber } from '../../lib/doc-number'
+import { fichePortugaise, prefixeSerie } from '../../lib/numerotation-prefixes'
 import { supabase } from '@/lib/supabase'
 
 const ART = 'art-1'
@@ -46,6 +47,19 @@ describe('localFallbackDocNumber', () => {
     localStorage.setItem(`fixit_documents_${ART}`, JSON.stringify([{ docNumber: `FA-${YEAR}-003` }, { docNumber: `AC-${YEAR}-009` }]))
     expect(localFallbackDocNumber(ART, 'acompte', true)).toBe(`FA-${YEAR}-004`)
     expect(localFallbackDocNumber(ART, 'acompte')).toBe(`AC-${YEAR}-010`)
+  })
+})
+
+describe('préfixes des séries (lib/numerotation-prefixes)', () => {
+  it('les mêmes que next_doc_number : ORC/FT/FA/NC pour le Portugal, DEV/FACT/AC/AV sinon', () => {
+    expect((['devis', 'facture', 'acompte', 'avoir'] as const).map((t) => prefixeSerie(t, true))).toEqual(['ORC', 'FT', 'FA', 'NC'])
+    expect((['devis', 'facture', 'acompte', 'avoir'] as const).map((t) => prefixeSerie(t, false))).toEqual(['DEV', 'FACT', 'AC', 'AV'])
+  })
+  it('fiche portugaise : langue pt seulement ; fiche absente, sans langue ou en français → false', () => {
+    expect(fichePortugaise({ language: 'pt' })).toBe(true)
+    for (const f of [null, undefined, {}, { language: null }, { language: 'fr' }, { language: 'PT-pt' }]) {
+      expect(fichePortugaise(f)).toBe(false)
+    }
   })
 })
 
