@@ -1,4 +1,4 @@
-# GitHub Actions — Workflows installés (18)
+# GitHub Actions — Workflows installés (21)
 
 ## Règles communes (lot 6 Aikido, 28/10/2026 — `zizmor .github/workflows` à 0 finding High/Medium)
 - `permissions: {}` au niveau du workflow (ou `contents: read` seul) ; les droits d'écriture sont déclarés par job, jamais `write-all` ni `read-all`.
@@ -27,12 +27,19 @@
 - `release.yml` — Release Please (changelog auto, préfixes : `feat` / `fix` / `ai` / `voice` / `perf`) ; `contents: write` et `pull-requests: write` sur le seul job `release`.
 - `mobile-android.yml` — APK de test (debug) de l'appli Vitfix Pro : sur les PR qui touchent `android/**`, `mobile/**`, `capacitor.config.ts`, `package.json` ou le lockfile, et à la demande (`workflow_dispatch`). Artefact `vitfix-pro-apk-test` (14 jours), signé avec la clé de debug du runner : jamais publiable sur Google Play. JDK 21 du runner (`JAVA_HOME_21_X64`), `cap` lancé depuis `node_modules/.bin` (pas de `npx`).
 
+## Publication mobile (manuel seulement)
+Les deux workflows ci-dessous déposent une version sur un store. **Déclencheur manuel seul** : chaque exécution consomme un numéro de version que le store refuse ensuite de réutiliser, donc jamais de `pull_request` ni de `push`. `permissions: {}` au workflow, `contents: read` au job, `concurrency` sans `cancel-in-progress`, aucun binaire signé publié en artefact (les artefacts d'un dépôt public sont téléchargeables par tous), et le matériel de signature est effacé par une étape `if: always()`. Procédure complète et création des secrets : `MOBILE_GUIDE.md`, section « Publication sur les stores ».
+- `mobile-ios.yml` — archive signée sur runner macOS épinglé (`macos-26`) puis dépôt direct sur App Store Connect / TestFlight. Aucun certificat dans le dépôt : `xcodebuild -allowProvisioningUpdates` avec une clé d'API App Store Connect **de rôle Admin** (seul rôle qui ouvre Certificates, Identifiers & Profiles) fabrique le certificat de distribution et le profil sur le runner. Le numéro de build vient de `github.run_number`, l'identifiant d'équipe d'un secret (jamais du dépôt). Schéma partagé obligatoire : `ios/App/App.xcodeproj/xcshareddata/xcschemes/App.xcscheme`.
+- `mobile-android-release.yml` — bundle AAB signé puis dépôt sur un canal Play par `scripts/mobile/publier-play.mjs` (API Google Play en fetch direct, aucune action tierce). Entrées : canal (`internal` par défaut) et statut (`draft` par défaut — Google refuse `completed` tant que l'appli n'a jamais été publiée). `versionCode` pris sur `github.run_number` via `ANDROID_VERSION_CODE`.
+Invariants gardés par `tests/mobile/chaine-publication.test.ts` et `tests/mobile/publier-play.test.ts`.
+
 ## Automatisations (cron, manuel)
 - `crons.yml` — Crons quotidiens (ex-wrangler.toml).
 - `run-automations.yml` — Tempo, automatisations planifiées.
 - `run-lea-documents-process.yml` — Léa documents, OCR/extraction en attente.
 - `renew-gmail-watches.yml` — Renouvellement des watches Gmail (Alfredo).
 - `ingest-legal-corpus-pt.yml` — Ingestion du corpus légal PT (manuel).
+- `aj-diffusion-reprise.yml` — Filet de reprise de la diffusion d'AJ Signalement, toutes les 5 minutes. Inactif tant que la variable de dépôt `AJ_DIFFUSION_REPRISE_ACTIVE` ne vaut pas `true`. Secret `INTERNAL_API_SECRET`.
 
 ## Secrets requis (GitHub > Settings > Secrets > Actions)
 - **Build** : `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (la clé anon est aussi passée au Worker au déploiement par l'entrée `vars` de wrangler-action : elle n'est plus dans `wrangler.toml`)
@@ -42,3 +49,6 @@
 - **SonarCloud** : `SONAR_TOKEN`
 - **IA** (optionnels) : `OPENAI_API_KEY` ou `ANTHROPIC_API_KEY`, `GISKARD_API_KEY`
 - **Langfuse** : `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_HOST`
+- **Publication iPhone** : `APPSTORE_KEY_ID`, `APPSTORE_ISSUER_ID`, `APPSTORE_PRIVATE_KEY` (contenu du `.p8`), `APPLE_TEAM_ID`
+- **Publication Android** : `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`, `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`
+- **AJ Signalement** : `INTERNAL_API_SECRET` (identique au secret du Worker)

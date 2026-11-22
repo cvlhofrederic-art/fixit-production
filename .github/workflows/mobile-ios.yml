@@ -1,0 +1,157 @@
+# ── App iPhone — envoi TestFlight ─────────────────────────────────────────────
+# Fabrique l'archive signée de Vitfix Pro sur un Mac prêté par GitHub et l'envoie à TestFlight, d'où les
+# employés l'installent sur leur iPhone. Aucun Mac n'est nécessaire côté Frédéric : les runners macOS
+# standards sont gratuits et sans limite sur un dépôt public.
+#
+# Signature : aucune clé ni certificat n'est stocké dans le dépôt. Une clé d'API App Store Connect
+# (secrets ci-dessous) laisse Xcode créer et télécharger lui-même le certificat de distribution et le
+# profil (-allowProvisioningUpdates), puis déposer l'archive sur App Store Connect.
+#
+# Secrets à créer par Frédéric (Settings → Secrets and variables → Actions) :
+#   APPSTORE_KEY_ID       — « Key ID » de la clé d'API App Store Connect
+#   APPSTORE_ISSUER_ID    — « Issuer ID » affiché au-dessus de la liste des clés
+#   APPSTORE_PRIVATE_KEY  — contenu du fichier AuthKey_XXXXXXXX.p8, téléchargeable une seule fois
+#   APPLE_TEAM_ID         — identifiant d'équipe du compte Apple Developer
+# Procédure détaillée : MOBILE_GUIDE.md, section « Publication sur les stores ».
+#
+# Numéro de build : par défaut le numéro du run, qui ne recule jamais. Apple refuse deux envois portant le
+# même CFBundleVersion pour une même version commerciale.
+
+name: "App iPhone — envoi TestFlight"
+
+on:
+  workflow_dispatch:
+    inputs:
+      build:
+        description: "Numéro de build (CFBundleVersion). Vide = numéro du run."
+        required: false
+        type: string
+
+permissions: {}
+
+# Pas d'annulation en cours de route : une archive à moitié déposée laisserait un numéro de build consommé.
+concurrency:
+  group: mobile-ios
+  cancel-in-progress: false
+
+jobs:
+  testflight:
+    name: "Archive signée et envoi TestFlight"
+    # Image épinglée, pas macos-latest : une archive signée ne doit pas changer d'Xcode sans qu'on le décide.
+    # macOS 26 (Xcode 26) est l'image stable du moment ; macOS 14 a été retirée le 2 novembre 2026.
+    runs-on: macos-26
+    timeout-minutes: 60
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+
+      # Échouer ici, avec un message lisible, plutôt qu'au milieu de xcodebuild sur une erreur de signature.
+      - name: Vérifier les secrets de signature
+        env:
+          APPSTORE_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
+          APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+          APPSTORE_PRIVATE_KEY: ${{ secrets.APPSTORE_PRIVATE_KEY }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          manquants=""
+          [ -n "$APPSTORE_KEY_ID" ] || manquants="$manquants APPSTORE_KEY_ID"
+          [ -n "$APPSTORE_ISSUER_ID" ] || manquants="$manquants APPSTORE_ISSUER_ID"
+          [ -n "$APPSTORE_PRIVATE_KEY" ] || manquants="$manquants APPSTORE_PRIVATE_KEY"
+          [ -n "$APPLE_TEAM_ID" ] || manquants="$manquants APPLE_TEAM_ID"
+          if [ -n "$manquants" ]; then
+            echo "::error::Secrets absents :$manquants — voir MOBILE_GUIDE.md, « Publication sur les stores »."
+            exit 1
+          fi
+
+      - name: Configurer Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 22
+          package-manager-cache: false
+
+      # Seuls @capacitor/cli et les paquets natifs servent ici : aucun script d'installation n'est nécessaire.
+      - name: Installer les dépendances
+        run: npm ci --ignore-scripts
+
+      # Copie la page hors connexion (mobile/www), la configuration et la liste des plugins dans le projet iOS.
+      # Binaire local du lockfile, pas npx (qui pourrait télécharger un paquet hors lockfile).
+      - name: Synchroniser Capacitor (iOS)
+        run: ./node_modules/.bin/cap sync ios
+
+      # La clé est écrite hors du dépôt, lisible par son seul propriétaire, et effacée en fin de job.
+      - name: Déposer la clé d'API App Store Connect
+        env:
+          APPSTORE_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
+          APPSTORE_PRIVATE_KEY: ${{ secrets.APPSTORE_PRIVATE_KEY }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/private_keys"
+          chmod 700 "$RUNNER_TEMP/private_keys"
+          umask 077
+          printf '%s\n' "$APPSTORE_PRIVATE_KEY" > "$RUNNER_TEMP/private_keys/AuthKey_$APPSTORE_KEY_ID.p8"
+
+      - name: Archiver l'application
+        env:
+          APPSTORE_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
+          APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          NUMERO_BUILD: ${{ inputs.build || github.run_number }}
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -project ios/App/App.xcodeproj \
+            -scheme App \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/VitfixPro.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/private_keys/AuthKey_$APPSTORE_KEY_ID.p8" \
+            -authenticationKeyID "$APPSTORE_KEY_ID" \
+            -authenticationKeyIssuerID "$APPSTORE_ISSUER_ID" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CODE_SIGN_STYLE=Automatic \
+            CURRENT_PROJECT_VERSION="$NUMERO_BUILD"
+
+      # destination = upload : exportArchive signe puis dépose directement sur App Store Connect.
+      # Les symboles accompagnent l'envoi, sans quoi les plantages remontent illisibles.
+      - name: Exporter et envoyer sur TestFlight
+        env:
+          APPSTORE_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
+          APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -o pipefail
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>$APPLE_TEAM_ID</string>
+            <key>uploadSymbols</key><true/>
+            <key>signingStyle</key><string>automatic</string>
+          </dict>
+          </plist>
+          PLIST
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/VitfixPro.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/private_keys/AuthKey_$APPSTORE_KEY_ID.p8" \
+            -authenticationKeyID "$APPSTORE_KEY_ID" \
+            -authenticationKeyIssuerID "$APPSTORE_ISSUER_ID"
+
+      - name: Effacer la clé d'API
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/private_keys"
+
+      - name: Rappel
+        run: |
+          echo "Archive déposée sur App Store Connect. Le traitement par Apple prend de quelques minutes"
+          echo "à une heure ; TestFlight prévient ensuite les testeurs internes du groupe par e-mail."
