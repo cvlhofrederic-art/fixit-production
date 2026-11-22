@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser, getUserRole } from '@/lib/auth-helpers'
+import { couvertureAssuranceBtp } from '@/lib/statut-juridique-btp'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { validateBody, walletScanSchema } from '@/lib/validation'
 
@@ -442,7 +443,7 @@ export async function POST(request: NextRequest) {
     const { fileBase64, fileName, docKey, artisanId } = v.data
 
     // Vérifier que l'artisan appartient au user. Société BTP : fiche entière, pour savoir quels champs d'assurance sont
-    // déjà remplis ; artisan : lecture inchangée.
+    // déjà remplis et connaître sa forme juridique ; artisan : lecture inchangée.
     const estSocieteBtp = getUserRole(user) === 'pro_societe'
     const { data: artisan } = estSocieteBtp
       ? await supabaseAdmin.from('profiles_artisan').select('*').eq('id', artisanId).single()
@@ -652,6 +653,12 @@ export async function POST(request: NextRequest) {
         // automatique ne remplace jamais ce que la société a saisi : elle ne remplit que les champs vides de la fiche.
         const fiche = artisan as Record<string, unknown>
         const vide = (colonne: string) => String(fiche[colonne] ?? '').trim() === ''
+        // Couverture : « France métropolitaine », défaut de la colonne insurance_coverage, n'est jamais celle d'une
+        // société portugaise (forme juridique portugaise, la règle de ses devis : couvertureAssuranceBtp) et compte
+        // alors pour vide. Société française : la valeur enregistrée, défaut compris, comme avant.
+        const couvertureVide = couvertureAssuranceBtp(
+          String(fiche.insurance_coverage ?? ''), String(fiche.legal_form ?? ''),
+        ).trim() === ''
         // Fiche sans assurance (ni type, ni assureur, ni contrat) : l'assureur et le contrat lus ici sont alors ceux de
         // la fiche, et le type de cette attestation les accompagne (sans lui, le devis les présentait comme une
         // « RC Pro »). Jamais à côté d'un assureur ou d'un contrat saisis, ni à la place d'un type choisi (une
@@ -659,7 +666,7 @@ export async function POST(request: NextRequest) {
         const ficheSansAssurance = vide('insurance_type') && vide('insurance_name') && vide('insurance_number')
         if (insurerName && vide('insurance_name')) updateData.insurance_name = insurerName
         if (contractNumber && vide('insurance_number')) updateData.insurance_number = contractNumber
-        if (extractedData.coverage && vide('insurance_coverage')) updateData.insurance_coverage = extractedData.coverage
+        if (extractedData.coverage && couvertureVide) updateData.insurance_coverage = extractedData.coverage
         if (dates.to && vide('insurance_expiry')) updateData.insurance_expiry = dates.to
         if (ficheSansAssurance && (insurerName || contractNumber) && (detectedType === 'rc_pro' || detectedType === 'decennale')) {
           updateData.insurance_type = detectedType

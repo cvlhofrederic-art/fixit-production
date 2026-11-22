@@ -7,8 +7,9 @@
 // retenu était le premier nom de la liste contenu dans le texte : « MMA » est contenu dans « DOMMAGES ».
 // Contrat vérifié ici : pour une société BTP, française ou inscrite au Portugal (fiche en portugais, mêmes règles depuis
 // le 22/11/2026), la lecture ne remplit que les champs vides de la fiche, n'écrit le type d'assurance que pour une fiche
-// sans assurance (ni type, ni assureur, ni contrat), et ne reconnaît un assureur que sur un mot entier. L'artisan garde
-// l'écriture d'avant (témoin).
+// sans assurance (ni type, ni assureur, ni contrat), et ne reconnaît un assureur que sur un mot entier. Pour une forme
+// juridique portugaise, « France metropolitaine », défaut de la colonne insurance_coverage, compte pour vide (comme
+// pour ses devis). L'artisan garde l'écriture d'avant (témoin).
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
@@ -69,11 +70,11 @@ function pdfBase64(lignes: string[]): string {
   return Buffer.from(`%PDF-1.4\nBT\n${corps}\nET\n%%EOF`, 'latin1').toString('base64')
 }
 
-async function deposer() {
+async function deposer(lignes = LIGNES_ATTESTATION) {
   const res = await POST(new NextRequest('https://vitfix.io/api/wallet-scan', {
     method: 'POST',
     headers: { Authorization: 'Bearer jeton', 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fileBase64: pdfBase64(LIGNES_ATTESTATION), fileName: 'attestation.pdf', docKey: 'decennale', artisanId: FICHE }),
+    body: JSON.stringify({ fileBase64: pdfBase64(lignes), fileName: 'attestation.pdf', docKey: 'decennale', artisanId: FICHE }),
   }))
   return { status: res.status, json: await res.json() as { scan?: { docType: string; extractedData: Ligne } } }
 }
@@ -168,8 +169,10 @@ describe('Artisan : écriture d’avant, inchangée (témoin)', () => {
 })
 
 describe('Société inscrite au Portugal (fiche en portugais) : mêmes règles que la société française', () => {
+  const FORME_PORTUGAISE = 'Sociedade por Quotas (Lda.)'
+
   it('même attestation : assurance saisie gardée, champs vides remplis, assureur reconnu sur un mot entier', async () => {
-    preparer('pro_societe', { ...ASSURANCE_SAISIE, language: 'pt', legal_form: 'Sociedade por Quotas (Lda.)' })
+    preparer('pro_societe', { ...ASSURANCE_SAISIE, language: 'pt', legal_form: FORME_PORTUGAISE })
 
     const { json } = await deposer()
 
@@ -178,5 +181,24 @@ describe('Société inscrite au Portugal (fiche en portugais) : mêmes règles q
     expect(h.etat.fiche).toMatchObject({
       insurance_name: 'Assureur Saisi', insurance_number: 'CONTRAT-SAISI', insurance_type: 'both', insurance_expiry: '2099-12-31',
     })
+  })
+
+  // Certificat fictif, lu sans assureur ni date (motifs de lecture français) ; seule la couverture en est tirée.
+  const CERTIFICADO = ['CERTIFICADO DE SEGURO DE RESPONSABILIDADE CIVIL', 'Apólice n.º 0099999999', 'Âmbito territorial: Portugal Continental']
+
+  // « France metropolitaine » (sans accent) : défaut de la colonne insurance_coverage en production. La règle suit la
+  // forme juridique, comme sur les devis (couvertureAssuranceBtp), pas la langue de la fiche.
+  it.each([
+    ['forme juridique portugaise : la couverture lue remplace ce défaut', 'pt', FORME_PORTUGAISE, 'Portugal Continental'],
+    ['société française : ce défaut est gardé, comme avant', 'fr', 'SARL', 'France metropolitaine'],
+    ['fiche en français, forme juridique portugaise : remplacé aussi (gardé avant)', 'fr', FORME_PORTUGAISE, 'Portugal Continental'],
+    ['fiche en portugais sans forme juridique : gardé, comme sur ses devis (remplacé avant)', 'pt', null, 'France metropolitaine'],
+  ])('couverture au défaut de la colonne, %s', async (_cas, langue, forme, couverture) => {
+    preparer('pro_societe', { ...ASSURANCE_SAISIE, insurance_coverage: 'France metropolitaine', language: langue, legal_form: forme })
+
+    await deposer(CERTIFICADO)
+
+    expect(h.etat.majs).toHaveLength(1)
+    expect(h.etat.fiche).toMatchObject({ insurance_coverage: couverture, insurance_name: 'Assureur Saisi', insurance_type: 'both' })
   })
 })
