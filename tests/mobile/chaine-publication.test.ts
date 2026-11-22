@@ -116,8 +116,14 @@ describe('Android — le bundle doit être signé et numéroté par la CI', () =
     // doit arriver en brouillon, sans quoi le dépôt échoue après la construction du bundle.
     const workflow = lire(WF_ANDROID)
     expect(workflow).toContain('PLAY_STATUS: ${{ inputs.statut }}')
-    expect(workflow).toMatch(/statut:\n(\s+.*\n)*?\s+default: draft/)
     expect(workflow).toContain('options: [draft, completed]')
+    // Bloc de l'entrée « statut » isolé par index, et non par une expression régulière à quantificateurs
+    // imbriqués : celle-ci partait en retour sur trace exponentiel (CodeQL, « Inefficient regular expression »).
+    const debut = workflow.indexOf('      statut:')
+    const fin = workflow.indexOf('      notes:')
+    expect(debut, 'entrée « statut » absente du workflow').toBeGreaterThan(-1)
+    expect(fin, 'entrée « notes » absente après « statut »').toBeGreaterThan(debut)
+    expect(workflow.slice(debut, fin)).toContain('default: draft')
   })
 })
 
