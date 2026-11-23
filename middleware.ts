@@ -11,6 +11,7 @@ import {
 } from '@/lib/aj-signalement/acces-espace'
 import { cheminEspaceCabinetQr, cheminPublicCabinetQr, cheminSuiviCabinetQr } from '@/lib/aj-signalement/chemin-cabinet'
 import { estPostUnClicDesinscriptionQr } from '@/lib/aj-signalement/chemin-desinscription'
+import { pageAppliSocieteBtp } from '@/lib/auth/destination-par-role'
 import { CHEMIN_CRM, ROLE_SECRETARIAT } from '@/lib/crm/types'
 import { POLITIQUE_CSP } from '@/lib/securite/csp'
 import { destinoConsolidado } from '@/lib/seo/pt-consolidacao'
@@ -424,11 +425,16 @@ export async function middleware(request: NextRequest) {
   // Depuis /en/, /nl/ ou /es/ (compte connecté sur l'accueil, espace d'un autre rôle, page protégée sans session), la
   // page visée est sous /pt/, comme « My space » (lib/i18n/liens-entete-pied.ts) : /en/artisan/dashboard/… répondait 404.
   // `viderRequete` : la requête d'origine n'est pas reprise (espace AJ Signalement) ; sinon gardée telle quelle.
+  // Une requête écrite dans le chemin (« /pro/dashboard/?p=pointage ») remplace celle de la requête d'origine.
   const localeRedirect = (path: string, viderRequete = false) => {
     const url = request.nextUrl.clone()
+    const separateur = path.indexOf('?')
+    const chemin = separateur === -1 ? path : path.slice(0, separateur)
+    const requete = separateur === -1 ? null : path.slice(separateur + 1)
     const langueCible = LANGUES_PAGES_COMMUNES.includes(locale) ? locale : 'pt'
-    url.pathname = isInternalRoute ? path : `/${langueCible}${path}`
+    url.pathname = isInternalRoute ? chemin : `/${langueCible}${chemin}`
     if (viderRequete) url.search = ''
+    else if (requete !== null) url.search = requete
     const resp = NextResponse.redirect(url)
     if (!isInternalRoute) {
       poserCookieLangue(request, resp, locale)
@@ -547,11 +553,18 @@ export async function middleware(request: NextRequest) {
       if (strippedPathname.startsWith('/client/dashboard') || strippedPathname.startsWith('/syndic/dashboard')) {
         return localeRedirect('/pro/dashboard')
       }
+      if (strippedPathname.startsWith('/artisan/dashboard')) {
+        return localeRedirect('/pro/dashboard')
+      }
       // /pro/mobile : espace mobile des seuls artisans (règle n° 1 artisan / BTP). Une société BTP a aussi une fiche
       // profiles_artisan, la seule chose que la page vérifie : elle y verrait et modifierait l'espace artisan.
-      // L'appli Vitfix Pro démarre sur /pro/mobile/ : sans cette garde, chaque ouverture d'un compte BTP y menait.
-      if (strippedPathname.startsWith('/artisan/dashboard') || strippedPathname.startsWith('/pro/mobile')) {
-        return localeRedirect('/pro/dashboard')
+      // C'est aussi le départ de l'appli Vitfix Pro (capacitor.config.ts, appStartPath) : à chaque ouverture, un compte
+      // de société BTP passe donc ici. Un salarié de terrain part sur le pointage, son poste de travail (23/11/2026) ;
+      // le gérant et les postes de bureau sur le tableau de bord, comme avant. Décision partagée avec la connexion
+      // (lib/auth/destination-par-role), pour que les deux chemins d'entrée dans l'appli ouvrent le même écran.
+      if (strippedPathname.startsWith('/pro/mobile')) {
+        const vers = role === 'pro_societe' ? pageAppliSocieteBtp(user?.app_metadata?.pro_team_role) : '/pro/dashboard'
+        return localeRedirect(vers)
       }
     }
 

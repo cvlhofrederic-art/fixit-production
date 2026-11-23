@@ -55,7 +55,7 @@ export default function LoginPage() {
       const verdict = await verifierSessionNavigateur(supabase.auth)
       if (annule || connexionEnCours.current) return
       if (verdict.statut === 'valide') {
-        window.location.href = destinationApresConnexion(verdict.user.app_metadata?.role, locale, { appMobile: estAppMobile() })
+        window.location.href = destinationApresConnexion(verdict.user.app_metadata?.role, locale, { appMobile: estAppMobile(), proTeamRole: verdict.user.app_metadata?.pro_team_role })
       } else if (verdict.statut === 'refusee' && verdict.motif === 'authentification') {
         // Cookies d'une session que Supabase refuse : on les retire pour que le formulaire reparte sainement.
         try {
@@ -91,7 +91,7 @@ export default function LoginPage() {
     try {
       const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password })
       if (signInError) { setError(t('auth.emailOrPasswordIncorrect')); setLoading(false); connexionEnCours.current = false; return }
-      window.location.href = destinationApresConnexion(data.user?.app_metadata?.role, locale, { appMobile: estAppMobile() })
+      window.location.href = destinationApresConnexion(data.user?.app_metadata?.role, locale, { appMobile: estAppMobile(), proTeamRole: data.user?.app_metadata?.pro_team_role })
     } catch {
       // Anti-phishing : toute erreur de login affiche le même message
       // (évite de divulguer si l'email existe ou si c'est une erreur réseau).

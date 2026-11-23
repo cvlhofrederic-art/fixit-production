@@ -1,4 +1,4 @@
-# 📱 Vitfix Pro — appli mobile artisan (Android et iPhone)
+# 📱 Vitfix Pro — appli mobile (Android et iPhone)
 
 ## Principe (décision du 12/11/2026)
 
@@ -13,8 +13,15 @@ est injecté dans les pages de vitfix.io ; `estAppMobile()` (`lib/app-mobile.ts`
   à la connexion en portugais.
 - **Rôles** : dans l'appli, un artisan connecté arrive sur l'espace mobile (`destinationApresConnexion`, option
   `appMobile`). Les autres comptes sont renvoyés vers leur espace par le middleware, y compris un compte BTP
-  (`pro_societe`…), qui a aussi une fiche `profiles_artisan` mais n'a pas accès à `/pro/mobile`. La déconnexion
-  ramène à la page de connexion.
+  (`pro_societe`…), qui a aussi une fiche `profiles_artisan` mais n'a pas accès à `/pro/mobile` (règle n° 1
+  artisan / BTP). La déconnexion ramène à la page de connexion.
+- **Salariés d'une société BTP** (23/11/2026) : l'appli s'ouvre sur le pointage, `/{langue}/pro/dashboard/?p=pointage`,
+  pour les rôles d'équipe dont le poste est le chantier — ouvrier, chef de chantier, conducteur de travaux
+  (`pageAppliSocieteBtp`, `lib/auth/destination-par-role.ts`). Le gérant, la secrétaire et le comptable gardent le
+  tableau de bord. Même décision pour les deux chemins d'entrée : le middleware pour une session déjà ouverte au
+  démarrage, la table des destinations pour une connexion au formulaire ou par Google. Rien ne change sur le web, ni
+  pour un autre rôle de compte. Le module lui-même (`PointageGeoSection`) sait déjà qu'il tourne dans l'appli : c'est
+  là que s'affiche le pointage « téléphone en poche » (géorepérage en arrière-plan, `@capgo/background-geolocation`).
 - **Hors connexion** : page locale `mobile/www/index.html` (`server.errorPath`), en français ou en portugais selon le
   téléphone, avec un bouton « Réessayer ». Sous Android, elle s'affiche aussi pour toute erreur HTTP d'une page
   entière (404, 500, page de défi Cloudflare 403/503 comprises).
