@@ -131,15 +131,16 @@ describe('destinationApresConnexion', () => {
       expect(pageAppliSocieteBtp(undefined)).toBe('/pro/dashboard')
     })
 
-    it('les salariés de terrain sont des rôles d’équipe existants, et ont tous accès au pointage', () => {
-      for (const roleEquipe of TERRAIN) {
-        expect(PRO_TEAM_ROLES).toContain(roleEquipe)
-        expect(getDefaultPermission(roleEquipe, 'pointage')).not.toBe('NONE')
-      }
+    it('les salariés de terrain sont des rôles d’équipe existants', () => {
+      for (const roleEquipe of TERRAIN) expect(PRO_TEAM_ROLES).toContain(roleEquipe)
     })
 
-    it('le comptable est exclu parce qu’il n’a pas accès au pointage', () => {
-      expect(getDefaultPermission('COMPTABLE', 'pointage')).toBe('NONE')
+    // Le partage terrain / bureau est une décision de Frédéric, pas une déduction de la matrice : l'ouvrier et la
+    // secrétaire y ont le même niveau (READ) et le gérant FULL. Le seul fait de permission est celui-ci — et il doit
+    // le rester : un rôle qui perdrait l'accès au pointage ne devrait plus ouvrir l'appli dessus.
+    it('le comptable est le seul rôle d’équipe sans accès au pointage, et il est exclu', () => {
+      const sansAcces = PRO_TEAM_ROLES.filter((roleEquipe) => getDefaultPermission(roleEquipe, 'pointage') === 'NONE')
+      expect(sansAcces).toEqual(['COMPTABLE'])
       expect(pageAppliSocieteBtp('COMPTABLE')).toBe('/pro/dashboard')
     })
 

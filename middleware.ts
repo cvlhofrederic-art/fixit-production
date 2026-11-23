@@ -424,8 +424,11 @@ export async function middleware(request: NextRequest) {
   // Helper: create a redirect with locale prefix — ALWAYS copies refreshed auth cookies
   // Depuis /en/, /nl/ ou /es/ (compte connecté sur l'accueil, espace d'un autre rôle, page protégée sans session), la
   // page visée est sous /pt/, comme « My space » (lib/i18n/liens-entete-pied.ts) : /en/artisan/dashboard/… répondait 404.
-  // `viderRequete` : la requête d'origine n'est pas reprise (espace AJ Signalement) ; sinon gardée telle quelle.
-  // Une requête écrite dans le chemin (« /pro/dashboard/?p=pointage ») remplace celle de la requête d'origine.
+  // Requête de la redirection, dans cet ordre : celle écrite dans le chemin (« /pro/dashboard/?p=pointage ») si elle
+  // y est — elle prime, `viderRequete` compris, car l'appelant l'a écrite exprès ; sinon aucune si `viderRequete` ;
+  // sinon celle de l'adresse visitée, gardée telle quelle (`viderRequete` sert à l'espace AJ Signalement, qui ne
+  // reprend pas la requête d'origine). Aucun appelant ne combine les deux aujourd'hui : l'ordre
+  // est écrit ici pour que le prochain n'ait pas à le deviner.
   const localeRedirect = (path: string, viderRequete = false) => {
     const url = request.nextUrl.clone()
     const separateur = path.indexOf('?')
@@ -433,8 +436,8 @@ export async function middleware(request: NextRequest) {
     const requete = separateur === -1 ? null : path.slice(separateur + 1)
     const langueCible = LANGUES_PAGES_COMMUNES.includes(locale) ? locale : 'pt'
     url.pathname = isInternalRoute ? chemin : `/${langueCible}${chemin}`
-    if (viderRequete) url.search = ''
-    else if (requete !== null) url.search = requete
+    if (requete !== null) url.search = requete
+    else if (viderRequete) url.search = ''
     const resp = NextResponse.redirect(url)
     if (!isInternalRoute) {
       poserCookieLangue(request, resp, locale)
@@ -562,6 +565,10 @@ export async function middleware(request: NextRequest) {
       // de société BTP passe donc ici. Un salarié de terrain part sur le pointage, son poste de travail (23/11/2026) ;
       // le gérant et les postes de bureau sur le tableau de bord, comme avant. Décision partagée avec la connexion
       // (lib/auth/destination-par-role), pour que les deux chemins d'entrée dans l'appli ouvrent le même écran.
+      // Le middleware ne peut PAS distinguer l'appli d'un navigateur (estAppMobile ne vit que côté navigateur) : la
+      // règle vaut pour toute visite de /pro/mobile, d'où qu'elle vienne. Hors de l'appli rien n'y mène, aucun écran
+      // du site ne porte ce lien ; et un salarié qui s'identifie dans un navigateur ordinaire garde, lui, le tableau
+      // de bord (destinationApresConnexion sans appMobile).
       if (strippedPathname.startsWith('/pro/mobile')) {
         const vers = role === 'pro_societe' ? pageAppliSocieteBtp(user?.app_metadata?.pro_team_role) : '/pro/dashboard'
         return localeRedirect(vers)

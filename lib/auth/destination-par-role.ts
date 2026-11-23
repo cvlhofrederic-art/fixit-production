@@ -24,18 +24,26 @@
 //                                   (séparation artisan / BTP, .claude/rules/artisan-vs-btp.md) ;
 //   pro_societe, salarié de terrain → /{locale}/pro/dashboard/?p=pointage (voir pageAppliSocieteBtp ci-dessous).
 // Tous les autres gardent leur destination, dans l'appli comme dans un navigateur.
+// Seule cette table sait si la connexion a lieu dans l'appli (option appMobile). Le middleware, lui, ne peut pas le
+// savoir — estAppMobile ne vit que dans le navigateur — et applique donc la même règle à TOUTE visite de /pro/mobile,
+// d'où qu'elle vienne. En pratique rien n'y mène hors de l'appli : aucun écran du site ne porte ce lien.
 
 const ROLES_PRO: readonly string[] = ['pro_societe', 'pro_conciergerie', 'pro_gestionnaire']
 
-// Salariés d'une société BTP dont le poste EST le pointage : dans l'appli, leur compte s'ouvre directement dessus
-// (23/11/2026). Le gérant garde son tableau de bord, comme la secrétaire et le comptable — postes de bureau, dont le
-// pointage est en lecture seule ou interdit (lib/permissions.ts, DEFAULT_PERMISSIONS).
+// Salariés d'une société BTP dont le poste de travail est le chantier : dans l'appli, leur compte s'ouvre directement
+// sur le pointage (23/11/2026). Le gérant, la secrétaire et le comptable gardent le tableau de bord.
+// Ce partage vient de Frédéric (« donne leur accès au module de pointage ») ; ce n'est PAS une déduction de
+// lib/permissions.ts : l'ouvrier et la secrétaire y ont tous deux « pointage: READ », donc la matrice ne permet pas
+// de distinguer le poste de chantier du poste de bureau. Elle le ferait pour le chef de chantier et le conducteur de
+// travaux, qui ont « FULL » comme le gérant ; et le comptable est le seul à n'avoir aucun accès (« NONE »).
 // Noms recopiés de ProTeamRole pour garder ce module sans dépendance ; tests/auth/destination-par-role.test.ts vérifie
-// qu'ils sont bien des rôles d'équipe existants, qu'ils ont accès au pointage, et que les trois autres en sont exclus.
+// qu'ils sont bien des rôles d'équipe existants, que le comptable est le seul sans accès au pointage, et que tout
+// rôle d'équipe est classé d'un côté ou de l'autre.
 const ROLES_EQUIPE_TERRAIN: readonly string[] = ['OUVRIER', 'CHEF_CHANTIER', 'CONDUCTEUR_TRAVAUX']
 
 // Barre finale et requête écrites telles quelles : le site est en trailingSlash, cette forme évite une redirection de
-// plus sur le téléphone d'un employé. C'est aussi le lien que le gérant partage (btp/pointage/OngletAffectations).
+// plus sur le téléphone d'un employé. C'est aussi le lien que le gérant partage, au caractère près
+// (components/dashboard/btp/pointage/OngletAffectations.tsx).
 const PAGE_POINTAGE = '/pro/dashboard/?p=pointage'
 const PAGE_DASHBOARD_PRO = '/pro/dashboard'
 

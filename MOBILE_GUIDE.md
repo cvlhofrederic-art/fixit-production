@@ -2,8 +2,9 @@
 
 ## Principe (décision du 12/11/2026)
 
-L'appli est une coque Capacitor qui affiche l'espace mobile artisan du site, `https://vitfix.io/pro/mobile/`
-(`server.url` + `server.appStartPath` dans `capacitor.config.ts`). Pas d'export statique : connexion, données et
+L'appli est une coque Capacitor qui affiche le site en direct, au départ `https://vitfix.io/pro/mobile/`
+(`server.url` + `server.appStartPath` dans `capacitor.config.ts`) : l'espace mobile artisan, ou l'écran propre au
+rôle du compte (voir « Rôles » et « Salariés d'une société BTP » ci-dessous). Pas d'export statique : connexion, données et
 mises à jour sont celles du site, sans nouvelle version à envoyer aux stores. Le pont Capacitor (`window.Capacitor`)
 est injecté dans les pages de vitfix.io ; `estAppMobile()` (`lib/app-mobile.ts`) dit si une page tourne dans l'appli.
 
@@ -19,9 +20,33 @@ est injecté dans les pages de vitfix.io ; `estAppMobile()` (`lib/app-mobile.ts`
   pour les rôles d'équipe dont le poste est le chantier — ouvrier, chef de chantier, conducteur de travaux
   (`pageAppliSocieteBtp`, `lib/auth/destination-par-role.ts`). Le gérant, la secrétaire et le comptable gardent le
   tableau de bord. Même décision pour les deux chemins d'entrée : le middleware pour une session déjà ouverte au
-  démarrage, la table des destinations pour une connexion au formulaire ou par Google. Rien ne change sur le web, ni
-  pour un autre rôle de compte. Le module lui-même (`PointageGeoSection`) sait déjà qu'il tourne dans l'appli : c'est
-  là que s'affiche le pointage « téléphone en poche » (géorepérage en arrière-plan, `@capgo/background-geolocation`).
+  démarrage, la table des destinations pour une connexion au formulaire ou par Google. Aucun autre rôle de compte
+  n'est touché. Le module du pointage sait déjà qu'il tourne dans l'appli (`appliNative()`,
+  `components/dashboard/btp/pointage/arrierePlan.ts`, lu par `useArrierePlan` depuis `OngletPointer`) : c'est là
+  que s'affiche le pointage « téléphone en poche » (géorepérage du système, `@capgo/background-geolocation`).
+- **Portée exacte de cette règle** : le middleware ne peut pas distinguer l'appli d'un navigateur (`estAppMobile()`
+  ne vit que côté navigateur), elle s'applique donc à toute visite de `/{langue}/pro/mobile`, d'où qu'elle vienne.
+  En pratique seule l'appli y va : aucun écran du site ne porte de lien vers `/pro/mobile`. Le même salarié qui
+  s'identifie dans un navigateur ordinaire garde, lui, le tableau de bord (`appMobile` faux). Sans session ouverte,
+  l'appli part sur la page de connexion, comme avant.
+- **Ce qui démarre, et ce qui ne démarre pas** : l'écran du pointage remplace l'accueil au démarrage, mais il ne
+  demande JAMAIS la localisation de lui-même. `usePointageAuto` ne relance `watchPosition` au montage que si
+  l'employé avait déjà activé le pointage automatique sur CE téléphone (clé `vitfix_btp_pointage_auto`, posée par le
+  bouton et effacée par « Arrêter » ou par un refus) **et** que l'autorisation est déjà accordée
+  (`navigator.permissions`, état `granted`) — « sans autorisation, on ne déclenche pas de demande sans geste de sa
+  part ». La demande système ne part que d'un bouton. Il faut en plus que le gérant ait activé le pointage
+  automatique de la société (faux par défaut), que le compte soit relié à une fiche employé, qu'au moins un chantier
+  en cours affecté porte une position GPS, qu'aucun pointage à la main ne soit en cours, et que ce téléphone ne
+  pointe pas en arrière-plan. Dans ce seul cas, la localisation haute précision tourne dès le démarrage au lieu
+  d'attendre l'ouverture du module : batterie consommée plus tôt. Pour tout autre salarié, l'écran s'ouvre et rien
+  ne tourne.
+- **Téléphone en poche : inchangé par ce lot.** Le géorepérage du système tourne appli fermée, indépendamment de
+  l'écran affiché, et les deux modes s'excluent (le pointage page ouverte ne démarre pas tant que l'arrière-plan est
+  actif). Seul l'entretien de ses zones avance : relecture de l'autorisation, `synchroniserZones`, repose Android
+  (au plus toutes les 12 h) et retrait des zones orphelines ont désormais lieu à chaque démarrage au lieu de
+  l'ouverture du module — gain de fiabilité, pas de suivi nouveau.
+- **Cadre légal** : le pointage géolocalisé des salariés reste à cadrer avec Frédéric, en France comme au Portugal
+  (point ouvert depuis le 16/11/2026, note hors dépôt).
 - **Hors connexion** : page locale `mobile/www/index.html` (`server.errorPath`), en français ou en portugais selon le
   téléphone, avec un bouton « Réessayer ». Sous Android, elle s'affiche aussi pour toute erreur HTTP d'une page
   entière (404, 500, page de défi Cloudflare 403/503 comprises).
