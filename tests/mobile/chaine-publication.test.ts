@@ -15,6 +15,14 @@ import config from '@/capacitor.config'
 // et échoueraient chez lui dès le premier checkout.
 const lire = (chemin: string) => readFileSync(join(process.cwd(), chemin), 'utf8').replace(/\r\n/g, '\n')
 
+// Les commentaires de ces workflows citent les options qu'ils expliquent (« -allowProvisioningUpdates »…) :
+// les retirer avant de découper le fichier, sinon une assertion tombe sur le commentaire et non sur la commande.
+const sansCommentaires = (texte: string) =>
+  texte
+    .split('\n')
+    .filter((ligne) => !/^\s*#/.test(ligne))
+    .join('\n')
+
 const SCHEMA = 'ios/App/App.xcodeproj/xcshareddata/xcschemes/App.xcscheme'
 const PROJET = 'ios/App/App.xcodeproj/project.pbxproj'
 const GRADLE = 'android/app/build.gradle'
@@ -69,6 +77,27 @@ describe('iPhone — l’archive doit être fabricable sur un runner sans Xcode 
     // Il arrive par secret au moment du build (DEVELOPMENT_TEAM sur la ligne de commande xcodebuild).
     expect(lire(PROJET)).not.toContain('DEVELOPMENT_TEAM')
     expect(lire(WF_IOS)).toContain('DEVELOPMENT_TEAM="$APPLE_TEAM_ID"')
+  })
+
+  it('l’archive est fabriquée sans signature, qui n’a lieu qu’à l’export', () => {
+    // En signature automatique, `xcodebuild archive` réclame un profil « iOS App Development », qu'Apple
+    // refuse à une équipe sans appareil enregistré — ce qu'un runner n'a jamais : « Your team has no devices
+    // from which to generate a provisioning profile » (second envoi raté, 23/11/2026). Le profil App Store,
+    // lui, ne contient aucun appareil : la signature se fait donc une seule fois, à l'export.
+    // Bornes prises sur les noms d'étapes, dans un fichier dont les commentaires ont été retirés.
+    const workflow = sansCommentaires(lire(WF_IOS))
+    const debutArchive = workflow.indexOf("- name: Archiver l'application")
+    const debutExport = workflow.indexOf('- name: Exporter et envoyer sur TestFlight')
+    expect(debutArchive, 'étape d’archivage absente').toBeGreaterThan(-1)
+    expect(debutExport, 'étape d’export absente, ou placée avant l’archivage').toBeGreaterThan(debutArchive)
+
+    const archive = workflow.slice(debutArchive, debutExport)
+    expect(archive).toContain('CODE_SIGNING_ALLOWED=NO')
+    expect(archive).not.toContain('-allowProvisioningUpdates')
+
+    const exportation = workflow.slice(debutExport)
+    expect(exportation).toContain('-allowProvisioningUpdates')
+    expect(exportation).toContain('-authenticationKeyPath')
   })
 
   it('la conformité au chiffrement est déclarée, sinon TestFlight bloque chaque build', () => {

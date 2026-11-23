@@ -94,10 +94,13 @@ jobs:
           umask 077
           printf '%s\n' "$APPSTORE_PRIVATE_KEY" > "$RUNNER_TEMP/private_keys/AuthKey_$APPSTORE_KEY_ID.p8"
 
-      - name: Archiver l'application
+      # Archive NON SIGNÉE, volontairement. En signature automatique, `xcodebuild archive` réclame un profil
+      # « iOS App Development », qu'Apple refuse de créer tant que l'équipe n'a aucun appareil enregistré :
+      # « Your team has no devices from which to generate a provisioning profile » (constaté le 23/11/2026).
+      # Un runner n'a pas d'iPhone à déclarer. La signature se fait donc une seule fois, à l'export, avec un
+      # profil App Store — qui, lui, ne contient aucun appareil.
+      - name: Archiver l'application (sans signature)
         env:
-          APPSTORE_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
-          APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           NUMERO_BUILD: ${{ inputs.build || github.run_number }}
         run: |
@@ -108,15 +111,14 @@ jobs:
             -configuration Release \
             -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/VitfixPro.xcarchive" \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath "$RUNNER_TEMP/private_keys/AuthKey_$APPSTORE_KEY_ID.p8" \
-            -authenticationKeyID "$APPSTORE_KEY_ID" \
-            -authenticationKeyIssuerID "$APPSTORE_ISSUER_ID" \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
-            CODE_SIGN_STYLE=Automatic \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
             CURRENT_PROJECT_VERSION="$NUMERO_BUILD"
 
-      # destination = upload : exportArchive signe puis dépose directement sur App Store Connect.
+      # Seule étape signée de la chaîne : -allowProvisioningUpdates et la clé d'API font créer par Apple le
+      # certificat de distribution et le profil App Store, puis exportArchive signe l'archive avec eux.
+      # destination = upload : le dépôt sur App Store Connect suit dans la foulée.
       # Les symboles accompagnent l'envoi, sans quoi les plantages remontent illisibles.
       - name: Exporter et envoyer sur TestFlight
         env:
