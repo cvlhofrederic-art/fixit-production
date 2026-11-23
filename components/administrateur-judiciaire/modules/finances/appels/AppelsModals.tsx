@@ -5,7 +5,7 @@ import { NATURES_APPEL } from '@/components/administrateur-judiciaire/modules/fi
 import { Field, FieldRow } from '@/components/administrateur-judiciaire/ui/Field'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/components/administrateur-judiciaire/ui/Modal'
-import { CODE_CLE_GENERALE, LIBELLE_CLE_GENERALE } from '@/lib/administrateur-judiciaire/db/appels-de-fonds'
+import { CODE_CLE_GENERALE } from '@/lib/administrateur-judiciaire/db/appels-de-fonds'
 import { dateIsoVersFr } from '@/lib/administrateur-judiciaire/domain/dates'
 import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
 import type { CleRepartition, NatureEcheance } from '@/lib/administrateur-judiciaire/domain/repartition-appels'
@@ -79,7 +79,8 @@ export function NouvelAppelModal({ cles, onClose, onEnregistrer }: Readonly<Nouv
           </Field>
           <Field label="Clé de répartition" name="appel-cle" full>
             <select value={valeurs.cle} onChange={(evenement) => changer('cle', evenement.target.value)}>
-              {cleGeneraleACreer && <option value={CLE_A_CREER}>{`${CODE_CLE_GENERALE} — ${LIBELLE_CLE_GENERALE} (à créer)`}</option>}
+              {/* Libellé court : « à créer » reste lisible à 375 px (défaut 1 du 22/11/2026) ; la clé créée garde son nom complet. */}
+              {cleGeneraleACreer && <option value={CLE_A_CREER}>{`${CODE_CLE_GENERALE} — Charges générales (à créer)`}</option>}
               {triees.map((cle) => (
                 <option key={cle.id} value={cle.id}>{`${cle.code} — ${cle.libelle}`}</option>
               ))}

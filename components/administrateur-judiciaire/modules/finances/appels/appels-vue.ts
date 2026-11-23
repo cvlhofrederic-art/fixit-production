@@ -321,9 +321,9 @@ const VUE_VIDE: Omit<VueAvisAppel, 'echeances'> = {
   prelevements: null,
 }
 
-/** « « A » », « « A » et « B » », « « A », « B » et « C » ». */
+/** « « A » », « « A » et « B » », « « A », « B » et « C » » ; espaces insécables dans les guillemets (pas de « » seul en début de ligne). */
 function listeEntreGuillemets(libelles: readonly string[]): string {
-  const cites = libelles.map((l) => `« ${l} »`)
+  const cites = libelles.map((l) => `« ${l} »`)
   return cites.length > 1 ? `${cites.slice(0, -1).join(', ')} et ${cites.at(-1)}` : (cites[0] ?? '')
 }
 

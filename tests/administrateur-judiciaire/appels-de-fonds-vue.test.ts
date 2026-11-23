@@ -208,7 +208,8 @@ describe('anomalies : écriture bloquée', () => {
     const vue = vueAvisAppel(donnees({ exercices: [] }), contexte())
     expect(vue.ecriture).not.toBeNull()
     expect(vue.controleDate.map((a) => a.code)).toEqual(['exigibilite_hors_exercice'])
-    expect(vue.blocage).toBe('Exercice à ouvrir : aucun exercice du syndicat ne comprend l’exigibilité de « Provisions T1 2027 ».')
+    // Espaces insécables dans les guillemets : le « » » ne passe pas seul à la ligne.
+    expect(vue.blocage).toBe('Exercice à ouvrir : aucun exercice du syndicat ne comprend l’exigibilité de « Provisions T1 2027 ».')
     expect(vue.exerciceManquant).toBe('2027-01-01')
   })
 
@@ -216,7 +217,7 @@ describe('anomalies : écriture bloquée', () => {
     const vue = vueAvisAppel(donnees({ exercices: [] }), contexte({ jusquAu: '2027-04-01', dateEmission: '2027-03-15', datePrelevement: '2027-04-05' }))
     expect(vue.controleDate.map((a) => a.code)).toEqual(['exigibilite_hors_exercice', 'exigibilite_hors_exercice', 'exigibilite_hors_exercice'])
     expect(vue.blocage).toBe(
-      'Exercice à ouvrir : aucun exercice du syndicat ne comprend l’exigibilité de « Provisions T1 2027 », « Provisions T2 2027 » et « Fonds de travaux T2 2027 ».',
+      'Exercice à ouvrir : aucun exercice du syndicat ne comprend l’exigibilité de « Provisions T1 2027 », « Provisions T2 2027 » et « Fonds de travaux T2 2027 ».',
     )
     expect(vue.blocage).not.toMatch(/A-2027/)
   })

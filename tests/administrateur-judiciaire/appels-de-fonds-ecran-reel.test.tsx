@@ -171,7 +171,7 @@ describe('Appels de fonds en mode réel — écran', () => {
     const boite = dialogue()
     expect(boite.getByRole('heading', { name: 'Nouvel appel de fonds' })).toBeTruthy()
     // Défaut 1 du 22/11/2026 : libellé court, « à créer » lisible ; champs en pleine largeur, comme le formulaire de main.
-    expect((boite.getByLabelText('Clé de répartition') as HTMLSelectElement).selectedOptions[0].textContent).toBe('001 — Charges communes générales (à créer)')
+    expect((boite.getByLabelText('Clé de répartition') as HTMLSelectElement).selectedOptions[0].textContent).toBe('001 — Charges générales (à créer)')
     for (const libelle of ['Libellé', 'Nature', 'Clé de répartition', 'Date d’exigibilité', 'Montant'])
       expect(boite.getByLabelText(libelle).closest('.field')?.classList.contains('field-full')).toBe(true)
     fireEvent.change(boite.getByLabelText('Libellé'), { target: { value: 'Provisions T1 2027' } })
