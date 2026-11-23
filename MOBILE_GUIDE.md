@@ -135,6 +135,12 @@ que le store refusera ensuite de réutiliser.
 
 Les runners macOS standards sont **gratuits et sans limite sur un dépôt public** : aucun Mac n'est nécessaire.
 
+> **Signature iPhone : ne figer aucune identité.** La signature est automatique et Xcode choisit lui-même le
+> certificat sur le runner. Si `CODE_SIGN_IDENTITY` est renseigné dans `project.pbxproj` — « iPhone Developer »
+> du gabarit Capacitor, ou même « Apple Distribution » — l'archive s'arrête sur *« App has conflicting
+> provisioning settings »*, après plusieurs minutes de build. Invariant gardé par
+> `tests/mobile/chaine-publication.test.ts`.
+
 ### Numéros de version
 
 - Le **numéro d'envoi** est automatique et pris sur le numéro du run : `CURRENT_PROJECT_VERSION` côté iPhone,

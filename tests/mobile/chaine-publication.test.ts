@@ -55,11 +55,13 @@ describe('iPhone — l’archive doit être fabricable sur un runner sans Xcode 
     expect(schema).toContain('buildForArchiving = "YES"')
   })
 
-  it('la configuration Release ne signe plus avec une identité de développement', () => {
-    // « iPhone Developer » est la valeur du gabarit Capacitor : App Store Connect refuse une archive
-    // signée ainsi, et le message n'arrive qu'après plusieurs minutes de build.
+  it('la configuration Release ne fige aucune identité de signature', () => {
+    // La signature est automatique : Xcode choisit lui-même le certificat sur le runner. Toute identité
+    // figée le met en conflit et l'archive s'arrête sur « App has conflicting provisioning settings » —
+    // constaté au premier envoi TestFlight du 22/11/2026, avec « Apple Distribution » comme avec
+    // « iPhone Developer », la valeur du gabarit Capacitor.
     for (const bloc of blocsConfiguration(lire(PROJET), 'Release')) {
-      expect(bloc).not.toContain('CODE_SIGN_IDENTITY = "iPhone Developer"')
+      expect(bloc).not.toContain('CODE_SIGN_IDENTITY')
     }
   })
 
