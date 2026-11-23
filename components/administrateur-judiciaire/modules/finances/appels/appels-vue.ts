@@ -321,12 +321,30 @@ const VUE_VIDE: Omit<VueAvisAppel, 'echeances'> = {
   prelevements: null,
 }
 
-function blocageDe(anomalies: readonly string[], controleDate: readonly AnomalieDateComptableAppel[]): string | null {
-  if (anomalies.length > 0) return `Appel non écrit : ${anomalies.length} anomalie(s) de répartition à lever d'abord.`
+/** « « A » », « « A » et « B » », « « A », « B » et « C » ». */
+function listeEntreGuillemets(libelles: readonly string[]): string {
+  const cites = libelles.map((l) => `« ${l} »`)
+  return cites.length > 1 ? `${cites.slice(0, -1).join(', ')} et ${cites.at(-1)}` : (cites[0] ?? '')
+}
+
+/**
+ * Message qui bloque l'écriture. Exercice à ouvrir : une seule phrase, avec les libellés des échéances et non leurs
+ * identifiants (défaut 3 du 22/11/2026) ; les autres refus de la date comptable suivent, tels que le domaine les écrit.
+ */
+function blocageDe(anomalies: readonly string[], controleDate: readonly AnomalieDateComptableAppel[], echeances: readonly EcheanceAppelSuivie[]): string | null {
+  if (anomalies.length > 0) {
+    const n = anomalies.length
+    return `Appel non écrit : ${n} anomalie${n > 1 ? 's' : ''} de répartition à lever d'abord.`
+  }
   const refus = controleDate.filter((a) => a.gravite === 'bloquant')
   if (refus.length === 0) return null
-  const exercice = refus.some((a) => a.code === 'exigibilite_hors_exercice') ? 'Exercice à ouvrir : ' : ''
-  return `${exercice}${refus.map((a) => a.message).join(' ')}`
+  const horsExercice = refus.filter((a) => a.code === 'exigibilite_hors_exercice')
+  const libelleDe = (id: string) => echeances.find((e) => e.id === id)?.libelle ?? id
+  const exercice =
+    horsExercice.length > 0
+      ? `Exercice à ouvrir : aucun exercice du syndicat ne comprend l’exigibilité de ${listeEntreGuillemets([...new Set(horsExercice.map((a) => libelleDe(a.echeanceId)))])}.`
+      : null
+  return [exercice, ...refus.filter((a) => a.code !== 'exigibilite_hors_exercice').map((a) => a.message)].filter(Boolean).join(' ')
 }
 
 /** Avis de l'appel choisi, écriture en aperçu, contrôles et prélèvements. */
@@ -337,9 +355,9 @@ export function vueAvisAppel(d: DonneesAppels, c: ContexteAppel): VueAvisAppel {
     if (echeances.length === 0) return { ...VUE_VIDE, echeances }
     const avis = avisDAppel({ echeances, cles: [...d.cles], positions: [...d.positions], comptes: [...d.comptes] })
     const anomalies = avis.anomalies.map((a) => texteAnomalie(a, d, echeances))
-    if (anomalies.length > 0) return { ...VUE_VIDE, echeances, avis, anomalies, blocage: blocageDe(anomalies, []) }
+    if (anomalies.length > 0) return { ...VUE_VIDE, echeances, avis, anomalies, blocage: blocageDe(anomalies, [], echeances) }
     const ecriture = ecritureDe(avis, d, c)
-    return { ...VUE_VIDE, echeances, avis, anomalies, ...ecriture, blocage: blocageDe([], ecriture.controleDate), ...contenuEtPrelevements(avis, d, c) }
+    return { ...VUE_VIDE, echeances, avis, anomalies, ...ecriture, blocage: blocageDe([], ecriture.controleDate, echeances), ...contenuEtPrelevements(avis, d, c) }
   } catch (erreur) {
     const message = erreur instanceof Error ? erreur.message : String(erreur)
     return { ...VUE_VIDE, echeances, erreur: message, blocage: 'Appel non écrit : avis impossible à établir sur les données enregistrées.' }
@@ -360,30 +378,35 @@ export interface DroitsLot {
   lotId: string
   numero: string
   enPlace: PersonneEnPlace[]
-  /** Premier défaut des droits (controlerDroitsLot) ; null : droits complets. */
+  /** Premier défaut des droits (controlerDroitsLot), sans point final (pastille) ; null : droits complets. */
   anomalie: string | null
   /** Vente ce jour-là : l'appel exigible ce jour va au vendeur (D. 1967 art. 6-2). */
   venteCeJour: boolean
+  /** Vente ce jour-là : vendeurs appelés (positions de la veille qui sortent ce jour), avec leur compte ; vide sinon. */
+  vendeurs: PersonneEnPlace[]
 }
 
-/** « Droits sur les lots » à la date : personnes en place, contrôle des droits, vente du jour. */
+/** « Droits sur les lots » à la date : personnes en place, contrôle des droits, vente du jour et vendeur appelé. */
 export function vueDroitsLots(d: Pick<DonneesAppels, 'lots' | 'positions' | 'identites' | 'comptes'>, date: string): DroitsLot[] {
+  const personne = (p: Position): PersonneEnPlace => ({
+    positionId: p.id,
+    nom: nomIdentite(d.identites.find((i) => i.id === p.identiteId)),
+    qualite: p.qualite,
+    part: p.part ? `${p.part.numerateur}/${p.part.denominateur}` : '',
+    serie: d.comptes.find((c) => c.id === p.compteId)?.serie ?? '',
+  })
   return [...d.lots]
     .sort((a, b) => a.numero.localeCompare(b.numero, 'fr', { numeric: true }))
     .map((lot) => {
       const enPlace = positionsEnPlace([...d.positions], lot.id, date)
+      const vente = mutationDuJour([...d.positions], lot.id, date)
       return {
         lotId: lot.id,
         numero: lot.numero,
-        enPlace: enPlace.map((p) => ({
-          positionId: p.id,
-          nom: nomIdentite(d.identites.find((i) => i.id === p.identiteId)),
-          qualite: p.qualite,
-          part: p.part ? `${p.part.numerateur}/${p.part.denominateur}` : '',
-          serie: d.comptes.find((c) => c.id === p.compteId)?.serie ?? '',
-        })),
-        anomalie: controlerDroitsLot(enPlace)[0]?.message ?? null,
-        venteCeJour: mutationDuJour([...d.positions], lot.id, date).mutation,
+        enPlace: enPlace.map(personne),
+        anomalie: controlerDroitsLot(enPlace)[0]?.message.replace(/\.$/, '') ?? null,
+        venteCeJour: vente.mutation,
+        vendeurs: vente.mutation ? vente.veille.filter((p) => p.dateSortie === date).map(personne) : [],
       }
     })
 }

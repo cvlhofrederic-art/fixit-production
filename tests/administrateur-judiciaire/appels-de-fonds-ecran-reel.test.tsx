@@ -170,7 +170,10 @@ describe('Appels de fonds en mode réel — écran', () => {
     fireEvent.click(screen.getByRole('button', { name: /Émettre un appel/ }))
     const boite = dialogue()
     expect(boite.getByRole('heading', { name: 'Nouvel appel de fonds' })).toBeTruthy()
-    expect((boite.getByLabelText('Clé de répartition') as HTMLSelectElement).selectedOptions[0].textContent).toMatch(/001 — Charges communes générales/)
+    // Défaut 1 du 22/11/2026 : libellé court, « à créer » lisible ; champs en pleine largeur, comme le formulaire de main.
+    expect((boite.getByLabelText('Clé de répartition') as HTMLSelectElement).selectedOptions[0].textContent).toBe('001 — Charges communes générales (à créer)')
+    for (const libelle of ['Libellé', 'Nature', 'Clé de répartition', 'Date d’exigibilité', 'Montant'])
+      expect(boite.getByLabelText(libelle).closest('.field')?.classList.contains('field-full')).toBe(true)
     fireEvent.change(boite.getByLabelText('Libellé'), { target: { value: 'Provisions T1 2027' } })
     fireEvent.change(boite.getByLabelText('Date d’exigibilité'), { target: { value: '2027-01-01' } })
     fireEvent.change(boite.getByLabelText('Montant'), { target: { value: '1 000,01' } })
@@ -212,6 +215,9 @@ describe('Appels de fonds en mode réel — écran', () => {
     expect(texte).toMatch(/Appelé 450,01\s€/)
     expect(texte).toContain(`${segment}.70100.00000.0`)
     expect(texte).toMatch(/Débit = crédit : 1\s000,01\s€/)
+    // ap-04 du 22/11/2026 : ce qui est bloqué est la diffusion de l'avis, pas l'écriture de l'appel.
+    expect(texte).toContain('Bloque la diffusion de l’avis : Compte')
+    expect(texte).not.toContain('Bloquant')
     const ecrire = avis().getByRole('button', { name: 'Écrire l’appel' })
     expect((ecrire as HTMLButtonElement).disabled).toBe(false)
     fireEvent.click(ecrire)
@@ -225,7 +231,54 @@ describe('Appels de fonds en mode réel — écran', () => {
     const ligne = texteDe(within(panneau('Échéancier des appels')).getAllByRole('row')[1])
     expect(ligne).toContain('Appelé')
     expect(ligne).toContain('n° 1')
+    // Défaut 5 du 22/11/2026 : Statut et Montant juste après Exigibilité, lisibles sur téléphone sans défiler.
+    const entetes = within(panneau('Échéancier des appels')).getAllByRole('columnheader').map(texteDe)
+    expect(entetes).toEqual(['Exigibilité', 'Statut', 'Montant', 'Clé', 'Libellé', 'Nature', 'Pièce'])
+    const cellules = within(within(panneau('Échéancier des appels')).getAllByRole('row')[1]).getAllByRole('cell').map(texteDe)
+    expect(cellules.slice(0, 2)).toEqual(['01/01/2027', 'Appelé'])
+    expect(cellules[2]).toMatch(/1\s000,01\s€/)
     expect(avis().getByText(/Aucune échéance à appeler/)).toBeTruthy()
+  })
+
+  it('deux échéances : la confirmation écrit « Les échéances passent « Appelé » » (défaut 4 du 22/11/2026)', async () => {
+    await donneesD2()
+    await appelsDb.ouvrirExercice(copro.id, { ouverture: '2027-01-01', cloture: '2027-12-31' })
+    const { cle } = await appelsDb.enregistrerNouvelAppel(copro.id, SAISIE_APPEL)
+    await appelsDb.enregistrerNouvelAppel(copro.id, { ...SAISIE_APPEL, libelle: 'Fonds de travaux T1 2027', nature: 'fonds_travaux', montantCentimes: 5_000, cleId: cle.id })
+    await rendre()
+    fireEvent.click(avis().getByRole('button', { name: 'Écrire l’appel' }))
+    const texte = texteDe(screen.getByRole('dialog'))
+    expect(texte).toContain('2 échéances')
+    expect(texte).toContain('Les échéances passent « Appelé ».')
+    expect(texte).not.toContain('L’échéances')
+  })
+
+  it('lot vendu le jour de l’exigibilité : la carte nomme le vendeur appelé et son compte (défaut 7 du 22/11/2026)', async () => {
+    await donneesD2()
+    await ajDb.positions.update('p2', { statut: 'Sorti', dateSortie: '2027-01-01' })
+    const { id: _i, ...acquereur } = d2.creerIdentite({ id: 'i4', nature: 'physique', civilite: '', nom: 'Personne 4', prenom: null, telecoms: [] })
+    await repos.repoIdentites.create(acquereur, { id: 'i4' })
+    const { id: _c, ...compte } = d2.creerCompteCoproprietaire({ id: 'c4', coproprieteId: copro.id, serie: '4', libelle: 'Copropriétaire 4 (fictif)' })
+    await repos.repoComptesCoproprietaires.create(compte, { id: 'c4' })
+    const { id: _p, ...entree } = d2.creerPosition({
+      id: 'p4',
+      identiteId: 'i4',
+      lotId: 'L2',
+      compteId: 'c4',
+      qualite: 'Copropriétaire',
+      part: { numerateur: 1, denominateur: 1 },
+      statut: 'En place',
+      dateEntree: '2027-01-01',
+      dateSortie: null,
+    })
+    await repos.repoPositions.create(entree, { id: 'p4' })
+    await appelsDb.ouvrirExercice(copro.id, { ouverture: '2027-01-01', cloture: '2027-12-31' })
+    await appelsDb.enregistrerNouvelAppel(copro.id, SAISIE_APPEL)
+    await rendre()
+    const carte = avis().getByText('Lot 2').parentElement as HTMLElement
+    expect(texteDe(carte)).toContain('Vente ce jour : appel au vendeur')
+    expect(texteDe(carte)).toContain('Vendeur appelé : Personne 2 — Copropriétaire 1/1 · compte 00002')
+    expect(texteDe(carte)).toContain('Personne 4 — Copropriétaire 1/1 · compte 00004')
   })
 
   it('lot sans compte : anomalie affichée, écriture bloquée', async () => {
@@ -235,7 +288,9 @@ describe('Appels de fonds en mode réel — écran', () => {
     await rendre()
     expect(avis().getByText('Lot 3 : aucun compte copropriétaire en place au 01/01/2027 (« Provisions T1 2027 »).')).toBeTruthy()
     expect((avis().getByRole('button', { name: 'Écrire l’appel' }) as HTMLButtonElement).disabled).toBe(true)
-    expect(avis().getByText(/1 anomalie\(s\) de répartition/)).toBeTruthy()
+    expect(avis().getByText("Appel non écrit : 1 anomalie de répartition à lever d'abord.")).toBeTruthy()
+    // Pastille du lot sans propriétaire : sans point final (défaut 8 du 22/11/2026).
+    expect(avis().getByText('Lot sans propriétaire en place')).toBeTruthy()
   })
 
   it('exercice absent : « Ouvrir l’exercice », puis l’appel peut être écrit', async () => {
@@ -243,7 +298,9 @@ describe('Appels de fonds en mode réel — écran', () => {
     await appelsDb.enregistrerNouvelAppel(copro.id, SAISIE_APPEL)
     await rendre()
     expect((avis().getByRole('button', { name: 'Écrire l’appel' }) as HTMLButtonElement).disabled).toBe(true)
-    expect(texteDe(panneau('Avis d’appel par copropriétaire'))).toContain('Exercice à ouvrir')
+    // Défaut 3 du 22/11/2026 : une phrase, avec le libellé de l'échéance, sans identifiant interne.
+    expect(avis().getByText('Exercice à ouvrir : aucun exercice du syndicat ne comprend l’exigibilité de « Provisions T1 2027 ».')).toBeTruthy()
+    expect(texteDe(panneau('Avis d’appel par copropriétaire'))).not.toMatch(/A-2027/)
     fireEvent.click(avis().getByRole('button', { name: 'Ouvrir l’exercice' }))
     // Exercice qui ne comprend pas l'exigibilité (année erronée) : refusé, rien n'est écrit, la modale reste ouverte.
     fireEvent.change(dialogue().getByLabelText('Ouverture'), { target: { value: '2026-01-01' } })

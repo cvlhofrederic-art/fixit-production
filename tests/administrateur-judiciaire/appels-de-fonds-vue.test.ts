@@ -162,6 +162,13 @@ describe('vente le jour de l’exigibilité : appel au vendeur', () => {
     expect(droits[1].enPlace.map((p) => p.nom)).toEqual(['Personne C'])
     expect(vueDroitsLots(donnees(), '2027-04-02')[1].venteCeJour).toBe(false)
   })
+
+  it('la carte du lot vendu nomme le vendeur appelé et son compte (défaut 7 du 22/11/2026)', () => {
+    const lot2 = vueDroitsLots(donnees(), '2027-04-01')[1]
+    expect(lot2.vendeurs.map((p) => `${p.nom} — ${p.qualite} ${p.part} · compte ${p.serie}`)).toEqual(['Personne B — Copropriétaire 1/1 · compte 00002'])
+    expect(vueDroitsLots(donnees(), '2027-04-02')[1].vendeurs).toEqual([])
+    expect(vueDroitsLots(donnees(), '2027-01-01').map((d) => d.vendeurs)).toEqual([[], [], []])
+  })
 })
 
 describe('anomalies : écriture bloquée', () => {
@@ -170,8 +177,16 @@ describe('anomalies : écriture bloquée', () => {
     expect(vue.anomalies).toEqual(['Lot 3 : aucun compte copropriétaire en place au 01/01/2027 (« Provisions T1 2027 »).'])
     expect(vue.ecriture).toBeNull()
     expect(vue.contenu).toBeNull()
-    expect(vue.blocage).toMatch(/1 anomalie/)
-    expect(vueDroitsLots(donnees({ positions: positions.filter((p) => p.lotId !== 'L3') }), '2027-01-01')[2].anomalie).toBe('Lot sans propriétaire en place.')
+    expect(vue.blocage).toBe("Appel non écrit : 1 anomalie de répartition à lever d'abord.")
+    // Pastille du lot : sans point final (défaut 8 du 22/11/2026).
+    expect(vueDroitsLots(donnees({ positions: positions.filter((p) => p.lotId !== 'L3') }), '2027-01-01')[2].anomalie).toBe('Lot sans propriétaire en place')
+  })
+
+  it('deux anomalies : « 2 anomalies », au pluriel (défaut 8 du 22/11/2026)', () => {
+    const sansL1NiL3 = positions.filter((p) => p.lotId === 'L2')
+    const vue = vueAvisAppel(donnees({ positions: sansL1NiL3 }), contexte())
+    expect(vue.anomalies).toHaveLength(2)
+    expect(vue.blocage).toBe("Appel non écrit : 2 anomalies de répartition à lever d'abord.")
   })
 
   it('clé inconnue : anomalie lisible, écriture bloquée', () => {
@@ -193,8 +208,17 @@ describe('anomalies : écriture bloquée', () => {
     const vue = vueAvisAppel(donnees({ exercices: [] }), contexte())
     expect(vue.ecriture).not.toBeNull()
     expect(vue.controleDate.map((a) => a.code)).toEqual(['exigibilite_hors_exercice'])
-    expect(vue.blocage).toMatch(/exercice/)
+    expect(vue.blocage).toBe('Exercice à ouvrir : aucun exercice du syndicat ne comprend l’exigibilité de « Provisions T1 2027 ».')
     expect(vue.exerciceManquant).toBe('2027-01-01')
+  })
+
+  it('exercice absent, plusieurs échéances : une seule phrase, avec les libellés et sans identifiant interne (défaut 3 du 22/11/2026)', () => {
+    const vue = vueAvisAppel(donnees({ exercices: [] }), contexte({ jusquAu: '2027-04-01', dateEmission: '2027-03-15', datePrelevement: '2027-04-05' }))
+    expect(vue.controleDate.map((a) => a.code)).toEqual(['exigibilite_hors_exercice', 'exigibilite_hors_exercice', 'exigibilite_hors_exercice'])
+    expect(vue.blocage).toBe(
+      'Exercice à ouvrir : aucun exercice du syndicat ne comprend l’exigibilité de « Provisions T1 2027 », « Provisions T2 2027 » et « Fonds de travaux T2 2027 ».',
+    )
+    expect(vue.blocage).not.toMatch(/A-2027/)
   })
 })
 

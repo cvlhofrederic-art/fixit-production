@@ -68,7 +68,7 @@ export function NouvelAppelModal({ cles, onClose, onEnregistrer }: Readonly<Nouv
           <Field label="Libellé" name="appel-libelle" full>
             <input value={valeurs.libelle} onChange={(evenement) => changer('libelle', evenement.target.value)} />
           </Field>
-          <Field label="Nature" name="appel-nature">
+          <Field label="Nature" name="appel-nature" full>
             <select value={valeurs.nature} onChange={(evenement) => changer('nature', evenement.target.value as NatureEcheance)}>
               {NATURES.map(([cle, libelle]) => (
                 <option key={cle} value={cle}>
@@ -77,20 +77,18 @@ export function NouvelAppelModal({ cles, onClose, onEnregistrer }: Readonly<Nouv
               ))}
             </select>
           </Field>
-          <Field label="Clé de répartition" name="appel-cle">
+          <Field label="Clé de répartition" name="appel-cle" full>
             <select value={valeurs.cle} onChange={(evenement) => changer('cle', evenement.target.value)}>
-              {cleGeneraleACreer && (
-                <option value={CLE_A_CREER}>{`${CODE_CLE_GENERALE} — ${LIBELLE_CLE_GENERALE} (tantièmes des lots, à créer)`}</option>
-              )}
+              {cleGeneraleACreer && <option value={CLE_A_CREER}>{`${CODE_CLE_GENERALE} — ${LIBELLE_CLE_GENERALE} (à créer)`}</option>}
               {triees.map((cle) => (
                 <option key={cle.id} value={cle.id}>{`${cle.code} — ${cle.libelle}`}</option>
               ))}
             </select>
           </Field>
-          <Field label="Date d’exigibilité" name="appel-exigibilite">
+          <Field label="Date d’exigibilité" name="appel-exigibilite" full>
             <input type="date" value={valeurs.exigibilite} onChange={(evenement) => changer('exigibilite', evenement.target.value)} />
           </Field>
-          <Field label="Montant" name="appel-montant" suffix="€" hint="Montant de l’échéance, réparti au tantième sur la clé.">
+          <Field label="Montant" name="appel-montant" suffix="€" hint="Montant de l’échéance, réparti au tantième sur la clé." full>
             <input
               value={valeurs.montant}
               inputMode="decimal"
@@ -183,7 +181,7 @@ export function ConfirmerAppelModal({ dateComptable, nombreEcheances, totalCenti
           {`Pièce « Appel de fonds » du ${dateIsoVersFr(dateComptable)} : ${nombreEcheances} échéance${pluriel}, total ${formatEurosCentimes(totalCentimes / 100)}.`}
         </p>
         <p className="muted" style={{ margin: '8px 0 0', fontSize: 12.5 }}>
-          {`L’échéance${pluriel} passe${nombreEcheances > 1 ? 'nt' : ''} « Appelé ». Une annulation se fera par une écriture contraire, qui n’est pas encore proposée sur cet écran.`}
+          {`${nombreEcheances > 1 ? 'Les échéances passent' : 'L’échéance passe'} « Appelé ». Une annulation se fera par une écriture contraire, qui n’est pas encore proposée sur cet écran.`}
         </p>
       </ModalBody>
       <ModalFooter>

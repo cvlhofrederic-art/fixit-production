@@ -132,12 +132,9 @@ function EcheancierAppelsPanel({ donnees }: Readonly<{ donnees: DonneesAppelsLue
         <DataTable<EcheanceAppelEnregistree>
           rowKey="id"
           rows={lignes}
+          // Statut et Montant juste après Exigibilité : lisibles sur téléphone sans défiler (défaut 5 du 22/11/2026).
           columns={[
             { h: 'Exigibilité', render: (e) => <span className="mono">{dateIsoVersFr(e.exigibilite)}</span> },
-            { h: 'Clé', render: (e) => <span className="mono">{cleDe(e.cleId)}</span> },
-            { h: 'Libellé', render: (e) => <b>{e.libelle}</b> },
-            { h: 'Nature', render: (e) => NATURES_APPEL[e.nature] },
-            { h: 'Montant', render: (e) => <span className="mono">{eur(e.montantCentimes)}</span> },
             {
               h: 'Statut',
               render: (e) => (
@@ -146,6 +143,10 @@ function EcheancierAppelsPanel({ donnees }: Readonly<{ donnees: DonneesAppelsLue
                 </Pill>
               ),
             },
+            { h: 'Montant', render: (e) => <span className="mono">{eur(e.montantCentimes)}</span> },
+            { h: 'Clé', render: (e) => <span className="mono">{cleDe(e.cleId)}</span> },
+            { h: 'Libellé', render: (e) => <b>{e.libelle}</b> },
+            { h: 'Nature', render: (e) => NATURES_APPEL[e.nature] },
             { h: 'Pièce', render: (e) => <span className="mono">{pieceDe(e.traitementId)}</span> },
           ]}
         />

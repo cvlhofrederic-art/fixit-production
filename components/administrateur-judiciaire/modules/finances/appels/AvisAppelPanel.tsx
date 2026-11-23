@@ -101,6 +101,11 @@ function DroitsLots({ droits, date }: Readonly<{ droits: readonly DroitsLot[]; d
                 <Pill kind="gold">Vente ce jour : appel au vendeur</Pill>
               </span>
             )}
+            {lot.vendeurs.map((v) => (
+              <div key={v.positionId} style={{ fontSize: 12.5 }}>
+                {`Vendeur appelé : ${libellePersonne(v)}`}
+              </div>
+            ))}
             {lot.enPlace.map((p) => (
               <div key={p.positionId} style={{ fontSize: 12.5 }}>
                 {libellePersonne(p)}
@@ -148,7 +153,7 @@ function ListeAvis({ vue, donnees, segment }: Readonly<{ vue: VueAvisAppel; donn
             )}
             {signalees.map((x, index) => (
               <div key={`${index}-${x.code}`} style={{ fontSize: 12, color: COULEUR_GRAVITE[x.gravite as keyof typeof COULEUR_GRAVITE] }}>
-                {`${x.gravite === 'bloquant' ? 'Bloquant' : 'À vérifier'} : ${x.message}`}
+                {`${x.gravite === 'bloquant' ? 'Bloque la diffusion de l’avis' : 'À vérifier'} : ${x.message}`}
               </div>
             ))}
           </div>
