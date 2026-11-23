@@ -135,11 +135,18 @@ que le store refusera ensuite de réutiliser.
 
 Les runners macOS standards sont **gratuits et sans limite sur un dépôt public** : aucun Mac n'est nécessaire.
 
-> **Signature iPhone : ne figer aucune identité.** La signature est automatique et Xcode choisit lui-même le
-> certificat sur le runner. Si `CODE_SIGN_IDENTITY` est renseigné dans `project.pbxproj` — « iPhone Developer »
-> du gabarit Capacitor, ou même « Apple Distribution » — l'archive s'arrête sur *« App has conflicting
-> provisioning settings »*, après plusieurs minutes de build. Invariant gardé par
-> `tests/mobile/chaine-publication.test.ts`.
+> **Signature iPhone : archive non signée, signature à l'export.** Deux pièges, tous deux constatés sur un
+> envoi réel :
+> - `CODE_SIGN_IDENTITY` figé dans `project.pbxproj` (« iPhone Developer » du gabarit Capacitor, ou même
+>   « Apple Distribution ») entre en conflit avec la signature automatique : *« App has conflicting
+>   provisioning settings »* ;
+> - en signature automatique, l'archive réclame un profil **de développement**, qu'Apple refuse à une équipe
+>   sans appareil enregistré : *« Your team has no devices from which to generate a provisioning profile »*.
+>   Un runner n'a pas d'iPhone à déclarer.
+>
+> D'où le choix : l'archive est fabriquée **sans signature** (`CODE_SIGNING_ALLOWED=NO`) et la signature a lieu
+> une seule fois, à l'export, avec un profil **App Store** — qui ne contient aucun appareil. Les deux
+> invariants sont gardés par `tests/mobile/chaine-publication.test.ts`.
 
 ### Numéros de version
 
