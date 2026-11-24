@@ -46,6 +46,10 @@ export const ALL_PRO_MODULES = [
   'compta_btp', 'rentabilite', 'rfq_btp',
   'situations', 'garanties', 'sous_traitance',
   'sous_traitance_offres', 'dpgf',
+  // Écrans ouverts aux salariés dans l'appli (24/11/2026). Absents du catalogue jusque-là : getDefaultPermission
+  // rendait NONE pour tout le monde et getEffectivePermissions jetait silencieusement toute dérogation posée sur eux
+  // (`if (ov.module_id in base)`), donc le gérant ne pouvait ni les accorder ni les refuser.
+  'meteo', 'dictionnaire_materiaux', 'estimation_materiaux',
   // Admin
   'gestion_comptes',
 ] as const
@@ -68,6 +72,9 @@ export const MODULE_LABELS: Record<string, { fr: string; pt: string }> = {
   sous_traitance:        { fr: 'Sous-traitance DC4',   pt: 'Subempreitadas' },
   sous_traitance_offres: { fr: 'Recruter sous-traitants', pt: 'Recrutar subempreiteiros' },
   dpgf:                  { fr: 'Appels d\'offres',      pt: 'Concursos / Mapas de quantidades' },
+  meteo:                 { fr: 'Météo chantiers',       pt: 'Meteorologia das obras' },
+  dictionnaire_materiaux:{ fr: 'Dictionnaire matériaux', pt: 'Dicionário de materiais' },
+  estimation_materiaux:  { fr: 'Estimation matériaux',  pt: 'Estimativa de materiais' },
   motifs:                { fr: 'Lots / Prestations',    pt: 'Lotes / Serviços' },
   horaires:              { fr: 'Horaires chantier',     pt: 'Horários de obra' },
   messages:              { fr: 'Messagerie',            pt: 'Mensagens' },
@@ -102,8 +109,8 @@ const DEFAULT_PERMISSIONS: PermissionMatrix = {
   GERANT: Object.fromEntries(ALL_PRO_MODULES.map(m => [m, 'FULL' as AccessLevel])),
 
   CONDUCTEUR_TRAVAUX: {
-    home: 'FULL', calendar: 'FULL', chantiers: 'FULL', equipes: 'FULL',
-    gantt: 'FULL', pointage: 'FULL',
+    home: 'FULL', calendar: 'FULL', chantiers: 'READ', equipes: 'READ',
+    gantt: 'FULL', pointage: 'READ',
     compta_btp: 'NONE', rentabilite: 'READ', rfq_btp: 'FULL',
     situations: 'FULL', garanties: 'READ', sous_traitance: 'FULL',
     sous_traitance_offres: 'FULL', dpgf: 'FULL',
@@ -113,13 +120,14 @@ const DEFAULT_PERMISSIONS: PermissionMatrix = {
     photos_chantier: 'FULL', bibliotheque: 'FULL', contrats: 'READ',
     stats: 'READ', revenus: 'READ', comptabilite: 'NONE',
     materiaux: 'FULL', marches: 'FULL', marketplace_btp: 'FULL',
+    meteo: 'READ', dictionnaire_materiaux: 'READ', estimation_materiaux: 'NONE',
     wallet: 'READ', portfolio: 'FULL', parrainage: 'NONE',
-    settings: 'NONE', gestion_comptes: 'NONE',
+    settings: 'READ', gestion_comptes: 'NONE',
   },
 
   CHEF_CHANTIER: {
     home: 'READ', calendar: 'FULL', chantiers: 'READ', equipes: 'READ',
-    gantt: 'READ', pointage: 'FULL',
+    gantt: 'READ', pointage: 'READ',
     compta_btp: 'NONE', rentabilite: 'NONE', rfq_btp: 'READ',
     situations: 'READ', garanties: 'NONE', sous_traitance: 'NONE',
     sous_traitance_offres: 'NONE', dpgf: 'NONE',
@@ -127,26 +135,20 @@ const DEFAULT_PERMISSIONS: PermissionMatrix = {
     messages: 'FULL', clients: 'READ',
     devis: 'NONE', pipeline: 'NONE', factures: 'NONE', rapports: 'FULL',
     photos_chantier: 'FULL', bibliotheque: 'READ', contrats: 'NONE',
+    meteo: 'READ', dictionnaire_materiaux: 'READ', estimation_materiaux: 'NONE',
     stats: 'NONE', revenus: 'NONE', comptabilite: 'NONE',
     materiaux: 'READ', marches: 'NONE', marketplace_btp: 'NONE',
     wallet: 'NONE', portfolio: 'NONE', parrainage: 'NONE',
-    settings: 'NONE', gestion_comptes: 'NONE',
+    settings: 'READ', gestion_comptes: 'NONE',
   },
 
+  // Tous les pouvoirs (décision de Frédéric du 24/11/2026, « la secrétaire Tatiana a tous les pouvoirs »), à une
+  // exception : la gestion des comptes reste au compte de la société. Le serveur y réserve toute écriture au gérant
+  // (app/api/pro/team/route.ts, trois `if (!isProGerant(user))`) ; lui donner FULL ici ouvrirait un écran dont
+  // chaque bouton répondrait 403. L'ouvrir pour de bon demanderait de changer ces trois gardes, pas cette matrice.
   SECRETAIRE: {
-    home: 'READ', calendar: 'FULL', chantiers: 'NONE', equipes: 'READ',
-    gantt: 'NONE', pointage: 'READ',
-    compta_btp: 'NONE', rentabilite: 'NONE', rfq_btp: 'NONE',
-    situations: 'READ', garanties: 'NONE', sous_traitance: 'READ',
-    sous_traitance_offres: 'NONE', dpgf: 'NONE',
-    motifs: 'READ', horaires: 'NONE',
-    messages: 'FULL', clients: 'FULL',
-    devis: 'FULL', pipeline: 'READ', factures: 'FULL', rapports: 'READ',
-    photos_chantier: 'NONE', bibliotheque: 'READ', contrats: 'READ',
-    stats: 'NONE', revenus: 'NONE', comptabilite: 'NONE',
-    materiaux: 'NONE', marches: 'NONE', marketplace_btp: 'NONE',
-    wallet: 'FULL', portfolio: 'NONE', parrainage: 'NONE',
-    settings: 'NONE', gestion_comptes: 'NONE',
+    ...Object.fromEntries(ALL_PRO_MODULES.map(m => [m, 'FULL' as AccessLevel])),
+    gestion_comptes: 'NONE',
   },
 
   COMPTABLE: {
@@ -159,14 +161,15 @@ const DEFAULT_PERMISSIONS: PermissionMatrix = {
     messages: 'NONE', clients: 'NONE',
     devis: 'READ', pipeline: 'NONE', factures: 'FULL', rapports: 'READ',
     photos_chantier: 'NONE', bibliotheque: 'NONE', contrats: 'NONE',
+    meteo: 'NONE', dictionnaire_materiaux: 'NONE', estimation_materiaux: 'NONE',
     stats: 'FULL', revenus: 'FULL', comptabilite: 'FULL',
     materiaux: 'NONE', marches: 'NONE', marketplace_btp: 'NONE',
     wallet: 'NONE', portfolio: 'NONE', parrainage: 'NONE',
-    settings: 'NONE', gestion_comptes: 'NONE',
+    settings: 'READ', gestion_comptes: 'NONE',
   },
 
   OUVRIER: {
-    home: 'NONE', calendar: 'READ', chantiers: 'NONE', equipes: 'NONE',
+    home: 'NONE', calendar: 'READ', chantiers: 'READ', equipes: 'NONE',
     gantt: 'NONE', pointage: 'READ',
     compta_btp: 'NONE', rentabilite: 'NONE', rfq_btp: 'NONE',
     situations: 'NONE', garanties: 'NONE', sous_traitance: 'NONE',
@@ -175,10 +178,11 @@ const DEFAULT_PERMISSIONS: PermissionMatrix = {
     messages: 'NONE', clients: 'NONE',
     devis: 'NONE', pipeline: 'NONE', factures: 'NONE', rapports: 'NONE',
     photos_chantier: 'FULL', bibliotheque: 'NONE', contrats: 'NONE',
+    meteo: 'READ', dictionnaire_materiaux: 'READ', estimation_materiaux: 'NONE',
     stats: 'NONE', revenus: 'NONE', comptabilite: 'NONE',
     materiaux: 'NONE', marches: 'NONE', marketplace_btp: 'NONE',
     wallet: 'NONE', portfolio: 'NONE', parrainage: 'NONE',
-    settings: 'NONE', gestion_comptes: 'NONE',
+    settings: 'READ', gestion_comptes: 'NONE',
   },
 }
 

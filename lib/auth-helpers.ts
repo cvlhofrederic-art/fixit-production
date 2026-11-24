@@ -178,7 +178,9 @@ export function isProGerant(user: User): boolean {
 
 // ── Cache company_id en mémoire (TTL 5min) ──────────────────────────────────
 const companyIdCache = new Map<string, { value: string; expiresAt: number }>()
-const COMPANY_CACHE_TTL = 5 * 60 * 1000
+// 60 s comme le cache voisin : depuis le 24/11/2026 ce rattachement borne TOUT ce qu'un salarié lit et écrit de la
+// société (lib/btp/perimetre-compte.ts). Au-delà d'une minute, un compte désactivé n'a plus de périmètre.
+const COMPANY_CACHE_TTL = 60 * 1000
 
 // ── Résout le company_id d'un utilisateur pro_societe ────────────────────────
 // Si gérant → son propre id. Si sous-compte → company_id depuis pro_team_members.
@@ -195,12 +197,15 @@ export async function resolveCompanyId(user: User, supabaseAdminClient: Supabase
     if (cached && cached.expiresAt > Date.now()) return cached.value
 
     try {
-      const { data: membership } = await supabaseAdminClient
+      const { data: membership, error } = await supabaseAdminClient
         .from('pro_team_members')
         .select('company_id')
         .eq('user_id', user.id)
         .eq('is_active', true)
         .maybeSingle()
+      // Sans cette ligne, une panne de lecture ou deux rattachements actifs (PGRST116) étaient avalés : la fonction
+      // rendait le compte lui-même, et le salarié voyait une application vide sans qu'aucune trace ne soit laissée.
+      if (error) throw new Error(error.message)
 
       if (membership?.company_id) {
         companyIdCache.set(user.id, { value: membership.company_id, expiresAt: Date.now() + COMPANY_CACHE_TTL })
