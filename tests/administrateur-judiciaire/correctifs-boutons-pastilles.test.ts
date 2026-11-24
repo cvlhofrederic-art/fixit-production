@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
+import { reglesALargeur } from './regles-a-largeur'
 
 /**
  * Correctifs de la feuille de la maquette écrits à la main (aj-correctifs.css), décisions du 22/11/2026 sur l'écran
@@ -9,30 +10,13 @@ import { afterEach, describe, expect, it } from 'vitest'
  * sur téléphone : la règle des cibles tactiles de aj.css vise aussi .pill).
  *
  * jsdom n'évalue pas les requêtes de largeur : les feuilles sont chargées « à une largeur donnée », dans l'ordre du layout,
- * leurs blocs @media dépliés quand ils valent et retirés sinon (comme barre-haut-date.test.tsx). Une requête autre qu'une
+ * leurs blocs @media dépliés quand ils valent et retirés sinon (regles-a-largeur.ts). Une requête autre qu'une
  * largeur (forced-colors, prefers-reduced-motion…) est retirée.
  */
 
 const STYLES = join(__dirname, '..', '..', 'components', 'administrateur-judiciaire', 'styles')
 const LAYOUT = join(__dirname, '..', '..', 'app', '(commun)', 'administrateur-judiciaire', 'layout.tsx')
 const FEUILLES = ['aj.css', 'aj-selecteur-copro.css', 'aj-correctifs.css']
-
-/** Vrai si la requête (« (max-width: 768px) ») vaut pour cette largeur de fenêtre. */
-function requeteVraie(requete: string, largeur: number): boolean {
-  return requete.split(/\s+and\s+/).every((condition) => {
-    const borne = /^\(\s*(min|max)-width\s*:\s*(\d+)px\s*\)$/.exec(condition.trim())
-    if (!borne) return false
-    return borne[1] === 'min' ? largeur >= Number(borne[2]) : largeur <= Number(borne[2])
-  })
-}
-
-/** Texte des règles appliquées à cette largeur : blocs @media dépliés quand ils valent, retirés sinon. */
-function reglesALargeur(regles: CSSRuleList, largeur: number): string {
-  return Array.from(regles, (regle) => {
-    if (!(regle instanceof CSSMediaRule)) return regle.cssText
-    return requeteVraie(regle.media.mediaText, largeur) ? reglesALargeur(regle.cssRules, largeur) : ''
-  }).join('\n')
-}
 
 let chargees: HTMLStyleElement[] = []
 
