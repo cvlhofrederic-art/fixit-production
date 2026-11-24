@@ -6,6 +6,7 @@ import {
   type QuotePartAppelFonds,
 } from '@/components/administrateur-judiciaire/data/appels-de-fonds'
 import { DEMO_COPROPRIETES } from '@/components/administrateur-judiciaire/data/coproprietes'
+import { AppelsDeFondsReel } from '@/components/administrateur-judiciaire/modules/finances/appels/AppelsDeFondsReel'
 import { DataTable } from '@/components/administrateur-judiciaire/ui/DataTable'
 import { DetailModal } from '@/components/administrateur-judiciaire/ui/DetailModal'
 import { EmptyState } from '@/components/administrateur-judiciaire/ui/EmptyState'
@@ -20,7 +21,18 @@ import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
 import type { CoproprieteAffichee } from '@/lib/administrateur-judiciaire/db/hooks'
 import { formatEuros } from '@/lib/administrateur-judiciaire/domain/format'
 import { codeDeNomCopro, filtrerParCopro } from '@/lib/administrateur-judiciaire/domain/selection-copropriete'
+import { MODE_ACTIF } from '@/lib/administrateur-judiciaire/mode'
 import { useCodeCoproCourant, useCoproCourante } from '@/lib/administrateur-judiciaire/selection'
+
+/**
+ * Écran « Appels de fonds » : en données réelles, l'échéancier, les avis et l'écriture de l'appel du syndicat
+ * (appels/AppelsDeFondsReel.tsx) ; en démonstration, l'écran d'origine, inchangé (enregistrement simulé : statut « demo »
+ * dans ce mode, registry.ts). Le mode est fixe pendant la session (mode.ts) : le choix ne change jamais d'un rendu à
+ * l'autre.
+ */
+export function AppelsDeFondsModule() {
+  return MODE_ACTIF === 'reel' ? <AppelsDeFondsReel /> : <AppelsDeFondsDemo />
+}
 
 /**
  * Appels de fonds de la copropriété choisie en haut de page : budget voté, quote-part et suivi du recouvrement
@@ -28,7 +40,7 @@ import { useCodeCoproCourant, useCoproCourante } from '@/lib/administrateur-judi
  * Les onglets sont autonomes (non branchés : seul « Quotes-parts » est affiché). Le formulaire « Nouvel appel de
  * fonds », prérempli avec la copropriété choisie, est simulé (toast « Appel de fonds émis »).
  */
-export function AppelsDeFondsModule() {
+function AppelsDeFondsDemo() {
   const { push } = useToast()
   const [ligneOuverte, setLigneOuverte] = useState<QuotePartAppelFonds | null>(null)
   const code = useCodeCoproCourant()

@@ -1,0 +1,28 @@
+/*
+ * Correctifs de la feuille de la maquette, écrits à la main. Chargée en dernier (app/(commun)/administrateur-judiciaire/
+ * layout.tsx) : aj.css est générée par scripts/administrateur-judiciaire/extraire-maquette.mjs et réécrite à chaque
+ * extraction, elle ne se corrige donc pas à la main. Tous les sélecteurs sont scopés sous #aj-root.
+ * Tests : tests/administrateur-judiciaire/correctifs-boutons-pastilles.test.ts.
+ */
+
+/*
+ * Défaut 2 (décision du 22/11/2026, écran « Appels de fonds ») : un bouton désactivé avait exactement l'aspect d'un
+ * bouton actif. La remise à zéro de aj.css (« all: revert » sur #aj-root) efface l'aspect natif des boutons désactivés,
+ * et aucune règle .btn:disabled ne le remplace. Même rendu que les boutons d'envoi des agents (agent-send:disabled,
+ * canal-chat-send:disabled) : opacité .45, curseur « interdit ». Le survol et l'appui ne le changent plus : chaque
+ * variante garde le fond qu'elle a au repos.
+ */
+#aj-root .btn:disabled{opacity:.45;cursor:not-allowed}
+#aj-root .btn:disabled:hover{background:#fff}
+#aj-root .btn.ghost:disabled:hover{background:transparent}
+#aj-root .btn.primary:disabled:hover{background:var(--navy-900)}
+#aj-root .btn.gold:disabled:hover{background:linear-gradient(155deg,var(--gold-500),var(--gold-700));filter:none;box-shadow:inset 0 1px #ffffff4d}
+#aj-root .btn.danger:disabled:hover{background:var(--rust-500)}
+#aj-root .btn:disabled:active,#aj-root .btn.gold:disabled:active{transform:none;filter:none}
+
+/*
+ * Défaut 6 (même décision) : sous 768 px, la règle des cibles tactiles de aj.css (44 px de haut au moins) vise aussi
+ * .pill ; les pastilles, qui ne se touchent pas (« Prévu », « Appelé », « Droits complets »…), montaient à 44 px. Elles
+ * reprennent leur hauteur. Une pastille placée dans un bouton ou un lien laisse la cible tactile à ce bouton ou ce lien.
+ */
+@media (max-width: 768px){#aj-root .pill{min-height:auto}}
