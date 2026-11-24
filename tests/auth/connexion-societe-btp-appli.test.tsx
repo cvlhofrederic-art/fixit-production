@@ -13,25 +13,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
-const simul = vi.hoisted(() => ({
-  getSession: vi.fn(),
-  getUser: vi.fn(),
-  signOut: vi.fn(),
-  signInWithPassword: vi.fn(),
-  signInWithOAuth: vi.fn(),
-}))
-
-vi.mock('@/lib/supabase', () => ({
-  supabase: {
-    auth: {
-      getSession: simul.getSession,
-      getUser: simul.getUser,
-      signOut: simul.signOut,
-      signInWithPassword: simul.signInWithPassword,
-      signInWithOAuth: simul.signInWithOAuth,
-    },
-  },
-}))
+vi.mock('@/lib/supabase', async () => (await import('../helpers/page-connexion')).supabaseFactice())
 
 vi.mock('@/lib/app-mobile', () => ({ estAppMobile: () => true }))
 
@@ -39,7 +21,7 @@ vi.mock('@/lib/i18n/context', async () => (await import('../helpers/page-connexi
 vi.mock('@/components/common/LocaleLink', async () => (await import('../helpers/page-connexion')).localeLinkSimple())
 
 import LoginPage from '@/app/(commun)/auth/login/page'
-import { installerLocationFactice } from '../helpers/page-connexion'
+import { authSimulee as simul, installerLocationFactice } from '../helpers/page-connexion'
 
 let navigations: string[] = []
 let restaurerLocation: () => void = () => {}

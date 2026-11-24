@@ -9,6 +9,24 @@
 // La simulation de `@/lib/supabase`, elle, reste dans chaque fichier : elle s'appuie sur son propre `vi.hoisted`.
 
 import React from 'react'
+import { vi } from 'vitest'
+
+/**
+ * Fonctions d'authentification que les tests programment (`mockResolvedValue`) et vérifient. Chaque fichier de test
+ * a son propre registre de modules : cet objet est neuf d'un fichier à l'autre, jamais partagé entre eux.
+ */
+export const authSimulee = {
+  getSession: vi.fn(),
+  getUser: vi.fn(),
+  signOut: vi.fn(),
+  signInWithPassword: vi.fn(),
+  signInWithOAuth: vi.fn(),
+}
+
+/** Le module `@/lib/supabase` réduit à ces fonctions. */
+export function supabaseFactice() {
+  return { supabase: { auth: authSimulee } }
+}
 
 /** Traductions rendues telles quelles (la clé est le texte) et langue française, comme sur /fr/auth/login. */
 export function i18nFrancais() {
