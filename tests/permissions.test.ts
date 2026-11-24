@@ -55,7 +55,7 @@ describe('lib/permissions', () => {
     it('returns defaults when no overrides', () => {
       const perms = getEffectivePermissions('SECRETAIRE', [])
       expect(perms.devis).toBe('FULL')
-      expect(perms.chantiers).toBe('NONE')
+      expect(perms.chantiers).toBe('FULL')
     })
 
     it('overrides take precedence over defaults', () => {
@@ -165,14 +165,33 @@ describe('lib/permissions', () => {
       }
     })
 
-    it('only GERANT has FULL on settings', () => {
+    // La secrétaire a tous les pouvoirs depuis le 24/11/2026 : elle règle aussi la fiche de la société.
+    it('only GERANT and SECRETAIRE have FULL on settings', () => {
       for (const role of PRO_TEAM_ROLES) {
         const perms = getDefaultPermissionsForRole(role)
-        if (role === 'GERANT') {
+        if (role === 'GERANT' || role === 'SECRETAIRE') {
           expect(perms.settings).toBe('FULL')
         } else {
           expect(perms.settings).toBe('NONE')
         }
+      }
+    })
+
+    // Elle a tout le reste, sans exception : si un module est ajouté au catalogue, il lui revient aussi.
+    it('SECRETAIRE a tous les pouvoirs, sauf la gestion des comptes', () => {
+      const perms = getDefaultPermissionsForRole('SECRETAIRE')
+      for (const mod of ALL_PRO_MODULES) {
+        expect(perms[mod]).toBe(mod === 'gestion_comptes' ? 'NONE' : 'FULL')
+      }
+    })
+
+    // La gestion des comptes reste au gérant parce que le serveur la lui réserve : toute écriture de
+    // app/api/pro/team passe par isProGerant. Ouvrir le module sans changer ces gardes afficherait un écran
+    // dont chaque action répondrait 403.
+    it('aucun rôle d’équipe autre que GERANT n’a la gestion des comptes', () => {
+      for (const role of PRO_TEAM_ROLES) {
+        if (role === 'GERANT') continue
+        expect(getDefaultPermission(role, 'gestion_comptes')).toBe('NONE')
       }
     })
 
@@ -186,14 +205,35 @@ describe('lib/permissions', () => {
       expect(perms.comptabilite).toBe('FULL')
     })
 
-    it('OUVRIER has minimal access', () => {
+    // Ce que Frédéric a demandé le 24/11/2026 pour ses salariés de terrain : le pointage, leurs chantiers en cours,
+    // la météo et le dictionnaire de matériaux. Rien d'autre par défaut — il ouvre le reste employé par employé.
+    const TERRAIN: ProTeamRole[] = ['OUVRIER', 'CHEF_CHANTIER', 'CONDUCTEUR_TRAVAUX']
+
+    it.each(TERRAIN)('%s voit le pointage, ses chantiers, la météo et le dictionnaire', (role) => {
+      const perms = getDefaultPermissionsForRole(role)
+      for (const mod of ['pointage', 'chantiers', 'meteo', 'dictionnaire_materiaux']) {
+        expect(canAccess(perms, mod)).toBe(true)
+      }
+    })
+
+    it('OUVRIER garde un accès minimal : rien de commercial ni de comptable', () => {
       const perms = getDefaultPermissionsForRole('OUVRIER')
       const accessible = getAccessibleModules(perms)
-      // Should only have calendar (READ), pointage (READ), photos_chantier (FULL)
-      expect(accessible.length).toBeLessThanOrEqual(3)
-      expect(accessible).toContain('calendar')
-      expect(accessible).toContain('pointage')
-      expect(accessible).toContain('photos_chantier')
+      expect(accessible.sort()).toEqual(
+        ['calendar', 'chantiers', 'dictionnaire_materiaux', 'meteo', 'photos_chantier', 'pointage'].sort(),
+      )
+      for (const mod of ['devis', 'factures', 'comptabilite', 'revenus', 'stats', 'clients', 'settings', 'gestion_comptes']) {
+        expect(canAccess(perms, mod)).toBe(false)
+      }
+    })
+
+    // Un salarié de terrain ne doit rien pouvoir ÉCRIRE de ce qui porte des montants ou des salaires : depuis le
+    // 24/11/2026, FULL vaut droit d'écriture dans /api/btp (lib/btp/perimetre-compte.ts).
+    it.each(TERRAIN)('%s n’écrit ni les chantiers, ni les fiches employés, ni la comptabilité', (role) => {
+      const perms = getDefaultPermissionsForRole(role)
+      for (const mod of ['chantiers', 'equipes', 'compta_btp', 'comptabilite', 'settings']) {
+        expect(canWrite(perms, mod)).toBe(false)
+      }
     })
   })
 })

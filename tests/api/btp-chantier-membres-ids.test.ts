@@ -59,7 +59,12 @@ const h = vi.hoisted(() => {
   return { etat, from }
 })
 
-vi.mock('@/lib/auth-helpers', () => ({ getAuthUser: vi.fn(async () => h.etat.user) }))
+// Seul getAuthUser est simulé : la route lit aussi getUserRole, isProGerant et resolveCompanyId pour établir le
+// périmètre de la société (lib/btp/perimetre-compte.ts, 24/11/2026), et c'est bien ce vrai code qu'on éprouve ici.
+vi.mock('@/lib/auth-helpers', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/auth-helpers')>()),
+  getAuthUser: vi.fn(async () => h.etat.user),
+}))
 vi.mock('@/lib/rate-limit', async () => (await import('../helpers/mocks-routes-api')).rateLimitPermissif())
 vi.mock('@/lib/logger', () => ({
   logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn((message: string) => { h.etat.avertissements.push(message) }) },

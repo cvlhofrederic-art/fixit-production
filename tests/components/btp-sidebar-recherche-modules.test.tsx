@@ -44,10 +44,17 @@ interface OptionsMontage {
   messagesNonLus?: number
   /** Transforme les rubriques par défaut (module coupé, rubrique supprimée…). */
   rubriques?: (parDefaut: ModCategory[]) => ModCategory[]
+  /** false pour un sous-compte d'équipe : ses permissions filtrent alors le menu. */
+  isProGerant?: boolean
+  /** Permissions effectives du compte (lib/permissions.ts) ; par défaut tout est ouvert. */
+  proCanAccess?: (id: string) => boolean
 }
 
 async function monter(options: OptionsMontage = {}) {
-  const { isPt = false, isModuleEnabled = tousActifs, activePage = 'home', rendezVousEnAttente = 0, messagesNonLus = 0 } = options
+  const {
+    isPt = false, isModuleEnabled = tousActifs, activePage = 'home', rendezVousEnAttente = 0, messagesNonLus = 0,
+    isProGerant = true, proCanAccess = tousActifs,
+  } = options
   const { result } = renderHook(() => useModulesConfig('artisan-test', traduire, isPt))
   const modules = result.current.ALL_MODULES
   const parDefaut = buildDefaultCategories(modules)
@@ -59,8 +66,8 @@ async function monter(options: OptionsMontage = {}) {
         activePage={activePage}
         navigateTo={navigateTo}
         handleLogout={vi.fn()}
-        isProGerant
-        proCanAccess={tousActifs}
+        isProGerant={isProGerant}
+        proCanAccess={proCanAccess}
         isModuleEnabled={isModuleEnabled}
         isPt={isPt}
         pendingBookings={{ length: rendezVousEnAttente }}
@@ -453,5 +460,61 @@ describe('Barre latérale — périmètre de la recherche (règle n° 1 artisan 
     expect(entree(/Devis$/)).toBeVisible()
     expect(entree(/Mon profil$/)).toBeVisible()
     expect(screen.getByText('Déconnexion')).toBeVisible()
+  })
+})
+
+// ── Rôle d'équipe : le menu ne montre que ce que le salarié a le droit d'ouvrir (24/11/2026) ────────────────
+//
+// Le filtre `proCanAccess` existait, mais seulement dans la branche figée de V5Sidebar, que le tableau de bord
+// n'atteint jamais : il fournit toujours des rubriques dynamiques. Un ouvrier voyait donc tout le catalogue, Devis
+// et Factures comprises. La recherche s'appuyant sur la même liste, elle ne peut rien montrer de plus que le menu.
+describe('Barre latérale BTP — ce qu’un salarié voit du menu', () => {
+  const MODULES_DU_TERRAIN = ['pointage', 'chantiers', 'meteo', 'dictionnaire_materiaux']
+  const salarieDeTerrain = (id: string) => MODULES_DU_TERRAIN.includes(id)
+
+  it('un salarié de terrain ne voit que ses modules', async () => {
+    await monter({ isProGerant: false, proCanAccess: salarieDeTerrain })
+    const affiches = modulesAffiches()
+    for (const libelle of ['Chantiers', 'Météo chantiers']) {
+      expect(affiches).toContain(libelle)
+    }
+    for (const interdit of ['Devis', 'Factures', 'Comptabilité', 'Revenus', 'Base clients']) {
+      expect(affiches).not.toContain(interdit)
+    }
+  })
+
+  // Le dictionnaire de matériaux n'existe que dans les pays qui en ont un, c'est-à-dire le Portugal
+  // (lib/dictionnaire-materiaux/disponibilite.ts) : en français il n'est pas au menu, et c'est voulu.
+  it('le dictionnaire de matériaux est au menu en portugais, pas en français', async () => {
+    await monter({ isProGerant: false, proCanAccess: salarieDeTerrain })
+    expect(modulesAffiches()).not.toContain('Dictionnaire matériaux')
+    await monter({ isPt: true, isProGerant: false, proCanAccess: salarieDeTerrain })
+    expect(modulesAffiches()).toContain('Dicionário de materiais')
+  })
+
+  it('la recherche ne sort pas un module interdit', async () => {
+    const { champ } = await monter({ isProGerant: false, proCanAccess: salarieDeTerrain })
+    saisir(champ, 'devis')
+    expect(screen.queryByRole('button', { name: /Devis$/ })).toBeNull()
+    expect(screen.getAllByText('Aucun module trouvé').length).toBeGreaterThan(0)
+  })
+
+  it('le gérant garde le menu complet, quelles que soient les permissions lues', async () => {
+    await monter({ isProGerant: true, proCanAccess: () => false })
+    const affiches = modulesAffiches()
+    for (const libelle of ['Chantiers', 'Devis', 'Factures', 'Comptabilité']) {
+      expect(affiches).toContain(libelle)
+    }
+  })
+
+  it('un module coupé par le gérant reste masqué, même autorisé par le rôle', async () => {
+    await monter({
+      isProGerant: false,
+      proCanAccess: salarieDeTerrain,
+      isModuleEnabled: (id: string) => id !== 'meteo',
+    })
+    const affiches = modulesAffiches()
+    expect(affiches).toContain('Chantiers')
+    expect(affiches).not.toContain('Météo chantiers')
   })
 })

@@ -128,10 +128,14 @@ export default function V5Sidebar({
       .map(cat => ({
         id: cat.id,
         nom: nomDeRubrique(cat, isPt),
-        modules: cat.modules.filter(m => m.on && isModuleEnabled(m.id)),
+        // Le rôle d'équipe filtre aussi le menu dynamique (24/11/2026). Le filtre `proCanAccess` existait, mais
+        // seulement dans la branche figée plus bas, que le tableau de bord n'atteint jamais : il fournit toujours
+        // des rubriques dynamiques, si bien qu'un ouvrier voyait tout le catalogue, Devis et Factures comprises.
+        // La recherche de modules s'appuie sur cette même liste : elle ne montre donc rien de plus que le menu.
+        modules: cat.modules.filter(m => m.on && isModuleEnabled(m.id) && (isProGerant || proCanAccess(m.id))),
       }))
       .filter(rubrique => rubrique.modules.length > 0)
-  }, [dynamicCategories, isPt, isModuleEnabled])
+  }, [dynamicCategories, isPt, isModuleEnabled, isProGerant, proCanAccess])
 
   const recherche = useMemo(() => {
     // Sans menu dynamique il n'y a pas de champ : une saisie restée en mémoire ne doit rien filtrer.
