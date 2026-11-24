@@ -10,6 +10,7 @@ import { useDonneesStore } from '@/lib/administrateur-judiciaire/db/donnees-stor
 import { viderBaseLocale } from '@/lib/administrateur-judiciaire/db/reset'
 import { initialiserBaseDemo } from '@/lib/administrateur-judiciaire/db/seed-demo'
 import { useSelectionDossier } from '@/lib/administrateur-judiciaire/selection'
+import { reglesALargeur } from './regles-a-largeur'
 
 /**
  * Barre du haut : la date ne prend pas la place du titre de la page (contrôle du 30/10/2026).
@@ -33,23 +34,6 @@ vi.mock('next/dynamic', () => ({
 const STYLES = join(__dirname, '..', '..', 'components', 'administrateur-judiciaire', 'styles')
 let feuilleAj: HTMLStyleElement
 let feuilleBarre: HTMLStyleElement | null = null
-
-/** Vrai si la requête (« (min-width: 1025px) and (max-width: 1919px) ») vaut pour cette largeur de fenêtre. */
-function requeteVraie(requete: string, largeur: number): boolean {
-  return requete.split(/\s+and\s+/).every((condition) => {
-    const borne = /^\(\s*(min|max)-width\s*:\s*(\d+)px\s*\)$/.exec(condition.trim())
-    if (!borne) return false
-    return borne[1] === 'min' ? largeur >= Number(borne[2]) : largeur <= Number(borne[2])
-  })
-}
-
-/** Texte des règles appliquées à cette largeur : blocs @media dépliés quand ils valent, retirés sinon. */
-function reglesALargeur(regles: CSSRuleList, largeur: number): string {
-  return Array.from(regles, (regle) => {
-    if (!(regle instanceof CSSMediaRule)) return regle.cssText
-    return requeteVraie(regle.media.mediaText, largeur) ? reglesALargeur(regle.cssRules, largeur) : ''
-  }).join('\n')
-}
 
 /** Charge aj-selecteur-copro.css (après aj.css, comme le layout) telle qu'elle s'applique à cette largeur. */
 function feuilleALargeur(largeur: number): void {
