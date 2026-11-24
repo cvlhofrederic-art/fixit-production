@@ -183,7 +183,8 @@ function recouperAppel(appel: AppelRelu, comptes: CompteCoproprietaire[]): { eca
 function ecartsDeLAppel(appel: AppelRelu, comptes: CompteCoproprietaire[], ecrits: ReadonlyMap<string, ReadonlyMap<string, number>>, enEcart: string[]): EcartCompte[] {
   const nom = appel.piece ? `appel n° ${appel.piece.numero}` : `appel ${appel.traitementId}`
   const motEcheance = appel.echeanceIds.length > 1 ? 'échéances' : 'échéance'
-  const echeances = `${motEcheance} ${appel.echeanceIds.map((id) => `« ${id} »`).join(', ')}`
+  const echeancesCitees = appel.echeanceIds.map((id) => `« ${id} »`).join(', ')
+  const echeances = `${motEcheance} ${echeancesCitees}`
   const anomalies = appel.anomalies.map(decrireAnomalie).join(' ; ')
   const anomaliesRelues = anomalies ? ` Anomalies de la répartition relue : ${anomalies}.` : ''
   const suite = `${anomaliesRelues} Séries en écart sur cet appel : ${enEcart.join(', ')}. ${SUITE_ECART}`
