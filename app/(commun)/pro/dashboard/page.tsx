@@ -540,8 +540,8 @@ function DashboardPage() {
     if (orgRole !== 'pro_societe') return
     if (!SECTIONS_SOCIETE_BTP.has(activePage)) { navigateTo('home', { remplacer: true }); return }
     if (isProGerant) return
-    const module = MODULE_DE_LA_SECTION[activePage] ?? activePage
-    if (!SECTIONS_GARDEES.has(module) || proCanAccess(module)) return
+    const moduleGardien = MODULE_DE_LA_SECTION[activePage] ?? activePage
+    if (!SECTIONS_GARDEES.has(moduleGardien) || proCanAccess(moduleGardien)) return
     const repli = ORDRE_ACCUEIL_SALARIE.find((section) => proCanAccess(section)) ?? 'home'
     if (repli !== activePage) navigateTo(repli, { remplacer: true })
   }, [orgRole, activePage, navigateTo, isProGerant, proCanAccess])
