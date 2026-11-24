@@ -60,7 +60,7 @@ import {
 export const CODE_CLE_GENERALE = '001'
 export const LIBELLE_CLE_GENERALE = 'Charges communes générales'
 
-const NATURES: readonly NatureEcheance[] = ['budget', 'fonds_travaux', 'travaux']
+const NATURES: ReadonlySet<NatureEcheance> = new Set<NatureEcheance>(['budget', 'fonds_travaux', 'travaux'])
 
 /** Données lues pour l'écran : tables D2 du syndicat, sans copie dans le store. */
 export interface DonneesAppelsLues {
@@ -141,7 +141,7 @@ export interface SaisieNouvelAppel {
 
 function verifierSaisie(s: SaisieNouvelAppel): void {
   if (!s.libelle.trim()) throw new Error("Libellé de l'appel attendu.")
-  if (!NATURES.includes(s.nature)) throw new Error(`Nature d'appel inconnue : « ${s.nature} ».`)
+  if (!NATURES.has(s.nature)) throw new Error(`Nature d'appel inconnue : « ${s.nature} ».`)
   if (!estDateIsoValide(s.exigibilite)) throw new Error(`Date d'exigibilité invalide (${s.exigibilite}) : AAAA-MM-JJ attendu.`)
   if (!Number.isInteger(s.montantCentimes) || s.montantCentimes <= 0)
     throw new Error(`Montant invalide (${s.montantCentimes} centimes) : un montant positif, au centime près, est attendu.`)
@@ -206,8 +206,9 @@ export async function enregistrerNouvelAppel(
   saisie: SaisieNouvelAppel,
   { actor = null }: OptionsEcriture = {},
 ): Promise<{ echeance: EcheanceAppelEnregistree; cle: CleRepartitionEnregistree; cleCreee: boolean }> {
+  // Saisie refusée : promesse rejetée (fonction asynchrone), jamais une erreur levée à l'appel.
   verifierSaisie(saisie)
-  return ajDb.transaction('rw', ajDb.lots, ajDb.clesRepartition, ajDb.echeancesAppel, ajDb.activityLog, async () => {
+  const enregistre = await ajDb.transaction('rw', ajDb.lots, ajDb.clesRepartition, ajDb.echeancesAppel, ajDb.activityLog, async () => {
     const { cle, cleCreee } = await cleDeLAppel(coproprieteId, saisie.cleId, actor)
     const id = identifiantEcheance(await echeancesAppelDuSyndicat(coproprieteId), saisie.exigibilite, cle.code)
     const [echeance] = await ajouterEcheancesAppel(
@@ -226,6 +227,7 @@ export async function enregistrerNouvelAppel(
     )
     return { echeance, cle, cleCreee }
   })
+  return enregistre
 }
 
 // ─── « Ouvrir l'exercice » ────────────────────────────────────────────────────────────────────────────────────────
