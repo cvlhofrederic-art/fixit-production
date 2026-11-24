@@ -153,8 +153,8 @@ describe('T12 — base locale', () => {
     await expect(changerStatutAg('inconnue', 'Convoquée', { dateEffet: '2026-02-10' })).rejects.toThrow(/introuvable/)
   })
 
-  it('le schéma, passé en version 2 puis en version 3 (base D2), ne retire aucune table de la version 1', () => {
-    expect(ajDb.verno).toBe(3)
+  it('le schéma, passé en version 2, en version 3 (base D2) puis en version 4 (encaissements), ne retire aucune table de la version 1', () => {
+    expect(ajDb.verno).toBe(4)
     const tables = ajDb.tables.map((table) => table.name)
     for (const nom of ['coproprietes', 'mandats', 'lots', 'ags', 'journaux', 'notifications', 'activityLog'])
       expect(tables).toContain(nom)
