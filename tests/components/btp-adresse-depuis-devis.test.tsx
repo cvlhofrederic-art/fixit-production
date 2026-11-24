@@ -16,6 +16,8 @@ type Position = { latitude: number; longitude: number; precise: boolean }
 const etat = vi.hoisted(() => ({
   chantiers: [] as Array<Record<string, unknown>>,
   devis: [] as Array<Record<string, unknown>>,
+  /** Devis liés à un chantier par le bouton Lier (lecture des documents rattachés, colonne chantier_id). */
+  liens: [] as Array<Record<string, unknown>>,
   /** Colonnes demandées à chaque select de la table devis. */
   selections: [] as string[],
   /** La première lecture des devis échoue (base sans colonne raw_data). */
@@ -48,7 +50,8 @@ vi.mock('@/lib/supabase', () => {
     for (const m of ['eq', 'is', 'in', 'not', 'order', 'limit']) chaine[m] = () => chaine
     chaine.select = (c: string) => { colonnes = c; if (table === 'devis') etat.selections.push(c); return chaine }
     chaine.then = (ok: (v: unknown) => unknown, ko?: (e: unknown) => unknown) => {
-      if (table !== 'devis' || colonnes.includes('chantier_id')) return Promise.resolve({ data: [], error: null }).then(ok, ko)
+      if (table !== 'devis') return Promise.resolve({ data: [], error: null }).then(ok, ko)
+      if (colonnes.includes('chantier_id')) return Promise.resolve({ data: etat.liens, error: null }).then(ok, ko)
       if (etat.sansRawData && colonnes.includes('raw_data')) {
         return Promise.resolve({ data: null, error: { message: 'column devis.raw_data does not exist' } }).then(ok, ko)
       }
@@ -87,9 +90,10 @@ const BROUILLON_LYON = {
   id: 'd-lyon', numero: null, client_name: 'M. Petit', client_address: null, created_at: '2026-11-19T10:00:00Z',
   status: 'brouillon', total_ht_cents: 0, items: [], lieu_intervention: '', adresse_client_devis: '8 rue Neuve, 69003 Lyon',
 }
+// Adresse du client composée par le formulaire sans rue, code postal ni ville : le pays seul.
 const SANS_ADRESSE = {
   id: 'd-vide', numero: 'DEV-2026-002', client_name: 'Société X', client_address: null, created_at: '2026-11-18T10:00:00Z',
-  status: 'envoye', total_ht_cents: 0, items: [], lieu_intervention: null, adresse_client_devis: null,
+  status: 'envoye', total_ht_cents: 0, items: [], lieu_intervention: null, adresse_client_devis: 'Portugal',
 }
 
 let appels: string[]
@@ -100,6 +104,7 @@ beforeEach(() => {
   appels = []
   etat.chantiers = []
   etat.devis = [DEVIS_LILAS, BROUILLON_LYON, SANS_ADRESSE]
+  etat.liens = []
   etat.selections = []
   etat.sansRawData = false
   etat.geocodage = { latitude: 43.3, longitude: 5.38, precise: true }
@@ -160,9 +165,39 @@ describe('Météo chantiers — importer une adresse depuis un devis', () => {
     render(<MeteoChantierSection userId="art-1" authUserId="u1" isPt={false} />)
     const liste = await ouvrirChoixMeteo()
     await act(async () => { fireEvent.change(liste, { target: { value: 'd-lilas' } }) })
-    await screen.findByText(/Devis DEV-2026-001/)
+    expect(await screen.findByText('Pas d\'impact météo prévu cette semaine.')).toBeTruthy()
     const kpi = screen.getByText('Chantiers OK').parentElement as HTMLElement
     expect(within(kpi).getByText('0')).toBeTruthy()
+  })
+
+  it('lieu importé sur une page encore vide : un seul chargement de ses prévisions (pas de doublon avec le chargement automatique)', async () => {
+    render(<MeteoChantierSection userId="art-1" authUserId="u1" isPt={false} />)
+    const liste = await ouvrirChoixMeteo()
+    await act(async () => { fireEvent.change(liste, { target: { value: 'd-lilas' } }) })
+    await waitFor(() => expect(previsions()).toHaveLength(1))
+    await act(async () => { await new Promise(r => setTimeout(r, 700)) })
+    expect(previsions()).toHaveLength(1)
+    expect(geocoderAdresse).toHaveBeenCalledTimes(1)
+  })
+
+  it('première visite avec des lieux gardés : « Chargement », jamais « indisponibles » avant un essai', async () => {
+    localStorage.setItem('vitfix_btp_meteo_devis_art-1', JSON.stringify([
+      { devisId: 'd-lilas', numero: 'DEV-2026-001', client: 'Mme Durand', lieu: 'Résidence Le Mail, 15 rue des Lilas, 13001 Marseille', source: 'intervention' },
+    ]))
+    render(<MeteoChantierSection userId="art-1" authUserId="u1" isPt={false} />)
+    expect(screen.queryByText(/Prévisions indisponibles/)).toBeNull()
+    expect(screen.getAllByText('Chargement des prévisions météo...').length).toBeGreaterThan(0)
+    expect(await screen.findByText('Pas d\'impact météo prévu cette semaine.')).toBeTruthy()
+  })
+
+  it('« Actualiser » ferme la liste des devis (un import ne croise pas un rechargement complet)', async () => {
+    etat.chantiers = [{ id: 'c-villa', titre: 'Villa', adresse: '1 rue des Pins', codePostal: '13008', ville: 'Marseille', statut: 'En cours' }]
+    render(<MeteoChantierSection userId="art-1" authUserId="u1" isPt={false} />)
+    await waitFor(() => expect(previsions()).toHaveLength(1), { timeout: 4000 })
+    await screen.findByRole('button', { name: 'Actualiser' })
+    await ouvrirChoixMeteo()
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Actualiser' })) })
+    expect(screen.queryByRole('combobox')).toBeNull()
   })
 
   it('lieux gardés : rechargés avec les chantiers à la visite suivante ; ✕ retire le lieu, de l’écran et de l’appareil', async () => {
@@ -186,7 +221,7 @@ describe('Météo chantiers — importer une adresse depuis un devis', () => {
     render(<MeteoChantierSection userId="art-1" authUserId="u1" isPt={false} />)
     const liste = await ouvrirChoixMeteo()
     await act(async () => { fireEvent.change(liste, { target: { value: 'd-lyon' } }) })
-    expect(await screen.findByText(/Prévisions indisponibles pour ce lieu/)).toBeTruthy()
+    expect(await screen.findByText(/Prévisions indisponibles pour ce lieu \(adresse introuvable ou service météo injoignable\)/, {}, { timeout: 4000 })).toBeTruthy()
     expect(toast.success).toHaveBeenCalledWith('Météo ajoutée pour le lieu du devis brouillon. Pas de lieu d’intervention sur ce devis : c’est l’adresse du client.')
     fireEvent.click(screen.getByRole('button', { name: 'Retirer ce lieu de la météo' }))
     expect(screen.queryByText(/Prévisions indisponibles pour ce lieu/)).toBeNull()
@@ -199,7 +234,10 @@ describe('Météo chantiers — importer une adresse depuis un devis', () => {
     const liste = await ouvrirChoixMeteo()
     expect(within(liste).getAllByRole('option').map(o => o.textContent)).toContain('DEV-2026-002 · Société X · 2 place Bellecour, 69002 Lyon (adresse du client)')
     expect(etat.selections).toHaveLength(2)
+    // client_address n'est demandée qu'au repli : absente de la base, elle ne ferait pas échouer la lecture principale.
+    expect(etat.selections[0]).not.toContain('client_address')
     expect(etat.selections[1]).not.toContain('raw_data')
+    expect(etat.selections[1]).toContain('client_address')
   })
 
   it('aucun devis avec un lieu : message, pas de liste', async () => {
@@ -266,7 +304,17 @@ describe('fiche chantier — adresse reprise d’un devis', () => {
     expect(toast.success).toHaveBeenCalledWith('Adresse reprise du devis DEV-2026-001.')
   })
 
-  it('import d’un devis sans aucune adresse : l’adresse déjà saisie reste, avec un avertissement', async () => {
+  it('second devis importé, sans lieu : l’adresse et la position du premier partent (ce ne sont pas celles de ce devis)', async () => {
+    await nouvelleFiche()
+    await act(async () => { fireEvent.change(screen.getByDisplayValue('— Sélectionner un devis —'), { target: { value: 'd-lilas' } }) })
+    expect(screen.getByText(/GPS : 43\.30000/)).toBeTruthy()
+    await act(async () => { fireEvent.change(screen.getByDisplayValue('— Sélectionner un devis —'), { target: { value: 'd-vide' } }) })
+    expect(champs()).toEqual({ adresse: '', codePostal: '', ville: '' })
+    expect(screen.queryByText(/GPS : /)).toBeNull()
+    expect(toast.warning).toHaveBeenCalledWith('Ce devis n’a ni lieu d’intervention ni adresse du client : indiquez l’adresse du chantier.')
+  })
+
+  it('import d’un devis sans aucune adresse (adresse du client réduite au pays) : l’adresse tapée à la main reste, avec un avertissement', async () => {
     await nouvelleFiche()
     fireEvent.change(screen.getByPlaceholderText('N°, rue...'), { target: { value: '4 rue Haute' } })
     await act(async () => { fireEvent.change(screen.getByDisplayValue('— Sélectionner un devis —'), { target: { value: 'd-vide' } }) })
@@ -288,13 +336,20 @@ describe('fiche chantier — adresse reprise d’un devis', () => {
     expect(champs()).toEqual({ adresse: '8 rue Neuve', codePostal: '69003', ville: 'Lyon' })
     expect((screen.getByPlaceholderText('ex: Immeuble R+3 — Gros oeuvre') as HTMLInputElement).value).toBe('Mon titre')
     expect(screen.queryByRole('combobox', { name: 'Devis dont reprendre l’adresse' })).toBeNull()
-    expect(toast.success).toHaveBeenCalledWith('Adresse reprise du devis brouillon. Pas de lieu d’intervention sur ce devis : c’est l’adresse du client.')
+    expect(toast.success).toHaveBeenCalledWith('Adresse reprise du devis brouillon. Pas de lieu d’intervention sur ce devis : c’est l’adresse du client. Vérifiez-la, puis utilisez le bouton GPS.')
+    // L'adresse du client (peut-être un siège) n'est pas géocodée d'office : la position déclencherait le pointage.
+    expect(geocoderAdresse).not.toHaveBeenCalled()
+    expect(screen.queryByText(/GPS : /)).toBeNull()
   })
 
-  it('modification d’un chantier rattaché à un seul devis : un clic reprend son lieu ; la position enregistrée n’est remplacée qu’avec l’accord du gérant', async () => {
+  it('modification d’un chantier qui a déjà une adresse : la liste s’ouvre, devis rattaché en tête ; la position enregistrée n’est remplacée qu’avec l’accord du gérant', async () => {
     const confirmer = vi.spyOn(window, 'confirm').mockReturnValue(true)
     await modifier({ ...VILLA, devis_id: 'd-lilas' })
     await act(async () => { fireEvent.click(boutonAdresse()) })
+    expect(champs()).toEqual({ adresse: '1 rue des Pins', codePostal: '13008', ville: 'Marseille' })
+    const liste = screen.getByRole('combobox', { name: 'Devis dont reprendre l’adresse' })
+    expect(within(liste).getAllByRole('option')[1].textContent).toBe('★ Rattaché · DEV-2026-001 · Mme Durand · Résidence Le Mail, 15 rue des Lilas, 13001 Marseille')
+    await act(async () => { fireEvent.change(liste, { target: { value: 'd-lilas' } }) })
     expect(champs()).toEqual({ adresse: 'Résidence Le Mail, 15 rue des Lilas', codePostal: '13001', ville: 'Marseille' })
     // Comme une adresse corrigée à la main : pas de géocodage, la position enregistrée reste jusqu'à l'enregistrement.
     expect(geocoderAdresse).not.toHaveBeenCalled()
@@ -306,11 +361,22 @@ describe('fiche chantier — adresse reprise d’un devis', () => {
     }])
   })
 
-  it('modification d’un chantier sans position : le lieu repris est géocodé tout de suite', async () => {
-    await modifier({ ...VILLA, latitude: null, longitude: null, devis_id: 'd-lilas' })
+  const SANS_ADRESSE_NI_POSITION = { ...VILLA, adresse: '', codePostal: '', ville: '', latitude: null, longitude: null }
+
+  it('chantier sans adresse rattaché à un seul devis (créé depuis ce devis) : un clic reprend son lieu, géocodé tout de suite', async () => {
+    await modifier({ ...SANS_ADRESSE_NI_POSITION, devis_id: 'd-lilas' })
     await act(async () => { fireEvent.click(boutonAdresse()) })
+    expect(screen.queryByRole('combobox', { name: 'Devis dont reprendre l’adresse' })).toBeNull()
+    expect(champs()).toEqual({ adresse: 'Résidence Le Mail, 15 rue des Lilas', codePostal: '13001', ville: 'Marseille' })
     expect(geocoderAdresse).toHaveBeenLastCalledWith({ adresse: 'Résidence Le Mail, 15 rue des Lilas', codePostal: '13001', ville: 'Marseille' }, 'FR')
     expect(screen.getByText(/GPS : 43\.30000, 5\.38000/)).toBeTruthy()
+  })
+
+  it('chantier sans adresse lié à un seul devis par le bouton Lier (chantier_id du devis) : un clic reprend son lieu', async () => {
+    etat.liens = [{ id: 'd-lyon', numero: null, client_name: 'M. Petit', total_ht_cents: 0, status: 'brouillon', chantier_id: 'c-villa' }]
+    await modifier(SANS_ADRESSE_NI_POSITION)
+    await act(async () => { fireEvent.click(boutonAdresse()) })
+    expect(champs()).toEqual({ adresse: '8 rue Neuve', codePostal: '69003', ville: 'Lyon' })
   })
 
   it('aucun devis avec une adresse : avertissement, pas de liste', async () => {

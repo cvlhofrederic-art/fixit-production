@@ -259,12 +259,13 @@ interface DevisChoix { id: string; numero: string | null; client_name: string | 
 
 /** Devis de la fiche (les plus récents d'abord) qui portent un lieu d'intervention, ou à défaut l'adresse du client. */
 async function chargerDevisAvecLieu(ficheId: string): Promise<DevisChoix[]> {
-  const base = 'id, numero, client_name, client_address, created_at'
+  const base = 'id, numero, client_name, created_at'
   const requete = (colonnes: string) => supabase.from('devis').select(colonnes)
     .eq('artisan_id', ficheId).is('deleted_at', null).order('created_at', { ascending: false }).limit(100)
   let { data, error } = await requete(`${base}, ${COLONNES_LIEU_DEVIS}`)
-  // Base sans colonne raw_data (migration 074 absente) : l'ancienne colonne client_address seule.
-  if (error) ({ data, error } = await requete(base))
+  // Base sans colonne raw_data (migration 074 absente) : l'ancienne colonne client_address seule (que la
+  // synchronisation n'écrit plus : demandée seulement ici).
+  if (error) ({ data, error } = await requete(`${base}, client_address`))
   if (error) throw new Error(error.message)
   return ((data ?? []) as unknown as Array<Record<string, unknown>>).flatMap(d => {
     const lieu = lieuDuDevis(d)
@@ -295,9 +296,10 @@ function garderLieuxMeteo(ficheId: string, lieux: LieuMeteoDevis[]): void {
 /** Carte météo d'un lieu de devis, traitée comme un chantier (position, prévisions) sous un identifiant à part. */
 function carteDuLieu(l: LieuMeteoDevis, isPt?: boolean): ChantierItem {
   const ref = l.numero || (isPt ? 'rascunho' : 'brouillon')
+  const devis = `${isPt ? 'Orçamento' : 'Devis'} ${ref}`
   return {
     id: `${PREFIXE_CARTE_DEVIS}${l.devisId}`,
-    titre: `${isPt ? 'Orçamento' : 'Devis'} ${ref}${l.client ? ` · ${l.client}` : ''}`,
+    titre: [devis, l.client].filter(Boolean).join(' · '),
     ...champsAdresseDuLieu(l.lieu, isPt ? 'PT' : 'FR'),
     statut: 'En attente',
   }
@@ -383,11 +385,20 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
   const chantiersAvecLocalisation = chantiersActifs.filter(c => c.ville?.trim() || c.adresse?.trim())
   const chantiersSansLocalisation = chantiersActifs.filter(c => !c.ville?.trim() && !c.adresse?.trim())
 
-  // Lieux de devis suivis : lus dès le premier rendu, pour que le premier chargement des prévisions les compte.
-  const [lieuxDevis, setLieuxDevis] = useState<LieuMeteoDevis[]>(() => lireLieuxMeteo(userId))
+  // Lieux de devis suivis : lus dès le premier rendu, pour que le premier chargement des prévisions les compte, et relus
+  // si la fiche affichée change sans que la page soit démontée (ceux d'une fiche ne passent jamais sous une autre).
+  const [lieuxEtat, setLieuxEtat] = useState(() => ({ fiche: userId, lieux: lireLieuxMeteo(userId) }))
+  if (lieuxEtat.fiche !== userId) setLieuxEtat({ fiche: userId, lieux: lireLieuxMeteo(userId) })
+  const lieuxDevis = lieuxEtat.lieux
+  const changerLieux = (lieux: LieuMeteoDevis[]) => {
+    setLieuxEtat({ fiche: userId, lieux })
+    garderLieuxMeteo(userId, lieux)
+  }
   const cartesLieux = useMemo(() => lieuxDevis.map(l => carteDuLieu(l, isPt)), [lieuxDevis, isPt])
   /** Tout ce dont la météo se charge : chantiers actifs localisés, puis lieux de devis. */
   const elementsMeteo = [...chantiersAvecLocalisation, ...cartesLieux]
+  /** Cartes dont le dernier chargement a échoué (pas encore chargée : « Chargement », pas « indisponible »). */
+  const [cartesEnEchec, setCartesEnEchec] = useState<ReadonlySet<string>>(() => new Set())
   const [choixDevisOuvert, setChoixDevisOuvert] = useState(false)
   /** Devis proposés à l'import ; null pendant le chargement. */
   const [devisChoix, setDevisChoix] = useState<DevisChoix[] | null>(null)
@@ -405,6 +416,11 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
       setDebugInfo('')
     }
     const failedNames: string[] = []
+    /** Échecs de ce chargement : un rechargement complet remplace les précédents, un ajout ne touche que ses cartes. */
+    const noterEchecs = (echoues: ChantierItem[]) => {
+      const charges = new Set(chantiersToFetch.map(c => c.id))
+      setCartesEnEchec(prev => new Set([...(ajout ? [...prev].filter(id => !charges.has(id)) : []), ...echoues.map(c => c.id)]))
+    }
     try {
       const positions = await positionsPourMeteo(chantiersToFetch, isPt ? 'PT' : 'FR')
       const results: ChantierMeteo[] = (await Promise.all(
@@ -453,6 +469,8 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
           }
         })
       )).filter(Boolean) as ChantierMeteo[]
+      const reussis = new Set(results.map(r => r.chantier.id))
+      noterEchecs(chantiersToFetch.filter(c => !reussis.has(c.id)))
       if (ajout) {
         const remplaces = new Set(chantiersToFetch.map(c => c.id))
         setMeteoData(prev => [...prev.filter(m => !remplaces.has(m.chantier.id)), ...results])
@@ -468,6 +486,7 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
         setDebugInfo(`${isPt ? 'Meteorologia indisponível para:' : 'Météo indisponible pour :'} ${failedNames.join(', ')}`)
       }
     } catch {
+      noterEchecs(chantiersToFetch)
       setMeteoError(isPt ? 'Erro ao carregar os dados meteorológicos.' : 'Erreur lors du chargement des données météo.')
     } finally {
       setMeteoLoading(false)
@@ -486,7 +505,7 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
     if (elementsMeteo.length === 0) return
     if (fetchedRef.current) return
     fetchedRef.current = true
-    const timer = setTimeout(() => fetchMeteo(elementsMeteo), 300)
+    const timer = setTimeout(() => { void fetchMeteo(elementsMeteo) }, 300)
     return () => clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chantiersLoading, chantiersKey])
@@ -510,13 +529,11 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
     const nouveau: LieuMeteoDevis = {
       devisId: devis.id, numero: devis.numero ?? '', client: devis.client_name ?? '', lieu: devis.lieu.texte, source: devis.lieu.source,
     }
-    const lieux = ajouterLieuMeteo(lieuxDevis, nouveau)
-    setLieuxDevis(lieux)
-    garderLieuxMeteo(userId, lieux)
+    changerLieux(ajouterLieuMeteo(lieuxDevis, nouveau))
     setChoixDevisOuvert(false)
-    // Le chargement automatique ne doit pas repartir en plus de celui-ci (première carte de la page).
-    fetchedRef.current = true
-    void fetchMeteo([carteDuLieu(nouveau, isPt)], true)
+    // Rien de chargé encore (page sans chantier localisé) : le chargement automatique part avec ce lieu ; sinon, seules
+    // ses prévisions s'ajoutent (la liste est désactivée pendant un chargement : pas de course avec « Actualiser »).
+    if (fetchedRef.current) void fetchMeteo([carteDuLieu(nouveau, isPt)], true)
     const ref = nouveau.numero || (isPt ? 'rascunho' : 'brouillon')
     toast.success(isPt
       ? `Meteorologia adicionada para o local do orçamento ${ref}.${nouveau.source === 'client' ? ' Sem local de intervenção no orçamento: é a morada do cliente.' : ''}`
@@ -524,9 +541,7 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
   }
 
   const retirerLieuDevis = (devisId: string) => {
-    const lieux = lieuxDevis.filter(l => l.devisId !== devisId)
-    setLieuxDevis(lieux)
-    garderLieuxMeteo(userId, lieux)
+    changerLieux(lieuxDevis.filter(l => l.devisId !== devisId))
     setMeteoData(prev => prev.filter(m => m.chantier.id !== `${PREFIXE_CARTE_DEVIS}${devisId}`))
   }
 
@@ -553,7 +568,7 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
             📄 {isPt ? 'Importar morada de um orçamento' : 'Importer une adresse depuis un devis'}
           </button>
           {(meteoData.length > 0 || elementsMeteo.length > 0) && (
-            <button className="v5-btn v5-btn-p" onClick={() => { fetchedRef.current = true; setMeteoData([]); fetchMeteo(elementsMeteo) }} disabled={meteoLoading}>
+            <button className="v5-btn v5-btn-p" onClick={() => { fetchedRef.current = true; setChoixDevisOuvert(false); setMeteoData([]); void fetchMeteo(elementsMeteo) }} disabled={meteoLoading}>
               {meteoLoading ? (isPt ? 'A carregar...' : 'Chargement...') : (isPt ? 'Atualizar' : 'Actualiser')}
             </button>
           )}
@@ -569,29 +584,7 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
             </label>
             <button className="v5-btn v5-btn-sm" onClick={() => setChoixDevisOuvert(false)} aria-label={isPt ? 'Fechar' : 'Fermer'}>✕</button>
           </div>
-          {devisChoix === null ? (
-            <div style={{ fontSize: 11, color: '#666' }}>{isPt ? 'A carregar os orçamentos...' : 'Chargement des devis...'}</div>
-          ) : erreurDevis ? (
-            <div style={{ fontSize: 11, color: '#C62828' }}>{isPt ? 'Não foi possível carregar os orçamentos. Tente novamente.' : 'Impossible de charger les devis. Réessayez.'}</div>
-          ) : devisChoix.length === 0 ? (
-            <div style={{ fontSize: 11, color: '#666' }}>{isPt ? 'Nenhum orçamento com local de intervenção ou morada do cliente.' : 'Aucun devis avec un lieu d’intervention ou une adresse du client.'}</div>
-          ) : (
-            <select
-              id="meteo-choix-devis"
-              className="v5-fi"
-              style={{ width: '100%', fontSize: 11 }}
-              value=""
-              onChange={e => {
-                const devis = devisChoix.find(d => d.id === e.target.value)
-                if (devis) importerLieuDevis(devis)
-              }}
-            >
-              <option value="">{isPt ? 'Selecionar um orçamento...' : '— Sélectionner un devis —'}</option>
-              {devisChoix.map(d => (
-                <option key={d.id} value={d.id} title={d.lieu.texte}>{libelleChoixDevis(d, d.lieu, !!isPt)}</option>
-              ))}
-            </select>
-          )}
+          {contenuChoixDevis()}
           <div style={{ fontSize: 10, color: '#666', marginTop: 6 }}>
             {isPt
               ? 'As previsões deste local aparecem abaixo das obras. O orçamento não é alterado.'
@@ -665,7 +658,7 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
       {meteoError && (
         <div className="v5-al warning" style={{ marginBottom: '.75rem' }}>
           {meteoError}
-          <button className="v5-btn v5-btn-p" style={{ marginLeft: 12, fontSize: 11 }} onClick={() => { fetchedRef.current = false; fetchMeteo(elementsMeteo) }}>{isPt ? 'Tentar novamente' : 'Réessayer'}</button>
+          <button className="v5-btn v5-btn-p" style={{ marginLeft: 12, fontSize: 11 }} disabled={meteoLoading} onClick={() => { fetchedRef.current = false; setChoixDevisOuvert(false); void fetchMeteo(elementsMeteo) }}>{isPt ? 'Tentar novamente' : 'Réessayer'}</button>
         </div>
       )}
 
@@ -707,11 +700,7 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
               {boutonRetirer(suivi.retirer)}
             </div>
             <div style={{ fontSize: 11, color: '#888', marginTop: '.5rem', padding: '.5rem', background: '#F5F5F5', borderRadius: 4 }}>
-              {meteoLoading
-                ? (isPt ? 'A carregar previsões meteorológicas...' : 'Chargement des prévisions météo...')
-                : (isPt
-                  ? 'Previsões indisponíveis para este local: verifique a morada no orçamento e importe-a novamente.'
-                  : 'Prévisions indisponibles pour ce lieu : vérifiez l’adresse dans le devis, puis importez-la de nouveau.')}
+              {messageSansPrevisions(carte.id)}
             </div>
           </div>
         )
@@ -732,6 +721,47 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
       </div>
     </div>
   )
+
+  /** Liste des devis à importer, ou ce qui en tient lieu (chargement, erreur, aucun devis). */
+  function contenuChoixDevis() {
+    if (devisChoix === null) {
+      return <div style={{ fontSize: 11, color: '#666' }}>{isPt ? 'A carregar os orçamentos...' : 'Chargement des devis...'}</div>
+    }
+    if (erreurDevis) {
+      return <div style={{ fontSize: 11, color: '#C62828' }}>{isPt ? 'Não foi possível carregar os orçamentos. Tente novamente.' : 'Impossible de charger les devis. Réessayez.'}</div>
+    }
+    if (devisChoix.length === 0) {
+      return <div style={{ fontSize: 11, color: '#666' }}>{isPt ? 'Nenhum orçamento com local de intervenção ou morada do cliente.' : 'Aucun devis avec un lieu d’intervention ou une adresse du client.'}</div>
+    }
+    const liste = devisChoix
+    return (
+      // Désactivée pendant un chargement (voir le bouton d'ouverture).
+      <select
+        id="meteo-choix-devis"
+        className="v5-fi"
+        style={{ width: '100%', fontSize: 11 }}
+        value=""
+        disabled={meteoLoading}
+        onChange={e => {
+          const devis = liste.find(d => d.id === e.target.value)
+          if (devis) importerLieuDevis(devis)
+        }}
+      >
+        <option value="">{isPt ? 'Selecionar um orçamento...' : '— Sélectionner un devis —'}</option>
+        {liste.map(d => (
+          <option key={d.id} value={d.id} title={d.lieu.texte}>{libelleChoixDevis(d, d.lieu, !!isPt)}</option>
+        ))}
+      </select>
+    )
+  }
+
+  /** Carte d'un lieu de devis sans prévisions : en cours de chargement, ou dernier essai échoué. */
+  function messageSansPrevisions(carteId: string) {
+    if (!cartesEnEchec.has(carteId)) return isPt ? 'A carregar previsões meteorológicas...' : 'Chargement des prévisions météo...'
+    return isPt
+      ? 'Previsões indisponíveis para este local (morada não encontrada ou serviço meteorológico inacessível). Tente «Atualizar» ou retire este local.'
+      : 'Prévisions indisponibles pour ce lieu (adresse introuvable ou service météo injoignable). Essayez « Actualiser », ou retirez ce lieu.'
+  }
 
   function boutonRetirer(retirer: () => void) {
     const libelle = isPt ? 'Retirar este local da meteorologia' : 'Retirer ce lieu de la météo'

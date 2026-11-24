@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from 'vitest'
 import {
-  COLONNES_LIEU_DEVIS, LIEUX_METEO_MAX, ajouterLieuMeteo, champsAdresseDuLieu, cleLieuxMeteo, libelleChoixDevis, lieuAbrege,
+  LIEUX_METEO_MAX, ajouterLieuMeteo, champsAdresseDuLieu, cleLieuxMeteo, libelleChoixDevis, lieuAbrege,
   lieuDuDevis, lieuxMeteoValides, messageAdresseImportee, type LieuMeteoDevis,
 } from '@/lib/btp/lieu-devis'
 
@@ -27,8 +27,10 @@ describe('lieuDuDevis', () => {
     expect(lieuDuDevis({ lieu_intervention: 42, adresse_client_devis: { rue: 'x' } })).toBeNull()
   })
 
-  it('les colonnes lues sont celles du contenu enregistré (raw_data), pas tout le devis', () => {
-    expect(COLONNES_LIEU_DEVIS).toBe('lieu_intervention:raw_data->>interventionAddress, adresse_client_devis:raw_data->>clientAddress')
+  it('un nom de pays seul n’est pas une adresse (le formulaire compose « Portugal » quand rue, code postal et ville sont vides)', () => {
+    expect(lieuDuDevis({ lieu_intervention: null, adresse_client_devis: 'Portugal' })).toBeNull()
+    expect(lieuDuDevis({ lieu_intervention: ' , France', adresse_client_devis: 'Portugal', client_address: '8 rue Neuve, 69003 Lyon' }))
+      .toEqual({ texte: '8 rue Neuve, 69003 Lyon', source: 'client' })
   })
 })
 
@@ -65,6 +67,29 @@ describe('champsAdresseDuLieu', () => {
   it('code postal et ville seuls : pas de rue', () => {
     expect(champsAdresseDuLieu('13001 Marseille', 'FR')).toEqual({ adresse: '', codePostal: '13001', ville: 'Marseille' })
   })
+
+  it('rien ne se perd : bâtiment, étage ou rue écrits après la ville vont dans l’adresse', () => {
+    expect(champsAdresseDuLieu('15 rue des Lilas, 13001 Marseille, Bât. B, 2e étage', 'FR'))
+      .toEqual({ adresse: '15 rue des Lilas, Bât. B, 2e étage', codePostal: '13001', ville: 'Marseille' })
+    expect(champsAdresseDuLieu('Rua do Almada 10, 4050-036 Porto, 2.º Esq.', 'PT'))
+      .toEqual({ adresse: 'Rua do Almada 10, 2.º Esq.', codePostal: '4050-036', ville: 'Porto' })
+    expect(champsAdresseDuLieu('13001 Marseille, 15 rue des Lilas', 'FR'))
+      .toEqual({ adresse: '15 rue des Lilas', codePostal: '13001', ville: 'Marseille' })
+    expect(champsAdresseDuLieu('4050-036 Porto, Rua do Almada 10', 'PT'))
+      .toEqual({ adresse: 'Rua do Almada 10', codePostal: '4050-036', ville: 'Porto' })
+  })
+
+  it('« - » entre espaces sépare aussi (une ville à tirets reste entière)', () => {
+    expect(champsAdresseDuLieu('15 rue des Lilas 13001 Marseille - Bâtiment B, 3e étage', 'FR'))
+      .toEqual({ adresse: '15 rue des Lilas, Bâtiment B, 3e étage', codePostal: '13001', ville: 'Marseille' })
+    expect(champsAdresseDuLieu('Rua X 5, 4000-123 Porto - Portugal', 'PT')).toEqual({ adresse: 'Rua X 5', codePostal: '4000-123', ville: 'Porto' })
+    expect(champsAdresseDuLieu('2 cours Mirabeau, 13100 Aix-en-Provence', 'FR')).toEqual({ adresse: '2 cours Mirabeau', codePostal: '13100', ville: 'Aix-en-Provence' })
+  })
+
+  it('un nombre suivi d’une virgule n’est pas un code postal (boîte postale, route nationale)', () => {
+    expect(champsAdresseDuLieu('BP 50012, 13001 Marseille', 'FR')).toEqual({ adresse: 'BP 50012', codePostal: '13001', ville: 'Marseille' })
+    expect(champsAdresseDuLieu('Estrada Nacional 12345, Braga', 'PT')).toEqual({ adresse: 'Estrada Nacional 12345', codePostal: '', ville: 'Braga' })
+  })
 })
 
 describe('libellés', () => {
@@ -91,7 +116,7 @@ describe('libellés', () => {
     const complet = { adresse: '15 rue des Lilas', codePostal: '13001', ville: 'Marseille' }
     expect(messageAdresseImportee('DEV-1', lieu, complet, false)).toBe('Adresse reprise du devis DEV-1.')
     expect(messageAdresseImportee('DEV-1', { ...lieu, source: 'client' }, { ...complet, ville: '' }, false))
-      .toBe('Adresse reprise du devis DEV-1. Pas de lieu d’intervention sur ce devis : c’est l’adresse du client. Indiquez la ville.')
+      .toBe('Adresse reprise du devis DEV-1. Pas de lieu d’intervention sur ce devis : c’est l’adresse du client. Vérifiez-la, puis utilisez le bouton GPS. Indiquez la ville.')
     expect(messageAdresseImportee(null, lieu, { ...complet, ville: '' }, true)).toBe('Morada importada do orçamento rascunho. Indique a cidade.')
   })
 })

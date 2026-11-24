@@ -7,7 +7,7 @@
 // client_address n'est pas écrite par la synchronisation : l'adresse du client se lit aussi dans raw_data, et ne sert
 // qu'à défaut d'un lieu d'intervention. Tests : tests/lib/btp-lieu-devis.test.ts.
 
-import { decomposerAdresse, type Pays } from '@/lib/btp/geocodage'
+import type { Pays } from '@/lib/btp/geocodage'
 
 /** Colonnes PostgREST (sélection d'une requête sur la table devis) : lieu d'intervention et adresse du client. */
 export const COLONNES_LIEU_DEVIS = 'lieu_intervention:raw_data->>interventionAddress, adresse_client_devis:raw_data->>clientAddress'
@@ -34,32 +34,49 @@ export interface ChampsAdresse {
 
 const enTexte = (valeur: unknown) => (typeof valeur === 'string' ? valeur.replace(/\s+/g, ' ').trim() : '')
 
+/** Nom de pays seul (« France », « Portugal ») : ni une ville ni une adresse. */
+const NOM_DE_PAYS = /^(france|portugal)$/i
+
+/** Parties d'un lieu (séparées par une virgule ou un « - » entre espaces), sans parties vides ni noms de pays. */
+const partiesDuLieu = (texte: string) => texte.split(/,|\s+-\s+/).map(p => p.trim()).filter(p => p && !NOM_DE_PAYS.test(p))
+
+/**
+ * Texte utilisable comme adresse : autre chose qu'un nom de pays. Le formulaire de devis compose l'adresse du client à
+ * partir de ses champs et y ajoute le pays : rue, code postal et ville vides donnent « Portugal » seul.
+ */
+const utilisable = (texte: string) => partiesDuLieu(texte).some(p => /[\p{L}\d]/u.test(p))
+
 /** Lieu d'intervention du devis, sinon l'adresse de son client ; null sans l'un ni l'autre. */
 export function lieuDuDevis(devis: DevisAvecLieuBrut): LieuDevis | null {
   const intervention = enTexte(devis.lieu_intervention)
-  if (intervention) return { texte: intervention, source: 'intervention' }
-  const client = enTexte(devis.adresse_client_devis) || enTexte(devis.client_address)
+  if (utilisable(intervention)) return { texte: intervention, source: 'intervention' }
+  const client = [devis.adresse_client_devis, devis.client_address].map(enTexte).find(utilisable)
   return client ? { texte: client, source: 'client' } : null
 }
 
-/** Pays « France » ou « Portugal » écrit en fin d'adresse : ce n'est pas la ville. */
-const PAYS_EN_FIN = /^(france|portugal)$/i
+/**
+ * Code postal suivi de sa ville (« 13001 Marseille », « 4050-036 Porto »). Un nombre suivi d'une virgule n'en est pas
+ * un (« BP 50012, », « Estrada Nacional 12345, Braga ») ; au Portugal, seulement la forme complète (« 1974 » peut être
+ * une année : 25 de Abril).
+ */
+const CODE_POSTAL_VILLE: Record<Pays, RegExp> = { FR: /\b(\d{5})\s+(?=\p{L})/u, PT: /\b(\d{4}-\d{3})\s+(?=\p{L})/u }
 
 /**
  * Rue, code postal et ville d'un lieu écrit en une ligne, pour les champs de la fiche chantier. Code postal du pays de la
- * société d'abord, puis de l'autre pays (chantier de l'autre côté de la frontière) ; la ville est ce qui suit le code
- * postal, jusqu'à la virgule suivante. Sans code postal, la dernière partie après une virgule (sans chiffre) est la ville.
+ * société d'abord, puis de l'autre pays (chantier de l'autre côté de la frontière). La ville est la partie qui suit le
+ * code postal ; tout le reste (résidence, rue, bâtiment, étage, avant ou après) va dans l'adresse, rien ne se perd.
+ * Sans code postal, la dernière partie (sans chiffre) est la ville.
  */
 export function champsAdresseDuLieu(lieu: string, pays: Pays): ChampsAdresse {
   const texte = enTexte(lieu)
   for (const essai of [pays, pays === 'PT' ? 'FR' : 'PT'] as const) {
-    const { rue, codePostal, ville } = decomposerAdresse({ adresse: texte }, essai)
-    if (codePostal) {
-      const villeSeule = ville.split(',').map(p => p.trim()).find(p => p && !PAYS_EN_FIN.test(p)) ?? ''
-      return { adresse: rue, codePostal, ville: villeSeule }
-    }
+    const trouve = CODE_POSTAL_VILLE[essai].exec(texte)
+    if (!trouve) continue
+    const avant = partiesDuLieu(texte.slice(0, trouve.index))
+    const [ville = '', ...complements] = partiesDuLieu(texte.slice(trouve.index + trouve[0].length))
+    return { adresse: [...avant, ...complements].join(', '), codePostal: trouve[1], ville }
   }
-  const parties = texte.split(',').map(p => p.trim()).filter(p => p && !PAYS_EN_FIN.test(p))
+  const parties = partiesDuLieu(texte)
   const derniere = parties.at(-1) ?? ''
   if (parties.length >= 2 && !/\d/.test(derniere)) return { adresse: parties.slice(0, -1).join(', '), codePostal: '', ville: derniere }
   return { adresse: parties.join(', '), codePostal: '', ville: '' }
@@ -86,8 +103,11 @@ export function libelleChoixDevis(
 export function messageAdresseImportee(numero: string | null | undefined, lieu: LieuDevis, champs: ChampsAdresse, isPt: boolean): string {
   const ref = numero?.trim() || (isPt ? 'rascunho' : 'brouillon')
   const base = isPt ? `Morada importada do orçamento ${ref}.` : `Adresse reprise du devis ${ref}.`
+  // L'adresse du client peut être celle d'un siège : elle n'est pas géocodée d'office (la position déclenche le pointage).
   const client = lieu.source === 'client'
-    ? (isPt ? ' Sem local de intervenção no orçamento: é a morada do cliente.' : ' Pas de lieu d’intervention sur ce devis : c’est l’adresse du client.')
+    ? (isPt
+      ? ' Sem local de intervenção no orçamento: é a morada do cliente. Verifique-a e use o botão GPS.'
+      : ' Pas de lieu d’intervention sur ce devis : c’est l’adresse du client. Vérifiez-la, puis utilisez le bouton GPS.')
     : ''
   const ville = champs.ville ? '' : (isPt ? ' Indique a cidade.' : ' Indiquez la ville.')
   return `${base}${client}${ville}`
