@@ -314,6 +314,14 @@ describe('fiche chantier — adresse reprise d’un devis', () => {
     expect(toast.warning).toHaveBeenCalledWith('Ce devis n’a ni lieu d’intervention ni adresse du client : indiquez l’adresse du chantier.')
   })
 
+  it('adresse du premier devis retouchée à la main, puis second devis sans lieu : la retouche reste', async () => {
+    await nouvelleFiche()
+    await act(async () => { fireEvent.change(screen.getByDisplayValue('— Sélectionner un devis —'), { target: { value: 'd-lilas' } }) })
+    fireEvent.change(screen.getByPlaceholderText('N°, rue...'), { target: { value: 'Résidence Le Mail, bât. C, 15 rue des Lilas' } })
+    await act(async () => { fireEvent.change(screen.getByDisplayValue('— Sélectionner un devis —'), { target: { value: 'd-vide' } }) })
+    expect(champs()).toEqual({ adresse: 'Résidence Le Mail, bât. C, 15 rue des Lilas', codePostal: '13001', ville: 'Marseille' })
+  })
+
   it('import d’un devis sans aucune adresse (adresse du client réduite au pays) : l’adresse tapée à la main reste, avec un avertissement', async () => {
     await nouvelleFiche()
     fireEvent.change(screen.getByPlaceholderText('N°, rue...'), { target: { value: '4 rue Haute' } })

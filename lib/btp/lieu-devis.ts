@@ -54,28 +54,59 @@ export function lieuDuDevis(devis: DevisAvecLieuBrut): LieuDevis | null {
   return client ? { texte: client, source: 'client' } : null
 }
 
-/**
- * Code postal suivi de sa ville (« 13001 Marseille », « 4050-036 Porto »). Un nombre suivi d'une virgule n'en est pas
- * un (« BP 50012, », « Estrada Nacional 12345, Braga ») ; au Portugal, seulement la forme complète (« 1974 » peut être
- * une année : 25 de Abril).
- */
-const CODE_POSTAL_VILLE: Record<Pays, RegExp> = { FR: /\b(\d{5})\s+(?=\p{L})/u, PT: /\b(\d{4}-\d{3})\s+(?=\p{L})/u }
+/** Code postal ; au Portugal, seulement la forme complète (« 1974 » peut être une année : 25 de Abril). */
+const CODE_POSTAL: Record<Pays, string> = { FR: String.raw`\d{5}`, PT: String.raw`\d{4}-\d{3}` }
 
 /**
- * Rue, code postal et ville d'un lieu écrit en une ligne, pour les champs de la fiche chantier. Code postal du pays de la
- * société d'abord, puis de l'autre pays (chantier de l'autre côté de la frontière). La ville est la partie qui suit le
- * code postal ; tout le reste (résidence, rue, bâtiment, étage, avant ou après) va dans l'adresse, rien ne se perd.
- * Sans code postal, la dernière partie (sans chiffre) est la ville.
+ * Code postal suivi de sa ville (« 13001 Marseille », « 4050-036 Porto »). Un nombre suivi d'une virgule n'en est pas
+ * un (« BP 50012, », « Estrada Nacional 12345, Braga »).
+ */
+const codePostalVille = (pays: Pays) => new RegExp(String.raw`\b(${CODE_POSTAL[pays]})\s+(?=(\p{L}+))`, 'gu')
+
+/** Code postal seul, suivi d'une virgule, d'un « - » ou de la fin du texte. */
+const codePostalSeul = (pays: Pays) => new RegExp(String.raw`\b(${CODE_POSTAL[pays]})(?=\s*(?:,|-|$))`, 'gu')
+
+/** Numéro de boîte postale juste avant (sans assertion arrière : absente des anciens Safari d'iPhone). */
+const BOITE_POSTALE_AVANT = /\b(?:BP|CS|Apartado)\s?$/i
+
+/** Premier code postal seul qui n'est pas un numéro de boîte postale. */
+function codePostalSansVille(texte: string, pays: Pays): { index: number; longueur: number; codePostal: string } | null {
+  const retenu = [...texte.matchAll(codePostalSeul(pays))].find(t => !BOITE_POSTALE_AVANT.test(texte.slice(0, t.index)))
+  return retenu ? { index: retenu.index, longueur: retenu[0].length, codePostal: retenu[1] } : null
+}
+
+/** Mot qui suit un numéro de rue à cinq chiffres (numérotation métrique : « 12500 route de Grasse »), pas une ville. */
+const VOIE = /^(?:route|rue|avenue|av|boulevard|bd|chemin|impasse|all[ée]e|place|quai|cours|rua|avenida|estrada|travessa|largo|pra[çc]a)$/iu
+
+/** Code postal suivi de sa ville : le dernier qui n'est pas un numéro de rue (« 12500 route de Grasse, 06130 Grasse »). */
+function codePostalAvecVille(texte: string, pays: Pays): { index: number; longueur: number; codePostal: string } | null {
+  const trouves = [...texte.matchAll(codePostalVille(pays))]
+  const retenu = trouves.findLast(t => !VOIE.test(t[2])) ?? trouves.at(-1)
+  return retenu ? { index: retenu.index, longueur: retenu[0].length, codePostal: retenu[1] } : null
+}
+
+/** Découpe autour du code postal trouvé : la ville est la partie qui le suit, tout le reste va dans l'adresse. */
+function autourDuCodePostal(texte: string, t: { index: number; longueur: number; codePostal: string }): ChampsAdresse {
+  const avant = partiesDuLieu(texte.slice(0, t.index))
+  const [ville = '', ...complements] = partiesDuLieu(texte.slice(t.index + t.longueur))
+  return { adresse: [...avant, ...complements].join(', '), codePostal: t.codePostal, ville }
+}
+
+/**
+ * Rue, code postal et ville d'un lieu écrit en une ligne, pour les champs de la fiche chantier. Code postal suivi de sa
+ * ville, du pays de la société d'abord, puis de l'autre pays (chantier de l'autre côté de la frontière) ; à défaut, code
+ * postal seul du pays de la société (« 13001, Marseille », « Lieu-dit Les Granges, 84000 »). La ville est la partie qui
+ * suit le code postal ; tout le reste (résidence, rue, bâtiment, étage, avant ou après) va dans l'adresse, rien ne se
+ * perd. Sans code postal, la dernière partie (sans chiffre) est la ville.
  */
 export function champsAdresseDuLieu(lieu: string, pays: Pays): ChampsAdresse {
   const texte = enTexte(lieu)
   for (const essai of [pays, pays === 'PT' ? 'FR' : 'PT'] as const) {
-    const trouve = CODE_POSTAL_VILLE[essai].exec(texte)
-    if (!trouve) continue
-    const avant = partiesDuLieu(texte.slice(0, trouve.index))
-    const [ville = '', ...complements] = partiesDuLieu(texte.slice(trouve.index + trouve[0].length))
-    return { adresse: [...avant, ...complements].join(', '), codePostal: trouve[1], ville }
+    const trouve = codePostalAvecVille(texte, essai)
+    if (trouve) return autourDuCodePostal(texte, trouve)
   }
+  const seul = codePostalSansVille(texte, pays)
+  if (seul) return autourDuCodePostal(texte, seul)
   const parties = partiesDuLieu(texte)
   const derniere = parties.at(-1) ?? ''
   if (parties.length >= 2 && !/\d/.test(derniere)) return { adresse: parties.slice(0, -1).join(', '), codePostal: '', ville: derniere }

@@ -416,10 +416,12 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
       setDebugInfo('')
     }
     const failedNames: string[] = []
-    /** Échecs de ce chargement : un rechargement complet remplace les précédents, un ajout ne touche que ses cartes. */
+    // Échecs : les cartes rechargées n'en sont plus pendant le chargement (« Chargement », pas « indisponibles ») ; un
+    // rechargement complet efface les précédents, un ajout ne touche que ses cartes.
+    const charges = new Set(chantiersToFetch.map(c => c.id))
+    setCartesEnEchec(prev => (ajout ? new Set([...prev].filter(id => !charges.has(id))) : new Set()))
     const noterEchecs = (echoues: ChantierItem[]) => {
-      const charges = new Set(chantiersToFetch.map(c => c.id))
-      setCartesEnEchec(prev => new Set([...(ajout ? [...prev].filter(id => !charges.has(id)) : []), ...echoues.map(c => c.id)]))
+      if (echoues.length > 0) setCartesEnEchec(prev => new Set([...prev, ...echoues.map(c => c.id)]))
     }
     try {
       const positions = await positionsPourMeteo(chantiersToFetch, isPt ? 'PT' : 'FR')
@@ -542,7 +544,9 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
 
   const retirerLieuDevis = (devisId: string) => {
     changerLieux(lieuxDevis.filter(l => l.devisId !== devisId))
-    setMeteoData(prev => prev.filter(m => m.chantier.id !== `${PREFIXE_CARTE_DEVIS}${devisId}`))
+    const carteId = `${PREFIXE_CARTE_DEVIS}${devisId}`
+    setMeteoData(prev => prev.filter(m => m.chantier.id !== carteId))
+    setCartesEnEchec(prev => new Set([...prev].filter(id => id !== carteId)))
   }
 
   // Les indicateurs comptent les chantiers seulement ; les lieux de devis ont leurs cartes à part.
@@ -758,9 +762,11 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
   /** Carte d'un lieu de devis sans prévisions : en cours de chargement, ou dernier essai échoué. */
   function messageSansPrevisions(carteId: string) {
     if (!cartesEnEchec.has(carteId)) return isPt ? 'A carregar previsões meteorológicas...' : 'Chargement des prévisions météo...'
+    // Une adresse introuvable reste en échec une journée (positionsPourMeteo) : la corriger dans le devis et réimporter
+    // le devis donne une nouvelle adresse, donc un nouvel essai ; « Actualiser » ne sert que si le service était coupé.
     return isPt
-      ? 'Previsões indisponíveis para este local (morada não encontrada ou serviço meteorológico inacessível). Tente «Atualizar» ou retire este local.'
-      : 'Prévisions indisponibles pour ce lieu (adresse introuvable ou service météo injoignable). Essayez « Actualiser », ou retirez ce lieu.'
+      ? 'Previsões indisponíveis para este local (morada não encontrada ou serviço meteorológico inacessível). Se a morada estiver errada, corrija-a no orçamento e importe-o novamente; caso contrário, tente mais tarde com «Atualizar».'
+      : 'Prévisions indisponibles pour ce lieu (adresse introuvable ou service météo injoignable). Si l’adresse est fausse, corrigez-la dans le devis puis réimportez-le ; sinon, réessayez plus tard avec « Actualiser ».'
   }
 
   function boutonRetirer(retirer: () => void) {

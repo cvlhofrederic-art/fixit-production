@@ -138,6 +138,8 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
   const [loadingDevis, setLoadingDevis] = useState(false)
   /** Liste des devis ouverte sous « Adresse du chantier » (bouton « Importer depuis un devis »). */
   const [choixAdresseOuvert, setChoixAdresseOuvert] = useState(false)
+  /** Adresse posée par le dernier import d'un devis : retouchée depuis à la main, elle n'est plus celle du devis. */
+  const adresseImporteeRef = useRef<{ adresse: string; codePostal: string; ville: string } | null>(null)
 
   // Alerte fin de chantier
   const [prolongModal, setProlongModal] = useState<{ chantier: ChantierForm & { id: string; statut?: string } } | null>(null)
@@ -261,13 +263,18 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
 
     // Adresse : le lieu d'intervention du devis (à défaut l'adresse du client), en rue, code postal et ville. Nouvelle
     // adresse : la position d'un devis importé avant ne doit pas rester. Un devis sans l'un ni l'autre laisse une adresse
-    // tapée à la main, mais retire celle d'un devis importé avant (et sa position) : elle n'est pas celle de ce devis.
+    // tapée ou retouchée à la main, mais retire celle d'un devis importé avant, inchangée (et sa position) : elle n'est
+    // pas celle de ce devis.
     const lieu = lieuDuDevis(devis)
     const champs = lieu ? champsAdresseDuLieu(lieu.texte, isPt ? 'PT' : 'FR') : null
+    const importee = adresseImporteeRef.current
+    const adresseDuDevisPrecedent = !!form.devis_id && !!importee
+      && form.adresse === importee.adresse && form.codePostal === importee.codePostal && form.ville === importee.ville
     let adresse: Partial<ChantierForm> = {}
     if (champs) adresse = { ...champs, ...SANS_POSITION }
-    else if (form.devis_id) adresse = { adresse: '', codePostal: '', ville: '', ...SANS_POSITION }
+    else if (adresseDuDevisPrecedent) adresse = { adresse: '', codePostal: '', ville: '', ...SANS_POSITION }
     if (Object.keys(adresse).length > 0) oublierGeocodage()
+    adresseImporteeRef.current = champs
     setForm(f => ({
       ...f,
       titre: firstDesc || `${isPt ? 'Orçamento' : 'Devis'} ${devis.numero}`,
@@ -312,6 +319,7 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
     const champs = champsAdresseDuLieu(lieu.texte, isPt ? 'PT' : 'FR')
     const garde = portePositionEnregistree(form)
     oublierGeocodage()
+    adresseImporteeRef.current = champs
     setForm({ ...form, ...(garde ? {} : SANS_POSITION), ...champs })
     setChoixAdresseOuvert(false)
     toast.success(messageAdresseImportee(devis.numero, lieu, champs, isPt))

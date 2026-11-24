@@ -88,7 +88,22 @@ describe('champsAdresseDuLieu', () => {
 
   it('un nombre suivi d’une virgule n’est pas un code postal (boîte postale, route nationale)', () => {
     expect(champsAdresseDuLieu('BP 50012, 13001 Marseille', 'FR')).toEqual({ adresse: 'BP 50012', codePostal: '13001', ville: 'Marseille' })
+    expect(champsAdresseDuLieu('BP 50012, Marseille', 'FR')).toEqual({ adresse: 'BP 50012', codePostal: '', ville: 'Marseille' })
     expect(champsAdresseDuLieu('Estrada Nacional 12345, Braga', 'PT')).toEqual({ adresse: 'Estrada Nacional 12345', codePostal: '', ville: 'Braga' })
+  })
+
+  it('code postal seul, suivi d’une virgule, d’un « - » ou en fin de texte, du pays de la société', () => {
+    expect(champsAdresseDuLieu('15 rue des Lilas, 13001, Marseille', 'FR')).toEqual({ adresse: '15 rue des Lilas', codePostal: '13001', ville: 'Marseille' })
+    expect(champsAdresseDuLieu('15 rue des Lilas, 13001 - Marseille', 'FR')).toEqual({ adresse: '15 rue des Lilas', codePostal: '13001', ville: 'Marseille' })
+    expect(champsAdresseDuLieu('Lieu-dit Les Granges, 84000', 'FR')).toEqual({ adresse: 'Lieu-dit Les Granges', codePostal: '84000', ville: '' })
+    expect(champsAdresseDuLieu('Rua X 10, 4050-036, Porto', 'PT')).toEqual({ adresse: 'Rua X 10', codePostal: '4050-036', ville: 'Porto' })
+    expect(champsAdresseDuLieu('Rua X 10, 4050-036', 'PT')).toEqual({ adresse: 'Rua X 10', codePostal: '4050-036', ville: '' })
+  })
+
+  it('numérotation métrique : un numéro de rue à cinq chiffres n’est pas le code postal', () => {
+    expect(champsAdresseDuLieu('12500 route de Grasse, 06130 Grasse', 'FR'))
+      .toEqual({ adresse: '12500 route de Grasse', codePostal: '06130', ville: 'Grasse' })
+    expect(champsAdresseDuLieu('Zone 13001 13002 Marseille', 'FR')).toEqual({ adresse: 'Zone 13001', codePostal: '13002', ville: 'Marseille' })
   })
 })
 
