@@ -41,9 +41,22 @@ import { planDuCompte } from '@/lib/administrateur-judiciaire/domain/verrou-sais
  *   ici, sur le poste, à ce moment-là.
  */
 
+/**
+ * Ligne d'imputation telle qu'elle a été écrite : le poste et le montant, et ce que son crédit du 450 porte dans la pièce
+ * (appel d'origine, R8 ; compte crédité). L'annulation de l'encaissement (F110) contre-passe ces lignes sans relire les
+ * postes : elle reste possible quand le compte est en écart (la banque a déjà rejeté le paiement).
+ */
+export interface LigneImputationEcrite extends LigneImputation {
+  /** Appel d'origine du poste ; null : dette sans appel. */
+  appelId: PosteDette['appelId']
+  typeAppel: PosteDette['typeAppel']
+  /** Code du plan du compte 450 crédité : celui que l'appel a débité pour ce poste (45000, ou le 450-1 du budget). */
+  planCompte: string
+}
+
 /** Imputation d'un encaissement telle qu'elle a été écrite : ResultatImputation sans l'état des postes, qui se relit. */
 export interface ImputationEcrite {
-  lignes: LigneImputation[]
+  lignes: LigneImputationEcrite[]
   /** Reliquat laissé « à imputer » au crédit du compte. */
   resteAImputerCentimes: number
   /** Postes désignés par le débiteur, ignorés parce que déjà soldés. */
@@ -331,4 +344,42 @@ export function soldesDesComptes(
       const resteDuCentimes = appeleCentimes - regleCentimes
       return { compteId: c.id, appeleCentimes, regleCentimes, resteDuCentimes, creditAImputerCentimes, soldeCentimes: resteDuCentimes - creditAImputerCentimes }
     })
+}
+
+/** Lignes d'imputation à garder sur l'encaissement : celles du résultat, avec l'appel et le compte 450 de leur poste. */
+export function lignesEcrites(lignes: readonly LigneImputation[], postes: readonly PosteDette[]): LigneImputationEcrite[] {
+  return lignes.map((ligne) => {
+    const poste = postes.find((p) => p.id === ligne.posteId)
+    if (!poste) throw new Error(`Poste imputé introuvable (id=${ligne.posteId}).`)
+    return { ...ligne, appelId: poste.appelId, typeAppel: poste.typeAppel, planCompte: poste.planCompte ?? PLAN_450 }
+  })
+}
+
+/**
+ * Postes d'un encaissement tels que ses lignes écrites les décrivent (un par poste imputé, réglé de la part imputée) : ce
+ * qu'il faut à l'écriture contraire de son annulation (encaissements-pieces.annulerEncaissement : appel d'origine et
+ * compte crédité de chaque ligne), sans relire l'échéancier ni les clés. Ils ne disent pas le dû du poste : jamais une
+ * entrée de l'imputation. Refuse des lignes d'un même poste qui ne portent pas le même appel ou le même compte.
+ */
+export function postesDeLImputation(encaissement: Pick<EncaissementImpute, 'id' | 'compteId' | 'date' | 'imputation'>): PosteDette[] {
+  const postes = new Map<string, PosteDette>()
+  for (const ligne of encaissement.imputation.lignes) {
+    const deja = postes.get(ligne.posteId)
+    if (deja && (deja.appelId !== ligne.appelId || deja.typeAppel !== ligne.typeAppel || deja.planCompte !== ligne.planCompte))
+      throw new Error(`Encaissement ${encaissement.id} : lignes du poste « ${ligne.posteId} » incohérentes (appel ou compte crédité différents).`)
+    const impute = (deja?.regleCentimes ?? 0) + ligne.montantCentimes
+    postes.set(ligne.posteId, {
+      id: ligne.posteId,
+      compteId: encaissement.compteId,
+      appelId: ligne.appelId,
+      typeAppel: ligne.typeAppel,
+      libelle: '',
+      exigibilite: encaissement.date,
+      montantCentimes: impute,
+      regleCentimes: impute,
+      contentieux: false,
+      planCompte: ligne.planCompte,
+    })
+  }
+  return [...postes.values()]
 }

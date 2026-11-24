@@ -3,7 +3,14 @@ import { marquerAppelees, suivreEcheances, type EcheanceAppelSuivie } from '@/li
 import { creerCompteCoproprietaire, creerPosition } from '@/lib/administrateur-judiciaire/domain/identites-positions'
 import { imputerEncaissement, mouvementsEncaissementImpute } from '@/lib/administrateur-judiciaire/domain/imputation-encaissements'
 import { creerPieceTraitement } from '@/lib/administrateur-judiciaire/domain/journal-traitements'
-import { postesDesComptes, soldesDesComptes, type DonneesPostes, type ImputationEcrite } from '@/lib/administrateur-judiciaire/domain/postes-comptes'
+import {
+  lignesEcrites,
+  postesDeLImputation,
+  postesDesComptes,
+  soldesDesComptes,
+  type DonneesPostes,
+  type ImputationEcrite,
+} from '@/lib/administrateur-judiciaire/domain/postes-comptes'
 import {
   avisDAppel,
   creerCleRepartition,
@@ -60,8 +67,15 @@ function appeler(echeancier: EcheanceAppelSuivie[], ids: string[], numero: numbe
   return { echeancier: marquerAppelees(echeancier, traitement, avis, { exercices: EXERCICES }), piece }
 }
 
-const imputation = (lignes: ImputationEcrite['lignes'], resteAImputerCentimes = 0): ImputationEcrite => ({
-  lignes,
+type LigneSaisie = { posteId: string; montantCentimes: number }
+/** Ligne écrite d'un poste « <échéance>:<lot> » des essais : son appel, son type (FT : fonds de travaux) et le 45000. */
+const ligneEcrite = ({ posteId, montantCentimes }: LigneSaisie): ImputationEcrite['lignes'][number] => {
+  const appelId = posteId.split(':')[0]
+  return { posteId, montantCentimes, appelId, typeAppel: appelId === 'FT' ? 'Fonds travaux' : 'Budget', planCompte: '45000' }
+}
+
+const imputation = (lignes: LigneSaisie[], resteAImputerCentimes = 0): ImputationEcrite => ({
+  lignes: lignes.map(ligneEcrite),
   resteAImputerCentimes,
   designationsIgnorees: [],
   designationPartielleRefusee: false,
@@ -69,7 +83,7 @@ const imputation = (lignes: ImputationEcrite['lignes'], resteAImputerCentimes = 
 })
 
 type EncaissementLu = DonneesPostes['encaissements'][number]
-const encaissement = (id: string, compteId: string, lignes: ImputationEcrite['lignes'], surcharge: Partial<EncaissementLu> = {}): EncaissementLu => ({
+const encaissement = (id: string, compteId: string, lignes: LigneSaisie[], surcharge: Partial<EncaissementLu> = {}): EncaissementLu => ({
   id,
   compteId,
   traitementId: `encaissement-${id}`,
@@ -330,5 +344,36 @@ describe('écriture de l’encaissement : chaque poste crédité au compte que s
     expect(() => mouvementsEncaissementImpute({ encaissement: encaisse, resultat, ...comptes450 })).toThrow(/Poste T1:lot-1 : il porte le compte débité par son appel \(45000\)/)
     const postes = postesDesComptes(donnees()).postes.map((p) => ({ ...p, planCompte: '51200' }))
     expect(() => imputerEncaissement(encaisse, postes)).toThrow(/Poste T1:lot-1 : compte débité par l'appel « 51200 », code de plan 450xx attendu/)
+  })
+})
+
+describe('lignes gardées sur l’encaissement : de quoi passer son écriture contraire sans relire les postes', () => {
+  it('chaque ligne garde l’appel d’origine et le compte 450 de son poste ; poste absent refusé', () => {
+    const { postes } = postesDesComptes(donnees([], REGLAGE_450))
+    const lignes = [{ posteId: 'T1:lot-1', montantCentimes: 100 }, { posteId: 'FT:lot-1', montantCentimes: 200 }, { posteId: 'T2:lot-1', montantCentimes: 300 }]
+    expect(lignesEcrites(lignes, postes)).toEqual([
+      { posteId: 'T1:lot-1', montantCentimes: 100, appelId: 'T1', typeAppel: 'Budget', planCompte: '45000' },
+      { posteId: 'FT:lot-1', montantCentimes: 200, appelId: 'FT', typeAppel: 'Fonds travaux', planCompte: '45000' },
+      { posteId: 'T2:lot-1', montantCentimes: 300, appelId: 'T2', typeAppel: 'Budget', planCompte: '45010' },
+    ])
+    expect(() => lignesEcrites([{ posteId: 'T9:lot-1', montantCentimes: 1 }], postes)).toThrow(/Poste imputé introuvable \(id=T9:lot-1\)/)
+    // Un poste sans compte relu de son appel (dette sans appel) : le 45000.
+    expect(lignesEcrites([{ posteId: 'reprise', montantCentimes: 1 }], [{ id: 'reprise', compteId: 'cA', appelId: null, typeAppel: null, libelle: 'Reprise', exigibilite: '2026-01-01', montantCentimes: 1, regleCentimes: 0, contentieux: false }])[0]).toMatchObject({
+      appelId: null,
+      typeAppel: null,
+      planCompte: '45000',
+    })
+  })
+
+  it('postes de l’annulation : un par poste imputé, réglé de la part imputée, avec son appel et son compte ; lignes incohérentes refusées', () => {
+    const lignes = [{ posteId: 'T1:lot-1', montantCentimes: 100 }, { posteId: 'T2:lot-1', montantCentimes: 300 }, { posteId: 'T1:lot-1', montantCentimes: 50 }].map(ligneEcrite)
+    const ecrit = { id: 'e1', compteId: 'cA', date: '2026-04-15', imputation: { ...imputation([]), lignes } }
+    expect(postesDeLImputation(ecrit).map((p) => [p.id, p.compteId, p.appelId, p.typeAppel, p.planCompte, p.montantCentimes, p.regleCentimes, p.exigibilite])).toEqual([
+      ['T1:lot-1', 'cA', 'T1', 'Budget', '45000', 150, 150, '2026-04-15'],
+      ['T2:lot-1', 'cA', 'T2', 'Budget', '45000', 300, 300, '2026-04-15'],
+    ])
+    expect(postesDeLImputation({ ...ecrit, imputation: imputation([]) })).toEqual([])
+    const incoherentes = [...lignes, { ...lignes[0], planCompte: '45010' }]
+    expect(() => postesDeLImputation({ ...ecrit, imputation: { ...imputation([]), lignes: incoherentes } })).toThrow(/Encaissement e1 : lignes du poste « T1:lot-1 » incohérentes/)
   })
 })

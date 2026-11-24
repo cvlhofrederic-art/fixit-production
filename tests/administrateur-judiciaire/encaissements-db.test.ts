@@ -10,6 +10,7 @@ import {
   lireSoldesAnterieurs,
   lirePostesDuCompte,
   type OptionsEncaissements,
+  type SaisieAnnulationEncaissementEcrit,
   type SaisieEncaissement,
 } from '@/lib/administrateur-judiciaire/db/encaissements'
 import { repoComptesCoproprietaires, repoIdentites, repoPositions } from '@/lib/administrateur-judiciaire/db/repositories'
@@ -139,8 +140,12 @@ const regles = async (compteId: string) => (await lirePostesDuCompte('C1', compt
 const sansTraitement = <T extends { traitementId: string }>(mouvements: T[]) => mouvements.map(({ traitementId: _t, ...m }) => m)
 const origine = (appelId: string, typeAppel: 'Budget' | 'Fonds travaux') => ({ origine: { type: 'appel', appelId, typeAppel } })
 
+/** Annulation saisie le même jour que les encaissements des essais (OPTIONS.aujourdhui), sauf jour de saisie donné. */
+const annuler = (coproprieteId: string, encaissementId: string, saisie: SaisieAnnulationEncaissementEcrit, options?: { actor?: string | null }) =>
+  annulerEncaissementEcrit(coproprieteId, encaissementId, { aujourdhui: '2027-02-15', ...saisie }, options)
+
 /** Ce qu'un refus ne doit pas changer. */
-const compter = async () => ({ pieces: await ajDb.traitements.count(), encaissements: await ajDb.encaissements.count(), journal: await ajDb.activityLog.count() })
+const compter =async () => ({ pieces: await ajDb.traitements.count(), encaissements: await ajDb.encaissements.count(), journal: await ajDb.activityLog.count() })
 
 beforeEach(async () => {
   await viderBaseLocale()
@@ -224,7 +229,7 @@ describe('postes d’un compte : relus de l’échéancier appelé', () => {
     await expect(ecrireEncaissements('C1', [virement('c3', 10_000), virement('c2', 10_000)], OPTIONS)).rejects.toThrow(/série 00002, appel n° 1/)
     expect(await compter()).toEqual(avant)
     const { encaissements } = await ecrireEncaissements('C1', [virement('c3', 10_000)], OPTIONS)
-    expect(encaissements[0].imputation.lignes).toEqual([{ posteId: `${T4_2026}:L3`, montantCentimes: 10_000 }])
+    expect(encaissements[0].imputation.lignes).toMatchObject([{ posteId: `${T4_2026}:L3`, montantCentimes: 10_000 }])
   })
 
   it('mutation notifiée après l’appel (vente antérieure à l’exigibilité) : vendeur et acquéreur en écart ; les autres comptes encaissent et annulent', async () => {
@@ -246,15 +251,46 @@ describe('postes d’un compte : relus de l’échéancier appelé', () => {
     const debit = { date: '2027-01-25', motif: 'Virement retourné', piece: 'AVIS-0005' }
     await expect(ecrireEncaissements('C1', [virement('c1', 1_000)], OPTIONS)).rejects.toThrow(/série 00001, appel n° 2/)
     await expect(ecrireEncaissements('C1', [virement('c4', 1_000)], OPTIONS)).rejects.toThrow(/série 00004, appel n° 2/)
-    await expect(annulerEncaissementEcrit('C1', 'enc-c1', debit)).rejects.toThrow(/série 00001, appel n° 2/)
     await expect(lirePostesDuCompte('C1', 'c4')).rejects.toThrow(/série 00004/)
     expect(await compter()).toEqual(avant)
     // Les comptes 2 et 3 ne sont pas touchés : encaissement et annulation F110 passent.
     await ecrireEncaissements('C1', [virement('c3', 12_000)], OPTIONS)
-    const { encaissement } = await annulerEncaissementEcrit('C1', 'enc-c2', debit)
+    const { encaissement } = await annuler('C1', 'enc-c2', debit)
     expect(encaissement.statut).toBe('Annulé')
     expect((await regles('c2'))[0]).toEqual([T4_2026, 0])
     expect((await regles('c3'))[0]).toEqual([T4_2026, 12_000])
+  })
+
+  it('chèque impayé d’un compte en écart : la banque l’a déjà rejeté, l’écriture contraire passe ; le compte reste en écart', async () => {
+    await appeler()
+    // Un chèque du compte 1 et un virement du compte 2 dans la même pièce, puis la vente du lot 1 notifiée après l'appel.
+    const { piece: pieceDuCheque } = await ecrireEncaissements(
+      'C1',
+      [virement('c1', 40_000, { id: 'enc-cheque', piece: { mode: 'Chèque', numero: '0001234' } }), virement('c2', 21_000, { id: 'enc-c2' })],
+      OPTIONS,
+    )
+    await ajDb.positions.update('p1', { dateSortie: '2026-12-15' })
+    await titulaire('4', 'L1', 'C1', '2026-12-15')
+    const ecartsAvant = (await lireEtatDesComptes('C1')).ecarts
+    expect(ecartsAvant.map((e) => e.compteId)).toEqual(['c1', 'c4'])
+    const { piece, encaissement, postes } = await annuler('C1', 'enc-cheque', { date: '2027-01-25', motif: 'Chèque impayé : provision insuffisante', piece: 'AVIS-2027-0042' })
+    // Ce qui a été écrit pour ce chèque, et rien d'autre : ses trois crédits du 450 et son débit du 512.
+    expect(piece).toMatchObject({ famille: "Annulation d'encaissement", date: '2027-01-25', coproprieteId: 'C1', mandatId: 'M1' })
+    expect(piece.traitement.annule).toBe(pieceDuCheque.id)
+    expect(sansTraitement(piece.traitement.mouvements)).toEqual([
+      { compte: 'ACAC.51200.00000.0', sens: 'credit', montantCentimes: 40_000 },
+      { compte: 'ACAC.45000.00001.0', sens: 'debit', montantCentimes: 27_000, ...origine(T4_2026, 'Budget') },
+      { compte: 'ACAC.45000.00001.0', sens: 'debit', montantCentimes: 12_381, ...origine(T1_2027, 'Budget') },
+      { compte: 'ACAC.45000.00001.0', sens: 'debit', montantCentimes: 619, ...origine(FONDS_T1_2027, 'Fonds travaux') },
+    ])
+    expect(encaissement).toMatchObject({ id: 'enc-cheque', statut: 'Annulé', annulation: { le: '2027-01-25', piece: 'AVIS-2027-0042', traitementId: piece.id } })
+    // Le compte reste en écart : ses postes restent illisibles, aucun n'est rendu ; l'écart n'est pas levé par l'annulation.
+    expect((await lireEtatDesComptes('C1')).ecarts).toEqual(ecartsAvant)
+    expect([...new Set(postes.map((p) => p.compteId))]).toEqual(['c2', 'c3'])
+    await expect(lirePostesDuCompte('C1', 'c1')).rejects.toThrow(/série 00001, appel n° 2/)
+    await expect(annuler('C1', 'enc-cheque', { date: '2027-01-26', motif: 'Chèque impayé', piece: 'AVIS-2027-0043' })).rejects.toThrow(/déjà annulé/)
+    // L'encaissement du compte 2, dans la même pièce, n'est pas touché.
+    expect((await regles('c2'))[0]).toEqual([T4_2026, 21_000])
   })
 })
 
@@ -286,6 +322,12 @@ describe('encaissement imputé : ordre de l’art. 1342-10 du code civil, écrit
       createdBy: 'test',
     })
     expect(await ajDb.encaissements.get('enc-1')).toEqual(encaissements[0])
+    // Chaque ligne garde l'appel d'origine et le compte 450 crédité : de quoi passer l'écriture contraire sans relire les postes.
+    expect(encaissements[0].imputation.lignes).toEqual([
+      { ...lignes[0], appelId: T4_2026, typeAppel: 'Budget', planCompte: '45000' },
+      { ...lignes[1], appelId: T1_2027, typeAppel: 'Budget', planCompte: '45000' },
+      { ...lignes[2], appelId: FONDS_T1_2027, typeAppel: 'Fonds travaux', planCompte: '45000' },
+    ])
     // R7 : débit du 512, crédit du 450 ; R8 : l'appel d'origine sur chaque crédit.
     expect(piece).toMatchObject({ numero: 3, famille: 'Encaissement', date: '2027-01-15', coproprieteId: 'C1', mandatId: 'M1', statut: 'Enregistré', nbLignes: 4 })
     expect(sansTraitement(piece.traitement.mouvements)).toEqual([
@@ -313,7 +355,7 @@ describe('encaissement imputé : ordre de l’art. 1342-10 du code civil, écrit
   it('désignation par le débiteur : le poste désigné est servi avant un poste plus ancien', async () => {
     await appeler()
     const { encaissements, piece } = await ecrireEncaissements('C1', [virement('c1', 2_250, { postesDesignes: [`${FONDS_T1_2027}:L1`] })], OPTIONS)
-    expect(encaissements[0].imputation.lignes).toEqual([{ posteId: `${FONDS_T1_2027}:L1`, montantCentimes: 2_250 }])
+    expect(encaissements[0].imputation.lignes).toMatchObject([{ posteId: `${FONDS_T1_2027}:L1`, montantCentimes: 2_250 }])
     expect(encaissements[0].postesDesignes).toEqual([`${FONDS_T1_2027}:L1`])
     expect(sansTraitement(piece.traitement.mouvements)[1]).toEqual({ compte: 'ACAC.45000.00001.0', sens: 'credit', montantCentimes: 2_250, ...origine(FONDS_T1_2027, 'Fonds travaux') })
     expect(await regles('c1')).toEqual([
@@ -380,7 +422,7 @@ describe('encaissement imputé : ordre de l’art. 1342-10 du code civil, écrit
     ])
     const second = await ecrireEncaissements('C1', [virement('c1', 20_000, { piece: { mode: 'Virement', numero: 'VIR-0002' } })], { ...OPTIONS, date: '2027-01-20' })
     // 170,00 € soldent le T4 2026 ; 30,00 € au prorata des deux postes du 01/01/2027.
-    expect(second.encaissements[0].imputation.lignes).toEqual([
+    expect(second.encaissements[0].imputation.lignes).toMatchObject([
       { posteId: `${T4_2026}:L1`, montantCentimes: 17_000 },
       { posteId: `${T1_2027}:L1`, montantCentimes: 2_857 },
       { posteId: `${FONDS_T1_2027}:L1`, montantCentimes: 143 },
@@ -401,7 +443,7 @@ describe('encaissement imputé : ordre de l’art. 1342-10 du code civil, écrit
       { ...OPTIONS, famille: 'Fichier Virement reçus' },
     )
     expect(piece.famille).toBe('Fichier Virement reçus')
-    expect(encaissements.map((e) => e.imputation.lignes)).toEqual([
+    expect(encaissements.map((e) => e.imputation.lignes)).toMatchObject([
       [{ posteId: `${T4_2026}:L1`, montantCentimes: 20_000 }],
       [{ posteId: `${T4_2026}:L2`, montantCentimes: 21_000 }],
       [{ posteId: `${T4_2026}:L1`, montantCentimes: 7_000 }],
@@ -433,7 +475,7 @@ describe('encaissement imputé : ordre de l’art. 1342-10 du code civil, écrit
       ['ACAC.45000.00002.0', 905],
     ])
     // L'annulation contre-passe ce qui a été écrit, compte par compte.
-    const { piece: annulation } = await annulerEncaissementEcrit('C1', encaissements[0].id, { date: '2027-01-25', motif: 'Virement retourné', piece: 'AVIS-0001' })
+    const { piece: annulation } = await annuler('C1', encaissements[0].id, { date: '2027-01-25', motif: 'Virement retourné', piece: 'AVIS-0001' })
     expect(annulation.traitement.mouvements.filter((m) => m.sens === 'debit').map((m) => m.compte)).toEqual(['ACAC.45010.00002.0', 'ACAC.45010.00002.0', 'ACAC.45000.00002.0'])
   })
 
@@ -451,7 +493,7 @@ describe('encaissement imputé : ordre de l’art. 1342-10 du code civil, écrit
       { compte: 'ACAC.45010.00001.0', sens: 'credit', montantCentimes: 12_381, ...origine(T1_2027, 'Budget') },
       { compte: 'ACAC.45000.00001.0', sens: 'credit', montantCentimes: 619, ...origine(FONDS_T1_2027, 'Fonds travaux') },
     ])
-    const { piece: annulation } = await annulerEncaissementEcrit('C1', encaissements[0].id, { date: '2027-01-25', motif: 'Virement retourné', piece: 'AVIS-0001' })
+    const { piece: annulation } = await annuler('C1', encaissements[0].id, { date: '2027-01-25', motif: 'Virement retourné', piece: 'AVIS-0001' })
     expect(annulation.traitement.mouvements.filter((m) => m.sens === 'debit').map((m) => m.compte)).toEqual(['ACAC.45000.00001.0', 'ACAC.45010.00001.0', 'ACAC.45000.00001.0'])
   })
 })
@@ -467,7 +509,7 @@ describe('annulation d’un encaissement (F110) : écriture contraire, imputatio
       [T1_2027, 12_381 + 19_048],
       [FONDS_T1_2027, 619 + 952],
     ])
-    const { piece, encaissement, postes } = await annulerEncaissementEcrit(
+    const { piece, encaissement, postes } = await annuler(
       'C1',
       'enc-cheque',
       { date: '2027-01-25', motif: ' Chèque impayé : provision insuffisante ', piece: 'AVIS-2027-0042' },
@@ -500,14 +542,14 @@ describe('annulation d’un encaissement (F110) : écriture contraire, imputatio
     ])
     // Le T4 2026, de nouveau dû à son exigibilité d'origine, est servi le premier par l'encaissement suivant.
     const apres = await ecrireEncaissements('C1', [virement('c1', 5_000)], { ...OPTIONS, date: '2027-01-26' })
-    expect(apres.encaissements[0].imputation.lignes).toEqual([{ posteId: `${T4_2026}:L1`, montantCentimes: 5_000 }])
+    expect(apres.encaissements[0].imputation.lignes).toMatchObject([{ posteId: `${T4_2026}:L1`, montantCentimes: 5_000 }])
   })
 
   it('reliquat annulé avec l’encaissement : le crédit « à imputer » disparaît du solde', async () => {
     await saisirLesEcheances()
     await ecrireAppelDeFonds('C1', { jusquAu: '2026-10-01', mandatId: 'M1' })
     const { encaissements } = await ecrireEncaissements('C1', [virement('c2', 25_000)], { ...OPTIONS, date: '2026-10-05' })
-    const { piece } = await annulerEncaissementEcrit('C1', encaissements[0].id, { date: '2026-10-09', motif: 'Virement retourné', piece: 'AVIS-0002' })
+    const { piece } = await annuler('C1', encaissements[0].id, { date: '2026-10-09', motif: 'Virement retourné', piece: 'AVIS-0002' })
     expect(sansTraitement(piece.traitement.mouvements)).toEqual([
       { compte: 'ACAC.51200.00000.0', sens: 'credit', montantCentimes: 25_000 },
       { compte: 'ACAC.45000.00002.0', sens: 'debit', montantCentimes: 21_000, ...origine(T4_2026, 'Budget') },
@@ -528,17 +570,17 @@ describe('annulation d’un encaissement (F110) : écriture contraire, imputatio
     await ecrireEncaissements('C1', [virement('c1', 40_000, { id: 'enc-1' })], OPTIONS)
     const saisie = { date: '2027-01-25', motif: 'Chèque impayé', piece: 'AVIS-0003' }
     const avant = await compter()
-    await expect(annulerEncaissementEcrit('C1', 'enc-1', { ...saisie, date: '2027-01-14' })).rejects.toThrow(/antérieur à l'écriture/)
-    await expect(annulerEncaissementEcrit('C1', 'enc-1', { ...saisie, motif: ' ' })).rejects.toThrow(/motif/)
-    await expect(annulerEncaissementEcrit('C1', 'enc-1', { ...saisie, piece: '' })).rejects.toThrow(/pièce/)
-    await expect(annulerEncaissementEcrit('C1', 'enc-1', { ...saisie, date: '2027-02-30' })).rejects.toThrow(/date/i)
-    await expect(annulerEncaissementEcrit('C2', 'enc-1', saisie)).rejects.toThrow(/autre syndicat/)
-    await expect(annulerEncaissementEcrit('C1', 'enc-1', { ...saisie, mandatId: 'M2' })).rejects.toThrow(/autre syndicat/)
-    await expect(annulerEncaissementEcrit('C1', 'inconnu', saisie)).rejects.toThrow(/introuvable/)
+    await expect(annuler('C1', 'enc-1', { ...saisie, date: '2027-01-14' })).rejects.toThrow(/antérieur à l'écriture/)
+    await expect(annuler('C1', 'enc-1', { ...saisie, motif: ' ' })).rejects.toThrow(/motif/)
+    await expect(annuler('C1', 'enc-1', { ...saisie, piece: '' })).rejects.toThrow(/pièce/)
+    await expect(annuler('C1', 'enc-1', { ...saisie, date: '2027-02-30' })).rejects.toThrow(/date/i)
+    await expect(annuler('C2', 'enc-1', saisie)).rejects.toThrow(/autre syndicat/)
+    await expect(annuler('C1', 'enc-1', { ...saisie, mandatId: 'M2' })).rejects.toThrow(/autre syndicat/)
+    await expect(annuler('C1', 'inconnu', saisie)).rejects.toThrow(/introuvable/)
     expect(await compter()).toEqual(avant)
-    await annulerEncaissementEcrit('C1', 'enc-1', saisie)
+    await annuler('C1', 'enc-1', saisie)
     const apres = await compter()
-    await expect(annulerEncaissementEcrit('C1', 'enc-1', saisie)).rejects.toThrow(/déjà annulé/)
+    await expect(annuler('C1', 'enc-1', saisie)).rejects.toThrow(/déjà annulé/)
     expect(await compter()).toEqual(apres)
   })
 })
@@ -560,7 +602,7 @@ describe('une seule annulation, par le circuit des encaissements', () => {
     // État que l'annulation générique laissait avant sa garde : pièce annulée, encaissement inchangé.
     await ajDb.traitements.update(piece.id, { statut: 'Annulé', annuleePar: 'annulation-generique' })
     const avant = await compter()
-    await expect(annulerEncaissementEcrit('C1', 'enc-1', { date: '2027-01-17', motif: 'Chèque impayé', piece: 'AVIS-0004' })).rejects.toThrow(/pièce n° 3 est déjà annulée/)
+    await expect(annuler('C1', 'enc-1', { date: '2027-01-17', motif: 'Chèque impayé', piece: 'AVIS-0004' })).rejects.toThrow(/pièce n° 3 est déjà annulée/)
     expect(await compter()).toEqual(avant)
     const { ecarts, postes } = await lireEtatDesComptes('C1')
     expect(ecarts.map((e) => [e.compteId, e.serie])).toEqual([['c1', '00001']])
@@ -570,26 +612,47 @@ describe('une seule annulation, par le circuit des encaissements', () => {
 })
 
 describe('À valider — date de l’encaissement : ordre des paiements du compte, plausibilité', () => {
-  it('encaissement daté avant le dernier encaissement non annulé du même compte : refusé, rien n’est écrit ; admis une fois les suivants annulés', async () => {
+  it('encaissement daté avant le dernier encaissement non annulé du même compte : refusé, rien n’est écrit, sans proposer d’annuler les suivants', async () => {
     await appeler()
     await ecrireEncaissements('C1', [virement('c1', 27_000, { id: 'enc-janvier' })], OPTIONS)
     const cheque = [virement('c1', 20_000, { piece: { mode: 'Chèque', numero: '0001234' } })]
     const avant = await compter()
-    await expect(ecrireEncaissements('C1', cheque, { ...OPTIONS, date: '2026-12-20' })).rejects.toThrow(
-      /du 20\/12\/2026 sur le compte « c1 » : antérieur au dernier encaissement de ce compte \(enc-janvier du 15\/01\/2027\).*annuler.*ressaisir.*dans l'ordre des dates/,
+    const refus = await ecrireEncaissements('C1', cheque, { ...OPTIONS, date: '2026-12-20' }).catch((erreur: Error) => erreur.message)
+    expect(refus).toMatch(
+      /du 20\/12\/2026 sur le compte « c1 » : antérieur au dernier encaissement de ce compte \(enc-janvier du 15\/01\/2027\).*saisie d'un encaissement dans le désordre des dates n'est pas encore possible.*signaler/,
     )
+    // L'annulation est celle d'un rejet de la banque : la proposer ici fabriquerait un rejet absent du relevé.
+    expect(refus).toMatch(/ne pas annuler les encaissements postérieurs/)
+    expect(refus).not.toMatch(/ressaisir/)
     // Dans un lot, un seul encaissement hors ordre refuse tout le lot.
     await expect(ecrireEncaissements('C1', [virement('c2', 1_000), ...cheque], { ...OPTIONS, date: '2026-12-20' })).rejects.toThrow(/antérieur au dernier encaissement/)
     expect(await compter()).toEqual(avant)
     // Le même jour que le dernier, ou sur un autre compte : admis.
     await ecrireEncaissements('C1', [virement('c1', 1_000, { id: 'enc-meme-jour', piece: { mode: 'Virement', numero: 'VIR-0002' } })], OPTIONS)
     await ecrireEncaissements('C1', [virement('c2', 1_000)], { ...OPTIONS, date: '2026-12-20' })
-    // Les encaissements postérieurs annulés, le chèque du 20/12/2026 se saisit et sert le T4 2026, seul échu ce jour-là.
-    const debit = { date: '2027-01-16', motif: 'Ressaisie dans l’ordre des dates', piece: 'NOTE-0001' }
-    await annulerEncaissementEcrit('C1', 'enc-janvier', debit)
-    await annulerEncaissementEcrit('C1', 'enc-meme-jour', debit)
+    // Seuls les encaissements NON annulés comptent : les deux virements de janvier rejetés par la banque (avis), le chèque
+    // du 20/12/2026 n'est plus antérieur à aucun encaissement du compte ; il sert le T4 2026, seul échu ce jour-là.
+    const rejet = { date: '2027-01-16', motif: 'Virement retourné par la banque', piece: 'AVIS-2027-0007' }
+    await annuler('C1', 'enc-janvier', rejet)
+    await annuler('C1', 'enc-meme-jour', rejet)
     const { encaissements } = await ecrireEncaissements('C1', cheque, { ...OPTIONS, date: '2026-12-20' })
     expect(encaissements[0].imputation).toMatchObject({ lignes: [{ posteId: `${T4_2026}:L1`, montantCentimes: 20_000 }], resteAImputerCentimes: 0 })
+  })
+
+  it('date du débit de la banque (annulation) : année improbable ou postérieure au jour de la saisie refusée, rien n’est écrit', async () => {
+    await appeler()
+    await ecrireEncaissements('C1', [virement('c1', 27_000, { id: 'enc-1' })], OPTIONS)
+    const saisie = { motif: 'Chèque impayé', piece: 'AVIS-0006' }
+    const avant = await compter()
+    await expect(annuler('C1', 'enc-1', { ...saisie, date: '2127-01-25' })).rejects.toThrow(/Débit de la banque daté du 25\/01\/2127 : année improbable/)
+    await expect(annuler('C1', 'enc-1', { ...saisie, date: '1027-01-25' })).rejects.toThrow(/Débit de la banque daté du 25\/01\/1027 : année improbable/)
+    await expect(annuler('C1', 'enc-1', { ...saisie, date: '2027-02-16' })).rejects.toThrow(/Débit de la banque daté du 16\/02\/2027, après aujourd'hui/)
+    await expect(annuler('C1', 'enc-1', { ...saisie, date: '2027-01-25', aujourdhui: '2027-01-24' })).rejects.toThrow(/après aujourd'hui/)
+    await expect(annuler('C1', 'enc-1', { ...saisie, date: '2027-01-25', aujourdhui: 'demain' })).rejects.toThrow(/Date du jour invalide/)
+    expect(await compter()).toEqual(avant)
+    expect((await ajDb.encaissements.get('enc-1'))?.statut).toBe('Enregistré')
+    // Le jour même de la saisie : admis.
+    expect((await annuler('C1', 'enc-1', { ...saisie, date: '2027-02-15' })).encaissement.statut).toBe('Annulé')
   })
 
   it('année improbable, date postérieure au jour de la saisie, jour de la saisie invalide : refusés, rien n’est écrit', async () => {

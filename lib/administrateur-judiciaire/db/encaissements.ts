@@ -31,6 +31,8 @@ import {
 } from '@/lib/administrateur-judiciaire/domain/imputation-encaissements'
 import { segmentComptableSyndicat, STATUT_PIECE_ANNULEE } from '@/lib/administrateur-judiciaire/domain/journal-traitements'
 import {
+  lignesEcrites,
+  postesDeLImputation,
   postesDesComptes,
   soldesDesComptes,
   type DonneesPostes,
@@ -55,8 +57,7 @@ import { DATE_DU_JOUR_ISO } from '@/lib/administrateur-judiciaire/mode'
  *    réglé tenu à jour à chaque encaissement et à chaque annulation pourrait s'écarter de ce qui est écrit. Le prix : une
  *    clé ou des positions modifiées après un appel rendent la répartition relue différente de l'écriture ; le recoupement
  *    le voit et met les SEULS comptes touchés en écart (EtatDesComptes.ecarts : série, appel, échéances, lots) : leurs
- *    postes ne sont pas rendus, leurs encaissements et leurs annulations sont refusés ; les autres comptes du syndicat
- *    continuent.
+ *    postes ne sont pas rendus et leurs encaissements sont refusés ; les autres comptes du syndicat continuent.
  * 2. Ce qui est enregistré, dans UNE transaction (une erreur n'écrit rien) : la pièce du journal des traitements
  *    (enregistrerPieceTraitement : numéro de la séquence du cabinet, syndicat et mandat, D1) et, pour chaque encaissement,
  *    une ligne de la table `encaissements` (version 4) : l'encaissement du domaine (pièce, journal de banque, statut,
@@ -76,7 +77,10 @@ import { DATE_DU_JOUR_ISO } from '@/lib/administrateur-judiciaire/mode'
  *    réglage n'est passé ici : un 450-1 créé en cours d'année laisse les appels antérieurs au 45000, et un même
  *    encaissement peut créditer les deux sans compensation (arrêté du 14/03/2005, art. 9). Le reliquat va au 45000.
  * 5. Comment il est annulé (annulerEncaissementEcrit, F110) : écriture contraire de ses seules lignes, prises dans la
- *    pièce d'origine (encaissements-pieces.annulerEncaissement), enregistrée comme une pièce « Annulation d'encaissement » ;
+ *    pièce d'origine (encaissements-pieces.annulerEncaissement), d'après les lignes gardées sur l'encaissement (poste,
+ *    montant, appel d'origine, compte crédité), SANS relire les postes : un chèque impayé s'annule même si le compte est en
+ *    écart (la banque l'a déjà rejeté ; le compte reste en écart). Elle est enregistrée comme une pièce « Annulation
+ *    d'encaissement » ;
  *    l'encaissement passe « Annulé » et garde son imputation pour mémoire ; ses lignes ne comptent plus dans le réglé :
  *    les postes redeviennent dus à leur exigibilité d'origine. La pièce d'origine ne change pas (elle peut porter d'autres
  *    encaissements). C'est le SEUL circuit d'annulation : l'annulation générique des pièces (db/traitements.ts) refuse les
@@ -91,7 +95,10 @@ import { DATE_DU_JOUR_ISO } from '@/lib/administrateur-judiciaire/mode'
  * - compte repris d'une ancienne fiche avec un solde dû : l'encaissement est REFUSÉ tant que ce solde n'a aucune écriture
  *   (verifierSoldeRepris) ;
  * - ordre des dates : un encaissement daté avant le dernier encaissement non annulé du même compte est REFUSÉ
- *   (verifierOrdreDesDates) ; une date d'une année improbable ou postérieure au jour de la saisie aussi (verifierDate) ;
+ *   (verifierOrdreDesDates) ; la saisie dans le désordre des dates n'a pas encore de circuit (ni réimputation
+ *   chronologique, ni annulation pour erreur de saisie : l'annulation F110 est celle d'un rejet de la banque) ;
+ * - une date d'une année improbable ou postérieure au jour de la saisie est refusée, pour l'encaissement comme pour le
+ *   débit de la banque qui l'annule (verifierDate) ;
  * - numéro du compte 512 de chaque compte bancaire : donné par l'appelant (journal.compteEncaissement), aucun n'est
  *   attribué ici ;
  * - la pièce « Encaissement » reste « Enregistré » : son passage à « Imputé » n'est pas écrit.
@@ -287,13 +294,14 @@ async function identifiants(saisies: readonly SaisieEncaissement[]): Promise<str
 }
 
 /**
- * À valider (référent métier) — date d'un encaissement, fait accompli : refusée si elle n'est pas une date, si son année
- * est improbable (faute de frappe : dates.estAnneeImprobable) ou si elle est postérieure au jour de la saisie. Non
+ * À valider (référent métier) — date d'un fait accompli (encaissement, débit de la banque qui l'annule) : refusée si elle
+ * n'est pas une date, si son année est improbable (faute de frappe : dates.estAnneeImprobable) ou si elle est postérieure
+ * au jour de la saisie. `datee` porte l'accord du message (« Encaissement daté », « Débit de la banque daté »). Non
  * contrôlé : une date hors des exercices du syndicat, ou antérieure à l'écriture de l'appel.
  */
-function verifierDate(date: string, aujourdhui: string): void {
+function verifierDate(datee: string, date: string, aujourdhui: string, refus: string): void {
   const anomalie = plausibiliteDate(date, aujourdhui, { futurAdmis: false })
-  if (anomalie) throw new Error(`${messagePlausibilite('Encaissement daté', date, anomalie)} Encaissement refusé : corriger la date.`)
+  if (anomalie) throw new Error(`${messagePlausibilite(datee, date, anomalie)} ${refus} : corriger la date.`)
 }
 
 /**
@@ -301,14 +309,17 @@ function verifierDate(date: string, aujourdhui: string): void {
  * échues ce jour-là (C. civ. art. 1342-10), et chaque encaissement part du réglé laissé par les précédents. Un
  * encaissement daté AVANT le dernier encaissement non annulé du même compte s'imputerait sur ce que les paiements
  * postérieurs ont laissé (un chèque de décembre saisi après un virement de janvier partirait en reliquat, l'appel de
- * janvier restant dû). Solution prudente : refuser ; pour le saisir, annuler les encaissements postérieurs du compte, puis
- * tout ressaisir dans l'ordre des dates. Le même jour que le dernier : admis, dans l'ordre de saisie.
+ * janvier restant dû). Solution prudente : refuser, et le dire sans proposer d'annuler les encaissements postérieurs :
+ * la seule annulation qui existe est celle d'un rejet de la banque (avis de la banque, crédit du 512) ; s'en servir pour
+ * une ressaisie fabriquerait un rejet absent du relevé et fausserait le rapprochement. La saisie dans le désordre des dates
+ * attend son circuit (réimputation chronologique, ou annulation pour erreur de saisie : question ouverte). Le même jour
+ * que le dernier : admis, dans l'ordre de saisie.
  */
 function verifierOrdreDesDates(compteId: string, date: string, encaissements: readonly EncaissementCoproprietaireEnregistre[]): void {
   const dernier = encaissements.filter((e) => e.compteId === compteId && !e.annulation).sort(parDatePuisEcriture).at(-1)
   if (dernier && date < dernier.date)
     throw new Error(
-      `Encaissement du ${dateIsoVersFr(date)} sur le compte « ${compteId} » : antérieur au dernier encaissement de ce compte (${dernier.id} du ${dateIsoVersFr(dernier.date)}), déjà imputé ; l'imputation suit l'ordre des paiements (C. civ. art. 1342-10). Pour le saisir : annuler les encaissements postérieurs de ce compte, puis les ressaisir avec celui-ci dans l'ordre des dates.`,
+      `Encaissement du ${dateIsoVersFr(date)} sur le compte « ${compteId} » : antérieur au dernier encaissement de ce compte (${dernier.id} du ${dateIsoVersFr(dernier.date)}), déjà imputé ; l'imputation suit l'ordre des paiements (C. civ. art. 1342-10). La saisie d'un encaissement dans le désordre des dates n'est pas encore possible : ne pas annuler les encaissements postérieurs (l'annulation est réservée à un rejet de la banque, elle passerait un crédit du 512 absent du relevé) ; signaler cet encaissement pour qu'il soit traité.`,
     )
 }
 
@@ -367,7 +378,7 @@ export function ecrireEncaissements(
   return ajDb.transaction('rw', tablesEcrites(), async () => {
     const donnees = await lireDonnees(coproprieteId)
     if (saisies.length === 0) throw new Error('Aucun encaissement à écrire.')
-    verifierDate(date, aujourdhui)
+    verifierDate('Encaissement daté', date, aujourdhui, 'Encaissement refusé')
     await verifierCompteBancaire(journal.banqueId, coproprieteId)
     const ids = await identifiants(saisies)
     const segmentSyndicat = segmentComptableSyndicat(donnees.copropriete.code)
@@ -401,7 +412,7 @@ export function ecrireEncaissements(
         ...encaissement,
         coproprieteId,
         imputation: {
-          lignes: resultat.lignes,
+          lignes: lignesEcrites(resultat.lignes, resultat.postes),
           resteAImputerCentimes: resultat.resteAImputerCentimes,
           designationsIgnorees: resultat.designationsIgnorees,
           designationPartielleRefusee: resultat.designationPartielleRefusee,
@@ -431,13 +442,18 @@ export interface SaisieAnnulationEncaissementEcrit {
   piece: string
   /** Mandat qui annule (D1), sur le même syndicat ; par défaut celui de la pièce d'origine. */
   mandatId?: string
+  /** Jour de la saisie (AAAA-MM-JJ), pour refuser un débit à venir ; par défaut le jour courant de l'application. */
+  aujourdhui?: string
 }
 
 export interface ResultatAnnulationEncaissement {
   /** Pièce « Annulation d'encaissement » : l'écriture contraire. */
   piece: PieceTraitementEnregistree
   encaissement: EncaissementCoproprietaireEnregistre
-  /** Postes imputables du syndicat après l'annulation : ceux que l'encaissement avait réglés sont de nouveau dus. */
+  /**
+   * Postes imputables du syndicat après l'annulation : ceux que l'encaissement avait réglés sont de nouveau dus. Ceux d'un
+   * compte en écart ne sont pas rendus (l'annulation ne lève pas l'écart).
+   */
   postes: PosteDette[]
 }
 
@@ -453,40 +469,42 @@ function pieceDOrigine(encaissement: EncaissementCoproprietaireEnregistre, piece
 }
 
 /**
- * Annule un encaissement écrit (décision du 20/11/2026, partie C, F110) : voir la conception en tête. Refus, rien n'est
- * écrit : encaissement introuvable ou d'un autre syndicat (D1), déjà annulé, pièce d'origine absente ou déjà annulée par
- * un autre circuit, compte en écart avec l'écriture de ses appels, débit de la banque antérieur à l'écriture, sans motif
- * ou sans pièce, date invalide, mandat d'un autre syndicat, écriture d'origine qui ne porte pas ses lignes.
+ * Annule un encaissement écrit (décision du 20/11/2026, partie C, F110) : voir la conception en tête. Un compte en écart
+ * n'empêche pas l'annulation : la banque a déjà rejeté le paiement, et l'écriture contraire se lit dans les lignes gardées
+ * sur l'encaissement. Refus, rien n'est écrit : encaissement introuvable ou d'un autre syndicat (D1), déjà annulé, pièce
+ * d'origine absente ou déjà annulée par un autre circuit, débit de la banque antérieur à l'écriture, d'une année
+ * improbable ou postérieur au jour de la saisie (à valider), sans motif ou sans pièce, date invalide, mandat d'un autre
+ * syndicat, écriture d'origine qui ne porte pas ses lignes.
  */
 export function annulerEncaissementEcrit(
   coproprieteId: string,
   encaissementId: string,
-  { date, motif, piece: avis, mandatId }: SaisieAnnulationEncaissementEcrit,
+  { date, motif, piece: avis, mandatId, aujourdhui = DATE_DU_JOUR_ISO }: SaisieAnnulationEncaissementEcrit,
   { actor = null }: OptionsEcriture = {},
 ): Promise<ResultatAnnulationEncaissement> {
   return ajDb.transaction('rw', tablesEcrites(), async () => {
+    verifierDate('Débit de la banque daté', date, aujourdhui, 'Annulation refusée')
     const avant = await ajDb.encaissements.get(encaissementId)
     if (!avant) throw new Error(`Encaissement introuvable (id=${encaissementId}).`)
     if (avant.coproprieteId !== coproprieteId)
       throw new Error(`Encaissement ${encaissementId} d'un autre syndicat (${avant.coproprieteId}) que ${coproprieteId} (D1).`)
     const donnees = await lireDonnees(coproprieteId)
     const origine = pieceDOrigine(avant, donnees.pieces)
-    const { postes, ecarts } = etatDe(donnees)
-    // Déjà annulé : le domaine le refuse plus bas, avec la date et le motif ; ses lignes ne comptent plus, aucun écart à lire.
-    if (!avant.annulation) verifierSansEcart(avant.compteId, ecarts)
-
+    // Les postes de l'écriture contraire se lisent dans les lignes gardées sur l'encaissement, pas dans l'échéancier relu :
+    // un compte en écart s'annule aussi.
+    const postesEcrits = postesDeLImputation(avant)
     const { imputation } = avant
     const resultat: ResultatImputation = {
       encaissementId: avant.id,
-      lignes: imputation.lignes,
+      lignes: imputation.lignes.map(({ posteId, montantCentimes }) => ({ posteId, montantCentimes })),
       resteAImputerCentimes: imputation.resteAImputerCentimes,
       designationsIgnorees: imputation.designationsIgnorees,
       designationPartielleRefusee: imputation.designationPartielleRefusee,
-      postes,
+      postes: postesEcrits,
     }
     const annule = annulerEncaissement(
       avant,
-      { ecriture: origine.traitement, resultat, postes, comptes: donnees.comptes, segmentSyndicat: segmentComptableSyndicat(donnees.copropriete.code) },
+      { ecriture: origine.traitement, resultat, postes: postesEcrits, comptes: donnees.comptes, segmentSyndicat: segmentComptableSyndicat(donnees.copropriete.code) },
       { id: `annulation-encaissement-${genererId()}`, date, motif, piece: avis },
     )
     const piece = await enregistrerPieceTraitement({ traitement: annule.traitement, coproprieteId, mandatId: mandatId ?? origine.mandatId }, { actor })
@@ -499,6 +517,7 @@ export function annulerEncaissementEcrit(
     }
     await ajDb.encaissements.put(apres)
     await journaliserActivite({ entite: 'encaissements', entiteId: apres.id, action: 'update', qui: actor, avant, apres })
-    return { piece, encaissement: apres, postes: annule.postes }
+    const encaissements = donnees.encaissements.map((e) => (e.id === apres.id ? apres : e))
+    return { piece, encaissement: apres, postes: etatDe({ ...donnees, encaissements }).postes }
   })
 }
