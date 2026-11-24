@@ -110,7 +110,7 @@ const DEFAULT_PERMISSIONS: PermissionMatrix = {
 
   CONDUCTEUR_TRAVAUX: {
     home: 'FULL', calendar: 'FULL', chantiers: 'READ', equipes: 'READ',
-    gantt: 'FULL', pointage: 'FULL',
+    gantt: 'FULL', pointage: 'READ',
     compta_btp: 'NONE', rentabilite: 'READ', rfq_btp: 'FULL',
     situations: 'FULL', garanties: 'READ', sous_traitance: 'FULL',
     sous_traitance_offres: 'FULL', dpgf: 'FULL',
@@ -122,12 +122,12 @@ const DEFAULT_PERMISSIONS: PermissionMatrix = {
     materiaux: 'FULL', marches: 'FULL', marketplace_btp: 'FULL',
     meteo: 'READ', dictionnaire_materiaux: 'READ', estimation_materiaux: 'NONE',
     wallet: 'READ', portfolio: 'FULL', parrainage: 'NONE',
-    settings: 'NONE', gestion_comptes: 'NONE',
+    settings: 'READ', gestion_comptes: 'NONE',
   },
 
   CHEF_CHANTIER: {
     home: 'READ', calendar: 'FULL', chantiers: 'READ', equipes: 'READ',
-    gantt: 'READ', pointage: 'FULL',
+    gantt: 'READ', pointage: 'READ',
     compta_btp: 'NONE', rentabilite: 'NONE', rfq_btp: 'READ',
     situations: 'READ', garanties: 'NONE', sous_traitance: 'NONE',
     sous_traitance_offres: 'NONE', dpgf: 'NONE',
@@ -139,7 +139,7 @@ const DEFAULT_PERMISSIONS: PermissionMatrix = {
     stats: 'NONE', revenus: 'NONE', comptabilite: 'NONE',
     materiaux: 'READ', marches: 'NONE', marketplace_btp: 'NONE',
     wallet: 'NONE', portfolio: 'NONE', parrainage: 'NONE',
-    settings: 'NONE', gestion_comptes: 'NONE',
+    settings: 'READ', gestion_comptes: 'NONE',
   },
 
   // Tous les pouvoirs (décision de Frédéric du 24/11/2026, « la secrétaire Tatiana a tous les pouvoirs »), à une
@@ -165,7 +165,7 @@ const DEFAULT_PERMISSIONS: PermissionMatrix = {
     stats: 'FULL', revenus: 'FULL', comptabilite: 'FULL',
     materiaux: 'NONE', marches: 'NONE', marketplace_btp: 'NONE',
     wallet: 'NONE', portfolio: 'NONE', parrainage: 'NONE',
-    settings: 'NONE', gestion_comptes: 'NONE',
+    settings: 'READ', gestion_comptes: 'NONE',
   },
 
   OUVRIER: {
@@ -182,7 +182,7 @@ const DEFAULT_PERMISSIONS: PermissionMatrix = {
     stats: 'NONE', revenus: 'NONE', comptabilite: 'NONE',
     materiaux: 'NONE', marches: 'NONE', marketplace_btp: 'NONE',
     wallet: 'NONE', portfolio: 'NONE', parrainage: 'NONE',
-    settings: 'NONE', gestion_comptes: 'NONE',
+    settings: 'READ', gestion_comptes: 'NONE',
   },
 }
 

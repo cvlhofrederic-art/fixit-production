@@ -499,6 +499,13 @@ describe('Barre latérale BTP — ce qu’un salarié voit du menu', () => {
     expect(screen.getAllByText('Aucun module trouvé').length).toBeGreaterThan(0)
   })
 
+  // Portail client est une entrée du catalogue sans module de permission : personne ne peut l'accorder, donc le
+  // filtre ne doit pas la retirer — sinon elle disparaîtrait pour tous les sous-comptes, secrétaire comprise.
+  it('une entrée sans module de permission reste au menu d’un salarié', async () => {
+    await monter({ isProGerant: false, proCanAccess: salarieDeTerrain })
+    expect(modulesAffiches()).toContain('Portail client')
+  })
+
   it('le gérant garde le menu complet, quelles que soient les permissions lues', async () => {
     await monter({ isProGerant: true, proCanAccess: () => false })
     const affiches = modulesAffiches()

@@ -19,12 +19,7 @@ const h = vi.hoisted(() => ({
   user: null as null | { id: string; email?: string; app_metadata?: Record<string, unknown> },
 }))
 
-// Seul getAuthUser est simulé : resolveCompanyId, isProGerant et getUserRole sont le vrai code, et c'est bien eux
-// qu'on veut éprouver ici (la résolution de la société passe par le faux client).
-vi.mock('@/lib/auth-helpers', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/auth-helpers')>()),
-  getAuthUser: vi.fn(async () => h.user),
-}))
+vi.mock('@/lib/auth-helpers', async (io) => (await import('../helpers/mocks-routes-api')).authHelpersReels(io, () => h.user))
 vi.mock('@/lib/rate-limit', async () => (await import('../helpers/mocks-routes-api')).rateLimitPermissif())
 vi.mock('@/lib/logger', async () => (await import('../helpers/mocks-routes-api')).loggerSilencieux())
 vi.mock('@/lib/supabase-server', async () => {
@@ -161,21 +156,26 @@ describe('GET /api/btp — salarié de terrain (vue restreinte)', () => {
     expect(json.rattachement).toBe('ambigu')
   })
 
-  // Le chef de chantier a « equipes: READ » dans la matrice : il voit donc le trombinoscope de l'équipe, mais la
-  // projection retire la paie. Les dépenses et les réglages, eux, lui sont fermés (NONE).
-  it('table=all : ses chantiers et ses collègues sans leur paie, rien des listes fermées', async () => {
+  // Le chef de chantier a « equipes: READ », mais les fiches employés n'ont PAS de vue restreinte : les écrans
+  // remplaceraient les colonnes retirées par des valeurs par défaut (coût horaire 25 €, charges 45 %), c'est-à-dire
+  // par des chiffres de paie faux donnés pour ceux d'un collègue. En lecture seule, il ne reçoit donc rien.
+  it('table=all : ses chantiers, et rien des listes qui porteraient de la paie ou des montants', async () => {
     salarie('CHEF_CHANTIER')
     const { json } = await lire('?table=all')
     expect(titres(json.chantiers)).toEqual(['Affecté', 'Par équipe'])
-    expect((json.membres as Record<string, unknown>[]).map(m => m.nom).sort()).toEqual(['Collègue', 'Ouvrier'])
-    for (const membre of json.membres as Record<string, unknown>[]) {
-      expect(membre).not.toHaveProperty('salaire_net_mensuel')
-      expect(membre).not.toHaveProperty('cout_horaire')
-      expect(membre).not.toHaveProperty('owner_id')
-    }
+    expect(json.membres).toEqual([])
+    expect(json.equipes).toEqual([])
     expect(json.depenses).toEqual([])
     expect(json.settings).toBeNull()
     expect(json.restreint).toBe(true)
+  })
+
+  // La reprise des anciennes données du navigateur sème une table vide de la société : réservée au titulaire, même
+  // pour un rôle qui a FULL sur la table visée.
+  it('refuse la reprise des anciennes données à la secrétaire', async () => {
+    salarie('SECRETAIRE')
+    const { status } = await ecrire({ table: 'chantiers_btp', action: 'import', data: [] })
+    expect(status).toBe(403)
   })
 })
 

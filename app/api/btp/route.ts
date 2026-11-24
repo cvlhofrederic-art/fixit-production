@@ -198,15 +198,15 @@ export async function GET(request: NextRequest) {
     const perimetre = await lirePerimetreBtp(user, supabaseAdmin)
 
     if (table === 'all') {
-      const [chantiers, membres, equipes, pointages, depenses] = await Promise.all([
+      const visibiliteReglages = visibiliteListe(perimetre, 'settings')
+      const [chantiers, membres, equipes, pointages, depenses, settings] = await Promise.all([
         lireListePour(perimetre, 'chantiers', chantierId),
         lireListePour(perimetre, 'membres', chantierId),
         lireListePour(perimetre, 'equipes', chantierId),
         lireListePour(perimetre, 'pointages', chantierId),
         lireListePour(perimetre, 'depenses', chantierId),
+        visibiliteReglages === 'tout' ? lireReglages(perimetre.societeId) : Promise.resolve(null),
       ])
-      const visibiliteReglages = visibiliteListe(perimetre, 'settings')
-      const settings = visibiliteReglages === 'tout' ? await lireReglages(perimetre.societeId) : null
       return NextResponse.json({
         chantiers: chantiers.liste.lignes, membres: membres.liste.lignes, equipes: avecMembreIds(equipes.liste.lignes),
         pointages: pointages.liste.lignes, depenses: depenses.liste.lignes, settings,
@@ -634,6 +634,9 @@ export async function POST(request: NextRequest) {
     const perimetre = await lirePerimetreBtp(user, supabaseAdmin)
     if (!peutEcrireTable(perimetre, table)) {
       return refus('Votre rôle dans l\'entreprise ne permet pas de modifier ces données.', 403)
+    }
+    if (action === 'import' && !perimetre.titulaire) {
+      return refus('La reprise des anciennes données est réservée au compte de l\'entreprise.', 403)
     }
     const societeId = perimetre.societeId
 

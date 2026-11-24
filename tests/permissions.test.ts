@@ -165,15 +165,15 @@ describe('lib/permissions', () => {
       }
     })
 
-    // La secrétaire a tous les pouvoirs depuis le 24/11/2026 : elle règle aussi la fiche de la société.
-    it('only GERANT and SECRETAIRE have FULL on settings', () => {
+    // La secrétaire a tous les pouvoirs depuis le 24/11/2026 : elle règle aussi la fiche de la société. Les autres
+    // ont « settings » en lecture, et pas NONE, parce que l'écran « Mon profil » porte le changement de mot de passe :
+    // le fermer enfermerait le salarié dehors. En lecture, /api/btp ne livre aucun réglage de la société.
+    it('seuls GERANT et SECRETAIRE écrivent les réglages ; les autres ouvrent l’écran sans les lire', () => {
       for (const role of PRO_TEAM_ROLES) {
         const perms = getDefaultPermissionsForRole(role)
-        if (role === 'GERANT' || role === 'SECRETAIRE') {
-          expect(perms.settings).toBe('FULL')
-        } else {
-          expect(perms.settings).toBe('NONE')
-        }
+        const attendu = role === 'GERANT' || role === 'SECRETAIRE' ? 'FULL' : 'READ'
+        expect(perms.settings, role).toBe(attendu)
+        expect(canWrite(perms, 'settings')).toBe(attendu === 'FULL')
       }
     })
 
@@ -220,18 +220,20 @@ describe('lib/permissions', () => {
       const perms = getDefaultPermissionsForRole('OUVRIER')
       const accessible = getAccessibleModules(perms)
       expect(accessible.sort()).toEqual(
-        ['calendar', 'chantiers', 'dictionnaire_materiaux', 'meteo', 'photos_chantier', 'pointage'].sort(),
+        ['calendar', 'chantiers', 'dictionnaire_materiaux', 'meteo', 'photos_chantier', 'pointage', 'settings'].sort(),
       )
-      for (const mod of ['devis', 'factures', 'comptabilite', 'revenus', 'stats', 'clients', 'settings', 'gestion_comptes']) {
+      for (const mod of ['devis', 'factures', 'comptabilite', 'revenus', 'stats', 'clients', 'gestion_comptes']) {
         expect(canAccess(perms, mod)).toBe(false)
       }
     })
 
     // Un salarié de terrain ne doit rien pouvoir ÉCRIRE de ce qui porte des montants ou des salaires : depuis le
-    // 24/11/2026, FULL vaut droit d'écriture dans /api/btp (lib/btp/perimetre-compte.ts).
+    // 24/11/2026, FULL vaut droit d'écriture dans /api/btp (lib/btp/perimetre-compte.ts). Et le pointage ne passe pas
+    // par cette route : en FULL elle rendrait les positions GPS d'arrivée et de départ de chaque collègue, que la
+    // route dédiée retire exprès.
     it.each(TERRAIN)('%s n’écrit ni les chantiers, ni les fiches employés, ni la comptabilité', (role) => {
       const perms = getDefaultPermissionsForRole(role)
-      for (const mod of ['chantiers', 'equipes', 'compta_btp', 'comptabilite', 'settings']) {
+      for (const mod of ['chantiers', 'equipes', 'compta_btp', 'comptabilite', 'settings', 'pointage']) {
         expect(canWrite(perms, mod)).toBe(false)
       }
     })

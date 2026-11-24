@@ -100,10 +100,13 @@ export const COLONNES_VUE_RESTREINTE: Record<string, readonly string[]> = {
     'id', 'titre', 'adresse', 'ville', 'code_postal', 'latitude', 'longitude', 'geo_rayon_m',
     'statut', 'date_debut', 'date_fin', 'description', 'membres_ids', 'created_at',
   ],
-  // Ni coût horaire, ni salaire brut ou net, ni taux de charges, ni prime, ni panier.
-  membres: ['id', 'prenom', 'nom', 'role_perso', 'type_compte', 'equipe_id', 'actif'],
-  equipes: ['id', 'nom', 'metier', 'chantier_id', 'equipe_membres_btp'],
 }
+
+// Pourquoi `membres` et `equipes` n'ont PAS de vue restreinte : les écrans remplacent une colonne absente par une
+// valeur par défaut — `cout_horaire || 25`, `chargesPct || 45`, `type_contrat || 'cdi'` (lib/hooks/use-btp-data.ts)
+// — et EquipesBTPV2 affiche ces chiffres dans un tableau « Coût/h · Coût réel/h · Contrat ». Projeter la paie y
+// fabriquerait des montants faux donnés pour ceux d'un collègue, ce qui est pire que de ne rien montrer. En lecture
+// seule ces deux listes valent donc « aucune » ; il faut FULL pour les voir.
 
 /** Niveau du compte sur un module : un titulaire a tout, un module inconnu ne donne rien. */
 export function niveauSur(perimetre: PerimetreBtp, module: string | null | undefined): AccessLevel {

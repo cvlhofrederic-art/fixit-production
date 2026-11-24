@@ -13,6 +13,7 @@ import type { KeyboardEvent } from 'react'
 import { nomDeRubrique, type ModCategory } from '@/hooks/useModuleCategories'
 import LienPanneauAdmin from '@/components/common/LienPanneauAdmin'
 import { rechercherModules, type ModuleCherchable } from '@/lib/btp/recherche-modules'
+import { ALL_PRO_MODULES } from '@/lib/permissions'
 
 interface V5SidebarProps {
   activePage: string
@@ -48,6 +49,10 @@ const MOTS_CLES: Record<string, { fr: string; pt: string }> = {
   marches: { fr: '', pt: 'bolsa de mercados' },
   parrainage: { fr: '', pt: 'apadrinhamento indicar um amigo' },
 }
+
+// Modules réellement gouvernés par la matrice des droits : une entrée de menu sans module de permission
+// (Portail client, par exemple) n'est fermée à personne, faute de pouvoir être accordée à quiconque.
+const MODULES_GARDES = new Set<string>(ALL_PRO_MODULES)
 
 // ─── Routing alias: motifs → prestations (URL key) ───
 const ROUTE_ALIAS: Record<string, string> = { motifs: 'prestations' }
@@ -132,7 +137,8 @@ export default function V5Sidebar({
         // seulement dans la branche figée plus bas, que le tableau de bord n'atteint jamais : il fournit toujours
         // des rubriques dynamiques, si bien qu'un ouvrier voyait tout le catalogue, Devis et Factures comprises.
         // La recherche de modules s'appuie sur cette même liste : elle ne montre donc rien de plus que le menu.
-        modules: cat.modules.filter(m => m.on && isModuleEnabled(m.id) && (isProGerant || proCanAccess(m.id))),
+        modules: cat.modules.filter(m =>
+          m.on && isModuleEnabled(m.id) && (isProGerant || !MODULES_GARDES.has(m.id) || proCanAccess(m.id))),
       }))
       .filter(rubrique => rubrique.modules.length > 0)
   }, [dynamicCategories, isPt, isModuleEnabled, isProGerant, proCanAccess])

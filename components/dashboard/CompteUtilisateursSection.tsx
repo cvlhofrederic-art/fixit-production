@@ -314,9 +314,10 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
     return <span className="px-2 py-0.5 rounded text-[10px] font-semibold uppercase" style={{ background: '#dcfce7', color: '#16a34a' }}>{isPt ? 'Ativo' : 'Actif'}</span>
   }
 
-  // Filter modules for permission grid — skip settings (always per-role)
-  // gestion_comptes is editable so gérant can grant READ access to other roles
-  const editableModules = ALL_PRO_MODULES.filter(m => m !== 'settings')
+  // Tous les modules sont réglables, compte par compte (24/11/2026). `settings` l'était resté « par rôle », donc
+  // figé : la secrétaire, à qui les valeurs par défaut donnent FULL, lisait et modifiait les réglages de la société —
+  // salaire du gérant, taux de cotisations, taux d'IS, objectif de marge — sans que le gérant puisse le lui retirer.
+  const editableModules = ALL_PRO_MODULES
 
   // Role badge colors matching HTML v5 template
   const ROLE_BADGE: Record<string, { bg: string; color: string }> = {

@@ -59,6 +59,15 @@ describe('visibiliteListe', () => {
     expect(visibiliteListe(avecPointage, 'pointages')).toBe('aucune')
   })
 
+  // Les fiches employés et les équipes portent la paie, et les écrans comblent une colonne absente par une valeur
+  // par défaut : aucune vue restreinte ne doit exister pour elles, sous peine d'afficher des chiffres inventés.
+  it('ni les fiches employés ni les équipes n’ont de vue restreinte', () => {
+    expect(Object.keys(COLONNES_VUE_RESTREINTE)).toEqual(['chantiers'])
+    const avecEquipes: PerimetreBtp = { ...ouvrier, permissions: { equipes: 'READ' } }
+    expect(visibiliteListe(avecEquipes, 'membres')).toBe('aucune')
+    expect(visibiliteListe(avecEquipes, 'equipes')).toBe('aucune')
+  })
+
   it('la table de référence commune reste lisible par un salarié', () => {
     expect(MODULE_PAR_LISTE.ref_taux).toBeNull()
     expect(visibiliteListe(ouvrier, 'ref_taux')).toBe('restreinte')

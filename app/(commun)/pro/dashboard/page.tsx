@@ -29,7 +29,8 @@ import type { User } from '@supabase/supabase-js'
 import { toast } from 'sonner'
 import { notificationOuvreMessagerie } from '@/lib/messagerie-pro'
 import { FicheSocieteIndisponible, messageFicheSocieteAbsente, prevenirFicheSocieteAbsente } from '@/components/dashboard/btp/FicheSocieteIndisponible'
-import { SECTIONS_SOCIETE_BTP } from '@/lib/btp/sections-tableau-de-bord'
+import { MODULE_DE_LA_SECTION, SECTIONS_SOCIETE_BTP } from '@/lib/btp/sections-tableau-de-bord'
+import { ALL_PRO_MODULES } from '@/lib/permissions'
 import { FiletSocieteBtp } from '@/components/dashboard/btp/FiletSocieteBtp'
 
 // Section loading spinner — shown while JS chunks load
@@ -140,6 +141,10 @@ function SuspenseFallback() {
 // Écran d'ouverture d'un salarié dont le rôle n'a pas accès à la section demandée : son poste de travail d'abord,
 // puis ce qui lui reste. 'home' en dernier recours, même s'il ne l'a pas : mieux vaut un accueil vide qu'une boucle.
 const ORDRE_ACCUEIL_SALARIE = ['pointage', 'chantiers', 'meteo', 'dictionnaire_materiaux', 'calendar', 'photos_chantier'] as const
+
+// Sections réellement gouvernées par la matrice des droits. Les autres (Mon profil, Aide, Modules, Portail client,
+// Communication, Canal) n'ont aucun module : personne ne peut les accorder, elles restent donc ouvertes.
+const SECTIONS_GARDEES = new Set<string>(ALL_PRO_MODULES)
 
 export default function DashboardPageWrapper() {
   return (
@@ -534,7 +539,9 @@ function DashboardPage() {
   useEffect(() => {
     if (orgRole !== 'pro_societe') return
     if (!SECTIONS_SOCIETE_BTP.has(activePage)) { navigateTo('home', { remplacer: true }); return }
-    if (isProGerant || proCanAccess(activePage)) return
+    if (isProGerant) return
+    const module = MODULE_DE_LA_SECTION[activePage] ?? activePage
+    if (!SECTIONS_GARDEES.has(module) || proCanAccess(module)) return
     const repli = ORDRE_ACCUEIL_SALARIE.find((section) => proCanAccess(section)) ?? 'home'
     if (repli !== activePage) navigateTo(repli, { remplacer: true })
   }, [orgRole, activePage, navigateTo, isProGerant, proCanAccess])
