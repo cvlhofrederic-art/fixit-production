@@ -1,3 +1,4 @@
+import { lireModeComptesDuMandat } from '@/lib/administrateur-judiciaire/db/comptes-bancaires'
 import { ajouterEcheancesAppel, echeancesAppelDuSyndicat, ecrireEcheancesModifiees } from '@/lib/administrateur-judiciaire/db/echeances-appel'
 import { genererId } from '@/lib/administrateur-judiciaire/db/ids'
 import { repoClesRepartition, repoExercices } from '@/lib/administrateur-judiciaire/db/repositories'
@@ -24,6 +25,7 @@ import {
   type AnomalieDateComptableAppel,
   type BornesExercice,
 } from '@/lib/administrateur-judiciaire/domain/echeancier-appels'
+import type { ModeComptesLu } from '@/lib/administrateur-judiciaire/domain/comptes-bancaires'
 import { creerExercice } from '@/lib/administrateur-judiciaire/domain/exercices-budgets'
 import { segmentComptableSyndicat } from '@/lib/administrateur-judiciaire/domain/journal-traitements'
 import { idsMigration } from '@/lib/administrateur-judiciaire/domain/migration-d2'
@@ -73,6 +75,8 @@ export interface DonneesAppelsLues {
   /** Exercices du syndicat dont les bornes sont connues. */
   exercices: BornesExercice[]
   banques: Banque[]
+  /** Mode de tenue des comptes du mandat, ou l'erreur de lecture (ap-03 : lireModeComptesDuMandat). */
+  modeComptes: ModeComptesLu
   /** Pièces du journal des traitements du syndicat. */
   pieces: PieceTraitementEnregistree[]
   /** Anciennes fiches copropriétaire des lots du syndicat sans identité, compte ni position (migration D2 à lancer). */
@@ -94,10 +98,14 @@ async function comptesEnContentieux(comptes: readonly CompteCoproprietaireEnregi
   return new Set(impayes.filter((i) => lireStatutRecouvrement(i.statut).etape === 'procedure').flatMap((i) => parFiche.get(i.coproprietaireId) ?? []))
 }
 
-export async function lireDonneesAppels(coproprieteId: string): Promise<DonneesAppelsLues> {
+/**
+ * Tables du syndicat et mode de tenue de son mandat (`mandatId` : celui de l'écran, vide sans mandat). Un mode
+ * illisible ne fait pas échouer la lecture : l'écriture de l'appel reste possible, l'avis porte l'anomalie (ap-03, ap-04).
+ */
+export async function lireDonneesAppels(coproprieteId: string, mandatId: string | null): Promise<DonneesAppelsLues> {
   const lots = await ajDb.lots.where('coproprieteId').equals(coproprieteId).toArray()
   const lotIds = lots.map((l) => l.id)
-  const [positions, fiches, comptes, cles, echeances, exercices, banques, pieces] = await Promise.all([
+  const [positions, fiches, comptes, cles, echeances, exercices, banques, pieces, modeComptes] = await Promise.all([
     parLots(lotIds, (ids) => ajDb.positions.where('lotId').anyOf(ids).toArray()),
     parLots(lotIds, (ids) => ajDb.coproprietaires.where('lotId').anyOf(ids).toArray()),
     ajDb.comptesCoproprietaires.where('coproprieteId').equals(coproprieteId).toArray(),
@@ -106,6 +114,7 @@ export async function lireDonneesAppels(coproprieteId: string): Promise<DonneesA
     ajDb.exercices.where('coproprieteId').equals(coproprieteId).toArray(),
     ajDb.banques.where('coproprieteId').equals(coproprieteId).toArray(),
     ajDb.traitements.where('coproprieteId').equals(coproprieteId).toArray(),
+    lireModeComptesDuMandat(coproprieteId, mandatId),
   ])
   const identites = (await ajDb.identites.bulkGet([...new Set(positions.map((p) => p.identiteId))])).filter((i) => i !== undefined)
   const lignesD2 = new Set([...positions.map((p) => p.id), ...comptes.map((c) => c.id)])
@@ -122,6 +131,7 @@ export async function lireDonneesAppels(coproprieteId: string): Promise<DonneesA
     echeances,
     exercices: bornesDe(exercices),
     banques,
+    modeComptes,
     pieces,
     fichesNonReprises,
     comptesEnContentieux: await comptesEnContentieux(comptes),
