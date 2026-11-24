@@ -10,7 +10,6 @@
  * elle-même, rôle par rôle, est vérifiée dans tests/auth/destination-par-role.test.ts.
  * `estAppMobile()` est forcé à vrai : sans Capacitor, il répond faux dans un test.
  */
-import React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
@@ -36,19 +35,14 @@ vi.mock('@/lib/supabase', () => ({
 
 vi.mock('@/lib/app-mobile', () => ({ estAppMobile: () => true }))
 
-vi.mock('@/lib/i18n/context', () => ({
-  useTranslation: () => ({ t: (cle: string) => cle, locale: 'fr', setLocale: () => {} }),
-  useLocale: () => 'fr',
-}))
-
-vi.mock('@/components/common/LocaleLink', () => ({
-  default: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>,
-}))
+vi.mock('@/lib/i18n/context', async () => (await import('../helpers/page-connexion')).i18nFrancais())
+vi.mock('@/components/common/LocaleLink', async () => (await import('../helpers/page-connexion')).localeLinkSimple())
 
 import LoginPage from '@/app/(commun)/auth/login/page'
+import { installerLocationFactice } from '../helpers/page-connexion'
 
 let navigations: string[] = []
-let descripteurLocation: PropertyDescriptor | undefined
+let restaurerLocation: () => void = () => {}
 
 /** Compte d'une société BTP : le gérant n'a pas de rôle d'équipe, un salarié invité en porte un. */
 const compteBtp = (roleEquipe?: string) => ({
@@ -61,24 +55,11 @@ beforeEach(() => {
   vi.clearAllMocks()
   simul.getSession.mockResolvedValue({ data: { session: null }, error: null })
   simul.getUser.mockResolvedValue({ data: { user: null }, error: null })
-  navigations = []
-  descripteurLocation = Object.getOwnPropertyDescriptor(window, 'location')
-  Object.defineProperty(window, 'location', {
-    configurable: true,
-    value: {
-      origin: 'https://vitfix.io',
-      pathname: '/fr/auth/login/',
-      search: '',
-      get href() { return 'https://vitfix.io/fr/auth/login/' },
-      set href(destination: string) { navigations.push(destination) },
-      assign: (destination: string) => { navigations.push(destination) },
-      replace: (destination: string) => { navigations.push(destination) },
-    },
-  })
+  ;({ navigations, restaurer: restaurerLocation } = installerLocationFactice())
 })
 
 afterEach(() => {
-  if (descripteurLocation) Object.defineProperty(window, 'location', descripteurLocation)
+  restaurerLocation()
 })
 
 /** Remplit le formulaire et le soumet. L'espace choisi ne décide de rien : la destination vient du rôle reçu. */

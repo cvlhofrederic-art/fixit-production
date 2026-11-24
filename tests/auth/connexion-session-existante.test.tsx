@@ -10,7 +10,6 @@
  * - absente ou indisponible (réseau, AbortError du verrou) → ni redirection ni déconnexion ;
  * - une connexion lancée par l'utilisateur prime sur une vérification encore en cours.
  */
-import React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { AuthApiError, AuthSessionMissingError } from '@supabase/supabase-js'
@@ -35,36 +34,15 @@ vi.mock('@/lib/supabase', () => ({
   },
 }))
 
-vi.mock('@/lib/i18n/context', () => ({
-  useTranslation: () => ({ t: (cle: string) => cle, locale: 'fr', setLocale: () => {} }),
-  useLocale: () => 'fr',
-}))
-
-vi.mock('@/components/common/LocaleLink', () => ({
-  default: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>,
-}))
+vi.mock('@/lib/i18n/context', async () => (await import('../helpers/page-connexion')).i18nFrancais())
+vi.mock('@/components/common/LocaleLink', async () => (await import('../helpers/page-connexion')).localeLinkSimple())
 
 import LoginPage from '@/app/(commun)/auth/login/page'
 
-let navigations: string[] = []
-let descripteurLocation: PropertyDescriptor | undefined
+import { installerLocationFactice } from '../helpers/page-connexion'
 
-function installerLocation() {
-  navigations = []
-  descripteurLocation = Object.getOwnPropertyDescriptor(window, 'location')
-  Object.defineProperty(window, 'location', {
-    configurable: true,
-    value: {
-      origin: 'https://vitfix.io',
-      pathname: '/fr/auth/login/',
-      search: '',
-      get href() { return 'https://vitfix.io/fr/auth/login/' },
-      set href(destination: string) { navigations.push(destination) },
-      assign: (destination: string) => { navigations.push(destination) },
-      replace: (destination: string) => { navigations.push(destination) },
-    },
-  })
-}
+let navigations: string[] = []
+let restaurerLocation: () => void = () => {}
 
 const utilisateur = (role: string) => ({ id: 'u1', app_metadata: { role }, user_metadata: {} })
 const abortError = () => new DOMException('signal is aborted without reason', 'AbortError')
@@ -74,11 +52,11 @@ beforeEach(() => {
   vi.clearAllMocks()
   simul.getSession.mockResolvedValue({ data: { session: null }, error: null })
   simul.signOut.mockResolvedValue({ error: null })
-  installerLocation()
+  ;({ navigations, restaurer: restaurerLocation } = installerLocationFactice())
 })
 
 afterEach(() => {
-  if (descripteurLocation) Object.defineProperty(window, 'location', descripteurLocation)
+  restaurerLocation()
 })
 
 describe('page de connexion — session déjà présente', () => {
