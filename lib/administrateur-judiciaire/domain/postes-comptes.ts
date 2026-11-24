@@ -146,10 +146,12 @@ function planDuBudgetEcrit(ecrits: ReadonlyMap<string, number>, budget: number, 
 /** Ce que l'appel a écrit au compte, et ce que la répartition relue lui porte, en clair. */
 function constatDeLEcart(ecrits: ReadonlyMap<string, number>, relus: PosteDette[]): string {
   const sousComptes = [...ecrits.keys()].filter((plan) => plan !== PLAN_450)
-  const detailEcrit = sousComptes.length > 0 ? ` (dont ${sousComptes.map((plan) => `${ecrits.get(plan)} au sous-compte ${plan} du budget`).join(', ')})` : ''
+  const partsDesSousComptes = sousComptes.map((plan) => `${ecrits.get(plan)} au sous-compte ${plan} du budget`).join(', ')
+  const detailEcrit = sousComptes.length > 0 ? ` (dont ${partsDesSousComptes})` : ''
   const budget = somme(relus.filter(estPosteDuBudget).map((p) => p.montantCentimes))
   const lots = relus.map((p) => `échéance « ${p.appelId} », lot ${p.lotId} : ${p.montantCentimes}`).join(' ; ')
-  const detailRelu = relus.length === 0 ? 'aucun lot' : `${sousComptes.length > 0 ? `dont ${budget} du budget ; ` : ''}${lots}`
+  const partDuBudget = sousComptes.length > 0 ? `dont ${budget} du budget ; ` : ''
+  const detailRelu = relus.length === 0 ? 'aucun lot' : `${partDuBudget}${lots}`
   return `${enCentimes(somme(ecrits.values()), 'écrit')} au compte${detailEcrit}, ${enCentimes(somme(relus.map((p) => p.montantCentimes)), 'relu')} (${detailRelu})`
 }
 
@@ -174,18 +176,30 @@ function recouperAppel(appel: AppelRelu, comptes: CompteCoproprietaire[]): { eca
     if (planBudget === null) enEcart.push(serie)
     else for (const poste of relus) plans.set(poste.id, estPosteDuBudget(poste) ? planBudget : PLAN_450)
   }
+  return { ecarts: ecartsDeLAppel(appel, comptes, ecrits, enEcart), plans }
+}
+
+/** Un écart par série en écart de l'appel, avec son message en clair. */
+function ecartsDeLAppel(appel: AppelRelu, comptes: CompteCoproprietaire[], ecrits: ReadonlyMap<string, ReadonlyMap<string, number>>, enEcart: string[]): EcartCompte[] {
   const nom = appel.piece ? `appel n° ${appel.piece.numero}` : `appel ${appel.traitementId}`
-  const echeances = `${appel.echeanceIds.length > 1 ? 'échéances' : 'échéance'} ${appel.echeanceIds.map((id) => `« ${id} »`).join(', ')}`
-  const anomalies = appel.anomalies.map((a) => `${a.code} (échéance « ${a.echeanceId} »${a.lotId ? `, lot ${a.lotId}` : ''})`).join(' ; ')
-  const suite = `${anomalies ? ` Anomalies de la répartition relue : ${anomalies}.` : ''} Séries en écart sur cet appel : ${enEcart.join(', ')}. ${SUITE_ECART}`
-  const ecarts = enEcart.map((serie): EcartCompte => {
+  const motEcheance = appel.echeanceIds.length > 1 ? 'échéances' : 'échéance'
+  const echeances = `${motEcheance} ${appel.echeanceIds.map((id) => `« ${id} »`).join(', ')}`
+  const anomalies = appel.anomalies.map(decrireAnomalie).join(' ; ')
+  const anomaliesRelues = anomalies ? ` Anomalies de la répartition relue : ${anomalies}.` : ''
+  const suite = `${anomaliesRelues} Séries en écart sur cet appel : ${enEcart.join(', ')}. ${SUITE_ECART}`
+  return enEcart.map((serie): EcartCompte => {
     const constat = constatDeLEcart(ecrits.get(serie) ?? new Map(), appel.relus.get(serie) ?? [])
     const motif = appel.piece
       ? `${constat} ; clé de répartition ou positions modifiées depuis l'appel.`
       : `pièce introuvable au journal des traitements du syndicat ; ses postes (${constat}) ne se recoupent avec aucune écriture.`
     return { compteId: comptes.find((c) => c.serie === serie)?.id ?? null, serie, message: `Compte copropriétaire de série ${serie}, ${nom} (${echeances}) : ${motif}${suite}` }
   })
-  return { ecarts, plans }
+}
+
+/** Une anomalie de la répartition relue, avec son échéance et son lot. */
+function decrireAnomalie(a: AnomalieAppel): string {
+  const lot = a.lotId ? `, lot ${a.lotId}` : ''
+  return `${a.code} (échéance « ${a.echeanceId} »${lot})`
 }
 
 /** Appels relus, dans l'ordre de leur première échéance : échéances, pièce, postes par série, anomalies de la répartition. */
