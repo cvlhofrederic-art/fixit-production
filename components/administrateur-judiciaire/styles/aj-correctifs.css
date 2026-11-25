@@ -36,23 +36,35 @@
 /*
  * Titre de la barre du haut coupé sur téléphone (« Appels de f… ») : sous 481 px, le sélecteur de rôle (122 px)
  * partageait la première ligne avec le menu, la loupe et les notifications ; le titre n'avait plus que 85 px à 375 px
- * (30 px à 320 px). Le rôle passe sur sa propre ligne, sous le sélecteur de copropriété (ordre 10, aj-selecteur-copro.css) ;
- * le titre prend la place libérée et, s'il ne tient toujours pas sur une ligne (téléphone de 320 px), passe sur deux
- * lignes au plus, dans la hauteur des boutons de 44 px.
+ * (30 px à 320 px). Le rôle passe sur sa propre ligne, sous le sélecteur de copropriété (ordre 10, aj-selecteur-copro.css).
+ * Sous 641 px (barre sur plusieurs lignes, aj-selecteur-copro.css), un titre qui ne tient pas sur une ligne passe sur deux
+ * lignes au plus, dans la hauteur des boutons de 44 px : téléphone de 320 px, et 481 à 540 px, où le rôle reste sur la
+ * ligne du titre (21 libellés sur 76 coupés à 481 px avant ce correctif, aucun après, mesuré dans Chrome).
+ * Reste hors de ce correctif : entre 641 et 1023 px, le sélecteur de copropriété partage la ligne du titre et passe avant
+ * lui (aj-selecteur-copro.css) ; le titre y reste coupé (14 px à 641 px, 92 px à 812 px).
  */
-@media (max-width: 480px){#aj-root .topbar .vfx-role{order:11}#aj-root .topbar .crumb-mobile b{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;white-space:normal;line-height:1.15}}
+@media (max-width: 480px){#aj-root .topbar .vfx-role{order:11}}
+@media (max-width: 640px){#aj-root .topbar .crumb-mobile b{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;white-space:normal;line-height:1.15}}
 
 /*
  * Indicateurs empilés à 375 px (environ 520 px avant le premier panneau) : sous 481 px, aj.css passait la grille sur une
- * colonne. Deux colonnes tant que chacune garde 150 px (à partir de 334 px de large), une seule en dessous.
+ * colonne. Deux colonnes tant que chacune garde 150 px (à partir de 334 px de large : 2 × 150 px, 10 px d'écart et 2 × 12 px
+ * de marge du contenu), une seule en dessous. Sur deux colonnes, une carte n'a plus que 120 à 193 px de contenu : les
+ * nombres passent de 26 à 21 px, pour qu'une valeur qui ne se coupe pas (« Administrateur », « 12 500 000,00 € ») ne soit
+ * pas rognée au bord de la carte (overflow:hidden de .kpi). Sur une colonne (sous 334 px), ils gardent 26 px.
  */
 @media (max-width: 480px){#aj-root .kpi-grid{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}}
+@media (min-width: 334px) and (max-width: 480px){#aj-root .kpi .num{font-size:21px}}
 
 /*
- * Ombre d'environ 10 px au bord gauche sur téléphone : sous 1025 px, la barre latérale fermée est poussée hors de
- * l'écran mais garde son ombre portée vers la droite, qui déborde sur la page. L'ombre ne reste qu'au menu ouvert.
+ * Ombre d'environ 10 px au bord gauche sur téléphone et tablette : en mise en page tiroir, la barre latérale fermée est
+ * poussée hors de l'écran mais garde son ombre portée vers la droite, qui déborde sur la page. L'ombre ne reste qu'au menu
+ * ouvert ; à la fermeture, elle n'est retirée qu'une fois le menu sorti de l'écran (fin du glissement, --dur-slow), tout de
+ * suite si les mouvements sont réduits. Borné à 1023 px, pour ne rien changer sur ordinateur (1024 px et plus) : le défaut
+ * reste à 1024 px exactement, où la mise en page tiroir de aj.css s'applique encore.
  */
-@media (max-width: 1024px){#aj-root aside.sidebar:not(.is-open){box-shadow:none}}
+@media (max-width: 1023px){#aj-root aside.sidebar:not(.is-open){box-shadow:none;transition:transform var(--dur-slow) var(--ease-out),box-shadow 0s linear var(--dur-slow)}}
+@media (prefers-reduced-motion: reduce) and (max-width: 1023px){#aj-root aside.sidebar:not(.is-open){transition-delay:0s}}
 
 /*
  * Bandeau du mode (démonstration / données réelles) au-dessus du voile des fenêtres, à toutes les largeurs : son z-index
@@ -63,15 +75,18 @@
 
 /*
  * Message (toast) sur le bas de l'écran : sous 769 px, les messages, pleine largeur à 16 px du bas, cachaient le bouton
- * Fixy (22 px du bas, 44 px de haut) pendant 4 à 6 s. Ils s'affichent au-dessus, là où s'ouvre la fenêtre de Fixy
- * (74 px du bas, FixyLauncher.tsx). Ils couvrent toujours le contenu à cette hauteur le temps de leur affichage (× pour fermer).
+ * Fixy (22 px du bas, 44 px de haut) pendant 4 à 6 s. Ils s'affichent au-dessus, à la hauteur du bas de la fenêtre de Fixy
+ * (74 px du bas, FixyLauncher.tsx). Correctif partiel : le temps de leur affichage (× pour fermer), ils couvrent toujours le
+ * contenu à cette hauteur, et le bas de la fenêtre de Fixy quand elle est ouverte, où se trouve sa zone de demande (message
+ * d'une action lancée depuis Fixy, par exemple). Aucun emplacement ne laisse toutes les actions libres.
  */
 @media (max-width: 768px){#aj-root .vfx-toast-viewport{bottom:74px}}
 
 /*
- * En-tête de panneau coincé (« Avis d'appel par copropriétaire », « Comptes bancaires du mandat », et tout en-tête de
- * panneau qui porte un contrôle à droite) : sous 769 px, le titre se réduisait à côté du contrôle (trois lignes à 375 px,
- * bouton « Nouveau compte » sur deux lignes, pictogramme écrasé). Le bloc du titre garde au moins 120 px ; sinon, les
- * contrôles passent à la ligne, toujours à droite.
+ * En-tête de l'avis d'appel coincé (« Avis d'appel par copropriétaire ») : sous 769 px, le titre se réduisait à côté du
+ * sélecteur de l'appel (trois lignes à 375 px). Le bloc du titre garde au moins 120 px ; sinon, les contrôles passent à la
+ * ligne, toujours à droite. Seulement pour les en-têtes qui le demandent (Panel, propriété controlesALaLigne) : la décision
+ * du 22/11/2026 ne nomme que l'avis d'appel et les comptes bancaires du mandat ; ceux-ci (ComptesBancairesPanel.tsx, PR 799
+ * en attente) le demanderont après la PR 799.
  */
-@media (max-width: 768px){#aj-root .panel-head{flex-wrap:wrap}#aj-root .panel-head>div:not(.h-ico):not(.right){flex:1 1 120px;min-width:0}}
+@media (max-width: 768px){#aj-root .panel-head.vfx-entete-a-la-ligne{flex-wrap:wrap}#aj-root .vfx-entete-a-la-ligne>div:not(.h-ico):not(.right){flex:1 1 120px;min-width:0}}
