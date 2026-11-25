@@ -5,6 +5,7 @@ import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { validateBody, documentCancelSchema, canTransition } from '@/lib/validation'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { logger } from '@/lib/logger'
+import { proprietairePourEcriture } from '@/lib/btp/titulaire-documents'
 
 export const maxDuration = 15
 
@@ -40,12 +41,17 @@ export async function POST(request: NextRequest) {
   const { docType, numero, reason } = v.data
   const table: 'devis' | 'factures' = docType === 'facture' ? 'factures' : 'devis'
 
+  // Document de la SOCIÉTÉ pour un salarié invité. Conséquence à connaître : une annulation faite par un salarié
+  // laisse, comme toute annulation, un numéro annulé dans la série légale de l'entreprise.
+  const acces = await proprietairePourEcriture(user, supabaseAdmin, table)
+  if (!acces.ok) return NextResponse.json({ error: acces.message }, { status: acces.status })
+
   // 4. Fetch current doc by natural key (numero + artisan_user_id)
   const { data: existing, error: fetchErr } = await supabaseAdmin
     .from(table)
     .select('id, status, artisan_user_id, numero, cancelled_at')
     .eq('numero', numero)
-    .eq('artisan_user_id', user.id)
+    .eq('artisan_user_id', acces.proprietaire)
     .maybeSingle()
 
   if (fetchErr) {
@@ -78,7 +84,7 @@ export async function POST(request: NextRequest) {
       cancelled_by_user_id: user.id,
     })
     .eq('id', existing.id)
-    .eq('artisan_user_id', user.id)
+    .eq('artisan_user_id', acces.proprietaire)
 
   if (updErr) {
     logger.error(`[doc-cancel] update ${table} ${existing.id} failed:`, updErr.message)

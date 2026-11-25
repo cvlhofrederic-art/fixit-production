@@ -6,9 +6,12 @@
  * - Fiche société au chargement (constats coquille-2, stockage-local-miroir-11, acces-session-4) : une lecture en échec
  *   (réseau, serveur) n'ouvre plus de société de secours « SARL » ; un écran dit que la société n'a pas pu être chargée
  *   et propose de réessayer, sans rien lire ni précharger sous un autre identifiant. Une fiche absente (aucune ligne)
- *   ouvre le tableau de bord comme avant, et un message clair le dit au compte de la société ; ni la démonstration
- *   (super_admin en vue BTP) ni un compte invité dans l'équipe d'une société (salarié ou co-gérant), qui n'a pas de
- *   fiche à lui, n'ont ce message.
+ *   ouvre le tableau de bord comme avant, et un message clair le dit au compte de la société ; la démonstration
+ *   (super_admin en vue BTP), qui n'a pas de fiche à elle, n'a pas ce message.
+ * - Compte invité dans l'équipe d'une société (25/11/2026) : il n'a pas de fiche à lui et n'est plus ouvert sur une
+ *   identité de secours bâtie sur son propre compte. Le serveur lui rend celle de SA société (/api/pro/titulaire),
+ *   et ses données BTP sont préchargées sous elle. Un refus du serveur rend l'écran qui le dit — pas un tableau de
+ *   bord aux listes vides.
  * - Adresse de section (?p=…) que la société ne peut pas ouvrir (coquille-9, coquille-14) : un identifiant inconnu ou un
  *   écran d'un autre métier ramène à l'accueil, l'adresse remplacée (Retour ne ramène pas sur l'adresse fautive).
  * - Filet d'erreur sur chaque écran (coquille-11) : une panne reste dans la zone de l'écran, sous un titre qui le nomme,
@@ -37,6 +40,11 @@ const mocks = vi.hoisted(() => ({
   seedDemoLocalStorage: vi.fn(),
   fetchDocumentsFromSupabase: vi.fn(async () => []),
   useModuleCategories: vi.fn(),
+  lireTitulaireSociete: vi.fn(),
+  lireDocumentsSociete: vi.fn(),
+  // Vraie fusion, et espionnee : l'ancienne simulation rendait son premier argument et jetait donc les documents
+  // de la societe sans qu'aucun cas ne s'en apercoive.
+  dedupeDocsByIdentity: vi.fn((prealables: unknown[], ajoutes: unknown[] = []) => [...prealables, ...ajoutes]),
 }))
 
 vi.mock('@/lib/supabase', async () => {
@@ -64,8 +72,14 @@ vi.mock('@/lib/document-sync', () => ({
   fusionnerDocumentsDeLaBase: vi.fn((_id: string, liste: unknown[]) => liste),
 }))
 vi.mock('@/lib/devis-utils', () => ({
-  dedupeDocsByIdentity: (docs: unknown[]) => docs,
+  dedupeDocsByIdentity: mocks.dedupeDocsByIdentity,
   optionsFusionPourRole: vi.fn(() => undefined),
+}))
+// Identité et documents d'un compte invité : la page les demande au serveur, qui seul peut les lire.
+vi.mock('@/lib/documents/societe-client', () => ({
+  lireTitulaireSociete: mocks.lireTitulaireSociete,
+  lireDocumentsSociete: mocks.lireDocumentsSociete,
+  changerEtatDocumentSociete: vi.fn(),
 }))
 vi.mock('@/lib/seed-demo-localStorage', () => ({ seedDemoLocalStorage: mocks.seedDemoLocalStorage }))
 vi.mock('@/lib/service-utils', () => ({ getPriceRangeLabel: vi.fn(), getPricingUnit: vi.fn(), getCleanDescription: vi.fn() }))
@@ -84,6 +98,18 @@ const DEMONSTRATION = { _admin_override: true, _original_role: 'super_admin' }
 const SALARIE_INVITE = { pro_team_role: 'CHEF_CHANTIER', company_id: 'compte-gerant' }
 /** Invité avec le rôle Gérant, ou promu Gérant ensuite : rattaché lui aussi à la société d'un autre compte. */
 const CO_GERANT_INVITE = { pro_team_role: 'GERANT', company_id: 'compte-gerant' }
+
+/** Ce que /api/pro/titulaire rend à un compte invité : la société de son rattachement, et sa fiche. */
+const TITULAIRE_SOCIETE = {
+  ok: true as const,
+  valeur: {
+    societeId: 'compte-gerant',
+    ficheId: 'fiche-gerant',
+    fiche: { id: 'fiche-gerant', user_id: 'compte-gerant', company_name: 'Société du Gérant', legal_form: 'SAS' },
+    roleEquipe: 'SECRETAIRE',
+    lisibles: ['devis', 'factures'] as Array<'devis' | 'factures'>,
+  },
+}
 
 /** Compte connecté : rôle et autres métadonnées posées par le serveur (app_metadata). */
 const utilisateur = (role: string, metadonnees: Record<string, unknown> = {}) => ({
@@ -132,6 +158,11 @@ function sectionsAffichees(container: HTMLElement): string[] {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // clearAllMocks n'efface que les appels, pas les implémentations : les deux simulations du client de la société
+  // sont reposées à chaque cas, sinon un mockResolvedValue d'un cas précédent fuirait sur le suivant.
+  mocks.lireTitulaireSociete.mockResolvedValue(TITULAIRE_SOCIETE)
+  mocks.lireDocumentsSociete.mockResolvedValue({ ok: true, valeur: [] })
+  mocks.dedupeDocsByIdentity.mockImplementation((prealables: unknown[], ajoutes: unknown[] = []) => [...prealables, ...ajoutes])
   localStorage.clear()
   mocks.rappels.length = 0
   mocks.etat.fiche = { data: FICHE, error: null }
@@ -200,18 +231,93 @@ describe('tableau de bord BTP — fiche société au chargement', () => {
     expect(options).toMatchObject({ duration: Infinity })
   })
 
+  it('démonstration (super_admin en vue BTP) sans fiche : tableau de bord ouvert comme avant, sans message', async () => {
+    mocks.etat.fiche = { data: null, error: AUCUNE_LIGNE }
+    const { container } = await ouvrir(utilisateur('pro_societe', DEMONSTRATION))
+
+    await waitFor(() => expect(container.querySelector('#artisan-dashboard-v5')).not.toBeNull())
+    expect(mocks.prefetchBTPTables).toHaveBeenCalledWith(expect.any(Array), 'compte-1')
+    expect(mocks.toastError).not.toHaveBeenCalled()
+    // Son identité reste celle de secours : il ne demande pas de société au serveur.
+    expect(mocks.lireTitulaireSociete).not.toHaveBeenCalled()
+  })
+
+  // ── Compte invité dans l'équipe d'une société (25/11/2026) ───────────────────────────────────────────────
+  // Avant, il tombait dans le repli : identité bâtie sur son propre compte (nom tiré de son e-mail, « SARL », ni
+  // SIRET ni logo) et documents cherchés sous SON identifiant, donc des listes vides sans un mot.
+
   it.each([
-    ['démonstration (super_admin en vue BTP)', DEMONSTRATION],
-    // Il n'a pas de fiche à lui : rien à « rétablir », il garde l'ouverture d'avant (ce qu'il doit voir reste à décider).
     ['salarié invité dans une équipe', SALARIE_INVITE],
-    // Même cas avec le rôle Gérant : c'est le rattachement à la société d'un autre compte qui compte, pas le rôle.
+    // Même chemin avec le rôle Gérant : c'est le rattachement à la société d'un autre compte qui compte.
     ['co-gérant invité dans une équipe', CO_GERANT_INVITE],
-  ])('%s sans fiche : tableau de bord ouvert comme avant, sans message', async (_cas, metadonnees) => {
+  ])('%s : le tableau de bord s’ouvre sur l’identité de SA société', async (_cas, metadonnees) => {
     mocks.etat.fiche = { data: null, error: AUCUNE_LIGNE }
     const { container } = await ouvrir(utilisateur('pro_societe', metadonnees))
 
     await waitFor(() => expect(container.querySelector('#artisan-dashboard-v5')).not.toBeNull())
-    expect(mocks.prefetchBTPTables).toHaveBeenCalledWith(expect.any(Array), 'compte-1')
+    expect(mocks.lireTitulaireSociete).toHaveBeenCalledTimes(1)
+    // Les données BTP sont préchargées sous la SOCIÉTÉ, pas sous son propre compte.
+    expect(mocks.prefetchBTPTables).toHaveBeenCalledWith(expect.any(Array), 'compte-gerant')
+    expect(mocks.lireDocumentsSociete).toHaveBeenCalledTimes(1)
+    expect(screen.queryByText(ECRAN_ECHEC)).toBeNull()
+    expect(mocks.toastError).not.toHaveBeenCalled()
+  })
+
+  it('compte invité, société non résolue : l’écran le dit au lieu d’ouvrir des listes vides', async () => {
+    mocks.etat.fiche = { data: null, error: AUCUNE_LIGNE }
+    mocks.lireTitulaireSociete.mockResolvedValue({
+      ok: false,
+      code: 'societe_non_resolue',
+      message: 'refus du serveur',
+    })
+    const { container } = await ouvrir(utilisateur('pro_societe', SALARIE_INVITE))
+
+    await waitFor(() => expect(screen.queryByText(ECRAN_ECHEC)).not.toBeNull())
+    expect(container.querySelector('#artisan-dashboard-v5')).toBeNull()
+    // Le message du code de refus est affiché dans la langue de l'écran, pas celui d'une connexion interrompue.
+    // (C'est bien le texte local de `messageRefusDocuments`, pas la phrase rendue par le serveur.)
+    expect(screen.getByText(/n.est rattaché à aucune société active/)).toBeTruthy()
+    // Rien n'est lu ni préchargé sous un autre identifiant.
+    expect(mocks.prefetchBTPTables).not.toHaveBeenCalled()
+    expect(mocks.lireDocumentsSociete).not.toHaveBeenCalled()
+  })
+
+  // CE QUE CE BANC NE PEUT PAS PROUVER : que les lignes rendues par le serveur arrivent dans la liste AFFICHÉE.
+  // La fusion a lieu dans l'updater de `setSavedDocuments`, et les sections sont simulées ici par `next/dynamic` :
+  // elles ne lisent pas cet état, React n'a donc aucune raison de traiter la mise à jour, et l'updater n'est jamais
+  // exécuté (deux cycles `act` de 100 ms n'y changent rien). Les trois `setSavedDocuments(prev => …)` de la page
+  // sont dans le même cas, et aucun cas de ce banc ne les observe. À couvrir par un banc des sections, pas ici.
+  // L'ÉCHEC de cette lecture, lui, est observable : le toast part directement du `.then`.
+
+  it('compte invité : une lecture des documents en échec se voit, sans fermer l’application', async () => {
+    // Une liste vide et muette était le défaut d'origine : un refus doit se dire. Mais il ne doit pas fermer
+    // l'application — l'identité de la société, elle, a bien été lue.
+    mocks.etat.fiche = { data: null, error: AUCUNE_LIGNE }
+    mocks.lireDocumentsSociete.mockResolvedValue({
+      ok: false,
+      code: 'lecture_impossible',
+      message: 'refus du serveur',
+    })
+    const { container } = await ouvrir(utilisateur('pro_societe', SALARIE_INVITE))
+
+    await waitFor(() => expect(container.querySelector('#artisan-dashboard-v5')).not.toBeNull())
+    await waitFor(() => expect(mocks.toastError).toHaveBeenCalledTimes(1))
+    expect(mocks.toastError.mock.calls[0][0]).toMatch(/momentanément illisibles/)
+    expect(screen.queryByText(ECRAN_ECHEC)).toBeNull()
+  })
+
+  it('compte invité sans droit sur les documents : son application s’ouvre, sans aller les chercher', async () => {
+    // Un ouvrier pointe ses heures tous les jours : lui refuser l'identité fermerait toute l'application.
+    mocks.etat.fiche = { data: null, error: AUCUNE_LIGNE }
+    mocks.lireTitulaireSociete.mockResolvedValue({
+      ok: true,
+      valeur: { ...TITULAIRE_SOCIETE.valeur, roleEquipe: 'OUVRIER', lisibles: [] },
+    })
+    const { container } = await ouvrir(utilisateur('pro_societe', { pro_team_role: 'OUVRIER', company_id: 'compte-gerant' }))
+
+    await waitFor(() => expect(container.querySelector('#artisan-dashboard-v5')).not.toBeNull())
+    expect(mocks.prefetchBTPTables).toHaveBeenCalledWith(expect.any(Array), 'compte-gerant')
+    expect(mocks.lireDocumentsSociete).not.toHaveBeenCalled()
     expect(mocks.toastError).not.toHaveBeenCalled()
   })
 

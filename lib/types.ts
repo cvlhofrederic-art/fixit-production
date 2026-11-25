@@ -46,6 +46,17 @@ export interface Artisan {
   is_active?: boolean
   verified?: boolean
   legal_form?: string | null
+  /**
+   * Salarié invité d'une société BTP seulement : identifiant de la fiche `profiles_artisan` de SA société.
+   *
+   * Son compte n'a pas de fiche à lui. Le tableau de bord lui donne l'identité de la société — raison sociale,
+   * SIRET ou NIPC, adresse, logo, assurance, langue — tout en laissant `id` sur SON compte, pour que les clés du
+   * navigateur (`fixit_documents_<id>`, `fixit_drafts_<id>`) restent les siennes et n'écrasent jamais celles du
+   * gérant sur un poste partagé. Ce champ porte donc l'identifiant de la fiche là où il faut vraiment celui de la
+   * société : gabarit du document, relecture de la fiche au téléchargement, propriétaire enregistré en base.
+   * Lire par `idFicheDocuments` (lib/documents/identite-documents.ts), jamais directement.
+   */
+  fiche_societe_id?: string
 }
 
 export interface Service {

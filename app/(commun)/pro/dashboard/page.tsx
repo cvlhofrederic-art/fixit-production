@@ -18,7 +18,9 @@ import { useModuleCategories } from '@/hooks/useModuleCategories'
 import { prefetchBTPTables } from '@/lib/hooks/use-btp-data'
 import { OrgRoleProvider } from '@/lib/hooks/useOrgRoleContext'
 import { fetchDocumentsFromSupabase, fusionnerDocumentsDeLaBase } from '@/lib/document-sync'
-import { optionsFusionPourRole } from '@/lib/devis-utils'
+import { lireDocumentsSociete, lireTitulaireSociete } from '@/lib/documents/societe-client'
+import { messageRefusDocuments } from '@/lib/documents/messages-refus'
+import { dedupeDocsByIdentity, optionsFusionPourRole } from '@/lib/devis-utils'
 import { seedDemoLocalStorage } from '@/lib/seed-demo-localStorage'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useNotifications } from '@/hooks/useNotifications'
@@ -168,6 +170,8 @@ function DashboardPage() {
   const [loading, setLoading] = useState(true)
   // Société BTP dont la fiche n'a pas pu être lue au chargement : écran « réessayer » au lieu d'une société de secours
   const [ficheSocieteIllisible, setFicheSocieteIllisible] = useState(false)
+  /** Refus du serveur sur l'identité de la société d'un salarié invité : son message, à afficher en plein écran. */
+  const [societeIndisponible, setSocieteIndisponible] = useState<string | null>(null)
   const [showAdminBtn, setShowAdminBtn] = useState(false)
   const [adminLoading, setAdminLoading] = useState(false)
   const [notifLoading, setNotifLoading] = useState(false)
@@ -367,6 +371,68 @@ function DashboardPage() {
     const isProOrgRole = ['pro_societe', 'pro_conciergerie', 'pro_gestionnaire'].includes(role)
     const isSuperAdmin = user.app_metadata?.role === 'super_admin'
     if (!artisanData && !isSuperAdmin && !isProOrgRole) { router.push(`/${locale}/auth/login`); return }
+
+    // ── Salarié invité d'une société BTP : il n'a pas de fiche à lui ────────────────────────────────────────
+    // Avant le 25/11/2026, il tombait dans le repli ci-dessous : une identité bâtie sur son propre compte (nom
+    // tiré de son e-mail, « SARL », ni SIRET ni adresse ni logo) et des documents cherchés sous SON identifiant,
+    // donc une liste vide, sans message, et une série de numéros qui serait partie à côté de celle du gérant.
+    //
+    // Il reçoit maintenant l'identité de SA société, et ses documents viennent du serveur, seul capable de les
+    // lire : la RLS de `devis` et `factures` ne laisse passer que les lignes du compte connecté.
+    //
+    // `id` reste SON compte, volontairement : c'est lui qui fait les clés `fixit_documents_<id>` et
+    // `fixit_drafts_<id>` de son navigateur. Si son écran écrivait la clé de la société, un poste de bureau
+    // partagé ferait relire au gérant une liste tronquée, et ses brouillons — qui n'existent nulle part ailleurs
+    // qu'en local — seraient perdus. La fiche de la société voyage donc dans `fiche_societe_id`
+    // (lib/documents/identite-documents.ts).
+    const rattachementBrut = user.app_metadata?.company_id
+    const societeDuSalarie = typeof rattachementBrut === 'string' && rattachementBrut !== '' && rattachementBrut !== user.id
+      ? rattachementBrut
+      : null
+    if (!artisanData && role === 'pro_societe' && !isSuperAdmin && societeDuSalarie) {
+      const titulaire = await lireTitulaireSociete()
+      if (!titulaire.ok) {
+        // Un refus n'est pas une liste vide. Ouvrir le tableau de bord ici afficherait des listes vides sans
+        // raison — le défaut même que ce lot supprime : on rend l'écran qui dit pourquoi, avec « Réessayer ».
+        setSocieteIndisponible(messageRefusDocuments(titulaire, isPt))
+        setLoading(false)
+        return
+      }
+      // La fiche arrive du serveur en lignes de base brutes ; `id` et `user_id` sont posés juste après.
+      const ficheSociete = titulaire.valeur.fiche as unknown as Artisan
+      setArtisan({
+        ...ficheSociete,
+        id: user.id,
+        user_id: titulaire.valeur.societeId,
+        fiche_societe_id: titulaire.valeur.ficheId,
+      })
+
+      // Ses propres brouillons d'abord, pour que l'écran s'ouvre tout de suite, puis la liste de la société.
+      try {
+        const docs = JSON.parse(localStorage.getItem(`fixit_documents_${user.id}`) || '[]')
+        const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${user.id}`) || '[]')
+        setSavedDocuments([...docs, ...drafts])
+      } catch { /* private browsing */ }
+
+      // Un ouvrier ou un chef de chantier n'a aucun droit sur les documents : il ouvre l'application pour
+      // pointer ses heures, et on ne va rien chercher pour lui (la route lui répondrait 403).
+      if (titulaire.valeur.lisibles.length > 0) {
+        lireDocumentsSociete().then(lecture => {
+          if (!lecture.ok) { toast.error(messageRefusDocuments(lecture, isPt)); return }
+          if (lecture.valeur.length === 0) return
+          // Fusion SANS écriture du cache, à la différence du chemin d'un titulaire : y recopier les documents de
+          // la société mettrait toute leur liste dans le navigateur du salarié et dans son espace `user_storage`.
+          // Le cache ne lui sert à rien — le repli local de numérotation est déjà interdit côté BTP
+          // (`repliLocal: false`) — et il n'a pas à emporter une copie de la comptabilité de l'entreprise.
+          setSavedDocuments(prev => dedupeDocsByIdentity(prev, lecture.valeur as typeof prev, optionsFusionPourRole(role)))
+        }).catch(() => toast.error(messageRefusDocuments({ message: '', code: 'lecture_impossible' }, isPt)))
+      }
+
+      void prefetchBTPTables(['chantiers', 'membres', 'equipes', 'pointages', 'situations', 'retenues', 'dc4', 'dpgf'], titulaire.valeur.societeId)
+      setLoading(false)
+      return
+    }
+
     if (!artisanData) {
       // Admin override / pro org sans profil artisan → SARL par défaut (compte démo BTP super admin)
       // Compte de la société BTP (ni démonstration ni compte invité dans une équipe) : la fiche de secours n'est plus ouverte en silence.
@@ -685,6 +751,7 @@ function DashboardPage() {
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
 
   if (ficheSocieteIllisible) return <FicheSocieteIndisponible isPt={isPt} onReessayer={() => window.location.reload()} />
+  if (societeIndisponible) return <FicheSocieteIndisponible isPt={isPt} message={societeIndisponible} onReessayer={() => window.location.reload()} />
 
   if (loading) {
     // Neutral loading screen — no V22 or V5 styling to prevent flash

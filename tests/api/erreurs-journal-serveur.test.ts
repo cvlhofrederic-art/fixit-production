@@ -29,7 +29,7 @@ vi.mock('@supabase/ssr', () => ({ createServerClient: () => h.client }))
 vi.mock('next/headers', () => ({ cookies: async () => ({ getAll: () => [] }) }))
 vi.mock('@/lib/supabase-server', () => ({ supabaseAdmin: h.client }))
 vi.mock('@/lib/supabase-server-component', () => ({ createServerSupabaseClient: async () => h.client }))
-vi.mock('@/lib/auth-helpers', () => ({ getAuthUser: async () => ({ id: h.compte }) }))
+vi.mock('@/lib/auth-helpers', async (io) => (await import('../helpers/mocks-routes-api')).authHelpersReels(io, () => ({ id: h.compte })))
 vi.mock('@/lib/rate-limit', async () => (await import('../helpers/mocks-routes-api')).rateLimitPermissif())
 vi.mock('@/lib/logger', () => ({ logger: h.journal }))
 

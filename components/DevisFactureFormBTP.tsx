@@ -45,6 +45,7 @@ import { buildDocumentLines } from '@/lib/devis-totals'
 import { generateDevisPdfV3 } from '@/lib/pdf/devis-pdf-v3'
 import type { PdfV3Photo } from '@/lib/pdf/devis-pdf-v3'
 import { modeleDocumentSociete } from '@/lib/pdf/modeles-societes'
+import { estSousCompteSociete, idFicheDocuments } from '@/lib/documents/identite-documents'
 import { getDecennaleEligibility } from '@/lib/decennale-eligibility'
 import {
   sumMoney,
@@ -876,8 +877,12 @@ export default function DevisFactureFormBTP({
     // (artisan.user_id), pas l'id PROFIL (artisan.id, réservé au fallback local).
     // Ancien bug : artisan.id ici → 'unauthorized' → fallback → collisions
     // cross-device. Cf. lib/doc-number.ts + DevisFactureForm.tsx (alignés).
+    //
+    // JAMAIS pour un salarié invité : la fonction SQL accepte tout membre actif de la société SANS regarder son
+    // rôle. Un conducteur de travaux (factures en lecture) ou un comptable (devis en lecture) y obtiendrait un
+    // numéro refusé par la route juste au-dessus, et le compteur de la société serait incrémenté pour rien.
     try {
-      if (artisan?.user_id) {
+      if (artisan?.user_id && !estSousCompteSociete(artisan)) {
         const { data, error } = await supabase.rpc('next_doc_number', {
           p_artisan_user_id: artisan.user_id,
           p_doc_type: rpcDocType,
@@ -897,7 +902,7 @@ export default function DevisFactureFormBTP({
 
     // 3) Aucun numéro du serveur : pas de numéro tiré du navigateur, le document reste un brouillon (saveAndSend).
     throw new NumerotationIndisponibleError()
-  }, [artisan?.user_id, docType, factureSubType])
+  }, [artisan, docType, factureSubType])
 
   // Méthode pro (modèle Stripe) : un brouillon n'a PAS de numéro. docNumber reste
   // vide tant que le document n'est pas validé ; le numéro légal (DEV-/FACT-/AV-/
@@ -1629,7 +1634,10 @@ export default function DevisFactureFormBTP({
       // (« Document invalide — sync refusée »). Il reste local jusqu'à sa validation, qui lui
       // attribue un numéro.
       if (isStableDocId(payload.id) || payload.docNumber) {
-        syncDocumentSafe(payload as Record<string, unknown>, artisan.id)
+        // Fiche de la SOCIÉTÉ pour un salarié invité : /api/devis/sync n'accepte qu'un `profiles_artisan.id` de
+        // sa société. Avec `artisan.id` (son compte), chaque enregistrement répondait 403 APRÈS avoir consommé
+        // un numéro légal — un trou définitif dans la série du gérant, et un écran qui disait « enregistré ».
+        void syncDocumentSafe(payload as Record<string, unknown>, idFicheDocuments(artisan) || artisan.id)
       }
       if (opts?.silent) {
         setLastAutosaveAt(Date.now())
@@ -1738,7 +1746,9 @@ export default function DevisFactureFormBTP({
       const filtered = docs.filter((d: { id?: string }) => d.id !== payload.id)
       filtered.push(payload)
       localStorage.setItem(`fixit_documents_${artisan.id}`, JSON.stringify(filtered))
-      syncDocumentSafe(payload as Record<string, unknown>, artisan.id)
+      // Fiche de la SOCIÉTÉ pour un salarié invité (voir saveDraft) ; les clés du navigateur ci-dessus restent
+      // les siennes.
+      void syncDocumentSafe(payload as Record<string, unknown>, idFicheDocuments(artisan) || artisan.id)
       const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan.id}`) || '[]')
       const newDrafts = drafts.filter((d: { id?: string }) => d.id !== payload.id)
       localStorage.setItem(`fixit_drafts_${artisan.id}`, JSON.stringify(newDrafts))
@@ -2043,19 +2053,20 @@ export default function DevisFactureFormBTP({
         notes: notes || '', sourceDevisRef: null,
         signatureData: null, attachedRapport, selectedPhotos,
         artisan: artisan ? {
-          id: artisan.id,
+          // Fiche de la SOCIÉTÉ pour un salarié invité (lib/documents/identite-documents.ts).
+          id: idFicheDocuments(artisan),
           logo_url: ((artisan as Record<string, unknown>).logo_url as string) || undefined,
           company_name: artisan.company_name || undefined,
           rm: companyRCS || undefined,
           rc_pro: insuranceNumber || undefined,
         } : null,
         // Modèle propre à la société (Provence Pro, Method Soluções) ; sinon modèle BTP par défaut
-        modele: modeleDocumentSociete(artisan?.id),
+        modele: modeleDocumentSociete(idFicheDocuments(artisan)),
         ptFiscalData: null,
         svgToImageDataUrl,
         fetchFreshLogo: async () => {
           try {
-            const { data: freshA } = await supabase.from('profiles_artisan').select('logo_url').eq('id', artisan?.id).single()
+            const { data: freshA } = await supabase.from('profiles_artisan').select('logo_url').eq('id', idFicheDocuments(artisan)).single()
             return (freshA?.logo_url as string) || null
           } catch { return null }
         },

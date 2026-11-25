@@ -21,6 +21,13 @@ export interface OptionsNumerotation {
    * FT-, FA-, NC-, migration 20261122b), au lieu de DEV-, FACT-, AC-, AV-.
    */
   portugais?: boolean
+  /**
+   * Compte titulaire de la SÉRIE, quand il diffère du compte connecté : celui de la société pour un salarié
+   * invité (`artisan.user_id`). Sans lui, le repli RPC tirait un numéro de la série du salarié — une seconde
+   * série ouverte en silence à côté de celle du gérant, ce que l'art. 242 nonies A I 2° du CGI interdit.
+   * La route /api/doc-number, elle, résout la société côté serveur et ignore tout ce que le client propose.
+   */
+  uidSerie?: string
 }
 
 /**
@@ -76,6 +83,12 @@ export async function fetchNextDocNumber(
   } catch { /* pas de session → on dégrade vers le fallback local */ }
 
   // 1) API HTTP avec Bearer token (source autoritaire : le serveur lit auth.uid)
+  //
+  // Un refus de la route (403 rôle insuffisant, 409 société non résolue) est DÉFINITIF : le RPC ci-dessous
+  // n'inspecte aucun rôle et incrémenterait quand même le compteur de la société — un numéro consommé pour un
+  // document qui ne sera jamais enregistré, donc un trou dans la série légale du gérant. Le refus est donc retenu
+  // ici et relancé après le `try` (une exception levée dedans serait avalée par son `catch`).
+  let refuseParLeServeur = false
   try {
     const authHeader: Record<string, string> = session?.access_token
       ? { Authorization: `Bearer ${session.access_token}` }
@@ -89,11 +102,14 @@ export async function fetchNextDocNumber(
       const { number } = await res.json()
       if (number) return String(number)
     }
+    if (res.status === 403 || res.status === 409) refuseParLeServeur = true
   } catch { /* fallthrough */ }
+
+  if (refuseParLeServeur) throw new NumerotationIndisponibleError()
 
   // 2) RPC Supabase direct — AVEC L'UID D'AUTH (session.user.id), pas l'id profil
   try {
-    const authUid = session?.user?.id
+    const authUid = options.uidSerie || session?.user?.id
     if (authUid) {
       const { data, error } = await supabase.rpc('next_doc_number', {
         p_artisan_user_id: authUid,
