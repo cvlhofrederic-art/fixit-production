@@ -238,6 +238,23 @@ describe('POST /api/btp — l’écriture suit le rôle, pas le simple fait d’
     expect(status).toBe(403)
   })
 
+  it.each(['GERANT', 'SECRETAIRE'])('%s rattaché à la société mais sans ligne d’équipe active : aucune écriture, pas de société fantôme à son nom', async (role) => {
+    // Retiré, désactivé ou lecture en panne : resolveCompanyId retombe sur son propre identifiant. Avant le 25/11/2026,
+    // un co-gérant ou une secrétaire gardait FULL sur cette « société » vide, et le chantier partait à son nom.
+    salarie(role)
+    h.base.lignes.pro_team_members = []
+    const { status } = await ecrire({ table: 'chantiers_btp', action: 'insert', data: { titre: 'Chantier fantôme', statut: 'En cours' } })
+    expect(status).toBe(403)
+    expect(h.base.lignes.chantiers_btp.some(c => c.titre === 'Chantier fantôme')).toBe(false)
+  })
+
+  it('co-gérant (GERANT invité) relié à la société : crée un chantier DANS la société', async () => {
+    salarie('GERANT')
+    const { status } = await ecrire({ table: 'chantiers_btp', action: 'insert', data: { titre: 'Chantier du co-gérant', statut: 'En cours' } })
+    expect(status).toBe(201)
+    expect(h.base.lignes.chantiers_btp.find(c => c.titre === 'Chantier du co-gérant')?.owner_id).toBe(SOCIETE)
+  })
+
   it('refuse à un salarié de SUPPRIMER un chantier de la société', async () => {
     salarie('OUVRIER')
     const { status } = await ecrire({ table: 'chantiers_btp', action: 'delete', id: C_AFFECTE })

@@ -98,6 +98,11 @@ export async function lireInvitationValide(espace: EspaceEquipe, token: string):
   const invite: LigneInvitation = { ...data, equipe_id: data[colonneEquipe] }
   if (!(await signatureValide(espace, lien.signature, invite))) return INVALIDE
   if (invite.accepted_at) return { ok: false, status: 409, error: 'Invitation déjà utilisée' }
+  // Invitation désactivée par le gérant (bouton « Désactiver ») : son lien ne rattache plus personne. Avant, il
+  // s'acceptait encore, et le compte recevait le rôle et la société dans app_metadata (25/11/2026).
+  if ((data as { is_active?: unknown }).is_active === false) {
+    return { ok: false, status: 410, error: 'Invitation désactivée. Demandez une nouvelle invitation.' }
+  }
   if (invite.created_at && Date.now() - new Date(invite.created_at).getTime() > DUREE_VALIDITE_MS) {
     return { ok: false, status: 410, error: 'Invitation expirée. Demandez une nouvelle invitation.' }
   }
