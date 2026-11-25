@@ -17,6 +17,7 @@ import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { validateBody, devisStatusUpdateSchema, canTransition } from '@/lib/validation'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { logger } from '@/lib/logger'
+import { proprietairePourEcriture } from '@/lib/btp/titulaire-documents'
 
 export const maxDuration = 15
 
@@ -41,12 +42,17 @@ export async function POST(request: NextRequest) {
 
   const { numero, newStatus, reason } = v.data
 
+  // Le document visé est celui de la SOCIÉTÉ pour un salarié invité : sans cela, « Accepté » et « Refusé »
+  // répondaient 404 sur chaque devis du gérant. Artisan et gérant : propriétaire inchangé.
+  const acces = await proprietairePourEcriture(user, supabaseAdmin, 'devis')
+  if (!acces.ok) return NextResponse.json({ error: acces.message }, { status: acces.status })
+
   // 4. Fetch existant + ownership
   const { data: existing, error: fetchErr } = await supabaseAdmin
     .from('devis')
     .select('id, status, numero, cancelled_at, client_response_at')
     .eq('numero', numero)
-    .eq('artisan_user_id', user.id)
+    .eq('artisan_user_id', acces.proprietaire)
     .maybeSingle()
 
   if (fetchErr) {
@@ -82,7 +88,7 @@ export async function POST(request: NextRequest) {
       client_response_reason: reason || null,
     })
     .eq('id', existing.id)
-    .eq('artisan_user_id', user.id)
+    .eq('artisan_user_id', acces.proprietaire)
 
   if (updErr) {
     logger.error(`[devis-status] update ${existing.id} failed:`, updErr.message)

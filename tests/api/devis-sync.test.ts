@@ -56,9 +56,7 @@ vi.mock('@/lib/supabase-server', () => ({
 }))
 
 const mockGetAuthUser = vi.fn()
-vi.mock('@/lib/auth-helpers', () => ({
-  getAuthUser: (req: unknown) => mockGetAuthUser(req),
-}))
+vi.mock('@/lib/auth-helpers', async (io) => (await import('../helpers/mocks-routes-api')).authHelpersReels(io, () => mockGetAuthUser()))
 
 const mockCheckRateLimit = vi.fn()
 vi.mock('@/lib/rate-limit', () => ({

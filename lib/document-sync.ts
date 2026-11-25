@@ -286,7 +286,13 @@ export async function syncDocumentSafe(doc: Record<string, unknown>, artisanId: 
 // complet du formulaire — l'utilisateur retrouve l'integralite de son devis
 // (corps d'etat BTP, etapes, mediator, notes, etc.) sur n'importe quel
 // appareil. Sinon on retombe sur les champs sommaire (comportement legacy).
-export async function fetchDocumentsFromSupabase(): Promise<Record<string, unknown>[]> {
+// `lignesFournies` : lignes déjà lues ailleurs, à mettre en forme au lieu d'interroger la base depuis le
+// navigateur. Sert aux sous-comptes d'une société BTP, dont la RLS de `devis` et `factures` ne laisse rien
+// passer : leurs lignes arrivent par GET /api/pro/documents (lib/documents/societe-client.ts). La mise en forme
+// reste celle-ci, et une seule, pour que la fusion du tableau de bord reconnaisse un même document d'où qu'il vienne.
+export async function fetchDocumentsFromSupabase(
+  lignesFournies?: { devis: Array<Record<string, unknown>>; factures: Array<Record<string, unknown>> },
+): Promise<Record<string, unknown>[]> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
 
@@ -311,7 +317,9 @@ export async function fetchDocumentsFromSupabase(): Promise<Record<string, unkno
     return (result.data as Array<Record<string, unknown>>) || []
   }
 
-  const [facData, devData] = await Promise.all([fetchTable('factures'), fetchTable('devis')])
+  const [facData, devData] = lignesFournies
+    ? [lignesFournies.factures, lignesFournies.devis]
+    : await Promise.all([fetchTable('factures'), fetchTable('devis')])
 
   const merge = (
     type: 'devis' | 'facture',
