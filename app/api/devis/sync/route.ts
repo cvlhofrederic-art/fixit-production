@@ -99,6 +99,11 @@ export async function POST(request: NextRequest) {
   const perimetre = await lirePerimetreBtp(user, supabaseAdmin)
 
   if (societeNonResolue(user, perimetre)) {
+    logger.warn('[devis-sync] société non résolue : enregistrement refusé', {
+      compte: user.id.slice(0, 8),
+      roleEquipe: perimetre.roleEquipe,
+      rattachementAuJeton: typeof user.app_metadata?.company_id === 'string',
+    })
     return NextResponse.json({ error: messageRefusFr('societe_non_resolue') }, { status: 409 })
   }
 
@@ -162,11 +167,10 @@ export async function POST(request: NextRequest) {
     // Path B : membre d'équipe BTP — résoudre via pro_team_members
     //
     // Ce chemin accepte la fiche de toute société dont le compte est membre actif, alors que `proprietaire`
-    // n'en désigne qu'une. Deux appartenances actives sont pourtant déjà refusées en amont : `resolveCompanyId`
-    // lit en `maybeSingle` et lève sur PGRST116, retombe donc sur le compte lui-même, et `societeNonResolue`
-    // rend alors 409 (lib/btp/titulaire-documents.ts). La lecture de /api/pro/documents, elle, ne regarde que
-    // `artisan_user_id = <société>` : une ligne écrite sous une fiche d'une AUTRE société n'apparaîtrait dans
-    // aucune liste.
+    // n'en désigne qu'une. Deux appartenances actives sont pourtant déjà refusées en amont, avant d'arriver ici :
+    // `resolveCompanyId` lit en `maybeSingle`, ce qui rend PGRST116 dès deux lignes, retombe donc sur le compte
+    // lui-même, et `societeNonResolue` rend alors 409 (lib/btp/titulaire-documents.ts). Le propriétaire enregistré
+    // reste `proprietaire` dans tous les cas : ce chemin n'autorise que le passage, il ne choisit rien.
     if (!ownsArtisan) {
       const { data: memberships, error: memErr } = await supabaseAdmin
         .from('pro_team_members')

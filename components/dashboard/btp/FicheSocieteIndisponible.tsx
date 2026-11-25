@@ -8,7 +8,7 @@ import { CONTACT_EMAIL } from '@/lib/constants'
  * écrit tant que la fiche n'a pas été chargée.
  */
 export function FicheSocieteIndisponible(
-  { isPt, onReessayer, message }: { isPt: boolean; onReessayer: () => void; message?: string },
+  { isPt, onReessayer, message }: Readonly<{ isPt: boolean; onReessayer: () => void; message?: string }>,
 ) {
   return (
     <div role="alert" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#F2F2F0', padding: 16 }}>

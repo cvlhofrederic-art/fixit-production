@@ -1637,7 +1637,7 @@ export default function DevisFactureFormBTP({
         // Fiche de la SOCIÉTÉ pour un salarié invité : /api/devis/sync n'accepte qu'un `profiles_artisan.id` de
         // sa société. Avec `artisan.id` (son compte), chaque enregistrement répondait 403 APRÈS avoir consommé
         // un numéro légal — un trou définitif dans la série du gérant, et un écran qui disait « enregistré ».
-        syncDocumentSafe(payload as Record<string, unknown>, idFicheDocuments(artisan) || artisan.id)
+        void syncDocumentSafe(payload as Record<string, unknown>, idFicheDocuments(artisan) || artisan.id)
       }
       if (opts?.silent) {
         setLastAutosaveAt(Date.now())
@@ -1748,7 +1748,7 @@ export default function DevisFactureFormBTP({
       localStorage.setItem(`fixit_documents_${artisan.id}`, JSON.stringify(filtered))
       // Fiche de la SOCIÉTÉ pour un salarié invité (voir saveDraft) ; les clés du navigateur ci-dessus restent
       // les siennes.
-      syncDocumentSafe(payload as Record<string, unknown>, idFicheDocuments(artisan) || artisan.id)
+      void syncDocumentSafe(payload as Record<string, unknown>, idFicheDocuments(artisan) || artisan.id)
       const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan.id}`) || '[]')
       const newDrafts = drafts.filter((d: { id?: string }) => d.id !== payload.id)
       localStorage.setItem(`fixit_drafts_${artisan.id}`, JSON.stringify(newDrafts))

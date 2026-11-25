@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { createServerSupabaseClient } from '@/lib/supabase-server-component'
 import { supabaseAdmin } from '@/lib/supabase-server'
@@ -17,6 +17,28 @@ function jetonDeLEnTete(request: NextRequest): string | null {
   return entete.replace('Bearer ', '').trim() || null
 }
 
+/**
+ * Compte de la requête : jeton Bearer d'abord, puis la session des cookies (@supabase/ssr).
+ *
+ * Le client de la session est rendu avec lui : pour une société BTP, `next_doc_number` doit être appelée avec la
+ * session de l'utilisateur et non avec la clé de service (voir plus bas). `jetonVerifie` n'est renseigné que
+ * lorsque c'est l'en-tête qui a authentifié la requête.
+ */
+async function compteDeLaRequete(request: NextRequest): Promise<{
+  user: User | null
+  jetonVerifie: string | null
+  clientCookies: SupabaseClient | null
+}> {
+  const parEntete = await getAuthUser(request)
+  if (parEntete) return { user: parEntete, jetonVerifie: jetonDeLEnTete(request), clientCookies: null }
+  try {
+    const serverClient = await createServerSupabaseClient()
+    const { data } = await serverClient.auth.getUser()
+    if (data.user) return { user: data.user, jetonVerifie: null, clientCookies: serverClient }
+  } catch { /* session absente ou illisible : 401 plus bas */ }
+  return { user: null, jetonVerifie: null, clientCookies: null }
+}
+
 /** Client porteur de la session de l'utilisateur (jeton déjà vérifié par getAuthUser) : auth.uid() y est renseigné. */
 function clientDeSession(jeton: string): SupabaseClient {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
@@ -28,19 +50,7 @@ function clientDeSession(jeton: string): SupabaseClient {
 // POST /api/doc-number — Génère le prochain numéro séquentiel (devis/facture/avoir)
 // Utilise la fonction DB next_doc_number() pour garantir l'atomicité (art. L441-3 C. com.)
 export async function POST(request: NextRequest) {
-  // Essaye d'abord via Bearer token, puis fallback cookies (@supabase/ssr)
-  let user = await getAuthUser(request)
-  const jetonVerifie = user ? jetonDeLEnTete(request) : null
-  // Client de la session lue dans les cookies, quand c'est elle qui authentifie la requête.
-  let clientCookies: SupabaseClient | null = null
-  if (!user) {
-    try {
-      const serverClient = await createServerSupabaseClient()
-      const { data } = await serverClient.auth.getUser()
-      user = data.user
-      if (user) clientCookies = serverClient
-    } catch { /* noop */ }
-  }
+  const { user, jetonVerifie, clientCookies } = await compteDeLaRequete(request)
   if (!user) {
     return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
   }
@@ -69,6 +79,12 @@ export async function POST(request: NextRequest) {
   const perimetre = await lirePerimetreBtp(user, supabaseAdmin)
 
   if (societeNonResolue(user, perimetre)) {
+    // Refus AVANT l'appel à next_doc_number : aucun numéro n'est consommé, donc aucun trou dans la série.
+    logger.warn('[doc-number] société non résolue : aucun numéro délivré', {
+      compte: user.id.slice(0, 8),
+      roleEquipe: perimetre.roleEquipe,
+      rattachementAuJeton: typeof user.app_metadata?.company_id === 'string',
+    })
     return NextResponse.json({ error: messageRefusFr('societe_non_resolue'), code: 'societe_non_resolue' }, { status: 409 })
   }
 

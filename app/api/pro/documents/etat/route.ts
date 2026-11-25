@@ -33,6 +33,42 @@ const schemaEtat = z.object({
   id: z.string().min(1).max(100),
 })
 
+/** Suppression d'un brouillon. Un document émis s'ANNULE : sinon la série légale perdrait un numéro. */
+async function supprimerBrouillon(
+  table: 'devis' | 'factures',
+  id: string,
+  proprietaire: string,
+  statut: string | null,
+): Promise<NextResponse> {
+  if (statut !== 'draft') {
+    return NextResponse.json({ error: 'Ce document est émis : il doit être annulé, pas supprimé.' }, { status: 409 })
+  }
+  const { error } = await supabaseAdmin
+    .from(table)
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', id)
+    .eq('artisan_user_id', proprietaire)
+  if (error) {
+    logger.error('[pro/documents/etat] suppression impossible', { table, error: error.message })
+    return NextResponse.json({ error: 'La suppression a échoué. Réessayez.' }, { status: 500 })
+  }
+  return NextResponse.json({ ok: true })
+}
+
+/** Passage en « payée », borné au propriétaire : c'est l'écriture que la RLS filtrait sans le dire. */
+async function marquerPayee(id: string, proprietaire: string): Promise<NextResponse> {
+  const { error } = await supabaseAdmin
+    .from('factures')
+    .update({ status: 'paid' })
+    .eq('id', id)
+    .eq('artisan_user_id', proprietaire)
+  if (error) {
+    logger.error('[pro/documents/etat] passage en payée impossible', { error: error.message })
+    return NextResponse.json({ error: "L'enregistrement « payée » a échoué. Réessayez." }, { status: 500 })
+  }
+  return NextResponse.json({ ok: true })
+}
+
 export async function POST(request: NextRequest) {
   const user = await getAuthUser(request)
   if (!user) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
@@ -85,34 +121,7 @@ export async function POST(request: NextRequest) {
 
   const statut = (existante as { status?: string | null }).status ?? null
 
-  if (action === 'supprimer_brouillon') {
-    // Un document émis ne se supprime pas : il s'annule. Sinon la série légale perdrait un numéro.
-    if (statut !== 'draft') {
-      return NextResponse.json(
-        { error: 'Ce document est émis : il doit être annulé, pas supprimé.' },
-        { status: 409 },
-      )
-    }
-    const { error } = await supabaseAdmin
-      .from(table)
-      .update({ deleted_at: new Date().toISOString() })
-      .eq('id', id)
-      .eq('artisan_user_id', acces.proprietaire)
-    if (error) {
-      logger.error('[pro/documents/etat] suppression impossible', { table, error: error.message })
-      return NextResponse.json({ error: 'La suppression a échoué. Réessayez.' }, { status: 500 })
-    }
-    return NextResponse.json({ ok: true })
-  }
-
-  const { error } = await supabaseAdmin
-    .from('factures')
-    .update({ status: 'paid' })
-    .eq('id', id)
-    .eq('artisan_user_id', acces.proprietaire)
-  if (error) {
-    logger.error('[pro/documents/etat] passage en payée impossible', { error: error.message })
-    return NextResponse.json({ error: "L'enregistrement « payée » a échoué. Réessayez." }, { status: 500 })
-  }
-  return NextResponse.json({ ok: true })
+  return action === 'supprimer_brouillon'
+    ? supprimerBrouillon(table, id, acces.proprietaire, statut)
+    : marquerPayee(id, acces.proprietaire)
 }

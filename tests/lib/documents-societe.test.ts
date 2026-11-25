@@ -112,11 +112,22 @@ describe('droits sur les documents, rôle par rôle', () => {
     expect(peutEcrireDocuments(p, 'factures')).toBe(true)
   })
 
-  it('le conducteur de travaux écrit les devis et ne lit que les factures', () => {
-    const p = perimetreDuRole('CONDUCTEUR_TRAVAUX')
+  // Combinaison de niveaux donnée explicitement, et non tirée d'un rôle : la matrice d'un rôle de terrain est une
+  // décision produit qui bouge (celle du conducteur de travaux change avec le lot « trois écrans des salariés »),
+  // alors que la réponse de ces fonctions à FULL et à READ, elle, ne doit jamais bouger.
+  it('un rôle qui écrit une famille et ne lit que l’autre : écriture d’un côté, lecture seule de l’autre', () => {
+    const p: PerimetreBtp = {
+      ...titulaire,
+      titulaire: false,
+      roleEquipe: 'CONDUCTEUR_TRAVAUX',
+      permissions: { devis: 'FULL', factures: 'READ' },
+    }
     expect(peutEcrireDocuments(p, 'devis')).toBe(true)
     expect(niveauDocuments(p, 'factures')).toBe('READ')
+    expect(peutLireDocuments(p, 'factures')).toBe(true)
     expect(peutEcrireDocuments(p, 'factures')).toBe(false)
+    // Un document est indivisible : une famille en lecture entre quand même dans la liste, entière.
+    expect(famillesLisibles(p)).toEqual(['devis', 'factures'])
   })
 
   it('un ouvrier et un chef de chantier ne voient aucun document', () => {

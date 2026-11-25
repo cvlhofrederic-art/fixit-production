@@ -425,10 +425,10 @@ function DashboardPage() {
           // Le cache ne lui sert à rien — le repli local de numérotation est déjà interdit côté BTP
           // (`repliLocal: false`) — et il n'a pas à emporter une copie de la comptabilité de l'entreprise.
           setSavedDocuments(prev => dedupeDocsByIdentity(prev, lecture.valeur as typeof prev, optionsFusionPourRole(role)))
-        }).catch(() => {})
+        }).catch(() => toast.error(messageRefusDocuments({ message: '', code: 'lecture_impossible' }, isPt)))
       }
 
-      prefetchBTPTables(['chantiers', 'membres', 'equipes', 'pointages', 'situations', 'retenues', 'dc4', 'dpgf'], titulaire.valeur.societeId)
+      void prefetchBTPTables(['chantiers', 'membres', 'equipes', 'pointages', 'situations', 'retenues', 'dc4', 'dpgf'], titulaire.valeur.societeId)
       setLoading(false)
       return
     }

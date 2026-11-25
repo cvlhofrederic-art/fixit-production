@@ -136,18 +136,30 @@ export function ficheEnTeteSeulement(fiche: Record<string, unknown>): Record<str
 }
 
 /**
- * Le compte annonce un rattachement que le serveur n'a pas pu résoudre.
+ * Le jeton du compte et la base ne désignent pas la même société : refuser, dans les deux sens.
  *
  * `app_metadata.company_id` est posé par le serveur à l'acceptation de l'invitation, mais aucune autorisation ne le
  * lit : la société vient de `pro_team_members` (resolveCompanyId), qui retombe sur le compte lui-même quand il n'y
- * trouve aucune ligne active.
+ * trouve aucune ligne active. Le navigateur, lui, n'a que `app_metadata` pour décider. Les deux doivent s'accorder.
  *
- * Servir le compte lui-même à la place de la société donnerait un écran vide et muet. Mieux vaut refuser.
+ * Sens 1 — le jeton annonce une société, le serveur n'en trouve aucune : servir le compte lui-même à la place de la
+ * société donnerait un écran vide et muet.
+ *
+ * Sens 2 — le serveur résout une société que le jeton ne porte pas. C'est le plus coûteux des deux, et il ne se
+ * voit pas à l'écran : `next_doc_number` consulte `pro_team_members` et ne vérifie AUCUN rôle, donc le serveur
+ * délivrerait un numéro de la série de la société, pendant que le navigateur enregistrerait sous le compte du
+ * salarié (il décide à partir de `app_metadata.company_id` seul) — /api/devis/sync répondrait 403 APRÈS la
+ * consommation du numéro, et la série du gérant garderait un trou définitif (art. 242 nonies A I 2° du CGI, qui
+ * exige une séquence continue). Refuser avant le numéro, plutôt que de laisser le trou se creuser.
+ *
+ * Un sous-compte dont le rôle d'équipe est inconnu, ou dont la société n'a pas pu être lue, garde `societeId =
+ * user.id` : il n'est pas visé ici, ses permissions vides le refusent déjà, et aucun numéro n'est consommé.
  */
 export function societeNonResolue(user: User, perimetre: PerimetreBtp): boolean {
   const rattachement = user.app_metadata?.company_id
   const annonce = typeof rattachement === 'string' && rattachement.trim() !== '' ? rattachement : null
-  return annonce !== null && annonce !== user.id && perimetre.societeId === user.id
+  if (annonce !== null && annonce !== user.id && perimetre.societeId === user.id) return true
+  return annonce === null && !perimetre.titulaire && perimetre.societeId !== user.id
 }
 
 /**

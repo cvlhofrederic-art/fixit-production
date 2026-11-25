@@ -42,6 +42,32 @@ type VerificationDocuments = { ok: true; documents: boolean } | { ok: false }
  * (PGRST205 ou 42P01) ne contient rien ; toute autre erreur de lecture rend { ok: false } : la suppression est alors
  * refusée et rien n'est effacé.
  */
+/**
+ * La sauvegarde du stockage du navigateur (user_storage) porte-t-elle des devis ou des factures ?
+ *
+ * Deuxième source, distincte de la base : un artisan garde ses documents dans le stockage de son navigateur, dont
+ * `lib/storage-sync.ts` tient un miroir ici. Une table absente ne contient rien ; toute autre erreur de lecture
+ * rend { ok: false } et la suppression est refusée.
+ */
+async function sauvegardeNavigateurPorteDesDocuments(userId: string): Promise<VerificationDocuments> {
+  const cles = await lirePagesQr<{ key: string }>(() =>
+    supabaseAdmin.from('user_storage').select('key').eq('user_id', userId).order('key', { ascending: true }))
+  if (!cles.ok) {
+    if (tableAbsenteQr(cles.erreur)) return { ok: true, documents: false }
+    log.warn('Sauvegarde du stockage non vérifiée : suppression refusée, rien n’est effacé', { code: cles.erreur.code })
+    return { ok: false }
+  }
+  const clesDocuments = cles.valeur.map((l) => l.key).filter((cle) => PREFIXES_DOCUMENTS_STOCKAGE.some((p) => cle.startsWith(p)))
+  if (clesDocuments.length === 0) return { ok: true, documents: false }
+  const valeurs = await lireParValeursQr<{ key: string; value: unknown }>(clesDocuments, (lot) =>
+    supabaseAdmin.from('user_storage').select('key, value').eq('user_id', userId).in('key', lot).order('key', { ascending: true }))
+  if (!valeurs.ok) {
+    log.warn('Sauvegarde du stockage non vérifiée : suppression refusée, rien n’est effacé', { code: valeurs.erreur.code })
+    return { ok: false }
+  }
+  return { ok: true, documents: valeurs.valeur.some((l) => porteDesDocuments(l.value)) }
+}
+
 async function compteDetientDesDocuments(
   userId: string,
   ficheId: string | null,
@@ -72,22 +98,7 @@ async function compteDetientDesDocuments(
   // conserve de toute façon.
   if (sousCompteSociete) return { ok: true, documents: false }
 
-  const cles = await lirePagesQr<{ key: string }>(() =>
-    supabaseAdmin.from('user_storage').select('key').eq('user_id', userId).order('key', { ascending: true }))
-  if (!cles.ok) {
-    if (tableAbsenteQr(cles.erreur)) return { ok: true, documents: false }
-    log.warn('Sauvegarde du stockage non vérifiée : suppression refusée, rien n’est effacé', { code: cles.erreur.code })
-    return { ok: false }
-  }
-  const clesDocuments = cles.valeur.map((l) => l.key).filter((cle) => PREFIXES_DOCUMENTS_STOCKAGE.some((p) => cle.startsWith(p)))
-  if (clesDocuments.length === 0) return { ok: true, documents: false }
-  const valeurs = await lireParValeursQr<{ key: string; value: unknown }>(clesDocuments, (lot) =>
-    supabaseAdmin.from('user_storage').select('key, value').eq('user_id', userId).in('key', lot).order('key', { ascending: true }))
-  if (!valeurs.ok) {
-    log.warn('Sauvegarde du stockage non vérifiée : suppression refusée, rien n’est effacé', { code: valeurs.erreur.code })
-    return { ok: false }
-  }
-  return { ok: true, documents: valeurs.valeur.some((l) => porteDesDocuments(l.value)) }
+  return sauvegardeNavigateurPorteDesDocuments(userId)
 }
 
 // DELETE /api/user/delete-account

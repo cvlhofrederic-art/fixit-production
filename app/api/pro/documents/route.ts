@@ -10,8 +10,14 @@
 // CE QUI EST LU
 // `artisan_user_id = <société>`, et rien d'autre. Au 25/11/2026 aucun document de la production n'est rangé sous un
 // sous-compte, et /api/devis/sync enregistre désormais tout nouveau document sous la société : ce seul critère est
-// donc complet. Y ajouter `artisan_id = <fiche de la société>` aurait fait entrer dans la liste une ligne qu'un
-// compte membre de deux sociétés aurait écrite sous la fiche de l'autre.
+// donc complet.
+//
+// Y ajouter `artisan_id = <fiche de la société>` rendrait des lignes que PERSONNE ne peut utiliser, et le salarié
+// serait seul à les voir :
+//   - l'écran du gérant lit `.eq('artisan_user_id', user.id)` (lib/document-sync.ts) et ne les montre jamais, alors
+//     que lib/documents/champs-lecture.ts exige que les deux lectures rendent exactement les mêmes lignes ;
+//   - les quatre routes de mutation visent `artisan_user_id = <propriétaire>` seul : chaque bouton d'un tel
+//     document répondrait 404, sur un écran par ailleurs rempli — précisément le défaut que ce lot corrige.
 //
 // Aucun identifiant de salarié n'entre dans le filtre : la visibilité des documents ne dépend pas de `is_active`,
 // et désactiver un salarié ne peut donc pas faire disparaître des documents de l'écran du gérant.
@@ -85,7 +91,7 @@ export async function GET(request: NextRequest) {
 
   // Une lecture en échec n'est pas une liste vide : le dire, pour que l'écran montre une erreur au lieu de laisser
   // croire que la société n'a aucun document.
-  const enEchec = resultats.find(({ resultat }) => 'erreur' in resultat)
+  const enEchec = resultats.some(({ resultat }) => 'erreur' in resultat)
   if (enEchec) {
     return NextResponse.json({ error: messageRefusFr('lecture_impossible'), code: 'lecture_impossible' }, { status: 500 })
   }

@@ -16,14 +16,7 @@ const simu = vi.hoisted(() => ({
   creerClient: vi.fn(),
 }))
 
-// Simulation PARTIELLE du module, héritée du vrai : depuis le 25/11/2026 les routes des documents résolvent
-// aussi le périmètre de la société (lib/btp/perimetre-compte), qui importe getUserRole, isProGerant,
-// societeDunAutreCompte et resolveCompanyId du même fichier. Les omettre les ferait disparaître du module simulé.
-// Pour un compte artisan comme pour un gérant, lirePerimetreBtp sort sans toucher la base.
-vi.mock('@/lib/auth-helpers', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/auth-helpers')>()),
-  getAuthUser: async () => simu.utilisateur,
-}))
+vi.mock('@/lib/auth-helpers', async (io) => (await import('../helpers/mocks-routes-api')).authHelpersReels(io, () => simu.utilisateur))
 vi.mock('@/lib/supabase-server-component', () => ({ createServerSupabaseClient: vi.fn() }))
 vi.mock('@/lib/supabase-server', () => ({ supabaseAdmin: { rpc: simu.rpcService } }))
 vi.mock('@supabase/supabase-js', () => ({

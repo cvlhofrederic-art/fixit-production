@@ -1,9 +1,11 @@
 // tests/helpers/faux-supabase-btp.ts — faux client Supabase (service role) pour les tests de app/api/btp/route.ts.
 //
-// Simule ce que la route appelle : from(table) puis select / insert / update / upsert / delete, filtres eq et in,
-// order (sans effet), limit, single / maybeSingle, et l'attente directe de la requête (then). Les lignes vivent dans
-// `base.lignes` ; une erreur PostgREST se programme par table et par opération (`base.erreurs`). Chaque requête est
-// notée dans `base.journal` (table, opération, valeur écrite, filtres, limite) pour vérifier ce qui part en base.
+// Simule ce que la route appelle : from(table) puis select / insert / update / upsert / delete, filtres eq, in et
+// is, order (sans effet), limit, single / maybeSingle, et l'attente directe de la requête (then). Les lignes vivent
+// dans `base.lignes` ; une erreur PostgREST se programme par table et par opération (`base.erreurs`), au besoin
+// seulement quand une colonne donnée est demandée (`siColonne`, pour éprouver un repli qui relit la même table avec
+// moins de colonnes). Chaque requête est notée dans `base.journal` (table, opération, valeur écrite, filtres, dont
+// les filtres `is` dans `estNul`, limite) pour vérifier ce qui part en base.
 //
 // Comportements de PostgREST reproduits parce que la route en dépend :
 //   - `.single()` sans exactement une ligne → erreur PGRST116 ; `.maybeSingle()` sans ligne → data null ;
@@ -22,12 +24,17 @@ export interface EntreeJournal {
   valeur?: unknown
   filtres: Record<string, unknown>
   dans: Record<string, unknown[]>
+  /** Filtres `.is(colonne, null | true | false)` : `null` couvre aussi une ligne sans la colonne, comme en base. */
+  estNul: Record<string, unknown>
   limite?: number
+  /** Colonnes demandées au `select`, pour les cas qui vérifient ce qui est lu (ou pas) en base. */
+  colonnes?: string
 }
 
 export interface FauxBase {
   lignes: Record<string, Ligne[]>
-  erreurs: Array<{ table: string; operation: OperationFaux; erreur: ErreurFaux }>
+  /** `siColonne` : l'erreur ne porte que si le `select` demande cette colonne (PostgREST 42703). */
+  erreurs: Array<{ table: string; operation: OperationFaux; erreur: ErreurFaux; siColonne?: string }>
   journal: EntreeJournal[]
 }
 
@@ -52,17 +59,24 @@ interface Resultat { data: unknown; error: ErreurFaux | null; count?: number | n
 const TABLES_SANS_ID = new Set(['equipe_membres_btp', 'settings_btp'])
 
 function constructeur(base: FauxBase, table: string) {
-  const entree: EntreeJournal = { table, operation: 'select', filtres: {}, dans: {} }
+  const entree: EntreeJournal = { table, operation: 'select', filtres: {}, dans: {}, estNul: {} }
   base.journal.push(entree)
   let colonnes = '*'
   let enTete = false
 
+  // Une colonne absente de la ligne vaut NULL en base : `.is(colonne, null)` doit la retenir.
+  const nulEnBase = (valeur: unknown) => valeur === null || valeur === undefined
+
   const correspond = (ligne: Ligne) =>
     Object.entries(entree.filtres).every(([colonne, valeur]) => ligne[colonne] === valeur)
     && Object.entries(entree.dans).every(([colonne, valeurs]) => valeurs.includes(ligne[colonne]))
+    && Object.entries(entree.estNul).every(([colonne, attendu]) =>
+      attendu === null ? nulEnBase(ligne[colonne]) : ligne[colonne] === attendu)
 
   const executer = (): Resultat => {
-    const programmee = base.erreurs.find(e => e.table === table && e.operation === entree.operation)
+    const programmee = base.erreurs.find(e =>
+      e.table === table && e.operation === entree.operation
+      && (e.siColonne === undefined || colonnes.includes(e.siColonne)))
     if (programmee) return { data: null, error: programmee.erreur, count: null }
     const lignes = (base.lignes[table] ??= [])
     switch (entree.operation) {
@@ -115,7 +129,7 @@ function constructeur(base: FauxBase, table: string) {
 
   const b: Record<string, unknown> = {}
   b.select = (cols?: string, options?: { count?: string; head?: boolean }) => {
-    if (cols) colonnes = cols
+    if (cols) { colonnes = cols; entree.colonnes = cols }
     if (options?.head) enTete = true
     return b
   }
@@ -125,6 +139,7 @@ function constructeur(base: FauxBase, table: string) {
   b.delete = () => { entree.operation = 'delete'; return b }
   b.eq = (colonne: string, valeur: unknown) => { entree.filtres[colonne] = valeur; return b }
   b.in = (colonne: string, valeurs: unknown[]) => { entree.dans[colonne] = valeurs; return b }
+  b.is = (colonne: string, valeur: unknown) => { entree.estNul[colonne] = valeur; return b }
   b.order = () => b
   b.limit = (n: number) => { entree.limite = n; return b }
   b.single = async () => unique(false)

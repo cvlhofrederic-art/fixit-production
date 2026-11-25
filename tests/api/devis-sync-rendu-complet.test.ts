@@ -23,14 +23,7 @@ const mockFrom = vi.fn().mockImplementation((table: string) => {
 })
 
 vi.mock('@/lib/supabase-server', () => ({ supabaseAdmin: { from: mockFrom } }))
-// Simulation PARTIELLE du module, héritée du vrai : depuis le 25/11/2026 les routes des documents résolvent
-// aussi le périmètre de la société (lib/btp/perimetre-compte), qui importe getUserRole, isProGerant,
-// societeDunAutreCompte et resolveCompanyId du même fichier. Les omettre les ferait disparaître du module simulé.
-// Pour un compte artisan comme pour un gérant, lirePerimetreBtp sort sans toucher la base.
-vi.mock('@/lib/auth-helpers', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/auth-helpers')>()),
-  getAuthUser: async () => ({ id: ARTISAN_USER_ID }),
-}))
+vi.mock('@/lib/auth-helpers', async (io) => (await import('../helpers/mocks-routes-api')).authHelpersReels(io, () => ({ id: ARTISAN_USER_ID })))
 vi.mock('@/lib/rate-limit', async () => (await import('../helpers/mocks-routes-api')).rateLimitPermissif())
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
 vi.mock('@/lib/logger', async () => (await import('../helpers/mocks-routes-api')).loggerSilencieux())

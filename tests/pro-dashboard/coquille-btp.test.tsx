@@ -42,6 +42,9 @@ const mocks = vi.hoisted(() => ({
   useModuleCategories: vi.fn(),
   lireTitulaireSociete: vi.fn(),
   lireDocumentsSociete: vi.fn(),
+  // Vraie fusion, et espionnee : l'ancienne simulation rendait son premier argument et jetait donc les documents
+  // de la societe sans qu'aucun cas ne s'en apercoive.
+  dedupeDocsByIdentity: vi.fn((prealables: unknown[], ajoutes: unknown[] = []) => [...prealables, ...ajoutes]),
 }))
 
 vi.mock('@/lib/supabase', async () => {
@@ -69,7 +72,7 @@ vi.mock('@/lib/document-sync', () => ({
   fusionnerDocumentsDeLaBase: vi.fn((_id: string, liste: unknown[]) => liste),
 }))
 vi.mock('@/lib/devis-utils', () => ({
-  dedupeDocsByIdentity: (docs: unknown[]) => docs,
+  dedupeDocsByIdentity: mocks.dedupeDocsByIdentity,
   optionsFusionPourRole: vi.fn(() => undefined),
 }))
 // Identité et documents d'un compte invité : la page les demande au serveur, qui seul peut les lire.
@@ -159,6 +162,7 @@ beforeEach(() => {
   // sont reposées à chaque cas, sinon un mockResolvedValue d'un cas précédent fuirait sur le suivant.
   mocks.lireTitulaireSociete.mockResolvedValue(TITULAIRE_SOCIETE)
   mocks.lireDocumentsSociete.mockResolvedValue({ ok: true, valeur: [] })
+  mocks.dedupeDocsByIdentity.mockImplementation((prealables: unknown[], ajoutes: unknown[] = []) => [...prealables, ...ajoutes])
   localStorage.clear()
   mocks.rappels.length = 0
   mocks.etat.fiche = { data: FICHE, error: null }
@@ -270,11 +274,36 @@ describe('tableau de bord BTP — fiche société au chargement', () => {
 
     await waitFor(() => expect(screen.queryByText(ECRAN_ECHEC)).not.toBeNull())
     expect(container.querySelector('#artisan-dashboard-v5')).toBeNull()
-    // Le message du serveur est affiché, pas celui d'une connexion interrompue.
-    expect(screen.queryByText(/n.est rattaché à aucune société active/)).not.toBeNull()
+    // Le message du code de refus est affiché dans la langue de l'écran, pas celui d'une connexion interrompue.
+    // (C'est bien le texte local de `messageRefusDocuments`, pas la phrase rendue par le serveur.)
+    expect(screen.getByText(/n.est rattaché à aucune société active/)).toBeTruthy()
     // Rien n'est lu ni préchargé sous un autre identifiant.
     expect(mocks.prefetchBTPTables).not.toHaveBeenCalled()
     expect(mocks.lireDocumentsSociete).not.toHaveBeenCalled()
+  })
+
+  // CE QUE CE BANC NE PEUT PAS PROUVER : que les lignes rendues par le serveur arrivent dans la liste AFFICHÉE.
+  // La fusion a lieu dans l'updater de `setSavedDocuments`, et les sections sont simulées ici par `next/dynamic` :
+  // elles ne lisent pas cet état, React n'a donc aucune raison de traiter la mise à jour, et l'updater n'est jamais
+  // exécuté (deux cycles `act` de 100 ms n'y changent rien). Les trois `setSavedDocuments(prev => …)` de la page
+  // sont dans le même cas, et aucun cas de ce banc ne les observe. À couvrir par un banc des sections, pas ici.
+  // L'ÉCHEC de cette lecture, lui, est observable : le toast part directement du `.then`.
+
+  it('compte invité : une lecture des documents en échec se voit, sans fermer l’application', async () => {
+    // Une liste vide et muette était le défaut d'origine : un refus doit se dire. Mais il ne doit pas fermer
+    // l'application — l'identité de la société, elle, a bien été lue.
+    mocks.etat.fiche = { data: null, error: AUCUNE_LIGNE }
+    mocks.lireDocumentsSociete.mockResolvedValue({
+      ok: false,
+      code: 'lecture_impossible',
+      message: 'refus du serveur',
+    })
+    const { container } = await ouvrir(utilisateur('pro_societe', SALARIE_INVITE))
+
+    await waitFor(() => expect(container.querySelector('#artisan-dashboard-v5')).not.toBeNull())
+    await waitFor(() => expect(mocks.toastError).toHaveBeenCalledTimes(1))
+    expect(mocks.toastError.mock.calls[0][0]).toMatch(/momentanément illisibles/)
+    expect(screen.queryByText(ECRAN_ECHEC)).toBeNull()
   })
 
   it('compte invité sans droit sur les documents : son application s’ouvre, sans aller les chercher', async () => {

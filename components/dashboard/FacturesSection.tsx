@@ -565,6 +565,17 @@ function FacturesSectionV5({
   // « Marquer payée » : passe la facture en statut payé (localStorage + state +
   // sync DB). RLS `factures_owner_update` autorise l'UPDATE ; le statut 'paid'
   // est valide (CHECK factures_status_check). Statut local 'paid' aligné sur la DB.
+  // Salarié invité d'une société : l'UPDATE depuis le navigateur ne touche AUCUNE ligne — la RLS de `factures`
+  // filtre sans renvoyer d'erreur — et l'écran annonçait « payée » avant que la facture ne redevienne impayée au
+  // rechargement. Le serveur le fait, borné au propriétaire. Rend le message d'échec à afficher, ou null.
+  const payeeParLeServeur = async (id: string | undefined, docNumber: string | undefined): Promise<string | null> => {
+    if (!id || !isStableDocId(id)) {
+      return `Impossible d'enregistrer « payée » pour ${docNumber || 'ce document'} : rouvrez-le depuis la liste.`
+    }
+    const resultat = await changerEtatDocumentSociete('marquer_payee', 'facture', id)
+    return resultat.ok ? null : resultat.message
+  }
+
   const markPaid = async (doc: PersistedDocument) => {
     const key = docIdentityKey(doc)
     if (!key) return
@@ -572,17 +583,10 @@ function FacturesSectionV5({
     // qu'après succès, sinon le toast mentait quand l'UPDATE échouait (le statut
     // régressait au rechargement). RLS factures_owner_update (WITH CHECK).
     const id = (doc as { id?: string }).id
-    // Salarié invité d'une société : l'UPDATE depuis le navigateur ne touche AUCUNE ligne — la RLS de
-    // `factures` filtre sans renvoyer d'erreur — et l'écran annonçait « payée » avant que la facture ne
-    // redevienne impayée au rechargement. Le serveur le fait, borné au propriétaire, et un échec se voit.
     if (estSousCompteSociete(artisan)) {
-      if (!id || !isStableDocId(id)) {
-        toast.error(`Impossible d'enregistrer « payée » pour ${doc.docNumber || 'ce document'} : rouvrez-le depuis la liste.`)
-        return
-      }
-      const resultat = await changerEtatDocumentSociete('marquer_payee', 'facture', id)
-      if (!resultat.ok) {
-        toast.error(resultat.message)
+      const echec = await payeeParLeServeur(id, doc.docNumber)
+      if (echec) {
+        toast.error(echec)
         return
       }
     } else if (id && isStableDocId(id)) {
