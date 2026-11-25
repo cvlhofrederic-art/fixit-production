@@ -62,12 +62,13 @@ const ecrire = async (corps: unknown) => {
 const gerant = () => { h.user = { id: SOCIETE, email: 'patron@exemple.test', app_metadata: { role: 'pro_societe' } } }
 
 /** Sous-compte d'équipe relié à la société, avec son rôle. */
-function salarie(role: string, options: { email?: string; derogations?: { module_id: string; access_level: string }[] } = {}) {
+function salarie(role: string, options: { email?: string; derogations?: { module_id: string; access_level: string; company_id?: string }[] } = {}) {
   const userId = nouveauCompte()
   const membreId = nouveauCompte()
   h.user = { id: userId, email: options.email ?? EMAIL_OUVRIER, app_metadata: { role: 'pro_societe', pro_team_role: role, company_id: SOCIETE } }
   h.base.lignes.pro_team_members = [{ id: membreId, user_id: userId, company_id: SOCIETE, is_active: true }]
-  h.base.lignes.pro_role_permissions = (options.derogations ?? []).map(d => ({ member_id: membreId, ...d }))
+  h.base.lignes.pro_role_permissions = (options.derogations ?? []).map(d => ({ member_id: membreId, company_id: SOCIETE, ...d }))
+  return userId
 }
 
 const titres = (lignes: unknown) => (lignes as { titre: string }[]).map(l => l.titre).sort()
@@ -206,6 +207,14 @@ describe('GET /api/btp — les dérogations du gérant priment', () => {
     const { json } = await lire('?table=chantiers')
     expect(titres(json.chantiers)).toEqual(['Affecté', 'Par équipe', 'Terminé'])
     expect(json.restreint).toBeUndefined()
+  })
+
+  it('dérogation posée hors du serveur (company_id = le salarié lui-même, avant la migration 20261125b) : ignorée', async () => {
+    // Avant : lue par member_id seul, elle donnait FULL ; le salarié s'attribuait des droits en écrivant la table.
+    salarie('OUVRIER', { derogations: [{ module_id: 'chantiers', access_level: 'FULL', company_id: 'compte-du-salarie' }] })
+    const { json } = await lire('?table=chantiers')
+    expect(titres(json.chantiers)).toEqual(['Affecté', 'Par équipe'])
+    expect(json.restreint).toBe(true)
   })
 
   it('un ouvrier à qui le gérant a retiré les chantiers n’en voit aucun', async () => {

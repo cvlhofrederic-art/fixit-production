@@ -86,7 +86,8 @@ function salarieInvite(
     h.base.lignes.pro_team_members = [{ id: `membre-${id}`, user_id: id, company_id: SOCIETE, is_active: true }]
   }
   if (options.derogations) {
-    h.base.lignes.pro_role_permissions = options.derogations.map(d => ({ member_id: `membre-${id}`, ...d }))
+    // Posée par le serveur, donc au nom de la société (les lectures ignorent toute autre company_id, migration 20261125b).
+    h.base.lignes.pro_role_permissions = options.derogations.map(d => ({ member_id: `membre-${id}`, company_id: SOCIETE, ...d }))
   }
   h.base.lignes.profiles_artisan = ficheDeLaSociete()
   return id
