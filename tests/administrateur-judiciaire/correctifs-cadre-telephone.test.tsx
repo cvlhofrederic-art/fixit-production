@@ -32,6 +32,23 @@ afterEach(() => {
 })
 
 const style = (selecteur: string) => getComputedStyle(document.querySelector(selecteur) as Element)
+/**
+ * Valeur de la dernière déclaration d'une propriété pour ce sélecteur exact, seul ou dans une liste, dans l'ordre des
+ * feuilles chargées : la cascade d'un navigateur quand les règles ont la même spécificité. getComputedStyle ne convient
+ * pas ici : jsdom donne à une liste de sélecteurs la spécificité la plus forte de la liste (« #aj-root .topbar .btn,
+ * #aj-root .topbar .vfx-role, … .crumb.vfx-date-topbar » de aj-selecteur-copro.css), là où un navigateur prend celle du
+ * sélecteur qui correspond.
+ */
+function derniereDeclaration(selecteur: string, propriete: string): string {
+  let valeur = ''
+  for (const feuille of Array.from(document.styleSheets))
+    for (const regle of Array.from(feuille.cssRules))
+      if (regle instanceof CSSStyleRule && regle.selectorText.split(',').some((s) => s.trim() === selecteur)) {
+        const v = regle.style.getPropertyValue(propriete)
+        if (v) valeur = v
+      }
+  return valeur
+}
 const sansEspaces = (valeur: string) => valeur.replaceAll(/\s+/g, '')
 
 /** Cadre du module, mêmes classes que Shell.tsx, DemoBanner.tsx, toast.tsx et FixyLauncher.tsx. */
@@ -80,6 +97,8 @@ describe('titre de la barre du haut coupé sur téléphone', () => {
       monterCadre()
       expect(style('.topbar .vfx-selecteur-copro').order).toBe('10')
       expect(style('.topbar .vfx-role').order).toBe('11')
+      // toute la largeur : sa propre ligne même pendant le chargement, quand le sélecteur de copropriété n'est pas encore là
+      expect(derniereDeclaration('#aj-root .topbar .vfx-role', 'flex-basis')).toBe('100%')
       titreSurDeuxLignes()
     })
 
@@ -88,6 +107,7 @@ describe('titre de la barre du haut coupé sur téléphone', () => {
       feuillesALargeur(largeur)
       monterCadre()
       expect(style('.topbar .vfx-role').order).toBe('0')
+      expect(derniereDeclaration('#aj-root .topbar .vfx-role', 'flex-basis')).toBe('auto')
       titreSurDeuxLignes()
     })
 
