@@ -39,6 +39,9 @@
  * (30 px à 320 px). Le rôle passe sur sa propre ligne, sous le sélecteur de copropriété (ordre 10, aj-selecteur-copro.css).
  * Il prend toute la largeur pour garder cette ligne même en données réelles pendant le chargement de la base, quand le
  * sélecteur de copropriété n'est pas encore affiché : sans cela, il revenait un instant sur la ligne du titre et le coupait.
+ * Pendant ce chargement, le séparateur qui suit le titre est aussi masqué sous 641 px, comme il l'est derrière le sélecteur
+ * de copropriété (aj-selecteur-copro.css) : sinon il prenait la moitié de la ligne et coupait un titre long (« Analyse des
+ * devis et factures » : 104 px au lieu de 186 à 375 px). Au-dessus de 640 px, le titre mobile est masqué : rien ne change.
  * Sous 641 px (barre sur plusieurs lignes, aj-selecteur-copro.css), un titre qui ne tient pas sur une ligne passe sur deux
  * lignes au plus, dans la hauteur des boutons de 44 px : téléphone de 320 px, et 481 à 540 px, où le rôle reste sur la
  * ligne du titre (21 libellés sur 76 coupés à 481 px avant ce correctif, aucun après, mesuré dans Chrome).
@@ -46,7 +49,7 @@
  * lui (aj-selecteur-copro.css) ; le titre y reste coupé (14 px à 641 px, 92 px à 812 px).
  */
 @media (max-width: 480px){#aj-root .topbar .vfx-role{order:11;flex-basis:100%}}
-@media (max-width: 640px){#aj-root .topbar .crumb-mobile b{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;white-space:normal;line-height:1.15}}
+@media (max-width: 640px){#aj-root .topbar .crumb-mobile b{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;white-space:normal;line-height:1.15}#aj-root .topbar .crumb-mobile+.spacer{display:none}}
 
 /*
  * Indicateurs empilés à 375 px (environ 520 px avant le premier panneau) : sous 481 px, aj.css passait la grille sur une

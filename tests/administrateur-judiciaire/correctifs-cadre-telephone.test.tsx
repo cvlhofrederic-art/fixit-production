@@ -37,7 +37,8 @@ const style = (selecteur: string) => getComputedStyle(document.querySelector(sel
  * feuilles chargées : la cascade d'un navigateur quand les règles ont la même spécificité. getComputedStyle ne convient
  * pas ici : jsdom donne à une liste de sélecteurs la spécificité la plus forte de la liste (« #aj-root .topbar .btn,
  * #aj-root .topbar .vfx-role, … .crumb.vfx-date-topbar » de aj-selecteur-copro.css), là où un navigateur prend celle du
- * sélecteur qui correspond.
+ * sélecteur qui correspond. Limite : ne voit ni une règle plus spécifique écrite autrement, ni un !important ; la mise
+ * en page du rôle a été mesurée dans Chrome avec les vraies feuilles.
  */
 function derniereDeclaration(selecteur: string, propriete: string): string {
   let valeur = ''
@@ -51,8 +52,11 @@ function derniereDeclaration(selecteur: string, propriete: string): string {
 }
 const sansEspaces = (valeur: string) => valeur.replaceAll(/\s+/g, '')
 
-/** Cadre du module, mêmes classes que Shell.tsx, DemoBanner.tsx, toast.tsx et FixyLauncher.tsx. */
-function monterCadre(menuOuvert = false): void {
+/**
+ * Cadre du module, mêmes classes que Shell.tsx, DemoBanner.tsx, toast.tsx et FixyLauncher.tsx. `chargement` : base pas
+ * encore lue en données réelles, le sélecteur de copropriété n'est pas affiché (SelecteurCoproGlobal rend null).
+ */
+function monterCadre(menuOuvert = false, chargement = false): void {
   document.body.innerHTML = `<div id="aj-root" lang="fr">
     <div class="vfx-demo-banner" role="status"><span><b>MAQUETTE</b> · données de démonstration</span></div>
     <div class="app">
@@ -63,7 +67,7 @@ function monterCadre(menuOuvert = false): void {
           <button class="hamburger" aria-label="Ouvrir le menu"></button>
           <div class="crumb"><span>VitFix</span><b>Appels de fonds</b></div>
           <div class="crumb-mobile"><b>Appels de fonds</b></div>
-          <div class="vfx-selecteur-copro"></div>
+          ${chargement ? '' : '<div class="vfx-selecteur-copro"></div>'}
           <div class="spacer"></div>
           <label class="vfx-role"><select aria-label="Rôle dans le cabinet"><option>Comptabilité</option></select></label>
           <button class="icon-btn vfx-loupe-palette" aria-label="Ouvrir la palette de commandes"></button>
@@ -117,6 +121,26 @@ describe('titre de la barre du haut coupé sur téléphone', () => {
       monterCadre()
       expect(style('.topbar .vfx-role').order).toBe('0')
       if (largeur === 641) expect(style('.topbar .crumb-mobile b').whiteSpace).toBe('nowrap')
+    })
+
+  it('sans le correctif, pendant le chargement de la base, le séparateur partage la ligne du titre (relecture du 25/11/2026)', () => {
+    feuillesALargeur(375, SANS_CORRECTIF)
+    monterCadre(false, true)
+    expect(style('.topbar .spacer').display).not.toBe('none')
+  })
+
+  for (const largeur of [375, 480, 640])
+    it(`à ${largeur} px, pendant le chargement de la base : le séparateur ne prend pas la moitié de la ligne du titre`, () => {
+      feuillesALargeur(largeur)
+      monterCadre(false, true)
+      expect(style('.topbar .spacer').display).toBe('none')
+    })
+
+  for (const largeur of [641, 1440])
+    it(`à ${largeur} px, pendant le chargement de la base : le séparateur reste (barre sur une ligne)`, () => {
+      feuillesALargeur(largeur)
+      monterCadre(false, true)
+      expect(style('.topbar .spacer').display).not.toBe('none')
     })
 })
 
