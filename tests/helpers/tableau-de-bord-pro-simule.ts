@@ -100,13 +100,15 @@ export const droitsSimules = {
   permissions: {} as Record<string, string>,
   isGerant: true,
   proTeamRole: null as string | null,
+  /** Dérogations du gérant en cours de lecture (usePermissions) : la garde des sections attend leur réponse. */
+  loading: false,
   canAccess: (_module: string) => true,
   canWrite: (_module: string) => true,
 }
 
 export function remettreDroitsSimules(): void {
   Object.assign(droitsSimules, {
-    permissions: {}, isGerant: true, proTeamRole: null, canAccess: () => true, canWrite: () => true,
+    permissions: {}, isGerant: true, proTeamRole: null, loading: false, canAccess: () => true, canWrite: () => true,
   })
 }
 

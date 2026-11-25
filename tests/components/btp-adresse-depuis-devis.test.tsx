@@ -431,6 +431,20 @@ describe('salarié de terrain — la météo de ses chantiers, sans import de de
     // Les lieux du gérant restent où ils sont : rien n'est effacé de l'appareil.
     expect(JSON.parse(localStorage.getItem('vitfix_btp_meteo_devis_art-1') ?? '[]')).toHaveLength(1)
   })
+
+  it('sans droit sur les chantiers : aucun message ne l’invite à en créer ou à les compléter', async () => {
+    render(<MeteoChantierSection userId="art-1" authUserId="u1" isPt={false} importDevis={false} gestionChantiers={false} />)
+    expect(await screen.findByText('Aucun chantier en cours ne vous est affecté : les prévisions de vos chantiers s’afficheront ici.')).toBeTruthy()
+    expect(screen.queryByText(/Créez des chantiers/)).toBeNull()
+  })
+
+  it('chantier sans ville, sans droit sur les chantiers : la ville est à demander au responsable', async () => {
+    etat.locale = 'pt'
+    etat.chantiers = [{ id: 'c-villa', titre: 'Moradia', adresse: '', codePostal: '', ville: '', statut: 'En cours' }]
+    render(<MeteoChantierSection userId="art-1" authUserId="u1" isPt importDevis={false} gestionChantiers={false} />)
+    expect(await screen.findByText(/O seu responsável tem de indicar a cidade/)).toBeTruthy()
+    expect(screen.queryByText(/Adicione a cidade/)).toBeNull()
+  })
 })
 
 describe('salarié de terrain — ses chantiers en consultation', () => {
@@ -445,14 +459,15 @@ describe('salarié de terrain — ses chantiers en consultation', () => {
     // Le statut se lit, il ne se change pas (seul reste le filtre de la liste).
     expect(screen.getAllByRole('combobox')).toHaveLength(1)
     expect(screen.getByText('En cours')).toBeTruthy()
-    for (const texte of ['Client', 'Budget', 'Mme Durand', /12.?000/, /Marge/, 'Devis et factures liés']) {
+    for (const texte of ['Client', 'Budget', 'Chef', 'Mme Durand', /12.?000/, /Marge/, 'Devis et factures liés', /Gestion de vos chantiers/]) {
       expect(screen.queryByText(texte)).toBeNull()
     }
+    expect(screen.getByText('Vos chantiers — 1 actif(s)')).toBeTruthy()
   })
 
   it('aucun chantier affecté : un message, pas d’invitation à en créer un', async () => {
     render(<ChantiersBTPV2 artisan={artisan} orgRole="pro_societe" lectureSeule />)
-    expect(await screen.findByText('Aucun chantier ne vous est encore affecté.')).toBeTruthy()
+    expect(await screen.findByText('Aucun chantier en cours ne vous est affecté. Si vous pensez que c’est une erreur, prévenez votre responsable.')).toBeTruthy()
     expect(screen.queryByRole('button', { name: /Créer un chantier/ })).toBeNull()
   })
 
@@ -464,7 +479,7 @@ describe('salarié de terrain — ses chantiers en consultation', () => {
     unmount()
     etat.chantiers = []
     render(<ChantiersBTPV2 artisan={artisan} orgRole="pro_societe" lectureSeule />)
-    expect(await screen.findByText('Ainda não lhe foi atribuída nenhuma obra.')).toBeTruthy()
+    expect(await screen.findByText('Não lhe está atribuída nenhuma obra em curso. Se achar que é um erro, avise o seu responsável.')).toBeTruthy()
   })
 
   it('le gérant garde tout : création, modification, statut, budget et devis liés', async () => {

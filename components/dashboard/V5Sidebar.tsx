@@ -151,11 +151,13 @@ export default function V5Sidebar({
         // seulement dans la branche figée plus bas, que le tableau de bord n'atteint jamais : il fournit toujours
         // des rubriques dynamiques, si bien qu'un ouvrier voyait tout le catalogue, Devis et Factures comprises.
         // La recherche de modules s'appuie sur cette même liste : elle ne montre donc rien de plus que le menu.
-        // Un salarié de terrain ne voit, lui, que ce que la matrice lui accorde : une entrée hors matrice lui reste
-        // fermée (25/11/2026, « uniquement » la météo, son chantier et le pointage).
-        modules: cat.modules.filter(m =>
-          m.on && isModuleEnabled(m.id)
-          && (isProGerant || (!salarieDeTerrain && !MODULES_GARDES.has(m.id)) || proCanAccess(m.id))),
+        // Un salarié de terrain voit exactement ce que la matrice lui accorde (25/11/2026, « uniquement » la météo,
+        // son chantier et le pointage) : une entrée hors matrice lui reste fermée, et un module accordé reste au menu
+        // même s'il l'a éteint lui-même dans « Modules » avant que cet écran lui soit retiré — il n'aurait plus aucun
+        // moyen de le rallumer, et le gérant non plus (le réglage est rangé sous la clé du salarié).
+        modules: cat.modules.filter(m => (salarieDeTerrain
+          ? proCanAccess(m.id)
+          : m.on && isModuleEnabled(m.id) && (isProGerant || !MODULES_GARDES.has(m.id) || proCanAccess(m.id)))),
       }))
       .filter(rubrique => rubrique.modules.length > 0)
   }, [dynamicCategories, isPt, isModuleEnabled, isProGerant, proCanAccess, salarieDeTerrain])
@@ -401,9 +403,11 @@ export default function V5Sidebar({
         {recherche.active && recherche.ids.length === 0 && (
           <div className="v5-sb-rech-vide">
             <p>{isPt ? 'Nenhum módulo encontrado' : 'Aucun module trouvé'}</p>
-            <button type="button" className="v5-sb-rech-lien" onClick={() => ouvrir('modules')}>
-              {isPt ? 'Ver todos os módulos' : 'Voir tous les modules'}
-            </button>
+            {!salarieDeTerrain && (
+              <button type="button" className="v5-sb-rech-lien" onClick={() => ouvrir('modules')}>
+                {isPt ? 'Ver todos os módulos' : 'Voir tous les modules'}
+              </button>
+            )}
           </div>
         )}
 

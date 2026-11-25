@@ -123,7 +123,8 @@ export function estRoleDeTerrain(role: string | null | undefined): boolean {
  * - `chantiers` en lecture : /api/btp ne lui rend que les chantiers qui lui sont affectés, sans client ni montant
  *   (vue restreinte de lib/btp/perimetre-compte.ts) ;
  * - `meteo` en lecture : les prévisions et alertes de ces mêmes chantiers ;
- * - `settings` en lecture : « Mon profil », où il change son mot de passe — l'écrire reste au gérant.
+ * - `settings` en lecture : « Mon profil » s'ouvre, pour changer son mot de passe ; /api/btp ne lui rend pas les
+ *   réglages de la société et n'en accepte l'écriture qu'en FULL.
  * Tout le reste est fermé ; le gérant rouvre ce qu'il veut, employé par employé (Gestion des comptes → Modifier).
  * Jusqu'au 25/11 le conducteur de travaux et le chef de chantier avaient en plus l'agenda, le Gantt, les devis, les
  * clients, la messagerie, les rapports, etc., et l'ouvrier l'agenda, les photos et le dictionnaire de matériaux.

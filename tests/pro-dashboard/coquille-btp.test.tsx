@@ -19,7 +19,7 @@
  */
 import React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { simulerLocation, type LocationSimulee } from '../helpers/simulations-dashboard'
 
 const mocks = vi.hoisted(() => ({
@@ -323,26 +323,54 @@ describe('tableau de bord BTP — ce qu’un salarié ouvre par l’adresse', ()
     await waitFor(() => remplaceePar('pointage'))
   })
 
-  it.each(['pointage', 'chantiers', 'meteo', 'settings', 'help'])('salarié de terrain, ?p=%s : ouvert, adresse inchangée', async (section) => {
-    await ouvrir(droitsDe('OUVRIER'), { adresse: `p=${section}` })
+  it.each([
+    ['pointage', 'PointageGeoSection'],
+    ['chantiers', 'ChantiersBTPV2'],
+    ['meteo', 'MeteoChantierSection'],
+    ['settings', 'SettingsSection'],
+    ['help', 'AideSection'],
+  ])('salarié de terrain, ?p=%s : %s affiché, adresse inchangée', async (section, ecran) => {
+    const { container } = await ouvrir(droitsDe('OUVRIER'), { adresse: `p=${section}` })
+    await attendre(30)
+    expect(replaceState).not.toHaveBeenCalled()
+    expect(sectionsAffichees(container)).toEqual([expect.stringContaining(ecran)])
+  })
+
+  // Les dérogations du gérant arrivent après les droits par défaut : un module qu'il a rouvert à cet employé ne doit
+  // pas le renvoyer sur le pointage pendant qu'on les lit.
+  it('salarié de terrain, dérogations en cours de lecture : aucun renvoi avant leur réponse', async () => {
+    droitsDe('CHEF_CHANTIER')
+    droitsSimules.loading = true
+    await ouvrir(utilisateur('pro_societe', { pro_team_role: 'CHEF_CHANTIER', company_id: 'compte-gerant' }), { adresse: 'p=dictionnaire_materiaux' })
     await attendre(30)
     expect(replaceState).not.toHaveBeenCalled()
   })
 
-  it('salarié de terrain : l’écran des chantiers reçoit lectureSeule', async () => {
-    await ouvrir(droitsDe('CONDUCTEUR_TRAVAUX'), { adresse: 'p=chantiers' })
+  it('salarié de terrain : menu réduit, chantiers en consultation, météo sans import ni invitation à créer, sans Fixy', async () => {
+    const { container } = await ouvrir(droitsDe('CONDUCTEUR_TRAVAUX'), { adresse: 'p=chantiers' })
     expect(proprietesRecues(mocks.etat, 'ChantiersBTPV2')).toMatchObject({ lectureSeule: true })
+    expect(proprietesRecues(mocks.etat, 'V5Sidebar')).toMatchObject({ salarieDeTerrain: true })
+    expect(container.querySelector('[data-dynamique*="AiChatBot"]')).toBeNull()
+    cleanup()
+    await ouvrir(droitsDe('CONDUCTEUR_TRAVAUX'), { adresse: 'p=meteo' })
+    expect(proprietesRecues(mocks.etat, 'MeteoChantierSection')).toMatchObject({ importDevis: false, gestionChantiers: false })
   })
 
-  it('secrétaire, ?p=modules : ouvert comme avant', async () => {
-    await ouvrir(droitsDe('SECRETAIRE'), { adresse: 'p=modules' })
+  it('secrétaire, ?p=modules : ouvert comme avant, menu complet, Fixy présent', async () => {
+    const { container } = await ouvrir(droitsDe('SECRETAIRE'), { adresse: 'p=modules' })
     await attendre(30)
     expect(replaceState).not.toHaveBeenCalled()
+    expect(proprietesRecues(mocks.etat, 'V5Sidebar')).toMatchObject({ salarieDeTerrain: false })
+    expect(container.querySelector('[data-dynamique*="AiChatBot"]')).not.toBeNull()
   })
 
-  it('compte de la société : chantiers modifiables', async () => {
+  it('compte de la société : chantiers modifiables, météo complète', async () => {
     await ouvrir(utilisateur('pro_societe'), { adresse: 'p=chantiers' })
     expect(proprietesRecues(mocks.etat, 'ChantiersBTPV2')).toMatchObject({ lectureSeule: false })
+    expect(proprietesRecues(mocks.etat, 'V5Sidebar')).toMatchObject({ salarieDeTerrain: false })
+    cleanup()
+    await ouvrir(utilisateur('pro_societe'), { adresse: 'p=meteo' })
+    expect(proprietesRecues(mocks.etat, 'MeteoChantierSection')).toMatchObject({ importDevis: true, gestionChantiers: true })
   })
 })
 

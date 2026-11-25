@@ -501,11 +501,18 @@ describe('Barre latérale BTP — ce qu’un salarié voit du menu', () => {
     expect(screen.queryByRole('button', { name: /Modules$/ })).toBeNull()
   })
 
-  it('la recherche ne sort pas un module interdit', async () => {
+  it('la recherche ne sort pas un module interdit, ni le lien vers « Modules »', async () => {
     const { champ } = await monter({ isProGerant: false, proCanAccess: salarieDeTerrain, salarieDeTerrain: true })
     saisir(champ, 'devis')
     expect(screen.queryByRole('button', { name: /Devis$/ })).toBeNull()
     expect(screen.getAllByText('Aucun module trouvé').length).toBeGreaterThan(0)
+    expect(screen.queryByRole('button', { name: 'Voir tous les modules' })).toBeNull()
+  })
+
+  it('le gérant garde le lien « Voir tous les modules » quand la recherche ne trouve rien', async () => {
+    const { champ } = await monter()
+    saisir(champ, 'zzzz')
+    expect(screen.getByRole('button', { name: 'Voir tous les modules' })).toBeTruthy()
   })
 
   // Portail client est une entrée du catalogue sans module de permission : personne ne peut l'accorder. Elle reste
@@ -539,15 +546,25 @@ describe('Barre latérale BTP — ce qu’un salarié voit du menu', () => {
     }
   })
 
-  it('un module coupé par le gérant reste masqué, même autorisé par le rôle', async () => {
+  // Le réglage des modules est rangé sous la clé du compte connecté (fixit_modules_config_<son id>) : un module éteint
+  // par un poste de bureau dans « Modules » reste éteint pour lui, qui peut le rallumer au même endroit.
+  it('poste de bureau : un module éteint dans « Modules » reste masqué, même autorisé par le rôle', async () => {
+    await monter({ isProGerant: false, proCanAccess: secretaire, isModuleEnabled: (id: string) => id !== 'meteo' })
+    const affiches = modulesAffiches()
+    expect(affiches).toContain('Chantiers')
+    expect(affiches).not.toContain('Météo chantiers')
+  })
+
+  // Le salarié de terrain n'a plus « Modules » : un pointage ou une météo qu'il aurait éteint avant ne se rallumerait
+  // plus jamais. Il voit donc exactement ce que la matrice lui accorde, quel que soit ce réglage.
+  it('salarié de terrain : un module accordé reste au menu, même éteint autrefois dans « Modules »', async () => {
     await monter({
       isProGerant: false,
       proCanAccess: salarieDeTerrain,
       salarieDeTerrain: true,
-      isModuleEnabled: (id: string) => id !== 'meteo',
+      isModuleEnabled: (id: string) => id !== 'meteo' && id !== 'pointage',
+      rubriques: (parDefaut) => parDefaut.map(cat => ({ ...cat, modules: cat.modules.map(m => ({ ...m, on: m.id !== 'chantiers' })) })),
     })
-    const affiches = modulesAffiches()
-    expect(affiches).toContain('Chantiers')
-    expect(affiches).not.toContain('Météo chantiers')
+    expect(new Set(modulesAffiches())).toEqual(new Set(['Pointage équipes', 'Chantiers', 'Météo chantiers', 'Mon profil', 'Aide']))
   })
 })

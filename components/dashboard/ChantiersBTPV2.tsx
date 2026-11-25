@@ -115,6 +115,12 @@ function libelleStatut(statut: string, isPt: boolean): string {
   return isPt ? STATUTS_PT[statut] ?? statut : statut
 }
 
+/** Sous-titre de l'écran : « gestion » pour qui gère les chantiers, simple liste pour qui les consulte. */
+function sousTitreChantiers(actifs: number, isPt: boolean, lectureSeule: boolean): string {
+  if (lectureSeule) return isPt ? `As suas obras: ${actifs} ativa(s)` : `Vos chantiers — ${actifs} actif(s)`
+  return isPt ? `Gestão das suas obras: ${actifs} ativa(s)` : `Gestion de vos chantiers — ${actifs} actif(s)`
+}
+
 /**
  * `lectureSeule` : salarié sans droit d'écriture sur les chantiers (ouvrier, chef de chantier, conducteur de travaux
  * par défaut, 25/11/2026). Il consulte les chantiers qui lui sont affectés — /api/btp ne lui rend que ceux-là, sans
@@ -641,7 +647,7 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
       {/* ── Page header ── */}
       <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'}>
         <h1>{isPt ? 'Obras' : 'Chantiers'}</h1>
-        <p>{isPt ? `Gestão das suas obras: ${activeCount} ativa(s)` : `Gestion de vos chantiers — ${activeCount} actif(s)`}</p>
+        <p>{sousTitreChantiers(activeCount, isPt, lectureSeule)}</p>
       </div>
 
       {/* ── Search bar ── */}
@@ -681,7 +687,9 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
           </div>
           {lectureSeule ? (
             <p style={{ fontSize: 12, color: '#999' }}>
-              {isPt ? 'Ainda não lhe foi atribuída nenhuma obra.' : 'Aucun chantier ne vous est encore affecté.'}
+              {isPt
+                ? 'Não lhe está atribuída nenhuma obra em curso. Se achar que é um erro, avise o seu responsável.'
+                : 'Aucun chantier en cours ne vous est affecté. Si vous pensez que c’est une erreur, prévenez votre responsable.'}
             </p>
           ) : (
             <>
@@ -705,7 +713,8 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
                 <th>{isPt ? 'Ref.' : 'Réf'}</th>
                 <th>{isPt ? 'Obra' : 'Chantier'}</th>
                 {!lectureSeule && <th>{isPt ? 'Cliente' : 'Client'}</th>}
-                <th>{isPt ? 'Encarregado' : 'Chef'}</th>
+                {/* Chef : lu dans les fiches employés, que le salarié ne reçoit pas (il n'y verrait que « — »). */}
+                {!lectureSeule && <th>{isPt ? 'Encarregado' : 'Chef'}</th>}
                 <th>{isPt ? 'Início' : 'Début'}</th>
                 <th>{isPt ? 'Fim' : 'Fin'}</th>
                 <th>{isPt ? 'Avanço' : 'Avanc.'}</th>
@@ -737,7 +746,7 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
                       )}
                     </td>
                     {!lectureSeule && <td>{c.client || '—'}</td>}
-                    <td>
+                    {!lectureSeule && <td>
                       <div>{getChef(c)}</div>
                       {(c.membres_ids?.length ?? 0) > 1 && (
                         <div style={{ display: 'flex', gap: 3, marginTop: 3, flexWrap: 'wrap' }}>
@@ -751,7 +760,7 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
                           })}
                         </div>
                       )}
-                    </td>
+                    </td>}
                     <td>{fmtDate(c.dateDebut)}</td>
                     <td>{fmtDate(c.dateFin)}</td>
                     <td>

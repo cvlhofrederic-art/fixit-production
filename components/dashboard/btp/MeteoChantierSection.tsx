@@ -360,12 +360,28 @@ function getAlertBadgeLabel(m: ChantierMeteo, isPt?: boolean): { label: string; 
 /** Aucun lieu de devis : même tableau d'un rendu à l'autre, pour ne pas relancer les calculs qui en dépendent. */
 const AUCUN_LIEU: LieuMeteoDevis[] = []
 
+/** Textes qui renvoient vers l'écran des chantiers : le salarié qui le consulte seulement ne peut rien y créer. */
+const TEXTES_CHANTIERS = {
+  gestion: {
+    aucun: { fr: 'Créez des chantiers dans la section Chantiers pour voir les prévisions météo.', pt: 'Crie obras na secção Obras para ver as previsões meteorológicas.' },
+    sansVille: { fr: 'Ajoutez la ville dans la section Chantiers pour activer la météo.', pt: 'Adicione a cidade na secção Obras para ativar a meteorologia.' },
+  },
+  consultation: {
+    aucun: { fr: 'Aucun chantier en cours ne vous est affecté : les prévisions de vos chantiers s’afficheront ici.', pt: 'Não lhe está atribuída nenhuma obra em curso: as previsões das suas obras aparecerão aqui.' },
+    sansVille: { fr: 'Votre responsable doit y indiquer la ville pour activer la météo.', pt: 'O seu responsável tem de indicar a cidade para ativar a meteorologia.' },
+  },
+} as const
+
 /**
  * `importDevis` : le compte lit-il les devis ? Sinon (salarié de terrain, 25/11/2026 : il ne reçoit que la météo de
  * ses chantiers), ni bouton « Importer une adresse depuis un devis », ni lieux de devis suivis : sa liste de devis
  * serait vide, et des lieux gardés sur un appareil partagé ne le concernent pas.
+ * `gestionChantiers` : peut-il créer et modifier les chantiers ? Sinon, les messages ne l'invitent pas à le faire.
  */
-export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt, importDevis = true }: { userId: string; authUserId?: string; isPt?: boolean; importDevis?: boolean }) {
+export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt, importDevis = true, gestionChantiers = true }: {
+  userId: string; authUserId?: string; isPt?: boolean; importDevis?: boolean; gestionChantiers?: boolean
+}) {
+  const textesChantiers = TEXTES_CHANTIERS[gestionChantiers ? 'gestion' : 'consultation']
   // Use auth user ID from prop (matches ChantiersBTPV2 cache key), fallback to resolving
   const [authUserId, setAuthUserId] = useState(authUserIdProp || userId)
   useEffect(() => {
@@ -646,7 +662,7 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt,
         <div className="v5-card" style={{ textAlign: 'center', padding: '3rem 2rem' }}>
           <div style={{ fontSize: 48, marginBottom: 16 }}>🏗️</div>
           <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>{isPt ? 'Nenhuma obra ativa' : 'Aucun chantier actif'}</h3>
-          <p style={{ fontSize: 12, color: '#999' }}>{isPt ? 'Crie obras na secção Obras para ver as previsões meteorológicas.' : 'Créez des chantiers dans la section Chantiers pour voir les prévisions météo.'}</p>
+          <p style={{ fontSize: 12, color: '#999' }}>{isPt ? textesChantiers.aucun.pt : textesChantiers.aucun.fr}</p>
         </div>
       )}
 
@@ -661,7 +677,7 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt,
       {/* Chantiers sans adresse */}
       {chantiersSansLocalisation.length > 0 && (
         <div className="v5-al info" style={{ marginBottom: '.75rem' }}>
-          <strong>{chantiersSansLocalisation.length} {isPt ? 'obra(s) sem cidade' : 'chantier(s) sans ville'}</strong>{isPt ? '. ' : ' — '}{isPt ? 'Adicione a cidade na secção Obras para ativar a meteorologia.' : 'Ajoutez la ville dans la section Chantiers pour activer la météo.'}
+          <strong>{chantiersSansLocalisation.length} {isPt ? 'obra(s) sem cidade' : 'chantier(s) sans ville'}</strong>{isPt ? '. ' : ' — '}{isPt ? textesChantiers.sansVille.pt : textesChantiers.sansVille.fr}
           <div style={{ fontSize: 11, marginTop: 4, color: '#666' }}>
             {chantiersSansLocalisation.slice(0, 5).map(c => c.titre).join(', ')}{chantiersSansLocalisation.length > 5 ? '...' : ''}
           </div>

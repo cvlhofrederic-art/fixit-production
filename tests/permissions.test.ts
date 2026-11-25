@@ -230,7 +230,7 @@ describe('lib/permissions', () => {
     })
 
     it('les postes de bureau ne changent pas : secrétaire et comptable gardent leurs écrans', () => {
-      expect(getAccessibleModules(getDefaultPermissionsForRole('SECRETAIRE')).length).toBe(ALL_PRO_MODULES.length - 1)
+      expect(getAccessibleModules(getDefaultPermissionsForRole('SECRETAIRE'))).toHaveLength(ALL_PRO_MODULES.length - 1)
       const comptable = getDefaultPermissionsForRole('COMPTABLE')
       for (const mod of ['compta_btp', 'factures', 'comptabilite', 'devis']) {
         expect(canAccess(comptable, mod), mod).toBe(true)
