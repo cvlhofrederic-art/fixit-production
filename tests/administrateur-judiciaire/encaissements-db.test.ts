@@ -29,6 +29,7 @@ import type { SousComptes450 } from '@/lib/administrateur-judiciaire/domain/repa
  * - chaque poste est crédité au compte 450 que son appel a débité (sous-comptes du 450 : J67, R104) ;
  * - un écart entre la répartition relue et l'écriture d'un appel ne touche que les comptes concernés ;
  * - un encaissement se saisit dans l'ordre des dates de son compte (à valider) ;
+ * - un encaissement daté hors des exercices du syndicat ouverts dans VitFix est refusé (décision du 24/11/2026) ;
  * - un refus n'écrit rien.
  * Données fictives. Lots 1, 2 et 3 du syndicat C1 : 450, 350 et 200 millièmes, comptes c1, c2 et c3.
  */
@@ -666,6 +667,69 @@ describe('À valider — date de l’encaissement : ordre des paiements du compt
     expect(await compter()).toEqual(avant)
     // Le jour même de la saisie : admis.
     await ecrireEncaissements('C1', un, { ...OPTIONS, date: '2027-02-15' })
+  })
+})
+
+describe('Décision du 24/11/2026 (question 6 bis) — encaissement daté hors des exercices du syndicat ouverts dans VitFix : refusé', () => {
+  it('date ancienne mais plausible, ou après le dernier exercice : refusée, rien n’est écrit ; le premier et le dernier jour d’un exercice sont admis', async () => {
+    await appeler()
+    const avant = await compter()
+    const un = [virement('c1', 10_000)]
+    // La veille du premier exercice et le lendemain du dernier : refusés.
+    const refus = await ecrireEncaissements('C1', un, { ...OPTIONS, date: '2025-12-31' }).catch((erreur: Error) => erreur.message)
+    expect(refus).toBe(
+      "Encaissement daté du 31/12/2025 : hors des exercices du syndicat ouverts dans VitFix : 2026 (01/01/2026 – 31/12/2026), 2027 (01/01/2027 – 31/12/2027). Encaissement refusé : corriger la date ; si elle est juste, l'exercice qui la comprend doit d'abord être ouvert dans VitFix.",
+    )
+    // Aucun renvoi à un écran : « Ouvrir l'exercice » n'y est proposé qu'à l'écriture d'un appel.
+    expect(refus).not.toMatch(/écran/)
+    await expect(ecrireEncaissements('C1', un, { ...OPTIONS, date: '2028-01-01', aujourdhui: '2028-02-01' })).rejects.toThrow(
+      /Encaissement daté du 01\/01\/2028 : hors des exercices du syndicat ouverts dans VitFix : 2026 /,
+    )
+    // La date est celle de la pièce : tout le lot est refusé.
+    await expect(ecrireEncaissements('C1', [virement('c2', 1_000), ...un], { ...OPTIONS, date: '2025-12-20' })).rejects.toThrow(/hors des exercices/)
+    expect(await compter()).toEqual(avant)
+    // Premier jour du premier exercice, dernier jour du dernier : admis.
+    await ecrireEncaissements('C1', [virement('c2', 1_000)], { ...OPTIONS, date: '2026-01-01' })
+    await ecrireEncaissements('C1', [virement('c3', 1_000)], { ...OPTIONS, date: '2027-12-31', aujourdhui: '2028-01-10' })
+    expect((await ajDb.encaissements.toArray()).map((e) => [e.compteId, e.date]).sort((a, b) => a[1].localeCompare(b[1]))).toEqual([
+      ['c2', '2026-01-01'],
+      ['c3', '2027-12-31'],
+    ])
+  })
+
+  it('D1 : l’exercice d’un autre syndicat ne compte pas ; un syndicat sans exercice refuse tout encaissement', async () => {
+    await appeler()
+    await ouvrirExercice('C2', { ouverture: '2025-01-01', cloture: '2025-12-31' })
+    await expect(ecrireEncaissements('C1', [virement('c1', 10_000)], { ...OPTIONS, date: '2025-12-20' })).rejects.toThrow(
+      /hors des exercices du syndicat ouverts dans VitFix : 2026 \(01\/01\/2026 – 31\/12\/2026\), 2027 \(01\/01\/2027 – 31\/12\/2027\)\./,
+    )
+    const pourC2: OptionsEncaissements = { ...OPTIONS, mandatId: 'M2', journal: { code: 'BA', banqueId: 'b2', compteEncaissement: 'BOUL.51200.00000.0' } }
+    await expect(ecrireEncaissements('C2', [virement('c9', 10_000)], pourC2)).rejects.toThrow(
+      /Encaissement daté du 15\/01\/2027 : hors des exercices du syndicat ouverts dans VitFix : 2025 \(01\/01\/2025 – 31\/12\/2025\)\./,
+    )
+    await ajDb.exercices.where('coproprieteId').equals('C2').delete()
+    const avant = await compter()
+    await expect(ecrireEncaissements('C2', [virement('c9', 10_000)], { ...pourC2, date: '2025-12-20' })).rejects.toThrow(
+      "Encaissement daté du 20/12/2025 : aucun exercice du syndicat n'est ouvert dans VitFix. Encaissement refusé : l'exercice qui comprend cette date doit d'abord être ouvert dans VitFix.",
+    )
+    expect(await compter()).toEqual(avant)
+  })
+
+  it('exercices séparés par un trou, exercice qui ne suit pas l’année civile : seule une date d’un exercice est admise', async () => {
+    await ouvrirExercice('C2', { ouverture: '2024-01-01', cloture: '2024-12-31' })
+    await ouvrirExercice('C2', { ouverture: '2026-07-01', cloture: '2027-06-30' })
+    const pourC2: OptionsEncaissements = { ...OPTIONS, mandatId: 'M2', journal: { code: 'BA', banqueId: 'b2', compteEncaissement: 'BOUL.51200.00000.0' } }
+    const un = [virement('c9', 1_000)]
+    const avant = await compter()
+    // Dans le trou entre 2024 et l'exercice 2026-2027, et la veille de son ouverture.
+    await expect(ecrireEncaissements('C2', un, { ...pourC2, date: '2025-06-15' })).rejects.toThrow(
+      /Encaissement daté du 15\/06\/2025 : hors des exercices du syndicat ouverts dans VitFix : 2024 \(01\/01\/2024 – 31\/12\/2024\), 2026-2027 \(01\/07\/2026 – 30\/06\/2027\)\./,
+    )
+    await expect(ecrireEncaissements('C2', un, { ...pourC2, date: '2026-06-30' })).rejects.toThrow(/30\/06\/2026 : hors des exercices/)
+    expect(await compter()).toEqual(avant)
+    // Le jour d'ouverture de l'exercice 2026-2027 : admis.
+    await ecrireEncaissements('C2', un, { ...pourC2, date: '2026-07-01' })
+    expect((await ajDb.encaissements.toArray()).map((e) => e.date)).toEqual(['2026-07-01'])
   })
 })
 

@@ -12,6 +12,7 @@ import {
 } from '@/lib/administrateur-judiciaire/db/schema'
 import { enregistrerPieceTraitement } from '@/lib/administrateur-judiciaire/db/traitements'
 import { dateIsoVersFr, messagePlausibilite, plausibiliteDate } from '@/lib/administrateur-judiciaire/domain/dates'
+import { bornesDesExercices, exerciceDe } from '@/lib/administrateur-judiciaire/domain/echeancier-appels'
 import {
   annulerEncaissement,
   enregistrerEncaissement,
@@ -89,7 +90,11 @@ import { DATE_DU_JOUR_ISO } from '@/lib/administrateur-judiciaire/mode'
  * Hors de ce fichier, à brancher plus tard : écran et hooks ; remise de chèques (rattacherRemise) ; statut « Rapproché »
  * (rapprocherEncaissements, avec les arrêtés de rapprochement) ; part du fonds de travaux à virer (F112) ; recettes hors
  * copropriétaires ; verrou de saisie du syndicat (aucun n'est encore enregistré) ; réimputation du reliquat (F105) ;
- * contentieux porté par le compte D2 (ap-06) ; intérêts avant le capital (C. civ. art. 1343-1), avec le contentieux.
+ * contentieux porté par le compte D2 (ap-06) ; intérêts avant le capital (C. civ. art. 1343-1), avec le contentieux ;
+ * ouverture d'un exercice hors de l'écriture d'un appel : « Ouvrir l'exercice » (écran « Appels de fonds ») n'est proposé
+ * que pour une échéance exigible hors des exercices, et la décision du 24/11/2026 (question 6 bis) suppose que « tout
+ * exercice concerné » soit ouvert dans VitFix : à prévoir avec l'écran des encaissements (modification d'écran, à l'accord
+ * du référent métier).
  *
  * À VALIDER (référent métier ; solutions prudentes codées ici) :
  * - compte repris d'une ancienne fiche avec un solde dû : l'encaissement est REFUSÉ tant que ce solde n'a aucune écriture
@@ -99,9 +104,14 @@ import { DATE_DU_JOUR_ISO } from '@/lib/administrateur-judiciaire/mode'
  *   chronologique, ni annulation pour erreur de saisie : l'annulation F110 est celle d'un rejet de la banque) ;
  * - une date d'une année improbable ou postérieure au jour de la saisie est refusée, pour l'encaissement comme pour le
  *   débit de la banque qui l'annule (verifierDate) ;
+ * - débit de la banque (annulation) daté hors des exercices du syndicat : non contrôlé (la décision du 24/11/2026 ne vise
+ *   que la date de l'encaissement) ;
  * - numéro du compte 512 de chaque compte bancaire : donné par l'appelant (journal.compteEncaissement), aucun n'est
  *   attribué ici ;
  * - la pièce « Encaissement » reste « Enregistré » : son passage à « Imputé » n'est pas écrit.
+ *
+ * DÉCIDÉ (décision du 24/11/2026, question 6 bis) : un encaissement daté hors des exercices du syndicat ouverts dans
+ * VitFix est REFUSÉ (verifierDateDansUnExercice), comme la date comptable d'un appel (J67, R96).
  */
 
 // ─── Lecture ──────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -147,7 +157,7 @@ const tablesLues = () => [
   ajDb.traitements,
   ajDb.encaissements,
 ]
-const tablesEcrites = () => [...tablesLues(), ajDb.banques, ajDb.mandats, ajDb.activityLog]
+const tablesEcrites = () => [...tablesLues(), ajDb.banques, ajDb.mandats, ajDb.exercices, ajDb.activityLog]
 
 /** Tables D2 du syndicat, ses pièces et ses encaissements. À appeler dans une transaction. */
 async function lireDonnees(coproprieteId: string): Promise<DonneesSyndicat> {
@@ -296,12 +306,36 @@ async function identifiants(saisies: readonly SaisieEncaissement[]): Promise<str
 /**
  * À valider (référent métier) — date d'un fait accompli (encaissement, débit de la banque qui l'annule) : refusée si elle
  * n'est pas une date, si son année est improbable (faute de frappe : dates.estAnneeImprobable) ou si elle est postérieure
- * au jour de la saisie. `datee` porte l'accord du message (« Encaissement daté », « Débit de la banque daté »). Non
- * contrôlé : une date hors des exercices du syndicat, ou antérieure à l'écriture de l'appel.
+ * au jour de la saisie. `datee` porte l'accord du message (« Encaissement daté », « Débit de la banque daté »). Contrôlé
+ * à part pour l'encaissement seul : une date hors des exercices du syndicat (verifierDateDansUnExercice). Non contrôlé :
+ * une date antérieure à l'écriture de l'appel.
  */
 function verifierDate(datee: string, date: string, aujourdhui: string, refus: string): void {
   const anomalie = plausibiliteDate(date, aujourdhui, { futurAdmis: false })
   if (anomalie) throw new Error(`${messagePlausibilite(datee, date, anomalie)} ${refus} : corriger la date.`)
+}
+
+/**
+ * Décision du 24/11/2026 (question 6 bis) — encaissement daté hors des exercices du syndicat ouverts dans VitFix : refusé,
+ * avec la même règle que la date comptable d'un appel (echeancier-appels : bornesDesExercices, exerciceDe ; J67, R96).
+ * Sans ce refus, un encaissement ancien mais plausible partait en crédit « à imputer », ou sur des postes à venir à la
+ * demande du débiteur, hors de tout exercice. Un exercice compte dès qu'il existe dans VitFix avec ses bornes (nom,
+ * ouverture, clôture), bornes comprises ; ceux d'un autre syndicat ne comptent pas (D1). Le message ne renvoie à aucun
+ * écran : « Ouvrir l'exercice » (écran « Appels de fonds ») n'est proposé que pour une échéance exigible hors des
+ * exercices (voir l'en-tête, « à brancher »). À appeler dans une transaction qui comprend la table des exercices.
+ */
+async function verifierDateDansUnExercice(date: string, coproprieteId: string): Promise<void> {
+  const exercices = bornesDesExercices(await ajDb.exercices.where('coproprieteId').equals(coproprieteId).toArray()).sort((a, b) =>
+    a.ouverture.localeCompare(b.ouverture),
+  )
+  if (exerciceDe(exercices, date)) return
+  const datee = `Encaissement daté du ${dateIsoVersFr(date)}`
+  if (exercices.length === 0)
+    throw new Error(`${datee} : aucun exercice du syndicat n'est ouvert dans VitFix. Encaissement refusé : l'exercice qui comprend cette date doit d'abord être ouvert dans VitFix.`)
+  const liste = exercices.map((x) => `${x.nom} (${dateIsoVersFr(x.ouverture)} – ${dateIsoVersFr(x.cloture)})`).join(', ')
+  throw new Error(
+    `${datee} : hors des exercices du syndicat ouverts dans VitFix : ${liste}. Encaissement refusé : corriger la date ; si elle est juste, l'exercice qui la comprend doit d'abord être ouvert dans VitFix.`,
+  )
 }
 
 /**
@@ -365,7 +399,8 @@ async function verifierCompteCredite(compteId: string, date: string, copropriete
  * débité. Refus, rien n'est écrit (un seul encaissement refusé refuse tout le lot) : syndicat, compte ou compte bancaire
  * introuvable ou d'un autre syndicat (D1), compte bancaire clôturé, mandat d'un autre syndicat, compte en écart avec
  * l'écriture de ses appels, compte repris avec un solde dû (à valider), date invalide, d'une année improbable, à venir,
- * ou antérieure au dernier encaissement non annulé du compte (à valider), aucun encaissement, identifiant en double ou
+ * hors des exercices du syndicat ouverts dans VitFix (décision du 24/11/2026), ou antérieure au dernier encaissement non
+ * annulé du compte (à valider), aucun encaissement, identifiant en double ou
  * déjà pris, montant qui n'est pas un nombre entier de centimes positif, pièce ou journal refusés par le domaine (chèque
  * sans numéro, espèces, 512 d'un autre syndicat, mode étranger à la famille), poste désigné inconnu ou d'un autre compte.
  */
@@ -379,6 +414,7 @@ export function ecrireEncaissements(
     const donnees = await lireDonnees(coproprieteId)
     if (saisies.length === 0) throw new Error('Aucun encaissement à écrire.')
     verifierDate('Encaissement daté', date, aujourdhui, 'Encaissement refusé')
+    await verifierDateDansUnExercice(date, coproprieteId)
     await verifierCompteBancaire(journal.banqueId, coproprieteId)
     const ids = await identifiants(saisies)
     const segmentSyndicat = segmentComptableSyndicat(donnees.copropriete.code)
