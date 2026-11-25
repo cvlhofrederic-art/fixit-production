@@ -160,3 +160,29 @@ describe('volume : plafond d\'invitations par compte et par 24 heures', () => {
     expect(h.limites.filter((l) => l.cle.startsWith('pro_team_invite_jour_'))).toHaveLength(0)
   })
 })
+
+describe('catégorie professionnelle à l\'invitation (25/11/2026)', () => {
+  const ligneInseree = () => appelsDe(h.base, 'pro_team_members', 'insert')[0].donnees as Record<string, unknown>
+
+  it('saisie : enregistrée sur la ligne, blancs réduits ; l\'e-mail garde le rôle', async () => {
+    const res = await inviter({ memberRole: 'CHEF_CHANTIER', job_title: '  Encarregado  geral ' })
+    expect(res.status).toBe(200)
+    expect(ligneInseree().job_title).toBe('Encarregado geral')
+    expect(ligneInseree().role).toBe('CHEF_CHANTIER')
+    expect(envoi().html).toContain('<strong>Chef de chantier</strong>')
+  })
+
+  it.each([['absente', {}], ['vide', { job_title: '   ' }], ['null', { job_title: null }]])(
+    'catégorie %s : la colonne n\'est pas écrite (invitation possible avant la migration)', async (_cas, sur) => {
+      expect((await inviter(sur)).status).toBe(200)
+      expect(ligneInseree()).not.toHaveProperty('job_title')
+    })
+
+  it.each([['81 caractères', 'a'.repeat(81)], ['caractère de contrôle', `Servente${String.fromCodePoint(7)}`]])(
+    'catégorie refusée (%s) : 400, rien n\'est écrit ni envoyé', async (_cas, job_title) => {
+      const res = await inviter({ job_title })
+      expect(res.status).toBe(400)
+      expect(ecritures()).toHaveLength(0)
+      expect(h.envois).toHaveLength(0)
+    })
+})

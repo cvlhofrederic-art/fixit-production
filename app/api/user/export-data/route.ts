@@ -36,7 +36,7 @@ const TABLES_BTP_PAR_PROPRIETAIRE: ReadonlyArray<readonly [section: string, tabl
 
 /** Équipe de la société (ou fiche d'équipe d'un sous-compte), sans le jeton d'invitation, qui n'est jamais exporté. */
 const COLONNES_EQUIPE_BTP =
-  'id, company_id, user_id, email, full_name, phone, role, assigned_chantiers, invite_sent_at, accepted_at, last_login_at, is_active, created_at, updated_at'
+  'id, company_id, user_id, email, full_name, phone, role, job_title, assigned_chantiers, invite_sent_at, accepted_at, last_login_at, is_active, created_at, updated_at'
 
 /**
  * Compte BTP (pro_societe) : sauvegarde du stockage du navigateur (user_storage) et tables du BTP de la société, en

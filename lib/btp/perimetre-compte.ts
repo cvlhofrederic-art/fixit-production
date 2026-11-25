@@ -168,24 +168,30 @@ export async function lirePerimetreBtp(user: User, admin: SupabaseClient): Promi
     return { societeId, titulaire: false, roleEquipe: null, permissions: {}, email }
   }
 
-  const permissions = getEffectivePermissions(roleEquipe, await lireDerogations(user.id, admin))
+  const permissions = getEffectivePermissions(roleEquipe, await lireDerogations(user.id, societeId, admin))
   return { societeId, titulaire: false, roleEquipe, permissions, email }
 }
 
-/** Dérogations posées par le gérant sur ce compte (pro_role_permissions) ; liste vide si la lecture échoue. */
+/**
+ * Dérogations posées par le gérant sur ce compte (pro_role_permissions) ; liste vide si la lecture échoue. Bornées à
+ * la société du membre : une ligne dont company_id diffère n'a pas été posée par le serveur (jusqu'à la migration
+ * 20261125b, toute session pouvait en insérer sous son propre uid, et un salarié se donnait ainsi FULL).
+ */
 async function lireDerogations(
   userId: string,
+  societeId: string,
   admin: SupabaseClient,
 ): Promise<{ module_id: string; access_level: AccessLevel }[]> {
   try {
     const { data: membre, error: erreurMembre } = await admin
-      .from('pro_team_members').select('id').eq('user_id', userId).eq('is_active', true).maybeSingle()
+      .from('pro_team_members').select('id').eq('user_id', userId).eq('company_id', societeId).eq('is_active', true)
+      .maybeSingle()
     if (erreurMembre) throw new Error(erreurMembre.message)
     const membreId = (membre as { id?: string } | null)?.id
     if (!membreId) return []
 
     const { data, error } = await admin
-      .from('pro_role_permissions').select('module_id, access_level').eq('member_id', membreId)
+      .from('pro_role_permissions').select('module_id, access_level').eq('member_id', membreId).eq('company_id', societeId)
     if (error) throw new Error(error.message)
     return ((data ?? []) as { module_id: string; access_level: string }[])
       .filter(ligne => ligne.access_level === 'FULL' || ligne.access_level === 'READ' || ligne.access_level === 'NONE')
