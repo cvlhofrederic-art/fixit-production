@@ -164,8 +164,9 @@ import { DATE_DU_JOUR_ISO } from '@/lib/administrateur-judiciaire/mode'
  *    'erreur-saisie'` : il n'a jamais été reçu, le rapprochement ne le pointe jamais. Les encaissements réimputés de la
  *    pièce : une « Correction de mouvements » du même jour contre-passe leurs reclassements (comme au point 6). Refusée
  *    tant qu'un encaissement non annulé postérieur existe sur un compte de la pièce ; pour un doublon, le refus nomme la
- *    pièce en double la plus récente (encaissement postérieur du même compte, de même date et de même montant), jamais
- *    un autre paiement, et dit si elle est elle-même suivie d'un encaissement. La ressaisie passe par
+ *    pièce en double la plus récente (encaissement postérieur du même compte, de même date et de même montant), pas le
+ *    dernier encaissement du compte par défaut ; si cette pièce est un lot, il nomme ses autres encaissements, contre-passés
+ *    avec elle et à ressaisir ; il dit si elle est elle-même suivie d'un encaissement. La ressaisie passe par
  *    ecrireEncaissements, sous de nouveaux identifiants ; si sa date précède le dernier encaissement du compte : point 6.
  *
  * DÉCIDÉ
@@ -1135,12 +1136,28 @@ function nommerAvecSaPiece(e: LigneEncaissement, pieces: readonly PieceTraitemen
 }
 
 /**
+ * Motif « doublon », pièce du double qui porte d'autres encaissements (un lot) : « Elle porte aussi l'encaissement enc-b
+ * (compte « c2 », 210,00 €) : … » ; '' si elle ne porte que le double. Les encaissements déjà annulés ne sont pas nommés.
+ */
+function autresEncaissementsDeLaPiece(double: LigneEncaissement, donnees: DonneesSyndicat): string {
+  const autres = donnees.encaissements
+    .filter((x) => x.traitementId === double.traitementId && x.id !== double.id && !x.annulation)
+    .sort((a, b) => a.rang - b.rang)
+  if (autres.length === 0) return ''
+  const noms = autres.map((x) => `${x.id} (compte « ${x.compteId} », ${formatEurosCentimes(x.montantCentimes / 100)})`).join(', ')
+  const pluriel = autres.length > 1
+  return ` Elle porte aussi ${pluriel ? 'les encaissements' : "l'encaissement"} ${noms} : la pièce se contre-passe entière, ${pluriel ? 'ces encaissements passent' : 'cet encaissement passe'} « Annulé » avec elle et ${pluriel ? 'seront' : 'sera'} à ressaisir (annuler un seul encaissement d'un lot : à valider).`
+}
+
+/**
  * Motif « doublon » : fin du refus, qui nomme la pièce en double la plus récente. Le double de `de` est cherché parmi les
  * encaissements postérieurs de son compte : même date et même montant, de préférence même mode et même numéro de pièce
- * de banque ; jamais le dernier encaissement du compte, qui peut être un vrai paiement (le contre-passer comme « jamais
- * reçu » fausserait le 512 et le rapprochement). Si la pièce du double est elle-même suivie d'un encaissement, le refus
- * dit qu'aucune des deux pièces ne s'annule pour l'instant (à valider, n° 8). Aucun double identifiable : rien, aucun
- * numéro de pièce n'est conseillé.
+ * de banque ; pas, par défaut, le dernier encaissement du compte, qui peut être un vrai paiement (le contre-passer comme
+ * « jamais reçu » fausserait le 512 et le rapprochement). Si la pièce du double porte d'autres encaissements (un lot), le
+ * refus les nomme : la pièce se contre-passe entière (option 4), ils passent « Annulé » avec elle et seront à ressaisir
+ * (annuler un seul encaissement d'un lot : à valider, n° 13). Si la pièce du double est elle-même suivie d'un
+ * encaissement, le refus dit qu'aucune des deux pièces ne s'annule pour l'instant (à valider, n° 8). Aucun double
+ * identifiable : rien, aucun numéro de pièce n'est conseillé.
  */
 function conseilPourUnDoublon({ de, posterieurs }: EncaissementsPosterieurs, donnees: DonneesSyndicat): string {
   const memes = posterieurs.filter((x) => x.date === de.date && x.montantCentimes === de.montantCentimes)
@@ -1149,7 +1166,7 @@ function conseilPourUnDoublon({ de, posterieurs }: EncaissementsPosterieurs, don
   const pieceDuDouble = donnees.pieces.find((p) => p.id === double?.traitementId)
   if (!double || !pieceDuDouble) return ''
   const suivant = encaissementsPosterieurs(pieceDuDouble.id, donnees)
-  if (!suivant) return ` Pour un doublon, c'est la pièce la plus récente (n° ${pieceDuDouble.numero}) qui s'annule : celle de l'encaissement ${double.id}, de même date et de même montant.`
+  if (!suivant) return ` Pour un doublon, c'est la pièce la plus récente (n° ${pieceDuDouble.numero}) qui s'annule : celle de l'encaissement ${double.id}, de même date et de même montant.${autresEncaissementsDeLaPiece(double, donnees)}`
   return ` Pour un doublon : la pièce en double la plus récente est la n° ${pieceDuDouble.numero} (encaissement ${double.id}, de même date et de même montant) ; elle ne s'annule pas non plus tant que ${nommerAvecSaPiece(suivant.posterieurs[0], donnees.pieces)}, postérieur sur le compte « ${suivant.de.compteId} », existe : aucune des deux pièces ne s'annule par ce circuit pour l'instant (à valider).`
 }
 

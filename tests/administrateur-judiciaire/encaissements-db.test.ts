@@ -1509,6 +1509,31 @@ describe('Décision du 24/11/2026 (question 6, option 4) — annulation d’une 
     expect(await compter()).toEqual(avant)
   })
 
+  it('doublon dont le double est dans un lot à deux comptes : le refus nomme l’autre encaissement de la pièce, contre-passé avec elle et à ressaisir', async () => {
+    await appeler()
+    const premier = await ecrireEncaissements('C1', [virement('c1', 27_000, { id: 'enc-1' })], OPTIONS)
+    const lot = await ecrireEncaissements(
+      'C1',
+      [virement('c1', 27_000, { id: 'enc-2' }), virement('c2', 21_000, { id: 'enc-b', piece: { mode: 'Virement', numero: 'VIR-0002' } })],
+      OPTIONS,
+    )
+    expect([premier.piece.numero, lot.piece.numero]).toEqual([3, 4])
+    const avant = await compter()
+    const refus = await corriger(premier.piece.id).then(() => 'annulée', (erreur: Error) => erreur.message)
+    expect(refus).toMatch(
+      /Pour un doublon, c'est la pièce la plus récente \(n° 4\) qui s'annule : celle de l'encaissement enc-2, de même date et de même montant\. Elle porte aussi l'encaissement enc-b \(compte « c2 », 210,00\s€\) : la pièce se contre-passe entière, cet encaissement passe « Annulé » avec elle et sera à ressaisir \(annuler un seul encaissement d'un lot : à valider\)\.$/,
+    )
+    expect(await compter()).toEqual(avant)
+    // Le conseil suivi : la pièce n° 4 se contre-passe entière, le vrai paiement de c2 compris (option 4), puis il se ressaisit.
+    const { encaissements } = await corriger(lot.piece.id)
+    expect(encaissements.map((e) => [e.id, e.statut, e.annulation?.nature])).toEqual([
+      ['enc-2', 'Annulé', 'erreur-saisie'],
+      ['enc-b', 'Annulé', 'erreur-saisie'],
+    ])
+    await ecrireEncaissements('C1', [virement('c2', 21_000, { id: 'enc-b-ressaisi', piece: { mode: 'Virement', numero: 'VIR-0002' } })], OPTIONS)
+    expect((await ajDb.encaissements.get('enc-b-ressaisi'))?.statut).not.toBe('Annulé')
+  })
+
   it('compte en écart : pas un refus ; l’écriture contraire se lit dans les lignes gardées, le compte reste en écart', async () => {
     await appeler()
     const ancienne = await ecrireEncaissements('C1', [virement('c3', 1_000, { id: 'enc-c3a' })], { ...OPTIONS, date: '2027-01-10' })
