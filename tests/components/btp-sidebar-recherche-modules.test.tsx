@@ -30,6 +30,7 @@ import V5Sidebar from '@/components/dashboard/V5Sidebar'
 import V5SidebarArtisan from '@/components/dashboard/V5SidebarArtisan'
 import { useModulesConfig } from '@/hooks/useModulesConfig'
 import { buildDefaultCategories, type ModCategory } from '@/hooks/useModuleCategories'
+import { canAccess, getDefaultPermissionsForRole } from '@/lib/permissions'
 
 afterEach(() => { vi.unstubAllGlobals() })
 
@@ -48,6 +49,8 @@ interface OptionsMontage {
   isProGerant?: boolean
   /** Permissions effectives du compte (lib/permissions.ts) ; par défaut tout est ouvert. */
   proCanAccess?: (id: string) => boolean
+  /** Ouvrier, chef de chantier, conducteur de travaux : menu réduit à la matrice (25/11/2026). */
+  salarieDeTerrain?: boolean
 }
 
 async function monter(options: OptionsMontage = {}) {
@@ -74,6 +77,7 @@ async function monter(options: OptionsMontage = {}) {
         unreadMsgCount={messagesNonLus}
         dynamicCategories={options.rubriques ? options.rubriques(parDefaut) : parDefaut}
         definitionsModules={modules}
+        salarieDeTerrain={options.salarieDeTerrain}
       />,
     )
     demonter = rendu.unmount
@@ -469,59 +473,98 @@ describe('Barre latérale — périmètre de la recherche (règle n° 1 artisan 
 // n'atteint jamais : il fournit toujours des rubriques dynamiques. Un ouvrier voyait donc tout le catalogue, Devis
 // et Factures comprises. La recherche s'appuyant sur la même liste, elle ne peut rien montrer de plus que le menu.
 describe('Barre latérale BTP — ce qu’un salarié voit du menu', () => {
-  const MODULES_DU_TERRAIN = ['pointage', 'chantiers', 'meteo', 'dictionnaire_materiaux']
-  const salarieDeTerrain = (id: string) => MODULES_DU_TERRAIN.includes(id)
+  // Droits par défaut réels d'un chef de chantier (Encarregado), le rôle des salariés de VITFIX CONSTRUÇÕES.
+  const droitsTerrain = getDefaultPermissionsForRole('CHEF_CHANTIER')
+  const salarieDeTerrain = (id: string) => canAccess(droitsTerrain, id)
+  // Une secrétaire : sous-compte, mais poste de bureau (tous les pouvoirs sauf la gestion des comptes).
+  const droitsSecretaire = getDefaultPermissionsForRole('SECRETAIRE')
+  const secretaire = (id: string) => canAccess(droitsSecretaire, id)
 
-  it('un salarié de terrain ne voit que ses modules', async () => {
-    await monter({ isProGerant: false, proCanAccess: salarieDeTerrain })
-    const affiches = modulesAffiches()
-    for (const libelle of ['Chantiers', 'Météo chantiers']) {
-      expect(affiches).toContain(libelle)
-    }
-    for (const interdit of ['Devis', 'Factures', 'Comptabilité', 'Revenus', 'Base clients']) {
-      expect(affiches).not.toContain(interdit)
-    }
+  // Décision de Frédéric du 25/11/2026 : « Les salariés doivent uniquement recevoir les alertes météo, le chantier
+  // qui les concerne, et surtout le pointage ». Le menu entier, bloc « Compte » compris, ne montre rien d'autre que
+  // ces trois écrans, « Mon profil » (son mot de passe) et « Aide ».
+  it('un salarié de terrain ne voit que le pointage, ses chantiers, la météo, son profil et l’aide', async () => {
+    await monter({ isProGerant: false, proCanAccess: salarieDeTerrain, salarieDeTerrain: true })
+    expect(new Set(modulesAffiches())).toEqual(new Set(['Pointage équipes', 'Chantiers', 'Météo chantiers', 'Mon profil', 'Aide']))
   })
 
-  // Le dictionnaire de matériaux n'existe que dans les pays qui en ont un, c'est-à-dire le Portugal
-  // (lib/dictionnaire-materiaux/disponibilite.ts) : en français il n'est pas au menu, et c'est voulu.
-  it('le dictionnaire de matériaux est au menu en portugais, pas en français', async () => {
-    await monter({ isProGerant: false, proCanAccess: salarieDeTerrain })
-    expect(modulesAffiches()).not.toContain('Dictionnaire matériaux')
-    await monter({ isPt: true, isProGerant: false, proCanAccess: salarieDeTerrain })
-    expect(modulesAffiches()).toContain('Dicionário de materiais')
+  it('en portugais aussi, sans le dictionnaire de matériaux', async () => {
+    await monter({ isPt: true, isProGerant: false, proCanAccess: salarieDeTerrain, salarieDeTerrain: true })
+    expect(new Set(modulesAffiches())).toEqual(new Set(['Registo de horas', 'Obras', 'Meteorologia', 'O meu perfil', 'Ajuda']))
   })
 
-  it('la recherche ne sort pas un module interdit', async () => {
-    const { champ } = await monter({ isProGerant: false, proCanAccess: salarieDeTerrain })
+  // « Modules » permettait à un salarié d'éteindre son propre « Pointage équipes » et de le perdre de son menu.
+  it('« Modules » n’est ni au menu ni dans la recherche d’un salarié de terrain', async () => {
+    const { champ } = await monter({ isProGerant: false, proCanAccess: salarieDeTerrain, salarieDeTerrain: true })
+    expect(screen.queryByRole('button', { name: /Modules$/ })).toBeNull()
+    saisir(champ, 'modules')
+    expect(screen.queryByRole('button', { name: /Modules$/ })).toBeNull()
+  })
+
+  it('la recherche ne sort pas un module interdit, ni le lien vers « Modules »', async () => {
+    const { champ } = await monter({ isProGerant: false, proCanAccess: salarieDeTerrain, salarieDeTerrain: true })
     saisir(champ, 'devis')
     expect(screen.queryByRole('button', { name: /Devis$/ })).toBeNull()
     expect(screen.getAllByText('Aucun module trouvé').length).toBeGreaterThan(0)
+    expect(screen.queryByRole('button', { name: 'Voir tous les modules' })).toBeNull()
   })
 
-  // Portail client est une entrée du catalogue sans module de permission : personne ne peut l'accorder, donc le
-  // filtre ne doit pas la retirer — sinon elle disparaîtrait pour tous les sous-comptes, secrétaire comprise.
-  it('une entrée sans module de permission reste au menu d’un salarié', async () => {
-    await monter({ isProGerant: false, proCanAccess: salarieDeTerrain })
+  it('le gérant garde le lien « Voir tous les modules » quand la recherche ne trouve rien', async () => {
+    const { champ } = await monter()
+    saisir(champ, 'zzzz')
+    expect(screen.getByRole('button', { name: 'Voir tous les modules' })).toBeTruthy()
+  })
+
+  // Portail client est une entrée du catalogue sans module de permission : personne ne peut l'accorder. Elle reste
+  // au menu d'un poste de bureau (la secrétaire) ; le salarié de terrain, lui, n'a que ce que la matrice lui ouvre.
+  it('une entrée sans module de permission reste au menu de la secrétaire, pas à celui du salarié de terrain', async () => {
+    const bureau = await monter({ isProGerant: false, proCanAccess: secretaire })
     expect(modulesAffiches()).toContain('Portail client')
+    expect(modulesAffiches()).toContain('Modules')
+    bureau.demonter()
+    await monter({ isProGerant: false, proCanAccess: salarieDeTerrain, salarieDeTerrain: true })
+    expect(modulesAffiches()).not.toContain('Portail client')
+  })
+
+  // Le gérant peut rouvrir un module à un employé (Gestion des comptes → Modifier) : il apparaît alors au menu.
+  // Le dictionnaire de matériaux n'existe que dans les pays qui en ont un, c'est-à-dire le Portugal
+  // (lib/dictionnaire-materiaux/disponibilite.ts) : en français il n'est pas au menu, et c'est voulu.
+  it('un module rouvert par le gérant apparaît : le dictionnaire, en portugais seulement', async () => {
+    const avecDictionnaire = (id: string) => salarieDeTerrain(id) || id === 'dictionnaire_materiaux'
+    const francais = await monter({ isProGerant: false, proCanAccess: avecDictionnaire, salarieDeTerrain: true })
+    expect(modulesAffiches()).not.toContain('Dictionnaire matériaux')
+    francais.demonter()
+    await monter({ isPt: true, isProGerant: false, proCanAccess: avecDictionnaire, salarieDeTerrain: true })
+    expect(modulesAffiches()).toContain('Dicionário de materiais')
   })
 
   it('le gérant garde le menu complet, quelles que soient les permissions lues', async () => {
     await monter({ isProGerant: true, proCanAccess: () => false })
     const affiches = modulesAffiches()
-    for (const libelle of ['Chantiers', 'Devis', 'Factures', 'Comptabilité']) {
+    for (const libelle of ['Chantiers', 'Devis', 'Factures', 'Comptabilité', 'Modules']) {
       expect(affiches).toContain(libelle)
     }
   })
 
-  it('un module coupé par le gérant reste masqué, même autorisé par le rôle', async () => {
-    await monter({
-      isProGerant: false,
-      proCanAccess: salarieDeTerrain,
-      isModuleEnabled: (id: string) => id !== 'meteo',
-    })
+  // Le réglage des modules est rangé sous la clé du compte connecté (fixit_modules_config_<son id>) : un module éteint
+  // par un poste de bureau dans « Modules » reste éteint pour lui, qui peut le rallumer au même endroit.
+  it('poste de bureau : un module éteint dans « Modules » reste masqué, même autorisé par le rôle', async () => {
+    await monter({ isProGerant: false, proCanAccess: secretaire, isModuleEnabled: (id: string) => id !== 'meteo' })
     const affiches = modulesAffiches()
     expect(affiches).toContain('Chantiers')
     expect(affiches).not.toContain('Météo chantiers')
+  })
+
+  // Le salarié de terrain n'a plus « Modules » : un pointage ou une météo qu'il aurait éteint avant ne se rallumerait
+  // plus jamais. Il voit donc exactement ce que la matrice lui accorde, quel que soit ce réglage.
+  it('salarié de terrain : un module accordé reste au menu, même éteint autrefois dans « Modules »', async () => {
+    await monter({
+      isProGerant: false,
+      proCanAccess: salarieDeTerrain,
+      salarieDeTerrain: true,
+      isModuleEnabled: (id: string) => id !== 'meteo' && id !== 'pointage',
+      rubriques: (parDefaut) => parDefaut.map(cat => ({ ...cat, modules: cat.modules.map(m => ({ ...m, on: m.id !== 'chantiers' })) })),
+    })
+    expect(new Set(modulesAffiches())).toEqual(new Set(['Pointage équipes', 'Chantiers', 'Météo chantiers', 'Mon profil', 'Aide']))
   })
 })

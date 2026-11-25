@@ -92,10 +92,30 @@ export function moduleHooksDashboardSimule() {
   }
 }
 
+/**
+ * Droits d'équipe simulés (usePermissions) : le compte de la société par défaut. Un test peut les changer pour monter
+ * le tableau de bord d'un salarié ; remettreDroitsSimules() (beforeEach) les rend au compte de la société.
+ */
+export const droitsSimules = {
+  permissions: {} as Record<string, string>,
+  isGerant: true,
+  proTeamRole: null as string | null,
+  /** Dérogations du gérant en cours de lecture (usePermissions) : la garde des sections attend leur réponse. */
+  loading: false,
+  canAccess: (_module: string) => true,
+  canWrite: (_module: string) => true,
+}
+
+export function remettreDroitsSimules(): void {
+  Object.assign(droitsSimules, {
+    permissions: {}, isGerant: true, proTeamRole: null, loading: false, canAccess: () => true, canWrite: () => true,
+  })
+}
+
 /** Hooks de configuration et d'équipe simulés : mêmes objets à chaque rendu. */
 export function hooksConfigurationSimules() {
   const modules = { ALL_MODULES: [], modulesConfig: [], isModuleEnabled: () => true }
-  const permissions = { permissions: {}, isGerant: true, canAccess: () => true }
+  const permissions = droitsSimules
   const notifications = {
     notifications: [], setNotifications: vi.fn(), showNotifDropdown: false, setShowNotifDropdown: vi.fn(),
     unreadNotifCount: 0, setUnreadNotifCount: vi.fn(), unreadMsgCount: 0, refreshUnreadMsgCount: vi.fn(),
