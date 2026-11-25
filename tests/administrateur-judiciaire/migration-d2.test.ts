@@ -173,6 +173,18 @@ describe('séries : à la suite de celles du syndicat, ordre stable', () => {
     expect(plan.ecartees).toEqual([{ coproprietaireId: 'P1', motif: expect.stringMatching(/série/) }])
   })
 
+  it('série illisible sur un compte du syndicat (ligne écrite hors application) : ses fiches écartées avec leur motif, les autres syndicats migrés', () => {
+    // série qui n'est pas un texte : les séries prises du syndicat sont inconnues, aucune n'est donnée (risque de doublon)
+    const comptes = [{ coproprieteId: 'C1', serie: 42 as unknown as string }]
+    const plan = planifierMigrationD2(entrees({ fiches: [fiche('P1', 'L12'), fiche('P2', 'L7'), fiche('P9', 'L4')], comptes }))
+    expect(plan.aCreer.map((l) => [l.coproprietaireId, l.compte.serie])).toEqual([['P9', '00001']])
+    const motif = 'Série illisible sur un compte copropriétaire du syndicat : à corriger avant de reprendre la fiche.'
+    expect(plan.ecartees).toEqual([
+      { coproprietaireId: 'P1', motif },
+      { coproprietaireId: 'P2', motif },
+    ])
+  })
+
   it('séries gardées par le journal d’activité des comptes (avant et après) : compte supprimé ou renuméroté, série jamais redonnée', () => {
     const journal = [
       // création puis suppression : la série 00007 est sortie

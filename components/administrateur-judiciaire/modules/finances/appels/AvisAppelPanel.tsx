@@ -63,19 +63,37 @@ const regimeAp = (fondement: string): RegimeAdministrateurProvisoire | null => {
   return regime === 'ap291' || regime === 'ap47' ? regime : null
 }
 
+/** Une ligne par fiche écartée : « Lot <n°>, <nom> — <motif> ». */
+function LignesEcartees({ ecartees }: Readonly<{ ecartees: readonly FicheEcarteeDetaillee[] }>) {
+  return ecartees.map((e) => (
+    <span key={e.coproprietaireId} style={{ display: 'block' }}>
+      {libelleFicheEcartee(e)}
+    </span>
+  ))
+}
+
 /**
  * Bandeau de la reprise D2 (décision du 22/11/2026, point 10) : compte les seules fiches que la reprise créerait, nomme
- * celles qu'elle écarte avec leur motif (même Alert, une ligne par fiche), disparaît quand il ne reste rien à reprendre ;
- * le bouton dit qu'il agit sur toutes les copropriétés.
+ * celles qu'elle écarte avec leur motif (même Alert, une ligne par fiche) ; le bouton dit qu'il agit sur toutes les
+ * copropriétés. Plus rien à reprendre : le bandeau « non reprise » et son bouton disparaissent ; les fiches écartées
+ * restent nommées avec leur motif dans le même encadré, sans bouton (point 1 de la page de validation de la PR) ; aucune
+ * fiche écartée : rien.
  */
 function RepriseFiches({
   nombre,
   ecartees,
   onReprendre,
 }: Readonly<{ nombre: number; ecartees: readonly FicheEcarteeDetaillee[]; onReprendre: () => void }>) {
-  if (nombre === 0) return null
-  const s = nombre > 1 ? 's' : ''
   const se = ecartees.length > 1 ? 's' : ''
+  if (nombre === 0) {
+    if (ecartees.length === 0) return null
+    return (
+      <Alert kind="" icon="info" title={`${pluriel(ecartees.length, 'fiche')} écartée${se} par la reprise`}>
+        <LignesEcartees ecartees={ecartees} />
+      </Alert>
+    )
+  }
+  const s = nombre > 1 ? 's' : ''
   return (
     <Alert kind="" icon="info" title={`${nombre} fiche${s} copropriétaire non reprise${s} en identités, comptes et positions (D2)`}>
       <span style={{ display: 'block' }}>
@@ -85,11 +103,7 @@ function RepriseFiches({
       {ecartees.length > 0 && (
         <>
           <span style={{ display: 'block' }}>{`${pluriel(ecartees.length, 'fiche')} écartée${se} par la reprise :`}</span>
-          {ecartees.map((e) => (
-            <span key={e.coproprietaireId} style={{ display: 'block' }}>
-              {libelleFicheEcartee(e)}
-            </span>
-          ))}
+          <LignesEcartees ecartees={ecartees} />
         </>
       )}
       <button type="button" className="btn ghost sm" style={{ marginTop: 6 }} onClick={onReprendre}>

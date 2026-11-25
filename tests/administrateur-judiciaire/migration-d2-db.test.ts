@@ -314,17 +314,35 @@ describe('plan de la reprise sans écriture (bandeau de l’écran « Appels de 
     expect(await compter()).toEqual(avant)
   })
 
-  it('lit les seules données des syndicats des fiches : un compte illisible d’un autre syndicat ne change rien ; celui du syndicat est toujours refusé', async () => {
+  it('lit les seules données des syndicats des fiches : un compte illisible d’un autre syndicat ne change rien ; celui du syndicat écarte ses fiches, sans erreur', async () => {
     const fichesC1 = await fichesDe('C1')
     const attendu = await planDeReprise(fichesC1, { aujourdhui: DATE_DEMO_ISO })
     // compte fictif de C2 dont la série n'est pas un texte : ligne écrite hors de l'application (sans le dépôt ni le domaine)
     const illisible = { id: 'cpt-illisible', coproprieteId: 'C2', serie: 42, libelle: 'Compte illisible (fictif)', createdAt: '', updatedAt: '', createdBy: null, updatedBy: null }
     await ajDb.comptesCoproprietaires.add(illisible as never)
     expect(await planDeReprise(fichesC1, { aujourdhui: DATE_DEMO_ISO })).toEqual(attendu)
-    // le syndicat du compte : l'erreur remonte, rien ne la masque
-    expect((await fichesDe('C2')).length).toBeGreaterThan(0)
-    await expect(planDeReprise(await fichesDe('C2'), { aujourdhui: DATE_DEMO_ISO })).rejects.toThrow()
+    // le syndicat du compte : chaque fiche est écartée avec le motif (l'écran du syndicat reste lisible), rien n'est créé
+    const fichesC2 = await fichesDe('C2')
+    expect(fichesC2.length).toBeGreaterThan(0)
+    const planC2 = await planDeReprise(fichesC2, { aujourdhui: DATE_DEMO_ISO })
+    expect(planC2.aCreer).toEqual([])
+    expect(trier(planC2.ecartees.map((e) => e.coproprietaireId))).toEqual(trier(fichesC2.map((f) => f.id)))
+    expect(new Set(planC2.ecartees.map((e) => e.motif))).toEqual(new Set(['Série illisible sur un compte copropriétaire du syndicat : à corriger avant de reprendre la fiche.']))
     // sans fiche, rien à classer
     expect(await planDeReprise([], { aujourdhui: DATE_DEMO_ISO })).toEqual({ aCreer: [], dejaMigrees: [], ecartees: [], lotsARegulariser: [] })
+  })
+
+  it('reprise de toutes les copropriétés avec un compte illisible dans un syndicat : les autres syndicats repris, ses fiches écartées, aucune erreur', async () => {
+    const illisible = { id: 'cpt-illisible', coproprieteId: 'C2', serie: 42, libelle: 'Compte illisible (fictif)', createdAt: '', updatedAt: '', createdBy: null, updatedBy: null }
+    await ajDb.comptesCoproprietaires.add(illisible as never)
+    const fichesC1 = await fichesDe('C1')
+    const fichesC2 = await fichesDe('C2')
+    expect(fichesC1.length).toBeGreaterThan(0)
+    const rapport = await migrerFichesCoproprietaires({ aujourdhui: DATE_DEMO_ISO })
+    expect(rapport.creees).toEqual(expect.arrayContaining(fichesC1.map((f) => f.id)))
+    expect(rapport.creees.filter((id) => fichesC2.some((f) => f.id === id))).toEqual([])
+    expect(trier(rapport.ecartees.filter((e) => e.coproprieteId === 'C2').map((e) => e.coproprietaireId))).toEqual(trier(fichesC2.map((f) => f.id)))
+    // rien de créé pour C2 : seul le compte illisible y reste
+    expect(await ajDb.comptesCoproprietaires.where('coproprieteId').equals('C2').count()).toBe(1)
   })
 })

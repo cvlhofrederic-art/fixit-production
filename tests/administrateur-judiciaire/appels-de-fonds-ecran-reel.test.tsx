@@ -406,17 +406,45 @@ describe('Appels de fonds en mode réel — écran', () => {
     lectureReussie()
     expect(avis().queryByText(/fiche copropriétaire non reprise/)).toBeNull()
     expect(avis().queryByRole('button', { name: /Reprendre les fiches/ })).toBeNull()
-    expect(avis().queryByText(/écartée par la reprise/)).toBeNull()
+    // la fiche écartée reste nommée avec son motif, sans bouton : encadré titré « 1 fiche écartée par la reprise »
+    expect(avis().getByText('1 fiche écartée par la reprise')).toBeTruthy()
+    expect(avis().getByText("Lot 2, fiche sans nom — Nom de l'identité manquant.")).toBeTruthy()
     expect(await ajDb.positions.count()).toBe(1)
   })
 
-  it('seules des fiches écartées ou déjà reprises : aucun bandeau ni bouton (constat du 22/11/2026)', async () => {
+  it('seules des fiches écartées ou déjà reprises : ni « non reprise » ni bouton ; les écartées nommées avec leur motif (décision du 22/11/2026)', async () => {
     await ajDb.coproprietaires.bulkAdd([ancienneFiche('f2', 'L2', '  '), ancienneFiche('f3', 'L3', 'Fiche déjà reprise (fictive)')])
     const { id: _i, ...identite } = d2.creerIdentite({ id: 'id-f3', nature: 'physique', civilite: '', nom: 'Fiche déjà reprise (fictive)', prenom: null, telecoms: [] })
     await repos.repoIdentites.create(identite, { id: 'id-f3' })
     await rendre()
     lectureReussie()
+    expect(avis().getByText('1 fiche écartée par la reprise')).toBeTruthy()
+    expect(avis().getByText("Lot 2, fiche sans nom — Nom de l'identité manquant.")).toBeTruthy()
+    // la fiche déjà reprise n'est ni comptée ni nommée
+    expect(avis().queryByText(/Fiche déjà reprise/)).toBeNull()
     expect(avis().queryByText(/fiche copropriétaire non reprise/)).toBeNull()
+    expect(avis().queryByRole('button', { name: /Reprendre les fiches/ })).toBeNull()
+  })
+
+  it('ni fiche à reprendre ni fiche écartée : aucun encadré', async () => {
+    await ajDb.coproprietaires.bulkAdd([ancienneFiche('f3', 'L3', 'Fiche déjà reprise (fictive)')])
+    const { id: _i, ...identite } = d2.creerIdentite({ id: 'id-f3', nature: 'physique', civilite: '', nom: 'Fiche déjà reprise (fictive)', prenom: null, telecoms: [] })
+    await repos.repoIdentites.create(identite, { id: 'id-f3' })
+    await rendre()
+    lectureReussie()
+    expect(avis().queryByText(/écartée/)).toBeNull()
+    expect(avis().queryByText(/non reprise/)).toBeNull()
+    expect(avis().queryByRole('button', { name: /Reprendre les fiches/ })).toBeNull()
+  })
+
+  it('compte illisible dans le syndicat (série écrite hors application) : l’écran reste lisible, ses fiches écartées avec le motif', async () => {
+    const illisible = { id: 'cpt-illisible', coproprieteId: copro.id, serie: 42, libelle: 'Compte illisible (fictif)', createdAt: '', updatedAt: '', createdBy: null, updatedBy: null }
+    await ajDb.comptesCoproprietaires.add(illisible as never)
+    await ajDb.coproprietaires.bulkAdd([ancienneFiche('f1', 'L1', 'Ancienne fiche (fictive)')])
+    await rendre()
+    lectureReussie()
+    expect(avis().getByText('1 fiche écartée par la reprise')).toBeTruthy()
+    expect(avis().getByText('Lot 1, Ancienne fiche (fictive) — Série illisible sur un compte copropriétaire du syndicat : à corriger avant de reprendre la fiche.')).toBeTruthy()
     expect(avis().queryByRole('button', { name: /Reprendre les fiches/ })).toBeNull()
   })
 })

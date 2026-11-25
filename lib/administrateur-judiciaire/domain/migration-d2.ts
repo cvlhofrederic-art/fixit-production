@@ -122,6 +122,7 @@ export function seriesDuJournal(
 }
 
 const SERIE_MAX = 99_999
+const MOTIF_SERIE_ILLISIBLE = 'Série illisible sur un compte copropriétaire du syndicat : à corriger avant de reprendre la fiche.'
 const MOTIF_LOT_A_REGULARISER =
   "Plusieurs fiches sur le lot : indivision ou mutation à régulariser (D2 : une indivision = un seul compte ; une mutation clôt la position du vendeur). La migration a ouvert une position 1/1 et un compte par fiche (migrerCoproprietaire) ; les droits du lot sont en anomalie (controlerDroitsLot)."
 
@@ -245,9 +246,17 @@ export function planifierMigrationD2({ fiches, lots, mandats, comptes, idsConnus
 
   const ordonnances = premieresOrdonnances(mandats)
   const seriesPrises = new Map<string, Set<string>>()
+  // Série qui n'est pas un texte (ligne écrite hors application) : les séries prises du syndicat sont inconnues, aucune
+  // ne lui est donnée (risque de doublon) ; ses fiches sont écartées avec un motif, comme « plus de série libre ».
+  const seriesIllisibles = new Set<string>()
   for (const c of comptes) {
+    const serie: unknown = c.serie
+    if (typeof serie !== 'string') {
+      seriesIllisibles.add(c.coproprieteId)
+      continue
+    }
     const prises = seriesPrises.get(c.coproprieteId) ?? new Set<string>()
-    prises.add(normaliserSerie(c.serie))
+    prises.add(normaliserSerie(serie))
     seriesPrises.set(c.coproprieteId, prises)
   }
   const prochaine = (coproprieteId: string): string | null => {
@@ -265,6 +274,10 @@ export function planifierMigrationD2({ fiches, lots, mandats, comptes, idsConnus
     const entree = dateEntree(f, ordonnances)
     if (entree === null) {
       ecartees.push({ rang: f.rang, coproprietaireId: f.id, motif: "Date d'entrée introuvable : aucun mandat du syndicat, date de création de la fiche illisible." })
+      continue
+    }
+    if (seriesIllisibles.has(f.lot.coproprieteId)) {
+      ecartees.push({ rang: f.rang, coproprietaireId: f.id, motif: MOTIF_SERIE_ILLISIBLE })
       continue
     }
     const serie = prochaine(f.lot.coproprieteId)
