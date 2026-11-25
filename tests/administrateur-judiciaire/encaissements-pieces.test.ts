@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
+  annulerEncaissement,
+  annulerPieceEncaissements,
   enregistrerEncaissement,
   enregistrerRecette,
   mouvementsRecette,
@@ -21,7 +23,7 @@ import {
 import { creerPieceTraitement } from '@/lib/administrateur-judiciaire/domain/journal-traitements'
 import { creerRemiseCheques } from '@/lib/administrateur-judiciaire/domain/ordres-banque'
 import type { ArreteRapprochement, ElementRapprochement, PieceRapprochee } from '@/lib/administrateur-judiciaire/domain/rapprochement-bancaire'
-import { annulerTraitement } from '@/lib/administrateur-judiciaire/domain/traitements'
+import { annulerTraitement, creerTraitement } from '@/lib/administrateur-judiciaire/domain/traitements'
 
 /**
  * Encaissements : n° de pièce, journal de banque, statut (Enregistré → Rapproché, propagé depuis l'arrêté comme au
@@ -483,6 +485,67 @@ describe('statut « Rapproché » propagé depuis les arrêtés (rapprochement-p
       ['E1', 'Rapproché'],
       ['E2', 'Rapproché'],
     ])
+  })
+})
+
+describe('décision du 24/11/2026 (question 6) — contre-passation d’un encaissement : gardes du domaine', () => {
+  const options = { id: 't-enc-1', date: JOUR, segmentSyndicat: SEGMENT, comptes }
+  const origine = (appelId: string) => ({ origine: { type: 'appel' as const, appelId, typeAppel: 'Budget' as const } })
+  /** Pièce de reclassement fictive : 10,00 € de l'encaissement passent d'un appel à l'autre, sur le 45000 du compte A. */
+  const reclassement = (id: string, date: string, de: string, vers: string) => {
+    const mouvements = [
+      { compte: 'TILL.45000.00001.0', sens: 'debit' as const, montantCentimes: 1_000, ...origine(de) },
+      { compte: 'TILL.45000.00001.0', sens: 'credit' as const, montantCentimes: 1_000, ...origine(vers) },
+    ]
+    return { ecriture: creerTraitement({ id, famille: 'Correction de mouvements', date, mouvements }), mouvements }
+  }
+
+  it('annulation pour erreur de saisie : une pièce qui porte aussi une recette hors copropriétaires est refusée (toute la pièce ou rien)', () => {
+    const e1 = virement('E1', 'cpt-A', 50_000)
+    const resultat = imputerEncaissement(e1, POSTES)
+    const recette = enregistrerRecette(SAISIE_RECETTE, { segmentSyndicat: SEGMENT })
+    const saisie = { id: 't-ann', date: '2026-01-13', motif: 'compte' as const, explication: 'virement d’un autre syndicat', numeroPiece: 1 }
+    const avecRecette = traitementEncaissements({ encaissements: [{ encaissement: e1, resultat }], recettes: [recette] }, options)
+    expect(() => annulerPieceEncaissements([{ encaissement: avecRecette.encaissements[0], resultat }], { ecriture: avecRecette.traitement, comptes, segmentSyndicat: SEGMENT }, saisie)).toThrow(
+      /Pièce t-enc-1 : 2 de ses lignes n'appartiennent à aucun de ses encaissements de copropriétaires \(recette, autre écriture\) ; l'annulation pour erreur de saisie contre-passe toute la pièce ou rien/,
+    )
+    // La même pièce sans la recette s'annule entière.
+    const seule = traitementEncaissements({ encaissements: [{ encaissement: e1, resultat }] }, options)
+    const annule = annulerPieceEncaissements([{ encaissement: seule.encaissements[0], resultat }], { ecriture: seule.traitement, comptes, segmentSyndicat: SEGMENT }, saisie)
+    expect(annule.traitement.mouvements.map((m) => [m.sens, m.compte, m.montantCentimes])).toEqual([
+      ['credit', 'TILL.51200.00000.0', 50_000],
+      ['debit', 'TILL.45000.00001.0', 40_000],
+      ['debit', 'TILL.45000.00001.0', 10_000],
+    ])
+  })
+
+  it('encaissement réimputé : la date de la correction n’est contrôlée que si une correction est écrite ; pièces et imputation courante se recoupent', () => {
+    // Compte A, deux appels de même exigibilité : 350,00 € imputés au prorata, 200,00 € et 150,00 €.
+    const e1 = virement('E1', 'cpt-A', 35_000)
+    const { resultats, postes } = imputerEncaissements([e1], [poste('B1:lot-1', 'cpt-A', 40_000), poste('B2:lot-1', 'cpt-A', 30_000)])
+    const [resultat] = resultats
+    expect(resultat.lignes.map((l) => l.montantCentimes)).toEqual([20_000, 15_000])
+    const ecrit = traitementEncaissements({ encaissements: [{ encaissement: e1, resultat }] }, options)
+    const [encaissement] = ecrit.encaissements
+    const contexte = { ecriture: ecrit.traitement, resultat, postes, comptes, segmentSyndicat: SEGMENT }
+    const saisie = { id: 't-ann', date: '2026-01-13', motif: 'Virement retourné', piece: 'AVIS-1' }
+    const correction = { id: 't-corr', date: '2026-01-13' }
+    const aller = reclassement('t-r1', '2026-01-20', 'B1', 'B2')
+    const retour = reclassement('t-r2', '2026-01-21', 'B2', 'B1')
+    // Deux reclassements qui se compensent : aucune correction n'est écrite, sa date (antérieure aux deux pièces) ne refuse rien.
+    const compense = annulerEncaissement(encaissement, { ...contexte, reimputation: { courante: resultat, reclassements: [aller, retour], correction } }, saisie)
+    expect(compense.correction).toBeNull()
+    expect(compense.encaissement.annulation).toMatchObject({ reclassements: ['t-r1', 't-r2'] })
+    expect(compense.encaissement.annulation).not.toHaveProperty('correctionId')
+    // Un seul reclassement : la correction du 13/01 précéderait la pièce du 20/01 ; le refus la nomme par son numéro.
+    const courante = { ...resultat, lignes: [{ posteId: 'B1:lot-1', montantCentimes: 19_000 }, { posteId: 'B2:lot-1', montantCentimes: 16_000 }] }
+    expect(() => annulerEncaissement(encaissement, { ...contexte, reimputation: { courante, reclassements: [{ ...aller, numero: 7 }], correction } }, saisie)).toThrow(
+      /Encaissement E1 : correction datée du 13\/01\/2026, antérieure à la pièce de reclassement n° 7 du 20\/01\/2026 qu'elle contre-passe/,
+    )
+    // Pièce d'origine et reclassement qui ne redonnent pas l'imputation courante : refus en clair (compte, appel, montants).
+    expect(() => annulerEncaissement(encaissement, { ...contexte, reimputation: { courante: resultat, reclassements: [aller], correction: { id: 't-corr', date: '2026-01-25' } } }, saisie)).toThrow(
+      /ne redonnent pas son imputation courante \(compte TILL\.45000\.00001\.0, appel B1 \(Budget\) : 190,00\s€ écrits au crédit, 200,00\s€ attendus\) ; l'écriture contraire ne contre-passe que ce qui a été écrit/,
+    )
   })
 })
 

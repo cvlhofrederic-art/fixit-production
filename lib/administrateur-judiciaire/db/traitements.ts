@@ -13,7 +13,7 @@ import {
   type ParametreTraitement,
   type StatutPiece,
 } from '@/lib/administrateur-judiciaire/domain/journal-traitements'
-import type { Traitement } from '@/lib/administrateur-judiciaire/domain/traitements'
+import type { LigneMouvement, Traitement } from '@/lib/administrateur-judiciaire/domain/traitements'
 
 /**
  * Seul point d'écriture des pièces du journal des traitements (table `traitements`, version 3 ; D1 ; R6), sur le modèle
@@ -33,7 +33,9 @@ import type { Traitement } from '@/lib/administrateur-judiciaire/domain/traiteme
  * (erreur de saisie, décision du 24/11/2026, question 6 : toute la pièce, qui passe « Annulé »). annulerPieceTraitement
  * refuse donc ces familles (les postes resteraient réglés, et une seconde écriture contraire resterait possible).
  * marquerPieceEncaissementsAnnulee, réservée au second circuit, est la seule autre écriture du statut « Annulé » : elle
- * ne passe aucune écriture, celle de son appelant étant déjà enregistrée dans la même transaction.
+ * ne passe aucune écriture, celle de son appelant étant déjà enregistrée dans la même transaction, et elle exige que
+ * cette écriture contre-passe TOUTES les lignes de la pièce (le rejet de la banque d'un seul encaissement d'un lot, qui
+ * renvoie aussi à la pièce, ne la fait pas passer « Annulé »).
  */
 
 const horodater = <T extends object>(objet: T, actor: string | null) => {
@@ -138,13 +140,33 @@ export function annulerPieceTraitement(
   })
 }
 
+/** Une ligne de mouvement telle qu'une écriture contraire la porte (`inverse`) ou la reprend : compte, sens, montant, origine. */
+function cleDeMouvement({ compte, sens, montantCentimes, origine }: LigneMouvement, inverse: boolean): string {
+  const debit = (sens === 'debit') !== inverse
+  const appel = origine?.type === 'appel' ? ['appel', origine.appelId, origine.typeAppel] : []
+  const repartition = origine?.type === 'repartition' ? ['repartition', origine.repartitionId] : []
+  return [compte, debit ? 'debit' : 'credit', montantCentimes, ...appel, ...repartition].join('|')
+}
+
+/** Vrai si `contraire` porte l'inverse exact de TOUTES les lignes de `piece`, et rien d'autre. */
+function contrePasseTouteLaPiece(piece: Traitement, contraire: Traitement): boolean {
+  const cles = (traitement: Traitement, inverse: boolean): string =>
+    traitement.mouvements
+      .map((m) => cleDeMouvement(m, inverse))
+      .sort((a, b) => a.localeCompare(b))
+      .join('\n')
+  return cles(piece, true) === cles(contraire, false)
+}
+
 /**
  * Décision du 24/11/2026 (question 6, option 4) — réservée à l'annulation d'une pièce d'encaissement pour erreur de saisie
  * (db/encaissements.annulerPieceEncaissementsPourErreur), à appeler DANS sa transaction, après l'enregistrement de son
  * écriture contraire : la pièce d'origine passe « Annulé » et garde l'identifiant de cette écriture (annuleePar). Aucune
  * écriture n'est passée ici. Refuse une pièce introuvable, d'une autre famille que celles des encaissements, qui n'est
- * pas « Enregistré » (déjà annulée, imputée), et une écriture contraire absente du journal, d'une autre famille, d'un
- * autre syndicat ou qui ne renvoie pas (annule) à la pièce.
+ * pas « Enregistré » (déjà annulée, imputée), une écriture contraire absente du journal, d'une autre famille, d'un autre
+ * syndicat ou qui ne renvoie pas (annule) à la pièce, et une écriture contraire qui ne contre-passe pas TOUTES les lignes
+ * de la pièce : le rejet de la banque d'un seul encaissement d'un lot renvoie aussi à la pièce, dont les autres
+ * encaissements restent actifs.
  */
 export function marquerPieceEncaissementsAnnulee(id: string, annuleePar: string, { actor = null }: OptionsEcriture = {}): Promise<PieceTraitementEnregistree> {
   return ajDb.transaction('rw', ajDb.traitements, ajDb.activityLog, async () => {
@@ -157,6 +179,10 @@ export function marquerPieceEncaissementsAnnulee(id: string, annuleePar: string,
     const contraire = await ajDb.traitements.get(annuleePar)
     if (contraire?.famille !== FAMILLE_ANNULATION_ENCAISSEMENT || contraire.coproprieteId !== avant.coproprieteId || contraire.traitement.annule !== avant.id)
       throw new Error(`Pièce n° ${avant.numero} : son écriture contraire ${annuleePar} (« ${FAMILLE_ANNULATION_ENCAISSEMENT} », même syndicat, renvoi à la pièce) n'est pas enregistrée ; la pièce ne passe « Annulé » qu'avec elle.`)
+    if (!contrePasseTouteLaPiece(avant.traitement, contraire.traitement))
+      throw new Error(
+        `Pièce n° ${avant.numero} : l'écriture contraire n° ${contraire.numero} ne contre-passe pas toutes ses lignes (rejet de la banque d'un seul encaissement ?) ; la pièce ne passe « Annulé » qu'avec l'écriture contraire de toute la pièce.`,
+      )
     const apres: PieceTraitementEnregistree = { ...avant, statut: STATUT_PIECE_ANNULEE, annuleePar, updatedAt: new Date().toISOString(), updatedBy: actor }
     await ajDb.traitements.put(apres)
     await journaliserActivite({ entite: 'traitements', entiteId: id, action: 'update', qui: actor, avant, apres })

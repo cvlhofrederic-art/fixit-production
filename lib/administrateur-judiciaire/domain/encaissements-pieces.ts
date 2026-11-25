@@ -157,10 +157,10 @@ import { MODE_REGLEMENT, type ModeReglement } from '@/lib/data/referentiels-gest
  *   sinon refus (l'écriture contraire ne contre-passe que ce qui a été écrit). Entre le reclassement et cette correction,
  *   le grand livre garde le décalage par appel d'origine : c'est la réalité de la saisie ;
  * - annulation d'une pièce d'encaissement pour ERREUR DE SAISIE (montant, compte, doublon), à part du rejet de la banque
- *   (annulerPieceEncaissements) : écriture contraire de TOUTE la pièce, 512 compris (arrêté du 14 mars 2005, art. 5 :
- *   l'écriture est l'ensemble équilibré, 🔵 déduit), datée du jour de la correction ; chaque encaissement passe « Annulé »
- *   avec `nature: 'erreur-saisie'`. Un encaissement saisi par erreur n'a jamais été reçu : au rapprochement, il n'est
- *   jamais pointable et reste « Annulé » à toute date.
+ *   (annulerPieceEncaissements) : écriture contraire de TOUTE la pièce, 512 compris (arrêté du 14 mars 2005, art. 5 et
+ *   art. 1 : l'écriture contraire annule l'écriture, ensemble équilibré ; 🔵 déduit), datée du jour de la correction ;
+ *   chaque encaissement passe « Annulé » avec `nature: 'erreur-saisie'`. Un encaissement saisi par erreur n'a jamais
+ *   été reçu : au rapprochement, il n'est jamais pointable et reste « Annulé » à toute date.
  * 🔴 Non établi (questions pour Frédéric ou Hugo) :
  * - « Famille "Fichier carte bancaire" : quel mode de règlement ? » (le référentiel des modes n'a pas de carte ; refusée) ;
  * - petites copropriétés sans partie double (L. 1965 art. 41-10) : non traitées.
@@ -729,6 +729,8 @@ export const FAMILLE_CORRECTION_MOUVEMENTS: FamilleTraitement = 'Correction de m
 /** Pièce de reclassement lue au journal, et les lignes que l'encaissement y porte (postes-comptes.ReimputationEcrite). */
 export interface ReclassementEcrit {
   ecriture: Traitement
+  /** Numéro de la pièce au journal des traitements, pour la nommer dans un refus ; absent : son identifiant. */
+  numero?: number
   mouvements: LigneMouvement[]
 }
 
@@ -860,12 +862,31 @@ function cumulerLignes(soldes: Map<string, SoldeParOrigine>, lignes: readonly Li
   }
 }
 
+/** Un compte et son appel d'origine, en clair, pour un refus. */
+function nomDuSolde({ compte, origine }: Pick<SoldeParOrigine, 'compte' | 'origine'>): string {
+  if (!origine) return `compte ${compte}, sans appel d'origine`
+  return origine.type === 'appel' ? `compte ${compte}, appel ${origine.appelId} (${origine.typeAppel})` : `compte ${compte}, répartition ${origine.repartitionId}`
+}
+
+/** Contrôle : lignes d'origine plus nets des reclassements (`ecrits`) égalent les lignes de l'imputation courante. */
+function verifierImputationCouranteEcrite(encaissementId: string, ecrits: ReadonlyMap<string, SoldeParOrigine>, attendus: ReadonlyMap<string, SoldeParOrigine>): void {
+  for (const cle of new Set([...ecrits.keys(), ...attendus.keys()])) {
+    const solde = ecrits.get(cle) ?? attendus.get(cle)
+    const [ecrit, attendu] = [ecrits.get(cle)?.creditCentimes ?? 0, attendus.get(cle)?.creditCentimes ?? 0]
+    if (solde && ecrit !== attendu)
+      throw new Error(
+        `Encaissement ${encaissementId} : sa pièce d'origine et ses pièces de reclassement ne redonnent pas son imputation courante (${nomDuSolde(solde)} : ${formatEurosCentimes(ecrit / 100)} écrits au crédit, ${formatEurosCentimes(attendu / 100)} attendus) ; l'écriture contraire ne contre-passe que ce qui a été écrit.`,
+      )
+  }
+}
+
 /**
  * Décision du 24/11/2026 (question 6) — contre-passation des reclassements d'un encaissement réimputé : ses lignes sont
  * retrouvées dans chaque pièce de reclassement (même comparateur que la pièce d'origine), puis le net par compte et par
  * appel d'origine est inversé. Contrôle : lignes d'origine plus nets des reclassements égalent les lignes de l'imputation
- * courante (`courantes`), par compte et par origine ; sinon refus. Refuse une correction datée avant une pièce de
- * reclassement qu'elle contre-passe. Vide si les reclassements se compensent.
+ * courante (`courantes`), par compte et par origine ; sinon refus. Vide si les reclassements se compensent : aucune
+ * correction n'est alors écrite, et sa date n'est pas contrôlée. Sinon, refuse une correction datée avant une pièce de
+ * reclassement qu'elle contre-passe (arrêté du 14 mars 2005, art. 5 ; 🔵 déduit : journal-traitements.ts).
  */
 function lignesDeCorrection(
   encaissement: EncaissementEnregistre,
@@ -875,26 +896,21 @@ function lignesDeCorrection(
   date: string,
 ): LigneMouvement[] {
   const nets = new Map<string, SoldeParOrigine>()
-  for (const { ecriture, mouvements } of reclassements) {
-    if (date < ecriture.date)
-      throw new Error(
-        `Encaissement ${encaissement.id} : correction datée du ${dateIsoVersFr(date)}, antérieure à la pièce de reclassement ${ecriture.id} du ${dateIsoVersFr(ecriture.date)} qu'elle contre-passe : l'écriture contraire annule une écriture passée, elle ne la précède pas.`,
-      )
-    cumulerLignes(nets, prendreLignes(mouvements, [...ecriture.mouvements], ecriture.id, encaissement.id))
-  }
+  for (const { ecriture, mouvements } of reclassements) cumulerLignes(nets, prendreLignes(mouvements, [...ecriture.mouvements], ecriture.id, encaissement.id))
   const ecrits = new Map(nets)
   cumulerLignes(ecrits, origine)
   const attendus = new Map<string, SoldeParOrigine>()
   cumulerLignes(attendus, courantes)
-  for (const cle of new Set([...ecrits.keys(), ...attendus.keys()])) {
-    const [ecrit, attendu] = [ecrits.get(cle)?.creditCentimes ?? 0, attendus.get(cle)?.creditCentimes ?? 0]
-    if (ecrit !== attendu)
-      throw new Error(
-        `Encaissement ${encaissement.id} : sa pièce d'origine et ses pièces de reclassement ne redonnent pas son imputation courante (${cle} : ${ecrit} centimes écrits au crédit, ${attendu} attendus) ; l'écriture contraire ne contre-passe que ce qui a été écrit.`,
-      )
+  verifierImputationCouranteEcrite(encaissement.id, ecrits, attendus)
+  const aInverser = [...nets.values()].filter((net) => net.creditCentimes !== 0)
+  const posterieure = aInverser.length > 0 ? reclassements.find(({ ecriture }) => date < ecriture.date) : undefined
+  if (posterieure) {
+    const nom = posterieure.numero === undefined ? posterieure.ecriture.id : `n° ${posterieure.numero}`
+    throw new Error(
+      `Encaissement ${encaissement.id} : correction datée du ${dateIsoVersFr(date)}, antérieure à la pièce de reclassement ${nom} du ${dateIsoVersFr(posterieure.ecriture.date)} qu'elle contre-passe : l'écriture contraire annule une écriture passée, elle ne la précède pas.`,
+    )
   }
-  return [...nets.values()]
-    .filter((net) => net.creditCentimes !== 0)
+  return aInverser
     .map(
       (net): LigneMouvement => ({
         compte: net.compte,
@@ -962,7 +978,8 @@ function suiviDesReclassements(reimputation: ReimputationAContrePasser | undefin
  * Refuse un encaissement déjà annulé ou pas encore écrit dans ce traitement, un débit antérieur à cette écriture, sans
  * motif ou sans pièce, sous l'identifiant du traitement annulé, à une date non ISO, un résultat d'imputation d'un autre
  * encaissement, une écriture qui ne porte pas ses lignes, un état des postes qui ne porte pas son imputation, une
- * correction datée avant une pièce de reclassement, des reclassements qui ne redonnent pas l'imputation courante.
+ * correction, quand il y en a une à écrire, datée avant une pièce de reclassement, des reclassements qui ne redonnent pas
+ * l'imputation courante.
  */
 export function annulerEncaissement(
   encaissement: EncaissementEnregistre,
@@ -1078,10 +1095,12 @@ export function annulerPieceEncaissements(
   entrees.forEach((entree) => verifierAAnnulerPourErreur(entree.encaissement, ecriture))
   const restants: LigneMouvement[] = [...ecriture.mouvements]
   const aContrePasser = entrees.map((entree) => lignesAContrePasser(entree, ecriture, restants, { comptes, segmentSyndicat, sousComptes450 }, saisie.date))
-  if (restants.length > 0)
+  if (restants.length > 0) {
+    const accord = restants.length > 1 ? "n'appartiennent" : "n'appartient"
     throw new Error(
-      `Pièce ${ecriture.id} : ${restants.length} ligne(s) ne sont à aucun de ses encaissements de copropriétaires (recette, autre écriture) ; l'annulation pour erreur de saisie contre-passe toute la pièce ou rien.`,
+      `Pièce ${ecriture.id} : ${restants.length} de ses lignes ${accord} à aucun de ses encaissements de copropriétaires (recette, autre écriture) ; l'annulation pour erreur de saisie contre-passe toute la pièce ou rien.`,
     )
+  }
   const lignes = aContrePasser.flatMap((l) => l.origine)
   const piece = `Note de correction du ${dateIsoVersFr(saisie.date)} (pièce d'origine n° ${saisie.numeroPiece})`
   const { date: dateComptable } = dateHorsVerrou(verrou, { dateDuFait: saisie.date, reference: piece, famille: FAMILLE_ANNULATION_ENCAISSEMENT, comptes: lignes.map((l) => l.compte) })

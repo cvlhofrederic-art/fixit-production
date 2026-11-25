@@ -246,5 +246,18 @@ describe('pièce de reclassement : interne au compte 450, sans mouvement de banq
     expect(mentionReimputation({ serie: '00001', enRetard: { ids: ['enc-a', 'enc-b'], date: '2026-12-20', numeroPiece: 4 }, saisiLe: '2027-02-15', reimpute })).toMatch(
       /encaissements enc-a, enc-b du 20\/12\/2026 \(pièce n° 4\) saisis le 15\/02\/2027 ;/,
     )
+    // Pièce d'origine de l'encaissement réimputé absente du journal : la mention le dit, sans numéro.
+    expect(mentionReimputation({ serie: '00001', enRetard: { ids: ['enc-cheque'], date: '2026-12-20', numeroPiece: 4 }, saisiLe: '2027-02-15', reimpute: { ...reimpute, numeroPiece: null } })).toMatch(
+      /encaissement réimputé enc-janvier du 15\/01\/2027 \(pièce introuvable\)\.$/,
+    )
+  })
+
+  it('gardes de la pièce : une ligne de banque (512) ou un identifiant vide sont refusés', () => {
+    const ligne450 = { compte: 'ACAC.45000.00001.0', montantCentimes: 1_000, ...LIENS }
+    const debit = { ...ligne450, sens: 'debit' as const, origine: { type: 'appel' as const, appelId: 'T4', typeAppel: 'Budget' as const } }
+    expect(() => traitementReclassement([debit, { compte: 'ACAC.51200.00000.0', sens: 'credit', montantCentimes: 1_000 }], { id: 'reclassement-1', date: '2027-02-15' })).toThrow(
+      /aucune ligne de banque \(512\) ; le reclassement est interne au compte 450/,
+    )
+    expect(() => traitementReclassement([debit, { ...ligne450, sens: 'credit' }], { id: '  ', date: '2027-02-15' })).toThrow(/Pièce de reclassement sans identifiant/)
   })
 })

@@ -56,6 +56,7 @@ import {
   ordreDesEncaissements,
   postesSansSuffixe,
   rejouerSuffixe,
+  SUITE_REFUS_REIMPUTATION,
   traitementReclassement,
   verifierRejeuABlanc,
   type EncaissementARejouer,
@@ -134,24 +135,27 @@ import { DATE_DU_JOUR_ISO } from '@/lib/administrateur-judiciaire/mode'
  *    - Pièce de reclassement : une par compte réimputé, aucune si rien ne change ; famille « Correction de mouvements »,
  *      statut « Enregistré », sans renvoi d'annulation ; débit du 450 avec l'origine perdue, crédit avec l'origine gagnée,
  *      le compte copropriétaire en lien, AUCUNE ligne 512. Datée du jour du traitement (`aujourdhui`), jamais du jour du
- *      paiement en retard : une erreur se corrige par une écriture datée dans la période ouverte (décision du 17/11/2026 :
- *      J67, R121 à R123, domain/verrou-saisie.ts). Refus si ce jour est hors des exercices du syndicat ouverts dans VitFix
- *      (même règle que la question 6 bis), ou antérieur à l'une des pièces qu'elle corrige (pièce d'origine de chaque
- *      encaissement rejoué, ses pièces de reclassement antérieures).
+ *      paiement en retard, conformément à la décision du 17/11/2026 (J67, R121 à R123, domain/verrou-saisie.ts : une
+ *      erreur trouvée après la clôture se corrige par une écriture contraire datée dans la période ouverte). Ce jour n'est
+ *      contrôlé que si une pièce est écrite, et sur les seuls encaissements dont l'imputation change : refus s'il est hors
+ *      des exercices du syndicat ouverts dans VitFix (règle de la question 6 bis, appliquée ici par analogie), ou
+ *      antérieur à l'une des pièces que le reclassement corrige (pièce d'origine de chaque encaissement réimputé, ses
+ *      pièces de reclassement antérieures : arrêté du 14/03/2005, art. 5, 🔵 déduit, journal-traitements.ts : l'écriture
+ *      contraire annule une écriture passée, elle ne la précède pas).
  *    - Pièce justificative (arrêté, art. 4 ; décret n° 2005-240, art. 6) : la « mention », gardée sur chaque encaissement
  *      réimputé. Le journal des traitements n'a AUCUN champ de libellé : l'art. 4 n'est satisfait que par cette mention ;
  *      le libellé d'écriture reste à brancher (état préexistant, le même que pour F110).
  *    - Le paiement en retard : pièce « Encaissement » ordinaire, à sa date, débit du 512 et crédit du 450 sur son
- *      imputation chronologique. La numérotation suit l'ordre de SAISIE (arrêté, art. 2 : journal chronologique) : un
- *      paiement en retard porte un numéro postérieur à celui de pièces datées après lui.
+ *      imputation chronologique (sa numérotation : voir les notes).
  *    - Pièce de reclassement absente ou « Annulé » : le compte passe en écart (postes-comptes.ts).
  *    - Rejet de la banque d'un encaissement réimputé : DEUX pièces. (a) « Annulation d'encaissement », datée du débit de
  *      la banque, qui contre-passe exactement ses lignes d'ORIGINE (512 et crédits d'origine) ; (b) « Correction de
  *      mouvements », datée du jour de la saisie de l'annulation, qui contre-passe le net de ses lignes de reclassement,
- *      retrouvées dans leurs pièces. Refus si (b) précéderait la dernière pièce de reclassement, si son jour est hors des
- *      exercices ouverts, si une pièce de reclassement est absente ou annulée, ou si lignes d'origine et nets des
- *      reclassements ne redonnent pas l'imputation courante. Le net par appel d'origine est juste ; entre le reclassement
- *      et la correction (b), le grand livre garde un décalage par appel d'origine : c'est la réalité de la saisie.
+ *      retrouvées dans leurs pièces ; (b) n'est écrite, et son jour contrôlé, que si ces reclassements ne se compensent
+ *      pas. Refus si (b) précéderait une pièce de reclassement, si son jour est hors des exercices ouverts, si une pièce
+ *      de reclassement est absente ou annulée, ou si lignes d'origine et nets des reclassements ne redonnent pas
+ *      l'imputation courante. Le net par appel d'origine est juste ; entre le reclassement et la correction (b), le grand
+ *      livre garde un décalage par appel d'origine : c'est la réalité de la saisie.
  * 7. Annulation d'une pièce pour erreur de saisie (annulerPieceEncaissementsPourErreur), à part du rejet de la banque :
  *    pour les vraies erreurs seulement (montant, compte, doublon), JAMAIS pour remettre dans l'ordre un encaissement saisi
  *    dans le désordre des dates (c'est le point 6). Écriture contraire de TOUTE la pièce, 512 compris, « Annulation
@@ -159,7 +163,9 @@ import { DATE_DU_JOUR_ISO } from '@/lib/administrateur-judiciaire/mode'
  *    passe « Annulé » (db/traitements.marquerPieceEncaissementsAnnulee) ; chaque encaissement passe « Annulé », `nature:
  *    'erreur-saisie'` : il n'a jamais été reçu, le rapprochement ne le pointe jamais. Les encaissements réimputés de la
  *    pièce : une « Correction de mouvements » du même jour contre-passe leurs reclassements (comme au point 6). Refusée
- *    tant qu'un encaissement non annulé postérieur existe sur un compte de la pièce. La ressaisie passe par
+ *    tant qu'un encaissement non annulé postérieur existe sur un compte de la pièce ; pour un doublon, le refus nomme la
+ *    pièce en double la plus récente (encaissement postérieur du même compte, de même date et de même montant), jamais
+ *    un autre paiement, et dit si elle est elle-même suivie d'un encaissement. La ressaisie passe par
  *    ecrireEncaissements, sous de nouveaux identifiants ; si sa date précède le dernier encaissement du compte : point 6.
  *
  * DÉCIDÉ
@@ -169,10 +175,16 @@ import { DATE_DU_JOUR_ISO } from '@/lib/administrateur-judiciaire/mode'
  *   annulation pour erreur de saisie, à part, pour les vraies erreurs (montant, compte, doublon) [écriture contraire de
  *   toute la pièce, puis ressaisie] ». Points 6 et 7.
  * - Décision du 24/11/2026 (question 6 bis) : un encaissement daté hors des exercices du syndicat ouverts dans VitFix est
- *   REFUSÉ (verifierDateDansUnExercice), comme la date comptable d'un appel (J67, R96). La même règle vaut ici pour le
- *   jour d'une pièce de reclassement ou de correction.
- * - Décision du 17/11/2026 (J67, R121 à R123) : une erreur trouvée après coup se corrige par une écriture contraire datée
- *   dans la période ouverte ; la contre-passation est contrôlée sur SA date.
+ *   REFUSÉ (verifierDateDansUnExercice), comme la date comptable d'un appel (J67, R96).
+ * - Décision du 17/11/2026 (J67, R121 à R123, domain/verrou-saisie.ts) : une erreur trouvée après la clôture se corrige
+ *   par une écriture contraire datée dans la période ouverte (R121) ; la contre-passation est contrôlée sur SA date
+ *   (R122) ; une opération qui se rapporte à une période close est enregistrée à la date du fait si elle est ouverte,
+ *   sinon au premier jour ouvert (R123).
+ * 🔵 Appliqué par analogie ou déduit, hors de ces décisions (à valider, n° 6) :
+ * - la règle de la question 6 bis pour le jour d'une pièce de reclassement ou de correction (la décision ne vise que la
+ *   date de l'encaissement) ;
+ * - une correction ne précède pas la pièce qu'elle corrige : arrêté du 14/03/2005, art. 5 (l'écriture contraire annule une
+ *   écriture passée ; déduction faite dans journal-traitements.ts), et non J67.
  *
  * SOURCES (vérifiées le 25/11/2026)
  * - C. civ. art. 1342-10 : imputation des paiements ; l'indication du débiteur prime.
@@ -190,6 +202,8 @@ import { DATE_DU_JOUR_ISO } from '@/lib/administrateur-judiciaire/mode'
  * toute jurisprudence sur ces points n'a été lue que dans des sources secondaires.
  *
  * NOTES
+ * - La numérotation suit l'ordre de SAISIE (arrêté du 14/03/2005, art. 2 : journal chronologique) : un paiement en retard
+ *   porte un numéro postérieur à celui de pièces datées après lui.
  * - Les débits 450 des pièces « Correction de mouvements » et « Annulation d'encaissement » ne sont jamais de
  *   l'« appelé » : les annexes à venir ne doivent pas les compter comme tels.
  * - Part du fonds de travaux à virer (F112) : elle se lit sur l'imputation courante ; une réimputation peut la déplacer
@@ -211,7 +225,10 @@ import { DATE_DU_JOUR_ISO } from '@/lib/administrateur-judiciaire/mode'
  *  2. Reclassement sur un même compte 450 : écriture débit 450 / crédit 450 par appel d'origine (codé : le modèle porte
  *     l'appel d'origine sur chaque crédit, et le rejet de la banque contre-passe par origine) ou simple pièce sans
  *     mouvement au grand livre. Aucun texte ne règle le lettrage (🔴 non établi) ; l'écriture gonfle les mouvements sans
- *     changer le solde. Recommandation : garder l'écriture.
+ *     changer le solde. Le rapport de droit du 25/11/2026 recommande des mouvements au grand livre seulement quand deux
+ *     comptes distincts sont touchés (45000 et 450-1), avec une pièce tracée dans tous les cas. Recommandation ici, qui
+ *     s'en écarte : garder l'écriture, parce que le modèle porte l'appel d'origine sur chaque crédit du 450 et que le
+ *     rejet de la banque contre-passe par origine ; sans écriture, ces origines ne se liraient plus au grand livre.
  *  3. Famille de la pièce de reclassement : « Correction de mouvements » (codé, déjà au référentiel ; 🔵 usage dans
  *     Gestéam non observé), « Saisie de mouvements », ou une famille nouvelle. Recommandation : « Correction de
  *     mouvements ».
@@ -225,16 +242,23 @@ import { DATE_DU_JOUR_ISO } from '@/lib/administrateur-judiciaire/mode'
  *     (codé) ; reliquat « à imputer » ; ou imputation légale sur les autres dettes échues. 🔴 Non établi par les textes.
  *     Recommandation du rapport de droit : reliquat « à imputer ».
  *  6. Date des pièces de correction (reclassement, correction d'un reclassement, annulation pour erreur) : le jour du
- *     traitement (codé ; conforme à J67, R121 à R123) ou la date de l'écriture d'origine quand sa période est ouverte. Ce
- *     qui reste ouvert : seulement l'acte qui pose la borne de la période close et l'exercice approuvé, non détectables
- *     aujourd'hui. Recommandation : le jour du traitement.
+ *     traitement (codé ; conforme à J67, R121 à R123) ou la date de l'écriture d'origine quand sa période est ouverte
+ *     (R123 date une opération à la date du fait quand elle est ouverte). Ce jour doit être dans un exercice ouvert dans
+ *     VitFix (codé : règle de la question 6 bis, appliquée par analogie) et ne précède pas la pièce corrigée (codé :
+ *     arrêté, art. 5, 🔵 déduit). Ce qui reste ouvert par ailleurs : l'acte qui pose la borne de la période close et
+ *     l'exercice approuvé, non détectables aujourd'hui. Recommandation : le jour du traitement.
  *  7. Encaissement réimputé, ou pièce annulée, appartenant à un exercice arrêté ou approuvé (décret du 17/03/1967,
  *     art. 45-1) : non détectable aujourd'hui (🔴 aucun statut « clos » enregistré) ; la correction est écrite dans
- *     l'exercice ouvert (codé), ou refusée. Recommandation : écrire dans l'exercice ouvert, avec la mention des dates.
+ *     l'exercice ouvert (codé), ou refusée. Le rapport de droit du 25/11/2026 recommande le refus, par prudence.
+ *     Recommandation ici, qui s'en écarte : écrire dans l'exercice ouvert, avec la mention des dates, parce que la
+ *     décision du 17/11/2026 (J67, R121 et R122) fait corriger une erreur trouvée après la clôture par une écriture
+ *     datée dans la période ouverte, contrôlée sur sa date ; un refus bloquerait tout paiement en retard dont la
+ *     réimputation touche un exercice arrêté.
  *  8. Annulation pour erreur de saisie quand des encaissements postérieurs existent sur un compte de la pièce : refus
  *     (codé : l'annulation n'est donc possible que tant qu'aucun encaissement postérieur n'existe sur ces comptes) ;
  *     réimputation d'office de ces encaissements, avec le cœur du point 6 et une cause « annulation pour erreur » ; ou les
- *     laisser tels quels. Recommandation : la réimputation d'office.
+ *     laisser tels quels. Conséquence du refus pour un doublon suivi d'un autre encaissement : aucune des deux pièces en
+ *     double ne s'annule tant que cet encaissement existe (le refus le dit). Recommandation : la réimputation d'office.
  *  9. Rejet de la banque (F110) d'un encaissement suivi d'autres : les suivants ne sont pas réimputés (codé, comme
  *     avant) ; la garde du rejeu à blanc refuse ensuite toute réimputation de ce compte. Ou les réimputer d'office.
  *     Recommandation : les réimputer, même raisonnement qu'au n° 8.
@@ -243,8 +267,11 @@ import { DATE_DU_JOUR_ISO } from '@/lib/administrateur-judiciaire/mode'
  *     désimputation du chèque, pas l'annulation de la réimputation qu'il a causée) ; ou défaire la réimputation causée
  *     (contre-passation du reclassement, imputation précédente rétablie). Recommandation : la défaire.
  * 11. Part du fonds de travaux à virer (F112) déplacée par une réimputation entre encaissements reçus sur des comptes
- *     bancaires différents, alors qu'un virement au compte du fonds a pu être fait : rien n'est codé. À trancher avec le
- *     branchement de F112.
+ *     bancaires différents, alors qu'un virement au compte du fonds a pu être fait : la part à virer suit l'imputation
+ *     courante (état de fait : F112 se lit sur l'imputation gardée, rien d'autre n'est codé) ; ou elle reste attachée à
+ *     l'encaissement d'origine dès qu'un virement au compte du fonds a été fait pour lui ; ou la réimputation est
+ *     refusée quand elle déplace une part du fonds d'un compte bancaire à un autre. Recommandation : suivre l'imputation
+ *     courante et signaler l'écart à virer ; à trancher avec le branchement de F112.
  * 12. Famille de l'annulation pour erreur de saisie : « Annulation d'encaissement » avec la nature « erreur de saisie »
  *     (codé ; 🔵 seule paire d'annulation du référentiel), « Correction de mouvements », ou une famille propre (le
  *     journal la distinguerait d'un rejet de la banque). Recommandation : une famille propre, à l'accord du référent
@@ -256,13 +283,18 @@ import { DATE_DU_JOUR_ISO } from '@/lib/administrateur-judiciaire/mode'
  *     Recommandation : le refus (un mouvement pointé existe en banque).
  * 15. Erreur de compte avec un montant bancaire exact : contre-passation totale puis ressaisie (codé, option 4) ou
  *     virement de 450 à 450 sans toucher au 512. Recommandation : la contre-passation totale.
- * 16. Autres motifs (erreur de date, de mode de règlement) : refusés (codé : la décision nomme montant, compte, doublon).
+ * 16. Autres motifs (erreur de date, de mode de règlement) : refusés (codé : la décision nomme montant, compte,
+ *     doublon) ; ou ajout des motifs « date » et « mode de règlement » ; ou annulation puis ressaisie sous le motif le
+ *     plus proche. Recommandation : garder le refus jusqu'à l'écran, puis ajouter les motifs que le référent métier
+ *     retiendra.
  * 17. Tiers (état daté délivré, mutation, recouvrement ouvert sur le compte) : aucun garde-fou codé ; aucun texte
  *     n'interdit la réimputation (🔴 non établi). Recommandation : un avertissement tracé, avec l'écran.
- * 18. Réimputation qui ne déplace que des centimes entre deux lots d'un même appel, sans rien changer par appel d'origine
- *     pour tout le compte : il n'y a alors aucune ligne à écrire, donc aucune pièce de reclassement à laquelle rattacher
- *     la réimputation : REFUS (codé, écart à la spécification, qui ne prévoit pas ce cas) ; ou mise à jour de
- *     l'imputation gardée sans pièce. Recommandation : la mise à jour sans pièce, tracée au journal d'activité.
+ * 18. Réimputation qui ne déplace l'imputation qu'entre les postes (lots) d'un même appel, par l'arrondi du prorata
+ *     (quelques centimes) ou parce que le paiement en retard désigne le poste d'un lot (des euros entiers changent alors
+ *     de lot), sans rien changer par appel d'origine pour tout le compte : il n'y a alors aucune ligne à écrire, donc
+ *     aucune pièce de reclassement à laquelle rattacher la réimputation : REFUS (codé ; cas non couvert par la décision
+ *     du 24/11/2026) ; ou mise à jour de l'imputation gardée sans pièce. Recommandation : la mise à jour sans pièce,
+ *     tracée au journal d'activité.
  *
  * À VALIDER (référent métier ; solutions prudentes codées ici) — points antérieurs :
  * - compte repris d'une ancienne fiche avec un solde dû : l'encaissement est REFUSÉ tant que ce solde n'a aucune écriture
@@ -597,7 +629,6 @@ type LigneEncaissement = EncaissementCoproprietaireEnregistre
 type EncaissementImputeALEcriture = { encaissement: EncaissementEnregistre; resultat: ResultatImputation; imputerSurAVenir: boolean }
 
 const aRejouer = (e: LigneEncaissement): EncaissementARejouer => ({ encaissement: e, courante: e.imputation })
-const SUITE_REFUS_REIMPUTATION = "Réimputation refusée, rien n'est écrit"
 
 /**
  * Encaissements à rejouer, par compte crédité par le lot (conception, point 6) : les encaissements NON annulés du compte,
@@ -618,22 +649,25 @@ function suffixesDesComptes(saisies: readonly SaisieEncaissement[], date: string
 const piecesCorrigees = (e: LigneEncaissement): string[] => [...(e.traitementId === null ? [] : [e.traitementId]), ...(e.reimputations ?? []).map((r) => r.traitementId)]
 
 /**
- * Date de la pièce de reclassement : le jour du traitement, jamais celui du paiement en retard (décision du 17/11/2026 :
- * J67, R121 à R123 : une erreur se corrige par une écriture datée dans la période ouverte). Refus : ce jour hors des
- * exercices du syndicat ouverts dans VitFix (même règle que la question 6 bis), ou antérieur à l'une des pièces que le
- * reclassement corrige ; pièce corrigée introuvable.
+ * Date de la pièce de reclassement : le jour du traitement, jamais celui du paiement en retard, conformément à la décision
+ * du 17/11/2026 (J67, R121 à R123 : une erreur trouvée après la clôture se corrige par une écriture contraire datée dans
+ * la période ouverte, contrôlée sur sa date). Contrôlée seulement pour une pièce qui sera écrite, et sur les seuls
+ * encaissements qu'elle corrige (`reimputes` : ceux dont l'imputation change). Refus : ce jour hors des exercices du
+ * syndicat ouverts dans VitFix (règle de la question 6 bis, appliquée ici par analogie), ou antérieur à l'une des pièces
+ * que le reclassement corrige (arrêté du 14/03/2005, art. 5 ; 🔵 déduit, journal-traitements.ts : l'écriture contraire
+ * annule une écriture passée, elle ne la précède pas) ; pièce corrigée introuvable.
  */
-async function verifierDateDuReclassement(aujourdhui: string, coproprieteId: string, rejoues: readonly LigneEncaissement[], pieces: readonly PieceTraitementEnregistree[]): Promise<void> {
+async function verifierDateDuReclassement(aujourdhui: string, coproprieteId: string, reimputes: readonly LigneEncaissement[], pieces: readonly PieceTraitementEnregistree[]): Promise<void> {
   const datee = `Pièce de reclassement datée du ${dateIsoVersFr(aujourdhui)}, jour du traitement`
   await verifierDateDansUnExercice(aujourdhui, coproprieteId, { datee, refus: 'Réimputation refusée', remede: '' })
-  for (const e of rejoues)
+  for (const e of reimputes)
     for (const pieceId of piecesCorrigees(e)) {
       const piece = pieces.find((p) => p.id === pieceId)
       if (!piece)
         throw new Error(`Encaissement ${e.id} : pièce ${pieceId} introuvable au journal des traitements du syndicat ; la réimputation ne corrige que des pièces qu'elle retrouve. ${SUITE_REFUS_REIMPUTATION}.`)
       if (aujourdhui < piece.date)
         throw new Error(
-          `${datee} : antérieure à la pièce n° ${piece.numero} du ${dateIsoVersFr(piece.date)} (encaissement ${e.id}) qu'elle corrige ; une correction ne précède pas l'écriture qu'elle corrige (décision du 17/11/2026 : J67, R121 et R122). ${SUITE_REFUS_REIMPUTATION}.`,
+          `${datee} : antérieure à la pièce n° ${piece.numero} du ${dateIsoVersFr(piece.date)} (encaissement ${e.id}) qu'elle corrige ; une correction ne précède pas l'écriture qu'elle corrige (arrêté du 14/03/2005, art. 5, déduit). ${SUITE_REFUS_REIMPUTATION}.`,
         )
     }
 }
@@ -690,12 +724,16 @@ interface ContexteReclassement {
 /**
  * Écrit la réimputation d'un compte (conception, point 6) : la pièce « Correction de mouvements », puis, pour chaque
  * encaissement dont l'imputation change, sa nouvelle imputation courante et la réimputation ajoutée à son historique.
- * Null : le rejeu ne change rien pour ce compte, rien n'est écrit. À valider (n° 18) : un rejeu qui ne déplace que des
- * centimes entre deux lots d'un même appel, sans aucune ligne à écrire pour le compte, est refusé.
+ * Null : le rejeu ne change rien pour ce compte, rien n'est écrit, et aucune date n'est contrôlée. À valider (n° 18) : un
+ * rejeu qui ne déplace l'imputation qu'entre les lots d'un même appel, sans aucune ligne à écrire pour le compte, est
+ * refusé. La date de la pièce n'est contrôlée qu'ensuite, sur les seuls encaissements dont l'imputation change.
  */
 async function ecrireReclassement(compteId: string, suffixe: readonly LigneEncaissement[], rejeux: readonly Rejeu[], contexte: ContexteReclassement): Promise<ReimputationDuCompte | null> {
   const { donnees, coproprieteId, mandatId, segmentSyndicat, lot, actor } = contexte
-  const changes = rejeux.filter((r) => r.change)
+  const changes = suffixe.flatMap((avant) => {
+    const rejeu = rejeux.find((r) => r.encaissementId === avant.id)
+    return rejeu?.change ? [{ avant, rejeu }] : []
+  })
   if (changes.length === 0) return null
   const compte = donnees.comptes.find((c) => c.id === compteId)
   if (!compte) throw new Error(`Compte copropriétaire « ${compteId} » introuvable.`)
@@ -704,19 +742,22 @@ async function ecrireReclassement(compteId: string, suffixe: readonly LigneEncai
     compteCoproprietaire: numeroCompteCoproprietaire(compte, segmentSyndicat),
     compteDuPlan: (planCode: string) => numeroCompteCoproprietaire(compte, segmentSyndicat, planCode),
   }
-  const lignes = changes.map((rejeu): LigneMouvement[] => mouvementsReclassement({ ...comptes450, avant: rejeu.avant, apres: rejeu.apres }))
+  const lignes = changes.map(({ rejeu }): LigneMouvement[] => mouvementsReclassement({ ...comptes450, avant: rejeu.avant, apres: rejeu.apres }))
   if (lignes.every((l) => l.length === 0))
     throw new Error(
       `Compte « ${compteId} » : le paiement saisi en retard ne déplace l'imputation de ses encaissements postérieurs qu'entre les lots d'un même appel, sans aucune ligne à écrire au compte 450 ; aucune pièce de reclassement ne porterait cette réimputation (cas à valider). ${SUITE_REFUS_REIMPUTATION} ; signaler cet encaissement pour qu'il soit traité.`,
     )
+  await verifierDateDuReclassement(
+    lot.saisiLe,
+    coproprieteId,
+    changes.map((c) => c.avant),
+    donnees.pieces,
+  )
   const traitement = traitementReclassement(lignes.flat(), { id: `reclassement-${genererId()}`, date: lot.saisiLe })
   const piece = await enregistrerPieceTraitement({ traitement, coproprieteId, mandatId }, { actor })
   const maintenant = new Date().toISOString()
   const enRetard = { ids: lot.idsParCompte.get(compteId) ?? [], date: lot.date, numeroPiece: lot.piece.numero }
-  const encaissements: LigneEncaissement[] = []
-  for (const [i, rejeu] of changes.entries()) {
-    const avant = suffixe.find((e) => e.id === rejeu.encaissementId)
-    if (!avant) throw new Error(`Encaissement ${rejeu.encaissementId} : rejoué sans être du compte « ${compteId} ».`)
+  const encaissements = changes.map(({ avant, rejeu }, i): LigneEncaissement => {
     const reimputation: ReimputationEcrite = {
       traitementId: piece.id,
       le: lot.saisiLe,
@@ -730,11 +771,11 @@ async function ecrireReclassement(compteId: string, suffixe: readonly LigneEncai
         reimpute: { id: avant.id, date: avant.date, numeroPiece: donnees.pieces.find((p) => p.id === avant.traitementId)?.numero ?? null },
       }),
     }
-    const apres: LigneEncaissement = { ...avant, imputation: rejeu.apres, reimputations: [...(avant.reimputations ?? []), reimputation], updatedAt: maintenant, updatedBy: actor }
-    await ajDb.encaissements.put(apres)
-    await journaliserActivite({ entite: 'encaissements', entiteId: apres.id, action: 'update', qui: actor, avant, apres })
-    encaissements.push(apres)
-  }
+    return { ...avant, imputation: rejeu.apres, reimputations: [...(avant.reimputations ?? []), reimputation], updatedAt: maintenant, updatedBy: actor }
+  })
+  // Les encaissements réimputés ne dépendent pas les uns des autres : une seule écriture, puis leurs entrées au journal d'activité.
+  await ajDb.encaissements.bulkPut(encaissements)
+  await Promise.all(encaissements.map((apres, i) => journaliserActivite({ entite: 'encaissements', entiteId: apres.id, action: 'update', qui: actor, avant: changes[i].avant, apres })))
   return { compteId, piece, encaissements }
 }
 
@@ -786,9 +827,9 @@ function renvoiAuReclassement(compteId: string, reimputations: readonly Reimputa
  * encaissement non annulé du compte sans la réimputation demandée, aucun encaissement, identifiant en double ou déjà
  * pris, montant qui n'est pas un nombre entier de centimes positif, pièce ou journal refusés par le domaine (chèque sans
  * numéro, espèces, 512 d'un autre syndicat, mode étranger à la famille), poste désigné inconnu ou d'un autre compte ;
- * avec la réimputation : jour du traitement hors des exercices ouverts ou antérieur à une pièce corrigée, imputation
- * d'un encaissement postérieur qui ne se rejoue pas à l'identique (garde du rejeu à blanc), désignation du débiteur qui
- * serait déplacée.
+ * avec la réimputation : imputation d'un encaissement postérieur qui ne se rejoue pas à l'identique (garde du rejeu à
+ * blanc), désignation du débiteur qui serait déplacée, et, quand une pièce de reclassement est à écrire, jour du
+ * traitement hors des exercices ouverts ou antérieur à une pièce qu'elle corrige.
  */
 export function ecrireEncaissements(
   coproprieteId: string,
@@ -812,9 +853,10 @@ export function ecrireEncaissements(
 
     // Réimputation dans l'ordre des dates : les encaissements postérieurs de chaque compte du lot sont retirés des postes,
     // rejoués à blanc (garde), puis rejoués après les paiements en retard. Sans encaissement postérieur : circuit ordinaire.
+    // La date d'une pièce de reclassement n'est contrôlée qu'à son écriture (ecrireReclassement) : un rejeu qui ne change
+    // rien n'écrit aucune pièce et ne refuse donc rien pour ce jour.
     const suffixes = suffixesDesComptes(saisies, date, donnees)
     const rejoues = [...suffixes.values()].flat()
-    if (rejoues.length > 0) await verifierDateDuReclassement(aujourdhui, coproprieteId, rejoues, donnees.pieces)
     const sansSuffixe = postesSansSuffixe(rejoues.map(aRejouer), etat.postes)
     for (const suffixe of suffixes.values()) verifierRejeuABlanc(suffixe.map(aRejouer), sansSuffixe)
     const { imputes, postes: apresLeLot } = imputerLesSaisies(saisies, ids, { date, journal, segmentSyndicat }, sansSuffixe)
@@ -932,26 +974,24 @@ function piecesDeReclassement(encaissement: LigneEncaissement, pieces: readonly 
  * Ce qu'il faut au domaine pour contre-passer un encaissement (rejet de la banque, erreur de saisie) : son imputation
  * d'origine, et, s'il a été réimputé, son imputation courante et ses reclassements, lus dans leurs pièces.
  */
-function aContrePasser(encaissement: LigneEncaissement, pieces: readonly PieceTraitementEnregistree[]): EncaissementAContrePasser & { piecesDeReclassement: PieceTraitementEnregistree[] } {
+function aContrePasser(encaissement: LigneEncaissement, pieces: readonly PieceTraitementEnregistree[]): EncaissementAContrePasser {
   const resultat = resultatGarde(encaissement, imputationDOrigine(encaissement))
   const lues = piecesDeReclassement(encaissement, pieces)
-  if (lues.length === 0) return { encaissement, resultat, piecesDeReclassement: [] }
-  const reclassements = (encaissement.reimputations ?? []).map((reimputation, i): ReclassementEcrit => ({ ecriture: lues[i].traitement, mouvements: reimputation.mouvements }))
-  return { encaissement, resultat, reimputation: { courante: resultatGarde(encaissement, encaissement.imputation), reclassements }, piecesDeReclassement: lues }
+  if (lues.length === 0) return { encaissement, resultat }
+  const reclassements = (encaissement.reimputations ?? []).map((reimputation, i): ReclassementEcrit => ({ ecriture: lues[i].traitement, numero: lues[i].numero, mouvements: reimputation.mouvements }))
+  return { encaissement, resultat, reimputation: { courante: resultatGarde(encaissement, encaissement.imputation), reclassements } }
 }
 
 /**
- * Date de la pièce qui contre-passe des reclassements : le jour de la saisie. Refus : hors des exercices du syndicat
- * ouverts dans VitFix, ou antérieure à l'une des pièces de reclassement qu'elle contre-passe (décision du 17/11/2026 :
- * J67, R121 et R122).
+ * Jour de la pièce « Correction de mouvements » qui contre-passe les reclassements d'un encaissement rejeté par la banque :
+ * le jour de la saisie, dans un exercice du syndicat ouvert dans VitFix (règle de la question 6 bis, appliquée ici par
+ * analogie). À n'appeler que si cette pièce est écrite : des reclassements qui se compensent n'en demandent aucune. Qu'elle
+ * ne précède aucune pièce de reclassement est contrôlé par le domaine (encaissements-pieces : arrêté du 14/03/2005, art. 5,
+ * 🔵 déduit).
  */
-async function verifierDateDeCorrection(datee: string, aujourdhui: string, coproprieteId: string, reclassements: readonly PieceTraitementEnregistree[]): Promise<void> {
-  await verifierDateDansUnExercice(aujourdhui, coproprieteId, { datee: `${datee}, jour de la saisie`, refus: 'Annulation refusée', remede: '' })
-  const posterieure = reclassements.find((p) => aujourdhui < p.date)
-  if (posterieure)
-    throw new Error(
-      `${datee}, jour de la saisie : antérieure à la pièce de reclassement n° ${posterieure.numero} du ${dateIsoVersFr(posterieure.date)} qu'elle contre-passe ; l'écriture contraire annule une écriture passée, elle ne la précède pas. Annulation refusée.`,
-    )
+function verifierJourDeLaCorrectionDesReclassements(aujourdhui: string, coproprieteId: string): Promise<void> {
+  const datee = `Correction du reclassement datée du ${dateIsoVersFr(aujourdhui)}, jour de la saisie`
+  return verifierDateDansUnExercice(aujourdhui, coproprieteId, { datee, refus: 'Annulation refusée', remede: '' })
 }
 
 /**
@@ -963,8 +1003,8 @@ async function verifierDateDeCorrection(datee: string, aujourdhui: string, copro
  * annulé, pièce d'origine absente ou déjà annulée par un autre circuit, débit de la banque antérieur à l'écriture, d'une
  * année improbable ou postérieur au jour de la saisie (à valider), sans motif ou sans pièce, date invalide, mandat d'un
  * autre syndicat, écriture d'origine qui ne porte pas ses lignes ; pour un encaissement réimputé : pièce de reclassement
- * absente ou annulée, jour de la saisie hors des exercices ouverts ou antérieur à une pièce de reclassement, pièces qui
- * ne redonnent pas l'imputation courante.
+ * absente ou annulée, pièces qui ne redonnent pas l'imputation courante, et, quand une correction est à écrire, jour de
+ * la saisie hors des exercices ouverts ou antérieur à une pièce de reclassement.
  */
 export function annulerEncaissementEcrit(
   coproprieteId: string,
@@ -982,8 +1022,7 @@ export function annulerEncaissementEcrit(
     const origine = pieceDOrigine(avant, donnees.pieces)
     // Les postes de l'écriture contraire se lisent dans les lignes gardées sur l'encaissement, pas dans l'échéancier relu :
     // un compte en écart s'annule aussi.
-    const { resultat, reimputation, piecesDeReclassement: reclassements } = aContrePasser(avant, donnees.pieces)
-    if (reimputation && !avant.annulation) await verifierDateDeCorrection(`Correction du reclassement datée du ${dateIsoVersFr(aujourdhui)}`, aujourdhui, coproprieteId, reclassements)
+    const { resultat, reimputation } = aContrePasser(avant, donnees.pieces)
     const annule = annulerEncaissement(
       avant,
       {
@@ -996,6 +1035,7 @@ export function annulerEncaissementEcrit(
       },
       { id: `annulation-encaissement-${genererId()}`, date, motif, piece: avis },
     )
+    if (annule.correction) await verifierJourDeLaCorrectionDesReclassements(aujourdhui, coproprieteId)
     const mandat = mandatId ?? origine.mandatId
     const piece = await enregistrerPieceTraitement({ traitement: annule.traitement, coproprieteId, mandatId: mandat }, { actor })
     const correction = annule.correction ? await enregistrerPieceTraitement({ traitement: annule.correction, coproprieteId, mandatId: mandat }, { actor }) : null
@@ -1069,27 +1109,62 @@ async function verifierJourDeLaCorrection(aujourdhui: string, origine: PieceTrai
     )
 }
 
+/** Encaissements postérieurs à l'un de ceux d'une pièce (`de`), sur le même compte, hors de cette pièce, non annulés. */
+interface EncaissementsPosterieurs {
+  de: LigneEncaissement
+  /** Dans l'ordre du compte. */
+  posterieurs: LigneEncaissement[]
+}
+
+/** Encaissements NON annulés postérieurs à ceux de la pièce, hors d'elle, sur le premier de ses comptes qui en a ; undefined : aucun. */
+function encaissementsPosterieurs(pieceId: string, donnees: DonneesSyndicat): EncaissementsPosterieurs | undefined {
+  const ordre = ordreDe(donnees)
+  const duLot = donnees.encaissements.filter((e) => e.traitementId === pieceId).sort((a, b) => a.rang - b.rang)
+  for (const de of duLot) {
+    const posterieurs = donnees.encaissements.filter((x) => x.compteId === de.compteId && !x.annulation && x.traitementId !== pieceId && ordre(x, de) > 0).sort(ordre)
+    if (posterieurs.length > 0) return { de, posterieurs }
+  }
+  return undefined
+}
+
+/** « l'encaissement enc-2 du 15/01/2027 (pièce n° 4) ». */
+function nommerAvecSaPiece(e: LigneEncaissement, pieces: readonly PieceTraitementEnregistree[]): string {
+  const numero = pieces.find((p) => p.id === e.traitementId)?.numero
+  const nomDeLaPiece = numero === undefined ? 'pièce introuvable' : `pièce n° ${numero}`
+  return `l'encaissement ${e.id} du ${dateIsoVersFr(e.date)} (${nomDeLaPiece})`
+}
+
+/**
+ * Motif « doublon » : fin du refus, qui nomme la pièce en double la plus récente. Le double de `de` est cherché parmi les
+ * encaissements postérieurs de son compte : même date et même montant, de préférence même mode et même numéro de pièce
+ * de banque ; jamais le dernier encaissement du compte, qui peut être un vrai paiement (le contre-passer comme « jamais
+ * reçu » fausserait le 512 et le rapprochement). Si la pièce du double est elle-même suivie d'un encaissement, le refus
+ * dit qu'aucune des deux pièces ne s'annule pour l'instant (à valider, n° 8). Aucun double identifiable : rien, aucun
+ * numéro de pièce n'est conseillé.
+ */
+function conseilPourUnDoublon({ de, posterieurs }: EncaissementsPosterieurs, donnees: DonneesSyndicat): string {
+  const memes = posterieurs.filter((x) => x.date === de.date && x.montantCentimes === de.montantCentimes)
+  const memePieceDeBanque = memes.filter((x) => x.piece.mode === de.piece.mode && x.piece.numero === de.piece.numero)
+  const double = (memePieceDeBanque.length > 0 ? memePieceDeBanque : memes).at(-1)
+  const pieceDuDouble = donnees.pieces.find((p) => p.id === double?.traitementId)
+  if (!double || !pieceDuDouble) return ''
+  const suivant = encaissementsPosterieurs(pieceDuDouble.id, donnees)
+  if (!suivant) return ` Pour un doublon, c'est la pièce la plus récente (n° ${pieceDuDouble.numero}) qui s'annule : celle de l'encaissement ${double.id}, de même date et de même montant.`
+  return ` Pour un doublon : la pièce en double la plus récente est la n° ${pieceDuDouble.numero} (encaissement ${double.id}, de même date et de même montant) ; elle ne s'annule pas non plus tant que ${nommerAvecSaPiece(suivant.posterieurs[0], donnees.pieces)}, postérieur sur le compte « ${suivant.de.compteId} », existe : aucune des deux pièces ne s'annule par ce circuit pour l'instant (à valider).`
+}
+
 /**
  * À valider (n° 8) — encaissement NON annulé postérieur, hors de la pièce, sur un compte de la pièce : il a été imputé sur
  * les soldes qu'elle a laissés ; l'annuler sans le réimputer fausserait l'ordre des paiements. Solution prudente : refus,
- * qui le nomme et, pour un doublon, dit quelle pièce annuler (la plus récente).
+ * qui le nomme et, pour un doublon, nomme la pièce en double la plus récente (conseilPourUnDoublon).
  */
-function verifierSansEncaissementPosterieur(origine: PieceTraitementEnregistree, duLot: readonly LigneEncaissement[], donnees: DonneesSyndicat, motif: string): void {
-  const ordre = ordreDe(donnees)
-  const nomDeLaPiece = (e: LigneEncaissement): string => {
-    const numero = donnees.pieces.find((p) => p.id === e.traitementId)?.numero
-    return numero === undefined ? 'pièce introuvable' : `pièce n° ${numero}`
-  }
-  for (const e of duLot) {
-    const posterieurs = donnees.encaissements.filter((x) => x.compteId === e.compteId && !x.annulation && x.traitementId !== origine.id && ordre(x, e) > 0).sort(ordre)
-    const [premier] = posterieurs
-    const dernier = posterieurs.at(-1)
-    if (!premier || !dernier) continue
-    const pourUnDoublon = motif === 'doublon' ? ` Pour un doublon, c'est la pièce la plus récente (${nomDeLaPiece(dernier).replace('pièce ', '')}) qui s'annule.` : ''
-    throw new Error(
-      `Pièce n° ${origine.numero} : l'encaissement ${premier.id} du ${dateIsoVersFr(premier.date)} (${nomDeLaPiece(premier)}), postérieur sur le compte « ${e.compteId} », a été imputé sur les soldes qu'elle a laissés ; l'annuler sans réimputer cet encaissement fausserait l'ordre des paiements (C. civ. art. 1342-10). Annulation refusée, rien n'est écrit : une pièce ne s'annule pour erreur de saisie que tant qu'aucun encaissement postérieur n'existe sur ses comptes (à valider) ; signaler cette pièce pour qu'elle soit traitée.${pourUnDoublon}`,
-    )
-  }
+function verifierSansEncaissementPosterieur(origine: PieceTraitementEnregistree, donnees: DonneesSyndicat, motif: string): void {
+  const trouves = encaissementsPosterieurs(origine.id, donnees)
+  if (!trouves) return
+  const pourUnDoublon = motif === 'doublon' ? conseilPourUnDoublon(trouves, donnees) : ''
+  throw new Error(
+    `Pièce n° ${origine.numero} : ${nommerAvecSaPiece(trouves.posterieurs[0], donnees.pieces)}, postérieur sur le compte « ${trouves.de.compteId} », a été imputé sur les soldes qu'elle a laissés ; l'annuler sans réimputer cet encaissement fausserait l'ordre des paiements (C. civ. art. 1342-10). Annulation refusée, rien n'est écrit : une pièce ne s'annule pour erreur de saisie que tant qu'aucun encaissement postérieur n'existe sur ses comptes (à valider) ; signaler cette pièce pour qu'elle soit traitée.${pourUnDoublon}`,
+  )
 }
 
 /**
@@ -1114,11 +1189,11 @@ export function annulerPieceEncaissementsPourErreur(
     const origine = await pieceAAnnulerPourErreur(pieceId, coproprieteId)
     await verifierJourDeLaCorrection(aujourdhui, origine, coproprieteId)
     const duLot = donnees.encaissements.filter((e) => e.traitementId === origine.id).sort((a, b) => a.rang - b.rang)
-    verifierSansEncaissementPosterieur(origine, duLot, donnees, motif)
-    // Un encaissement déjà annulé est refusé par le domaine, avant toute lecture de ses pièces de reclassement.
-    const entrees = duLot.map((e) => (e.annulation ? { encaissement: e, resultat: resultatGarde(e, imputationDOrigine(e)), piecesDeReclassement: [] } : aContrePasser(e, donnees.pieces)))
-    const reclassements = entrees.flatMap((entree) => entree.piecesDeReclassement)
-    if (reclassements.length > 0) await verifierDateDeCorrection(`Correction datée du ${dateIsoVersFr(aujourdhui)}`, aujourdhui, coproprieteId, reclassements)
+    verifierSansEncaissementPosterieur(origine, donnees, motif)
+    // Un encaissement déjà annulé est refusé par le domaine, avant toute lecture de ses pièces de reclassement. Le jour de
+    // la correction est déjà contrôlé (verifierJourDeLaCorrection) ; qu'il ne précède aucune pièce de reclassement à
+    // contre-passer l'est par le domaine, et seulement si une « Correction de mouvements » est écrite.
+    const entrees = duLot.map((e): EncaissementAContrePasser => (e.annulation ? { encaissement: e, resultat: resultatGarde(e, imputationDOrigine(e)) } : aContrePasser(e, donnees.pieces)))
     const annule = annulerPieceEncaissements(
       entrees,
       { ecriture: origine.traitement, comptes: donnees.comptes, segmentSyndicat: segmentComptableSyndicat(donnees.copropriete.code) },
@@ -1129,13 +1204,9 @@ export function annulerPieceEncaissementsPourErreur(
     const correction = annule.correction ? await enregistrerPieceTraitement({ traitement: annule.correction, coproprieteId, mandatId: mandat }, { actor }) : null
     const piece = await marquerPieceEncaissementsAnnulee(origine.id, annulation.id, { actor })
     const maintenant = new Date().toISOString()
-    const annules: LigneEncaissement[] = []
-    for (const [i, avant] of duLot.entries()) {
-      const apres: LigneEncaissement = { ...avant, statut: annule.encaissements[i].statut, annulation: annule.encaissements[i].annulation, updatedAt: maintenant, updatedBy: actor }
-      await ajDb.encaissements.put(apres)
-      await journaliserActivite({ entite: 'encaissements', entiteId: apres.id, action: 'update', qui: actor, avant, apres })
-      annules.push(apres)
-    }
+    const annules = duLot.map((avant, i): LigneEncaissement => ({ ...avant, statut: annule.encaissements[i].statut, annulation: annule.encaissements[i].annulation, updatedAt: maintenant, updatedBy: actor }))
+    await ajDb.encaissements.bulkPut(annules)
+    await Promise.all(annules.map((apres, i) => journaliserActivite({ entite: 'encaissements', entiteId: apres.id, action: 'update', qui: actor, avant: duLot[i], apres })))
     const encaissements = donnees.encaissements.map((e) => annules.find((a) => a.id === e.id) ?? e)
     const pieces = donnees.pieces.map((p) => (p.id === piece.id ? piece : p))
     return { piece, annulation, correction, encaissements: annules, postes: etatDe({ ...donnees, pieces, encaissements }).postes }

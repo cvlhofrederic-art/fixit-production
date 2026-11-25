@@ -89,7 +89,8 @@ export function ordreDesEncaissements(numeros: ReadonlyMap<string, number>): (a:
 
 const eurosDe = (centimes: number): string => formatEurosCentimes(centimes / 100)
 const nommer = (e: Encaissement): string => `Encaissement ${e.id} du ${dateIsoVersFr(e.date)}`
-const SUITE_REFUS = "Réimputation refusée, rien n'est écrit"
+/** Fin commune des refus de la réimputation (domaine et db/encaissements.ts). */
+export const SUITE_REFUS_REIMPUTATION = "Réimputation refusée, rien n'est écrit"
 
 /** Postes relus, moins les lignes courantes de chaque encaissement du suffixe (imputation-encaissements.desimputerEncaissement). */
 export function postesSansSuffixe(suffixe: readonly EncaissementARejouer[], postes: PosteDette[]): PosteDette[] {
@@ -147,7 +148,7 @@ function rejouerUn({ encaissement, courante }: EncaissementARejouer, postes: Pos
 
 function refusDuRejeuABlanc(encaissement: Encaissement, cause: string): Error {
   return new Error(
-    `${nommer(encaissement)} : son imputation écrite ne se rejoue pas à l'identique sur les postes d'aujourd'hui (${cause}). ${SUITE_REFUS} : la réimputation dans l'ordre des dates ne rejoue que des imputations qu'elle retrouve telles qu'elles ont été écrites ; un appel écrit après coup, une demande d'imputation sur les appels à venir suivie d'un appel, un encaissement antérieur rejeté par la banque ou un poste désigné disparu demandent une décision (à valider) ; signaler cet encaissement pour qu'il soit traité.`,
+    `${nommer(encaissement)} : son imputation écrite ne se rejoue pas à l'identique sur les postes d'aujourd'hui (${cause}). ${SUITE_REFUS_REIMPUTATION} : la réimputation dans l'ordre des dates ne rejoue que des imputations qu'elle retrouve telles qu'elles ont été écrites ; un appel écrit après coup, une demande d'imputation sur les appels à venir suivie d'un appel, un encaissement antérieur rejeté par la banque ou un poste désigné disparu demandent une décision (à valider) ; signaler cet encaissement pour qu'il soit traité.`,
   )
 }
 
@@ -187,7 +188,7 @@ function verifierDesignationGardee({ encaissement, courante }: EncaissementARejo
   const cites = designes.map((id) => `« ${id} »`).join(', ')
   const objet = designes.length > 1 ? `les postes ${cites}` : `le poste ${cites}`
   throw new Error(
-    `${nommer(encaissement)} : le débiteur a désigné ${objet} en payant (C. civ. art. 1342-10, al. 1), et le paiement saisi en retard changerait l'effet de cette désignation (${constats.join(' ; ')}). ${SUITE_REFUS} : le sort d'une désignation devenue sans objet n'est établi par aucun texte (à valider) ; signaler cet encaissement pour qu'il soit traité.`,
+    `${nommer(encaissement)} : le débiteur a désigné ${objet} en payant (C. civ. art. 1342-10, al. 1), et le paiement saisi en retard changerait l'effet de cette désignation (${constats.join(' ; ')}). ${SUITE_REFUS_REIMPUTATION} : le sort d'une désignation devenue sans objet n'est établi par aucun texte (à valider) ; signaler cet encaissement pour qu'il soit traité.`,
   )
 }
 
