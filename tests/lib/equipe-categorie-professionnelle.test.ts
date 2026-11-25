@@ -35,6 +35,9 @@ describe('normaliserCategorie', () => {
     ['caractère de contrôle', `Servente${String.fromCodePoint(0)}`],
     ['DEL', `Servente${String.fromCodePoint(0x7f)}`],
     ['échappement', `${String.fromCodePoint(0x1b)}[31mServente`],
+    ['contrôle C1 (CSI)', `Servente${String.fromCodePoint(0x9b)}`],
+    ['inversion de sens', `${String.fromCodePoint(0x202e)}etnevreS`],
+    ['espace sans chasse', `Ser${String.fromCodePoint(0x200b)}vente`],
   ])('%s : refusé (undefined)', (_cas, recue) => {
     expect(normaliserCategorie(recue)).toBeUndefined()
   })

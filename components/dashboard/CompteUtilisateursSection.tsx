@@ -107,12 +107,16 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
       if (!token) return
       const res = await fetch('/api/pro/team', {
         headers: { Authorization: `Bearer ${token}` },
+        cache: 'no-store',
       })
       if (res.ok) {
         const data = await res.json()
         const list = data.members || []
         setMembers(list)
         ;(window as any)[CACHE_KEY] = { data: list, at: Date.now() }
+      } else {
+        // Sans ce message, une erreur du serveur affichait « aucun membre » comme une équipe vide.
+        toast.error(isPt ? 'Erro ao carregar a equipa' : 'Erreur lors du chargement de l\'équipe')
       }
     } catch {
       toast.error(isPt ? 'Erro ao carregar a equipa' : 'Erreur lors du chargement de l\'équipe')
@@ -278,12 +282,17 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
         }),
       })
       if (res.ok) {
-        toast.success(isPt ? 'Permissões atualizadas' : 'Permissions mises à jour')
+        toast.success(isPt ? 'Alterações guardadas' : 'Modifications enregistrées')
         setShowPermsModal(null)
         fetchMembers(true)
+      } else if (isPt) {
+        // Les messages du serveur sont en français : écran portugais, message portugais.
+        toast.error(res.status === 400
+          ? `Categoria ou permissões inválidas (máximo ${LONGUEUR_MAX_CATEGORIE} caracteres, sem caracteres especiais).`
+          : 'Erro ao guardar. Tente novamente.')
       } else {
         const data = await res.json().catch(() => ({}))
-        toast.error(data.error || (isPt ? 'Erro ao guardar' : "Erreur lors de l'enregistrement"))
+        toast.error(data.error || "Erreur lors de l'enregistrement")
       }
     } catch {
       toast.error(isPt ? 'Erro' : 'Erreur')
@@ -423,8 +432,14 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
                   </td>
                   <td>{member.email}</td>
                   <td>
-                    <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 600, background: badgeStyle.bg, color: badgeStyle.color }}>{ROLE_LABELS[member.role]?.[isPt ? 'pt' : 'fr'] || member.role}</span>
-                    {member.job_title && <div style={{ fontSize: 11, color: '#555', marginTop: 3 }}>{member.job_title}</div>}
+                    {/* La catégorie professionnelle, quand elle est saisie, est le titre affiché ; le rôle, qui fixe
+                        les droits, passe alors en dessous. */}
+                    <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 600, background: badgeStyle.bg, color: badgeStyle.color }}>{member.job_title || getRoleLabel(member.role) || member.role}</span>
+                    {member.job_title && (
+                      <div style={{ fontSize: 10, color: '#666', marginTop: 3 }}>
+                        {isPt ? 'Permissões' : 'Droits'}{separateurRole}{getRoleLabel(member.role) || member.role}
+                      </div>
+                    )}
                   </td>
                   <td>
                     {(() => {
@@ -512,8 +527,8 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
                 </div>
                 <div className="v22-form-group">
                   <label className="v22-form-label" htmlFor="categorie-invitation">{isPt ? 'Categoria profissional' : 'Catégorie professionnelle'}</label>
-                  <input id="categorie-invitation" type="text" list={ID_LISTE_CATEGORIES} maxLength={LONGUEUR_MAX_CATEGORIE} value={inviteForm.job_title} onChange={e => setInviteForm(f => ({ ...f, job_title: e.target.value }))} className="v22-form-input" placeholder={isPt ? 'Ex.: Encarregado geral' : 'Ex. : Chef de chantier'} />
-                  <p style={{ marginTop: 4, fontSize: 10, color: '#999' }}>
+                  <input id="categorie-invitation" type="text" list={ID_LISTE_CATEGORIES} maxLength={LONGUEUR_MAX_CATEGORIE} value={inviteForm.job_title} onChange={e => setInviteForm(f => ({ ...f, job_title: e.target.value }))} className="v22-form-input" placeholder={isPt ? 'Ex.: Encarregado geral' : 'Ex. : Chef de chantier'} aria-describedby="categorie-invitation-aide" />
+                  <p id="categorie-invitation-aide" style={{ marginTop: 4, fontSize: 10, color: '#999' }}>
                     {isPt ? 'Título apresentado na lista. Não altera as permissões.' : 'Titre affiché dans la liste. Ne change pas les permissions.'}
                   </p>
                 </div>
@@ -546,8 +561,8 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
             <div className="v22-modal-body" style={{ overflowY: 'auto', flex: 1 }}>
               <div className="v22-form-group" style={{ marginBottom: 12 }}>
                 <label className="v22-form-label" htmlFor="categorie-membre">{isPt ? 'Categoria profissional' : 'Catégorie professionnelle'}</label>
-                <input id="categorie-membre" type="text" list={ID_LISTE_CATEGORIES} maxLength={LONGUEUR_MAX_CATEGORIE} value={editCategorie} onChange={e => setEditCategorie(e.target.value)} className="v22-form-input" placeholder={isPt ? 'Ex.: Encarregado geral' : 'Ex. : Chef de chantier'} />
-                <p style={{ marginTop: 4, fontSize: 10, color: tv.textMuted }}>
+                <input id="categorie-membre" type="text" list={ID_LISTE_CATEGORIES} maxLength={LONGUEUR_MAX_CATEGORIE} value={editCategorie} onChange={e => setEditCategorie(e.target.value)} className="v22-form-input" placeholder={isPt ? 'Ex.: Encarregado geral' : 'Ex. : Chef de chantier'} aria-describedby="categorie-membre-aide" />
+                <p id="categorie-membre-aide" style={{ marginTop: 4, fontSize: 10, color: tv.textMuted }}>
                   {isPt ? 'Título apresentado na lista. Não altera as permissões.' : 'Titre affiché dans la liste. Ne change pas les permissions.'}
                 </p>
               </div>

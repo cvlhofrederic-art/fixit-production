@@ -18,14 +18,11 @@ export const CATEGORIES_PROPOSEES: Readonly<Record<'pt' | 'fr', readonly string[
   fr: ['Chef de chantier', "Chef d'équipe", 'Compagnon professionnel', 'Ouvrier qualifié', 'Ouvrier', 'Manœuvre', 'Apprenti'],
 }
 
-/** Caractère de contrôle (hors blancs, déjà ramenés à une espace) : refusé dans un titre affiché. */
-function contientCaractereDeControle(texte: string): boolean {
-  for (const caractere of texte) {
-    const code = caractere.codePointAt(0) ?? 0
-    if (code < 0x20 || code === 0x7f) return true
-  }
-  return false
-}
+/**
+ * Caractère de contrôle (Cc : C0, DEL, C1) ou de format invisible (Cf : inversion de sens U+202E, espace sans
+ * chasse U+200B…) : refusé dans un titre affiché. Les blancs ont déjà été ramenés à une espace.
+ */
+const CARACTERE_INVISIBLE = /[\p{Cc}\p{Cf}]/u
 
 /**
  * Valeur à enregistrer pour une catégorie reçue du gérant : le texte, blancs réduits à une espace ; `null` pour
@@ -37,6 +34,6 @@ export function normaliserCategorie(valeur: unknown): string | null | undefined 
   if (typeof valeur !== 'string') return undefined
   const texte = valeur.replace(/\s+/g, ' ').trim()
   if (texte === '') return null
-  if (texte.length > LONGUEUR_MAX_CATEGORIE || contientCaractereDeControle(texte)) return undefined
+  if (texte.length > LONGUEUR_MAX_CATEGORIE || CARACTERE_INVISIBLE.test(texte)) return undefined
   return texte
 }

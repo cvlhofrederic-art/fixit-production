@@ -1,12 +1,17 @@
 -- 20261125_pro_team_members_job_title.sql
 --
 -- Catégorie professionnelle d'un membre d'équipe BTP (« Encarregado geral », « Chefe de equipa », « Servente »…) :
--- titre libre saisi par le gérant dans « Comptes utilisateurs », affiché sous le rôle, SANS EFFET SUR LES DROITS
+-- titre libre saisi par le gérant dans « Comptes utilisateurs », affiché à la place du rôle (rappelé dessous), SANS EFFET SUR LES DROITS
 -- (ceux-ci viennent de la colonne role et de pro_role_permissions). Voir lib/equipe/categorie-professionnelle.ts.
 --
 -- À appliquer AVANT le déploiement du code qui lit la colonne (GET /api/pro/team la sélectionne).
 -- Rejouable : colonne et contrainte ne sont créées que si elles manquent. Aucune ligne existante n'est modifiée
--- (la colonne naît vide pour tout le monde).
+-- (la colonne naît vide pour tout le monde). Retour arrière : docs/rollback-procedures.md, section « Migration 20261125 ».
+-- Ordre : l'export RGPD (app/api/user/export-data) sélectionne aussi la colonne : appliquer avant de fusionner.
+
+-- ALTER TABLE prend un verrou exclusif sur une table lue à chaque requête d'un salarié (resolveCompanyId) : ne pas
+-- attendre derrière une transaction longue ; en cas d'expiration, rien n'est appliqué, relancer.
+set local lock_timeout = '5s';
 
 ALTER TABLE public.pro_team_members ADD COLUMN IF NOT EXISTS job_title text;
 

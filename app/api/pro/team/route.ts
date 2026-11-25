@@ -12,6 +12,10 @@ import { envoyerEmailInvitation } from '@/lib/equipe/invitation-serveur'
 import { texteSurUneLigne } from '@/lib/sanitize'
 import { normaliserCategorie, LONGUEUR_MAX_CATEGORIE } from '@/lib/equipe/categorie-professionnelle'
 
+/** Colonnes de la liste de l'équipe (sans le jeton d'invitation) ; job_title s'y ajoute quand la colonne existe. */
+const COLONNES_EQUIPE =
+  'id, email, full_name, phone, role, assigned_chantiers, invite_sent_at, accepted_at, last_login_at, is_active, created_at'
+
 const MESSAGE_CATEGORIE_REFUSEE =
   `Catégorie professionnelle refusée : texte de ${LONGUEUR_MAX_CATEGORIE} caractères au plus, sans caractère spécial.`
 
@@ -67,11 +71,18 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const { data, error } = await supabaseAdmin
+  const lireEquipe = (colonnes: string) => supabaseAdmin
     .from('pro_team_members')
-    .select('id, email, full_name, phone, role, job_title, assigned_chantiers, invite_sent_at, accepted_at, last_login_at, is_active, created_at')
+    .select(colonnes)
     .eq('company_id', companyId)
     .order('created_at', { ascending: true })
+  let { data, error } = await lireEquipe(`${COLONNES_EQUIPE}, job_title`)
+  // Colonne job_title absente (code déployé avant la migration 20261125) : la liste reste lisible, sans catégorie,
+  // plutôt qu'un écran vide pour toutes les sociétés.
+  if (error?.code === '42703') {
+    logger.warn('[PRO_TEAM] GET : colonne job_title absente, liste lue sans catégorie (migration 20261125 à appliquer)')
+    ;({ data, error } = await lireEquipe(COLONNES_EQUIPE))
+  }
 
   if (error) {
     logger.error('[PRO_TEAM] GET error:', error)
@@ -79,14 +90,18 @@ export async function GET(request: NextRequest) {
   }
 
   // Fetch permission overrides for each member
-  const memberIds = (data || []).map(m => m.id)
+  const membres = (data ?? []) as unknown as Array<Record<string, unknown> & { id: string }>
+  const memberIds = membres.map(m => m.id)
   let overridesMap: Record<string, { module_id: string; access_level: string }[]> = {}
 
   if (memberIds.length > 0) {
+    // Bornées à la société : une dérogation d'une autre company_id n'a pas été posée par le serveur (migration
+    // 20261125b) et ne doit ni s'afficher ni être réécrite comme légitime par « Enregistrer les permissions ».
     const { data: overrides } = await supabaseAdmin
       .from('pro_role_permissions')
       .select('member_id, module_id, access_level')
       .in('member_id', memberIds)
+      .eq('company_id', companyId)
 
     if (overrides) {
       overridesMap = overrides.reduce((acc, ov) => {
@@ -97,13 +112,15 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const members = (data || []).map(m => ({
+  const members = membres.map(m => ({
     ...m,
     permission_overrides: overridesMap[m.id] || [],
   }))
 
   const response = NextResponse.json({ members })
-  response.headers.set('Cache-Control', 'private, max-age=0, s-maxage=30, stale-while-revalidate=60')
+  // Jamais resservie depuis le cache du navigateur : avec stale-while-revalidate, Chromium rendait l'ancienne liste
+  // juste après une invitation ou une suppression (relecture adverse du 25/11/2026).
+  response.headers.set('Cache-Control', 'private, no-store')
   return response
 }
 
@@ -410,13 +427,14 @@ export async function PATCH(request: NextRequest) {
     }
 
     // Audit log
-    await supabaseAdmin.from('pro_team_audit_log').insert({
+    const { error: erreurJournal } = await supabaseAdmin.from('pro_team_audit_log').insert({
       company_id: companyId,
       actor_id: user.id,
       action: actionDuJournal(updates),
       target_member_id: member_id,
       details: updates,
     })
+    if (erreurJournal) logger.warn('[PRO_TEAM] PATCH : journal de l’équipe non écrit', { member_id, error: erreurJournal.message })
   }
 
   // Dérogations de droits : enregistrées qu'une autre colonne change ou non. Jusqu'au 25/11/2026 elles n'étaient lues
@@ -452,30 +470,42 @@ function actionDuJournal(updates: Record<string, unknown>): string {
   return 'update_member'
 }
 
+type Derogation = { module_id: string; access_level: string }
+
 /**
  * Remplace les dérogations de droits d'un membre (déjà vérifié comme membre de la société) par celles reçues ; une
  * même ligne de module envoyée deux fois ne garde que la dernière (contrainte unique member_id, module_id). Rend false
- * si la base refuse une des deux écritures.
+ * si la base refuse une écriture. Suppression puis insertion ne sont pas atomiques : si l'insertion échoue, les
+ * dérogations lues avant sont remises, pour qu'une panne ne rende pas au salarié les droits par défaut de son rôle
+ * (plus larges que ce que le gérant avait réglé).
  */
-async function remplacerDerogations(
-  companyId: string | null,
-  memberId: string,
-  derogations: Array<{ module_id: string; access_level: string }>,
-): Promise<boolean> {
-  const parModule = new Map(derogations.map((d) => [d.module_id, d.access_level]))
-  const { error: suppression } = await supabaseAdmin.from('pro_role_permissions').delete().eq('member_id', memberId)
-  if (suppression) {
-    logger.error('[PRO_TEAM] PATCH : suppression des dérogations impossible', { member_id: memberId }, suppression)
+async function remplacerDerogations(companyId: string | null, memberId: string, derogations: Derogation[]): Promise<boolean> {
+  const table = () => supabaseAdmin.from('pro_role_permissions')
+  const versLignes = (liste: Derogation[]) =>
+    liste.map(({ module_id, access_level }) => ({ company_id: companyId, member_id: memberId, module_id, access_level }))
+  const echec = (message: string, erreur: unknown) => {
+    logger.error(`[PRO_TEAM] PATCH : ${message}`, { member_id: memberId }, erreur)
     return false
   }
-  if (parModule.size === 0) return true
-  const lignes = [...parModule].map(([module_id, access_level]) => ({ company_id: companyId, member_id: memberId, module_id, access_level }))
-  const { error: insertion } = await supabaseAdmin.from('pro_role_permissions').insert(lignes)
-  if (insertion) {
-    logger.error('[PRO_TEAM] PATCH : enregistrement des dérogations impossible', { member_id: memberId }, insertion)
-    return false
+
+  const { data: anciennes, error: lecture } = await table().select('module_id, access_level').eq('member_id', memberId)
+    .eq('company_id', companyId)
+  if (lecture) return echec('lecture des dérogations impossible', lecture)
+  const { error: suppression } = await table().delete().eq('member_id', memberId)
+  if (suppression) return echec('suppression des dérogations impossible', suppression)
+
+  const nouvelles = [...new Map(derogations.map((d) => [d.module_id, d.access_level]))]
+    .map(([module_id, access_level]) => ({ module_id, access_level }))
+  if (nouvelles.length === 0) return true
+  const { error: insertion } = await table().insert(versLignes(nouvelles))
+  if (!insertion) return true
+
+  const precedentes = (anciennes ?? []) as Derogation[]
+  if (precedentes.length > 0) {
+    const { error: remise } = await table().insert(versLignes(precedentes))
+    if (remise) logger.error('[PRO_TEAM] PATCH : dérogations précédentes non remises', { member_id: memberId }, remise)
   }
-  return true
+  return echec('enregistrement des dérogations impossible', insertion)
 }
 
 // ── DELETE /api/pro/team ─────────────────────────────────────────────────────

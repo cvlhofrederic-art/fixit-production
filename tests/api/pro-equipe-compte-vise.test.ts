@@ -250,3 +250,61 @@ describe('GET /api/pro/team — catégorie professionnelle', () => {
     expect((await res.json()).members[0].job_title).toBe('Chefe de equipa')
   })
 })
+
+describe('Dérogations bornées à la société, et remises si leur remplacement échoue (relecture du 25/11/2026)', () => {
+  const derogationsDe = (op: 'select' | 'insert' | 'delete') => appelsDe(h.base, 'pro_role_permissions', op)
+  const ANCIENNE = { company_id: SOCIETE, member_id: LIGNE, module_id: 'settings', access_level: 'NONE' }
+  const FORGEE = { company_id: COMPTE_VISE, member_id: LIGNE, module_id: 'settings', access_level: 'FULL' }
+
+  it('ligne d’une autre société, droits seuls : 404, aucune dérogation lue, supprimée ni écrite', async () => {
+    h.base.lignes[TABLE] = [ligne({ company_id: AUTRE_SOCIETE })]
+    const res = await modifier({ member_id: LIGNE, permissions: [{ module_id: 'devis', access_level: 'FULL' }] })
+    expect(res.status).toBe(404)
+    expect(derogationsDe('select')).toHaveLength(0)
+    expect(derogationsDe('delete')).toHaveLength(0)
+    expect(derogationsDe('insert')).toHaveLength(0)
+  })
+
+  it('insertion refusée par la base : les dérogations d’avant (de cette société) sont remises, 500', async () => {
+    h.base.lignes.pro_role_permissions = [ANCIENNE, FORGEE]
+    h.base.erreurs['pro_role_permissions.insert'] = { message: 'refus' }
+    const res = await modifier({ member_id: LIGNE, permissions: [{ module_id: 'devis', access_level: 'READ' }] })
+    expect(res.status).toBe(500)
+    expect(derogationsDe('select')[0].eq).toEqual([['member_id', LIGNE], ['company_id', SOCIETE]])
+    expect(derogationsDe('insert').map((a) => a.donnees)).toEqual([
+      [{ company_id: SOCIETE, member_id: LIGNE, module_id: 'devis', access_level: 'READ' }],
+      [{ company_id: SOCIETE, member_id: LIGNE, module_id: 'settings', access_level: 'NONE' }],
+    ])
+  })
+
+  it('lecture des dérogations d’avant impossible : 500, rien n’est supprimé', async () => {
+    h.base.erreurs['pro_role_permissions.select'] = { message: 'panne' }
+    expect((await modifier({ member_id: LIGNE, permissions: [] })).status).toBe(500)
+    expect(derogationsDe('delete')).toHaveLength(0)
+  })
+
+  it('GET de l’équipe : dérogations lues pour cette société seulement', async () => {
+    h.base.lignes[TABLE] = [ligne({ created_at: '2026-11-25T10:00:00.000Z' })]
+    h.base.lignes.pro_role_permissions = [ANCIENNE, FORGEE]
+    const res = await GET(new NextRequest('https://vitfix.io/api/pro/team', { headers: { Authorization: 'Bearer tok' } }))
+    expect((await res.json()).members[0].permission_overrides).toEqual([{ module_id: 'settings', access_level: 'NONE' }])
+    expect(res.headers.get('Cache-Control')).toBe('private, no-store')
+  })
+
+  it('GET avant la migration 20261125 (colonne job_title absente) : liste lue sans catégorie, pas d’écran vide', async () => {
+    h.base.lignes[TABLE] = [ligne({ created_at: '2026-11-25T10:00:00.000Z' })]
+    h.base.colonnesAbsentes = { [TABLE]: ['job_title'] }
+    const res = await GET(new NextRequest('https://vitfix.io/api/pro/team', { headers: { Authorization: 'Bearer tok' } }))
+    expect(res.status).toBe(200)
+    expect((await res.json()).members.map((m: { email: string }) => m.email)).toEqual(['vise@exemple.test'])
+    expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(expect.stringMatching(/colonne job_title absente/))
+  })
+
+  it('GET /api/pro/team/permissions?self=true : seulement les dérogations de la société du membre', async () => {
+    h.base.lignes[TABLE] = [ligne({ user_id: SOCIETE })]
+    h.base.lignes.pro_role_permissions = [ANCIENNE, FORGEE]
+    const { GET: lirePropres } = await import('@/app/api/pro/team/permissions/route')
+    const res = await lirePropres(new NextRequest('https://vitfix.io/api/pro/team/permissions?self=true', { headers: { Authorization: 'Bearer tok' } }))
+    expect((await res.json()).overrides).toEqual([ANCIENNE])
+  })
+})
