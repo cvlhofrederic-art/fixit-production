@@ -594,18 +594,22 @@ function verifierImputationsEnchainees(resultats: ResultatImputation[]): void {
   }
 }
 
-/** Comptes crédités : le 450 du compte, et son 450-1 pour les postes du budget si l'AG l'a créé (J67, R104). */
+/**
+ * Comptes crédités : le 450 du compte, et son 450-1 pour les postes du budget si l'AG l'a créé (J67, R104) ; pour un poste
+ * qui porte le compte débité par son appel (PosteDette.planCompte), le numéro de ce compte (`compteDuPlan`).
+ */
 function comptes450(
   e: EncaissementEnregistre,
   comptes: CompteCoproprietaire[],
   segmentSyndicat: string,
   sousComptes450: SousComptes450 | null,
-): { compteCoproprietaire: string; compteBudget: string | null } {
+): { compteCoproprietaire: string; compteBudget: string | null; compteDuPlan: (planCode: string) => string } {
   const compte = comptes.find((c) => c.id === e.compteId)
   if (!compte) throw new Error(`Encaissement ${e.id} : compte copropriétaire « ${e.compteId} » introuvable.`)
   return {
     compteCoproprietaire: numeroCompteCoproprietaire(compte, segmentSyndicat),
     compteBudget: sousComptes450 ? numeroCompteCoproprietaire(compte, segmentSyndicat, planDuCompteBudget(sousComptes450)) : null,
+    compteDuPlan: (planCode) => numeroCompteCoproprietaire(compte, segmentSyndicat, planCode),
   }
 }
 

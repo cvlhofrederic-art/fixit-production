@@ -17,6 +17,7 @@ import {
 import { enregistrerPieceTraitement } from '@/lib/administrateur-judiciaire/db/traitements'
 import { dateIsoVersFr, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
 import {
+  bornesDesExercices,
   controlerDateComptableAppel,
   dateComptableAppel,
   echeancesAAppeler,
@@ -81,8 +82,8 @@ export interface DonneesAppelsLues {
   comptesEnContentieux: Set<string>
 }
 
-const bornesDe = (exercices: readonly ExerciceEnregistre[]): BornesExercice[] =>
-  exercices.flatMap((x) => (x.nom && x.ouverture && x.cloture ? [{ nom: x.nom, ouverture: x.ouverture, cloture: x.cloture }] : []))
+/** Règle commune aux appels et aux encaissements (echeancier-appels.bornesDesExercices). */
+const bornesDe = (exercices: readonly ExerciceEnregistre[]): BornesExercice[] => bornesDesExercices(exercices)
 
 const parLots = <T>(lotIds: string[], lire: (ids: string[]) => Promise<T[]>): Promise<T[]> => (lotIds.length > 0 ? lire(lotIds) : Promise.resolve([]))
 

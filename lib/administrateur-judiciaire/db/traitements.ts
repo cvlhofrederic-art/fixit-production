@@ -1,5 +1,6 @@
 import { journaliserActivite, type OptionsEcriture } from '@/lib/administrateur-judiciaire/db/repository'
 import { ajDb, type PieceTraitementEnregistree } from '@/lib/administrateur-judiciaire/db/schema'
+import { FAMILLES_ENCAISSEMENT } from '@/lib/administrateur-judiciaire/domain/encaissements-pieces'
 import {
   annulerPiece,
   changerStatutPiece,
@@ -24,6 +25,10 @@ import type { Traitement } from '@/lib/administrateur-judiciaire/domain/traiteme
  *   numérotée à la suite (annulerPiece). Jamais de suppression (repoTraitements la refuse).
  * Appel de fonds (cycle document) : son annulation suit son propre circuit (annulerTraitement et annulerAppelees,
  * echeancier-appels.ts), écrit avec ses échéances par la PR écran.
+ * Encaissement (toutes ses familles) : son annulation suit aussi son propre circuit (annulerEncaissementEcrit,
+ * db/encaissements.ts), qui passe l'écriture contraire ET défait l'imputation sur les postes du compte copropriétaire ;
+ * annulerPieceTraitement refuse donc ces familles (les postes resteraient réglés, et une seconde écriture contraire
+ * resterait possible).
  */
 
 const horodater = <T extends object>(objet: T, actor: string | null) => {
@@ -93,7 +98,8 @@ export function changerStatutTraitement(id: string, nouveau: StatutPiece, { acto
 /**
  * Annule une pièce « Enregistré » (annulerPiece) : la pièce passe « Annulé » (annuleePar), l'écriture contraire est
  * enregistrée avec le numéro suivant de la séquence du cabinet. `mandatId` : mandat qui annule, par défaut celui de la
- * pièce ; s'il est donné, il doit porter sur le même syndicat.
+ * pièce ; s'il est donné, il doit porter sur le même syndicat. Refuse une pièce d'encaissement, quelle que soit sa
+ * famille : elle s'annule encaissement par encaissement, par annulerEncaissementEcrit (db/encaissements.ts).
  */
 export function annulerPieceTraitement(
   id: string,
@@ -102,6 +108,10 @@ export function annulerPieceTraitement(
 ): Promise<{ piece: PieceTraitementEnregistree; annulation: PieceTraitementEnregistree }> {
   return ajDb.transaction('rw', ajDb.traitements, ajDb.coproprietes, ajDb.mandats, ajDb.activityLog, async () => {
     const avant = await lirePiece(id)
+    if ((FAMILLES_ENCAISSEMENT as readonly string[]).includes(avant.famille))
+      throw new Error(
+        `Pièce n° ${avant.numero} (« ${avant.famille} ») : un encaissement s'annule par annulerEncaissementEcrit (db/encaissements.ts), qui passe l'écriture contraire et défait son imputation sur les postes du compte ; l'annulation générique laisserait ces postes réglés.`,
+      )
     const segmentSyndicat = await segmentDuSyndicat(avant.coproprieteId)
     if (options.mandatId !== undefined) await verifierMandat(options.mandatId, avant.coproprieteId)
     const resultat = annulerPiece(avant, { ...options, numero: await numeroSuivant(), segmentSyndicat })
