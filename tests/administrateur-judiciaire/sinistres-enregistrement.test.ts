@@ -160,8 +160,8 @@ describe('enregistrerSinistre — refus, rien n’est écrit', () => {
 })
 
 describe('schéma de la table « sinistres » inchangé', () => {
-  it('version 3 (base D2, six tables ajoutées), table « sinistres » toujours indexée sur id et coproprieteId seulement', () => {
-    expect(ajDb.verno).toBe(3)
+  it('version 4 (base D2, puis table des encaissements), table « sinistres » toujours indexée sur id et coproprieteId seulement', () => {
+    expect(ajDb.verno).toBe(4)
     const table = ajDb.tables.find((candidate) => candidate.name === 'sinistres')
     expect(table?.schema.primKey.name).toBe('id')
     expect(table?.schema.indexes.map((index) => index.name)).toEqual(['coproprieteId'])
