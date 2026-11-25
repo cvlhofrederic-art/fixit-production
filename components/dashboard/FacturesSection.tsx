@@ -18,6 +18,8 @@ import {
 import { supabase } from '@/lib/supabase'
 import { emitDocument } from '@/lib/emit-document'
 import { fetchNextDocNumber } from '@/lib/doc-number'
+import { estSousCompteSociete, idFicheDocuments } from '@/lib/documents/identite-documents'
+import { changerEtatDocumentSociete } from '@/lib/documents/societe-client'
 import { fichePortugaise } from '@/lib/numerotation-prefixes'
 import { messageEmissionArretee } from '@/lib/emission-hors-serveur'
 import { syncDocumentSafe } from '@/lib/document-sync'
@@ -123,6 +125,8 @@ export default function FacturesSection({
       docType: 'facture',
       isSameDoc: optionsIdentite ? (a, b) => memeDocument(a, b, optionsIdentite) : undefined,
       setSavedDocuments,
+      // Salarié invité : la suppression en base passe par le serveur (la RLS filtrerait sans erreur).
+      sousCompte: estSousCompteSociete(artisan),
       // Pré-validé : le modal stylé en amont fait office de confirm() humain.
       confirmDraftDelete: () => true,
     })
@@ -348,7 +352,8 @@ export default function FacturesSection({
                                 locale: locale as 'fr' | 'pt' | 'en',
                                 t,
                                 artisan: artisan ? {
-                                  id: artisan.id,
+                                  // Fiche de la SOCIÉTÉ pour un salarié invité (lib/documents/identite-documents.ts).
+                                  id: idFicheDocuments(artisan),
                                   company_name: artisan.company_name,
                                   logo_url: (artisan as { logo_url?: string | null }).logo_url ?? null,
                                   rm: (artisan as { rm?: string | null }).rm ?? null,
@@ -567,7 +572,20 @@ function FacturesSectionV5({
     // qu'après succès, sinon le toast mentait quand l'UPDATE échouait (le statut
     // régressait au rechargement). RLS factures_owner_update (WITH CHECK).
     const id = (doc as { id?: string }).id
-    if (id && isStableDocId(id)) {
+    // Salarié invité d'une société : l'UPDATE depuis le navigateur ne touche AUCUNE ligne — la RLS de
+    // `factures` filtre sans renvoyer d'erreur — et l'écran annonçait « payée » avant que la facture ne
+    // redevienne impayée au rechargement. Le serveur le fait, borné au propriétaire, et un échec se voit.
+    if (estSousCompteSociete(artisan)) {
+      if (!id || !isStableDocId(id)) {
+        toast.error(`Impossible d'enregistrer « payée » pour ${doc.docNumber || 'ce document'} : rouvrez-le depuis la liste.`)
+        return
+      }
+      const resultat = await changerEtatDocumentSociete('marquer_payee', 'facture', id)
+      if (!resultat.ok) {
+        toast.error(resultat.message)
+        return
+      }
+    } else if (id && isStableDocId(id)) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error } = await (supabase.from('factures') as any).update({ status: 'paid' }).eq('id', id)
       if (error) {
@@ -903,7 +921,7 @@ function FacturesSectionV5({
                               locale: locale as 'fr' | 'pt' | 'en',
                               t,
                               artisan: artisan ? {
-                                id: artisan.id,
+                                id: idFicheDocuments(artisan),
                                 company_name: artisan.company_name,
                                 logo_url: (artisan as { logo_url?: string | null }).logo_url ?? null,
                                 rm: (artisan as { rm?: string | null }).rm ?? null,
@@ -1009,10 +1027,11 @@ function FacturesSectionV5({
                   ? appliquerFormeProfil(appliquerRibCourant(prefilled, await chargerRibProfil()), (artisan as { legal_form?: string } | null)?.legal_form)
                   : prefilled,
                 artisanId: artisan.id,
+                ficheId: idFicheDocuments(artisan),
                 // BTP : numéro du serveur seulement, place du navigateur vérifiée avant de le tirer
                 // (lib/emission-hors-serveur.ts). Artisan : repli local d'origine, préfixes selon la langue de sa fiche.
                 getNumber: estBtp
-                  ? () => fetchNextDocNumber('acompte', artisan.id, { repliLocal: false })
+                  ? () => fetchNextDocNumber('acompte', artisan.id, { repliLocal: false, uidSerie: artisan.user_id })
                   : () => fetchNextDocNumber('acompte', artisan.id, { portugais: fichePortugaise(artisan) }),
                 sync: syncDocumentSafe,
                 ...(estBtp ? { verifierPlaceAvantNumero: true } : {}),

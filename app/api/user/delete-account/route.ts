@@ -42,7 +42,11 @@ type VerificationDocuments = { ok: true; documents: boolean } | { ok: false }
  * (PGRST205 ou 42P01) ne contient rien ; toute autre erreur de lecture rend { ok: false } : la suppression est alors
  * refusée et rien n'est effacé.
  */
-async function compteDetientDesDocuments(userId: string, ficheId: string | null): Promise<VerificationDocuments> {
+async function compteDetientDesDocuments(
+  userId: string,
+  ficheId: string | null,
+  sousCompteSociete = false,
+): Promise<VerificationDocuments> {
   const proprietaire = ficheId ? `artisan_user_id.eq.${userId},artisan_id.eq.${ficheId}` : `artisan_user_id.eq.${userId}`
   const lectures = await Promise.all([
     supabaseAdmin.from('devis').select('id').or(proprietaire).limit(1).then((r) => ({ table: 'devis', ...r })),
@@ -60,6 +64,13 @@ async function compteDetientDesDocuments(userId: string, ficheId: string | null)
     }
     if (data.length > 0) return { ok: true, documents: true }
   }
+
+  // Salarié invité d'une société : depuis le 25/11/2026, les devis et factures qu'il crée appartiennent à la
+  // SOCIÉTÉ (`artisan_user_id` = le compte du gérant), et son navigateur n'en garde qu'un cache de travail. Les
+  // lectures en base ci-dessus sont donc le seul juge : le retenir pour une clé `fixit_documents_*` lui refuserait
+  // l'effacement de son compte (RGPD art. 17) au nom de documents qui ne sont pas les siens et que la société
+  // conserve de toute façon.
+  if (sousCompteSociete) return { ok: true, documents: false }
 
   const cles = await lirePagesQr<{ key: string }>(() =>
     supabaseAdmin.from('user_storage').select('key').eq('user_id', userId).order('key', { ascending: true }))
@@ -139,7 +150,12 @@ export async function DELETE(request: NextRequest) {
     }
     const artisanId: string | null = artisan?.id ?? null
 
-    const verification = await compteDetientDesDocuments(userId, artisanId)
+    // Rattachement posé par le serveur à l'acceptation de l'invitation : app_metadata seulement, jamais
+    // user_metadata (modifiable par le client).
+    const rattachement = user.app_metadata?.company_id
+    const sousCompteSociete = user.app_metadata?.role === 'pro_societe'
+      && typeof rattachement === 'string' && rattachement !== '' && rattachement !== userId
+    const verification = await compteDetientDesDocuments(userId, artisanId, sousCompteSociete)
     if (!verification.ok) return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
     if (verification.documents) {
       return NextResponse.json({ error: MESSAGE_DOCUMENTS_A_CONSERVER, code: 'documents_a_conserver' }, { status: 409 })

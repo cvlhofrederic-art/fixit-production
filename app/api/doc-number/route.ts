@@ -6,6 +6,9 @@ import { supabaseAdmin } from '@/lib/supabase-server'
 import { validateBody, docNumberSchema } from '@/lib/validation'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
+import { lirePerimetreBtp } from '@/lib/btp/perimetre-compte'
+import { familleDuTypeSerie, peutEcrireDocuments, societeNonResolue } from '@/lib/btp/titulaire-documents'
+import { messageRefusFr } from '@/lib/documents/messages-refus'
 
 /** Jeton de l'en-tête Authorization (même lecture que getAuthUser), ou null. */
 function jetonDeLEnTete(request: NextRequest): string | null {
@@ -57,6 +60,29 @@ export async function POST(request: NextRequest) {
   const docType = v.data.docType
   const year = v.data.year || new Date().getFullYear()
 
+  // ── Titulaire de la série ────────────────────────────────────────────────────────────────────────────────
+  // Jusqu'au 25/11/2026 la série était celle du compte qui appelle. Un salarié invité d'une société BTP ouvrait
+  // donc sa propre série, à côté de celle du gérant : deux DEV-2026-001 pour la même entreprise, ce que
+  // l'art. 242 nonies A I 2° du CGI (séquence continue, sans rupture) interdit. La société est résolue ici, côté
+  // serveur, et rien de ce que le client propose n'est lu. Pour un artisan, un gérant ou un super_admin, la
+  // société résolue vaut son propre identifiant : comportement inchangé.
+  const perimetre = await lirePerimetreBtp(user, supabaseAdmin)
+
+  if (societeNonResolue(user, perimetre)) {
+    return NextResponse.json({ error: messageRefusFr('societe_non_resolue'), code: 'societe_non_resolue' }, { status: 409 })
+  }
+
+  // Garde de rôle : la fonction SQL accepte tout membre actif de la société sans regarder son rôle. Sans ce
+  // contrôle, un OUVRIER ou un CHEF_CHANTIER (devis NONE, factures NONE) incrémenterait le compteur de la société
+  // sans jamais enregistrer de document — un trou dans la série légale du gérant, à chaque clic.
+  const famille = familleDuTypeSerie(docType)
+  if (!famille || !peutEcrireDocuments(perimetre, famille)) {
+    return NextResponse.json(
+      { error: "Votre rôle dans l'entreprise ne permet pas d'émettre ce document.", code: 'aucun_droit' },
+      { status: 403 },
+    )
+  }
+
   // Société BTP (audit du 11/11/2026, constat base-de-donnees-10) : la fonction est appelée avec la session de
   // l'utilisateur, qu'elle reconnaît comme titulaire de la série. Avec la clé de service, auth.uid() y est vide et son
   // passe-droit lit un ancien réglage du jeton que PostgREST ne pose plus : refus à chaque appel. Artisan : inchangé.
@@ -64,7 +90,7 @@ export async function POST(request: NextRequest) {
     ? (jetonVerifie ? clientDeSession(jetonVerifie) : clientCookies)
     : null
   const { data, error } = await (sessionBtp ?? supabaseAdmin).rpc('next_doc_number', {
-    p_artisan_user_id: user.id,
+    p_artisan_user_id: perimetre.societeId,
     p_doc_type: docType,
     p_year: year,
   })

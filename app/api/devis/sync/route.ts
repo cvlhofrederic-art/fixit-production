@@ -12,6 +12,9 @@ import { buildHashChainFields, type CanonicalDocPayload } from '@/lib/document-i
 import { isStableDocId } from '@/lib/devis-utils'
 import { renduComplet } from '@/lib/version-rendu'
 import { lignesTvaCompletes, regimeTvaDocument } from '@/lib/totaux-artisan'
+import { lirePerimetreBtp } from '@/lib/btp/perimetre-compte'
+import { familleDuTypeSerie, peutEcrireDocuments, societeNonResolue } from '@/lib/btp/titulaire-documents'
+import { messageRefusFr } from '@/lib/documents/messages-refus'
 
 export const maxDuration = 30
 
@@ -84,6 +87,34 @@ export async function POST(request: NextRequest) {
   }
 
   const { docType, artisanId, doc } = v.data
+
+  // ── Propriétaire de la ligne : la société, pas l'auteur ──────────────────────────────────────────────────
+  // Jusqu'au 25/11/2026 la ligne était enregistrée sous le compte qui l'écrivait (`artisan_user_id: user.id`),
+  // alors que la société n'apparaissait que dans `artisan_id`. Or TOUTES les lectures filtrent sur
+  // `artisan_user_id` : un document émis par un salarié invité restait invisible au gérant, et le contrôle de
+  // collision de numéro ne le voyait pas non plus. Le propriétaire est donc la société, résolue côté serveur.
+  //
+  // Pour un artisan, un gérant ou un super_admin, la société résolue vaut son propre identifiant : la ligne
+  // écrite est exactement celle d'avant (règle #1 — le côté artisan ne bouge pas).
+  const perimetre = await lirePerimetreBtp(user, supabaseAdmin)
+
+  if (societeNonResolue(user, perimetre)) {
+    return NextResponse.json({ error: messageRefusFr('societe_non_resolue') }, { status: 409 })
+  }
+
+  // Droit d'écrire ce type de document. Le contrôle d'appartenance ci-dessous (« path B ») autorise tout membre
+  // actif de l'équipe sans consulter une seule permission : un OUVRIER ou un CHEF_CHANTIER (devis NONE,
+  // factures NONE) pouvait donc enregistrer sous la société. Le niveau FULL est maintenant exigé.
+  const familleDocument = familleDuTypeSerie(docType)
+  if (!familleDocument || !peutEcrireDocuments(perimetre, familleDocument)) {
+    return NextResponse.json(
+      { error: "Votre rôle dans l'entreprise ne permet pas d'enregistrer ce document." },
+      { status: 403 },
+    )
+  }
+
+  /** Compte sous lequel la ligne est rangée et recherchée : la société du compte connecté. */
+  const proprietaire = perimetre.societeId
   const table: 'devis' | 'factures' = docType === 'facture' ? 'factures' : 'devis'
 
   // Identité document (méthode pro Stripe) : `id` UUID stable si fourni
@@ -128,29 +159,23 @@ export async function POST(request: NextRequest) {
     }
     let ownsArtisan = (ownedProfiles || []).some((p: { id: string }) => p.id === artisanId)
 
-    // Path B : membre d'équipe BTP — résoudre via pro_team_members
-    if (!ownsArtisan) {
-      const { data: memberships, error: memErr } = await supabaseAdmin
-        .from('pro_team_members')
-        .select('company_id')
-        .eq('user_id', user.id)
-        .eq('is_active', true)
-      if (memErr) {
-        logger.error('[devis-sync] ownership check (team) failed', memErr.message)
+    // Path B : membre d'équipe BTP — fiches de LA société résolue, et d'elle seule.
+    //
+    // Avant le 25/11/2026, ce chemin acceptait la fiche de TOUTE société dont le compte est membre actif, alors
+    // que `proprietaire` n'en désigne qu'une. Un compte membre de deux sociétés aurait enregistré une ligne
+    // `artisan_user_id = A, artisan_id = fiche de B` : elle serait apparue dans la liste de B. Aucun compte n'est
+    // aujourd'hui actif dans deux sociétés, mais rien ne l'interdit (`pro_team_members` n'est unique que sur
+    // (company_id, email)).
+    if (!ownsArtisan && proprietaire !== user.id) {
+      const { data: companyProfiles, error: cpErr } = await supabaseAdmin
+        .from('profiles_artisan')
+        .select('id')
+        .eq('user_id', proprietaire)
+      if (cpErr) {
+        logger.error('[devis-sync] ownership check (company profiles) failed', cpErr.message)
         return NextResponse.json({ error: 'Authorization check failed' }, { status: 500 })
       }
-      const companyIds = (memberships || []).map((m: { company_id: string }) => m.company_id).filter(Boolean)
-      if (companyIds.length > 0) {
-        const { data: companyProfiles, error: cpErr } = await supabaseAdmin
-          .from('profiles_artisan')
-          .select('id')
-          .in('user_id', companyIds)
-        if (cpErr) {
-          logger.error('[devis-sync] ownership check (company profiles) failed', cpErr.message)
-          return NextResponse.json({ error: 'Authorization check failed' }, { status: 500 })
-        }
-        ownsArtisan = (companyProfiles || []).some((p: { id: string }) => p.id === artisanId)
-      }
+      ownsArtisan = (companyProfiles || []).some((p: { id: string }) => p.id === artisanId)
     }
 
     if (!ownsArtisan) {
@@ -216,7 +241,7 @@ export async function POST(request: NextRequest) {
   {
     const sel = supabaseAdmin.from(table).select('id, status, content_hash, artisan_user_id')
     const { data: existing, error: lookupErr } = await (
-      docId ? sel.eq('id', docId) : sel.eq('numero', numeroIn as string).eq('artisan_user_id', user.id)
+      docId ? sel.eq('id', docId) : sel.eq('numero', numeroIn as string).eq('artisan_user_id', proprietaire)
     ).maybeSingle()
     if (lookupErr) {
       // Fallback si la colonne content_hash n'existe pas (migration 081 non appliquée).
@@ -224,7 +249,7 @@ export async function POST(request: NextRequest) {
       if (/column .*content_hash.* does not exist/i.test(lookupErr.message || '')) {
         const selFb = supabaseAdmin.from(table).select('id, status, artisan_user_id')
         const fb = await (
-          docId ? selFb.eq('id', docId) : selFb.eq('numero', numeroIn as string).eq('artisan_user_id', user.id)
+          docId ? selFb.eq('id', docId) : selFb.eq('numero', numeroIn as string).eq('artisan_user_id', proprietaire)
         ).maybeSingle()
         if (fb.error) {
           logger.error(`[devis-sync] status lookup fallback failed ${docRec.docNumber}:`, fb.error.message)
@@ -260,7 +285,11 @@ export async function POST(request: NextRequest) {
   // authentifié qui connaît le UUID d'un document d'autrui pourrait l'écraser et
   // se l'attribuer (artisan_user_id réassigné). Le chemin `numero` est déjà sûr
   // (lookup ET onConflict scopés par artisan_user_id).
-  if (existingOwner && existingOwner !== user.id) {
+  // Comparé à la SOCIÉTÉ, et non au compte qui écrit : un salarié invité modifie les documents de son entreprise,
+  // et personne ne peut écrire sur ceux d'une autre. Comme toute ligne modifiable appartient déjà à cette même
+  // société, le `artisan_user_id` écrit plus bas ne change jamais de valeur sur une ligne existante : la chaîne
+  // d'inaltérabilité (content_hash, previous_hash) reste rattachée au même propriétaire.
+  if (existingOwner && existingOwner !== proprietaire) {
     logger.warn(`[devis-sync] forbidden cross-owner write table=${table} docId=${docId} user=${user.id}`)
     Sentry.captureException(new Error('devis-sync cross-owner write blocked'), {
       tags: { agent_type: 'devis-sync', stage: 'idor-guard', table },
@@ -280,7 +309,7 @@ export async function POST(request: NextRequest) {
       .from(table)
       .select('id')
       .eq('numero', numeroIn)
-      .eq('artisan_user_id', user.id)
+      .eq('artisan_user_id', proprietaire)
       .neq('id', docId)
       .limit(1)
     if (autresErr) {
@@ -331,7 +360,7 @@ export async function POST(request: NextRequest) {
     // cycle brouillon→émis). Absent pour les docs legacy → onConflict tombe sur
     // numero+artisan_user_id. numero = null pour un brouillon (pas encore émis).
     ...(docId ? { id: docId } : {}),
-    artisan_user_id: user.id,
+    artisan_user_id: proprietaire,
     artisan_id: artisanId,
     numero: numeroIn,
     client_name: (docRec.clientName as string) || '',
@@ -373,7 +402,11 @@ export async function POST(request: NextRequest) {
     try {
       const canonical: CanonicalDocPayload = {
         numero: numeroIn as string,
-        artisan_user_id: user.id,
+        // Le MÊME propriétaire que la ligne enregistrée. Avec le compte de l'auteur, le document d'un salarié
+        // invité aurait été haché sur un identifiant que la ligne ne porte pas — vérification d'intégrité fausse —
+        // et son `previous_hash` cherché dans une chaîne vide au lieu de celle de la société
+        // (lib/document-integrity.ts : le dernier document signé est cherché par `artisan_user_id`).
+        artisan_user_id: proprietaire,
         client_name: (docRec.clientName as string) || '',
         total_ht_cents: totalHtCents,
         total_tax_cents: totalTaxCents,
