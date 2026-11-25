@@ -221,6 +221,27 @@ function lotsARegulariserDe(fiches: EntreesMigrationD2['fiches'], aCreer: readon
 }
 
 /**
+ * Séries prises par syndicat (normalisées), et syndicats dont un compte a une série qui n'est pas un texte (ligne écrite
+ * hors application) : leurs séries prises sont inconnues, aucune ne leur est donnée (risque de doublon) ; leurs fiches
+ * sont écartées avec un motif, comme « plus de série libre ».
+ */
+function seriesDesComptes(comptes: EntreesMigrationD2['comptes']): { seriesPrises: Map<string, Set<string>>; seriesIllisibles: Set<string> } {
+  const seriesPrises = new Map<string, Set<string>>()
+  const seriesIllisibles = new Set<string>()
+  for (const c of comptes) {
+    const serie: unknown = c.serie
+    if (typeof serie !== 'string') {
+      seriesIllisibles.add(c.coproprieteId)
+      continue
+    }
+    const prises = seriesPrises.get(c.coproprieteId) ?? new Set<string>()
+    prises.add(normaliserSerie(serie))
+    seriesPrises.set(c.coproprieteId, prises)
+  }
+  return { seriesPrises, seriesIllisibles }
+}
+
+/**
  * Plan de la migration : lignes à créer, fiches déjà migrées, fiches écartées, lots à régulariser. Fonction pure. Jour de
  * la migration invalide : erreur, rien n'est planifié (il serait écrit tel quel dans le relevé de chaque compte).
  */
@@ -245,20 +266,7 @@ export function planifierMigrationD2({ fiches, lots, mandats, comptes, idsConnus
   })
 
   const ordonnances = premieresOrdonnances(mandats)
-  const seriesPrises = new Map<string, Set<string>>()
-  // Série qui n'est pas un texte (ligne écrite hors application) : les séries prises du syndicat sont inconnues, aucune
-  // ne lui est donnée (risque de doublon) ; ses fiches sont écartées avec un motif, comme « plus de série libre ».
-  const seriesIllisibles = new Set<string>()
-  for (const c of comptes) {
-    const serie: unknown = c.serie
-    if (typeof serie !== 'string') {
-      seriesIllisibles.add(c.coproprieteId)
-      continue
-    }
-    const prises = seriesPrises.get(c.coproprieteId) ?? new Set<string>()
-    prises.add(normaliserSerie(serie))
-    seriesPrises.set(c.coproprieteId, prises)
-  }
+  const { seriesPrises, seriesIllisibles } = seriesDesComptes(comptes)
   const prochaine = (coproprieteId: string): string | null => {
     const prises = seriesPrises.get(coproprieteId) ?? new Set<string>()
     const max = Math.max(0, ...[...prises].filter((s) => /^\d+$/.test(s)).map(Number))
