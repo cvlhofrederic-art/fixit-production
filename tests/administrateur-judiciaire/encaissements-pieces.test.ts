@@ -463,6 +463,27 @@ describe('statut « Rapproché » propagé depuis les arrêtés (rapprochement-p
     expect(anomalies).toMatchObject([{ code: 'autre_compte', pieceId: 'E3' }])
     expect(entrees[0].statut).toBe('Enregistré')
   })
+
+  it('décision du 24/11/2026 (question 6) — encaissement annulé pour erreur de saisie : jamais reçu, jamais pointable, « Annulé » à toute date', () => {
+    // Doublon saisi le 12/01, annulé pour erreur le 15/02 : aucun crédit n'a existé en banque, à aucune date.
+    const annulation = { le: '2026-02-15', motif: 'Erreur de saisie (doublon) : virement saisi deux fois', piece: 'Note de correction du 15/02/2026 (pièce d’origine n° 4)', traitementId: 't-ann', dateComptable: '2026-02-15', mention: '' }
+    const doublon = { ...e3, statut: 'Annulé' as const, annulation: { ...annulation, nature: 'erreur-saisie' as const } }
+    const pointe = [arrete([element('rel-1', 5_000, pieces('E3'))])]
+    const { entrees, anomalies } = rapprocherEncaissements([doublon], pointe)
+    expect(anomalies).toMatchObject([{ code: 'piece_inconnue', pieceId: 'E3' }])
+    expect(entrees[0]).toMatchObject({ statut: 'Annulé', rapprochement: null })
+    // À une date antérieure à la correction : toujours « Annulé », alors qu'un rejet de la banque se lirait encore comme reçu.
+    expect(rapprocherEncaissements([doublon], pointe, { aLaDate: '2026-01-20' }).entrees[0]).toMatchObject({ statut: 'Annulé', rapprochement: null })
+    expect(rapprocherEncaissements([doublon], [], { aLaDate: '2026-01-20' })).toMatchObject({ entrees: [{ statut: 'Annulé' }], anomalies: [] })
+    const rejete = { ...e3, statut: 'Annulé' as const, annulation }
+    expect(rapprocherEncaissements([rejete], pointe, { aLaDate: '2026-01-20' }).entrees[0]).toMatchObject({ statut: 'Rapproché', rapprochement: { elementId: 'rel-1' } })
+    // Les autres entrées se rapprochent comme avant, dans l'ordre reçu.
+    expect(rapprocherEncaissements([doublon, c1, c2], arretes).entrees.map((e) => [e.id, e.statut])).toEqual([
+      ['E3', 'Annulé'],
+      ['E1', 'Rapproché'],
+      ['E2', 'Rapproché'],
+    ])
+  })
 })
 
 describe('en-tête du module', () => {

@@ -1,22 +1,25 @@
 import './fuseau-paris'
 import 'fake-indexeddb/auto'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ecrireAppelDeFonds, enregistrerNouvelAppel, ouvrirExercice } from '@/lib/administrateur-judiciaire/db/appels-de-fonds'
 import { changerSuiviEcheances } from '@/lib/administrateur-judiciaire/db/echeances-appel'
 import {
   annulerEncaissementEcrit,
+  annulerPieceEncaissementsPourErreur,
   ecrireEncaissements,
   lireEtatDesComptes,
   lireSoldesAnterieurs,
   lirePostesDuCompte,
+  MOTIFS_ERREUR_DE_SAISIE,
   type OptionsEncaissements,
+  type SaisieAnnulationPourErreur,
   type SaisieAnnulationEncaissementEcrit,
   type SaisieEncaissement,
 } from '@/lib/administrateur-judiciaire/db/encaissements'
 import { repoComptesCoproprietaires, repoIdentites, repoPositions } from '@/lib/administrateur-judiciaire/db/repositories'
 import { viderBaseLocale } from '@/lib/administrateur-judiciaire/db/reset'
 import { ajDb, type Banque, type ChampsSuivi, type Copropriete, type Lot, type Mandat } from '@/lib/administrateur-judiciaire/db/schema'
-import { annulerPieceTraitement } from '@/lib/administrateur-judiciaire/db/traitements'
+import { annulerPieceTraitement, changerStatutTraitement } from '@/lib/administrateur-judiciaire/db/traitements'
 import type { JournalEncaissement } from '@/lib/administrateur-judiciaire/domain/encaissements-pieces'
 import { creerCompteCoproprietaire, creerIdentite, creerPosition } from '@/lib/administrateur-judiciaire/domain/identites-positions'
 import type { SousComptes450 } from '@/lib/administrateur-judiciaire/domain/repartition-appels'
@@ -28,7 +31,11 @@ import type { SousComptes450 } from '@/lib/administrateur-judiciaire/domain/repa
  * - il s'annule par une écriture contraire qui défait son imputation (F110), une seule fois, par son propre circuit ;
  * - chaque poste est crédité au compte 450 que son appel a débité (sous-comptes du 450 : J67, R104) ;
  * - un écart entre la répartition relue et l'écriture d'un appel ne touche que les comptes concernés ;
- * - un encaissement se saisit dans l'ordre des dates de son compte (à valider) ;
+ * - un encaissement se saisit dans l'ordre des dates de son compte : saisi en retard, il est refusé, ou, sur demande,
+ *   écrit avec la réimputation des encaissements postérieurs du compte dans l'ordre des dates, par un reclassement interne
+ *   au compte 450, sans mouvement de banque (décision du 24/11/2026, question 6, option 3) ;
+ * - une pièce d'encaissement saisie par erreur (montant, compte, doublon) s'annule entière, à part du rejet de la banque
+ *   (décision du 24/11/2026, question 6, option 4) ;
  * - un encaissement daté hors des exercices du syndicat ouverts dans VitFix est refusé (décision du 24/11/2026) ;
  * - un refus n'écrit rien.
  * Données fictives. Lots 1, 2 et 3 du syndicat C1 : 450, 350 et 200 millièmes, comptes c1, c2 et c3.
@@ -620,8 +627,10 @@ describe('À valider — date de l’encaissement : ordre des paiements du compt
     const avant = await compter()
     const refus = await ecrireEncaissements('C1', cheque, { ...OPTIONS, date: '2026-12-20' }).catch((erreur: Error) => erreur.message)
     expect(refus).toMatch(
-      /du 20\/12\/2026 sur le compte « c1 » : antérieur au dernier encaissement de ce compte \(enc-janvier du 15\/01\/2027\).*saisie d'un encaissement dans le désordre des dates n'est pas encore possible.*signaler/,
+      /du 20\/12\/2026 sur le compte « c1 » : antérieur au dernier encaissement de ce compte \(enc-janvier du 15\/01\/2027\).*Encaissement refusé tel quel : il ne s'enregistre qu'avec la réimputation, dans l'ordre des dates, des encaissements postérieurs de ce compte, par un reclassement interne au compte 450, sans mouvement de banque, demandée à l'écriture ; signaler/,
     )
+    // L'annulation pour erreur de saisie ne sert pas à remettre dans l'ordre un encaissement saisi dans le désordre des dates.
+    expect(refus).toMatch(/l'annulation est réservée à un rejet de la banque ou à une vraie erreur de saisie \(montant, compte, doublon\)/)
     // L'annulation est celle d'un rejet de la banque : la proposer ici fabriquerait un rejet absent du relevé.
     expect(refus).toMatch(/ne pas annuler les encaissements postérieurs/)
     expect(refus).not.toMatch(/ressaisir/)
@@ -829,5 +838,659 @@ describe('lecture de l’état des comptes du syndicat', () => {
     expect((await lireSoldesAnterieurs('C1', { horsAppels: [T1_2027, FONDS_T1_2027] })).soldes).toEqual({ c1: -13_000, c2: -4_000, c3: 12_000 })
     expect(await lireSoldesAnterieurs('C2')).toEqual({ soldes: {}, ecarts: [] })
     await expect(lireSoldesAnterieurs('inconnue')).rejects.toThrow(/Copropriété introuvable/)
+  })
+})
+
+// ─── Décision du 24/11/2026 (question 6) : réimputation dans l'ordre des dates, annulation pour erreur de saisie ───
+
+afterEach(() => {
+  vi.useRealTimers()
+})
+
+const LIENS_C1 = { liens: { compteCoproprietaireId: 'c1' } }
+/** Chèque remis le 20/12/2026, saisi le 15/02/2027 avec la réimputation des encaissements postérieurs du compte. */
+const EN_RETARD: OptionsEncaissements = { ...OPTIONS, date: '2026-12-20', reimputerDansLOrdreDesDates: true }
+const cheque = (montantCentimes: number, surcharge: Partial<SaisieEncaissement> = {}): SaisieEncaissement =>
+  virement('c1', montantCentimes, { id: 'enc-cheque', piece: { mode: 'Chèque', numero: '0001234' }, ...surcharge })
+const lignesDe = async (id: string) => (await ajDb.encaissements.get(id))?.imputation.lignes.map((l) => [l.appelId, l.montantCentimes])
+const soldeDu512 = async () =>
+  (await ajDb.traitements.toArray())
+    .flatMap((p) => p.traitement.mouvements)
+    .filter((m) => m.compte === 'ACAC.51200.00000.0')
+    .reduce((s, m) => s + (m.sens === 'debit' ? m.montantCentimes : -m.montantCentimes), 0)
+
+/** Virement du 15/01/2027 (270,00 €, pièce n° 3) qui solde le T4 2026, puis le chèque de 200,00 € remis le 20/12/2026, saisi en retard. */
+async function janvierPuisChequeEnRetard() {
+  await appeler()
+  const janvier = await ecrireEncaissements('C1', [virement('c1', 27_000, { id: 'enc-janvier' })], OPTIONS)
+  const retard = await ecrireEncaissements('C1', [cheque(20_000)], EN_RETARD, { actor: 'test' })
+  return { janvier, retard, reclassement: retard.reimputations[0].piece }
+}
+
+describe('Décision du 24/11/2026 (question 6, option 3) — encaissement saisi en retard : réimputation dans l’ordre des dates', () => {
+  it('option demandée : pièce « Encaissement » au jour du paiement, pièce « Correction de mouvements » au jour du traitement, encaissement postérieur réimputé avec son historique', async () => {
+    const { janvier, retard, reclassement } = await janvierPuisChequeEnRetard()
+    // Le chèque ne trouve que le T4 2026 d'échu le 20/12/2026 : sa pièce garde la forme ordinaire.
+    expect(retard.piece).toMatchObject({ numero: 4, famille: 'Encaissement', date: '2026-12-20', statut: 'Enregistré' })
+    expect(sansTraitement(retard.piece.traitement.mouvements)).toEqual([
+      { compte: 'ACAC.51200.00000.0', sens: 'debit', montantCentimes: 20_000 },
+      { compte: 'ACAC.45000.00001.0', sens: 'credit', montantCentimes: 20_000, ...origine(T4_2026, 'Budget') },
+    ])
+    // Le virement du 15/01 ne trouve plus que 70,00 € sur le T4 : 200,00 € passent aux deux postes du 01/01/2027, au prorata.
+    expect(retard.reimputations).toHaveLength(1)
+    expect(retard.reimputations[0].compteId).toBe('c1')
+    expect(reclassement).toMatchObject({ numero: 5, famille: 'Correction de mouvements', date: '2027-02-15', statut: 'Enregistré', coproprieteId: 'C1', mandatId: 'M1' })
+    expect(reclassement.traitement.annule).toBeUndefined()
+    const lignesDuReclassement = [
+      { compte: 'ACAC.45000.00001.0', sens: 'debit', montantCentimes: 20_000, ...origine(T4_2026, 'Budget'), ...LIENS_C1 },
+      { compte: 'ACAC.45000.00001.0', sens: 'credit', montantCentimes: 19_048, ...origine(T1_2027, 'Budget'), ...LIENS_C1 },
+      { compte: 'ACAC.45000.00001.0', sens: 'credit', montantCentimes: 952, ...origine(FONDS_T1_2027, 'Fonds travaux'), ...LIENS_C1 },
+    ]
+    expect(sansTraitement(reclassement.traitement.mouvements)).toEqual(lignesDuReclassement)
+    // L'encaissement réimputé : `imputation` porte l'imputation courante, l'imputation d'avant est gardée, jamais effacée.
+    const [reimpute] = retard.reimputations[0].encaissements
+    expect(reimpute.id).toBe('enc-janvier')
+    expect(reimpute.imputation.lignes.map((l) => [l.appelId, l.montantCentimes])).toEqual([
+      [T4_2026, 7_000],
+      [T1_2027, 19_048],
+      [FONDS_T1_2027, 952],
+    ])
+    expect(reimpute.reimputations).toEqual([
+      {
+        traitementId: reclassement.id,
+        le: '2027-02-15',
+        cause: { type: 'encaissement-en-retard', encaissementIds: ['enc-cheque'], traitementId: retard.piece.id, date: '2026-12-20' },
+        avant: janvier.encaissements[0].imputation,
+        mouvements: lignesDuReclassement,
+        mention:
+          "Réimputation dans l'ordre des dates (C. civ. art. 1342-10 ; arrêté du 14/03/2005, art. 9) du compte 00001 : encaissement enc-cheque du 20/12/2026 (pièce n° 4) saisi le 15/02/2027 ; encaissement réimputé enc-janvier du 15/01/2027 (pièce n° 3).",
+      },
+    ])
+    expect(reimpute).toMatchObject({ statut: 'Enregistré', traitementId: janvier.piece.id, updatedBy: 'test' })
+    expect(await ajDb.encaissements.get('enc-janvier')).toEqual(reimpute)
+    // Le paiement en retard garde le renvoi à la pièce de reclassement qu'il a causée.
+    expect(retard.encaissements[0]).toMatchObject({ id: 'enc-cheque', rang: 0, reclassementIds: [reclassement.id], imputation: { lignes: [{ posteId: `${T4_2026}:L1`, montantCentimes: 20_000 }], resteAImputerCentimes: 0 } })
+    expect(await ajDb.encaissements.get('enc-cheque')).toEqual(retard.encaissements[0])
+    // Le retour rend l'état d'après la réimputation, celui que la base relit.
+    expect(retard.postes.filter((p) => p.compteId === 'c1').map((p) => p.regleCentimes)).toEqual([27_000, 19_048, 952])
+    expect(await regles('c1')).toEqual([
+      [T4_2026, 27_000],
+      [T1_2027, 19_048],
+      [FONDS_T1_2027, 952],
+    ])
+    // La pièce d'origine du virement n'est pas réécrite (arrêté du 14/03/2005, art. 5).
+    expect(await ajDb.traitements.get(janvier.piece.id)).toEqual(janvier.piece)
+    const journal = (await ajDb.activityLog.where('entite').equals('encaissements').toArray()).filter((e) => e.qui === 'test')
+    expect(journal.map((e) => `${e.entiteId} ${e.action}`).sort((a, b) => a.localeCompare(b))).toEqual(['enc-cheque create', 'enc-janvier update'])
+  })
+
+  it('aucune ligne de banque dans le reclassement : le 512 ne porte que les deux encaissements, comme le relevé', async () => {
+    const { reclassement } = await janvierPuisChequeEnRetard()
+    expect(reclassement.traitement.mouvements.some((m) => m.compte.includes('.512'))).toBe(false)
+    expect(await soldeDu512()).toBe(47_000)
+    // Le solde du compte ne change que du paiement en retard : reste dû 742,51 − 470,00.
+    expect((await lireEtatDesComptes('C1')).soldes.find((s) => s.compteId === 'c1')).toEqual({
+      compteId: 'c1',
+      appeleCentimes: 74_251,
+      regleCentimes: 47_000,
+      resteDuCentimes: 27_251,
+      creditAImputerCentimes: 0,
+      soldeCentimes: 27_251,
+    })
+  })
+
+  it('option demandée sans encaissement postérieur, ou le même jour que le dernier : circuit ordinaire, ni pièce de reclassement ni mise à jour', async () => {
+    await appeler()
+    await ecrireEncaissements('C1', [virement('c1', 10_000, { id: 'enc-janvier' })], OPTIONS)
+    const avant = await compter()
+    const memeJour = await ecrireEncaissements('C1', [virement('c1', 1_000, { id: 'enc-meme-jour' })], { ...OPTIONS, reimputerDansLOrdreDesDates: true })
+    const apres = await ecrireEncaissements('C1', [virement('c1', 1_000, { id: 'enc-apres' })], { ...OPTIONS, date: '2027-01-20', reimputerDansLOrdreDesDates: true })
+    expect(memeJour.reimputations).toEqual([])
+    expect(apres.reimputations).toEqual([])
+    expect(memeJour.encaissements[0]).not.toHaveProperty('reclassementIds')
+    // Deux pièces et deux encaissements de plus, chacun avec ses deux entrées au journal d'activité.
+    expect(await compter()).toEqual({ pieces: avant.pieces + 2, encaissements: avant.encaissements + 2, journal: avant.journal + 4 })
+    expect(await ajDb.encaissements.get('enc-janvier')).not.toHaveProperty('reimputations')
+  })
+
+  it('le paiement en retard ne change rien à l’encaissement postérieur (désignation du débiteur) : aucune pièce de reclassement', async () => {
+    await appeler()
+    await ecrireEncaissements('C1', [virement('c1', 10_000, { id: 'enc-janvier', postesDesignes: [`${T1_2027}:L1`], designationPartielleAcceptee: true })], OPTIONS)
+    const janvier = await ajDb.encaissements.get('enc-janvier')
+    const avant = await compter()
+    const retard = await ecrireEncaissements('C1', [cheque(10_000)], EN_RETARD)
+    expect(retard.reimputations).toEqual([])
+    expect(retard.encaissements[0]).not.toHaveProperty('reclassementIds')
+    expect(await compter()).toEqual({ pieces: avant.pieces + 1, encaissements: avant.encaissements + 1, journal: avant.journal + 2 })
+    expect(await ajDb.encaissements.get('enc-janvier')).toEqual(janvier)
+    expect(await regles('c1')).toEqual([
+      [T4_2026, 10_000],
+      [T1_2027, 10_000],
+      [FONDS_T1_2027, 0],
+    ])
+  })
+
+  it('lot de deux comptes : seul le compte qui a des encaissements postérieurs est réimputé', async () => {
+    await appeler()
+    await ecrireEncaissements('C1', [virement('c1', 27_000, { id: 'enc-janvier' })], OPTIONS)
+    const retard = await ecrireEncaissements('C1', [virement('c2', 1_000, { id: 'enc-c2' }), cheque(20_000)], EN_RETARD)
+    expect(retard.reimputations.map((r) => [r.compteId, r.encaissements.map((e) => e.id)])).toEqual([['c1', ['enc-janvier']]])
+    expect(retard.encaissements.map((e) => [e.id, e.rang, e.reclassementIds])).toEqual([
+      ['enc-c2', 0, undefined],
+      ['enc-cheque', 1, [retard.reimputations[0].piece.id]],
+    ])
+    expect((await regles('c2'))[0]).toEqual([T4_2026, 1_000])
+    expect(await lignesDe('enc-janvier')).toEqual([
+      [T4_2026, 7_000],
+      [T1_2027, 19_048],
+      [FONDS_T1_2027, 952],
+    ])
+  })
+
+  it('deux paiements en retard du même compte dans le lot : imputés dans l’ordre reçu, les encaissements postérieurs rejoués une seule fois', async () => {
+    await appeler()
+    await ecrireEncaissements('C1', [virement('c1', 27_000, { id: 'enc-janvier' })], OPTIONS)
+    const avant = await compter()
+    const retard = await ecrireEncaissements('C1', [cheque(12_000, { id: 'enc-a' }), cheque(8_000, { id: 'enc-b', piece: { mode: 'Chèque', numero: '0001235' } })], EN_RETARD)
+    expect(retard.encaissements.map((e) => e.imputation.lignes.map((l) => l.montantCentimes))).toEqual([[12_000], [8_000]])
+    // Une seule pièce de reclassement pour le compte, et les deux paiements en retard dans la cause et dans la mention.
+    expect(await compter()).toMatchObject({ pieces: avant.pieces + 2 })
+    expect(retard.reimputations).toHaveLength(1)
+    const janvier = await ajDb.encaissements.get('enc-janvier')
+    expect(janvier?.reimputations).toHaveLength(1)
+    expect(janvier?.reimputations?.[0].cause.encaissementIds).toEqual(['enc-a', 'enc-b'])
+    expect(janvier?.reimputations?.[0].mention).toMatch(/encaissements enc-a, enc-b du 20\/12\/2026 \(pièce n° 4\) saisis le 15\/02\/2027/)
+    expect(retard.encaissements.map((e) => e.reclassementIds)).toEqual([[retard.reimputations[0].piece.id], [retard.reimputations[0].piece.id]])
+    expect(await regles('c1')).toEqual([
+      [T4_2026, 27_000],
+      [T1_2027, 19_048],
+      [FONDS_T1_2027, 952],
+    ])
+  })
+
+  it('sous-comptes du 450 : le reclassement débite le 45000 de l’appel perdu et crédite le 450-1 de l’appel gagné', async () => {
+    await appeler(null, REGLAGE_450)
+    await ecrireEncaissements('C1', [virement('c1', 27_000, { id: 'enc-janvier' })], OPTIONS)
+    const { reimputations } = await ecrireEncaissements('C1', [cheque(20_000)], EN_RETARD)
+    expect(reimputations[0].piece.traitement.mouvements.map((m) => [m.sens, m.compte, m.montantCentimes])).toEqual([
+      ['debit', 'ACAC.45000.00001.0', 20_000],
+      ['credit', 'ACAC.45010.00001.0', 19_048],
+      ['credit', 'ACAC.45000.00001.0', 952],
+    ])
+  })
+
+  it('reliquat déplacé : le crédit « à imputer » de l’encaissement postérieur augmente, le solde du compte ne bouge que du paiement en retard', async () => {
+    await saisirLesEcheances()
+    await ecrireAppelDeFonds('C1', { jusquAu: '2026-10-01', mandatId: 'M1' })
+    await ecrireEncaissements('C1', [virement('c2', 25_000, { id: 'enc-virement' })], { ...OPTIONS, date: '2026-10-20' })
+    expect((await lireSoldesAnterieurs('C1')).soldes.c2).toBe(-4_000)
+    const { reimputations } = await ecrireEncaissements('C1', [virement('c2', 10_000, { id: 'enc-retard', piece: { mode: 'Chèque', numero: '0000777' } })], { ...EN_RETARD, date: '2026-10-05' })
+    // Sens : débit du 450 avec l'origine perdue, crédit du 45000 SANS origine (le reliquat augmente).
+    expect(sansTraitement(reimputations[0].piece.traitement.mouvements)).toEqual([
+      { compte: 'ACAC.45000.00002.0', sens: 'debit', montantCentimes: 10_000, ...origine(T4_2026, 'Budget'), liens: { compteCoproprietaireId: 'c2' } },
+      { compte: 'ACAC.45000.00002.0', sens: 'credit', montantCentimes: 10_000, liens: { compteCoproprietaireId: 'c2' } },
+    ])
+    expect((await ajDb.encaissements.get('enc-virement'))?.imputation).toMatchObject({ lignes: [{ posteId: `${T4_2026}:L2`, montantCentimes: 11_000 }], resteAImputerCentimes: 14_000 })
+    expect((await lireEtatDesComptes('C1')).soldes.find((s) => s.compteId === 'c2')).toEqual({
+      compteId: 'c2',
+      appeleCentimes: 21_000,
+      regleCentimes: 21_000,
+      resteDuCentimes: 0,
+      creditAImputerCentimes: 14_000,
+      soldeCentimes: -14_000,
+    })
+    expect(await lireSoldesAnterieurs('C1')).toMatchObject({ soldes: { c2: -14_000 }, ecarts: [] })
+  })
+
+  it('encaissement postérieur rejeté par la banque (F110) : hors du rejeu, le paiement en retard suit le circuit ordinaire', async () => {
+    await appeler()
+    await ecrireEncaissements('C1', [virement('c1', 27_000, { id: 'enc-janvier' })], OPTIONS)
+    await annuler('C1', 'enc-janvier', { date: '2027-01-16', motif: 'Virement retourné par la banque', piece: 'AVIS-2027-0007' })
+    const { reimputations, encaissements } = await ecrireEncaissements('C1', [cheque(20_000)], EN_RETARD)
+    expect(reimputations).toEqual([])
+    expect(encaissements[0].imputation.lignes).toMatchObject([{ posteId: `${T4_2026}:L1`, montantCentimes: 20_000 }])
+  })
+
+  it('réimputation à deux niveaux : un second paiement en retard, plus ancien, ajoute une seconde réimputation ; le rejet de la banque croise ensuite les deux pièces de reclassement', async () => {
+    const { reclassement: premier } = await janvierPuisChequeEnRetard()
+    const second = await ecrireEncaissements('C1', [cheque(5_000, { id: 'enc-decembre', piece: { mode: 'Chèque', numero: '0001200' } })], { ...EN_RETARD, date: '2026-12-10', aujourdhui: '2027-02-16' })
+    // Le chèque du 20/12 garde le T4 (200,00 €) ; seul le virement de janvier bouge encore : 50,00 € du T4 vers le 01/01/2027.
+    expect(second.reimputations.map((r) => r.encaissements.map((e) => e.id))).toEqual([['enc-janvier']])
+    expect(sansTraitement(second.reimputations[0].piece.traitement.mouvements)).toEqual([
+      { compte: 'ACAC.45000.00001.0', sens: 'debit', montantCentimes: 5_000, ...origine(T4_2026, 'Budget'), ...LIENS_C1 },
+      { compte: 'ACAC.45000.00001.0', sens: 'credit', montantCentimes: 4_762, ...origine(T1_2027, 'Budget'), ...LIENS_C1 },
+      { compte: 'ACAC.45000.00001.0', sens: 'credit', montantCentimes: 238, ...origine(FONDS_T1_2027, 'Fonds travaux'), ...LIENS_C1 },
+    ])
+    const janvier = await ajDb.encaissements.get('enc-janvier')
+    expect(janvier?.reimputations?.map((r) => [r.traitementId, r.le])).toEqual([
+      [premier.id, '2027-02-15'],
+      [second.reimputations[0].piece.id, '2027-02-16'],
+    ])
+    // Chaque réimputation garde l'imputation d'avant : la première celle de la pièce d'origine, la seconde celle de la première.
+    expect(janvier?.reimputations?.map((r) => r.avant.lignes.map((l) => l.montantCentimes))).toEqual([[27_000], [7_000, 19_048, 952]])
+    expect(await ajDb.encaissements.get('enc-cheque')).not.toHaveProperty('reimputations')
+    expect(await regles('c1')).toEqual([
+      [T4_2026, 27_000],
+      [T1_2027, 23_810],
+      [FONDS_T1_2027, 1_190],
+    ])
+    // Rejet du virement de janvier : (a) ses lignes d'origine au jour du débit, (b) le net des deux reclassements au jour de la saisie.
+    const rejet = await annuler('C1', 'enc-janvier', { date: '2027-01-25', motif: 'Virement retourné', piece: 'AVIS-0010', aujourdhui: '2027-02-20' })
+    expect(sansTraitement(rejet.piece.traitement.mouvements)).toEqual([
+      { compte: 'ACAC.51200.00000.0', sens: 'credit', montantCentimes: 27_000 },
+      { compte: 'ACAC.45000.00001.0', sens: 'debit', montantCentimes: 27_000, ...origine(T4_2026, 'Budget') },
+    ])
+    expect(sansTraitement(rejet.correction?.traitement.mouvements ?? [])).toEqual([
+      { compte: 'ACAC.45000.00001.0', sens: 'credit', montantCentimes: 25_000, ...origine(T4_2026, 'Budget'), ...LIENS_C1 },
+      { compte: 'ACAC.45000.00001.0', sens: 'debit', montantCentimes: 23_810, ...origine(T1_2027, 'Budget'), ...LIENS_C1 },
+      { compte: 'ACAC.45000.00001.0', sens: 'debit', montantCentimes: 1_190, ...origine(FONDS_T1_2027, 'Fonds travaux'), ...LIENS_C1 },
+    ])
+    expect(rejet.encaissement.annulation).toMatchObject({ reclassements: [premier.id, second.reimputations[0].piece.id], correctionId: rejet.correction?.id })
+    expect(await regles('c1')).toEqual([
+      [T4_2026, 25_000],
+      [T1_2027, 0],
+      [FONDS_T1_2027, 0],
+    ])
+  })
+
+  it('ordre des encaissements d’un compte : deux lots du même jour écrits dans la même milliseconde gardent l’ordre de leurs pièces, puis leur rang', async () => {
+    await appeler()
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2027-02-15T10:00:00.000Z'))
+    await ecrireEncaissements('C1', [virement('c1', 1_000, { id: 'enc-z' })], OPTIONS)
+    await ecrireEncaissements('C1', [virement('c1', 1_000, { id: 'enc-m' }), virement('c1', 1_000, { id: 'enc-a' })], OPTIONS)
+    vi.useRealTimers()
+    const { encaissements } = await lireEtatDesComptes('C1')
+    expect(new Set(encaissements.map((e) => e.createdAt)).size).toBe(1)
+    expect(encaissements.map((e) => [e.id, e.rang])).toEqual([
+      ['enc-z', 0],
+      ['enc-m', 0],
+      ['enc-a', 1],
+    ])
+  })
+
+  it('pièce de reclassement annulée hors de son circuit, ou absente : le compte passe en écart ; l’annulation générique la refuse', async () => {
+    const { reclassement } = await janvierPuisChequeEnRetard()
+    const avant = await compter()
+    // Aucune annulation n'est observée pour la famille « Correction de mouvements ».
+    await expect(annulerPieceTraitement(reclassement.id, { id: 'annulation-generique', date: '2027-02-16' })).rejects.toThrow(/Aucune annulation observée/)
+    expect(await compter()).toEqual(avant)
+    expect((await lireEtatDesComptes('C1')).ecarts).toEqual([])
+    await ajDb.traitements.update(reclassement.id, { statut: 'Annulé' })
+    const annulee = await lireEtatDesComptes('C1')
+    expect(annulee.ecarts.map((e) => [e.compteId, e.serie])).toEqual([['c1', '00001']])
+    expect(annulee.ecarts[0].message).toMatch(/Encaissement enc-janvier : sa pièce de reclassement n° 5 a été annulée hors du circuit des encaissements/)
+    expect([...new Set(annulee.postes.map((p) => p.compteId))]).toEqual(['c2', 'c3'])
+    // Le rejet de la banque ne contre-passe pas un reclassement qu'il ne retrouve pas tel qu'il a été écrit.
+    await expect(annuler('C1', 'enc-janvier', { date: '2027-02-15', motif: 'Virement retourné', piece: 'AVIS-0011' })).rejects.toThrow(/pièce de reclassement n° 5.*annulée/)
+    await ajDb.traitements.delete(reclassement.id)
+    expect((await lireEtatDesComptes('C1')).ecarts[0].message).toMatch(/Encaissement enc-janvier : sa pièce de reclassement .* est introuvable/)
+    await expect(annuler('C1', 'enc-janvier', { date: '2027-02-15', motif: 'Virement retourné', piece: 'AVIS-0011' })).rejects.toThrow(/pièce de reclassement .* introuvable/)
+  })
+})
+
+describe('Décision du 24/11/2026 (question 6, option 3) — réimputation refusée : rien n’est écrit', () => {
+  it('garde du rejeu à blanc : un encaissement antérieur rejeté par la banque sans réimputation des suivants', async () => {
+    await appeler()
+    await ecrireEncaissements('C1', [virement('c1', 27_000, { id: 'enc-a' })], { ...OPTIONS, date: '2027-01-10' })
+    await ecrireEncaissements('C1', [virement('c1', 10_000, { id: 'enc-b' })], OPTIONS)
+    // Le T4 redevient dû ; enc-b, imputé sur les postes du 01/01/2027, ne se rejouerait plus ainsi.
+    await annuler('C1', 'enc-a', { date: '2027-01-20', motif: 'Virement retourné', piece: 'AVIS-0012' })
+    const avant = await compter()
+    await expect(ecrireEncaissements('C1', [cheque(5_000)], EN_RETARD)).rejects.toThrow(
+      /Encaissement enc-b du 15\/01\/2027 : son imputation écrite ne se rejoue pas à l'identique.*Réimputation refusée, rien n'est écrit/,
+    )
+    expect(await compter()).toEqual(avant)
+  })
+
+  it('garde du rejeu à blanc : demande d’imputation sur les appels à venir suivie d’un appel écrit après coup', async () => {
+    await saisirLesEcheances()
+    await ecrireAppelDeFonds('C1', { jusquAu: '2026-10-01', mandatId: 'M1' })
+    // Le 22/12/2026 : T4 soldé, 30,00 € « à imputer », aucun appel à venir n'étant encore écrit.
+    const { encaissements } = await ecrireEncaissements('C1', [virement('c3', 15_000, { id: 'enc-avenir', imputerSurAVenir: true })], { ...OPTIONS, date: '2026-12-22' })
+    expect(encaissements[0].imputation).toMatchObject({ lignes: [{ montantCentimes: 12_000 }], resteAImputerCentimes: 3_000 })
+    await ecrireAppelDeFonds('C1', { jusquAu: '2027-01-01', mandatId: 'M1' })
+    const avant = await compter()
+    await expect(ecrireEncaissements('C1', [virement('c3', 1_000, { id: 'enc-retard' })], EN_RETARD)).rejects.toThrow(/Encaissement enc-avenir du 22\/12\/2026 : son imputation écrite ne se rejoue pas à l'identique.*reliquat/)
+    expect(await compter()).toEqual(avant)
+  })
+
+  it('garde du rejeu à blanc : poste désigné disparu (appel annulé depuis) : refus expliqué, avec sa cause', async () => {
+    await appeler()
+    await ecrireEncaissements('C1', [virement('c1', 1_000, { id: 'enc-janvier', postesDesignes: [`${T1_2027}:L1`] })], OPTIONS)
+    // L'appel du T1 2027 est annulé depuis : ses postes, non réglés, sont écartés sans écart.
+    await ajDb.echeancesAppel
+      .where('coproprieteId')
+      .equals('C1')
+      .filter((e) => e.id === T1_2027 || e.id === FONDS_T1_2027)
+      .modify({ statut: 'Annulé' })
+    expect((await lireEtatDesComptes('C1')).ecarts).toEqual([])
+    const avant = await compter()
+    await expect(ecrireEncaissements('C1', [cheque(5_000)], EN_RETARD)).rejects.toThrow(/Encaissement enc-janvier du 15\/01\/2027 : son imputation écrite ne se rejoue pas à l'identique.*Poste désigné inconnu/)
+    expect(await compter()).toEqual(avant)
+  })
+
+  it('désignation du débiteur : refus si elle a joué et serait déplacée ; pas de refus si elle était refusée avant et le reste après', async () => {
+    await appeler()
+    await ecrireEncaissements('C1', [virement('c1', 27_000, { id: 'enc-janvier', postesDesignes: [`${T4_2026}:L1`] })], OPTIONS)
+    await ecrireEncaissements('C1', [virement('c2', 10_000, { id: 'enc-c2', postesDesignes: [`${T1_2027}:L2`] })], OPTIONS)
+    expect((await ajDb.encaissements.get('enc-c2'))?.imputation.designationPartielleRefusee).toBe(true)
+    const avant = await compter()
+    await expect(ecrireEncaissements('C1', [cheque(10_000)], EN_RETARD)).rejects.toThrow(/Encaissement enc-janvier du 15\/01\/2027 : le débiteur a désigné le poste .*Réimputation refusée, rien n'est écrit/)
+    // Un seul compte refusé refuse tout le lot.
+    await expect(ecrireEncaissements('C1', [virement('c3', 1_000), cheque(10_000)], EN_RETARD)).rejects.toThrow(/le débiteur a désigné/)
+    expect(await compter()).toEqual(avant)
+    // Compte 2 : désignation partielle refusée avant et après ; le chèque solde le T4, le virement passe aux postes du 01/01/2027.
+    const { reimputations } = await ecrireEncaissements('C1', [virement('c2', 21_000, { id: 'enc-c2-retard', piece: { mode: 'Chèque', numero: '0000778' } })], EN_RETARD)
+    expect(reimputations.map((r) => r.compteId)).toEqual(['c2'])
+    expect((await ajDb.encaissements.get('enc-c2'))?.imputation).toMatchObject({ lignes: [{ montantCentimes: 9_524 }, { montantCentimes: 476 }], designationPartielleRefusee: true })
+  })
+
+  it('date : jour du traitement hors des exercices ouverts, ou antérieur à une pièce corrigée ; paiement en retard hors exercice (question 6 bis)', async () => {
+    await appeler()
+    await ecrireEncaissements('C1', [virement('c1', 27_000, { id: 'enc-decembre' })], { ...OPTIONS, date: '2027-12-25', aujourdhui: '2027-12-28' })
+    const avant = await compter()
+    // La pièce de reclassement serait datée du 10/01/2028 : aucun exercice n'est ouvert pour ce jour.
+    await expect(ecrireEncaissements('C1', [cheque(5_000)], { ...EN_RETARD, date: '2027-12-20', aujourdhui: '2028-01-10' })).rejects.toThrow(
+      /Pièce de reclassement datée du 10\/01\/2028, jour du traitement : hors des exercices du syndicat ouverts dans VitFix : 2026 .*Réimputation refusée/,
+    )
+    // Une correction ne précède pas la pièce qu'elle corrige : le jour du traitement donné est antérieur à la pièce n° 3.
+    await expect(ecrireEncaissements('C1', [cheque(5_000)], { ...EN_RETARD, date: '2027-12-20', aujourdhui: '2027-12-22' })).rejects.toThrow(
+      /Pièce de reclassement datée du 22\/12\/2027, jour du traitement : antérieure à la pièce n° 3 du 25\/12\/2027.*enc-decembre.*Réimputation refusée/,
+    )
+    // Question 6 bis : le paiement en retard lui-même reste refusé hors des exercices, option demandée ou non.
+    await expect(ecrireEncaissements('C1', [cheque(5_000)], { ...EN_RETARD, date: '2025-12-20' })).rejects.toThrow(/Encaissement daté du 20\/12\/2025 : hors des exercices/)
+    expect(await compter()).toEqual(avant)
+  })
+
+  it('compte en écart, solde repris dû : refusés comme sans l’option', async () => {
+    await appeler()
+    await ecrireEncaissements('C1', [virement('c2', 21_000, { id: 'enc-c2' })], OPTIONS)
+    await ecrireEncaissements('C1', [virement('c3', 12_000, { id: 'enc-c3' })], OPTIONS)
+    await ajDb.comptesCoproprietaires.update('c2', { reprise: { coproprietaireId: 'f2', soldeDuCentimes: 12_300, statutFiche: 'Impayé', releveLe: '2026-11-01' } })
+    await ajDb.traitements.update((await ajDb.encaissements.get('enc-c3'))?.traitementId ?? '', { statut: 'Annulé' })
+    const avant = await compter()
+    await expect(ecrireEncaissements('C1', [virement('c2', 1_000)], EN_RETARD)).rejects.toThrow(/solde repris/)
+    await expect(ecrireEncaissements('C1', [virement('c3', 1_000)], EN_RETARD)).rejects.toThrow(/annulée hors du circuit des encaissements/)
+    expect(await compter()).toEqual(avant)
+  })
+})
+
+describe('Décision du 24/11/2026 (question 6) — rejet de la banque (F110) d’un encaissement réimputé : deux écritures', () => {
+  it('débit de la banque antérieur au reclassement : l’annulation contre-passe les lignes d’origine au jour du débit, la correction contre-passe le reclassement au jour de la saisie', async () => {
+    const { janvier, reclassement } = await janvierPuisChequeEnRetard()
+    const debit = { date: '2027-01-25', motif: 'Virement retourné', piece: 'AVIS-2027-0050' }
+    // Refus : la correction, datée du jour de la saisie, précéderait la pièce de reclassement du 15/02/2027.
+    const avant = await compter()
+    await expect(annuler('C1', 'enc-janvier', { ...debit, aujourdhui: '2027-02-10' })).rejects.toThrow(/antérieure à la pièce de reclassement/)
+    await expect(annuler('C1', 'enc-janvier', { ...debit, aujourdhui: '2028-01-10' })).rejects.toThrow(/Correction du reclassement datée du 10\/01\/2028, jour de la saisie : hors des exercices/)
+    expect(await compter()).toEqual(avant)
+    const { piece, correction, encaissement, postes } = await annuler('C1', 'enc-janvier', { ...debit, aujourdhui: '2027-02-20' }, { actor: 'test' })
+    // (a) Les lignes d'origine exactes, à la date du débit : rien de ce qui n'existe que depuis le 15/02/2027.
+    expect(piece).toMatchObject({ numero: 6, famille: "Annulation d'encaissement", date: '2027-01-25' })
+    expect(piece.traitement.annule).toBe(janvier.piece.id)
+    expect(sansTraitement(piece.traitement.mouvements)).toEqual([
+      { compte: 'ACAC.51200.00000.0', sens: 'credit', montantCentimes: 27_000 },
+      { compte: 'ACAC.45000.00001.0', sens: 'debit', montantCentimes: 27_000, ...origine(T4_2026, 'Budget') },
+    ])
+    // (b) La contre-passation du reclassement, au jour de la saisie.
+    expect(correction).toMatchObject({ numero: 7, famille: 'Correction de mouvements', date: '2027-02-20', statut: 'Enregistré', mandatId: 'M1' })
+    expect(correction?.traitement.annule).toBeUndefined()
+    expect(sansTraitement(correction?.traitement.mouvements ?? [])).toEqual([
+      { compte: 'ACAC.45000.00001.0', sens: 'credit', montantCentimes: 20_000, ...origine(T4_2026, 'Budget'), ...LIENS_C1 },
+      { compte: 'ACAC.45000.00001.0', sens: 'debit', montantCentimes: 19_048, ...origine(T1_2027, 'Budget'), ...LIENS_C1 },
+      { compte: 'ACAC.45000.00001.0', sens: 'debit', montantCentimes: 952, ...origine(FONDS_T1_2027, 'Fonds travaux'), ...LIENS_C1 },
+    ])
+    expect(encaissement).toMatchObject({
+      statut: 'Annulé',
+      annulation: { le: '2027-01-25', traitementId: piece.id, dateComptable: '2027-01-25', reclassements: [reclassement.id], correctionId: correction?.id },
+    })
+    expect(encaissement.annulation).not.toHaveProperty('nature')
+    expect(await ajDb.encaissements.get('enc-janvier')).toEqual(encaissement)
+    // Il ne reste que le chèque du 20/12/2026 : 200,00 € sur le T4.
+    expect(postes.filter((p) => p.compteId === 'c1').map((p) => p.regleCentimes)).toEqual([20_000, 0, 0])
+    expect(await regles('c1')).toEqual([
+      [T4_2026, 20_000],
+      [T1_2027, 0],
+      [FONDS_T1_2027, 0],
+    ])
+    expect(await soldeDu512()).toBe(20_000)
+    expect((await lireEtatDesComptes('C1')).ecarts).toEqual([])
+  })
+
+  it('rejet d’un encaissement jamais réimputé : une seule écriture, ni correction, ni renvoi à un reclassement', async () => {
+    await appeler()
+    await ecrireEncaissements('C1', [virement('c1', 27_000, { id: 'enc-1' })], OPTIONS)
+    const resultat = await annuler('C1', 'enc-1', { date: '2027-01-25', motif: 'Virement retourné', piece: 'AVIS-0013' })
+    expect(resultat.correction).toBeNull()
+    expect(resultat).not.toHaveProperty('reimputationsCausees')
+    expect(resultat.encaissement.annulation).toEqual({
+      le: '2027-01-25',
+      motif: 'Virement retourné',
+      piece: 'AVIS-0013',
+      traitementId: resultat.piece.id,
+      dateComptable: '2027-01-25',
+      mention: 'pièce « AVIS-0013 » du 25/01/2027',
+    })
+  })
+
+  it('À valider — rejet par la banque du paiement en retard qui a causé une réimputation : l’encaissement réimputé garde sa réimputation, le résultat le signale', async () => {
+    await janvierPuisChequeEnRetard()
+    const janvier = await ajDb.encaissements.get('enc-janvier')
+    const { piece, correction, reimputationsCausees } = await annuler('C1', 'enc-cheque', { date: '2027-01-05', motif: 'Chèque impayé', piece: 'AVIS-2027-0051', aujourdhui: '2027-02-20' })
+    expect(sansTraitement(piece.traitement.mouvements)).toEqual([
+      { compte: 'ACAC.51200.00000.0', sens: 'credit', montantCentimes: 20_000 },
+      { compte: 'ACAC.45000.00001.0', sens: 'debit', montantCentimes: 20_000, ...origine(T4_2026, 'Budget') },
+    ])
+    expect(correction).toBeNull()
+    expect(reimputationsCausees).toEqual(['enc-janvier'])
+    // Solution prudente : la décision F110 couvre la désimputation du chèque, pas l'annulation de la réimputation qu'il a causée.
+    expect(await ajDb.encaissements.get('enc-janvier')).toEqual(janvier)
+    expect(await regles('c1')).toEqual([
+      [T4_2026, 7_000],
+      [T1_2027, 19_048],
+      [FONDS_T1_2027, 952],
+    ])
+    // Conséquence : une réimputation ultérieure de ce compte est refusée par la garde du rejeu à blanc.
+    await expect(ecrireEncaissements('C1', [cheque(1_000, { id: 'enc-autre', piece: { mode: 'Chèque', numero: '0001300' } })], { ...EN_RETARD, date: '2026-12-22', aujourdhui: '2027-02-21' })).rejects.toThrow(
+      /Encaissement enc-janvier.*ne se rejoue pas à l'identique/,
+    )
+  })
+})
+
+/** Annulation pour erreur de saisie des essais : doublon, saisie le 15/02/2027. */
+const corriger = (pieceId: string, saisie: Partial<SaisieAnnulationPourErreur> = {}, options?: { actor?: string | null }, coproprieteId = 'C1') =>
+  annulerPieceEncaissementsPourErreur(coproprieteId, pieceId, { motif: 'doublon', explication: 'virement VIR-0001 saisi deux fois', aujourdhui: '2027-02-15', ...saisie }, options)
+
+describe('Décision du 24/11/2026 (question 6, option 4) — annulation d’une pièce d’encaissement pour erreur de saisie', () => {
+  it('motifs admis : montant, compte, doublon', () => {
+    expect(MOTIFS_ERREUR_DE_SAISIE).toEqual(['montant', 'compte', 'doublon'])
+  })
+
+  it('doublon : la pièce la plus récente est contre-passée entière, 512 compris ; elle passe « Annulé », son encaissement aussi, les postes reviennent à l’état d’avant', async () => {
+    await appeler()
+    const premier = await ecrireEncaissements('C1', [virement('c1', 27_000, { id: 'enc-1' })], OPTIONS)
+    const reglesAvant = await regles('c1')
+    const doublon = await ecrireEncaissements('C1', [virement('c1', 27_000, { id: 'enc-2' })], OPTIONS)
+    expect(doublon.piece.numero).toBe(4)
+    // La pièce n° 3 ne s'annule pas : l'encaissement de la n° 4 a été imputé sur les soldes qu'elle a laissés.
+    const avant = await compter()
+    await expect(corriger(premier.piece.id)).rejects.toThrow(
+      /Pièce n° 3 : l'encaissement enc-2 du 15\/01\/2027 \(pièce n° 4\), postérieur sur le compte « c1 ».*Annulation refusée.*Pour un doublon, c'est la pièce la plus récente \(n° 4\) qui s'annule/,
+    )
+    expect(await compter()).toEqual(avant)
+    const { piece, annulation, correction, encaissements, postes } = await corriger(doublon.piece.id, {}, { actor: 'test' })
+    expect(annulation).toMatchObject({ numero: 5, famille: "Annulation d'encaissement", date: '2027-02-15', statut: 'Enregistré', coproprieteId: 'C1', mandatId: 'M1' })
+    expect(annulation.traitement.annule).toBe(doublon.piece.id)
+    expect(sansTraitement(annulation.traitement.mouvements)).toEqual([
+      { compte: 'ACAC.51200.00000.0', sens: 'credit', montantCentimes: 27_000 },
+      { compte: 'ACAC.45000.00001.0', sens: 'debit', montantCentimes: 25_714, ...origine(T1_2027, 'Budget') },
+      { compte: 'ACAC.45000.00001.0', sens: 'debit', montantCentimes: 1_286, ...origine(FONDS_T1_2027, 'Fonds travaux') },
+    ])
+    expect(correction).toBeNull()
+    expect(piece).toMatchObject({ id: doublon.piece.id, statut: 'Annulé', annuleePar: annulation.id, updatedBy: 'test' })
+    expect(await ajDb.traitements.get(doublon.piece.id)).toEqual(piece)
+    expect(encaissements).toHaveLength(1)
+    expect(encaissements[0]).toMatchObject({ id: 'enc-2', statut: 'Annulé', impute: true, traitementId: doublon.piece.id, updatedBy: 'test' })
+    expect(encaissements[0].annulation).toEqual({
+      le: '2027-02-15',
+      motif: 'Erreur de saisie (doublon) : virement VIR-0001 saisi deux fois',
+      piece: "Note de correction du 15/02/2027 (pièce d'origine n° 4)",
+      traitementId: annulation.id,
+      dateComptable: '2027-02-15',
+      mention: 'Annulation pour erreur de saisie (doublon) de la pièce n° 4 du 15/01/2027 (« Encaissement »)',
+      nature: 'erreur-saisie',
+    })
+    expect(await ajDb.encaissements.get('enc-2')).toEqual(encaissements[0])
+    expect(postes.filter((p) => p.compteId === 'c1').map((p) => p.regleCentimes)).toEqual([27_000, 0, 0])
+    expect(await regles('c1')).toEqual(reglesAvant)
+    expect(await soldeDu512()).toBe(27_000)
+    expect((await lireEtatDesComptes('C1')).ecarts).toEqual([])
+    const journal = (await ajDb.activityLog.toArray()).filter((e) => e.qui === 'test')
+    expect(journal.map((e) => `${e.entite} ${e.action}`).sort((a, b) => a.localeCompare(b))).toEqual(['encaissements update', 'traitements create', 'traitements update'])
+    // La pièce est annulée une fois : ni seconde annulation pour erreur, ni rejet de la banque, ni annulation générique.
+    const apres = await compter()
+    await expect(corriger(doublon.piece.id)).rejects.toThrow(/Pièce n° 4 déjà annulée/)
+    await expect(annuler('C1', 'enc-2', { date: '2027-02-15', motif: 'Virement retourné', piece: 'AVIS-0014' })).rejects.toThrow(/pièce n° 4 est déjà annulée/)
+    await expect(annulerPieceTraitement(doublon.piece.id, { id: 'annulation-generique', date: '2027-02-16' })).rejects.toThrow(/annulerEncaissementEcrit.*annulerPieceEncaissementsPourErreur/)
+    await expect(annulerPieceTraitement(premier.piece.id, { id: 'annulation-generique', date: '2027-02-16' })).rejects.toThrow(/annulerPieceEncaissementsPourErreur/)
+    expect(await compter()).toEqual(apres)
+  })
+
+  it('lot de trois virements (deux comptes) : toute la pièce est contre-passée, les trois encaissements sont annulés, aucun compte en écart', async () => {
+    await appeler()
+    const lot = await ecrireEncaissements(
+      'C1',
+      [virement('c1', 20_000, { id: 'enc-a' }), virement('c2', 21_000, { id: 'enc-b', piece: { mode: 'Virement', numero: 'VIR-0002' } }), virement('c1', 7_000, { id: 'enc-c', piece: { mode: 'Virement', numero: 'VIR-0003' } })],
+      { ...OPTIONS, famille: 'Fichier Virement reçus' },
+    )
+    const { annulation, encaissements, piece } = await corriger(lot.piece.id, { motif: 'compte', explication: 'fichier de virements d’un autre syndicat' })
+    expect(annulation.famille).toBe("Annulation d'encaissement")
+    expect(annulation.traitement.mouvements.map((m) => [m.sens, m.compte, m.montantCentimes])).toEqual([
+      ['credit', 'ACAC.51200.00000.0', 20_000],
+      ['debit', 'ACAC.45000.00001.0', 20_000],
+      ['credit', 'ACAC.51200.00000.0', 21_000],
+      ['debit', 'ACAC.45000.00002.0', 21_000],
+      ['credit', 'ACAC.51200.00000.0', 7_000],
+      ['debit', 'ACAC.45000.00001.0', 7_000],
+    ])
+    expect(piece.statut).toBe('Annulé')
+    expect(encaissements.map((e) => [e.id, e.statut, e.annulation?.nature, e.annulation?.motif])).toEqual([
+      ['enc-a', 'Annulé', 'erreur-saisie', 'Erreur de saisie (compte) : fichier de virements d’un autre syndicat'],
+      ['enc-b', 'Annulé', 'erreur-saisie', 'Erreur de saisie (compte) : fichier de virements d’un autre syndicat'],
+      ['enc-c', 'Annulé', 'erreur-saisie', 'Erreur de saisie (compte) : fichier de virements d’un autre syndicat'],
+    ])
+    const etat = await lireEtatDesComptes('C1')
+    expect(etat.ecarts).toEqual([])
+    expect(etat.soldes.map((s) => s.regleCentimes)).toEqual([0, 0, 0])
+    expect(await soldeDu512()).toBe(0)
+  })
+
+  it('erreur de montant : 2 000,00 € saisis pour 200,00 € ; annulation, puis ressaisie sous un nouvel identifiant', async () => {
+    await appeler()
+    const faux = await ecrireEncaissements('C1', [virement('c1', 200_000, { id: 'enc-faux' })], OPTIONS)
+    expect(faux.encaissements[0].imputation.resteAImputerCentimes).toBe(125_749)
+    await corriger(faux.piece.id, { motif: 'montant', explication: '2 000,00 € saisis pour 200,00 €' })
+    expect((await lireEtatDesComptes('C1')).soldes[0]).toMatchObject({ compteId: 'c1', regleCentimes: 0, creditAImputerCentimes: 0 })
+    // L'identifiant de l'encaissement annulé reste pris : la ressaisie a le sien.
+    await expect(ecrireEncaissements('C1', [virement('c1', 20_000, { id: 'enc-faux' })], OPTIONS)).rejects.toThrow(/enc-faux déjà enregistré/)
+    const juste = await ecrireEncaissements('C1', [virement('c1', 20_000, { id: 'enc-juste' })], OPTIONS)
+    expect(juste.encaissements[0].imputation).toMatchObject({ lignes: [{ posteId: `${T4_2026}:L1`, montantCentimes: 20_000 }], resteAImputerCentimes: 0 })
+    expect(await soldeDu512()).toBe(20_000)
+  })
+
+  it('encaissement réimputé, puis sa pièce annulée pour erreur : lignes d’origine contre-passées, reclassement contre-passé par une « Correction de mouvements » du même jour', async () => {
+    const { janvier, reclassement } = await janvierPuisChequeEnRetard()
+    const avant = await compter()
+    await expect(corriger(janvier.piece.id, { aujourdhui: '2027-02-10' })).rejects.toThrow(/antérieure à la pièce de reclassement/)
+    expect(await compter()).toEqual(avant)
+    const { annulation, correction, encaissements } = await corriger(janvier.piece.id, { motif: 'compte', explication: 'virement d’un autre copropriétaire', aujourdhui: '2027-02-20' })
+    expect(annulation).toMatchObject({ numero: 6, date: '2027-02-20' })
+    expect(sansTraitement(annulation.traitement.mouvements)).toEqual([
+      { compte: 'ACAC.51200.00000.0', sens: 'credit', montantCentimes: 27_000 },
+      { compte: 'ACAC.45000.00001.0', sens: 'debit', montantCentimes: 27_000, ...origine(T4_2026, 'Budget') },
+    ])
+    expect(correction).toMatchObject({ numero: 7, famille: 'Correction de mouvements', date: '2027-02-20' })
+    expect(sansTraitement(correction?.traitement.mouvements ?? [])).toEqual([
+      { compte: 'ACAC.45000.00001.0', sens: 'credit', montantCentimes: 20_000, ...origine(T4_2026, 'Budget'), ...LIENS_C1 },
+      { compte: 'ACAC.45000.00001.0', sens: 'debit', montantCentimes: 19_048, ...origine(T1_2027, 'Budget'), ...LIENS_C1 },
+      { compte: 'ACAC.45000.00001.0', sens: 'debit', montantCentimes: 952, ...origine(FONDS_T1_2027, 'Fonds travaux'), ...LIENS_C1 },
+    ])
+    expect(encaissements[0].annulation).toMatchObject({ nature: 'erreur-saisie', reclassements: [reclassement.id], correctionId: correction?.id })
+    expect(await regles('c1')).toEqual([
+      [T4_2026, 20_000],
+      [T1_2027, 0],
+      [FONDS_T1_2027, 0],
+    ])
+    expect((await lireEtatDesComptes('C1')).ecarts).toEqual([])
+  })
+
+  it('pièce d’un paiement en retard qui a causé une réimputation : refusée, des encaissements postérieurs ont été réimputés d’après elle', async () => {
+    const { retard } = await janvierPuisChequeEnRetard()
+    const avant = await compter()
+    await expect(corriger(retard.piece.id, { motif: 'montant', explication: 'chèque de 20,00 €' })).rejects.toThrow(
+      /Pièce n° 4 : l'encaissement enc-janvier du 15\/01\/2027 \(pièce n° 3\), postérieur sur le compte « c1 ».*Annulation refusée/,
+    )
+    expect(await compter()).toEqual(avant)
+  })
+
+  it('refus, rien n’est écrit : motif hors liste, explication vide, jour de la correction, pièce introuvable, d’un autre syndicat, d’une autre famille, imputée, mandat étranger', async () => {
+    const { t4 } = await appeler()
+    const { piece } = await ecrireEncaissements('C1', [virement('c1', 27_000, { id: 'enc-1' })], OPTIONS)
+    const avant = await compter()
+    await expect(corriger(piece.id, { motif: 'date' as never })).rejects.toThrow(/motif « date » hors de la liste \(montant, compte, doublon\)/)
+    await expect(corriger(piece.id, { explication: '  ' })).rejects.toThrow(/explication attendue/)
+    await expect(corriger(piece.id, { aujourdhui: 'demain' })).rejects.toThrow(/Date du jour invalide/)
+    await expect(corriger(piece.id, { aujourdhui: '2127-02-15' })).rejects.toThrow(/Correction datée du 15\/02\/2127 : année improbable/)
+    await expect(corriger(piece.id, { aujourdhui: '2028-01-10' })).rejects.toThrow(/Correction datée du 10\/01\/2028, jour de la saisie : hors des exercices du syndicat ouverts dans VitFix/)
+    await expect(corriger(piece.id, { aujourdhui: '2027-01-10' })).rejects.toThrow(/Correction datée du 10\/01\/2027, antérieure à la pièce n° 3 du 15\/01\/2027/)
+    await expect(corriger('inconnue')).rejects.toThrow(/Pièce introuvable/)
+    await expect(corriger(piece.id, {}, undefined, 'C2')).rejects.toThrow(/autre syndicat.*D1/)
+    await expect(corriger(t4.id)).rejects.toThrow(/Pièce n° 1 \(« Appel de fonds »\) : seule une pièce d'encaissement/)
+    await expect(corriger(piece.id, { mandatId: 'M2' })).rejects.toThrow(/autre syndicat/)
+    expect(await compter()).toEqual(avant)
+    await changerStatutTraitement(piece.id, 'Imputé')
+    await expect(corriger(piece.id)).rejects.toThrow(/Pièce n° 3 au statut « Imputé »/)
+    expect((await ajDb.encaissements.get('enc-1'))?.statut).toBe('Enregistré')
+  })
+
+  it('À valider — refus : un encaissement de la pièce déjà rejeté par la banque, pointé au rapprochement, ou chèque d’une remise', async () => {
+    await appeler()
+    const lot = await ecrireEncaissements('C1', [virement('c1', 20_000, { id: 'enc-a' }), virement('c2', 21_000, { id: 'enc-b' })], OPTIONS)
+    const pointe = await ecrireEncaissements('C1', [virement('c3', 12_000, { id: 'enc-pointe' })], OPTIONS)
+    await ajDb.encaissements.update('enc-pointe', {
+      statut: 'Rapproché',
+      rapprochement: { arreteId: 'a-1', banqueId: 'b1', elementId: 'rel-1', cote: 'banque', mode: 'manuel', rapprocheLe: '2027-01-20' },
+    })
+    await annuler('C1', 'enc-b', { date: '2027-01-25', motif: 'Virement retourné', piece: 'AVIS-0015' })
+    const avant = await compter()
+    await expect(corriger(lot.piece.id)).rejects.toThrow(/Encaissement enc-b déjà annulé le 25\/01\/2027/)
+    await expect(corriger(pointe.piece.id)).rejects.toThrow(/Encaissement enc-pointe pointé au rapprochement bancaire/)
+    await ajDb.encaissements.update('enc-pointe', { statut: 'Enregistré', rapprochement: null })
+    const pieceDuCheque = (await ajDb.encaissements.get('enc-pointe'))?.piece
+    await ajDb.encaissements.update('enc-pointe', { piece: { mode: 'Chèque', numero: '0000001', banqueEmettrice: null, libelle: null, ...pieceDuCheque, remiseId: 'remise-1' } })
+    await expect(corriger(pointe.piece.id)).rejects.toThrow(/Encaissement enc-pointe : chèque de la remise remise-1/)
+    expect(await compter()).toEqual(avant)
+  })
+})
+
+describe('À valider — réimputation qui ne déplace des centimes qu’entre deux lots d’un même appel : aucune ligne à écrire, refus', () => {
+  it('compte à deux lots, paiement en retard et encaissement postérieur sur le même appel : refusé, rien n’est écrit', async () => {
+    // Le compte 1 porte aussi le lot 4 (50 millièmes, pris au lot 3) : deux postes par appel, de même exigibilité, servis
+    // au prorata (270,00 € et 30,00 € sur le T4 2026).
+    await ajDb.lots.update('L3', { tantiemes: { numerateur: 150, denominateur: 1000 } })
+    await ajDb.lots.add(lot('L4', 'C1', '4', 50))
+    const { id: _p, ...position } = creerPosition({ id: 'p1b', identiteId: 'i1', lotId: 'L4', compteId: 'c1', qualite: 'Copropriétaire', part: { numerateur: 1, denominateur: 1 }, statut: 'En place', dateEntree: '2020-01-01', dateSortie: null })
+    await repoPositions.create(position, { id: 'p1b' })
+    await appeler()
+    const { encaissements } = await ecrireEncaissements('C1', [virement('c1', 15, { id: 'enc-janvier' })], OPTIONS)
+    expect(encaissements[0].imputation.lignes.map((l) => [l.posteId, l.montantCentimes])).toEqual([
+      [`${T4_2026}:L1`, 14],
+      [`${T4_2026}:L4`, 1],
+    ])
+    const avant = await compter()
+    // Le chèque de 0,05 € déplace d'un centime le partage du virement entre les deux lots : même appel, même compte 450.
+    await expect(ecrireEncaissements('C1', [cheque(5)], EN_RETARD)).rejects.toThrow(/Compte « c1 » : .*qu'entre les lots d'un même appel, sans aucune ligne à écrire au compte 450.*Réimputation refusée, rien n'est écrit/)
+    expect(await compter()).toEqual(avant)
   })
 })

@@ -1,12 +1,14 @@
 import { journaliserActivite, type OptionsEcriture } from '@/lib/administrateur-judiciaire/db/repository'
 import { ajDb, type PieceTraitementEnregistree } from '@/lib/administrateur-judiciaire/db/schema'
-import { FAMILLES_ENCAISSEMENT } from '@/lib/administrateur-judiciaire/domain/encaissements-pieces'
+import { FAMILLE_ANNULATION_ENCAISSEMENT, FAMILLES_ENCAISSEMENT } from '@/lib/administrateur-judiciaire/domain/encaissements-pieces'
 import {
   annulerPiece,
   changerStatutPiece,
   creerPieceTraitement,
+  CYCLES_PIECE,
   numeroPieceSuivant,
   segmentComptableSyndicat,
+  STATUT_PIECE_ANNULEE,
   type OptionsAnnulationPiece,
   type ParametreTraitement,
   type StatutPiece,
@@ -25,10 +27,13 @@ import type { Traitement } from '@/lib/administrateur-judiciaire/domain/traiteme
  *   numérotée à la suite (annulerPiece). Jamais de suppression (repoTraitements la refuse).
  * Appel de fonds (cycle document) : son annulation suit son propre circuit (annulerTraitement et annulerAppelees,
  * echeancier-appels.ts), écrit avec ses échéances par la PR écran.
- * Encaissement (toutes ses familles) : son annulation suit aussi son propre circuit (annulerEncaissementEcrit,
- * db/encaissements.ts), qui passe l'écriture contraire ET défait l'imputation sur les postes du compte copropriétaire ;
- * annulerPieceTraitement refuse donc ces familles (les postes resteraient réglés, et une seconde écriture contraire
- * resterait possible).
+ * Encaissement (toutes ses familles) : son annulation suit aussi ses propres circuits (db/encaissements.ts), qui passent
+ * l'écriture contraire ET défont l'imputation sur les postes du compte copropriétaire : annulerEncaissementEcrit (rejet
+ * de la banque, encaissement par encaissement ; la pièce d'origine ne change pas) et annulerPieceEncaissementsPourErreur
+ * (erreur de saisie, décision du 24/11/2026, question 6 : toute la pièce, qui passe « Annulé »). annulerPieceTraitement
+ * refuse donc ces familles (les postes resteraient réglés, et une seconde écriture contraire resterait possible).
+ * marquerPieceEncaissementsAnnulee, réservée au second circuit, est la seule autre écriture du statut « Annulé » : elle
+ * ne passe aucune écriture, celle de son appelant étant déjà enregistrée dans la même transaction.
  */
 
 const horodater = <T extends object>(objet: T, actor: string | null) => {
@@ -99,7 +104,8 @@ export function changerStatutTraitement(id: string, nouveau: StatutPiece, { acto
  * Annule une pièce « Enregistré » (annulerPiece) : la pièce passe « Annulé » (annuleePar), l'écriture contraire est
  * enregistrée avec le numéro suivant de la séquence du cabinet. `mandatId` : mandat qui annule, par défaut celui de la
  * pièce ; s'il est donné, il doit porter sur le même syndicat. Refuse une pièce d'encaissement, quelle que soit sa
- * famille : elle s'annule encaissement par encaissement, par annulerEncaissementEcrit (db/encaissements.ts).
+ * famille : elle s'annule par les circuits des encaissements (db/encaissements.ts), encaissement par encaissement pour un
+ * rejet de la banque (annulerEncaissementEcrit), entière pour une erreur de saisie (annulerPieceEncaissementsPourErreur).
  */
 export function annulerPieceTraitement(
   id: string,
@@ -110,7 +116,7 @@ export function annulerPieceTraitement(
     const avant = await lirePiece(id)
     if ((FAMILLES_ENCAISSEMENT as readonly string[]).includes(avant.famille))
       throw new Error(
-        `Pièce n° ${avant.numero} (« ${avant.famille} ») : un encaissement s'annule par annulerEncaissementEcrit (db/encaissements.ts), qui passe l'écriture contraire et défait son imputation sur les postes du compte ; l'annulation générique laisserait ces postes réglés.`,
+        `Pièce n° ${avant.numero} (« ${avant.famille} ») : un encaissement s'annule par les circuits des encaissements (db/encaissements.ts), qui passent l'écriture contraire et défont son imputation sur les postes du compte : annulerEncaissementEcrit pour un rejet de la banque, annulerPieceEncaissementsPourErreur pour une erreur de saisie ; l'annulation générique laisserait ces postes réglés.`,
       )
     const segmentSyndicat = await segmentDuSyndicat(avant.coproprieteId)
     if (options.mandatId !== undefined) await verifierMandat(options.mandatId, avant.coproprieteId)
@@ -129,5 +135,31 @@ export function annulerPieceTraitement(
     await journaliserActivite({ entite: 'traitements', entiteId: id, action: 'update', qui: actor, avant, apres: piece })
     await journaliserActivite({ entite: 'traitements', entiteId: annulation.id, action: 'create', qui: actor, avant: null, apres: annulation })
     return { piece, annulation }
+  })
+}
+
+/**
+ * Décision du 24/11/2026 (question 6, option 4) — réservée à l'annulation d'une pièce d'encaissement pour erreur de saisie
+ * (db/encaissements.annulerPieceEncaissementsPourErreur), à appeler DANS sa transaction, après l'enregistrement de son
+ * écriture contraire : la pièce d'origine passe « Annulé » et garde l'identifiant de cette écriture (annuleePar). Aucune
+ * écriture n'est passée ici. Refuse une pièce introuvable, d'une autre famille que celles des encaissements, qui n'est
+ * pas « Enregistré » (déjà annulée, imputée), et une écriture contraire absente du journal, d'une autre famille, d'un
+ * autre syndicat ou qui ne renvoie pas (annule) à la pièce.
+ */
+export function marquerPieceEncaissementsAnnulee(id: string, annuleePar: string, { actor = null }: OptionsEcriture = {}): Promise<PieceTraitementEnregistree> {
+  return ajDb.transaction('rw', ajDb.traitements, ajDb.activityLog, async () => {
+    const avant = await lirePiece(id)
+    if (!(FAMILLES_ENCAISSEMENT as readonly string[]).includes(avant.famille))
+      throw new Error(`Pièce n° ${avant.numero} (« ${avant.famille} ») : seule une pièce d'encaissement s'annule pour erreur de saisie.`)
+    if (avant.statut === STATUT_PIECE_ANNULEE || avant.annuleePar !== undefined) throw new Error(`Pièce n° ${avant.numero} déjà annulée (écriture contraire ${avant.annuleePar ?? 'inconnue'}).`)
+    if (avant.statut !== CYCLES_PIECE.comptable[0])
+      throw new Error(`Pièce n° ${avant.numero} au statut « ${avant.statut} » : seule une pièce « ${CYCLES_PIECE.comptable[0]} » s'annule (une pièce imputée ne s'annule plus).`)
+    const contraire = await ajDb.traitements.get(annuleePar)
+    if (contraire?.famille !== FAMILLE_ANNULATION_ENCAISSEMENT || contraire.coproprieteId !== avant.coproprieteId || contraire.traitement.annule !== avant.id)
+      throw new Error(`Pièce n° ${avant.numero} : son écriture contraire ${annuleePar} (« ${FAMILLE_ANNULATION_ENCAISSEMENT} », même syndicat, renvoi à la pièce) n'est pas enregistrée ; la pièce ne passe « Annulé » qu'avec elle.`)
+    const apres: PieceTraitementEnregistree = { ...avant, statut: STATUT_PIECE_ANNULEE, annuleePar, updatedAt: new Date().toISOString(), updatedBy: actor }
+    await ajDb.traitements.put(apres)
+    await journaliserActivite({ entite: 'traitements', entiteId: id, action: 'update', qui: actor, avant, apres })
+    return apres
   })
 }

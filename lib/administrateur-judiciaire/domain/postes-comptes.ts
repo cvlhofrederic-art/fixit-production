@@ -9,6 +9,7 @@ import {
   type PosteDette,
 } from '@/lib/administrateur-judiciaire/domain/imputation-encaissements'
 import type { PieceTraitement } from '@/lib/administrateur-judiciaire/domain/journal-traitements'
+import type { LigneMouvement } from '@/lib/administrateur-judiciaire/domain/traitements'
 import { avisDAppel, type AnomalieAppel, type CleRepartition } from '@/lib/administrateur-judiciaire/domain/repartition-appels'
 import { planDuCompte } from '@/lib/administrateur-judiciaire/domain/verrou-saisie'
 
@@ -35,6 +36,13 @@ import { planDuCompte } from '@/lib/administrateur-judiciaire/domain/verrou-sais
  *   chaque encaissement : l'imputation est faite le jour du paiement, C. civ. art. 1342-10, elle ne se recalcule pas).
  *   Annuler un encaissement (F110) retire donc ses lignes : le poste redevient dû, à son exigibilité d'origine. Une ligne
  *   sans son poste, un réglé au-delà du dû, une pièce d'encaissement annulée hors de son circuit : écart du compte.
+ * - RÉIMPUTATION dans l'ordre des dates (décision du 24/11/2026, question 6, option 3 ; conception : db/encaissements.ts,
+ *   point 6) : `imputation` porte TOUJOURS l'imputation COURANTE de l'encaissement, les lecteurs ci-dessous ne changent
+ *   pas de sens ; chaque réimputation s'ajoute à `reimputations` avec l'imputation d'avant, copiée, et les lignes de sa
+ *   pièce de reclassement (« Correction de mouvements »). Aucune pièce comptable n'est réécrite (arrêté du 14/03/2005,
+ *   art. 5) : l'imputation gardée sur l'encaissement est une information d'affectation (lettrage), mise à jour avec son
+ *   historique complet, ajouté, jamais effacé. Une pièce de reclassement absente ou « Annulé » : écart du compte (le
+ *   réglé ne serait plus celui du compte 450).
  * - Les postes d'un appel annulé sont écartés (echeancier-appels.postesImputables) ; réglés, leur compte est en écart.
  * - `contentieux` vaut toujours false ici : le contentieux se lit encore sur l'ancienne fiche (réponse du référent métier
  *   du 22/11/2026, point ap-06 : il sera porté sur le compte D2 quand le recouvrement passera aux comptes D2). À brancher
@@ -67,8 +75,57 @@ export interface ImputationEcrite {
   imputerSurAVenir: boolean
 }
 
-/** Encaissement d'un copropriétaire écrit au journal des traitements, avec son syndicat (D1) et son imputation. */
-export type EncaissementImpute = EncaissementEnregistre & { coproprieteId: string; imputation: ImputationEcrite }
+/** Ce qui a causé une réimputation : le ou les paiements saisis en retard, d'une même pièce, sur le compte. */
+export interface CauseReimputation {
+  type: 'encaissement-en-retard'
+  /** Encaissements saisis en retard sur le compte, dans l'ordre reçu. */
+  encaissementIds: string[]
+  /** Pièce de ces paiements en retard. */
+  traitementId: string
+  /** Leur date (celle de leur pièce). */
+  date: string
+}
+
+/**
+ * Réimputation d'un encaissement dans l'ordre des dates (décision du 24/11/2026, question 6, option 3), en ajout seul :
+ * la pièce de reclassement, sa cause, l'imputation d'avant et les lignes que cet encaissement porte dans la pièce.
+ */
+export interface ReimputationEcrite {
+  /** Pièce « Correction de mouvements » du reclassement. */
+  traitementId: string
+  /** Date comptable du reclassement : le jour du traitement. */
+  le: string
+  cause: CauseReimputation
+  /** Imputation complète d'avant ce reclassement, copiée. */
+  avant: ImputationEcrite
+  /** Lignes de CET encaissement dans la pièce de reclassement (ce que son annulation contre-passera). */
+  mouvements: LigneMouvement[]
+  /** Mention de la pièce justificative (arrêté du 14/03/2005, art. 4 ; décret n° 2005-240, art. 6). */
+  mention: string
+}
+
+/**
+ * Encaissement d'un copropriétaire écrit au journal des traitements, avec son syndicat (D1) et son imputation COURANTE
+ * (celle de sa pièce d'origine tant qu'il n'a pas été réimputé).
+ */
+export type EncaissementImpute = EncaissementEnregistre & {
+  coproprieteId: string
+  imputation: ImputationEcrite
+  /** Place de l'encaissement dans son lot (0, 1, …) : départage l'ordre des encaissements d'une même pièce. */
+  rang: number
+  /** Réimputations successives, de la plus ancienne à la plus récente ; absent : jamais réimputé. */
+  reimputations?: ReimputationEcrite[]
+  /** Sur un paiement saisi en retard : les pièces de reclassement qu'il a causées. */
+  reclassementIds?: string[]
+}
+
+/**
+ * Imputation écrite dans la pièce d'ORIGINE de l'encaissement : celle d'avant sa première réimputation, sinon la
+ * courante. Elle ne sert qu'à retrouver ses lignes dans la pièce d'origine (rejet de la banque, annulation pour erreur de
+ * saisie) ; le réglé et les soldes se lisent sur `imputation`.
+ */
+export const imputationDOrigine = (encaissement: Pick<EncaissementImpute, 'imputation' | 'reimputations'>): ImputationEcrite =>
+  encaissement.reimputations?.[0]?.avant ?? encaissement.imputation
 
 export interface DonneesPostes {
   /** Échéancier complet du syndicat. */
@@ -80,7 +137,7 @@ export interface DonneesPostes {
   /** Pièces du journal des traitements du syndicat (ses appels de fonds, et les pièces de ses encaissements). */
   pieces: Pick<PieceTraitement, 'id' | 'numero' | 'traitement' | 'statut'>[]
   /** Encaissements du syndicat, annulés compris. */
-  encaissements: (Pick<EncaissementImpute, 'id' | 'compteId' | 'traitementId' | 'imputation'> & Pick<Partial<EncaissementImpute>, 'annulation'>)[]
+  encaissements: (Pick<EncaissementImpute, 'id' | 'compteId' | 'traitementId' | 'imputation'> & Pick<Partial<EncaissementImpute>, 'annulation' | 'reimputations'>)[]
 }
 
 /** Écart d'un compte avec ce qui est écrit : ses postes ne sont pas rendus, ses encaissements sont refusés. */
@@ -250,8 +307,24 @@ const ecartDuCompte = (compteId: string, comptes: CompteCoproprietaire[], motif:
 })
 
 /**
+ * Pièces de reclassement d'un encaissement réimputé : chacune doit être au journal du syndicat et ne pas être « Annulé » ;
+ * sinon l'imputation courante gardée sur l'encaissement n'est plus celle que le compte 450 porte : écart du compte.
+ */
+function ecartsDesReclassements(e: DonneesPostes['encaissements'][number], pieces: DonneesPostes['pieces'], comptes: CompteCoproprietaire[]): EcartCompte[] {
+  return (e.reimputations ?? []).flatMap((reimputation) => {
+    const piece = pieces.find((p) => p.id === reimputation.traitementId)
+    if (piece && piece.statut !== 'Annulé') return []
+    const constat = piece
+      ? `sa pièce de reclassement n° ${piece.numero} a été annulée hors du circuit des encaissements`
+      : `sa pièce de reclassement ${reimputation.traitementId} est introuvable au journal des traitements du syndicat`
+    return [ecartDuCompte(e.compteId, comptes, `Encaissement ${e.id} : ${constat} ; son imputation courante, réimputée dans l'ordre des dates, n'est plus celle que porte le compte ${e.compteId}.`)]
+  })
+}
+
+/**
  * Réglé de chaque poste : somme des lignes d'imputation des encaissements non annulés des comptes sans écart. Écart du
- * compte de l'encaissement : pièce annulée hors du circuit des encaissements, ligne sans son poste ou d'un autre compte.
+ * compte de l'encaissement : pièce annulée hors du circuit des encaissements, pièce de reclassement d'une de ses
+ * réimputations absente ou annulée, ligne sans son poste ou d'un autre compte.
  */
 function reglesParPoste(
   postes: PosteDette[],
@@ -266,6 +339,7 @@ function reglesParPoste(
     const piece = pieces.find((p) => p.id === e.traitementId)
     if (piece?.statut === 'Annulé')
       ecarts.push(ecartDuCompte(e.compteId, comptes, `Encaissement ${e.id} : sa pièce n° ${piece.numero} a été annulée hors du circuit des encaissements (annulerEncaissementEcrit) ; son imputation compte encore dans le réglé du compte ${e.compteId}.`))
+    ecarts.push(...ecartsDesReclassements(e, pieces, comptes))
     for (const ligne of e.imputation.lignes) {
       const compteId = compteDe.get(ligne.posteId)
       if (compteId === e.compteId) cumuler(regles, ligne.posteId, ligne.montantCentimes)
