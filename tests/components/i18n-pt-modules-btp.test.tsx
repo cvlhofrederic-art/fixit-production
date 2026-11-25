@@ -277,7 +277,9 @@ describe('modules BTP du tableau de bord pro en portugais (pt-PT)', () => {
     expect(tudo).toContain('Sócio-gerente')
     expect(tudo).toContain('Subempreiteiro')
     expect(tudo).toContain('Gerente: acesso total. Único com permissão para gerir contas.')
-    expect(tudo).toContain('planeamento')
+    // Droits par défaut des rôles de terrain depuis le 25/11/2026 : leurs obras, la météo et le pointage.
+    expect(tudo).toContain('Encarregado: por defeito, só as suas obras (consulta), a meteorologia e o registo de horas.')
+    expect(tudo).toContain('o botão « Editar » de cada membro')
     expect([...c.querySelectorAll('tbody button')].map(b => b.textContent)).toContain('Editar')
     expect(ecartsPortugais(c)).toEqual([])
 

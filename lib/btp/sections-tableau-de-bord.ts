@@ -20,8 +20,9 @@ export const SECTIONS_AUTRES_METIERS: ReadonlySet<string> = new Set([
 /** Sections ouvertes à une société BTP : son menu, ses écrans, et ceux qu'elle partage avec l'artisan. */
 /**
  * Sections du tableau de bord qui ne sont PAS des modules de permission (lib/permissions.ts) : la matrice ne les
- * connaît pas, donc aucun rôle d'équipe ne peut les ouvrir ni les fermer. Les refuser à un salarié l'enfermerait —
- * « Mon profil » porte le changement de mot de passe, « Aide » et « Modules » sont au bas du menu de tout le monde.
+ * connaît pas, donc aucun rôle d'équipe ne peut les ouvrir ni les fermer : elles restent ouvertes aux sous-comptes,
+ * sauf au salarié de terrain, qui n'a que « Aide » en plus de ce que la matrice lui accorde (25/11/2026 ; « Mon
+ * profil », qui porte le changement de mot de passe, est le module settings).
  * `prestations` est l'adresse du module `motifs` (alias de routage de V5Sidebar) : elle se garde par son module.
  */
 export const MODULE_DE_LA_SECTION: Record<string, string> = { prestations: 'motifs' }

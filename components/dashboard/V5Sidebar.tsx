@@ -28,7 +28,16 @@ interface V5SidebarProps {
   dynamicCategories?: ModCategory[]
   /** Liste des modules (useModulesConfig) : la recherche y lit la description de chacun, en dernier recours. */
   definitionsModules?: ReadonlyArray<{ id: string; description: string }>
+  /**
+   * Salarié de terrain (ouvrier, chef de chantier, conducteur de travaux) : son menu ne montre que ce que la matrice
+   * des droits lui ouvre (pointage, chantiers, météo par défaut), plus « Mon profil » et « Aide ». Ni les entrées
+   * hors matrice (Portail client…), ni « Modules », où il pouvait éteindre son propre pointage.
+   */
+  salarieDeTerrain?: boolean
 }
+
+/** Entrées du bloc « Compte » fermées au salarié de terrain. */
+const COMPTE_FERME_AU_TERRAIN: ReadonlySet<string> = new Set(['modules'])
 
 // Bloc « Compte » (toujours en bas du menu) : mêmes entrées que le rendu fixe plus bas, pour la recherche.
 const MODULES_COMPTE: ReadonlyArray<{ id: string; icon: string; fr: string; pt: string; descriptionFr: string; descriptionPt: string }> = [
@@ -111,8 +120,13 @@ export default function V5Sidebar({
   activePage, navigateTo, handleLogout,
   isProGerant, proCanAccess, isModuleEnabled,
   isPt, pendingBookings, unreadMsgCount, dynamicCategories, definitionsModules,
+  salarieDeTerrain = false,
 }: V5SidebarProps) {
   const useDynamic = !!(dynamicCategories && dynamicCategories.length > 0)
+  const modulesCompte = useMemo(
+    () => (salarieDeTerrain ? MODULES_COMPTE.filter(mod => !COMPTE_FERME_AU_TERRAIN.has(mod.id)) : MODULES_COMPTE),
+    [salarieDeTerrain],
+  )
 
   // ─── Recherche de modules (menu dynamique seulement) ───
   const [requete, setRequete] = useState('')
@@ -137,11 +151,16 @@ export default function V5Sidebar({
         // seulement dans la branche figée plus bas, que le tableau de bord n'atteint jamais : il fournit toujours
         // des rubriques dynamiques, si bien qu'un ouvrier voyait tout le catalogue, Devis et Factures comprises.
         // La recherche de modules s'appuie sur cette même liste : elle ne montre donc rien de plus que le menu.
-        modules: cat.modules.filter(m =>
-          m.on && isModuleEnabled(m.id) && (isProGerant || !MODULES_GARDES.has(m.id) || proCanAccess(m.id))),
+        // Un salarié de terrain voit exactement ce que la matrice lui accorde (25/11/2026, « uniquement » la météo,
+        // son chantier et le pointage) : une entrée hors matrice lui reste fermée, et un module accordé reste au menu
+        // même s'il l'a éteint lui-même dans « Modules » avant que cet écran lui soit retiré — il n'aurait plus aucun
+        // moyen de le rallumer, et le gérant non plus (le réglage est rangé sous la clé du salarié).
+        modules: cat.modules.filter(m => (salarieDeTerrain
+          ? proCanAccess(m.id)
+          : m.on && isModuleEnabled(m.id) && (isProGerant || !MODULES_GARDES.has(m.id) || proCanAccess(m.id)))),
       }))
       .filter(rubrique => rubrique.modules.length > 0)
-  }, [dynamicCategories, isPt, isModuleEnabled, isProGerant, proCanAccess])
+  }, [dynamicCategories, isPt, isModuleEnabled, isProGerant, proCanAccess, salarieDeTerrain])
 
   const recherche = useMemo(() => {
     // Sans menu dynamique il n'y a pas de champ : une saisie restée en mémoire ne doit rien filtrer.
@@ -162,19 +181,19 @@ export default function V5Sidebar({
         ajouter({ id: mod.id, libelle: mod.name, rubrique: rubrique.nom, description: `${descriptions.get(mod.id) ?? ''} ${motsCles ?? ''}` })
       }
     }
-    for (const mod of MODULES_COMPTE) {
+    for (const mod of modulesCompte) {
       ajouter({ id: mod.id, libelle: isPt ? mod.pt : mod.fr, rubrique: nomCompte, description: isPt ? mod.descriptionPt : mod.descriptionFr })
     }
     return rechercherModules(requete, cherchables)
-  }, [useDynamic, requete, rubriques, definitionsModules, isPt])
+  }, [useDynamic, requete, rubriques, definitionsModules, isPt, modulesCompte])
 
   const retenus = useMemo(() => new Set(recherche.ids), [recherche])
   // Entrées du bloc « Compte » trouvées par la recherche, sauf celles qu'une rubrique du menu affiche déjà.
   const compteTrouves = useMemo(() => {
     if (!recherche.active) return []
     const dejaAuMenu = new Set(rubriques.flatMap(rubrique => rubrique.modules.map(m => m.id)))
-    return MODULES_COMPTE.filter(mod => retenus.has(mod.id) && !dejaAuMenu.has(mod.id))
-  }, [recherche.active, rubriques, retenus])
+    return modulesCompte.filter(mod => retenus.has(mod.id) && !dejaAuMenu.has(mod.id))
+  }, [recherche.active, rubriques, retenus, modulesCompte])
   const idChoisi = choixClavier && retenus.has(choixClavier) ? choixClavier : recherche.meilleur
   const libelleChoisi = useMemo(() => {
     if (!idChoisi) return ''
@@ -182,10 +201,10 @@ export default function V5Sidebar({
       const mod = rubrique.modules.find(m => m.id === idChoisi)
       if (mod) return mod.name
     }
-    const compte = MODULES_COMPTE.find(m => m.id === idChoisi)
+    const compte = modulesCompte.find(m => m.id === idChoisi)
     if (!compte) return ''
     return isPt ? compte.pt : compte.fr
-  }, [idChoisi, rubriques, isPt])
+  }, [idChoisi, rubriques, isPt, modulesCompte])
 
   const effacerRecherche = () => {
     setRequete('')
@@ -384,9 +403,11 @@ export default function V5Sidebar({
         {recherche.active && recherche.ids.length === 0 && (
           <div className="v5-sb-rech-vide">
             <p>{isPt ? 'Nenhum módulo encontrado' : 'Aucun module trouvé'}</p>
-            <button type="button" className="v5-sb-rech-lien" onClick={() => ouvrir('modules')}>
-              {isPt ? 'Ver todos os módulos' : 'Voir tous les modules'}
-            </button>
+            {!salarieDeTerrain && (
+              <button type="button" className="v5-sb-rech-lien" onClick={() => ouvrir('modules')}>
+                {isPt ? 'Ver todos os módulos' : 'Voir tous les modules'}
+              </button>
+            )}
           </div>
         )}
 
@@ -539,7 +560,7 @@ export default function V5Sidebar({
         <div className="v5-sb-bottom" hidden={recherche.active}>
           <div className="v5-sb-sec">
             <div className="v5-sb-sec-t">{isPt ? 'Conta' : 'Compte'}</div>
-            {MODULES_COMPTE.map(mod => (
+            {modulesCompte.map(mod => (
               <V5SidebarItem
                 key={mod.id}
                 icon={mod.icon}
