@@ -4,7 +4,7 @@
 // lotissements). Réponses simulées de la Base Adresse Nationale et de Nominatim ; adresses fictives.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { adresseComplete, decomposerAdresse, geocoderAdresse, lienCarte, normaliserLieu, rueSansComplements } from '@/lib/btp/geocodage'
+import { adresseComplete, decomposerAdresse, geocoderAdresse, lienCarte, normaliserLieu, numeroEtVoieSaisis, rueSansComplements } from '@/lib/btp/geocodage'
 
 type Reponse = { statut?: number; corps: unknown }
 let reponses: Record<'ban' | 'osm', Reponse | Error>
@@ -14,7 +14,12 @@ let banSelonRecherche: Record<string, Reponse | Error>
 const rechercheBan = (url: string) => new URL(url).searchParams.get('q') ?? ''
 
 interface Lieu { postcode?: string; city?: string; lat?: number; lng?: number; housenumber?: string; street?: string }
-const ban = (type: string, score: number, { postcode = '13008', city = 'Marseille', lat = 43.25, lng = 5.38, housenumber, street }: Lieu = {}): Reponse => ({
+/** Réponse BAN simulée ; par défaut le 1 rue des Lilas (la vraie BAN rend la voie, et le numéro d'un « housenumber »). */
+const ban = (
+  type: string,
+  score: number,
+  { postcode = '13008', city = 'Marseille', lat = 43.25, lng = 5.38, housenumber = type === 'housenumber' ? '1' : undefined, street = 'Rue des Lilas' }: Lieu = {},
+): Reponse => ({
   corps: { features: [{ geometry: { coordinates: [lng, lat] }, properties: { type, score, postcode, city, housenumber, street } }] },
 })
 const osm = (placeRank: number, address: Record<string, string>, lat = '43.26', lon = '5.39'): Reponse => ({
@@ -80,7 +85,7 @@ describe('geocoderAdresse — France (BAN)', () => {
     reponses.ban = ban('housenumber', 0.95, { postcode: '13008', city: 'Marseille' })
     expect((await geocoderAdresse({ adresse: '1 rue des Lilas', ville: 'Aubagne' }, 'FR'))?.precise).toBe(false)
     expect((await geocoderAdresse({ adresse: '1 rue des Lilas', codePostal: '13008', ville: 'Marseille 8e' }, 'FR'))?.precise).toBe(true)
-    reponses.ban = ban('housenumber', 0.95, { postcode: '13310', city: 'Saint-Martin-de-Crau' })
+    reponses.ban = ban('housenumber', 0.95, { postcode: '13310', city: 'Saint-Martin-de-Crau', housenumber: '3', street: 'Chemin du Mas' })
     expect((await geocoderAdresse({ adresse: '3 chemin du Mas', ville: 'St Martin de Crau' }, 'FR'))?.precise).toBe(true)
   })
 
@@ -188,7 +193,7 @@ describe('geocoderAdresse — nom de résidence ou de bâtiment devant la rue (F
   })
 
   it('première recherche déjà sûre : pas de seconde recherche', async () => {
-    reponses.ban = ban('housenumber', 0.6, { postcode: '13006' })
+    reponses.ban = ban('housenumber', 0.6, { postcode: '13006', housenumber: '3', street: 'Avenue du Prado' })
     expect((await geocoderAdresse(PRADO, 'FR'))?.precise).toBe(true)
     expect(appels).toHaveLength(1)
   })
@@ -200,6 +205,187 @@ describe('geocoderAdresse — nom de résidence ou de bâtiment devant la rue (F
     expect(appels).toHaveLength(1)
     expect(appels[0]).toContain('nominatim.openstreetmap.org')
     expect(appels[0]).toContain(encodeURIComponent('Edifício Miradouro, Rua de Santa Catarina 100 4000-447 Porto'))
+  })
+})
+
+describe('geocoderAdresse — voie saisie retrouvée dans la réponse de la BAN (France, 25/11/2026)', () => {
+  // Réponses relevées sur la BAN réelle le 25/11/2026 (score, numéro et voie rendus pour la saisie indiquée).
+  const saisie = (adresse: string, codePostal = '13001', ville = 'Marseille') => ({ adresse, codePostal, ville })
+
+  it('autre voie au nom ressemblant, même numéro : imprécis (avant : précis, donc pointage au mauvais endroit)', async () => {
+    reponses.ban = ban('housenumber', 0.643, { housenumber: '3', street: 'Allée des buis' })
+    expect((await geocoderAdresse(saisie('3 Allée des Acacias', '13008'), 'FR'))?.precise).toBe(false)
+    reponses.ban = ban('housenumber', 0.684, { postcode: '13006', housenumber: '4', street: 'Cours julien' })
+    expect((await geocoderAdresse(saisie('4 Cours', '13006'), 'FR'))?.precise).toBe(false)
+    reponses.ban = ban('housenumber', 0.628, { postcode: '13390', city: 'Auriol', housenumber: '2', street: 'Rue du Clos' })
+    expect((await geocoderAdresse(saisie('2 Le Clos', '13390', 'Auriol'), 'FR'))?.precise).toBe(false)
+  })
+
+  it('adresse à compléments : la voie du morceau numéroté est aussi exigée à la première recherche', async () => {
+    // « Résidence Le Parc, 1 place de l'Église » à Chemillé-en-Anjou : la BAN rend la place de l'Église de Cossé (0,61).
+    reponses.ban = ban('housenumber', 0.608, { postcode: '49120', city: 'Chemillé-en-Anjou', housenumber: '1', street: 'Place de l\'Église de Cossé' })
+    expect((await geocoderAdresse(saisie('Résidence Le Parc, 1 place de l\'Église', '49120', 'Chemillé-en-Anjou'), 'FR'))?.precise).toBe(false)
+    expect(appels.filter(a => a.includes('api-adresse.data.gouv.fr'))).toHaveLength(2)
+  })
+
+  it('même voie écrite autrement : précis (abréviations, titres, « St », articles, « Voie » de la BAN, ville recopiée)', async () => {
+    const cas: Array<[string, string, string]> = [
+      ['12 rue St Ferréol', '12', 'Rue saint ferreol'],
+      ['58 La Canebière', '58', 'Voie la canebiere'],
+      ['3 av. du Prado', '3', 'Avenue du prado'],
+      ['5 av du Gal Leclerc', '5', 'Avenue du general leclerc'],
+      ['10 rue Republique', '10', 'Rue de la republique'],
+      ['10 rue de la République Marseille', '10', 'Rue de la republique'],
+      ['4 bis bd Longchamp', '4bis', 'Boulevard longchamp'],
+    ]
+    for (const [adresse, housenumber, street] of cas) {
+      reponses.ban = ban('housenumber', 0.7, { postcode: '13001', housenumber, street })
+      expect((await geocoderAdresse(saisie(adresse), 'FR'))?.precise, adresse).toBe(true)
+    }
+  })
+
+  it('voie qui porte le nom de la commune : pas confondue avec la ville recopiée (« route d’Aubagne » à Aubagne)', async () => {
+    reponses.ban = ban('housenumber', 0.9, { postcode: '13400', city: 'Aubagne', housenumber: '8', street: 'Route d\'Aubagne' })
+    expect((await geocoderAdresse(saisie('8 route d\'Aubagne', '13400', 'Aubagne'), 'FR'))?.precise).toBe(true)
+  })
+
+  it('numéro voisin dans la bonne voie : imprécis', async () => {
+    reponses.ban = ban('housenumber', 0.9, { housenumber: '12', street: 'Rue de la republique' })
+    expect((await geocoderAdresse(saisie('10 rue de la République'), 'FR'))?.precise).toBe(false)
+  })
+
+  it('numéro absent de la BAN : la rue entière reste admise si c’est la voie saisie (comportement antérieur), pas une autre', async () => {
+    reponses.ban = ban('street', 0.8, { postcode: '13390', city: 'Auriol', street: 'Chemin de la Source' })
+    expect((await geocoderAdresse(saisie('20 chemin de la Source', '13390', 'Auriol'), 'FR'))?.precise).toBe(true)
+    reponses.ban = ban('street', 0.85, { postcode: '13390', city: 'Auriol', street: 'Chemin de la Sourde' })
+    expect((await geocoderAdresse(saisie('20 chemin de la Source', '13390', 'Auriol'), 'FR'))?.precise).toBe(false)
+  })
+
+  it('limites assumées : type de voie oublié ou faux → imprécis (avant : précis par tolérance de la BAN)', async () => {
+    reponses.ban = ban('housenumber', 0.66, { housenumber: '10', street: 'Rue de la republique' })
+    expect((await geocoderAdresse(saisie('10 République'), 'FR'))?.precise).toBe(false)
+    reponses.ban = ban('housenumber', 0.611, { postcode: '13400', city: 'Aubagne', housenumber: '15', street: 'Boulevard Jean Jaures' })
+    expect((await geocoderAdresse(saisie('15 av Jean Jaurès', '13400', 'Aubagne'), 'FR'))?.precise).toBe(false)
+    reponses.ban = ban('housenumber', 0.7, { housenumber: '10', street: 'Avenue Victor Hugo' })
+    expect((await geocoderAdresse(saisie('10 Victor Hugo'), 'FR'))?.precise).toBe(false)
+    // Nom double officiel (Marseille) : la BAN rend « Rue de la paix marcel paul » ; pas de règle sûre (« rue du Clos » ≠
+    // « rue Clos Marie-Claire » à Auriol, deux voies), donc imprécis.
+    reponses.ban = ban('housenumber', 0.648, { housenumber: '4', street: 'Rue de la paix marcel paul' })
+    expect((await geocoderAdresse(saisie('4 rue de la Paix'), 'FR'))?.precise).toBe(false)
+  })
+
+  it('réponse sans voie : imprécis', async () => {
+    reponses.ban = ban('housenumber', 0.95, { street: '' })
+    expect((await geocoderAdresse(LILAS, 'FR'))?.precise).toBe(false)
+    reponses.ban = { corps: { features: [{ geometry: { coordinates: [5.38, 43.25] }, properties: { type: 'housenumber', score: 0.95, postcode: '13008', city: 'Marseille', housenumber: '1' } }] } }
+    expect((await geocoderAdresse(LILAS, 'FR'))?.precise).toBe(false)
+  })
+
+  it('saisie sans numéro de rue : réponse non comparée à la saisie (comportement antérieur ; le cas « Étage 2 » est un défaut connu, à inverser s’il est corrigé)', async () => {
+    reponses.ban = ban('street', 0.85, { street: 'Rue des Lilas' })
+    expect((await geocoderAdresse({ ...LILAS, adresse: 'rue des Lilas' }, 'FR'))?.precise).toBe(true)
+    // « Étage 2, rue Paradis » : pas de morceau « numéro + voie », la BAN reste seule juge (défaut antérieur connu).
+    reponses.ban = ban('housenumber', 0.734, { postcode: '13001', housenumber: '2', street: 'Rue paradis' })
+    expect((await geocoderAdresse(saisie('Étage 2, rue Paradis'), 'FR'))?.precise).toBe(true)
+  })
+
+  it('secours Nominatim : la voie saisie est aussi exigée (« 4 Cours » : OSM rendait le 4 Cours Gouffé)', async () => {
+    reponses.ban = ban('housenumber', 0.684, { postcode: '13006', housenumber: '4', street: 'Cours julien' })
+    reponses.osm = osm(30, { house_number: '4', road: 'Cours Gouffé', postcode: '13006', city: 'Marseille' })
+    expect((await geocoderAdresse(saisie('4 Cours', '13006'), 'FR'))?.precise).toBe(false)
+    expect(appels[1]).toContain('nominatim.openstreetmap.org')
+    // BAN sur une autre voie, OSM sur la bonne (numéro compris) : la position d'OSM l'emporte.
+    reponses.ban = ban('housenumber', 0.643, { housenumber: '3', street: 'Allée des buis' })
+    reponses.osm = osm(30, { house_number: '3', road: 'Allée des Acacias', postcode: '13008', city: 'Marseille' })
+    expect(await geocoderAdresse(saisie('3 Allée des Acacias', '13008'), 'FR')).toEqual({ latitude: 43.26, longitude: 5.39, precise: true })
+    reponses.osm = osm(30, { house_number: '5', road: 'Allée des Acacias', postcode: '13008', city: 'Marseille' })
+    expect((await geocoderAdresse(saisie('3 Allée des Acacias', '13008'), 'FR'))?.precise).toBe(false)
+  })
+
+  it('saisies correctes courantes (relecture du 25/11/2026) : complément collé, lieu-dit, hameau, titre ou prénom omis', async () => {
+    const cas: Array<[string, string, string, Lieu?]> = [
+      ['10 rue de la République Bât B', '10', 'Rue de la republique'],
+      ['10 rue de la République 2e étage', '10', 'Rue de la republique'],
+      ['10 rue de la République appt 3', '10', 'Rue de la republique'],
+      ['10 rue de la République (Bât B)', '10', 'Rue de la republique'],
+      ['10 rue de la République Cedex', '10', 'Rue de la republique'],
+      ['10 rue de la République France', '10', 'Rue de la republique'],
+      ['2 Les Granges', '2', 'Lieu-dit les Granges'],
+      ['2 lieu-dit Les Granges', '2', 'Lieu Dit les Granges'],
+      ['3 Bénazeth', '3', 'Hameau de Bénazeth'],
+      ['5 avenue Foch', '5', 'Avenue du maréchal Foch'],
+      ['100 corniche Kennedy', '100', 'Corniche président john f kennedy'],
+      ['12 av Hugo', '12', 'Avenue  Victor Hugo'],
+      ['12 Grande Rue', '12', 'Grand\'Rue'],
+      ['120 départementale 940', '120', 'Route Départementale 940'],
+      ['8 avenue de France', '8', 'Avenue de France'],
+      ['8 avenue du 1er Mai', '8', 'Avenue du 1er Mai'],
+      ['8 Voie Romaine', '8', 'Voie Romaine'],
+      ['10 rue de la République Résidence Le Parc', '10', 'Rue de la republique'],
+      ['10 rue de la République Lot 5', '10', 'Rue de la republique'],
+      ['10 rue de la République RDC', '10', 'Rue de la republique'],
+      ['10 rue de la République chez M. Martin', '10', 'Rue de la republique'],
+      ['8 rue du Lot', '8', 'Rue du Lot'],
+      ['8 rue de la Vieille Porte', '8', 'Rue de la Vieille Porte'],
+    ]
+    for (const [adresse, housenumber, street] of cas) {
+      reponses.ban = ban('housenumber', 0.65, { postcode: '13001', housenumber, street })
+      expect((await geocoderAdresse(saisie(adresse), 'FR'))?.precise, adresse).toBe(true)
+    }
+  })
+
+  it('seconde recherche (résidence devant) : le qualificatif en plus est refusé aussi (« 5 rue du Pont » → Petit Pont)', async () => {
+    reponses.ban = ban('housenumber', 0.5, { postcode: '08200', city: 'Sedan', housenumber: '5', street: 'Rue du Petit Pont' })
+    banSelonRecherche['5 rue du Pont 08200 Sedan'] = ban('housenumber', 0.707, { postcode: '08200', city: 'Sedan', housenumber: '5', street: 'Rue du Petit Pont' })
+    expect((await geocoderAdresse(saisie('Résidence Les Pins, 5 rue du Pont', '08200', 'Sedan'), 'FR'))?.precise).toBe(false)
+    expect(appels.filter(a => a.includes('api-adresse.data.gouv.fr'))).toHaveLength(2)
+  })
+
+  it('ville saisie avec l’arrondissement, recopiée en fin de rue : tolérée (« Marseille 6e », ville rendue « Marseille »)', async () => {
+    reponses.ban = ban('housenumber', 0.656, { postcode: '13006', housenumber: '10', street: 'Boulevard baille' })
+    expect((await geocoderAdresse(saisie('10 boulevard Baille Marseille', '13006', 'Marseille 6e'), 'FR'))?.precise).toBe(true)
+  })
+
+  it('voies proches mais différentes : refusées (autre fin de nom, mot en plus à la fin, lieu-dit homonyme)', async () => {
+    const cas: Array<[string, string, string]> = [
+      ['3 rue du Clos', '3', 'Rue Clos Marie-Claire'],
+      ['3 Allée des Acacias', '3', 'Allée des Acacias Bleus'],
+      ['5 Le Bourg', '5', 'Rue Boutron'],
+      ['8 Voie Romaine', '8', 'Lieu-dit la Romaine'],
+      ['8 avenue de Paris', '8', 'Avenue de la Porte d\'Italie'],
+      // Qualificatif en plus : une autre voie (deux voies du 08200 ; relevé BAN du 25/11/2026).
+      ['5 rue du Pont', '5', 'Rue du Petit Pont'],
+      ['5 rue Saint-Jean', '5', 'Rue du petit saint jean'],
+      ['5 Grande Rue', '5', 'Grande Rue Neuve'],
+      // Complément coupé seulement s'il est suivi d'un mot : « rue de la Vieille Porte » n'est pas « rue Vieille ».
+      ['8 rue de la Vieille Porte', '8', 'Rue Vieille'],
+    ]
+    for (const [adresse, housenumber, street] of cas) {
+      reponses.ban = ban('housenumber', 0.7, { postcode: '13001', housenumber, street })
+      expect((await geocoderAdresse(saisie(adresse), 'FR'))?.precise, adresse).toBe(false)
+    }
+  })
+
+  it('Portugal inchangé : Nominatim seul, sans comparaison de la voie', async () => {
+    reponses.osm = osm(30, { road: 'Rua de Santa Catarina', postcode: '4000-447', city: 'Porto' }, '41.15', '-8.61')
+    expect((await geocoderAdresse({ adresse: 'Rua Santa Catarina 100', codePostal: '4000-447', ville: 'Porto' }, 'PT'))?.precise).toBe(true)
+    expect(appels).toHaveLength(1)
+  })
+})
+
+describe('numeroEtVoieSaisis', () => {
+  it('rue en un morceau « numéro + nom », ou morceau numéroté d’une adresse à compléments', () => {
+    expect(numeroEtVoieSaisis('3 Allée des Acacias')).toEqual({ numero: '3', voie: 'Allée des Acacias', texte: '3 Allée des Acacias' })
+    expect(numeroEtVoieSaisis('  4 bis   bd Longchamp ')).toEqual({ numero: '4 bis', voie: 'bd Longchamp', texte: '4 bis bd Longchamp' })
+    expect(numeroEtVoieSaisis('Résidence Le Parc, 10 rue de la République')?.texte).toBe('10 rue de la République')
+  })
+
+  it('pas de numéro de rue : null', () => {
+    expect(numeroEtVoieSaisis('rue des Lilas')).toBeNull()
+    expect(numeroEtVoieSaisis('Bât 3, avenue du Prado')).toBeNull()
+    expect(numeroEtVoieSaisis('2 étage')).toBeNull()
+    expect(numeroEtVoieSaisis('3 bis')).toBeNull()
+    expect(numeroEtVoieSaisis('')).toBeNull()
   })
 })
 
