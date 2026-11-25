@@ -1,5 +1,6 @@
 import { ajouterEcheancesAppel, echeancesAppelDuSyndicat, ecrireEcheancesModifiees } from '@/lib/administrateur-judiciaire/db/echeances-appel'
 import { genererId } from '@/lib/administrateur-judiciaire/db/ids'
+import { planDeReprise } from '@/lib/administrateur-judiciaire/db/migration-d2'
 import { repoClesRepartition, repoExercices } from '@/lib/administrateur-judiciaire/db/repositories'
 import type { OptionsEcriture } from '@/lib/administrateur-judiciaire/db/repository'
 import {
@@ -27,7 +28,7 @@ import {
 } from '@/lib/administrateur-judiciaire/domain/echeancier-appels'
 import { creerExercice } from '@/lib/administrateur-judiciaire/domain/exercices-budgets'
 import { segmentComptableSyndicat } from '@/lib/administrateur-judiciaire/domain/journal-traitements'
-import { idsMigration } from '@/lib/administrateur-judiciaire/domain/migration-d2'
+import type { FicheEcarteeDetaillee } from '@/lib/administrateur-judiciaire/domain/migration-d2'
 import { lireStatutRecouvrement } from '@/lib/administrateur-judiciaire/domain/recouvrement'
 import {
   avisDAppel,
@@ -36,6 +37,7 @@ import {
   type NatureEcheance,
   type SousComptes450,
 } from '@/lib/administrateur-judiciaire/domain/repartition-appels'
+import { DATE_DU_JOUR_ISO } from '@/lib/administrateur-judiciaire/mode'
 
 /**
  * Écran « Appels de fonds » en données réelles (plan des écrans, § 5.5 et 5.6) : lecture des tables D2 du syndicat et
@@ -76,8 +78,13 @@ export interface DonneesAppelsLues {
   banques: Banque[]
   /** Pièces du journal des traitements du syndicat. */
   pieces: PieceTraitementEnregistree[]
-  /** Anciennes fiches copropriétaire des lots du syndicat sans identité, compte ni position (migration D2 à lancer). */
-  fichesNonReprises: number
+  /**
+   * Anciennes fiches copropriétaire des lots du syndicat que la reprise D2 créerait (planDeReprise : même règle que la
+   * reprise ; ni les fiches écartées, ni celles déjà reprises, décision du 22/11/2026).
+   */
+  fichesAReprendre: number
+  /** Fiches des lots du syndicat que la reprise écarte, avec leur motif. */
+  fichesEcartees: FicheEcarteeDetaillee[]
   /** Comptes repris d'une fiche dont le dossier de recouvrement est à l'étape « Action en justice ». */
   comptesEnContentieux: Set<string>
 }
@@ -108,12 +115,12 @@ export async function lireDonneesAppels(coproprieteId: string): Promise<DonneesA
     ajDb.banques.where('coproprieteId').equals(coproprieteId).toArray(),
     ajDb.traitements.where('coproprieteId').equals(coproprieteId).toArray(),
   ])
-  const identites = (await ajDb.identites.bulkGet([...new Set(positions.map((p) => p.identiteId))])).filter((i) => i !== undefined)
-  const lignesD2 = new Set([...positions.map((p) => p.id), ...comptes.map((c) => c.id)])
-  const fichesNonReprises = fiches.filter((f) => {
-    const ids = idsMigration(f.id)
-    return !lignesD2.has(ids.position) && !lignesD2.has(ids.compte)
-  }).length
+  // Plan de la reprise lu en même temps que les identités et le contentieux : la relecture de l'écran n'attend qu'une fois.
+  const [identites, reprise, enContentieux] = await Promise.all([
+    ajDb.identites.bulkGet([...new Set(positions.map((p) => p.identiteId))]).then((lues) => lues.filter((i) => i !== undefined)),
+    planDeReprise(fiches, { aujourdhui: DATE_DU_JOUR_ISO }),
+    comptesEnContentieux(comptes),
+  ])
   return {
     lots,
     positions,
@@ -124,8 +131,9 @@ export async function lireDonneesAppels(coproprieteId: string): Promise<DonneesA
     exercices: bornesDe(exercices),
     banques,
     pieces,
-    fichesNonReprises,
-    comptesEnContentieux: await comptesEnContentieux(comptes),
+    fichesAReprendre: reprise.aCreer.length,
+    fichesEcartees: reprise.ecartees,
+    comptesEnContentieux: enContentieux,
   }
 }
 

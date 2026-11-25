@@ -180,6 +180,8 @@ describe('Appels de fonds en mode réel — écran', () => {
     await cliquerEtAttendre(boite.getByRole('button', { name: 'Enregistrer' }))
     expect(dernierToast()).toMatchObject({ kind: 'success', title: 'Échéance enregistrée' })
     expect(screen.queryByRole('dialog')).toBeNull()
+    // relecture de la base après l'écriture (elle lit aussi le plan de la reprise des fiches)
+    await waitFor(() => expect(within(panneau('Échéancier des appels')).queryAllByRole('row')).toHaveLength(2))
     const lignes = within(panneau('Échéancier des appels')).getAllByRole('row').slice(1).map(texteDe)
     expect(lignes).toHaveLength(1)
     expect(lignes[0]).toContain('Provisions T1 2027')
@@ -228,6 +230,8 @@ describe('Appels de fonds en mode réel — écran', () => {
     const pieces = await ajDb.traitements.toArray()
     expect(pieces.map((p) => [p.famille, p.statut, p.mandatId])).toEqual([['Appel de fonds', 'Produit', copro.mandatId]])
     expect((await ajDb.echeancesAppel.toArray()).map((e) => e.statut)).toEqual(['Appelé'])
+    // relecture de la base après l'écriture (elle lit aussi le plan de la reprise des fiches)
+    await waitFor(() => expect(texteDe(within(panneau('Échéancier des appels')).getAllByRole('row')[1])).toContain('Appelé'))
     const ligne = texteDe(within(panneau('Échéancier des appels')).getAllByRole('row')[1])
     expect(ligne).toContain('Appelé')
     expect(ligne).toContain('n° 1')
@@ -351,14 +355,55 @@ describe('Appels de fonds en mode réel — écran', () => {
     expect(sepa()).toMatch(/Copropriétaire 3 \(fictif\) exclu : .*14 jours calendaires/)
   })
 
-  it('fiches non reprises : « Reprendre les fiches » crée identités, comptes et positions (D2)', async () => {
+  it('fiches non reprises : « Reprendre les fiches de toutes les copropriétés » crée identités, comptes et positions (D2)', async () => {
     await ajDb.coproprietaires.add({ id: 'f1', lotId: 'L1', nom: 'Ancienne fiche (fictive)', tel: '', mail: '', solde: 0, statut: 'À jour', createdAt: '', updatedAt: '', createdBy: null, updatedBy: null })
     await rendre()
     expect(avis().getByText(/1 fiche copropriétaire non reprise/)).toBeTruthy()
-    await cliquerEtAttendre(avis().getByRole('button', { name: 'Reprendre les fiches' }))
+    // Décision du 22/11/2026 (point 10) : le bouton dit qu'il agit sur toutes les copropriétés.
+    await cliquerEtAttendre(avis().getByRole('button', { name: 'Reprendre les fiches de toutes les copropriétés' }))
     expect(dernierToast()).toMatchObject({ kind: 'success', title: 'Fiches reprises' })
     await waitFor(() => expect(avis().queryByText(/fiche copropriétaire non reprise/)).toBeNull())
     expect(avis().getByText(/Ancienne fiche \(fictive\) — Copropriétaire 1\/1/)).toBeTruthy()
     expect(await ajDb.positions.count()).toBe(1)
+  })
+
+  const ancienneFiche = (id: string, lotId: string, nom: string) => ({
+    id,
+    lotId,
+    nom,
+    tel: '',
+    mail: '',
+    solde: 0,
+    statut: 'À jour',
+    createdAt: '',
+    updatedAt: '',
+    createdBy: null,
+    updatedBy: null,
+  })
+
+  it('fiche écartée non comptée, nommée avec son motif ; après la reprise, le bandeau disparaît et le message donne le motif (décision du 22/11/2026)', async () => {
+    await ajDb.coproprietaires.bulkAdd([ancienneFiche('f1', 'L1', 'Ancienne fiche (fictive)'), ancienneFiche('f2', 'L2', '  ')])
+    await rendre()
+    expect(avis().getByText('1 fiche copropriétaire non reprise en identités, comptes et positions (D2)')).toBeTruthy()
+    expect(avis().getByText('1 fiche écartée par la reprise :')).toBeTruthy()
+    expect(avis().getByText("Lot 2, fiche sans nom — Nom de l'identité manquant.")).toBeTruthy()
+    await cliquerEtAttendre(avis().getByRole('button', { name: 'Reprendre les fiches de toutes les copropriétés' }))
+    expect(dernierToast()).toMatchObject({ kind: 'success', title: 'Fiches reprises' })
+    const message = String(dernierToast()?.desc)
+    expect(message).toContain('1 fiche écartée(s)')
+    expect(message).toContain(`Fiche écartée : ${copro.code} · Lot 2, fiche sans nom — Nom de l'identité manquant.`)
+    await waitFor(() => expect(avis().queryByText(/fiche copropriétaire non reprise/)).toBeNull())
+    expect(avis().queryByRole('button', { name: /Reprendre les fiches/ })).toBeNull()
+    expect(avis().queryByText(/écartée par la reprise/)).toBeNull()
+    expect(await ajDb.positions.count()).toBe(1)
+  })
+
+  it('seules des fiches écartées ou déjà reprises : aucun bandeau ni bouton (constat du 22/11/2026)', async () => {
+    await ajDb.coproprietaires.bulkAdd([ancienneFiche('f2', 'L2', '  '), ancienneFiche('f3', 'L3', 'Fiche déjà reprise (fictive)')])
+    const { id: _i, ...identite } = d2.creerIdentite({ id: 'id-f3', nature: 'physique', civilite: '', nom: 'Fiche déjà reprise (fictive)', prenom: null, telecoms: [] })
+    await repos.repoIdentites.create(identite, { id: 'id-f3' })
+    await rendre()
+    expect(avis().queryByText(/fiche copropriétaire non reprise/)).toBeNull()
+    expect(avis().queryByRole('button', { name: /Reprendre les fiches/ })).toBeNull()
   })
 })

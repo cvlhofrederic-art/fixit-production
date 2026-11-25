@@ -24,6 +24,7 @@ import { regimeDepuisFondement } from '@/lib/administrateur-judiciaire/domain/fo
 import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
 import { numeroCompteCoproprietaire } from '@/lib/administrateur-judiciaire/domain/identites-positions'
 import { segmentComptableSyndicat } from '@/lib/administrateur-judiciaire/domain/journal-traitements'
+import { libelleFicheEcartee, type FicheEcarteeDetaillee } from '@/lib/administrateur-judiciaire/domain/migration-d2'
 import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
 
 /**
@@ -62,18 +63,38 @@ const regimeAp = (fondement: string): RegimeAdministrateurProvisoire | null => {
   return regime === 'ap291' || regime === 'ap47' ? regime : null
 }
 
-function RepriseFiches({ nombre, onReprendre }: Readonly<{ nombre: number; onReprendre: () => void }>) {
+/**
+ * Bandeau de la reprise D2 (décision du 22/11/2026, point 10) : compte les seules fiches que la reprise créerait, nomme
+ * celles qu'elle écarte avec leur motif (même Alert, une ligne par fiche), disparaît quand il ne reste rien à reprendre ;
+ * le bouton dit qu'il agit sur toutes les copropriétés.
+ */
+function RepriseFiches({
+  nombre,
+  ecartees,
+  onReprendre,
+}: Readonly<{ nombre: number; ecartees: readonly FicheEcarteeDetaillee[]; onReprendre: () => void }>) {
   if (nombre === 0) return null
   const s = nombre > 1 ? 's' : ''
+  const se = ecartees.length > 1 ? 's' : ''
   return (
     <Alert kind="" icon="info" title={`${nombre} fiche${s} copropriétaire non reprise${s} en identités, comptes et positions (D2)`}>
       <span style={{ display: 'block' }}>
         La reprise crée une identité, un compte et une position par ancienne fiche, pour toutes les copropriétés ; une
         indivision ou une vente reste à régulariser.
       </span>
+      {ecartees.length > 0 && (
+        <>
+          <span style={{ display: 'block' }}>{`${pluriel(ecartees.length, 'fiche')} écartée${se} par la reprise :`}</span>
+          {ecartees.map((e) => (
+            <span key={e.coproprietaireId} style={{ display: 'block' }}>
+              {libelleFicheEcartee(e)}
+            </span>
+          ))}
+        </>
+      )}
       <button type="button" className="btn ghost sm" style={{ marginTop: 6 }} onClick={onReprendre}>
         <Icon name="refresh" />
-        Reprendre les fiches
+        Reprendre les fiches de toutes les copropriétés
       </button>
     </Alert>
   )
@@ -382,7 +403,7 @@ export function AvisAppelPanel({
         )
       }
     >
-      <RepriseFiches nombre={donnees.fichesNonReprises} onReprendre={() => void ecritures.reprendreFiches()} />
+      <RepriseFiches nombre={donnees.fichesAReprendre} ecartees={donnees.fichesEcartees} onReprendre={() => void ecritures.reprendreFiches()} />
       {erreurSegment && <Alert kind="rust" icon="alert" title={erreurSegment} />}
       <DroitsLots droits={vueDroitsLots(donnees, date)} date={date} />
       {vue && segment && (

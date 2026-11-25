@@ -305,3 +305,42 @@ export function planifierMigrationD2({ fiches, lots, mandats, comptes, idsConnus
     lotsARegulariser: lotsARegulariserDe(fiches, aCreer),
   }
 }
+
+/** Fiche écartée, avec de quoi la retrouver à l'écran : syndicat et n° de son lot, nom lisible (null : inconnus ou vides). */
+export interface FicheEcarteeDetaillee extends FicheEcartee {
+  coproprieteId: string | null
+  lotNumero: string | null
+  nom: string | null
+}
+
+/**
+ * Fiches écartées par le plan, nommées par leur syndicat, leur lot et leur nom (décision du 22/11/2026 : donner le motif
+ * des fiches écartées). Ordre et motifs du plan conservés ; fiche retrouvée par son identifiant (clé de la table) ; lot
+ * introuvable : syndicat et n° null ; nom vide ou autre chose qu'un texte : null. Fonction pure.
+ */
+export function detaillerEcartees(
+  ecartees: readonly FicheEcartee[],
+  fiches: EntreesMigrationD2['fiches'],
+  lots: EntreesMigrationD2['lots'],
+): FicheEcarteeDetaillee[] {
+  const ficheParId = new Map(fiches.flatMap((f) => (typeof f.id === 'string' ? [[f.id, f] as const] : [])))
+  const lotParId = new Map(lots.map((l) => [l.id, l]))
+  return ecartees.map((e) => {
+    const fiche = ficheParId.get(e.coproprietaireId)
+    const lot = typeof fiche?.lotId === 'string' ? lotParId.get(fiche.lotId) : undefined
+    const nom = typeof fiche?.nom === 'string' ? fiche.nom.trim().replaceAll(/\s+/g, ' ') : ''
+    return { ...e, coproprieteId: lot?.coproprieteId ?? null, lotNumero: lot?.numero ?? null, nom: nom || null }
+  })
+}
+
+/**
+ * « <code du syndicat> · Lot <n°>, <nom ou « fiche sans nom »> — <motif> » ; sans code ni lot : « <nom> — <motif> ». Un
+ * n° déjà écrit « Lot … » (liste importée) n'est pas préfixé une seconde fois.
+ */
+export function libelleFicheEcartee(e: FicheEcarteeDetaillee, codeCopro?: string): string {
+  const numero = e.lotNumero?.trim()
+  const lot = numero && (/^lot\b/i.test(numero) ? numero : `Lot ${numero}`)
+  const lieu = [codeCopro, lot].filter(Boolean).join(' · ')
+  if (!lieu) return [e.nom ?? 'Fiche sans nom', e.motif].join(' — ')
+  return [`${lieu}, ${e.nom ?? 'fiche sans nom'}`, e.motif].join(' — ')
+}

@@ -1,7 +1,14 @@
 import './fuseau-paris'
 import { describe, expect, it } from 'vitest'
 import { controlerDroitsLot, creerIdentite, migrerCoproprietaire, positionsEnPlace } from '@/lib/administrateur-judiciaire/domain/identites-positions'
-import { idsMigration, planifierMigrationD2, seriesDuJournal, type EntreesMigrationD2 } from '@/lib/administrateur-judiciaire/domain/migration-d2'
+import {
+  detaillerEcartees,
+  idsMigration,
+  libelleFicheEcartee,
+  planifierMigrationD2,
+  seriesDuJournal,
+  type EntreesMigrationD2,
+} from '@/lib/administrateur-judiciaire/domain/migration-d2'
 
 /**
  * Migration D2 des anciennes fiches copropriétaire (une par lot : identité, position et solde mêlés), plan pur : une
@@ -290,5 +297,40 @@ describe('date d’entrée des positions', () => {
   it('sans mandat ni date de création lisible : fiche écartée', () => {
     const plan = planifierMigrationD2(entrees({ fiches: [fiche('P9', 'L4', { createdAt: 'inconnue' })] }))
     expect(plan.ecartees).toEqual([{ coproprietaireId: 'P9', motif: expect.stringMatching(/Date d'entrée introuvable/) }])
+  })
+})
+
+describe('fiches écartées : nommées par leur lot, leur syndicat et leur nom (décision du 22/11/2026)', () => {
+  const fiches = [
+    fiche('P1', 'L-inconnu'),
+    fiche('P2', 'L12', { nom: '   ' }),
+    fiche('P3', 'L12', { tel: 612 }),
+    fiche('P9', 'L4', { createdAt: 'inconnue' }),
+  ]
+  const plan = () => planifierMigrationD2(entrees({ fiches }))
+
+  it('detaillerEcartees : syndicat et n° du lot de la fiche, nom lisible ; ordre et motifs du plan conservés', () => {
+    const { ecartees } = plan()
+    const detaillees = detaillerEcartees(ecartees, fiches, LOTS)
+    expect(detaillees).toEqual([
+      { coproprietaireId: 'P1', motif: 'Lot introuvable (id=L-inconnu).', coproprieteId: null, lotNumero: null, nom: 'Personne P1' },
+      { coproprietaireId: 'P2', motif: "Nom de l'identité manquant.", coproprieteId: 'C1', lotNumero: 'Lot 12 — Apt B3', nom: null },
+      { coproprietaireId: 'P3', motif: expect.stringMatching(/« tel » : texte attendu/), coproprieteId: 'C1', lotNumero: 'Lot 12 — Apt B3', nom: 'Personne P3' },
+      { coproprietaireId: 'P9', motif: expect.stringMatching(/Date d'entrée introuvable/), coproprieteId: 'C2', lotNumero: 'Lot 4', nom: 'Personne P9' },
+    ])
+    // motifs du plan, tels quels, dans son ordre
+    expect(detaillees.map(({ coproprietaireId, motif }) => ({ coproprietaireId, motif }))).toEqual(ecartees)
+  })
+
+  it('libelleFicheEcartee : « <code> · Lot <n°>, <nom> — <motif> » ; n° déjà préfixé « Lot » non doublé ; sans lot : « <nom> — <motif> »', () => {
+    const [p1, p2, , p9] = detaillerEcartees(plan().ecartees, fiches, LOTS)
+    expect(libelleFicheEcartee(p2)).toBe("Lot 12 — Apt B3, fiche sans nom — Nom de l'identité manquant.")
+    expect(libelleFicheEcartee(p9, 'BOUL')).toBe(
+      "BOUL · Lot 4, Personne P9 — Date d'entrée introuvable : aucun mandat du syndicat, date de création de la fiche illisible.",
+    )
+    expect(libelleFicheEcartee(p1)).toBe('Personne P1 — Lot introuvable (id=L-inconnu).')
+    expect(libelleFicheEcartee({ coproprietaireId: 'X1', motif: 'Motif fictif.', coproprieteId: 'C1', lotNumero: '7', nom: 'Personne X1' }, 'ACAC')).toBe(
+      'ACAC · Lot 7, Personne X1 — Motif fictif.',
+    )
   })
 })
