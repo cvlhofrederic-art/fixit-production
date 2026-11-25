@@ -333,4 +333,14 @@ describe('fiches écartées : nommées par leur lot, leur syndicat et leur nom (
       'ACAC · Lot 7, Personne X1 — Motif fictif.',
     )
   })
+
+  it('libelleFicheEcartee : « Lot » déjà écrit, collé au n°, en capitales ou au pluriel, jamais doublé ; un mot qui commence par « lot » est préfixé', () => {
+    const libelle = (lotNumero: string) =>
+      libelleFicheEcartee({ coproprietaireId: 'X1', motif: 'Motif fictif.', coproprieteId: 'C1', lotNumero, nom: 'Personne X1' }, 'ACAC')
+    expect(libelle('Lot12')).toBe('ACAC · Lot12, Personne X1 — Motif fictif.')
+    expect(libelle('LOT 12')).toBe('ACAC · LOT 12, Personne X1 — Motif fictif.')
+    expect(libelle('Lots 3-4')).toBe('ACAC · Lots 3-4, Personne X1 — Motif fictif.')
+    expect(libelle('lot')).toBe('ACAC · lot, Personne X1 — Motif fictif.')
+    expect(libelle('Lotissement 2')).toBe('ACAC · Lot Lotissement 2, Personne X1 — Motif fictif.')
+  })
 })

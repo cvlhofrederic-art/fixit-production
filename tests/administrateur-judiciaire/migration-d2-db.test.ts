@@ -313,4 +313,18 @@ describe('plan de la reprise sans écriture (bandeau de l’écran « Appels de 
     await expect(planDeReprise(await fichesDe('C1'), { aujourdhui: '19/11/2026' })).rejects.toThrow('Migration D2 : date invalide (19/11/2026), AAAA-MM-JJ attendu.')
     expect(await compter()).toEqual(avant)
   })
+
+  it('lit les seules données des syndicats des fiches : un compte illisible d’un autre syndicat ne change rien ; celui du syndicat est toujours refusé', async () => {
+    const fichesC1 = await fichesDe('C1')
+    const attendu = await planDeReprise(fichesC1, { aujourdhui: DATE_DEMO_ISO })
+    // compte fictif de C2 dont la série n'est pas un texte : ligne écrite hors de l'application (sans le dépôt ni le domaine)
+    const illisible = { id: 'cpt-illisible', coproprieteId: 'C2', serie: 42, libelle: 'Compte illisible (fictif)', createdAt: '', updatedAt: '', createdBy: null, updatedBy: null }
+    await ajDb.comptesCoproprietaires.add(illisible as never)
+    expect(await planDeReprise(fichesC1, { aujourdhui: DATE_DEMO_ISO })).toEqual(attendu)
+    // le syndicat du compte : l'erreur remonte, rien ne la masque
+    expect((await fichesDe('C2')).length).toBeGreaterThan(0)
+    await expect(planDeReprise(await fichesDe('C2'), { aujourdhui: DATE_DEMO_ISO })).rejects.toThrow()
+    // sans fiche, rien à classer
+    expect(await planDeReprise([], { aujourdhui: DATE_DEMO_ISO })).toEqual({ aCreer: [], dejaMigrees: [], ecartees: [], lotsARegulariser: [] })
+  })
 })

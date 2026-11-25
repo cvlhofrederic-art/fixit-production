@@ -138,6 +138,15 @@ const avis = () => within(panneau('Avis d’appel par copropriétaire'))
 const dialogue = () => within(screen.getByRole('dialog'))
 const dernierToast = () => pushCourant?.mock.calls.at(-1)?.[0]
 const texteDe = (element: HTMLElement) => element.textContent ?? ''
+/**
+ * Lecture de l'écran réussie : l'échéancier n'est rendu qu'avec des données lues, et rien n'est « illisible ». À vérifier
+ * avant une assertion d'absence (bandeau, bouton) : une lecture en erreur garde le titre du panneau des avis et la
+ * passerait aussi.
+ */
+const lectureReussie = () => {
+  expect(screen.queryByText(/Données illisibles/)).toBeNull()
+  expect(panneau('Échéancier des appels')).toBeTruthy()
+}
 
 /** Clique et attend le toast de l'écriture (succès ou refus), puis la relecture. */
 async function cliquerEtAttendre(bouton: HTMLElement) {
@@ -392,7 +401,10 @@ describe('Appels de fonds en mode réel — écran', () => {
     const message = String(dernierToast()?.desc)
     expect(message).toContain('1 fiche écartée(s)')
     expect(message).toContain(`Fiche écartée : ${copro.code} · Lot 2, fiche sans nom — Nom de l'identité manquant.`)
-    await waitFor(() => expect(avis().queryByText(/fiche copropriétaire non reprise/)).toBeNull())
+    // relecture réussie (la fiche reprise est sur son lot), puis plus de bandeau : une lecture en erreur n'y suffirait pas
+    await waitFor(() => expect(avis().getByText(/Ancienne fiche \(fictive\) — Copropriétaire 1\/1/)).toBeTruthy())
+    lectureReussie()
+    expect(avis().queryByText(/fiche copropriétaire non reprise/)).toBeNull()
     expect(avis().queryByRole('button', { name: /Reprendre les fiches/ })).toBeNull()
     expect(avis().queryByText(/écartée par la reprise/)).toBeNull()
     expect(await ajDb.positions.count()).toBe(1)
@@ -403,6 +415,7 @@ describe('Appels de fonds en mode réel — écran', () => {
     const { id: _i, ...identite } = d2.creerIdentite({ id: 'id-f3', nature: 'physique', civilite: '', nom: 'Fiche déjà reprise (fictive)', prenom: null, telecoms: [] })
     await repos.repoIdentites.create(identite, { id: 'id-f3' })
     await rendre()
+    lectureReussie()
     expect(avis().queryByText(/fiche copropriétaire non reprise/)).toBeNull()
     expect(avis().queryByRole('button', { name: /Reprendre les fiches/ })).toBeNull()
   })

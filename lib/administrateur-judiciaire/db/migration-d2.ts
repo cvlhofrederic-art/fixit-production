@@ -51,18 +51,24 @@ const sansId = <T extends { id: string }>({ id, ...reste }: T): { id: string; do
 const tablesDuPlan = () => [ajDb.lots, ajDb.mandats, ajDb.identites, ajDb.comptesCoproprietaires, ajDb.positions, ajDb.activityLog]
 
 /**
- * Plan de la migration des fiches reçues, dans la transaction de l'appelant : lots, mandats, séries prises (comptes en
- * base et journal des comptes), lignes D2 et journal d'activité des fiches (déjà migrées), puis planifierMigrationD2.
+ * Plan de la migration des fiches reçues, dans la transaction de l'appelant. Ne lit que ce que planifierMigrationD2
+ * consulte pour ces fiches : leurs lots, puis les mandats (ordonnances) et les séries prises (comptes en base et journal
+ * des comptes) des syndicats de ces lots, les lignes D2 et le journal d'activité des fiches (déjà migrées). Le plan se
+ * calcule syndicat par syndicat : le classement est celui d'une lecture de toute la base, mais la donnée d'un autre
+ * syndicat (compte illisible) ne fait plus échouer l'écran « Appels de fonds » d'un syndicat. Aucun lot trouvé : le
+ * journal des comptes n'est pas lu.
  */
 async function planDesFiches(fichesLues: readonly Coproprietaire[], aujourdhui: string): Promise<PlanDeReprise> {
   const fiches = fichesLues as unknown as Record<string, unknown>[]
   const candidats = fiches.flatMap((f) => (typeof f.id === 'string' && f.id.trim() ? Object.values(idsMigration(f.id)) : []))
-  const [lots, mandats, comptes, journalComptes, identites, positions, comptesD2, journal] = await Promise.all([
-    ajDb.lots.toArray(),
-    ajDb.mandats.toArray(),
-    ajDb.comptesCoproprietaires.toArray(),
+  const lotIds = [...new Set(fiches.flatMap((f) => (typeof f.lotId === 'string' ? [f.lotId] : [])))]
+  const lots = (await ajDb.lots.bulkGet(lotIds)).filter((lot) => lot !== undefined)
+  const syndicats = [...new Set(lots.flatMap((lot) => (typeof lot.coproprieteId === 'string' ? [lot.coproprieteId] : [])))]
+  const [mandats, comptes, journalComptes, identites, positions, comptesD2, journal] = await Promise.all([
+    ajDb.mandats.where('coproprieteId').anyOf(syndicats).toArray(),
+    ajDb.comptesCoproprietaires.where('coproprieteId').anyOf(syndicats).toArray(),
     // entité du journal des comptes copropriétaires (repositories.ts, repoComptesCoproprietaires) : séries sorties
-    ajDb.activityLog.where('entite').equals('comptesCoproprietaires').toArray(),
+    syndicats.length > 0 ? ajDb.activityLog.where('entite').equals('comptesCoproprietaires').toArray() : [],
     ajDb.identites.bulkGet(candidats),
     ajDb.positions.bulkGet(candidats),
     ajDb.comptesCoproprietaires.bulkGet(candidats),
@@ -72,11 +78,12 @@ async function planDesFiches(fichesLues: readonly Coproprietaire[], aujourdhui: 
     ...[...identites, ...positions, ...comptesD2].flatMap((ligne) => (ligne ? [ligne.id] : [])),
     ...journal.map((entree) => entree.entiteId),
   ])
+  const desSyndicats = new Set(syndicats)
   const plan = planifierMigrationD2({
     fiches,
     lots,
     mandats,
-    comptes: [...comptes, ...seriesDuJournal(journalComptes)],
+    comptes: [...comptes, ...seriesDuJournal(journalComptes).filter((s) => desSyndicats.has(s.coproprieteId))],
     idsConnus,
     aujourdhui,
   })

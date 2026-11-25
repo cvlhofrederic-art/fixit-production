@@ -333,13 +333,16 @@ export function detaillerEcartees(
   })
 }
 
+/** N° de lot qui commence déjà par « Lot » ou « Lots » (toute casse, collé au n° ou non), pas par un autre mot. */
+const DEJA_PREFIXE_LOT = /^lots?(?!\p{L})/iu
+
 /**
  * « <code du syndicat> · Lot <n°>, <nom ou « fiche sans nom »> — <motif> » ; sans code ni lot : « <nom> — <motif> ». Un
- * n° déjà écrit « Lot … » (liste importée) n'est pas préfixé une seconde fois.
+ * n° déjà écrit « Lot … » (liste importée : « Lot 12 », « Lot12 », « LOTS 3-4 ») n'est pas préfixé une seconde fois.
  */
 export function libelleFicheEcartee(e: FicheEcarteeDetaillee, codeCopro?: string): string {
   const numero = e.lotNumero?.trim()
-  const lot = numero && (/^lot\b/i.test(numero) ? numero : `Lot ${numero}`)
+  const lot = numero && (DEJA_PREFIXE_LOT.test(numero) ? numero : `Lot ${numero}`)
   const lieu = [codeCopro, lot].filter(Boolean).join(' · ')
   if (!lieu) return [e.nom ?? 'Fiche sans nom', e.motif].join(' — ')
   return [`${lieu}, ${e.nom ?? 'fiche sans nom'}`, e.motif].join(' — ')
