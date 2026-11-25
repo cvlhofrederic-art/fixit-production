@@ -62,6 +62,7 @@ export async function GET(request: NextRequest) {
       .from('pro_role_permissions')
       .select('module_id, access_level')
       .eq('member_id', memberId)
+      .eq('company_id', companyId)
 
     return NextResponse.json({ overrides: overrides || [] })
   }
