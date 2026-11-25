@@ -193,16 +193,16 @@ describe('invitation par un co-gérant (gérant invité dans la société d\'un 
   const coGerant = (societe: string | null = ID_SOCIETE, id = COGERANT) => {
     h.compte = { id, email: 'cogerant@exemple.test', app_metadata: { role: 'pro_societe', pro_team_role: 'GERANT', company_id: ID_SOCIETE }, user_metadata: { company_name: 'Nom à moi' } }
     h.base.lignes.pro_team_members = societe ? [{ id: 'ligne-cogerant', user_id: id, company_id: societe, is_active: true, role: 'GERANT' }] : []
-    h.base.lignes.profiles_artisan = [{ user_id: ID_SOCIETE, company_name: 'VITFIX CONSTRUÇÕES, LDA' }]
+    h.base.lignes.profiles_artisan = [{ id: 'fiche-societe', user_id: ID_SOCIETE, company_name: 'VITFIX CONSTRUÇÕES, LDA', language: 'pt' }]
   }
   const insertion = () => appelsDe(h.base, 'pro_team_members', 'insert')[0]?.donnees as Record<string, unknown> | undefined
 
-  it('salarié invité dans la société du titulaire, e-mail au nom de la société (pas du co-gérant)', async () => {
+  it('salarié invité dans la société du titulaire, e-mail au nom et dans la langue de la société (pas du co-gérant)', async () => {
     coGerant()
     const res = await inviter({ memberRole: 'OUVRIER' })
     expect(res.status).toBe(200)
     expect(insertion()).toMatchObject({ company_id: ID_SOCIETE, role: 'OUVRIER' })
-    expect(envoi().subject).toBe('VITFIX CONSTRUÇÕES, LDA vous invite à rejoindre l\'équipe VITFIX')
+    expect(envoi().subject).toBe('VITFIX CONSTRUÇÕES, LDA convida-o(a) para a equipa VITFIX')
     expect(envoi().tags).toEqual([{ name: 'template', value: 'pro_team_invite' }, { name: 'company_id', value: ID_SOCIETE }])
   })
 

@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import type { User } from '@supabase/supabase-js'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { logger } from '@/lib/logger'
-import { getUserRole } from '@/lib/auth-helpers'
+import { getUserRole, societeDunAutreCompte } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 
 export async function POST(request: NextRequest) {
@@ -118,7 +118,8 @@ async function saveSpecialties(userId: string, slugs: unknown) {
 // Rôle lu dans app_metadata (posé par le trigger trg_sync_user_role, non
 // forgeable), jamais dans user_metadata. Idempotent et non bloquant.
 async function ensureGerant(authUser: User) {
-  if (authUser.app_metadata?.role !== 'pro_societe' || !authUser.email) return
+  // Compte rattaché à la société d'un autre (co-gérant, salarié invité) : pas de société à son nom (25/11/2026).
+  if (authUser.app_metadata?.role !== 'pro_societe' || !authUser.email || societeDunAutreCompte(authUser)) return
   const email = authUser.email.toLowerCase().trim()
   const fullName = typeof authUser.user_metadata?.full_name === 'string' ? authUser.user_metadata.full_name.trim() : ''
   const phone = typeof authUser.user_metadata?.phone === 'string' ? authUser.user_metadata.phone.trim() : ''

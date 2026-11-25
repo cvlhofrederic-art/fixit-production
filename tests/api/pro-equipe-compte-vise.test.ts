@@ -377,6 +377,32 @@ describe('Co-gérant : gérant invité dans la société d’un autre compte (25
     rienNEstEcrit()
   })
 
+  it('titulaire : désactive puis réactive le co-gérant (retrait réversible)', async () => {
+    for (const actif of [false, true]) {
+      expect((await modifier({ member_id: LIGNE_COGERANT, is_active: actif })).status).toBe(200)
+    }
+    expect(misesAJour().map((a) => a.donnees)).toEqual([{ is_active: false }, { is_active: true }])
+  })
+
+  it('titulaire : dérogation sur la ligne d’un gérant refusée (400, « tous les droits ») ; liste vide acceptée', async () => {
+    const res = await modifier({ member_id: LIGNE_COGERANT, permissions: [{ module_id: 'devis', access_level: 'NONE' }] })
+    expect(res.status).toBe(400)
+    expect((await res.json()).code).toBe('gerant_tous_droits')
+    expect(appelsDe(h.base, 'pro_role_permissions', 'insert')).toHaveLength(0)
+    expect((await modifier({ member_id: LIGNE_COGERANT, permissions: [] })).status).toBe(200)
+  })
+
+  it('titulaire : saisit la catégorie de sa propre ligne (seule, sans droits)', async () => {
+    expect((await modifier({ member_id: LIGNE_TITULAIRE, job_title: 'Sócio-gerente' })).status).toBe(200)
+    expect(misesAJour()[0].donnees).toEqual({ job_title: 'Sócio-gerente' })
+  })
+
+  it('refus du co-gérant : code stable que l’écran traduit', async () => {
+    coGerant()
+    expect((await (await modifier({ member_id: LIGNE_TITULAIRE, is_active: false })).json()).code).toBe('gerant_reserve')
+    expect((await (await supprimer(LIGNE_COGERANT)).json()).code).toBe('gerant_reserve')
+  })
+
   it('titulaire : promeut un salarié gérant (son compte reçoit GERANT, garde la société)', async () => {
     compteVise(MEMBRE)
     expect((await modifier({ member_id: LIGNE, role: 'GERANT' })).status).toBe(200)
@@ -402,7 +428,7 @@ describe('Co-gérant : gérant invité dans la société d’un autre compte (25
   })
 
   it.each([
-    ['titulaire retire le co-gérant', null, LIGNE_COGERANT, 200],
+    ['titulaire supprime le co-gérant déjà relié (il le désactive)', null, LIGNE_COGERANT, 403],
     ['titulaire retire une invitation de gérant en attente', null, 'ligne-invitation-gerant', 200],
     ['titulaire se retire lui-même', null, LIGNE_TITULAIRE, 403],
     ['co-gérant retire le titulaire', 'cogerant', LIGNE_TITULAIRE, 403],
