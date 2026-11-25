@@ -18,7 +18,7 @@ export interface PanelProps {
 }
 
 /** Panneau à en-tête facultatif (affiché seulement si title ou right est fourni). */
-export function Panel({ title, sub, icon, right, children, flush, controlesALaLigne }: PanelProps) {
+export function Panel({ title, sub, icon, right, children, flush, controlesALaLigne }: Readonly<PanelProps>) {
   return (
     <div
       className="panel"
