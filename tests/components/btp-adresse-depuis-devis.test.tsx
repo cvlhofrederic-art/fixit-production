@@ -411,3 +411,69 @@ describe('fiche chantier — adresse reprise d’un devis', () => {
     expect(toast.success).toHaveBeenCalledWith('Morada importada do orçamento ORC-0012.')
   })
 })
+
+// ═══ Salarié de terrain : consultation seulement (25/11/2026) ═══
+// « Les salariés doivent uniquement recevoir les alertes météo, le chantier qui les concerne, et surtout le
+// pointage » : la page passe importDevis={false} à la Météo et lectureSeule à l'écran des chantiers.
+
+describe('salarié de terrain — la météo de ses chantiers, sans import de devis', () => {
+  it('ni bouton d’import, ni lieux de devis gardés sur l’appareil : seules les prévisions de ses chantiers', async () => {
+    localStorage.setItem('vitfix_btp_meteo_devis_art-1', JSON.stringify([
+      { devisId: 'd-lilas', numero: 'DEV-2026-001', client: 'Mme Durand', lieu: 'Résidence Le Mail, 15 rue des Lilas, 13001 Marseille', source: 'intervention' },
+    ]))
+    etat.chantiers = [{ id: 'c-villa', titre: 'Villa', adresse: '1 rue des Pins', codePostal: '13008', ville: 'Marseille', statut: 'En cours' }]
+    render(<MeteoChantierSection userId="art-1" authUserId="u1" isPt={false} importDevis={false} />)
+    await waitFor(() => expect(previsions()).toHaveLength(1), { timeout: 4000 })
+    expect(await screen.findByText(/🏗️ Villa/)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /Importer une adresse depuis un devis/ })).toBeNull()
+    expect(screen.queryByText(/DEV-2026-001/)).toBeNull()
+    expect(screen.queryByText('Lieux d’intervention des devis')).toBeNull()
+    // Les lieux du gérant restent où ils sont : rien n'est effacé de l'appareil.
+    expect(JSON.parse(localStorage.getItem('vitfix_btp_meteo_devis_art-1') ?? '[]')).toHaveLength(1)
+  })
+})
+
+describe('salarié de terrain — ses chantiers en consultation', () => {
+  it('ni création, ni modification, ni suppression, ni statut modifiable, ni client, ni montant, ni devis liés', async () => {
+    etat.chantiers = [VILLA]
+    render(<ChantiersBTPV2 artisan={artisan} orgRole="pro_societe" lectureSeule />)
+    expect(await screen.findByText('Villa')).toBeTruthy()
+    expect(screen.getByText('1 rue des Pins')).toBeTruthy()
+    for (const nom of [/Nouveau chantier/, /^Modifier$/, /^Supprimer$/, /Lier un devis/, /Prolonger/]) {
+      expect(screen.queryByRole('button', { name: nom })).toBeNull()
+    }
+    // Le statut se lit, il ne se change pas (seul reste le filtre de la liste).
+    expect(screen.getAllByRole('combobox')).toHaveLength(1)
+    expect(screen.getByText('En cours')).toBeTruthy()
+    for (const texte of ['Client', 'Budget', 'Mme Durand', /12.?000/, /Marge/, 'Devis et factures liés']) {
+      expect(screen.queryByText(texte)).toBeNull()
+    }
+  })
+
+  it('aucun chantier affecté : un message, pas d’invitation à en créer un', async () => {
+    render(<ChantiersBTPV2 artisan={artisan} orgRole="pro_societe" lectureSeule />)
+    expect(await screen.findByText('Aucun chantier ne vous est encore affecté.')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /Créer un chantier/ })).toBeNull()
+  })
+
+  it('en portugais : statut et message portugais', async () => {
+    etat.locale = 'pt'
+    etat.chantiers = [VILLA]
+    const { unmount } = render(<ChantiersBTPV2 artisan={artisan} orgRole="pro_societe" lectureSeule />)
+    expect(await screen.findByText('Em curso')).toBeTruthy()
+    unmount()
+    etat.chantiers = []
+    render(<ChantiersBTPV2 artisan={artisan} orgRole="pro_societe" lectureSeule />)
+    expect(await screen.findByText('Ainda não lhe foi atribuída nenhuma obra.')).toBeTruthy()
+  })
+
+  it('le gérant garde tout : création, modification, statut, budget et devis liés', async () => {
+    etat.chantiers = [VILLA]
+    render(<ChantiersBTPV2 artisan={artisan} orgRole="pro_societe" />)
+    expect(await screen.findByRole('button', { name: /Nouveau chantier/ })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Modifier' })).toBeTruthy()
+    expect(screen.getAllByRole('combobox')).toHaveLength(2)
+    expect(screen.getByText('Budget')).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Lier un devis/ })).toBeTruthy()
+  })
+})

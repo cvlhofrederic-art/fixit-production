@@ -72,7 +72,8 @@ vi.mock('@/lib/service-utils', () => ({ getPriceRangeLabel: vi.fn(), getPricingU
 vi.mock('@/lib/messagerie-pro', () => ({ notificationOuvreMessagerie: vi.fn() }))
 
 import DashboardPageWrapper from '@/app/(commun)/pro/dashboard/page'
-import { proprietesRecues } from '../helpers/tableau-de-bord-pro-simule'
+import { droitsSimules, proprietesRecues, remettreDroitsSimules } from '../helpers/tableau-de-bord-pro-simule'
+import { canAccess, canWrite, getDefaultPermissionsForRole, type ProTeamRole } from '@/lib/permissions'
 
 const FICHE = { id: 'fiche-1', user_id: 'compte-1', company_name: 'Société Exemple', legal_form: 'SAS' }
 const ECHEC_RESEAU = { code: '', message: 'TypeError: Failed to fetch', details: '', hint: '' }
@@ -132,6 +133,7 @@ function sectionsAffichees(container: HTMLElement): string[] {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  remettreDroitsSimules()
   localStorage.clear()
   mocks.rappels.length = 0
   mocks.etat.fiche = { data: FICHE, error: null }
@@ -300,6 +302,49 @@ const ECRANS_BTP: Array<[string, string, string]> = [
   ['help', 'AideSection', 'Erreur dans l’aide'],
   ['canal', 'CanalProSection', 'Erreur dans le Canal Pro'],
 ]
+
+// Décision du 25/11/2026 : un salarié de terrain n'ouvre que la météo, ses chantiers et le pointage (plus son profil et
+// l'aide). Les sections hors matrice des droits (Modules, Portail client…) lui restent fermées, même par l'adresse ;
+// elles restent ouvertes aux postes de bureau (la secrétaire), comme avant.
+describe('tableau de bord BTP — ce qu’un salarié ouvre par l’adresse', () => {
+  const droitsDe = (role: ProTeamRole) => {
+    const droits = getDefaultPermissionsForRole(role)
+    Object.assign(droitsSimules, {
+      permissions: droits, isGerant: false, proTeamRole: role,
+      canAccess: (id: string) => canAccess(droits, id), canWrite: (id: string) => canWrite(droits, id),
+    })
+    return utilisateur('pro_societe', { pro_team_role: role, company_id: 'compte-gerant' })
+  }
+  const remplaceePar = (section: string) =>
+    expect(replaceState).toHaveBeenCalledWith(expect.anything(), '', expect.stringContaining(`p=${section}`))
+
+  it.each(['modules', 'portail_client', 'devis', 'home'])('salarié de terrain, ?p=%s : renvoyé sur le pointage', async (section) => {
+    await ouvrir(droitsDe('CHEF_CHANTIER'), { adresse: `p=${section}` })
+    await waitFor(() => remplaceePar('pointage'))
+  })
+
+  it.each(['pointage', 'chantiers', 'meteo', 'settings', 'help'])('salarié de terrain, ?p=%s : ouvert, adresse inchangée', async (section) => {
+    await ouvrir(droitsDe('OUVRIER'), { adresse: `p=${section}` })
+    await attendre(30)
+    expect(replaceState).not.toHaveBeenCalled()
+  })
+
+  it('salarié de terrain : l’écran des chantiers reçoit lectureSeule', async () => {
+    await ouvrir(droitsDe('CONDUCTEUR_TRAVAUX'), { adresse: 'p=chantiers' })
+    expect(proprietesRecues(mocks.etat, 'ChantiersBTPV2')).toMatchObject({ lectureSeule: true })
+  })
+
+  it('secrétaire, ?p=modules : ouvert comme avant', async () => {
+    await ouvrir(droitsDe('SECRETAIRE'), { adresse: 'p=modules' })
+    await attendre(30)
+    expect(replaceState).not.toHaveBeenCalled()
+  })
+
+  it('compte de la société : chantiers modifiables', async () => {
+    await ouvrir(utilisateur('pro_societe'), { adresse: 'p=chantiers' })
+    expect(proprietesRecues(mocks.etat, 'ChantiersBTPV2')).toMatchObject({ lectureSeule: false })
+  })
+})
 
 describe('tableau de bord BTP — une panne d’écran reste dans son écran', () => {
   it.each(ECRANS_BTP)('%s : panne de %s → « %s », menu et en-tête toujours affichés', async (section, composant, titre) => {
