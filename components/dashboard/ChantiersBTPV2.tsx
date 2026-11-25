@@ -9,6 +9,7 @@ import {
   questionRetirerPosition,
 } from '@/lib/btp/fiche-chantier'
 import { confirmationRelocaliser } from '@/components/dashboard/btp/pointage/textes'
+import { COLONNES_LIEU_DEVIS, champsAdresseDuLieu, libelleChoixDevis, lieuDuDevis, messageAdresseImportee } from '@/lib/btp/lieu-devis'
 import { supabase } from '@/lib/supabase'
 import type { Artisan } from '@/lib/types'
 import { toast } from 'sonner'
@@ -51,7 +52,15 @@ interface DevisSummary {
   id: string; numero: string; client_name: string; client_address: string
   total_ht_cents: number; items: Array<{ description: string; [k: string]: unknown }>; created_at: string; status: string
   execution_delay_days?: number; prestation_date?: string
+  /** Lieu d'intervention et adresse du client tirés du contenu du devis (COLONNES_LIEU_DEVIS, lib/btp/lieu-devis.ts). */
+  lieu_intervention?: string | null; adresse_client_devis?: string | null
 }
+
+/**
+ * Colonnes des devis proposés à l'import, avec COLONNES_LIEU_DEVIS. Repli, si la base n'a pas la colonne raw_data :
+ * l'ancienne colonne client_address (que la synchronisation n'écrit plus : demandée seulement là).
+ */
+const COLONNES_DEVIS_IMPORT = 'id, numero, client_name, total_ht_cents, items, created_at, status'
 
 interface MembreSummary {
   id: string; prenom: string; nom: string; role: string
@@ -127,6 +136,10 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
   const [devisList, setDevisList] = useState<DevisSummary[]>([])
   const [membresList, setMembresList] = useState<MembreSummary[]>([])
   const [loadingDevis, setLoadingDevis] = useState(false)
+  /** Liste des devis ouverte sous « Adresse du chantier » (bouton « Importer depuis un devis »). */
+  const [choixAdresseOuvert, setChoixAdresseOuvert] = useState(false)
+  /** Adresse posée par le dernier import d'un devis : retouchée depuis à la main, elle n'est plus celle du devis. */
+  const adresseImporteeRef = useRef<{ adresse: string; codePostal: string; ville: string } | null>(null)
 
   // Alerte fin de chantier
   const [prolongModal, setProlongModal] = useState<{ chantier: ChantierForm & { id: string; statut?: string } } | null>(null)
@@ -150,11 +163,13 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
       const { data: sess } = await supabase.auth.getSession()
       const headers: Record<string, string> = {}
       if (sess?.session?.access_token) headers.Authorization = `Bearer ${sess.session.access_token}`
-      const [devisRes, membresRes] = await Promise.all([
-        supabase.from('devis').select('id, numero, client_name, client_address, total_ht_cents, items, created_at, status').eq('artisan_id', artisan?.id).is('deleted_at', null).order('created_at', { ascending: false }).limit(50),
+      const devisRequete = (colonnes: string) => supabase.from('devis').select(colonnes).eq('artisan_id', artisan?.id).is('deleted_at', null).order('created_at', { ascending: false }).limit(50)
+      const [lectureAvecLieu, membresRes] = await Promise.all([
+        devisRequete(`${COLONNES_DEVIS_IMPORT}, ${COLONNES_LIEU_DEVIS}`),
         fetch('/api/btp?table=membres', { headers }),
       ])
-      if (devisRes.data) setDevisList(devisRes.data as DevisSummary[])
+      const devisRes = lectureAvecLieu.error ? await devisRequete(`${COLONNES_DEVIS_IMPORT}, client_address`) : lectureAvecLieu
+      if (devisRes.data) setDevisList(devisRes.data as unknown as DevisSummary[])
       if (membresRes.ok) {
         const j = await membresRes.json()
         const membres = (j.membres || []).filter((m: { actif?: boolean; prenom?: string; nom?: string; role?: string; daily_cost?: number }) => m.actif !== false)
@@ -246,14 +261,25 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
       dateFin = end.toISOString().split('T')[0]
     }
 
+    // Adresse : le lieu d'intervention du devis (à défaut l'adresse du client), en rue, code postal et ville. Nouvelle
+    // adresse : la position d'un devis importé avant ne doit pas rester. Un devis sans l'un ni l'autre laisse une adresse
+    // tapée ou retouchée à la main, mais retire celle d'un devis importé avant, inchangée (et sa position) : elle n'est
+    // pas celle de ce devis.
+    const lieu = lieuDuDevis(devis)
+    const champs = lieu ? champsAdresseDuLieu(lieu.texte, isPt ? 'PT' : 'FR') : null
+    const importee = adresseImporteeRef.current
+    const adresseDuDevisPrecedent = !!form.devis_id && !!importee
+      && form.adresse === importee.adresse && form.codePostal === importee.codePostal && form.ville === importee.ville
+    let adresse: Partial<ChantierForm> = {}
+    if (champs) adresse = { ...champs, ...SANS_POSITION }
+    else if (adresseDuDevisPrecedent) adresse = { adresse: '', codePostal: '', ville: '', ...SANS_POSITION }
+    if (Object.keys(adresse).length > 0) oublierGeocodage()
+    adresseImporteeRef.current = champs
     setForm(f => ({
       ...f,
       titre: firstDesc || `${isPt ? 'Orçamento' : 'Devis'} ${devis.numero}`,
       client: devis.client_name || '',
-      adresse: devis.client_address || '',
-      // Nouvelle adresse : la position d'un devis importé avant ne doit pas rester.
-      latitude: null,
-      longitude: null,
+      ...adresse,
       budget: String(totalHT),
       devis_id: devis.id,
       dateDebut: (devis as any).prestation_date || today,
@@ -261,8 +287,71 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
       description: `${isPt ? 'Ref. orçamento' : 'Réf. devis'}: ${devis.numero}\n${items.map((it: { description: string }) => `• ${it.description}`).join('\n')}`,
     }))
 
-    // Géocoder l'adresse importée
-    if (devis.client_address) void geocodeAdresse({ adresse: devis.client_address })
+    // Géocoder le lieu d'intervention importé. L'adresse du client (peut-être un siège) ne l'est pas d'office : la
+    // position déclenche le pointage ; le gérant la vérifie, puis utilise le bouton GPS.
+    if (lieu && champs) {
+      toast.success(messageAdresseImportee(devis.numero, lieu, champs, isPt))
+      if (lieu.source === 'intervention') void geocodeAdresse(champs)
+    } else {
+      toast.warning(isPt
+        ? 'Este orçamento não tem local de intervenção nem morada do cliente: indique a morada da obra.'
+        : 'Ce devis n’a ni lieu d’intervention ni adresse du client : indiquez l’adresse du chantier.')
+    }
+  }
+
+  // ── Bouton « Importer l'adresse depuis un devis » (création et modification) ──
+  const devisAvecLieu = useMemo(() => devisList.filter(d => lieuDuDevis(d)), [devisList])
+
+  /** Devis rattachés à la fiche ouverte : celui qui l'a créée (devis_id) et ceux liés au chantier (bouton Lier). */
+  const devisDeLaFiche = (f: ChantierForm): Set<string> => new Set([
+    ...(f.devis_id ? [f.devis_id] : []),
+    ...(editId ? (linkedDocs[editId] ?? []).filter(d => d.type === 'devis').map(d => d.id) : []),
+  ])
+
+  /**
+   * Reprend dans la fiche l'adresse d'un devis, rien d'autre. Comme une saisie dans l'adresse : la position enregistrée
+   * du chantier reste (l'enregistrement demandera quoi en faire), sinon la position est recalculée pour un lieu
+   * d'intervention (pas pour l'adresse du client, voir importDevis).
+   */
+  const importerAdresseDevis = (devis: DevisSummary) => {
+    const lieu = lieuDuDevis(devis)
+    if (!lieu) return
+    const champs = champsAdresseDuLieu(lieu.texte, isPt ? 'PT' : 'FR')
+    const garde = portePositionEnregistree(form)
+    oublierGeocodage()
+    adresseImporteeRef.current = champs
+    setForm({ ...form, ...(garde ? {} : SANS_POSITION), ...champs })
+    setChoixAdresseOuvert(false)
+    toast.success(messageAdresseImportee(devis.numero, lieu, champs, isPt))
+    if (!garde && lieu.source === 'intervention') void geocodeAdresse(champs)
+  }
+
+  /** Devis proposés par le bouton, ceux rattachés à la fiche en tête (tri stable : le plus récent d'abord ensuite). */
+  const choixDevisAdresse = (f: ChantierForm) => {
+    const rattaches = devisDeLaFiche(f)
+    return devisAvecLieu
+      .flatMap(devis => {
+        const lieu = lieuDuDevis(devis)
+        return lieu ? [{ devis, lieu, rattache: rattaches.has(devis.id) }] : []
+      })
+      .sort((a, b) => Number(b.rattache) - Number(a.rattache))
+  }
+
+  /**
+   * Adresse vide et un seul devis rattaché à la fiche, avec un lieu : import direct. Sinon la liste des devis s'ouvre
+   * (devis rattachés en tête) : une adresse déjà là ne se remplace pas sans choix, et un autre devis reste possible.
+   */
+  const clicImporterAdresse = () => {
+    if (choixAdresseOuvert) { setChoixAdresseOuvert(false); return }
+    const rattaches = devisDeLaFiche(form)
+    const lies = devisAvecLieu.filter(d => rattaches.has(d.id))
+    const adresseVide = [form.adresse, form.codePostal, form.ville].every(v => !(v ?? '').trim())
+    if (adresseVide && lies.length === 1) { importerAdresseDevis(lies[0]); return }
+    if (devisAvecLieu.length === 0) {
+      toast.warning(isPt ? 'Nenhum orçamento com local de intervenção ou morada do cliente.' : 'Aucun devis avec un lieu d’intervention ou une adresse du client.')
+      return
+    }
+    setChoixAdresseOuvert(true)
   }
 
   /** La fiche porte encore la position enregistrée du chantier (fiche ouverte pour modification seulement). */
@@ -325,6 +414,7 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
     }
     ficheOuverteRef.current = fiche
     setForm(fiche)
+    setChoixAdresseOuvert(false)
     setShowModal(true)
     loadDevisAndMembres()
   }
@@ -561,7 +651,7 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
         </select>
         <button
           className={isV5 ? "v5-btn v5-btn-p" : "v22-btn v22-btn-primary"}
-          onClick={() => { oublierGeocodage(); setEditId(null); setForm(EMPTY_FORM); setShowModal(true); loadDevisAndMembres() }}
+          onClick={() => { oublierGeocodage(); setEditId(null); setForm(EMPTY_FORM); setChoixAdresseOuvert(false); setShowModal(true); void loadDevisAndMembres() }}
         >
           + {isPt ? 'Nova obra' : 'Nouveau chantier'}
         </button>
@@ -579,7 +669,7 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
           </p>
           <button
             className={isV5 ? "v5-btn v5-btn-p" : "v22-btn v22-btn-primary"}
-            onClick={() => { oublierGeocodage(); setEditId(null); setForm(EMPTY_FORM); setShowModal(true); loadDevisAndMembres() }}
+            onClick={() => { oublierGeocodage(); setEditId(null); setForm(EMPTY_FORM); setChoixAdresseOuvert(false); setShowModal(true); void loadDevisAndMembres() }}
           >
             + {isPt ? 'Criar obra' : 'Créer un chantier'}
           </button>
@@ -970,8 +1060,36 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
               </div>
 
               <div className={isV5 ? "v5-fg" : "v22-form-group"}>
-                <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Morada da obra' : 'Adresse du chantier'}</label>
-                <input className={isV5 ? "v5-fi" : "v22-input"} value={form.adresse}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <label htmlFor="chantier-adresse" className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Morada da obra' : 'Adresse du chantier'}</label>
+                  <button type="button" className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"} onClick={clicImporterAdresse}
+                    disabled={loadingDevis} aria-expanded={choixAdresseOuvert}
+                    title={isPt ? 'Local de intervenção do orçamento associado à obra, ou de outro orçamento' : 'Lieu d’intervention du devis rattaché au chantier, ou d’un autre devis'}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
+                    {loadingDevis ? <Loader2 size={12} className="animate-spin" /> : <FileText size={12} />}
+                    {isPt ? 'Importar morada de um orçamento' : 'Importer l’adresse depuis un devis'}
+                  </button>
+                </div>
+                {choixAdresseOuvert && (
+                  <select
+                    aria-label={isPt ? 'Orçamento cuja morada importar' : 'Devis dont reprendre l’adresse'}
+                    className={isV5 ? "v5-filter-sel" : "v22-filter-sel"}
+                    style={{ width: '100%', fontSize: 11, margin: '4px 0 6px' }}
+                    value=""
+                    onChange={e => {
+                      const devis = devisAvecLieu.find(d => d.id === e.target.value)
+                      if (devis) importerAdresseDevis(devis)
+                    }}
+                  >
+                    <option value="">{isPt ? 'Selecionar um orçamento...' : '— Sélectionner un devis —'}</option>
+                    {choixDevisAdresse(form).map(({ devis, lieu, rattache }) => (
+                      <option key={devis.id} value={devis.id} title={lieu.texte}>
+                        {rattache ? (isPt ? '★ Associado · ' : '★ Rattaché · ') : ''}{libelleChoixDevis(devis, lieu, isPt)}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <input id="chantier-adresse" className={isV5 ? "v5-fi" : "v22-input"} value={form.adresse}
                   onChange={e => saisirAdresse({ adresse: e.target.value })}
                   placeholder={isPt ? 'Rua, n.º...' : 'N°, rue...'} />
               </div>
