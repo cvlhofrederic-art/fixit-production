@@ -8,10 +8,13 @@ import {
   isGerantRole,
   isValidProTeamRole,
   getAccessibleModules,
+  estRoleDeTerrain,
   ALL_PRO_MODULES,
   PRO_TEAM_ROLES,
+  ROLES_DE_TERRAIN,
 } from '@/lib/permissions'
 import type { AccessLevel, ProTeamRole } from '@/lib/permissions'
+import { pageAppliSocieteBtp } from '@/lib/auth/destination-par-role'
 
 describe('lib/permissions', () => {
   describe('getDefaultPermission', () => {
@@ -29,8 +32,8 @@ describe('lib/permissions', () => {
       expect(getDefaultPermission('COMPTABLE', 'compta_btp')).toBe('FULL')
     })
 
-    it('CHEF_CHANTIER has FULL on photos_chantier', () => {
-      expect(getDefaultPermission('CHEF_CHANTIER', 'photos_chantier')).toBe('FULL')
+    it('CHEF_CHANTIER n’a plus les photos de chantier par défaut (25/11/2026)', () => {
+      expect(getDefaultPermission('CHEF_CHANTIER', 'photos_chantier')).toBe('NONE')
     })
 
     it('returns NONE for unknown module', () => {
@@ -205,26 +208,40 @@ describe('lib/permissions', () => {
       expect(perms.comptabilite).toBe('FULL')
     })
 
-    // Ce que Frédéric a demandé le 24/11/2026 pour ses salariés de terrain : le pointage, leurs chantiers en cours,
-    // la météo et le dictionnaire de matériaux. Rien d'autre par défaut — il ouvre le reste employé par employé.
+    // Décision de Frédéric du 25/11/2026 : « Les salariés doivent uniquement recevoir les alertes météo, le
+    // chantier qui les concerne, et surtout le pointage très important ». Plus « Mon profil » (settings, en lecture),
+    // où il change son mot de passe. Rien d'autre par défaut — le gérant rouvre le reste employé par employé.
+    // (Le 24/11 il avait demandé aussi le dictionnaire de matériaux ; le 25/11 il dit « uniquement ».)
     const TERRAIN: ProTeamRole[] = ['OUVRIER', 'CHEF_CHANTIER', 'CONDUCTEUR_TRAVAUX']
 
-    it.each(TERRAIN)('%s voit le pointage, ses chantiers, la météo et le dictionnaire', (role) => {
-      const perms = getDefaultPermissionsForRole(role)
-      for (const mod of ['pointage', 'chantiers', 'meteo', 'dictionnaire_materiaux']) {
-        expect(canAccess(perms, mod)).toBe(true)
+    it.each(TERRAIN)('%s n’ouvre que le pointage, ses chantiers, la météo et son profil', (role) => {
+      const accessible = getAccessibleModules(getDefaultPermissionsForRole(role))
+      expect(accessible.sort()).toEqual(['chantiers', 'meteo', 'pointage', 'settings'])
+    })
+
+    it('les rôles de terrain sont exactement ceux que l’appli ouvre sur le pointage', () => {
+      expect([...ROLES_DE_TERRAIN].sort()).toEqual([...TERRAIN].sort())
+      for (const role of PRO_TEAM_ROLES) {
+        expect(estRoleDeTerrain(role), role).toBe(pageAppliSocieteBtp(role).includes('p=pointage'))
+      }
+      for (const valeur of [null, undefined, '', 'ouvrier', 'GERANT', 'SECRETAIRE']) {
+        expect(estRoleDeTerrain(valeur)).toBe(false)
       }
     })
 
-    it('OUVRIER garde un accès minimal : rien de commercial ni de comptable', () => {
-      const perms = getDefaultPermissionsForRole('OUVRIER')
-      const accessible = getAccessibleModules(perms)
-      expect(accessible.sort()).toEqual(
-        ['calendar', 'chantiers', 'dictionnaire_materiaux', 'meteo', 'photos_chantier', 'pointage', 'settings'].sort(),
-      )
-      for (const mod of ['devis', 'factures', 'comptabilite', 'revenus', 'stats', 'clients', 'gestion_comptes']) {
-        expect(canAccess(perms, mod)).toBe(false)
+    it('les postes de bureau ne changent pas : secrétaire et comptable gardent leurs écrans', () => {
+      expect(getAccessibleModules(getDefaultPermissionsForRole('SECRETAIRE'))).toHaveLength(ALL_PRO_MODULES.length - 1)
+      const comptable = getDefaultPermissionsForRole('COMPTABLE')
+      for (const mod of ['compta_btp', 'factures', 'comptabilite', 'devis']) {
+        expect(canAccess(comptable, mod), mod).toBe(true)
       }
+    })
+
+    it('chaque rôle de terrain reçoit sa propre copie : une dérogation de l’un ne touche pas l’autre', () => {
+      const ouvrier = getEffectivePermissions('OUVRIER', [{ module_id: 'photos_chantier', access_level: 'FULL' }])
+      expect(ouvrier.photos_chantier).toBe('FULL')
+      expect(getDefaultPermission('OUVRIER', 'photos_chantier')).toBe('NONE')
+      expect(getDefaultPermission('CHEF_CHANTIER', 'photos_chantier')).toBe('NONE')
     })
 
     // Un salarié de terrain ne doit rien pouvoir ÉCRIRE de ce qui porte des montants ou des salaires : depuis le

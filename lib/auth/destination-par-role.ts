@@ -32,13 +32,13 @@ const ROLES_PRO: readonly string[] = ['pro_societe', 'pro_conciergerie', 'pro_ge
 
 // Salariés d'une société BTP dont le poste de travail est le chantier : dans l'appli, leur compte s'ouvre directement
 // sur le pointage (23/11/2026). Le gérant, la secrétaire et le comptable gardent le tableau de bord.
-// Ce partage vient de Frédéric (« donne leur accès au module de pointage ») ; ce n'est PAS une déduction de
-// lib/permissions.ts : l'ouvrier et la secrétaire y ont tous deux « pointage: READ », donc la matrice ne permet pas
-// de distinguer le poste de chantier du poste de bureau. Elle le ferait pour le chef de chantier et le conducteur de
-// travaux, qui ont « FULL » comme le gérant ; et le comptable est le seul à n'avoir aucun accès (« NONE »).
+// Ce partage vient de Frédéric (« donne leur accès au module de pointage ») ; ce n'est PAS une déduction des droits
+// de lib/permissions.ts : la secrétaire y a le pointage comme l'ouvrier, et le gérant peut rouvrir n'importe quel
+// module à n'importe qui. Depuis le 25/11/2026, lib/permissions.ts réduit ces mêmes rôles (ROLES_DE_TERRAIN) à la
+// météo, à leurs chantiers et au pointage.
 // Noms recopiés de ProTeamRole pour garder ce module sans dépendance ; tests/auth/destination-par-role.test.ts vérifie
 // qu'ils sont bien des rôles d'équipe existants, que le comptable est le seul sans accès au pointage, et que tout
-// rôle d'équipe est classé d'un côté ou de l'autre.
+// rôle d'équipe est classé d'un côté ou de l'autre ; tests/permissions.test.ts, que ROLES_DE_TERRAIN est la même liste.
 const ROLES_EQUIPE_TERRAIN: readonly string[] = ['OUVRIER', 'CHEF_CHANTIER', 'CONDUCTEUR_TRAVAUX']
 
 // Barre finale et requête écrites telles quelles : le site est en trailingSlash, cette forme évite une redirection de

@@ -32,7 +32,7 @@ import { toast } from 'sonner'
 import { notificationOuvreMessagerie } from '@/lib/messagerie-pro'
 import { FicheSocieteIndisponible, messageFicheSocieteAbsente, prevenirFicheSocieteAbsente } from '@/components/dashboard/btp/FicheSocieteIndisponible'
 import { MODULE_DE_LA_SECTION, SECTIONS_SOCIETE_BTP } from '@/lib/btp/sections-tableau-de-bord'
-import { ALL_PRO_MODULES } from '@/lib/permissions'
+import { ALL_PRO_MODULES, estRoleDeTerrain } from '@/lib/permissions'
 import { FiletSocieteBtp } from '@/components/dashboard/btp/FiletSocieteBtp'
 
 // Section loading spinner — shown while JS chunks load
@@ -144,9 +144,14 @@ function SuspenseFallback() {
 // puis ce qui lui reste. 'home' en dernier recours, même s'il ne l'a pas : mieux vaut un accueil vide qu'une boucle.
 const ORDRE_ACCUEIL_SALARIE = ['pointage', 'chantiers', 'meteo', 'dictionnaire_materiaux', 'calendar', 'photos_chantier'] as const
 
-// Sections réellement gouvernées par la matrice des droits. Les autres (Mon profil, Aide, Modules, Portail client,
-// Communication, Canal) n'ont aucun module : personne ne peut les accorder, elles restent donc ouvertes.
+// Sections réellement gouvernées par la matrice des droits (« Mon profil » en fait partie : c'est le module settings).
+// Les autres (Aide, Modules, Portail client, Communication, Canal) n'ont aucun module : personne ne peut les accorder,
+// elles restent donc ouvertes…
 const SECTIONS_GARDEES = new Set<string>(ALL_PRO_MODULES)
+
+// … sauf au salarié de terrain, qui n'ouvre que ce que la matrice lui accorde (décision du 25/11/2026 : la météo, son
+// chantier, le pointage, et « Mon profil » pour son mot de passe), plus l'aide.
+const SECTIONS_LIBRES_DU_SALARIE_DE_TERRAIN: ReadonlySet<string> = new Set(['help'])
 
 export default function DashboardPageWrapper() {
   return (
@@ -250,7 +255,9 @@ function DashboardPage() {
   const { categories: moduleCategories, setCategories: setModuleCategories } = useModuleCategories(ALL_MODULES, orgRole === 'pro_societe' ? artisan?.id : undefined)
 
   // ── Pro team permissions (RBAC for pro_societe sub-accounts) ──
-  const { permissions: proPermissions, isGerant: isProGerant, canAccess: proCanAccess } = usePermissions(orgRole, artisan)
+  const { permissions: proPermissions, isGerant: isProGerant, canAccess: proCanAccess, canWrite: proCanWrite, proTeamRole, loading: droitsEnChargement } = usePermissions(orgRole, artisan)
+  // Ouvrier, chef de chantier, conducteur de travaux : menu et écrans réduits à ce que la matrice leur ouvre.
+  const salarieDeTerrain = orgRole === 'pro_societe' && !isProGerant && estRoleDeTerrain(proTeamRole)
 
   // ── Messagerie artisan dashboard ──
   const messaging = useDashboardMessaging({ artisan, isPt, dateFmtLocale })
@@ -606,11 +613,15 @@ function DashboardPage() {
     if (orgRole !== 'pro_societe') return
     if (!SECTIONS_SOCIETE_BTP.has(activePage)) { navigateTo('home', { remplacer: true }); return }
     if (isProGerant) return
+    // Droits par défaut posés, dérogations du gérant pas encore lues : un module qu'il a rouvert à cet employé serait
+    // refusé à tort (rechargement de ?p=dictionnaire_materiaux, par exemple). On attend la réponse, ou son échec.
+    if (droitsEnChargement) return
     const moduleGardien = MODULE_DE_LA_SECTION[activePage] ?? activePage
-    if (!SECTIONS_GARDEES.has(moduleGardien) || proCanAccess(moduleGardien)) return
+    const horsMatrice = !SECTIONS_GARDEES.has(moduleGardien)
+    if (horsMatrice ? !salarieDeTerrain || SECTIONS_LIBRES_DU_SALARIE_DE_TERRAIN.has(activePage) : proCanAccess(moduleGardien)) return
     const repli = ORDRE_ACCUEIL_SALARIE.find((section) => proCanAccess(section)) ?? 'home'
     if (repli !== activePage) navigateTo(repli, { remplacer: true })
-  }, [orgRole, activePage, navigateTo, isProGerant, proCanAccess])
+  }, [orgRole, activePage, navigateTo, isProGerant, proCanAccess, salarieDeTerrain, droitsEnChargement])
 
   // ── Wrap transformBookingToDevis to also navigate ──
   const handleTransformBookingToDevis = useCallback((booking: Booking) => {
@@ -779,6 +790,7 @@ function DashboardPage() {
           isPt={isPt} pendingBookings={pendingBookings} unreadMsgCount={unreadMsgCount}
           dynamicCategories={moduleCategories}
           definitionsModules={ALL_MODULES}
+          salarieDeTerrain={salarieDeTerrain}
         />
       )}
       {isV5 && orgRole === 'artisan' && (
@@ -1377,7 +1389,7 @@ function DashboardPage() {
           {/* ────── CHANTIERS V2 (Société BTP) — Supabase + GPS ────── */}
           {activePage === 'chantiers' && (
             <FiletSocieteBtp actif={orgRole === 'pro_societe'} titre={isPt ? 'Erro nas obras' : 'Erreur dans les chantiers'} locale={isPt ? 'pt' : 'fr'}>
-            <ChantiersBTPV2 artisan={artisan!} orgRole={orgRole} />
+            <ChantiersBTPV2 artisan={artisan!} orgRole={orgRole} lectureSeule={!isProGerant && !proCanWrite('chantiers')} />
             </FiletSocieteBtp>
           )}
 
@@ -1615,7 +1627,10 @@ function DashboardPage() {
           {/* ────── METEO CHANTIERS (pro_societe v5) ────── */}
           {activePage === 'meteo' && isV5 && (
             <SectionErrorBoundary locale={isPt ? 'pt' : 'fr'} fallbackTitle={isPt ? 'Erro na meteorologia' : 'Erreur météo'}>
-              <MeteoChantierSection userId={artisan?.id || ''} authUserId={artisan?.user_id || ''} isPt={isPt} />
+              <MeteoChantierSection
+                userId={artisan?.id || ''} authUserId={artisan?.user_id || ''} isPt={isPt}
+                importDevis={isProGerant || proCanAccess('devis')} gestionChantiers={isProGerant || proCanWrite('chantiers')}
+              />
             </SectionErrorBoundary>
           )}
 
@@ -1646,8 +1661,9 @@ function DashboardPage() {
         }
       `}</style>
 
-      {/* AI ChatBot */}
-      {artisan && (
+      {/* AI ChatBot — pas pour le salarié de terrain : il crée des rendez-vous et mène aux devis et factures, hors de
+          ce qu'il reçoit (25/11/2026 : « uniquement » la météo, son chantier et le pointage). */}
+      {artisan && !salarieDeTerrain && (
         <AiChatBot
           artisan={artisan!}
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
