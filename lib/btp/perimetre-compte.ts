@@ -25,7 +25,7 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import type { SupabaseClient, User } from '@supabase/supabase-js'
-import { getUserRole, isProGerant, resolveCompanyId } from '@/lib/auth-helpers'
+import { getUserRole, isProGerant, resolveCompanyId, societeDunAutreCompte } from '@/lib/auth-helpers'
 import { logger } from '@/lib/logger'
 import {
   getEffectivePermissions, isValidProTeamRole,
@@ -151,7 +151,9 @@ export async function lirePerimetreBtp(user: User, admin: SupabaseClient): Promi
   const role = getUserRole(user)
 
   // Tout ce qui n'est pas un sous-compte de société BTP garde son propre périmètre, comme avant ce lot.
-  if (role !== 'pro_societe' || isProGerant(user)) {
+  // Un gérant INVITÉ (pro_team_role = 'GERANT' avec la société d'un autre compte) n'en fait pas partie : il est
+  // résolu comme un sous-compte, et les permissions par défaut de son rôle lui donnent FULL partout.
+  if (role !== 'pro_societe' || (isProGerant(user) && !societeDunAutreCompte(user))) {
     return { societeId: user.id, titulaire: true, roleEquipe: null, permissions: {}, email }
   }
 

@@ -19,6 +19,7 @@ import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { validateBody } from '@/lib/validation'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { logger } from '@/lib/logger'
+import { proprietairePourEcriture } from '@/lib/btp/titulaire-documents'
 
 export const maxDuration = 15
 
@@ -46,12 +47,16 @@ export async function POST(request: NextRequest) {
   const { docType, numero, hold, reason } = v.data
   const table: 'devis' | 'factures' = docType === 'facture' ? 'factures' : 'devis'
 
+  // Document de la SOCIÉTÉ pour un salarié invité.
+  const acces = await proprietairePourEcriture(user, supabaseAdmin, table)
+  if (!acces.ok) return NextResponse.json({ error: acces.message }, { status: acces.status })
+
   // Vérifier ownership + statut actuel
   const { data: existing, error: fetchErr } = await supabaseAdmin
     .from(table)
     .select('id, legal_hold')
     .eq('numero', numero)
-    .eq('artisan_user_id', user.id)
+    .eq('artisan_user_id', acces.proprietaire)
     .maybeSingle()
 
   if (fetchErr) {
@@ -68,7 +73,7 @@ export async function POST(request: NextRequest) {
     .from(table)
     .update({ legal_hold: hold })
     .eq('id', existing.id)
-    .eq('artisan_user_id', user.id)
+    .eq('artisan_user_id', acces.proprietaire)
 
   if (updErr) {
     logger.error(`[legal-hold] update ${table} ${existing.id} failed:`, updErr.message)
