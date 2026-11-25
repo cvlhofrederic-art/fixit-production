@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { reglesALargeur } from './regles-a-largeur'
+import { feuillesALargeur, retirerFeuilles, STYLES } from './regles-a-largeur'
 
 /**
  * Correctifs de la feuille de la maquette écrits à la main (aj-correctifs.css), décisions du 22/11/2026 sur l'écran
@@ -14,26 +14,7 @@ import { reglesALargeur } from './regles-a-largeur'
  * largeur (forced-colors, prefers-reduced-motion…) est retirée.
  */
 
-const STYLES = join(__dirname, '..', '..', 'components', 'administrateur-judiciaire', 'styles')
 const LAYOUT = join(__dirname, '..', '..', 'app', '(commun)', 'administrateur-judiciaire', 'layout.tsx')
-const FEUILLES = ['aj.css', 'aj-selecteur-copro.css', 'aj-correctifs.css']
-
-let chargees: HTMLStyleElement[] = []
-
-/** Charge les feuilles du layout, dans son ordre, telles qu'elles s'appliquent à cette largeur. */
-function feuillesALargeur(largeur: number, noms: readonly string[] = FEUILLES): void {
-  for (const nom of noms) {
-    const brute = document.createElement('style')
-    brute.textContent = readFileSync(join(STYLES, nom), 'utf8')
-    document.head.appendChild(brute)
-    const texte = reglesALargeur((brute.sheet as CSSStyleSheet).cssRules, largeur)
-    brute.remove()
-    const feuille = document.createElement('style')
-    feuille.textContent = texte
-    document.head.appendChild(feuille)
-    chargees.push(feuille)
-  }
-}
 
 function monter(): Record<'desactive' | 'actif' | 'pastille' | 'petit', HTMLElement> {
   document.body.innerHTML = `<div id="aj-root" lang="fr">
@@ -47,8 +28,7 @@ function monter(): Record<'desactive' | 'actif' | 'pastille' | 'petit', HTMLElem
 }
 
 afterEach(() => {
-  for (const feuille of chargees) feuille.remove()
-  chargees = []
+  retirerFeuilles()
   document.body.innerHTML = ''
 })
 

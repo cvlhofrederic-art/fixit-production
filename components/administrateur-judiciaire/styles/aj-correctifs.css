@@ -2,7 +2,7 @@
  * Correctifs de la feuille de la maquette, écrits à la main. Chargée en dernier (app/(commun)/administrateur-judiciaire/
  * layout.tsx) : aj.css est générée par scripts/administrateur-judiciaire/extraire-maquette.mjs et réécrite à chaque
  * extraction, elle ne se corrige donc pas à la main. Tous les sélecteurs sont scopés sous #aj-root.
- * Tests : tests/administrateur-judiciaire/correctifs-boutons-pastilles.test.ts.
+ * Tests : tests/administrateur-judiciaire/correctifs-boutons-pastilles.test.ts et correctifs-cadre-telephone.test.tsx.
  */
 
 /*
@@ -26,3 +26,52 @@
  * reprennent leur hauteur. Une pastille placée dans un bouton ou un lien laisse la cible tactile à ce bouton ou ce lien.
  */
 @media (max-width: 768px){#aj-root .pill{min-height:auto}}
+
+/*
+ * Cadre du module sur téléphone (décision du 22/11/2026, points ap-17 et ap-d09 de la page de validation de l'écran
+ * « Appels de fonds » : défauts déjà sur main, repris dans une PR à part sur le cadre du module).
+ * Tests : tests/administrateur-judiciaire/correctifs-cadre-telephone.test.tsx.
+ */
+
+/*
+ * Titre de la barre du haut coupé sur téléphone (« Appels de f… ») : sous 481 px, le sélecteur de rôle (122 px)
+ * partageait la première ligne avec le menu, la loupe et les notifications ; le titre n'avait plus que 85 px à 375 px
+ * (30 px à 320 px). Le rôle passe sur sa propre ligne, sous le sélecteur de copropriété (ordre 10, aj-selecteur-copro.css) ;
+ * le titre prend la place libérée et, s'il ne tient toujours pas sur une ligne (téléphone de 320 px), passe sur deux
+ * lignes au plus, dans la hauteur des boutons de 44 px.
+ */
+@media (max-width: 480px){#aj-root .topbar .vfx-role{order:11}#aj-root .topbar .crumb-mobile b{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;white-space:normal;line-height:1.15}}
+
+/*
+ * Indicateurs empilés à 375 px (environ 520 px avant le premier panneau) : sous 481 px, aj.css passait la grille sur une
+ * colonne. Deux colonnes tant que chacune garde 150 px (à partir de 334 px de large), une seule en dessous.
+ */
+@media (max-width: 480px){#aj-root .kpi-grid{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}}
+
+/*
+ * Ombre d'environ 10 px au bord gauche sur téléphone : sous 1025 px, la barre latérale fermée est poussée hors de
+ * l'écran mais garde son ombre portée vers la droite, qui déborde sur la page. L'ombre ne reste qu'au menu ouvert.
+ */
+@media (max-width: 1024px){#aj-root aside.sidebar:not(.is-open){box-shadow:none}}
+
+/*
+ * Bandeau du mode (démonstration / données réelles) au-dessus du voile des fenêtres, à toutes les largeurs : son z-index
+ * de 2000 dépassait celui des fenêtres (1000), de la palette ⌘K (--z-cmdk : 600) et du voile du menu
+ * (--z-drawer-backdrop : 300). 101 : toujours au-dessus de la barre du haut collante (--z-sticky : 100), sous tous les voiles.
+ */
+#aj-root .vfx-demo-banner{z-index:101}
+
+/*
+ * Message (toast) sur le bas de l'écran : sous 769 px, les messages, pleine largeur à 16 px du bas, cachaient le bouton
+ * Fixy (22 px du bas, 44 px de haut) pendant 4 à 6 s. Ils s'affichent au-dessus, là où s'ouvre la fenêtre de Fixy
+ * (74 px du bas, FixyLauncher.tsx). Ils couvrent toujours le contenu à cette hauteur le temps de leur affichage (× pour fermer).
+ */
+@media (max-width: 768px){#aj-root .vfx-toast-viewport{bottom:74px}}
+
+/*
+ * En-tête de panneau coincé (« Avis d'appel par copropriétaire », « Comptes bancaires du mandat », et tout en-tête de
+ * panneau qui porte un contrôle à droite) : sous 769 px, le titre se réduisait à côté du contrôle (trois lignes à 375 px,
+ * bouton « Nouveau compte » sur deux lignes, pictogramme écrasé). Le bloc du titre garde au moins 120 px ; sinon, les
+ * contrôles passent à la ligne, toujours à droite.
+ */
+@media (max-width: 768px){#aj-root .panel-head{flex-wrap:wrap}#aj-root .panel-head>div:not(.h-ico):not(.right){flex:1 1 120px;min-width:0}}
