@@ -16,6 +16,7 @@ import {
   getEffectivePermissions,
 } from '@/lib/permissions'
 import type { Artisan } from '@/lib/types'
+import { CATEGORIES_PROPOSEES, LONGUEUR_MAX_CATEGORIE } from '@/lib/equipe/categorie-professionnelle'
 
 type ContractType = 'cdi' | 'cdd' | 'sous_traitant' | 'interim' | 'stagiaire' | 'apprenti'
 
@@ -25,6 +26,8 @@ interface TeamMember {
   full_name: string
   phone: string
   role: ProTeamRole
+  /** Catégorie professionnelle affichée (titre libre) ; sans effet sur les droits. */
+  job_title?: string | null
   contract_type?: ContractType | null
   assigned_chantiers: string[]
   invite_sent_at: string | null
@@ -50,6 +53,16 @@ interface Props {
   isGerant?: boolean
 }
 
+const FORMULAIRE_VIDE = {
+  email: '',
+  full_name: '',
+  phone: '',
+  memberRole: 'CONDUCTEUR_TRAVAUX' as ProTeamRole,
+  job_title: '',
+}
+
+const ID_LISTE_CATEGORIES = 'categories-professionnelles-equipe'
+
 export default function CompteUtilisateursSection({ artisan, isGerant = false }: Props) {
   const { t, locale } = useTranslation()
   const isPt = locale === 'pt'
@@ -69,15 +82,11 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
   const [chantiersMap, setChantiersMap] = useState<Record<string, string>>({})
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [showPermsModal, setShowPermsModal] = useState<TeamMember | null>(null)
-  const [inviteForm, setInviteForm] = useState({
-    email: '',
-    full_name: '',
-    phone: '',
-    memberRole: 'CONDUCTEUR_TRAVAUX' as ProTeamRole,
-  })
+  const [inviteForm, setInviteForm] = useState(FORMULAIRE_VIDE)
   const [inviting, setInviting] = useState(false)
   const [saving, setSaving] = useState(false)
   const [editPerms, setEditPerms] = useState<Record<string, AccessLevel>>({})
+  const [editCategorie, setEditCategorie] = useState('')
 
   const getAuthToken = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -153,8 +162,8 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
       if (res.ok) {
         toast.success(data.message || (isPt ? 'Convite enviado' : 'Invitation envoyée'))
         setShowInviteModal(false)
-        setInviteForm({ email: '', full_name: '', phone: '', memberRole: 'CONDUCTEUR_TRAVAUX' })
-        fetchMembers()
+        setInviteForm(FORMULAIRE_VIDE)
+        fetchMembers(true)
       } else {
         toast.error(data.error || (isPt ? 'Erro' : 'Erreur'))
       }
@@ -177,7 +186,7 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
         toast.success(member.is_active
           ? (isPt ? 'Conta desativada' : 'Compte désactivé')
           : (isPt ? 'Conta reativada' : 'Compte réactivé'))
-        fetchMembers()
+        fetchMembers(true)
       }
     } catch {
       toast.error(isPt ? 'Erro' : 'Erreur')
@@ -197,7 +206,7 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
       })
       if (res.ok) {
         toast.success(isPt ? 'Membro eliminado' : 'Membre supprimé')
-        fetchMembers()
+        fetchMembers(true)
       }
     } catch {
       toast.error(isPt ? 'Erro' : 'Erreur')
@@ -220,11 +229,12 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
           full_name: member.full_name,
           phone: member.phone,
           memberRole: member.role,
+          job_title: member.job_title ?? null,
         }),
       })
       if (res.ok) {
         toast.success(isPt ? 'Convite reenviado' : 'Invitation renvoyée')
-        fetchMembers()
+        fetchMembers(true)
       }
     } catch {
       toast.error(isPt ? 'Erro' : 'Erreur')
@@ -241,6 +251,7 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
       }))
     )
     setEditPerms(effective)
+    setEditCategorie(member.job_title ?? '')
     setShowPermsModal(member)
   }
 
@@ -254,16 +265,25 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
         .filter(([moduleId, level]) => defaults[moduleId] !== level)
         .map(([module_id, access_level]) => ({ module_id, access_level }))
 
+      // La catégorie n'est envoyée que si elle a changé (texte vide = retirée).
+      const categorieModifiee = editCategorie.trim() !== (showPermsModal.job_title ?? '')
       const token = await getAuthToken()
       const res = await fetch('/api/pro/team', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ member_id: showPermsModal.id, permissions: overrides }),
+        body: JSON.stringify({
+          member_id: showPermsModal.id,
+          permissions: overrides,
+          ...(categorieModifiee ? { job_title: editCategorie } : {}),
+        }),
       })
       if (res.ok) {
         toast.success(isPt ? 'Permissões atualizadas' : 'Permissions mises à jour')
         setShowPermsModal(null)
-        fetchMembers()
+        fetchMembers(true)
+      } else {
+        const data = await res.json().catch(() => ({}))
+        toast.error(data.error || (isPt ? 'Erro ao guardar' : "Erreur lors de l'enregistrement"))
       }
     } catch {
       toast.error(isPt ? 'Erro' : 'Erreur')
@@ -282,7 +302,7 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
       })
       if (res.ok) {
         toast.success(isPt ? 'Papel atualizado' : 'Rôle mis à jour')
-        fetchMembers()
+        fetchMembers(true)
       }
     } catch {
       toast.error(isPt ? 'Erro' : 'Erreur')
@@ -402,7 +422,10 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
                     </div>
                   </td>
                   <td>{member.email}</td>
-                  <td><span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 600, background: badgeStyle.bg, color: badgeStyle.color }}>{ROLE_LABELS[member.role]?.[isPt ? 'pt' : 'fr'] || member.role}</span></td>
+                  <td>
+                    <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 600, background: badgeStyle.bg, color: badgeStyle.color }}>{ROLE_LABELS[member.role]?.[isPt ? 'pt' : 'fr'] || member.role}</span>
+                    {member.job_title && <div style={{ fontSize: 11, color: '#555', marginTop: 3 }}>{member.job_title}</div>}
+                  </td>
                   <td>
                     {(() => {
                       // Gérant = statut dirigeant (pas de chip contrat salarié classique)
@@ -423,7 +446,7 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
                   <td>
                     {!isGerant ? '—' : (
                       <div style={{ display: 'flex', gap: 5 }}>
-                        <button className="v5-btn v5-btn-sm" onClick={() => { setEditPerms(getEffectivePermissions(member.role, member.permission_overrides?.map(o => ({ module_id: o.module_id, access_level: o.access_level as AccessLevel })) || [])); setShowPermsModal(member) }}>{isPt ? 'Editar' : 'Modifier'}</button>
+                        <button className="v5-btn v5-btn-sm" onClick={() => { setEditPerms(getEffectivePermissions(member.role, member.permission_overrides?.map(o => ({ module_id: o.module_id, access_level: o.access_level as AccessLevel })) || [])); setEditCategorie(member.job_title ?? ''); setShowPermsModal(member) }}>{isPt ? 'Editar' : 'Modifier'}</button>
                         <button className="v5-btn v5-btn-sm v5-btn-d" onClick={() => handleToggleActive(member)}>{member.is_active ? (isPt ? 'Desativar' : 'Désactiver') : (isPt ? 'Ativar' : 'Activer')}</button>
                         <button className="v5-btn v5-btn-sm" style={{ color: '#dc2626', borderColor: '#fca5a5' }} onClick={() => handleDelete(member)}>{isPt ? 'Eliminar' : 'Supprimer'}</button>
                       </div>
@@ -448,6 +471,10 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
           <strong>{ROLE_LABELS.OUVRIER[isPt ? 'pt' : 'fr']}</strong>{separateurRole}{isPt ? 'registo das suas horas, fotos, planeamento apenas em leitura.' : 'pointage personnel, photos, planning en lecture seule.'}
         </div>
       </div>
+      {/* Propositions communes aux deux champs « Catégorie professionnelle » ; la saisie reste libre. */}
+      <datalist id={ID_LISTE_CATEGORIES}>
+        {CATEGORIES_PROPOSEES[isPt ? 'pt' : 'fr'].map(c => <option key={c} value={c} />)}
+      </datalist>
       {/* ═══ INVITE MODAL ═══ */}
       {showInviteModal && (
         <>
@@ -483,6 +510,13 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
                       : 'Les permissions par défaut sont appliquées selon le rôle. Personnalisable après création.'}
                   </p>
                 </div>
+                <div className="v22-form-group">
+                  <label className="v22-form-label" htmlFor="categorie-invitation">{isPt ? 'Categoria profissional' : 'Catégorie professionnelle'}</label>
+                  <input id="categorie-invitation" type="text" list={ID_LISTE_CATEGORIES} maxLength={LONGUEUR_MAX_CATEGORIE} value={inviteForm.job_title} onChange={e => setInviteForm(f => ({ ...f, job_title: e.target.value }))} className="v22-form-input" placeholder={isPt ? 'Ex.: Encarregado geral' : 'Ex. : Chef de chantier'} />
+                  <p style={{ marginTop: 4, fontSize: 10, color: '#999' }}>
+                    {isPt ? 'Título apresentado na lista. Não altera as permissões.' : 'Titre affiché dans la liste. Ne change pas les permissions.'}
+                  </p>
+                </div>
               </div>
               <div className="v22-modal-foot">
                 <button onClick={() => setShowInviteModal(false)} className="v22-btn">{isPt ? 'Cancelar' : 'Annuler'}</button>
@@ -510,6 +544,13 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
               </div>
             </div>
             <div className="v22-modal-body" style={{ overflowY: 'auto', flex: 1 }}>
+              <div className="v22-form-group" style={{ marginBottom: 12 }}>
+                <label className="v22-form-label" htmlFor="categorie-membre">{isPt ? 'Categoria profissional' : 'Catégorie professionnelle'}</label>
+                <input id="categorie-membre" type="text" list={ID_LISTE_CATEGORIES} maxLength={LONGUEUR_MAX_CATEGORIE} value={editCategorie} onChange={e => setEditCategorie(e.target.value)} className="v22-form-input" placeholder={isPt ? 'Ex.: Encarregado geral' : 'Ex. : Chef de chantier'} />
+                <p style={{ marginTop: 4, fontSize: 10, color: tv.textMuted }}>
+                  {isPt ? 'Título apresentado na lista. Não altera as permissões.' : 'Titre affiché dans la liste. Ne change pas les permissions.'}
+                </p>
+              </div>
               <div style={{ marginBottom: 12 }}>
                 <button
                   onClick={() => setEditPerms(getDefaultPermissionsForRole(showPermsModal.role))}

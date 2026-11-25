@@ -1713,6 +1713,9 @@ export const proTeamInviteSchema = z.object({
   full_name: z.string().min(1, 'Nom requis').max(200),
   phone: z.string().max(30).optional(),
   memberRole: z.enum(['GERANT', 'CONDUCTEUR_TRAVAUX', 'CHEF_CHANTIER', 'SECRETAIRE', 'COMPTABLE', 'OUVRIER']),
+  // Catégorie professionnelle affichée (titre libre) : bornée ici, ramenée à sa forme enregistrée par
+  // normaliserCategorie (lib/equipe/categorie-professionnelle.ts), qui refuse aussi les caractères de contrôle.
+  job_title: z.string().max(200).nullable().optional(),
   assigned_chantiers: z.array(z.string().uuid()).max(50).optional(),
   permissionOverrides: z.array(z.object({
     module_id: z.string().max(50),
