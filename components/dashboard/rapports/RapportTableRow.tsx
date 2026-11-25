@@ -5,6 +5,7 @@
 
 import { useLocale } from '@/lib/i18n/context'
 import { useThemeVars } from '../useThemeVars'
+import { libelleDocumentLie, type DocumentLie } from '@/components/dashboard/rapports/document-lie'
 
 interface RapportIntervention {
   id: string
@@ -52,6 +53,8 @@ const RAPPORT_STATUS_MAP: Record<string, { label: string; labelPt: string; tagCl
 interface RapportTableRowProps {
   rapport: RapportIntervention
   artisanId?: string
+  /** Documents de l'écran rangés par identifiant, construits une fois par le parent (voir document-lie.ts). */
+  documentsParId?: Map<string, DocumentLie>
   /** Rôle de l'espace (« pro_societe » : vocabulaire de la construction dans le courriel en portugais). */
   orgRole?: string
   dateFmtLocale: string
@@ -66,6 +69,7 @@ interface RapportTableRowProps {
 export default function RapportTableRow({
   rapport: r,
   artisanId,
+  documentsParId,
   orgRole,
   dateFmtLocale,
   onEdit,
@@ -94,14 +98,7 @@ export default function RapportTableRow({
         <span className="v22-ref">{r.rapportNumber}</span>
         {r.refDevisFact && <div className="v22-card-meta" style={{ marginTop: '2px' }}>{r.refDevisFact}</div>}
         {(r.linkedDevisId || r.linkedDevisRef) && (() => {
-          let label = r.linkedDevisRef || ''
-          if (r.linkedDevisId && artisanId) {
-            try {
-              const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisanId}`) || '[]')
-              const doc = docs.find((d: { id: string }) => d.id === r.linkedDevisId)
-              if (doc) label = `${isPt ? 'Orçamento' : 'Devis'} ${doc.service || doc.clientName || doc.id}`
-            } catch { /* ignore */ }
-          }
+          const label = libelleDocumentLie(documentsParId ?? new Map(), r.linkedDevisId, r.linkedDevisRef, 'devis', isPt)
           return (
             <div
               className="v22-card-meta"
@@ -113,14 +110,7 @@ export default function RapportTableRow({
           )
         })()}
         {(r.linkedFactureId || r.linkedFactureRef) && (() => {
-          let label = r.linkedFactureRef || ''
-          if (r.linkedFactureId && artisanId) {
-            try {
-              const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisanId}`) || '[]')
-              const doc = docs.find((d: { id: string }) => d.id === r.linkedFactureId)
-              if (doc) label = `${isPt ? 'Fatura' : 'Facture'} ${doc.service || doc.clientName || doc.id}`
-            } catch { /* ignore */ }
-          }
+          const label = libelleDocumentLie(documentsParId ?? new Map(), r.linkedFactureId, r.linkedFactureRef, 'facture', isPt)
           return (
             <div
               className="v22-card-meta"

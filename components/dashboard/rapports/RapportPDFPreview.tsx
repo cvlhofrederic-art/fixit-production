@@ -5,6 +5,7 @@
  */
 import { forwardRef } from 'react'
 import { useLocale } from '@/lib/i18n/context'
+import { libelleDocumentLie, type DocumentLie } from '@/components/dashboard/rapports/document-lie'
 
 interface RapportIntervention {
   id: string
@@ -49,6 +50,8 @@ interface RapportPDFPreviewProps {
   previewRapport: RapportIntervention
   availablePhotos: PhotoRecord[]
   artisanId?: string
+  /** Documents de l'écran rangés par identifiant, construits une fois par le parent (voir document-lie.ts). */
+  documentsParId?: Map<string, DocumentLie>
   /** Rôle de l'espace (« pro_societe » : titre « Relatório de obra » en portugais). */
   orgRole?: string
   dateFmtLocale: string
@@ -56,7 +59,7 @@ interface RapportPDFPreviewProps {
 }
 
 const RapportPDFPreview = forwardRef<HTMLDivElement, RapportPDFPreviewProps>(
-  ({ previewRapport, availablePhotos, artisanId, orgRole, dateFmtLocale, onNavigate }, ref) => {
+  ({ previewRapport, availablePhotos, artisanId, documentsParId, orgRole, dateFmtLocale, onNavigate }, ref) => {
     const isPt = useLocale() === 'pt'
     const isBtp = orgRole === 'pro_societe'
     return (
@@ -77,14 +80,7 @@ const RapportPDFPreview = forwardRef<HTMLDivElement, RapportPDFPreviewProps>(
               </div>
             )}
             {(previewRapport.linkedDevisId || previewRapport.linkedDevisRef) && (() => {
-              let label = previewRapport.linkedDevisRef || ''
-              if (previewRapport.linkedDevisId && artisanId) {
-                try {
-                  const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisanId}`) || '[]')
-                  const doc = docs.find((d: { id: string }) => d.id === previewRapport.linkedDevisId)
-                  if (doc) label = `${isPt ? 'Orçamento' : 'Devis'} ${doc.service || doc.clientName || doc.id}`
-                } catch { /* ignore */ }
-              }
+              const label = libelleDocumentLie(documentsParId ?? new Map(), previewRapport.linkedDevisId, previewRapport.linkedDevisRef, 'devis', isPt)
               return (
                 <div
                   style={{ fontSize: '10px', color: '#FFC107', marginTop: '6px', cursor: onNavigate ? 'pointer' : 'default', textDecoration: onNavigate ? 'underline' : 'none' }}
@@ -95,14 +91,7 @@ const RapportPDFPreview = forwardRef<HTMLDivElement, RapportPDFPreviewProps>(
               )
             })()}
             {(previewRapport.linkedFactureId || previewRapport.linkedFactureRef) && (() => {
-              let label = previewRapport.linkedFactureRef || ''
-              if (previewRapport.linkedFactureId && artisanId) {
-                try {
-                  const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisanId}`) || '[]')
-                  const doc = docs.find((d: { id: string }) => d.id === previewRapport.linkedFactureId)
-                  if (doc) label = `${isPt ? 'Fatura' : 'Facture'} ${doc.service || doc.clientName || doc.id}`
-                } catch { /* ignore */ }
-              }
+              const label = libelleDocumentLie(documentsParId ?? new Map(), previewRapport.linkedFactureId, previewRapport.linkedFactureRef, 'facture', isPt)
               return (
                 <div
                   style={{ fontSize: '10px', color: '#FFC107', marginTop: '6px', cursor: onNavigate ? 'pointer' : 'default', textDecoration: onNavigate ? 'underline' : 'none' }}

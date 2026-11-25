@@ -9,6 +9,8 @@ import { normalizeForSearch, fuzzyFind } from '@/lib/fuzzy-match'
 import { generateRapportPDF } from '@/lib/rapport-pdf'
 import RapportPDFPreview from '@/components/dashboard/rapports/RapportPDFPreview'
 import RapportTableRow from '@/components/dashboard/rapports/RapportTableRow'
+import { documentsPourSynthese } from '@/lib/documents/liste-effective'
+import { carteDocumentsLies } from '@/components/dashboard/rapports/document-lie'
 import { useThemeVars } from './useThemeVars'
 import type { Artisan, Service, Booking } from '@/lib/types'
 
@@ -46,6 +48,7 @@ interface MissionRecord {
 }
 
 interface DevisFactureRef {
+  id?: string
   docNumber?: string
   savedAt?: string
   clientName?: string
@@ -198,13 +201,32 @@ function modifierRapportsDuStockage(cle: string, changer: (liste: RapportInterve
   try { localStorage.setItem(cle, suivante) } catch (e) { console.warn('[storage] saveRapports', e) }
 }
 
-export default function RapportsSection({ artisan, bookings, services, onNavigate, orgRole }: { artisan: Artisan | null; bookings: Booking[]; services: Service[]; onNavigate?: (page: string) => void; orgRole?: string }) {
+export default function RapportsSection({ artisan, bookings, services, onNavigate, orgRole, savedDocuments }: {
+  artisan: Artisan | null
+  bookings: Booking[]
+  services: Service[]
+  onNavigate?: (page: string) => void
+  orgRole?: string
+  /**
+   * Devis et factures du tableau de bord. Pour un salarié invité d'une société, ce sont ceux de la SOCIÉTÉ, lus par
+   * le serveur : son propre stockage ne contient que ses brouillons, et le sélecteur « lier à un document » ne lui
+   * proposait donc rien — pas plus que le libellé du document lié dans la liste et dans le PDF.
+   */
+  savedDocuments?: readonly DevisFactureRef[]
+}) {
   const locale = useLocale()
   const isPt = locale === 'pt'
   // Vocabulaire propre aux sociétés de construction (« relatório de obra ») : réservé au BTP en portugais.
   const isBtp = orgRole === 'pro_societe'
   // Séparateur des listes déroulantes : pas de tiret cadratin dans les textes portugais.
   const sep = isPt ? ' · ' : ' — '
+
+  // Documents rangés par identifiant, une fois pour toute la liste : les deux enfants y cherchent le libellé du
+  // document auquel un rapport est rattaché, au lieu de relire la liste deux fois par ligne.
+  const documentsParId = useMemo(
+    () => carteDocumentsLies(savedDocuments, artisan?.id),
+    [savedDocuments, artisan?.id],
+  )
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
   const tv = useThemeVars(isV5)
   const dateFmtLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
@@ -922,13 +944,11 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
                     <option value="">{isPt ? 'Nenhum documento associado' : 'Aucun document lie'}</option>
                     {(() => {
                       try {
-                        const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
-                        const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
-                        return [...docs, ...drafts]
+                        return documentsPourSynthese<DevisFactureRef>(savedDocuments, artisan?.id, true)
                           .filter((d: DevisFactureRef) => d.docNumber)
                           .sort((a: DevisFactureRef, b: DevisFactureRef) => (b.savedAt || '').localeCompare(a.savedAt || ''))
                           .map((d: DevisFactureRef) => (
-                            <option key={d.docNumber} value={d.docNumber}>
+                            <option key={d.id || d.docNumber} value={d.docNumber}>
                               {d.docNumber}{sep}{d.clientName || (isPt ? 'Cliente' : 'Client')}{sep}{isPt ? (d.docType === 'devis' ? 'Orçamento' : 'Fatura') : (d.docType === 'devis' ? 'Devis' : 'Facture')}
                             </option>
                           ))
@@ -1311,6 +1331,7 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
                     key={r.id}
                     rapport={r}
                     artisanId={artisan?.id}
+                    documentsParId={documentsParId}
                     orgRole={orgRole}
                     dateFmtLocale={dateFmtLocale}
                     onEdit={openEdit}
@@ -1334,6 +1355,7 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
           previewRapport={previewRapport}
           availablePhotos={availablePhotos}
           artisanId={artisan?.id}
+          documentsParId={documentsParId}
           orgRole={orgRole}
           dateFmtLocale={dateFmtLocale}
           onNavigate={onNavigate}

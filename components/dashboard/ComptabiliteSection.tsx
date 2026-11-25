@@ -154,11 +154,17 @@ function AgentComptable({ bookings, artisan, services, expenses, annualHT, annua
         }),
       })
       if (!res.ok) {
-        const errMsg = res.status === 401
+        // Refus de rôle (403) et société non résolue (409) : le serveur rend une phrase écrite pour l'utilisateur,
+        // déjà dans la langue de l'écran. L'afficher telle quelle — « Erreur serveur (403) » ne lui apprend rien,
+        // et il n'a aucun moyen de deviner que c'est son rôle qui ferme la porte.
+        const ditParLeServeur = res.status === 403 || res.status === 409
+          ? await res.json().then((corps: { error?: string }) => corps?.error || '').catch(() => '')
+          : ''
+        const errMsg = ditParLeServeur || (res.status === 401
           ? (isPt ? '🔒 Sessão expirada. Reconecte-se.' : '🔒 Session expirée. Reconnectez-vous.')
           : res.status === 429
             ? (isPt ? '⏳ Demasiados pedidos. Aguarde um momento.' : '⏳ Trop de requêtes. Patientez un instant.')
-            : (isPt ? `❌ Erro do servidor (${res.status})` : `❌ Erreur serveur (${res.status})`)
+            : (isPt ? `❌ Erro do servidor (${res.status})` : `❌ Erreur serveur (${res.status})`))
         setMessages(prev => [...prev, { role: 'assistant', content: errMsg }])
         setIsLoading(false)
         return

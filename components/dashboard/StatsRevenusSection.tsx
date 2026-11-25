@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { toast } from 'sonner'
 import { formatPrice } from '@/lib/utils'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { useThemeVars } from './useThemeVars'
 import ResumeActivite from '@/components/stats/ResumeActivite'
 import { docRevenueHT } from '@/lib/stats-doc-total'
+import { documentsPourSynthese } from '@/lib/documents/liste-effective'
 
 async function downloadCsv(type: 'clients' | 'bookings' | 'revenue', errorMsg = 'Erreur lors de l\'export') {
   const res = await fetch(`/api/user/export-csv?type=${type}`)
@@ -162,10 +163,16 @@ interface StatsRevenusSectionProps {
   totalRevenue: number
   activePage: string
   orgRole?: OrgRole
+  /**
+   * Devis et factures du tableau de bord. Pour un salarié invité d'une société, ce sont ceux de la SOCIÉTÉ, lus par
+   * le serveur : son propre stockage de navigateur ne contient que ses brouillons, et ces écrans affichaient donc
+   * 0 €. Absente ou vide, les écrans lisent le stockage comme avant (lib/documents/liste-effective.ts).
+   */
+  savedDocuments?: readonly LocalDoc[]
 }
 
 export default function StatsRevenusSection({
-  artisan, bookings, services, pendingBookings, completedBookings, totalRevenue, activePage, orgRole,
+  artisan, bookings, services, pendingBookings, completedBookings, totalRevenue, activePage, orgRole, savedDocuments,
 }: StatsRevenusSectionProps) {
   const { t } = useTranslation()
   const locale = useLocale()
@@ -176,10 +183,10 @@ export default function StatsRevenusSection({
      V5 layout — pro_societe only
      ═══════════════════════════════════════════ */
   if (isV5 && activePage === 'stats') {
-    return <StatsV5 bookings={bookings} totalRevenue={totalRevenue} services={services} artisan={artisan} locale={locale} orgRole={orgRole} />
+    return <StatsV5 bookings={bookings} totalRevenue={totalRevenue} services={services} artisan={artisan} locale={locale} orgRole={orgRole} savedDocuments={savedDocuments} />
   }
   if (isV5 && activePage === 'revenus') {
-    return <RevenusV5 bookings={bookings} completedBookings={completedBookings} pendingBookings={pendingBookings} totalRevenue={totalRevenue} locale={locale} t={t} artisan={artisan} orgRole={orgRole} />
+    return <RevenusV5 bookings={bookings} completedBookings={completedBookings} pendingBookings={pendingBookings} totalRevenue={totalRevenue} locale={locale} t={t} artisan={artisan} orgRole={orgRole} savedDocuments={savedDocuments} />
   }
 
   /* ═══════════════════════════════════════════
@@ -430,7 +437,7 @@ function PageHeader({ title, subtitle, actionLabel, onAction }: { title: string;
    Uses Supabase bookings when available, falls back to
    localStorage documents/chantiers for demo accounts.
    ═══════════════════════════════════════════════════════ */
-interface LocalDoc { docType: string; docDate?: string; status?: string; total_ht_cents?: number; total_ttc_cents?: number; docTitle?: string; clientName?: string }
+interface LocalDoc { docType: string; docNumber?: string; docDate?: string; status?: string; total_ht_cents?: number; total_ttc_cents?: number; docTitle?: string; clientName?: string }
 interface LocalExpense { amount?: string | number; date?: string; category?: string }
 
 /**
@@ -463,40 +470,55 @@ function estDevisSigne(statut: string | undefined, orgRole?: OrgRole): boolean {
   return orgRole === 'pro_societe' && (statut === 'signe' || statut === 'accepte' || statut === 'accepted')
 }
 
-function useLocalStats(artisanId: string) {
-  const [docs, setDocs] = useState<LocalDoc[]>([])
+/**
+ * Chiffres lus hors de la base : les documents, les dépenses et le nombre de chantiers.
+ *
+ * Les documents passent par `documentsPourSynthese` : la liste du tableau de bord si elle est arrivée (c'est le cas
+ * d'un salarié invité, dont les documents sont ceux de la société et viennent du serveur), le stockage du navigateur
+ * sinon. Recalculés à l'arrivée de la liste, puisqu'elle vient d'un appel réseau — l'ancienne lecture, faite une
+ * seule fois dans un initialiseur de `useState`, ne l'aurait jamais vue.
+ *
+ * `avecBrouillons: false` : ces chiffres comptent des devis émis pour un taux de transformation. L'ancienne lecture
+ * ne regardait que `fixit_documents_`, qui ne contient que les documents ÉMIS ; inclure les brouillons aurait fait
+ * bouger le taux d'un artisan sans que personne l'ait demandé.
+ *
+ * Les dépenses et les chantiers restent lus dans le stockage : ce lot ne touche que les documents.
+ */
+function useLocalStats(artisanId: string, documentsFournis?: readonly LocalDoc[]) {
   const [expenses, setExpenses] = useState<LocalExpense[]>([])
   const [chantierCount, setChantierCount] = useState(0)
 
-  useState(() => {
-    try {
-      const raw = localStorage.getItem(`fixit_documents_${artisanId}`)
-      if (raw) setDocs(JSON.parse(raw))
-    } catch { /* ignore */ }
+  useEffect(() => {
     try {
       const raw = localStorage.getItem(`fixit_expenses_${artisanId}`)
       if (raw) setExpenses(JSON.parse(raw))
-    } catch { /* ignore */ }
+    } catch { /* navigation privée */ }
     try {
       const raw = localStorage.getItem(`chantiers_${artisanId}`)
       if (raw) setChantierCount(JSON.parse(raw).length)
-    } catch { /* ignore */ }
-  })
+    } catch { /* navigation privée */ }
+  }, [artisanId])
+
+  const docs = useMemo(
+    () => documentsPourSynthese<LocalDoc>(documentsFournis, artisanId, false),
+    [documentsFournis, artisanId],
+  )
 
   return { docs, expenses, chantierCount }
 }
 
-function StatsV5({ bookings, totalRevenue, services, artisan, locale, orgRole }: {
+function StatsV5({ bookings, totalRevenue, services, artisan, locale, orgRole, savedDocuments }: {
   bookings: import('@/lib/types').Booking[]
   totalRevenue: number
   services: import('@/lib/types').Service[]
   artisan: import('@/lib/types').Artisan
   locale: string
   orgRole?: OrgRole
+  savedDocuments?: readonly LocalDoc[]
 }) {
   const isPt = locale === 'pt'
   const aid = idStockageLocal(artisan, orgRole)
-  const { docs, expenses, chantierCount } = useLocalStats(aid)
+  const { docs, expenses, chantierCount } = useLocalStats(aid, savedDocuments)
 
   // Merge data: prefer Supabase bookings, fall back to localStorage documents
   const hasBookings = bookings.length > 0
@@ -687,7 +709,7 @@ function StatsV5({ bookings, totalRevenue, services, artisan, locale, orgRole }:
 /* ═══════════════════════════════════════════════════════
    V5 sub-component — Revenus for pro_societe
    ═══════════════════════════════════════════════════════ */
-function RevenusV5({ bookings, completedBookings, pendingBookings, totalRevenue, locale, t, artisan, orgRole }: {
+function RevenusV5({ bookings, completedBookings, pendingBookings, totalRevenue, locale, t, artisan, orgRole, savedDocuments }: {
   bookings: import('@/lib/types').Booking[]
   completedBookings: import('@/lib/types').Booking[]
   pendingBookings: import('@/lib/types').Booking[]
@@ -696,9 +718,10 @@ function RevenusV5({ bookings, completedBookings, pendingBookings, totalRevenue,
   t: (k: string) => string
   artisan: import('@/lib/types').Artisan
   orgRole?: OrgRole
+  savedDocuments?: readonly LocalDoc[]
 }) {
   const aid = idStockageLocal(artisan, orgRole)
-  const { docs } = useLocalStats(aid)
+  const { docs } = useLocalStats(aid, savedDocuments)
   const hasBookings = completedBookings.length > 0 || pendingBookings.length > 0
 
   const factures = docs.filter(d => d.docType === 'facture')

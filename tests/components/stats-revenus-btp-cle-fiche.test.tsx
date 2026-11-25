@@ -56,17 +56,28 @@ const DEVIS_ENVOYE = {
   clientName: 'SAS Petit', docTitle: 'Devis — Terrasse', lines: [ligne('Terrasse', 300)],
 }
 const DEPENSE = { label: 'Ciment', amount: '300', date: DATE_DOC, category: 'materiaux' }
+// Brouillon : ni numéro de série, ni statut d'émission. Il vit dans la liste du tableau de bord à côté des
+// documents émis, et ne doit entrer dans aucun chiffre.
+const BROUILLON = {
+  id: 'dev-brouillon', docType: 'devis', status: 'brouillon', docDate: DATE_DOC,
+  clientName: 'Prospect', docTitle: 'Devis — à finir', lines: [ligne('Terrassement', 9000)],
+}
 
 function ranger(id: string, documents: object[] = [FACTURE_PAYEE, FACTURE_EMISE, DEVIS_SIGNE]) {
   localStorage.setItem(`fixit_documents_${id}`, JSON.stringify(documents))
   localStorage.setItem(`fixit_expenses_${id}`, JSON.stringify([DEPENSE]))
 }
 
-function monter(activePage: 'stats' | 'revenus', orgRole: 'pro_societe' | 'artisan' = 'pro_societe') {
+function monter(
+  activePage: 'stats' | 'revenus',
+  orgRole: 'pro_societe' | 'artisan' = 'pro_societe',
+  savedDocuments?: object[],
+) {
   return render(
     <StatsRevenusSection
       artisan={ARTISAN} bookings={[]} services={[]} pendingBookings={[]} completedBookings={[]}
       totalRevenue={0} activePage={activePage} orgRole={orgRole}
+      savedDocuments={savedDocuments as never}
     />,
   )
 }
@@ -136,6 +147,57 @@ describe('Statistiques BTP — documents et dépenses lus sous l\'identifiant de
   })
 })
 
+// ── Salarié invité d'une société (25/11/2026) ───────────────────────────────────────────────────────────────
+// Ses documents sont ceux de la SOCIÉTÉ : le serveur les lit, le tableau de bord les tient, et son propre stockage
+// de navigateur n'en contient aucun — y recopier la comptabilité de l'entreprise lui refuserait l'effacement de son
+// compte. Ces écrans lisaient ce stockage : tout était à zéro sur une liste de devis par ailleurs pleine.
+describe('Salarié invité — les chiffres viennent de la liste du tableau de bord', () => {
+  it('chiffre d\'affaires et devis de la société, alors que son stockage est vide', () => {
+    // Rien rangé : son navigateur ne porte aucun document de la société.
+    const { container } = monter('stats', 'pro_societe', [FACTURE_PAYEE, FACTURE_EMISE, DEVIS_SIGNE])
+    const [ca, , taux] = indicateurs(container)
+    expect(ca).toBe(formatPrice(1200, 'fr'))
+    expect(screen.getByText('2 factures émises')).toBeInTheDocument()
+    expect(screen.getByText('1 devis au total')).toBeInTheDocument()
+    expect(taux).toBe('100%')
+  })
+
+  it('les revenus aussi : encaissé, en attente et recouvrement', () => {
+    const { container } = monter('revenus', 'pro_societe', [FACTURE_PAYEE, FACTURE_EMISE])
+    const [caAnnee, , enAttente, recouvrement] = indicateurs(container)
+    expect(caAnnee).toBe(formatPrice(1200, 'fr'))
+    expect(enAttente).toBe(formatPrice(800, 'fr'))
+    expect(recouvrement).toBe('60%')
+  })
+
+  it('la liste du tableau de bord prime sur le stockage du navigateur', () => {
+    // Un poste partagé peut porter les brouillons d'un autre compte sous cette clé : la liste du serveur tranche.
+    ranger(ARTISAN.id, [FACTURE_ANNULEE])
+    const { container } = monter('stats', 'pro_societe', [FACTURE_PAYEE, DEVIS_SIGNE])
+    expect(indicateurs(container)[0]).toBe(formatPrice(1200, 'fr'))
+    expect(screen.getByText('1 factures émises')).toBeInTheDocument()
+  })
+
+  it('un brouillon de la liste n\'entre dans aucun chiffre', () => {
+    // La liste du tableau de bord porte les brouillons à côté des documents émis. Les compter ferait baisser le
+    // taux de transformation sans que personne l'ait demandé — et pour un artisan, ce serait une régression pure.
+    const { container } = monter('stats', 'pro_societe', [FACTURE_PAYEE, DEVIS_SIGNE, BROUILLON])
+    const [ca, , taux, panierMoyen] = indicateurs(container)
+    expect(screen.getByText('1 devis au total')).toBeInTheDocument()
+    expect(screen.getByText('1/1 devis signés')).toBeInTheDocument()
+    expect(taux).toBe('100%')
+    expect(ca).toBe(formatPrice(1200, 'fr'))
+    // 1 500, le devis signé seul : les 9 000 du brouillon n'y sont pas.
+    expect(panierMoyen).toBe(formatPrice(1500, 'fr'))
+  })
+
+  it('liste vide : le stockage est lu, comme avant (un écran monté avant la réponse du serveur)', () => {
+    ranger(ARTISAN.id)
+    const { container } = monter('stats', 'pro_societe', [])
+    expect(indicateurs(container)[0]).toBe(formatPrice(1200, 'fr'))
+  })
+})
+
 describe('Revenus BTP — factures lues sous l\'identifiant de la fiche', () => {
   it('encaissé, en attente (statut de la base compris) et recouvrement', () => {
     ranger(ARTISAN.id)
@@ -173,6 +235,15 @@ describe('Artisan — comportement inchangé, mêmes défauts signalés hors de 
   it('un devis marqué « Accepté » ne compte toujours pas comme signé', () => {
     ranger(ARTISAN.user_id as string, [FACTURE_PAYEE, DEVIS_ACCEPTE_BASE, DEVIS_ENVOYE])
     monter('stats', 'artisan')
+    expect(screen.getByText('0/2 devis signés')).toBeInTheDocument()
+  })
+
+  it('la liste du tableau de bord ne change aucun de ses chiffres', () => {
+    // L'artisan reçoit désormais la même prop. Les brouillons qu'elle porte ne doivent pas entrer dans ses
+    // compteurs : son ancienne lecture ne regardait que `fixit_documents_`, qui ne porte que les documents émis.
+    const { container } = monter('stats', 'artisan', [FACTURE_PAYEE, DEVIS_ACCEPTE_BASE, DEVIS_ENVOYE, BROUILLON])
+    expect(indicateurs(container)[0]).toBe(formatPrice(1200, 'fr'))
+    // Deux devis émis, aucun signé au sens artisan (« accepted » ne compte pas pour lui) : exactement comme avant.
     expect(screen.getByText('0/2 devis signés')).toBeInTheDocument()
   })
 
