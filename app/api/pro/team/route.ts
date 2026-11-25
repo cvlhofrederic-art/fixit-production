@@ -4,12 +4,20 @@ import { getAuthUser, isProSocieteRole, isProGerant, resolveCompanyId } from '@/
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { templateProTeamInvite } from '@/lib/email'
 import { logger } from '@/lib/logger'
-import { validateBody, proTeamInviteSchema } from '@/lib/validation'
+import { validateBody, proTeamInviteSchema, proPermissionsUpdateSchema } from '@/lib/validation'
 import { ROLE_LABELS, isValidProTeamRole } from '@/lib/permissions'
 import type { ProTeamRole } from '@/lib/permissions'
 import { nouvelleInvitation, sansJetonInvitation } from '@/lib/equipe/lien-invitation'
 import { envoyerEmailInvitation } from '@/lib/equipe/invitation-serveur'
 import { texteSurUneLigne } from '@/lib/sanitize'
+import { normaliserCategorie, LONGUEUR_MAX_CATEGORIE } from '@/lib/equipe/categorie-professionnelle'
+
+/** Colonnes de la liste de l'équipe (sans le jeton d'invitation) ; job_title s'y ajoute quand la colonne existe. */
+const COLONNES_EQUIPE =
+  'id, email, full_name, phone, role, assigned_chantiers, invite_sent_at, accepted_at, last_login_at, is_active, created_at'
+
+const MESSAGE_CATEGORIE_REFUSEE =
+  `Catégorie professionnelle refusée : texte de ${LONGUEUR_MAX_CATEGORIE} caractères au plus, sans caractère spécial.`
 
 // Chaque invitation fait partir un e-mail depuis l'adresse d'envoi de la plateforme : plafond par compte et par
 // 24 heures, en plus de la limite par minute (par adresse Internet). L'écran « Comptes utilisateurs » annonce
@@ -63,11 +71,18 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const { data, error } = await supabaseAdmin
+  const lireEquipe = (colonnes: string) => supabaseAdmin
     .from('pro_team_members')
-    .select('id, email, full_name, phone, role, assigned_chantiers, invite_sent_at, accepted_at, last_login_at, is_active, created_at')
+    .select(colonnes)
     .eq('company_id', companyId)
     .order('created_at', { ascending: true })
+  let { data, error } = await lireEquipe(`${COLONNES_EQUIPE}, job_title`)
+  // Colonne job_title absente (code déployé avant la migration 20261125) : la liste reste lisible, sans catégorie,
+  // plutôt qu'un écran vide pour toutes les sociétés.
+  if (error?.code === '42703') {
+    logger.warn('[PRO_TEAM] GET : colonne job_title absente, liste lue sans catégorie (migration 20261125 à appliquer)')
+    ;({ data, error } = await lireEquipe(COLONNES_EQUIPE))
+  }
 
   if (error) {
     logger.error('[PRO_TEAM] GET error:', error)
@@ -75,14 +90,18 @@ export async function GET(request: NextRequest) {
   }
 
   // Fetch permission overrides for each member
-  const memberIds = (data || []).map(m => m.id)
+  const membres = (data ?? []) as unknown as Array<Record<string, unknown> & { id: string }>
+  const memberIds = membres.map(m => m.id)
   let overridesMap: Record<string, { module_id: string; access_level: string }[]> = {}
 
   if (memberIds.length > 0) {
+    // Bornées à la société : une dérogation d'une autre company_id n'a pas été posée par le serveur (migration
+    // 20261125b) et ne doit ni s'afficher ni être réécrite comme légitime par « Enregistrer les permissions ».
     const { data: overrides } = await supabaseAdmin
       .from('pro_role_permissions')
       .select('member_id, module_id, access_level')
       .in('member_id', memberIds)
+      .eq('company_id', companyId)
 
     if (overrides) {
       overridesMap = overrides.reduce((acc, ov) => {
@@ -93,13 +112,15 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const members = (data || []).map(m => ({
+  const members = membres.map(m => ({
     ...m,
     permission_overrides: overridesMap[m.id] || [],
   }))
 
   const response = NextResponse.json({ members })
-  response.headers.set('Cache-Control', 'private, max-age=0, s-maxage=30, stale-while-revalidate=60')
+  // Jamais resservie depuis le cache du navigateur : avec stale-while-revalidate, Chromium rendait l'ancienne liste
+  // juste après une invitation ou une suppression (relecture adverse du 25/11/2026).
+  response.headers.set('Cache-Control', 'private, no-store')
   return response
 }
 
@@ -123,10 +144,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: validation.error }, { status: 400 })
   }
 
-  const { email, full_name, phone, memberRole, assigned_chantiers, permissionOverrides } = validation.data
+  const { email, full_name, phone, memberRole, job_title, assigned_chantiers, permissionOverrides } = validation.data
 
   if (!isValidProTeamRole(memberRole)) {
     return NextResponse.json({ error: 'Rôle invalide' }, { status: 400 })
+  }
+  const categorie = normaliserCategorie(job_title ?? null)
+  if (categorie === undefined) {
+    return NextResponse.json({ error: MESSAGE_CATEGORIE_REFUSEE }, { status: 400 })
   }
 
   const companyId = user.id // Gérant = company owner
@@ -174,6 +199,7 @@ export async function POST(request: NextRequest) {
     invite_token: invitation.invite_token,
     invite_sent_at: new Date().toISOString(),
   }
+  if (categorie !== null) insertData.job_title = categorie
 
   const { data: member, error } = await supabaseAdmin
     .from('pro_team_members')
@@ -278,10 +304,19 @@ export async function PATCH(request: NextRequest) {
   if (!(await checkRateLimit(`pro_team_patch_${ip}`, 20, 60_000))) return rateLimitResponse()
 
   const body = await request.json()
-  const { member_id, role, is_active, assigned_chantiers, permissions } = body
+  const { member_id, role, is_active, assigned_chantiers, permissions, job_title } = body
 
   if (!member_id) {
     return NextResponse.json({ error: 'member_id requis' }, { status: 400 })
+  }
+
+  // Dérogations de droits (bouton « Modifier » de Comptes utilisateurs) : validées avant toute lecture ; undefined =
+  // non envoyées.
+  let derogations: Array<{ module_id: string; access_level: string }> | undefined
+  if (permissions !== undefined) {
+    const lecture = proPermissionsUpdateSchema.shape.permissions.safeParse(permissions)
+    if (!lecture.success) return NextResponse.json({ error: 'Permissions invalides' }, { status: 400 })
+    derogations = lecture.data
   }
 
   const companyId = await resolveCompanyId(user, supabaseAdmin)
@@ -320,6 +355,16 @@ export async function PATCH(request: NextRequest) {
   }
   if (is_active !== undefined) updates.is_active = Boolean(is_active)
   if (assigned_chantiers !== undefined) updates.assigned_chantiers = assigned_chantiers
+  // Catégorie professionnelle : simple titre affiché, sans effet sur les droits ni sur le compte du membre. Modifiable
+  // aussi pendant une invitation en attente (le lien signé ne porte que le rôle).
+  if (job_title !== undefined) {
+    const categorie = normaliserCategorie(job_title)
+    if (categorie === undefined) return NextResponse.json({ error: MESSAGE_CATEGORIE_REFUSEE }, { status: 400 })
+    updates.job_title = categorie
+  }
+  if (Object.keys(updates).length === 0 && derogations === undefined) {
+    return NextResponse.json({ error: 'Aucune modification' }, { status: 400 })
+  }
 
   // Rôle d'un compte déjà lié : il fixe aussi ses droits (app_metadata.pro_team_role, lu par isProGerant). Le compte
   // visé est vérifié AVANT la moindre écriture (R36). La ligne du gérant lui-même (user_id = la société) ne garde que
@@ -343,6 +388,8 @@ export async function PATCH(request: NextRequest) {
     cible = { id: existing.user_id, appMetadata }
   }
 
+  let membre: Record<string, unknown> | null = null
+  let roleNonApplique = false
   if (Object.keys(updates).length > 0) {
     const { data, error } = await supabaseAdmin
       .from('pro_team_members')
@@ -352,8 +399,10 @@ export async function PATCH(request: NextRequest) {
       .single()
 
     if (error) {
+      logger.error('[PRO_TEAM] PATCH : mise à jour du membre impossible', { member_id }, error)
       return NextResponse.json({ error: 'Erreur mise à jour' }, { status: 500 })
     }
+    membre = data
 
     // Rôle modifié d'un sous-compte vérifié ci-dessus : app_metadata (server-only) reçoit le seul pro_team_role ;
     // company_id reste le sien, cette société : le PATCH ne rattache jamais un compte à une société. Le statut
@@ -362,7 +411,6 @@ export async function PATCH(request: NextRequest) {
     // ⚠️ SÉCURITÉ : pro_team_role DOIT vivre dans app_metadata (non forgeable côté
     // client) car isProGerant() s'appuie dessus pour l'authz. Ne JAMAIS l'écrire dans
     // user_metadata (modifiable via supabase.auth.updateUser).
-    let roleNonApplique = false
     if (cible) {
       try {
         const { error: ecriture } = await supabaseAdmin.auth.admin.updateUserById(cible.id, {
@@ -379,47 +427,85 @@ export async function PATCH(request: NextRequest) {
     }
 
     // Audit log
-    await supabaseAdmin.from('pro_team_audit_log').insert({
+    const { error: erreurJournal } = await supabaseAdmin.from('pro_team_audit_log').insert({
       company_id: companyId,
       actor_id: user.id,
-      action: is_active === false ? 'deactivate' : is_active === true ? 'reactivate' : 'update_role',
+      action: actionDuJournal(updates),
       target_member_id: member_id,
       details: updates,
     })
-
-    // Update permission overrides if provided
-    if (Array.isArray(permissions)) {
-      // Delete existing overrides and re-insert
-      await supabaseAdmin.from('pro_role_permissions').delete().eq('member_id', member_id)
-      if (permissions.length > 0) {
-        const overrideRows = permissions.map((ov: { module_id: string; access_level: string }) => ({
-          company_id: companyId,
-          member_id,
-          module_id: ov.module_id,
-          access_level: ov.access_level,
-        }))
-        await supabaseAdmin.from('pro_role_permissions').insert(overrideRows)
-      }
-
-      await supabaseAdmin.from('pro_team_audit_log').insert({
-        company_id: companyId,
-        actor_id: user.id,
-        action: 'update_permissions',
-        target_member_id: member_id,
-        details: { permissions },
-      })
-    }
-
-    // La ligne porte déjà le nouveau rôle (journalisé), pas le compte, dont app_metadata fixe les droits : le dire,
-    // plutôt que répondre 200 (un retrait de droits resterait sans effet). La même demande, relancée, aboutit.
-    if (roleNonApplique) {
-      return NextResponse.json({ error: "Le rôle n'a pas pu être appliqué au compte du membre. Réessayez." }, { status: 500 })
-    }
-
-    return NextResponse.json({ member: data })
+    if (erreurJournal) logger.warn('[PRO_TEAM] PATCH : journal de l’équipe non écrit', { member_id, error: erreurJournal.message })
   }
 
-  return NextResponse.json({ error: 'Aucune modification' }, { status: 400 })
+  // Dérogations de droits : enregistrées qu'une autre colonne change ou non. Jusqu'au 25/11/2026 elles n'étaient lues
+  // que dans le bloc précédent : « Enregistrer les permissions », qui n'envoie qu'elles, recevait 400 « Aucune
+  // modification » et rien n'était enregistré.
+  if (derogations !== undefined) {
+    if (!(await remplacerDerogations(companyId, member_id, derogations))) {
+      return NextResponse.json({ error: 'Erreur mise à jour des permissions' }, { status: 500 })
+    }
+    await supabaseAdmin.from('pro_team_audit_log').insert({
+      company_id: companyId,
+      actor_id: user.id,
+      action: 'update_permissions',
+      target_member_id: member_id,
+      details: { permissions: derogations },
+    })
+  }
+
+  // La ligne porte déjà le nouveau rôle (journalisé), pas le compte, dont app_metadata fixe les droits : le dire,
+  // plutôt que répondre 200 (un retrait de droits resterait sans effet). La même demande, relancée, aboutit.
+  if (roleNonApplique) {
+    return NextResponse.json({ error: "Le rôle n'a pas pu être appliqué au compte du membre. Réessayez." }, { status: 500 })
+  }
+
+  return NextResponse.json({ member: membre ? sansJetonInvitation(membre) : null })
+}
+
+/** Action inscrite au journal de l'équipe pour une modification de la ligne d'un membre. */
+function actionDuJournal(updates: Record<string, unknown>): string {
+  if (updates.is_active === false) return 'deactivate'
+  if (updates.is_active === true) return 'reactivate'
+  if (updates.role !== undefined) return 'update_role'
+  return 'update_member'
+}
+
+type Derogation = { module_id: string; access_level: string }
+
+/**
+ * Remplace les dérogations de droits d'un membre (déjà vérifié comme membre de la société) par celles reçues ; une
+ * même ligne de module envoyée deux fois ne garde que la dernière (contrainte unique member_id, module_id). Rend false
+ * si la base refuse une écriture. Suppression puis insertion ne sont pas atomiques : si l'insertion échoue, les
+ * dérogations lues avant sont remises, pour qu'une panne ne rende pas au salarié les droits par défaut de son rôle
+ * (plus larges que ce que le gérant avait réglé).
+ */
+async function remplacerDerogations(companyId: string | null, memberId: string, derogations: Derogation[]): Promise<boolean> {
+  const table = () => supabaseAdmin.from('pro_role_permissions')
+  const versLignes = (liste: Derogation[]) =>
+    liste.map(({ module_id, access_level }) => ({ company_id: companyId, member_id: memberId, module_id, access_level }))
+  const echec = (message: string, erreur: unknown) => {
+    logger.error(`[PRO_TEAM] PATCH : ${message}`, { member_id: memberId }, erreur)
+    return false
+  }
+
+  const { data: anciennes, error: lecture } = await table().select('module_id, access_level').eq('member_id', memberId)
+    .eq('company_id', companyId)
+  if (lecture) return echec('lecture des dérogations impossible', lecture)
+  const { error: suppression } = await table().delete().eq('member_id', memberId)
+  if (suppression) return echec('suppression des dérogations impossible', suppression)
+
+  const nouvelles = [...new Map(derogations.map((d) => [d.module_id, d.access_level]))]
+    .map(([module_id, access_level]) => ({ module_id, access_level }))
+  if (nouvelles.length === 0) return true
+  const { error: insertion } = await table().insert(versLignes(nouvelles))
+  if (!insertion) return true
+
+  const precedentes = (anciennes ?? []) as Derogation[]
+  if (precedentes.length > 0) {
+    const { error: remise } = await table().insert(versLignes(precedentes))
+    if (remise) logger.error('[PRO_TEAM] PATCH : dérogations précédentes non remises', { member_id: memberId }, remise)
+  }
+  return echec('enregistrement des dérogations impossible', insertion)
 }
 
 // ── DELETE /api/pro/team ─────────────────────────────────────────────────────

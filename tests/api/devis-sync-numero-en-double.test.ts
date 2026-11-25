@@ -62,7 +62,7 @@ function requete(table: string) {
 }
 
 vi.mock('@/lib/supabase-server', () => ({ supabaseAdmin: { from: (table: string) => requete(table) } }))
-vi.mock('@/lib/auth-helpers', () => ({ getAuthUser: async () => simu.utilisateur }))
+vi.mock('@/lib/auth-helpers', async (io) => (await import('../helpers/mocks-routes-api')).authHelpersReels(io, () => simu.utilisateur))
 vi.mock('@/lib/rate-limit', async () => (await import('../helpers/mocks-routes-api')).rateLimitPermissif())
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
 vi.mock('@/lib/logger', async () => (await import('../helpers/mocks-routes-api')).loggerSilencieux())

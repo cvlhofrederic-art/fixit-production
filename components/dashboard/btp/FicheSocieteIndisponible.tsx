@@ -7,7 +7,9 @@ import { CONTACT_EMAIL } from '@/lib/constants'
  * d'ouvrir le tableau de bord sur une société de secours, la page le dit et propose de réessayer. Rien n'est lu ni
  * écrit tant que la fiche n'a pas été chargée.
  */
-export function FicheSocieteIndisponible({ isPt, onReessayer }: { isPt: boolean; onReessayer: () => void }) {
+export function FicheSocieteIndisponible(
+  { isPt, onReessayer, message }: Readonly<{ isPt: boolean; onReessayer: () => void; message?: string }>,
+) {
   return (
     <div role="alert" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#F2F2F0', padding: 16 }}>
       <div style={{ maxWidth: 440, textAlign: 'center', color: '#333' }}>
@@ -15,9 +17,11 @@ export function FicheSocieteIndisponible({ isPt, onReessayer }: { isPt: boolean;
           {isPt ? 'Não foi possível carregar a sua empresa' : 'Impossible de charger votre société'}
         </h1>
         <p style={{ margin: '0 0 20px', fontSize: 14, lineHeight: 1.5 }}>
-          {isPt
+          {/* Un refus du serveur dit déjà pourquoi, et dans la langue de l'écran : mieux vaut sa phrase que la
+              nôtre, qui parlerait d'une connexion interrompue alors que le compte n'est rattaché à rien. */}
+          {message || (isPt
             ? `A ficha da sua empresa não pôde ser lida (ligação interrompida ou servidor indisponível). Nada foi alterado. Verifique a ligação e tente novamente; se o problema persistir, escreva-nos para ${CONTACT_EMAIL}.`
-            : `La fiche de votre société n’a pas pu être lue (connexion interrompue ou serveur indisponible). Rien n’a été modifié. Vérifiez votre connexion puis réessayez ; si le problème persiste, écrivez-nous à ${CONTACT_EMAIL}.`}
+            : `La fiche de votre société n’a pas pu être lue (connexion interrompue ou serveur indisponible). Rien n’a été modifié. Vérifiez votre connexion puis réessayez ; si le problème persiste, écrivez-nous à ${CONTACT_EMAIL}.`)}
         </p>
         <button
           type="button"

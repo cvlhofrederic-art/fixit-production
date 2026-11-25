@@ -14,7 +14,14 @@ import { placePourEmettre, StockageNavigateurPleinError } from '@/lib/emission-h
 export interface EmitDocumentOptions {
   /** Document prêt à émettre (brouillon scalé : acompte au %, TVA conservées). */
   payload: Record<string, unknown>
+  /** Identifiant qui fait les clés du navigateur (`fixit_documents_<id>`) : TOUJOURS le compte connecté. */
   artisanId: string
+  /**
+   * Fiche sous laquelle le document est enregistré en base, quand elle diffère de `artisanId` : la fiche de la
+   * SOCIÉTÉ pour un salarié invité d'une société BTP. Par défaut `artisanId`, c'est-à-dire le comportement de
+   * toujours pour un artisan et pour un gérant (lib/documents/identite-documents.ts).
+   */
+  ficheId?: string
   /** Tire le numéro légal définitif (cf. lib/doc-number.fetchNextDocNumber). */
   getNumber: () => Promise<string>
   /** Sync DB (cf. lib/document-sync.syncDocumentSafe). Optionnel pour les tests. */
@@ -79,6 +86,8 @@ export async function emitDocument(opts: EmitDocumentOptions): Promise<Record<st
   const drafts = safeArray(localStorage.getItem(draftsKey))
   localStorage.setItem(draftsKey, JSON.stringify(drafts.filter(d => d.id !== finalDoc.id)))
 
-  sync?.(finalDoc, artisanId)
+  // Le document part en base sous la fiche de la société pour un salarié invité, sous la sienne sinon : les deux
+  // lectures du tableau de bord filtrent sur le propriétaire, pas sur l'auteur.
+  sync?.(finalDoc, opts.ficheId || artisanId)
   return finalDoc
 }

@@ -23,7 +23,7 @@ const mockFrom = vi.fn().mockImplementation((table: string) => {
 })
 
 vi.mock('@/lib/supabase-server', () => ({ supabaseAdmin: { from: mockFrom } }))
-vi.mock('@/lib/auth-helpers', () => ({ getAuthUser: async () => ({ id: ARTISAN_USER_ID }) }))
+vi.mock('@/lib/auth-helpers', async (io) => (await import('../helpers/mocks-routes-api')).authHelpersReels(io, () => ({ id: ARTISAN_USER_ID })))
 vi.mock('@/lib/rate-limit', async () => (await import('../helpers/mocks-routes-api')).rateLimitPermissif())
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
 vi.mock('@/lib/logger', async () => (await import('../helpers/mocks-routes-api')).loggerSilencieux())

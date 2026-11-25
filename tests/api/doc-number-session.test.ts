@@ -16,7 +16,7 @@ const simu = vi.hoisted(() => ({
   creerClient: vi.fn(),
 }))
 
-vi.mock('@/lib/auth-helpers', () => ({ getAuthUser: async () => simu.utilisateur }))
+vi.mock('@/lib/auth-helpers', async (io) => (await import('../helpers/mocks-routes-api')).authHelpersReels(io, () => simu.utilisateur))
 vi.mock('@/lib/supabase-server-component', () => ({ createServerSupabaseClient: vi.fn() }))
 vi.mock('@/lib/supabase-server', () => ({ supabaseAdmin: { rpc: simu.rpcService } }))
 vi.mock('@supabase/supabase-js', () => ({
