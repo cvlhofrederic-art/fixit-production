@@ -8,11 +8,13 @@
 // un contrôle de rôle explicite.
 //
 // CE QUI EST LU
-// `artisan_user_id = <société>` OU `artisan_id = <fiche de la société>`. Le premier critère suffit aujourd'hui (au
-// 25/11/2026, aucun document de la production n'est rangé sous un sous-compte, et les nouveaux le seront sous la
-// société) ; le second couvre toute ligne qu'un correctif antérieur aurait enregistrée avec la fiche de la société
-// mais un autre propriétaire. Aucun identifiant de salarié n'entre dans le filtre : la visibilité des documents ne
-// dépend donc pas de `is_active`, et désactiver un salarié ne peut pas faire disparaître des documents de l'écran.
+// `artisan_user_id = <société>`, et rien d'autre. Au 25/11/2026 aucun document de la production n'est rangé sous un
+// sous-compte, et /api/devis/sync enregistre désormais tout nouveau document sous la société : ce seul critère est
+// donc complet. Y ajouter `artisan_id = <fiche de la société>` aurait fait entrer dans la liste une ligne qu'un
+// compte membre de deux sociétés aurait écrite sous la fiche de l'autre.
+//
+// Aucun identifiant de salarié n'entre dans le filtre : la visibilité des documents ne dépend pas de `is_active`,
+// et désactiver un salarié ne peut donc pas faire disparaître des documents de l'écran du gérant.
 //
 // CE QUI N'EST PAS LU
 // Rien n'est projeté colonne par colonne. Un document amputé de `raw_data` qui repasserait par /api/devis/sync
@@ -40,12 +42,9 @@ import { messageRefusFr } from '@/lib/documents/messages-refus'
 async function lireFamille(
   table: FamilleDocument,
   societeId: string,
-  ficheId: string,
 ): Promise<{ lignes: Record<string, unknown>[] } | { erreur: string }> {
-  const filtre = `artisan_user_id.eq.${societeId},artisan_id.eq.${ficheId}`
-
   const lire = (champs: string) =>
-    supabaseAdmin.from(table).select(champs).or(filtre).is('deleted_at', null)
+    supabaseAdmin.from(table).select(champs).eq('artisan_user_id', societeId).is('deleted_at', null)
 
   let resultat = await lire(CHAMPS_DOCUMENT_COMPLET)
   if (resultat.error && colonneRawDataAbsente(resultat.error.message)) {
@@ -79,7 +78,7 @@ export async function GET(request: NextRequest) {
   const resultats = await Promise.all(
     FAMILLES_DOCUMENT.map(async famille =>
       lisibles.has(famille)
-        ? { famille, resultat: await lireFamille(famille, titulaire.societeId, titulaire.ficheId) }
+        ? { famille, resultat: await lireFamille(famille, titulaire.societeId) }
         : { famille, resultat: { lignes: [] as Record<string, unknown>[] } },
     ),
   )

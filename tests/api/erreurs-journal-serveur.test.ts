@@ -29,7 +29,14 @@ vi.mock('@supabase/ssr', () => ({ createServerClient: () => h.client }))
 vi.mock('next/headers', () => ({ cookies: async () => ({ getAll: () => [] }) }))
 vi.mock('@/lib/supabase-server', () => ({ supabaseAdmin: h.client }))
 vi.mock('@/lib/supabase-server-component', () => ({ createServerSupabaseClient: async () => h.client }))
-vi.mock('@/lib/auth-helpers', () => ({ getAuthUser: async () => ({ id: h.compte }) }))
+// Simulation PARTIELLE du module, héritée du vrai : depuis le 25/11/2026 les routes des documents résolvent
+// aussi le périmètre de la société (lib/btp/perimetre-compte), qui importe getUserRole, isProGerant,
+// societeDunAutreCompte et resolveCompanyId du même fichier. Les omettre les ferait disparaître du module simulé.
+// Pour un compte artisan comme pour un gérant, lirePerimetreBtp sort sans toucher la base.
+vi.mock('@/lib/auth-helpers', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/auth-helpers')>()),
+  getAuthUser: async () => ({ id: h.compte }),
+}))
 vi.mock('@/lib/rate-limit', async () => (await import('../helpers/mocks-routes-api')).rateLimitPermissif())
 vi.mock('@/lib/logger', () => ({ logger: h.journal }))
 

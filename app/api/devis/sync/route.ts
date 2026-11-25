@@ -159,23 +159,36 @@ export async function POST(request: NextRequest) {
     }
     let ownsArtisan = (ownedProfiles || []).some((p: { id: string }) => p.id === artisanId)
 
-    // Path B : membre d'équipe BTP — fiches de LA société résolue, et d'elle seule.
+    // Path B : membre d'équipe BTP — résoudre via pro_team_members
     //
-    // Avant le 25/11/2026, ce chemin acceptait la fiche de TOUTE société dont le compte est membre actif, alors
-    // que `proprietaire` n'en désigne qu'une. Un compte membre de deux sociétés aurait enregistré une ligne
-    // `artisan_user_id = A, artisan_id = fiche de B` : elle serait apparue dans la liste de B. Aucun compte n'est
-    // aujourd'hui actif dans deux sociétés, mais rien ne l'interdit (`pro_team_members` n'est unique que sur
-    // (company_id, email)).
-    if (!ownsArtisan && proprietaire !== user.id) {
-      const { data: companyProfiles, error: cpErr } = await supabaseAdmin
-        .from('profiles_artisan')
-        .select('id')
-        .eq('user_id', proprietaire)
-      if (cpErr) {
-        logger.error('[devis-sync] ownership check (company profiles) failed', cpErr.message)
+    // Ce chemin accepte la fiche de toute société dont le compte est membre actif, alors que `proprietaire`
+    // n'en désigne qu'une. Deux appartenances actives sont pourtant déjà refusées en amont : `resolveCompanyId`
+    // lit en `maybeSingle` et lève sur PGRST116, retombe donc sur le compte lui-même, et `societeNonResolue`
+    // rend alors 409 (lib/btp/titulaire-documents.ts). La lecture de /api/pro/documents, elle, ne regarde que
+    // `artisan_user_id = <société>` : une ligne écrite sous une fiche d'une AUTRE société n'apparaîtrait dans
+    // aucune liste.
+    if (!ownsArtisan) {
+      const { data: memberships, error: memErr } = await supabaseAdmin
+        .from('pro_team_members')
+        .select('company_id')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+      if (memErr) {
+        logger.error('[devis-sync] ownership check (team) failed', memErr.message)
         return NextResponse.json({ error: 'Authorization check failed' }, { status: 500 })
       }
-      ownsArtisan = (companyProfiles || []).some((p: { id: string }) => p.id === artisanId)
+      const companyIds = (memberships || []).map((m: { company_id: string }) => m.company_id).filter(Boolean)
+      if (companyIds.length > 0) {
+        const { data: companyProfiles, error: cpErr } = await supabaseAdmin
+          .from('profiles_artisan')
+          .select('id')
+          .in('user_id', companyIds)
+        if (cpErr) {
+          logger.error('[devis-sync] ownership check (company profiles) failed', cpErr.message)
+          return NextResponse.json({ error: 'Authorization check failed' }, { status: 500 })
+        }
+        ownsArtisan = (companyProfiles || []).some((p: { id: string }) => p.id === artisanId)
+      }
     }
 
     if (!ownsArtisan) {
