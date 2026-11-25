@@ -173,9 +173,27 @@ describe('séries : à la suite de celles du syndicat, ordre stable', () => {
     expect(plan.ecartees).toEqual([{ coproprietaireId: 'P1', motif: expect.stringMatching(/série/) }])
   })
 
+  it('série écrite comme un nombre entier (ligne écrite hors application), en base ou dans le journal : prise, jamais redonnée', () => {
+    // 3 = « 00003 » : l'index unique [coproprieteId+serie] ne les distingue pas, la reprise ne doit pas redonner 00003
+    const enBase = [
+      { coproprieteId: 'C1', serie: '00001' },
+      { coproprieteId: 'C1', serie: '00002' },
+      { coproprieteId: 'C1', serie: 3 as unknown as string },
+    ]
+    expect(planifierMigrationD2(entrees({ fiches: [fiche('P1', 'L12')], comptes: enBase })).aCreer.map((l) => l.compte.serie)).toEqual(['00004'])
+    // compte supprimé depuis : seul le journal garde sa série
+    const journal = [{ avant: { id: 'cpt-X', coproprieteId: 'C1', serie: 3 }, apres: null }]
+    expect(seriesDuJournal(journal)).toEqual([{ coproprieteId: 'C1', serie: '3' }])
+    const comptes = [{ coproprieteId: 'C1', serie: '00001' }, { coproprieteId: 'C1', serie: '00002' }, ...seriesDuJournal(journal)]
+    const plan = planifierMigrationD2(entrees({ fiches: [fiche('P1', 'L12')], comptes }))
+    expect(plan.ecartees).toEqual([])
+    expect(plan.aCreer.map((l) => l.compte.serie)).toEqual(['00004'])
+  })
+
   it('série illisible sur un compte du syndicat (ligne écrite hors application) : ses fiches écartées avec leur motif, les autres syndicats migrés', () => {
-    // série qui n'est pas un texte : les séries prises du syndicat sont inconnues, aucune n'est donnée (risque de doublon)
-    const comptes = [{ coproprieteId: 'C1', serie: 42 as unknown as string }]
+    // série qui n'est ni un texte ni un nombre entier : les séries prises du syndicat sont inconnues, aucune n'est donnée
+    // (risque de doublon)
+    const comptes = [{ coproprieteId: 'C1', serie: { valeur: '42' } as unknown as string }]
     const plan = planifierMigrationD2(entrees({ fiches: [fiche('P1', 'L12'), fiche('P2', 'L7'), fiche('P9', 'L4')], comptes }))
     expect(plan.aCreer.map((l) => [l.coproprietaireId, l.compte.serie])).toEqual([['P9', '00001']])
     const motif = 'Série illisible sur un compte copropriétaire du syndicat : à corriger avant de reprendre la fiche.'
@@ -193,8 +211,8 @@ describe('séries : à la suite de celles du syndicat, ordre stable', () => {
       // renumérotation : l'ancienne série (00009) comme la nouvelle (00003) sont prises
       { avant: { id: 'cpt-Y', coproprieteId: 'C1', serie: '00009' }, apres: { id: 'cpt-Y', coproprieteId: 'C1', serie: '00003' } },
       { avant: null, apres: { id: 'cpt-Z', coproprieteId: 'C2', serie: '00040' } },
-      // entrées illisibles (ligne écrite hors application) : ignorées
-      { avant: 'texte', apres: { coproprieteId: 'C1', serie: 12 } },
+      // entrées illisibles (ligne écrite hors application ; ni texte ni nombre entier) : ignorées
+      { avant: 'texte', apres: { coproprieteId: 'C1', serie: 12.5 } },
       { avant: { serie: '00500' }, apres: { coproprieteId: 7, serie: '00600' } },
     ]
     expect(seriesDuJournal(journal)).toEqual([

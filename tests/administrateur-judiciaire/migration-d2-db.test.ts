@@ -318,7 +318,7 @@ describe('plan de la reprise sans écriture (bandeau de l’écran « Appels de 
     const fichesC1 = await fichesDe('C1')
     const attendu = await planDeReprise(fichesC1, { aujourdhui: DATE_DEMO_ISO })
     // compte fictif de C2 dont la série n'est pas un texte : ligne écrite hors de l'application (sans le dépôt ni le domaine)
-    const illisible = { id: 'cpt-illisible', coproprieteId: 'C2', serie: 42, libelle: 'Compte illisible (fictif)', createdAt: '', updatedAt: '', createdBy: null, updatedBy: null }
+    const illisible = { id: 'cpt-illisible', coproprieteId: 'C2', serie: { valeur: '42' }, libelle: 'Compte illisible (fictif)', createdAt: '', updatedAt: '', createdBy: null, updatedBy: null }
     await ajDb.comptesCoproprietaires.add(illisible as never)
     expect(await planDeReprise(fichesC1, { aujourdhui: DATE_DEMO_ISO })).toEqual(attendu)
     // le syndicat du compte : chaque fiche est écartée avec le motif (l'écran du syndicat reste lisible), rien n'est créé
@@ -333,7 +333,7 @@ describe('plan de la reprise sans écriture (bandeau de l’écran « Appels de 
   })
 
   it('reprise de toutes les copropriétés avec un compte illisible dans un syndicat : les autres syndicats repris, ses fiches écartées, aucune erreur', async () => {
-    const illisible = { id: 'cpt-illisible', coproprieteId: 'C2', serie: 42, libelle: 'Compte illisible (fictif)', createdAt: '', updatedAt: '', createdBy: null, updatedBy: null }
+    const illisible = { id: 'cpt-illisible', coproprieteId: 'C2', serie: { valeur: '42' }, libelle: 'Compte illisible (fictif)', createdAt: '', updatedAt: '', createdBy: null, updatedBy: null }
     await ajDb.comptesCoproprietaires.add(illisible as never)
     const fichesC1 = await fichesDe('C1')
     const fichesC2 = await fichesDe('C2')

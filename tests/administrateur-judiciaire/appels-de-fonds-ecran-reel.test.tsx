@@ -438,7 +438,7 @@ describe('Appels de fonds en mode réel — écran', () => {
   })
 
   it('compte illisible dans le syndicat (série écrite hors application) : l’écran reste lisible, ses fiches écartées avec le motif', async () => {
-    const illisible = { id: 'cpt-illisible', coproprieteId: copro.id, serie: 42, libelle: 'Compte illisible (fictif)', createdAt: '', updatedAt: '', createdBy: null, updatedBy: null }
+    const illisible = { id: 'cpt-illisible', coproprieteId: copro.id, serie: { valeur: '42' }, libelle: 'Compte illisible (fictif)', createdAt: '', updatedAt: '', createdBy: null, updatedBy: null }
     await ajDb.comptesCoproprietaires.add(illisible as never)
     await ajDb.coproprietaires.bulkAdd([ancienneFiche('f1', 'L1', 'Ancienne fiche (fictive)')])
     await rendre()

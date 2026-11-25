@@ -104,9 +104,19 @@ export const idsMigration = (coproprietaireId: string): { identite: string; comp
 })
 
 /**
+ * Série telle qu'elle est écrite : un texte tel quel, un nombre entier positif ou nul en texte (ligne écrite hors de
+ * l'application : 3 désigne la série 00003, que la reprise ne doit pas redonner) ; autre chose : null (illisible).
+ */
+function lireSerie(serie: unknown): string | null {
+  if (typeof serie === 'string') return serie
+  return Number.isSafeInteger(serie) && (serie as number) >= 0 ? String(serie) : null
+}
+
+/**
  * Séries que le journal d'activité des comptes copropriétaires garde (entrées de l'entité « comptesCoproprietaires » :
  * état avant et après de chaque création, modification et suppression), pour qu'une série sortie (compte supprimé ou
- * renuméroté) ne soit jamais redonnée. Un état illisible (ligne écrite hors de l'application) est ignoré. Fonction pure.
+ * renuméroté) ne soit jamais redonnée. Une série écrite comme un nombre entier est lue (lireSerie) ; un état illisible
+ * (ligne écrite hors de l'application) est ignoré : le journal ne se corrige pas. Fonction pure.
  */
 export function seriesDuJournal(
   entrees: readonly { avant: unknown; apres: unknown }[],
@@ -116,7 +126,8 @@ export function seriesDuJournal(
     for (const etat of [avant, apres]) {
       if (etat === null || typeof etat !== 'object') continue
       const { coproprieteId, serie } = etat as Record<string, unknown>
-      if (typeof coproprieteId === 'string' && typeof serie === 'string') series.push({ coproprieteId, serie })
+      const lue = lireSerie(serie)
+      if (typeof coproprieteId === 'string' && lue !== null) series.push({ coproprieteId, serie: lue })
     }
   return series
 }
@@ -221,16 +232,17 @@ function lotsARegulariserDe(fiches: EntreesMigrationD2['fiches'], aCreer: readon
 }
 
 /**
- * Séries prises par syndicat (normalisées), et syndicats dont un compte a une série qui n'est pas un texte (ligne écrite
- * hors application) : leurs séries prises sont inconnues, aucune ne leur est donnée (risque de doublon) ; leurs fiches
- * sont écartées avec un motif, comme « plus de série libre ».
+ * Séries prises par syndicat (normalisées ; un nombre entier est lu comme sa série, lireSerie), et syndicats dont un
+ * compte a une série illisible, ni texte ni nombre entier (ligne écrite hors application) : leurs séries prises sont
+ * inconnues, aucune ne leur est donnée (risque de doublon) ; leurs fiches sont écartées avec un motif, comme « plus de
+ * série libre ».
  */
 function seriesDesComptes(comptes: EntreesMigrationD2['comptes']): { seriesPrises: Map<string, Set<string>>; seriesIllisibles: Set<string> } {
   const seriesPrises = new Map<string, Set<string>>()
   const seriesIllisibles = new Set<string>()
   for (const c of comptes) {
-    const serie: unknown = c.serie
-    if (typeof serie !== 'string') {
+    const serie = lireSerie(c.serie)
+    if (serie === null) {
       seriesIllisibles.add(c.coproprieteId)
       continue
     }
