@@ -125,3 +125,30 @@ export async function changerEtatDocumentSociete(
   const envoye = await appeler('/api/pro/documents/etat', { action, docType, id })
   return envoye.ok ? { ok: true, valeur: true } : envoye
 }
+
+export interface DocumentsDesChantiers {
+  /** Devis de la société, les plus récents d'abord, avec leur lieu d'intervention et leur chantier rattaché. */
+  devis: Array<Record<string, unknown>>
+  /** Factures de la société déjà rattachées à un chantier. */
+  factures: Array<Record<string, unknown>>
+}
+
+/**
+ * Devis et factures vus depuis l'écran Chantiers et la Météo (import d'une adresse, « Lier un devis »). Lus par le
+ * serveur : la RLS ne rend à un compte invité aucune ligne de la société.
+ */
+export async function lireDocumentsDesChantiers(): Promise<ResultatLecture<DocumentsDesChantiers>> {
+  const lu = await appeler('/api/pro/documents/chantiers')
+  if (!lu.ok) return lu
+  const liste = (cle: string) => (Array.isArray(lu.valeur[cle]) ? (lu.valeur[cle] as Array<Record<string, unknown>>) : [])
+  return { ok: true, valeur: { devis: liste('devis'), factures: liste('factures') } }
+}
+
+/**
+ * Lie un devis de la société à un chantier de la société. Depuis le navigateur, la RLS filtrait la mise à jour sans
+ * erreur : l'écran annonçait la liaison et rien n'avait changé.
+ */
+export async function lierDevisAuChantierSociete(devisId: string, chantierId: string): Promise<ResultatLecture<true>> {
+  const envoye = await appeler('/api/pro/documents/chantiers', { devisId, chantierId })
+  return envoye.ok ? { ok: true, valeur: true } : envoye
+}

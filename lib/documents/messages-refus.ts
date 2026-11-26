@@ -13,6 +13,7 @@ export type CodeRefusDocuments =
   | 'aucun_droit'
   | 'aucun_droit_comptabilite'
   | 'aucun_droit_fiche'
+  | 'aucun_droit_liaison'
   | 'lecture_impossible'
 
 export const MESSAGES_REFUS_DOCUMENTS: Record<CodeRefusDocuments, { fr: string; pt: string }> = {
@@ -42,6 +43,11 @@ export const MESSAGES_REFUS_DOCUMENTS: Record<CodeRefusDocuments, { fr: string; 
   aucun_droit_fiche: {
     fr: "Votre rôle dans l'entreprise ne permet pas de modifier la fiche de la société.",
     pt: 'A sua função na empresa não permite alterar a ficha da empresa.',
+  },
+  // « Lier un devis » de l'écran Chantiers : il faut écrire les devis et les chantiers (app/api/pro/documents/chantiers).
+  aucun_droit_liaison: {
+    fr: "Votre rôle dans l'entreprise ne permet pas de lier un devis à un chantier.",
+    pt: 'A sua função na empresa não permite associar um orçamento a uma obra.',
   },
   lecture_impossible: {
     fr: 'Les documents de la société sont momentanément illisibles. Réessayez dans un instant.',

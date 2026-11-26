@@ -25,6 +25,11 @@ const etat = vi.hoisted(() => ({
   geocodage: null as Position | null,
   modifications: [] as Array<{ id: string; changes: Record<string, unknown> }>,
   locale: 'fr',
+  /** Lignes que la mise à jour de devis (bouton Lier du titulaire) dit avoir touchées : [] = la RLS a filtré. */
+  lignesLiees: [] as Array<Record<string, unknown>>,
+  /** Compte invité : lecture et liaison par le serveur (lib/documents/societe-client.ts). */
+  lireDocumentsDesChantiers: vi.fn(),
+  lierDevisAuChantierSociete: vi.fn(),
 }))
 
 vi.mock('@/lib/hooks/use-btp-data', () => {
@@ -46,10 +51,13 @@ vi.mock('@/lib/btp/geocodage', async (original) => ({
 vi.mock('@/lib/supabase', () => {
   const requete = (table: string) => {
     let colonnes = ''
+    let miseAJour = false
     const chaine: Record<string, unknown> = {}
     for (const m of ['eq', 'is', 'in', 'not', 'order', 'limit']) chaine[m] = () => chaine
     chaine.select = (c: string) => { colonnes = c; if (table === 'devis') etat.selections.push(c); return chaine }
+    chaine.update = () => { miseAJour = true; return chaine }
     chaine.then = (ok: (v: unknown) => unknown, ko?: (e: unknown) => unknown) => {
+      if (miseAJour) return Promise.resolve({ data: etat.lignesLiees, error: null }).then(ok, ko)
       if (table !== 'devis') return Promise.resolve({ data: [], error: null }).then(ok, ko)
       if (colonnes.includes('chantier_id')) return Promise.resolve({ data: etat.liens, error: null }).then(ok, ko)
       if (etat.sansRawData && colonnes.includes('raw_data')) {
@@ -74,6 +82,10 @@ vi.mock('@/lib/supabase', () => {
   }
 })
 vi.mock('@/lib/i18n/context', () => ({ useLocale: () => etat.locale, useTranslation: () => ({ t: (c: string) => c }) }))
+vi.mock('@/lib/documents/societe-client', () => ({
+  lireDocumentsDesChantiers: etat.lireDocumentsDesChantiers,
+  lierDevisAuChantierSociete: etat.lierDevisAuChantierSociete,
+}))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() } }))
 
 import { toast } from 'sonner'
@@ -110,6 +122,9 @@ beforeEach(() => {
   etat.geocodage = { latitude: 43.3, longitude: 5.38, precise: true }
   etat.modifications = []
   etat.locale = 'fr'
+  etat.lignesLiees = [{ id: 'd-lilas' }]
+  etat.lireDocumentsDesChantiers.mockReset().mockResolvedValue({ ok: true, valeur: { devis: [], factures: [] } })
+  etat.lierDevisAuChantierSociete.mockReset().mockResolvedValue({ ok: true, valeur: true })
   localStorage.clear()
   vi.mocked(geocoderAdresse).mockClear()
   for (const f of Object.values(toast)) vi.mocked(f).mockClear()
@@ -409,6 +424,61 @@ describe('fiche chantier — adresse reprise d’un devis', () => {
     expect((screen.getByPlaceholderText('Porto, Lisboa...') as HTMLInputElement).value).toBe('Porto')
     expect(geocoderAdresse).toHaveBeenLastCalledWith(expect.objectContaining({ ville: 'Porto' }), 'PT')
     expect(toast.success).toHaveBeenCalledWith('Morada importada do orçamento ORC-0012.')
+  })
+})
+
+// ═══ « Lier un devis » : jamais un succès muet (26/11/2026) ═══
+// Pour un compte invité, la mise à jour partait du navigateur, où la RLS de devis filtre sans erreur : l'écran annonçait
+// « Devis lié au chantier » et rien n'avait changé. Il passe par le serveur ; le titulaire vérifie qu'une ligne a changé.
+
+const lierLePremierDevis = async (compte: typeof artisan) => {
+  etat.chantiers = [VILLA]
+  render(<ChantiersBTPV2 artisan={compte} orgRole="pro_societe" />)
+  await act(async () => { fireEvent.click(await screen.findByRole('button', { name: /Lier un devis/ })) })
+  await act(async () => { fireEvent.click(await screen.findByRole('button', { name: /DEV-2026-001/ })) })
+}
+
+const INVITE = { id: 'compte-du-salarie', user_id: 'compte-du-gerant', fiche_societe_id: 'fiche-de-la-societe' } as unknown as typeof artisan
+
+describe('« Lier un devis » à un chantier', () => {
+  it('titulaire : une mise à jour qui ne touche aucune ligne est un échec, pas « Devis lié au chantier »', async () => {
+    etat.lignesLiees = []
+    await lierLePremierDevis(artisan)
+    expect(toast.error).toHaveBeenCalledWith('Erreur lors de la liaison')
+    expect(toast.success).not.toHaveBeenCalledWith('Devis lié au chantier')
+  })
+
+  it('titulaire : la ligne a changé, la liaison est annoncée', async () => {
+    await lierLePremierDevis(artisan)
+    expect(toast.success).toHaveBeenCalledWith('Devis lié au chantier')
+  })
+
+  it('compte invité : les devis de la société viennent du serveur, et la liaison y part', async () => {
+    etat.lireDocumentsDesChantiers.mockResolvedValue({ ok: true, valeur: { devis: [DEVIS_LILAS], factures: [] } })
+    await lierLePremierDevis(INVITE)
+    expect(etat.lierDevisAuChantierSociete).toHaveBeenCalledWith('d-lilas', 'c-villa')
+    expect(toast.success).toHaveBeenCalledWith('Devis lié au chantier')
+    // Rien n'a été lu ni écrit depuis le navigateur, où la RLS ne lui rend aucun devis.
+    expect(etat.selections).toEqual([])
+  })
+
+  it('compte invité : la Météo propose les devis de la société, lus par le serveur', async () => {
+    etat.lireDocumentsDesChantiers.mockResolvedValue({ ok: true, valeur: { devis: [DEVIS_LILAS, SANS_ADRESSE], factures: [] } })
+    render(<MeteoChantierSection userId="compte-du-salarie" authUserId="compte-du-gerant" isPt={false} devisParLeServeur />)
+    const liste = await ouvrirChoixMeteo()
+    expect(within(liste).getAllByRole('option').map(o => o.textContent)).toEqual([
+      '— Sélectionner un devis —',
+      'DEV-2026-001 · Mme Durand · Résidence Le Mail, 15 rue des Lilas, 13001 Marseille',
+    ])
+    expect(etat.selections).toEqual([])
+  })
+
+  it('compte invité refusé par le serveur : le motif s’affiche, pas de succès', async () => {
+    etat.lireDocumentsDesChantiers.mockResolvedValue({ ok: true, valeur: { devis: [DEVIS_LILAS], factures: [] } })
+    etat.lierDevisAuChantierSociete.mockResolvedValue({ ok: false, code: 'aucun_droit_liaison', message: 'refus' })
+    await lierLePremierDevis(INVITE)
+    expect(toast.error).toHaveBeenCalledWith("Votre rôle dans l'entreprise ne permet pas de lier un devis à un chantier.")
+    expect(toast.success).not.toHaveBeenCalledWith('Devis lié au chantier')
   })
 })
 

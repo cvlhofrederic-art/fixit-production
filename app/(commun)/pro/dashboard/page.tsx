@@ -20,6 +20,7 @@ import { OrgRoleProvider } from '@/lib/hooks/useOrgRoleContext'
 import { fetchDocumentsFromSupabase, fusionnerDocumentsDeLaBase } from '@/lib/document-sync'
 import { lireDocumentsSociete, lireTitulaireSociete } from '@/lib/documents/societe-client'
 import { messageRefusDocuments } from '@/lib/documents/messages-refus'
+import { estSousCompteSociete } from '@/lib/documents/identite-documents'
 import { dedupeDocsByIdentity, optionsFusionPourRole } from '@/lib/devis-utils'
 import { seedDemoLocalStorage } from '@/lib/seed-demo-localStorage'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -1634,6 +1635,7 @@ function DashboardPage() {
               <MeteoChantierSection
                 userId={artisan?.id || ''} authUserId={artisan?.user_id || ''} isPt={isPt}
                 importDevis={isProGerant || proCanAccess('devis')} gestionChantiers={isProGerant || proCanWrite('chantiers')}
+                devisParLeServeur={estSousCompteSociete(artisan)}
               />
             </SectionErrorBoundary>
           )}
