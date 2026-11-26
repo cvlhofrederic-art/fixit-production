@@ -125,6 +125,10 @@ export function estRoleDeTerrain(role: string | null | undefined): boolean {
  * - `meteo` en lecture : les prévisions et alertes de ces mêmes chantiers ;
  * - `settings` en lecture : « Mon profil » s'ouvre, pour changer son mot de passe ; /api/btp ne lui rend pas les
  *   réglages de la société et n'en accepte l'écriture qu'en FULL.
+ * - `rapports` en écriture (demande de Frédéric du 26/11/2026 : « Les employés doivent aussi avoir le droit au module
+ *   rapports ! ») : rédiger les rapports de chantier. FULL et non READ : la liste des rapports n'a pas de vue restreinte
+ *   (lib/btp/perimetre-compte.ts), donc en lecture seule l'écran resterait vide et chaque enregistrement serait refusé.
+ *   FULL lui montre tous les rapports de la société, coordonnées du client comprises, et lui permet de les modifier.
  * Tout le reste est fermé ; le gérant rouvre ce qu'il veut, employé par employé (Gestion des comptes → Modifier).
  * Jusqu'au 25/11 le conducteur de travaux et le chef de chantier avaient en plus l'agenda, le Gantt, les devis, les
  * clients, la messagerie, les rapports, etc., et l'ouvrier l'agenda, les photos et le dictionnaire de matériaux.
@@ -134,6 +138,7 @@ function ecransDuSalarieDeTerrain(): Record<string, AccessLevel> {
     ...Object.fromEntries(ALL_PRO_MODULES.map(m => [m, 'NONE' as AccessLevel])),
     pointage: 'READ', chantiers: 'READ', meteo: 'READ',
     settings: 'READ',
+    rapports: 'FULL',
   }
 }
 

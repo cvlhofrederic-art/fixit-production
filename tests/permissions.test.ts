@@ -15,6 +15,7 @@ import {
 } from '@/lib/permissions'
 import type { AccessLevel, ProTeamRole } from '@/lib/permissions'
 import { pageAppliSocieteBtp } from '@/lib/auth/destination-par-role'
+import { peutEcrireTable, visibiliteListe } from '@/lib/btp/perimetre-compte'
 
 describe('lib/permissions', () => {
   describe('getDefaultPermission', () => {
@@ -212,11 +213,23 @@ describe('lib/permissions', () => {
     // chantier qui les concerne, et surtout le pointage très important ». Plus « Mon profil » (settings, en lecture),
     // où il change son mot de passe. Rien d'autre par défaut — le gérant rouvre le reste employé par employé.
     // (Le 24/11 il avait demandé aussi le dictionnaire de matériaux ; le 25/11 il dit « uniquement ».)
+    // Le 26/11/2026 : « Les employés doivent aussi avoir le droit au module rapports ! ».
     const TERRAIN: ProTeamRole[] = ['OUVRIER', 'CHEF_CHANTIER', 'CONDUCTEUR_TRAVAUX']
 
-    it.each(TERRAIN)('%s n’ouvre que le pointage, ses chantiers, la météo et son profil', (role) => {
+    it.each(TERRAIN)('%s n’ouvre que le pointage, ses chantiers, la météo, les rapports et son profil', (role) => {
       const accessible = getAccessibleModules(getDefaultPermissionsForRole(role))
-      expect(accessible.sort()).toEqual(['chantiers', 'meteo', 'pointage', 'settings'])
+      expect(accessible.sort()).toEqual(['chantiers', 'meteo', 'pointage', 'rapports', 'settings'])
+    })
+
+    // FULL, pas READ : la liste `rapports` de /api/btp n'a pas de vue restreinte (COLONNES_VUE_RESTREINTE), donc en
+    // lecture seule le salarié recevrait une liste vide et chaque rapport enregistré serait refusé.
+    it.each(TERRAIN)('%s rédige les rapports de chantier', (role) => {
+      const perimetre = {
+        societeId: 'societe', titulaire: false, roleEquipe: role,
+        permissions: getDefaultPermissionsForRole(role), email: '',
+      }
+      expect(visibiliteListe(perimetre, 'rapports')).toBe('tout')
+      expect(peutEcrireTable(perimetre, 'rapports_btp')).toBe(true)
     })
 
     it('les rôles de terrain sont exactement ceux que l’appli ouvre sur le pointage', () => {
