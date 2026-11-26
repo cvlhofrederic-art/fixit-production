@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
-import { getAuthUser, isProSocieteRole, isProGerant, resolveCompanyId } from '@/lib/auth-helpers'
+import type { User } from '@supabase/supabase-js'
+import {
+  getAuthUser, isProSocieteRole, isProGerant, resolveCompanyId, societeDunAutreCompte, estTitulaireSociete,
+} from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { templateProTeamInvite } from '@/lib/email'
 import { logger } from '@/lib/logger'
@@ -11,6 +14,47 @@ import { nouvelleInvitation, sansJetonInvitation } from '@/lib/equipe/lien-invit
 import { envoyerEmailInvitation } from '@/lib/equipe/invitation-serveur'
 import { texteSurUneLigne } from '@/lib/sanitize'
 import { normaliserCategorie, LONGUEUR_MAX_CATEGORIE } from '@/lib/equipe/categorie-professionnelle'
+
+// ── Co-gérant (25/11/2026) ───────────────────────────────────────────────────
+// Un gérant invité dans la société d'un autre compte (societeDunAutreCompte) gère l'équipe de CETTE société, jamais
+// une « société » à son propre nom : sans ligne d'équipe active, resolveCompanyId retombe sur son identifiant, et
+// ses invitations seraient parties dans une équipe fantôme que personne ne voit.
+// Refus propres au co-gérant : message français, et un code stable que l'écran traduit (components/dashboard/
+// CompteUtilisateursSection.tsx, MESSAGES_EQUIPE).
+const REFUS_EQUIPE = {
+  societe_non_resolue: "Votre compte n'est rattaché à aucune société active. Demandez au gérant titulaire de vérifier votre accès.",
+  gerant_reserve: 'Seul le gérant titulaire de la société peut créer, modifier ou retirer un gérant.',
+  sa_propre_ligne: 'Vous ne pouvez pas modifier vos propres droits ni votre propre accès.',
+  gerant_lie: 'Un gérant ne se supprime pas : désactivez-le (la désactivation se défait, la suppression non).',
+  gerant_tous_droits: 'Un gérant a tous les droits : ses permissions ne se restreignent pas module par module.',
+} as const
+const refusEquipe = (code: keyof typeof REFUS_EQUIPE, status: number) =>
+  NextResponse.json({ error: REFUS_EQUIPE[code], code }, { status })
+
+/** Société gérée par ce gérant (titulaire ou co-gérant) ; null si elle ne se résout pas. */
+async function societeDuGerant(user: User): Promise<string | null> {
+  const companyId = await resolveCompanyId(user, supabaseAdmin)
+  if (!companyId) return null
+  if (societeDunAutreCompte(user) && companyId === user.id) return null
+  return companyId
+}
+
+/**
+ * Nom et langue de la société pour l'e-mail d'invitation : ceux du compte titulaire, comme avant ; pour un co-gérant,
+ * ceux de la fiche de la société (son propre compte n'a ni nom de société ni langue : l'e-mail partait en français au
+ * nom de « Entreprise »).
+ */
+async function identiteDeLaSociete(user: User, companyId: string): Promise<{ nom: unknown; locale: string }> {
+  const localeDuCompte = typeof user.user_metadata?.locale === 'string' ? user.user_metadata.locale : 'fr'
+  if (!societeDunAutreCompte(user)) {
+    return { nom: user.user_metadata?.company_name || user.user_metadata?.full_name, locale: localeDuCompte }
+  }
+  const { data, error } = await supabaseAdmin.from('profiles_artisan').select('company_name, language')
+    .eq('user_id', companyId).order('id', { ascending: true }).limit(1)
+  if (error) logger.warn('[PRO_TEAM] fiche de la société illisible pour l’e-mail', { error: error.message })
+  const fiche = (data as Array<{ company_name?: string; language?: string }> | null)?.[0]
+  return { nom: fiche?.company_name, locale: fiche?.language === 'pt' || fiche?.language === 'fr' ? fiche.language : localeDuCompte }
+}
 
 /** Colonnes de la liste de l'équipe (sans le jeton d'invitation) ; job_title s'y ajoute quand la colonne existe. */
 const COLONNES_EQUIPE =
@@ -43,7 +87,8 @@ export async function GET(request: NextRequest) {
   // Self-healing : si le gérant n'apparaît pas comme membre (cas des sociétés
   // inscrites avant l'auto-init au signup), on l'ajoute idempotamment ici.
   // Évite que l'écran "Comptes utilisateurs" affiche "0/20" pour le gérant lui-même.
-  if (isProGerant(user) && user.email && companyId === user.id) {
+  // Titulaire seulement : un co-gérant sans ligne active (companyId retombé sur lui) n'a pas de société à son nom.
+  if (estTitulaireSociete(user) && user.email && companyId === user.id) {
     const { data: gerantRow } = await supabaseAdmin
       .from('pro_team_members')
       .select('id')
@@ -154,7 +199,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: MESSAGE_CATEGORIE_REFUSEE }, { status: 400 })
   }
 
-  const companyId = user.id // Gérant = company owner
+  if (memberRole === 'GERANT' && !estTitulaireSociete(user)) {
+    return refusEquipe('gerant_reserve', 403)
+  }
+  // Titulaire : la société, c'est lui ; co-gérant : celle de sa ligne d'équipe active.
+  const companyId = await societeDuGerant(user)
+  if (!companyId) return refusEquipe('societe_non_resolue', 409)
   const emailInvite = email.toLowerCase().trim()
 
   // Check if member already exists
@@ -239,11 +289,9 @@ export async function POST(request: NextRequest) {
   // Send invitation email
   // Le nom de la société est renseigné par le compte lui-même : il est ramené à une ligne de longueur bornée avant
   // d'entrer dans l'objet et le corps du message (le gabarit échappe ensuite chaque valeur dans le HTML).
-  const companyName = texteSurUneLigne(
-    user.user_metadata?.company_name || user.user_metadata?.full_name,
-    LONGUEUR_MAX_NOM_SOCIETE,
-  ) || 'Entreprise'
-  const locale = user.user_metadata?.locale || 'fr'
+  const identite = await identiteDeLaSociete(user, companyId)
+  const companyName = texteSurUneLigne(identite.nom, LONGUEUR_MAX_NOM_SOCIETE) || 'Entreprise'
+  const locale = identite.locale
   const isPt = locale === 'pt'
   const roleName = isPt ? ROLE_LABELS[memberRole as ProTeamRole].pt : ROLE_LABELS[memberRole as ProTeamRole].fr
 
@@ -257,7 +305,7 @@ export async function POST(request: NextRequest) {
 
   const emailSent = await envoyerEmailInvitation(emailInvite, emailTemplate, [
     { name: 'template', value: 'pro_team_invite' },
-    { name: 'company_id', value: user.id },
+    { name: 'company_id', value: companyId },
   ], '[PRO_TEAM]')
 
   // Ni le lien ni le jeton ne sont renvoyés : seule la boîte mail invitée reçoit le lien.
@@ -319,7 +367,8 @@ export async function PATCH(request: NextRequest) {
     derogations = lecture.data
   }
 
-  const companyId = await resolveCompanyId(user, supabaseAdmin)
+  const companyId = await societeDuGerant(user)
+  if (!companyId) return refusEquipe('societe_non_resolue', 409)
 
   // Verify member belongs to this company
   const { data: existing } = await supabaseAdmin
@@ -331,6 +380,23 @@ export async function PATCH(request: NextRequest) {
 
   if (!existing) {
     return NextResponse.json({ error: 'Membre introuvable' }, { status: 404 })
+  }
+
+  const touchAuxDroits = (role !== undefined && role !== existing.role) || is_active !== undefined || derogations !== undefined
+  // Un gérant ne se retire ni ne se restreint lui-même. Le titulaire garde la main sur la catégorie de sa ligne ; celle
+  // d'un co-gérant, ligne de gérant, relève du titulaire (règle suivante).
+  if (existing.user_id === user.id && touchAuxDroits) {
+    return refusEquipe('sa_propre_ligne', 403)
+  }
+  // Les lignes de gérant (titulaire ou co-gérant) et toute promotion au rang de gérant sont réservées au titulaire.
+  if (!estTitulaireSociete(user) && (existing.role === 'GERANT' || role === 'GERANT')) {
+    return refusEquipe('gerant_reserve', 403)
+  }
+  // Un gérant a tous les droits : une dérogation posée sur sa ligne ne serait appliquée que par une partie des écrans et
+  // des routes (celles qui lisent le périmètre BTP, pas celles qui lisent isProGerant). Retirer toutes ses
+  // dérogations (liste vide) reste possible.
+  if (existing.role === 'GERANT' && derogations !== undefined && derogations.length > 0) {
+    return refusEquipe('gerant_tous_droits', 400)
   }
 
   // Invitation en cours (lien envoyé, jeton encore en base) : son rôle est signé dans ce lien
@@ -526,12 +592,12 @@ export async function DELETE(request: NextRequest) {
   const memberId = searchParams.get('member_id')
   if (!memberId) return NextResponse.json({ error: 'member_id requis' }, { status: 400 })
 
-  const companyId = await resolveCompanyId(user, supabaseAdmin)
+  const companyId = await societeDuGerant(user)
+  if (!companyId) return refusEquipe('societe_non_resolue', 409)
 
-  // Prevent deleting the gérant
   const { data: target } = await supabaseAdmin
     .from('pro_team_members')
-    .select('role')
+    .select('role, user_id')
     .eq('id', memberId)
     .eq('company_id', companyId)
     .maybeSingle()
@@ -539,8 +605,21 @@ export async function DELETE(request: NextRequest) {
   if (!target) {
     return NextResponse.json({ error: 'Membre introuvable' }, { status: 404 })
   }
-  if (target.role === 'GERANT') {
+  // Le titulaire (sa ligne porte l'identifiant de la société) ne se retire jamais.
+  if (target.role === 'GERANT' && target.user_id === companyId) {
     return NextResponse.json({ error: 'Impossible de supprimer le gérant' }, { status: 403 })
+  }
+  // Une ligne de gérant ne se retire que par le titulaire ; un co-gérant ne se retire donc pas lui-même, et le
+  // titulaire est arrêté juste au-dessus (seuls des gérants appellent cette route).
+  if (target.role === 'GERANT' && !estTitulaireSociete(user)) {
+    return refusEquipe('gerant_reserve', 403)
+  }
+  // Co-gérant déjà relié : on le DÉSACTIVE, on ne le supprime pas. Supprimée, sa ligne laisserait son compte marqué
+  // GERANT dans app_metadata, que compteRattachable refuse ensuite de rattacher : plus aucune invitation possible sur
+  // cette adresse sans intervention en base. Désactivé, il n'a plus aucun droit (societeDuGerant, lirePerimetreBtp)
+  // et se réactive d'un clic. Une invitation de gérant pas encore acceptée (user_id vide) se supprime.
+  if (target.role === 'GERANT' && target.user_id) {
+    return refusEquipe('gerant_lie', 403)
   }
 
   // Audit log before deletion

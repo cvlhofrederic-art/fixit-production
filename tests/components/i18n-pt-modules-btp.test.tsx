@@ -276,7 +276,7 @@ describe('modules BTP du tableau de bord pro en portugais (pt-PT)', () => {
     for (const papel of ['Gerente', 'Diretor de obra', 'Encarregado', 'Administrativo(a)', 'Contabilista', 'Operário']) expect(tudo).toContain(papel)
     expect(tudo).toContain('Sócio-gerente')
     expect(tudo).toContain('Subempreiteiro')
-    expect(tudo).toContain('Gerente: acesso total. Único com permissão para gerir contas.')
+    expect(tudo).toContain('Gerente: acesso total e gestão das contas. Só o gerente titular cria ou retira gerentes.')
     // Droits par défaut des rôles de terrain depuis le 25/11/2026 : leurs obras, la météo et le pointage.
     expect(tudo).toContain('Encarregado: por defeito, só as suas obras (consulta), a meteorologia e o registo de horas.')
     expect(tudo).toContain('o botão « Editar » de cada membro')
@@ -466,7 +466,7 @@ describe('les mêmes modules en français : textes inchangés', () => {
     const tout = texte(c)
     expect(tout).toContain('Accès équipe : 6 comptes actifs / 20 max')
     expect(tout).toContain('Dernière connexion')
-    expect(tout).toContain('Gérant : accès complet. Seul à gérer les comptes.')
+    expect(tout).toContain('Gérant : accès complet et gestion des comptes. Seul le gérant titulaire crée ou retire un gérant.')
     expect(tout).toContain('Chef de chantier')
     expect(tout).toContain('Dirigeant')
   })

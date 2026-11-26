@@ -158,6 +158,13 @@ export async function lirePerimetreBtp(user: User, admin: SupabaseClient): Promi
   }
 
   const societeId = (await resolveCompanyId(user, admin)) ?? user.id
+  // Compte rattaché à une autre société mais sans ligne d'équipe active (retiré, désactivé, ou lecture en panne) :
+  // resolveCompanyId retombe sur son propre identifiant. Sans cette garde, un gérant ou une secrétaire gardait FULL
+  // sur cette « société » vide à son nom, et ses écritures y partaient sans erreur.
+  if (societeDunAutreCompte(user) && societeId === user.id) {
+    logger.warn('[btp] compte rattaché à une société sans ligne d’équipe active : aucun droit')
+    return { societeId, titulaire: false, roleEquipe: null, permissions: {}, email }
+  }
   const roleBrut = user.app_metadata?.pro_team_role
   const roleEquipe = typeof roleBrut === 'string' && isValidProTeamRole(roleBrut) ? roleBrut : null
 

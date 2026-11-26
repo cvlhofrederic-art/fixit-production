@@ -20,16 +20,19 @@ import { NextRequest } from 'next/server'
 const h = vi.hoisted(() => ({
   base: null as unknown as BaseMemoire,
   admin: { getUserById: vi.fn(), updateUserById: vi.fn() },
+  /** Compte appelant ; null = le gérant titulaire (son identifiant EST la société). */
+  appelant: null as null | Record<string, unknown>,
 }))
 
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), withScope: vi.fn() }))
 vi.mock('@/lib/rate-limit', async () => (await import('../helpers/mocks-routes-api')).rateLimitPermissif())
 vi.mock('@/lib/logger', async () => (await import('../helpers/mocks-routes-api')).loggerSilencieux())
 vi.mock('@/lib/email', () => ({ sendEmail: vi.fn(), templateProTeamInvite: vi.fn() }))
-vi.mock('@/lib/auth-helpers', () => ({
-  getAuthUser: vi.fn(async () => ({ id: SOCIETE, email: 'gerant@societe.test', app_metadata: { role: 'pro_societe' }, user_metadata: {} })),
-  isProSocieteRole: vi.fn(() => true),
-  isProGerant: vi.fn(() => true),
+// Rôles réels (isProGerant, societeDunAutreCompte, estTitulaireSociete) : seules la session et la résolution de la
+// société sont simulées.
+vi.mock('@/lib/auth-helpers', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/auth-helpers')>()),
+  getAuthUser: vi.fn(async () => h.appelant ?? { id: SOCIETE, email: 'gerant@societe.test', app_metadata: { role: 'pro_societe' }, user_metadata: {} }),
   resolveCompanyId: vi.fn(async () => SOCIETE),
 }))
 vi.mock('@/lib/supabase-server', () => ({
@@ -43,7 +46,8 @@ const LIGNE = '6f1c2b8e-3a4d-4e5f-8a9b-0c1d2e3f4a5b'
 const TABLE = 'pro_team_members'
 const MEMBRE = { role: 'pro_societe', pro_team_role: 'OUVRIER', company_id: SOCIETE, provider: 'email' }
 
-const { PATCH, GET } = await import('@/app/api/pro/team/route')
+const { PATCH, GET, DELETE } = await import('@/app/api/pro/team/route')
+const { resolveCompanyId } = await import('@/lib/auth-helpers')
 
 /** Ligne d'équipe de la société appelante qui désigne COMPTE_VISE (posée par une route ou hors de l'application). */
 const ligne = (modif: Record<string, unknown> = {}) => ({
@@ -70,6 +74,7 @@ const COMPTES_HORS_SOCIETE: Array<[string, Record<string, unknown>]> = [
 ]
 
 beforeEach(() => {
+  h.appelant = null
   vi.mocked(logger.error).mockClear()
   h.base = nouvelleBase()
   h.base.lignes[TABLE] = [ligne()]
@@ -306,5 +311,139 @@ describe('Dérogations bornées à la société, et remises si leur remplacement
     const { GET: lirePropres } = await import('@/app/api/pro/team/permissions/route')
     const res = await lirePropres(new NextRequest('https://vitfix.io/api/pro/team/permissions?self=true', { headers: { Authorization: 'Bearer tok' } }))
     expect((await res.json()).overrides).toEqual([ANCIENNE])
+  })
+})
+
+describe('Co-gérant : gérant invité dans la société d’un autre compte (25/11/2026)', () => {
+  const COGERANT = 'c0c0c0c0-1111-4222-8333-444444444444'
+  const AUTRE_COGERANT = 'c1c1c1c1-1111-4222-8333-444444444444'
+  const LIGNE_TITULAIRE = '7a7a7a7a-1111-4222-8333-444444444444'
+  const LIGNE_COGERANT = '7b7b7b7b-1111-4222-8333-444444444444'
+  const coGerant = () => {
+    h.appelant = { id: COGERANT, email: 'cogerant@exemple.test', app_metadata: { role: 'pro_societe', pro_team_role: 'GERANT', company_id: SOCIETE }, user_metadata: {} }
+  }
+  const poserLignes = (...autres: Array<Record<string, unknown>>) => {
+    h.base.lignes[TABLE] = [
+      ligne(),
+      ligne({ id: LIGNE_TITULAIRE, user_id: SOCIETE, role: 'GERANT', email: 'gerant@societe.test' }),
+      ligne({ id: LIGNE_COGERANT, user_id: COGERANT, role: 'GERANT', email: 'cogerant@exemple.test' }),
+      ...autres,
+    ]
+  }
+  const supprimer = (memberId: string) => DELETE(new NextRequest(`https://vitfix.io/api/pro/team?member_id=${memberId}`, {
+    method: 'DELETE', headers: { Authorization: 'Bearer tok' },
+  }))
+  const suppressions = () => appelsDe(h.base, TABLE, 'delete')
+  const rienNEstEcrit = () => {
+    expect(misesAJour()).toHaveLength(0)
+    expect(suppressions()).toHaveLength(0)
+    expect(appelsDe(h.base, 'pro_role_permissions', 'insert')).toHaveLength(0)
+    expect(h.admin.updateUserById).not.toHaveBeenCalled()
+  }
+
+  beforeEach(() => { poserLignes() })
+
+  it('co-gérant : gère un salarié de la société (droits, statut), écritures dans la société du titulaire', async () => {
+    coGerant()
+    expect((await modifier({ member_id: LIGNE, is_active: false })).status).toBe(200)
+    expect(misesAJour()[0].eq).toEqual([['id', LIGNE]])
+    expect((await modifier({ member_id: LIGNE, permissions: [{ module_id: 'devis', access_level: 'READ' }] })).status).toBe(200)
+    expect(appelsDe(h.base, 'pro_role_permissions', 'insert')[0].donnees).toEqual([
+      { company_id: SOCIETE, member_id: LIGNE, module_id: 'devis', access_level: 'READ' },
+    ])
+  })
+
+  it.each([
+    ['désactiver le titulaire', { member_id: LIGNE_TITULAIRE, is_active: false }],
+    ['restreindre le titulaire', { member_id: LIGNE_TITULAIRE, permissions: [{ module_id: 'devis', access_level: 'NONE' }] }],
+    ['promouvoir un salarié gérant', { member_id: LIGNE, role: 'GERANT' }],
+  ])('co-gérant, %s : 403 réservé au titulaire, rien n’est écrit', async (_cas, corps) => {
+    coGerant()
+    const res = await modifier(corps)
+    expect(res.status).toBe(403)
+    expect((await res.json()).error).toMatch(/gérant titulaire/)
+    rienNEstEcrit()
+  })
+
+  it.each([
+    ['co-gérant', coGerant, LIGNE_COGERANT],
+    ['titulaire', () => { h.appelant = null }, LIGNE_TITULAIRE],
+  ])('%s sur sa propre ligne (statut, droits) : 403, il ne se retire ni ne se restreint', async (_cas, appelant, ligneId) => {
+    appelant()
+    for (const corps of [{ is_active: false }, { permissions: [] }]) {
+      const res = await modifier({ member_id: ligneId, ...corps })
+      expect(res.status).toBe(403)
+    }
+    rienNEstEcrit()
+  })
+
+  it('titulaire : désactive puis réactive le co-gérant (retrait réversible)', async () => {
+    for (const actif of [false, true]) {
+      expect((await modifier({ member_id: LIGNE_COGERANT, is_active: actif })).status).toBe(200)
+    }
+    expect(misesAJour().map((a) => a.donnees)).toEqual([{ is_active: false }, { is_active: true }])
+  })
+
+  it('titulaire : dérogation sur la ligne d’un gérant refusée (400, « tous les droits ») ; liste vide acceptée', async () => {
+    const res = await modifier({ member_id: LIGNE_COGERANT, permissions: [{ module_id: 'devis', access_level: 'NONE' }] })
+    expect(res.status).toBe(400)
+    expect((await res.json()).code).toBe('gerant_tous_droits')
+    expect(appelsDe(h.base, 'pro_role_permissions', 'insert')).toHaveLength(0)
+    expect((await modifier({ member_id: LIGNE_COGERANT, permissions: [] })).status).toBe(200)
+  })
+
+  it('titulaire : saisit la catégorie de sa propre ligne (seule, sans droits)', async () => {
+    expect((await modifier({ member_id: LIGNE_TITULAIRE, job_title: 'Sócio-gerente' })).status).toBe(200)
+    expect(misesAJour()[0].donnees).toEqual({ job_title: 'Sócio-gerente' })
+  })
+
+  it('refus du co-gérant : code stable que l’écran traduit', async () => {
+    coGerant()
+    expect((await (await modifier({ member_id: LIGNE_TITULAIRE, is_active: false })).json()).code).toBe('gerant_reserve')
+    expect((await (await supprimer(LIGNE_COGERANT)).json()).code).toBe('gerant_reserve')
+  })
+
+  it('titulaire : promeut un salarié gérant (son compte reçoit GERANT, garde la société)', async () => {
+    compteVise(MEMBRE)
+    expect((await modifier({ member_id: LIGNE, role: 'GERANT' })).status).toBe(200)
+    expect(h.admin.updateUserById).toHaveBeenCalledWith(COMPTE_VISE, { app_metadata: { ...MEMBRE, pro_team_role: 'GERANT' } })
+  })
+
+  it('co-gérant sans ligne active (resolveCompanyId retombe sur lui) : 409 partout, rien n’est lu ni écrit', async () => {
+    coGerant()
+    vi.mocked(resolveCompanyId).mockResolvedValue(COGERANT)
+    try {
+      for (const res of [await modifier({ member_id: LIGNE, is_active: false }), await supprimer(LIGNE)]) {
+        expect(res.status).toBe(409)
+        expect((await res.json()).error).toMatch(/aucune société active/)
+      }
+      expect(appelsDe(h.base, TABLE, 'select')).toHaveLength(0)
+      rienNEstEcrit()
+      // Pas de ligne GERANT « company_id = lui-même » créée par la réparation automatique du GET.
+      await GET(new NextRequest('https://vitfix.io/api/pro/team', { headers: { Authorization: 'Bearer tok' } }))
+      expect(appelsDe(h.base, TABLE, 'insert')).toHaveLength(0)
+    } finally {
+      vi.mocked(resolveCompanyId).mockResolvedValue(SOCIETE)
+    }
+  })
+
+  it.each([
+    ['titulaire supprime le co-gérant déjà relié (il le désactive)', null, LIGNE_COGERANT, 403],
+    ['titulaire retire une invitation de gérant en attente', null, 'ligne-invitation-gerant', 200],
+    ['titulaire se retire lui-même', null, LIGNE_TITULAIRE, 403],
+    ['co-gérant retire le titulaire', 'cogerant', LIGNE_TITULAIRE, 403],
+    ['co-gérant retire un autre co-gérant', 'cogerant', 'ligne-autre-cogerant', 403],
+    ['co-gérant se retire lui-même', 'cogerant', LIGNE_COGERANT, 403],
+    ['co-gérant retire un salarié', 'cogerant', LIGNE, 200],
+  ])('DELETE, %s : %s', async (_cas, appelant, ligneId, statut) => {
+    poserLignes(
+      ligne({ id: 'ligne-invitation-gerant', user_id: null, role: 'GERANT', email: 'futur@exemple.test', accepted_at: null, invite_token: 'empreinte' }),
+      ligne({ id: 'ligne-autre-cogerant', user_id: AUTRE_COGERANT, role: 'GERANT', email: 'autre@exemple.test' }),
+    )
+    if (appelant === 'cogerant') coGerant()
+    const res = await supprimer(ligneId)
+    expect(res.status).toBe(statut)
+    expect(suppressions()).toHaveLength(statut === 200 ? 1 : 0)
+    if (statut === 200) expect(suppressions()[0].eq).toEqual([['id', ligneId], ['company_id', SOCIETE]])
   })
 })

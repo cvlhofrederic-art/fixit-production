@@ -189,6 +189,16 @@ export function isProGerant(user: User): boolean {
   return !teamRole || teamRole === 'GERANT'
 }
 
+/**
+ * Gérant TITULAIRE : le compte dont l'identifiant EST la société (ou super_admin). Un co-gérant invité
+ * (pro_team_role GERANT dans la société d'un autre compte) a les mêmes droits sur les données, mais lui seul crée,
+ * modifie ou retire un gérant (décision du 25/11/2026 : « gérant au même titre que moi », la main sur les gérants
+ * restant au titulaire).
+ */
+export function estTitulaireSociete(user: User): boolean {
+  return isProGerant(user) && !societeDunAutreCompte(user)
+}
+
 // ── Cache company_id en mémoire (TTL 5min) ──────────────────────────────────
 const companyIdCache = new Map<string, { value: string; expiresAt: number }>()
 // 60 s comme le cache voisin : depuis le 24/11/2026 ce rattachement borne TOUT ce qu'un salarié lit et écrit de la

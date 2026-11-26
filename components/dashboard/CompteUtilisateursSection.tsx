@@ -63,6 +63,46 @@ const FORMULAIRE_VIDE = {
 
 const ID_LISTE_CATEGORIES = 'categories-professionnelles-equipe'
 
+/** Refus de /api/pro/team qui portent un code stable (app/api/pro/team/route.ts, REFUS_EQUIPE), traduits ici. */
+const MESSAGES_EQUIPE: Record<string, { pt: string; fr: string }> = {
+  societe_non_resolue: {
+    pt: 'A sua conta não está associada a nenhuma empresa ativa. Peça ao gerente titular que verifique o seu acesso.',
+    fr: "Votre compte n'est rattaché à aucune société active. Demandez au gérant titulaire de vérifier votre accès.",
+  },
+  gerant_reserve: {
+    pt: 'Só o gerente titular da empresa pode criar, alterar ou retirar um gerente.',
+    fr: 'Seul le gérant titulaire de la société peut créer, modifier ou retirer un gérant.',
+  },
+  sa_propre_ligne: {
+    pt: 'Não pode alterar as suas próprias permissões nem o seu próprio acesso.',
+    fr: 'Vous ne pouvez pas modifier vos propres droits ni votre propre accès.',
+  },
+  gerant_lie: {
+    pt: 'Um gerente não se elimina: desative-o (a desativação pode ser revertida, a eliminação não).',
+    fr: 'Un gérant ne se supprime pas : désactivez-le (la désactivation se défait, la suppression non).',
+  },
+  gerant_tous_droits: {
+    pt: 'Um gerente tem todas as permissões: não se restringem módulo a módulo.',
+    fr: 'Un gérant a tous les droits : ses permissions ne se restreignent pas module par module.',
+  },
+}
+
+/** Message à afficher pour une réponse en échec : code connu traduit, sinon le message par défaut de l'écran. */
+function messageDErreur(data: { error?: string; code?: string }, isPt: boolean, defaut: { pt: string; fr: string }): string {
+  const connu = data.code ? MESSAGES_EQUIPE[data.code] : undefined
+  if (connu) return isPt ? connu.pt : connu.fr
+  // Les autres messages du serveur sont en français : sur l'écran portugais, le message par défaut.
+  return isPt ? defaut.pt : (data.error || defaut.fr)
+}
+
+const ERREUR = { pt: 'Erro. Tente novamente.', fr: 'Erreur. Réessayez.' }
+
+/** Mêmes dérogations (module et niveau), dans n'importe quel ordre. */
+function memesDerogations(a: { module_id: string; access_level: string }[], b: { module_id: string; access_level: string }[]): boolean {
+  const cle = (l: { module_id: string; access_level: string }[]) => l.map(d => `${d.module_id}:${d.access_level}`).sort((x, y) => x.localeCompare(y)).join('|')
+  return cle(a) === cle(b)
+}
+
 export default function CompteUtilisateursSection({ artisan, isGerant = false }: Props) {
   const { t, locale } = useTranslation()
   const isPt = locale === 'pt'
@@ -169,7 +209,7 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
         setInviteForm(FORMULAIRE_VIDE)
         fetchMembers(true)
       } else {
-        toast.error(data.error || (isPt ? 'Erro' : 'Erreur'))
+        toast.error(messageDErreur(data, isPt, ERREUR))
       }
     } catch {
       toast.error(isPt ? 'Erro de rede' : 'Erreur réseau')
@@ -191,6 +231,9 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
           ? (isPt ? 'Conta desativada' : 'Compte désactivé')
           : (isPt ? 'Conta reativada' : 'Compte réactivé'))
         fetchMembers(true)
+      } else {
+        // Sans ce message, un refus (ligne d'un gérant, sa propre ligne) laissait croire que le bouton ne faisait rien.
+        toast.error(messageDErreur(await res.json().catch(() => ({})), isPt, ERREUR))
       }
     } catch {
       toast.error(isPt ? 'Erro' : 'Erreur')
@@ -211,6 +254,8 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
       if (res.ok) {
         toast.success(isPt ? 'Membro eliminado' : 'Membre supprimé')
         fetchMembers(true)
+      } else {
+        toast.error(messageDErreur(await res.json().catch(() => ({})), isPt, ERREUR))
       }
     } catch {
       toast.error(isPt ? 'Erro' : 'Erreur')
@@ -269,15 +314,22 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
         .filter(([moduleId, level]) => defaults[moduleId] !== level)
         .map(([module_id, access_level]) => ({ module_id, access_level }))
 
-      // La catégorie n'est envoyée que si elle a changé (texte vide = retirée).
+      // N'est envoyé que ce qui a changé : la catégorie (texte vide = retirée) et les dérogations. Les renvoyer
+      // inchangées comptait comme une modification de droits, refusée sur sa propre ligne : le titulaire ne pouvait plus
+      // saisir sa propre catégorie.
       const categorieModifiee = editCategorie.trim() !== (showPermsModal.job_title ?? '')
+      const derogationsModifiees = !memesDerogations(overrides, showPermsModal.permission_overrides ?? [])
+      if (!categorieModifiee && !derogationsModifiees) {
+        setShowPermsModal(null)
+        return
+      }
       const token = await getAuthToken()
       const res = await fetch('/api/pro/team', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           member_id: showPermsModal.id,
-          permissions: overrides,
+          ...(derogationsModifiees ? { permissions: overrides } : {}),
           ...(categorieModifiee ? { job_title: editCategorie } : {}),
         }),
       })
@@ -285,14 +337,10 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
         toast.success(isPt ? 'Alterações guardadas' : 'Modifications enregistrées')
         setShowPermsModal(null)
         fetchMembers(true)
-      } else if (isPt) {
-        // Les messages du serveur sont en français : écran portugais, message portugais.
-        toast.error(res.status === 400
-          ? `Categoria ou permissões inválidas (máximo ${LONGUEUR_MAX_CATEGORIE} caracteres, sem caracteres especiais).`
-          : 'Erro ao guardar. Tente novamente.')
       } else {
-        const data = await res.json().catch(() => ({}))
-        toast.error(data.error || "Erreur lors de l'enregistrement")
+        toast.error(messageDErreur(await res.json().catch(() => ({})), isPt, res.status === 400
+          ? { pt: `Categoria ou permissões inválidas (máximo ${LONGUEUR_MAX_CATEGORIE} caracteres, sem caracteres especiais).`, fr: "Erreur lors de l'enregistrement" }
+          : { pt: 'Erro ao guardar. Tente novamente.', fr: "Erreur lors de l'enregistrement" }))
       }
     } catch {
       toast.error(isPt ? 'Erro' : 'Erreur')
@@ -480,7 +528,7 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
       <div className="v5-card">
         <div className="v5-st">{isPt ? 'Papéis & permissões' : 'Rôles & permissions'}</div>
         <div style={{ fontSize: 11, color: '#666', lineHeight: 1.6 }}>
-          <strong>{ROLE_LABELS.GERANT[isPt ? 'pt' : 'fr']}</strong>{separateurRole}{isPt ? 'acesso total. Único com permissão para gerir contas.' : 'accès complet. Seul à gérer les comptes.'}<br/>
+          <strong>{ROLE_LABELS.GERANT[isPt ? 'pt' : 'fr']}</strong>{separateurRole}{isPt ? 'acesso total e gestão das contas. Só o gerente titular cria ou retira gerentes.' : 'accès complet et gestion des comptes. Seul le gérant titulaire crée ou retire un gérant.'}<br/>
           <strong>{ROLE_LABELS.CONDUCTEUR_TRAVAUX[isPt ? 'pt' : 'fr']}</strong>{separateurRole}{droitsTerrain}<br/>
           <strong>{ROLE_LABELS.CHEF_CHANTIER[isPt ? 'pt' : 'fr']}</strong>{separateurRole}{droitsTerrain}<br/>
           <strong>{ROLE_LABELS.SECRETAIRE[isPt ? 'pt' : 'fr']}</strong>{separateurRole}{isPt ? 'todas as permissões, exceto a gestão de contas.' : 'tous les droits, sauf la gestion des comptes.'}<br/>
