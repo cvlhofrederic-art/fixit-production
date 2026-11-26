@@ -7,6 +7,7 @@ import {
   lireDonneesAppels,
   ouvrirExercice,
 } from '@/lib/administrateur-judiciaire/db/appels-de-fonds'
+import { enregistrerModeComptesCabinet } from '@/lib/administrateur-judiciaire/db/comptes-bancaires'
 import { echeancesAppelDuSyndicat } from '@/lib/administrateur-judiciaire/db/echeances-appel'
 import { repoComptesCoproprietaires, repoIdentites, repoPositions } from '@/lib/administrateur-judiciaire/db/repositories'
 import { viderBaseLocale } from '@/lib/administrateur-judiciaire/db/reset'
@@ -270,7 +271,7 @@ describe('lecture des données de l’écran', () => {
     ])
     await ajDb.comptesCoproprietaires.update('c2', { reprise: { coproprietaireId: 'f2', soldeDuCentimes: 0, statutFiche: 'Contentieux', releveLe: '2026-11-01' } })
     await ajDb.impayes.add({ id: 'imp-1', coproprietaireId: 'f2', montant: 100, statut: 'procedure:2026-10-01', ...SUIVI })
-    const lues = await lireDonneesAppels('C1')
+    const lues = await lireDonneesAppels('C1', 'M1')
     expect(lues.lots.map((l) => l.id)).toEqual(['L1', 'L2', 'L3'])
     expect(lues.comptes.map((c) => c.id)).toEqual(['c1', 'c2', 'c3'])
     expect(lues.positions.map((p) => p.id)).toEqual(['p1', 'p2', 'p3'])
@@ -281,5 +282,31 @@ describe('lecture des données de l’écran', () => {
     expect([...lues.comptesEnContentieux]).toEqual(['c2'])
     expect(lues.exercices).toEqual([])
     expect(lues.pieces).toEqual([])
+  })
+})
+
+describe('ap-03 — mode de tenue lu avec les données de l’écran (décision du 22/11/2026)', () => {
+  const lu = async (mandatId: string | null) => (await lireDonneesAppels('C1', mandatId)).modeComptes
+
+  it('choix du mandat, à défaut réglage du cabinet ; sans mandat, le réglage du cabinet', async () => {
+    expect(await lu('M1')).toEqual({ resolu: { mode: 'compte_separe_syndicat', origine: 'cabinet' }, erreur: null })
+    await enregistrerModeComptesCabinet('caisse_depots')
+    expect(await lu('M1')).toEqual({ resolu: { mode: 'caisse_depots', origine: 'cabinet' }, erreur: null })
+    await ajDb.mandats.update('M1', { modeComptesBancaires: 'centralisateur_cabinet' })
+    expect(await lu('M1')).toEqual({ resolu: { mode: 'centralisateur_cabinet', origine: 'mandat' }, erreur: null })
+    expect(await lu(null)).toEqual({ resolu: { mode: 'caisse_depots', origine: 'cabinet' }, erreur: null })
+    expect(await lu('')).toEqual({ resolu: { mode: 'caisse_depots', origine: 'cabinet' }, erreur: null })
+  })
+
+  it('mandat d’un autre syndicat ou introuvable, mode inconnu, réglage du cabinet illisible : erreur gardée, le reste est lu', async () => {
+    expect(await lu('M2')).toEqual({ resolu: null, erreur: "mandat « M2 » d'un autre syndicat" })
+    expect(await lu('M404')).toEqual({ resolu: null, erreur: 'mandat « M404 » introuvable' })
+    await ajDb.mandats.update('M1', { modeComptesBancaires: 'livret' as never })
+    expect(await lu('M1')).toEqual({ resolu: null, erreur: 'Mode de tenue inconnu : « livret ».' })
+    await ajDb.mandats.update('M1', { modeComptesBancaires: null })
+    await ajDb.cabinets.add({ id: 'cab-1', modeComptesBancaires: 'livret' as never, ...SUIVI })
+    const lues = await lireDonneesAppels('C1', 'M1')
+    expect(lues.modeComptes).toEqual({ resolu: null, erreur: 'réglage du cabinet illisible (mode de tenue inconnu : « livret »)' })
+    expect(lues.lots.map((l) => l.id)).toEqual(['L1', 'L2', 'L3'])
   })
 })
