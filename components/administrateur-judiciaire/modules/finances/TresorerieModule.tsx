@@ -161,7 +161,7 @@ export function TresorerieModule() {
       <PageHead
         eyebrow="Comptabilité & finances · chantier 1"
         title="Banque et recouvrement"
-        lede="Import du relevé, rapprochement des encaissements avec les copropriétaires, dossiers de recouvrement de l'art. 19-2. Données persistées dans la base locale."
+        lede="Import du relevé, imputation des encaissements aux copropriétaires, dossiers de recouvrement de l'art. 19-2. Données persistées dans la base locale."
         actions={
           <SelecteurCopropriete value={codeCopro} onChange={choisirCopro} />
         }

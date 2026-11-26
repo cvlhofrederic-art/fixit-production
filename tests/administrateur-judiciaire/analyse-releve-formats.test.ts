@@ -48,7 +48,9 @@ describe('analyse d’un relevé structuré', () => {
       [2, 1, 'nouveau'],
     ])
     expect(analyse.releves[0].designation).toBe('Relevé 1 (RIB 12345 00010 00012345678 clé 49, du 30/09/2026 au 05/10/2026)')
-    expect(analyse.releves[0].ancienSolde).toMatch(/EUR$/)
+    // Décision du 26/11/2026 (PR 799, rb-c08 A) : « 1 250,00 € » à l'écran, et non « 1 250,00 EUR ».
+    expect(analyse.releves[0].ancienSolde).toBe('1 250,00 €')
+    expect(analyse.releves[0].nouveauSolde).toBe('472,94 €')
     expect(analyse.retenues.map((ligne) => ligne.montant)).toEqual([350, -1234.56, 120, -12.5, -600])
     expect(analyse.doublons).toEqual([])
   })

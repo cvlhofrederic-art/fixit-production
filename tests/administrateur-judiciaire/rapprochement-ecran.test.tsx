@@ -94,7 +94,7 @@ describe('Rapprochement : panneau et « Nouvel arrêté »', () => {
     await rendre()
     const titres = screen.getAllByRole('heading', { level: 3 }).map((titre) => titre.textContent)
     expect(titres.slice(0, 3)).toEqual(['Comptes bancaires du mandat', 'Rapprochement bancaire', 'Importer un relevé'])
-    expect(dansPanneau().getByLabelText('Compte rapproché')).toHaveDisplayValue('Compte principal · FR76 3000 6000 0112 3456 7890 189')
+    expect(dansPanneau().getByLabelText('Compte rapproché')).toHaveDisplayValue('Compte principal · …0189')
     expect(dansPanneau().getByText('Aucun arrêté pour ce compte.')).toBeInTheDocument()
     expect(dansPanneau().getByRole('button', { name: /Nouvel arrêté/ })).toBeEnabled()
   })
@@ -387,5 +387,71 @@ describe('Rapprochement : solde compta recalculé jusqu’à la clôture, puis f
     const texte = screen.getByRole('dialog').textContent
     expect(texte).toContain('Lignes de relevé importées sur ce compte jusqu’à cette date ; montant recalculé jusqu’à la clôture de l’arrêté, puis figé.')
     expect(texte).not.toContain('figé à l’ouverture')
+  })
+})
+
+describe('Rapprochement : corrections de la décision du 26/11/2026 (rb-13, rb-c02, rb-c03, rb-c04, rb-c05)', () => {
+  it('rb-13 B : les taux « Rapproché auto » et « manuel » sont masqués tant que le pointage n’existe pas ; la phrase reste', async () => {
+    await ouvrirArreteCompte(banqueId, { dateArrete: '2026-05-31', soldeBanqueCentimes: 32_950 })
+    await rendre()
+    expect(panneau().textContent).not.toMatch(/Rapproché auto|manuel/)
+    expect(panneau().textContent).not.toContain('0 %')
+    expect(dansPanneau().getByText(/Aucun élément à pointer/)).toBeInTheDocument()
+    // Les soldes et l'écart restent.
+    expect(panneau().textContent).toContain('Solde banque')
+    expect(panneau().textContent).toContain('Écart')
+  })
+
+  it('rb-c02 A : séparateur des milliers visible (espace de pleine largeur) dans le panneau, la liste et le formulaire', async () => {
+    // Compta au 31/05 : 329,50 + 1 500,00 = 1 829,50 ; solde banque saisi : 1 958,10.
+    await importerReleveSurCompte('C2', banqueId, [{ date: '2026-05-25', libelle: 'VIR GROS MONTANT', montant: 1500 }])
+    const premier = await ouvrirArreteCompte(banqueId, { dateArrete: '2026-04-30', soldeBanqueCentimes: 0 })
+    await cloturerArreteCompte(premier.id)
+    await ouvrirArreteCompte(banqueId, { dateArrete: '2026-05-31', soldeBanqueCentimes: 195_810 })
+    await rendre()
+    const texte = panneau().textContent ?? ''
+    expect(texte).toContain('Solde banque 1\u00a0958,10\u00a0€')
+    expect(texte).toContain('Solde compta 1\u00a0829,50\u00a0€')
+    expect(texte).toContain('Écart 128,60\u00a0€')
+    const ligne = within(dansPanneau().getByRole('table', { name: 'Arrêtés du compte' })).getAllByRole('row')[1]
+    expect(ligne.textContent).toContain('1\u00a0958,10\u00a0€')
+    // Aucune espace fine insécable (U+202F), presque invisible dans la police du panneau.
+    expect(texte).not.toContain('\u202f')
+    // Formulaire : après l'abandon de l'arrêté en cours.
+    fireEvent.click(dansPanneau().getByRole('button', { name: 'Abandonner l’arrêté du 31/05/2026' }))
+    await cliquerEtAttendre(dialogue().getByRole('button', { name: 'Abandonner l’arrêté' }))
+    fireEvent.click(dansPanneau().getByRole('button', { name: /Nouvel arrêté/ }))
+    fireEvent.change(dialogue().getByLabelText('Date de l’arrêté'), { target: { value: '2026-05-31' } })
+    expect(screen.getByRole('dialog').textContent).toContain('Solde compta du sous-compte 512 au 31/05/2026 : 1\u00a0829,50\u00a0€')
+    expect(screen.getByRole('dialog').textContent).not.toContain('\u202f')
+  })
+
+  it('rb-c03 A : un espace avant la ligne du solde compta dans « Nouvel arrêté »', async () => {
+    await rendre()
+    fireEvent.click(dansPanneau().getByRole('button', { name: /Nouvel arrêté/ }))
+    const ligne = screen.getByText(/Solde compta du sous-compte 512/).closest('p') as HTMLElement
+    expect(ligne.previousElementSibling?.className).toBe('field-row')
+    expect(Number.parseFloat(ligne.style.marginTop)).toBeGreaterThanOrEqual(12)
+  })
+
+  it('rb-c04 A : « Arrêtés du compte » prête à passer en fiches sur téléphone (classe et étiquette de chaque valeur)', async () => {
+    const premier = await ouvrirArreteCompte(banqueId, { dateArrete: '2026-04-30', soldeBanqueCentimes: 0 })
+    await cloturerArreteCompte(premier.id)
+    await ouvrirArreteCompte(banqueId, { dateArrete: '2026-05-31', soldeBanqueCentimes: 32_950 })
+    await rendre()
+    const tableau = dansPanneau().getByRole('table', { name: 'Arrêtés du compte' })
+    expect(tableau).toHaveClass('vfx-fiches')
+    const cellules = within(within(tableau).getAllByRole('row')[1]).getAllByRole('cell')
+    expect(cellules.map((cellule) => cellule.getAttribute('data-label'))).toEqual(['Date', 'Solde banque', 'Solde compta', 'Écart', 'Statut'])
+  })
+
+  it('rb-c05 A : liste des comptes à libellé court, le nom du compte et la fin de l’IBAN', async () => {
+    const autre = await enregistrerCompteBancaire('C2', { nature: 'fonds_travaux', libelle: 'Fonds de travaux', iban: IBAN_B, bic: null, etablissement: null })
+    await enregistrerCompteBancaire('C2', { nature: 'placement', libelle: 'Placement sans IBAN', iban: null, bic: null, etablissement: null })
+    await rendre()
+    const liste = dansPanneau().getByLabelText('Compte rapproché') as HTMLSelectElement
+    // Ordre de la liste : celui de la base (création dans la même milliseconde), donc comparé sans l'ordre.
+    expect(Array.from(liste.options).map((option) => option.text).sort()).toEqual(['Compte principal · …0189', 'Fonds de travaux · …2606', 'Placement sans IBAN'])
+    expect(Array.from(liste.options).map((option) => option.value)).toContain(autre.id)
   })
 })

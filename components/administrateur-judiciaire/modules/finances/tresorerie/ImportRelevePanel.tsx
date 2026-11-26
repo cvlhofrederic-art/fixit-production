@@ -38,6 +38,8 @@ import type { PersonneCopropriete } from '@/lib/administrateur-judiciaire/domain
  * (lecture du fichier), l'import non. Changer de copropriété ou de compte abandonne l'analyse, faite pour l'ancien.
  * Formats : CSV, CFONB 120 et camt.053 (analyse-releve.ts) ; fichier lu en UTF-8, à défaut en Windows-1252, refusé
  * avant lecture au-delà de 10 Mo ; un fichier structuré qui contient une erreur n'est pas importé.
+ * Décision du 26/11/2026 (PR 799) : sur téléphone, « Importer N lignes » passe sous la phrase, en entier (rb-c06 A, classe
+ * vfx-import-actions, règles de aj-correctifs.css) ; le motif « Aucun compte bancaire actif » n'est dit qu'une fois (rb-c08 A).
  */
 
 /** Fichiers proposés : CSV, CFONB 120 (.txt, .cfonb) et camt.053 (.xml, .053). */
@@ -154,6 +156,9 @@ export function ImportRelevePanel({ copro, comptes, etatComptes, personnes, lign
   }
   if (analyse && !analyseValablePour(analyse, compteChoisi)) setAnalyse(null)
   const motifCompte = motifSansCompte(etatComptes, actifs.length, compteChoisi)
+  // « Aucun compte bancaire actif » est déjà dit sous la liste des comptes : pas répété dans le bandeau (rb-c08 A, décision
+  // du 26/11/2026). Le bouton reste inactif et la zone aria-live l'annonce toujours avec le résultat de l'analyse.
+  const motifDejaAffiche = motifCompte === AUCUN_COMPTE_ACTIF && etatComptes === 'lu'
 
   const analyser = () => {
     const resultat = analyserReleve({
@@ -259,17 +264,17 @@ export function ImportRelevePanel({ copro, comptes, etatComptes, personnes, lign
           }}
         >
           <ResultatAnalyseReleve analyse={analyse} personnes={personnes} selections={selections} setSelections={setSelections} />
-          {motifCompte && (
+          {motifCompte && !motifDejaAffiche && (
             <Alert kind="warn" icon="alert" title="Import impossible">
               {motifCompte}
             </Alert>
           )}
           <div
+            className="vfx-import-actions"
             style={{
               marginTop: 10,
               display: 'flex',
               gap: 10,
-              alignItems: 'center',
             }}
           >
             <button

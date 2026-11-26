@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import type { ValeursArrete } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/arretes-vue'
+import { eurosArrete, type ValeursArrete } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/arretes-vue'
 import { nomDuCompte } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/CompteBancaireModal'
 import type { CompteAffiche, EcritureSolde } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/comptes-bancaires-vue'
 import { Field, FieldRow } from '@/components/administrateur-judiciaire/ui/Field'
@@ -9,7 +9,6 @@ import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/components/administrateur-judiciaire/ui/Modal'
 import { compteBanque, soldeCompteCentimes } from '@/lib/administrateur-judiciaire/db/sous-comptes-banque'
 import { dateIsoVersFr, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
-import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
 import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
 
 /**
@@ -18,7 +17,8 @@ import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
  * compte ». Saisie : date de l'arrêté (aujourd'hui proposé) et solde banque du relevé. Le solde compta n'est pas saisi :
  * il est montré, calculé sur le sous-compte 512 du compte à la date (le même calcul que l'écriture, db/rapprochements.ts).
  * Ce montant n'est plus figé à l'ouverture (décision du 26/11/2026, PR 799, rb-03 A) : il est recalculé jusqu'à la
- * clôture, et le formulaire le dit.
+ * clôture, et le formulaire le dit. Même décision : un espace avant la ligne du solde compta, qui ne se lit plus comme la
+ * suite de l'aide du solde banque (rb-c03 A), et un séparateur des milliers visible (rb-c02 A).
  * Aucune règle ici : l'écran contrôle la saisie et l'écriture applique le domaine ; un refus est signalé par un toast,
  * la modale restant ouverte.
  */
@@ -60,13 +60,13 @@ export function NouvelArreteModal({ compte, ecrituresBanque, onClose, onEnregist
             />
           </Field>
         </FieldRow>
-        <p className="muted" style={{ margin: 0, fontSize: 12.5 }}>
+        <p className="muted" style={{ margin: '14px 0 0', fontSize: 12.5 }}>
           {soldeCompta === null ? (
             'Solde compta : date de l’arrêté à saisir.'
           ) : (
             <>
               {`Solde compta du sous-compte 512 au ${dateIsoVersFr(valeurs.date)} : `}
-              <b>{formatEurosCentimes(soldeCompta / 100)}</b>
+              <b>{eurosArrete(soldeCompta)}</b>
             </>
           )}
         </p>

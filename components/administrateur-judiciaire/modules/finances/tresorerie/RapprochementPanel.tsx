@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { AbandonArreteModal } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/AbandonArreteModal'
-import { arreteCourant, controlerSaisieArrete, type ValeursArrete } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/arretes-vue'
+import { arreteCourant, controlerSaisieArrete, eurosArrete, type ValeursArrete } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/arretes-vue'
 import {
   ChoixCompteBancaire,
   comptesActifs,
@@ -25,7 +25,6 @@ import {
 } from '@/lib/administrateur-judiciaire/db/rapprochements'
 import { useArretesRapprochement, type ArretesLusEcran } from '@/lib/administrateur-judiciaire/db/use-arretes'
 import { dateIsoVersFr } from '@/lib/administrateur-judiciaire/domain/dates'
-import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
 import { etatArrete, type ArreteRapprochement } from '@/lib/administrateur-judiciaire/domain/rapprochement-bancaire'
 import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
 
@@ -46,12 +45,15 @@ import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
  *   enregistre ce solde et le fige. Même mise en page.
  * - Aucun élément à pointer : les écritures du compte viennent toutes du relevé importé, le côté compta indépendant
  *   (règlements, remises) n'est pas branché ; les cases « Auto / Pointé / En suspens » de la maquette n'ont donc rien à
- *   montrer, et le panneau le dit.
+ *   montrer, et le panneau le dit. Décision du 26/11/2026 (rb-13 B) : les taux « Rapproché auto » et « manuel », toujours
+ *   à 0 % sans pointage, sont masqués tant qu'aucun élément n'est pointé ; ils reviendront avec le pointage.
+ * - Décision du 26/11/2026 (rb-c02 A) : montants avec un séparateur des milliers visible (eurosArrete).
  * - Sur téléphone : statut et actions secondaires dans le corps (l'en-tête ne garde qu'un bouton), indicateurs en une
- *   colonne (card-grid cols-4), liste des arrêtés dans son cadre défilant (tbl-wrap).
+ *   colonne (card-grid cols-4), liste des arrêtés en une fiche par arrêté (rb-c04 A : classe vfx-fiches, étiquette de
+ *   chaque valeur dans data-label, règles de aj-correctifs.css).
  */
 
-const euros = (centimes: number): string => formatEurosCentimes(centimes / 100)
+const euros = eurosArrete
 const messageErreur = (erreur: unknown): string => (erreur instanceof Error ? erreur.message : String(erreur))
 
 const STYLE_MONTANT = { textAlign: 'right', whiteSpace: 'nowrap' } as const
@@ -182,9 +184,11 @@ function ArreteAffiche({ arrete, decloturer, abandonner, occupe }: Readonly<{ ar
           {'Écart '}
           <b style={{ color: etat.equilibre ? 'var(--sage-700)' : 'var(--rust-500)' }}>{euros(etat.ecartCentimes)}</b>
         </div>
-        <div>
-          Rapproché auto {etat.tauxAutoPct} % · manuel {etat.tauxManuelPct} %
-        </div>
+        {arrete.elements.length > 0 && (
+          <div>
+            Rapproché auto {etat.tauxAutoPct} % · manuel {etat.tauxManuelPct} %
+          </div>
+        )}
       </div>
       {arrete.elements.length === 0 && (
         <p className="muted" style={{ fontSize: 12.5, margin: '0 0 8px' }}>
@@ -204,7 +208,7 @@ function ListeArretes({ arretes }: Readonly<{ arretes: readonly ArreteRapprochem
   const lignes = [...arretes].sort((a, b) => b.dateArrete.localeCompare(a.dateArrete))
   return (
     <div className="tbl-wrap" style={{ marginTop: 14 }}>
-      <table className="tbl" aria-label="Arrêtés du compte">
+      <table className="tbl vfx-fiches" aria-label="Arrêtés du compte">
         <thead>
           <tr>
             <th>Date</th>
@@ -217,17 +221,19 @@ function ListeArretes({ arretes }: Readonly<{ arretes: readonly ArreteRapprochem
         <tbody>
           {lignes.map((arrete) => (
             <tr key={arrete.id}>
-              <td className="num-cell">{dateIsoVersFr(arrete.dateArrete)}</td>
-              <td className="num-cell" style={STYLE_MONTANT}>
+              <td className="num-cell" data-label="Date">
+                {dateIsoVersFr(arrete.dateArrete)}
+              </td>
+              <td className="num-cell" style={STYLE_MONTANT} data-label="Solde banque">
                 {euros(arrete.soldeBanqueCentimes)}
               </td>
-              <td className="num-cell" style={STYLE_MONTANT}>
+              <td className="num-cell" style={STYLE_MONTANT} data-label="Solde compta">
                 {euros(arrete.soldeComptaCentimes)}
               </td>
-              <td className="num-cell" style={STYLE_MONTANT}>
+              <td className="num-cell" style={STYLE_MONTANT} data-label="Écart">
                 {euros(etatArrete(arrete).ecartCentimes)}
               </td>
-              <td>{arrete.statut}</td>
+              <td data-label="Statut">{arrete.statut}</td>
             </tr>
           ))}
         </tbody>

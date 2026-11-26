@@ -4,7 +4,7 @@ import { Component, useEffect, useState, type ErrorInfo, type ReactNode } from '
 import { Shell } from '@/components/administrateur-judiciaire/shell/Shell'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { ToastProvider } from '@/components/administrateur-judiciaire/ui/toast'
-import { initialiserBaseDemo } from '@/lib/administrateur-judiciaire/db/seed-demo'
+import { ajouterCompteBancaireDemo, initialiserBaseDemo } from '@/lib/administrateur-judiciaire/db/seed-demo'
 
 /**
  * Racine de la succursale Administrateur Judiciaire (chargée côté client uniquement par ChargeurApplication).
@@ -18,9 +18,11 @@ let demarrage: Promise<void> | null = null
 /** Initialise la base locale une seule fois ; la promesse est toujours tenue (l'échec est seulement signalé). */
 export function demarrerApplication(): Promise<void> {
   if (!demarrage)
-    demarrage = initialiserBaseDemo().catch((erreur: unknown) => {
-      console.warn('VitFix · base locale indisponible :', erreur)
-    })
+    demarrage = initialiserBaseDemo()
+      .then(ajouterCompteBancaireDemo)
+      .catch((erreur: unknown) => {
+        console.warn('VitFix · base locale indisponible :', erreur)
+      })
   return demarrage
 }
 

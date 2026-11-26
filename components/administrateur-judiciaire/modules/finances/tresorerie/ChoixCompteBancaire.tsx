@@ -1,7 +1,7 @@
 'use client'
 
 import { nomDuCompte } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/CompteBancaireModal'
-import { ibanGroupe, type CompteAffiche } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/comptes-bancaires-vue'
+import type { CompteAffiche } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/comptes-bancaires-vue'
 import { Field } from '@/components/administrateur-judiciaire/ui/Field'
 
 /**
@@ -15,9 +15,12 @@ export type EtatComptes = 'chargement' | 'erreur' | 'lu'
 
 export const AUCUN_COMPTE_ACTIF = 'Aucun compte bancaire actif : enregistrer d’abord le compte dans « Comptes bancaires du mandat ».'
 
-/** Libellé d'un compte dans la liste : son nom et son IBAN groupé. */
+/**
+ * Libellé court d'un compte dans la liste (décision du 26/11/2026, PR 799, rb-c05 A) : son nom et la fin de son IBAN
+ * (« Compte principal · …0189 »). L'IBAN entier, groupé, coupé sur téléphone, reste dans « Comptes bancaires du mandat ».
+ */
 export const libelleCompte = (compte: CompteAffiche): string =>
-  compte.iban ? `${nomDuCompte(compte)} · ${ibanGroupe(compte.iban)}` : nomDuCompte(compte)
+  compte.iban ? `${nomDuCompte(compte)} · …${compte.iban.replaceAll(/\s+/g, '').slice(-4)}` : nomDuCompte(compte)
 
 /** Comptes proposés : les comptes actifs, une fois les comptes lus. */
 export const comptesActifs = (comptes: readonly CompteAffiche[], etat: EtatComptes): CompteAffiche[] =>

@@ -1,5 +1,6 @@
 import type { SaisieArrete } from '@/lib/administrateur-judiciaire/db/rapprochements'
 import { estDateIsoValide, messagePlausibilite, plausibiliteDate } from '@/lib/administrateur-judiciaire/domain/dates'
+import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
 import { parserMontant } from '@/lib/administrateur-judiciaire/domain/import/csv'
 import type { ArreteRapprochement } from '@/lib/administrateur-judiciaire/domain/rapprochement-bancaire'
 
@@ -8,6 +9,13 @@ import type { ArreteRapprochement } from '@/lib/administrateur-judiciaire/domain
  * contrôle de la saisie de « Nouvel arrêté » avant l'écriture (db/rapprochements.ts, qui applique les règles du
  * domaine). Fonctions pures.
  */
+
+/**
+ * Montant d'un arrêté en euros, pour le panneau et le formulaire (décision du 26/11/2026, PR 799, rb-c02 A) : le
+ * séparateur des milliers est une espace insécable de pleine largeur (U+00A0), et non l'espace fine insécable (U+202F) de
+ * Intl, presque invisible dans la police du panneau (« 1958,10 € » au lieu de « 1 958,10 € »).
+ */
+export const eurosArrete = (centimes: number): string => formatEurosCentimes(centimes / 100).replaceAll('\u202f', '\u00a0')
 
 /** Arrêté affiché : celui en cours, sinon le dernier par date ; null sans arrêté. */
 export function arreteCourant(arretes: readonly ArreteRapprochement[]): ArreteRapprochement | null {

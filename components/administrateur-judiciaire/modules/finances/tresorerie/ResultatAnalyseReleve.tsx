@@ -4,6 +4,8 @@ import type { Dispatch, SetStateAction } from 'react'
 import {
   LIBELLES_FORMAT_RELEVE,
   PILL_CONFIANCE_RAPPROCHEMENT,
+  textePourEcran,
+  texteBlocage,
   type AnalyseReleve,
   type ReleveLu,
   type SelectionsImputation,
@@ -31,7 +33,7 @@ const enLignes = (textes: readonly string[]) =>
   textes.map((texte, index) => (
     // Clé avec l'index : deux relevés refusés peuvent donner le même message.
     <span key={`${index}-${texte}`} style={STYLE_LIGNE}>
-      {texte}
+      {textePourEcran(texte)}
     </span>
   ))
 
@@ -43,7 +45,7 @@ function BandeauxLecture({ analyse }: Readonly<{ analyse: AnalyseReleve }>) {
     <>
       {analyse.blocage && (
         <Alert kind="rust" icon="alert" title="Import bloqué">
-          <span style={STYLE_LIGNE}>{analyse.blocage}</span>
+          <span style={STYLE_LIGNE}>{texteBlocage(analyse.blocage)}</span>
           {structure && enLignes(analyse.erreurs)}
         </Alert>
       )}
@@ -71,11 +73,14 @@ function BandeauxLecture({ analyse }: Readonly<{ analyse: AnalyseReleve }>) {
   )
 }
 
-/** Relevés lus d'un fichier CFONB 120 ou camt.053, dans l'ordre du fichier ; défile dans son cadre sur téléphone. */
+/**
+ * Relevés lus d'un fichier CFONB 120 ou camt.053, dans l'ordre du fichier ; sur téléphone, une fiche par relevé, les valeurs
+ * les unes sous les autres (rb-c04 A : classe vfx-fiches, étiquette de chaque valeur dans data-label).
+ */
 function TableauRelevesLus({ releves }: Readonly<{ releves: readonly ReleveLu[] }>) {
   return (
     <div className="tbl-wrap" style={{ marginBottom: 12 }}>
-      <table className="tbl" aria-label="Relevés lus">
+      <table className="tbl vfx-fiches" aria-label="Relevés lus">
         <thead>
           <tr>
             <th>Relevé</th>
@@ -88,17 +93,17 @@ function TableauRelevesLus({ releves }: Readonly<{ releves: readonly ReleveLu[] 
         <tbody>
           {releves.map((releve) => (
             <tr key={releve.rang}>
-              <td>{releve.designation}</td>
-              <td className="num-cell" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+              <td data-label="Relevé">{releve.designation}</td>
+              <td className="num-cell" style={{ textAlign: 'right', whiteSpace: 'nowrap' }} data-label="Ancien solde">
                 {releve.ancienSolde}
               </td>
-              <td className="num-cell" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+              <td className="num-cell" style={{ textAlign: 'right', whiteSpace: 'nowrap' }} data-label="Nouveau solde">
                 {releve.nouveauSolde}
               </td>
-              <td className="num-cell" style={{ textAlign: 'right' }}>
+              <td className="num-cell" style={{ textAlign: 'right' }} data-label="Mouvements">
                 {releve.mouvements}
               </td>
-              <td>
+              <td data-label="État">
                 {releve.etat === 'nouveau' ? (
                   <Pill kind="sage" noDot>
                     Contrôlé
@@ -212,7 +217,8 @@ function TableauLignesRetenues({ analyse, personnes, selections, setSelections }
           render: (ligne) => <CelluleCoproprietaire ligne={ligne} personnes={personnes} selections={selections} setSelections={setSelections} />,
         },
         {
-          h: 'Rapprochement',
+          // Imputation proposée à un copropriétaire : « Rapprochement » désigne le rapprochement bancaire (rb-19 A, décision du 26/11/2026).
+          h: 'Imputation proposée',
           render: (ligne) => <CelluleImputationProposee ligne={ligne} />,
         },
       ]}

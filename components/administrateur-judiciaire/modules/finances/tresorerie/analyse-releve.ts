@@ -1,5 +1,6 @@
 import type { Ecriture } from '@/lib/administrateur-judiciaire/db/schema'
 import { COMPTE_BANQUE_NON_RATTACHE, compteBanque } from '@/lib/administrateur-judiciaire/db/sous-comptes-banque'
+import { ibanGroupe } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/comptes-bancaires-vue'
 import { dateVersIso } from '@/lib/administrateur-judiciaire/domain/dates'
 import { dedoublonnerRelevesStructures } from '@/lib/administrateur-judiciaire/domain/import/doublons-releves'
 import { lireReleve, type FormatReleve, type LectureReleve } from '@/lib/administrateur-judiciaire/domain/import/lecture-releve'
@@ -167,11 +168,28 @@ function lignesExistantes(entree: EntreeAnalyseReleve): LigneReleve[] {
   return entree.lignesBanque.filter((ecriture) => comptes === null || comptes.has(ecriture.compte)).map(ligneDeLEcriture)
 }
 
+/**
+ * Texte du domaine tel que l'écran le montre (décision du 26/11/2026, PR 799, rb-c08 A) : l'IBAN d'un relevé camt.053 est
+ * groupé par quatre, comme partout ailleurs dans le module. Le domaine garde l'IBAN tel que lu dans le fichier.
+ */
+export const textePourEcran = (texte: string): string =>
+  texte.replaceAll(/\bIBAN ([A-Z]{2}\d{2}[A-Z0-9]{11,30})\b/g, (_, iban: string) => `IBAN ${ibanGroupe(iban)}`)
+
+/** Montant d'un relevé lu pour « Relevés lus » : le symbole de l'euro à la place du code « EUR » (rb-c08 A) ; autre devise : son code. */
+const montantLu = (montantMineur: number, decimales: number, devise: string): string =>
+  formaterMontantMineur(montantMineur, decimales, devise).replace(/ EUR$/, ' €')
+
+/** Motif du blocage sans son préambule « Import bloqué : » (le bandeau le porte en titre), première lettre en majuscule. */
+export function texteBlocage(blocage: string): string {
+  const texte = blocage.replace(/^Import bloqué\s*:\s*/, '')
+  return texte.charAt(0).toLocaleUpperCase('fr-FR') + texte.slice(1)
+}
+
 const releveLu = (releve: ReleveCompte, etat: ReleveLu['etat']): ReleveLu => ({
   rang: releve.rang,
-  designation: designationReleve(releve.rang, releve.compte, releve.dateOuverture, releve.dateCloture),
-  ancienSolde: formaterMontantMineur(releve.soldeOuvertureMineur, releve.decimales, releve.devise),
-  nouveauSolde: formaterMontantMineur(releve.soldeClotureMineur, releve.decimales, releve.devise),
+  designation: textePourEcran(designationReleve(releve.rang, releve.compte, releve.dateOuverture, releve.dateCloture)),
+  ancienSolde: montantLu(releve.soldeOuvertureMineur, releve.decimales, releve.devise),
+  nouveauSolde: montantLu(releve.soldeClotureMineur, releve.decimales, releve.devise),
   mouvements: releve.mouvements.length,
   etat,
 })

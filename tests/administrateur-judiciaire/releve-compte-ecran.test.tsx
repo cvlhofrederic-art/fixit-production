@@ -98,6 +98,16 @@ describe('Import du relevé : choix du compte bancaire', () => {
     )
   })
 
+  it('rb-c08 A : sans compte, le motif « Aucun compte bancaire actif… » n’apparaît qu’une fois à l’écran (décision du 26/11/2026)', async () => {
+    await rendre()
+    analyser(CSV)
+    const motif = 'Aucun compte bancaire actif : enregistrer d’abord le compte dans « Comptes bancaires du mandat ».'
+    expect(panneauImport().getAllByText(motif)).toHaveLength(1)
+    expect(boutonImporter()).toBeDisabled()
+    // Annoncé aux lecteurs d'écran avec le résultat de l'analyse (zone aria-live), comme avant.
+    expect(panneau('Importer un relevé').querySelector('.sr-only[aria-live="polite"]')?.textContent).toContain(`Import impossible : ${motif}`)
+  })
+
   it('compte clôturé : jamais proposé', async () => {
     const ferme = await ajouterCompte('Ancien compte', IBAN_B)
     await cloturerCompteBancaire(ferme.id)
@@ -108,7 +118,7 @@ describe('Import du relevé : choix du compte bancaire', () => {
   it('un seul compte actif : choisi d’office ; les lignes vont à son sous-compte 512, le solde s’affiche par compte', async () => {
     const compte = await ajouterCompte('Compte principal', IBAN_A)
     const { push } = await rendre()
-    expect(choixCompte()).toHaveDisplayValue('Compte principal · FR76 3000 6000 0112 3456 7890 189')
+    expect(choixCompte()).toHaveDisplayValue('Compte principal · …0189')
     analyser(CSV)
     expect(boutonImporter()).toBeEnabled()
     expect(await importer(push)).toMatchObject({ kind: 'success', title: 'Relevé importé' })

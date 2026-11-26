@@ -86,8 +86,10 @@ describe('Import des relevés CFONB 120 et camt.053', () => {
     const releves = within(dansImport().getByRole('table', { name: 'Relevés lus' })).getAllByRole('row').slice(1)
     expect(releves).toHaveLength(2)
     expect(releves[0].textContent).toContain('Relevé 1 (RIB 12345 00010 00012345678 clé 49, du 30/09/2026 au 05/10/2026)')
-    expect(releves[0].textContent).toContain('1 250,00 EUR')
-    expect(releves[0].textContent).toContain('472,94 EUR')
+    expect(releves[0].textContent).toContain('1 250,00 €')
+    expect(releves[0].textContent).toContain('472,94 €')
+    // rb-c08 A (décision du 26/11/2026) : le symbole de l'euro, comme partout dans le module.
+    expect(releves[0].textContent).not.toContain('EUR')
     expect(titresAlertes()).toContain('Relevé déjà importé lors d’un import précédent : non reconnu')
     expect(boutonImporter()).toHaveTextContent('Importer 5 lignes')
     expect(boutonImporter()).toBeEnabled()
@@ -209,5 +211,65 @@ describe('Import des relevés CFONB 120 et camt.053', () => {
     expect(dansImport().queryByRole('table', { name: 'Relevés lus' })).toBeNull()
     expect(titresAlertes()).not.toContain('Relevé déjà importé lors d’un import précédent : non reconnu')
     expect(boutonImporter()).toBeEnabled()
+  })
+})
+
+describe('Import des relevés : petits défauts de texte (rb-c08 A, décision du 26/11/2026)', () => {
+  it('le bandeau « Import bloqué » ne répète pas son titre au début du texte', async () => {
+    await ajouterCompte(IBAN_FIXTURE)
+    await rendre()
+    analyser(CFONB)
+    const bandeau = Array.from(panneauImport().querySelectorAll('.alert')).find((alerte) => alerte.querySelector('b')?.textContent === 'Import bloqué')
+    expect(bandeau).toBeDefined()
+    const texte = bandeau?.querySelector('p')?.textContent ?? ''
+    expect(texte).toMatch(/^Le fichier contient une erreur\./)
+    expect(texte).not.toMatch(/^Import bloqué/)
+    // Le motif d'un compte sans IBAN : même règle.
+    cleanup()
+    await ajDb.banques.clear()
+    await ajouterCompte(null)
+    await rendre()
+    analyser(CAMT_UN_RELEVE)
+    const sansIban = Array.from(panneauImport().querySelectorAll('.alert')).find((alerte) => alerte.querySelector('b')?.textContent === 'Import bloqué')
+    expect(sansIban?.querySelector('p')?.textContent).toMatch(/^Compte choisi sans IBAN/)
+  })
+
+  it('camt.053 : l’IBAN du relevé est groupé par quatre, dans « Relevés lus » comme dans les erreurs', async () => {
+    await ajouterCompte(IBAN_FIXTURE)
+    await rendre()
+    analyser(CAMT_UN_RELEVE)
+    const releves = within(dansImport().getByRole('table', { name: 'Relevés lus' })).getAllByRole('row').slice(1)
+    expect(releves[0].textContent).toContain('Relevé 1 (IBAN FR76 1234 5000 1000 0123 4567 849, du 30/09/2026 au 05/10/2026)')
+    expect(releves[0].textContent).not.toContain('FR7612345000100001234567849')
+    // Relevé d'un autre compte : l'erreur montre le même IBAN groupé.
+    cleanup()
+    await ajDb.banques.clear()
+    await ajouterCompte('FR76 3000 6000 0112 3456 7890 189')
+    await rendre()
+    analyser(CAMT_UN_RELEVE)
+    const bandeaux = Array.from(panneauImport().querySelectorAll('.alert'))
+      .map((alerte) => alerte.textContent)
+      .join(' ')
+    expect(bandeaux).toContain('Relevé 1 (IBAN FR76 1234 5000 1000 0123 4567 849, du 30/09/2026 au 05/10/2026) refusé')
+    expect(bandeaux).not.toContain('FR7612345000100001234567849')
+  })
+
+  it('rb-c06 A : « Importer N lignes » et sa phrase sont dans un bloc qui passe en colonne sur téléphone', async () => {
+    await ajouterCompte(IBAN_FIXTURE)
+    await rendre()
+    analyser(CFONB_UN_COMPTE)
+    const bloc = boutonImporter().parentElement as HTMLElement
+    expect(bloc).toHaveClass('vfx-import-actions')
+    expect(bloc.querySelector('span')?.textContent).toContain('Les encaissements rapprochés mettent le solde du copropriétaire à jour')
+  })
+
+  it('rb-19 A : la colonne de l’imputation proposée et le chapeau parlent d’imputation, plus de rapprochement', async () => {
+    await ajouterCompte(IBAN_FIXTURE)
+    await rendre()
+    analyser('Date;Libellé;Montant\n05/10/2026;VIR SEPA;350,00')
+    const entetes = within(dansImport().getByRole('table')).getAllByRole('columnheader').map((entete) => entete.textContent)
+    expect(entetes).toEqual(['Date', 'Libellé', 'Montant', 'Copropriétaire', 'Imputation proposée'])
+    expect(document.querySelector('.page-head .lede')?.textContent).toContain('imputation des encaissements aux copropriétaires')
+    expect(document.body.textContent).not.toContain('rapprochement des encaissements')
   })
 })
