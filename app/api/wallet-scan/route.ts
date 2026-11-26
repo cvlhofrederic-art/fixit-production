@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser, getUserRole } from '@/lib/auth-helpers'
-import { ficheSocieteFrancaise } from '@/lib/btp/fiche-societe-francaise'
+import { couvertureAssuranceBtp } from '@/lib/statut-juridique-btp'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { validateBody, walletScanSchema } from '@/lib/validation'
 
@@ -240,8 +240,8 @@ function extractContractNumber(text: string): string | undefined {
 }
 
 // ── Extraction du nom de l'assureur ──────────────────────────────────────────
-// motsEntiers (société BTP française) : un nom ne compte que s'il est un mot entier du texte. Sans cela, « MMA » est
-// reconnu dans « DOMMAGES », « GAN » dans « ORGANISME », « AXA » dans « TAXATION ».
+// motsEntiers (société BTP) : un nom ne compte que s'il est un mot entier du texte. Sans cela, « MMA » est reconnu dans
+// « DOMMAGES », « GAN » dans « ORGANISME », « AXA » dans « TAXATION » (et dans « TAXA » d'un texte portugais).
 function extractInsurerName(text: string, motsEntiers = false): string | undefined {
   // Noms d'assureurs courants
   const insurers = [
@@ -442,8 +442,8 @@ export async function POST(request: NextRequest) {
     if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
     const { fileBase64, fileName, docKey, artisanId } = v.data
 
-    // Vérifier que l'artisan appartient au user. Société BTP : fiche entière, pour connaître sa langue et savoir quels
-    // champs d'assurance sont déjà remplis ; artisan : lecture inchangée.
+    // Vérifier que l'artisan appartient au user. Société BTP : fiche entière, pour savoir quels champs d'assurance sont
+    // déjà remplis et connaître sa forme juridique ; artisan : lecture inchangée.
     const estSocieteBtp = getUserRole(user) === 'pro_societe'
     const { data: artisan } = estSocieteBtp
       ? await supabaseAdmin.from('profiles_artisan').select('*').eq('id', artisanId).single()
@@ -456,9 +456,6 @@ export async function POST(request: NextRequest) {
     if (!artisan || artisan.user_id !== user.id) {
       return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
     }
-    // Société BTP française : fiche qui n'est pas en portugais. Société inscrite au Portugal : hors de ce correctif,
-    // lecture et écriture d'avant.
-    const estSocieteBtpFrancaise = estSocieteBtp && ficheSocieteFrancaise(artisan as Record<string, unknown>)
 
     // ── Extraire le texte du document ──────────────────────────────────────
     let extractedText = ''
@@ -530,7 +527,7 @@ export async function POST(request: NextRequest) {
     const siret = extractSiret(extractedText)
     const siren = extractSiren(extractedText)
     const insurerName = (detectedType === 'rc_pro' || detectedType === 'decennale')
-      ? extractInsurerName(extractedText, estSocieteBtpFrancaise) : undefined
+      ? extractInsurerName(extractedText, estSocieteBtp) : undefined
     const contractNumber = (detectedType === 'rc_pro' || detectedType === 'decennale')
       ? extractContractNumber(extractedText) : undefined
 
@@ -651,11 +648,17 @@ export async function POST(request: NextRequest) {
         insurance_scan_data: scanResult,
         insurance_verified: !suspicious && nameMatch,
       }
-      if (estSocieteBtpFrancaise) {
-        // Société BTP française : ces champs sont repris sur ses devis et factures. La lecture automatique ne remplace
-        // jamais ce que la société a saisi : elle ne remplit que les champs vides de la fiche.
+      if (estSocieteBtp) {
+        // Société BTP, française ou portugaise : ces champs sont repris sur ses devis et factures. La lecture
+        // automatique ne remplace jamais ce que la société a saisi : elle ne remplit que les champs vides de la fiche.
         const fiche = artisan as Record<string, unknown>
         const vide = (colonne: string) => String(fiche[colonne] ?? '').trim() === ''
+        // Couverture : « France métropolitaine », défaut de la colonne insurance_coverage, n'est jamais celle d'une
+        // société portugaise (forme juridique portugaise, la règle de ses devis : couvertureAssuranceBtp) et compte
+        // alors pour vide. Société française : la valeur enregistrée, défaut compris, comme avant.
+        const couvertureVide = couvertureAssuranceBtp(
+          String(fiche.insurance_coverage ?? ''), String(fiche.legal_form ?? ''),
+        ).trim() === ''
         // Fiche sans assurance (ni type, ni assureur, ni contrat) : l'assureur et le contrat lus ici sont alors ceux de
         // la fiche, et le type de cette attestation les accompagne (sans lui, le devis les présentait comme une
         // « RC Pro »). Jamais à côté d'un assureur ou d'un contrat saisis, ni à la place d'un type choisi (une
@@ -663,7 +666,7 @@ export async function POST(request: NextRequest) {
         const ficheSansAssurance = vide('insurance_type') && vide('insurance_name') && vide('insurance_number')
         if (insurerName && vide('insurance_name')) updateData.insurance_name = insurerName
         if (contractNumber && vide('insurance_number')) updateData.insurance_number = contractNumber
-        if (extractedData.coverage && vide('insurance_coverage')) updateData.insurance_coverage = extractedData.coverage
+        if (extractedData.coverage && couvertureVide) updateData.insurance_coverage = extractedData.coverage
         if (dates.to && vide('insurance_expiry')) updateData.insurance_expiry = dates.to
         if (ficheSansAssurance && (insurerName || contractNumber) && (detectedType === 'rc_pro' || detectedType === 'decennale')) {
           updateData.insurance_type = detectedType

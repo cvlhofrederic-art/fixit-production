@@ -431,13 +431,16 @@ export async function generateDevisPdfV3(
 
   // Dynamic imports (browser-only)
   let jsPDFMod: typeof import('jspdf'), autoTableModule: typeof import('jspdf-autotable')
-  // Gabarit Method Soluções : son module se charge avec jsPDF (même reprise en cas d'échec de chargement).
+  // Gabarits Method Soluções et Vitfix : leur module se charge avec jsPDF (même reprise en cas d'échec de chargement).
+  // Le gabarit Vitfix ne couvre que l'orçamento : les factures de cette société gardent le modèle par défaut.
   let moduleMethod: typeof import('@/lib/pdf/modele-method-solucoes') | null = null
+  let moduleVitfix: typeof import('@/lib/pdf/modele-vitfix-orcamento') | null = null
   try {
-    [jsPDFMod, autoTableModule, moduleMethod] = await Promise.all([
+    [jsPDFMod, autoTableModule, moduleMethod, moduleVitfix] = await Promise.all([
       import('jspdf'),
       import('jspdf-autotable'),
       input.modele === 'method-solucoes' ? import('@/lib/pdf/modele-method-solucoes') : Promise.resolve(null),
+      input.modele === 'vitfix-orcamento' && input.docType === 'devis' ? import('@/lib/pdf/modele-vitfix-orcamento') : Promise.resolve(null),
     ])
   } catch (chunkErr) {
     const retryKey = 'pdf_chunk_retry'
@@ -459,6 +462,13 @@ export async function generateDevisPdfV3(
   if (moduleMethod) {
     const pdfMethod = await moduleMethod.rendreDocumentMethodSolucoes(jsPDF, sanitizedInput)
     return livrerPdf(pdfMethod, moduleMethod.nomFichierMethodSolucoes(sanitizedInput), null, input.action)
+  }
+
+  // ─── Gabarit d'orçamento Vitfix (lib/pdf/modele-vitfix-orcamento.ts) ───
+  // Seuls les devis de sa fiche : le document entier est dessiné par ce module, avec les mêmes données.
+  if (moduleVitfix) {
+    const pdfVitfix = await moduleVitfix.rendreOrcamentoVitfix(jsPDF, sanitizedInput)
+    return livrerPdf(pdfVitfix, moduleVitfix.nomeFicheiroVitfix(sanitizedInput), null, input.action)
   }
 
   // ════════════════════════════════════════════════════════════════
@@ -643,8 +653,8 @@ export async function generateDevisPdfV3(
       const pctSuffix = acomptePourcentage != null ? ` — ${String(acomptePourcentage).replace('.', ',')}%` : ''
       // Mention du document source (méthode pro : un acompte référence toujours
       // la facture/le devis auquel il se rattache). Idem avoir → parentInvoiceNumber.
-      // Le parent d'un acompte est un devis (série DEV-) ou une facture : le libellé le dit.
-      const parentEstDevis = /^DEV-/i.test(String(parentInvoiceNumber || ''))
+      // Le parent d'un acompte est un devis (série DEV-, ORC- au Portugal) ou une facture : le libellé le dit.
+      const parentEstDevis = /^(?:DEV|ORC)-/i.test(String(parentInvoiceNumber || ''))
       const refLabel = locale === 'pt'
         ? (parentEstDevis ? 'sobre orçamento' : 'sobre fatura')
         : (parentEstDevis ? 'sur devis' : 'sur facture')

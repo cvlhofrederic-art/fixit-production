@@ -42,6 +42,15 @@ import { refLoi1965 } from '@/lib/administrateur-judiciaire/domain/delais-legaux
  *   (reserveAuFondsTravaux) ; il tient alors le fonds, comme le compte séparé du fonds ou le compte repris qui le tenait
  *   (estCompteDuFondsTravaux, lu par virement-interne.ts et fonds-detenus.ts). Enregistrement de la marque : à brancher.
  *
+ * Décision du 22/11/2026 (page « Appels de fonds », point 3, ap-03) : l'avis lit le mode réglé (choix du mandat, à défaut
+ * réglage du cabinet) avant toute diffusion, au lieu d'un ordre fixe entre natures. Chaque mode désigne la nature du
+ * compte qui reçoit les règlements des copropriétaires (natureEncaissement) ; compteEncaissement retient le seul compte
+ * actif de cette nature, ou dit pourquoi aucun ne peut l'être (absent, sans IBAN valide, ambigu, IBAN d'un compte du
+ * fonds de travaux, mode illisible), sans repli sur une autre nature. À valider : « compte en banque et Caisse des
+ * dépôts » fait recevoir les règlements par le compte en banque (la Caisse des dépôts garde le dépôt) ; seul le compte
+ * courant est tenu pour un compte au nom du syndicat (auNomDuSyndicat), le titulaire d'un compte à la Caisse des dépôts
+ * (R95 ci-dessus) ou d'un sous-compte du centralisateur n'étant pas établi.
+ *
  * 🔴 Non établi : l'articulation entre le compte au nom de l'administrateur (C. com. R. 814-41) et le compte séparé au nom
  *    du syndicat (L. 1965 art. 18, II, al. 3) : aucun texte lu ne dit si l'une cède devant l'autre ; l'intitulé exact des
  *    comptes ouverts par la Caisse des dépôts (au nom de l'administrateur « ès qualités » ?) n'est pas vérifié. D'ici là,
@@ -85,25 +94,33 @@ export function verifierMarquesFondsTravaux(c: MarquesFondsTravaux, nom: string)
     throw new Error(`${nom} : seul un compte de placement porte la mention « réservé au fonds de travaux » (J71).`)
 }
 
-/** Modes de tenue proposés au cabinet ; le fonds de travaux s'ajoute toujours à part, quel que soit le mode. */
+/**
+ * Modes de tenue proposés au cabinet ; le fonds de travaux s'ajoute toujours à part, quel que soit le mode.
+ * natureEncaissement (ap-03) : nature du compte qui reçoit les règlements des copropriétaires, une des natures requises.
+ */
 export const MODES_TENUE_COMPTES = {
   compte_separe_syndicat: {
     libelle: 'Compte séparé au nom du syndicat',
     naturesRequises: ['courant'],
+    natureEncaissement: 'courant',
   },
   caisse_depots: {
     libelle: 'Compte à la Caisse des dépôts',
     naturesRequises: ['caisse_depots'],
+    natureEncaissement: 'caisse_depots',
   },
   banque_et_caisse_depots: {
     libelle: 'Compte en banque et dépôt à la Caisse des dépôts',
     naturesRequises: ['courant', 'caisse_depots'],
+    // À valider (ap-03) : le compte en banque reçoit les règlements, la Caisse des dépôts garde le dépôt.
+    natureEncaissement: 'courant',
   },
   centralisateur_cabinet: {
     libelle: 'Compte centralisateur du cabinet, sous-compte par mandat',
     naturesRequises: ['sous_compte_centralisateur'],
+    natureEncaissement: 'sous_compte_centralisateur',
   },
-} as const satisfies Record<string, { libelle: string; naturesRequises: readonly NatureCompteBancaire[] }>
+} as const satisfies Record<string, { libelle: string; naturesRequises: readonly NatureCompteBancaire[]; natureEncaissement: NatureCompteBancaire }>
 export type ModeTenueComptes = keyof typeof MODES_TENUE_COMPTES
 
 /**
@@ -140,6 +157,18 @@ export function resoudreModeComptes(
   return { mode: verifierMode(choixMandat), origine: 'mandat' }
 }
 
+/** Mode lu pour un mandat (ap-03) : résolu, ou l'erreur de lecture gardée comme donnée, jamais un mode par défaut. */
+export type ModeComptesLu = { resolu: ModeResolu; erreur: null } | { resolu: null; erreur: string }
+
+/** resoudreModeComptes sans exception : un choix de mandat inconnu donne l'erreur, à porter par l'avis. */
+export function lireModeComptes(cabinet: ReglagesComptesCabinet, choixMandat: ModeTenueComptes | null | undefined): ModeComptesLu {
+  try {
+    return { resolu: resoudreModeComptes(cabinet, choixMandat), erreur: null }
+  } catch (erreur) {
+    return { resolu: null, erreur: erreur instanceof Error ? erreur.message : String(erreur) }
+  }
+}
+
 const normaliserIban = (iban: string): string => iban.replace(/\s+/g, '').toUpperCase()
 
 /** Contrôle de format et de clé (ISO 13616, modulo 97). Ne dit rien de l'existence du compte. */
@@ -150,6 +179,63 @@ export function validerIban(iban: string): boolean {
   let reste = 0
   for (const chiffre of chiffres) reste = (reste * 10 + Number(chiffre)) % 97
   return reste === 1
+}
+
+/** Compte du syndicat lu pour désigner celui qui reçoit les règlements (champs de la table « banques »). */
+export interface CompteCandidatEncaissement {
+  id: string
+  /** Absent pour un compte écrit avant D-BANQUE : il n'est jamais retenu. */
+  nature?: NatureCompteBancaire
+  iban?: string | null
+  /** Compte clôturé = false ; absent = actif. */
+  actif?: boolean
+  tenaitFondsTravaux?: boolean
+  reserveAuFondsTravaux?: boolean
+}
+
+/**
+ * Compte qui reçoit les règlements des copropriétaires (ap-03) : désigné, avec son IBAN compact et son titulaire établi
+ * ou non comme le syndicat, ou non désigné, avec le motif.
+ */
+export type CompteEncaissement =
+  | { designe: true; banqueId: string; nature: NatureCompteBancaire; libelle: string; iban: string; auNomDuSyndicat: boolean }
+  | { designe: false; motif: string }
+
+const nonDesigne = (motif: string): CompteEncaissement => ({ designe: false, motif })
+
+/** Message cité en milieu de phrase (motif d'une anomalie) : minuscule initiale, sans point final. */
+export function enMilieuDePhrase(message: string): string {
+  const texte = message.trim().replace(/\.$/, '')
+  return texte.charAt(0).toLowerCase() + texte.slice(1)
+}
+
+/** Compte qui tient le fonds de travaux ; un compte sans nature (écrit avant D-BANQUE) n'en tient pas. */
+const tientLeFonds = (c: CompteCandidatEncaissement): boolean => c.nature !== undefined && estCompteDuFondsTravaux({ ...c, nature: c.nature })
+
+/**
+ * Désigne le compte qui reçoit les règlements selon le mode lu (ap-03) : le seul compte actif de la nature que le mode
+ * fait recevoir, jamais un compte du fonds de travaux. Aucun repli sur une autre nature. Non désigné, avec le motif :
+ * mode illisible (l'erreur citée) ; aucun compte actif de cette nature ; plusieurs IBAN distincts, ou un compte sans
+ * IBAN à côté d'un autre (deux fiches d'un même IBAN sont un seul compte, la plus petite référence est retenue) ; IBAN
+ * absent ou invalide ; IBAN d'un compte qui tient le fonds de travaux, même clôturé (le fonds reste sur son compte
+ * séparé, L. 1965 art. 18, II, al. 4 : les règlements courants n'y sont pas dirigés).
+ */
+export function compteEncaissement(mode: ModeComptesLu, comptes: readonly CompteCandidatEncaissement[]): CompteEncaissement {
+  if (mode.resolu === null) return nonDesigne(enMilieuDePhrase(mode.erreur))
+  const { libelle: libelleMode, natureEncaissement } = MODES_TENUE_COMPTES[verifierMode(mode.resolu.mode)]
+  const libelle = NATURES_COMPTE_BANCAIRE[natureEncaissement].libelle
+  const candidats = comptes
+    .filter((c) => c.actif !== false && c.nature === natureEncaissement && !tientLeFonds(c))
+    .sort((a, b) => a.id.localeCompare(b.id))
+  if (candidats.length === 0) return nonDesigne(`aucun compte actif « ${libelle} », compte qui reçoit les règlements dans le mode « ${libelleMode} »`)
+  const ibans = new Set(candidats.map((c) => normaliserIban(c.iban ?? '')))
+  if (ibans.size > 1) return nonDesigne(`${ibans.size} comptes actifs « ${libelle} » : un seul doit recevoir les règlements`)
+  const [compte] = candidats
+  if (!compte.iban || !validerIban(compte.iban)) return nonDesigne(`« ${libelle} » sans IBAN valide`)
+  const iban = normaliserIban(compte.iban)
+  if (comptes.some((c) => tientLeFonds(c) && normaliserIban(c.iban ?? '') === iban))
+    return nonDesigne(`l'IBAN du compte « ${libelle} » est celui d'un compte qui tient le fonds de travaux`)
+  return { designe: true, banqueId: compte.id, nature: natureEncaissement, libelle, iban, auNomDuSyndicat: natureEncaissement === 'courant' }
 }
 
 /** Compte bancaire d'un mandat, tel que le contrôle le lit. */

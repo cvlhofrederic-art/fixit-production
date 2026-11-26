@@ -23,6 +23,8 @@ import { appliquerRibCourant, chargerRibProfil } from '@/lib/rib-profil'
 import { appliquerFormeProfil } from '@/lib/statut-juridique-btp'
 import { emitDocument } from '@/lib/emit-document'
 import { fetchNextDocNumber } from '@/lib/doc-number'
+import { estSousCompteSociete, idFicheDocuments } from '@/lib/documents/identite-documents'
+import { fichePortugaise } from '@/lib/numerotation-prefixes'
 import { messageEmissionArretee } from '@/lib/emission-hors-serveur'
 import { syncDocumentSafe } from '@/lib/document-sync'
 import type { ChampRecherche } from '@/lib/documents/recherche-documents'
@@ -155,6 +157,8 @@ export default function DevisSection({
       docType: 'devis',
       isSameDoc,
       setSavedDocuments,
+      // Salarié invité : la suppression en base passe par le serveur (la RLS filtrerait sans erreur).
+      sousCompte: estSousCompteSociete(artisan),
       // Pré-validé : le modal stylé en amont fait office de confirm() humain.
       confirmDraftDelete: () => true,
     })
@@ -367,7 +371,9 @@ export default function DevisSection({
                                 locale: locale as 'fr' | 'pt' | 'en',
                                 t,
                                 artisan: artisan ? {
-                                  id: artisan.id,
+                                  // Fiche de la SOCIÉTÉ pour un salarié invité : elle porte le gabarit, le logo
+                                  // et l'identité légale du document (lib/documents/identite-documents.ts).
+                                  id: idFicheDocuments(artisan),
                                   company_name: artisan.company_name,
                                   logo_url: (artisan as { logo_url?: string | null }).logo_url ?? null,
                                   rm: (artisan as { rm?: string | null }).rm ?? null,
@@ -540,8 +546,12 @@ function DevisSectionV5({
       const emitted = await emitDocument({
         payload: appliquerFormeProfil(appliquerRibCourant(resultat.payload, rib), (artisan as { legal_form?: string } | null)?.legal_form),
         artisanId: artisan.id,
+        // `artisanId` reste SON compte (clés de son navigateur) ; la base, elle, enregistre le document sous la
+        // fiche de la société pour un salarié invité.
+        ficheId: idFicheDocuments(artisan),
         // Numéro du serveur seulement, place du navigateur vérifiée avant de le tirer (lib/emission-hors-serveur.ts).
-        getNumber: () => fetchNextDocNumber('facture', artisan.id, { repliLocal: false }),
+        // `uidSerie` : la série est celle de la société, jamais une seconde série ouverte par le salarié.
+        getNumber: () => fetchNextDocNumber('facture', artisan.id, { repliLocal: false, uidSerie: artisan.user_id }),
         sync: syncDocumentSafe,
         verifierPlaceAvantNumero: true,
       })
@@ -789,7 +799,7 @@ function DevisSectionV5({
                               locale: locale as 'fr' | 'pt' | 'en',
                               t,
                               artisan: artisan ? {
-                                id: artisan.id,
+                                id: idFicheDocuments(artisan),
                                 company_name: artisan.company_name,
                                 logo_url: (artisan as { logo_url?: string | null }).logo_url ?? null,
                                 rm: (artisan as { rm?: string | null }).rm ?? null,
@@ -967,11 +977,12 @@ function DevisSectionV5({
               const emitted = await emitDocument({
                 payload: prefilled,
                 artisanId: artisan.id,
+                ficheId: idFicheDocuments(artisan),
                 // BTP : numéro du serveur seulement, place du navigateur vérifiée avant de le tirer
-                // (lib/emission-hors-serveur.ts). Artisan : inchangé.
+                // (lib/emission-hors-serveur.ts). Artisan : repli local d'origine, préfixes selon la langue de sa fiche.
                 getNumber: estBtp
-                  ? () => fetchNextDocNumber('acompte', artisan.id, { repliLocal: false })
-                  : () => fetchNextDocNumber('acompte', artisan.id),
+                  ? () => fetchNextDocNumber('acompte', artisan.id, { repliLocal: false, uidSerie: artisan.user_id })
+                  : () => fetchNextDocNumber('acompte', artisan.id, { portugais: fichePortugaise(artisan) }),
                 sync: syncDocumentSafe,
                 ...(estBtp ? { verifierPlaceAvantNumero: true } : {}),
               })

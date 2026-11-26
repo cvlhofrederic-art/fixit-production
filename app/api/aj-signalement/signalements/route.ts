@@ -7,7 +7,7 @@
 // puis envoyé par e-mail aux destinataires de la copropriété (sans destinataire : D9 ci-dessous), puis un récapitulatif part
 // au déclarant, dans la langue de la page (au plus 3 par heure vers une même boîte). L'échec d'un e-mail
 // n'annule jamais le dépôt : l'état des deux envois est conservé sur la ligne (un seul update final).
-// Demandes de Hugo du 06/11/2026, enregistrées avec le dépôt :
+// Demandes du 06/11/2026, enregistrées avec le dépôt :
 //   - qualite_declarant ;
 //   - adresse_proposee : adresse d'après la position du déclarant (texte seul), gardée seulement si la
 //     copropriété n'a pas d'adresse ;
@@ -20,11 +20,11 @@
 // Migrations 20261106_signalements_qr_confirmation.sql puis 20261106_signalements_qr_geoloc_qualite.sql : appliquées
 // en production le 11/11/2026 ; sans elles, insertion et état des e-mails se replient sur les colonnes d'origine
 // (lib/aj-signalement/serveur.ts).
-// Depuis le 11/11/2026 (P1-R20 ; demande de Hugo : le gestionnaire reçoit AUTOMATIQUEMENT les signalements de ses
+// Depuis le 11/11/2026 (P1-R20 ; demande du référent métier : le gestionnaire reçoit AUTOMATIQUEMENT les signalements de ses
 // copropriétés) :
 //   - destinataires = (adresses saisies MOINS celles de fiches inactives ou contestées) ∪ gestionnaires confirmés de la
 //     copropriété (signalements_qr_emails_gestionnaires) ;
-//   - D9 (décision de Hugo du 17/11/2026, au nom de VitFix, point 7) : union vide → repli vers les boîtes de VitFix
+//   - D9 (décision du 17/11/2026, au nom de VitFix, point 7) : union vide → repli vers les boîtes de VitFix
 //     (ADMIN_EMAIL) COUPÉ ; le signalement part à l'adresse de contact du cabinet de la copropriété (seule adresse du
 //     cabinet que le code connaît), pour qu'il ne reste jamais sans lecteur ; VitFix reçoit une alerte SANS AUCUNE DONNÉE
 //     (« un signalement attend un destinataire », son numéro et son identifiant technique), qui dit qui l'a reçu. Sans
@@ -46,10 +46,10 @@
 // politique de confidentialité du cabinet quand il en a une ; l'annonce n'est datée (…_annonce_faite) qu'APRÈS
 // l'acceptation de l'accusé par le service d'e-mail. Lu seulement quand un accusé part (limite par adresse non
 // atteinte). Migration 20261113 absente ou erreur : accusé d'avant, dépôt acquis.
-// Logo du cabinet (demande de Hugo du 13/11/2026) : l'accusé (envoi unitaire) le porte en pièce jointe EN LIGNE ; les
+// Logo du cabinet (demande du 13/11/2026) : l'accusé (envoi unitaire) le porte en pièce jointe EN LIGNE ; les
 // e-mails aux destinataires (un lot, que Resend ne laisse porter aucune pièce jointe) restent sans logo, jamais avec une
 // image distante. Copropriété sans cabinet, cabinet sans logo, migration 20261114 absente ou erreur : accusé d'avant.
-// Bâtiments saisis par le cabinet (demande de Hugo du 17/11/2026 ; un déclarant de Parc Bel Ombre avait saisi « A ») : lus
+// Bâtiments saisis par le cabinet (demande du 17/11/2026 ; un déclarant avait saisi « A » dans le texte libre) : lus
 // avec la copropriété du jeton (même requête) ; quand la liste n'est pas vide, un bâtiment absent de la liste est refusé
 // (400 batiment_inconnu, message de la page dans sa langue, ni la liste ni la saisie, rien d'écrit ni d'envoyé), la
 // comparaison ignore la casse et les espaces en trop, et le nom enregistré (puis envoyé) est celui saisi par le cabinet

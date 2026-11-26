@@ -50,6 +50,9 @@ vi.mock('@/lib/auth-helpers', () => ({
   isSyndicRole: vi.fn(() => true),
   isProSocieteRole: vi.fn(() => true),
   isProGerant: vi.fn(() => true),
+  // Le compte appelant est le titulaire de son équipe (aucune société d'un autre compte).
+  societeDunAutreCompte: vi.fn(() => false),
+  estTitulaireSociete: vi.fn(() => true),
   resolveCabinetId: vi.fn(async () => EQUIPE_ID),
   resolveCompanyId: vi.fn(async () => EQUIPE_ID),
 }))
@@ -247,6 +250,16 @@ describe.each(CAS)('invitation d\'équipe $espace', (cas) => {
     it('invitation expirée : 410', async () => {
       h.base.lignes[table] = [ligne({ created_at: new Date(Date.now() - 8 * 24 * 3600 * 1000).toISOString() })]
       expect((await lire(await jetonSigne())).status).toBe(410)
+    })
+
+    it('invitation désactivée par le gérant : 410 à la lecture comme à l’acceptation, aucun compte créé ni rattaché', async () => {
+      // Avant le 25/11/2026 : « Désactiver » laissait le lien valable ; le compte recevait rôle et société.
+      h.base.lignes[table] = [ligne({ is_active: false })]
+      const token = await jetonSigne()
+      expect((await lire(token)).status).toBe(410)
+      expect((await accepter(token)).status).toBe(410)
+      expect(h.admin.createUser).not.toHaveBeenCalled()
+      expect(h.admin.updateUserById).not.toHaveBeenCalled()
     })
   })
 

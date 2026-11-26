@@ -11,7 +11,8 @@
 // - un doublon découvert à l'écriture n'empêche pas d'enregistrer les autres champs.
 // Une fiche sans adresse la reçoit au premier enregistrement venu, quel que soit l'écran (Mon profil, Zones
 // d'intervention) : « Mon profil » n'envoie plus le nom s'il n'a pas changé.
-// L'artisan et la société inscrite au Portugal (fiche en portugais) gardent le calcul d'avant (témoins).
+// La société inscrite au Portugal (fiche en portugais, adresse /pt/empresa/<slug>) suit les mêmes règles depuis le
+// 22/11/2026. L'artisan garde le calcul d'avant (témoin).
 //
 // Faux client Supabase : `profiles_artisan` avec contrainte d'unicité sur `slug`, comme la colonne `slug TEXT UNIQUE`
 // des migrations (supabase/migrations/052_baseline_missing_tables.sql).
@@ -191,24 +192,48 @@ describe('Artisan : calcul de l’adresse inchangé (témoin)', () => {
   })
 })
 
-describe('Société inscrite au Portugal : calcul de l’adresse d’avant (Portugal hors de ce correctif, témoins)', () => {
-  it('le nom envoyé recalcule l’adresse comme avant, même quand la fiche en a une', async () => {
-    preparer('pro_societe', { company_name: 'Construções Exemplo', company_city: 'Porto', slug: 'construcoes-exemplo-porto', language: 'pt' })
+describe('Société inscrite au Portugal (fiche en portugais) : mêmes règles que la société française', () => {
+  // Nom et ville de la fiche, sans accents ni ponctuation (generateSlug)
+  const ADRESSE = 'construcoes-exemplo-lda-porto'
+  interface CasPortugais {
+    cas: string
+    slug: string | null
+    corps: Ligne
+    ville?: string | null
+    autres?: Ligne[]
+    prisesEntreTemps?: string[]
+    slugAttendu: string | null
+    slugRenvoye?: string
+  }
+  // Avant : adresse recalculée à partir du seul nom (« construcoes-exemplo-lda ») chaque fois que le nom partait, aucune
+  // adresse sans lui, et un doublon refusé par la base faisait échouer tout l'enregistrement (500).
+  const CAS: CasPortugais[] = [
+    { cas: 'une adresse posée ne change plus avec le nom', slug: ADRESSE, corps: { company_name: 'Exemplo Construções, Lda' }, slugAttendu: ADRESSE },
+    { cas: 'une fiche sans adresse la reçoit, même si le nom n’est pas envoyé', slug: null, corps: { tva_intra: 'PT000000000' }, slugAttendu: ADRESSE, slugRenvoye: ADRESSE },
+    // Inscription depuis /pt : la vérification du NIF ne donne pas la ville, la fiche n'en a pas (company_city vide)
+    {
+      cas: 'fiche sans ville : adresse du seul nom', slug: null, ville: null, corps: { tva_intra: 'PT000000000' },
+      slugAttendu: 'construcoes-exemplo-lda', slugRenvoye: 'construcoes-exemplo-lda',
+    },
+    {
+      cas: 'adresse déjà prise par une autre fiche : suffixe', slug: null, corps: { ape_code: '00000' },
+      autres: [{ id: 'autre-1', user_id: 'autre-compte', slug: ADRESSE }], slugAttendu: `${ADRESSE}-2`, slugRenvoye: `${ADRESSE}-2`,
+    },
+    {
+      cas: 'doublon découvert à l’écriture : les autres champs sont enregistrés, sans adresse', slug: null,
+      corps: { company_name: 'Construções Exemplo, Lda', insurance_name: 'Seguradora Exemplo' },
+      prisesEntreTemps: ['construcoes-exemplo-lda', ADRESSE], slugAttendu: null,
+    },
+  ]
 
-    const { status, json } = await enregistrer({ company_name: 'Construções Exemplo', bio: 'Remodelações' })
+  it.each(CAS)('$cas', async ({ slug, corps, ville = 'Porto', autres, prisesEntreTemps, slugAttendu, slugRenvoye }) => {
+    preparer('pro_societe', { company_name: 'Construções Exemplo, Lda', company_city: ville, language: 'pt', slug }, autres)
+    for (const prise of prisesEntreTemps ?? []) h.etat.prisesEntreTemps.add(prise)
+
+    const { status, json } = await enregistrer(corps)
 
     expect(status).toBe(200)
-    expect(h.etat.majs).toEqual([{ company_name: 'Construções Exemplo', bio: 'Remodelações', slug: 'construcoes-exemplo' }])
-    expect(json.slug).toBe('construcoes-exemplo')
-  })
-
-  it('sans nom envoyé, une fiche sans adresse n’en reçoit pas, comme avant', async () => {
-    preparer('pro_societe', { company_name: 'Construções Exemplo', company_city: 'Porto', slug: null, language: 'pt' })
-
-    const { status, json } = await enregistrer({ tva_intra: 'PT000000000' })
-
-    expect(status).toBe(200)
-    expect(h.etat.majs).toEqual([{ tva_intra: 'PT000000000' }])
-    expect(json.slug).toBeUndefined()
+    expect(ficheDuCompte()).toMatchObject({ ...corps, slug: slugAttendu })
+    expect(json.slug).toBe(slugRenvoye)
   })
 })

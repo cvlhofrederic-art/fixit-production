@@ -33,6 +33,7 @@ import {
   FRAIS_ANNEXES_CATEGORIES,
   FRAIS_ANNEXES_UNITES,
 } from '@/lib/devis-types'
+import { codeFormeJuridique } from '@/lib/formes-juridiques-portugaises'
 import {
   resolveLineUnit,
   getSelectValue,
@@ -62,6 +63,7 @@ import { computeEcheanceDate, dateIsoLocale, parsePaymentDelayDays } from '@/lib
 import { generateDevisPdfV3 } from '@/lib/pdf/devis-pdf-v3'
 import type { PdfV3PtFiscalData } from '@/lib/pdf/devis-pdf-v3'
 import { getDecennaleEligibility } from '@/lib/decennale-eligibility'
+import { fichePortugaise, prefixeSerie } from '@/lib/numerotation-prefixes'
 
 // ═══════════════════════════════════════════════
 // HELPERS — saisie décimale FR + input buffered (parité BTP)
@@ -135,8 +137,12 @@ export default function DevisFactureForm({
 
   // ─── State ───
   const [docType, setDocType] = useState<'devis' | 'facture'>(initialData?.docType || initialDocType)
+  // Forme portugaise (« Sociedade por Quotas (Lda.) », « Empresário em Nome Individual »…) reconnue sur /pt
+  // (codeFormeJuridique) : mapLegalFormToCode la rendait en 'ei', sans mention d'identification ni contrôle du
+  // capital. Sur /fr, lecture d'avant. Un document existant garde sa forme.
+  const codeFormeProfil = (forme: string) => (locale === 'pt' ? codeFormeJuridique(forme) : mapLegalFormToCode(forme))
   const [companyStatus, setCompanyStatus] = useState(
-    initialData?.companyStatus || tpl('companyStatus') || (artisan?.legal_form ? mapLegalFormToCode(artisan.legal_form) : 'ei')
+    initialData?.companyStatus || tpl('companyStatus') || (artisan?.legal_form ? codeFormeProfil(artisan.legal_form) : 'ei')
   )
   const [companyName, setCompanyName] = useState(initialData?.companyName || artisan?.company_name || '')
   const [companySiret, setCompanySiret] = useState(initialData?.companySiret || artisan?.siret || '')
@@ -579,7 +585,8 @@ export default function DevisFactureForm({
     try {
       const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
       const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
-      const prefix = docType === 'devis' ? 'DEV' : 'FACT'
+      // Mêmes préfixes que next_doc_number (migration 20261122b) : ORC/FT pour une fiche en portugais, DEV/FACT sinon.
+      const prefix = prefixeSerie(docType, fichePortugaise(artisan))
       const pattern = new RegExp(`^${prefix}-${year}-(\\d+)$`)
       const maxSeq = [...docs, ...drafts]
         .map((d: { docNumber?: string }) => d.docNumber?.match(pattern)?.[1])
@@ -592,7 +599,7 @@ export default function DevisFactureForm({
       return number
     } catch (err) {
       console.error('[DevisFactureForm] All doc-number fallbacks failed:', err)
-      const fallback = `${docType === 'devis' ? 'DEV' : 'FACT'}-${year}-DRAFT`
+      const fallback = `${prefixeSerie(docType, fichePortugaise(artisan))}-${year}-DRAFT`
       setDocNumber(fallback)
       return fallback
     }
@@ -709,13 +716,16 @@ export default function DevisFactureForm({
         // Map and lock legal form
         if (c.legalForm) {
           setOfficialLegalForm(c.legalForm)
-          const code = mapLegalFormToCode(c.legalForm)
-          setCompanyStatus(code)
+          const code = codeFormeProfil(c.legalForm)
+          // Document déjà émis, rouvert : il garde sa forme, comme son téléphone et son e-mail.
+          if (!documentEmisRouvert) setCompanyStatus(code)
 
           // Auto-entrepreneurs et EI : TVA désactivée par défaut
           // (franchise en base, art. 293 B du CGI)
           // Sauf si initialData force explicitement tvaEnabled=true (seuil dépassé)
-          if (isSmallBusinessStatus(code, locale) && !initialData?.tvaEnabled) {
+          // Décision prise sur la forme lue comme avant (mapLegalFormToCode) : la reconnaissance des formes
+          // portugaises ne change pas le régime d'IVA par défaut (un ENI portugais n'est pas exonéré d'office).
+          if (isSmallBusinessStatus(mapLegalFormToCode(c.legalForm), locale) && !initialData?.tvaEnabled) {
             setTvaEnabled(false)
             // Mettre les taux TVA des lignes existantes à 0%
             setLines(prev => prev.map(l => ({ ...l, tvaRate: 0 })))

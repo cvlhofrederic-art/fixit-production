@@ -2,7 +2,8 @@
 // proposé aux utilisateurs PT côté artisan et BTP Pro, alors qu'au Portugal c'est 23 % par défaut, et 6 % est possible
 // aussi sous certaines conditions ». Vrais formulaires (components/DevisFactureFormBTP.tsx,
 // components/DevisFactureForm.tsx), en portugais puis en français (rendu français inchangé). Une ligne déjà
-// enregistrée garde son taux, affiché tel quel.
+// enregistrée garde son taux, affiché tel quel. En fin de fichier, même banc : forme juridique portugaise du
+// formulaire artisan (demande du 22/11/2026).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react'
 import type { ArtisanBasic } from '@/lib/devis-types'
@@ -275,5 +276,77 @@ describe('formulaire artisan en français : inchangé', () => {
     expect(table.value).toBe('20')
     expect(valeurs(table)).toEqual(['0', '5.5', '10', '20'])
     expect(libelles(table)).toEqual(['0%', '5.5%', '10%', '20%'])
+  })
+})
+
+// Demande de Frédéric du 22/11/2026 : une forme portugaise (profil ou vérification de l'entreprise) n'est plus lue
+// « ei » sur /pt, sans mention d'identification ni contrôle du capital. Sur /fr, lecture d'avant. Un document déjà
+// émis, rouvert, garde sa forme ; le régime d'IVA par défaut ne change pas.
+describe('formulaire artisan : forme juridique portugaise', () => {
+  const monterForme = (legalForm?: string, initialData?: unknown) => render(
+    <DevisFactureForm
+      artisan={{ ...ARTISAN, ...(legalForm ? { legal_form: legalForm } : {}) } as ArtisanBasic}
+      services={[]} bookings={[]} onBack={vi.fn()} initialData={initialData as never}
+    />,
+  )
+  /** Statut juridique affiché par le contrôle de conformité (« devis.statusLabel : … »). */
+  const statut = (racine: HTMLElement) => Array.from(racine.querySelectorAll('.v22-ref'))
+    .find((e) => (e.textContent || '').startsWith('devis.statusLabel'))?.querySelector('span')?.textContent
+  /** Mentions légales de l'écran (t est l'identité : ce sont des clés). */
+  const mentions = (racine: HTMLElement) => Array.from(Array.from(racine.querySelectorAll('.v22-card'))
+    .find((c) => c.querySelector('.v22-card-title')?.textContent === 'devis.legalMentionsLabel')?.querySelectorAll('.v22-ref') ?? [])
+    .map((m) => m.textContent)
+  /** Réponse de /api/artisan-company : forme lue par la vérification de l'entreprise. */
+  const verification = (legalForm: string) => vi.stubGlobal('fetch', vi.fn(async (url: string) => new Response(
+    String(url).startsWith('/api/artisan-company') ? JSON.stringify({ company: { legalForm }, verified: true }) : '{}', { status: 200 })))
+  const verifiee = (racine: HTMLElement) => waitFor(() => expect(racine.textContent).toContain('devis.verifiedDataSource'))
+  const capitalExige = (racine: HTMLElement) => (racine.textContent || '').includes('devis.complianceCapital')
+
+  it('Lda du profil sur /pt : reconnue, mention de société et contrôle du capital', () => {
+    const { container } = monterForme('Sociedade por Quotas (Lda.)')
+    expect(statut(container)).toBe('Sociedade por Quotas (Lda.)')
+    expect(mentions(container)).toContain('devis.legal.sarlCapital')
+    expect(capitalExige(container)).toBe(true)
+  })
+
+  it.each([
+    ['Empresário em Nome Individual (ENI)', false],
+    ['Unipessoal Lda.', true],
+    ['Sociedade Anónima (SA)', true],
+  ])('« %s » du profil sur /pt : reconnue, capital exigé : %s', (forme, capital) => {
+    const { container } = monterForme(forme)
+    expect(statut(container)).toBe(forme)
+    expect(capitalExige(container)).toBe(capital)
+  })
+
+  it('sans forme au profil, ou sur /fr : lecture d\'avant', () => {
+    expect(statut(monterForme().container)).toBe('Entreprise Individuelle (EI)')
+    cleanup()
+    langue.locale = 'fr'
+    expect(statut(monterForme('Sociedade por Quotas (Lda.)').container)).toBe('Entreprise Individuelle (EI)')
+    cleanup()
+    expect(statut(monterForme('SARL').container)).toBe('SARL')
+  })
+
+  it('vérification sur /pt : un brouillon rouvert prend la forme vérifiée, un document émis rouvert garde la sienne', async () => {
+    verification('Sociedade por Quotas')
+    const brouillon = monterForme(undefined, { companyStatus: 'ei', docType: 'devis', status: 'brouillon', lines: [] })
+    await verifiee(brouillon.container)
+    expect(statut(brouillon.container)).toBe('Sociedade por Quotas (Lda.)')
+    cleanup()
+    const emis = monterForme(undefined, { companyStatus: 'ei', docType: 'devis', docNumber: 'DEV-2026-001', status: 'envoye', lines: [] })
+    await verifiee(emis.container)
+    expect(statut(emis.container)).toBe('Entreprise Individuelle (EI)')
+  })
+
+  it('ENI vérifié sur /pt : reconnu, sans couper l\'IVA du modèle de l\'artisan', async () => {
+    // Modèle de l'artisan : IVA appliquée (le champ du numéro d'IVA n'apparaît qu'avec elle)
+    localStorage.setItem(`fixit_devis_template_${ARTISAN.id}`, JSON.stringify({ tvaEnabled: true }))
+    verification('Empresário em Nome Individual')
+    const { container } = monterForme('Sociedade Anónima (SA)')
+    expect(container.textContent).toContain('devis.taxNumberLabel')
+    await verifiee(container)
+    expect(statut(container)).toBe('Empresário em Nome Individual (ENI)')
+    expect(container.textContent).toContain('devis.taxNumberLabel')
   })
 })

@@ -1,4 +1,5 @@
 import { mapLegalFormToCode } from '@/lib/devis-utils'
+import { codeFormeJuridique, formePortugaise, normaliserForme } from '@/lib/formes-juridiques-portugaises'
 
 /** Libellés du statut juridique affichés par le formulaire de devis et facture BTP, par code interne. */
 const LIBELLE_PAR_CODE: Record<string, string> = {
@@ -13,52 +14,13 @@ const LIBELLE_PAR_CODE: Record<string, string> = {
 
 const STATUT_PAR_DEFAUT = 'Entreprise Individuelle (EI)'
 
-/** Forme juridique portugaise : motif reconnu, code interne du PDF, libellé affiché, capital social exigé. */
-interface FormePortugaise {
-  motif: RegExp
-  code: string
-  libelle: string
-  capital: boolean
-}
-
 /**
- * Formes juridiques portugaises d'une société BTP, celles de l'inscription portugaise (lib/config/companyTypes.ts,
- * libellés portugais et français) et leurs abréviations : libellé affiché par le formulaire et code interne du PDF
- * (getStatusLabel). mapLegalFormToCode, partagé avec le côté artisan, ne les connaît pas et les rendait toutes en
- * 'ei' : une société par quotas s'affichait « Entreprise Individuelle (EI) ». Ordre : Unipessoal avant Lda
- * (« Unipessoal Lda. » contient « Lda »). Aucune forme française ne contient ces mots (la SNC, l'EIRL et la
- * coopérative françaises restent à mapLegalFormToCode : seuls les libellés « (Portugal) » de l'inscription sont pris).
- * Capital social exigé dans les mentions : sociétés par quotas et anonymes (art. 171.º du Código das Sociedades
- * Comerciais) ; pas la société en nom collectif, la commandite simple, la coopérative ni l'entrepreneur individuel.
- */
-const FORMES_PORTUGAISES: ReadonlyArray<FormePortugaise> = [
-  { motif: /\bunipessoal\b/, code: 'unipessoal', libelle: 'Sociedade Unipessoal por Quotas (Unipessoal Lda.)', capital: true },
-  { motif: /\bquotas\b|\blda\b/, code: 'lda', libelle: 'Sociedade por Quotas (Lda.)', capital: true },
-  { motif: /\banonima\b|^sa \(portugal\)$/, code: 'sa', libelle: 'Sociedade Anónima (SA)', capital: true },
-  { motif: /\bestabelecimento individual\b|^eirl \(portugal\)$/, code: 'eirl_pt', libelle: 'Estabelecimento Individual de Responsabilidade Limitada (EIRL)', capital: false },
-  { motif: /\bnome coletivo\b|^snc \(portugal\)$/, code: 'snc_pt', libelle: 'Sociedade em Nome Coletivo', capital: false },
-  { motif: /\bcomandita\b/, code: 'comandita', libelle: 'Sociedade em Comandita', capital: false },
-  { motif: /\bcooperativa\b|^cooperative \(portugal\)$/, code: 'cooperativa', libelle: 'Cooperativa', capital: false },
-  { motif: /\bnome individual\b|\beni\b/, code: 'eni', libelle: 'Empresário em Nome Individual (ENI)', capital: false },
-]
-
-/** Sans accents, majuscules ni points, espaces simples (comme mapLegalFormToCode). */
-function normaliserForme(forme: string): string {
-  return forme.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/\./g, '').replace(/\s+/g, ' ').trim()
-}
-
-function formePortugaise(forme: string | null | undefined): FormePortugaise | undefined {
-  const texte = normaliserForme(String(forme || ''))
-  return texte ? FORMES_PORTUGAISES.find(({ motif }) => motif.test(texte)) : undefined
-}
-
-/**
- * Code interne (ei, sarl, lda…) du statut juridique d'un document BTP, pour le PDF : forme portugaise d'abord,
- * sinon mapLegalFormToCode. Les libellés français du formulaire (« SARL », « Entreprise Individuelle (EI) »…)
- * donnent exactement le même code qu'avant.
+ * Code interne (ei, sarl, lda…) du statut juridique d'un document BTP, pour le PDF : forme portugaise d'abord
+ * (lib/formes-juridiques-portugaises.ts), sinon mapLegalFormToCode. Les libellés français du formulaire (« SARL »,
+ * « Entreprise Individuelle (EI) »…) donnent exactement le même code qu'avant.
  */
 export function codeStatutJuridiqueBtp(statut: string | null | undefined): string {
-  return formePortugaise(statut)?.code ?? mapLegalFormToCode(String(statut || ''))
+  return codeFormeJuridique(statut)
 }
 
 /** Libellés français du formulaire dont le capital social est exigé (liste d'origine, inchangée). */
@@ -217,6 +179,24 @@ export function assuranceDocumentBtp(
     insuranceType: document.insuranceType || typeAssuranceBtp(fiche.insurance_type) || 'rc_pro',
     insuranceCoverage,
   }
+}
+
+/**
+ * Médiateur de la consommation d'un document BTP enregistré, au téléchargement depuis la liste et dans le ZIP, sur le
+ * modèle d'assuranceDocumentBtp. Une société française lit exactement celui du document, comme avant. Une société
+ * portugaise (demande de Frédéric du 22/11/2026) : un document enregistré sans nom de médiateur reprend celui de la
+ * fiche, nom et adresse (sans nom, aucune mention n'est imprimée) ; un document qui en nomme un garde le sien, adresse
+ * comprise. Écart voulu avec le formulaire, qui complète le nom et l'adresse séparément (puis d'après le dernier
+ * document) : le nom d'un médiateur n'est jamais imprimé avec l'adresse d'un autre.
+ */
+export function mediateurDocumentBtp(
+  document: { mediatorName?: string | null; mediatorUrl?: string | null },
+  fiche: { legal_form?: string | null; mediator_name?: string | null; mediator_url?: string | null },
+): { mediatorName: string; mediatorUrl: string } {
+  const duDocument = { mediatorName: document.mediatorName || '', mediatorUrl: document.mediatorUrl || '' }
+  const nomFiche = String(fiche.mediator_name || '').trim()
+  if (!statutPortugais(fiche.legal_form) || String(duDocument.mediatorName).trim() !== '' || !nomFiche) return duDocument
+  return { mediatorName: nomFiche, mediatorUrl: String(fiche.mediator_url || '').trim() }
 }
 
 /**

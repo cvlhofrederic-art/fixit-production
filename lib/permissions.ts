@@ -46,6 +46,10 @@ export const ALL_PRO_MODULES = [
   'compta_btp', 'rentabilite', 'rfq_btp',
   'situations', 'garanties', 'sous_traitance',
   'sous_traitance_offres', 'dpgf',
+  // Écrans ouverts aux salariés dans l'appli (24/11/2026). Absents du catalogue jusque-là : getDefaultPermission
+  // rendait NONE pour tout le monde et getEffectivePermissions jetait silencieusement toute dérogation posée sur eux
+  // (`if (ov.module_id in base)`), donc le gérant ne pouvait ni les accorder ni les refuser.
+  'meteo', 'dictionnaire_materiaux', 'estimation_materiaux',
   // Admin
   'gestion_comptes',
 ] as const
@@ -68,6 +72,9 @@ export const MODULE_LABELS: Record<string, { fr: string; pt: string }> = {
   sous_traitance:        { fr: 'Sous-traitance DC4',   pt: 'Subempreitadas' },
   sous_traitance_offres: { fr: 'Recruter sous-traitants', pt: 'Recrutar subempreiteiros' },
   dpgf:                  { fr: 'Appels d\'offres',      pt: 'Concursos / Mapas de quantidades' },
+  meteo:                 { fr: 'Météo chantiers',       pt: 'Meteorologia das obras' },
+  dictionnaire_materiaux:{ fr: 'Dictionnaire matériaux', pt: 'Dicionário de materiais' },
+  estimation_materiaux:  { fr: 'Estimation matériaux',  pt: 'Estimativa de materiais' },
   motifs:                { fr: 'Lots / Prestations',    pt: 'Lotes / Serviços' },
   horaires:              { fr: 'Horaires chantier',     pt: 'Horários de obra' },
   messages:              { fr: 'Messagerie',            pt: 'Mensagens' },
@@ -98,55 +105,52 @@ export const MODULE_LABELS: Record<string, { fr: string; pt: string }> = {
 
 type PermissionMatrix = Record<ProTeamRole, Record<string, AccessLevel>>
 
+/**
+ * Salariés dont le poste de travail est le chantier : l'appli Vitfix Pro les ouvre sur le pointage
+ * (lib/auth/destination-par-role.ts, même liste, vérifiée par tests/permissions.test.ts).
+ */
+export const ROLES_DE_TERRAIN: readonly ProTeamRole[] = ['OUVRIER', 'CHEF_CHANTIER', 'CONDUCTEUR_TRAVAUX']
+
+/** Le rôle d'équipe est-il un poste de chantier (ouvrier, chef de chantier, conducteur de travaux) ? */
+export function estRoleDeTerrain(role: string | null | undefined): boolean {
+  return typeof role === 'string' && (ROLES_DE_TERRAIN as readonly string[]).includes(role)
+}
+
+/**
+ * Ce qu'un salarié de terrain ouvre par défaut. Décision de Frédéric du 25/11/2026 : « Les salariés doivent
+ * uniquement recevoir les alertes météo, le chantier qui les concerne, et surtout le pointage très important ».
+ * - `pointage` : pointer ses propres heures (/api/btp/pointage ne lit pas cette matrice ; elle ouvre l'écran) ;
+ * - `chantiers` en lecture : /api/btp ne lui rend que les chantiers qui lui sont affectés, sans client ni montant
+ *   (vue restreinte de lib/btp/perimetre-compte.ts) ;
+ * - `meteo` en lecture : les prévisions et alertes de ces mêmes chantiers ;
+ * - `settings` en lecture : « Mon profil » s'ouvre, pour changer son mot de passe ; /api/btp ne lui rend pas les
+ *   réglages de la société et n'en accepte l'écriture qu'en FULL.
+ * Tout le reste est fermé ; le gérant rouvre ce qu'il veut, employé par employé (Gestion des comptes → Modifier).
+ * Jusqu'au 25/11 le conducteur de travaux et le chef de chantier avaient en plus l'agenda, le Gantt, les devis, les
+ * clients, la messagerie, les rapports, etc., et l'ouvrier l'agenda, les photos et le dictionnaire de matériaux.
+ */
+function ecransDuSalarieDeTerrain(): Record<string, AccessLevel> {
+  return {
+    ...Object.fromEntries(ALL_PRO_MODULES.map(m => [m, 'NONE' as AccessLevel])),
+    pointage: 'READ', chantiers: 'READ', meteo: 'READ',
+    settings: 'READ',
+  }
+}
+
 const DEFAULT_PERMISSIONS: PermissionMatrix = {
   GERANT: Object.fromEntries(ALL_PRO_MODULES.map(m => [m, 'FULL' as AccessLevel])),
 
-  CONDUCTEUR_TRAVAUX: {
-    home: 'FULL', calendar: 'FULL', chantiers: 'FULL', equipes: 'FULL',
-    gantt: 'FULL', pointage: 'FULL',
-    compta_btp: 'NONE', rentabilite: 'READ', rfq_btp: 'FULL',
-    situations: 'FULL', garanties: 'READ', sous_traitance: 'FULL',
-    sous_traitance_offres: 'FULL', dpgf: 'FULL',
-    motifs: 'FULL', horaires: 'FULL',
-    messages: 'FULL', clients: 'FULL',
-    devis: 'FULL', pipeline: 'FULL', factures: 'READ', rapports: 'FULL',
-    photos_chantier: 'FULL', bibliotheque: 'FULL', contrats: 'READ',
-    stats: 'READ', revenus: 'READ', comptabilite: 'NONE',
-    materiaux: 'FULL', marches: 'FULL', marketplace_btp: 'FULL',
-    wallet: 'READ', portfolio: 'FULL', parrainage: 'NONE',
-    settings: 'NONE', gestion_comptes: 'NONE',
-  },
+  CONDUCTEUR_TRAVAUX: ecransDuSalarieDeTerrain(),
 
-  CHEF_CHANTIER: {
-    home: 'READ', calendar: 'FULL', chantiers: 'READ', equipes: 'READ',
-    gantt: 'READ', pointage: 'FULL',
-    compta_btp: 'NONE', rentabilite: 'NONE', rfq_btp: 'READ',
-    situations: 'READ', garanties: 'NONE', sous_traitance: 'NONE',
-    sous_traitance_offres: 'NONE', dpgf: 'NONE',
-    motifs: 'READ', horaires: 'READ',
-    messages: 'FULL', clients: 'READ',
-    devis: 'NONE', pipeline: 'NONE', factures: 'NONE', rapports: 'FULL',
-    photos_chantier: 'FULL', bibliotheque: 'READ', contrats: 'NONE',
-    stats: 'NONE', revenus: 'NONE', comptabilite: 'NONE',
-    materiaux: 'READ', marches: 'NONE', marketplace_btp: 'NONE',
-    wallet: 'NONE', portfolio: 'NONE', parrainage: 'NONE',
-    settings: 'NONE', gestion_comptes: 'NONE',
-  },
+  CHEF_CHANTIER: ecransDuSalarieDeTerrain(),
 
+  // Tous les pouvoirs (décision de Frédéric du 24/11/2026, « la secrétaire Tatiana a tous les pouvoirs »), à une
+  // exception : la gestion des comptes reste au compte de la société. Le serveur y réserve toute écriture au gérant
+  // (app/api/pro/team/route.ts, trois `if (!isProGerant(user))`) ; lui donner FULL ici ouvrirait un écran dont
+  // chaque bouton répondrait 403. L'ouvrir pour de bon demanderait de changer ces trois gardes, pas cette matrice.
   SECRETAIRE: {
-    home: 'READ', calendar: 'FULL', chantiers: 'NONE', equipes: 'READ',
-    gantt: 'NONE', pointage: 'READ',
-    compta_btp: 'NONE', rentabilite: 'NONE', rfq_btp: 'NONE',
-    situations: 'READ', garanties: 'NONE', sous_traitance: 'READ',
-    sous_traitance_offres: 'NONE', dpgf: 'NONE',
-    motifs: 'READ', horaires: 'NONE',
-    messages: 'FULL', clients: 'FULL',
-    devis: 'FULL', pipeline: 'READ', factures: 'FULL', rapports: 'READ',
-    photos_chantier: 'NONE', bibliotheque: 'READ', contrats: 'READ',
-    stats: 'NONE', revenus: 'NONE', comptabilite: 'NONE',
-    materiaux: 'NONE', marches: 'NONE', marketplace_btp: 'NONE',
-    wallet: 'FULL', portfolio: 'NONE', parrainage: 'NONE',
-    settings: 'NONE', gestion_comptes: 'NONE',
+    ...Object.fromEntries(ALL_PRO_MODULES.map(m => [m, 'FULL' as AccessLevel])),
+    gestion_comptes: 'NONE',
   },
 
   COMPTABLE: {
@@ -159,27 +163,14 @@ const DEFAULT_PERMISSIONS: PermissionMatrix = {
     messages: 'NONE', clients: 'NONE',
     devis: 'READ', pipeline: 'NONE', factures: 'FULL', rapports: 'READ',
     photos_chantier: 'NONE', bibliotheque: 'NONE', contrats: 'NONE',
+    meteo: 'NONE', dictionnaire_materiaux: 'NONE', estimation_materiaux: 'NONE',
     stats: 'FULL', revenus: 'FULL', comptabilite: 'FULL',
     materiaux: 'NONE', marches: 'NONE', marketplace_btp: 'NONE',
     wallet: 'NONE', portfolio: 'NONE', parrainage: 'NONE',
-    settings: 'NONE', gestion_comptes: 'NONE',
+    settings: 'READ', gestion_comptes: 'NONE',
   },
 
-  OUVRIER: {
-    home: 'NONE', calendar: 'READ', chantiers: 'NONE', equipes: 'NONE',
-    gantt: 'NONE', pointage: 'READ',
-    compta_btp: 'NONE', rentabilite: 'NONE', rfq_btp: 'NONE',
-    situations: 'NONE', garanties: 'NONE', sous_traitance: 'NONE',
-    sous_traitance_offres: 'NONE', dpgf: 'NONE',
-    motifs: 'NONE', horaires: 'NONE',
-    messages: 'NONE', clients: 'NONE',
-    devis: 'NONE', pipeline: 'NONE', factures: 'NONE', rapports: 'NONE',
-    photos_chantier: 'FULL', bibliotheque: 'NONE', contrats: 'NONE',
-    stats: 'NONE', revenus: 'NONE', comptabilite: 'NONE',
-    materiaux: 'NONE', marches: 'NONE', marketplace_btp: 'NONE',
-    wallet: 'NONE', portfolio: 'NONE', parrainage: 'NONE',
-    settings: 'NONE', gestion_comptes: 'NONE',
-  },
+  OUVRIER: ecransDuSalarieDeTerrain(),
 }
 
 // ══════════════════════════════════════════════════════════════════════════════

@@ -50,8 +50,8 @@ vi.mock('@supabase/ssr', () => ({
 
 const { GET } = await import('@/app/(commun)/auth/callback/route')
 
-const connecte = (role?: string) => {
-  h.echanger.mockResolvedValue({ data: { user: { app_metadata: role ? { role } : {} } }, error: null })
+const connecte = (role?: string, metadonnees: Record<string, unknown> = {}) => {
+  h.echanger.mockResolvedValue({ data: { user: { app_metadata: { ...(role ? { role } : {}), ...metadonnees } } }, error: null })
 }
 
 async function visiter(recherche: string): Promise<string> {
@@ -79,6 +79,19 @@ describe('GET /auth/callback — aiguillage après connexion Google', () => {
   it.each(['pro_societe', 'pro_conciergerie', 'pro_gestionnaire'])('%s reste sur son tableau de bord', async (role) => {
     connecte(role)
     expect(await visiter('?code=abc')).toBe('https://vitfix.io/fr/pro/dashboard')
+    expect(await visiter('?code=abc&app=1')).toBe('https://vitfix.io/fr/pro/dashboard')
+  })
+
+  // Salarié d'une société BTP (23/11/2026) : dans l'appli, son poste de travail est le pointage. Sur le web il garde
+  // le tableau de bord. La décision rôle par rôle est vérifiée dans tests/auth/destination-par-role.test.ts.
+  it.each(['OUVRIER', 'CHEF_CHANTIER', 'CONDUCTEUR_TRAVAUX'])('un salarié %s part sur le pointage, dans l’appli seulement', async (roleEquipe) => {
+    connecte('pro_societe', { pro_team_role: roleEquipe })
+    expect(await visiter('?code=abc&app=1')).toBe('https://vitfix.io/fr/pro/dashboard/?p=pointage')
+    expect(await visiter('?code=abc')).toBe('https://vitfix.io/fr/pro/dashboard')
+  })
+
+  it.each(['GERANT', 'SECRETAIRE', 'COMPTABLE'])('un compte %s garde le tableau de bord', async (roleEquipe) => {
+    connecte('pro_societe', { pro_team_role: roleEquipe })
     expect(await visiter('?code=abc&app=1')).toBe('https://vitfix.io/fr/pro/dashboard')
   })
 

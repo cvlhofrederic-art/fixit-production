@@ -31,8 +31,11 @@
 --   Seule exception, next_doc_number(uuid,text,integer), dispensée si sql_dynamique = false, si elle ne figure pas
 --   dans fonctions_ecrivant_la_table et si empreinte_next_doc_number (début de l'empreinte SHA-256 de son corps, qui
 --   n'en dit rien d'autre) vaut celle de la dernière lecture de son corps en production notée ici. Dernière lecture :
---   16/11/2026 vers 16:35 UTC, empreinte c41e0a5b17ec ; contrôle d'autorisation (le compte lui-même, ou un membre actif
---   de la société, lu dans pro_team_members), seule écriture dans doc_sequences, sans EXECUTE ni commentaire. Si
+--   22/11/2026 vers 21:40 UTC, empreinte 7d361d930b33 (corps de 20261122_numerotation_portugaise, md5 contrôlé identique
+--   au fichier) ; après 20261122b_numerotation_portugaise_artisans, attendue 3dd9f0e9fe70 (corps de cette migration,
+--   prosrc en LF). Contrôle d'autorisation (le compte lui-même, ou un membre actif de la société, lu dans
+--   pro_team_members), seule écriture dans doc_sequences, lecture de profiles_artisan (préfixes portugais), sans
+--   EXECUTE, un seul commentaire d'une ligne. Si
 --   l'empreinte a changé, relire son corps, puis noter la date et l'empreinte, ici ou hors du dépôt (règle des
 --   empreintes : voir declencheurs). sql_dynamique : vrai si le corps contient le mot EXECUTE (requête construite à
 --   l'exécution). Une écriture par EXECUTE, un TRUNCATE de plusieurs tables, COPY … FROM ou un commentaire entre les

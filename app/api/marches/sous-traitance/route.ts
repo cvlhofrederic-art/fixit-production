@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import type { User } from '@supabase/supabase-js'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { createSousTraitanceOffreSchema, validateBody } from '@/lib/validation'
-import { getAuthUser, getUserRole, isProGerant, isProSocieteRole } from '@/lib/auth-helpers'
+import { getAuthUser, getUserRole, isProGerant, isProSocieteRole, societeDunAutreCompte } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { haversineDistance } from '@/lib/geo'
@@ -204,7 +204,8 @@ export async function GET(request: NextRequest) {
  * actif unique, le compte reste son propre titulaire, comme avec resolveCompanyId.
  */
 async function titulaireDeLaFiche(user: User): Promise<{ compte: string } | { panne: string }> {
-  if (getUserRole(user) !== 'pro_societe' || isProGerant(user)) return { compte: user.id }
+  // Un co-gérant (gérant invité, société d'un autre compte) publie au nom de SA société, comme un sous-compte.
+  if (getUserRole(user) !== 'pro_societe' || (isProGerant(user) && !societeDunAutreCompte(user))) return { compte: user.id }
   const { data, error } = await supabaseAdmin
     .from('pro_team_members')
     .select('company_id')

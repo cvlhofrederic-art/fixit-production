@@ -1,7 +1,7 @@
 // tests/api/aj-signalement-depot-batiments.test.ts
 //
-// Bâtiments saisis par le cabinet (demande de Hugo du 17/11/2026 ; constat : Parc Bel Ombre a ses bâtiments — Titan,
-// Planier, Cicies, Faraman, commerces — mais un déclarant a pu saisir « A ») :
+// Bâtiments saisis par le cabinet (demande du 17/11/2026 ; constat : une copropriété avait ses bâtiments saisis — par
+// exemple Bâtiment A, Bâtiment B, Les Pins, commerces — mais un déclarant a pu saisir « A ») :
 //   - POST /api/aj-signalement/signalements : copropriété avec au moins un bâtiment → un bâtiment absent de la liste est
 //     refusé (400 batiment_inconnu, message dans la langue de la page, ni la liste ni la saisie, rien d'écrit ni envoyé) ;
 //     la comparaison ignore la casse et les espaces en trop, et le nom enregistré (puis envoyé par e-mail) est celui
@@ -31,10 +31,10 @@ const { TEXTES_SIGNALEMENT_QR } = await import('@/lib/aj-signalement/textes')
 
 const JETON = '0123456789abcdef0123456789abcdef'
 const COPRO = 'c0000000-0000-4000-8000-000000000001'
-const BATIMENTS = ['Titan', 'Planier', 'Cicies', 'Faraman', 'commerces']
+const BATIMENTS = ['Bâtiment A', 'Bâtiment B', 'Les Pins', 'commerces']
 const CORPS = {
   jeton: JETON, prenom: 'Prénom', nom: 'Déclarant', telephone: '06 00 00 00 00', email: 'declarant@exemple.test',
-  batiment: 'Titan', etage: '2', numLot: '7', estPartieCommune: false, zoneSignalee: '', typeIntervention: 'Plomberie',
+  batiment: 'Bâtiment A', etage: '2', numLot: '7', estPartieCommune: false, zoneSignalee: '', typeIntervention: 'Plomberie',
   description: 'Fuite d’eau au plafond de la cuisine', priorite: 'normale', langue: 'fr', qualiteDeclarant: 'locataire',
 }
 
@@ -53,7 +53,7 @@ beforeEach(() => {
   vi.stubEnv('ADMIN_EMAIL_2', '')
   vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://vitfix.io')
   baseQr.etat.tables.signalements_qr_coproprietes = [{
-    id: COPRO, nom: 'Parc Bel Ombre', adresse: '1 rue Exemple', jeton: JETON, actif: true, created_at: '2026-11-01T09:00:00+00:00',
+    id: COPRO, nom: 'Résidence Exemple', adresse: '1 rue Exemple', jeton: JETON, actif: true, created_at: '2026-11-01T09:00:00+00:00',
     emails_destinataires: ['cs@externe.test'], cabinet_id: null, batiments: [...BATIMENTS],
   }]
   baseQr.etat.tables.signalements_qr = []
@@ -85,9 +85,9 @@ describe('copropriété dont le cabinet a saisi les bâtiments', () => {
   })
 
   it.each([
-    ['même écriture', 'Planier', 'Planier'],
-    ['casse différente', 'PLANIER', 'Planier'],
-    ['espaces en trop', '  planier  ', 'Planier'],
+    ['même écriture', 'Bâtiment B', 'Bâtiment B'],
+    ['casse différente', 'BÂTIMENT B', 'Bâtiment B'],
+    ['espaces en trop', '  bâtiment b  ', 'Bâtiment B'],
     ['nom en minuscules chez le cabinet', 'Commerces', 'commerces'],
   ])('%s : accepté, enregistré sous le nom saisi par le cabinet', async (_cas, saisi, enregistre) => {
     const res = await deposer({ batiment: saisi })
@@ -102,11 +102,11 @@ describe('copropriété dont le cabinet a saisi les bâtiments', () => {
 
   // Appel direct de la route (sans le formulaire) : seuls la casse et les espaces sont tolérés.
   it.each([
-    ['accent ajouté', 'Ciciès'],
-    ['préfixe « Bât. »', 'Bât. Titan'],
-    ['deux bâtiments à la fois', 'Titan, Planier'],
-    ['caractère invisible', 'Titan​'],
-    ['initiale seule', 'T'],
+    ['accent manquant', 'Batiment A'],
+    ['préfixe « Bât. »', 'Bât. Les Pins'],
+    ['deux bâtiments à la fois', 'Bâtiment A, Bâtiment B'],
+    ['caractère invisible', 'Bâtiment A​'],
+    ['initiale seule', 'B'],
   ])('appel direct, %s : 400 batiment_inconnu, rien d’écrit ni d’envoyé', async (_cas, saisi) => {
     const res = await deposer({ batiment: saisi })
     expect(res.status).toBe(400)
@@ -117,7 +117,7 @@ describe('copropriété dont le cabinet a saisi les bâtiments', () => {
   })
 
   it('espaces en trop à l’intérieur du nom : accepté, enregistré sous le nom du cabinet', async () => {
-    coproprietes()[0].batiments = ['Les Pins', 'Titan']
+    coproprietes()[0].batiments = ['Les Pins', 'Bâtiment A']
     const res = await deposer({ batiment: '  les   PINS ' })
     expect(res.status).toBe(200)
     expect(insertions()[0]).toMatchObject({ batiment: 'Les Pins' })
@@ -175,7 +175,7 @@ describe('lecture des pages publiques (lireCoproprieteEtCabinetParJetonQr)', () 
     baseQr.etat.colonnesAbsentes.signalements_qr_coproprietes = ['cabinet_id', 'batiments']
     const lecture = await lireCoproprieteEtCabinetParJetonQr(JETON)
     expect(lecture.ok).toBe(true)
-    expect(lecture.ok && lecture.copropriete?.nom).toBe('Parc Bel Ombre')
+    expect(lecture.ok && lecture.copropriete?.nom).toBe('Résidence Exemple')
     expect(lecture.ok && lecture.copropriete?.batiments).toBeUndefined()
   })
 })

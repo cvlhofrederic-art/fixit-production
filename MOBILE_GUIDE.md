@@ -1,9 +1,10 @@
-# 📱 Vitfix Pro — appli mobile artisan (Android et iPhone)
+# 📱 Vitfix Pro — appli mobile (Android et iPhone)
 
 ## Principe (décision du 12/11/2026)
 
-L'appli est une coque Capacitor qui affiche l'espace mobile artisan du site, `https://vitfix.io/pro/mobile/`
-(`server.url` + `server.appStartPath` dans `capacitor.config.ts`). Pas d'export statique : connexion, données et
+L'appli est une coque Capacitor qui affiche le site en direct, au départ `https://vitfix.io/pro/mobile/`
+(`server.url` + `server.appStartPath` dans `capacitor.config.ts`) : l'espace mobile artisan, ou l'écran propre au
+rôle du compte (voir « Rôles » et « Salariés d'une société BTP » ci-dessous). Pas d'export statique : connexion, données et
 mises à jour sont celles du site, sans nouvelle version à envoyer aux stores. Le pont Capacitor (`window.Capacitor`)
 est injecté dans les pages de vitfix.io ; `estAppMobile()` (`lib/app-mobile.ts`) dit si une page tourne dans l'appli.
 
@@ -13,8 +14,39 @@ est injecté dans les pages de vitfix.io ; `estAppMobile()` (`lib/app-mobile.ts`
   à la connexion en portugais.
 - **Rôles** : dans l'appli, un artisan connecté arrive sur l'espace mobile (`destinationApresConnexion`, option
   `appMobile`). Les autres comptes sont renvoyés vers leur espace par le middleware, y compris un compte BTP
-  (`pro_societe`…), qui a aussi une fiche `profiles_artisan` mais n'a pas accès à `/pro/mobile`. La déconnexion
-  ramène à la page de connexion.
+  (`pro_societe`…), qui a aussi une fiche `profiles_artisan` mais n'a pas accès à `/pro/mobile` (règle n° 1
+  artisan / BTP). La déconnexion ramène à la page de connexion.
+- **Salariés d'une société BTP** (23/11/2026) : l'appli s'ouvre sur le pointage, `/{langue}/pro/dashboard/?p=pointage`,
+  pour les rôles d'équipe dont le poste est le chantier — ouvrier, chef de chantier, conducteur de travaux
+  (`pageAppliSocieteBtp`, `lib/auth/destination-par-role.ts`). Le gérant, la secrétaire et le comptable gardent le
+  tableau de bord. Même décision pour les deux chemins d'entrée : le middleware pour une session déjà ouverte au
+  démarrage, la table des destinations pour une connexion au formulaire ou par Google. Aucun autre rôle de compte
+  n'est touché. Le module du pointage sait déjà qu'il tourne dans l'appli (`appliNative()`,
+  `components/dashboard/btp/pointage/arrierePlan.ts`, lu par `useArrierePlan` depuis `OngletPointer`) : c'est là
+  que s'affiche le pointage « téléphone en poche » (géorepérage du système, `@capgo/background-geolocation`).
+- **Portée exacte de cette règle** : le middleware ne peut pas distinguer l'appli d'un navigateur (`estAppMobile()`
+  ne vit que côté navigateur), elle s'applique donc à toute visite de `/{langue}/pro/mobile`, d'où qu'elle vienne.
+  En pratique seule l'appli y va : aucun écran du site ne porte de lien vers `/pro/mobile`. Le même salarié qui
+  s'identifie dans un navigateur ordinaire garde, lui, le tableau de bord (`appMobile` faux). Sans session ouverte,
+  l'appli part sur la page de connexion, comme avant.
+- **Ce qui démarre, et ce qui ne démarre pas** : l'écran du pointage remplace l'accueil au démarrage, mais il ne
+  demande JAMAIS la localisation de lui-même. `usePointageAuto` ne relance `watchPosition` au montage que si
+  l'employé avait déjà activé le pointage automatique sur CE téléphone (clé `vitfix_btp_pointage_auto`, posée par le
+  bouton et effacée par « Arrêter » ou par un refus) **et** que l'autorisation est déjà accordée
+  (`navigator.permissions`, état `granted`) — « sans autorisation, on ne déclenche pas de demande sans geste de sa
+  part ». La demande système ne part que d'un bouton. Il faut en plus que le gérant ait activé le pointage
+  automatique de la société (faux par défaut), que le compte soit relié à une fiche employé, qu'au moins un chantier
+  en cours affecté porte une position GPS, qu'aucun pointage à la main ne soit en cours, et que ce téléphone ne
+  pointe pas en arrière-plan. Dans ce seul cas, la localisation haute précision tourne dès le démarrage au lieu
+  d'attendre l'ouverture du module : batterie consommée plus tôt. Pour tout autre salarié, l'écran s'ouvre et rien
+  ne tourne.
+- **Téléphone en poche : inchangé par ce lot.** Le géorepérage du système tourne appli fermée, indépendamment de
+  l'écran affiché, et les deux modes s'excluent (le pointage page ouverte ne démarre pas tant que l'arrière-plan est
+  actif). Seul l'entretien de ses zones avance : relecture de l'autorisation, `synchroniserZones`, repose Android
+  (au plus toutes les 12 h) et retrait des zones orphelines ont désormais lieu à chaque démarrage au lieu de
+  l'ouverture du module — gain de fiabilité, pas de suivi nouveau.
+- **Cadre légal** : le pointage géolocalisé des salariés reste à cadrer avec Frédéric, en France comme au Portugal
+  (point ouvert depuis le 16/11/2026, note hors dépôt).
 - **Hors connexion** : page locale `mobile/www/index.html` (`server.errorPath`), en français ou en portugais selon le
   téléphone, avec un bouton « Réessayer ». Sous Android, elle s'affiche aussi pour toute erreur HTTP d'une page
   entière (404, 500, page de défi Cloudflare 403/503 comprises).
@@ -122,18 +154,114 @@ signature de l'appli : à voir quand l'appli sera signée pour les stores.
   manifeste déclare cette configuration), le temps de l'essai seulement : le test d'invariants refuse un tel
   `server.url` dans un commit.
 
-## Publication sur les stores (à faire)
+## Publication sur les stores
 
-- Comptes au nom de la société : Google Play Console (25 $ une fois) et Apple Developer (99 $ par an) ; une société
-  doit fournir un numéro D-U-N-S (gratuit).
-- **Android** : créer une clé d'envoi (upload key) gardée hors du dépôt (secret GitHub), construire un AAB signé
-  (`./gradlew bundleRelease`), le déposer dans la Play Console (test interne d'abord) ; fiche, captures, politique de
-  confidentialité et formulaire « Sécurité des données ».
-- **iPhone** : construire et signer sur un Mac ou sur un runner macOS de GitHub (gratuit pour un dépôt public) avec
-  une clé d'API App Store Connect ; TestFlight, puis revue Apple avec un compte artisan de démonstration.
-- Numéros de version à augmenter à chaque envoi : `versionCode` / `versionName` (`android/app/build.gradle`),
-  `CURRENT_PROJECT_VERSION` / `MARKETING_VERSION` (`ios/App/App.xcodeproj/project.pbxproj`).
+Deux workflows manuels font tout l'envoi, sans Mac ni Android Studio. Ils ne tournent que sur demande
+(**Actions** → le workflow → **Run workflow**), jamais sur une PR : chaque exécution consomme un numéro de version
+que le store refusera ensuite de réutiliser.
+
+| | Workflow | Ce qu'il produit |
+|---|---|---|
+| iPhone | **App iPhone — envoi TestFlight** (`mobile-ios.yml`) | archive signée déposée sur App Store Connect, puis TestFlight |
+| Android | **App Android — envoi Play** (`mobile-android-release.yml`) | bundle AAB signé déposé sur le canal Play choisi (test interne par défaut) |
+
+Les runners macOS standards sont **gratuits et sans limite sur un dépôt public** : aucun Mac n'est nécessaire.
+
+> **Signature iPhone : archive non signée, signature à l'export.** Deux pièges, tous deux constatés sur un
+> envoi réel :
+> - `CODE_SIGN_IDENTITY` figé dans `project.pbxproj` (« iPhone Developer » du gabarit Capacitor, ou même
+>   « Apple Distribution ») entre en conflit avec la signature automatique : *« App has conflicting
+>   provisioning settings »* ;
+> - en signature automatique, l'archive réclame un profil **de développement**, qu'Apple refuse à une équipe
+>   sans appareil enregistré : *« Your team has no devices from which to generate a provisioning profile »*.
+>   Un runner n'a pas d'iPhone à déclarer.
+>
+> D'où le choix : l'archive est fabriquée **sans signature** (`CODE_SIGNING_ALLOWED=NO`) et la signature a lieu
+> une seule fois, à l'export, avec un profil **App Store** — qui ne contient aucun appareil. Les deux
+> invariants sont gardés par `tests/mobile/chaine-publication.test.ts`.
+
+### Numéros de version
+
+- Le **numéro d'envoi** est automatique et pris sur le numéro du run : `CURRENT_PROJECT_VERSION` côté iPhone,
+  `versionCode` côté Android. Il ne recule jamais, et les deux stores refusent un numéro déjà déposé.
+- Le **numéro affiché aux utilisateurs** reste à la main : `MARKETING_VERSION`
+  (`ios/App/App.xcodeproj/project.pbxproj`) et `versionName` (`android/app/build.gradle`).
 - L'identifiant `io.vitfix.pro` ne pourra plus changer une fois l'appli publiée.
+
+### Secrets à créer une fois (Settings → Secrets and variables → Actions)
+
+**iPhone** — une clé d'API App Store Connect suffit : elle laisse Xcode créer lui-même le certificat de
+distribution et le profil sur le runner, donc rien à fabriquer dans un trousseau.
+
+1. App Store Connect → **Utilisateurs et accès** → **Intégrations** → **App Store Connect API** → **+**,
+   rôle **Admin**, clé d'équipe générée par le détenteur du compte.
+   Le rôle compte : `-allowProvisioningUpdates` doit créer un certificat de distribution et un profil, et
+   seul **Admin** ouvre « Certificates, Identifiers & Profiles » par l'API. Avec App Manager, le build
+   compile puis s'arrête sur « You haven't been given access to cloud-managed distribution certificates ».
+2. Le fichier `AuthKey_XXXXXXXX.p8` ne se télécharge **qu'une seule fois** : le garder hors du dépôt.
+   S'il est perdu, il faut créer une nouvelle clé et refaire les trois secrets.
+
+| Secret | Où le lire |
+|---|---|
+| `APPSTORE_KEY_ID` | colonne « Key ID » de la clé |
+| `APPSTORE_ISSUER_ID` | « Issuer ID », au-dessus de la liste des clés |
+| `APPSTORE_PRIVATE_KEY` | contenu entier du `.p8`, lignes `-----BEGIN PRIVATE KEY-----` comprises |
+| `APPLE_TEAM_ID` | Apple Developer → Membership (identifiant d'équipe) |
+
+**Android** — il faut une clé d'envoi (*upload key*) et un compte de service Google.
+
+1. Créer la clé, sans JDK, avec OpenSSL (livré avec Git pour Windows). **À coller dans Git Bash**, hors du
+   dépôt, par exemple après `mkdir -p ~/cles-stores && cd ~/cles-stores` :
+   ```bash
+   MSYS_NO_PATHCONV=1 openssl req -x509 -newkey rsa:4096 -sha256 -days 10000 -nodes \
+     -keyout upload.key -out upload.crt -subj "/CN=Vitfix Pro/O=Vitfix/C=PT"
+   openssl pkcs12 -export -inkey upload.key -in upload.crt -name upload -out upload.p12
+   base64 -w0 upload.p12 > upload.p12.base64
+   ```
+   `MSYS_NO_PATHCONV=1` est indispensable sous Windows : sans lui, Git Bash prend le `/CN=…` pour un chemin et
+   le réécrit, et le certificat sort avec un sujet absurde. PowerShell ne convient pas (la continuation `\`
+   n'y existe pas).
+   **Perdre cette clé interdit toute mise à jour de l'appli** : en garder une copie hors du poste et hors du
+   dépôt. Une fois les secrets collés dans GitHub, effacer les fichiers intermédiaires du poste.
+2. **Play Console** → **Paramètres** → **Accès à l'API** : lier un projet Google Cloud. Ce passage active
+   l'API *Google Play Android Developer* dans le projet — sans elle, le premier envoi échoue en 403.
+3. Dans ce projet, **Google Cloud** → **IAM et administration** → **Comptes de service** → créer un compte,
+   puis lui ajouter une clé **JSON**. Revenir dans Play Console → **Utilisateurs et autorisations**, inviter
+   ce compte et lui donner le rôle **Release manager** sur l'application. Les droits mettent parfois quelques
+   minutes à se propager : un premier essai en 403 juste après l'invitation n'est pas une erreur de
+   configuration.
+
+| Secret | Contenu |
+|---|---|
+| `ANDROID_KEYSTORE_BASE64` | contenu de `upload.p12.base64` |
+| `ANDROID_KEYSTORE_PASSWORD` | mot de passe donné à `openssl pkcs12 -export` |
+| `ANDROID_KEY_ALIAS` | `upload` (le `-name` ci-dessus) |
+| `ANDROID_KEY_PASSWORD` | le même mot de passe |
+| `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` | le fichier JSON du compte de service, en entier |
+
+L'envoi lui-même passe par `scripts/mobile/publier-play.mjs` (API Google Play en fetch direct, aucune action
+tierce ni dépendance ajoutée). L'AAB signé n'est jamais publié en artefact : sur un dépôt public, il serait
+téléchargeable par n'importe qui.
+
+### Le premier envoi Android part en brouillon
+
+Tant que l'appli n'a jamais été publiée, Google la tient pour un brouillon et **refuse** une version déposée
+en `completed`. L'entrée **statut** du workflow vaut donc `draft` par défaut : la version apparaît dans le
+canal choisi et se publie d'un clic dans la Play Console. Une fois l'appli publiée une première fois, basculer
+l'entrée sur `completed` pour que les envois suivants partent directement aux testeurs.
+
+### Ce qui reste manuel dans les consoles
+
+- Fiche du store : description, captures d'écran, catégorie, adresse de la politique de confidentialité
+  (`https://vitfix.io/fr/confidentialite/`).
+- Google Play : formulaire **Sécurité des données**, classification du contenu, statut de professionnel par appli.
+- App Store : classification d'âge, statut de commerçant par appli, et — pour une publication publique — un compte
+  artisan de démonstration pour la revue Apple.
+- Inviter les testeurs : **Test interne** côté Play, **TestFlight → testeurs internes** côté Apple.
+
+Le questionnaire de chiffrement à l'export, lui, n'est plus à remplir à chaque build : `Info.plist` déclare
+`ITSAppUsesNonExemptEncryption` à `false` (l'appli ne fait que du HTTPS). Sans cette clé, chaque build reste
+en « Conformité manquante » et TestFlight refuse de la distribuer, même en interne.
 
 ## Icônes et écran de démarrage
 

@@ -10,10 +10,15 @@ export interface PanelProps {
   children?: ReactNode
   /** Corps sans marge intérieure (classe flush). */
   flush?: boolean
+  /**
+   * Sur téléphone, contenu de droite renvoyé sous le titre quand celui-ci manquerait de place (classe
+   * vfx-entete-a-la-ligne, aj-correctifs.css). Réservé aux en-têtes que vise la décision du 22/11/2026.
+   */
+  controlesALaLigne?: boolean
 }
 
 /** Panneau à en-tête facultatif (affiché seulement si title ou right est fourni). */
-export function Panel({ title, sub, icon, right, children, flush }: PanelProps) {
+export function Panel({ title, sub, icon, right, children, flush, controlesALaLigne }: Readonly<PanelProps>) {
   return (
     <div
       className="panel"
@@ -22,7 +27,7 @@ export function Panel({ title, sub, icon, right, children, flush }: PanelProps) 
       }}
     >
       {(title || right) && (
-        <div className="panel-head">
+        <div className={controlesALaLigne ? 'panel-head vfx-entete-a-la-ligne' : 'panel-head'}>
           {icon && (
             <div className="h-ico">
               <Icon name={icon} />

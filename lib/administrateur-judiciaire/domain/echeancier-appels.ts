@@ -460,6 +460,13 @@ function verifierAvisDuTraitement(avis: AvisAppels, traitement: Traitement): voi
 /** Bornes d'un exercice du syndicat (exercices-budgets.ts). */
 export type BornesExercice = Pick<Exercice, 'nom' | 'ouverture' | 'cloture'>
 
+/**
+ * Exercices du syndicat dont les bornes sont connues (nom, ouverture, clôture) : les seuls qui comptent pour dater une
+ * écriture, celle d'un appel (J67, R96) comme celle d'un encaissement (décision du 24/11/2026, question 6 bis).
+ */
+export const bornesDesExercices = (exercices: readonly Partial<BornesExercice>[]): BornesExercice[] =>
+  exercices.flatMap((x) => (x.nom && x.ouverture && x.cloture ? [{ nom: x.nom, ouverture: x.ouverture, cloture: x.cloture }] : []))
+
 export interface AnomalieDateComptableAppel {
   code: 'date_hors_exercice' | 'date_autre_que_exigibilite' | 'exigibilite_hors_exercice'
   gravite: 'bloquant' | 'avertissement'
@@ -484,7 +491,8 @@ export function dateComptableAppel(avis: Pick<AvisAppels, 'echeances'>): string 
   return dates[0]
 }
 
-const exerciceDe = (exercices: readonly BornesExercice[], date: string): BornesExercice | null =>
+/** Exercice qui comprend la date, bornes comprises ; null hors de tous. */
+export const exerciceDe = (exercices: readonly BornesExercice[], date: string): BornesExercice | null =>
   exercices.find((x) => x.ouverture <= date && date <= x.cloture) ?? null
 
 function anomalieDateEcheance(date: string, e: EcheanceAppel, exercices: readonly BornesExercice[]): AnomalieDateComptableAppel | null {

@@ -10,6 +10,8 @@ import { ajDb, NOM_BASE_LOCALE } from '@/lib/administrateur-judiciaire/db/schema
  * (aucune fonction upgrade : la migration des fiches est une fonction à part, db/migration-d2.ts). Retour arrière : la
  * base passée en version 3 se rouvre avec le code de la version 2. Un onglet resté ouvert sur l'ancien code se
  * reconnecte tout seul (Dexie 4.4.6 : fermeture sur versionchange, réouverture au repli de VersionError). Données fictives.
+ * Version 4 (table « encaissements », imputation aux comptes D2) : mêmes garanties, la base ouverte par le code courant
+ * est en version 4 ; une base en version 3 remplie (compte, échéance appelée, pièce) y monte sans qu'aucune donnée ne bouge.
  */
 
 /** Ancien code : les blocs version(1) et version(2) de db/schema.ts, recopiés tels quels (fixture). */
@@ -67,7 +69,21 @@ function baseV2(): Dexie {
   return db
 }
 
-const NOUVELLES = ['identites', 'positions', 'comptesCoproprietaires', 'clesRepartition', 'echeancesAppel', 'traitements']
+const NOUVELLES = ['identites', 'positions', 'comptesCoproprietaires', 'clesRepartition', 'echeancesAppel', 'traitements', 'encaissements']
+
+/** Code de la version 3 : baseV2 et le bloc version(3) de db/schema.ts, recopié tel quel (fixture). */
+function baseV3(): Dexie {
+  const db = baseV2()
+  db.version(3).stores({
+    identites: 'id',
+    positions: 'id, lotId, identiteId',
+    comptesCoproprietaires: 'id, coproprieteId, &[coproprieteId+serie]',
+    clesRepartition: 'id, coproprieteId, &[coproprieteId+code]',
+    echeancesAppel: '[coproprieteId+id], coproprieteId',
+    traitements: 'id, coproprieteId, mandatId, &numero',
+  })
+  return db
+}
 
 const suivi = { createdAt: '2026-06-01T08:00:00.000Z', updatedAt: '2026-06-01T08:00:00.000Z', createdBy: 'test', updatedBy: 'test' }
 
@@ -102,8 +118,8 @@ afterEach(async () => {
   await Dexie.delete(NOM_BASE_LOCALE)
 })
 
-describe('montée de version 2 → 3 sur une base déjà remplie', () => {
-  it('données v2 identiques, journal compris ; six tables nouvelles vides ; aucune écriture à la montée', async () => {
+describe('montée de version 2 → 4 (par la version 3) sur une base déjà remplie', () => {
+  it('données v2 identiques, journal compris ; sept tables nouvelles vides ; aucune écriture à la montée', async () => {
     const ancienne = baseV2()
     await ancienne.open()
     await remplir(ancienne)
@@ -112,14 +128,14 @@ describe('montée de version 2 → 3 sur une base déjà remplie', () => {
     ancienne.close()
 
     await ajDb.open()
-    expect(ajDb.verno).toBe(3)
+    expect(ajDb.verno).toBe(4)
     expect(await contenu(ajDb, noms)).toEqual(avant)
     for (const nom of NOUVELLES) expect(await ajDb.table(nom).count(), nom).toBe(0)
     // aucune fonction upgrade : le journal d'activité n'a reçu aucune entrée
     expect(await ajDb.activityLog.count()).toBe(1)
   })
 
-  it('retour arrière : la base passée en version 3 se rouvre avec le code de la version 2, données gardées', async () => {
+  it('retour arrière : la base passée en version 4 se rouvre avec le code de la version 2, données gardées', async () => {
     const ancienne = baseV2()
     await ancienne.open()
     await remplir(ancienne)
@@ -142,9 +158,9 @@ describe('montée de version 2 → 3 sur une base déjà remplie', () => {
     await ancienne.open()
     await remplir(ancienne)
 
-    // l'onglet à jour ouvre la base en version 3 pendant que l'ancien est ouvert
+    // l'onglet à jour ouvre la base en version 4 pendant que l'ancien est ouvert
     await ajDb.open()
-    expect(ajDb.verno).toBe(3)
+    expect(ajDb.verno).toBe(4)
     expect(avertissement).toHaveBeenCalledWith(expect.stringContaining('Another connection wants to upgrade database'))
 
     // l'ancien onglet continue : réouverture automatique, lecture et écriture de l'ancien modèle sans erreur
@@ -154,5 +170,49 @@ describe('montée de version 2 → 3 sur une base déjà remplie', () => {
     // il n'écrit rien dans les tables nouvelles (il ne lance pas la migration)
     for (const nom of NOUVELLES) expect(await ajDb.table(nom).count(), nom).toBe(0)
     ancienne.close()
+  })
+})
+
+describe('montée de version 3 → 4 sur une base D2 déjà remplie', () => {
+  /** Base v3 : la base v2 remplie, plus un compte, une clé, une échéance appelée et sa pièce d'appel (fictifs). */
+  async function remplirD2(db: Dexie): Promise<void> {
+    await remplir(db)
+    await db.table('comptesCoproprietaires').add({ id: 'CPT9', coproprieteId: 'C9', serie: '00001', libelle: 'Personne Fictive', ...suivi })
+    await db.table('clesRepartition').add({ id: 'CLE9', coproprieteId: 'C9', code: '001', libelle: 'Charges communes générales', lots: [{ lotId: 'L9', tantiemes: 1000 }], totalTantiemes: 1000, ...suivi })
+    await db.table('echeancesAppel').add({ id: 'A-20270101-001-1', coproprieteId: 'C9', cleId: 'CLE9', exigibilite: '2027-01-01', libelle: 'Provisions T1 2027', montantCentimes: 12_500, nature: 'budget', statut: 'Appelé', traitementId: 'appel-9', ...suivi })
+    await db.table('traitements').add({ id: 'appel-9', numero: 1, famille: 'Appel de fonds', date: '2027-01-01', coproprieteId: 'C9', mandatId: 'M9', nbLignes: 2, statut: 'Produit', parametres: [], ...suivi })
+  }
+
+  it('données v3 identiques, journal compris ; table « encaissements » vide ; aucune écriture à la montée', async () => {
+    const ancienne = baseV3()
+    await ancienne.open()
+    expect(ancienne.verno).toBe(3)
+    await remplirD2(ancienne)
+    const noms = ancienne.tables.map((t) => t.name)
+    const avant = await contenu(ancienne, noms)
+    ancienne.close()
+
+    await ajDb.open()
+    expect(ajDb.verno).toBe(4)
+    expect(await contenu(ajDb, noms)).toEqual(avant)
+    expect(await ajDb.encaissements.count()).toBe(0)
+    expect(await ajDb.activityLog.count()).toBe(1)
+  })
+
+  it('retour arrière : la base passée en version 4 se rouvre avec le code de la version 3, données gardées', async () => {
+    const ancienne = baseV3()
+    await ancienne.open()
+    await remplirD2(ancienne)
+    const noms = ancienne.tables.map((t) => t.name)
+    const avant = await contenu(ancienne, noms)
+    ancienne.close()
+
+    await ajDb.open()
+    ajDb.close()
+
+    const retour = baseV3()
+    await retour.open()
+    expect(await contenu(retour, noms)).toEqual(avant)
+    retour.close()
   })
 })

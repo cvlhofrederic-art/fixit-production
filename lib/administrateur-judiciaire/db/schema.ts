@@ -474,7 +474,16 @@ export interface CompteCoproprietaireEnregistre
     Omit<import('@/lib/administrateur-judiciaire/domain/identites-positions').CompteCoproprietaire, 'id'> {
   /** Compte né de la migration : solde et statut de l'ancienne fiche relevés ce jour-là, sans écriture. Absent sinon. */
   reprise?: import('@/lib/administrateur-judiciaire/domain/migration-d2').RepriseSoldeCompte | null
+  /**
+   * Règlement du compte (mode, mandat SEPA : avis-appel.ts), lu par l'écran « Appels de fonds » pour l'avis et le lot de
+   * prélèvements. Saisie à brancher (mandats SEPA : plan des écrans, § 5.6). Non indexé : aucun changement de version ;
+   * absent ou null : mode de règlement à renseigner.
+   */
+  reglement?: ReglementCompteEnregistre | null
 }
+
+/** Règlement enregistré sur le compte copropriétaire : ReglementCompte du domaine, sans l'identifiant du compte. */
+export type ReglementCompteEnregistre = Omit<import('@/lib/administrateur-judiciaire/domain/avis-appel').ReglementCompte, 'compteId'>
 
 /** Clé de répartition du syndicat (un code par syndicat). */
 export type CleRepartitionEnregistree = EntiteEnregistree & import('@/lib/administrateur-judiciaire/domain/repartition-appels').CleRepartition
@@ -488,6 +497,16 @@ export type EcheanceAppelEnregistree = ChampsSuivi & import('@/lib/administrateu
 
 /** Pièce du journal des traitements (D1) : syndicat propriétaire, mandat auteur, numéro de la séquence du cabinet. */
 export type PieceTraitementEnregistree = EntiteEnregistree & import('@/lib/administrateur-judiciaire/domain/journal-traitements').PieceTraitement
+
+// ─── Encaissements des copropriétaires (version 4) ────────────────────────────────────────────────────────────────
+
+/**
+ * Encaissement d'un copropriétaire (encaissements-pieces.EncaissementEnregistre : pièce, journal de banque, statut,
+ * traitement, annulation), rangé tel quel avec son syndicat (D1) et son imputation sur les postes de son compte D2
+ * (postes-comptes.ImputationEcrite). Écrit par db/encaissements.ts seulement, avec sa pièce du journal des traitements ;
+ * jamais supprimé : il s'annule par une écriture contraire (F110). Sans repository générique.
+ */
+export type EncaissementCoproprietaireEnregistre = ChampsSuivi & import('@/lib/administrateur-judiciaire/domain/postes-comptes').EncaissementImpute
 
 // ─── Journal d'activité ────────────────────────────────────────────────────────────────────
 
@@ -559,6 +578,7 @@ export class AdministrateurJudiciaireDb extends Dexie {
   declare clesRepartition: Table<CleRepartitionEnregistree, string>
   declare echeancesAppel: Table<EcheanceAppelEnregistree, [string, string]>
   declare traitements: Table<PieceTraitementEnregistree, string>
+  declare encaissements: Table<EncaissementCoproprietaireEnregistre, string>
 
   constructor() {
     super(NOM_BASE_LOCALE)
@@ -629,6 +649,14 @@ export class AdministrateurJudiciaireDb extends Dexie {
       clesRepartition: 'id, coproprieteId, &[coproprieteId+code]',
       echeancesAppel: '[coproprieteId+id], coproprieteId',
       traitements: 'id, coproprieteId, mandatId, &numero',
+    })
+    // Version 4 (imputation des encaissements aux comptes D2) : AJOUTE une table, les encaissements des copropriétaires
+    // (pièce, journal de banque, statut, imputation sur les postes du compte : db/encaissements.ts). Les blocs
+    // version(1) à version(3) ci-dessus ne sont jamais modifiés ; aucune fonction upgrade : la montée de version crée
+    // une table vide et ne touche à aucune donnée. Les postes des comptes n'ont pas de table : ils se relisent des
+    // échéances appelées et de ces encaissements. Index : la lecture des encaissements d'un syndicat (D1).
+    this.version(4).stores({
+      encaissements: 'id, coproprieteId',
     })
   }
 }

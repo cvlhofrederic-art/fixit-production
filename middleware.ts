@@ -11,6 +11,8 @@ import {
 } from '@/lib/aj-signalement/acces-espace'
 import { cheminEspaceCabinetQr, cheminPublicCabinetQr, cheminSuiviCabinetQr } from '@/lib/aj-signalement/chemin-cabinet'
 import { estPostUnClicDesinscriptionQr } from '@/lib/aj-signalement/chemin-desinscription'
+import { pageAppliSocieteBtp } from '@/lib/auth/destination-par-role'
+import { CHEMIN_CRM, ROLE_SECRETARIAT } from '@/lib/crm/types'
 import { POLITIQUE_CSP } from '@/lib/securite/csp'
 import { destinoConsolidado } from '@/lib/seo/pt-consolidacao'
 import { isSeoPublicRoute } from '@/lib/seo/routes-publiques'
@@ -192,6 +194,9 @@ async function compteDeLaSessionQr(supabase: ReturnType<typeof clientSupabaseMid
  * gestionnaire) : requête d'origine vidée, cookies de session rafraîchis recopiés avec leurs options, en-têtes d'un
  * espace privé (OpenNext n'ajoute pas les headers() de next.config.ts aux 3xx du middleware).
  */
+/** Tableaux de bord des comptes (chemins sans langue) : un compte « secretariat » y est renvoyé vers le CRM. */
+const TABLEAUX_DE_BORD = ['/client/dashboard', '/pro/dashboard', '/pro/mobile', '/artisan/dashboard', '/syndic/dashboard', '/coproprietaire/dashboard']
+
 function redirectionSansLangue(request: NextRequest, chemin: string, reponseSupabase: NextResponse | null): NextResponse {
   const reponse = NextResponse.redirect(new URL(chemin, request.url), 307)
   reponseSupabase?.cookies.getAll().forEach((cookie) => {
@@ -419,12 +424,20 @@ export async function middleware(request: NextRequest) {
   // Helper: create a redirect with locale prefix — ALWAYS copies refreshed auth cookies
   // Depuis /en/, /nl/ ou /es/ (compte connecté sur l'accueil, espace d'un autre rôle, page protégée sans session), la
   // page visée est sous /pt/, comme « My space » (lib/i18n/liens-entete-pied.ts) : /en/artisan/dashboard/… répondait 404.
-  // `viderRequete` : la requête d'origine n'est pas reprise (espace AJ Signalement) ; sinon gardée telle quelle.
+  // Requête de la redirection, dans cet ordre : celle écrite dans le chemin (« /pro/dashboard/?p=pointage ») si elle
+  // y est — elle prime, `viderRequete` compris, car l'appelant l'a écrite exprès ; sinon aucune si `viderRequete` ;
+  // sinon celle de l'adresse visitée, gardée telle quelle (`viderRequete` sert à l'espace AJ Signalement, qui ne
+  // reprend pas la requête d'origine). Aucun appelant ne combine les deux aujourd'hui : l'ordre
+  // est écrit ici pour que le prochain n'ait pas à le deviner.
   const localeRedirect = (path: string, viderRequete = false) => {
     const url = request.nextUrl.clone()
+    const separateur = path.indexOf('?')
+    const chemin = separateur === -1 ? path : path.slice(0, separateur)
+    const requete = separateur === -1 ? null : path.slice(separateur + 1)
     const langueCible = LANGUES_PAGES_COMMUNES.includes(locale) ? locale : 'pt'
-    url.pathname = isInternalRoute ? path : `/${langueCible}${path}`
-    if (viderRequete) url.search = ''
+    url.pathname = isInternalRoute ? chemin : `/${langueCible}${chemin}`
+    if (requete !== null) url.search = requete
+    else if (viderRequete) url.search = ''
     const resp = NextResponse.redirect(url)
     if (!isInternalRoute) {
       poserCookieLangue(request, resp, locale)
@@ -469,6 +482,8 @@ export async function middleware(request: NextRequest) {
   // Authenticated user on landing/login pages → redirect to their dashboard
   const isLandingOrLogin = strippedPathname === '' || strippedPathname === '/' || strippedPathname === '/auth/login'
   if (user && isLandingOrLogin) {
+    // CRM du secrétariat : route interne sans langue (lib/crm/types.ts), comme destinationApresConnexion.
+    if (role === ROLE_SECRETARIAT) return redirectionSansLangue(request, CHEMIN_CRM, supabaseResponse)
     if (role === 'artisan') return localeRedirect('/artisan/dashboard')
     if (['pro_societe', 'pro_conciergerie', 'pro_gestionnaire'].includes(role || '')) return localeRedirect('/pro/dashboard')
     if (isSyndicRole(role)) return localeRedirect('/syndic/dashboard')
@@ -508,6 +523,11 @@ export async function middleware(request: NextRequest) {
 
   // Role-based access control
   if (user) {
+    // CRM du secrétariat : le compte « secretariat » n'a aucun autre espace ; tout tableau de bord le ramène au CRM.
+    if (role === ROLE_SECRETARIAT && TABLEAUX_DE_BORD.some((prefixe) => strippedPathname.startsWith(prefixe))) {
+      return redirectionSansLangue(request, CHEMIN_CRM, supabaseResponse)
+    }
+
     // Syndic users: redirect away from non-syndic dashboards
     if (isSyndicRole(role)) {
       if (
@@ -536,11 +556,22 @@ export async function middleware(request: NextRequest) {
       if (strippedPathname.startsWith('/client/dashboard') || strippedPathname.startsWith('/syndic/dashboard')) {
         return localeRedirect('/pro/dashboard')
       }
+      if (strippedPathname.startsWith('/artisan/dashboard')) {
+        return localeRedirect('/pro/dashboard')
+      }
       // /pro/mobile : espace mobile des seuls artisans (règle n° 1 artisan / BTP). Une société BTP a aussi une fiche
       // profiles_artisan, la seule chose que la page vérifie : elle y verrait et modifierait l'espace artisan.
-      // L'appli Vitfix Pro démarre sur /pro/mobile/ : sans cette garde, chaque ouverture d'un compte BTP y menait.
-      if (strippedPathname.startsWith('/artisan/dashboard') || strippedPathname.startsWith('/pro/mobile')) {
-        return localeRedirect('/pro/dashboard')
+      // C'est aussi le départ de l'appli Vitfix Pro (capacitor.config.ts, appStartPath) : à chaque ouverture, un compte
+      // de société BTP passe donc ici. Un salarié de terrain part sur le pointage, son poste de travail (23/11/2026) ;
+      // le gérant et les postes de bureau sur le tableau de bord, comme avant. Décision partagée avec la connexion
+      // (lib/auth/destination-par-role), pour que les deux chemins d'entrée dans l'appli ouvrent le même écran.
+      // Le middleware ne peut PAS distinguer l'appli d'un navigateur (estAppMobile ne vit que côté navigateur) : la
+      // règle vaut pour toute visite de /pro/mobile, d'où qu'elle vienne. Hors de l'appli rien n'y mène, aucun écran
+      // du site ne porte ce lien ; et un salarié qui s'identifie dans un navigateur ordinaire garde, lui, le tableau
+      // de bord (destinationApresConnexion sans appMobile).
+      if (strippedPathname.startsWith('/pro/mobile')) {
+        const vers = role === 'pro_societe' ? pageAppliSocieteBtp(user?.app_metadata?.pro_team_role) : '/pro/dashboard'
+        return localeRedirect(vers)
       }
     }
 

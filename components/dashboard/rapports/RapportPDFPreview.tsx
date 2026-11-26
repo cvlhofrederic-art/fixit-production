@@ -3,8 +3,9 @@
  * Rendered off-screen for html2canvas capture.
  * Extracted from RapportsSection.tsx.
  */
-import { forwardRef } from 'react'
+import { forwardRef, useMemo } from 'react'
 import { useLocale } from '@/lib/i18n/context'
+import { carteDocumentsLies, libelleDocumentLie, type DocumentLie } from '@/components/dashboard/rapports/document-lie'
 
 interface RapportIntervention {
   id: string
@@ -49,6 +50,8 @@ interface RapportPDFPreviewProps {
   previewRapport: RapportIntervention
   availablePhotos: PhotoRecord[]
   artisanId?: string
+  /** Documents de l'écran rangés par identifiant, construits une fois par le parent (voir document-lie.ts). */
+  documentsParId?: Map<string, DocumentLie>
   /** Rôle de l'espace (« pro_societe » : titre « Relatório de obra » en portugais). */
   orgRole?: string
   dateFmtLocale: string
@@ -56,9 +59,15 @@ interface RapportPDFPreviewProps {
 }
 
 const RapportPDFPreview = forwardRef<HTMLDivElement, RapportPDFPreviewProps>(
-  ({ previewRapport, availablePhotos, artisanId, orgRole, dateFmtLocale, onNavigate }, ref) => {
+  ({ previewRapport, availablePhotos, artisanId, documentsParId, orgRole, dateFmtLocale, onNavigate }, ref) => {
     const isPt = useLocale() === 'pt'
     const isBtp = orgRole === 'pro_societe'
+    // Carte du parent si elle est fournie, repli sur le stockage sinon : ce gabarit est monté seul par les bancs
+    // d'internationalisation, et il doit retrouver le libellé du document lié dans les deux cas.
+    const carte = useMemo(
+      () => documentsParId ?? carteDocumentsLies(undefined, artisanId),
+      [documentsParId, artisanId],
+    )
     return (
       <div style={{ position: 'fixed', left: '-9999px', top: 0, width: '794px', background: '#fff' }}>
         <div ref={ref} style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '11px', color: '#1a1a1a', padding: '48px 48px 40px 48px', background: '#fff', width: '794px', boxSizing: 'border-box', lineHeight: '1.5' }}>
@@ -77,14 +86,7 @@ const RapportPDFPreview = forwardRef<HTMLDivElement, RapportPDFPreviewProps>(
               </div>
             )}
             {(previewRapport.linkedDevisId || previewRapport.linkedDevisRef) && (() => {
-              let label = previewRapport.linkedDevisRef || ''
-              if (previewRapport.linkedDevisId && artisanId) {
-                try {
-                  const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisanId}`) || '[]')
-                  const doc = docs.find((d: { id: string }) => d.id === previewRapport.linkedDevisId)
-                  if (doc) label = `${isPt ? 'Orçamento' : 'Devis'} ${doc.service || doc.clientName || doc.id}`
-                } catch { /* ignore */ }
-              }
+              const label = libelleDocumentLie(carte, previewRapport.linkedDevisId, previewRapport.linkedDevisRef, 'devis', isPt)
               return (
                 <div
                   style={{ fontSize: '10px', color: '#FFC107', marginTop: '6px', cursor: onNavigate ? 'pointer' : 'default', textDecoration: onNavigate ? 'underline' : 'none' }}
@@ -95,14 +97,7 @@ const RapportPDFPreview = forwardRef<HTMLDivElement, RapportPDFPreviewProps>(
               )
             })()}
             {(previewRapport.linkedFactureId || previewRapport.linkedFactureRef) && (() => {
-              let label = previewRapport.linkedFactureRef || ''
-              if (previewRapport.linkedFactureId && artisanId) {
-                try {
-                  const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisanId}`) || '[]')
-                  const doc = docs.find((d: { id: string }) => d.id === previewRapport.linkedFactureId)
-                  if (doc) label = `${isPt ? 'Fatura' : 'Facture'} ${doc.service || doc.clientName || doc.id}`
-                } catch { /* ignore */ }
-              }
+              const label = libelleDocumentLie(carte, previewRapport.linkedFactureId, previewRapport.linkedFactureRef, 'facture', isPt)
               return (
                 <div
                   style={{ fontSize: '10px', color: '#FFC107', marginTop: '6px', cursor: onNavigate ? 'pointer' : 'default', textDecoration: onNavigate ? 'underline' : 'none' }}

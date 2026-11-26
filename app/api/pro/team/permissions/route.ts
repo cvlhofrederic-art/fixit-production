@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     // Find this user's team membership
     const { data: membership } = await supabaseAdmin
       .from('pro_team_members')
-      .select('id')
+      .select('id, company_id')
       .eq('user_id', user.id)
       .eq('is_active', true)
       .maybeSingle()
@@ -32,10 +32,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ overrides: [] })
     }
 
+    // Bornées à la société du membre : une dérogation d'une autre company_id n'a pas été posée par le serveur
+    // (migration 20261125b).
     const { data: overrides } = await supabaseAdmin
       .from('pro_role_permissions')
       .select('module_id, access_level')
       .eq('member_id', membership.id)
+      .eq('company_id', membership.company_id)
 
     return NextResponse.json({ overrides: overrides || [] })
   }
@@ -59,6 +62,7 @@ export async function GET(request: NextRequest) {
       .from('pro_role_permissions')
       .select('module_id, access_level')
       .eq('member_id', memberId)
+      .eq('company_id', companyId)
 
     return NextResponse.json({ overrides: overrides || [] })
   }

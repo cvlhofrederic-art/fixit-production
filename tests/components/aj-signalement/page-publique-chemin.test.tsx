@@ -1,6 +1,6 @@
 // tests/components/aj-signalement/page-publique-chemin.test.tsx
 //
-// Chemin par cabinet client (vitfix.io/<identifiant>/signalement/<jeton>/, choix de Hugo du 10/11/2026), côté pages :
+// Chemin par cabinet client (vitfix.io/<identifiant>/signalement/<jeton>/, choix du 10/11/2026), côté pages :
 // - page interne app/(commun)/cabinet/[identifiant]/signalement/[jeton] (servie par réécriture) : identifiant ou jeton
 //   mal formé → 404 SANS lecture ; copropriété inconnue, désactivée, sans cabinet ou d'un AUTRE cabinet → le même 404 ;
 //   sinon la page publique, dans la langue du cabinet (attribut lang et textes) ;
@@ -9,7 +9,7 @@
 // - PR 3, lot 7 (cahier § 6, HF3) : la page du chemin client lit l'information à la collecte (politique du cabinet,
 //   diffusion possible) et la passe au formulaire ; aucune information → formulaire inchangé ; l'ancienne page
 //   (copropriété sans cabinet) ne la lit jamais.
-// - bâtiments saisis par le cabinet (demande de Hugo du 17/11/2026) : les deux pages passent au formulaire la liste
+// - bâtiments saisis par le cabinet (demande du 17/11/2026) : les deux pages passent au formulaire la liste
 //   nettoyée (ordre saisi, doublons et vides écartés) ; de la copropriété, le formulaire ne reçoit que son nom, son
 //   adresse et ces noms de bâtiments (minimisation) ; sans bâtiment : liste vide, texte libre.
 // La lecture (serveur) est simulée : seules les décisions des pages sont testées.
@@ -163,11 +163,11 @@ describe('information à la collecte sur le formulaire (PR 3, lot 7 ; cahier § 
   })
 })
 
-describe('bâtiments saisis par le cabinet (demande de Hugo du 17/11/2026)', () => {
+describe('bâtiments saisis par le cabinet (demande du 17/11/2026)', () => {
   const coproprieteRecue = () => JSON.parse(screen.getByTestId('app').getAttribute('data-copropriete') ?? 'null') as Record<string, unknown>
-  const BATIMENTS_ATTENDUS = ['Titan', 'Planier', 'Cicies', 'Faraman', 'commerces']
+  const BATIMENTS_ATTENDUS = ['Bâtiment A', 'Bâtiment B', 'Les Pins', 'commerces']
   const AVEC_BATIMENTS = {
-    ...copro, batiments: [' Titan ', 'Planier', '', 'titan', 'Cicies', 'Faraman', 'commerces'],
+    ...copro, batiments: [' Bâtiment A ', 'Bâtiment B', '', 'bâtiment a', 'Les Pins', 'commerces'],
     emails_destinataires: ['cabinet@exemple.test'], immatriculation: 'AB1234567', reference_cabinet: 'REF-1',
   }
 

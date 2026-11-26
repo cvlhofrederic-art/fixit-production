@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import type { User } from '@supabase/supabase-js'
 import { z } from 'zod'
 import { supabaseAdmin } from '@/lib/supabase-server'
-import { getAuthUser, getUserRole, isProGerant, resolveCompanyId } from '@/lib/auth-helpers'
+import { getAuthUser, getUserRole, isProGerant, resolveCompanyId, societeDunAutreCompte } from '@/lib/auth-helpers'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import {
@@ -97,6 +97,10 @@ async function lireContexte(user: User): Promise<Contexte | null> {
   if (role !== 'pro_societe' && role !== 'super_admin') return null
   const societeId = await resolveCompanyId(user, supabaseAdmin)
   if (!societeId) return null
+  // Co-gérant rattaché à une autre société sans ligne d'équipe active (désactivé) : resolveCompanyId retombe sur
+  // lui ; il n'a pas de société à son nom, et il y aurait écrit des réglages de pointage (25/11/2026). Un salarié
+  // désactivé garde sa réponse vide d'avant (aucune donnée de la société).
+  if (isProGerant(user) && societeDunAutreCompte(user) && societeId === user.id) return null
   const donnees = await lireDonneesSociete(societeId)
   return { ...donnees, gerant: isProGerant(user), resolution: membreDuCompte(donnees.membres, user.email) }
 }

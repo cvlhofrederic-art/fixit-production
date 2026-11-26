@@ -133,6 +133,7 @@ export const repoCourriers: Repository<Courrier> = {
 
 // ─── D1 et D2 (version 3) ─────────────────────────────────────────────────────────────────────────────────────────
 // Les échéances d'appel (clé composée [coproprieteId+id]) n'ont pas de repository : db/echeances-appel.ts.
+// Les encaissements des copropriétaires (version 4) non plus : ils s'écrivent avec leur pièce, db/encaissements.ts.
 
 const repoIdentitesSansGarde = creerRepository(ajDb.identites, 'identites')
 

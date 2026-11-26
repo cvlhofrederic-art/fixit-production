@@ -11,6 +11,13 @@ import {
   BTP_TABLES_ECRIVABLES, COLONNES_SYSTEME, FORMAT_UUID, dejaEnregistre, memeValeur, referencesDeLigne, valeursHorsBornes,
   verifierLigne, type HorsBornes, type Reference, type TableCible, type TableEcrivable,
 } from '@/lib/btp/schema-tables-btp'
+import {
+  lirePerimetreBtp, peutEcrireTable, projeter, visibiliteListe, type PerimetreBtp, type Visibilite,
+} from '@/lib/btp/perimetre-compte'
+import {
+  chantiersAffectes, membreDuCompte,
+  type ChantierBtp, type EquipeBtp, type MembreBtp, type ResolutionMembre,
+} from '@/lib/btp/pointage-regles'
 
 const btpBodySchema = z.object({
   table: z.enum(BTP_TABLES_ECRIVABLES),
@@ -89,6 +96,65 @@ async function lireListe(cle: string, userId: string, chantierId: string | null)
   return { lignes, plafondAtteint: null }
 }
 
+/**
+ * Chantiers que le salarié voit en vue restreinte : ceux « En cours » qui lui sont affectés, directement ou par une
+ * de ses équipes (même règle que le pointage, `chantiersAffectes`). Sa fiche employé est retrouvée par son adresse
+ * e-mail : sans fiche, ou avec deux fiches actives à la même adresse, il ne voit aucun chantier — c'est au gérant de
+ * relier le compte à la fiche, et la réponse le dit par `rattachement`.
+ */
+async function chantiersDuSalarie(
+  perimetre: PerimetreBtp,
+  chantiers: readonly Record<string, unknown>[],
+): Promise<{ lignes: Record<string, unknown>[]; rattachement: ResolutionMembre['statut'] }> {
+  const [membres, equipes] = await Promise.all([
+    lireListe('membres', perimetre.societeId, null),
+    lireListe('equipes', perimetre.societeId, null),
+  ])
+  const resolution = membreDuCompte(membres.lignes as unknown as MembreBtp[], perimetre.email)
+  if (resolution.statut !== 'relie') return { lignes: [], rattachement: resolution.statut }
+  const siens = chantiersAffectes(
+    resolution.membre,
+    chantiers as unknown as ChantierBtp[],
+    equipes.lignes as unknown as EquipeBtp[],
+  )
+  return { lignes: siens as unknown as Record<string, unknown>[], rattachement: 'relie' }
+}
+
+/** État du rattachement du compte à sa fiche employé, renseigné seulement quand une vue restreinte l'a cherché. */
+type Rattachement = ResolutionMembre['statut'] | null
+
+/**
+ * Lecture d'une liste pour le compte connecté : rien si son rôle n'y a pas accès, tout s'il a FULL, sinon la vue
+ * restreinte (moins de lignes ET moins de colonnes, voir lib/btp/perimetre-compte.ts).
+ */
+async function lireListePour(
+  perimetre: PerimetreBtp,
+  cle: string,
+  chantierId: string | null,
+): Promise<{ liste: ListeLue; rattachement: Rattachement; visibilite: Visibilite }> {
+  const visibilite = visibiliteListe(perimetre, cle)
+  if (visibilite === 'aucune') return { liste: { lignes: [], plafondAtteint: null }, rattachement: null, visibilite }
+
+  const brute = await lireListe(cle, perimetre.societeId, chantierId)
+  if (visibilite === 'tout') return { liste: brute, rattachement: null, visibilite }
+
+  if (cle === 'chantiers') {
+    const { lignes, rattachement } = await chantiersDuSalarie(perimetre, brute.lignes)
+    return { liste: { lignes: projeter(cle, lignes), plafondAtteint: brute.plafondAtteint }, rattachement, visibilite }
+  }
+  return { liste: { lignes: projeter(cle, brute.lignes), plafondAtteint: brute.plafondAtteint }, rattachement: null, visibilite }
+}
+
+/**
+ * Ce que la réponse dit d'une lecture restreinte, pour que l'écran n'affiche pas « aucun chantier » sans raison.
+ * `restreint` ne se dit que si quelque chose l'a vraiment été : un rôle d'équipe qui a FULL partout (la secrétaire,
+ * ou un salarié à qui le gérant a tout ouvert) reçoit la même réponse que le gérant.
+ */
+function etatRestriction(visibilites: readonly Visibilite[], rattachement: Rattachement): Record<string, unknown> {
+  if (visibilites.every(v => v === 'tout')) return {}
+  return { restreint: true, ...(rattachement === null ? {} : { rattachement }) }
+}
+
 /** `plafondsAtteints` de la réponse : seulement les listes coupées ; absent si toutes sont complètes. */
 function plafondsAtteints(listes: Record<string, ListeLue>): { plafondsAtteints?: Record<string, number> } {
   const atteints = Object.fromEntries(
@@ -127,33 +193,50 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    // Société du compte, rôle d'équipe et permissions : une seule résolution, serveur, pour la lecture comme pour
+    // l'écriture. Pour un titulaire, societeId vaut user.id et rien ne change par rapport à avant ce lot.
+    const perimetre = await lirePerimetreBtp(user, supabaseAdmin)
+
     if (table === 'all') {
+      const visibiliteReglages = visibiliteListe(perimetre, 'settings')
       const [chantiers, membres, equipes, pointages, depenses, settings] = await Promise.all([
-        lireListe('chantiers', user.id, chantierId),
-        lireListe('membres', user.id, chantierId),
-        lireListe('equipes', user.id, chantierId),
-        lireListe('pointages', user.id, chantierId),
-        lireListe('depenses', user.id, chantierId),
-        lireReglages(user.id),
+        lireListePour(perimetre, 'chantiers', chantierId),
+        lireListePour(perimetre, 'membres', chantierId),
+        lireListePour(perimetre, 'equipes', chantierId),
+        lireListePour(perimetre, 'pointages', chantierId),
+        lireListePour(perimetre, 'depenses', chantierId),
+        visibiliteReglages === 'tout' ? lireReglages(perimetre.societeId) : Promise.resolve(null),
       ])
       return NextResponse.json({
-        chantiers: chantiers.lignes, membres: membres.lignes, equipes: avecMembreIds(equipes.lignes),
-        pointages: pointages.lignes, depenses: depenses.lignes, settings,
-        ...plafondsAtteints({ chantiers, membres, equipes, pointages, depenses }),
+        chantiers: chantiers.liste.lignes, membres: membres.liste.lignes, equipes: avecMembreIds(equipes.liste.lignes),
+        pointages: pointages.liste.lignes, depenses: depenses.liste.lignes, settings,
+        ...plafondsAtteints({
+          chantiers: chantiers.liste, membres: membres.liste, equipes: equipes.liste,
+          pointages: pointages.liste, depenses: depenses.liste,
+        }),
+        ...etatRestriction(
+          [chantiers, membres, equipes, pointages, depenses].map(l => l.visibilite).concat(visibiliteReglages),
+          chantiers.rattachement,
+        ),
       })
     }
 
-    if (table === 'settings') return NextResponse.json({ settings: await lireReglages(user.id) })
+    if (table === 'settings') {
+      const visibilite = visibiliteListe(perimetre, 'settings')
+      const reglages = visibilite === 'tout' ? await lireReglages(perimetre.societeId) : null
+      return NextResponse.json({ settings: reglages, ...etatRestriction([visibilite], null) })
+    }
 
     // Nom de la liste pris dans la liste blanche elle-même : la valeur reçue ne sert jamais de nom de propriété.
     const cle = Object.keys(LECTURES).find((nom) => nom === table)
     if (!cle) {
       return NextResponse.json({ error: 'Table invalide' }, { status: 400 })
     }
-    const liste = await lireListe(cle, user.id, chantierId)
+    const { liste, rattachement, visibilite } = await lireListePour(perimetre, cle, chantierId)
     return NextResponse.json({
       [cle]: cle === 'equipes' ? avecMembreIds(liste.lignes) : liste.lignes,
       ...plafondsAtteints({ [cle]: liste }),
+      ...etatRestriction([visibilite], rattachement),
     })
   } catch (err) {
     // Panne, délai dépassé, table ou colonne absente : jamais une liste vide inventée (constat api-coeur-6).
@@ -544,12 +627,25 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    // Avant ce lot, un sous-compte écrivait sous son PROPRE owner_id : ses lignes n'étaient vues de personne, et la
+    // borne `owner_id = user.id` était tout ce qui l'empêchait de modifier ou de supprimer celles de la société.
+    // Maintenant les écritures portent sur la société — donc seul un rôle d'équipe qui a FULL sur le module de la
+    // table y touche. Un titulaire garde exactement ce qu'il avait.
+    const perimetre = await lirePerimetreBtp(user, supabaseAdmin)
+    if (!peutEcrireTable(perimetre, table)) {
+      return refus('Votre rôle dans l\'entreprise ne permet pas de modifier ces données.', 403)
+    }
+    if (action === 'import' && !perimetre.titulaire) {
+      return refus('La reprise des anciennes données est réservée au compte de l\'entreprise.', 403)
+    }
+    const societeId = perimetre.societeId
+
     switch (action) {
-      case 'import': return await reprendre(user.id, table, data)
-      case 'upsert_settings': return await enregistrerReglages(user.id, data)
-      case 'insert': return await creer(user.id, table, data)
-      case 'update': return id ? await modifier(user.id, table, id, data) : refus('Action invalide')
-      case 'delete': return id ? await supprimer(user.id, table, id) : refus('Action invalide')
+      case 'import': return await reprendre(societeId, table, data)
+      case 'upsert_settings': return await enregistrerReglages(societeId, data)
+      case 'insert': return await creer(societeId, table, data)
+      case 'update': return id ? await modifier(societeId, table, id, data) : refus('Action invalide')
+      case 'delete': return id ? await supprimer(societeId, table, id) : refus('Action invalide')
       default: return refus('Action invalide')
     }
   } catch (err) {

@@ -1,8 +1,8 @@
 // tests/components/aj-signalement/batiments-formulaire.test.tsx
 //
-// Formulaire public « AJ Signalement » : bâtiment choisi dans la liste saisie par le cabinet (demande de Hugo du
-// 17/11/2026 ; constat : Parc Bel Ombre a ses bâtiments saisis — Titan, Planier, Cicies, Faraman, commerces — mais un
-// déclarant a pu saisir « A »).
+// Formulaire public « AJ Signalement » : bâtiment choisi dans la liste saisie par le cabinet (demande du 17/11/2026 ;
+// constat : une copropriété avait ses bâtiments saisis — par exemple Bâtiment A, Bâtiment B, Les Pins, commerces — mais
+// un déclarant a pu saisir « A »).
 //   - copropriété avec au moins un bâtiment : liste à choix native (select), dans l'ordre saisi, option vide « Choisir… »,
 //     même libellé, aide sous le champ, toujours obligatoire (erreur sous le champ quitté, bouton désactivé) ;
 //   - « Dans mon logement (bât. X, …) » reprend le bâtiment choisi ; la recherche des signalements semblables aussi ;
@@ -20,7 +20,7 @@ import type { LangueSignalementQr } from '@/lib/aj-signalement/types'
 const tq = TEXTES_SIGNALEMENT_QR.fr
 const t = textesCopro('fr')
 const JETON = '0123456789abcdef0123456789abcdef'
-const BATIMENTS = ['Titan', 'Planier', 'Cicies', 'Faraman', 'commerces']
+const BATIMENTS = ['Bâtiment A', 'Bâtiment B', 'Les Pins', 'commerces']
 
 type Appel = { url: string; init?: RequestInit }
 let appels: Appel[] = []
@@ -43,7 +43,7 @@ const depots = () => appels.filter((a) => a.url === '/api/aj-signalement/signale
 const corpsDepot = () => JSON.parse(String(depots()[0].init?.body)) as Record<string, unknown>
 
 function rendre(batiments?: string[], langue: LangueSignalementQr = 'fr') {
-  const copropriete = { nom: 'Parc Bel Ombre', adresse: '12 allée des Pins, 13009 Marseille', ...(batiments ? { batiments } : {}) }
+  const copropriete = { nom: 'Résidence Exemple', adresse: '12 allée des Pins, 13009 Marseille', ...(batiments ? { batiments } : {}) }
   return render(<AppSignalementQr jeton={JETON} copropriete={copropriete} langue={langue} />)
 }
 
@@ -101,7 +101,7 @@ describe('copropriété dont le cabinet a saisi les bâtiments', () => {
     expect(screen.getByText(tq.champObligatoire)).toBeInTheDocument()
     expect(champ).toHaveAttribute('aria-invalid', 'true')
     expect(bouton()).toBeDisabled()
-    fireEvent.change(champ, { target: { value: 'Planier' } })
+    fireEvent.change(champ, { target: { value: 'Bâtiment B' } })
     expect(screen.queryByText(tq.champObligatoire)).toBeNull()
     expect(champ).not.toHaveAttribute('aria-invalid')
     expect(bouton()).toBeEnabled()
@@ -110,8 +110,8 @@ describe('copropriété dont le cabinet a saisi les bâtiments', () => {
   it('« Dans mon logement » reprend le bâtiment choisi', () => {
     rendre(BATIMENTS)
     remplirSaufBatiment()
-    fireEvent.change(champBatiment(), { target: { value: 'Faraman' } })
-    expect(screen.getByLabelText('Dans mon logement (bât. Faraman, 4e étage, lot 12)')).toBeInTheDocument()
+    fireEvent.change(champBatiment(), { target: { value: 'Les Pins' } })
+    expect(screen.getByLabelText('Dans mon logement (bât. Les Pins, 4e étage, lot 12)')).toBeInTheDocument()
   })
 
   it('envoie le nom du bâtiment tel que le cabinet l’a saisi', async () => {
@@ -126,23 +126,23 @@ describe('copropriété dont le cabinet a saisi les bâtiments', () => {
 
   it('parties communes : les signalements semblables sont cherchés pour le bâtiment choisi', async () => {
     rendre(BATIMENTS)
-    fireEvent.change(champBatiment(), { target: { value: 'Titan' } })
+    fireEvent.change(champBatiment(), { target: { value: 'Bâtiment A' } })
     fireEvent.click(screen.getByLabelText(t.demandes.dansPartiesCommunes))
     fireEvent.change(screen.getByLabelText(t.demandes.zone), { target: { value: 'Escalier' } })
     await waitFor(() => expect(appels.some((a) => a.url.startsWith('/api/aj-signalement/similaires'))).toBe(true))
     const recherche = new URL(appels.find((a) => a.url.startsWith('/api/aj-signalement/similaires'))?.url ?? '', 'https://vitfix.io')
-    expect(recherche.searchParams.get('batiment')).toBe('Titan')
+    expect(recherche.searchParams.get('batiment')).toBe('Bâtiment A')
   })
 
   it('refus du serveur (bâtiment absent de la liste) : message dédié et persistant, formulaire intact', async () => {
     simulerFetch(() => json({ error: 'batiment_inconnu', message: 'texte du serveur' }, 400))
     rendre(BATIMENTS)
     remplirSaufBatiment()
-    fireEvent.change(champBatiment(), { target: { value: 'Cicies' } })
+    fireEvent.change(champBatiment(), { target: { value: 'Bâtiment B' } })
     fireEvent.click(bouton())
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(tq.erreurs.batiment_inconnu))
     expect(screen.queryByText('texte du serveur')).toBeNull()
-    expect(champBatiment()).toHaveValue('Cicies')
+    expect(champBatiment()).toHaveValue('Bâtiment B')
     expect(screen.getByLabelText(tq.prenom)).toHaveValue('Marie')
     expect(bouton()).toBeEnabled()
   })
@@ -180,8 +180,8 @@ describe('page en portugais', () => {
     expect(options[0]).toHaveTextContent(tqPt.choisirBatiment)
     expect(tqPt.choisirBatiment).not.toBe(tq.choisirBatiment)
     expect(screen.getByText(tqPt.batimentListeAide)).toBeInTheDocument()
-    fireEvent.change(champ, { target: { value: 'Planier' } })
-    expect(screen.getByText(/bloco Planier/)).toBeInTheDocument()
+    fireEvent.change(champ, { target: { value: 'Les Pins' } })
+    expect(screen.getByText(/bloco Les Pins/)).toBeInTheDocument()
   })
 
   it('envoi du bloc choisi ; refus du serveur (bloc absent de la liste) : message en portugais, formulaire intact', async () => {
@@ -189,12 +189,12 @@ describe('page en portugais', () => {
     simulerFetch(() => json({ error: 'batiment_inconnu', message: 'texte du serveur' }, 400))
     rendre(BATIMENTS, 'pt')
     remplirSaufBatiment('pt')
-    fireEvent.change(champBatiment(tqPt.batiment), { target: { value: 'Planier' } })
-    expect(screen.getByLabelText('Na minha habitação (bloco Planier, 4.º piso, fração 12)')).toBeInTheDocument()
+    fireEvent.change(champBatiment(tqPt.batiment), { target: { value: 'Les Pins' } })
+    expect(screen.getByLabelText('Na minha habitação (bloco Les Pins, 4.º piso, fração 12)')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: tqPt.envoyer }))
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(tqPt.erreurs.batiment_inconnu))
-    expect(corpsDepot()).toMatchObject({ batiment: 'Planier', langue: 'pt' })
+    expect(corpsDepot()).toMatchObject({ batiment: 'Les Pins', langue: 'pt' })
     expect(screen.queryByText('texte du serveur')).toBeNull()
-    expect(champBatiment(tqPt.batiment)).toHaveValue('Planier')
+    expect(champBatiment(tqPt.batiment)).toHaveValue('Les Pins')
   })
 })

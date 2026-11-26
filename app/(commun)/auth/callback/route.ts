@@ -71,6 +71,6 @@ export async function GET(request: NextRequest) {
   }
 
   // Même table de destinations que la page de connexion : une seule source (lib/auth/destination-par-role).
-  const destination = destinationApresConnexion(utilisateur.app_metadata?.role, locale, { appMobile })
+  const destination = destinationApresConnexion(utilisateur.app_metadata?.role, locale, { appMobile, proTeamRole: utilisateur.app_metadata?.pro_team_role })
   return NextResponse.redirect(`${origin}${destination}`)
 }

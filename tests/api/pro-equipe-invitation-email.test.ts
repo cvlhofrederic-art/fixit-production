@@ -160,3 +160,71 @@ describe('volume : plafond d\'invitations par compte et par 24 heures', () => {
     expect(h.limites.filter((l) => l.cle.startsWith('pro_team_invite_jour_'))).toHaveLength(0)
   })
 })
+
+describe('catégorie professionnelle à l\'invitation (25/11/2026)', () => {
+  const ligneInseree = () => appelsDe(h.base, 'pro_team_members', 'insert')[0].donnees as Record<string, unknown>
+
+  it('saisie : enregistrée sur la ligne, blancs réduits ; l\'e-mail garde le rôle', async () => {
+    const res = await inviter({ memberRole: 'CHEF_CHANTIER', job_title: '  Encarregado  geral ' })
+    expect(res.status).toBe(200)
+    expect(ligneInseree().job_title).toBe('Encarregado geral')
+    expect(ligneInseree().role).toBe('CHEF_CHANTIER')
+    expect(envoi().html).toContain('<strong>Chef de chantier</strong>')
+  })
+
+  it.each([['absente', {}], ['vide', { job_title: '   ' }], ['null', { job_title: null }]])(
+    'catégorie %s : la colonne n\'est pas écrite (invitation possible avant la migration)', async (_cas, sur) => {
+      expect((await inviter(sur)).status).toBe(200)
+      expect(ligneInseree()).not.toHaveProperty('job_title')
+    })
+
+  it.each([['81 caractères', 'a'.repeat(81)], ['caractère de contrôle', `Servente${String.fromCodePoint(7)}`]])(
+    'catégorie refusée (%s) : 400, rien n\'est écrit ni envoyé', async (_cas, job_title) => {
+      const res = await inviter({ job_title })
+      expect(res.status).toBe(400)
+      expect(ecritures()).toHaveLength(0)
+      expect(h.envois).toHaveLength(0)
+    })
+})
+
+describe('invitation par un co-gérant (gérant invité dans la société d\'un autre compte, 25/11/2026)', () => {
+  const COGERANT = 'c0c0c0c0-1111-4222-8333-444444444444'
+  // resolveCompanyId garde sa réponse 60 s par compte : un identifiant par situation.
+  const coGerant = (societe: string | null = ID_SOCIETE, id = COGERANT) => {
+    h.compte = { id, email: 'cogerant@exemple.test', app_metadata: { role: 'pro_societe', pro_team_role: 'GERANT', company_id: ID_SOCIETE }, user_metadata: { company_name: 'Nom à moi' } }
+    h.base.lignes.pro_team_members = societe ? [{ id: 'ligne-cogerant', user_id: id, company_id: societe, is_active: true, role: 'GERANT' }] : []
+    h.base.lignes.profiles_artisan = [{ id: 'fiche-societe', user_id: ID_SOCIETE, company_name: 'VITFIX CONSTRUÇÕES, LDA', language: 'pt' }]
+  }
+  const insertion = () => appelsDe(h.base, 'pro_team_members', 'insert')[0]?.donnees as Record<string, unknown> | undefined
+
+  it('salarié invité dans la société du titulaire, e-mail au nom et dans la langue de la société (pas du co-gérant)', async () => {
+    coGerant()
+    const res = await inviter({ memberRole: 'OUVRIER' })
+    expect(res.status).toBe(200)
+    expect(insertion()).toMatchObject({ company_id: ID_SOCIETE, role: 'OUVRIER' })
+    expect(envoi().subject).toBe('VITFIX CONSTRUÇÕES, LDA convida-o(a) para a equipa VITFIX')
+    expect(envoi().tags).toEqual([{ name: 'template', value: 'pro_team_invite' }, { name: 'company_id', value: ID_SOCIETE }])
+  })
+
+  it('invitation d\'un GÉRANT : réservée au titulaire, 403, rien n\'est écrit ni envoyé', async () => {
+    coGerant()
+    const res = await inviter({ memberRole: 'GERANT' })
+    expect(res.status).toBe(403)
+    expect(ecritures()).toHaveLength(0)
+    expect(h.envois).toHaveLength(0)
+  })
+
+  it('co-gérant sans ligne d\'équipe active : 409, aucune équipe fantôme à son nom', async () => {
+    coGerant(null, 'c2c2c2c2-1111-4222-8333-444444444444')
+    const res = await inviter({ memberRole: 'OUVRIER', email: 'fantome@exemple.test' })
+    expect(res.status).toBe(409)
+    expect(ecritures()).toHaveLength(0)
+    expect(h.envois).toHaveLength(0)
+  })
+
+  it('le titulaire invite toujours un gérant (co-gérant), dans sa société', async () => {
+    const res = await inviter({ memberRole: 'GERANT' })
+    expect(res.status).toBe(200)
+    expect(insertion()).toMatchObject({ company_id: ID_SOCIETE, role: 'GERANT' })
+  })
+})

@@ -71,5 +71,11 @@
 		<string>vitfix.io</string>
 		<string>localhost</string>
 	</array>
+	<!-- Déclaration de conformité au chiffrement à l'export. Sans elle, chaque build arrive sur App Store
+	     Connect en « Conformité manquante » et TestFlight refuse de la distribuer, même aux testeurs internes,
+	     tant que personne n'a répondu au questionnaire à la main dans l'interface web. L'appli ne fait que du
+	     HTTPS (coque Capacitor sur https://vitfix.io) : c'est le cas d'exemption standard. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 </dict>
 </plist>

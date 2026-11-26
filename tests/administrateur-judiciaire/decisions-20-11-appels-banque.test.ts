@@ -12,7 +12,7 @@ import {
   type OptionsContenuAvis,
   type OptionsDiffusionAvis,
 } from '@/lib/administrateur-judiciaire/domain/avis-appel'
-import { creerReglagesComptesCabinet } from '@/lib/administrateur-judiciaire/domain/comptes-bancaires'
+import { NATURES_COMPTE_BANCAIRE, creerReglagesComptesCabinet } from '@/lib/administrateur-judiciaire/domain/comptes-bancaires'
 import * as moduleConservation from '@/lib/administrateur-judiciaire/domain/conservation-documents-ged'
 import {
   CONSERVATION_PIECES_JUSTIFICATIVES,
@@ -997,7 +997,7 @@ const optionsAvis = (surcharge: Partial<OptionsContenuAvis> = {}): OptionsConten
   comptes: comptesCopro,
   segmentSyndicat: SEGMENT,
   syndicat: { nom: 'SDC fictif', adresse: '1 rue Fictive, 13001 Marseille' },
-  ibanSyndicat: IBAN_SYNDICAT_AVIS,
+  compteEncaissement: { designe: true, banqueId: 'banque-courant', nature: 'courant', libelle: NATURES_COMPTE_BANCAIRE.courant.libelle, iban: IBAN_SYNDICAT_AVIS, auNomDuSyndicat: true },
   ics: ICS_AVIS,
   dateEmission: '2026-12-15',
   reglements: [

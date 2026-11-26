@@ -108,6 +108,12 @@ describe('GET /api/btp/pointage', () => {
     expect(json).toMatchObject({ rattachement: 'aucun', moi: null, chantiers: [], historique: [], pointageEnCours: null })
   })
 
+  it('co-gérant désactivé (GERANT d’une autre société, sans ligne active) : 403, aucun réglage écrit à son nom', async () => {
+    // Avant le 25/11/2026 : « gérant » de sa propre société vide, il pouvait y poser le réglage du pointage automatique.
+    etat.user = { ...OUVRIER_INACTIF, app_metadata: { ...OUVRIER_INACTIF.app_metadata, pro_team_role: 'GERANT' } }
+    expect((await lire()).status).toBe(403)
+  })
+
   it('compte sans fiche à son adresse : non relié ; deux fiches à la même adresse : ambigu', async () => {
     etat.user = OUVRIER_SANS_FICHE
     expect((await lire()).json).toMatchObject({ rattachement: 'aucun', moi: null, chantiers: [] })
