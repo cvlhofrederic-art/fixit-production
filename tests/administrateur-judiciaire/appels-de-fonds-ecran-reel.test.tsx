@@ -437,7 +437,8 @@ describe('Appels de fonds en mode réel — écran', () => {
     expect(message).toContain('1 fiche reprise en identités')
     expect(message).toContain('5 fiches écartées ;')
     expect(message.split(`${copro.code} · Lot 2, fiche sans nom — Nom de l'identité manquant.`)).toHaveLength(4)
-    expect(message).toContain('et 2 autres')
+    // nouvelle phrase après le point du dernier motif : majuscule
+    expect(message).toContain("manquant. Et 2 autres.")
     await waitFor(() => expect(avis().getAllByText("Lot 2, fiche sans nom — Nom de l'identité manquant.")).toHaveLength(5))
   })
 
@@ -452,8 +453,8 @@ describe('Appels de fonds en mode réel — écran', () => {
     const message = String(dernierToast()?.desc)
     expect(message).toContain('2 fiches reprises en identités')
     expect(message).toContain('4 fiches écartées ;')
-    expect(message).toContain('et 1 autre.')
-    expect(message).not.toContain('et 1 autres')
+    expect(message).toContain('manquant. Et 1 autre.')
+    expect(message).not.toContain('Et 1 autres')
   })
 
   it("encadré sans identifiant interne : « du syndicat <code> » (décision du 26/11/2026)", async () => {

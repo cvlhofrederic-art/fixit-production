@@ -72,7 +72,10 @@ async function enregistrerEcheance(copro: CoproprieteVue, saisie: SaisieFormulai
   }
 }
 
-/** Motifs nommés dans le message de la reprise ; les suivants : « et N autres » (la liste complète reste dans l'encadré). */
+/**
+ * Motifs nommés dans le message de la reprise ; les suivants : « Et N autres. », nouvelle phrase après le point du dernier
+ * motif (la liste complète reste dans l'encadré).
+ */
 const MOTIFS_DANS_LE_MESSAGE = 3
 
 /** Fiches écartées par la reprise, avec le code de leur syndicat et leur motif (décisions du 22/11 et du 26/11/2026) ; vide sinon. */
@@ -84,7 +87,7 @@ function motifsDesEcartees(ecartees: readonly FicheEcarteeDetaillee[], codeDe: (
     return libelleFicheEcartee({ ...e, motif: motifLisible(e.motif, code) }, code)
   })
   const reste = ecartees.length - lignes.length
-  const suite = reste > 0 ? ` et ${pluriel(reste, 'autre')}.` : ''
+  const suite = reste > 0 ? ` Et ${pluriel(reste, 'autre')}.` : ''
   return ` ${titre} : ${lignes.join(' ')}${suite}`
 }
 
