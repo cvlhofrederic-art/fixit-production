@@ -65,6 +65,10 @@ const ID_LISTE_CATEGORIES = 'categories-professionnelles-equipe'
 
 /** Refus de /api/pro/team qui portent un code stable (app/api/pro/team/route.ts, REFUS_EQUIPE), traduits ici. */
 const MESSAGES_EQUIPE: Record<string, { pt: string; fr: string }> = {
+  deja_membre: {
+    pt: 'Este e-mail já está na sua equipa (membro ou convite pendente).',
+    fr: 'Cet email est déjà membre de votre équipe',
+  },
   societe_non_resolue: {
     pt: 'A sua conta não está associada a nenhuma empresa ativa. Peça ao gerente titular que verifique o seu acesso.',
     fr: "Votre compte n'est rattaché à aucune société active. Demandez au gérant titulaire de vérifier votre accès.",
@@ -205,11 +209,12 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
       const data = await res.json()
       if (res.ok) {
         // Message écrit ici, dans la langue de l'écran : celui du serveur est toujours en français.
-        const email = typeof data.member?.email === 'string' ? data.member.email : inviteForm.email.trim()
+        const email = typeof data.member?.email === 'string' ? data.member.email : inviteForm.email.trim().toLowerCase()
         if (data.email_sent === false) {
+          // L'écran n'a pas de bouton « renvoyer » : la seule voie est de supprimer l'invitation puis d'inviter de nouveau.
           toast.warning(isPt
-            ? `O convite para ${email} foi criado, mas o e-mail não pôde ser enviado. Verifique o endereço e envie o convite novamente.`
-            : `L'invitation pour ${email} est créée, mais l'e-mail n'a pas pu être envoyé. Vérifiez l'adresse puis renvoyez l'invitation.`)
+            ? `O convite para ${email} foi criado, mas o e-mail não pôde ser enviado. Verifique o endereço. Para o enviar de novo, elimine este convite e convide outra vez.`
+            : `L'invitation pour ${email} est créée, mais l'e-mail n'a pas pu être envoyé. Vérifiez l'adresse. Pour la renvoyer, supprimez cette invitation puis invitez de nouveau.`)
         } else {
           toast.success(isPt ? `Convite enviado por e-mail para ${email}` : `Invitation envoyée par email à ${email}`)
         }

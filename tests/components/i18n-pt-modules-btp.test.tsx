@@ -231,10 +231,10 @@ async function contas(langue: Langue, membros = MEMBROS) {
   return c
 }
 /** Invitation envoyée depuis « Contas de utilizadores » ; `reponse` : corps renvoyé par POST /api/pro/team. */
-async function convidar(langue: Langue, reponse: Record<string, unknown>) {
+async function convidar(langue: Langue, reponse: Record<string, unknown>, status = 200) {
   const c = await contas(langue)
   const liste = etat.routeur
-  etat.routeur = async (url, init) => (url === '/api/pro/team' && init?.method === 'POST' ? json(reponse) : liste(url, init))
+  etat.routeur = async (url, init) => (url === '/api/pro/team' && init?.method === 'POST' ? json(reponse, status) : liste(url, init))
   cliquer(c.querySelector('button.v5-btn.v5-btn-p'))
   await pause()
   saisir(c.querySelector('.v22-modal input[type="text"]'), 'Pessoa Nova')
@@ -250,6 +250,8 @@ const CONVITE_SEM_EMAIL = {
   email_sent: false,
   message: "L'invitation pour nova@exemplo.pt est créée, mais l'e-mail n'a pas pu être envoyé. Vérifiez l'adresse puis renvoyez l'invitation.",
 }
+// Adresse déjà dans l'équipe : refus 409 du serveur (app/api/pro/team/route.ts, REFUS_EQUIPE).
+const CONVITE_DUPLICADO = { error: 'Cet email est déjà membre de votre équipe', code: 'deja_membre' }
 async function meteo(langue: Langue) {
   etat.routeur = routeurMeteo
   etat.tables.chantiers = [obra('vento', 41.1), obra('chuva', 41.2), obra('gelo', 41.3), obra('calor', 41.4), obra('calma', 41.5), obra('sem-cidade', null, { ville: '', adresse: '' })]
@@ -354,17 +356,25 @@ describe('modules BTP du tableau de bord pro en portugais (pt-PT)', () => {
     expect(ecartsPortugais(c, etat.toasts)).toEqual([])
   })
 
-  it('Contas de utilizadores : convite criado sem e-mail, aviso (não sucesso) em português', async () => {
-    await convidar('pt', CONVITE_SEM_EMAIL)
+  it('Contas de utilizadores : convite criado sem e-mail, aviso (não sucesso) em português, com o caminho real (eliminar e convidar)', async () => {
+    const c = await convidar('pt', CONVITE_SEM_EMAIL)
     expect(etat.avertissements).toEqual([
-      'O convite para nova@exemplo.pt foi criado, mas o e-mail não pôde ser enviado. Verifique o endereço e envie o convite novamente.',
+      'O convite para nova@exemplo.pt foi criado, mas o e-mail não pôde ser enviado. Verifique o endereço. Para o enviar de novo, elimine este convite e convide outra vez.',
     ])
     expect(etat.toasts).toEqual(etat.avertissements)
+    expect(ecartsPortugais(c, etat.toasts)).toEqual([])
   })
 
-  it('Contas de utilizadores : sem membro na resposta, o endereço digitado (sem espaços) é mostrado', async () => {
+  it('Contas de utilizadores : sem membro na resposta, o endereço digitado (sem espaços, em minúsculas) é mostrado', async () => {
     await convidar('pt', { email_sent: true })
-    expect(etat.toasts).toEqual(['Convite enviado por e-mail para Nova@Exemplo.pt'])
+    expect(etat.toasts).toEqual(['Convite enviado por e-mail para nova@exemplo.pt'])
+  })
+
+  it('Contas de utilizadores : e-mail já na equipa (409), mensagem em português em vez de « Erro »', async () => {
+    const c = await convidar('pt', CONVITE_DUPLICADO, 409)
+    expect(etat.toasts).toEqual(['Este e-mail já está na sua equipa (membro ou convite pendente).'])
+    expect(c.querySelector('.v22-modal')).not.toBeNull()
+    expect(ecartsPortugais(c, etat.toasts)).toEqual([])
   })
 
   it('Meteorologia : alertes, avis et limiares de obra en portugais, source Open-Meteo (pas IPMA)', async () => {
@@ -524,7 +534,12 @@ describe('les mêmes modules en français : textes inchangés', () => {
     expect(etat.avertissements).toEqual([])
     etat.toasts = []
     await convidar('fr', CONVITE_SEM_EMAIL)
-    expect(etat.avertissements).toEqual([CONVITE_SEM_EMAIL.message])
+    expect(etat.avertissements).toEqual([
+      "L'invitation pour nova@exemplo.pt est créée, mais l'e-mail n'a pas pu être envoyé. Vérifiez l'adresse. Pour la renvoyer, supprimez cette invitation puis invitez de nouveau.",
+    ])
+    etat.toasts = []
+    await convidar('fr', CONVITE_DUPLICADO, 409)
+    expect(etat.toasts).toEqual(['Cet email est déjà membre de votre équipe'])
   })
 
   it('Météo chantiers', async () => {
