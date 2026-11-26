@@ -15,6 +15,10 @@ export const METADONNEES_PARTAGEES = {
   authors: [{ name: 'VITFIX' }] as Metadata['authors'],
   creator: 'VITFIX',
   publisher: 'VITFIX',
+  // Manifeste de l'application Vitfix, déclaré ici et non en dur dans components/common/CoquilleRacine.tsx : une
+  // section qui a le sien le remplace (/pt/manifest.webmanifest, /admin/crm/manifest.webmanifest) et chaque page n'en
+  // garde qu'un. Écrit en dur, il s'ajoutait à celui de la section, et le navigateur ne retient que le premier.
+  manifest: '/manifest.json',
   // Google Search Console verification (URL Prefix method).
   // Génère <meta name="google-site-verification" content="..." /> dans le <head>.
   verification: {

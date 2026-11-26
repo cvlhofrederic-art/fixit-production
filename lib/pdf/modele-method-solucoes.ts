@@ -26,7 +26,24 @@ import type { DevisAcompte, ProductLine } from '@/lib/devis-types'
 import { titleCaseAddress } from '@/lib/devis-utils'
 import { computeAcomptesAmounts, mulMoney, round2, sumMoney } from '@/lib/money'
 import { sanitizeForHelvetica, type PdfV3Input } from '@/lib/pdf/devis-pdf-v3'
-import { COMPRESSION_PNG, fondBlancAvantJpeg } from '@/lib/pdf/images-pdf'
+import { COMPRESSION_PNG } from '@/lib/pdf/images-pdf'
+import {
+  ESP,
+  MiseEnPageGabarit,
+  TOLERANCE,
+  URL_POLICE_GABARIT,
+  URL_POLICE_GABARIT_GRAS,
+  chargerImageJpeg,
+  chargerOctets,
+  chargerPolice,
+  creerAvertisseur,
+  ligneDeBase,
+  somme,
+  type Alignement,
+  type Element,
+  type Fragment,
+  type Geometrie,
+} from '@/lib/pdf/mise-en-page-gabarit'
 import { computeEcheanceDate, parsePaymentDelayDays } from '@/lib/pdf/payment-due'
 import { texteRemiseLigne } from '@/lib/remise-commerciale'
 import { getMentionLegale } from '@/lib/tva-calculator'
@@ -38,10 +55,9 @@ export const MARCA_METHOD = 'Method Soluções'
 export const LEMA_METHOD = 'Ideias para a sua Empresa'
 /** Logo transparent du gabarit (PNG 813 × 874 px). */
 export const URL_LOGO_METHOD = '/images/modeles-pdf/method-solucoes-logo.png'
-export const URL_POLICE_METHOD = '/fonts/LiberationSans-Regular.ttf'
-export const URL_POLICE_METHOD_GRAS = '/fonts/LiberationSans-Bold.ttf'
+export const URL_POLICE_METHOD = URL_POLICE_GABARIT
+export const URL_POLICE_METHOD_GRAS = URL_POLICE_GABARIT_GRAS
 const PROPORTION_LOGO = 874 / 813
-const POLICE = 'LiberationSans'
 
 /** Couleurs du gabarit (INK, GOLD, CREAM, LINE, GREY) et teintes fixées dans sa feuille de style. */
 const COR = {
@@ -68,6 +84,7 @@ const MARGE_BAS = 46
 const MARGE_GAUCHE = 40
 const LARGEUR = PAGE_L - 2 * MARGE_GAUCHE
 const BAS_PAGE = PAGE_H - MARGE_BAS
+const GEOMETRIE: Geometrie = { pageL: PAGE_L, pageH: PAGE_H, margeHaut: MARGE_HAUT, margeGauche: MARGE_GAUCHE, largeur: LARGEUR, basPage: BAS_PAGE }
 /** line-height du corps du gabarit */
 const INTERLIGNE = 1.36
 const HAUTEUR_ENTETE_TABLEAU = 5 + 7.2 * INTERLIGNE + 5
@@ -75,12 +92,8 @@ const PAD_ARTICLE = 4.4
 /** Début d'un artigo plus haut qu'une page à garder sous son titre de capítulo : marge et trois lignes. */
 const DEBUT_ARTICLE_COUPE = PAD_ARTICLE + 3 * 11.5
 
-/** Espace insécable (U+00A0). */
-const ESP = String.fromCharCode(0xa0)
 const POINTILLES = '........................................'
 const POINTILLES_COURTS = '............'
-
-const TOLERANCE = 0.01
 
 // ─── Nombres, dates et textes ─────────────────────────────────────────────────
 
@@ -436,9 +449,20 @@ function moradaPt(adresse: string | null | undefined): string {
   return titleCaseAddress(t).replace(/(?<=\S\s)(De|Da|Do|Das|Dos|E)(?=\s)/g, (p) => p.toLowerCase())
 }
 
+/** Lieu du chantier : adresse d'intervention, bâtiment, étage, parties communes, extérieur (« Edif. », « Andar »…). */
+export function localObraPt(e: Pick<PdfV3Input, 'interventionAddress' | 'interventionBatiment' | 'interventionEtage' | 'interventionEspacesCommuns' | 'interventionExterieur'>): string {
+  return [
+    textePdf(e.interventionAddress).trim(),
+    e.interventionBatiment ? `Edif. ${textePdf(e.interventionBatiment)}` : '',
+    e.interventionEtage ? `Andar ${textePdf(e.interventionEtage)}` : '',
+    e.interventionEspacesCommuns ? `Áreas comuns: ${textePdf(e.interventionEspacesCommuns)}` : '',
+    e.interventionExterieur ? `Exterior: ${textePdf(e.interventionExterieur)}` : '',
+  ].filter(Boolean).join(' · ')
+}
+
 // ─── Données du document ──────────────────────────────────────────────────────
 
-interface Article {
+export interface Article {
   code: string
   titre: string
   bloc: string
@@ -451,7 +475,7 @@ interface Article {
   taux: number
 }
 
-interface Chapitre {
+export interface Chapitre {
   numero: number
   titre: string
   articles: Article[]
@@ -467,7 +491,7 @@ const renseigne = (v: number | null | undefined): v is number => v !== null && v
 function detalheFatura(e: PdfV3Input): string[] {
   if (e.docType !== 'facture') return []
   const parent = textePdf(e.parentInvoiceNumber).trim()
-  const typeParent = /^DEV-/i.test(parent) ? 'orçamento' : 'fatura'
+  const typeParent = /^(?:DEV|ORC)-/i.test(parent) ? 'orçamento' : 'fatura'
   const surParent = parent ? `sobre ${typeParent} n.º ${parent}` : ''
   switch (e.factureSubType) {
     case 'acompte':
@@ -489,7 +513,7 @@ function detalheFatura(e: PdfV3Input): string[] {
 }
 
 /** Régime d'IVA du document, avec les mêmes replis que le modèle par défaut (anciens documents). */
-function regimeEffectif(e: PdfV3Input): 'classique' | 'franchise_293b' | 'autoliquidation_btp' {
+export function regimeEffectif(e: PdfV3Input): 'classique' | 'franchise_293b' | 'autoliquidation_btp' {
   if (e.regimeTva) return e.regimeTva
   if (e.autoliquidationBTP) return 'autoliquidation_btp'
   return e.tvaEnabled ? 'classique' : 'franchise_293b'
@@ -542,7 +566,7 @@ function articleDeLigne(l: ProductLine, code: string): Article {
 }
 
 /** Mêmes sections que le modèle BTP par défaut, dans le même ordre ; une section désactivée ou vide est sautée. */
-function chapitresDocument(e: PdfV3Input): Chapitre[] {
+export function chapitresDocument(e: PdfV3Input): Chapitre[] {
   const candidates: Array<{ nom: string | undefined; parDefaut: string; lignes: ProductLine[] | undefined; active: boolean }> = [
     { nom: e.linesName, parDefaut: '', lignes: e.laborLines, active: true },
     { nom: e.materialLinesName, parDefaut: 'Materiais', lignes: e.materialLines, active: e.materialLinesEnabled !== false },
@@ -561,39 +585,6 @@ function chapitresDocument(e: PdfV3Input): Chapitre[] {
 }
 
 // ─── Mise en page ─────────────────────────────────────────────────────────────
-
-type Alignement = 'gauche' | 'centre' | 'droite'
-
-interface Fragment {
-  texte: string
-  gras?: boolean
-  couleur?: string
-}
-
-interface Bout {
-  texte: string
-  gras: boolean
-  couleur: string
-  largeur: number
-  x: number
-  espaceAvant: boolean
-}
-
-interface LigneComposee {
-  bouts: Bout[]
-  largeur: number
-}
-
-interface Mot {
-  bouts: Array<Omit<Bout, 'x' | 'espaceAvant'>>
-  largeur: number
-}
-
-/** Élément vertical d'un bloc : sa hauteur et son dessin depuis son bord haut. */
-interface Element {
-  hauteur: number
-  dessiner: (haut: number) => void
-}
 
 interface Rangee {
   hauteur: number
@@ -632,34 +623,13 @@ interface LigneTotal {
   petit?: boolean
 }
 
-/** Ligne de base d'un texte de taille `taille` centré dans une ligne de hauteur `hauteur` (Liberation Sans). */
-const ligneDeBase = (hauteur: number, taille: number) => hauteur / 2 + 0.3465 * taille
-
-const somme = (valeurs: number[]) => valeurs.reduce((s, v) => s + v, 0)
-
 /**
  * Ressource du gabarit manquante (police, logo, photo, signature) : le PDF sort quand même, dégradé.
  * Remonté à Sentry pour que cela ne passe pas inaperçu en production, comme l'échec de Factur-X du V3.
  */
-function avertir(contexte: string, erreur: unknown) {
-  if (process.env.NODE_ENV !== 'production') console.warn(`[PDF Method Soluções] ${contexte}`, erreur)
-  import('@sentry/nextjs')
-    .then((Sentry) => {
-      Sentry.captureException(erreur instanceof Error ? erreur : new Error(String(erreur)), {
-        level: 'warning',
-        tags: { pdf_modele: 'method-solucoes' },
-        extra: { contexte },
-      })
-    })
-    .catch((echec: unknown) => {
-      // Sentry indisponible (bloqueur, hors ligne) : seul le PDF compte ici.
-      if (process.env.NODE_ENV !== 'production') console.warn('[PDF Method Soluções] Sentry indisponible', echec)
-    })
-}
+const avertir = creerAvertisseur('Method Soluções', 'method-solucoes')
 
-class DocumentMethod {
-  private y = MARGE_HAUT
-  private margeEnAttente = 0
+class DocumentMethod extends MiseEnPageGabarit {
   private readonly devis: boolean
   private readonly regime: 'classique' | 'franchise_293b' | 'autoliquidation_btp'
   private readonly avecIva: boolean
@@ -671,11 +641,12 @@ class DocumentMethod {
   private readonly registo: { rotulo: string; valor: string } | null
 
   constructor(
-    private readonly pdf: Pdf,
-    private readonly police: string,
+    pdf: Pdf,
+    police: string,
     private logo: Uint8Array | null,
     private readonly e: PdfV3Input,
   ) {
+    super(pdf, police, GEOMETRIE)
     this.devis = e.docType !== 'facture'
     this.regime = regimeEffectif(e)
     this.avecIva = this.regime === 'classique' && e.tvaEnabled
@@ -713,224 +684,6 @@ class DocumentMethod {
     })
   }
 
-  // ── Texte ──
-
-  private fonte(taille: number, gras = false) {
-    this.pdf.setFont(this.police, gras ? 'bold' : 'normal')
-    this.pdf.setFontSize(taille)
-  }
-
-  private largeur(texte: string, taille: number, gras = false, espacement = 0): number {
-    this.fonte(taille, gras)
-    const espaces = espacement * Math.max(0, Array.from(texte).length - 1)
-    if (this.police === POLICE) return this.pdf.getTextWidth(texte) + espaces
-    // Helvetica (repli) : les largeurs internes de jsPDF sont arrondies (550 au lieu de 556 pour la
-    // plupart des lettres), soit environ 1 % de moins que l'affichage des lecteurs PDF ; l'espace
-    // insécable y vaut 530 au lieu de 278, et le crénage est compté mais jamais écrit. Mesure sans
-    // crénage, insécable = espace, majorée de 1,5 % pour qu'aucune ligne ne déborde.
-    const sansCrenage = { doKerning: false } as unknown as Parameters<Pdf['getStringUnitWidth']>[1]
-    return this.pdf.getStringUnitWidth(texte.split(ESP).join(' '), sansCrenage) * taille * 1.015 + espaces
-  }
-
-  /** Une ligne de texte, avec l'espacement des lettres du gabarit ; `x` et `largeurZone` bornent l'alignement. */
-  private ecrire(texte: string, x: number, base: number, o: { taille: number; gras?: boolean; couleur: string; espacement?: number; align?: Alignement; largeurZone?: number }) {
-    const espacement = o.espacement ?? 0
-    const l = this.largeur(texte, o.taille, o.gras, espacement)
-    let xx = x
-    if (o.align === 'centre') xx = x + ((o.largeurZone ?? 0) - l) / 2
-    else if (o.align === 'droite') xx = x + (o.largeurZone ?? 0) - l
-    this.pdf.setTextColor(o.couleur)
-    this.pdf.text(texte, xx, base, espacement ? { charSpace: espacement } : undefined)
-  }
-
-  /** Coupe un texte à espacement de lettres (titres en capitales) en lignes de `largeurMax`. */
-  private couperEspace(texte: string, largeurMax: number, taille: number, gras: boolean, espacement: number): string[] {
-    const lignes: string[] = []
-    let courante = ''
-    for (const mot of texte.split(' ').filter(Boolean)) {
-      const essai = courante ? `${courante} ${mot}` : mot
-      if (courante && this.largeur(essai, taille, gras, espacement) > largeurMax) {
-        lignes.push(courante)
-        courante = mot
-      } else {
-        courante = essai
-      }
-    }
-    if (courante) lignes.push(courante)
-    return lignes.length > 0 ? lignes : ['']
-  }
-
-  /** Compose un texte mêlant gras et couleurs en lignes de `largeurMax` (coupure aux espaces, « \n » forcé). */
-  private composer(fragments: Fragment[], largeurMax: number, taille: number, couleur: string): LigneComposee[] {
-    const espace = this.largeur(' ', taille)
-    return this.paragraphesDeMots(fragments, taille, couleur).flatMap((mots) =>
-      this.lignesDuParagraphe(mots.flatMap((m) => this.couperMotLong(m, largeurMax, taille)), largeurMax, espace))
-  }
-
-  /** Mots de chaque paragraphe ; un mot peut réunir des bouts de styles différents écrits sans espace. */
-  private paragraphesDeMots(fragments: Fragment[], taille: number, couleur: string): Mot[][] {
-    const paragraphes: Mot[][] = [[]]
-    let mot: Mot | null = null
-    for (const f of fragments) {
-      const gras = !!f.gras
-      for (const morceau of f.texte.split(/(\n| +)/)) {
-        if (morceau === '') continue
-        if (morceau === '\n' || /^ +$/.test(morceau)) {
-          // Séparateur : le mot en cours est fini ; « \n » ouvre aussi un nouveau paragraphe.
-          if (morceau === '\n') paragraphes.push([])
-          mot = null
-          continue
-        }
-        const largeurMorceau = this.largeur(morceau, taille, gras)
-        if (!mot) {
-          mot = { bouts: [], largeur: 0 }
-          paragraphes[paragraphes.length - 1].push(mot)
-        }
-        mot.bouts.push({ texte: morceau, gras, couleur: f.couleur ?? couleur, largeur: largeurMorceau })
-        mot.largeur += largeurMorceau
-      }
-    }
-    return paragraphes
-  }
-
-  /** Coupure gloutonne d'un paragraphe en lignes, comme le navigateur du gabarit (texte aligné à gauche). */
-  private lignesDuParagraphe(mots: Mot[], largeurMax: number, espace: number): LigneComposee[] {
-    const lignes: LigneComposee[] = []
-    let ligne: LigneComposee = { bouts: [], largeur: 0 }
-    for (const m of mots) {
-      if (ligne.bouts.length > 0 && ligne.largeur + espace + m.largeur > largeurMax + TOLERANCE) {
-        lignes.push(ligne)
-        ligne = { bouts: [], largeur: 0 }
-      }
-      const avecEspace = ligne.bouts.length > 0
-      let x = avecEspace ? ligne.largeur + espace : 0
-      for (const [i, b] of m.bouts.entries()) {
-        ligne.bouts.push({ ...b, x, espaceAvant: i === 0 && avecEspace })
-        x += b.largeur
-      }
-      ligne.largeur = x
-    }
-    lignes.push(ligne)
-    return lignes
-  }
-
-  /** Mot plus large que la ligne (adresse web, référence) : coupé entre deux caractères. */
-  private couperMotLong(mot: Mot, largeurMax: number, taille: number): Mot[] {
-    if (mot.largeur <= largeurMax) return [mot]
-    const morceaux: Mot[] = []
-    const ajouter = (b: Mot['bouts'][number], texte: string) => {
-      const l = this.largeur(texte, taille, b.gras)
-      morceaux.push({ bouts: [{ ...b, texte, largeur: l }], largeur: l })
-    }
-    for (const b of mot.bouts) {
-      let tampon = ''
-      for (const c of Array.from(b.texte)) {
-        if (tampon && this.largeur(tampon + c, taille, b.gras) > largeurMax) {
-          ajouter(b, tampon)
-          tampon = c
-        } else {
-          tampon += c
-        }
-      }
-      if (tampon) ajouter(b, tampon)
-    }
-    return morceaux
-  }
-
-  private dessinerLignes(lignes: LigneComposee[], x: number, haut: number, hauteurLigne: number, taille: number, align: Alignement = 'gauche', largeurZone = 0) {
-    lignes.forEach((ligne, i) => {
-      const base = haut + i * hauteurLigne + ligneDeBase(hauteurLigne, taille)
-      let decalage = 0
-      if (align === 'centre') decalage = (largeurZone - ligne.largeur) / 2
-      else if (align === 'droite') decalage = largeurZone - ligne.largeur
-      // Bouts consécutifs de même style écrits d'un seul tenant.
-      let debut: Bout | null = null
-      let texte = ''
-      const ecrireSegment = () => {
-        if (!debut || !texte) return
-        this.fonte(taille, debut.gras)
-        this.pdf.setTextColor(debut.couleur)
-        this.pdf.text(texte, x + decalage + debut.x, base)
-      }
-      for (const b of ligne.bouts) {
-        if (debut && b.gras === debut.gras && b.couleur === debut.couleur) {
-          texte += (b.espaceAvant ? ' ' : '') + b.texte
-        } else {
-          ecrireSegment()
-          debut = b
-          texte = b.texte
-        }
-      }
-      ecrireSegment()
-    })
-  }
-
-  // ── Pages et marges ──
-
-  private nouvellePage() {
-    this.pdf.addPage()
-    this.y = MARGE_HAUT
-    this.margeEnAttente = 0
-  }
-
-  private enHautDePage() {
-    return this.y <= MARGE_HAUT + TOLERANCE
-  }
-
-  /** Marge haute d'un bloc, fusionnée avec la marge basse du précédent comme en CSS ; nulle en haut de page. */
-  private espacer(margeHaut: number) {
-    if (!this.enHautDePage()) this.y += Math.max(margeHaut, this.margeEnAttente)
-    this.margeEnAttente = 0
-  }
-
-  /** Comme `espacer`, en passant d'abord à la page suivante si `hauteur` ne tient plus. */
-  private placer(margeHaut: number, hauteur: number) {
-    const marge = this.enHautDePage() ? 0 : Math.max(margeHaut, this.margeEnAttente)
-    if (!this.enHautDePage() && this.y + marge + hauteur > BAS_PAGE + TOLERANCE) this.nouvellePage()
-    else this.y += marge
-    this.margeEnAttente = 0
-  }
-
-  private finBloc(margeBas: number) {
-    this.margeEnAttente = margeBas
-  }
-
-  /**
-   * Bloc de lignes avec un fond (encadrés) ou sans (clauses, petites lignes). `insecable` : le bloc passe
-   * entier à la page suivante s'il ne tient pas ; plus haut qu'une page, il est coupé entre deux lignes.
-   */
-  private placerBloc(elements: Element[], o: { margeHaut: number; margeBas: number; padHaut: number; padBas: number; insecable: boolean; fond?: (haut: number, hauteur: number) => void }) {
-    const total = o.padHaut + somme(elements.map((el) => el.hauteur)) + o.padBas
-    if (o.insecable && total <= BAS_PAGE - MARGE_HAUT) this.placer(o.margeHaut, total)
-    else this.espacer(o.margeHaut)
-    let i = 0
-    while (i < elements.length) {
-      if (!this.enHautDePage() && this.y + o.padHaut + elements[i].hauteur + o.padBas > BAS_PAGE + TOLERANCE) this.nouvellePage()
-      const debut = this.y
-      let hauteur = o.padHaut
-      let j = i
-      while (j < elements.length && debut + hauteur + elements[j].hauteur + o.padBas <= BAS_PAGE + TOLERANCE) {
-        hauteur += elements[j].hauteur
-        j++
-      }
-      if (j === i) {
-        hauteur += elements[i].hauteur
-        j = i + 1
-      }
-      hauteur += o.padBas
-      o.fond?.(debut, hauteur)
-      let haut = debut + o.padHaut
-      for (let k = i; k < j; k++) {
-        elements[k].dessiner(haut)
-        haut += elements[k].hauteur
-      }
-      this.y = debut + hauteur
-      i = j
-      if (i < elements.length) this.nouvellePage()
-    }
-    this.finBloc(o.margeBas)
-  }
-
   // ── Formes ──
 
   /** Encadré du gabarit : filet clair, bord haut épais couleur encre, coins arrondis (Empreiteiro, signatures). */
@@ -963,12 +716,6 @@ class DocumentMethod {
     this.pdf.setFillColor(COR.or)
     this.pdf.rect(x, y, 3, h, 'F')
     this.pdf.restoreGraphicsState()
-  }
-
-  private filet(x1: number, y: number, x2: number, couleur: string, epaisseur: number) {
-    this.pdf.setDrawColor(couleur)
-    this.pdf.setLineWidth(epaisseur)
-    this.pdf.line(x1, y, x2, y)
   }
 
   // ── Identité ──
@@ -1102,14 +849,7 @@ class DocumentMethod {
   }
 
   private localObra(): string {
-    const e = this.e
-    return [
-      textePdf(e.interventionAddress).trim(),
-      e.interventionBatiment ? `Edif. ${textePdf(e.interventionBatiment)}` : '',
-      e.interventionEtage ? `Andar ${textePdf(e.interventionEtage)}` : '',
-      e.interventionEspacesCommuns ? `Áreas comuns: ${textePdf(e.interventionEspacesCommuns)}` : '',
-      e.interventionExterieur ? `Exterior: ${textePdf(e.interventionExterieur)}` : '',
-    ].filter(Boolean).join(' · ')
+    return localObraPt(this.e)
   }
 
   /** Orçamento : Nome, NIF et Morada toujours présents (pointillés à remplir à la signature) ; fatura : seulement ce qui est saisi. */
@@ -1554,7 +1294,8 @@ class DocumentMethod {
 
   /**
    * « acrescido de IVA à taxa legal de 23 % » : « legal » seulement pour les taux du continent portugais
-   * (23, 13, 6 %). Le formulaire BTP ne propose que les taux français : 20 % n'y est pas un taux légal.
+   * (23, 13, 6 %). Le formulaire BTP les propose sur /pt depuis le 20/11/2026 ; un document d'avant peut porter
+   * 20 %, qui n'est pas un taux légal portugais.
    */
   private texteIvaPrix(): string {
     if (this.regime === 'autoliquidation_btp') return 'com IVA em regime de autoliquidação'
@@ -2033,7 +1774,7 @@ class DocumentMethod {
   private async annexePhotos() {
     const photos = this.e.selectedPhotos || []
     if (photos.length === 0) return
-    const images = await Promise.all(photos.map((p) => chargerImageJpeg(p.url)))
+    const images = await Promise.all(photos.map((p) => chargerImageJpeg(p.url, avertir)))
     this.nouvellePage()
     this.entete('Anexo fotográfico', [`${photos.length} ${photos.length > 1 ? 'fotografias' : 'fotografia'} da obra`], true)
     const ecart = 12
@@ -2089,79 +1830,12 @@ class DocumentMethod {
   }
 }
 
-// ─── Ressources ───────────────────────────────────────────────────────────────
-
-async function chargerOctets(url: string): Promise<Uint8Array | null> {
-  try {
-    const reponse = await fetch(url)
-    if (!reponse.ok) {
-      avertir(`ressource absente : ${url}`, new Error(`HTTP ${reponse.status}`))
-      return null
-    }
-    return new Uint8Array(await reponse.arrayBuffer())
-  } catch (erreur) {
-    avertir(`ressource absente : ${url}`, erreur)
-    return null
-  }
-}
-
-function enBase64(octets: Uint8Array): string {
-  let binaire = ''
-  for (let i = 0; i < octets.length; i += 0x8000) {
-    binaire += String.fromCharCode(...octets.subarray(i, i + 0x8000))
-  }
-  return btoa(binaire)
-}
-
-/** Liberation Sans (Unicode, police du gabarit) ; Helvetica si elle ne se charge pas. */
-async function chargerPolice(pdf: Pdf): Promise<string> {
-  const [normale, grasse] = await Promise.all([chargerOctets(URL_POLICE_METHOD), chargerOctets(URL_POLICE_METHOD_GRAS)])
-  if (!normale || !grasse) return 'helvetica'
-  try {
-    pdf.addFileToVFS('LiberationSans-Regular.ttf', enBase64(normale))
-    pdf.addFont('LiberationSans-Regular.ttf', POLICE, 'normal')
-    pdf.addFileToVFS('LiberationSans-Bold.ttf', enBase64(grasse))
-    pdf.addFont('LiberationSans-Bold.ttf', POLICE, 'bold')
-    return POLICE
-  } catch (erreur) {
-    avertir('police illisible, Helvetica', erreur)
-    return 'helvetica'
-  }
-}
-
-/** Photo du chantier en JPEG (navigateur seulement) ; null si elle ne se charge pas en 20 s. */
-async function chargerImageJpeg(url: string): Promise<{ donnees: string; largeur: number; hauteur: number } | null> {
-  if (typeof document === 'undefined' || typeof Image === 'undefined') return null
-  try {
-    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const img = new Image()
-      img.crossOrigin = 'anonymous'
-      const minuterie = setTimeout(() => reject(new Error('délai dépassé')), 20000)
-      img.onload = () => { clearTimeout(minuterie); resolve(img) }
-      img.onerror = () => { clearTimeout(minuterie); reject(new Error('image illisible')) }
-      img.src = url
-    })
-    const echelle = Math.min(1, 2000 / Math.max(image.width, image.height, 1))
-    const canvas = document.createElement('canvas')
-    canvas.width = Math.max(1, Math.round(image.width * echelle))
-    canvas.height = Math.max(1, Math.round(image.height * echelle))
-    const contexte = canvas.getContext('2d')
-    if (!contexte) return null
-    fondBlancAvantJpeg(contexte, canvas.width, canvas.height)
-    contexte.drawImage(image, 0, 0, canvas.width, canvas.height)
-    return { donnees: canvas.toDataURL('image/jpeg', 0.9), largeur: canvas.width, hauteur: canvas.height }
-  } catch (erreur) {
-    avertir('photo non chargée', erreur)
-    return null
-  }
-}
-
 // ─── Entrées ──────────────────────────────────────────────────────────────────
 
 /** Dessine le devis ou la facture au gabarit Method Soluções ; `e` est l'entrée déjà nettoyée du générateur V3. */
 export async function rendreDocumentMethodSolucoes(JsPdf: ConstructeurPdf, e: PdfV3Input): Promise<Pdf> {
   const pdf = new JsPdf({ orientation: 'portrait', unit: 'pt', format: 'a4' })
-  const [police, logo] = await Promise.all([chargerPolice(pdf), chargerOctets(URL_LOGO_METHOD)])
+  const [police, logo] = await Promise.all([chargerPolice(pdf, avertir), chargerOctets(URL_LOGO_METHOD, avertir)])
   await new DocumentMethod(pdf, police, logo, e).rendre()
   return pdf
 }

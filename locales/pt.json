@@ -4580,7 +4580,7 @@
     "taxDisabled": "Empresa isenta de IVA",
     "taxEnabledDesc": "IVA aplicável às prestações",
     "taxDisabledDesc": "Trabalhador independente ou regime de isenção (art. 53.º do CIVA)",
-    "taxThresholdWarning": "Enquanto trabalhador independente, só fatura IVA se tiver ultrapassado o limiar de isenção (14 500 € anuais). Verifique a sua situação junto da AT.",
+    "taxThresholdWarning": "Enquanto trabalhador independente, só fatura IVA se tiver ultrapassado o limiar de isenção (15 000 € anuais). Verifique a sua situação junto da AT.",
     "taxExemptInfo": "IVA não aplicável — menção «IVA isento ao abrigo do art. 53.º do CIVA» adicionada automaticamente nos seus documentos.",
     "taxNumberLabel": "Número de IVA intracomunitário",
     "taxNumberPlaceholder": "Ex.: PT123456789",
@@ -5161,7 +5161,7 @@
       "subProcessorsTitle": "Subcontratantes e serviços terceiros",
       "subProcessorsIntro": "Os seus dados podem ser tratados pelos seguintes subcontratantes, no âmbito do funcionamento da plataforma:",
       "subProcessorCloudflare": "Cloudflare (alojamento e distribuição do site, Estados Unidos)",
-      "subProcessorSupabase": "Supabase (base de dados e autenticação, Estados Unidos)",
+      "subProcessorSupabase": "Supabase (base de dados e autenticação, Frankfurt, União Europeia; o seu suporte pode aceder-lhe a partir dos Estados Unidos e de Singapura)",
       "subProcessorStripe": "Stripe (processamento de pagamentos, Irlanda)",
       "subProcessorSentry": "Sentry (monitorização de erros, Estados Unidos)",
       "subProcessorResend": "Resend (envio de emails transacionais, Estados Unidos)",
@@ -5195,7 +5195,7 @@
         "label": "Direito de oposição:",
         "desc": "opor-se ao tratamento dos seus dados por motivos legítimos."
       },
-      "contactInfo": "Para exercer os seus direitos, contacte o nosso DPO:"
+      "contactInfo": "Para exercer os seus direitos, escreva ao nosso contacto para os dados pessoais:"
     },
     "cookies": {
       "title": "Cookies",
@@ -5207,7 +5207,7 @@
     },
     "contact": {
       "title": "Contacto",
-      "p1": "Para qualquer questão relativa à proteção dos seus dados pessoais, pode contactar o nosso Encarregado de Proteção de Dados:"
+      "p1": "Para qualquer questão relativa à proteção dos seus dados pessoais, pode escrever ao nosso contacto para os dados pessoais:"
     }
   },
   "cookies": {

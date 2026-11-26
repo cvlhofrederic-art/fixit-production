@@ -15,6 +15,7 @@ import {
 import { estAuCentieme } from '@/lib/administrateur-judiciaire/domain/facture-ventilee'
 import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
 import {
+  anomaliesBloquantesPaie,
   controlerBulletinSalarie,
   estPeriodeValide,
   libellePeriode,
@@ -1154,13 +1155,16 @@ function verifierArret(a: ArretTravail): void {
     )
 }
 
-/** Chaque bulletin : période, montants, cohérence et période d'emploi (controlerBulletinSalarie). */
+/**
+ * Chaque bulletin : période, montants, cohérence et période d'emploi (controlerBulletinSalarie) ; un bulletin d'un mois
+ * postérieur à la sortie n'a qu'une alerte non bloquante (décision du 20/11/2026, partie C, F43) : il est accepté.
+ */
 function verifierBulletins(etat: EtatEmployeur): void {
   const salaries = new Map(etat.salaries.map((s) => [s.id, s]))
   for (const b of etat.bulletins) {
     const salarie = salaries.get(b.salarieId)
     if (salarie === undefined) throw new Error(`Bulletin ${b.id} : salarié ${b.salarieId} inconnu.`)
-    const anomalies = controlerBulletinSalarie(b, salarie)
+    const anomalies = anomaliesBloquantesPaie(controlerBulletinSalarie(b, salarie))
     if (anomalies.length > 0) throw new Error(anomalies.map((a) => a.message).join(' '))
   }
 }

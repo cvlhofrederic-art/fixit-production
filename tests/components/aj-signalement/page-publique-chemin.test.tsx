@@ -9,6 +9,9 @@
 // - PR 3, lot 7 (cahier § 6, HF3) : la page du chemin client lit l'information à la collecte (politique du cabinet,
 //   diffusion possible) et la passe au formulaire ; aucune information → formulaire inchangé ; l'ancienne page
 //   (copropriété sans cabinet) ne la lit jamais.
+// - bâtiments saisis par le cabinet (demande du 17/11/2026) : les deux pages passent au formulaire la liste
+//   nettoyée (ordre saisi, doublons et vides écartés) ; de la copropriété, le formulaire ne reçoit que son nom, son
+//   adresse et ces noms de bâtiments (minimisation) ; sans bâtiment : liste vide, texte libre.
 // La lecture (serveur) est simulée : seules les décisions des pages sont testées.
 
 import React from 'react'
@@ -35,9 +38,12 @@ vi.mock('next/navigation', () => ({
 }))
 vi.mock('@/components/aj-signalement/AppSignalementQr', () => ({
   default: ({ jeton, copropriete, langue, information }: {
-    jeton: string; copropriete: { nom: string; adresse: string }; langue: string; information?: unknown
+    jeton: string; copropriete: { nom: string; adresse: string; batiments?: readonly string[] }; langue: string; information?: unknown
   }) => (
-    <p data-testid="app" data-jeton={jeton} data-langue={langue} data-information={JSON.stringify(information ?? null)}>
+    <p
+      data-testid="app" data-jeton={jeton} data-langue={langue} data-information={JSON.stringify(information ?? null)}
+      data-copropriete={JSON.stringify(copropriete)}
+    >
       {copropriete.nom} — {copropriete.adresse}
     </p>
   ),
@@ -154,5 +160,36 @@ describe('information à la collecte sur le formulaire (PR 3, lot 7 ; cahier § 
     render(await ouvrirAncienne())
     expect(screen.getByTestId('app')).toHaveAttribute('data-information', 'null')
     expect(simul.information).not.toHaveBeenCalled()
+  })
+})
+
+describe('bâtiments saisis par le cabinet (demande du 17/11/2026)', () => {
+  const coproprieteRecue = () => JSON.parse(screen.getByTestId('app').getAttribute('data-copropriete') ?? 'null') as Record<string, unknown>
+  const BATIMENTS_ATTENDUS = ['Bâtiment A', 'Bâtiment B', 'Les Pins', 'commerces']
+  const AVEC_BATIMENTS = {
+    ...copro, batiments: [' Bâtiment A ', 'Bâtiment B', '', 'bâtiment a', 'Les Pins', 'commerces'],
+    emails_destinataires: ['cabinet@exemple.test'], immatriculation: 'AB1234567', reference_cabinet: 'REF-1',
+  }
+
+  it('page du chemin client : la liste nettoyée, dans l’ordre saisi, et rien d’autre de la copropriété', async () => {
+    simul.lire.mockResolvedValue({ ok: true, copropriete: AVEC_BATIMENTS, cabinet: cabinet('cabinet-exemple') })
+    render(await ouvrirCabinet('cabinet-exemple'))
+    expect(coproprieteRecue()).toEqual({ nom: 'Résidence Exemple', adresse: '1 rue Exemple', batiments: BATIMENTS_ATTENDUS })
+  })
+
+  it('ancienne page (copropriété sans cabinet) : la même liste, rien d’autre', async () => {
+    simul.lire.mockResolvedValue({ ok: true, copropriete: { ...AVEC_BATIMENTS, cabinet_id: null }, cabinet: null })
+    render(await ouvrirAncienne())
+    expect(coproprieteRecue()).toEqual({ nom: 'Résidence Exemple', adresse: '1 rue Exemple', batiments: BATIMENTS_ATTENDUS })
+  })
+
+  it.each([
+    ['aucun bâtiment saisi', []],
+    ['colonne absente (migration du 11/11/2026 non appliquée)', undefined],
+    ['colonne vide', null],
+  ])('%s : liste vide (texte libre)', async (_cas, batiments) => {
+    simul.lire.mockResolvedValue({ ok: true, copropriete: { ...copro, batiments }, cabinet: cabinet('cabinet-exemple') })
+    render(await ouvrirCabinet('cabinet-exemple'))
+    expect(coproprieteRecue()).toEqual({ nom: 'Résidence Exemple', adresse: '1 rue Exemple', batiments: [] })
   })
 })

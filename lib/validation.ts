@@ -6,6 +6,7 @@ import { FILTRE_SANS_BUREAU_QR, NOM_BUREAU_MAX_QR, contientControleQr } from './
 import {
   FORMAT_IDENTIFIANT_CABINET_QR, LONGUEUR_MAX_IDENTIFIANT_CABINET_QR, LONGUEUR_MIN_IDENTIFIANT_CABINET_QR, validerIdentifiantCabinetQr,
 } from './aj-signalement/chemin-cabinet'
+import { batimentDeLaListeQr } from './aj-signalement/batiments'
 import { validerDomaineCabinetQr } from './aj-signalement/gestionnaires'
 import { LOGO_BASE64_MAX_QR, LOGO_OCTETS_MIN_QR } from './aj-signalement/logo'
 import { ACTIONS_JOURNAL_QR, ATTRIBUTIONS_MAX_PAR_GESTIONNAIRE_QR } from './aj-signalement/types'
@@ -416,6 +417,19 @@ export const signalementQrSchema = z.object({
   // Numéro du signalement désigné comme « le même problème » ; le serveur le cherche parmi les semblables de la copropriété.
   signalementLieNumero: z.union([z.literal(''), z.string().regex(/^[0-9A-F]{8}$/, 'Numéro de signalement invalide')]).optional().default(''),
 }).refine((d) => !d.estPartieCommune || d.zoneSignalee !== '', { path: ['zoneSignalee'], message: 'Zone requise pour les parties communes' })
+
+// Bâtiment d'un dépôt public quand le cabinet a saisi les bâtiments de la copropriété (demande de Hugo du 17/11/2026) :
+// appliqué par la route APRÈS signalementQrSchema, avec la liste lue en base (batimentsProposesQr) quand elle n'est pas
+// vide. Accepté sans tenir compte de la casse ni des espaces en trop, rendu sous le nom saisi par le cabinet ; absent de
+// la liste : refusé (message sans la liste). Copropriété sans bâtiment : ce contrôle n'est pas appliqué.
+export const batimentListeQrSchema = (batiments: readonly string[]) => z.string().transform((saisie, ctx) => {
+  const nom = batimentDeLaListeQr(saisie, batiments)
+  if (nom === null) {
+    ctx.addIssue({ code: 'custom', message: 'Bâtiment absent de la liste de la copropriété' })
+    return z.NEVER
+  }
+  return nom
+})
 
 // Adresse proposée d'après la position du navigateur (copropriété sans adresse). Zod 4 refuse NaN et l'infini.
 export const adresseQrSchema = z.object({
@@ -1699,6 +1713,9 @@ export const proTeamInviteSchema = z.object({
   full_name: z.string().min(1, 'Nom requis').max(200),
   phone: z.string().max(30).optional(),
   memberRole: z.enum(['GERANT', 'CONDUCTEUR_TRAVAUX', 'CHEF_CHANTIER', 'SECRETAIRE', 'COMPTABLE', 'OUVRIER']),
+  // Catégorie professionnelle affichée (titre libre) : bornée ici, ramenée à sa forme enregistrée par
+  // normaliserCategorie (lib/equipe/categorie-professionnelle.ts), qui refuse aussi les caractères de contrôle.
+  job_title: z.string().max(200).nullable().optional(),
   assigned_chantiers: z.array(z.string().uuid()).max(50).optional(),
   permissionOverrides: z.array(z.object({
     module_id: z.string().max(50),

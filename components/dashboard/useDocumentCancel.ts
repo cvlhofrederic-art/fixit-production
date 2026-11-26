@@ -3,6 +3,8 @@
 import { useState, useCallback } from 'react'
 import { docIdentityKey, isStableDocId } from '@/lib/devis-utils'
 import { supabase } from '@/lib/supabase'
+import { toast } from 'sonner'
+import { changerEtatDocumentSociete } from '@/lib/documents/societe-client'
 
 // FR-V1 — Hook partagé entre FacturesSection et DevisSection pour gérer le
 // flow d'annulation : brouillon → hard delete localStorage ; émis → modal.
@@ -45,6 +47,12 @@ interface UseDocumentCancelOptions<T extends CancellableDoc> {
   isSameDoc?: (a: T, b: T) => boolean
   /** Confirme la suppression brouillon ; retourner false annule. */
   confirmDraftDelete: (doc: T) => boolean
+  /**
+   * Salarié invité d'une société BTP : la suppression en base passe par le serveur. Depuis le navigateur, la RLS
+   * filtrerait l'UPDATE sans renvoyer d'erreur, et le brouillon reviendrait au rechargement
+   * (lib/documents/identite-documents.ts).
+   */
+  sousCompte?: boolean
   /** Callback pour rafraîchir la liste après mutation.
    *  Accepte un array OU un functional updater (préservation entrées DB-only). */
   setSavedDocuments: (docs: T[] | ((prev: T[]) => T[])) => void
@@ -67,7 +75,7 @@ interface UseDocumentCancelReturn<T extends CancellableDoc> {
 export function useDocumentCancel<T extends CancellableDoc>(
   opts: UseDocumentCancelOptions<T>,
 ): UseDocumentCancelReturn<T> {
-  const { artisanId, docType, isSameDoc, confirmDraftDelete, setSavedDocuments } = opts
+  const { artisanId, docType, isSameDoc, confirmDraftDelete, setSavedDocuments, sousCompte } = opts
   const [cancellingDoc, setCancellingDoc] = useState<T | null>(null)
 
   const matchDoc = (a: T, b: T): boolean => {
@@ -101,20 +109,28 @@ export function useDocumentCancel<T extends CancellableDoc>(
       // propriétaire ; le hard-DELETE reste bloqué (soft-delete only).
       const dbId = (doc as { id?: string }).id
       if (dbId && isStableDocId(dbId)) {
-        const table = docType === 'facture' ? 'factures' : 'devis'
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ;(supabase.from(table) as any)
-          .update({ deleted_at: new Date().toISOString() })
-          .eq('id', dbId)
-          .then(({ error }: { error: unknown }) => {
-            if (error) console.warn('[doc-delete] soft-delete DB échoué', error)
+        if (sousCompte) {
+          // Le brouillon a déjà quitté l'écran : un refus doit se dire, sinon il revient au rechargement sans
+          // qu'un mot ait été prononcé.
+          void changerEtatDocumentSociete('supprimer_brouillon', docType, dbId).then(resultat => {
+            if (!resultat.ok) toast.error(resultat.message)
           })
+        } else {
+          const table = docType === 'facture' ? 'factures' : 'devis'
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ;(supabase.from(table) as any)
+            .update({ deleted_at: new Date().toISOString() })
+            .eq('id', dbId)
+            .then(({ error }: { error: unknown }) => {
+              if (error) console.warn('[doc-delete] soft-delete DB échoué', error)
+            })
+        }
       }
       return
     }
     setCancellingDoc(doc)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [artisanId, docType, confirmDraftDelete, setSavedDocuments])
+  }, [artisanId, docType, confirmDraftDelete, setSavedDocuments, sousCompte])
 
   const handleCancelled = useCallback(() => {
     if (!cancellingDoc) return

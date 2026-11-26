@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { formatPrice } from '@/lib/utils'
 import { COMPLIANCE_TYPES, getComplianceStatus, type ComplianceDoc, type InterventionProof } from '@/components/pro-mobile/conformite'
 import RapportIABandeau from '@/components/pro-mobile/RapportIABandeau'
+import { localeTva, tauxTvaParDefaut } from '@/lib/tva-calculator'
 
 // API base : '' en web (Workers SSR) comme dans l'appli Vitfix Pro, qui affiche le site
 // (capacitor.config.ts) : fetch relatif. NEXT_PUBLIC_API_URL ne servait qu'à l'ancien
@@ -303,7 +304,7 @@ export default function MobileDocumentsSection({
           <div className="flex items-center justify-between mb-3">
             <div className="text-sm font-bold text-gray-700">📝 Devis rapide</div>
             <button
-              onClick={() => { setDevisForm({ client: '', service: '', description: '', montantHT: '', tva: '20', validite: '30' }); setDevisGenere(null); setShowDevisModal(true) }}
+              onClick={() => { setDevisForm({ client: '', service: '', description: '', montantHT: '', tva: String(tauxTvaParDefaut(localeTva(locale))), validite: '30' }); setDevisGenere(null); setShowDevisModal(true) }}
               className="bg-[#FFC107] text-gray-900 text-xs font-bold px-3 py-1.5 rounded-xl"
             >
               + Créer
@@ -313,7 +314,7 @@ export default function MobileDocumentsSection({
             <div className="text-sm font-semibold text-amber-800 mb-1">📋 Générez un devis en 30 secondes</div>
             <div className="text-xs text-amber-700 mb-3">Renseignez le client, le service et le montant. Le devis formaté est prêt à envoyer par SMS ou email.</div>
             <button
-              onClick={() => { setDevisForm({ client: '', service: '', description: '', montantHT: '', tva: '20', validite: '30' }); setDevisGenere(null); setShowDevisModal(true) }}
+              onClick={() => { setDevisForm({ client: '', service: '', description: '', montantHT: '', tva: String(tauxTvaParDefaut(localeTva(locale))), validite: '30' }); setDevisGenere(null); setShowDevisModal(true) }}
               className="w-full bg-[#FFC107] text-gray-900 font-bold py-2.5 rounded-xl text-sm active:scale-95 transition"
             >
               📝 Nouveau devis

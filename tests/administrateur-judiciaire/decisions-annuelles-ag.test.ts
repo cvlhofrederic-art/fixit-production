@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
+  AVANCE_REMISE_CS_JOURS_PAR_DEFAUT,
   REGLES_DECISIONS_ANNUELLES,
   TYPES_DECISION_ANNUELLE,
   controlerDecisionAnnuelle,
@@ -740,7 +741,7 @@ describe('échéances de l’exercice', () => {
   it('avec l’assemblée des comptes : remise au conseil syndical (repère de gestion) et convocation, triées par date', () => {
     const echeances = echeancesExercice(E2025, { ...options, dateAg: '2026-05-20', avanceRemiseCsJours: 15 })
     expect(echeances.map((e) => [e.code, e.date, e.aConfirmer, e.accomplie])).toEqual([
-      ['comptes_au_conseil_syndical', '2026-04-13', true, false],
+      ['comptes_au_conseil_syndical', '2026-04-13', false, false],
       ['convocation_comptes', '2026-04-28', true, false],
       ['assemblee_budget', '2026-06-30', false, false],
     ])
@@ -748,6 +749,20 @@ describe('échéances de l’exercice', () => {
     expect(echeances[1].fondement).toMatch(/art\. 9-1/)
     expect(echeances[1].fondement).toMatch(/L\. 1965 art\. 18-1/)
     expect(echeances[1].fondement).toMatch(/11, I, 1°/)
+  })
+
+  it('décision du 20/11/2026 (partie C, F15) : 0 jour par défaut, réglable par le cabinet, jamais présenté comme un délai légal', () => {
+    expect(AVANCE_REMISE_CS_JOURS_PAR_DEFAUT).toBe(0)
+    const [parDefaut] = echeancesExercice(E2025, { ...options, dateAg: '2026-05-20' })
+    expect(parDefaut).toMatchObject({ code: 'comptes_au_conseil_syndical', date: '2026-04-28', aConfirmer: false })
+    expect(parDefaut.libelle).toMatch(/avant la convocation de l'assemblée du 20\/05\/2026 \(repère de gestion du cabinet, aucun délai légal\)$/)
+    const [regle] = echeancesExercice(E2025, { ...options, dateAg: '2026-05-20', avanceRemiseCsJours: 15 })
+    expect(regle).toMatchObject({ date: '2026-04-13', aConfirmer: false })
+    expect(regle.libelle).toMatch(/\(réglage du cabinet : 15 jours avant la convocation, aucun délai légal\)$/)
+    const [unJour] = echeancesExercice(E2025, { ...options, dateAg: '2026-05-20', avanceRemiseCsJours: 1 })
+    expect(unJour.libelle).toMatch(/\(réglage du cabinet : 1 jour avant la convocation, aucun délai légal\)$/)
+    expect(NON_ETABLI).not.toMatch(/remise des comptes au conseil syndical/)
+    expect(EN_TETE).toMatch(/Décision du 20\/11\/2026 \(partie C, F15\) : .*0 jour par défaut.*réglable par le cabinet.*jamais présentée comme un délai légal/)
   })
 
   it('sans conseil syndical : pas de remise ; délai de convocation plus long du règlement', () => {

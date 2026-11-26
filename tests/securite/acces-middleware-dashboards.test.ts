@@ -12,7 +12,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 
-type Utilisateur = { app_metadata: { role?: string; _original_role?: string; aj_signalement_cabinet?: unknown } }
+type Utilisateur = { app_metadata: { role?: string; _original_role?: string; aj_signalement_cabinet?: unknown; pro_team_role?: unknown } }
 
 let utilisateurCourant: Utilisateur | null = null
 let appelsGetUser = 0
@@ -37,6 +37,7 @@ async function visiter(chemin: string) {
   return {
     statut: reponse.status,
     vers: location ? new URL(location).pathname.replace(/(.)\/$/, '$1') : null,
+    requete: location ? new URL(location).search : null,
     cookieLocale: reponse.cookies.get('locale')?.value ?? null,
     csp: reponse.headers.get('content-security-policy'),
   }
@@ -187,8 +188,46 @@ describe('/{locale}/pro/mobile — espace mobile des artisans', () => {
   // Règle n° 1 artisan / BTP : une société BTP a aussi une fiche profiles_artisan, seule vérification de la page.
   it.each(['pro_societe', 'pro_conciergerie', 'pro_gestionnaire'])('renvoie un compte %s vers /pro/dashboard', async (role) => {
     connecte(role)
-    expect(await visiter('/fr/pro/mobile/')).toMatchObject({ statut: 307, vers: '/fr/pro/dashboard' })
-    expect(await visiter('/pt/pro/mobile')).toMatchObject({ statut: 307, vers: '/pt/pro/dashboard' })
+    expect(await visiter('/fr/pro/mobile/')).toMatchObject({ statut: 307, vers: '/fr/pro/dashboard', requete: '' })
+    expect(await visiter('/pt/pro/mobile')).toMatchObject({ statut: 307, vers: '/pt/pro/dashboard', requete: '' })
+  })
+
+  // Départ de l'appli d'un salarié de terrain : le pointage, son poste de travail (23/11/2026). Même décision que la
+  // connexion (lib/auth/destination-par-role, pageAppliSocieteBtp), vérifiée là-bas rôle par rôle.
+  it.each(['OUVRIER', 'CHEF_CHANTIER', 'CONDUCTEUR_TRAVAUX'])('ouvre le pointage pour un salarié %s d’une société BTP', async (roleEquipe) => {
+    connecte('pro_societe', { pro_team_role: roleEquipe })
+    expect(await visiter('/fr/pro/mobile/')).toMatchObject({ statut: 307, vers: '/fr/pro/dashboard', requete: '?p=pointage' })
+    expect(await visiter('/pt/pro/mobile')).toMatchObject({ statut: 307, vers: '/pt/pro/dashboard', requete: '?p=pointage' })
+  })
+
+  it.each(['GERANT', 'SECRETAIRE', 'COMPTABLE'])('garde le tableau de bord pour un compte %s', async (roleEquipe) => {
+    connecte('pro_societe', { pro_team_role: roleEquipe })
+    expect(await visiter('/fr/pro/mobile/')).toMatchObject({ statut: 307, vers: '/fr/pro/dashboard', requete: '' })
+  })
+
+  it('un rôle d’équipe sur un compte qui n’est pas une société BTP ne change rien', async () => {
+    for (const role of ['pro_conciergerie', 'pro_gestionnaire']) {
+      connecte(role, { pro_team_role: 'OUVRIER' })
+      expect(await visiter('/fr/pro/mobile/')).toMatchObject({ vers: '/fr/pro/dashboard', requete: '' })
+    }
+  })
+
+  it('un rôle d’équipe non textuel suit le tableau de bord', async () => {
+    connecte('pro_societe', { pro_team_role: 42 })
+    expect(await visiter('/fr/pro/mobile/')).toMatchObject({ vers: '/fr/pro/dashboard', requete: '' })
+  })
+
+  // Le pointage ne s'ouvre que depuis le départ de l'appli : /artisan/dashboard garde sa redirection d'avant.
+  it('un salarié de terrain qui visite /artisan/dashboard est renvoyé sans le pointage', async () => {
+    connecte('pro_societe', { pro_team_role: 'OUVRIER' })
+    expect(await visiter('/fr/artisan/dashboard/')).toMatchObject({ vers: '/fr/pro/dashboard', requete: '' })
+  })
+
+  // La requête d'origine reste reprise telle quelle par les autres redirections (localeRedirect).
+  it('une redirection sans requête à elle garde celle de l’adresse visitée', async () => {
+    expect(await visiter('/fr/pro/dashboard/?p=pointage')).toMatchObject({ statut: 307, vers: '/fr/auth/login', requete: '?p=pointage' })
+    connecte('client')
+    expect(await visiter('/fr/pro/mobile/?x=1')).toMatchObject({ vers: '/fr/client/dashboard', requete: '?x=1' })
   })
 
   it('renvoie client, syndic et copropriétaire vers leur espace', async () => {
@@ -226,6 +265,42 @@ describe('/admin/dashboard', () => {
   it('ne pose pas de cookie de langue sur les routes /admin/', async () => {
     connecte('artisan')
     expect(await visiter('/admin/dashboard/')).toMatchObject({ cookieLocale: null })
+  })
+})
+
+// CRM du secrétariat (22/11/2026) : le compte « secretariat » n'a que l'écran /admin/crm (route interne sans langue).
+describe('compte secretariat : aiguillé vers le CRM', () => {
+  it.each(['/fr/', '/pt/', '/en/', '/fr/auth/login', '/pt/auth/login'])('%s → /admin/crm, sans préfixe de langue', async (chemin) => {
+    connecte('secretariat')
+    const r = await visiter(chemin)
+    expect(r).toMatchObject({ statut: 307, vers: '/admin/crm', cookieLocale: null })
+    expect(r.csp).toContain("default-src 'self'")
+  })
+
+  it.each([
+    '/fr/client/dashboard/',
+    '/pt/pro/dashboard/',
+    '/fr/pro/mobile/',
+    '/pt/artisan/dashboard/',
+    '/fr/syndic/dashboard/',
+    '/fr/coproprietaire/dashboard/',
+  ])('tableau de bord d’un autre compte (%s) → /admin/crm', async (chemin) => {
+    connecte('secretariat')
+    expect(await visiter(chemin)).toMatchObject({ statut: 307, vers: '/admin/crm' })
+  })
+
+  it('l’écran du CRM est servi (la page et les routes /api/crm décident de l’accès)', async () => {
+    connecte('secretariat')
+    expect(await visiter('/admin/crm/')).toMatchObject({ statut: 200, vers: null, cookieLocale: null })
+    utilisateurCourant = null
+    expect(await visiter('/admin/crm/')).toMatchObject({ statut: 200, vers: null })
+  })
+
+  it('un rôle voisin ou le super admin gardent leurs destinations', async () => {
+    connecte('secretariat_x')
+    expect(await visiter('/fr/')).toMatchObject({ statut: 307, vers: '/fr/client/dashboard' })
+    connecte('super_admin')
+    expect(await visiter('/fr/admin/crm/')).toMatchObject({ statut: 307, vers: '/admin/crm' })
   })
 })
 

@@ -188,10 +188,10 @@ describe('transitions du statut de l’opération', () => {
     )
   })
 
-  it('décision annulée en justice ou rapportée : aucune transition établie (🔴), le refus le dit', () => {
+  it('décision annulée en justice ou rapportée : le refus renvoie à la transition tracée (décision du 20/11/2026, partie C, F67)', () => {
     const adoptee = creerOperationTravaux(saisie())
     expect(() => changerStatutOperationTravaux(adoptee, 'Rejeté', { le: '2026-06-01', motif: 'Résolution annulée par jugement' })).toThrow(
-      /rapportée par une nouvelle assemblée : transition non établie ; suspendre ou annuler ses échéances \(echeancier-appels\.ts\)/,
+      /rapportée par une nouvelle assemblée : rejeterOperationTravauxAdoptee, avec le motif et la référence de l'acte \(décision du 20\/11\/2026, partie C, F67\)/,
     )
   })
 
@@ -853,10 +853,14 @@ describe('en-tête : textes cités et questions ouvertes', () => {
     )
   })
 
-  it('décision qui tombe (jugement, nouvelle assemblée) : question posée mot pour mot', () => {
-    expect(texte).toContain(
+  it('décision qui tombe (jugement, nouvelle assemblée) : décidée le 20/11/2026 (partie C, F67), la question quitte le 🔴', () => {
+    expect(texte).not.toContain(
       '« Une opération adoptée dont la résolution est annulée par jugement ou abandonnée par une nouvelle assemblée passe-t-elle à "Rejeté", et depuis quels statuts ? »',
     )
+    const f67 = item('Décision du 20/11/2026 (partie C, F67)')
+    expect(f67).toMatch(/depuis « Adopté », « Commandé » ou « Commencé »/)
+    expect(f67).toMatch(/Depuis « Terminé », « A clôturer » ou « Réparti », pas de passage automatique/)
+    expect(f67).toMatch(/L\. 1965 art\. 42, al\. 2/)
   })
 
   it('J67 (17/11/2026) : 673 des études (R60), 102 puis 702 et 12 (R61), pouvoirs de l’assemblée (R81) quittent le 🔴', () => {
@@ -865,8 +869,9 @@ describe('en-tête : textes cités et questions ouvertes', () => {
     expect(nonEtabli).not.toContain("L'appel de travaux crédite-t-il le 102 de l'opération")
     expect(nonEtabli).not.toContain('Le virement 102 → 702 et le passage au 12 en fin d\'exercice sont-ils à produire ici ?')
     expect(nonEtabli).not.toContain("tient-elle lieu de la décision d'affectation du fonds de travaux par l'assemblée")
-    // le pouvoir de décider les travaux eux-mêmes (F69, partie C) reste une question
-    expect(nonEtabli).toContain("Faut-il vérifier que l'ordonnance confie à l'administrateur provisoire le pouvoir de décider ces travaux ?")
+    // le pouvoir de décider les travaux eux-mêmes : décision du 20/11/2026 (partie C, F69), sauf l'étendue non saisie
+    expect(nonEtabli).not.toContain("Faut-il vérifier que l'ordonnance confie à l'administrateur provisoire le pouvoir de décider ces travaux ?")
+    expect(nonEtabli).toContain('étendue des pouvoirs non saisie au mandat')
     const j67 = texte.slice(texte.indexOf('Décisions de Hugo du 17/11/2026'), texte.indexOf('Règles :'))
     for (const attendu of ['J67, R60', 'J67, R61', 'J67, R81', '67300', '10200', 'Report de soldes comptables']) expect(j67).toContain(attendu)
   })

@@ -132,13 +132,23 @@ describe('pièces de traitement : statut et annulation', () => {
   })
 
   it('annulation d’une pièce « Enregistré » : écriture contraire numérotée à la suite, pièce d’origine « Annulé » avec annuleePar', async () => {
-    await enregistrerPieceTraitement({ traitement: traitement('tr-1', 'Encaissement'), coproprieteId: 'C1', mandatId: 'M1' })
+    await enregistrerPieceTraitement({ traitement: traitement('tr-1', 'Règlement de soldes de compte'), coproprieteId: 'C1', mandatId: 'M1' })
     const { piece, annulation } = await annulerPieceTraitement('tr-1', { id: 'tr-1-annul', date: '2026-01-05' }, { actor: 'test' })
     expect(piece).toMatchObject({ id: 'tr-1', statut: 'Annulé', annuleePar: 'tr-1-annul' })
-    expect(annulation).toMatchObject({ id: 'tr-1-annul', numero: 2, famille: "Annulation d'encaissement", mandatId: 'M1', coproprieteId: 'C1' })
+    expect(annulation).toMatchObject({ id: 'tr-1-annul', numero: 2, famille: 'Annulation de règlements', mandatId: 'M1', coproprieteId: 'C1' })
     expect(await ajDb.traitements.count()).toBe(2)
     await expect(annulerPieceTraitement('tr-1', { id: 'tr-1-bis', date: '2026-01-06' })).rejects.toThrow(/déjà annulée/)
     await expect(changerStatutTraitement('tr-1', 'Imputé')).rejects.toThrow(/annulée/)
+  })
+
+  it('annulation refusée pour une pièce d’encaissement, quelle que soit sa famille (son circuit : annulerEncaissementEcrit, qui défait l’imputation) ; rien n’est écrit', async () => {
+    for (const [i, famille] of (['Encaissement', 'Prélèvement', 'Fichier TIP', 'Fichier Virement reçus'] as const).entries()) {
+      const id = `tr-${i + 1}`
+      await enregistrerPieceTraitement({ traitement: traitement(id, famille), coproprieteId: 'C1', mandatId: 'M1' })
+      await expect(annulerPieceTraitement(id, { id: `${id}-annul`, date: '2026-01-05' }), famille).rejects.toThrow(/annulerEncaissementEcrit/)
+      expect((await ajDb.traitements.get(id))?.statut, famille).toBe('Enregistré')
+    }
+    expect(await ajDb.traitements.count()).toBe(4)
   })
 
   it('annulation refusée pour une pièce de document (appel de fonds : son circuit, echeancier-appels.ts) ; rien n’est écrit', async () => {

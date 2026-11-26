@@ -637,7 +637,7 @@ describe('J50 — relecture du 14/11/2026 (tour 1) : constats corrigés', () => 
     // sonde P9 : refus reçu le 20/12/2025, LRE du 27/12/2025 ; effet dès sa réception (avant : calculé « à confirmer »)
     const p9 = lreDu(avis, { consentements: [consent('refus', d(2025, 12, 20))] })
     expect(p9).toMatchObject({ etat: 'refuse', cause: 'voie_postale_demandee' })
-    expect(motifDe(p9)).toContain('décision de Hugo du 17/11/2026, J52')
+    expect(motifDe(p9)).toContain('décision du 17/11/2026, J52')
     // demande de voie postale enregistrée, reçue le même jour : même refus
     expect(lreDu(avis, { demandesVoiePostale: [demandePostale(d(2025, 12, 20))] })).toMatchObject({ etat: 'refuse', cause: 'voie_postale_demandee' })
     // effet atteint à l'envoi : délai non lancé, comme avant

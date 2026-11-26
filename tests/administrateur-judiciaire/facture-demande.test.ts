@@ -471,9 +471,9 @@ describe('cohérence avec le cycle de la demande', () => {
 describe('J67, R78 — règles de facturation du code de commerce (numéro du bon de commande)', () => {
   it('en-tête : C. com. art. L. 441-9 relu ; le N° d’OS n’est jamais exigé sur la facture, il reste un indice de rapprochement', () => {
     const { texte } = enTeteDuModule('facture-demande')
-    const questions = texte.slice(texte.indexOf('🔴 Non établi'))
-    expect(questions).not.toContain('L. 441-9')
-    expect(questions).toContain('tolérance de 5 %')
+    // la tolérance de 5 %, dernière question ouverte, est tranchée (Décision du 20/11/2026, partie C, F91)
+    expect(texte).not.toContain('🔴 Non établi')
+    expect(texte).toContain('Décision du 20/11/2026 (partie C, F91)')
     for (const attendu of ['J67, R78', '« pour une activité professionnelle »', 'pèse sur le vendeur', 'jamais exigé', 'art. 289'])
       expect(texte).toContain(attendu)
   })

@@ -11,10 +11,12 @@ import { refDecret1967, refLoi1965 } from '@/lib/administrateur-judiciaire/domai
 import { citerFondement } from '@/lib/administrateur-judiciaire/domain/fondements'
 import {
   controlerAffectationFondsTravaux,
+  estDecisionAdministrateurProvisoire,
   type DecaissementFondsTravaux,
   type ResultatAffectation,
 } from '@/lib/administrateur-judiciaire/domain/fonds-travaux'
 import { creerOrdreVirement, genererPain001, verifierEmission, type StatutOrdre } from '@/lib/administrateur-judiciaire/domain/ordres-banque'
+import type { ReglementFournisseur } from '@/lib/administrateur-judiciaire/domain/reglements-fournisseurs'
 import { creerTraitement, type FamilleTraitement, type LigneMouvement, type Traitement } from '@/lib/administrateur-judiciaire/domain/traitements'
 import {
   TYPE_VIREMENT_INTERNE,
@@ -22,6 +24,7 @@ import {
   verifierRang,
   type OrdreDuLot,
 } from '@/lib/administrateur-judiciaire/domain/types-ordres-banque'
+import type { FicheValidationBanque } from '@/lib/administrateur-judiciaire/domain/validation-banque'
 
 /**
  * Virement de banque à banque entre comptes du syndicat (point 39 du bilan 2). Fonctions pures, montants en CENTIMES
@@ -85,8 +88,8 @@ import {
  *   provision d'au plus un tiers du devis, après avis du conseil syndical, l'assemblée étant convoquée immédiatement
  *   (D. 1967 art. 37). Blocage gardé (controlerAffectationFondsTravaux). En administration provisoire, deux voies :
  *   l'ordonnance de l'art. 29-14, 2°, ou la décision de l'administrateur qui a reçu les pouvoirs de l'assemblée (art.
- *   29-1, I), sans avis du conseil syndical en cas d'urgence (D. 1967 art. 62-7 ; J16) ; la forme de cette décision reste
- *   ouverte (ci-dessous).
+ *   29-1, I), sans avis du conseil syndical en cas d'urgence (D. 1967 art. 62-7 ; J16) ; la forme de cette décision est
+ *   fixée par la décision du 20/11/2026 (partie C, F96, ci-dessous).
  * - J67, R83 : écriture directe de 512 à 512, sans compte d'attente : aucun texte ne l'impose ; le 47 sert aux opérations
  *   en attente d'imputation et se solde à la clôture ou se justifie ligne à ligne (arrêté du 14 mars 2005, art. 7 et
  *   10) ; un décalage entre les deux relevés se voit au rapprochement bancaire. Le compte séparé rémunéré du fonds (L.
@@ -114,6 +117,32 @@ import {
  *   compte séparé du fonds : art. 18, II, al. 4). Un placement non réservé au fonds reste refusé. Les intérêts restent
  *   acquis au syndicat, hors des parts des lots (fonds-travaux-lots.ts, J67, R88).
  *
+ * Décisions du 20/11/2026 (partie C du relevé des questions ouvertes du code, recommandations acceptées par le
+ * responsable du projet) :
+ * - Décision du 20/11/2026 (partie C, F95), même question que G28 (partie B) : la loi autorise les virements du compte
+ *   courant vers le compte du fonds et ne dit rien des sorties (L. 1965 art. 18, II, al. 4) ; une sortie est un emploi,
+ *   qui exige une affectation (art. 14-2-1, I, al. 7). Par défaut, la facture se paie directement depuis le compte du
+ *   fonds : une seule sortie, traçable, sous contrôle d'affectation (travaux-budget.ts,
+ *   controlerReglementDepuisLeFondsOperation). Le virement vers le compte courant reste admis, pour le seul montant
+ *   affecté (plafondAffectation, fourni par l'appelant : la décision d'affectation ne porte pas de montant ; absent, non
+ *   contrôlé et signalé dans alertes) et avec la référence de la décision (emploiFondsTravaux) ; il est alors marqué
+ *   « emploi » (marque), et la facture payée ensuite s'y rattache (rattacherReglementAuVirementEmploi) ;
+ * - Décision du 20/11/2026 (partie C, F96) : en administration provisoire, la décision de l'administrateur qui affecte
+ *   le fonds sous l'art. 29-1 se saisit dans la troisième forme structurée « décision de l'administrateur provisoire »
+ *   (fonds-travaux.ts, DecisionAdministrateurProvisoire, dans decisionAg) : l'ordonnance de l'art. 29-1 (juridiction,
+ *   date, n°) et la case « pouvoirs de l'AG confiés », la date et le n° de la décision au registre des décisions (D. 1967
+ *   art. 62-8), l'avis du conseil syndical ou le constat d'urgence (art. 62-7 ; J16, J46) ; contrôlée à la saisie comme
+ *   les autres formes (J30 : date jamais postérieure au jour), copiée en profondeur avec l'emploi ; la date comparée à la
+ *   dépense est celle de la décision (fonds-travaux-lots.ts). Sous l'art. 29-1, ce n'est pas l'ordonnance qui affecte le
+ *   fonds : c'est l'administrateur qui décide, avec les pouvoirs qu'elle lui confie ;
+ * - Décision du 20/11/2026 (partie C, F103) : le fichier pain.001 d'un virement interne reçoit la fiche « validation
+ *   banque » du compte source (fichierVirementInterne, option validationBanque) ; sans elle, il porte la mention « non
+ *   validé par la banque » (validation-banque.ts) ;
+ * - Décision du 20/11/2026 (partie C, F112) : une part du fonds de travaux reçue sur le compte courant n'est pas
+ *   bloquée ; elle est signalée et reste à virer jusqu'au virement interne qui alimente le fonds depuis ce compte :
+ *   alimentationsDuFonds rend ces alimentations, émises et non rejetées, qui soldent la part « à virer »
+ *   (encaissements-pieces.partsFondsTravauxAVirer), avec une alerte passé le délai réglé par le cabinet.
+ *
  * 🔵 Déduit :
  * - un virement interne relie deux comptes ACTIFS, distincts, du MÊME syndicat (D1), sans tiers ; une avance de fonds du
  *   gestionnaire au syndicat (interdite au syndic par l'art. 18, II, dernier al., sauf au syndic provisoire et à
@@ -132,8 +161,9 @@ import {
  *   compte du syndicat n'est interdite par aucun texte (l'argent entre au fonds, il n'en sort pas) : admise ;
  * - sortie du fonds vers un autre compte : elle se rattache à un emploi du fonds, contrôlé par
  *   controlerAffectationFondsTravaux (fonds-travaux.ts, J4) : décision d'affectation de l'assemblée, ou ordonnance du
- *   juge (art. 29-14, 2°) ; en administration provisoire, l'ordonnance qui confie les pouvoirs de l'assemblée (art. 29-1)
- *   se cite comme décision, pour les seules dépenses du I, 1° à 4° (decisionAg) : l'assemblée ne pouvant affecter le
+ *   juge (art. 29-14, 2°) ; en administration provisoire, la décision de l'administrateur qui a reçu les pouvoirs de
+ *   l'assemblée (art. 29-1) se cite dans sa forme structurée (F96, ci-dessus), pour les seules dépenses du I, 1° à 4°
+ *   (decisionAg) : l'assemblée ne pouvant affecter le
  *   fonds qu'à ces dépenses, le redressement ou le maintien de la gestion courante exigent l'ordonnance de l'art. 29-14,
  *   2° (autorisationJuge) ;
  * - d'un compte du fonds à un autre compte du fonds (changement de banque, dépôt à la Caisse des dépôts, retour d'un
@@ -152,15 +182,8 @@ import {
  *   passée ici ;
  * - même IBAN pour deux comptes : un seul compte bancaire ; avec le fonds de travaux, il serait confondu (art. 18, II,
  *   al. 4).
+ *
  * 🔴 Non établi (à trancher par Frédéric ou Hugo) :
- * - Frédéric : après une affectation votée, la facture de travaux se règle-t-elle directement depuis le compte du fonds,
- *   ou le cabinet vire-t-il d'abord vers le compte courant ? Le texte n'autorise expressément que le sens courant → fonds ;
- *   VitFix admet la sortie du fonds sous contrôle d'affectation ;
- * - Hugo (reste de J30) : en administration provisoire, l'ordonnance de l'art. 29-1 qui confie les pouvoirs de l'assemblée,
- *   citée comme décision d'affectation (decisionAg), prend-elle la même forme que celle de l'art. 29-14, 2° (juridiction,
- *   date, n°) ? J30 ne vise que l'ordonnance de l'art. 29-14, 2° et la décision de l'AG. Conséquence de la forme exigée
- *   (decisionAg : date de l'AG et n° de la résolution, J42) : une nouvelle sortie du fonds ne peut plus la citer en texte
- *   libre, refusé à la création ; seule une valeur enregistrée avant J30 reste lue et signalée « forme incomplète » ;
  * - Frédéric : un compte repris qui tenait le fonds de travaux se distingue-t-il dans Gestéam (tranche 29 : un seul
  *   libellé « Banque ancien AJ / ancien syndic ») ? VitFix le marque à la saisie du compte (tenaitFondsTravaux) ;
  * - Frédéric : Gestéam rattache-t-il le virement de banque à banque à un ordre de type « Ordre de virement », le syndicat
@@ -173,7 +196,8 @@ import {
  * - que recouvre la famille « Ajustement bancaire fonds travaux » du référentiel (non observée) ? Non utilisée ici ;
  * - compte de placement (J71 compris) lu en sous-compte 512 (COMPTE_512), comme les placements de Gestéam (tranche 29) ;
  *   un placement décidé par l'assemblée relève pourtant du 50 « Fonds placés » (D. 1967 art. 35-1) : classe 50 « Fonds
- *   placés » (J67, R83) non prise en charge, à trancher (même marque dans fonds-detenus.ts).
+ *   placés » (J67, R83) non prise en charge, à trancher (fonds-detenus.ts compte les placements de classe 50 depuis la
+ *   décision du 20/11/2026, partie C, F98).
  */
 
 /** Famille Gestéam du traitement d'un virement interne (référentiel FAMILLE_TRAITEMENT, bloc Règlements). */
@@ -238,7 +262,16 @@ export interface SaisieVirementInterne {
   emploiFondsTravaux?: EmploiFondsTravaux | null
   /** Exigée vers un compte de placement (D. 1967 art. 35-1), refusée sinon : décision d'assemblée ou ordonnance. */
   decisionPlacement?: string | null
+  /**
+   * Sortie du fonds (F95) : montant affecté par la décision et déjà employé sous elle, fournis par l'appelant (la décision
+   * d'affectation de l'assemblée ne porte pas de montant : DecisionAffectationAg) ; le virement ne va pas au-delà.
+   * Absent : non contrôlé, signalé (alertes). Sans objet hors d'une sortie du fonds.
+   */
+  plafondAffectation?: { montantAffecteCentimes: number; dejaEmployeCentimes?: number } | null
 }
+
+/** Marque d'un virement qui sort du fonds de travaux vers un autre compte du syndicat : un emploi du fonds (F95). */
+export type MarqueVirementFondsTravaux = 'emploi'
 
 /** Effet du virement sur le fonds de travaux, selon la nature des deux comptes. */
 export type MouvementFondsTravaux = 'aucun' | 'alimentation' | 'sortie' | 'changement_de_compte'
@@ -262,6 +295,10 @@ export interface VirementInterne {
   emploiFondsTravaux: EmploiFondsTravaux | null
   /** Contrôle d'affectation d'une sortie du fonds (admis) ; null sinon. */
   affectation: ResultatAffectation | null
+  /** F95 : « emploi » pour une sortie du fonds (la facture payée ensuite s'y rattache) ; null sinon. */
+  marque: MarqueVirementFondsTravaux | null
+  /** F95 : alertes non bloquantes de la saisie (montant affecté non fourni). */
+  alertes: string[]
   decisionPlacement: string | null
   statut: StatutOrdre
   dateEmission: string | null
@@ -297,6 +334,15 @@ export function mouvementFondsTravaux(source: CompteFonds, destination: CompteFo
   if (depuisFonds) return 'sortie'
   if (versFonds) return 'alimentation'
   return 'aucun'
+}
+
+/**
+ * Décision du 20/11/2026 (partie C, F112) — virements qui versent au fonds de travaux depuis un compte qui ne le tient pas
+ * (alimentation), émis et non rejetés (J68) : ils soldent la part « à virer » des cotisations reçues sur ce compte
+ * (encaissements-pieces.partsFondsTravauxAVirer). L'ordre reçu est conservé.
+ */
+export function alimentationsDuFonds(virements: readonly VirementInterne[]): VirementInterne[] {
+  return virements.filter((v) => v.mouvementFondsTravaux === 'alimentation' && v.statut === 'Émis' && v.rejet === null)
 }
 
 // ─── Création ───────────────────────────────────────────────────────────────────────────────
@@ -358,6 +404,35 @@ function verifierPaire(source: CompteVirementInterne, destination: CompteViremen
 /** Copie d'une référence de l'emploi : une forme structurée (J30) n'est pas partagée avec la saisie. */
 const copieReference = <R>(reference: R): R => (typeof reference === 'object' && reference !== null ? { ...reference } : reference)
 
+/** Copie de la décision d'affectation : la décision de l'administrateur provisoire (F96) est copiée en profondeur. */
+function copieDecisionAffectation(decision: EmploiFondsTravaux['decisionAg']): EmploiFondsTravaux['decisionAg'] {
+  if (!estDecisionAdministrateurProvisoire(decision)) return copieReference(decision)
+  return { ...decision, ordonnance: { ...decision.ordonnance }, decision: { ...decision.decision }, avisOuUrgence: { ...decision.avisOuUrgence } }
+}
+
+const F95 = 'décision du 20/11/2026, partie C, F95'
+
+/** F95 : alerte d'une sortie du fonds dont le montant affecté n'est pas fourni. */
+export const ALERTE_MONTANT_AFFECTE_NON_FOURNI = `Sortie du fonds de travaux : montant affecté par la décision non fourni : non contrôlé ; le virement vers le compte courant n'est admis que pour le seul montant affecté (${F95}).`
+
+/**
+ * F95 — le virement qui sort du fonds ne va pas au-delà du montant affecté par la décision, déjà employé compris
+ * (plafondAffectation, fourni par l'appelant) ; montant affecté non fourni : admis, signalé (alertes).
+ */
+function controlerMontantAffecte({ plafondAffectation, montantCentimes }: SaisieVirementInterne): string[] {
+  if (!plafondAffectation) return [ALERTE_MONTANT_AFFECTE_NON_FOURNI]
+  const { montantAffecteCentimes, dejaEmployeCentimes = 0 } = plafondAffectation
+  if (!Number.isInteger(montantAffecteCentimes) || montantAffecteCentimes <= 0 || !Number.isInteger(dejaEmployeCentimes) || dejaEmployeCentimes < 0)
+    throw new Error(
+      `Montant affecté (${montantAffecteCentimes}) et déjà employé (${dejaEmployeCentimes}) : centimes entiers, strictement positifs pour le montant affecté, positifs ou nuls pour le déjà employé.`,
+    )
+  if (dejaEmployeCentimes + montantCentimes > montantAffecteCentimes)
+    throw new Error(
+      `Sortie du fonds de travaux de ${montantCentimes} centimes au-delà du montant affecté par la décision (${montantAffecteCentimes} centimes, dont ${dejaEmployeCentimes} déjà employés) : le virement vers le compte courant n'est admis que pour le seul montant affecté (${F95}).`,
+    )
+  return []
+}
+
 /**
  * Sortie du fonds de travaux : jamais vers un placement qui n'est pas réservé au fonds, jamais depuis un placement réservé
  * au fonds (J71 : il ne revient qu'à un compte du fonds) ; sinon un emploi admis par le contrôle d'affectation, en saisie
@@ -366,7 +441,7 @@ const copieReference = <R>(reference: R): R => (typeof reference === 'object' &&
 function controlerSortieDuFonds(
   saisie: SaisieVirementInterne,
   aujourdhui: string | undefined,
-): { affectation: ResultatAffectation; emploi: EmploiFondsTravaux } {
+): { affectation: ResultatAffectation; emploi: EmploiFondsTravaux; alertes: string[] } {
   if (saisie.destination.nature === 'placement')
     throw new Error(
       `Fonds de travaux vers un compte de placement qui n'est pas réservé au fonds : refusé ; le placement du fonds, sur décision, se fait vers un compte de placement au nom du syndicat réservé au fonds (J71 ; ${FONDEMENT_PLACEMENT} ; ${FONDEMENT_FONDS_SEPARE}).`,
@@ -380,9 +455,11 @@ function controlerSortieDuFonds(
     )
   const affectation = controlerAffectationFondsTravaux({ ...emploi, montantCentimes: saisie.montantCentimes }, { aujourdhui, nouvelleSaisie: true })
   if (!affectation.autorise) throw new Error(`Sortie du fonds de travaux refusée : ${affectation.motif} (${affectation.fondement})`)
+  const alertes = controlerMontantAffecte(saisie)
   return {
     affectation,
-    emploi: { ...emploi, decisionAg: copieReference(emploi.decisionAg), autorisationJuge: copieReference(emploi.autorisationJuge) },
+    emploi: { ...emploi, decisionAg: copieDecisionAffectation(emploi.decisionAg), autorisationJuge: copieReference(emploi.autorisationJuge) },
+    alertes,
   }
 }
 
@@ -390,15 +467,16 @@ function controlerFondsTravaux(
   saisie: SaisieVirementInterne,
   mouvement: MouvementFondsTravaux,
   aujourdhui: string | undefined,
-): { affectation: ResultatAffectation | null; emploi: EmploiFondsTravaux | null } {
+): { affectation: ResultatAffectation | null; emploi: EmploiFondsTravaux | null; alertes: string[] } {
   if (mouvement === 'sortie') return controlerSortieDuFonds(saisie, aujourdhui)
+  if (saisie.plafondAffectation) throw new Error(`Montant affecté rattaché à un virement qui ne sort pas du fonds (${mouvement}) : sans objet (${F95}).`)
   if (mouvement === 'alimentation' && estPlacementDuFonds(saisie.destination))
     throw new Error(
       `Placement du fonds de travaux : alimenté seulement depuis un compte du fonds ; les cotisations sont versées sur le compte séparé du fonds (J71 ; ${FONDEMENT_FONDS_SEPARE}).`,
     )
   if (saisie.emploiFondsTravaux)
     throw new Error(`Emploi du fonds de travaux rattaché à un virement qui ne sort pas du fonds (${mouvement}) : vérifier le sens du virement.`)
-  return { affectation: null, emploi: null }
+  return { affectation: null, emploi: null, alertes: [] }
 }
 
 function controlerPlacement(saisie: SaisieVirementInterne): string | null {
@@ -437,7 +515,7 @@ export function creerVirementInterne(
   verifierCompte(saisie.destination, 'destination', saisie.coproprieteId, segmentSyndicat)
   verifierPaire(saisie.source, saisie.destination)
   const mouvement = mouvementFondsTravaux(saisie.source, saisie.destination)
-  const { affectation, emploi } = controlerFondsTravaux(saisie, mouvement, aujourdhui)
+  const { affectation, emploi, alertes } = controlerFondsTravaux(saisie, mouvement, aujourdhui)
   const decisionPlacement = controlerPlacement(saisie)
   return {
     id: saisie.id,
@@ -457,12 +535,50 @@ export function creerVirementInterne(
     mouvementFondsTravaux: mouvement,
     emploiFondsTravaux: emploi,
     affectation,
+    marque: mouvement === 'sortie' ? 'emploi' : null,
+    alertes,
     decisionPlacement,
     statut: 'Enregistré',
     dateEmission: null,
     impute: false,
     rejet: null,
   }
+}
+
+/** F95 — facture payée depuis le compte courant, rattachée au virement « emploi » qui l'a alimenté. */
+export interface RattachementFactureEmploi {
+  virementId: string
+  reglementId: string
+  factureId: string
+  montantCentimes: number
+}
+
+/**
+ * Rattache au virement « emploi » (sortie du fonds vers le compte courant) la facture payée ensuite (décision du
+ * 20/11/2026, partie C, F95) : règlement du même syndicat (D1), non annulé, d'une facture, payé depuis le compte qui a
+ * reçu le virement, dans la limite du virement, rattachements déjà faits compris (dejaRattacheCentimes, fournis par
+ * l'appelant). Refus : virement qui n'est pas un « emploi », ou rejeté par la banque (J68 : l'emploi n'a pas eu lieu).
+ */
+export function rattacherReglementAuVirementEmploi(
+  virement: VirementInterne,
+  reglement: Pick<ReglementFournisseur, 'id' | 'coproprieteId' | 'banqueId' | 'factureId' | 'statut' | 'montantCentimes'>,
+  { dejaRattacheCentimes = 0 }: { dejaRattacheCentimes?: number } = {},
+): RattachementFactureEmploi {
+  const nom = `Règlement ${reglement.id}`
+  if (virement.marque !== 'emploi' || virement.rejet)
+    throw new Error(`Virement ${virement.numero} : pas un virement « emploi » du fonds de travaux en vigueur (sortie du fonds, non rejetée) ; ${nom} ne s'y rattache pas.`)
+  if (reglement.coproprieteId !== virement.coproprieteId) throw new Error(`${nom} d'un autre syndicat que le virement ${virement.numero} (D1).`)
+  if (reglement.statut === 'Annulé') throw new Error(`${nom} annulé : rien à rattacher au virement ${virement.numero}.`)
+  if (!reglement.factureId) throw new Error(`${nom} sans facture : seule la facture payée se rattache au virement « emploi » (${F95}).`)
+  if (reglement.banqueId !== virement.destination.banqueId)
+    throw new Error(`${nom} payé depuis le compte ${reglement.banqueId}, pas depuis le compte qui a reçu le virement « emploi » ${virement.numero} (${virement.destination.banqueId}).`)
+  if (!Number.isInteger(dejaRattacheCentimes) || dejaRattacheCentimes < 0)
+    throw new Error(`Déjà rattaché au virement ${virement.numero} invalide (${dejaRattacheCentimes}) : centimes entiers positifs ou nuls attendus.`)
+  if (dejaRattacheCentimes + reglement.montantCentimes > virement.montantCentimes)
+    throw new Error(
+      `${nom} (${reglement.montantCentimes} centimes) au-delà du virement « emploi » ${virement.numero} (${virement.montantCentimes} centimes, dont ${dejaRattacheCentimes} déjà rattachés).`,
+    )
+  return { virementId: virement.id, reglementId: reglement.id, factureId: reglement.factureId, montantCentimes: reglement.montantCentimes }
 }
 
 /** Saisie d'un virement d'un lot créé d'un coup : sa place (traitement, rang, taille du lot) est attribuée. */
@@ -706,11 +822,18 @@ export function ordresDuLotVirementsInternes(virements: VirementInterne[]): Ordr
  * Fichier pain.001.001.03 d'un virement interne (genererPain001) : débiteur = le syndicat sur le compte source,
  * créancier = le syndicat sur le compte de destination, identifiant de bout en bout = n° du virement. Refuse un compte
  * source sans IBAN ou sans BIC, une destination sans IBAN (Caisse des dépôts, sous-compte centralisateur : virement à
- * ordonner hors fichier).
+ * ordonner hors fichier). Décision du 20/11/2026 (partie C, F103) : sans fiche « validation banque » du compte source
+ * (validationBanque), le fichier porte la mention « non validé par la banque ».
  */
 export function fichierVirementInterne(
   v: VirementInterne,
-  { nomSyndicat, messageId, dateCreation, dateExecution }: { nomSyndicat: string; messageId: string; dateCreation: string; dateExecution: string },
+  {
+    nomSyndicat,
+    messageId,
+    dateCreation,
+    dateExecution,
+    validationBanque = null,
+  }: { nomSyndicat: string; messageId: string; dateCreation: string; dateExecution: string; validationBanque?: FicheValidationBanque | null },
 ): string {
   texteRequis(nomSyndicat, 'Nom du syndicat attendu (débiteur et créancier du virement).')
   const { source, destination } = v
@@ -728,5 +851,5 @@ export function fichierVirementInterne(
       { reglementId: v.numero, beneficiaire: nomSyndicat, iban: destination.iban, bic: destination.bic, montantCentimes: v.montantCentimes, libelle: v.libelle },
     ],
   })
-  return genererPain001(ordre, { nom: nomSyndicat, iban: source.iban, bic: source.bic }, { messageId, dateCreation, dateExecution })
+  return genererPain001(ordre, { nom: nomSyndicat, iban: source.iban, bic: source.bic }, { messageId, dateCreation, dateExecution, validationBanque })
 }

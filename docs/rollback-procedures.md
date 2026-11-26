@@ -287,3 +287,49 @@ BEGIN
 END
 $$;
 ```
+
+---
+
+## Migration 20261125 — Équipe BTP : catégorie professionnelle (`20261125_pro_team_members_job_title.sql`)
+
+Retire la colonne `job_title` de `pro_team_members` (et sa contrainte de longueur). ATTENTION : les catégories saisies
+sont perdues, et le code qui la lit doit être retiré AVANT : `GET /api/pro/team` retombe seul sur une lecture sans la
+colonne (code 42703), mais l'export RGPD (`app/api/user/export-data`) la sélectionne et échouerait.
+
+```sql
+ALTER TABLE public.pro_team_members DROP CONSTRAINT IF EXISTS pro_team_members_job_title_longueur;
+ALTER TABLE public.pro_team_members DROP COLUMN IF EXISTS job_title;
+```
+
+---
+
+## Migration 20261125b — Équipe BTP : dérogations de droits réservées au serveur
+
+Recrée les trois policies d'écriture de `pro_role_permissions` (forme de `20260610_rls_initplan_wrap.sql`) et rend aux
+rôles `anon` et `authenticated` les droits retirés. ATTENTION : ceci ROUVRE la faille (un salarié connecté s'écrit
+lui-même une dérogation FULL). À n'employer que si une écriture légitime depuis le navigateur était découverte (aucune
+au 25/11/2026 : invitation et « Enregistrer les permissions » passent par `/api/pro/team` en service role).
+
+```sql
+CREATE POLICY "pro_perms_insert" ON public.pro_role_permissions FOR INSERT WITH CHECK (company_id = (select auth.uid()));
+CREATE POLICY "pro_perms_update" ON public.pro_role_permissions FOR UPDATE USING (company_id = (select auth.uid()));
+CREATE POLICY "pro_perms_delete" ON public.pro_role_permissions FOR DELETE USING (company_id = (select auth.uid()));
+GRANT INSERT, UPDATE, DELETE, TRUNCATE ON public.pro_role_permissions TO anon, authenticated;
+```
+
+---
+
+## Migration 20261126 — Outillage BTP : répertoire et vérification du vendredi (`20261126_btp_outillage.sql`)
+
+Retire les deux tables créées par la migration. ATTENTION : cela EFFACE le répertoire des outils et véhicules saisi
+depuis, et l'historique des vérifications du vendredi (qui a validé, ce qui manquait). Faire d'abord un export si ces
+données comptent (`select * from public.outillage_btp` et `public.verifications_outillage_btp`, ou l'export RGPD
+de la société, qui les contient). Le code continue de marcher sans elles : l'écran « Outillage et véhicules » indique
+que la base doit être mise à jour, `/api/btp/outillage` répond `disponible: false` et refuse toute écriture (409).
+Aucune autre table n'est touchée.
+
+```sql
+-- Rollback
+DROP TABLE IF EXISTS public.verifications_outillage_btp;
+DROP TABLE IF EXISTS public.outillage_btp;
+```

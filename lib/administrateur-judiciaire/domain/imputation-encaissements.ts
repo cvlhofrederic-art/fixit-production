@@ -36,6 +36,9 @@ import { TYPE_APPEL_LIE_AU_MOUVEMENT, type TypeAppelLieAuMouvement } from '@/lib
  * du 17/11/2026 (J67, R104 ; arrêté du 14/03/2005, art. 10) : si l'AG a créé le sous-compte 450-1, les postes du budget
  * (appel du budget, régularisation des charges) y sont crédités, comme ils y ont été débités ; le reste et le reliquat
  * au 450, sans compensation entre les deux (art. 9).
+ * Décision du 20/11/2026 (partie C, F110) : l'imputation d'un encaissement annulé (chèque impayé, virement reçu
+ * retourné) est défaite, les postes payés redevenant dus à leur exigibilité d'origine (desimputerEncaissement ;
+ * l'écriture contraire : encaissements-pieces.annulerEncaissement).
  */
 
 export interface PosteDette {
@@ -69,6 +72,13 @@ export interface PosteDette {
    * régularisation des charges (regularisation-charges.postesRegularisation). Un appel « Budget » l'est toujours.
    */
   compteBudget?: boolean
+  /**
+   * Code du plan du compte 450 que l'appel a débité pour ce poste : « 45000 », ou le 450-1 du budget (J67, R104), relu de
+   * la pièce d'appel (postes-comptes.ts). Présent : l'encaissement crédite ce compte-là, quel que soit le réglage des
+   * sous-comptes passé à l'écriture (arrêté du 14/03/2005, art. 9 : aucune compensation entre le 450 et le 450-1 ; un 450-1
+   * créé en cours d'année laisse les appels antérieurs au 45000). Absent : le réglage passé à l'écriture s'applique.
+   */
+  planCompte?: string
 }
 
 /** J67, R104 : poste porté par le compte du budget (450-1 si l'AG l'a créé) : appel du budget, régularisation des charges. */
@@ -249,6 +259,8 @@ function verifierPostes(postes: PosteDette[]): void {
       throw new Error(`Type d'appel inconnu : « ${poste.typeAppel} ».`)
     if ((poste.appelId === null) !== (poste.typeAppel === null))
       throw new Error(`Poste ${poste.id} : appel d'origine et type d'appel vont ensemble (R8), l'un manque.`)
+    if (poste.planCompte !== undefined && !/^450\d\d$/.test(poste.planCompte))
+      throw new Error(`Poste ${poste.id} : compte débité par l'appel « ${poste.planCompte} », code de plan 450xx attendu.`)
   }
 }
 
@@ -371,6 +383,8 @@ export function imputerEncaissements(
  * poste imputé portant l'appel d'origine quand il est connu, plus le reliquat sans origine. Les postes sont lus dans le
  * résultat d'imputation lui-même. J67, R104 : avec le 450-1 créé par l'AG (`compteBudget`), les postes du budget
  * (estPosteDuBudget) y sont crédités, comme ils y ont été débités ; le reste et le reliquat au compte copropriétaire.
+ * Un poste qui porte le compte débité par son appel (`planCompte`) est crédité à ce compte-là (`compteDuPlan` en donne le
+ * numéro), quel que soit `compteBudget` ; sans `compteDuPlan`, un tel poste est refusé plutôt que crédité ailleurs.
  */
 export function mouvementsEncaissementImpute({
   encaissement,
@@ -378,6 +392,7 @@ export function mouvementsEncaissementImpute({
   compteBanque,
   compteCoproprietaire,
   compteBudget = null,
+  compteDuPlan = null,
 }: {
   encaissement: Encaissement
   resultat: ResultatImputation
@@ -385,22 +400,50 @@ export function mouvementsEncaissementImpute({
   compteCoproprietaire: string
   /** J67, R104 : 450-1 du compte, si l'AG l'a créé ; absent : tout au compte copropriétaire. */
   compteBudget?: string | null
+  /** Numéro du compte 450 du copropriétaire pour un code de plan (45000 ou sous-compte) : pour les postes à `planCompte`. */
+  compteDuPlan?: ((planCode: string) => string) | null
 }): LigneMouvement[] {
   if (resultat.encaissementId !== encaissement.id) throw new Error("Le résultat d'imputation ne correspond pas à l'encaissement.")
   const impute = resultat.lignes.reduce((s, l) => s + l.montantCentimes, 0)
   if (impute + resultat.resteAImputerCentimes !== encaissement.montantCentimes)
     throw new Error("Résultat d'imputation incohérent : imputé + reste ≠ montant de l'encaissement.")
+  const compteCredite = (poste: PosteDette): string => {
+    if (poste.planCompte === undefined) return compteBudget && estPosteDuBudget(poste) ? compteBudget : compteCoproprietaire
+    if (!compteDuPlan) throw new Error(`Poste ${poste.id} : il porte le compte débité par son appel (${poste.planCompte}) ; numéro de ce compte attendu (compteDuPlan).`)
+    return compteDuPlan(poste.planCompte)
+  }
   const credits: LigneMouvement[] = resultat.lignes.map((ligne) => {
     const poste = resultat.postes.find((p) => p.id === ligne.posteId)
     if (!poste) throw new Error(`Poste imputé introuvable (id=${ligne.posteId}).`)
     const origine =
       poste.appelId && poste.typeAppel ? { origine: { type: 'appel' as const, appelId: poste.appelId, typeAppel: poste.typeAppel } } : {}
-    const compte = compteBudget && estPosteDuBudget(poste) ? compteBudget : compteCoproprietaire
-    return { compte, sens: 'credit', montantCentimes: ligne.montantCentimes, ...origine }
+    return { compte: compteCredite(poste), sens: 'credit', montantCentimes: ligne.montantCentimes, ...origine }
   })
   if (resultat.resteAImputerCentimes > 0)
     credits.push({ compte: compteCoproprietaire, sens: 'credit', montantCentimes: resultat.resteAImputerCentimes })
   return [{ compte: compteBanque, sens: 'debit', montantCentimes: encaissement.montantCentimes }, ...credits]
+}
+
+/**
+ * Décision du 20/11/2026 (partie C, F110) — désimputation d'un encaissement annulé : chaque poste qu'il a réglé redevient
+ * dû de la part imputée et garde son exigibilité d'origine ; rien d'autre ne change, les postes reçus ne sont pas
+ * modifiés. `postes` est l'état courant des postes, celui d'après l'imputation (et des imputations suivantes). Refuse un
+ * poste imputé absent, ou dont le réglé est inférieur à la part à défaire. Elle servira aussi, plus tard, à l'annulation
+ * d'un appel réglé en partie (F105).
+ */
+export function desimputerEncaissement(resultat: ResultatImputation, postes: PosteDette[]): PosteDette[] {
+  verifierPostes(postes)
+  const aDefaire = new Map<string, number>()
+  for (const ligne of resultat.lignes) aDefaire.set(ligne.posteId, (aDefaire.get(ligne.posteId) ?? 0) + ligne.montantCentimes)
+  for (const [posteId, montant] of aDefaire) {
+    const poste = postes.find((p) => p.id === posteId)
+    if (!poste) throw new Error(`Désimputation de l'encaissement ${resultat.encaissementId} : poste imputé ${posteId} introuvable.`)
+    if (poste.regleCentimes < montant)
+      throw new Error(
+        `Désimputation de l'encaissement ${resultat.encaissementId} : réglé du poste ${posteId} (${poste.regleCentimes} centimes) inférieur à la part imputée (${montant} centimes) ; passer l'état des postes après l'imputation.`,
+      )
+  }
+  return postes.map((p) => ({ ...p, regleCentimes: p.regleCentimes - (aDefaire.get(p.id) ?? 0) }))
 }
 
 /**

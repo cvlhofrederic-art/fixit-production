@@ -20,7 +20,7 @@ export function cleOrganisationMenu(compteId?: string): string {
 // Aligned 1:1 with V5Sidebar (pro_societe BTP) structure
 const DEFAULT_STRUCTURE: Array<{ id: string; name: string; namePt: string; modIds: string[] }> = [
   { id: 'cat-pilotage', name: 'Pilotage', namePt: 'Gestão', modIds: ['home', 'gestion_comptes', 'stats', 'revenus', 'motifs'] },
-  { id: 'cat-chantiers', name: 'Chantiers', namePt: 'Obras', modIds: ['chantiers', 'gantt', 'equipes', 'pointage', 'estimation_materiaux', ID_MODULE_DICTIONNAIRE, 'calendar', 'meteo', 'photos_chantier', 'rapports'] },
+  { id: 'cat-chantiers', name: 'Chantiers', namePt: 'Obras', modIds: ['chantiers', 'gantt', 'equipes', 'pointage', 'outillage', 'estimation_materiaux', ID_MODULE_DICTIONNAIRE, 'calendar', 'meteo', 'photos_chantier', 'rapports'] },
   { id: 'cat-commercial', name: 'Commercial', namePt: 'Comercial', modIds: ['pipeline', 'devis', 'dpgf', 'marches'] },
   { id: 'cat-facturation', name: 'Facturation', namePt: 'Faturação', modIds: ['factures', 'situations', 'garanties'] },
   { id: 'cat-achats', name: 'Sous-traitance & Achats', namePt: 'Subempreitada & Compras', modIds: ['sous_traitance', 'sous_traitance_offres', 'rfq_btp', 'marketplace_btp'] },
@@ -81,8 +81,8 @@ function remettreLesMasques(categories: ModCategory[], masques: readonly ModuleM
 }
 
 // Un module ajouté après coup se range à la fin de sa catégorie dans un état déjà enregistré. Ceux-ci se
-// placent juste après leur voisin : le dictionnaire reste sous l'estimation des matériaux.
-const PLACE_APRES: Readonly<Record<string, string>> = { [ID_MODULE_DICTIONNAIRE]: 'estimation_materiaux' }
+// placent juste après leur voisin : le dictionnaire reste sous l'estimation des matériaux, l'outillage sous le pointage.
+const PLACE_APRES: Readonly<Record<string, string>> = { [ID_MODULE_DICTIONNAIRE]: 'estimation_materiaux', outillage: 'pointage' }
 
 export function buildDefaultCategories(ALL_MODULES: ModuleDef[]): ModCategory[] {
   const byId = new Map(ALL_MODULES.map(m => [m.id, { ...m, label: m.label }]))

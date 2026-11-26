@@ -487,13 +487,14 @@ describe('J39 — droit proportionnel opération par opération, jamais sur le c
     expect(droitDuBloc(66)).toBe(1)
   })
 
-  it('numéro vide refusé ; aucune opération : aucun droit ; opération en double : refus, choix de VitFix à confirmer, pas une décision J39', () => {
+  it('numéro vide refusé ; aucune opération : aucun droit ; opération en double : refus (décision du 20/11/2026, partie C, F62), pas une décision J39', () => {
     const doublon = () =>
       droitsProportionnelsTravauxParOperation([
         { numero: 'T-1', montantTravauxHtCentimes: 1_000_000 },
         { numero: ' T-1 ', montantTravauxHtCentimes: 250_000 },
       ])
-    expect(doublon).toThrow(/Opération T-1 fournie deux fois : refusée \(choix de VitFix, à confirmer\)/)
+    expect(doublon).toThrow(/Opération T-1 fournie deux fois : refusée ; additionnez les montants de l'opération avant le calcul/)
+    expect(doublon).toThrow(/partie C, F62/)
     expect(doublon).toThrow(/deux calculs pour une même opération feraient repartir le barème de sa première tranche/)
     // J39 dit seulement que chaque opération a son propre calcul : le refus du doublon ne l'invoque pas.
     expect(doublon).not.toThrow(/J39/)
@@ -901,7 +902,11 @@ describe('en-tête : sources, marqueurs et questions', () => {
     expect(texte).toContain(
       '« Le bouton "Ne pas utiliser les fonds travaux" exclut-il tout emploi du fonds pour l\'opération (part, emploi, règlement depuis le compte du fonds), ou seulement le règlement de ses factures depuis ce compte ? »',
     )
-    expect(texte).toContain('« Quand l\'opération a une part du fonds, ses factures se règlent-elles directement depuis le compte du fonds')
+    // paiement direct ou virement vers le compte courant : décision du 20/11/2026 (partie C, F95), plus une question
+    expect(texte).not.toContain('« Quand l\'opération a une part du fonds, ses factures se règlent-elles directement depuis le compte du fonds')
+    expect(texte).toContain(
+      'Décision du 20/11/2026 (partie C, F95), même question que G28 (partie B) : par défaut, la facture se paie directement depuis le compte du fonds',
+    )
   })
 
   it('signale les ajouts hors du module et les branchements à faire', () => {
@@ -927,14 +932,15 @@ describe('en-tête : sources, marqueurs et questions', () => {
     expect(j55).toMatch(/assietteDroitProportionnelTravaux/)
   })
 
-  it('le refus d’une opération fournie deux fois est un choix de VitFix, posé en question 🔴 à Hugo, non une décision J39', () => {
+  it('le refus d’une opération fournie deux fois : décision du 20/11/2026 (partie C, F62), non une décision J39 ; la question quitte le 🔴', () => {
     const deduit = texte.slice(texte.indexOf('🔵 Déduit'), texte.indexOf('🔴 Non établi'))
     expect(deduit).not.toMatch(/un numéro fourni deux fois est refusé/)
     const nonEtabli = texte.slice(texte.indexOf('🔴 Non établi'))
-    expect(nonEtabli).toContain(
-      '« (Hugo) Une même opération fournie deux fois au calcul de plusieurs opérations (droitsProportionnelsTravauxParOperation, même numéro) est-elle refusée, ou ses montants s\'additionnent-ils avant un seul calcul par tranches ? »',
-    )
-    expect(nonEtabli).toMatch(/\(VitFix : refusée, choix de VitFix à confirmer : J39 ne le dit pas/)
+    expect(nonEtabli).not.toContain('Une même opération fournie deux fois au calcul de plusieurs opérations')
+    const f62 = item('Décision du 20/11/2026 (partie C, F62)')
+    expect(f62).toContain("« additionnez les montants de l'opération avant le calcul »")
+    expect(f62).toMatch(/arrêté du 8 octobre 2015, art\. 11 ; J39/)
+    expect(f62).toMatch(/Des travaux supplémentaires qui complètent le même objet restent la même opération, par prudence/)
   })
 })
 

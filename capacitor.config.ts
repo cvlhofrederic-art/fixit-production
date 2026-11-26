@@ -1,6 +1,9 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
-// Vitfix Pro — appli artisan Android et iPhone. Elle affiche l'espace mobile du site (https://vitfix.io/pro/mobile/)
+// Vitfix Pro — appli Android et iPhone des professionnels. Elle affiche le site en direct, au départ
+// https://vitfix.io/pro/mobile/ : l'espace mobile pour un artisan, le pointage pour un salarié de terrain d'une
+// société BTP, le tableau de bord pour les autres comptes pro ; un compte d'un autre type est renvoyé vers son
+// propre espace, et sans session l'appli affiche la page de connexion (middleware.ts, lib/auth/destination-par-role.ts),
 // au lieu d'embarquer un export statique (choix de Frédéric du 12/11/2026, « voie rapide ») : connexion, données et
 // mises à jour sont celles du site, sans repasser par les stores. Capacitor présente `server.url` comme prévu pour le
 // rechargement à chaud : limites (hors ligne, revue Apple) dans MOBILE_GUIDE.md. Invariants gardés par

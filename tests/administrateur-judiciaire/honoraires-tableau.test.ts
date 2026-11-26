@@ -8,10 +8,13 @@ import {
 } from '@/lib/administrateur-judiciaire/domain/honoraires-facturation'
 import {
   ETAPES_CYCLE_ELEMENT,
+  MENTION_TABLEAU_HONORAIRES,
   REGROUPEMENTS_TABLEAU_HONORAIRES,
+  anneeDeMissionAu,
   elementsImputes,
   etapeCycleElement,
   etatDeFinDeMission,
+  periodeAnneeDeMission,
   periodeMoisPrecedent,
   suiviDesEmoluments,
   tableauDesHonoraires,
@@ -116,6 +119,106 @@ describe('tableau des honoraires — période par défaut : le mois précédent 
   it('refuse une date du jour invalide', () => {
     expect(() => periodeMoisPrecedent('30/10/2026')).toThrow(/date/i)
     expect(() => periodeMoisPrecedent('2026-02-30')).toThrow(/date/i)
+  })
+})
+
+describe('compte provisoire détaillé des émoluments — période par défaut : l’année de mission (décision du 20/11/2026, partie C, F3)', () => {
+  /** Année de mission d'une désignation plausible (null seulement pour une année improbable). */
+  const anneeDeMission = (designation: string, n: number): { du: string; au: string } => {
+    const periode = periodeAnneeDeMission(designation, n)
+    if (periode === null) throw new Error(`Désignation ${designation} : année de mission attendue.`)
+    return periode
+  }
+
+  it('année de mission n : du quantième de la désignation au jour qui précède le n-ième anniversaire', () => {
+    expect(periodeAnneeDeMission('2026-03-15', 1)).toEqual({ du: '2026-03-15', au: '2027-03-14' })
+    expect(periodeAnneeDeMission('2026-03-15', 2)).toEqual({ du: '2027-03-15', au: '2028-03-14' })
+    expect(periodeAnneeDeMission('2026-03-15', 3)).toEqual({ du: '2028-03-15', au: '2029-03-14' })
+    // Désignation un 1er janvier : l'année de mission coïncide avec l'année civile.
+    expect(periodeAnneeDeMission('2027-01-01', 1)).toEqual({ du: '2027-01-01', au: '2027-12-31' })
+  })
+
+  it('désignation un 29 février : anniversaire le 28 février des années non bissextiles (comme dates.ajouterMois, Q3 du 17/11)', () => {
+    expect(periodeAnneeDeMission('2028-02-29', 1)).toEqual({ du: '2028-02-29', au: '2029-02-27' })
+    expect(periodeAnneeDeMission('2028-02-29', 2)).toEqual({ du: '2029-02-28', au: '2030-02-27' })
+    expect(periodeAnneeDeMission('2028-02-29', 4)).toEqual({ du: '2031-02-28', au: '2032-02-28' })
+    expect(periodeAnneeDeMission('2028-02-29', 5)).toEqual({ du: '2032-02-29', au: '2033-02-27' })
+  })
+
+  it('les années de mission se suivent sans trou ni chevauchement', () => {
+    for (const designation of ['2026-03-15', '2028-02-29', '2026-08-31', '2026-12-31'])
+      for (let n = 1; n <= 8; n++) {
+        const { au } = anneeDeMission(designation, n)
+        const suivante = anneeDeMission(designation, n + 1)
+        expect(anneeDeMissionAu(designation, au)).toBe(n)
+        expect(anneeDeMissionAu(designation, suivante.du)).toBe(n + 1)
+        expect(suivante.du > au).toBe(true)
+      }
+  })
+
+  it('rang de l’année de mission qui contient une date ; une date antérieure à la désignation est refusée', () => {
+    expect(anneeDeMissionAu('2026-03-15', '2026-03-15')).toBe(1)
+    expect(anneeDeMissionAu('2026-03-15', '2027-03-14')).toBe(1)
+    expect(anneeDeMissionAu('2026-03-15', '2027-03-15')).toBe(2)
+    expect(anneeDeMissionAu('2026-03-15', '2026-12-31')).toBe(1)
+    expect(anneeDeMissionAu('2026-03-15', '2031-01-10')).toBe(5)
+    expect(anneeDeMissionAu('2028-02-29', '2029-02-27')).toBe(1)
+    expect(anneeDeMissionAu('2028-02-29', '2029-02-28')).toBe(2)
+    expect(() => anneeDeMissionAu('2026-03-15', '2026-03-14')).toThrow(/antérieure à la désignation/)
+  })
+
+  it('désignation ou date d’une année improbable (faute de frappe) : aucune année de mission, au lieu de lever en l’an 10000', () => {
+    // Depuis le 01/06/9999, le premier anniversaire tombait en l'an 10000 : « Date ISO invalide » levée.
+    for (const designation of ['9999-06-01', '2525-03-15', '0026-03-15']) {
+      expect(periodeAnneeDeMission(designation, 1), designation).toBeNull()
+      expect(periodeAnneeDeMission(designation, 3), designation).toBeNull()
+    }
+    expect(anneeDeMissionAu('0026-03-15', '2026-11-20')).toBeNull()
+    expect(anneeDeMissionAu('9999-06-01', '9999-07-01')).toBeNull()
+    expect(anneeDeMissionAu('2026-03-15', '2525-03-15')).toBeNull()
+    // Une date antérieure à la désignation et d'une année improbable : aucun rang, pas de refus.
+    expect(anneeDeMissionAu('2026-03-15', '0026-03-15')).toBeNull()
+    // Bornes : 1900 et 2100 restent plausibles.
+    expect(periodeAnneeDeMission('1900-01-01', 1)).toEqual({ du: '1900-01-01', au: '1900-12-31' })
+    expect(periodeAnneeDeMission('2100-01-01', 1)).toEqual({ du: '2100-01-01', au: '2100-12-31' })
+    expect(anneeDeMissionAu('2026-03-15', '2100-12-31')).toBe(75)
+  })
+
+  it('refuse une date de désignation invalide et un rang qui n’est pas un entier à partir de 1', () => {
+    expect(() => periodeAnneeDeMission('15/03/2026', 1)).toThrow(/date de désignation invalide/i)
+    expect(() => periodeAnneeDeMission('2026-02-30', 1)).toThrow(/date de désignation invalide/i)
+    for (const rang of [0, -1, 1.5, Number.NaN]) expect(() => periodeAnneeDeMission('2026-03-15', rang)).toThrow(/année de mission invalide/i)
+    expect(() => anneeDeMissionAu('2026-03-15', '2026-13-01')).toThrow(/date invalide/i)
+  })
+
+  it('période modifiable : le tableau accepte l’année de mission comme n’importe quelle période du / au', () => {
+    const annee = anneeDeMission('2026-03-15', 1)
+    const tableau = tableauDesHonoraires(elements, affectations, { ...annee, regroupement: 'Mandat' }, factures)
+    expect(tableau).toMatchObject({ du: '2026-03-15', au: '2027-03-14' })
+    expect(tableau.total.parQualification.Facturable.nombre).toBe(6)
+  })
+
+  it('le tableau mensuel reste un contrôle interne : mention du domaine, à afficher avec l’écran', () => {
+    expect(MENTION_TABLEAU_HONORAIRES).toMatch(/contrôle interne/)
+    expect(MENTION_TABLEAU_HONORAIRES).toMatch(/pas le compte provisoire détaillé des émoluments/)
+    expect(MENTION_TABLEAU_HONORAIRES).toMatch(/année de mission/)
+  })
+
+  it('en-tête : la question de la période est tranchée, avec ses fondements', () => {
+    const { texte, item } = enTeteDuModule('honoraires-tableau')
+    expect(texte).not.toMatch(/Quelle période le cabinet présente-t-il au juge/)
+    const decision = item('- Décision du 20/11/2026 (partie C, F3)')
+    expect(decision).toMatch(/année de mission, comptée depuis la date de désignation enregistrée sur le mandat/)
+    expect(decision).toMatch(/période modifiable/)
+    expect(decision).toMatch(/contrôle interne/)
+    expect(decision).toMatch(/année civile, on change le défaut/)
+    expect(decision).toMatch(/D\. 1967 art\. 61-1-5, II.*art\. 62-11, I/)
+    expect(decision).toMatch(/periodeAnneeDeMission/)
+    expect(decision).toMatch(/periodeMoisPrecedent/)
+    // La date de désignation est enregistrée sur le mandat (son ordonnance) : la nommer, et écarter le repli de la vue.
+    expect(decision).toMatch(/date de l'ordonnance enregistrée sur le mandat \(MandatEnregistre\.ordonnance/)
+    expect(decision).toMatch(/jamais la date de création de la copropriété.*fusionnerCoproMandat/)
+    expect(decision).not.toMatch(/Donnée hors du domaine/)
   })
 })
 

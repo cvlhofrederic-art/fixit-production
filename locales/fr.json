@@ -5158,7 +5158,7 @@
       "subProcessorsTitle": "Sous-traitants et services tiers",
       "subProcessorsIntro": "Vos données peuvent être traitées par les sous-traitants suivants, dans le cadre du fonctionnement de la plateforme :",
       "subProcessorCloudflare": "Cloudflare (hébergement et diffusion du site, États-Unis)",
-      "subProcessorSupabase": "Supabase (base de données et authentification, États-Unis)",
+      "subProcessorSupabase": "Supabase (base de données et authentification, Francfort, Union européenne ; son support peut y accéder depuis les États-Unis et Singapour)",
       "subProcessorStripe": "Stripe (traitement des paiements, Irlande)",
       "subProcessorSentry": "Sentry (surveillance des erreurs, États-Unis)",
       "subProcessorResend": "Resend (envoi d'emails transactionnels, États-Unis)",
@@ -5192,7 +5192,7 @@
         "label": "Droit d'opposition :",
         "desc": "vous opposer au traitement de vos données pour des motifs légitimes."
       },
-      "contactInfo": "Pour exercer vos droits, contactez notre DPO :"
+      "contactInfo": "Pour exercer vos droits, écrivez à notre contact pour les données personnelles :"
     },
     "cookies": {
       "title": "Cookies",
@@ -5204,7 +5204,7 @@
     },
     "contact": {
       "title": "Contact",
-      "p1": "Pour toute question relative à la protection de vos données personnelles, vous pouvez contacter notre Délégué à la Protection des Données :"
+      "p1": "Pour toute question relative à la protection de vos données personnelles, vous pouvez écrire à notre contact pour les données personnelles :"
     }
   },
   "cookies": {

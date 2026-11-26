@@ -6,7 +6,6 @@
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { pathToFileURL } from 'node:url'
 import { generateDevisPdfV3, type PdfV3Input } from '@/lib/pdf/devis-pdf-v3'
 import { METHOD_SOLUCOES_PROFIL_ID, modeleDocumentSociete } from '@/lib/pdf/modeles-societes'
 import {
@@ -36,6 +35,7 @@ import {
 } from '@/lib/pdf/modele-method-solucoes'
 import type { ProductLine } from '@/lib/devis-types'
 import pt from '@/locales/pt.json'
+import { NB, lirePdf as lire, lu, ordreDeLecture, type Texte } from './helpers/lecture-pdf'
 
 const DOSSIER_SORTIE = process.env.PDF_SORTIE
 const RACINE = process.cwd()
@@ -46,10 +46,7 @@ const RESSOURCES: Record<string, string> = {
 }
 
 /** Espace insécable : « nb('245_312,60') » = « 245 312,60 » avec U+00A0 à la place de « _ ». */
-const NB = String.fromCharCode(0xa0)
 const nb = (s: string) => s.replace(/_/g, NB)
-/** Montant tel qu'il se lit dans le texte extrait (espaces insécables ramenés à des espaces). */
-const lu = (s: string) => s.split(NB).join(' ')
 
 const t = (cle: string): string => {
   const valeur = cle.split('.').reduce<unknown>((noeud, part) => (noeud as Record<string, unknown> | undefined)?.[part], pt)
@@ -182,7 +179,6 @@ function entree(docType: 'devis' | 'facture', surcharge: Partial<PdfV3Input> = {
   }
 }
 
-interface Texte { str: string; x: number; y: number; largeur: number }
 interface PdfLu {
   octets: Buffer
   pages: Texte[][]
@@ -191,40 +187,6 @@ interface PdfLu {
   /** Même texte sans aucun espace : pdf.js écarte les lettres des titres espacés (« O R Ç A M E N T O »). */
   compact: string[]
   nom: string
-}
-
-let pdfjs: typeof import('pdfjs-dist/legacy/build/pdf.mjs') | null = null
-
-/** Morceaux de texte de chaque page (pdf.js), avec leur position (origine en bas à gauche, en points). */
-async function lire(octets: Uint8Array): Promise<Texte[][]> {
-  if (!pdfjs) {
-    pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
-    pdfjs.GlobalWorkerOptions.workerSrc = pathToFileURL(join(RACINE, 'node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs')).href
-  }
-  // Données des polices standard (Helvetica du repli) : sans elles, pdf.js mesure mal le texte non embarqué.
-  const standardFontDataUrl = `${join(RACINE, 'node_modules/pdfjs-dist/standard_fonts').split('\\').join('/')}/`
-  const chargement = pdfjs.getDocument({ data: new Uint8Array(octets), useSystemFonts: false, standardFontDataUrl })
-  const doc = await chargement.promise
-  const pages: Texte[][] = []
-  for (let n = 1; n <= doc.numPages; n++) {
-    const contenu = await (await doc.getPage(n)).getTextContent()
-    pages.push(contenu.items.flatMap((item) => ('str' in item && item.str.trim()
-      ? [{ str: item.str, x: item.transform[4], y: item.transform[5], largeur: item.width }]
-      : [])))
-  }
-  await chargement.destroy()
-  return pages
-}
-
-/** Ordre de lecture : morceaux regroupés par ligne de base (à 1 pt près), de haut en bas, puis de gauche à droite. */
-function ordreDeLecture(page: Texte[]): string {
-  const lignes: Texte[][] = []
-  for (const m of [...page].sort((a, b) => b.y - a.y)) {
-    const ligneTrouvee = lignes.find((l) => Math.abs(l[0].y - m.y) <= 1)
-    if (ligneTrouvee) ligneTrouvee.push(m)
-    else lignes.push([m])
-  }
-  return lu(lignes.map((l) => l.sort((a, b) => a.x - b.x).map((m) => m.str).join(' ')).join(' ')).replace(/ +/g, ' ')
 }
 
 async function generer(nom: string, input: PdfV3Input): Promise<PdfLu> {

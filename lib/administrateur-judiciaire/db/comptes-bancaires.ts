@@ -7,9 +7,12 @@ import { ajDb, type Banque, type Cabinet, type Mandat } from '@/lib/administrate
 import {
   NATURES_COMPTE_BANCAIRE,
   creerReglagesComptesCabinet,
+  enMilieuDePhrase,
+  lireModeComptes,
   resoudreModeComptes,
   validerIban,
   verifierMarquesFondsTravaux,
+  type ModeComptesLu,
   type ModeTenueComptes,
   type NatureCompteBancaire,
   type ReglagesComptesCabinet,
@@ -115,6 +118,26 @@ async function ligneCabinet(): Promise<Cabinet | null> {
 /** Réglage du cabinet : son mode enregistré, sinon le défaut du domaine (compte séparé au nom du syndicat). */
 export async function lireReglagesComptesCabinet(): Promise<ReglagesComptesCabinet> {
   return creerReglagesComptesCabinet({ modeParDefaut: (await ligneCabinet())?.modeComptesBancaires })
+}
+
+/**
+ * Mode de tenue appliqué à un mandat du syndicat (décision du 22/11/2026, ap-03) : choix du mandat, à défaut réglage du
+ * cabinet ; sans mandat (identifiant vide ou null), le réglage du cabinet, comme l'écran des comptes bancaires. Lu sans
+ * exception : réglage du cabinet illisible, mandat introuvable ou d'un autre syndicat, mode inconnu donnent l'erreur,
+ * que l'avis porte (diffusion bloquée) ; jamais un mode par défaut à la place d'un réglage illisible.
+ */
+export async function lireModeComptesDuMandat(coproprieteId: string, mandatId: string | null): Promise<ModeComptesLu> {
+  let reglages: ReglagesComptesCabinet
+  try {
+    reglages = await lireReglagesComptesCabinet()
+  } catch (erreur) {
+    return { resolu: null, erreur: `réglage du cabinet illisible (${enMilieuDePhrase(erreur instanceof Error ? erreur.message : String(erreur))})` }
+  }
+  if (!mandatId) return lireModeComptes(reglages, null)
+  const mandat = await ajDb.mandats.get(mandatId)
+  if (!mandat) return { resolu: null, erreur: `mandat « ${mandatId} » introuvable` }
+  if (mandat.coproprieteId !== coproprieteId) return { resolu: null, erreur: `mandat « ${mandatId} » d'un autre syndicat` }
+  return lireModeComptes(reglages, mandat.modeComptesBancaires)
 }
 
 /**

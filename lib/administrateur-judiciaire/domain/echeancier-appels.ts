@@ -1,8 +1,21 @@
 import { dateIsoVersFr, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
 import type { Exercice } from '@/lib/administrateur-judiciaire/domain/exercices-budgets'
+import { numeroCompteCoproprietaire, type CompteCoproprietaire } from '@/lib/administrateur-judiciaire/domain/identites-positions'
 import { soldePoste, type PosteDette } from '@/lib/administrateur-judiciaire/domain/imputation-encaissements'
-import { codeContrepartie, type AvisAppels, type EcheanceAppel } from '@/lib/administrateur-judiciaire/domain/repartition-appels'
-import type { SensMouvement, Traitement } from '@/lib/administrateur-judiciaire/domain/traitements'
+import {
+  codeContrepartie,
+  planDuCompteBudget,
+  type AvisAppels,
+  type EcheanceAppel,
+  type SousComptes450,
+} from '@/lib/administrateur-judiciaire/domain/repartition-appels'
+import {
+  creerTraitement,
+  type LigneMouvement,
+  type OptionsTraitement,
+  type SensMouvement,
+  type Traitement,
+} from '@/lib/administrateur-judiciaire/domain/traitements'
 
 /**
  * Échéancier des appels : statut, traitement d'appel et d'annulation, date d'envoi, relançable, regroupement (point 16
@@ -38,7 +51,8 @@ import type { SensMouvement, Traitement } from '@/lib/administrateur-judiciaire/
  * 🔵 Déduit :
  * - cycle : Prévu → En attente (motif exigé) → Prévu ; Prévu → Appelé (par un traitement « Appel de fonds ») ; Prévu ou
  *   En attente → Annulé sans écriture (rien n'a été appelé) ; Appelé → Annulé par l'écriture contraire de son appel
- *   (« Annulation d'appel de fonds », R6) ; Annulé est définitif ; jamais Appelé → Prévu ;
+ *   (« Annulation d'appel de fonds », R6), ou de ses seules lignes pour une seule échéance (F104, ci-dessous) ; Annulé
+ *   est définitif ; jamais Appelé → Prévu ;
  * - une échéance « En attente » n'est pas appelée tant qu'elle n'est pas reprise (« Prévu ») : marquerAppelees la refuse ;
  * - jamais d'échéance négative : l'annulation contre-passe l'appel (arrêté, art. 5) au lieu des lignes négatives
  *   d'annulation de Gestéam ; la régularisation négative (excédent rendu, « REGUL CH. », « SOLDE AU ») passe par la
@@ -57,14 +71,16 @@ import type { SensMouvement, Traitement } from '@/lib/administrateur-judiciaire/
  *   limite : une liste incomplète au marquage (sans les échéances que le traitement a déjà appelées) ne se voit pas à ce
  *   moment ; les deux compositions d'un même traitement se signalent ensuite (annulation, postes imputables, relance) ;
  * - une échéance à 0 centime (tranche entièrement financée par le fonds de travaux) n'écrit aucune ligne
- *   (repartition-appels.traitementAppelDeFonds) : elle s'appelle avec les échéances de l'appel, et seule elle attend le
- *   suivant (aucune écriture ne peut la porter) ;
+ *   (repartition-appels.traitementAppelDeFonds) : elle s'appelle avec les échéances de l'appel ; seule, elle attend le
+ *   suivant (aucune écriture ne peut la porter), sauf si l'emploi du fonds qui la finance est autorisé : elle passe
+ *   alors « Appelé » sans écriture (F108, ci-dessous) ;
  * - un appel déjà réglé en partie ne s'annule pas : le règlement imputé sur ses postes serait perdu sans bruit ;
  * - suivi par défaut : « Prévu », relançable ; la date d'envoi ne se pose que sur une échéance appelée, une seule fois ;
  *   un envoi le jour de l'exigibilité ou après est enregistré tel quel (avis-appel.ts signale la diffusion tardive) ;
  * - relance : poste échu (exigible AVANT le jour de la relance : le jour de l'exigibilité, le versement est encore à
  *   temps, art. 19-2), non soldé, d'un appel émis et relançable, hors contentieux (le contentieux suit sa propre
- *   procédure) ; une dette sans appel (reprise de solde) reste relançable ; tout écart est signalé avec son motif ;
+ *   procédure ; inclusion à la main, motivée : F106, ci-dessous) ; une dette sans appel (reprise de solde) reste
+ *   relançable ; tout écart est signalé avec son motif ;
  * - postes imputables : jamais ceux d'un appel annulé (son écriture contraire a soldé le 450).
  *
  * Décision de Hugo du 17/11/2026 (registre des décisions juridiques, J67, R96 ; décret n° 2005-240, art. 3, al. 2, et
@@ -75,6 +91,39 @@ import type { SensMouvement, Traitement } from '@/lib/administrateur-judiciaire/
  * de l'émission (tranche 43 § 8) : à la reprise, le même contrôle signale l'écart, sans effet sur les montants
  * (branchement de la reprise des appels : à faire).
  *
+ * Décisions du 20/11/2026 (partie C, recommandations acceptées par le responsable du projet) :
+ * - Décision du 20/11/2026 (partie C, F104) : une seule échéance non réglée d'un appel qui en compte plusieurs s'annule
+ *   par une écriture contraire limitée à ses lignes (annulerEcheanceAppelee) : débit du compte de produit ou de
+ *   provision de l'appel, crédit du 450 (ou du 450-1 qui a porté le budget : J67, R104), compte par compte, datée du jour
+ *   de l'annulation, avec un motif (motifAnnulation). L'arrêté du 14/03/2005, art. 5, demande seulement qu'une écriture
+ *   erronée soit annulée « par une écriture contraire » : elle peut être partielle, comme le rejet d'une seule ligne de
+ *   virement (J9). Les autres échéances gardent leur exigibilité, leurs règlements et leurs relances. Refus si
+ *   l'échéance est réglée, même en partie, ou en contentieux. Une échéance à 0 centime n'a aucune ligne : elle s'annule
+ *   seule sans écriture. Ensuite, l'écriture contraire de tout l'appel est refusée (elle contre-passerait deux fois la
+ *   part déjà annulée) : les autres échéances s'annulent une à une ;
+ * - Décision du 20/11/2026 (partie C, F105) : un appel réglé en partie ne s'annule pas aujourd'hui (refus gardé dans
+ *   annulerAppelees et annulerEcheanceAppelee : sans désimputation, le règlement disparaîtrait des comptes). Plus tard,
+ *   avec la désimputation : l'annulation défait d'abord l'imputation, le règlement devient un crédit « à imputer » du 450,
+ *   puis il est réimputé sur les dettes échues, selon l'indication du copropriétaire, à défaut sur la plus ancienne
+ *   (arrêté du 14/03/2005, art. 9 ; C. civ. art. 1342-10), avec une trace ; le copropriétaire le voit sur l'avis suivant.
+ *   La désimputation existe depuis le chèque impayé (F110 : imputation-encaissements.desimputerEncaissement) ; cette
+ *   seconde étape (réimputation de l'art. 9) reste à faire ;
+ * - Décision du 20/11/2026 (partie C, F106) : un poste en contentieux est exclu par défaut de la relance ordinaire (sa
+ *   procédure propre : mise en demeure, délai de trente jours, J3) ; inclusion à la main possible, avec un motif
+ *   (postesARelancer, inclusionsContentieux). Les autres postes du même copropriétaire restent relancés ;
+ * - Décision du 20/11/2026 (partie C, F107) : aucune échéance négative ; la régularisation passe, à l'arrêté des comptes,
+ *   par le 450 et la contrepartie du 701 (arrêté du 14/03/2005, art. 10 ; point 25). À la reprise de Gestéam, chaque
+ *   ligne négative « REGUL CH. » ou « SOLDE AU » devient un solde repris du compte, avec son exercice, et non une
+ *   échéance (repriseLigneNegativeGesteam). La lecture de l'échéancier Gestéam reste à écrire : elle passe chaque ligne
+ *   avec le compte qu'elle vise ;
+ * - Décision du 20/11/2026 (partie C, F108) : une échéance à 0 € appelée seule passe « Appelé » sans écriture
+ *   (marquerAppeleeSansEcriture) : aucun produit à constater (décret n° 2005-240, art. 3 et 4). Seulement si son total
+ *   est exactement 0 et si l'emploi du fonds qui la finance est autorisé (R82 : aucun emploi sans autorisation) :
+ *   emploisFondsAutorises, que l'appelant établit par fonds-travaux.controlerAffectationFondsTravaux. La trace « échéance
+ *   à 0 €, financée par le fonds de travaux » est portée par l'échéance (appelSansEcriture) : un traitement comptable
+ *   exige au moins un débit et un crédit. L'avis suivant la mentionne pour information (avis-appel.contenuAvisAppel,
+ *   option echeancesAppeleesSansEcriture : mention « echeance_financee_par_le_fonds », hors du total).
+ *
  * 🔴 Non établi (questions pour Frédéric ou Hugo) :
  * - « Une échéance "En attente" est-elle une échéance suspendue avant son appel (par exemple des travaux pendant le
  *   délai de contestation de l'art. 42, al. 3, qui suspend l'exécution des travaux et non l'appel), et peut-on l'appeler
@@ -82,17 +131,6 @@ import type { SensMouvement, Traitement } from '@/lib/administrateur-judiciaire/
  * - « Que regroupe le "Regroupement (n)" de la fiche appel : des échéances appelées sur un même avis, ou la "banque du
  *   regroupement" du journal (tranche 43 § 2) ? » (VitFix : simple donnée, entier ≥ 1) ;
  * - « "Relançable" vaut-il oui par défaut ? » (VitFix : oui, modifiable par échéance) ;
- * - « Faut-il pouvoir annuler une seule échéance d'un appel qui en porte plusieurs (contre-passation partielle, comme le
- *   rejet de virement J9), ou annuler tout l'appel puis rappeler les autres ? » (VitFix : tout l'appel) ;
- * - « Appel déjà réglé en partie : à son annulation, le règlement imputé devient-il un crédit "à imputer" du compte ? »
- *   (VitFix : annulation refusée, aucune désimputation dans le domaine) ;
- * - « Un poste en contentieux reste-t-il dans la campagne de relance (tranche 27) ? » (VitFix : non) ;
- * - « Les lignes négatives de régularisation de l'échéancier Gestéam ("REGUL CH.", "SOLDE AU") se reprennent-elles en
- *   VitFix par la répartition des charges (point 25), ou faut-il admettre une échéance négative ? » (VitFix : point 25,
- *   aucune échéance négative) ;
- * - « Une échéance à 0 centime appelée seule (dernière tranche entièrement financée par le fonds de travaux) passe-t-elle
- *   "Appelé" sans écriture, ou attend-elle l'appel suivant ? » (VitFix : elle attend ; echeancesAAppeler ne la retient
- *   pas seule) ;
  * - « Faut-il, dans l'écriture de l'appel, un débit 450 par compte ET par échéance, portant son origine R8
  *   (LigneMouvement.origine { type: 'appel', appelId, typeAppel }), pour que le traitement désigne lui-même ses
  *   échéances ? Cela modifie repartition-appels.traitementAppelDeFonds et ses tests, et une échéance à 0 centime n'y
@@ -125,11 +163,34 @@ export interface SuiviEcheanceAppel {
    * comprise ; vide tant qu'elle n'est pas appelée. Le traitement ne les porte pas (🔵 voir l'en-tête).
    */
   echeancesDeLAppel: string[]
+  /**
+   * Décision du 20/11/2026 (partie C, F104) : motif de l'annulation de cette seule échéance (annulerEcheanceAppelee) ;
+   * absent ou null : annulée avec tout son appel, ou pas annulée.
+   */
+  motifAnnulation?: string | null
+  /** Décision du 20/11/2026 (partie C, F108) : appelée sans écriture (échéance à 0 € financée par le fonds) ; absent sinon. */
+  appelSansEcriture?: AppelSansEcriture | null
+}
+
+/** Décision du 20/11/2026 (partie C, F108) : trace d'une échéance à 0 € passée « Appelé » sans écriture. */
+export interface AppelSansEcriture {
+  /** Jour du passage à « Appelé » (AAAA-MM-JJ). */
+  le: string
+  trace: string
 }
 
 export type EcheanceAppelSuivie = EcheanceAppel & SuiviEcheanceAppel
 
-/** Transitions admises (🔵 déduites). Appelé → Annulé passe seulement par annulerAppelees (écriture contraire). */
+/** Décision du 20/11/2026 (partie C, F108) : trace d'une échéance à 0 € appelée seule. */
+export const TRACE_APPEL_SANS_ECRITURE = 'échéance à 0 €, financée par le fonds de travaux'
+
+/** Décision du 20/11/2026 (partie C, F107) : libellés Gestéam des lignes négatives repris en solde du compte. */
+export const LIBELLES_REPRISE_SOLDE_GESTEAM = ['REGUL CH.', 'SOLDE AU'] as const
+
+/**
+ * Transitions admises (🔵 déduites). Appelé → Annulé passe seulement par annulerAppelees (écriture contraire de l'appel)
+ * ou annulerEcheanceAppelee (ses seules lignes, F104).
+ */
 const TRANSITIONS: Record<StatutEcheanceAppel, readonly StatutEcheanceAppel[]> = {
   Prévu: ['En attente', 'Appelé', 'Annulé'],
   'En attente': ['Prévu', 'Annulé'],
@@ -202,7 +263,7 @@ export function suivreEcheances(echeances: EcheanceAppel[], { relancable = true 
     verifierDate(e.exigibilite, `Échéance « ${e.id} »`)
     if (!Number.isInteger(e.montantCentimes) || e.montantCentimes < 0)
       throw new Error(
-        `Échéance « ${e.id} » : montant invalide (${e.montantCentimes}), centimes entiers positifs ou nuls attendus ; jamais d'échéance négative : une annulation est l'écriture contraire de l'appel (annulerAppelees), une régularisation négative (Gestéam « REGUL CH. », « SOLDE AU ») passe par la répartition des charges (point 25).`,
+        `Échéance « ${e.id} » : montant invalide (${e.montantCentimes}), centimes entiers positifs ou nuls attendus ; jamais d'échéance négative : une annulation est l'écriture contraire de l'appel (annulerAppelees), une régularisation négative (Gestéam « REGUL CH. », « SOLDE AU ») passe par la répartition des charges (point 25) ; à la reprise, une telle ligne devient un solde repris du compte, avec son exercice (repriseLigneNegativeGesteam ; décision du 20/11/2026, partie C, F107).`,
       )
     return {
       ...e,
@@ -243,15 +304,102 @@ export function annulerAvantAppel<E extends EcheanceAppelSuivie>(e: E): E {
 /**
  * Échéances à appeler jusqu'à une date : « Prévu », exigibles au plus tard ce jour-là, triées par exigibilité puis
  * identifiant. C'est l'entrée de repartition-appels.avisDAppel. Une échéance à 0 centime n'est retenue qu'avec une
- * échéance à appeler : seule, aucune écriture ne peut la porter, elle attend l'appel suivant (🔴 voir l'en-tête).
+ * échéance à appeler ; seule, elle n'est retenue que si l'emploi du fonds qui la finance est autorisé
+ * (emploisFondsAutorises, établi par l'appelant) : elle passe alors « Appelé » sans écriture (marquerAppeleeSansEcriture ;
+ * décision du 20/11/2026, partie C, F108) ; sinon elle attend l'appel suivant.
  */
-export function echeancesAAppeler<E extends EcheanceAppelSuivie>(echeances: E[], { jusquAu }: { jusquAu: string }): E[] {
+export function echeancesAAppeler<E extends EcheanceAppelSuivie>(
+  echeances: E[],
+  { jusquAu, emploisFondsAutorises }: { jusquAu: string; emploisFondsAutorises?: ReadonlySet<string> },
+): E[] {
   verifierDate(jusquAu, "Horizon de l'appel")
   indexer(echeances)
   const retenues = echeances
     .filter((e) => e.statut === 'Prévu' && e.exigibilite <= jusquAu)
     .sort((a, b) => a.exigibilite.localeCompare(b.exigibilite) || a.id.localeCompare(b.id))
-  return retenues.some((e) => e.montantCentimes > 0) ? retenues : []
+  if (retenues.some((e) => e.montantCentimes > 0)) return retenues
+  return retenues.filter((e) => emploisFondsAutorises?.has(e.id) === true)
+}
+
+/**
+ * Décision du 20/11/2026 (partie C, F108) — échéances à 0 € appelées seules : « Prévu » → « Appelé » sans écriture
+ * (aucun produit à constater : décret n° 2005-240, art. 3 et 4), avec la trace TRACE_APPEL_SANS_ECRITURE et le jour du
+ * passage. Refuse une échéance inconnue, désignée deux fois, dont le total n'est pas exactement 0, dont l'emploi du fonds
+ * n'est pas autorisé (emploisFondsAutorises : l'appelant le contrôle par fonds-travaux.controlerAffectationFondsTravaux ;
+ * J67, R82), ou qui n'est pas « Prévu ». Les autres échéances sont inchangées.
+ */
+export function marquerAppeleeSansEcriture<E extends EcheanceAppelSuivie>(
+  echeances: E[],
+  { ids, le, emploisFondsAutorises }: { ids: readonly string[]; le: string; emploisFondsAutorises: ReadonlySet<string> },
+): E[] {
+  verifierDate(le, "Jour de l'appel sans écriture")
+  const index = indexerSuivies(echeances)
+  const cibles = new Set(ids)
+  if (cibles.size !== ids.length) throw new Error("Échéance désignée en double pour l'appel sans écriture.")
+  for (const id of cibles) {
+    const e = index.get(id)
+    if (!e) throw new Error(`Échéance « ${id} » inconnue.`)
+    if (e.montantCentimes !== 0)
+      throw new Error(`Échéance « ${id} » de ${e.montantCentimes} centimes : seule une échéance dont le total est exactement 0 s'appelle sans écriture.`)
+    if (!emploisFondsAutorises.has(id))
+      throw new Error(`Échéance « ${id} » à 0 € : l'emploi du fonds de travaux qui la finance n'est pas autorisé (J67, R82) ; elle attend l'appel suivant.`)
+    verifierTransition(e, 'Appelé')
+  }
+  const appel: AppelSansEcriture = { le, trace: TRACE_APPEL_SANS_ECRITURE }
+  return echeances.map((e): E => (cibles.has(e.id) ? { ...e, statut: 'Appelé', echeancesDeLAppel: [e.id], appelSansEcriture: { ...appel } } : e))
+}
+
+/** Ligne négative de l'échéancier Gestéam, avec le compte qu'elle vise (reprise ; décision du 20/11/2026, partie C, F107). */
+export interface LigneNegativeGesteam {
+  compteId: string
+  exercice: string
+  /** Date de la ligne (AAAA-MM-JJ). */
+  date: string
+  libelle: string
+  /** Montant de la ligne, négatif. */
+  montantCentimes: number
+}
+
+/** Solde repris d'un compte copropriétaire, avec son exercice : jamais une échéance (F107). */
+export interface SoldeReprisCompte {
+  type: 'solde_repris'
+  compteId: string
+  exercice: string
+  date: string
+  libelle: string
+  /** Négatif : crédit du compte. */
+  montantCentimes: number
+  motif: string
+}
+
+const MOTIF_REPRISE_SOLDE =
+  "ligne négative de l'échéancier Gestéam reprise en solde du compte, jamais une échéance négative : la régularisation passe par le 450 et la contrepartie du 701 à l'arrêté des comptes (arrêté du 14/03/2005, art. 10 ; décision du 20/11/2026, partie C, F107)"
+
+/**
+ * Décision du 20/11/2026 (partie C, F107) — reprise d'une ligne négative « REGUL CH. » ou « SOLDE AU » de l'échéancier
+ * Gestéam : elle devient un solde repris du compte, avec son exercice. Refuse une ligne qui n'est pas négative (elle se
+ * reprend en échéance, suivreEcheances), un autre libellé (ligne à examiner, jamais une échéance négative), un compte ou
+ * un exercice manquants, une date invalide.
+ */
+export function repriseLigneNegativeGesteam(ligne: LigneNegativeGesteam): SoldeReprisCompte {
+  const libelle = ligne.libelle.trim()
+  if (!Number.isInteger(ligne.montantCentimes) || ligne.montantCentimes >= 0)
+    throw new Error(`Ligne « ${libelle} » de ${ligne.montantCentimes} centimes : seule une ligne négative se reprend en solde ; les autres sont des échéances (suivreEcheances).`)
+  const reconnue = LIBELLES_REPRISE_SOLDE_GESTEAM.some((l) => libelle.toUpperCase().startsWith(l))
+  if (!reconnue)
+    throw new Error(`Ligne négative « ${libelle} » : seules « REGUL CH. » et « SOLDE AU » se reprennent en solde du compte ; ligne à examiner, jamais une échéance négative.`)
+  if (!ligne.compteId.trim()) throw new Error(`Ligne « ${libelle} » : compte copropriétaire attendu.`)
+  if (!ligne.exercice.trim()) throw new Error(`Ligne « ${libelle} » : exercice attendu.`)
+  verifierDate(ligne.date, `Ligne « ${libelle} »`)
+  return {
+    type: 'solde_repris',
+    compteId: ligne.compteId.trim(),
+    exercice: ligne.exercice.trim(),
+    date: ligne.date,
+    libelle,
+    montantCentimes: ligne.montantCentimes,
+    motif: MOTIF_REPRISE_SOLDE,
+  }
 }
 
 /** Montants cumulés par clé, sans les montants nuls (une ligne nulle n'est pas écrite). */
@@ -312,6 +460,13 @@ function verifierAvisDuTraitement(avis: AvisAppels, traitement: Traitement): voi
 /** Bornes d'un exercice du syndicat (exercices-budgets.ts). */
 export type BornesExercice = Pick<Exercice, 'nom' | 'ouverture' | 'cloture'>
 
+/**
+ * Exercices du syndicat dont les bornes sont connues (nom, ouverture, clôture) : les seuls qui comptent pour dater une
+ * écriture, celle d'un appel (J67, R96) comme celle d'un encaissement (décision du 24/11/2026, question 6 bis).
+ */
+export const bornesDesExercices = (exercices: readonly Partial<BornesExercice>[]): BornesExercice[] =>
+  exercices.flatMap((x) => (x.nom && x.ouverture && x.cloture ? [{ nom: x.nom, ouverture: x.ouverture, cloture: x.cloture }] : []))
+
 export interface AnomalieDateComptableAppel {
   code: 'date_hors_exercice' | 'date_autre_que_exigibilite' | 'exigibilite_hors_exercice'
   gravite: 'bloquant' | 'avertissement'
@@ -336,7 +491,8 @@ export function dateComptableAppel(avis: Pick<AvisAppels, 'echeances'>): string 
   return dates[0]
 }
 
-const exerciceDe = (exercices: readonly BornesExercice[], date: string): BornesExercice | null =>
+/** Exercice qui comprend la date, bornes comprises ; null hors de tous. */
+export const exerciceDe = (exercices: readonly BornesExercice[], date: string): BornesExercice | null =>
   exercices.find((x) => x.ouverture <= date && date <= x.cloture) ?? null
 
 function anomalieDateEcheance(date: string, e: EcheanceAppel, exercices: readonly BornesExercice[]): AnomalieDateComptableAppel | null {
@@ -416,6 +572,10 @@ export function marquerAppelees<E extends EcheanceAppelSuivie>(
   return echeances.map((e): E => (ids.has(e.id) ? { ...e, statut: 'Appelé', traitementId: traitement.id, echeancesDeLAppel: [...lot] } : e))
 }
 
+/** Décision du 20/11/2026 (partie C, F105) : sans désimputation, le règlement disparaîtrait des comptes. */
+const MOTIF_REGLE_REFUSE =
+  "déjà réglé(s), même en partie : l'annulation reste refusée tant que la désimputation n'est pas branchée, sans quoi le règlement disparaîtrait des comptes (décision du 20/11/2026, partie C, F105)."
+
 /** La liste porte toute la composition de l'appel, échéances à 0 centime comprises (aucune ligne ne les écrit). */
 function verifierCompositionAnnulee(visees: EcheanceAppelSuivie[], annulation: Traitement, appel: string): void {
   const portees = new Set(visees.map((e) => e.id))
@@ -429,6 +589,10 @@ function verifierCompositionAnnulee(visees: EcheanceAppelSuivie[], annulation: T
 /** Échéances de l'appel annulé : toutes « Appelé » ; leur somme égale ce que l'écriture contraire contre-passe. */
 function verifierEcheancesAnnulees(visees: EcheanceAppelSuivie[], annulation: Traitement, appel: string): void {
   for (const e of visees) {
+    if (e.statut === 'Annulé' && e.motifAnnulation)
+      throw new Error(
+        `Échéance « ${e.id} » de l'appel ${appel} déjà annulée seule (${e.annulationTraitementId ?? 'sans écriture'}) : l'écriture contraire de tout l'appel contre-passerait deux fois sa part ; annuler les autres échéances une à une (annulerEcheanceAppelee ; décision du 20/11/2026, partie C, F104).`,
+      )
     if (e.statut === 'Annulé') throw new Error(`Échéance « ${e.id} » déjà annulée par ${e.annulationTraitementId ?? 'une annulation avant appel'}.`)
     if (e.statut !== 'Appelé') throw new Error(`Échéance « ${e.id} » « ${e.statut} » : seule une échéance appelée s'annule par l'écriture contraire de son appel.`)
   }
@@ -445,8 +609,9 @@ function verifierEcheancesAnnulees(visees: EcheanceAppelSuivie[], annulation: Tr
  * fonds »), sur la LISTE COMPLÈTE des échéances suivies : toutes les échéances du traitement annulé passent « Annulé »,
  * avec l'identifiant de l'annulation ; les autres sont inchangées. Refuse une autre famille, une annulation qui ne
  * renvoie à aucun appel, une liste sans toute la composition de l'appel (échéances à 0 centime comprises), une échéance
- * déjà annulée, une somme autre que celle contre-passée, et tout poste de ces échéances déjà réglé, même en partie
- * (🔴 aucune désimputation dans le domaine). Les postes passés doivent être tous ceux de l'appel.
+ * déjà annulée (seule, F104 : les autres s'annulent alors une à une), une somme autre que celle contre-passée, et tout
+ * poste de ces échéances déjà réglé, même en partie (décision du 20/11/2026, partie C, F105 : refus gardé tant que la
+ * désimputation n'est pas branchée). Les postes passés doivent être tous ceux de l'appel.
  */
 export function annulerAppelees<E extends EcheanceAppelSuivie>(echeances: E[], annulation: Traitement, postes: PosteDette[]): E[] {
   if (annulation.famille !== "Annulation d'appel de fonds")
@@ -460,9 +625,109 @@ export function annulerAppelees<E extends EcheanceAppelSuivie>(echeances: E[], a
   verifierEcheancesAnnulees(visees, annulation, appel)
   const ids = new Set(visees.map((e) => e.id))
   const regles = postes.filter((p) => p.appelId !== null && ids.has(p.appelId) && p.regleCentimes > 0).map((p) => p.id)
-  if (regles.length > 0)
-    throw new Error(`Annulation ${annulation.id} refusée : poste(s) ${regles.join(', ')} déjà réglé(s) ; désimputer d'abord les encaissements.`)
+  if (regles.length > 0) throw new Error(`Annulation ${annulation.id} refusée : poste(s) ${regles.join(', ')} ${MOTIF_REGLE_REFUSE}`)
   return echeances.map((e): E => (ids.has(e.id) ? { ...e, statut: 'Annulé', annulationTraitementId: annulation.id } : e))
+}
+
+// ─── Annulation d'une seule échéance (décision du 20/11/2026, partie C, F104) ──────────────────
+
+export interface AnnulationEcheanceSeule {
+  /** Identifiant du traitement « Annulation d'appel de fonds ». */
+  id: string
+  /** Jour de l'annulation : date de l'écriture contraire (AAAA-MM-JJ). */
+  date: string
+  motif: string
+}
+
+export interface OptionsAnnulationEcheance extends OptionsTraitement {
+  echeanceId: string
+  /** Traitement « Appel de fonds » qui a appelé l'échéance. */
+  appel: Traitement
+  /** Avis qui a produit cet appel (repartition-appels.avisDAppel). */
+  avis: AvisAppels
+  /** Postes de l'échéance (postesDepuisAvis), dans leur état courant : réglé, contentieux. */
+  postes: readonly PosteDette[]
+  annulation: AnnulationEcheanceSeule
+  segmentSyndicat: string
+  comptes: readonly CompteCoproprietaire[]
+  /** J67, R104 : sous-comptes du 450 créés par l'AG, comme à l'appel ; absent : tout au 45000. */
+  sousComptes450?: SousComptes450 | null
+}
+
+/** L'échéance est appelée par cet appel, et l'avis fourni est celui qui l'a produit. */
+function verifierEcheanceDeLAppel(e: EcheanceAppelSuivie, { appel, avis }: OptionsAnnulationEcheance): void {
+  if (appel.famille !== 'Appel de fonds') throw new Error(`Traitement ${appel.id} de la famille « ${appel.famille} » : seul un « Appel de fonds » appelle des échéances.`)
+  if (e.statut === 'Annulé') throw new Error(`Échéance « ${e.id} » déjà annulée par ${e.annulationTraitementId ?? 'une annulation sans écriture'}.`)
+  if (e.statut !== 'Appelé') throw new Error(`Échéance « ${e.id} » « ${e.statut} » : seule une échéance appelée s'annule par une écriture contraire ; avant l'appel, annulerAvantAppel.`)
+  if (e.traitementId !== appel.id) throw new Error(`Échéance « ${e.id} » appelée par ${e.traitementId ?? 'aucun traitement'}, pas par ${appel.id}.`)
+  if (composition(avis.echeances.map((a) => a.id)) !== composition(e.echeancesDeLAppel))
+    throw new Error(`Appel ${appel.id} : l'avis fourni n'est pas celui de l'appel (échéances ${composition(e.echeancesDeLAppel)} attendues).`)
+  verifierAvisDuTraitement(avis, appel)
+}
+
+/** Postes de l'échéance : tous fournis (leur total est celui de l'échéance), aucun réglé, même en partie, ni en contentieux. */
+function verifierPostesNonRegles(e: EcheanceAppelSuivie, postes: readonly PosteDette[]): void {
+  const siens = postes.filter((p) => p.appelId === e.id)
+  const total = siens.reduce((s, p) => s + p.montantCentimes, 0)
+  if (total !== e.montantCentimes)
+    throw new Error(`Échéance « ${e.id} » : postes fournis pour ${total} centimes, l'échéance en compte ${e.montantCentimes} ; passer tous les postes de l'échéance.`)
+  const regles = siens.filter((p) => p.regleCentimes > 0).map((p) => p.id)
+  if (regles.length > 0) throw new Error(`Échéance « ${e.id} » : poste(s) ${regles.join(', ')} ${MOTIF_REGLE_REFUSE}`)
+  const contentieux = siens.filter((p) => p.contentieux).map((p) => p.id)
+  if (contentieux.length > 0)
+    throw new Error(`Échéance « ${e.id} » : poste(s) ${contentieux.join(', ')} en contentieux : annulation refusée (décision du 20/11/2026, partie C, F104).`)
+}
+
+/**
+ * Lignes de l'écriture contraire de la seule échéance : débit du compte de produit ou de provision de l'appel, crédit du
+ * 450 de chaque compte (le 450-1 pour le budget si l'AG l'a créé : J67, R104), pour les quotes-parts de l'avis.
+ */
+function lignesContrairesDeLEcheance(e: EcheanceAppelSuivie, options: OptionsAnnulationEcheance): LigneMouvement[] {
+  const { avis, comptes, segmentSyndicat, sousComptes450 = null } = options
+  const plan = e.nature === 'budget' && sousComptes450 ? planDuCompteBudget(sousComptes450) : '45000'
+  const credits = avis.parCompte.flatMap((a): LigneMouvement[] => {
+    const part = a.lignes.filter((l) => l.echeanceId === e.id).reduce((s, l) => s + l.centimes, 0)
+    if (part === 0) return []
+    const compte = comptes.find((c) => c.id === a.compteId)
+    if (!compte) throw new Error(`Compte copropriétaire introuvable : « ${a.compteId} ».`)
+    return [{ compte: numeroCompteCoproprietaire(compte, segmentSyndicat, plan), sens: 'credit', montantCentimes: part }]
+  })
+  return [{ compte: `${segmentSyndicat}.${codeContrepartie(e)}.00000.0`, sens: 'debit', montantCentimes: e.montantCentimes }, ...credits]
+}
+
+/**
+ * Décision du 20/11/2026 (partie C, F104) — annulation d'une seule échéance appelée, non réglée, d'un appel qui en compte
+ * plusieurs : écriture contraire limitée à ses lignes (famille « Annulation d'appel de fonds », renvoi à l'appel), datée
+ * du jour de l'annulation, avec un motif (arrêté du 14/03/2005, art. 5). L'échéance passe « Annulé » avec l'identifiant
+ * de l'annulation et son motif ; les autres sont inchangées et gardent leur appel. Une échéance à 0 centime n'a aucune
+ * ligne : elle s'annule sans écriture (traitement null). Refuse un appel d'une autre famille, une échéance inconnue, pas
+ * appelée par cet appel, déjà annulée, un avis qui n'est pas celui de l'appel, des postes incomplets, un poste réglé,
+ * même en partie (F105), ou en contentieux, un motif vide, une date antérieure à l'appel ; le verrou de saisie s'applique
+ * à la date de l'annulation (traitements.creerTraitement).
+ */
+export function annulerEcheanceAppelee<E extends EcheanceAppelSuivie>(
+  echeances: E[],
+  options: OptionsAnnulationEcheance,
+): { traitement: Traitement | null; echeances: E[] } {
+  const { echeanceId, appel, annulation, verrou } = options
+  const e = indexerSuivies(echeances).get(echeanceId)
+  if (!e) throw new Error(`Échéance « ${echeanceId} » inconnue.`)
+  verifierEcheanceDeLAppel(e, options)
+  verifierPostesNonRegles(e, options.postes)
+  const motif = annulation.motif.trim()
+  if (!motif) throw new Error(`Échéance « ${e.id} » : motif de l'annulation attendu (décision du 20/11/2026, partie C, F104).`)
+  verifierDate(annulation.date, "Date de l'annulation")
+  if (annulation.date < appel.date)
+    throw new Error(`Annulation du ${dateIsoVersFr(annulation.date)} antérieure à l'appel ${appel.id} du ${dateIsoVersFr(appel.date)} : l'écriture contraire suit l'écriture qu'elle annule.`)
+  const traitement =
+    e.montantCentimes === 0
+      ? null
+      : creerTraitement(
+          { id: annulation.id, famille: "Annulation d'appel de fonds", date: annulation.date, annule: appel.id, mouvements: lignesContrairesDeLEcheance(e, options) },
+          { verrou },
+        )
+  const annulee = { statut: 'Annulé' as const, annulationTraitementId: traitement?.id ?? null, motifAnnulation: motif }
+  return { traitement, echeances: echeances.map((x): E => (x.id === e.id ? { ...x, ...annulee } : x)) }
 }
 
 /** Pose la date d'envoi de l'avis sur des échéances appelées ; une date déjà posée ne se réécrit pas (même date : sans effet). */
@@ -537,36 +802,69 @@ const MOTIF_PAR_ETAT: Partial<Record<EtatAppelPoste, MotifEcartRelance>> = {
   inconnu: 'echeance_inconnue',
 }
 
-function motifEcartRelance(poste: PosteDette, index: ReadonlyMap<string, EcheanceAppelSuivie>): MotifEcartRelance | null {
+function motifEcartRelance(
+  poste: PosteDette,
+  index: ReadonlyMap<string, EcheanceAppelSuivie>,
+  inclusions: ReadonlyMap<string, string>,
+): MotifEcartRelance | null {
   const etat = etatAppel(poste, index)
   const motif = MOTIF_PAR_ETAT[etat]
   if (motif) return motif
-  if (poste.contentieux) return 'contentieux'
+  if (poste.contentieux && !inclusions.has(poste.id)) return 'contentieux'
   const echeance = poste.appelId === null ? undefined : index.get(poste.appelId)
   return echeance?.relancable === false ? 'non_relancable' : null
+}
+
+/** Décision du 20/11/2026 (partie C, F106) : poste en contentieux inclus à la main dans la relance ordinaire, avec son motif. */
+export interface InclusionContentieux {
+  posteId: string
+  motif: string
+}
+
+/** Inclusions contrôlées : poste connu, en contentieux, une fois, motif non vide (F106). */
+function indexerInclusions(postes: readonly PosteDette[], inclusions: readonly InclusionContentieux[]): Map<string, string> {
+  const index = new Map<string, string>()
+  for (const { posteId, motif } of inclusions) {
+    const poste = postes.find((p) => p.id === posteId)
+    if (!poste) throw new Error(`Inclusion dans la relance : poste « ${posteId} » inconnu.`)
+    if (!poste.contentieux) throw new Error(`Inclusion dans la relance : poste « ${posteId} » pas en contentieux ; il est déjà relancé.`)
+    if (index.has(posteId)) throw new Error(`Inclusion dans la relance : poste « ${posteId} » en double.`)
+    const texte = motif.trim()
+    if (!texte) throw new Error(`Inclusion du poste « ${posteId} » en contentieux dans la relance ordinaire : motif attendu (décision du 20/11/2026, partie C, F106).`)
+    index.set(posteId, texte)
+  }
+  return index
 }
 
 /**
  * Postes à relancer le jour `le` (base de la campagne de relance, tranche 27) : échus (exigibles avant ce jour), non
  * soldés ; parmi eux, ceux d'un appel annulé, non émis ou inconnu, en contentieux ou d'une échéance non relançable sont
- * écartés avec leur motif. Une dette sans appel (reprise de solde) reste relançable. L'ordre reçu est conservé. Refuse
- * un traitement marqué sur deux avis.
+ * écartés avec leur motif. Un poste en contentieux est exclu par défaut, sauf inclusion à la main, motivée
+ * (inclusionsContentieux ; décision du 20/11/2026, partie C, F106) : il est alors relancé et inclusContentieux rend son
+ * motif. Une dette sans appel (reprise de solde) reste relançable. L'ordre reçu est conservé. Refuse un traitement marqué
+ * sur deux avis, une inclusion sans motif, d'un poste inconnu, hors contentieux ou en double.
  */
 export function postesARelancer(
   postes: PosteDette[],
   echeances: EcheanceAppelSuivie[],
-  { le }: { le: string },
-): { relancables: PosteDette[]; ecartes: { posteId: string; motif: MotifEcartRelance }[] } {
+  { le, inclusionsContentieux = [] }: { le: string; inclusionsContentieux?: readonly InclusionContentieux[] },
+): { relancables: PosteDette[]; ecartes: { posteId: string; motif: MotifEcartRelance }[]; inclusContentieux?: InclusionContentieux[] } {
   verifierDate(le, 'Date de la relance')
   const index = indexerSuivies(echeances)
+  const inclusions = indexerInclusions(postes, inclusionsContentieux)
   const relancables: PosteDette[] = []
   const ecartes: { posteId: string; motif: MotifEcartRelance }[] = []
   for (const p of postes) {
     verifierDate(p.exigibilite, `Poste ${p.id}`)
     if (p.exigibilite >= le || soldePoste(p) <= 0) continue
-    const motif = motifEcartRelance(p, index)
+    const motif = motifEcartRelance(p, index, inclusions)
     if (motif) ecartes.push({ posteId: p.id, motif })
     else relancables.push(p)
   }
-  return { relancables, ecartes }
+  if (inclusions.size === 0) return { relancables, ecartes }
+  const inclusContentieux = relancables.flatMap((p) => {
+    const motif = inclusions.get(p.id)
+    return motif === undefined ? [] : [{ posteId: p.id, motif }]
+  })
+  return { relancables, ecartes, inclusContentieux }
 }

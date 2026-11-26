@@ -45,6 +45,7 @@ vi.mock('@/lib/document-sync', () => ({ syncDocumentSafe: vi.fn() }))
 import FacturesSection from '@/components/dashboard/FacturesSection'
 import DevisSection from '@/components/dashboard/DevisSection'
 import { computeDocumentTotalHT } from '@/lib/devis-totals'
+import { fetchNextDocNumber } from '@/lib/doc-number'
 
 const ARTISAN = {
   id: 'art-1', user_id: 'u-1', company_name: 'PLOMBERIE DURAND', email: 'd@test.fr', phone: '', bio: '',
@@ -98,6 +99,28 @@ describe('Artisan — Factures « → Acompte »', () => {
     expect(computeDocumentTotalHT(emitted as Parameters<typeof computeDocumentTotalHT>[0])).toBeCloseTo(300, 2) // 30% de 1000
     // Règle n° 1 : la ligne de la facture est conservée, au pourcentage (pas de ligne unique BTP).
     expect((emitted.lines as { description: string; totalHT: number }[]).map((l) => [l.description, l.totalHT])).toEqual([['Dépannage', 300]])
+    // Fiche sans langue portugaise : le repli local garde AC- (migration 20261122b).
+    expect(fetchNextDocNumber).toHaveBeenLastCalledWith('acompte', 'art-1', { portugais: false })
+  })
+
+  it('fiche en portugais : le numéro est demandé avec les préfixes portugais pour le repli local (FA-)', async () => {
+    const setSavedDocuments = vi.fn()
+    const artisanPt = { ...ARTISAN, language: 'pt' } as Parameters<typeof FacturesSection>[0]['artisan']
+    render(
+      <FacturesSection
+        artisan={artisanPt} services={[]} bookings={[]}
+        savedDocuments={[FACTURE_ARTISAN] as unknown as Parameters<typeof FacturesSection>[0]['savedDocuments']}
+        setSavedDocuments={setSavedDocuments}
+        showFactureForm={false} setShowFactureForm={vi.fn()}
+        convertingDevis={null} setConvertingDevis={vi.fn()} openFactureForm={vi.fn()}
+      />
+    )
+    await waitFor(() => expect(screen.getByText('FACT-2026-100')).toBeInTheDocument())
+    fireEvent.click(screen.getByTitle('proDash.factures.toAcompteTitle'))
+    fireEvent.click(screen.getByRole('button', { name: '30 %' }))
+    fireEvent.click(screen.getByText("Émettre l'acompte"))
+    await waitFor(() => expect(setSavedDocuments).toHaveBeenCalled())
+    expect(fetchNextDocNumber).toHaveBeenLastCalledWith('acompte', 'art-1', { portugais: true })
   })
 })
 

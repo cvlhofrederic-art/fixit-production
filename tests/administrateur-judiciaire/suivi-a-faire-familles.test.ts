@@ -497,9 +497,49 @@ describe('source — alerte de l’art. 29-1 A (mandataire ad hoc)', () => {
     ])
   })
 
-  it('pas encore déclenchée et aucun vote connu : rien', () => {
+  it('décision du 20/11/2026 (partie C, F35) — pas encore déclenchée et aucun vote connu : la tâche de saisie, datée du jour, jamais en retard', () => {
     const a = alerte({ votes: [], exercices: [{ id: 'ex-2025', exercice: exercice2025, sommes: sommes(0) }] })
-    expect(depuisAlertesMandataireAdHoc([{ mandatId: 'M1', alerte: a }])).toEqual([])
+    expect(depuisAlertesMandataireAdHoc([{ mandatId: 'M1', alerte: a }])).toEqual([
+      {
+        id: 'exercices:copro-1:alerte_29_1_a:dernier_vote',
+        famille: 'exercices',
+        nature: 'alerte_29_1_a',
+        libelle:
+          "Alerte de l'art. 29-1 A (mandataire ad hoc) : saisir la date de la dernière assemblée qui s'est prononcée sur les comptes (procès-verbaux à obtenir de l'ancien syndic, qui doit remettre les archives : L. 1965 art. 18-2 ; D. 1967 art. 62-6).",
+        date: AUJOURDHUI,
+        mandatId: 'M1',
+        objetId: 'copro-1',
+        assigneId: null,
+        aConfirmer: false,
+      },
+    ])
+  })
+
+  it('décision du 20/11/2026 (partie C, F35) — mission depuis au moins deux ans sans vote enregistré : alerte « atteint, à confirmer » et tâche de saisie', () => {
+    const a = alerte({ votes: [], exercices: [{ id: 'ex-2025', exercice: exercice2025, sommes: sommes(0) }], debutMissionLe: '2024-03-01' })
+    const elements = depuisAlertesMandataireAdHoc([{ mandatId: 'M1', alerte: a }])
+    expect(elements.map((e) => e.id)).toEqual(['exercices:copro-1:alerte_29_1_a', 'exercices:copro-1:alerte_29_1_a:dernier_vote'])
+    expect(elements[0]).toMatchObject({ libelle: `Alerte de l'art. 29-1 A (mandataire ad hoc) : ${a.comptes.message}`, date: '2026-03-01', aConfirmer: true })
+    expect(elements[1]).toMatchObject({ date: AUJOURDHUI, aConfirmer: false })
+  })
+
+  it('décision du 20/11/2026 (partie C, F35) — la réserve du critère des comptes ne s’étend ni aux impayés atteints, ni à la copie d’une requête déposée', () => {
+    const deux = alerte({ votes: [], debutMissionLe: '2024-03-01' })
+    expect(deux.comptes).toMatchObject({ etat: 'atteint', aConfirmer: true })
+    expect(depuisAlertesMandataireAdHoc([{ mandatId: 'M1', alerte: deux }]).find((e) => e.id === 'exercices:copro-1:alerte_29_1_a')).toMatchObject({
+      date: '2025-12-31',
+      aConfirmer: false,
+    })
+    // Requête du 15/01/2026 : elle couvre les impayés, pas les comptes (atteints, à confirmer, le 01/03/2026) ; copie non adressée.
+    const requete = alerte({ votes: [], debutMissionLe: '2024-03-01', saisineLe: '2026-01-15' })
+    const elements = depuisAlertesMandataireAdHoc([{ mandatId: 'M1', alerte: requete }])
+    expect(elements.find((e) => e.id === 'exercices:copro-1:alerte_29_1_a')).toMatchObject({
+      libelle: `Alerte de l'art. 29-1 A (mandataire ad hoc) : ${requete.comptes.message}`,
+      date: '2026-03-01',
+      aConfirmer: true,
+    })
+    // La copie est due dès la requête (D. 1967 art. 61-5), sans réserve.
+    expect(elements.find((e) => e.id === 'exercices:copro-1:alerte_29_1_a:copie_requete')).toMatchObject({ date: '2026-01-15', aConfirmer: false })
   })
 })
 

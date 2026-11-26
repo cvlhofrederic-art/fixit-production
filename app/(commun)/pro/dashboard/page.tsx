@@ -18,7 +18,9 @@ import { useModuleCategories } from '@/hooks/useModuleCategories'
 import { prefetchBTPTables } from '@/lib/hooks/use-btp-data'
 import { OrgRoleProvider } from '@/lib/hooks/useOrgRoleContext'
 import { fetchDocumentsFromSupabase, fusionnerDocumentsDeLaBase } from '@/lib/document-sync'
-import { optionsFusionPourRole } from '@/lib/devis-utils'
+import { lireDocumentsSociete, lireTitulaireSociete } from '@/lib/documents/societe-client'
+import { messageRefusDocuments } from '@/lib/documents/messages-refus'
+import { dedupeDocsByIdentity, optionsFusionPourRole } from '@/lib/devis-utils'
 import { seedDemoLocalStorage } from '@/lib/seed-demo-localStorage'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useNotifications } from '@/hooks/useNotifications'
@@ -29,7 +31,8 @@ import type { User } from '@supabase/supabase-js'
 import { toast } from 'sonner'
 import { notificationOuvreMessagerie } from '@/lib/messagerie-pro'
 import { FicheSocieteIndisponible, messageFicheSocieteAbsente, prevenirFicheSocieteAbsente } from '@/components/dashboard/btp/FicheSocieteIndisponible'
-import { SECTIONS_SOCIETE_BTP } from '@/lib/btp/sections-tableau-de-bord'
+import { MODULE_DE_LA_SECTION, SECTIONS_SOCIETE_BTP } from '@/lib/btp/sections-tableau-de-bord'
+import { ALL_PRO_MODULES, estRoleDeTerrain } from '@/lib/permissions'
 import { FiletSocieteBtp } from '@/components/dashboard/btp/FiletSocieteBtp'
 
 // Section loading spinner — shown while JS chunks load
@@ -91,6 +94,7 @@ const SousTraitanceOffresSection = dynamic(() => import('@/components/dashboard/
 const RentabiliteChantierSection = dynamic(() => import('@/components/dashboard/RentabiliteChantierSection'), { loading: SectionLoader })
 const ChantiersBTPV2 = dynamic(() => import('@/components/dashboard/ChantiersBTPV2').then(mod => mod.ChantiersBTPV2), { loading: SectionLoader })
 const PointageGeoSection = dynamic(() => import('@/components/dashboard/PointageGeoSection').then(mod => mod.PointageGeoSection), { loading: SectionLoader })
+const OutillageSection = dynamic(() => import('@/components/dashboard/btp/OutillageSection').then(mod => mod.OutillageSection), { loading: SectionLoader })
 const ComptaBTPSection = dynamic(() => import('@/components/dashboard/ComptaBTPSection').then(mod => mod.ComptaBTPSection), { loading: SectionLoader })
 const CompteUtilisateursSection = dynamic(() => import(/* webpackPrefetch: true */ '@/components/dashboard/CompteUtilisateursSection'), { loading: SectionLoader })
 const MeteoChantierSection = dynamic(() => import('@/components/dashboard/btp/MeteoChantierSection').then(mod => mod.MeteoChantierSection), { loading: SectionLoader })
@@ -137,6 +141,19 @@ function SuspenseFallback() {
   )
 }
 
+// Écran d'ouverture d'un salarié dont le rôle n'a pas accès à la section demandée : son poste de travail d'abord,
+// puis ce qui lui reste. 'home' en dernier recours, même s'il ne l'a pas : mieux vaut un accueil vide qu'une boucle.
+const ORDRE_ACCUEIL_SALARIE = ['pointage', 'chantiers', 'meteo', 'outillage', 'dictionnaire_materiaux', 'calendar', 'photos_chantier'] as const
+
+// Sections réellement gouvernées par la matrice des droits (« Mon profil » en fait partie : c'est le module settings).
+// Les autres (Aide, Modules, Portail client, Communication, Canal) n'ont aucun module : personne ne peut les accorder,
+// elles restent donc ouvertes…
+const SECTIONS_GARDEES = new Set<string>(ALL_PRO_MODULES)
+
+// … sauf au salarié de terrain, qui n'ouvre que ce que la matrice lui accorde (décision du 25/11/2026 : la météo, son
+// chantier, le pointage, et « Mon profil » pour son mot de passe), plus l'aide.
+const SECTIONS_LIBRES_DU_SALARIE_DE_TERRAIN: ReadonlySet<string> = new Set(['help'])
+
 export default function DashboardPageWrapper() {
   return (
     <Suspense fallback={<SuspenseFallback />}>
@@ -159,6 +176,8 @@ function DashboardPage() {
   const [loading, setLoading] = useState(true)
   // Société BTP dont la fiche n'a pas pu être lue au chargement : écran « réessayer » au lieu d'une société de secours
   const [ficheSocieteIllisible, setFicheSocieteIllisible] = useState(false)
+  /** Refus du serveur sur l'identité de la société d'un salarié invité : son message, à afficher en plein écran. */
+  const [societeIndisponible, setSocieteIndisponible] = useState<string | null>(null)
   const [showAdminBtn, setShowAdminBtn] = useState(false)
   const [adminLoading, setAdminLoading] = useState(false)
   const [notifLoading, setNotifLoading] = useState(false)
@@ -237,7 +256,9 @@ function DashboardPage() {
   const { categories: moduleCategories, setCategories: setModuleCategories } = useModuleCategories(ALL_MODULES, orgRole === 'pro_societe' ? artisan?.id : undefined)
 
   // ── Pro team permissions (RBAC for pro_societe sub-accounts) ──
-  const { permissions: proPermissions, isGerant: isProGerant, canAccess: proCanAccess } = usePermissions(orgRole, artisan)
+  const { permissions: proPermissions, isGerant: isProGerant, canAccess: proCanAccess, canWrite: proCanWrite, proTeamRole, loading: droitsEnChargement } = usePermissions(orgRole, artisan)
+  // Ouvrier, chef de chantier, conducteur de travaux : menu et écrans réduits à ce que la matrice leur ouvre.
+  const salarieDeTerrain = orgRole === 'pro_societe' && !isProGerant && estRoleDeTerrain(proTeamRole)
 
   // ── Messagerie artisan dashboard ──
   const messaging = useDashboardMessaging({ artisan, isPt, dateFmtLocale })
@@ -358,6 +379,68 @@ function DashboardPage() {
     const isProOrgRole = ['pro_societe', 'pro_conciergerie', 'pro_gestionnaire'].includes(role)
     const isSuperAdmin = user.app_metadata?.role === 'super_admin'
     if (!artisanData && !isSuperAdmin && !isProOrgRole) { router.push(`/${locale}/auth/login`); return }
+
+    // ── Salarié invité d'une société BTP : il n'a pas de fiche à lui ────────────────────────────────────────
+    // Avant le 25/11/2026, il tombait dans le repli ci-dessous : une identité bâtie sur son propre compte (nom
+    // tiré de son e-mail, « SARL », ni SIRET ni adresse ni logo) et des documents cherchés sous SON identifiant,
+    // donc une liste vide, sans message, et une série de numéros qui serait partie à côté de celle du gérant.
+    //
+    // Il reçoit maintenant l'identité de SA société, et ses documents viennent du serveur, seul capable de les
+    // lire : la RLS de `devis` et `factures` ne laisse passer que les lignes du compte connecté.
+    //
+    // `id` reste SON compte, volontairement : c'est lui qui fait les clés `fixit_documents_<id>` et
+    // `fixit_drafts_<id>` de son navigateur. Si son écran écrivait la clé de la société, un poste de bureau
+    // partagé ferait relire au gérant une liste tronquée, et ses brouillons — qui n'existent nulle part ailleurs
+    // qu'en local — seraient perdus. La fiche de la société voyage donc dans `fiche_societe_id`
+    // (lib/documents/identite-documents.ts).
+    const rattachementBrut = user.app_metadata?.company_id
+    const societeDuSalarie = typeof rattachementBrut === 'string' && rattachementBrut !== '' && rattachementBrut !== user.id
+      ? rattachementBrut
+      : null
+    if (!artisanData && role === 'pro_societe' && !isSuperAdmin && societeDuSalarie) {
+      const titulaire = await lireTitulaireSociete()
+      if (!titulaire.ok) {
+        // Un refus n'est pas une liste vide. Ouvrir le tableau de bord ici afficherait des listes vides sans
+        // raison — le défaut même que ce lot supprime : on rend l'écran qui dit pourquoi, avec « Réessayer ».
+        setSocieteIndisponible(messageRefusDocuments(titulaire, isPt))
+        setLoading(false)
+        return
+      }
+      // La fiche arrive du serveur en lignes de base brutes ; `id` et `user_id` sont posés juste après.
+      const ficheSociete = titulaire.valeur.fiche as unknown as Artisan
+      setArtisan({
+        ...ficheSociete,
+        id: user.id,
+        user_id: titulaire.valeur.societeId,
+        fiche_societe_id: titulaire.valeur.ficheId,
+      })
+
+      // Ses propres brouillons d'abord, pour que l'écran s'ouvre tout de suite, puis la liste de la société.
+      try {
+        const docs = JSON.parse(localStorage.getItem(`fixit_documents_${user.id}`) || '[]')
+        const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${user.id}`) || '[]')
+        setSavedDocuments([...docs, ...drafts])
+      } catch { /* private browsing */ }
+
+      // Un ouvrier ou un chef de chantier n'a aucun droit sur les documents : il ouvre l'application pour
+      // pointer ses heures, et on ne va rien chercher pour lui (la route lui répondrait 403).
+      if (titulaire.valeur.lisibles.length > 0) {
+        lireDocumentsSociete().then(lecture => {
+          if (!lecture.ok) { toast.error(messageRefusDocuments(lecture, isPt)); return }
+          if (lecture.valeur.length === 0) return
+          // Fusion SANS écriture du cache, à la différence du chemin d'un titulaire : y recopier les documents de
+          // la société mettrait toute leur liste dans le navigateur du salarié et dans son espace `user_storage`.
+          // Le cache ne lui sert à rien — le repli local de numérotation est déjà interdit côté BTP
+          // (`repliLocal: false`) — et il n'a pas à emporter une copie de la comptabilité de l'entreprise.
+          setSavedDocuments(prev => dedupeDocsByIdentity(prev, lecture.valeur as typeof prev, optionsFusionPourRole(role)))
+        }).catch(() => toast.error(messageRefusDocuments({ message: '', code: 'lecture_impossible' }, isPt)))
+      }
+
+      void prefetchBTPTables(['chantiers', 'membres', 'equipes', 'pointages', 'situations', 'retenues', 'dc4', 'dpgf'], titulaire.valeur.societeId)
+      setLoading(false)
+      return
+    }
+
     if (!artisanData) {
       // Admin override / pro org sans profil artisan → SARL par défaut (compte démo BTP super admin)
       // Compte de la société BTP (ni démonstration ni compte invité dans une équipe) : la fiche de secours n'est plus ouverte en silence.
@@ -483,7 +566,7 @@ function DashboardPage() {
     // Update tab title with current section name
     const PAGE_TITLES_FR: Record<string, string> = {
       home: 'Accueil', revenus: 'Revenus', stats: 'Statistiques', prestations: 'Prestations',
-      chantiers: 'Chantiers', gantt: 'Planning Gantt', equipes: 'Équipes', pointage: 'Pointage',
+      chantiers: 'Chantiers', gantt: 'Planning Gantt', equipes: 'Équipes', pointage: 'Pointage', outillage: 'Outillage et véhicules',
       estimation_materiaux: 'Estimation matériaux', dictionnaire_materiaux: 'Dictionnaire matériaux', calendar: 'Agenda', meteo: 'Météo',
       photos_chantier: 'Photos chantier', rapports: 'Rapports', pipeline: 'Pipeline',
       devis: 'Devis', dpgf: 'Appels d\'offres', marches: 'Marchés', factures: 'Factures',
@@ -498,7 +581,7 @@ function DashboardPage() {
     }
     const PAGE_TITLES_PT: Record<string, string> = {
       home: 'Painel', revenus: 'Receitas', stats: 'Estatísticas', prestations: 'Serviços', motifs: 'Serviços',
-      chantiers: 'Obras', chantiers_v22: 'Obras', gantt: 'Planeamento Gantt', equipes: 'Equipas', pointage: 'Registo de horas',
+      chantiers: 'Obras', chantiers_v22: 'Obras', gantt: 'Planeamento Gantt', equipes: 'Equipas', pointage: 'Registo de horas', outillage: 'Ferramentas e viaturas',
       estimation_materiaux: 'Estimativa de materiais', dictionnaire_materiaux: 'Dicionário de materiais', calendar: 'Agenda', meteo: 'Meteorologia',
       photos_chantier: 'Fotos de obra', rapports: 'Relatórios', pipeline: 'Pipeline',
       devis: 'Orçamentos', dpgf: 'Concursos', marches: 'Bolsa de oportunidades', factures: 'Faturas',
@@ -521,9 +604,25 @@ function DashboardPage() {
 
   // Société BTP : une section inconnue ou d'un autre métier (?p=…, lien interne) ramène à l'accueil, l'adresse
   // remplacée, au lieu d'une zone centrale vide ou d'un écran étranger au BTP.
+  //
+  // Et depuis le 24/11/2026, le rôle d'équipe garde aussi les sections. Jusque-là la matrice de lib/permissions.ts
+  // ne servait qu'à dessiner le menu : un salarié atteignait n'importe quel écran en tapant son nom dans l'adresse
+  // (?p=devis, ?p=comptabilite, ?p=revenus, ?p=settings). Un compte sans section ouverte reste où il est plutôt que
+  // de rebondir sans fin. Garde d'interface seulement — usePermissions lit le localStorage et accorde tout quand ses
+  // clés manquent : ce qui protège vraiment les données est le périmètre serveur (lib/btp/perimetre-compte.ts).
   useEffect(() => {
-    if (orgRole === 'pro_societe' && !SECTIONS_SOCIETE_BTP.has(activePage)) navigateTo('home', { remplacer: true })
-  }, [orgRole, activePage, navigateTo])
+    if (orgRole !== 'pro_societe') return
+    if (!SECTIONS_SOCIETE_BTP.has(activePage)) { navigateTo('home', { remplacer: true }); return }
+    if (isProGerant) return
+    // Droits par défaut posés, dérogations du gérant pas encore lues : un module qu'il a rouvert à cet employé serait
+    // refusé à tort (rechargement de ?p=dictionnaire_materiaux, par exemple). On attend la réponse, ou son échec.
+    if (droitsEnChargement) return
+    const moduleGardien = MODULE_DE_LA_SECTION[activePage] ?? activePage
+    const horsMatrice = !SECTIONS_GARDEES.has(moduleGardien)
+    if (horsMatrice ? !salarieDeTerrain || SECTIONS_LIBRES_DU_SALARIE_DE_TERRAIN.has(activePage) : proCanAccess(moduleGardien)) return
+    const repli = ORDRE_ACCUEIL_SALARIE.find((section) => proCanAccess(section)) ?? 'home'
+    if (repli !== activePage) navigateTo(repli, { remplacer: true })
+  }, [orgRole, activePage, navigateTo, isProGerant, proCanAccess, salarieDeTerrain, droitsEnChargement])
 
   // ── Wrap transformBookingToDevis to also navigate ──
   const handleTransformBookingToDevis = useCallback((booking: Booking) => {
@@ -664,6 +763,7 @@ function DashboardPage() {
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
 
   if (ficheSocieteIllisible) return <FicheSocieteIndisponible isPt={isPt} onReessayer={() => window.location.reload()} />
+  if (societeIndisponible) return <FicheSocieteIndisponible isPt={isPt} message={societeIndisponible} onReessayer={() => window.location.reload()} />
 
   if (loading) {
     // Neutral loading screen — no V22 or V5 styling to prevent flash
@@ -691,6 +791,7 @@ function DashboardPage() {
           isPt={isPt} pendingBookings={pendingBookings} unreadMsgCount={unreadMsgCount}
           dynamicCategories={moduleCategories}
           definitionsModules={ALL_MODULES}
+          salarieDeTerrain={salarieDeTerrain}
         />
       )}
       {isV5 && orgRole === 'artisan' && (
@@ -1113,14 +1214,14 @@ function DashboardPage() {
           {/* ────── STATISTIQUES ────── */}
           {activePage === 'stats' && (
             <SectionErrorBoundary locale={isPt ? 'pt' : 'fr'} fallbackTitle={isPt ? 'Erro nas estatísticas' : 'Erreur dans les statistiques'}>
-            <StatsRevenusSection artisan={artisan!} bookings={bookings} services={services} pendingBookings={pendingBookings} completedBookings={completedBookings} totalRevenue={totalRevenue} activePage="stats" orgRole={orgRole} />
+            <StatsRevenusSection artisan={artisan!} bookings={bookings} services={services} pendingBookings={pendingBookings} completedBookings={completedBookings} totalRevenue={totalRevenue} activePage="stats" orgRole={orgRole} savedDocuments={savedDocuments} />
             </SectionErrorBoundary>
           )}
 
           {/* ────── REVENUS ────── */}
           {activePage === 'revenus' && (
             <SectionErrorBoundary locale={isPt ? 'pt' : 'fr'} fallbackTitle={isPt ? 'Erro nas receitas' : 'Erreur dans les revenus'}>
-            <StatsRevenusSection artisan={artisan!} bookings={bookings} services={services} pendingBookings={pendingBookings} completedBookings={completedBookings} totalRevenue={totalRevenue} activePage="revenus" orgRole={orgRole} />
+            <StatsRevenusSection artisan={artisan!} bookings={bookings} services={services} pendingBookings={pendingBookings} completedBookings={completedBookings} totalRevenue={totalRevenue} activePage="revenus" orgRole={orgRole} savedDocuments={savedDocuments} />
             </SectionErrorBoundary>
           )}
 
@@ -1289,7 +1390,7 @@ function DashboardPage() {
           {/* ────── CHANTIERS V2 (Société BTP) — Supabase + GPS ────── */}
           {activePage === 'chantiers' && (
             <FiletSocieteBtp actif={orgRole === 'pro_societe'} titre={isPt ? 'Erro nas obras' : 'Erreur dans les chantiers'} locale={isPt ? 'pt' : 'fr'}>
-            <ChantiersBTPV2 artisan={artisan!} orgRole={orgRole} />
+            <ChantiersBTPV2 artisan={artisan!} orgRole={orgRole} lectureSeule={!isProGerant && !proCanWrite('chantiers')} />
             </FiletSocieteBtp>
           )}
 
@@ -1329,6 +1430,15 @@ function DashboardPage() {
             </FiletSocieteBtp>
           )}
 
+          {/* ────── OUTILLAGE ET VÉHICULES (Société BTP) — répertoire et vérification du vendredi ────── */}
+          {activePage === 'outillage' && orgRole === 'pro_societe' && (
+            <FiletSocieteBtp actif={orgRole === 'pro_societe'} titre={isPt ? 'Erro nas ferramentas e viaturas' : 'Erreur dans l’outillage'} locale={isPt ? 'pt' : 'fr'}>
+            <div className="p-4 lg:p-5 animate-fadeIn">
+              <OutillageSection />
+            </div>
+            </FiletSocieteBtp>
+          )}
+
           {/* ────── SOUS-TRAITANCE DC4 (Société BTP) ────── */}
           {activePage === 'sous_traitance' && (
             <FiletSocieteBtp actif={orgRole === 'pro_societe'} titre={isPt ? 'Erro na subempreitada' : 'Erreur dans la sous-traitance'} locale={isPt ? 'pt' : 'fr'}>
@@ -1342,7 +1452,7 @@ function DashboardPage() {
           {activePage === 'rentabilite' && (
             <FiletSocieteBtp actif={orgRole === 'pro_societe'} titre={isPt ? 'Erro na rentabilidade' : 'Erreur dans la rentabilité'} locale={isPt ? 'pt' : 'fr'}>
             <div className="p-4 lg:p-5 animate-fadeIn">
-              <RentabiliteChantierSection artisan={artisan!} orgRole={orgRole} />
+              <RentabiliteChantierSection artisan={artisan!} orgRole={orgRole} savedDocuments={savedDocuments} />
             </div>
             </FiletSocieteBtp>
           )}
@@ -1466,7 +1576,7 @@ function DashboardPage() {
           {/* ────── RAPPORTS D'INTERVENTION ────── */}
           {activePage === 'rapports' && (
             <SectionErrorBoundary locale={isPt ? 'pt' : 'fr'} fallbackTitle={isPt ? 'Erro nos relatórios' : 'Erreur dans les rapports'}>
-              <RapportsSection artisan={artisan!} bookings={bookings} services={services} onNavigate={navigateTo} orgRole={orgRole} />
+              <RapportsSection artisan={artisan!} bookings={bookings} services={services} onNavigate={navigateTo} orgRole={orgRole} savedDocuments={savedDocuments} />
             </SectionErrorBoundary>
           )}
 
@@ -1527,7 +1637,10 @@ function DashboardPage() {
           {/* ────── METEO CHANTIERS (pro_societe v5) ────── */}
           {activePage === 'meteo' && isV5 && (
             <SectionErrorBoundary locale={isPt ? 'pt' : 'fr'} fallbackTitle={isPt ? 'Erro na meteorologia' : 'Erreur météo'}>
-              <MeteoChantierSection userId={artisan?.id || ''} authUserId={artisan?.user_id || ''} isPt={isPt} />
+              <MeteoChantierSection
+                userId={artisan?.id || ''} authUserId={artisan?.user_id || ''} isPt={isPt}
+                importDevis={isProGerant || proCanAccess('devis')} gestionChantiers={isProGerant || proCanWrite('chantiers')}
+              />
             </SectionErrorBoundary>
           )}
 
@@ -1558,8 +1671,9 @@ function DashboardPage() {
         }
       `}</style>
 
-      {/* AI ChatBot */}
-      {artisan && (
+      {/* AI ChatBot — pas pour le salarié de terrain : il crée des rendez-vous et mène aux devis et factures, hors de
+          ce qu'il reçoit (25/11/2026 : « uniquement » la météo, son chantier et le pointage). */}
+      {artisan && !salarieDeTerrain && (
         <AiChatBot
           artisan={artisan!}
           // eslint-disable-next-line @typescript-eslint/no-explicit-any

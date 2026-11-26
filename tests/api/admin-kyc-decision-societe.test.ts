@@ -7,8 +7,9 @@
 // alors la requête entière : le statut ne changeait pas. L'e-mail de décision partait sans être attendu, avec un nom
 // vide que /api/send-kyc-email refuse : la société n'était jamais prévenue.
 // Faux client : colonnes de production ; une colonne inconnue, lue ou relue, donne l'erreur 42703 sans rien écrire.
-// Société inscrite en portugais : chemin d'avant (témoin, Portugal hors de ce lot). Dossier d'artisan : corrigé par son
-// propre lot, testé dans tests/api/admin-kyc-decision-artisan.test.ts.
+// Société inscrite en portugais (marché pt_btp, ou fr_btp sur une fiche en portugais) : même chemin depuis le
+// 22/11/2026, e-mail en portugais ; avant, 500 et statut inchangé. Dossier d'artisan : corrigé par son propre lot,
+// testé dans tests/api/admin-kyc-decision-artisan.test.ts.
 
 import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest'
 import { NextRequest } from 'next/server'
@@ -59,11 +60,14 @@ vi.mock('@/lib/auth-helpers', async (importOriginal) => ({
   getAuthUser: vi.fn(async () => h.etat.user),
 }))
 vi.mock('@/lib/supabase-server', () => ({ supabaseAdmin: { from: (t: string) => h.from(t) } }))
+vi.mock('@/lib/rate-limit', async () => (await import('../helpers/mocks-routes-api')).rateLimitPermissif())
 
 definirListeSuperAdmin()
 vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://vitfix.test')
 vi.stubEnv('INTERNAL_API_SECRET', 'secret-de-test')
+vi.stubEnv('RESEND_API_KEY', 'cle-de-test')
 const { PATCH } = await import('@/app/api/admin/kyc/route')
+const { POST: routeEmailKyc } = await import('@/app/api/send-kyc-email/route')
 
 afterAll(() => {
   vi.unstubAllEnvs()
@@ -86,6 +90,22 @@ async function decider(corps: Record<string, unknown>) {
 
 const fiche = (id: string) => h.etat.fiches.find((f) => f.id === id) as Ligne
 const corpsEmail = () => JSON.parse(String((fetchEmail.mock.calls[0]?.[1] as RequestInit | undefined)?.body))
+
+/**
+ * De bout en bout : l'appel interne de la décision aboutit à la vraie route /api/send-kyc-email, qui remet le message
+ * au service d'envoi (Resend, simulé) ; rend les messages remis (destinataire, objet, HTML).
+ */
+function messagesRemisAuServiceDEnvoi(): Array<{ to: string; subject: string; html: string }> {
+  const remis: Array<{ to: string; subject: string; html: string }> = []
+  fetchEmail.mockImplementation(async (url: string, init: RequestInit) => {
+    if (url === 'https://api.resend.com/emails') {
+      remis.push(JSON.parse(String(init.body)))
+      return new Response(JSON.stringify({ id: 'courriel-de-test' }), { status: 200 })
+    }
+    return routeEmailKyc(new NextRequest(url, { method: init.method, headers: init.headers, body: init.body }))
+  })
+  return remis
+}
 
 beforeEach(() => {
   h.etat.user = superAdminAutorise()
@@ -120,6 +140,17 @@ describe('Décision KYC sur le dossier d’une société BTP française', () => 
     expect(status).toBe(200)
     expect(fiche(ID_SOCIETE)).toMatchObject({ kyc_status: 'rejected', kyc_rejection_reason: 'Kbis illisible' })
     expect(corpsEmail()).toMatchObject({ action: 'reject', rejection_reason: 'Kbis illisible', name: 'BÂTIMENT EXEMPLE' })
+  })
+
+  it('de bout en bout : e-mail en français remis au service d’envoi, comme avant', async () => {
+    const remis = messagesRemisAuServiceDEnvoi()
+
+    const { json } = await decider({ artisan_id: ID_SOCIETE, action: 'approve' })
+
+    expect(json.email_envoye).toBe(true)
+    expect(remis).toHaveLength(1)
+    expect(remis[0]).toMatchObject({ to: 'contact@exemple.fr', subject: 'Votre compte BÂTIMENT EXEMPLE est activé sur Vitfix' })
+    expect(remis[0].html).toContain('Félicitations BÂTIMENT EXEMPLE')
   })
 
   it('e-mail refusé : la décision reste enregistrée et la réponse le signale', async () => {
@@ -158,13 +189,61 @@ describe('Décision KYC sur le dossier d’une société BTP française', () => 
   })
 })
 
-describe('Société inscrite en portugais : chemin d’avant, inchangé (témoin)', () => {
-  it('société inscrite en portugais : chemin d’avant (Portugal hors de ce lot)', async () => {
+describe('Décision KYC sur le dossier d’une société BTP portugaise', () => {
+  const ID_SOCIETE_PT = '5e6f7081-92a3-4cb4-9dc5-d6e7f8091a2b'
+
+  beforeEach(() => {
+    h.etat.fiches.push({
+      id: ID_SOCIETE_PT, user_id: 'compte-societe-pt', email: 'geral@exemplo.pt', company_name: 'CONSTRUÇÕES EXEMPLO, LDA',
+      language: 'pt', kyc_market: 'pt_btp', kyc_status: 'pending',
+    })
+  })
+
+  it('marché pt_btp : « Approuver » enregistre la décision et prévient la société en portugais, à son nom', async () => {
+    const { status, json } = await decider({ artisan_id: ID_SOCIETE_PT, action: 'approve' })
+
+    expect(status).toBe(200)
+    expect(json).toEqual({ success: true, status: 'approved', email_envoye: true })
+    expect(fiche(ID_SOCIETE_PT)).toMatchObject({ kyc_status: 'approved', kyc_reviewed_by: superAdminAutorise().id })
+    expect(corpsEmail()).toEqual({
+      to: 'geral@exemplo.pt',
+      name: 'CONSTRUÇÕES EXEMPLO, LDA',
+      company: 'CONSTRUÇÕES EXEMPLO, LDA',
+      action: 'approve',
+      market: 'pt_btp',
+    })
+  })
+
+  it('« Rejeter » enregistre le statut et le motif, l’e-mail en portugais porte le motif', async () => {
+    const { status } = await decider({ artisan_id: ID_SOCIETE_PT, action: 'reject', rejection_reason: 'Certidão caducada' })
+
+    expect(status).toBe(200)
+    expect(fiche(ID_SOCIETE_PT)).toMatchObject({ kyc_status: 'rejected', kyc_rejection_reason: 'Certidão caducada' })
+    expect(corpsEmail()).toMatchObject({ action: 'reject', rejection_reason: 'Certidão caducada', market: 'pt_btp' })
+  })
+
+  it('de bout en bout : e-mail en portugais remis au service d’envoi (objet et corps)', async () => {
+    const remis = messagesRemisAuServiceDEnvoi()
+
+    const { json } = await decider({ artisan_id: ID_SOCIETE_PT, action: 'reject', rejection_reason: 'Certidão caducada' })
+
+    expect(json.email_envoye).toBe(true)
+    expect(remis).toHaveLength(1)
+    expect(remis[0]).toMatchObject({ to: 'geral@exemplo.pt', subject: 'Registo não validado — CONSTRUÇÕES EXEMPLO, LDA' })
+    expect(remis[0].html).toContain('<strong>Motivo:</strong> Certidão caducada')
+    expect(remis[0].html).not.toMatch(/Bonjour|Motif/)
+  })
+
+  // Le formulaire posait fr_btp pour toute société avant le 22/11/2026 : une société inscrite en portugais avant cette
+  // date (fiche en portugais) répondait 500 sans rien écrire.
+  it('inscrite avant le marché pt_btp (fr_btp, fiche en portugais) : décision enregistrée, e-mail en portugais', async () => {
     fiche(ID_SOCIETE).language = 'pt'
 
-    const { status } = await decider({ artisan_id: ID_SOCIETE, action: 'approve' })
+    const { status, json } = await decider({ artisan_id: ID_SOCIETE, action: 'approve' })
 
-    expect(status).toBe(500)
-    expect(fiche(ID_SOCIETE).kyc_status).toBe('pending')
+    expect(status).toBe(200)
+    expect(json).toEqual({ success: true, status: 'approved', email_envoye: true })
+    expect(fiche(ID_SOCIETE).kyc_status).toBe('approved')
+    expect(corpsEmail()).toMatchObject({ name: 'BÂTIMENT EXEMPLE', market: 'pt_btp' })
   })
 })

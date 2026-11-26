@@ -20,6 +20,11 @@ const fenetre = vi.hoisted(() => ({ langues: [] as Array<string | undefined> }))
 vi.mock('@/components/dashboard/btp/RentabiliteDevisModal', () => ({
   default: (props: { langue?: string }) => { fenetre.langues.push(props.langue); return null },
 }))
+// PDF du formulaire simulé : on garde ce que le formulaire lui transmet
+const pdf = vi.hoisted(() => ({ entrees: [] as Array<Record<string, unknown>> }))
+vi.mock('@/lib/pdf/devis-pdf-v3', () => ({
+  generateDevisPdfV3: vi.fn(async (entree: Record<string, unknown>) => { pdf.entrees.push(entree); return { filename: 'x.pdf', fichier: new Uint8Array() } }),
+}))
 
 import DevisFactureFormBTP from '@/components/DevisFactureFormBTP'
 
@@ -32,6 +37,9 @@ const SOCIETE_PT = {
 const monter = (initialData?: unknown, artisan: ArtisanBasic = SOCIETE_PT) => render(
   <DevisFactureFormBTP artisan={artisan} services={[]} bookings={[]} onBack={vi.fn()} initialData={initialData as never} />,
 )
+
+/** Valeur du champ « Couverture géographique » (repéré par son exemple : « Portugal continental » sur /pt). */
+const couvertureAffichee = (exemple: string) => (screen.getByPlaceholderText(exemple) as HTMLInputElement).value
 
 /** Textes visibles et attributs lus par l'utilisateur (placeholder, title, aria-label, alt). */
 function textesAffiches(racine: HTMLElement): string[] {
@@ -52,6 +60,7 @@ function textesAffiches(racine: HTMLElement): string[] {
 beforeEach(() => {
   localStorage.clear()
   langue.locale = 'pt'
+  pdf.entrees.length = 0
   vi.spyOn(console, 'warn').mockImplementation(() => {})
   vi.spyOn(console, 'error').mockImplementation(() => {})
 })
@@ -142,7 +151,7 @@ describe('création de devis en portugais', () => {
     expect((screen.getByRole('option', { name: 'Portugal' }) as HTMLOptionElement).selected).toBe(true)
   })
 
-  it('document déjà enregistré : ses valeurs restent telles quelles, brouillon réenregistré sans changement', async () => {
+  it('document déjà enregistré : ses valeurs restent telles quelles, sauf l\'EI et la couverture française de la société portugaise', async () => {
     const brouillon = {
       id: '6f1c2a34-0000-4000-8000-00000000f001', savedAt: '2026-11-17T10:00:00.000Z', docNumber: '', status: 'brouillon',
       docType: 'devis', companyStatus: 'Entreprise Individuelle (EI)', clientName: 'Cliente Teste',
@@ -153,14 +162,59 @@ describe('création de devis en portugais', () => {
       materialLines: [], fraisLines: [],
     }
     monter(brouillon)
-    expect(screen.getByDisplayValue('Entreprise Individuelle (EI)')).toBeDisabled()
+    expect(screen.getByDisplayValue(LDA)).toBeDisabled()
+    expect(couvertureAffichee('Portugal continental')).toBe('Portugal continental')
     expect(screen.getByDisplayValue("3 × taux d'intérêt légal en vigueur")).toBeInTheDocument()
     expect(screen.getByDisplayValue("Main d'œuvre")).toBeInTheDocument()
     await waitFor(() => expect(JSON.parse(localStorage.getItem(`fixit_drafts_${SOCIETE_PT.id}`) || '[]')).toHaveLength(1), { timeout: 5000 })
     const [enregistre] = JSON.parse(localStorage.getItem(`fixit_drafts_${SOCIETE_PT.id}`) || '[]')
-    for (const cle of ['companyStatus', 'penaltyRate', 'recoveryFee', 'insuranceCoverage', 'linesName', 'clientCountry', 'clientAddress'] as const) {
+    for (const cle of ['penaltyRate', 'recoveryFee', 'linesName', 'clientCountry', 'clientAddress'] as const) {
       expect(enregistre[cle], cle).toBe(brouillon[cle])
     }
+    expect(enregistre.companyStatus).toBe(LDA)
+    expect(enregistre.insuranceCoverage).toBe('Portugal continental')
+  })
+
+  // Demande de Frédéric du 20/11/2026 : « nos antigos orçamentos quando clico em abrir orçamento continua aparecer EI ».
+  // Orçamento émis le 17/11 avant le correctif des formes portugaises, fiche complétée ensuite (assureur portugais).
+  it('ancien orçamento émis en EI : forme portugaise et assurance de la fiche, jamais « France metropolitaine »', () => {
+    const orcamento = {
+      id: '6f1c2a34-0000-4000-8000-00000000f0a1', savedAt: '2026-11-17T19:00:00.000Z', sentAt: '2026-11-17T19:00:00.000Z',
+      docNumber: 'DEV-2026-001', status: 'sent', docType: 'devis', companyStatus: 'Entreprise Individuelle (EI)',
+      insuranceType: 'rc_pro', insuranceName: '', insuranceNumber: '', insuranceCoverage: 'France metropolitaine',
+      clientName: 'Cliente Teste', clientCountry: 'Portugal',
+      lines: [{ id: 1, description: 'Limpeza de telhado', qty: 1, unit: 'f', priceHT: 900, tvaRate: 23, totalHT: 900 }],
+      materialLines: [], fraisLines: [],
+    }
+    const ficheComplete = {
+      ...SOCIETE_PT, insurance_type: 'rc_pro', insurance_name: 'Seguradora Exemplo', insurance_number: 'RC-2026-000123', insurance_coverage: 'Portugal',
+    } as ArtisanBasic
+    const { container } = monter(orcamento, ficheComplete)
+    expect(screen.getByDisplayValue(LDA)).toBeDisabled()
+    expect(couvertureAffichee('Portugal continental')).toBe('Portugal')
+    expect(screen.getByDisplayValue('Seguradora Exemplo')).toBeInTheDocument()
+    const mentions = container.querySelector('.dv-mentions')?.textContent || ''
+    expect(mentions).toContain(`${LDA} com capital social de`)
+    expect(mentions).toContain('Seguradora Exemplo, apólice n° RC-2026-000123, cobertura Portugal.')
+    expect(container.textContent).not.toContain('Entreprise Individuelle')
+    expect(container.textContent).not.toContain('Empresário em Nome Individual')
+    expect(container.textContent).not.toMatch(/France m[ée]tropolitaine/i)
+  })
+
+  // Société française : forme et couverture du document, sinon celle de la fiche, exactement comme avant
+  it.each([
+    ['ancien devis en EI et « France métropolitaine » : tel quel', 'Entreprise Individuelle (EI)', 'France métropolitaine', 'France métropolitaine'],
+    ['document sans couverture : celle de la fiche, telle quelle', 'SAS', '', 'France metropolitaine'],
+  ])('société française, %s', (_cas, forme, couvertureDocument, couvertureAttendue) => {
+    langue.locale = 'fr'
+    monter({
+      id: '6f1c2a34-0000-4000-8000-00000000f0f1', savedAt: '2026-11-08T10:00:00.000Z', docNumber: 'DEV-2026-010', status: 'sent',
+      docType: 'devis', companyStatus: forme, insuranceCoverage: couvertureDocument, clientName: 'M. Client',
+      lines: [{ id: 1, description: 'Ravalement', qty: 1, unit: 'f', priceHT: 900, tvaRate: 10, totalHT: 900 }], materialLines: [], fraisLines: [],
+    }, { id: 'art-btp-fr', company_name: 'BATI SUD', email: 'contact@exemple.fr', legal_form: 'SAS',
+      insurance_name: 'SMABTP', insurance_number: 'RC-1', insurance_coverage: 'France metropolitaine' } as ArtisanBasic)
+    expect(screen.getByDisplayValue(forme)).toBeDisabled()
+    expect(couvertureAffichee('France métropolitaine')).toBe(couvertureAttendue)
   })
 
   // Relecture adverse du 17/11/2026 : l'adresse se recompose à l'ouverture et part dans la sauvegarde automatique ;
@@ -183,5 +237,58 @@ describe('création de devis en portugais', () => {
     const [enregistre] = JSON.parse(localStorage.getItem(`fixit_drafts_${SOCIETE_PT.id}`) || '[]')
     expect(enregistre.clientAddress).toBe(adresse)
     expect(enregistre.clientCountry).toBe(pays)
+  })
+})
+
+// Relecture adverse du 20/11/2026 : état réel d'une société portugaise — stockage local rempli de documents en EI et
+// « France metropolitaine » (défaut de la fiche), fiche avant et après sa mise à jour, /fr compris.
+describe('anciens documents d\'une société portugaise : état réel du stockage local', () => {
+  const EI = 'Entreprise Individuelle (EI)'
+  const FICHE_AVANT = { ...SOCIETE_PT, insurance_name: '', insurance_number: '', insurance_coverage: 'France metropolitaine' } as ArtisanBasic
+  const FICHE_APRES = { ...SOCIETE_PT, insurance_name: 'Seguradora Exemplo', insurance_number: 'RC-2026-000123', insurance_coverage: 'Portugal' } as ArtisanBasic
+  const CLE_DOCS = `fixit_documents_${SOCIETE_PT.id}`
+  const CLE_BROUILLONS = `fixit_drafts_${SOCIETE_PT.id}`
+  const emis = (n: number, status: string) => ({
+    id: `6f1c2a34-0000-4000-8000-0000000000${n}0`, savedAt: '2026-11-17T19:00:00.000Z', sentAt: '2026-11-17T19:00:00.000Z',
+    docNumber: `DEV-2026-00${n}`, status, docType: 'devis', companyStatus: EI, insuranceType: 'rc_pro', insuranceName: '',
+    insuranceNumber: '', insuranceCoverage: 'France metropolitaine', clientName: 'Cliente', clientCountry: 'Portugal',
+    lines: [{ id: 1, description: 'Limpeza de telhado', qty: 1, unit: 'f', priceHT: 900, tvaRate: 23, totalHT: 900 }],
+    materialLines: [], fraisLines: [],
+  })
+  const brouillon = (n: number) => ({ ...emis(n, 'brouillon'), docNumber: '', sentAt: undefined, id: `6f1c2a34-0000-4000-8000-00000000f00${n}` })
+  function remplirStockage() {
+    localStorage.setItem(CLE_DOCS, JSON.stringify([emis(1, 'sent'), emis(2, 'rejected'), emis(3, 'envoye')]))
+    localStorage.setItem(CLE_BROUILLONS, JSON.stringify([brouillon(4), brouillon(5), brouillon(6), brouillon(7)]))
+    return { docs: localStorage.getItem(CLE_DOCS), brouillons: localStorage.getItem(CLE_BROUILLONS) }
+  }
+
+  it('fiche pas encore complétée : forme et « Portugal continental » à l\'écran et au PDF, document émis jamais réenregistré', async () => {
+    const avant = remplirStockage()
+    const { container } = monter(emis(1, 'sent'), FICHE_AVANT)
+    expect(screen.getByDisplayValue(LDA)).toBeDisabled()
+    expect(couvertureAffichee('Portugal continental')).toBe('Portugal continental')
+    expect(container.textContent).not.toMatch(/France m[ée]tropolitaine/i)
+    expect(container.textContent).not.toContain('Entreprise Individuelle')
+    fireEvent.click(screen.getByText('Descarregar PDF'))
+    await waitFor(() => expect(pdf.entrees).toHaveLength(1))
+    expect(pdf.entrees[0]).toMatchObject({ companyStatus: 'lda', insuranceCoverage: 'Portugal continental' })
+    await new Promise((fin) => setTimeout(fin, 2500))
+    expect(localStorage.getItem(CLE_DOCS)).toBe(avant.docs)
+    expect(localStorage.getItem(CLE_BROUILLONS)).toBe(avant.brouillons)
+  })
+
+  it('sur /fr aussi : défaut portugais d\'après la forme de la fiche', () => {
+    langue.locale = 'fr'
+    remplirStockage()
+    monter(emis(1, 'sent'), FICHE_AVANT)
+    expect(screen.getByDisplayValue(LDA)).toBeDisabled()
+    expect(couvertureAffichee('France métropolitaine')).toBe('Portugal continental')
+  })
+
+  it('fiche complétée : couverture et assureur de la fiche', () => {
+    remplirStockage()
+    monter(emis(3, 'envoye'), FICHE_APRES)
+    expect(couvertureAffichee('Portugal continental')).toBe('Portugal')
+    expect(screen.getByDisplayValue('Seguradora Exemplo')).toBeInTheDocument()
   })
 })

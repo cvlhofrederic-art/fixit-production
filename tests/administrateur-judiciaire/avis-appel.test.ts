@@ -24,6 +24,7 @@ import {
   muterLot,
   type Position,
 } from '@/lib/administrateur-judiciaire/domain/identites-positions'
+import { NATURES_COMPTE_BANCAIRE, type CompteEncaissement } from '@/lib/administrateur-judiciaire/domain/comptes-bancaires'
 import { genererPain008, preparerLotPrelevements } from '@/lib/administrateur-judiciaire/domain/prelevements-sepa'
 import { avisDAppel, creerCleRepartition, type EcheanceAppel } from '@/lib/administrateur-judiciaire/domain/repartition-appels'
 import { creerOperationTravaux, echeancesTravaux, emploisFondsTravauxDesTranches } from '@/lib/administrateur-judiciaire/domain/travaux-operations'
@@ -71,6 +72,20 @@ const avis = avisDAppel({ echeances, cles: [cle], positions, comptes, soldesAnte
 const IBAN_DEBITEUR = 'FR76 3000 6000 0112 3456 7890 189'
 const IBAN_SYNDICAT = 'FR14 2004 1010 0505 0001 3M02 606'
 const ICS = 'FR12ZZZ123456'
+/** Compte qui reçoit les règlements selon le mode de tenue (ap-03) : le compte courant au nom du syndicat. */
+const COMPTE_COURANT: CompteEncaissement = {
+  designe: true,
+  banqueId: 'banque-courant',
+  nature: 'courant',
+  libelle: NATURES_COMPTE_BANCAIRE.courant.libelle,
+  iban: 'FR1420041010050500013M02606',
+  auNomDuSyndicat: true,
+}
+/** Aucun compte désigné (ap-03) : l'avis entier est bloqué, le règlement hors prélèvement passe au chèque. */
+const SANS_COMPTE: CompteEncaissement = {
+  designe: false,
+  motif: 'aucun compte actif « Compte courant au nom du syndicat », compte qui reçoit les règlements dans le mode « Compte séparé au nom du syndicat »',
+}
 
 const mandat = (surcharge: Partial<MandatPrelevement> = {}): MandatPrelevement => ({
   rum: 'RUM-TILL-00001',
@@ -93,7 +108,7 @@ const options = (surcharge: Partial<OptionsContenuAvis> = {}): OptionsContenuAvi
   comptes,
   segmentSyndicat: 'TILL',
   syndicat: { nom: 'SDC Les Tilleuls (fictif)', adresse: '12 rue des Tilleuls, 13001 Marseille' },
-  ibanSyndicat: IBAN_SYNDICAT,
+  compteEncaissement: COMPTE_COURANT,
   ics: ICS,
   dateEmission: '2026-12-15',
   reglements: reglements(),
@@ -404,14 +419,25 @@ describe('règlement — prélèvement, virement, chèque', () => {
     expect(compteDe(contenuAvisAppel(avis, options({ reglements: reglements(null) })), 'cpt-A').instructions).toBeNull()
   })
 
-  it('virement : IBAN du compte courant du syndicat, référence = n° de compte 450 ; IBAN absent ou invalide : bloquant', () => {
+  it('virement : IBAN du compte qui reçoit les règlements, référence = n° de compte 450 ; compte non désigné ou IBAN invalide : bloquant', () => {
     const b = compteDe(contenuAvisAppel(avis, options()), 'cpt-B')
     expect(b.instructions).toEqual({ mode: 'Virement', beneficiaire: 'SDC Les Tilleuls (fictif)', iban: 'FR1420041010050500013M02606', reference: 'TILL.45000.00002.0' })
-    for (const ibanSyndicat of [null, 'FR14 2004 1010 0505 0001 3M02 605']) {
-      const sans = compteDe(contenuAvisAppel(avis, options({ ibanSyndicat })), 'cpt-B')
-      expect(sans.instructions).toBeNull()
-      expect(sans.anomalies).toContainEqual(expect.objectContaining({ code: 'iban_syndicat_invalide', gravite: 'bloquant' }))
-    }
+    const invalide = compteDe(contenuAvisAppel(avis, options({ compteEncaissement: { ...COMPTE_COURANT, iban: 'FR14 2004 1010 0505 0001 3M02 605' } })), 'cpt-B')
+    expect(invalide.instructions).toBeNull()
+    expect(invalide.anomalies).toContainEqual({
+      code: 'iban_syndicat_invalide',
+      gravite: 'bloquant',
+      message: 'Virement : IBAN du compte courant au nom du syndicat absent ou invalide.',
+      fondement: null,
+    })
+    const sans = compteDe(contenuAvisAppel(avis, options({ compteEncaissement: SANS_COMPTE })), 'cpt-B')
+    expect(sans.instructions).toBeNull()
+    expect(sans.anomalies).toContainEqual({
+      code: 'iban_syndicat_invalide',
+      gravite: 'bloquant',
+      message: 'Virement : aucun compte désigné pour recevoir les règlements.',
+      fondement: null,
+    })
   })
 
   it('chèque, TIP, espèces, « Pas de règlement », compte sans règlement', () => {
@@ -438,15 +464,17 @@ describe('règlement — prélèvement, virement, chèque', () => {
     expect(refus[0].message).toMatch(/aucun encaissement en espèces.*compte 53.*J25, J29/)
     expect(refus[0].message).toMatch(/l'avis indique le règlement par virement à SDC Les Tilleuls \(fictif\)/)
     expect(refus[0].message).toMatch(/changer le mode de règlement du compte/)
-    // sans IBAN valide du syndicat : chèque, jamais les espèces ; l'avis part (aucun blocage)
-    const sansIban = avec({ ibanSyndicat: null })
+    // sans compte désigné pour recevoir les règlements : chèque, jamais les espèces ; aucun blocage propre au compte (seul
+    // l'avis entier est bloqué, ap-03)
+    const sansIban = avec({ compteEncaissement: SANS_COMPTE })
     expect(sansIban.modeReglement).toBe('Chèque')
     expect(sansIban.instructions).toMatchObject({ mode: 'Chèque', ordre: 'SDC Les Tilleuls (fictif)' })
     expect(bloquantsDe(sansIban)).toEqual([])
-    // en-tête : les espèces ne sont plus une question ouverte ; le TIP le reste
+    // en-tête : les espèces ne sont plus une question ouverte ; le TIP non plus (décision du 20/11/2026, partie C, F118)
     const { texte, item } = enTeteDuModule('avis-appel')
     expect(texte).not.toContain('TIP et espèces')
-    expect(texte).toMatch(/- TIP : signalé, sans instructions/)
+    expect(texte).not.toMatch(/- TIP : signalé, sans instructions/)
+    expect(texte).toMatch(/Décision du 20\/11\/2026 \(partie C, F118\)/)
     expect(item('- J25 et J29')).toMatch(/instructionsHorsPrelevement.*especes_refusees/)
   })
 
@@ -454,6 +482,86 @@ describe('règlement — prélèvement, virement, chèque', () => {
     expect(contenuAvisAppel(avis, options()).anomalies).toContainEqual(
       expect.objectContaining({ code: 'cotisation_a_virer', gravite: 'information', fondement: 'L. 1965 art. 18, II' }),
     )
+  })
+})
+
+describe('ap-03 — compte qui reçoit les règlements, lu selon le mode de tenue (décision du 22/11/2026)', () => {
+  /** Compte à la Caisse des dépôts : son titulaire n'est pas établi comme le syndicat (C. com. R. 814-41 ; J67, R95). */
+  const CDC: CompteEncaissement = {
+    designe: true,
+    banqueId: 'banque-cdc',
+    nature: 'caisse_depots',
+    libelle: NATURES_COMPTE_BANCAIRE.caisse_depots.libelle,
+    iban: 'FR7630004000031234567890143',
+    auNomDuSyndicat: false,
+  }
+  const lotDe = (contenu: ContenuAvisAppel) => echeancesPrelevementDepuisAvis(contenu, { prefixeId: 'AV', diffusions: diffuse(contenu) })
+  const codesAvis = (contenu: ContenuAvisAppel) => contenu.anomalies.map((a) => a.code)
+
+  it('aucun compte désigné : anomalie bloquante de l’avis entier, avec son motif ; aucun débit, aucun courrier', () => {
+    const contenu = contenuAvisAppel(avis, options({ compteEncaissement: SANS_COMPTE }))
+    expect(contenu.anomalies).toContainEqual({
+      code: 'compte_encaissement_non_designe',
+      gravite: 'bloquant',
+      message: `Compte qui reçoit les règlements non désigné : ${SANS_COMPTE.designe ? '' : SANS_COMPTE.motif}.`,
+      fondement: null,
+    })
+    expect(lotDe(contenu).echeances).toEqual([])
+    expect(lotDe(contenu).ecartees).toContainEqual(expect.objectContaining({ compteId: 'cpt-A', motif: 'contenu_bloque' }))
+    expect(diffuse(contenu).every((d) => d.courrier === null)).toBe(true)
+    expect(codesAvis(contenuAvisAppel(avis, options()))).not.toContain('compte_encaissement_non_designe')
+  })
+
+  it('compte au nom du syndicat : ni débit retiré, ni avertissement sur le bénéficiaire', () => {
+    const contenu = contenuAvisAppel(avis, options())
+    expect(compteDe(contenu, 'cpt-A').instructions).toMatchObject({ mode: 'Prélèvement', ics: ICS })
+    expect(codesAvis(contenu)).not.toContain('beneficiaire_a_verifier')
+    expect(codes(compteDe(contenu, 'cpt-A'))).not.toContain('prelevement_compte_non_syndicat')
+  })
+
+  it('compte qui n’est pas établi au nom du syndicat : virement à son IBAN ; aucun débit annoncé, règlement hors prélèvement ; le lot l’écarte', () => {
+    const contenu = contenuAvisAppel(avis, options({ compteEncaissement: CDC }))
+    const a = compteDe(contenu, 'cpt-A')
+    expect(a.modeReglement).toBe('Virement')
+    expect(a.instructions).toEqual({ mode: 'Virement', beneficiaire: 'SDC Les Tilleuls (fictif)', iban: CDC.designe ? CDC.iban : '', reference: 'TILL.45000.00001.0' })
+    expect(a.mentions.map((m) => m.cle)).not.toContain('prenotification')
+    expect(bloquantsDe(a)).toEqual([])
+    expect(a.anomalies).toContainEqual({
+      code: 'prelevement_compte_non_syndicat',
+      gravite: 'avertissement',
+      message:
+        "Compte TILL.45000.00001.0 : aucun prélèvement annoncé, le compte qui reçoit les règlements (compte à la Caisse des dépôts) n'est pas établi au nom du syndicat, créancier du prélèvement SEPA ; l'avis indique le règlement par virement à SDC Les Tilleuls (fictif), IBAN FR7630004000031234567890143, en indiquant la référence TILL.45000.00001.0.",
+      fondement: 'Recueil EPC SDD Core 2025, § 3.1 et AT-C001 (compte du créancier ; règle du schéma, pas un texte de loi)',
+    })
+    expect(compteDe(contenu, 'cpt-B').instructions).toMatchObject({ mode: 'Virement', iban: 'FR7630004000031234567890143' })
+    const lot = lotDe(contenu)
+    expect(lot.echeances).toEqual([])
+    expect(lot.ecartees).toContainEqual({ compteId: 'cpt-A', motif: 'compte_non_syndicat', codes: ['prelevement_compte_non_syndicat'] })
+  })
+
+  it('compte en contentieux : la suspension l’emporte, son motif reste le contentieux', () => {
+    const a = compteDe(contenuAvisAppel(avis, options({ compteEncaissement: CDC, comptesEnContentieux: new Set(['cpt-A']) })), 'cpt-A')
+    expect(codes(a)).toContain('prelevement_suspendu')
+    expect(codes(a)).not.toContain('prelevement_compte_non_syndicat')
+  })
+
+  it('bénéficiaire du virement : avertissement de l’avis entier quand un virement va à un compte non établi au nom du syndicat, seulement alors', () => {
+    expect(contenuAvisAppel(avis, options({ compteEncaissement: CDC })).anomalies).toContainEqual({
+      code: 'beneficiaire_a_verifier',
+      gravite: 'avertissement',
+      message:
+        "Virement au compte à la Caisse des dépôts : l'avis nomme le syndicat comme bénéficiaire, alors que le titulaire de ce compte n'est pas établi comme le syndicat ; vérifier l'intitulé exact du compte avant la diffusion (vérification du nom du bénéficiaire par la banque du payeur).",
+      fondement: 'Règl. (UE) n° 260/2012, art. 5 quater, § 1, a), § 5 et § 9 (inséré par le règl. (UE) 2024/886)',
+    })
+    expect(codesAvis(contenuAvisAppel(avis, options({ compteEncaissement: CDC, reglements: cheques })))).not.toContain('beneficiaire_a_verifier')
+  })
+
+  it('cotisations au fonds de travaux : l’information nomme le compte qui reçoit les règlements', () => {
+    const message = (compteEncaissement: CompteEncaissement) =>
+      contenuAvisAppel(avis, options({ compteEncaissement })).anomalies.find((a) => a.code === 'cotisation_a_virer')?.message
+    expect(message(COMPTE_COURANT)).toMatch(/encaissées sur le compte courant au nom du syndicat, elles y sont virées.$/)
+    expect(message(CDC)).toMatch(/encaissées sur le compte à la Caisse des dépôts, elles y sont virées.$/)
+    expect(message(SANS_COMPTE)).toMatch(/encaissées sur le compte qui reçoit les règlements, elles y sont virées.$/)
   })
 })
 
@@ -641,7 +749,7 @@ describe('retours de relecture du point 17 — prélèvement et pré-notificatio
     expect(d.valeursFusion['mention.prenotification']).toBe(a.mentions.find((m) => m.cle === 'prenotification')?.texte)
     expect(d.valeursFusion['mention.fondsTravaux']).toBe(a.mentions.find((m) => m.cle === 'fonds_travaux')?.texte)
     expect(controlerContexteFusion('avis_appel_fonds', d.valeursFusion)).toMatchObject({ complet: true, inconnus: [] })
-    const sansIban = compteDe(contenuAvisAppel(avis, options({ ibanSyndicat: null })), 'cpt-A')
+    const sansIban = compteDe(contenuAvisAppel(avis, options({ compteEncaissement: SANS_COMPTE })), 'cpt-A')
     expect(sansIban.instructions).toMatchObject({ horsPrelevement: { mode: 'Chèque', ordre: 'SDC Les Tilleuls (fictif)', reference: 'TILL.45000.00001.0' } })
   })
 
@@ -978,7 +1086,7 @@ describe('contrôle du point 17 — l’avis n’annonce que le débit que le lo
     expect(lot.echeances).toEqual([])
     expect(lot.ecartees).toContainEqual({ compteId: 'cpt-A', motif: 'prenotification_absente', codes: ['prenotification_sans_detenteur'] })
     const revoqueSansIban = compteDe(
-      contenuAvisAppel(avis, options({ ibanSyndicat: null, reglements: reglements(mandat({ debiteurIdentiteId: null, revoqueLe: '2026-12-01' })) })),
+      contenuAvisAppel(avis, options({ compteEncaissement: SANS_COMPTE, reglements: reglements(mandat({ debiteurIdentiteId: null, revoqueLe: '2026-12-01' })) })),
       'cpt-A',
     )
     expect(revoqueSansIban.instructions).toMatchObject({ mode: 'Chèque', reference: 'TILL.45000.00001.0' })

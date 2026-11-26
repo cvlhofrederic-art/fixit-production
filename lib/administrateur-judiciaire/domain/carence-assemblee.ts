@@ -1,5 +1,6 @@
 import { ajouterJours, dateIsoVersFr, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
 import { controlerRegime, type Regime } from '@/lib/administrateur-judiciaire/domain/fondements'
+import { normaliserEspaces } from '@/lib/administrateur-judiciaire/domain/texte'
 
 /**
  * Carence d'une assemblée générale : constat et suites à donner (point 23 du bilan 2 ; cartographie Gestéam : bouton
@@ -47,12 +48,56 @@ import { controlerRegime, type Regime } from '@/lib/administrateur-judiciaire/do
  *   défaillants (D. 1967 art. 18) : suite notification_proces_verbal ; le délai se calcule comme d'habitude
  *   (statut-assemblee.ts).
  *
- * 🔴 Non établi : l'assemblée sans aucun participant, ou qui ne peut se tenir, n'est définie par aucun texte (motifs de
- * carence : relevé du 17/11/2026, partie C, F21).
+ * - Décision du 20/11/2026 (partie C, F21) : l'assemblée sans aucun participant, ou qui ne peut se tenir, n'est définie
+ *   par aucun texte ; les trois motifs sont gardés, avec ces définitions de pratique (MOTIFS_CARENCE_DEFINIS) :
+ *   « aucun participant » = aucun copropriétaire présent, représenté ni ayant voté par correspondance (mention du modèle
+ *   de PV de carence) ; « réunion non tenue » = motif libre obligatoire (lieu fermé, incident…), refusé vide par
+ *   constaterCarence ; « syndic non désigné » = l'assemblée s'est tenue et a voté, ce n'est donc pas une carence au sens
+ *   du modèle : procès-verbal ordinaire à notifier (suite notification_proces_verbal, J67, R28) et requête au président
+ *   du tribunal judiciaire proposée (suite requete_designation_syndic, L. 1965 art. 17, al. 3 ; D. 1967 art. 46), pour
+ *   le syndic de l'art. 46 et l'administrateur de l'art. 47 ; le PV de carence (gabarits-courrier.ts, pv_carence) ne
+ *   sert qu'aux deux premiers motifs (modeleProcesVerbalCarence).
  */
 
 export const MOTIFS_CARENCE = ['aucun_participant', 'syndic_non_designe', 'reunion_non_tenue'] as const
 export type MotifCarence = (typeof MOTIFS_CARENCE)[number]
+
+/** PV de carence (modèle de pratique, gabarits-courrier.ts), ou procès-verbal ordinaire de l'assemblée qui a voté. */
+export type ModeleProcesVerbalCarence = 'pv_carence' | 'proces_verbal_ordinaire'
+
+export interface DefinitionMotifCarence {
+  libelle: string
+  definition: string
+  /** Le constat exige un motif libre (lieu fermé, incident…). */
+  motifLibreObligatoire: boolean
+  modeleProcesVerbal: ModeleProcesVerbalCarence
+}
+
+/** Décision du 20/11/2026 (partie C, F21) : les trois motifs de carence et leur définition de pratique (aucun texte). */
+export const MOTIFS_CARENCE_DEFINIS: Readonly<Record<MotifCarence, DefinitionMotifCarence>> = {
+  aucun_participant: {
+    libelle: 'Aucun participant',
+    definition: 'Aucun copropriétaire présent, représenté ni ayant voté par correspondance',
+    motifLibreObligatoire: false,
+    modeleProcesVerbal: 'pv_carence',
+  },
+  syndic_non_designe: {
+    libelle: 'Syndic non désigné',
+    definition:
+      "L'assemblée convoquée pour désigner un syndic s'est tenue et a voté : ce n'est pas une carence au sens du modèle ; procès-verbal ordinaire à notifier, requête au président du tribunal judiciaire à proposer",
+    motifLibreObligatoire: false,
+    modeleProcesVerbal: 'proces_verbal_ordinaire',
+  },
+  reunion_non_tenue: {
+    libelle: 'Réunion non tenue',
+    definition: "La réunion n'a pas pu se tenir : motif libre obligatoire (lieu fermé, incident…)",
+    motifLibreObligatoire: true,
+    modeleProcesVerbal: 'pv_carence',
+  },
+}
+
+/** Modèle de procès-verbal du motif : PV de carence, sauf pour l'assemblée qui s'est tenue et a voté (F21). */
+export const modeleProcesVerbalCarence = (motif: MotifCarence): ModeleProcesVerbalCarence => MOTIFS_CARENCE_DEFINIS[motif].modeleProcesVerbal
 
 /** D. 1967 art. 9 : convocation notifiée au moins 21 jours avant la réunion (sauf délai plus long du règlement). */
 export const DELAI_CONVOCATION_JOURS = 21
@@ -65,6 +110,11 @@ export interface SaisieCarence {
   /** Date de la réunion qui n'a pas abouti. */
   date: string
   motif: MotifCarence
+  /**
+   * Motif libre (lieu fermé, incident…) : obligatoire pour « réunion non tenue », facultatif sinon (décision du
+   * 20/11/2026, partie C, F21) ; absent ou null : non saisi.
+   */
+  motifLibre?: string | null
   /** L'assemblée était convoquée pour désigner un syndic (L. 1965 art. 17, al. 3). */
   objetDesignationSyndic: boolean
 }
@@ -85,6 +135,10 @@ export interface SuiteCarence {
 }
 
 export interface CarenceAg extends SaisieCarence {
+  /** Motif libre, espaces superflus retirés ; null : non saisi. */
+  motifLibre: string | null
+  /** PV de carence, ou procès-verbal ordinaire pour l'assemblée qui s'est tenue et a voté (F21). */
+  modeleProcesVerbal: ModeleProcesVerbalCarence
   /** Régime du mandat au jour du constat (fondements.ts) ; null : inconnu. */
   regime: Regime | null
   suites: SuiteCarence[]
@@ -123,7 +177,7 @@ const PROROGATIONS: Record<Regime, Omit<SuiteCarence, 'code'>> = {
 const NOTIFICATION_PROCES_VERBAL: SuiteCarence = {
   code: 'notification_proces_verbal',
   libelle:
-    "Notifier le procès-verbal aux copropriétaires opposants ou défaillants : l'assemblée s'est tenue et a voté ; leur délai de deux mois pour contester court de cette notification",
+    "Notifier le procès-verbal ordinaire de l'assemblée (pas un PV de carence) aux copropriétaires opposants ou défaillants : l'assemblée s'est tenue et a voté ; leur délai de deux mois pour contester court de cette notification",
   fondement: 'L. 1965 art. 42, al. 2 ; D. 1967 art. 18',
   aConfirmer: false,
 }
@@ -183,6 +237,15 @@ export function suitesProposees({
   return suites
 }
 
+/** Motif libre normalisé ; refus d'un motif libre vide quand le motif l'exige (« réunion non tenue », F21). */
+function motifLibreDuConstat(saisie: SaisieCarence): string | null {
+  const motifLibre = normaliserEspaces(saisie.motifLibre ?? '')
+  if (motifLibre !== '') return motifLibre
+  if (MOTIFS_CARENCE_DEFINIS[saisie.motif].motifLibreObligatoire)
+    throw new Error('Carence « réunion non tenue » : motif libre obligatoire (lieu fermé, incident…).')
+  return null
+}
+
 /** Constate la carence d'une assemblée et propose les suites prévues pour le régime du mandat. */
 export function constaterCarence(saisie: SaisieCarence, { regime }: { regime: Regime | null }): CarenceAg {
   if (!saisie.agId.trim()) throw new Error('Carence : assemblée attendue (identifiant vide).')
@@ -190,7 +253,13 @@ export function constaterCarence(saisie: SaisieCarence, { regime }: { regime: Re
   if (!(MOTIFS_CARENCE as readonly string[]).includes(saisie.motif)) throw new Error(`Motif de carence inconnu : « ${saisie.motif} ».`)
   if (saisie.motif === 'syndic_non_designe' && !saisie.objetDesignationSyndic)
     throw new Error("Carence « syndic non désigné » : l'assemblée devait être convoquée pour la désignation d'un syndic.")
-  return { ...saisie, regime, suites: suitesProposees({ regime, objetDesignationSyndic: saisie.objetDesignationSyndic, motif: saisie.motif }) }
+  return {
+    ...saisie,
+    motifLibre: motifLibreDuConstat(saisie),
+    modeleProcesVerbal: modeleProcesVerbalCarence(saisie.motif),
+    regime,
+    suites: suitesProposees({ regime, objetDesignationSyndic: saisie.objetDesignationSyndic, motif: saisie.motif }),
+  }
 }
 
 export type CodeAnomalieCarence = 'mission_expiree' | 'mission_trop_courte' | 'fin_mission_inconnue' | 'reunion_apres_fin_mission'

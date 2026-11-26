@@ -1,4 +1,4 @@
-import { validerIban } from '@/lib/administrateur-judiciaire/domain/comptes-bancaires'
+import { validerIban, type CompteEncaissement } from '@/lib/administrateur-judiciaire/domain/comptes-bancaires'
 import { preparerCourrier } from '@/lib/administrateur-judiciaire/domain/courriers'
 import { ajouterJours, ajouterMois, dateIsoVersFr, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
 import {
@@ -24,7 +24,7 @@ import {
   type Position,
 } from '@/lib/administrateur-judiciaire/domain/identites-positions'
 import { postesDepuisAvis, type PosteDette } from '@/lib/administrateur-judiciaire/domain/imputation-encaissements'
-import { validerIcs, type EcheancePrelevement } from '@/lib/administrateur-judiciaire/domain/prelevements-sepa'
+import { validerIcs, type EcheancePrelevement, type LotPrelevements } from '@/lib/administrateur-judiciaire/domain/prelevements-sepa'
 import {
   repartir,
   type AvisAppels,
@@ -107,8 +107,17 @@ import type { FormeEnvoiCourrier, ModeReglement, TypeAppelLieAuMouvement } from 
  *   total à payer nul ou créditeur garantit que rien ne serait prélevé (sinon « mandat_absent » reste bloquant, comme un
  *   mandat incomplet sur un compte débiteur) ;
  * - reste hors prélèvement, appel d'un compte en contentieux ou dont le détenteur ne peut recevoir la pré-notification :
- *   virement au compte courant du syndicat, à défaut d'IBAN valide chèque ; compte en contentieux : prélèvement suspendu
+ *   virement au compte qui reçoit les règlements, à défaut chèque ; compte en contentieux : prélèvement suspendu
  *   (preparerLotPrelevements l'exclut par défaut), l'avis n'annonce donc aucun débit ;
+ * - décision du 22/11/2026 (ap-03) : le compte qui reçoit les règlements est désigné selon le mode de tenue réglé
+ *   (comptes-bancaires.ts, compteEncaissement), jamais par un ordre fixe. Non désigné : anomalie bloquante de l'avis
+ *   entier (compte_encaissement_non_designe), le règlement hors prélèvement passe au chèque. Désigné mais non établi au
+ *   nom du syndicat (Caisse des dépôts, sous-compte du centralisateur) : le recueil EPC SDD Core 2025 (§ 3.1, AT-C001)
+ *   vise le compte du créancier, et que le syndicat, créancier de l'avis, soit titulaire de ce compte n'est pas établi ;
+ *   par prudence aucun débit n'est annoncé (prelevement_compte_non_syndicat, règlement hors prélèvement, comme en
+ *   contentieux) : règle du schéma et choix prudent, à valider, non une interdiction légale. Avertissement sur le
+ *   bénéficiaire du virement (beneficiaire_a_verifier : vérification du bénéficiaire, règl. (UE) n° 260/2012, art.
+ *   5 quater, qui alerte le payeur sans empêcher le virement) ;
  * - l'avis vaut pré-notification SEPA quand il porte le montant et la date du débit (recueil EPC, PT-04.02 : « together
  *   with or as part of other commercial documents ») ; référence de virement = n° de compte 450 (clé de rapprochement) ;
  *   le détenteur du compte (identité du mandat) le reçoit, en plus des copropriétaires s'il n'en est pas ; seul est
@@ -190,24 +199,47 @@ import type { FormeEnvoiCourrier, ModeReglement, TypeAppelLieAuMouvement } from 
  *   vendeur n'a pas présenté de certificat du syndic, par l'avis de mutation du notaire (L. 1965 art. 20, I). Écriture
  *   déjà passée de l'appel : son annulation et un nouvel appel suivent echeancier-appels.annulerAppelees.
  *
+ * Décisions du 20/11/2026 (partie C, recommandations acceptées par le responsable du projet) :
+ * - Décision du 20/11/2026 (partie C, F103) : format pain.008, longueur des références et ICS se valident banque par
+ *   banque, par la fiche « validation banque » du compte (validation-banque.ts) ; sans elle, le fichier de prélèvement
+ *   porte la mention « non validé par la banque » (prelevements-sepa.genererPain008). LONGUEUR_MAX_ID_PRELEVEMENT (35)
+ *   reste la borne appliquée à l'identifiant ; une longueur plus courte donnée par la banque se contrôle sur le fichier.
+ * - Décision du 20/11/2026 (partie C, F108) : une échéance à 0 € appelée seule passe « Appelé » sans écriture
+ *   (echeancier-appels.marquerAppeleeSansEcriture) ; l'avis suivant la mentionne pour information, hors du total
+ *   (option echeancesAppeleesSansEcriture, mention « echeance_financee_par_le_fonds », champ de fusion
+ *   « mention.echeancesSansEcriture »). 🔵 Déduit : la mention figure sur l'avis de chaque compte (le fonds de travaux
+ *   appartient au syndicat) ; l'appelant passe les échéances appelées sans écriture depuis l'avis précédent, au plus tard
+ *   le jour de l'émission ;
+ * - Décision du 20/11/2026 (partie C, F114) : « À régler avant le » = la date d'exigibilité par défaut (délai 0). Un
+ *   délai de courtoisie (delaiReglementJours) reste un réglage du cabinet, affiché comme tel (mentionDelaiCourtoisie), qui
+ *   ne change jamais l'exigibilité (relances et procédure de l'art. 19-2 partent de l'exigibilité ; L. 1965 art. 14-1) ;
+ *   avec un délai, l'avis écrit « exigible le … ; à régler au plus tard le … » (libelleDateLimite, champ de fusion
+ *   « appel.dateLimite », objet du courrier) ;
+ * - Décision du 20/11/2026 (partie C, F116) : quand le lot de prélèvements écarte un compte passé en contentieux après
+ *   l'avis qui annonçait le débit, VitFix prépare un courrier simple (ou un courriel à l'adresse des avis) : « le
+ *   prélèvement annoncé pour le … n'aura pas lieu ; merci de régler par virement … » (prelevementsAnnulesParContentieux,
+ *   sur le modèle du message de J67, R113). Ce courrier n'est pas un acte du contentieux, qui garde ses propres pièces
+ *   (NATURE_COURRIER_PRELEVEMENT_ANNULE). Un compte déjà en contentieux à l'émission n'a aucun débit annoncé : aucun
+ *   courrier. Gabarit du registre des courriers et écran : à brancher ;
+ * - Décision du 20/11/2026 (partie C, F118) : si aucun TIP n'a été reçu récemment, le mode « TIP » est refusé pour les
+ *   nouveaux comptes (controlerModeReglementNouveauCompte) et les anciens passent au virement sur l'avis, avec un
+ *   avertissement (tip_abandonne ; à défaut d'IBAN valide du syndicat, chèque, comme pour les espèces) ; sinon, l'avis
+ *   porte le gabarit d'instructions TIP fourni par la banque, avec la référence du compte. La réponse est un réglage du
+ *   cabinet (ReglageTip, creerReglageTip ; enregistrement : à brancher) ; sans lui, le TIP reste signalé sans
+ *   instructions. Le remplacement du TIP par le TIPSEPA n'est pas vérifié (à confirmer avec la banque).
+ *
  * 🔴 Non établi (questions pour Hugo ou Frédéric) :
  * - pré-notification de 14 jours calendaires, séquence FRST facultative depuis 2016, caducité d'un mandat inutilisé
  *   36 mois : règles du recueil EPC SDD Core 2025 (§ 4.3 et PT-04.02 ; historique des versions, v9.3 de 2016 ; § 4.2),
- *   pas des textes de loi ; v1.1 et v1.2 non lues ; format pain.008 et longueur de 35 caractères de l'EndToEndId
- *   (Implementation Guidelines non lues) : à valider avec la banque du syndicat, comme son ICS ;
- * - « "À régler avant le" : la date d'exigibilité seule, ou une date de courtoisie postérieure, et de combien de
- *   jours ? » (VitFix : l'exigibilité, plus delaiReglementJours fourni par l'appelant, 0 par défaut) ;
+ *   pas des textes de loi ; v1.1 et v1.2 non lues ;
  * - « L'emploi du fonds de travaux figure-t-il sur l'avis pour information, hors du total (VitFix), ou en déduction du
  *   montant appelé ? Le plafond par échéance vient-il de la résolution d'affectation ou d'un réglage du cabinet ? »
  *   (VitFix : part du fonds de l'opération × taux de la tranche, emploisFondsTravauxDesTranches) ;
  * - « Le reste hors prélèvement et l'appel d'un compte en contentieux se règlent-ils par virement, ou selon le mode
  *   "Encaissement" (« Hors budget ») de l'onglet Banque ? » (VitFix : virement, à défaut chèque) ;
- * - « Contentieux ouvert entre l'avis et le débit : l'avis a annoncé un débit que preparerLotPrelevements exclut par
- *   défaut ; faut-il en informer le copropriétaire ? » (VitFix : non traité) ;
  * - « Copie des décisions de l'administrateur provisoire (art. 62-9) : faut-il un gabarit de courrier propre, auquel
  *   l'avis serait joint ? » (VitFix : avertissement « decision_a_joindre ») ;
  * - « Mandat jamais utilisé : la caducité de 36 mois court-elle de sa signature ? » (VitFix : non contrôlée) ;
- * - TIP : signalé, sans instructions ;
  * - plafond d'emploi par lot (part du fonds attachée au lot, point 20) : non fait.
  */
 
@@ -310,7 +342,7 @@ export interface InstructionsCheque {
   reference: string
 }
 
-/** Règlement hors prélèvement : virement au compte courant du syndicat, à défaut d'IBAN valide, chèque (🔵). */
+/** Règlement hors prélèvement : virement au compte qui reçoit les règlements (ap-03), à défaut chèque (🔵). */
 export type InstructionsHorsPrelevement = InstructionsVirement | InstructionsCheque
 
 export interface InstructionsPrelevement {
@@ -334,10 +366,53 @@ export interface InstructionsPrelevement {
   mandat: MandatPrelevement | null
 }
 
-/** Jamais « Espèces » : l'avis n'invite pas à payer en espèces (J25, J29), il donne le règlement hors prélèvement. */
-export type InstructionsReglement = InstructionsPrelevement | InstructionsVirement | InstructionsCheque | { mode: 'TIP' | 'Pas de règlement' }
+/** Décision du 20/11/2026 (partie C, F118) : TIP encore reçus par le cabinet ; instructions du gabarit fourni par la banque. */
+export interface InstructionsTip {
+  mode: 'TIP'
+  /** Gabarit d'instructions TIP fourni par la banque (ReglageTip). */
+  texte: string
+  /** N° du compte 450 (clé de rapprochement). */
+  reference: string
+}
 
-export type CleMentionAvis = 'voie_postale' | 'ordre_du_jour' | 'fonds_travaux' | 'prenotification' | 'decision_administrateur' | 'provision_art_43'
+/**
+ * Jamais « Espèces » : l'avis n'invite pas à payer en espèces (J25, J29), il donne le règlement hors prélèvement. TIP
+ * sans réglage du cabinet (F118) : signalé, sans instructions.
+ */
+export type InstructionsReglement =
+  | InstructionsPrelevement
+  | InstructionsVirement
+  | InstructionsCheque
+  | InstructionsTip
+  | { mode: 'TIP' | 'Pas de règlement' }
+
+/**
+ * Décision du 20/11/2026 (partie C, F118) — réglage du cabinet : reçoit-il encore des TIP ? Sinon, le mode « TIP » est
+ * refusé pour un nouveau compte et remplacé par le virement sur l'avis ; s'il en reçoit, le gabarit d'instructions
+ * fourni par la banque.
+ */
+export type ReglageTip = { tipRecuRecemment: false } | { tipRecuRecemment: true; gabaritInstructions: string }
+
+/** « echeance_financee_par_le_fonds » : décision du 20/11/2026 (partie C, F108). */
+export type CleMentionAvis =
+  | 'voie_postale'
+  | 'ordre_du_jour'
+  | 'fonds_travaux'
+  | 'prenotification'
+  | 'decision_administrateur'
+  | 'provision_art_43'
+  | 'echeance_financee_par_le_fonds'
+
+/**
+ * Décision du 20/11/2026 (partie C, F108) : échéance à 0 € appelée sans écriture (echeancier-appels.EcheanceAppelSuivie
+ * passée par marquerAppeleeSansEcriture), mentionnée pour information sur l'avis suivant.
+ */
+export interface EcheanceAppeleeSansEcriture {
+  id: string
+  libelle: string
+  exigibilite: string
+  appelSansEcriture?: { le: string; trace: string } | null
+}
 
 export interface MentionAvis {
   cle: CleMentionAvis
@@ -367,6 +442,9 @@ export type CodeAnomalieAvis =
   | 'avant_exigibilite'
   | 'nature_non_couverte'
   | 'iban_syndicat_invalide'
+  | 'compte_encaissement_non_designe'
+  | 'prelevement_compte_non_syndicat'
+  | 'beneficiaire_a_verifier'
   | 'mode_non_pris_en_charge'
   | 'especes_refusees'
   | 'reglement_attendu'
@@ -376,6 +454,7 @@ export type CodeAnomalieAvis =
   | 'sous_montant_bloque'
   | 'cotisation_a_virer'
   | 'autorisation_art_43_manquante'
+  | 'tip_abandonne'
 
 export interface AnomalieAvis {
   code: CodeAnomalieAvis
@@ -394,7 +473,17 @@ export interface ContenuAvisCompte {
   /** Mandataire commun des indivisaires (J10) : il reçoit l'avis principal (J67, R100) ; null : aucun désigné. */
   mandataireCommunId: string | null
   dateEmission: string
+  /** Exigibilité la plus tardive des lignes dues, plus le délai de courtoisie du cabinet (0 par défaut). */
   aReglerAvantLe: string
+  /** Décision du 20/11/2026 (partie C, F114) : délai de courtoisie, réglage du cabinet ; il ne change jamais l'exigibilité. */
+  delaiCourtoisieJours: number
+  /**
+   * Décision du 20/11/2026 (partie C, F114) : « à régler avant le … » (délai 0), ou « exigible le … ; à régler au plus
+   * tard le … » avec un délai de courtoisie.
+   */
+  libelleDateLimite: string
+  /** Décision du 20/11/2026 (partie C, F114) : le délai de courtoisie affiché comme un réglage du cabinet ; null sans délai. */
+  mentionDelaiCourtoisie: string | null
   parExigibilite: { exigibilite: string; montantCentimes: number }[]
   lignes: LigneContenuAvis[]
   provisionsCentimes: number
@@ -435,12 +524,18 @@ export interface OptionsContenuAvis {
   comptes: CompteCoproprietaire[]
   segmentSyndicat: string
   syndicat: { nom: string; adresse: string }
-  /** IBAN du compte courant du syndicat (virement) ; null : non renseigné. */
-  ibanSyndicat: string | null
+  /**
+   * Compte qui reçoit les règlements, désigné selon le mode de tenue du mandat (ap-03, comptes-bancaires.ts :
+   * compteEncaissement) : son IBAN sert au virement ; non désigné, l'avis entier est bloqué.
+   */
+  compteEncaissement: CompteEncaissement
   /** Identifiant créancier SEPA du syndicat ; null : non renseigné. */
   ics: string | null
   dateEmission: string
-  /** Délai de gestion ajouté à l'exigibilité pour « À régler avant le » ; 0 par défaut. */
+  /**
+   * Délai de courtoisie ajouté à l'exigibilité pour « À régler avant le » ; 0 par défaut. Réglage du cabinet, affiché comme
+   * tel ; il ne change jamais l'exigibilité (décision du 20/11/2026, partie C, F114).
+   */
   delaiReglementJours?: number
   reglements: ReglementCompte[]
   /** Date du débit, portée sur l'avis (pré-notification) et reprise par le fichier de prélèvement. */
@@ -461,6 +556,16 @@ export interface OptionsContenuAvis {
   decisionsAdministrateur?: DecisionAdministrateurEcheance[]
   /** Comptes en contentieux (colonne « Ctx ») : prélèvement suspendu, l'avis donne le règlement hors prélèvement. */
   comptesEnContentieux?: ReadonlySet<string>
+  /**
+   * Décision du 20/11/2026 (partie C, F118) : TIP encore reçus par le cabinet ou non (creerReglageTip) ; absent ou null :
+   * réglage à renseigner, le TIP reste signalé sans instructions.
+   */
+  reglageTip?: ReglageTip | null
+  /**
+   * Décision du 20/11/2026 (partie C, F108) : échéances à 0 € appelées sans écriture depuis l'avis précédent, au plus tard
+   * le jour de l'émission ; mentionnées pour information sur l'avis de chaque compte, hors du total.
+   */
+  echeancesAppeleesSansEcriture?: readonly EcheanceAppeleeSansEcriture[]
 }
 
 // ─── Outils ──────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -604,6 +709,34 @@ function mentionVoiePostale(regime: RegimeAdministrateurProvisoire | null): Ment
   return { cle: 'voie_postale', texte: mention.texte, fondement }
 }
 
+/** Une échéance appelée sans écriture, telle que l'avis suivant la mentionne (F108). */
+function texteEcheanceSansEcriture(e: EcheanceAppeleeSansEcriture, dateEmission: string): string {
+  const appel = e.appelSansEcriture
+  if (!appel)
+    throw new Error(`Échéance « ${e.id} » pas appelée sans écriture (echeancier-appels.marquerAppeleeSansEcriture) : rien à mentionner sur l'avis (décision du 20/11/2026, partie C, F108).`)
+  verifierDate(`Échéance « ${e.id} » : jour de l'appel sans écriture`, appel.le)
+  if (appel.le > dateEmission)
+    throw new Error(
+      `Échéance « ${e.id} » appelée le ${dateIsoVersFr(appel.le)}, après l'émission de l'avis du ${dateIsoVersFr(dateEmission)} : elle se mentionne sur l'avis suivant (décision du 20/11/2026, partie C, F108).`,
+    )
+  return `échéance « ${e.libelle} », exigible le ${dateIsoVersFr(e.exigibilite)}, appelée le ${dateIsoVersFr(appel.le)} sans écriture : ${appel.trace}`
+}
+
+/**
+ * Décision du 20/11/2026 (partie C, F108) — mention, pour information, des échéances à 0 € appelées sans écriture depuis
+ * l'avis précédent ; null s'il n'y en a aucune. Refuse une échéance qui n'est pas appelée sans écriture, ou appelée après
+ * l'émission de l'avis.
+ */
+function mentionEcheancesSansEcriture(options: OptionsContenuAvis): MentionAvis | null {
+  const echeances = options.echeancesAppeleesSansEcriture ?? []
+  if (echeances.length === 0) return null
+  return {
+    cle: 'echeance_financee_par_le_fonds',
+    texte: `Pour information : ${echeances.map((e) => texteEcheanceSansEcriture(e, options.dateEmission)).join(' ; ')} ; aucune somme à payer.`,
+    fondement: 'D. 2005-240 art. 3 et 4 ; décision du 20/11/2026 (partie C, F108)',
+  }
+}
+
 function mentionsDuCompte(lignes: LigneContenuAvis[], instructions: InstructionsReglement | null, decisions: string[], ctx: ContexteAvis): MentionAvis[] {
   const mentions: MentionAvis[] = [mentionVoiePostale(ctx.options.administrateurProvisoire ?? null), MENTION_ORDRE_DU_JOUR]
   if (totalNature(lignes, 'fonds_travaux') > 0) mentions.push(MENTION_FONDS_TRAVAUX)
@@ -611,6 +744,7 @@ function mentionsDuCompte(lignes: LigneContenuAvis[], instructions: Instructions
   if (debit) mentions.push(mentionPrenotification(debit))
   if (decisions.length > 0) mentions.push(mentionDecision(decisions))
   if (lignes.some((l) => ctx.echeances.get(l.echeanceId)?.provisionArt43)) mentions.push(MENTION_PROVISION_ART_43)
+  if (ctx.mentionSansEcriture) mentions.push(ctx.mentionSansEcriture)
   return mentions
 }
 
@@ -832,10 +966,20 @@ const instructionsCheque = (base: BaseCompte, options: OptionsContenuAvis): Inst
   reference: base.numeroCompte,
 })
 
-/** Règlement hors prélèvement : virement au compte courant du syndicat, à défaut d'IBAN valide, chèque (🔵). */
+/** IBAN valide du compte qui reçoit les règlements ; null : compte non désigné ou IBAN invalide. */
+const ibanDEncaissement = (options: OptionsContenuAvis): string | null => {
+  const compte = options.compteEncaissement
+  return compte.designe && validerIban(compte.iban) ? compte.iban : null
+}
+
+/** Libellé du compte qui reçoit les règlements, en minuscule initiale, pour les messages de l'avis. */
+const libelleDEncaissement = (compte: CompteEncaissement): string =>
+  compte.designe ? compte.libelle.charAt(0).toLowerCase() + compte.libelle.slice(1) : 'compte qui reçoit les règlements'
+
+/** Règlement hors prélèvement : virement au compte qui reçoit les règlements (ap-03), à défaut chèque (🔵). */
 function instructionsHorsPrelevement(base: BaseCompte, options: OptionsContenuAvis): InstructionsHorsPrelevement {
-  const iban = options.ibanSyndicat
-  return iban && validerIban(iban) ? instructionsVirement(base, options, iban) : instructionsCheque(base, options)
+  const iban = ibanDEncaissement(options)
+  return iban ? instructionsVirement(base, options, iban) : instructionsCheque(base, options)
 }
 
 /** Montant pré-notifié = min(natures couvertes par le mandat, maxi, total à payer), jamais négatif. */
@@ -900,9 +1044,14 @@ function reglementParPrelevement(base: BaseCompte, mandat: MandatPrelevement | n
 }
 
 function reglementParVirement(base: BaseCompte, options: OptionsContenuAvis): ResultatReglement {
-  const iban = options.ibanSyndicat
-  if (!iban || !validerIban(iban))
-    return { instructions: null, anomalies: [anomalie('iban_syndicat_invalide', 'bloquant', 'Virement : IBAN du compte courant du syndicat absent ou invalide.')] }
+  const iban = ibanDEncaissement(options)
+  if (!iban) {
+    const compte = options.compteEncaissement
+    const message = compte.designe
+      ? `Virement : IBAN du ${libelleDEncaissement(compte)} absent ou invalide.`
+      : 'Virement : aucun compte désigné pour recevoir les règlements.'
+    return { instructions: null, anomalies: [anomalie('iban_syndicat_invalide', 'bloquant', message)] }
+  }
   return { instructions: instructionsVirement(base, options, iban), anomalies: [] }
 }
 
@@ -912,10 +1061,30 @@ function reglementHorsPrelevementAuLieuDuMode(
   options: OptionsContenuAvis,
   code: CodeAnomalieAvis,
   motif: (reglement: string) => string,
+  fondement: string | null = null,
 ): ResultatReglement & { mode: ModeReglement } {
   const instructions = instructionsHorsPrelevement(base, options)
-  return { mode: instructions.mode, instructions, anomalies: [anomalie(code, 'avertissement', motif(texteHorsPrelevement(instructions)))] }
+  return { mode: instructions.mode, instructions, anomalies: [anomalie(code, 'avertissement', motif(texteHorsPrelevement(instructions)), fondement)] }
 }
+
+const FONDEMENT_COMPTE_CREANCIER = 'Recueil EPC SDD Core 2025, § 3.1 et AT-C001 (compte du créancier ; règle du schéma, pas un texte de loi)'
+const FONDEMENT_VERIFICATION_BENEFICIAIRE = 'Règl. (UE) n° 260/2012, art. 5 quater, § 1, a), § 5 et § 9 (inséré par le règl. (UE) 2024/886)'
+
+/**
+ * Décision du 22/11/2026 (ap-03, choix prudent à valider) — prélèvement vers un compte non établi au nom du syndicat
+ * (Caisse des dépôts, sous-compte du centralisateur) : le recueil EPC vise le compte du créancier (§ 3.1, AT-C001), et
+ * que le syndicat, créancier de l'avis, en soit titulaire n'est pas établi ; aucun débit n'est annoncé, le règlement
+ * passe hors prélèvement, comme en contentieux.
+ */
+const reglementVersCompteNonSyndicat = (base: BaseCompte, options: OptionsContenuAvis): ResultatReglement & { mode: ModeReglement } =>
+  reglementHorsPrelevementAuLieuDuMode(
+    base,
+    options,
+    'prelevement_compte_non_syndicat',
+    (reglement) =>
+      `Compte ${base.numeroCompte} : aucun prélèvement annoncé, le compte qui reçoit les règlements (${libelleDEncaissement(options.compteEncaissement)}) n'est pas établi au nom du syndicat, créancier du prélèvement SEPA ; l'avis indique le règlement par ${reglement}.`,
+    FONDEMENT_COMPTE_CREANCIER,
+  )
 
 /** Compte en contentieux : prélèvement suspendu (preparerLotPrelevements l'exclut par défaut), règlement hors prélèvement. */
 const reglementSuspendu = (base: BaseCompte, options: OptionsContenuAvis): ResultatReglement & { mode: ModeReglement } =>
@@ -939,6 +1108,62 @@ const reglementEspecesRefusees = (base: BaseCompte, options: OptionsContenuAvis)
       `Compte ${base.numeroCompte} : mode « Espèces » refusé (aucun encaissement en espèces, compte 53 « Caisse » non tenu : décisions J25, J29) ; l'avis indique le règlement par ${reglement} ; changer le mode de règlement du compte.`,
   )
 
+const DECISION_TIP = 'décision du 20/11/2026, partie C, F118'
+
+/**
+ * Décision du 20/11/2026 (partie C, F118) — mode « TIP » : sans TIP reçu récemment par le cabinet, l'avis passe au
+ * virement (à défaut d'IBAN valide, chèque), avec un avertissement ; s'il en reçoit, le gabarit d'instructions de la
+ * banque ; sans réglage du cabinet, signalé sans instructions.
+ */
+function reglementParTip(base: BaseCompte, options: OptionsContenuAvis): ResultatReglementMode {
+  const reglage = options.reglageTip ?? null
+  if (reglage === null)
+    return {
+      mode: 'TIP',
+      instructions: { mode: 'TIP' },
+      anomalies: [
+        anomalie(
+          'mode_non_pris_en_charge',
+          'avertissement',
+          `TIP : réglage TIP du cabinet à renseigner (TIP reçus récemment ou non : ${DECISION_TIP}) ; sans lui, mode de règlement sans instructions automatiques, les rédiger sur l'avis.`,
+        ),
+      ],
+    }
+  if (reglage.tipRecuRecemment) return { mode: 'TIP', instructions: { mode: 'TIP', texte: reglage.gabaritInstructions, reference: base.numeroCompte }, anomalies: [] }
+  return reglementHorsPrelevementAuLieuDuMode(
+    base,
+    options,
+    'tip_abandonne',
+    (reglement) =>
+      `Compte ${base.numeroCompte} : mode « TIP » abandonné, aucun TIP reçu récemment par le cabinet (${DECISION_TIP}) ; l'avis indique le règlement par ${reglement} ; passer le compte au virement.`,
+  )
+}
+
+/**
+ * Décision du 20/11/2026 (partie C, F118) — réglage du cabinet sur le TIP : TIP encore reçus, avec le gabarit
+ * d'instructions fourni par la banque (exigé, rogné), ou non (sans gabarit). Refuse un gabarit manquant ou vide quand des
+ * TIP sont reçus, un gabarit donné quand aucun TIP n'est reçu.
+ */
+export function creerReglageTip({ tipRecuRecemment, gabaritInstructions }: { tipRecuRecemment: boolean; gabaritInstructions?: string | null }): ReglageTip {
+  const gabarit = gabaritInstructions?.trim() ?? ''
+  if (!tipRecuRecemment) {
+    if (gabarit) throw new Error(`Réglage TIP : aucun TIP reçu récemment, aucun gabarit d'instructions à garder (${DECISION_TIP}).`)
+    return { tipRecuRecemment: false }
+  }
+  if (!gabarit) throw new Error(`Réglage TIP : TIP encore reçus, gabarit d'instructions TIP fourni par la banque attendu (${DECISION_TIP}).`)
+  return { tipRecuRecemment: true, gabaritInstructions: gabarit }
+}
+
+/**
+ * Décision du 20/11/2026 (partie C, F118) — mode de règlement d'un NOUVEAU compte : « TIP » refusé quand le cabinet ne
+ * reçoit plus de TIP ; tout autre mode, et le TIP avec des TIP encore reçus ou sans réglage du cabinet, passe ici (les
+ * espèces restent refusées à l'avis et à l'encaissement : J25, J29).
+ */
+export function controlerModeReglementNouveauCompte(mode: ModeReglement, reglageTip: ReglageTip | null): void {
+  if (mode === 'TIP' && reglageTip?.tipRecuRecemment === false)
+    throw new Error(`Mode « TIP » refusé pour un nouveau compte : aucun TIP reçu récemment par le cabinet (${DECISION_TIP}) ; choisir le virement ou le prélèvement.`)
+}
+
 function reglementDuCompte(base: BaseCompte, options: OptionsContenuAvis): ResultatReglementMode {
   const reglement = options.reglements.find((r) => r.compteId === base.compteId)
   if (!reglement)
@@ -947,6 +1172,7 @@ function reglementDuCompte(base: BaseCompte, options: OptionsContenuAvis): Resul
   switch (mode) {
     case 'Prélèvement':
       if (options.comptesEnContentieux?.has(base.compteId)) return reglementSuspendu(base, options)
+      if (options.compteEncaissement.designe && !options.compteEncaissement.auNomDuSyndicat) return reglementVersCompteNonSyndicat(base, options)
       return reglementParPrelevement(base, reglement.mandat ?? null, options)
     case 'Virement':
       return { mode, ...reglementParVirement(base, options) }
@@ -954,6 +1180,8 @@ function reglementDuCompte(base: BaseCompte, options: OptionsContenuAvis): Resul
       return { mode, instructions: instructionsCheque(base, options), anomalies: [] }
     case 'Espèces':
       return reglementEspecesRefusees(base, options)
+    case 'TIP':
+      return reglementParTip(base, options)
     case 'Pas de règlement':
       return {
         mode,
@@ -974,6 +1202,8 @@ interface ContexteAvis {
   emplois: Map<string, EmploiFondsCompte[]>
   /** Référence de la décision de l'administrateur provisoire par échéance (D. 1967 art. 62-9). */
   decisions: Map<string, string>
+  /** Décision du 20/11/2026 (partie C, F108) : échéances à 0 € appelées sans écriture, pour information ; null : aucune. */
+  mentionSansEcriture: MentionAvis | null
 }
 
 function ligneDuPoste(poste: PosteDette, echeances: Map<string, EcheanceAppel>): LigneContenuAvis {
@@ -1009,6 +1239,27 @@ function anomaliesCalendrier(dateEmission: string, exigibilites: string[]): Anom
 
 const totalNature = (lignes: LigneContenuAvis[], nature: NatureEcheance): number => somme(lignes.filter((l) => l.nature === nature))
 
+/**
+ * Décision du 20/11/2026 (partie C, F114) — date limite de l'avis : sans délai, « à régler avant le » l'exigibilité ;
+ * avec un délai de courtoisie du cabinet, « exigible le … ; à régler au plus tard le … », le délai affiché comme un
+ * réglage du cabinet qui ne change pas l'exigibilité.
+ */
+function dateLimite(
+  exigibilites: string[],
+  { dateEmission, delaiReglementJours = 0 }: OptionsContenuAvis,
+): Pick<ContenuAvisCompte, 'aReglerAvantLe' | 'delaiCourtoisieJours' | 'libelleDateLimite' | 'mentionDelaiCourtoisie'> {
+  const aReglerAvantLe = ajouterJours(exigibilites.at(-1) ?? dateEmission, delaiReglementJours)
+  const base = { aReglerAvantLe, delaiCourtoisieJours: delaiReglementJours }
+  if (delaiReglementJours === 0 || exigibilites.length === 0)
+    return { ...base, libelleDateLimite: `à régler avant le ${dateIsoVersFr(aReglerAvantLe)}`, mentionDelaiCourtoisie: null }
+  const exigible = exigibilites.map(dateIsoVersFr).join(', le ')
+  return {
+    ...base,
+    libelleDateLimite: `exigible le ${exigible} ; à régler au plus tard le ${dateIsoVersFr(aReglerAvantLe)}`,
+    mentionDelaiCourtoisie: `Délai de courtoisie de ${delaiReglementJours} jours, réglage du cabinet : il ne change pas l'exigibilité, dont partent les relances et la procédure de l'art. 19-2 (L. 1965 art. 14-1 ; décision du 20/11/2026, partie C, F114).`,
+  }
+}
+
 function contenuDuCompte(avisCompte: AvisCompte, ctx: ContexteAvis): ContenuAvisCompte {
   const { options } = ctx
   const compte = options.comptes.find((c) => c.id === avisCompte.compteId)
@@ -1027,7 +1278,7 @@ function contenuDuCompte(avisCompte: AvisCompte, ctx: ContexteAvis): ContenuAvis
     libelleCompte: compte.libelle,
     mandataireCommunId: compte.mandataireCommunId?.trim() || null,
     dateEmission: options.dateEmission,
-    aReglerAvantLe: ajouterJours(exigibilites.at(-1) ?? options.dateEmission, options.delaiReglementJours ?? 0),
+    ...dateLimite(exigibilites, options),
     parExigibilite: exigibilites.map((exigibilite) => ({ exigibilite, montantCentimes: somme(lignes.filter((l) => l.exigibilite === exigibilite)) })),
     lignes,
     provisionsCentimes: totalNature(lignes, 'budget'),
@@ -1045,8 +1296,31 @@ function contenuDuCompte(avisCompte: AvisCompte, ctx: ContexteAvis): ContenuAvis
   }
 }
 
-function anomaliesDeLAvis(dateEmission: string, parCompte: ContenuAvisCompte[]): AnomalieAvis[] {
-  const anomalies: AnomalieAvis[] = []
+/** Virement donné par l'avis d'un compte : son mode de règlement, ou le reste hors prélèvement. */
+const donneUnVirement = (c: ContenuAvisCompte): boolean =>
+  c.instructions?.mode === 'Virement' || (c.instructions?.mode === 'Prélèvement' && c.instructions.horsPrelevement.mode === 'Virement')
+
+/**
+ * ap-03 : compte qui reçoit les règlements non désigné (bloquant), ou bénéficiaire du virement à vérifier (avertissement :
+ * une non-concordance alerte le payeur sans empêcher le virement, art. 5 quater, § 5 ; que la Caisse des dépôts y réponde
+ * pour les virements qu'elle reçoit reste à confirmer).
+ */
+function anomaliesDuCompteDEncaissement(compte: CompteEncaissement, parCompte: ContenuAvisCompte[]): AnomalieAvis[] {
+  if (!compte.designe) return [anomalie('compte_encaissement_non_designe', 'bloquant', `Compte qui reçoit les règlements non désigné : ${compte.motif}.`)]
+  if (compte.auNomDuSyndicat || !parCompte.some(donneUnVirement)) return []
+  return [
+    anomalie(
+      'beneficiaire_a_verifier',
+      'avertissement',
+      `Virement au ${libelleDEncaissement(compte)} : l'avis nomme le syndicat comme bénéficiaire, alors que le titulaire de ce compte n'est pas établi comme le syndicat ; vérifier l'intitulé exact du compte avant la diffusion (vérification du nom du bénéficiaire par la banque du payeur).`,
+      FONDEMENT_VERIFICATION_BENEFICIAIRE,
+    ),
+  ]
+}
+
+function anomaliesDeLAvis(options: OptionsContenuAvis, parCompte: ContenuAvisCompte[]): AnomalieAvis[] {
+  const { dateEmission } = options
+  const anomalies: AnomalieAvis[] = anomaliesDuCompteDEncaissement(options.compteEncaissement, parCompte)
   if (dateEmission < ENTREE_EN_VIGUEUR_VOIE_ELECTRONIQUE)
     anomalies.push(
       anomalie(
@@ -1059,7 +1333,12 @@ function anomaliesDeLAvis(dateEmission: string, parCompte: ContenuAvisCompte[]):
   const cotisations = parCompte.reduce((s, c) => s + c.souscriptionFondsTravauxCentimes, 0)
   if (cotisations > 0)
     anomalies.push(
-      anomalie('cotisation_a_virer', 'information', `Cotisations au fonds de travaux appelées (${eur(cotisations)}) : à verser sans délai sur le compte séparé rémunéré du syndicat ; encaissées sur le compte courant, elles y sont virées.`, 'L. 1965 art. 18, II'),
+      anomalie(
+        'cotisation_a_virer',
+        'information',
+        `Cotisations au fonds de travaux appelées (${eur(cotisations)}) : à verser sans délai sur le compte séparé rémunéré du syndicat ; encaissées sur le ${libelleDEncaissement(options.compteEncaissement)}, elles y sont virées.`,
+        'L. 1965 art. 18, II',
+      ),
     )
   return anomalies
 }
@@ -1080,19 +1359,20 @@ export function contenuAvisAppel(avis: AvisAppels, options: OptionsContenuAvis):
     postes: postesDepuisAvis(avis, options.cles),
     emplois: emplois.parCompte,
     decisions: decisionsParEcheance(options, echeances),
+    mentionSansEcriture: mentionEcheancesSansEcriture(options),
   }
   const parCompte = avis.parCompte.map((a) => contenuDuCompte(a, contexte))
   return {
     dateEmission: options.dateEmission,
     datePrelevement: options.datePrelevement ?? null,
     parCompte,
-    anomalies: [...anomaliesDeLAvis(options.dateEmission, parCompte), ...emplois.anomalies, ...anomaliesArt43(avis.echeances)],
+    anomalies: [...anomaliesDeLAvis(options, parCompte), ...emplois.anomalies, ...anomaliesArt43(avis.echeances)],
   }
 }
 
 // ─── Adaptateur vers le prélèvement ──────────────────────────────────────────────────────────────────────────────
 
-export type MotifEcartPrelevement = 'mode_reglement' | 'contentieux' | 'contenu_bloque' | 'montant_nul' | 'prenotification_absente'
+export type MotifEcartPrelevement = 'mode_reglement' | 'contentieux' | 'compte_non_syndicat' | 'contenu_bloque' | 'montant_nul' | 'prenotification_absente'
 
 /**
  * Code propre à l'adaptateur, « prenotification_autre_debit » : le courrier préparé pour le détenteur porte un autre débit
@@ -1125,9 +1405,13 @@ export interface OptionsEcheancesPrelevement {
   soldesDus?: Readonly<Record<string, number>>
 }
 
-/** Débit retiré de l'avis par son contenu, et motif de l'écart : contentieux, détenteur que la pré-notification ne peut atteindre. */
+/**
+ * Débit retiré de l'avis par son contenu, et motif de l'écart : contentieux, compte qui reçoit les règlements non établi
+ * au nom du syndicat (ap-03), détenteur que la pré-notification ne peut atteindre.
+ */
 const DEBITS_RETIRES: readonly (readonly [CodeAnomalieAvis, MotifEcartPrelevement])[] = [
   ['prelevement_suspendu', 'contentieux'],
+  ['prelevement_compte_non_syndicat', 'compte_non_syndicat'],
   ['prenotification_sans_detenteur', 'prenotification_absente'],
 ]
 
@@ -1337,6 +1621,8 @@ function texteInstructions(i: InstructionsReglement | null): string | null {
       return `Par ${texteVirement(i)}.`
     case 'Chèque':
       return `Par ${texteCheque(i)}.`
+    case 'TIP':
+      return 'texte' in i ? `Par TIP : ${i.texte} Référence : ${i.reference}.` : i.mode
     default:
       return i.mode
   }
@@ -1352,6 +1638,8 @@ function valeursFusionAvis(compte: ContenuAvisCompte, destinataire: { nom: strin
     'compte.numero': compte.numeroCompte,
     'appel.dateEmission': compte.dateEmission,
     'appel.aReglerAvantLe': compte.aReglerAvantLe,
+    'appel.dateLimite': compte.libelleDateLimite,
+    'mention.delaiCourtoisie': compte.mentionDelaiCourtoisie,
     'appel.lignes': texteLignes(compte.lignes),
     'appel.totalAppeleCentimes': compte.totalAppeleCentimes,
     'appel.soldeAnterieurCentimes': compte.soldeAnterieurCentimes,
@@ -1366,6 +1654,7 @@ function valeursFusionAvis(compte: ContenuAvisCompte, destinataire: { nom: strin
     'mention.prenotification': texteMention(compte, 'prenotification'),
     'mention.decisionAdministrateur': texteMention(compte, 'decision_administrateur'),
     'mention.provisionArt43': texteMention(compte, 'provision_art_43'),
+    'mention.echeancesSansEcriture': texteMention(compte, 'echeance_financee_par_le_fonds'),
   }
   const debit = debitAnnonce(compte.instructions)
   if (debit) Object.assign(valeurs, champsDuDebit(compte, debit), { 'prelevement.resteCentimes': debit.resteHorsPrelevementCentimes })
@@ -1581,7 +1870,7 @@ function diffusionPour(compte: ContenuAvisCompte, identite: Identite, duCompte: 
   const courrier = anomalies.some((a) => a.gravite === 'bloquant')
     ? null
     : preparerCourrier(modele, {
-        objet: `Avis d'appel de fonds — compte ${compte.numeroCompte} — à régler avant le ${dateIsoVersFr(compte.aReglerAvantLe)}`,
+        objet: `Avis d'appel de fonds — compte ${compte.numeroCompte} — ${compte.libelleDateLimite}`,
         coproprieteId: options.coproprieteId,
         mandatId: options.mandatId,
         personneId: identite.id,
@@ -1771,4 +2060,68 @@ export function effetsMutationSurAvis(avant: ContenuAvisAppel, apres: ContenuAvi
     comptesARediffuser: [...new Set(ordre)].filter((id) => touches.has(id)),
     prelevementsAnnules: prelevementsAnnules(avant, apres, new Set(postesTransferes.map((p) => p.deCompteId)), diffusionsAvant),
   }
+}
+
+// ─── Contentieux ouvert après l'avis (décision du 20/11/2026, partie C, F116) ─────────────────────────────────────
+
+/** Décision du 20/11/2026 (partie C, F116) : nature du courrier qui dit que le prélèvement annoncé n'aura pas lieu. */
+export const NATURE_COURRIER_PRELEVEMENT_ANNULE =
+  "courrier simple d'information (ou courriel à l'adresse des avis) : pas un acte du contentieux, qui garde ses propres pièces"
+
+/** Prélèvement annoncé par l'avis, écarté par le lot parce que le compte est passé en contentieux depuis : le courrier à préparer. */
+export interface PrelevementAnnuleContentieux extends PrelevementAnnule {
+  /** Canal de l'avis reçu par le détenteur du compte débité : courriel à l'adresse des avis, sinon lettre simple. */
+  canal: CanalAvis | null
+  adresseElectronique: string | null
+  adressePostale: AdresseDatee | null
+  nature: typeof NATURE_COURRIER_PRELEVEMENT_ANNULE
+}
+
+function messagePrelevementAnnuleContentieux(compte: ContenuAvisCompte, debit: DebitAnnonce): string {
+  return `Le prélèvement SEPA de ${eur(debit.montantCentimes)} annoncé pour le ${dateIsoVersFr(debit.date)} (mandat ${debit.rum}) par l'avis du ${dateIsoVersFr(compte.dateEmission)} n'aura pas lieu ; merci de régler ${eur(debit.montantCentimes)} par ${texteHorsPrelevement(debit.horsPrelevement)}.`
+}
+
+/** Courrier pour un compte écarté par le lot ; null si l'avis n'annonçait aucun débit ou si le détenteur ne l'a pas reçu. */
+function courrierPrelevementAnnule(compte: ContenuAvisCompte, diffusions: readonly DiffusionAvisCompte[]): PrelevementAnnuleContentieux | null {
+  const debit = debitAnnonce(compte.instructions)
+  if (!debit) return null
+  const prevenu = diffusions.find((d) => d.compteId === compte.compteId && d.prenotification && d.courrier !== null && d.identiteId !== null)
+  if (!prevenu?.identiteId) return null
+  return {
+    compteId: compte.compteId,
+    identiteId: prevenu.identiteId,
+    montantCentimes: debit.montantCentimes,
+    date: debit.date,
+    message: messagePrelevementAnnuleContentieux(compte, debit),
+    canal: prevenu.canal,
+    adresseElectronique: prevenu.adresseElectronique,
+    adressePostale: prevenu.adressePostale,
+    nature: NATURE_COURRIER_PRELEVEMENT_ANNULE,
+  }
+}
+
+/**
+ * Décision du 20/11/2026 (partie C, F116) — comptes que le lot de prélèvements (prelevements-sepa.preparerLotPrelevements)
+ * écarte parce qu'ils sont passés en contentieux après l'avis qui annonçait le débit : pour chacun dont le détenteur a reçu
+ * la pré-notification (courrier préparé de la diffusion), le courrier simple ou le courriel, au canal et à l'adresse de
+ * l'avis, qui dit que le prélèvement annoncé n'aura pas lieu et invite à régler par virement (à défaut d'IBAN valide du
+ * syndicat, par chèque), sur le modèle du message de J67, R113. Ce courrier n'est pas un acte du contentieux
+ * (NATURE_COURRIER_PRELEVEMENT_ANNULE). Un compte déjà en contentieux à l'émission n'a aucun débit annoncé : aucun courrier.
+ * `echeances` : celles d'echeancesPrelevementDepuisAvis passées au lot. Refuse une exclusion du lot dont l'échéance est
+ * absente des échéances, ou dont le compte est absent de l'avis.
+ */
+export function prelevementsAnnulesParContentieux(
+  contenu: ContenuAvisAppel,
+  { echeances, lot, diffusions }: { echeances: readonly EcheancePrelevement[]; lot: LotPrelevements; diffusions: readonly DiffusionAvisCompte[] },
+): PrelevementAnnuleContentieux[] {
+  return lot.exclues
+    .filter((x) => x.motif === 'contentieux')
+    .flatMap((x) => {
+      const echeance = echeances.find((e) => e.id === x.id)
+      if (!echeance) throw new Error(`Échéance de prélèvement « ${x.id} » écartée par le lot, absente des échéances passées.`)
+      const compte = contenu.parCompte.find((c) => c.numeroCompte === echeance.compteCoproprietaire)
+      if (!compte) throw new Error(`Compte ${echeance.compteCoproprietaire} de l'échéance « ${x.id} » absent de l'avis.`)
+      const courrier = courrierPrelevementAnnule(compte, diffusions)
+      return courrier ? [courrier] : []
+    })
 }

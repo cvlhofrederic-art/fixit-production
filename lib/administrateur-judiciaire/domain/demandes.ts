@@ -84,6 +84,20 @@ import type { StatutOrdreMission } from '@/lib/syndic/messagerie-pro'
  *   montant HT inconnu, le contrôle se fait quand même (vigilance en alerte forte : relecture du 18/11/2026) au lieu
  *   d'échouer, comme sans pièces.
  *
+ * Décisions du 20/11/2026 (partie C des questions ouvertes du code, recommandations acceptées) :
+ * - Décision du 20/11/2026 (partie C, F71) : une intervention « Contestée » reçoit quand même sa facture, avec l'alerte
+ *   « intervention contestée » (alertesRattachementFacture) : une facture reçue s'enregistre, la charge l'étant dès
+ *   l'engagement (L. 1965 art. 14-3) et la facture parvenue allant au 401 (arrêté du 14/03/2005, art. 10). Le bon à payer
+ *   est refusé (statuts-facture.ts, FactureAPayer.interventionContestee, que contestationDeLaFacture tire des demandes),
+ *   et la clôture aussi (intervention_contestee, bloquant), tant que la contestation n'est pas levée : le stade suivant,
+ *   avec un motif obligatoire (OptionsStade.motif), tracé (Demande.leveesContestation) ;
+ * - Décision du 20/11/2026 (partie C, F72) : clôture BLOQUÉE quand l'intervention réalisée n'a ni facture rattachée ni la
+ *   marque « Non facturé » (facture_absente) : des travaux faits sortiraient sinon du 408 « Factures non parvenues » à la
+ *   clôture de l'exercice (arrêté du 14/03/2005, art. 10) ; facture rattachée mais pas encore comptabilisée : alerte
+ *   (facture_non_comptabilisee) ; « Réalisée » suffit, l'absence de « Validée » reste une alerte
+ *   (intervention_non_validee). Comportement en place depuis le 30/10/2026, confirmé ; le sens du bouton « Non facturé »
+ *   de Gestéam reste une question à part (ci-dessous).
+ *
  * 🔵 Déduit (règles de ce module) :
  * - étape de chaque stade et avancement de la frise : voir AVANCEMENT_PAR_STADE ; « Refusée » arrête la frise à
  *   l'acceptation ; le statut « Accepté » vaut acceptation ;
@@ -124,7 +138,6 @@ import type { StatutOrdreMission } from '@/lib/syndic/messagerie-pro'
  *
  * 🔴 Non établi — questions :
  * - Hugo : « Proposition en cours » et « Proposition résident » relèvent-elles de l'étape Demandée (avant l'acceptation) ?
- *   Une intervention « Contestée » bloque-t-elle la facturation et la clôture (bloquant ici) ?
  * - Hugo : le bouton « Non facturé » de l'onglet Suivi marque-t-il la demande comme ne devant pas être facturée, ou
  *   liste-t-il les demandes en attente de facture ?
  * - Hugo : le bouton « Contrôle déclaratif » du bloc Règlement de l'onglet Suivi contrôle-t-il l'entreprise avant l'envoi
@@ -133,8 +146,6 @@ import type { StatutOrdreMission } from '@/lib/syndic/messagerie-pro'
  *   le devis associé garde son propre montant)
  * - Hugo : « À traiter » (Codification/facture) désigne-t-il une facture enregistrée non comptabilisée, ou une pièce de la
  *   corbeille de numérisation non encore associée ?
- * - Hugo : « Terminé » exige-t-il une facture comptabilisée (alerte ici) ou seulement rattachée ? le stade « Validée »
- *   (alerte ici) ou « Réalisée » suffit-il ?
  * - Hugo : les natures « Accord devis » et « Huissier - exécution forcée » sont-elles de la famille Interventions
  *   (classées ainsi ici) ?
  * - Hugo : les statuts « Accepté » / « Refusé » suivent-ils la réponse au devis, et les stades « Acceptée » / « Refusée »
@@ -278,6 +289,15 @@ export interface Demande {
   factureIds: string[]
   /** « Non facturé » : aucune facture attendue (🔴 sens du bouton à confirmer). */
   sansFacture: boolean
+  /** Levées de la contestation (Décision du 20/11/2026, partie C, F71), de la plus ancienne à la plus récente ; absent : aucune. */
+  leveesContestation?: LeveeContestation[]
+}
+
+/** Sortie du stade « Contestée » : date, motif obligatoire et stade suivant (Décision du 20/11/2026, partie C, F71). */
+export interface LeveeContestation {
+  le: string
+  motif: string
+  stade: StadeIntervention
 }
 
 export interface SaisieDemande {
@@ -519,6 +539,22 @@ export interface OptionsStade {
   date: string
   prevuLe?: string
   realiseeLe?: string
+  /** Motif de la levée de la contestation : obligatoire pour quitter « Contestée » (Décision du 20/11/2026, partie C, F71). */
+  motif?: string
+}
+
+/**
+ * Décision du 20/11/2026 (partie C, F71) : la contestation se lève par le stade suivant, avec un motif obligatoire, tracé ;
+ * hors de la sortie de « Contestée », les levées restent telles quelles.
+ */
+function leveesApres(d: Demande, stade: StadeIntervention, { date, motif }: OptionsStade): LeveeContestation[] | undefined {
+  if (d.stade !== 'Contestée' || stade === 'Contestée') return d.leveesContestation
+  const texte = texteOuNull(motif)
+  if (texte === null)
+    throw new Error(
+      `Demande ${d.id} : intervention contestée ; la contestation se lève par le stade suivant avec un motif obligatoire (Décision du 20/11/2026, partie C, F71).`,
+    )
+  return [...(d.leveesContestation ?? []), { le: date, motif: texte, stade }]
 }
 
 function realisationApres(d: Demande, stade: StadeIntervention, { date, realiseeLe }: OptionsStade): string | null {
@@ -532,6 +568,7 @@ function realisationApres(d: Demande, stade: StadeIntervention, { date, realisee
  * Change le stade d'intervention (copie). Programmée exige une date prévue ; Réalisée pose la date de réalisation si elle
  * manque ; Validée et Contestée l'exigent. Aucun ordre strict : l'OS est souvent saisi après l'intervention. Le nouveau
  * stade remplace un stade « Refusée » (réponse revue) ; au statut « Refusé », aucune réalisation : lever le refus d'abord.
+ * Quitter « Contestée » lève la contestation : motif obligatoire, tracé (Décision du 20/11/2026, partie C, F71).
  */
 export function changerStade(d: Demande, stade: StadeIntervention, options: OptionsStade): Demande {
   if (!(STADE_INTERVENTION as readonly string[]).includes(stade)) throw new Error(`Stade inconnu : « ${stade} ».`)
@@ -543,7 +580,8 @@ export function changerStade(d: Demande, stade: StadeIntervention, options: Opti
     throw new Error(`Demande de devis ${d.id} : le stade « ${stade} » relève d'une intervention ; créer l'ordre de service.`)
   const prevuLe = options.prevuLe ?? d.prevuLe
   if (stade === 'Programmée' && prevuLe === null) throw new Error(`Demande ${d.id} : intervention programmée sans date prévue.`)
-  const suite: Demande = { ...d, stade, prevuLe, realiseeLe: realisationApres(d, stade, options) }
+  const levees = leveesApres(d, stade, options)
+  const suite: Demande = { ...d, stade, prevuLe, realiseeLe: realisationApres(d, stade, options), ...(levees ? { leveesContestation: levees } : {}) }
   verifierRefusCoherent(d, suite)
   return suite
 }
@@ -620,7 +658,31 @@ export function motifRefusFacture(d: Demande): string | null {
   return null
 }
 
-/** Rattache une facture à la demande (idempotent). */
+/**
+ * Alertes au rattachement d'une facture (Décision du 20/11/2026, partie C, F71) : une intervention « Contestée » reçoit sa
+ * facture, mais ni bon à payer ni clôture tant que la contestation n'est pas levée ; vide sinon.
+ */
+export function alertesRattachementFacture(d: Demande): AnomalieDemande[] {
+  if (d.stade !== 'Contestée') return []
+  return [
+    anomalie(
+      'intervention_contestee',
+      'alerte',
+      "Intervention contestée : la facture s'enregistre (charge dès l'engagement, L. 1965 art. 14-3 ; facture parvenue au 401, arrêté du 14/03/2005, art. 10), mais ni bon à payer ni clôture tant que la contestation n'est pas levée (stade suivant, avec un motif) — Décision du 20/11/2026 (partie C, F71).",
+    ),
+  ]
+}
+
+/**
+ * Demande contestée qui porte la facture (Décision du 20/11/2026, partie C, F71), pour FactureAPayer.interventionContestee
+ * (statuts-facture.ts : ni bon à payer ni nouvel ordre) ; null si aucune.
+ */
+export function contestationDeLaFacture(factureId: string, demandes: readonly Demande[]): { demandeId: string } | null {
+  const enCause = demandes.find((d) => d.stade === 'Contestée' && d.factureIds.includes(factureId.trim()))
+  return enCause ? { demandeId: enCause.id } : null
+}
+
+/** Rattache une facture à la demande (idempotent ; intervention contestée : alertesRattachementFacture). */
 export function rattacherFacture(d: Demande, factureId: string): Demande {
   const id = factureId.trim()
   if (!id) throw new Error('Facture à rattacher : identifiant attendu.')
@@ -656,7 +718,14 @@ export const demandesNonFacturees = (demandes: readonly Demande[]): Demande[] =>
   demandes.filter((d) => motifRefusFacture(d) === null && d.factureIds.length === 0 && estRealisee(d))
 
 function anomaliesRealisation(d: Demande): AnomalieDemande[] {
-  if (d.stade === 'Contestée') return [anomalie('intervention_contestee', 'bloquant', 'Intervention contestée : régler la contestation avant la clôture.')]
+  if (d.stade === 'Contestée')
+    return [
+      anomalie(
+        'intervention_contestee',
+        'bloquant',
+        'Intervention contestée : lever la contestation (stade suivant, avec un motif) avant la clôture — Décision du 20/11/2026 (partie C, F71).',
+      ),
+    ]
   if (d.stade === 'Réalisée')
     return [anomalie('intervention_non_validee', 'alerte', "Intervention réalisée mais non validée : vérifier l'intervention avant la clôture.")]
   if (d.stade === 'Validée') return []
@@ -679,8 +748,9 @@ const refuseeSansSuite = (d: Demande): boolean => estRefusee(d) && !realiseeOuFa
  * Contrôles avant la clôture. Une demande de devis, ou une demande refusée sans réalisation ni facture, se clôt sans
  * contrôle. Pour une intervention : refus contradictoire (refusée mais réalisée ou facturée, état que les fonctions de ce
  * module ne produisent pas : objet repris d'ailleurs, bloquant), pièce exigée par le modèle (règle de gestion du cabinet,
- * bloquante), réalisation (contestée ou non réalisée : bloquant ; réalisée non validée : alerte), facture (absente :
- * bloquant, sauf « Non facturé » ; non comptabilisée : alerte).
+ * bloquante), réalisation (contestée, tant que la contestation n'est pas levée, ou non réalisée : bloquant ; réalisée non
+ * validée : alerte), facture (absente : bloquant, sauf « Non facturé » ; non comptabilisée : alerte) — Décisions du
+ * 20/11/2026 (partie C, F71 et F72).
  */
 export function controlerCloture(d: Demande, factures: readonly FactureDeDemande[]): AnomalieDemande[] {
   if (d.type === 'devis' || refuseeSansSuite(d)) return []
