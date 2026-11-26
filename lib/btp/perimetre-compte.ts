@@ -116,6 +116,13 @@ export function niveauSur(perimetre: PerimetreBtp, module: string | null | undef
   return perimetre.permissions[module] ?? 'NONE'
 }
 
+/**
+ * Listes qu'un niveau READ montre en entier, sans écriture. Les rapports de chantier ne portent ni montant ni salaire :
+ * « lecture » y veut dire les voir, comme le gérant l'entend quand il l'accorde à un employé (décision du 26/11/2026 :
+ * « décider qui voit quoi et qui peut toucher à quoi avec des degrés de pouvoir »). Avant, READ n'y donnait rien.
+ */
+const LISTES_ENTIERES_EN_LECTURE: ReadonlySet<string> = new Set(['rapports'])
+
 /** Ce que le compte voit de cette liste. Une liste sans vue restreinte définie ne se montre qu'en FULL. */
 export function visibiliteListe(perimetre: PerimetreBtp, cle: string): Visibilite {
   if (perimetre.titulaire) return 'tout'
@@ -123,6 +130,7 @@ export function visibiliteListe(perimetre: PerimetreBtp, cle: string): Visibilit
   const niveau = niveauSur(perimetre, MODULE_PAR_LISTE[cle])
   if (niveau === 'FULL') return 'tout'
   if (niveau === 'NONE') return 'aucune'
+  if (LISTES_ENTIERES_EN_LECTURE.has(cle)) return 'tout'
   return cle in COLONNES_VUE_RESTREINTE || MODULE_PAR_LISTE[cle] === null ? 'restreinte' : 'aucune'
 }
 

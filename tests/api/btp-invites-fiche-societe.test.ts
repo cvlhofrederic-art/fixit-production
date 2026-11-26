@@ -320,8 +320,9 @@ describe('Envoi de fichier avec mise à jour du profil, compte invité', () => {
 describe('Identité entreprise d’un rapport de chantier, compte invité (/api/artisan-company)', () => {
   const lireIdentite = () => appeler(identite, 'GET', `/api/artisan-company?artisan_id=${FICHE}`)
 
-  it('un salarié de terrain (rapports ouverts) reçoit l’identité de la société, assurance comprise', async () => {
-    invite('OUVRIER')
+  it('un salarié à qui le gérant a ouvert les rapports reçoit l’identité de la société, assurance comprise', async () => {
+    const id = invite('OUVRIER')
+    h.base.lignes.pro_role_permissions = [{ member_id: `membre-${id}`, company_id: SOCIETE, module_id: 'rapports', access_level: 'FULL' }]
 
     const { status, json } = await lireIdentite()
 
@@ -330,9 +331,8 @@ describe('Identité entreprise d’un rapport de chantier, compte invité (/api/
     expect(ecrituresProfils()).toHaveLength(0)
   })
 
-  it('rapports retirés par le gérant, sans devis ni factures : refus', async () => {
-    const id = invite('OUVRIER')
-    h.base.lignes.pro_role_permissions = [{ member_id: `membre-${id}`, company_id: SOCIETE, module_id: 'rapports', access_level: 'NONE' }]
+  it('sans rapports (fermés par défaut) ni devis ni factures : refus', async () => {
+    invite('OUVRIER')
 
     const { status } = await lireIdentite()
 
