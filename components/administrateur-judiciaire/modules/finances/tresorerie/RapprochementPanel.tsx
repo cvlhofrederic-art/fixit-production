@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { AbandonArreteModal } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/AbandonArreteModal'
 import { arreteCourant, controlerSaisieArrete, type ValeursArrete } from '@/components/administrateur-judiciaire/modules/finances/tresorerie/arretes-vue'
 import {
   ChoixCompteBancaire,
@@ -15,7 +16,13 @@ import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { Panel } from '@/components/administrateur-judiciaire/ui/Panel'
 import { Pill } from '@/components/administrateur-judiciaire/ui/Pill'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
-import { cloturerArreteCompte, decloturerArreteCompte, ouvrirArreteCompte } from '@/lib/administrateur-judiciaire/db/rapprochements'
+import {
+  abandonnerArreteCompte,
+  avecSoldeComptaCourant,
+  cloturerArreteCompte,
+  decloturerArreteCompte,
+  ouvrirArreteCompte,
+} from '@/lib/administrateur-judiciaire/db/rapprochements'
 import { useArretesRapprochement, type ArretesLusEcran } from '@/lib/administrateur-judiciaire/db/use-arretes'
 import { dateIsoVersFr } from '@/lib/administrateur-judiciaire/domain/dates'
 import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
@@ -31,6 +38,12 @@ import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
  * - Arrêté affiché : celui en cours, sinon le dernier ; soldes, écart et taux du domaine (etatArrete), comme la maquette.
  * - « Nouvel arrêté » (formulaire absent de la maquette) quand aucun arrêté n'est en cours ; « Clôturer » sinon, refusé
  *   hors équilibre par le domaine ; « Déclôturer » sur le dernier arrêté clôturé.
+ * - Décision du 26/11/2026 (PR 799, rb-01 A) : « Abandonner l'arrêté » sur l'arrêté en cours, à la place qu'occupe
+ *   « Déclôturer » sur un arrêté clôturé, avec confirmation (AbandonArreteModal). L'arrêté abandonné reste en base et
+ *   n'est plus affiché : « Nouvel arrêté » redevient possible.
+ * - Décision du 26/11/2026 (rb-01 C et rb-03 A) : le solde compta et l'écart d'un arrêté en cours sont ceux de l'instant,
+ *   recalculés sur les écritures affichées (avecSoldeComptaCourant), dans le panneau comme dans la liste ; la clôture
+ *   enregistre ce solde et le fige. Même mise en page.
  * - Aucun élément à pointer : les écritures du compte viennent toutes du relevé importé, le côté compta indépendant
  *   (règlements, remises) n'est pas branché ; les cases « Auto / Pointé / En suspens » de la maquette n'ont donc rien à
  *   montrer, et le panneau le dit.
@@ -97,27 +110,62 @@ function useEcrituresArretes(relire: () => void, fermer: () => void) {
         refuser('Déclôture refusée', erreur)
       }
     },
+    abandonner: async (arrete: ArreteRapprochement): Promise<boolean> => {
+      try {
+        await abandonnerArreteCompte(arrete.id)
+        push({
+          kind: 'success',
+          title: 'Arrêté abandonné',
+          desc: `Arrêté au ${dateIsoVersFr(arrete.dateArrete)} : gardé dans la base, marqué « Abandonné ». Un nouvel arrêté peut être ouvert sur ce compte.`,
+        })
+        fermer()
+        relire()
+        return true
+      } catch (erreur) {
+        refuser('Abandon refusé', erreur)
+        return false
+      }
+    },
   }
 }
 
+/** Actions sur l'arrêté affiché, hors de l'en-tête : « Déclôturer » (clôturé), « Abandonner l'arrêté » (en cours). */
+interface ActionsArrete {
+  decloturer: (arrete: ArreteRapprochement) => void
+  abandonner: () => void
+  /** Une écriture est en cours, ou le compte n'est pas prêt (lecture, arrêté illisible). */
+  occupe: boolean
+}
+
 /** Arrêté affiché : statut, soldes, écart et taux du domaine (disposition de la maquette), note et règle d'équilibre. */
-function ArreteAffiche({ arrete, decloturer, occupe }: Readonly<{ arrete: ArreteRapprochement; decloturer: () => void; occupe: boolean }>) {
+function ArreteAffiche({ arrete, decloturer, abandonner, occupe }: Readonly<{ arrete: ArreteRapprochement } & ActionsArrete>) {
   const etat = etatArrete(arrete)
   const cloture = arrete.statut === 'Clôturé'
   return (
     <>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
         <Pill kind={cloture ? 'sage' : 'gold'}>{arrete.statut}</Pill>
-        {cloture && (
+        {cloture ? (
           <button
             type="button"
             className="btn ghost sm"
             aria-label={`Déclôturer l’arrêté du ${dateIsoVersFr(arrete.dateArrete)}`}
             disabled={occupe}
-            onClick={decloturer}
+            onClick={() => decloturer(arrete)}
           >
             <Icon name="history" />
             Déclôturer
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="btn ghost sm"
+            aria-label={`Abandonner l’arrêté du ${dateIsoVersFr(arrete.dateArrete)}`}
+            disabled={occupe}
+            onClick={abandonner}
+          >
+            <Icon name="ban" />
+            Abandonner l’arrêté
           </button>
         )}
       </div>
@@ -188,13 +236,16 @@ function ListeArretes({ arretes }: Readonly<{ arretes: readonly ArreteRapprochem
   )
 }
 
-/** Corps du panneau une fois le compte choisi : lecture, arrêtés illisibles, arrêté affiché, liste. */
+/**
+ * Corps du panneau une fois le compte choisi : lecture, arrêtés illisibles, arrêté affiché, liste. `arretes` : arrêtés
+ * lus, au solde compta de l'instant pour celui en cours.
+ */
 function ContenuArretes({
   lus,
+  arretes,
   courant,
-  decloturer,
-  occupe,
-}: Readonly<{ lus: ArretesLusEcran; courant: ArreteRapprochement | null; decloturer: (arrete: ArreteRapprochement) => void; occupe: boolean }>) {
+  actions,
+}: Readonly<{ lus: ArretesLusEcran; arretes: readonly ArreteRapprochement[]; courant: ArreteRapprochement | null; actions: ActionsArrete }>) {
   if (lus.chargement)
     return (
       <p className="muted" style={{ fontSize: 13 }}>
@@ -216,13 +267,13 @@ function ContenuArretes({
         </Alert>
       )}
       {courant ? (
-        <ArreteAffiche arrete={courant} decloturer={() => decloturer(courant)} occupe={occupe} />
+        <ArreteAffiche arrete={courant} {...actions} />
       ) : (
         <p className="muted" style={{ fontSize: 13, margin: 0 }}>
           Aucun arrêté pour ce compte.
         </p>
       )}
-      {lus.arretes.length > 1 && <ListeArretes arretes={lus.arretes} />}
+      {arretes.length > 1 && <ListeArretes arretes={arretes} />}
     </>
   )
 }
@@ -238,13 +289,16 @@ export interface RapprochementPanelProps {
 export function RapprochementPanel({ comptes, etatComptes, ecrituresBanque }: Readonly<RapprochementPanelProps>) {
   const { push } = useToast()
   const [choix, setChoix] = useState('')
-  const [formulaire, setFormulaire] = useState(false)
+  const [modale, setModale] = useState<null | 'nouvel-arrete' | 'abandon'>(null)
   const [occupe, setOccupe] = useState(false)
   const actifs = comptesActifs(comptes, etatComptes)
   const compte = actifs.find((candidat) => candidat.id === choix) ?? actifs[0] ?? null
   const lus = useArretesRapprochement(compte?.id ?? null, (message) => push({ kind: 'warn', title: 'Arrêtés illisibles', desc: message }))
-  const ecritures = useEcrituresArretes(lus.relire, () => setFormulaire(false))
-  const courant = arreteCourant(lus.arretes)
+  const fermer = () => setModale(null)
+  const ecritures = useEcrituresArretes(lus.relire, fermer)
+  // Arrêté en cours : solde compta de l'instant, recalculé sur les écritures affichées ; arrêté clôturé : solde figé.
+  const arretes = lus.arretes.map((arrete) => avecSoldeComptaCourant(arrete, ecrituresBanque))
+  const courant = arreteCourant(arretes)
   // Arrêté illisible sur le compte : ouverture, clôture et déclôture refusées par l'écriture (db/rapprochements.ts).
   const pret = compte !== null && !lus.chargement && !lus.erreur && lus.illisibles === 0
   // Une écriture à la fois (double clic) ; les écritures signalent elles-mêmes leur échec (toast).
@@ -276,7 +330,7 @@ export function RapprochementPanel({ comptes, etatComptes, ecrituresBanque }: Re
             Clôturer
           </button>
         ) : (
-          <button type="button" className="btn gold sm" disabled={!pret} onClick={() => setFormulaire(true)}>
+          <button type="button" className="btn gold sm" disabled={!pret} onClick={() => setModale('nouvel-arrete')}>
             <Icon name="plus" />
             Nouvel arrêté
           </button>
@@ -284,15 +338,29 @@ export function RapprochementPanel({ comptes, etatComptes, ecrituresBanque }: Re
       }
     >
       <ChoixCompteBancaire label="Compte rapproché" name="rapprochement-compte" etat={etatComptes} actifs={actifs} choisi={compte} choisir={setChoix} />
-      {compte && <ContenuArretes lus={lus} courant={courant} decloturer={(arrete) => void lancer(() => ecritures.decloturer(arrete))} occupe={occupe || !pret} />}
-      {formulaire && compte && (
+      {compte && (
+        <ContenuArretes
+          lus={lus}
+          arretes={arretes}
+          courant={courant}
+          actions={{
+            decloturer: (arrete) => void lancer(() => ecritures.decloturer(arrete)),
+            abandonner: () => setModale('abandon'),
+            occupe: occupe || !pret,
+          }}
+        />
+      )}
+      {modale === 'nouvel-arrete' && compte && (
         <NouvelArreteModal
           key={compte.id}
           compte={compte}
           ecrituresBanque={ecrituresBanque}
-          onClose={() => setFormulaire(false)}
+          onClose={fermer}
           onEnregistrer={(valeurs) => ecritures.ouvrir(compte, valeurs)}
         />
+      )}
+      {modale === 'abandon' && compte && courant?.statut === 'En cours' && (
+        <AbandonArreteModal compte={compte} arrete={courant} onClose={fermer} onConfirmer={() => ecritures.abandonner(courant)} />
       )}
     </Panel>
   )

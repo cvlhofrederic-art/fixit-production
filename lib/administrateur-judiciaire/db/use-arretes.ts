@@ -15,7 +15,10 @@ export interface ArretesLusEcran {
   /** Vrai tant que les arrêtés du compte n'ont pas été lus. */
   chargement: boolean
   erreur: string | null
-  /** Arrêtés lisibles du compte, par date. */
+  /**
+   * Arrêtés lisibles du compte qui comptent (en cours, clôturés), par date. Les arrêtés abandonnés (décision du
+   * 26/11/2026, PR 799, rb-01 A) restent en base et ne sont pas remontés à l'écran.
+   */
   arretes: ArreteRapprochement[]
   /** Lignes du compte sans la forme d'un arrêté. */
   illisibles: number

@@ -5,6 +5,8 @@ import { arreteCourant, controlerSaisieArrete, soldeSaisiVersCentimes } from '@/
 import { cloturerCompteBancaire, enregistrerCompteBancaire } from '@/lib/administrateur-judiciaire/db/comptes-bancaires'
 import { useDonneesStore } from '@/lib/administrateur-judiciaire/db/donnees-store'
 import {
+  abandonnerArreteCompte,
+  avecSoldeComptaCourant,
   cloturerArreteCompte,
   decloturerArreteCompte,
   listerArretes,
@@ -20,8 +22,13 @@ import { CLE_STOCKAGE_MODE } from '@/lib/administrateur-judiciaire/mode'
 /**
  * Arrêtés de rapprochement enregistrés (« Nouvel arrêté » de l'écran « Banque et recouvrement ») : table locale
  * existante « rapprochements » (index bancaireId, pas de nouvelle version de la base), règles du domaine
- * (rapprochement-bancaire.ts : ouvrirArrete, etatArrete, cloturerArrete, decloturerArrete). Le solde compta est celui du
- * sous-compte 512 du compte à la date de l'arrêté.
+ * (rapprochement-bancaire.ts : ouvrirArrete, etatArrete, cloturerArrete, decloturerArrete, abandonnerArrete). Le solde
+ * compta est celui du sous-compte 512 du compte à la date de l'arrêté.
+ * Décision du 26/11/2026 :
+ * - rb-01 A : un arrêté « En cours » s'abandonne (gardé en base, statut « Abandonné », tracé au journal d'activité) ;
+ *   il ne compte plus dans aucune règle, et un nouvel arrêté s'ouvre sur le compte. Jamais un arrêté clôturé.
+ * - rb-01 C et rb-03 A : le solde compta n'est plus figé à l'ouverture ; il est recalculé à la clôture (écritures
+ *   connues à ce moment, à la date de l'arrêté), puis figé dans l'arrêté clôturé.
  */
 
 // IBAN de test publiés (exemples déjà utilisés par les tests D-BANQUE) : clés valides, aucun compte réel.
@@ -57,7 +64,7 @@ describe('ouverture d’un arrêté', () => {
     expect(lignes).toHaveLength(1)
     expect(lignes[0]).toMatchObject({ id: arrete.id, bancaireId: banqueId, dateArrete: '2026-05-31', statut: 'En cours', elements: [] })
     expect(lignes[0]).not.toHaveProperty('banqueId')
-    expect(await listerArretes(banqueId)).toEqual({ arretes: [arrete], illisibles: 0 })
+    expect(await listerArretes(banqueId)).toEqual({ arretes: [arrete], abandonnes: [], illisibles: 0 })
   })
 
   it('compte sans ligne importée : solde compta 0', async () => {
@@ -97,7 +104,7 @@ describe('ouverture d’un arrêté', () => {
       bancaireId: banqueId,
       statut: 'En cours',
     })
-    expect(await listerArretes(banqueId)).toEqual({ arretes: [], illisibles: 1 })
+    expect(await listerArretes(banqueId)).toEqual({ arretes: [], abandonnes: [], illisibles: 1 })
     await expect(ouvrirArreteCompte(banqueId, { dateArrete: '2026-05-31', soldeBanqueCentimes: 0 })).rejects.toThrow(
       /1 arrêté illisible sur ce compte/,
     )
@@ -110,7 +117,8 @@ describe('clôture et déclôture', () => {
     const desequilibre = await ouvrirArreteCompte(banqueId, { dateArrete: '2026-05-31', soldeBanqueCentimes: 40_000 })
     await expect(cloturerArreteCompte(desequilibre.id)).rejects.toThrow('Clôture refusée : arrêté non équilibré (écart -5000 centimes).')
     expect((await ajDb.rapprochements.get(desequilibre.id))?.statut).toBe('En cours')
-    await ajDb.rapprochements.delete(desequilibre.id)
+    // Arrêté mal saisi : abandonné (rb-01), sans intervention dans la base, puis un nouveau, juste, à la même date.
+    await abandonnerArreteCompte(desequilibre.id)
     const equilibre = await ouvrirArreteCompte(banqueId, { dateArrete: '2026-05-31', soldeBanqueCentimes: 45_000 })
     expect((await cloturerArreteCompte(equilibre.id)).statut).toBe('Clôturé')
     expect((await ajDb.rapprochements.get(equilibre.id))?.statut).toBe('Clôturé')
@@ -127,6 +135,170 @@ describe('clôture et déclôture', () => {
     )
     expect((await decloturerArreteCompte(second.id)).statut).toBe('En cours')
     expect((await ajDb.rapprochements.get(second.id))?.statut).toBe('En cours')
+  })
+})
+
+describe('abandon d’un arrêté en cours (rb-01 A, décision du 26/11/2026)', () => {
+  it('l’arrêté est gardé, « Abandonné », tracé au journal d’activité ; un nouvel arrêté s’ouvre ensuite sur le compte', async () => {
+    await importerReleveSurCompte('C2', banqueId, [{ date: '2026-05-10', libelle: 'VIR CHARGES', montant: 450 }])
+    // Faute de frappe dans le solde banque : 4 500,00 € au lieu de 450,00 €.
+    const errone = await ouvrirArreteCompte(banqueId, { dateArrete: '2026-05-31', soldeBanqueCentimes: 450_000 })
+    const abandonne = await abandonnerArreteCompte(errone.id, { actor: 'gestionnaire-test' })
+    expect(abandonne).toEqual({ ...errone, statut: 'Abandonné' })
+
+    // Jamais effacé : la ligne reste, avec ses montants, sous le statut « Abandonné ».
+    const ligne = await ajDb.rapprochements.get(errone.id)
+    expect(ligne).toMatchObject({
+      bancaireId: banqueId,
+      dateArrete: '2026-05-31',
+      soldeBanqueCentimes: 450_000,
+      soldeComptaCentimes: 45_000,
+      statut: 'Abandonné',
+      updatedBy: 'gestionnaire-test',
+    })
+    const journal = (await ajDb.activityLog.where('entiteId').equals(errone.id).toArray()).filter((entree) => entree.action === 'update')
+    expect(journal).toHaveLength(1)
+    expect(journal[0]).toMatchObject({ entite: 'rapprochements', qui: 'gestionnaire-test', avant: { statut: 'En cours' }, apres: { statut: 'Abandonné' } })
+
+    // Ni arrêté en cours, ni arrêté illisible : il est lu à part.
+    expect(await listerArretes(banqueId)).toEqual({ arretes: [], abandonnes: [abandonne], illisibles: 0 })
+
+    // Un nouvel arrêté, juste, à la même date.
+    const juste = await ouvrirArreteCompte(banqueId, { dateArrete: '2026-05-31', soldeBanqueCentimes: 45_000 })
+    expect((await cloturerArreteCompte(juste.id)).statut).toBe('Clôturé')
+    expect(await listerArretes(banqueId)).toEqual({ arretes: [{ ...juste, statut: 'Clôturé' }], abandonnes: [abandonne], illisibles: 0 })
+    expect(await ajDb.rapprochements.count()).toBe(2)
+  })
+
+  it('refusé pour un arrêté clôturé, déjà abandonné ou introuvable : rien n’est écrit', async () => {
+    const cloture = await ouvrirArreteCompte(banqueId, { dateArrete: '2026-04-30', soldeBanqueCentimes: 0 })
+    await cloturerArreteCompte(cloture.id)
+    await expect(abandonnerArreteCompte(cloture.id)).rejects.toThrow(
+      'Abandon refusé : seul un arrêté en cours peut être abandonné (arrêté « Clôturé »).',
+    )
+    expect((await ajDb.rapprochements.get(cloture.id))?.statut).toBe('Clôturé')
+
+    const enCours = await ouvrirArreteCompte(banqueId, { dateArrete: '2026-05-31', soldeBanqueCentimes: 0 })
+    await abandonnerArreteCompte(enCours.id)
+    const avant = await ajDb.activityLog.count()
+    await expect(abandonnerArreteCompte(enCours.id)).rejects.toThrow('Arrêté abandonné : ni clôture, ni déclôture, ni nouvel abandon.')
+    await expect(abandonnerArreteCompte('inconnu')).rejects.toThrow('Arrêté introuvable : « inconnu ».')
+    expect(await ajDb.activityLog.count()).toBe(avant)
+  })
+
+  it('arrêté abandonné absent des contrôles : ni « en cours », ni « dernier arrêté », ni clôture, ni déclôture', async () => {
+    const premier = await ouvrirArreteCompte(banqueId, { dateArrete: '2026-04-30', soldeBanqueCentimes: 0 })
+    await cloturerArreteCompte(premier.id)
+    // Date erronée : arrêté ouvert au 30/06 au lieu du 31/05.
+    const errone = await ouvrirArreteCompte(banqueId, { dateArrete: '2026-06-30', soldeBanqueCentimes: 0 })
+    await abandonnerArreteCompte(errone.id)
+
+    // Il n'est plus « en cours » : le dernier arrêté clôturé se déclôture, puis se reclôture.
+    expect((await decloturerArreteCompte(premier.id)).statut).toBe('En cours')
+    await cloturerArreteCompte(premier.id)
+    // Il n'est pas « le dernier arrêté du compte » : un arrêté daté avant lui s'ouvre (après le dernier arrêté vivant).
+    const juste = await ouvrirArreteCompte(banqueId, { dateArrete: '2026-05-31', soldeBanqueCentimes: 0 })
+    expect(juste.statut).toBe('En cours')
+    await expect(ouvrirArreteCompte(banqueId, { dateArrete: '2026-07-31', soldeBanqueCentimes: 0 })).rejects.toThrow(
+      'Un arrêté est déjà en cours sur ce compte',
+    )
+
+    // Aucune écriture ne le reprend : ni clôture ni déclôture, et il garde son statut.
+    await expect(cloturerArreteCompte(errone.id)).rejects.toThrow('Arrêté abandonné : ni clôture, ni déclôture, ni nouvel abandon.')
+    await expect(decloturerArreteCompte(errone.id)).rejects.toThrow('Arrêté abandonné : ni clôture, ni déclôture, ni nouvel abandon.')
+    expect((await ajDb.rapprochements.get(errone.id))?.statut).toBe('Abandonné')
+    const { arretes, abandonnes, illisibles } = await listerArretes(banqueId)
+    expect(arretes.map((arrete) => [arrete.dateArrete, arrete.statut])).toEqual([
+      ['2026-04-30', 'Clôturé'],
+      ['2026-05-31', 'En cours'],
+    ])
+    expect(abandonnes.map((arrete) => arrete.id)).toEqual([errone.id])
+    expect(illisibles).toBe(0)
+  })
+
+  it('arrêté illisible sur le compte : abandon refusé, comme les autres écritures', async () => {
+    const enCours = await ouvrirArreteCompte(banqueId, { dateArrete: '2026-05-31', soldeBanqueCentimes: 0 })
+    await ajDb.rapprochements.add({
+      id: 'arrete-externe',
+      createdAt: '2026-11-01T08:00:00.000Z',
+      updatedAt: '2026-11-01T08:00:00.000Z',
+      createdBy: null,
+      updatedBy: null,
+      bancaireId: banqueId,
+      statut: 'Abandonné',
+    })
+    // Une ligne « Abandonné » sans la forme d'un arrêté reste illisible.
+    expect((await listerArretes(banqueId)).illisibles).toBe(1)
+    await expect(abandonnerArreteCompte(enCours.id)).rejects.toThrow(/1 arrêté illisible sur ce compte/)
+    expect((await ajDb.rapprochements.get(enCours.id))?.statut).toBe('En cours')
+  })
+})
+
+describe('solde compta recalculé à la clôture, puis figé (rb-01 C et rb-03 A, décision du 26/11/2026)', () => {
+  it('relevé importé après l’ouverture, daté avant l’arrêté : la clôture reste possible, sur le solde recalculé', async () => {
+    await importerReleveSurCompte('C2', banqueId, [{ date: '2026-05-10', libelle: 'VIR CHARGES', montant: 450 }])
+    // Solde banque du relevé au 31/05 : 329,50 € ; le prélèvement du 20/05 n'est pas encore importé.
+    const ouvert = await ouvrirArreteCompte(banqueId, { dateArrete: '2026-05-31', soldeBanqueCentimes: 32_950 })
+    expect(ouvert.soldeComptaCentimes).toBe(45_000)
+    await importerReleveSurCompte('C2', banqueId, [
+      { date: '2026-05-20', libelle: 'PRLV EAU', montant: -120.5 },
+      // Après la date de l'arrêté : hors du solde.
+      { date: '2026-06-02', libelle: 'VIR JUIN', montant: 99 },
+    ])
+
+    const cloture = await cloturerArreteCompte(ouvert.id)
+    expect(cloture).toMatchObject({ statut: 'Clôturé', soldeBanqueCentimes: 32_950, soldeComptaCentimes: 32_950 })
+    // Le solde recalculé est enregistré avec la clôture.
+    expect(await ajDb.rapprochements.get(ouvert.id)).toMatchObject({ statut: 'Clôturé', soldeComptaCentimes: 32_950 })
+  })
+
+  it('l’équilibre se contrôle sur le solde recalculé : un arrêté équilibré à l’ouverture ne se clôture plus si le compte a bougé', async () => {
+    await importerReleveSurCompte('C2', banqueId, [{ date: '2026-05-10', libelle: 'VIR CHARGES', montant: 450 }])
+    const ouvert = await ouvrirArreteCompte(banqueId, { dateArrete: '2026-05-31', soldeBanqueCentimes: 45_000 })
+    await importerReleveSurCompte('C2', banqueId, [{ date: '2026-05-20', libelle: 'PRLV EAU', montant: -120.5 }])
+    await expect(cloturerArreteCompte(ouvert.id)).rejects.toThrow('Clôture refusée : arrêté non équilibré (écart 12050 centimes).')
+    // Refus : rien n'est écrit, ni le statut ni le solde.
+    expect(await ajDb.rapprochements.get(ouvert.id)).toMatchObject({ statut: 'En cours', soldeComptaCentimes: 45_000 })
+  })
+
+  it('solde figé après la clôture : un relevé importé ensuite ne le change plus ; une seconde clôture est refusée', async () => {
+    await importerReleveSurCompte('C2', banqueId, [{ date: '2026-05-10', libelle: 'VIR CHARGES', montant: 450 }])
+    const ouvert = await ouvrirArreteCompte(banqueId, { dateArrete: '2026-05-31', soldeBanqueCentimes: 45_000 })
+    await cloturerArreteCompte(ouvert.id)
+    await importerReleveSurCompte('C2', banqueId, [{ date: '2026-05-25', libelle: 'FRAIS TENUE', montant: -12 }])
+
+    await expect(cloturerArreteCompte(ouvert.id)).rejects.toThrow('Clôture refusée : arrêté déjà clôturé.')
+    expect(await ajDb.rapprochements.get(ouvert.id)).toMatchObject({ statut: 'Clôturé', soldeComptaCentimes: 45_000 })
+    const [lu] = (await listerArretes(banqueId)).arretes
+    expect(lu).toMatchObject({ statut: 'Clôturé', soldeComptaCentimes: 45_000 })
+
+    // Déclôturé, l'arrêté est de nouveau en cours : sa clôture recalcule le solde, avec la ligne arrivée entre-temps.
+    await decloturerArreteCompte(ouvert.id)
+    await expect(cloturerArreteCompte(ouvert.id)).rejects.toThrow('Clôture refusée : arrêté non équilibré (écart 1200 centimes).')
+  })
+
+  it('solde compta d’un arrêté : recalculé tant qu’il est en cours, figé une fois clôturé (lecture de l’écran)', () => {
+    const ecritures = [
+      { compte: '512-B1', sens: 'debit' as const, montant: 450, date: new Date(2026, 4, 10) },
+      { compte: '512-B1', sens: 'credit' as const, montant: 120.5, date: new Date(2026, 4, 20) },
+      { compte: '512-B1', sens: 'debit' as const, montant: 99, date: new Date(2026, 5, 2) },
+      { compte: '512-B2', sens: 'debit' as const, montant: 1000, date: new Date(2026, 4, 11) },
+      { compte: '512', sens: 'debit' as const, montant: 77, date: new Date(2026, 4, 12) },
+    ]
+    const enCours: ArreteRapprochement = {
+      id: 'a',
+      banqueId: 'B1',
+      dateArrete: '2026-05-31',
+      soldeBanqueCentimes: 32_950,
+      soldeComptaCentimes: 45_000,
+      statut: 'En cours',
+      elements: [],
+    }
+    expect(avecSoldeComptaCourant(enCours, ecritures)).toEqual({ ...enCours, soldeComptaCentimes: 32_950 })
+    // Aucune écriture sur le sous-compte : 0, comme à l'ouverture.
+    expect(avecSoldeComptaCourant({ ...enCours, banqueId: 'B9' }, ecritures).soldeComptaCentimes).toBe(0)
+    const cloture: ArreteRapprochement = { ...enCours, statut: 'Clôturé' }
+    expect(avecSoldeComptaCourant(cloture, ecritures)).toBe(cloture)
   })
 })
 

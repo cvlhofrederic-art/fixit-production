@@ -17,6 +17,8 @@ import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
  * formulaires validés le 20/11/2026), sur les composants des formulaires du module (Modal, Field), comme « Nouveau
  * compte ». Saisie : date de l'arrêté (aujourd'hui proposé) et solde banque du relevé. Le solde compta n'est pas saisi :
  * il est montré, calculé sur le sous-compte 512 du compte à la date (le même calcul que l'écriture, db/rapprochements.ts).
+ * Ce montant n'est plus figé à l'ouverture (décision du 26/11/2026, PR 799, rb-03 A) : il est recalculé jusqu'à la
+ * clôture, et le formulaire le dit.
  * Aucune règle ici : l'écran contrôle la saisie et l'écriture applique le domaine ; un refus est signalé par un toast,
  * la modale restant ouverte.
  */
@@ -69,7 +71,8 @@ export function NouvelArreteModal({ compte, ecrituresBanque, onClose, onEnregist
           )}
         </p>
         <p className="muted" style={{ margin: '6px 0 0', fontSize: 12 }}>
-          Lignes de relevé importées sur ce compte jusqu’à cette date ; montant figé à l’ouverture de l’arrêté.
+          Lignes de relevé importées sur ce compte jusqu’à cette date ; montant recalculé jusqu’à la clôture de l’arrêté,
+          puis figé.
         </p>
       </ModalBody>
       <ModalFooter>

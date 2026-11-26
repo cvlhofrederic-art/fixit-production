@@ -6,7 +6,7 @@ import { TresorerieModule } from '@/components/administrateur-judiciaire/modules
 import { ToastContext, type ToastApi } from '@/components/administrateur-judiciaire/ui/toast'
 import { enregistrerCompteBancaire } from '@/lib/administrateur-judiciaire/db/comptes-bancaires'
 import { useDonneesStore } from '@/lib/administrateur-judiciaire/db/donnees-store'
-import { cloturerArreteCompte, ouvrirArreteCompte } from '@/lib/administrateur-judiciaire/db/rapprochements'
+import { abandonnerArreteCompte, cloturerArreteCompte, ouvrirArreteCompte } from '@/lib/administrateur-judiciaire/db/rapprochements'
 import { importerReleveSurCompte } from '@/lib/administrateur-judiciaire/db/releves-bancaires'
 import { viderBaseLocale } from '@/lib/administrateur-judiciaire/db/reset'
 import { ajDb } from '@/lib/administrateur-judiciaire/db/schema'
@@ -20,6 +20,8 @@ import { useSelectionDossier } from '@/lib/administrateur-judiciaire/selection'
  * « Nouvel arrêté » réel (formulaire, absent de la maquette, validé le 20/11/2026), enregistré dans la table locale
  * « rapprochements » ; clôture refusée hors équilibre, clôture à l'équilibre, déclôture du dernier arrêté. Base de
  * démonstration (date figée au 04/06/2026), qui s'écrit comme le reste de l'écran.
+ * Décision du 26/11/2026 : « Abandonner l'arrêté » pour un arrêté en cours, avec confirmation (rb-01 A) ; solde compta
+ * d'un arrêté en cours recalculé à l'instant, enregistré à la clôture puis figé (rb-01 C et rb-03 A).
  */
 
 // IBAN de test publiés (exemples déjà utilisés par les tests D-BANQUE) : clés valides, aucun compte réel.
@@ -217,5 +219,173 @@ describe('Rapprochement : clôture et déclôture', () => {
     fireEvent.change(dansPanneau().getByLabelText('Compte rapproché'), { target: { value: autre.id } })
     await waitFor(() => expect(screen.getByRole('heading', { level: 3, name: 'Rapprochement au 31/03/2026' })).toBeInTheDocument())
     expect(dansPanneau().queryByRole('table', { name: 'Arrêtés du compte' })).toBeNull()
+  })
+})
+
+describe('Rapprochement : « Abandonner l’arrêté » (rb-01 A, décision du 26/11/2026)', () => {
+  it('arrêté en cours mal saisi : confirmation, abandon, puis « Nouvel arrêté » de nouveau possible sur le compte', async () => {
+    // Faute de frappe dans le solde banque : 400,00 € au lieu de 329,50 €.
+    const errone = await ouvrirArreteCompte(banqueId, { dateArrete: '2026-05-31', soldeBanqueCentimes: 40_000 })
+    await rendre()
+    const bouton = dansPanneau().getByRole('button', { name: 'Abandonner l’arrêté du 31/05/2026' })
+    expect(bouton).toHaveTextContent('Abandonner l’arrêté')
+    expect(bouton).toBeEnabled()
+
+    // Confirmation d'abord : « Annuler » n'écrit rien.
+    const toastsAvant = pushCourant.mock.calls.length
+    fireEvent.click(bouton)
+    expect(screen.getByRole('dialog')).toHaveTextContent('Arrêté au 31/05/2026')
+    expect(screen.getByRole('dialog')).toHaveTextContent('Compte principal')
+    expect(screen.getByRole('dialog')).toHaveTextContent('L’arrêté reste dans la base, marqué « Abandonné »')
+    fireEvent.click(dialogue().getByRole('button', { name: 'Annuler' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect((await ajDb.rapprochements.get(errone.id))?.statut).toBe('En cours')
+    expect(pushCourant.mock.calls.length).toBe(toastsAvant)
+
+    fireEvent.click(dansPanneau().getByRole('button', { name: 'Abandonner l’arrêté du 31/05/2026' }))
+    await cliquerEtAttendre(dialogue().getByRole('button', { name: 'Abandonner l’arrêté' }))
+    expect(dernierToast()).toEqual({
+      kind: 'success',
+      title: 'Arrêté abandonné',
+      desc: 'Arrêté au 31/05/2026 : gardé dans la base, marqué « Abandonné ». Un nouvel arrêté peut être ouvert sur ce compte.',
+    })
+    expect(screen.queryByRole('dialog')).toBeNull()
+    // Gardé en base, jamais effacé.
+    expect(await ajDb.rapprochements.get(errone.id)).toMatchObject({ statut: 'Abandonné', soldeBanqueCentimes: 40_000 })
+    // Plus d'arrêté en cours : le panneau revient à « aucun arrêté », l'arrêté abandonné n'est pas affiché.
+    expect(screen.getByRole('heading', { level: 3, name: 'Rapprochement bancaire' })).toBeInTheDocument()
+    expect(dansPanneau().getByText('Aucun arrêté pour ce compte.')).toBeInTheDocument()
+    expect(panneau().textContent).not.toContain('Abandonné')
+    expect(dansPanneau().queryByRole('button', { name: /Abandonner/ })).toBeNull()
+
+    // Un nouvel arrêté, juste, à la même date.
+    saisirArrete('2026-05-31', '329,50')
+    await cliquerEtAttendre(dialogue().getByRole('button', { name: 'Enregistrer' }))
+    expect(dernierToast()).toMatchObject({ kind: 'success', title: 'Arrêté ouvert' })
+    expect(await ajDb.rapprochements.count()).toBe(2)
+    expect(screen.getByRole('heading', { level: 3, name: 'Rapprochement au 31/05/2026' })).toBeInTheDocument()
+    expect(panneau().textContent).toContain(`Écart ${formatEurosCentimes(0)}`)
+    expect(dansPanneau().getByRole('button', { name: 'Clôturer l’arrêté du 31/05/2026' })).toBeEnabled()
+  })
+
+  it('arrêté clôturé : aucun bouton « Abandonner » ; arrêté abandonné : ni affiché, ni compté dans « Arrêtés du compte »', async () => {
+    const premier = await ouvrirArreteCompte(banqueId, { dateArrete: '2026-04-30', soldeBanqueCentimes: 0 })
+    await cloturerArreteCompte(premier.id)
+    const errone = await ouvrirArreteCompte(banqueId, { dateArrete: '2026-05-31', soldeBanqueCentimes: 40_000 })
+    await abandonnerArreteCompte(errone.id)
+    await rendre()
+    // L'arrêté affiché est le dernier arrêté clôturé, pas l'arrêté abandonné (pourtant plus récent).
+    expect(screen.getByRole('heading', { level: 3, name: 'Rapprochement au 30/04/2026' })).toBeInTheDocument()
+    expect(dansPanneau().getByText('Clôturé')).toBeInTheDocument()
+    expect(dansPanneau().queryByRole('button', { name: /Abandonner/ })).toBeNull()
+    expect(dansPanneau().getByRole('button', { name: 'Déclôturer l’arrêté du 30/04/2026' })).toBeEnabled()
+    expect(dansPanneau().getByRole('button', { name: /Nouvel arrêté/ })).toBeEnabled()
+    // Un seul arrêté compte : la liste (montrée à partir de deux) reste absente.
+    expect(dansPanneau().queryByRole('table', { name: 'Arrêtés du compte' })).toBeNull()
+    expect(panneau().textContent).not.toContain('Abandonné')
+  })
+
+  it('refus de l’écriture (arrêté clôturé entre-temps) : toast, confirmation ouverte, rien n’est écrit', async () => {
+    const arrete = await ouvrirArreteCompte(banqueId, { dateArrete: '2026-05-31', soldeBanqueCentimes: 32_950 })
+    await rendre()
+    fireEvent.click(dansPanneau().getByRole('button', { name: 'Abandonner l’arrêté du 31/05/2026' }))
+    // Clôturé hors de cet écran pendant la confirmation.
+    await cloturerArreteCompte(arrete.id)
+    await cliquerEtAttendre(dialogue().getByRole('button', { name: 'Abandonner l’arrêté' }))
+    expect(dernierToast()).toEqual({
+      kind: 'warn',
+      title: 'Abandon refusé',
+      desc: 'Abandon refusé : seul un arrêté en cours peut être abandonné (arrêté « Clôturé »).',
+    })
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect((await ajDb.rapprochements.get(arrete.id))?.statut).toBe('Clôturé')
+  })
+
+  it('arrêté illisible sur le compte : « Abandonner » inactif, comme « Clôturer »', async () => {
+    await ouvrirArreteCompte(banqueId, { dateArrete: '2026-05-31', soldeBanqueCentimes: 32_950 })
+    await ajDb.rapprochements.add({
+      id: 'arrete-externe',
+      createdAt: '2026-11-01T08:00:00.000Z',
+      updatedAt: '2026-11-01T08:00:00.000Z',
+      createdBy: null,
+      updatedBy: null,
+      bancaireId: banqueId,
+      statut: 'En cours',
+    })
+    await rendre()
+    expect(dansPanneau().getByRole('button', { name: 'Abandonner l’arrêté du 31/05/2026' })).toBeDisabled()
+  })
+})
+
+describe('Rapprochement : solde compta recalculé jusqu’à la clôture, puis figé (rb-01 C et rb-03 A, décision du 26/11/2026)', () => {
+  it('arrêté en cours : solde compta et écart à l’instant ; un relevé arrivé après l’ouverture n’empêche plus la clôture', async () => {
+    // Solde banque du relevé au 31/05 : 317,50 €. À l'ouverture, les frais du 25/05 ne sont pas encore importés.
+    const arrete = await ouvrirArreteCompte(banqueId, { dateArrete: '2026-05-31', soldeBanqueCentimes: 31_750 })
+    expect(arrete.soldeComptaCentimes).toBe(32_950)
+    await rendre()
+    expect(panneau().textContent).toContain(`Solde compta ${formatEurosCentimes(329.5)}`)
+    expect(panneau().textContent).toContain(`Écart ${formatEurosCentimes(-12)}`)
+
+    // Relevé importé après l'ouverture, daté avant l'arrêté : le panneau suit, sans rien écrire dans l'arrêté.
+    await act(async () => {
+      await importerReleveSurCompte('C2', banqueId, [{ date: '2026-05-25', libelle: 'FRAIS TENUE DE COMPTE', montant: -12 }])
+    })
+    await waitFor(() => expect(panneau().textContent).toContain(`Solde compta ${formatEurosCentimes(317.5)}`))
+    expect(panneau().textContent).toContain(`Écart ${formatEurosCentimes(0)}`)
+    expect((await ajDb.rapprochements.get(arrete.id))?.soldeComptaCentimes).toBe(32_950)
+
+    await cliquerEtAttendre(dansPanneau().getByRole('button', { name: 'Clôturer l’arrêté du 31/05/2026' }))
+    expect(dernierToast()).toMatchObject({ kind: 'success', title: 'Arrêté clôturé' })
+    // Le solde recalculé est enregistré avec la clôture.
+    expect(await ajDb.rapprochements.get(arrete.id)).toMatchObject({ statut: 'Clôturé', soldeComptaCentimes: 31_750 })
+
+    // Figé : un autre relevé en retard ne change plus l'arrêté clôturé, ni en base ni à l'écran.
+    await act(async () => {
+      await importerReleveSurCompte('C2', banqueId, [{ date: '2026-05-26', libelle: 'COMMISSION', montant: -5 }])
+    })
+    await patienter()
+    expect(dansPanneau().getByText('Clôturé')).toBeInTheDocument()
+    expect(panneau().textContent).toContain(`Solde compta ${formatEurosCentimes(317.5)}`)
+    expect(panneau().textContent).toContain(`Écart ${formatEurosCentimes(0)}`)
+    expect((await ajDb.rapprochements.get(arrete.id))?.soldeComptaCentimes).toBe(31_750)
+  })
+
+  it('« Clôturer » hors équilibre sur le solde recalculé : refusé, écart à l’instant en euros', async () => {
+    // Équilibré à l'ouverture (329,50 €), puis des frais du 25/05 arrivent : écart de 12,00 €.
+    const arrete = await ouvrirArreteCompte(banqueId, { dateArrete: '2026-05-31', soldeBanqueCentimes: 32_950 })
+    await importerReleveSurCompte('C2', banqueId, [{ date: '2026-05-25', libelle: 'FRAIS TENUE DE COMPTE', montant: -12 }])
+    await rendre()
+    expect(panneau().textContent).toContain(`Écart ${formatEurosCentimes(12)}`)
+    await cliquerEtAttendre(dansPanneau().getByRole('button', { name: 'Clôturer l’arrêté du 31/05/2026' }))
+    expect(dernierToast()).toEqual({
+      kind: 'warn',
+      title: 'Clôture refusée',
+      desc: `Arrêté non équilibré : écart de ${formatEurosCentimes(12)}. Clôture possible seulement à l’équilibre.`,
+    })
+    expect(await ajDb.rapprochements.get(arrete.id)).toMatchObject({ statut: 'En cours', soldeComptaCentimes: 32_950 })
+  })
+
+  it('« Arrêtés du compte » : la ligne de l’arrêté en cours porte le solde recalculé, celle de l’arrêté clôturé son solde figé', async () => {
+    const premier = await ouvrirArreteCompte(banqueId, { dateArrete: '2026-05-15', soldeBanqueCentimes: 45_000 })
+    await cloturerArreteCompte(premier.id)
+    await ouvrirArreteCompte(banqueId, { dateArrete: '2026-05-31', soldeBanqueCentimes: 32_950 })
+    // Deux lignes en retard : l'une dans la période déjà clôturée, l'autre dans l'arrêté en cours.
+    await importerReleveSurCompte('C2', banqueId, [
+      { date: '2026-05-12', libelle: 'FRAIS AVANT LE PREMIER ARRETE', montant: -3 },
+      { date: '2026-05-25', libelle: 'FRAIS TENUE DE COMPTE', montant: -12 },
+    ])
+    await rendre()
+    const lignes = within(dansPanneau().getByRole('table', { name: 'Arrêtés du compte' })).getAllByRole('row').slice(1)
+    const cellules = (ligne: HTMLElement) => within(ligne).getAllByRole('cell').map((cellule) => cellule.textContent)
+    expect(cellules(lignes[0])).toEqual(['31/05/2026', formatEurosCentimes(329.5), formatEurosCentimes(314.5), formatEurosCentimes(15), 'En cours'])
+    expect(cellules(lignes[1])).toEqual(['15/05/2026', formatEurosCentimes(450), formatEurosCentimes(450), formatEurosCentimes(0), 'Clôturé'])
+  })
+
+  it('« Nouvel arrêté » : le formulaire dit que le solde compta est recalculé jusqu’à la clôture, puis figé', async () => {
+    await rendre()
+    fireEvent.click(dansPanneau().getByRole('button', { name: /Nouvel arrêté/ }))
+    const texte = screen.getByRole('dialog').textContent
+    expect(texte).toContain('Lignes de relevé importées sur ce compte jusqu’à cette date ; montant recalculé jusqu’à la clôture de l’arrêté, puis figé.')
+    expect(texte).not.toContain('figé à l’ouverture')
   })
 })
