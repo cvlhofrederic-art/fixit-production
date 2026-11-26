@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
-import { getAuthUser, getUserRole } from '@/lib/auth-helpers'
-import { ficheSocieteDuSousCompte, peutModifierFicheSociete } from '@/lib/btp/fiche-societe'
+import { getAuthUser } from '@/lib/auth-helpers'
+import { ficheSocieteOuRefus, peutModifierFicheSociete } from '@/lib/btp/fiche-societe'
 import { validateBody, saveLogoSchema } from '@/lib/validation'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
@@ -42,12 +42,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Compte invité dans une société BTP : la fiche de sa société, si son rôle l'y autorise. Tout autre compte : null.
-    const ficheSociete = getUserRole(user) === 'pro_societe'
-      ? await ficheSocieteDuSousCompte(user, supabaseAdmin, peutModifierFicheSociete)
-      : null
-    if (ficheSociete && !ficheSociete.ok) {
-      return NextResponse.json({ error: ficheSociete.message, code: ficheSociete.code }, { status: ficheSociete.status })
-    }
+    const ficheSociete = await ficheSocieteOuRefus(user, supabaseAdmin, peutModifierFicheSociete)
+    if (ficheSociete instanceof NextResponse) return ficheSociete
 
     // Trouver l'artisan par user_id
     const { data: artisan } = ficheSociete

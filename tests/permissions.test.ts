@@ -221,7 +221,7 @@ describe('lib/permissions', () => {
     // leur vérification) ; pas l'ouvrier.
     it('OUVRIER n’ouvre que le pointage, ses chantiers, la météo, les rapports et son profil', () => {
       const accessible = getAccessibleModules(getDefaultPermissionsForRole('OUVRIER'))
-      expect(accessible.sort()).toEqual(['chantiers', 'meteo', 'pointage', 'rapports', 'settings'])
+      expect(accessible.sort((a, b) => a.localeCompare(b))).toEqual(['chantiers', 'meteo', 'pointage', 'rapports', 'settings'])
     })
 
     // FULL, pas READ : la liste `rapports` de /api/btp n'a pas de vue restreinte (COLONNES_VUE_RESTREINTE), donc en
@@ -237,7 +237,7 @@ describe('lib/permissions', () => {
 
     it.each(['CHEF_CHANTIER', 'CONDUCTEUR_TRAVAUX'] as const)('%s ouvre en plus l’outillage de ses chantiers, en lecture', (role) => {
       const droits = getDefaultPermissionsForRole(role)
-      expect(getAccessibleModules(droits).sort()).toEqual(['chantiers', 'meteo', 'outillage', 'pointage', 'rapports', 'settings'])
+      expect(getAccessibleModules(droits).sort((a, b) => a.localeCompare(b))).toEqual(['chantiers', 'meteo', 'outillage', 'pointage', 'rapports', 'settings'])
       expect(droits.outillage).toBe('READ')
     })
 

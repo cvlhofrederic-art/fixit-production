@@ -259,6 +259,7 @@ describe('Modes de paiement d’un compte invité', () => {
     const { status, json } = await lirePaiement()
 
     expect(status).toBe(403)
+    expect(json.code).toBe('aucun_droit_paiement')
     expect(JSON.stringify(json)).not.toContain('PT50')
   })
 
@@ -336,5 +337,70 @@ describe('Identité entreprise d’un rapport de chantier, compte invité (/api/
     const { status } = await lireIdentite()
 
     expect(status).toBe(403)
+  })
+})
+
+describe('Mon profil d’un compte invité : ce que la route protège d’elle-même (relecture adverse du 26/11/2026)', () => {
+  // Formulaire jamais chargé depuis la fiche, ouvert avant la correction : les 18 champs vides (l'e-mail valide, sinon
+  // la validation le refusait déjà).
+  const FORMULAIRE_VIDE = {
+    company_name: '', bio: '', phone: '', email: 'tatiana@exemplo.test', auto_reply_message: '',
+    auto_block_duration_minutes: 240, zone_radius_km: 30, rcs_number: '', ape_code: '', share_capital: '', tva_intra: '',
+    insurance_name: '', insurance_number: '', insurance_coverage: '', insurance_type: '', insurance_expiry: '',
+    mediator_name: '', mediator_url: '',
+  }
+
+  it('un formulaire vide (onglet d’avant la correction) est refusé : rien n’est écrit sur la fiche', async () => {
+    invite('SECRETAIRE')
+
+    const { status, json } = await enregistrerProfil(FORMULAIRE_VIDE)
+
+    expect(status).toBe(409)
+    expect(json.code).toBe('formulaire_perime')
+    expect(ecrituresProfils()).toHaveLength(0)
+    expect(fiche()).toMatchObject({ company_name: 'Construções Exemplo, Lda', rcs_number: 'CRC Porto 000000' })
+  })
+
+  it('vider un seul champ reste possible', async () => {
+    invite('SECRETAIRE')
+
+    const { status } = await enregistrerProfil({ insurance_name: '' })
+
+    expect(status).toBe(200)
+    expect(ecrituresProfils()[0].valeur).toEqual({ insurance_name: null })
+  })
+
+  it('la bio modifiée garde le marqueur des services par jour de la société', async () => {
+    invite('GERANT')
+    fiche().bio = 'Reabilitação de fachadas. <!--DS:{"1":["s1"]}-->'
+
+    await enregistrerProfil({ bio: 'Reabilitação e pintura de fachadas.' })
+
+    expect(ecrituresProfils()[0].valeur).toEqual({ bio: 'Reabilitação e pintura de fachadas. <!--DS:{"1":["s1"]}-->' })
+  })
+
+  it('« Validation automatique » : la secrétaire la change sur la fiche de la société', async () => {
+    invite('SECRETAIRE')
+
+    const { status } = await enregistrerProfil({ auto_accept: true })
+
+    expect(status).toBe(200)
+    expect(ecrituresProfils()[0]).toMatchObject({ filtres: { id: FICHE }, valeur: { auto_accept: true } })
+  })
+
+  it('« Validation automatique » : un salarié de terrain ne la change pas', async () => {
+    invite('OUVRIER')
+    expect((await enregistrerProfil({ auto_accept: true })).status).toBe(403)
+    expect(ecrituresProfils()).toHaveLength(0)
+  })
+
+  it('artisan : la route ignore auto_accept, comme avant (son interrupteur écrit depuis le navigateur)', async () => {
+    const id = nouveauCompte()
+    h.user = { id, app_metadata: { role: 'artisan' } }
+    h.base.lignes.profiles_artisan = [{ id: 'fiche-artisan', user_id: id, company_name: 'Exemple', slug: 'exemple' }]
+
+    await enregistrerProfil({ phone: '+33 600 000 000', auto_accept: true })
+
+    expect(ecrituresProfils()[0].valeur).toEqual({ phone: '+33 600 000 000' })
   })
 })

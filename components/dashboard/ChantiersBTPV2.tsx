@@ -166,6 +166,13 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
   // Compte invité dans la société : ses devis sont ceux de l'entreprise, que la RLS ne lui rend pas. Lus et liés par le
   // serveur (app/api/pro/documents/chantiers), qui vérifie son rôle ; le titulaire garde ses lectures directes.
   const sousCompte = estSousCompteSociete(artisan)
+  // Une seule lecture du serveur pour les deux chargements du montage (devis à importer, documents liés) ; « Lier un
+  // devis » et la relecture après une liaison la refont.
+  const lectureSocieteRef = useRef<ReturnType<typeof lireDocumentsDesChantiers> | null>(null)
+  const documentsDeLaSociete = useCallback((relire = false) => {
+    if (relire || !lectureSocieteRef.current) lectureSocieteRef.current = lireDocumentsDesChantiers()
+    return lectureSocieteRef.current
+  }, [])
 
   const { items: chantiers, loading, add, update, remove } = useBTPData({
     table: 'chantiers',
@@ -220,7 +227,7 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
       const lireDevis = async (): Promise<DevisSummary[] | null> => {
         if (sousCompte) {
           // Un rôle sans droit sur les devis (salarié de terrain) reçoit un refus : aucun devis à proposer.
-          const lu = await lireDocumentsDesChantiers()
+          const lu = await documentsDeLaSociete()
           return lu.ok ? (lu.valeur.devis.slice(0, 50) as unknown as DevisSummary[]) : null
         }
         const lectureAvecLieu = await devisRequete(`${COLONNES_DEVIS_IMPORT}, ${COLONNES_LIEU_DEVIS}`)
@@ -271,7 +278,7 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
       }
     } catch (e) { console.error('loadDevisAndMembres:', e) }
     setLoadingDevis(false)
-  }, [artisan?.id, settings, sousCompte])
+  }, [artisan?.id, settings, sousCompte, documentsDeLaSociete])
 
   // ── Géocode ──
   // La position GPS déclenche le pointage automatique des employés : seule une position précise de l'adresse (numéro,
@@ -574,11 +581,11 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
   useEffect(() => { loadDevisAndMembres() }, [loadDevisAndMembres])
 
   // ── Fetch linked docs (devis + factures with chantier_id set) ──
-  const loadLinkedDocs = useCallback(async () => {
+  const loadLinkedDocs = useCallback(async (relire = false) => {
     if (!artisan?.id) return
     try {
       if (sousCompte) {
-        const lu = await lireDocumentsDesChantiers()
+        const lu = await documentsDeLaSociete(relire)
         if (lu.ok) setLinkedDocs(grouperDocumentsLies(lu.valeur.devis, lu.valeur.factures))
         return
       }
@@ -588,16 +595,16 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
       ])
       setLinkedDocs(grouperDocumentsLies(devisRes.data || [], facturesRes.data || []))
     } catch (e) { console.error('loadLinkedDocs:', e) }
-  }, [artisan?.id, sousCompte])
+  }, [artisan?.id, sousCompte, documentsDeLaSociete])
 
-  useEffect(() => { loadLinkedDocs() }, [loadLinkedDocs])
+  useEffect(() => { void loadLinkedDocs() }, [loadLinkedDocs])
 
   // ── Open link modal: fetch unlinked devis ──
   const openLinkModal = useCallback(async (chantierId: string) => {
     setShowLinkModal(chantierId)
     try {
       if (sousCompte) {
-        const lu = await lireDocumentsDesChantiers()
+        const lu = await documentsDeLaSociete(true)
         if (!lu.ok) { toast.error(messageRefusDocuments(lu, isPt)); setAvailableDevis([]); return }
         setAvailableDevis(devisALier(lu.valeur.devis.filter(d => !d.chantier_id)))
         return
@@ -613,7 +620,7 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
         .limit(50)
       setAvailableDevis(devisALier(data || []))
     } catch (e) { console.error('openLinkModal:', e) }
-  }, [artisan?.id, sousCompte, isPt])
+  }, [artisan?.id, sousCompte, isPt, documentsDeLaSociete])
 
   // ── Link a devis to a chantier ──
   const linkDevis = useCallback(async (devisId: string, chantierId: string) => {
@@ -628,7 +635,7 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
     }
     toast.success(isPt ? 'Orçamento associado à obra' : 'Devis lié au chantier')
     setShowLinkModal(null)
-    await loadLinkedDocs()
+    await loadLinkedDocs(true)
   }, [loadLinkedDocs, isPt, sousCompte])
 
   // ── Filter + search ──

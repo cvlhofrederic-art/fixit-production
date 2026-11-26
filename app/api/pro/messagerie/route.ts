@@ -103,6 +103,41 @@ async function referencesVerifiees(
   return { syndicMissionId: mission.id, signalementId: mission.signalement_id ?? null }
 }
 
+/**
+ * Marque lus les messages du contact quand le prestataire ouvre le fil.
+ *
+ * Société BTP : ses messages partent de plusieurs comptes (gérant, co-gérant, secrétaire) ; écarter le seul compte de
+ * la société marquait « lus » ceux d'un collègue, que le contact n'avait pas lus (✓✓ à tort). Les messages du côté
+ * prestataire portent `metadata.cote = 'artisan'` (POST) : ils sont écartés, quel que soit leur expéditeur. Les autres
+ * comptes gardent la requête d'origine.
+ */
+async function marquerLusLesMessagesDuContact(user: User, conversationId: string, artisanUserId: string): Promise<void> {
+  if (getUserRole(user) !== 'pro_societe') {
+    await supabaseAdmin
+      .from('conversation_messages')
+      .update({ read: true })
+      .eq('conversation_id', conversationId)
+      .neq('sender_id', artisanUserId)
+      .eq('read', false)
+    return
+  }
+  const { data, error } = await supabaseAdmin
+    .from('conversation_messages')
+    .select('id, sender_id, metadata')
+    .eq('conversation_id', conversationId)
+    .eq('read', false)
+  if (error) {
+    logger.warn('[messagerie] messages non lus illisibles, rien n’est marqué', { code: error.code })
+    return
+  }
+  const duContact = ((data ?? []) as Array<{ id: string; sender_id?: string | null; metadata?: { cote?: unknown } | null }>)
+    .filter((m) => m.sender_id !== artisanUserId && m.sender_id !== user.id && m.metadata?.cote !== 'artisan')
+    .map((m) => m.id)
+  if (duContact.length > 0) {
+    await supabaseAdmin.from('conversation_messages').update({ read: true }).in('id', duContact)
+  }
+}
+
 // ═══ GET — Liste des conversations ou messages d'une conversation ═══
 export async function GET(req: NextRequest) {
   try {
@@ -233,15 +268,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
     }
 
-    // Marquer les messages non lus comme lus (ceux envoyés par l'autre). Compte invité : ses propres messages
-    // (sender_id = son compte) ne sont pas ceux de l'autre, ils restent non lus pour le contact.
-    let lus = supabaseAdmin
-      .from('conversation_messages')
-      .update({ read: true })
-      .eq('conversation_id', conversationId)
-      .neq('sender_id', artisanUserId)
-    if (user.id !== artisanUserId) lus = lus.neq('sender_id', user.id)
-    await lus.eq('read', false)
+    // Marquer les messages non lus comme lus (ceux envoyés par le contact)
+    await marquerLusLesMessagesDuContact(user, conversationId, artisanUserId)
 
     // Remettre le compteur unread à 0
     await supabaseAdmin

@@ -277,6 +277,20 @@ describe('tableau de bord BTP — fiche société au chargement', () => {
     expect(initSettingsForm).toHaveBeenCalledWith(TITULAIRE_SOCIETE.valeur.fiche, '', 'pro_societe')
   })
 
+  it('compte invité : « Validation automatique » part de la fiche de la société', async () => {
+    mocks.etat.fiche = { data: null, error: AUCUNE_LIGNE }
+    mocks.lireTitulaireSociete.mockResolvedValue({
+      ...TITULAIRE_SOCIETE,
+      valeur: { ...TITULAIRE_SOCIETE.valeur, fiche: { ...TITULAIRE_SOCIETE.valeur.fiche, auto_accept: true } },
+    })
+    const { useAvailability } = await import('@/hooks/dashboard')
+    const { setAutoAccept } = (useAvailability as unknown as () => { setAutoAccept: ReturnType<typeof vi.fn> })()
+    const { container } = await ouvrir(utilisateur('pro_societe', CO_GERANT_INVITE))
+
+    await waitFor(() => expect(container.querySelector('#artisan-dashboard-v5')).not.toBeNull())
+    expect(setAutoAccept).toHaveBeenCalledWith(true)
+  })
+
   it('compte invité, société non résolue : l’écran le dit au lieu d’ouvrir des listes vides', async () => {
     mocks.etat.fiche = { data: null, error: AUCUNE_LIGNE }
     mocks.lireTitulaireSociete.mockResolvedValue({

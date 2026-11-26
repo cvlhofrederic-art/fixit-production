@@ -174,7 +174,7 @@ export function useSettings(
         headers: token ? { 'Authorization': `Bearer ${token}` } : {},
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Erreur upload')
+      if (!res.ok) throw new Error(messageRefusDocuments({ message: data.error || 'Erreur upload', code: data.code }, isPt))
       setArtisan({ ...artisan, [field]: data.url })
       setUploadMsg({ type: 'success', text: isPt ? '\u2705 Documento atualizado com sucesso!' : '\u2705 Document mis \u00e0 jour avec succ\u00e8s !' })
     } catch (err: any) {

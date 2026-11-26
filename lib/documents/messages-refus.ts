@@ -14,6 +14,8 @@ export type CodeRefusDocuments =
   | 'aucun_droit_comptabilite'
   | 'aucun_droit_fiche'
   | 'aucun_droit_liaison'
+  | 'aucun_droit_paiement'
+  | 'formulaire_perime'
   | 'lecture_impossible'
 
 export const MESSAGES_REFUS_DOCUMENTS: Record<CodeRefusDocuments, { fr: string; pt: string }> = {
@@ -43,6 +45,16 @@ export const MESSAGES_REFUS_DOCUMENTS: Record<CodeRefusDocuments, { fr: string; 
   aucun_droit_fiche: {
     fr: "Votre rôle dans l'entreprise ne permet pas de modifier la fiche de la société.",
     pt: 'A sua função na empresa não permite alterar a ficha da empresa.',
+  },
+  // Lecture des modes de paiement (IBAN) : réservée à qui les modifie ou imprime des documents.
+  aucun_droit_paiement: {
+    fr: "Votre rôle dans l'entreprise ne donne pas accès aux modes de paiement de la société.",
+    pt: 'A sua função na empresa não dá acesso aos modos de pagamento da empresa.',
+  },
+  // Mon profil d'un compte invité ouvert avant sa correction : un formulaire vide qui effacerait la fiche de la société.
+  formulaire_perime: {
+    fr: "Le formulaire n'est plus à jour : rechargez la page, puis enregistrez de nouveau.",
+    pt: 'O formulário já não está atualizado: recarregue a página e guarde novamente.',
   },
   // « Lier un devis » de l'écran Chantiers : il faut écrire les devis et les chantiers (app/api/pro/documents/chantiers).
   aucun_droit_liaison: {

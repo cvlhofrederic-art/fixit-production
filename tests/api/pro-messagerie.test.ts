@@ -519,13 +519,13 @@ describe('Messagerie d’un compte invité dans une société BTP', () => {
   const SOCIETE = AUTRE_ARTISAN
   let compteur = 0
   /** Compte invité neuf (resolveCompanyId garde 60 s la société d'un compte) et ses lectures d'équipe. */
-  const invite = (role: string, autres: (a: Appel) => Reponse | undefined = () => undefined) => {
+  const invite = (role: string, autres: (a: Appel) => Reponse | undefined = () => undefined, derogations: unknown[] = []) => {
     compteur += 1
     const id = `00000000-0000-4000-9400-${String(compteur).padStart(12, '0')}`
     h.etat.user = { id, email: 'equipa@exemple.test', app_metadata: { role: 'pro_societe', pro_team_role: role, company_id: SOCIETE } }
     h.etat.repondre = (a) => {
       if (a.table === 'pro_team_members') return { data: { id: `membre-${id}`, company_id: SOCIETE }, error: null }
-      if (a.table === 'pro_role_permissions') return { data: [], error: null }
+      if (a.table === 'pro_role_permissions') return { data: derogations, error: null }
       return autres(a) ?? { data: null, error: null }
     }
     return id
@@ -551,16 +551,46 @@ describe('Messagerie d’un compte invité dans une société BTP', () => {
     expect((await lireConversations(SOCIETE)).status).toBe(403)
   })
 
-  it('ouvrir un fil ne marque pas « lus » les messages que le salarié a lui-même envoyés', async () => {
+  // Le fil de la société mêle les messages de plusieurs comptes (gérant, co-gérant, secrétaire) : seuls ceux du contact
+  // passent « lus » à l'ouverture, sinon le contact verrait ✓✓ sur un message qu'il n'a pas lu.
+  it('ouvrir un fil ne marque « lus » que les messages du contact, pas ceux d’un collègue', async () => {
     const id = invite('SECRETAIRE', (a) => {
       if (a.table === 'conversations' && a.op === 'select') return { data: { id: CONV }, error: null }
-      if (a.table === 'conversation_messages' && a.op === 'select') return { data: [], error: null }
+      if (a.table === 'conversation_messages' && a.op === 'select') {
+        return {
+          data: [
+            { id: 'du-contact', sender_id: MOI, metadata: { cote: 'donneur_ordre' } },
+            { id: 'du-contact-sans-cote', sender_id: MOI, metadata: null },
+            { id: 'd-un-collegue', sender_id: '00000000-0000-4000-9400-0000000000ff', metadata: { cote: 'artisan' } },
+            { id: 'de-la-societe', sender_id: SOCIETE, metadata: null },
+          ],
+          error: null,
+        }
+      }
       return undefined
     })
     const res = await GET(requete('GET', undefined, `https://vitfix.io/api/pro/messagerie?artisan_user_id=${SOCIETE}&conversation_id=${CONV}`))
     expect(res.status).toBe(200)
-    const lus = appelsSur('conversation_messages', 'update')[0]
-    expect(lus.filtres).toEqual(expect.arrayContaining([['neq', 'sender_id', SOCIETE], ['neq', 'sender_id', id]]))
+    const lus = appelsSur('conversation_messages', 'update')
+    expect(lus).toHaveLength(1)
+    expect(lus[0].filtres).toEqual([['in', 'id', ['du-contact', 'du-contact-sans-cote']]])
+    expect(id).toBeTruthy()
+  })
+
+  it('artisan : le marquage « lu » garde la requête d’origine', async () => {
+    impersonne('artisan')
+    h.etat.repondre = (a) => (a.table === 'conversations' && a.op === 'select' ? { data: { id: CONV }, error: null } : { data: [], error: null })
+    await GET(requete('GET', undefined, `https://vitfix.io/api/pro/messagerie?artisan_user_id=${MOI}&conversation_id=${CONV}`))
+    const [lus] = appelsSur('conversation_messages', 'update')
+    expect(lus.filtres).toEqual([['eq', 'conversation_id', CONV], ['neq', 'sender_id', MOI], ['eq', 'read', false]])
+  })
+
+  it('messagerie en lecture seule (dérogation READ) : il lit, il n’envoie pas', async () => {
+    invite('OUVRIER', () => undefined, [{ module_id: 'messages', access_level: 'READ' }])
+    expect((await lireConversations(SOCIETE)).status).toBe(200)
+    const envoi = await POST(requete('POST', { artisan_user_id: SOCIETE, contact_id: MOI, contact_type: 'pro', content: 'Olá' }))
+    expect(envoi.status).toBe(403)
+    expect(appelsSur('conversation_messages', 'insert')).toHaveLength(0)
   })
 
   it('le co-gérant répond au nom de la société : son compte en expéditeur, le côté du prestataire', async () => {

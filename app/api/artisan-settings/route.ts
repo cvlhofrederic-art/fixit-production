@@ -5,7 +5,8 @@ import { generateSlug } from '@/lib/utils'
 import { artisanSettingsPostSchema, validateBody } from '@/lib/validation'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
-import { ficheSocieteDuSousCompte, peutModifierFicheSociete } from '@/lib/btp/fiche-societe'
+import { ficheSocieteOuRefus, peutModifierFicheSociete } from '@/lib/btp/fiche-societe'
+import { messageRefusFr } from '@/lib/documents/messages-refus'
 
 // ── Cache des colonnes existantes (évite de re-tester à chaque requête) ────────
 let knownColumns: Set<string> | null = null
@@ -69,6 +70,30 @@ async function adressePubliqueLibre(nom: string, ville: string, idFiche: string)
   return undefined
 }
 
+/** Marqueur des services par jour, rangé à la fin de la bio (app/api/availability-services/route.ts l'écrit). */
+const MARQUEUR_SERVICES = /<!--DS:[\s\S]*?-->/
+
+/**
+ * Compte invité : la bio reçue n'a jamais le marqueur des services par jour (le formulaire le retire de l'écran, et le
+ * tableau de bord d'un invité ne le réécrit pas après l'enregistrement, comme il le fait pour le gérant). Il est repris
+ * de la fiche : sinon le réglage de la société disparaîtrait à la première bio modifiée.
+ */
+function bioAvecMarqueur(bio: string | undefined, bioEnBase: unknown): string | undefined {
+  if (typeof bio !== 'string' || bio.includes('<!--DS:')) return bio
+  const marqueur = typeof bioEnBase === 'string' ? bioEnBase.match(MARQUEUR_SERVICES)?.[0] : undefined
+  return marqueur ? `${bio.trim()} ${marqueur}`.trim() : bio
+}
+
+/**
+ * Compte invité : un formulaire jamais chargé depuis la fiche (onglet ouvert avant cette correction) envoie ses champs
+ * vides. Vider d'un coup plusieurs champs remplis de la fiche de la société n'est pas une saisie : refus, rien n'est
+ * écrit. Vider un seul champ reste possible (retirer un médiateur, une date d'assurance).
+ */
+function videLaFiche(aEcrire: Record<string, unknown>, fiche: Record<string, unknown>): boolean {
+  const remplie = (valeur: unknown) => valeur !== null && valeur !== undefined && valeur !== ''
+  return Object.entries(aEcrire).filter(([cle, valeur]) => valeur === null && remplie(fiche[cle])).length >= 2
+}
+
 export async function POST(request: NextRequest) {
   try {
     const user = await getAuthUser(request)
@@ -84,17 +109,14 @@ export async function POST(request: NextRequest) {
     const estSocieteBtp = getUserRole(user) === 'pro_societe'
     // Compte invité dans une société BTP (co-gérant, secrétaire…) : il n'a pas de fiche à lui, « Mon profil » est
     // celle de sa société, et seul le module settings en FULL l'écrit. Tout autre compte : null, chemin d'origine.
-    const ficheSociete = estSocieteBtp
-      ? await ficheSocieteDuSousCompte(user, supabaseAdmin, peutModifierFicheSociete, '*')
-      : null
-    if (ficheSociete && !ficheSociete.ok) {
-      return NextResponse.json({ error: ficheSociete.message, code: ficheSociete.code }, { status: ficheSociete.status })
-    }
+    const ficheSociete = await ficheSocieteOuRefus(user, supabaseAdmin, peutModifierFicheSociete, '*')
+    if (ficheSociete instanceof NextResponse) return ficheSociete
+    const colonnesFiche = estSocieteBtp ? '*' : 'id'
     const { data: artisan, error: fetchError } = ficheSociete
       ? { data: ficheSociete.fiche as { id: string }, error: null }
       : await supabaseAdmin
         .from('profiles_artisan')
-        .select(estSocieteBtp ? '*' : 'id')
+        .select(colonnesFiche)
         .eq('user_id', user.id)
         .single()
 
@@ -140,7 +162,7 @@ export async function POST(request: NextRequest) {
     }
 
     const fields: Record<string, any> = {
-      company_name, bio, phone, email, slug,
+      company_name, bio: ficheSociete ? bioAvecMarqueur(bio, ficheSociete.fiche.bio) : bio, phone, email, slug,
       auto_reply_message, auto_block_duration_minutes, zone_radius_km,
       intervention_zones, language,
       rcs_number, ape_code, share_capital, tva_intra,
@@ -159,6 +181,16 @@ export async function POST(request: NextRequest) {
         updatePayload[key] = value === '' ? null : value
       } else {
         skippedFields.push(key)
+      }
+    }
+
+    if (ficheSociete) {
+      // Interrupteur « Validation automatique » de Mon profil : pour un compte invité, la fiche de la société ne
+      // s'écrit pas depuis le navigateur (la RLS filtrait sans erreur, l'interrupteur basculait quand même).
+      if (typeof body.auto_accept === 'boolean') updatePayload.auto_accept = body.auto_accept
+      if (videLaFiche(updatePayload, ficheSociete.fiche)) {
+        logger.warn('[artisan-settings] formulaire vide refusé sur la fiche d’une société', { ficheId: artisan.id })
+        return NextResponse.json({ error: messageRefusFr('formulaire_perime'), code: 'formulaire_perime' }, { status: 409 })
       }
     }
 

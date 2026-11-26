@@ -27,6 +27,8 @@ const h = vi.hoisted(() => ({
   envois: [] as unknown[],
   /** Ligne d'équipe active d'un compte invité (pro_team_members), lue par resolveCompanyId. */
   equipe: [] as Ligne[],
+  /** Filtres .eq posés sur chaque table : [table, colonne, valeur]. */
+  filtres: [] as Array<[string, string, unknown]>,
 }))
 
 vi.mock('@/lib/logger', async () => (await import('../helpers/mocks-routes-api')).loggerSilencieux())
@@ -58,7 +60,7 @@ vi.mock('@supabase/supabase-js', () => ({
         return q
       }
       q.select = () => q
-      q.eq = () => q
+      q.eq = (colonne: string, valeur: unknown) => { h.filtres.push([table, colonne, valeur]); return q }
       q.order = () => q
       q.single = async () => ({ data: lignes()[0] ?? null, error: null })
       q.maybeSingle = async () => ({ data: table === 'pro_team_members' ? h.equipe[0] ?? null : lignes()[0] ?? null, error: null })
@@ -114,6 +116,7 @@ beforeEach(() => {
   h.limites = []
   h.envois = []
   h.equipe = []
+  h.filtres = []
 })
 afterEach(() => { vi.unstubAllEnvs() })
 
@@ -151,6 +154,14 @@ describe('création ordinaire par une société (inchangée)', () => {
     h.equipe = [{ id: 'membre-1', company_id: societe }]
     expect((await creer(corpsEcran())).status).toBe(201)
     expect(insertionsDe('rfqs')[0].donnees).toMatchObject({ user_id: societe })
+  })
+
+  it('secrétaire invitée : elle lit les demandes de la société, pas les siennes', async () => {
+    const societe = '5c4b3a29-1807-4f6e-9d5c-4b3a29180702'
+    h.compte = { id: '6d5c4b3a-2918-4e7f-8a6b-5c4b3a291803', email: 'secretaria@exemple.test', app_metadata: { role: 'pro_societe', pro_team_role: 'SECRETAIRE', company_id: societe }, user_metadata: {} }
+    h.equipe = [{ id: 'membre-2', company_id: societe }]
+    expect((await GET(requete('GET'))).status).toBe(200)
+    expect(h.filtres.filter(([table]) => table === 'rfqs')).toEqual([['rfqs', 'user_id', societe]])
   })
 
   it('conducteur de travaux (module fermé par défaut) : 403, ni demande ni e-mail', async () => {

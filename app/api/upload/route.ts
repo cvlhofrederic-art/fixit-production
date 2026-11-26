@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { estUrlStockageSupabase } from '@/lib/security/safe-url'
-import { getAuthUser, getUserRole } from '@/lib/auth-helpers'
-import { ficheSocieteDuSousCompte, peutModifierFicheSociete } from '@/lib/btp/fiche-societe'
+import { getAuthUser } from '@/lib/auth-helpers'
+import { ficheSocieteOuRefus, peutModifierFicheSociete } from '@/lib/btp/fiche-societe'
 import { niveauSur, type PerimetreBtp } from '@/lib/btp/perimetre-compte'
 import type { User } from '@supabase/supabase-js'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
@@ -41,10 +41,8 @@ function droitDuSousCompteSur(champ: string): (perimetre: PerimetreBtp) => boole
  * l'envoi dans Storage : un refus ne laisse pas de fichier orphelin.
  */
 async function ficheVisee(user: User, artisanId: string, champ: string): Promise<string | NextResponse | null> {
-  if (getUserRole(user) !== 'pro_societe') return null
-  const fiche = await ficheSocieteDuSousCompte(user, supabaseAdmin, droitDuSousCompteSur(champ))
-  if (!fiche) return null
-  if (!fiche.ok) return NextResponse.json({ error: fiche.message, code: fiche.code }, { status: fiche.status })
+  const fiche = await ficheSocieteOuRefus(user, supabaseAdmin, droitDuSousCompteSur(champ))
+  if (!fiche || fiche instanceof NextResponse) return fiche
   // L'écran envoie l'identifiant de la fiche de la société ou celui du compte : rien d'autre ne la désigne.
   if (artisanId !== fiche.ficheId && artisanId !== user.id) {
     return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })

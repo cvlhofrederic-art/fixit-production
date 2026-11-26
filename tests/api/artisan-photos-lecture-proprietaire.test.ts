@@ -35,7 +35,7 @@ vi.mock('@/lib/supabase-server', () => ({
   },
 }))
 
-const { GET } = await import('@/app/api/artisan-photos/route')
+const { GET, DELETE } = await import('@/app/api/artisan-photos/route')
 
 const lire = async (requete: string) => {
   const res = await GET(new NextRequest(`https://vitfix.io/api/artisan-photos${requete}`, { headers: { Authorization: 'Bearer jeton' } }))
@@ -109,7 +109,24 @@ describe('GET /api/artisan-photos — compte invité dans une société BTP', ()
     invite('SECRETAIRE')
     const res = await lire(`?artisan_id=${FICHE}`)
     expect(res.status).toBe(200)
-    expect(res.json.data?.map((p) => p.id).sort()).toEqual(['photo-1', 'photo-2'])
+    expect(res.json.data?.map((p) => p.id).sort((a, b) => a.localeCompare(b))).toEqual(['photo-1', 'photo-2'])
+  })
+
+  const supprimer = async (id: string) => {
+    const res = await DELETE(new NextRequest(`https://vitfix.io/api/artisan-photos?id=${id}`, { method: 'DELETE', headers: { Authorization: 'Bearer jeton' } }))
+    return res.status
+  }
+
+  it('la secrétaire supprime une photo de la société', async () => {
+    invite('SECRETAIRE')
+    expect(await supprimer('photo-1')).toBe(200)
+    expect(appelsDe(h.base, 'artisan_photos', 'delete')).toHaveLength(1)
+  })
+
+  it('un salarié de terrain ne supprime rien', async () => {
+    invite('OUVRIER')
+    expect(await supprimer('photo-1')).toBe(403)
+    expect(appelsDe(h.base, 'artisan_photos', 'delete')).toHaveLength(0)
   })
 
   it('un salarié de terrain (photos de chantier fermées par défaut) : 403, aucune photo lue', async () => {

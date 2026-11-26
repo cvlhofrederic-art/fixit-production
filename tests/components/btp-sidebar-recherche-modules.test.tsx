@@ -485,22 +485,23 @@ describe('Barre latérale BTP — ce qu’un salarié voit du menu', () => {
   const secretaire = (id: string) => canAccess(droitsSecretaire, id)
 
   // Décision de Frédéric du 25/11/2026 : « Les salariés doivent uniquement recevoir les alertes météo, le chantier
-  // qui les concerne, et surtout le pointage ». Le menu entier, bloc « Compte » compris, ne montre rien d'autre que
-  // ces trois écrans, « Mon profil » (son mot de passe) et « Aide ».
-  it('un salarié de terrain ne voit que le pointage, ses chantiers, la météo, son profil et l’aide', async () => {
+  // qui les concerne, et surtout le pointage ». Le 26/11/2026 : « Les employés doivent aussi avoir le droit au module
+  // rapports ! ». Le menu entier, bloc « Compte » compris, ne montre rien d'autre que ces quatre écrans, « Mon profil »
+  // (son mot de passe) et « Aide ».
+  it('un salarié de terrain ne voit que le pointage, ses chantiers, la météo, les rapports, son profil et l’aide', async () => {
     await monter({ isProGerant: false, proCanAccess: salarieDeTerrain, salarieDeTerrain: true })
-    expect(new Set(modulesAffiches())).toEqual(new Set(['Pointage équipes', 'Chantiers', 'Météo chantiers', 'Mon profil', 'Aide']))
+    expect(new Set(modulesAffiches())).toEqual(new Set(['Pointage équipes', 'Chantiers', 'Météo chantiers', 'Rapports de chantier', 'Mon profil', 'Aide']))
   })
 
   it('en portugais aussi, sans le dictionnaire de matériaux', async () => {
     await monter({ isPt: true, isProGerant: false, proCanAccess: salarieDeTerrain, salarieDeTerrain: true })
-    expect(new Set(modulesAffiches())).toEqual(new Set(['Registo de horas', 'Obras', 'Meteorologia', 'O meu perfil', 'Ajuda']))
+    expect(new Set(modulesAffiches())).toEqual(new Set(['Registo de horas', 'Obras', 'Meteorologia', 'Relatórios de obra', 'O meu perfil', 'Ajuda']))
   })
 
   it('un encarregado voit en plus « Ferramentas e viaturas », juste sous le registo de horas', async () => {
     await monter({ isPt: true, isProGerant: false, proCanAccess: chefDeChantier, salarieDeTerrain: true })
     const affiches = modulesAffiches()
-    expect(new Set(affiches)).toEqual(new Set(['Registo de horas', 'Ferramentas e viaturas', 'Obras', 'Meteorologia', 'O meu perfil', 'Ajuda']))
+    expect(new Set(affiches)).toEqual(new Set(['Registo de horas', 'Ferramentas e viaturas', 'Obras', 'Meteorologia', 'Relatórios de obra', 'O meu perfil', 'Ajuda']))
     expect(affiches.indexOf('Ferramentas e viaturas')).toBe(affiches.indexOf('Registo de horas') + 1)
   })
 
@@ -576,6 +577,6 @@ describe('Barre latérale BTP — ce qu’un salarié voit du menu', () => {
       isModuleEnabled: (id: string) => id !== 'meteo' && id !== 'pointage',
       rubriques: (parDefaut) => parDefaut.map(cat => ({ ...cat, modules: cat.modules.map(m => ({ ...m, on: m.id !== 'chantiers' })) })),
     })
-    expect(new Set(modulesAffiches())).toEqual(new Set(['Pointage équipes', 'Chantiers', 'Météo chantiers', 'Mon profil', 'Aide']))
+    expect(new Set(modulesAffiches())).toEqual(new Set(['Pointage équipes', 'Chantiers', 'Météo chantiers', 'Rapports de chantier', 'Mon profil', 'Aide']))
   })
 })

@@ -419,6 +419,9 @@ function DashboardPage() {
       // valeurs de référence, et son premier enregistrement aurait effacé nom, coordonnées et mentions légales de la
       // fiche. Aucune adresse de connexion en repli : celle du salarié n'est pas celle de l'entreprise.
       initSettingsForm(ficheSociete, '', role)
+      // État de l'interrupteur « Validation automatique » : celui de la société (absent de la fiche d'en-tête d'un
+      // salarié de terrain, qui ne peut de toute façon pas le changer).
+      setAutoAccept(!!(ficheSociete as { auto_accept?: unknown }).auto_accept)
 
       // Ses propres brouillons d'abord, pour que l'écran s'ouvre tout de suite, puis la liste de la société.
       try {

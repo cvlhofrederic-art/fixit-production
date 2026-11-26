@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
-import { getAuthUser, getUserRole } from '@/lib/auth-helpers'
-import { ficheSocieteDuSousCompte, peutLireModesPaiement, peutModifierFicheSociete } from '@/lib/btp/fiche-societe'
+import { getAuthUser } from '@/lib/auth-helpers'
+import { ficheSocieteOuRefus, peutLireModesPaiement, peutModifierFicheSociete } from '@/lib/btp/fiche-societe'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { validateBody, artisanPaymentInfoSchema } from '@/lib/validation'
@@ -16,12 +16,10 @@ export async function GET(request: NextRequest) {
     const user = await getAuthUser(request)
     if (!user) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
 
-    const ficheSociete = getUserRole(user) === 'pro_societe'
-      ? await ficheSocieteDuSousCompte(user, supabaseAdmin, peutLireModesPaiement, 'id, paiement_modes, paiement_mention_devis, paiement_mention_facture')
-      : null
-    if (ficheSociete && !ficheSociete.ok) {
-      return NextResponse.json({ error: ficheSociete.message, code: ficheSociete.code }, { status: ficheSociete.status })
-    }
+    const ficheSociete = await ficheSocieteOuRefus(
+      user, supabaseAdmin, peutLireModesPaiement, 'id, paiement_modes, paiement_mention_devis, paiement_mention_facture', 'aucun_droit_paiement',
+    )
+    if (ficheSociete instanceof NextResponse) return ficheSociete
 
     const { data: artisan, error } = ficheSociete
       ? { data: ficheSociete.fiche as { paiement_modes?: unknown; paiement_mention_devis?: boolean | null; paiement_mention_facture?: boolean | null }, error: null }
@@ -55,12 +53,8 @@ export async function POST(request: NextRequest) {
     const allowed = await checkRateLimit(`artisan_payment_${user.id}`, 10, 60_000)
     if (!allowed) return rateLimitResponse()
 
-    const ficheSociete = getUserRole(user) === 'pro_societe'
-      ? await ficheSocieteDuSousCompte(user, supabaseAdmin, peutModifierFicheSociete)
-      : null
-    if (ficheSociete && !ficheSociete.ok) {
-      return NextResponse.json({ error: ficheSociete.message, code: ficheSociete.code }, { status: ficheSociete.status })
-    }
+    const ficheSociete = await ficheSocieteOuRefus(user, supabaseAdmin, peutModifierFicheSociete)
+    if (ficheSociete instanceof NextResponse) return ficheSociete
 
     const { data: artisan, error: fetchError } = ficheSociete
       ? { data: { id: ficheSociete.ficheId }, error: null }

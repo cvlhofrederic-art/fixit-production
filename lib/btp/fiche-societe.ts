@@ -19,7 +19,9 @@
 // écrire ce qu'il y voit sur la fiche de la société mélangerait deux entreprises.
 // ═══════════════════════════════════════════════════════════════════════════════
 
+import { NextResponse } from 'next/server'
 import type { SupabaseClient, User } from '@supabase/supabase-js'
+import { getUserRole } from '@/lib/auth-helpers'
 import { lirePerimetreBtp, niveauSur, type PerimetreBtp } from '@/lib/btp/perimetre-compte'
 import { famillesLisibles, societeNonResolue } from '@/lib/btp/titulaire-documents'
 import { messageRefusFr, type CodeRefusDocuments } from '@/lib/documents/messages-refus'
@@ -52,12 +54,14 @@ function refus(status: 403 | 409 | 500, code: CodeRefusDocuments): FicheDuSousCo
  * sous-compte sans fiche à lui (la route garde alors son chemin d'origine).
  *
  * `colonnes` : ce que la route lit de la fiche (`id` suffit pour écrire ; `*` pour l'adresse publique).
+ * `codeRefus` : motif rendu quand le rôle n'a pas le droit (par défaut : modifier la fiche).
  */
 export async function ficheSocieteDuSousCompte(
   user: User,
   admin: SupabaseClient,
   droit: (perimetre: PerimetreBtp) => boolean,
   colonnes = 'id',
+  codeRefus: CodeRefusDocuments = 'aucun_droit_fiche',
 ): Promise<FicheDuSousCompte | null> {
   const perimetre = await lirePerimetreBtp(user, admin)
   if (perimetre.titulaire) return null
@@ -75,7 +79,7 @@ export async function ficheSocieteDuSousCompte(
     logger.warn('[fiche-societe] rattachement annoncé mais société non résolue', { compte: user.id.slice(0, 8) })
     return refus(409, 'societe_non_resolue')
   }
-  if (!droit(perimetre)) return refus(403, 'aucun_droit_fiche')
+  if (!droit(perimetre)) return refus(403, codeRefus)
 
   const { data, error } = await admin.from('profiles_artisan').select(colonnes).eq('user_id', perimetre.societeId)
   if (error) {
@@ -91,4 +95,23 @@ export async function ficheSocieteDuSousCompte(
   const ficheId = typeof fiche.id === 'string' ? fiche.id : ''
   if (!ficheId) return refus(409, 'fiche_societe_absente')
   return { ok: true, ficheId, fiche, perimetre }
+}
+
+/**
+ * Raccourci des routes : `null` pour tout compte qui garde son chemin d'origine (pas une société BTP, titulaire, ou
+ * sous-compte qui a sa propre fiche), la fiche de la société si le rôle a le droit, sinon la réponse de refus à rendre
+ * telle quelle (code et texte français ; l'écran traduit par le code).
+ */
+export async function ficheSocieteOuRefus(
+  user: User,
+  admin: SupabaseClient,
+  droit: (perimetre: PerimetreBtp) => boolean,
+  colonnes = 'id',
+  codeRefus: CodeRefusDocuments = 'aucun_droit_fiche',
+): Promise<Extract<FicheDuSousCompte, { ok: true }> | NextResponse | null> {
+  if (getUserRole(user) !== 'pro_societe') return null
+  const fiche = await ficheSocieteDuSousCompte(user, admin, droit, colonnes, codeRefus)
+  if (!fiche) return null
+  if (!fiche.ok) return NextResponse.json({ error: fiche.message, code: fiche.code }, { status: fiche.status })
+  return fiche
 }

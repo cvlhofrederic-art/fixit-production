@@ -92,6 +92,22 @@ describe('GET : devis et factures de la société pour l’écran Chantiers', ()
     expect(requetes(h.base, 'devis', 'select')[0].filtres).toEqual({ artisan_user_id: SOCIETE })
   })
 
+  it('base sans colonne raw_data : relue avec l’ancienne colonne client_address, comme l’écran du titulaire', async () => {
+    invite('SECRETAIRE')
+    h.base.erreurs.push({
+      table: 'devis', operation: 'select', siColonne: 'raw_data',
+      erreur: { code: '42703', message: 'column devis.raw_data does not exist' },
+    })
+
+    const { status, json } = await lire()
+
+    expect(status).toBe(200)
+    expect((json.devis as Array<{ id: string }>).map(d => d.id)).toEqual([DEVIS])
+    const lectures = requetes(h.base, 'devis', 'select')
+    expect(lectures).toHaveLength(2)
+    expect(lectures[1].colonnes).toContain('client_address')
+  })
+
   it('le comptable (devis en lecture, factures) les voit aussi', async () => {
     invite('COMPTABLE')
     expect((await lire()).status).toBe(200)
