@@ -56,7 +56,8 @@ vi.mock('@/lib/rate-limit', () => ({
   getClientIP: vi.fn(() => '127.0.0.1'),
   rateLimitResponse: vi.fn(() => Response.json({ error: 'rate' }, { status: 429 })),
 }))
-vi.mock('@/lib/auth-helpers', () => ({
+vi.mock('@/lib/auth-helpers', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/auth-helpers')>()),
   getAuthUser: vi.fn(async () => h.etat.user),
   getUserRole: vi.fn((u: { app_metadata?: { role?: string } }) => u?.app_metadata?.role || ''),
 }))
@@ -511,3 +512,67 @@ describe('GET /api/pro/messagerie — messages d\'une conversation', () => {
     expect((await res.json()).messages).toHaveLength(1)
   })
 })
+
+// ═══ Compte invité dans une société BTP (26/11/2026) ═══
+// L'écran envoie la société (artisan.user_id) ; la route exigeait le compte connecté : 403 partout, liste vide.
+describe('Messagerie d’un compte invité dans une société BTP', () => {
+  const SOCIETE = AUTRE_ARTISAN
+  let compteur = 0
+  /** Compte invité neuf (resolveCompanyId garde 60 s la société d'un compte) et ses lectures d'équipe. */
+  const invite = (role: string, autres: (a: Appel) => Reponse | undefined = () => undefined) => {
+    compteur += 1
+    const id = `00000000-0000-4000-9400-${String(compteur).padStart(12, '0')}`
+    h.etat.user = { id, email: 'equipa@exemple.test', app_metadata: { role: 'pro_societe', pro_team_role: role, company_id: SOCIETE } }
+    h.etat.repondre = (a) => {
+      if (a.table === 'pro_team_members') return { data: { id: `membre-${id}`, company_id: SOCIETE }, error: null }
+      if (a.table === 'pro_role_permissions') return { data: [], error: null }
+      return autres(a) ?? { data: null, error: null }
+    }
+    return id
+  }
+  const lireConversations = (artisanUserId: string) =>
+    GET(requete('GET', undefined, `https://vitfix.io/api/pro/messagerie?artisan_user_id=${artisanUserId}`))
+
+  it('la secrétaire lit les conversations de la société', async () => {
+    invite('SECRETAIRE')
+    const res = await lireConversations(SOCIETE)
+    expect(res.status).toBe(200)
+    expect(filtre(appelsSur('conversations', 'select')[0], 'artisan_id')).toBe(SOCIETE)
+  })
+
+  it('jamais celles d’une autre société', async () => {
+    invite('SECRETAIRE')
+    expect((await lireConversations(MOI)).status).toBe(403)
+    expect(appelsSur('conversations')).toHaveLength(0)
+  })
+
+  it('un salarié de terrain (messagerie fermée) : 403', async () => {
+    invite('OUVRIER')
+    expect((await lireConversations(SOCIETE)).status).toBe(403)
+  })
+
+  it('ouvrir un fil ne marque pas « lus » les messages que le salarié a lui-même envoyés', async () => {
+    const id = invite('SECRETAIRE', (a) => {
+      if (a.table === 'conversations' && a.op === 'select') return { data: { id: CONV }, error: null }
+      if (a.table === 'conversation_messages' && a.op === 'select') return { data: [], error: null }
+      return undefined
+    })
+    const res = await GET(requete('GET', undefined, `https://vitfix.io/api/pro/messagerie?artisan_user_id=${SOCIETE}&conversation_id=${CONV}`))
+    expect(res.status).toBe(200)
+    const lus = appelsSur('conversation_messages', 'update')[0]
+    expect(lus.filtres).toEqual(expect.arrayContaining([['neq', 'sender_id', SOCIETE], ['neq', 'sender_id', id]]))
+  })
+
+  it('le co-gérant répond au nom de la société : son compte en expéditeur, le côté du prestataire', async () => {
+    const id = invite('GERANT', (a) => {
+      if (a.table === 'conversations' && a.op === 'select') return { data: { id: CONV, contact_type: 'pro' }, error: null }
+      if (a.table === 'conversation_messages' && a.op === 'insert') return { data: { id: 'nouveau', ...a.payload }, error: null }
+      return undefined
+    })
+    const res = await POST(requete('POST', { artisan_user_id: SOCIETE, contact_id: MOI, contact_type: 'pro', content: 'Bem recebido' }))
+    expect(res.status).toBe(200)
+    expect(filtre(appelsSur('conversations', 'select')[0], 'artisan_id')).toBe(SOCIETE)
+    expect(appelsSur('conversation_messages', 'insert')[0].payload).toMatchObject({ sender_id: id, metadata: { cote: 'artisan' } })
+  })
+})
+
