@@ -99,7 +99,7 @@ const ERREUR = { pt: 'Erro. Tente novamente.', fr: 'Erreur. Réessayez.' }
 
 /** Mêmes dérogations (module et niveau), dans n'importe quel ordre. */
 function memesDerogations(a: { module_id: string; access_level: string }[], b: { module_id: string; access_level: string }[]): boolean {
-  const cle = (l: { module_id: string; access_level: string }[]) => l.map(d => `${d.module_id}:${d.access_level}`).sort().join('|')
+  const cle = (l: { module_id: string; access_level: string }[]) => l.map(d => `${d.module_id}:${d.access_level}`).sort((x, y) => x.localeCompare(y)).join('|')
   return cle(a) === cle(b)
 }
 
