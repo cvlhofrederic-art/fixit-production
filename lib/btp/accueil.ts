@@ -14,6 +14,10 @@
  * Lecture seule : rien ici n'écrit ni ne modifie un chantier ou un document.
  */
 
+// `estDuType` et `estAnnule` vivaient ici. Elles sont descendues dans le module partagé des documents le
+// 26/11/2026, quatre écrans posant la même question — et deux d'entre eux y répondaient faux.
+import { estAnnule, estDuType } from '@/lib/documents/liste-effective'
+
 export interface ChantierAccueil {
   id: string
   titre?: string | null
@@ -84,16 +88,11 @@ function documentsLisibles(documents: DocumentsAccueil): DocumentAccueil[] {
   return documents.filter((doc): doc is DocumentAccueil => typeof doc === 'object' && doc !== null)
 }
 
-const estDuType = (doc: DocumentAccueil, type: 'devis' | 'facture') => (doc.docType ?? doc.type) === type
-
 /**
  * Jamais émis : statut vide, « brouillon » (navigateur) ou « draft » (base). C'est la lecture des listes Devis et
  * Factures, qui affichent « Brouillon » dans ces trois cas.
  */
 const estBrouillon = (doc: DocumentAccueil) => ['', 'brouillon', 'draft'].includes(String(doc.status ?? ''))
-
-/** Annulé : « annule » (navigateur) ou « cancelled » (base). Les listes Devis et Factures masquent ces documents. */
-const estAnnule = (doc: DocumentAccueil) => doc.status === 'annule' || doc.status === 'cancelled'
 
 /** Nom du client d'un document, sous la forme comparable (minuscules, sans espaces autour). */
 export function clientDuDocument(doc: DocumentAccueil): string {

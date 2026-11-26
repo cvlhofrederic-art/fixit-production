@@ -7,7 +7,10 @@ import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { useThemeVars } from './useThemeVars'
 import ResumeActivite from '@/components/stats/ResumeActivite'
 import { docRevenueHT } from '@/lib/stats-doc-total'
-import { documentsPourSynthese } from '@/lib/documents/liste-effective'
+import {
+  documentsPourSynthese, estAnnule, estDevisSigne, estDuType, estFacturePayee, facturesDuChiffreAffaires,
+} from '@/lib/documents/liste-effective'
+import { useBTPData } from '@/lib/hooks/use-btp-data'
 
 async function downloadCsv(type: 'clients' | 'bookings' | 'revenue', errorMsg = 'Erreur lors de l\'export') {
   const res = await fetch(`/api/user/export-csv?type=${type}`)
@@ -441,24 +444,36 @@ interface LocalDoc { docType: string; docNumber?: string; docDate?: string; stat
 interface LocalExpense { amount?: string | number; date?: string; category?: string }
 
 /**
- * Identifiant sous lequel le navigateur range les devis, factures et dépenses lus ici. Une société BTP les range
- * sous l'identifiant de sa fiche (artisan.id), comme le tableau de bord, les écrans Devis, Factures et Comptabilité ;
- * celui de son compte (user_id) n'y porte rien (constat stockage-local-miroir-8 de l'audit du 11/11/2026). Côté
- * artisan, lecture inchangée.
+ * Identifiant sous lequel le navigateur range les devis, factures, dépenses et chantiers lus ici :
+ * **toujours `artisan.id`**, quel que soit le rôle.
+ *
+ * C'est la clé qu'écrivent les trois chemins du tableau de bord (`app/(commun)/pro/dashboard/page.tsx` : la fiche
+ * `artisanData.id` pour un artisan, `user.id` pour un salarié invité comme pour un compte sans fiche — où `id`
+ * vaut justement `user.id`), celle qu'hydrate `persistEmittedDocsToCache` depuis la base, celle qu'écrit la
+ * Comptabilité pour les dépenses, et celle que lisent déjà Devis, Factures, Rapports et Rentabilité.
+ *
+ * Jusqu'au 26/11/2026, cet écran lisait `artisan.user_id` côté artisan — **une clé que rien n'écrit**, `id` étant
+ * un `gen_random_uuid()` distinct de la référence vers `auth.users` (migration 052), et la route de création de
+ * fiche n'écrivant jamais `id`. Statistiques et Revenus affichaient donc 0 pour tout artisan ayant une vraie
+ * fiche, et cela depuis le **11/04/2026** (commit 38060a71, écrit pour les comptes de démonstration, où les deux
+ * valeurs coïncident). L'audit du 11/11/2026 l'avait constaté sans le corriger (stockage-local-miroir-8) ;
+ * Frédéric a demandé la correction le 26/11/2026.
  */
-function idStockageLocal(artisan: import('@/lib/types').Artisan | undefined, orgRole?: OrgRole): string {
-  if (orgRole === 'pro_societe') return artisan?.id || ''
-  return artisan?.user_id || artisan?.id || ''
+function idStockageLocal(artisan: import('@/lib/types').Artisan | undefined): string {
+  return artisan?.id || ''
 }
 
 /**
  * Documents que cet écran doit prendre en compte. Une société BTP — gérant comme salarié invité — lit la liste du
- * tableau de bord, seule à porter les documents de la SOCIÉTÉ. Côté artisan, la lecture reste exactement celle
- * d'avant ce lot : son stockage sous `user_id`, qui ne porte rien (cf. `idStockageLocal`).
+ * tableau de bord, seule à porter les documents de la SOCIÉTÉ. Un artisan lit son propre stockage, désormais sous
+ * la bonne clé (cf. `idStockageLocal`).
  *
- * Ne pas « réparer » l'artisan ici. Ses compteurs de devis et de factures sont à 0 depuis l'audit du 11/11/2026 ;
- * les remplir ferait apparaître d'un coup les chiffres de comptes en production, ce qui est une décision de
- * Frédéric et un lot à soi — pas une conséquence d'un lot écrit pour les salariés BTP.
+ * La bascule de source reste réservée aux sociétés : règle n° 1, un fichier partagé conditionne son comportement.
+ * Brancher la prop côté artisan aussi serait un changement de comportement à part — et il apporterait quelque
+ * chose, contrairement à ce qu'une version de ce commentaire a prétendu : à la toute première vue de page, le
+ * cache du navigateur peut être vide (navigation privée, poste neuf, cache effacé) et l'hydratation depuis la base
+ * arrive après le rendu, sans recalcul puisque `documentsFournis` reste `undefined`. L'écran afficherait alors 0
+ * un instant, ou durablement si le stockage est indisponible. À décider séparément.
  */
 function documentsDuPerimetre(
   documents: readonly LocalDoc[] | undefined,
@@ -468,22 +483,17 @@ function documentsDuPerimetre(
 }
 
 /**
- * Facture émise et non payée. Le tableau de bord recopie dans le navigateur les factures relues depuis la base avec
- * le statut de la base (lib/document-sync.ts) : « pending » y désigne la facture envoyée (« envoye »), comme dans la
- * liste des factures. Pris en compte pour une société BTP ; côté artisan, inchangé.
+ * Facture émise et non payée, pour TOUS les rôles depuis le 26/11/2026.
+ *
+ * Le tableau de bord recopie dans le navigateur les factures relues depuis la base avec le statut de la base
+ * (lib/document-sync.ts) : « pending » y désigne la facture envoyée (« envoye »), comme dans la liste des factures.
+ * La condition `orgRole === 'pro_societe'` n'avait de sens que tant qu'un artisan lisait une clé vide : maintenant
+ * qu'il lit le cache hydraté depuis la base, sa facture passe de « envoye » à « pending » au premier rechargement
+ * de page, et « Factures en attente » retombait à 0 € pendant que le taux de recouvrement, lui, la comptait. Deux
+ * chiffres de la même carte se contredisaient selon qu'on venait d'émettre ou qu'on avait rechargé.
  */
-function estFactureEnvoyee(statut: string | undefined, orgRole?: OrgRole): boolean {
-  return statut === 'envoye' || (orgRole === 'pro_societe' && statut === 'pending')
-}
-
-/**
- * Devis gagné. Une société BTP marque ses devis « Accepté » depuis la liste des devis (« accepte » dans le navigateur,
- * « accepted » en base) ; cette liste les range avec les devis signés dans le filtre « Acceptés » (DevisSection). Ils
- * comptent donc comme signés pour une société BTP ; côté artisan, seul « signed » compte, comme avant.
- */
-function estDevisSigne(statut: string | undefined, orgRole?: OrgRole): boolean {
-  if (statut === 'signed') return true
-  return orgRole === 'pro_societe' && (statut === 'signe' || statut === 'accepte' || statut === 'accepted')
+function estFactureEnvoyee(statut: string | undefined): boolean {
+  return statut === 'envoye' || statut === 'pending'
 }
 
 /**
@@ -502,17 +512,19 @@ function estDevisSigne(statut: string | undefined, orgRole?: OrgRole): boolean {
  */
 function useLocalStats(artisanId: string, documentsFournis?: readonly LocalDoc[]) {
   const [expenses, setExpenses] = useState<LocalExpense[]>([])
-  const [chantierCount, setChantierCount] = useState(0)
 
   useEffect(() => {
     try {
       const raw = localStorage.getItem(`fixit_expenses_${artisanId}`)
       if (raw) setExpenses(JSON.parse(raw))
     } catch { /* navigation privée */ }
-    try {
-      const raw = localStorage.getItem(`chantiers_${artisanId}`)
-      if (raw) setChantierCount(JSON.parse(raw).length)
-    } catch { /* navigation privée */ }
+    // Les chantiers ne sont PLUS dans le navigateur : ils vivent en base (table `chantiers_btp`, lue par
+    // `/api/btp?table=chantiers`). Jusqu'au 26/11/2026 cet écran lisait `chantiers_<id>` — sans le préfixe
+    // `fixit_` — c'est-à-dire une clé que personne n'a jamais écrite ; et `fixit_chantiers_<id>`, la clé
+    // préfixée, n'est plus écrite que par `ChantiersBTPSection`, un composant que la page ne monte plus (l'écran
+    // Chantiers est `ChantiersBTPV2`, qui passe par la base) et par le seed de démonstration. Lire l'une ou
+    // l'autre revenait au même : zéro. Le décompte vient donc du même endroit que l'écran Chantiers lui-même,
+    // dans le composant — voir `chantiersActifs`.
   }, [artisanId])
 
   const docs = useMemo(
@@ -520,7 +532,7 @@ function useLocalStats(artisanId: string, documentsFournis?: readonly LocalDoc[]
     [documentsFournis, artisanId],
   )
 
-  return { docs, expenses, chantierCount }
+  return { docs, expenses }
 }
 
 function StatsV5({ bookings, totalRevenue, services, artisan, locale, orgRole, savedDocuments }: {
@@ -533,15 +545,45 @@ function StatsV5({ bookings, totalRevenue, services, artisan, locale, orgRole, s
   savedDocuments?: readonly LocalDoc[]
 }) {
   const isPt = locale === 'pt'
-  const aid = idStockageLocal(artisan, orgRole)
-  const { docs, expenses, chantierCount } = useLocalStats(aid, documentsDuPerimetre(savedDocuments, orgRole))
+  const aid = idStockageLocal(artisan)
+  const { docs, expenses } = useLocalStats(aid, documentsDuPerimetre(savedDocuments, orgRole))
+
+  // ── Chantiers actifs, lus là où les chantiers vivent : la base ─────────────
+  // Même source que l'écran Chantiers (`ChantiersBTPV2`) et que l'accueil : `/api/btp?table=chantiers`, par le
+  // cache partagé du hook. Cet écran cherchait `chantiers_<id>` dans le navigateur, une clé que personne n'a
+  // jamais écrite ; et `fixit_chantiers_<id>`, la clé préfixée, n'est plus écrite que par un composant que la page
+  // ne monte plus et par le seed de démonstration. Le repli affichait donc le nombre de DEVIS SIGNÉS sous
+  // l'étiquette « Chantiers actifs ».
+  //
+  // Actifs = ni terminés ni annulés ; le complément plutôt qu'une liste blanche, pour qu'un statut inconnu compte
+  // comme actif au lieu de disparaître. Le repli sur les devis signés ne sert plus qu'en l'absence de tout
+  // chantier — le cas d'un artisan, qui n'a pas ce module.
+  const idCompte = artisan?.user_id || artisan?.id || ''
+  // `autoImport: false` : cet écran LIT. Le hook, par défaut, peut envoyer un POST d'import des anciennes
+  // données du navigateur vers la base — une écriture déclenchée par l'ouverture d'un écran de synthèse, et
+  // retentée à chaque montage si elle échoue. L'import appartient aux écrans qui gèrent les chantiers.
+  const { items: chantiersBase } = useBTPData<{ statut?: string; status?: string }>({
+    table: 'chantiers', artisanId: idCompte, userId: idCompte, orgRole, autoImport: false,
+  })
+  const chantiersActifs = useMemo(
+    () => chantiersBase.filter(c => {
+      const statut = String(c?.statut ?? c?.status ?? '')
+      return statut !== 'Terminé' && statut !== 'Annulé'
+    }).length,
+    [chantiersBase],
+  )
 
   // Merge data: prefer Supabase bookings, fall back to localStorage documents
   const hasBookings = bookings.length > 0
-  const devis = docs.filter(d => d.docType === 'devis')
-  const factures = docs.filter(d => d.docType === 'facture')
-  const signedDevis = devis.filter(d => estDevisSigne(d.status, orgRole))
-  const paidFactures = factures.filter(d => d.status === 'paid')
+  // Les factures qui comptent dans un chiffre d'affaires : émises (les brouillons sont déjà hors de `docs`) et
+  // NON ANNULÉES. Jusqu'au 26/11/2026 le graphe « CA mensuel » et le taux de recouvrement sommaient `factures`
+  // sans filtre de statut : une facture annulée entrait donc dans le CA du mois et faisait baisser le
+  // recouvrement, alors que le tableau des encaissements, juste à côté, l'écartait déjà. Deux chiffres du même
+  // écran se contredisaient — invisible tant qu'un artisan lisait une clé vide.
+  const devis = docs.filter(d => estDuType(d, 'devis') && !estAnnule(d))
+  const factures = facturesDuChiffreAffaires(docs)
+  const signedDevis = devis.filter(d => estDevisSigne(d.status))
+  const paidFactures = factures.filter(d => estFacturePayee(d.status))
 
   // KPIs — computed from best available source
   const caTotal = hasBookings
@@ -549,7 +591,11 @@ function StatsV5({ bookings, totalRevenue, services, artisan, locale, orgRole, s
     : paidFactures.reduce((s, f) => s + docRevenueHT(f), 0)
   const activeChantiers = hasBookings
     ? bookings.filter(b => b.status === 'confirmed' || b.status === 'pending').length
-    : chantierCount || signedDevis.length
+    // `chantiersBase.length > 0 ?` et non `chantiersActifs ||` : un décompte de ZÉRO est une réponse, pas une
+    // absence de réponse. Avec le `||`, une société dont tous les chantiers sont terminés retombait dans le
+    // repli et revoyait le nombre de devis signés sous l'étiquette « Chantiers actifs » — le défaut même que ce
+    // correctif supprime. Idem au premier rendu, le cache du hook étant froid.
+    : chantiersBase.length > 0 ? chantiersActifs : signedDevis.length
   const totalOffers = hasBookings ? bookings.length : devis.length
   const signedCount = hasBookings
     ? bookings.filter(b => b.status === 'completed').length
@@ -621,7 +667,7 @@ function StatsV5({ bookings, totalRevenue, services, artisan, locale, orgRole, s
         <div className="v5-kpi hl">
           <div className="v5-kpi-l">{isPt ? 'Faturação total' : 'CA facturé'}</div>
           <div className="v5-kpi-v">{formatPrice(caTotal, locale)}</div>
-          <div className="v5-kpi-s">{paidFactures.length + factures.filter(f => estFactureEnvoyee(f.status, orgRole)).length} {isPt ? 'faturas emitidas' : 'factures émises'}</div>
+          <div className="v5-kpi-s">{paidFactures.length + factures.filter(f => estFactureEnvoyee(f.status)).length} {isPt ? 'faturas emitidas' : 'factures émises'}</div>
         </div>
         <div className="v5-kpi">
           <div className="v5-kpi-l">{isPt ? 'Obras ativas' : 'Chantiers actifs'}</div>
@@ -736,13 +782,15 @@ function RevenusV5({ bookings, completedBookings, pendingBookings, totalRevenue,
   orgRole?: OrgRole
   savedDocuments?: readonly LocalDoc[]
 }) {
-  const aid = idStockageLocal(artisan, orgRole)
+  const aid = idStockageLocal(artisan)
   const { docs } = useLocalStats(aid, documentsDuPerimetre(savedDocuments, orgRole))
   const hasBookings = completedBookings.length > 0 || pendingBookings.length > 0
 
-  const factures = docs.filter(d => d.docType === 'facture')
-  const paidFactures = factures.filter(d => d.status === 'paid')
-  const pendingFactures = factures.filter(d => estFactureEnvoyee(d.status, orgRole))
+  // Mêmes règles que dans StatsV5 : une facture annulée n'est pas un chiffre d'affaires, et « pending » est
+  // l'écriture en base de « envoye ».
+  const factures = facturesDuChiffreAffaires(docs)
+  const paidFactures = factures.filter(d => estFacturePayee(d.status))
+  const pendingFactures = factures.filter(d => estFactureEnvoyee(d.status))
 
   const caYear = hasBookings ? totalRevenue : paidFactures.reduce((s, f) => s + docRevenueHT(f), 0)
   const pendingAmount = hasBookings
@@ -788,9 +836,14 @@ function RevenusV5({ bookings, completedBookings, pendingBookings, totalRevenue,
       .slice(0, 10)
       .forEach(b => recentRows.push({ date: b.booking_date || '', client: b.client_name || b.client_email || (locale === 'pt' ? 'Cliente' : 'Client'), chantier: b.services?.name || (locale === 'pt' ? 'Serviço' : 'Service'), amount: b.price_ttc || 0 }))
   } else {
-    // Société BTP : une facture n'est un encaissement qu'une fois payée, comme une réservation terminée ci-dessus ;
-    // émise non payée ou annulée, elle n'y figure pas. Côté artisan, inchangé.
-    const encaissees = orgRole === 'pro_societe' ? paidFactures : factures
+    // Une facture n'est un encaissement qu'une fois PAYÉE, comme une réservation terminée ci-dessus : émise non
+    // payée ou annulée, elle n'y figure pas.
+    //
+    // La condition de rôle a disparu le 26/11/2026, avec la correction de la clé de stockage. Côté artisan ce
+    // tableau était VIDE — il lisait une clé que rien n'écrit — et le réveiller tel quel y aurait affiché toutes
+    // ses factures, l'annulée et l'émise non payée comprises, en vert et précédées d'un « + », comme de l'argent
+    // encaissé. Il n'y avait donc aucun comportement à préserver, seulement un affichage faux à ne pas créer.
+    const encaissees = paidFactures
     encaissees.sort((a, b) => new Date(b.docDate || '').getTime() - new Date(a.docDate || '').getTime())
       .slice(0, 10)
       .forEach(f => recentRows.push({ date: f.docDate || '', client: f.clientName || (locale === 'pt' ? 'Cliente' : 'Client'), chantier: f.docTitle || (locale === 'pt' ? 'Fatura' : 'Facture'), amount: docRevenueHT(f) }))

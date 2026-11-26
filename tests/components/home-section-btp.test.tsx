@@ -66,6 +66,20 @@ const documents = [
   { id: '0b9d2c11-2222-4333-8444-1a2b3c4d5e6f', docType: 'devis', docNumber: 'BR-2026-003', clientName: 'M. Martin', status: 'draft' },
 ]
 
+/** Facture ÉMISE et non réglée : numéro définitif, statut « envoye ». C'est ce que l'alerte doit signaler. */
+const FACTURE_IMPAYEE = {
+  id: 'f-impayee', docType: 'facture', docNumber: 'FACT-2026-001', clientName: 'Mme Dupré',
+  status: 'envoye', docDate: '2026-11-01',
+  lines: [{ id: 1, description: 'Plomberie', qty: 1, unit: 'f', priceHT: 100, tvaRate: 20, totalHT: 100 }],
+}
+
+/** Devis ÉMIS sans réponse du client. Les statuts « pending » et « en_attente », que l'ancien filtre cherchait, n'existent pas. */
+const DEVIS_ENVOYE = {
+  id: 'dv-envoye', docType: 'devis', docNumber: 'DEV-2026-010', clientName: 'SARL Ponts',
+  status: 'envoye', docDate: '2026-11-10',
+  lines: [{ id: 1, description: 'Pont', qty: 1, unit: 'f', priceHT: 5000, tvaRate: 20, totalHT: 5000 }],
+}
+
 const navigateTo = vi.fn()
 const setActivePage = vi.fn()
 
@@ -329,11 +343,118 @@ describe('règle n° 1 — accueil artisan inchangé', () => {
     expect(texte(container)).not.toContain('CA total chantiers')
   })
 
-  it('ses alertes viennent toujours de son ancienne clé du navigateur, pas des documents de la page', async () => {
+  it('ses alertes viennent des documents de la page, et plus de son ancienne clé du navigateur', async () => {
+    // A CHANGÉ DE SENS le 26/11/2026, et c'est le cas le plus instructif du lot : il FIGEAIT la lecture de
+    // `fixit_docs_<id>`, une clé que plus aucun écran n'écrit depuis que lib/btp/accueil.ts a repris les alertes.
+    // « Facture impayée », « Devis en attente » et « Devis récents » étaient donc VIDES pour tout le monde,
+    // artisan comme société — et un bloc sans données ressemble à un bloc sans sujet.
     localStorage.setItem('fixit_docs_art-1', JSON.stringify([
-      { id: 'x1', type: 'facture', client: 'Mme Dupré', ref: 'F-1', total: 100, status: 'envoye', date: '2026-11-01' },
+      { id: 'fantome', type: 'facture', client: 'Client Fantôme', ref: 'F-0', total: 100, status: 'envoye', date: '2026-11-01' },
     ]))
-    const { container } = await afficher(proprietes('artisan', documents))
+    const { container } = await afficher(proprietes('artisan', [...documents, FACTURE_IMPAYEE]))
     expect([...container.querySelectorAll('.v5-al')].map(texte)).toEqual(['Facture impayée — Mme Dupré'])
+    // L'ancienne clé n'est plus lue du tout.
+    expect(texte(container)).not.toContain('Fantôme')
+  })
+
+  it('un devis envoyé sans réponse est signalé ; un brouillon ne l\'est pas, il n\'a jamais été envoyé', async () => {
+    const { container } = await afficher(proprietes('artisan', [...documents, DEVIS_ENVOYE]))
+    expect([...container.querySelectorAll('.v5-al')].map(texte)).toEqual(['Devis en attente — SARL Ponts'])
+  })
+
+  it('un devis accepté ou refusé n\'attend plus de réponse : aucune alerte', async () => {
+    for (const statut of ['accepte', 'accepted', 'signed', 'refuse', 'rejected']) {
+      const { container } = await afficher(proprietes('artisan', [{ ...DEVIS_ENVOYE, status: statut }]))
+      expect(container.querySelectorAll('.v5-al')).toHaveLength(0)
+    }
+  })
+
+  it('une facture payée n\'est pas signalée comme impayée, et une annulée non plus', async () => {
+    for (const statut of ['paid', 'annule', 'cancelled']) {
+      const { container } = await afficher(proprietes('artisan', [{ ...FACTURE_IMPAYEE, status: statut }]))
+      expect(container.querySelectorAll('.v5-al')).toHaveLength(0)
+    }
+  })
+
+  it('mise en page V22 (conciergerie) : le tableau des devis donne référence, montant et statut justes', async () => {
+    // Ce tableau lisait `d.ref || d.number` (jamais posés : la référence est `docNumber`), `d.total || d.amount`
+    // (jamais posés non plus : le montant se calcule depuis les lignes) et des statuts accentués « accepté » /
+    // « refusé » qui n'existent pas. Tout devis s'y affichait donc « Attente », à 0 €, numéroté par son rang.
+    const gagne = { ...DEVIS_ENVOYE, id: 'dv-gagne', docNumber: 'DEV-2026-077', clientName: 'Gagné', status: 'accepte' }
+    const { container } = await afficher(proprietes('pro_conciergerie', [DEVIS_ENVOYE, gagne]))
+    const corps = texte(container)
+    expect(corps).toContain('DEV-2026-010')
+    expect(corps).toContain('DEV-2026-077')
+    expect(corps).toContain('5 000')
+    // « accepte » est un statut réel : il doit s'afficher « Accepté », pas « Attente ».
+    expect(corps).toContain('Accepté')
+    expect(corps).toContain('Attente')
+    // Le sous-titre des alertes portait lui aussi `ref`/`number` et `total`/`amount`, qu'aucune écriture ne
+    // pose : il affichait « — · 0 € ». Cette mise en page est la seule qui le rende.
+    //
+    // L'assertion porte sur le sous-titre ENTIER, et pas sur le seul numéro : celui-ci apparaît aussi dans le
+    // tableau « Devis récents » de la même page, si bien qu'un test du numéro seul restait vert même sans le
+    // correctif — la contre-épreuve l'a montré.
+    expect(corps).toContain('DEV-2026-010 · sans réponse')
+    expect(corps).not.toContain('— · sans réponse')
+  })
+
+  it('deux devis du MÊME JOUR se départagent sur l\'horodatage d\'enregistrement', () => {
+    // `docDate` est une journée : pour deux devis du même jour — le quotidien d'une société — la comparaison rend
+    // 0 et le tri, stable, laissait le premier de la liste, donc le plus ancien. Le défaut subsistait à
+    // l'intérieur d'une journée alors que le commentaire le disait corrigé.
+    const matin = { ...DEVIS_ENVOYE, id: 'dv-matin', docNumber: 'DEV-2026-100', clientName: 'Matin', docDate: '2026-11-20', savedAt: '2026-11-20T08:00:00.000Z' }
+    const soir = { ...DEVIS_ENVOYE, id: 'dv-soir', docNumber: 'DEV-2026-101', clientName: 'Soir', docDate: '2026-11-20', savedAt: '2026-11-20T18:00:00.000Z' }
+    return afficher(proprietes('artisan', [matin, soir])).then(({ container }) => {
+      const corps = texte(container)
+      expect(corps).toContain('DEV-2026-101')
+      expect(corps).not.toContain('DEV-2026-100')
+    })
+  })
+
+  it('un document daté du futur n\'affiche pas « il y a -1j »', () => {
+    // L'écart négatif arrive pour de bon : la date d'un document se saisit à la main, et `new Date('2026-11-26')`
+    // vaut minuit UTC — donc un document du jour consulté avant 1 h du matin en France donne déjà un écart
+    // négatif. `formatRelativeTime` n'avait aucune garde : « Facture impayée — … il y a -1j ».
+    const demain = new Date(Date.now() + 86400000).toISOString().slice(0, 10)
+    const future = { ...FACTURE_IMPAYEE, id: 'f-futur', docNumber: 'FACT-2026-999', docDate: demain }
+    return afficher(proprietes('pro_conciergerie', [future])).then(({ container }) => {
+      const corps = texte(container)
+      expect(corps).not.toContain('-1j')
+      expect(corps).not.toMatch(/il y a -\d/)
+    })
+  })
+
+  it('un BROUILLON n\'est pas un « devis récent »', () => {
+    // Un brouillon porte `docDate` : il pouvait donc gagner le tri et s'afficher comme dernier devis, à 0 €, et
+    // le tableau de la mise en page V22 le rangeait en « Attente » — c'est-à-dire en attente de réponse du client.
+    const brouillon = { ...DEVIS_ENVOYE, id: 'dv-br', docNumber: 'BR-2026-007', status: 'brouillon', clientName: 'Pas fini', docDate: '2026-11-25' }
+    const emis = { ...DEVIS_ENVOYE, id: 'dv-emis', docNumber: 'DEV-2026-200', clientName: 'Émis', docDate: '2026-11-01' }
+    return afficher(proprietes('artisan', [brouillon, emis])).then(({ container }) => {
+      const corps = texte(container)
+      expect(corps).toContain('DEV-2026-200')
+      expect(corps).not.toContain('BR-2026-007')
+    })
+  })
+
+  it('« Devis récents » trie sur docDate, le champ que les documents portent vraiment', () => {
+    // Le tri lisait `date` et `created_at`, qu'aucune écriture ne pose (les formulaires posent `docDate`,
+    // `savedAt` et `sentAt`) : le comparateur rendait toujours 0, donc le tri était INOPÉRANT et, le tri de
+    // JavaScript étant stable, la tuile montrait le premier de la liste — en pratique le plus ANCIEN devis.
+    const vieux = { ...DEVIS_ENVOYE, id: 'dv-vieux', docNumber: 'DEV-2026-001', clientName: 'Ancien', docDate: '2026-01-05' }
+    const recent = { ...DEVIS_ENVOYE, id: 'dv-recent', docNumber: 'DEV-2026-050', clientName: 'Récent', docDate: '2026-11-20' }
+    // Le plus ancien en PREMIER dans la liste fournie : sans tri effectif, c'est lui que la tuile afficherait.
+    return afficher(proprietes('artisan', [vieux, recent])).then(({ container }) => {
+      const corps = texte(container)
+      expect(corps).toContain('DEV-2026-050')
+      expect(corps).toContain('Récent')
+      expect(corps).not.toContain('Aucun devis')
+      // Le montant vient des LIGNES du document (docRevenueHT), pas d'un champ `total` que rien ne pose.
+      expect(corps).toContain('5 000')
+      // La tuile ne montre QUE le premier devis : le numéro du plus ancien ne doit apparaître nulle part.
+      // Sans tri effectif, c'est lui qui s'afficherait (le tri de JavaScript est stable et la liste le donne
+      // en premier). Son NOM, « Ancien », figure en revanche dans les alertes : ce n'est pas ce qu'on teste ici.
+      expect(corps).not.toContain('DEV-2026-001')
+    })
   })
 })

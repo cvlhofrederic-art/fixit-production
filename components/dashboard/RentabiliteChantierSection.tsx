@@ -10,6 +10,7 @@ import { signalerPlafondsAtteints, useBTPSettings } from '@/lib/hooks/use-btp-da
 import { formatPrice } from '@/lib/utils'
 import type { RefTaux, ResultatRentabilite, FormeJuridique, Juridiction } from '@/lib/rentabilite/types'
 import { documentsPourSynthese } from '@/lib/documents/liste-effective'
+import { caParChantier } from '@/lib/rentabilite/ca-chantier'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // RENTABILITÉ CHANTIER — Module PRO BTP
@@ -65,7 +66,7 @@ interface SavedDoc {
 interface ChantierFinancials {
   chantier: Chantier
   caFacture: number
-  caDevis: number
+  caDocuments: number
   caTotal: number
   coutMainOeuvre: number
   coutMateriaux: number
@@ -164,17 +165,11 @@ export default function RentabiliteChantierSection({ artisan, orgRole, savedDocu
    * Devis et factures du tableau de bord. Pour un salarié invité d'une société, ce sont ceux de la SOCIÉTÉ, lus par
    * le serveur ; son propre stockage ne contient que ses brouillons.
    *
-   * ATTENTION — cette prop ne change aujourd'hui AUCUN chiffre de cet écran, contrairement à ce que ce lot a
-   * d'abord annoncé. Son unique consommateur (le calcul de `caDevis` plus bas) retient un document sur
-   * `d.type === 'facture'` alors que la mise en forme ne pose que `docType`, et sur `d.status === 'signé'`
-   * accentué, qui n'est aucun des statuts écrits ('signed', 'signe', 'accepte', 'accepted', 'cancelled'...).
-   * `docsClient` est donc toujours vide — pour un salarié comme pour un gérant, avant comme après ce lot — et
-   * `caTotal` ne vient que des situations de travaux et du budget. Défaut ANTÉRIEUR, signalé : le réparer
-   * ferait apparaître un CA devisé sur les écrans de sociétés déjà inscrites, donc c'est une décision de Frédéric
-   * (`estDuType` de lib/btp/accueil.ts et `estDevisSigne` de StatsRevenusSection font déjà le bon test).
-   *
-   * Ce que ce lot change ici, en revanche, et qui tient : les documents sortent de l'effet réseau, donc plus de
-   * course entre deux exécutions et cinq requêtes de moins au montage.
+   * Jusqu'au 26/11/2026 cette prop ne changeait AUCUN chiffre : son consommateur retenait un document sur
+   * `d.type === 'facture'` quand la mise en forme ne pose que `docType`, et sur `d.status === 'signé'` accentué,
+   * qui n'est aucun statut réel. Le CA d'un chantier ne venait donc que des situations de travaux et du budget.
+   * Le calcul vit maintenant dans `lib/rentabilite/ca-chantier.ts`, avec son banc et ses deux choix de fond
+   * (factures seules, et un document imputé à un seul chantier ou à aucun).
    */
   savedDocuments?: readonly SavedDoc[]
 }) {
@@ -331,10 +326,19 @@ export default function RentabiliteChantierSection({ artisan, orgRole, savedDocu
 
   const resetSim = () => { setSimJoursExtra(0); setSimOuvriersExtra(0); setSimCoutExtra(0) }
 
+  // ── CA facturé par chantier, en une seule passe ────────────────────────────
+  // C'est ce qui permet de n'imputer un document qu'à UN seul chantier, ou à aucun : un client qui a deux
+  // chantiers et une facture non rattachée verrait sinon cette facture comptée en entier sur chacun des deux, et
+  // l'indicateur global `caTotalPeriode` plus bas doublerait d'autant. Détail dans lib/rentabilite/ca-chantier.ts.
+  //
+  // Les chantiers annulés sont écartés AVANT le décompte par client, comme ils le sont de `financials` : sinon un
+  // chantier annulé rendrait « ambigu » un client qui n'en a plus qu'un seul.
+  const chantiersRetenus = useMemo(() => chantiers.filter(ch => ch.statut !== 'Annulé'), [chantiers])
+  const caDesDocuments = useMemo(() => caParChantier(documents, chantiersRetenus), [documents, chantiersRetenus])
+
   // ── Calcul financier par chantier ──────────────────────────────────────────
   const financials: ChantierFinancials[] = useMemo(() => {
-    return chantiers
-      .filter(ch => ch.statut !== 'Annulé')
+    return chantiersRetenus
       .map(ch => {
         const titre = ch.titre.toLowerCase().trim()
         const sitsCh = situations.filter(s =>
@@ -345,12 +349,11 @@ export default function RentabiliteChantierSection({ artisan, orgRole, savedDocu
           .filter(s => s.statut === 'validée' || s.statut === 'payée')
           .reduce((sum, s) => sum + s.travaux.reduce((t, p) => t + (p.quantite * p.prixUnit * p.avancement / 100), 0), 0)
 
-        const clientLower = ch.client.toLowerCase().trim()
-        const docsClient = documents.filter(d =>
-          d.clientName?.toLowerCase().trim() === clientLower && (d.type === 'facture' || d.status === 'signé')
-        )
-        const caDevis = docsClient.reduce((sum, d) => sum + (d.totalHT || d.totalTTC || 0), 0)
-        const caTotal = Math.max(caFacture, caDevis, parseFloat(ch.budget) || 0)
+        // CA facturé porté par les documents de ce chantier. Calculé une fois pour tous les chantiers (plus
+        // haut) : c'est ce qui permet de n'imputer un document qu'à un seul d'entre eux. Voir le module pour les
+        // deux choix de fond — factures seules, et jamais la même facture sur deux chantiers d'un même client.
+        const caDocuments = caDesDocuments.parChantier.get(ch.id) || 0
+        const caTotal = Math.max(caFacture, caDocuments, parseFloat(ch.budget) || 0)
 
         const pointCh = pointages.filter(p =>
           p.chantier_id === ch.id ||
@@ -398,7 +401,7 @@ export default function RentabiliteChantierSection({ artisan, orgRole, savedDocu
         const { badge, color: badgeColor } = scoreBadge(score)
 
         return {
-          chantier: ch, caFacture, caDevis, caTotal,
+          chantier: ch, caFacture, caDocuments, caTotal,
           coutMainOeuvre, coutMateriaux, coutAutres, coutTotal,
           beneficeNet, margePercent, joursPrevu, joursReel,
           beneficeParJour, projectionMensuelle, seuilRentabiliteJours,
@@ -406,7 +409,7 @@ export default function RentabiliteChantierSection({ artisan, orgRole, savedDocu
         }
       })
       .sort((a, b) => b.beneficeNet - a.beneficeNet)
-  }, [chantiers, pointages, membres, expenses, situations, documents, coutsHoraires])
+  }, [chantiersRetenus, pointages, membres, expenses, situations, caDesDocuments, coutsHoraires])
 
   // ── Compute engine results for each chantier ───────────────────────────────
   useEffect(() => {

@@ -1,5 +1,10 @@
 import type { ReglementCompteEnregistre } from '@/lib/administrateur-judiciaire/db/schema'
-import { validerIban, type NatureCompteBancaire } from '@/lib/administrateur-judiciaire/domain/comptes-bancaires'
+import {
+  compteEncaissement,
+  validerIban,
+  type CompteCandidatEncaissement,
+  type ModeComptesLu,
+} from '@/lib/administrateur-judiciaire/domain/comptes-bancaires'
 import {
   DELAI_PREAVIS_SEPA_JOURS,
   contenuAvisAppel,
@@ -51,7 +56,9 @@ import type { Traitement } from '@/lib/administrateur-judiciaire/domain/traiteme
  * - solde antérieur non repris (les encaissements de la trésorerie sont imputés aux anciennes fiches, comptes
  *   « 450-<fiche> », pas aux comptes D2) : l'avis ne porte que l'appelé ; point à trancher ;
  * - contenu de l'avis (contenuAvisAppel) : règlement de chaque compte (mode et mandat SEPA lus sur le compte, saisie à
- *   brancher), ICS de la fiche copropriété, IBAN du compte courant du syndicat (à défaut, Caisse des dépôts) ;
+ *   brancher), ICS de la fiche copropriété, compte qui reçoit les règlements désigné selon le mode de tenue lu pour le
+ *   mandat (décision du 22/11/2026, ap-03 : compteEncaissement, sans ordre fixe ni repli ; mode illisible ou compte non
+ *   désigné : la diffusion est bloquée, jamais l'écriture de l'appel) ;
  * - prélèvements par l'avis (echeancesPrelevementDepuisAvis), puis le lot (preparerLotPrelevements) : la diffusion de
  *   l'avis n'est pas branchée, aucun débit n'est donc pré-notifié ; un débit possible attend la diffusion, les autres
  *   sont exclus avec leur motif. Le fichier pain.008 n'est ni produit ni transmis par l'écran.
@@ -74,12 +81,8 @@ export interface LotAppel {
 /** Compte copropriétaire lu, avec son règlement enregistré s'il existe (mode, mandat SEPA : saisie à brancher). */
 export type CompteAppel = CompteCoproprietaire & { reglement?: ReglementCompteEnregistre | null }
 
-/** Compte bancaire du syndicat lu pour le virement (nature, IBAN, actif). */
-export interface BanqueAppel {
-  nature?: NatureCompteBancaire
-  iban?: string | null
-  actif?: boolean
-}
+/** Compte bancaire du syndicat lu pour désigner celui qui reçoit les règlements (nature, IBAN, actif, marques du fonds). */
+export type BanqueAppel = CompteCandidatEncaissement
 
 export interface DonneesAppels {
   lots: readonly LotAppel[]
@@ -90,6 +93,8 @@ export interface DonneesAppels {
   echeances: readonly EcheanceAppelSuivie[]
   exercices: readonly BornesExercice[]
   banques: readonly BanqueAppel[]
+  /** Mode de tenue des comptes du mandat (choix du mandat, à défaut réglage du cabinet), ou l'erreur de lecture (ap-03). */
+  modeComptes: ModeComptesLu
   /** Comptes en contentieux (colonne « Ctx » de Gestéam) : prélèvement suspendu. */
   comptesEnContentieux: ReadonlySet<string>
 }
@@ -168,19 +173,6 @@ export function datePrelevementProposee(exigibilites: readonly string[], dateEmi
   return derniere > auPlusTot ? derniere : auPlusTot
 }
 
-/**
- * IBAN du compte du syndicat qui reçoit les virements, parmi les comptes qu'un mode de tenue du cabinet fait ouvrir
- * (D-BANQUE, MODES_TENUE_COMPTES) : compte courant actif, à défaut compte à la Caisse des dépôts, à défaut sous-compte du
- * centralisateur du cabinet. Jamais le compte du fonds de travaux, ni un compte clôturé.
- */
-export function ibanDuSyndicat(banques: readonly BanqueAppel[]): string | null {
-  for (const nature of ['courant', 'caisse_depots', 'sous_compte_centralisateur'] as const) {
-    const compte = banques.find((b) => b.nature === nature && b.actif !== false && b.iban && validerIban(b.iban))
-    if (compte?.iban) return compte.iban
-  }
-  return null
-}
-
 function texteAnomalie(a: AnomalieAppel, d: DonneesAppels, echeances: readonly EcheanceAppelSuivie[]): string {
   const echeance = echeances.find((e) => e.id === a.echeanceId)
   const libelle = echeance?.libelle ?? a.echeanceId
@@ -230,6 +222,8 @@ function ligneEcartee(ecart: EcartPrelevement, compte: ContenuAvisCompte, mandat
       return null
     case 'contentieux':
       return { ...base, montantCentimes: 0, etat: 'exclu', motif: MOTIFS_LOT.contentieux }
+    case 'compte_non_syndicat':
+      return { ...base, montantCentimes: 0, etat: 'exclu', motif: 'Prélèvement non annoncé : le compte qui reçoit les règlements n’est pas établi au nom du syndicat' }
     case 'montant_nul':
       return { ...base, montantCentimes: 0, etat: 'exclu', motif: MOTIFS_LOT.solde_nul }
     case 'prenotification_absente':
@@ -272,7 +266,7 @@ function contenuEtPrelevements(avis: AvisAppels, d: DonneesAppels, c: ContexteAp
       comptes: [...d.comptes],
       segmentSyndicat: c.segmentSyndicat,
       syndicat: c.syndicat,
-      ibanSyndicat: ibanDuSyndicat(d.banques),
+      compteEncaissement: compteEncaissement(d.modeComptes, d.banques),
       ics: c.ics,
       dateEmission: c.dateEmission,
       reglements: reglementsDe(d.comptes),

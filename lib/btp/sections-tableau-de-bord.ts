@@ -29,7 +29,7 @@ export const MODULE_DE_LA_SECTION: Record<string, string> = { prestations: 'moti
 
 export const SECTIONS_SOCIETE_BTP: ReadonlySet<string> = new Set([
   'home', 'gestion_comptes', 'stats', 'revenus',
-  'chantiers', 'gantt', 'equipes', 'pointage', 'estimation_materiaux', 'dictionnaire_materiaux', 'calendar', 'meteo',
+  'chantiers', 'gantt', 'equipes', 'pointage', 'outillage', 'estimation_materiaux', 'dictionnaire_materiaux', 'calendar', 'meteo',
   'photos_chantier', 'rapports',
   'pipeline', 'devis', 'dpgf', 'marches',
   'factures', 'situations', 'garanties',

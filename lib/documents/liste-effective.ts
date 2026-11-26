@@ -60,6 +60,86 @@ export function estDocumentEmis(doc: DocumentLisible | null | undefined): boolea
   return numero === '' || !numero.toUpperCase().startsWith('BR-')
 }
 
+/**
+ * Type d'un document, quel que soit le champ qui le porte. La mise en forme du tableau de bord pose `docType` ;
+ * `type` ne subsiste que sur des documents plus anciens, et `lib/types.ts` le marque déprécié. N'en tester qu'un
+ * seul est le défaut qui a laissé le CA par chantier inerte huit mois et « Devis récents » vide depuis toujours.
+ *
+ * Un AVOIR porte `docType: 'facture'` et `factureSubType: 'avoir'` depuis le 05/06/2026 (`docType: 'avoir'`
+ * cassait la synchronisation) : il répond donc `true` à `estDuType(doc, 'facture')`, et c'est voulu — ses lignes
+ * sont négatives, il se soustrait du chiffre d'affaires de lui-même.
+ *
+ * Vient de `lib/btp/accueil.ts`, qui l'importe désormais d'ici : la question n'a rien de propre au BTP.
+ */
+export const estDuType = (
+  doc: { docType?: string | null; type?: string | null } | null | undefined,
+  type: 'devis' | 'facture' | 'avoir',
+): boolean => (doc?.docType ?? doc?.type) === type
+
+/**
+ * Annulé : « annule » (navigateur) ou « cancelled » (base). Les listes Devis et Factures masquent ces documents.
+ * Vient aussi de `lib/btp/accueil.ts`.
+ *
+ * À ne pas confondre avec `estDocumentEmis`, qui GARDE les annulés : ce filtre-là reproduit celui qui remplit
+ * `fixit_documents_` depuis la base, et le changer déplacerait des chiffres déjà affichés. Tout calcul qui ne doit
+ * pas compter un document annulé le dit donc explicitement.
+ */
+export const estAnnule = (doc: { status?: string | null } | null | undefined): boolean =>
+  doc?.status === 'annule' || doc?.status === 'cancelled'
+
+/**
+ * Devis gagné : signé électroniquement par le client, ou marqué « ✓ Accepté » depuis la liste des devis
+ * (« accepte » dans le navigateur, « accepted » en base, « signe » sur des documents plus anciens).
+ *
+ * MÊME RÈGLE POUR TOUS LES RÔLES. La PR #838 n'avait ouvert « Accepté » qu'aux sociétés BTP, au motif d'un usage
+ * qui leur serait propre — mais `DevisSection` est partagé : son bouton « ✓ Accepté » vit dans la branche V5
+ * (`isV5 = isArtisan || isBtp`), écrit les mêmes statuts pour les deux rôles, et son filtre « Acceptés » range ces
+ * statuts avec les signés pour les deux. Un artisan voyait son devis accepté dans sa liste et compté zéro dans ses
+ * statistiques.
+ */
+export const estDevisSigne = (statut: string | null | undefined): boolean =>
+  statut === 'signed' || statut === 'signe' || statut === 'accepte' || statut === 'accepted'
+
+/** Devis refusé par le client : « refuse » (navigateur) ou « rejected » (base) — cf. DevisSection. */
+export const estDevisRefuse = (statut: string | null | undefined): boolean =>
+  statut === 'refuse' || statut === 'rejected'
+
+/** Facture réglée. Le seul statut écrit est « paid » ; « payée » accentué n'existe nulle part dans le dépôt. */
+export const estFacturePayee = (statut: string | null | undefined): boolean => statut === 'paid'
+
+/**
+ * Factures qui entrent dans un chiffre d'affaires : émises, non annulées, et **sans les avoirs devenus
+ * orphelins**.
+ *
+ * Ce dernier point est la raison d'être de cette fonction, et il a coûté une régression de plus en relecture.
+ * Écarter une facture annulée semble évident ; mais un avoir porte `docType: 'facture'` et des lignes NÉGATIVES,
+ * et il n'est jamais « annulé » lui-même. Pour une facture annulée que son avoir avait soldée — le parcours normal
+ * d'une annulation après paiement —, écarter le parent seul laisse donc la seule ligne négative : le chiffre
+ * d'affaires du mois pouvait devenir NÉGATIF, et `totalBilled` tombant à 0 ou moins, le taux de recouvrement
+ * sautait à 100 %. Avant qu'on écarte les annulées, parent (+X) et avoir (−X) se neutralisaient et le total était
+ * juste : la correction naïve était donc une régression, chez les sociétés déjà en production.
+ *
+ * Un avoir dont le parent n'est PAS annulé reste compté : il doit continuer de se soustraire.
+ */
+export function facturesDuChiffreAffaires<T extends DocumentLisible & {
+  docType?: string | null
+  type?: string | null
+  parentInvoiceNumber?: string | null
+}>(documents: readonly T[] | undefined): T[] {
+  const liste = documents || []
+  const numerosAnnules = new Set(
+    liste
+      .filter((doc) => estDuType(doc, 'facture') && estAnnule(doc))
+      .map((doc) => String(doc.docNumber || '').trim())
+      .filter((numero) => numero !== ''),
+  )
+  return liste.filter((doc) => {
+    if (!estDuType(doc, 'facture') || estAnnule(doc)) return false
+    const parent = String(doc.parentInvoiceNumber || '').trim()
+    return parent === '' || !numerosAnnules.has(parent)
+  })
+}
+
 function lireCle<T>(cle: string): T[] {
   try {
     const brut = localStorage.getItem(cle)

@@ -11,6 +11,10 @@ import {
   alertesChantiers, chiffresChantiers, clientsAvecDevis, finDepassee, libelleDevisBrouillon, type DocumentAccueil,
 } from '@/lib/btp/accueil'
 import { nomDocumentPt } from '@/lib/wallet-conformite-pt'
+import { docRevenueHT } from '@/lib/stats-doc-total'
+import {
+  documentsPourSynthese, estAnnule, estDevisRefuse, estDevisSigne, estDocumentEmis, estDuType, estFacturePayee,
+} from '@/lib/documents/liste-effective'
 
 interface HomeSectionProps {
   artisan: Artisan
@@ -64,6 +68,10 @@ function formatRelativeTime(dateStr: string, locale: string): string {
   const date = new Date(dateStr)
   const diffMs = now.getTime() - date.getTime()
   const diffDays = Math.floor(diffMs / 86400000)
+  // Un écart NÉGATIF arrive pour de bon : la date d'un document est saisie à la main (elle peut être à venir),
+  // et `new Date('2026-11-26')` vaut minuit UTC, donc un document du jour consulté avant 1 h du matin en France
+  // donne un écart négatif. Sans cette garde, l'alerte affichait « il y a -1j ».
+  if (diffDays < 0) return date.toLocaleDateString(locale === 'pt' ? 'pt-PT' : 'fr-FR', { day: '2-digit', month: '2-digit' })
   if (diffDays === 0) return locale === 'pt' ? 'Hoje' : "Aujourd'hui"
   if (diffDays === 1) return locale === 'pt' ? 'Ontem' : 'Hier'
   if (diffDays < 7) return locale === 'pt' ? `${diffDays}d atrás` : `il y a ${diffDays}j`
@@ -163,47 +171,86 @@ export default function HomeSection({
   useEffect(() => {
     if (typeof window === 'undefined' || !artisan?.id) return
     try {
-      const raw = localStorage.getItem(`fixit_docs_${artisan.id}`)
-      if (raw) {
-        const docs = JSON.parse(raw)
-        const devisList = (docs || [])
-          .filter((d: SavedDocument) => d.type === 'devis')
-          .sort((a: SavedDocument, b: SavedDocument) => new Date(b.date || b.created_at || 0).getTime() - new Date(a.date || a.created_at || 0).getTime())
+      // Les documents chargés par la page (navigateur ET base), avec repli sur le stockage pour un écran monté
+      // avant la réponse du serveur. Pour un salarié invité, ce sont ceux de sa SOCIÉTÉ.
+      //
+      // Jusqu'au 26/11/2026 ce bloc lisait `fixit_docs_<id>` — une clé que plus aucun écran n'écrit depuis que
+      // lib/btp/accueil.ts a repris les alertes. « Devis récents » et les deux alertes ci-dessous étaient donc
+      // VIDES pour tout le monde, artisan comme société, et personne ne pouvait le voir : un bloc sans données
+      // ressemble à un bloc sans sujet.
+      //
+      // Les filtres passent par les primitives partagées : ils testaient `d.type` (que la mise en forme ne pose
+      // pas), le statut « payée » accentué (jamais écrit) et, pour un devis, « pending » ou « en_attente » (deux
+      // statuts qui n'existent pas non plus). Même réveillé, ce bloc n'aurait rien montré de juste.
+      {
+        const docs = documentsPourSynthese<SavedDocument>(
+          documentsEnregistres as readonly SavedDocument[] | undefined,
+          artisan.id,
+          true,
+        )
+        // Tri sur les champs que les documents portent VRAIMENT : `docDate` (posé par les formulaires et par la
+        // relecture depuis la base), puis `savedAt` et `sentAt`. Jusqu'au 26/11/2026 le tri lisait `date` et
+        // `created_at`, qu'aucune écriture ne pose : le comparateur rendait toujours 0, le tri était inopérant, et
+        // « Devis récents » montrait le PLUS ANCIEN devis (le tri de JavaScript étant stable). Le bloc étant vide,
+        // personne ne pouvait le voir.
+        const quand = (d: SavedDocument) => d.docDate || d.savedAt || d.sentAt || d.date || d.created_at || ''
+        // `docDate` est une JOURNÉE (« YYYY-MM-DD ») : pour deux devis du même jour — le quotidien d'une société —
+        // la comparaison rend 0 et le tri, stable, laisserait le premier de la liste, c'est-à-dire le plus ancien.
+        // D'où le départage par l'horodatage d'enregistrement ou d'envoi.
+        const quandPrecis = (d: SavedDocument) => d.savedAt || d.sentAt || ''
+        // Les brouillons sont écartés, comme pour les deux alertes plus bas : un brouillon n'est pas un devis
+        // « récent » au sens de ce bloc, et le tableau de la mise en page V22 le rangerait en « Attente », ce qui
+        // signifie « en attente de réponse du client ».
+        const devisList = docs
+          .filter((d) => estDuType(d, 'devis') && estDocumentEmis(d) && !estAnnule(d))
+          .sort((a, b) => {
+            const parJour = new Date(quand(b) || 0).getTime() - new Date(quand(a) || 0).getTime()
+            if (parJour !== 0) return parJour
+            return new Date(quandPrecis(b) || 0).getTime() - new Date(quandPrecis(a) || 0).getTime()
+          })
           .slice(0, 5)
         setRecentDevis(devisList)
 
         // Generate alerts from data
         const alertItems: Array<{ type: string; title: string; sub: string; time: string }> = []
-        // Unpaid invoices
-        const unpaidInvoices = (docs || []).filter((d: SavedDocument) => d.type === 'facture' && d.status !== 'paid' && d.status !== 'payée')
+        // Factures émises, non annulées et non réglées.
+        const unpaidInvoices = docs.filter((d) => estDuType(d, 'facture') && estDocumentEmis(d) && !estAnnule(d) && !estFacturePayee(d.status))
         unpaidInvoices.slice(0, 2).forEach((inv: SavedDocument) => {
           alertItems.push({
             type: 'red',
             title: locale === 'pt'
               ? `Fatura não paga: ${inv.client || inv.clientName || 'Cliente'}`
               : `Facture impayée — ${inv.client || inv.clientName || 'Client'}`,
-            sub: `${inv.ref || inv.number || '—'} · ${formatPrice(inv.total || inv.amount || 0)}`,
-            time: formatRelativeTime(inv.date || inv.created_at || '', locale),
+            // `docNumber` d'abord : c'est la référence que les formulaires et la relecture depuis la base posent.
+            // `ref` et `number` ne subsistent que sur de très anciens documents, et le montant se calcule depuis
+            // les lignes — `total` et `amount` n'étaient posés par aucune écriture, donc cette ligne affichait
+            // « — · 0 € » pour toute facture.
+            sub: `${inv.docNumber || inv.ref || inv.number || '—'} · ${formatPrice(docRevenueHT(inv))}`,
+            time: formatRelativeTime(quand(inv), locale),
           })
         })
-        // Pending devis without response
-        const pendingDevis = (docs || []).filter((d: SavedDocument) => d.type === 'devis' && (!d.status || d.status === 'pending' || d.status === 'en_attente'))
+        // Devis envoyés qui n'ont reçu ni acceptation ni refus. Un brouillon n'attend pas de réponse : il
+        // n'a jamais été envoyé.
+        const pendingDevis = docs.filter(
+          (d) => estDuType(d, 'devis') && estDocumentEmis(d) && !estAnnule(d) && !estDevisSigne(d.status) && !estDevisRefuse(d.status),
+        )
         pendingDevis.slice(0, 2).forEach((dv: SavedDocument) => {
           alertItems.push({
             type: 'amber',
             title: locale === 'pt'
               ? `Orçamento pendente: ${dv.client || dv.clientName || 'Cliente'}`
               : `Devis en attente — ${dv.client || dv.clientName || 'Client'}`,
-            sub: `${dv.ref || dv.number || '—'} · ${locale === 'pt' ? 'sem resposta' : 'sans réponse'}`,
-            time: formatRelativeTime(dv.date || dv.created_at || '', locale),
+            sub: `${dv.docNumber || dv.ref || dv.number || '—'} · ${locale === 'pt' ? 'sem resposta' : 'sans réponse'}`,
+            time: formatRelativeTime(quand(dv), locale),
           })
         })
         setAlerts(alertItems)
       }
-    } catch {
-      // ignore parse errors
+    } catch (erreur) {
+      // Plus aucune lecture brute du navigateur ici : une erreur serait un défaut de calcul, pas un JSON abîmé.
+      console.error('[accueil] devis récents et alertes documents non calculés', erreur)
     }
-  }, [artisan?.id, locale])
+  }, [artisan?.id, locale, documentsEnregistres])
 
   // ── Aggregate BTP alerts from various sources (pro_societe only) ──
   useEffect(() => {
@@ -626,8 +673,8 @@ export default function HomeSection({
             </div>
             <div className="v5-card" style={{ textAlign: 'center', padding: '.85rem', cursor: 'pointer' }} onClick={() => navigateTo('devis')}>
               <div className="v5-st">{locale === 'pt' ? 'Orçamentos recentes' : 'Devis récents'}</div>
-              <div style={{ fontSize: 12, fontWeight: 600, margin: '.4rem 0' }}>{recentDevis.length > 0 ? (recentDevis[0].ref || recentDevis[0].number || '—') : '—'}</div>
-              <div style={{ fontSize: 11, color: '#888' }}>{recentDevis.length > 0 ? `${recentDevis[0].client || recentDevis[0].clientName || ''}${locale === 'pt' ? ' · ' : ' — '}${formatPrice(recentDevis[0].total || recentDevis[0].amount || 0)}` : (locale === 'pt' ? 'Nenhum orçamento' : 'Aucun devis')}</div>
+              <div style={{ fontSize: 12, fontWeight: 600, margin: '.4rem 0' }}>{recentDevis.length > 0 ? (recentDevis[0].docNumber || recentDevis[0].ref || recentDevis[0].number || '—') : '—'}</div>
+              <div style={{ fontSize: 11, color: '#888' }}>{recentDevis.length > 0 ? `${recentDevis[0].client || recentDevis[0].clientName || ''}${locale === 'pt' ? ' · ' : ' — '}${formatPrice(docRevenueHT(recentDevis[0]))}` : (locale === 'pt' ? 'Nenhum orçamento' : 'Aucun devis')}</div>
             </div>
           </>)}
         </div>
@@ -906,8 +953,18 @@ export default function HomeSection({
                 </thead>
                 <tbody>
                   {recentDevis.map((d, i) => {
-                    const statusClass = d.status === 'accepted' || d.status === 'accepté' ? 'v22-tag-green' : d.status === 'rejected' || d.status === 'refusé' ? 'v22-tag-red' : 'v22-tag-amber'
-                    const statusLabel = d.status === 'accepted' || d.status === 'accepté' ? (locale === 'pt' ? 'Aceite' : 'Accepté') : d.status === 'rejected' || d.status === 'refusé' ? (locale === 'pt' ? 'Recusado' : 'Refusé') : (locale === 'pt' ? 'Pendente' : 'Attente')
+                    // Les statuts réels, par les primitives partagées. Ce bloc cherchait « accepted » et
+                    // « accepté » accentué, « rejected » et « refusé » : il ignorait donc « accepte », « signe »,
+                    // « signed » et « refuse », c'est-à-dire presque tout ce que le dépôt écrit. Tout devis
+                    // s'affichait « Attente ».
+                    const gagne = estDevisSigne(d.status)
+                    const refuse = estDevisRefuse(d.status)
+                    const statusClass = gagne ? 'v22-tag-green' : refuse ? 'v22-tag-red' : 'v22-tag-amber'
+                    const statusLabel = gagne
+                      ? (locale === 'pt' ? 'Aceite' : 'Accepté')
+                      : refuse
+                        ? (locale === 'pt' ? 'Recusado' : 'Refusé')
+                        : (locale === 'pt' ? 'Pendente' : 'Attente')
                     return (
                       <tr
                         key={d.id || i}
@@ -916,9 +973,9 @@ export default function HomeSection({
                         onMouseLeave={e => { e.currentTarget.querySelectorAll('td').forEach(td => (td as HTMLElement).style.background = '') }}
                         onClick={() => navigateTo('devis')}
                       >
-                        <td style={{ padding: '6px 8px', borderBottom: `1px solid ${tv.border}`, fontSize: '12px' }}><span className="v22-ref">{d.ref || d.number || `${i + 1}`}</span></td>
+                        <td style={{ padding: '6px 8px', borderBottom: `1px solid ${tv.border}`, fontSize: '12px' }}><span className="v22-ref">{d.docNumber || d.ref || d.number || `${i + 1}`}</span></td>
                         <td style={{ padding: '6px 8px', borderBottom: `1px solid ${tv.border}`, fontSize: '12px', fontWeight: 500 }}>{d.client || d.clientName || '—'}</td>
-                        <td style={{ padding: '6px 8px', borderBottom: `1px solid ${tv.border}`, fontSize: '12px', textAlign: 'right', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' }}>{formatPrice(d.total || d.amount || 0)}</td>
+                        <td style={{ padding: '6px 8px', borderBottom: `1px solid ${tv.border}`, fontSize: '12px', textAlign: 'right', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' }}>{formatPrice(docRevenueHT(d))}</td>
                         <td style={{ padding: '6px 8px', borderBottom: `1px solid ${tv.border}`, fontSize: '12px' }}><span className={`v22-tag ${statusClass}`}>{statusLabel}</span></td>
                       </tr>
                     )
