@@ -10,6 +10,8 @@ import { generateRapportPDF } from '@/lib/rapport-pdf'
 import RapportPDFPreview from '@/components/dashboard/rapports/RapportPDFPreview'
 import RapportTableRow from '@/components/dashboard/rapports/RapportTableRow'
 import { documentsPourSynthese } from '@/lib/documents/liste-effective'
+import { idFicheDocuments } from '@/lib/documents/identite-documents'
+import { modeleRapportSociete } from '@/lib/pdf/modeles-societes'
 import { carteDocumentsLies } from '@/components/dashboard/rapports/document-lie'
 import { useThemeVars } from './useThemeVars'
 import type { Artisan, Service, Booking } from '@/lib/types'
@@ -240,6 +242,8 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
   // BTP pro : nouveaux rapports enregistrés dans rapports_btp par /api/btp (voir ligneRapport plus haut). L'artisan garde
   // l'écriture d'avant.
   const enregistrementBTP = orgRole === 'pro_societe'
+  // Gabarit de relatório propre à la société (BTP pro seulement, règle n° 1) ; fiche de la société pour un salarié invité.
+  const modeleRapport = orgRole === 'pro_societe' ? modeleRapportSociete(idFicheDocuments(artisan)) : undefined
 
   const [rapports, setRapports] = useState<RapportIntervention[]>([])
 
@@ -830,7 +834,7 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
       // Photos lues ici quand l'écran ne les a pas encore : l'état `availablePhotos` de ce rendu resterait vide, et le
       // PDF sortait sans les photos liées.
       const photos = r.linkedPhotoIds?.length && availablePhotos.length === 0 ? await loadAvailablePhotos() : availablePhotos
-      await generateRapportPDF(r, photos, dateFmtLocale, orgRole)
+      await generateRapportPDF(r, photos, dateFmtLocale, orgRole, modeleRapport)
     } catch (e) {
       console.error('PDF error:', e)
     } finally {

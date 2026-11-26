@@ -2,7 +2,10 @@
  * PDF generator for Rapport d'Intervention — Vitfix Pro
  * Pixel-perfect reproduction of build_rapport.py (PyMuPDF) using jsPDF.
  * A4, 2 pages, Helvetica only, 7-color palette.
+ * Une société qui a son propre gabarit de relatório (modeleRapportSociete) reçoit celui-ci à la place.
  */
+
+import type { ModeleRapport } from '@/lib/pdf/modeles-societes'
 
 export interface RapportPDFData {
   rapportNumber: string
@@ -161,8 +164,16 @@ export async function generateRapportPDF(
   dateFmtLocale: string,
   /** Rôle du compte : en portugais, le titre est « Relatório de obra » pour une société BTP. */
   orgRole?: string,
+  /** Gabarit propre à la société (lib/pdf/modeles-societes.ts) ; absent : le PDF ci-dessous. */
+  modele?: ModeleRapport,
 ): Promise<void> {
   const { jsPDF } = await import('jspdf')
+  if (modele === 'vitfix-relatorio') {
+    const { rendreRelatorioVitfix } = await import('@/lib/pdf/modele-vitfix-relatorio')
+    const documento = await rendreRelatorioVitfix(jsPDF, r, availablePhotos)
+    documento.save(`${r.rapportNumber}.pdf`)
+    return
+  }
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: [PW, PH] })
 
   // Langue du PDF : celle de l'interface (dateFmtLocale « pt-PT » ou « fr-FR »).
