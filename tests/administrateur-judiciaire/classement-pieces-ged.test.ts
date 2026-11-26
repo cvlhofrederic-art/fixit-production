@@ -68,7 +68,7 @@ const INDICES_TJ = ['ordonnance', 'tribunal', 'administrateur provisoire', 'rg']
 const TJ = 'TRIBUNAL JUDICIAIRE DE TOURS\nRG 26/01234\n'
 const ENTETE = `TRIBUNAL JUDICIAIRE DE TOURS\nRG 26/01234\nORDONNANCE SUR REQUÊTE\n`
 const TJ_PARIS = 'TRIBUNAL JUDICIAIRE DE PARIS\nRG 25/00012'
-const AJ = 'SELARL AJ ASSOCIÉS — Maître Jeanne DUPONT, administrateur provisoire'
+const AJ = 'SELARL EXEMPLE ADMINISTRATEURS — Maître Jeanne DUPONT, administrateur provisoire'
 const AJ_PARIS = 'Maître Claire X\nAdministrateur judiciaire\n12 rue de la Paix 75002 Paris'
 const CONVOQUEE = `Convocation à l'assemblée générale. Ordre du jour : 1. Approbation des comptes`
 const CORPS_CONVOCATION = `CONVOCATION à l'assemblée générale. Ordre du jour : 1. Approbation des comptes`
@@ -494,12 +494,12 @@ const DOCUMENTS_CLAIRS: Cas[] = [
   ],
   [
     'prorogation de la mission de la SELARL, administrateur provisoire',
-    `${TJ_PARIS}\nORDONNANCE DE PROROGATION\nPAR CES MOTIFS,\nProrogeons pour douze mois la mission de la SELARL AJ ASSOCIÉS, administrateur provisoire.`,
+    `${TJ_PARIS}\nORDONNANCE DE PROROGATION\nPAR CES MOTIFS,\nProrogeons pour douze mois la mission de la SELARL EXEMPLE ADMINISTRATEURS, administrateur provisoire.`,
     PROLONGATION,
   ],
   [
     'prorogation de la mission de « la SELARL …, prise en la personne de Maître X, administrateur provisoire »',
-    `${TJ_PARIS}\nORDONNANCE DE PROROGATION\nPAR CES MOTIFS,\nProrogeons pour douze mois la mission de la SELARL AJ ASSOCIÉS, prise en la personne de Maître Jeanne DUPONT, administrateur provisoire.`,
+    `${TJ_PARIS}\nORDONNANCE DE PROROGATION\nPAR CES MOTIFS,\nProrogeons pour douze mois la mission de la SELARL EXEMPLE ADMINISTRATEURS, prise en la personne de Maître Jeanne DUPONT, administrateur provisoire.`,
     PROLONGATION,
   ],
   [
@@ -571,7 +571,7 @@ describe('documents clairs : le bon type en tête de la suggestion, et pourtant 
 const TOUR_0: Cas[] = [
   [
     'R1 SELARL prise en la personne de…, puis « pourra solliciter la prorogation »',
-    `${TJ} ORDONNANCE SUR REQUÊTE. PAR CES MOTIFS, Désignons la SELARL AJ ASSOCIÉS, prise en la personne de Maître Jeanne DUPONT, administrateur judiciaire, demeurant 12 rue Nationale 37000 TOURS, en qualité d'administrateur provisoire du syndicat des copropriétaires pour une durée de douze mois ; Disons que l'administrateur provisoire pourra solliciter la prorogation de sa mission.`,
+    `${TJ} ORDONNANCE SUR REQUÊTE. PAR CES MOTIFS, Désignons la SELARL EXEMPLE ADMINISTRATEURS, prise en la personne de Maître Jeanne DUPONT, administrateur judiciaire, demeurant 12 rue des Exemples 37000 TOURS, en qualité d'administrateur provisoire du syndicat des copropriétaires pour une durée de douze mois ; Disons que l'administrateur provisoire pourra solliciter la prorogation de sa mission.`,
     DESIGNATION,
   ],
   [
@@ -677,7 +677,7 @@ const TOUR_0: Cas[] = [
 const TOUR_1: Cas[] = [
   [
     'reste 1, dispositif sur trois lignes (PDF)',
-    `${ENTETE}Vu la requête du syndicat des copropriétaires ;\nPAR CES MOTIFS\nDésignons la SELARL AJ ASSOCIÉS, prise en la personne de Maître Jeanne DUPONT,\nadministrateur judiciaire, demeurant 12 rue Nationale 37000 TOURS, en qualité\nd'administrateur provisoire du syndicat des copropriétaires pour douze mois ;`,
+    `${ENTETE}Vu la requête du syndicat des copropriétaires ;\nPAR CES MOTIFS\nDésignons la SELARL EXEMPLE ADMINISTRATEURS, prise en la personne de Maître Jeanne DUPONT,\nadministrateur judiciaire, demeurant 12 rue des Exemples 37000 TOURS, en qualité\nd'administrateur provisoire du syndicat des copropriétaires pour douze mois ;`,
     DESIGNATION,
   ],
   ['reste 1, « Désignons » seul en fin de ligne', `${ENTETE}PAR CES MOTIFS\nDésignons\nMaître Jeanne DUPONT en qualité d'administrateur provisoire.`, DESIGNATION],
@@ -694,7 +694,7 @@ const TOUR_1: Cas[] = [
   ['reste 1, « Maître J. DUPONT »', `${TJ} ORDONNANCE. Désignons Maître J. DUPONT en qualité d'administrateur provisoire du syndicat des copropriétaires.`, DESIGNATION],
   [
     'reste 1, SELARL « prise en la personne de Maître J. Dupont »',
-    `${TJ} ORDONNANCE SUR REQUÊTE. PAR CES MOTIFS, Désignons la SELARL AJ ASSOCIÉS, prise en la personne de Maître J. Dupont, en qualité d'administrateur provisoire du syndicat des copropriétaires.`,
+    `${TJ} ORDONNANCE SUR REQUÊTE. PAR CES MOTIFS, Désignons la SELARL EXEMPLE ADMINISTRATEURS, prise en la personne de Maître J. Dupont, en qualité d'administrateur provisoire du syndicat des copropriétaires.`,
     DESIGNATION,
   ],
   ['reste 1, « Maître J.-P. Dupont »', `${TJ} ORDONNANCE. Désignons Maître J.-P. Dupont en qualité d'administrateur provisoire.`, DESIGNATION],
@@ -703,9 +703,9 @@ const TOUR_1: Cas[] = [
     `${ENTETE}PAR CES MOTIFS\nDésignons Maître A. Martin, administrateur judiciaire, en qualité d'administrateur provisoire du syndicat des copropriétaires`,
     DESIGNATION,
   ],
-  ['reste 1, « la S.E.L.A.R.L. »', `${TJ} ORDONNANCE. Désignons la S.E.L.A.R.L. AJ ASSOCIÉS en qualité d'administrateur provisoire.`, DESIGNATION],
+  ['reste 1, « la S.E.L.A.R.L. »', `${TJ} ORDONNANCE. Désignons la S.E.L.A.R.L. EXEMPLE ADMINISTRATEURS en qualité d'administrateur provisoire.`, DESIGNATION],
   ['reste 1, « Mr. Jean Dupont »', `${TJ} ORDONNANCE. Désignons Mr. Jean Dupont en qualité d'administrateur provisoire du syndicat.`, DESIGNATION],
-  ['reste 1, « 12 bd. Heurteloup »', `${TJ} ORDONNANCE. Désignons la SELARL AJ ASSOCIÉS, 12 bd. Heurteloup 37000 Tours, en qualité d'administrateur provisoire.`, DESIGNATION],
+  ['reste 1, « 12 bd. Heurteloup »', `${TJ} ORDONNANCE. Désignons la SELARL EXEMPLE ADMINISTRATEURS, 12 bd. Heurteloup 37000 Tours, en qualité d'administrateur provisoire.`, DESIGNATION],
   [
     'reste 1, « Statuant publiquement…, Désigne »',
     `${TJ} ORDONNANCE. PAR CES MOTIFS, Statuant publiquement par ordonnance sur requête, Désigne Maître Jeanne Dupont en qualité d'administrateur provisoire.`,
@@ -734,12 +734,12 @@ const TOUR_1: Cas[] = [
   ],
   [
     'reste 3, procès-verbal à initiale, résolution « DEVIS DE RAVALEMENT »',
-    `Procès-verbal de l'assemblée générale ordinaire du 12 juin 2026\nRésidence Les Tilleuls, 12 rue Nationale, Tours\nRésolution n° 5 — DEVIS DE RAVALEMENT\nL'assemblée générale, après en avoir délibéré, approuve le devis de l'entreprise X d'un montant de 45 000 € HT, TVA 10 %.\nRésolution adoptée à la majorité des voix des copropriétaires présents ou représentés.`,
+    `Procès-verbal de l'assemblée générale ordinaire du 12 juin 2026\nRésidence Les Tilleuls, 12 rue des Exemples, Tours\nRésolution n° 5 — DEVIS DE RAVALEMENT\nL'assemblée générale, après en avoir délibéré, approuve le devis de l'entreprise X d'un montant de 45 000 € HT, TVA 10 %.\nRésolution adoptée à la majorité des voix des copropriétaires présents ou représentés.`,
     PV,
   ],
   [
     'reste 3, même procès-verbal, titre en capitales',
-    `PROCÈS-VERBAL DE L'ASSEMBLÉE GÉNÉRALE ORDINAIRE DU 12 JUIN 2026\nRésidence Les Tilleuls, 12 rue Nationale, Tours\nRésolution n° 5 — DEVIS DE RAVALEMENT\nL'assemblée générale, après en avoir délibéré, approuve le devis de l'entreprise X d'un montant de 45 000 € HT, TVA 10 %.\nRésolution adoptée à la majorité des voix des copropriétaires présents ou représentés.`,
+    `PROCÈS-VERBAL DE L'ASSEMBLÉE GÉNÉRALE ORDINAIRE DU 12 JUIN 2026\nRésidence Les Tilleuls, 12 rue des Exemples, Tours\nRésolution n° 5 — DEVIS DE RAVALEMENT\nL'assemblée générale, après en avoir délibéré, approuve le devis de l'entreprise X d'un montant de 45 000 € HT, TVA 10 %.\nRésolution adoptée à la majorité des voix des copropriétaires présents ou représentés.`,
     PV,
   ],
   [
@@ -759,24 +759,24 @@ const TOUR_1: Cas[] = [
   ],
   [
     'reste 4, ligne « SELARL … — ORDONNANCE … DÉSIGNANT … » au-dessus de la CONVOCATION',
-    `SELARL AJ ASSOCIÉS — ORDONNANCE DU TRIBUNAL JUDICIAIRE DE TOURS DU 2 MARS 2025 DÉSIGNANT LA SELARL AJ ASSOCIÉS EN QUALITÉ D'ADMINISTRATEUR PROVISOIRE, RG 25/01234\nCONVOCATION à l'assemblée générale. Ordre du jour : 1. Approbation des comptes`,
+    `SELARL EXEMPLE ADMINISTRATEURS — ORDONNANCE DU TRIBUNAL JUDICIAIRE DE TOURS DU 2 MARS 2025 DÉSIGNANT LA SELARL EXEMPLE ADMINISTRATEURS EN QUALITÉ D'ADMINISTRATEUR PROVISOIRE, RG 25/01234\nCONVOCATION à l'assemblée générale. Ordre du jour : 1. Approbation des comptes`,
     CONVOCATION,
   ],
   ['reste 4, « Ordonnance de prorogation du … »', `Maître X, administrateur provisoire\nOrdonnance de prorogation du 2 mars 2026 (RG 25/01234)\n${CONVOQUEE}`, CONVOCATION],
 ]
 
-const RAPPORT = `${AJ}\nOrdonnance du 3 mars 2025 désignant la SELARL AJ ASSOCIÉS en qualité d'administrateur provisoire (RG 25/01234)\nRAPPORT DE L'ADMINISTRATEUR PROVISOIRE\nSituation comptable du syndicat au 31 décembre 2025.`
-const ETAT_DATE_SOUS_LA_DEMANDE = `SELARL AJ ASSOCIÉS, administrateur provisoire du syndicat des copropriétaires Les Tilleuls\nDemande d'état daté n° 2026-012 du 3 mars 2026 — Maître Paul Durand, notaire à Tours\nÉTAT DATÉ\nétabli en application de l'article 5 du décret du 17 mars 1967 — vente du lot n° 12\nSommes dues par le cédant au syndicat : 1 200 €`
+const RAPPORT = `${AJ}\nOrdonnance du 3 mars 2025 désignant la SELARL EXEMPLE ADMINISTRATEURS en qualité d'administrateur provisoire (RG 25/01234)\nRAPPORT DE L'ADMINISTRATEUR PROVISOIRE\nSituation comptable du syndicat au 31 décembre 2025.`
+const ETAT_DATE_SOUS_LA_DEMANDE = `SELARL EXEMPLE ADMINISTRATEURS, administrateur provisoire du syndicat des copropriétaires Les Tilleuls\nDemande d'état daté n° 2026-012 du 3 mars 2026 — Maître Paul Durand, notaire à Tours\nÉTAT DATÉ\nétabli en application de l'article 5 du décret du 17 mars 1967 — vente du lot n° 12\nSommes dues par le cédant au syndicat : 1 200 €`
 
 const TOUR_2: Cas[] = [
   [
     'reste 1, SELARL « inscrite en qualité d’administrateur judiciaire »',
-    `${ENTETE}PAR CES MOTIFS\nDésignons la SELARL AJ ASSOCIÉS, inscrite en qualité d'administrateur judiciaire sur la liste nationale, prise en la personne de Maître Jeanne DUPONT, en qualité d'administrateur provisoire du syndicat des copropriétaires ;`,
+    `${ENTETE}PAR CES MOTIFS\nDésignons la SELARL EXEMPLE ADMINISTRATEURS, inscrite en qualité d'administrateur judiciaire sur la liste nationale, prise en la personne de Maître Jeanne DUPONT, en qualité d'administrateur provisoire du syndicat des copropriétaires ;`,
     DESIGNATION,
   ],
   [
     'reste 1, « agissant en qualité d’associée, en qualité d’administrateur provisoire »',
-    `${ENTETE}PAR CES MOTIFS\nDésignons la SELARL AJ ASSOCIÉS, prise en la personne de Maître Jeanne DUPONT, agissant en qualité d'associée, en qualité d'administrateur provisoire du syndicat des copropriétaires ;`,
+    `${ENTETE}PAR CES MOTIFS\nDésignons la SELARL EXEMPLE ADMINISTRATEURS, prise en la personne de Maître Jeanne DUPONT, agissant en qualité d'associée, en qualité d'administrateur provisoire du syndicat des copropriétaires ;`,
     DESIGNATION,
   ],
   [
@@ -849,17 +849,17 @@ const TOUR_2: Cas[] = [
     `${TJ} ORDONNANCE. Vu le rapport de Maître X, administrateur provisoire ; Prononçons la décharge de Maître X de sa mission d'administrateur provisoire.`,
     FIN,
   ],
-  ['reste 2, « 12 Bvd. Heurteloup »', `${TJ} ORDONNANCE. Désignons la SELARL AJ ASSOCIÉS, 12 Bvd. Heurteloup 37000 Tours, en qualité d'administrateur provisoire.`, DESIGNATION],
-  ['reste 2, « rue Ste. Catherine »', `${TJ} ORDONNANCE. Désignons la SELARL AJ ASSOCIÉS, 12 rue Ste. Catherine 37000 Tours, en qualité d'administrateur provisoire.`, DESIGNATION],
+  ['reste 2, « 12 Bvd. Heurteloup »', `${TJ} ORDONNANCE. Désignons la SELARL EXEMPLE ADMINISTRATEURS, 12 Bvd. Heurteloup 37000 Tours, en qualité d'administrateur provisoire.`, DESIGNATION],
+  ['reste 2, « rue Ste. Catherine »', `${TJ} ORDONNANCE. Désignons la SELARL EXEMPLE ADMINISTRATEURS, 12 rue Ste. Catherine 37000 Tours, en qualité d'administrateur provisoire.`, DESIGNATION],
   ['reste 2, « Maître Jacq. Martin »', `${TJ} ORDONNANCE. Désignons Maître Jacq. Martin en qualité d'administrateur provisoire.`, DESIGNATION],
   [
     'reste 3, convocation à l’AG élective, « ma mission prend fin »',
-    `${AJ}\nOrdonnance du président du tribunal judiciaire de Tours du 3 mars 2025 désignant la SELARL AJ ASSOCIÉS en qualité d'administrateur provisoire (RG 25/01234)\nConvocation à l'assemblée générale extraordinaire\nMadame, Monsieur,\nMa mission d'administrateur provisoire prend fin le 2 mars 2026. Vous êtes convoqué(e) à l'assemblée générale qui se tiendra le 12 février 2026 afin de désigner un syndic.\nOrdre du jour : 1. Désignation du syndic`,
+    `${AJ}\nOrdonnance du président du tribunal judiciaire de Tours du 3 mars 2025 désignant la SELARL EXEMPLE ADMINISTRATEURS en qualité d'administrateur provisoire (RG 25/01234)\nConvocation à l'assemblée générale extraordinaire\nMadame, Monsieur,\nMa mission d'administrateur provisoire prend fin le 2 mars 2026. Vous êtes convoqué(e) à l'assemblée générale qui se tiendra le 12 février 2026 afin de désigner un syndic.\nOrdre du jour : 1. Désignation du syndic`,
     CONVOCATION,
   ],
   [
     'reste 3, convocation, « la SELARL … est désignée en qualité d’administrateur provisoire »',
-    `Maître X, administrateur provisoire\nOrdonnance du tribunal judiciaire de Tours du 2 mars 2025 désignant Maître X en qualité d'administrateur provisoire (RG 25/01234)\nConvocation à l'assemblée générale\nMadame, Monsieur,\nPar ordonnance du 2 mars 2025, la SELARL AJ ASSOCIÉS est désignée en qualité d'administrateur provisoire du syndicat des copropriétaires. À ce titre, elle vous convoque à l'assemblée générale qui se tiendra le 12 juin 2026.\nOrdre du jour : 1. Désignation du syndic`,
+    `Maître X, administrateur provisoire\nOrdonnance du tribunal judiciaire de Tours du 2 mars 2025 désignant Maître X en qualité d'administrateur provisoire (RG 25/01234)\nConvocation à l'assemblée générale\nMadame, Monsieur,\nPar ordonnance du 2 mars 2025, la SELARL EXEMPLE ADMINISTRATEURS est désignée en qualité d'administrateur provisoire du syndicat des copropriétaires. À ce titre, elle vous convoque à l'assemblée générale qui se tiendra le 12 juin 2026.\nOrdre du jour : 1. Désignation du syndic`,
     CONVOCATION,
   ],
   [
@@ -869,7 +869,7 @@ const TOUR_2: Cas[] = [
   ],
   [
     'reste 3, lettre, « est nommée administrateur provisoire »',
-    `SELARL AJ ASSOCIÉS\nOrdonnance du 2 mars 2025 désignant la SELARL AJ ASSOCIÉS en qualité d'administrateur provisoire (RG 25/01234)\nMadame, Monsieur,\nJe vous informe que la SELARL AJ ASSOCIÉS est nommée administrateur provisoire de votre copropriété ; vous trouverez ci-joint l'ordonnance.`,
+    `SELARL EXEMPLE ADMINISTRATEURS\nOrdonnance du 2 mars 2025 désignant la SELARL EXEMPLE ADMINISTRATEURS en qualité d'administrateur provisoire (RG 25/01234)\nMadame, Monsieur,\nJe vous informe que la SELARL EXEMPLE ADMINISTRATEURS est nommée administrateur provisoire de votre copropriété ; vous trouverez ci-joint l'ordonnance.`,
     null,
   ],
   [
@@ -880,7 +880,7 @@ const TOUR_2: Cas[] = [
   ['reste 3, appel de fonds sous « Ordonnance de prorogation du … »', `${AJ}\nOrdonnance de prorogation du 2 mars 2026 (RG 25/01234)\nAPPEL DE FONDS — 2e trimestre 2026\nLot n° 12 : 450,00 € à régler avant le 1er avril 2026`, null],
   [
     'reste 3, appel de fonds sous « Ordonnance … désignant … »',
-    `${AJ}\nOrdonnance du tribunal judiciaire de Tours du 3 mars 2025 désignant la SELARL AJ ASSOCIÉS en qualité d'administrateur provisoire (RG 25/01234)\nAppel de fonds du 2e trimestre 2026\nLot n° 12 : 450,00 € à régler avant le 1er avril 2026`,
+    `${AJ}\nOrdonnance du tribunal judiciaire de Tours du 3 mars 2025 désignant la SELARL EXEMPLE ADMINISTRATEURS en qualité d'administrateur provisoire (RG 25/01234)\nAppel de fonds du 2e trimestre 2026\nLot n° 12 : 450,00 € à régler avant le 1er avril 2026`,
     null,
   ],
   [
@@ -892,7 +892,7 @@ const TOUR_2: Cas[] = [
   ['reste 4, état daté sous une ligne « Demande d’état daté n° … »', ETAT_DATE_SOUS_LA_DEMANDE, ETAT_DATE],
   [
     'reste 4, état daté complet en trois parties',
-    `SELARL AJ ASSOCIÉS, administrateur provisoire du syndicat des copropriétaires Les Tilleuls\nDemande d'état daté n° 2026-012 du 3 mars 2026 — Maître Paul Durand, notaire à Tours\nÉTAT DATÉ\nétabli en application de l'article 5 du décret du 17 mars 1967\nLot n° 12 — cédant : M. A\nPremière partie : sommes dues par le cédant au syndicat\nDeuxième partie : sommes dont le syndicat pourrait être débiteur\nTroisième partie : sommes dues par l'acquéreur`,
+    `SELARL EXEMPLE ADMINISTRATEURS, administrateur provisoire du syndicat des copropriétaires Les Tilleuls\nDemande d'état daté n° 2026-012 du 3 mars 2026 — Maître Paul Durand, notaire à Tours\nÉTAT DATÉ\nétabli en application de l'article 5 du décret du 17 mars 1967\nLot n° 12 — cédant : M. A\nPremière partie : sommes dues par le cédant au syndicat\nDeuxième partie : sommes dont le syndicat pourrait être débiteur\nTroisième partie : sommes dues par l'acquéreur`,
     ETAT_DATE,
   ],
   ['reste 4, devis sous une ligne « Facture d’acompte… »', `SARL Martin\nFacture d'acompte de 30 % à la commande\nDEVIS N° 2026-45\nRavalement : 45 000 € HT, TVA 10 %, 49 500 € TTC`, DEVIS],
@@ -1245,7 +1245,7 @@ const REGLE_STRICTE: Cas[] = [
   ],
   [
     'défaut 1, G3 fiche synthétique',
-    `FICHE SYNTHÉTIQUE DE LA COPROPRIÉTÉ\n(article 8-2 de la loi du 10 juillet 1965)\nIdentification : Résidence Les Tilleuls, 12 rue Nationale 37000 Tours\nNuméro d'immatriculation : AB1-234-567\nRèglement de copropriété et état descriptif de division publiés le 12 mars 1965\nNombre de lots : 45, dont 30 lots principaux ; tantièmes de parties communes : 10 000`,
+    `FICHE SYNTHÉTIQUE DE LA COPROPRIÉTÉ\n(article 8-2 de la loi du 10 juillet 1965)\nIdentification : Résidence Les Tilleuls, 12 rue des Exemples 37000 Tours\nNuméro d'immatriculation : AB1-234-567\nRèglement de copropriété et état descriptif de division publiés le 12 mars 1965\nNombre de lots : 45, dont 30 lots principaux ; tantièmes de parties communes : 10 000`,
     null,
   ],
   [
@@ -1286,7 +1286,7 @@ const REGLE_STRICTE: Cas[] = [
   ],
   [
     'défaut 1, convocation sous l’en-tête du cabinet qui cite l’ordonnance',
-    `Maître X, administrateur provisoire désigné par ordonnance du 2 mars 2025 (RG 25/01234)\nCabinet AJ Associés\n12 rue Nationale 37000 Tours\nTél. 02 47 00 00 00\nCONVOCATION À L'ASSEMBLÉE GÉNÉRALE ORDINAIRE\nVous êtes convoqué(e) à l'assemblée générale qui se tiendra le 12 juin 2026. Ordre du jour : approbation des comptes.`,
+    `Maître X, administrateur provisoire désigné par ordonnance du 2 mars 2025 (RG 25/01234)\nCabinet Exemple Administrateurs\n12 rue des Exemples 37000 Tours\nTél. 02 47 00 00 00\nCONVOCATION À L'ASSEMBLÉE GÉNÉRALE ORDINAIRE\nVous êtes convoqué(e) à l'assemblée générale qui se tiendra le 12 juin 2026. Ordre du jour : approbation des comptes.`,
     CONVOCATION,
   ],
   [
@@ -1359,7 +1359,7 @@ const REGLE_STRICTE: Cas[] = [
   ],
   [
     'défaut 2, voisin : « SELARL … » puis « ORDONNANCE DE PROROGATION » et son dispositif',
-    `SELARL AJ ASSOCIÉS\nORDONNANCE DE PROROGATION\nPAR CES MOTIFS,\nProrogeons pour douze mois la mission de Maître Claire X, administrateur provisoire.`,
+    `SELARL EXEMPLE ADMINISTRATEURS\nORDONNANCE DE PROROGATION\nPAR CES MOTIFS,\nProrogeons pour douze mois la mission de Maître Claire X, administrateur provisoire.`,
     null,
   ],
   [
@@ -1491,8 +1491,8 @@ const DEMANDES_ETAT_DATE: Cas[] = [
 
 const TJ_PORTALIS = 'TRIBUNAL JUDICIAIRE DE PARIS\nN° RG 26/01234 - N° Portalis 35L7-W-B7K-CX\n'
 const TJ_RG = 'TRIBUNAL JUDICIAIRE DE PARIS\nN° RG 26/01234\n'
-const AJ_CABINET = 'SELARL AJ ASSOCIÉS\nAdministrateurs judiciaires\n12 rue de la Paix\n75002 Paris\n'
-const AJ_LETTRE = 'SELARL AJ ASSOCIÉS\n12 rue de la Paix\n75002 Paris\nParis, le 3 mars 2026\n'
+const AJ_CABINET = 'SELARL EXEMPLE ADMINISTRATEURS\nAdministrateurs judiciaires\n12 rue de la Paix\n75002 Paris\n'
+const AJ_LETTRE = 'SELARL EXEMPLE ADMINISTRATEURS\n12 rue de la Paix\n75002 Paris\nParis, le 3 mars 2026\n'
 const PV_ORDINAIRE = `PROCÈS-VERBAL DE L'ASSEMBLÉE GÉNÉRALE ORDINAIRE DU 12 JUIN 2026\nFeuille de présence : 12 copropriétaires présents ou représentés.\nRésolution n° 1 adoptée.`
 const FACTURE_SIRET = `SIRET 123 456 789 00012\nFACTURE N° F-2026-14\nTotal HT 1 000,00 € — TVA 10 % — Net à payer 1 100,00 €`
 const DESIGNE_AP = `Désignons Maître Jeanne DUPONT en qualité d'administrateur provisoire du syndicat des copropriétaires`
