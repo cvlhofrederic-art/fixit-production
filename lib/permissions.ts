@@ -50,6 +50,8 @@ export const ALL_PRO_MODULES = [
   // rendait NONE pour tout le monde et getEffectivePermissions jetait silencieusement toute dérogation posée sur eux
   // (`if (ov.module_id in base)`), donc le gérant ne pouvait ni les accorder ni les refuser.
   'meteo', 'dictionnaire_materiaux', 'estimation_materiaux',
+  // Outils et véhicules de la société, vérifiés chaque vendredi par le responsable du chantier (26/11/2026).
+  'outillage',
   // Admin
   'gestion_comptes',
 ] as const
@@ -75,6 +77,7 @@ export const MODULE_LABELS: Record<string, { fr: string; pt: string }> = {
   meteo:                 { fr: 'Météo chantiers',       pt: 'Meteorologia das obras' },
   dictionnaire_materiaux:{ fr: 'Dictionnaire matériaux', pt: 'Dicionário de materiais' },
   estimation_materiaux:  { fr: 'Estimation matériaux',  pt: 'Estimativa de materiais' },
+  outillage:             { fr: 'Outillage et véhicules', pt: 'Ferramentas e viaturas' },
   motifs:                { fr: 'Lots / Prestations',    pt: 'Lotes / Serviços' },
   horaires:              { fr: 'Horaires chantier',     pt: 'Horários de obra' },
   messages:              { fr: 'Messagerie',            pt: 'Mensagens' },
@@ -125,24 +128,29 @@ export function estRoleDeTerrain(role: string | null | undefined): boolean {
  * - `meteo` en lecture : les prévisions et alertes de ces mêmes chantiers ;
  * - `settings` en lecture : « Mon profil » s'ouvre, pour changer son mot de passe ; /api/btp ne lui rend pas les
  *   réglages de la société et n'en accepte l'écriture qu'en FULL.
+ * - `outillage` en lecture, pour le responsable de chantier seulement (`responsableDeChantier` : chef de chantier
+ *   et conducteur de travaux, pas l'ouvrier) : les outils et véhicules de SES chantiers, et la vérification de chaque
+ *   vendredi qu'il valide (demande de Frédéric du 26/11/2026). Comme le pointage, /api/btp/outillage laisse ce niveau
+ *   valider la vérification de ses chantiers ; tenir le répertoire demande FULL.
  * Tout le reste est fermé ; le gérant rouvre ce qu'il veut, employé par employé (Gestion des comptes → Modifier).
  * Jusqu'au 25/11 le conducteur de travaux et le chef de chantier avaient en plus l'agenda, le Gantt, les devis, les
  * clients, la messagerie, les rapports, etc., et l'ouvrier l'agenda, les photos et le dictionnaire de matériaux.
  */
-function ecransDuSalarieDeTerrain(): Record<string, AccessLevel> {
+function ecransDuSalarieDeTerrain(responsableDeChantier: boolean): Record<string, AccessLevel> {
   return {
     ...Object.fromEntries(ALL_PRO_MODULES.map(m => [m, 'NONE' as AccessLevel])),
     pointage: 'READ', chantiers: 'READ', meteo: 'READ',
     settings: 'READ',
+    outillage: responsableDeChantier ? 'READ' : 'NONE',
   }
 }
 
 const DEFAULT_PERMISSIONS: PermissionMatrix = {
   GERANT: Object.fromEntries(ALL_PRO_MODULES.map(m => [m, 'FULL' as AccessLevel])),
 
-  CONDUCTEUR_TRAVAUX: ecransDuSalarieDeTerrain(),
+  CONDUCTEUR_TRAVAUX: ecransDuSalarieDeTerrain(true),
 
-  CHEF_CHANTIER: ecransDuSalarieDeTerrain(),
+  CHEF_CHANTIER: ecransDuSalarieDeTerrain(true),
 
   // Tous les pouvoirs (décision de Frédéric du 24/11/2026, « la secrétaire Tatiana a tous les pouvoirs »), à une
   // exception : la gestion des comptes reste au compte de la société. Le serveur y réserve toute écriture au gérant
@@ -163,14 +171,14 @@ const DEFAULT_PERMISSIONS: PermissionMatrix = {
     messages: 'NONE', clients: 'NONE',
     devis: 'READ', pipeline: 'NONE', factures: 'FULL', rapports: 'READ',
     photos_chantier: 'NONE', bibliotheque: 'NONE', contrats: 'NONE',
-    meteo: 'NONE', dictionnaire_materiaux: 'NONE', estimation_materiaux: 'NONE',
+    meteo: 'NONE', dictionnaire_materiaux: 'NONE', estimation_materiaux: 'NONE', outillage: 'NONE',
     stats: 'FULL', revenus: 'FULL', comptabilite: 'FULL',
     materiaux: 'NONE', marches: 'NONE', marketplace_btp: 'NONE',
     wallet: 'NONE', portfolio: 'NONE', parrainage: 'NONE',
     settings: 'READ', gestion_comptes: 'NONE',
   },
 
-  OUVRIER: ecransDuSalarieDeTerrain(),
+  OUVRIER: ecransDuSalarieDeTerrain(false),
 }
 
 // ══════════════════════════════════════════════════════════════════════════════

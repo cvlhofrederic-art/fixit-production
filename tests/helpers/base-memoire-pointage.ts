@@ -116,6 +116,7 @@ export function requete(table: string) {
   const b: Record<string, unknown> = {}
   b.select = (colonnes?: string) => { if (colonnes?.includes('equipe_membres_btp')) avecLiaison = true; return b }
   b.eq = (c: string, v: unknown) => { filtres.push({ texte: `${c}=${String(v)}`, test: l => l[c] === v }); return b }
+  b.in = (c: string, v: unknown[]) => { filtres.push({ texte: `${c} in (${v.map(String).join(',')})`, test: l => v.includes(l[c]) }); return b }
   b.is = (c: string, v: unknown) => { filtres.push({ texte: `${c} is ${String(v)}`, test: l => (l[c] ?? null) === v }); return b }
   b.gte = (c: string, v: unknown) => { filtres.push({ texte: `${c}>=${String(v)}`, test: l => String(l[c]) >= String(v) }); return b }
   b.lte = (c: string, v: unknown) => { filtres.push({ texte: `${c}<=${String(v)}`, test: l => String(l[c]) <= String(v) }); return b }

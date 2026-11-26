@@ -24,13 +24,14 @@ export type EnvoyerPointage = (corps: CorpsPointage) => Promise<ResultatEnvoi>
 
 const URL_POINTAGE = '/api/btp/pointage'
 
-async function enTetes(): Promise<Record<string, string>> {
+/** En-tête d'authentification des appels aux routes BTP (partagé avec l'écran Outillage). */
+export async function enTetes(): Promise<Record<string, string>> {
   const jeton = await jetonAcces()
   return jeton ? { Authorization: `Bearer ${jeton}` } : {}
 }
 
 /** Fuseau horaire du téléphone (l'heure du pointage est l'heure locale du chantier). */
-function fuseauDuTelephone(): string {
+export function fuseauDuTelephone(): string {
   try {
     return Intl.DateTimeFormat().resolvedOptions().timeZone || ''
   } catch {
