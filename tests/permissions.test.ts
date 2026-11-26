@@ -211,20 +211,27 @@ describe('lib/permissions', () => {
     // Décision de Frédéric du 25/11/2026 : « Les salariés doivent uniquement recevoir les alertes météo, le
     // chantier qui les concerne, et surtout le pointage très important ». Plus « Mon profil » (settings, en lecture),
     // où il change son mot de passe. Rien d'autre par défaut — le gérant rouvre le reste employé par employé.
-    // (Le 24/11 il avait demandé aussi le dictionnaire de matériaux ; le 25/11 il dit « uniquement ».)
+    // (Le 24/11 il avait demandé aussi le dictionnaire de matériaux ; le 25/11 il dit « uniquement » ; le 26/11 :
+    // « Dictionnaire pour tous les employés ».)
     const TERRAIN: ProTeamRole[] = ['OUVRIER', 'CHEF_CHANTIER', 'CONDUCTEUR_TRAVAUX']
 
     // Le 26/11/2026, Frédéric ajoute la vérification de l'outillage chaque vendredi « par les encarregados », « le
     // responsable de son chantier » : chef de chantier et conducteur de travaux, en lecture (ses chantiers, et valider
     // leur vérification) ; pas l'ouvrier.
-    it('OUVRIER n’ouvre que le pointage, ses chantiers, la météo et son profil', () => {
+    it('OUVRIER n’ouvre que le pointage, ses chantiers, la météo, le dictionnaire et son profil', () => {
       const accessible = getAccessibleModules(getDefaultPermissionsForRole('OUVRIER'))
-      expect(accessible.sort()).toEqual(['chantiers', 'meteo', 'pointage', 'settings'])
+      expect(accessible.sort()).toEqual(['chantiers', 'dictionnaire_materiaux', 'meteo', 'pointage', 'settings'])
+    })
+
+    // « Dictionnaire pour tous les employés » (26/11/2026) : chaque rôle d'équipe le lit ; seul le titulaire et la
+    // secrétaire (tous les pouvoirs) y ont FULL, sans effet puisque le dictionnaire n'écrit rien.
+    it.each(PRO_TEAM_ROLES)('%s lit le dictionnaire de matériaux', (role) => {
+      expect(canAccess(getDefaultPermissionsForRole(role), 'dictionnaire_materiaux')).toBe(true)
     })
 
     it.each(['CHEF_CHANTIER', 'CONDUCTEUR_TRAVAUX'] as const)('%s ouvre en plus l’outillage de ses chantiers, en lecture', (role) => {
       const droits = getDefaultPermissionsForRole(role)
-      expect(getAccessibleModules(droits).sort()).toEqual(['chantiers', 'meteo', 'outillage', 'pointage', 'settings'])
+      expect(getAccessibleModules(droits).sort()).toEqual(['chantiers', 'dictionnaire_materiaux', 'meteo', 'outillage', 'pointage', 'settings'])
       expect(droits.outillage).toBe('READ')
     })
 

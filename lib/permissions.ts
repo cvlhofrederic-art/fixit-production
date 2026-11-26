@@ -126,6 +126,9 @@ export function estRoleDeTerrain(role: string | null | undefined): boolean {
  * - `chantiers` en lecture : /api/btp ne lui rend que les chantiers qui lui sont affectés, sans client ni montant
  *   (vue restreinte de lib/btp/perimetre-compte.ts) ;
  * - `meteo` en lecture : les prévisions et alertes de ces mêmes chantiers ;
+ * - `dictionnaire_materiaux` en lecture (décision de Frédéric du 26/11/2026 : « Dictionnaire pour tous les employés ») ;
+ *   il n'a pas de table : c'est un catalogue, sans donnée de la société (absent du menu en français, voir
+ *   lib/dictionnaire-materiaux/disponibilite.ts) ;
  * - `settings` en lecture : « Mon profil » s'ouvre, pour changer son mot de passe ; /api/btp ne lui rend pas les
  *   réglages de la société et n'en accepte l'écriture qu'en FULL.
  * - `outillage` en lecture, pour le responsable de chantier seulement (`responsableDeChantier` : chef de chantier
@@ -139,7 +142,7 @@ export function estRoleDeTerrain(role: string | null | undefined): boolean {
 function ecransDuSalarieDeTerrain(responsableDeChantier: boolean): Record<string, AccessLevel> {
   return {
     ...Object.fromEntries(ALL_PRO_MODULES.map(m => [m, 'NONE' as AccessLevel])),
-    pointage: 'READ', chantiers: 'READ', meteo: 'READ',
+    pointage: 'READ', chantiers: 'READ', meteo: 'READ', dictionnaire_materiaux: 'READ',
     settings: 'READ',
     outillage: responsableDeChantier ? 'READ' : 'NONE',
   }
@@ -171,7 +174,8 @@ const DEFAULT_PERMISSIONS: PermissionMatrix = {
     messages: 'NONE', clients: 'NONE',
     devis: 'READ', pipeline: 'NONE', factures: 'FULL', rapports: 'READ',
     photos_chantier: 'NONE', bibliotheque: 'NONE', contrats: 'NONE',
-    meteo: 'NONE', dictionnaire_materiaux: 'NONE', estimation_materiaux: 'NONE', outillage: 'NONE',
+    // Dictionnaire de matériaux pour tous les employés (26/11/2026), comptable compris.
+    meteo: 'NONE', dictionnaire_materiaux: 'READ', estimation_materiaux: 'NONE', outillage: 'NONE',
     stats: 'FULL', revenus: 'FULL', comptabilite: 'FULL',
     materiaux: 'NONE', marches: 'NONE', marketplace_btp: 'NONE',
     wallet: 'NONE', portfolio: 'NONE', parrainage: 'NONE',

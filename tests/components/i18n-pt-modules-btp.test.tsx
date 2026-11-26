@@ -279,9 +279,9 @@ describe('modules BTP du tableau de bord pro en portugais (pt-PT)', () => {
     expect(tudo).toContain('Gerente: acesso total e gestão das contas. Só o gerente titular cria ou retira gerentes.')
     // Droits par défaut des rôles de terrain depuis le 25/11/2026 : leurs obras, la météo et le pointage ; le
     // responsable de chantier vérifie en plus l'outillage de ses obras chaque vendredi (26/11/2026).
-    expect(tudo).toContain('Encarregado: por defeito, só as suas obras (consulta), a meteorologia, o registo de horas e a verificação das ferramentas e viaturas à sexta-feira.')
-    expect(tudo).toContain('Diretor de obra: por defeito, só as suas obras (consulta), a meteorologia, o registo de horas e a verificação das ferramentas e viaturas à sexta-feira.')
-    expect(tudo).toContain('Operário: por defeito, só as suas obras (consulta), a meteorologia e o registo de horas.')
+    expect(tudo).toContain('Encarregado: por defeito, só as suas obras (consulta), a meteorologia, o registo de horas, o dicionário de materiais e a verificação das ferramentas e viaturas à sexta-feira.')
+    expect(tudo).toContain('Diretor de obra: por defeito, só as suas obras (consulta), a meteorologia, o registo de horas, o dicionário de materiais e a verificação das ferramentas e viaturas à sexta-feira.')
+    expect(tudo).toContain('Operário: por defeito, só as suas obras (consulta), a meteorologia, o registo de horas e o dicionário de materiais.')
     expect(tudo).toContain('o botão « Editar » de cada membro')
     expect([...c.querySelectorAll('tbody button')].map(b => b.textContent)).toContain('Editar')
     expect(ecartsPortugais(c)).toEqual([])
