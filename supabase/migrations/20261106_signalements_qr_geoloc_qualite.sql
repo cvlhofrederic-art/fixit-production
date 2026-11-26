@@ -1,5 +1,5 @@
 -- ══════════════════════════════════════════════════════════════════════════════
--- AJ Signalement (06/11/2026) — qualité du déclarant, adresse proposée d'après sa position, signalement lié.
+-- Vitfix Signal (06/11/2026) — qualité du déclarant, adresse proposée d'après sa position, signalement lié.
 --
 -- Demandes de Hugo du 06/11/2026, enregistrées avec chaque dépôt par QR code :
 --   qualite_declarant  : « Vous êtes : Propriétaire / Locataire » (champ obligatoire du formulaire) ;
@@ -74,8 +74,8 @@ ALTER TABLE signalements_qr VALIDATE CONSTRAINT signalements_qr_adresse_proposee
 ALTER TABLE signalements_qr VALIDATE CONSTRAINT signalements_qr_signalement_lie_fk;
 ALTER TABLE signalements_qr VALIDATE CONSTRAINT signalements_qr_signalement_lie_distinct;
 
--- Recherche des signalements déjà faits au même endroit (GET /api/aj-signalement/similaires et lien au dépôt) :
--- mêmes filtres que la route (lib/aj-signalement/serveur.ts, lireSemblablesQr).
+-- Recherche des signalements déjà faits au même endroit (GET /api/vitfixsignal/similaires et lien au dépôt) :
+-- mêmes filtres que la route (lib/vitfixsignal/serveur.ts, lireSemblablesQr).
 CREATE INDEX IF NOT EXISTS idx_signalements_qr_semblables
   ON signalements_qr (copropriete_id, zone_signalee, created_at DESC)
   WHERE est_partie_commune AND statut IN ('en_attente', 'acceptee', 'en_cours');

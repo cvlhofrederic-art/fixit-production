@@ -1,12 +1,12 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
-import ConfirmationAdresseQr from '@/components/aj-signalement/ConfirmationAdresseQr'
+import ConfirmationAdresseQr from '@/components/vitfixsignal/ConfirmationAdresseQr'
 import {
   FORMAT_IDENTIFIANT_CABINET_QR, LONGUEUR_MAX_IDENTIFIANT_CABINET_QR, LONGUEUR_MIN_IDENTIFIANT_CABINET_QR,
-} from '@/lib/aj-signalement/chemin-cabinet'
-import { lireLogoPageCabinetQr } from '@/lib/aj-signalement/serveur-logo'
+} from '@/lib/vitfixsignal/chemin-cabinet'
+import { lireLogoPageCabinetQr } from '@/lib/vitfixsignal/serveur-logo'
 
-// ── AJ Signalement : confirmation d'adresse d'un gestionnaire (SPEC § 1.7.4) ────────────────────────────────────
+// ── Vitfix Signal : confirmation d'adresse d'un gestionnaire (SPEC § 1.7.4) ────────────────────────────────────
 //
 // vitfix.io/<identifiant>/confirmation-adresse/#<jeton>, lien de l'e-mail envoyé à la création de la fiche. Servie par
 // réécriture, publique (aucune session : le titulaire de la boîte n'a pas de compte en PR 1). Le jeton est APRÈS le
@@ -21,7 +21,7 @@ import { lireLogoPageCabinetQr } from '@/lib/aj-signalement/serveur-logo'
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'AJ Signalement — Confirmation de votre adresse',
+  title: 'Vitfix Signal — Confirmation de votre adresse',
   robots: { index: false, follow: false, noarchive: true },
   referrer: 'no-referrer',
 }

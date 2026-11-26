@@ -1,10 +1,10 @@
 import type { Metadata } from 'next'
-import ChargeurConnexionEspaceQr from '@/components/aj-signalement/espace/ChargeurConnexionEspaceQr'
-import { cabinetDeLaPageQr } from '@/lib/aj-signalement/cabinet-du-chemin'
-import { contexteConnexionCabinetQr, titreOngletConnexionQr } from '@/lib/aj-signalement/connexion-espace'
-import { lireLogoPageCabinetQr } from '@/lib/aj-signalement/serveur-logo'
+import ChargeurConnexionEspaceQr from '@/components/vitfixsignal/espace/ChargeurConnexionEspaceQr'
+import { cabinetDeLaPageQr } from '@/lib/vitfixsignal/cabinet-du-chemin'
+import { contexteConnexionCabinetQr, titreOngletConnexionQr } from '@/lib/vitfixsignal/connexion-espace'
+import { lireLogoPageCabinetQr } from '@/lib/vitfixsignal/serveur-logo'
 
-// ── AJ Signalement : connexion professionnelle d'un cabinet client (vitfix.io/<identifiant>/connexion/, PR 2) ─────────
+// ── Vitfix Signal : connexion professionnelle d'un cabinet client (vitfix.io/<identifiant>/connexion/, PR 2) ─────────
 //
 // Décision de Hugo du 11/11/2026 (SPEC § 6) : chaque cabinet a SA page de connexion professionnelle (e-mail et mot de
 // passe, « Mot de passe oublié ? », sans choix Particulier / Artisan / Pro ni Google). Même composant que la connexion de

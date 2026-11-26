@@ -1,10 +1,10 @@
 // tests/components/coproprietaire/shell-signalements-qr.test.tsx
 //
-// « AJ Signalement » sort du portail copropriétaire (demande de Hugo du 10/11/2026) : l'écran des signalements reçus
-// par QR code vit désormais dans son espace indépendant (/fr/aj-signalement/). Le portail n'en garde qu'un lien,
+// « Vitfix Signal » sort du portail copropriétaire (demande de Hugo du 10/11/2026) : l'écran des signalements reçus
+// par QR code vit désormais dans son espace indépendant (/fr/vitfixsignal/). Le portail n'en garde qu'un lien,
 // pour le seul super admin (pas sa « vue en tant que », refusée par l'espace depuis le 11/11/2026), dans la barre
 // latérale et le menu « Plus » du téléphone.
-// Même pour un super admin : aucun écran « AJ Signalement », huit écrans comme pour tous, l'ancre #signalementsQr
+// Même pour un super admin : aucun écran « Vitfix Signal », huit écrans comme pour tous, l'ancre #signalementsQr
 // ramène à l'accueil. Un copropriétaire (huit écrans) ou un vrai locataire (six écrans, sans Charges ni Assemblées)
 // ne voit pas le lien.
 
@@ -51,7 +51,7 @@ const espaceLocataire = (): EtatEspace => {
   }
 }
 
-const ESPACE_QR = '/fr/aj-signalement/'
+const ESPACE_QR = '/fr/vitfixsignal/'
 const menuLateral = () => screen.getAllByRole('navigation', { name: 'Menu' })[0]
 const barreLaterale = () => screen.getByRole('complementary', { name: 'Menu' })
 const boutonsMenu = () => within(menuLateral()).getAllByRole('button').map((b) => b.textContent)
@@ -68,12 +68,12 @@ beforeEach(() => {
   window.location.hash = ''
 })
 
-describe('AJ Signalement hors du portail copropriétaire', () => {
-  it('super admin : aucun écran « AJ Signalement », les huit écrans de tous ; lien vers l’espace dans la barre latérale', () => {
+describe('Vitfix Signal hors du portail copropriétaire', () => {
+  it('super admin : aucun écran « Vitfix Signal », les huit écrans de tous ; lien vers l’espace dans la barre latérale', () => {
     render(<Page />)
-    expect(boutonsMenu()).not.toContain('AJ Signalement')
+    expect(boutonsMenu()).not.toContain('Vitfix Signal')
     expect(boutonsMenu()).toHaveLength(8)
-    expect(within(barreLaterale()).getByRole('link', { name: 'AJ Signalement' })).toHaveAttribute('href', ESPACE_QR)
+    expect(within(barreLaterale()).getByRole('link', { name: 'Vitfix Signal' })).toHaveAttribute('href', ESPACE_QR)
     // Le lien s'ajoute à « Panneau admin », qui ne change pas.
     expect(within(barreLaterale()).getByRole('link', { name: 'Panneau admin' })).toHaveAttribute('href', '/admin/dashboard')
   })
@@ -85,17 +85,17 @@ describe('AJ Signalement hors du portail copropriétaire', () => {
     expect(screen.queryByText('Signalements reçus par QR code : copropriétés, affiches, coordonnées des déclarants')).toBeNull()
   })
 
-  it('menu « Plus » du téléphone : le lien vers l’espace, et aucun bouton d’écran « AJ Signalement »', () => {
+  it('menu « Plus » du téléphone : le lien vers l’espace, et aucun bouton d’écran « Vitfix Signal »', () => {
     render(<Page />)
     const dialogue = ouvrirPlus()
-    expect(within(dialogue).queryByRole('button', { name: 'AJ Signalement' })).toBeNull()
-    expect(within(dialogue).getByRole('link', { name: 'AJ Signalement' })).toHaveAttribute('href', ESPACE_QR)
+    expect(within(dialogue).queryByRole('button', { name: 'Vitfix Signal' })).toBeNull()
+    expect(within(dialogue).getByRole('link', { name: 'Vitfix Signal' })).toHaveAttribute('href', ESPACE_QR)
   })
 
   it('« vue en tant que » ouverte par un super admin : pas de lien (l’espace la refuse depuis le 11/11/2026, comme les routes)', () => {
     h.metadonnees = { role: 'coproprio', _original_role: 'super_admin' }
     render(<Page />)
-    expect(within(barreLaterale()).queryByRole('link', { name: 'AJ Signalement' })).toBeNull()
+    expect(within(barreLaterale()).queryByRole('link', { name: 'Vitfix Signal' })).toBeNull()
   })
 
   it('copropriétaire : ni lien, ni écran ; ses huit écrans ; l’ancre #signalementsQr ramène à l’accueil', () => {
@@ -103,11 +103,11 @@ describe('AJ Signalement hors du portail copropriétaire', () => {
     h.etat = espaceReel(false)
     window.location.hash = '#signalementsQr'
     render(<Page />)
-    expect(screen.queryByRole('link', { name: 'AJ Signalement' })).toBeNull()
-    expect(boutonsMenu()).not.toContain('AJ Signalement')
+    expect(screen.queryByRole('link', { name: 'Vitfix Signal' })).toBeNull()
+    expect(boutonsMenu()).not.toContain('Vitfix Signal')
     expect(boutonsMenu()).toHaveLength(8)
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Accueil')
-    expect(within(ouvrirPlus()).queryByRole('link', { name: 'AJ Signalement' })).toBeNull()
+    expect(within(ouvrirPlus()).queryByRole('link', { name: 'Vitfix Signal' })).toBeNull()
   })
 
   it('locataire (espace de locataire) : ni lien, ni écran ; ses six écrans, sans Charges ni Assemblées ; #signalementsQr ramène à l’accueil', () => {
@@ -115,12 +115,12 @@ describe('AJ Signalement hors du portail copropriétaire', () => {
     h.etat = espaceLocataire()
     window.location.hash = '#signalementsQr'
     render(<Page />)
-    expect(screen.queryByRole('link', { name: 'AJ Signalement' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Vitfix Signal' })).toBeNull()
     expect(boutonsMenu()).toHaveLength(6)
-    expect(boutonsMenu()).not.toContain('AJ Signalement')
+    expect(boutonsMenu()).not.toContain('Vitfix Signal')
     expect(boutonsMenu()).not.toContain('Charges & paiements')
     expect(boutonsMenu()).not.toContain('Assemblées & votes')
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Accueil')
-    expect(within(ouvrirPlus()).queryByRole('link', { name: 'AJ Signalement' })).toBeNull()
+    expect(within(ouvrirPlus()).queryByRole('link', { name: 'Vitfix Signal' })).toBeNull()
   })
 })

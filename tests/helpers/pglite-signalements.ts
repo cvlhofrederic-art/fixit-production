@@ -1,5 +1,5 @@
 // tests/helpers/pglite-signalements.ts — vrai PostgreSQL (PGlite, WebAssembly, en mémoire) pour EXÉCUTER les migrations
-// d'AJ Signalement dans Vitest, sans service ni base distante (cahier des charges de la PR 3, décision F9).
+// de Vitfix Signal dans Vitest, sans service ni base distante (cahier des charges de la PR 3, décision F9).
 //
 // Échafaudage MINIMAL : il ne reproduit que ce que la chaîne des migrations signalements_qr suppose de Supabase :
 //   - les rôles anon, authenticated, service_role (nommés par les REVOKE / GRANT ; service_role contourne la RLS) ;
@@ -27,7 +27,7 @@ CREATE SCHEMA auth;
 CREATE TABLE auth.users (id uuid PRIMARY KEY, email text);
 `
 
-/** Chaîne des migrations d'AJ Signalement, dans l'ordre d'application (ordre des noms de fichier). */
+/** Chaîne des migrations de Vitfix Signal, dans l'ordre d'application (ordre des noms de fichier). */
 export const MIGRATIONS_SIGNALEMENTS_QR = [
   '20261104_signalements_qr.sql',
   '20261106_signalements_qr_confirmation.sql',

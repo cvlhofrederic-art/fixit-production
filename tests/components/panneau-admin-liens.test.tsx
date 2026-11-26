@@ -34,7 +34,7 @@ vi.mock('next/dynamic', () => ({
 
 import { lienPanneauAdmin } from '@/lib/auth/panneau-admin'
 import LienPanneauAdmin from '@/components/common/LienPanneauAdmin'
-import LienAjSignalement from '@/components/common/LienAjSignalement'
+import LienVitfixSignal from '@/components/common/LienVitfixSignal'
 import V5SidebarArtisan from '@/components/dashboard/V5SidebarArtisan'
 import V5Sidebar from '@/components/dashboard/V5Sidebar'
 import { Shell } from '@/components/administrateur-judiciaire/shell/Shell'
@@ -124,26 +124,26 @@ describe('Administrateur judiciaire — pied de sidebar', () => {
   })
 })
 
-// Espace indépendant « AJ Signalement » (10/11/2026) : l'AJ n'en garde qu'un lien, pour le seul super admin, au pied
+// Espace indépendant « Vitfix Signal » (10/11/2026) : l'AJ n'en garde qu'un lien, pour le seul super admin, au pied
 // de la barre latérale (à côté de « Panneau admin »). Décision lue dans app_metadata (lienEspaceQr), jamais user_metadata.
-describe('Administrateur judiciaire — lien « AJ Signalement »', () => {
-  it('LienAjSignalement : super admin → /fr/aj-signalement/ ; « vue en tant que » → rien (l’espace la refuse, 11/11/2026)', async () => {
+describe('Administrateur judiciaire — lien « Vitfix Signal »', () => {
+  it('LienVitfixSignal : super admin → /fr/vitfixsignal/ ; « vue en tant que » → rien (l’espace la refuse, 11/11/2026)', async () => {
     h.session = sessionAvec({ role: 'super_admin' })
-    render(<LienAjSignalement />)
-    expect((await screen.findByRole('link', { name: 'AJ Signalement' }, { timeout: 5000 })).getAttribute('href')).toBe('/fr/aj-signalement/')
+    render(<LienVitfixSignal />)
+    expect((await screen.findByRole('link', { name: 'Vitfix Signal' }, { timeout: 5000 })).getAttribute('href')).toBe('/fr/vitfixsignal/')
     cleanup()
     h.session = sessionAvec({ role: 'syndic', _original_role: 'super_admin' })
-    await act(async () => { render(<LienAjSignalement />) })
-    expect(screen.queryByRole('link', { name: 'AJ Signalement' })).toBeNull()
+    await act(async () => { render(<LienVitfixSignal />) })
+    expect(screen.queryByRole('link', { name: 'Vitfix Signal' })).toBeNull()
   })
 
-  it('LienAjSignalement : syndic, user_metadata trafiqué ou pas de session → rien', async () => {
+  it('LienVitfixSignal : syndic, user_metadata trafiqué ou pas de session → rien', async () => {
     h.session = sessionAvec({ role: 'syndic' }, { role: 'super_admin', _original_role: 'super_admin' })
-    await act(async () => { render(<LienAjSignalement />) })
+    await act(async () => { render(<LienVitfixSignal />) })
     expect(screen.queryByRole('link')).toBeNull()
     cleanup()
     h.session = null
-    await act(async () => { render(<LienAjSignalement />) })
+    await act(async () => { render(<LienVitfixSignal />) })
     expect(screen.queryByRole('link')).toBeNull()
   })
 
@@ -152,18 +152,18 @@ describe('Administrateur judiciaire — lien « AJ Signalement »', () => {
     await act(async () => {
       render(<ToastProvider><Shell /></ToastProvider>)
     })
-    const lien = await screen.findByRole('link', { name: /AJ Signalement/ }, { timeout: 5000 })
-    expect(lien.getAttribute('href')).toBe('/fr/aj-signalement/')
+    const lien = await screen.findByRole('link', { name: /Vitfix Signal/ }, { timeout: 5000 })
+    expect(lien.getAttribute('href')).toBe('/fr/vitfixsignal/')
     expect(lien.closest('.side-foot')).not.toBeNull()
     expect(screen.queryByRole('button', { name: /Signalements QR/ })).toBeNull()
   })
 
-  it('compte syndic ordinaire : aucun lien « AJ Signalement »', async () => {
+  it('compte syndic ordinaire : aucun lien « Vitfix Signal »', async () => {
     h.session = sessionAvec({ role: 'syndic' })
     await act(async () => {
       render(<ToastProvider><Shell /></ToastProvider>)
     })
-    expect(screen.queryByRole('link', { name: /AJ Signalement/ })).toBeNull()
+    expect(screen.queryByRole('link', { name: /Vitfix Signal/ })).toBeNull()
     expect(screen.queryByRole('button', { name: /Signalements QR/ })).toBeNull()
   })
 })

@@ -8,9 +8,9 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import {
   aiguillageGestionnaireQr, redirectionEspaceCabinetQr, redirectionEspaceQr, viseEspaceQr,
-} from '@/lib/aj-signalement/acces-espace'
-import { cheminEspaceCabinetQr, cheminPublicCabinetQr, cheminSuiviCabinetQr } from '@/lib/aj-signalement/chemin-cabinet'
-import { estPostUnClicDesinscriptionQr } from '@/lib/aj-signalement/chemin-desinscription'
+} from '@/lib/vitfixsignal/acces-espace'
+import { cheminEspaceCabinetQr, cheminPublicCabinetQr, cheminSuiviCabinetQr } from '@/lib/vitfixsignal/chemin-cabinet'
+import { estPostUnClicDesinscriptionQr } from '@/lib/vitfixsignal/chemin-desinscription'
 import { pageAppliSocieteBtp } from '@/lib/auth/destination-par-role'
 import { CHEMIN_CRM, ROLE_SECRETARIAT } from '@/lib/crm/types'
 import { POLITIQUE_CSP } from '@/lib/securite/csp'
@@ -123,11 +123,11 @@ const CHEMINS_SUPPRIMES_PT = new Set([
   '/pt/blog/preparar-paredes-pintura',
 ])
 
-// ── Espaces privés (succursale Administrateur Judiciaire, espace AJ Signalement) : outils métier, jamais indexables ──
+// ── Espaces privés (succursale Administrateur Judiciaire, espace Vitfix Signal) : outils métier, jamais indexables ──
 // next.config.ts headers() pose X-Robots-Tag sur leurs pages rendues, mais OpenNext renvoie les réponses 3xx du middleware
 // sans y ajouter les en-têtes de la config (@opennextjs/aws core/routingHandler.js). Les redirections qui en partent le
-// portent donc ici (page de connexion de l'espace AJ Signalement comprise). Même critère que le contrôle d'accès plus bas
-// (chemin sans préfixe de langue) ; l'espace AJ Signalement est comparé au segment exact (jamais la page publique
+// portent donc ici (page de connexion de l'espace Vitfix Signal comprise). Même critère que le contrôle d'accès plus bas
+// (chemin sans préfixe de langue) ; l'espace Vitfix Signal est comparé au segment exact (jamais la page publique
 // /signalement/<jeton>/). Les chemins d'un cabinet client (pages publiques et espace du cabinet, PR 2) sont traités avant
 // la langue et portent l'en-tête eux-mêmes (enTetesEspacePrive) ; ils sont nommés ici aussi, par prudence.
 const X_ROBOTS_ESPACE_PRIVE = 'noindex, nofollow, noarchive'
@@ -184,7 +184,7 @@ async function compteDeLaSessionQr(supabase: ReturnType<typeof clientSupabaseMid
     const { data } = await supabase.auth.getUser()
     return data.user
   } catch (erreur) {
-    console.warn('[middleware] AJ Signalement : session non vérifiée (Supabase injoignable)', erreur instanceof Error ? erreur.name : 'erreur inconnue')
+    console.warn('[middleware] Vitfix Signal : session non vérifiée (Supabase injoignable)', erreur instanceof Error ? erreur.name : 'erreur inconnue')
     return null
   }
 }
@@ -230,11 +230,11 @@ export async function middleware(request: NextRequest) {
     return response
   }
 
-  // ── AJ Signalement : chemin public d'un cabinet client (vitfix.io/<identifiant>/signalement/<jeton>/,
+  // ── Vitfix Signal : chemin public d'un cabinet client (vitfix.io/<identifiant>/signalement/<jeton>/,
   // /<identifiant>/confirmation-adresse/, /<identifiant>/invitation/ depuis la PR 2, et /<identifiant>/desinscription/
   // depuis la PR 3 : publique SANS session, même si l'espace du cabinet est sous session ; choix de Hugo du 10/11/2026).
   // Reconnu AVANT la langue (sinon 302 vers
-  // /fr/<identifiant>/… puis 404) par un motif FIGÉ, sans liste ni base (lib/aj-signalement/chemin-cabinet.ts) ; la
+  // /fr/<identifiant>/… puis 404) par un motif FIGÉ, sans liste ni base (lib/vitfixsignal/chemin-cabinet.ts) ; la
   // réécriture de next.config.ts mène ensuite à la page interne, qui vérifie que le jeton appartient au cabinet du chemin.
   // Ni Supabase, ni cookie de langue, ni redirection ; jamais indexé ni mis en cache partagé.
   if (cheminPublicCabinetQr(pathname)) {
@@ -243,14 +243,14 @@ export async function middleware(request: NextRequest) {
     return enTetesEspacePrive(NextResponse.next({ request: { headers: entetesCabinet } }))
   }
 
-  // ── AJ Signalement : espace d'un cabinet client (vitfix.io/<identifiant>/, /connexion/, /suivi/ ; PR 2, lot 4) ──
-  // Reconnu AVANT la langue, seulement pour un identifiant valable (jamais un nom réservé : /aj-signalement/connexion/ et
+  // ── Vitfix Signal : espace d'un cabinet client (vitfix.io/<identifiant>/, /connexion/, /suivi/ ; PR 2, lot 4) ──
+  // Reconnu AVANT la langue, seulement pour un identifiant valable (jamais un nom réservé : /vitfixsignal/connexion/ et
   // les pages du site suivent leur parcours). Adresses sans langue, espace en français (x-locale: fr).
   // - /<identifiant>/ : 307 vers /<identifiant>/suivi/, sans Supabase ;
   // - connexion et suivi : session lue (patron officiel, rien entre createServerClient et getUser), puis décision pure
   //   (redirectionEspaceCabinetQr, plan § 1.5) ; chaque réponse, servie ou redirigée, recopie les cookies rafraîchis et
   //   porte noindex, CSP et cache privé. Ni cookie de langue ni requête reprise. Le middleware aiguille seulement : chaque
-  //   route /api/aj-signalement/* relit la fiche du gestionnaire.
+  //   route /api/vitfixsignal/* relit la fiche du gestionnaire.
   const espaceCabinet = cheminEspaceCabinetQr(pathname)
   if (espaceCabinet) {
     if (espaceCabinet.page === 'accueil') return redirectionSansLangue(request, cheminSuiviCabinetQr(espaceCabinet.identifiant), null)
@@ -267,9 +267,9 @@ export async function middleware(request: NextRequest) {
   const isInternalRoute = pathname.startsWith('/api/') || pathname.startsWith('/_next/') || pathname.startsWith('/admin/')
 
   // ── CSRF Protection : vérifier Origin pour les requêtes mutantes sur /api/ ──
-  // Seule exception (AJ Signalement, PR 3, décision F3) : le POST « un clic » de désinscription (RFC 8058), envoyé par la
+  // Seule exception (Vitfix Signal, PR 3, décision F3) : le POST « un clic » de désinscription (RFC 8058), envoyé par la
   // messagerie de la personne, qui peut porter un Origin étranger ou « null ». Effet borné par le jeton signé (une
-  // opposition, idempotente), signature vérifiée par la route avant tout (lib/aj-signalement/chemin-desinscription.ts).
+  // opposition, idempotente), signature vérifiée par la route avant tout (lib/vitfixsignal/chemin-desinscription.ts).
   if (pathname.startsWith('/api/') && ['POST', 'PATCH', 'PUT', 'DELETE'].includes(request.method)
     && !estPostUnClicDesinscriptionQr(request.method, pathname)) {
     const origin = request.headers.get('origin')
@@ -426,7 +426,7 @@ export async function middleware(request: NextRequest) {
   // page visée est sous /pt/, comme « My space » (lib/i18n/liens-entete-pied.ts) : /en/artisan/dashboard/… répondait 404.
   // Requête de la redirection, dans cet ordre : celle écrite dans le chemin (« /pro/dashboard/?p=pointage ») si elle
   // y est — elle prime, `viderRequete` compris, car l'appelant l'a écrite exprès ; sinon aucune si `viderRequete` ;
-  // sinon celle de l'adresse visitée, gardée telle quelle (`viderRequete` sert à l'espace AJ Signalement, qui ne
+  // sinon celle de l'adresse visitée, gardée telle quelle (`viderRequete` sert à l'espace Vitfix Signal, qui ne
   // reprend pas la requête d'origine). Aucun appelant ne combine les deux aujourd'hui : l'ordre
   // est écrit ici pour que le prochain n'ait pas à le deviner.
   const localeRedirect = (path: string, viderRequete = false) => {
@@ -451,15 +451,15 @@ export async function middleware(request: NextRequest) {
     return resp
   }
 
-  // AJ Signalement (PR 2, lot 4) : un gestionnaire d'un cabinet client n'a qu'un espace, celui de SON cabinet (repère de
-  // routage app_metadata.aj_signalement_cabinet, posé par le serveur à l'acceptation, sans aucun droit). Il y est aiguillé
+  // Vitfix Signal (PR 2, lot 4) : un gestionnaire d'un cabinet client n'a qu'un espace, celui de SON cabinet (repère de
+  // routage app_metadata.vitfixsignal_cabinet, posé par le serveur à l'acceptation, sans aucun droit). Il y est aiguillé
   // depuis l'accueil, la connexion générale, les tableaux de bord et l'espace global (connexion comprise), AVANT la
   // décision de l'espace global, la sortie du super admin et les redirections par rôle ; adresse sans langue (jamais
   // /pt/<identifiant>/). Sans repère : accueil et connexion générale → connexion de l'espace global (message neutre).
   const versEspaceCabinet = aiguillageGestionnaireQr(strippedPathname, user?.app_metadata)
   if (versEspaceCabinet) return redirectionSansLangue(request, versEspaceCabinet, supabaseResponse)
 
-  // Espace AJ Signalement : la fonction pure (lib/aj-signalement/acces-espace.ts) est seule juge, avant la sortie du
+  // Espace Vitfix Signal : la fonction pure (lib/vitfixsignal/acces-espace.ts) est seule juge, avant la sortie du
   // super_admin ci-dessous, pour que la « vue en tant que » (_original_role) suive la même règle que l'API et le client.
   // Sans compte ou sans accès → page de connexion professionnelle de l'espace (message neutre pour un compte sans accès ;
   // elle-même servie, jamais redirigée vers elle-même) ; compte admis sur cette page → l'espace ; depuis /en/, /nl/ ou

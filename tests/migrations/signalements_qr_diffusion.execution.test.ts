@@ -1,7 +1,7 @@
 // @vitest-environment node
 // tests/migrations/signalements_qr_diffusion.execution.test.ts
 //
-// EXÉCUTION RÉELLE (décision F9 du cahier des charges de la PR 3) des règles SQL de la diffusion d'AJ Signalement, sur un
+// EXÉCUTION RÉELLE (décision F9 du cahier des charges de la PR 3) des règles SQL de la diffusion de Vitfix Signal, sur un
 // vrai PostgreSQL (PGlite, WebAssembly, en mémoire ; aucun service, aucune base distante) : la chaîne entière des
 // migrations signalements_qr (20261104, 20261106 ×2, 20261111, 20261112, 20261113) est jouée DEUX fois, puis chaque cas
 // du § 10.1 est exécuté sous le rôle service_role (celui de la clé service des routes), dans une transaction annulée à la

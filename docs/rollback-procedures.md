@@ -220,7 +220,7 @@ DROP TABLE IF EXISTS public.pointage_appareils_btp;
 
 ---
 
-## Migration 20261119 — AJ Signalement : bureaux des cabinets
+## Migration 20261119 — Vitfix Signal : bureaux des cabinets
 
 Script complet, relu et exécuté dans les tests (PGlite) : `supabase/retours-arriere/20261119_signalements_qr_bureaux.retour.sql`
 (hors de `supabase/migrations` : jamais appliqué par la chaîne). Il retire les triggers et les deux fonctions des bureaux,

@@ -1,11 +1,11 @@
 import type { Metadata } from 'next'
-import DesinscriptionDiffusionQr from '@/components/aj-signalement/DesinscriptionDiffusionQr'
+import DesinscriptionDiffusionQr from '@/components/vitfixsignal/DesinscriptionDiffusionQr'
 import {
   FORMAT_IDENTIFIANT_CABINET_QR, LONGUEUR_MAX_IDENTIFIANT_CABINET_QR, LONGUEUR_MIN_IDENTIFIANT_CABINET_QR,
-} from '@/lib/aj-signalement/chemin-cabinet'
-import { cabinetDuCheminDesinscriptionQr } from '@/lib/aj-signalement/serveur-desinscription'
+} from '@/lib/vitfixsignal/chemin-cabinet'
+import { cabinetDuCheminDesinscriptionQr } from '@/lib/vitfixsignal/serveur-desinscription'
 
-// ── AJ Signalement : désinscription des messages de diffusion (PR 3, lot 6 ; cahier § 7.5) ─────────────────────────
+// ── Vitfix Signal : désinscription des messages de diffusion (PR 3, lot 6 ; cahier § 7.5) ─────────────────────────
 //
 // vitfix.io/<identifiant>/desinscription/#<jeton>, bouton « Ne plus recevoir les informations sur cet immeuble » de
 // chaque message de diffusion (et adresse un clic ouverte dans un navigateur, D-P5b). Servie par réécriture, publique,

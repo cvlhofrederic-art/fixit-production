@@ -1,11 +1,11 @@
 import { headers } from 'next/headers'
 import { notFound, permanentRedirect } from 'next/navigation'
-import AppSignalementQr from '@/components/aj-signalement/AppSignalementQr'
-import { lireCoproprieteEtCabinetParJetonQr } from '@/lib/aj-signalement/serveur'
-import { estJetonQr } from '@/lib/aj-signalement/types'
-import { batimentsProposesQr } from '@/lib/aj-signalement/batiments'
+import AppSignalementQr from '@/components/vitfixsignal/AppSignalementQr'
+import { lireCoproprieteEtCabinetParJetonQr } from '@/lib/vitfixsignal/serveur'
+import { estJetonQr } from '@/lib/vitfixsignal/types'
+import { batimentsProposesQr } from '@/lib/vitfixsignal/batiments'
 
-// ── AJ Signalement : page ouverte par le QR code d'une copropriété ────────────
+// ── Vitfix Signal : page ouverte par le QR code d'une copropriété ────────────
 //
 // Servie par réécriture depuis /fr/signalement/<jeton>/ (next.config.ts), sans session ni cookie : le
 // jeton suffit. Composant serveur : la copropriété est lue par son jeton (clé service) ; un jeton inconnu,

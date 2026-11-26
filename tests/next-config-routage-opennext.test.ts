@@ -19,7 +19,7 @@ import { describe, expect, it } from 'vitest'
 import configurationNext from '@/next.config'
 import { getAllFrPageCombos, getAllFrUrgencyCombos } from '@/lib/data/fr-seo-pages-data'
 import { getAllPtSitemapUrls } from '@/lib/sitemap-pt-pages'
-import { SOURCE_IDENTIFIANT_CABINET_QR, cheminEspaceCabinetQr, cheminPublicCabinetQr } from '@/lib/aj-signalement/chemin-cabinet'
+import { SOURCE_IDENTIFIANT_CABINET_QR, cheminEspaceCabinetQr, cheminPublicCabinetQr } from '@/lib/vitfixsignal/chemin-cabinet'
 
 // Même bibliothèque (et même version) que le routeur d'OpenNext : résolue depuis son fichier de routage.
 const requireOpenNext = createRequire(createRequire(import.meta.url).resolve('@opennextjs/aws/core/routing/matcher.js'))
@@ -457,36 +457,36 @@ describe('pages partagées servies sous /fr et /pt', () => {
     expect(sansBarreFinale(resoudre(avantFichiers, `/${locale}${chemin}`))).toBe(page)
   })
 
-  it.each(['/fr/aj-signalement/', '/fr/aj-signalement', '/pt/aj-signalement/', '/pt/aj-signalement'])(
-    '%s est servie par l’espace AJ Signalement (règles exactes, sans « :path* »)',
+  it.each(['/fr/vitfixsignal/', '/fr/vitfixsignal', '/pt/vitfixsignal/', '/pt/vitfixsignal'])(
+    '%s est servie par l’espace Vitfix Signal (règles exactes, sans « :path* »)',
     async (chemin) => {
       // Espace indépendant du super admin (10/11/2026) : une seule page, vues par ancre (#signalements…).
       const [avantFichiers] = await reecritures()
-      expect(pageExiste('/aj-signalement')).toBe(true)
-      expect(sansBarreFinale(resoudre(avantFichiers, chemin))).toBe('/aj-signalement')
+      expect(pageExiste('/vitfixsignal')).toBe(true)
+      expect(sansBarreFinale(resoudre(avantFichiers, chemin))).toBe('/vitfixsignal')
     },
   )
 
-  it.each(['/fr/aj-signalement/connexion/', '/fr/aj-signalement/connexion', '/pt/aj-signalement/connexion/', '/pt/aj-signalement/connexion'])(
+  it.each(['/fr/vitfixsignal/connexion/', '/fr/vitfixsignal/connexion', '/pt/vitfixsignal/connexion/', '/pt/vitfixsignal/connexion'])(
     '%s est servie par la page de connexion professionnelle de l’espace (règles exactes, sans « :path* »)',
     async (chemin) => {
       // Connexion professionnelle de l'espace (Hugo, 11/11/2026) : e-mail et mot de passe, sans choix Particulier / Pro.
       const [avantFichiers] = await reecritures()
-      expect(pageExiste('/aj-signalement/connexion')).toBe(true)
-      expect(sansBarreFinale(resoudre(avantFichiers, chemin))).toBe('/aj-signalement/connexion')
+      expect(pageExiste('/vitfixsignal/connexion')).toBe(true)
+      expect(sansBarreFinale(resoudre(avantFichiers, chemin))).toBe('/vitfixsignal/connexion')
     },
   )
 
-  it('l’espace AJ Signalement ne capte ni la page publique du QR code ni un autre sous-chemin', async () => {
+  it('l’espace Vitfix Signal ne capte ni la page publique du QR code ni un autre sous-chemin', async () => {
     const [avantFichiers] = await reecritures()
     const jeton = '0123456789abcdef0123456789abcdef'
     expect(sansBarreFinale(resoudre(avantFichiers, `/fr/signalement/${jeton}/`))).toBe(`/signalement/${jeton}`)
     // Aucune règle « :path* » : pas de destination littérale possible ; chaque page a ses deux règles exactes.
-    expect(resoudre(avantFichiers, '/fr/aj-signalement/autre/')).toBeNull()
-    expect(resoudre(avantFichiers, '/fr/aj-signalement/connexion/autre/')).toBeNull()
-    expect(avantFichiers.filter(({ source }) => source.includes('aj-signalement')).map(({ source }) => source)).toEqual([
-      '/fr/aj-signalement', '/fr/aj-signalement/', '/fr/aj-signalement/connexion', '/fr/aj-signalement/connexion/',
-      '/pt/aj-signalement', '/pt/aj-signalement/', '/pt/aj-signalement/connexion', '/pt/aj-signalement/connexion/',
+    expect(resoudre(avantFichiers, '/fr/vitfixsignal/autre/')).toBeNull()
+    expect(resoudre(avantFichiers, '/fr/vitfixsignal/connexion/autre/')).toBeNull()
+    expect(avantFichiers.filter(({ source }) => source.includes('vitfixsignal')).map(({ source }) => source)).toEqual([
+      '/fr/vitfixsignal', '/fr/vitfixsignal/', '/fr/vitfixsignal/connexion', '/fr/vitfixsignal/connexion/',
+      '/pt/vitfixsignal', '/pt/vitfixsignal/', '/pt/vitfixsignal/connexion', '/pt/vitfixsignal/connexion/',
     ])
   })
 
@@ -501,8 +501,8 @@ describe('pages partagées servies sous /fr et /pt', () => {
   })
 })
 
-describe('chemin public d’un cabinet client (vitfix.io/<identifiant>/…, AJ Signalement)', () => {
-  // Le middleware laisse passer ces chemins sans langue (motif figé de lib/aj-signalement/chemin-cabinet.ts) ; les
+describe('chemin public d’un cabinet client (vitfix.io/<identifiant>/…, Vitfix Signal)', () => {
+  // Le middleware laisse passer ces chemins sans langue (motif figé de lib/vitfixsignal/chemin-cabinet.ts) ; les
   // réécritures beforeFiles les servent depuis les pages internes app/(commun)/cabinet/[identifiant]/…
   const jeton = '0123456789abcdef0123456789abcdef'
   const reglesCabinet = async () => (await reecritures())[0].filter(({ destination }) => destination.startsWith('/cabinet/'))
@@ -575,15 +575,15 @@ describe('chemin public d’un cabinet client (vitfix.io/<identifiant>/…, AJ S
   it('la connexion de l’espace global reste servie par sa page (#669), jamais par celle d’un cabinet', async () => {
     const [avantFichiers] = await reecritures()
     for (const langue of ['fr', 'pt']) {
-      expect(sansBarreFinale(resoudre(avantFichiers, `/${langue}/aj-signalement/connexion/`))).toBe('/aj-signalement/connexion')
-      expect(sansBarreFinale(resoudre(avantFichiers, `/${langue}/aj-signalement/`))).toBe('/aj-signalement')
+      expect(sansBarreFinale(resoudre(avantFichiers, `/${langue}/vitfixsignal/connexion/`))).toBe('/vitfixsignal/connexion')
+      expect(sansBarreFinale(resoudre(avantFichiers, `/${langue}/vitfixsignal/`))).toBe('/vitfixsignal')
     }
   })
 
   it('onze règles en tête de beforeFiles (QR code, puis paires exactes de la confirmation, de l’invitation, de la connexion, du suivi et de la désinscription) : jamais de destination littérale', async () => {
     const regles = await reglesCabinet()
     // En tête : next start enchaîne les règles beforeFiles ; après une règle de langue, une règle de cabinet captait le
-    // chemin interne produit (/fr/aj-signalement/connexion/ → /cabinet/aj-signalement/connexion). Les deux moteurs sont
+    // chemin interne produit (/fr/vitfixsignal/connexion/ → /cabinet/vitfixsignal/connexion). Les deux moteurs sont
     // rejoués par tests/next-config-reecritures-enchainees.test.ts.
     expect((await reecritures())[0].slice(0, regles.length)).toEqual(regles)
     expect(regles.map(({ source }) => source)).toEqual([
@@ -636,7 +636,7 @@ describe('chemin public d’un cabinet client (vitfix.io/<identifiant>/…, AJ S
 // ── PR 3, lot 6 : adresse un clic de l'en-tête List-Unsubscribe (RFC 8058), jamais redirigée ──────────────────────
 // Le site est en trailingSlash : Next ajoute des redirections internes 308 (« /:notfile » → « /:notfile/ », « /:file/ » →
 // « /:file »), sous next start comme sous OpenNext (routes-manifest). Une messagerie n'est pas tenue de suivre un 308 sur
-// son POST un clic : l'opposition serait perdue. L'adresse produite (lib/aj-signalement/diffusion-lien.ts) finit par le
+// son POST un clic : l'opposition serait perdue. L'adresse produite (lib/vitfixsignal/diffusion-lien.ts) finit par le
 // jeton, dont le point fait un « fichier » pour Next : aucune de ces redirections ne doit la capter.
 describe('adresse un clic de désinscription : aucune redirection de barre finale (POST de la messagerie servi tel quel)', () => {
   it('l’adresse List-Unsubscribe n’est captée par aucune redirection, ni interne (barre finale) ni de next.config.ts', async () => {
@@ -644,7 +644,7 @@ describe('adresse un clic de désinscription : aucune redirection de barre final
     const { default: chargerRegles } = requireDepot('next/dist/lib/load-custom-routes') as {
       default: (config: typeof configurationNext) => Promise<{ redirects: Array<Regle & { internal?: boolean }> }>
     }
-    const { urlUnClicDesinscriptionQr } = await import('@/lib/aj-signalement/diffusion-lien')
+    const { urlUnClicDesinscriptionQr } = await import('@/lib/vitfixsignal/diffusion-lien')
     const { redirects } = await chargerRegles(configurationNext)
     const internes = redirects.filter((r) => r.internal)
     // Les deux redirections de barre finale sont bien là (sinon la garde ne garderait rien).
@@ -653,6 +653,6 @@ describe('adresse un clic de désinscription : aucune redirection de barre final
     const chemin = new URL(urlUnClicDesinscriptionQr(`${'a'.repeat(32)}.${'b'.repeat(64)}`)).pathname
     expect(redirects.filter((r) => regex(r).test(chemin)).map((r) => r.source)).toEqual([])
     // Contrôle de la garde : une route API sans point reçoit bien la barre finale (308), comme toute l'API.
-    expect(internes.some((r) => regex(r).test('/api/aj-signalement/desinscription/lecture'))).toBe(true)
+    expect(internes.some((r) => regex(r).test('/api/vitfixsignal/desinscription/lecture'))).toBe(true)
   })
 })

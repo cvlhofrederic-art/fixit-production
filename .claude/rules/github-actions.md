@@ -39,7 +39,7 @@ Invariants gardés par `tests/mobile/chaine-publication.test.ts` et `tests/mobil
 - `run-lea-documents-process.yml` — Léa documents, OCR/extraction en attente.
 - `renew-gmail-watches.yml` — Renouvellement des watches Gmail (Alfredo).
 - `ingest-legal-corpus-pt.yml` — Ingestion du corpus légal PT (manuel).
-- `aj-diffusion-reprise.yml` — Filet de reprise de la diffusion d'AJ Signalement, toutes les 5 minutes. Inactif tant que la variable de dépôt `AJ_DIFFUSION_REPRISE_ACTIVE` ne vaut pas `true`. Secret `INTERNAL_API_SECRET`.
+- `vitfixsignal-diffusion-reprise.yml` — Filet de reprise de la diffusion de Vitfix Signal, toutes les 5 minutes. Inactif tant que la variable de dépôt `VITFIXSIGNAL_DIFFUSION_REPRISE_ACTIVE` ne vaut pas `true`. Secret `INTERNAL_API_SECRET`.
 
 ## Secrets requis (GitHub > Settings > Secrets > Actions)
 - **Build** : `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (la clé anon est aussi passée au Worker au déploiement par l'entrée `vars` de wrangler-action : elle n'est plus dans `wrangler.toml`)
@@ -51,4 +51,4 @@ Invariants gardés par `tests/mobile/chaine-publication.test.ts` et `tests/mobil
 - **Langfuse** : `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_HOST`
 - **Publication iPhone** : `APPSTORE_KEY_ID`, `APPSTORE_ISSUER_ID`, `APPSTORE_PRIVATE_KEY` (contenu du `.p8`), `APPLE_TEAM_ID`
 - **Publication Android** : `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`, `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`
-- **AJ Signalement** : `INTERNAL_API_SECRET` (identique au secret du Worker)
+- **Vitfix Signal** : `INTERNAL_API_SECRET` (identique au secret du Worker)

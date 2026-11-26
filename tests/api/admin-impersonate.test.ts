@@ -116,7 +116,7 @@ describe('POST /api/admin/impersonate — pendant une vue d\'emprunt', () => {
   })
 })
 
-// AJ Signalement (PR 2) : le rôle d'un gestionnaire de cabinet client n'est jamais emprunté. Ses droits viennent de sa
+// Vitfix Signal (PR 2) : le rôle d'un gestionnaire de cabinet client n'est jamais emprunté. Ses droits viennent de sa
 // fiche (relue par les routes à chaque appel), pas du rôle : une « vue en tant que » n'y donnerait qu'un 403.
 describe('POST /api/admin/impersonate — rôle gestionnaire_signalement', () => {
   it('super_admin de la liste → 400 « Rôle non autorisé », aucune écriture', async () => {

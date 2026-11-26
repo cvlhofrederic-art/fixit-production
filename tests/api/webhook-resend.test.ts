@@ -8,7 +8,7 @@
 // PR 3, lot 9 (décision F7 ; H13 : une plainte « indésirable » vaut opposition) :
 //   - étiquettes lues dans data.tags, objet clé → valeur (documentation de Resend, événements email.complained et
 //     email.bounced, relue le 12/11/2026) ; la forme tableau [{ name, value }] de l'envoi est tolérée ;
-//   - plainte sur un message étiqueté type=aj-diffusion → signalements_qr_diffusion_opposer(destinataire, 'plainte') ;
+//   - plainte sur un message étiqueté type=vitfixsignal-diffusion → signalements_qr_diffusion_opposer(destinataire, 'plainte') ;
 //   - plainte sans cette étiquette (accusé, autres e-mails) → inchangé, aucun appel à la base ;
 //   - rebond (même étiqueté) → aucune opposition (Resend écarte déjà l'adresse) ;
 //   - bounce.subType lu (et non bounce.sub_type, absent de la documentation) ;
@@ -38,7 +38,7 @@ vi.mock('@/lib/logger', () => ({
 vi.mock('@/lib/supabase-server', () => ({ supabaseAdmin: { rpc: h.rpc, from: () => { throw new Error('aucune table lue par le webhook') } } }))
 
 const { POST } = await import('@/app/api/webhooks/resend/route')
-const { reinitialiserReplisQr } = await import('@/lib/aj-signalement/serveur')
+const { reinitialiserReplisQr } = await import('@/lib/vitfixsignal/serveur')
 
 const CLE = Buffer.from('cle-de-test-du-webhook-resend-32o').toString('base64')
 const SECRET = `whsec_${CLE}`
@@ -78,7 +78,7 @@ const evenement = (type: string, data: Record<string, unknown> = {}) => ({
     ...data,
   },
 })
-const TAGS_DIFFUSION = { type: 'aj-diffusion', diffusion: DIFFUSION, destinataire: DESTINATAIRE }
+const TAGS_DIFFUSION = { type: 'vitfixsignal-diffusion', diffusion: DIFFUSION, destinataire: DESTINATAIRE }
 const appelsOpposer = () => h.rpc.mock.calls.filter((c) => c[0] === 'signalements_qr_diffusion_opposer')
 
 beforeEach(() => {
@@ -154,9 +154,9 @@ describe('plainte (email.complained)', () => {
   })
 
   it.each([
-    ['accusé de réception', { type: 'aj-signalement-confirmation' }],
-    ['e-mail d’un signalement', { type: 'aj-signalement' }],
-    ['copie au cabinet', { type: 'aj-diffusion-copie', diffusion: DIFFUSION }],
+    ['accusé de réception', { type: 'vitfixsignal-confirmation' }],
+    ['e-mail d’un signalement', { type: 'vitfixsignal' }],
+    ['copie au cabinet', { type: 'vitfixsignal-diffusion-copie', diffusion: DIFFUSION }],
     ['autre e-mail de VitFix', { category: 'confirm_email' }],
   ])('autre étiquette (%s) : inchangé, aucune opposition', async (_cas, tags) => {
     expect((await poster(evenement('email.complained', { tags }))).status).toBe(200)
@@ -164,7 +164,7 @@ describe('plainte (email.complained)', () => {
     expect(h.rpc).not.toHaveBeenCalled()
   })
 
-  it('message de diffusion étiqueté aj-diffusion : opposition « plainte » pour ce destinataire (H13), 200', async () => {
+  it('message de diffusion étiqueté vitfixsignal-diffusion : opposition « plainte » pour ce destinataire (H13), 200', async () => {
     const res = await poster(evenement('email.complained', { tags: TAGS_DIFFUSION }))
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ received: true })
@@ -187,10 +187,10 @@ describe('plainte (email.complained)', () => {
   })
 
   it.each([
-    ['sans destinataire', { type: 'aj-diffusion', diffusion: DIFFUSION }],
+    ['sans destinataire', { type: 'vitfixsignal-diffusion', diffusion: DIFFUSION }],
     ['destinataire hors format', { ...TAGS_DIFFUSION, destinataire: 'pas-un-uuid' }],
     ['destinataire non textuel', { ...TAGS_DIFFUSION, destinataire: 42 }],
-  ])('étiquette aj-diffusion %s : aucun appel, avertissement, 200', async (_cas, tags) => {
+  ])('étiquette vitfixsignal-diffusion %s : aucun appel, avertissement, 200', async (_cas, tags) => {
     expect((await poster(evenement('email.complained', { tags }))).status).toBe(200)
     expect(h.rpc).not.toHaveBeenCalled()
     expect(h.warn).toHaveBeenCalled()
@@ -258,19 +258,19 @@ describe('rebond (email.bounced)', () => {
 })
 
 // Relecture 3 de la PR 3 (cahier § 8.2, « Journalisation » : Sentry ne reçoit « jamais d'adresse, d'objet, de texte,
-// de jeton ») : l'objet d'un e-mail d'AJ Signalement porte la copropriété et l'objet saisi par le cabinet ; le texte d'un
+// de jeton ») : l'objet d'un e-mail de Vitfix Signal porte la copropriété et l'objet saisi par le cabinet ; le texte d'un
 // rebond cite souvent l'adresse du destinataire (« 550 5.1.1 <…> ») ; le beforeSend du serveur ne caviarde pas extra.
-describe('e-mails d’AJ Signalement : ni objet ni texte du rebond dans Sentry', () => {
+describe('e-mails de Vitfix Signal : ni objet ni texte du rebond dans Sentry', () => {
   const OBJET_AJ = 'Résidence Exemple — Coupure d’eau au bâtiment B demain de 9 h à 10 h'
   const ADRESSE = 'jean.declarant@exemple.test'
   const REBOND = { type: 'Permanent', subType: 'General', message: `550 5.1.1 <${ADRESSE}>: Recipient address rejected: user unknown` }
   const ETIQUETTES_AJ: Array<[string, Record<string, unknown> | Array<{ name: string; value: string }>]> = [
     ['diffusion', TAGS_DIFFUSION],
     ['diffusion (forme de l’envoi)', Object.entries(TAGS_DIFFUSION).map(([name, value]) => ({ name, value }))],
-    ['copie au cabinet', { type: 'aj-diffusion-copie', diffusion: DIFFUSION }],
-    ['accusé de réception', { type: 'aj-signalement-confirmation' }],
-    ['e-mail d’un signalement', { type: 'aj-signalement' }],
-    ['alerte', { type: 'aj-signalement-alerte' }],
+    ['copie au cabinet', { type: 'vitfixsignal-diffusion-copie', diffusion: DIFFUSION }],
+    ['accusé de réception', { type: 'vitfixsignal-confirmation' }],
+    ['e-mail d’un signalement', { type: 'vitfixsignal' }],
+    ['alerte', { type: 'vitfixsignal-alerte' }],
   ]
   const cas = ETIQUETTES_AJ.flatMap(([nom, tags]) => [
     ['email.bounced', nom, tags, { bounce: REBOND }],
@@ -291,7 +291,7 @@ describe('e-mails d’AJ Signalement : ni objet ni texte du rebond dans Sentry',
     if (type === 'email.bounced') expect(options.tags).toMatchObject({ bounce_type: 'Permanent', bounce_sub_type: 'General' })
   })
 
-  it('autre e-mail de VitFix (sans étiquette AJ Signalement) : inchangé, objet et texte du rebond gardés', async () => {
+  it('autre e-mail de VitFix (sans étiquette Vitfix Signal) : inchangé, objet et texte du rebond gardés', async () => {
     await poster(evenement('email.bounced', { subject: 'Votre devis', tags: { category: 'devis' }, bounce: { type: 'Permanent', subType: 'General', message: 'Adresse inconnue' } }))
     expect(h.captureMessage.mock.calls[0][1]).toMatchObject({ extra: { subject: 'Votre devis', message: 'Adresse inconnue' } })
   })

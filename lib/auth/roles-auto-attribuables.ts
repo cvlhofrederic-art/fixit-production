@@ -12,7 +12,7 @@
 // SÉCURITÉ : les rôles à privilèges ou dormants — syndic et syndic_*, coproprio, pro_conciergerie, pro_gestionnaire,
 // super_admin, admin, gestionnaire_signalement — n'y figurent pas. Ils ne sont attribués que côté serveur :
 // /api/admin/setup, /api/syndic/invite, /api/syndic/team, /api/syndic/coproprios/[id]/acces, /api/pro/invite,
-// /api/aj-signalement/invitation (gestionnaire d'un cabinet client AJ Signalement, à l'acceptation d'une invitation
+// /api/vitfixsignal/invitation (gestionnaire d'un cabinet client Vitfix Signal, à l'acceptation d'une invitation
 // signée, avec son repère de routage ; jamais emprunté par la « vue en tant que » du super admin).
 // pro_societe y reste : l'onboarding BTP public (app/(commun)/pro/register) le pose, et il ne donne accès qu'à sa
 // propre société, vide.

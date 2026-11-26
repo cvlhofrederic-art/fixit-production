@@ -1,8 +1,8 @@
-// tests/helpers/png-synthetique.ts — images PNG SYNTHÉTIQUES pour les tests du logo d'un cabinet (AJ Signalement).
+// tests/helpers/png-synthetique.ts — images PNG SYNTHÉTIQUES pour les tests du logo d'un cabinet (Vitfix Signal).
 //
 // Dépôt public : aucun logo ni nom de client réel dans les tests ; chaque image est fabriquée ici, octet par octet
 // (signature, IHDR, IDAT compressé par zlib, IEND, CRC de chaque morceau), sans dépendre du module testé
-// (lib/aj-signalement/logo.ts) : un défaut de son analyse ne peut pas se cacher dans la fabrique.
+// (lib/vitfixsignal/logo.ts) : un défaut de son analyse ne peut pas se cacher dans la fabrique.
 // Variantes de défaut (signature, CRC, queue après IEND, morceau de texte…) pour les cas refusés ; depuis la relecture de
 // sécurité du 13/11/2026, variantes du CONTENU des IDAT (options de zlib, découpage en plusieurs IDAT, données brutes
 // choisies, filtre de ligne, morceaux après les IDAT) et RVB (3 octets par pixel).

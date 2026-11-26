@@ -6,7 +6,7 @@ import { useTranslation } from '@/lib/i18n/context'
 import LocaleLink from '@/components/common/LocaleLink'
 import { CarteMotDePasse, SuccesMotDePasse } from '@/components/auth/CarteMotDePasse'
 import { PARAMETRE_LIEN, type ErreurNouveauMotDePasse } from '@/lib/auth/lien-email'
-import { connexionApresMotDePasseQr, retourConnexionMotDePasseQr } from '@/lib/aj-signalement/acces-espace'
+import { connexionApresMotDePasseQr, retourConnexionMotDePasseQr } from '@/lib/vitfixsignal/acces-espace'
 
 export default function UpdatePasswordPage() {
   const { t } = useTranslation()
@@ -54,7 +54,7 @@ export default function UpdatePasswordPage() {
     return () => { subscription.unsubscribe(); clearTimeout(timeout) }
   }, [])
 
-  // AJ Signalement (PR 2) : un gestionnaire d'un cabinet client retourne vers la connexion professionnelle de son
+  // Vitfix Signal (PR 2) : un gestionnaire d'un cabinet client retourne vers la connexion professionnelle de son
   // cabinet (destination du serveur ou app_metadata du compte, vérifiée : aucune redirection ouverte) ; sinon /auth/login.
   const [retourConnexion, setRetourConnexion] = useState<string | null>(null)
 

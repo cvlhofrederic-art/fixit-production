@@ -11,7 +11,7 @@
 // on Max Expert pill buttons, NOT by Sentry. Safe to keep Sentry client active.
 
 import * as Sentry from "@sentry/nextjs";
-import { effacerJetonsDesinscriptionSentryQr } from "@/lib/aj-signalement/sentry-desinscription";
+import { effacerJetonsDesinscriptionSentryQr } from "@/lib/vitfixsignal/sentry-desinscription";
 
 try {
   Sentry.init({
@@ -26,10 +26,10 @@ try {
 
     debug: false,
 
-    // AJ Signalement (PR 3, cahier § 8.2) : la page /<identifiant>/desinscription/ porte un jeton dans le fragment de son
+    // Vitfix Signal (PR 3, cahier § 8.2) : la page /<identifiant>/desinscription/ porte un jeton dans le fragment de son
     // adresse, qu'elle efface (history.replaceState) ; le fil d'Ariane « navigation » de cet effacement garde l'adresse
     // d'avant. Tout jeton de lien de diffusion est effacé de chaque fil d'Ariane dès son enregistrement, puis de chaque
-    // erreur et de chaque transaction avant l'envoi (lib/aj-signalement/sentry-desinscription.ts). Aucun autre réglage
+    // erreur et de chaque transaction avant l'envoi (lib/vitfixsignal/sentry-desinscription.ts). Aucun autre réglage
     // n'est changé.
     beforeBreadcrumb(breadcrumb) {
       return effacerJetonsDesinscriptionSentryQr(breadcrumb);

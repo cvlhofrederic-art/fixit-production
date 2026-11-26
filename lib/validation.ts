@@ -2,14 +2,14 @@
 // Centralized input validation — replaces manual regex checks
 import { z } from 'zod'
 import { TRACKING_TOKEN_PATTERN } from './security/tracking-token'
-import { FILTRE_SANS_BUREAU_QR, NOM_BUREAU_MAX_QR, contientControleQr } from './aj-signalement/bureaux'
+import { FILTRE_SANS_BUREAU_QR, NOM_BUREAU_MAX_QR, contientControleQr } from './vitfixsignal/bureaux'
 import {
   FORMAT_IDENTIFIANT_CABINET_QR, LONGUEUR_MAX_IDENTIFIANT_CABINET_QR, LONGUEUR_MIN_IDENTIFIANT_CABINET_QR, validerIdentifiantCabinetQr,
-} from './aj-signalement/chemin-cabinet'
-import { batimentDeLaListeQr } from './aj-signalement/batiments'
-import { validerDomaineCabinetQr } from './aj-signalement/gestionnaires'
-import { LOGO_BASE64_MAX_QR, LOGO_OCTETS_MIN_QR } from './aj-signalement/logo'
-import { ACTIONS_JOURNAL_QR, ATTRIBUTIONS_MAX_PAR_GESTIONNAIRE_QR } from './aj-signalement/types'
+} from './vitfixsignal/chemin-cabinet'
+import { batimentDeLaListeQr } from './vitfixsignal/batiments'
+import { validerDomaineCabinetQr } from './vitfixsignal/gestionnaires'
+import { LOGO_BASE64_MAX_QR, LOGO_OCTETS_MIN_QR } from './vitfixsignal/logo'
+import { ACTIONS_JOURNAL_QR, ATTRIBUTIONS_MAX_PAR_GESTIONNAIRE_QR } from './vitfixsignal/types'
 import { motDePasseConforme } from './auth/lien-email'
 
 // ── Email strict : exige un TLD valide (rejette test@localhost, user@192.168.1.1) ──
@@ -388,10 +388,10 @@ export const coproSignalementSchema = z.object({
   lot: z.string().uuid().optional(),
 })
 
-// ── AJ Signalement (signalements déposés par QR code) ───────────────────────
+// ── Vitfix Signal (signalements déposés par QR code) ───────────────────────
 // Dépôt public : la copropriété est désignée par le jeton du QR code ; tous les champs du déclarant sont
 // obligatoires, bâtiment et qualité (propriétaire / locataire) compris depuis le 06/11/2026 ; pour les parties
-// communes, la zone l'est aussi. Mêmes bornes et mêmes règles que lib/aj-signalement/formulaire.ts.
+// communes, la zone l'est aussi. Mêmes bornes et mêmes règles que lib/vitfixsignal/formulaire.ts.
 export const jetonQrSchema = z.string().regex(/^[0-9a-f]{32}$/, 'Jeton de QR code invalide')
 
 export const signalementQrSchema = z.object({
@@ -438,7 +438,7 @@ export const adresseQrSchema = z.object({
   longitude: z.number().min(-180).max(180),
 })
 
-// Signalements déjà faits au même endroit (paramètres de GET /api/aj-signalement/similaires).
+// Signalements déjà faits au même endroit (paramètres de GET /api/vitfixsignal/similaires).
 export const semblablesQrQuerySchema = z.object({
   jeton: jetonQrSchema,
   batiment: z.string().trim().min(1, 'Bâtiment requis').max(50),
@@ -446,7 +446,7 @@ export const semblablesQrQuerySchema = z.object({
   langue: z.enum(['fr', 'pt']).optional().default('fr'),
 })
 
-// ── AJ Signalement : administration (super admin ; gestionnaires en PR 2) ─────
+// ── Vitfix Signal : administration (super admin ; gestionnaires en PR 2) ─────
 // Demandes de Hugo du 10/11/2026 (cabinets clients, gestionnaires, chemin vitfix.io/<identifiant>/…). Tous les corps
 // écrits sont STRICTS (z.strictObject : une clé inconnue est refusée, l'auteur vient toujours de la session). Les corps
 // actuels des écrans restent acceptés (creerCoproprieteQr, modifierCoproprieteQr, changerStatutSignalementQr) : on
@@ -671,7 +671,7 @@ export const modificationBureauQrSchema = z.union([
 ])
 
 // Logo d'un cabinet (demande de Hugo du 13/11/2026), super admin : le PNG produit par le navigateur (canvas), en base64
-// strict ; la route revérifie l'image elle-même (signature, morceaux, en-tête, poids : lib/aj-signalement/logo.ts).
+// strict ; la route revérifie l'image elle-même (signature, morceaux, en-tête, poids : lib/vitfixsignal/logo.ts).
 export const logoCabinetQrSchema = z.strictObject({
   png: z.string()
     .min(Math.ceil(LOGO_OCTETS_MIN_QR / 3) * 4, 'PNG trop court')
@@ -688,7 +688,7 @@ export const rattachementQrSchema = z.strictObject({
 })
 
 // P1-R19 (SPEC § 1.9.6) : import des copropriétés d'UN cabinet client (obligatoire : isolation entre cabinets). Les lignes
-// sont normalisées dans le navigateur (lib/aj-signalement/import/ligne.ts, mêmes bornes) ; le fichier n'est jamais envoyé.
+// sont normalisées dans le navigateur (lib/vitfixsignal/import/ligne.ts, mêmes bornes) ; le fichier n'est jamais envoyé.
 // Gestionnaires : adresses (résolues au serveur sur les fiches actives du cabinet) ou, à défaut, noms (sans ambiguïté).
 const ligneImportQrSchema = z.strictObject({
   numeroLigne: z.number().int().min(1).max(100_000),
@@ -741,7 +741,7 @@ export const journalQrQuerySchema = z.strictObject({
   limite: z.coerce.number().int().min(1).max(100).default(100),
 })
 
-// ── AJ Signalement : diffusion de messages d'exploitation aux déclarants (PR 3, cahier § 4.2) ──
+// ── Vitfix Signal : diffusion de messages d'exploitation aux déclarants (PR 3, cahier § 4.2) ──
 // Le contenu (objet, texte, libellés saisis) passe ENSUITE par controlerTexteDiffusionQr dans la route (liens, adresses,
 // téléphones non déclarés, termes commerciaux) : ce fichier est aussi lu par des écrans, il n'importe donc ni la liste
 // des domaines de l'IANA ni les modèles (liste ci-dessous, test d'accord avec MODELES_DIFFUSION_QR).
@@ -836,7 +836,7 @@ export const reglagesDiffusionCabinetQrSchema = z.strictObject({
 }).refine((m) => Object.keys(m).length > 0, 'Rien à modifier')
 
 // D-P1 à D-P4 (publiques, PR 3 lot 6) : désinscription des messages de diffusion. Jeton du lien : identifiant du
-// destinataire (32 hex) et signature (64 hex), page ou un clic (lib/aj-signalement/diffusion-lien.ts) ; identifiant du
+// destinataire (32 hex) et signature (64 hex), page ou un clic (lib/vitfixsignal/diffusion-lien.ts) ; identifiant du
 // chemin : format seul, comme les liens de confirmation (un nom réservé après coup ne rend pas invalides les liens déjà
 // envoyés ; le cabinet de la diffusion est comparé en base, autre cabinet → « inconnu »).
 export const jetonDesinscriptionQrSchema = z.string().regex(/^[a-f0-9]{32}\.[a-f0-9]{64}$/, 'Lien invalide')

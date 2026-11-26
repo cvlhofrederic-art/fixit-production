@@ -99,7 +99,7 @@ describe('GET /auth/callback — aiguillage après connexion Google', () => {
     connecte('syndic_gestionnaire')
     expect(await visiter('?code=abc')).toBe('https://vitfix.io/fr/syndic/dashboard')
     connecte('gestionnaire_signalement')
-    expect(await visiter('?code=abc')).toBe('https://vitfix.io/fr/aj-signalement/')
+    expect(await visiter('?code=abc')).toBe('https://vitfix.io/fr/vitfixsignal/')
     connecte(undefined)
     expect(await visiter('?code=abc')).toBe('https://vitfix.io/fr/client/dashboard')
   })

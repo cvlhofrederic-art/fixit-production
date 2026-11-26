@@ -16,8 +16,8 @@ export const CONFIGS_MODULES_GENERIQUES: Record<string, ConfigModuleGenerique> =
 
 /**
  * Les 76 écrans, dans l'ordre de la maquette. Toutes les routes de SECTIONS_NAVIGATION y figurent, sauf la
- * pseudo-route « logout ». « Signalements QR » est sorti de l'AJ le 10/11/2026 : espace indépendant /fr/aj-signalement/,
- * avec un lien au pied de la barre latérale pour le seul super admin (components/common/LienAjSignalement.tsx).
+ * pseudo-route « logout ». « Signalements QR » est sorti de l'AJ le 10/11/2026 : espace indépendant /fr/vitfixsignal/,
+ * avec un lien au pied de la barre latérale pour le seul super admin (components/common/LienVitfixSignal.tsx).
  */
 export const ECRANS_PAR_ROUTE: Record<string, ComponentType> = {
   fiche360: dynamic(() => import('@/components/administrateur-judiciaire/modules/pilotage/Fiche360CoproprieteModule').then((mod) => mod.Fiche360CoproprieteModule)),

@@ -20,8 +20,8 @@ const DUREE_VALIDITE_MS = 7 * 24 * 60 * 60 * 1000 // 7 jours après la création
 const ESPACES = {
   pro: { table: 'pro_team_members', colonneEquipe: 'company_id', journal: '[PRO_INVITE]' },
   syndic: { table: 'syndic_team_members', colonneEquipe: 'cabinet_id', journal: '[INVITE]' },
-  // AJ Signalement : une ligne par envoi à un gestionnaire ; l'« équipe » signée est la fiche du gestionnaire.
-  aj_signalement: { table: 'signalements_qr_invitations', colonneEquipe: 'gestionnaire_id', journal: '[AJ SIGNALEMENT INVITE]' },
+  // Vitfix Signal : une ligne par envoi à un gestionnaire ; l'« équipe » signée est la fiche du gestionnaire.
+  vitfixsignal: { table: 'signalements_qr_invitations', colonneEquipe: 'gestionnaire_id', journal: '[VITFIX SIGNAL INVITE]' },
 } as const satisfies Record<EspaceEquipe, { table: string; colonneEquipe: string; journal: string }>
 
 /** Ligne d'invitation lue en base ; `equipe_id` reprend company_id (pro) ou cabinet_id (syndic). */
@@ -47,7 +47,7 @@ export interface ResultatAcceptation {
   nouveauCompteId?: string
   /**
    * Code de l'erreur de Supabase Auth quand le compte n'a pas pu être créé (ex. weak_password : politique du mot de
-   * passe du projet) ; jamais dans `corps`. Lu par AJ Signalement (lib/aj-signalement/serveur-acces.ts) ; les routes pro
+   * passe du projet) ; jamais dans `corps`. Lu par Vitfix Signal (lib/vitfixsignal/serveur-acces.ts) ; les routes pro
    * et syndic renvoient `corps` et `status`, inchangés.
    */
   codeAuth?: string

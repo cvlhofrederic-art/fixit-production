@@ -11,17 +11,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), withScope: vi.fn() }))
-vi.mock('@/lib/supabase-server', async () => ({ supabaseAdmin: (await import('../helpers/aj-signalement-base')).baseQr.client }))
-vi.mock('@/lib/supabase-server-component', async () => (await import('../helpers/aj-signalement-routes')).mockCookies())
-vi.mock('@/lib/auth-helpers', async () => (await import('../helpers/aj-signalement-routes')).mockAuth())
-vi.mock('@/lib/rate-limit', async () => (await import('../helpers/aj-signalement-routes')).mockLimites())
-vi.mock('@/lib/email', async () => (await import('../helpers/aj-signalement-routes')).mockEmail())
-vi.mock('@/lib/logger', async () => (await import('../helpers/aj-signalement-routes')).mockLogger())
+vi.mock('@/lib/supabase-server', async () => ({ supabaseAdmin: (await import('../helpers/vitfixsignal-base')).baseQr.client }))
+vi.mock('@/lib/supabase-server-component', async () => (await import('../helpers/vitfixsignal-routes')).mockCookies())
+vi.mock('@/lib/auth-helpers', async () => (await import('../helpers/vitfixsignal-routes')).mockAuth())
+vi.mock('@/lib/rate-limit', async () => (await import('../helpers/vitfixsignal-routes')).mockLimites())
+vi.mock('@/lib/email', async () => (await import('../helpers/vitfixsignal-routes')).mockEmail())
+vi.mock('@/lib/logger', async () => (await import('../helpers/vitfixsignal-routes')).mockLogger())
 
-const { baseQr } = await import('../helpers/aj-signalement-base')
-const { reinitialiserSimulQr, requeteQr, simulQr } = await import('../helpers/aj-signalement-routes')
+const { baseQr } = await import('../helpers/vitfixsignal-base')
+const { reinitialiserSimulQr, requeteQr, simulQr } = await import('../helpers/vitfixsignal-routes')
 const { GET } = await import('@/app/api/user/export-data/route')
-const { reinitialiserReplisQr } = await import('@/lib/aj-signalement/serveur')
+const { reinitialiserReplisQr } = await import('@/lib/vitfixsignal/serveur')
 
 /** Clés de l'export rendu à tout compte avant ce lot (tests/api/user-export-data.test.ts). */
 const CLES_EXPORT = [

@@ -249,18 +249,18 @@ produites LOCALEMENT sans appel réseau à partir de `espace` (fonction `reponse
 prochaine AG ; syndic → coordonnées ; sinon phrase d'orientation vers le bon écran).
 Jamais de montant inventé : si l'espace n'a pas la donnée, dire qu'elle n'est pas publiée par le syndic.
 
-## 9. AJ Signalement — sorti du portail (espace indépendant, 10/11/2026)
+## 9. Vitfix Signal — sorti du portail (espace indépendant, 10/11/2026)
 
 Le tableau de bord des signalements déposés par QR code n'est plus un écran du portail (ancien `EcranSignalementsQr`, du
-04/11 au 10/11/2026) : il vit dans son espace indépendant **/fr/aj-signalement/** (`app/(commun)/aj-signalement/`,
-`components/aj-signalement/espace/EspaceAjSignalement.tsx`), avec son menu (Tableau de bord, Copropriétés, Signalements) et sa
-page de connexion professionnelle **/fr/aj-signalement/connexion/** (11/11/2026 : e-mail et mot de passe, sans choix
-Particulier / Artisan / Pro ni Google ; `components/aj-signalement/espace/ConnexionEspaceQr.tsx`). La page de connexion
-générale (`/fr/auth/login/`) n'est pas concernée. Accès : `lib/aj-signalement/acces-espace.ts` (super admin aujourd'hui,
+04/11 au 10/11/2026) : il vit dans son espace indépendant **/fr/vitfixsignal/** (`app/(commun)/vitfixsignal/`,
+`components/vitfixsignal/espace/EspaceVitfixSignal.tsx`), avec son menu (Tableau de bord, Copropriétés, Signalements) et sa
+page de connexion professionnelle **/fr/vitfixsignal/connexion/** (11/11/2026 : e-mail et mot de passe, sans choix
+Particulier / Artisan / Pro ni Google ; `components/vitfixsignal/espace/ConnexionEspaceQr.tsx`). La page de connexion
+générale (`/fr/auth/login/`) n'est pas concernée. Accès : `lib/vitfixsignal/acces-espace.ts` (super admin aujourd'hui,
 SAUF en « vue en tant que » depuis le 11/11/2026, comme les routes de l'API ; le rôle gestionnaire s'y ajoutera),
 contrôlé par le middleware puis par la garde du navigateur
 (sans session ou sans accès : page de connexion de l'espace, message neutre pour un compte sans accès) ; les routes
-`/api/aj-signalement/*` restent réservées au super admin.
+`/api/vitfixsignal/*` restent réservées au super admin.
 
 « Mot de passe oublié ? » s'ouvre dans la page de connexion de l'espace (`MotDePasseOublieQr.tsx`, relecture du 11/11/2026) :
 e-mail seul, route existante `POST /api/auth/reset-password` (3 demandes par 5 minutes et par IP), message neutre
@@ -270,23 +270,23 @@ Pro, Google) par deux boutons (« Retour à la connexion » sous le formulaire, 
 Limite connue (pages communes non modifiées) : le lien de l'e-mail ouvre `/auth/update-password/`, qui mène ensuite à la
 connexion générale `/auth/login` (redirection au bout de 3 s et bouton « Retour à la connexion » du message de réussite ;
 « Demander un nouveau lien » mène à `/auth/reset-password`). Proposition pour la PR 2 : sur ces deux pages, un retour en
-liste blanche exacte (`/fr|pt/aj-signalement/connexion/`, puis `/<client>/connexion`).
+liste blanche exacte (`/fr|pt/vitfixsignal/connexion/`, puis `/<client>/connexion`).
 
-Le portail n'en garde qu'un **lien « AJ Signalement »** (icône `qr`, `t.menu.ajSignalement`), pour le seul super admin
+Le portail n'en garde qu'un **lien « Vitfix Signal »** (icône `qr`, `t.menu.vitfixSignal`), pour le seul super admin
 (`lienEspaceQr(metadonnees)`), au pied de la barre latérale (à côté de « Panneau admin ») et dans le menu « Plus » du téléphone ;
 jamais pour un copropriétaire ni un locataire. Les huit écrans sont les mêmes pour tous ; l'ancre `#signalementsQr` (e-mails
 envoyés avant le 10/11/2026) ramène à l'accueil. Même chose dans l'Administrateur judiciaire : plus d'écran « Signalements QR »,
-un lien au pied de la barre latérale (`components/common/LienAjSignalement.tsx`).
+un lien au pied de la barre latérale (`components/common/LienVitfixSignal.tsx`).
 
-- Données : `GET /api/aj-signalement/tableau` → tables `signalements_qr_coproprietes` et `signalements_qr`
+- Données : `GET /api/vitfixsignal/tableau` → tables `signalements_qr_coproprietes` et `signalements_qr`
   (migration `supabase/migrations/20261104_signalements_qr.sql`, qui crée la copropriété de test « Parc Belle Ombre »), sans
   aucun lien avec les tables `syndic_*` ni avec le sélecteur de copropriété de l'AJ ou du portail.
-- Contenu de l'espace : `components/aj-signalement/TableauSignalementsQr.tsx` (une instance gardée montée, prop `vue`, un seul
+- Contenu de l'espace : `components/vitfixsignal/TableauSignalementsQr.tsx` (une instance gardée montée, prop `vue`, un seul
   chargement), cartes `CarteCoproprieteQr`, fenêtres `ModaleCoproprieteQr` et `DetailSignalementQr` ; filtre par copropriété
   toujours visible dans la vue Signalements. Tableau de bord (11/11/2026) : sous les quatre carrés, la liste des
   signalements reçus avec le même filtre (partagé avec la vue Signalements) ; les carrés suivent ce filtre (choix de Hugo
   du 11/11/2026), donc la liste a toujours autant de lignes que « Reçus ».
-- Parcours public, inchangé : `app/(commun)/signalement/[jeton]/page.tsx` → `components/aj-signalement/AppSignalementQr.tsx`.
+- Parcours public, inchangé : `app/(commun)/signalement/[jeton]/page.tsx` → `components/vitfixsignal/AppSignalementQr.tsx`.
 
 ## Décisions juridiques à respecter (relecture droit du 17/10/2026)
 

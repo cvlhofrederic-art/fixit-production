@@ -1,6 +1,6 @@
 // tests/migrations/signalements_qr_geoloc_qualite.test.ts
 //
-// Migration 20261106_signalements_qr_geoloc_qualite.sql (AJ Signalement, demandes de Hugo du 06/11/2026) :
+// Migration 20261106_signalements_qr_geoloc_qualite.sql (Vitfix Signal, demandes de Hugo du 06/11/2026) :
 // qualité du déclarant, adresse proposée d'après sa position, lien vers un signalement déjà fait au même endroit.
 // Additive et rejouable : colonnes ajoutées si elles manquent, contraintes nommées créées seulement si elles
 // manquent (NOT VALID puis VALIDATE), index de la recherche des signalements semblables ; ni DROP, ni écriture de

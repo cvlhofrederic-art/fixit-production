@@ -186,11 +186,11 @@ describe('ancien lien (?code=…) ou utilisateur connecté : session du SDK', ()
   })
 })
 
-// PR 2 AJ Signalement, lot 6 (plan § 2.5, point 7.9) : un gestionnaire d'un cabinet client est renvoyé vers la connexion
+// PR 2 Vitfix Signal, lot 6 (plan § 2.5, point 7.9) : un gestionnaire d'un cabinet client est renvoyé vers la connexion
 // professionnelle de SON cabinet (destination rendue par le serveur, ou lue dans app_metadata du compte mis à jour par
 // le SDK), jamais vers la connexion générale. Une destination qui n'a pas la forme attendue est ignorée (aucune
 // redirection ouverte) : comportement actuel, /auth/login.
-describe('gestionnaire AJ Signalement : retour vers la connexion de son cabinet', () => {
+describe('gestionnaire Vitfix Signal : retour vers la connexion de son cabinet', () => {
   const RETOUR = 'Retour à la connexion'
 
   const redirectionApres3s = (minuteries: { mock: { calls: unknown[][] } }) => {
@@ -228,7 +228,7 @@ describe('gestionnaire AJ Signalement : retour vers la connexion de son cabinet'
   it('ancien lien (session du SDK) : app_metadata du compte mis à jour → connexion de son cabinet', async () => {
     simul.session = { access_token: 'jeton' }
     simul.updateUser.mockResolvedValue({
-      data: { user: { app_metadata: { role: 'gestionnaire_signalement', aj_signalement_cabinet: 'cabinet-exemple' } } }, error: null,
+      data: { user: { app_metadata: { role: 'gestionnaire_signalement', vitfixsignal_cabinet: 'cabinet-exemple' } } }, error: null,
     })
     const minuteries = vi.spyOn(window, 'setTimeout')
     const { container } = ouvrir('/fr/auth/update-password/?code=code-pkce')

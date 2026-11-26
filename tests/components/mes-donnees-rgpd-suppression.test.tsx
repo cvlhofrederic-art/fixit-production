@@ -37,23 +37,23 @@ vi.mock('@/lib/supabase', () => ({
   },
 }))
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), withScope: vi.fn() }))
-vi.mock('@/lib/supabase-server', async () => ({ supabaseAdmin: (await import('../helpers/aj-signalement-invitation')).clientInvitationQr }))
-vi.mock('@/lib/supabase-server-component', async () => (await import('../helpers/aj-signalement-routes')).mockCookies())
-vi.mock('@/lib/auth-helpers', async () => (await import('../helpers/aj-signalement-routes')).mockAuth())
-vi.mock('@/lib/rate-limit', async () => (await import('../helpers/aj-signalement-routes')).mockLimites())
-vi.mock('@/lib/email', async () => (await import('../helpers/aj-signalement-routes')).mockEmail())
+vi.mock('@/lib/supabase-server', async () => ({ supabaseAdmin: (await import('../helpers/vitfixsignal-invitation')).clientInvitationQr }))
+vi.mock('@/lib/supabase-server-component', async () => (await import('../helpers/vitfixsignal-routes')).mockCookies())
+vi.mock('@/lib/auth-helpers', async () => (await import('../helpers/vitfixsignal-routes')).mockAuth())
+vi.mock('@/lib/rate-limit', async () => (await import('../helpers/vitfixsignal-routes')).mockLimites())
+vi.mock('@/lib/email', async () => (await import('../helpers/vitfixsignal-routes')).mockEmail())
 vi.mock('@/lib/logger', async () => {
-  const { simulQr } = await import('../helpers/aj-signalement-routes')
+  const { simulQr } = await import('../helpers/vitfixsignal-routes')
   return { logger: { ...simulQr.logger, withTenant: () => simulQr.logger } }
 })
 
 const { LanguageProvider } = await import('@/lib/i18n/context')
 const { default: MesDonneesRgpd } = await import('@/components/legal/MesDonneesRgpd')
 const { DELETE } = await import('@/app/api/user/delete-account/route')
-const { baseQr } = await import('../helpers/aj-signalement-base')
-const { reinitialiserSimulQr, simulQr } = await import('../helpers/aj-signalement-routes')
-const { authQr, reinitialiserAuthQr } = await import('../helpers/aj-signalement-invitation')
-const { reinitialiserReplisQr } = await import('@/lib/aj-signalement/serveur')
+const { baseQr } = await import('../helpers/vitfixsignal-base')
+const { reinitialiserSimulQr, simulQr } = await import('../helpers/vitfixsignal-routes')
+const { authQr, reinitialiserAuthQr } = await import('../helpers/vitfixsignal-invitation')
+const { reinitialiserReplisQr } = await import('@/lib/vitfixsignal/serveur')
 
 const MESSAGE_DOCUMENTS = 'Votre compte détient des documents comptables (devis ou factures) que la loi impose de conserver : contactez le support pour supprimer votre compte.'
 const SOCIETE = '0d000000-0000-4000-8000-000000000001'

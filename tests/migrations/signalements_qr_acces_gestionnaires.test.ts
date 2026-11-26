@@ -1,12 +1,12 @@
 // tests/migrations/signalements_qr_acces_gestionnaires.test.ts
 //
-// Migration 20261112_signalements_qr_acces_gestionnaires.sql (AJ Signalement, PR 2 : accès de chaque gestionnaire à
+// Migration 20261112_signalements_qr_acces_gestionnaires.sql (Vitfix Signal, PR 2 : accès de chaque gestionnaire à
 // l'espace de SON cabinet, vitfix.io/<identifiant>/suivi/). Additive et rejouable, appliquée APRÈS la 20261111 : 4
 // colonnes sur la fiche (compte relié, dates d'accès, de blocage, de demande d'effacement), FK vers auth.users en
 // NOT VALID puis VALIDATE, index unique « un compte = une fiche », envoi d'un accès en une transaction, trigger de
 // liaison du compte à l'acceptation, règle « adresse d'une fiche » en UNE fonction (signalements_qr_adresse_de_fiche :
 // même boîte, sous-adresses « + » comprises, ou même partie locale de boîte sur un domaine du cabinet de la fiche ; sa
-// jumelle TypeScript et la table de cas commune : tests/lib/aj-signalement-adresse-de-fiche.test.ts), corps de
+// jumelle TypeScript et la table de cas commune : tests/lib/vitfixsignal-adresse-de-fiche.test.ts), corps de
 // signalements_qr_emails_gestionnaires remplacé (acces_ouvert réel, même signature, exclusions par la règle), corps de
 // signalements_qr_contester_adresse élargi (lot 3 : « Ce n'est pas moi » depuis un lien d'accès, fiche sans compte
 // relié, objet de l'envoi au journal), départ (signalements_qr_desactiver_gestionnaire, corps de la 20261111 corrigée)
@@ -25,9 +25,9 @@
 import { describe, it, expect } from 'vitest'
 import { existsSync, readFileSync, readdirSync } from 'fs'
 import { join } from 'path'
-import { MIGRATION_ACCES_QR, MIGRATION_GESTIONNAIRES_QR } from '@/lib/aj-signalement/serveur'
-import { estAdresseDeFicheQr } from '@/lib/aj-signalement/gestionnaires'
-import { adressesDeFichesQr } from '@/lib/aj-signalement/destinataires'
+import { MIGRATION_ACCES_QR, MIGRATION_GESTIONNAIRES_QR } from '@/lib/vitfixsignal/serveur'
+import { estAdresseDeFicheQr } from '@/lib/vitfixsignal/gestionnaires'
+import { adressesDeFichesQr } from '@/lib/vitfixsignal/destinataires'
 
 const DOSSIER = join(process.cwd(), 'supabase/migrations')
 const FICHIER = '20261112_signalements_qr_acces_gestionnaires.sql'
@@ -361,7 +361,7 @@ describe(`Migration ${FICHIER} : destinataires (signalements_qr_emails_gestionna
 
   // La jointure appelle la règle avec les domaines du cabinet de CHAQUE fiche ; le code (adressesDeFichesQr) reçoit, lui,
   // la correspondance « domaine → cabinet » : les deux formes donnent la même réponse, fiche par fiche, tous cabinets
-  // mêlés (la règle elle-même est comparée cas par cas dans tests/lib/aj-signalement-adresse-de-fiche.test.ts).
+  // mêlés (la règle elle-même est comparée cas par cas dans tests/lib/vitfixsignal-adresse-de-fiche.test.ts).
   it('appel de la jointure (domaines du cabinet de la fiche) et adressesDeFichesQr (domaine → cabinet) : même réponse', () => {
     const CAB = 'ca000000-0000-4000-8000-000000000001'
     const CAB_AUTRE = 'ca000000-0000-4000-8000-000000000002'

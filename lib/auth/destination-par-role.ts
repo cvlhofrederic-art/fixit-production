@@ -8,16 +8,16 @@
 //   artisan                                           → /{locale}/artisan/dashboard
 //   pro_societe | pro_conciergerie | pro_gestionnaire → /{locale}/pro/dashboard
 //   tout rôle commençant par « syndic »               → /{locale}/syndic/dashboard
-//   gestionnaire_signalement                          → /fr/aj-signalement/ (toute langue)
+//   gestionnaire_signalement                          → /fr/vitfixsignal/ (toute langue)
 //   secretariat                                       → /admin/crm/ (CRM du secrétariat, route interne sans langue)
 //   tout autre rôle, absent ou inconnu                → /{locale}/client/dashboard
 //     (y compris super_admin, coproprio, locataire, client, particulier)
 //
-// gestionnaire_signalement (AJ Signalement, PR 2) : gestionnaire d'un cabinet client, sans tableau de bord VitFix.
-// L'espace AJ Signalement est en français pour tout cabinet ; le middleware y aiguille le compte vers l'espace de SON
+// gestionnaire_signalement (Vitfix Signal, PR 2) : gestionnaire d'un cabinet client, sans tableau de bord VitFix.
+// L'espace Vitfix Signal est en français pour tout cabinet ; le middleware y aiguille le compte vers l'espace de SON
 // cabinet (vitfix.io/<identifiant>/suivi/, repère de routage), ou vers la connexion de l'espace (message neutre) sans
 // repère. Valeurs écrites ici pour garder le module sans dépendance ; tests/auth/destination-par-role.test.ts vérifie
-// qu'elles sont celles de lib/aj-signalement/acces-espace.ts (ROLE_GESTIONNAIRE_QR, CHEMIN_ESPACE_QR).
+// qu'elles sont celles de lib/vitfixsignal/acces-espace.ts (ROLE_GESTIONNAIRE_QR, CHEMIN_ESPACE_QR).
 //
 // Dans l'appli Vitfix Pro (option appMobile, voir lib/app-mobile.ts), deux rôles changent de destination :
 //   artisan                        → l'espace mobile /{locale}/pro/mobile, qui ne lit que la fiche profiles_artisan
@@ -61,7 +61,7 @@ export function pageAppliSocieteBtp(proTeamRole: unknown): string {
 }
 
 const ROLE_GESTIONNAIRE_SIGNALEMENT = 'gestionnaire_signalement'
-const ESPACE_AJ_SIGNALEMENT = '/fr/aj-signalement/'
+const ESPACE_VITFIXSIGNAL = '/fr/vitfixsignal/'
 
 // CRM du secrétariat (22/11/2026) : valeurs de lib/crm/types.ts (ROLE_SECRETARIAT, CHEMIN_CRM), recopiées pour garder le
 // module sans dépendance ; tests/auth/destination-par-role.test.ts vérifie qu'elles sont identiques.
@@ -82,7 +82,7 @@ export function destinationApresConnexion(role: unknown, locale: string, options
   if (roleTexte === 'pro_societe' && options.appMobile) return `/${locale}${pageAppliSocieteBtp(options.proTeamRole)}`
   if (roleTexte !== undefined && ROLES_PRO.includes(roleTexte)) return `/${locale}/pro/dashboard`
   if (roleTexte !== undefined && roleTexte.startsWith('syndic')) return `/${locale}/syndic/dashboard`
-  if (roleTexte === ROLE_GESTIONNAIRE_SIGNALEMENT) return ESPACE_AJ_SIGNALEMENT
+  if (roleTexte === ROLE_GESTIONNAIRE_SIGNALEMENT) return ESPACE_VITFIXSIGNAL
   if (roleTexte === ROLE_SECRETARIAT) return ECRAN_CRM
   return `/${locale}/client/dashboard`
 }

@@ -1,5 +1,5 @@
 -- ══════════════════════════════════════════════════════════════════════════════
--- AJ Signalement (13/11/2026) — diffusion de messages d'exploitation de l'immeuble aux déclarants d'une copropriété.
+-- Vitfix Signal (13/11/2026) — diffusion de messages d'exploitation de l'immeuble aux déclarants d'une copropriété.
 --
 -- Demandes et décisions de Hugo du 11/11/2026 (cahier des charges de la PR 3, § 2, § 3 et § 14) : messages
 -- d'EXPLOITATION seulement (« fuite en cours », « coupure d'eau demain de 9 h à 10 h »), par e-mail seulement ; ciblage :
@@ -197,7 +197,7 @@ CREATE INDEX IF NOT EXISTS idx_signalements_qr_diffusions_date    ON signalement
 -- d'une copropriété) parcourait toute la table (lint Supabase 0001 ; relecture du 12/11 : 5,6 s contre 0,6 s).
 CREATE INDEX IF NOT EXISTS idx_signalements_qr_diffusions_signalement
   ON signalements_qr_diffusions (signalement_id) WHERE signalement_id IS NOT NULL;
-COMMENT ON TABLE signalements_qr_diffusions IS 'AJ Signalement : messages d''exploitation diffusés aux déclarants d''une copropriété (auteur, périmètre, valeurs figées) ; 3 ans.';
+COMMENT ON TABLE signalements_qr_diffusions IS 'Vitfix Signal : messages d''exploitation diffusés aux déclarants d''une copropriété (auteur, périmètre, valeurs figées) ; 3 ans.';
 
 -- ── 5. Destinataires d'une diffusion (un par adresse normalisée), état d'envoi ──
 CREATE TABLE IF NOT EXISTS signalements_qr_diffusion_destinataires (
@@ -221,7 +221,7 @@ CREATE TABLE IF NOT EXISTS signalements_qr_diffusion_destinataires (
 CREATE INDEX IF NOT EXISTS idx_signalements_qr_diffusion_dest_etat   ON signalements_qr_diffusion_destinataires (diffusion_id, etat, lot);
 CREATE INDEX IF NOT EXISTS idx_signalements_qr_diffusion_dest_boite  ON signalements_qr_diffusion_destinataires (copropriete_id, email_empreinte);
 CREATE INDEX IF NOT EXISTS idx_signalements_qr_diffusion_dest_source ON signalements_qr_diffusion_destinataires (signalement_source_id);
-COMMENT ON TABLE signalements_qr_diffusion_destinataires IS 'AJ Signalement : une ligne par adresse (empreinte, jamais l''adresse) et par diffusion, avec l''état d''envoi.';
+COMMENT ON TABLE signalements_qr_diffusion_destinataires IS 'Vitfix Signal : une ligne par adresse (empreinte, jamais l''adresse) et par diffusion, avec l''état d''envoi.';
 
 -- ── 6. Oppositions (liste repoussoir) ──
 CREATE TABLE IF NOT EXISTS signalements_qr_diffusion_oppositions (
@@ -247,13 +247,13 @@ CREATE TABLE IF NOT EXISTS signalements_qr_diffusion_oppositions (
 CREATE UNIQUE INDEX IF NOT EXISTS uq_signalements_qr_diffusion_opp_active
   ON signalements_qr_diffusion_oppositions (copropriete_id, email_empreinte) WHERE levee_le IS NULL;
 CREATE INDEX IF NOT EXISTS idx_signalements_qr_diffusion_opp_date ON signalements_qr_diffusion_oppositions (created_at);
-COMMENT ON TABLE signalements_qr_diffusion_oppositions IS 'AJ Signalement : oppositions à la diffusion par copropriété et empreinte de l''adresse (preuve gardée au moins 3 ans, sans clé étrangère).';
+COMMENT ON TABLE signalements_qr_diffusion_oppositions IS 'Vitfix Signal : oppositions à la diffusion par copropriété et empreinte de l''adresse (preuve gardée au moins 3 ans, sans clé étrangère).';
 
 -- ── 7. Règles communes ──
 
 -- Langues des cabinets qui peuvent diffuser (H9, H4) : le français, tant que le droit portugais n'est pas vérifié ni les
 -- textes portugais relus. SEULE liste, lue par la règle d'inactivité et par l'activation du cabinet
--- (signalements_qr_diffusion_regler_cabinet) ; même liste que LANGUES_DIFFUSION_OUVERTES_QR (lib/aj-signalement/types.ts,
+-- (signalements_qr_diffusion_regler_cabinet) ; même liste que LANGUES_DIFFUSION_OUVERTES_QR (lib/vitfixsignal/types.ts,
 -- test d'accord) ; ouvrir le portugais = une migration qui remplace cette fonction.
 CREATE OR REPLACE FUNCTION signalements_qr_diffusion_langue_ouverte(p_langue text) RETURNS boolean
 LANGUAGE sql IMMUTABLE SECURITY INVOKER SET search_path = public, pg_temp AS $fn$
@@ -304,7 +304,7 @@ END $fn$;
 
 -- H11 : la fiche est active, reliée à ce compte, non bloquée, du cabinet de la copropriété, et la copropriété lui est
 -- attribuée NOMMÉMENT ; jamais une copropriété « attribuée à tous », même attribuée aussi nommément (la copropriété de
--- test ne diffuse que par le super admin). Même règle que droitDiffuserQr (lib/aj-signalement/droits-diffusion.ts), que
+-- test ne diffuse que par le super admin). Même règle que droitDiffuserQr (lib/vitfixsignal/droits-diffusion.ts), que
 -- les routes appliquent AVANT tout appel.
 CREATE OR REPLACE FUNCTION signalements_qr_diffusion_gestionnaire_autorise(
   p_gestionnaire uuid, p_acteur uuid, p_copropriete uuid

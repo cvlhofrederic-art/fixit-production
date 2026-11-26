@@ -137,7 +137,7 @@ describe('un layout racine par langue, sans API dynamique', () => {
     expect(pages.filter((f) => !/^app\/(pt|fr|en|nl|es|\(commun\)|\(sans-coquille\))\//.test(f))).toEqual([])
   })
 
-  // AJ Signalement, PR 3, lot 6 (cahier § 7.5, décision F3) : la page publique de désinscription est servie SANS la
+  // Vitfix Signal, PR 3, lot 6 (cahier § 7.5, décision F3) : la page publique de désinscription est servie SANS la
   // coquille de VitFix (ni en-tête, ni pied, ni bandeau de consentement, ni mesure d'audience, ni données structurées) :
   // VitFix n'en est pas l'auteur (droit § 4.1) et aucun script tiers ne doit lire le jeton du fragment avant son
   // effacement. Section à part, avec sa propre mise en page racine (<html>, <body>), réservée à cette page.

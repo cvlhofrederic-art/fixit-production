@@ -4,8 +4,8 @@ import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
-import { refusEffacementGestionnaireQr } from '@/lib/aj-signalement/serveur-compte'
-import { lireParValeursQr, lirePagesQr, tableAbsenteQr } from '@/lib/aj-signalement/serveur'
+import { refusEffacementGestionnaireQr } from '@/lib/vitfixsignal/serveur-compte'
+import { lireParValeursQr, lirePagesQr, tableAbsenteQr } from '@/lib/vitfixsignal/serveur'
 
 const log = logger.withTenant('api/user/delete-account')
 
@@ -123,9 +123,9 @@ export async function DELETE(request: NextRequest) {
   const parsed = deleteAccountSchema.safeParse(body)
   if (!parsed.success) return NextResponse.json({ error: 'Données invalides', details: parsed.error.flatten().fieldErrors }, { status: 400 })
 
-  // AJ Signalement (PR 2, SPEC § 2.10) : le compte d'un gestionnaire d'un cabinet client est géré par son employeur
+  // Vitfix Signal (PR 2, SPEC § 2.10) : le compte d'un gestionnaire d'un cabinet client est géré par son employeur
   // (responsable de traitement) : refus AVANT toute suppression (403 demande_au_cabinet), la demande est transmise au
-  // super admin. Tout autre compte : null, parcours inchangé (y compris avant les migrations d'AJ Signalement).
+  // super admin. Tout autre compte : null, parcours inchangé (y compris avant les migrations de Vitfix Signal).
   const refusGestionnaire = await refusEffacementGestionnaireQr(user)
   if (refusGestionnaire) return refusGestionnaire
 

@@ -5,7 +5,7 @@ import Header from '@/components/common/Header'
 import Footer from '@/components/common/Footer'
 import SiteProtection from '@/components/common/SiteProtection'
 import WhatsAppFloatingButton from '@/components/common/WhatsAppFloatingButton'
-import { estEspaceCabinetQr } from '@/lib/aj-signalement/chemin-cabinet'
+import { estEspaceCabinetQr } from '@/lib/vitfixsignal/chemin-cabinet'
 
 /**
  * Routes qui rendent leur propre shell (header/footer custom ou aucun) et
@@ -42,8 +42,8 @@ const DASHBOARD_PATH_PREFIXES = [
   '/syndic/v54',
   // Succursale Administrateur Judiciaire (son propre shell, flag ADMINISTRATEUR_JUDICIAIRE_LIVE)
   '/administrateur-judiciaire',
-  // Espace AJ Signalement du super admin (son propre shell) ; la page publique du QR code est /signalement/<jeton>/.
-  '/aj-signalement',
+  // Espace Vitfix Signal du super admin (son propre shell) ; la page publique du QR code est /signalement/<jeton>/.
+  '/vitfixsignal',
   // Copropriétaire (dormant)
   '/coproprietaire/',
   // Admin
@@ -52,8 +52,8 @@ const DASHBOARD_PATH_PREFIXES = [
 
 function isDashboardRoute(pathname: string | null | undefined): boolean {
   if (!pathname) return false
-  // Espace d'un cabinet client AJ Signalement (vitfix.io/<identifiant>/connexion/ et /suivi/, son propre shell, comme
-  // l'espace global) : prédicat pur, l'identifiant étant variable (lib/aj-signalement/chemin-cabinet.ts).
+  // Espace d'un cabinet client Vitfix Signal (vitfix.io/<identifiant>/connexion/ et /suivi/, son propre shell, comme
+  // l'espace global) : prédicat pur, l'identifiant étant variable (lib/vitfixsignal/chemin-cabinet.ts).
   return DASHBOARD_PATH_PREFIXES.some((prefix) => pathname.startsWith(prefix)) || estEspaceCabinetQr(pathname)
 }
 

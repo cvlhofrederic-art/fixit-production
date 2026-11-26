@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { originesSupabase, safeNavigate, toSafeUrl } from '@/lib/security/safe-url'
 import { SectionErrorBoundary } from '@/components/common/SectionErrorBoundary'
-import { CHEMIN_ESPACE_QR } from '@/lib/aj-signalement/acces-espace'
+import { CHEMIN_ESPACE_QR } from '@/lib/vitfixsignal/acces-espace'
 import { CHEMIN_CRM } from '@/lib/crm/types'
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -121,9 +121,9 @@ const DASHBOARDS: Dashboard[] = [
   },
   // Succursale Administrateur Judiciaire : le super_admin y accède sans changer de rôle (role = retour au rôle réel).
   { id: 'administrateur_judiciaire', label: 'Administrateur Judiciaire', emoji: '⚖️', desc: 'Logiciel du syndic judiciaire — mandats, ordonnances, dossier du juge, banque & recouvrement, échéances légales', color: 'from-sky-600 to-blue-800', border: 'border-sky-400', bg: 'bg-sky-950/20', url: '/fr/administrateur-judiciaire/', role: 'super_admin', roles: ['syndic', 'super_admin'] },
-  // Espace indépendant AJ Signalement (super admin seul, lib/aj-signalement/acces-espace.ts) : sans « vue en tant que »
+  // Espace indépendant Vitfix Signal (super admin seul, lib/vitfixsignal/acces-espace.ts) : sans « vue en tant que »
   // (role = retour au rôle réel, comme la carte AJ).
-  { id: 'aj_signalement', label: 'AJ Signalement', emoji: '📱', desc: 'Signalements par QR code — copropriétés, QR codes et signalements reçus', color: 'from-rose-600 to-red-800', border: 'border-rose-400', bg: 'bg-rose-950/20', url: CHEMIN_ESPACE_QR, role: 'super_admin', roles: ['super_admin'] },
+  { id: 'vitfixsignal', label: 'Vitfix Signal', emoji: '📱', desc: 'Signalements par QR code — copropriétés, QR codes et signalements reçus', color: 'from-rose-600 to-red-800', border: 'border-rose-400', bg: 'bg-rose-950/20', url: CHEMIN_ESPACE_QR, role: 'super_admin', roles: ['super_admin'] },
   // CRM du secrétariat (lib/crm/) : écran de la secrétaire (compte « secretariat ») ; le super admin y entre sans « vue en
   // tant que » (role = retour au rôle réel).
   { id: 'crm_secretariat', label: 'CRM secrétariat', emoji: '📞', desc: 'Appels et messages du WhatsApp pro — demandes, rappels, fiches clients (écran de la secrétaire)', color: 'from-emerald-600 to-teal-700', border: 'border-emerald-400', bg: 'bg-emerald-950/20', url: CHEMIN_CRM, role: 'super_admin', roles: ['super_admin'] },
