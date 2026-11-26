@@ -30,6 +30,7 @@ import {
 import { devisLinkFields } from '@/lib/devis-utils'
 import { ID_TABLE_ACOMPTES_DEDUITS } from '@/lib/devis-totals'
 import { REGIME_ERROR_MESSAGES, validateRegime, type TvaLocale } from '@/lib/tva-calculator'
+import { aNumeroDefinitif } from '@/lib/documents/liste-effective'
 
 type DocumentLike = Record<string, unknown>
 
@@ -79,11 +80,9 @@ const sousType = (doc: DocumentLike): string => String(doc.factureSubType || 'st
 
 const estFacture = (doc: DocumentLike): boolean => doc.docType === 'facture' || doc.docType === 'avoir'
 
-/** Numéro définitif : présent, et pas un numéro provisoire de brouillon (« BR-… »). */
-export const aNumeroDefinitif = (doc: DocumentLike): boolean => {
-  const numero = String(doc.docNumber || '').trim()
-  return numero !== '' && !numero.toUpperCase().startsWith('BR-')
-}
+// Définie dans lib/documents/liste-effective.ts, module sans dépendance, pour que les écrans de synthèse puissent
+// la poser sans tirer tout ce fichier. Réexportée ici : les appelants (DevisSection, FacturesSection) ne changent pas.
+export { aNumeroDefinitif }
 
 /**
  * Document réellement émis : numéro définitif, ni brouillon, ni annulé. Un brouillon de facture

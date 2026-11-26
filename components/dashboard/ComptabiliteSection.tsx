@@ -8,6 +8,7 @@ import { safeMarkdownToHTML } from '@/lib/sanitize'
 import { assainirHtml } from '@/lib/security/assainir-html'
 import { supabase } from '@/lib/supabase'
 // DeclarationSocialeSection removed — IS estimation is now inline in Declaration tab
+import { messageRefusDocuments } from '@/lib/documents/messages-refus'
 import { getTvaStatus, type TvaCountry, type TvaStatusResult } from '@/lib/tva-thresholds'
 import { calendrierFiscalPt, estimerIrc, libelleTauxIrc, prochaineDeclarationIvaPt, tauxIrc } from '@/lib/fiscalite-pt'
 
@@ -154,11 +155,22 @@ function AgentComptable({ bookings, artisan, services, expenses, annualHT, annua
         }),
       })
       if (!res.ok) {
-        const errMsg = res.status === 401
+        // Refus de rôle (403) et société non résolue (409) : la route rend un `code` stable ET le texte
+        // FRANÇAIS, parce qu'une route n'a pas de langue. C'est donc ICI qu'on choisit celle de l'écran, par
+        // `messageRefusDocuments`, comme le fait déjà le tableau de bord — deux sociétés BTP portugaises sont en
+        // production. « Erreur serveur (403) » n'apprendrait rien à l'utilisateur, qui n'a aucun moyen de deviner
+        // que c'est son rôle qui ferme la porte.
+        const ditParLeServeur = res.status === 403 || res.status === 409
+          ? await res.json()
+              .then((corps: { error?: string; code?: string }) =>
+                messageRefusDocuments({ message: corps?.error || '', code: corps?.code }, isPt))
+              .catch(() => '')
+          : ''
+        const errMsg = ditParLeServeur || (res.status === 401
           ? (isPt ? '🔒 Sessão expirada. Reconecte-se.' : '🔒 Session expirée. Reconnectez-vous.')
           : res.status === 429
             ? (isPt ? '⏳ Demasiados pedidos. Aguarde um momento.' : '⏳ Trop de requêtes. Patientez un instant.')
-            : (isPt ? `❌ Erro do servidor (${res.status})` : `❌ Erreur serveur (${res.status})`)
+            : (isPt ? `❌ Erro do servidor (${res.status})` : `❌ Erreur serveur (${res.status})`))
         setMessages(prev => [...prev, { role: 'assistant', content: errMsg }])
         setIsLoading(false)
         return
