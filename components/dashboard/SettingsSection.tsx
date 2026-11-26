@@ -8,7 +8,7 @@ import { supabase } from '@/lib/supabase'
 import { redimensionnerImage } from '@/lib/images/redimensionner-image'
 import { SITE_URL } from '@/lib/constants'
 import type { Artisan } from '@/lib/types'
-import { idFicheDocuments } from '@/lib/documents/identite-documents'
+import { estSousCompteSociete, idFicheDocuments } from '@/lib/documents/identite-documents'
 import { messageRefusDocuments } from '@/lib/documents/messages-refus'
 import { useThemeVars } from './useThemeVars'
 import { searchDepartements, searchCommunes, PHASE_TEST_REGIONS_FR, type FRDepartement, type FRCommune } from '@/lib/geo/fr-geo-data'
@@ -446,7 +446,20 @@ function checkPasswordStrength(val: string) {
 
 // ── Zones d'intervention — phase test : FR = PACA/13, PT = Norte/Porto ────
 
-function ZonesInterventionCard({ isV5, artisanId }: { isV5: boolean; artisanId?: string }) {
+function ZonesInterventionCard({ isV5, artisanId, zonesDeLaSociete }: {
+  isV5: boolean
+  artisanId?: string
+  /**
+   * Compte invité dans une société : zones de la fiche de la société, reçues du serveur avec le tableau de bord
+   * (undefined pour tout autre compte). Elles remplacent les zones gardées sur le poste quand la fiche ne se lit pas
+   * depuis le navigateur (fiche non publique).
+   */
+  zonesDeLaSociete?: unknown
+}) {
+  // Lu par une référence : un nouvel objet `artisan` (après un autre enregistrement) ne recharge pas la carte par-dessus
+  // une sélection en cours.
+  const zonesDeLaSocieteRef = useRef(zonesDeLaSociete)
+  zonesDeLaSocieteRef.current = zonesDeLaSociete
   const locale = useLocale()
   const isPt = locale === 'pt'
   const REGIONS_OPTIONS = isPt ? PT_REGIOES : PHASE_TEST_REGIONS_FR
@@ -506,6 +519,16 @@ function ZonesInterventionCard({ isV5, artisanId }: { isV5: boolean; artisanId?:
   useEffect(() => {
     let cancelled = false
     const loadFromLocal = () => {
+      // Compte invité : jamais les zones gardées sur ce poste, une clé commune à tous les comptes qui s'y connectent,
+      // que l'enregistrement aurait écrites sur la fiche de la société. Celles de la fiche, reçues avec le tableau de bord.
+      const deLaSociete = zonesDeLaSocieteRef.current
+      if (deLaSociete !== undefined) {
+        const zones = (deLaSociete ?? {}) as { regions?: unknown; departments?: unknown; cities?: unknown }
+        setSelectedRegions(Array.isArray(zones.regions) ? (zones.regions as string[]) : [])
+        setSelectedDepts(Array.isArray(zones.departments) ? (zones.departments as string[]) : [])
+        setSelectedCities(Array.isArray(zones.cities) ? (zones.cities as string[]) : [])
+        return
+      }
       try {
         const raw = localStorage.getItem('vitfix_intervention_zones')
         if (raw) {
@@ -1347,7 +1370,11 @@ export default function SettingsSection({
 
             {/* Zones d'intervention — nouvelle feature matching HTML */}
             {/* Compte invité dans une société : les zones sont celles de la fiche de la société, pas de son compte */}
-            <ZonesInterventionCard isV5={isV5} artisanId={idFicheDocuments(artisan)} />
+            <ZonesInterventionCard
+              isV5={isV5}
+              artisanId={idFicheDocuments(artisan)}
+              zonesDeLaSociete={estSousCompteSociete(artisan) ? ((artisan as { intervention_zones?: unknown } | null)?.intervention_zones ?? null) : undefined}
+            />
           </div>
         </div>
       </div>

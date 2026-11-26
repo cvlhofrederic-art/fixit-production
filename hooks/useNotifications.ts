@@ -193,7 +193,9 @@ export function useNotifications(
       }, (payload) => {
         const msg = payload.new as any
         const { t: _t, isPt: _isPt, onNavigate: _onNav } = callbacksRef.current
-        if (msg.sender_id !== userId) {
+        // Côté prestataire (`metadata.cote = 'artisan'`) : un message de la société, envoyé par un autre de ses comptes
+        // (co-gérant, secrétaire), pas un message reçu. Pour un artisan, ce sont toujours les siens, déjà écartés.
+        if (msg.sender_id !== userId && msg.metadata?.cote !== 'artisan') {
           setUnreadMsgCount(prev => prev + 1)
           sendBrowserNotif(
             _isPt ? '💬 Nova mensagem' : '💬 Nouveau message',

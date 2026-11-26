@@ -90,6 +90,8 @@ describe('GET : devis et factures de la société pour l’écran Chantiers', ()
     expect((json.devis as Array<{ id: string }>).map(d => d.id)).toEqual([DEVIS])
     expect((json.factures as Array<{ id: string }>).map(f => f.id)).toEqual(['f-liee'])
     expect(requetes(h.base, 'devis', 'select')[0].filtres).toEqual({ artisan_user_id: SOCIETE })
+    // Les factures rattachées sont filtrées en base, pas toute la facturation de la société relue puis triée ici.
+    expect(requetes(h.base, 'factures', 'select')[0]).toMatchObject({ filtres: { artisan_user_id: SOCIETE }, nonNul: ['chantier_id'] })
   })
 
   it('base sans colonne raw_data : relue avec l’ancienne colonne client_address, comme l’écran du titulaire', async () => {

@@ -166,13 +166,24 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
   // Compte invité dans la société : ses devis sont ceux de l'entreprise, que la RLS ne lui rend pas. Lus et liés par le
   // serveur (app/api/pro/documents/chantiers), qui vérifie son rôle ; le titulaire garde ses lectures directes.
   const sousCompte = estSousCompteSociete(artisan)
-  // Une seule lecture du serveur pour les deux chargements du montage (devis à importer, documents liés) ; « Lier un
-  // devis » et la relecture après une liaison la refont.
+  // Une seule lecture du serveur pour les deux chargements du montage (devis à importer, documents liés). L'ouverture
+  // d'une fiche, « Lier un devis » et la relecture après une liaison la refont. Une lecture en échec n'est pas gardée :
+  // la suivante réessaie (elle servait sinon à chaque ouverture de « Nouveau chantier », tant que l'écran restait ouvert).
   const lectureSocieteRef = useRef<ReturnType<typeof lireDocumentsDesChantiers> | null>(null)
-  const documentsDeLaSociete = useCallback((relire = false) => {
+  const documentsDeLaSociete = useCallback(async (relire = false) => {
     if (relire || !lectureSocieteRef.current) lectureSocieteRef.current = lireDocumentsDesChantiers()
-    return lectureSocieteRef.current
+    const lecture = lectureSocieteRef.current
+    const lu = await lecture
+    if (!lu.ok && lectureSocieteRef.current === lecture) lectureSocieteRef.current = null
+    return lu
   }, [])
+  /**
+   * Une lecture des documents de la société en échec se dit : la liste restait vide, « aucun document lié », « aucun
+   * devis trouvé ». Un rôle sans droit sur les devis (salarié de terrain) n'a rien à y voir : pas de message.
+   */
+  const signalerLectureEnEchec = useCallback((lu: { message: string; code?: string }) => {
+    if (lu.code !== 'aucun_droit') toast.error(messageRefusDocuments(lu, isPt), { id: 'chantiers-documents-societe' })
+  }, [isPt])
 
   const { items: chantiers, loading, add, update, remove } = useBTPData({
     table: 'chantiers',
@@ -217,7 +228,7 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
   const [search, setSearch] = useState('')
 
   // ── Fetch devis + membres quand le modal s'ouvre ──
-  const loadDevisAndMembres = useCallback(async () => {
+  const loadDevisAndMembres = useCallback(async (relire = false) => {
     setLoadingDevis(true)
     try {
       const { data: sess } = await supabase.auth.getSession()
@@ -227,8 +238,9 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
       const lireDevis = async (): Promise<DevisSummary[] | null> => {
         if (sousCompte) {
           // Un rôle sans droit sur les devis (salarié de terrain) reçoit un refus : aucun devis à proposer.
-          const lu = await documentsDeLaSociete()
-          return lu.ok ? (lu.valeur.devis.slice(0, 50) as unknown as DevisSummary[]) : null
+          const lu = await documentsDeLaSociete(relire)
+          if (!lu.ok) { signalerLectureEnEchec(lu); return null }
+          return lu.valeur.devis.slice(0, 50) as unknown as DevisSummary[]
         }
         const lectureAvecLieu = await devisRequete(`${COLONNES_DEVIS_IMPORT}, ${COLONNES_LIEU_DEVIS}`)
         const devisRes = lectureAvecLieu.error ? await devisRequete(`${COLONNES_DEVIS_IMPORT}, client_address`) : lectureAvecLieu
@@ -278,7 +290,7 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
       }
     } catch (e) { console.error('loadDevisAndMembres:', e) }
     setLoadingDevis(false)
-  }, [artisan?.id, settings, sousCompte, documentsDeLaSociete])
+  }, [artisan?.id, settings, sousCompte, documentsDeLaSociete, signalerLectureEnEchec])
 
   // ── Géocode ──
   // La position GPS déclenche le pointage automatique des employés : seule une position précise de l'adresse (numéro,
@@ -485,7 +497,7 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
     setForm(fiche)
     setChoixAdresseOuvert(false)
     setShowModal(true)
-    loadDevisAndMembres()
+    loadDevisAndMembres(true)
   }
 
   const handleDelete = async (id: string) => {
@@ -587,6 +599,7 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
       if (sousCompte) {
         const lu = await documentsDeLaSociete(relire)
         if (lu.ok) setLinkedDocs(grouperDocumentsLies(lu.valeur.devis, lu.valeur.factures))
+        else signalerLectureEnEchec(lu)
         return
       }
       const [devisRes, facturesRes] = await Promise.all([
@@ -595,7 +608,7 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
       ])
       setLinkedDocs(grouperDocumentsLies(devisRes.data || [], facturesRes.data || []))
     } catch (e) { console.error('loadLinkedDocs:', e) }
-  }, [artisan?.id, sousCompte, documentsDeLaSociete])
+  }, [artisan?.id, sousCompte, documentsDeLaSociete, signalerLectureEnEchec])
 
   useEffect(() => { void loadLinkedDocs() }, [loadLinkedDocs])
 
@@ -721,7 +734,7 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
         {!lectureSeule && (
           <button
             className={isV5 ? "v5-btn v5-btn-p" : "v22-btn v22-btn-primary"}
-            onClick={() => { oublierGeocodage(); setEditId(null); setForm(EMPTY_FORM); setChoixAdresseOuvert(false); setShowModal(true); void loadDevisAndMembres() }}
+            onClick={() => { oublierGeocodage(); setEditId(null); setForm(EMPTY_FORM); setChoixAdresseOuvert(false); setShowModal(true); void loadDevisAndMembres(true) }}
           >
             + {isPt ? 'Nova obra' : 'Nouveau chantier'}
           </button>
@@ -748,7 +761,7 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
               </p>
               <button
                 className={isV5 ? "v5-btn v5-btn-p" : "v22-btn v22-btn-primary"}
-                onClick={() => { oublierGeocodage(); setEditId(null); setForm(EMPTY_FORM); setChoixAdresseOuvert(false); setShowModal(true); void loadDevisAndMembres() }}
+                onClick={() => { oublierGeocodage(); setEditId(null); setForm(EMPTY_FORM); setChoixAdresseOuvert(false); setShowModal(true); void loadDevisAndMembres(true) }}
               >
                 + {isPt ? 'Criar obra' : 'Créer un chantier'}
               </button>

@@ -16,7 +16,7 @@
 //   - un sous-compte qui a SA fiche garde le chemin d'origine (c'est elle que son tableau de bord affiche) ;
 //   - l'artisan et le gérant titulaire ne lisent même pas l'équipe : chemin d'origine, règle n° 1.
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { NextRequest } from 'next/server'
 import type { FauxBase, Ligne } from '../helpers/faux-supabase-btp'
 
@@ -319,6 +319,44 @@ describe('Envoi de fichier avec mise à jour du profil, compte invité', () => {
 
 describe('Identité entreprise d’un rapport de chantier, compte invité (/api/artisan-company)', () => {
   const lireIdentite = () => appeler(identite, 'GET', `/api/artisan-company?artisan_id=${FICHE}`)
+  afterEach(() => { vi.restoreAllMocks() })
+
+  // Fiche avec un numéro d'entreprise mais sans forme juridique ni adresse : la route interroge l'annuaire des
+  // entreprises et, pour le propriétaire de la fiche, la complète. Un compte invité ne fait que la lire.
+  const ANNUAIRE = {
+    results: [{
+      nom_complet: 'CONSTRUCOES EXEMPLO', siren: '500000000', nature_juridique: '5499', activite_principale: '41.20A',
+      etat_administratif: 'A', siege: { siret: '500000000', libelle_commune: 'PORTO', code_postal: '4000-000' },
+    }],
+  }
+  const ficheACompleter = () => {
+    Object.assign(fiche(), { legal_form: null, company_address: null })
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(ANNUAIRE), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+  }
+
+  it('fiche à compléter depuis l’annuaire : un invité la lit sans jamais l’écrire', async () => {
+    const id = invite('OUVRIER')
+    h.base.lignes.pro_role_permissions = [{ member_id: `membre-${id}`, company_id: SOCIETE, module_id: 'rapports', access_level: 'FULL' }]
+    ficheACompleter()
+
+    const { status, json } = await lireIdentite()
+
+    expect(status).toBe(200)
+    expect(json.source).toBe('api_gouv')
+    expect(ecrituresProfils()).toHaveLength(0)
+  })
+
+  it('fiche à compléter depuis l’annuaire : le gérant titulaire la complète, comme avant', async () => {
+    h.user = { id: SOCIETE, app_metadata: { role: 'pro_societe' } }
+    h.base.lignes.profiles_artisan = [ficheDeLaSociete()]
+    ficheACompleter()
+
+    const { status } = await lireIdentite()
+
+    expect(status).toBe(200)
+    expect(ecrituresProfils()).toHaveLength(1)
+    expect(ecrituresProfils()[0]).toMatchObject({ filtres: { id: FICHE } })
+  })
 
   it('un salarié à qui le gérant a ouvert les rapports reçoit l’identité de la société, assurance comprise', async () => {
     const id = invite('OUVRIER')
@@ -368,6 +406,39 @@ describe('Mon profil d’un compte invité : ce que la route protège d’elle-m
 
     expect(status).toBe(200)
     expect(ecrituresProfils()[0].valeur).toEqual({ insurance_name: null })
+  })
+
+  // Le formulaire corrigé n'envoie que les champs changés : un médiateur, c'est deux champs (nom et site), une assurance
+  // jusqu'à cinq. Les vider ensemble était refusé comme « formulaire périmé », et recharger la page n'y changeait rien.
+  it('retirer le médiateur (nom et site) en un seul enregistrement', async () => {
+    invite('GERANT')
+    Object.assign(fiche(), { mediator_name: 'Centro de Arbitragem Exemplo', mediator_url: 'https://arbitragem.exemplo.test' })
+
+    const { status } = await enregistrerProfil({ mediator_name: '', mediator_url: '' })
+
+    expect(status).toBe(200)
+    expect(ecrituresProfils()[0].valeur).toEqual({ mediator_name: null, mediator_url: null })
+  })
+
+  it('retirer toute l’assurance en un seul enregistrement', async () => {
+    invite('SECRETAIRE')
+    Object.assign(fiche(), { insurance_number: 'RC-0001', insurance_coverage: 'Portugal', insurance_type: 'RC', insurance_expiry: '2027-01-31' })
+
+    const { status } = await enregistrerProfil({ insurance_name: '', insurance_number: '', insurance_coverage: '', insurance_type: '', insurance_expiry: '' })
+
+    expect(status).toBe(200)
+    expect(ecrituresProfils()[0].valeur).toEqual({
+      insurance_name: null, insurance_number: null, insurance_coverage: null, insurance_type: null, insurance_expiry: null,
+    })
+  })
+
+  it('un formulaire complet qui ne vide aucun champ rempli passe', async () => {
+    invite('SECRETAIRE')
+    const fichePleine = fiche()
+
+    const { status } = await enregistrerProfil({ ...FORMULAIRE_VIDE, company_name: String(fichePleine.company_name), rcs_number: String(fichePleine.rcs_number), insurance_name: String(fichePleine.insurance_name), phone: String(fichePleine.phone) })
+
+    expect(status).toBe(200)
   })
 
   it('la bio modifiée garde le marqueur des services par jour de la société', async () => {

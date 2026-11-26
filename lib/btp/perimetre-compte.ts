@@ -12,6 +12,7 @@
 //   titulaire (gérant, artisan, super_admin, conciergerie, gestionnaire) → tout, comme avant, sans changement
 //   sous-compte, permission FULL sur le module                          → tout, et il peut écrire
 //   sous-compte, permission READ                                        → vue restreinte, aucune écriture
+//                                       (sauf les rapports : la liste entière en lecture, LISTES_ENTIERES_EN_LECTURE)
 //   sous-compte, permission NONE ou module inconnu                      → rien
 //
 // « Vue restreinte » veut dire deux choses, pas une : moins de LIGNES (ses chantiers affectés, pas ceux de toute la
@@ -91,7 +92,8 @@ export const MODULE_PAR_TABLE: Record<string, string> = {
  * Colonnes laissées passer en vue restreinte. Tout ce qui n'y figure pas est retiré de la réponse, y compris les
  * colonnes système autres que l'identifiant : un salarié n'a pas à connaître l'identifiant du propriétaire.
  * Sur le modèle de `chantierPourTelephone` (lib/btp/pointage-regles.ts), qui ne laisse passer qu'un chantier réduit.
- * Une liste absente d'ici n'a pas de vue restreinte : en READ, elle est traitée comme 'aucune'.
+ * Une liste absente d'ici n'a pas de vue restreinte : en READ, elle est traitée comme 'aucune', sauf si elle figure
+ * dans LISTES_ENTIERES_EN_LECTURE (les rapports) : elle est alors montrée en entier.
  */
 export const COLONNES_VUE_RESTREINTE: Record<string, readonly string[]> = {
   // Ce qu'il faut pour aller sur le chantier et pour la météo : où, quand, quel statut. Ni client, ni budget, ni
@@ -123,7 +125,10 @@ export function niveauSur(perimetre: PerimetreBtp, module: string | null | undef
  */
 const LISTES_ENTIERES_EN_LECTURE: ReadonlySet<string> = new Set(['rapports'])
 
-/** Ce que le compte voit de cette liste. Une liste sans vue restreinte définie ne se montre qu'en FULL. */
+/**
+ * Ce que le compte voit de cette liste. Une liste sans vue restreinte définie ne se montre qu'en FULL, sauf celles de
+ * LISTES_ENTIERES_EN_LECTURE, montrées en entier en READ.
+ */
 export function visibiliteListe(perimetre: PerimetreBtp, cle: string): Visibilite {
   if (perimetre.titulaire) return 'tout'
   if (!(cle in MODULE_PAR_LISTE)) return 'aucune'
@@ -183,27 +188,36 @@ export async function lirePerimetreBtp(user: User, admin: SupabaseClient): Promi
     return { societeId, titulaire: false, roleEquipe: null, permissions: {}, email }
   }
 
-  const permissions = getEffectivePermissions(roleEquipe, await lireDerogations(user.id, societeId, admin))
+  const derogations = await lireDerogations(user.id, societeId, admin)
+  // Plus de ligne d'équipe active dans cette société : compte désactivé ou retiré pendant les 60 s où resolveCompanyId
+  // garde sa société en mémoire. Aucun droit : les défauts du rôle s'appliquaient sans les restrictions du gérant, et le
+  // compte désactivé pouvait encore écrire les modes de paiement, des demandes de prix ou des messages de la société.
+  if (derogations === null) {
+    logger.warn('[btp] sous-compte sans ligne d’équipe active dans sa société : aucun droit')
+    return { societeId, titulaire: false, roleEquipe: null, permissions: {}, email }
+  }
+  const permissions = getEffectivePermissions(roleEquipe, derogations)
   return { societeId, titulaire: false, roleEquipe, permissions, email }
 }
 
 /**
- * Dérogations posées par le gérant sur ce compte (pro_role_permissions) ; liste vide si la lecture échoue. Bornées à
- * la société du membre : une ligne dont company_id diffère n'a pas été posée par le serveur (jusqu'à la migration
- * 20261125b, toute session pouvait en insérer sous son propre uid, et un salarié se donnait ainsi FULL).
+ * Dérogations posées par le gérant sur ce compte (pro_role_permissions) ; liste vide si la lecture échoue, null si le
+ * compte n'a plus de ligne d'équipe active dans cette société. Bornées à la société du membre : une ligne dont
+ * company_id diffère n'a pas été posée par le serveur (jusqu'à la migration 20261125b, toute session pouvait en insérer
+ * sous son propre uid, et un salarié se donnait ainsi FULL).
  */
 async function lireDerogations(
   userId: string,
   societeId: string,
   admin: SupabaseClient,
-): Promise<{ module_id: string; access_level: AccessLevel }[]> {
+): Promise<{ module_id: string; access_level: AccessLevel }[] | null> {
   try {
     const { data: membre, error: erreurMembre } = await admin
       .from('pro_team_members').select('id').eq('user_id', userId).eq('company_id', societeId).eq('is_active', true)
       .maybeSingle()
     if (erreurMembre) throw new Error(erreurMembre.message)
     const membreId = (membre as { id?: string } | null)?.id
-    if (!membreId) return []
+    if (!membreId) return null
 
     const { data, error } = await admin
       .from('pro_role_permissions').select('module_id, access_level').eq('member_id', membreId).eq('company_id', societeId)

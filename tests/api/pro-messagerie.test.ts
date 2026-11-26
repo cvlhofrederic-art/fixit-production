@@ -39,7 +39,7 @@ const h = vi.hoisted(() => {
     b.select = (cols?: string) => { if (appel.op === 'select') appel.colonnes = cols; return b }
     b.insert = (p: Record<string, unknown>) => { appel.op = 'insert'; appel.payload = p; return b }
     b.update = (p: Record<string, unknown>) => { appel.op = 'update'; appel.payload = p; return b }
-    for (const m of ['eq', 'neq', 'in']) b[m] = (col: string, val: unknown) => { appel.filtres.push([m, col, val]); return b }
+    for (const m of ['eq', 'neq', 'in', 'or']) b[m] = (col: string, val: unknown) => { appel.filtres.push([m, col, val]); return b }
     b.order = (col: string, opts?: { ascending?: boolean }) => { appel.tri = [col, opts?.ascending !== false]; return b }
     b.limit = (n: number) => { appel.limite = n; return b }
     b.single = () => Promise.resolve(etat.repondre(appel))
@@ -312,6 +312,15 @@ describe('PATCH /api/pro/messagerie — ordre de mission', () => {
     expect(h.appels.filter(a => a.op !== 'select')).toHaveLength(0)
   })
 
+  // Relecture du 26/11/2026 : `societe` vaut null pour un artisan, et null === null laissait passer une conversation
+  // sans prestataire (compte supprimé) : le refus d'un ordre de mission y annulait la mission du syndic.
+  it('IDOR : conversation sans prestataire (artisan_id vide) → 404, rien n’est modifié', async () => {
+    h.etat.repondre = repondeur(ordre('en_attente', null as unknown as string))
+    const res = await PATCH(requete('PATCH', { message_id: MSG, action: 'refuse' }))
+    expect(res.status).toBe(404)
+    expect(h.appels.filter(a => a.op !== 'select')).toHaveLength(0)
+  })
+
   it('artisan_user_id du corps différent du compte connecté → 403', async () => {
     const res = await PATCH(requete('PATCH', { message_id: MSG, action: 'accepte', artisan_user_id: AUTRE_ARTISAN }))
     expect(res.status).toBe(403)
@@ -553,28 +562,47 @@ describe('Messagerie d’un compte invité dans une société BTP', () => {
 
   // Le fil de la société mêle les messages de plusieurs comptes (gérant, co-gérant, secrétaire) : seuls ceux du contact
   // passent « lus » à l'ouverture, sinon le contact verrait ✓✓ sur un message qu'il n'a pas lu.
+  // Une seule écriture, filtrée en base : les messages du côté prestataire ne passent jamais « lus », et les relire
+  // tous à chaque ouverture du fil (toutes les 5 s) ramenait l'historique entier de la société.
+  const MARQUAGE_DU_CONTACT = ['or', 'metadata->>cote.is.null,metadata->>cote.neq.artisan', undefined]
+  const ouvrirLeFil = (artisanUserId: string) =>
+    GET(requete('GET', undefined, `https://vitfix.io/api/pro/messagerie?artisan_user_id=${artisanUserId}&conversation_id=${CONV}`))
+  const filExistant = (a: Appel): Reponse | undefined =>
+    a.table === 'conversations' && a.op === 'select' ? { data: { id: CONV }, error: null } : undefined
+
   it('ouvrir un fil ne marque « lus » que les messages du contact, pas ceux d’un collègue', async () => {
-    const id = invite('SECRETAIRE', (a) => {
-      if (a.table === 'conversations' && a.op === 'select') return { data: { id: CONV }, error: null }
-      if (a.table === 'conversation_messages' && a.op === 'select') {
-        return {
-          data: [
-            { id: 'du-contact', sender_id: MOI, metadata: { cote: 'donneur_ordre' } },
-            { id: 'du-contact-sans-cote', sender_id: MOI, metadata: null },
-            { id: 'd-un-collegue', sender_id: '00000000-0000-4000-9400-0000000000ff', metadata: { cote: 'artisan' } },
-            { id: 'de-la-societe', sender_id: SOCIETE, metadata: null },
-          ],
-          error: null,
-        }
-      }
-      return undefined
-    })
-    const res = await GET(requete('GET', undefined, `https://vitfix.io/api/pro/messagerie?artisan_user_id=${SOCIETE}&conversation_id=${CONV}`))
+    const id = invite('SECRETAIRE', filExistant)
+    const res = await ouvrirLeFil(SOCIETE)
     expect(res.status).toBe(200)
     const lus = appelsSur('conversation_messages', 'update')
     expect(lus).toHaveLength(1)
-    expect(lus[0].filtres).toEqual([['in', 'id', ['du-contact', 'du-contact-sans-cote']]])
-    expect(id).toBeTruthy()
+    expect(lus[0].payload).toEqual({ read: true })
+    expect(lus[0].filtres).toEqual([
+      ['eq', 'conversation_id', CONV], ['eq', 'read', false],
+      ['neq', 'sender_id', SOCIETE], ['neq', 'sender_id', id], MARQUAGE_DU_CONTACT,
+    ])
+    // Aucune lecture des messages non lus pour les marquer : seule la lecture du fil (200 derniers) reste.
+    expect(appelsSur('conversation_messages', 'select')).toHaveLength(1)
+    expect(appelsSur('conversations', 'update')[0].payload).toEqual({ unread_count: 0 })
+  })
+
+  it('gérant titulaire : la même écriture filtrée, sans écarter un second compte', async () => {
+    impersonne('pro_societe')
+    h.etat.repondre = (a) => filExistant(a) ?? { data: null, error: null }
+    expect((await ouvrirLeFil(MOI)).status).toBe(200)
+    const [lus] = appelsSur('conversation_messages', 'update')
+    expect(lus.filtres).toEqual([['eq', 'conversation_id', CONV], ['eq', 'read', false], ['neq', 'sender_id', MOI], MARQUAGE_DU_CONTACT])
+  })
+
+  // Relecture du 26/11/2026 : en lecture seule, ouvrir le fil écrivait (messages lus, compteur remis à 0) et retirait
+  // la pastille au gérant et à la secrétaire, qui seuls peuvent répondre.
+  it('messagerie en lecture seule (READ) : ouvrir un fil ne marque rien « lu » et garde le compteur', async () => {
+    invite('OUVRIER', filExistant, [{ module_id: 'messages', access_level: 'READ' }])
+    const res = await ouvrirLeFil(SOCIETE)
+    expect(res.status).toBe(200)
+    expect(appelsSur('conversation_messages', 'select')).toHaveLength(1)
+    expect(appelsSur('conversation_messages', 'update')).toHaveLength(0)
+    expect(appelsSur('conversations', 'update')).toHaveLength(0)
   })
 
   it('artisan : le marquage « lu » garde la requête d’origine', async () => {

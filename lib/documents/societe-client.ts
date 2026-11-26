@@ -10,6 +10,7 @@
 
 import { supabase } from '@/lib/supabase'
 import { fetchDocumentsFromSupabase } from '@/lib/document-sync'
+import { messageRefusFr } from '@/lib/documents/messages-refus'
 
 export interface TitulaireSociete {
   /** Compte sous lequel les documents de la société sont rangés (celui du gérant). */
@@ -27,17 +28,30 @@ export type ResultatLecture<T> =
   | { ok: true; valeur: T }
   | { ok: false; message: string; code?: string }
 
-const ECHEC_RESEAU = 'Connexion au serveur impossible. Vérifiez votre réseau et réessayez.'
-const SESSION_EXPIREE = 'Session expirée. Reconnectez-vous.'
+type Echec = { ok: false; message: string; code?: string }
+
+/**
+ * Échecs vus du navigateur, avec leur code : l'écran les affiche dans sa langue (messageRefusDocuments), comme les
+ * refus du serveur. Sans code, le texte français s'affichait tel quel sur un écran portugais.
+ */
+const echecReseau = (): Echec => ({ ok: false, message: messageRefusFr('reseau_indisponible'), code: 'reseau_indisponible' })
+const sessionExpiree = (): Echec => ({ ok: false, message: messageRefusFr('session_expiree'), code: 'session_expiree' })
+
+/** Code d'un refus que la route a rendu sans code : session expirée (401), réponse illisible (aucun texte d'erreur). */
+function codeDuRefus(statut: number, corps: Record<string, unknown>): string | undefined {
+  if (typeof corps.code === 'string') return corps.code
+  if (statut === 401) return 'session_expiree'
+  return typeof corps.error === 'string' ? undefined : 'reseau_indisponible'
+}
 
 /** Jeton de la session courante, ou l'échec à rendre tel quel. */
 async function jetonDeSession(): Promise<ResultatLecture<string>> {
   try {
     const { data } = await supabase.auth.getSession()
     const jeton = data.session?.access_token
-    return jeton ? { ok: true, valeur: jeton } : { ok: false, message: SESSION_EXPIREE }
+    return jeton ? { ok: true, valeur: jeton } : sessionExpiree()
   } catch {
-    return { ok: false, message: ECHEC_RESEAU }
+    return echecReseau()
   }
 }
 
@@ -61,13 +75,13 @@ async function appeler(
     if (!reponse.ok) {
       return {
         ok: false,
-        message: typeof corps.error === 'string' ? corps.error : ECHEC_RESEAU,
-        code: typeof corps.code === 'string' ? corps.code : undefined,
+        message: typeof corps.error === 'string' ? corps.error : messageRefusFr('reseau_indisponible'),
+        code: codeDuRefus(reponse.status, corps),
       }
     }
     return { ok: true, valeur: corps }
   } catch {
-    return { ok: false, message: ECHEC_RESEAU }
+    return echecReseau()
   }
 }
 

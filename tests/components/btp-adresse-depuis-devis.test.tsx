@@ -480,6 +480,35 @@ describe('« Lier un devis » à un chantier', () => {
     expect(toast.error).toHaveBeenCalledWith("Votre rôle dans l'entreprise ne permet pas de lier un devis à un chantier.")
     expect(toast.success).not.toHaveBeenCalledWith('Devis lié au chantier')
   })
+
+  // Relecture du 26/11/2026 : la lecture du montage servait à chaque ouverture de « Nouveau chantier », échec compris,
+  // et un devis créé entre-temps par le gérant n'était pas proposé.
+  it('compte invité : chaque ouverture de « Nouveau chantier » relit les devis de la société', async () => {
+    render(<ChantiersBTPV2 artisan={INVITE} orgRole="pro_societe" />)
+    await waitFor(() => expect(etat.lireDocumentsDesChantiers).toHaveBeenCalledTimes(1))
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Nouveau chantier/ })) })
+    await waitFor(() => expect(etat.lireDocumentsDesChantiers).toHaveBeenCalledTimes(2))
+  })
+
+  it('compte invité : une lecture en échec se dit, et l’ouverture suivante réessaie', async () => {
+    etat.lireDocumentsDesChantiers.mockResolvedValueOnce({ ok: false, code: 'lecture_impossible', message: 'illisible' })
+    render(<ChantiersBTPV2 artisan={INVITE} orgRole="pro_societe" />)
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(
+      'Les documents de la société sont momentanément illisibles. Réessayez dans un instant.',
+      { id: 'chantiers-documents-societe' },
+    ))
+    etat.lireDocumentsDesChantiers.mockResolvedValue({ ok: true, valeur: { devis: [DEVIS_LILAS], factures: [] } })
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Nouveau chantier/ })) })
+    expect(await screen.findByRole('option', { name: /DEV-2026-001/ })).toBeTruthy()
+  })
+
+  it('salarié sans droit sur les devis : son écran s’ouvre sans message d’échec', async () => {
+    etat.lireDocumentsDesChantiers.mockResolvedValue({ ok: false, code: 'aucun_droit', message: 'refus' })
+    render(<ChantiersBTPV2 artisan={INVITE} orgRole="pro_societe" lectureSeule />)
+    await waitFor(() => expect(etat.lireDocumentsDesChantiers).toHaveBeenCalled())
+    await act(async () => { await Promise.resolve() })
+    expect(toast.error).not.toHaveBeenCalled()
+  })
 })
 
 // ═══ Salarié de terrain : consultation seulement (25/11/2026) ═══

@@ -17,6 +17,8 @@ export type CodeRefusDocuments =
   | 'aucun_droit_paiement'
   | 'formulaire_perime'
   | 'lecture_impossible'
+  | 'reseau_indisponible'
+  | 'session_expiree'
 
 export const MESSAGES_REFUS_DOCUMENTS: Record<CodeRefusDocuments, { fr: string; pt: string }> = {
   societe_non_resolue: {
@@ -64,6 +66,15 @@ export const MESSAGES_REFUS_DOCUMENTS: Record<CodeRefusDocuments, { fr: string; 
   lecture_impossible: {
     fr: 'Les documents de la société sont momentanément illisibles. Réessayez dans un instant.',
     pt: 'Os documentos da empresa estão momentaneamente indisponíveis. Tente novamente dentro de instantes.',
+  },
+  // Échecs vus du navigateur (lib/documents/societe-client.ts) : aucune réponse lisible du serveur, session expirée.
+  reseau_indisponible: {
+    fr: 'Connexion au serveur impossible. Vérifiez votre réseau et réessayez.',
+    pt: 'Não foi possível ligar ao servidor. Verifique a sua ligação à rede e tente novamente.',
+  },
+  session_expiree: {
+    fr: 'Session expirée. Reconnectez-vous.',
+    pt: 'A sessão expirou. Inicie sessão novamente.',
   },
 }
 

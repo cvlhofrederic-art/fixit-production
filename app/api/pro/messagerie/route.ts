@@ -16,16 +16,22 @@ const PRO_ROLES = ['artisan', 'pro_societe', 'pro_conciergerie', 'pro_gestionnai
  * Compte invité dans une société BTP (co-gérant, secrétaire…) : la messagerie de SA société, dont les conversations
  * sont rangées sous l'identifiant du compte titulaire (`conversations.artisan_id`). L'écran l'envoie déjà
  * (MessagerieArtisan : `artisan.user_id`), mais la route exigeait le compte connecté : 403 partout, liste vide sans
- * message. Rendue seulement si le module messages le permet (lecture : READ ou FULL ; envoi et ordres de mission :
- * FULL). null pour tout autre compte — artisan, gérant titulaire —, qui garde le contrôle d'origine.
+ * message. Rendue seulement si le module messages le permet (lecture : READ ou FULL ; envoi, ordres de mission et
+ * marquage « lu » à l'ouverture d'un fil : FULL, `ecriture`). null pour tout autre compte — artisan, gérant
+ * titulaire —, qui garde le contrôle d'origine.
  * Les messages qu'il envoie portent SON identifiant (`sender_id`) et le côté du prestataire (`metadata.cote`).
  */
-async function societeDeLaMessagerie(user: User, ecriture: boolean): Promise<string | null> {
+async function accesMessagerieSociete(user: User): Promise<{ societeId: string; ecriture: boolean } | null> {
   if (getUserRole(user) !== 'pro_societe') return null
   const perimetre = await lirePerimetreBtp(user, supabaseAdmin)
   if (perimetre.titulaire || societeNonResolue(user, perimetre)) return null
   const niveau = niveauSur(perimetre, 'messages')
-  return (ecriture ? niveau === 'FULL' : niveau !== 'NONE') ? perimetre.societeId : null
+  return niveau === 'NONE' ? null : { societeId: perimetre.societeId, ecriture: niveau === 'FULL' }
+}
+
+async function societeDeLaMessagerie(user: User, ecriture: boolean): Promise<string | null> {
+  const acces = await accesMessagerieSociete(user)
+  return acces && (acces.ecriture || !ecriture) ? acces.societeId : null
 }
 
 /** Messages renvoyés pour une conversation (les plus récents). */
@@ -108,8 +114,10 @@ async function referencesVerifiees(
  *
  * Société BTP : ses messages partent de plusieurs comptes (gérant, co-gérant, secrétaire) ; écarter le seul compte de
  * la société marquait « lus » ceux d'un collègue, que le contact n'avait pas lus (✓✓ à tort). Les messages du côté
- * prestataire portent `metadata.cote = 'artisan'` (POST) : ils sont écartés, quel que soit leur expéditeur. Les autres
- * comptes gardent la requête d'origine.
+ * prestataire portent `metadata.cote = 'artisan'` (POST) : ils sont écartés, quel que soit leur expéditeur. Une seule
+ * écriture, filtrée en base : ces messages-là ne passent jamais « lus », et les relire tous à chaque ouverture du fil
+ * (toutes les 5 s) ramenait l'historique entier de la société, coupé à 1000 lignes sans tri. Les autres comptes gardent
+ * la requête d'origine.
  */
 async function marquerLusLesMessagesDuContact(user: User, conversationId: string, artisanUserId: string): Promise<void> {
   if (getUserRole(user) !== 'pro_societe') {
@@ -121,21 +129,16 @@ async function marquerLusLesMessagesDuContact(user: User, conversationId: string
       .eq('read', false)
     return
   }
-  const { data, error } = await supabaseAdmin
+  let requete = supabaseAdmin
     .from('conversation_messages')
-    .select('id, sender_id, metadata')
+    .update({ read: true })
     .eq('conversation_id', conversationId)
     .eq('read', false)
-  if (error) {
-    logger.warn('[messagerie] messages non lus illisibles, rien n’est marqué', { code: error.code })
-    return
-  }
-  const duContact = ((data ?? []) as Array<{ id: string; sender_id?: string | null; metadata?: { cote?: unknown } | null }>)
-    .filter((m) => m.sender_id !== artisanUserId && m.sender_id !== user.id && m.metadata?.cote !== 'artisan')
-    .map((m) => m.id)
-  if (duContact.length > 0) {
-    await supabaseAdmin.from('conversation_messages').update({ read: true }).in('id', duContact)
-  }
+    .neq('sender_id', artisanUserId)
+  if (user.id !== artisanUserId) requete = requete.neq('sender_id', user.id)
+  // Un message du contact peut n'avoir aucun côté : `is.null` le garde (une simple négation l'écarterait).
+  const { error } = await requete.or('metadata->>cote.is.null,metadata->>cote.neq.artisan')
+  if (error) logger.warn('[messagerie] messages du contact non marqués lus', { code: error.code })
 }
 
 // ═══ GET — Liste des conversations ou messages d'une conversation ═══
@@ -163,7 +166,8 @@ export async function GET(req: NextRequest) {
     }
 
     // ── IDOR check : l'utilisateur ne peut accéder qu'à ses propres conversations (ou à celles de SA société) ──
-    if (artisanUserId !== user.id && artisanUserId !== await societeDeLaMessagerie(user, false)) {
+    const accesSociete = artisanUserId === user.id ? null : await accesMessagerieSociete(user)
+    if (artisanUserId !== user.id && artisanUserId !== accesSociete?.societeId) {
       return NextResponse.json({ error: 'Accès non autorisé' }, { status: 403 })
     }
 
@@ -268,15 +272,20 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
     }
 
-    // Marquer les messages non lus comme lus (ceux envoyés par le contact)
-    await marquerLusLesMessagesDuContact(user, conversationId, artisanUserId)
+    // Ouvrir le fil ne vaut lecture pour la société que chez qui peut y répondre. Un compte en lecture seule (messages
+    // READ) consulte sans rien écrire : marquer lus les messages du contact retirait la pastille au gérant et à la
+    // secrétaire, seuls à pouvoir lui répondre, et le contact voyait ✓✓ sans que personne ne lui ait répondu.
+    if (artisanUserId === user.id || accesSociete?.ecriture === true) {
+      // Marquer les messages non lus comme lus (ceux envoyés par le contact)
+      await marquerLusLesMessagesDuContact(user, conversationId, artisanUserId)
 
-    // Remettre le compteur unread à 0
-    await supabaseAdmin
-      .from('conversations')
-      .update({ unread_count: 0 })
-      .eq('id', conversationId)
-      .eq('artisan_id', artisanUserId)
+      // Remettre le compteur unread à 0
+      await supabaseAdmin
+        .from('conversations')
+        .update({ unread_count: 0 })
+        .eq('id', conversationId)
+        .eq('artisan_id', artisanUserId)
+    }
 
     const messages = [...(recents || [])].reverse()
     return NextResponse.json({ messages })
@@ -452,7 +461,9 @@ export async function PATCH(req: NextRequest) {
     // autre artisan en connaissant l'id du message). Même réponse que « introuvable ».
     const convRel = msg.conversations as { artisan_id?: string; contact_id?: string } | Array<{ artisan_id?: string; contact_id?: string }> | null
     const conversation = Array.isArray(convRel) ? convRel[0] : convRel
-    if (!conversation || (conversation.artisan_id !== user.id && conversation.artisan_id !== societe)) {
+    // Une conversation sans prestataire (artisan_id vide) n'appartient à personne : `societe` vaut null pour tout compte
+    // qui n'est pas un sous-compte, et null === null l'aurait laissée passer.
+    if (!conversation?.artisan_id || (conversation.artisan_id !== user.id && conversation.artisan_id !== societe)) {
       return NextResponse.json({ error: 'Message ordre de mission introuvable' }, { status: 404 })
     }
 

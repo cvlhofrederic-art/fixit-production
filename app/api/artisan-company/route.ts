@@ -73,7 +73,8 @@ export async function GET(request: NextRequest) {
 
   // SÉCURITÉ : vérifier que l'utilisateur connecté est le propriétaire du profil artisan. Compte invité dans une
   // société BTP (sans fiche à lui) : la fiche de SA société, s'il imprime un document qui porte son identité — un
-  // rapport de chantier (module rapports, ouvert aux salariés de terrain le 26/11/2026), un devis ou une facture.
+  // rapport de chantier (module rapports, que le gérant accorde employé par employé depuis le 26/11/2026), un devis
+  // ou une facture.
   // Il ne fait que la lire : la mise à jour de la fiche plus bas est réservée au propriétaire.
   const lecteurDeLaSociete = artisan.user_id !== user.id && getUserRole(user) === 'pro_societe'
     && await ficheSocieteDuSousCompte(user, supabaseAdmin, (perimetre) =>

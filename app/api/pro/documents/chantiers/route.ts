@@ -49,14 +49,19 @@ async function lireDevis(societeId: string): Promise<Record<string, unknown>[] |
   return (resultat.data ?? []) as unknown as Record<string, unknown>[]
 }
 
+/**
+ * Factures de la société rattachées à un chantier, filtrées en base comme l'écran du titulaire : lire toute la
+ * facturation pour la filtrer ici la retéléchargeait à chaque ouverture, et la coupe à 1000 lignes (sans tri) pouvait
+ * écarter des factures rattachées, sans message.
+ */
 async function lireFacturesRattachees(societeId: string): Promise<Record<string, unknown>[] | null> {
   const { data, error } = await supabaseAdmin.from('factures').select(COLONNES_FACTURES)
-    .eq('artisan_user_id', societeId).is('deleted_at', null)
+    .eq('artisan_user_id', societeId).not('chantier_id', 'is', null).is('deleted_at', null)
   if (error) {
     logger.error('[pro/documents/chantiers] factures illisibles', { error: error.message })
     return null
   }
-  return ((data ?? []) as unknown as Record<string, unknown>[]).filter(ligne => ligne.chantier_id)
+  return (data ?? []) as unknown as Record<string, unknown>[]
 }
 
 export async function GET(request: NextRequest) {

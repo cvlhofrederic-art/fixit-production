@@ -70,8 +70,18 @@ async function adressePubliqueLibre(nom: string, ville: string, idFiche: string)
   return undefined
 }
 
-/** Marqueur des services par jour, rangé à la fin de la bio (app/api/availability-services/route.ts l'écrit). */
-const MARQUEUR_SERVICES = /<!--DS:[\s\S]*?-->/
+/** Début et fin du marqueur des services par jour, rangé à la fin de la bio (app/api/availability-services l'écrit). */
+const DEBUT_MARQUEUR = '<!--DS:'
+const FIN_MARQUEUR = '-->'
+
+/** Le marqueur de la bio en base, lu sans expression régulière (temps linéaire) ; undefined s'il n'y en a pas. */
+function marqueurDesServices(bioEnBase: unknown): string | undefined {
+  if (typeof bioEnBase !== 'string') return undefined
+  const debut = bioEnBase.indexOf(DEBUT_MARQUEUR)
+  if (debut < 0) return undefined
+  const fin = bioEnBase.indexOf(FIN_MARQUEUR, debut + DEBUT_MARQUEUR.length)
+  return fin < 0 ? undefined : bioEnBase.slice(debut, fin + FIN_MARQUEUR.length)
+}
 
 /**
  * Compte invité : la bio reçue n'a jamais le marqueur des services par jour (le formulaire le retire de l'écran, et le
@@ -79,19 +89,49 @@ const MARQUEUR_SERVICES = /<!--DS:[\s\S]*?-->/
  * de la fiche : sinon le réglage de la société disparaîtrait à la première bio modifiée.
  */
 function bioAvecMarqueur(bio: string | undefined, bioEnBase: unknown): string | undefined {
-  if (typeof bio !== 'string' || bio.includes('<!--DS:')) return bio
-  const marqueur = typeof bioEnBase === 'string' ? bioEnBase.match(MARQUEUR_SERVICES)?.[0] : undefined
+  if (typeof bio !== 'string' || bio.includes(DEBUT_MARQUEUR)) return bio
+  const marqueur = marqueurDesServices(bioEnBase)
   return marqueur ? `${bio.trim()} ${marqueur}`.trim() : bio
 }
 
+/** Les 18 champs du formulaire « Mon profil » (SettingsForm, hooks/dashboard/useSettings.ts). */
+const CHAMPS_DU_FORMULAIRE = [
+  'company_name', 'bio', 'phone', 'email', 'auto_reply_message', 'auto_block_duration_minutes', 'zone_radius_km',
+  'rcs_number', 'ape_code', 'share_capital', 'tva_intra',
+  'insurance_name', 'insurance_number', 'insurance_coverage', 'insurance_type', 'insurance_expiry',
+  'mediator_name', 'mediator_url',
+] as const
+
 /**
- * Compte invité : un formulaire jamais chargé depuis la fiche (onglet ouvert avant cette correction) envoie ses champs
- * vides. Vider d'un coup plusieurs champs remplis de la fiche de la société n'est pas une saisie : refus, rien n'est
- * écrit. Vider un seul champ reste possible (retirer un médiateur, une date d'assurance).
+ * Compte invité : un onglet ouvert avant cette correction n'a jamais chargé le formulaire depuis la fiche, et il envoie
+ * ses 18 champs d'un coup, vides. Le formulaire corrigé n'envoie que les champs changés. Seul est refusé le corps
+ * complet qui viderait un champ rempli de la fiche de la société. Retirer un médiateur (nom et site) ou toute une
+ * assurance reste possible : la règle d'avant, « au plus un champ vidé », le refusait, et recharger n'y changeait rien.
  */
-function videLaFiche(aEcrire: Record<string, unknown>, fiche: Record<string, unknown>): boolean {
+function formulaireJamaisCharge(
+  corps: Record<string, unknown>,
+  aEcrire: Record<string, unknown>,
+  fiche: Record<string, unknown>,
+): boolean {
+  if (!CHAMPS_DU_FORMULAIRE.every((cle) => cle in corps)) return false
   const remplie = (valeur: unknown) => valeur !== null && valeur !== undefined && valeur !== ''
-  return Object.entries(aEcrire).filter(([cle, valeur]) => valeur === null && remplie(fiche[cle])).length >= 2
+  return Object.entries(aEcrire).some(([cle, valeur]) => valeur === null && remplie(fiche[cle]))
+}
+
+/**
+ * Compte invité, juste avant l'écriture sur la fiche de la société. L'interrupteur « Validation automatique » de Mon
+ * profil y passe : la fiche de la société ne s'écrit pas depuis le navigateur (la RLS filtrait sans erreur,
+ * l'interrupteur basculait quand même). Rend le refus d'un formulaire jamais chargé, ou null.
+ */
+function refusOuValidationAutomatique(
+  corps: Record<string, unknown>,
+  aEcrire: Record<string, unknown>,
+  fiche: Record<string, unknown>,
+): NextResponse | null {
+  if (typeof corps.auto_accept === 'boolean') aEcrire.auto_accept = corps.auto_accept
+  if (!formulaireJamaisCharge(corps, aEcrire, fiche)) return null
+  logger.warn('[artisan-settings] formulaire vide refusé sur la fiche d’une société', { ficheId: fiche.id })
+  return NextResponse.json({ error: messageRefusFr('formulaire_perime'), code: 'formulaire_perime' }, { status: 409 })
 }
 
 export async function POST(request: NextRequest) {
@@ -184,15 +224,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (ficheSociete) {
-      // Interrupteur « Validation automatique » de Mon profil : pour un compte invité, la fiche de la société ne
-      // s'écrit pas depuis le navigateur (la RLS filtrait sans erreur, l'interrupteur basculait quand même).
-      if (typeof body.auto_accept === 'boolean') updatePayload.auto_accept = body.auto_accept
-      if (videLaFiche(updatePayload, ficheSociete.fiche)) {
-        logger.warn('[artisan-settings] formulaire vide refusé sur la fiche d’une société', { ficheId: artisan.id })
-        return NextResponse.json({ error: messageRefusFr('formulaire_perime'), code: 'formulaire_perime' }, { status: 409 })
-      }
-    }
+    const refusInvite = ficheSociete ? refusOuValidationAutomatique(body, updatePayload, ficheSociete.fiche) : null
+    if (refusInvite) return refusInvite
 
     if (Object.keys(updatePayload).length === 0) {
       if (skippedFields.length > 0) {

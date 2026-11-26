@@ -127,6 +127,31 @@ describe('Photos chantier du BTP pro — liaison d’une photo à un rapport', (
   })
 })
 
+// Relecture du 26/11/2026 : un refus du serveur passait pour une réussite (la liste était relue, rien ne changeait).
+describe('Photos chantier — refus du serveur', () => {
+  it('suppression refusée (compte en lecture seule) : un message le dit', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const fetchDeBase = vi.mocked(globalThis.fetch).getMockImplementation()
+    vi.mocked(globalThis.fetch).mockImplementation(async (url, init) => (
+      init?.method === 'DELETE' ? json({ error: 'Accès refusé' }, 403) : (fetchDeBase as typeof fetch)(url, init)
+    ))
+    render(<PhotosChantierSection artisan={artisan} bookings={[]} orgRole="pro_societe" />)
+    fireEvent.click(await screen.findByRole('button', { name: /proDash\.photos\.supprimerLaPhoto/ }))
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('proDash.photos.erreurSuppression'))
+  })
+
+  it('lecture refusée : un message le dit, au lieu de « aucune photo » seul', async () => {
+    const fetchDeBase = vi.mocked(globalThis.fetch).getMockImplementation()
+    vi.mocked(globalThis.fetch).mockImplementation(async (url, init) => (
+      String(url).startsWith('/api/artisan-photos') ? json({ error: 'Accès refusé' }, 403) : (fetchDeBase as typeof fetch)(url, init)
+    ))
+    render(<PhotosChantierSection artisan={artisan} bookings={[]} orgRole="pro_societe" />)
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('proDash.photos.erreurChargementPhotos'))
+  })
+})
+
 describe('Photos chantier de l’artisan — comportement d’avant (témoin)', () => {
   it('seul le rapport choisi est écrit, directement dans la base, sans passer par /api/btp', async () => {
     await lierLaPhotoAuRapport('artisan', UUID_B)
