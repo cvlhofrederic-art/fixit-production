@@ -5,7 +5,8 @@
 // précise seulement sur le numéro et la voie saisis), puis OpenStreetMap (Nominatim) si elle ne trouve toujours rien de précis. Portugal : Nominatim limité au Portugal — la BAN ne
 // connaît que la France et rendait, pour une adresse portugaise, le résultat français le plus ressemblant.
 // `precise` : le résultat est le numéro ou la rue saisis, dans la commune saisie. Il faut donc une rue dans l'adresse,
-// un code postal ou une ville pour vérifier la commune du résultat, et une BAN sûre d'elle (score). Sinon c'est le
+// un code postal ou une ville pour vérifier la commune du résultat, une BAN sûre d'elle (score) et, quand la saisie a un
+// numéro de rue, la voie saisie dans la réponse de la BAN ou d'OSM (concordeAvecLaSaisie). Sinon c'est le
 // centre d'une commune, une rue homonyme dans une autre commune ou une rue voisine au nom ressemblant : assez bon pour
 // la météo, pas pour déclencher un pointage dans un rayon de 100 m — on ne l'enregistre pas dans la fiche.
 // Les deux services sont autorisés par la CSP (lib/securite/csp.ts, connect-src). Nominatim demande au plus une
@@ -80,17 +81,107 @@ export function decomposerAdresse(entree: AdresseChantier, pays: Pays): AdresseD
 const NUMERO_PUIS_NOM = /^(\d{1,4}(?: ?(?:bis|ter|quater|[a-d]))?) (\p{L}.*)$/iu
 /** Premier mot d'un complément qui suit parfois un numéro (« 2 étage », « 3 bât. B ») : ce numéro n'est pas celui de la rue. */
 const MOTS_COMPLEMENT = new Set(['etage', 'apt', 'app', 'appt', 'appartement', 'porte', 'bat', 'batiment', 'escalier', 'esc', 'bloc', 'lot', 'niveau', 'villa', 'case', 'bp', 'cs', 'n', 'bis', 'ter', 'quater'])
-/** Abréviations courantes des types de voie, pour comparer la voie saisie à celle de la BAN. */
+/** Abréviations courantes des types de voie et des titres, pour comparer la voie saisie à celle de la BAN ou d'OSM. */
 const ABREVIATIONS_VOIE: Record<string, string> = {
   r: 'rue', av: 'avenue', ave: 'avenue', bd: 'boulevard', bld: 'boulevard', bvd: 'boulevard', ch: 'chemin', chem: 'chemin',
   imp: 'impasse', pl: 'place', rte: 'route', all: 'allee', fg: 'faubourg', fbg: 'faubourg', sq: 'square', crs: 'cours',
-  pass: 'passage', prom: 'promenade', trav: 'traverse', mte: 'montee', esp: 'esplanade',
+  pass: 'passage', prom: 'promenade', trav: 'traverse', mte: 'montee', esp: 'esplanade', grande: 'grand', gde: 'grand',
+  // Titres abrégés dans les noms de voie (« av. du Gal Leclerc », « bd du Mal Juin »).
+  gal: 'general', gen: 'general', mal: 'marechal', pdt: 'president', dr: 'docteur', cdt: 'commandant', lt: 'lieutenant',
+  cne: 'capitaine', prof: 'professeur', mgr: 'monseigneur',
 }
 const ARTICLES = new Set(['de', 'du', 'des', 'la', 'le', 'les', 'l', 'd'])
+/**
+ * Premier mot d'un complément collé à la voie (« rue X Bât B », « … Résidence Le Parc », « … chez M. Martin ») : la voie
+ * s'arrête avant, si un mot le suit (« rue de la Vieille Porte », « rue du Lot » restent entières).
+ */
+const DEBUT_COMPLEMENT = new Set([
+  'bat', 'batiment', 'apt', 'appt', 'app', 'appartement', 'porte', 'esc', 'escalier', 'bloc', 'niveau', 'bp', 'cs',
+  'residence', 'res', 'immeuble', 'imm', 'lot', 'lotissement', 'villa', 'rez', 'chez', 'zac', 'zi', 'za', 'quartier', 'domaine',
+])
+/** Compléments qui se suffisent, même en dernier mot (« … 2e étage », « … Cedex », « … RDC »). */
+const COMPLEMENT_FINAL = new Set(['etage', 'cedex', 'rdc'])
+/**
+ * Qualificatifs qui distinguent deux voies (« rue du Pont » ≠ « rue du Petit Pont », deux voies du 08200 relevées le
+ * 25/11/2026) : un tel mot ne peut pas manquer d'un côté (voir memeVoie). « grande » est déjà ramené à « grand ».
+ */
+const QUALIFICATIFS = new Set([
+  'petit', 'petite', 'petits', 'petites', 'grand', 'grands', 'grandes', 'vieux', 'vieil', 'vieille', 'vieilles',
+  'haut', 'haute', 'hauts', 'hautes', 'bas', 'basse', 'basses', 'neuf', 'neuve', 'neuves', 'nouveau', 'nouvel', 'nouvelle',
+  'nouvelles', 'ancien', 'ancienne', 'anciens', 'anciennes', 'prolonge', 'prolongee', 'nord', 'sud', 'est', 'ouest',
+  'superieur', 'superieure', 'inferieur', 'inferieure',
+])
+/** Ordinal (« 2e », « 1er ») : retiré seulement devant un complément (« 2e étage ») ; « avenue du 1er Mai » garde le sien. */
+const ORDINAL = /^\d{1,3}(?:e|er|ere|eme|nd|nde)$/
+/** Désignations sans nom propre : la BAN écrit « Lieu-dit les Granges », « Hameau de Bénazeth ». */
+const DESIGNATIONS: ReadonlyArray<readonly string[]> = [['lieu', 'dit'], ['hameau']]
 
-/** Voie comparable : nom de lieu normalisé, abréviations en toutes lettres, sans articles (« Av. du Prado » = « Avenue du Prado »). */
-const cleVoie = (voie: string) =>
-  normaliserLieu(voie).split(' ').map(mot => ABREVIATIONS_VOIE[mot] ?? mot).filter(mot => !ARTICLES.has(mot)).join(' ')
+/** Mots comparables d'une voie : normalisés, abréviations en toutes lettres, sans articles ni parenthèse (« (Bât B) »). */
+function motsVoie(voie: string): string[] {
+  return normaliserLieu(voie.split('(')[0]).split(' ').filter(Boolean)
+    .map(mot => ABREVIATIONS_VOIE[mot] ?? mot).filter(mot => !ARTICLES.has(mot))
+}
+
+/**
+ * Sans « lieu-dit » ni « hameau » en tête, ni « route » devant « départementale » ou « nationale » ; et, si `voieGenerique`,
+ * sans le « Voie » que la BAN met devant une voie sans type (« Voie la canebiere »).
+ */
+function sansDesignation(mots: string[], voieGenerique: boolean): string[] {
+  const designation = DESIGNATIONS.find(d => mots.length > d.length && d.every((mot, i) => mots[i] === mot))
+  if (designation) return mots.slice(designation.length)
+  if (mots[0] === 'route' && (mots[1] === 'departementale' || mots[1] === 'nationale')) return mots.slice(1)
+  return voieGenerique && mots[0] === 'voie' && mots.length > 1 ? mots.slice(1) : mots
+}
+
+const finitPar = (mots: readonly string[], fin: readonly string[]) =>
+  mots.length > fin.length && fin.every((mot, i) => mots[mots.length - fin.length + i] === mot)
+
+/**
+ * Formes de la voie saisie : entière ; coupée avant un complément collé (« rue de la République Bât B ») ; sans le pays
+ * ni la ville recopiés à la fin (`villes` : celle saisie, celle de la réponse, qui couvre « Marseille 6e »). Les formes sont toutes essayées :
+ * « avenue de France » ou « route d'Aubagne » à Aubagne restent entières.
+ */
+function formesSaisie(voie: string, villes: readonly unknown[]): string[][] {
+  const mots = motsVoie(voie)
+  const formes = [mots]
+  const complement = mots.findIndex((mot, i) => COMPLEMENT_FINAL.has(mot) || (DEBUT_COMPLEMENT.has(mot) && i < mots.length - 1))
+  if (complement > 0) formes.push(mots.slice(0, complement > 1 && ORDINAL.test(mots[complement - 1]) ? complement - 1 : complement))
+  const finales = villes.filter((v): v is string => typeof v === 'string').map(motsVoie).filter(v => v.length > 0)
+  for (const forme of [...formes]) {
+    const sansPays = forme.at(-1) === 'france' ? forme.slice(0, -1) : forme
+    if (sansPays !== forme) formes.push(sansPays)
+    for (const ville of finales.filter(v => finitPar(sansPays, v))) formes.push(sansPays.slice(0, -ville.length))
+  }
+  return formes.map(forme => sansDesignation(forme, false)).filter(forme => forme.length > 0)
+}
+
+/**
+ * Mots de `long` en plus de `court` quand `court` s'y lit dans l'ordre (« avenue foch » dans « avenue marechal foch » :
+ * [marechal]) ; null sinon.
+ */
+function motsInseres(court: readonly string[], long: readonly string[]): string[] | null {
+  const inseres: string[] = []
+  let lus = 0
+  for (const mot of long) {
+    if (mot === court[lus]) lus += 1
+    else inseres.push(mot)
+  }
+  return lus === court.length ? inseres : null
+}
+
+/**
+ * Même voie : mêmes mots, ou bien la plus courte se lit dans l'autre, avec le même premier mot (le type de voie) et le
+ * même dernier, et sans qualificatif en plus (« avenue Foch » = « avenue du Maréchal Foch » ; « place de l'Église » ≠
+ * « place de l'Église de Cossé », « allée des Acacias » ≠ « allée des Buis », « Le Clos » ≠ « rue du Clos », « rue du
+ * Pont » ≠ « rue du Petit Pont »).
+ */
+function memeVoie(a: readonly string[], b: readonly string[]): boolean {
+  if (a.join(' ') === b.join(' ')) return true
+  const [court, long] = a.length <= b.length ? [a, b] : [b, a]
+  if (court[0] !== long[0] || court.at(-1) !== long.at(-1)) return false
+  const inseres = motsInseres(court, long)
+  return inseres !== null && !inseres.some(mot => QUALIFICATIFS.has(mot))
+}
 const cleNumero = (numero: string) => numero.toLowerCase().replaceAll(' ', '')
 
 /** Rue extraite d'une adresse à compléments : son numéro, sa voie, et le morceau tel qu'écrit (texte de la recherche). */
@@ -108,8 +199,25 @@ export interface RueSeule {
  * leur 3 ou leur 12 ne doit pas en devenir un. Null si l'adresse n'a qu'un morceau ou aucun morceau de ce genre.
  */
 export function rueSansComplements(rue: string): RueSeule | null {
-  const morceaux = rue.replaceAll(/\s+/g, ' ').split(/[,;]| - /).map(morceau => morceau.trim()).filter(Boolean)
-  if (morceaux.length < 2) return null
+  const morceaux = morceauxAdresse(rue)
+  return morceaux.length < 2 ? null : premierNumeroEtVoie(morceaux)
+}
+
+/**
+ * Numéro et voie saisis : la rue entière quand elle tient en un morceau « numéro + nom » (« 3 Allée des Acacias »), sinon
+ * le morceau qui commence par le numéro (rueSansComplements). Null sans numéro de rue reconnaissable (« rue des Lilas »,
+ * « Bât 3, avenue du Prado ») : la réponse de la BAN n'est alors pas comparée à la saisie.
+ */
+export function numeroEtVoieSaisis(rue: string): RueSeule | null {
+  return premierNumeroEtVoie(morceauxAdresse(rue))
+}
+
+/** Morceaux d'une adresse aux blancs réduits, séparés par une virgule, un point-virgule ou un tiret entre espaces. */
+const morceauxAdresse = (rue: string) =>
+  rue.replaceAll(/\s+/g, ' ').split(/[,;]| - /).map(morceau => morceau.trim()).filter(Boolean)
+
+/** Premier morceau qui commence par un numéro de rue suivi d'un nom, sauf un complément (« 2 étage », « 3 bât. B »). */
+function premierNumeroEtVoie(morceaux: readonly string[]): RueSeule | null {
   for (const morceau of morceaux) {
     const trouve = NUMERO_PUIS_NOM.exec(morceau)
     if (!trouve) continue
@@ -120,11 +228,28 @@ export function rueSansComplements(rue: string): RueSeule | null {
   return null
 }
 
-/** La BAN a-t-elle rendu exactement le numéro et la voie extraits (et pas un numéro voisin, une autre rue) ? */
-function memeNumeroEtVoie(attendu: RueSeule, type: unknown, numero: unknown, voie: unknown): boolean {
-  return type === 'housenumber'
-    && typeof numero === 'string' && cleNumero(numero) === cleNumero(attendu.numero)
-    && typeof voie === 'string' && cleVoie(voie) === cleVoie(attendu.voie)
+/** Ce que la BAN (ou OSM) dit de son résultat, comparé à la saisie. */
+interface ReponseComparee {
+  type?: unknown
+  housenumber?: unknown
+  street?: unknown
+}
+
+/**
+ * La réponse porte-t-elle la voie saisie et, pour un numéro, ce numéro ? Sinon c'est une autre voie au nom ressemblant
+ * (« 3 Allée des Acacias » → « 3 Allée des Buis », 0,64 ; « 4 Cours » → « 4 Cours Julien », relevés du 25/11/2026) ou un
+ * numéro voisin. `villes` : ville saisie et ville de la réponse, tolérées à la fin de la rue. Une rue entière (numéro
+ * absent de la BAN) n'est admise que si `rueEntiereAdmise`.
+ */
+function concordeAvecLaSaisie(saisie: RueSeule, villes: readonly unknown[], reponse: ReponseComparee, rueEntiereAdmise: boolean): boolean {
+  const { type, housenumber, street } = reponse
+  if (typeof street !== 'string') return false
+  const mots = motsVoie(street)
+  const rendues = [sansDesignation(mots, false), sansDesignation(mots, true)].filter(forme => forme.length > 0)
+  const formes = formesSaisie(saisie.voie, villes)
+  if (!formes.some(forme => rendues.some(rendue => memeVoie(forme, rendue)))) return false
+  if (type === 'housenumber') return typeof housenumber === 'string' && cleNumero(housenumber) === cleNumero(saisie.numero)
+  return rueEntiereAdmise
 }
 
 /** Adresse avec une vraie rue (au moins un mot de trois lettres) : seule une telle adresse peut donner une position précise. */
@@ -172,12 +297,18 @@ function scoreBanSuffisant(type: unknown, score: unknown): boolean {
   return type === 'street' && score >= SCORE_MIN_RUE
 }
 
+/** Numéro et voie à retrouver dans la réponse de la BAN ; rue entière admise ou non (voir concordeAvecLaSaisie). */
+interface ControleSaisie {
+  saisie: RueSeule
+  rueEntiereAdmise: boolean
+}
+
 /**
- * `rueSeule` : seconde recherche, avec la rue extraite d'une adresse à compléments. Elle n'est précise que si la BAN
- * rend ce numéro dans cette voie : pas une rue entière (son centre n'est pas le bâtiment ou le lot que le gérant a
- * saisi), ni un numéro voisin ou une autre voie au nom ressemblant.
+ * `controle` : numéro et voie saisis, à retrouver dans la réponse. Première recherche : la rue entière reste admise
+ * (comportement antérieur, quand le numéro manque à la BAN). Seconde recherche, avec la rue extraite d'une adresse à
+ * compléments : seulement ce numéro dans cette voie (le centre de la rue n'est pas le bâtiment ou le lot saisi).
  */
-async function parBaseAdresseNationale(adresse: AdresseDecomposee, rueSeule?: RueSeule): Promise<PositionAdresse | null> {
+async function parBaseAdresseNationale(adresse: AdresseDecomposee, controle?: ControleSaisie): Promise<PositionAdresse | null> {
   const recherche = texteRecherche(adresse)
   if (recherche.length < 3) return null
   const filtre = /^\d{5}$/.test(adresse.codePostal) ? `&postcode=${adresse.codePostal}` : ''
@@ -190,7 +321,7 @@ async function parBaseAdresseNationale(adresse: AdresseDecomposee, rueSeule?: Ru
   if (!coordonnees) return null
   const { type, score, postcode, city, housenumber, street } = premier.properties ?? {}
   const precise = aUneRue(adresse) && scoreBanSuffisant(type, score) && memeCommune(adresse, 'FR', postcode, [city])
-    && (!rueSeule || memeNumeroEtVoie(rueSeule, type, housenumber, street))
+    && (!controle || concordeAvecLaSaisie(controle.saisie, [adresse.ville, city], { type, housenumber, street }, controle.rueEntiereAdmise))
   return position(coordonnees[1], coordonnees[0], precise)
 }
 
@@ -201,7 +332,11 @@ interface ReponseNominatim {
   address?: Record<string, string | undefined>
 }
 
-async function parNominatim(adresse: AdresseDecomposee, pays: Pays): Promise<PositionAdresse | null> {
+/**
+ * `saisie` (France) : numéro et voie saisis, à retrouver dans la réponse comme pour la BAN (« 4 Cours » : OSM rendait le
+ * 4 Cours Gouffé, une autre voie, le 25/11/2026). Au Portugal, pas de comparaison (règles de voie non vérifiées).
+ */
+async function parNominatim(adresse: AdresseDecomposee, pays: Pays, saisie?: RueSeule | null): Promise<PositionAdresse | null> {
   const recherche = texteRecherche(adresse)
   if (!recherche) return null
   const code = pays === 'PT' ? 'pt' : 'fr'
@@ -217,6 +352,11 @@ async function parNominatim(adresse: AdresseDecomposee, pays: Pays): Promise<Pos
   const precise = aUneRue(adresse)
     && typeof premier.place_rank === 'number' && premier.place_rank >= RANG_MIN_NOMINATIM
     && memeCommune(adresse, pays, lieu.postcode, villes)
+    && (!saisie || concordeAvecLaSaisie(saisie, [adresse.ville, ...villes], {
+      type: lieu.house_number ? 'housenumber' : 'street',
+      housenumber: lieu.house_number,
+      street: lieu.road ?? lieu.pedestrian ?? lieu.square,
+    }, true))
   return position(premier.lat, premier.lon, precise)
 }
 
@@ -229,21 +369,23 @@ export async function geocoderAdresse(entree: AdresseChantier, pays: Pays): Prom
   if (!adresse.rue && !adresse.codePostal && !adresse.ville) return null
   try {
     if (pays === 'PT') return await parNominatim(adresse, 'PT')
-    const ban = await parBaseAdresseNationale(adresse)
+    // Numéro et voie saisis : la BAN doit les rendre, pas une voie voisine au nom ressemblant.
+    const saisie = numeroEtVoieSaisis(adresse.rue)
+    const ban = await parBaseAdresseNationale(adresse, saisie ? { saisie, rueEntiereAdmise: true } : undefined)
     if (ban?.precise) return ban
     // Résidence, bâtiment ou étage autour de la rue : la BAN est moins sûre d'elle ; on lui redemande la rue seule, jugée
     // sur les mêmes règles (seuil, même code postal et même ville) et sur le numéro et la voie extraits. Une panne de cette
     // seconde recherche ne perd ni la première réponse ni le secours Nominatim.
     const rueSeule = rueSansComplements(adresse.rue)
     const banRue = rueSeule
-      ? await parBaseAdresseNationale({ ...adresse, rue: rueSeule.texte }, rueSeule).catch((erreur: unknown) => {
+      ? await parBaseAdresseNationale({ ...adresse, rue: rueSeule.texte }, { saisie: rueSeule, rueEntiereAdmise: false }).catch((erreur: unknown) => {
         console.warn('[btp] seconde recherche de l’adresse impossible :', erreur instanceof Error ? erreur.message : erreur)
         return null
       })
       : null
     if (banRue?.precise) return banRue
     // BAN imprécise ou muette : Nominatim peut connaître l'adresse exacte ; sinon on garde la meilleure réponse.
-    const osm = await parNominatim(adresse, 'FR')
+    const osm = await parNominatim(adresse, 'FR', saisie)
     return osm?.precise ? osm : (ban ?? banRue ?? osm)
   } catch (erreur) {
     console.warn('[btp] géocodage de l’adresse impossible :', erreur instanceof Error ? erreur.message : erreur)
