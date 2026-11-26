@@ -444,20 +444,25 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
     return {}
   }
 
-  // Load available photos chantier for linking
-  const loadAvailablePhotos = async () => {
-    if (!artisan?.id) return
+  // Load available photos chantier for linking. Rend la liste lue : le PDF lancé juste après ne voit pas encore l'état.
+  const loadAvailablePhotos = async (): Promise<PhotoRecord[]> => {
+    if (!artisan?.id) return []
     setPhotosLoading(true)
+    let lues: PhotoRecord[] = []
     try {
       const headers = await getAuthHeaders()
       const res = await fetch(`/api/artisan-photos?artisan_id=${artisan.id}`, { headers })
       const json = await res.json()
-      if (json.data) setAvailablePhotos(json.data)
+      if (json.data) {
+        lues = json.data
+        setAvailablePhotos(json.data)
+      }
     } catch (e) {
       console.error('Error loading photos for rapport:', e)
     } finally {
       setPhotosLoading(false)
     }
+    return lues
   }
 
   // Fetch artisan company data once (with auth)
@@ -822,10 +827,10 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
   const handleGeneratePDF = async (r: RapportIntervention) => {
     setPdfLoading(r.id)
     try {
-      if (r.linkedPhotoIds?.length && availablePhotos.length === 0) {
-        await loadAvailablePhotos()
-      }
-      await generateRapportPDF(r, availablePhotos, dateFmtLocale, orgRole)
+      // Photos lues ici quand l'écran ne les a pas encore : l'état `availablePhotos` de ce rendu resterait vide, et le
+      // PDF sortait sans les photos liées.
+      const photos = r.linkedPhotoIds?.length && availablePhotos.length === 0 ? await loadAvailablePhotos() : availablePhotos
+      await generateRapportPDF(r, photos, dateFmtLocale, orgRole)
     } catch (e) {
       console.error('PDF error:', e)
     } finally {
