@@ -78,7 +78,13 @@
  * pour ne rien changer sur ordinateur (1025 px et plus) ; décision du 26/11/2026 : bornée à 1023 px, la correction
  * laissait l'ombre à 1024 px exactement.
  */
-/* Menu fermé hors de portée du clavier et des lecteurs d'écran (décision du 26/11/2026) : jusqu'à 1024 px il n'était que poussé hors de l'écran, ses liens restaient atteignables avec Tab. visibility:hidden, retardé de --dur-slow dans la même liste de transitions que l'ombre, pour que le glissement de fermeture reste visible ; à l'ouverture la transition de l'état ouvert (transform seul) s'applique, le menu est visible tout de suite. Mouvements réduits : délai 0 ci-dessous. */
+/*
+ * Menu fermé hors de portée du clavier et des lecteurs d'écran (décision du 26/11/2026) : jusqu'à 1024 px il n'était que
+ * poussé hors de l'écran, ses liens restaient atteignables avec Tab. visibility:hidden, retardé de --dur-slow dans la même
+ * liste de transitions que l'ombre, pour que le glissement de fermeture reste visible ; à l'ouverture la transition de
+ * l'état ouvert (transform seul) s'applique, le menu est visible tout de suite. Mouvements réduits : délai 0 ci-dessous.
+ * Le focus qui était dans le menu à sa fermeture est rendu au bouton ☰ par Shell.tsx.
+ */
 @media (max-width: 1024px){#aj-root aside.sidebar:not(.is-open){visibility:hidden;box-shadow:none;transition:transform var(--dur-slow) var(--ease-out),box-shadow 0s linear var(--dur-slow),visibility 0s linear var(--dur-slow)}}
 @media (prefers-reduced-motion: reduce) and (max-width: 1024px){#aj-root aside.sidebar:not(.is-open){transition-delay:0s}}
 

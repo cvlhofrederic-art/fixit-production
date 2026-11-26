@@ -309,7 +309,7 @@ describe('menu latéral fermé hors de portée du clavier et des lecteurs d’é
     'transformvar(--dur-slow)var(--ease-out),box-shadow0slinearvar(--dur-slow),visibility0slinearvar(--dur-slow)'
 
   for (const largeur of [375, 1024])
-    it(`sans le correctif, à ${largeur} px, le menu fermé reste visible : ses liens sont atteignables avec Tab`, () => {
+    it(`sans le correctif, à ${largeur} px, la déclaration visibility:hidden du menu fermé est absente (l'atteignabilité au clavier se mesure dans Chrome, pas ici)`, () => {
       feuillesALargeur(largeur, SANS_CORRECTIF)
       monterCadre()
       expect(style('aside.sidebar').visibility).not.toBe('hidden')
@@ -320,11 +320,13 @@ describe('menu latéral fermé hors de portée du clavier et des lecteurs d’é
       feuillesALargeur(largeur)
       monterCadre()
       expect(style('aside.sidebar').visibility).toBe('hidden')
+      expect(style('aside.sidebar').display).not.toBe('none')
       expect(sansEspaces(style('aside.sidebar').transition)).toBe(FERMETURE)
       monterCadre(true)
       expect(style('aside.sidebar').visibility).not.toBe('hidden')
       // Ouverture : la transition de l'état ouvert ne porte pas sur visibility, donc aucun délai avant d'apparaître.
       expect(sansEspaces(style('aside.sidebar').transition)).not.toContain('visibility')
+      expect(Number.parseFloat(style('aside.sidebar').transitionDelay)).toBe(0)
     })
 
   it('mouvements réduits : masqué tout de suite, le délai de la liste de transitions est ramené à 0', () => {
