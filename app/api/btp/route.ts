@@ -278,7 +278,7 @@ const MESSAGE_LISTE_MEMBRES_INVALIDE = 'Enregistrement refusé : la liste des me
 
 /** La base a répondu en erreur pendant une écriture ; `messageUtilisateur` remplace alors « Erreur serveur ». */
 class ErreurEcriture extends Error {
-  constructor(readonly erreurBase: ErreurBase, readonly messageUtilisateur?: string) {
+  constructor(readonly erreurBase: ErreurBase, readonly messageUtilisateur?: string, readonly statut = 500) {
     super('écriture en erreur')
   }
 }
@@ -439,7 +439,15 @@ function colonneRecenteAbsente(table: TableEcrivable, ligne: Ligne, error: Erreu
   return Object.keys(COLONNES_RECENTES_CHANTIER).find(col => col in ligne && message.includes(col)) ?? null
 }
 
-/** Rejoue l'écriture sans chaque colonne récente absente de la base (une à la fois, deux au plus). */
+/** Case « Alerte météo » cochée alors que la colonne manque : refusée plutôt que perdue en silence. */
+const MESSAGE_ALERTE_METEO_EN_ATTENTE = 'Alerte météo non enregistrée : mise à jour de la base en attente. Réessayez plus tard. '
+  + '— Alerta meteorológico não guardado: atualização da base de dados pendente. Tente mais tarde.'
+
+/**
+ * Rejoue l'écriture sans chaque colonne récente absente de la base (une à la fois, deux au plus). Exception : une
+ * alerte météo demandée (case cochée) n'est jamais retirée en silence, l'écriture est refusée (409) et la fiche reste
+ * ouverte ; décochée, elle vaut la valeur par défaut de la colonne et peut être retirée.
+ */
 async function ecrireSansColonnesAbsentes<R extends { error: ErreurBase | null }>(
   table: TableEcrivable, ligne: Ligne, ecrire: () => PromiseLike<R>,
 ): Promise<R> {
@@ -447,6 +455,9 @@ async function ecrireSansColonnesAbsentes<R extends { error: ErreurBase | null }
   for (let essai = 0; essai < Object.keys(COLONNES_RECENTES_CHANTIER).length; essai++) {
     const absente = colonneRecenteAbsente(table, ligne, resultat.error)
     if (!absente) break
+    if (absente === 'alerte_meteo' && ligne.alerte_meteo === true) {
+      throw new ErreurEcriture(resultat.error as ErreurBase, MESSAGE_ALERTE_METEO_EN_ATTENTE, 409)
+    }
     logger.warn(`[btp] chantiers_btp.${absente} absente : ${COLONNES_RECENTES_CHANTIER[absente]}`)
     delete ligne[absente]
     resultat = await ecrire()
@@ -683,7 +694,7 @@ function reponseEchecEcriture(err: unknown, table: TableEcrivable, action: strin
   const erreurBase = err instanceof ErreurEcriture ? err.erreurBase : null
   logger.error(`[btp] POST ${table} ${action} error`, { code: erreurBase?.code, error: detailPourLeJournal(err, erreurBase) })
   if (err instanceof ErreurEcriture && err.messageUtilisateur) {
-    return NextResponse.json({ error: err.messageUtilisateur }, { status: 500 })
+    return NextResponse.json({ error: err.messageUtilisateur }, { status: err.statut })
   }
   const { status, message } = traduireErreurBase(erreurBase, action, table)
   return NextResponse.json({ error: message }, { status })

@@ -90,15 +90,40 @@ export function questionGarderPosition(titre: string, isPt: boolean): string {
 }
 
 /** 2e question, après refus de la 1re : seul OK retire la position ; l'autre bouton revient à la fiche, rien n'est enregistré. */
+/** Le second moyen de poser la position, sur place, et où le trouver. */
+export function placerSurPlace(isPt: boolean): string {
+  return isPt
+    ? '« Colocar na minha posição atual » (ecrã Registo de horas, separador Atribuições)'
+    : '« Placer à ma position actuelle » (écran Pointage équipes, onglet Affectations)'
+}
+
 export function questionRetirerPosition(titre: string, isPt: boolean): string {
   if (isPt) {
     return `Retirar a posição GPS da obra « ${titre} » (a obra mudou de sítio)?\n\n`
-      + 'OK: retirá-la e guardar; volte a calculá-la com o botão GPS da ficha, ou na obra com « Colocar na minha posição atual » (ecrã Registo de horas, separador Atribuições).\n'
+      + `OK: retirá-la e guardar; volte a calculá-la com o botão GPS da ficha, ou na obra com ${placerSurPlace(true)}.\n`
       + 'Outro botão: voltar à ficha sem guardar nada.'
   }
   return `Retirer la position GPS du chantier « ${titre} » (le chantier a changé d’endroit) ?\n\n`
-    + 'OK : la retirer et enregistrer ; recalculez-la ensuite avec le bouton GPS de la fiche, ou sur place avec « Placer à ma position actuelle » (écran Pointage équipes, onglet Affectations).\n'
+    + `OK : la retirer et enregistrer ; recalculez-la ensuite avec le bouton GPS de la fiche, ou sur place avec ${placerSurPlace(false)}.\n`
     + 'L’autre bouton : revenir à la fiche sans rien enregistrer.'
+}
+
+/**
+ * Aide de la case « Alerte météo par notification » (26/11/2026) : qui est prévenu, comment, et quand pour un chantier
+ * pas encore commencé (règle chantierSuiviLe, lib/btp/alerte-meteo.ts ; le téléphone d'un salarié ne reçoit que ses
+ * chantiers en cours).
+ */
+export function aideAlerteMeteo(isPt: boolean): string {
+  return isPt
+    ? 'Para uma obra exposta ao tempo (betão, telhado, fachada…): na véspera de chuva, geada, vento forte ou calor, os trabalhadores atribuídos recebem uma notificação na aplicação Vitfix Pro e um e-mail. Obra « Pendente »: só o e-mail, na véspera do dia de início.'
+    : 'Pour un chantier exposé aux intempéries (béton, toiture, façade…) : la veille de la pluie, du gel, du vent fort ou de la chaleur, les salariés affectés reçoivent une notification sur l’appli Vitfix Pro et un e-mail. Chantier « En attente » : l’e-mail seulement, la veille du jour de début.'
+}
+
+/** Case cochée sur une fiche sans position GPS : l'alerte ne peut pas partir. */
+export function noteAlerteSansPosition(isPt: boolean): string {
+  return isPt
+    ? `É necessária a posição GPS da obra para o alerta: use o botão GPS acima ou, na obra, ${placerSurPlace(true)}.`
+    : `L’alerte a besoin de la position GPS du chantier : utilisez le bouton GPS ci-dessus ou, sur place, ${placerSurPlace(false)}.`
 }
 
 /** Bouton GPS de la fiche, adresse trop vague alors que la fiche porte la position enregistrée : on la garde. */

@@ -730,9 +730,15 @@ interface UseBTPDataOptions {
    * au BTP pro l'omettent.
    */
   orgRole?: string
+  /**
+   * Faux pour un composant qui n'affiche rien (alerte météo du téléphone) : un chargement en échec ou une liste coupée
+   * ne s'annoncent pas à l'écran (le message parlerait d'une liste que l'écran ouvert ne montre pas, et une liste coupée
+   * ne serait plus signalée à l'écran qui l'affiche). Vrai par défaut.
+   */
+  annoncerEchecs?: boolean
 }
 
-export function useBTPData<T = any>({ table, artisanId, userId, autoImport = true, orgRole }: UseBTPDataOptions) {
+export function useBTPData<T = any>({ table, artisanId, userId, autoImport = true, orgRole, annoncerEchecs = true }: UseBTPDataOptions) {
   const cacheKey = `${table}_${userId}`
   const cached = _dataCache[cacheKey]
   const hasFreshCache = cached && (Date.now() - cached.at < DATA_CACHE_TTL)
@@ -762,12 +768,12 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
     } catch (err) {
       console.warn(`[btp] refresh ${table} failed:`, err)
       setError('Erreur de chargement')
-      if (ecranBTP) signalerChargementImpossible()
+      if (ecranBTP && annoncerEchecs) signalerChargementImpossible()
       return null // null = erreur réseau (distinct de [] = table vide)
     } finally {
       setLoading(false)
     }
-  }, [table, cacheKey, ecranBTP])
+  }, [table, cacheKey, ecranBTP, annoncerEchecs])
 
   // ── Auto-import from localStorage on first load ─────────────────────────
   useEffect(() => {
@@ -840,8 +846,8 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
   // Liste coupée par la route : prévenir quand la section qui l'affiche est à l'écran, y compris si la liste a été
   // chargée d'avance par le tableau de bord (une seule fois par liste et par session).
   useEffect(() => {
-    signalerPlafondAtteint(table, _plafonds[cacheKey])
-  }, [items, table, cacheKey])
+    if (annoncerEchecs) signalerPlafondAtteint(table, _plafonds[cacheKey])
+  }, [items, table, cacheKey, annoncerEchecs])
 
   // ── CRUD operations ─────────────────────────────────────────────────────
 

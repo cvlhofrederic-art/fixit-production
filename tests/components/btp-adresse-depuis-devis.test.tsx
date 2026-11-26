@@ -518,19 +518,42 @@ describe('fiche chantier — alerte météo par notification', () => {
     expect(caseAlerte().checked).toBe(true)
   })
 
-  it('cochée sans position GPS : la fiche dit que l’alerte en a besoin', async () => {
+  it('cochée sans position GPS : la fiche le dit, dans une zone annoncée et reliée à la case', async () => {
     await nouvelleFiche()
-    expect(screen.queryByRole('note')).toBeNull()
+    const zone = screen.getByRole('status')
+    expect(zone.textContent).toBe('')
+    expect(caseAlerte().getAttribute('aria-describedby')).toBe(zone.id)
+    expect(zone.getAttribute('aria-live')).toBe('polite')
     fireEvent.click(caseAlerte())
-    expect(screen.getByRole('note').textContent).toContain('L’alerte a besoin de la position GPS du chantier')
+    expect(zone.textContent).toContain('L’alerte a besoin de la position GPS du chantier')
+    expect(zone.textContent).toContain('« Placer à ma position actuelle » (écran Pointage équipes, onglet Affectations)')
+  })
+
+  it('l’aide dit qui est prévenu, et la règle d’un chantier « En attente »', async () => {
+    await nouvelleFiche()
+    const aide = caseAlerte().closest('label')?.textContent ?? ''
+    expect(aide).toContain('les salariés affectés reçoivent une notification sur l’appli Vitfix Pro et un e-mail')
+    expect(aide).toContain('Chantier « En attente » : l’e-mail seulement, la veille du jour de début.')
+  })
+
+  it('soumis à l’alerte sans position GPS : pastille grisée « sans GPS » dans la liste', async () => {
+    etat.chantiers = [{ ...VILLA, alerteMeteo: true, latitude: null, longitude: null }]
+    render(<ChantiersBTPV2 artisan={artisan} orgRole="pro_societe" />)
+    const pastille = await screen.findByTitle('Alerte météo sans position GPS : aucune alerte ne part')
+    expect(pastille.textContent).toBe('🔔 Météo — sans GPS')
+    expect(pastille.className).toContain('v5-badge-gray')
+    expect(screen.queryByTitle('Alerte météo par notification')).toBeNull()
   })
 
   it('en portugais', async () => {
     etat.locale = 'pt'
+    etat.chantiers = [{ ...VILLA, alerteMeteo: true }]
     render(<ChantiersBTPV2 artisan={artisan} orgRole="pro_societe" />)
+    expect((await screen.findByTitle('Alerta meteorológico por notificação')).textContent).toBe('🔔 Meteorologia')
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Nova obra/ })) })
     const caseCochee = screen.getByRole('checkbox', { name: /Alerta meteorológico por notificação/ })
     fireEvent.click(caseCochee)
-    expect(screen.getByRole('note').textContent).toContain('É necessária a posição GPS da obra para o alerta')
+    expect(screen.getByRole('status').textContent).toContain('É necessária a posição GPS da obra para o alerta')
+    expect(screen.getByRole('status').textContent).toContain('« Colocar na minha posição atual » (ecrã Registo de horas, separador Atribuições)')
   })
 })

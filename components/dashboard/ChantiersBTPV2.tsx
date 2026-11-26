@@ -5,9 +5,10 @@ import { useLocale } from '@/lib/i18n/context'
 import { useBTPData, useBTPSettings } from '@/lib/hooks/use-btp-data'
 import { adresseComplete, geocoderAdresse, type AdresseChantier } from '@/lib/btp/geocodage'
 import {
-  avertissementPositionGardee, champsModifies, porteLaPositionEnregistree, questionGarderPosition, questionPositionNecessaire,
-  questionRetirerPosition,
+  aideAlerteMeteo, avertissementPositionGardee, champsModifies, noteAlerteSansPosition, porteLaPositionEnregistree,
+  questionGarderPosition, questionPositionNecessaire, questionRetirerPosition,
 } from '@/lib/btp/fiche-chantier'
+import { positionPourAlerte } from '@/lib/btp/alerte-meteo'
 import { confirmationRelocaliser } from '@/components/dashboard/btp/pointage/textes'
 import { COLONNES_LIEU_DEVIS, champsAdresseDuLieu, libelleChoixDevis, lieuDuDevis, messageAdresseImportee } from '@/lib/btp/lieu-devis'
 import { supabase } from '@/lib/supabase'
@@ -112,6 +113,28 @@ function progressColor(pct: number, statut: string): string {
 
 const STATUTS_CHANTIER = ['En attente', 'En cours', 'Terminé', 'Annulé'] as const
 const STATUTS_PT: Record<string, string> = { 'En attente': 'Pendente', 'En cours': 'Em curso', 'Terminé': 'Concluída', 'Annulé': 'Anulada' }
+
+/**
+ * Pastille de la liste : chantier soumis à l'alerte météo (26/11/2026). Grisée quand la position GPS manque : aucune
+ * alerte ne part alors, ni notification ni e-mail.
+ */
+function PastilleAlerteMeteo({ latitude, longitude, isV5, isPt }: { latitude: unknown; longitude: unknown; isV5: boolean; isPt: boolean }) {
+  const nom = isPt ? 'Meteorologia' : 'Météo'
+  if (!positionPourAlerte(latitude, longitude)) {
+    return (
+      <span className={isV5 ? 'v5-badge v5-badge-gray' : 'v22-tag v22-tag-gray'} style={{ fontSize: 9 }}
+        title={isPt ? 'Alerta meteorológico sem posição GPS: nenhum alerta é enviado' : 'Alerte météo sans position GPS : aucune alerte ne part'}>
+        🔔 {nom} — {isPt ? 'sem GPS' : 'sans GPS'}
+      </span>
+    )
+  }
+  return (
+    <span className={isV5 ? 'v5-badge v5-badge-orange' : 'v22-tag v22-tag-orange'} style={{ fontSize: 9 }}
+      title={isPt ? 'Alerta meteorológico por notificação' : 'Alerte météo par notification'}>
+      🔔 {nom}
+    </span>
+  )
+}
 /** Libellé d'un statut de chantier (valeur enregistrée en français, affichée en portugais sur /pt). */
 function libelleStatut(statut: string, isPt: boolean): string {
   return isPt ? STATUTS_PT[statut] ?? statut : statut
@@ -741,7 +764,7 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
                         </span>
                         {c.latitude && <span className={isV5 ? "v5-badge v5-badge-green" : "v22-tag v22-tag-green"} style={{ fontSize: 9, display: 'inline-flex', alignItems: 'center', gap: 2 }}><MapPin size={9} /> GPS</span>}
                         {c.devis_id && <span className={isV5 ? "v5-badge v5-badge-blue" : "v22-tag v22-tag-blue"} style={{ fontSize: 9, display: 'inline-flex', alignItems: 'center', gap: 2 }}><FileText size={9} /> {isPt ? 'Orçamento' : 'Devis'}</span>}
-                        {c.alerteMeteo && <span className={isV5 ? "v5-badge v5-badge-orange" : "v22-tag v22-tag-orange"} style={{ fontSize: 9 }} title={isPt ? 'Alerta meteorológico por notificação' : 'Alerte météo par notification'}>🔔 {isPt ? 'Meteo' : 'Météo'}</span>}
+                        {c.alerteMeteo && <PastilleAlerteMeteo latitude={c.latitude} longitude={c.longitude} isV5={isV5} isPt={isPt} />}
                       </div>
                       {c.adresse && (
                         <div style={{ fontSize: 10, color: '#999', marginTop: 2, display: 'flex', alignItems: 'center', gap: 3 }}>
@@ -1222,24 +1245,19 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
                   employés affectés, ceux qu'elle prévient. */}
               <div className={isV5 ? "v5-fg" : "v22-form-group"}>
                 <label htmlFor="chantier-alerte-meteo" style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer', fontSize: 12 }}>
-                  <input id="chantier-alerte-meteo" type="checkbox" checked={form.alerteMeteo}
+                  <input id="chantier-alerte-meteo" type="checkbox" checked={form.alerteMeteo} aria-describedby="chantier-alerte-meteo-gps"
                     onChange={e => setForm({ ...form, alerteMeteo: e.target.checked })} style={{ marginTop: 2 }} />
                   <span>
                     <strong>🔔 {isPt ? 'Alerta meteorológico por notificação' : 'Alerte météo par notification'}</strong>
-                    <span style={{ display: 'block', fontSize: 11, color: '#666', marginTop: 2 }}>
-                      {isPt
-                        ? 'Para uma obra exposta ao tempo (betão, telhado, fachada…): os trabalhadores atribuídos são avisados na véspera de chuva, geada, vento forte ou calor.'
-                        : 'Pour un chantier exposé aux intempéries (béton, toiture, façade…) : les salariés affectés sont prévenus la veille de la pluie, du gel, du vent fort ou de la chaleur.'}
-                    </span>
+                    <span style={{ display: 'block', fontSize: 11, color: '#666', marginTop: 2 }}>{aideAlerteMeteo(isPt)}</span>
                   </span>
                 </label>
-                {form.alerteMeteo && !form.latitude && (
-                  <div role="note" style={{ fontSize: 11, color: '#E65100', marginTop: 4 }}>
-                    {isPt
-                      ? 'É necessária a posição GPS da obra para o alerta: use o botão GPS acima.'
-                      : 'L’alerte a besoin de la position GPS du chantier : utilisez le bouton GPS ci-dessus.'}
-                  </div>
-                )}
+                {/* Zone toujours présente dont seul le contenu change : un lecteur d'écran annonce la note quand elle apparaît. */}
+                <output id="chantier-alerte-meteo-gps" aria-live="polite">
+                  {form.alerteMeteo && !positionPourAlerte(form.latitude, form.longitude) && (
+                    <span style={{ display: 'block', fontSize: 11, color: '#BF360C', marginTop: 4 }}>{noteAlerteSansPosition(isPt)}</span>
+                  )}
+                </output>
               </div>
 
               <div className={isV5 ? "v5-fg" : "v22-form-group"}>

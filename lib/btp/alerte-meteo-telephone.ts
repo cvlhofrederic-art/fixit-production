@@ -1,20 +1,41 @@
 /**
- * Alerte météo sur le téléphone (appli Vitfix Pro, 26/11/2026) : à chaque ouverture de l'appli, pour chaque chantier
- * soumis à l'alerte que le compte voit (le salarié : ses chantiers affectés ; le gérant : tous), la prévision du
- * lendemain est relue et une notification locale est programmée pour 18 h la veille, ou affichée tout de suite si
- * l'appli est ouverte après 18 h. Les salariés ouvrent l'appli chaque jour pour pointer : c'est le moment où l'alerte
- * se programme. Aucune notification « push » n'existe (ni Firebase, ni Apple) : le serveur ne peut rien déclencher
- * sur le téléphone, d'où l'e-mail de secours de la veille (app/api/cron/alerte-meteo).
+ * Alerte météo sur le téléphone (appli Vitfix Pro, 26/11/2026). À chaque passage (ouverture de l'appli, retour au
+ * premier plan), pour chaque chantier que le compte voit (un salarié de terrain : ses chantiers affectés en cours ; un
+ * compte en accès complet aux chantiers, gérant ou secrétaire : tous), une notification locale est programmée à 18 h,
+ * heure du téléphone, la veille de chaque journée en alerte des trois jours qui suivent. Trois jours, pas un : depuis
+ * l'ouverture du vendredi, le dimanche soir est couvert pour le lundi (l'appli n'est souvent pas rouverte le week-end).
+ * Après 18 h, l'alerte du lendemain qui n'a pas encore été montrée s'affiche tout de suite.
  *
- * Une notification par chantier et par jour : la même clé remplace la précédente ; si l'alerte du lendemain a disparu,
- * celle programmée est annulée. Ce qui a déjà été montré est retenu sur l'appareil (clé `vitfix_`, hors miroir).
+ * Aucune notification « push » n'existe (ni Firebase, ni Apple) : le serveur ne peut rien déclencher sur le
+ * téléphone, d'où l'e-mail de la veille au soir (app/api/cron/alerte-meteo).
+ *
+ * Une notification par chantier et par journée (clé alerte-meteo:<chantier>:<date>, même identifiant natif) : la
+ * reprogrammer remplace la précédente. Elle est annulée si l'alerte de cette journée disparaît, si la case est décochée,
+ * si le chantier n'est plus suivi ce jour-là (terminé, annulé…) ou s'il n'est plus dans la liste (salarié affecté
+ * ailleurs). Une prévision illisible n'annule rien. L'appareil retient ce qui est programmé ou montré (clés `vitfix_`,
+ * hors du miroir user_storage, qui ne copie que `fixit_`) ; les clés des journées passées sont retirées.
  */
 
-import { alerteDuLendemain, chantierSoumisAlerte, joursDePrevisions, texteAlerteDuLendemain } from '@/lib/btp/alerte-meteo'
+import {
+  alerteDuJour,
+  chantierSuiviLe,
+  dateDecalee,
+  dateLocale,
+  jourDeLaDate,
+  joursDePrevisions,
+  texteAlerteDuLendemain,
+  type JourPrevu,
+} from '@/lib/btp/alerte-meteo'
 import { urlPrevisionsMeteo } from '@/lib/btp/meteo-url'
 
 /** Heure locale de la notification de la veille. */
 export const HEURE_ALERTE_VEILLE = 18
+
+/**
+ * Journées couvertes à chaque passage : demain et les deux suivantes. Au plus trois notifications en attente par
+ * chantier (iOS n'en garde que 64 par appli, les plus proches).
+ */
+export const JOURNEES_COUVERTES = 3
 
 export interface ChantierPourAlerte {
   id: string
@@ -24,11 +45,15 @@ export interface ChantierPourAlerte {
   longitude?: number | null
   alerteMeteo?: boolean
   alerte_meteo?: boolean
+  dateDebut?: string | null
+  date_debut?: string | null
 }
 
 export interface OutilsNotification {
   programmer: (p: { cle: string; titre: string; corps: string; a?: Date; extra?: Record<string, unknown> }) => Promise<boolean>
   annuler: (cle: string) => Promise<void>
+  /** La notification de cette clé attend-elle encore son heure ? (non partie : téléphone éteint, appli tuée…) */
+  enAttente: (cle: string) => Promise<boolean>
 }
 
 export interface BilanAlertes {
@@ -38,10 +63,13 @@ export interface BilanAlertes {
   ignorees: number
 }
 
-const PREFIXE_MEMOIRE = 'vitfix_btp_alerte_meteo_'
+type Etat = 'programmee' | 'affichee'
 
-/** Clé de la notification d'un chantier pour un jour donné (identifiant natif stable). */
-export const cleNotificationAlerte = (chantierId: string, date: string) => `alerte-meteo:${chantierId}:${date}`
+const PREFIXE_MEMOIRE = 'vitfix_btp_alerte_meteo_'
+const PREFIXE_CLE = 'alerte-meteo:'
+
+/** Clé de la notification d'un chantier pour une journée (identifiant natif stable). */
+export const cleNotificationAlerte = (chantierId: string, date: string) => `${PREFIXE_CLE}${chantierId}:${date}`
 
 /** Lit, écrit ou retire dans la mémoire de l'appareil ; indisponible (navigation privée) : signalé, sans effet. */
 function memoire<R>(action: (stockage: Storage) => R, parDefaut: R): R {
@@ -53,20 +81,123 @@ function memoire<R>(action: (stockage: Storage) => R, parDefaut: R): R {
   }
 }
 
-const dejaTraitee = (cle: string) => memoire(s => s.getItem(PREFIXE_MEMOIRE + cle) !== null, false)
-const retenir = (cle: string, valeur: 'programmee' | 'affichee') => memoire(s => s.setItem(PREFIXE_MEMOIRE + cle, valeur), undefined)
+const etatRetenu = (cle: string): Etat | null =>
+  memoire(s => {
+    const valeur = s.getItem(PREFIXE_MEMOIRE + cle)
+    return valeur === 'programmee' || valeur === 'affichee' ? valeur : null
+  }, null)
+const retenir = (cle: string, etat: Etat) => memoire(s => s.setItem(PREFIXE_MEMOIRE + cle, etat), undefined)
 const oublier = (cle: string) => memoire(s => s.removeItem(PREFIXE_MEMOIRE + cle), undefined)
 
-/** 18 h aujourd'hui, à l'heure du téléphone. */
-function heureDeLaVeille(maintenant: Date): Date {
-  const a = new Date(maintenant)
-  a.setHours(HEURE_ALERTE_VEILLE, 0, 0, 0)
-  return a
+/** Clés retenues sur l'appareil, relevées avant toute modification (retirer pendant le parcours en sauterait). */
+function clesRetenues(): Array<{ cle: string; chantierId: string; date: string }> {
+  return memoire(s => {
+    const cles: Array<{ cle: string; chantierId: string; date: string }> = []
+    for (let i = 0; i < s.length; i++) {
+      const nom = s.key(i)
+      if (!nom?.startsWith(PREFIXE_MEMOIRE + PREFIXE_CLE)) continue
+      const cle = nom.slice(PREFIXE_MEMOIRE.length)
+      const separateur = cle.lastIndexOf(':')
+      cles.push({ cle, chantierId: cle.slice(PREFIXE_CLE.length, separateur), date: cle.slice(separateur + 1) })
+    }
+    return cles
+  }, [])
+}
+
+/** 18 h, heure du téléphone, la veille de cette journée. */
+function veilleDe(date: string): Date {
+  const [annee, mois, jour] = dateDecalee(date, -1).split('-').map(Number)
+  return new Date(annee, mois - 1, jour, HEURE_ALERTE_VEILLE, 0, 0, 0)
 }
 
 /**
- * Programme les alertes de la veille pour les chantiers soumis à l'alerte. Ne lève jamais : une prévision illisible
- * ou un réseau absent laisse le chantier de côté (il sera revu à la prochaine ouverture).
+ * Avant tout : les journées passées sont oubliées (déjà sonnées) ; une notification encore programmée pour un chantier
+ * absent de la liste, ou qui n'est plus suivi ce jour-là (case décochée, terminé, annulé…), est annulée.
+ */
+async function nettoyer(
+  chantiers: readonly ChantierPourAlerte[], aujourdhui: string, outils: OutilsNotification, bilan: BilanAlertes,
+): Promise<void> {
+  const parId = new Map(chantiers.map(c => [c.id, c]))
+  for (const { cle, chantierId, date } of clesRetenues()) {
+    if (date <= aujourdhui) { oublier(cle); continue }
+    const chantier = parId.get(chantierId)
+    if (chantier && chantierSuiviLe(chantier, date)) continue
+    if (etatRetenu(cle) === 'programmee') {
+      await outils.annuler(cle)
+      bilan.annulees++
+    }
+    oublier(cle)
+  }
+}
+
+/** Prévision à 7 jours du chantier ; position absente ou service injoignable : null (rien n'est alors annulé). */
+async function lirePrevision(chantier: ChantierPourAlerte, lire: typeof fetch): Promise<JourPrevu[] | null> {
+  const url = urlPrevisionsMeteo(chantier.latitude, chantier.longitude)
+  if (!url) return null
+  try {
+    const reponse = await lire(url)
+    return reponse.ok ? joursDePrevisions(await reponse.json()) : null
+  } catch (err) {
+    console.warn('[alerte-meteo] prévision illisible :', err instanceof Error ? err.message : err)
+    return null
+  }
+}
+
+interface Passage {
+  isPt: boolean
+  outils: OutilsNotification
+  maintenant: Date
+  bilan: BilanAlertes
+}
+
+/** Montre tout de suite l'alerte de demain, une seule fois ; une notification de 18 h restée en attente est remplacée. */
+async function afficherSiPasEncore(
+  p: Passage, cle: string, etat: Etat | null, notification: { titre: string; corps: string; extra: Record<string, unknown> },
+): Promise<void> {
+  if (etat === 'affichee') return
+  if (etat === 'programmee') {
+    // L'heure est passée : partie (rien à faire), ou restée en attente (téléphone éteint, appli tuée, alarme différée).
+    if (!(await p.outils.enAttente(cle))) { retenir(cle, 'affichee'); return }
+    await p.outils.annuler(cle)
+  }
+  if (await p.outils.programmer({ cle, ...notification })) {
+    retenir(cle, 'affichee')
+    p.bilan.affichees++
+  }
+}
+
+/** Une journée d'un chantier suivi : programmée pour la veille à 18 h, affichée, ou annulée si l'alerte a disparu. */
+async function traiterJournee(p: Passage, chantier: ChantierPourAlerte, jours: readonly JourPrevu[], date: string): Promise<void> {
+  if (!jourDeLaDate(jours, date)) return // journée absente ou incomplète : on ne sait rien, on ne touche à rien
+  const cle = cleNotificationAlerte(chantier.id, date)
+  const etat = etatRetenu(cle)
+  const alerte = alerteDuJour(jours, date)
+  if (!alerte) {
+    if (etat === 'programmee') {
+      await p.outils.annuler(cle)
+      oublier(cle)
+      p.bilan.annulees++
+    }
+    return
+  }
+  const { titre, corps } = texteAlerteDuLendemain(chantier.titre ?? '', alerte.motifs, p.isPt, date)
+  const notification = { titre, corps, extra: { chantierId: chantier.id, date } }
+  const veille = veilleDe(date)
+  if (p.maintenant >= veille) {
+    await afficherSiPasEncore(p, cle, etat, notification)
+    return
+  }
+  // Avant l'heure : programmée, ou reprogrammée avec la prévision du moment (même identifiant, elle remplace).
+  if (await p.outils.programmer({ cle, ...notification, a: veille })) {
+    retenir(cle, 'programmee')
+    p.bilan.programmees++
+  }
+}
+
+/**
+ * Programme les alertes de la veille des chantiers suivis. Ne lève jamais : une prévision illisible ou un réseau
+ * absent laisse le chantier de côté (revu au prochain passage). La liste doit avoir été lue : une liste en échec ne
+ * doit pas être passée ici (elle annulerait toutes les alertes).
  */
 export async function programmerAlertesMeteo(
   chantiers: readonly ChantierPourAlerte[],
@@ -76,49 +207,21 @@ export async function programmerAlertesMeteo(
   lire: typeof fetch = fetch,
 ): Promise<BilanAlertes> {
   const bilan: BilanAlertes = { programmees: 0, affichees: 0, annulees: 0, ignorees: 0 }
-  const veille = heureDeLaVeille(maintenant)
-  for (const chantier of chantiers) {
-    if (!chantierSoumisAlerte(chantier)) continue
-    const url = urlPrevisionsMeteo(chantier.latitude, chantier.longitude)
-    if (!url) { bilan.ignorees++; continue }
-    let jours
-    try {
-      const reponse = await lire(url)
-      if (!reponse.ok) { bilan.ignorees++; continue }
-      jours = joursDePrevisions(await reponse.json())
-    } catch (err) {
-      console.warn('[alerte-meteo] prévision illisible :', err instanceof Error ? err.message : err)
-      bilan.ignorees++
-      continue
+  const aujourdhui = dateLocale(maintenant)
+  const dates = Array.from({ length: JOURNEES_COUVERTES }, (_, i) => dateDecalee(aujourdhui, i + 1))
+  const passage: Passage = { isPt, outils, maintenant, bilan }
+  try {
+    await nettoyer(chantiers, aujourdhui, outils, bilan)
+    for (const chantier of chantiers) {
+      const suivies = dates.filter(date => chantierSuiviLe(chantier, date))
+      if (suivies.length === 0) continue
+      const jours = await lirePrevision(chantier, lire)
+      if (!jours) { bilan.ignorees++; continue }
+      for (const date of suivies) await traiterJournee(passage, chantier, jours, date)
     }
-    const demain = jours[1]?.date
-    if (!demain) { bilan.ignorees++; continue }
-    const cle = cleNotificationAlerte(chantier.id, demain)
-    const alerte = alerteDuLendemain(jours)
-    if (!alerte) {
-      // L'alerte de demain a disparu depuis la dernière ouverture : la notification programmée ne doit pas sonner.
-      if (dejaTraitee(cle)) {
-        await outils.annuler(cle)
-        oublier(cle)
-        bilan.annulees++
-      }
-      continue
-    }
-    const { titre, corps } = texteAlerteDuLendemain(chantier.titre ?? '', alerte.motifs, isPt)
-    const extra = { chantierId: chantier.id, date: alerte.date }
-    if (maintenant < veille) {
-      // Avant 18 h : programmée (ou reprogrammée avec la prévision du moment) pour 18 h.
-      if (await outils.programmer({ cle, titre, corps, a: veille, extra })) {
-        retenir(cle, 'programmee')
-        bilan.programmees++
-      }
-    } else if (!dejaTraitee(cle)) {
-      // Après 18 h, et rien encore pour ce chantier ce jour-là : tout de suite, une seule fois.
-      if (await outils.programmer({ cle, titre, corps, extra })) {
-        retenir(cle, 'affichee')
-        bilan.affichees++
-      }
-    }
+  } catch (err) {
+    // Module natif introuvable ou refus inattendu : rien de plus ce passage-ci, le suivant reprendra.
+    console.warn('[alerte-meteo] programmation interrompue :', err instanceof Error ? err.message : err)
   }
   return bilan
 }

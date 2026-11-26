@@ -12,6 +12,7 @@ interface LocalNotificationsLike {
   requestPermissions(): Promise<{ display: string }>
   schedule(options: { notifications: Array<Record<string, unknown>> }): Promise<void>
   cancel(options: { notifications: Array<{ id: number }> }): Promise<void>
+  getPending(): Promise<{ notifications: Array<{ id: number | string }> }>
 }
 
 let chargement: Promise<{ plugin: LocalNotificationsLike }> | null = null
@@ -161,10 +162,15 @@ function bookingIdToInt(id: string): number {
   return Math.abs(hash)
 }
 
+/** En deçà de cette marge, une heure demandée est traitée comme « tout de suite ». */
+const MARGE_IMMEDIATE_MS = 1000
+
 /**
  * Programme (ou reprogramme) une notification désignée par une clé stable : la même clé remplace la notification
- * déjà programmée au lieu d'en ajouter une seconde (même identifiant natif). Heure `a` passée ou absente : affichée
- * tout de suite. Rend true si la notification est programmée ; false hors de l'appli, sans permission ou en cas d'échec.
+ * déjà programmée au lieu d'en ajouter une seconde (même identifiant natif). Heure `a` passée, trop proche ou absente :
+ * affichée tout de suite, sans heure (Android l'affiche alors aussitôt ; une heure déjà passée quand le module la
+ * traite serait écartée sans erreur). Rend true si la notification est programmée ; false hors de l'appli, sans
+ * permission, si le module ne se charge pas ou en cas d'échec : ne lève jamais.
  * Sert à l'alerte météo des chantiers BTP (lib/btp/alerte-meteo-telephone.ts, 26/11/2026).
  */
 export async function programmerNotification(params: {
@@ -175,20 +181,17 @@ export async function programmerNotification(params: {
   extra?: Record<string, unknown>
 }): Promise<boolean> {
   if (!Capacitor.isNativePlatform()) return false
-  const { plugin } = await charger()
-  if (!(await requestNotificationPermission(plugin))) return false
-  const maintenant = Date.now()
-  const a = params.a && !Number.isNaN(params.a.getTime()) && params.a.getTime() > maintenant + 500
-    ? params.a
-    : new Date(maintenant + 500)
   try {
+    const { plugin } = await charger()
+    if (!(await requestNotificationPermission(plugin))) return false
+    const plusTard = params.a && !Number.isNaN(params.a.getTime()) && params.a.getTime() > Date.now() + MARGE_IMMEDIATE_MS
     await plugin.schedule({
       notifications: [
         {
           id: bookingIdToInt(params.cle),
           title: params.titre,
           body: params.corps,
-          schedule: { at: a, allowWhileIdle: true },
+          ...(plusTard ? { schedule: { at: params.a, allowWhileIdle: true } } : {}),
           sound: 'default',
           smallIcon: 'ic_stat_icon_config_sample',
           iconColor: '#FFC107',
@@ -204,13 +207,30 @@ export async function programmerNotification(params: {
   }
 }
 
-/** Annule la notification programmée sous cette clé (sans effet si aucune ne l'est). */
+/** Annule la notification programmée sous cette clé (sans effet si aucune ne l'est). Ne lève jamais. */
 export async function annulerNotification(cle: string): Promise<void> {
   if (!Capacitor.isNativePlatform()) return
-  const { plugin } = await charger()
   try {
+    const { plugin } = await charger()
     await plugin.cancel({ notifications: [{ id: bookingIdToInt(cle) }] })
   } catch (err) {
     console.warn('[notifications] annulation impossible :', err instanceof Error ? err.message : err)
+  }
+}
+
+/**
+ * La notification de cette clé attend-elle encore son heure ? Faux hors de l'appli. En cas d'échec de la lecture :
+ * vrai (l'appelant la remontre alors sous le même identifiant, ce qui remplace au pire celle déjà affichée).
+ */
+export async function notificationEnAttente(cle: string): Promise<boolean> {
+  if (!Capacitor.isNativePlatform()) return false
+  try {
+    const { plugin } = await charger()
+    const { notifications } = await plugin.getPending()
+    const id = bookingIdToInt(cle)
+    return (notifications ?? []).some(n => Number(n.id) === id)
+  } catch (err) {
+    console.warn('[notifications] lecture des notifications en attente impossible :', err instanceof Error ? err.message : err)
+    return true
   }
 }

@@ -163,29 +163,47 @@ describe('POST /api/btp — employés d’un chantier (membres_ids)', () => {
   })
 })
 
-// Alerte météo par notification (migration 20261126b, 26/11/2026) : même repli que les employés. Déployé avant que la
-// migration soit appliquée, une fiche chantier enregistrée avec la case doit passer, sans la case.
+// Alerte météo par notification (migration 20261126b, 26/11/2026). Déployé avant que la migration soit appliquée : une
+// case décochée (valeur par défaut de la colonne, envoyée par toute nouvelle fiche) est retirée comme les employés ; une
+// case COCHÉE n'est jamais perdue en silence, l'écriture est refusée avec un message et la fiche reste ouverte.
 describe('POST /api/btp — alerte météo d’un chantier (alerte_meteo)', () => {
-  it('colonne absente : la modification est réécrite sans alerte_meteo et réussit, avec un avertissement', async () => {
+  it('colonne absente, case décochée : la modification est réécrite sans alerte_meteo et réussit, avec un avertissement', async () => {
     h.etat.colonneAbsente = false
     h.etat.alerteAbsente = true
-    const res = await ecrire({ action: 'update', id: 'villa', data: { statut: 'En cours', alerte_meteo: true } })
+    const res = await ecrire({ action: 'update', id: 'villa', data: { statut: 'En cours', alerte_meteo: false } })
     expect(res.status).toBe(200)
     expect(h.etat.envois).toEqual([
-      { operation: 'update', valeur: { statut: 'En cours', alerte_meteo: true, updated_at: expect.any(String) } },
+      { operation: 'update', valeur: { statut: 'En cours', alerte_meteo: false, updated_at: expect.any(String) } },
       { operation: 'update', valeur: { statut: 'En cours', updated_at: expect.any(String) } },
     ])
     expect(h.etat.avertissements).toEqual([expect.stringContaining('migration 20261126b')])
   })
 
-  it('les deux colonnes absentes : retirées l’une après l’autre, le chantier est créé', async () => {
+  it('colonne absente, case cochée : refus 409 qui le dit (français et portugais), rien d’autre n’est réécrit', async () => {
+    h.etat.colonneAbsente = false
     h.etat.alerteAbsente = true
-    const res = await ecrire({ action: 'insert', data: { titre: 'Dalle', membres_ids: [M1], alerte_meteo: true } })
+    const res = await ecrire({ action: 'update', id: 'villa', data: { statut: 'En cours', alerte_meteo: true } })
+    expect(res.status).toBe(409)
+    expect(String(res.json.error)).toContain('Alerte météo non enregistrée')
+    expect(String(res.json.error)).toContain('Alerta meteorológico não guardado')
+    expect(h.etat.envois).toHaveLength(1)
+  })
+
+  it('les deux colonnes absentes, case décochée : retirées l’une après l’autre, le chantier est créé', async () => {
+    h.etat.alerteAbsente = true
+    const res = await ecrire({ action: 'insert', data: { titre: 'Dalle', membres_ids: [M1], alerte_meteo: false } })
     expect(res.status).toBe(201)
     expect(h.etat.envois.map(e => Object.keys(e.valeur).filter(c => c === 'membres_ids' || c === 'alerte_meteo'))).toEqual([
       ['membres_ids', 'alerte_meteo'], ['alerte_meteo'], [],
     ])
     expect(h.etat.avertissements).toHaveLength(2)
+  })
+
+  it('les deux colonnes absentes, case cochée : création refusée (409) plutôt qu’un chantier sans son alerte', async () => {
+    h.etat.alerteAbsente = true
+    const res = await ecrire({ action: 'insert', data: { titre: 'Dalle', membres_ids: [M1], alerte_meteo: true } })
+    expect(res.status).toBe(409)
+    expect(h.etat.envois).toHaveLength(2)
   })
 
   it('colonne présente : la case est écrite du premier coup', async () => {

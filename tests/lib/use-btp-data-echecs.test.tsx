@@ -103,6 +103,20 @@ describe('useBTPData — chargement en échec', () => {
     expect(hook.current.error).toBe('Erreur de chargement')
     expect(messagesErreur()).toEqual([])
   })
+
+  // Alerte météo du téléphone (26/11/2026) : composant monté sur tous les écrans, qui n'affiche rien.
+  it('composant qui n’affiche rien (annoncerEchecs: false) : aucun message, l’échec reste lisible, refresh rend null', async () => {
+    lecture = coupureReseau
+    montages += 1
+    const userId = `u-echecs-${montages}`
+    const { result } = renderHook(() => useBTPData({ table: 'chantiers', artisanId: 'a1', userId, autoImport: false, annoncerEchecs: false }))
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    expect(result.current.error).toBe('Erreur de chargement')
+    let relu: unknown = 'pas encore'
+    await act(async () => { relu = await result.current.refresh() })
+    expect(relu).toBeNull()
+    expect(messagesErreur()).toEqual([])
+  })
 })
 
 describe('useBTPSettings — réglages', () => {

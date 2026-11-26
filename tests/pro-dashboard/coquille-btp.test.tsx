@@ -529,3 +529,18 @@ describe('tableau de bord — identifiant donné à l’organisation du menu', (
     expect(mocks.useModuleCategories.mock.calls.every((appel) => appel[1] === undefined)).toBe(true)
   })
 })
+
+// Alerte météo du téléphone (26/11/2026) : le composant qui programme les notifications est monté pour toute société
+// BTP, hors de la zone centrale (il ne dépend pas de l’écran ouvert), jamais pour l’artisan (règle n° 1).
+describe('tableau de bord — alerte météo du téléphone', () => {
+  it.each([['p=chantiers'], ['p=meteo'], ['p=pointage'], [undefined]])('société BTP, %s : monté, avec la fiche, le compte et la langue', async (adresse) => {
+    const { container } = await ouvrir(utilisateur('pro_societe'), adresse ? { adresse } : {})
+    expect(container.querySelector('[data-dynamique*="AlertesMeteoTelephone"]')).not.toBeNull()
+    expect(proprietesRecues(mocks.etat, 'AlertesMeteoTelephone')).toMatchObject({ artisanId: 'fiche-1', userId: expect.any(String), isPt: false })
+  })
+
+  it('artisan : jamais monté', async () => {
+    const { container } = await ouvrir(utilisateur('artisan'))
+    expect(container.querySelector('[data-dynamique*="AlertesMeteoTelephone"]')).toBeNull()
+  })
+})
