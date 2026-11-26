@@ -11,7 +11,7 @@ import { feuillesALargeur, retirerFeuilles, STYLES } from './regles-a-largeur'
  * « Appels de fonds », points ap-17 et ap-d09 : défauts déjà sur main, repris dans une PR à part.
  * - Titre de la barre du haut coupé (« Appels de f… ») sous 641 px.
  * - Quatre indicateurs empilés à 375 px.
- * - Ombre de la barre latérale fermée au bord gauche (mise en page tiroir, sous 1024 px).
+ * - Ombre de la barre latérale fermée au bord gauche (mise en page tiroir, jusqu'à 1024 px).
  * - Bandeau du mode (démonstration / données réelles) au-dessus du voile des fenêtres, à toutes les largeurs.
  * - Messages (toasts) sur le bouton Fixy sous 769 px.
  * - En-tête de l’avis d’appel coincé à côté de son sélecteur sous 769 px.
@@ -115,11 +115,12 @@ describe('titre de la barre du haut coupé sur téléphone', () => {
       titreSurDeuxLignes()
     })
 
-  for (const largeur of [641, 1440])
-    it(`à ${largeur} px : rien ne change`, () => {
+  for (const largeur of [641, 1023, 1024, 1440])
+    it(`à ${largeur} px : le rôle reste sur la ligne du titre`, () => {
       feuillesALargeur(largeur)
       monterCadre()
       expect(style('.topbar .vfx-role').order).toBe('0')
+      expect(derniereDeclaration('#aj-root .topbar .vfx-role', 'flex-basis')).toBe('auto')
       if (largeur === 641) expect(style('.topbar .crumb-mobile b').whiteSpace).toBe('nowrap')
     })
 
@@ -136,11 +137,68 @@ describe('titre de la barre du haut coupé sur téléphone', () => {
       expect(style('.topbar .spacer').display).toBe('none')
     })
 
-  for (const largeur of [641, 1440])
+  for (const largeur of [641, 900, 1023])
+    it(`à ${largeur} px, pendant le chargement de la base : le séparateur est masqué, il ne prend pas la moitié de la ligne du titre (décision du 26/11/2026)`, () => {
+      feuillesALargeur(largeur)
+      monterCadre(false, true)
+      expect(style('.topbar .spacer').display).toBe('none')
+    })
+
+  for (const largeur of [1024, 1440])
     it(`à ${largeur} px, pendant le chargement de la base : le séparateur reste (barre sur une ligne)`, () => {
       feuillesALargeur(largeur)
       monterCadre(false, true)
       expect(style('.topbar .spacer').display).not.toBe('none')
+    })
+})
+
+describe('titre coupé entre 641 et 1023 px : le sélecteur de copropriété sur sa propre ligne (décision du 26/11/2026)', () => {
+  const copro = '#aj-root .topbar .vfx-selecteur-copro'
+  const vide = '#aj-root .topbar .vfx-selecteur-copro__vide'
+  const spacer = '#aj-root .topbar .vfx-selecteur-copro+.spacer'
+  const spacerVide = '#aj-root .topbar .vfx-selecteur-copro__vide+.spacer'
+
+  it('sans le correctif, le sélecteur partage la ligne du titre à 667 px (constat du 26/11/2026)', () => {
+    feuillesALargeur(667, SANS_CORRECTIF)
+    monterCadre()
+    expect(derniereDeclaration('#aj-root .topbar', 'flex-wrap')).toBe('')
+    expect(style('.topbar .vfx-selecteur-copro').order).not.toBe('10')
+    expect(derniereDeclaration(spacer, 'display')).toBe('none')
+  })
+
+  for (const largeur of [641, 667, 768, 900, 1023])
+    it(`à ${largeur} px : le sélecteur (ou le message de base vide) passe sur sa propre ligne, le titre pousse le rôle à droite`, () => {
+      feuillesALargeur(largeur)
+      monterCadre()
+      expect(derniereDeclaration('#aj-root .topbar', 'flex-wrap')).toBe('wrap')
+      expect(style('.topbar .vfx-selecteur-copro').order).toBe('10')
+      for (const s of [copro, vide]) {
+        expect(derniereDeclaration(s, 'order')).toBe('10')
+        expect(derniereDeclaration(s, 'flex')).toBe('1 1 100%')
+        expect(derniereDeclaration(s, 'max-width')).toBe('none')
+      }
+      // Le séparateur reste masqué : le titre (flex:1) pousse seul le rôle à droite, sans lui prendre la moitié de la ligne.
+      expect(style('.topbar .spacer').display).toBe('none')
+      expect(derniereDeclaration(spacerVide, 'display')).toBe('none')
+      // Le rôle reste sur la ligne du titre.
+      expect(style('.topbar .vfx-role').order).toBe('0')
+    })
+
+  it('à 640 px (portrait) : règle de aj-selecteur-copro.css, séparateur masqué derrière le sélecteur', () => {
+    feuillesALargeur(640)
+    monterCadre()
+    expect(derniereDeclaration('#aj-root .topbar', 'flex-wrap')).toBe('wrap')
+    expect(derniereDeclaration(spacer, 'display')).toBe('none')
+  })
+
+  for (const largeur of [1024, 1440])
+    it(`à ${largeur} px : rien ne change (sélecteur sur la ligne du titre)`, () => {
+      feuillesALargeur(largeur)
+      monterCadre()
+      expect(derniereDeclaration('#aj-root .topbar', 'flex-wrap')).toBe('')
+      expect(style('.topbar .vfx-selecteur-copro').order).not.toBe('10')
+      expect(derniereDeclaration(copro, 'max-width')).toBe('')
+      expect(derniereDeclaration(spacer, 'display')).toBe('none')
     })
 })
 
@@ -201,13 +259,13 @@ describe('ombre de la barre latérale fermée au bord gauche', () => {
   /** Fermeture : le menu glisse (transform) avec son ombre, retirée une fois sorti de l'écran. */
   const FERMETURE = 'transformvar(--dur-slow)var(--ease-out),box-shadow0slinearvar(--dur-slow)'
 
-  it('sans le correctif, la barre fermée garde son ombre sous 1025 px (constat du 22/11/2026)', () => {
+  it('sans le correctif, la barre fermée garde son ombre jusqu’à 1024 px (constat du 22/11/2026)', () => {
     feuillesALargeur(375, SANS_CORRECTIF)
     monterCadre()
     expect(style('aside.sidebar').boxShadow).toBe(OMBRE)
   })
 
-  for (const largeur of [375, 1023])
+  for (const largeur of [375, 1023, 1024])
     it(`à ${largeur} px : plus d'ombre quand le menu est fermé, retirée à la fin du glissement ; le menu ouvert garde la sienne`, () => {
       feuillesALargeur(largeur)
       monterCadre()
@@ -226,12 +284,12 @@ describe('ombre de la barre latérale fermée au bord gauche', () => {
       (regle): regle is CSSMediaRule => regle instanceof CSSMediaRule && regle.media.mediaText.includes('prefers-reduced-motion'),
     )
     brute.remove()
-    expect(blocs.map((bloc) => bloc.media.mediaText)).toEqual(['(prefers-reduced-motion: reduce) and (max-width: 1023px)'])
+    expect(blocs.map((bloc) => bloc.media.mediaText)).toEqual(['(prefers-reduced-motion: reduce) and (max-width: 1024px)'])
     expect(sansEspaces(blocs[0].cssRules[0].cssText)).toBe('#aj-rootaside.sidebar:not(.is-open){transition-delay:0s;}')
   })
 
-  for (const largeur of [1024, 1440])
-    it(`à ${largeur} px : rien ne change`, () => {
+  for (const largeur of [1025, 1440])
+    it(`à ${largeur} px (mise en page ordinateur) : rien ne change`, () => {
       feuillesALargeur(largeur, SANS_CORRECTIF)
       monterCadre()
       const avant = [style('aside.sidebar').boxShadow, style('aside.sidebar').transition]

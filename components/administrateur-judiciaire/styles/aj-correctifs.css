@@ -45,9 +45,15 @@
  * Sous 641 px (barre sur plusieurs lignes, aj-selecteur-copro.css), un titre qui ne tient pas sur une ligne passe sur deux
  * lignes au plus, dans la hauteur des boutons de 44 px : téléphone de 320 px, et 481 à 540 px, où le rôle reste sur la
  * ligne du titre (21 libellés sur 76 coupés à 481 px avant ce correctif, aucun après, mesuré dans Chrome).
- * Reste hors de ce correctif : entre 641 et 1023 px, le sélecteur de copropriété partage la ligne du titre et passe avant
- * lui (aj-selecteur-copro.css) ; le titre y reste coupé (14 px à 641 px, 92 px à 812 px).
+ * Entre 641 et 1023 px (téléphone à l'horizontale, tablette ; décision du 26/11/2026) : le sélecteur de copropriété
+ * partageait la ligne du titre et passait avant lui (aj-selecteur-copro.css), qui était coupé (14 px à 641 px, 92 px à
+ * 812 px, « A… » à 667 px). Même mise en page que le portrait : la barre passe à la ligne et le sélecteur (ou le message
+ * de base vide) prend sa propre ligne. Le rôle reste sur la ligne du titre, poussé à droite par le titre lui-même (flex:1,
+ * aj.css) : le séparateur, masqué derrière le sélecteur (aj-selecteur-copro.css), l'est aussi pendant le chargement de la
+ * base, quand le sélecteur n'est pas affiché, sinon il prenait la moitié de la ligne et coupait le titre. Barre d'environ 121 px au lieu de 69 ; elle défile avec la page (la
+ * barre n'est collante qu'au-dessus de 1024 px : <main> ne défile pas en dessous). À 1024 px et au-delà, rien ne change.
  */
+@media (min-width: 641px) and (max-width: 1023px){#aj-root .topbar{flex-wrap:wrap}#aj-root .topbar .vfx-selecteur-copro,#aj-root .topbar .vfx-selecteur-copro__vide{order:10;flex:1 1 100%;max-width:none}#aj-root .topbar .crumb-mobile+.spacer{display:none}}
 @media (max-width: 480px){#aj-root .topbar .vfx-role{order:11;flex-basis:100%}}
 @media (max-width: 640px){#aj-root .topbar .crumb-mobile b{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;white-space:normal;line-height:1.15}#aj-root .topbar .crumb-mobile+.spacer{display:none}}
 
@@ -65,11 +71,12 @@
  * Ombre d'environ 10 px au bord gauche sur téléphone et tablette : en mise en page tiroir, la barre latérale fermée est
  * poussée hors de l'écran mais garde son ombre portée vers la droite, qui déborde sur la page. L'ombre ne reste qu'au menu
  * ouvert ; à la fermeture, elle n'est retirée qu'une fois le menu sorti de l'écran (fin du glissement, --dur-slow), tout de
- * suite si les mouvements sont réduits. Borné à 1023 px, pour ne rien changer sur ordinateur (1024 px et plus) : le défaut
- * reste à 1024 px exactement, où la mise en page tiroir de aj.css s'applique encore.
+ * suite si les mouvements sont réduits. Borné à 1024 px, comme la mise en page tiroir de aj.css (@media (max-width: 1024px)),
+ * pour ne rien changer sur ordinateur (1025 px et plus) ; décision du 26/11/2026 : bornée à 1023 px, la correction
+ * laissait l'ombre à 1024 px exactement.
  */
-@media (max-width: 1023px){#aj-root aside.sidebar:not(.is-open){box-shadow:none;transition:transform var(--dur-slow) var(--ease-out),box-shadow 0s linear var(--dur-slow)}}
-@media (prefers-reduced-motion: reduce) and (max-width: 1023px){#aj-root aside.sidebar:not(.is-open){transition-delay:0s}}
+@media (max-width: 1024px){#aj-root aside.sidebar:not(.is-open){box-shadow:none;transition:transform var(--dur-slow) var(--ease-out),box-shadow 0s linear var(--dur-slow)}}
+@media (prefers-reduced-motion: reduce) and (max-width: 1024px){#aj-root aside.sidebar:not(.is-open){transition-delay:0s}}
 
 /*
  * Bandeau du mode (démonstration / données réelles) au-dessus du voile des fenêtres, à toutes les largeurs : son z-index
