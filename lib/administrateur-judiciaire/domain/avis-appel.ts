@@ -1,4 +1,4 @@
-import { validerIban } from '@/lib/administrateur-judiciaire/domain/comptes-bancaires'
+import { validerIban, type CompteEncaissement } from '@/lib/administrateur-judiciaire/domain/comptes-bancaires'
 import { preparerCourrier } from '@/lib/administrateur-judiciaire/domain/courriers'
 import { ajouterJours, ajouterMois, dateIsoVersFr, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
 import {
@@ -107,8 +107,17 @@ import type { FormeEnvoiCourrier, ModeReglement, TypeAppelLieAuMouvement } from 
  *   total à payer nul ou créditeur garantit que rien ne serait prélevé (sinon « mandat_absent » reste bloquant, comme un
  *   mandat incomplet sur un compte débiteur) ;
  * - reste hors prélèvement, appel d'un compte en contentieux ou dont le détenteur ne peut recevoir la pré-notification :
- *   virement au compte courant du syndicat, à défaut d'IBAN valide chèque ; compte en contentieux : prélèvement suspendu
+ *   virement au compte qui reçoit les règlements, à défaut chèque ; compte en contentieux : prélèvement suspendu
  *   (preparerLotPrelevements l'exclut par défaut), l'avis n'annonce donc aucun débit ;
+ * - décision du 22/11/2026 (ap-03) : le compte qui reçoit les règlements est désigné selon le mode de tenue réglé
+ *   (comptes-bancaires.ts, compteEncaissement), jamais par un ordre fixe. Non désigné : anomalie bloquante de l'avis
+ *   entier (compte_encaissement_non_designe), le règlement hors prélèvement passe au chèque. Désigné mais non établi au
+ *   nom du syndicat (Caisse des dépôts, sous-compte du centralisateur) : le recueil EPC SDD Core 2025 (§ 3.1, AT-C001)
+ *   vise le compte du créancier, et que le syndicat, créancier de l'avis, soit titulaire de ce compte n'est pas établi ;
+ *   par prudence aucun débit n'est annoncé (prelevement_compte_non_syndicat, règlement hors prélèvement, comme en
+ *   contentieux) : règle du schéma et choix prudent, à valider, non une interdiction légale. Avertissement sur le
+ *   bénéficiaire du virement (beneficiaire_a_verifier : vérification du bénéficiaire, règl. (UE) n° 260/2012, art.
+ *   5 quater, qui alerte le payeur sans empêcher le virement) ;
  * - l'avis vaut pré-notification SEPA quand il porte le montant et la date du débit (recueil EPC, PT-04.02 : « together
  *   with or as part of other commercial documents ») ; référence de virement = n° de compte 450 (clé de rapprochement) ;
  *   le détenteur du compte (identité du mandat) le reçoit, en plus des copropriétaires s'il n'en est pas ; seul est
@@ -333,7 +342,7 @@ export interface InstructionsCheque {
   reference: string
 }
 
-/** Règlement hors prélèvement : virement au compte courant du syndicat, à défaut d'IBAN valide, chèque (🔵). */
+/** Règlement hors prélèvement : virement au compte qui reçoit les règlements (ap-03), à défaut chèque (🔵). */
 export type InstructionsHorsPrelevement = InstructionsVirement | InstructionsCheque
 
 export interface InstructionsPrelevement {
@@ -433,6 +442,9 @@ export type CodeAnomalieAvis =
   | 'avant_exigibilite'
   | 'nature_non_couverte'
   | 'iban_syndicat_invalide'
+  | 'compte_encaissement_non_designe'
+  | 'prelevement_compte_non_syndicat'
+  | 'beneficiaire_a_verifier'
   | 'mode_non_pris_en_charge'
   | 'especes_refusees'
   | 'reglement_attendu'
@@ -512,8 +524,11 @@ export interface OptionsContenuAvis {
   comptes: CompteCoproprietaire[]
   segmentSyndicat: string
   syndicat: { nom: string; adresse: string }
-  /** IBAN du compte courant du syndicat (virement) ; null : non renseigné. */
-  ibanSyndicat: string | null
+  /**
+   * Compte qui reçoit les règlements, désigné selon le mode de tenue du mandat (ap-03, comptes-bancaires.ts :
+   * compteEncaissement) : son IBAN sert au virement ; non désigné, l'avis entier est bloqué.
+   */
+  compteEncaissement: CompteEncaissement
   /** Identifiant créancier SEPA du syndicat ; null : non renseigné. */
   ics: string | null
   dateEmission: string
@@ -951,10 +966,20 @@ const instructionsCheque = (base: BaseCompte, options: OptionsContenuAvis): Inst
   reference: base.numeroCompte,
 })
 
-/** Règlement hors prélèvement : virement au compte courant du syndicat, à défaut d'IBAN valide, chèque (🔵). */
+/** IBAN valide du compte qui reçoit les règlements ; null : compte non désigné ou IBAN invalide. */
+const ibanDEncaissement = (options: OptionsContenuAvis): string | null => {
+  const compte = options.compteEncaissement
+  return compte.designe && validerIban(compte.iban) ? compte.iban : null
+}
+
+/** Libellé du compte qui reçoit les règlements, en minuscule initiale, pour les messages de l'avis. */
+const libelleDEncaissement = (compte: CompteEncaissement): string =>
+  compte.designe ? compte.libelle.charAt(0).toLowerCase() + compte.libelle.slice(1) : 'compte qui reçoit les règlements'
+
+/** Règlement hors prélèvement : virement au compte qui reçoit les règlements (ap-03), à défaut chèque (🔵). */
 function instructionsHorsPrelevement(base: BaseCompte, options: OptionsContenuAvis): InstructionsHorsPrelevement {
-  const iban = options.ibanSyndicat
-  return iban && validerIban(iban) ? instructionsVirement(base, options, iban) : instructionsCheque(base, options)
+  const iban = ibanDEncaissement(options)
+  return iban ? instructionsVirement(base, options, iban) : instructionsCheque(base, options)
 }
 
 /** Montant pré-notifié = min(natures couvertes par le mandat, maxi, total à payer), jamais négatif. */
@@ -1019,9 +1044,14 @@ function reglementParPrelevement(base: BaseCompte, mandat: MandatPrelevement | n
 }
 
 function reglementParVirement(base: BaseCompte, options: OptionsContenuAvis): ResultatReglement {
-  const iban = options.ibanSyndicat
-  if (!iban || !validerIban(iban))
-    return { instructions: null, anomalies: [anomalie('iban_syndicat_invalide', 'bloquant', 'Virement : IBAN du compte courant du syndicat absent ou invalide.')] }
+  const iban = ibanDEncaissement(options)
+  if (!iban) {
+    const compte = options.compteEncaissement
+    const message = compte.designe
+      ? `Virement : IBAN du ${libelleDEncaissement(compte)} absent ou invalide.`
+      : 'Virement : aucun compte désigné pour recevoir les règlements.'
+    return { instructions: null, anomalies: [anomalie('iban_syndicat_invalide', 'bloquant', message)] }
+  }
   return { instructions: instructionsVirement(base, options, iban), anomalies: [] }
 }
 
@@ -1031,10 +1061,30 @@ function reglementHorsPrelevementAuLieuDuMode(
   options: OptionsContenuAvis,
   code: CodeAnomalieAvis,
   motif: (reglement: string) => string,
+  fondement: string | null = null,
 ): ResultatReglement & { mode: ModeReglement } {
   const instructions = instructionsHorsPrelevement(base, options)
-  return { mode: instructions.mode, instructions, anomalies: [anomalie(code, 'avertissement', motif(texteHorsPrelevement(instructions)))] }
+  return { mode: instructions.mode, instructions, anomalies: [anomalie(code, 'avertissement', motif(texteHorsPrelevement(instructions)), fondement)] }
 }
+
+const FONDEMENT_COMPTE_CREANCIER = 'Recueil EPC SDD Core 2025, § 3.1 et AT-C001 (compte du créancier ; règle du schéma, pas un texte de loi)'
+const FONDEMENT_VERIFICATION_BENEFICIAIRE = 'Règl. (UE) n° 260/2012, art. 5 quater, § 1, a), § 5 et § 9 (inséré par le règl. (UE) 2024/886)'
+
+/**
+ * Décision du 22/11/2026 (ap-03, choix prudent à valider) — prélèvement vers un compte non établi au nom du syndicat
+ * (Caisse des dépôts, sous-compte du centralisateur) : le recueil EPC vise le compte du créancier (§ 3.1, AT-C001), et
+ * que le syndicat, créancier de l'avis, en soit titulaire n'est pas établi ; aucun débit n'est annoncé, le règlement
+ * passe hors prélèvement, comme en contentieux.
+ */
+const reglementVersCompteNonSyndicat = (base: BaseCompte, options: OptionsContenuAvis): ResultatReglement & { mode: ModeReglement } =>
+  reglementHorsPrelevementAuLieuDuMode(
+    base,
+    options,
+    'prelevement_compte_non_syndicat',
+    (reglement) =>
+      `Compte ${base.numeroCompte} : aucun prélèvement annoncé, le compte qui reçoit les règlements (${libelleDEncaissement(options.compteEncaissement)}) n'est pas établi au nom du syndicat, créancier du prélèvement SEPA ; l'avis indique le règlement par ${reglement}.`,
+    FONDEMENT_COMPTE_CREANCIER,
+  )
 
 /** Compte en contentieux : prélèvement suspendu (preparerLotPrelevements l'exclut par défaut), règlement hors prélèvement. */
 const reglementSuspendu = (base: BaseCompte, options: OptionsContenuAvis): ResultatReglement & { mode: ModeReglement } =>
@@ -1122,6 +1172,7 @@ function reglementDuCompte(base: BaseCompte, options: OptionsContenuAvis): Resul
   switch (mode) {
     case 'Prélèvement':
       if (options.comptesEnContentieux?.has(base.compteId)) return reglementSuspendu(base, options)
+      if (options.compteEncaissement.designe && !options.compteEncaissement.auNomDuSyndicat) return reglementVersCompteNonSyndicat(base, options)
       return reglementParPrelevement(base, reglement.mandat ?? null, options)
     case 'Virement':
       return { mode, ...reglementParVirement(base, options) }
@@ -1245,8 +1296,31 @@ function contenuDuCompte(avisCompte: AvisCompte, ctx: ContexteAvis): ContenuAvis
   }
 }
 
-function anomaliesDeLAvis(dateEmission: string, parCompte: ContenuAvisCompte[]): AnomalieAvis[] {
-  const anomalies: AnomalieAvis[] = []
+/** Virement donné par l'avis d'un compte : son mode de règlement, ou le reste hors prélèvement. */
+const donneUnVirement = (c: ContenuAvisCompte): boolean =>
+  c.instructions?.mode === 'Virement' || (c.instructions?.mode === 'Prélèvement' && c.instructions.horsPrelevement.mode === 'Virement')
+
+/**
+ * ap-03 : compte qui reçoit les règlements non désigné (bloquant), ou bénéficiaire du virement à vérifier (avertissement :
+ * une non-concordance alerte le payeur sans empêcher le virement, art. 5 quater, § 5 ; que la Caisse des dépôts y réponde
+ * pour les virements qu'elle reçoit reste à confirmer).
+ */
+function anomaliesDuCompteDEncaissement(compte: CompteEncaissement, parCompte: ContenuAvisCompte[]): AnomalieAvis[] {
+  if (!compte.designe) return [anomalie('compte_encaissement_non_designe', 'bloquant', `Compte qui reçoit les règlements non désigné : ${compte.motif}.`)]
+  if (compte.auNomDuSyndicat || !parCompte.some(donneUnVirement)) return []
+  return [
+    anomalie(
+      'beneficiaire_a_verifier',
+      'avertissement',
+      `Virement au ${libelleDEncaissement(compte)} : l'avis nomme le syndicat comme bénéficiaire, alors que le titulaire de ce compte n'est pas établi comme le syndicat ; vérifier l'intitulé exact du compte avant la diffusion (vérification du nom du bénéficiaire par la banque du payeur).`,
+      FONDEMENT_VERIFICATION_BENEFICIAIRE,
+    ),
+  ]
+}
+
+function anomaliesDeLAvis(options: OptionsContenuAvis, parCompte: ContenuAvisCompte[]): AnomalieAvis[] {
+  const { dateEmission } = options
+  const anomalies: AnomalieAvis[] = anomaliesDuCompteDEncaissement(options.compteEncaissement, parCompte)
   if (dateEmission < ENTREE_EN_VIGUEUR_VOIE_ELECTRONIQUE)
     anomalies.push(
       anomalie(
@@ -1259,7 +1333,12 @@ function anomaliesDeLAvis(dateEmission: string, parCompte: ContenuAvisCompte[]):
   const cotisations = parCompte.reduce((s, c) => s + c.souscriptionFondsTravauxCentimes, 0)
   if (cotisations > 0)
     anomalies.push(
-      anomalie('cotisation_a_virer', 'information', `Cotisations au fonds de travaux appelées (${eur(cotisations)}) : à verser sans délai sur le compte séparé rémunéré du syndicat ; encaissées sur le compte courant, elles y sont virées.`, 'L. 1965 art. 18, II'),
+      anomalie(
+        'cotisation_a_virer',
+        'information',
+        `Cotisations au fonds de travaux appelées (${eur(cotisations)}) : à verser sans délai sur le compte séparé rémunéré du syndicat ; encaissées sur le ${libelleDEncaissement(options.compteEncaissement)}, elles y sont virées.`,
+        'L. 1965 art. 18, II',
+      ),
     )
   return anomalies
 }
@@ -1287,13 +1366,13 @@ export function contenuAvisAppel(avis: AvisAppels, options: OptionsContenuAvis):
     dateEmission: options.dateEmission,
     datePrelevement: options.datePrelevement ?? null,
     parCompte,
-    anomalies: [...anomaliesDeLAvis(options.dateEmission, parCompte), ...emplois.anomalies, ...anomaliesArt43(avis.echeances)],
+    anomalies: [...anomaliesDeLAvis(options, parCompte), ...emplois.anomalies, ...anomaliesArt43(avis.echeances)],
   }
 }
 
 // ─── Adaptateur vers le prélèvement ──────────────────────────────────────────────────────────────────────────────
 
-export type MotifEcartPrelevement = 'mode_reglement' | 'contentieux' | 'contenu_bloque' | 'montant_nul' | 'prenotification_absente'
+export type MotifEcartPrelevement = 'mode_reglement' | 'contentieux' | 'compte_non_syndicat' | 'contenu_bloque' | 'montant_nul' | 'prenotification_absente'
 
 /**
  * Code propre à l'adaptateur, « prenotification_autre_debit » : le courrier préparé pour le détenteur porte un autre débit
@@ -1326,9 +1405,13 @@ export interface OptionsEcheancesPrelevement {
   soldesDus?: Readonly<Record<string, number>>
 }
 
-/** Débit retiré de l'avis par son contenu, et motif de l'écart : contentieux, détenteur que la pré-notification ne peut atteindre. */
+/**
+ * Débit retiré de l'avis par son contenu, et motif de l'écart : contentieux, compte qui reçoit les règlements non établi
+ * au nom du syndicat (ap-03), détenteur que la pré-notification ne peut atteindre.
+ */
 const DEBITS_RETIRES: readonly (readonly [CodeAnomalieAvis, MotifEcartPrelevement])[] = [
   ['prelevement_suspendu', 'contentieux'],
+  ['prelevement_compte_non_syndicat', 'compte_non_syndicat'],
   ['prenotification_sans_detenteur', 'prenotification_absente'],
 ]
 

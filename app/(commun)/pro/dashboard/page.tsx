@@ -95,6 +95,7 @@ const SousTraitanceOffresSection = dynamic(() => import('@/components/dashboard/
 const RentabiliteChantierSection = dynamic(() => import('@/components/dashboard/RentabiliteChantierSection'), { loading: SectionLoader })
 const ChantiersBTPV2 = dynamic(() => import('@/components/dashboard/ChantiersBTPV2').then(mod => mod.ChantiersBTPV2), { loading: SectionLoader })
 const PointageGeoSection = dynamic(() => import('@/components/dashboard/PointageGeoSection').then(mod => mod.PointageGeoSection), { loading: SectionLoader })
+const OutillageSection = dynamic(() => import('@/components/dashboard/btp/OutillageSection').then(mod => mod.OutillageSection), { loading: SectionLoader })
 const ComptaBTPSection = dynamic(() => import('@/components/dashboard/ComptaBTPSection').then(mod => mod.ComptaBTPSection), { loading: SectionLoader })
 const CompteUtilisateursSection = dynamic(() => import(/* webpackPrefetch: true */ '@/components/dashboard/CompteUtilisateursSection'), { loading: SectionLoader })
 const MeteoChantierSection = dynamic(() => import('@/components/dashboard/btp/MeteoChantierSection').then(mod => mod.MeteoChantierSection), { loading: SectionLoader })
@@ -143,7 +144,7 @@ function SuspenseFallback() {
 
 // Écran d'ouverture d'un salarié dont le rôle n'a pas accès à la section demandée : son poste de travail d'abord,
 // puis ce qui lui reste. 'home' en dernier recours, même s'il ne l'a pas : mieux vaut un accueil vide qu'une boucle.
-const ORDRE_ACCUEIL_SALARIE = ['pointage', 'chantiers', 'meteo', 'dictionnaire_materiaux', 'calendar', 'photos_chantier'] as const
+const ORDRE_ACCUEIL_SALARIE = ['pointage', 'chantiers', 'meteo', 'outillage', 'dictionnaire_materiaux', 'calendar', 'photos_chantier'] as const
 
 // Sections réellement gouvernées par la matrice des droits (« Mon profil » en fait partie : c'est le module settings).
 // Les autres (Aide, Modules, Portail client, Communication, Canal) n'ont aucun module : personne ne peut les accorder,
@@ -570,7 +571,7 @@ function DashboardPage() {
     // Update tab title with current section name
     const PAGE_TITLES_FR: Record<string, string> = {
       home: 'Accueil', revenus: 'Revenus', stats: 'Statistiques', prestations: 'Prestations',
-      chantiers: 'Chantiers', gantt: 'Planning Gantt', equipes: 'Équipes', pointage: 'Pointage',
+      chantiers: 'Chantiers', gantt: 'Planning Gantt', equipes: 'Équipes', pointage: 'Pointage', outillage: 'Outillage et véhicules',
       estimation_materiaux: 'Estimation matériaux', dictionnaire_materiaux: 'Dictionnaire matériaux', calendar: 'Agenda', meteo: 'Météo',
       photos_chantier: 'Photos chantier', rapports: 'Rapports', pipeline: 'Pipeline',
       devis: 'Devis', dpgf: 'Appels d\'offres', marches: 'Marchés', factures: 'Factures',
@@ -585,7 +586,7 @@ function DashboardPage() {
     }
     const PAGE_TITLES_PT: Record<string, string> = {
       home: 'Painel', revenus: 'Receitas', stats: 'Estatísticas', prestations: 'Serviços', motifs: 'Serviços',
-      chantiers: 'Obras', chantiers_v22: 'Obras', gantt: 'Planeamento Gantt', equipes: 'Equipas', pointage: 'Registo de horas',
+      chantiers: 'Obras', chantiers_v22: 'Obras', gantt: 'Planeamento Gantt', equipes: 'Equipas', pointage: 'Registo de horas', outillage: 'Ferramentas e viaturas',
       estimation_materiaux: 'Estimativa de materiais', dictionnaire_materiaux: 'Dicionário de materiais', calendar: 'Agenda', meteo: 'Meteorologia',
       photos_chantier: 'Fotos de obra', rapports: 'Relatórios', pipeline: 'Pipeline',
       devis: 'Orçamentos', dpgf: 'Concursos', marches: 'Bolsa de oportunidades', factures: 'Faturas',
@@ -1430,6 +1431,15 @@ function DashboardPage() {
             <FiletSocieteBtp actif={orgRole === 'pro_societe'} titre={isPt ? 'Erro no registo de horas' : 'Erreur dans le pointage'} locale={isPt ? 'pt' : 'fr'}>
             <div className="p-4 lg:p-5 animate-fadeIn">
               <PointageGeoSection artisan={artisan!} orgRole={orgRole} />
+            </div>
+            </FiletSocieteBtp>
+          )}
+
+          {/* ────── OUTILLAGE ET VÉHICULES (Société BTP) — répertoire et vérification du vendredi ────── */}
+          {activePage === 'outillage' && orgRole === 'pro_societe' && (
+            <FiletSocieteBtp actif={orgRole === 'pro_societe'} titre={isPt ? 'Erro nas ferramentas e viaturas' : 'Erreur dans l’outillage'} locale={isPt ? 'pt' : 'fr'}>
+            <div className="p-4 lg:p-5 animate-fadeIn">
+              <OutillageSection />
             </div>
             </FiletSocieteBtp>
           )}
