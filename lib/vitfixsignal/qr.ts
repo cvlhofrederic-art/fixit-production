@@ -61,7 +61,7 @@ export function pngQr(matrice: MatriceQr, pixelsParModule = 16, marge = 4): stri
   return canvas.toDataURL('image/png')
 }
 
-/** « parc-belle-ombre » : nom de fichier sûr tiré du nom de la copropriété. */
+/** « parc-bois-fictif » : nom de fichier sûr tiré du nom de la copropriété. */
 export function nomFichierQr(nom: string): string {
   const base = nom.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
   return base || 'copropriete'

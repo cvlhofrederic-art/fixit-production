@@ -52,7 +52,7 @@ const copro = (id: string, nom: string, gestion: Partial<CoproprieteQr> = {}): C
 const coproprietes = [
   copro(C1, 'Résidence Une', { gestionnaires: [{ id: G1, nom: 'Marie Exemple' }], ville: 'Exempleville' }),
   copro(C2, 'Résidence Deux', { gestionnaires: [{ id: G1, nom: 'Marie Exemple' }, { id: G3, nom: 'Léa Exemple' }] }),
-  copro(C3, 'Parc Belle Ombre', { attribueeATous: true }),
+  copro(C3, 'Parc Bois Fictif', { attribueeATous: true }),
 ]
 
 type Appel = { url: string; methode: string; corps: unknown }
@@ -251,7 +251,7 @@ function routeurFiche(options: { fiche?: FicheGestionnaireDetailQr } = {}) {
       return json({ tableau: {
         coproprietes: [
           copro(C1, 'Résidence Une', { ouverts: 2, urgentsOuverts: 1, attente48h: 1, dernier: '2026-11-03T08:00:00.000Z' }),
-          copro(C3, 'Parc Belle Ombre', { attribueeATous: true }),
+          copro(C3, 'Parc Bois Fictif', { attribueeATous: true }),
         ],
         signalements: [],
         gestionnaire: { id: f.gestionnaire.id, nom: f.gestionnaire.nom, actif: true, cabinet: resume },
@@ -287,7 +287,7 @@ describe('page profil d’un gestionnaire', () => {
     expect(within(attribuees).getByText('Résidence Une')).toBeInTheDocument()
     expect(within(attribuees).getByText('importée', { exact: false })).toBeInTheDocument()
     const communes = screen.getByRole('heading', { name: remplir(G.fiche.communes, { n: 1 }) }).closest('section') as HTMLElement
-    expect(within(communes).getByText('Parc Belle Ombre')).toBeInTheDocument()
+    expect(within(communes).getByText('Parc Bois Fictif')).toBeInTheDocument()
     const activite = screen.getByRole('heading', { name: G.fiche.activite }).closest('section') as HTMLElement
     expect(within(activite).getByText('Adresse confirmée', { exact: false })).toBeInTheDocument()
     expect(appels[0].url).toBe(`/api/vitfixsignal/gestionnaires/${G1}`)

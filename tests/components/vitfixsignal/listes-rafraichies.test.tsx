@@ -116,7 +116,7 @@ const detail = (g: GestionnaireQr): FicheGestionnaireDetailQr => ({
 const coproprietesFiche = [
   copro(C1, 'Résidence Une', { gestionnaires: [{ id: G1, nom: 'Marie Exemple' }] }),
   copro(C2, 'Résidence Deux', { gestionnaires: [{ id: G1, nom: 'Marie Exemple' }, { id: G3, nom: 'Léa Exemple' }] }),
-  copro(C3, 'Parc Belle Ombre'),
+  copro(C3, 'Parc Bois Fictif'),
 ]
 
 beforeEach(() => {
@@ -195,7 +195,7 @@ describe('espace du super admin : la liste à jour avant le message', () => {
     serveur = {
       cabinets: [cabinetExemple],
       gestionnaires: [fiche(G1, 'Marie Exemple', 'adresse_confirmee', { ...ACCES })],
-      coproprietes: [copro(C1, 'Parc Belle Ombre', { cabinet: null })],
+      coproprietes: [copro(C1, 'Parc Bois Fictif', { cabinet: null })],
     }
     barriere = null
     panneCabinets = null
@@ -242,7 +242,7 @@ describe('espace du super admin : la liste à jour avant le message', () => {
   it('rattachement : le message attend aussi le TABLEAU relu (la copropriété quitte « sans cabinet »)', async () => {
     await ouvrirEspace('cabinets')
     const bloc = (await screen.findByRole('heading', { name: remplir(G.cabinets.sansCabinet, { n: 1 }) })).closest('section') as HTMLElement
-    fireEvent.click(within(bloc).getByRole('checkbox', { name: /Parc Belle Ombre/ }))
+    fireEvent.click(within(bloc).getByRole('checkbox', { name: /Parc Bois Fictif/ }))
     fireEvent.change(within(bloc).getByLabelText(G.cabinets.rattacherA), { target: { value: K1 } })
     fireEvent.click(within(bloc).getByRole('button', { name: G.cabinets.rattacher }))
     const relacher = retenir(estTableau)
@@ -313,7 +313,7 @@ describe('espace du super admin : la liste à jour avant le message', () => {
 
     async function rattacher() {
       const bloc = screen.getByRole('heading', { name: remplir(G.cabinets.sansCabinet, { n: 1 }) }).closest('section') as HTMLElement
-      fireEvent.click(within(bloc).getByRole('checkbox', { name: /Parc Belle Ombre/ }))
+      fireEvent.click(within(bloc).getByRole('checkbox', { name: /Parc Bois Fictif/ }))
       fireEvent.change(within(bloc).getByLabelText(G.cabinets.rattacherA), { target: { value: K1 } })
       fireEvent.click(within(bloc).getByRole('button', { name: G.cabinets.rattacher }))
       fireEvent.click(within(bloc).getByRole('button', { name: G.cabinets.confirmerRattachement }))
@@ -378,7 +378,7 @@ describe('espace du super admin : la liste à jour avant le message', () => {
       await ouvrirEspace('cabinets')
       const titre = remplir(G.cabinets.sansCabinet, { n: 1 })
       const bloc = screen.getByRole('heading', { name: titre }).closest('section') as HTMLElement
-      fireEvent.click(within(bloc).getByRole('checkbox', { name: /Parc Belle Ombre/ }))
+      fireEvent.click(within(bloc).getByRole('checkbox', { name: /Parc Bois Fictif/ }))
       fireEvent.change(within(bloc).getByLabelText(G.cabinets.rattacherA), { target: { value: K1 } })
       fireEvent.click(within(bloc).getByRole('button', { name: G.cabinets.rattacher }))
       const relacher = retenir(estTableau)
@@ -436,7 +436,7 @@ describe('vue Cabinets : chaque action attend la liste à jour', () => {
   const onModifie = vi.fn(() => attente.promesse)
   const rendre = () => render(
     <CabinetsQr
-      cabinets={[cabinetExemple]} erreur={null} coproprietes={[copro(C1, 'Parc Belle Ombre', { cabinet: null })]}
+      cabinets={[cabinetExemple]} erreur={null} coproprietes={[copro(C1, 'Parc Bois Fictif', { cabinet: null })]}
       onModifie={onModifie} onReessayer={vi.fn()} onJournal={vi.fn()}
     />,
   )
@@ -484,7 +484,7 @@ describe('vue Cabinets : chaque action attend la liste à jour', () => {
     simulerFetch(() => json({ rattachees: 1 }))
     rendre()
     const bloc = screen.getByRole('heading', { name: remplir(G.cabinets.sansCabinet, { n: 1 }) }).closest('section') as HTMLElement
-    fireEvent.click(within(bloc).getByRole('checkbox', { name: /Parc Belle Ombre/ }))
+    fireEvent.click(within(bloc).getByRole('checkbox', { name: /Parc Bois Fictif/ }))
     fireEvent.change(within(bloc).getByLabelText(G.cabinets.rattacherA), { target: { value: K1 } })
     fireEvent.click(within(bloc).getByRole('button', { name: G.cabinets.rattacher }))
     fireEvent.click(within(bloc).getByRole('button', { name: G.cabinets.confirmerRattachement }))
@@ -662,7 +662,7 @@ describe('page profil d’un gestionnaire : chaque action attend la fiche relue 
       G.fiche.attributionsEnregistrees],
     ['ajout d’attributions', marie, () => {
       fireEvent.click(screen.getByRole('button', { name: G.fiche.ajouterCopros }))
-      fireEvent.click(screen.getByRole('checkbox', { name: /Parc Belle Ombre/ }))
+      fireEvent.click(screen.getByRole('checkbox', { name: /Parc Bois Fictif/ }))
     }, () => screen.getByRole('button', { name: G.fiche.attribuer }), G.fiche.attributionsEnregistrees],
     ['nom modifié', marie, () => {
       fireEvent.click(screen.getByRole('button', { name: G.fiche.modifierNom }))
@@ -826,7 +826,7 @@ describe('départ : la fenêtre confirmée ne change pas pendant l’attente de 
     const coproprietesApres = [
       copro(C1, 'Résidence Une', { gestionnaires: [{ id: G3, nom: 'Léa Exemple' }] }),
       copro(C2, 'Résidence Deux', { gestionnaires: [{ id: G3, nom: 'Léa Exemple' }] }),
-      copro(C3, 'Parc Belle Ombre'),
+      copro(C3, 'Parc Bois Fictif'),
     ]
     rerender(<FicheGestionnaireQr {...proprietes(coproprietesApres, [{ ...marie, etat: 'desactive' }, lea])} />)
     await act(async () => { await new Promise((r) => setTimeout(r, 0)) })

@@ -11,7 +11,7 @@
 -- donc rien n'est lisible ni modifiable avec la clé anonyme.
 --
 -- À appliquer en production par Frédéric (Supabase > SQL Editor). Crée la copropriété de test
--- « Parc Belle Ombre » avec un jeton aléatoire : son QR code apparaît ensuite dans le tableau de bord
+-- « Parc Bois Fictif » avec un jeton aléatoire : son QR code apparaît ensuite dans le tableau de bord
 -- (portail copropriétaire, vue super admin, écran « Vitfix Signal »).
 -- ══════════════════════════════════════════════════════════════════════════════
 
@@ -90,7 +90,7 @@ CREATE OR REPLACE TRIGGER trg_signalements_qr_updated_at
   BEFORE UPDATE ON signalements_qr
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
--- ── 5. Copropriété de test demandée par Frédéric : « Parc Belle Ombre », jeton aléatoire ──
+-- ── 5. Copropriété de test demandée par Frédéric : « Parc Bois Fictif », jeton aléatoire ──
 INSERT INTO signalements_qr_coproprietes (nom, adresse, jeton)
-SELECT 'Parc Belle Ombre', '', replace(gen_random_uuid()::text, '-', '')
-WHERE NOT EXISTS (SELECT 1 FROM signalements_qr_coproprietes WHERE nom = 'Parc Belle Ombre');
+SELECT 'Parc Bois Fictif', '', replace(gen_random_uuid()::text, '-', '')
+WHERE NOT EXISTS (SELECT 1 FROM signalements_qr_coproprietes WHERE nom = 'Parc Bois Fictif');

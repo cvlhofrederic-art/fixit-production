@@ -61,7 +61,7 @@ const { GET } = await import('@/app/api/vitfixsignal/similaires/route')
 
 const JETON = '0123456789abcdef0123456789abcdef'
 const ID_COPRO = 'c0000000-0000-4000-8000-000000000001'
-const COPRO = { id: ID_COPRO, nom: 'Parc Belle Ombre', adresse: '', jeton: JETON, emails_destinataires: [], actif: true, created_at: '2026-11-04T10:00:00.000Z' }
+const COPRO = { id: ID_COPRO, nom: 'Parc Bois Fictif', adresse: '', jeton: JETON, emails_destinataires: [], actif: true, created_at: '2026-11-04T10:00:00.000Z' }
 
 const ilYa = (jours: number) => new Date(Date.now() - jours * 86_400_000).toISOString()
 

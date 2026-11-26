@@ -128,7 +128,7 @@ beforeEach(() => {
   h.warn.mockClear()
   h.error.mockClear()
   h.etat.coproprietes = [
-    { id: ID_COPRO, nom: 'Parc Belle Ombre', adresse: '', jeton: JETON, emails_destinataires: [], actif: true, created_at: '2026-11-04T10:00:00.000Z' },
+    { id: ID_COPRO, nom: 'Parc Bois Fictif', adresse: '', jeton: JETON, emails_destinataires: [], actif: true, created_at: '2026-11-04T10:00:00.000Z' },
     { id: 'c0000000-0000-4000-8000-000000000002', nom: 'Les Oliviers', adresse: 'Aubagne', jeton: 'f'.repeat(32), emails_destinataires: ['o@example.com'], actif: false, created_at: '2026-11-04T11:00:00.000Z' },
   ]
   h.etat.signalements = [
@@ -195,7 +195,7 @@ describe('GET tableau', () => {
     const { tableau } = await res.json()
     expect(tableau.coproprietes).toEqual([
       {
-        id: ID_COPRO, nom: 'Parc Belle Ombre', adresse: '', jeton: JETON, emailsDestinataires: [], actif: true, creeLe: '2026-11-04T10:00:00.000Z', nbSignalements: 2, nbEnAttente: 1,
+        id: ID_COPRO, nom: 'Parc Bois Fictif', adresse: '', jeton: JETON, emailsDestinataires: [], actif: true, creeLe: '2026-11-04T10:00:00.000Z', nbSignalements: 2, nbEnAttente: 1,
         // Copropriété sans adresse : le signalement le plus récent qui porte une adresse proposée.
         derniereAdresseProposee: { adresse: '1 Quai du Port 13002 Marseille', le: '2026-11-03T08:59:00.000Z' },
         // Champs ajoutés le 11/11/2026 (migration absente ici : valeurs par défaut, compteurs calculés sur les signalements lus).
@@ -207,7 +207,7 @@ describe('GET tableau', () => {
     ])
     expect(tableau.signalements).toHaveLength(2)
     expect(tableau.signalements[0]).toEqual({
-      id: ID_SIGNALEMENT, coproprieteId: ID_COPRO, coproprieteNom: 'Parc Belle Ombre', prenom: 'Marie', nom: 'Durand', telephone: '06 12 34 56 78',
+      id: ID_SIGNALEMENT, coproprieteId: ID_COPRO, coproprieteNom: 'Parc Bois Fictif', prenom: 'Marie', nom: 'Durand', telephone: '06 12 34 56 78',
       email: 'marie@example.com', batiment: '', etage: '4', numLot: '12', estPartieCommune: false, zoneSignalee: '', typeIntervention: 'Plomberie',
       description: 'Fuite sous l’évier', priorite: 'urgente', statut: 'en_attente', langue: 'fr', emailEnvoyeLe: null, emailErreur: 'boom',
       confirmationEnvoyeeLe: null, confirmationErreur: null, qualiteDeclarant: null, adresseProposee: '', signalementLieId: null,
@@ -310,17 +310,17 @@ describe('PATCH coproprietes/[id]', () => {
   const contexte = (id: string) => ({ params: Promise.resolve({ id }) })
 
   it('modifie nom, adresse, destinataires et activation, puis renvoie la fiche avec ses compteurs', async () => {
-    h.etat.ligneMaj = { id: ID_COPRO, nom: 'Parc Belle Ombre (B)', adresse: 'Allée des Pins', jeton: JETON, emails_destinataires: ['a@b.fr'], actif: false, created_at: '2026-11-04T10:00:00.000Z' }
-    const res = await PATCH_COPRO(requete(`/api/vitfixsignal/coproprietes/${ID_COPRO}`, json({ nom: 'Parc Belle Ombre (B)', adresse: 'Allée des Pins', emailsDestinataires: ['A@b.fr'], actif: false }, 'PATCH')), contexte(ID_COPRO))
+    h.etat.ligneMaj = { id: ID_COPRO, nom: 'Parc Bois Fictif (B)', adresse: 'Allée des Pins', jeton: JETON, emails_destinataires: ['a@b.fr'], actif: false, created_at: '2026-11-04T10:00:00.000Z' }
+    const res = await PATCH_COPRO(requete(`/api/vitfixsignal/coproprietes/${ID_COPRO}`, json({ nom: 'Parc Bois Fictif (B)', adresse: 'Allée des Pins', emailsDestinataires: ['A@b.fr'], actif: false }, 'PATCH')), contexte(ID_COPRO))
     expect(res.status).toBe(200)
-    expect(h.etat.misesAJour[0]).toMatchObject({ table: 'signalements_qr_coproprietes', valeurs: { nom: 'Parc Belle Ombre (B)', adresse: 'Allée des Pins', emails_destinataires: ['a@b.fr'], actif: false }, filtres: [['id', ID_COPRO]] })
+    expect(h.etat.misesAJour[0]).toMatchObject({ table: 'signalements_qr_coproprietes', valeurs: { nom: 'Parc Bois Fictif (B)', adresse: 'Allée des Pins', emails_destinataires: ['a@b.fr'], actif: false }, filtres: [['id', ID_COPRO]] })
     expect(h.etat.misesAJour[0].valeurs.jeton).toBeUndefined()
     const { copropriete } = await res.json()
-    expect(copropriete).toMatchObject({ nom: 'Parc Belle Ombre (B)', actif: false, nbSignalements: 2, nbEnAttente: 1 })
+    expect(copropriete).toMatchObject({ nom: 'Parc Bois Fictif (B)', actif: false, nbSignalements: 2, nbEnAttente: 1 })
   })
 
   it('« Utiliser cette adresse » : PATCH { adresse } seul, la fiche renvoyée n’a plus d’adresse proposée', async () => {
-    h.etat.ligneMaj = { id: ID_COPRO, nom: 'Parc Belle Ombre', adresse: '1 Quai du Port 13002 Marseille', jeton: JETON, emails_destinataires: [], actif: true, created_at: '2026-11-04T10:00:00.000Z' }
+    h.etat.ligneMaj = { id: ID_COPRO, nom: 'Parc Bois Fictif', adresse: '1 Quai du Port 13002 Marseille', jeton: JETON, emails_destinataires: [], actif: true, created_at: '2026-11-04T10:00:00.000Z' }
     const res = await PATCH_COPRO(requete(`/api/vitfixsignal/coproprietes/${ID_COPRO}`, json({ adresse: '1 Quai du Port 13002 Marseille' }, 'PATCH')), contexte(ID_COPRO))
     expect(res.status).toBe(200)
     expect(h.etat.misesAJour[0].valeurs).toEqual({ adresse: '1 Quai du Port 13002 Marseille' })
@@ -328,7 +328,7 @@ describe('PATCH coproprietes/[id]', () => {
   })
 
   it('regenererJeton tire un nouveau jeton ; sans modification → 400 ; identifiant inconnu → 404', async () => {
-    h.etat.ligneMaj = { id: ID_COPRO, nom: 'Parc Belle Ombre', adresse: '', jeton: 'e'.repeat(32), emails_destinataires: [], actif: true, created_at: '2026-11-04T10:00:00.000Z' }
+    h.etat.ligneMaj = { id: ID_COPRO, nom: 'Parc Bois Fictif', adresse: '', jeton: 'e'.repeat(32), emails_destinataires: [], actif: true, created_at: '2026-11-04T10:00:00.000Z' }
     const res = await PATCH_COPRO(requete(`/api/vitfixsignal/coproprietes/${ID_COPRO}`, json({ regenererJeton: true }, 'PATCH')), contexte(ID_COPRO))
     expect(res.status).toBe(200)
     expect(h.etat.misesAJour[0].valeurs.jeton).toMatch(/^[0-9a-f]{32}$/)

@@ -34,7 +34,7 @@ export function signalementTest(sur: Partial<SignalementQr> = {}): SignalementQr
   return {
     id: '5f2c9a1e-1111-4222-8333-444444444444',
     coproprieteId: 'c0000000-0000-4000-8000-000000000001',
-    coproprieteNom: 'Parc Belle Ombre',
+    coproprieteNom: 'Parc Bois Fictif',
     prenom: 'Marie', nom: 'Durand', telephone: '06 12 34 56 78', email: 'marie.durand@example.com',
     batiment: 'B', etage: '4', numLot: '12',
     estPartieCommune: false, zoneSignalee: '',
@@ -168,9 +168,9 @@ describe('schémas Zod de la route', () => {
   })
 
   it('copropriété : nom requis, e-mails valides, valeurs par défaut ; modification : jeton régénérable, statut borné', () => {
-    const r = coproprieteQrSchema.safeParse({ nom: 'Parc Belle Ombre' })
+    const r = coproprieteQrSchema.safeParse({ nom: 'Parc Bois Fictif' })
     // Champs de gestion ajoutés le 11/11/2026 (tests/lib/vitfixsignal-validation.test.ts) : valeurs par défaut.
-    expect(r.success && r.data).toMatchObject({ nom: 'Parc Belle Ombre', adresse: '', emailsDestinataires: [], gestionnaireIds: [], attribueeATous: false })
+    expect(r.success && r.data).toMatchObject({ nom: 'Parc Bois Fictif', adresse: '', emailsDestinataires: [], gestionnaireIds: [], attribueeATous: false })
     expect(coproprieteQrSchema.safeParse({ nom: '   ' }).success).toBe(false)
     expect(coproprieteQrSchema.safeParse({ nom: 'X', emailsDestinataires: ['pas-un-email'] }).success).toBe(false)
     expect(modificationCoproprieteQrSchema.safeParse({ regenererJeton: true }).success).toBe(true)

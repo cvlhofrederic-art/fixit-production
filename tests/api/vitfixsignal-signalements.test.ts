@@ -153,7 +153,7 @@ const { templateConfirmationQr } = await import('@/lib/vitfixsignal/email')
 
 const JETON = '0123456789abcdef0123456789abcdef'
 const COPRO = {
-  id: 'c0000000-0000-4000-8000-000000000001', nom: 'Parc Belle Ombre', adresse: '12 allée des Pins, 13009 Marseille',
+  id: 'c0000000-0000-4000-8000-000000000001', nom: 'Parc Bois Fictif', adresse: '12 allée des Pins, 13009 Marseille',
   jeton: JETON, emails_destinataires: ['cabinet@example.com'], actif: true, created_at: '2026-11-04T10:00:00.000Z',
 }
 const CORPS = {
@@ -250,7 +250,7 @@ describe('dépôt', () => {
     const email = h.sendEmail.mock.calls[0][0] as { to: string; subject: string; replyTo: string; html: string }
     expect(email.to).toBe('cabinet@example.com')
     expect(email.replyTo).toBe('marie.durand@example.com')
-    expect(email.subject).toBe('[Vitfix Signal] URGENT — Plomberie (fuite, colonne, robinetterie) — Parc Belle Ombre — lot 12')
+    expect(email.subject).toBe('[Vitfix Signal] URGENT — Plomberie (fuite, colonne, robinetterie) — Parc Bois Fictif — lot 12')
     expect(email.html).toContain('12 allée des Pins')
     expect(h.etat.misesAJour).toHaveLength(1)
     expect(h.etat.misesAJour[0]).toMatchObject({ table: 'signalements_qr', email_erreur: null, confirmation_erreur: null })
@@ -317,7 +317,7 @@ describe('confirmation au déclarant', () => {
     const confirmation = charge(1)
     expect(confirmation.to).toEqual(['marie.durand@example.com'])
     expect(confirmation).not.toHaveProperty('replyTo')
-    expect(confirmation.subject).toBe('Votre signalement n° B1C2D3E4 a bien été enregistré — Parc Belle Ombre')
+    expect(confirmation.subject).toBe('Votre signalement n° B1C2D3E4 a bien été enregistré — Parc Bois Fictif')
     expect(confirmation.html).toContain('4 novembre 2026 à 15:05 (heure de Paris)')
     expect(confirmation.html).not.toContain('cabinet@example.com')
     expect(confirmation.tags).toEqual([{ name: 'type', value: 'vitfixsignal-confirmation' }])
@@ -326,7 +326,7 @@ describe('confirmation au déclarant', () => {
   it('page en portugais : confirmation en portugais', async () => {
     await poster({ ...CORPS, langue: 'pt', typeIntervention: 'Canalização (fuga, coluna, torneiras)' })
     const confirmation = charge(1)
-    expect(confirmation.subject).toBe('A sua ocorrência n.º B1C2D3E4 foi registada — Parc Belle Ombre')
+    expect(confirmation.subject).toBe('A sua ocorrência n.º B1C2D3E4 foi registada — Parc Bois Fictif')
     expect(confirmation.html).toContain('<html lang="pt">')
     expect(confirmation.html).toContain('Canalização (fuga, coluna, torneiras)')
   })
@@ -771,7 +771,7 @@ describe('accusé de réception : structure figée (droit § 5.4, « à verrouil
     .filter(Boolean)
 
   const s: Parameters<typeof templateConfirmationQr>[0]['signalement'] = {
-    id: 'b1c2d3e4-0000-4000-8000-000000000000', coproprieteId: COPRO.id, coproprieteNom: 'Parc Belle Ombre',
+    id: 'b1c2d3e4-0000-4000-8000-000000000000', coproprieteId: COPRO.id, coproprieteNom: 'Parc Bois Fictif',
     prenom: 'Marie', nom: 'Durand', telephone: '06 12 34 56 78', email: 'marie.durand@example.com',
     batiment: 'B', etage: '4', numLot: '12', estPartieCommune: false, zoneSignalee: '',
     typeIntervention: 'Plomberie (fuite, colonne, robinetterie)', description: 'Fuite sous l’évier de la cuisine', priorite: 'urgente',
@@ -790,10 +790,10 @@ describe('accusé de réception : structure figée (droit § 5.4, « à verrouil
   ]
   const recapitulatif = (urgence: string) => [
     'Bonjour,',
-    'Votre signalement pour la copropriété Parc Belle Ombre a bien été enregistré sous le numéro B1C2D3E4.',
+    'Votre signalement pour la copropriété Parc Bois Fictif a bien été enregistré sous le numéro B1C2D3E4.',
     'Ce que vous avez déclaré',
     'Numéro', 'B1C2D3E4',
-    'Copropriété', 'Parc Belle Ombre',
+    'Copropriété', 'Parc Bois Fictif',
     'Déposé le', '4 novembre 2026 à 15:05 (heure de Paris)',
     'Vous êtes', 'Propriétaire',
     'Lieu du problème', 'Votre logement (bât. B · étage 4 · lot 12)',
@@ -821,7 +821,7 @@ describe('accusé de réception : structure figée (droit § 5.4, « à verrouil
     ['politique seule', { politique: POLITIQUE }, [...DEBUT, ...AUTOMATIQUE, ...INFORMATION, ...PIED]],
     ['annonce et politique', { annoncerDiffusion: true, politique: POLITIQUE }, [...DEBUT, ...ANNONCE, ...AUTOMATIQUE, ...INFORMATION, ...PIED]],
   ])('%s : liste exacte des blocs', (_cas, options, attendu) => {
-    const { html } = templateConfirmationQr({ copropriete: { nom: 'Parc Belle Ombre' }, signalement: s, ...options })
+    const { html } = templateConfirmationQr({ copropriete: { nom: 'Parc Bois Fictif' }, signalement: s, ...options })
     expect(blocs(html)).toEqual(attendu)
     // Au plus un lien (la politique), jamais de bouton ni d'image.
     expect((html.match(/href=/g) ?? []).length).toBe('politique' in options ? 1 : 0)
@@ -833,7 +833,7 @@ describe('accusé de réception : structure figée (droit § 5.4, « à verrouil
     ['accusé d’origine (ni annonce, ni politique)', {}, [...DEBUT_NON_URGENT, ...AUTOMATIQUE, ...PIED]],
     ['annonce et politique', { annoncerDiffusion: true, politique: POLITIQUE }, [...DEBUT_NON_URGENT, ...ANNONCE, ...AUTOMATIQUE, ...INFORMATION, ...PIED]],
   ])('signalement non urgent, %s : liste exacte des blocs, sans la consigne du 112 (R70)', (_cas, options, attendu) => {
-    const { html } = templateConfirmationQr({ copropriete: { nom: 'Parc Belle Ombre' }, signalement: { ...s, priorite: 'normale' }, ...options })
+    const { html } = templateConfirmationQr({ copropriete: { nom: 'Parc Bois Fictif' }, signalement: { ...s, priorite: 'normale' }, ...options })
     expect(blocs(html)).toEqual(attendu)
     expect(html).not.toContain('112')
   })

@@ -279,7 +279,7 @@ envoyés avant le 10/11/2026) ramène à l'accueil. Même chose dans l'Administr
 un lien au pied de la barre latérale (`components/common/LienVitfixSignal.tsx`).
 
 - Données : `GET /api/vitfixsignal/tableau` → tables `signalements_qr_coproprietes` et `signalements_qr`
-  (migration `supabase/migrations/20261104_signalements_qr.sql`, qui crée la copropriété de test « Parc Belle Ombre »), sans
+  (migration `supabase/migrations/20261104_signalements_qr.sql`, qui crée la copropriété de test « Parc Bois Fictif »), sans
   aucun lien avec les tables `syndic_*` ni avec le sélecteur de copropriété de l'AJ ou du portail.
 - Contenu de l'espace : `components/vitfixsignal/TableauSignalementsQr.tsx` (une instance gardée montée, prop `vue`, un seul
   chargement), cartes `CarteCoproprieteQr`, fenêtres `ModaleCoproprieteQr` et `DetailSignalementQr` ; filtre par copropriété

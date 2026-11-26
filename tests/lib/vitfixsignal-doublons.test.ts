@@ -2,7 +2,7 @@
 //
 // Doublons de copropriétés (SPEC § 1.6, RG-08), règles pures de lib/vitfixsignal/doublons.ts partagées par la saisie,
 // la modification et l'import (navigateur et serveur) : comparaison à TOUTES les copropriétés du cabinet, actives ou
-// non, clé du nom recalculée ici (cle_nom est NULL pour les lignes antérieures, dont Parc Belle Ombre).
+// non, clé du nom recalculée ici (cle_nom est NULL pour les lignes antérieures, dont Parc Bois Fictif).
 //   certain  : même immatriculation, même référence du cabinet (index uniques : jamais forçable) ;
 //              même nom normalisé + même code postal (forçable par le super admin seul : « Ce n'est pas un doublon ») ;
 //   probable : même adresse normalisée + même code postal ; même nom, code postal différent ou absent (confirmation).
@@ -24,16 +24,16 @@ const existante = (id: string, champs: Partial<CoproprieteDoublonQr> = {}): Copr
 
 describe('clés de comparaison', () => {
   it('cleTexteQr : minuscules sans accents, ponctuation → espace, espaces réduits, ligatures développées', () => {
-    expect(cleTexteQr('  Belle-Ombre,  L’Orée  ')).toBe('belle ombre l oree')
+    expect(cleTexteQr('  Bois-Fictif,  L’Orée  ')).toBe('bois fictif l oree')
     expect(cleTexteQr('Cœur ÆTHER')).toBe('coeur aether')
     expect(cleTexteQr('—')).toBe('')
   })
 
-  it('cleNomCoproQr : « Résidence Le Parc » = « LE PARC » ; « Résidence Parc Belle-Ombre » → « parc belle ombre »', () => {
+  it('cleNomCoproQr : « Résidence Le Parc » = « LE PARC » ; « Résidence Parc Bois-Fictif » → « parc bois fictif »', () => {
     expect(cleNomCoproQr('Résidence Le Parc')).toBe(cleNomCoproQr('LE PARC'))
     expect(cleNomCoproQr('Résidence Le Parc')).toBe('parc')
-    expect(cleNomCoproQr('Résidence Parc Belle-Ombre')).toBe('parc belle ombre')
-    expect(cleNomCoproQr('Parc Belle Ombre')).toBe('parc belle ombre')
+    expect(cleNomCoproQr('Résidence Parc Bois-Fictif')).toBe('parc bois fictif')
+    expect(cleNomCoproQr('Parc Bois Fictif')).toBe('parc bois fictif')
   })
 
   it('cleNomCoproQr : mots vides retirés en tête comme isolés au milieu, jamais à l’intérieur d’un mot', () => {
@@ -117,9 +117,9 @@ describe('doublonsCoproprieteQr : niveaux certain / probable', () => {
     expect(doublonsCoproprieteQr(fiche(), [desactivee])).toHaveLength(1)
   })
 
-  it('ligne antérieure à cle_nom NULL (comme Parc Belle Ombre) : couverte, la clé est recalculée depuis le nom', () => {
-    const ancienne = { ...existante('pbo', { nom: 'Parc Belle Ombre', adresse: '', codePostal: '' }), cle_nom: null }
-    const d = doublonsCoproprieteQr(fiche({ nom: 'Résidence Parc Belle-Ombre', codePostal: '' }), [ancienne])
+  it('ligne antérieure à cle_nom NULL (comme Parc Bois Fictif) : couverte, la clé est recalculée depuis le nom', () => {
+    const ancienne = { ...existante('pbo', { nom: 'Parc Bois Fictif', adresse: '', codePostal: '' }), cle_nom: null }
+    const d = doublonsCoproprieteQr(fiche({ nom: 'Résidence Parc Bois-Fictif', codePostal: '' }), [ancienne])
     expect(d.map((x) => [x.copropriete.id, x.critere])).toEqual([['pbo', 'nom']])
   })
 

@@ -43,7 +43,7 @@ const { POST } = await import('@/app/api/vitfixsignal/adresse/route')
 
 const JETON = '0123456789abcdef0123456789abcdef'
 const COPRO = {
-  id: 'c0000000-0000-4000-8000-000000000001', nom: 'Parc Belle Ombre', adresse: '', jeton: JETON,
+  id: 'c0000000-0000-4000-8000-000000000001', nom: 'Parc Bois Fictif', adresse: '', jeton: JETON,
   emails_destinataires: [], actif: true, created_at: '2026-11-04T10:00:00.000Z',
 }
 // Lieu public (Vieux-Port de Marseille), aucune donnée réelle d'une personne.

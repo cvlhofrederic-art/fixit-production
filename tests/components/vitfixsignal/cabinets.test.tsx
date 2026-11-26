@@ -46,7 +46,7 @@ function simulerFetch(routeur: (appel: Appel) => Response) {
 }
 
 const rappels = { onModifie: vi.fn(), onReessayer: vi.fn(), onJournal: vi.fn() }
-function rendre(cabinets: CabinetQr[] | null = [cabinetFige, cabinetNeuf], coproprietes: CoproprieteQr[] = [copro(C1, 'Parc Belle Ombre', null), copro(C2, 'Résidence Exemple', cabinetFige)]) {
+function rendre(cabinets: CabinetQr[] | null = [cabinetFige, cabinetNeuf], coproprietes: CoproprieteQr[] = [copro(C1, 'Parc Bois Fictif', null), copro(C2, 'Résidence Exemple', cabinetFige)]) {
   return render(<CabinetsQr cabinets={cabinets} erreur={null} coproprietes={coproprietes} {...rappels} />)
 }
 
@@ -184,7 +184,7 @@ describe('rattachement des copropriétés sans cabinet', () => {
     rendre()
     const bloc = screen.getByRole('heading', { name: remplir(G.cabinets.sansCabinet, { n: 1 }) }).closest('section') as HTMLElement
     expect(within(bloc).queryByText('Résidence Exemple')).toBeNull()
-    fireEvent.click(within(bloc).getByRole('checkbox', { name: /Parc Belle Ombre/ }))
+    fireEvent.click(within(bloc).getByRole('checkbox', { name: /Parc Bois Fictif/ }))
     fireEvent.change(within(bloc).getByLabelText(G.cabinets.rattacherA), { target: { value: K1 } })
     fireEvent.click(within(bloc).getByRole('button', { name: G.cabinets.rattacher }))
     expect(within(bloc).getByText(remplir(G.cabinets.rattachementAvertissement, { identifiant: 'cabinet-exemple' }))).toBeInTheDocument()
@@ -204,7 +204,7 @@ describe('rattachement des copropriétés sans cabinet', () => {
     simulerFetch(() => (appels.length === 1 ? json({ error: 'doublon', doublon }, 409) : json({ rattachees: 1 })))
     rendre()
     const bloc = screen.getByRole('heading', { name: remplir(G.cabinets.sansCabinet, { n: 1 }) }).closest('section') as HTMLElement
-    fireEvent.click(within(bloc).getByRole('checkbox', { name: /Parc Belle Ombre/ }))
+    fireEvent.click(within(bloc).getByRole('checkbox', { name: /Parc Bois Fictif/ }))
     fireEvent.change(within(bloc).getByLabelText(G.cabinets.rattacherA), { target: { value: K1 } })
     fireEvent.click(within(bloc).getByRole('button', { name: G.cabinets.rattacher }))
     fireEvent.click(within(bloc).getByRole('button', { name: G.cabinets.confirmerRattachement }))
@@ -219,7 +219,7 @@ describe('rattachement des copropriétés sans cabinet', () => {
     simulerFetch(() => json({ error: 'doublon', doublon: { certitude: 'certain', critere: 'immatriculation', copropriete: { id: C2, nom: 'Résidence Exemple', ville: '' } } }, 409))
     rendre()
     const bloc = screen.getByRole('heading', { name: remplir(G.cabinets.sansCabinet, { n: 1 }) }).closest('section') as HTMLElement
-    fireEvent.click(within(bloc).getByRole('checkbox', { name: /Parc Belle Ombre/ }))
+    fireEvent.click(within(bloc).getByRole('checkbox', { name: /Parc Bois Fictif/ }))
     fireEvent.change(within(bloc).getByLabelText(G.cabinets.rattacherA), { target: { value: K1 } })
     fireEvent.click(within(bloc).getByRole('button', { name: G.cabinets.rattacher }))
     fireEvent.click(within(bloc).getByRole('button', { name: G.cabinets.confirmerRattachement }))

@@ -125,7 +125,7 @@ describe(`Migration ${FICHIER} : rejouable, sans donnée`, () => {
     expect(code).not.toMatch(/'[a-z0-9-]+(\.[a-z0-9-]+)*\.(fr|com|pt|io|net|org|eu|test)'/i)
     expect(sql.toLowerCase()).not.toContain('aj' + 'associ')
     expect(sql.toLowerCase()).not.toContain(['aj', 'associ'].join(' '))
-    expect(sql).not.toMatch(/Parc Belle Ombre/i)
+    expect(sql).not.toMatch(/Parc Bois Fictif/i)
   })
 })
 

@@ -29,7 +29,7 @@ const ID_COPRO = 'c0000000-0000-4000-8000-000000000001'
 const ID_COPRO_2 = 'c0000000-0000-4000-8000-000000000002'
 
 const marie: SignalementQr = {
-  id: '5f2c9a1e-1111-4222-8333-444444444444', coproprieteId: ID_COPRO, coproprieteNom: 'Parc Belle Ombre',
+  id: '5f2c9a1e-1111-4222-8333-444444444444', coproprieteId: ID_COPRO, coproprieteNom: 'Parc Bois Fictif',
   prenom: 'Marie', nom: 'Durand', telephone: '06 12 34 56 78', email: 'marie@example.com', batiment: 'B', etage: '4', numLot: '12',
   estPartieCommune: false, zoneSignalee: '', typeIntervention: 'Plomberie (fuite, colonne, robinetterie)', description: 'Fuite sous l’évier',
   priorite: 'urgente', statut: 'en_attente', langue: 'fr', emailEnvoyeLe: '2026-11-04T14:05:10.000Z', emailErreur: null,
@@ -51,7 +51,7 @@ function tableau(): TableauQr {
   return {
     coproprietes: [
       {
-        id: ID_COPRO, nom: 'Parc Belle Ombre', adresse: '', jeton: JETON, emailsDestinataires: [], actif: true, creeLe: '2026-11-04T10:00:00.000Z', nbSignalements: 1, nbEnAttente: 1,
+        id: ID_COPRO, nom: 'Parc Bois Fictif', adresse: '', jeton: JETON, emailsDestinataires: [], actif: true, creeLe: '2026-11-04T10:00:00.000Z', nbSignalements: 1, nbEnAttente: 1,
         derniereAdresseProposee: { adresse: '1 Quai du Port 13002 Marseille', le: '2026-11-04T14:05:00.000Z' }, ...gestionCoproprieteQrVide(),
       },
       {
@@ -106,7 +106,7 @@ describe('chargement et vues', () => {
     expect(within(indicateurs()).getByText(T.kpis.recus).parentElement).toHaveTextContent('2')
     expect(within(indicateurs()).getByText(T.kpis.aTraiter).parentElement).toHaveTextContent('1')
     expect(within(indicateurs()).getByText(T.kpis.resolus).parentElement).toHaveTextContent('1')
-    expect(screen.queryByRole('heading', { name: 'Parc Belle Ombre' })).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Parc Bois Fictif' })).toBeNull()
     expect(lignes()).toHaveLength(2)
 
     // Copropriétés : cartes (lien, QR code, destinataires, compteurs).
@@ -115,13 +115,13 @@ describe('chargement et vues', () => {
     const groupe = screen.getByRole('group', { name: T.coproprietes })
     expect(groupe.tagName).toBe('FIELDSET')
     expect(groupe).toHaveClass('grid', 'min-w-0', 'gap-4')
-    expect(within(groupe).getByRole('heading', { name: 'Parc Belle Ombre' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Parc Belle Ombre' })).toBeInTheDocument()
+    expect(within(groupe).getByRole('heading', { name: 'Parc Bois Fictif' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Parc Bois Fictif' })).toBeInTheDocument()
     expect(screen.getByText(lienPublic())).toBeInTheDocument()
     expect(screen.getByText(T.destinatairesDefaut, { exact: false })).toBeInTheDocument()
     expect(screen.getByText('o@example.com', { exact: false })).toBeInTheDocument()
     expect(screen.getByText('1 signalement · 1 à traiter')).toBeInTheDocument()
-    await waitFor(() => expect(screen.getByRole('img', { name: 'QR code de la copropriété Parc Belle Ombre' })).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('img', { name: 'QR code de la copropriété Parc Bois Fictif' })).toBeInTheDocument())
     expect(screen.getAllByRole('button', { name: T.affichePdf })[0]).toBeEnabled()
     expect(screen.queryByRole('region', { name: T.indicateurs })).toBeNull()
     expect(screen.queryByRole('list')).toBeNull()
@@ -136,7 +136,7 @@ describe('chargement et vues', () => {
     expect(lignes()[1]).toHaveTextContent('Paul Martin')
     expect(lignes()[1]).toHaveTextContent('Parties communes — Hall d’entrée')
     expect(lignes()[1]).toHaveTextContent('Résolu')
-    expect(screen.queryByRole('heading', { name: 'Parc Belle Ombre' })).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Parc Bois Fictif' })).toBeNull()
 
     expect(appelsTableau()).toHaveLength(1)
   })
@@ -152,7 +152,7 @@ describe('chargement et vues', () => {
     const seule: TableauQr = { coproprietes: [tableau().coproprietes[0]], signalements: [marie] }
     await rendrePret('signalements', () => json({ tableau: seule }))
     const filtre = screen.getByLabelText(T.filtrerCopro)
-    expect(within(filtre).getAllByRole('option').map((o) => o.textContent)).toEqual([T.toutesCopros, 'Parc Belle Ombre'])
+    expect(within(filtre).getAllByRole('option').map((o) => o.textContent)).toEqual([T.toutesCopros, 'Parc Bois Fictif'])
   })
 
   it('changement de vue (bouton Retour du navigateur) : la fenêtre de détail ouverte se ferme', async () => {
@@ -234,7 +234,7 @@ describe('tableau de bord : liste de tous les signalements reçus sous les indic
     expect(lignes()[0]).toHaveTextContent('Même problème que le signalement n° 1A2B3C4D')
     expect(lignes()[1]).toHaveTextContent('Paul Martin')
     expect(lignes()[1]).toHaveTextContent('Résolu')
-    expect(within(filtre()).getAllByRole('option').map((o) => o.textContent)).toEqual([T.toutesCopros, 'Parc Belle Ombre', 'Les Oliviers'])
+    expect(within(filtre()).getAllByRole('option').map((o) => o.textContent)).toEqual([T.toutesCopros, 'Parc Bois Fictif', 'Les Oliviers'])
     // Aucun h1 dans le contenu : le seul h1 est dans l'en-tête de l'espace.
     expect(screen.queryAllByRole('heading', { level: 1 })).toHaveLength(0)
   })
@@ -375,17 +375,17 @@ describe('copropriétés', () => {
 
   it('modifie une copropriété : PATCH avec nom, adresse, destinataires et activation', async () => {
     await rendrePret('coproprietes', (appel) => (appel.init?.method === 'PATCH'
-      ? json({ copropriete: { ...tableau().coproprietes[0], nom: 'Parc Belle Ombre (bât. B)', actif: false, nbSignalements: 0, nbEnAttente: 0, derniereAdresseProposee: null } })
+      ? json({ copropriete: { ...tableau().coproprietes[0], nom: 'Parc Bois Fictif (bât. B)', actif: false, nbSignalements: 0, nbEnAttente: 0, derniereAdresseProposee: null } })
       : json({ tableau: tableau() })))
     fireEvent.click(screen.getAllByRole('button', { name: T.modifier })[0])
     const dialogue = screen.getByRole('dialog')
-    fireEvent.change(within(dialogue).getByLabelText(T.formulaire.nom), { target: { value: 'Parc Belle Ombre (bât. B)' } })
+    fireEvent.change(within(dialogue).getByLabelText(T.formulaire.nom), { target: { value: 'Parc Bois Fictif (bât. B)' } })
     fireEvent.click(within(dialogue).getByLabelText(T.formulaire.actif))
     fireEvent.click(within(dialogue).getByRole('button', { name: T.formulaire.enregistrer }))
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'Parc Belle Ombre (bât. B)' })).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Parc Bois Fictif (bât. B)' })).toBeInTheDocument())
     const patch = appels.find((a) => a.init?.method === 'PATCH')
     expect(patch?.url).toBe(`/api/vitfixsignal/coproprietes/${ID_COPRO}`)
-    expect(JSON.parse(String(patch?.init?.body))).toEqual({ nom: 'Parc Belle Ombre (bât. B)', adresse: '', emailsDestinataires: [], actif: false })
+    expect(JSON.parse(String(patch?.init?.body))).toEqual({ nom: 'Parc Bois Fictif (bât. B)', adresse: '', emailsDestinataires: [], actif: false })
     expect(screen.getByText(T.qrDesactive)).toBeInTheDocument()
     // Les compteurs connus sont conservés, comme la dernière adresse proposée tant que l'adresse reste vide.
     expect(screen.getByText('1 signalement · 1 à traiter')).toBeInTheDocument()
@@ -419,8 +419,8 @@ describe('adresse proposée d’après la position d’un déclarant', () => {
 
   it('copropriété sans adresse : dernière adresse proposée (date) et « Utiliser cette adresse » ; rien pour une copropriété qui a une adresse', async () => {
     await rendrePret('coproprietes')
-    expect(within(carte('Parc Belle Ombre')).getByText(texteProposee)).toBeInTheDocument()
-    expect(within(carte('Parc Belle Ombre')).getByText(T.sansAdresse)).toBeInTheDocument()
+    expect(within(carte('Parc Bois Fictif')).getByText(texteProposee)).toBeInTheDocument()
+    expect(within(carte('Parc Bois Fictif')).getByText(T.sansAdresse)).toBeInTheDocument()
     expect(within(carte('Les Oliviers')).queryByRole('button', { name: T.utiliserAdresse })).toBeNull()
     expect(screen.getAllByRole('button', { name: T.utiliserAdresse })).toHaveLength(1)
   })
@@ -429,14 +429,14 @@ describe('adresse proposée d’après la position d’un déclarant', () => {
     await rendrePret('coproprietes', (appel) => (appel.init?.method === 'PATCH'
       ? json({ copropriete: { ...tableau().coproprietes[0], adresse: '1 Quai du Port 13002 Marseille', nbSignalements: 0, nbEnAttente: 0, derniereAdresseProposee: null } })
       : json({ tableau: tableau() })))
-    fireEvent.click(within(carte('Parc Belle Ombre')).getByRole('button', { name: T.utiliserAdresse }))
+    fireEvent.click(within(carte('Parc Bois Fictif')).getByRole('button', { name: T.utiliserAdresse }))
     await waitFor(() => expect(screen.getByText(T.adresseEnregistree)).toBeInTheDocument())
     const patch = appels.find((a) => a.init?.method === 'PATCH')
     expect(patch?.url).toBe(`/api/vitfixsignal/coproprietes/${ID_COPRO}`)
     expect(JSON.parse(String(patch?.init?.body))).toEqual({ adresse: '1 Quai du Port 13002 Marseille' })
     expect((patch?.init?.headers as Record<string, string>).Authorization).toBe('Bearer jeton')
-    expect(within(carte('Parc Belle Ombre')).getByText('1 Quai du Port 13002 Marseille')).toBeInTheDocument()
-    expect(within(carte('Parc Belle Ombre')).queryByText(T.sansAdresse)).toBeNull()
+    expect(within(carte('Parc Bois Fictif')).getByText('1 Quai du Port 13002 Marseille')).toBeInTheDocument()
+    expect(within(carte('Parc Bois Fictif')).queryByText(T.sansAdresse)).toBeNull()
     expect(screen.queryByRole('button', { name: T.utiliserAdresse })).toBeNull()
     // Les compteurs connus sont conservés.
     expect(screen.getByText('1 signalement · 1 à traiter')).toBeInTheDocument()
@@ -444,9 +444,9 @@ describe('adresse proposée d’après la position d’un déclarant', () => {
 
   it('enregistrement refusé : erreur dans la carte, l’adresse proposée reste', async () => {
     await rendrePret('coproprietes', (appel) => (appel.init?.method === 'PATCH' ? json({ error: 'interdit' }, 403) : json({ tableau: tableau() })))
-    fireEvent.click(within(carte('Parc Belle Ombre')).getByRole('button', { name: T.utiliserAdresse }))
-    await waitFor(() => expect(within(carte('Parc Belle Ombre')).getByRole('alert')).toHaveTextContent(T.erreurAdresse))
-    expect(within(carte('Parc Belle Ombre')).getByText(texteProposee)).toBeInTheDocument()
-    expect(within(carte('Parc Belle Ombre')).getByRole('button', { name: T.utiliserAdresse })).toBeEnabled()
+    fireEvent.click(within(carte('Parc Bois Fictif')).getByRole('button', { name: T.utiliserAdresse }))
+    await waitFor(() => expect(within(carte('Parc Bois Fictif')).getByRole('alert')).toHaveTextContent(T.erreurAdresse))
+    expect(within(carte('Parc Bois Fictif')).getByText(texteProposee)).toBeInTheDocument()
+    expect(within(carte('Parc Bois Fictif')).getByRole('button', { name: T.utiliserAdresse })).toBeEnabled()
   })
 })

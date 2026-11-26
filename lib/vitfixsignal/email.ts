@@ -60,7 +60,7 @@ const ECHAPPEMENTS: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '
 /** Texte sûr dans un attribut ou un contenu HTML. */
 export const echapperHtml = (texte: string): string => texte.replace(/[&<>"']/g, (c) => ECHAPPEMENTS[c] ?? c)
 
-/** Objet de l'e-mail : « [Vitfix Signal] URGENT — Plomberie (fuite…) — Parc Belle Ombre — lot 12 ». */
+/** Objet de l'e-mail : « [Vitfix Signal] URGENT — Plomberie (fuite…) — Parc Bois Fictif — lot 12 ». */
 export function sujetSignalementQr(s: Pick<SignalementQr, 'priorite' | 'typeIntervention' | 'numLot'>, nomCopropriete: string): string {
   const urgent = s.priorite === 'urgente' ? 'URGENT — ' : ''
   return `[Vitfix Signal] ${urgent}${s.typeIntervention} — ${nomCopropriete} — lot ${s.numLot}`
@@ -617,7 +617,7 @@ export const TEXTES_CONFIRMATION_QR: Record<LangueSignalementQr, TextesConfirmat
   politique: { fr: 'Politique de confidentialité', pt: 'Política de privacidade' },
 })
 
-/** Objet : « Votre signalement n° 5F2C9A1E a bien été enregistré — Parc Belle Ombre » (texte brut, pas de HTML). */
+/** Objet : « Votre signalement n° 5F2C9A1E a bien été enregistré — Parc Bois Fictif » (texte brut, pas de HTML). */
 export function sujetConfirmationQr(numero: string, nomCopropriete: string, langue: LangueSignalementQr): string {
   return remplir(TEXTES_CONFIRMATION_QR[langue].sujet, { numero, copropriete: nomCopropriete })
 }

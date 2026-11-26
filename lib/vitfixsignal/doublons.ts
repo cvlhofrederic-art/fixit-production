@@ -2,7 +2,7 @@
 //
 // Règles pures partagées par la saisie, la modification et l'import, au navigateur (aperçu) comme au serveur
 // (pré-contrôle avant la fonction SQL de création). Comparaison à TOUTES les copropriétés du cabinet, actives ou non ;
-// la clé du nom est recalculée ici depuis le nom (cle_nom est NULL pour les lignes antérieures, dont Parc Belle Ombre).
+// la clé du nom est recalculée ici depuis le nom (cle_nom est NULL pour les lignes antérieures, dont Parc Bois Fictif).
 //   certain  : même immatriculation, même référence du cabinet (index uniques : jamais forçable) ;
 //              même nom normalisé + même code postal (forçable par le super admin seul, journal doublon.force) ;
 //   probable : même adresse normalisée + même code postal ; même nom, code postal différent ou absent.

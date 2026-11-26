@@ -56,7 +56,7 @@ describe('matrice et SVG', () => {
 
 describe('fichiers', () => {
   it('nom de fichier sans accent ni espace, « copropriete » si rien ne reste', () => {
-    expect(nomFichierQr('Parc Belle Ombre')).toBe('parc-belle-ombre')
+    expect(nomFichierQr('Parc Bois Fictif')).toBe('parc-bois-fictif')
     expect(nomFichierQr('Résidence Les Oliviers — bât. A')).toBe('residence-les-oliviers-bat-a')
     expect(nomFichierQr('   ')).toBe('copropriete')
   })

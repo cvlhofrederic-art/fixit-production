@@ -47,7 +47,7 @@ const { default: EspaceVitfixSignal } = await import('@/components/vitfixsignal/
 
 const tableau = (): TableauQr => ({
   coproprietes: [{
-    id: 'c1', nom: 'Parc Belle Ombre', adresse: 'Marseille', jeton: '0123456789abcdef0123456789abcdef', emailsDestinataires: [], actif: true,
+    id: 'c1', nom: 'Parc Bois Fictif', adresse: 'Marseille', jeton: '0123456789abcdef0123456789abcdef', emailsDestinataires: [], actif: true,
     creeLe: '2026-11-04T10:00:00.000Z', nbSignalements: 0, nbEnAttente: 0, derniereAdresseProposee: null, ...gestionCoproprieteQrVide(),
   }],
   signalements: [],
@@ -242,7 +242,7 @@ describe('super admin : coquille de l’espace', () => {
     fireEvent.click(within(menuLateral()).getByRole('link', { name: 'Copropriétés' }))
     expect(window.location.hash).toBe('#coproprietes')
     expect(titre()).toHaveTextContent('Copropriétés')
-    expect(screen.getByRole('heading', { name: 'Parc Belle Ombre' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Parc Bois Fictif' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: T.ajouterCopro })).toBeInTheDocument()
 
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
@@ -337,7 +337,7 @@ describe('super admin : coquille de l’espace', () => {
   })
 
   it('n’utilise ni le sélecteur de copropriété de l’AJ ni celui du portail', async () => {
-    localStorage.setItem('vitfix.aj.dossierEnCours', JSON.stringify('BELLE-OMBRE'))
+    localStorage.setItem('vitfix.aj.dossierEnCours', JSON.stringify('BOIS-FICTIF'))
     localStorage.setItem('vitfix.liaison.copro-aj.source', 'aj')
     const lectures = vi.spyOn(Storage.prototype, 'getItem')
     simul.getUser.mockResolvedValue(utilisateur({ role: 'super_admin' }))
@@ -409,7 +409,7 @@ describe('espace d’un cabinet : garde et coquille du gestionnaire', () => {
     expect(screen.queryByRole('link', { name: 'Panneau admin' })).toBeNull()
     await waitFor(() => expect(screen.getByRole('region', { name: T.indicateurs })).toBeInTheDocument())
     fireEvent.click(within(menuLateral()).getByRole('link', { name: 'Copropriétés' }))
-    expect(await screen.findByRole('heading', { name: 'Parc Belle Ombre' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Parc Bois Fictif' })).toBeInTheDocument()
     await act(async () => { await new Promise((r) => setTimeout(r, 20)) })
     // Aucune route du super admin (cabinets, fiches des gestionnaires) : 403 pour un gestionnaire. Lot 5 : son profil (/moi) d'abord.
     expect(appelsFetch).toEqual(['/api/vitfixsignal/moi', '/api/vitfixsignal/tableau'])

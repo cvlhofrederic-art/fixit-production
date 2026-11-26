@@ -36,7 +36,7 @@ import type { DestinataireQr, SignalementQr } from '@/lib/vitfixsignal/types'
 function signalement(sur: Partial<SignalementQr> = {}): SignalementQr {
   return {
     id: '5f2c9a1e-1111-4222-8333-444444444444',
-    coproprieteId: 'c1', coproprieteNom: 'Parc Belle Ombre',
+    coproprieteId: 'c1', coproprieteNom: 'Parc Bois Fictif',
     prenom: 'Marie', nom: 'Durand', telephone: '06 12 34 56 78', email: 'marie.durand@example.com',
     batiment: 'B', etage: '4', numLot: '12', estPartieCommune: false, zoneSignalee: '',
     typeIntervention: 'Plomberie (fuite, colonne, robinetterie)', description: 'Fuite sous l’évier\n<script>alert(1)</script>',
@@ -48,7 +48,7 @@ function signalement(sur: Partial<SignalementQr> = {}): SignalementQr {
   }
 }
 
-const copropriete = { nom: 'Parc Belle Ombre', adresse: '12 allée des Pins, 13009 Marseille' }
+const copropriete = { nom: 'Parc Bois Fictif', adresse: '12 allée des Pins, 13009 Marseille' }
 
 beforeEach(() => {
   h.sendEmail.mockClear()
@@ -58,8 +58,8 @@ beforeEach(() => {
 
 describe('objet et contenu', () => {
   it('objet : URGENT en tête quand le déclarant indique une urgence, puis type, copropriété, lot', () => {
-    expect(sujetSignalementQr(signalement(), 'Parc Belle Ombre')).toBe('[Vitfix Signal] URGENT — Plomberie (fuite, colonne, robinetterie) — Parc Belle Ombre — lot 12')
-    expect(sujetSignalementQr(signalement({ priorite: 'normale' }), 'Parc Belle Ombre')).toBe('[Vitfix Signal] Plomberie (fuite, colonne, robinetterie) — Parc Belle Ombre — lot 12')
+    expect(sujetSignalementQr(signalement(), 'Parc Bois Fictif')).toBe('[Vitfix Signal] URGENT — Plomberie (fuite, colonne, robinetterie) — Parc Bois Fictif — lot 12')
+    expect(sujetSignalementQr(signalement({ priorite: 'normale' }), 'Parc Bois Fictif')).toBe('[Vitfix Signal] Plomberie (fuite, colonne, robinetterie) — Parc Bois Fictif — lot 12')
   })
 
   it('le HTML porte les coordonnées, le lieu, la description échappée et le lien du tableau de bord', () => {
@@ -206,15 +206,15 @@ describe('alertes au super admin', () => {
 })
 
 describe('confirmation au déclarant', () => {
-  const coproConfirmation = { nom: 'Parc Belle Ombre' }
+  const coproConfirmation = { nom: 'Parc Bois Fictif' }
 
   it('FR : objet, numéro, copropriété, date et heure de Paris, récapitulatif du logement, suite et « ne répondez pas »', () => {
     const { subject, html } = templateConfirmationQr({ copropriete: coproConfirmation, signalement: signalement() })
-    expect(subject).toBe('Votre signalement n° 5F2C9A1E a bien été enregistré — Parc Belle Ombre')
-    expect(sujetConfirmationQr('5F2C9A1E', 'Parc Belle Ombre', 'fr')).toBe(subject)
+    expect(subject).toBe('Votre signalement n° 5F2C9A1E a bien été enregistré — Parc Bois Fictif')
+    expect(sujetConfirmationQr('5F2C9A1E', 'Parc Bois Fictif', 'fr')).toBe(subject)
     expect(html).toContain('<html lang="fr">')
     expect(html).toContain('5F2C9A1E')
-    expect(html).toContain('Parc Belle Ombre')
+    expect(html).toContain('Parc Bois Fictif')
     expect(html).toContain('4 novembre 2026 à 14:05 (heure de Paris)')
     expect(html).toContain('Votre logement (bât. B · étage 4 · lot 12)')
     expect(html).toContain('Plomberie (fuite, colonne, robinetterie)')
@@ -253,7 +253,7 @@ describe('confirmation au déclarant', () => {
       copropriete: coproConfirmation,
       signalement: signalement({ langue: 'pt', typeIntervention: 'Canalização (fuga, coluna, torneiras)', description: 'Fuga debaixo do lava-loiça' }),
     })
-    expect(subject).toBe('A sua ocorrência n.º 5F2C9A1E foi registada — Parc Belle Ombre')
+    expect(subject).toBe('A sua ocorrência n.º 5F2C9A1E foi registada — Parc Bois Fictif')
     expect(html).toContain('<html lang="pt">')
     expect(html).toContain('4 de novembro de 2026 às 14:05 (hora de Paris)')
     expect(html).toContain('A sua habitação (bloco B · piso 4 · fração 12)')
@@ -286,7 +286,7 @@ describe('confirmation au déclarant', () => {
     expect(appel).not.toHaveProperty('replyTo')
     expect(appel).not.toHaveProperty('cc')
     expect(appel).not.toHaveProperty('bcc')
-    expect(appel.subject).toBe('Votre signalement n° 5F2C9A1E a bien été enregistré — Parc Belle Ombre')
+    expect(appel.subject).toBe('Votre signalement n° 5F2C9A1E a bien été enregistré — Parc Bois Fictif')
     expect(appel.tags).toEqual([{ name: 'type', value: 'vitfixsignal-confirmation' }])
   })
 
@@ -328,7 +328,7 @@ describe('qualité, adresse proposée et signalement lié (demandes de Hugo du 0
 
   it('administrateur : qualité, « même problème que le signalement n° X », adresse proposée échappée', () => {
     const { html } = templateSignalementQr({
-      copropriete: { nom: 'Parc Belle Ombre', adresse: '' },
+      copropriete: { nom: 'Parc Bois Fictif', adresse: '' },
       signalement: signalement({ qualiteDeclarant: 'locataire', signalementLieId: ID_LIE, adresseProposee: '1 Quai du Port <i>13002</i> Marseille' }),
     })
     expect(html).toContain('Qualité')
@@ -348,7 +348,7 @@ describe('qualité, adresse proposée et signalement lié (demandes de Hugo du 0
 
   it('confirmation FR : « Vous êtes » et « même problème » ; l’adresse proposée n’y figure pas', () => {
     const { html } = templateConfirmationQr({
-      copropriete: { nom: 'Parc Belle Ombre' },
+      copropriete: { nom: 'Parc Bois Fictif' },
       signalement: signalement({ signalementLieId: ID_LIE, adresseProposee: '1 Quai du Port 13002 Marseille' }),
     })
     expect(html).toContain('Vous êtes')
@@ -359,7 +359,7 @@ describe('qualité, adresse proposée et signalement lié (demandes de Hugo du 0
 
   it('confirmation PT : « Na qualidade de », « Inquilino », « Mesmo problema que a ocorrência n.º X »', () => {
     const { html } = templateConfirmationQr({
-      copropriete: { nom: 'Parc Belle Ombre' },
+      copropriete: { nom: 'Parc Bois Fictif' },
       signalement: signalement({ langue: 'pt', qualiteDeclarant: 'locataire', signalementLieId: ID_LIE }),
     })
     expect(html).toContain('Na qualidade de')
@@ -369,7 +369,7 @@ describe('qualité, adresse proposée et signalement lié (demandes de Hugo du 0
   })
 
   it('qualité inconnue (signalement antérieur) : la ligne n’apparaît pas dans la confirmation', () => {
-    const { html } = templateConfirmationQr({ copropriete: { nom: 'Parc Belle Ombre' }, signalement: signalement({ qualiteDeclarant: null }) })
+    const { html } = templateConfirmationQr({ copropriete: { nom: 'Parc Bois Fictif' }, signalement: signalement({ qualiteDeclarant: null }) })
     expect(html).not.toContain('Vous êtes')
   })
 })

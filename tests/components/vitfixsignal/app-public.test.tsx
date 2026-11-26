@@ -62,7 +62,7 @@ const depots = () => appels.filter((a) => a.url === '/api/vitfixsignal/signaleme
 const corpsDepot = (n = 0) => JSON.parse(String(depots()[n].init?.body)) as Record<string, unknown>
 
 function rendre(adresse = '12 allée des Pins, 13009 Marseille') {
-  return render(<AppSignalementQr jeton={JETON} copropriete={{ nom: 'Parc Belle Ombre', adresse }} langue="fr" />)
+  return render(<AppSignalementQr jeton={JETON} copropriete={{ nom: 'Parc Bois Fictif', adresse }} langue="fr" />)
 }
 
 const bouton = () => screen.getByRole('button', { name: tq.envoyer })
@@ -121,7 +121,7 @@ afterEach(() => {
 describe('page ouverte par le QR code', () => {
   it('affiche la copropriété ; le bouton reste désactivé tant que coordonnées et parcours sont incomplets', () => {
     rendre()
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Parc Belle Ombre')
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Parc Bois Fictif')
     expect(screen.getByText('12 allée des Pins, 13009 Marseille')).toBeInTheDocument()
     expect(screen.getByText(tq.coordonneesAide)).toBeInTheDocument()
     expect(bouton()).toBeDisabled()
@@ -240,7 +240,7 @@ describe('géolocalisation : adresse proposée quand celle de la copropriété n
     const appelAdresse = appels.find((a) => a.url === '/api/vitfixsignal/adresse')
     expect(appelAdresse?.init?.method).toBe('POST')
     expect(JSON.parse(String(appelAdresse?.init?.body))).toEqual({ jeton: JETON, latitude: 43.2951, longitude: 5.3741 })
-    expect(screen.getByText(tq.copropriete).closest('section')).toHaveTextContent('Parc Belle Ombre')
+    expect(screen.getByText(tq.copropriete).closest('section')).toHaveTextContent('Parc Bois Fictif')
 
     remplirCoordonnees()
     remplirParcours()
@@ -481,7 +481,7 @@ describe('information à la collecte : mention courte et politique du cabinet so
   const MENTION = 'Vos coordonnées sont traitées par Cabinet Exemple pour traiter votre signalement.'
   const MENTION_DIFFUSION = 'Vos coordonnées sont traitées par Cabinet Exemple pour traiter votre signalement et vous informer des incidents de votre immeuble ; vous pourrez vous y opposer à tout moment.'
   const rendreAvec = (information: { cabinet: string; politiqueUrl: string; diffusion: boolean } | null, langue: 'fr' | 'pt' = 'fr') => render(
-    <AppSignalementQr jeton={JETON} copropriete={{ nom: 'Parc Belle Ombre', adresse: '12 allée des Pins' }} langue={langue} information={information} />,
+    <AppSignalementQr jeton={JETON} copropriete={{ nom: 'Parc Bois Fictif', adresse: '12 allée des Pins' }} langue={langue} information={information} />,
   )
   const lien = () => screen.getByRole('link', { name: tq.politiqueConfidentialite })
 
