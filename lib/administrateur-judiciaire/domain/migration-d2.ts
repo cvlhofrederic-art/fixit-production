@@ -380,3 +380,36 @@ export function libelleFicheEcartee(e: FicheEcarteeDetaillee, codeCopro?: string
   if (!lieu) return [e.nom ?? 'Fiche sans nom', e.motif].join(' — ')
   return [`${lieu}, ${e.nom ?? 'fiche sans nom'}`, e.motif].join(' — ')
 }
+
+/** Champs de l'ancienne fiche cités par les motifs, en mots du métier. */
+const CHAMPS_DU_METIER: Readonly<Record<string, string>> = {
+  lotId: 'lot',
+  nom: 'nom',
+  tel: 'téléphone',
+  mail: 'e-mail',
+  statut: 'statut',
+  id: 'identifiant',
+  solde: 'solde',
+}
+
+const MOTIF_SERIE_PLEINE = /^(Plus de numéro de série libre pour un compte du syndicat)(?: [\s\S]*)?\.$/
+const MOTIF_LOT_INTROUVABLE = /^Lot introuvable \(id=[\s\S]*\)\.$/
+const MOTIF_CHAMP = /^Champ « (\w+) » : texte attendu([\s\S]*)$/
+
+/**
+ * Motif d'une fiche écartée tel qu'on l'affiche (décision du 26/11/2026) : sans identifiant interne et avec les champs
+ * en mots du métier. « … du syndicat <code>. » (« … du syndicat. » sans code) ; « Lot introuvable. » ; « Champ « lotId » »
+ * devient « Champ « lot » », etc. Les autres motifs, et un champ inconnu, restent tels quels. Le texte du plan, lui, ne
+ * change pas : seule la présentation. Fonction pure.
+ */
+export function motifLisible(motif: string, codeCopro?: string): string {
+  const serie = MOTIF_SERIE_PLEINE.exec(motif)
+  if (serie) {
+    const code = codeCopro?.trim()
+    return code ? `${serie[1]} ${code}.` : `${serie[1]}.`
+  }
+  if (MOTIF_LOT_INTROUVABLE.test(motif)) return 'Lot introuvable.'
+  const champ = MOTIF_CHAMP.exec(motif)
+  const traduit = champ ? CHAMPS_DU_METIER[champ[1]] : undefined
+  return champ && traduit ? `Champ « ${traduit} » : texte attendu${champ[2]}` : motif
+}

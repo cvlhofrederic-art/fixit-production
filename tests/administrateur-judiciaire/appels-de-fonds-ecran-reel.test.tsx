@@ -399,7 +399,9 @@ describe('Appels de fonds en mode réel — écran', () => {
     await cliquerEtAttendre(avis().getByRole('button', { name: 'Reprendre les fiches de toutes les copropriétés' }))
     expect(dernierToast()).toMatchObject({ kind: 'success', title: 'Fiches reprises' })
     const message = String(dernierToast()?.desc)
-    expect(message).toContain('1 fiche écartée(s)')
+    expect(message).toContain('1 fiche reprise en identités')
+    expect(message).toContain('1 fiche écartée ;')
+    expect(message).not.toContain('(s)')
     expect(message).toContain(`Fiche écartée : ${copro.code} · Lot 2, fiche sans nom — Nom de l'identité manquant.`)
     // relecture réussie (la fiche reprise est sur son lot), puis plus de bandeau : une lecture en erreur n'y suffirait pas
     await waitFor(() => expect(avis().getByText(/Ancienne fiche \(fictive\) — Copropriétaire 1\/1/)).toBeTruthy())
@@ -424,6 +426,62 @@ describe('Appels de fonds en mode réel — écran', () => {
     expect(avis().queryByText(/Fiche déjà reprise/)).toBeNull()
     expect(avis().queryByText(/fiche copropriétaire non reprise/)).toBeNull()
     expect(avis().queryByRole('button', { name: /Reprendre les fiches/ })).toBeNull()
+  })
+
+  it("message après la reprise : 3 premiers motifs puis « et 2 autres » (5 fiches écartées) ; l'encadré garde les 5 lignes (décision du 26/11/2026)", async () => {
+    await ajDb.coproprietaires.bulkAdd([ancienneFiche('f0', 'L1', 'Ancienne fiche (fictive)'), ...['f1', 'f2', 'f3', 'f4', 'f5'].map((id) => ancienneFiche(id, 'L2', '  '))])
+    await rendre()
+    expect(avis().getAllByText("Lot 2, fiche sans nom — Nom de l'identité manquant.")).toHaveLength(5)
+    await cliquerEtAttendre(avis().getByRole('button', { name: 'Reprendre les fiches de toutes les copropriétés' }))
+    const message = String(dernierToast()?.desc)
+    expect(message).toContain('1 fiche reprise en identités')
+    expect(message).toContain('5 fiches écartées ;')
+    expect(message.split(`${copro.code} · Lot 2, fiche sans nom — Nom de l'identité manquant.`)).toHaveLength(4)
+    expect(message).toContain('et 2 autres')
+    await waitFor(() => expect(avis().getAllByText("Lot 2, fiche sans nom — Nom de l'identité manquant.")).toHaveLength(5))
+  })
+
+  it('4 fiches écartées : « et 1 autre » au singulier ; 2 fiches reprises au pluriel', async () => {
+    await ajDb.coproprietaires.bulkAdd([
+      ancienneFiche('f1', 'L1', 'Fiche A (fictive)'),
+      ancienneFiche('f2', 'L3', 'Fiche B (fictive)'),
+      ...['f3', 'f4', 'f5', 'f6'].map((id) => ancienneFiche(id, 'L2', '  ')),
+    ])
+    await rendre()
+    await cliquerEtAttendre(avis().getByRole('button', { name: 'Reprendre les fiches de toutes les copropriétés' }))
+    const message = String(dernierToast()?.desc)
+    expect(message).toContain('2 fiches reprises en identités')
+    expect(message).toContain('4 fiches écartées ;')
+    expect(message).toContain('et 1 autre.')
+    expect(message).not.toContain('et 1 autres')
+  })
+
+  it("encadré sans identifiant interne : « du syndicat <code> » (décision du 26/11/2026)", async () => {
+    await ajDb.comptesCoproprietaires.add({ id: 'cpt-plein', coproprieteId: copro.id, serie: '99999', libelle: 'Compte plein (fictif)', createdAt: '', updatedAt: '', createdBy: null, updatedBy: null } as never)
+    await ajDb.coproprietaires.bulkAdd([ancienneFiche('f1', 'L1', 'Ancienne fiche (fictive)')])
+    await rendre()
+    expect(avis().getByText(`Lot 1, Ancienne fiche (fictive) — Plus de numéro de série libre pour un compte du syndicat ${copro.code}.`)).toBeTruthy()
+    expect(avis().queryByText(new RegExp(copro.id))).toBeNull()
+  })
+
+  it('message après la reprise : « du syndicat <code> » d’un autre syndicat, « Lot introuvable. » sans identifiant (décision du 26/11/2026)', async () => {
+    const autre = await useDonneesStore.getState().createCopropriete({ ...SAISIE_COPRO, nom: 'Résidence des Tilleuls', rg: '26/00002' })
+    useSelectionDossier.setState({ code: copro.code, coproprietaireId: null })
+    const suivi = { createdAt: '', updatedAt: '', createdBy: null, updatedBy: null }
+    await ajDb.lots.add({ id: 'LB', coproprieteId: autre.id, numero: '9', tantiemes: { numerateur: 1, denominateur: 1 }, ...suivi } as never)
+    await ajDb.comptesCoproprietaires.add({ id: 'cpt-plein', coproprieteId: autre.id, serie: '99999', libelle: 'Compte plein (fictif)', ...suivi } as never)
+    await ajDb.coproprietaires.bulkAdd([
+      ancienneFiche('f1', 'L1', 'Ancienne fiche (fictive)'),
+      ancienneFiche('f2', 'LB', 'Fiche autre syndicat (fictive)'),
+      ancienneFiche('f3', 'L-disparu', 'Fiche sans lot (fictive)'),
+    ])
+    await rendre()
+    await cliquerEtAttendre(avis().getByRole('button', { name: 'Reprendre les fiches de toutes les copropriétés' }))
+    const message = String(dernierToast()?.desc)
+    expect(message).toContain(`${autre.code} · Lot 9, Fiche autre syndicat (fictive) — Plus de numéro de série libre pour un compte du syndicat ${autre.code}.`)
+    expect(message).toContain('Fiche sans lot (fictive) — Lot introuvable.')
+    expect(message).not.toContain(autre.id)
+    expect(message).not.toContain('L-disparu')
   })
 
   it('ni fiche à reprendre ni fiche écartée : aucun encadré', async () => {

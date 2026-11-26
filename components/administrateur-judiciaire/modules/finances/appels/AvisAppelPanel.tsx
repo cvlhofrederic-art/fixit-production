@@ -24,7 +24,7 @@ import { regimeDepuisFondement } from '@/lib/administrateur-judiciaire/domain/fo
 import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
 import { numeroCompteCoproprietaire } from '@/lib/administrateur-judiciaire/domain/identites-positions'
 import { segmentComptableSyndicat } from '@/lib/administrateur-judiciaire/domain/journal-traitements'
-import { libelleFicheEcartee, type FicheEcarteeDetaillee } from '@/lib/administrateur-judiciaire/domain/migration-d2'
+import { libelleFicheEcartee, motifLisible, type FicheEcarteeDetaillee } from '@/lib/administrateur-judiciaire/domain/migration-d2'
 import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
 
 /**
@@ -64,10 +64,10 @@ const regimeAp = (fondement: string): RegimeAdministrateurProvisoire | null => {
 }
 
 /** Une ligne par fiche écartée : « Lot <n°>, <nom> — <motif> ». */
-function LignesEcartees({ ecartees }: Readonly<{ ecartees: readonly FicheEcarteeDetaillee[] }>) {
+function LignesEcartees({ ecartees, codeCopro }: Readonly<{ ecartees: readonly FicheEcarteeDetaillee[]; codeCopro: string }>) {
   return ecartees.map((e) => (
     <span key={e.coproprietaireId} style={{ display: 'block' }}>
-      {libelleFicheEcartee(e)}
+      {libelleFicheEcartee({ ...e, motif: motifLisible(e.motif, codeCopro) })}
     </span>
   ))
 }
@@ -82,14 +82,15 @@ function LignesEcartees({ ecartees }: Readonly<{ ecartees: readonly FicheEcartee
 function RepriseFiches({
   nombre,
   ecartees,
+  codeCopro,
   onReprendre,
-}: Readonly<{ nombre: number; ecartees: readonly FicheEcarteeDetaillee[]; onReprendre: () => void }>) {
+}: Readonly<{ nombre: number; ecartees: readonly FicheEcarteeDetaillee[]; codeCopro: string; onReprendre: () => void }>) {
   const se = ecartees.length > 1 ? 's' : ''
   if (nombre === 0) {
     if (ecartees.length === 0) return null
     return (
       <Alert kind="" icon="info" title={`${pluriel(ecartees.length, 'fiche')} écartée${se} par la reprise`}>
-        <LignesEcartees ecartees={ecartees} />
+        <LignesEcartees ecartees={ecartees} codeCopro={codeCopro} />
       </Alert>
     )
   }
@@ -103,7 +104,7 @@ function RepriseFiches({
       {ecartees.length > 0 && (
         <>
           <span style={{ display: 'block' }}>{`${pluriel(ecartees.length, 'fiche')} écartée${se} par la reprise :`}</span>
-          <LignesEcartees ecartees={ecartees} />
+          <LignesEcartees ecartees={ecartees} codeCopro={codeCopro} />
         </>
       )}
       <button type="button" className="btn ghost sm" style={{ marginTop: 6 }} onClick={onReprendre}>
@@ -417,7 +418,7 @@ export function AvisAppelPanel({
         )
       }
     >
-      <RepriseFiches nombre={donnees.fichesAReprendre} ecartees={donnees.fichesEcartees} onReprendre={() => void ecritures.reprendreFiches()} />
+      <RepriseFiches nombre={donnees.fichesAReprendre} ecartees={donnees.fichesEcartees} codeCopro={copro.code} onReprendre={() => void ecritures.reprendreFiches()} />
       {erreurSegment && <Alert kind="rust" icon="alert" title={erreurSegment} />}
       <DroitsLots droits={vueDroitsLots(donnees, date)} date={date} />
       {vue && segment && (

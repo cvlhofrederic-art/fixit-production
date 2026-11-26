@@ -5,6 +5,7 @@ import {
   detaillerEcartees,
   idsMigration,
   libelleFicheEcartee,
+  motifLisible,
   planifierMigrationD2,
   seriesDuJournal,
   type EntreesMigrationD2,
@@ -372,5 +373,37 @@ describe('fiches écartées : nommées par leur lot, leur syndicat et leur nom (
     expect(libelle('Lots 3-4')).toBe('ACAC · Lots 3-4, Personne X1 — Motif fictif.')
     expect(libelle('lot')).toBe('ACAC · lot, Personne X1 — Motif fictif.')
     expect(libelle('Lotissement 2')).toBe('ACAC · Lot Lotissement 2, Personne X1 — Motif fictif.')
+  })
+})
+
+describe("motifLisible : motif de la reprise tel qu'on l'affiche (décision du 26/11/2026)", () => {
+  it("« Plus de numéro de série libre » : code du syndicat à la place de l'identifiant interne ; code inconnu : sans identifiant", () => {
+    const motif = 'Plus de numéro de série libre pour un compte du syndicat C-interne-1.'
+    expect(motifLisible(motif, 'ERA')).toBe('Plus de numéro de série libre pour un compte du syndicat ERA.')
+    expect(motifLisible(motif)).toBe('Plus de numéro de série libre pour un compte du syndicat.')
+    expect(motifLisible(motif, '  ')).toBe('Plus de numéro de série libre pour un compte du syndicat.')
+  })
+
+  it('« Lot introuvable (id=…) » : sans identifiant', () => {
+    expect(motifLisible('Lot introuvable (id=L-inconnu).', 'ERA')).toBe('Lot introuvable.')
+    expect(motifLisible('Lot introuvable (id=).')).toBe('Lot introuvable.')
+  })
+
+  it('noms de champ internes traduits en mots du métier', () => {
+    const champ = (nom: string) => `Champ « ${nom} » : texte attendu (reçu 5).`
+    expect(motifLisible(champ('lotId'))).toBe('Champ « lot » : texte attendu (reçu 5).')
+    expect(motifLisible(champ('nom'))).toBe('Champ « nom » : texte attendu (reçu 5).')
+    expect(motifLisible(champ('tel'))).toBe('Champ « téléphone » : texte attendu (reçu 5).')
+    expect(motifLisible(champ('mail'))).toBe('Champ « e-mail » : texte attendu (reçu 5).')
+    expect(motifLisible(champ('statut'))).toBe('Champ « statut » : texte attendu (reçu 5).')
+    expect(motifLisible(champ('id'))).toBe('Champ « identifiant » : texte attendu (reçu 5).')
+    expect(motifLisible(champ('solde'))).toBe('Champ « solde » : texte attendu (reçu 5).')
+    expect(motifLisible('Solde non numérique (reçu "abc").')).toBe('Solde non numérique (reçu "abc").')
+  })
+
+  it('autres motifs inchangés', () => {
+    expect(motifLisible("Nom de l'identité manquant.", 'ERA')).toBe("Nom de l'identité manquant.")
+    expect(motifLisible('Fiche sans identifiant.')).toBe('Fiche sans identifiant.')
+    expect(motifLisible('Champ « inconnu » : texte attendu (reçu 5).')).toBe('Champ « inconnu » : texte attendu (reçu 5).')
   })
 })

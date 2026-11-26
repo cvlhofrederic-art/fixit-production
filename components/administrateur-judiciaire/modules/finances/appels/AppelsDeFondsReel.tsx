@@ -32,7 +32,7 @@ import type { CoproprieteVue } from '@/lib/administrateur-judiciaire/domain/copr
 import { dateIsoVersFr } from '@/lib/administrateur-judiciaire/domain/dates'
 import type { StatutEcheanceAppel } from '@/lib/administrateur-judiciaire/domain/echeancier-appels'
 import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
-import { libelleFicheEcartee, type FicheEcarteeDetaillee } from '@/lib/administrateur-judiciaire/domain/migration-d2'
+import { libelleFicheEcartee, motifLisible, type FicheEcarteeDetaillee } from '@/lib/administrateur-judiciaire/domain/migration-d2'
 import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
 import { useCodeCoproCourant } from '@/lib/administrateur-judiciaire/selection'
 
@@ -72,18 +72,27 @@ async function enregistrerEcheance(copro: CoproprieteVue, saisie: SaisieFormulai
   }
 }
 
-/** Fiches écartées par la reprise, avec le code de leur syndicat et leur motif (décision du 22/11/2026) ; vide sinon. */
+/** Motifs nommés dans le message de la reprise ; les suivants : « et N autres » (la liste complète reste dans l'encadré). */
+const MOTIFS_DANS_LE_MESSAGE = 3
+
+/** Fiches écartées par la reprise, avec le code de leur syndicat et leur motif (décisions du 22/11 et du 26/11/2026) ; vide sinon. */
 function motifsDesEcartees(ecartees: readonly FicheEcarteeDetaillee[], codeDe: (coproprieteId: string | null) => string | undefined): string {
   if (ecartees.length === 0) return ''
   const titre = ecartees.length > 1 ? 'Fiches écartées' : 'Fiche écartée'
-  return ` ${titre} : ${ecartees.map((e) => libelleFicheEcartee(e, codeDe(e.coproprieteId))).join(' ')}`
+  const lignes = ecartees.slice(0, MOTIFS_DANS_LE_MESSAGE).map((e) => {
+    const code = codeDe(e.coproprieteId)
+    return libelleFicheEcartee({ ...e, motif: motifLisible(e.motif, code) }, code)
+  })
+  const reste = ecartees.length - lignes.length
+  const suite = reste > 0 ? ` et ${pluriel(reste, 'autre')}.` : ''
+  return ` ${titre} : ${lignes.join(' ')}${suite}`
 }
 
 async function reprendreFiches(codeDe: (coproprieteId: string | null) => string | undefined): Promise<Succes> {
   const { creees, ecartees, lotsARegulariser } = await migrerFichesCoproprietaires({ aujourdhui: AUJOURDHUI_ISO })
   return {
     title: 'Fiches reprises',
-    desc: `${pluriel(creees.length, 'fiche')} reprise(s) en identités, comptes et positions (toutes copropriétés) ; ${pluriel(ecartees.length, 'fiche')} écartée(s) ; ${pluriel(lotsARegulariser.length, 'lot')} à régulariser.${motifsDesEcartees(ecartees, codeDe)}`,
+    desc: `${pluriel(creees.length, 'fiche')} ${creees.length > 1 ? 'reprises' : 'reprise'} en identités, comptes et positions (toutes copropriétés) ; ${pluriel(ecartees.length, 'fiche')} ${ecartees.length > 1 ? 'écartées' : 'écartée'} ; ${pluriel(lotsARegulariser.length, 'lot')} à régulariser.${motifsDesEcartees(ecartees, codeDe)}`,
   }
 }
 
