@@ -11,6 +11,7 @@ export type CodeRefusDocuments =
   | 'fiche_societe_absente'
   | 'fiche_societe_multiple'
   | 'aucun_droit'
+  | 'aucun_droit_comptabilite'
   | 'lecture_impossible'
 
 export const MESSAGES_REFUS_DOCUMENTS: Record<CodeRefusDocuments, { fr: string; pt: string }> = {
@@ -29,6 +30,12 @@ export const MESSAGES_REFUS_DOCUMENTS: Record<CodeRefusDocuments, { fr: string; 
   aucun_droit: {
     fr: "Votre rôle dans l'entreprise ne donne pas accès aux devis et aux factures.",
     pt: 'A sua função na empresa não dá acesso a orçamentos e faturas.',
+  },
+  // Distinct d'`aucun_droit` : celui-ci parle des devis et des factures, et afficherait le mauvais motif sur
+  // l'écran du Comptable IA.
+  aucun_droit_comptabilite: {
+    fr: "Votre rôle dans l'entreprise ne donne pas accès à la comptabilité.",
+    pt: 'A sua função na empresa não dá acesso à contabilidade.',
   },
   lecture_impossible: {
     fr: 'Les documents de la société sont momentanément illisibles. Réessayez dans un instant.',

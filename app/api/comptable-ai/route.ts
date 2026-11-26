@@ -919,7 +919,9 @@ export async function POST(request: NextRequest) {
     // dérogation du gérant peut poser sur n'importe quel rôle — obtiendrait sinon par Léa ce que /api/btp refuse.
     if (niveauSur(perimetre, 'comptabilite') !== 'FULL' && niveauSur(perimetre, 'compta_btp') !== 'FULL') {
       return NextResponse.json(
-        { error: "Votre rôle dans l'entreprise ne donne pas accès à la comptabilité.", code: 'aucun_droit' },
+        // Code dédié : `aucun_droit` parle des devis et des factures, et le navigateur afficherait le mauvais
+        // motif. Le texte français accompagne le code, c'est l'écran qui choisit la langue.
+        { error: messageRefusFr('aucun_droit_comptabilite'), code: 'aucun_droit_comptabilite' },
         { status: 403 },
       )
     }

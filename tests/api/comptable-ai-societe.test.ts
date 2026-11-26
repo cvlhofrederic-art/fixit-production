@@ -38,6 +38,7 @@ vi.mock('@/lib/ai/relais', () => ({
 
 const { POST } = await import('@/app/api/comptable-ai/route')
 const { nouvelleBase, requetes } = await import('../helpers/faux-supabase-btp')
+const { messageRefusDocuments } = await import('@/lib/documents/messages-refus')
 
 const SOCIETE = '550e8400-e29b-41d4-a716-446655440000'
 const FICHE_SOCIETE = '7cfb1e10-0000-4000-8000-000000000001'
@@ -182,11 +183,31 @@ describe('POST /api/comptable-ai — qui a droit au contexte financier', () => {
     const { status, json } = await demander({ message: 'Quelle est la marge de la société ?' })
 
     expect(status).toBe(403)
-    expect(json.code).toBe('aucun_droit')
+    expect(json.code).toBe('aucun_droit_comptabilite')
     expect(requetes(h.base, 'devis', 'select')).toHaveLength(0)
     expect(requetes(h.base, 'charges_fixes', 'select')).toHaveLength(0)
     // Et surtout : aucun appel au modèle, donc aucune réponse inventée sur un contexte vide.
     expect(h.appelerIA).not.toHaveBeenCalled()
+  })
+
+  it('rend un motif PROPRE à la comptabilité, que l’écran peut traduire en portugais', async () => {
+    // Deux défauts en un, trouvés par la relecture adverse. D'abord le code : `aucun_droit` existe déjà, mais
+    // son texte parle « des devis et des factures » — l'afficher ici donnerait le mauvais motif. Ensuite la
+    // langue : la route rend le français (une route n'a pas de langue) et c'est l'écran qui traduit. Deux
+    // sociétés BTP portugaises sont en production ; leur salarié lisait une phrase française.
+    salarieInvite('OUVRIER', { niveaux: { comptabilite: 'NONE', compta_btp: 'NONE' } })
+
+    const { status, json } = await demander({ message: 'Qual é a margem da empresa?' })
+
+    expect(status).toBe(403)
+    expect(json.code).toBe('aucun_droit_comptabilite')
+    expect(json.error).toContain('comptabilité')
+    // Constante typée : le corps de la réponse arrive en `unknown`, et le contrôle des propriétés en excès de
+    // TypeScript refuse un littéral inline face au type étroit de `messageRefusDocuments`.
+    const refus = { message: String(json.error), code: String(json.code) }
+    expect(messageRefusDocuments(refus, true)).toBe('A sua função na empresa não dá acesso à contabilidade.')
+    expect(messageRefusDocuments(refus, false))
+      .toBe("Votre rôle dans l'entreprise ne donne pas accès à la comptabilité.")
   })
 
   it('accepte un rôle à qui le gérant a donné la comptabilité', async () => {
@@ -207,7 +228,7 @@ describe('POST /api/comptable-ai — qui a droit au contexte financier', () => {
     const { status, json } = await demander({ message: 'Combien gagne Dupont ?' })
 
     expect(status).toBe(403)
-    expect(json.code).toBe('aucun_droit')
+    expect(json.code).toBe('aucun_droit_comptabilite')
     expect(requetes(h.base, 'membres_btp', 'select')).toHaveLength(0)
     expect(h.appelerIA).not.toHaveBeenCalled()
   })

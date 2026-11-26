@@ -89,7 +89,9 @@ function constructeur(base: FauxBase, table: string) {
     && Object.entries(entree.dans).every(([colonne, valeurs]) => valeurs.includes(ligne[colonne]))
     && Object.entries(entree.estNul).every(([colonne, attendu]) =>
       attendu === null ? nulEnBase(ligne[colonne]) : ligne[colonne] === attendu)
-    && Object.entries(entree.differentDe).every(([colonne, valeur]) => ligne[colonne] !== valeur)
+    // `NULL <> x` vaut « inconnu » en SQL : PostgREST exclut la ligne, comme pour les bornes ci-dessus.
+    && Object.entries(entree.differentDe).every(([colonne, valeur]) =>
+      !nulEnBase(ligne[colonne]) && ligne[colonne] !== valeur)
     && dansLesBornes(ligne)
 
   const executer = (): Resultat => {

@@ -221,11 +221,16 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
   // Séparateur des listes déroulantes : pas de tiret cadratin dans les textes portugais.
   const sep = isPt ? ' · ' : ' — '
 
+  // Règle n° 1 : la bascule de source ne vise que les sociétés BTP (gérant et salarié invité). Côté artisan, la
+  // lecture du stockage reste celle d'avant ce lot. Attention, `isV5` (déclaré juste en dessous) couvre les DEUX
+  // côtés : il ne peut pas servir ici.
+  const documentsDeLaSociete = orgRole === 'pro_societe' ? savedDocuments : undefined
+
   // Documents rangés par identifiant, une fois pour toute la liste : les deux enfants y cherchent le libellé du
   // document auquel un rapport est rattaché, au lieu de relire la liste deux fois par ligne.
   const documentsParId = useMemo(
-    () => carteDocumentsLies(savedDocuments, artisan?.id),
-    [savedDocuments, artisan?.id],
+    () => carteDocumentsLies(documentsDeLaSociete, artisan?.id),
+    [documentsDeLaSociete, artisan?.id],
   )
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
   const tv = useThemeVars(isV5)
@@ -944,7 +949,7 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
                     <option value="">{isPt ? 'Nenhum documento associado' : 'Aucun document lie'}</option>
                     {(() => {
                       try {
-                        return documentsPourSynthese<DevisFactureRef>(savedDocuments, artisan?.id, true)
+                        return documentsPourSynthese<DevisFactureRef>(documentsDeLaSociete, artisan?.id, true)
                           .filter((d: DevisFactureRef) => d.docNumber)
                           .sort((a: DevisFactureRef, b: DevisFactureRef) => (b.savedAt || '').localeCompare(a.savedAt || ''))
                           .map((d: DevisFactureRef) => (

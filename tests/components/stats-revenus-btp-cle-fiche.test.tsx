@@ -38,6 +38,12 @@ const FACTURE_ANNULEE = {
   id: 'fact-3', docType: 'facture', docNumber: 'FACT-2026-003', status: 'cancelled', docDate: DATE_DOC,
   clientName: 'EURL Martin', docTitle: 'Clôture', lines: [ligne('Clôture', 700)],
 }
+// Facture payée qui ne vit QUE dans la liste du tableau de bord, jamais dans le stockage : elle sert à prouver
+// qu'un artisan ne la lit pas. 5 000 €, pour que l'écart soit visible d'un coup d'œil.
+const FACTURE_IGNOREE = {
+  id: 'fact-9', docType: 'facture', docNumber: 'FACT-2026-009', status: 'paid', docDate: DATE_DOC,
+  clientName: 'SAS Ignoree', docTitle: 'Ne doit pas compter', lines: [ligne('Ignorée', 5000)],
+}
 const DEVIS_SIGNE = {
   id: 'dev-1', docType: 'devis', docNumber: 'DEV-2026-001', status: 'signed', docDate: DATE_DOC,
   clientName: 'SCI Les Tilleuls', docTitle: 'Devis — Ravalement façade', lines: [ligne('Ravalement', 1500)],
@@ -238,13 +244,18 @@ describe('Artisan — comportement inchangé, mêmes défauts signalés hors de 
     expect(screen.getByText('0/2 devis signés')).toBeInTheDocument()
   })
 
-  it('la liste du tableau de bord ne change aucun de ses chiffres', () => {
-    // L'artisan reçoit désormais la même prop. Les brouillons qu'elle porte ne doivent pas entrer dans ses
-    // compteurs : son ancienne lecture ne regardait que `fixit_documents_`, qui ne porte que les documents émis.
-    const { container } = monter('stats', 'artisan', [FACTURE_PAYEE, DEVIS_ACCEPTE_BASE, DEVIS_ENVOYE, BROUILLON])
+  it('ignore la liste du tableau de bord : sa source reste son stockage', () => {
+    // Le cœur de la règle n° 1 pour ce lot. La prop porte une facture payée de 5 000 € et un devis signé ; le
+    // stockage sous `user_id` ne porte qu'une facture de 1 200 €. Seule celle du stockage compte.
+    //
+    // Sans ce conditionnement, les compteurs d'un artisan se rempliraient d'un coup en production : ils sont à
+    // zéro depuis l'audit du 11/11/2026 parce que RIEN n'écrit la clé qu'ils lisent, et les remplir est une
+    // décision de Frédéric — pas l'effet de bord d'un lot écrit pour les salariés d'une société BTP.
+    ranger(ARTISAN.user_id as string, [FACTURE_PAYEE])
+    const { container } = monter('stats', 'artisan', [FACTURE_IGNOREE, DEVIS_SIGNE, BROUILLON])
     expect(indicateurs(container)[0]).toBe(formatPrice(1200, 'fr'))
-    // Deux devis émis, aucun signé au sens artisan (« accepted » ne compte pas pour lui) : exactement comme avant.
-    expect(screen.getByText('0/2 devis signés')).toBeInTheDocument()
+    expect(screen.getByText('1 factures émises')).toBeInTheDocument()
+    expect(screen.getByText('0/0 devis signés')).toBeInTheDocument()
   })
 
   it('« Encaissements récents » reprend toujours toutes ses factures, payées ou non', () => {

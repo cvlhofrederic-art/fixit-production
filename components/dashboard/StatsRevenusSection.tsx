@@ -452,6 +452,22 @@ function idStockageLocal(artisan: import('@/lib/types').Artisan | undefined, org
 }
 
 /**
+ * Documents que cet écran doit prendre en compte. Une société BTP — gérant comme salarié invité — lit la liste du
+ * tableau de bord, seule à porter les documents de la SOCIÉTÉ. Côté artisan, la lecture reste exactement celle
+ * d'avant ce lot : son stockage sous `user_id`, qui ne porte rien (cf. `idStockageLocal`).
+ *
+ * Ne pas « réparer » l'artisan ici. Ses compteurs de devis et de factures sont à 0 depuis l'audit du 11/11/2026 ;
+ * les remplir ferait apparaître d'un coup les chiffres de comptes en production, ce qui est une décision de
+ * Frédéric et un lot à soi — pas une conséquence d'un lot écrit pour les salariés BTP.
+ */
+function documentsDuPerimetre(
+  documents: readonly LocalDoc[] | undefined,
+  orgRole?: OrgRole,
+): readonly LocalDoc[] | undefined {
+  return orgRole === 'pro_societe' ? documents : undefined
+}
+
+/**
  * Facture émise et non payée. Le tableau de bord recopie dans le navigateur les factures relues depuis la base avec
  * le statut de la base (lib/document-sync.ts) : « pending » y désigne la facture envoyée (« envoye »), comme dans la
  * liste des factures. Pris en compte pour une société BTP ; côté artisan, inchangé.
@@ -518,7 +534,7 @@ function StatsV5({ bookings, totalRevenue, services, artisan, locale, orgRole, s
 }) {
   const isPt = locale === 'pt'
   const aid = idStockageLocal(artisan, orgRole)
-  const { docs, expenses, chantierCount } = useLocalStats(aid, savedDocuments)
+  const { docs, expenses, chantierCount } = useLocalStats(aid, documentsDuPerimetre(savedDocuments, orgRole))
 
   // Merge data: prefer Supabase bookings, fall back to localStorage documents
   const hasBookings = bookings.length > 0
@@ -721,7 +737,7 @@ function RevenusV5({ bookings, completedBookings, pendingBookings, totalRevenue,
   savedDocuments?: readonly LocalDoc[]
 }) {
   const aid = idStockageLocal(artisan, orgRole)
-  const { docs } = useLocalStats(aid, savedDocuments)
+  const { docs } = useLocalStats(aid, documentsDuPerimetre(savedDocuments, orgRole))
   const hasBookings = completedBookings.length > 0 || pendingBookings.length > 0
 
   const factures = docs.filter(d => d.docType === 'facture')

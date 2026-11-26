@@ -162,7 +162,19 @@ export default function RentabiliteChantierSection({ artisan, orgRole, savedDocu
   orgRole?: string
   /**
    * Devis et factures du tableau de bord. Pour un salarié invité d'une société, ce sont ceux de la SOCIÉTÉ, lus par
-   * le serveur : son propre stockage ne contient que ses brouillons, et le CA par chantier valait donc 0 €.
+   * le serveur ; son propre stockage ne contient que ses brouillons.
+   *
+   * ATTENTION — cette prop ne change aujourd'hui AUCUN chiffre de cet écran, contrairement à ce que ce lot a
+   * d'abord annoncé. Son unique consommateur (le calcul de `caDevis` plus bas) retient un document sur
+   * `d.type === 'facture'` alors que la mise en forme ne pose que `docType`, et sur `d.status === 'signé'`
+   * accentué, qui n'est aucun des statuts écrits ('signed', 'signe', 'accepte', 'accepted', 'cancelled'...).
+   * `docsClient` est donc toujours vide — pour un salarié comme pour un gérant, avant comme après ce lot — et
+   * `caTotal` ne vient que des situations de travaux et du budget. Défaut ANTÉRIEUR, signalé : le réparer
+   * ferait apparaître un CA devisé sur les écrans de sociétés déjà inscrites, donc c'est une décision de Frédéric
+   * (`estDuType` de lib/btp/accueil.ts et `estDevisSigne` de StatsRevenusSection font déjà le bon test).
+   *
+   * Ce que ce lot change ici, en revanche, et qui tient : les documents sortent de l'effet réseau, donc plus de
+   * course entre deux exécutions et cinq requêtes de moins au montage.
    */
   savedDocuments?: readonly SavedDoc[]
 }) {
@@ -231,8 +243,10 @@ export default function RentabiliteChantierSection({ artisan, orgRole, savedDocu
    * `avecBrouillons: false` : un brouillon n'entre pas dans un chiffre d'affaires.
    */
   const documents = useMemo(
-    () => documentsPourSynthese<SavedDoc>(savedDocuments, artisan?.id, false),
-    [savedDocuments, artisan?.id],
+    // Règle n° 1 : seule une société BTP bascule de source ; côté artisan, lecture inchangée (cf. le même
+    // conditionnement dans StatsRevenusSection).
+    () => documentsPourSynthese<SavedDoc>(isV5 ? savedDocuments : undefined, artisan?.id, false),
+    [isV5, savedDocuments, artisan?.id],
   )
 
   useEffect(() => {
