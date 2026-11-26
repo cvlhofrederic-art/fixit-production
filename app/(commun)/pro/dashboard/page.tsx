@@ -98,6 +98,8 @@ const OutillageSection = dynamic(() => import('@/components/dashboard/btp/Outill
 const ComptaBTPSection = dynamic(() => import('@/components/dashboard/ComptaBTPSection').then(mod => mod.ComptaBTPSection), { loading: SectionLoader })
 const CompteUtilisateursSection = dynamic(() => import(/* webpackPrefetch: true */ '@/components/dashboard/CompteUtilisateursSection'), { loading: SectionLoader })
 const MeteoChantierSection = dynamic(() => import('@/components/dashboard/btp/MeteoChantierSection').then(mod => mod.MeteoChantierSection), { loading: SectionLoader })
+// Alerte météo de la veille sur le téléphone (appli seulement, 26/11/2026) : n'affiche rien.
+const AlertesMeteoTelephone = dynamic(() => import('@/components/dashboard/btp/AlertesMeteoTelephone'), { ssr: false })
 
 // V5 layout components
 const V5Sidebar = dynamic(() => import('@/components/dashboard/V5Sidebar'), { loading: SectionLoader })
@@ -1670,6 +1672,11 @@ function DashboardPage() {
           animation: fadeIn 0.3s ease;
         }
       `}</style>
+
+      {/* Alerte météo des chantiers soumis à l'alerte, sur le téléphone (appli seulement) : gérant comme salariés. */}
+      {orgRole === 'pro_societe' && artisan && (
+        <AlertesMeteoTelephone artisanId={artisan.id} userId={artisan.user_id || ''} isPt={isPt} />
+      )}
 
       {/* AI ChatBot — pas pour le salarié de terrain : il crée des rendez-vous et mène aux devis et factures, hors de
           ce qu'il reçoit (25/11/2026 : « uniquement » la météo, son chantier et le pointage). */}

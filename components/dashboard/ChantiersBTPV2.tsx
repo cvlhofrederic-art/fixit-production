@@ -32,6 +32,8 @@ interface ChantierForm {
   geoRayonM: number
   devis_id?: string | null
   membres_ids?: string[]
+  /** Chantier exposé aux intempéries : alerte météo de la veille aux salariés affectés (26/11/2026). */
+  alerteMeteo: boolean
 }
 
 const EMPTY_FORM: ChantierForm = {
@@ -39,7 +41,7 @@ const EMPTY_FORM: ChantierForm = {
   dateDebut: '', dateFin: '',
   budget: '', statut: 'En attente', description: '', equipe: '',
   latitude: null, longitude: null, geoRayonM: 100,
-  devis_id: null, membres_ids: [],
+  devis_id: null, membres_ids: [], alerteMeteo: false,
 }
 
 /**
@@ -430,6 +432,7 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
       statut: c.statut, description: c.description, equipe: c.equipe,
       latitude: c.latitude, longitude: c.longitude, geoRayonM: c.geoRayonM || 100,
       devis_id: c.devis_id || null, membres_ids: c.membres_ids || [],
+      alerteMeteo: c.alerteMeteo === true,
     }
     ficheOuverteRef.current = fiche
     setForm(fiche)
@@ -738,6 +741,7 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
                         </span>
                         {c.latitude && <span className={isV5 ? "v5-badge v5-badge-green" : "v22-tag v22-tag-green"} style={{ fontSize: 9, display: 'inline-flex', alignItems: 'center', gap: 2 }}><MapPin size={9} /> GPS</span>}
                         {c.devis_id && <span className={isV5 ? "v5-badge v5-badge-blue" : "v22-tag v22-tag-blue"} style={{ fontSize: 9, display: 'inline-flex', alignItems: 'center', gap: 2 }}><FileText size={9} /> {isPt ? 'Orçamento' : 'Devis'}</span>}
+                        {c.alerteMeteo && <span className={isV5 ? "v5-badge v5-badge-orange" : "v22-tag v22-tag-orange"} style={{ fontSize: 9 }} title={isPt ? 'Alerta meteorológico por notificação' : 'Alerte météo par notification'}>🔔 {isPt ? 'Meteo' : 'Météo'}</span>}
                       </div>
                       {c.adresse && (
                         <div style={{ fontSize: 10, color: '#999', marginTop: 2, display: 'flex', alignItems: 'center', gap: 3 }}>
@@ -1163,6 +1167,29 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
                     style={{ flex: 1 }} />
                   <span style={{ fontWeight: 600, fontSize: 12, minWidth: 45, textAlign: 'right' }}>{form.geoRayonM}{isPt ? ' m' : 'm'}</span>
                 </div>
+              </div>
+
+              {/* Alerte météo par notification (26/11/2026) : seulement pour un chantier exposé aux intempéries. */}
+              <div className={isV5 ? "v5-fg" : "v22-form-group"}>
+                <label htmlFor="chantier-alerte-meteo" style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer', fontSize: 12 }}>
+                  <input id="chantier-alerte-meteo" type="checkbox" checked={form.alerteMeteo}
+                    onChange={e => setForm({ ...form, alerteMeteo: e.target.checked })} style={{ marginTop: 2 }} />
+                  <span>
+                    <strong>🔔 {isPt ? 'Alerta meteorológico por notificação' : 'Alerte météo par notification'}</strong>
+                    <span style={{ display: 'block', fontSize: 11, color: '#666', marginTop: 2 }}>
+                      {isPt
+                        ? 'Para uma obra exposta ao tempo (betão, telhado, fachada…): os trabalhadores atribuídos são avisados na véspera de chuva, geada, vento forte ou calor.'
+                        : 'Pour un chantier exposé aux intempéries (béton, toiture, façade…) : les salariés affectés sont prévenus la veille de la pluie, du gel, du vent fort ou de la chaleur.'}
+                    </span>
+                  </span>
+                </label>
+                {form.alerteMeteo && !form.latitude && (
+                  <div role="note" style={{ fontSize: 11, color: '#E65100', marginTop: 4 }}>
+                    {isPt
+                      ? 'É necessária a posição GPS da obra para o alerta: use o botão GPS acima.'
+                      : 'L’alerte a besoin de la position GPS du chantier : utilisez le bouton GPS ci-dessus.'}
+                  </div>
+                )}
               </div>
 
               <div className={isV5 ? "v5-fr" : "v22-form-row"}>

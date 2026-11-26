@@ -137,6 +137,8 @@ export function mapToSupabase(table: ShortName, item: any): any {
       if ('geoRayonM' in item) mapped.geo_rayon_m = rayonSaisi(item.geoRayonM)
       else if ('geo_rayon_m' in item) mapped.geo_rayon_m = rayonSaisi(item.geo_rayon_m)
       if ('membres_ids' in item) mapped.membres_ids = identifiants(item.membres_ids)
+      // Alerte météo par notification (26/11/2026) : seulement quand la fiche la fournit, et toujours un booléen.
+      if ('alerteMeteo' in item) mapped.alerte_meteo = item.alerteMeteo === true
       return mapped
     }
     case 'membres':
@@ -284,7 +286,7 @@ export const SOURCES_DES_COLONNES: Partial<Record<ShortName, Record<string, read
     titre: ['titre'], client: ['client'], adresse: ['adresse'], ville: ['ville'], code_postal: ['codePostal', 'code_postal'],
     latitude: ['latitude'], longitude: ['longitude'], date_debut: ['dateDebut'], date_fin: ['dateFin'], budget: ['budget'],
     statut: ['statut'], description: ['description'], equipe: ['equipe'], sous_taches: ['sous_taches', 'sousTaches'],
-    geo_rayon_m: ['geoRayonM', 'geo_rayon_m'], membres_ids: ['membres_ids'],
+    geo_rayon_m: ['geoRayonM', 'geo_rayon_m'], membres_ids: ['membres_ids'], alerte_meteo: ['alerteMeteo'],
   },
   membres: {
     prenom: ['prenom'], nom: ['nom'], telephone: ['telephone'], email: ['email'], type_compte: ['typeCompte'],
@@ -391,6 +393,7 @@ export function mapFromSupabase(table: ShortName, item: any): any {
         latitude: item.latitude,
         longitude: item.longitude,
         sousTaches: Array.isArray(item.sous_taches) ? item.sous_taches : [],
+        alerteMeteo: item.alerte_meteo === true,
       }
     case 'membres':
       return {

@@ -160,3 +160,57 @@ function bookingIdToInt(id: string): number {
   }
   return Math.abs(hash)
 }
+
+/**
+ * Programme (ou reprogramme) une notification désignée par une clé stable : la même clé remplace la notification
+ * déjà programmée au lieu d'en ajouter une seconde (même identifiant natif). Heure `a` passée ou absente : affichée
+ * tout de suite. Rend true si la notification est programmée ; false hors de l'appli, sans permission ou en cas d'échec.
+ * Sert à l'alerte météo des chantiers BTP (lib/btp/alerte-meteo-telephone.ts, 26/11/2026).
+ */
+export async function programmerNotification(params: {
+  cle: string
+  titre: string
+  corps: string
+  a?: Date
+  extra?: Record<string, unknown>
+}): Promise<boolean> {
+  if (!Capacitor.isNativePlatform()) return false
+  const { plugin } = await charger()
+  if (!(await requestNotificationPermission(plugin))) return false
+  const maintenant = Date.now()
+  const a = params.a && !Number.isNaN(params.a.getTime()) && params.a.getTime() > maintenant + 500
+    ? params.a
+    : new Date(maintenant + 500)
+  try {
+    await plugin.schedule({
+      notifications: [
+        {
+          id: bookingIdToInt(params.cle),
+          title: params.titre,
+          body: params.corps,
+          schedule: { at: a, allowWhileIdle: true },
+          sound: 'default',
+          smallIcon: 'ic_stat_icon_config_sample',
+          iconColor: '#FFC107',
+          actionTypeId: '',
+          extra: params.extra ?? {},
+        },
+      ],
+    })
+    return true
+  } catch (err) {
+    console.warn('[notifications] programmation impossible :', err instanceof Error ? err.message : err)
+    return false
+  }
+}
+
+/** Annule la notification programmée sous cette clé (sans effet si aucune ne l'est). */
+export async function annulerNotification(cle: string): Promise<void> {
+  if (!Capacitor.isNativePlatform()) return
+  const { plugin } = await charger()
+  try {
+    await plugin.cancel({ notifications: [{ id: bookingIdToInt(cle) }] })
+  } catch (err) {
+    console.warn('[notifications] annulation impossible :', err instanceof Error ? err.message : err)
+  }
+}

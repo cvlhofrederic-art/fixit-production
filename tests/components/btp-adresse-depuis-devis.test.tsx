@@ -492,3 +492,45 @@ describe('salarié de terrain — ses chantiers en consultation', () => {
     expect(screen.getByRole('button', { name: /Lier un devis/ })).toBeTruthy()
   })
 })
+
+// ═══ Alerte météo par notification, chantier par chantier (26/11/2026) ═══
+// « soumettre un chantier à l'alerte météo par notif ou pas si cela le concerne, exemple on fait une dalle béton mais
+// il pleut » : une case dans la fiche, enregistrée avec le chantier, signalée dans la liste.
+
+const caseAlerte = () => screen.getByRole('checkbox', { name: /Alerte météo par notification/ }) as HTMLInputElement
+
+describe('fiche chantier — alerte météo par notification', () => {
+  it('cochée sur un chantier existant : seule la case est enregistrée', async () => {
+    etat.chantiers = [VILLA]
+    render(<ChantiersBTPV2 artisan={artisan} orgRole="pro_societe" />)
+    await act(async () => { fireEvent.click(await screen.findByRole('button', { name: 'Modifier' })) })
+    expect(caseAlerte().checked).toBe(false)
+    fireEvent.click(caseAlerte())
+    await enregistrer()
+    expect(etat.modifications).toEqual([{ id: 'c-villa', changes: { alerteMeteo: true } }])
+  })
+
+  it('chantier soumis à l’alerte : signalé dans la liste, case cochée à l’ouverture', async () => {
+    etat.chantiers = [{ ...VILLA, alerteMeteo: true }]
+    render(<ChantiersBTPV2 artisan={artisan} orgRole="pro_societe" />)
+    expect(await screen.findByTitle('Alerte météo par notification')).toBeTruthy()
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Modifier' })) })
+    expect(caseAlerte().checked).toBe(true)
+  })
+
+  it('cochée sans position GPS : la fiche dit que l’alerte en a besoin', async () => {
+    await nouvelleFiche()
+    expect(screen.queryByRole('note')).toBeNull()
+    fireEvent.click(caseAlerte())
+    expect(screen.getByRole('note').textContent).toContain('L’alerte a besoin de la position GPS du chantier')
+  })
+
+  it('en portugais', async () => {
+    etat.locale = 'pt'
+    render(<ChantiersBTPV2 artisan={artisan} orgRole="pro_societe" />)
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Nova obra/ })) })
+    const caseCochee = screen.getByRole('checkbox', { name: /Alerta meteorológico por notificação/ })
+    fireEvent.click(caseCochee)
+    expect(screen.getByRole('note').textContent).toContain('É necessária a posição GPS da obra para o alerta')
+  })
+})

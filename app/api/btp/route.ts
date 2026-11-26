@@ -420,13 +420,38 @@ async function lireFiche(table: TableEcrivable, id: string, userId: string): Pro
 }
 
 /**
- * Colonne chantiers_btp.membres_ids (employés affectés, migration 20261116) absente de la base : PostgREST répond
- * PGRST204 (écriture) ou 42703 en la nommant. Le chantier s'enregistre alors sans ses employés au lieu d'échouer.
- * Les employés ont déjà été contrôlés (format, même compte) : le second essai n'écrit que des colonnes contrôlées.
+ * Colonnes récentes de chantiers_btp, qu'une base pas encore migrée n'a pas : PostgREST répond PGRST204 (écriture) ou
+ * 42703 en nommant la colonne. Le chantier s'enregistre alors sans elle au lieu d'échouer.
+ * - membres_ids (employés affectés, migration 20261116) : déjà contrôlés (format, même compte), le second essai
+ *   n'écrit que des colonnes contrôlées ;
+ * - alerte_meteo (alerte météo par notification, migration 20261126b) : la case est perdue, le reste de la fiche est
+ *   enregistré.
  */
-function affectationSansColonne(table: TableEcrivable, ligne: Ligne, error: ErreurBase | null): boolean {
-  if (!error || table !== 'chantiers_btp' || !('membres_ids' in ligne)) return false
-  return (error.code === 'PGRST204' || error.code === '42703') && (error.message ?? '').includes('membres_ids')
+const COLONNES_RECENTES_CHANTIER: Readonly<Record<string, string>> = {
+  membres_ids: 'chantier enregistré sans ses employés (migration 20261116 à appliquer)',
+  alerte_meteo: 'chantier enregistré sans son alerte météo (migration 20261126b à appliquer)',
+}
+
+/** Colonne récente absente de la base que nomme l'erreur, si la ligne la porte ; sinon null. */
+function colonneRecenteAbsente(table: TableEcrivable, ligne: Ligne, error: ErreurBase | null): string | null {
+  if (!error || table !== 'chantiers_btp' || (error.code !== 'PGRST204' && error.code !== '42703')) return null
+  const message = error.message ?? ''
+  return Object.keys(COLONNES_RECENTES_CHANTIER).find(col => col in ligne && message.includes(col)) ?? null
+}
+
+/** Rejoue l'écriture sans chaque colonne récente absente de la base (une à la fois, deux au plus). */
+async function ecrireSansColonnesAbsentes<R extends { error: ErreurBase | null }>(
+  table: TableEcrivable, ligne: Ligne, ecrire: () => PromiseLike<R>,
+): Promise<R> {
+  let resultat = await ecrire()
+  for (let essai = 0; essai < Object.keys(COLONNES_RECENTES_CHANTIER).length; essai++) {
+    const absente = colonneRecenteAbsente(table, ligne, resultat.error)
+    if (!absente) break
+    logger.warn(`[btp] chantiers_btp.${absente} absente : ${COLONNES_RECENTES_CHANTIER[absente]}`)
+    delete ligne[absente]
+    resultat = await ecrire()
+  }
+  return resultat
 }
 
 async function creer(userId: string, table: TableEcrivable, donnees: unknown): Promise<NextResponse> {
@@ -445,12 +470,7 @@ async function creer(userId: string, table: TableEcrivable, donnees: unknown): P
   if (etrangeres.length > 0) return refus(`Enregistrement refusé : ${messageReferences(etrangeres)}.`)
 
   const inserer = () => supabaseAdmin.from(table).insert({ ...ligne, owner_id: userId }).select().single()
-  let { data: inseree, error } = await inserer()
-  if (affectationSansColonne(table, ligne, error)) {
-    logger.warn('[btp] chantiers_btp.membres_ids absente : chantier créé sans ses employés (migration 20261116 à appliquer)')
-    delete ligne.membres_ids
-    ;({ data: inseree, error } = await inserer())
-  }
+  const { data: inseree, error } = await ecrireSansColonnesAbsentes(table, ligne, inserer)
   if (error) throw new ErreurEcriture(error)
   if (membres && membres.length > 0) await lierMembresDeLaNouvelleEquipe(userId, inseree.id, membres)
   return NextResponse.json({ row: inseree }, { status: 201 })
@@ -505,12 +525,7 @@ async function modifier(userId: string, table: TableEcrivable, id: string, donne
   const ecrire = () => Object.keys(ligne).length === 0
     ? supabaseAdmin.from(table).select().eq('id', id).eq('owner_id', userId).single()
     : supabaseAdmin.from(table).update(ligne).eq('id', id).eq('owner_id', userId).select().single()
-  let { data: modifiee, error } = await ecrire()
-  if (affectationSansColonne(table, ligne, error)) {
-    logger.warn('[btp] chantiers_btp.membres_ids absente : chantier modifié sans ses employés (migration 20261116 à appliquer)')
-    delete ligne.membres_ids
-    ;({ data: modifiee, error } = await ecrire())
-  }
+  const { data: modifiee, error } = await ecrireSansColonnesAbsentes(table, ligne, ecrire)
   if (error) throw new ErreurEcriture(error)
 
   if (membres !== undefined) await mettreAJourMembres(id, membres)

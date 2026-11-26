@@ -16,7 +16,12 @@ name: Crons quotidiens (ex-wrangler.toml)
 #   │ booking-reminders  │ 0 7 * * *   │ 08:00 / 09:00                │ GET  /api/cron/booking-reminder│
 #   │ devis-reminders    │ 30 7 * * *  │ 08:30 / 09:30                │ GET  /api/cron/devis-reminder  │
 #   │ email-agent-poll   │ 0 8 * * *   │ 09:00 / 10:00                │ POST /api/email-agent/poll     │
+#   │ alerte-meteo       │ 0 17 * * *  │ 18:00 / 19:00 (Lisbonne 17/18)│ GET  /api/cron/alerte-meteo    │
 #   └────────────────────┴─────────────┴──────────────────────────────┴────────────────────────────────┘
+#
+# alerte-meteo (26/11/2026) : e-mail de secours de la veille aux salariés des chantiers soumis à l'alerte météo
+# (la notification du téléphone est programmée par l'appli). Idempotent par jour et par chantier (clé Resend) :
+# un nouvel essai le même jour n'envoie aucun doublon, d'où le retry autorisé.
 #
 # Secrets requis (GitHub > Settings > Secrets > Actions) :
 #   - CRON_SECRET — doit être identique au secret Worker (`wrangler secret put CRON_SECRET`).
@@ -34,6 +39,7 @@ on:
     - cron: '0 7 * * *'   # booking-reminders
     - cron: '30 7 * * *'  # devis-reminders
     - cron: '0 8 * * *'   # email-agent-poll
+    - cron: '0 17 * * *'  # alerte-meteo
   workflow_dispatch:
     inputs:
       job:
@@ -47,6 +53,7 @@ on:
           - booking-reminders
           - devis-reminders
           - email-agent-poll
+          - alerte-meteo
 
 # Aucune permission (lot 6 Aikido, 28/10/2026) : aucun job n'utilise le jeton GitHub
 # (appels curl vers la production uniquement).
@@ -128,6 +135,22 @@ jobs:
             -H "x-cron-key: ${CRON_SECRET}" \
             -H "Content-Type: application/json" \
             -d '{}' \
+            --max-time 120 \
+            --retry 2 --retry-delay 30 \
+            --fail-with-body
+
+  alerte-meteo:
+    name: Alerte météo des chantiers, e-mail de la veille (17:00 UTC)
+    if: github.event.schedule == '0 17 * * *' || (github.event_name == 'workflow_dispatch' && (inputs.job == 'all' || inputs.job == 'alerte-meteo'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger alerte-meteo cron endpoint
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          curl -s https://vitfix.io/api/cron/alerte-meteo \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
             --max-time 120 \
             --retry 2 --retry-delay 30 \
             --fail-with-body

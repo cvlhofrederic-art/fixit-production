@@ -99,6 +99,8 @@ export const COLONNES_VUE_RESTREINTE: Record<string, readonly string[]> = {
   chantiers: [
     'id', 'titre', 'adresse', 'ville', 'code_postal', 'latitude', 'longitude', 'geo_rayon_m',
     'statut', 'date_debut', 'date_fin', 'description', 'membres_ids', 'created_at',
+    // Le téléphone du salarié programme l'alerte météo de ses chantiers soumis à l'alerte (26/11/2026).
+    'alerte_meteo',
   ],
 }
 

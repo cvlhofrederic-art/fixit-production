@@ -90,6 +90,8 @@ export const COLONNES_BTP: Record<TableEcrivable, Record<string, SpecColonne>> =
     // Employés affectés au chantier (uuid[], vide par défaut ; migration 20261116) : chacun doit être un membre du
     // compte, comme membre_id et equipe_id ailleurs.
     membres_ids: { type: 'liste_uuid', nonNul: true, cible: 'membres_btp' },
+    // Chantier soumis à l'alerte météo par notification (migration 20261126b, décision du 26/11/2026).
+    alerte_meteo: { type: 'booleen', nonNul: true },
   },
   membres_btp: {
     prenom: texteRequis, nom: texteRequis, telephone: texte, email: texte,
