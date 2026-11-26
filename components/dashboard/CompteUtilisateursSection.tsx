@@ -204,7 +204,15 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
       })
       const data = await res.json()
       if (res.ok) {
-        toast.success(data.message || (isPt ? 'Convite enviado' : 'Invitation envoyée'))
+        // Message écrit ici, dans la langue de l'écran : celui du serveur est toujours en français.
+        const email = typeof data.member?.email === 'string' ? data.member.email : inviteForm.email.trim()
+        if (data.email_sent === false) {
+          toast.warning(isPt
+            ? `O convite para ${email} foi criado, mas o e-mail não pôde ser enviado. Verifique o endereço e envie o convite novamente.`
+            : `L'invitation pour ${email} est créée, mais l'e-mail n'a pas pu être envoyé. Vérifiez l'adresse puis renvoyez l'invitation.`)
+        } else {
+          toast.success(isPt ? `Convite enviado por e-mail para ${email}` : `Invitation envoyée par email à ${email}`)
+        }
         setShowInviteModal(false)
         setInviteForm(FORMULAIRE_VIDE)
         fetchMembers(true)

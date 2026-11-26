@@ -18,6 +18,7 @@ import { act, fireEvent, render } from '@testing-library/react'
 const etat = vi.hoisted(() => ({
   tables: {} as Record<string, unknown[]>,
   toasts: [] as string[],
+  avertissements: [] as string[],
   confirmations: [] as string[],
   fichiers: [] as Array<{ nom: string; blob: Blob }>,
   routeur: (async () => new Response('{}')) as (url: string, init?: RequestInit) => Promise<Response>,
@@ -48,7 +49,11 @@ vi.mock('@/lib/supabase', () => {
   }
 })
 vi.mock('sonner', () => ({
-  toast: { success: (m: string) => { etat.toasts.push(m) }, error: (m: string) => { etat.toasts.push(m) } },
+  toast: {
+    success: (m: string) => { etat.toasts.push(m) },
+    error: (m: string) => { etat.toasts.push(m) },
+    warning: (m: string) => { etat.toasts.push(m); etat.avertissements.push(m) },
+  },
 }))
 // Liste des obras du formulaire de subempreitada : composant partagé hors de ce lot (son texte est encore en français,
 // signalé à part) ; retiré ici pour ne juger que les textes du module.
@@ -123,6 +128,7 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'], now: new Date(2026, 10, 17, 12, 0, 0) })
   etat.tables = {}
   etat.toasts = []
+  etat.avertissements = []
   etat.confirmations = []
   etat.fichiers = []
   etat.routeur = async () => json({})
@@ -224,6 +230,26 @@ async function contas(langue: Langue, membros = MEMBROS) {
   await pause()
   return c
 }
+/** Invitation envoyée depuis « Contas de utilizadores » ; `reponse` : corps renvoyé par POST /api/pro/team. */
+async function convidar(langue: Langue, reponse: Record<string, unknown>) {
+  const c = await contas(langue)
+  const liste = etat.routeur
+  etat.routeur = async (url, init) => (url === '/api/pro/team' && init?.method === 'POST' ? json(reponse) : liste(url, init))
+  cliquer(c.querySelector('button.v5-btn.v5-btn-p'))
+  await pause()
+  saisir(c.querySelector('.v22-modal input[type="text"]'), 'Pessoa Nova')
+  saisir(c.querySelector('.v22-modal input[type="email"]'), ' Nova@Exemplo.pt ')
+  cliquer(c.querySelector('.v22-modal-foot .v22-btn-primary'))
+  await pause()
+  return c
+}
+// Réponse réelle du serveur : son `message` est toujours en français, quelle que soit la langue de l'écran.
+const CONVITE_ENVIADO = { member: { id: 'm9', email: 'nova@exemplo.pt' }, email_sent: true, message: 'Invitation envoyée par email à nova@exemplo.pt' }
+const CONVITE_SEM_EMAIL = {
+  member: { id: 'm9', email: 'nova@exemplo.pt' },
+  email_sent: false,
+  message: "L'invitation pour nova@exemplo.pt est créée, mais l'e-mail n'a pas pu être envoyé. Vérifiez l'adresse puis renvoyez l'invitation.",
+}
 async function meteo(langue: Langue) {
   etat.routeur = routeurMeteo
   etat.tables.chantiers = [obra('vento', 41.1), obra('chuva', 41.2), obra('gelo', 41.3), obra('calor', 41.4), obra('calma', 41.5), obra('sem-cidade', null, { ville: '', adresse: '' })]
@@ -318,6 +344,27 @@ describe('modules BTP du tableau de bord pro en portugais (pt-PT)', () => {
   it('Contas de utilizadores : « 1 conta ativa » au singulier', async () => {
     const c = await contas('pt', [MEMBROS[0]])
     expect(texte(c.querySelector('.v5-pg-t p'))).toBe('Acessos da equipa: 1 conta ativa / 20 no máximo')
+  })
+
+  it('Contas de utilizadores : convite enviado, confirmação em português (o servidor responde em francês)', async () => {
+    const c = await convidar('pt', CONVITE_ENVIADO)
+    expect(etat.toasts).toEqual(['Convite enviado por e-mail para nova@exemplo.pt'])
+    expect(etat.avertissements).toEqual([])
+    expect(c.querySelector('.v22-modal')).toBeNull()
+    expect(ecartsPortugais(c, etat.toasts)).toEqual([])
+  })
+
+  it('Contas de utilizadores : convite criado sem e-mail, aviso (não sucesso) em português', async () => {
+    await convidar('pt', CONVITE_SEM_EMAIL)
+    expect(etat.avertissements).toEqual([
+      'O convite para nova@exemplo.pt foi criado, mas o e-mail não pôde ser enviado. Verifique o endereço e envie o convite novamente.',
+    ])
+    expect(etat.toasts).toEqual(etat.avertissements)
+  })
+
+  it('Contas de utilizadores : sem membro na resposta, o endereço digitado (sem espaços) é mostrado', async () => {
+    await convidar('pt', { email_sent: true })
+    expect(etat.toasts).toEqual(['Convite enviado por e-mail para Nova@Exemplo.pt'])
   })
 
   it('Meteorologia : alertes, avis et limiares de obra en portugais, source Open-Meteo (pas IPMA)', async () => {
@@ -469,6 +516,15 @@ describe('les mêmes modules en français : textes inchangés', () => {
     expect(tout).toContain('Gérant : accès complet et gestion des comptes. Seul le gérant titulaire crée ou retire un gérant.')
     expect(tout).toContain('Chef de chantier')
     expect(tout).toContain('Dirigeant')
+  })
+
+  it('Comptes utilisateurs : invitation envoyée, puis e-mail non parti (avertissement, pas un succès)', async () => {
+    await convidar('fr', CONVITE_ENVIADO)
+    expect(etat.toasts).toEqual(['Invitation envoyée par email à nova@exemplo.pt'])
+    expect(etat.avertissements).toEqual([])
+    etat.toasts = []
+    await convidar('fr', CONVITE_SEM_EMAIL)
+    expect(etat.avertissements).toEqual([CONVITE_SEM_EMAIL.message])
   })
 
   it('Météo chantiers', async () => {
