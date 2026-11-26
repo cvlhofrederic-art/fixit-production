@@ -375,6 +375,10 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
   const separateurRole = isPt ? ': ' : ' : '
   // Droits par défaut des trois rôles de terrain (lib/permissions.ts, décision du 25/11/2026).
   const droitsTerrain = isPt ? 'por defeito, só as suas obras (consulta), a meteorologia e o registo de horas.' : 'par défaut, seulement ses chantiers (consultation), la météo et le pointage.'
+  // Le responsable de chantier vérifie en plus l'outillage de ses chantiers chaque vendredi (26/11/2026).
+  const droitsResponsable = isPt
+    ? 'por defeito, só as suas obras (consulta), a meteorologia, o registo de horas e a verificação das ferramentas e viaturas à sexta-feira.'
+    : 'par défaut, seulement ses chantiers (consultation), la météo, le pointage et la vérification de l’outillage et des véhicules le vendredi.'
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return '—'
@@ -529,8 +533,8 @@ export default function CompteUtilisateursSection({ artisan, isGerant = false }:
         <div className="v5-st">{isPt ? 'Papéis & permissões' : 'Rôles & permissions'}</div>
         <div style={{ fontSize: 11, color: '#666', lineHeight: 1.6 }}>
           <strong>{ROLE_LABELS.GERANT[isPt ? 'pt' : 'fr']}</strong>{separateurRole}{isPt ? 'acesso total e gestão das contas. Só o gerente titular cria ou retira gerentes.' : 'accès complet et gestion des comptes. Seul le gérant titulaire crée ou retire un gérant.'}<br/>
-          <strong>{ROLE_LABELS.CONDUCTEUR_TRAVAUX[isPt ? 'pt' : 'fr']}</strong>{separateurRole}{droitsTerrain}<br/>
-          <strong>{ROLE_LABELS.CHEF_CHANTIER[isPt ? 'pt' : 'fr']}</strong>{separateurRole}{droitsTerrain}<br/>
+          <strong>{ROLE_LABELS.CONDUCTEUR_TRAVAUX[isPt ? 'pt' : 'fr']}</strong>{separateurRole}{droitsResponsable}<br/>
+          <strong>{ROLE_LABELS.CHEF_CHANTIER[isPt ? 'pt' : 'fr']}</strong>{separateurRole}{droitsResponsable}<br/>
           <strong>{ROLE_LABELS.SECRETAIRE[isPt ? 'pt' : 'fr']}</strong>{separateurRole}{isPt ? 'todas as permissões, exceto a gestão de contas.' : 'tous les droits, sauf la gestion des comptes.'}<br/>
           <strong>{ROLE_LABELS.COMPTABLE[isPt ? 'pt' : 'fr']}</strong>{separateurRole}{isPt ? 'contabilidade, rentabilidade, faturas, autos de medição, retenções, receitas.' : 'compta, rentabilité, factures, situations, retenues, revenus.'}<br/>
           <strong>{ROLE_LABELS.OUVRIER[isPt ? 'pt' : 'fr']}</strong>{separateurRole}{droitsTerrain}

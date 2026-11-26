@@ -32,6 +32,9 @@ const TABLES_BTP_PAR_PROPRIETAIRE: ReadonlyArray<readonly [section: string, tabl
   ['dce_analyses', 'dce_analyses_btp'],
   ['rapports', 'rapports_btp'],
   ['charges_fixes', 'charges_fixes'],
+  // Outillage et vérifications du vendredi (migration 20261126).
+  ['outillage', 'outillage_btp'],
+  ['verifications_outillage', 'verifications_outillage_btp'],
 ]
 
 /** Équipe de la société (ou fiche d'équipe d'un sous-compte), sans le jeton d'invitation, qui n'est jamais exporté. */

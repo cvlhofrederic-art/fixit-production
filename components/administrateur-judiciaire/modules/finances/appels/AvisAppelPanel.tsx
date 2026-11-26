@@ -24,6 +24,7 @@ import { regimeDepuisFondement } from '@/lib/administrateur-judiciaire/domain/fo
 import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
 import { numeroCompteCoproprietaire } from '@/lib/administrateur-judiciaire/domain/identites-positions'
 import { segmentComptableSyndicat } from '@/lib/administrateur-judiciaire/domain/journal-traitements'
+import { libelleFicheEcartee, motifLisible, type FicheEcarteeDetaillee } from '@/lib/administrateur-judiciaire/domain/migration-d2'
 import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
 
 /**
@@ -62,8 +63,37 @@ const regimeAp = (fondement: string): RegimeAdministrateurProvisoire | null => {
   return regime === 'ap291' || regime === 'ap47' ? regime : null
 }
 
-function RepriseFiches({ nombre, onReprendre }: Readonly<{ nombre: number; onReprendre: () => void }>) {
-  if (nombre === 0) return null
+/** Une ligne par fiche écartée : « Lot <n°>, <nom> — <motif> ». */
+function LignesEcartees({ ecartees, codeCopro }: Readonly<{ ecartees: readonly FicheEcarteeDetaillee[]; codeCopro: string }>) {
+  return ecartees.map((e) => (
+    <span key={e.coproprietaireId} style={{ display: 'block' }}>
+      {libelleFicheEcartee({ ...e, motif: motifLisible(e.motif, codeCopro) })}
+    </span>
+  ))
+}
+
+/**
+ * Bandeau de la reprise D2 (décision du 22/11/2026, point 10) : compte les seules fiches que la reprise créerait, nomme
+ * celles qu'elle écarte avec leur motif (même Alert, une ligne par fiche) ; le bouton dit qu'il agit sur toutes les
+ * copropriétés. Plus rien à reprendre : le bandeau « non reprise » et son bouton disparaissent ; les fiches écartées
+ * restent nommées avec leur motif dans le même encadré, sans bouton (point 1 de la page de validation de la PR) ; aucune
+ * fiche écartée : rien.
+ */
+function RepriseFiches({
+  nombre,
+  ecartees,
+  codeCopro,
+  onReprendre,
+}: Readonly<{ nombre: number; ecartees: readonly FicheEcarteeDetaillee[]; codeCopro: string; onReprendre: () => void }>) {
+  const se = ecartees.length > 1 ? 's' : ''
+  if (nombre === 0) {
+    if (ecartees.length === 0) return null
+    return (
+      <Alert kind="" icon="info" title={`${pluriel(ecartees.length, 'fiche')} écartée${se} par la reprise`}>
+        <LignesEcartees ecartees={ecartees} codeCopro={codeCopro} />
+      </Alert>
+    )
+  }
   const s = nombre > 1 ? 's' : ''
   return (
     <Alert kind="" icon="info" title={`${nombre} fiche${s} copropriétaire non reprise${s} en identités, comptes et positions (D2)`}>
@@ -71,9 +101,15 @@ function RepriseFiches({ nombre, onReprendre }: Readonly<{ nombre: number; onRep
         La reprise crée une identité, un compte et une position par ancienne fiche, pour toutes les copropriétés ; une
         indivision ou une vente reste à régulariser.
       </span>
+      {ecartees.length > 0 && (
+        <>
+          <span style={{ display: 'block' }}>{`${pluriel(ecartees.length, 'fiche')} écartée${se} par la reprise :`}</span>
+          <LignesEcartees ecartees={ecartees} codeCopro={codeCopro} />
+        </>
+      )}
       <button type="button" className="btn ghost sm" style={{ marginTop: 6 }} onClick={onReprendre}>
         <Icon name="refresh" />
-        Reprendre les fiches
+        Reprendre les fiches de toutes les copropriétés
       </button>
     </Alert>
   )
@@ -372,6 +408,7 @@ export function AvisAppelPanel({
       title="Avis d’appel par copropriétaire"
       sub="Identités, positions et comptes (D2) du syndicat"
       icon="coin"
+      controlesALaLigne
       right={
         options.length > 0 && (
           <select className="btn ghost sm" value={date} onChange={(evenement) => setChoix(evenement.target.value)} aria-label="Appel">
@@ -382,7 +419,7 @@ export function AvisAppelPanel({
         )
       }
     >
-      <RepriseFiches nombre={donnees.fichesNonReprises} onReprendre={() => void ecritures.reprendreFiches()} />
+      <RepriseFiches nombre={donnees.fichesAReprendre} ecartees={donnees.fichesEcartees} codeCopro={copro.code} onReprendre={() => void ecritures.reprendreFiches()} />
       {erreurSegment && <Alert kind="rust" icon="alert" title={erreurSegment} />}
       <DroitsLots droits={vueDroitsLots(donnees, date)} date={date} />
       {vue && segment && (

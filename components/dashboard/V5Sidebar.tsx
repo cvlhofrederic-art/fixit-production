@@ -53,6 +53,7 @@ const MOTS_CLES: Record<string, { fr: string; pt: string }> = {
   // Anciens noms portugais des modules renommés le 17/11/2026 : ceux qui les ont appris les retrouvent encore.
   motifs: { fr: '', pt: 'prestações' },
   pointage: { fr: '', pt: 'marcação de horas ponto' },
+  outillage: { fr: 'outils matériel machines camion camionnette voiture inventaire vendredi', pt: 'ferramentas máquinas carrinha carro veículos inventário sexta-feira' },
   situations: { fr: '', pt: 'situações de obra' },
   garanties: { fr: '', pt: 'retenções de garantia' },
   marches: { fr: '', pt: 'bolsa de mercados' },
@@ -74,6 +75,7 @@ const PREFETCH_MAP: Record<string, () => void> = {
   equipes: () => import('@/components/dashboard/EquipesBTPV2'),
   gantt: () => import('@/components/dashboard/btp/GanttSection'),
   pointage: () => import('@/components/dashboard/btp/PointageEquipesSection'),
+  outillage: () => import('@/components/dashboard/btp/OutillageSection'),
   devis: () => import('@/components/dashboard/DevisSection'),
   factures: () => import('@/components/dashboard/FacturesSection'),
   clients: () => import('@/components/dashboard/ClientsSection'),
