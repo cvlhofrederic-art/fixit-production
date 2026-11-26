@@ -55,9 +55,9 @@ afterEach(() => {
 
 const rappels = { onNavigate: vi.fn(), onNewBooking: vi.fn(), getAuthToken: async () => 'tok', t: (k: string) => k, isPt: true }
 
-/** Tableau de bord du gérant ouvert, compteur chargé (3 non lus), puis un message inséré en base. */
-async function recevoir(message: Record<string, unknown>) {
-  const rendu = renderHook(() => useNotifications('compte-gerant', 'fiche-societe', rappels))
+/** Tableau de bord ouvert (société BTP par défaut), compteur chargé (3 non lus), puis un message inséré en base. */
+async function recevoir(message: Record<string, unknown>, estSociete = true) {
+  const rendu = renderHook(() => useNotifications('compte-gerant', 'fiche-societe', { ...rappels, estSociete }))
   await waitFor(() => expect(rendu.result.current.unreadMsgCount).toBe(3))
   act(() => {
     for (const e of h.ecouteurs.filter(x => x.table === 'conversation_messages')) e.rappel({ new: message })
@@ -82,6 +82,13 @@ describe('useNotifications — message reçu en temps réel', () => {
 
   it('message du contact sans côté (particulier) : compté, comme avant', async () => {
     const resultat = await recevoir({ sender_id: 'compte-client', content: 'Olá', metadata: null })
+
+    expect(resultat.current.unreadMsgCount).toBe(4)
+  })
+
+  // Règle n° 1 : le filtre du côté prestataire ne vise que la société BTP.
+  it('artisan : un message marqué côté prestataire mais d’un autre compte reste compté, comme avant', async () => {
+    const resultat = await recevoir({ sender_id: 'compte-client', content: 'Olá', metadata: { cote: 'artisan' } }, false)
 
     expect(resultat.current.unreadMsgCount).toBe(4)
   })

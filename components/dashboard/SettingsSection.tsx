@@ -459,7 +459,7 @@ function ZonesInterventionCard({ isV5, artisanId, zonesDeLaSociete }: {
   // Lu par une référence : un nouvel objet `artisan` (après un autre enregistrement) ne recharge pas la carte par-dessus
   // une sélection en cours.
   const zonesDeLaSocieteRef = useRef(zonesDeLaSociete)
-  zonesDeLaSocieteRef.current = zonesDeLaSociete
+  useEffect(() => { zonesDeLaSocieteRef.current = zonesDeLaSociete }, [zonesDeLaSociete])
   const locale = useLocale()
   const isPt = locale === 'pt'
   const REGIONS_OPTIONS = isPt ? PT_REGIOES : PHASE_TEST_REGIONS_FR

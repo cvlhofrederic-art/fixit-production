@@ -9,7 +9,7 @@
 // L'artisan garde le comportement d'avant.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { Artisan } from '@/lib/types'
 
 const ecrituresDirectes = vi.hoisted(() => [] as Array<{ table: string; ligne: unknown; id: unknown }>)
@@ -139,6 +139,33 @@ describe('Photos chantier — refus du serveur', () => {
     fireEvent.click(await screen.findByRole('button', { name: /proDash\.photos\.supprimerLaPhoto/ }))
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('proDash.photos.erreurSuppression'))
+  })
+
+  it('attribution refusée : un message le dit', async () => {
+    const fetchDeBase = vi.mocked(globalThis.fetch).getMockImplementation()
+    vi.mocked(globalThis.fetch).mockImplementation(async (url, init) => (
+      init?.method === 'PATCH' ? json({ error: 'Accès refusé' }, 403) : (fetchDeBase as typeof fetch)(url, init)
+    ))
+    render(<PhotosChantierSection artisan={artisan} bookings={[]} orgRole="pro_societe" />)
+    fireEvent.click(await screen.findByRole('button', { name: /proDash\.photos\.chantier$/ }))
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: '' } })
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('proDash.photos.erreurAttributionPhoto'))
+  })
+
+  // Règle n° 1 : ces messages ne visent que le BTP ; l'artisan garde l'écran d'avant.
+  it('artisan : suppression refusée, aucun message ajouté (comme avant)', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const fetchDeBase = vi.mocked(globalThis.fetch).getMockImplementation()
+    vi.mocked(globalThis.fetch).mockImplementation(async (url, init) => (
+      init?.method === 'DELETE' ? json({ error: 'Accès refusé' }, 403) : (fetchDeBase as typeof fetch)(url, init)
+    ))
+    render(<PhotosChantierSection artisan={artisan} bookings={[]} orgRole="artisan" />)
+    fireEvent.click(await screen.findByRole('button', { name: /proDash\.photos\.supprimerLaPhoto/ }))
+
+    await waitFor(() => expect(vi.mocked(globalThis.fetch).mock.calls.some(([, init]) => init?.method === 'DELETE')).toBe(true))
+    await act(async () => { await Promise.resolve() })
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
   it('lecture refusée : un message le dit, au lieu de « aucune photo » seul', async () => {

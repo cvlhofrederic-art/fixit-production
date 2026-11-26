@@ -37,6 +37,8 @@ type RealtimeCallbacks = {
   getAuthToken: () => Promise<string | null>
   t: (key: string) => string
   isPt: boolean
+  /** Société BTP (orgRole pro_societe) : ses messages partent de plusieurs comptes (gérant, co-gérant, secrétaire). */
+  estSociete?: boolean
 }
 
 export function useNotifications(
@@ -192,10 +194,11 @@ export function useNotifications(
         table: 'conversation_messages',
       }, (payload) => {
         const msg = payload.new as any
-        const { t: _t, isPt: _isPt, onNavigate: _onNav } = callbacksRef.current
-        // Côté prestataire (`metadata.cote = 'artisan'`) : un message de la société, envoyé par un autre de ses comptes
-        // (co-gérant, secrétaire), pas un message reçu. Pour un artisan, ce sont toujours les siens, déjà écartés.
-        if (msg.sender_id !== userId && msg.metadata?.cote !== 'artisan') {
+        const { t: _t, isPt: _isPt, onNavigate: _onNav, estSociete: _estSociete } = callbacksRef.current
+        // Société BTP : un message du côté prestataire (`metadata.cote = 'artisan'`) vient d'un autre de ses comptes
+        // (co-gérant, secrétaire), ce n'est pas un message reçu. L'artisan garde le filtre d'avant (règle n° 1).
+        const deLaSociete = _estSociete === true && msg.metadata?.cote === 'artisan'
+        if (msg.sender_id !== userId && !deLaSociete) {
           setUnreadMsgCount(prev => prev + 1)
           sendBrowserNotif(
             _isPt ? '💬 Nova mensagem' : '💬 Nouveau message',

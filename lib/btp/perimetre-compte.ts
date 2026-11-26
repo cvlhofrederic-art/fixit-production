@@ -189,14 +189,16 @@ export async function lirePerimetreBtp(user: User, admin: SupabaseClient): Promi
   }
 
   const derogations = await lireDerogations(user.id, societeId, admin)
-  // Plus de ligne d'équipe active dans cette société : compte désactivé ou retiré pendant les 60 s où resolveCompanyId
-  // garde sa société en mémoire. Aucun droit : les défauts du rôle s'appliquaient sans les restrictions du gérant, et le
-  // compte désactivé pouvait encore écrire les modes de paiement, des demandes de prix ou des messages de la société.
-  if (derogations === null) {
+  // Société d'un autre compte résolue, mais plus de ligne d'équipe active dans cette société : compte désactivé ou
+  // retiré pendant les 60 s où resolveCompanyId garde sa société en mémoire. Aucun droit : les défauts du rôle
+  // s'appliquaient sans les restrictions du gérant, et le compte désactivé pouvait encore écrire les modes de paiement,
+  // des demandes de prix ou des messages de la société. Un compte qui ne relève d'aucune société (societeId = lui-même)
+  // garde le comportement d'avant.
+  if (derogations === null && societeId !== user.id) {
     logger.warn('[btp] sous-compte sans ligne d’équipe active dans sa société : aucun droit')
     return { societeId, titulaire: false, roleEquipe: null, permissions: {}, email }
   }
-  const permissions = getEffectivePermissions(roleEquipe, derogations)
+  const permissions = getEffectivePermissions(roleEquipe, derogations ?? [])
   return { societeId, titulaire: false, roleEquipe, permissions, email }
 }
 

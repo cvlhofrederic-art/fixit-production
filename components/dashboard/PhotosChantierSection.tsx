@@ -165,8 +165,9 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
       if (filter === 'unassigned') url += '&unassigned=true'
       else if (filter !== 'all') url += `&booking_id=${filter}`
       const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } })
-      // Une lecture refusée n'est pas « aucune photo ».
-      if (!res.ok) { toast.error(t('proDash.photos.erreurChargementPhotos')); return }
+      // BTP : une lecture refusée (compte en lecture seule, fiche de la société illisible) n'est pas « aucune photo ».
+      // Règle n° 1 : l'artisan garde l'écran d'avant.
+      if (!res.ok && enregistrementBTP) { toast.error(t('proDash.photos.erreurChargementPhotos')); return }
       const json = await res.json()
       if (json.data) setPhotos(json.data)
     } catch (e) { console.error('Error loading photos:', e); toast.error(t('proDash.photos.erreurChargementPhotos')) }
@@ -184,9 +185,9 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ photo_id: photoId, booking_id: bookingId }),
       })
-      // Un refus (compte en lecture seule, fiche de la société illisible) n'est pas une réussite : la liste relue ne
-      // changeait pas, sans aucun message.
-      if (!res.ok) toast.error(t('proDash.photos.erreurAttributionPhoto'))
+      // BTP : un refus (compte en lecture seule, fiche de la société illisible) n'est pas une réussite : la liste relue
+      // ne changeait pas, sans aucun message. L'artisan garde l'écran d'avant (règle n° 1).
+      if (!res.ok && enregistrementBTP) toast.error(t('proDash.photos.erreurAttributionPhoto'))
       setAssigning(null)
       loadPhotos()
     } catch (e) { console.error('Error assigning photo:', e); toast.error(t('proDash.photos.erreurAttributionPhoto')) }
@@ -201,7 +202,7 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` },
       })
-      if (!res.ok) toast.error(t('proDash.photos.erreurSuppression'))
+      if (!res.ok && enregistrementBTP) toast.error(t('proDash.photos.erreurSuppression'))
       loadPhotos()
     } catch (e) { console.error('Error deleting photo:', e); toast.error(t('proDash.photos.erreurSuppression')) }
   }

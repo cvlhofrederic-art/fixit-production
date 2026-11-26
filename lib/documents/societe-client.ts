@@ -37,10 +37,14 @@ type Echec = { ok: false; message: string; code?: string }
 const echecReseau = (): Echec => ({ ok: false, message: messageRefusFr('reseau_indisponible'), code: 'reseau_indisponible' })
 const sessionExpiree = (): Echec => ({ ok: false, message: messageRefusFr('session_expiree'), code: 'session_expiree' })
 
-/** Code d'un refus que la route a rendu sans code : session expirée (401), réponse illisible (aucun texte d'erreur). */
+/**
+ * Code d'un refus que la route a rendu sans code : session expirée (401), limite de débit (429, texte anglais de
+ * rateLimitResponse), réponse illisible (aucun texte d'erreur).
+ */
 function codeDuRefus(statut: number, corps: Record<string, unknown>): string | undefined {
   if (typeof corps.code === 'string') return corps.code
   if (statut === 401) return 'session_expiree'
+  if (statut === 429) return 'trop_de_requetes'
   return typeof corps.error === 'string' ? undefined : 'reseau_indisponible'
 }
 

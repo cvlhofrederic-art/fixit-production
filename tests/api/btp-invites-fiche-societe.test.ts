@@ -432,6 +432,20 @@ describe('Mon profil d’un compte invité : ce que la route protège d’elle-m
     })
   })
 
+  it('un corps complet qui ne vide qu’un seul champ rempli est refusé aussi', async () => {
+    invite('SECRETAIRE')
+    const f = fiche()
+
+    const { status, json } = await enregistrerProfil({
+      ...FORMULAIRE_VIDE, company_name: String(f.company_name), email: String(f.email), phone: String(f.phone),
+      rcs_number: String(f.rcs_number), insurance_name: '',
+    })
+
+    expect(status).toBe(409)
+    expect(json.code).toBe('formulaire_perime')
+    expect(ecrituresProfils()).toHaveLength(0)
+  })
+
   it('un formulaire complet qui ne vide aucun champ rempli passe', async () => {
     invite('SECRETAIRE')
     const fichePleine = fiche()

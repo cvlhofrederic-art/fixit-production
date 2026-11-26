@@ -282,7 +282,8 @@ function DashboardPage() {
     onNewBooking: (b: Booking) => { setBookings(prev => [b, ...prev]); if (b.status === 'confirmed') autoAddClientFromBooking(b) },
     getAuthToken: getDashAuthToken,
     t, isPt,
-  }), [getDashAuthToken, t, isPt, setBookings, autoAddClientFromBooking])
+    estSociete: orgRole === 'pro_societe',
+  }), [getDashAuthToken, t, isPt, setBookings, autoAddClientFromBooking, orgRole])
   const {
     notifications, setNotifications,
     showNotifDropdown, setShowNotifDropdown,

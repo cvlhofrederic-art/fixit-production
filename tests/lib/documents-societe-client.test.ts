@@ -51,6 +51,16 @@ describe('appels « société » : échecs du navigateur dans la langue de l’�
     expect(await lireDocumentsDesChantiers()).toMatchObject({ ok: false, code: 'session_expiree' })
   })
 
+  it('429 de la limite de débit (texte anglais, sans code) : traduit', async () => {
+    repondre(JSON.stringify({ error: 'Too many requests. Please wait before retrying.' }), 429)
+
+    const lu = await lireDocumentsDesChantiers()
+
+    expect(lu).toMatchObject({ ok: false, code: 'trop_de_requetes' })
+    if (lu.ok) throw new Error('lecture inattendue')
+    expect(messageRefusDocuments(lu, true)).toBe('Demasiados pedidos em pouco tempo. Aguarde um minuto e tente novamente.')
+  })
+
   it('réponse illisible (page d’erreur) : serveur injoignable', async () => {
     repondre('<html>502</html>', 502)
     expect(await lireDocumentsDesChantiers()).toMatchObject({ ok: false, code: 'reseau_indisponible' })

@@ -30,6 +30,8 @@ const etat = vi.hoisted(() => ({
   /** Compte invité : lecture et liaison par le serveur (lib/documents/societe-client.ts). */
   lireDocumentsDesChantiers: vi.fn(),
   lierDevisAuChantierSociete: vi.fn(),
+  /** Réglages de la société (useBTPSettings) : un nouvel objet simule leur arrivée après le montage. */
+  reglages: { settings: { country: 'FR', company_type: 'sarl', cout_horaire_ouvrier: 22, charges_patronales_pct: 45, objectif_marge_pct: 20 } } as { settings: Record<string, unknown> },
 }))
 
 vi.mock('@/lib/hooks/use-btp-data', () => {
@@ -41,8 +43,7 @@ vi.mock('@/lib/hooks/use-btp-data', () => {
     update: async (id: string, changes: Record<string, unknown>) => { etat.modifications.push({ id, changes }); return true },
     remove: async () => true,
   }
-  const reglages = { settings: { country: 'FR', company_type: 'sarl', cout_horaire_ouvrier: 22, charges_patronales_pct: 45, objectif_marge_pct: 20 } }
-  return { useBTPData: () => { donnees.items = etat.chantiers; return donnees }, useBTPSettings: () => reglages }
+  return { useBTPData: () => { donnees.items = etat.chantiers; return donnees }, useBTPSettings: () => etat.reglages }
 })
 vi.mock('@/lib/btp/geocodage', async (original) => ({
   ...(await original<typeof import('@/lib/btp/geocodage')>()),
@@ -500,6 +501,36 @@ describe('« Lier un devis » à un chantier', () => {
     etat.lireDocumentsDesChantiers.mockResolvedValue({ ok: true, valeur: { devis: [DEVIS_LILAS], factures: [] } })
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Nouveau chantier/ })) })
     expect(await screen.findByRole('option', { name: /DEV-2026-001/ })).toBeTruthy()
+  })
+
+  const MESSAGE_ILLISIBLE = 'Les documents de la société sont momentanément illisibles. Réessayez dans un instant.'
+  const ILLISIBLE = { ok: false, code: 'lecture_impossible', message: 'illisible' }
+
+  it('compte invité : une lecture en échec n’est pas gardée, le chargement suivant la refait sans clic', async () => {
+    etat.lireDocumentsDesChantiers.mockResolvedValueOnce(ILLISIBLE)
+    const { rerender } = render(<ChantiersBTPV2 artisan={INVITE} orgRole="pro_societe" />)
+    await waitFor(() => expect(toast.error).toHaveBeenCalled())
+    // Les réglages de la société arrivent après le montage : le chargement des devis repart, sans relecture demandée.
+    etat.reglages = { settings: { ...etat.reglages.settings } }
+    rerender(<ChantiersBTPV2 artisan={INVITE} orgRole="pro_societe" />)
+    await waitFor(() => expect(etat.lireDocumentsDesChantiers).toHaveBeenCalledTimes(2))
+  })
+
+  it('compte invité : un échec à l’ouverture de « Nouveau chantier » se dit aussi', async () => {
+    render(<ChantiersBTPV2 artisan={INVITE} orgRole="pro_societe" />)
+    await waitFor(() => expect(etat.lireDocumentsDesChantiers).toHaveBeenCalledTimes(1))
+    etat.lireDocumentsDesChantiers.mockResolvedValueOnce(ILLISIBLE)
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Nouveau chantier/ })) })
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(MESSAGE_ILLISIBLE, { id: 'chantiers-documents-societe' }))
+  })
+
+  it('compte invité : après une liaison, une relecture des documents liés en échec se dit', async () => {
+    const lus = { ok: true, valeur: { devis: [DEVIS_LILAS], factures: [] } }
+    // Montage (lecture partagée), « Lier un devis », puis la relecture des documents liés après la liaison.
+    etat.lireDocumentsDesChantiers.mockResolvedValueOnce(lus).mockResolvedValueOnce(lus).mockResolvedValueOnce(ILLISIBLE)
+    await lierLePremierDevis(INVITE)
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Devis lié au chantier'))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(MESSAGE_ILLISIBLE, { id: 'chantiers-documents-societe' }))
   })
 
   it('salarié sans droit sur les devis : son écran s’ouvre sans message d’échec', async () => {

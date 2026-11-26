@@ -358,6 +358,19 @@ describe('tableau de bord BTP — fiche société au chargement', () => {
     expect(mocks.prefetchBTPTables).toHaveBeenCalledWith(expect.any(Array), 'compte-1')
   })
 
+  // Relecture du 26/11/2026 : la page dit au hook si le compte est une société BTP. Seule une société écarte du
+  // compteur et des notifications les messages du côté prestataire envoyés par ses autres comptes (co-gérant, secrétaire).
+  it('notifications : une société BTP est signalée au hook ; un artisan non (règle n° 1)', async () => {
+    const { rappelsNotifications } = await import('../helpers/tableau-de-bord-pro-simule')
+    const { container } = await ouvrir(utilisateur('pro_societe'))
+    await waitFor(() => expect(container.querySelector('#artisan-dashboard-v5')).not.toBeNull())
+    await waitFor(() => expect(rappelsNotifications.derniers).toMatchObject({ estSociete: true }))
+    cleanup()
+
+    await ouvrir(utilisateur('artisan'), { adresse: 'p=facture' })
+    await waitFor(() => expect(rappelsNotifications.derniers).toMatchObject({ estSociete: false }))
+  })
+
   it('artisan : fiche illisible → renvoi vers la connexion, comme avant (aucun écran BTP)', async () => {
     mocks.etat.fiche = { data: null, error: ECHEC_RESEAU }
     await ouvrir(utilisateur('artisan'))

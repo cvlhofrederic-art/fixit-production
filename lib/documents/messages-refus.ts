@@ -19,6 +19,7 @@ export type CodeRefusDocuments =
   | 'lecture_impossible'
   | 'reseau_indisponible'
   | 'session_expiree'
+  | 'trop_de_requetes'
 
 export const MESSAGES_REFUS_DOCUMENTS: Record<CodeRefusDocuments, { fr: string; pt: string }> = {
   societe_non_resolue: {
@@ -75,6 +76,11 @@ export const MESSAGES_REFUS_DOCUMENTS: Record<CodeRefusDocuments, { fr: string; 
   session_expiree: {
     fr: 'Session expirée. Reconnectez-vous.',
     pt: 'A sessão expirou. Inicie sessão novamente.',
+  },
+  // Limite de débit d'une route (429) : le texte de rateLimitResponse est en anglais, et sans code.
+  trop_de_requetes: {
+    fr: 'Trop de demandes en peu de temps. Patientez une minute, puis réessayez.',
+    pt: 'Demasiados pedidos em pouco tempo. Aguarde um minuto e tente novamente.',
   },
 }
 

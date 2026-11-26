@@ -497,7 +497,7 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
     setForm(fiche)
     setChoixAdresseOuvert(false)
     setShowModal(true)
-    loadDevisAndMembres(true)
+    void loadDevisAndMembres(true)
   }
 
   const handleDelete = async (id: string) => {
