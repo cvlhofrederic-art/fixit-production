@@ -17,6 +17,9 @@ const CLE_STOCKAGE_MODE = 'vitfix.aj.mode'
 const IBAN_DEBITEUR = 'FR76 3000 6000 0112 3456 7890 189'
 const IBAN_FAUX = 'FR76 3000 6000 0112 3456 7890 188'
 const ICS = 'FR12ZZZ123456'
+const IBAN_COURANT = 'FR1420041010050500013M02606'
+const IBAN_CDC = 'FR7630004000031234567890143'
+const SUIVI_BANQUE = { createdAt: '2026-12-01T09:00:00.000Z', updatedAt: '2026-12-01T09:00:00.000Z', createdBy: null, updatedBy: null }
 
 type Push = (options: { kind?: string; title?: ReactNode; desc?: ReactNode }) => number | undefined
 
@@ -53,7 +56,9 @@ beforeAll(async () => {
   const { MODE_ACTIF, AUJOURDHUI_ISO } = await import('@/lib/administrateur-judiciaire/mode')
   expect(MODE_ACTIF).toBe('reel')
   expect(AUJOURDHUI_ISO).toBe('2026-12-01')
-})
+  // Chargement de tout le module après resetModules (écran, base, domaine) : plus de 10 s (délai par défaut des hooks)
+  // sur un poste chargé, cache de transformation froid.
+}, 60_000)
 
 afterAll(() => {
   localStorage.removeItem(CLE_STOCKAGE_MODE)
@@ -229,6 +234,8 @@ describe('Appels de fonds en mode réel — écran', () => {
     // ap-04 du 22/11/2026 : ce qui est bloqué est la diffusion de l'avis, pas l'écriture de l'appel.
     expect(texte).toContain('Bloque la diffusion de l’avis : Compte')
     expect(texte).not.toContain('Bloquant')
+    // ap-03 du 22/11/2026 : mode du cabinet par défaut (compte séparé), aucun compte courant ouvert : pas de compte désigné.
+    expect(texte).toContain('Compte qui reçoit les règlements non désigné : aucun compte actif « Compte courant au nom du syndicat »')
     const ecrire = avis().getByRole('button', { name: 'Écrire l’appel' })
     expect((ecrire as HTMLButtonElement).disabled).toBe(false)
     fireEvent.click(ecrire)
@@ -351,6 +358,7 @@ describe('Appels de fonds en mode réel — écran', () => {
     })
     await ajDb.impayes.add({ id: 'imp-1', coproprietaireId: 'f2', montant: 100, statut: 'procedure:2026-10-01', createdAt: '', updatedAt: '', createdBy: null, updatedBy: null })
     await ajDb.comptesCoproprietaires.update('c3', { reglement: { mode: 'Prélèvement', mandat: mandat('3', IBAN_DEBITEUR) } })
+    await ajDb.banques.add({ id: 'b-courant', coproprieteId: copro.id, nature: 'courant', iban: IBAN_COURANT, actif: true, ...SUIVI_BANQUE })
     await rendre()
     const sepa = () => texteDe(avis().getByRole('heading', { level: 4, name: 'Prélèvements SEPA' }).parentElement as HTMLElement)
     expect((avis().getByLabelText('Date du prélèvement') as HTMLInputElement).value).toBe('2027-01-01')
@@ -362,6 +370,40 @@ describe('Appels de fonds en mode réel — écran', () => {
       fireEvent.change(avis().getByLabelText('Date du prélèvement'), { target: { value: '2026-12-10' } })
     })
     expect(sepa()).toMatch(/Copropriétaire 3 \(fictif\) exclu : .*14 jours calendaires/)
+  })
+
+  it('ap-03 : le mode de tenue du mandat est lu ; Caisse des dépôts : aucun prélèvement annoncé, virement à ce compte, bénéficiaire à vérifier', async () => {
+    await donneesD2()
+    await appelsDb.ouvrirExercice(copro.id, { ouverture: '2027-01-01', cloture: '2027-12-31' })
+    await appelsDb.enregistrerNouvelAppel(copro.id, SAISIE_APPEL)
+    await ajDb.comptesCoproprietaires.update('c1', {
+      reglement: {
+        mode: 'Prélèvement',
+        mandat: {
+          rum: 'RUM-FICTIF-00001',
+          dateSignature: '2024-03-01',
+          debiteur: 'Personne 1',
+          debiteurIdentiteId: 'i1',
+          iban: IBAN_DEBITEUR,
+          bic: 'EXEMFRPP',
+          dernierPrelevementLe: '2026-10-05',
+          natures: { budget: true, autres: true },
+          maxiCentimes: null,
+        },
+      },
+    })
+    for (const id of ['c2', 'c3']) await ajDb.comptesCoproprietaires.update(id, { reglement: { mode: 'Virement' } })
+    await ajDb.banques.bulkAdd([
+      { id: 'b-courant', coproprieteId: copro.id, nature: 'courant', iban: IBAN_COURANT, actif: true, ...SUIVI_BANQUE },
+      { id: 'b-cdc', coproprieteId: copro.id, nature: 'caisse_depots', iban: IBAN_CDC, actif: true, ...SUIVI_BANQUE },
+    ])
+    await ajDb.mandats.update(copro.mandatId, { modeComptesBancaires: 'caisse_depots' })
+    await rendre()
+    const sepa = () => texteDe(avis().getByRole('heading', { level: 4, name: 'Prélèvements SEPA' }).parentElement as HTMLElement)
+    expect(sepa()).toContain('Copropriétaire 1 (fictif) exclu : Prélèvement non annoncé : le compte qui reçoit les règlements n’est pas établi au nom du syndicat')
+    const texte = texteDe(panneau('Avis d’appel par copropriétaire'))
+    expect(texte).toContain("Virement au compte à la Caisse des dépôts : l'avis nomme le syndicat comme bénéficiaire")
+    expect(texte).not.toContain('Compte qui reçoit les règlements non désigné')
   })
 
   it('fiches non reprises : « Reprendre les fiches de toutes les copropriétés » crée identités, comptes et positions (D2)', async () => {

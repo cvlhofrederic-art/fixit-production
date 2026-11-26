@@ -168,12 +168,35 @@ export function isProSocieteRole(user: User): boolean {
 // ⚠️ SÉCURITÉ : on lit app_metadata (server-only, non forgeable), JAMAIS user_metadata
 // qui est modifiable par le client via supabase.auth.updateUser() — un sous-compte
 // pourrait sinon s'auto-promouvoir GERANT.
+/**
+ * Le compte porte-t-il la société d'un AUTRE compte ?
+ *
+ * `app_metadata.company_id` est posé par le serveur à l'acceptation d'une invitation d'équipe
+ * (app/api/pro/invite). Un GÉRANT INVITÉ en porte un qui n'est pas le sien : `isProGerant` ne lit pas ce champ et
+ * le déclarait titulaire de sa propre société, ce qui lui donnait des listes vides partout. Lu dans app_metadata
+ * seulement (server-only, non forgeable).
+ */
+export function societeDunAutreCompte(user: User): boolean {
+  const rattachement = user.app_metadata?.company_id
+  return typeof rattachement === 'string' && rattachement !== '' && rattachement !== user.id
+}
+
 export function isProGerant(user: User): boolean {
   const role = getUserRole(user)
   if (role === 'super_admin') return true
   if (role !== 'pro_societe') return false
   const teamRole = user.app_metadata?.pro_team_role
   return !teamRole || teamRole === 'GERANT'
+}
+
+/**
+ * Gérant TITULAIRE : le compte dont l'identifiant EST la société (ou super_admin). Un co-gérant invité
+ * (pro_team_role GERANT dans la société d'un autre compte) a les mêmes droits sur les données, mais lui seul crée,
+ * modifie ou retire un gérant (décision du 25/11/2026 : « gérant au même titre que moi », la main sur les gérants
+ * restant au titulaire).
+ */
+export function estTitulaireSociete(user: User): boolean {
+  return isProGerant(user) && !societeDunAutreCompte(user)
 }
 
 // ── Cache company_id en mémoire (TTL 5min) ──────────────────────────────────
@@ -189,7 +212,9 @@ export async function resolveCompanyId(user: User, supabaseAdminClient: Supabase
 
   // Gérant ou super_admin : son propre ID est la company
   if (role === 'super_admin') return user.id
-  if (role === 'pro_societe' && isProGerant(user)) return user.id
+  // Un gérant INVITÉ dans l'équipe d'un autre compte est résolu comme tout sous-compte, par sa ligne d'équipe
+  // active : sa société n'est pas lui-même (societeDunAutreCompte).
+  if (role === 'pro_societe' && isProGerant(user) && !societeDunAutreCompte(user)) return user.id
 
   // Sous-compte pro_societe : résoudre via pro_team_members
   if (role === 'pro_societe') {

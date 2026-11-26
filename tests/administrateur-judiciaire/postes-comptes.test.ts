@@ -4,6 +4,7 @@ import { creerCompteCoproprietaire, creerPosition } from '@/lib/administrateur-j
 import { imputerEncaissement, mouvementsEncaissementImpute } from '@/lib/administrateur-judiciaire/domain/imputation-encaissements'
 import { creerPieceTraitement } from '@/lib/administrateur-judiciaire/domain/journal-traitements'
 import {
+  imputationDOrigine,
   lignesEcrites,
   postesDeLImputation,
   postesDesComptes,
@@ -277,6 +278,50 @@ describe('réglé : lignes d’imputation des encaissements non annulés', () =>
     expect(enEcart(regle)).toEqual([['cA', '00001']])
     expect(postesDesComptes(regle).ecarts[0].message).toMatch(/annulé alors que le poste est réglé/)
     expect(comptesRendus(regle)).toEqual(['cB'])
+  })
+
+  it('décision du 24/11/2026 (question 6) — encaissement réimputé : le réglé se lit sur l’imputation courante ; pièce de reclassement absente ou annulée : son compte est en écart', () => {
+    // Imputation d'origine : 400,00 € sur le T1 ; réimputée depuis : 300,00 € sur le T1 et 100,00 € sur le T2.
+    const origine = imputation([{ posteId: 'T1:lot-2', montantCentimes: 40_000 }])
+    const courante = imputation([{ posteId: 'T1:lot-2', montantCentimes: 30_000 }, { posteId: 'T2:lot-2', montantCentimes: 10_000 }])
+    const reimputation = {
+      traitementId: 'reclassement-1',
+      le: '2026-05-10',
+      cause: { type: 'encaissement-en-retard' as const, encaissementIds: ['e0'], traitementId: 'encaissement-e0', date: '2026-01-20' },
+      avant: origine,
+      mouvements: [],
+      mention: 'Réimputation dans l’ordre des dates (fictive)',
+    }
+    const reimpute = { ...encaissement('e1', 'cB', []), imputation: courante, reimputations: [reimputation] }
+    expect(imputationDOrigine(reimpute)).toBe(origine)
+    expect(imputationDOrigine(encaissement('e2', 'cB', [{ posteId: 'T1:lot-2', montantCentimes: 100 }])).lignes).toMatchObject([{ posteId: 'T1:lot-2', montantCentimes: 100 }])
+    const d = donnees([reimpute])
+    const reclassement = creerPieceTraitement({
+      traitement: { id: 'reclassement-1', famille: 'Correction de mouvements', date: '2026-05-10', mouvements: [] },
+      numero: 4,
+      coproprieteId: 'C1',
+      segmentSyndicat: SEGMENT,
+      mandatId: 'M1',
+      parametres: [],
+    })
+    const avecLaPiece = postesDesComptes({ ...d, pieces: [...d.pieces, reclassement] })
+    expect(avecLaPiece.ecarts).toEqual([])
+    expect(avecLaPiece.postes.filter((p) => p.compteId === 'cB').map((p) => [p.id, p.regleCentimes])).toEqual([
+      ['T1:lot-2', 30_000],
+      ['FT:lot-2', 0],
+      ['T2:lot-2', 10_000],
+    ])
+    // Pièce de reclassement absente du journal du syndicat.
+    expect(enEcart(d)).toEqual([['cB', '00002']])
+    expect(postesDesComptes(d).ecarts[0].message).toMatch(/Encaissement e1 : sa pièce de reclassement reclassement-1 est introuvable au journal des traitements du syndicat/)
+    expect(comptesRendus(d)).toEqual(['cA'])
+    // Pièce de reclassement annulée hors du circuit des encaissements.
+    const annulee = { ...d, pieces: [...d.pieces, { ...reclassement, statut: 'Annulé' as const }] }
+    expect(enEcart(annulee)).toEqual([['cB', '00002']])
+    expect(postesDesComptes(annulee).ecarts[0].message).toMatch(/Encaissement e1 : sa pièce de reclassement n° 4 a été annulée hors du circuit des encaissements/)
+    // Un encaissement annulé ne compte plus : sa pièce de reclassement n'est plus regardée.
+    const annulation = { le: '2026-06-01', motif: 'Chèque impayé', piece: 'AVIS-2', traitementId: 'annulation-2', dateComptable: '2026-06-01', mention: '' }
+    expect(postesDesComptes(donnees([{ ...reimpute, annulation }])).ecarts).toEqual([])
   })
 })
 

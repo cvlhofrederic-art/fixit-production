@@ -25,7 +25,7 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import type { SupabaseClient, User } from '@supabase/supabase-js'
-import { getUserRole, isProGerant, resolveCompanyId } from '@/lib/auth-helpers'
+import { getUserRole, isProGerant, resolveCompanyId, societeDunAutreCompte } from '@/lib/auth-helpers'
 import { logger } from '@/lib/logger'
 import {
   getEffectivePermissions, isValidProTeamRole,
@@ -151,11 +151,20 @@ export async function lirePerimetreBtp(user: User, admin: SupabaseClient): Promi
   const role = getUserRole(user)
 
   // Tout ce qui n'est pas un sous-compte de société BTP garde son propre périmètre, comme avant ce lot.
-  if (role !== 'pro_societe' || isProGerant(user)) {
+  // Un gérant INVITÉ (pro_team_role = 'GERANT' avec la société d'un autre compte) n'en fait pas partie : il est
+  // résolu comme un sous-compte, et les permissions par défaut de son rôle lui donnent FULL partout.
+  if (role !== 'pro_societe' || (isProGerant(user) && !societeDunAutreCompte(user))) {
     return { societeId: user.id, titulaire: true, roleEquipe: null, permissions: {}, email }
   }
 
   const societeId = (await resolveCompanyId(user, admin)) ?? user.id
+  // Compte rattaché à une autre société mais sans ligne d'équipe active (retiré, désactivé, ou lecture en panne) :
+  // resolveCompanyId retombe sur son propre identifiant. Sans cette garde, un gérant ou une secrétaire gardait FULL
+  // sur cette « société » vide à son nom, et ses écritures y partaient sans erreur.
+  if (societeDunAutreCompte(user) && societeId === user.id) {
+    logger.warn('[btp] compte rattaché à une société sans ligne d’équipe active : aucun droit')
+    return { societeId, titulaire: false, roleEquipe: null, permissions: {}, email }
+  }
   const roleBrut = user.app_metadata?.pro_team_role
   const roleEquipe = typeof roleBrut === 'string' && isValidProTeamRole(roleBrut) ? roleBrut : null
 
@@ -166,24 +175,30 @@ export async function lirePerimetreBtp(user: User, admin: SupabaseClient): Promi
     return { societeId, titulaire: false, roleEquipe: null, permissions: {}, email }
   }
 
-  const permissions = getEffectivePermissions(roleEquipe, await lireDerogations(user.id, admin))
+  const permissions = getEffectivePermissions(roleEquipe, await lireDerogations(user.id, societeId, admin))
   return { societeId, titulaire: false, roleEquipe, permissions, email }
 }
 
-/** Dérogations posées par le gérant sur ce compte (pro_role_permissions) ; liste vide si la lecture échoue. */
+/**
+ * Dérogations posées par le gérant sur ce compte (pro_role_permissions) ; liste vide si la lecture échoue. Bornées à
+ * la société du membre : une ligne dont company_id diffère n'a pas été posée par le serveur (jusqu'à la migration
+ * 20261125b, toute session pouvait en insérer sous son propre uid, et un salarié se donnait ainsi FULL).
+ */
 async function lireDerogations(
   userId: string,
+  societeId: string,
   admin: SupabaseClient,
 ): Promise<{ module_id: string; access_level: AccessLevel }[]> {
   try {
     const { data: membre, error: erreurMembre } = await admin
-      .from('pro_team_members').select('id').eq('user_id', userId).eq('is_active', true).maybeSingle()
+      .from('pro_team_members').select('id').eq('user_id', userId).eq('company_id', societeId).eq('is_active', true)
+      .maybeSingle()
     if (erreurMembre) throw new Error(erreurMembre.message)
     const membreId = (membre as { id?: string } | null)?.id
     if (!membreId) return []
 
     const { data, error } = await admin
-      .from('pro_role_permissions').select('module_id, access_level').eq('member_id', membreId)
+      .from('pro_role_permissions').select('module_id, access_level').eq('member_id', membreId).eq('company_id', societeId)
     if (error) throw new Error(error.message)
     return ((data ?? []) as { module_id: string; access_level: string }[])
       .filter(ligne => ligne.access_level === 'FULL' || ligne.access_level === 'READ' || ligne.access_level === 'NONE')

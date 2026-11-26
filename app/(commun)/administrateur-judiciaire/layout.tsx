@@ -4,7 +4,7 @@ import { administrateurJudiciaireActif } from '@/lib/administrateur-judiciaire/f
 import '@/components/administrateur-judiciaire/styles/aj.css'
 // Après aj.css (feuille générée, réécrite à chaque extraction) : règles écrites à la main du haut de page.
 import '@/components/administrateur-judiciaire/styles/aj-selecteur-copro.css'
-// En dernier : correctifs de aj.css écrits à la main (boutons désactivés, pastilles sur téléphone).
+// En dernier : correctifs de aj.css écrits à la main (boutons désactivés, pastilles et cadre du module sur téléphone).
 import '@/components/administrateur-judiciaire/styles/aj-correctifs.css'
 
 /**

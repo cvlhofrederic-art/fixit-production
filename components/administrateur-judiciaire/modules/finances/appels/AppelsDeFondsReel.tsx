@@ -211,7 +211,7 @@ function EnTeteAppels({ indicateurs, onEmettre }: Readonly<{ indicateurs: Indica
 /** Écran du syndicat choisi : lecture de ses tables, panneaux, « Nouvel appel de fonds ». */
 function AppelsDuSyndicat({ copro }: Readonly<{ copro: CoproprieteVue }>) {
   const { push } = useToast()
-  const lus = useAppelsDeFonds(copro.id, (message) => push({ kind: 'warn', title: 'Appels de fonds illisibles', desc: message }))
+  const lus = useAppelsDeFonds(copro.id, copro.mandatId, (message) => push({ kind: 'warn', title: 'Appels de fonds illisibles', desc: message }))
   const [nouvelAppelOuvert, setNouvelAppelOuvert] = useState(false)
   const { nouvelAppel, ecritures } = useEcrituresAppels(copro, lus.relire)
   const donnees = lus.donnees

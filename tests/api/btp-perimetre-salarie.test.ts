@@ -62,12 +62,13 @@ const ecrire = async (corps: unknown) => {
 const gerant = () => { h.user = { id: SOCIETE, email: 'patron@exemple.test', app_metadata: { role: 'pro_societe' } } }
 
 /** Sous-compte d'équipe relié à la société, avec son rôle. */
-function salarie(role: string, options: { email?: string; derogations?: { module_id: string; access_level: string }[] } = {}) {
+function salarie(role: string, options: { email?: string; derogations?: { module_id: string; access_level: string; company_id?: string }[] } = {}) {
   const userId = nouveauCompte()
   const membreId = nouveauCompte()
   h.user = { id: userId, email: options.email ?? EMAIL_OUVRIER, app_metadata: { role: 'pro_societe', pro_team_role: role, company_id: SOCIETE } }
   h.base.lignes.pro_team_members = [{ id: membreId, user_id: userId, company_id: SOCIETE, is_active: true }]
-  h.base.lignes.pro_role_permissions = (options.derogations ?? []).map(d => ({ member_id: membreId, ...d }))
+  h.base.lignes.pro_role_permissions = (options.derogations ?? []).map(d => ({ member_id: membreId, company_id: SOCIETE, ...d }))
+  return userId
 }
 
 const titres = (lignes: unknown) => (lignes as { titre: string }[]).map(l => l.titre).sort()
@@ -208,6 +209,14 @@ describe('GET /api/btp — les dérogations du gérant priment', () => {
     expect(json.restreint).toBeUndefined()
   })
 
+  it('dérogation posée hors du serveur (company_id = le salarié lui-même, avant la migration 20261125b) : ignorée', async () => {
+    // Avant : lue par member_id seul, elle donnait FULL ; le salarié s'attribuait des droits en écrivant la table.
+    salarie('OUVRIER', { derogations: [{ module_id: 'chantiers', access_level: 'FULL', company_id: 'compte-du-salarie' }] })
+    const { json } = await lire('?table=chantiers')
+    expect(titres(json.chantiers)).toEqual(['Affecté', 'Par équipe'])
+    expect(json.restreint).toBe(true)
+  })
+
   it('un ouvrier à qui le gérant a retiré les chantiers n’en voit aucun', async () => {
     salarie('OUVRIER', { derogations: [{ module_id: 'chantiers', access_level: 'NONE' }] })
     const { json } = await lire('?table=chantiers')
@@ -227,6 +236,23 @@ describe('POST /api/btp — l’écriture suit le rôle, pas le simple fait d’
     const action = table === 'settings_btp' ? 'upsert_settings' : 'insert'
     const { status } = await ecrire({ table, action, data: { titre: 'Chantier pirate' } })
     expect(status).toBe(403)
+  })
+
+  it.each(['GERANT', 'SECRETAIRE'])('%s rattaché à la société mais sans ligne d’équipe active : aucune écriture, pas de société fantôme à son nom', async (role) => {
+    // Retiré, désactivé ou lecture en panne : resolveCompanyId retombe sur son propre identifiant. Avant le 25/11/2026,
+    // un co-gérant ou une secrétaire gardait FULL sur cette « société » vide, et le chantier partait à son nom.
+    salarie(role)
+    h.base.lignes.pro_team_members = []
+    const { status } = await ecrire({ table: 'chantiers_btp', action: 'insert', data: { titre: 'Chantier fantôme', statut: 'En cours' } })
+    expect(status).toBe(403)
+    expect(h.base.lignes.chantiers_btp.some(c => c.titre === 'Chantier fantôme')).toBe(false)
+  })
+
+  it('co-gérant (GERANT invité) relié à la société : crée un chantier DANS la société', async () => {
+    salarie('GERANT')
+    const { status } = await ecrire({ table: 'chantiers_btp', action: 'insert', data: { titre: 'Chantier du co-gérant', statut: 'En cours' } })
+    expect(status).toBe(201)
+    expect(h.base.lignes.chantiers_btp.find(c => c.titre === 'Chantier du co-gérant')?.owner_id).toBe(SOCIETE)
   })
 
   it('refuse à un salarié de SUPPRIMER un chantier de la société', async () => {

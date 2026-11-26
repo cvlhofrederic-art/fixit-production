@@ -5,6 +5,9 @@ import { appelerIA, iaTexteDisponible } from '@/lib/ai/relais'
 import { logger } from '@/lib/logger'
 import { validateBody, comptableAiRequestSchema } from '@/lib/validation'
 import { supabaseAdmin } from '@/lib/supabase-server'
+import { lirePerimetreBtp, niveauSur } from '@/lib/btp/perimetre-compte'
+import { societeNonResolue } from '@/lib/btp/titulaire-documents'
+import { messageRefusFr } from '@/lib/documents/messages-refus'
 import {
   RETENCAO_CAT_B_PT, eurPt, faixasIrsPt, iasPt, isencaoIvaPt, limiteDispensaRetencaoPt, limiteIrsJovemPt,
   limiteIsencaoSsAcumulacaoPt, minimoExistenciaPt, percentPt, tauxIrc,
@@ -848,14 +851,21 @@ export async function POST(request: NextRequest) {
     if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
     const body = v.data as Record<string, unknown>
 
-    // Verify artisan ownership if artisan_id provided
+    // Titulaire des données : la société pour un salarié invité, le compte lui-même pour tous les autres.
+    const perimetre = await lirePerimetreBtp(user, supabaseAdmin)
+    if (societeNonResolue(user, perimetre)) {
+      return NextResponse.json({ error: messageRefusFr('societe_non_resolue'), code: 'societe_non_resolue' }, { status: 409 })
+    }
+
+    // Appartenance de la fiche annoncée. Comparée au TITULAIRE, pas au compte connecté : la fiche de la société
+    // d'un salarié invité appartient au gérant, et la comparer à son propre identifiant lui rendait un 403.
     if ((body.financialContext as Record<string, unknown>)?.artisan_id) {
-      const { data: artisan } = await (await import('@/lib/supabase-server')).supabaseAdmin
+      const { data: artisan } = await supabaseAdmin
         .from('profiles_artisan')
         .select('user_id')
         .eq('id', (body.financialContext as Record<string, unknown>).artisan_id as string)
         .single()
-      if (artisan && artisan.user_id !== user.id) {
+      if (artisan && artisan.user_id !== perimetre.societeId) {
         return NextResponse.json({ error: 'Accès non autorisé à ces données' }, { status: 403 })
       }
     }
@@ -900,8 +910,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Message requis' }, { status: 400 })
     }
 
+    // Le contexte financier de l'entreprise est tout sauf anodin : marges, charges fixes, rentabilité par
+    // chantier, et `membres_btp` en entier — donc les salaires et les coûts horaires.
+    //
+    // FULL exigé, pas « différent de NONE ». Une vue en lecture seule n'existe pas ici : les listes « membres » et
+    // « equipes » n'ont aucune projection restreinte (lib/btp/perimetre-compte.ts le dit, il faut FULL pour les
+    // voir), et l'agent rend du texte, qu'aucune projection ne filtre après coup. Un rôle à READ — ce qu'une
+    // dérogation du gérant peut poser sur n'importe quel rôle — obtiendrait sinon par Léa ce que /api/btp refuse.
+    if (niveauSur(perimetre, 'comptabilite') !== 'FULL' && niveauSur(perimetre, 'compta_btp') !== 'FULL') {
+      return NextResponse.json(
+        // Code dédié : `aucun_droit` parle des devis et des factures, et le navigateur afficherait le mauvais
+        // motif. Le texte français accompagne le code, c'est l'écran qui choisit la langue.
+        { error: messageRefusFr('aucun_droit_comptabilite'), code: 'aucun_droit_comptabilite' },
+        { status: 403 },
+      )
+    }
+
     const rawCtx = financialContext || {}
-    const ctx = await enrichCtxFromSupabase(user.id, rawCtx)
+    const ctx = await enrichCtxFromSupabase(perimetre.societeId, rawCtx)
     let systemPrompt = buildSystemPrompt(ctx)
 
     if (locale === 'pt') {

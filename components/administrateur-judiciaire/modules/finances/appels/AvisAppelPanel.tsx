@@ -408,6 +408,7 @@ export function AvisAppelPanel({
       title="Avis d’appel par copropriétaire"
       sub="Identités, positions et comptes (D2) du syndicat"
       icon="coin"
+      controlesALaLigne
       right={
         options.length > 0 && (
           <select className="btn ghost sm" value={date} onChange={(evenement) => setChoix(evenement.target.value)} aria-label="Appel">
