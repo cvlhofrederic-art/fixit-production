@@ -1,6 +1,6 @@
 // tests/components/vitfixsignal/connexion.test.tsx
 //
-// Page de connexion professionnelle de l'espace « Vitfix Signal » (/fr/vitfixsignal/connexion/), demande de Hugo du
+// Page de connexion professionnelle de l'espace « Vitfix Signal » (/fr/vitfixsignal/connexion/), demande du
 // 11/11/2026 : « je ne veux pas que l'on puisse taper Particulier […] il faut taper professionnel avec le mail et mot de
 // passe pour se connecter ».
 // - e-mail + mot de passe, « Mot de passe oublié ? » ; ni Particulier / Artisan / Pro, ni Google, ni « Créer un compte » ;

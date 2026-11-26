@@ -1,7 +1,7 @@
 // tests/api/user-export-data.test.ts
 //
-// GET /api/user/export-data (RGPD art. 20, libre-service). PR 2, lot 6 (SPEC § 2.10) : pour un gestionnaire AJ
-// Signalement (rôle gestionnaire_signalement, ou compte relié à une fiche), l'export ajoute une section vitfixsignal :
+// GET /api/user/export-data (RGPD art. 20, libre-service). PR 2, lot 6 (SPEC § 2.10) : pour un gestionnaire de Vitfix
+// Signal (rôle gestionnaire_signalement, ou compte relié à une fiche), l'export ajoute une section vitfixsignal :
 // sa fiche (nom, e-mail, cabinet, dates), ses attributions (copropriété, origine, date) et les lignes du journal des
 // 12 derniers mois où il est l'auteur ou le sujet — sans aucune donnée d'une autre personne (ni identifiant, ni nom,
 // ni adresse d'un collègue ou du super admin : l'auteur d'une ligne est « vous », « collegue », « cabinet » ou

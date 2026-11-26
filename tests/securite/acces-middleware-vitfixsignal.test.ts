@@ -1,5 +1,5 @@
 /**
- * Espace « Vitfix Signal » (/fr/vitfixsignal/, demandes de Hugo du 10 et du 11/11/2026) : contrôle d'accès du
+ * Espace « Vitfix Signal » (/fr/vitfixsignal/, demandes du 10 et du 11/11/2026) : contrôle d'accès du
  * middleware, avec la page de connexion professionnelle de l'espace (/fr/vitfixsignal/connexion/).
  *
  * - sans session : 307 vers la page de connexion de l'espace dans la langue (la requête d'origine n'est pas reprise) ;

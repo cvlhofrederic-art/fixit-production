@@ -15,6 +15,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { existsSync, readFileSync } from 'fs'
 import { join } from 'path'
+import { ANCIEN_CHEMIN_CRON_REPRISE_QR } from '@/lib/vitfixsignal/ancien-nom'
 
 const envoi = vi.hoisted(() => ({
   appels: [] as Array<{ id: string; lotsMax: number | undefined }>,
@@ -86,7 +87,8 @@ describe('workflow vitfixsignal-diffusion-reprise.yml (modèle run-automations.y
 
   it('appelle la route de production en POST avec l’en-tête x-cron-secret, échoue sur une erreur HTTP, sans relance', () => {
     const [run] = blocsRun(yaml)
-    expect(run).toMatch(/curl -s -X POST https:\/\/vitfix\.io\/api\/cron\/vitfixsignal-diffusion-reprise/)
+    // Adresse d'avant le renommage, le temps de la transition (voir « transition » plus bas).
+    expect(run).toContain(`curl -s -X POST https://vitfix.io${ANCIEN_CHEMIN_CRON_REPRISE_QR} \\\n`)
     expect(run).toMatch(/-H "x-cron-secret: \$\{INTERNAL_API_SECRET\}"/)
     expect(run).toMatch(/--fail-with-body/)
     expect(run).toMatch(/--max-time \d+/)
@@ -117,9 +119,28 @@ describe('workflow vitfixsignal-diffusion-reprise.yml (modèle run-automations.y
     expect(CONDITION.split(' || ')).toEqual(["vars.VITFIXSIGNAL_DIFFUSION_REPRISE_ACTIVE == 'true'", "vars.AJ_DIFFUSION_REPRISE_ACTIVE == 'true'"])
   })
 
-  it('le job appelle la NOUVELLE route seulement, jamais celle d’avant le renommage', () => {
-    expect(blocsRun(yaml).join('\n')).not.toMatch(/api\/cron\/aj-/)
-    expect(yaml).not.toMatch(/api\/cron\/aj-/)
+  // Transition (retour de relecture du 26/11/2026) : dès la fusion, GitHub exécute CE fichier, alors que le Worker en
+  // ligne reste celui d'avant le renommage pendant le build et le déploiement (plusieurs minutes). Si le job appelait la
+  // nouvelle route, chaque passage de cette fenêtre recevrait 404 (job rouge, diffusion interrompue non reprise).
+  // L'adresse d'avant est la seule servie par les DEUX Workers : par sa route avant le déploiement, par la réécriture de
+  // next.config.ts après (tests/next-config-routage-opennext.test.ts). Elle répond aussi encore après un retour du
+  // Worker à la version précédente. Le passage à la nouvelle adresse se fait dans une PR suivante, renommage déployé.
+  it('transition : le job appelle une seule adresse, celle d’AVANT le renommage, que la réécriture de next.config.ts sert', () => {
+    const [run] = blocsRun(yaml)
+    const adresses = [...run.matchAll(/https:\/\/[^\s\\"']+/g)].map((m) => m[0])
+    expect(adresses).toEqual([`https://vitfix.io${ANCIEN_CHEMIN_CRON_REPRISE_QR}`])
+    expect(run).not.toContain('/api/cron/vitfixsignal-diffusion-reprise')
+    // La réécriture qui sert cette adresse une fois le renommage déployé, et la route qu'elle vise.
+    const config = lire(join(RACINE, 'next.config.ts'))
+    expect(config).toContain("{ source: ANCIEN_CHEMIN_CRON_REPRISE_QR, destination: '/api/cron/vitfixsignal-diffusion-reprise' }")
+    expect(existsSync(CHEMIN_ROUTE)).toBe(true)
+  })
+
+  it('transition : l’en-tête dit pourquoi l’ancienne adresse est gardée et quand passer à la nouvelle', () => {
+    const entete = yaml.split('\non:')[0]
+    expect(entete).toContain('/api/cron/vitfixsignal-diffusion-reprise')
+    expect(entete).toContain('PR suivante')
+    expect(entete).toContain('lib/vitfixsignal/ancien-nom.ts')
   })
 
   it('la condition d’activation est documentée dans l’en-tête (migration, secrets, variable)', () => {

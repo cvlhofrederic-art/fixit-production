@@ -1,6 +1,6 @@
 // tests/components/vitfixsignal/espace.test.tsx
 //
-// Espace indépendant « Vitfix Signal » (/fr/vitfixsignal/, demandes de Hugo du 10 et du 11/11/2026), côté navigateur :
+// Espace indépendant « Vitfix Signal » (/fr/vitfixsignal/, demandes du 10 et du 11/11/2026), côté navigateur :
 // - garde : session validée auprès de Supabase (getUser) puis decisionAccesEspaceQr(app_metadata) ; aucune donnée
 //   chargée avant (fetch jamais appelé en chargement, sans session, en refus ni en session indisponible) ;
 // - sans session ou autre compte : renvoi vers la page de connexion professionnelle de l'espace

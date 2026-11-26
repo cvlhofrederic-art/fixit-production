@@ -1,6 +1,6 @@
 // tests/migrations/signalements_qr_gestionnaires.test.ts
 //
-// Migration 20261111_signalements_qr_gestionnaires.sql (Vitfix Signal, demandes de Hugo du 10/11/2026) : cabinets
+// Migration 20261111_signalements_qr_gestionnaires.sql (Vitfix Signal, demandes du 10/11/2026) : cabinets
 // clients (nom, identifiant du chemin public vitfix.io/<identifiant>/…, langue, domaines e-mail), gestionnaires,
 // envois de confirmation d'adresse, attributions, journal, opérations, colonnes ajoutées aux copropriétés et aux
 // signalements, 14 fonctions appelées par les routes et 2 fonctions de trigger (gel de l'identifiant, rattachement

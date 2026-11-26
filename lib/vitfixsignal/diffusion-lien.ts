@@ -24,6 +24,11 @@
 // renommage du produit ont été signés sous un autre contexte HKDF et d'autres usages. La SIGNATURE n'utilise que le
 // contexte et les usages actuels ; la VÉRIFICATION accepte aussi ceux d'avant, par la même clé (courante, puis
 // précédente), sans jamais croiser un contexte avec les usages de l'autre.
+// Filet de la même transition (bloc F, retour de relecture du 26/11/2026) : si la clé a été reposée sous son nouveau
+// nom avec une valeur DIFFÉRENTE, la valeur encore posée sous l'ancien nom du secret est vérifiée comme une clé
+// précédente (lien de la page « expiré », un clic honoré), jamais utilisée pour signer. Sans ce filet, le lien un clic
+// d'un message déjà envoyé recevrait 200 sans que l'opposition soit enregistrée. Il cesse à la suppression de l'ancien
+// secret.
 //
 // Rien n'est stocké : le lien se recalcule à l'identique (un lot renvoyé produit le même message). L'identifiant du
 // destinataire est tiré au hasard par la base (122 bits) ; le lien ne contient ni adresse, ni identifiant de
@@ -35,7 +40,7 @@
 
 import { ANCIENNE_INFO_HKDF_LIENS_QR, ANCIENS_USAGES_SIGNES_QR } from '@/lib/vitfixsignal/ancien-nom'
 import { FORMAT_IDENTIFIANT_CABINET_QR } from '@/lib/vitfixsignal/chemin-cabinet'
-import { lireVariableQr, type EnvVitfixSignalQr } from '@/lib/vitfixsignal/variables'
+import { lireAncienneVariableQr, lireVariableQr, type EnvVitfixSignalQr } from '@/lib/vitfixsignal/variables'
 
 /** Les deux usages d'un lien (cahier § 8.1). */
 export type UsageLienDiffusionQr = 'page' | 'un_clic'
@@ -85,8 +90,9 @@ function secretDe(valeur: string | undefined): string | null {
   return secret.length >= LONGUEUR_MIN_CLE_LIENS_DIFFUSION_QR ? secret : null
 }
 
-// Clés dérivées, par contexte et par secret (la clé courante et la précédente, sous les deux formes vérifiées ; une
-// rotation en ajoute deux). Une dérivation échouée n'est pas gardée.
+// Clés dérivées, par contexte et par secret (la clé courante, la précédente et, pendant la transition, celle encore
+// posée sous l'ancien nom du secret, sous les deux formes vérifiées : six au plus). Une dérivation échouée n'est pas
+// gardée.
 const clesEnCache = new Map<string, Promise<CryptoKey>>()
 const TAILLE_MAX_CACHE = 8
 
@@ -115,6 +121,16 @@ const cleCourante = (env: EnvLiensDiffusionQr) => secretDe(lireVariableQr('VITFI
 
 /** Clé précédente, pendant une rotation (facultative), sinon null. */
 const clePrecedente = (env: EnvLiensDiffusionQr) => secretDe(lireVariableQr('VITFIXSIGNAL_CLE_LIENS_DIFFUSION_PRECEDENTE', env))
+
+/**
+ * Clés vérifiées comme « précédentes », dans l'ordre, sans doublon et sans la clé courante : la clé précédente déclarée
+ * (rotation), puis la valeur encore posée sous l'ANCIEN nom du secret de la clé des liens (filet de la transition : elle
+ * a signé les liens des messages déjà envoyés). Aucune ne signe.
+ */
+function clesPrecedentes(env: EnvLiensDiffusionQr, courante: string): string[] {
+  const candidates = [clePrecedente(env), secretDe(lireAncienneVariableQr('VITFIXSIGNAL_CLE_LIENS_DIFFUSION', env))]
+  return [...new Set(candidates.filter((cle): cle is string => cle !== null && cle !== courante))]
+}
 
 /** La clé de signature est-elle configurée (D-R3, D-R4, D-C1 : 503 configuration_incomplete sinon) ? */
 export function cleLiensDiffusionConfigureeQr(env: EnvLiensDiffusionQr = process.env): boolean {
@@ -174,10 +190,10 @@ export interface JetonSigneDiffusionQr {
 export type VerificationJetonDiffusionQr = JetonSigneDiffusionQr | { statut: 'inconnu' } | { statut: 'configuration_incomplete' }
 
 /**
- * Vérifie la signature d'un jeton pour les usages acceptés, dans cet ordre : sous la clé courante, puis sous la clé
- * précédente (cahier § 8.1) ; pour chaque clé, sous la forme actuelle puis sous celle d'avant le renommage (transition,
- * FORMES_VERIFIEES). Aucune ne vérifie, ou format faux → inconnu, quel que soit l'identifiant. Clé courante absente →
- * configuration_incomplete (D-P5 : 503 ; pages publiques : « inconnu »). Ne lit pas la base.
+ * Vérifie la signature d'un jeton pour les usages acceptés, dans cet ordre : sous la clé courante, puis sous les clés
+ * précédentes (cahier § 8.1 ; clesPrecedentes) ; pour chaque clé, sous la forme actuelle puis sous celle d'avant le
+ * renommage (transition, FORMES_VERIFIEES). Aucune ne vérifie, ou format faux → inconnu, quel que soit l'identifiant.
+ * Clé courante absente → configuration_incomplete (D-P5 : 503 ; pages publiques : « inconnu »). Ne lit pas la base.
  */
 export async function verifierJetonDiffusionQr(
   jeton: string,
@@ -189,9 +205,8 @@ export async function verifierJetonDiffusionQr(
   if (!FORMAT_JETON_DIFFUSION_QR.test(jeton)) return { statut: 'inconnu' }
   const destinataireId = uuidDepuisHex(jeton.slice(0, 32))
   const signature = depuisHex(jeton.slice(33))
-  const precedente = clePrecedente(env)
   const cles: Array<[JetonSigneDiffusionQr['cle'], string]> = [['courante', courante]]
-  if (precedente) cles.push(['precedente', precedente])
+  for (const precedente of clesPrecedentes(env, courante)) cles.push(['precedente', precedente])
   for (const [nom, secret] of cles) {
     for (const forme of FORMES_VERIFIEES) {
       const cle = await cleHmac(secret, forme.info)

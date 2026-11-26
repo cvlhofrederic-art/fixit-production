@@ -1,6 +1,6 @@
 // tests/lib/vitfixsignal-connexion-espace.test.ts
 //
-// Page de connexion professionnelle de l'espace « Vitfix Signal » (demande de Hugo du 11/11/2026 : « il faut taper
+// Page de connexion professionnelle de l'espace « Vitfix Signal » (demande du 11/11/2026 : « il faut taper
 // professionnel avec le mail et mot de passe ») : partie pure (lib/vitfixsignal/connexion-espace.ts).
 // - contexte de la page (nom affiché, adresse de l'espace par langue) : sérialisable ; l'espace d'un cabinet (PR 2)
 //   passera le sien (la décision d'accès par cabinet viendra avec la PR 2) ;

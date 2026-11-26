@@ -1,6 +1,6 @@
 // tests/lib/vitfixsignal-droits-diffusion.test.ts
 //
-// Vitfix Signal, PR 3, partie gestionnaire (décision H11 de Hugo du 11/11/2026, cahier § 4.3) — règles pures :
+// Vitfix Signal, PR 3, partie gestionnaire (décision H11 du 11/11/2026, cahier § 4.3) — règles pures :
 //   - droit « diffuser » d'un profil sur une copropriété (lib/vitfixsignal/droits-diffusion.ts) : super admin, toujours ;
 //     gestionnaire, seulement sur une copropriété de SON cabinet qui lui est attribuée NOMMÉMENT et qui n'est pas
 //     « attribuée à tous » (la copropriété de test ne diffuse que par le super admin, même si elle lui est aussi attribuée

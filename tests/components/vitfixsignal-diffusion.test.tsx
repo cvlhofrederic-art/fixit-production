@@ -1,6 +1,6 @@
 // tests/components/vitfixsignal-diffusion.test.tsx
 //
-// Vitfix Signal, PR 3 — écrans de la diffusion (brouillons soumis à Frédéric, décision F1).
+// Vitfix Signal, PR 3 — écrans de la diffusion (brouillons soumis à validation, décision F1).
 //   - Lot 6 : PAGE PUBLIQUE de désinscription (vitfix.io/<identifiant>/desinscription/#<jeton>, cahier § 7.5, § 7.6,
 //     § 8.1, décisions F1 et F3) ;
 //   - Lot 8 (en fin de fichier) : écrans de l'espace — formulaire « Diffuser un message », message d'annonce (H1 = C),

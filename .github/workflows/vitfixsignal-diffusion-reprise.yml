@@ -21,7 +21,14 @@ name: Vitfix Signal — filet de reprise de la diffusion
 # renommage, AJ_DIFFUSION_REPRISE_ACTIVE, est encore lue ; le job tourne si l'UNE des deux vaut « true », pour que le
 # filet ne s'arrête pas à la fusion. À faire ensuite : créer VITFIXSIGNAL_DIFFUSION_REPRISE_ACTIVE = true, supprimer
 # l'ancienne variable, puis retirer d'ici la seconde moitié de la condition (lib/vitfixsignal/ancien-nom.ts, bloc F).
-# La route appelée est la nouvelle ; l'ancienne adresse du filet reste servie par le Worker (réécriture interne).
+#
+# ADRESSE APPELÉE PENDANT LA TRANSITION : celle d'avant le renommage, /api/cron/aj-diffusion-reprise. Dès la fusion,
+# GitHub exécute ce fichier alors que le Worker en ligne reste celui d'avant pendant le build et le déploiement : la
+# nouvelle route /api/cron/vitfixsignal-diffusion-reprise n'y existe pas encore (404, job en échec, diffusion interrompue
+# non reprise). L'ancienne adresse est la seule servie par les deux Workers : par sa route avant le déploiement, par une
+# réécriture interne de next.config.ts après (elle répond donc aussi après un retour du Worker à la version précédente).
+# À faire dans une PR suivante, une fois le renommage déployé : appeler la nouvelle route ici. Tant que ce n'est pas
+# fait, ne pas retirer la réécriture de l'ancienne adresse (lib/vitfixsignal/ancien-nom.ts, bloc B).
 
 on:
   schedule:
@@ -47,7 +54,7 @@ jobs:
           # Secret lu depuis l'environnement, jamais interpolé dans run:.
           INTERNAL_API_SECRET: ${{ secrets.INTERNAL_API_SECRET }}
         run: |
-          curl -s -X POST https://vitfix.io/api/cron/vitfixsignal-diffusion-reprise \
+          curl -s -X POST https://vitfix.io/api/cron/aj-diffusion-reprise \
             -H "x-cron-secret: ${INTERNAL_API_SECRET}" \
             --max-time 120 \
             --fail-with-body

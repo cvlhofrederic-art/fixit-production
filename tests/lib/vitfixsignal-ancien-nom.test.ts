@@ -238,6 +238,76 @@ describe('C. liens de désinscription signés avant le renommage', () => {
     expect(await verifierJetonDiffusionQr(JETON_PAGE_D_AVANT, ['page'], precedente)).toMatchObject({ statut: 'signe', cle: 'precedente' })
   })
 
+  // Retour de relecture du 26/11/2026 : en reposant le secret sous son nouveau nom, une valeur NEUVE peut être posée par
+  // erreur au lieu de la même valeur. Le nouveau nom l'emporte (lireVariableQr) : sans filet, le lien « un clic » d'un
+  // message déjà envoyé ne serait plus vérifié, la route répondrait 200 sans rien enregistrer et l'opposition serait
+  // perdue sans aucun signal. Tant que l'ancien secret n'est pas supprimé, sa valeur vaut donc clé PRÉCÉDENTE.
+  describe('nouveau nom posé avec une valeur NEUVE, ancien secret encore là (erreur de manipulation)', () => {
+    const env = { VITFIXSIGNAL_CLE_LIENS_DIFFUSION: AUTRE_CLE, AJ_SIGNALEMENT_CLE_LIENS_DIFFUSION: CLE_D_AVANT }
+
+    it('le lien un clic d’un message déjà envoyé vaut encore, comme signé par une clé précédente (l’opposition n’est pas perdue)', async () => {
+      expect(await verifierJetonDiffusionQr(JETON_UN_CLIC_D_AVANT, ['un_clic'], env))
+        .toEqual({ statut: 'signe', destinataireId: DESTINATAIRE, usage: 'un_clic', cle: 'precedente' })
+    })
+
+    it('le lien de la page aussi : « precedente », donc « expiré » avec le repli par l’adresse, jamais « valide »', async () => {
+      expect(await verifierJetonDiffusionQr(JETON_PAGE_D_AVANT, ['page', 'un_clic'], env))
+        .toEqual({ statut: 'signe', destinataireId: DESTINATAIRE, usage: 'page', cle: 'precedente' })
+    })
+
+    it('les nouveaux liens sont signés par la valeur du NOUVEAU nom seulement, et vérifiés « courante »', async () => {
+      const hex = DESTINATAIRE.replaceAll('-', '')
+      const signes = await signerLiensDiffusionQr(DESTINATAIRE, env)
+      expect(signes).toMatchObject({
+        ok: true,
+        unClic: `${hex}.${signatureOracle(AUTRE_CLE, 'vitfixsignal-desinscription-v1', 'vitfixsignal-diffusion-un-clic', DESTINATAIRE)}`,
+      })
+      if (!signes.ok) throw new Error('signature impossible')
+      expect(await verifierJetonDiffusionQr(signes.unClic, ['un_clic'], env)).toMatchObject({ statut: 'signe', cle: 'courante' })
+    })
+
+    it('un jeton falsifié, ou signé par une troisième clé, reste refusé', async () => {
+      for (const i of [0, 31, 33, 60, 96]) {
+        expect(await verifierJetonDiffusionQr(alterer(JETON_UN_CLIC_D_AVANT, i), ['page', 'un_clic'], env), `[${i}]`).toEqual({ statut: 'inconnu' })
+      }
+      const troisieme = 'troisieme-cle-de-test-fictive-0123456789-xyz'
+      const etranger = `${DESTINATAIRE.replaceAll('-', '')}.${signatureOracle(troisieme, 'aj-signalement-desinscription-v1', 'aj-diffusion-un-clic', DESTINATAIRE)}`
+      expect(await verifierJetonDiffusionQr(etranger, ['un_clic'], env)).toEqual({ statut: 'inconnu' })
+    })
+
+    it('un usage ne vaut toujours rien pour l’autre', async () => {
+      expect(await verifierJetonDiffusionQr(JETON_PAGE_D_AVANT, ['un_clic'], env)).toEqual({ statut: 'inconnu' })
+    })
+
+    it('ancien secret trop court, vide ou supprimé : aucun filet (seule la clé du nouveau nom vérifie)', async () => {
+      for (const ancien of ['trop-courte', '', '   ', undefined]) {
+        const sans = { VITFIXSIGNAL_CLE_LIENS_DIFFUSION: AUTRE_CLE, AJ_SIGNALEMENT_CLE_LIENS_DIFFUSION: ancien }
+        expect(await verifierJetonDiffusionQr(JETON_UN_CLIC_D_AVANT, ['un_clic'], sans), String(ancien)).toEqual({ statut: 'inconnu' })
+      }
+    })
+
+    it('la même valeur sous les deux noms (manipulation attendue) : clé « courante », rien ne change', async () => {
+      const memes = { VITFIXSIGNAL_CLE_LIENS_DIFFUSION: CLE_D_AVANT, AJ_SIGNALEMENT_CLE_LIENS_DIFFUSION: CLE_D_AVANT }
+      expect(await verifierJetonDiffusionQr(JETON_UN_CLIC_D_AVANT, ['un_clic'], memes)).toMatchObject({ statut: 'signe', cle: 'courante' })
+    })
+
+    it('avec une clé précédente déclarée en plus : les deux sont vérifiées, la déclarée d’abord', async () => {
+      const troisieme = 'troisieme-cle-de-test-fictive-0123456789-xyz'
+      const hex = DESTINATAIRE.replaceAll('-', '')
+      const rotation = { ...env, VITFIXSIGNAL_CLE_LIENS_DIFFUSION_PRECEDENTE: troisieme }
+      const parLaDeclaree = `${hex}.${signatureOracle(troisieme, 'vitfixsignal-desinscription-v1', 'vitfixsignal-diffusion-un-clic', DESTINATAIRE)}`
+      expect(await verifierJetonDiffusionQr(parLaDeclaree, ['un_clic'], rotation)).toMatchObject({ statut: 'signe', cle: 'precedente' })
+      expect(await verifierJetonDiffusionQr(JETON_UN_CLIC_D_AVANT, ['un_clic'], rotation)).toMatchObject({ statut: 'signe', cle: 'precedente' })
+    })
+
+    it('l’ancien secret seul ne suffit jamais à SIGNER quand le nouveau nom est posé trop court : configuration incomplète', async () => {
+      // Le nouveau nom renseigné l'emporte à la lecture : une valeur trop courte y vaut clé absente, sans retour à l'ancien.
+      const court = { VITFIXSIGNAL_CLE_LIENS_DIFFUSION: 'trop-courte', AJ_SIGNALEMENT_CLE_LIENS_DIFFUSION: CLE_D_AVANT }
+      expect(cleLiensDiffusionConfigureeQr(court)).toBe(false)
+      expect(await verifierJetonDiffusionQr(JETON_UN_CLIC_D_AVANT, ['un_clic'], court)).toEqual({ statut: 'configuration_incomplete' })
+    })
+  })
+
   it('les NOUVEAUX liens sont signés sous le nouveau contexte et les nouveaux usages, jamais sous les anciens', async () => {
     const hex = DESTINATAIRE.replaceAll('-', '')
     for (const env of [ENV, { AJ_SIGNALEMENT_CLE_LIENS_DIFFUSION: CLE_D_AVANT }]) {
@@ -436,7 +506,18 @@ describe('F. secrets : nouveau nom d’abord, ancien nom en repli, un seul endro
 // ── GARDE : l'ancien nom n'est écrit nulle part ailleurs ─────────────────────
 
 const RACINE = process.cwd()
-const ANCIEN_NOM = /aj[ _-]?signal|aj[_-]diffusion/i
+// « \s* » et non un seul espace : le nom peut être coupé par un retour à la ligne (voir sansCoupure).
+const ANCIEN_NOM = /aj[\s_-]*signal|aj[_-]diffusion/i
+
+/**
+ * Texte d'un fichier où chaque retour à la ligne, avec le retrait et le marqueur de commentaire de la ligne suivante
+ * (//, *, #, --, <!--), devient un espace : un nom coupé en fin de ligne d'un commentaire se lit alors d'un seul tenant.
+ * Sans cela, la garde ne voyait pas l'ancien nom à cheval sur deux lignes (retour de relecture du 26/11/2026).
+ */
+const sansCoupure = (texte: string): string => texte.replace(/\r?\n[ \t]*(?:\/\/+|\*+|#+|--+|<!--)?[ \t]*/g, ' ')
+
+/** Le fichier contient-il l'ancien nom, même coupé par un retour à la ligne ? */
+const contientAncienNom = (chemin: string): boolean => ANCIEN_NOM.test(sansCoupure(readFileSync(chemin, 'utf-8')))
 
 /** Dossiers et fichiers du dépôt relus (code, tests, migrations, workflows, documentation). */
 const PERIMETRE = [
@@ -464,7 +545,8 @@ const FICHIERS_DE_COMPATIBILITE = [
   'supabase/migrations/20261126b_vitfixsignal_renommage.sql',
   'tests/migrations/vitfixsignal_renommage.test.ts',
   'tests/migrations/vitfixsignal_renommage.execution.test.ts',
-  // Ancienne variable de dépôt GitHub, encore lue par la condition du job.
+  // Ancienne variable de dépôt GitHub, encore lue par la condition du job, et ancienne adresse du filet de reprise,
+  // encore appelée le temps du déploiement (tests/securite/cron-vitfixsignal-diffusion.test.ts, « transition »).
   '.github/workflows/vitfixsignal-diffusion-reprise.yml',
   // Clé d'un verrou de transaction, interne à une fonction SQL d'une migration déjà appliquée (jamais stockée).
   'supabase/migrations/20261113_signalements_qr_diffusion.sql',
@@ -495,9 +577,19 @@ describe('garde : l’ancien nom n’est écrit nulle part hors des fichiers de 
     expect(ANCIEN_NOM.test('Vitfix Signal, vitfixsignal, signalements_qr')).toBe(false)
   })
 
+  it('un nom coupé par un retour à la ligne est vu, quel que soit le marqueur de commentaire de la ligne suivante', () => {
+    const [debut, fin] = ['AJ', 'Signalement']
+    for (const coupure of ['\n// ', '\r\n// ', '\n   * ', '\n * ', '\n# ', '\n-- ', '\n  ', '\n', '\n<!-- ']) {
+      expect(ANCIEN_NOM.test(sansCoupure(`toutes les routes d'${debut}${coupure}${fin}. Super admin`)), JSON.stringify(coupure)).toBe(true)
+    }
+    // Aucun faux positif : le nouveau nom coupé de la même façon, ni un mot voisin suivi d'une ligne sans rapport.
+    expect(ANCIEN_NOM.test(sansCoupure('espace de Vitfix\n// Signal. Super admin'))).toBe(false)
+    expect(ANCIEN_NOM.test(sansCoupure('mise à jour\n// puis signalement suivant'))).toBe(false)
+  })
+
   it('aucun autre fichier ne le contient', () => {
     const fautifs = fichiers
-      .filter((f) => ANCIEN_NOM.test(readFileSync(f, 'utf-8')))
+      .filter(contientAncienNom)
       .map(cheminDepot)
       .filter((f) => !FICHIERS_DE_COMPATIBILITE.includes(f))
     expect(fautifs, 'ancien nom écrit hors de lib/vitfixsignal/ancien-nom.ts : l’importer depuis ce module').toEqual([])
@@ -506,7 +598,7 @@ describe('garde : l’ancien nom n’est écrit nulle part hors des fichiers de 
   it('chaque fichier de la liste existe et contient bien l’ancien nom (liste sans entrée morte)', () => {
     const sansAncienNom = FICHIERS_DE_COMPATIBILITE.filter((f) => {
       const chemin = join(RACINE, f)
-      return !existsSync(chemin) || !ANCIEN_NOM.test(readFileSync(chemin, 'utf-8'))
+      return !existsSync(chemin) || !contientAncienNom(chemin)
     })
     expect(sansAncienNom).toEqual([])
   })

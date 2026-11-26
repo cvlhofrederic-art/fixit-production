@@ -1,6 +1,6 @@
 // tests/components/vitfixsignal/logo-cabinet.test.tsx
 //
-// Logo d'un cabinet client dans la vue « Cabinets » de l'espace Vitfix Signal (super admin ; demande de Hugo du
+// Logo d'un cabinet client dans la vue « Cabinets » de l'espace Vitfix Signal (super admin ; demande du
 // 13/11/2026, BROUILLON pour Frédéric) : bouton « Logo » sur chaque cabinet, fenêtre avec le logo actuel (lu par sa
 // route publique versionnée) ou « Aucun logo », choix d'un fichier converti en PNG sur l'appareil (convertirLogoQr,
 // simulée ici), aperçu, enregistrement (PUT …/logo, PNG en base64), retrait après confirmation (DELETE …/logo), messages

@@ -7,7 +7,8 @@
 // Ce module est le SEUL endroit du code où l'ancien nom est écrit. Hors de lui, il n'apparaît que dans :
 //   - les tests de compatibilité (tests/lib/vitfixsignal-ancien-nom.test.ts et les fichiers qu'il nomme) ;
 //   - la migration supabase/migrations/20261126b_vitfixsignal_renommage.sql (ancienne clé d'app_metadata) ;
-//   - le workflow .github/workflows/vitfixsignal-diffusion-reprise.yml (ancienne variable de dépôt) ;
+//   - le workflow .github/workflows/vitfixsignal-diffusion-reprise.yml (ancienne variable de dépôt, et ancienne adresse
+//     du filet de reprise, encore appelée le temps du déploiement : voir B) ;
 //   - la migration déjà appliquée 20261113 (clé d'un verrou de transaction, interne à une fonction SQL).
 // Garde : tests/lib/vitfixsignal-ancien-nom.test.ts (« l'ancien nom n'est écrit nulle part ailleurs »).
 //
@@ -28,6 +29,10 @@
 //      quand plus aucune diffusion créée avant la mise en production du renommage n'existe en base (une seule en
 //      production, du 16/11/2026 : au plus tard le 17/11/2029). Les pages encore ouvertes dans un navigateur au
 //      moment du déploiement, elles, ne comptent que pour quelques heures.
+//      Le workflow du filet de reprise appelle encore l'ANCIENNE adresse (la seule servie par le Worker d'avant comme
+//      par celui d'après : sans cela, chaque passage entre la fusion et la fin du déploiement recevrait 404). Le faire
+//      appeler la nouvelle route dans une PR suivante, renommage déployé ; ne pas retirer la réécriture de la route
+//      du filet avant.
 //
 //   C. Liens de désinscription signés (contexte HKDF et usages signés d'avant) : même protection et même échéance que
 //      B pour le lien un clic ; le lien de la page, lui, expire 365 jours après la diffusion
@@ -44,6 +49,10 @@
 //   F. Secrets et variables (anciens noms lus en repli, lib/vitfixsignal/variables.ts) : à retirer quand les secrets
 //      du Worker ont été reposés sous les nouveaux noms (wrangler secret put, MÊMES valeurs) puis les anciens
 //      supprimés (wrangler secret delete), et la variable de dépôt GitHub recréée sous son nouveau nom.
+//      Filet contre une erreur de manipulation : si la clé des liens est reposée sous son nouveau nom avec une valeur
+//      DIFFÉRENTE, la valeur encore posée sous l'ancien nom reste vérifiée comme clé précédente (jamais pour signer),
+//      tant que l'ancien secret n'est pas supprimé (lib/vitfixsignal/diffusion-lien.ts). Ne supprimer l'ancien secret
+//      qu'après avoir contrôlé que les deux valeurs sont les mêmes, ou passé l'ancienne dans …_PRECEDENTE.
 //
 //   G. Étiquettes « type » des e-mails déjà envoyés (webhook de Resend : plainte → opposition, objet et texte du
 //      rebond tus à Sentry) : une plainte peut arriver tant que le message est dans une boîte. À retirer avec B.

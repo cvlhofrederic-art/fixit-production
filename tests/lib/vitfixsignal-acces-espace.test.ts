@@ -1,6 +1,6 @@
 // tests/lib/vitfixsignal-acces-espace.test.ts
 //
-// Espace indépendant « Vitfix Signal » (demande de Hugo du 10/11/2026) : adresse, contrôle d'accès, menu, page de
+// Espace indépendant « Vitfix Signal » (demande du 10/11/2026) : adresse, contrôle d'accès, menu, page de
 // connexion professionnelle de l'espace (demande de Hugo du 11/11/2026) et arrivée après connexion, dans un module pur
 // (lib/vitfixsignal/acces-espace.ts) partagé par le middleware, la page de connexion de l'espace, l'espace lui-même et
 // les liens du portail copropriétaire et de l'AJ. Aujourd'hui seul le super admin entre ; la décision ne lit que

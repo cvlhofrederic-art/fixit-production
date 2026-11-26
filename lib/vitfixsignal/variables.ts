@@ -12,6 +12,8 @@
 // la MÊME valeur sous le nom actuel (une valeur différente pour la clé des liens rendrait invalides les liens déjà
 // envoyés, sauf à passer l'ancienne valeur dans …_PRECEDENTE), puis supprimer l'ancien secret. Quand c'est fait, retirer
 // le repli ci-dessous et le bloc F du module de transition.
+// Filet contre cette erreur (retour de relecture du 26/11/2026) : lireAncienneVariableQr donne la valeur encore posée
+// sous l'ancien nom ; diffusion-lien.ts la vérifie comme clé précédente quand elle diffère de la clé courante.
 //
 // Module pur (aucune dépendance serveur) : l'environnement est passé par l'appelant (process.env par défaut ; un objet
 // dans les tests). Aucune valeur n'est journalisée ici.
@@ -39,6 +41,14 @@ const renseignee = (valeur: string | undefined): valeur is string => typeof vale
 export function lireVariableQr(nom: VariableVitfixSignalQr, env: EnvVitfixSignalQr = process.env): string | undefined {
   const actuelle = env[nom]
   if (renseignee(actuelle)) return actuelle
+  return lireAncienneVariableQr(nom, env)
+}
+
+/**
+ * Valeur encore posée sous l'ANCIEN nom d'un secret ou d'une variable, telle que posée (non rognée), que le nom actuel
+ * soit renseigné ou non ; undefined si elle est absente, vide ou faite d'espaces. Transition seulement (bloc F).
+ */
+export function lireAncienneVariableQr(nom: VariableVitfixSignalQr, env: EnvVitfixSignalQr = process.env): string | undefined {
   const ancienne = env[ANCIENS_NOMS_VARIABLES_QR[nom]]
   return renseignee(ancienne) ? ancienne : undefined
 }

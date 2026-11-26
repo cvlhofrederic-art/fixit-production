@@ -16,7 +16,7 @@
 // dossier) : numéros d'urgence français fixés par l'annexe de la décision ARCEP n° 2022-2372 (112, 15, 17, 18, 114…) ;
 // 114 pour les personnes sourdes, malentendantes, sourdaveugles et aphasiques (CPCE, art. D. 98-8-1) ; au Portugal, le 112
 // seul. Aucun texte n'impose cet affichage sur un formulaire privé : mesure de prudence. Ni délai ni intervention promis.
-// Bâtiments saisis par le cabinet (demande de Hugo du 17/11/2026, lib/vitfixsignal/batiments.ts) : liste à choix au lieu
+// Bâtiments saisis par le cabinet (demande du 17/11/2026, lib/vitfixsignal/batiments.ts) : liste à choix au lieu
 // du texte libre (choisirBatiment, batimentListeAide) et refus d'un bâtiment absent de la liste (erreurs.batiment_inconnu,
 // rendu aussi par la route du dépôt, dans la langue de la page). TEXTES PROPOSÉS, brouillon (portugais à relire, H4).
 

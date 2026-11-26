@@ -1,6 +1,6 @@
 // tests/api/vitfixsignal-depot-repli-cabinet.test.ts
 //
-// POST /api/vitfixsignal/signalements — D9 (décision de Hugo du 17/11/2026, au nom de VitFix, point 7) : repli vers les
+// POST /api/vitfixsignal/signalements — D9 (décision du 17/11/2026, au nom de VitFix, point 7) : repli vers les
 // boîtes de VitFix COUPÉ pour une copropriété sans aucun destinataire.
 //   - copropriété d'un cabinet client : le signalement part à l'adresse de contact du cabinet (diffusion_contact_email),
 //     réponse directe au déclarant ;

@@ -356,3 +356,30 @@ UPDATE auth.users
        || jsonb_build_object('<ancienne_cle>', raw_app_meta_data -> 'vitfixsignal_cabinet')
  WHERE raw_app_meta_data -> 'vitfixsignal_cabinet' IS NOT NULL;
 ```
+
+### Retour du Worker à une version d'avant le renommage : à éviter
+
+**Corriger en avant plutôt que revenir en arrière.** La compatibilité ne joue que dans un sens : le code du renommage
+accepte tout ce qui existait sous l'ancien nom, mais le code d'AVANT ne connaît rien de ce qui porte le nouveau. Après
+un retour du Worker (rollback Cloudflare) à une version d'avant le renommage, même pour un incident sans rapport, ce
+qui a été émis ou enregistré DEPUIS le déploiement du renommage cesse de marcher jusqu'au redéploiement du code du
+renommage. Rien n'est détruit en base : tout remarche dès ce redéploiement, sauf les oppositions reçues entre-temps.
+
+| Émis ou fait depuis le déploiement du renommage | Sous le code d'avant | À faire |
+|---|---|---|
+| Invitation d'un gestionnaire (signée sous le nouveau nom d'espace) | Lien refusé | Renvoyer chaque invitation en attente depuis l'écran des gestionnaires : elle est signée par le code en ligne |
+| Accès accepté par un gestionnaire (seule la clé `vitfixsignal_cabinet` est posée) ; tous les comptes si la migration 20261126b est appliquée | Le gestionnaire n'est plus aiguillé vers l'espace de son cabinet (aucun droit perdu) | Rejouer l'`UPDATE` ci-dessus (nouvelle clé → ancienne clé) |
+| Message de diffusion : lien de la page (signé sous le nouveau contexte) | « Lien inconnu » | Rien : le lien revaut au redéploiement |
+| Message de diffusion : en-tête « un clic » (nouvelle route d'API) | 404 : **l'opposition est perdue, sans aucun signal** | Relever dans le journal des requêtes du Worker les `POST` reçus en 404 sur `/api/vitfixsignal/desinscription/un-clic/…` pendant le retour ; après le redéploiement, rejouer chacun à l'identique (même adresse, corps `List-Unsubscribe=One-Click`) : la route vérifie la signature et enregistre l'opposition. Si le journal ne les a pas gardés, le signaler au référent métier : des oppositions ont pu ne pas être enregistrées |
+| Plainte reçue par Resend sur un message envoyé depuis le déploiement (nouvelle étiquette) | Non convertie en opposition | Relever dans Resend les plaintes de la période et enregistrer chaque opposition |
+| Pages de l'espace sous `/vitfixsignal/` (favoris, liens reçus) | 404 | Rien : elles reviennent au redéploiement |
+| Filet de reprise (`vitfixsignal-diffusion-reprise.yml`) | Continue de marcher tant que le workflow appelle l'ancienne adresse | Rien |
+
+Trois précautions rendent ce retour moins coûteux :
+
+- ne supprimer les anciens secrets du Worker (`wrangler secret delete`) et l'ancienne variable de dépôt GitHub qu'une
+  fois le retour arrière exclu : le code d'avant ne lit que les anciens noms, et sans eux aucune diffusion ne part
+  (les liens de désinscription répondent 503) ;
+- ne pas faire appeler la nouvelle route par le workflow du filet de reprise avant cette même échéance ;
+- jamais de retour (ni de déploiement) pendant qu'une diffusion est en cours d'envoi : un lot à l'issue incertaine
+  serait rejoué sous une autre clé d'idempotence, donc envoyé deux fois.

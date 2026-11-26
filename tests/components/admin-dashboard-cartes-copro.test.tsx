@@ -6,9 +6,8 @@
 // Idem pour le sous-rôle Locataire et l'accès complet de la carte « Syndic / Cabinet », qui ouvre le
 // Syndic v54 français (/fr/syndic/v54 ; /syndic/dashboard redirigeait vers la version PT).
 // Les cartes Artisan / BTP gardent la « vue en tant que » (ces dashboards ont besoin du rôle).
-// La carte « Vitfix Signal » (11/11/2026, demande de Hugo : « je ne vois pas vitfix signal sur mon dashboard
-// admin ») ouvre l'espace indépendant /fr/vitfixsignal/ de la même façon, juste après la carte Administrateur
-// judiciaire.
+// La carte « Vitfix Signal » (demande du 11/11/2026 du référent métier : la carte manquait au panneau admin) ouvre
+// l'espace indépendant /fr/vitfixsignal/ de la même façon, juste après la carte Administrateur judiciaire.
 
 import React from 'react'
 import { describe, it, expect, afterEach, vi } from 'vitest'

@@ -1,6 +1,6 @@
 // tests/components/vitfixsignal/cabinets.test.tsx
 //
-// Vue « Cabinets » de l'espace Vitfix Signal (super admin ; demandes de Hugo du 10/11/2026) : chaque cabinet client a
+// Vue « Cabinets » de l'espace Vitfix Signal (super admin ; demandes du 10/11/2026) : chaque cabinet client a
 // sa ligne (nom, identifiant du chemin vitfix.io/<identifiant>/, langue, domaines e-mail), saisie ici, jamais dans le
 // code. Création (identifiant proposé depuis le nom, aperçu de l'adresse, réservés et messageries publiques refusés
 // avant tout appel), modification (identifiant figé non modifiable, seuls les champs changés partent), rattachement

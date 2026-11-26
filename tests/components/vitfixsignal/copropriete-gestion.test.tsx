@@ -1,6 +1,6 @@
 // tests/components/vitfixsignal/copropriete-gestion.test.tsx
 //
-// Copropriétés de l'espace Vitfix Signal enrichies par la PR 1 (SPEC § 1.8, choix de Hugo du 10/11/2026) :
+// Copropriétés de l'espace Vitfix Signal enrichies par la PR 1 (SPEC § 1.8, choix du 10/11/2026) :
 // - fenêtre de création : cabinet (ou « sans cabinet », l'ancienne adresse), CP, ville, gestionnaires du cabinet,
 //   « Attribuer à tous » (rappel de la règle) ; corps actuel inchangé quand rien de nouveau n'est saisi ;
 // - doublon : « Ce n'est pas un doublon, créer » (nom + CP, forcerDoublon) ou « Créer quand même » (probable) ;

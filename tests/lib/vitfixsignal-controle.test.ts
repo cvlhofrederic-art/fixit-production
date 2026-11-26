@@ -1,7 +1,7 @@
 // tests/lib/vitfixsignal-controle.test.ts
 //
-// controlerAccesQr (lib/vitfixsignal/serveur.ts) : contrôle serveur de TOUTES les routes non publiques d'AJ
-// Signalement. Super admin = isSuperAdmin (lib/auth-helpers.ts, le vrai : rôle app_metadata ET e-mail de la liste
+// controlerAccesQr (lib/vitfixsignal/serveur.ts) : contrôle serveur de TOUTES les routes non publiques de Vitfix
+// Signal. Super admin = isSuperAdmin (lib/auth-helpers.ts, le vrai : rôle app_metadata ET e-mail de la liste
 // ADMIN_EMAIL / ADMIN_EMAIL_2), aligné sur #650 : la « vue en tant que » (_original_role) et la liste vide ne
 // passent plus. controlerSuperAdmin reste un alias le temps de la PR.
 // codeDepuisErreurSqlQr : traduction des erreurs de la base en codes publics, jamais le message.

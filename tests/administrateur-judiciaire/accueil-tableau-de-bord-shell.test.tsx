@@ -271,7 +271,7 @@ describe('Shell — le Tableau de bord, page d’accueil', () => {
 })
 
 /**
- * « Vitfix Signal » sort de l'AJ (demande de Hugo du 10/11/2026) : l'écran « Signalements QR » quitte le menu, la
+ * « Vitfix Signal » sort de l'AJ (demande du 10/11/2026) : l'écran « Signalements QR » quitte le menu, la
  * palette, le fil d'Ariane et le registre ; l'espace indépendant (/fr/vitfixsignal/) n'a plus qu'un lien au pied de
  * la barre latérale, pour le seul super admin (tests/components/panneau-admin-liens.test.tsx). Une ancre, un favori ou
  * un récent hérités ne mènent à rien de mort.
