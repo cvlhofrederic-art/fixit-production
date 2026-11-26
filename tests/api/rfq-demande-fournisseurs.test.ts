@@ -25,6 +25,8 @@ const h = vi.hoisted(() => ({
   clesRefusees: [] as string[],
   limites: [] as Array<{ cle: string; limite: number; fenetre: number }>,
   envois: [] as unknown[],
+  /** Ligne d'équipe active d'un compte invité (pro_team_members), lue par resolveCompanyId. */
+  equipe: [] as Ligne[],
 }))
 
 vi.mock('@/lib/logger', async () => (await import('../helpers/mocks-routes-api')).loggerSilencieux())
@@ -59,6 +61,7 @@ vi.mock('@supabase/supabase-js', () => ({
       q.eq = () => q
       q.order = () => q
       q.single = async () => ({ data: lignes()[0] ?? null, error: null })
+      q.maybeSingle = async () => ({ data: table === 'pro_team_members' ? h.equipe[0] ?? null : lignes()[0] ?? null, error: null })
       q.then = (ok: (v: unknown) => unknown, ko?: (e: unknown) => unknown) => Promise.resolve({ data: lignes(), error: null }).then(ok, ko)
       return q
     },
@@ -110,6 +113,7 @@ beforeEach(() => {
   h.clesRefusees = []
   h.limites = []
   h.envois = []
+  h.equipe = []
 })
 afterEach(() => { vi.unstubAllEnvs() })
 
@@ -133,11 +137,28 @@ describe('création ordinaire par une société (inchangée)', () => {
     expect(envoi(1).html).toContain('/rfq/repondre/jeton-2"')
   })
 
-  it.each([['membre de l\'équipe', compte('pro_societe', 'CONDUCTEUR_TRAVAUX')], ['super admin', compte('super_admin')]])(
+  // Depuis le 26/11/2026 le serveur lit le module « Devis fournisseurs » (rfq_btp) du rôle d'équipe : la secrétaire l'a,
+  // le conducteur de travaux non (salarié de terrain, lib/permissions.ts). Avant, tout membre de l'équipe envoyait.
+  it.each([['secrétaire de la société', compte('pro_societe', 'SECRETAIRE')], ['super admin', compte('super_admin')]])(
     '%s : 201', async (_cas, c) => {
       h.compte = c
       expect((await creer(corpsEcran())).status).toBe(201)
     })
+
+  it('secrétaire invitée dans une société : la demande est rangée sous la société, que le gérant voit', async () => {
+    const societe = '5c4b3a29-1807-4f6e-9d5c-4b3a29180700'
+    h.compte = { id: '6d5c4b3a-2918-4e7f-8a6b-5c4b3a291801', email: 'secretaria@exemple.test', app_metadata: { role: 'pro_societe', pro_team_role: 'SECRETAIRE', company_id: societe }, user_metadata: {} }
+    h.equipe = [{ id: 'membre-1', company_id: societe }]
+    expect((await creer(corpsEcran())).status).toBe(201)
+    expect(insertionsDe('rfqs')[0].donnees).toMatchObject({ user_id: societe })
+  })
+
+  it('conducteur de travaux (module fermé par défaut) : 403, ni demande ni e-mail', async () => {
+    h.compte = compte('pro_societe', 'CONDUCTEUR_TRAVAUX')
+    expect((await creer(corpsEcran())).status).toBe(403)
+    expect(insertionsDe('rfqs')).toHaveLength(0)
+    expect(h.envois).toHaveLength(0)
+  })
 
   it('champs à leur longueur maximale, 100 lignes : 201', async () => {
     const ligne = { product_name: 'P'.repeat(200), product_ref: 'R'.repeat(100), category: 'C'.repeat(50), quantity: 1, unit: 'U'.repeat(30), notes: 'N'.repeat(500) }
