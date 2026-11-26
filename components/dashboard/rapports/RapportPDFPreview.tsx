@@ -3,9 +3,9 @@
  * Rendered off-screen for html2canvas capture.
  * Extracted from RapportsSection.tsx.
  */
-import { forwardRef } from 'react'
+import { forwardRef, useMemo } from 'react'
 import { useLocale } from '@/lib/i18n/context'
-import { libelleDocumentLie, type DocumentLie } from '@/components/dashboard/rapports/document-lie'
+import { carteDocumentsLies, libelleDocumentLie, type DocumentLie } from '@/components/dashboard/rapports/document-lie'
 
 interface RapportIntervention {
   id: string
@@ -62,6 +62,12 @@ const RapportPDFPreview = forwardRef<HTMLDivElement, RapportPDFPreviewProps>(
   ({ previewRapport, availablePhotos, artisanId, documentsParId, orgRole, dateFmtLocale, onNavigate }, ref) => {
     const isPt = useLocale() === 'pt'
     const isBtp = orgRole === 'pro_societe'
+    // Carte du parent si elle est fournie, repli sur le stockage sinon : ce gabarit est monté seul par les bancs
+    // d'internationalisation, et il doit retrouver le libellé du document lié dans les deux cas.
+    const carte = useMemo(
+      () => documentsParId ?? carteDocumentsLies(undefined, artisanId),
+      [documentsParId, artisanId],
+    )
     return (
       <div style={{ position: 'fixed', left: '-9999px', top: 0, width: '794px', background: '#fff' }}>
         <div ref={ref} style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '11px', color: '#1a1a1a', padding: '48px 48px 40px 48px', background: '#fff', width: '794px', boxSizing: 'border-box', lineHeight: '1.5' }}>
@@ -80,7 +86,7 @@ const RapportPDFPreview = forwardRef<HTMLDivElement, RapportPDFPreviewProps>(
               </div>
             )}
             {(previewRapport.linkedDevisId || previewRapport.linkedDevisRef) && (() => {
-              const label = libelleDocumentLie(documentsParId ?? new Map(), previewRapport.linkedDevisId, previewRapport.linkedDevisRef, 'devis', isPt)
+              const label = libelleDocumentLie(carte, previewRapport.linkedDevisId, previewRapport.linkedDevisRef, 'devis', isPt)
               return (
                 <div
                   style={{ fontSize: '10px', color: '#FFC107', marginTop: '6px', cursor: onNavigate ? 'pointer' : 'default', textDecoration: onNavigate ? 'underline' : 'none' }}
@@ -91,7 +97,7 @@ const RapportPDFPreview = forwardRef<HTMLDivElement, RapportPDFPreviewProps>(
               )
             })()}
             {(previewRapport.linkedFactureId || previewRapport.linkedFactureRef) && (() => {
-              const label = libelleDocumentLie(documentsParId ?? new Map(), previewRapport.linkedFactureId, previewRapport.linkedFactureRef, 'facture', isPt)
+              const label = libelleDocumentLie(carte, previewRapport.linkedFactureId, previewRapport.linkedFactureRef, 'facture', isPt)
               return (
                 <div
                   style={{ fontSize: '10px', color: '#FFC107', marginTop: '6px', cursor: onNavigate ? 'pointer' : 'default', textDecoration: onNavigate ? 'underline' : 'none' }}

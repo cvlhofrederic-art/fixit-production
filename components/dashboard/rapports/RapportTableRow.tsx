@@ -5,7 +5,8 @@
 
 import { useLocale } from '@/lib/i18n/context'
 import { useThemeVars } from '../useThemeVars'
-import { libelleDocumentLie, type DocumentLie } from '@/components/dashboard/rapports/document-lie'
+import { useMemo } from 'react'
+import { carteDocumentsLies, libelleDocumentLie, type DocumentLie } from '@/components/dashboard/rapports/document-lie'
 
 interface RapportIntervention {
   id: string
@@ -81,6 +82,12 @@ export default function RapportTableRow({
 }: RapportTableRowProps) {
   const isPt = useLocale() === 'pt'
   const isBtp = orgRole === 'pro_societe'
+  // Carte du parent si elle est fournie (le cas dans l'application), repli sur le stockage du navigateur sinon :
+  // ce composant doit rester utilisable seul.
+  const carte = useMemo(
+    () => documentsParId ?? carteDocumentsLies(undefined, artisanId),
+    [documentsParId, artisanId],
+  )
   const isV5 = false
   const tv = useThemeVars(isV5)
   const st = RAPPORT_STATUS_MAP[r.status] || RAPPORT_STATUS_MAP.termine
@@ -98,7 +105,7 @@ export default function RapportTableRow({
         <span className="v22-ref">{r.rapportNumber}</span>
         {r.refDevisFact && <div className="v22-card-meta" style={{ marginTop: '2px' }}>{r.refDevisFact}</div>}
         {(r.linkedDevisId || r.linkedDevisRef) && (() => {
-          const label = libelleDocumentLie(documentsParId ?? new Map(), r.linkedDevisId, r.linkedDevisRef, 'devis', isPt)
+          const label = libelleDocumentLie(carte, r.linkedDevisId, r.linkedDevisRef, 'devis', isPt)
           return (
             <div
               className="v22-card-meta"
@@ -110,7 +117,7 @@ export default function RapportTableRow({
           )
         })()}
         {(r.linkedFactureId || r.linkedFactureRef) && (() => {
-          const label = libelleDocumentLie(documentsParId ?? new Map(), r.linkedFactureId, r.linkedFactureRef, 'facture', isPt)
+          const label = libelleDocumentLie(carte, r.linkedFactureId, r.linkedFactureRef, 'facture', isPt)
           return (
             <div
               className="v22-card-meta"
