@@ -37,7 +37,15 @@ vi.mock('@/lib/supabase-server', async () => {
     getPublicUrl: (chemin: string) => ({ data: { publicUrl: `https://exemple.supabase.co/storage/v1/object/public/profile-photos/${chemin}` } }),
     createSignedUrl: async (chemin: string) => ({ data: { signedUrl: `https://exemple.supabase.co/signe/${chemin}` } }),
   }
-  return { supabaseAdmin: { from: (t: string) => fauxSupabase(h.base).from(t), storage: { from: () => seau } } }
+  // Compte de la société (titulaire) : son assurance est lue dans ses métadonnées par /api/artisan-company.
+  const titulaire = { id: 'compte-titulaire', email: 'geral@exemplo.test', user_metadata: { insurance_name: 'Seguradora Exemplo', insurance_number: 'RC-0001' } }
+  return {
+    supabaseAdmin: {
+      from: (t: string) => fauxSupabase(h.base).from(t),
+      storage: { from: () => seau },
+      auth: { admin: { getUserById: async () => ({ data: { user: titulaire }, error: null }) } },
+    },
+  }
 })
 vi.mock('@/lib/storage/images-artisan', () => ({
   lireImageDataUrl: () => ({ type: 'image/webp', octets: new Uint8Array([1, 2, 3]) }),
@@ -52,6 +60,7 @@ const reglages = await import('@/app/api/artisan-settings/route')
 const logo = await import('@/app/api/save-logo/route')
 const paiement = await import('@/app/api/artisan-payment-info/route')
 const envoi = await import('@/app/api/upload/route')
+const identite = await import('@/app/api/artisan-company/route')
 const { nouvelleBase, requetes } = await import('../helpers/faux-supabase-btp')
 
 const SOCIETE = '550e8400-e29b-41d4-a716-446655440000'
@@ -68,6 +77,7 @@ const ficheDeLaSociete = (): Ligne => ({
   id: FICHE, user_id: SOCIETE, company_name: 'Construções Exemplo, Lda', company_city: 'Porto',
   slug: 'construcoes-exemplo-porto', email: 'geral@exemplo.test', phone: '+351 200 000 000',
   rcs_number: 'CRC Porto 000000', insurance_name: 'Seguradora Exemplo', language: 'pt',
+  legal_form: 'Lda', company_address: 'Rua Exemplo 1', company_postal_code: '4000-000', siret: '500000000',
   paiement_modes: [{ type: 'virement', iban: 'PT50000000000000000000000', actif: true }],
   paiement_mention_devis: true, paiement_mention_facture: false,
 })
@@ -303,5 +313,28 @@ describe('Envoi de fichier avec mise à jour du profil, compte invité', () => {
 
     expect(status).toBe(403)
     expect(h.envoisFichier).toBe(0)
+  })
+})
+
+describe('Identité entreprise d’un rapport de chantier, compte invité (/api/artisan-company)', () => {
+  const lireIdentite = () => appeler(identite, 'GET', `/api/artisan-company?artisan_id=${FICHE}`)
+
+  it('un salarié de terrain (rapports ouverts) reçoit l’identité de la société, assurance comprise', async () => {
+    invite('OUVRIER')
+
+    const { status, json } = await lireIdentite()
+
+    expect(status).toBe(200)
+    expect(json.company).toMatchObject({ name: 'Construções Exemplo, Lda', address: 'Rua Exemplo 1', insuranceName: 'Seguradora Exemplo' })
+    expect(ecrituresProfils()).toHaveLength(0)
+  })
+
+  it('rapports retirés par le gérant, sans devis ni factures : refus', async () => {
+    const id = invite('OUVRIER')
+    h.base.lignes.pro_role_permissions = [{ member_id: `membre-${id}`, company_id: SOCIETE, module_id: 'rapports', access_level: 'NONE' }]
+
+    const { status } = await lireIdentite()
+
+    expect(status).toBe(403)
   })
 })

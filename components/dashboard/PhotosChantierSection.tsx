@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { useThemeVars } from './useThemeVars'
 import { toast } from 'sonner'
+import { idFicheDocuments } from '@/lib/documents/identite-documents'
 
 /* ========== PHOTOS CHANTIER ========== */
 
@@ -159,7 +160,8 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
     try {
       const session = await supabase.auth.getSession()
       const token = session.data.session?.access_token
-      let url = `/api/artisan-photos?artisan_id=${artisan.id}`
+      // Compte invité dans une société : les photos sont rangées sous la fiche de la société, pas sous son compte.
+      let url = `/api/artisan-photos?artisan_id=${idFicheDocuments(artisan)}`
       if (filter === 'unassigned') url += '&unassigned=true'
       else if (filter !== 'all') url += `&booking_id=${filter}`
       const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } })
@@ -211,7 +213,7 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
         if (!file.type.startsWith('image/')) { toast.error(`${file.name} : ${t('proDash.photos.typeNonSupporte')}`); continue }
         const formData = new FormData()
         formData.append('file', file)
-        formData.append('artisan_id', artisan.id)
+        formData.append('artisan_id', idFicheDocuments(artisan) ?? artisan.id)
         formData.append('source', 'desktop')
         formData.append('taken_at', new Date().toISOString())
         const res = await fetch('/api/artisan-photos', {

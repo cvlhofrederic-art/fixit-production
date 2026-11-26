@@ -13,6 +13,7 @@ import { documentsPourSynthese } from '@/lib/documents/liste-effective'
 import { carteDocumentsLies } from '@/components/dashboard/rapports/document-lie'
 import { useThemeVars } from './useThemeVars'
 import type { Artisan, Service, Booking } from '@/lib/types'
+import { idFicheDocuments } from '@/lib/documents/identite-documents'
 
 interface CompanyData {
   name?: string
@@ -450,7 +451,8 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
     setPhotosLoading(true)
     try {
       const headers = await getAuthHeaders()
-      const res = await fetch(`/api/artisan-photos?artisan_id=${artisan.id}`, { headers })
+      // Compte invité dans une société : photos et identité sont celles de la fiche de la société (idFicheDocuments).
+      const res = await fetch(`/api/artisan-photos?artisan_id=${idFicheDocuments(artisan)}`, { headers })
       const json = await res.json()
       if (json.data) setAvailablePhotos(json.data)
     } catch (e) {
@@ -466,7 +468,7 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
     ;(async () => {
       try {
         const headers = await getAuthHeaders()
-        const res = await fetch(`/api/artisan-company?artisan_id=${artisan.id}`, { headers })
+        const res = await fetch(`/api/artisan-company?artisan_id=${idFicheDocuments(artisan)}`, { headers })
         const d = await res.json()
         if (d.company) setCompanyData(d.company)
       } catch {}
