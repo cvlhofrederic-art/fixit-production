@@ -1169,29 +1169,6 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
                 </div>
               </div>
 
-              {/* Alerte météo par notification (26/11/2026) : seulement pour un chantier exposé aux intempéries. */}
-              <div className={isV5 ? "v5-fg" : "v22-form-group"}>
-                <label htmlFor="chantier-alerte-meteo" style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer', fontSize: 12 }}>
-                  <input id="chantier-alerte-meteo" type="checkbox" checked={form.alerteMeteo}
-                    onChange={e => setForm({ ...form, alerteMeteo: e.target.checked })} style={{ marginTop: 2 }} />
-                  <span>
-                    <strong>🔔 {isPt ? 'Alerta meteorológico por notificação' : 'Alerte météo par notification'}</strong>
-                    <span style={{ display: 'block', fontSize: 11, color: '#666', marginTop: 2 }}>
-                      {isPt
-                        ? 'Para uma obra exposta ao tempo (betão, telhado, fachada…): os trabalhadores atribuídos são avisados na véspera de chuva, geada, vento forte ou calor.'
-                        : 'Pour un chantier exposé aux intempéries (béton, toiture, façade…) : les salariés affectés sont prévenus la veille de la pluie, du gel, du vent fort ou de la chaleur.'}
-                    </span>
-                  </span>
-                </label>
-                {form.alerteMeteo && !form.latitude && (
-                  <div role="note" style={{ fontSize: 11, color: '#E65100', marginTop: 4 }}>
-                    {isPt
-                      ? 'É necessária a posição GPS da obra para o alerta: use o botão GPS acima.'
-                      : 'L’alerte a besoin de la position GPS du chantier : utilisez le bouton GPS ci-dessus.'}
-                  </div>
-                )}
-              </div>
-
               <div className={isV5 ? "v5-fr" : "v22-form-row"}>
                 <div className={isV5 ? "v5-fg" : "v22-form-group"}>
                   <label className={isV5 ? "v5-fl" : "v22-form-label"}>{isPt ? 'Data de início' : 'Date de début'}</label>
@@ -1237,6 +1214,30 @@ export function ChantiersBTPV2({ artisan, orgRole, lectureSeule = false }: { art
                   <div style={{ fontSize: 10, color: '#2E7D32', marginTop: 3, display: 'flex', alignItems: 'center', gap: 3 }}>
                     <CheckCircle2 size={10} /> {(form.membres_ids || []).length} {isPt ? 'colaborador(es) selecionado(s)' : 'employé(s) sélectionné(s)'}
                     {isPt ? ' · ' : '— '}{isPt ? 'Custo/dia' : 'Coût/j'}: {fmt(membresList.filter(m => (form.membres_ids || []).includes(m.id)).reduce((s, m) => s + m.daily_cost, 0), dl)} €
+                  </div>
+                )}
+              </div>
+
+              {/* Alerte météo par notification (26/11/2026) : seulement pour un chantier exposé aux intempéries. Placée sous les
+                  employés affectés, ceux qu'elle prévient. */}
+              <div className={isV5 ? "v5-fg" : "v22-form-group"}>
+                <label htmlFor="chantier-alerte-meteo" style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer', fontSize: 12 }}>
+                  <input id="chantier-alerte-meteo" type="checkbox" checked={form.alerteMeteo}
+                    onChange={e => setForm({ ...form, alerteMeteo: e.target.checked })} style={{ marginTop: 2 }} />
+                  <span>
+                    <strong>🔔 {isPt ? 'Alerta meteorológico por notificação' : 'Alerte météo par notification'}</strong>
+                    <span style={{ display: 'block', fontSize: 11, color: '#666', marginTop: 2 }}>
+                      {isPt
+                        ? 'Para uma obra exposta ao tempo (betão, telhado, fachada…): os trabalhadores atribuídos são avisados na véspera de chuva, geada, vento forte ou calor.'
+                        : 'Pour un chantier exposé aux intempéries (béton, toiture, façade…) : les salariés affectés sont prévenus la veille de la pluie, du gel, du vent fort ou de la chaleur.'}
+                    </span>
+                  </span>
+                </label>
+                {form.alerteMeteo && !form.latitude && (
+                  <div role="note" style={{ fontSize: 11, color: '#E65100', marginTop: 4 }}>
+                    {isPt
+                      ? 'É necessária a posição GPS da obra para o alerta: use o botão GPS acima.'
+                      : 'L’alerte a besoin de la position GPS du chantier : utilisez le bouton GPS ci-dessus.'}
                   </div>
                 )}
               </div>

@@ -21,8 +21,9 @@ const OUTILS = { programmer: programmerNotification, annuler: annulerNotificatio
 function AlertesDeLAppli({ artisanId, userId, isPt }: { artisanId: string; userId: string; isPt: boolean }) {
   const { items: chantiers, loading } = useBTPData<ChantierPourAlerte>({ table: 'chantiers', artisanId, userId })
   const derniere = useRef(0)
+  // Dernière liste connue, lue au retour au premier plan (mise à jour avant l'effet qui suit, déclaré après).
   const chantiersRef = useRef<readonly ChantierPourAlerte[]>([])
-  chantiersRef.current = chantiers
+  useEffect(() => { chantiersRef.current = chantiers }, [chantiers])
 
   useEffect(() => {
     if (loading) return
