@@ -41,19 +41,22 @@
  * sélecteur de copropriété n'est pas encore affiché : sans cela, il revenait un instant sur la ligne du titre et le coupait.
  * Pendant ce chargement, le séparateur qui suit le titre est aussi masqué sous 641 px, comme il l'est derrière le sélecteur
  * de copropriété (aj-selecteur-copro.css) : sinon il prenait la moitié de la ligne et coupait un titre long (« Analyse des
- * devis et factures » : 104 px au lieu de 186 à 375 px). Au-dessus de 640 px, le titre mobile est masqué : rien ne change.
+ * devis et factures » : 104 px au lieu de 186 à 375 px). De 641 à 1023 px, la règle qui suit fait de même.
  * Sous 641 px (barre sur plusieurs lignes, aj-selecteur-copro.css), un titre qui ne tient pas sur une ligne passe sur deux
  * lignes au plus, dans la hauteur des boutons de 44 px : téléphone de 320 px, et 481 à 540 px, où le rôle reste sur la
  * ligne du titre (21 libellés sur 76 coupés à 481 px avant ce correctif, aucun après, mesuré dans Chrome).
  * Entre 641 et 1023 px (téléphone à l'horizontale, tablette ; décision du 26/11/2026) : le sélecteur de copropriété
  * partageait la ligne du titre et passait avant lui (aj-selecteur-copro.css), qui était coupé (14 px à 641 px, 92 px à
  * 812 px, « A… » à 667 px). Même mise en page que le portrait : la barre passe à la ligne et le sélecteur (ou le message
- * de base vide) prend sa propre ligne. Le rôle reste sur la ligne du titre, poussé à droite par le titre lui-même (flex:1,
- * aj.css) : le séparateur, masqué derrière le sélecteur (aj-selecteur-copro.css), l'est aussi pendant le chargement de la
- * base, quand le sélecteur n'est pas affiché, sinon il prenait la moitié de la ligne et coupait le titre. Barre d'environ 121 px au lieu de 69 ; elle défile avec la page (la
- * barre n'est collante qu'au-dessus de 1024 px : <main> ne défile pas en dessous). À 1024 px et au-delà, rien ne change.
+ * de base vide) prend sa propre ligne ; le rôle reste sur la ligne du titre, poussé à droite par le titre (flex:1, aj.css).
+ * Le séparateur, masqué derrière le sélecteur (aj-selecteur-copro.css), l'est aussi pendant le chargement de la base, quand
+ * le sélecteur n'est pas encore affiché : sinon il prenait la moitié de la ligne et coupait le titre. Hauteur de la barre :
+ * environ 121 px avec le sélecteur (69 à 73 px avant), 96 à 104 px avec le message de base vide ; elle défile avec la page
+ * (collante seulement au-dessus de 1024 px : <main> ne défile pas en dessous). La règle n'a pas de borne basse : sous
+ * 641 px, elle reprend à l'identique celle du portrait, ce qui ne laisse aucun trou aux largeurs fractionnaires (zoom).
+ * À 1024 px et au-delà, rien ne change.
  */
-@media (min-width: 641px) and (max-width: 1023px){#aj-root .topbar{flex-wrap:wrap}#aj-root .topbar .vfx-selecteur-copro,#aj-root .topbar .vfx-selecteur-copro__vide{order:10;flex:1 1 100%;max-width:none}#aj-root .topbar .crumb-mobile+.spacer{display:none}}
+@media (max-width: 1023px){#aj-root .topbar{flex-wrap:wrap}#aj-root .topbar .vfx-selecteur-copro,#aj-root .topbar .vfx-selecteur-copro__vide{order:10;flex:1 1 100%;max-width:none}#aj-root .topbar .crumb-mobile+.spacer{display:none}}
 @media (max-width: 480px){#aj-root .topbar .vfx-role{order:11;flex-basis:100%}}
 @media (max-width: 640px){#aj-root .topbar .crumb-mobile b{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;white-space:normal;line-height:1.15}#aj-root .topbar .crumb-mobile+.spacer{display:none}}
 

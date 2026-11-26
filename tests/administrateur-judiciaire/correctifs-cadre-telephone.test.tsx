@@ -9,7 +9,8 @@ import { feuillesALargeur, retirerFeuilles, STYLES } from './regles-a-largeur'
 /**
  * Cadre du module sur téléphone (aj-correctifs.css), décision du 22/11/2026 sur la page de validation de l'écran
  * « Appels de fonds », points ap-17 et ap-d09 : défauts déjà sur main, repris dans une PR à part.
- * - Titre de la barre du haut coupé (« Appels de f… ») sous 641 px.
+ * - Titre de la barre du haut coupé (« Appels de f… ») sous 641 px, puis entre 641 et 1023 px (téléphone à l'horizontale,
+ *   tablette ; décision du 26/11/2026).
  * - Quatre indicateurs empilés à 375 px.
  * - Ombre de la barre latérale fermée au bord gauche (mise en page tiroir, jusqu'à 1024 px).
  * - Bandeau du mode (démonstration / données réelles) au-dessus du voile des fenêtres, à toutes les largeurs.
@@ -177,7 +178,8 @@ describe('titre coupé entre 641 et 1023 px : le sélecteur de copropriété sur
         expect(derniereDeclaration(s, 'flex')).toBe('1 1 100%')
         expect(derniereDeclaration(s, 'max-width')).toBe('none')
       }
-      // Le séparateur reste masqué : le titre (flex:1) pousse seul le rôle à droite, sans lui prendre la moitié de la ligne.
+      // Derrière le sélecteur, le séparateur est masqué par aj-selecteur-copro.css (déjà avant ce correctif) ; pendant le
+      // chargement, sans sélecteur, c'est ce correctif qui le masque (bloc « pendant le chargement » plus bas).
       expect(style('.topbar .spacer').display).toBe('none')
       expect(derniereDeclaration(spacerVide, 'display')).toBe('none')
       // Le rôle reste sur la ligne du titre.
@@ -259,11 +261,12 @@ describe('ombre de la barre latérale fermée au bord gauche', () => {
   /** Fermeture : le menu glisse (transform) avec son ombre, retirée une fois sorti de l'écran. */
   const FERMETURE = 'transformvar(--dur-slow)var(--ease-out),box-shadow0slinearvar(--dur-slow)'
 
-  it('sans le correctif, la barre fermée garde son ombre jusqu’à 1024 px (constat du 22/11/2026)', () => {
-    feuillesALargeur(375, SANS_CORRECTIF)
-    monterCadre()
-    expect(style('aside.sidebar').boxShadow).toBe(OMBRE)
-  })
+  for (const largeur of [375, 1024])
+    it(`sans le correctif, à ${largeur} px, la barre fermée garde son ombre (constats du 22/11 et du 26/11/2026)`, () => {
+      feuillesALargeur(largeur, SANS_CORRECTIF)
+      monterCadre()
+      expect(style('aside.sidebar').boxShadow).toBe(OMBRE)
+    })
 
   for (const largeur of [375, 1023, 1024])
     it(`à ${largeur} px : plus d'ombre quand le menu est fermé, retirée à la fin du glissement ; le menu ouvert garde la sienne`, () => {
