@@ -32,6 +32,7 @@ import type { CoproprieteVue } from '@/lib/administrateur-judiciaire/domain/copr
 import { dateIsoVersFr } from '@/lib/administrateur-judiciaire/domain/dates'
 import type { StatutEcheanceAppel } from '@/lib/administrateur-judiciaire/domain/echeancier-appels'
 import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
+import { libelleFicheEcartee, motifLisible, type FicheEcarteeDetaillee } from '@/lib/administrateur-judiciaire/domain/migration-d2'
 import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
 import { useCodeCoproCourant } from '@/lib/administrateur-judiciaire/selection'
 
@@ -71,11 +72,30 @@ async function enregistrerEcheance(copro: CoproprieteVue, saisie: SaisieFormulai
   }
 }
 
-async function reprendreFiches(): Promise<Succes> {
+/**
+ * Motifs nommés dans le message de la reprise ; les suivants : « Et N autres. », nouvelle phrase après le point du dernier
+ * motif (la liste complète reste dans l'encadré).
+ */
+const MOTIFS_DANS_LE_MESSAGE = 3
+
+/** Fiches écartées par la reprise, avec le code de leur syndicat et leur motif (décisions du 22/11 et du 26/11/2026) ; vide sinon. */
+function motifsDesEcartees(ecartees: readonly FicheEcarteeDetaillee[], codeDe: (coproprieteId: string | null) => string | undefined): string {
+  if (ecartees.length === 0) return ''
+  const titre = ecartees.length > 1 ? 'Fiches écartées' : 'Fiche écartée'
+  const lignes = ecartees.slice(0, MOTIFS_DANS_LE_MESSAGE).map((e) => {
+    const code = codeDe(e.coproprieteId)
+    return libelleFicheEcartee({ ...e, motif: motifLisible(e.motif, code) }, code)
+  })
+  const reste = ecartees.length - lignes.length
+  const suite = reste > 0 ? ` Et ${pluriel(reste, 'autre')}.` : ''
+  return ` ${titre} : ${lignes.join(' ')}${suite}`
+}
+
+async function reprendreFiches(codeDe: (coproprieteId: string | null) => string | undefined): Promise<Succes> {
   const { creees, ecartees, lotsARegulariser } = await migrerFichesCoproprietaires({ aujourdhui: AUJOURDHUI_ISO })
   return {
     title: 'Fiches reprises',
-    desc: `${pluriel(creees.length, 'fiche')} reprise(s) en identités, comptes et positions (toutes copropriétés) ; ${pluriel(ecartees.length, 'fiche')} écartée(s) ; ${pluriel(lotsARegulariser.length, 'lot')} à régulariser.`,
+    desc: `${pluriel(creees.length, 'fiche')} ${creees.length > 1 ? 'reprises' : 'reprise'} en identités, comptes et positions (toutes copropriétés) ; ${pluriel(ecartees.length, 'fiche')} ${ecartees.length > 1 ? 'écartées' : 'écartée'} ; ${pluriel(lotsARegulariser.length, 'lot')} à régulariser.${motifsDesEcartees(ecartees, codeDe)}`,
   }
 }
 
@@ -96,6 +116,9 @@ async function ecrireAppel(copro: CoproprieteVue, jusquAu: string): Promise<Succ
 /** Écritures de l'écran : chacune confirmée ou refusée par un toast ; après un succès, la base est relue. */
 function useEcrituresAppels(copro: CoproprieteVue, relire: () => void) {
   const { push } = useToast()
+  // La reprise porte sur toutes les copropriétés : le message nomme le syndicat de chaque fiche écartée.
+  const { copros } = useDonneesLocales()
+  const codeDe = (coproprieteId: string | null) => copros.find((c) => c.id === coproprieteId)?.code
   const lancer = async (refus: string, ecrire: () => Promise<Succes>): Promise<boolean> => {
     try {
       push({ kind: 'success', ...(await ecrire()) })
@@ -108,7 +131,7 @@ function useEcrituresAppels(copro: CoproprieteVue, relire: () => void) {
   }
   const ecritures: EcrituresAvis = {
     reprendreFiches: async () => {
-      await lancer('Reprise impossible', reprendreFiches)
+      await lancer('Reprise impossible', () => reprendreFiches(codeDe))
     },
     ouvrirExercice: (bornes) => lancer('Exercice non ouvert', () => ouvrirExerciceDuSyndicat(copro, bornes)),
     ecrireAppel: (jusquAu) => lancer('Appel non écrit', () => ecrireAppel(copro, jusquAu)),
@@ -188,7 +211,7 @@ function EnTeteAppels({ indicateurs, onEmettre }: Readonly<{ indicateurs: Indica
 /** Écran du syndicat choisi : lecture de ses tables, panneaux, « Nouvel appel de fonds ». */
 function AppelsDuSyndicat({ copro }: Readonly<{ copro: CoproprieteVue }>) {
   const { push } = useToast()
-  const lus = useAppelsDeFonds(copro.id, (message) => push({ kind: 'warn', title: 'Appels de fonds illisibles', desc: message }))
+  const lus = useAppelsDeFonds(copro.id, copro.mandatId, (message) => push({ kind: 'warn', title: 'Appels de fonds illisibles', desc: message }))
   const [nouvelAppelOuvert, setNouvelAppelOuvert] = useState(false)
   const { nouvelAppel, ecritures } = useEcrituresAppels(copro, lus.relire)
   const donnees = lus.donnees

@@ -7,6 +7,7 @@ import {
   lireDonneesAppels,
   ouvrirExercice,
 } from '@/lib/administrateur-judiciaire/db/appels-de-fonds'
+import { enregistrerModeComptesCabinet } from '@/lib/administrateur-judiciaire/db/comptes-bancaires'
 import { echeancesAppelDuSyndicat } from '@/lib/administrateur-judiciaire/db/echeances-appel'
 import { repoComptesCoproprietaires, repoIdentites, repoPositions } from '@/lib/administrateur-judiciaire/db/repositories'
 import { viderBaseLocale } from '@/lib/administrateur-judiciaire/db/reset'
@@ -260,7 +261,7 @@ describe('« Écrire l’appel » : pièce et statut « Appelé » ensemble', ()
 })
 
 describe('lecture des données de l’écran', () => {
-  it('tables du syndicat seulement ; fiches non reprises comptées ; contentieux lu sur le dossier de recouvrement de la fiche reprise', async () => {
+  it('tables du syndicat seulement ; fiches à reprendre comptées ; contentieux lu sur le dossier de recouvrement de la fiche reprise', async () => {
     await d2()
     await enregistrerNouvelAppel('C1', SAISIE)
     await enregistrerNouvelAppel('C2', SAISIE)
@@ -270,16 +271,62 @@ describe('lecture des données de l’écran', () => {
     ])
     await ajDb.comptesCoproprietaires.update('c2', { reprise: { coproprietaireId: 'f2', soldeDuCentimes: 0, statutFiche: 'Contentieux', releveLe: '2026-11-01' } })
     await ajDb.impayes.add({ id: 'imp-1', coproprietaireId: 'f2', montant: 100, statut: 'procedure:2026-10-01', ...SUIVI })
-    const lues = await lireDonneesAppels('C1')
+    const lues = await lireDonneesAppels('C1', 'M1')
     expect(lues.lots.map((l) => l.id)).toEqual(['L1', 'L2', 'L3'])
     expect(lues.comptes.map((c) => c.id)).toEqual(['c1', 'c2', 'c3'])
     expect(lues.positions.map((p) => p.id)).toEqual(['p1', 'p2', 'p3'])
     expect(lues.identites.map((i) => i.id)).toEqual(['i1', 'i2', 'i3'])
     expect(lues.echeances.map((e) => e.coproprieteId)).toEqual(['C1'])
     expect(lues.cles).toHaveLength(1)
-    expect(lues.fichesNonReprises).toBe(1)
+    expect(lues.fichesAReprendre).toBe(1)
+    expect(lues.fichesEcartees).toEqual([])
     expect([...lues.comptesEnContentieux]).toEqual(['c2'])
     expect(lues.exercices).toEqual([])
     expect(lues.pieces).toEqual([])
+  })
+
+  it('fiches à reprendre : celles que la reprise créerait ; écartées nommées avec leur motif ; déjà reprises non comptées ; rien n’est écrit (décision du 22/11/2026)', async () => {
+    await d2()
+    await ajDb.coproprietaires.bulkAdd([
+      { id: 'f1', lotId: 'L1', nom: 'Ancienne fiche (fictive)', tel: '', mail: '', solde: 0, statut: 'À jour', ...SUIVI },
+      { id: 'f2', lotId: 'L2', nom: '   ', tel: '', mail: '', solde: 0, statut: 'À jour', ...SUIVI },
+      { id: 'f3', lotId: 'L3', nom: 'Fiche déjà reprise (fictive)', tel: '', mail: '', solde: 0, statut: 'À jour', ...SUIVI },
+    ])
+    // f3 : seule son identité existe (compte et position supprimés, ou reprise partielle) : déjà reprise, jamais recréée
+    const { id: _i, ...identite } = creerIdentite({ id: 'id-f3', nature: 'physique', civilite: '', nom: 'Fiche déjà reprise (fictive)', prenom: null, telecoms: [] })
+    await repoIdentites.create(identite, { id: 'id-f3' })
+    const journal = await ajDb.activityLog.count()
+    const lues = await lireDonneesAppels('C1', 'M1')
+    expect(lues.fichesAReprendre).toBe(1)
+    expect(lues.fichesEcartees).toEqual([{ coproprietaireId: 'f2', motif: "Nom de l'identité manquant.", coproprieteId: 'C1', lotNumero: '2', nom: null }])
+    expect(await ajDb.identites.count()).toBe(4)
+    expect(await ajDb.positions.count()).toBe(3)
+    expect(await ajDb.activityLog.count()).toBe(journal)
+  })
+})
+
+describe('ap-03 — mode de tenue lu avec les données de l’écran (décision du 22/11/2026)', () => {
+  const lu = async (mandatId: string | null) => (await lireDonneesAppels('C1', mandatId)).modeComptes
+
+  it('choix du mandat, à défaut réglage du cabinet ; sans mandat, le réglage du cabinet', async () => {
+    expect(await lu('M1')).toEqual({ resolu: { mode: 'compte_separe_syndicat', origine: 'cabinet' }, erreur: null })
+    await enregistrerModeComptesCabinet('caisse_depots')
+    expect(await lu('M1')).toEqual({ resolu: { mode: 'caisse_depots', origine: 'cabinet' }, erreur: null })
+    await ajDb.mandats.update('M1', { modeComptesBancaires: 'centralisateur_cabinet' })
+    expect(await lu('M1')).toEqual({ resolu: { mode: 'centralisateur_cabinet', origine: 'mandat' }, erreur: null })
+    expect(await lu(null)).toEqual({ resolu: { mode: 'caisse_depots', origine: 'cabinet' }, erreur: null })
+    expect(await lu('')).toEqual({ resolu: { mode: 'caisse_depots', origine: 'cabinet' }, erreur: null })
+  })
+
+  it('mandat d’un autre syndicat ou introuvable, mode inconnu, réglage du cabinet illisible : erreur gardée, le reste est lu', async () => {
+    expect(await lu('M2')).toEqual({ resolu: null, erreur: "mandat « M2 » d'un autre syndicat" })
+    expect(await lu('M404')).toEqual({ resolu: null, erreur: 'mandat « M404 » introuvable' })
+    await ajDb.mandats.update('M1', { modeComptesBancaires: 'livret' as never })
+    expect(await lu('M1')).toEqual({ resolu: null, erreur: 'Mode de tenue inconnu : « livret ».' })
+    await ajDb.mandats.update('M1', { modeComptesBancaires: null })
+    await ajDb.cabinets.add({ id: 'cab-1', modeComptesBancaires: 'livret' as never, ...SUIVI })
+    const lues = await lireDonneesAppels('C1', 'M1')
+    expect(lues.modeComptes).toEqual({ resolu: null, erreur: 'réglage du cabinet illisible (mode de tenue inconnu : « livret »)' })
+    expect(lues.lots.map((l) => l.id)).toEqual(['L1', 'L2', 'L3'])
   })
 })

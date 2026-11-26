@@ -104,9 +104,19 @@ export const idsMigration = (coproprietaireId: string): { identite: string; comp
 })
 
 /**
+ * Série telle qu'elle est écrite : un texte tel quel, un nombre entier positif ou nul en texte (ligne écrite hors de
+ * l'application : 3 désigne la série 00003, que la reprise ne doit pas redonner) ; autre chose : null (illisible).
+ */
+function lireSerie(serie: unknown): string | null {
+  if (typeof serie === 'string') return serie
+  return Number.isSafeInteger(serie) && (serie as number) >= 0 ? String(serie) : null
+}
+
+/**
  * Séries que le journal d'activité des comptes copropriétaires garde (entrées de l'entité « comptesCoproprietaires » :
  * état avant et après de chaque création, modification et suppression), pour qu'une série sortie (compte supprimé ou
- * renuméroté) ne soit jamais redonnée. Un état illisible (ligne écrite hors de l'application) est ignoré. Fonction pure.
+ * renuméroté) ne soit jamais redonnée. Une série écrite comme un nombre entier est lue (lireSerie) ; un état illisible
+ * (ligne écrite hors de l'application) est ignoré : le journal ne se corrige pas. Fonction pure.
  */
 export function seriesDuJournal(
   entrees: readonly { avant: unknown; apres: unknown }[],
@@ -116,12 +126,14 @@ export function seriesDuJournal(
     for (const etat of [avant, apres]) {
       if (etat === null || typeof etat !== 'object') continue
       const { coproprieteId, serie } = etat as Record<string, unknown>
-      if (typeof coproprieteId === 'string' && typeof serie === 'string') series.push({ coproprieteId, serie })
+      const lue = lireSerie(serie)
+      if (typeof coproprieteId === 'string' && lue !== null) series.push({ coproprieteId, serie: lue })
     }
   return series
 }
 
 const SERIE_MAX = 99_999
+const MOTIF_SERIE_ILLISIBLE = 'Série illisible sur un compte copropriétaire du syndicat : à corriger avant de reprendre la fiche.'
 const MOTIF_LOT_A_REGULARISER =
   "Plusieurs fiches sur le lot : indivision ou mutation à régulariser (D2 : une indivision = un seul compte ; une mutation clôt la position du vendeur). La migration a ouvert une position 1/1 et un compte par fiche (migrerCoproprietaire) ; les droits du lot sont en anomalie (controlerDroitsLot)."
 
@@ -220,6 +232,28 @@ function lotsARegulariserDe(fiches: EntreesMigrationD2['fiches'], aCreer: readon
 }
 
 /**
+ * Séries prises par syndicat (normalisées ; un nombre entier est lu comme sa série, lireSerie), et syndicats dont un
+ * compte a une série illisible, ni texte ni nombre entier (ligne écrite hors application) : leurs séries prises sont
+ * inconnues, aucune ne leur est donnée (risque de doublon) ; leurs fiches sont écartées avec un motif, comme « plus de
+ * série libre ».
+ */
+function seriesDesComptes(comptes: EntreesMigrationD2['comptes']): { seriesPrises: Map<string, Set<string>>; seriesIllisibles: Set<string> } {
+  const seriesPrises = new Map<string, Set<string>>()
+  const seriesIllisibles = new Set<string>()
+  for (const c of comptes) {
+    const serie = lireSerie(c.serie)
+    if (serie === null) {
+      seriesIllisibles.add(c.coproprieteId)
+      continue
+    }
+    const prises = seriesPrises.get(c.coproprieteId) ?? new Set<string>()
+    prises.add(normaliserSerie(serie))
+    seriesPrises.set(c.coproprieteId, prises)
+  }
+  return { seriesPrises, seriesIllisibles }
+}
+
+/**
  * Plan de la migration : lignes à créer, fiches déjà migrées, fiches écartées, lots à régulariser. Fonction pure. Jour de
  * la migration invalide : erreur, rien n'est planifié (il serait écrit tel quel dans le relevé de chaque compte).
  */
@@ -244,12 +278,7 @@ export function planifierMigrationD2({ fiches, lots, mandats, comptes, idsConnus
   })
 
   const ordonnances = premieresOrdonnances(mandats)
-  const seriesPrises = new Map<string, Set<string>>()
-  for (const c of comptes) {
-    const prises = seriesPrises.get(c.coproprieteId) ?? new Set<string>()
-    prises.add(normaliserSerie(c.serie))
-    seriesPrises.set(c.coproprieteId, prises)
-  }
+  const { seriesPrises, seriesIllisibles } = seriesDesComptes(comptes)
   const prochaine = (coproprieteId: string): string | null => {
     const prises = seriesPrises.get(coproprieteId) ?? new Set<string>()
     const max = Math.max(0, ...[...prises].filter((s) => /^\d+$/.test(s)).map(Number))
@@ -265,6 +294,10 @@ export function planifierMigrationD2({ fiches, lots, mandats, comptes, idsConnus
     const entree = dateEntree(f, ordonnances)
     if (entree === null) {
       ecartees.push({ rang: f.rang, coproprietaireId: f.id, motif: "Date d'entrée introuvable : aucun mandat du syndicat, date de création de la fiche illisible." })
+      continue
+    }
+    if (seriesIllisibles.has(f.lot.coproprieteId)) {
+      ecartees.push({ rang: f.rang, coproprietaireId: f.id, motif: MOTIF_SERIE_ILLISIBLE })
       continue
     }
     const serie = prochaine(f.lot.coproprieteId)
@@ -304,4 +337,79 @@ export function planifierMigrationD2({ fiches, lots, mandats, comptes, idsConnus
     ecartees: ecartees.map(({ coproprietaireId, motif }) => ({ coproprietaireId, motif })),
     lotsARegulariser: lotsARegulariserDe(fiches, aCreer),
   }
+}
+
+/** Fiche écartée, avec de quoi la retrouver à l'écran : syndicat et n° de son lot, nom lisible (null : inconnus ou vides). */
+export interface FicheEcarteeDetaillee extends FicheEcartee {
+  coproprieteId: string | null
+  lotNumero: string | null
+  nom: string | null
+}
+
+/**
+ * Fiches écartées par le plan, nommées par leur syndicat, leur lot et leur nom (décision du 22/11/2026 : donner le motif
+ * des fiches écartées). Ordre et motifs du plan conservés ; fiche retrouvée par son identifiant (clé de la table) ; lot
+ * introuvable : syndicat et n° null ; nom vide ou autre chose qu'un texte : null. Fonction pure.
+ */
+export function detaillerEcartees(
+  ecartees: readonly FicheEcartee[],
+  fiches: EntreesMigrationD2['fiches'],
+  lots: EntreesMigrationD2['lots'],
+): FicheEcarteeDetaillee[] {
+  const ficheParId = new Map(fiches.flatMap((f) => (typeof f.id === 'string' ? [[f.id, f] as const] : [])))
+  const lotParId = new Map(lots.map((l) => [l.id, l]))
+  return ecartees.map((e) => {
+    const fiche = ficheParId.get(e.coproprietaireId)
+    const lot = typeof fiche?.lotId === 'string' ? lotParId.get(fiche.lotId) : undefined
+    const nom = typeof fiche?.nom === 'string' ? fiche.nom.trim().replaceAll(/\s+/g, ' ') : ''
+    return { ...e, coproprieteId: lot?.coproprieteId ?? null, lotNumero: lot?.numero ?? null, nom: nom || null }
+  })
+}
+
+/** N° de lot qui commence déjà par « Lot » ou « Lots » (toute casse, collé au n° ou non), pas par un autre mot. */
+const DEJA_PREFIXE_LOT = /^lots?(?!\p{L})/iu
+
+/**
+ * « <code du syndicat> · Lot <n°>, <nom ou « fiche sans nom »> — <motif> » ; sans code ni lot : « <nom> — <motif> ». Un
+ * n° déjà écrit « Lot … » (liste importée : « Lot 12 », « Lot12 », « LOTS 3-4 ») n'est pas préfixé une seconde fois.
+ */
+export function libelleFicheEcartee(e: FicheEcarteeDetaillee, codeCopro?: string): string {
+  const numero = e.lotNumero?.trim()
+  const lot = numero && (DEJA_PREFIXE_LOT.test(numero) ? numero : `Lot ${numero}`)
+  const lieu = [codeCopro, lot].filter(Boolean).join(' · ')
+  if (!lieu) return [e.nom ?? 'Fiche sans nom', e.motif].join(' — ')
+  return [`${lieu}, ${e.nom ?? 'fiche sans nom'}`, e.motif].join(' — ')
+}
+
+/** Champs de l'ancienne fiche cités par les motifs, en mots du métier. */
+const CHAMPS_DU_METIER: Readonly<Record<string, string>> = {
+  lotId: 'lot',
+  nom: 'nom',
+  tel: 'téléphone',
+  mail: 'e-mail',
+  statut: 'statut',
+  id: 'identifiant',
+  solde: 'solde',
+}
+
+const MOTIF_SERIE_PLEINE = /^(Plus de numéro de série libre pour un compte du syndicat)(?: [\s\S]*)?\.$/
+const MOTIF_LOT_INTROUVABLE = /^Lot introuvable \(id=[\s\S]*\)\.$/
+const MOTIF_CHAMP = /^Champ « (\w+) » : texte attendu([\s\S]*)$/
+
+/**
+ * Motif d'une fiche écartée tel qu'on l'affiche (décision du 26/11/2026) : sans identifiant interne et avec les champs
+ * en mots du métier. « … du syndicat <code>. » (« … du syndicat. » sans code) ; « Lot introuvable. » ; « Champ « lotId » »
+ * devient « Champ « lot » », etc. Les autres motifs, et un champ inconnu, restent tels quels. Le texte du plan, lui, ne
+ * change pas : seule la présentation. Fonction pure.
+ */
+export function motifLisible(motif: string, codeCopro?: string): string {
+  const serie = MOTIF_SERIE_PLEINE.exec(motif)
+  if (serie) {
+    const code = codeCopro?.trim()
+    return code ? `${serie[1]} ${code}.` : `${serie[1]}.`
+  }
+  if (MOTIF_LOT_INTROUVABLE.test(motif)) return 'Lot introuvable.'
+  const champ = MOTIF_CHAMP.exec(motif)
+  const traduit = champ ? CHAMPS_DU_METIER[champ[1]] : undefined
+  return champ && traduit ? `Champ « ${traduit} » : texte attendu${champ[2]}` : motif
 }

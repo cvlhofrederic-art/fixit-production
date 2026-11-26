@@ -3,7 +3,7 @@ import 'fake-indexeddb/auto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEMO_COPROPRIETAIRES } from '@/components/administrateur-judiciaire/data/coproprietaires'
 import { useDonneesStore } from '@/lib/administrateur-judiciaire/db/donnees-store'
-import { migrerFichesCoproprietaires } from '@/lib/administrateur-judiciaire/db/migration-d2'
+import { migrerFichesCoproprietaires, planDeReprise } from '@/lib/administrateur-judiciaire/db/migration-d2'
 import { repoComptesCoproprietaires, repoCoproprietes, repoIdentites, repoPositions } from '@/lib/administrateur-judiciaire/db/repositories'
 import { viderBaseLocale } from '@/lib/administrateur-judiciaire/db/reset'
 import { ajDb } from '@/lib/administrateur-judiciaire/db/schema'
@@ -248,5 +248,101 @@ describe('base réelle déjà remplie (import de la liste des copropriétaires)'
   it('base vide : rien à migrer', async () => {
     await viderBaseLocale()
     expect(await migrerFichesCoproprietaires({ aujourdhui: '2026-11-19' })).toEqual({ creees: [], dejaMigrees: [], ecartees: [], lotsARegulariser: [] })
+  })
+})
+
+describe('plan de la reprise sans écriture (bandeau de l’écran « Appels de fonds », décision du 22/11/2026)', () => {
+  /** Fiches des lots d'un syndicat, comme les lit l'écran « Appels de fonds ». */
+  async function fichesDe(coproprieteId: string) {
+    const lotIds = (await ajDb.lots.where('coproprieteId').equals(coproprieteId).toArray()).map((l) => l.id)
+    return ajDb.coproprietaires.where('lotId').anyOf(lotIds).toArray()
+  }
+  const trier = (ids: readonly string[]) => [...ids].sort((a, b) => a.localeCompare(b))
+
+  it('n’écrit rien ; ses lignes sont celles que la reprise crée pour le syndicat ; après la reprise, plus rien à créer', async () => {
+    const fichesC1 = await fichesDe('C1')
+    expect(trier(fichesC1.map((f) => f.id))).toEqual(['P1', 'P4', 'P8'])
+    const avant = await compter()
+    const plan = await planDeReprise(fichesC1, { aujourdhui: DATE_DEMO_ISO })
+    expect(await compter()).toEqual(avant)
+    expect(plan.ecartees).toEqual([])
+    expect(trier(plan.aCreer.map((l) => l.coproprietaireId))).toEqual(['P1', 'P4', 'P8'])
+
+    const rapport = await migrerFichesCoproprietaires({ aujourdhui: DATE_DEMO_ISO })
+    expect(rapport.creees).toEqual(expect.arrayContaining(['P1', 'P4', 'P8']))
+    for (const ligne of plan.aCreer) {
+      expect(await ajDb.identites.get(ligne.identite.id)).toMatchObject(ligne.identite)
+      expect(await ajDb.comptesCoproprietaires.get(ligne.compte.id)).toMatchObject(ligne.compte)
+      expect(await ajDb.positions.get(ligne.position.id)).toMatchObject(ligne.position)
+    }
+
+    const apres = await planDeReprise(await fichesDe('C1'), { aujourdhui: DATE_DEMO_ISO })
+    expect(apres.aCreer).toEqual([])
+    expect(apres.ecartees).toEqual([])
+    expect(trier(apres.dejaMigrees)).toEqual(['P1', 'P4', 'P8'])
+  })
+
+  it('fiche au nom vide : écartée avec son lot, son syndicat et son motif, comme dans le rapport de la reprise', async () => {
+    const p1 = await ajDb.coproprietaires.get('P1')
+    const lotP1 = await ajDb.lots.get(String(p1?.lotId))
+    // fiche fictive sur le lot de P1 (C1)
+    await ajDb.coproprietaires.add({ ...(p1 as NonNullable<typeof p1>), id: 'PVIDE', nom: '   ' })
+    const attendue = { coproprietaireId: 'PVIDE', motif: "Nom de l'identité manquant.", coproprieteId: 'C1', lotNumero: lotP1?.numero, nom: null }
+    const plan = await planDeReprise(await fichesDe('C1'), { aujourdhui: DATE_DEMO_ISO })
+    expect(plan.ecartees).toEqual([attendue])
+    expect(plan.aCreer.map((l) => l.coproprietaireId)).not.toContain('PVIDE')
+
+    const rapport = await migrerFichesCoproprietaires({ aujourdhui: DATE_DEMO_ISO })
+    expect(rapport.ecartees).toEqual([attendue])
+    expect((await planDeReprise(await fichesDe('C1'), { aujourdhui: DATE_DEMO_ISO })).ecartees).toEqual([attendue])
+  })
+
+  it('les trois lignes d’une fiche supprimées après la reprise (trace du journal) : ni à créer, ni écartée', async () => {
+    await migrerFichesCoproprietaires({ aujourdhui: DATE_DEMO_ISO })
+    await repoIdentites.remove('id-P1')
+    await repoComptesCoproprietaires.remove('cpt-P1')
+    await repoPositions.remove('pos-P1')
+    const plan = await planDeReprise(await fichesDe('C1'), { aujourdhui: DATE_DEMO_ISO })
+    expect(plan.aCreer).toEqual([])
+    expect(plan.ecartees).toEqual([])
+    expect(plan.dejaMigrees).toContain('P1')
+  })
+
+  it('jour invalide : refusé, rien n’est écrit', async () => {
+    const avant = await compter()
+    await expect(planDeReprise(await fichesDe('C1'), { aujourdhui: '19/11/2026' })).rejects.toThrow('Migration D2 : date invalide (19/11/2026), AAAA-MM-JJ attendu.')
+    expect(await compter()).toEqual(avant)
+  })
+
+  it('lit les seules données des syndicats des fiches : un compte illisible d’un autre syndicat ne change rien ; celui du syndicat écarte ses fiches, sans erreur', async () => {
+    const fichesC1 = await fichesDe('C1')
+    const attendu = await planDeReprise(fichesC1, { aujourdhui: DATE_DEMO_ISO })
+    // compte fictif de C2 dont la série n'est pas un texte : ligne écrite hors de l'application (sans le dépôt ni le domaine)
+    const illisible = { id: 'cpt-illisible', coproprieteId: 'C2', serie: { valeur: '42' }, libelle: 'Compte illisible (fictif)', createdAt: '', updatedAt: '', createdBy: null, updatedBy: null }
+    await ajDb.comptesCoproprietaires.add(illisible as never)
+    expect(await planDeReprise(fichesC1, { aujourdhui: DATE_DEMO_ISO })).toEqual(attendu)
+    // le syndicat du compte : chaque fiche est écartée avec le motif (l'écran du syndicat reste lisible), rien n'est créé
+    const fichesC2 = await fichesDe('C2')
+    expect(fichesC2.length).toBeGreaterThan(0)
+    const planC2 = await planDeReprise(fichesC2, { aujourdhui: DATE_DEMO_ISO })
+    expect(planC2.aCreer).toEqual([])
+    expect(trier(planC2.ecartees.map((e) => e.coproprietaireId))).toEqual(trier(fichesC2.map((f) => f.id)))
+    expect(new Set(planC2.ecartees.map((e) => e.motif))).toEqual(new Set(['Série illisible sur un compte copropriétaire du syndicat : à corriger avant de reprendre la fiche.']))
+    // sans fiche, rien à classer
+    expect(await planDeReprise([], { aujourdhui: DATE_DEMO_ISO })).toEqual({ aCreer: [], dejaMigrees: [], ecartees: [], lotsARegulariser: [] })
+  })
+
+  it('reprise de toutes les copropriétés avec un compte illisible dans un syndicat : les autres syndicats repris, ses fiches écartées, aucune erreur', async () => {
+    const illisible = { id: 'cpt-illisible', coproprieteId: 'C2', serie: { valeur: '42' }, libelle: 'Compte illisible (fictif)', createdAt: '', updatedAt: '', createdBy: null, updatedBy: null }
+    await ajDb.comptesCoproprietaires.add(illisible as never)
+    const fichesC1 = await fichesDe('C1')
+    const fichesC2 = await fichesDe('C2')
+    expect(fichesC1.length).toBeGreaterThan(0)
+    const rapport = await migrerFichesCoproprietaires({ aujourdhui: DATE_DEMO_ISO })
+    expect(rapport.creees).toEqual(expect.arrayContaining(fichesC1.map((f) => f.id)))
+    expect(rapport.creees.filter((id) => fichesC2.some((f) => f.id === id))).toEqual([])
+    expect(trier(rapport.ecartees.filter((e) => e.coproprieteId === 'C2').map((e) => e.coproprietaireId))).toEqual(trier(fichesC2.map((f) => f.id)))
+    // rien de créé pour C2 : seul le compte illisible y reste
+    expect(await ajDb.comptesCoproprietaires.where('coproprieteId').equals('C2').count()).toBe(1)
   })
 })

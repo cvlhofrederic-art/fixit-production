@@ -3,15 +3,16 @@ import {
   centimesDepuisSaisie,
   datePrelevementProposee,
   exigibilitesAAppeler,
-  ibanDuSyndicat,
   indicateursAppels,
   vueAvisAppel,
   vueDroitsLots,
+  type BanqueAppel,
   type CompteAppel,
   type ContexteAppel,
   type DonneesAppels,
 } from '@/components/administrateur-judiciaire/modules/finances/appels/appels-vue'
 import type { MandatPrelevement } from '@/lib/administrateur-judiciaire/domain/avis-appel'
+import type { ModeComptesLu, ModeTenueComptes } from '@/lib/administrateur-judiciaire/domain/comptes-bancaires'
 import { suivreEcheances, type EcheanceAppelSuivie } from '@/lib/administrateur-judiciaire/domain/echeancier-appels'
 import { creerCompteCoproprietaire, creerIdentite, creerPosition, type Position } from '@/lib/administrateur-judiciaire/domain/identites-positions'
 import { creerCleRepartition, type EcheanceAppel } from '@/lib/administrateur-judiciaire/domain/repartition-appels'
@@ -84,7 +85,8 @@ const donnees = (surcharge: Partial<DonneesAppels> = {}): DonneesAppels => ({
   cles: [cleGenerale],
   echeances,
   exercices: [{ nom: '2027', ouverture: '2027-01-01', cloture: '2027-12-31' }],
-  banques: [{ nature: 'courant', iban: IBAN_SYNDICAT, actif: true }],
+  banques: [{ id: 'b-courant', nature: 'courant', iban: IBAN_SYNDICAT, actif: true }],
+  modeComptes: { resolu: { mode: 'compte_separe_syndicat', origine: 'cabinet' }, erreur: null },
   comptesEnContentieux: new Set(),
   ...surcharge,
 })
@@ -303,13 +305,55 @@ describe('prélèvements SEPA : lot affiché, fichier jamais transmis', () => {
   })
 })
 
-describe('IBAN du syndicat porté par l’avis (virement)', () => {
-  it('compte courant actif, à défaut Caisse des dépôts, à défaut sous-compte du centralisateur du cabinet (D-BANQUE) ; jamais un compte clôturé ni le fonds de travaux', () => {
-    const iban = IBAN_SYNDICAT
-    expect(ibanDuSyndicat([{ nature: 'caisse_depots', iban, actif: true }, { nature: 'courant', iban: IBAN_DEBITEUR, actif: true }])).toBe(IBAN_DEBITEUR)
-    expect(ibanDuSyndicat([{ nature: 'courant', iban: IBAN_DEBITEUR, actif: false }, { nature: 'caisse_depots', iban, actif: true }])).toBe(iban)
-    expect(ibanDuSyndicat([{ nature: 'fonds_travaux', iban: IBAN_DEBITEUR, actif: true }, { nature: 'sous_compte_centralisateur', iban, actif: true }])).toBe(iban)
-    expect(ibanDuSyndicat([{ nature: 'fonds_travaux', iban, actif: true }])).toBeNull()
+describe('ap-03 — compte qui reçoit les règlements, lu selon le mode de tenue (décision du 22/11/2026)', () => {
+  const IBAN_CDC = 'FR76 3000 4000 0312 3456 7890 143'
+  const banques: BanqueAppel[] = [
+    { id: 'b-ft', nature: 'fonds_travaux', iban: 'DE89 3704 0044 0532 0130 00', actif: true },
+    { id: 'b-cdc', nature: 'caisse_depots', iban: IBAN_CDC, actif: true },
+    { id: 'b-courant', nature: 'courant', iban: IBAN_SYNDICAT, actif: true },
+  ]
+  const lu = (mode: ModeTenueComptes): ModeComptesLu => ({ resolu: { mode, origine: 'mandat' }, erreur: null })
+  const enVirement = (c: CompteAppel): CompteAppel => ({ ...c, reglement: { mode: 'Virement' } })
+  const vue = (modeComptes: ModeComptesLu, surcharge: Partial<DonneesAppels> = {}) =>
+    vueAvisAppel(donnees({ banques, modeComptes, comptes: comptes.map(enVirement), ...surcharge }), contexte())
+  const ibanDe = (v: ReturnType<typeof vueAvisAppel>, compteId: string) => {
+    const instructions = v.contenu?.parCompte.find((c) => c.compteId === compteId)?.instructions
+    return instructions?.mode === 'Virement' ? instructions.iban : null
+  }
+  const nonDesigne = (v: ReturnType<typeof vueAvisAppel>) => v.contenu?.anomalies.find((a) => a.code === 'compte_encaissement_non_designe')
+
+  it('le mode lu désigne le compte : compte courant, ou Caisse des dépôts même avec un compte courant actif ; jamais le fonds de travaux', () => {
+    expect(ibanDe(vue(lu('compte_separe_syndicat')), 'c2')).toBe(IBAN_SYNDICAT.replaceAll(' ', ''))
+    expect(ibanDe(vue(lu('caisse_depots')), 'c2')).toBe(IBAN_CDC.replaceAll(' ', ''))
+    expect(nonDesigne(vue(lu('caisse_depots')))).toBeUndefined()
+  })
+
+  it('mode illisible, ou compte du mode absent : la diffusion de l’avis est bloquée, l’écriture de l’appel ne l’est pas', () => {
+    const illisible = vue({ resolu: null, erreur: 'Mode de tenue inconnu : « livret ».' })
+    expect(nonDesigne(illisible)).toMatchObject({
+      gravite: 'bloquant',
+      message: 'Compte qui reçoit les règlements non désigné : mode de tenue inconnu : « livret ».',
+    })
+    expect(illisible.erreur).toBeNull()
+    expect(illisible.blocage).toBeNull()
+    expect(illisible.ecriture).not.toBeNull()
+    expect(ibanDe(illisible, 'c2')).toBeNull()
+    const sansCompte = vue(lu('centralisateur_cabinet'))
+    expect(nonDesigne(sansCompte)?.message).toMatch(/aucun compte actif « Sous-compte du compte centralisateur du cabinet »/)
+    expect(sansCompte.blocage).toBeNull()
+  })
+
+  it('prélèvement vers un compte qui n’est pas établi au nom du syndicat : exclu du lot, avec son motif', () => {
+    const d = { comptes: [avecPrelevement(comptes[0], mandat()), enVirement(comptes[1]), enVirement(comptes[2])] }
+    expect(ligneDe(vue(lu('compte_separe_syndicat'), d), 'c1')).toMatchObject({ etat: 'attente_diffusion' })
+    expect(ligneDe(vue(lu('caisse_depots'), d), 'c1')).toEqual({
+      compteId: 'c1',
+      libelle: 'Indivision A (fictive)',
+      numeroCompte: 'ACAC.45000.00001.0',
+      montantCentimes: 0,
+      etat: 'exclu',
+      motif: 'Prélèvement non annoncé : le compte qui reçoit les règlements n’est pas établi au nom du syndicat',
+    })
   })
 })
 
