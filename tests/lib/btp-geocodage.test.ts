@@ -308,13 +308,18 @@ describe('geocoderAdresse — voie saisie retrouvée dans la réponse de la BAN 
   it('type de voie oublié ou différent, nom officiel plus long : précis si la commune n’a qu’une voie de ce nom (26/11/2026)', async () => {
     await jugerVoisins([
       ['type oublié', REPUBLIQUE, 'republique', voies(['Rue de la republique']), saisie('10 République'), true],
+      // Les voies sont cherchées par le dernier mot du nom (« jaures ») : quatrième relecture du 26/11/2026.
       ['autre type', ban('housenumber', 0.611, { postcode: '13400', city: 'Aubagne', housenumber: '15', street: 'Boulevard Jean Jaures' }),
-        'jean jaures', voies(['Boulevard Jean Jaures'], { postcode: '13400', city: 'Aubagne' }), saisie('15 av Jean Jaurès', '13400', 'Aubagne'), true],
+        'jaures', voies(['Boulevard Jean Jaures'], { postcode: '13400', city: 'Aubagne' }), saisie('15 av Jean Jaurès', '13400', 'Aubagne'), true],
       // Nom double officiel (Marseille) : la BAN rend « Rue de la paix marcel paul », seule voie de ce nom dans le 13001.
       ['nom plus long', PAIX, 'paix', voies(['Rue de la paix marcel paul']), saisie('4 rue de la Paix'), true],
-      // Sans code postal : la ville est ajoutée à la recherche des voies, et vérifiée.
+      // Sans code postal ni code INSEE dans la réponse : la ville est ajoutée à la recherche des voies, et vérifiée.
       ['sans code postal', PAIX, 'paix Marseille', voies(['Rue de la paix marcel paul']), { adresse: '4 rue de la Paix', ville: 'Marseille' }, true],
       ['sans code postal, autre ville', PAIX, 'paix Marseille', voies(['Rue de la paix marcel paul'], { city: 'Aubagne' }), { adresse: '4 rue de la Paix', ville: 'Marseille' }, false],
+      // Sans code postal, avec le code INSEE que la vraie BAN rend toujours (celui d'un arrondissement à Marseille) : les voies
+      // de toute la commune (13055).
+      ['sans code postal, code INSEE', ban('housenumber', 0.648, { postcode: '13001', citycode: '13201', housenumber: '4', street: 'Rue de la paix marcel paul' }),
+        'paix', voies(['Rue de la paix marcel paul']), { adresse: '4 rue de la Paix', ville: 'Marseille' }, true],
       // Témoin du refus de « 10 Alésia » plus bas : sans la villa d'Alésia, la rue d'Alésia serait admise.
       ['10 Alésia, seule voie', ban('housenumber', 0.703, { postcode: '75014', city: 'Paris', housenumber: '10', street: 'Rue d\'Alésia' }),
         'alesia', voies(['Rue d\'Alésia'], { postcode: '75014', city: 'Paris' }), saisie('10 Alésia', '75014', 'Paris'), true],
@@ -334,17 +339,39 @@ describe('geocoderAdresse — voie saisie retrouvée dans la réponse de la BAN 
         'republique', voies(['Rue de la republique']), saisie('10 République'), true],
     ])
     const recherchesDeVoies = appels.filter(a => a.includes('type=street'))
-    expect(recherchesDeVoies.map(rechercheBan)).toEqual(['republique', 'jean jaures', 'paix', 'paix Marseille', 'paix Marseille', 'alesia', 'seurat', 'tourny', 'mimosas', 'tourny', 'republique'])
+    expect(recherchesDeVoies.map(rechercheBan)).toEqual(['republique', 'jaures', 'paix', 'paix Marseille', 'paix Marseille', 'paix', 'alesia', 'seurat', 'tourny', 'mimosas', 'tourny', 'republique'])
     expect(recherchesDeVoies[0]).toContain('&postcode=13001')
     expect(recherchesDeVoies[0]).not.toContain('citycode=')
     expect(recherchesDeVoies[3]).not.toContain('postcode=')
-    expect(recherchesDeVoies[10]).toContain('&limit=50&postcode=13001&citycode=13201')
+    expect(recherchesDeVoies[5]).toContain('&limit=50&citycode=13055')
+    expect(recherchesDeVoies[5]).not.toContain('postcode=')
+    expect(recherchesDeVoies[11]).toContain('&limit=50&postcode=13001&citycode=13055')
+  })
+
+  it('voie voisine : homonymes de toute la commune (Paris sans code postal) et voie plus courte tenue pour la même (quatrième relecture)', async () => {
+    // « 10 Saint-Martin », Paris, sans code postal : la BAN rend le 10 rue Saint-Martin (4e, code 75104, 0,744) ; Paris a neuf
+    // voies Saint-Martin (le 10 boulevard Saint-Martin à 1 366 m). Avant : vérifié dans le seul 4e, donc précis.
+    const saintMartin = ban('housenumber', 0.744, { postcode: '75004', city: 'Paris', citycode: '75104', housenumber: '10', street: 'Rue Saint-Martin' })
+    const paris = { postcode: '75004', city: 'Paris' }
+    // « 4 rue du Général Leclerc », 75014 : la BAN rend le 4 avenue du Général Leclerc (0,746) ; le 14e a aussi la rue Leclerc
+    // (un n° 4 à 325 m), que la saisie désigne aussi (titre omis).
+    const leclerc = ban('housenumber', 0.746, { postcode: '75014', city: 'Paris', citycode: '75114', housenumber: '4', street: 'Avenue du Général Leclerc' })
+    const quatorzieme = { postcode: '75014', city: 'Paris' }
+    await jugerVoisins([
+      ['Paris sans code postal', saintMartin, 'martin', voies(['Rue Saint-Martin', 'Boulevard Saint-Martin', 'Porte Saint-Martin'], paris), { adresse: '10 Saint-Martin', ville: 'Paris' }, false],
+      ['Paris sans code postal, seule voie (témoin)', saintMartin, 'martin', voies(['Rue Saint-Martin'], paris), { adresse: '10 Saint-Martin', ville: 'Paris' }, true],
+      ['voie plus courte', leclerc, 'leclerc', voies(['Avenue du Général Leclerc', 'Rue Leclerc'], quatorzieme), saisie('4 rue du Général Leclerc', '75014', 'Paris'), false],
+      ['voie plus courte absente (témoin)', leclerc, 'leclerc', voies(['Avenue du Général Leclerc'], quatorzieme), saisie('4 rue du Général Leclerc', '75014', 'Paris'), true],
+    ])
+    const recherchesDeVoies = appels.filter(a => a.includes('type=street'))
+    expect(recherchesDeVoies[0]).toContain('&limit=50&citycode=75056')
+    expect(recherchesDeVoies[2]).toContain('&limit=50&postcode=75014&citycode=75056')
   })
 
   it('voie voisine refusée quand la commune a une autre voie qui répond à la saisie, ou si la vérification échoue', async () => {
     await jugerVoisins([
       ['deux voies Victor Hugo', ban('housenumber', 0.7, { postcode: '13001', housenumber: '10', street: 'Avenue Victor Hugo' }),
-        'victor hugo', voies(['Avenue Victor Hugo', 'Place Victor Hugo']), saisie('10 Victor Hugo'), false],
+        'hugo', voies(['Avenue Victor Hugo', 'Place Victor Hugo']), saisie('10 Victor Hugo'), false],
       // « 2 Le Clos » à Auriol : la BAN rend le 2 rue du Clos ; la commune a aussi un chemin du Clos (relevé du 26/11/2026).
       ['2 Le Clos', ban('housenumber', 0.628, { ...AURIOL, housenumber: '2', street: 'Rue du Clos' }),
         'clos', voies(['Clos Cigalon', 'Chemin du Clos', 'Rue du Clos', 'Rue Clos Marie-Claire'], AURIOL), saisie('2 Le Clos', '13390', 'Auriol'), false],
@@ -421,6 +448,53 @@ describe('geocoderAdresse — voie saisie retrouvée dans la réponse de la BAN 
     reponses.ban = ban('housenumber', 0.95, { postcode: '49230', city: 'Sèvremoine', oldcity: 'Tillières', housenumber: '5', street: 'Rue de l\'Eglise' })
     banSelonRecherche.eglise = { corps: { features: [voieBan('Rue de l\'Eglise', '49230', 'Sèvremoine', 'Tillières'), voieBan('Rue de l\'Eglise', '49230', 'Sèvremoine', 'Torfou')] } }
     expect((await geocoderAdresse({ adresse: '5 rue de l\'Église', codePostal: '49230' }, 'FR'))?.precise).toBe(false)
+    // Quatrième relecture : seules comptent les communes. Deux voies de même nom dans la même commune (« chemin de la Source »
+    // et « Chemin Campagne la Source », Auriol seule dans le 13390) : précis, comme avec la ville. La parenthèse de la BAN
+    // recopiée (« place de l'Église (Andrezé) ») désigne une seule des trois places : précis ; sans elle, refusé (témoin).
+    reponses.ban = ban('street', 0.963, { postcode: '13390', city: 'Auriol', street: 'Chemin de la Source' })
+    banSelonRecherche.source = voies(['Chemin de la Source', 'Chemin Campagne la Source'], AURIOL)
+    expect((await geocoderAdresse({ adresse: 'chemin de la Source', codePostal: '13390' }, 'FR'))?.precise).toBe(true)
+    banSelonRecherche.source = { corps: { features: [voieBan('Chemin de la Source', '13390', 'Auriol'), voieBan('Chemin de la Source', '13390', 'Roquevaire')] } }
+    expect((await geocoderAdresse({ adresse: 'chemin de la Source', codePostal: '13390' }, 'FR'))?.precise).toBe(false)
+    // La voie rendue doit être dans la liste ; une voie d'une autre commune que la saisie désigne aussi (titre omis) compte.
+    banSelonRecherche.source = voies(['Chemin Campagne la Source'], AURIOL)
+    expect((await geocoderAdresse({ adresse: 'chemin de la Source', codePostal: '13390' }, 'FR'))?.precise).toBe(false)
+    reponses.ban = ban('housenumber', 0.95, { postcode: '22400', city: 'Noyal', housenumber: '4', street: 'Rue du Général Leclerc' })
+    banSelonRecherche.leclerc = { corps: { features: [voieBan('Rue du Général Leclerc', '22400', 'Noyal'), voieBan('Rue Leclerc', '22400', 'Andel')] } }
+    expect((await geocoderAdresse({ adresse: '4 rue du Général Leclerc', codePostal: '22400' }, 'FR'))?.precise).toBe(false)
+    banSelonRecherche.leclerc = { corps: { features: [voieBan('Rue du Général Leclerc', '22400', 'Noyal')] } }
+    expect((await geocoderAdresse({ adresse: '4 rue du Général Leclerc', codePostal: '22400' }, 'FR'))?.precise).toBe(true)
+    // La même rue dans deux communes du code postal : deux voies, pas un doublon de la BAN.
+    reponses.ban = ban('housenumber', 0.9, { postcode: '22400', city: 'Noyal', housenumber: '10', street: 'Rue de la République' })
+    banSelonRecherche.republique = { corps: { features: [voieBan('Rue de la République', '22400', 'Noyal'), voieBan('Rue de la République', '22400', 'Andel')] } }
+    expect((await geocoderAdresse({ adresse: '10 République', codePostal: '22400' }, 'FR'))?.precise).toBe(false)
+    banSelonRecherche.republique = { corps: { features: [voieBan('Rue de la République', '22400', 'Noyal'), voieBan('Rue de la République', '22400', 'Noyal')] } }
+    expect((await geocoderAdresse({ adresse: '10 République', codePostal: '22400' }, 'FR'))?.precise).toBe(true)
+    // Ville saisie (commune nouvelle) : la même rue dans deux communes déléguées, sans parenthèse, compte deux fois.
+    reponses.ban = ban('housenumber', 0.9, { postcode: '49230', city: 'Sèvremoine', oldcity: 'Tillières', housenumber: '5', street: 'Rue de l\'Eglise' })
+    banSelonRecherche.eglise = { corps: { features: [voieBan('Rue de l\'Eglise', '49230', 'Sèvremoine', 'Tillières'), voieBan('Rue de l\'Eglise', '49230', 'Sèvremoine', 'Torfou')] } }
+    expect((await geocoderAdresse(saisie('5 Eglise', '49230', 'Sèvremoine'), 'FR'))?.precise).toBe(false)
+    reponses.ban = ban('housenumber', 0.96, { postcode: '49600', city: 'Beaupréau-en-Mauges', oldcity: 'Andrezé', housenumber: '1', street: 'Place de l\'Église (Andrezé)' })
+    banSelonRecherche.eglise = { corps: { features: ['Andrezé', 'La Chapelle-du-Genêt', 'St Philbert-en-Mauges'].map(oldcity => voieBan(`Place de l'Église (${oldcity})`, '49600', 'Beaupréau-en-Mauges', oldcity)) } }
+    expect((await geocoderAdresse({ adresse: '1 place de l\'Église (Andrezé)', codePostal: '49600' }, 'FR'))?.precise).toBe(true)
+    expect((await geocoderAdresse({ adresse: '1 place de l\'Église', codePostal: '49600' }, 'FR'))?.precise).toBe(false)
+  })
+
+  it('seconde recherche : un numéro seulement, jamais la rue entière (comme avant le 26/11 ; quatrième relecture)', async () => {
+    // « Chemin rural n° 5 », 76290 : la BAN rend le chemin entier à 0,757 (sous 0,8) ; la seconde recherche « 5 Chemin rural »,
+    // texte que la saisie n'a pas écrit, le rendait à 0,810, donc précis.
+    const fontaine = { postcode: '76290', city: 'Fontaine-la-Mallet' }
+    reponses.ban = ban('street', 0.757, { ...fontaine, street: 'Chemin Rural 5' })
+    banSelonRecherche['5 Chemin rural 76290 Fontaine-la-Mallet'] = ban('street', 0.81, { ...fontaine, street: 'Chemin Rural 5' })
+    expect((await geocoderAdresse(saisie('Chemin rural n° 5', '76290', 'Fontaine-la-Mallet'), 'FR'))?.precise).toBe(false)
+    expect(appels.map(rechercheBan)).toContain('5 Chemin rural 76290 Fontaine-la-Mallet')
+    // Plage de lots (« lots 12 à 14 ») : la seconde borne n'est pas un numéro de rue, pas de seconde recherche (BAN réelle :
+    // 0,498, puis 0,969 pour « 14 rue Paradis »).
+    appels = []
+    reponses.ban = ban('housenumber', 0.498, { postcode: '13001', housenumber: '14', street: 'Rue paradis' })
+    banSelonRecherche['14 rue Paradis 13001 Marseille'] = ban('housenumber', 0.969, { postcode: '13001', housenumber: '14', street: 'Rue paradis' })
+    expect((await geocoderAdresse(saisie('Lotissement Les Oliviers lots 12 à 14 rue Paradis'), 'FR'))?.precise).toBe(false)
+    expect(appels.filter(a => a.includes('api-adresse.data.gouv.fr'))).toHaveLength(1)
   })
 
   it('commune nouvelle : voies homonymes que la BAN distingue entre parenthèses (relecture du 26/11/2026, défaut antérieur)', async () => {
@@ -469,7 +543,7 @@ describe('geocoderAdresse — voie saisie retrouvée dans la réponse de la BAN 
     expect((await geocoderAdresse(saisie('rue de la Mairie', '49120', 'Chemillé-en-Anjou'), 'FR'))?.precise).toBe(true)
     // Doublon de la BAN (même nom, même commune déléguée, à 25 m) : une seule voie, l'adresse juste reste précise.
     reponses.ban = ban('housenumber', 0.769, { postcode: '49490', city: 'Noyant-Villages', oldcity: 'Noyant', housenumber: '1', street: 'Place de l\'église saint martin (Noyant)' })
-    banSelonRecherche['eglise saint martin'] = voies(['Place de l\'église saint martin (Noyant)', 'Place De l\'Eglise Saint Martin (Noyant)'], { postcode: '49490', city: 'Noyant-Villages' })
+    banSelonRecherche.martin = voies(['Place de l\'église saint martin (Noyant)', 'Place De l\'Eglise Saint Martin (Noyant)'], { postcode: '49490', city: 'Noyant-Villages' })
     expect((await geocoderAdresse(saisie('1 place de l\'église Saint Martin', '49490', 'Noyant-Villages'), 'FR'))?.precise).toBe(true)
     // Seule « Rue de l'Église » de la commune, à côté de places et d'une ruelle du même nom : précise (49230, configuration
     // relevée le 26/11/2026) ; seules les voies de même nom, parenthèse retirée, sont comptées.
@@ -779,7 +853,33 @@ describe('numeroEtVoieSaisis', () => {
       'Îlot 3 rue Paradis', 'Résidence Le Parc Empl. 12 rue Paradis', 'Terrain du lot 12 rue Paradis',
       'Construction sur le lot 12 rue Paradis', 'Le Lot 12 rue Paradis', 'Résidence Le Parc le Bâtiment 3 rue Paradis',
       'à l\'étage 2 rue Paradis', 'Résidence de la Tour 12 avenue Foch',
+      // Quatrième relecture du 26/11/2026 : plage ou suite de numéros d'un complément (la seconde borne n'est pas le numéro
+      // de rue), au pluriel, d'un morceau à l'autre ; commerces, hébergements, phases, parties d'une copropriété.
+      'Lotissement Les Oliviers lots 12 à 14 rue Paradis', 'Lot 12 au 14 rue Paradis', 'Lots n° 12 à 14 rue Paradis',
+      'Lot n°12 à n°14 rue Paradis', 'Bâtiments 3 & 4 avenue du Prado', 'Box 3 / 4 rue Paradis', 'Lgts 1 à 6 rue Paradis',
+      'Locaux 3 à 5 rue Paradis', 'Caves 12 au 14 rue Paradis', 'Parkings 12 à 14 rue Paradis', 'lots 12 13 14 rue Paradis',
+      'lots 12 ou 14 rue Paradis', 'lots 12 + 14 rue Paradis', 'lots 12 jusqu\'au 14 rue Paradis', 'Lots 12, 13, 14 rue Paradis',
+      'Lots 12 - 14 rue Paradis', 'rue Paradis lot 12 à 14', 'Résidence Les Pins Magasin 12 rue Paradis',
+      'Centre Les Arcades Boutique 12 avenue de la Gare', 'Camping Les Pins Bungalow 12 route de la Plage',
+      'Lotissement Le Clos Phase 2 rue Paradis', 'Terrain 12 rue Paradis', 'Unité 3 rue Paradis', 'Module 3 rue Paradis',
+      'Mobil-home 12 rue Paradis', 'Mobil home 12 rue Paradis', 'Duplex 12 rue Paradis', 'Secteur 3 rue Paradis',
+      'Lot de copropriété n° 12 rue Paradis', 'Salle 3 rue Paradis', 'Stand 3 rue Paradis', 'Magasins 3 rue Paradis',
+      'Niveaux 2 rue Paradis',
     ]) expect(numeroEtVoieSaisis(rue), rue).toBeNull()
+    // Témoins : au singulier, le numéro qui suit celui du complément est celui de la rue.
+    expect(numeroEtVoieSaisis('Lot 5 12 rue des Lilas')?.texte).toBe('12 rue des Lilas')
+    expect(numeroEtVoieSaisis('Lot 5, 12 rue des Lilas')?.texte).toBe('12 rue des Lilas')
+    expect(numeroEtVoieSaisis('Bât 3 10 à 12 rue des Lilas')?.numeros).toEqual(['10', '12'])
+  })
+
+  it('voie collée à un complément : seulement si aucun morceau suivant ne commence par un type de voie (quatrième relecture)', () => {
+    for (const rue of ['12, Résidence Villa Médicis, rue Paradis', '12, Résidence Square Monge, rue Paradis', '12, Résidence Le Parc Allée B, rue Paradis']) {
+      expect(numeroEtVoieSaisis(rue)?.texte, rue).toBe('12 rue Paradis')
+    }
+    // Un lieu-dit écrit à la suite ne retire pas la voie collée.
+    expect(numeroEtVoieSaisis('12, Bât B route de Lyon, Lieu-dit La Plaine')?.texte).toBe('12 route de Lyon')
+    // Un type de voie précédé d'un article est un nom de résidence, pas une voie collée.
+    expect(numeroEtVoieSaisis('12, Résidence Les Allées du Parc')).toBeNull()
   })
 })
 
