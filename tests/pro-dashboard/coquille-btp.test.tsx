@@ -45,6 +45,7 @@ const mocks = vi.hoisted(() => ({
   // Vraie fusion, et espionnee : l'ancienne simulation rendait son premier argument et jetait donc les documents
   // de la societe sans qu'aucun cas ne s'en apercoive.
   dedupeDocsByIdentity: vi.fn((prealables: unknown[], ajoutes: unknown[] = []) => [...prealables, ...ajoutes]),
+  annulerAlertes: vi.fn(async () => {}),
 }))
 
 vi.mock('@/lib/supabase', async () => {
@@ -52,6 +53,7 @@ vi.mock('@/lib/supabase', async () => {
   const { fromSimule } = await import('../helpers/tableau-de-bord-pro-simule')
   return moduleSupabaseSimule({ auth: { getSession: mocks.getSession, signOut: vi.fn() }, rappels: mocks.rappels, from: fromSimule(mocks.etat) })
 })
+vi.mock('@/lib/btp/alerte-meteo-telephone', () => ({ annulerAlertesProgrammees: mocks.annulerAlertes }))
 vi.mock('next/navigation', async () => (await import('../helpers/tableau-de-bord-pro-simule')).moduleNavigationSimule(mocks.etat, mocks.push))
 vi.mock('next/dynamic', async () => (await import('../helpers/tableau-de-bord-pro-simule')).moduleDynamicSimule(mocks.etat))
 vi.mock('@/lib/i18n/context', async () => (await import('../helpers/simulations-dashboard')).moduleI18nSimule())
@@ -542,5 +544,24 @@ describe('tableau de bord — alerte météo du téléphone', () => {
   it('artisan : jamais monté', async () => {
     const { container } = await ouvrir(utilisateur('artisan'))
     expect(container.querySelector('[data-dynamique*="AlertesMeteoTelephone"]')).toBeNull()
+  })
+
+  const seDeconnecter = async () => {
+    await act(async () => { await (proprietesRecues(mocks.etat, 'V5Sidebar')?.handleLogout as () => Promise<void>)() })
+  }
+
+  it('déconnexion d’une société BTP : les alertes programmées sur le téléphone sont annulées', async () => {
+    mocks.annulerAlertes.mockClear()
+    await ouvrir(utilisateur('pro_societe'))
+    await seDeconnecter()
+    expect(mocks.annulerAlertes).toHaveBeenCalledTimes(1)
+  })
+
+  it('déconnexion d’un artisan : rien n’est annulé (règle n° 1)', async () => {
+    mocks.annulerAlertes.mockClear()
+    await ouvrir(utilisateur('artisan'))
+    expect(proprietesRecues(mocks.etat, 'V5Sidebar')).toBeDefined()
+    await seDeconnecter()
+    expect(mocks.annulerAlertes).not.toHaveBeenCalled()
   })
 })

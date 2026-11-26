@@ -195,6 +195,27 @@ async function traiterJournee(p: Passage, chantier: ChantierPourAlerte, jours: r
 }
 
 /**
+ * Déconnexion : les notifications encore programmées sur ce téléphone ne doivent plus sonner (un salarié qui se
+ * déconnecte ne reçoit plus le titre des chantiers). La mémoire de l'appareil n'est pas touchée : rien ne s'efface à
+ * la déconnexion ; la prochaine connexion relit et reprogramme. Au plus `delaiMaxMs` d'attente : la déconnexion n'est
+ * jamais retenue. Ne lève jamais.
+ */
+export async function annulerAlertesProgrammees(annuler: (cle: string) => Promise<void>, delaiMaxMs = 1500): Promise<void> {
+  const programmees = clesRetenues().filter(({ cle }) => etatRetenu(cle) === 'programmee')
+  if (programmees.length === 0) return
+  let minuterie: ReturnType<typeof setTimeout> | undefined
+  const delai = new Promise<void>(resoudre => { minuterie = setTimeout(resoudre, delaiMaxMs) })
+  const annulations = Promise.all(programmees.map(({ cle }) => annuler(cle))).then(() => undefined)
+  try {
+    await Promise.race([annulations, delai])
+  } catch (err) {
+    console.warn('[alerte-meteo] annulation à la déconnexion impossible :', err instanceof Error ? err.message : err)
+  } finally {
+    clearTimeout(minuterie)
+  }
+}
+
+/**
  * Programme les alertes de la veille des chantiers suivis. Ne lève jamais : une prévision illisible ou un réseau
  * absent laisse le chantier de côté (revu au prochain passage). La liste doit avoir été lue : une liste en échec ne
  * doit pas être passée ici (elle annulerait toutes les alertes).

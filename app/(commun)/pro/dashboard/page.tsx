@@ -34,6 +34,8 @@ import { FicheSocieteIndisponible, messageFicheSocieteAbsente, prevenirFicheSoci
 import { MODULE_DE_LA_SECTION, SECTIONS_SOCIETE_BTP } from '@/lib/btp/sections-tableau-de-bord'
 import { ALL_PRO_MODULES, estRoleDeTerrain } from '@/lib/permissions'
 import { FiletSocieteBtp } from '@/components/dashboard/btp/FiletSocieteBtp'
+import { annulerAlertesProgrammees } from '@/lib/btp/alerte-meteo-telephone'
+import { annulerNotification } from '@/lib/notifications'
 
 // Section loading spinner — shown while JS chunks load
 const SectionLoader = () => (
@@ -752,6 +754,8 @@ function DashboardPage() {
   }, [convertDevisToFacture, navigateTo, artisan?.id, setSavedDocuments])
 
   const handleLogout = async () => {
+    // Société BTP : les alertes météo programmées sur ce téléphone ne sonnent plus après la déconnexion (26/11/2026).
+    if (orgRole === 'pro_societe') await annulerAlertesProgrammees(annulerNotification)
     await supabase.auth.signOut()
     window.location.href = `/${locale}/`
   }

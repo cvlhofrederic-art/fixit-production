@@ -6,7 +6,9 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { dateDecalee } from '@/lib/btp/alerte-meteo'
-import { cleNotificationAlerte, programmerAlertesMeteo, type ChantierPourAlerte } from '@/lib/btp/alerte-meteo-telephone'
+import {
+  annulerAlertesProgrammees, cleNotificationAlerte, programmerAlertesMeteo, type ChantierPourAlerte,
+} from '@/lib/btp/alerte-meteo-telephone'
 
 const DALLE: ChantierPourAlerte = { id: 'c-dalle', titre: 'Dalle Villa', statut: 'En cours', latitude: 43.3, longitude: 5.38, alerteMeteo: true }
 const CLE_VENDREDI = cleNotificationAlerte('c-dalle', '2026-11-27')
@@ -225,6 +227,21 @@ describe('mémoire de l’appareil et fuseaux', () => {
     expect(localStorage.getItem('vitfix_btp_alerte_meteo_' + CLE_VENDREDI)).toBe('programmee')
     expect(localStorage.getItem('autre_cle')).toBe('x')
     expect(o.annuler).not.toHaveBeenCalled()
+  })
+
+  it('déconnexion : les notifications encore programmées sont annulées, la mémoire reste ; jamais plus d’attente que prévu', async () => {
+    localStorage.setItem('vitfix_btp_alerte_meteo_' + CLE_VENDREDI, 'programmee')
+    localStorage.setItem('vitfix_btp_alerte_meteo_' + cleNotificationAlerte('c-toit', '2026-11-27'), 'affichee')
+    const annuler = vi.fn(async (_cle: string) => {})
+    await annulerAlertesProgrammees(annuler)
+    expect(annuler.mock.calls).toEqual([[CLE_VENDREDI]])
+    expect(localStorage.getItem('vitfix_btp_alerte_meteo_' + CLE_VENDREDI)).toBe('programmee')
+
+    const bloquee = vi.fn(() => new Promise<void>(() => {}))
+    const debut = Date.now()
+    await annulerAlertesProgrammees(bloquee, 50)
+    expect(Date.now() - debut).toBeLessThan(1000)
+    await expect(annulerAlertesProgrammees(vi.fn(async () => { throw new Error('module') }), 50)).resolves.toBeUndefined()
   })
 
   it('téléphone en avance sur le chantier (00 h 30 à Paris, 23 h 30 à Lisbonne) : jamais d’alerte « demain » pour le jour même', async () => {
