@@ -1213,14 +1213,14 @@ function DashboardPage() {
           {/* ────── STATISTIQUES ────── */}
           {activePage === 'stats' && (
             <SectionErrorBoundary locale={isPt ? 'pt' : 'fr'} fallbackTitle={isPt ? 'Erro nas estatísticas' : 'Erreur dans les statistiques'}>
-            <StatsRevenusSection artisan={artisan!} bookings={bookings} services={services} pendingBookings={pendingBookings} completedBookings={completedBookings} totalRevenue={totalRevenue} activePage="stats" orgRole={orgRole} />
+            <StatsRevenusSection artisan={artisan!} bookings={bookings} services={services} pendingBookings={pendingBookings} completedBookings={completedBookings} totalRevenue={totalRevenue} activePage="stats" orgRole={orgRole} savedDocuments={savedDocuments} />
             </SectionErrorBoundary>
           )}
 
           {/* ────── REVENUS ────── */}
           {activePage === 'revenus' && (
             <SectionErrorBoundary locale={isPt ? 'pt' : 'fr'} fallbackTitle={isPt ? 'Erro nas receitas' : 'Erreur dans les revenus'}>
-            <StatsRevenusSection artisan={artisan!} bookings={bookings} services={services} pendingBookings={pendingBookings} completedBookings={completedBookings} totalRevenue={totalRevenue} activePage="revenus" orgRole={orgRole} />
+            <StatsRevenusSection artisan={artisan!} bookings={bookings} services={services} pendingBookings={pendingBookings} completedBookings={completedBookings} totalRevenue={totalRevenue} activePage="revenus" orgRole={orgRole} savedDocuments={savedDocuments} />
             </SectionErrorBoundary>
           )}
 
@@ -1442,7 +1442,7 @@ function DashboardPage() {
           {activePage === 'rentabilite' && (
             <FiletSocieteBtp actif={orgRole === 'pro_societe'} titre={isPt ? 'Erro na rentabilidade' : 'Erreur dans la rentabilité'} locale={isPt ? 'pt' : 'fr'}>
             <div className="p-4 lg:p-5 animate-fadeIn">
-              <RentabiliteChantierSection artisan={artisan!} orgRole={orgRole} />
+              <RentabiliteChantierSection artisan={artisan!} orgRole={orgRole} savedDocuments={savedDocuments} />
             </div>
             </FiletSocieteBtp>
           )}
@@ -1566,7 +1566,7 @@ function DashboardPage() {
           {/* ────── RAPPORTS D'INTERVENTION ────── */}
           {activePage === 'rapports' && (
             <SectionErrorBoundary locale={isPt ? 'pt' : 'fr'} fallbackTitle={isPt ? 'Erro nos relatórios' : 'Erreur dans les rapports'}>
-              <RapportsSection artisan={artisan!} bookings={bookings} services={services} onNavigate={navigateTo} orgRole={orgRole} />
+              <RapportsSection artisan={artisan!} bookings={bookings} services={services} onNavigate={navigateTo} orgRole={orgRole} savedDocuments={savedDocuments} />
             </SectionErrorBoundary>
           )}
 

@@ -9,6 +9,7 @@ import { calculeQuotePartFixes } from '@/lib/rentabilite/repartition'
 import { signalerPlafondsAtteints, useBTPSettings } from '@/lib/hooks/use-btp-data'
 import { formatPrice } from '@/lib/utils'
 import type { RefTaux, ResultatRentabilite, FormeJuridique, Juridiction } from '@/lib/rentabilite/types'
+import { documentsPourSynthese } from '@/lib/documents/liste-effective'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // RENTABILITÉ CHANTIER — Module PRO BTP
@@ -55,6 +56,8 @@ interface Situation {
 interface SavedDoc {
   id: string; type: string; clientName?: string; totalTTC?: number; totalHT?: number
   status?: string; created_at?: string; chantier?: string
+  /** Numéro de série ; sa présence distingue un document émis d'un brouillon (lib/documents/liste-effective.ts). */
+  docNumber?: string
 }
 
 // ── Données agrégées par chantier ────────────────────────────────────────────
@@ -154,7 +157,27 @@ function BadgeIcon({ type, size = 12 }: { type: 'check' | 'warn' | 'risk'; size?
 // COMPOSANT PRINCIPAL
 // ═══════════════════════════════════════════════════════════════════════════════
 
-export default function RentabiliteChantierSection({ artisan, orgRole }: { artisan: import('@/lib/types').Artisan; orgRole?: string }) {
+export default function RentabiliteChantierSection({ artisan, orgRole, savedDocuments }: {
+  artisan: import('@/lib/types').Artisan
+  orgRole?: string
+  /**
+   * Devis et factures du tableau de bord. Pour un salarié invité d'une société, ce sont ceux de la SOCIÉTÉ, lus par
+   * le serveur ; son propre stockage ne contient que ses brouillons.
+   *
+   * ATTENTION — cette prop ne change aujourd'hui AUCUN chiffre de cet écran, contrairement à ce que ce lot a
+   * d'abord annoncé. Son unique consommateur (le calcul de `caDevis` plus bas) retient un document sur
+   * `d.type === 'facture'` alors que la mise en forme ne pose que `docType`, et sur `d.status === 'signé'`
+   * accentué, qui n'est aucun des statuts écrits ('signed', 'signe', 'accepte', 'accepted', 'cancelled'...).
+   * `docsClient` est donc toujours vide — pour un salarié comme pour un gérant, avant comme après ce lot — et
+   * `caTotal` ne vient que des situations de travaux et du budget. Défaut ANTÉRIEUR, signalé : le réparer
+   * ferait apparaître un CA devisé sur les écrans de sociétés déjà inscrites, donc c'est une décision de Frédéric
+   * (`estDuType` de lib/btp/accueil.ts et `estDevisSigne` de StatsRevenusSection font déjà le bon test).
+   *
+   * Ce que ce lot change ici, en revanche, et qui tient : les documents sortent de l'effet réseau, donc plus de
+   * course entre deux exécutions et cinq requêtes de moins au montage.
+   */
+  savedDocuments?: readonly SavedDoc[]
+}) {
   const isV5 = orgRole === 'pro_societe'
   const locale = useLocale()
   const isPt = locale === 'pt'
@@ -211,7 +234,20 @@ export default function RentabiliteChantierSection({ artisan, orgRole }: { artis
   const [membres, setMembres] = useState<Membre[]>([])
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [situations, setSituations] = useState<Situation[]>([])
-  const [documents, setDocuments] = useState<SavedDoc[]>([])
+  /**
+   * Devis et factures : la liste du tableau de bord si elle est arrivée (celle de la SOCIÉTÉ pour un salarié
+   * invité), le stockage du navigateur sinon. Hors de l'effet qui charge les données BTP, délibérément : placé
+   * dedans, il courait avec lui — deux exécutions coexistent pour un salarié, et celle du montage, qui ne voit
+   * qu'une liste vide, pouvait se résoudre en dernier et remettre le chiffre d'affaires à zéro.
+   *
+   * `avecBrouillons: false` : un brouillon n'entre pas dans un chiffre d'affaires.
+   */
+  const documents = useMemo(
+    // Règle n° 1 : seule une société BTP bascule de source ; côté artisan, lecture inchangée (cf. le même
+    // conditionnement dans StatsRevenusSection).
+    () => documentsPourSynthese<SavedDoc>(isV5 ? savedDocuments : undefined, artisan?.id, false),
+    [isV5, savedDocuments, artisan?.id],
+  )
 
   useEffect(() => {
     if (!artisan?.id) return
@@ -281,8 +317,7 @@ export default function RentabiliteChantierSection({ artisan, orgRole }: { artis
         setExpenses(load(`fixit_expenses_${artisan.id}`))
         setSituations(load(`situations_${artisan.id}`))
       }
-      // TODO: fetch documents from Supabase `factures` table once BTP API supports it
-      setDocuments(load(`fixit_documents_${artisan.id}`))
+      // (Les devis et factures sont calculés hors de cet effet : voir `documents` plus haut.)
     }
     fetchData()
   }, [artisan?.id])
